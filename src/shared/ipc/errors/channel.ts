@@ -1,0 +1,4 @@
+export const channelErrorCodes = {
+  CHANNEL_NOT_FOUND: 'CHANNEL_NOT_FOUND',
+  CHANNEL_CONFIG_INVALID: 'CHANNEL_CONFIG_INVALID'
+} as const

@@ -1,5 +1,3 @@
-import { app, BrowserWindow, screen, shell } from 'electron'
-
 /**
  * QuickAssistantService — business orchestration for the quick assistant window.
  *
@@ -25,6 +23,8 @@ import { app, BrowserWindow, screen, shell } from 'electron'
  *     `ready-to-show`, but with `show: false` in the registry every user-visible
  *     show now flows through `showQuickAssistant`, so a single capture point suffices.
  */
+import { app, BrowserWindow, screen } from 'electron'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { type Activatable, BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
@@ -258,7 +258,10 @@ export class QuickAssistantService extends BaseService implements Activatable {
 
       event.preventDefault()
       if (isSafeExternalUrl(url)) {
-        void shell.openExternal(url)
+        void application
+          .get('MainWindowService')
+          .openWebsite(url)
+          .catch((error) => logger.warn('Failed to open website', { error }))
       } else {
         logger.warn(`Blocked navigation to untrusted URL scheme: ${url}`)
       }
@@ -266,7 +269,10 @@ export class QuickAssistantService extends BaseService implements Activatable {
 
     window.webContents.setWindowOpenHandler((details) => {
       if (isSafeExternalUrl(details.url)) {
-        void shell.openExternal(details.url)
+        void application
+          .get('MainWindowService')
+          .openWebsite(details.url)
+          .catch((error) => logger.warn('Failed to open website', { error }))
       } else {
         logger.warn(`Blocked shell.openExternal for untrusted URL scheme: ${details.url}`)
       }

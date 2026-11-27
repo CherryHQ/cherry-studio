@@ -9,7 +9,7 @@ const Gpt35Turbo = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const Gpt35TurboIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Gpt35Turbo, {
   Avatar: Gpt35TurboAvatar,
-  colorPrimary: '#000000'
+  colorPrimary: '#57d0ed'
 })
 
 export default Gpt35TurboIcon

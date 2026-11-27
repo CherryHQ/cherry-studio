@@ -48,6 +48,22 @@ export function pickNeighbourAfterRemoval<T extends { id: string }>(
   return orderedList[index + 1 === orderedList.length ? index - 1 : index + 1]
 }
 
+/** Reorders `items` to follow `orderedIds`, dropping unknown ids and keeping unlisted items at the end. */
+export function applyOptimisticOrder<T extends { id: string }>(
+  items: readonly T[],
+  orderedIds: readonly string[]
+): T[] {
+  const itemById = new Map(items.map((item) => [item.id, item]))
+  const listedIds = new Set(orderedIds)
+  return [
+    ...orderedIds.flatMap((id) => {
+      const item = itemById.get(id)
+      return item ? [item] : []
+    }),
+    ...items.filter((item) => !listedIds.has(item.id))
+  ]
+}
+
 /**
  * Return the entity with the most recent `updatedAt` (ISO string). Ties keep the first item;
  * a missing or unparseable `updatedAt` sorts as oldest. Returns `undefined` for an empty list.

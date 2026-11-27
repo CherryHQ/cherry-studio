@@ -29,10 +29,8 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       asset_sha: ${{ steps.source.outputs.asset_sha }}
-      branch_slug: ${{ steps.source.outputs.branch_slug }}
-      preview_tag: ${{ steps.source.outputs.preview_tag }}
-      short_sha: ${{ steps.source.outputs.short_sha }}
       source_sha: ${{ steps.source.outputs.source_sha }}
+      targets: ${{ steps.targets.outputs.targets }}
     steps:
       - name: Resolve source branch
         id: source
@@ -49,50 +47,132 @@ jobs:
           fi
 
           SOURCE_SHA="${REMOTE_REF%%[[:space:]]*}"
-          BRANCH_SLUG="$(printf '%s' "$BRANCH" | sed -E 's/[^A-Za-z0-9._-]+/-/g; s/^-+//; s/-+$//' | cut -c1-60)"
-          if [ -z "$BRANCH_SLUG" ]; then
-            BRANCH_SLUG="sha-${SOURCE_SHA:0:12}"
-          fi
-
-          echo "branch_slug=$BRANCH_SLUG" >> "$GITHUB_OUTPUT"
-          echo "preview_tag=preview-$BRANCH_SLUG-${SOURCE_SHA:0:12}" >> "$GITHUB_OUTPUT"
           echo "asset_sha=${SOURCE_SHA:0:7}" >> "$GITHUB_OUTPUT"
-          echo "short_sha=${SOURCE_SHA:0:12}" >> "$GITHUB_OUTPUT"
           echo "source_sha=$SOURCE_SHA" >> "$GITHUB_OUTPUT"
           echo "Resolved $BRANCH to $SOURCE_SHA"
 
-  build:
-    name: Build preview ${{ matrix.edition }} (${{ matrix.os }})
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          ref: ${{ github.workflow_sha }}
+      - name: Select preview targets
+        id: targets
+        env:
+          PLATFORM: ${{ inputs.platform }}
+        run: echo "targets=$(node scripts/release/targets.js "$PLATFORM")" >> "$GITHUB_OUTPUT"
+
+      - name: Check out preview source interface
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          ref: ${{ steps.source.outputs.source_sha }}
+          path: preview-source
+
+      - name: Validate preview tool preparation interface
+        shell: bash
+        run: |
+          node -e 'const tools = require("./preview-source/scripts/download-binaries.js"); if (tools.PACKAGING_DOWNLOAD_VERSION !== 1) throw new Error("Preview source does not support packaging tool assets v1"); require("node:fs").accessSync("preview-source/scripts/release/prepare-tools.js")'
+
+  bundle:
+    name: Build JS ${{ matrix.edition }}
     needs: resolve
-    runs-on: ${{ matrix.os }}
-    environment: release
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        edition: [global, cn]
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          ref: ${{ needs.resolve.outputs.source_sha }}
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+      - uses: pnpm/action-setup@v5
+      - name: Locate pnpm store
+        id: store
+        shell: bash
+        run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache/restore@v6
+        id: dependencies
+        with:
+          path: ${{ steps.store.outputs.path }}
+          key: ${{ runner.os }}-${{ runner.arch }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-pnpm-
+      - name: "Dependency cache: ${{ steps.dependencies.outputs.cache-hit == 'true' && 'exact-hit' || 'unknown' }}"
+        run: ":"
+      - name: Install Dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Set preview version
+        shell: bash
+        run: |
+          BASE_VERSION="$(node -p "require('./package.json').version.split('-')[0]")"
+          PREVIEW_VERSION="$BASE_VERSION-preview-${{ needs.resolve.outputs.asset_sha }}"
+          npm version "$PREVIEW_VERSION" --no-git-tag-version --allow-same-version --ignore-scripts
+          echo "Building preview version $PREVIEW_VERSION from ${{ needs.resolve.outputs.source_sha }}"
+
+      - name: Typecheck preview source
+        run: pnpm typecheck
+        env:
+          NODE_OPTIONS: --max-old-space-size=8192
+      - name: Build JS bundle
+        run: pnpm run ${{ matrix.edition == 'cn' && 'build:release:cn' || 'build:release' }}
+        env:
+          NODE_OPTIONS: --max-old-space-size=8192
+          MAIN_VITE_CHERRYAI_CLIENT_SECRET: ${{ secrets.MAIN_VITE_CHERRYAI_CLIENT_SECRET }}
+          MAIN_VITE_CHERRY_CLOUD_CLIENT_SECRET: ${{ secrets.MAIN_VITE_CHERRY_CLOUD_CLIENT_SECRET }}
+          SENTRY_SOURCE_MAP_UPLOAD: "true"
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
+          MAIN_VITE_MINERU_API_KEY: ${{ secrets.MAIN_VITE_MINERU_API_KEY }}
+          RENDERER_VITE_AIHUBMIX_SECRET: ${{ secrets.RENDERER_VITE_AIHUBMIX_SECRET }}
+          RENDERER_VITE_PPIO_APP_SECRET: ${{ secrets.RENDERER_VITE_PPIO_APP_SECRET }}
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release-js-${{ matrix.edition }}
+          path: |
+            out/
+            release-bundle.json
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 3
+
+      - name: Save pnpm dependencies
+        if: matrix.edition == 'global' && steps.dependencies.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: ${{ steps.store.outputs.path }}
+          key: ${{ steps.dependencies.outputs.cache-primary-key }}
+
+  build:
+    name: Build preview ${{ matrix.edition }} (${{ matrix.target.platform }}-${{ matrix.target.arch }})
+    needs: [resolve, bundle]
+    runs-on: ${{ matrix.target.os }}
     strategy:
       fail-fast: false
       matrix:
         edition: [global, cn]
-        os: ${{ fromJSON(
-          inputs.platform == 'all' && '["macos-latest", "windows-latest", "ubuntu-latest"]' ||
-          inputs.platform == 'linux' && '["ubuntu-latest"]' ||
-          inputs.platform == 'windows' && '["windows-latest"]' ||
-          inputs.platform == 'mac' && '["macos-latest"]' ||
-          '["macos-latest", "windows-latest", "ubuntu-latest"]'
-          ) }}
+        target: ${{ fromJSON(needs.resolve.outputs.targets) }}
 
     steps:
       - name: Check out preview commit
         uses: actions/checkout@v7
         with:
-          fetch-depth: 0
+          fetch-depth: 1
           persist-credentials: false
           ref: ${{ needs.resolve.outputs.source_sha }}
 
       - name: Install Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version-file: ".node-version"
 
       - name: macos-latest dependencies fix
-        if: matrix.os == 'macos-latest'
+        if: matrix.target.platform == 'mac'
         run: brew install python-setuptools
 
       - name: Install pnpm
@@ -104,15 +184,20 @@ jobs:
         run: echo "STORE_PATH=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
 
       - name: Cache pnpm dependencies
-        uses: actions/cache@v5
+        id: dependencies
+        uses: actions/cache/restore@v6
         with:
           path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
-          key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
+          key: ${{ runner.os }}-${{ runner.arch }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
           restore-keys: |
-            ${{ runner.os }}-pnpm-
+            ${{ runner.os }}-${{ runner.arch }}-pnpm-
+
+      - name: "Dependency cache: ${{ steps.dependencies.outputs.cache-hit == 'true' && 'exact-hit' || 'unknown' }}"
+        shell: bash
+        run: ":"
 
       - name: Install dependencies
-        run: pnpm install
+        run: pnpm install --frozen-lockfile
 
       - name: Set preview version
         shell: bash
@@ -122,99 +207,177 @@ jobs:
           npm version "$PREVIEW_VERSION" --no-git-tag-version --allow-same-version --ignore-scripts
           echo "Building preview version $PREVIEW_VERSION from ${{ needs.resolve.outputs.source_sha }}"
 
-      - name: Build Linux
-        if: matrix.os == 'ubuntu-latest'
+      - name: Cache verified Linux SQLite artifacts
+        if: matrix.target.platform == 'linux'
+        uses: actions/cache@v6
+        with:
+          path: scripts/linux-native/prebuilt
+          key: linux-sqlite-${{ matrix.target.arch }}-${{ hashFiles('pnpm-lock.yaml', 'scripts/linux-native/compat.js', 'scripts/linux-native/download.js', 'scripts/linux-native/release.json', 'patches/**') }}
+
+      - name: Clean preview output
+        shell: bash
         run: |
-          sudo apt-get install -y rpm libevdev-dev libxtst-dev libx11-dev libxfixes-dev libwayland-dev
-          pnpm ${{ matrix.edition == 'cn' && 'build:linux:cn' || 'build:linux' }}
+          node -e 'for (const directory of ["out", "dist"]) require("node:fs").rmSync(directory, { recursive: true, force: true })'
+
+      - name: Download JS bundle
+        uses: actions/download-artifact@v8
+        with:
+          name: release-js-${{ matrix.edition }}
+      - name: Verify JS bundle
+        run: node scripts/release/js-bundle.js verify ${{ matrix.edition }}
+
+      - name: Locate bundled tool asset cache
+        id: tools
+        shell: bash
+        run: node scripts/release/prepare-tools.js cache-info ${{ matrix.target.platform }} ${{ matrix.target.arch }} >> "$GITHUB_OUTPUT"
+
+      - name: Restore bundled tool assets
+        id: tool-assets
+        uses: actions/cache/restore@v6
+        with:
+          path: ${{ steps.tools.outputs.path }}
+          key: ${{ steps.tools.outputs.key }}
+          restore-keys: ${{ steps.tools.outputs.prefix }}
+
+      - name: Prepare bundled tools
+        run: node scripts/release/prepare-tools.js prepare ${{ matrix.target.platform }} ${{ matrix.target.arch }}
         env:
+          CHERRY_BINARY_CACHE: ${{ steps.tools.outputs.root }}
+
+      - name: Save bundled tool assets
+        if: matrix.edition == 'global' && steps.tool-assets.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: ${{ steps.tools.outputs.path }}
+          key: ${{ steps.tool-assets.outputs.cache-primary-key }}
+
+      - name: Enable Linux ARM64 addon builds
+        if: matrix.target.platform == 'linux' && matrix.target.arch == 'arm64'
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
+      - name: Build Linux
+        if: matrix.target.platform == 'linux'
+        run: |
+          sudo apt-get install -y rpm libglib2.0-dev libgdk-pixbuf-2.0-dev libevdev-dev libxtst-dev libx11-dev libxfixes-dev libwayland-dev
+          pnpm exec electron-builder --linux --${{ matrix.target.arch }} --publish never ${{ matrix.edition == 'cn' && '--config electron-builder.cn.config.cjs' || '' }}
+        env:
+          CHERRY_BINARY_CACHE: ${{ steps.tools.outputs.root }}
           NODE_OPTIONS: --max-old-space-size=8192
-          MAIN_VITE_CHERRY_CLOUD_CLIENT_SECRET: ${{ secrets.MAIN_VITE_CHERRY_CLOUD_CLIENT_SECRET }}
 
       - name: Build Mac
-        if: matrix.os == 'macos-latest'
+        if: matrix.target.platform == 'mac'
         run: |
           sudo -H pip install setuptools
-          pnpm ${{ matrix.edition == 'cn' && 'build:mac:cn' || 'build:mac' }}
+          pnpm exec electron-builder --mac --${{ matrix.target.arch }} --publish never ${{ matrix.edition == 'cn' && '--config electron-builder.cn.config.cjs' || '' }}
         env:
+          CHERRY_BINARY_CACHE: ${{ steps.tools.outputs.root }}
           CSC_FOR_PULL_REQUEST: true
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NODE_OPTIONS: --max-old-space-size=8192
-          MAIN_VITE_CHERRY_CLOUD_CLIENT_SECRET: ${{ secrets.MAIN_VITE_CHERRY_CLOUD_CLIENT_SECRET }}
-          MAIN_VITE_CHERRYAI_CLIENT_SECRET: ${{ secrets.MAIN_VITE_CHERRYAI_CLIENT_SECRET }}
-          MAIN_VITE_MINERU_API_KEY: ${{ secrets.MAIN_VITE_MINERU_API_KEY }}
-          RENDERER_VITE_AIHUBMIX_SECRET: ${{ secrets.RENDERER_VITE_AIHUBMIX_SECRET }}
-          RENDERER_VITE_PPIO_APP_SECRET: ${{ secrets.RENDERER_VITE_PPIO_APP_SECRET }}
 
       - name: Build Windows
-        if: matrix.os == 'windows-latest'
-        run: pnpm ${{ matrix.edition == 'cn' && 'build:win:cn' || 'build:win' }}
+        if: matrix.target.platform == 'windows'
+        run: pnpm exec electron-builder --win --x64 --arm64 --publish never ${{ matrix.edition == 'cn' && '--config electron-builder.cn.config.cjs' || '' }}
         env:
+          CHERRY_BINARY_CACHE: ${{ steps.tools.outputs.root }}
           ELECTRON_BUILDER_7Z_FILTER: BCJ
           NODE_OPTIONS: --max-old-space-size=8192
-          MAIN_VITE_CHERRY_CLOUD_CLIENT_SECRET: ${{ secrets.MAIN_VITE_CHERRY_CLOUD_CLIENT_SECRET }}
 
       - name: Validate edition preview artifacts
-        run: node scripts/release/validate-edition-artifacts.js "${{ matrix.edition }}"
+        shell: bash
+        env:
+          EDITION: ${{ matrix.edition }}
+          PLATFORM: ${{ matrix.target.platform }}
+          ARCH: ${{ matrix.target.arch }}
+        run: |
+          node <<'NODE'
+          const { validateEditionArtifacts } = require('./scripts/release/validate-edition-artifacts')
+          validateEditionArtifacts({
+            distDirectory: 'dist',
+            edition: process.env.EDITION,
+            platform: process.env.PLATFORM,
+            architecture: process.env.ARCH === 'all' ? undefined : process.env.ARCH,
+            productName: 'Cherry Studio',
+            version: require('./package.json').version
+          })
+          NODE
 
-      - name: Upload preview artifacts
+      - name: Upload preview x64 installer
+        if: matrix.target.arch == 'all' || matrix.target.arch == 'x64'
         uses: actions/upload-artifact@v7
         with:
-          name: cherry-studio-preview-${{ needs.resolve.outputs.branch_slug }}-${{ needs.resolve.outputs.short_sha }}-${{ matrix.os }}-${{ matrix.edition }}
           path: |
-            dist/*.exe
-            dist/*.zip
-            dist/*.dmg
-            dist/*.AppImage
-            dist/*.snap
-            dist/*.deb
-            dist/*.rpm
-            dist/*.tar.gz
-            dist/latest*.yml
-            dist/rc*.yml
-            dist/beta*.yml
-            dist/preview*.yml
-            dist/*.blockmap
+            dist/*-x64-setup.exe
+            dist/*-x64.dmg
+            dist/*-x64.AppImage
+          archive: false
           if-no-files-found: error
           retention-days: 3
-          compression-level: 0
 
-  draft-release:
-    name: Create draft preview release
-    needs: [resolve, build]
+      - name: Upload preview arm64 installer
+        if: matrix.target.arch == 'all' || matrix.target.arch == 'arm64'
+        uses: actions/upload-artifact@v7
+        with:
+          path: |
+            dist/*-arm64-setup.exe
+            dist/*-arm64.dmg
+            dist/*-arm64.AppImage
+          archive: false
+          if-no-files-found: error
+          retention-days: 3
+
+      - name: Save pnpm dependencies
+        if: matrix.edition == 'global' && (matrix.target.platform == 'windows' || (matrix.target.platform == 'mac' && matrix.target.arch == 'x64')) && steps.dependencies.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          key: ${{ steps.dependencies.outputs.cache-primary-key }}
+
+  summary:
+    name: Preview downloads
+    needs: [resolve, bundle, build]
+    if: always() && needs.resolve.result == 'success'
     runs-on: ubuntu-latest
     permissions:
       actions: read
-      contents: write
     steps:
-      - name: Download preview artifacts
-        uses: actions/download-artifact@v8
+      - name: Summarize preview artifacts
+        uses: actions/github-script@v8
         with:
-          pattern: cherry-studio-preview-${{ needs.resolve.outputs.branch_slug }}-${{ needs.resolve.outputs.short_sha }}-*
-          path: preview-artifacts
-          merge-multiple: true
-
-      - name: Create or update draft release
-        uses: ncipollo/release-action@v1
-        with:
-          allowUpdates: true
-          artifactErrorsFailBuild: true
-          artifacts: "preview-artifacts/*"
-          body: |
-            Internal preview build for `${{ inputs.branch }}` at `${{ needs.resolve.outputs.source_sha }}`.
-
-            This draft is for internal testing only. It is isolated from the formal release, hotfix backport, and post-release workflows.
-          commit: ${{ needs.resolve.outputs.source_sha }}
-          draft: true
-          makeLatest: false
-          name: Preview ${{ inputs.branch }} @ ${{ needs.resolve.outputs.short_sha }}
-          prerelease: true
-          replacesArtifacts: true
-          tag: ${{ needs.resolve.outputs.preview_tag }}
-          updateOnlyUnreleased: true
-          token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const artifacts = await github.paginate(github.rest.actions.listWorkflowRunArtifacts, {
+              ...context.repo,
+              run_id: context.runId,
+              per_page: 100
+            });
+            const platforms = { win: 'Windows', mac: 'macOS', linux: 'Linux' };
+            const rows = [];
+            for (const artifact of artifacts.sort((a, b) => a.name.localeCompare(b.name))) {
+              const match = /^Cherry-Studio(-CN)?-(\d+\.\d+\.\d+-preview-[0-9a-f]{7})-(win|mac|linux)-(x64|arm64)(?:-setup\.exe|\.dmg|\.AppImage)$/.exec(artifact.name);
+              if (artifact.expired || !match) continue;
+              const [, cn, version, platform, arch] = match;
+              const size = `${(artifact.size_in_bytes / 1024 / 1024).toFixed(1)} MiB`;
+              const url = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}/artifacts/${artifact.id}`;
+              rows.push(`| ${platforms[platform]} | ${cn ? 'CN' : 'Global'} | ${arch} | ${version} | ${size} | [Download](${url}) |`);
+            }
+            const lines = [
+              '## Preview downloads',
+              '',
+              'Installers are available for 3 days. Sign in to GitHub to download the original file without an extra ZIP archive.',
+              '',
+              'Only available uploads are listed; check the build jobs for failures.',
+              ''
+            ];
+            if (rows.length) {
+              lines.push('| Platform | Edition | Architecture | Version | Size | Download |',
+                '| --- | --- | --- | --- | --- | --- |', ...rows);
+            } else {
+              lines.push('No preview installers are available. Check the build jobs for details.');
+            }
+            await core.summary.addRaw(lines.join('\n') + '\n').write();

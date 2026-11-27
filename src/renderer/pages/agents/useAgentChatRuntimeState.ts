@@ -1,10 +1,9 @@
 import { isToolUIPart } from 'ai'
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { type ComponentType, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
-import {
-  createOverlayRefreshHandoff,
-  useMessageStreamingLayers
-} from '@renderer/components/chat/messages/stream/useMessageStreamingLayers'
+import type { ToastConfig } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
 import {
   isAskUserQuestionToolName,
   parseAskUserQuestionToolInput
@@ -17,20 +16,54 @@ import type {
 import type { ComposerContextValue } from '@renderer/components/composer/ComposerContext'
 import { useToolApprovalComposerOverrides } from '@renderer/components/composer/useToolApprovalComposerOverrides'
 import type { AgentComposerSendOptions } from '@renderer/components/composer/variants/AgentComposer'
+import type { PermissionRequestComposerProps } from '@renderer/components/composer/variants/PermissionRequestComposer'
+import { cacheService } from '@renderer/data/CacheService'
+import { useSharedCacheValue } from '@renderer/data/hooks/useCache'
+import { usePreference } from '@renderer/data/hooks/usePreference'
+import { useAgentSessionSlashCommands } from '@renderer/hooks/agent/useAgentSessionSlashCommands'
+import { useAgentSessionStreamTopic } from '@renderer/hooks/agent/useAgentSessionStreamTopic'
+import { useAgentToolParts } from '@renderer/hooks/agent/useAgentToolParts'
 import { useAgentSessionParts } from '@renderer/hooks/useAgentSessionParts'
 import { useChatWithHistory } from '@renderer/hooks/useChatWithHistory'
-import {
-  type ConversationHistoryAdapter,
-  useConversationTurnController
-} from '@renderer/hooks/useConversationTurnController'
-import { useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
-import { useTopicOverlayHandoffOnTerminal, useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
+import { useConversationErrorToasts } from '@renderer/hooks/useConversationErrorToasts'
+import { useConversationTurnController } from '@renderer/hooks/useConversationTurnController'
+import { useHistoryReplies } from '@renderer/hooks/useHistoryReplies'
+import { useStableStringArray } from '@renderer/hooks/useStableStringArray'
+import { useTopicCompletion } from '@renderer/hooks/useTopicCompletion'
+import { useTopicSpeech } from '@renderer/hooks/useTopicSpeech'
+import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { ipcApi } from '@renderer/ipc'
+import { handOffAgentDraft } from '@renderer/services/agentDraftHandoff'
 import { invalidateCachedMessageUiStates } from '@renderer/services/messageUiStateCache'
-import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
-import { mergeMessagesById } from '@renderer/utils/message/mergeMessagesById'
+import { popup } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
+import { autoReadService } from '@renderer/services/voice'
+import type { ExecutionFinishEvent } from '@renderer/types/message'
+import { formatErrorMessage } from '@renderer/utils/error'
+import { createPartsByMessageId } from '@renderer/utils/message/exportView'
+import { mergeLiveReplies } from '@renderer/utils/message/mergeMessagesById'
+import {
+  activeReplyIds,
+  replyParts,
+  type MessagePartRows,
+  messagePartEntries
+} from '@renderer/utils/message/messagePartRows'
+import { endsWithProviderQuotaError } from '@renderer/utils/message/providerQuotaError'
+import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
+import type { AgentSessionEditDraft, AgentSessionEditTarget } from '@shared/ai/agentSessionEdit'
+import { AGENT_SESSION_CLOSING_CACHE_KEY, agentSessionEditFailureReasons } from '@shared/ai/agentSessionEdit'
+import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
+import { AGENT_SESSION_TURN_ORIGIN_CACHE_KEY } from '@shared/ai/agentSessionTurnOrigin'
 import type { AiStreamOpenRequest, AiToolApprovalRespondResponse } from '@shared/ai/transport'
+import type { AgentType } from '@shared/data/types/agent'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import type { UniqueModelId } from '@shared/data/types/model'
+import { aiErrorCodes, agentSessionForkFailureReason } from '@shared/ipc/errors/ai'
+import { IpcError } from '@shared/ipc/errors/IpcError'
+
+import { agentSessionForkReasonLabel } from './messages/agentSessionFork'
+
+const logger = loggerService.withContext('useAgentChatRuntimeState')
 
 type AskUserQuestionApprovalPart = CherryMessagePart & {
   type?: string
@@ -44,6 +77,7 @@ export type AgentSendOptions = AgentComposerSendOptions
 
 export interface AgentTurnInput {
   text: string
+  editTarget?: AgentSessionEditTarget
   options?: AgentSendOptions
 }
 
@@ -75,6 +109,24 @@ function getAskUserQuestionAnswers(value: unknown): Record<string, string> | und
   return answers && Object.keys(answers).length > 0 ? answers : undefined
 }
 
+/**
+ * What a submitted answer becomes when the runtime that asked for it is gone: each answered
+ * question followed by the choice and any note the user typed next to it.
+ */
+export function formatAskUserQuestionAnswerMessage(value: unknown): string | undefined {
+  const parsed = parseAskUserQuestionToolInput(value)
+  if (!parsed?.answers) return undefined
+
+  const lines = parsed.questions.flatMap((question) => {
+    const answer = parsed.answers?.[question.question]?.trim()
+    const notes = parsed.annotations?.[question.question]?.notes
+    const body = [answer, typeof notes === 'string' ? notes.trim() : ''].filter(Boolean).join('\n')
+    return body ? [`${question.question}\n${body}`] : []
+  })
+
+  return lines.length > 0 ? lines.join('\n\n') : undefined
+}
+
 function hasAskUserQuestionAnswers(part: AskUserQuestionApprovalPart): boolean {
   const outputContent =
     typeof part.output === 'object' && part.output !== null && 'content' in part.output
@@ -87,11 +139,15 @@ function hasAskUserQuestionAnswers(part: AskUserQuestionApprovalPart): boolean {
   )
 }
 
+function isAskUserQuestionPart(part: CherryMessagePart): boolean {
+  return isToolUIPart(part) && isAskUserQuestionToolName(getToolNameFromPart(part))
+}
+
 function findAskUserQuestionPartByCallId(
-  partsByMessageId: Record<string, CherryMessagePart[]>,
+  partsByMessageId: MessagePartRows,
   toolCallId: string
 ): AskUserQuestionApprovalPart | undefined {
-  for (const parts of Object.values(partsByMessageId)) {
+  for (const [, parts] of messagePartEntries(partsByMessageId)) {
     for (const part of parts) {
       if (!isToolUIPart(part)) continue
       const toolPart = part as AskUserQuestionApprovalPart
@@ -105,8 +161,11 @@ function findAskUserQuestionPartByCallId(
 
 export interface AgentChatRuntimeState {
   sessionId: string
+  getMessageSiblings: ReturnType<typeof useAgentSessionParts>['getMessageSiblings']
+  setActiveBranch: ReturnType<typeof useAgentSessionParts>['setActiveBranch']
   uiMessages: CherryUIMessage[]
-  partsByMessageId: Record<string, CherryMessagePart[]>
+  historyActions: ReturnType<typeof useAgentSessionParts>['historyActions']
+  partsByMessageId: MessagePartRows
   streamingLayers: MessageStreamingLayers
   optimisticAskUserQuestionInputsByToolCallId: Record<string, unknown>
   isLoading: boolean
@@ -119,10 +178,21 @@ export interface AgentChatRuntimeState {
   deleteMessage: (messageId: string) => Promise<void>
   respondToolApproval: (input: MessageToolApprovalInput) => Promise<void>
   composerContext: ComposerContextValue
+  editing?: AgentSessionEditDraft
+  editBusy: boolean
+  startEditing: (messageId: string) => Promise<void>
+  cancelEditing: () => void
+  resendEditedMessage: AgentChatRuntimeState['sendMessage']
+  /** The latest reply failed because a provider other than Cherry Cloud ran out of quota. */
+  providerQuotaExhausted: boolean
 }
 
 interface UseAgentChatRuntimeStateParams {
   sessionId: string
+  modelId?: UniqueModelId
+  agentType?: AgentType
+  agentName?: string
+  permissionRequestComponent?: ComponentType<PermissionRequestComposerProps>
   sessionMessagesEnabled: boolean
   sessionHistoryFetchOnMount?: boolean
   reservedMessages: CherryUIMessage[]
@@ -130,39 +200,116 @@ interface UseAgentChatRuntimeStateParams {
 
 export function useAgentChatRuntimeState({
   sessionId,
+  modelId,
+  agentType,
+  agentName,
+  permissionRequestComponent,
   sessionMessagesEnabled,
   sessionHistoryFetchOnMount,
   reservedMessages
 }: UseAgentChatRuntimeStateParams): AgentChatRuntimeState {
+  const [autoReadEnabled] = usePreference('feature.voice.auto_read.enabled')
+  const { t } = useTranslation()
+  const errorToastsRef = useRef<ReturnType<typeof useConversationErrorToasts> | null>(null)
+  const liveSlashCommands = useAgentSessionSlashCommands(sessionId)
+  const slashCommands = liveSlashCommands ?? (agentType ? AGENT_RUNTIME_CAPABILITIES[agentType]?.slashCommands : [])
+  const canCompact = slashCommands?.some((command) => command.command === '/compact') ?? false
+  const [editDraft, setEditDraft] = useState<AgentSessionEditDraft & { sessionId: string }>()
+  const editing = editDraft?.sessionId === sessionId ? editDraft : undefined
+  const [editPending, setEditPending] = useState(false)
+  const [resendingHistory, setResendingHistory] = useState<{ sessionId: string; messages: CherryUIMessage[] }>()
+  const optimisticMessages = resendingHistory?.sessionId === sessionId ? resendingHistory.messages : undefined
+  const editRequestRef = useRef(false)
+  const editActivationRef = useRef(0)
+  useLayoutEffect(
+    () => () => {
+      editActivationRef.current += 1
+    },
+    [sessionId]
+  )
+  const currentSessionRef = useRef(sessionId)
+  currentSessionRef.current = sessionId
+  const reportEditError = useCallback(
+    (error: unknown, messageId: string) => {
+      const forkReason = agentSessionForkFailureReason(error)
+      const reason =
+        error instanceof IpcError && error.data && typeof error.data === 'object' && 'reason' in error.data
+          ? error.data.reason
+          : undefined
+      const editReason =
+        error instanceof IpcError && error.code === aiErrorCodes.AI_AGENT_SESSION_EDIT_FAILED
+          ? agentSessionEditFailureReasons.find((candidate) => candidate === reason)
+          : undefined
+      const originalError = formatErrorMessage(error)
+      const description = editReason
+        ? t(`agent.edit_resend.error.${editReason}`)
+        : forkReason
+          ? agentSessionForkReasonLabel(t, forkReason)
+          : originalError
+      const details = [
+        description,
+        error instanceof IpcError ? `code: ${error.code}` : undefined,
+        reason !== undefined ? `reason: ${String(reason)}` : undefined,
+        originalError,
+        `sessionId: ${sessionId}`,
+        `messageId: ${messageId}`
+      ]
+        .filter(Boolean)
+        .join('\n')
+      const notification: ToastConfig = {
+        title: t('agent.edit_resend.label'),
+        description,
+        details,
+        timeout: 0,
+        action: {
+          label: t('common.copy'),
+          onClick: async () => {
+            try {
+              await navigator.clipboard.writeText(details)
+            } catch {
+              toast.error(notification)
+              toast.error(t('common.copy_failed'))
+            }
+          }
+        }
+      }
+      toast.error(notification)
+    },
+    [sessionId, t]
+  )
   const sessionTopicId = useMemo(() => (sessionId ? buildAgentSessionTopicId(sessionId) : ''), [sessionId])
+  const streamTopicId = useAgentSessionStreamTopic(sessionId)
   const {
     messages: uiMessages,
+    replyHistory,
+    historyActions,
+    getMessageSiblings,
+    setActiveBranch,
+    persistedPartsByMessageId,
     isLoading,
     hasOlder,
     loadOlder,
     selectAllPagination,
     refresh,
-    seedReservedMessages,
+    revalidate,
+    refreshReservedMessages,
+    displayIndex,
     deleteMessage: deleteSessionMessage
   } = useAgentSessionParts(sessionId, {
     enabled: sessionMessagesEnabled,
     fetchOnMount: sessionHistoryFetchOnMount
   })
+  const latestUiMessagesRef = useRef(uiMessages)
+  latestUiMessagesRef.current = uiMessages
 
   useLayoutEffect(() => {
     if (!sessionMessagesEnabled || reservedMessages.length === 0) return
-    void seedReservedMessages(reservedMessages)
-  }, [reservedMessages, seedReservedMessages, sessionMessagesEnabled])
+    void refreshReservedMessages(reservedMessages.map(({ id }) => id)).catch((error) =>
+      logger.warn('Could not refresh reserved history rows', { error })
+    )
+  }, [reservedMessages, refreshReservedMessages, sessionMessagesEnabled])
 
-  const { activeExecutions, setMessages, stop } = useChatWithHistory(sessionTopicId, uiMessages, refresh)
-  const historyAdapter = useMemo<ConversationHistoryAdapter>(
-    () => ({
-      seedReservedMessages,
-      refresh,
-      rollback: refresh
-    }),
-    [refresh, seedReservedMessages]
-  )
+  const { activeExecutions, stop, projection } = useChatWithHistory(streamTopicId, refresh)
   const ensureConversation = useCallback(() => ({ topicId: sessionTopicId }), [sessionTopicId])
   const buildStreamRequest = useCallback(
     (input: AgentTurnInput, conversation: { topicId: string }): AiStreamOpenRequest => ({
@@ -171,15 +318,36 @@ export function useAgentChatRuntimeState({
       userMessageParts: getAgentTurnParts(input),
       reasoningEffort: input.options?.body?.reasoningEffort,
       serviceTier: input.options?.body?.serviceTier,
-      ...(input.options?.body?.fastMode === true ? { fastMode: true } : {})
+      ...(input.options?.body?.fastMode === true ? { fastMode: true } : {}),
+      ...(input.options?.body?.followUp === true ? { followUp: true } : {})
     }),
     []
   )
   const { send } = useConversationTurnController<AgentTurnInput, { topicId: string }>({
     scopeKey: sessionTopicId,
-    historyAdapter,
+    onRollback: refresh,
     ensureConversation,
-    buildStreamRequest
+    buildStreamRequest,
+    onAccepted: async (ack, input) => {
+      errorToastsRef.current?.track(ack.activeExecutions, ack.reservedMessages)
+      if (input.editTarget) await revalidate()
+      else if (ack.reservedMessages?.length) await refreshReservedMessages(ack.reservedMessages.map(({ id }) => id))
+    },
+    onError: (error, input) =>
+      input.editTarget
+        ? reportEditError(error, input.editTarget.messageId)
+        : errorToastsRef.current?.report(error, modelId),
+    openStream: async (request, input) => {
+      if (!input.editTarget || request.trigger !== 'submit-message') return ipcApi.request('ai.stream.open', request)
+      return ipcApi.request('ai.agent.session.edit_resend', {
+        sessionId,
+        target: { messageId: input.editTarget.messageId, version: input.editTarget.version },
+        userMessageParts: request.userMessageParts,
+        reasoningEffort: request.reasoningEffort,
+        serviceTier: request.serviceTier,
+        fastMode: request.fastMode
+      })
+    }
   })
   const sendMessage = useCallback(
     async (message?: { text: string }, options?: AgentSendOptions) => {
@@ -191,45 +359,84 @@ export function useAgentChatRuntimeState({
     async (messageId: string) => {
       await deleteSessionMessage(messageId)
       invalidateCachedMessageUiStates([messageId])
-      setMessages((current) => current.filter((message) => message.id !== messageId))
     },
-    [deleteSessionMessage, setMessages]
+    [deleteSessionMessage]
   )
 
-  const {
-    overlay,
-    liveAssistants,
-    reset: resetOverlay
-  } = useExecutionOverlay(sessionTopicId, activeExecutions, uiMessages)
-  const { partsByMessageId, streamingLayers } = useMessageStreamingLayers({
-    messages: uiMessages,
-    overlay,
-    executions: activeExecutions,
-    liveAssistants
+  const handleExecutionFinish = useCallback(
+    (_executionId: string, event: ExecutionFinishEvent) => {
+      const projectedMessage = latestUiMessagesRef.current.find((message) => message.id === event.message.id)
+      const turnOrigin =
+        cacheService.getShared(AGENT_SESSION_TURN_ORIGIN_CACHE_KEY(sessionId, event.message.id)) ??
+        projectedMessage?.metadata?.turnOrigin ??
+        event.message.metadata?.turnOrigin
+      void autoReadService.consume({
+        enabled: autoReadEnabled,
+        message: event.message,
+        attemptId: event.attemptId,
+        isAbort: event.isAbort,
+        isError: event.isError,
+        eligible: !turnOrigin
+      })
+    },
+    [autoReadEnabled, sessionId]
+  )
+  const { status, isPending } = useTopicStreamStatus(streamTopicId)
+  const liveAssistants = useHistoryReplies(
+    projection,
+    activeExecutions,
+    replyHistory,
+    sessionMessagesEnabled ? status : undefined
+  )
+  useTopicSpeech(streamTopicId, activeExecutions, autoReadEnabled, (_executionId, event) => {
+    const messageId = event.type === 'snapshot' ? event.message.id : event.messageId
+    const turnOrigin =
+      cacheService.getShared(AGENT_SESSION_TURN_ORIGIN_CACHE_KEY(sessionId, messageId)) ??
+      (event.type === 'snapshot' ? event.message.metadata?.turnOrigin : event.turnOrigin)
+    autoReadService.update({ ...event, enabled: autoReadEnabled, scope: streamTopicId, eligible: !turnOrigin })
   })
+  useTopicCompletion(streamTopicId, activeExecutions, (executionId, event) => {
+    errorToastsRef.current?.onFinish(executionId, event)
+    handleExecutionFinish(executionId, event)
+  })
+  const historyPartsByMessageId = useMemo(
+    () => (optimisticMessages ? createPartsByMessageId(optimisticMessages) : persistedPartsByMessageId),
+    [optimisticMessages, persistedPartsByMessageId]
+  )
+  const partsByMessageId = useMemo(
+    () => replyParts(historyPartsByMessageId, liveAssistants),
+    [historyPartsByMessageId, liveAssistants]
+  )
+  const liveMessageIds = useStableStringArray(activeReplyIds(activeExecutions, liveAssistants))
+  const streamingLayers = useMemo(
+    () => ({ historyPartsByMessageId: historyPartsByMessageId, liveMessageIds }),
+    [historyPartsByMessageId, liveMessageIds]
+  )
   const [optimisticAskUserQuestionInputsByToolCallId, setOptimisticAskUserQuestionInputsByToolCallId] = useState<
     Record<string, unknown>
   >({})
 
-  // Deterministic overlay→DB handoff at terminal (see hook docs).
-  useTopicOverlayHandoffOnTerminal(sessionTopicId, createOverlayRefreshHandoff(refresh, resetOverlay))
-
   // Ref-guarded against <Activity> re-show: hide/show re-runs this effect with
-  // an unchanged sessionTopicId, and the fresh {} literal would defeat React's
+  // an unchanged streamTopicId, and the fresh {} literal would defeat React's
   // setState bail-out and force a re-render on every tab switch.
-  const optimisticInputsResetTopicIdRef = useRef(sessionTopicId)
+  const optimisticInputsResetTopicIdRef = useRef(streamTopicId)
   useEffect(() => {
-    if (optimisticInputsResetTopicIdRef.current === sessionTopicId) return
-    optimisticInputsResetTopicIdRef.current = sessionTopicId
+    if (optimisticInputsResetTopicIdRef.current === streamTopicId) return
+    optimisticInputsResetTopicIdRef.current = streamTopicId
     setOptimisticAskUserQuestionInputsByToolCallId({})
-  }, [sessionTopicId])
+  }, [streamTopicId])
 
+  const approvalParts = useAgentToolParts(
+    Object.keys(optimisticAskUserQuestionInputsByToolCallId).length ? sessionId : undefined,
+    partsByMessageId,
+    isAskUserQuestionPart
+  )
   useEffect(() => {
     setOptimisticAskUserQuestionInputsByToolCallId((current) => {
       let next = current
       let changed = false
       for (const toolCallId of Object.keys(current)) {
-        const sourcePart = findAskUserQuestionPartByCallId(partsByMessageId, toolCallId)
+        const sourcePart = findAskUserQuestionPartByCallId(approvalParts, toolCallId)
         if (!sourcePart || !hasAskUserQuestionAnswers(sourcePart)) continue
         if (!changed) {
           next = { ...current }
@@ -239,7 +446,7 @@ export function useAgentChatRuntimeState({
       }
       return changed ? next : current
     })
-  }, [partsByMessageId])
+  }, [approvalParts])
 
   const removeOptimisticAskUserQuestionInput = useCallback((toolCallId: string) => {
     setOptimisticAskUserQuestionInputsByToolCallId((current) => {
@@ -250,7 +457,10 @@ export function useAgentChatRuntimeState({
     })
   }, [])
 
-  const displayMessages = useMemo(() => mergeMessagesById(uiMessages, liveAssistants), [liveAssistants, uiMessages])
+  const displayMessages = useMemo(
+    () => optimisticMessages ?? mergeLiveReplies(uiMessages, liveAssistants, displayIndex, 'omit'),
+    [displayIndex, liveAssistants, optimisticMessages, uiMessages]
+  )
 
   const respondToolApproval = useCallback(
     async (input: MessageToolApprovalInput) => {
@@ -272,7 +482,7 @@ export function useAgentChatRuntimeState({
           approved,
           reason,
           updatedInput,
-          topicId: sessionTopicId,
+          topicId: streamTopicId,
           anchorId: match.messageId
         })
       } catch (error) {
@@ -282,18 +492,95 @@ export function useAgentChatRuntimeState({
 
       if (!result.ok) {
         if (optimisticToolCallId) removeOptimisticAskUserQuestionInput(optimisticToolCallId)
-        throw new Error('Tool approval response was not accepted')
+        if (result.reason !== 'undelivered') throw new Error('Tool approval response was not accepted')
+        const answerText = isAskUserQuestionApprovalResponse(input)
+          ? formatAskUserQuestionAnswerMessage(input.updatedInput)
+          : undefined
+        if (answerText) {
+          try {
+            if (!(await sendMessage({ text: answerText }))) throw new Error('Answer message was not accepted')
+          } catch (error) {
+            handOffAgentDraft(sessionId, { text: answerText, tokens: [], files: [], knowledgeBaseIds: [] })
+            throw error
+          }
+        }
+        await refresh()
+        return
       }
       await refresh()
     },
-    [refresh, removeOptimisticAskUserQuestionInput, sessionTopicId]
+    [refresh, removeOptimisticAskUserQuestionInput, sendMessage, sessionId, streamTopicId]
   )
   const toolApprovalComposerOverrides = useToolApprovalComposerOverrides({
+    topicId: streamTopicId,
     partsByMessageId,
+    persistedPartsByMessageId,
     streamingLayers,
-    onRespond: respondToolApproval
+    onRespond: respondToolApproval,
+    agentName,
+    permissionRequestComponent
   })
-  const { isPending } = useTopicStreamStatus(sessionTopicId)
+
+  const sessionClosing = useSharedCacheValue(AGENT_SESSION_CLOSING_CACHE_KEY(sessionId)) === true
+  const editBusy = isPending || sessionClosing || editPending || toolApprovalComposerOverrides.length > 0
+  const cancelEditing = useCallback(() => {
+    if (!editRequestRef.current) setEditDraft(undefined)
+  }, [])
+  const startEditing = useCallback(
+    async (messageId: string) => {
+      if (editBusy || editRequestRef.current) return
+      editRequestRef.current = true
+      setEditPending(true)
+      try {
+        const draft = await ipcApi.request('ai.agent.session.edit_target', { sessionId, messageId })
+        if (currentSessionRef.current === sessionId) setEditDraft({ ...draft, sessionId })
+      } catch (error) {
+        if (currentSessionRef.current === sessionId) reportEditError(error, messageId)
+      } finally {
+        editRequestRef.current = false
+        setEditPending(false)
+      }
+    },
+    [editBusy, reportEditError, sessionId]
+  )
+  const resendEditedMessage = useCallback<AgentChatRuntimeState['sendMessage']>(
+    async (message, options) => {
+      if (!editing || editBusy || editRequestRef.current) return false
+      editRequestRef.current = true
+      setEditPending(true)
+      const input = { text: message?.text ?? '', options, editTarget: editing }
+      const activation = editActivationRef.current
+      try {
+        const confirmed = await popup.confirm({
+          title: t('agent.edit_resend.save'),
+          content: t('agent.edit_resend.warning'),
+          okText: t('agent.edit_resend.save'),
+          cancelText: t('common.cancel'),
+          okButtonProps: { danger: true }
+        })
+        if (!confirmed || editActivationRef.current !== activation || currentSessionRef.current !== sessionId)
+          return false
+        const index = uiMessages.findIndex((item) => item.id === editing.messageId)
+        if (index >= 0) {
+          setResendingHistory({
+            sessionId,
+            messages: [...uiMessages.slice(0, index), { ...uiMessages[index], parts: getAgentTurnParts(input) }]
+          })
+        }
+        const sent = await send(input)
+        if (sent && currentSessionRef.current === sessionId) setEditDraft(undefined)
+        return sent
+      } catch (error) {
+        if (currentSessionRef.current === sessionId) reportEditError(error, editing.messageId)
+        return false
+      } finally {
+        setResendingHistory(undefined)
+        editRequestRef.current = false
+        setEditPending(false)
+      }
+    },
+    [editBusy, editing, reportEditError, send, sessionId, t, uiMessages]
+  )
 
   const composerContext = useMemo<ComposerContextValue>(
     () => ({
@@ -302,9 +589,27 @@ export function useAgentChatRuntimeState({
     [toolApprovalComposerOverrides]
   )
 
+  const providerQuotaExhausted = useMemo(() => endsWithProviderQuotaError(displayMessages), [displayMessages])
+
+  const errorToasts = useConversationErrorToasts(streamTopicId, {
+    trimContext: canCompact
+      ? async () => {
+          if (isPending || editBusy) return false
+          return (
+            errorToastsRef.current?.waitForFinish(() => send({ text: '/compact' }, { throwOnError: true }), modelId) ??
+            false
+          )
+        }
+      : undefined
+  })
+  errorToastsRef.current = errorToasts
+
   return {
     sessionId,
     uiMessages: displayMessages,
+    historyActions,
+    getMessageSiblings,
+    setActiveBranch,
     partsByMessageId,
     streamingLayers,
     optimisticAskUserQuestionInputsByToolCallId,
@@ -317,6 +622,12 @@ export function useAgentChatRuntimeState({
     sendMessage,
     deleteMessage,
     respondToolApproval,
-    composerContext
+    composerContext,
+    editing,
+    editBusy,
+    startEditing,
+    cancelEditing,
+    resendEditedMessage,
+    providerQuotaExhausted
   }
 }

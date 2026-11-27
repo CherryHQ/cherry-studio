@@ -16,6 +16,40 @@ describe('useConversationHistoryQuery', () => {
     vi.useRealTimers()
   })
 
+  it('rejects parallel loading for cursor-paginated conversation history', () => {
+    if ((false as boolean) === true) {
+      void useConversationHistoryQuery('/topics/:topicId/messages', {
+        params: { topicId: 'topic-1' },
+        // @ts-expect-error - each page key depends on the previous page cursor
+        swrOptions: { parallel: true }
+      })
+    }
+  })
+
+  it('keeps cached history readable but rejects a failed read used for live-reply handoff', async () => {
+    const page = { items: [], nextCursor: undefined, activeNodeId: null }
+    const get = vi.spyOn(dataApiService, 'get').mockResolvedValue(page)
+    const { Wrapper } = makeWrapper()
+    const { result } = renderHook(
+      () =>
+        useConversationHistoryQuery('/topics/:topicId/messages', {
+          params: { topicId: 'topic-1' },
+          swrOptions: { shouldRetryOnError: false }
+        }),
+      { wrapper: Wrapper }
+    )
+    await waitFor(() => expect(result.current.pages).toEqual([page]))
+    get.mockRejectedValue(new Error('history unavailable'))
+    await act(async () => {
+      await expect(result.current.refresh({ throwOnError: true })).rejects.toThrow('history unavailable')
+    })
+    expect(result.current.pages).toEqual([page])
+    get.mockResolvedValue(page)
+    await act(async () => {
+      await expect(result.current.refresh({ throwOnError: true })).resolves.toEqual([page])
+    })
+  })
+
   it('removes a cursor page cache entry after revalidation replaces that cursor', async () => {
     let firstPageCursor = 'cursor-1'
     vi.spyOn(dataApiService, 'get').mockImplementation((async (

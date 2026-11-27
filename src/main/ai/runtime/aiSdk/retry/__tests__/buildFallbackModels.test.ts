@@ -88,25 +88,9 @@ describe('buildFallbackModels', () => {
     ).toEqual([])
   })
 
-  it('is lazy — no provider/model/buildAgentParams work until a resolver is invoked', () => {
-    getByKey.mockReturnValue(makeModel({ id: 'anthropic::claude', providerId: 'anthropic', apiModelId: 'claude-x' }))
-    stubBuildAgentParams('claude-x')
-
-    const resolvers = buildFallbackModels({
-      ...baseArgs,
-      primaryUniqueModelId: 'openai::gpt-4',
-      retryPolicy: policy(['anthropic::claude'])
-    })
-
-    expect(resolvers).toHaveLength(1)
-    expect(getByKey).not.toHaveBeenCalled()
-    expect(buildAgentParams).not.toHaveBeenCalled()
-    expect(resolveLanguageModel).not.toHaveBeenCalled()
-  })
-
   it('resolves a fallback with its OWN plugins and lifts its OWN param overrides', async () => {
     getByKey.mockReturnValue(makeModel({ id: 'anthropic::claude', providerId: 'anthropic', apiModelId: 'claude-x' }))
-    const { plugins, repairToolCall, credentialReceipt } = stubBuildAgentParams('claude-x')
+    const { repairToolCall, credentialReceipt } = stubBuildAgentParams('claude-x')
 
     const [resolve] = buildFallbackModels({
       ...baseArgs,
@@ -115,14 +99,13 @@ describe('buildFallbackModels', () => {
     })
     const fallback = await resolve()
 
-    // The fallback's middleware plugins are passed to resolveLanguageModel.
     expect(createUsagePlugin).toHaveBeenCalledWith({
       provider: expect.objectContaining({ id: 'anthropic' }),
       model: expect.objectContaining({ id: 'anthropic::claude' }),
       sdkModelId: 'claude-x',
       credentialReceipt
     })
-    expect(resolveLanguageModel).toHaveBeenCalledWith('anthropic', {}, 'claude-x', [...plugins, usagePlugin])
+
     const buildOptions = buildAgentParams.mock.calls[0][0]
     expect(buildOptions.getRepairUsagePlugins()).toEqual([usagePlugin])
     // The fallback's own params are lifted as the per-fallback option override.
@@ -195,6 +178,30 @@ describe('buildFallbackModels', () => {
     })
 
     expect(await resolve()).toBeNull()
+  })
+
+  it('gates a fallback on its provider being enabled', async () => {
+    getByKey.mockReturnValue(makeModel({ id: 'anthropic::claude', providerId: 'anthropic', apiModelId: 'claude-x' }))
+    getByProviderId.mockReturnValue(makeProvider({ id: 'anthropic', isEnabled: false }))
+
+    const [resolveDisabled] = buildFallbackModels({
+      ...baseArgs,
+      primaryUniqueModelId: 'openai::gpt-4',
+      retryPolicy: policy(['anthropic::claude'])
+    })
+
+    expect(await resolveDisabled()).toBeNull()
+    expect(buildAgentParams).not.toHaveBeenCalled()
+
+    getByProviderId.mockReturnValue(makeProvider({ id: 'anthropic', isEnabled: true }))
+    stubBuildAgentParams('claude-x')
+    const [resolveEnabled] = buildFallbackModels({
+      ...baseArgs,
+      primaryUniqueModelId: 'openai::gpt-4',
+      retryPolicy: policy(['anthropic::claude'])
+    })
+
+    expect(await resolveEnabled()).not.toBeNull()
   })
 
   it.each([

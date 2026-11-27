@@ -30,13 +30,11 @@ export const authConnectionClasses = {
  */
 export const providerDetailColumnClasses = {
   headerPad: 'shrink-0 px-6 py-2.5',
-  scrollStrip: 'min-h-0 flex-1 overflow-x-hidden px-6 pt-1.5 pb-6',
-  contentMaxWidth: 'mx-auto w-full max-w-3xl',
+  scrollViewport: 'px-6 pt-1.5 pb-6',
+  contentMaxWidth: 'mx-auto w-full max-w-5xl',
   /** Header inner wrapper: same max-width as body content. */
-  headerContentMaxWidth: 'mx-auto w-full max-w-3xl',
-  // h-full (not min-h-full): the model list below sizes itself from the remaining
-  // space, which only works if this column has a definite height.
-  sectionStack: 'mx-auto flex h-full w-full min-w-0 max-w-3xl flex-col gap-5'
+  headerContentMaxWidth: 'mx-auto w-full max-w-5xl',
+  sectionStack: 'mx-auto flex min-h-full w-full min-w-0 max-w-5xl flex-col gap-5'
 } as const
 
 /** Connection-field actions. */
@@ -65,14 +63,14 @@ export const providerListClasses = {
     'min-w-0 flex-1 bg-transparent text-sm leading-5 text-foreground outline-none placeholder:text-muted-foreground',
   searchClearButton:
     'flex size-[22px] shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent/40 hover:text-foreground disabled:pointer-events-none disabled:opacity-30',
-  scroller: 'min-h-0 flex-1 px-2.5 pt-2 pb-0',
+  scrollViewport: 'px-2.5 pt-2',
   sectionStack: 'flex flex-col gap-2',
   section: 'space-y-2',
   sectionHeader: 'pb-0.5 pl-2 pr-2 pt-1.5',
   sectionHeaderAfterEnabled: 'pt-2',
   sectionLabel: 'mb-0.5 text-xs leading-[1.2] text-foreground-tertiary',
   emptyState: 'flex h-full min-h-40 items-center justify-center px-3 text-center text-foreground-tertiary text-[14px]',
-  addFooter: 'shrink-0 px-2.5 pb-2.5',
+  addFooter: 'shrink-0 px-2.5 pt-2 pb-2.5',
   addButton:
     'flex h-8 w-full items-center justify-center gap-1.5 rounded-lg border border-border bg-transparent px-2.5 py-0 text-xs text-foreground shadow-none transition-colors hover:border-border-strong hover:bg-accent/50 disabled:pointer-events-none disabled:opacity-40',
   item: providerListItemFrame,
@@ -175,9 +173,9 @@ export const drawerClasses = {
 } as const
 
 export const modelListClasses = {
-  cqRoot: 'flex h-full min-h-0 min-w-0 w-full flex-1 flex-col gap-2.5',
-  section: 'flex h-full min-h-0 min-w-0 w-full flex-1 flex-col gap-2.5',
-  headerBlock: 'flex min-h-0 min-w-0 w-full flex-1 flex-col gap-3',
+  cqRoot: 'flex min-w-0 w-full flex-col gap-2.5',
+  section: 'flex min-w-0 w-full flex-col gap-2.5',
+  headerBlock: 'flex min-w-0 w-full flex-col gap-3',
   titleRow: 'flex min-w-0 w-full flex-wrap items-center justify-between gap-2.5',
   headerInlineRow: 'flex min-w-0 w-full flex-wrap items-center justify-between gap-2',
   headerInlineActions: 'flex max-w-full shrink-0 flex-wrap items-center justify-end gap-2',
@@ -237,9 +235,7 @@ export const modelListClasses = {
     'size-8 rounded-lg border-border-subtle bg-transparent text-muted-foreground shadow-none hover:bg-accent/40 hover:text-foreground',
   emptyState:
     'flex min-h-40 items-center justify-center rounded-2xl border border-border border-dashed bg-muted/30 px-4 text-center text-sm leading-5 text-foreground-tertiary',
-  // mt-1, not pt-1: rows scroll through a scroller's top padding, but the pinned
-  // group header sticks below it, so padding here leaks a sliver of the row above.
-  listScroller: 'min-h-0 min-w-0 w-full flex-1 overflow-x-hidden mt-1',
+  listScroller: 'min-h-0 min-w-0 w-full mt-1',
   virtualModelRow: 'border-x border-border-subtle bg-transparent',
   virtualModelRowLast: 'rounded-b-lg border-b border-border-subtle pb-1',
   /**
@@ -401,7 +397,7 @@ export const modelSyncClasses = {
   manageTabsTriggerDestructive:
     'text-error-subtle-foreground hover:text-error-subtle-foreground data-[state=active]:border-error-border data-[state=active]:bg-error-subtle data-[state=active]:text-error-subtle-foreground dark:text-error-subtle-foreground dark:data-[state=active]:border-error-border dark:data-[state=active]:bg-error-subtle dark:data-[state=active]:text-error-subtle-foreground',
   manageTabCount: 'text-[11px] text-foreground-tertiary tabular-nums',
-  manageScrollArea: 'min-h-0 flex-1 pr-1 [scrollbar-gutter:stable]',
+  manageScrollArea: 'min-h-0 flex-1',
   manageLoading: 'flex min-h-52 items-center justify-center text-muted-foreground',
   manageList: 'pb-1',
   manageGroup: 'contents',

@@ -1,7 +1,7 @@
 import { NotebookPen, Settings2 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
-import { ComposerPanelSymbol } from '@renderer/components/composer/quickPanel'
+import { ComposerPanelSymbol, prepareComposerQuickPanelSearch } from '@renderer/components/composer/quickPanel'
 import type { ComposerToolFooterAction, ComposerToolLauncher } from '@renderer/components/composer/toolLauncher'
 import { defineTool, type ToolRenderContext, TopicType } from '@renderer/components/composer/tools/types'
 import type { QuickPanelListItem } from '@renderer/components/QuickPanel'
@@ -11,35 +11,12 @@ import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { openRoute } from '@renderer/services/mainWindowNavigation'
 import { projectNotesTree, resolveNotesPath } from '@renderer/services/NotesService'
 import { flattenTreeToFiles } from '@renderer/services/NotesTreeService'
-import { FILE_TYPE } from '@renderer/types/file'
-import type { NotesTreeNode } from '@renderer/types/note'
-import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
-import { createComposerFileTokenSourceId } from '@renderer/utils/message/composerFileTokenSource'
-import { AbsoluteFilePathSchema } from '@shared/types/file'
+
+import { NOTES_TREE_OPTIONS, noteToComposerAttachment } from './noteReference'
 
 export const NOTE_REFERENCE_LAUNCHER_ID = 'note-reference'
 
-const NOTES_TREE_OPTIONS = {
-  extensions: ['.md'],
-  respectGitignore: false,
-  includeHidden: false
-}
-
 type NoteReferenceToolContext = ToolRenderContext<readonly ['files'], readonly ['setFiles']>
-
-export function noteToComposerAttachment(note: NotesTreeNode): ComposerAttachment {
-  const fileName = note.externalPath.split(/[\\/]/).at(-1) || `${note.name}.md`
-
-  return {
-    fileTokenSourceId: createComposerFileTokenSourceId(),
-    path: AbsoluteFilePathSchema.parse(note.externalPath),
-    name: fileName,
-    origin_name: fileName,
-    ext: '.md',
-    size: 0,
-    type: FILE_TYPE.TEXT
-  }
-}
 
 export const NoteReferenceComposerRuntime = ({ context }: { context: NoteReferenceToolContext }) => {
   const { actions, launcher, state, t } = context
@@ -52,6 +29,7 @@ export const NoteReferenceComposerRuntime = ({ context }: { context: NoteReferen
     dataRequested ? resolvedNotesPath : undefined,
     NOTES_TREE_OPTIONS
   )
+  const rootPanelVisible = isVisible && symbol === ComposerPanelSymbol.Root
   const selectedFilePaths = useMemo<Set<string | undefined>>(
     () => new Set(state.files.map((file) => file.path)),
     [state.files]
@@ -120,6 +98,7 @@ export const NoteReferenceComposerRuntime = ({ context }: { context: NoteReferen
         description: note.treePath,
         filterText: `${note.name} ${note.treePath}`,
         icon: <NotebookPen />,
+        suffix: t('chat.input.note_reference.title'),
         isSelected,
         disabled: isSelected,
         action: () => {
@@ -138,8 +117,26 @@ export const NoteReferenceComposerRuntime = ({ context }: { context: NoteReferen
     }
   }, [isVisible, panelItems, symbol, updateList])
 
+  useEffect(() => {
+    if (!rootPanelVisible) return
+    let cancelled = false
+    setDataRequested(true)
+    setResolvedNotesPath(undefined)
+    setPathError(null)
+    void resolveNotesPath(notesPath)
+      .then(({ path }) => {
+        if (!cancelled) setResolvedNotesPath(path)
+      })
+      .catch((nextError) => {
+        if (!cancelled) setPathError(nextError instanceof Error ? nextError : new Error(String(nextError)))
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [notesPath, rootPanelVisible])
+
   const openNoteReferencePanel = useCallback<NonNullable<ComposerToolLauncher['action']>>(
-    ({ parentPanel, queryAnchor, quickPanel }) => {
+    ({ inputAdapter, parentPanel, queryAnchor, quickPanel, triggerInfo }) => {
       setDataRequested(true)
       setResolvedNotesPath(undefined)
       setPathError(null)
@@ -153,9 +150,7 @@ export const NoteReferenceComposerRuntime = ({ context }: { context: NoteReferen
         list: panelItems,
         symbol: ComposerPanelSymbol.Notes,
         parentPanel,
-        queryAnchor,
-        triggerInfo: { type: 'button' },
-        trackInputQuery: true
+        ...prepareComposerQuickPanelSearch({ inputAdapter, queryAnchor, triggerInfo })
       })
     },
     [notesPath, panelItems, t]
@@ -173,12 +168,13 @@ export const NoteReferenceComposerRuntime = ({ context }: { context: NoteReferen
           description: t('chat.input.note_reference.description'),
           icon: <NotebookPen />,
           panelSymbol: ComposerPanelSymbol.Notes,
+          rootSearchItems: panelItems,
           action: openNoteReferencePanel
         }
       ],
       [manageNotesAction]
     )
-  }, [launcher, manageNotesAction, openNoteReferencePanel, t])
+  }, [launcher, manageNotesAction, openNoteReferencePanel, panelItems, t])
 
   return null
 }

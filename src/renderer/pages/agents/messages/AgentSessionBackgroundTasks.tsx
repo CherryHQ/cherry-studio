@@ -1,7 +1,9 @@
+import { isToolUIPart } from 'ai'
 import { Loader2, Workflow } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@cherrystudio/ui'
+import { useMessageParts, useMessagePartsScopeId } from '@renderer/components/chat/messages/blocks/MessagePartsContext'
 import { useMessageListActions } from '@renderer/components/chat/messages/MessageListProvider'
 import HorizontalScrollContainer from '@renderer/components/HorizontalScrollContainer'
 import { useAgentSessionBackgroundTasks } from '@renderer/hooks/agent/useAgentSessionBackgroundTasks'
@@ -13,7 +15,18 @@ interface Props {
 export default function AgentSessionBackgroundTasks({ sessionId }: Props) {
   const { t } = useTranslation()
   const { openAgentToolFlow } = useMessageListActions()
-  const backgroundTasks = useAgentSessionBackgroundTasks(sessionId)
+  const tasks = useAgentSessionBackgroundTasks(sessionId)
+  const messageId = useMessagePartsScopeId()
+  const parts = useMessageParts(messageId ?? '')
+  const backgroundTasks = tasks.filter(
+    (task) =>
+      !(
+        openAgentToolFlow &&
+        (task.type === 'subagent' || task.type === 'local_agent') &&
+        task.toolCallId &&
+        parts.some((part) => isToolUIPart(part) && part.toolCallId === task.toolCallId)
+      )
+  )
 
   if (backgroundTasks.length === 0) return null
 

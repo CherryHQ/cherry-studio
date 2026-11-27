@@ -2,7 +2,7 @@
  * 运行时执行器
  * 专注于插件化的AI调用处理
  */
-import type { ImageModelV3, JSONObject, LanguageModelV3, ProviderV3 } from '@ai-sdk/provider'
+import type { ImageModelV3, JSONObject, LanguageModelV3, ProviderV3, RerankingModelV3 } from '@ai-sdk/provider'
 import type { LanguageModel } from 'ai'
 import {
   createProviderRegistry,
@@ -34,6 +34,19 @@ import type {
   streamTextParams
 } from './types'
 
+type ModelWrapper = (model: LanguageModelV3) => LanguageModelV3
+
+function startProviderCall(
+  start: (() => RuntimeProviderCallHandler) | undefined,
+  fallback: RuntimeProviderCallHandler | undefined
+): RuntimeProviderCallHandler | undefined {
+  try {
+    return start?.() ?? fallback
+  } catch {
+    return fallback
+  }
+}
+
 function emitProviderCall(handler: RuntimeProviderCallHandler | undefined, event: RuntimeProviderCallEvent): void {
   try {
     handler?.(event)
@@ -49,11 +62,24 @@ export class RuntimeExecutor<
   public pluginEngine: PluginEngine<T>
   private config: RuntimeConfig<TSettingsMap, T>
   private registry: ReturnType<typeof createProviderRegistry>
+  private readonly resolveModelPlugin: AiPlugin
+  private readonly resolveImageModelPlugin: AiPlugin
 
   constructor(config: RuntimeConfig<TSettingsMap, T>) {
     this.config = config
     // 创建插件客户端
     this.pluginEngine = new PluginEngine(config.providerId, config.plugins || [])
+    this.resolveModelPlugin = definePlugin({
+      name: '_internal_resolveModel',
+      enforce: 'post',
+      // 仅负责解析 modelId → model 对象，middleware 由 pluginEngine 统一应用
+      resolveModel: (modelId: string) => this.resolveModel(modelId)
+    })
+    this.resolveImageModelPlugin = definePlugin({
+      name: '_internal_resolveImageModel',
+      enforce: 'post',
+      resolveModel: (modelId: string) => this.resolveImageModel(modelId)
+    })
 
     // Some v3 providers (e.g., @openrouter/ai-sdk-provider) expose textEmbeddingModel
     // but not embeddingModel. Patch for AI SDK registry compatibility.
@@ -67,53 +93,15 @@ export class RuntimeExecutor<
     })
   }
 
-  createResolveModelPlugin() {
-    return definePlugin({
-      name: '_internal_resolveModel',
-      enforce: 'post',
-
-      resolveModel: async (modelId: string) => {
-        // 仅负责解析 modelId → model 对象，middleware 由 pluginEngine 统一应用
-        return await this.resolveModel(modelId)
-      }
-    })
-  }
-
-  private createResolveImageModelPlugin() {
-    return definePlugin({
-      name: '_internal_resolveImageModel',
-      enforce: 'post',
-
-      resolveModel: async (modelId: string) => {
-        return await this.resolveImageModel(modelId)
-      }
-    })
-  }
-
-  createConfigureContextPlugin() {
-    return definePlugin({
-      name: '_internal_configureContext',
-      configureContext: async () => {
-        // Placeholder for future context configuration
-        // Previously set executor and baseProvider, now handled by registry
-      }
-    })
-  }
-
   // === 高阶重载：直接使用模型 ===
 
   /**
    * 流式文本生成
+   * @param wrapModel 在 provider 中间件之后应用的最外层模型包装器。
    */
-  async streamText(params: streamTextParams): Promise<ReturnType<typeof _streamText>> {
+  async streamText(params: streamTextParams, wrapModel?: ModelWrapper): Promise<ReturnType<typeof _streamText>> {
     const { model } = params
-
-    // 根据 model 类型决定插件配置
-    if (typeof model === 'string') {
-      this.pluginEngine.usePlugins([this.createResolveModelPlugin(), this.createConfigureContextPlugin()])
-    } else {
-      this.pluginEngine.usePlugins([this.createConfigureContextPlugin()])
-    }
+    const requestPlugins = typeof model === 'string' ? [this.resolveModelPlugin] : []
 
     return this.pluginEngine.executeStreamWithPlugins(
       'streamText',
@@ -124,10 +112,12 @@ export class RuntimeExecutor<
 
         return _streamText({
           ...transformedParams,
-          model: resolvedModel,
+          model: this.wrapModel(resolvedModel, wrapModel),
           experimental_transform
         })
-      }
+      },
+      undefined,
+      requestPlugins
     )
   }
 
@@ -135,21 +125,19 @@ export class RuntimeExecutor<
 
   /**
    * 生成文本
+   * @param wrapModel 在 provider 中间件之后应用的最外层模型包装器。
    */
-  async generateText(params: generateTextParams): Promise<ReturnType<typeof _generateText>> {
+  async generateText(params: generateTextParams, wrapModel?: ModelWrapper): Promise<ReturnType<typeof _generateText>> {
     const { model } = params
-
-    // 根据 model 类型决定插件配置
-    if (typeof model === 'string') {
-      this.pluginEngine.usePlugins([this.createResolveModelPlugin(), this.createConfigureContextPlugin()])
-    } else {
-      this.pluginEngine.usePlugins([this.createConfigureContextPlugin()])
-    }
+    const requestPlugins = typeof model === 'string' ? [this.resolveModelPlugin] : []
 
     return this.pluginEngine.executeWithPlugins<Parameters<typeof _generateText>[0], ReturnType<typeof _generateText>>(
       'generateText',
       params,
-      (resolvedModel, transformedParams) => _generateText({ ...transformedParams, model: resolvedModel })
+      (resolvedModel, transformedParams) =>
+        _generateText({ ...transformedParams, model: this.wrapModel(resolvedModel, wrapModel) }),
+      undefined,
+      requestPlugins
     )
   }
 
@@ -158,44 +146,42 @@ export class RuntimeExecutor<
    */
   async generateImage(params: generateImageParams): Promise<generateImageResult> {
     try {
-      const { model, onProviderCall, ...providerParams } = params
-
-      // 根据 model 类型决定插件配置
-      if (typeof model === 'string') {
-        this.pluginEngine.usePlugins([this.createResolveImageModelPlugin(), this.createConfigureContextPlugin()])
-      } else {
-        this.pluginEngine.usePlugins([this.createConfigureContextPlugin()])
-      }
+      const { model, onProviderCall, onProviderCallStart, ...providerParams } = params
+      const requestPlugins = typeof model === 'string' ? [this.resolveImageModelPlugin] : []
 
       return this.pluginEngine.executeImageWithPlugins(
         'generateImage',
         { ...providerParams, model },
         (resolvedModel, transformedParams) => {
-          const observedModel = onProviderCall
-            ? wrapImageModel({
-                model: resolvedModel,
-                middleware: {
-                  specificationVersion: 'v3',
-                  wrapGenerate: async ({ doGenerate, model: activeModel }) => {
-                    const startedAt = performance.now()
-                    const result = await doGenerate()
-                    emitProviderCall(onProviderCall, {
-                      modality: 'image',
-                      requestId: `ai-core:image:${crypto.randomUUID()}`,
-                      providerId: this.config.providerId,
-                      modelId: activeModel.modelId,
-                      imageCount: result.images.length,
-                      ...(result.usage ? { usage: result.usage } : {}),
-                      metrics: { timeCompletionMs: Math.max(0, Math.round(performance.now() - startedAt)) },
-                      completedAt: Date.now()
-                    })
-                    return result
+          const observedModel =
+            onProviderCall || onProviderCallStart
+              ? wrapImageModel({
+                  model: resolvedModel,
+                  middleware: {
+                    specificationVersion: 'v3',
+                    wrapGenerate: async ({ doGenerate, model: activeModel }) => {
+                      const handler = startProviderCall(onProviderCallStart, onProviderCall)
+                      const startedAt = performance.now()
+                      const result = await doGenerate()
+                      emitProviderCall(handler, {
+                        modality: 'image',
+                        requestId: `ai-core:image:${crypto.randomUUID()}`,
+                        providerId: this.config.providerId,
+                        modelId: activeModel.modelId,
+                        imageCount: result.images.length,
+                        ...(result.usage ? { usage: result.usage } : {}),
+                        metrics: { timeCompletionMs: Math.max(0, Math.round(performance.now() - startedAt)) },
+                        completedAt: Date.now()
+                      })
+                      return result
+                    }
                   }
-                }
-              })
-            : resolvedModel
+                })
+              : resolvedModel
           return _generateImage({ ...transformedParams, model: observedModel })
-        }
+        },
+        undefined,
+        requestPlugins
       )
     } catch (error) {
       if (error instanceof Error) {
@@ -215,7 +201,7 @@ export class RuntimeExecutor<
    * 批量嵌入文本
    */
   async embedMany(params: EmbedManyParams): Promise<EmbedManyResult> {
-    const { model: modelOrId, onProviderCall, ...options } = params
+    const { model: modelOrId, onProviderCall, onProviderCallStart, ...options } = params
 
     // 解析 embedding 模型
     const embeddingModel =
@@ -223,28 +209,30 @@ export class RuntimeExecutor<
         ? this.registry.embeddingModel(`${this.config.providerId}:${modelOrId}` as `${string}:${string}`)
         : modelOrId
 
-    const observedModel = onProviderCall
-      ? wrapEmbeddingModel({
-          model: embeddingModel,
-          middleware: {
-            specificationVersion: 'v3',
-            wrapEmbed: async ({ doEmbed, model }) => {
-              const startedAt = performance.now()
-              const result = await doEmbed()
-              emitProviderCall(onProviderCall, {
-                modality: 'embedding',
-                requestId: `ai-core:embedding:${crypto.randomUUID()}`,
-                providerId: this.config.providerId,
-                modelId: model.modelId,
-                ...(result.usage ? { usage: result.usage } : {}),
-                metrics: { timeCompletionMs: Math.max(0, Math.round(performance.now() - startedAt)) },
-                completedAt: Date.now()
-              })
-              return result
+    const observedModel =
+      onProviderCall || onProviderCallStart
+        ? wrapEmbeddingModel({
+            model: embeddingModel,
+            middleware: {
+              specificationVersion: 'v3',
+              wrapEmbed: async ({ doEmbed, model }) => {
+                const handler = startProviderCall(onProviderCallStart, onProviderCall)
+                const startedAt = performance.now()
+                const result = await doEmbed()
+                emitProviderCall(handler, {
+                  modality: 'embedding',
+                  requestId: `ai-core:embedding:${crypto.randomUUID()}`,
+                  providerId: this.config.providerId,
+                  modelId: model.modelId,
+                  ...(result.usage ? { usage: result.usage } : {}),
+                  metrics: { timeCompletionMs: Math.max(0, Math.round(performance.now() - startedAt)) },
+                  completedAt: Date.now()
+                })
+                return result
+              }
             }
-          }
-        })
-      : embeddingModel
+          })
+        : embeddingModel
 
     return _embedMany({
       model: observedModel,
@@ -253,27 +241,36 @@ export class RuntimeExecutor<
   }
 
   async rerank<VALUE extends JSONObject | string = string>(params: RerankParams<VALUE>): Promise<RerankResult<VALUE>> {
-    const { model: modelOrId, onProviderCall, ...options } = params
+    const { model: modelOrId, onProviderCall, onProviderCallStart, ...options } = params
 
     const rerankingModel =
       typeof modelOrId === 'string'
         ? this.registry.rerankingModel(`${this.config.providerId}:${modelOrId}` as `${string}:${string}`)
         : modelOrId
 
-    const startedAt = performance.now()
-    const result = await _rerank<VALUE>({
-      model: rerankingModel,
-      ...options
-    })
-    emitProviderCall(onProviderCall, {
-      modality: 'rerank',
-      requestId: `ai-core:rerank:${crypto.randomUUID()}`,
-      providerId: this.config.providerId,
-      modelId: rerankingModel.modelId,
-      metrics: { timeCompletionMs: Math.max(0, Math.round(performance.now() - startedAt)) },
-      completedAt: Date.now()
-    })
-    return result
+    const observedModel: RerankingModelV3 =
+      onProviderCall || onProviderCallStart
+        ? {
+            specificationVersion: rerankingModel.specificationVersion,
+            provider: rerankingModel.provider,
+            modelId: rerankingModel.modelId,
+            doRerank: async (callOptions) => {
+              const handler = startProviderCall(onProviderCallStart, onProviderCall)
+              const startedAt = performance.now()
+              const result = await rerankingModel.doRerank(callOptions)
+              emitProviderCall(handler, {
+                modality: 'rerank',
+                requestId: `ai-core:rerank:${crypto.randomUUID()}`,
+                providerId: this.config.providerId,
+                modelId: rerankingModel.modelId,
+                metrics: { timeCompletionMs: Math.max(0, Math.round(performance.now() - startedAt)) },
+                completedAt: Date.now()
+              })
+              return result
+            }
+          }
+        : rerankingModel
+    return _rerank<VALUE>({ model: observedModel, ...options })
   }
 
   // === 辅助方法 ===
@@ -295,6 +292,21 @@ export class RuntimeExecutor<
       return this.config.modelResolver(modelId)
     }
     return this.registry.languageModel(`${this.config.providerId}:${modelId}` as `${string}:${string}`)
+  }
+
+  /**
+   * Resolve a model id through the plugin chain: `configureContext` middleware
+   * contributed by this executor's plugins is applied to the returned model.
+   * Use `languageModel()` instead when the bare provider model is wanted.
+   */
+  public resolveLanguageModel(modelId: string): Promise<LanguageModelV3> {
+    return this.pluginEngine.resolveModel(modelId, [this.resolveModelPlugin])
+  }
+
+  private wrapModel(model: LanguageModel, wrapModel?: ModelWrapper): LanguageModel {
+    if (!wrapModel) return model
+    if (!isV3Model(model)) throw new Error('Model wrapper requires a V3 language model')
+    return wrapModel(model)
   }
 
   /**

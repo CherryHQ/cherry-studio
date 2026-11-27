@@ -1,10 +1,10 @@
 import { Bot, Check, Filter, Plus } from 'lucide-react'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
+import { EmojiIcon, MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import EmojiIcon from '@renderer/components/EmojiIcon'
+import { AssistantAvatarImage } from '@renderer/components/Avatar/AssistantAvatarImage'
 import {
   getResourceCreateDefaultAvatar,
   ResourceCreateWizard,
@@ -14,8 +14,8 @@ import { ConversationPickerDialog, type ConversationPickerItem } from '@renderer
 import { useMutation } from '@renderer/data/hooks/useDataApi'
 import { type AssistantCatalogPreset, useAssistantCatalogPresets } from '@renderer/hooks/useAssistantCatalogPresets'
 import type { Assistant } from '@renderer/types/assistant'
-import { buildCreateAssistantDto } from '@renderer/utils/resourceCatalog'
 import { cn } from '@renderer/utils/style'
+import { buildCreateAssistantDto } from '@shared/ai/assistantCreateDto'
 import { isNonChatModel } from '@shared/utils/model'
 
 const logger = loggerService.withContext('AssistantConversationPickerDialog')
@@ -66,12 +66,21 @@ export function AssistantConversationPickerDialog({
       assistants.map((assistant) => ({
         id: `assistant:${assistant.id}`,
         name: assistant.name,
-        icon: assistant.emoji ? (
-          <EmojiIcon emoji={assistant.emoji} size={24} fontSize={14} className="mr-0" />
-        ) : (
-          <span className="flex size-6 items-center justify-center rounded-full bg-sidebar-accent">
-            <Bot size={14} />
-          </span>
+        icon: (
+          <AssistantAvatarImage
+            src={assistant.avatarSrc}
+            alt={assistant.name}
+            className="size-6 rounded-full object-cover"
+            fallback={
+              assistant.emoji ? (
+                <EmojiIcon emoji={assistant.emoji} size={24} />
+              ) : (
+                <span className="flex size-6 items-center justify-center rounded-full bg-sidebar-accent">
+                  <Bot size={14} />
+                </span>
+              )
+            }
+          />
         ),
         searchText: assistant.description,
         selection: { type: 'assistant' as const, assistantId: assistant.id }
@@ -84,7 +93,7 @@ export function AssistantConversationPickerDialog({
       presets.map((preset) => ({
         id: `catalog:${preset.id}`,
         name: preset.name,
-        icon: <EmojiIcon emoji={preset.emoji || '🤖'} size={24} fontSize={14} className="mr-0" />,
+        icon: <EmojiIcon emoji={preset.emoji || '🤖'} size={24} />,
         searchText: [preset.description, preset.prompt].filter(Boolean).join(' '),
         selection: { type: 'catalog' as const, preset }
       })),
@@ -113,22 +122,39 @@ export function AssistantConversationPickerDialog({
     [onOpenChange]
   )
 
+  const createdIdRef = useRef<string | null>(null)
   const handleSubmitCreate = useCallback(
     async (values: ResourceCreateWizardValues) => {
       try {
         const created = await createAssistant({
           body: buildCreateAssistantDto(values)
         })
-        setCreateDialogOpen(false)
-        // Start a conversation with the new assistant so it surfaces in the rail (a fresh assistant
-        // has no topic yet), mirroring picking an existing one.
-        await onSelect({ type: 'assistant', assistantId: created.id })
+        createdIdRef.current = created.id
+        return created.id
       } catch (error) {
         logger.error('Failed to create assistant from conversation picker', error as Error)
         throw error
       }
     },
-    [createAssistant, onSelect]
+    [createAssistant]
+  )
+
+  // Start a conversation with the new assistant so it surfaces in the rail (a fresh assistant
+  // has no topic yet), mirroring picking an existing one. Closing the result page does it too.
+  const handleStartConversation = useCallback(
+    (assistantId: string) => {
+      if (createdIdRef.current !== assistantId) return
+      createdIdRef.current = null
+      void onSelect({ type: 'assistant', assistantId })
+    },
+    [onSelect]
+  )
+  const handleCreateDialogOpenChange = useCallback(
+    (nextOpen: boolean) => {
+      setCreateDialogOpen(nextOpen)
+      if (!nextOpen && createdIdRef.current) handleStartConversation(createdIdRef.current)
+    },
+    [handleStartConversation]
   )
 
   // null = combined 资源库 + 助手库 (the default "全部" view).
@@ -196,14 +222,7 @@ export function AssistantConversationPickerDialog({
                 row: (query) =>
                   query
                     ? {
-                        icon: (
-                          <EmojiIcon
-                            emoji={getResourceCreateDefaultAvatar('assistant')}
-                            size={24}
-                            fontSize={14}
-                            className="mr-0"
-                          />
-                        ),
+                        icon: <EmojiIcon emoji={getResourceCreateDefaultAvatar('assistant')} size={24} />,
                         title: query,
                         tag: t('selector.assistant.create_tag')
                       }
@@ -227,8 +246,9 @@ export function AssistantConversationPickerDialog({
         open={createDialogOpen}
         initialName={createInitialName}
         isSubmitting={isCreatingAssistant}
-        onOpenChange={setCreateDialogOpen}
+        onOpenChange={handleCreateDialogOpenChange}
         onSubmit={handleSubmitCreate}
+        onStartConversation={handleStartConversation}
         modelFilter={(candidate) => !isNonChatModel(candidate)}
       />
     </>

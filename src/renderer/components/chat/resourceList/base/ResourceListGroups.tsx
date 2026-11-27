@@ -1,10 +1,11 @@
 import { ChevronRight } from 'lucide-react'
 import type { ComponentProps, MouseEvent, ReactNode, Ref } from 'react'
-import { isValidElement, useCallback, useEffect, useState } from 'react'
+import { isValidElement, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Tooltip } from '@cherrystudio/ui'
-import { CommandContextMenu } from '@renderer/components/command'
+import { CommandContextMenu, CommandFocusScope } from '@renderer/components/command'
+import { useCommandHandler } from '@renderer/hooks/command'
 import { cn } from '@renderer/utils/style'
 
 import {
@@ -14,6 +15,7 @@ import {
   useResourceListActions,
   useResourceListGroupState,
   useResourceListMeta,
+  useResourceListUiStore,
   useResourceListView
 } from './ResourceListContext'
 import {
@@ -37,10 +39,62 @@ const EMPTY_GROUP_HEADER_ITEMS: ResourceListItemBase[] = []
  * short title as the section-header chevron.
  */
 const GROUP_HEADER_CHEVRON_SLOT_CLASS =
-  '-ml-1.5 hidden size-6 shrink-0 items-center justify-center text-muted-foreground group-hover/resource-list-group:flex group-has-[:focus-visible]/resource-list-group:flex group-has-data-[state=open]/resource-list-group:flex'
+  '-ml-1.5 hidden size-6 shrink-0 items-center justify-center text-muted-foreground group-hover/resource-list-group:flex group-has-[:focus-visible]/resource-list-group:flex group-has-data-[state=open]/resource-list-group:flex no-hover:flex'
 
 function stopEventPropagation(event: { stopPropagation: () => void }) {
   event.stopPropagation()
+}
+
+function assignRef<T>(ref: Ref<T> | undefined, value: T | null) {
+  if (typeof ref === 'function') {
+    ref(value)
+    return
+  }
+  if (ref) ref.current = value
+}
+
+function GroupHeaderPermanentDelete({ group }: { group: ResourceListGroup }) {
+  const meta = useResourceListMeta()
+  const store = useResourceListUiStore()
+  const pendingRef = useRef(false)
+  const groupRef = useRef(group)
+  const deleteRef = useRef(meta.onGroupHeaderDeletePermanently)
+  const eligibleRef = useRef(meta.isGroupHeaderPermanentDeleteEligible)
+  groupRef.current = group
+  deleteRef.current = meta.onGroupHeaderDeletePermanently
+  eligibleRef.current = meta.isGroupHeaderPermanentDeleteEligible
+
+  const canRun = () => {
+    if (pendingRef.current) return false
+    const current = groupRef.current
+    if (current.synthetic || !deleteRef.current) return false
+    if (store.getUiSnapshot().renamingId) return false
+    const eligible = eligibleRef.current
+    return !eligible || eligible(current)
+  }
+  const canRunRef = useRef(canRun)
+  canRunRef.current = canRun
+
+  useCommandHandler(
+    'resource.delete_permanently',
+    () => {
+      if (!canRunRef.current()) return
+      const onDelete = deleteRef.current
+      const current = groupRef.current
+      if (!onDelete) return
+      pendingRef.current = true
+      try {
+        return Promise.resolve(onDelete(current)).finally(() => {
+          pendingRef.current = false
+        })
+      } catch (error) {
+        pendingRef.current = false
+        throw error
+      }
+    },
+    { enabled: () => canRunRef.current() }
+  )
+  return null
 }
 
 /**
@@ -120,6 +174,7 @@ export function SectionHeader({ section, className, ref, style, ...props }: Sect
         <button
           type="button"
           aria-expanded={!collapsed}
+          data-dnd-row-control
           className="flex h-full min-w-0 flex-1 items-center gap-1.5 text-left text-inherit outline-none"
           onClick={() => actions.toggleGroup(section.id)}>
           <span className={cn('min-w-0 truncate text-left text-inherit', RESOURCE_LIST_LABEL_CLASS)}>
@@ -128,7 +183,7 @@ export function SectionHeader({ section, className, ref, style, ...props }: Sect
           <ChevronRight
             aria-hidden="true"
             size={14}
-            className="hidden shrink-0 text-muted-foreground transition-transform duration-150 group-hover/resource-list-section:block group-has-[:focus-visible]/resource-list-section:block"
+            className="hidden shrink-0 text-muted-foreground transition-transform duration-150 group-hover/resource-list-section:block group-has-[:focus-visible]/resource-list-section:block no-hover:block"
             style={{ transform: collapsed ? 'none' : 'rotate(90deg)' }}
           />
         </button>
@@ -140,7 +195,7 @@ export function SectionHeader({ section, className, ref, style, ...props }: Sect
               '-mr-1 ml-auto flex shrink-0 items-center transition-opacity',
               sectionHeaderActionAlwaysVisible
                 ? 'pointer-events-auto opacity-100'
-                : 'pointer-events-none opacity-0 group-hover/resource-list-section:pointer-events-auto group-hover/resource-list-section:opacity-100 has-[:focus-visible]:pointer-events-auto has-[:focus-visible]:opacity-100'
+                : 'pointer-events-none opacity-0 group-hover/resource-list-section:pointer-events-auto group-hover/resource-list-section:opacity-100 has-[:focus-visible]:pointer-events-auto has-[:focus-visible]:opacity-100 no-hover:pointer-events-auto no-hover:opacity-100'
             )}>
             {sectionHeaderAction}
           </div>
@@ -155,6 +210,14 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
   const actions = useResourceListActions()
   const meta = useResourceListMeta()
   const view = useResourceListView()
+  const headerRef = useRef<HTMLDivElement | null>(null)
+  const setHeaderRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      headerRef.current = node
+      assignRef(ref, node)
+    },
+    [ref]
+  )
   const groupState = useResourceListGroupState(group.id)
   const labelOverflow = useLabelOverflow(group.label)
   const viewGroup = view.groups.find((candidate) => candidate.group.id === group.id)
@@ -267,6 +330,7 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
           <button
             type="button"
             aria-current={showsSelectedSurface ? 'true' : undefined}
+            data-dnd-row-control
             className="flex h-full min-w-0 items-center gap-1.5 text-left text-inherit outline-none"
             onClick={handleClick}>
             {groupHeaderIcon && (
@@ -293,6 +357,7 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
             type="button"
             aria-hidden="true"
             tabIndex={-1}
+            data-dnd-row-control
             className="h-full flex-1 cursor-pointer"
             onClick={handleClick}
           />
@@ -302,6 +367,7 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
           type="button"
           aria-expanded={!collapsed}
           aria-current={showsSelectedSurface ? 'true' : undefined}
+          data-dnd-row-control
           className="flex h-full min-w-0 flex-1 items-center gap-1.5 text-left text-inherit outline-none"
           onClick={handleClick}>
           {groupHeaderIcon && (
@@ -333,7 +399,7 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
           className={cn(
             '-ml-1.5 pointer-events-none grid shrink-0 grid-cols-[0fr] opacity-0 transition-[grid-template-columns,opacity] duration-150 motion-reduce:transition-none',
             !hasLeadingSlot && '-mr-1',
-            'group-hover/resource-list-group:pointer-events-auto group-hover/resource-list-group:grid-cols-[1fr] group-hover/resource-list-group:opacity-100 has-data-[state=open]:pointer-events-auto has-data-[state=open]:grid-cols-[1fr] has-data-[state=open]:opacity-100 group-has-[:focus-visible]/resource-list-group:pointer-events-auto group-has-[:focus-visible]/resource-list-group:grid-cols-[1fr] group-has-[:focus-visible]/resource-list-group:opacity-100'
+            'group-hover/resource-list-group:pointer-events-auto group-hover/resource-list-group:grid-cols-[1fr] group-hover/resource-list-group:opacity-100 has-data-[state=open]:pointer-events-auto has-data-[state=open]:grid-cols-[1fr] has-data-[state=open]:opacity-100 group-has-[:focus-visible]/resource-list-group:pointer-events-auto group-has-[:focus-visible]/resource-list-group:grid-cols-[1fr] group-has-[:focus-visible]/resource-list-group:opacity-100 no-hover:pointer-events-auto no-hover:grid-cols-[1fr] no-hover:opacity-100'
           )}
           onClick={stopEventPropagation}
           onContextMenu={stopEventPropagation}
@@ -346,7 +412,7 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
   )
   const header = (
     <div
-      ref={ref}
+      ref={setHeaderRef}
       style={style}
       className={cn(
         'group/resource-list-group flex w-full items-center text-foreground text-sm',
@@ -366,12 +432,17 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
     </div>
   )
 
-  if (!headerContextMenuItems) return header
-
   return (
-    <CommandContextMenu location="webcontents.context" getExtraItems={resolveHeaderContextMenuItems}>
-      {header}
-    </CommandContextMenu>
+    <CommandFocusScope rootRef={headerRef} context={{ 'resource.focused': true }}>
+      <GroupHeaderPermanentDelete group={group} />
+      {headerContextMenuItems ? (
+        <CommandContextMenu location="webcontents.context" getExtraItems={resolveHeaderContextMenuItems}>
+          {header}
+        </CommandContextMenu>
+      ) : (
+        header
+      )}
+    </CommandFocusScope>
   )
 }
 

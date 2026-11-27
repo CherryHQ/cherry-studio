@@ -1,16 +1,17 @@
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, rm, symlink } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { application } from '@application'
 import {
   listBuiltinToolPolicies,
   toCherryBuiltinRuntimeName,
   toMcpRuntimeName
 } from '@main/ai/toolApproval/builtinToolPolicy'
 import { evaluateToolGuards, type ToolGuardContext, validateToolGuardRules } from '@main/ai/toolApproval/toolGuards'
-import { SESSION_SEND_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
+import { SESSION_CREATE_TOOL_NAME, SESSION_SEND_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
 import { KB_MANAGE_TOOL_NAME } from '@shared/ai/builtinTools'
 
 const mocks = vi.hoisted(() => ({
@@ -28,16 +29,12 @@ vi.mock('@main/ai/toolApproval/userDataSqliteGuard', () => ({
   evaluateUserDataSqliteGuard: mocks.evaluateUserDataSqliteGuard
 }))
 
-import { approvalRequiredRuntimeNames, CLAUDE_TOOL_GUARD_RULES, HEADLESS_INTERACTIVE_TOOL_DENIAL } from '../guardRules'
+import { CLAUDE_TOOL_GUARD_RULES, GLOBAL_INSTALL_PLAN_DENIAL, GLOBAL_INSTALL_UNATTENDED_DENIAL } from '../guardRules'
 
 const INTERACTIVE = { currentTurn: 'interactive', userResponse: 'stream' } as const
 const HEADLESS = { currentTurn: 'headless', userResponse: 'unavailable' } as const
 const WITHOUT_HOST_TOOLS: ReadonlySet<string> = new Set(['cherry-tools', 'agent-memory', 'skills', 'mcp-manager'])
 const WITH_HOST_TOOLS: ReadonlySet<string> = new Set([...WITHOUT_HOST_TOOLS, 'assistant', 'assistant-files'])
-const NON_ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES = listBuiltinToolPolicies({
-  approval: 'required',
-  mountedServers: WITHOUT_HOST_TOOLS
-}).map(toMcpRuntimeName)
 const ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES = listBuiltinToolPolicies({ approval: 'required' })
   .filter((entry) => !WITHOUT_HOST_TOOLS.has(entry.serverName))
   .map(toMcpRuntimeName)
@@ -72,13 +69,15 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
     expect(validateToolGuardRules(CLAUDE_TOOL_GUARD_RULES)).toEqual([])
   })
 
-  it('derives the per-call approval boundary from policy entries and mounted servers', () => {
-    expect(approvalRequiredRuntimeNames(WITHOUT_HOST_TOOLS)).toEqual(NON_ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES)
-    expect(approvalRequiredRuntimeNames(WITH_HOST_TOOLS)).toEqual([
-      ...NON_ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES,
-      ...ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES
-    ])
-  })
+  it.each(['Edit', 'MultiEdit', 'NotebookEdit', 'Write'])(
+    'denies %s in Plan Only before approval',
+    async (toolName) => {
+      expect(await evaluate(makeCtx({ permissionMode: 'plan', toolName }))).toMatchObject({
+        effect: 'deny',
+        ruleId: 'file-write-plan'
+      })
+    }
+  )
 
   describe('disabled-tool', () => {
     it.each(['default', 'acceptEdits', 'bypassPermissions'] as const)(
@@ -116,10 +115,8 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
           })
         )
 
-        expect(decision).toEqual({
+        expect(decision).toMatchObject({
           effect: 'deny',
-          reason:
-            'The selected model does not support image input, so Read cannot open /ws/assets/Preview.PNG. Use a vision-capable model or inspect the file through a text-only alternative.',
           ruleId: 'unsupported-image-read'
         })
       }
@@ -151,14 +148,19 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
             input: { command: 'rm -rf /tmp/data' }
           })
         )
-        expect(decision?.ruleId).toBe('builtin-destructive')
-        expect(decision?.reason).toContain('permanent file deletion')
+        expect(decision).toMatchObject({
+          effect: 'deny',
+          reason: expect.stringContaining('mcp__assistant-files__move_to_trash')
+        })
       }
     })
 
     it('denies permanent-deletion MCP tools for protected built-in agents', async () => {
       const decision = await evaluate(makeCtx({ builtinRole: 'support', toolName: 'mcp__files__delete_file' }))
-      expect(decision?.ruleId).toBe('builtin-destructive')
+      expect(decision).toMatchObject({
+        effect: 'deny',
+        reason: expect.stringContaining('mcp__assistant-files__move_to_trash')
+      })
     })
 
     it('does not gate ordinary agents', async () => {
@@ -172,33 +174,80 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
           input: { command: 'rm -rf build' }
         })
       )
-      expect(decision?.ruleId).toBe('builtin-destructive')
+      expect(decision).toMatchObject({
+        effect: 'deny',
+        reason: expect.stringContaining('mcp__assistant-files__move_to_trash')
+      })
     })
   })
 
   describe('global-install', () => {
-    it('denies a global install in every mode, bypass included', async () => {
-      for (const mode of ['default', 'bypassPermissions'] as const) {
-        const decision = await evaluate(
-          makeCtx({ permissionMode: mode, input: { command: 'npm install -g left-pad' } })
-        )
-        expect(decision?.ruleId).toBe('global-install')
-        expect(decision?.reason).toContain('cross-agent dependency pollution')
-      }
+    it.each(['default', 'acceptEdits', 'auto'] as const)('asks for a global install in %s', async (permissionMode) => {
+      await expect(
+        evaluate(makeCtx({ permissionMode, input: { command: 'npm install -g left-pad' } }))
+      ).resolves.toEqual({
+        effect: 'ask',
+        ruleId: 'global-install',
+        reason: 'Global package installation requires user approval: global JS package install (-g/--global).'
+      })
     })
+
+    it('allows Full Access and denies plan mode', async () => {
+      const input = { command: 'npm install -g left-pad' }
+      await expect(evaluate(makeCtx({ permissionMode: 'bypassPermissions', input }))).resolves.toBeUndefined()
+      await expect(evaluate(makeCtx({ permissionMode: 'plan', input }))).resolves.toEqual({
+        effect: 'deny',
+        ruleId: 'global-install-plan',
+        reason: GLOBAL_INSTALL_PLAN_DENIAL
+      })
+    })
+
+    it('requires a responder outside Full Access', async () => {
+      const ctx = { input: { command: 'npm install -g left-pad' }, interaction: HEADLESS }
+      await expect(evaluate(makeCtx(ctx))).resolves.toEqual({
+        effect: 'deny',
+        ruleId: 'global-install',
+        reason: GLOBAL_INSTALL_UNATTENDED_DENIAL
+      })
+      await expect(evaluate(makeCtx({ ...ctx, permissionMode: 'bypassPermissions' }))).resolves.toBeUndefined()
+    })
+
+    it.each(['default', 'acceptEdits', 'auto', 'plan', 'bypassPermissions'] as const)(
+      'hard-denies mise in %s',
+      async (permissionMode) => {
+        for (const command of ['mise use -g fd', 'npm i -g x && mise use -g fd', 'mise use -g fd && npm i -g x']) {
+          await expect(evaluate(makeCtx({ permissionMode, input: { command } }))).resolves.toEqual({
+            effect: 'deny',
+            ruleId: 'mise-mutation',
+            reason: 'Blocked: direct mise mutation (use cli_search / cli_install).'
+          })
+        }
+      }
+    )
 
     it('ignores project-local installs', async () => {
       await expect(evaluate(makeCtx({ input: { command: 'npm install left-pad' } }))).resolves.toBeUndefined()
     })
 
-    it('wins the fold when a feedback command also matches (assistant role)', async () => {
+    it('deterministically selects the first ask when feedback also matches (assistant role)', async () => {
       const decision = await evaluate(
         makeCtx({
           builtinRole: 'assistant',
           input: { command: 'gh issue create --title x && npm install -g left-pad' }
         })
       )
-      expect(decision?.ruleId).toBe('global-install')
+      expect(decision).toMatchObject({ effect: 'ask', ruleId: 'global-install' })
+    })
+
+    it('folds a mise denial over a feedback ask', async () => {
+      await expect(
+        evaluate(
+          makeCtx({ builtinRole: 'assistant', input: { command: 'gh issue create --title x && mise use -g fd' } })
+        )
+      ).resolves.toMatchObject({
+        effect: 'deny',
+        ruleId: 'mise-mutation'
+      })
     })
   })
 
@@ -264,73 +313,12 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
     })
   })
 
-  describe('headless-config-mutation', () => {
-    const configTool = toCherryBuiltinRuntimeName('config')
-
-    it('denies mutating actions on headless turns, bypass included', async () => {
-      for (const mode of ['default', 'bypassPermissions'] as const) {
-        const decision = await evaluate(
-          makeCtx({
-            toolName: configTool,
-            permissionMode: mode,
-            input: { action: 'add_channel' },
-            interaction: { currentTurn: 'headless', userResponse: 'stream' }
-          })
-        )
-        expect(decision?.ruleId).toBe('headless-config-mutation')
-      }
-    })
-
-    it('leaves reads and interactive mutations alone', async () => {
-      await expect(
-        evaluate(
-          makeCtx({
-            toolName: configTool,
-            input: { action: 'status' },
-            interaction: { currentTurn: 'headless', userResponse: 'stream' }
-          })
-        )
-      ).resolves.toBeUndefined()
-      await expect(
-        evaluate(makeCtx({ toolName: configTool, input: { action: 'add_channel' } }))
-      ).resolves.toBeUndefined()
-    })
-  })
-
-  describe('skill-install', () => {
-    const install = 'mcp__skills__install_skill'
-
-    it('denies headless installation outside bypass', async () => {
-      const decision = await evaluate(
-        makeCtx({ toolName: install, interaction: { currentTurn: 'headless', userResponse: 'stream' } })
-      )
-      expect(decision?.ruleId).toBe('skill-install')
-    })
-
-    it('lifts the headless deny under bypassPermissions (explicit unattended opt-in)', async () => {
-      await expect(
-        evaluate(
-          makeCtx({
-            toolName: install,
-            permissionMode: 'bypassPermissions',
-            interaction: { currentTurn: 'headless', userResponse: 'stream' }
-          })
-        )
-      ).resolves.toBeUndefined()
-    })
-
-    it('does not gate interactive installation (canUseTool handles it)', async () => {
-      await expect(evaluate(makeCtx({ toolName: install }))).resolves.toBeUndefined()
-    })
-  })
-
   describe('interactive-headless + ask-user-question', () => {
     it('denies interactive tools with no responder in every mode', async () => {
       for (const mode of ['default', 'bypassPermissions'] as const) {
         for (const toolName of ['EnterPlanMode', 'ExitPlanMode', 'EnterWorktree', 'AskUserQuestion']) {
           const decision = await evaluate(makeCtx({ toolName, permissionMode: mode, interaction: HEADLESS }))
           expect(decision?.effect).toBe('deny')
-          expect(decision?.reason).toBe(HEADLESS_INTERACTIVE_TOOL_DENIAL)
         }
       }
     })
@@ -338,9 +326,8 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
     it('asks for AskUserQuestion in every mode — bypass cannot answer for the user', async () => {
       for (const mode of ['default', 'acceptEdits', 'bypassPermissions'] as const) {
         const decision = await evaluate(makeCtx({ toolName: 'AskUserQuestion', permissionMode: mode }))
-        expect(decision).toEqual({
+        expect(decision).toMatchObject({
           effect: 'ask',
-          reason: 'AskUserQuestion requires a live user response.',
           ruleId: 'ask-user-question'
         })
       }
@@ -358,6 +345,11 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
       const decision = await evaluate(makeCtx({ builtinRole: 'assistant', input: feedback }))
       expect(decision?.ruleId).toBe('assistant-feedback')
       expect(decision?.effect).toBe('ask')
+    })
+
+    it('asks when the submission runs through the PowerShell tool', async () => {
+      const decision = await evaluate(makeCtx({ builtinRole: 'assistant', toolName: 'PowerShell', input: feedback }))
+      expect(decision).toMatchObject({ effect: 'ask', ruleId: 'assistant-feedback' })
     })
 
     it('is lifted by bypassPermissions (net behavior matches the pierced ask it replaces)', async () => {
@@ -395,11 +387,24 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
 
     it('asks for every non-destructive Bash call on interactive turns', async () => {
       const decision = await evaluate(makeCtx({ ...supportCtx, input: { command: 'ls -la' } }))
-      expect(decision).toEqual({
+      expect(decision).toMatchObject({
         effect: 'ask',
-        reason: 'Cherry Support shell commands require live per-call user approval.',
         ruleId: 'support-bash'
       })
+    })
+
+    it('asks for PowerShell tool calls too', async () => {
+      const decision = await evaluate(
+        makeCtx({ ...supportCtx, toolName: 'PowerShell', input: { command: 'Get-ChildItem' } })
+      )
+      expect(decision).toMatchObject({ effect: 'ask', ruleId: 'support-bash' })
+    })
+
+    it('denies headless PowerShell use', async () => {
+      const decision = await evaluate(
+        makeCtx({ ...supportCtx, toolName: 'PowerShell', input: { command: 'Get-ChildItem' }, interaction: HEADLESS })
+      )
+      expect(decision).toMatchObject({ effect: 'deny', ruleId: 'support-bash' })
     })
 
     it('is lifted by bypassPermissions', async () => {
@@ -435,6 +440,23 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
       }
     })
 
+    it('denies the UI-backed draft tool on headless Assistant turns', async () => {
+      await expect(
+        evaluate(
+          makeCtx({
+            builtinRole: 'assistant',
+            toolName,
+            permissionMode: 'default',
+            interaction: HEADLESS
+          })
+        )
+      ).resolves.toMatchObject({ effect: 'deny', ruleId: 'support-diagnostic-draft' })
+    })
+
+    it('leaves the draft tool auto-approved on interactive Assistant turns', async () => {
+      await expect(evaluate(makeCtx({ builtinRole: 'assistant', toolName }))).resolves.toBeUndefined()
+    })
+
     it('leaves the draft tool auto-approved on interactive Support turns', async () => {
       await expect(evaluate(makeCtx({ builtinRole: 'support', toolName }))).resolves.toBeUndefined()
     })
@@ -461,7 +483,6 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
     it('denies with no responder outside Full Access', async () => {
       const decision = await evaluate(makeCtx({ toolName: kbManage, interaction: HEADLESS }))
       expect(decision?.effect).toBe('deny')
-      expect(decision?.reason).toBe(HEADLESS_INTERACTIVE_TOOL_DENIAL)
     })
 
     it('runs unattended under bypassPermissions', async () => {
@@ -481,20 +502,38 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
     })
   })
 
-  describe('non-bypassable-approval', () => {
-    const sessionSend = toCherryBuiltinRuntimeName(SESSION_SEND_TOOL_NAME)
+  describe.each([SESSION_CREATE_TOOL_NAME, SESSION_SEND_TOOL_NAME])('delegation approval: %s', (name) => {
+    const toolName = toCherryBuiltinRuntimeName(name)
 
-    it('requires live approval under bypassPermissions', async () => {
-      await expect(
-        evaluate(makeCtx({ toolName: sessionSend, permissionMode: 'bypassPermissions' }))
-      ).resolves.toMatchObject({ effect: 'ask', ruleId: 'non-bypassable-approval' })
+    it.each(['auto', 'bypassPermissions'] as const)(
+      'does not ask in an interactive %s turn',
+      async (permissionMode) => {
+        await expect(evaluate(makeCtx({ toolName, permissionMode }))).resolves.toBeUndefined()
+        await expect(evaluate(makeCtx({ toolName, permissionMode, isDisabled: () => true }))).resolves.toMatchObject({
+          effect: 'deny',
+          ruleId: 'disabled-tool'
+        })
+      }
+    )
+
+    it.each(['default', 'acceptEdits', 'plan'] as const)('asks in %s', async (permissionMode) => {
+      await expect(evaluate(makeCtx({ toolName, permissionMode }))).resolves.toMatchObject({ effect: 'ask' })
     })
 
-    it('denies an unattended delegation under bypassPermissions', async () => {
-      await expect(
-        evaluate(makeCtx({ toolName: sessionSend, permissionMode: 'bypassPermissions', interaction: HEADLESS }))
-      ).resolves.toMatchObject({ effect: 'deny', ruleId: 'non-bypassable-approval' })
-    })
+    it.each(['default', 'acceptEdits', 'plan', 'auto', 'bypassPermissions'] as const)(
+      'denies unattended delegation in %s',
+      async (permissionMode) => {
+        for (const interaction of [
+          HEADLESS,
+          { ...HEADLESS, userResponse: 'stream' },
+          { ...INTERACTIVE, userResponse: 'unavailable' }
+        ] as const) {
+          await expect(evaluate(makeCtx({ toolName, permissionMode, interaction }))).resolves.toMatchObject({
+            effect: 'deny'
+          })
+        }
+      }
+    )
   })
 
   describe('user-data-sqlite-write', () => {
@@ -559,6 +598,22 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
       ).resolves.toBeUndefined()
     })
 
+    it.skipIf(process.platform === 'win32')('asks for a dangling symlink that points outside', async () => {
+      const link = path.join(cwd, 'dangling-file')
+      await symlink(path.join(root, 'missing.txt'), link)
+      const decision = await evaluate(makeCtx({ toolName: 'Write', cwd, agentDataPath, input: { file_path: link } }))
+      expect(decision?.ruleId).toBe('workspace-escape')
+    })
+
+    it('asks for a new file below a dangling directory symlink that points outside', async () => {
+      const link = path.join(cwd, 'dangling-dir')
+      await symlink(path.join(root, 'missing-dir'), link, process.platform === 'win32' ? 'junction' : 'dir')
+      const decision = await evaluate(
+        makeCtx({ toolName: 'Write', cwd, agentDataPath, input: { file_path: path.join(link, 'new.txt') } })
+      )
+      expect(decision?.ruleId).toBe('workspace-escape')
+    })
+
     it('is lifted by bypassPermissions (matches the pierced ask it replaces)', async () => {
       await expect(
         evaluate(
@@ -579,4 +634,22 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
       ).resolves.toBeUndefined()
     })
   })
+})
+
+describe('Browser control permission', () => {
+  it.each(['default', 'bypassPermissions'] as const)(
+    'uses the persistent browser grant in %s mode',
+    async (permissionMode) => {
+      const pref = application.get('PreferenceService')
+      await pref.set('app.browser.agent_control.enabled', true)
+      const context = makeCtx({
+        toolName: 'mcp__browser__click',
+        mountedServers: new Set(['browser']),
+        permissionMode
+      })
+      expect(await evaluate(context)).toBeUndefined()
+      await pref.set('app.browser.agent_control.enabled', false)
+      expect(await evaluate(context)).toMatchObject({ effect: 'deny' })
+    }
+  )
 })

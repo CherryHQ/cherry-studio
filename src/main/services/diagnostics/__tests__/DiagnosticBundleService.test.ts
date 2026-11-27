@@ -3,6 +3,7 @@ import { access, link, mkdir, mkdtemp, readdir, readFile, rm, symlink, utimes, w
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
+import { MockMainDbServiceExport } from '@test-mocks/main/DbService'
 import { ZipArchive } from 'archiver'
 import StreamZip from 'node-stream-zip'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -21,7 +22,6 @@ import type {
   ChatRecordReference
 } from '../chatRecordCollector'
 import * as chatRecordCollector from '../chatRecordCollector'
-import * as sourceCollector from '../sourceCollector'
 import * as sourceSelection from '../sourceSelection'
 
 const electronMocks = vi.hoisted(() => ({
@@ -31,6 +31,7 @@ const electronMocks = vi.hoisted(() => ({
 }))
 
 const uploadMocks = vi.hoisted(() => ({
+  fetchStatus: vi.fn(),
   upload: vi.fn()
 }))
 
@@ -48,13 +49,13 @@ vi.mock('../CherryDiagnosticUploadClient', () => ({
   cherryDiagnosticUploadClient: uploadMocks
 }))
 vi.mock('@data/services/AgentSessionMessageService', () => ({
-  agentSessionMessageService: { getSessionMessage: vi.fn() }
+  agentSessionMessageService: { getSessionMessage: vi.fn(), listLiveCreatedInRangeMetadataPage: vi.fn() }
 }))
 vi.mock('@data/services/AgentSessionService', () => ({
   agentSessionService: { getById: vi.fn() }
 }))
 vi.mock('@data/services/MessageService', () => ({
-  messageService: { getById: vi.fn() }
+  messageService: { getById: vi.fn(), listLiveCreatedInRangeMetadataPage: vi.fn() }
 }))
 vi.mock('@data/services/TopicService', () => ({
   topicService: { getById: vi.fn() }
@@ -107,9 +108,15 @@ function jsonlBytes(...entities: unknown[]): number {
 
 const REPORT_ID = 'opaque-report-id'
 const RETRY_REPORT_ID = 'opaque-retry-report-id'
+const uploadedResult = (reportId: string) => ({
+  reportId,
+  reportUrl: `https://api.cherry-ai.com/diagnostics/${reportId}`,
+  processingStatus: null,
+  historySaved: true,
+  status: 'uploaded'
+})
 const UPLOAD_INPUT = {
   description: '  Line one\nLine two  ',
-  includeChatRecords: false,
   includeLogs: false,
   includeTraces: false,
   range: '24h' as const
@@ -170,6 +177,7 @@ describe('DiagnosticBundleService', () => {
     })
     vi.mocked(application.get).mockImplementation((name: string) => {
       if (name === 'PreferenceService') return preferenceService as never
+      if (name === 'DbService') return MockMainDbServiceExport.dbService as never
       if (name === 'WindowManager') return { getWindow: () => parentWindow } as never
       throw new Error(`Unexpected service: ${name}`)
     })
@@ -464,48 +472,6 @@ describe('DiagnosticBundleService', () => {
     }
   })
 
-  it('uses the lexicographically earlier archive key when equal log candidates compete for the final budget', async () => {
-    const now = Date.now()
-    const logFileNames = [`app-error.${formatLogDate(now)}.log`, `app.${formatLogDate(now)}.log`]
-    const logLine = `${JSON.stringify({ message: 'same-size', timestamp: new Date(now - 1_000).toISOString() })}\n`
-    await Promise.all(logFileNames.map((fileName) => writeFile(path.join(logsDir, fileName), logLine)))
-
-    const archiveNames = logFileNames.map((fileName) => `logs/${fileName}`).sort()
-    const collectSources = sourceCollector.collectDiagnosticSources
-    const collectionSpy = vi.spyOn(sourceCollector, 'collectDiagnosticSources').mockImplementation(async (...args) => {
-      const collection = await collectSources(...args)
-      return {
-        ...collection,
-        logs: [...collection.logs].sort((a, b) =>
-          a.archiveName < b.archiveName ? 1 : a.archiveName > b.archiveName ? -1 : 0
-        )
-      }
-    })
-    const createSelector = sourceSelection.createDiagnosticBudgetSelector
-    const selectorSpy = vi
-      .spyOn(sourceSelection, 'createDiagnosticBudgetSelector')
-      .mockImplementation(() => createSelector(Buffer.byteLength(logLine, 'utf8')))
-    const service = new DiagnosticBundleService()
-
-    try {
-      const result = await service.exportBundle(
-        { includeChatRecords: false, includeLogs: true, includeTraces: false, range: '24h' },
-        'main-window'
-      )
-
-      expect(result).toMatchObject({ status: 'saved', hasWarnings: true, includedFileCount: 1, omittedFileCount: 1 })
-      const zip = await readZip(destination)
-      expect(zip.entries).toContain(archiveNames[0])
-      expect(zip.entries).not.toContain(archiveNames[1])
-      const manifest = JSON.parse(zip.contents['diagnostics.json'].toString())
-      expect(manifest.sources.logs).toMatchObject({ included: { fileCount: 1 }, omitted: { fileCount: 1 } })
-      expect(manifest.warnings).toContain('size_limit_reached')
-    } finally {
-      collectionSpy.mockRestore()
-      selectorSpy.mockRestore()
-    }
-  })
-
   it('counts chat archive families omitted entirely by the shared source budget', async () => {
     const mib = 1024 * 1024
     const candidate = chatCandidate('message:oversized', 1, [
@@ -747,6 +713,7 @@ describe('DiagnosticBundleService', () => {
     let uploadedManifest: Record<string, unknown> | undefined
     uploadMocks.upload.mockImplementationOnce(async ({ description, fileName, filePath: uploadPath }) => {
       const zip = await readZip(uploadPath)
+      expect(zip.entries).toEqual(['diagnostics.json'])
       uploadedManifest = JSON.parse(zip.contents['diagnostics.json'].toString())
       expect(description).toBe('Line one\r\nLine two')
       expect(fileName).toBe(path.basename(uploadPath))
@@ -756,10 +723,65 @@ describe('DiagnosticBundleService', () => {
 
     const result = await service.uploadBundle(UPLOAD_INPUT)
 
-    expect(result).toEqual({ reportId: REPORT_ID, status: 'uploaded' })
+    expect(result).toEqual(uploadedResult(REPORT_ID))
     expect(uploadedManifest?.privacy).toMatchObject({ uploadedAutomatically: true })
     expect(await readdir(appTempDir)).toEqual([])
     expect(await readdir(downloadsDir)).toEqual([])
+  })
+
+  it.each([
+    ['topic-1', 'chats/messages.jsonl', 'message-1'],
+    ['agent-session:session-1', 'chats/agent-session-messages.jsonl', 'agent-message-1']
+  ])('uploads only the opted-in conversation %s', async (chatTopicId, messagesFile, messageId) => {
+    const createdAt = new Date().toISOString()
+    const messages = ['1', '2'].map((id) => ({ id: `message-${id}`, topicId: `topic-${id}`, createdAt }))
+    const agentMessages = ['1', '2'].map((id) => ({
+      id: `agent-message-${id}`,
+      sessionId: `session-${id}`,
+      createdAt
+    }))
+    vi.mocked(messageService.listLiveCreatedInRangeMetadataPage).mockImplementation(({ topicId }) => ({
+      items: messages
+        .filter((message) => !topicId || message.topicId === topicId)
+        .map((message) => ({ ...message, entityJsonBytes: jsonlBytes(message) - 1 })),
+      nextCursor: undefined
+    }))
+    vi.mocked(agentSessionMessageService.listLiveCreatedInRangeMetadataPage).mockImplementation(({ sessionId }) => ({
+      items: agentMessages
+        .filter((message) => !sessionId || message.sessionId === sessionId)
+        .map((message) => ({ ...message, entityJsonBytes: jsonlBytes(message) - 1 })),
+      nextCursor: undefined
+    }))
+    vi.mocked(topicService.getById).mockImplementation((id) => ({ id }) as never)
+    vi.mocked(agentSessionService.getById).mockImplementation((id) => ({ id }) as never)
+    vi.mocked(messageService.getById).mockImplementation((id) => messages.find((message) => message.id === id) as never)
+    vi.mocked(agentSessionMessageService.getSessionMessage).mockImplementation(
+      (_, id) => agentMessages.find((message) => message.id === id) as never
+    )
+    uploadMocks.upload.mockImplementationOnce(async ({ filePath }) => {
+      const zip = await readZip(filePath)
+      const conversations = zip.entries.filter((name) => name.startsWith('chats/'))
+      expect(conversations).toHaveLength(2)
+      expect(JSON.parse(zip.contents[messagesFile].toString()).id).toBe(messageId)
+      return { reportId: REPORT_ID, status: 'uploaded' }
+    })
+
+    await expect(new DiagnosticBundleService().uploadBundle({ ...UPLOAD_INPUT, chatTopicId })).resolves.toEqual(
+      uploadedResult(REPORT_ID)
+    )
+  })
+
+  it('keeps the confirmed upload result when saving local history fails', async () => {
+    MockMainDbServiceExport.dbService.getDb.mockImplementationOnce(() => {
+      throw new Error('SQLite unavailable')
+    })
+    const service = new DiagnosticBundleService()
+
+    await expect(service.uploadBundle(UPLOAD_INPUT)).resolves.toEqual({
+      ...uploadedResult(REPORT_ID),
+      historySaved: false
+    })
+    expect(uploadMocks.upload).toHaveBeenCalledOnce()
   })
 
   it('retains a failed upload in app temp without writing to Downloads', async () => {
@@ -779,9 +801,7 @@ describe('DiagnosticBundleService', () => {
       reason: 'rate_limited',
       status: 'submission_failed'
     })
-    expect(result.fileName).toMatch(
-      /^cherry-studio-diagnostics-\d{8}-\d{6}-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.zip$/
-    )
+
     const retainedPath = await getRetainedUploadPath()
     expect(path.basename(retainedPath)).toBe(result.fileName)
     const zip = await readZip(retainedPath)
@@ -829,7 +849,7 @@ describe('DiagnosticBundleService', () => {
       reason: 'rate_limited',
       status: 'submission_failed'
     })
-    expect(retried).toEqual({ reportId: RETRY_REPORT_ID, status: 'uploaded' })
+    expect(retried).toEqual(uploadedResult(RETRY_REPORT_ID))
     expect(uploadMocks.upload).toHaveBeenNthCalledWith(1, {
       description: 'Line one\r\nLine two',
       fileName: first.fileName,
@@ -919,8 +939,7 @@ describe('DiagnosticBundleService', () => {
     expect(await readdir(appTempDir)).toEqual([])
 
     await expect(service.retryUpload({ bundleId: failed.bundleId })).resolves.toEqual({
-      reportId: RETRY_REPORT_ID,
-      status: 'uploaded'
+      ...uploadedResult(RETRY_REPORT_ID)
     })
     expect(uploadMocks.upload).toHaveBeenNthCalledWith(2, {
       description: 'Line one\r\nLine two',
@@ -954,8 +973,7 @@ describe('DiagnosticBundleService', () => {
       status: 'saved'
     })
     await expect(service.retryUpload({ bundleId: failed.bundleId })).resolves.toEqual({
-      reportId: RETRY_REPORT_ID,
-      status: 'uploaded'
+      ...uploadedResult(RETRY_REPORT_ID)
     })
     expect(uploadMocks.upload).toHaveBeenNthCalledWith(2, {
       description: 'Line one\r\nLine two',

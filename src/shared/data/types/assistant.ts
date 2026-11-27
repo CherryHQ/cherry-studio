@@ -9,7 +9,9 @@ import * as z from 'zod'
 
 import { ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
 
+import { AgentLanguageSchema } from './agentLanguage'
 import { ContextSettingsOverrideSchema } from './contextSettings'
+import { FileEntryIdSchema } from './file'
 import { GroupIdSchema } from './group'
 import { ReasoningSummarySchema, ServiceTierSelectionSchema, UniqueModelIdSchema } from './model'
 
@@ -28,6 +30,17 @@ export type McpMode = z.infer<typeof McpModeSchema>
  * (runtime-test finding #6). 'manual' = only explicitly linked servers.
  */
 export const DEFAULT_MCP_MODE: McpMode = 'manual'
+
+/**
+ * Reply language of an Assistant, with the same choices as an Agent's. Absent means `off`, so Assistants saved
+ * before this setting keep replying unconstrained; `inherit` follows the global `agent.language` preference.
+ */
+export const AssistantReplyLanguageSchema = z.discriminatedUnion('mode', [
+  z.object({ mode: z.literal('inherit') }),
+  z.object({ mode: z.literal('off') }),
+  z.object({ mode: z.literal('custom'), language: AgentLanguageSchema })
+])
+export type AssistantReplyLanguage = z.infer<typeof AssistantReplyLanguageSchema>
 
 /** Accepted range for `settings.maxToolCalls`. The editor's spinner bounds and main's
  *  `resolveToolCallLimit` validation must agree, or a value the UI accepts silently
@@ -67,6 +80,7 @@ export const AssistantSettingsSchema = z.object({
   service_tier: ServiceTierSelectionSchema.optional(),
   // -- Tool use --
   mcpMode: McpModeSchema,
+  enableBrowser: z.boolean().optional(),
   maxToolCalls: z.number().int().positive(),
   enableMaxToolCalls: z.boolean(),
 
@@ -75,6 +89,8 @@ export const AssistantSettingsSchema = z.object({
   enableWebSearch: z.boolean(),
   /** Offer the `generate_image` tool to the model (needs a painting model in Settings › Default Model). */
   enableGenerateImage: z.boolean(),
+  /** Absent = no constraint; see `AssistantReplyLanguageSchema`. */
+  replyLanguage: AssistantReplyLanguageSchema.optional(),
 
   /** User-defined model parameters (e.g. {"top_k": 40, "repetition_penalty": 1.1}).
    *  Discriminated union on `type` ensures `value` is type-safe:
@@ -140,6 +156,8 @@ export const AssistantSchema = z.strictObject({
   prompt: z.string(),
   /** Emoji icon for UI display */
   emoji: z.emoji(),
+  avatarFileId: FileEntryIdSchema.optional(),
+  avatarSrc: z.string().optional(),
   /** Long-form description */
   description: z.string(),
   /** Inference settings — model params + context toggles */
@@ -160,6 +178,8 @@ export const AssistantSchema = z.strictObject({
   createdAt: z.iso.datetime(),
   /** Last update timestamp (ISO string). Same nullable-at-DB / non-null-at-API pattern. */
   updatedAt: z.iso.datetime(),
+  /** Read-only soft-delete timestamp, present only for trashed assistants. */
+  deletedAt: z.iso.datetime().optional(),
   /**
    * Human-readable model name resolved from the current runtime Model at read
    * time. Read-only embedded field — edits go through `modelId`. Renderer

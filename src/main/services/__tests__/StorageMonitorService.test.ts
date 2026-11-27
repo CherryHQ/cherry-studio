@@ -49,13 +49,17 @@ vi.mock('@main/core/lifecycle', async (importOriginal) => {
   return { ...actual, BaseService: MockBaseService }
 })
 
-import { getPhase } from '@main/core/lifecycle/decorators'
-import { Phase } from '@main/core/lifecycle/types'
-
-const { StorageMonitorService, intervalForFree } = await import('../StorageMonitorService')
-
-const MINUTE = 1000 * 60
+const { StorageMonitorService } = await import('../StorageMonitorService')
 const GB = 1024 ** 3
+
+it('does not return cached healthy disk data after a refresh fails', async () => {
+  const service = new StorageMonitorService()
+  statfsMock.mockResolvedValueOnce({ bsize: 4096, bavail: 3_000_000, blocks: 4_000_000 })
+  const healthy = await service.refreshHealth()
+  expect(healthy.freeBytes).toBe(4096 * 3_000_000)
+  statfsMock.mockRejectedValueOnce(new Error('EIO'))
+  await expect(service.refreshHealth()).rejects.toThrow('EIO')
+})
 
 /** Queue one statfs result. bsize=1 so freeBytes === bavail for readable assertions. */
 function queueDisk(freeBytes: number, totalBytes = 500 * GB) {
@@ -71,6 +75,7 @@ type ServiceInternals = {
     disposable: { dispose: ReturnType<typeof vi.fn<(...args: any[]) => any>> }
   }>
   health: { level: string; freeBytes: number; totalBytes: number; checkedAt: number }
+  refreshHealth: () => Promise<{ level: string; freeBytes: number; totalBytes: number; checkedAt: number }>
 }
 
 function createService() {
@@ -100,33 +105,7 @@ beforeEach(() => {
   })
 })
 
-describe('intervalForFree', () => {
-  it.each([
-    [20 * GB, 60 * MINUTE],
-    [25 * GB, 60 * MINUTE],
-    [20 * GB - 1, 30 * MINUTE],
-    [10 * GB, 30 * MINUTE],
-    [10 * GB - 1, 15 * MINUTE],
-    [5 * GB, 15 * MINUTE],
-    [5 * GB - 1, 10 * MINUTE],
-    [1 * GB, 10 * MINUTE],
-    [1 * GB - 1, 5 * MINUTE],
-    [0, 5 * MINUTE]
-  ])('free=%i bytes -> %i ms', (free, expected) => {
-    expect(intervalForFree(free)).toBe(expected)
-  })
-
-  it('is bounded to [5min, 60min]', () => {
-    expect(intervalForFree(Number.MAX_SAFE_INTEGER)).toBe(60 * MINUTE)
-    expect(intervalForFree(-1)).toBe(5 * MINUTE)
-  })
-})
-
 describe('StorageMonitorService', () => {
-  it('runs in the WhenReady phase', () => {
-    expect(getPhase(StorageMonitorService)).toBe(Phase.WhenReady)
-  })
-
   it('publishes fresh measurements when the level stays ok', async () => {
     const svc = createService()
     queueDisk(20 * GB)
@@ -167,26 +146,6 @@ describe('StorageMonitorService', () => {
     expect(cacheSetSharedMock).toHaveBeenLastCalledWith('storage.health', expect.objectContaining({ level: 'ok' }))
   })
 
-  it('re-registers the timer with a new interval only when the band changes', async () => {
-    const svc = createService()
-    queueDisk(20 * GB)
-    await start(svc)
-    expect(svc._intervals).toHaveLength(1)
-    expect(svc._intervals.at(-1)!.intervalMs).toBe(60 * MINUTE)
-
-    // Same band (still >= 20 GB): keep the existing timer, no churn.
-    queueDisk(30 * GB)
-    await tick(svc)
-    expect(svc._intervals).toHaveLength(1)
-
-    // New band (5-10 GB -> 15 min): dispose old, register new.
-    queueDisk(8 * GB)
-    await tick(svc)
-    expect(svc._intervals).toHaveLength(2)
-    expect(svc._intervals[0].disposable.dispose).toHaveBeenCalledTimes(1)
-    expect(svc._intervals.at(-1)!.intervalMs).toBe(15 * MINUTE)
-  })
-
   it('keeps polling after a statfs error without flipping the level', async () => {
     const svc = createService()
     queueDisk(20 * GB)
@@ -207,6 +166,15 @@ describe('StorageMonitorService', () => {
     expect(cacheSetSharedMock).toHaveBeenLastCalledWith(
       'storage.health',
       expect.objectContaining({ level: 'low', freeBytes: 0.5 * GB })
+    )
+  })
+
+  it('refreshes disk health on demand for main-process diagnostics', async () => {
+    const svc = createService()
+    queueDisk(3 * GB)
+
+    await expect(svc.refreshHealth()).resolves.toEqual(
+      expect.objectContaining({ level: 'ok', freeBytes: 3 * GB, totalBytes: 500 * GB })
     )
   })
 })

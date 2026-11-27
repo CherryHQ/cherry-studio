@@ -15,11 +15,11 @@ export const RESOURCE_LIST_PANE_MAX_WIDTH = 360
 export const RESOURCE_LIST_PANE_COLLAPSE_DRAG_THRESHOLD = 200
 export const RESOURCE_LIST_PANE_AUTO_COLLAPSE_WIDTH = 540
 export const RESOURCE_LIST_PANE_CACHE_KEY = 'ui.chat.sidebar.width'
+export const RESOURCE_LIST_PANE_WINDOW_CACHE_KEY = 'ui.window.chat.sidebar.width'
 
 export const ARTIFACT_RIGHT_PANE_MIN_WIDTH = 255
 export const ARTIFACT_RIGHT_PANE_CLOSE_DRAG_OVERSHOOT = 80
 export const ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH = 280
-export const ARTIFACT_RIGHT_PANE_MAX_WIDTH = 720
 export const ARTIFACT_RIGHT_PANE_CACHE_KEY = 'ui.chat.artifact_pane.width'
 
 /**
@@ -27,6 +27,26 @@ export const ARTIFACT_RIGHT_PANE_CACHE_KEY = 'ui.chat.artifact_pane.width'
  * list's width envelope and its own persisted width, so dragging one never resizes the other.
  */
 export const RESOURCE_LIST_RIGHT_PANE_CACHE_KEY = 'ui.chat.resource_pane.width'
+
+/** The Assistant / Agent profile: wider floor than the inspector, capped so the chat keeps the room. */
+export const PROFILE_RIGHT_PANE_MIN_WIDTH = 300
+export const PROFILE_RIGHT_PANE_MAX_WIDTH = 440
+export const PROFILE_RIGHT_PANE_CACHE_KEY = 'ui.chat.profile_pane.width'
+
+export type RightPaneResizeCacheKey =
+  | typeof ARTIFACT_RIGHT_PANE_CACHE_KEY
+  | typeof RESOURCE_LIST_RIGHT_PANE_CACHE_KEY
+  | typeof PROFILE_RIGHT_PANE_CACHE_KEY
+
+const RIGHT_PANE_WINDOW_CACHE_KEY = {
+  [ARTIFACT_RIGHT_PANE_CACHE_KEY]: 'ui.window.chat.artifact_pane.width',
+  [RESOURCE_LIST_RIGHT_PANE_CACHE_KEY]: 'ui.window.chat.resource_pane.width',
+  [PROFILE_RIGHT_PANE_CACHE_KEY]: 'ui.window.chat.profile_pane.width'
+} as const
+
+export function getRightPaneWindowCacheKey(cacheKey: RightPaneResizeCacheKey) {
+  return RIGHT_PANE_WINDOW_CACHE_KEY[cacheKey]
+}
 
 /**
  * Named width policies for the shared right pane. Panels pick a preset by name; the envelope
@@ -36,25 +56,35 @@ export const RESOURCE_LIST_RIGHT_PANE_CACHE_KEY = 'ui.chat.resource_pane.width'
  * - `inspector` — artifacts, branches, traces: content sized for reading, its own wide envelope.
  * - `navigation-list` — the topic/session list: a list, so it mirrors the left list's envelope
  *   and keeps a separate persisted width; dragging one never resizes the other.
+ * - `profile` — the Assistant / Agent profile: a bounded card column with its own persisted width.
  */
-export type RightPaneWidthPreset = 'inspector' | 'navigation-list'
+export type RightPaneWidthPreset = 'inspector' | 'navigation-list' | 'profile'
 
 export type RightPaneWidthPolicy = {
-  cacheKey: typeof ARTIFACT_RIGHT_PANE_CACHE_KEY | typeof RESOURCE_LIST_RIGHT_PANE_CACHE_KEY
+  cacheKey: RightPaneResizeCacheKey
+  windowCacheKey: (typeof RIGHT_PANE_WINDOW_CACHE_KEY)[RightPaneResizeCacheKey]
   minWidth: number
-  maxWidth: number
+  maxWidth?: number
 }
 
 const RIGHT_PANE_WIDTH_PRESETS = {
   inspector: {
     cacheKey: ARTIFACT_RIGHT_PANE_CACHE_KEY,
+    windowCacheKey: RIGHT_PANE_WINDOW_CACHE_KEY[ARTIFACT_RIGHT_PANE_CACHE_KEY],
     minWidth: ARTIFACT_RIGHT_PANE_MIN_WIDTH,
-    maxWidth: ARTIFACT_RIGHT_PANE_MAX_WIDTH
+    maxWidth: undefined
   },
   'navigation-list': {
     cacheKey: RESOURCE_LIST_RIGHT_PANE_CACHE_KEY,
+    windowCacheKey: RIGHT_PANE_WINDOW_CACHE_KEY[RESOURCE_LIST_RIGHT_PANE_CACHE_KEY],
     minWidth: RESOURCE_LIST_PANE_MIN_WIDTH,
     maxWidth: RESOURCE_LIST_PANE_MAX_WIDTH
+  },
+  profile: {
+    cacheKey: PROFILE_RIGHT_PANE_CACHE_KEY,
+    windowCacheKey: RIGHT_PANE_WINDOW_CACHE_KEY[PROFILE_RIGHT_PANE_CACHE_KEY],
+    minWidth: PROFILE_RIGHT_PANE_MIN_WIDTH,
+    maxWidth: PROFILE_RIGHT_PANE_MAX_WIDTH
   }
 } as const satisfies Record<RightPaneWidthPreset, RightPaneWidthPolicy>
 

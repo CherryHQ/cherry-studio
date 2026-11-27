@@ -1,22 +1,14 @@
 import { useVirtualizer } from '@tanstack/react-virtual'
-import {
-  ChevronDown,
-  ChevronsUpDown,
-  ChevronUp,
-  FolderOpen,
-  Pencil,
-  RotateCcw,
-  SquareArrowOutUpRight,
-  Trash2
-} from 'lucide-react'
+import { ChevronDown, ChevronsUpDown, ChevronUp, FolderOpen, Pencil, SquareArrowOutUpRight, Trash2 } from 'lucide-react'
 import { memo, type RefObject, useCallback, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, Checkbox, type CheckedState } from '@cherrystudio/ui'
+import { FileIcon } from '@renderer/components/icons/FileIcon'
 
 import { FileContextMenu, type FileContextMenuActions } from './FileContextMenu'
 import type { FileItem } from './fileDisplay'
-import { getFormatLabel, typeIconColors, typeIcons } from './fileDisplay'
+import { getFileIconPath, getFormatLabel, typeIconColors } from './fileDisplay'
 import { InlineRename } from './InlineRename'
 
 export type SortKey = 'name' | 'size' | 'updatedAt' | 'type'
@@ -112,30 +104,28 @@ export const FileList = memo(function FileList({
   onSelect,
   onOpen,
   onDelete,
-  onRestore,
   onRename,
   onShowInFolder,
-  isTrash,
   menuActions,
   scrollRef,
   renamingId,
   onRenameConfirm,
-  onRenameCancel
+  onRenameCancel,
+  deleteDisabled = false
 }: {
   files: FileItem[]
   selectedIds: Set<string>
   onSelect: (id: string, isChecked: boolean, shouldSelectRange: boolean) => void
   onOpen: (file: FileItem) => void
   onDelete: (id: string) => void
-  onRestore: (id: string) => void
   onRename: (id: string) => void
   onShowInFolder: (id: string) => void
-  isTrash: boolean
   menuActions: FileContextMenuActions
   scrollRef: RefObject<HTMLDivElement | null>
   renamingId: string | null
   onRenameConfirm: (id: string, name: string) => void
   onRenameCancel: () => void
+  deleteDisabled?: boolean
 }) {
   const { t } = useTranslation()
   const getItemKey = useCallback((index: number) => files[index]?.id ?? index, [files])
@@ -159,23 +149,20 @@ export const FileList = memo(function FileList({
         const file = files[virtualRow.index]
         if (!file) return null
         const selected = selectedIds.has(file.id)
-        const Icon = typeIcons[file.type]
+        const iconPath = getFileIconPath(file)
         const isRenaming = renamingId === file.id
         const canUseFileActions = !file.isMissing
-        const canRestore = isTrash && canUseFileActions
-        const canOpen = !isTrash && canUseFileActions
-        const canRename = !isTrash && canUseFileActions
-        const canShowInFolder = !isTrash && canUseFileActions
-        const deleteLabel = isTrash
-          ? t('files.permanent_delete')
-          : file.origin === 'external'
-            ? t('files.remove_from_library')
-            : t('files.delete.label')
+        const canOpen = canUseFileActions
+        const canRename = canUseFileActions
+        const canShowInFolder = canUseFileActions
+        const deleteLabel = file.origin === 'external' ? t('files.remove_from_library') : t('files.delete.label')
         const renderActionPlaceholder = (key: string) => <div key={key} className="size-6" aria-hidden="true" />
 
         return (
-          <FileContextMenu key={file.id} file={file} isTrash={isTrash} actions={menuActions}>
+          <FileContextMenu key={file.id} file={file} actions={menuActions} deleteDisabled={deleteDisabled}>
             <div
+              data-ui="files.row"
+              data-file-entry-id={file.id}
               onClick={() => {
                 if (!isRenaming && !file.isMissing) onOpen(file)
               }}
@@ -194,13 +181,22 @@ export const FileList = memo(function FileList({
                       onSelect(file.id, !selected, e.shiftKey)
                     }}
                     data-file-selection-checkbox
-                    aria-label={t('files.select_file', { name: file.name })}
+                    aria-label={
+                      file.sourcePath
+                        ? t('files.select_file_with_path', { name: file.name, path: file.sourcePath })
+                        : t('files.select_file', { name: file.name })
+                    }
                   />
                 </label>
               </div>
               <div className="flex min-w-0 flex-1 items-center gap-2">
                 <span className="flex size-6 shrink-0 items-center justify-center rounded-md border border-border-subtle bg-background-subtle">
-                  <Icon size={14} strokeWidth={1.4} className={`shrink-0 ${typeIconColors[file.type]}`} />
+                  <FileIcon
+                    path={iconPath}
+                    width={14}
+                    height={14}
+                    className={`shrink-0 ${typeIconColors[file.type]}`}
+                  />
                 </span>
                 {isRenaming ? (
                   <InlineRename
@@ -211,7 +207,9 @@ export const FileList = memo(function FileList({
                   />
                 ) : (
                   <>
-                    <span className="truncate text-sm text-foreground">{file.name}</span>
+                    <span className="truncate text-sm text-foreground" title={file.sourcePath ?? file.name}>
+                      {file.name}
+                    </span>
                     {file.isMissing && (
                       <span className="shrink-0 rounded border border-error-border bg-error-subtle px-1.5 py-0.5 text-[10px] text-error-subtle-foreground">
                         {t('files.missing')}
@@ -220,7 +218,9 @@ export const FileList = memo(function FileList({
                   </>
                 )}
               </div>
-              <span className="truncate text-xs text-muted-foreground">{file.size}</span>
+              <span data-ui="part:file-size" className="truncate text-xs text-muted-foreground">
+                {file.size}
+              </span>
               <span className="truncate text-xs text-muted-foreground">{getFormatLabel(file.format)}</span>
               <span className="truncate text-xs text-foreground-tertiary">{file.updatedAt}</span>
               <div className="grid grid-cols-4 justify-items-center gap-0.5 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
@@ -256,20 +256,7 @@ export const FileList = memo(function FileList({
                 ) : (
                   renderActionPlaceholder('rename')
                 )}
-                {canRestore ? (
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label={t('files.restore')}
-                    title={t('files.restore')}
-                    className="size-6 !text-muted-foreground hover:bg-transparent hover:!text-foreground"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      onRestore(file.id)
-                    }}>
-                    <RotateCcw size={13} />
-                  </Button>
-                ) : canShowInFolder ? (
+                {canShowInFolder ? (
                   <Button
                     variant="ghost"
                     size="icon-sm"
@@ -288,6 +275,7 @@ export const FileList = memo(function FileList({
                 <Button
                   variant="ghost"
                   size="icon-sm"
+                  disabled={deleteDisabled}
                   aria-label={deleteLabel}
                   title={deleteLabel}
                   className="size-6 !text-muted-foreground hover:bg-transparent hover:!text-destructive"

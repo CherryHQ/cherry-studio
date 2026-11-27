@@ -3,7 +3,17 @@ import path from 'node:path'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { copy, ensureDir, type PathReadability, probeReadable, remove, removeDir, write } from '@main/utils/file'
+import {
+  copy,
+  ensureDir,
+  type PathReadability,
+  prepareAtomicCopy,
+  type PreparedAtomicWrite,
+  probeReadable,
+  remove,
+  removeDir,
+  write
+} from '@main/utils/file'
 import { nextFreeKnowledgeRelativePath } from '@main/utils/knowledge'
 import { getFileExt } from '@main/utils/legacyFile'
 import { KnowledgeRelativePathSchema } from '@shared/data/types/knowledge'
@@ -158,6 +168,23 @@ export function reserveImportedFileRelativePath(
     reservedPaths.add(getProcessedMarkdownRelativePath(chosen))
   }
   return chosen
+}
+
+/**
+ * Stream `sourcePath` into a temp file beside `raw/{relativePath}` without replacing the target, so
+ * the slow copy can run off the base mutation lock; the caller `commit()`s (a rename) under the lock
+ * or `abort()`s to discard the temp file.
+ */
+export async function prepareFileCopyIntoKnowledgeBaseAt(
+  baseId: string,
+  sourcePath: string,
+  relativePath: PosixRelativeFilePath,
+  signal?: AbortSignal
+): Promise<PreparedAtomicWrite> {
+  const destPath = getKnowledgeBaseFilePath(baseId, relativePath)
+  await assertTargetAvailable(destPath)
+  await ensureDir(AbsoluteFilePathSchema.parse(path.dirname(destPath)))
+  return await prepareAtomicCopy(AbsoluteFilePathSchema.parse(sourcePath), destPath, signal)
 }
 
 export async function copyFileIntoKnowledgeBaseAt(

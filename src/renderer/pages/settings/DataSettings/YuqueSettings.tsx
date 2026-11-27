@@ -1,7 +1,7 @@
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, InfoTooltip, Input, RowFlex } from '@cherrystudio/ui'
+import { Button, HelpTooltip, Input, RowFlex } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import {
@@ -12,8 +12,9 @@ import {
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
-import { ipcApi } from '@renderer/ipc'
+import { settingsControlClasses } from '@renderer/pages/settings/settingsStyles'
 import { toast } from '@renderer/services/toast'
+import { openExternalWebsite } from '@renderer/services/website'
 import { formatErrorMessage } from '@renderer/utils/error'
 
 const logger = loggerService.withContext('YuqueSettings')
@@ -86,7 +87,7 @@ const YuqueSettings: FC = () => {
   }
 
   const handleYuqueHelpClick = () => {
-    void ipcApi.request('system.shell.open_website', 'https://www.yuque.com/settings/tokens')
+    void openExternalWebsite('https://www.yuque.com/settings/tokens')
   }
 
   return (
@@ -95,7 +96,7 @@ const YuqueSettings: FC = () => {
       <SettingDivider />
       <SettingRow id="setting-data-yuque-repo-url" className="scroll-mt-6">
         <SettingRowTitle>{t('settings.data.yuque.repo_url')}</SettingRowTitle>
-        <RowFlex className="w-78.75 max-w-full min-w-0 items-center gap-1.25">
+        <RowFlex className={`${settingsControlClasses.text} items-center gap-2`}>
           <Input
             type="text"
             value={yuqueUrl || ''}
@@ -108,17 +109,17 @@ const YuqueSettings: FC = () => {
       <SettingRow id="setting-data-yuque-token" className="scroll-mt-6">
         <SettingRowTitle>
           {t('settings.data.yuque.token')}
-          <InfoTooltip
+          <HelpTooltip
             content={t('settings.data.yuque.help')}
             placement="left"
             iconProps={{
-              className: 'text-text-2 cursor-pointer ml-1'
+              className: 'text-text-2 cursor-pointer'
             }}
             onClick={handleYuqueHelpClick}
           />
         </SettingRowTitle>
-        <RowFlex className="w-78.75 max-w-full min-w-0 items-center gap-1.25">
-          <RowFlex className="w-full min-w-0 items-center gap-1.25">
+        <RowFlex className={`${settingsControlClasses.text} items-center gap-2`}>
+          <RowFlex className="w-full min-w-0 items-center gap-2">
             <Input
               type="password"
               value={yuqueToken || ''}

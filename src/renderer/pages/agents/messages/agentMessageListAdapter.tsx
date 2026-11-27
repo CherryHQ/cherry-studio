@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 
 import { dataApiService } from '@data/DataApiService'
 import { isHiddenPart } from '@renderer/components/chat/messages/blocks/messagePartLayouts'
+import { useMessageAuthorAvatarSources } from '@renderer/components/chat/messages/hooks/useMessageAuthorAvatarSources'
 import { useMessageListAdapterCapabilities } from '@renderer/components/chat/messages/hooks/useMessageListAdapterCapabilities'
 import {
   pickMessageHeaderActions,
@@ -20,63 +21,96 @@ import {
   type MessageListRuntime,
   type MessageListSelectAllPagination,
   type MessageListState,
+  type MessageUserProfile,
   type MessageRuntime,
   type MessageStreamingLayers
 } from '@renderer/components/chat/messages/types'
 import { dispatchLocateMessage } from '@renderer/components/chat/messages/utils/dispatchLocateMessage'
-import { parseMessagePartId, withMessagePartDiagnosis } from '@renderer/components/chat/messages/utils/messageDiagnosis'
 import { bindCaptureMessageImageRuntime } from '@renderer/components/chat/messages/utils/messageImageRuntimeActions'
-import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
+import { getMessageListItemModel, toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
+import { useProfilePaneToggle } from '@renderer/components/chat/panes/profile'
 import type { DiagnosticReportConfig } from '@renderer/components/ErrorDetailModal'
 import { ipcApi } from '@renderer/ipc'
+import { messageProjectionService } from '@renderer/services/aiTransport'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { openRoute } from '@renderer/services/mainWindowNavigation'
+import type { ExportMessagesToObsidian } from '@renderer/types/messageExport'
 import type { Topic } from '@renderer/types/topic'
-import { extractAgentSessionIdFromTopicId } from '@renderer/utils/agentSession'
-import type { DiagnosisResult } from '@renderer/utils/errorDiagnosis'
+import { formatErrorMessage } from '@renderer/utils/error'
 import { normalizeInlineFilePath, resolveInlineFilePath } from '@renderer/utils/filePath'
-import type { ResponseForPath } from '@shared/data/api/paths'
+import { PartOverrides, type MessagePartRows, messagePartsAt } from '@renderer/utils/message/messagePartRows'
+import { extractAgentSessionId } from '@shared/ai/agentSessionTopic'
+import type { ProjectionTarget } from '@shared/ai/messageProjection'
+import { isDataApiNotFoundError } from '@shared/data/api/errors'
+import type { AgentSessionHistoryActions } from '@shared/data/api/schemas/agentSessionMessages'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import { agentSessionForkFailureReason } from '@shared/ipc/errors/ai'
+import type { DoctorSubjectRef } from '@shared/types/doctor'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { createFilePathHandle } from '@shared/utils/file'
 
 import AgentSessionApiRetryStatus from './AgentSessionApiRetryStatus'
+import { agentSessionForkAvailability, agentSessionForkReasonLabel } from './agentSessionFork'
 import {
   consumePendingAgentSessionImageActions,
   rejectPendingAgentSessionImageActions,
   settleAgentSessionImageActionRequest
 } from './agentSessionImageActionBus'
+import type { AgentTimelineRow } from './agentTimeline'
+import { useAgentTimeline } from './useAgentTimeline'
+
+const exportToObsidian: ExportMessagesToObsidian = async (title, messages) => {
+  const { default: popup } = await import('@renderer/components/ObsidianExportPopup')
+  return popup.show({ title, messages, processingMethod: '1' })
+}
+
+const canDeleteMessage = (message: MessageListItem): boolean => message.role !== 'assistant'
 
 const agentMessageListRuntimes = new Map<string, MessageListRuntime>()
 
+export function scrollAgentMessageListToEnd(topicId: string): void {
+  agentMessageListRuntimes.get(topicId)?.scrollToBottom()
+}
+
 function withTerminalErrorFallback(
   messages: CherryUIMessage[],
-  partsByMessageId: Record<string, CherryMessagePart[]>,
+  partsByMessageId: MessagePartRows,
   noResponseMessage: string
-): Record<string, CherryMessagePart[]> {
-  let next = partsByMessageId
+): MessagePartRows {
+  const replacements = new Map<string, CherryMessagePart[]>()
 
   for (const message of messages) {
     if (message.role !== 'assistant') continue
     const status = message.metadata?.status
-    const parts = partsByMessageId[message.id] ?? message.parts ?? []
-    const hasVisiblePart = parts.some((part) => !isHiddenPart(part))
+    const parts = messagePartsAt(partsByMessageId, message.id) ?? message.parts ?? []
+    const resolvedParts = messageProjectionService.ownsRowParts(parts)
+      ? messageProjectionService.readParts(parts)
+      : parts
+    const hasVisiblePart = resolvedParts.some((part) => !isHiddenPart(part))
+    if (message.metadata?.importedHistory) {
+      if (status === 'error' || !hasVisiblePart) {
+        replacements.set(message.id, [
+          ...resolvedParts,
+          { type: 'data-imported-status', data: { status: message.metadata.importedHistory.status } }
+        ])
+      }
+      continue
+    }
     const needsFallback =
-      (status === 'error' && !parts.some((part) => part.type === 'data-error')) ||
+      (status === 'error' && !resolvedParts.some((part) => part.type === 'data-error')) ||
       (status === 'success' && !hasVisiblePart)
     if (!needsFallback) continue
 
-    if (next === partsByMessageId) next = { ...partsByMessageId }
-    next[message.id] = [
-      ...parts,
+    replacements.set(message.id, [
+      ...resolvedParts,
       {
         type: 'data-error',
         data: { name: 'AgentRuntimeError', message: noResponseMessage, stack: null }
       }
-    ]
+    ])
   }
 
-  return next
+  return replacements.size ? new PartOverrides(partsByMessageId, replacements) : partsByMessageId
 }
 
 export function locateAgentMessageInList(topicId: string, messageId: string, highlight?: boolean): boolean {
@@ -85,31 +119,44 @@ export function locateAgentMessageInList(topicId: string, messageId: string, hig
   return runtime !== null
 }
 
+/** In-place navigation a routed host supplies; without it the fork-source link is hidden. */
+export type NavigateToForkSource = (input: { sourceSessionId: string; returnSessionId?: string }) => Promise<void>
+
 interface AgentMessageListParams {
   topic: Topic
   messages: CherryUIMessage[]
-  partsByMessageId: Record<string, CherryMessagePart[]>
+  historyActions?: Readonly<Record<string, AgentSessionHistoryActions | undefined>>
+  partsByMessageId: MessagePartRows
   streamingLayers?: MessageStreamingLayers
-  assistantProfile?: {
-    name?: string
-    avatar?: string
-  }
+  assistantProfile?: MessageUserProfile & { id?: string }
   assistantId?: string
   isLoading: boolean
   hasOlder?: boolean
   loadOlder?: () => void
   selectAllPagination?: MessageListSelectAllPagination
   openCitationsPanel?: MessageListActions['openCitationsPanel']
+  isAgentToolFlowActive?: MessageListActions['isAgentToolFlowActive']
   openAgentToolFlow?: MessageListActions['openAgentToolFlow']
   openArtifactFile?: MessageListActions['openArtifactFile']
+  openBrowserUrl?: MessageListActions['openBrowserUrl']
+  openExternalUrl?: MessageListActions['openExternalUrl']
+  previewInputFile?: MessageListActions['previewInputFile']
   openDiagnosticReport?: MessageListActions['openDiagnosticReport']
   diagnosticReport?: DiagnosticReportConfig
+  getMessageSiblings?: MessageListState['getMessageSiblings']
+  setActiveBranch?: MessageListActions['setActiveBranch']
   deleteMessage?: MessageListActions['deleteMessage']
+  startEditing?: (messageId: string) => Promise<void>
+  editBusy?: boolean
   respondToolApproval?: MessageListActions['respondToolApproval']
+  navigateToForkSource?: NavigateToForkSource
   imageActionConsumer?: 'capture'
+  scrollToBottomOnSend?: boolean
+  projectionTarget?: ProjectionTarget
   messageNavigation: string
   workspacePath?: string
   messageTail?: MessageListState['messageTail']
+  afterMessages?: MessageListState['afterMessages']
 }
 
 /**
@@ -149,6 +196,7 @@ const requireWorkspaceFilePath = (workspacePath: string | undefined, rawPath: st
 export function useAgentMessageListProviderValue({
   topic,
   messages,
+  historyActions,
   partsByMessageId,
   streamingLayers,
   assistantProfile,
@@ -158,24 +206,36 @@ export function useAgentMessageListProviderValue({
   loadOlder,
   selectAllPagination,
   openCitationsPanel,
+  isAgentToolFlowActive,
   openAgentToolFlow,
   openArtifactFile,
+  previewInputFile,
+  openBrowserUrl,
+  openExternalUrl,
   openDiagnosticReport,
   diagnosticReport,
   deleteMessage,
+  getMessageSiblings,
+  setActiveBranch,
+  startEditing,
+  editBusy,
   respondToolApproval,
+  navigateToForkSource,
   imageActionConsumer,
+  scrollToBottomOnSend = false,
   messageNavigation,
+  projectionTarget,
   workspacePath,
-  messageTail
+  messageTail,
+  afterMessages
 }: AgentMessageListParams): MessageListProviderValue {
   const { t } = useTranslation()
   const normalInteractionsEnabled = imageActionConsumer !== 'capture'
-  const sessionId = useMemo(() => extractAgentSessionIdFromTopicId(topic.id), [topic.id])
+  const sessionId = useMemo(() => extractAgentSessionId(topic.id), [topic.id])
   const resolvedAgentId = assistantId ?? topic.assistantId
   const messageItemCacheRef = useRef(
     new WeakMap<
-      CherryUIMessage,
+      AgentTimelineRow,
       {
         assistantId?: string
         item: MessageListItem
@@ -187,63 +247,62 @@ export function useAgentMessageListProviderValue({
     () => withTerminalErrorFallback(messages, partsByMessageId, t('error.no_response')),
     [messages, partsByMessageId, t]
   )
+  const timeline = useAgentTimeline(messages, displayPartsByMessageId, projectionTarget)
+  const sourceIds = useMemo(
+    () => new Map(timeline.rows.map((row) => [row.id, row.sourceMessageId ?? row.id])),
+    [timeline.rows]
+  )
+  const partialSegments = useMemo(
+    () => new Set(timeline.rows.filter((row) => row.isRunBoundary === false).map((row) => row.id)),
+    [timeline.rows]
+  )
   const displayStreamingLayers = useMemo(() => {
     if (!streamingLayers) return undefined
-
-    const historyPartsByMessageId = withTerminalErrorFallback(
-      messages,
-      streamingLayers.historyPartsByMessageId,
-      t('error.no_response')
-    )
-    if (historyPartsByMessageId === streamingLayers.historyPartsByMessageId) return streamingLayers
-
-    return { ...streamingLayers, historyPartsByMessageId }
-  }, [messages, streamingLayers, t])
-  const visibleMessages = useMemo(
-    () =>
-      messages.filter((message) => {
-        const parts = displayPartsByMessageId[message.id] ?? message.parts ?? []
-        if (parts.length === 0) return true
-        return parts.some((part) => !hasPartParentToolCallId(part))
-      }),
-    [displayPartsByMessageId, messages]
+    const active = new Set(streamingLayers.liveMessageIds)
+    return {
+      historyPartsByMessageId: timeline.parts,
+      liveMessageIds: timeline.rows
+        .filter(
+          (row) => row.kind !== 'marker' && row.kind !== 'interrupted' && active.has(row.sourceMessageId ?? row.id)
+        )
+        .map((row) => row.id)
+    }
+  }, [streamingLayers, timeline])
+  const visibleRows = useMemo(
+    () => timeline.rows.filter(({ parts }) => !parts.length || parts.some((part) => !hasPartParentToolCallId(part))),
+    [timeline.rows]
   )
-  const messageItems = useMemo(() => {
-    return visibleMessages.map((message) => {
-      const cached = messageItemCacheRef.current.get(message)
-      if (cached && cached.assistantId === resolvedAgentId && cached.topicId === topic.id) {
-        return cached.item
-      }
+  const messageItems = useMemo(
+    () =>
+      visibleRows.map((row) => {
+        const cached = messageItemCacheRef.current.get(row)
+        if (cached && cached.assistantId === resolvedAgentId && cached.topicId === topic.id) return cached.item
+        const item: MessageListItem = {
+          ...toMessageListItem(row.message, { assistantId: resolvedAgentId, topicId: topic.id }),
+          id: row.id,
+          partIds: row.partIds,
+          presentation: row.kind,
+          showHeader: row.showHeader,
+          ...(row.sourceMessageId && { parentId: null }),
+          sourceMessageId: row.sourceMessageId,
+          isRunBoundary: row.isRunBoundary,
+          ...(row.isRunBoundary === false && { stats: undefined })
+        }
+        messageItemCacheRef.current.set(row, { assistantId: resolvedAgentId, item, topicId: topic.id })
+        return item
+      }),
+    [resolvedAgentId, visibleRows, topic.id]
+  )
 
-      const item = toMessageListItem(message, {
-        assistantId: resolvedAgentId,
-        topicId: topic.id
-      })
-      messageItemCacheRef.current.set(message, {
-        assistantId: resolvedAgentId,
-        item,
-        topicId: topic.id
-      })
-      return item
-    })
-  }, [resolvedAgentId, visibleMessages, topic.id])
-
-  const persistDiagnosis = useCallback(
-    async (partId: string, diagnosis: DiagnosisResult) => {
-      const parsed = parseMessagePartId(partId)
-      if (!parsed) return
-
-      const persistedMessage = (await dataApiService.get(
-        `/agent-sessions/${sessionId}/messages/${parsed.messageId}`
-      )) as ResponseForPath<'/agent-sessions/:sessionId/messages/:messageId', 'GET'>
-      const updatedParts = withMessagePartDiagnosis(persistedMessage.data.parts ?? [], parsed.partIndex, diagnosis)
-      if (!updatedParts) return
-
-      await dataApiService.patch(`/agent-sessions/${sessionId}/messages/${parsed.messageId}`, {
-        body: { data: { parts: updatedParts } }
-      })
+  const getDoctorSubject = useCallback(
+    (message: MessageListItem): DoctorSubjectRef | undefined => {
+      if (!resolvedAgentId) return undefined
+      const model = message ? getMessageListItemModel(message) : undefined
+      return model
+        ? { kind: 'agent', agentId: resolvedAgentId, providerId: model.provider, modelId: model.id }
+        : { kind: 'agent', agentId: resolvedAgentId }
     },
-    [sessionId]
+    [resolvedAgentId]
   )
   const {
     errorActions,
@@ -258,24 +317,30 @@ export function useAgentMessageListProviderValue({
     selectionController,
     updateRenderConfig
   } = useMessageListAdapterCapabilities({
+    exportToObsidian,
     topicId: topic.id,
     topicName: topic.name,
     messages: messageItems,
-    partsByMessageId: displayPartsByMessageId,
+    partsByMessageId: timeline.parts,
     streamingLayers: displayStreamingLayers,
     deleteMessage,
+    canDeleteMessage,
     diagnosticReport,
-    persistDiagnosis,
+    getDoctorSubject,
     selectAllPagination
   })
+  // The conversation's current Assistant / Agent, not the snapshot each message header shows.
+  const toggleAuthorProfile = useProfilePaneToggle()?.toggle
 
+  // Raw path to main, which resolves workspace-relative input against the session's workspace: the
+  // renderer must never join paths, and nothing unresolved may reach `shell.openPath`.
   const openPath = useCallback(
-    (path: string) => {
-      return window.api.file.openPath(requireWorkspaceFilePath(workspacePath, path))
-    },
-    [workspacePath]
+    (path: string) => ipcApi.request('ai.agent.session.open_path', { sessionId, path }),
+    [sessionId]
   )
 
+  // Still renderer-side: the open-target menu needs an absolute path to describe, and it is not a
+  // file-opening call.
   const resolvePath = useMemo<MessageListActions['resolvePath']>(
     () => (workspacePath ? (path) => requireWorkspaceFilePath(workspacePath, path) : undefined),
     [workspacePath]
@@ -320,14 +385,20 @@ export function useAgentMessageListProviderValue({
       }
 
       agentMessageListRuntimes.set(topic.id, runtime)
+      const unsubscribeSend = scrollToBottomOnSend
+        ? EventEmitter.on(EVENT_NAMES.SEND_MESSAGE, ({ topicId }: { topicId: string }) => {
+            if (topicId === topic.id) runtime.scrollToBottom()
+          })
+        : undefined
 
       return () => {
+        unsubscribeSend?.()
         if (agentMessageListRuntimes.get(topic.id) === runtime) {
           agentMessageListRuntimes.delete(topic.id)
         }
       }
     },
-    [imageActionConsumer, sessionId, topic.id]
+    [imageActionConsumer, scrollToBottomOnSend, sessionId, topic.id]
   )
 
   const bindMessageRuntime = useCallback(
@@ -368,20 +439,79 @@ export function useAgentMessageListProviderValue({
     [sessionId]
   )
 
+  const { notifyError } = leafCapabilities
+  const openForkSourceSession = useCallback(
+    async (sourceSessionId: string) => {
+      try {
+        await dataApiService.get(`/agent-sessions/${sourceSessionId}`)
+        await navigateToForkSource?.({ sourceSessionId, returnSessionId: sessionId ?? undefined })
+      } catch (error) {
+        notifyError(
+          isDataApiNotFoundError(error) ? t('agent_session_fork.source_not_found') : formatErrorMessage(error)
+        )
+      }
+    },
+    [navigateToForkSource, notifyError, sessionId, t]
+  )
+  const forkSession = useCallback(
+    async (messageId: string) => {
+      if (!sessionId) return
+      try {
+        const result = await ipcApi.request('ai.agent.session.fork', {
+          sourceSessionId: sessionId,
+          messageId
+        })
+        openRoute('/app/agents', { sessionId: result.sessionId })
+      } catch (error) {
+        const reason = agentSessionForkFailureReason(error)
+        if (reason) {
+          notifyError(agentSessionForkReasonLabel(t, reason))
+          return
+        }
+        throw error
+      }
+    },
+    [sessionId, t, notifyError]
+  )
+  const agentRenderConfig = useMemo(
+    () => ({
+      ...renderConfig,
+      keepIntermediateAssistantText: true,
+      expandToolSteps: false,
+      expandLiveToolSteps: true
+    }),
+    [renderConfig]
+  )
   const state = useMemo<MessageListState>(
     () => ({
       topic,
+      getMessageSiblings: getMessageSiblings
+        ? (id) => (partialSegments.has(id) ? null : getMessageSiblings(sourceIds.get(id) ?? id))
+        : undefined,
       messages: messageItems,
-      partsByMessageId: displayPartsByMessageId,
+      partsByMessageId: timeline.parts,
       streamingLayers: displayStreamingLayers,
       activeTurnStatus: normalInteractionsEnabled ? renderActiveTurnStatus : undefined,
-      messageTail: normalInteractionsEnabled ? messageTail : undefined,
+      messageTail:
+        normalInteractionsEnabled && messageTail
+          ? {
+              ...messageTail,
+              messageId:
+                timeline.rows.findLast(
+                  (row) =>
+                    row.kind !== 'marker' &&
+                    row.kind !== 'interrupted' &&
+                    (row.sourceMessageId ?? row.id) === messageTail.messageId
+                )?.id ?? messageTail.messageId
+            }
+          : undefined,
+      afterMessages: normalInteractionsEnabled ? afterMessages : undefined,
       isInitialLoading: isLoading && messageItems.length === 0,
       hasOlder,
       messageNavigation,
       ...DEFAULT_MESSAGE_LIST_CONFIG,
-      listKey: resolvedAgentId,
-      renderConfig,
+      listKey: topic.id,
+      renderConfig: agentRenderConfig,
       menuConfig,
       selection: selectionController.selection,
       getMessageUiState: messageUiStateCache.getMessageUiState,
@@ -391,6 +521,10 @@ export function useAgentMessageListProviderValue({
     }),
     [
       getMessageActivityState,
+      getMessageSiblings,
+      partialSegments,
+      sourceIds,
+      timeline.rows,
       hasOlder,
       isLoading,
       leafCapabilities,
@@ -400,34 +534,81 @@ export function useAgentMessageListProviderValue({
       messageItems,
       messageActivityStore,
       messageTail,
+      afterMessages,
       normalInteractionsEnabled,
-      displayPartsByMessageId,
+      timeline.parts,
       renderActiveTurnStatus,
-      renderConfig,
-      resolvedAgentId,
+      agentRenderConfig,
       selectionController.selection,
       displayStreamingLayers,
       topic
     ]
   )
 
+  const restoreUnsentMessage = useCallback(
+    (message: MessageListItem, send: boolean) =>
+      void EventEmitter.emit(EVENT_NAMES.RESTORE_AGENT_COMPOSER_MESSAGE, {
+        topicId: topic.id,
+        messageId: message.id,
+        parts: messagePartsAt(partsByMessageId, message.id) ?? [],
+        send
+      }),
+    [partsByMessageId, topic.id]
+  )
+
   const actions = useMemo<MessageListActions>(
     () => ({
+      setActiveBranch: normalInteractionsEnabled ? setActiveBranch : undefined,
+      resendUnsentMessage: normalInteractionsEnabled ? (message) => restoreUnsentMessage(message, true) : undefined,
+      editUnsentMessage: normalInteractionsEnabled ? (message) => restoreUnsentMessage(message, false) : undefined,
+      editLabel: t('agent.edit_resend.label'),
+      canEditMessage: (message) =>
+        normalInteractionsEnabled &&
+        !!startEditing &&
+        !editBusy &&
+        historyActions?.[message.id]?.edit === null &&
+        message.role === 'user' &&
+        !message.delivery,
+      startEditing: startEditing
+        ? (message) => {
+            void startEditing(message.id)
+          }
+        : undefined,
+      openForkSourceSession: normalInteractionsEnabled && navigateToForkSource ? openForkSourceSession : undefined,
+      forkSession: normalInteractionsEnabled
+        ? {
+            label: t('agent_session_fork.label'),
+            availability: (message) =>
+              agentSessionForkAvailability(t, message, historyActions?.[message.sourceMessageId ?? message.id]),
+            run: (id) => forkSession(sourceIds.get(id) ?? id)
+          }
+        : undefined,
       loadOlder,
       bindRuntime,
       deleteMessage,
+      canDeleteMessage,
       ...exportActions,
       ...errorActions,
       ...pickMessageLeafActions(leafCapabilities),
+      openBrowserUrl,
+      openExternalUrl: openExternalUrl ?? leafCapabilities.openExternalUrl,
       navigateToRoute,
-      ...pickMessageHeaderActions(headerCapabilities),
-      respondToolApproval,
+      ...pickMessageHeaderActions({ ...headerCapabilities, toggleAuthorProfile }),
+      respondToolApproval: respondToolApproval
+        ? (input) =>
+            respondToolApproval({
+              ...input,
+              match: { ...input.match, messageId: sourceIds.get(input.match.messageId) ?? input.match.messageId }
+            })
+        : undefined,
       resolvePath,
       isDirectory,
       openPath,
       openArtifactFile,
+      previewInputFile,
       openDiagnosticReport: normalInteractionsEnabled ? openDiagnosticReport : undefined,
       openCitationsPanel,
+      isAgentToolFlowActive,
       openAgentToolFlow,
       abortTool,
       bindMessageRuntime,
@@ -438,6 +619,15 @@ export function useAgentMessageListProviderValue({
       updateRenderConfig
     }),
     [
+      forkSession,
+      sourceIds,
+      setActiveBranch,
+      startEditing,
+      editBusy,
+      historyActions,
+      navigateToForkSource,
+      openForkSourceSession,
+      t,
       abortTool,
       bindRuntime,
       bindMessageGroupRuntime,
@@ -446,6 +636,7 @@ export function useAgentMessageListProviderValue({
       errorActions,
       exportActions,
       headerCapabilities,
+      toggleAuthorProfile,
       isDirectory,
       leafCapabilities,
       navigateToRoute,
@@ -455,25 +646,36 @@ export function useAgentMessageListProviderValue({
       normalInteractionsEnabled,
       openCitationsPanel,
       openArtifactFile,
+      previewInputFile,
       openDiagnosticReport,
+      openBrowserUrl,
+      openExternalUrl,
+      isAgentToolFlowActive,
       openAgentToolFlow,
       openPath,
       respondToolApproval,
       resolvePath,
+      restoreUnsentMessage,
       selectionController.actions,
       updateRenderConfig
     ]
   )
 
+  const assistantAvatarSources = useMessageAuthorAvatarSources(messageItems, topic.id)
   const meta = useMemo<MessageListMeta>(
     () => ({
       selectionLayer: true,
       userProfile: headerCapabilities.userProfile,
       assistantProfile,
+      authorAvatars:
+        assistantProfile?.id && assistantProfile.avatar !== undefined
+          ? new Map([[assistantProfile.id, assistantProfile.avatar]])
+          : undefined,
+      assistantAvatarSources,
       imageExportFileName: topic.name,
       aiUsageMessageKind: 'agent-session'
     }),
-    [assistantProfile, headerCapabilities.userProfile, topic.name]
+    [assistantProfile, assistantAvatarSources, headerCapabilities.userProfile, topic.name]
   )
 
   return useMemo(() => ({ state, actions, meta }), [actions, meta, state])

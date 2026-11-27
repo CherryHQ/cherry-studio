@@ -15,13 +15,13 @@ import {
 } from '@main/core/lifecycle'
 import type { JobScheduleSnapshot, RetryPolicy, Trigger, UpdateJobScheduleDto } from '@shared/data/api/schemas/jobs'
 import { type JobError, type JobSnapshot } from '@shared/data/api/schemas/jobs'
-import { JOB_ERROR_CODES } from '@shared/data/api/schemas/jobs'
+import { isTerminalStatus, JOB_ERROR_CODES } from '@shared/data/api/schemas/jobs'
 
 import type { JobPayloadOf, JobType } from './jobRegistry'
 import { computeBackoff } from './runtime/backoff'
 import { computeCatchUpAction } from './runtime/catchUp'
 import { DispatchQueue } from './runtime/DispatchQueue'
-import { runStartupRecovery } from './runtime/recovery'
+import { abandonLeftovers, runStartupRecovery } from './runtime/recovery'
 import {
   type EnqueueOptions,
   JOB_PROGRESS_KEY_PREFIX,
@@ -32,6 +32,12 @@ import {
   type JobHandler,
   type JobScheduleRegistrationInput
 } from './types'
+
+function isSpentOnce(schedule: JobScheduleSnapshot): boolean {
+  return (
+    schedule.trigger.kind === 'once' && schedule.lastRun !== null && Date.parse(schedule.lastRun) >= schedule.trigger.at
+  )
+}
 
 const logger = loggerService.withContext('JobManager')
 
@@ -50,7 +56,7 @@ const DEFAULT_GLOBAL_MAX_CONCURRENCY = 50
 const DEFAULT_CANCEL_TIMEOUT_MS = 30_000
 const GC_INTERVAL_MS = 60 * 60 * 1000 // 1h
 const GC_TERMINAL_TTL_MS = 7 * 24 * 60 * 60 * 1000 // 7 days
-const GC_KEEP_PER_TYPE = 100
+const GC_KEEP_PER_SCHEDULE = 100
 const DELAYED_PROMOTION_INTERVAL_MS = 5 * 60 * 1000 // 5min
 
 /**
@@ -124,7 +130,7 @@ interface RecoveryResumePoint {
  * 6-state state machine, schedule registry, retry backoff, startup recovery,
  * catch-up detection, GC.
  *
- * See `docs/references/job-and-scheduler/` for the full architecture, the
+ * See `docs/dev/references/job-and-scheduler/` for the full architecture, the
  * four-layer lock model, and the handler authoring contract.
  *
  * Current shape:
@@ -139,7 +145,7 @@ interface RecoveryResumePoint {
  */
 @Injectable('JobManager')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['SchedulerService'])
+@DependsOn(['SchedulerService', 'RuntimeActivityService'])
 export class JobManager extends BaseService {
   private readonly handlers = new Map<string, JobHandler>()
   private readonly queues = new Map<string, DispatchQueue>()
@@ -150,14 +156,22 @@ export class JobManager extends BaseService {
    * enqueued the job. The authoritative in-memory set of jobIds this process is
    * currently executing. Consumers:
    *   - `cancel()` waits on the promise for the handler to release.
-   *   - startup recovery filters these out (via the `isJobInFlight` predicate)
-   *     so a job started during the quiet window is never reset/re-dispatched.
+   *   - startup recovery filters these out, so a leftover already picked up
+   *     during the quiet window is never reset/re-dispatched.
    *   - `spawnExecute` guards against double-running an id already present.
    * Lives independent of `finishedResolvers` because cross-restart dispatch
    * never builds a `handleFor` entry, leaving the resolver map empty even while
    * a controller is registered.
    */
   private readonly inFlightExecuted = new Map<string, Promise<void>>()
+  /**
+   * Non-terminal rows a previous launch left behind, read in `onInit` before
+   * any service can enqueue (every one depends on JobManager). Startup recovery
+   * reconciles only these: a row this launch enqueued is never a leftover,
+   * whatever its status when the sweep fires. The ones a handler abandons are
+   * cancelled once that handler registers, before anything can read them.
+   */
+  private leftoverJobIds: ReadonlySet<string> = new Set()
   private readonly scheduleDisposables = new Map<string, Disposable>()
   private readonly globalMaxConcurrency = DEFAULT_GLOBAL_MAX_CONCURRENCY
   /**
@@ -272,7 +286,10 @@ export class JobManager extends BaseService {
   // ---------------- Lifecycle ----------------
 
   protected override onInit(): void {
-    logger.info('JobManager initialized')
+    this.leftoverJobIds = new Set(jobService.getStaleActive().map((row) => row.id))
+    // Covers handlers registered before the snapshot; `registerHandler` covers later ones.
+    for (const [type, handler] of this.handlers) abandonLeftovers(type, handler, this.leftoverJobIds)
+    logger.info('JobManager initialized', { leftoverJobs: this.leftoverJobIds.size })
   }
 
   protected override async onReady(): Promise<void> {
@@ -343,9 +360,11 @@ export class JobManager extends BaseService {
    * Step order is significant:
    *
    *   1. `runStartupRecovery` resets non-terminal rows per handler strategy
-   *      (abandon / retry / singleton) and honours `cancelRequested` overrides,
-   *      EXCEPT rows this process is still executing (`inFlightExecuted`), which
-   *      are excluded so a job started during the quiet window is not re-dispatched.
+   *      (retry / singleton; abandon leftovers were cancelled when their handler
+   *      registered) and honours `cancelRequested` overrides,
+   *      on the previous launch's leftovers only (`leftoverJobIds`), minus any
+   *      this process is already executing (`inFlightExecuted`). A job enqueued
+   *      during the quiet window is neither cancelled nor re-dispatched.
    *
    *   2. Resurrect queues for any non-terminal rows from previous runs so
    *      pending dispatch lands on the next tick. `dispatchAll()` iterates
@@ -421,7 +440,10 @@ export class JobManager extends BaseService {
     if (startIndex <= RECOVERY_STEPS.indexOf('reset')) {
       if (interruptedAt({ step: 'reset' })) return
       try {
-        const stats = runStartupRecovery(this.handlers, (id) => this.inFlightExecuted.has(id))
+        const stats = runStartupRecovery(
+          this.handlers,
+          (id) => !this.leftoverJobIds.has(id) || this.inFlightExecuted.has(id)
+        )
         logger.info('Startup recovery complete', stats)
       } catch (err) {
         logger.error('Startup recovery failed', err as Error)
@@ -577,6 +599,9 @@ export class JobManager extends BaseService {
    * Do not defer registration to `onAllReady`: those hooks may start async work
    * without the lifecycle manager awaiting completion, while startup recovery
    * later treats non-terminal jobs for an unregistered type as orphans.
+   * Registering cancels the type's `abandon` leftovers on the spot, so no
+   * enqueue can deduplicate against, or dispatch claim, a row that died with the
+   * previous launch.
    *
    * @param type - JobRegistry key (compile-time validated via declaration merging)
    * @param handler - Handler implementation; `recovery` is required
@@ -587,6 +612,7 @@ export class JobManager extends BaseService {
       throw new Error(`JobManager: handler for type "${type}" is already registered`)
     }
     this.handlers.set(type, handler as JobHandler)
+    abandonLeftovers(type, handler as JobHandler, this.leftoverJobIds)
     logger.info('Handler registered', { type, recovery: handler.recovery })
   }
 
@@ -922,7 +948,8 @@ export class JobManager extends BaseService {
       parentId: opts.parentId ?? null,
       cancelRequested: false,
       metadata: opts.metadata ?? {},
-      timeoutMs: opts.timeoutMs ?? handler.defaultTimeoutMs ?? null
+      timeoutMs: opts.timeoutMs ?? handler.defaultTimeoutMs ?? null,
+      recovery: opts.recovery ?? null
     }
 
     return { handler, queueName, insertRow }
@@ -962,6 +989,7 @@ export class JobManager extends BaseService {
     const snapshot = jobService.create(insertRow)
     this.publishState(snapshot)
     const handle = this.handleFor(snapshot)
+    this.notifyEnqueued(handler, snapshot)
 
     if (snapshot.status === 'pending') {
       void this.dispatch(queueName)
@@ -1040,6 +1068,7 @@ export class JobManager extends BaseService {
           return
         }
         this.publishState(persisted)
+        this.notifyEnqueued(handler, persisted)
         logger.info('Job enqueued (tx)', {
           id: persisted.id,
           type,
@@ -1251,7 +1280,7 @@ export class JobManager extends BaseService {
    * MUST call `syncJobScheduleTimerById(id)` on its own deterministic code
    * path. A rollback therefore has zero timer side effects. See
    * "Transactional schedule mutation" in
-   * `docs/references/job-and-scheduler/overview.md`.
+   * `docs/dev/references/job-and-scheduler/overview.md`.
    *
    * Handler, name, and trigger-semantics validation run up front (outside the
    * write) as the primitive's own precondition — an invalid cron expression /
@@ -1408,7 +1437,7 @@ export class JobManager extends BaseService {
    */
   async triggerJobScheduleNowById(id: string): Promise<boolean> {
     const schedule = jobScheduleService.getById(id)
-    if (!schedule) return false
+    if (!schedule || isSpentOnce(schedule)) return false
     // While paused, force the fallback: croner's .trigger() bypasses its own
     // pause AND the armed callback's gate suppresses the enqueue — the cron
     // path would return true having persisted nothing, silently dropping an
@@ -1419,6 +1448,10 @@ export class JobManager extends BaseService {
       ? false
       : await application.get('SchedulerService').triggerNow(`schedule:${id}`)
     if (triggered) return true
+    if (schedule.trigger.kind === 'once') {
+      const current = jobScheduleService.getById(id)
+      if (!current || isSpentOnce(current)) return false
+    }
     // Fallback path (non-cron OR cron not currently armed in this process).
     this.enqueue(schedule.type as JobType, schedule.jobInputTemplate as never, {
       scheduleId: schedule.id
@@ -1796,12 +1829,8 @@ export class JobManager extends BaseService {
     }
 
     const task = (async () => {
-      // Keep the machine awake for this attempt — best-effort, gated by the user's
-      // `app.power.prevent_sleep_when_busy` preference. preventSleep never throws and always
-      // returns a Disposable (the provider degrades internally), so no guard is needed here.
-      // Declared in the IIFE scope so the finally can dispose it. Per-attempt: between retries
-      // the job sits in `delayed` (not working) and must not hold the machine awake.
-      const sleepHold = application.get('PowerService').preventSleep(`job:${row.type}:${row.id}`)
+      // Only running attempts are active; delayed retries must allow the machine to sleep.
+      const activity = application.get('RuntimeActivityService').begin(`job:${row.type}:${row.id}`)
       try {
         const output = await handler.execute(ctx)
         if (timeoutHandle) clearTimeout(timeoutHandle)
@@ -1843,7 +1872,7 @@ export class JobManager extends BaseService {
           await this.finalizeJob(row.id, userCancel ? 'cancelled' : 'failed', undefined, error)
         }
       } finally {
-        sleepHold.dispose()
+        activity.dispose()
         this.abortControllers.delete(row.id)
         this.inFlightExecuted.delete(row.id)
         resolveExecuted()
@@ -1908,14 +1937,28 @@ export class JobManager extends BaseService {
   ): Promise<void> {
     const dbService = application.get('DbService')
     let txFailed: Error | undefined
+    let written = false
     try {
-      jobService.setTerminalTx(dbService.getDb(), jobId, status, output, error)
+      written = jobService.setTerminalTx(dbService.getDb(), jobId, status, output, error)
     } catch (err) {
       txFailed = err as Error
       logger.error('finalizeJob: tx failed — synthesizing failed snapshot to release slot', { jobId, status, err })
     }
 
     const persisted = jobService.getById(jobId)
+
+    // The write is skipped when the row is already terminal, so `written === false`
+    // means an earlier finalize won — it published and resolved the waiters. Repeating
+    // that emits a duplicate settle, even when the late status happens to match.
+    if (!txFailed && !written && persisted && isTerminalStatus(persisted.status)) {
+      logger.warn('finalizeJob: already finalized — dropping the late terminal state', {
+        jobId,
+        attempted: status,
+        kept: persisted.status
+      })
+      return
+    }
+
     const snapshot: JobSnapshot | null = persisted ?? (txFailed ? this.synthesizeFailedSnapshot(jobId, txFailed) : null)
 
     if (!snapshot) {
@@ -2093,11 +2136,7 @@ export class JobManager extends BaseService {
     // every restart, since scheduleOnce fires a past `at` immediately. Compare
     // against trigger.at rather than mere lastRun presence: a manual trigger
     // also writes lastRun but must not swallow a still-pending natural fire.
-    if (
-      schedule.trigger.kind === 'once' &&
-      schedule.lastRun !== null &&
-      Date.parse(schedule.lastRun) >= schedule.trigger.at
-    ) {
+    if (isSpentOnce(schedule)) {
       if (schedule.nextRun !== null) {
         try {
           jobScheduleService.setNextRun(schedule.id, null)
@@ -2131,7 +2170,7 @@ export class JobManager extends BaseService {
       // DB-backed so prompt/workspace/timeout edits take effect on the next
       // fire without re-arming (which would reset an interval's cadence).
       const currentSchedule = jobScheduleService.getById(schedule.id)
-      if (!currentSchedule?.enabled) return
+      if (!currentSchedule?.enabled || isSpentOnce(currentSchedule)) return
 
       const firedAt = Date.now()
       try {
@@ -2141,6 +2180,7 @@ export class JobManager extends BaseService {
       } catch (err) {
         const e = err as Error & { code?: string }
         logger.error('Schedule fire failed', {
+          operation: 'job.schedule.fire',
           scheduleId: currentSchedule.id,
           type: currentSchedule.type,
           code: e.code,
@@ -2195,7 +2235,7 @@ export class JobManager extends BaseService {
    * fast-path is skipped — the normal dispatch loop handles them.
    *
    * Uses the reserved `job:${jobId}` SchedulerService id prefix (see the
-   * reserved-prefix table in `docs/references/job-and-scheduler/scheduler-usage.md`).
+   * reserved-prefix table in `docs/dev/references/job-and-scheduler/scheduler-usage.md`).
    * The disposable returned by `registerSchedule` is intentionally discarded —
    * cancel() drives termination via the dispatch path rather than disposing
    * the timer, and `scheduleOnce` self-cleans from its map before firing.
@@ -2317,9 +2357,10 @@ export class JobManager extends BaseService {
 
   /**
    * Prune terminal rows: drop anything older than the 7-day TTL, then drop
-   * rows beyond the per-type keep-latest threshold (100). The two steps run
-   * in independent try/catch so a single failed prune (table locked, batch
-   * too large) does not abort the whole sweep silently — `registerInterval`'s
+   * rows beyond the per-schedule keep-latest threshold (100) — per schedule so
+   * a chatty producer cannot evict sibling schedules' run history. The two
+   * steps run in independent try/catch so a single failed prune (table locked,
+   * batch too large) does not abort the whole sweep silently — `registerInterval`'s
    * exception isolation prevents a crash but does not log, so each step
    * surfaces its own error.
    */
@@ -2333,9 +2374,12 @@ export class JobManager extends BaseService {
       logger.error('GC: pruneTerminalOlderThan failed', { err: (err as Error).message })
     }
     try {
-      byCount = jobService.pruneTerminalKeepLatestPerType(GC_KEEP_PER_TYPE)
+      const retainedTypes = [...this.handlers]
+        .filter(([, handler]) => handler.retainTerminalHistoryForTtl)
+        .map(([type]) => type)
+      byCount = jobService.pruneTerminalKeepLatestPerSchedule(GC_KEEP_PER_SCHEDULE, retainedTypes)
     } catch (err) {
-      logger.error('GC: pruneTerminalKeepLatestPerType failed', { err: (err as Error).message })
+      logger.error('GC: pruneTerminalKeepLatestPerSchedule failed', { err: (err as Error).message })
     }
     if (byTtl + byCount > 0) {
       logger.info('GC pass', { byTtl, byCount })
@@ -2374,6 +2418,14 @@ export class JobManager extends BaseService {
 
   private isTerminal(status: JobSnapshot['status']): boolean {
     return status === 'completed' || status === 'failed' || status === 'cancelled'
+  }
+
+  private notifyEnqueued(handler: JobHandler, snapshot: JobSnapshot): void {
+    try {
+      handler.onEnqueued?.(snapshot)
+    } catch (err) {
+      logger.warn('handler.onEnqueued threw — ignoring', { jobId: snapshot.id, type: snapshot.type, err })
+    }
   }
 
   /** Push a job snapshot to the cross-window shared cache (renderer hooks read this). */

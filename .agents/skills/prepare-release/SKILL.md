@@ -31,16 +31,13 @@ Defaults to `patch` if no version is specified. Always echo the resolved target 
    ```
    Stop before editing files if any check fails. This prevents a standalone run from creating a release branch from an arbitrary or stale checkout.
    In GitHub Actions, use the workflow's frozen dispatch SHA and leave checkout validation to the workflow. Do not fetch or compare the later `origin/main` head.
-2. Read the current version from `package.json`. Post Release keeps this synchronized with the last published release.
-3. Resolve the baseline tag as `v{current-version}` and verify that it exists:
-   ```bash
-   git rev-parse --verify refs/tags/v{current-version}
-   ```
-   Stop if it is missing. Confirm that it is also the latest published, non-draft GitHub Release whose tag is strict `v<semver>`; non-semver preview releases are never a release baseline:
+2. Read the current version from `package.json`. Use it for version increments even if that release has since been withdrawn; never reuse the withdrawn version.
+3. Select the latest published, non-draft GitHub Release whose tag is strict `v<semver>` as the release-note baseline. Non-semver preview releases and drafts are never a baseline:
    ```bash
    gh release list --limit 1000 --json isDraft,publishedAt,tagName --jq '[.[] | select(.isDraft == false and (.tagName | test("^v(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\\.[0-9A-Za-z-]+)*)?$")))] | sort_by(.publishedAt) | last | .tagName // empty'
    ```
-   Stop on a mismatch: the latest Post Release metadata PR must be merged into `main` before another release is prepared.
+   Stop if no published baseline exists or its Git tag is missing (`git rev-parse --verify refs/tags/{baseline-tag}`). Compare its version with the current package version using `semver`: if main is behind, stop and require the latest Post Release metadata PR to be merged. If main is ahead, allow preparation using the published baseline for release notes and the package version for version increments. For example, after withdrawing 2.1.1, main at 2.1.1 with a published baseline of 2.1.0 prepares 2.1.2 and includes changes since 2.1.0.
+   In GitHub Actions, use the workflow-provided baseline tag and collection base without repeating these checks.
 4. Compute the new version based on the argument:
    - `patch` / `minor` / `major`: bump from the current version.
    - An exact version must match `^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$` and pass `semver.valid`; build metadata such as `+build.1` is not accepted.
@@ -48,7 +45,7 @@ Defaults to `patch` if no version is specified. Always echo the resolved target 
 
 ### Step 2: Collect Commits
 
-1. Determine the release-note collection base:
+1. Determine the release-note collection base from the published baseline selected in Step 1, not from the package version:
    - If the baseline tag is an ancestor of `HEAD`, use the tag.
    - Otherwise, use the latest commit whose full message contains the exact marker `release-metadata-boundary: <baseline-tag>`. This machine marker is added to the Post Release pull request body and survives the required squash merge.
    - For metadata pull requests created before the machine marker existed, accept a subject exactly equal to `chore(release): sync <baseline-tag> metadata` or that subject followed only by GitHub's squash suffix ` (#<PR-number>)`.
@@ -63,7 +60,7 @@ Defaults to `patch` if no version is specified. Always echo the resolved target 
    ```
 4. Extract the content inside `` ```release-note `` code blocks from each commit body.
 5. Extract the conventional commit type from the title (`feat`, `fix`, `refactor`, `perf`, `docs`, etc.).
-6. **Skip** these commits:
+6. **Skip** these commits as standalone release-note candidates, but still inspect their effects when reconciling candidates with the final code in Step 3:
    - Titles starting with `🤖 Daily Auto I18N`
    - Titles starting with `Merge`
    - Titles starting with `chore(deps)`
@@ -73,7 +70,15 @@ Defaults to `patch` if no version is specified. Always echo the resolved target 
 
 ### Step 3: Generate Bilingual Release Notes
 
-Using the collected commit information, generate release notes in **both English and Chinese**.
+Generate release notes in **both English and Chinese** from the final user-visible changes relative to the published baseline. Commit titles and `release-note` blocks are candidate descriptions, not proof that a change will ship.
+
+**Reconcile net changes before drafting:**
+
+1. Inspect `git diff --name-status <baseline-tag> <release-head>`, then read the relevant patches and code at both endpoints. `<release-head>` is the source `HEAD` before release preparation (the frozen dispatch SHA in CI). Compare the two endpoint trees, not a three-dot merge-base diff. The collection base is only for discovering commits; when it differs from the published tag, also inspect user-visible differences missing from that commit range.
+2. Group candidates by user-visible behavior and trace related patches in chronological order, including commits excluded in Step 2. Detect explicit reverts, manual undoing, replacements, partial reversals, and reintroductions from the code; do not rely on commit wording or matching hashes alone.
+3. Omit a change introduced and fully undone during this cycle, including fixes that only addressed that temporary change. For partial reversals, replacements, or reintroductions, describe only the final outcome that differs from the published baseline, once per distinct user-visible change.
+4. If a reversal removes or changes behavior that already existed in the published baseline, describe the resulting user-visible removal or restoration. Do not discard all revert commits indiscriminately. An implementation rewrite that preserves the same user-visible behavior does not by itself justify a release-note entry.
+5. Verify each proposed item against the endpoint diff and final code, and ensure the English and Chinese versions describe the same outcome. If the claimed effect cannot be substantiated, omit it and report the uncertainty in the preparation summary rather than inventing a release-note claim.
 
 **Recommended format:**
 
@@ -114,8 +119,8 @@ The language markers are the machine-readable contract: include each marker once
 
 **Rules:**
 - Only include categories that have entries (omit empty categories).
-- Each commit appears as exactly ONE line item in the appropriate category.
-- Use the `release-note` field if present; otherwise summarize from the commit title.
+- Each distinct surviving user-visible change appears once in the appropriate category; combine related commits and omit canceled or superseded claims.
+- Prefer wording from the `release-note` field, or otherwise the commit title, only when it matches the verified final outcome.
 - Component tags should be short: `[Chat]`, `[Models]`, `[Agent]`, `[MCP]`, `[Settings]`, `[Data]`, `[Build]`, etc.
 - Chinese translations should be natural, not machine-literal.
 - Do NOT include commit hashes or PR numbers.
@@ -167,17 +172,17 @@ Otherwise, ask the user to confirm before proceeding to Step 6.
 
 ### Step 6: Create Release Branch
 
-1. For an interactive local run, repeat Step 1 items 1-3 immediately before creating the branch. Because Step 4 has intentionally prepared and validated release metadata, replace Step 1's clean-worktree assertion with `git status --short` and stop unless every listed path is one of the four allowed release metadata files. Then create and push a signed, DCO-compliant release commit:
+1. For an interactive local run, repeat Step 1 items 1-3 immediately before creating the branch, reading the original package version from `HEAD:package.json`. Require the published baseline to still match the one used to collect release notes; otherwise regenerate the notes before proceeding. Because Step 4 has intentionally prepared and validated release metadata, replace Step 1's clean-worktree assertion with `git status --short` and stop unless every listed path is one of the four allowed release metadata files. Then create and push a signed, DCO-compliant release commit:
    ```bash
    git fetch origin refs/heads/main:refs/remotes/origin/main --tags
    test "$(git branch --show-current)" = main
    test "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)"
    test "$(node -p "require('./package.json').version")" = "{version}"
-   BASELINE_VERSION="$(git show HEAD:package.json | jq -r .version)"
-   BASELINE_TAG="v$BASELINE_VERSION"
-   git rev-parse --verify "refs/tags/$BASELINE_TAG"
+   CURRENT_VERSION="$(git show HEAD:package.json | jq -r .version)"
    LATEST_PUBLISHED="$(gh release list --limit 1000 --json isDraft,publishedAt,tagName --jq '[.[] | select(.isDraft == false and (.tagName | test("^v(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\\.[0-9A-Za-z-]+)*)?$")))] | sort_by(.publishedAt) | last | .tagName // empty')"
-   test "$LATEST_PUBLISHED" = "$BASELINE_TAG"
+   test "$LATEST_PUBLISHED" = "{baseline-tag}"
+   git rev-parse --verify "refs/tags/$LATEST_PUBLISHED"
+   node -e "const semver = require('semver'); process.exit(semver.gte(process.argv[1], process.argv[2]) ? 0 : 1)" "$CURRENT_VERSION" "${LATEST_PUBLISHED#v}"
    REPO="$(gh repo view --json nameWithOwner --jq .nameWithOwner)"
    gh api --paginate --slurp "repos/$REPO/releases?per_page=100" | TAG="v{version}" node scripts/release/validate-release-state.js prepare
    test -z "$(git ls-remote --heads origin refs/heads/release/v{version})"

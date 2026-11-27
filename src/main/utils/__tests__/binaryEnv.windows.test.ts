@@ -3,6 +3,8 @@ import path from 'path'
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { application } from '@application'
+
 // Pin the Windows code path so we exercise mergeBinaryExecutionEnv's
 // case-insensitive PATH dedup (the `.toLowerCase()` branch), which the
 // host-platform run in binaryEnv.test.ts (isWin=false) cannot reach.
@@ -94,6 +96,27 @@ describe('mergeBinaryExecutionEnv (Windows)', () => {
     expect(merged[pathKeys[0]].split(';')).toEqual(['C:\\User\\Bin', 'C:\\Windows', 'C:\\DATA\\BIN'])
   })
 
+  it('folds trailing-separator spellings of the same directory', () => {
+    // win32.normalize keeps a trailing separator, so `C:\Tools\` and `C:\Tools`
+    // canonicalize differently although they name one directory. The first
+    // spelling wins verbatim (same contract as the slash-folding case above).
+    const shims = 'C:\\data\\binary-manager\\shims'
+    const { Path } = mergeBinaryExecutionEnv({
+      Path: 'C:\\Tools;C:\\Tools\\;c:\\tools;C:\\DATA\\BIN\\'
+    })
+
+    expect(Path.split(';')).toEqual([shims, 'C:\\Tools', 'C:\\DATA\\BIN\\'])
+  })
+
+  it('keeps a bare drive root distinct from a drive-relative entry', () => {
+    // Stripping the trailing separator must not turn the drive root `C:\` into
+    // the drive-relative `C:` — they are different directories.
+    const merged = mergePathSuffixes({ Path: 'C:\\Tools' }, ['C:\\', 'C:'])
+
+    const pathKeys = Object.keys(merged).filter((key) => key.toLowerCase() === 'path')
+    expect(merged[pathKeys[0]].split(';')).toEqual(['C:\\Tools', 'C:\\', 'C:'])
+  })
+
   it('relocates LOCALAPPDATA/APPDATA into the isolated data dir on Windows', () => {
     // aqua/Sigstore/TUF resolves its cache/config from %LOCALAPPDATA%/%APPDATA%;
     // the install subprocess strips the user's real values, so the isolated home
@@ -102,5 +125,28 @@ describe('mergeBinaryExecutionEnv (Windows)', () => {
     const env = getBinaryIsolatedHomeEnv()
     expect(env['LOCALAPPDATA']).toBe('C:\\data\\binary-manager\\localappdata')
     expect(env['APPDATA']).toBe('C:\\data\\binary-manager\\appdata')
+  })
+
+  it('does not override the uv cache for a spaced Windows profile', () => {
+    const getPath = application.getPath
+    const spy = vi.spyOn(application, 'getPath').mockImplementation((key, filename) => {
+      if (key === 'feature.binary.data') return 'C:\\Dev Oslo\\Toolchain\\mise'
+      if (key === 'feature.binary.data.isolated.localappdata') return 'C:\\Dev Oslo\\Toolchain\\mise\\localappdata'
+      if (key === 'feature.binary.data.isolated.appdata') return 'C:\\Dev Oslo\\Toolchain\\mise\\appdata'
+      return getPath(key, filename)
+    })
+    try {
+      expect(getBinaryIsolatedHomeEnv()).toEqual({
+        HOME: 'C:\\Dev Oslo\\Toolchain\\mise\\home',
+        XDG_CONFIG_HOME: 'C:\\Dev Oslo\\Toolchain\\mise\\xdg\\config',
+        XDG_CACHE_HOME: 'C:\\Dev Oslo\\Toolchain\\mise\\xdg\\cache',
+        XDG_STATE_HOME: 'C:\\Dev Oslo\\Toolchain\\mise\\xdg\\state',
+        LOCALAPPDATA: 'C:\\Dev Oslo\\Toolchain\\mise\\localappdata',
+        APPDATA: 'C:\\Dev Oslo\\Toolchain\\mise\\appdata'
+      })
+      expect(getBinaryIsolatedHomeEnv()).not.toHaveProperty('UV_CACHE_DIR')
+    } finally {
+      spy.mockRestore()
+    }
   })
 })

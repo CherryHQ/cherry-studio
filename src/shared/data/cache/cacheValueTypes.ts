@@ -1,17 +1,18 @@
 import type { UpdateInfo } from 'builder-util-runtime'
 
+import type { DoctorState } from '@shared/types/doctor'
+import type { DoctorAgentState } from '@shared/types/doctorAgent'
 import type { AbsoluteFilePath, FileType } from '@shared/types/file'
 import type { McpTool } from '@shared/types/mcp'
+import type { MarketplaceSkill } from '@shared/types/skillMarketplace'
 
 import type { AgentSessionApiRetryState } from '../../ai/agentSessionApiRetry'
 import type { AgentSessionBackgroundTasks, AgentSessionTaskEvents } from '../../ai/agentSessionBackgroundTasks'
 import type { AgentSessionCompactionState } from '../../ai/agentSessionCompaction'
 import type { AgentSessionContextUsage } from '../../ai/agentSessionContextUsage'
-import type { AgentSessionFlowParts } from '../../ai/agentSessionFlowParts'
 import type { AgentSessionSlashCommand } from '../../ai/agentSessionSlashCommands'
 import type { AutonomousTurnOrigin } from '../../ai/agentSessionTurnOrigin'
 import type { McpServer } from '../types/mcpServer'
-import type { MiniApp } from '../types/miniApp'
 import type { UniqueModelId } from '../types/model'
 import type { ComposerMessageTokenKind } from '../types/uiParts'
 import type { WebSearchStatus } from '../types/webSearch'
@@ -26,19 +27,23 @@ export type CacheAppUpdateState = {
   ignore: boolean
   //   /** Whether the update check was manually triggered by user clicking the button */
   manualCheck: boolean
+  lastErrorKey: 'settings.about.updateError' | 'settings.about.updateNotPublished' | null
 }
 
 export type CacheActiveSearches = Record<string, WebSearchStatus>
 
+export type CacheMarketplaceSkillCatalog = MarketplaceSkill[] | null
+
 // For cache schema, we use any for complex types to avoid circular dependencies
 // The actual type checking will be done at runtime by the cache system
-export type CacheMiniAppType = MiniApp
 export type CacheMcpTool = McpTool
 
 export type McpRuntimeStatus = {
   state: 'disabled' | 'connecting' | 'connected' | 'error'
   lastCheckedAt: number
   lastError?: string
+  /** Set while `connecting` waits for the user to finish OAuth in the browser. */
+  authorizing?: boolean
 }
 
 /**
@@ -70,6 +75,8 @@ export interface Tab {
   url: string
   title: string
   icon?: string
+  /** Emoji descriptor shown when an image `icon` fails to load. */
+  iconFallback?: string
   metadata?: Record<string, unknown>
   // LRU 字段
   lastAccessTime?: number // open/switch 时更新
@@ -134,10 +141,11 @@ export interface ChatScrollAnchor {
 
 export interface CacheComposerSerializedToken {
   id: string
-  kind: ComposerMessageTokenKind | 'promptVariable'
+  kind: ComposerMessageTokenKind | 'promptVariable' | 'messagePart'
   label: string
   icon?: string
   description?: string
+  sourceMessageId?: string
   promptText?: string
   payload?: unknown
   index: number
@@ -146,6 +154,8 @@ export interface CacheComposerSerializedToken {
 
 export interface CacheComposerAttachment {
   fileTokenSourceId: string
+  /** In-memory attachment; shared by drafts, undo history and queued sends. */
+  blob?: Blob
   path?: AbsoluteFilePath
   name: string
   origin_name: string
@@ -175,7 +185,28 @@ export interface CacheAgentComposerDraft extends CacheComposerDraftBase {
   shouldValidateSkills?: boolean
 }
 
+/** Unsubmitted AskUserQuestion answers, keyed per question index. Survives composer remounts. */
+export interface CacheAskUserQuestionDraft {
+  selectedAnswers: Record<number, string[]>
+  customAnswers: Record<number, string>
+  currentIndex: number
+}
+
 export type ExternalOpenTargetPreferences = Record<string, string>
+
+/** Icon and "not done yet" rule of a profile starter; Assistant questions are always `generic`. */
+export type ProfileStarterKind = 'schedule' | 'github' | 'skills' | 'memory' | 'knowledge' | 'generic'
+
+/** A generated Agent suggestion or Assistant opening question; `prompt` goes into the composer. */
+export interface ProfileStarter {
+  kind: ProfileStarterKind
+  title: string
+  hint: string
+  prompt: string
+}
+
+/** Generated starters per Assistant / Agent ID; `hash` identifies compatible generations. */
+export type ProfileStartersCache = Record<string, { hash: string; items: ProfileStarter[] }>
 
 export type CachePaintingGenerationState = {
   status: 'running' | 'failed' | 'canceled'
@@ -190,7 +221,6 @@ export type CacheAgentSessionApiRetryState = AgentSessionApiRetryState | null
 export type CacheAgentSessionSlashCommands = AgentSessionSlashCommand[] | null
 export type CacheAgentSessionBackgroundTasks = AgentSessionBackgroundTasks
 export type CacheAgentSessionTaskEvents = AgentSessionTaskEvents
-export type CacheAgentSessionFlowParts = AgentSessionFlowParts
 export type CacheAgentSessionTurnOrigin = AutonomousTurnOrigin | null
 
 /**
@@ -228,3 +258,8 @@ export type CacheMiniAppAttention = {
   /** An update in flight: the version landing, and how far its download is (`null` = not measurable yet). */
   updating: { version: string; fraction: number | null } | null
 }
+
+/** System Doctor run state; see `@shared/types/doctor`. */
+export type CacheDoctorState = DoctorState
+/** Doctor Agent analysis state; see `@shared/types/doctorAgent`. */
+export type CacheDoctorAgentState = DoctorAgentState

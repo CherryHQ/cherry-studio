@@ -35,10 +35,6 @@ vi.mock('@renderer/hooks/useTheme', () => ({
   useTheme: () => ({ theme: 'light' })
 }))
 
-vi.mock('@renderer/components/Scrollbar', () => ({
-  default: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>
-}))
-
 vi.mock('../components/WebSearchProviderLogo', () => ({
   default: ({ providerName }: { providerName: string }) => <span>{providerName}</span>
 }))

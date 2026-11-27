@@ -1,11 +1,12 @@
-import '@testing-library/jest-dom/vitest'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
+import '@testing-library/jest-dom/vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import { FilePreviewNavigationProvider } from '@renderer/components/FilePreview'
+import type * as CodeStyleModule from '@renderer/hooks/useCodeStyle'
 import type { AbsoluteFilePath } from '@shared/types/file'
 
 import MarkdownFilePreview from '../MarkdownFilePreview'
@@ -22,7 +23,8 @@ vi.mock('@renderer/components/CodeViewer', () => ({
   default: ({ value }: { value: string }) => <pre aria-label="Code viewer">{value}</pre>
 }))
 
-vi.mock('@renderer/hooks/useCodeStyle', () => ({
+vi.mock('@renderer/hooks/useCodeStyle', async (importOriginal) => ({
+  ...(await importOriginal<typeof CodeStyleModule>()),
   useCodeStyle: () => ({ activeCmTheme: 'light' }),
   useCmTheme: () => 'light'
 }))
@@ -44,7 +46,7 @@ function renderArtifactPreview(openFile: (path: AbsoluteFilePath) => void) {
       <MarkdownFilePreview
         filePath={filePath}
         fileName="DESIGN.md"
-        metadata={{ size: 128 }}
+        metadata={{ size: 128, modifiedAt: 1 }}
         refreshKey={0}
         type="artifact"
       />
@@ -80,6 +82,14 @@ describe('MarkdownFilePreview links', () => {
     })
   })
 
+  it('preserves encoded filename punctuation and source locations through preview navigation', async () => {
+    mocks.readText.mockResolvedValue('[Source](./src/report%3A42.ts#L7-L9)')
+    const openFile = vi.fn()
+    renderArtifactPreview(openFile)
+    await userEvent.click(await screen.findByRole('link', { name: 'Source' }))
+    expect(openFile).toHaveBeenCalledWith('/tmp/workspace/src/report:42.ts', { line: 7, endLine: 9 })
+  })
+
   it('opens a relative Markdown link from the workspace root through the host', async () => {
     mocks.readText.mockResolvedValue('[Design token system](./packages/ui/docs/design-token-system.md)')
     const openFile = vi.fn()
@@ -94,6 +104,20 @@ describe('MarkdownFilePreview links', () => {
 
     expect(openFile).toHaveBeenCalledWith('/tmp/workspace/packages/ui/docs/design-token-system.md')
     expect(screen.queryByText('Open external link?')).not.toBeInTheDocument()
+  })
+
+  it('uses the document directory for images while links keep the workspace root', async () => {
+    mocks.readText.mockResolvedValue('![diagram](images/diagram.png)\n\n[Guide](./guide.md)')
+    const openFile = vi.fn()
+    const user = userEvent.setup()
+    renderArtifactPreview(openFile)
+
+    expect(await screen.findByRole('img', { name: 'diagram' })).toHaveAttribute(
+      'src',
+      'file:///tmp/workspace/docs/images/diagram.png'
+    )
+    await user.click(screen.getByRole('link', { name: 'Guide' }))
+    expect(openFile).toHaveBeenCalledWith('/tmp/workspace/guide.md')
   })
 
   it('opens a Windows drive-form Markdown link through the host', async () => {

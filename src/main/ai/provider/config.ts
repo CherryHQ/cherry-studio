@@ -10,6 +10,7 @@ import { application } from '@application'
 import { formatPrivateKey, hasProviderConfig, type StringKeys } from '@cherrystudio/ai-core/provider'
 import type { CherryInProviderSettings } from '@cherrystudio/ai-sdk-provider'
 import { providerService, type ResolvedProviderApiKey } from '@main/data/services/ProviderService'
+import { t } from '@main/i18n'
 import { copilotService } from '@main/services/CopilotService'
 import { mergeHeaders } from '@main/utils/http'
 import { CHERRYAI_PROVIDER_ID, isManagedCherryCloudModel } from '@shared/data/presets/cherryai'
@@ -24,7 +25,8 @@ import {
   formatOllamaApiHost,
   isBareVertexApiHost,
   isWithTrailingSharp,
-  withoutTrailingApiVersion
+  withoutTrailingApiVersion,
+  withoutTrailingSlash
 } from '@shared/utils/api'
 import { isGenerateImageModel } from '@shared/utils/model'
 import {
@@ -40,13 +42,20 @@ import { SystemProviderIds } from '@shared/utils/systemProviderId'
 import type { ProviderConfig } from '../types'
 import { type AppProviderId, appProviderIds, type AppProviderSettingsMap } from '../types'
 import { customFetch } from '../utils/customFetch'
-import { getBaseUrl, getExtraHeaders, getProviderAppHeaders, routeToEndpoint } from '../utils/provider'
+import {
+  getBaseUrl,
+  getExtraHeaders,
+  getProviderAppHeaders,
+  headersWithoutCredentials,
+  routeToEndpoint
+} from '../utils/provider'
 import { normalizeArkResponsesResponse, stripArkUnsupportedIncludes } from './ark'
 import { generateSignature } from './cherryai'
-import { buildCherryCloudProviderConfig } from './cherryCloud'
+import { buildCherryCloudProviderConfig, ModelUnavailableError } from './cherryCloud'
 import { buildCodexRequestHeaders, coerceCodexRequestBody } from './codex'
 import { COPILOT_DEFAULT_HEADERS } from './constants'
 import type { ServingAuthMethod, ServingCredentialReceipt } from './credential'
+import { normalizeComfyuiBaseUrl } from './custom/comfyui/comfyuiHttp'
 import { appendDashScopeWebExtractor } from './custom/dashscope/dashscopeWebExtractor'
 import { dmxapiUsesCustomTransport } from './custom/dmxapi/dmxapiImageRouting'
 import { resolveAiSdkProviderId, type ResolvedEndpoint, resolveEffectiveEndpoint } from './endpoint'
@@ -64,7 +73,9 @@ interface BuilderContext {
   actualProvider: Provider
   model: Model
   baseConfig: BaseConfig
+  resolvedBaseUrl: string
   apiKeyOverride?: string
+  routeOnly?: boolean
   endpointType?: EndpointType
   endpoint?: string
   aiSdkProviderId: StringKeys<AppProviderSettingsMap>
@@ -76,6 +87,7 @@ type ApiKeyBuilderContext = BuilderContext & {
 
 interface ProviderToAiSdkConfigOptions {
   apiKeyOverride?: string
+  routeOnly?: boolean
   resolvedEndpoint?: ResolvedEndpoint
 }
 
@@ -125,8 +137,25 @@ const IMAGE_EXTENSION_PRESETS = [
   SystemProviderIds.silicon,
   SystemProviderIds.doubao,
   SystemProviderIds.dmxapi,
-  SystemProviderIds.tokenhub
+  SystemProviderIds.tokenhub,
+  SystemProviderIds.qwencloud
 ] as const
+
+/**
+ * Image-endpoint origin for AIGC transports that hang off the chat host: strip the
+ * `/compatible-mode/v1` suffix so `https://maas.qwencloudapi.com/compatible-mode/v1/`
+ * yields `https://maas.qwencloudapi.com` (chat/custom hosts track the user config).
+ */
+function deriveImageBaseURL(provider: Provider): string {
+  const baseURL = formatBaseURL(
+    getBaseUrl(provider, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS),
+    provider,
+    ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+  )
+  const normalized = withoutTrailingSlash(baseURL) ?? baseURL
+  const compatSuffix = '/compatible-mode/v1'
+  return normalized.endsWith(compatSuffix) ? normalized.slice(0, -compatSuffix.length) : normalized
+}
 
 // ── SDK Config Building ──
 
@@ -143,6 +172,7 @@ type ConfigBuilderEntry = {
 }
 
 function selectApiKey(ctx: BuilderContext): ApiKeyBuilderContext {
+  if (ctx.routeOnly) return { ...ctx, apiKeySelection: { attribution: 'unknown' } }
   const resolved = providerService.resolveApiKey(ctx.actualProvider.id, ctx.apiKeyOverride)
   return {
     ...ctx,
@@ -201,11 +231,13 @@ export async function resolveProviderAiSdkConfig(
   const ctx: BuilderContext = {
     actualProvider: provider,
     model,
+    resolvedBaseUrl: baseUrl,
     // Credential selection is intentionally deferred until a key-backed builder
     // wins dispatch. OAuth/IAM/no-credential routes must not advance rotation
     // for a key they never serve with.
     baseConfig: { baseURL, apiKey: '' },
     apiKeyOverride: options?.apiKeyOverride,
+    routeOnly: options?.routeOnly,
     endpointType,
     endpoint,
     aiSdkProviderId
@@ -221,7 +253,7 @@ export async function resolveProviderAiSdkConfig(
     { match: (p) => p.id === GROK_CLI_PROVIDER_ID, build: withProviderAuth('oauth', buildGrokCliConfig) },
     {
       match: (p) => isManagedCherryCloudModel(p.id),
-      build: withoutCredential((ctx) => buildCherryCloudProviderConfig(ctx.endpointType, ctx.endpoint))
+      build: withoutCredential((ctx) => buildCherryCloudProviderConfig(ctx.endpointType, ctx.endpoint, ctx.model.id))
     },
     { match: (p) => p.id === CHERRYAI_PROVIDER_ID, build: withSelectedApiKey(buildCherryAIConfig) },
     // Local embedding runs fully in-process (transformers.js in a worker): no
@@ -238,6 +270,8 @@ export async function resolveProviderAiSdkConfig(
       }))
     },
     { match: (p) => isOllamaProvider(p), build: withSelectedApiKey(buildOllamaConfig) },
+    // ComfyUI has no OpenAI fallback; its key is for partner nodes, not the server.
+    { match: (p) => matchesPreset(p, SystemProviderIds.comfyui), build: withSelectedApiKey(buildComfyuiConfig) },
     { match: (p) => isAzureOpenAIProvider(p), build: withSelectedApiKey(buildAzureConfig) },
     // DashScope chat is OpenAI-compatible, but Bailian rerank uses a provider-specific URL.
     // Only replace the OpenAI-compatible branch so other DashScope endpoint families stay routed normally.
@@ -311,28 +345,22 @@ export async function resolveProviderAiSdkConfig(
       match: (p, id) => id === 'openai' && matchesPreset(p, SystemProviderIds.dashscope),
       build: withSelectedApiKey((ctx) => {
         const config = buildGenericProviderConfig(ctx)
+        if (isGenerateImageModel(ctx.model)) {
+          config.providerSettings = {
+            ...config.providerSettings,
+            imageBaseURL: deriveImageBaseURL(ctx.actualProvider)
+          }
+        }
         config.providerSettings.fetch = (input: RequestInfo | URL, init?: RequestInit) =>
           customFetch(input, { ...init, body: appendDashScopeWebExtractor(init?.body) })
         return config
       })
     },
-    // Subset Responses servers (HuggingFace router today) speak the spec-neutral dialect: the
-    // minimal body only, no OpenAI-only extras they would reject.
-    { match: (_, id) => id === 'open-responses', build: withSelectedApiKey(buildOpenResponsesConfig) },
-    // modelscope / ppio / doubao / dmxapi / tokenhub: chat & embedding are OpenAI-compatible, but IMAGE
-    // generation needs the bespoke transport inside the extension provider
-    // (createXProvider().imageModel()) — a submit/poll loop for most, Ark's own
-    // `/images/generations` protocol for doubao. Override the resolved `openai-compatible` id
-    // to the extension id for image models only — chat/embedding fall through to the generic
-    // openai-compatible builder (which keeps `includeUsage`). Matched by PRESET, not by a bare
-    // `provider.id` — a user-added instance of the same host carries a UUID id, and keying on
-    // the id left it on the generic image model (multipart `/images/edits`, 404 on Ark #18537).
-    // Routing here is also what makes the vendor params land under the `providerOptions` key
-    // the image model reads: the delivery adapter keys the body by this `providerId`, which the
-    // generic branch would leave as `openai-compatible` while the model looked under its own id.
+    // Native image models use preset-owned transports and providerOptions namespaces.
+    // QwenCloud's image transport is independent of the selected text adapter.
     {
       match: (_, id) =>
-        id === 'openai-compatible' &&
+        (id === 'openai-compatible' || imageExtensionPreset === SystemProviderIds.qwencloud) &&
         isGenerateImageModel(model) &&
         imageExtensionPreset !== undefined &&
         (imageExtensionPreset !== SystemProviderIds.dmxapi || dmxapiUsesCustomTransport(model.apiModelId ?? model.id)),
@@ -342,10 +370,17 @@ export async function resolveProviderAiSdkConfig(
         endpoint: ctx.endpoint,
         providerSettings: {
           ...ctx.baseConfig,
+          // QwenCloud's AIGC transport hangs off the chat host; the other presets
+          // pin their origin inside their transport defaults.
+          ...(imageExtensionPreset === SystemProviderIds.qwencloud && {
+            imageBaseURL: deriveImageBaseURL(ctx.actualProvider)
+          }),
           headers: { ...getProviderAppHeaders(ctx.actualProvider), ...getExtraHeaders(ctx.actualProvider) }
         }
       }))
     },
+    // Native image transports take precedence over the selected text adapter.
+    { match: (_, id) => id === 'open-responses', build: withSelectedApiKey(buildOpenResponsesConfig) },
     {
       match: (p, id) => id === 'openai-compatible' && isGenerateImageModel(model) && matchesPreset(p, 'minimax'),
       build: withSelectedApiKey((ctx) => ({
@@ -402,7 +437,7 @@ export async function resolveProviderAiSdkConfig(
 async function buildCopilotConfig(ctx: BuilderContext): Promise<ProviderConfig<'github-copilot-openai-compatible'>> {
   const storedHeaders = {} // TODO: read from PreferenceService if copilot headers are persisted
   const headers = mergeHeaders(COPILOT_DEFAULT_HEADERS, storedHeaders)
-  const { token } = await copilotService.getToken(null as any, headers)
+  const token = ctx.routeOnly ? '' : (await copilotService.getToken(null as any, headers)).token
 
   return {
     providerId: 'github-copilot-openai-compatible',
@@ -487,7 +522,7 @@ function buildCodexFetch() {
  * proxy (`cli-chat-proxy.grok.com/v1/responses`) with OAuth bearer auth. The
  * per-request `fetch` injects a freshly-refreshed token + the Grok-CLI proxy
  * headers, and rewrites the body into the shape the proxy accepts (hoisting
- * system turns into `instructions`, dropping reasoning knobs) — none of which
+ * system turns into `instructions`, normalizing reasoning) — none of which
  * the generic Responses adapter does on its own.
  */
 function buildGrokCliConfig(ctx: BuilderContext): ProviderConfig<'openai'> {
@@ -554,6 +589,9 @@ async function buildCherryAIConfig(ctx: BuilderContext): Promise<ProviderConfig<
       includeUsage: resolveEndpointDialect(ctx.actualProvider, ctx.endpointType).streamOptions,
       headers: { ...getProviderAppHeaders(ctx.actualProvider), ...getExtraHeaders(ctx.actualProvider) },
       fetch: async (input: RequestInfo | URL, init?: RequestInit) => {
+        // The built-in free model is offered only to signed-in Cherry AI accounts.
+        const { phase } = await application.get('CherryCloudService').getStatus()
+        if (phase !== 'signed-in') throw new ModelUnavailableError(t('chat.cherryai.sign_in_required'))
         const signature = generateSignature({
           method: 'POST',
           path: '/chat/completions',
@@ -592,6 +630,25 @@ function buildOllamaConfig(ctx: BuilderContext): ProviderConfig<'ollama'> {
     providerId: 'ollama',
     endpoint: ctx.endpoint,
     providerSettings: { ...ctx.baseConfig, headers }
+  }
+}
+
+/**
+ * ComfyUI: a credential-free local server, so no `Authorization` ever goes to it.
+ * The key, when one is set, is a Comfy API key: the transport hands it to the
+ * workflow's partner nodes (Flux Pro, Kling, …) in the `/prompt` body, which is
+ * where ComfyUI reads it. `baseURL` is the server root; the transport appends its
+ * own paths (`/prompt`, `/history/{id}`, `/view?…`).
+ */
+function buildComfyuiConfig(ctx: BuilderContext): ProviderConfig<'comfyui'> {
+  return {
+    providerId: 'comfyui',
+    endpoint: ctx.endpoint,
+    providerSettings: {
+      ...ctx.baseConfig,
+      baseURL: normalizeComfyuiBaseUrl(ctx.resolvedBaseUrl),
+      headers: headersWithoutCredentials(ctx.actualProvider)
+    }
   }
 }
 
@@ -898,6 +955,9 @@ function buildDashScopeConfig(ctx: BuilderContext): ProviderConfig<'dashscope'> 
     endpoint: ctx.endpoint,
     providerSettings: {
       ...ctx.baseConfig,
+      ...(isGenerateImageModel(ctx.model) && {
+        imageBaseURL: deriveImageBaseURL(ctx.actualProvider)
+      }),
       headers: { ...getProviderAppHeaders(ctx.actualProvider), ...getExtraHeaders(ctx.actualProvider) },
       includeUsage: resolveEndpointDialect(ctx.actualProvider, ctx.endpointType).streamOptions
     }
@@ -929,7 +989,9 @@ function buildNewApiConfig(ctx: BuilderContext): ProviderConfig<'newapi'> {
     rawBaseURL = ctx.baseConfig.baseURL
   }
 
-  const baseURL = formatNewApiBaseURL(rawBaseURL, endpointType)
+  const baseURL = isWithTrailingSharp(ctx.resolvedBaseUrl)
+    ? ctx.baseConfig.baseURL
+    : formatNewApiBaseURL(rawBaseURL, endpointType)
 
   return {
     providerId: 'newapi',

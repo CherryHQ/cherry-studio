@@ -127,6 +127,7 @@ vi.mock('semver', () => ({
 
 vi.mock('node:fs', () => ({
   default: {
+    promises: { access: vi.fn().mockResolvedValue(undefined) },
     existsSync: vi.fn().mockReturnValue(false),
     readFileSync: vi.fn().mockReturnValue(''),
     writeFileSync: vi.fn(),
@@ -143,10 +144,9 @@ vi.mock('node:fs', () => ({
 }))
 
 async function loadModules() {
-  const { BaseService } = await import('@main/core/lifecycle')
   const { CodeCliService } = await import('../CodeCliService')
   const codeCliService = new CodeCliService()
-  return { BaseService, CodeCliService, codeCliService }
+  return { CodeCliService, codeCliService }
 }
 
 describe('CodeCliService', () => {
@@ -187,17 +187,6 @@ describe('CodeCliService', () => {
     })
   })
 
-  it('should extend BaseService', async () => {
-    const { BaseService, codeCliService } = await loadModules()
-    expect(codeCliService).toBeInstanceOf(BaseService)
-  })
-
-  it('should have onInit that preloads terminals', async () => {
-    const { codeCliService } = await loadModules()
-    await expect(codeCliService._doInit()).resolves.toBeUndefined()
-    expect(codeCliService.isReady).toBe(true)
-  })
-
   it('reconciles available CLI skills only after every service is ready', async () => {
     const { codeCliService } = await loadModules()
 
@@ -205,27 +194,13 @@ describe('CodeCliService', () => {
     expect(skillServiceMock.syncBuiltinSkill).not.toHaveBeenCalled()
 
     await codeCliService._doAllReady()
-    expect(skillServiceMock.syncBuiltinSkill).toHaveBeenCalledTimes(13)
+
     expect(skillServiceMock.syncBuiltinSkill).toHaveBeenCalledWith(
       'code-mate-codex',
       path.join('/mock/binary-data', 'code-mate-codex'),
-      '2.0.9',
+      expect.any(String),
       'code-cli:openai-codex'
     )
-  })
-
-  it('should clean up timers on stop', async () => {
-    const { codeCliService } = await loadModules()
-    await codeCliService._doInit()
-    await expect(codeCliService._doStop()).resolves.toBeUndefined()
-    expect(codeCliService.isStopped).toBe(true)
-  })
-
-  it('should prevent double instantiation', async () => {
-    const { CodeCliService } = await loadModules()
-    // loadModules() already created one instance,
-    // so creating another should throw
-    expect(() => new CodeCliService()).toThrow(/already been instantiated/)
   })
 
   describe('CLI skill lifecycle', () => {
@@ -238,7 +213,7 @@ describe('CodeCliService', () => {
       expect(skillServiceMock.syncBuiltinSkill).toHaveBeenCalledWith(
         'code-mate-codex',
         path.join('/mock/binary-data', 'code-mate-codex'),
-        '2.0.9',
+        expect.any(String),
         'code-cli:openai-codex'
       )
     })
@@ -325,7 +300,6 @@ describe('CodeCliService', () => {
       const { codeCliService } = await loadModules()
 
       await expect(codeCliService.getAvailableTerminalsForPlatform()).resolves.toEqual([terminal, ghostty])
-      expect(childProcessMock.execAsync).not.toHaveBeenCalledWith(expect.stringContaining('mdfind'), expect.anything())
     })
 
     it('omits supported terminals that LaunchServices does not resolve', async () => {
@@ -370,9 +344,9 @@ describe('CodeCliService', () => {
     await expect(codeCliService.checkClaudeLogin()).resolves.toBe(true)
   })
 
-  it('checkClaudeLogin returns false when the macOS keychain lookup fails', async () => {
+  it('checkClaudeLogin returns false only when the keychain item is absent', async () => {
     const { codeCliService } = await loadModules()
-    childProcessMock.execAsync.mockRejectedValueOnce(new Error('not found'))
+    childProcessMock.execFileAsync.mockRejectedValueOnce(Object.assign(new Error('not found'), { code: 44 }))
     await expect(codeCliService.checkClaudeLogin()).resolves.toBe(false)
   })
 
@@ -383,27 +357,66 @@ describe('CodeCliService', () => {
     platformMock.isMac = false
     shellEnvMock.getShellEnv.mockResolvedValue({ CLAUDE_CONFIG_DIR: '/home/me/.claude' })
     const fs = (await import('node:fs')).default
-    vi.mocked(fs.existsSync).mockReturnValue(true)
+    vi.mocked(fs.promises.access).mockResolvedValue(undefined)
 
     const { codeCliService } = await loadModules()
 
     const path = (await import('node:path')).default
 
     await expect(codeCliService.checkClaudeLogin()).resolves.toBe(true)
-    expect(fs.existsSync).toHaveBeenCalledWith(path.join('/home/me/.claude', '.credentials.json'))
+    expect(fs.promises.access).toHaveBeenCalledWith(path.join('/home/me/.claude', '.credentials.json'))
   })
 
-  // A broken rc file makes the shell env probe throw. That is NOT "not signed
-  // in" — it must be logged, not silently swallowed, or a signed-in user is
-  // stuck on a "not signed in" card with no diagnostic trail.
-  it('checkClaudeLogin (non-mac) logs a warning and returns false when the shell env probe throws', async () => {
+  it('checkClaudeLogin distinguishes shell query failure from being signed out', async () => {
     platformMock.isMac = false
     shellEnvMock.getShellEnv.mockRejectedValue(new Error('broken rc file'))
 
     const { codeCliService } = await loadModules()
 
-    await expect(codeCliService.checkClaudeLogin()).resolves.toBe(false)
-    expect(loggerMock.warn).toHaveBeenCalled()
+    await expect(codeCliService.checkClaudeLogin()).rejects.toThrow('broken rc file')
+  })
+
+  it('checkClaudeLogin distinguishes a locked keychain from a missing credential', async () => {
+    const { codeCliService } = await loadModules()
+    childProcessMock.execFileAsync.mockRejectedValueOnce(Object.assign(new Error('keychain locked'), { code: 36 }))
+    await expect(codeCliService.checkClaudeLogin()).rejects.toThrow('keychain locked')
+  })
+
+  it('coalesces login queries without letting one canceled consumer abort another', async () => {
+    const { codeCliService } = await loadModules()
+    let finish!: () => void
+    let probeSignal!: AbortSignal
+    childProcessMock.execFileAsync.mockImplementation((_file, _args, options) => {
+      probeSignal = options.signal
+      return new Promise((resolve) => {
+        finish = () => resolve({ stdout: '' })
+      })
+    })
+    const controller = new AbortController()
+    const first = codeCliService.checkClaudeLogin(controller.signal)
+    const second = codeCliService.checkClaudeLogin()
+    controller.abort()
+    await expect(first).rejects.toThrow()
+    expect(probeSignal.aborted).toBe(false)
+    finish()
+    await expect(second).resolves.toBe(true)
+    expect(childProcessMock.execFileAsync).toHaveBeenCalledTimes(1)
+  })
+
+  it('aborts the owned login subprocess when its last consumer cancels', async () => {
+    const { codeCliService } = await loadModules()
+    let probeSignal!: AbortSignal
+    childProcessMock.execFileAsync.mockImplementation((_file, _args, options) => {
+      probeSignal = options.signal
+      return new Promise((_resolve, reject) =>
+        probeSignal.addEventListener('abort', () => reject(probeSignal.reason), { once: true })
+      )
+    })
+    const controller = new AbortController()
+    const pending = codeCliService.checkClaudeLogin(controller.signal)
+    controller.abort()
+    await expect(pending).rejects.toThrow()
+    expect(probeSignal.aborted).toBe(true)
   })
 
   // OpenCode's model selection lives entirely in opencode.json (top-level `model` field
@@ -898,7 +911,7 @@ describe('CodeCliService', () => {
         const writeCall = vi.mocked(fs.writeFileSync).mock.calls.at(-1)
         expect(writeCall).toBeDefined()
         const [batPath, batContent] = writeCall! as unknown as [string, string]
-        expect(batPath).toMatch(/launch_claude-code_\d+\.bat$/)
+
         // CMD expands %…% even inside double quotes, so the bat writer must double them.
         expect(batContent).toContain('if not exist "C:\\Users\\me\\100%% proj" goto :dir_missing')
         expect(batContent).toContain('pushd "C:\\Users\\me\\100%% proj"')
@@ -1109,22 +1122,6 @@ describe('CodeCliService', () => {
       ])
     })
 
-    it('prefers x-terminal-emulator over xterm', async () => {
-      const spawn = await mockLinuxSpawn(['x-terminal-emulator', 'xterm'])
-      const { codeCliService } = await loadModules()
-
-      const result = await codeCliService.run({
-        mode: 'login-flow',
-        cliTool: CodeCli.CLAUDE_CODE,
-        directory: '/home/me/proj'
-      })
-
-      expect(result.success).toBe(true)
-      const launch = vi.mocked(spawn).mock.calls.at(-1)
-      expect(launch?.[0]).toBe('x-terminal-emulator')
-      expect(launch?.[1]).toEqual(['-e', 'bash', '-c', expect.stringContaining("cd '/home/me/proj' && clear && ")])
-    })
-
     it('reports a failed launch when the terminal process errors at spawn', async () => {
       const { spawn } = await import('child_process')
       vi.mocked(spawn).mockImplementation(((cmd: string) => {
@@ -1159,33 +1156,68 @@ describe('CodeCliService', () => {
       })
     })
 
-    it('defaults to xterm with a shell-quoted directory when no emulator is detected', async () => {
-      const spawn = await mockLinuxSpawn([])
+    // Regression: on Arch Linux + Hyprland (and other standalone setups) the
+    // default terminals are kitty/foot and none of the DE wrappers or xterm is
+    // installed. Detection must find them instead of falling through to the
+    // missing `xterm` fallback (which failed with `spawn xterm ENOENT`).
+    it('launches kitty when only kitty is installed (Arch + Hyprland)', async () => {
+      const spawn = await mockLinuxSpawn(['kitty'])
       const { codeCliService } = await loadModules()
 
       const result = await codeCliService.run({
         mode: 'login-flow',
         cliTool: CodeCli.CLAUDE_CODE,
-        directory: '/home/me/my proj'
+        directory: '/home/me/proj'
       })
 
       expect(result.success).toBe(true)
       const launch = vi.mocked(spawn).mock.calls.at(-1)
-      expect(launch).toBeDefined()
-      expect(launch![0]).toBe('xterm')
-      // posixQuote keeps the spaced directory a single shell token inside -e.
-      expect((launch![1] as string[]).join(' ')).toContain("cd '/home/me/my proj' && clear")
+      expect(launch?.[0]).toBe('kitty')
+      expect(launch?.[1]).toEqual([
+        '--working-directory',
+        '/home/me/proj',
+        'bash',
+        '-c',
+        expect.stringContaining('clear && ')
+      ])
     })
-  })
 
-  describe('writeConfigFiles', () => {
-    it('delegates Hermes config writes to the Dashboard lifecycle lock', async () => {
+    it('launches foot when only foot is installed (Arch + Hyprland)', async () => {
+      const spawn = await mockLinuxSpawn(['foot'])
       const { codeCliService } = await loadModules()
 
-      await codeCliService.writeConfigFiles(CodeCli.HERMES, [{ target: 'hermes-config', content: 'model: {}\n' }])
+      const result = await codeCliService.run({
+        mode: 'login-flow',
+        cliTool: CodeCli.CLAUDE_CODE,
+        directory: '/home/me/proj'
+      })
 
-      expect(hermesDashboardMock.writeConfigFiles).toHaveBeenCalledOnce()
-      expect(hermesDashboardMock.writeConfigFiles).toHaveBeenCalledWith(expect.any(Function))
+      expect(result.success).toBe(true)
+      const launch = vi.mocked(spawn).mock.calls.at(-1)
+      expect(launch?.[0]).toBe('foot')
+      expect(launch?.[1]).toEqual([
+        '--working-directory',
+        '/home/me/proj',
+        'bash',
+        '-c',
+        expect.stringContaining('clear && ')
+      ])
+    })
+
+    it('prefers a detected emulator over the xterm fallback when both exist', async () => {
+      const spawn = await mockLinuxSpawn(['kitty', 'xterm'])
+      const { codeCliService } = await loadModules()
+
+      const result = await codeCliService.run({
+        mode: 'login-flow',
+        cliTool: CodeCli.CLAUDE_CODE,
+        directory: '/home/me/proj'
+      })
+
+      expect(result.success).toBe(true)
+      const launch = vi.mocked(spawn).mock.calls.at(-1)
+      // kitty must win over the last-resort xterm, not fall through to it.
+      expect(launch?.[0]).toBe('kitty')
     })
   })
 

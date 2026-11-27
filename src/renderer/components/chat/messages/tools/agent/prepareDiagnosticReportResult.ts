@@ -3,6 +3,11 @@ import { isToolUIPart } from 'ai'
 import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
 import { isDeferredToolOutput } from '@shared/ai/transport'
 import type { CherryMessagePart } from '@shared/data/types/message'
+import {
+  DIAGNOSTIC_DESCRIPTION_MAX_BYTES,
+  diagnosticDescriptionByteLength,
+  normalizeDiagnosticDescription
+} from '@shared/utils/diagnostics'
 
 import { buildToolResponseFromPart } from '../toolResponse'
 
@@ -54,10 +59,13 @@ export function parsePrepareDiagnosticReportResult(value: unknown): PrepareDiagn
     return undefined
   }
 
-  return { ok: true, description: candidate.description }
+  const description = normalizeDiagnosticDescription(candidate.description.trim())
+  if (diagnosticDescriptionByteLength(description) > DIAGNOSTIC_DESCRIPTION_MAX_BYTES) return undefined
+
+  return { ok: true, description }
 }
 
-function isPrepareDiagnosticReportToolResponse(toolResponse: McpToolResponse | NormalToolResponse): boolean {
+export function isPrepareDiagnosticReportToolResponse(toolResponse: McpToolResponse | NormalToolResponse): boolean {
   const { tool } = toolResponse
   if (tool.name === PREPARE_DIAGNOSTIC_REPORT_TOOL_NAME || tool.id === PREPARE_DIAGNOSTIC_REPORT_TOOL_NAME) return true
   return (

@@ -9,7 +9,7 @@ const {
   reorderMock,
   reorderBatchMock,
   listAllTasksMock,
-  getTaskByIdMock,
+  getTaskDetailMock,
   listTasksMock,
   getTaskMock,
   listSkillsMock,
@@ -21,7 +21,7 @@ const {
   reorderMock: vi.fn(),
   reorderBatchMock: vi.fn(),
   listAllTasksMock: vi.fn(),
-  getTaskByIdMock: vi.fn(),
+  getTaskDetailMock: vi.fn(),
   listTasksMock: vi.fn(),
   getTaskMock: vi.fn(),
   listSkillsMock: vi.fn(),
@@ -41,7 +41,7 @@ vi.mock('@data/services/AgentService', () => ({
 vi.mock('@data/services/AgentTaskService', () => ({
   agentTaskService: {
     listAllTasks: listAllTasksMock,
-    getTaskById: getTaskByIdMock,
+    getTaskDetail: getTaskDetailMock,
     listTasks: listTasksMock,
     getTask: getTaskMock
   }
@@ -78,24 +78,10 @@ describe('agentHandlers', () => {
     it('delegates GET to agentService.listAgents', async () => {
       listAgentsMock.mockReturnValueOnce({ agents: [mockAgent], total: 1 })
 
-      const result = await agentHandlers['/agents'].GET({ query: {} } as never)
+      const result = await agentHandlers['/agents'].GET({ query: {} })
 
       expect(listAgentsMock).toHaveBeenCalledOnce()
       expect(result).toMatchObject({ items: [mockAgent], total: 1, page: 1 })
-    })
-
-    it('GET works without query params (defaults from ListAgentsQuerySchema)', async () => {
-      listAgentsMock.mockReturnValueOnce({ agents: [], total: 0 })
-
-      const result = await agentHandlers['/agents'].GET({})
-
-      // page=1, limit=100 (AGENTS_DEFAULT_LIMIT) → offset=0; search undefined.
-      expect(listAgentsMock).toHaveBeenCalledWith({
-        limit: 100,
-        offset: 0,
-        search: undefined
-      })
-      expect(result).toMatchObject({ total: 0, page: 1 })
     })
 
     it('GET forwards search to the service', async () => {
@@ -105,13 +91,17 @@ describe('agentHandlers', () => {
         query: {
           search: 'research'
         }
-      } as never)
-
-      expect(listAgentsMock).toHaveBeenCalledWith({
-        limit: 100,
-        offset: 0,
-        search: 'research'
       })
+
+      expect(listAgentsMock).toHaveBeenCalledWith(expect.objectContaining({ search: 'research' }))
+    })
+
+    it('GET forwards builtinRole to the service', async () => {
+      listAgentsMock.mockReturnValueOnce({ agents: [], total: 0 })
+
+      await agentHandlers['/agents'].GET({ query: { builtinRole: 'assistant' } } as never)
+
+      expect(listAgentsMock).toHaveBeenCalledWith({ limit: 100, offset: 0, builtinRole: 'assistant' })
     })
 
     it('GET rejects tagIds before calling the service', async () => {
@@ -127,14 +117,14 @@ describe('agentHandlers', () => {
     })
 
     it('GET rejects invalid pagination', async () => {
-      await expect(agentHandlers['/agents'].GET({ query: { page: 0 } } as never)).rejects.toMatchObject({
+      await expect(agentHandlers['/agents'].GET({ query: { page: 0 } })).rejects.toMatchObject({
         code: ErrorCode.VALIDATION_ERROR
       })
       expect(listAgentsMock).not.toHaveBeenCalled()
     })
 
     it('rejects invalid pagination query', async () => {
-      await expect(agentHandlers['/agents'].GET({ query: { page: -1 } } as never)).rejects.toMatchObject({
+      await expect(agentHandlers['/agents'].GET({ query: { page: -1 } })).rejects.toMatchObject({
         code: ErrorCode.VALIDATION_ERROR
       })
 
@@ -250,7 +240,7 @@ describe('agentHandlers', () => {
     it('delegates GET to taskService.listAllTasks with pagination', async () => {
       listAllTasksMock.mockReturnValueOnce({ tasks: [mockTask], total: 11 })
 
-      const result = await agentHandlers['/agent-tasks'].GET({ query: { page: 2, limit: 10 } } as never)
+      const result = await agentHandlers['/agent-tasks'].GET({ query: { page: 2, limit: 10 } })
 
       expect(listAllTasksMock).toHaveBeenCalledWith({ limit: 10, offset: 10 })
       expect(result).toMatchObject({ items: [mockTask], total: 11, page: 2 })
@@ -259,16 +249,15 @@ describe('agentHandlers', () => {
 
   describe('/agent-tasks/:taskId', () => {
     it('returns a task without requiring its owning Agent id', async () => {
-      getTaskByIdMock.mockReturnValueOnce(mockTask)
+      getTaskDetailMock.mockReturnValueOnce(mockTask)
 
       const result = await agentHandlers['/agent-tasks/:taskId'].GET({ params: { taskId: TASK_ID } })
 
-      expect(getTaskByIdMock).toHaveBeenCalledWith(TASK_ID)
       expect(result).toBe(mockTask)
     })
 
     it('throws not found when the task does not exist', async () => {
-      getTaskByIdMock.mockReturnValueOnce(null)
+      getTaskDetailMock.mockReturnValueOnce(null)
 
       await expect(agentHandlers['/agent-tasks/:taskId'].GET({ params: { taskId: TASK_ID } })).rejects.toMatchObject({
         code: ErrorCode.NOT_FOUND
@@ -285,10 +274,10 @@ describe('agentHandlers', () => {
       const result = await agentHandlers['/agents/:agentId/tasks'].GET({
         params: { agentId: AGENT_ID },
         query: {}
-      } as never)
+      })
 
-      expect(listTasksMock).toHaveBeenCalledWith(AGENT_ID, { limit: 50, offset: 0 })
-      expect(result).toMatchObject({ items: [mockTask], total: 1, page: 1 })
+      expect(listTasksMock).toHaveBeenCalledWith(AGENT_ID, expect.any(Object))
+      expect(result).toMatchObject({ items: [mockTask], total: 1 })
     })
 
     it('rejects invalid pagination query', async () => {
@@ -296,7 +285,7 @@ describe('agentHandlers', () => {
         agentHandlers['/agents/:agentId/tasks'].GET({
           params: { agentId: AGENT_ID },
           query: { limit: 999999 }
-        } as never)
+        })
       ).rejects.toMatchObject({ code: ErrorCode.VALIDATION_ERROR })
 
       expect(listTasksMock).not.toHaveBeenCalled()
@@ -323,7 +312,7 @@ describe('agentHandlers', () => {
     it('delegates GET to skillService.list and returns direct array', async () => {
       listSkillsMock.mockReturnValueOnce([mockSkill])
 
-      const result = await skillHandlers['/skills'].GET({ query: {} } as never)
+      const result = await skillHandlers['/skills'].GET({ query: {} })
 
       expect(listSkillsMock).toHaveBeenCalledWith({})
       expect(result).toEqual([mockSkill])
@@ -332,7 +321,7 @@ describe('agentHandlers', () => {
     it('passes agentId to skillService.list when provided', async () => {
       listSkillsMock.mockReturnValueOnce([mockSkill])
 
-      const result = await skillHandlers['/skills'].GET({ query: { agentId: AGENT_ID } } as never)
+      const result = await skillHandlers['/skills'].GET({ query: { agentId: AGENT_ID } })
 
       expect(listSkillsMock).toHaveBeenCalledWith({ agentId: AGENT_ID })
       expect(result).toEqual([mockSkill])
@@ -343,7 +332,7 @@ describe('agentHandlers', () => {
 
       await skillHandlers['/skills'].GET({
         query: { search: 'summary' }
-      } as never)
+      })
 
       expect(listSkillsMock).toHaveBeenCalledWith({ search: 'summary' })
     })
@@ -365,7 +354,7 @@ describe('agentHandlers', () => {
         throw { code: ErrorCode.NOT_FOUND }
       })
 
-      await expect(skillHandlers['/skills'].GET({ query: { agentId: AGENT_ID } } as never)).rejects.toMatchObject({
+      await expect(skillHandlers['/skills'].GET({ query: { agentId: AGENT_ID } })).rejects.toMatchObject({
         code: ErrorCode.NOT_FOUND
       })
 

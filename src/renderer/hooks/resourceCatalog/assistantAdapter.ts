@@ -2,9 +2,9 @@ import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useMutation, useQuery } from '@data/hooks/useDataApi'
+import { useAssistantMutations } from '@renderer/hooks/useAssistant'
 import {
   ASSISTANTS_MAX_LIMIT,
-  type CreateAssistantDto,
   type ImportAssistantDto,
   type UpdateAssistantDto
 } from '@shared/data/api/schemas/assistants'
@@ -45,23 +45,14 @@ export const assistantAdapter: ResourceAdapter<Assistant> = {
 }
 
 /**
- * Write-side hook for assistant resources — mirrors `useMcpServerMutations` pattern.
- * Every mutation triggers refresh of `/assistants` so the library list picks up
- * new/updated/deleted rows automatically.
+ * Duplication lives apart from `useAssistantMutations` because its localized
+ * name would subscribe every `useAssistant` caller to language changes.
  */
-export function useAssistantMutations() {
+export function useDuplicateAssistantMutation() {
   const { t } = useTranslation()
-  const { trigger: createTrigger } = useMutation('POST', '/assistants', {
-    refresh: ['/assistants']
-  })
   const { trigger: duplicateTrigger } = useMutation('POST', '/assistants/:id/duplicate', {
     refresh: ['/assistants', '/prompts', '/prompt-bindings']
   })
-
-  const createAssistant = useCallback(
-    (dto: CreateAssistantDto): Promise<Assistant> => createTrigger({ body: dto }),
-    [createTrigger]
-  )
 
   const duplicateAssistant = useCallback(
     async (source: Assistant): Promise<Assistant> => {
@@ -75,7 +66,7 @@ export function useAssistantMutations() {
     [duplicateTrigger, t]
   )
 
-  return { createAssistant, duplicateAssistant }
+  return { duplicateAssistant }
 }
 
 /**
@@ -100,20 +91,13 @@ export function useImportAssistantMutation() {
  * PATCH accepts `groupId` alongside the other assistant fields.
  */
 export function useAssistantMutationsById(id: string) {
-  const path = `/assistants/${id}` as const
+  const { updateAssistant: updateById, deleteAssistant: deleteById } = useAssistantMutations()
 
-  const { trigger: updateTrigger } = useMutation('PATCH', path, {
-    refresh: ['/assistants', '/assistants/*']
-  })
-  const { trigger: deleteTrigger } = useMutation('DELETE', path, {
-    refresh: ['/assistants', '/assistants/*', '/pins']
-  })
-
-  const updateAssistant = useCallback(
-    (dto: UpdateAssistantDto): Promise<Assistant> => updateTrigger({ body: dto }),
-    [updateTrigger]
+  const updateAssistant = useCallback((dto: UpdateAssistantDto) => updateById(id, dto), [id, updateById])
+  const deleteAssistant = useCallback(
+    (options?: { deleteTopics?: boolean; permanent?: boolean }) => deleteById(id, options),
+    [deleteById, id]
   )
-  const deleteAssistant = useCallback((): Promise<void> => deleteTrigger().then(() => undefined), [deleteTrigger])
 
   return { updateAssistant, deleteAssistant }
 }

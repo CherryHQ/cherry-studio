@@ -4,14 +4,14 @@
  * Resolves a tool-requested path against the session workspace and answers whether it stays inside
  * the allowed roots (workspace + agent data directory). Symlinks are canonicalized so an outside
  * target cannot look lexically inside; for not-yet-existing targets the nearest existing ancestor is
- * canonicalized and the missing suffix re-appended. Ambiguity (`~`, resolution failure) counts as
- * outside so the caller requires approval.
+ * canonicalized and the missing suffix re-appended. Ambiguity (`~`, dangling symlinks, resolution
+ * failure) counts as outside so the caller requires approval.
  */
 
 import * as fs from 'node:fs'
 import path from 'node:path'
 
-import { isPathInside } from '@main/utils/file'
+import { canonicalizePathForContainment, isPathInside } from '@main/utils/file'
 
 async function resolveRealOrNearestExistingPath(targetPath: string): Promise<string> {
   try {
@@ -48,8 +48,9 @@ export async function isPathWithinAllowedRoots(
   const [resolvedWorkspace, resolvedAgentDataPath, resolvedTarget] = await Promise.all([
     resolveRealOrNearestExistingPath(path.resolve(cwd)),
     resolveRealOrNearestExistingPath(path.resolve(agentDataPath)),
-    resolveRealOrNearestExistingPath(absoluteTarget)
+    canonicalizePathForContainment(absoluteTarget, { allowMissing: true })
   ])
+  if (!resolvedTarget) return false
   return (
     resolvedTarget === resolvedWorkspace ||
     isPathInside(resolvedTarget, resolvedWorkspace) ||

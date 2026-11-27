@@ -1,6 +1,6 @@
 import { join } from 'node:path'
 
-import { app, BrowserWindow, screen, shell } from 'electron'
+import { app, BrowserWindow, screen } from 'electron'
 import { v4 as uuidv4 } from 'uuid'
 
 import { application } from '@application'
@@ -19,7 +19,6 @@ import {
 import { isDev, isMac } from '@main/core/platform'
 import { applyWindowBehavior, BehaviorController } from '@main/core/window/behavior'
 import { applyWindowQuirks } from '@main/core/window/quirks'
-import type { WindowType } from '@main/core/window/types'
 import {
   type ManagedWindow,
   type OpenWindowArgs,
@@ -28,7 +27,8 @@ import {
   type WarmupState,
   type WarmupStateInit,
   type WindowInfo,
-  type WindowOptions
+  type WindowOptions,
+  type WindowType
 } from '@main/core/window/types'
 import { clearSavedBounds, injectSavedBounds, peekSavedState, persistNow } from '@main/core/window/windowBoundsTracker'
 import { getWindowTypeMetadata, mergeWindowOptions, WINDOW_TYPE_REGISTRY } from '@main/core/window/windowRegistry'
@@ -38,6 +38,9 @@ const logger = loggerService.withContext('WindowManager')
 
 /** GC tick interval in ms — minute-grained precision is sufficient for decay/inactivity. */
 const WARMUP_GC_INTERVAL = 60_000
+
+// Electron ignores Dock hide calls for one second after show; allow a scheduling margin.
+const DOCK_HIDE_COOLDOWN = 1_100
 
 /**
  * Structured warmup operation tags. Every warmup state mutation logs exactly one
@@ -61,6 +64,7 @@ type WarmupOp =
   | 'pool-release'
   | 'pool-release-destroy-disabled'
   | 'pool-release-destroy-overcap'
+  | 'pool-release-destroy-fullscreen'
   | 'pool-decay'
   | 'pool-lazy-backfill'
   | 'pool-suspend'
@@ -88,7 +92,7 @@ function defaultWarmup(cfg: PoolConfig): 'eager' | 'lazy' {
  * which fires synchronously BEFORE content is loaded — guaranteeing that all
  * event listeners are attached before `ready-to-show` can fire.
  *
- * @see docs/references/window-manager/README.md for architecture overview, usage guide, and API reference
+ * @see docs/dev/references/window-manager/README.md for architecture overview, usage guide, and API reference
  */
 @Injectable('WindowManager')
 @ServicePhase(Phase.WhenReady)
@@ -143,13 +147,20 @@ export class WindowManager extends BaseService {
 
   // ─── Events ────────────────────────────────────────────────────
 
-  private readonly _onWindowCreated = this.registerDisposable(new Emitter<ManagedWindow>())
+  private readonly _onWindowCreated = new Emitter<ManagedWindow>()
   /** Fires when a new window is created. Domain services subscribe to inject behavior. */
   public readonly onWindowCreated: Event<ManagedWindow> = this._onWindowCreated.event
 
-  private readonly _onWindowDestroyed = this.registerDisposable(new Emitter<ManagedWindow>())
+  private readonly _onWindowDestroyed = new Emitter<ManagedWindow>()
   /** Fires when a window is truly destroyed (NOT on pool release). */
   public readonly onWindowDestroyed: Event<ManagedWindow> = this._onWindowDestroyed.event
+
+  private readonly _onWindowReleasedToPool = new Emitter<ManagedWindow>()
+  /**
+   * Fires when a pooled window is closed and goes back to the idle pool alive. A release that
+   * destroys the window fires `onWindowDestroyed` instead, so the two never fire for the same close.
+   */
+  public readonly onWindowReleasedToPool: Event<ManagedWindow> = this._onWindowReleasedToPool.event
 
   /**
    * Subscribe to window creations for a specific {@link WindowType}. Equivalent to
@@ -176,10 +187,22 @@ export class WindowManager extends BaseService {
     })
   }
 
+  /**
+   * Subscribe to pool releases for a specific {@link WindowType}. A service that keeps
+   * per-window session state for a pooled type clears it here as well as on destruction.
+   */
+  public onWindowReleasedToPoolByType(type: WindowType, listener: (managed: ManagedWindow) => void): Disposable {
+    return this.onWindowReleasedToPool((managed) => {
+      if (managed.type === type) listener(managed)
+    })
+  }
+
   // ─── Lifecycle hooks ───────────────────────────────────────────
 
   protected override onInit(): void {
+    this.dockVisibilityStopped = false
     this.updateDockVisibility()
+    if (!this.dockShouldBeVisible) this.hideDockWhenReady()
   }
 
   /**
@@ -261,6 +284,8 @@ export class WindowManager extends BaseService {
   }
 
   protected override onStop(): void {
+    this.dockVisibilityStopped = true
+    this.dockHideTimer?.dispose()
     // Persist bounds for any window still alive at shutdown — the SIGINT/SIGTERM
     // path, where neither the native 'close' event nor destroyWindow runs before
     // teardown. onStop executes in the stopAll pass (reverse init order), so
@@ -274,7 +299,13 @@ export class WindowManager extends BaseService {
   }
 
   protected override onDestroy(): void {
+    this.dockVisibilityStopped = true
+    this.dockHideTimer?.dispose()
     logger.info('Destroying, closing all windows...')
+    // Dispose before closing windows: every subscriber has already stopped.
+    this._onWindowCreated.dispose()
+    this._onWindowDestroyed.dispose()
+    this._onWindowReleasedToPool.dispose()
 
     // GC timer is auto-disposed via registerInterval; just drop the reference.
     this.warmupGcTimer = null
@@ -979,6 +1010,16 @@ export class WindowManager extends BaseService {
     // registry-declared defaults rather than the previous consumer's pin.
     this.behavior.clearForWindow(windowId)
 
+    // Never hide a fullscreen window: on macOS `orderOut:` orphans its fullscreen Space as an
+    // undismissable black screen (electron#20263). Drop the instance — standby replenishes it.
+    if (!managed.window.isDestroyed() && managed.window.isFullScreen()) {
+      this.destroyWindow(managed.window)
+      this.initDataStore.delete(windowId)
+      this.logWarmupEvent('pool-release-destroy-fullscreen', type, state, { windowId })
+      this.updateDockVisibility()
+      return
+    }
+
     const recycleMax = poolConfig.recycleMaxSize ?? 0
     const standby = poolConfig.standbySize ?? 0
 
@@ -1043,6 +1084,7 @@ export class WindowManager extends BaseService {
     }
 
     this.updateDockVisibility()
+    this._onWindowReleasedToPool.fire(managed)
   }
 
   /**
@@ -1343,6 +1385,8 @@ export class WindowManager extends BaseService {
       injectSavedBounds(type, config)
     }
 
+    args?.configureOptions?.(config)
+
     const showMode = metadata.showMode ?? 'auto'
 
     // Resolve preload path. `metadata.preload` mirrors `htmlPath`'s three-state
@@ -1357,24 +1401,19 @@ export class WindowManager extends BaseService {
       show: showMode === 'immediate',
       webPreferences: {
         ...(preloadPath ? { preload: preloadPath } : {}),
+        ...(isMac ? { scrollBounce: true } : {}),
         ...config.webPreferences
       }
     })
 
-    // Intercept external links: open in system browser
-    window.webContents.setWindowOpenHandler(({ url }) => {
-      if (url.startsWith('http:') || url.startsWith('https:')) {
-        void shell.openExternal(url)
-      }
-      return { action: 'deny' }
-    })
+    // Domain services may route denied popups after onWindowCreated.
+    window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
 
     window.webContents.on('will-navigate', (event, url) => {
       if (url.startsWith('http:') || url.startsWith('https:')) {
         const currentURL = window.webContents.getURL()
         if (currentURL && new URL(url).origin !== new URL(currentURL).origin) {
           event.preventDefault()
-          void shell.openExternal(url)
         }
       } else {
         // Non-web schemes (file:, custom protocols) have no legitimate in-window
@@ -1624,6 +1663,9 @@ export class WindowManager extends BaseService {
         const metadata = getWindowTypeMetadata(type)
         if (metadata.lifecycle === 'pooled') {
           if (state.suspended) return // let native close proceed
+          // A fullscreen window is closed natively, never hidden — the same rule as
+          // releaseToPool()'s fullscreen guard; cancelling here would orphan its Space.
+          if (window.isFullScreen()) return
           event.preventDefault()
           if (state.idle.includes(windowId)) return // already idle
           const managed = this.windows.get(windowId)
@@ -1717,14 +1759,30 @@ export class WindowManager extends BaseService {
   // `wm.behavior.setMacShowInDockByType(type, value)` to express tray-mode
   // intent; `windowContributesToDock` reads the override via the controller.
 
-  /**
-   * Tracks the Dock icon visibility that WM has committed to, so repeated calls
-   * deduplicate native Dock show/hide invocations. Initialized to `true` because
-   * macOS Electron apps start with the Dock icon visible; the first
-   * `updateDockVisibility()` will correctly transition to `false` when needed
-   * (e.g. tray-on-launch sets the Main override to `false` before window creation).
-   */
+  // Native Dock hiding may lag this intent during Electron's post-show cooldown.
+  // Electron starts with the Dock visible before any managed windows exist.
   private dockShouldBeVisible = true
+  private lastDockShowAt = Number.NEGATIVE_INFINITY
+  private dockHideTimer: Disposable | null = null
+  private dockVisibilityStopped = false
+
+  private hideDockWhenReady(): void {
+    if (this.dockVisibilityStopped || this.dockShouldBeVisible || this.dockHideTimer) return
+    const remaining = DOCK_HIDE_COOLDOWN - (Date.now() - this.lastDockShowAt)
+    if (remaining > 0) {
+      const timer = setTimeout(() => {
+        this.dockHideTimer?.dispose()
+        this.hideDockWhenReady()
+      }, remaining)
+      timer.unref()
+      this.dockHideTimer = this.registerDisposable(() => {
+        clearTimeout(timer)
+        this.dockHideTimer = null
+      })
+    } else {
+      app.dock?.hide()
+    }
+  }
 
   /**
    * Whether a managed window currently contributes to "app wants the Dock icon".
@@ -1752,22 +1810,28 @@ export class WindowManager extends BaseService {
    *   - window creation (in `createWindow`)
    *   - window destruction (in the 'closed' listener)
    *   - per-type override changes (in `wm.behavior.setMacShowInDockByType`)
+   *   - a Dock hold taken or released (`wm.behavior.hideMacDockWhileShown`)
    *
    * NOT triggered by show/hide/minimize/restore — see `setupWindowListeners` comment.
+   * The one exception is the hide that releases a Dock hold.
    */
   private updateDockVisibility(): void {
-    if (!isMac) return
+    if (!isMac || this.dockVisibilityStopped) return
 
-    const shouldShow = Array.from(this.windows.values()).some((managed) => this.windowContributesToDock(managed))
+    const shouldShow =
+      !this.behavior.isHidingMacDock() &&
+      Array.from(this.windows.values()).some((managed) => this.windowContributesToDock(managed))
 
     if (shouldShow && !this.dockShouldBeVisible) {
       this.dockShouldBeVisible = true
+      this.dockHideTimer?.dispose()
+      this.lastDockShowAt = Date.now()
       void app.dock?.show().then(() => {
-        if (!this.dockShouldBeVisible) app.dock?.hide()
+        this.hideDockWhenReady()
       })
     } else if (!shouldShow && this.dockShouldBeVisible) {
       this.dockShouldBeVisible = false
-      app.dock?.hide()
+      this.hideDockWhenReady()
     }
   }
 }

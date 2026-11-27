@@ -13,6 +13,7 @@ Unified test mocks for the project, organized by process type and globally confi
 | Renderer | `PreferenceService` | User preferences |
 | Renderer | `useDataApi` | Data API hooks (useQuery, useMutation, etc.) |
 | Renderer | `usePreference` | Preference hooks |
+| Renderer | `FileObservationService` | Opt-in file-observation fixture; tests explicitly import the factory or named mock |
 | Renderer | `useCache` | Cache hooks |
 | Main | `application` | Unified mock application factory with `application.get()` |
 | Main | `DbService` | Database service with mock db |
@@ -184,7 +185,9 @@ React hooks for data operations.
 | Hook | Signature | Returns |
 |------|-----------|---------|
 | `useQuery` | `(path, options?)` | `{ data, loading, error, refetch, mutate }` |
-| `useMutation` | `(method, path, options?)` | `{ mutate, loading, error }` |
+| `useMutation` | `(method, path, options?)` | `{ trigger, isLoading, error }` |
+| `useInfiniteQuery` | `(path, options?)` | `{ pages, isLoading, error, loadNext, mutate }` |
+| `useWriteInfiniteCache` | `(path, options?)` | cache-only updater scoped to one infinite-query key |
 | `usePaginatedQuery` | `(path, options?)` | `{ items, total, page, loading, error, hasMore, hasPrev, prevPage, nextPage, refresh, reset }` |
 | `useInvalidateCache` | `()` | `(keys?) => Promise<any>` |
 | `useReadCache` | `()` | `(path, query?) => TResponse \| undefined` |
@@ -206,8 +209,8 @@ describe('Hooks', () => {
   })
 
   it('useMutation', async () => {
-    const { mutate } = useMutation('POST', '/topics')
-    const result = await mutate({ body: { name: 'New' } })
+    const { trigger } = useMutation('POST', '/topics')
+    const result = await trigger({ body: { name: 'New' } })
     expect(result.created).toBe(true)
   })
 
@@ -234,6 +237,8 @@ describe('Hooks', () => {
   })
 })
 ```
+
+Use `MockUseDataApiUtils.seedInfiniteQuery(path, pages, options)` before rendering when a test needs functional cache updates, route-parameter cache isolation, and mounted-hook rerenders. `getInfiniteQueryPages` and `setInfiniteQueryPages` inspect or replace the same cache entry.
 
 > **Note:** `useReadCache`/`useWriteCache` share one in-memory `Map` under the hood. `resetMocks()` clears both call history and the cache store; use `clearCache()` if you want to drop cache entries without resetting hook mocks.
 

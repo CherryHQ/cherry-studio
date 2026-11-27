@@ -1,7 +1,8 @@
 import type { TFunction } from 'i18next'
 import { Bot } from 'lucide-react'
 
-import EmojiIcon from '@renderer/components/EmojiIcon'
+import { EmojiIcon } from '@cherrystudio/ui'
+import { AssistantAvatarImage } from '@renderer/components/Avatar/AssistantAvatarImage'
 import type { AgentSessionStreamState } from '@renderer/hooks/agent/useAgentSessionStreamStatuses'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
@@ -147,11 +148,18 @@ export function buildAgentSources(
           id: agent.id,
           label: agent.name,
           icon: (
-            <EmojiIcon
-              emoji={getAgentAvatarFromConfiguration(agent.configuration)}
+            <AssistantAvatarImage
+              src={agent.avatarSrc}
+              alt=""
               size={18}
-              fontSize={11}
-              className="mr-0 text-foreground"
+              className="rounded-full object-cover"
+              fallback={
+                <EmojiIcon
+                  emoji={getAgentAvatarFromConfiguration(agent.configuration)}
+                  size={18}
+                  className="text-foreground"
+                />
+              }
             />
           )
         }

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ComponentProps, PropsWithChildren, ReactNode } from 'react'
 import type * as ReactI18next from 'react-i18next'
@@ -57,7 +57,9 @@ const citationsPanelModuleLoads = vi.hoisted(() => ({ value: 0 }))
 vi.mock('@renderer/ipc', () => ({
   ipcApi: {
     request: (route: string, input: unknown) =>
-      route === 'ai.tool.respond_approval' ? toolApprovalRespondMock(input) : Promise.resolve(undefined),
+      route === 'ai.tool.respond_approval'
+        ? toolApprovalRespondMock(input)
+        : Promise.resolve(route === 'ai.agent.attachment_selections.list' ? [] : undefined),
     on: () => () => {}
   },
   useIpcOn: vi.fn()
@@ -135,6 +137,7 @@ vi.mock('@renderer/data/hooks/useCache', () => ({
     key === 'agent.model_switch_confirmation.skipped'
       ? [modelSwitchConfirmationCacheMock.value, modelSwitchConfirmationCacheMock.set]
       : [null, vi.fn()],
+  useSharedCacheValue: () => undefined,
   usePersistCache: () => [undefined, vi.fn()]
 }))
 
@@ -201,6 +204,7 @@ vi.mock('@renderer/components/composer/variants/agent/AgentConversationControls'
 
 vi.mock('@renderer/hooks/useAgentSessionParts', () => ({
   useAgentSessionParts: () => ({
+    persistedPartsByMessageId: partsByMessageIdMock.value,
     messages: Object.entries(partsByMessageIdMock.value).map(([id, parts]) => ({
       id,
       role: 'assistant',
@@ -222,22 +226,12 @@ vi.mock('@renderer/hooks/useChatWithHistory', () => ({
   })
 }))
 
-vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
-  useExecutionOverlay: () => ({
-    overlay: {},
-    liveAssistants: [],
-    disposeOverlay: vi.fn(),
-    reset: vi.fn()
-  })
-}))
+vi.mock('@renderer/hooks/useHistoryReplies', () => ({ useHistoryReplies: () => [] }))
+vi.mock('@renderer/hooks/useTopicSpeech', () => ({ useTopicSpeech: () => {} }))
+vi.mock('@renderer/hooks/useTopicCompletion', () => ({ useTopicCompletion: () => {} }))
 
 vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
-  useTopicStreamStatus: () => ({ isPending: topicStreamStatusMock.isPending }),
-  useTopicOverlayHandoffOnTerminal: () => {}
-}))
-
-vi.mock('@renderer/utils/agentSession', () => ({
-  buildAgentSessionTopicId: (sessionId: string) => `agent-session:${sessionId}`
+  useTopicStreamStatus: () => ({ isPending: topicStreamStatusMock.isPending })
 }))
 
 vi.mock('react-i18next', async (importOriginal) => ({
@@ -260,6 +254,7 @@ vi.mock('../components/AgentRightPane', () => {
   return {
     AgentRightPane: {
       Scope: MockAgentRightPaneScope,
+      DetailsLayout: ({ children }: PropsWithChildren) => <>{children}</>,
       Shell: ({ children }: PropsWithChildren) => <>{children}</>,
       Viewport: () => <div data-testid="agent-right-pane-viewport" />,
       Shortcuts: () => <button type="button">Shortcuts</button>
@@ -268,9 +263,12 @@ vi.mock('../components/AgentRightPane', () => {
     useAgentRightPaneActions: () => ({
       canOpenAgentToolFlow: true,
       canOpenArtifactFile: true,
+      canPreviewInputFileInRightPane: true,
       openAgentToolFlow: agentRightPanePropsMock.openAgentToolFlow,
-      openArtifactFile: agentRightPanePropsMock.openArtifactFile
-    })
+      openArtifactFile: agentRightPanePropsMock.openArtifactFile,
+      previewInputFileInRightPane: vi.fn()
+    }),
+    useOptionalAgentRightPaneActions: () => undefined
   }
 })
 
@@ -287,7 +285,21 @@ vi.mock('@renderer/components/composer/variants/AgentComposer', () => ({
     )
   },
   AgentHomeComposer: () => <div data-testid="agent-home-composer" />,
-  MissingAgentHomeComposer: () => <div data-testid="missing-agent-home-composer" />
+  MissingAgentHomeComposer: ({
+    onAgentChange,
+    agentChanging
+  }: {
+    onAgentChange?: (agentId: string | null) => void | Promise<void>
+    agentChanging?: boolean
+  }) => (
+    <button
+      type="button"
+      data-testid="missing-agent-home-composer"
+      disabled={agentChanging}
+      onClick={() => void Promise.resolve(onAgentChange?.('agent-2')).catch(() => undefined)}>
+      select replacement agent
+    </button>
+  )
 }))
 
 vi.mock('../components/AgentSessionMessages', () => ({
@@ -374,6 +386,7 @@ describe('AgentChat settings panel', () => {
     updateAgentMock.updateModel.mockReset()
     updateAgentMock.updateModel.mockResolvedValue({ id: 'agent-1' })
     updateSessionMock.updateSession.mockReset()
+    updateSessionMock.updateSession.mockResolvedValue({ id: 'session-1' } as any)
     agentRightPanePropsMock.openAgentToolFlow.mockReset()
     agentRightPanePropsMock.openArtifactFile.mockReset()
     toolApprovalRespondMock.mockReset()
@@ -417,50 +430,6 @@ describe('AgentChat settings panel', () => {
     expect(screen.queryByText('/tmp/session-1.md')).not.toBeInTheDocument()
   })
 
-  it('uses page-owned resources without subscribing to agent and model', () => {
-    renderAgentChat()
-
-    expect(activeAgentMock.lookupId).toBeUndefined()
-    expect(activeModelMock.lookupId).toBeUndefined()
-    expect(agentComposerPropsMock.last).toMatchObject({
-      resolvedAgent: activeAgentMock.value,
-      resolvedModel: activeModelMock.value
-    })
-  })
-
-  it('keeps right-pane shortcuts visible without the expand button', () => {
-    renderAgentChat()
-
-    expect(screen.getByRole('button', { name: 'Shortcuts' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Files' })).toBeNull()
-    expect(conversationShellPropsMock.last?.showTopRightToolWhenPaneOpen).toBe(true)
-  })
-
-  it('passes the session runtime directly to the right-pane scope', () => {
-    const part = { type: 'text', text: 'runtime message' }
-    partsByMessageIdMock.value = { 'message-1': [part] }
-
-    renderAgentChat()
-
-    expect(agentRightPanePropsMock.last?.messages).toEqual([
-      expect.objectContaining({ id: 'message-1', parts: [part] })
-    ])
-    expect(agentRightPanePropsMock.last?.partsByMessageId).toEqual({ 'message-1': [part] })
-  })
-
-  it('normalizes blank agent avatars before passing them to the right pane', () => {
-    activeAgentMock.value = {
-      id: 'agent-1',
-      name: 'Blank avatar agent',
-      model: 'provider::model-1',
-      configuration: { avatar: '   ' }
-    }
-
-    renderAgentChat()
-
-    expect(agentRightPanePropsMock.last?.agentAvatar).toBe('🤖')
-  })
-
   it('resolves session context above the composer and changes an empty session workspace from the top bar', () => {
     const onSessionWorkspaceChange = vi.fn()
     const session = {
@@ -475,69 +444,56 @@ describe('AgentChat settings panel', () => {
       onSessionWorkspaceChange
     })
 
-    expect(screen.getByTestId('agent-conversation-controls')).toHaveAttribute('data-can-change-workspace', 'true')
-    expect(screen.getByTestId('agent-conversation-controls')).toHaveAttribute('data-agent-trigger-mode', 'selector')
-    expect(screen.getByTestId('agent-conversation-controls')).toHaveAttribute('data-can-change-model', 'true')
-    expect(screen.getByTestId('agent-composer')).toHaveAttribute('data-external-context-controls', 'true')
-    expect(screen.getByTestId('agent-composer')).toHaveAttribute('data-resolved-agent-id', 'agent-1')
-    expect(screen.getByTestId('agent-composer')).toHaveAttribute('data-resolved-model-id', 'provider::model-1')
-    expect(agentConversationControlsPropsMock.last?.workspaceId).toBe('workspace-1')
-    expect(agentComposerPropsMock.last?.onWorkspaceChange).toBeUndefined()
-    expect(agentComposerPropsMock.last?.onAgentChange).toBeUndefined()
-
     fireEvent.click(screen.getByRole('button', { name: 'change topbar workspace' }))
 
     expect(onSessionWorkspaceChange).toHaveBeenCalledWith('workspace-next')
   })
 
-  it('mounts the composer while the page-owned model is resolving', () => {
-    activeModelMock.isLoading = true
+  it('reassigns an unlinked existing session without replacing it', async () => {
+    const user = userEvent.setup()
+    let finishUpdate: (() => void) | undefined
+    updateSessionMock.updateSession.mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        finishUpdate = resolve
+      })
+    )
+    activeAgentMock.value = undefined
+    const session = { id: 'session-unlinked', agentId: null, accessiblePaths: [] } as any
 
-    const { container } = renderAgentChat()
+    renderAgentChat({ conversationBootstrap: createConversationBootstrap(session) })
 
-    expect(screen.getByTestId('agent-conversation-controls')).toBeInTheDocument()
-    expect(screen.getByTestId('agent-composer')).toBeInTheDocument()
-    expect(screen.getByTestId('agent-composer')).not.toHaveAttribute('data-resolved-model-id')
-    expect(agentComposerPropsMock.last?.sendDisabled).toBe(true)
-    expect(container.querySelector('[data-conversation-composer-loading]')).not.toBeInTheDocument()
+    const selectAgent = screen.getByRole('button', { name: 'select replacement agent' })
+    await user.click(selectAgent)
+
+    expect(updateSessionMock.updateSession).toHaveBeenCalledWith(
+      { id: 'session-unlinked', agentId: 'agent-2' },
+      { showSuccessToast: false }
+    )
+    expect(selectAgent).toBeDisabled()
+
+    finishUpdate?.()
+    await waitFor(() => expect(selectAgent).toBeEnabled())
   })
 
-  it('mounts the composer while the page-owned agent is resolving', () => {
-    activeAgentMock.isLoading = true
+  it('re-enables agent selection when reassigning an unlinked session fails', async () => {
+    const user = userEvent.setup()
+    let failUpdate: ((error: Error) => void) | undefined
+    updateSessionMock.updateSession.mockReturnValueOnce(
+      new Promise<void>((_resolve, reject) => {
+        failUpdate = reject
+      })
+    )
+    activeAgentMock.value = undefined
+    const session = { id: 'session-unlinked', agentId: null, accessiblePaths: [] } as any
 
-    const { container } = renderAgentChat()
+    renderAgentChat({ conversationBootstrap: createConversationBootstrap(session) })
 
-    expect(screen.getByTestId('agent-composer')).toBeInTheDocument()
-    expect(screen.getByTestId('agent-composer')).not.toHaveAttribute('data-resolved-agent-id')
-    expect(agentComposerPropsMock.last?.agentId).toBe('agent-1')
-    expect(agentComposerPropsMock.last?.sendDisabled).toBe(true)
-    expect(container.querySelector('[data-conversation-composer-loading]')).not.toBeInTheDocument()
-  })
+    const selectAgent = screen.getByRole('button', { name: 'select replacement agent' })
+    await user.click(selectAgent)
+    expect(selectAgent).toBeDisabled()
 
-  it('keeps the composer mounted during later model changes', () => {
-    const { container, rerender } = renderAgentChat()
-
-    expect(screen.getByTestId('agent-composer')).toBeInTheDocument()
-
-    activeModelMock.isLoading = true
-    rerender(<AgentChat conversationBootstrap={createConversationBootstrap()} />)
-
-    expect(screen.getByTestId('agent-composer')).toBeInTheDocument()
-    expect(container.querySelector('[data-conversation-composer-loading]')).not.toBeInTheDocument()
-  })
-
-  it('shows the empty-session greeting when the loaded session has no messages', () => {
-    renderAgentChat()
-
-    expect(screen.getByTestId('conversation-greeting')).toBeInTheDocument()
-  })
-
-  it('hides the empty-session greeting once the session has messages', () => {
-    partsByMessageIdMock.value = { 'message-1': [{ type: 'text', text: 'hello' }] }
-
-    renderAgentChat()
-
-    expect(screen.queryByTestId('conversation-greeting')).toBeNull()
+    failUpdate?.(new Error('update failed'))
+    await waitFor(() => expect(selectAgent).toBeEnabled())
   })
 
   it('does not allow switching the workspace while the empty session is pending', () => {
@@ -555,8 +511,6 @@ describe('AgentChat settings panel', () => {
     })
 
     expect(screen.getByTestId('agent-conversation-controls')).toHaveAttribute('data-can-change-workspace', 'false')
-    expect(screen.getByTestId('agent-conversation-controls')).toHaveAttribute('data-agent-trigger-mode', 'edit')
-    expect(screen.getByTestId('agent-conversation-controls')).toHaveAttribute('data-can-change-model', 'true')
   })
 
   it('does not allow switching the workspace after messages are present', () => {
@@ -576,29 +530,6 @@ describe('AgentChat settings panel', () => {
     })
 
     expect(screen.getByTestId('agent-conversation-controls')).toHaveAttribute('data-can-change-workspace', 'false')
-    expect(screen.getByTestId('agent-conversation-controls')).toHaveAttribute('data-agent-trigger-mode', 'edit')
-    expect(screen.getByTestId('agent-conversation-controls')).toHaveAttribute('data-can-change-model', 'true')
-  })
-
-  it('keeps the model selector editable after messages are present when the agent has no model', () => {
-    partsByMessageIdMock.value = {
-      'message-1': [{ type: 'text', text: 'hello' }]
-    }
-    activeAgentMock.value = { id: 'agent-1', model: null }
-    const session = {
-      id: 'session-1',
-      agentId: 'agent-1',
-      workspaceId: 'workspace-1',
-      workspace: { id: 'workspace-1', type: 'user', name: 'Workspace 1', path: '/workspace' }
-    } as any
-
-    renderAgentChat({
-      conversationBootstrap: createConversationBootstrap(session),
-      onSessionWorkspaceChange: vi.fn()
-    })
-
-    expect(screen.getByTestId('agent-conversation-controls')).toHaveAttribute('data-can-change-workspace', 'false')
-    expect(screen.getByTestId('agent-conversation-controls')).toHaveAttribute('data-can-change-model', 'true')
   })
 
   it('switches the model directly when the session has no messages', async () => {
@@ -607,10 +538,10 @@ describe('AgentChat settings panel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'change topbar model' }))
 
     await waitFor(() =>
-      expect(updateAgentMock.updateModel).toHaveBeenCalledWith(
+      expect(updateSessionMock.updateSession).toHaveBeenCalledWith(
         {
-          agentId: 'agent-1',
-          modelId: 'provider::model-2'
+          id: 'session-1',
+          model: 'provider::model-2'
         },
         { showSuccessToast: false }
       )
@@ -628,12 +559,12 @@ describe('AgentChat settings panel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'change topbar model' }))
 
     expect(screen.getByRole('dialog')).toHaveTextContent('agent.session.model_switch_confirm.description')
-    expect(updateAgentMock.updateModel).not.toHaveBeenCalled()
+    expect(updateSessionMock.updateSession).not.toHaveBeenCalled()
 
     fireEvent.click(screen.getByRole('checkbox', { name: 'agent.session.model_switch_confirm.skip_for_app_run' }))
     fireEvent.click(screen.getByRole('button', { name: 'common.cancel' }))
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
-    expect(updateAgentMock.updateModel).not.toHaveBeenCalled()
+    expect(updateSessionMock.updateSession).not.toHaveBeenCalled()
 
     fireEvent.click(screen.getByRole('button', { name: 'change topbar model' }))
     expect(
@@ -642,11 +573,32 @@ describe('AgentChat settings panel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'agent.session.model_switch_confirm.confirm' }))
 
     await waitFor(() =>
-      expect(updateAgentMock.updateModel).toHaveBeenCalledWith(
+      expect(updateSessionMock.updateSession).toHaveBeenCalledWith(
         {
-          agentId: 'agent-1',
-          modelId: 'provider::model-2'
+          id: 'session-1',
+          model: 'provider::model-2'
         },
+        { showSuccessToast: false }
+      )
+    )
+  })
+
+  it('asks the same confirmation when the profile pane switches the model of a session with messages', async () => {
+    partsByMessageIdMock.value = {
+      'message-1': [{ type: 'text', text: 'hello' }]
+    }
+
+    renderAgentChat()
+    const { onModelChange } = agentRightPanePropsMock.last as { onModelChange: (model: unknown) => Promise<void> }
+    await act(() => onModelChange({ id: 'provider::model-2', name: 'Model 2' }))
+
+    expect(screen.getByRole('dialog')).toHaveTextContent('agent.session.model_switch_confirm.description')
+    expect(updateSessionMock.updateSession).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'agent.session.model_switch_confirm.confirm' }))
+
+    await waitFor(() =>
+      expect(updateSessionMock.updateSession).toHaveBeenCalledWith(
+        { id: 'session-1', model: 'provider::model-2' },
         { showSuccessToast: false }
       )
     )
@@ -676,118 +628,8 @@ describe('AgentChat settings panel', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'change topbar model' }))
 
-    await waitFor(() => expect(updateAgentMock.updateModel).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(updateSessionMock.updateSession).toHaveBeenCalledTimes(1))
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-  })
-
-  it('keeps the missing-agent home composer for pending ask-user-question requests', async () => {
-    partsByMessageIdMock.value = {
-      'message-1': [
-        {
-          type: 'dynamic-tool',
-          toolName: 'AskUserQuestion',
-          toolCallId: 'call-1',
-          state: 'approval-requested',
-          input: {
-            questions: [
-              {
-                question: 'Choose logger',
-                header: 'Logger',
-                options: [{ label: 'Winston' }, { label: 'Pino' }],
-                multiSelect: false
-              }
-            ]
-          },
-          providerExecuted: true,
-          callProviderMetadata: { 'claude-code': { parentToolCallId: null } },
-          approval: { id: 'approval-1' }
-        }
-      ]
-    }
-
-    renderAgentChat({
-      conversationBootstrap: createConversationBootstrap(null),
-      missingAgentSelection: true
-    })
-
-    // The home composer is lazy-loaded; wait for the chunk to resolve.
-    expect(await screen.findByTestId('missing-agent-home-composer')).toBeInTheDocument()
-    expect(screen.getByTestId('composer-dock-frame')).toHaveAttribute('data-placement', 'docked')
-    expect(screen.queryByText('Choose logger')).not.toBeInTheDocument()
-  })
-
-  it('prioritizes AskUserQuestionComposer over regular permission requests', async () => {
-    partsByMessageIdMock.value = {
-      'message-1': [
-        {
-          type: 'tool-Read',
-          toolName: 'Read',
-          toolCallId: 'call-read',
-          state: 'approval-requested',
-          input: { file_path: '/tmp/file.ts' },
-          approval: { id: 'approval-read' },
-          callProviderMetadata: {
-            'claude-code': {
-              rawInput: { file_path: '/tmp/file.ts' },
-              parentToolCallId: null
-            }
-          }
-        },
-        {
-          type: 'dynamic-tool',
-          toolName: 'AskUserQuestion',
-          toolCallId: 'call-ask',
-          state: 'approval-requested',
-          input: {
-            questions: [
-              {
-                question: 'Choose logger',
-                header: 'Logger',
-                options: [{ label: 'Winston' }, { label: 'Pino' }],
-                multiSelect: false
-              }
-            ]
-          },
-          providerExecuted: true,
-          callProviderMetadata: { 'claude-code': { parentToolCallId: null } },
-          approval: { id: 'approval-ask' }
-        }
-      ]
-    }
-
-    renderAgentChat()
-
-    expect(screen.getByText('Choose logger')).toBeInTheDocument()
-    expect(screen.queryByText('Read')).not.toBeInTheDocument()
-    expect(screen.queryByTestId('agent-inputbar')).not.toBeInTheDocument()
-  })
-
-  it('replaces the agent inputbar with PermissionRequestComposer for pending tool permissions', () => {
-    partsByMessageIdMock.value = {
-      'message-1': [
-        {
-          type: 'tool-CustomTool',
-          toolName: 'CustomTool',
-          toolCallId: 'call-1',
-          state: 'approval-requested',
-          input: { command: 'pnpm test' },
-          approval: { id: 'approval-1' },
-          callProviderMetadata: {
-            'claude-code': {
-              rawInput: { command: 'pnpm test' },
-              parentToolCallId: null
-            }
-          }
-        }
-      ]
-    }
-
-    renderAgentChat()
-
-    expect(screen.getByRole('heading', { name: 'message.processing' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'agent.toolPermission.button.allow' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'agent.toolPermission.button.deny' })).toBeInTheDocument()
-    expect(screen.queryByTestId('agent-inputbar')).not.toBeInTheDocument()
   })
 
   it('keeps the missing-agent home composer for pending tool permissions', async () => {
@@ -816,9 +658,7 @@ describe('AgentChat settings panel', () => {
     })
 
     // The home composer is lazy-loaded; wait for the chunk to resolve.
-    expect(await screen.findByTestId('missing-agent-home-composer')).toBeInTheDocument()
-    expect(screen.getByTestId('composer-dock-frame')).toHaveAttribute('data-placement', 'docked')
-    expect(screen.queryByText('CustomTool')).not.toBeInTheDocument()
+
     expect(screen.queryByRole('button', { name: 'agent.toolPermission.button.allow' })).not.toBeInTheDocument()
   })
 

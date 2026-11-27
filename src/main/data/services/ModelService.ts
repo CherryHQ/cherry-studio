@@ -18,6 +18,7 @@ import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { defaultHandlersFor, type SqliteErrorHandlers, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbType } from '@data/db/types'
+import { notifyModelsDeleted, selectSessionsUsingModelsTx } from '@data/services/modelDeletionEffects'
 import { pinService } from '@data/services/PinService'
 import {
   createCustomModel,
@@ -50,6 +51,7 @@ import type {
   RuntimeReasoning
 } from '@shared/data/types/model'
 import { createUniqueModelId, MODEL_CAPABILITY, ReasoningConfigSchema } from '@shared/data/types/model'
+import { projectModelParameterSupport } from '@shared/utils/model'
 
 const logger = loggerService.withContext('DataApi:ModelService')
 const SQLITE_INARRAY_CHUNK = 500
@@ -147,6 +149,7 @@ function assertProvidersAvailable(providerIds: Iterable<string>): void {
  * Defined explicitly (not via ReturnType) to avoid a circular import.
  */
 type CreateModelRegistryData = ModelLookupResult & {
+  providerModel?: Model
   reasoningProfile: ResolvedReasoningProfile
   serviceTierControl?: ResolvedServiceTierControl
 }
@@ -292,6 +295,7 @@ export const UPDATE_MODEL_FIELD_MAP: Array<keyof UpdateModelDto | [keyof UpdateM
   'outputModalities',
   'endpointTypes',
   ['parameterSupport', 'parameters'],
+  'reasoning',
   'supportsStreaming',
   'contextWindow',
   'maxInputTokens',
@@ -302,6 +306,17 @@ export const UPDATE_MODEL_FIELD_MAP: Array<keyof UpdateModelDto | [keyof UpdateM
   'isDeprecated',
   'notes'
 ]
+
+function mergeUserReasoning(
+  existing: InsertUserModelRow['reasoning'],
+  patch: UpdateModelDto['reasoning']
+): InsertUserModelRow['reasoning'] {
+  if (patch?.defaultEffort === undefined) return existing ?? null
+  const reasoning = { ...existing }
+  if (patch.defaultEffort === null) delete reasoning.defaultEffort
+  else reasoning.defaultEffort = patch.defaultEffort
+  return Object.keys(reasoning).length ? reasoning : null
+}
 
 /** Convert CreateModelDto to an InsertUserModelRow (shared by preset and custom paths). */
 function dtoToNewUserModel(dto: CreateModelDto): NewUserModelInput {
@@ -387,7 +402,7 @@ function presetDeltaToNewUserModel(
     maxInputTokens: fields.has('maxInputTokens') ? (dto.maxInputTokens ?? null) : null,
     maxOutputTokens: fields.has('maxOutputTokens') ? (dto.maxOutputTokens ?? null) : null,
     supportsStreaming: fields.has('supportsStreaming') ? (dto.supportsStreaming ?? null) : null,
-    reasoning: null,
+    reasoning: mergeUserReasoning(null, dto.reasoning),
     parameters: fields.has('parameters') ? (dto.parameterSupport ?? null) : null,
     pricing: fields.has('pricing') ? (dto.pricing ?? null) : null,
     isEnabled: true,
@@ -408,7 +423,7 @@ function applyStoredPresetDeltas(baseline: Model, row: UserModelRow): Model {
     maxInputTokens: row.maxInputTokens,
     maxOutputTokens: row.maxOutputTokens,
     supportsStreaming: row.supportsStreaming,
-    parameterSupport: row.parameters as RuntimeParameterSupport | null,
+    parameterSupport: projectModelParameterSupport(row.parameters),
     pricing: row.pricing
   })
 }
@@ -450,8 +465,10 @@ function customRowToRuntimeModel(row: UserModelRow): Model {
     // Strip legacy fields (notably `type`) and materialize the runtime-only
     // selection list until registry enrichment projects the active profile.
     reasoning: reasoning ? { ...reasoning, selectableEfforts: reasoning.selectableEfforts ?? [] } : undefined,
-    parameterSupport: (row.parameters ?? undefined) as RuntimeParameterSupport | undefined,
+    userDefaultReasoningEffort: row.reasoning?.defaultEffort,
+    parameterSupport: projectModelParameterSupport(row.parameters),
     pricing: row.pricing ?? undefined,
+    hasCustomPricing: row.pricing != null,
     isEnabled: row.isEnabled,
     isHidden: row.isHidden,
     isDeprecated: row.isDeprecated,
@@ -462,6 +479,11 @@ function customRowToRuntimeModel(row: UserModelRow): Model {
 function applyStoredModelState(model: Model, row: UserModelRow): Model {
   return {
     ...model,
+    hasCustomPricing: row.pricing != null,
+    ...(model.reasoning && row.reasoning?.defaultEffort !== undefined
+      ? { reasoning: { ...model.reasoning, defaultEffort: row.reasoning.defaultEffort } }
+      : {}),
+    userDefaultReasoningEffort: row.reasoning?.defaultEffort,
     id: createUniqueModelId(row.providerId, row.modelId),
     providerId: row.providerId,
     apiModelId: row.modelId,
@@ -483,21 +505,15 @@ function createPresetFallback(
 }
 
 class ModelService {
-  private getRegistryBaseline(
-    providerId: string,
-    modelId: string,
-    reasoningConfigCache?: Map<string, ReasoningProviderContext>
-  ): Model | null {
-    const { presetModel, registryOverride, reasoningProfile, serviceTierControl } = providerRegistryService.lookupModel(
-      providerId,
-      modelId,
-      reasoningConfigCache
-    )
+  private getRegistryBaseline(providerContext: ReasoningProviderContext, modelId: string): Model | null {
+    const { providerModel, presetModel, registryOverride, reasoningProfile, serviceTierControl } =
+      providerRegistryService.resolveModel(providerContext, modelId)
+    if (providerModel) return providerModel
     if (!presetModel) return null
     return mergePresetModel(
       presetModel,
       registryOverride,
-      providerId,
+      providerContext.id,
       reasoningProfile.wire,
       reasoningProfile.support,
       serviceTierControl
@@ -505,6 +521,12 @@ class ModelService {
   }
 
   private buildCreateValues(dto: CreateModelDto, registryData?: CreateModelRegistryData): NewUserModelInput {
+    if (registryData?.providerModel) {
+      return {
+        ...dtoToNewUserModel({ ...registryData.providerModel, ...dto, presetModelId: undefined }),
+        reasoning: mergeUserReasoning(null, dto.reasoning)
+      }
+    }
     const presetModel = registryData?.presetModel ?? null
     const dtoValues = dtoToNewUserModel(dto)
 
@@ -539,10 +561,15 @@ class ModelService {
       if (inferred) dtoValues.reasoning = inferred
     }
 
+    dtoValues.reasoning = mergeUserReasoning(dtoValues.reasoning, dto.reasoning)
     return dtoValues
   }
 
-  private buildUpdates(existing: UserModelRow, dto: UpdateModelDto): Partial<InsertUserModelRow> {
+  private buildUpdatesTx(
+    tx: Pick<DbType, 'select'>,
+    existing: UserModelRow,
+    dto: UpdateModelDto
+  ): Partial<InsertUserModelRow> {
     const updates: Partial<InsertUserModelRow> = {}
     const hasPresetDeltaField = (Object.keys(dto) as (keyof UpdateModelDto)[])
       .map(dtoKeyToDbKey)
@@ -551,7 +578,10 @@ class ModelService {
     let baseline: Model | null = null
     if (existing.presetModelId && hasPresetDeltaField) {
       try {
-        baseline = this.getRegistryBaseline(existing.providerId, existing.modelId)
+        const context = providerService
+          .getReasoningContextsByProviderIdsTx(tx, [existing.providerId])
+          .get(existing.providerId)
+        if (context) baseline = this.getRegistryBaseline(context, existing.modelId)
       } catch (error) {
         logger.warn('Registry baseline lookup failed; preserving model fields as user overrides', {
           providerId: existing.providerId,
@@ -565,6 +595,11 @@ class ModelService {
       const [dtoKey, dbKey] = Array.isArray(entry) ? entry : [entry, entry as keyof InsertUserModelRow]
       const value = dto[dtoKey]
       if (value === undefined) continue
+
+      if (dtoKey === 'reasoning') {
+        updates.reasoning = mergeUserReasoning(existing.reasoning, dto.reasoning)
+        continue
+      }
 
       if (existing.presetModelId && isPresetDeltaField(String(dbKey))) {
         const field = String(dbKey) as PresetDeltaField
@@ -687,7 +722,8 @@ class ModelService {
       .orderBy(asc(userModelTable.providerId), asc(userModelTable.orderKey))
       .all()
 
-    let models = this.enrichRowsFromRegistry(
+    let models = this.enrichRowsFromRegistryTx(
+      db,
       availableProviderIds ? rows.filter((row) => availableProviderIds.has(row.providerId)) : rows
     )
 
@@ -707,13 +743,21 @@ class ModelService {
    * capabilities while recognized models receive narrow metadata/reasoning
    * enrichment plus missing limits and pricing. Nothing is written back.
    */
-  private enrichRowsFromRegistry(rows: UserModelRow[]): Model[] {
-    const reasoningConfigCache = new Map<string, ReasoningProviderContext>()
-    return rows.map((row) => {
+  private enrichRowsFromRegistryTx(tx: Pick<DbType, 'select'>, rows: UserModelRow[]): Model[] {
+    const providerContexts = providerService.getReasoningContextsByProviderIdsTx(
+      tx,
+      rows.map((row) => row.providerId)
+    )
+    return rows.flatMap((row) => {
+      const providerContext = providerContexts.get(row.providerId)
+      if (!providerContext) return []
       if (row.presetModelId) {
         try {
-          const { presetModel, registryOverride, reasoningProfile, serviceTierControl } =
-            providerRegistryService.lookupModel(row.providerId, row.modelId, reasoningConfigCache)
+          const { providerModel, presetModel, registryOverride, reasoningProfile, serviceTierControl } =
+            providerRegistryService.resolveModel(providerContext, row.modelId)
+          if (providerModel) {
+            return { ...applyStoredModelState(applyStoredPresetDeltas(providerModel, row), row), presetModelId: null }
+          }
           if (!presetModel) {
             return createPresetFallback(row, reasoningProfile.wire, serviceTierControl)
           }
@@ -743,8 +787,11 @@ class ModelService {
       const modelId = model.apiModelId
       if (!modelId) return model
       try {
-        const { presetModel, registryOverride, reasoningProfile, serviceTierControl } =
-          providerRegistryService.lookupModel(model.providerId, modelId, reasoningConfigCache)
+        const { providerModel, presetModel, registryOverride, reasoningProfile, serviceTierControl } =
+          providerRegistryService.resolveModel(providerContext, modelId)
+        if (providerModel) {
+          return { ...applyStoredModelState(applyStoredPresetDeltas(providerModel, row), row), presetModelId: null }
+        }
         const imageGeneration = registryOverride?.imageGeneration ?? presetModel?.imageGeneration
         const registryModel = presetModel
           ? mergePresetModel(
@@ -788,7 +835,11 @@ class ModelService {
         if (registryOverride?.supportsFastMode) updates.supportsFastMode = true
         if (serviceTierControl) {
           updates.requestControls = {
-            serviceTier: { default: serviceTierControl.default, options: serviceTierControl.options }
+            serviceTier: {
+              default: serviceTierControl.default,
+              options: serviceTierControl.options,
+              values: serviceTierControl.wire.values
+            }
           }
         }
         const ownedBy = registryOverride?.ownedBy ?? presetModel?.ownedBy ?? inferReasoningOwnedBy(modelId)
@@ -803,7 +854,11 @@ class ModelService {
             declaredReasoning: model.capabilities.includes(MODEL_CAPABILITY.REASONING)
           })
         }
-        if (reasoning) updates.reasoning = reasoning
+        if (reasoning)
+          updates.reasoning = {
+            ...reasoning,
+            ...(row.reasoning?.defaultEffort !== undefined ? { defaultEffort: row.reasoning.defaultEffort } : {})
+          }
         else if (model.reasoning) updates.reasoning = undefined
         return Object.keys(updates).length > 0 ? { ...model, ...updates } : model
       } catch (error) {
@@ -830,13 +885,15 @@ class ModelService {
    */
   findByIdTx(tx: Pick<DbType, 'select'>, id: string): Model | null {
     const [row] = selectWithProviderIdentity(tx).where(eq(userModelTable.id, id)).limit(1).all()
-    return row && isProviderIdentityAvailable(row) ? this.enrichRowsFromRegistry([row.model])[0] : null
+    if (!row) return null
+
+    return this.enrichRowsFromRegistryTx(tx, [row.model])[0] ?? null
   }
 
   /** Check model existence under a provider available in the current edition. */
   existsByIdTx(tx: Pick<DbType, 'select'>, id: string): boolean {
     const [row] = selectWithProviderIdentity(tx).where(eq(userModelTable.id, id)).limit(1).all()
-    return row !== undefined && isProviderIdentityAvailable(row)
+    return row !== undefined && isProviderIdentityAvailable(row, tx)
   }
 
   /**
@@ -864,8 +921,10 @@ class ModelService {
 
     const rows = selectWithProviderIdentity(tx).where(inArray(userModelTable.id, ids)).all()
 
-    const available = rows.filter(isProviderIdentityAvailable).map((row) => row.model)
-    for (const model of this.enrichRowsFromRegistry(available)) {
+    for (const model of this.enrichRowsFromRegistryTx(
+      tx,
+      rows.map((row) => row.model)
+    )) {
       if (model.name) result.set(model.id, model.name)
     }
     return result
@@ -890,7 +949,7 @@ class ModelService {
       throw DataApiErrorFactory.notFound('Model', `${providerId}/${modelId}`)
     }
 
-    return this.enrichRowsFromRegistry([row])[0]
+    return this.enrichRowsFromRegistryTx(db, [row])[0]
   }
 
   /**
@@ -966,7 +1025,7 @@ class ModelService {
       })
     }
 
-    return this.enrichRowsFromRegistry(rows)
+    return this.enrichRowsFromRegistryTx(db, rows)
   }
 
   /**
@@ -990,10 +1049,10 @@ class ModelService {
       throw DataApiErrorFactory.notFound('Model', `${providerId}/${modelId}`)
     }
 
-    const updates = this.buildUpdates(existing, dto)
+    const updates = this.buildUpdatesTx(db, existing, dto)
 
     if (Object.keys(updates).length === 0) {
-      return this.enrichRowsFromRegistry([existing])[0]
+      return this.enrichRowsFromRegistryTx(db, [existing])[0]
     }
 
     const [row] = db
@@ -1005,7 +1064,7 @@ class ModelService {
 
     logger.info('Updated model', { providerId, modelId, changes: Object.keys(dto) })
 
-    return this.enrichRowsFromRegistry([row])[0]
+    return this.enrichRowsFromRegistryTx(db, [row])[0]
   }
 
   /**
@@ -1044,7 +1103,7 @@ class ModelService {
           throw DataApiErrorFactory.notFound('Model', `${providerId}/${modelId}`)
         }
 
-        const updates = this.buildUpdates(existing, patch)
+        const updates = this.buildUpdatesTx(tx, existing, patch)
 
         if (Object.keys(updates).length === 0) {
           results.push(existing)
@@ -1069,7 +1128,7 @@ class ModelService {
       providers: [...new Set(items.map((item) => item.providerId))]
     })
 
-    return this.enrichRowsFromRegistry(rows)
+    return this.enrichRowsFromRegistryTx(db, rows)
   }
 
   /**
@@ -1134,11 +1193,15 @@ class ModelService {
     const dbService = application.get('DbService')
     const values = payload.toAdd.map(({ dto, registryData }) => this.buildCreateValues(dto, registryData))
     const deletedIds: string[] = []
+    const affectedSessionIds: string[] = []
     const rows = withSqliteErrors(
       () =>
         dbService.withWriteTx((tx) => {
           for (let i = 0; i < payload.toRemove.length; i += SQLITE_INARRAY_CHUNK) {
             const chunk = payload.toRemove.slice(i, i + SQLITE_INARRAY_CHUNK)
+            // Read affected session overrides before the rows go: the FK clears
+            // agent_session.model on delete and only these ids know which sessions re-fetched.
+            affectedSessionIds.push(...selectSessionsUsingModelsTx(tx, chunk))
             const deletedRows = tx
               .delete(userModelTable)
               .where(and(eq(userModelTable.providerId, providerId), inArray(userModelTable.id, chunk)))
@@ -1174,7 +1237,8 @@ class ModelService {
     )
 
     if (deletedIds.length > 0) pinService.notifyPurged()
-    return { models: this.enrichRowsFromRegistry(rows), deletedIds }
+    notifyModelsDeleted(deletedIds, affectedSessionIds)
+    return { models: this.enrichRowsFromRegistryTx(dbService.getDb(), rows), deletedIds }
   }
 
   /**
@@ -1187,9 +1251,11 @@ class ModelService {
     const uniqueModelId = createUniqueModelId(providerId, modelId)
     assertModelNotUsedAsDefaultModel(uniqueModelId, `delete model ${uniqueModelId}`)
 
+    let affectedSessionIds: string[] = []
     withSqliteErrors(
       () =>
         application.get('DbService').withWriteTx((tx) => {
+          affectedSessionIds = selectSessionsUsingModelsTx(tx, [uniqueModelId])
           const rows = tx
             .delete(userModelTable)
             .where(and(eq(userModelTable.providerId, providerId), eq(userModelTable.modelId, modelId)))
@@ -1205,6 +1271,7 @@ class ModelService {
       deleteModelsSqliteHandlers(`${providerId}/${modelId}`)
     )
     pinService.notifyPurged()
+    notifyModelsDeleted([uniqueModelId], affectedSessionIds)
 
     logger.info('Deleted model', { providerId, modelId })
   }
@@ -1232,6 +1299,7 @@ class ModelService {
     }
 
     const ids = [...uniqueItems.keys()]
+    let affectedSessionIds: string[] = []
 
     withSqliteErrors(
       () =>
@@ -1252,6 +1320,7 @@ class ModelService {
             throw DataApiErrorFactory.notFound('Model', missingId)
           }
 
+          affectedSessionIds = selectSessionsUsingModelsTx(tx, ids)
           for (let i = 0; i < ids.length; i += SQLITE_INARRAY_CHUNK) {
             const chunk = ids.slice(i, i + SQLITE_INARRAY_CHUNK)
             const deletedRows = tx
@@ -1272,6 +1341,7 @@ class ModelService {
       deleteModelsSqliteHandlers(ids.length === 1 ? ids[0] : `batch(${ids.length} items)`)
     )
     pinService.notifyPurged()
+    notifyModelsDeleted(ids, affectedSessionIds)
 
     logger.info('Bulk deleted models', {
       count: ids.length,

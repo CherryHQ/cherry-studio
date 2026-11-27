@@ -7,7 +7,7 @@ import { loggerService } from '@logger'
 import type { ArtifactPlatformFiles, SharedArtifact } from '../catalog/types'
 import { currentPlatformKey } from '../catalog/types'
 import { streamToFileVerified, withMirrorFallback } from './downloadEngine'
-import type { DownloadSourcePreference } from './modelSource'
+import { type DownloadSourcePreference, orderDownloadUrls } from './modelSource'
 
 const logger = loggerService.withContext('sharedArtifactAcquisition')
 
@@ -39,7 +39,16 @@ export function artifactPlatformFiles(artifact: SharedArtifact): ArtifactPlatfor
 }
 
 export function isArtifactSupported(artifact: SharedArtifact): boolean {
-  return artifactPlatformFiles(artifact) !== undefined
+  if (!artifactPlatformFiles(artifact)) return false
+  if (!artifact.minimumMacOS) return true
+  const actual = process.getSystemVersion?.().split('.').map(Number)
+  const required = artifact.minimumMacOS.split('.').map(Number)
+  if (!actual || actual.some((part) => !Number.isFinite(part))) return false
+  for (let index = 0; index < required.length; index += 1) {
+    const difference = (actual[index] ?? 0) - required[index]
+    if (difference !== 0) return difference > 0
+  }
+  return true
 }
 
 function artifactInstallDir(artifact: SharedArtifact, platform: ArtifactPlatformFiles): string {
@@ -70,8 +79,16 @@ export function isArtifactInstalled(artifact: SharedArtifact): boolean {
   return [platform.entryFile, ...platform.supportFiles].every((file) => fs.existsSync(path.join(dir, file)))
 }
 
-function tarballUrls(artifact: SharedArtifact, registryOrder: readonly ArtifactRegistryId[]): string[] {
-  const { packageName, version } = artifact
+function tarballUrls(
+  artifact: SharedArtifact,
+  platform: ArtifactPlatformFiles,
+  registryOrder: readonly ArtifactRegistryId[]
+): string[] {
+  if (platform.tarballUrls) {
+    return orderDownloadUrls(platform.tarballUrls, registryOrder[0] === 'npmmirror' ? 'china-first' : 'global-first')
+  }
+  const { packageName } = platform
+  const { version } = artifact
   return registryOrder.map((id) => `${NPM_REGISTRIES[id]}/${packageName}/-/${packageName}-${version}.tgz`)
 }
 
@@ -91,12 +108,12 @@ export async function installArtifact(
 
   const tmpDir = artifactStagingDir(artifact)
   await fs.promises.mkdir(tmpDir, { recursive: true })
-  const tarballPath = path.join(tmpDir, `${artifact.packageName}-${artifact.version}.tgz`)
+  const tarballPath = path.join(tmpDir, `${platform.packageName}-${artifact.version}.tgz`)
   const extractDir = path.join(tmpDir, `extract-${currentPlatformKey()}`)
 
   try {
-    await withMirrorFallback(tarballUrls(artifact, registryOrder), signal, artifact.id, (url) =>
-      streamToFileVerified(url, tarballPath, { sha256: artifact.tarballSha256, signal, onProgress })
+    await withMirrorFallback(tarballUrls(artifact, platform, registryOrder), signal, artifact.id, (url) =>
+      streamToFileVerified(url, tarballPath, { sha256: platform.tarballSha256, signal, onProgress })
     )
     signal.throwIfAborted()
     await extractPlatformFiles(tarballPath, extractDir, platform)

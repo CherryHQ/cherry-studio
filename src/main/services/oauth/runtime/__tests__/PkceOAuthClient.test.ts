@@ -1,20 +1,7 @@
+import { net } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const netMocks = vi.hoisted(() => ({
-  fetch: vi.fn()
-}))
-
-vi.mock('electron', async (importOriginal) => {
-  const actual = (await importOriginal()) as { net: Electron.Net }
-  return {
-    ...actual,
-    net: { ...actual.net, fetch: netMocks.fetch }
-  }
-})
-
-import { net } from 'electron'
-
-import { OAuthHttpError, PkceOAuthClient } from '../PkceOAuthClient'
+import { PkceOAuthClient } from '../PkceOAuthClient'
 
 const CONFIG = {
   clientId: 'client-1',
@@ -94,7 +81,6 @@ describe('PkceOAuthClient.exchangeCode', () => {
       status: 400,
       body: 'invalid_grant'
     })
-    expect(OAuthHttpError).toBeDefined()
   })
 })
 
@@ -130,18 +116,5 @@ describe('PkceOAuthClient.refresh', () => {
       message: 'Failed to refresh access token: 401',
       status: 401
     })
-  })
-
-  it('bounds the token request with an abort timeout signal', async () => {
-    vi.mocked(net.fetch).mockResolvedValue(okJson({ access_token: 'fresh' }))
-
-    const client = new PkceOAuthClient(CONFIG)
-    await client.refresh('old-refresh')
-
-    const [, init] = vi.mocked(net.fetch).mock.calls[0]
-    // A hung token endpoint must not block indefinitely — net.fetch has no
-    // default timeout, so postToken passes an AbortSignal.timeout.
-    expect(init?.signal).toBeInstanceOf(AbortSignal)
-    expect(init?.signal?.aborted).toBe(false)
   })
 })

@@ -7,15 +7,9 @@ import { writeComposerRichClipboardContent } from '@renderer/utils/message/compo
 
 export type MessagePlatformActions = Pick<
   MessageListActions,
-  | 'copyText'
-  | 'copyRichContent'
-  | 'copyImage'
-  | 'exportTableAsExcel'
-  | 'notifyInfo'
-  | 'notifySuccess'
-  | 'notifyWarning'
-  | 'notifyError'
->
+  'copyText' | 'copyRichContent' | 'copyImage' | 'exportTableAsExcel' | 'notifyInfo' | 'notifySuccess' | 'notifyWarning'
+> &
+  Required<Pick<MessageListActions, 'notifyError'>>
 
 export function useMessagePlatformActions(): MessagePlatformActions {
   const copyText = useCallback<NonNullable<MessageListActions['copyText']>>(async (text, options) => {

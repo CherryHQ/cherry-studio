@@ -2,9 +2,15 @@
  * Runtime 模块导出
  * 专注于运行时插件化AI调用处理
  */
+import { type AiPlugin } from '../plugins'
+import { extensionRegistry } from '../providers'
+import { type CoreProviderSettingsMap, type StringKeys } from '../providers/types'
+import { RuntimeExecutor } from './executor'
 
 // 主要的运行时执行器
 export { RuntimeExecutor } from './executor'
+export { generateSpeech, transcribe } from './voice'
+export type { SpeechOptions, SpeechResult, TranscriptionOptions, TranscriptionResult } from './voice'
 
 // 导出类型
 export type {
@@ -18,11 +24,6 @@ export type {
 } from './types'
 
 // === 便捷工厂函数 ===
-
-import { type AiPlugin } from '../plugins'
-import { extensionRegistry } from '../providers'
-import { type CoreProviderSettingsMap, type StringKeys } from '../providers/types'
-import { RuntimeExecutor } from './executor'
 
 /**
  * 创建运行时执行器 - 支持类型安全的已知provider
@@ -58,8 +59,7 @@ export async function resolveLanguageModel<
   T extends StringKeys<TSettingsMap> = StringKeys<TSettingsMap>
 >(providerId: T, options: TSettingsMap[T], modelId: string, plugins?: AiPlugin[]) {
   const executor = await createExecutor<TSettingsMap, T>(providerId, options, plugins)
-  executor.pluginEngine.usePlugins([executor.createResolveModelPlugin(), executor.createConfigureContextPlugin()])
-  return executor.pluginEngine.resolveModel(modelId)
+  return executor.resolveLanguageModel(modelId)
 }
 
 /**

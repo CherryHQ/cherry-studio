@@ -1,7 +1,3 @@
-import crypto from 'crypto'
-import fs from 'fs/promises'
-import path from 'path'
-
 /**
  * Generate React components from SVG files using @svgr/core
  *
@@ -14,9 +10,14 @@ import path from 'path'
  *   --type=providers  generate provider icons, avatars, barrels, catalogs, and loaders
  *   --type=models     generate model icons, avatars, barrels, and loaders
  */
+import crypto from 'crypto'
+import fs from 'fs/promises'
+import path from 'path'
+
 import { transform } from '@svgr/core'
 
 import { generateMeta } from './codegen'
+import { detectHasBackground } from './icons-generate-avatars'
 import { buildLightDarkSvgMap, ensureViewBox, type LightDarkSvgPair, type LogoType } from './svg-utils'
 
 export type IconType = 'icons' | 'providers' | 'models'
@@ -109,6 +110,7 @@ async function ensureOutputDir(type: IconType): Promise<string> {
  */
 function toPascalCase(filename: string): string {
   const name = filename.replace(/\.svg$/, '')
+  if (name === 'serpkite') return 'SerpKite'
 
   if (/^\d/.test(name)) {
     const match = name.match(/^(\d+)(.*)$/)
@@ -129,12 +131,12 @@ function toPascalCase(filename: string): string {
 /**
  * Extract the most prominent fill color from SVG content.
  */
-function extractColorPrimary(svgContent: string): string {
+export function extractColorPrimary(svgContent: string): string {
   const fills = [...svgContent.matchAll(/(?:fill|stroke)=["']([^"']+)["']/g)]
   const colorCounts = new Map<string, number>()
 
   for (const [, color] of fills) {
-    if (color === 'none' || color === 'currentColor' || color.startsWith('url(')) continue
+    if (color === 'none' || color === 'currentColor' || color.startsWith('url(') || color.startsWith('var(')) continue
     if (/^(?:white|#fff(?:fff)?|#FFFFFF)$/i.test(color)) continue
     colorCounts.set(color, (colorCounts.get(color) || 0) + 1)
   }
@@ -337,7 +339,8 @@ async function generateLogoDirDual(
     outPath: path.join(logoDir, 'meta.ts'),
     dirName,
     colorPrimary,
-    colorScheme: 'color'
+    colorScheme: 'color',
+    artworkKind: detectHasBackground(pair.light) ? 'tile' : undefined
   })
 }
 

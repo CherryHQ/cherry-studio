@@ -4,12 +4,14 @@ import { useTranslation } from 'react-i18next'
 
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { useTimer } from '@renderer/hooks/useTimer'
+import { ipcApi } from '@renderer/ipc'
 import type { NormalToolResponse } from '@renderer/types/mcpTool'
 
 import { useOptionalMessageListActions } from '../../MessageListProvider'
 import { ArgKey, ArgsSection, ArgsSectionTitle, ArgsTable, ArgValue, formatArgValue } from '../shared/ArgsTable'
 import { getEffectiveStatus, ToolStatusIndicator } from '../shared/GenericTools'
 import { ToolDisclosure } from '../shared/ToolDisclosure'
+import { useToolResponsePreview } from '../useToolResponsePreview'
 import type { MetaToolName } from './metaToolNames'
 
 export { isMetaToolName, META_TOOL_NAMES, type MetaToolName } from './metaToolNames'
@@ -19,7 +21,8 @@ interface Props {
 }
 
 const MessageMetaTool: FC<Props> = ({ toolResponse }) => {
-  const { id, tool, status, response } = toolResponse
+  const { toolResponse: preview, deferredOutput } = useToolResponsePreview(toolResponse)
+  const { id, tool, status, response } = preview
   const [activeKeys, setActiveKeys] = useState<string[]>([])
   const [copied, setCopied] = useState(false)
   const { setTimeoutTimer } = useTimer()
@@ -44,18 +47,27 @@ const MessageMetaTool: FC<Props> = ({ toolResponse }) => {
 
   const titleLabel = useTitleLabel(toolResponse)
 
-  const handleCopy = (e: React.MouseEvent) => {
+  const handleCopy = async (e: React.MouseEvent) => {
     e.stopPropagation()
-    const payload = JSON.stringify({ args: toolResponse.arguments, response: toolResponse.response }, null, 2)
     if (!copyText) return
-    Promise.resolve(copyText(payload, { successMessage: t('message.copied') }))
-      .then(() => {
-        setCopied(true)
-        setTimeoutTimer('copyMetaTool', () => setCopied(false), 2000)
+    try {
+      let response = toolResponse.response
+      if (deferredOutput) {
+        const result = await ipcApi.request('ai.tool.get_result', {
+          ...deferredOutput.$deferredToolResult,
+          purpose: 'full'
+        })
+        if (result.status !== 'ready' || result.purpose !== 'full') throw new Error(result.status)
+        response = result.output
+      }
+      await copyText(JSON.stringify({ args: toolResponse.arguments, response }, null, 2), {
+        successMessage: t('message.copied')
       })
-      .catch(() => {
-        notifyError?.(t('message.copy.failed'))
-      })
+      setCopied(true)
+      setTimeoutTimer('copyMetaTool', () => setCopied(false), 2000)
+    } catch {
+      notifyError?.(t('message.copy.failed'))
+    }
   }
 
   return (
@@ -85,7 +97,7 @@ const MessageMetaTool: FC<Props> = ({ toolResponse }) => {
                 {copied ? t('common.copied') : t('common.copy')}
               </CopyButton>
             ),
-            children: <Body toolResponse={toolResponse} toolName={tool.name as MetaToolName} />
+            children: <Body toolResponse={preview} toolName={tool.name as MetaToolName} />
           }
         ]}
       />
@@ -114,7 +126,8 @@ function useTitleLabel(toolResponse: NormalToolResponse): string {
       return `tool_invoke · ${targetName}`
     }
     case 'tool_exec':
-      return 'tool_exec'
+    case 'codemode':
+      return name
   }
 }
 
@@ -129,6 +142,7 @@ const Body: FC<{ toolResponse: NormalToolResponse; toolName: MetaToolName }> = (
     case 'tool_invoke':
       return <ToolInvokeBody toolResponse={toolResponse} />
     case 'tool_exec':
+    case 'codemode':
       return <ToolExecBody toolResponse={toolResponse} />
   }
 }
@@ -136,6 +150,7 @@ const Body: FC<{ toolResponse: NormalToolResponse; toolName: MetaToolName }> = (
 // ── tool_search ────────────────────────────────────────────────────
 
 interface SearchOutput {
+  loaded?: string[]
   matchedNamespaces?: Array<{
     namespace: string
     tools: Array<{ name: string; description?: string; inputSchema?: unknown }>
@@ -151,7 +166,9 @@ const ToolSearchBody: FC<{ toolResponse: NormalToolResponse }> = ({ toolResponse
   const { t } = useTranslation()
   const args = isRecord(toolResponse.arguments) ? toolResponse.arguments : undefined
   const out = (toolResponse.response ?? undefined) as SearchOutput | undefined
-  const matchedNamespaces = out?.matchedNamespaces ?? []
+  const matchedNamespaces =
+    out?.matchedNamespaces ??
+    (out?.loaded?.length ? [{ namespace: 'pi', tools: out.loaded.map((name) => ({ name })) }] : [])
 
   return (
     <BodyContainer>
@@ -241,7 +258,9 @@ const ToolExecBody: FC<{ toolResponse: NormalToolResponse }> = ({ toolResponse }
   const { t } = useTranslation()
   const args = isRecord(toolResponse.arguments) ? toolResponse.arguments : undefined
   const code = typeof args?.code === 'string' ? args.code : ''
-  const out = (toolResponse.response ?? undefined) as ExecOutput | undefined
+  const out = (
+    typeof toolResponse.response === 'string' ? { result: toolResponse.response } : (toolResponse.response ?? undefined)
+  ) as ExecOutput | undefined
 
   const { highlightCode } = useCodeStyle()
   const [highlighted, setHighlighted] = useState<string>('')

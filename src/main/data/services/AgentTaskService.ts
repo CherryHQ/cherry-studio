@@ -6,7 +6,12 @@
  * transaction primitives used by workspace deletion.
  */
 
+import { and, inArray, isNull } from 'drizzle-orm'
+
+import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
+import { agentTable } from '@data/db/schemas/agent'
+import { jobTable } from '@data/db/schemas/job'
 import type { DbOrTx } from '@data/db/types'
 import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentSessionService } from '@data/services/AgentSessionService'
@@ -16,11 +21,13 @@ import { jobService } from '@data/services/JobService'
 import { timestampToISO } from '@data/services/utils/rowMappers'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type {
+  ListTasksQuery,
   ScheduledTaskEntity,
   ScheduledTaskListItem,
   TaskRunLogEntity,
   TaskRunSummary
 } from '@shared/data/api/schemas/agents'
+import type { AgentSessionEntity, ListAgentSessionsQuery } from '@shared/data/api/schemas/agentSessions'
 import {
   AGENT_WORKSPACE_TYPE,
   type AgentSessionWorkspaceSource,
@@ -28,7 +35,9 @@ import {
   type AgentWorkspaceReferenceItem
 } from '@shared/data/api/schemas/agentWorkspaces'
 import type { JobScheduleSnapshot, JobSnapshot } from '@shared/data/api/schemas/jobs'
-import type { ListOptions } from '@shared/data/api/types'
+import type { CursorPaginationResponse, DataApiDataChangeEffect, ListOptions } from '@shared/data/api/types'
+
+import { DEFAULT_AGENT_TASK_TIMEOUT_MINUTES } from '../../ai/agents/agentTaskDefaults'
 
 const AGENT_TASK_TYPE = 'agent.task' as const
 
@@ -48,6 +57,27 @@ type AgentTaskJobInputTemplate = {
   workspace: AgentSessionWorkspaceSource
 }
 
+type TaskOwnerStateChange = {
+  scheduleIds: string[]
+  deletedSchedules: JobScheduleSnapshot[]
+}
+
+export type TaskRunRecord = Pick<
+  JobSnapshot,
+  'id' | 'status' | 'createdAt' | 'scheduledAt' | 'startedAt' | 'finishedAt' | 'cancelRequested' | 'error'
+> & {
+  taskId: string
+  summary: string | null
+  outcome: 'executed' | 'skipped' | 'unknown'
+  resultLocation: { kind: 'none' } | { kind: 'session'; sessionId: string } | { kind: 'unavailable' }
+}
+
+function taskRunSessionId(job: JobSnapshot): string | null {
+  const saved = job.metadata.sessionId
+  const legacy = isPlainRecord(job.output) ? job.output.sessionId : undefined
+  return typeof saved === 'string' ? saved : typeof legacy === 'string' ? legacy : null
+}
+
 function normalizeAgentTaskTemplate(value: unknown): AgentTaskJobInputTemplate | null {
   if (typeof value !== 'object' || value === null) return null
 
@@ -58,7 +88,8 @@ function normalizeAgentTaskTemplate(value: unknown): AgentTaskJobInputTemplate |
   return {
     agentId: template.agentId,
     prompt: template.prompt,
-    timeoutMinutes: typeof template.timeoutMinutes === 'number' ? template.timeoutMinutes : 2,
+    timeoutMinutes:
+      typeof template.timeoutMinutes === 'number' ? template.timeoutMinutes : DEFAULT_AGENT_TASK_TIMEOUT_MINUTES,
     workspace: parsedWorkspace.success ? parsedWorkspace.data : { type: 'system' }
   }
 }
@@ -77,10 +108,25 @@ export type TaskSessionReuse = {
 }
 
 const TASK_REUSE_METADATA_KEY = 'reuse'
+const CIRCUIT_BREAKER_PAUSED_KEY = 'circuitBreakerPaused'
 
 /** A JSON column can legally hold an array or a primitive; both would spread into garbage. */
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+/**
+ * Set by the agent-task circuit breaker (consecutive failed terminal runs) so
+ * config-driven convergence (heartbeat sync) can tell "paused by the breaker"
+ * apart from plain drift and must not silently re-arm it.
+ */
+export function isCircuitBreakerPaused(metadata: unknown): boolean {
+  return isPlainRecord(metadata) && metadata[CIRCUIT_BREAKER_PAUSED_KEY] === true
+}
+
+/** Same merge discipline as writeTaskSessionReuse — the column replaces wholesale. */
+export function writeCircuitBreakerPaused(metadata: unknown, paused: boolean): Record<string, unknown> {
+  return { ...(isPlainRecord(metadata) ? metadata : {}), [CIRCUIT_BREAKER_PAUSED_KEY]: paused }
 }
 
 function referencesWorkspace(value: unknown, workspaceId: string): value is Record<string, unknown> {
@@ -125,22 +171,194 @@ export function writeTaskSessionReuse(
   return { ...(isPlainRecord(metadata) ? metadata : {}), [TASK_REUSE_METADATA_KEY]: reuse }
 }
 
-function deriveStatus(snapshot: JobScheduleSnapshot): 'active' | 'paused' | 'completed' {
+export function isMissedTask(metadata: Record<string, unknown>): boolean {
+  return isPlainRecord(metadata.missed) && metadata.missed.reason === 'agent_archived'
+}
+
+export function clearMissedTask(metadata: Record<string, unknown>): Record<string, unknown> {
+  const next = { ...metadata }
+  delete next.missed
+  return next
+}
+
+function deriveStatus(snapshot: JobScheduleSnapshot): ScheduledTaskEntity['status'] {
+  if (isMissedTask(snapshot.metadata)) return 'missed'
+  if (
+    snapshot.trigger.kind === 'once' &&
+    snapshot.lastRun !== null &&
+    Date.parse(snapshot.lastRun) >= snapshot.trigger.at
+  )
+    return 'completed'
   if (!snapshot.enabled) return 'paused'
-  if (snapshot.trigger.kind === 'once' && snapshot.nextRun == null && snapshot.lastRun != null) return 'completed'
   return 'active'
 }
 
+function taskReadModelEffects(
+  entityIds: string[],
+  kind: 'membership' | 'projection' = 'projection'
+): DataApiDataChangeEffect[] {
+  return [
+    { endpoint: '/agent-tasks', kind, entityIds },
+    { endpoint: '/agents/:agentId/tasks', kind, entityIds },
+    { endpoint: '/agent-tasks/:taskId', entityIds },
+    { endpoint: '/agents/:agentId/tasks/:taskId', entityIds }
+  ]
+}
+
 export class AgentTaskService {
+  getHeartbeatSchedule(agentId: string): JobScheduleSnapshot | null {
+    return (
+      jobScheduleService.listAll({ type: AGENT_TASK_TYPE }).find((schedule) => {
+        const template = normalizeAgentTaskTemplate(schedule.jobInputTemplate)
+        return template?.agentId === agentId && template.prompt === HEARTBEAT_PROMPT_SENTINEL
+      }) ?? null
+    )
+  }
+
+  getHeartbeatStatus(agentId: string) {
+    const schedule = this.getHeartbeatSchedule(agentId)
+    return {
+      scheduleEnabled: schedule?.enabled ?? false,
+      latestRun: schedule ? (jobService.list({ scheduleId: schedule.id, limit: 1 })[0] ?? null) : null
+    }
+  }
+
+  completeMissedRunTx(tx: DbOrTx, taskId: string, jobId: string, finishedAt: number): boolean {
+    const schedule = jobScheduleService.getByIdTx(tx, taskId)
+    if (
+      !schedule ||
+      schedule.type !== AGENT_TASK_TYPE ||
+      !isMissedTask(schedule.metadata) ||
+      !isPlainRecord(schedule.metadata.missed) ||
+      schedule.metadata.missed.jobId !== jobId
+    )
+      return false
+    jobScheduleService.updateTx(tx, taskId, { metadata: clearMissedTask(schedule.metadata) })
+    jobScheduleService.markFiredTx(tx, taskId, finishedAt, null)
+    return true
+  }
+
+  deleteScheduleTx(tx: DbOrTx, taskId: string): boolean {
+    agentSessionService.clearTaskScheduleTx(tx, taskId)
+    return jobScheduleService.deleteTx(tx, taskId)
+  }
+
+  setOwnerStateTx(
+    tx: DbOrTx,
+    agentId: string,
+    state: 'active' | 'trashed' | 'missing',
+    now: number
+  ): TaskOwnerStateChange {
+    const schedules = jobScheduleService
+      .listAllTx(tx, { type: AGENT_TASK_TYPE })
+      .filter((schedule) => isPlainRecord(schedule.jobInputTemplate) && schedule.jobInputTemplate.agentId === agentId)
+    for (const schedule of schedules) this.transitionOwnerTx(tx, schedule, state, now)
+    return {
+      scheduleIds: schedules.map((schedule) => schedule.id),
+      deletedSchedules: state === 'missing' ? schedules : []
+    }
+  }
+
+  reconcileOwnerStatesTx(tx: DbOrTx, now: number): TaskOwnerStateChange {
+    const schedules = jobScheduleService.listAllTx(tx, { type: AGENT_TASK_TYPE })
+    const missedJobs = schedules.flatMap((schedule) => {
+      const missed = schedule.metadata.missed
+      return isPlainRecord(missed) && typeof missed.jobId === 'string' ? [missed.jobId] : []
+    })
+    const completed = new Map(
+      missedJobs.length === 0
+        ? []
+        : tx
+            .select({ id: jobTable.id, status: jobTable.status, finishedAt: jobTable.finishedAt })
+            .from(jobTable)
+            .where(inArray(jobTable.id, missedJobs))
+            .all()
+            .map((job) => [job.id, job])
+    )
+    const ids = [
+      ...new Set(
+        schedules.flatMap((schedule) => {
+          const template = schedule.jobInputTemplate
+          return isPlainRecord(template) && typeof template.agentId === 'string' ? [template.agentId] : []
+        })
+      )
+    ]
+    if (ids.length === 0) return { scheduleIds: [], deletedSchedules: [] }
+    const owners = new Map(
+      tx
+        .select({ id: agentTable.id, deletedAt: agentTable.deletedAt })
+        .from(agentTable)
+        .where(inArray(agentTable.id, ids))
+        .all()
+        .map((row) => [row.id, row])
+    )
+    const changedIds: string[] = []
+    const orphanedSchedules: JobScheduleSnapshot[] = []
+    for (const schedule of schedules) {
+      const template = schedule.jobInputTemplate
+      if (!isPlainRecord(template) || typeof template.agentId !== 'string') continue
+      const owner = owners.get(template.agentId)
+      const state = !owner ? 'missing' : owner.deletedAt == null ? 'active' : 'trashed'
+      if (this.transitionOwnerTx(tx, schedule, state, now)) changedIds.push(schedule.id)
+      if (state === 'missing') orphanedSchedules.push(schedule)
+      const missed = schedule.metadata.missed
+      const job = isPlainRecord(missed) && typeof missed.jobId === 'string' ? completed.get(missed.jobId) : undefined
+      if (
+        job?.status === 'completed' &&
+        job.finishedAt !== null &&
+        this.completeMissedRunTx(tx, schedule.id, job.id, job.finishedAt)
+      ) {
+        changedIds.push(schedule.id)
+      }
+    }
+    return { scheduleIds: changedIds, deletedSchedules: orphanedSchedules }
+  }
+
+  private transitionOwnerTx(
+    tx: DbOrTx,
+    schedule: JobScheduleSnapshot,
+    state: 'active' | 'trashed' | 'missing',
+    now: number
+  ): boolean {
+    if (state === 'missing') return this.deleteScheduleTx(tx, schedule.id)
+    if (state === 'trashed') {
+      if (!schedule.enabled) return false
+      jobScheduleService.updateTx(tx, schedule.id, {
+        enabled: false,
+        metadata: { ...schedule.metadata, agentTrash: { resumeOnRestore: true } }
+      })
+      return true
+    }
+    const marker = schedule.metadata.agentTrash
+    if (!isPlainRecord(marker) || marker.resumeOnRestore !== true) return false
+    const metadata = { ...schedule.metadata }
+    delete metadata.agentTrash
+    const expiredOnce = schedule.trigger.kind === 'once' && schedule.trigger.at <= now
+    const consumedOnce =
+      schedule.trigger.kind === 'once' &&
+      schedule.lastRun !== null &&
+      Date.parse(schedule.lastRun) >= schedule.trigger.at
+    const missed = expiredOnce && !consumedOnce
+    if (missed) metadata.missed = { reason: 'agent_archived', at: now }
+    jobScheduleService.updateTx(tx, schedule.id, { enabled: !missed, metadata })
+    return true
+  }
+
   /** Publish every DataApi projection backed by the composed task read model. */
-  notifyReadModelChange(taskIds: readonly string[]): void {
+  notifyReadModelChange(taskIds: readonly string[], kind: 'membership' | 'projection' = 'projection'): void {
     const entityIds = [...new Set(taskIds)]
     if (entityIds.length === 0) return
     notifyDataApiDataChange([
-      { endpoint: '/agent-tasks', kind: 'projection', entityIds },
-      { endpoint: '/agents/:agentId/tasks', kind: 'projection', entityIds },
-      { endpoint: '/agent-tasks/:taskId', entityIds },
-      { endpoint: '/agents/:agentId/tasks/:taskId', entityIds }
+      ...taskReadModelEffects(entityIds, kind),
+      { endpoint: '/agent-workspaces', kind: 'membership' }
+    ])
+  }
+
+  /** Publish task and run-log projections together: membership on enqueue, projection on state changes. */
+  notifyRunChange(taskId: string, jobId: string, kind: 'membership' | 'projection'): void {
+    notifyDataApiDataChange([
+      ...taskReadModelEffects([taskId]),
+      { endpoint: '/agents/:agentId/tasks/:taskId/logs', kind, routeParams: { taskId }, entityIds: [jobId] }
     ])
   }
 
@@ -180,8 +398,16 @@ export class AgentTaskService {
   getTaskById(taskId: string): ScheduledTaskEntity | null {
     const snapshot = jobScheduleService.getById(taskId)
     if (!snapshot || snapshot.type !== AGENT_TASK_TYPE) return null
-    if (!normalizeAgentTaskTemplate(snapshot.jobInputTemplate)) return null
+    const template = normalizeAgentTaskTemplate(snapshot.jobInputTemplate)
+    if (!template || !this.getActiveAgentIds([template.agentId]).has(template.agentId)) return null
+    if (template.prompt === HEARTBEAT_PROMPT_SENTINEL) return null
     return this.toScheduledTaskEntity(snapshot, agentSessionService.getByTaskScheduleId(snapshot.id)?.id ?? null)
+  }
+
+  getTaskDetail(taskId: string): ScheduledTaskListItem | null {
+    const task = this.getTaskById(taskId)
+    if (!task) return null
+    return { ...task, runSummary: this.getRunSummariesByScheduleIds([taskId]).get(taskId) ?? null }
   }
 
   /**
@@ -199,12 +425,12 @@ export class AgentTaskService {
   listTasks(
     agentId: string,
     options: ListOptions & { includeHeartbeat?: boolean } = {}
-  ): { tasks: ScheduledTaskEntity[]; total: number } {
+  ): { tasks: ScheduledTaskEntity[]; total: number; activeTotal: number } {
     return this.queryTasks({ ...options, agentId })
   }
 
   /** Cross-agent listing for the settings overview — one scan instead of one per agent. */
-  listAllTasks(options: ListOptions & { includeHeartbeat?: boolean } = {}): {
+  listAllTasks(options: ListOptions & { includeHeartbeat?: boolean; status?: ListTasksQuery['status'] } = {}): {
     tasks: ScheduledTaskListItem[]
     total: number
   } {
@@ -216,22 +442,42 @@ export class AgentTaskService {
     }
   }
 
-  private queryTasks(options: ListOptions & { includeHeartbeat?: boolean; agentId?: string }): {
+  queryTasks(
+    options: ListOptions & { includeHeartbeat?: boolean; agentId?: string; status?: ListTasksQuery['status'] }
+  ): {
     tasks: ScheduledTaskEntity[]
     total: number
+    activeTotal: number
   } {
     const { agentId, includeHeartbeat = false, limit, offset } = options
     const all = jobScheduleService.listAll({ type: AGENT_TASK_TYPE })
 
-    const filtered = all.filter((s) => {
+    const candidates = all.filter((s) => {
       const template = normalizeAgentTaskTemplate(s.jobInputTemplate)
       if (!template) return false
       if (agentId !== undefined && template.agentId !== agentId) return false
       if (!includeHeartbeat && template.prompt === HEARTBEAT_PROMPT_SENTINEL) return false
       return true
     })
+    const activeAgentIds = this.getActiveAgentIds(
+      candidates.flatMap((schedule) => {
+        const template = normalizeAgentTaskTemplate(schedule.jobInputTemplate)
+        return template ? [template.agentId] : []
+      })
+    )
+    const statuses = options.status && (Array.isArray(options.status) ? options.status : [options.status])
+    const filtered = candidates.filter((schedule) => {
+      const template = normalizeAgentTaskTemplate(schedule.jobInputTemplate)
+      return (
+        template !== null &&
+        activeAgentIds.has(template.agentId) &&
+        (!statuses || statuses.includes(deriveStatus(schedule)))
+      )
+    })
 
-    const sorted = [...filtered].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
+    const sorted = [...filtered].sort(
+      (a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt) || (a.id < b.id ? 1 : a.id > b.id ? -1 : 0)
+    )
     const sliced =
       limit !== undefined
         ? offset !== undefined
@@ -242,8 +488,22 @@ export class AgentTaskService {
     const sessionIds = agentSessionService.getTaskSessionIdsByScheduleIds(sliced.map((task) => task.id))
     return {
       tasks: sliced.map((s) => this.toScheduledTaskEntity(s, sessionIds.get(s.id) ?? null)),
-      total: filtered.length
+      total: filtered.length,
+      activeTotal: filtered.filter((schedule) => deriveStatus(schedule) === 'active').length
     }
+  }
+
+  private getActiveAgentIds(agentIds: readonly string[]): Set<string> {
+    const uniqueIds = [...new Set(agentIds)]
+    if (uniqueIds.length === 0) return new Set()
+    const rows = application
+      .get('DbService')
+      .getDb()
+      .select({ id: agentTable.id })
+      .from(agentTable)
+      .where(and(inArray(agentTable.id, uniqueIds), isNull(agentTable.deletedAt)))
+      .all()
+    return new Set(rows.map((row) => row.id))
   }
 
   private getRunSummariesByScheduleIds(scheduleIds: readonly string[]): Map<string, TaskRunSummary> {
@@ -259,19 +519,73 @@ export class AgentTaskService {
   }
 
   getTaskLogs(taskId: string, options: ListOptions = {}): { logs: TaskRunLogEntity[]; total: number } {
-    const jobs = jobService.list({ scheduleId: taskId })
-    const total = jobs.length
-    const sliced =
-      options.limit !== undefined
-        ? options.offset !== undefined
-          ? jobs.slice(options.offset, options.offset + options.limit)
-          : jobs.slice(0, options.limit)
-        : jobs
+    const sliced = jobService.list({ scheduleId: taskId, limit: options.limit, offset: options.offset })
+    const total = jobService.count({ scheduleId: taskId })
 
     return {
       logs: sliced.map((j) => this.toTaskRunLogEntity(j)),
       total
     }
+  }
+
+  listTaskSessions(
+    taskId: string,
+    query: Pick<ListAgentSessionsQuery, 'agentId' | 'workspaceId' | 'cursor' | 'limit'>
+  ): CursorPaginationResponse<AgentSessionEntity> {
+    const task = this.getTaskById(taskId)
+    if (!task || (query.agentId !== undefined && query.agentId !== task.agentId)) return { items: [] }
+    return agentSessionService.listByCursor({ ...query, scope: 'all-conversations', agentId: task.agentId, taskId })
+  }
+
+  listTaskRuns(taskId: string, options: { limit: number; offset?: number }): { runs: TaskRunRecord[]; total: number } {
+    const task = this.getTaskById(taskId)
+    if (!task) throw DataApiErrorFactory.notFound('Task', taskId)
+    const filter = { type: AGENT_TASK_TYPE, scheduleId: taskId }
+    const jobs = jobService.list({ ...filter, limit: Math.min(options.limit, 100), offset: options.offset })
+    return { runs: this.toTaskRunRecords(task, jobs), total: jobService.count(filter) }
+  }
+
+  getTaskRun(taskId: string, runId: string): TaskRunRecord {
+    const task = this.getTaskById(taskId)
+    if (!task) throw DataApiErrorFactory.notFound('Task', taskId)
+    const job = jobService.getById(runId)
+    if (!job || job.type !== AGENT_TASK_TYPE || job.scheduleId !== taskId)
+      throw DataApiErrorFactory.notFound('Task run', runId)
+    return this.toTaskRunRecords(task, [job])[0]
+  }
+
+  private toTaskRunRecords(task: ScheduledTaskEntity, jobs: JobSnapshot[]): TaskRunRecord[] {
+    const ids = [...new Set(jobs.flatMap((job) => taskRunSessionId(job) ?? []))]
+    const readable = new Set(
+      ids.length === 0
+        ? []
+        : agentSessionService
+            .listByCursor({ scope: 'all-conversations', agentId: task.agentId, ids, limit: 100 })
+            .items.map((session) => session.id)
+    )
+    return jobs.map((job) => {
+      const sessionId = taskRunSessionId(job)
+      const output = isPlainRecord(job.output) ? job.output : null
+      const kind = output?.kind
+      return {
+        id: job.id,
+        taskId: task.id,
+        status: job.status,
+        createdAt: job.createdAt,
+        scheduledAt: job.scheduledAt,
+        startedAt: job.startedAt,
+        finishedAt: job.finishedAt,
+        cancelRequested: job.cancelRequested,
+        error: job.error,
+        summary: typeof output?.result === 'string' ? output.result : null,
+        outcome: kind === 'executed' || kind === 'skipped' ? kind : 'unknown',
+        resultLocation: !sessionId
+          ? { kind: 'none' }
+          : readable.has(sessionId)
+            ? { kind: 'session', sessionId }
+            : { kind: 'unavailable' }
+      }
+    })
   }
 
   // ------------------------------------------------------------------
@@ -309,9 +623,8 @@ export class AgentTaskService {
   }
 
   private toTaskRunLogEntity(job: JobSnapshot): TaskRunLogEntity {
-    const output = job.output as { result?: string; sessionId?: string } | null
-    // New runs persist the link before execution; older v2 job rows only have it in output.
-    const sessionId = job.metadata.sessionId ?? output?.sessionId
+    const output = job.output
+    const sessionId = taskRunSessionId(job)
     const startedAt = job.startedAt ?? job.scheduledAt
     // A cancel-requested row's fate is sealed (live cancel and startup recovery
     // both end it as cancelled) — show the outcome before the row settles.
@@ -338,11 +651,16 @@ export class AgentTaskService {
     return {
       id: job.id,
       scheduleId: job.scheduleId ?? '',
-      sessionId: typeof sessionId === 'string' ? sessionId : null,
+      sessionId,
       startedAt,
       durationMs,
       status,
-      result: typeof output?.result === 'string' ? output.result : output != null ? JSON.stringify(output) : null,
+      result:
+        isPlainRecord(output) && typeof output.result === 'string'
+          ? output.result
+          : output != null
+            ? JSON.stringify(output)
+            : null,
       error: job.error?.message ?? null
     }
   }

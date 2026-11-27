@@ -1,5 +1,5 @@
-import { MockUseDataApiUtils, mockUseMutation, mockUseQuery } from '@test-mocks/renderer/useDataApi'
-import { act, renderHook, waitFor } from '@testing-library/react'
+import { MockUseDataApiUtils, mockUseMutation } from '@test-mocks/renderer/useDataApi'
+import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { CreatePaintingDto, UpdatePaintingDto } from '@shared/data/api/schemas/paintings'
@@ -43,10 +43,11 @@ describe('usePaintings', () => {
     expect(result.current.total).toBe(1)
   })
 
-  it('uses DataApi mutations for create, update, and delete', async () => {
+  it('uses DataApi mutations for create, update, delete, and restore', async () => {
     const createTrigger = vi.fn().mockResolvedValue(record)
     const updateTrigger = vi.fn().mockResolvedValue(record)
     const deleteTrigger = vi.fn().mockResolvedValue(undefined)
+    const restoreTrigger = vi.fn().mockResolvedValue(record)
 
     mockUseMutation.mockImplementation((method, path) => {
       if (method === 'POST' && path === '/paintings') {
@@ -57,6 +58,9 @@ describe('usePaintings', () => {
       }
       if (method === 'DELETE' && path === '/paintings/:id') {
         return { trigger: deleteTrigger, isLoading: false, error: undefined }
+      }
+      if (method === 'POST' && path === '/paintings/:id/restore') {
+        return { trigger: restoreTrigger, isLoading: false, error: undefined }
       }
       return { trigger: vi.fn(), isLoading: false, error: undefined }
     })
@@ -78,27 +82,12 @@ describe('usePaintings', () => {
       await result.current.createPainting(createDto)
       await result.current.updatePainting('painting-1', updateDto)
       await result.current.deletePainting('painting-1')
+      await result.current.restorePainting('painting-1')
     })
 
     expect(createTrigger).toHaveBeenCalledWith({ body: createDto })
     expect(updateTrigger).toHaveBeenCalledWith({ params: { id: 'painting-1' }, body: updateDto })
     expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: 'painting-1' } })
-  })
-
-  it('passes only caller-provided query params to useQuery', async () => {
-    MockUseDataApiUtils.mockQueryData('/paintings', {
-      items: [],
-      total: 0
-    })
-
-    renderHook(() => usePaintings({ providerId: 'silicon' }))
-
-    await waitFor(() => expect(mockUseQuery).toHaveBeenCalled())
-
-    expect(mockUseQuery).toHaveBeenCalledWith('/paintings', {
-      query: {
-        providerId: 'silicon'
-      }
-    })
+    expect(restoreTrigger).toHaveBeenCalledWith({ params: { id: 'painting-1' } })
   })
 })

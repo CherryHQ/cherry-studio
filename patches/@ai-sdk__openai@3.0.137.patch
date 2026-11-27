@@ -1,0 +1,2299 @@
+diff --git a/dist/index.d.mts b/dist/index.d.mts
+index 67a5a4ba176a187f0bc6812208ffe05689b696a9..d3412541ab0d1e8a1cb1c77e2e51a0d9f57d193d 100644
+--- a/dist/index.d.mts
++++ b/dist/index.d.mts
+@@ -1292,6 +1292,7 @@ type ResponsesProviderMetadata = {
+ type ResponsesReasoningProviderMetadata = {
+     itemId: string;
+     reasoningEncryptedContent?: string | null;
++    rawReasoningContent?: boolean;
+ };
+ type OpenaiResponsesReasoningProviderMetadata = {
+     openai: ResponsesReasoningProviderMetadata;
+diff --git a/dist/index.d.ts b/dist/index.d.ts
+index 67a5a4ba176a187f0bc6812208ffe05689b696a9..d3412541ab0d1e8a1cb1c77e2e51a0d9f57d193d 100644
+--- a/dist/index.d.ts
++++ b/dist/index.d.ts
+@@ -1292,6 +1292,7 @@ type ResponsesProviderMetadata = {
+ type ResponsesReasoningProviderMetadata = {
+     itemId: string;
+     reasoningEncryptedContent?: string | null;
++    rawReasoningContent?: boolean;
+ };
+ type OpenaiResponsesReasoningProviderMetadata = {
+     openai: ResponsesReasoningProviderMetadata;
+diff --git a/dist/index.js b/dist/index.js
+index aaab081d14c0114ef3a52fd17bf9d05c2b09a449..6f660b5723064293da183847656dc87c7fee2139 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -1125,7 +1125,7 @@ var OpenAIChatLanguageModel = class {
+         details: "promptCacheRetention is not supported by GPT-6 and later models; use promptCacheOptions instead"
+       });
+     }
+-    if (isReasoningModel) {
++    if (modelCapabilities.isReasoningModel) {
+       if (openaiOptions.reasoningEffort !== "none" || !modelCapabilities.supportsNonReasoningParameters) {
+         if (baseArgs.temperature != null) {
+           baseArgs.temperature = void 0;
+@@ -2077,7 +2077,8 @@ var openaiImageResponseSchema = (0, import_provider_utils12.lazySchema)(
+       created: import_v48.z.number().nullish(),
+       data: import_v48.z.array(
+         import_v48.z.object({
+-          b64_json: import_v48.z.string(),
++          b64_json: import_v48.z.string().nullish(),
++          url: import_v48.z.string().nullish(),
+           revised_prompt: import_v48.z.string().nullish()
+         })
+       ),
+@@ -2315,7 +2316,11 @@ var OpenAIImageModel = class {
+         fetch: this.config.fetch
+       });
+       return {
+-        images: response2.data.map((item) => item.b64_json),
++        images: response2.data.flatMap((item) => {
++          if (typeof item.b64_json === "string") return [item.b64_json];
++          if (typeof item.url === "string") return [item.url];
++          return [];
++        }),
+         warnings,
+         usage: response2.usage != null ? {
+           inputTokens: (_e = response2.usage.input_tokens) != null ? _e : void 0,
+@@ -2386,7 +2391,11 @@ var OpenAIImageModel = class {
+       fetch: this.config.fetch
+     });
+     return {
+-      images: response.data.map((item) => item.b64_json),
++      images: response.data.flatMap((item) => {
++          if (typeof item.b64_json === "string") return [item.b64_json];
++          if (typeof item.url === "string") return [item.url];
++          return [];
++        }),
+       warnings,
+       usage: response.usage != null ? {
+         inputTokens: (_i = response.usage.input_tokens) != null ? _i : void 0,
+@@ -3786,6 +3795,9 @@ function isFileId(data, prefixes) {
+   if (!prefixes) return false;
+   return prefixes.some((prefix) => data.startsWith(prefix));
+ }
++function toResponsesItemId(id, prefix) {
++  return typeof id === "string" && id.startsWith(prefix) ? id : void 0;
++}
+ async function convertToOpenAIResponsesInput({
+   prompt,
+   toolNameMapping,
+@@ -3973,7 +3985,8 @@ async function convertToOpenAIResponsesInput({
+           switch (part.type) {
+             case "text": {
+               const providerOpts = (_a2 = part.providerOptions) == null ? void 0 : _a2[providerOptionsName];
+-              const id = providerOpts == null ? void 0 : providerOpts.itemId;
++              const rawId = providerOpts == null ? void 0 : providerOpts.itemId;
++              const id = store || (typeof rawId === "string" && rawId.startsWith("msg_")) ? rawId : void 0;
+               const phase = providerOpts == null ? void 0 : providerOpts.phase;
+               if (hasConversation && id != null) {
+                 break;
+@@ -3984,10 +3997,11 @@ async function convertToOpenAIResponsesInput({
+                 break;
+               }
+               input.push({
+-                ...explicitMessageItemType && { type: "message" },
++                type: "message",
+                 role: "assistant",
+                 content: [{ type: "output_text", text: part.text }],
+                 id: canUseItemId ? id : void 0,
++                status: "completed",
+                 ...phase != null && { phase }
+               });
+               break;
+@@ -4227,21 +4241,33 @@ async function convertToOpenAIResponsesInput({
+                 providerOptions: part.providerOptions,
+                 schema: openaiResponsesReasoningProviderOptionsSchema
+               });
+-              const reasoningId = providerOptions2 == null ? void 0 : providerOptions2.itemId;
++              const reasoningId = toResponsesItemId(providerOptions2 == null ? void 0 : providerOptions2.itemId, "rs");
++              const sourceItemId = providerOptions2?.itemId;
++              const reasoningKey = reasoningId ?? (!store && sourceItemId ? `local:${sourceItemId}` : void 0);
+               if ((hasConversation || hasPreviousResponseId) && reasoningId != null) {
+                 break;
+               }
+-              if (reasoningId != null) {
+-                const reasoningMessage = reasoningMessages[reasoningId];
++              if (reasoningKey != null) {
++                const reasoningMessage = reasoningMessages[reasoningKey];
+                 if (store) {
+                   if (reasoningMessage === void 0) {
+-                    input.push({ type: "item_reference", id: reasoningId });
+-                    reasoningMessages[reasoningId] = {
++                    input.push({ type: "item_reference", id: reasoningKey });
++                    reasoningMessages[reasoningKey] = {
+                       type: "reasoning",
+                       id: reasoningId,
+                       summary: []
+                     };
+                   }
++                } else if ((providerOptions2 == null ? void 0 : providerOptions2.rawReasoningContent) && part.text.length > 0) {
++                  const item = reasoningMessage ?? { type: "reasoning", summary: [] };
++                  (item.content ??= []).push({ type: "reasoning_text", text: part.text });
++                  if (providerOptions2.reasoningEncryptedContent != null) {
++                    item.encrypted_content = providerOptions2.reasoningEncryptedContent;
++                  }
++                  if (reasoningMessage === void 0) {
++                    reasoningMessages[reasoningKey] = item;
++                    input.push(item);
++                  }
+                 } else {
+                   const summaryParts = [];
+                   if (part.text.length > 0) {
+@@ -4256,13 +4282,13 @@ async function convertToOpenAIResponsesInput({
+                     });
+                   }
+                   if (reasoningMessage === void 0) {
+-                    reasoningMessages[reasoningId] = {
++                    reasoningMessages[reasoningKey] = {
+                       type: "reasoning",
+                       id: reasoningId,
+                       encrypted_content: providerOptions2 == null ? void 0 : providerOptions2.reasoningEncryptedContent,
+                       summary: summaryParts
+                     };
+-                    input.push(reasoningMessages[reasoningId]);
++                    input.push(reasoningMessages[reasoningKey]);
+                   } else {
+                     reasoningMessage.summary.push(...summaryParts);
+                     if ((providerOptions2 == null ? void 0 : providerOptions2.reasoningEncryptedContent) != null) {
+@@ -4272,7 +4298,14 @@ async function convertToOpenAIResponsesInput({
+                 }
+               } else {
+                 const encryptedContent = providerOptions2 == null ? void 0 : providerOptions2.reasoningEncryptedContent;
+-                if (encryptedContent != null) {
++                if ((providerOptions2 == null ? void 0 : providerOptions2.rawReasoningContent) && part.text.length > 0) {
++                  input.push({
++                    type: "reasoning",
++                    encrypted_content: encryptedContent,
++                    summary: [],
++                    content: [{ type: "reasoning_text", text: part.text }]
++                  });
++                } else if (encryptedContent != null) {
+                   const summaryParts = [];
+                   if (part.text.length > 0) {
+                     summaryParts.push({
+@@ -4569,14 +4602,14 @@ ${text}`,
+     }
+   }
+   if (!store && input.some(
+-    (item) => "type" in item && item.type === "reasoning" && item.encrypted_content == null
++    (item) => "type" in item && item.type === "reasoning" && item.encrypted_content == null && !("content" in item && item.content != null)
+   )) {
+     warnings.push({
+       type: "other",
+       message: "Reasoning parts without encrypted content are not supported when store is false. Skipping reasoning parts."
+     });
+     input = input.filter(
+-      (item) => !("type" in item) || item.type !== "reasoning" || item.encrypted_content != null
++      (item) => !("type" in item) || item.type !== "reasoning" || item.encrypted_content != null || "content" in item && item.content != null
+     );
+   }
+   return { input, warnings };
+@@ -4585,7 +4618,8 @@ var openaiResponsesReasoningProviderOptionsSchema = (0, import_provider_utils28.
+   () => (0, import_provider_utils28.zodSchema)(
+     import_v422.z.object({
+       itemId: import_v422.z.string().nullish(),
+-      reasoningEncryptedContent: import_v422.z.string().nullish()
++      reasoningEncryptedContent: import_v422.z.string().nullish(),
++      rawReasoningContent: import_v422.z.boolean().nullish()
+     })
+   )
+ );
+@@ -4774,10 +4808,10 @@ var openaiResponsesChunkSchema = (0, import_provider_utils29.lazySchema)(
+       }),
+       import_v423.z.object({
+         type: import_v423.z.literal("response.failed"),
+-        sequence_number: import_v423.z.number(),
++        sequence_number: import_v423.z.number().optional(),
+         response: import_v423.z.object({
+           error: import_v423.z.object({
+-            code: import_v423.z.string().nullish(),
++            code: import_v423.z.union([import_v423.z.string(), import_v423.z.number()]).nullish(),
+             message: import_v423.z.string()
+           }).nullish(),
+           incomplete_details: import_v423.z.object({ reason: import_v423.z.string() }).nullish(),
+@@ -4791,9 +4825,9 @@ var openaiResponsesChunkSchema = (0, import_provider_utils29.lazySchema)(
+       import_v423.z.object({
+         type: import_v423.z.literal("response.created"),
+         response: import_v423.z.object({
+-          id: import_v423.z.string(),
+-          created_at: import_v423.z.number(),
+-          model: import_v423.z.string(),
++          id: import_v423.z.string().optional(),
++          created_at: import_v423.z.number().optional(),
++          model: import_v423.z.string().optional(),
+           service_tier: import_v423.z.string().nullish()
+         })
+       }),
+@@ -4816,7 +4850,7 @@ var openaiResponsesChunkSchema = (0, import_provider_utils29.lazySchema)(
+             id: import_v423.z.string(),
+             call_id: import_v423.z.string(),
+             name: import_v423.z.string(),
+-            arguments: import_v423.z.string(),
++            arguments: import_v423.z.string().optional().transform((v) => v ?? ""),
+             async: import_v423.z.boolean().nullish(),
+             namespace: import_v423.z.string().nullish()
+           }),
+@@ -4954,7 +4988,8 @@ var openaiResponsesChunkSchema = (0, import_provider_utils29.lazySchema)(
+           import_v423.z.object({
+             type: import_v423.z.literal("reasoning"),
+             id: import_v423.z.string(),
+-            encrypted_content: import_v423.z.string().nullish()
++            encrypted_content: import_v423.z.string().nullish(),
++            content: import_v423.z.array(import_v423.z.object({ type: import_v423.z.literal("reasoning_text"), text: import_v423.z.string() })).nullish()
+           }),
+           import_v423.z.object({
+             type: import_v423.z.literal("function_call"),
+@@ -5200,8 +5235,8 @@ var openaiResponsesChunkSchema = (0, import_provider_utils29.lazySchema)(
+         annotation: import_v423.z.discriminatedUnion("type", [
+           import_v423.z.object({
+             type: import_v423.z.literal("url_citation"),
+-            start_index: import_v423.z.number(),
+-            end_index: import_v423.z.number(),
++            start_index: import_v423.z.number().optional(),
++            end_index: import_v423.z.number().optional(),
+             url: import_v423.z.string(),
+             title: import_v423.z.string()
+           }),
+@@ -5237,6 +5272,11 @@ var openaiResponsesChunkSchema = (0, import_provider_utils29.lazySchema)(
+         summary_index: import_v423.z.number(),
+         delta: import_v423.z.string()
+       }),
++      import_v423.z.object({
++        type: import_v423.z.literal("response.reasoning_text.delta"),
++        item_id: import_v423.z.string(),
++        delta: import_v423.z.string()
++      }),
+       import_v423.z.object({
+         type: import_v423.z.literal("response.reasoning_summary_part.done"),
+         item_id: import_v423.z.string(),
+@@ -5306,8 +5346,8 @@ var openaiResponsesResponseSchema = (0, import_provider_utils29.lazySchema)(
+                   import_v423.z.discriminatedUnion("type", [
+                     import_v423.z.object({
+                       type: import_v423.z.literal("url_citation"),
+-                      start_index: import_v423.z.number(),
+-                      end_index: import_v423.z.number(),
++                      start_index: import_v423.z.number().optional(),
++                      end_index: import_v423.z.number().optional(),
+                       url: import_v423.z.string(),
+                       title: import_v423.z.string()
+                     }),
+@@ -5331,7 +5371,7 @@ var openaiResponsesResponseSchema = (0, import_provider_utils29.lazySchema)(
+                       index: import_v423.z.number()
+                     })
+                   ])
+-                )
++                ).nullish().transform((v) => v ?? [])
+               })
+             )
+           }),
+@@ -5426,6 +5466,7 @@ var openaiResponsesResponseSchema = (0, import_provider_utils29.lazySchema)(
+             type: import_v423.z.literal("reasoning"),
+             id: import_v423.z.string(),
+             encrypted_content: import_v423.z.string().nullish(),
++            content: import_v423.z.array(import_v423.z.object({ type: import_v423.z.literal("reasoning_text"), text: import_v423.z.string() })).nullish(),
+             summary: import_v423.z.array(
+               import_v423.z.object({
+                 type: import_v423.z.literal("summary_text"),
+@@ -6324,7 +6365,7 @@ var OpenAIResponsesLanguageModel = class {
+         details: "promptCacheRetention is not supported by GPT-6 and later models; use promptCacheOptions instead"
+       });
+     }
+-    if (isReasoningModel) {
++    if (modelCapabilities.isReasoningModel) {
+       if (!((openaiOptions == null ? void 0 : openaiOptions.reasoningEffort) === "none" && modelCapabilities.supportsNonReasoningParameters)) {
+         if (baseArgs.temperature != null) {
+           baseArgs.temperature = void 0;
+@@ -6470,6 +6511,21 @@ var OpenAIResponsesLanguageModel = class {
+     for (const part of response.output) {
+       switch (part.type) {
+         case "reasoning": {
++          const rawText = part.content?.map((part2) => part2.text).join("");
++          if (rawText) {
++            content.push({
++              type: "reasoning",
++              text: rawText,
++              providerMetadata: {
++                [providerOptionsName]: {
++                  itemId: part.id,
++                  rawReasoningContent: true,
++                  reasoningEncryptedContent: part.encrypted_content ?? null
++                }
++              }
++            });
++          }
++          if (rawText && part.summary.length === 0) break;
+           if (part.summary.length === 0) {
+             part.summary.push({ type: "summary_text", text: "" });
+           }
+@@ -6480,6 +6536,7 @@ var OpenAIResponsesLanguageModel = class {
+               providerMetadata: {
+                 [providerOptionsName]: {
+                   itemId: part.id,
++                  rawReasoningContent: false,
+                   reasoningEncryptedContent: (_c = part.encrypted_content) != null ? _c : null
+                 }
+               }
+@@ -6971,6 +7028,19 @@ var OpenAIResponsesLanguageModel = class {
+     let activeMessagePhase;
+     let hasFunctionCall = false;
+     const activeReasoning = {};
++    const emitRawReasoning = (controller, itemId, delta) => {
++      if (!delta) return;
++      const state = (activeReasoning[itemId] ??= { summaryParts: {} });
++      const id = `${itemId}:raw`;
++      const providerMetadata = {
++        [providerOptionsName]: { itemId, rawReasoningContent: true }
++      };
++      if (!state.hasRawText) {
++        state.hasRawText = true;
++        controller.enqueue({ type: "reasoning-start", id, providerMetadata });
++      }
++      controller.enqueue({ type: "reasoning-delta", id, delta, providerMetadata });
++    };
+     let serviceTier;
+     let reasoningContext;
+     const hostedToolSearchCallIds = [];
+@@ -7197,6 +7267,7 @@ var OpenAIResponsesLanguageModel = class {
+                   providerMetadata: {
+                     [providerOptionsName]: {
+                       itemId: value.item.id,
++                      rawReasoningContent: false,
+                       reasoningEncryptedContent: (_c = value.item.encrypted_content) != null ? _c : null
+                     }
+                   }
+@@ -7610,7 +7681,25 @@ var OpenAIResponsesLanguageModel = class {
+                   }
+                 });
+               } else if (value.item.type === "reasoning") {
+-                const activeReasoningPart = activeReasoning[value.item.id];
++                const item = value.item;
++                if (!activeReasoning[item.id]?.hasRawText) {
++                  emitRawReasoning(controller, item.id, item.content?.map((part) => part.text).join("") ?? "");
++                }
++                const activeReasoningPart = activeReasoning[item.id];
++                if (!activeReasoningPart) return;
++                if (activeReasoningPart.hasRawText) {
++                  controller.enqueue({
++                    type: "reasoning-end",
++                    id: `${item.id}:raw`,
++                    providerMetadata: {
++                      [providerOptionsName]: {
++                        itemId: item.id,
++                        rawReasoningContent: true,
++                        reasoningEncryptedContent: item.encrypted_content ?? null
++                      }
++                    }
++                  });
++                }
+                 const summaryPartIndices = Object.entries(
+                   activeReasoningPart.summaryParts
+                 ).filter(
+@@ -7623,6 +7712,7 @@ var OpenAIResponsesLanguageModel = class {
+                     providerMetadata: {
+                       [providerOptionsName]: {
+                         itemId: value.item.id,
++                        rawReasoningContent: false,
+                         reasoningEncryptedContent: (_r = value.item.encrypted_content) != null ? _r : null
+                       }
+                     }
+@@ -7727,11 +7817,11 @@ var OpenAIResponsesLanguageModel = class {
+                 });
+               }
+             } else if (isResponseCreatedChunk(value)) {
+-              responseId = value.response.id;
++              responseId = (_x = value.response.id) != null ? _x : null;
+               controller.enqueue({
+                 type: "response-metadata",
+                 id: value.response.id,
+-                timestamp: new Date(value.response.created_at * 1e3),
++                timestamp: typeof value.response.created_at === "number" ? new Date(value.response.created_at * 1e3) : void 0,
+                 modelId: value.response.model
+               });
+             } else if (isTextDeltaChunk(value)) {
+@@ -7756,7 +7846,8 @@ var OpenAIResponsesLanguageModel = class {
+                       id: `${value.item_id}:${summaryIndex}`,
+                       providerMetadata: {
+                         [providerOptionsName]: {
+-                          itemId: value.item_id
++                          itemId: value.item_id,
++                          rawReasoningContent: false
+                         }
+                       }
+                     });
+@@ -7769,6 +7860,7 @@ var OpenAIResponsesLanguageModel = class {
+                   providerMetadata: {
+                     [providerOptionsName]: {
+                       itemId: value.item_id,
++                      rawReasoningContent: false,
+                       reasoningEncryptedContent: (_w = (_v = activeReasoning[value.item_id]) == null ? void 0 : _v.encryptedContent) != null ? _w : null
+                     }
+                   }
+@@ -7781,10 +7873,13 @@ var OpenAIResponsesLanguageModel = class {
+                 delta: value.delta,
+                 providerMetadata: {
+                   [providerOptionsName]: {
+-                    itemId: value.item_id
++                    itemId: value.item_id,
++                    rawReasoningContent: false
+                   }
+                 }
+               });
++            } else if (value.type === "response.reasoning_text.delta") {
++              emitRawReasoning(controller, value.item_id, value.delta);
+             } else if (value.type === "response.reasoning_summary_part.done") {
+               if (store) {
+                 controller.enqueue({
+@@ -7792,7 +7887,8 @@ var OpenAIResponsesLanguageModel = class {
+                   id: `${value.item_id}:${value.summary_index}`,
+                   providerMetadata: {
+                     [providerOptionsName]: {
+-                      itemId: value.item_id
++                      itemId: value.item_id,
++                      rawReasoningContent: false
+                     }
+                   }
+                 });
+diff --git a/dist/index.mjs b/dist/index.mjs
+index c1336e45330d1f58d6ff57d20065b55850e24b67..fde4d53b1c0b7671c4226878fd25fe1ece63fe84 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -1130,7 +1130,7 @@ var OpenAIChatLanguageModel = class {
+         details: "promptCacheRetention is not supported by GPT-6 and later models; use promptCacheOptions instead"
+       });
+     }
+-    if (isReasoningModel) {
++    if (modelCapabilities.isReasoningModel) {
+       if (openaiOptions.reasoningEffort !== "none" || !modelCapabilities.supportsNonReasoningParameters) {
+         if (baseArgs.temperature != null) {
+           baseArgs.temperature = void 0;
+@@ -2119,7 +2119,8 @@ var openaiImageResponseSchema = lazySchema8(
+       created: z8.number().nullish(),
+       data: z8.array(
+         z8.object({
+-          b64_json: z8.string(),
++          b64_json: z8.string().nullish(),
++          url: z8.string().nullish(),
+           revised_prompt: z8.string().nullish()
+         })
+       ),
+@@ -2360,7 +2361,11 @@ var OpenAIImageModel = class {
+         fetch: this.config.fetch
+       });
+       return {
+-        images: response2.data.map((item) => item.b64_json),
++        images: response2.data.flatMap((item) => {
++          if (typeof item.b64_json === "string") return [item.b64_json];
++          if (typeof item.url === "string") return [item.url];
++          return [];
++        }),
+         warnings,
+         usage: response2.usage != null ? {
+           inputTokens: (_e = response2.usage.input_tokens) != null ? _e : void 0,
+@@ -2431,7 +2436,11 @@ var OpenAIImageModel = class {
+       fetch: this.config.fetch
+     });
+     return {
+-      images: response.data.map((item) => item.b64_json),
++      images: response.data.flatMap((item) => {
++          if (typeof item.b64_json === "string") return [item.b64_json];
++          if (typeof item.url === "string") return [item.url];
++          return [];
++        }),
+       warnings,
+       usage: response.usage != null ? {
+         inputTokens: (_i = response.usage.input_tokens) != null ? _i : void 0,
+@@ -3904,6 +3913,9 @@ function isFileId(data, prefixes) {
+   if (!prefixes) return false;
+   return prefixes.some((prefix) => data.startsWith(prefix));
+ }
++function toResponsesItemId(id, prefix) {
++  return typeof id === "string" && id.startsWith(prefix) ? id : void 0;
++}
+ async function convertToOpenAIResponsesInput({
+   prompt,
+   toolNameMapping,
+@@ -4091,7 +4103,8 @@ async function convertToOpenAIResponsesInput({
+           switch (part.type) {
+             case "text": {
+               const providerOpts = (_a2 = part.providerOptions) == null ? void 0 : _a2[providerOptionsName];
+-              const id = providerOpts == null ? void 0 : providerOpts.itemId;
++              const rawId = providerOpts == null ? void 0 : providerOpts.itemId;
++              const id = store || (typeof rawId === "string" && rawId.startsWith("msg_")) ? rawId : void 0;
+               const phase = providerOpts == null ? void 0 : providerOpts.phase;
+               if (hasConversation && id != null) {
+                 break;
+@@ -4102,10 +4115,11 @@ async function convertToOpenAIResponsesInput({
+                 break;
+               }
+               input.push({
+-                ...explicitMessageItemType && { type: "message" },
++                type: "message",
+                 role: "assistant",
+                 content: [{ type: "output_text", text: part.text }],
+                 id: canUseItemId ? id : void 0,
++                status: "completed",
+                 ...phase != null && { phase }
+               });
+               break;
+@@ -4345,21 +4359,33 @@ async function convertToOpenAIResponsesInput({
+                 providerOptions: part.providerOptions,
+                 schema: openaiResponsesReasoningProviderOptionsSchema
+               });
+-              const reasoningId = providerOptions2 == null ? void 0 : providerOptions2.itemId;
++              const reasoningId = toResponsesItemId(providerOptions2 == null ? void 0 : providerOptions2.itemId, "rs");
++              const sourceItemId = providerOptions2?.itemId;
++              const reasoningKey = reasoningId ?? (!store && sourceItemId ? `local:${sourceItemId}` : void 0);
+               if ((hasConversation || hasPreviousResponseId) && reasoningId != null) {
+                 break;
+               }
+-              if (reasoningId != null) {
+-                const reasoningMessage = reasoningMessages[reasoningId];
++              if (reasoningKey != null) {
++                const reasoningMessage = reasoningMessages[reasoningKey];
+                 if (store) {
+                   if (reasoningMessage === void 0) {
+-                    input.push({ type: "item_reference", id: reasoningId });
+-                    reasoningMessages[reasoningId] = {
++                    input.push({ type: "item_reference", id: reasoningKey });
++                    reasoningMessages[reasoningKey] = {
+                       type: "reasoning",
+                       id: reasoningId,
+                       summary: []
+                     };
+                   }
++                } else if ((providerOptions2 == null ? void 0 : providerOptions2.rawReasoningContent) && part.text.length > 0) {
++                  const item = reasoningMessage ?? { type: "reasoning", summary: [] };
++                  (item.content ??= []).push({ type: "reasoning_text", text: part.text });
++                  if (providerOptions2.reasoningEncryptedContent != null) {
++                    item.encrypted_content = providerOptions2.reasoningEncryptedContent;
++                  }
++                  if (reasoningMessage === void 0) {
++                    reasoningMessages[reasoningKey] = item;
++                    input.push(item);
++                  }
+                 } else {
+                   const summaryParts = [];
+                   if (part.text.length > 0) {
+@@ -4374,13 +4400,13 @@ async function convertToOpenAIResponsesInput({
+                     });
+                   }
+                   if (reasoningMessage === void 0) {
+-                    reasoningMessages[reasoningId] = {
++                    reasoningMessages[reasoningKey] = {
+                       type: "reasoning",
+                       id: reasoningId,
+                       encrypted_content: providerOptions2 == null ? void 0 : providerOptions2.reasoningEncryptedContent,
+                       summary: summaryParts
+                     };
+-                    input.push(reasoningMessages[reasoningId]);
++                    input.push(reasoningMessages[reasoningKey]);
+                   } else {
+                     reasoningMessage.summary.push(...summaryParts);
+                     if ((providerOptions2 == null ? void 0 : providerOptions2.reasoningEncryptedContent) != null) {
+@@ -4390,7 +4416,14 @@ async function convertToOpenAIResponsesInput({
+                 }
+               } else {
+                 const encryptedContent = providerOptions2 == null ? void 0 : providerOptions2.reasoningEncryptedContent;
+-                if (encryptedContent != null) {
++                if ((providerOptions2 == null ? void 0 : providerOptions2.rawReasoningContent) && part.text.length > 0) {
++                  input.push({
++                    type: "reasoning",
++                    encrypted_content: encryptedContent,
++                    summary: [],
++                    content: [{ type: "reasoning_text", text: part.text }]
++                  });
++                } else if (encryptedContent != null) {
+                   const summaryParts = [];
+                   if (part.text.length > 0) {
+                     summaryParts.push({
+@@ -4687,14 +4720,14 @@ ${text}`,
+     }
+   }
+   if (!store && input.some(
+-    (item) => "type" in item && item.type === "reasoning" && item.encrypted_content == null
++    (item) => "type" in item && item.type === "reasoning" && item.encrypted_content == null && !("content" in item && item.content != null)
+   )) {
+     warnings.push({
+       type: "other",
+       message: "Reasoning parts without encrypted content are not supported when store is false. Skipping reasoning parts."
+     });
+     input = input.filter(
+-      (item) => !("type" in item) || item.type !== "reasoning" || item.encrypted_content != null
++      (item) => !("type" in item) || item.type !== "reasoning" || item.encrypted_content != null || "content" in item && item.content != null
+     );
+   }
+   return { input, warnings };
+@@ -4703,7 +4736,8 @@ var openaiResponsesReasoningProviderOptionsSchema = lazySchema22(
+   () => zodSchema22(
+     z22.object({
+       itemId: z22.string().nullish(),
+-      reasoningEncryptedContent: z22.string().nullish()
++      reasoningEncryptedContent: z22.string().nullish(),
++      rawReasoningContent: z22.boolean().nullish()
+     })
+   )
+ );
+@@ -4895,10 +4929,10 @@ var openaiResponsesChunkSchema = lazySchema23(
+       }),
+       z23.object({
+         type: z23.literal("response.failed"),
+-        sequence_number: z23.number(),
++        sequence_number: z23.number().optional(),
+         response: z23.object({
+           error: z23.object({
+-            code: z23.string().nullish(),
++            code: z23.union([z23.string(), z23.number()]).nullish(),
+             message: z23.string()
+           }).nullish(),
+           incomplete_details: z23.object({ reason: z23.string() }).nullish(),
+@@ -4912,9 +4946,9 @@ var openaiResponsesChunkSchema = lazySchema23(
+       z23.object({
+         type: z23.literal("response.created"),
+         response: z23.object({
+-          id: z23.string(),
+-          created_at: z23.number(),
+-          model: z23.string(),
++          id: z23.string().optional(),
++          created_at: z23.number().optional(),
++          model: z23.string().optional(),
+           service_tier: z23.string().nullish()
+         })
+       }),
+@@ -4937,7 +4971,7 @@ var openaiResponsesChunkSchema = lazySchema23(
+             id: z23.string(),
+             call_id: z23.string(),
+             name: z23.string(),
+-            arguments: z23.string(),
++            arguments: z23.string().optional().transform((v) => v ?? ""),
+             async: z23.boolean().nullish(),
+             namespace: z23.string().nullish()
+           }),
+@@ -5075,7 +5109,8 @@ var openaiResponsesChunkSchema = lazySchema23(
+           z23.object({
+             type: z23.literal("reasoning"),
+             id: z23.string(),
+-            encrypted_content: z23.string().nullish()
++            encrypted_content: z23.string().nullish(),
++            content: z23.array(z23.object({ type: z23.literal("reasoning_text"), text: z23.string() })).nullish()
+           }),
+           z23.object({
+             type: z23.literal("function_call"),
+@@ -5321,8 +5356,8 @@ var openaiResponsesChunkSchema = lazySchema23(
+         annotation: z23.discriminatedUnion("type", [
+           z23.object({
+             type: z23.literal("url_citation"),
+-            start_index: z23.number(),
+-            end_index: z23.number(),
++            start_index: z23.number().optional(),
++            end_index: z23.number().optional(),
+             url: z23.string(),
+             title: z23.string()
+           }),
+@@ -5358,6 +5393,11 @@ var openaiResponsesChunkSchema = lazySchema23(
+         summary_index: z23.number(),
+         delta: z23.string()
+       }),
++      z23.object({
++        type: z23.literal("response.reasoning_text.delta"),
++        item_id: z23.string(),
++        delta: z23.string()
++      }),
+       z23.object({
+         type: z23.literal("response.reasoning_summary_part.done"),
+         item_id: z23.string(),
+@@ -5427,8 +5467,8 @@ var openaiResponsesResponseSchema = lazySchema23(
+                   z23.discriminatedUnion("type", [
+                     z23.object({
+                       type: z23.literal("url_citation"),
+-                      start_index: z23.number(),
+-                      end_index: z23.number(),
++                      start_index: z23.number().optional(),
++                      end_index: z23.number().optional(),
+                       url: z23.string(),
+                       title: z23.string()
+                     }),
+@@ -5452,7 +5492,7 @@ var openaiResponsesResponseSchema = lazySchema23(
+                       index: z23.number()
+                     })
+                   ])
+-                )
++                ).nullish().transform((v) => v ?? [])
+               })
+             )
+           }),
+@@ -5547,6 +5587,7 @@ var openaiResponsesResponseSchema = lazySchema23(
+             type: z23.literal("reasoning"),
+             id: z23.string(),
+             encrypted_content: z23.string().nullish(),
++            content: z23.array(z23.object({ type: z23.literal("reasoning_text"), text: z23.string() })).nullish(),
+             summary: z23.array(
+               z23.object({
+                 type: z23.literal("summary_text"),
+@@ -6447,7 +6488,7 @@ var OpenAIResponsesLanguageModel = class {
+         details: "promptCacheRetention is not supported by GPT-6 and later models; use promptCacheOptions instead"
+       });
+     }
+-    if (isReasoningModel) {
++    if (modelCapabilities.isReasoningModel) {
+       if (!((openaiOptions == null ? void 0 : openaiOptions.reasoningEffort) === "none" && modelCapabilities.supportsNonReasoningParameters)) {
+         if (baseArgs.temperature != null) {
+           baseArgs.temperature = void 0;
+@@ -6593,6 +6634,21 @@ var OpenAIResponsesLanguageModel = class {
+     for (const part of response.output) {
+       switch (part.type) {
+         case "reasoning": {
++          const rawText = part.content?.map((part2) => part2.text).join("");
++          if (rawText) {
++            content.push({
++              type: "reasoning",
++              text: rawText,
++              providerMetadata: {
++                [providerOptionsName]: {
++                  itemId: part.id,
++                  rawReasoningContent: true,
++                  reasoningEncryptedContent: part.encrypted_content ?? null
++                }
++              }
++            });
++          }
++          if (rawText && part.summary.length === 0) break;
+           if (part.summary.length === 0) {
+             part.summary.push({ type: "summary_text", text: "" });
+           }
+@@ -6603,6 +6659,7 @@ var OpenAIResponsesLanguageModel = class {
+               providerMetadata: {
+                 [providerOptionsName]: {
+                   itemId: part.id,
++                  rawReasoningContent: false,
+                   reasoningEncryptedContent: (_c = part.encrypted_content) != null ? _c : null
+                 }
+               }
+@@ -7094,6 +7151,19 @@ var OpenAIResponsesLanguageModel = class {
+     let activeMessagePhase;
+     let hasFunctionCall = false;
+     const activeReasoning = {};
++    const emitRawReasoning = (controller, itemId, delta) => {
++      if (!delta) return;
++      const state = (activeReasoning[itemId] ??= { summaryParts: {} });
++      const id = `${itemId}:raw`;
++      const providerMetadata = {
++        [providerOptionsName]: { itemId, rawReasoningContent: true }
++      };
++      if (!state.hasRawText) {
++        state.hasRawText = true;
++        controller.enqueue({ type: "reasoning-start", id, providerMetadata });
++      }
++      controller.enqueue({ type: "reasoning-delta", id, delta, providerMetadata });
++    };
+     let serviceTier;
+     let reasoningContext;
+     const hostedToolSearchCallIds = [];
+@@ -7320,6 +7390,7 @@ var OpenAIResponsesLanguageModel = class {
+                   providerMetadata: {
+                     [providerOptionsName]: {
+                       itemId: value.item.id,
++                      rawReasoningContent: false,
+                       reasoningEncryptedContent: (_c = value.item.encrypted_content) != null ? _c : null
+                     }
+                   }
+@@ -7733,7 +7804,25 @@ var OpenAIResponsesLanguageModel = class {
+                   }
+                 });
+               } else if (value.item.type === "reasoning") {
+-                const activeReasoningPart = activeReasoning[value.item.id];
++                const item = value.item;
++                if (!activeReasoning[item.id]?.hasRawText) {
++                  emitRawReasoning(controller, item.id, item.content?.map((part) => part.text).join("") ?? "");
++                }
++                const activeReasoningPart = activeReasoning[item.id];
++                if (!activeReasoningPart) return;
++                if (activeReasoningPart.hasRawText) {
++                  controller.enqueue({
++                    type: "reasoning-end",
++                    id: `${item.id}:raw`,
++                    providerMetadata: {
++                      [providerOptionsName]: {
++                        itemId: item.id,
++                        rawReasoningContent: true,
++                        reasoningEncryptedContent: item.encrypted_content ?? null
++                      }
++                    }
++                  });
++                }
+                 const summaryPartIndices = Object.entries(
+                   activeReasoningPart.summaryParts
+                 ).filter(
+@@ -7746,6 +7835,7 @@ var OpenAIResponsesLanguageModel = class {
+                     providerMetadata: {
+                       [providerOptionsName]: {
+                         itemId: value.item.id,
++                        rawReasoningContent: false,
+                         reasoningEncryptedContent: (_r = value.item.encrypted_content) != null ? _r : null
+                       }
+                     }
+@@ -7850,11 +7940,11 @@ var OpenAIResponsesLanguageModel = class {
+                 });
+               }
+             } else if (isResponseCreatedChunk(value)) {
+-              responseId = value.response.id;
++              responseId = (_x = value.response.id) != null ? _x : null;
+               controller.enqueue({
+                 type: "response-metadata",
+                 id: value.response.id,
+-                timestamp: new Date(value.response.created_at * 1e3),
++                timestamp: typeof value.response.created_at === "number" ? new Date(value.response.created_at * 1e3) : void 0,
+                 modelId: value.response.model
+               });
+             } else if (isTextDeltaChunk(value)) {
+@@ -7879,7 +7969,8 @@ var OpenAIResponsesLanguageModel = class {
+                       id: `${value.item_id}:${summaryIndex}`,
+                       providerMetadata: {
+                         [providerOptionsName]: {
+-                          itemId: value.item_id
++                          itemId: value.item_id,
++                          rawReasoningContent: false
+                         }
+                       }
+                     });
+@@ -7892,6 +7983,7 @@ var OpenAIResponsesLanguageModel = class {
+                   providerMetadata: {
+                     [providerOptionsName]: {
+                       itemId: value.item_id,
++                      rawReasoningContent: false,
+                       reasoningEncryptedContent: (_w = (_v = activeReasoning[value.item_id]) == null ? void 0 : _v.encryptedContent) != null ? _w : null
+                     }
+                   }
+@@ -7904,10 +7996,13 @@ var OpenAIResponsesLanguageModel = class {
+                 delta: value.delta,
+                 providerMetadata: {
+                   [providerOptionsName]: {
+-                    itemId: value.item_id
++                    itemId: value.item_id,
++                    rawReasoningContent: false
+                   }
+                 }
+               });
++            } else if (value.type === "response.reasoning_text.delta") {
++              emitRawReasoning(controller, value.item_id, value.delta);
+             } else if (value.type === "response.reasoning_summary_part.done") {
+               if (store) {
+                 controller.enqueue({
+@@ -7915,7 +8010,8 @@ var OpenAIResponsesLanguageModel = class {
+                   id: `${value.item_id}:${value.summary_index}`,
+                   providerMetadata: {
+                     [providerOptionsName]: {
+-                      itemId: value.item_id
++                      itemId: value.item_id,
++                      rawReasoningContent: false
+                     }
+                   }
+                 });
+diff --git a/dist/internal/index.d.mts b/dist/internal/index.d.mts
+index 677146669a211e5f11eb3a133c0c11c3d3b1cd3a..f2af185ead050811125c596429a1b0e62ba6bf5b 100644
+--- a/dist/internal/index.d.mts
++++ b/dist/internal/index.d.mts
+@@ -1018,6 +1018,7 @@ type ResponsesProviderMetadata = {
+ type ResponsesReasoningProviderMetadata = {
+     itemId: string;
+     reasoningEncryptedContent?: string | null;
++    rawReasoningContent?: boolean;
+ };
+ type OpenaiResponsesReasoningProviderMetadata = {
+     openai: ResponsesReasoningProviderMetadata;
+diff --git a/dist/internal/index.d.ts b/dist/internal/index.d.ts
+index 677146669a211e5f11eb3a133c0c11c3d3b1cd3a..f2af185ead050811125c596429a1b0e62ba6bf5b 100644
+--- a/dist/internal/index.d.ts
++++ b/dist/internal/index.d.ts
+@@ -1018,6 +1018,7 @@ type ResponsesProviderMetadata = {
+ type ResponsesReasoningProviderMetadata = {
+     itemId: string;
+     reasoningEncryptedContent?: string | null;
++    rawReasoningContent?: boolean;
+ };
+ type OpenaiResponsesReasoningProviderMetadata = {
+     openai: ResponsesReasoningProviderMetadata;
+diff --git a/dist/internal/index.js b/dist/internal/index.js
+index bd89ecfdef5254318a0b1d7b1df4f2c3ed97b1a5..87c684ca6f299c31e1ae0e76ab54578e5548818d 100644
+--- a/dist/internal/index.js
++++ b/dist/internal/index.js
+@@ -1165,7 +1165,7 @@ var OpenAIChatLanguageModel = class {
+         details: "promptCacheRetention is not supported by GPT-6 and later models; use promptCacheOptions instead"
+       });
+     }
+-    if (isReasoningModel) {
++    if (modelCapabilities.isReasoningModel) {
+       if (openaiOptions.reasoningEffort !== "none" || !modelCapabilities.supportsNonReasoningParameters) {
+         if (baseArgs.temperature != null) {
+           baseArgs.temperature = void 0;
+@@ -2117,7 +2117,8 @@ var openaiImageResponseSchema = (0, import_provider_utils12.lazySchema)(
+       created: import_v48.z.number().nullish(),
+       data: import_v48.z.array(
+         import_v48.z.object({
+-          b64_json: import_v48.z.string(),
++          b64_json: import_v48.z.string().nullish(),
++          url: import_v48.z.string().nullish(),
+           revised_prompt: import_v48.z.string().nullish()
+         })
+       ),
+@@ -2355,7 +2356,11 @@ var OpenAIImageModel = class {
+         fetch: this.config.fetch
+       });
+       return {
+-        images: response2.data.map((item) => item.b64_json),
++        images: response2.data.flatMap((item) => {
++          if (typeof item.b64_json === "string") return [item.b64_json];
++          if (typeof item.url === "string") return [item.url];
++          return [];
++        }),
+         warnings,
+         usage: response2.usage != null ? {
+           inputTokens: (_e = response2.usage.input_tokens) != null ? _e : void 0,
+@@ -2426,7 +2431,11 @@ var OpenAIImageModel = class {
+       fetch: this.config.fetch
+     });
+     return {
+-      images: response.data.map((item) => item.b64_json),
++      images: response.data.flatMap((item) => {
++          if (typeof item.b64_json === "string") return [item.b64_json];
++          if (typeof item.url === "string") return [item.url];
++          return [];
++        }),
+       warnings,
+       usage: response.usage != null ? {
+         inputTokens: (_i = response.usage.input_tokens) != null ? _i : void 0,
+@@ -3808,6 +3817,9 @@ function isFileId(data, prefixes) {
+   if (!prefixes) return false;
+   return prefixes.some((prefix) => data.startsWith(prefix));
+ }
++function toResponsesItemId(id, prefix) {
++  return typeof id === "string" && id.startsWith(prefix) ? id : void 0;
++}
+ async function convertToOpenAIResponsesInput({
+   prompt,
+   toolNameMapping,
+@@ -3995,7 +4007,8 @@ async function convertToOpenAIResponsesInput({
+           switch (part.type) {
+             case "text": {
+               const providerOpts = (_a2 = part.providerOptions) == null ? void 0 : _a2[providerOptionsName];
+-              const id = providerOpts == null ? void 0 : providerOpts.itemId;
++              const rawId = providerOpts == null ? void 0 : providerOpts.itemId;
++              const id = store || (typeof rawId === "string" && rawId.startsWith("msg_")) ? rawId : void 0;
+               const phase = providerOpts == null ? void 0 : providerOpts.phase;
+               if (hasConversation && id != null) {
+                 break;
+@@ -4006,10 +4019,11 @@ async function convertToOpenAIResponsesInput({
+                 break;
+               }
+               input.push({
+-                ...explicitMessageItemType && { type: "message" },
++                type: "message",
+                 role: "assistant",
+                 content: [{ type: "output_text", text: part.text }],
+                 id: canUseItemId ? id : void 0,
++                status: "completed",
+                 ...phase != null && { phase }
+               });
+               break;
+@@ -4249,21 +4263,33 @@ async function convertToOpenAIResponsesInput({
+                 providerOptions: part.providerOptions,
+                 schema: openaiResponsesReasoningProviderOptionsSchema
+               });
+-              const reasoningId = providerOptions2 == null ? void 0 : providerOptions2.itemId;
++              const reasoningId = toResponsesItemId(providerOptions2 == null ? void 0 : providerOptions2.itemId, "rs");
++              const sourceItemId = providerOptions2?.itemId;
++              const reasoningKey = reasoningId ?? (!store && sourceItemId ? `local:${sourceItemId}` : void 0);
+               if ((hasConversation || hasPreviousResponseId) && reasoningId != null) {
+                 break;
+               }
+-              if (reasoningId != null) {
+-                const reasoningMessage = reasoningMessages[reasoningId];
++              if (reasoningKey != null) {
++                const reasoningMessage = reasoningMessages[reasoningKey];
+                 if (store) {
+                   if (reasoningMessage === void 0) {
+-                    input.push({ type: "item_reference", id: reasoningId });
+-                    reasoningMessages[reasoningId] = {
++                    input.push({ type: "item_reference", id: reasoningKey });
++                    reasoningMessages[reasoningKey] = {
+                       type: "reasoning",
+                       id: reasoningId,
+                       summary: []
+                     };
+                   }
++                } else if ((providerOptions2 == null ? void 0 : providerOptions2.rawReasoningContent) && part.text.length > 0) {
++                  const item = reasoningMessage ?? { type: "reasoning", summary: [] };
++                  (item.content ??= []).push({ type: "reasoning_text", text: part.text });
++                  if (providerOptions2.reasoningEncryptedContent != null) {
++                    item.encrypted_content = providerOptions2.reasoningEncryptedContent;
++                  }
++                  if (reasoningMessage === void 0) {
++                    reasoningMessages[reasoningKey] = item;
++                    input.push(item);
++                  }
+                 } else {
+                   const summaryParts = [];
+                   if (part.text.length > 0) {
+@@ -4278,13 +4304,13 @@ async function convertToOpenAIResponsesInput({
+                     });
+                   }
+                   if (reasoningMessage === void 0) {
+-                    reasoningMessages[reasoningId] = {
++                    reasoningMessages[reasoningKey] = {
+                       type: "reasoning",
+                       id: reasoningId,
+                       encrypted_content: providerOptions2 == null ? void 0 : providerOptions2.reasoningEncryptedContent,
+                       summary: summaryParts
+                     };
+-                    input.push(reasoningMessages[reasoningId]);
++                    input.push(reasoningMessages[reasoningKey]);
+                   } else {
+                     reasoningMessage.summary.push(...summaryParts);
+                     if ((providerOptions2 == null ? void 0 : providerOptions2.reasoningEncryptedContent) != null) {
+@@ -4294,7 +4320,14 @@ async function convertToOpenAIResponsesInput({
+                 }
+               } else {
+                 const encryptedContent = providerOptions2 == null ? void 0 : providerOptions2.reasoningEncryptedContent;
+-                if (encryptedContent != null) {
++                if ((providerOptions2 == null ? void 0 : providerOptions2.rawReasoningContent) && part.text.length > 0) {
++                  input.push({
++                    type: "reasoning",
++                    encrypted_content: encryptedContent,
++                    summary: [],
++                    content: [{ type: "reasoning_text", text: part.text }]
++                  });
++                } else if (encryptedContent != null) {
+                   const summaryParts = [];
+                   if (part.text.length > 0) {
+                     summaryParts.push({
+@@ -4591,14 +4624,14 @@ ${text}`,
+     }
+   }
+   if (!store && input.some(
+-    (item) => "type" in item && item.type === "reasoning" && item.encrypted_content == null
++    (item) => "type" in item && item.type === "reasoning" && item.encrypted_content == null && !("content" in item && item.content != null)
+   )) {
+     warnings.push({
+       type: "other",
+       message: "Reasoning parts without encrypted content are not supported when store is false. Skipping reasoning parts."
+     });
+     input = input.filter(
+-      (item) => !("type" in item) || item.type !== "reasoning" || item.encrypted_content != null
++      (item) => !("type" in item) || item.type !== "reasoning" || item.encrypted_content != null || "content" in item && item.content != null
+     );
+   }
+   return { input, warnings };
+@@ -4607,7 +4640,8 @@ var openaiResponsesReasoningProviderOptionsSchema = (0, import_provider_utils27.
+   () => (0, import_provider_utils27.zodSchema)(
+     import_v419.z.object({
+       itemId: import_v419.z.string().nullish(),
+-      reasoningEncryptedContent: import_v419.z.string().nullish()
++      reasoningEncryptedContent: import_v419.z.string().nullish(),
++      rawReasoningContent: import_v419.z.boolean().nullish()
+     })
+   )
+ );
+@@ -4796,10 +4830,10 @@ var openaiResponsesChunkSchema = (0, import_provider_utils28.lazySchema)(
+       }),
+       import_v420.z.object({
+         type: import_v420.z.literal("response.failed"),
+-        sequence_number: import_v420.z.number(),
++        sequence_number: import_v420.z.number().optional(),
+         response: import_v420.z.object({
+           error: import_v420.z.object({
+-            code: import_v420.z.string().nullish(),
++            code: import_v420.z.union([import_v420.z.string(), import_v420.z.number()]).nullish(),
+             message: import_v420.z.string()
+           }).nullish(),
+           incomplete_details: import_v420.z.object({ reason: import_v420.z.string() }).nullish(),
+@@ -4813,9 +4847,9 @@ var openaiResponsesChunkSchema = (0, import_provider_utils28.lazySchema)(
+       import_v420.z.object({
+         type: import_v420.z.literal("response.created"),
+         response: import_v420.z.object({
+-          id: import_v420.z.string(),
+-          created_at: import_v420.z.number(),
+-          model: import_v420.z.string(),
++          id: import_v420.z.string().optional(),
++          created_at: import_v420.z.number().optional(),
++          model: import_v420.z.string().optional(),
+           service_tier: import_v420.z.string().nullish()
+         })
+       }),
+@@ -4838,7 +4872,7 @@ var openaiResponsesChunkSchema = (0, import_provider_utils28.lazySchema)(
+             id: import_v420.z.string(),
+             call_id: import_v420.z.string(),
+             name: import_v420.z.string(),
+-            arguments: import_v420.z.string(),
++            arguments: import_v420.z.string().optional().transform((v) => v ?? ""),
+             async: import_v420.z.boolean().nullish(),
+             namespace: import_v420.z.string().nullish()
+           }),
+@@ -4976,7 +5010,8 @@ var openaiResponsesChunkSchema = (0, import_provider_utils28.lazySchema)(
+           import_v420.z.object({
+             type: import_v420.z.literal("reasoning"),
+             id: import_v420.z.string(),
+-            encrypted_content: import_v420.z.string().nullish()
++            encrypted_content: import_v420.z.string().nullish(),
++            content: import_v420.z.array(import_v420.z.object({ type: import_v420.z.literal("reasoning_text"), text: import_v420.z.string() })).nullish()
+           }),
+           import_v420.z.object({
+             type: import_v420.z.literal("function_call"),
+@@ -5222,8 +5257,8 @@ var openaiResponsesChunkSchema = (0, import_provider_utils28.lazySchema)(
+         annotation: import_v420.z.discriminatedUnion("type", [
+           import_v420.z.object({
+             type: import_v420.z.literal("url_citation"),
+-            start_index: import_v420.z.number(),
+-            end_index: import_v420.z.number(),
++            start_index: import_v420.z.number().optional(),
++            end_index: import_v420.z.number().optional(),
+             url: import_v420.z.string(),
+             title: import_v420.z.string()
+           }),
+@@ -5259,6 +5294,11 @@ var openaiResponsesChunkSchema = (0, import_provider_utils28.lazySchema)(
+         summary_index: import_v420.z.number(),
+         delta: import_v420.z.string()
+       }),
++      import_v420.z.object({
++        type: import_v420.z.literal("response.reasoning_text.delta"),
++        item_id: import_v420.z.string(),
++        delta: import_v420.z.string()
++      }),
+       import_v420.z.object({
+         type: import_v420.z.literal("response.reasoning_summary_part.done"),
+         item_id: import_v420.z.string(),
+@@ -5328,8 +5368,8 @@ var openaiResponsesResponseSchema = (0, import_provider_utils28.lazySchema)(
+                   import_v420.z.discriminatedUnion("type", [
+                     import_v420.z.object({
+                       type: import_v420.z.literal("url_citation"),
+-                      start_index: import_v420.z.number(),
+-                      end_index: import_v420.z.number(),
++                      start_index: import_v420.z.number().optional(),
++                      end_index: import_v420.z.number().optional(),
+                       url: import_v420.z.string(),
+                       title: import_v420.z.string()
+                     }),
+@@ -5353,7 +5393,7 @@ var openaiResponsesResponseSchema = (0, import_provider_utils28.lazySchema)(
+                       index: import_v420.z.number()
+                     })
+                   ])
+-                )
++                ).nullish().transform((v) => v ?? [])
+               })
+             )
+           }),
+@@ -5448,6 +5488,7 @@ var openaiResponsesResponseSchema = (0, import_provider_utils28.lazySchema)(
+             type: import_v420.z.literal("reasoning"),
+             id: import_v420.z.string(),
+             encrypted_content: import_v420.z.string().nullish(),
++            content: import_v420.z.array(import_v420.z.object({ type: import_v420.z.literal("reasoning_text"), text: import_v420.z.string() })).nullish(),
+             summary: import_v420.z.array(
+               import_v420.z.object({
+                 type: import_v420.z.literal("summary_text"),
+@@ -6615,7 +6656,7 @@ var OpenAIResponsesLanguageModel = class {
+         details: "promptCacheRetention is not supported by GPT-6 and later models; use promptCacheOptions instead"
+       });
+     }
+-    if (isReasoningModel) {
++    if (modelCapabilities.isReasoningModel) {
+       if (!((openaiOptions == null ? void 0 : openaiOptions.reasoningEffort) === "none" && modelCapabilities.supportsNonReasoningParameters)) {
+         if (baseArgs.temperature != null) {
+           baseArgs.temperature = void 0;
+@@ -6761,6 +6802,21 @@ var OpenAIResponsesLanguageModel = class {
+     for (const part of response.output) {
+       switch (part.type) {
+         case "reasoning": {
++          const rawText = part.content?.map((part2) => part2.text).join("");
++          if (rawText) {
++            content.push({
++              type: "reasoning",
++              text: rawText,
++              providerMetadata: {
++                [providerOptionsName]: {
++                  itemId: part.id,
++                  rawReasoningContent: true,
++                  reasoningEncryptedContent: part.encrypted_content ?? null
++                }
++              }
++            });
++          }
++          if (rawText && part.summary.length === 0) break;
+           if (part.summary.length === 0) {
+             part.summary.push({ type: "summary_text", text: "" });
+           }
+@@ -6771,6 +6827,7 @@ var OpenAIResponsesLanguageModel = class {
+               providerMetadata: {
+                 [providerOptionsName]: {
+                   itemId: part.id,
++                  rawReasoningContent: false,
+                   reasoningEncryptedContent: (_c = part.encrypted_content) != null ? _c : null
+                 }
+               }
+@@ -7262,6 +7319,19 @@ var OpenAIResponsesLanguageModel = class {
+     let activeMessagePhase;
+     let hasFunctionCall = false;
+     const activeReasoning = {};
++    const emitRawReasoning = (controller, itemId, delta) => {
++      if (!delta) return;
++      const state = (activeReasoning[itemId] ??= { summaryParts: {} });
++      const id = `${itemId}:raw`;
++      const providerMetadata = {
++        [providerOptionsName]: { itemId, rawReasoningContent: true }
++      };
++      if (!state.hasRawText) {
++        state.hasRawText = true;
++        controller.enqueue({ type: "reasoning-start", id, providerMetadata });
++      }
++      controller.enqueue({ type: "reasoning-delta", id, delta, providerMetadata });
++    };
+     let serviceTier;
+     let reasoningContext;
+     const hostedToolSearchCallIds = [];
+@@ -7488,6 +7558,7 @@ var OpenAIResponsesLanguageModel = class {
+                   providerMetadata: {
+                     [providerOptionsName]: {
+                       itemId: value.item.id,
++                      rawReasoningContent: false,
+                       reasoningEncryptedContent: (_c = value.item.encrypted_content) != null ? _c : null
+                     }
+                   }
+@@ -7901,7 +7972,25 @@ var OpenAIResponsesLanguageModel = class {
+                   }
+                 });
+               } else if (value.item.type === "reasoning") {
+-                const activeReasoningPart = activeReasoning[value.item.id];
++                const item = value.item;
++                if (!activeReasoning[item.id]?.hasRawText) {
++                  emitRawReasoning(controller, item.id, item.content?.map((part) => part.text).join("") ?? "");
++                }
++                const activeReasoningPart = activeReasoning[item.id];
++                if (!activeReasoningPart) return;
++                if (activeReasoningPart.hasRawText) {
++                  controller.enqueue({
++                    type: "reasoning-end",
++                    id: `${item.id}:raw`,
++                    providerMetadata: {
++                      [providerOptionsName]: {
++                        itemId: item.id,
++                        rawReasoningContent: true,
++                        reasoningEncryptedContent: item.encrypted_content ?? null
++                      }
++                    }
++                  });
++                }
+                 const summaryPartIndices = Object.entries(
+                   activeReasoningPart.summaryParts
+                 ).filter(
+@@ -7914,6 +8003,7 @@ var OpenAIResponsesLanguageModel = class {
+                     providerMetadata: {
+                       [providerOptionsName]: {
+                         itemId: value.item.id,
++                        rawReasoningContent: false,
+                         reasoningEncryptedContent: (_r = value.item.encrypted_content) != null ? _r : null
+                       }
+                     }
+@@ -8018,11 +8108,11 @@ var OpenAIResponsesLanguageModel = class {
+                 });
+               }
+             } else if (isResponseCreatedChunk(value)) {
+-              responseId = value.response.id;
++              responseId = (_x = value.response.id) != null ? _x : null;
+               controller.enqueue({
+                 type: "response-metadata",
+                 id: value.response.id,
+-                timestamp: new Date(value.response.created_at * 1e3),
++                timestamp: typeof value.response.created_at === "number" ? new Date(value.response.created_at * 1e3) : void 0,
+                 modelId: value.response.model
+               });
+             } else if (isTextDeltaChunk(value)) {
+@@ -8047,7 +8137,8 @@ var OpenAIResponsesLanguageModel = class {
+                       id: `${value.item_id}:${summaryIndex}`,
+                       providerMetadata: {
+                         [providerOptionsName]: {
+-                          itemId: value.item_id
++                          itemId: value.item_id,
++                          rawReasoningContent: false
+                         }
+                       }
+                     });
+@@ -8060,6 +8151,7 @@ var OpenAIResponsesLanguageModel = class {
+                   providerMetadata: {
+                     [providerOptionsName]: {
+                       itemId: value.item_id,
++                      rawReasoningContent: false,
+                       reasoningEncryptedContent: (_w = (_v = activeReasoning[value.item_id]) == null ? void 0 : _v.encryptedContent) != null ? _w : null
+                     }
+                   }
+@@ -8072,10 +8164,13 @@ var OpenAIResponsesLanguageModel = class {
+                 delta: value.delta,
+                 providerMetadata: {
+                   [providerOptionsName]: {
+-                    itemId: value.item_id
++                    itemId: value.item_id,
++                    rawReasoningContent: false
+                   }
+                 }
+               });
++            } else if (value.type === "response.reasoning_text.delta") {
++              emitRawReasoning(controller, value.item_id, value.delta);
+             } else if (value.type === "response.reasoning_summary_part.done") {
+               if (store) {
+                 controller.enqueue({
+@@ -8083,7 +8178,8 @@ var OpenAIResponsesLanguageModel = class {
+                   id: `${value.item_id}:${value.summary_index}`,
+                   providerMetadata: {
+                     [providerOptionsName]: {
+-                      itemId: value.item_id
++                      itemId: value.item_id,
++                      rawReasoningContent: false
+                     }
+                   }
+                 });
+diff --git a/dist/internal/index.mjs b/dist/internal/index.mjs
+index 8ea4dce2b85d72047ba04024965eb5632652e57b..8386b546c10bc23ff203956a661decfa9995410f 100644
+--- a/dist/internal/index.mjs
++++ b/dist/internal/index.mjs
+@@ -1122,7 +1122,7 @@ var OpenAIChatLanguageModel = class {
+         details: "promptCacheRetention is not supported by GPT-6 and later models; use promptCacheOptions instead"
+       });
+     }
+-    if (isReasoningModel) {
++    if (modelCapabilities.isReasoningModel) {
+       if (openaiOptions.reasoningEffort !== "none" || !modelCapabilities.supportsNonReasoningParameters) {
+         if (baseArgs.temperature != null) {
+           baseArgs.temperature = void 0;
+@@ -2111,7 +2111,8 @@ var openaiImageResponseSchema = lazySchema8(
+       created: z8.number().nullish(),
+       data: z8.array(
+         z8.object({
+-          b64_json: z8.string(),
++          b64_json: z8.string().nullish(),
++          url: z8.string().nullish(),
+           revised_prompt: z8.string().nullish()
+         })
+       ),
+@@ -2352,7 +2353,11 @@ var OpenAIImageModel = class {
+         fetch: this.config.fetch
+       });
+       return {
+-        images: response2.data.map((item) => item.b64_json),
++        images: response2.data.flatMap((item) => {
++          if (typeof item.b64_json === "string") return [item.b64_json];
++          if (typeof item.url === "string") return [item.url];
++          return [];
++        }),
+         warnings,
+         usage: response2.usage != null ? {
+           inputTokens: (_e = response2.usage.input_tokens) != null ? _e : void 0,
+@@ -2423,7 +2428,11 @@ var OpenAIImageModel = class {
+       fetch: this.config.fetch
+     });
+     return {
+-      images: response.data.map((item) => item.b64_json),
++      images: response.data.flatMap((item) => {
++          if (typeof item.b64_json === "string") return [item.b64_json];
++          if (typeof item.url === "string") return [item.url];
++          return [];
++        }),
+       warnings,
+       usage: response.usage != null ? {
+         inputTokens: (_i = response.usage.input_tokens) != null ? _i : void 0,
+@@ -3872,6 +3881,9 @@ function isFileId(data, prefixes) {
+   if (!prefixes) return false;
+   return prefixes.some((prefix) => data.startsWith(prefix));
+ }
++function toResponsesItemId(id, prefix) {
++  return typeof id === "string" && id.startsWith(prefix) ? id : void 0;
++}
+ async function convertToOpenAIResponsesInput({
+   prompt,
+   toolNameMapping,
+@@ -4059,7 +4071,8 @@ async function convertToOpenAIResponsesInput({
+           switch (part.type) {
+             case "text": {
+               const providerOpts = (_a2 = part.providerOptions) == null ? void 0 : _a2[providerOptionsName];
+-              const id = providerOpts == null ? void 0 : providerOpts.itemId;
++              const rawId = providerOpts == null ? void 0 : providerOpts.itemId;
++              const id = store || (typeof rawId === "string" && rawId.startsWith("msg_")) ? rawId : void 0;
+               const phase = providerOpts == null ? void 0 : providerOpts.phase;
+               if (hasConversation && id != null) {
+                 break;
+@@ -4070,10 +4083,11 @@ async function convertToOpenAIResponsesInput({
+                 break;
+               }
+               input.push({
+-                ...explicitMessageItemType && { type: "message" },
++                type: "message",
+                 role: "assistant",
+                 content: [{ type: "output_text", text: part.text }],
+                 id: canUseItemId ? id : void 0,
++                status: "completed",
+                 ...phase != null && { phase }
+               });
+               break;
+@@ -4313,21 +4327,33 @@ async function convertToOpenAIResponsesInput({
+                 providerOptions: part.providerOptions,
+                 schema: openaiResponsesReasoningProviderOptionsSchema
+               });
+-              const reasoningId = providerOptions2 == null ? void 0 : providerOptions2.itemId;
++              const reasoningId = toResponsesItemId(providerOptions2 == null ? void 0 : providerOptions2.itemId, "rs");
++              const sourceItemId = providerOptions2?.itemId;
++              const reasoningKey = reasoningId ?? (!store && sourceItemId ? `local:${sourceItemId}` : void 0);
+               if ((hasConversation || hasPreviousResponseId) && reasoningId != null) {
+                 break;
+               }
+-              if (reasoningId != null) {
+-                const reasoningMessage = reasoningMessages[reasoningId];
++              if (reasoningKey != null) {
++                const reasoningMessage = reasoningMessages[reasoningKey];
+                 if (store) {
+                   if (reasoningMessage === void 0) {
+-                    input.push({ type: "item_reference", id: reasoningId });
+-                    reasoningMessages[reasoningId] = {
++                    input.push({ type: "item_reference", id: reasoningKey });
++                    reasoningMessages[reasoningKey] = {
+                       type: "reasoning",
+                       id: reasoningId,
+                       summary: []
+                     };
+                   }
++                } else if ((providerOptions2 == null ? void 0 : providerOptions2.rawReasoningContent) && part.text.length > 0) {
++                  const item = reasoningMessage ?? { type: "reasoning", summary: [] };
++                  (item.content ??= []).push({ type: "reasoning_text", text: part.text });
++                  if (providerOptions2.reasoningEncryptedContent != null) {
++                    item.encrypted_content = providerOptions2.reasoningEncryptedContent;
++                  }
++                  if (reasoningMessage === void 0) {
++                    reasoningMessages[reasoningKey] = item;
++                    input.push(item);
++                  }
+                 } else {
+                   const summaryParts = [];
+                   if (part.text.length > 0) {
+@@ -4342,13 +4368,13 @@ async function convertToOpenAIResponsesInput({
+                     });
+                   }
+                   if (reasoningMessage === void 0) {
+-                    reasoningMessages[reasoningId] = {
++                    reasoningMessages[reasoningKey] = {
+                       type: "reasoning",
+                       id: reasoningId,
+                       encrypted_content: providerOptions2 == null ? void 0 : providerOptions2.reasoningEncryptedContent,
+                       summary: summaryParts
+                     };
+-                    input.push(reasoningMessages[reasoningId]);
++                    input.push(reasoningMessages[reasoningKey]);
+                   } else {
+                     reasoningMessage.summary.push(...summaryParts);
+                     if ((providerOptions2 == null ? void 0 : providerOptions2.reasoningEncryptedContent) != null) {
+@@ -4358,7 +4384,14 @@ async function convertToOpenAIResponsesInput({
+                 }
+               } else {
+                 const encryptedContent = providerOptions2 == null ? void 0 : providerOptions2.reasoningEncryptedContent;
+-                if (encryptedContent != null) {
++                if ((providerOptions2 == null ? void 0 : providerOptions2.rawReasoningContent) && part.text.length > 0) {
++                  input.push({
++                    type: "reasoning",
++                    encrypted_content: encryptedContent,
++                    summary: [],
++                    content: [{ type: "reasoning_text", text: part.text }]
++                  });
++                } else if (encryptedContent != null) {
+                   const summaryParts = [];
+                   if (part.text.length > 0) {
+                     summaryParts.push({
+@@ -4655,14 +4688,14 @@ ${text}`,
+     }
+   }
+   if (!store && input.some(
+-    (item) => "type" in item && item.type === "reasoning" && item.encrypted_content == null
++    (item) => "type" in item && item.type === "reasoning" && item.encrypted_content == null && !("content" in item && item.content != null)
+   )) {
+     warnings.push({
+       type: "other",
+       message: "Reasoning parts without encrypted content are not supported when store is false. Skipping reasoning parts."
+     });
+     input = input.filter(
+-      (item) => !("type" in item) || item.type !== "reasoning" || item.encrypted_content != null
++      (item) => !("type" in item) || item.type !== "reasoning" || item.encrypted_content != null || "content" in item && item.content != null
+     );
+   }
+   return { input, warnings };
+@@ -4671,7 +4704,8 @@ var openaiResponsesReasoningProviderOptionsSchema = lazySchema19(
+   () => zodSchema19(
+     z19.object({
+       itemId: z19.string().nullish(),
+-      reasoningEncryptedContent: z19.string().nullish()
++      reasoningEncryptedContent: z19.string().nullish(),
++      rawReasoningContent: z19.boolean().nullish()
+     })
+   )
+ );
+@@ -4863,10 +4897,10 @@ var openaiResponsesChunkSchema = lazySchema20(
+       }),
+       z20.object({
+         type: z20.literal("response.failed"),
+-        sequence_number: z20.number(),
++        sequence_number: z20.number().optional(),
+         response: z20.object({
+           error: z20.object({
+-            code: z20.string().nullish(),
++            code: z20.union([z20.string(), z20.number()]).nullish(),
+             message: z20.string()
+           }).nullish(),
+           incomplete_details: z20.object({ reason: z20.string() }).nullish(),
+@@ -4880,9 +4914,9 @@ var openaiResponsesChunkSchema = lazySchema20(
+       z20.object({
+         type: z20.literal("response.created"),
+         response: z20.object({
+-          id: z20.string(),
+-          created_at: z20.number(),
+-          model: z20.string(),
++          id: z20.string().optional(),
++          created_at: z20.number().optional(),
++          model: z20.string().optional(),
+           service_tier: z20.string().nullish()
+         })
+       }),
+@@ -4905,7 +4939,7 @@ var openaiResponsesChunkSchema = lazySchema20(
+             id: z20.string(),
+             call_id: z20.string(),
+             name: z20.string(),
+-            arguments: z20.string(),
++            arguments: z20.string().optional().transform((v) => v ?? ""),
+             async: z20.boolean().nullish(),
+             namespace: z20.string().nullish()
+           }),
+@@ -5043,7 +5077,8 @@ var openaiResponsesChunkSchema = lazySchema20(
+           z20.object({
+             type: z20.literal("reasoning"),
+             id: z20.string(),
+-            encrypted_content: z20.string().nullish()
++            encrypted_content: z20.string().nullish(),
++            content: z20.array(z20.object({ type: z20.literal("reasoning_text"), text: z20.string() })).nullish()
+           }),
+           z20.object({
+             type: z20.literal("function_call"),
+@@ -5289,8 +5324,8 @@ var openaiResponsesChunkSchema = lazySchema20(
+         annotation: z20.discriminatedUnion("type", [
+           z20.object({
+             type: z20.literal("url_citation"),
+-            start_index: z20.number(),
+-            end_index: z20.number(),
++            start_index: z20.number().optional(),
++            end_index: z20.number().optional(),
+             url: z20.string(),
+             title: z20.string()
+           }),
+@@ -5326,6 +5361,11 @@ var openaiResponsesChunkSchema = lazySchema20(
+         summary_index: z20.number(),
+         delta: z20.string()
+       }),
++      z20.object({
++        type: z20.literal("response.reasoning_text.delta"),
++        item_id: z20.string(),
++        delta: z20.string()
++      }),
+       z20.object({
+         type: z20.literal("response.reasoning_summary_part.done"),
+         item_id: z20.string(),
+@@ -5395,8 +5435,8 @@ var openaiResponsesResponseSchema = lazySchema20(
+                   z20.discriminatedUnion("type", [
+                     z20.object({
+                       type: z20.literal("url_citation"),
+-                      start_index: z20.number(),
+-                      end_index: z20.number(),
++                      start_index: z20.number().optional(),
++                      end_index: z20.number().optional(),
+                       url: z20.string(),
+                       title: z20.string()
+                     }),
+@@ -5420,7 +5460,7 @@ var openaiResponsesResponseSchema = lazySchema20(
+                       index: z20.number()
+                     })
+                   ])
+-                )
++                ).nullish().transform((v) => v ?? [])
+               })
+             )
+           }),
+@@ -5515,6 +5555,7 @@ var openaiResponsesResponseSchema = lazySchema20(
+             type: z20.literal("reasoning"),
+             id: z20.string(),
+             encrypted_content: z20.string().nullish(),
++            content: z20.array(z20.object({ type: z20.literal("reasoning_text"), text: z20.string() })).nullish(),
+             summary: z20.array(
+               z20.object({
+                 type: z20.literal("summary_text"),
+@@ -6708,7 +6749,7 @@ var OpenAIResponsesLanguageModel = class {
+         details: "promptCacheRetention is not supported by GPT-6 and later models; use promptCacheOptions instead"
+       });
+     }
+-    if (isReasoningModel) {
++    if (modelCapabilities.isReasoningModel) {
+       if (!((openaiOptions == null ? void 0 : openaiOptions.reasoningEffort) === "none" && modelCapabilities.supportsNonReasoningParameters)) {
+         if (baseArgs.temperature != null) {
+           baseArgs.temperature = void 0;
+@@ -6854,6 +6895,21 @@ var OpenAIResponsesLanguageModel = class {
+     for (const part of response.output) {
+       switch (part.type) {
+         case "reasoning": {
++          const rawText = part.content?.map((part2) => part2.text).join("");
++          if (rawText) {
++            content.push({
++              type: "reasoning",
++              text: rawText,
++              providerMetadata: {
++                [providerOptionsName]: {
++                  itemId: part.id,
++                  rawReasoningContent: true,
++                  reasoningEncryptedContent: part.encrypted_content ?? null
++                }
++              }
++            });
++          }
++          if (rawText && part.summary.length === 0) break;
+           if (part.summary.length === 0) {
+             part.summary.push({ type: "summary_text", text: "" });
+           }
+@@ -6864,6 +6920,7 @@ var OpenAIResponsesLanguageModel = class {
+               providerMetadata: {
+                 [providerOptionsName]: {
+                   itemId: part.id,
++                  rawReasoningContent: false,
+                   reasoningEncryptedContent: (_c = part.encrypted_content) != null ? _c : null
+                 }
+               }
+@@ -7355,6 +7412,19 @@ var OpenAIResponsesLanguageModel = class {
+     let activeMessagePhase;
+     let hasFunctionCall = false;
+     const activeReasoning = {};
++    const emitRawReasoning = (controller, itemId, delta) => {
++      if (!delta) return;
++      const state = (activeReasoning[itemId] ??= { summaryParts: {} });
++      const id = `${itemId}:raw`;
++      const providerMetadata = {
++        [providerOptionsName]: { itemId, rawReasoningContent: true }
++      };
++      if (!state.hasRawText) {
++        state.hasRawText = true;
++        controller.enqueue({ type: "reasoning-start", id, providerMetadata });
++      }
++      controller.enqueue({ type: "reasoning-delta", id, delta, providerMetadata });
++    };
+     let serviceTier;
+     let reasoningContext;
+     const hostedToolSearchCallIds = [];
+@@ -7581,6 +7651,7 @@ var OpenAIResponsesLanguageModel = class {
+                   providerMetadata: {
+                     [providerOptionsName]: {
+                       itemId: value.item.id,
++                      rawReasoningContent: false,
+                       reasoningEncryptedContent: (_c = value.item.encrypted_content) != null ? _c : null
+                     }
+                   }
+@@ -7994,7 +8065,25 @@ var OpenAIResponsesLanguageModel = class {
+                   }
+                 });
+               } else if (value.item.type === "reasoning") {
+-                const activeReasoningPart = activeReasoning[value.item.id];
++                const item = value.item;
++                if (!activeReasoning[item.id]?.hasRawText) {
++                  emitRawReasoning(controller, item.id, item.content?.map((part) => part.text).join("") ?? "");
++                }
++                const activeReasoningPart = activeReasoning[item.id];
++                if (!activeReasoningPart) return;
++                if (activeReasoningPart.hasRawText) {
++                  controller.enqueue({
++                    type: "reasoning-end",
++                    id: `${item.id}:raw`,
++                    providerMetadata: {
++                      [providerOptionsName]: {
++                        itemId: item.id,
++                        rawReasoningContent: true,
++                        reasoningEncryptedContent: item.encrypted_content ?? null
++                      }
++                    }
++                  });
++                }
+                 const summaryPartIndices = Object.entries(
+                   activeReasoningPart.summaryParts
+                 ).filter(
+@@ -8007,6 +8096,7 @@ var OpenAIResponsesLanguageModel = class {
+                     providerMetadata: {
+                       [providerOptionsName]: {
+                         itemId: value.item.id,
++                        rawReasoningContent: false,
+                         reasoningEncryptedContent: (_r = value.item.encrypted_content) != null ? _r : null
+                       }
+                     }
+@@ -8111,11 +8201,11 @@ var OpenAIResponsesLanguageModel = class {
+                 });
+               }
+             } else if (isResponseCreatedChunk(value)) {
+-              responseId = value.response.id;
++              responseId = (_x = value.response.id) != null ? _x : null;
+               controller.enqueue({
+                 type: "response-metadata",
+                 id: value.response.id,
+-                timestamp: new Date(value.response.created_at * 1e3),
++                timestamp: typeof value.response.created_at === "number" ? new Date(value.response.created_at * 1e3) : void 0,
+                 modelId: value.response.model
+               });
+             } else if (isTextDeltaChunk(value)) {
+@@ -8140,7 +8230,8 @@ var OpenAIResponsesLanguageModel = class {
+                       id: `${value.item_id}:${summaryIndex}`,
+                       providerMetadata: {
+                         [providerOptionsName]: {
+-                          itemId: value.item_id
++                          itemId: value.item_id,
++                          rawReasoningContent: false
+                         }
+                       }
+                     });
+@@ -8153,6 +8244,7 @@ var OpenAIResponsesLanguageModel = class {
+                   providerMetadata: {
+                     [providerOptionsName]: {
+                       itemId: value.item_id,
++                      rawReasoningContent: false,
+                       reasoningEncryptedContent: (_w = (_v = activeReasoning[value.item_id]) == null ? void 0 : _v.encryptedContent) != null ? _w : null
+                     }
+                   }
+@@ -8165,10 +8257,13 @@ var OpenAIResponsesLanguageModel = class {
+                 delta: value.delta,
+                 providerMetadata: {
+                   [providerOptionsName]: {
+-                    itemId: value.item_id
++                    itemId: value.item_id,
++                    rawReasoningContent: false
+                   }
+                 }
+               });
++            } else if (value.type === "response.reasoning_text.delta") {
++              emitRawReasoning(controller, value.item_id, value.delta);
+             } else if (value.type === "response.reasoning_summary_part.done") {
+               if (store) {
+                 controller.enqueue({
+@@ -8176,7 +8271,8 @@ var OpenAIResponsesLanguageModel = class {
+                   id: `${value.item_id}:${value.summary_index}`,
+                   providerMetadata: {
+                     [providerOptionsName]: {
+-                      itemId: value.item_id
++                      itemId: value.item_id,
++                      rawReasoningContent: false
+                     }
+                   }
+                 });
+diff --git a/src/chat/openai-chat-language-model.ts b/src/chat/openai-chat-language-model.ts
+index d1b7fb84d797391a84c1a264a808ce243c5ba3aa..5e09df81c5e19c0e933b4ed1bc37f8dec4c674c6 100644
+--- a/src/chat/openai-chat-language-model.ts
++++ b/src/chat/openai-chat-language-model.ts
+@@ -213,7 +213,7 @@ export class OpenAIChatLanguageModel implements LanguageModelV3 {
+ 
+     // remove unsupported settings for reasoning models
+     // see https://platform.openai.com/docs/guides/reasoning#limitations
+-    if (isReasoningModel) {
++    if (modelCapabilities.isReasoningModel) {
+       // when reasoning effort is none, gpt-5.1 models allow temperature, topP, logprobs
+       //  https://platform.openai.com/docs/guides/latest-model#gpt-5-1-parameter-compatibility
+       if (
+diff --git a/src/image/openai-image-api.ts b/src/image/openai-image-api.ts
+index de779ca46aa2102cc5bef4a733ef6b6807260731..14b724785e15ab95f4cd2ff4d35d35c2ca7605c7 100644
+--- a/src/image/openai-image-api.ts
++++ b/src/image/openai-image-api.ts
+@@ -9,7 +9,8 @@ export const openaiImageResponseSchema = lazySchema(() =>
+       created: z.number().nullish(),
+       data: z.array(
+         z.object({
+-          b64_json: z.string(),
++          b64_json: z.string().nullish(),
++          url: z.string().nullish(),
+           revised_prompt: z.string().nullish(),
+         }),
+       ),
+diff --git a/src/image/openai-image-model.ts b/src/image/openai-image-model.ts
+index 21b9e150cc4f17ec1e57b4d90abcc3919c6fd8d0..53cc76f6a34b6a14af61cbc1a126a69474e5c3db 100644
+--- a/src/image/openai-image-model.ts
++++ b/src/image/openai-image-model.ts
+@@ -146,7 +146,11 @@ export class OpenAIImageModel implements ImageModelV3 {
+       });
+ 
+       return {
+-        images: response.data.map(item => item.b64_json),
++        images: response.data.flatMap(item => {
++        if (typeof item.b64_json === 'string') return [item.b64_json];
++        if (typeof item.url === 'string') return [item.url];
++        return [];
++      }),
+         warnings,
+         usage:
+           response.usage != null
+@@ -225,7 +229,11 @@ export class OpenAIImageModel implements ImageModelV3 {
+     });
+ 
+     return {
+-      images: response.data.map(item => item.b64_json),
++      images: response.data.flatMap(item => {
++        if (typeof item.b64_json === 'string') return [item.b64_json];
++        if (typeof item.url === 'string') return [item.url];
++        return [];
++      }),
+       warnings,
+       usage:
+         response.usage != null
+diff --git a/src/responses/convert-to-openai-responses-input.ts b/src/responses/convert-to-openai-responses-input.ts
+index 560cefdb7ebff40f199a6c8bc6703b139f394f0c..517bb15e7a3969347991b313da1c17cecc1c989f 100644
+--- a/src/responses/convert-to-openai-responses-input.ts
++++ b/src/responses/convert-to-openai-responses-input.ts
+@@ -394,6 +394,14 @@ function isFileId(data: string, prefixes?: readonly string[]): boolean {
+   return prefixes.some(prefix => data.startsWith(prefix));
+ }
+ 
++/** Responses item ids are prefix-tagged (`msg_…`, `rs_…`); UUIDs 400. */
++function toResponsesItemId(
++  id: unknown,
++  prefix: 'msg' | 'rs',
++): string | undefined {
++  return typeof id === 'string' && id.startsWith(prefix) ? id : undefined;
++}
++
+ export async function convertToOpenAIResponsesInput({
+   prompt,
+   toolNameMapping,
+@@ -650,7 +658,11 @@ export async function convertToOpenAIResponsesInput({
+           switch (part.type) {
+             case 'text': {
+               const providerOpts = part.providerOptions?.[providerOptionsName];
+-              const id = providerOpts?.itemId as string | undefined;
++              const rawId = providerOpts?.itemId as string | undefined;
++              const id =
++                store || (typeof rawId === 'string' && rawId.startsWith('msg_'))
++                  ? rawId
++                  : undefined;
+               const phase = providerOpts?.phase as
+                 | 'commentary'
+                 | 'final_answer'
+@@ -674,10 +686,11 @@ export async function convertToOpenAIResponsesInput({
+               }
+ 
+               input.push({
+-                ...(explicitMessageItemType && { type: 'message' as const }),
++                type: 'message',
+                 role: 'assistant',
+                 content: [{ type: 'output_text', text: part.text }],
+                 id: canUseItemId ? id : undefined,
++                status: 'completed',
+                 ...(phase != null && { phase }),
+               });
+ 
+@@ -1072,7 +1085,11 @@ export async function convertToOpenAIResponsesInput({
+                 schema: openaiResponsesReasoningProviderOptionsSchema,
+               });
+ 
+-              const reasoningId = providerOptions?.itemId;
++              const reasoningId = toResponsesItemId(providerOptions?.itemId, 'rs');
++              // Stateless history can group parts by the source ID without sending it.
++              const sourceItemId = providerOptions?.itemId;
++              const reasoningKey =
++                reasoningId ?? (!store && sourceItemId ? `local:${sourceItemId}` : undefined);
+ 
+               if (
+                 (hasConversation || hasPreviousResponseId) &&
+@@ -1081,22 +1098,35 @@ export async function convertToOpenAIResponsesInput({
+                 break;
+               }
+ 
+-              if (reasoningId != null) {
+-                const reasoningMessage = reasoningMessages[reasoningId];
++              if (reasoningKey != null) {
++                const reasoningMessage = reasoningMessages[reasoningKey];
+ 
+                 if (store) {
+                   // use item references to refer to reasoning (single reference)
+                   // when the first part is encountered
+                   if (reasoningMessage === undefined) {
+-                    input.push({ type: 'item_reference', id: reasoningId });
++                    input.push({ type: 'item_reference', id: reasoningKey });
+ 
+                     // store unused reasoning message to mark id as used
+-                    reasoningMessages[reasoningId] = {
++                    reasoningMessages[reasoningKey] = {
+                       type: 'reasoning',
+                       id: reasoningId,
+                       summary: [],
+                     };
+                   }
++                } else if (
++                  providerOptions?.rawReasoningContent &&
++                  part.text.length > 0
++                ) {
++                  const item: OpenAIResponsesReasoning = reasoningMessage ?? { type: 'reasoning' as const, summary: [] };
++                  (item.content ??= []).push({ type: 'reasoning_text', text: part.text });
++                  if (providerOptions.reasoningEncryptedContent != null) {
++                    item.encrypted_content = providerOptions.reasoningEncryptedContent;
++                  }
++                  if (reasoningMessage === undefined) {
++                    reasoningMessages[reasoningKey] = item;
++                    input.push(item);
++                  }
+                 } else {
+                   const summaryParts: Array<{
+                     type: 'summary_text';
+@@ -1116,14 +1146,14 @@ export async function convertToOpenAIResponsesInput({
+                   }
+ 
+                   if (reasoningMessage === undefined) {
+-                    reasoningMessages[reasoningId] = {
++                    reasoningMessages[reasoningKey] = {
+                       type: 'reasoning',
+                       id: reasoningId,
+                       encrypted_content:
+                         providerOptions?.reasoningEncryptedContent,
+                       summary: summaryParts,
+                     };
+-                    input.push(reasoningMessages[reasoningId]);
++                    input.push(reasoningMessages[reasoningKey]);
+                   } else {
+                     reasoningMessage.summary.push(...summaryParts);
+ 
+@@ -1143,7 +1173,17 @@ export async function convertToOpenAIResponsesInput({
+                 const encryptedContent =
+                   providerOptions?.reasoningEncryptedContent;
+ 
+-                if (encryptedContent != null) {
++                if (
++                  providerOptions?.rawReasoningContent &&
++                  part.text.length > 0
++                ) {
++                  input.push({
++                    type: 'reasoning',
++                    encrypted_content: encryptedContent,
++                    summary: [],
++                    content: [{ type: 'reasoning_text', text: part.text }],
++                  });
++                } else if (encryptedContent != null) {
+                   const summaryParts: Array<{
+                     type: 'summary_text';
+                     text: string;
+@@ -1521,7 +1561,8 @@ export async function convertToOpenAIResponsesInput({
+       item =>
+         'type' in item &&
+         item.type === 'reasoning' &&
+-        item.encrypted_content == null,
++        item.encrypted_content == null &&
++        !('content' in item && item.content != null),
+     )
+   ) {
+     warnings.push({
+@@ -1533,7 +1574,8 @@ export async function convertToOpenAIResponsesInput({
+       item =>
+         !('type' in item) ||
+         item.type !== 'reasoning' ||
+-        item.encrypted_content != null,
++        item.encrypted_content != null ||
++        ('content' in item && item.content != null),
+     );
+   }
+ 
+@@ -1545,6 +1587,7 @@ const openaiResponsesReasoningProviderOptionsSchema = lazySchema(() =>
+     z.object({
+       itemId: z.string().nullish(),
+       reasoningEncryptedContent: z.string().nullish(),
++      rawReasoningContent: z.boolean().nullish(),
+     }),
+   ),
+ );
+diff --git a/src/responses/openai-responses-api.ts b/src/responses/openai-responses-api.ts
+index bbb75510ea18854a268dd3cda4c759a854455229..6ab379101b1ae0053f04f1b638c3a69b4d6942d9 100644
+--- a/src/responses/openai-responses-api.ts
++++ b/src/responses/openai-responses-api.ts
+@@ -618,6 +618,7 @@ export type OpenAIResponsesReasoning = {
+   type: 'reasoning';
+   id?: string;
+   encrypted_content?: string | null;
++  content?: Array<{ type: 'reasoning_text'; text: string }>;
+   summary: Array<{
+     type: 'summary_text';
+     text: string;
+@@ -771,11 +772,11 @@ export const openaiResponsesChunkSchema = lazySchema(() =>
+       }),
+       z.object({
+         type: z.literal('response.failed'),
+-        sequence_number: z.number(),
++        sequence_number: z.number().optional(),
+         response: z.object({
+           error: z
+             .object({
+-              code: z.string().nullish(),
++              code: z.union([z.string(), z.number()]).nullish(),
+               message: z.string(),
+             })
+             .nullish(),
+@@ -792,9 +793,9 @@ export const openaiResponsesChunkSchema = lazySchema(() =>
+       z.object({
+         type: z.literal('response.created'),
+         response: z.object({
+-          id: z.string(),
+-          created_at: z.number(),
+-          model: z.string(),
++          id: z.string().optional(),
++          created_at: z.number().optional(),
++          model: z.string().optional(),
+           service_tier: z.string().nullish(),
+         }),
+       }),
+@@ -817,7 +818,7 @@ export const openaiResponsesChunkSchema = lazySchema(() =>
+             id: z.string(),
+             call_id: z.string(),
+             name: z.string(),
+-            arguments: z.string(),
++            arguments: z.string().optional().transform((v) => v ?? ''),
+             async: z.boolean().nullish(),
+             namespace: z.string().nullish(),
+           }),
+@@ -958,6 +959,7 @@ export const openaiResponsesChunkSchema = lazySchema(() =>
+             type: z.literal('reasoning'),
+             id: z.string(),
+             encrypted_content: z.string().nullish(),
++            content: z.array(z.object({ type: z.literal('reasoning_text'), text: z.string() })).nullish(),
+           }),
+           z.object({
+             type: z.literal('function_call'),
+@@ -1219,8 +1221,8 @@ export const openaiResponsesChunkSchema = lazySchema(() =>
+         annotation: z.discriminatedUnion('type', [
+           z.object({
+             type: z.literal('url_citation'),
+-            start_index: z.number(),
+-            end_index: z.number(),
++            start_index: z.number().optional(),
++            end_index: z.number().optional(),
+             url: z.string(),
+             title: z.string(),
+           }),
+@@ -1256,6 +1258,11 @@ export const openaiResponsesChunkSchema = lazySchema(() =>
+         summary_index: z.number(),
+         delta: z.string(),
+       }),
++      z.object({
++        type: z.literal('response.reasoning_text.delta'),
++        item_id: z.string(),
++        delta: z.string(),
++      }),
+       z.object({
+         type: z.literal('response.reasoning_summary_part.done'),
+         item_id: z.string(),
+@@ -1352,8 +1359,8 @@ export const openaiResponsesResponseSchema = lazySchema(() =>
+                     z.discriminatedUnion('type', [
+                       z.object({
+                         type: z.literal('url_citation'),
+-                        start_index: z.number(),
+-                        end_index: z.number(),
++                        start_index: z.number().optional(),
++                        end_index: z.number().optional(),
+                         url: z.string(),
+                         title: z.string(),
+                       }),
+@@ -1377,7 +1384,7 @@ export const openaiResponsesResponseSchema = lazySchema(() =>
+                         index: z.number(),
+                       }),
+                     ]),
+-                  ),
++                  ).nullish().transform((v) => v ?? []),
+                 }),
+               ),
+             }),
+@@ -1480,6 +1487,7 @@ export const openaiResponsesResponseSchema = lazySchema(() =>
+               type: z.literal('reasoning'),
+               id: z.string(),
+               encrypted_content: z.string().nullish(),
++              content: z.array(z.object({ type: z.literal('reasoning_text'), text: z.string() })).nullish(),
+               summary: z.array(
+                 z.object({
+                   type: z.literal('summary_text'),
+diff --git a/src/responses/openai-responses-language-model.ts b/src/responses/openai-responses-language-model.ts
+index f53b545753f47448c06b598017b405ec3f65f110..7b22c151a5b2d5d7314e81888d539acbfb09e541 100644
+--- a/src/responses/openai-responses-language-model.ts
++++ b/src/responses/openai-responses-language-model.ts
+@@ -491,7 +491,7 @@ export class OpenAIResponsesLanguageModel implements LanguageModelV3 {
+ 
+     // remove unsupported settings for reasoning models
+     // see https://platform.openai.com/docs/guides/reasoning#limitations
+-    if (isReasoningModel) {
++    if (modelCapabilities.isReasoningModel) {
+       // when reasoning effort is none, gpt-5.1 models allow temperature, topP, logprobs
+       //  https://platform.openai.com/docs/guides/latest-model#gpt-5-1-parameter-compatibility
+       if (
+@@ -690,6 +690,22 @@ export class OpenAIResponsesLanguageModel implements LanguageModelV3 {
+     for (const part of response.output!) {
+       switch (part.type) {
+         case 'reasoning': {
++          const rawText = part.content?.map(part => part.text).join('');
++          if (rawText) {
++            content.push({
++              type: 'reasoning',
++              text: rawText,
++              providerMetadata: {
++                [providerOptionsName]: {
++                  itemId: part.id,
++                  rawReasoningContent: true,
++                  reasoningEncryptedContent: part.encrypted_content ?? null,
++                } satisfies ResponsesReasoningProviderMetadata,
++              },
++            });
++          }
++          if (rawText && part.summary.length === 0) break;
++
+           // when there are no summary parts, we need to add an empty reasoning part:
+           if (part.summary.length === 0) {
+             part.summary.push({ type: 'summary_text', text: '' });
+@@ -702,6 +718,7 @@ export class OpenAIResponsesLanguageModel implements LanguageModelV3 {
+               providerMetadata: {
+                 [providerOptionsName]: {
+                   itemId: part.id,
++                  rawReasoningContent: false,
+                   reasoningEncryptedContent: part.encrypted_content ?? null,
+                 } satisfies ResponsesReasoningProviderMetadata,
+               },
+@@ -1324,11 +1341,30 @@ export class OpenAIResponsesLanguageModel implements LanguageModelV3 {
+       string,
+       {
+         encryptedContent?: string | null;
++        hasRawText?: boolean;
+         // summary index as string to reasoning part state:
+         summaryParts: Record<string, 'active' | 'can-conclude' | 'concluded'>;
+       }
+     > = {};
+ 
++    const emitRawReasoning = (
++      controller: TransformStreamDefaultController<LanguageModelV3StreamPart>,
++      itemId: string,
++      delta: string,
++    ) => {
++      if (!delta) return;
++      const state = (activeReasoning[itemId] ??= { summaryParts: {} });
++      const id = `${itemId}:raw`;
++      const providerMetadata = {
++        [providerOptionsName]: { itemId, rawReasoningContent: true },
++      };
++      if (!state.hasRawText) {
++        state.hasRawText = true;
++        controller.enqueue({ type: 'reasoning-start', id, providerMetadata });
++      }
++      controller.enqueue({ type: 'reasoning-delta', id, delta, providerMetadata });
++    };
++
+     let serviceTier: string | undefined;
+     let reasoningContext: ResponsesProviderMetadata['reasoningContext'];
+     const hostedToolSearchCallIds: string[] = [];
+@@ -1599,6 +1635,7 @@ export class OpenAIResponsesLanguageModel implements LanguageModelV3 {
+                   providerMetadata: {
+                     [providerOptionsName]: {
+                       itemId: value.item.id,
++                      rawReasoningContent: false,
+                       reasoningEncryptedContent:
+                         value.item.encrypted_content ?? null,
+                     } satisfies ResponsesReasoningProviderMetadata,
+@@ -2104,7 +2141,26 @@ export class OpenAIResponsesLanguageModel implements LanguageModelV3 {
+                   } satisfies InferSchema<typeof shellOutputSchema>,
+                 });
+               } else if (value.item.type === 'reasoning') {
+-                const activeReasoningPart = activeReasoning[value.item.id];
++                const item = value.item;
++                if (!activeReasoning[item.id]?.hasRawText) {
++                  emitRawReasoning(controller, item.id, item.content?.map(part => part.text).join('') ?? '');
++                }
++                const activeReasoningPart = activeReasoning[item.id];
++                if (!activeReasoningPart) return;
++
++                if (activeReasoningPart.hasRawText) {
++                  controller.enqueue({
++                    type: 'reasoning-end',
++                    id: `${item.id}:raw`,
++                    providerMetadata: {
++                      [providerOptionsName]: {
++                        itemId: item.id,
++                        rawReasoningContent: true,
++                        reasoningEncryptedContent: item.encrypted_content ?? null,
++                      },
++                    },
++                  });
++                }
+ 
+                 // get all active or can-conclude summary parts' ids
+                 // to conclude ongoing reasoning parts:
+@@ -2124,6 +2180,7 @@ export class OpenAIResponsesLanguageModel implements LanguageModelV3 {
+                     providerMetadata: {
+                       [providerOptionsName]: {
+                         itemId: value.item.id,
++                        rawReasoningContent: false,
+                         reasoningEncryptedContent:
+                           value.item.encrypted_content ?? null,
+                       } satisfies ResponsesReasoningProviderMetadata,
+@@ -2245,11 +2302,14 @@ export class OpenAIResponsesLanguageModel implements LanguageModelV3 {
+                 });
+               }
+             } else if (isResponseCreatedChunk(value)) {
+-              responseId = value.response.id;
++              responseId = value.response.id ?? null;
+               controller.enqueue({
+                 type: 'response-metadata',
+                 id: value.response.id,
+-                timestamp: new Date(value.response.created_at * 1000),
++                timestamp:
++                  typeof value.response.created_at === 'number'
++                    ? new Date(value.response.created_at * 1000)
++                    : undefined,
+                 modelId: value.response.model,
+               });
+             } else if (isTextDeltaChunk(value)) {
+@@ -2287,6 +2347,7 @@ export class OpenAIResponsesLanguageModel implements LanguageModelV3 {
+                       providerMetadata: {
+                         [providerOptionsName]: {
+                           itemId: value.item_id,
++                          rawReasoningContent: false,
+                         } satisfies ResponsesReasoningProviderMetadata,
+                       },
+                     });
+@@ -2301,6 +2362,7 @@ export class OpenAIResponsesLanguageModel implements LanguageModelV3 {
+                   providerMetadata: {
+                     [providerOptionsName]: {
+                       itemId: value.item_id,
++                      rawReasoningContent: false,
+                       reasoningEncryptedContent:
+                         activeReasoning[value.item_id]?.encryptedContent ??
+                         null,
+@@ -2316,9 +2378,12 @@ export class OpenAIResponsesLanguageModel implements LanguageModelV3 {
+                 providerMetadata: {
+                   [providerOptionsName]: {
+                     itemId: value.item_id,
++                    rawReasoningContent: false,
+                   } satisfies ResponsesReasoningProviderMetadata,
+                 },
+               });
++            } else if (value.type === 'response.reasoning_text.delta') {
++              emitRawReasoning(controller, value.item_id, value.delta);
+             } else if (value.type === 'response.reasoning_summary_part.done') {
+               // when OpenAI stores the message data, we can immediately conclude the reasoning part
+               // since we do not need to send the encrypted content.
+@@ -2329,6 +2394,7 @@ export class OpenAIResponsesLanguageModel implements LanguageModelV3 {
+                   providerMetadata: {
+                     [providerOptionsName]: {
+                       itemId: value.item_id,
++                      rawReasoningContent: false,
+                     } satisfies ResponsesReasoningProviderMetadata,
+                   },
+                 });
+diff --git a/src/responses/openai-responses-provider-metadata.ts b/src/responses/openai-responses-provider-metadata.ts
+index b4693147d3664908de20d796462110a3c9aadfc0..aef9fe144480e5f8adb0846667fcfde6dc646c36 100644
+--- a/src/responses/openai-responses-provider-metadata.ts
++++ b/src/responses/openai-responses-provider-metadata.ts
+@@ -21,6 +21,7 @@ export type ResponsesProviderMetadata = {
+ export type ResponsesReasoningProviderMetadata = {
+   itemId: string;
+   reasoningEncryptedContent?: string | null;
++  rawReasoningContent?: boolean;
+ };
+ 
+ export type OpenaiResponsesReasoningProviderMetadata = {

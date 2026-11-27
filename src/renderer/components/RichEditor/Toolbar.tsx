@@ -179,11 +179,13 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         const isDisabled = getDisabledState(formattingState, command)
         const tooltipText = getTooltipText(t, command)
 
+        // The update guard reads DOM focus, so toolbar presses must not blur the editor before commands run.
         const buttonElement = (
           <ToolbarButton
             $active={isActive}
             data-active={isActive}
             disabled={isDisabled}
+            onMouseDown={(event) => event.preventDefault()}
             onClick={() => handleCommand(command)}
             data-testid={`toolbar-${command}`}
             aria-label={tooltipText}

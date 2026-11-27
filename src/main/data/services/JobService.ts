@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, inArray, lte, type SQL, sql } from 'drizzle-orm'
+import { and, asc, count, desc, eq, inArray, lte, notInArray, type SQL, sql } from 'drizzle-orm'
 
 import { application } from '@application'
 import { type InsertJobFileRefRow, jobFileRefTable } from '@data/db/schemas/fileRelations'
@@ -108,8 +108,8 @@ export class JobService {
           .select()
           .from(jobTable)
           .where(and(...conditions))
-          .orderBy(desc(jobTable.createdAt))
-      : db.select().from(jobTable).orderBy(desc(jobTable.createdAt))
+          .orderBy(desc(jobTable.createdAt), desc(jobTable.id))
+      : db.select().from(jobTable).orderBy(desc(jobTable.createdAt), desc(jobTable.id))
 
     const rows =
       filter.limit !== undefined
@@ -430,15 +430,17 @@ export class JobService {
   }
 
   /** Move a job to a terminal state, persisting output and/or error. */
+  /** @returns false when the row was already terminal — an earlier finalize won. */
   setTerminalTx(
     tx: DbOrTx,
     jobId: string,
     status: 'completed' | 'failed' | 'cancelled',
     output: unknown | undefined,
     error: JobError | null
-  ): void {
+  ): boolean {
     const now = Date.now()
-    tx.update(jobTable)
+    const result = tx
+      .update(jobTable)
       .set({
         status,
         finishedAt: now,
@@ -449,8 +451,12 @@ export class JobService {
         output: output !== undefined ? output : null,
         error
       })
-      .where(eq(jobTable.id, jobId))
+      // First terminal write wins: `cancel()` force-finalizes a job whose handler
+      // ignored the abort signal, and that handler's later resolve must not
+      // resurrect the row as 'completed'.
+      .where(and(eq(jobTable.id, jobId), notInArray(jobTable.status, [...TERMINAL_JOB_STATUSES])))
       .run()
+    return result.changes > 0
   }
 
   /**
@@ -694,33 +700,48 @@ export class JobService {
   }
 
   /**
-   * Keep only the latest `keepPerType` terminal jobs per type; delete the rest.
-   * At Phase 1 scale (thousands of terminal rows total) this in-memory pass is
-   * cheaper than a window-function SQL and portable across SQLite versions.
+   * Keep only the latest `keepPerSchedule` terminal jobs per schedule (jobs
+   * without a schedule share one budget per type); delete the rest. Grouping
+   * per schedule is load-bearing: a chatty schedule (e.g. a default-on
+   * heartbeat ticking every 30 minutes) must not evict the run history of
+   * sibling schedules — `listRecentTerminalByScheduleId` circuit breakers and
+   * the run log both read that history. At Phase 1 scale (thousands of
+   * terminal rows total) this in-memory pass is cheaper than a
+   * window-function SQL and portable across SQLite versions.
    */
-  pruneTerminalKeepLatestPerTypeTx(tx: DbOrTx, keepPerType: number): number {
+  pruneTerminalKeepLatestPerScheduleTx(
+    tx: DbOrTx,
+    keepPerSchedule: number,
+    retainedTypes: readonly string[] = []
+  ): number {
     const allTerminal = tx
-      .select({ id: jobTable.id, type: jobTable.type })
+      .select({ id: jobTable.id, type: jobTable.type, scheduleId: jobTable.scheduleId })
       .from(jobTable)
-      .where(inArray(jobTable.status, TERMINAL_JOB_STATUSES))
+      .where(
+        and(
+          inArray(jobTable.status, TERMINAL_JOB_STATUSES),
+          retainedTypes.length ? notInArray(jobTable.type, [...retainedTypes]) : undefined
+        )
+      )
       .orderBy(desc(jobTable.finishedAt))
       .all()
 
-    const perType = new Map<string, number>()
+    const perSchedule = new Map<string, number>()
     const toDelete: string[] = []
     for (const row of allTerminal) {
-      const c = (perType.get(row.type) ?? 0) + 1
-      perType.set(row.type, c)
-      if (c > keepPerType) toDelete.push(row.id)
+      const key = row.scheduleId ?? `type:${row.type}`
+      const c = (perSchedule.get(key) ?? 0) + 1
+      perSchedule.set(key, c)
+      if (c > keepPerSchedule) toDelete.push(row.id)
     }
     if (toDelete.length === 0) return 0
     const result = tx.delete(jobTable).where(inArray(jobTable.id, toDelete)).run()
     return result.changes
   }
 
-  pruneTerminalKeepLatestPerType(keepPerType: number): number {
+  pruneTerminalKeepLatestPerSchedule(keepPerSchedule: number, retainedTypes: readonly string[] = []): number {
     const dbService = application.get('DbService')
-    return dbService.withWriteTx((tx) => this.pruneTerminalKeepLatestPerTypeTx(tx, keepPerType))
+    return dbService.withWriteTx((tx) => this.pruneTerminalKeepLatestPerScheduleTx(tx, keepPerSchedule, retainedTypes))
   }
 
   // ---------------- Row → Entity ----------------

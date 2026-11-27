@@ -3,8 +3,13 @@ import { readFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
+import chardet from 'chardet'
+import iconv from 'iconv-lite'
+import { v4 as uuidv4 } from 'uuid'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { decodeTextWithAutoEncoding as decodeTextBuffer } from '@main/utils/textEncoding'
 import type { FileMetadata } from '@shared/data/types/legacyFile'
 import type { FileType } from '@shared/types/file'
 import { FILE_TYPE } from '@shared/types/file'
@@ -24,9 +29,6 @@ import {
 // SoT lives in `@shared/utils/file` (filename topic); callers migrate to the
 // shared path opportunistically.
 export { sanitizeFilename, validateFileName } from '@shared/utils/file'
-import chardet from 'chardet'
-import iconv from 'iconv-lite'
-import { v4 as uuidv4 } from 'uuid'
 
 const logger = loggerService.withContext('Utils:File')
 
@@ -82,53 +84,9 @@ export async function hasWritePermission(dir: string) {
   }
 }
 
-/**
- * Check if a path is inside another path (proper parent-child relationship)
- * This function correctly handles edge cases that string.startsWith() cannot handle,
- * such as distinguishing between '/root/test' and '/root/test aaa'
- *
- * @param childPath - The path that might be inside the parent path
- * @param parentPath - The path that might contain the child path
- * @returns true if childPath is inside parentPath, false otherwise
- */
-export function isPathInside(childPath: string, parentPath: string): boolean {
-  try {
-    const resolvedChild = path.resolve(childPath)
-    const resolvedParent = path.resolve(parentPath)
-
-    // Normalize paths to handle different separators
-    const normalizedChild = path.normalize(resolvedChild)
-    const normalizedParent = path.normalize(resolvedParent)
-
-    // Check if they are the same path
-    if (normalizedChild === normalizedParent) {
-      return true
-    }
-
-    // Get relative path from parent to child
-    const relativePath = path.relative(normalizedParent, normalizedChild)
-
-    // If relative path is empty, they are the same
-    // If relative path starts with '..', child is not inside parent
-    // If relative path is absolute, child is not inside parent
-    return relativePath !== '' && !relativePath.startsWith('..') && !path.isAbsolute(relativePath)
-  } catch (error) {
-    logger.error('Failed to check path relationship:', error as Error)
-    return false
-  }
-}
-
 export function getFileType(ext: string): FileType {
   ext = ext.toLowerCase()
   return fileTypeMap.get(ext) || FILE_TYPE.OTHER
-}
-
-export function getFileDir(filePath: string) {
-  return path.dirname(filePath)
-}
-
-export function getFileName(filePath: string) {
-  return path.basename(filePath)
 }
 
 export function getFileExt(filePath: string) {
@@ -183,21 +141,7 @@ export function getAllFiles(dirPath: string, arrayOfFiles: FileMetadata[] = []):
  * filesystem path.
  */
 export function decodeTextWithAutoEncoding(data: Buffer): string {
-  const sample = data.length > MB ? data.subarray(0, MB) : data
-  const detected = chardet.detect(sample) || 'UTF-8'
-
-  for (const encoding of [detected, 'UTF-8']) {
-    try {
-      const content = iconv.decode(data, encoding)
-      if (!content.includes('�')) return content
-      logger.warn(`Auto-detected ${encoding} but content has invalid characters; trying other encodings`)
-    } catch (error) {
-      logger.error(`Failed to decode buffer with encoding ${encoding}: ${error}`)
-    }
-  }
-
-  logger.error('Failed to decode buffer with all candidate encodings; falling back to UTF-8')
-  return iconv.decode(data, 'UTF-8')
+  return decodeTextBuffer(data, logger)
 }
 
 /**

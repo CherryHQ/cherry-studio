@@ -7,6 +7,7 @@ import { PersistentRightPaneHost } from '../RightPaneHost'
 const persistCacheMock = vi.hoisted(() => ({ width: 460 }))
 
 vi.mock('@data/hooks/useCache', () => ({
+  useCache: vi.fn(() => [undefined, vi.fn()]),
   usePersistCache: vi.fn(() => [persistCacheMock.width, vi.fn()])
 }))
 

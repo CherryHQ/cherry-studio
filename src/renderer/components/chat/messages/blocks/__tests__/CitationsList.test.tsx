@@ -60,12 +60,4 @@ describe('CitationsList', () => {
     expect(mocks.openCitationsPanel).toHaveBeenCalledTimes(1)
     expect(mocks.openCitationsPanel).toHaveBeenCalledWith({ citations })
   })
-
-  it('renders a knowledge citation with the document icon instead of a favicon', () => {
-    const citations: Citation[] = [{ number: 1, url: '', title: 'doc.md', type: 'knowledge' }]
-
-    render(<CitationsList citations={citations} />)
-
-    expect(screen.getByText('file')).toBeInTheDocument()
-  })
 })

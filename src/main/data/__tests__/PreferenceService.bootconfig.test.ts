@@ -1,274 +1,169 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import fs from 'node:fs'
+import path from 'node:path'
 
-/**
- * Tests for PreferenceService BootConfig routing logic.
- * Verifies that keys with 'BootConfig.' prefix are correctly routed
- * to bootConfigService instead of the DB-backed preference store.
- */
-import { DefaultBootConfig } from '@shared/data/bootConfig/bootConfigSchemas'
-import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
+import { setupTestDatabase } from '@test-helpers/db'
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-// Undo the global mock from main.setup.ts — we want the REAL PreferenceService
+import { preferenceTable } from '@data/db/schemas/preference'
+import { BaseService } from '@main/core/lifecycle'
+import { BOOT_CONFIG_PATH } from '@main/core/paths/constants'
+import { BootConfigService, bootConfigService } from '@main/data/bootConfig'
+import type { UnifiedPreferenceKeyType } from '@shared/data/preference/preferenceTypes'
+
+import { PreferenceService } from '../PreferenceService'
+
 vi.unmock('@main/data/PreferenceService')
 
-// Mock bootConfigService
-const mockBootConfigGet = vi.fn()
-const mockBootConfigSet = vi.fn()
-const mockBootConfigGetAll = vi.fn()
+vi.mock(import('@main/core/paths/constants'), async (importOriginal) => {
+  const actual = await importOriginal()
+  const { mkdtempSync } = await import('node:fs')
+  const { tmpdir } = await import('node:os')
+  const { join } = await import('node:path')
+  return { ...actual, BOOT_CONFIG_PATH: join(mkdtempSync(join(tmpdir(), 'cs-preference-boot-')), 'boot-config.json') }
+})
 
-vi.mock('@main/data/bootConfig', () => ({
-  bootConfigService: {
-    get: mockBootConfigGet,
-    set: mockBootConfigSet,
-    getAll: mockBootConfigGetAll
-  }
-}))
+const CDP_KEY = 'BootConfig.app.remote_debugging.enabled' as const
+const PORT_KEY = 'BootConfig.app.remote_debugging.port' as const
+const DEVELOPER_KEY = 'app.developer_mode.enabled' as const
+const TEMP_PATH = `${BOOT_CONFIG_PATH}.tmp`
 
-// Mock application.get('DbService') to return a stub with withWriteTx + getDb
-const mockWithWriteTx = vi.fn()
-const mockGetDb = vi.fn()
-vi.mock('@application', () => ({
-  application: {
-    get: vi.fn((name: string) => {
-      if (name === 'DbService') {
-        return { withWriteTx: mockWithWriteTx, getDb: mockGetDb }
-      }
-      throw new Error(`Unexpected application.get(${name})`)
-    })
-  }
-}))
-
-// Mock lifecycle decorators to no-ops so PreferenceService can be instantiated
-vi.mock('@main/core/lifecycle', () => ({
-  BaseService: class {
-    ipcHandle = vi.fn()
-    registerInterval = vi.fn(() => ({ dispose: () => {} }))
-    get isReady() {
-      return true
-    }
-  },
-  Injectable: () => () => {},
-  ServicePhase: () => () => {},
-  DependsOn: () => () => {},
-  Phase: { BeforeReady: 'BeforeReady', WhenReady: 'WhenReady' }
-}))
-
-// Mock Drizzle ORM imports used by PreferenceService
-vi.mock('drizzle-orm', () => ({
-  and: vi.fn((...args: any[]) => args),
-  eq: vi.fn((a: any, b: any) => [a, b])
-}))
-
-// Mock preferenceTable
-vi.mock('../db/schemas/preference', () => ({
-  preferenceTable: { scope: 'scope', key: 'key' }
-}))
-
-const BOOT_CONFIG_KEY = 'BootConfig.app.disable_hardware_acceleration' as const
-const PREFERENCE_KEY = 'app.language' as const
-
-describe('PreferenceService BootConfig routing', () => {
-  let service: any
+describe('PreferenceService BootConfig persistence', () => {
+  const dbh = setupTestDatabase()
+  let service: PreferenceService
 
   beforeEach(async () => {
-    vi.clearAllMocks()
-
-    // Setup bootConfigService mock defaults
-    mockBootConfigGet.mockReturnValue(false)
-    mockBootConfigGetAll.mockReturnValue({ ...DefaultBootConfig })
-
-    // Import real PreferenceService and create instance
-    const { PreferenceService } = await import('../PreferenceService')
+    BaseService.resetInstances()
+    bootConfigService.reset()
+    bootConfigService.set('app.remote_debugging.enabled', true)
+    bootConfigService.set('app.remote_debugging.port', 9333)
+    bootConfigService.persist()
+    dbh.db.insert(preferenceTable).values({ scope: 'default', key: DEVELOPER_KEY, value: true }).run()
     service = new PreferenceService()
+    await service._doInit()
   })
 
-  afterEach(() => {
-    vi.restoreAllMocks()
+  afterEach(async () => {
+    fs.rmSync(TEMP_PATH, { recursive: true, force: true })
+    bootConfigService.persist()
+    await service._doDestroy()
   })
 
-  describe('get()', () => {
-    it('routes BootConfig keys to bootConfigService', () => {
-      mockBootConfigGet.mockReturnValue(true)
-
-      const result = service.get(BOOT_CONFIG_KEY)
-
-      expect(mockBootConfigGet).toHaveBeenCalledWith('app.disable_hardware_acceleration')
-      expect(result).toBe(true)
-    })
-
-    it('routes preference keys to cache (not bootConfigService)', () => {
-      const result = service.get(PREFERENCE_KEY)
-
-      expect(mockBootConfigGet).not.toHaveBeenCalled()
-      expect(result).toBe(DefaultPreferences.default[PREFERENCE_KEY])
-    })
+  afterAll(() => {
+    fs.rmSync(path.dirname(BOOT_CONFIG_PATH), { recursive: true, force: true })
   })
 
-  describe('set()', () => {
-    it('routes BootConfig keys to bootConfigService.set', async () => {
-      mockBootConfigGet.mockReturnValue(false)
+  function savedDeveloperMode() {
+    return dbh.db
+      .select()
+      .from(preferenceTable)
+      .all()
+      .find((row) => row.key === DEVELOPER_KEY)?.value
+  }
 
-      await service.set(BOOT_CONFIG_KEY, true)
-
-      expect(mockBootConfigSet).toHaveBeenCalledWith('app.disable_hardware_acceleration', true)
+  it.each(['set', 'setMultiple'] as const)('%s saves before notifying and acknowledging success', async (method) => {
+    const observed: Array<{ value: boolean; saved: boolean }> = []
+    service.subscribeChange(CDP_KEY, (value) => {
+      observed.push({ value, saved: new BootConfigService().get('app.remote_debugging.enabled') })
     })
 
-    it('skips write when BootConfig value is unchanged', async () => {
-      mockBootConfigGet.mockReturnValue(true)
+    if (method === 'set') await service.set(CDP_KEY, false)
+    else await service.setMultiple({ [CDP_KEY]: false, [PORT_KEY]: 9444 })
 
-      await service.set(BOOT_CONFIG_KEY, true)
+    expect(new BootConfigService().get('app.remote_debugging.enabled')).toBe(false)
+    expect(observed).toEqual([{ value: false, saved: false }])
+    if (method === 'setMultiple') expect(new BootConfigService().get('app.remote_debugging.port')).toBe(9444)
+  })
 
-      expect(mockBootConfigSet).not.toHaveBeenCalled()
-    })
-
-    it('does not call bootConfigService for preference keys', async () => {
-      // set() writes a single preference row via getDb() directly (one autocommit
-      // UPDATE), so it no longer wraps withWriteTx — stub getDb, not withWriteTx.
-      const mockDb = {
-        update: vi.fn().mockReturnValue({
-          set: vi.fn().mockReturnValue({
-            where: vi.fn().mockReturnValue({
-              run: vi.fn().mockReturnValue(undefined)
-            })
-          })
-        })
+  it.each(['set', 'setMultiple'] as const)('%s rolls back failed writes and allows retry', async (method) => {
+    const changes: boolean[] = []
+    service.subscribeChange(CDP_KEY, (value) => changes.push(value))
+    // A directory at the temporary file path causes a real filesystem write failure.
+    fs.mkdirSync(TEMP_PATH)
+    const disableDeveloperMode = async () => {
+      if (method === 'set') {
+        await service.set(CDP_KEY, false)
+        await service.set(DEVELOPER_KEY, false)
+      } else {
+        await service.setMultiple({ [CDP_KEY]: false, [PORT_KEY]: 9444, [DEVELOPER_KEY]: false })
       }
-      mockGetDb.mockReturnValue(mockDb)
+    }
 
-      await service.set(PREFERENCE_KEY, 'zh-CN')
+    await expect(disableDeveloperMode()).rejects.toThrow()
+    expect(service.get(CDP_KEY)).toBe(true)
+    expect(service.get(PORT_KEY)).toBe(9333)
+    expect(service.get(DEVELOPER_KEY)).toBe(true)
+    expect(savedDeveloperMode()).toBe(true)
+    expect(new BootConfigService().get('app.remote_debugging.enabled')).toBe(true)
+    expect(changes).toEqual([])
 
-      expect(mockBootConfigSet).not.toHaveBeenCalled()
-    })
+    fs.rmdirSync(TEMP_PATH)
+    bootConfigService.flush()
+    expect(new BootConfigService().get('app.remote_debugging.enabled')).toBe(true)
+    await disableDeveloperMode()
+    expect(new BootConfigService().get('app.remote_debugging.enabled')).toBe(false)
+    expect(savedDeveloperMode()).toBe(false)
+    expect(changes).toEqual([false])
   })
 
-  describe('setMultiple()', () => {
-    it('separates BootConfig and preference updates', async () => {
-      mockBootConfigGet.mockReturnValue(false)
+  it.each(['set', 'setMultiple'] as const)('%s persists an unchanged value that is still dirty', async (method) => {
+    bootConfigService.set('app.remote_debugging.enabled', false)
+    fs.mkdirSync(TEMP_PATH)
+    const save = () => (method === 'set' ? service.set(CDP_KEY, false) : service.setMultiple({ [CDP_KEY]: false }))
 
-      const mockTx = {
-        update: vi.fn().mockReturnValue({
-          set: vi.fn().mockReturnValue({
-            where: vi.fn().mockReturnValue({
-              run: vi.fn().mockReturnValue(undefined)
-            })
-          })
-        })
-      }
-      mockWithWriteTx.mockImplementation((fn: any) => fn(mockTx))
-
-      await service.setMultiple({
-        [BOOT_CONFIG_KEY]: true,
-        [PREFERENCE_KEY]: 'en-US'
-      })
-
-      expect(mockBootConfigSet).toHaveBeenCalledWith('app.disable_hardware_acceleration', true)
-      expect(mockTx.update).toHaveBeenCalled()
-    })
-
-    it('skips unchanged BootConfig values in batch', async () => {
-      mockBootConfigGet.mockReturnValue(false)
-
-      await service.setMultiple({
-        [BOOT_CONFIG_KEY]: false
-      })
-
-      expect(mockBootConfigSet).not.toHaveBeenCalled()
-    })
-
-    it('rejects the batch and skips the preference transaction when bootConfigService.set throws', async () => {
-      // Value validation is owned by bootConfigService.set() (throws before any
-      // state change). The bootConfig loop runs before the preference DB
-      // transaction, so a schema-invalid value rejects the batch with the
-      // preference part unwritten.
-      mockBootConfigGet.mockReturnValue(false)
-      mockBootConfigSet.mockImplementationOnce(() => {
-        throw new Error('Invalid boot config value for "app.disable_hardware_acceleration"')
-      })
-
-      await expect(
-        service.setMultiple({
-          [BOOT_CONFIG_KEY]: true,
-          [PREFERENCE_KEY]: 'en-US'
-        })
-      ).rejects.toThrow(/Invalid boot config value/)
-
-      expect(mockWithWriteTx).not.toHaveBeenCalled()
-    })
+    await expect(save()).rejects.toThrow()
+    expect(new BootConfigService().get('app.remote_debugging.enabled')).toBe(true)
+    fs.rmdirSync(TEMP_PATH)
+    await save()
+    expect(new BootConfigService().get('app.remote_debugging.enabled')).toBe(false)
   })
 
-  describe('getAll()', () => {
-    it('merges preference cache with BootConfig values', () => {
-      mockBootConfigGetAll.mockReturnValue({
-        'app.disable_hardware_acceleration': true
-      })
-
-      const result = service.getAll()
-
-      expect(result[PREFERENCE_KEY]).toBe(DefaultPreferences.default[PREFERENCE_KEY])
-      expect(result[BOOT_CONFIG_KEY]).toBe(true)
-    })
+  it('rolls back earlier BootConfig changes when a later batch value is invalid', async () => {
+    await expect(service.setMultiple({ [CDP_KEY]: false, [PORT_KEY]: 0, [DEVELOPER_KEY]: false })).rejects.toThrow(
+      /Invalid boot config value/
+    )
+    expect(service.get(CDP_KEY)).toBe(true)
+    expect(service.get(PORT_KEY)).toBe(9333)
+    expect(savedDeveloperMode()).toBe(true)
+    bootConfigService.flush()
+    expect(new BootConfigService().get('app.remote_debugging.enabled')).toBe(true)
   })
 
-  describe('getMultipleRaw()', () => {
-    it('handles mixed BootConfig and preference keys', () => {
-      mockBootConfigGet.mockReturnValue(true)
+  it('persists default values by removing the obsolete configuration file', async () => {
+    bootConfigService.reset()
+    bootConfigService.set('app.remote_debugging.enabled', true)
+    bootConfigService.persist()
 
-      const result = service.getMultipleRaw([BOOT_CONFIG_KEY, PREFERENCE_KEY])
+    await service.set(CDP_KEY, false)
 
-      expect(result[BOOT_CONFIG_KEY]).toBe(true)
-      expect(result[PREFERENCE_KEY]).toBe(DefaultPreferences.default[PREFERENCE_KEY])
-    })
+    expect(fs.existsSync(BOOT_CONFIG_PATH)).toBe(false)
+    expect(new BootConfigService().get('app.remote_debugging.enabled')).toBe(false)
   })
 
-  describe('internal boot config key isolation', () => {
-    const INTERNAL_KEY = 'BootConfig.temp.user_data_relocation'
-    const UNKNOWN_KEY = 'BootConfig.foo.does_not_exist'
+  it('merges public BootConfig values with SQLite preferences in reads', () => {
+    expect(service.getAll()).toMatchObject({ [CDP_KEY]: true, [PORT_KEY]: 9333, [DEVELOPER_KEY]: true })
+    expect(service.getMultipleRaw([CDP_KEY, DEVELOPER_KEY])).toEqual({ [CDP_KEY]: true, [DEVELOPER_KEY]: true })
+    expect(service.getAll()).not.toHaveProperty('BootConfig.temp.user_data_relocation')
+  })
 
-    it('get() rejects internal and unknown BootConfig keys without reading them', () => {
-      expect(() => service.get(INTERNAL_KEY)).toThrow(/not accessible/)
-      expect(() => service.get(UNKNOWN_KEY)).toThrow(/not accessible/)
-      expect(mockBootConfigGet).not.toHaveBeenCalled()
-    })
-
-    it('set() rejects an internal key before any write', async () => {
-      await expect(service.set(INTERNAL_KEY, { status: 'pending' })).rejects.toThrow(/not accessible/)
-      expect(mockBootConfigSet).not.toHaveBeenCalled()
-    })
-
-    it('getMultipleRaw() rejects the whole batch if any key is internal', () => {
-      expect(() => service.getMultipleRaw([BOOT_CONFIG_KEY, INTERNAL_KEY])).toThrow(/not accessible/)
-    })
-
-    it('subscribeForWindow() rejects an internal key and registers nothing', () => {
-      expect(() => service.subscribeForWindow(1, [INTERNAL_KEY])).toThrow(/not accessible/)
+  it.each(['BootConfig.temp.user_data_relocation', 'BootConfig.foo.does_not_exist'])(
+    'rejects inaccessible key %s before any read, write or subscription',
+    async (key) => {
+      const invalidKey = key as UnifiedPreferenceKeyType
+      expect(() => service.get(invalidKey)).toThrow(/not accessible/)
+      expect(() => service.getMultipleRaw([CDP_KEY, invalidKey])).toThrow(/not accessible/)
+      expect(() => service.subscribeForWindow(1, [CDP_KEY, key])).toThrow(/not accessible/)
       expect(service.getSubscriptions().size).toBe(0)
-    })
-
-    it('setMultiple() rejects a mixed batch before any partial write', async () => {
-      mockBootConfigGet.mockReturnValue(false)
-
+      await expect(service.set(invalidKey, false)).rejects.toThrow(/not accessible/)
       await expect(
         service.setMultiple({
-          [BOOT_CONFIG_KEY]: true,
-          [INTERNAL_KEY]: { status: 'pending' }
+          [CDP_KEY]: false,
+          [key]: false,
+          [DEVELOPER_KEY]: false
         })
       ).rejects.toThrow(/not accessible/)
-
-      // Neither the BootConfig write nor the DB transaction must have run.
-      expect(mockBootConfigSet).not.toHaveBeenCalled()
-      expect(mockWithWriteTx).not.toHaveBeenCalled()
-    })
-
-    it('getAll() excludes internal keys from the merged result', () => {
-      mockBootConfigGetAll.mockReturnValue({
-        'app.disable_hardware_acceleration': true,
-        'temp.user_data_relocation': { status: 'pending' }
-      })
-
-      const result = service.getAll()
-
-      expect(result[BOOT_CONFIG_KEY]).toBe(true)
-      expect(INTERNAL_KEY in result).toBe(false)
-    })
-  })
+      expect(service.get(CDP_KEY)).toBe(true)
+      expect(savedDeveloperMode()).toBe(true)
+      expect(new BootConfigService().get('app.remote_debugging.enabled')).toBe(true)
+    }
+  )
 })

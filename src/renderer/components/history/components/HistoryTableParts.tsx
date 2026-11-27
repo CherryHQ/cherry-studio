@@ -1,7 +1,7 @@
 import dayjs from 'dayjs'
 import type { TFunction } from 'i18next'
-import { PinIcon, Trash2 } from 'lucide-react'
-import type { ReactElement, ReactNode } from 'react'
+import { Archive, PinIcon } from 'lucide-react'
+import type { ReactElement, ReactNode, Ref } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { Button, Checkbox, RowFlex } from '@cherrystudio/ui'
@@ -12,7 +12,7 @@ import ConfirmActionPopup from '@renderer/components/popups/ConfirmActionPopup'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { cn } from '@renderer/utils/style'
 
-const historyTableClassName = 'min-w-[760px] rounded-none border-0 bg-card shadow-none'
+const historyTableClassName = 'rounded-none border-0 bg-card shadow-none'
 export const historyTableGridClassName =
   'grid min-w-[760px] grid-cols-[44px_minmax(180px,1fr)_minmax(280px,2.5fr)_100px_84px]'
 const historyHeaderClassName =
@@ -32,9 +32,6 @@ export const historyFixedActionCellClassName =
   'sticky right-0 z-2 justify-center bg-card px-2 [border-left:0.5px_solid_var(--border-subtle)]'
 export const historyFixedActionShadowClassName =
   '[--history-fixed-action-shadow:color-mix(in_oklch,var(--foreground)_33.3333%,transparent)] [box-shadow:-8px_0_12px_-12px_var(--history-fixed-action-shadow)]'
-// Use a token-backed 0.5px hairline arbitrary property because a real `border-b` renders 1px. Shared
-// by the header / filter bar / toolbar so the value stays in one place.
-export const HISTORY_HAIRLINE_BOTTOM = '[border-bottom:0.5px_solid_var(--border-subtle)]'
 
 interface HistoryVirtualTableProps<TItem> {
   emptyContent: ReactNode
@@ -84,12 +81,13 @@ export function HistoryVirtualTable<TItem>({
   }, [items.length, updateFixedActionShadow])
 
   return (
-    <div className="min-h-0 flex-1 px-3 pt-3 pb-2" role="table">
+    <div className="min-h-0 flex-1" role="table">
       <div className={cn('flex h-full min-h-0 flex-col overflow-hidden', historyTableClassName)}>
         {items.length > 0 ? (
           <DynamicVirtualList
             autoHideScrollbar
             className="min-h-0 flex-1"
+            contentProps={{ className: 'px-3 pt-3 pb-2', style: { minWidth: 784 } }}
             estimateSize={estimateSize}
             header={header}
             list={items}
@@ -102,8 +100,10 @@ export function HistoryVirtualTable<TItem>({
           </DynamicVirtualList>
         ) : (
           <div ref={scrollerRef} className="min-h-0 flex-1 overflow-auto" onScroll={updateFixedActionShadow}>
-            {header}
-            {emptyContent}
+            <div className="min-w-[784px] px-3 pt-3 pb-2">
+              {header}
+              {emptyContent}
+            </div>
           </div>
         )}
       </div>
@@ -141,6 +141,7 @@ export const HistoryTableHeader = ({
         checked={selectedState}
         disabled={selectionDisabled}
         aria-label={selectAllLabel}
+        data-history-selection-checkbox
         onCheckedChange={(checked) => onToggleAll(Boolean(checked))}
         onClick={(event) => event.stopPropagation()}
       />
@@ -170,7 +171,7 @@ interface HistorySelectionCellProps {
   checked: boolean
   disabled?: boolean
   label: string
-  onCheckedChange: (checked: boolean) => void
+  onCheckedChange: (checked: boolean, selectRange?: boolean) => void
 }
 
 export const HistorySelectionCell = ({
@@ -185,8 +186,11 @@ export const HistorySelectionCell = ({
       checked={checked}
       disabled={disabled}
       aria-label={label}
-      onCheckedChange={(nextChecked) => onCheckedChange(Boolean(nextChecked))}
-      onClick={(event) => event.stopPropagation()}
+      data-history-selection-checkbox
+      onClick={(event) => {
+        event.stopPropagation()
+        onCheckedChange(!checked, event.shiftKey)
+      }}
     />
   </div>
 )
@@ -198,9 +202,10 @@ interface HistoryTitleButtonProps {
 
 export const HistoryTitleButton = ({ title, onOpen }: HistoryTitleButtonProps) => (
   <span
+    data-history-record-title
     role="button"
     tabIndex={0}
-    className="-mx-1 block w-full max-w-full min-w-0 cursor-pointer truncate rounded-sm px-1 py-0 text-left font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:text-foreground focus-visible:underline focus-visible:outline-none"
+    className="text-muted-foreground -mx-1 block w-full max-w-full min-w-0 cursor-pointer truncate rounded-sm px-1 py-0 text-left font-medium transition-colors hover:text-foreground focus-visible:text-foreground focus-visible:underline focus-visible:outline-none"
     title={title}
     onClick={(event) => {
       event.stopPropagation()
@@ -316,7 +321,7 @@ export function HistoryActionsCell<TContext = unknown>({
   onTogglePin
 }: HistoryActionsCellProps<TContext>) {
   const [pendingDeleteAction, setPendingDeleteAction] = useState<ResolvedAction<TContext> | undefined>()
-  const deleteAction = useMemo(() => actions.find(isDeleteAction), [actions])
+  const deleteAction = useMemo(() => findRowDeleteAction(actions), [actions])
   const handleAction = useCallback(
     (action: ResolvedAction<TContext>) => {
       window.requestAnimationFrame(() => {
@@ -360,6 +365,10 @@ export function HistoryActionsCell<TContext = unknown>({
   )
 }
 
+function findRowDeleteAction<TContext>(actions: readonly ResolvedAction<TContext>[]) {
+  return actions.find(isDeleteAction)
+}
+
 function isDeleteAction<TContext>(action: ResolvedAction<TContext>) {
   return action.id.endsWith('.delete') || action.commandId?.endsWith('.delete')
 }
@@ -387,7 +396,7 @@ const DeleteActionButton = <TContext,>({ action, label, onClick }: DeleteActionB
         event.stopPropagation()
         if (action) onClick(action)
       }}>
-      <Trash2 className="size-4" />
+      <Archive className="size-4" />
     </Button>
   )
 }
@@ -436,8 +445,9 @@ interface HistoryRecordRowProps {
   unpinLabel: string
   onAction: (action: ResolvedAction) => void | Promise<void>
   onOpen?: () => void
-  onSelectedChange: (checked: boolean) => void
+  onSelectedChange: (checked: boolean, selectRange?: boolean) => void
   onTogglePin?: () => void | Promise<void>
+  rowRef?: Ref<HTMLDivElement>
 }
 
 /** One record row shared by both history modes. */
@@ -458,9 +468,11 @@ export const HistoryRecordRow = ({
   onAction,
   onOpen,
   onSelectedChange,
-  onTogglePin
+  onTogglePin,
+  rowRef
 }: HistoryRecordRowProps) => (
   <div
+    ref={rowRef}
     className={cn(historyTableGridClassName, historyBodyRowClassName)}
     style={{ minHeight }}
     data-state={isSelected ? 'selected' : undefined}
@@ -489,7 +501,7 @@ export const HistoryRecordRow = ({
       </RowFlex>
     </div>
     <div className={historyBodyCellClassName} role="cell">
-      <div className="text-xs text-muted-foreground tabular-nums">{timeLabel}</div>
+      <div className="text-muted-foreground text-xs tabular-nums">{timeLabel}</div>
     </div>
     <div
       className={cn(

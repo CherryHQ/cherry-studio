@@ -9,6 +9,7 @@ import {
 } from '@data/services/AiUsageRecordService'
 
 import { extractProviderCostWithCurrency } from '../utils/billingCost'
+import { ensureNestedV3Usage, recordTotalTokens } from '../utils/usageNormalize'
 
 export const BILLABLE_AI_OPERATIONS = ['streamText', 'generateText', 'embedMany', 'generateImage', 'rerank'] as const
 export type BillableAiOperation = (typeof BILLABLE_AI_OPERATIONS)[number]
@@ -22,18 +23,18 @@ export const AI_USAGE_RECORD_OPERATION_COVERAGE = {
 } as const
 
 function usageToRecord(usage: LanguageModelV3Usage): NonNullable<RecordAiInvocationInput['usage']> {
-  const inputTokens = usage.inputTokens.total
-  const outputTokens = usage.outputTokens.total
+  const normalized = ensureNestedV3Usage(usage)
+  const inputTokens = normalized.inputTokens.total
+  const outputTokens = normalized.outputTokens.total
+  const totalTokens = recordTotalTokens(usage, inputTokens, outputTokens)
   return {
     ...(inputTokens !== undefined ? { inputTokens } : {}),
     ...(outputTokens !== undefined ? { outputTokens } : {}),
-    ...(inputTokens !== undefined || outputTokens !== undefined
-      ? { totalTokens: (inputTokens ?? 0) + (outputTokens ?? 0) }
-      : {}),
-    ...(usage.outputTokens.reasoning !== undefined ? { reasoningTokens: usage.outputTokens.reasoning } : {}),
-    ...(usage.inputTokens.noCache !== undefined ? { noCacheTokens: usage.inputTokens.noCache } : {}),
-    ...(usage.inputTokens.cacheRead !== undefined ? { cacheReadTokens: usage.inputTokens.cacheRead } : {}),
-    ...(usage.inputTokens.cacheWrite !== undefined ? { cacheWriteTokens: usage.inputTokens.cacheWrite } : {})
+    ...(totalTokens !== undefined ? { totalTokens } : {}),
+    ...(normalized.outputTokens.reasoning !== undefined ? { reasoningTokens: normalized.outputTokens.reasoning } : {}),
+    ...(normalized.inputTokens.noCache !== undefined ? { noCacheTokens: normalized.inputTokens.noCache } : {}),
+    ...(normalized.inputTokens.cacheRead !== undefined ? { cacheReadTokens: normalized.inputTokens.cacheRead } : {}),
+    ...(normalized.inputTokens.cacheWrite !== undefined ? { cacheWriteTokens: normalized.inputTokens.cacheWrite } : {})
   }
 }
 
@@ -57,10 +58,11 @@ function recordLanguageInvocation(
   requestId: string,
   usage: LanguageModelV3Usage,
   metrics: RecordAiInvocationInput['metrics'],
-  completedAt: number
+  completedAt: number,
+  record: (input: RecordAiInvocationInput) => void
 ): void {
   const providerCost = extractProviderCostWithCurrency(usage.raw, context.reportedCostCurrency)
-  aiUsageRecordService.recordInvocation({
+  record({
     requestId,
     context,
     modality: 'language',
@@ -71,10 +73,16 @@ function recordLanguageInvocation(
   })
 }
 
-export function createLanguageUsageMiddleware(context: AiUsageCaptureContext): LanguageModelMiddleware {
+export type AiUsageCaptureSource = AiUsageCaptureContext | (() => AiUsageCaptureContext)
+
+export function createLanguageUsageMiddleware(
+  source: AiUsageCaptureSource,
+  record: (input: RecordAiInvocationInput) => void = (input) => aiUsageRecordService.recordInvocation(input)
+): LanguageModelMiddleware {
   return {
     specificationVersion: 'v3',
     wrapGenerate: async ({ doGenerate }) => {
+      const context = typeof source === 'function' ? source() : source
       const requestId = `ai-sdk:${context.providerId}:${crypto.randomUUID()}`
       const startedAt = performance.now()
       const result = await doGenerate()
@@ -83,11 +91,13 @@ export function createLanguageUsageMiddleware(context: AiUsageCaptureContext): L
         requestId,
         result.usage,
         { timeCompletionMs: Math.max(0, Math.round(performance.now() - startedAt)) },
-        Date.now()
+        Date.now(),
+        record
       )
       return result
     },
     wrapStream: async ({ doStream }) => {
+      const context = typeof source === 'function' ? source() : source
       const requestId = `ai-sdk:${context.providerId}:${crypto.randomUUID()}`
       const startedAt = performance.now()
       const result = await doStream()
@@ -115,6 +125,7 @@ export function createLanguageUsageMiddleware(context: AiUsageCaptureContext): L
               thinkingDurationMs = Math.max(0, Math.round(now - thinkingStartedAt))
             }
 
+            // Each provider call emits one V3 `finish` with usage; tool loops are separate calls.
             if (part.type === 'finish' && !finished) {
               finished = true
               recordLanguageInvocation(
@@ -128,7 +139,8 @@ export function createLanguageUsageMiddleware(context: AiUsageCaptureContext): L
                   timeCompletionMs: Math.max(0, Math.round(now - startedAt)),
                   ...(thinkingDurationMs !== undefined ? { timeThinkingMs: thinkingDurationMs } : {})
                 },
-                Date.now()
+                Date.now(),
+                record
               )
             }
 
@@ -142,8 +154,11 @@ export function createLanguageUsageMiddleware(context: AiUsageCaptureContext): L
   }
 }
 
-export function createAiUsagePlugin(context: AiUsageCaptureContext): AiPlugin {
-  const middleware = createLanguageUsageMiddleware(context)
+export function createAiUsagePlugin(
+  context: AiUsageCaptureSource,
+  record?: (input: RecordAiInvocationInput) => void
+): AiPlugin {
+  const middleware = createLanguageUsageMiddleware(context, record)
   return definePlugin({
     name: 'ai-usage-capture',
     configureContext(requestContext) {

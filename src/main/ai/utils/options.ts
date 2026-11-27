@@ -13,7 +13,6 @@ import { ENDPOINT_TYPE, type EndpointType, type Model, type ServiceTierSelection
 import type { Provider } from '@shared/data/types/provider'
 import { type AiSdkParam, isAiSdkParam } from '@shared/types/aiSdk'
 import { isReasoningModel } from '@shared/utils/model'
-import { isSupportFastMode } from '@shared/utils/provider'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
 import type { AppProviderId } from '../types'
@@ -24,28 +23,6 @@ import { encodeReasoningInvocation, type ResolvedReasoningInvocation } from './r
 import { getWebSearchParams } from './websearch'
 
 const logger = loggerService.withContext('aiCore.utils.options')
-
-export function applyFastModeToProviderOptions(
-  provider: Pick<Provider, 'fastMode'>,
-  model: Pick<Model, 'supportsFastMode'>,
-  providerOptions: ProviderOptions,
-  fastMode: boolean
-): ProviderOptions {
-  if (!fastMode || !isSupportFastMode(provider, model)) {
-    return providerOptions
-  }
-  // 'claude-code' carries Fast inside the SDK, not through providerOptions.
-  if (provider.fastMode.transport !== 'openai-priority') return providerOptions
-  const serviceTier = provider.fastMode.serviceTier ?? 'priority'
-
-  return {
-    ...providerOptions,
-    openai: {
-      ...providerOptions.openai,
-      serviceTier
-    }
-  }
-}
 
 export function resolveServiceTierWireValue(
   control: ResolvedServiceTierControl,
@@ -245,9 +222,12 @@ export function isCustomProviderNamespace(
 }
 
 /**
- * For `openai-compatible`, rename `reasoning_effort` → `reasoningEffort` —
+ * For OpenAI-compatible adapter families, rename `reasoning_effort` → `reasoningEffort` —
  * AI SDK silently drops the snake_case form.
- * See https://github.com/CherryHQ/cherry-studio/issues/11987.
+ *
+ * Covers both `'openai-compatible'` (custom OpenAI-compatible providers, see #11987) and
+ * `'github-copilot-openai-compatible'` (GitHub Copilot, see #11140) — both speak the
+ * OpenAI Chat Completions dialect and silently drop snake_case reasoning keys.
  */
 export function mergeCustomProviderParameters(
   providerOptions: Record<string, Record<string, JSONValue>>,
@@ -258,13 +238,15 @@ export function mergeCustomProviderParameters(
   const actualAiSdkProviderIds = Object.keys(providerOptions)
   const primaryAiSdkProviderId = actualAiSdkProviderIds[0]
   const normalizedProviderParams =
-    adapterFamily === 'openai-compatible' ? normalizeOpenAICompatibleParams(providerParams) : providerParams
+    adapterFamily === 'openai-compatible' || adapterFamily === 'github-copilot-openai-compatible'
+      ? normalizeOpenAICompatibleParams(providerParams)
+      : providerParams
 
   let result = providerOptions
   for (const key of Object.keys(normalizedProviderParams)) {
     const isProviderNamespace = isCustomProviderNamespace(key, providerOptions, rawProviderId)
     const value =
-      adapterFamily === 'openai-compatible' &&
+      (adapterFamily === 'openai-compatible' || adapterFamily === 'github-copilot-openai-compatible') &&
       isProviderNamespace &&
       normalizedProviderParams[key] !== null &&
       typeof normalizedProviderParams[key] === 'object' &&

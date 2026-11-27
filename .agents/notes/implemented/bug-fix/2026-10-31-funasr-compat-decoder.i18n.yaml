@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-10-31-funasr-compat-decoder.md
+2026-10-31-funasr-compat-decoder.md: 33ed3a5867eca44d2219e715d7e6c196cc9c9225
+2026-10-31-funasr-compat-decoder.zh.md: a3b01369b75010a16a42cc7ace597619cdda527d

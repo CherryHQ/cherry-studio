@@ -30,12 +30,12 @@ export const useViewSourceTool = ({
     if (viewMode === 'split') return
 
     const canEnterEdit = canEdit && !isStreaming
-    if (canEnterEdit && (hasSpecialView || viewMode === 'source')) {
+    if (canEnterEdit) {
       registerTool({
         ...TOOL_SPECS.edit,
         icon: viewMode === 'edit' ? <Eye className="tool-icon" /> : <SquarePen className="tool-icon" />,
         tooltip: viewMode === 'edit' ? t('preview.label') : t('code_block.edit.label'),
-        onClick: () => onViewModeChange(viewMode === 'edit' ? 'special' : 'edit')
+        onClick: () => onViewModeChange(viewMode === 'edit' ? (hasSpecialView ? 'special' : 'source') : 'edit')
       })
       return () => removeTool(TOOL_SPECS.edit.id)
     }

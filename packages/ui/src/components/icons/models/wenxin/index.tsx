@@ -9,7 +9,7 @@ const Wenxin = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const WenxinIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Wenxin, {
   Avatar: WenxinAvatar,
-  colorPrimary: '#012F8D'
+  colorPrimary: '#e8ecf5'
 })
 
 export default WenxinIcon

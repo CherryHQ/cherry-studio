@@ -1,22 +1,29 @@
-import { and, asc, count, desc, eq, gte, inArray, isNull, ne, or, type SQL, sql } from 'drizzle-orm'
+import { and, asc, count, desc, eq, gte, inArray, isNotNull, isNull, lt, lte, ne, or, type SQL, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
 import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { type AgentRow, agentTable as agentsTable, type InsertAgentRow } from '@data/db/schemas/agent'
+import { agentChannelTable } from '@data/db/schemas/agentChannel'
+import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentKnowledgeBaseTable, agentMcpServerTable } from '@data/db/schemas/assistantRelations'
+import { agentAvatarFileRefTable } from '@data/db/schemas/fileRelations'
+import { jobTable } from '@data/db/schemas/job'
 import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
 import { pinTable } from '@data/db/schemas/pin'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
+import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentSessionService } from '@data/services/AgentSessionService'
-import { agentTaskService } from '@data/services/AgentTaskService'
+import { agentTaskService, HEARTBEAT_PROMPT_SENTINEL } from '@data/services/AgentTaskService'
+import { aiUsageRecordService } from '@data/services/AiUsageRecordService'
 import { getDataService } from '@data/services/dataServiceRegistry'
 import { modelService } from '@data/services/ModelService'
 import { pinService } from '@data/services/PinService'
 import { promptService } from '@data/services/PromptService'
 import { applyMoves, insertWithOrderKey } from '@data/services/utils/orderKey'
 import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
+import { clearSingleFileRefTx, insertSingleFileRefTx } from '@data/services/utils/singleFileRef'
 import { loggerService } from '@logger'
 import { Emitter, type Event } from '@main/core/lifecycle'
 import { t } from '@main/i18n'
@@ -24,18 +31,21 @@ import { BUILTIN_AGENT_ROLE, type BuiltinAgentRole, CHERRY_SUPPORT_AGENT_ID } fr
 import { resolveReasoningEffortForModel } from '@shared/ai/reasoning'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
+import { type AgentChannelDraft, isQrLoginChannel } from '@shared/data/api/schemas/agentChannels'
 import {
   AGENT_MUTABLE_FIELDS,
   type AgentBase,
   type AgentConfiguration,
   type AgentEntity,
+  type AgentStats,
   sanitizeAgentConfiguration,
   type UpdateAgentDto
 } from '@shared/data/api/schemas/agents'
-import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
+import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
-import type { ListOptions } from '@shared/data/api/types'
+import type { DataApiDataChangeEffect, ListOptions } from '@shared/data/api/types'
 import type { AgentType } from '@shared/data/types/agent'
+import type { FileEntryId } from '@shared/data/types/file'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { isGatewayRoutableModel } from '@shared/utils/model'
 
@@ -52,15 +62,20 @@ export interface AgentCreatedEvent {
   agent: AgentEntity
 }
 
-export interface AgentDeletedEvent {
-  agentId: string
+export interface AgentPurgeImpact {
+  readonly purgedIds: readonly string[]
+  readonly affectedSessionIds: readonly string[]
+  readonly affectedChannelIds: readonly string[]
 }
+
+export type AgentLifecycleState = 'active' | 'trashed' | 'missing'
 
 type AgentEntitySearchItem = Extract<EntitySearchItem, { type: 'agent' }>
 type AgentRelationField = 'mcps' | 'knowledgeBaseIds'
 type AgentCreateInput = AgentBase & {
   type: AgentType
   skillIds?: string[]
+  channels?: AgentChannelDraft[]
 }
 
 interface EnsureBuiltinAgentInput {
@@ -69,11 +84,14 @@ interface EnsureBuiltinAgentInput {
   name: string
   preferredModelId: UniqueModelId | null
   type: AgentType
+  disabledTools?: readonly string[]
 }
 
 export interface EnsureBuiltinAgentResult {
   agent: AgentEntity
   created: boolean
+  /** A soft-deleted builtin row was restored (deletedAt cleared) by this call. */
+  restored: boolean
 }
 
 function getAgentDescription(id: string, description: string, configuration: unknown): string {
@@ -86,8 +104,22 @@ function getAgentDescription(id: string, description: string, configuration: unk
     if (id === CHERRY_SUPPORT_AGENT_ID && builtinRole === BUILTIN_AGENT_ROLE.SUPPORT) {
       return t('agent.builtin.cherry_support.description')
     }
+    if (builtinRole === BUILTIN_AGENT_ROLE.DOCTOR) {
+      return t('agent.builtin.cherry_doctor.description')
+    }
   }
   return ''
+}
+
+/** The doctor Agent only ever runs inside the System Doctor; it has no place in the Agents page. */
+const notDoctorAgent: SQL = sql`coalesce(json_extract(${agentsTable.configuration}, '$.builtin_role'), '') <> ${BUILTIN_AGENT_ROLE.DOCTOR}`
+
+/** Support also requires its reserved ID, so a legacy marker on another Agent never matches. */
+function builtinRolePredicate(builtinRole: string): SQL {
+  const roleMatch = sql`json_extract(${agentsTable.configuration}, '$.builtin_role') = ${builtinRole}`
+  return builtinRole === BUILTIN_AGENT_ROLE.SUPPORT
+    ? and(eq(agentsTable.id, CHERRY_SUPPORT_AGENT_ID), roleMatch)!
+    : roleMatch
 }
 
 function buildAgentSearchPredicate(search: string): SQL {
@@ -98,7 +130,8 @@ function buildAgentSearchPredicate(search: string): SQL {
   // its localized main-process fallback in SQL rather than limiting search to a renderer page.
   const assistantDescriptionMatch = sql`${agentsTable.description} = '' AND json_extract(${agentsTable.configuration}, '$.builtin_role') = ${BUILTIN_AGENT_ROLE.ASSISTANT} AND ${t('agent.builtin.cherry_assistant.description')} LIKE ${pattern} ESCAPE '\\'`
   const supportDescriptionMatch = sql`${agentsTable.id} = ${CHERRY_SUPPORT_AGENT_ID} AND ${agentsTable.description} = '' AND json_extract(${agentsTable.configuration}, '$.builtin_role') = ${BUILTIN_AGENT_ROLE.SUPPORT} AND ${t('agent.builtin.cherry_support.description')} LIKE ${pattern} ESCAPE '\\'`
-  return or(nameMatch, descriptionMatch, assistantDescriptionMatch, supportDescriptionMatch)!
+  const doctorDescriptionMatch = sql`${agentsTable.description} = '' AND json_extract(${agentsTable.configuration}, '$.builtin_role') = ${BUILTIN_AGENT_ROLE.DOCTOR} AND ${t('agent.builtin.cherry_doctor.description')} LIKE ${pattern} ESCAPE '\\'`
+  return or(nameMatch, descriptionMatch, assistantDescriptionMatch, supportDescriptionMatch, doctorDescriptionMatch)!
 }
 
 /**
@@ -126,13 +159,14 @@ function removeUntrustedSupportRole(id: string, configuration: unknown): Record<
 /**
  * Apply the public first-level configuration PATCH to the persisted JSON.
  *
- * Object-valued keys (for example `env_vars`) remain whole-value replacements.
- * `builtin_role` is deliberately skipped because it is owned by Main; callers
- * are validated separately before this helper runs.
+ * Object-valued keys (for example `env_vars`) remain whole-value replacements,
+ * except `prompt_overrides`, merged per block so two windows editing different
+ * blocks both keep their change. `builtin_role` is deliberately skipped because
+ * it is owned by Main; callers are validated separately before this helper runs.
  */
 function applyAgentConfigurationPatch(
   persisted: unknown,
-  patch: AgentConfiguration | undefined
+  patch: UpdateAgentDto['configuration']
 ): Record<string, unknown> {
   const next =
     persisted && typeof persisted === 'object' && !Array.isArray(persisted)
@@ -141,7 +175,15 @@ function applyAgentConfigurationPatch(
 
   for (const [key, value] of Object.entries(patch ?? {})) {
     if (key === 'builtin_role') continue
-    if (value === undefined) {
+    if (key === 'prompt_overrides' && value !== undefined) {
+      const overrides = { ...(next.prompt_overrides as Record<string, string> | undefined) }
+      for (const [block, text] of Object.entries(value as Record<string, string | null>)) {
+        if (text === null) delete overrides[block]
+        else overrides[block] = text
+      }
+      if (Object.keys(overrides).length) next.prompt_overrides = overrides
+      else delete next.prompt_overrides
+    } else if (value === undefined) {
       delete next[key]
     } else {
       next[key] = value
@@ -172,11 +214,13 @@ function rowToAgent(
   row: AgentRow,
   modelName: string | null = null,
   mcps: string[],
-  knowledgeBaseIds: string[]
+  knowledgeBaseIds: string[],
+  avatarFileId?: FileEntryId
 ): AgentEntity {
   const clean = nullsToUndefined(row)
   return {
     ...clean,
+    ...(avatarFileId ? { avatarFileId, avatarSrc: application.get('FileManager').getUrl(avatarFileId) } : {}),
     mcps,
     knowledgeBaseIds,
     type: (row.type === 'cherry-claw' ? 'claude-code' : row.type) as AgentType,
@@ -186,6 +230,7 @@ function rowToAgent(
     configuration: parseConfiguration(row.configuration, row.id),
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt),
+    deletedAt: row.deletedAt != null ? timestampToISO(row.deletedAt) : undefined,
     modelName
   }
 }
@@ -244,6 +289,20 @@ function fetchKnowledgeBasesForAgents(tx: DbOrTx, agentIds: string[]): Map<strin
   return map
 }
 
+const STATS_WINDOW_MS = 7 * 24 * 60 * 60 * 1000
+
+type AgentUpdatePrecondition = {
+  updatedAt: string
+  mcpServerIds: readonly string[]
+  knowledgeBaseIds: readonly string[]
+  skillIds: readonly string[]
+  reasoningEffort?: string
+}
+
+function sameIds(current: readonly string[], expected: readonly string[]): boolean {
+  return current.length === expected.length && current.every((id) => expected.includes(id))
+}
+
 export class AgentService {
   private readonly _onAgentCreated = new Emitter<AgentCreatedEvent>()
   readonly onAgentCreated: Event<AgentCreatedEvent> = this._onAgentCreated.event
@@ -251,14 +310,85 @@ export class AgentService {
   private readonly _onAgentUpdated = new Emitter<AgentUpdatedEvent>()
   readonly onAgentUpdated: Event<AgentUpdatedEvent> = this._onAgentUpdated.event
 
-  private readonly _onAgentDeleted = new Emitter<AgentDeletedEvent>()
-  readonly onAgentDeleted: Event<AgentDeletedEvent> = this._onAgentDeleted.event
+  assertActiveTx(tx: DbOrTx, agentId: string): void {
+    if (
+      !tx
+        .select({ id: agentsTable.id })
+        .from(agentsTable)
+        .where(and(eq(agentsTable.id, agentId), isNull(agentsTable.deletedAt)))
+        .get()
+    )
+      throw DataApiErrorFactory.notFound('Agent', agentId)
+  }
+
+  clearAvatarSlotTx(tx: DbOrTx, agentId: string): void {
+    clearSingleFileRefTx(tx, agentAvatarFileRefTable, agentId)
+    tx.update(agentsTable).set({ updatedAt: Date.now() }).where(eq(agentsTable.id, agentId)).run()
+  }
+
+  setAvatarSlotTx(tx: DbOrTx, agentId: string, fileId: FileEntryId): void {
+    this.assertActiveTx(tx, agentId)
+    this.clearAvatarSlotTx(tx, agentId)
+    insertSingleFileRefTx(tx, agentAvatarFileRefTable, agentId, fileId)
+  }
+
+  setAvatarEmojiTx(tx: DbOrTx, agentId: string, emoji: string): void {
+    this.assertActiveTx(tx, agentId)
+    const row = tx
+      .select({ configuration: agentsTable.configuration })
+      .from(agentsTable)
+      .where(eq(agentsTable.id, agentId))
+      .get()!
+    tx.update(agentsTable)
+      .set({ configuration: { ...row.configuration, avatar: emoji } })
+      .where(eq(agentsTable.id, agentId))
+      .run()
+    this.clearAvatarSlotTx(tx, agentId)
+  }
+
+  private avatarIds(tx: DbOrTx, ids: string[]): Map<string, FileEntryId> {
+    if (!ids.length) return new Map()
+    return new Map(
+      tx
+        .select({ id: agentAvatarFileRefTable.sourceId, fileId: agentAvatarFileRefTable.fileEntryId })
+        .from(agentAvatarFileRefTable)
+        .where(inArray(agentAvatarFileRefTable.sourceId, ids))
+        .all()
+        .map((row) => [row.id, row.fileId])
+    )
+  }
+
+  notifyReadModelChange(agentIds: readonly string[], kind: 'membership' | 'projection'): void {
+    if (agentIds.length === 0) return
+    const entityIds = [...new Set(agentIds)]
+    notifyDataApiDataChange([
+      { endpoint: '/agents', kind, entityIds },
+      { endpoint: '/agents/:agentId', entityIds }
+    ])
+  }
+
+  /** Publish the post-commit effects of a retention purge. */
+  notifyPurged(impact: AgentPurgeImpact): void {
+    if (impact.purgedIds.length === 0) return
+    const entityIds = [...new Set(impact.purgedIds)]
+    this.notifyReadModelChange(entityIds, 'membership')
+    // Prompt bindings deliberately survive trashing and disappear only at retention purge.
+    promptService.notifyTargetBindingsChanged()
+    agentSessionService.notifyReadModelChange(impact.affectedSessionIds, 'projection')
+    if (impact.affectedChannelIds.length > 0) {
+      const affectedChannelIds = [...new Set(impact.affectedChannelIds)]
+      notifyDataApiDataChange([
+        { endpoint: '/agent-channels', kind: 'projection', entityIds: affectedChannelIds },
+        { endpoint: '/agent-channels/:channelId', entityIds: affectedChannelIds }
+      ])
+    }
+  }
 
   /**
    * Create primitive for main-process command orchestration. The caller owns
    * non-data side effects and supplies the already-reserved id.
    */
-  createAgentWithId(id: string, req: AgentCreateInput): AgentEntity {
+  createAgentWithId(id: string, req: AgentCreateInput, avatarFileId?: FileEntryId): AgentEntity {
     // Reserved capability identity — see getBuiltinRole. Seeding writes via createAgentTx.
     if (getBuiltinRole(req.configuration) !== undefined) {
       throw DataApiErrorFactory.invalidOperation(
@@ -271,15 +401,14 @@ export class AgentService {
     const globalSkillService = getDataService('AgentGlobalSkillService')
     const skillIds = Array.from(new Set(req.skillIds ?? []))
 
-    // Omit fields that are undefined so DB DEFAULTs (e.g. '', '[]', '{}') apply.
-    // instructions has no DB DEFAULT — service supplies the product-strategic default.
-    // orderKey is omitted — `insertWithOrderKey` computes the fractional key for the requested position.
+    // Omit undefined fields so DB defaults apply; instructions is required and has no DB default.
+    // `insertWithOrderKey` computes the omitted orderKey for the requested position.
     const insertData: Omit<InsertAgentRow, 'orderKey'> = {
       id,
       type: req.type,
       name: req.name || 'New Agent',
       description: req.description,
-      instructions: req.instructions || 'You are a helpful assistant.',
+      instructions: req.instructions ?? '',
       model: req.model,
       planModel: req.planModel,
       smallModel: req.smallModel,
@@ -325,7 +454,20 @@ export class AgentService {
           for (const skillId of skillIds) {
             globalSkillService.upsertJoinTx(tx, id, skillId, true)
           }
-          return result
+          if (!result) return null
+          if (avatarFileId) this.setAvatarSlotTx(tx, id, avatarFileId)
+          // A rejected channel throws here and rolls back the Agent with it.
+          const channelIds = (req.channels ?? []).map(
+            (channel) =>
+              agentChannelService.createChannelTx(tx, {
+                ...channel,
+                agentId: id,
+                workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM },
+                // QR login needs the Agent to exist, so it runs after create.
+                isActive: isQrLoginChannel(channel) ? false : channel.isActive
+              }).id
+          )
+          return { ...result, channelIds }
         }),
       defaultHandlersFor('Agent', id)
     )
@@ -333,8 +475,18 @@ export class AgentService {
       throw DataApiErrorFactory.invalidOperation('create agent', 'insert succeeded but select returned no row')
     }
 
-    const agent = rowToAgent(row.agent, row.modelName || null, mcps, knowledgeBaseIds)
-    notifyDataApiDataChange([{ endpoint: '/agents', kind: 'membership', entityIds: [id] }])
+    const agent = rowToAgent(row.agent, row.modelName || null, mcps, knowledgeBaseIds, avatarFileId)
+    const effects: DataApiDataChangeEffect[] = [{ endpoint: '/agents', kind: 'membership', entityIds: [id] }]
+    if (row.channelIds.length) {
+      effects.push(
+        { endpoint: '/agent-workspaces', kind: 'membership' },
+        { endpoint: '/agent-channels', kind: 'membership', entityIds: row.channelIds }
+      )
+      for (const channelId of row.channelIds) {
+        effects.push({ endpoint: '/agent-channels/:channelId', routeParams: { channelId }, entityIds: [channelId] })
+      }
+    }
+    notifyDataApiDataChange(effects)
     this._onAgentCreated.fire({ agentId: id, agent })
     return agent
   }
@@ -371,13 +523,7 @@ export class AgentService {
     builtinRole: string,
     options: { includeDeleted?: boolean } = {}
   ): AgentRow | null {
-    const roleCondition =
-      builtinRole === BUILTIN_AGENT_ROLE.SUPPORT
-        ? and(
-            eq(agentsTable.id, CHERRY_SUPPORT_AGENT_ID),
-            sql`json_extract(${agentsTable.configuration}, '$.builtin_role') = ${builtinRole}`
-          )
-        : sql`json_extract(${agentsTable.configuration}, '$.builtin_role') = ${builtinRole}`
+    const roleCondition = builtinRolePredicate(builtinRole)
     const [agent] = tx
       .select()
       .from(agentsTable)
@@ -441,9 +587,19 @@ export class AgentService {
    * converge on one active system Agent.
    */
   ensureBuiltinAgentTx(tx: DbOrTx, input: EnsureBuiltinAgentInput): EnsureBuiltinAgentResult {
+    let restored = false
     if (input.builtinRole === BUILTIN_AGENT_ROLE.SUPPORT) {
       this.clearUntrustedBuiltinSupportRolesTx(tx)
+      // Detect the restore before claiming: claimBuiltinSupportIdentityTx
+      // clears deletedAt but does not report whether it did.
+      const [preClaim] = tx
+        .select({ deletedAt: agentsTable.deletedAt })
+        .from(agentsTable)
+        .where(eq(agentsTable.id, CHERRY_SUPPORT_AGENT_ID))
+        .limit(1)
+        .all()
       this.claimBuiltinSupportIdentityTx(tx, { restoreDeleted: true })
+      restored = preClaim?.deletedAt != null
     }
     const existing = this.findBuiltinAgentByRoleTx(tx, input.builtinRole)
 
@@ -454,8 +610,15 @@ export class AgentService {
         ? (modelService.getNamesByUniqueIdsTx(tx, [existing.model]).get(existing.model) ?? null)
         : null
       return {
-        agent: rowToAgent(existing, modelName, mcps, knowledgeBaseIds),
-        created: false
+        agent: rowToAgent(
+          existing,
+          modelName,
+          mcps,
+          knowledgeBaseIds,
+          this.avatarIds(tx, [existing.id]).get(existing.id)
+        ),
+        created: false,
+        restored
       }
     }
 
@@ -469,6 +632,7 @@ export class AgentService {
       description: '',
       instructions: '',
       model,
+      disabledTools: [...(input.disabledTools ?? [])],
       configuration: {
         ...input.configuration,
         builtin_role: input.builtinRole
@@ -484,12 +648,14 @@ export class AgentService {
 
     return {
       agent: rowToAgent(created.agent, created.modelName, [], []),
-      created: true
+      created: true,
+      restored: false
     }
   }
 
-  /** Publish an Agent creation only after the caller-owned transaction commits. */
+  /** Publish an Agent creation/restore only after the caller-owned transaction commits. */
   emitAgentCreated(agent: AgentEntity): void {
+    notifyDataApiDataChange([{ endpoint: '/agents', kind: 'membership', entityIds: [agent.id] }])
     this._onAgentCreated.fire({ agentId: agent.id, agent })
   }
 
@@ -497,7 +663,9 @@ export class AgentService {
   ensureBuiltinAgent(input: EnsureBuiltinAgentInput): AgentEntity {
     const result = application.get('DbService').withWriteTx((tx) => this.ensureBuiltinAgentTx(tx, input))
 
-    if (result.created) {
+    // A restored builtin re-fires the creation event: post-commit
+    // provisioning subscribers (heartbeat schedule sync) must cover both.
+    if (result.created || result.restored) {
       this.emitAgentCreated(result.agent)
     }
     return result.agent
@@ -514,6 +682,44 @@ export class AgentService {
     return result[0]
   }
 
+  /** Usage overview of one live Agent; null when it does not exist. */
+  getStats(id: string, now = Date.now()): AgentStats | null {
+    const database = application.get('DbService').getDb()
+    if (!this.getAgent(id)) return null
+    const since = now - STATS_WINDOW_MS
+    const [sessions] = database
+      .select({ count: count() })
+      .from(agentSessionTable)
+      .where(
+        and(
+          eq(agentSessionTable.agentId, id),
+          eq(agentSessionTable.type, 'conversation'),
+          isNull(agentSessionTable.taskId),
+          isNull(agentSessionTable.deletedAt)
+        )
+      )
+      .all()
+    const [taskRuns] = database
+      .select({ count: count() })
+      .from(jobTable)
+      .where(
+        and(
+          eq(jobTable.type, 'agent.task'),
+          sql`json_extract(${jobTable.input}, '$.agentId') = ${id}`,
+          sql`json_extract(${jobTable.input}, '$.prompt') IS NOT ${HEARTBEAT_PROMPT_SENTINEL}`,
+          gte(jobTable.startedAt, since),
+          lte(jobTable.startedAt, now)
+        )
+      )
+      .all()
+
+    return {
+      sessionCount: sessions.count,
+      recentTaskRunCount: taskRuns.count,
+      recentTokens: aiUsageRecordService.totalTokens({ from: since, to: now }, { type: 'agent', id })
+    }
+  }
+
   getAgent(id: string): AgentEntity | null {
     const database = application.get('DbService').getDb()
     const [agent] = database
@@ -528,15 +734,29 @@ export class AgentService {
     const modelName = agent.model
       ? (modelService.getNamesByUniqueIdsTx(database, [agent.model]).get(agent.model) ?? null)
       : null
-    return rowToAgent(agent, modelName, mcpsMap.get(id) ?? [], knowledgeBasesMap.get(id) ?? [])
+    return rowToAgent(
+      agent,
+      modelName,
+      mcpsMap.get(id) ?? [],
+      knowledgeBasesMap.get(id) ?? [],
+      this.avatarIds(database, [id]).get(id)
+    )
   }
 
-  listAgents(options: ListOptions = {}): { agents: AgentEntity[]; total: number } {
+  listAgents(options: ListOptions & { ids?: string[]; builtinRole?: BuiltinAgentRole; inTrash?: boolean } = {}): {
+    agents: AgentEntity[]
+    total: number
+  } {
     const database = application.get('DbService').getDb()
 
     // AND-compose deletedAt-null + optional server-side search. The localized builtin
     // fallback is part of the predicate, so pagination and full-library search stay authoritative.
-    const conditions: SQL[] = [isNull(agentsTable.deletedAt)]
+    const conditions: SQL[] = [
+      options.inTrash === true ? isNotNull(agentsTable.deletedAt) : isNull(agentsTable.deletedAt),
+      notDoctorAgent
+    ]
+    if (options.ids) conditions.push(inArray(agentsTable.id, options.ids))
+    if (options.builtinRole) conditions.push(builtinRolePredicate(options.builtinRole))
     if (options.search) {
       conditions.push(buildAgentSearchPredicate(options.search))
     }
@@ -599,12 +819,14 @@ export class AgentService {
       result.map((row) => row.agent.model)
     )
 
+    const avatarIds = this.avatarIds(database, agentIds)
     const agents = result.map((row) =>
       rowToAgent(
         row.agent,
         row.agent.model ? (modelNames.get(row.agent.model) ?? null) : null,
         mcpsMap.get(row.agent.id) ?? [],
-        knowledgeBasesMap.get(row.agent.id) ?? []
+        knowledgeBasesMap.get(row.agent.id) ?? [],
+        avatarIds.get(row.agent.id)
       )
     )
 
@@ -613,7 +835,7 @@ export class AgentService {
 
   search(options: { q: string; limit: number; updatedAtFrom?: number }): AgentEntitySearchItem[] {
     const database = application.get('DbService').getDb()
-    const conditions: SQL[] = [isNull(agentsTable.deletedAt), buildAgentSearchPredicate(options.q)]
+    const conditions: SQL[] = [isNull(agentsTable.deletedAt), notDoctorAgent, buildAgentSearchPredicate(options.q)]
     if (options.updatedAtFrom !== undefined) {
       conditions.push(gte(agentsTable.updatedAt, options.updatedAtFrom))
     }
@@ -643,7 +865,12 @@ export class AgentService {
     }))
   }
 
-  updateAgent(id: string, updates: UpdateAgentDto): AgentEntity | null {
+  /** `replaceAvatarImage` drops an uploaded avatar in the same transaction, so a new emoji is what shows. */
+  updateAgent(
+    id: string,
+    updates: UpdateAgentDto,
+    { replaceAvatarImage = false, expected }: { replaceAvatarImage?: boolean; expected?: AgentUpdatePrecondition } = {}
+  ): AgentEntity | null {
     // Preserve the existing not-found precedence before validating related IDs.
     // The authoritative configuration read still happens inside the write tx.
     if (!this.findAgentRow(id)) return null
@@ -679,9 +906,25 @@ export class AgentService {
             .limit(1)
             .all()
           if (!current) throw DataApiErrorFactory.notFound('Agent', id)
+          if (expected) {
+            const skills = getDataService('AgentGlobalSkillService')
+              .list({ agentId: id })
+              .filter((skill) => skill.isEnabled)
+            if (
+              timestampToISO(current.updatedAt) !== expected.updatedAt ||
+              !sameIds(fetchMcpsForAgents(tx, [id]).get(id) ?? [], expected.mcpServerIds) ||
+              !sameIds(fetchKnowledgeBasesForAgents(tx, [id]).get(id) ?? [], expected.knowledgeBaseIds) ||
+              !sameIds(
+                skills.map((skill) => skill.id),
+                expected.skillIds
+              )
+            ) {
+              throw DataApiErrorFactory.invalidOperation('update agent', 'Agent changed after configuration approval')
+            }
+          }
 
           const updateData: Partial<AgentRow> = {
-            updatedAt: Date.now()
+            updatedAt: Math.max(Date.now(), current.updatedAt + 1)
           }
 
           // Several mutable fields map to NOT NULL columns with DB defaults
@@ -715,7 +958,9 @@ export class AgentService {
             }
 
             const nextConfiguration = applyAgentConfigurationPatch(persistedConfiguration, configurationPatch)
-            const effectiveModelId = updates.model !== undefined ? updates.model : current.model
+            // Normalize a reasoning-effort patch against the model the caller is actually steering: with a session-level model override the agent's own model is unchanged, and validating against it would drop an effort the session's effective model supports (cherry-pr-review inv_98911732422a84bf).
+            const effectiveModelId =
+              updates.reasoningValidationModelId ?? (updates.model !== undefined ? updates.model : current.model)
             if (!reasoningEffortRemoved && effectiveModelId && (modelChanged || reasoningEffortPatched)) {
               const nextModel = modelService.findByIdTx(tx, effectiveModelId)
               if (nextModel) {
@@ -723,6 +968,12 @@ export class AgentService {
                 nextConfiguration.reasoning_effort =
                   resolveReasoningEffortForModel(nextModel, currentEffort) ?? 'default'
               }
+            }
+            if (
+              expected?.reasoningEffort !== undefined &&
+              nextConfiguration.reasoning_effort !== expected.reasoningEffort
+            ) {
+              throw DataApiErrorFactory.invalidOperation('update agent', 'Model changed after configuration approval')
             }
             updateData.configuration = nextConfiguration
           }
@@ -752,12 +1003,14 @@ export class AgentService {
           if (newSkillUpdates !== undefined) {
             getDataService('AgentGlobalSkillService').applyJoinUpdatesByAgentTx(tx, id, newSkillUpdates)
           }
+          if (replaceAvatarImage) this.clearAvatarSlotTx(tx, id)
         }),
       defaultHandlersFor('Agent', id)
     )
 
     const updated = this.getAgent(id)
     if (updated) {
+      this.notifyReadModelChange([id], 'projection')
       this._onAgentUpdated.fire({ agentId: id, updates, agent: updated })
     }
     return updated
@@ -767,71 +1020,122 @@ export class AgentService {
     tx.update(agentsTable).set(updateData).where(eq(agentsTable.id, id)).run()
   }
 
-  deleteAgent(
-    id: string,
-    options: { deleteSessions?: boolean } = {}
-  ): { deleted: boolean; deletedSessionIds?: string[] } {
-    const result = this.deleteAgentForDelivery(id, options)
+  deleteAgent(id: string, options: { deleteSessions?: boolean; permanent?: boolean } = {}) {
+    const impact = application.get('DbService').withWriteTx((tx) => this.deleteAgentStateTx(tx, id, options))
+    this.notifyDeleted(id, impact)
     return {
-      deleted: result.deleted,
-      ...(result.deletedSessionIds ? { deletedSessionIds: result.deletedSessionIds } : {})
+      deleted: impact.deleted,
+      ...(impact.deletedSessionIds ? { deletedSessionIds: impact.deletedSessionIds } : {})
     }
   }
 
-  deleteAgentForDelivery(
+  deleteAgentStateTx(
+    tx: DbOrTx,
     id: string,
-    options: { deleteSessions?: boolean } = {}
-  ): {
-    deleted: boolean
-    deletedSessionIds?: string[]
-    affectedSessionIds: string[]
-    deliveryResults: AgentSessionMessageEntity[]
-  } {
-    // By default sessions detach (agentId → NULL) via FK ON DELETE SET NULL; callers
-    // can opt into deleting them in this same transaction. `pin` has no FK back
-    // to agent, so purge it alongside the agent row. Junction table rows are
-    // cascade-deleted by FK.
-    const result = withSqliteErrors(
-      () =>
-        application.get('DbService').withWriteTx((tx) => {
-          const [agent] = tx
-            .select({ id: agentsTable.id })
-            .from(agentsTable)
-            .where(and(eq(agentsTable.id, id), isNull(agentsTable.deletedAt)))
-            .limit(1)
-            .all()
-          if (!agent) return { rowsAffected: 0, sessionImpact: undefined }
+    options: { deleteSessions?: boolean; permanent?: boolean; targetState?: 'active' | 'trashed' } = {}
+  ) {
+    const permanent = options.permanent === true
+    const deleteSessions = options.deleteSessions === true && (!permanent || options.targetState === 'active')
+    const affectedChannelIds = permanent
+      ? tx
+          .select({ id: agentChannelTable.id })
+          .from(agentChannelTable)
+          .where(eq(agentChannelTable.agentId, id))
+          .all()
+          .map((row) => row.id)
+      : []
+    const result = (() => {
+      const [agent] = tx
+        .select({ id: agentsTable.id })
+        .from(agentsTable)
+        .where(
+          permanent && options.targetState !== 'active'
+            ? and(eq(agentsTable.id, id), isNotNull(agentsTable.deletedAt))
+            : and(eq(agentsTable.id, id), isNull(agentsTable.deletedAt))
+        )
+        .limit(1)
+        .all()
+      if (!agent) return { rowsAffected: 0, sessionImpact: undefined }
 
-          const sessionImpact = agentSessionService.prepareForAgentDeletionTx(tx, id, {
-            deleteSessions: options.deleteSessions === true
-          })
-          return { ...this.deleteAgentTx(tx, id), sessionImpact }
-        }),
-      defaultHandlersFor('Agent', id)
-    )
+      if (permanent) {
+        const sessionImpact = agentSessionService.prepareForAgentDeletionTx(tx, id, {
+          deleteSessions
+        })
+        return {
+          ...this.deleteAgentTx(tx, id),
+          sessionImpact: {
+            ...sessionImpact,
+            deletedSessionIds: deleteSessions ? sessionImpact.sessionIds : []
+          }
+        }
+      }
 
-    const deleted = result.rowsAffected > 0
-    if (deleted && result.sessionImpact) {
-      agentTaskService.notifyReadModelChange(result.sessionImpact.taskScheduleIds)
-      getDataService('AgentSessionMessageService').publishDeliveryChanges(result.sessionImpact.deliveryResults)
-      agentSessionService.notifyReadModelChange(result.sessionImpact.sessionIds, result.sessionImpact.changeKind)
-    }
-    if (deleted) {
-      notifyDataApiDataChange([
-        { endpoint: '/agents', kind: 'membership', entityIds: [id] },
-        { endpoint: '/agents/:agentId', routeParams: { agentId: id }, entityIds: [id] }
-      ])
-      promptService.notifyTargetBindingsChanged()
-      this._onAgentDeleted.fire({ agentId: id })
-    }
-    if (deleted) pinService.notifyPurged()
-    const deletedSessionIds = options.deleteSessions === true ? result.sessionImpact?.sessionIds : undefined
+      const trashedAt = Date.now()
+      const sessionIds = agentSessionService.listIdsByAgentTx(tx, id)
+      const trashed =
+        options.deleteSessions === true
+          ? agentSessionService.trashByAgentIdTx(tx, id, {
+              validateAgent: false,
+              deletedAt: trashedAt
+            })
+          : {
+              trashedIds: [],
+              taskScheduleIds: [],
+              // Sessions outlive the trashed agent, but deliveries targeting
+              // them can no longer complete — interrupt them like a hard delete.
+              deliveryResults: getDataService('AgentSessionMessageService').prepareRetainedSessionAgentDeletionTx(
+                tx,
+                sessionIds
+              )
+            }
+      const result = tx
+        .update(agentsTable)
+        .set({ deletedAt: trashedAt })
+        .where(and(eq(agentsTable.id, id), isNull(agentsTable.deletedAt)))
+        .run()
+      pinService.purgeForEntityTx(tx, 'agent', id)
+      return {
+        rowsAffected: result.changes,
+        sessionImpact: {
+          sessionIds,
+          deletedSessionIds: trashed.trashedIds,
+          taskScheduleIds: trashed.taskScheduleIds,
+          changeKind: trashed.trashedIds.length > 0 ? ('membership' as const) : ('projection' as const),
+          deliveryResults: trashed.deliveryResults
+        }
+      }
+    })()
     return {
-      deleted,
-      deletedSessionIds,
+      deleted: result.rowsAffected > 0,
+      deletedSessionIds:
+        deleteSessions && result.sessionImpact && 'deletedSessionIds' in result.sessionImpact
+          ? result.sessionImpact.deletedSessionIds
+          : undefined,
       affectedSessionIds: result.sessionImpact?.sessionIds ?? [],
-      deliveryResults: result.sessionImpact?.deliveryResults ?? []
+      affectedChannelIds,
+      taskScheduleIds: result.sessionImpact?.taskScheduleIds ?? [],
+      changeKind: result.sessionImpact?.changeKind ?? 'projection',
+      deliveryResults: result.sessionImpact?.deliveryResults ?? [],
+      purgedSystemWorkspacePaths:
+        result.sessionImpact && 'purgedSystemWorkspacePaths' in result.sessionImpact
+          ? result.sessionImpact.purgedSystemWorkspacePaths
+          : []
     }
+  }
+
+  notifyDeleted(id: string, impact: ReturnType<AgentService['deleteAgentStateTx']>): void {
+    if (!impact.deleted) return
+    agentTaskService.notifyReadModelChange(impact.taskScheduleIds)
+    getDataService('AgentSessionMessageService').publishDeliveryChanges(impact.deliveryResults)
+    agentSessionService.notifyReadModelChange(impact.affectedSessionIds, impact.changeKind)
+    if (impact.affectedChannelIds.length > 0)
+      notifyDataApiDataChange([
+        { endpoint: '/agent-channels', kind: 'projection', entityIds: impact.affectedChannelIds },
+        { endpoint: '/agent-channels/:channelId', entityIds: impact.affectedChannelIds }
+      ])
+    this.notifyReadModelChange([id], 'membership')
+    promptService.notifyTargetBindingsChanged()
+    pinService.notifyPurged()
   }
 
   deleteAgentTx(tx: DbOrTx, id: string): { rowsAffected: number } {
@@ -841,9 +1145,105 @@ export class AgentService {
     return { rowsAffected: result.changes }
   }
 
+  /**
+   * Restore a trashed agent together with the sessions trashed by the same
+   * operation. Sessions archived on their own stay independently restorable.
+   */
+  restoreAgent(id: string): AgentEntity {
+    const { agent, restoredSessionIds } = application.get('DbService').withWriteTx((tx) => this.restoreAgentTx(tx, id))
+    agentSessionService.notifyReadModelChange(restoredSessionIds, 'membership')
+    this.notifyReadModelChange([id], 'membership')
+    return agent
+  }
+
+  restoreAgentTx(tx: DbOrTx, id: string): { agent: AgentEntity; restoredSessionIds: string[] } {
+    const [target] = tx
+      .select({ deletedAt: agentsTable.deletedAt })
+      .from(agentsTable)
+      .where(and(eq(agentsTable.id, id), isNotNull(agentsTable.deletedAt)))
+      .limit(1)
+      .all()
+    if (!target || target.deletedAt === null) throw DataApiErrorFactory.notFound('Agent', id)
+
+    const restoredSessionIds = agentSessionService.restoreTrashedWithAgentTx(tx, id, target.deletedAt)
+
+    const [row] = tx
+      .update(agentsTable)
+      .set({ deletedAt: null })
+      .where(and(eq(agentsTable.id, id), isNotNull(agentsTable.deletedAt)))
+      .returning()
+      .all()
+    if (!row) throw DataApiErrorFactory.notFound('Agent', id)
+    const database = tx
+    const modelName = row.model
+      ? (modelService.getNamesByUniqueIdsTx(database, [row.model]).get(row.model) ?? null)
+      : null
+    const agent = rowToAgent(
+      row,
+      modelName,
+      fetchMcpsForAgents(database, [id]).get(id) ?? [],
+      fetchKnowledgeBasesForAgents(database, [id]).get(id) ?? [],
+      this.avatarIds(database, [id]).get(id)
+    )
+    logger.info('Restored agent', { id })
+    return { agent, restoredSessionIds }
+  }
+
+  purgeExpiredTx(tx: DbOrTx, cutoffMs: number, limit: number): AgentPurgeImpact {
+    const rows = tx
+      .select({ id: agentsTable.id })
+      .from(agentsTable)
+      .where(and(isNotNull(agentsTable.deletedAt), lt(agentsTable.deletedAt, cutoffMs)))
+      .limit(limit)
+      .all()
+    const purgedIds = rows.map((row) => row.id)
+    if (purgedIds.length === 0) return { purgedIds, affectedSessionIds: [], affectedChannelIds: [] }
+
+    const affectedSessionIds = tx
+      .select({ id: agentSessionTable.id })
+      .from(agentSessionTable)
+      .where(inArray(agentSessionTable.agentId, purgedIds))
+      .orderBy(asc(agentSessionTable.id))
+      .all()
+      .map((row) => row.id)
+    const affectedChannelIds = tx
+      .select({ id: agentChannelTable.id })
+      .from(agentChannelTable)
+      .where(inArray(agentChannelTable.agentId, purgedIds))
+      .orderBy(asc(agentChannelTable.id))
+      .all()
+      .map((row) => row.id)
+
+    for (const id of purgedIds) this.deleteAgentTx(tx, id)
+    return { purgedIds, affectedSessionIds, affectedChannelIds }
+  }
+
   agentExists(id: string): boolean {
     const result = this.findAgentRow(id)
     return !!result
+  }
+
+  getLifecycleState(id: string): AgentLifecycleState {
+    const row = this.findAgentRow(id, { includeDeleted: true })
+    if (!row) return 'missing'
+    return row.deletedAt == null ? 'active' : 'trashed'
+  }
+
+  listExpiredTrashIds(cutoffMs: number, limit: number): string[] {
+    return application
+      .get('DbService')
+      .getDb()
+      .select({ id: agentsTable.id })
+      .from(agentsTable)
+      .where(and(isNotNull(agentsTable.deletedAt), lt(agentsTable.deletedAt, cutoffMs)))
+      .limit(limit)
+      .all()
+      .map((row) => row.id)
+  }
+
+  isExpiredTrash(id: string, cutoffMs: number): boolean {
+    const row = this.findAgentRow(id, { includeDeleted: true })
+    return row?.deletedAt != null && row.deletedAt < cutoffMs
   }
 
   /**
@@ -906,12 +1306,14 @@ export class AgentService {
       database,
       rows.map((row) => row.model)
     )
+    const avatarIds = this.avatarIds(database, agentIds)
     for (const row of rows) {
       const agent = rowToAgent(
         row,
         row.model ? (modelNames.get(row.model) ?? null) : null,
         mcpsMap.get(row.id) ?? [],
-        knowledgeBasesMap.get(row.id) ?? []
+        knowledgeBasesMap.get(row.id) ?? [],
+        avatarIds.get(row.id)
       )
       const updates: UpdateAgentDto =
         relation === 'mcps' ? { mcps: agent.mcps } : { knowledgeBaseIds: agent.knowledgeBaseIds ?? [] }

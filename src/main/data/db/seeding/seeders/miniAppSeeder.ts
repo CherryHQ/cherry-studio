@@ -1,4 +1,4 @@
-import { isNotNull } from 'drizzle-orm'
+import { and, eq, isNotNull } from 'drizzle-orm'
 
 import { type InsertMiniAppRow, miniAppTable } from '@data/db/schemas/miniApp'
 import { generateOrderKeySequence, generateOrderKeySequenceBetween } from '@data/services/utils/orderKey'
@@ -30,6 +30,11 @@ export class MiniAppSeeder implements ISeeder {
   }
 
   run(db: DbType): void {
+    // Retire only the bundled entry; custom sites with the same appId remain user-owned.
+    db.delete(miniAppTable)
+      .where(and(eq(miniAppTable.presetMiniAppId, 'baidu-ai-search'), eq(miniAppTable.kind, 'site')))
+      .run()
+
     const insertOrderKeys = this.buildInsertOrderKeys(db)
 
     for (const preset of PRESETS_MINI_APPS) {
@@ -52,6 +57,7 @@ export class MiniAppSeeder implements ISeeder {
       // A custom row whose appId happens to collide with a preset id (e.g. a
       // migrated v1 custom app) keeps its own name/url/logo. status, orderKey,
       // and presetMiniAppId stay untouched on every existing row.
+      // eslint-disable-next-line no-restricted-syntax -- the onConflictDoUpdate here only refreshes preset display fields, scoped by setWhere to preset-seeded rows; custom rows untouched
       db.insert(miniAppTable)
         .values(insertRow)
         .onConflictDoUpdate({

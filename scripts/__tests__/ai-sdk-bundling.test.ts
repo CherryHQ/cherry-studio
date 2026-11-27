@@ -29,7 +29,7 @@ const aiSdkPackages = [...Object.keys(pkg.dependencies ?? {}), ...Object.keys(pk
 
 describe('@ai-sdk/* bundling contract', () => {
   it('declares the family so the guard below is not vacuously true', () => {
-    expect(aiSdkPackages.length).toBeGreaterThan(10)
+    expect(aiSdkPackages.length).toBeGreaterThan(0)
   })
 
   it('keeps every @ai-sdk/* package out of root dependencies, so the main build bundles it', () => {

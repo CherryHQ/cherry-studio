@@ -8,7 +8,6 @@ import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/
 import type { Provider } from '@shared/data/types/provider'
 
 import {
-  applyFastModeToProviderOptions,
   applyServiceTierToProviderOptions,
   buildCapabilityProviderOptions,
   buildResolvedReasoningProviderOptions,
@@ -17,45 +16,6 @@ import {
   resolveServiceTierWireValue
 } from '../options'
 import type { ResolvedReasoningInvocation } from '../reasoningSerializers'
-
-describe('applyFastModeToProviderOptions', () => {
-  const provider = {
-    fastMode: { transport: 'openai-priority' }
-  } satisfies Pick<Provider, 'fastMode'>
-  const model = {
-    id: 'openai-codex::gpt-5-6-sol',
-    providerId: 'openai-codex',
-    name: 'GPT-5.6 Sol',
-    capabilities: [],
-    supportsStreaming: true,
-    supportsFastMode: true,
-    isEnabled: true,
-    isHidden: false
-  } satisfies Model
-
-  it('maps Fast to priority only for an eligible provider-model pair', () => {
-    expect(applyFastModeToProviderOptions(provider, model, { openai: { reasoningEffort: 'high' } }, true)).toEqual({
-      openai: { reasoningEffort: 'high', serviceTier: 'priority' }
-    })
-    expect(applyFastModeToProviderOptions(provider, { ...model, supportsFastMode: false }, {}, true)).toEqual({})
-    expect(applyFastModeToProviderOptions(provider, model, {}, false)).toEqual({})
-  })
-
-  it('honours a provider-declared service tier value (Ark asks for fast, not priority)', () => {
-    expect(
-      applyFastModeToProviderOptions(
-        { fastMode: { transport: 'openai-priority', serviceTier: 'fast' } },
-        model,
-        {},
-        true
-      )
-    ).toEqual({ openai: { serviceTier: 'fast' } })
-  })
-
-  it('sends no service tier for SDK-carried transports (claude-code)', () => {
-    expect(applyFastModeToProviderOptions({ fastMode: { transport: 'claude-code' } }, model, {}, true)).toEqual({})
-  })
-})
 
 describe('service tier provider options', () => {
   const control = {
@@ -176,6 +136,36 @@ describe('mergeCustomProviderParameters', () => {
     )
     // Existing reasoningEffort wins; reasoning_effort dropped.
     expect((result['openai-compatible'] as Record<string, unknown>).reasoningEffort).toBe('low')
+  })
+
+  it('normalizes reasoning_effort → reasoningEffort for github-copilot-openai-compatible (#11140)', () => {
+    // Mirror the OpenAI-compatible path: AI SDK silently drops snake_case keys, so a
+    // user's custom parameter dictionary carrying `reasoning_effort` must be renamed
+    // to `reasoningEffort` before being merged into the `copilot` provider namespace.
+    const customProviders: Record<string, Record<string, never>> = { copilot: {} }
+    const result = mergeCustomProviderParameters(
+      customProviders,
+      { reasoning_effort: 'high' },
+      'github-copilot-openai-compatible',
+      'github-copilot-openai-compatible'
+    )
+    expect(result).toEqual({ copilot: { reasoningEffort: 'high' } })
+    expect(result.copilot.reasoning_effort).toBeUndefined()
+  })
+
+  it('does NOT clobber existing reasoningEffort with renamed reasoning_effort for github-copilot (#11140)', () => {
+    // Mirror the openai-compatible clobber test: when the user's custom params carry BOTH
+    // `reasoningEffort` (already in the SDK dialect) and `reasoning_effort` (snake_case),
+    // the existing camelCase wins and the snake_case form is dropped.
+    const customProviders: Record<string, Record<string, never>> = { copilot: {} }
+    const result = mergeCustomProviderParameters(
+      customProviders,
+      { reasoning_effort: 'high', reasoningEffort: 'low' },
+      'github-copilot-openai-compatible',
+      'github-copilot-openai-compatible'
+    )
+    expect((result['copilot'] as Record<string, unknown>).reasoningEffort).toBe('low')
+    expect((result['copilot'] as Record<string, unknown>).reasoning_effort).toBeUndefined()
   })
 
   it('normalizes reasoning_effort into a concrete provider namespace for an openai-compatible adapter', () => {

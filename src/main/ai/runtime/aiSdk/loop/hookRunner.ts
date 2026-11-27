@@ -1,6 +1,8 @@
 import type { ToolSet } from 'ai'
 
 import { loggerService } from '@logger'
+import { chatErrorContext } from '@main/ai/utils/chatErrorContext'
+import { redactToShape } from '@main/ai/utils/redactToShape'
 
 import type { AgentLoopHooks, ToolExecutionStartEvent } from './types'
 
@@ -37,7 +39,6 @@ export function wrapForwardedHook<F extends (...args: never[]) => unknown>(
  */
 export function wrapToolsWithExecutionHooks(tools: ToolSet | undefined, hooks: AgentLoopHooks): ToolSet | undefined {
   if (!tools) return tools
-  if (!hooks.onToolExecutionStart && !hooks.onToolExecutionEnd) return tools
 
   const wrapped: ToolSet = {}
   for (const [name, tool] of Object.entries(tools)) {
@@ -71,6 +72,17 @@ export function wrapToolsWithExecutionHooks(tools: ToolSet | undefined, hooks: A
           return output
         } catch (error) {
           const durationMs = performance.now() - startTime
+          // Without this, a failed tool call survives only as the `tool-error` part's text in
+          // the chat record — a bundle source that is opt-in and off by default.
+          if (!options.abortSignal?.aborted) {
+            logger.warn('Tool execution failed', {
+              toolName: name,
+              toolCallId: options.toolCallId,
+              durationMs: Math.round(durationMs),
+              inputShape: redactToShape(input),
+              err: chatErrorContext(error)
+            })
+          }
           await safeCall('onToolExecutionEnd', hooks.onToolExecutionEnd, {
             ...startEvent,
             durationMs,

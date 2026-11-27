@@ -1,0 +1,58 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const doctor = vi.hoisted(() => ({ run: vi.fn(), runContextualDiagnosis: vi.fn(), cancel: vi.fn(), fix: vi.fn() }))
+
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory({ DoctorService: doctor } as never)
+})
+
+import { doctorHandlers } from '../doctor'
+
+const ctx = { senderId: 'main' }
+
+beforeEach(() => vi.clearAllMocks())
+
+describe('doctorHandlers', () => {
+  it('forwards a run request including the optional check subset', async () => {
+    doctor.run.mockResolvedValue({ status: 'busy', runId: 'r1' })
+    const input = {
+      subject: { kind: 'global' as const },
+      tier: 'live' as const,
+      checkIds: ['config-boot-config-valid' as const]
+    }
+    await expect(doctorHandlers['diagnostics.doctor.run'](input, ctx)).resolves.toEqual({ status: 'busy', runId: 'r1' })
+    expect(doctor.run).toHaveBeenCalledWith(input)
+  })
+
+  it('cancels by run id', async () => {
+    doctor.cancel.mockReturnValue({ status: 'canceled' })
+    await expect(doctorHandlers['diagnostics.doctor.cancel']({ scope: 'global', runId: 'r1' }, ctx)).resolves.toEqual({
+      status: 'canceled'
+    })
+    expect(doctor.cancel).toHaveBeenCalledWith('global', 'r1')
+  })
+
+  it('delegates contextual diagnosis to its dedicated service entrypoint', async () => {
+    doctor.runContextualDiagnosis.mockResolvedValue({ status: 'busy', runId: 'r-context' })
+    const subject = { kind: 'agent' as const, agentId: 'agent-1' }
+    await expect(doctorHandlers['diagnostics.doctor.run_contextual']({ subject }, ctx)).resolves.toEqual({
+      status: 'busy',
+      runId: 'r-context'
+    })
+    expect(doctor.runContextualDiagnosis).toHaveBeenCalledWith(subject)
+    expect(doctor.run).not.toHaveBeenCalled()
+  })
+
+  it('forwards a fix request untouched', async () => {
+    const request = {
+      scope: 'global' as const,
+      runId: 'r1',
+      checkId: 'config-boot-config-valid' as const,
+      fixId: 'repair' as const
+    }
+    doctor.fix.mockResolvedValue({ status: 'fixed', result: { id: request.checkId, status: 'pass', durationMs: 1 } })
+    await expect(doctorHandlers['diagnostics.doctor.fix'](request, ctx)).resolves.toMatchObject({ status: 'fixed' })
+    expect(doctor.fix).toHaveBeenCalledWith(request)
+  })
+})

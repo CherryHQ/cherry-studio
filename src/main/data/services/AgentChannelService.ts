@@ -1,6 +1,8 @@
 import { and, eq, inArray } from 'drizzle-orm'
 
 import { application } from '@application'
+import { notifyDataApiDataChange } from '@data/dataApiDataChange'
+import { agentTable } from '@data/db/schemas/agent'
 import {
   type AgentChannelRow as ChannelRow,
   agentChannelSessionTable as channelSessionsTable,
@@ -11,8 +13,16 @@ import {
 import type { DbOrTx } from '@data/db/types'
 import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
-import { DataApiErrorFactory } from '@shared/data/api/errors'
-import type { AgentChannelEntity, CreateAgentChannelDto } from '@shared/data/api/schemas/agentChannels'
+import { t } from '@main/i18n'
+import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
+import { DataApiErrorFactory, toDataApiError } from '@shared/data/api/errors'
+import {
+  ActiveAgentChannelConfigSchemasByType,
+  AgentChannelConfigSchemasByType,
+  type AgentChannelEntity,
+  type AgentChannelType,
+  type CreateAgentChannelDto
+} from '@shared/data/api/schemas/agentChannels'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import {
   AGENT_WORKSPACE_TYPE,
@@ -31,6 +41,35 @@ function normalizeChannelConfig(config: unknown): Record<string, unknown> {
   return rest
 }
 
+function validateChannelConfig(
+  type: AgentChannelType,
+  config: unknown,
+  isActive: boolean
+): AgentChannelEntity['config'] {
+  const parsed = AgentChannelConfigSchemasByType[type].safeParse(normalizeChannelConfig(config))
+  if (!parsed.success) throw toDataApiError(parsed.error)
+  if (isActive) {
+    const active = ActiveAgentChannelConfigSchemasByType[type].safeParse(parsed.data)
+    if (!active.success) throw toDataApiError(active.error)
+  }
+  return parsed.data
+}
+
+type CreateChannelInput =
+  | CreateAgentChannelDto
+  | {
+      type: ChannelConfig['type']
+      name: string
+      agentId?: string | null
+      workspace: AgentSessionWorkspaceSource
+      config: ChannelConfig | Record<string, unknown>
+      isActive?: boolean
+      // Narrow, not `string`: with the DB CHECK constraint gone this parameter type is
+      // what stops an internal caller (one that bypasses the DataApi zod boundary) from
+      // persisting a mode the SDK will reject at run time.
+      permissionMode?: AgentPermissionMode | null
+    }
+
 export class AgentChannelService {
   private rowToEntity(row: ChannelRow): AgentChannelEntity {
     const clean = nullsToUndefined(row)
@@ -45,42 +84,35 @@ export class AgentChannelService {
     } as AgentChannelEntity
   }
 
-  createChannel(
-    data:
-      | CreateAgentChannelDto
-      | {
-          type: ChannelConfig['type']
-          name: string
-          agentId?: string | null
-          workspace: AgentSessionWorkspaceSource
-          config: ChannelConfig | Record<string, unknown>
-          isActive?: boolean
-          // Narrow, not `string`: with the DB CHECK constraint gone this parameter type is
-          // what stops an internal caller (one that bypasses the DataApi zod boundary) from
-          // persisting a mode the SDK will reject at run time.
-          permissionMode?: AgentPermissionMode | null
-        }
-  ): AgentChannelEntity {
-    const database = application.get('DbService').getDb()
+  createChannel(data: CreateChannelInput): AgentChannelEntity {
+    const channel = application.get('DbService').withWriteTx((tx) => this.createChannelTx(tx, data))
+    this.notifyReadModelChange(channel.id, 'membership')
+    return channel
+  }
+
+  /** Validates and inserts a channel inside the caller's write transaction; the caller notifies. */
+  createChannelTx(tx: DbOrTx, data: CreateChannelInput): AgentChannelEntity {
+    const isActive = data.isActive ?? true
 
     const insertData: InsertChannelRow = {
       type: data.type,
       name: data.name,
       agentId: data.agentId,
       workspace: data.workspace,
-      config: normalizeChannelConfig(data.config),
-      isActive: data.isActive ?? true,
+      config: validateChannelConfig(data.type, data.config, isActive),
+      isActive,
       permissionMode: data.permissionMode
     }
+    assertPermissionModeSupported(tx, data.agentId, data.permissionMode)
 
-    const result = database.insert(channelsTable).values(insertData).returning().all()
-
-    if (!result[0]) {
+    this.validateStreamBot(tx, data.type, insertData.config, isActive)
+    const [row] = tx.insert(channelsTable).values(insertData).returning().all()
+    if (!row) {
       throw DataApiErrorFactory.invalidOperation('create channel', 'database insert returned no row')
     }
 
-    logger.info('Channel created', { channelId: result[0].id, type: data.type })
-    return this.rowToEntity(result[0])
+    logger.info('Channel created', { channelId: row.id, type: data.type })
+    return this.rowToEntity(row)
   }
 
   getChannel(id: string): AgentChannelEntity | null {
@@ -206,27 +238,56 @@ export class AgentChannelService {
     updates: Partial<
       Pick<ChannelRow, 'name' | 'agentId' | 'config' | 'isActive' | 'activeChatIds' | 'permissionMode'> & {
         workspace: AgentSessionWorkspaceSource
+        configPatch: Record<string, unknown>
       }
     >
   ): AgentChannelEntity | null {
-    const database = application.get('DbService').getDb()
-    const normalizedUpdates = {
-      ...updates,
-      ...(updates.config !== undefined ? { config: normalizeChannelConfig(updates.config) } : {})
-    }
-    const result = database
-      .update(channelsTable)
-      .set(normalizedUpdates)
-      .where(eq(channelsTable.id, id))
-      .returning()
-      .all()
+    const { configPatch, ...fields } = updates
+    const result = application.get('DbService').withWriteTx((tx) => {
+      const existing = tx.select().from(channelsTable).where(eq(channelsTable.id, id)).limit(1).all()[0]
+      if (!existing) return null
 
-    if (!result[0]) {
-      return null
-    }
+      const isActive = updates.isActive ?? existing.isActive
+      const config = validateChannelConfig(
+        existing.type,
+        configPatch !== undefined
+          ? { ...normalizeChannelConfig(existing.config), ...configPatch }
+          : updates.config !== undefined
+            ? updates.config
+            : existing.config,
+        isActive
+      )
+      this.validateStreamBot(tx, existing.type, config, isActive, id)
+      const agentId = updates.agentId !== undefined ? updates.agentId : existing.agentId
+      if (updates.permissionMode !== undefined) {
+        assertPermissionModeSupported(tx, agentId, updates.permissionMode)
+      } else if (agentId !== existing.agentId && !supportsPermissionMode(tx, agentId, existing.permissionMode)) {
+        // Rebinding adopts the new Agent; an override its runtime cannot run falls back to that Agent's own mode.
+        fields.permissionMode = null
+      }
+      const normalizedUpdates = {
+        ...fields,
+        ...(configPatch !== undefined || updates.config !== undefined || updates.isActive !== undefined
+          ? { config }
+          : {})
+      }
+      const updated = tx
+        .update(channelsTable)
+        .set(normalizedUpdates)
+        .where(eq(channelsTable.id, id))
+        .returning()
+        .all()[0]
+      if (updates.agentId !== undefined && updates.agentId !== existing.agentId) {
+        tx.delete(channelTaskSubscriptionsTable).where(eq(channelTaskSubscriptionsTable.channelId, id)).run()
+      }
+      return updated ?? null
+    })
+
+    if (!result) return null
 
     logger.info('Channel updated', { channelId: id })
-    return this.rowToEntity(result[0])
+    this.notifyReadModelChange(id, 'projection')
+    return this.rowToEntity(result)
   }
 
   deleteChannel(id: string): boolean {
@@ -234,8 +295,34 @@ export class AgentChannelService {
     const result = database.delete(channelsTable).where(eq(channelsTable.id, id)).returning().all()
     if (result.length > 0) {
       logger.info('Channel deleted', { channelId: id })
+      this.notifyReadModelChange(id, 'membership')
     }
     return result.length > 0
+  }
+
+  private validateStreamBot(tx: DbOrTx, type: AgentChannelType, config: unknown, active: boolean, id?: string): void {
+    if ((type !== 'wecom' && type !== 'dingtalk') || !active) return
+    const key = type === 'wecom' ? 'bot_id' : 'client_id'
+    const botId = (config as Record<string, string>)[key]
+    const conflict = tx
+      .select()
+      .from(channelsTable)
+      .where(and(eq(channelsTable.type, type), eq(channelsTable.isActive, true)))
+      .all()
+      .some((row) => row.id !== id && (row.config as Record<string, string>)[key]?.trim() === botId)
+    if (conflict)
+      throw DataApiErrorFactory.invalidOperation(
+        'activate channel',
+        type === 'wecom' ? t('common.wecom_duplicate_bot') : t('common.dingtalk_duplicate_bot')
+      )
+  }
+
+  notifyReadModelChange(id: string, kind: 'membership' | 'projection'): void {
+    notifyDataApiDataChange([
+      { endpoint: '/agent-workspaces', kind: 'membership' },
+      { endpoint: '/agent-channels', kind, entityIds: [id] },
+      { endpoint: '/agent-channels/:channelId', routeParams: { channelId: id }, entityIds: [id] }
+    ])
   }
 
   // ---- Task subscription methods ----
@@ -300,3 +387,27 @@ export class AgentChannelService {
 }
 
 export const agentChannelService = new AgentChannelService()
+
+/** Whether the channel's Agent runtime can run this permission override; no override, or no Agent, always can. */
+function supportsPermissionMode(
+  tx: DbOrTx,
+  agentId: string | null | undefined,
+  mode: string | null | undefined
+): boolean {
+  if (!mode || !agentId) return true
+  const agent = tx.select({ type: agentTable.type }).from(agentTable).where(eq(agentTable.id, agentId)).get()
+  return !agent || AGENT_RUNTIME_CAPABILITIES[agent.type].permissionModes.some((supported) => supported === mode)
+}
+
+function assertPermissionModeSupported(
+  tx: DbOrTx,
+  agentId: string | null | undefined,
+  mode: string | null | undefined
+): void {
+  if (!supportsPermissionMode(tx, agentId, mode)) {
+    throw DataApiErrorFactory.invalidOperation(
+      'save channel',
+      `permission mode ${mode} is not supported by the Agent runtime`
+    )
+  }
+}

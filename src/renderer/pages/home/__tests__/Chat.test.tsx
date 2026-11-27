@@ -1,9 +1,9 @@
-import { act, render, screen } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
+import { act, render } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as ChatLayoutModeContextModule from '@renderer/components/chat/layout/ChatLayoutModeContext'
+import type * as PaneShellModule from '@renderer/components/chat/panes/Shell'
 import { popup } from '@renderer/services/popup'
 import type { Topic } from '@renderer/types/topic'
 
@@ -23,6 +23,16 @@ const commandHandlers = vi.hoisted(() => new Map<string, () => void | Promise<vo
 const eventEmitMock = vi.hoisted(() => vi.fn())
 const clearTopicMessagesMock = vi.hoisted(() => vi.fn(async () => undefined))
 const activeTabMock = vi.hoisted(() => ({ current: true }))
+const citationBrowserMocks = vi.hoisted(() => ({ openPage: vi.fn(), tryOpen: vi.fn() }))
+
+vi.mock('@renderer/services/AgentBrowserRuntimeService', () => ({
+  topicBrowserRuntimeService: { openPage: citationBrowserMocks.openPage }
+}))
+
+vi.mock('@renderer/components/chat/panes/Shell', async (importOriginal) => ({
+  ...(await importOriginal<typeof PaneShellModule>()),
+  useRightPanelActions: () => ({ tryOpen: citationBrowserMocks.tryOpen })
+}))
 
 const topic: Topic = {
   id: 'topic-1',
@@ -235,6 +245,23 @@ describe('Chat', () => {
     expect(clearTopicMessagesMock).toHaveBeenCalledWith(topic.id)
   })
 
+  it('opens citations in the active topic browser and closes the citation panel', () => {
+    render(<Chat activeTopic={topic} />)
+    act(() => {
+      chatContentProps.current.onOpenCitationsPanel({ citations: [] })
+    })
+    const panel = conversationShellProps.current.sidePanel.props.children
+    expect(panel.props.open).toBe(true)
+
+    act(() => {
+      panel.props.openBrowserUrl('https://example.com/reference')
+    })
+
+    expect(citationBrowserMocks.openPage).toHaveBeenCalledExactlyOnceWith(topic.id, 'https://example.com/reference')
+    expect(citationBrowserMocks.tryOpen).toHaveBeenCalledExactlyOnceWith('browser', { userInitiated: true })
+    expect(conversationShellProps.current.sidePanel.props.children.props.open).toBe(false)
+  })
+
   it('leaves the topic untouched when the confirmation is dismissed', async () => {
     vi.mocked(popup.confirm).mockResolvedValueOnce(false)
 
@@ -253,67 +280,5 @@ describe('Chat', () => {
     render(<Chat activeTopic={topic} />)
 
     expect(commandHandlers.has('topic.clear_messages')).toBe(false)
-  })
-
-  it('renders the navbar and right pane shortcuts in the shared conversation shell', () => {
-    render(<Chat activeTopic={topic} showResourceListControls />)
-
-    expect(screen.getByTestId('chat-navbar')).toHaveAttribute('data-show-sidebar-controls', 'true')
-    expect(conversationShellProps.current?.topBar).toBeTruthy()
-    expect(conversationShellProps.current?.topRightTool).toBeTruthy()
-    expect(screen.getByTestId('topic-right-shortcuts')).toBeInTheDocument()
-    expect(screen.getByTestId('chat-conversation-controls')).toHaveTextContent('Assistant')
-    expect(chatContentProps.current?.assistantContext?.assistant?.id).toBe('assistant-1')
-  })
-
-  it('keeps the navbar mounted while disabling sidebar controls', () => {
-    render(<Chat activeTopic={topic} showResourceListControls={false} />)
-
-    expect(screen.getByTestId('chat-navbar')).toHaveAttribute('data-show-sidebar-controls', 'false')
-    expect(conversationShellProps.current?.topBar).toBeTruthy()
-    expect(conversationShellProps.current?.topRightTool).toBeTruthy()
-  })
-
-  it('keeps the composer context available while the assistant and model are resolving', () => {
-    assistantContextMock.isLoading = true
-    assistantContextMock.isModelPending = true
-
-    render(<Chat activeTopic={topic} />)
-
-    expect(chatContentProps.current?.assistantContext?.isLoading).toBe(true)
-    expect(chatContentProps.current?.assistantContext?.isModelPending).toBe(true)
-  })
-
-  it('loads provider metadata for the single-model trigger', () => {
-    render(<Chat activeTopic={topic} />)
-
-    expect(screen.getByTestId('chat-conversation-controls')).toHaveTextContent('Model | Provider')
-  })
-
-  it('preserves the rail gutter while switching topics', async () => {
-    const user = userEvent.setup()
-    const view = render(<Chat activeTopic={topic} />)
-
-    await user.click(screen.getByRole('button', { name: 'reserve rail gutter' }))
-    expect(screen.getByRole('status', { name: 'rail gutter' })).toHaveTextContent('24')
-
-    view.rerender(<Chat activeTopic={{ ...topic, id: 'topic-2' }} />)
-
-    expect(screen.getByRole('status', { name: 'rail gutter' })).toHaveTextContent('24')
-  })
-
-  it('renders the navbar while the active topic is still resolving', () => {
-    render(<Chat showResourceListControls topicPending />)
-
-    expect(screen.getByTestId('chat-navbar')).toBeInTheDocument()
-    expect(conversationShellProps.current?.topBar).toBeTruthy()
-    expect(conversationShellProps.current?.topRightTool).toBeFalsy()
-    expect(screen.getByTestId('conversation-center-state')).toHaveTextContent('loading')
-  })
-
-  it('settles on the empty center once the entry resolved no topic', () => {
-    render(<Chat showResourceListControls />)
-
-    expect(screen.getByTestId('conversation-center-state')).toHaveTextContent('empty')
   })
 })

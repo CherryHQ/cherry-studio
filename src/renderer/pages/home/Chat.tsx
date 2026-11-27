@@ -4,7 +4,12 @@ import { useTranslation } from 'react-i18next'
 
 import { usePreference } from '@data/hooks/usePreference'
 import { ChatLayoutModeProvider } from '@renderer/components/chat/layout/ChatLayoutModeContext'
-import { ResourcePaneCountButton, type ResourcePaneCountButtonProps } from '@renderer/components/chat/panes/Shell'
+import { useProfilePaneToggle } from '@renderer/components/chat/panes/profile'
+import {
+  ResourcePaneCountButton,
+  type ResourcePaneCountButtonProps,
+  useRightPanelActions
+} from '@renderer/components/chat/panes/Shell'
 import ConversationCenterState from '@renderer/components/chat/shell/ConversationCenterState'
 import ConversationShell from '@renderer/components/chat/shell/ConversationShell'
 import { useConversationTopBarPortalLayout } from '@renderer/components/chat/shell/ConversationTopBarPortal'
@@ -21,6 +26,7 @@ import { useIsActiveTab } from '@renderer/hooks/tab'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { useTopicMutations } from '@renderer/hooks/useTopic'
+import { topicBrowserRuntimeService } from '@renderer/services/AgentBrowserRuntimeService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
@@ -47,8 +53,17 @@ type ChatTopBarControlsProps = Omit<ChatConversationControlsProps, 'iconOnly' | 
 
 function ChatTopBarControls(props: ChatTopBarControlsProps) {
   const { iconOnly } = useConversationTopBarPortalLayout()
+  const profilePane = useProfilePaneToggle()
 
-  return <ChatConversationControls {...props} side="bottom" iconOnly={iconOnly} />
+  return (
+    <ChatConversationControls
+      {...props}
+      side="bottom"
+      iconOnly={iconOnly}
+      onAvatarClick={profilePane?.toggle}
+      avatarActive={profilePane?.active}
+    />
+  )
 }
 
 interface Props {
@@ -65,6 +80,7 @@ interface Props {
   sidebarOpen?: boolean
   onSidebarToggle?: () => void
   locateMessageId?: string
+  locateToEnd?: boolean
   onLocateMessageHandled?: () => void
   onPaneCollapse?: () => void
   onPaneAutoCollapseChange?: (collapsed: boolean) => void
@@ -87,6 +103,7 @@ const Chat: FC<Props> = (props) => {
   const [shouldMountCitationsPanel, setShouldMountCitationsPanel] = useState(false)
   const [branchLocateMessageId, setBranchLocateMessageId] = useState<string | undefined>()
   const setTopicBranchLiveState = useTopicBranchLiveStateSetter()
+  const rightPanelActions = useRightPanelActions()
 
   const mainRef = React.useRef<HTMLDivElement>(null)
   const activeTopic = props.activeTopic
@@ -104,6 +121,12 @@ const Chat: FC<Props> = (props) => {
     useState<ChatConversationControlsSnapshot | null>(null)
   const activeConversationControlsSnapshot =
     conversationControlsSnapshot?.scopeKey === activeTopicId ? conversationControlsSnapshot : null
+  const composerModels = activeConversationControlsSnapshot
+    ? activeConversationControlsSnapshot.lockedMentionedModels.length > 1
+      ? activeConversationControlsSnapshot.lockedMentionedModels
+      : activeConversationControlsSnapshot.mentionedModelSelectorValue
+    : EMPTY_MODELS
+  const composerModelId = composerModels.length === 1 ? composerModels[0].id : undefined
   // Provider metadata supplies the user-facing name for both the single-model trigger and
   // selected-model details. Model entities only carry the provider id.
   const shouldLoadProviders = Boolean(
@@ -115,6 +138,7 @@ const Chat: FC<Props> = (props) => {
           activeConversationControlsSnapshot.lockedMentionedModels.length > 0)))
   )
   const { providers } = useProviders(undefined, { enabled: shouldLoadProviders })
+  const locateToEnd = props.locateToEnd
   const locateMessageIdProp = props.locateMessageId
   const onLocateMessageHandledProp = props.onLocateMessageHandled
 
@@ -144,7 +168,7 @@ const Chat: FC<Props> = (props) => {
         title: t('chat.topics.edit.title'),
         message: '',
         defaultValue: topic.name || '',
-        extraNode: <div className="mt-2 text-muted-foreground">{t('chat.topics.edit.title_tip')}</div>
+        extraNode: <div className="text-muted-foreground mt-2">{t('chat.topics.edit.title_tip')}</div>
       })
       if (name && topic.name !== name) {
         await patchTopic(topic.id, { name, isNameManuallyEdited: true })
@@ -159,6 +183,7 @@ const Chat: FC<Props> = (props) => {
       const confirmed = await popup.confirm({
         title: t('chat.input.clear.title'),
         content: t('chat.input.clear.content'),
+        autoFocusConfirm: true,
         centered: true
       })
       if (!confirmed) return
@@ -172,6 +197,15 @@ const Chat: FC<Props> = (props) => {
   )
 
   const citationsPanelOpen = citationPanelCitations !== null
+  const openCitationInBrowser = useCallback(
+    (url: string) => {
+      if (!activeTopicId) return
+      topicBrowserRuntimeService.openPage(activeTopicId, url)
+      rightPanelActions.tryOpen('browser', { userInitiated: true })
+      setCitationPanelState(null)
+    },
+    [activeTopicId, rightPanelActions]
+  )
 
   const handleOpenCitationsPanel = useCallback(
     ({ citations }: { citations: Citation[] }) => {
@@ -200,13 +234,13 @@ const Chat: FC<Props> = (props) => {
     },
     [activeTopicId, setTopicBranchLiveState]
   )
-  const locateMessageId = locateMessageIdProp ?? branchLocateMessageId
+  const locateMessageId = locateToEnd ? undefined : (locateMessageIdProp ?? branchLocateMessageId)
   const handleLocateMessageHandled = useCallback(() => {
     setBranchLocateMessageId(undefined)
-    if (locateMessageIdProp) {
+    if (locateMessageIdProp || locateToEnd) {
       onLocateMessageHandledProp?.()
     }
-  }, [locateMessageIdProp, onLocateMessageHandledProp])
+  }, [locateMessageIdProp, locateToEnd, onLocateMessageHandledProp])
   const centerContent =
     centerSurface?.content ??
     (activeTopic ? (
@@ -217,11 +251,13 @@ const Chat: FC<Props> = (props) => {
         onNewTopic={props.onNewTopic}
         onCreateEmptyTopic={props.onCreateEmptyTopic}
         locateMessageId={locateMessageId}
+        locateToEnd={locateToEnd}
         onLocateMessageHandled={handleLocateMessageHandled}
         onBranchLiveStateChange={handleBranchLiveStateChange}
         assistantContext={assistantContext}
         providers={providers}
         onConversationControlsChange={setConversationControlsSnapshot}
+        composerModelId={composerModelId}
       />
     ) : (
       // Nothing left to resolve and still no topic: the library is genuinely empty, so settle on
@@ -253,6 +289,7 @@ const Chat: FC<Props> = (props) => {
                     (assistantContext.isLoading ? t('common.loading') : t('button.select_assistant'))
                   }
                   assistantEmoji={assistantContext.assistant?.emoji}
+                  assistantAvatarSrc={assistantContext.assistant?.avatarSrc}
                   model={assistantContext.model}
                   modelPending={
                     assistantContext.isLoading || assistantContext.isModelPending || !activeConversationControlsSnapshot
@@ -297,7 +334,11 @@ const Chat: FC<Props> = (props) => {
         showConversation ? (
           <>
             {props.resourcePaneCount && <ResourcePaneCountButton {...props.resourcePaneCount} />}
-            <TopicRightPane.Shortcuts />
+            <TopicRightPane.Shortcuts
+              browserEnabled={
+                !!assistantContext.assistant && assistantContext.assistant.settings.enableBrowser !== false
+              }
+            />
           </>
         ) : undefined
       }
@@ -306,6 +347,7 @@ const Chat: FC<Props> = (props) => {
         showConversation && shouldMountCitationsPanel ? (
           <React.Suspense fallback={null}>
             <CitationsPanel
+              openBrowserUrl={openCitationInBrowser}
               open={citationsPanelOpen}
               onClose={() => setCitationPanelState(null)}
               citations={citationPanelCitations ?? []}

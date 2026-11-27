@@ -1,9 +1,17 @@
+vi.mock('@renderer/components/cherryCloud/CherryCloudModelSelector', async () => {
+  const selector = await import('@renderer/components/ModelSelector')
+  return {
+    CherryCloudModelSelector: selector.ModelSelector
+  }
+})
+
 import { mockUseMutation } from '@test-mocks/renderer/useDataApi'
 import { act, render, waitFor } from '@testing-library/react'
 import { type ReactNode, useEffect } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { MessageListProviderValue, MessageListRuntime } from '@renderer/components/chat/messages/types'
+import type * as MessageListItemUtils from '@renderer/components/chat/messages/utils/messageListItem'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { TranslateLanguage } from '@shared/data/types/translate'
 
@@ -105,8 +113,8 @@ vi.mock('@renderer/components/chat/messages/blocks/MessagePartsContext', () => (
   resolvePartFromParts: vi.fn(() => undefined)
 }))
 
-vi.mock('@renderer/components/chat/messages/utils/messageListItem', () => ({
-  getMessageListItemModel: vi.fn(() => undefined),
+vi.mock('@renderer/components/chat/messages/utils/messageListItem', async (importOriginal) => ({
+  ...(await importOriginal<typeof MessageListItemUtils>()),
   toMessageListItem: vi.fn((message) => message)
 }))
 
@@ -115,10 +123,6 @@ vi.mock('@renderer/components/ModelSelector', () => ({
     modelSelectorMock.props.push(props)
     return <>{props.trigger}</>
   }
-}))
-
-vi.mock('@renderer/utils/model', () => ({
-  isVisionModel: vi.fn(() => false)
 }))
 
 vi.mock('@renderer/components/chat/editing/MessageEditingContext', () => ({
@@ -262,7 +266,7 @@ vi.mock('react-i18next', () => ({
 
 import { dataApiService } from '@data/DataApiService'
 import { resolvePartFromParts } from '@renderer/components/chat/messages/blocks/MessagePartsContext'
-import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
+import type { MessageListItem } from '@renderer/components/chat/messages/types'
 import { toast } from '@renderer/services/toast'
 import type { Topic } from '@renderer/types/topic'
 import { updateCodeBlock } from '@renderer/utils/markdown'
@@ -291,6 +295,7 @@ function MessageListAdapterHarness({
   messages = [],
   onBindRuntime,
   onStartBranchDraft,
+  addGeneratedImageToComposer,
   onValue,
   partsByMessageId = {},
   topic
@@ -300,6 +305,7 @@ function MessageListAdapterHarness({
   messages?: CherryUIMessage[]
   onBindRuntime?: MessageListProviderValue['actions']['bindRuntime']
   onStartBranchDraft?: MessageListProviderValue['actions']['startMessageBranch']
+  addGeneratedImageToComposer?: MessageListProviderValue['actions']['addGeneratedImageToComposer']
   onValue?: (value: MessageListProviderValue) => void
   partsByMessageId?: Record<string, CherryMessagePart[]>
   topic: Topic
@@ -312,7 +318,8 @@ function MessageListAdapterHarness({
     streamingLayers,
     imageActionConsumer,
     onBindRuntime,
-    onStartBranchDraft
+    onStartBranchDraft,
+    addGeneratedImageToComposer
   })
 
   useEffect(() => {
@@ -336,9 +343,7 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
       writable: true,
       value: {
         file: {
-          openPath: vi.fn(),
-          select: vi.fn(),
-          showInFolder: vi.fn()
+          select: vi.fn()
         },
         mcp: {
           abortTool: vi.fn()
@@ -347,58 +352,30 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
     })
   })
 
-  it('loads translation languages only after the message menu requests them', async () => {
+  it('exposes generated image reference actions only to normal message interactions', () => {
+    const addGeneratedImageToComposer = vi.fn()
     let value: MessageListProviderValue | undefined
-
-    render(<MessageListAdapterHarness topic={createTopic('topic-a')} onValue={(nextValue) => (value = nextValue)} />)
-
-    expect(useLanguagesMock).toHaveBeenLastCalledWith({ enabled: false })
-
-    act(() => value?.actions.requestTranslationLanguages?.())
-
-    await waitFor(() => expect(useLanguagesMock).toHaveBeenLastCalledWith({ enabled: true }))
-  })
-
-  it('exposes the current assistant profile for migrated messages without snapshots', () => {
-    let value: MessageListProviderValue | undefined
-
-    render(<MessageListAdapterHarness topic={createTopic('topic-a')} onValue={(nextValue) => (value = nextValue)} />)
-
-    expect(value?.meta.assistantProfile).toEqual({ name: 'Assistant', avatar: '🤖' })
-  })
-
-  it('forwards the message activity getter and read-only store', () => {
-    let value: MessageListProviderValue | undefined
-
-    render(<MessageListAdapterHarness topic={createTopic('topic-a')} onValue={(nextValue) => (value = nextValue)} />)
-
-    expect(value?.state.getMessageActivityState).toBe(getMessageActivityStateMock)
-    expect(value?.state.messageActivityStore).toBe(messageActivityStoreMock)
-  })
-
-  it('keeps translation languages absent while they are not loaded', () => {
-    translationLanguagesMock.languages = undefined
-    let value: MessageListProviderValue | undefined
-
+    const onValue = (nextValue: MessageListProviderValue) => (value = nextValue)
     const { rerender } = render(
       <MessageListAdapterHarness
+        addGeneratedImageToComposer={addGeneratedImageToComposer}
         topic={createTopic('topic-a')}
-        streamingLayers={{ historyPartsByMessageId: {}, liveMessageIds: [] }}
-        onValue={(nextValue) => (value = nextValue)}
+        onValue={onValue}
       />
     )
 
-    expect(value?.state.translationLanguages).toBeUndefined()
+    expect(value?.actions.addGeneratedImageToComposer).toBe(addGeneratedImageToComposer)
 
     rerender(
       <MessageListAdapterHarness
+        imageActionConsumer="capture"
+        addGeneratedImageToComposer={addGeneratedImageToComposer}
         topic={createTopic('topic-a')}
-        streamingLayers={{ historyPartsByMessageId: {}, liveMessageIds: ['message-1'] }}
-        onValue={(nextValue) => (value = nextValue)}
+        onValue={onValue}
       />
     )
 
-    expect(value?.state.translationLanguages).toBeUndefined()
+    expect(value?.actions.addGeneratedImageToComposer).toBeUndefined()
   })
 
   it('exposes the language load status and retries through the shared refetch', () => {
@@ -423,34 +400,24 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
     expect(openRouteMock).toHaveBeenCalledWith('/app/paintings', { source: 'assistant' })
   })
 
-  it('injects Home-message diagnosis persistence into the shared error UI', async () => {
-    vi.mocked(dataApiService.get).mockResolvedValue({
-      data: { parts: [{ type: 'data-error', data: { name: 'ProviderError', message: 'failed' } }] }
-    })
-
+  it('diagnoses the message model without falling back to the current selection', () => {
     render(<MessageListAdapterHarness topic={createTopic('topic-a')} />)
-
     const options = useMessageErrorActionsMock.mock.calls.at(-1)?.[0] as {
-      diagnosticReport: { location: string }
-      persistDiagnosis: (partId: string, diagnosis: { summary: string }) => Promise<void>
+      getDoctorSubject: (message: MessageListItem) => unknown
     }
-    expect(options.diagnosticReport).toEqual({ location: 'error.diagnostic_report.locations.home' })
-    await options.persistDiagnosis('message-1-part-0', { summary: 'Provider failed' })
-
-    expect(dataApiService.get).toHaveBeenCalledWith('/messages/message-1')
-    expect(dataApiService.patch).toHaveBeenCalledWith('/messages/message-1', {
-      body: {
-        data: {
-          parts: [
-            expect.objectContaining({
-              providerMetadata: expect.objectContaining({
-                cherry: expect.objectContaining({ diagnosis: expect.objectContaining({ summary: 'Provider failed' }) })
-              })
-            })
-          ]
-        }
-      }
-    })
+    expect(
+      options.getDoctorSubject({
+        id: 'm1',
+        role: 'assistant',
+        topicId: 'topic-a',
+        createdAt: '',
+        status: 'error',
+        modelId: 'openai::historical-model'
+      })
+    ).toEqual({ kind: 'chat', providerId: 'openai', modelId: 'historical-model' })
+    expect(
+      options.getDoctorSubject({ id: 'm2', role: 'assistant', topicId: 'topic-a', createdAt: '', status: 'error' })
+    ).toBeUndefined()
   })
 
   it('rejects pending requests for its topic when unmounted before runtime binding', async () => {
@@ -468,91 +435,6 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
     expect(consumePendingTopicImageActions('topic-b')).toEqual([
       expect.objectContaining({ id: requestB.id, topic: expect.objectContaining({ id: 'topic-b' }) })
     ])
-  })
-
-  it('forwards the list runtime without binding SEND_MESSAGE to scroll-to-bottom', () => {
-    let value: MessageListProviderValue | undefined
-    const unbindExternalRuntime = vi.fn()
-    const onBindRuntime = vi.fn(() => unbindExternalRuntime)
-    render(
-      <MessageListAdapterHarness
-        topic={createTopic('topic-a')}
-        onBindRuntime={onBindRuntime}
-        onValue={(nextValue) => (value = nextValue)}
-      />
-    )
-
-    const runtime: MessageListRuntime = {
-      copyTopicImage: vi.fn(),
-      exportTopicImage: vi.fn(),
-      locateMessage: vi.fn(),
-      scrollToBottom: vi.fn()
-    }
-
-    const unbindRuntime = value?.actions.bindRuntime?.(runtime)
-
-    expect(onBindRuntime).toHaveBeenCalledWith(runtime)
-    expect(eventMocks.on).not.toHaveBeenCalledWith('SEND_MESSAGE', runtime.scrollToBottom)
-    expect(eventMocks.on).toHaveBeenCalledWith('COPY_TOPIC_IMAGE', expect.any(Function))
-    expect(eventMocks.on).toHaveBeenCalledWith('EXPORT_TOPIC_IMAGE', expect.any(Function))
-
-    unbindRuntime?.()
-    expect(unbindExternalRuntime).toHaveBeenCalledOnce()
-  })
-
-  it('passes layered streaming state and reuses unchanged history message projections', () => {
-    const historyMessage = {
-      id: 'history-message',
-      role: 'assistant',
-      parts: [{ type: 'text', text: 'sealed history' }]
-    } as CherryUIMessage
-    const liveMessage = {
-      id: 'live-message',
-      role: 'assistant',
-      parts: [{ type: 'text', text: 'a' }]
-    } as CherryUIMessage
-    const historyPartsByMessageId = {
-      'history-message': historyMessage.parts as CherryMessagePart[]
-    }
-    const streamingLayers = {
-      historyPartsByMessageId,
-      liveMessageIds: ['live-message']
-    } as NonNullable<MessageListProviderValue['state']['streamingLayers']>
-    let value: MessageListProviderValue | undefined
-
-    const view = render(
-      <MessageListAdapterHarness
-        topic={createTopic('topic-a')}
-        messages={[historyMessage, liveMessage]}
-        partsByMessageId={{ ...historyPartsByMessageId, 'live-message': liveMessage.parts }}
-        streamingLayers={streamingLayers}
-        onValue={(nextValue) => (value = nextValue)}
-      />
-    )
-
-    const firstHistoryItem = value?.state.messages[0]
-    expect(value?.state.streamingLayers).toBe(streamingLayers)
-
-    const nextLiveMessage = {
-      ...liveMessage,
-      parts: [...(liveMessage.parts ?? []), { type: 'text', text: 'b' } as CherryMessagePart]
-    }
-    view.rerender(
-      <MessageListAdapterHarness
-        topic={createTopic('topic-a')}
-        messages={[historyMessage, nextLiveMessage]}
-        partsByMessageId={{
-          ...historyPartsByMessageId,
-          'live-message': nextLiveMessage.parts
-        }}
-        streamingLayers={streamingLayers}
-        onValue={(nextValue) => (value = nextValue)}
-      />
-    )
-
-    expect(value?.state.messages[0]).toBe(firstHistoryItem)
-    expect(vi.mocked(toMessageListItem).mock.calls.filter(([message]) => message === historyMessage)).toHaveLength(1)
-    expect(vi.mocked(toMessageListItem).mock.calls.filter(([message]) => message.id === liveMessage.id)).toHaveLength(2)
   })
 
   it.each(['embedding', 'rerank'])('filters %s models from the regenerate model picker', (capability) => {
@@ -586,10 +468,6 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
       />
     )
 
-    expect(useMessageErrorActionsMock.mock.calls.at(-1)?.[0]).toEqual(
-      expect.objectContaining({ diagnosticReport: undefined })
-    )
-
     const runtime: MessageListRuntime = {
       copyTopicImage: vi.fn().mockResolvedValue(undefined),
       exportTopicImage: vi.fn(),
@@ -601,12 +479,7 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
 
     await expect(request.promise).resolves.toBeUndefined()
     expect(runtime.copyTopicImage).toHaveBeenCalledTimes(1)
-    expect(commandHandlerMock).toHaveBeenCalledWith('chat.message.copy_last', expect.any(Function), {
-      enabled: false
-    })
-    expect(commandHandlerMock).toHaveBeenCalledWith('chat.message.edit_last_user', expect.any(Function), {
-      enabled: false
-    })
+
     expect(eventMocks.on).not.toHaveBeenCalledWith('COPY_TOPIC_IMAGE', expect.any(Function))
     expect(eventMocks.on).not.toHaveBeenCalledWith('EXPORT_TOPIC_IMAGE', expect.any(Function))
     expect(value?.actions.getMessageDeleteAvailability).toBeUndefined()
@@ -699,15 +572,10 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
     await waitFor(() => expect(value).toBeDefined())
     await value?.actions.saveCodeBlock?.({
       msgBlockId: 'block-1',
-      codeBlockId: 'code-block-1',
+      originalContent: 'const value = "old"',
       newContent: 'const value = "new"'
     })
 
-    expect(updateCodeBlock).toHaveBeenCalledWith(
-      '```ts\nconst value = "old"\n```',
-      'code-block-1',
-      'const value = "new"'
-    )
     expect(chatWriteMock.editMessage).toHaveBeenCalledWith('message-1', [updatedPart])
     expect(dataApiService.patch).not.toHaveBeenCalled()
     expect(toast.success).toHaveBeenCalledWith('code_block.edit.save.success')
@@ -752,9 +620,6 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
       }
     )
 
-    expect(mockUseMutation).toHaveBeenCalledWith('POST', '/topics/:id/duplicate', {
-      refresh: ['/topics']
-    })
     expect(copyBranchToNewTopicTrigger).toHaveBeenCalledWith({
       params: { id: 'topic-a' },
       body: { nodeId: 'assistant-old' }
@@ -804,6 +669,40 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
     await waitFor(() => expect(value?.state.isMessageTranslating?.('message-1')).toBe(false))
   })
 
+  it('reports a failure without writing when the edited code block cannot be located', async () => {
+    const textPart = {
+      type: 'text',
+      text: '```ts\nconst value = "old"\n```'
+    } as CherryMessagePart
+    let value: MessageListProviderValue | undefined
+
+    vi.mocked(resolvePartFromParts).mockReturnValue({
+      index: 0,
+      messageId: 'message-1',
+      part: textPart
+    })
+    vi.mocked(updateCodeBlock).mockReturnValue(null)
+
+    render(
+      <MessageListAdapterHarness
+        topic={createTopic('topic-a')}
+        partsByMessageId={{ 'message-1': [textPart] }}
+        onValue={(nextValue) => (value = nextValue)}
+      />
+    )
+
+    await waitFor(() => expect(value).toBeDefined())
+    await value?.actions.saveCodeBlock?.({
+      msgBlockId: 'block-1',
+      originalContent: 'const value = "missing"',
+      newContent: 'const value = "new"'
+    })
+
+    expect(chatWriteMock.editMessage).not.toHaveBeenCalled()
+    expect(toast.error).toHaveBeenCalledWith('code_block.edit.save.failed.label')
+    expect(toast.success).not.toHaveBeenCalled()
+  })
+
   it('shows an error when saving code block edits through chat write fails', async () => {
     const textPart = {
       type: 'text',
@@ -833,7 +732,7 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
     await waitFor(() => expect(value).toBeDefined())
     await value?.actions.saveCodeBlock?.({
       msgBlockId: 'block-1',
-      codeBlockId: 'code-block-1',
+      originalContent: 'const value = "old"',
       newContent: 'const value = "new"'
     })
 

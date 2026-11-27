@@ -1,4 +1,5 @@
 import attachmentTool from './definitions/attachmentTool'
+import dictationTool from './definitions/dictationTool'
 import generateImageTool from './definitions/generateImageTool'
 import knowledgeBaseTool from './definitions/knowledgeBaseTool'
 import mcpPromptTool from './definitions/mcpPromptTool'
@@ -19,6 +20,7 @@ import type { ComposerToolScope, ToolContext, ToolDefinition } from './types'
  */
 export const BUILTIN_COMPOSER_TOOLS: ToolDefinition<any, any>[] = [
   attachmentTool,
+  dictationTool,
   quickPhrasesTool,
   webSearchTool,
   knowledgeBaseTool,
@@ -32,9 +34,6 @@ export const BUILTIN_COMPOSER_TOOLS: ToolDefinition<any, any>[] = [
 ]
 
 export const getAllTools = (): ToolDefinition<any, any>[] => BUILTIN_COMPOSER_TOOLS
-
-export const getTool = (key: string): ToolDefinition<any, any> | undefined =>
-  BUILTIN_COMPOSER_TOOLS.find((tool) => tool.key === key)
 
 export const getToolsForScope = (
   scope: ComposerToolScope,

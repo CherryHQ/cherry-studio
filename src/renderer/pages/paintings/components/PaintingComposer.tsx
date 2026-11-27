@@ -1,10 +1,14 @@
-import { Settings2 } from 'lucide-react'
-import { type FC, useCallback, useMemo } from 'react'
+import { BookOpen, Settings2 } from 'lucide-react'
+import { type FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
+import { Button, Popover, PopoverContent, PopoverTrigger, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import ComposerSurface from '@renderer/components/composer/ComposerSurface'
+import { DIALOG_UNMOUNT_DELAY_MS } from '@cherrystudio/ui/utils'
+import ComposerSurface, {
+  type ComposerSurfaceActions,
+  type ComposerSurfaceProps
+} from '@renderer/components/composer/ComposerSurface'
 import {
   ComposerToolDerivedStateProvider,
   ComposerToolRuntimeHost,
@@ -18,14 +22,18 @@ import {
 import type { ComposerDraftToken } from '@renderer/components/composer/tokens'
 import { getComposerToolConfig } from '@renderer/components/composer/tools/registry'
 import {
+  COMPOSER_ICON_ONLY_LABEL_CLASS,
+  COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS,
   COMPOSER_SELECTOR_BUTTON_CLASS,
   ComposerToolbarControls
 } from '@renderer/components/composer/variants/shared/ComposerControlScaffolding'
+import { ComposerDictationButton } from '@renderer/components/composer/variants/shared/ComposerDictationButton'
 import { fileToComposerToken } from '@renderer/components/composer/variants/shared/composerTokens'
+import type { QuickPanelInputAdapter } from '@renderer/components/QuickPanel'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useModels } from '@renderer/hooks/useModel'
-import { FILE_TYPE } from '@renderer/types/file'
 import type { Model } from '@shared/data/types/model'
+import { FILE_TYPE } from '@shared/types/file'
 import { imageExts } from '@shared/utils/file'
 import { isEditImageModel } from '@shared/utils/model'
 
@@ -38,9 +46,11 @@ import { useImageGenerationSupport } from '../hooks/useImageGenerationSupport'
 import { type InputCapability, usePaintingComposerInputFiles } from '../hooks/usePaintingComposerInputFiles'
 import type { MaterializeInputs } from '../hooks/usePaintingGenerationSubmit'
 import type { PaintingData } from '../model/types/paintingData'
+import { supportsImageRequestTimeout } from '../utils/imageGenerationTimeout'
 import { tabToImageGenerationMode } from '../utils/paintingProviderMode'
 import { PaintingImageAddButton, PaintingImageGallery } from './PaintingImageGallery'
 import PaintingModelSelector from './PaintingModelSelector'
+import { PaintingPromptPresetsDialog } from './PaintingPromptPresetsDialog'
 import PaintingSettings from './PaintingSettings'
 
 const PAINTING_MANAGED_TOKEN_KINDS: readonly ComposerDraftToken['kind'][] = ['file']
@@ -128,6 +138,8 @@ function paramsSummary(
 
 export interface PaintingComposerProps {
   painting: PaintingData
+  disabled?: boolean
+  onFocusTargetChange?: ComposerSurfaceProps['onFocusTargetChange']
   /** Data-derived: a generation is running for this painting (possibly resumed). */
   generating: boolean
   /** Action-scoped: a send started here is in flight. Owned by usePaintingGenerationSubmit. */
@@ -152,14 +164,18 @@ const PaintingParamsButton: FC<{
   onGenerateRandomSeed?: (key: string) => void
 }> = ({ painting, onConfigChange, onGenerateRandomSeed }) => {
   const { t } = useTranslation()
+  const { files } = useComposerToolState()
+  const imageCount = files.filter((file) => file.type === FILE_TYPE.IMAGE).length
   const registrySupport = useImageGenerationSupport(painting.providerId, painting.model)
   const configItems = useMemo(
-    () => imageGenerationToFields(registrySupport, { mode: tabToImageGenerationMode(painting.mode) }),
-    [registrySupport, painting.mode]
+    () => imageGenerationToFields(registrySupport, { mode: tabToImageGenerationMode(painting.mode, imageCount) }),
+    [registrySupport, painting.mode, imageCount]
   )
   const summary = useMemo(() => paramsSummary(painting.params, configItems, t), [painting.params, configItems, t])
 
-  if (configItems.length === 0) return null
+  // A model without registry fields can still have the timeout control; hiding the entry
+  // point would make that setting unreachable.
+  if (configItems.length === 0 && !supportsImageRequestTimeout(painting.providerId)) return null
 
   return (
     <Popover>
@@ -182,6 +198,7 @@ const PaintingParamsButton: FC<{
         <div className="flex max-h-[60vh] flex-col gap-4 overflow-y-auto pr-1">
           <PaintingSettings
             painting={painting}
+            inputImageCount={imageCount}
             onConfigChange={onConfigChange}
             onGenerateRandomSeed={onGenerateRandomSeed}
           />
@@ -198,6 +215,8 @@ interface PaintingComposerInnerProps extends PaintingComposerProps {
 
 const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
   painting,
+  disabled,
+  onFocusTargetChange,
   generating,
   submitting,
   onPromptChange,
@@ -211,6 +230,25 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
 }) => {
   const { t } = useTranslation()
   const { files, isExpanded } = useComposerToolState()
+  const [presetsOpen, setPresetsOpen] = useState(false)
+  const presetInputAdapter = useRef<QuickPanelInputAdapter | undefined>(undefined)
+  const surfaceActions = useRef<ComposerSurfaceActions | null>(null)
+  const restorePresetFocus = useRef(false)
+  useEffect(() => {
+    if (presetsOpen || !restorePresetFocus.current) return
+    // Radix restores modal focus when the close animation finishes.
+    const timer = window.setTimeout(() => {
+      frame = window.requestAnimationFrame(() => {
+        surfaceActions.current?.focus()
+        restorePresetFocus.current = false
+      })
+    }, DIALOG_UNMOUNT_DELAY_MS)
+    let frame = 0
+    return () => {
+      window.clearTimeout(timer)
+      window.cancelAnimationFrame(frame)
+    }
+  }, [presetsOpen])
   const { setFiles, setIsExpanded } = useComposerToolDispatch()
   const { getLaunchers, dispatchLauncher } = useComposerToolLauncherActions()
   const toolLaunchersVersion = useComposerToolLauncherVersion()
@@ -274,8 +312,14 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
 
   return (
     <ComposerToolDerivedStateProvider couldAddImageFile={couldAddImageFile} extensions={PAINTING_IMAGE_EXTS}>
-      {model && <ComposerToolRuntimeHost scope={PAINTING_SCOPE} model={model} />}
+      <ComposerToolRuntimeHost scope={PAINTING_SCOPE} model={model} />
       <ComposerSurface
+        editable={!disabled}
+        onFocusTargetChange={onFocusTargetChange}
+        onActionsChange={(actions) => {
+          surfaceActions.current = actions
+        }}
+        voiceTarget={{ targetId: `composer:painting:${painting.id}`, sourceEntityId: painting.id }}
         text={text}
         onTextChange={handleTextChange}
         tokens={tokens}
@@ -304,11 +348,12 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
         getToolLaunchers={() => getLaunchers()}
         toolLaunchersVersion={toolLaunchersVersion}
         onToolLauncherSelect={(launcher, options) => dispatchLauncher(launcher, options)}
+        sendAccessory={(inputAdapter) => <ComposerDictationButton inputAdapter={inputAdapter} />}
         renderLeftControls={(inputAdapter, unifiedPanelControl) => (
           <ComposerToolbarControls
             inputAdapter={inputAdapter}
             unifiedPanelControl={unifiedPanelControl}
-            renderContextControls={() => (
+            renderContextControls={({ iconOnly }) => (
               <>
                 <PaintingModelSelector
                   hideTitle
@@ -321,10 +366,49 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
                   onConfigChange={onConfigChange}
                   onGenerateRandomSeed={onGenerateRandomSeed}
                 />
+                <Tooltip content={t('settings.prompts.title')}>
+                  <Button
+                    ref={(element) => {
+                      if (element) presetInputAdapter.current = inputAdapter
+                    }}
+                    data-ui="paintings.prompt-presets.action.open"
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className={cn(COMPOSER_SELECTOR_BUTTON_CLASS, iconOnly && COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS)}
+                    aria-label={t('settings.prompts.title')}
+                    aria-haspopup="dialog"
+                    aria-expanded={presetsOpen}
+                    onClick={() => {
+                      restorePresetFocus.current = false
+                      setPresetsOpen(true)
+                    }}>
+                    <BookOpen className="size-4" />
+                    <span
+                      data-ui="part:prompt-presets-label"
+                      className={cn(iconOnly && COMPOSER_ICON_ONLY_LABEL_CLASS)}>
+                      {t('settings.prompts.title')}
+                    </span>
+                  </Button>
+                </Tooltip>
               </>
             )}
           />
         )}
+      />
+      <PaintingPromptPresetsDialog
+        open={presetsOpen}
+        onOpenChange={setPresetsOpen}
+        onApply={(content) => {
+          restorePresetFocus.current = true
+          const adapter = presetInputAdapter.current
+          if (adapter) {
+            adapter.insertText(content)
+            adapter.focus()
+          } else {
+            onPromptChange(`${painting.prompt ?? ''}${content}`)
+          }
+        }}
       />
     </ComposerToolDerivedStateProvider>
   )

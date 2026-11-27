@@ -1,7 +1,6 @@
 import { APICallError } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { DEFAULT_DOCUMENT_COUNT } from '@main/utils/knowledge'
 import {
   DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
   DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
@@ -58,6 +57,7 @@ function createKnowledgeBase(overrides: Partial<KnowledgeBase> = {}): KnowledgeB
   const now = new Date().toISOString()
 
   return {
+    orderKey: 'a0',
     id: '11111111-1111-4111-8111-111111111111',
     name: 'Knowledge Base',
     groupId: null,
@@ -106,7 +106,7 @@ describe('knowledge rerank runtime', () => {
 
     await expect(
       rerankKnowledgeSearchResults(createKnowledgeBase({ rerankModelId: null }), 'hello', searchResults)
-    ).resolves.toBe(searchResults)
+    ).resolves.toEqual(searchResults)
     expect(mocks.aiRerankMock).not.toHaveBeenCalled()
   })
 
@@ -170,18 +170,6 @@ describe('knowledge rerank runtime', () => {
     const result = await rerankKnowledgeSearchResults(createKnowledgeBase(), 'hello', createSearchResults())
 
     expect(result.map((item) => item.chunkId)).toEqual(['chunk-2'])
-  })
-
-  it('uses the default document count as rerank topN when the base has no document count', async () => {
-    mocks.aiRerankMock.mockResolvedValueOnce({ ranking: [] })
-
-    await rerankKnowledgeSearchResults(
-      createKnowledgeBase({ documentCount: undefined }),
-      'hello',
-      createSearchResults()
-    )
-
-    expect(mocks.aiRerankMock).toHaveBeenCalledWith(expect.objectContaining({ topN: DEFAULT_DOCUMENT_COUNT }))
   })
 
   it('skips rerank when the rerank model id is invalid', async () => {

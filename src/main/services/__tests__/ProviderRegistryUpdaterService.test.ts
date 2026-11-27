@@ -1,20 +1,28 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   netFetchMock,
   getCatalogVersionMock,
-  getCountryMock,
+  getRegistryFallbacksMock,
   notifyDataChangeMock,
+  probeOverrideSnapshotMock,
   readActiveManifestMock,
   writeSnapshotMock
 } = vi.hoisted(() => ({
   netFetchMock: vi.fn(),
   getCatalogVersionMock: vi.fn(),
-  getCountryMock: vi.fn(),
+  getRegistryFallbacksMock: vi.fn(),
   notifyDataChangeMock: vi.fn(),
+  probeOverrideSnapshotMock: vi.fn(),
   readActiveManifestMock: vi.fn(),
   writeSnapshotMock: vi.fn()
 }))
+
+vi.mock('@main/services/AppUpdaterService', () => ({ RELEASE_HISTORY_URL: 'https://updates.example' }))
+vi.mock('@main/services/cherryCloud/CherryCloudService', () => ({
+  resolveCherryCloudApiOrigin: () => 'https://cloud.example'
+}))
+vi.mock('@main/services/diagnostics', () => ({ DIAGNOSTIC_UPLOAD_URL: 'https://diagnostics.example' }))
 
 vi.mock('@logger', () => ({
   loggerService: {
@@ -29,13 +37,25 @@ vi.mock('@main/core/lifecycle', () => ({
   Phase: { WhenReady: 'whenReady' }
 }))
 
-vi.mock('@main/services/RegionService', () => ({ regionService: { getCountry: getCountryMock } }))
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  const result = mockApplicationFactory()
+  const originalGet = result.application.get.getMockImplementation()!
+  result.application.get.mockImplementation((name: string) =>
+    name === 'ProxyService' ? { appliedProxyKey: 'direct||' } : originalGet(name)
+  )
+  return result
+})
 vi.mock('@main/utils/systemInfo', () => ({ generateUserAgent: () => 'test-ua' }))
 vi.mock('@main/data/services/ProviderRegistryService', () => ({
-  providerRegistryService: { getCatalogVersion: getCatalogVersionMock }
+  providerRegistryService: {
+    getCatalogVersion: getCatalogVersionMock,
+    getRegistryFallbacks: getRegistryFallbacksMock
+  }
 }))
 vi.mock('@main/data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataChangeMock }))
 vi.mock('@main/data/services/utils/registryDataPaths', () => ({
+  probeOverrideSnapshot: probeOverrideSnapshotMock,
   readActiveOverrideManifest: readActiveManifestMock
 }))
 vi.mock('@main/services/providerRegistrySnapshot', () => ({
@@ -59,9 +79,18 @@ vi.mock('electron', () => ({
   net: { fetch: netFetchMock }
 }))
 
-import { REGISTRY_SCHEMA_VERSION } from '@cherrystudio/provider-registry/node'
+import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 
-import { ProviderRegistryUpdaterService } from '../ProviderRegistryUpdaterService'
+import { REGISTRY_SCHEMA_VERSION } from '@cherrystudio/provider-registry/node'
+import type { providerRegistryService as RealProviderRegistryService } from '@main/data/services/ProviderRegistryService'
+
+import { builtinEndpoints } from '../network/endpoints'
+import {
+  ProviderRegistryUpdaterService,
+  REGISTRY_URL_GITCODE,
+  resolveRegistryBaseUrl
+} from '../ProviderRegistryUpdaterService'
+import { regionService } from '../RegionService'
 
 const response = (body: string, ok = true) => ({ ok, status: ok ? 200 : 404, text: async () => body })
 
@@ -74,6 +103,7 @@ function mockRemote(
     manifest?: string | null
     dataVersion?: string
     dataOk?: boolean
+    country?: string | null
   } = {}
 ) {
   const {
@@ -82,7 +112,8 @@ function mockRemote(
     revision = 2,
     manifest,
     dataVersion = 'v2',
-    dataOk = true
+    dataOk = true,
+    country = 'US'
   } = opts
   const files = { 'models.json': dataVersion, 'providers.json': dataVersion, 'provider-models.json': dataVersion }
   const manifestBody =
@@ -90,6 +121,10 @@ function mockRemote(
       ? JSON.stringify({ minAppVersion, sourceAppVersion, revision, schemaVersion: REGISTRY_SCHEMA_VERSION, files })
       : manifest
   netFetchMock.mockImplementation(async (url: string) => {
+    if (url.startsWith('https://api.ipinfo.io/')) {
+      if (country === null) throw new Error('Region lookup unavailable')
+      return { ok: true, json: async () => ({ country_code: country }) }
+    }
     if (url.endsWith('/manifest.json')) {
       return manifestBody === null ? response('', false) : response(manifestBody)
     }
@@ -103,12 +138,13 @@ describe('ProviderRegistryUpdaterService.check', () => {
   beforeEach(() => {
     netFetchMock.mockReset()
     getCatalogVersionMock.mockReset()
-    getCountryMock.mockReset()
+    getRegistryFallbacksMock.mockReset().mockReturnValue([])
+    MockMainCacheServiceUtils.resetMocks()
     notifyDataChangeMock.mockReset()
+    probeOverrideSnapshotMock.mockReset().mockReturnValue(null)
     readActiveManifestMock.mockReset()
     writeSnapshotMock.mockReset()
     getCatalogVersionMock.mockReturnValue('v1') // current on-disk catalog is at v1
-    getCountryMock.mockResolvedValue('US')
     readActiveManifestMock.mockReturnValue(null)
     service = new ProviderRegistryUpdaterService()
   })
@@ -263,8 +299,8 @@ describe('ProviderRegistryUpdaterService.check', () => {
     expect(netFetchMock).not.toHaveBeenCalledWith(expect.stringContaining('/models.json'), expect.anything())
   })
 
-  it('rejects a snapshot revision that is not newer than the active override', async () => {
-    readActiveManifestMock.mockReturnValue({ revision: 3 })
+  it.each([3, 4])('rejects revision 3 when the healthy override is at revision %i', async (revision) => {
+    readActiveManifestMock.mockReturnValue({ revision })
     mockRemote({ revision: 3, dataVersion: 'v2' })
 
     await service.check()
@@ -273,13 +309,38 @@ describe('ProviderRegistryUpdaterService.check', () => {
     expect(netFetchMock).not.toHaveBeenCalledWith(expect.stringContaining('/models.json'), expect.anything())
   })
 
-  it('uses the GitCode mirror inside China', async () => {
-    getCountryMock.mockResolvedValue('CN')
-    mockRemote({ dataVersion: 'v2' })
+  it('re-downloads the current revision when the service has fallen back from an unreadable override', async () => {
+    readActiveManifestMock.mockReturnValue({ revision: 3 })
+    getCatalogVersionMock.mockReturnValue('v2')
+    getRegistryFallbacksMock.mockReturnValue([{ namespace: 'override' }])
+    mockRemote({ revision: 3, dataVersion: 'v2' })
+
+    await service.check()
+
+    expect(writeSnapshotMock).toHaveBeenCalledWith(
+      { 'models.json': '{"version":"v2"}', 'provider-models.json': '{"version":"v2"}' },
+      expect.any(String)
+    )
+  })
+
+  it.each(['US', 'CN', null])('diagnoses the updater mirror with a cold country cache (%s)', async (country) => {
+    mockRemote({ country })
+    const endpoints = await builtinEndpoints()
+    const url = endpoints.find((endpoint) => endpoint.id === 'registry')!.url
+    await service.check()
+    expect(netFetchMock).toHaveBeenCalledWith(url, expect.anything())
+    expect(url).toContain(country === 'US' ? 'raw.githubusercontent.com' : 'raw.gitcode.com')
+  })
+
+  it('uses the GitCode fallback when country detection fails without caching a guessed country', async () => {
+    mockRemote({ country: null })
 
     await service.check()
 
     expect(netFetchMock).toHaveBeenCalledWith(expect.stringContaining('raw.gitcode.com'), expect.anything())
+    expect(regionService.getCachedCountry()).toBeNull()
+    await expect(resolveRegistryBaseUrl()).resolves.toBe(REGISTRY_URL_GITCODE)
+    expect(writeSnapshotMock).toHaveBeenCalledTimes(1)
   })
 
   it('fetches from the schema-version dir so old apps only receive compatible data', async () => {
@@ -292,4 +353,140 @@ describe('ProviderRegistryUpdaterService.check', () => {
       expect.anything()
     )
   })
+})
+
+describe('ProviderRegistryUpdaterService.check (real filesystem)', () => {
+  let fixtureRoot: string
+  let bundledRoot: string
+  let overrideRoot: string
+  let realRegistryService: typeof RealProviderRegistryService
+
+  afterEach(async () => {
+    realRegistryService?.clearCache()
+    vi.restoreAllMocks()
+    if (fixtureRoot) {
+      const { rmSync } = await import('node:fs')
+      rmSync(fixtureRoot, { recursive: true, force: true })
+    }
+  })
+
+  it.each(['missing', 'corrupt'] as const)(
+    'repairs a rejected override snapshot (%s) even with bundled fallbacks and matching catalog versions, then becomes a no-op',
+    async (mode) => {
+      const { mkdirSync, mkdtempSync, statSync, utimesSync, writeFileSync } = await import('node:fs')
+      const os = await import('node:os')
+      const path = await import('node:path')
+
+      vi.resetModules()
+      vi.doUnmock('@main/data/services/ProviderRegistryService')
+      vi.doUnmock('@main/data/services/utils/registryDataPaths')
+      vi.doUnmock('@main/services/providerRegistrySnapshot')
+      vi.doUnmock('@cherrystudio/provider-registry/node')
+
+      const { application: realApp } = await import('@application')
+      const { bundledCatalog } = await import('@cherrystudio/provider-registry/data')
+      const {
+        readModelRegistry,
+        readProviderModelRegistry,
+        REGISTRY_SCHEMA_VERSION: schemaVersion
+      } = await import('@cherrystudio/provider-registry/node')
+      const { providerRegistryService } = await import('@main/data/services/ProviderRegistryService')
+      const { probeOverrideSnapshot, readActiveOverrideManifest } =
+        await import('@main/data/services/utils/registryDataPaths')
+      const { ProviderRegistryUpdaterService: RealUpdaterService } = await import('../ProviderRegistryUpdaterService')
+      realRegistryService = providerRegistryService
+
+      fixtureRoot = mkdtempSync(path.join(os.tmpdir(), 'updater-real-fs-'))
+      bundledRoot = path.join(fixtureRoot, 'bundled')
+      overrideRoot = path.join(fixtureRoot, 'override')
+      mkdirSync(bundledRoot, { recursive: true })
+      mkdirSync(overrideRoot, { recursive: true })
+
+      vi.spyOn(realApp, 'getPath').mockImplementation((key: string, filename = '') =>
+        path.join(key === 'feature.provider_registry.override' ? overrideRoot : bundledRoot, filename)
+      )
+
+      const versions = {
+        'models.json': bundledCatalog.models.version,
+        'provider-models.json': bundledCatalog.providerModels.version
+      }
+      const manifestPayload = {
+        minAppVersion: '1.0.0',
+        sourceAppVersion: '2.0.0',
+        revision: 2,
+        schemaVersion,
+        files: versions
+      }
+
+      // Seed an on-disk override that has a complete manifest + models.json but
+      // missing or corrupt provider-models.json while bundled files are unreadable.
+      writeFileSync(path.join(overrideRoot, 'manifest.json'), JSON.stringify(manifestPayload))
+      writeFileSync(
+        path.join(overrideRoot, 'models.json'),
+        JSON.stringify({ version: versions['models.json'], models: [] })
+      )
+      if (mode === 'corrupt') {
+        writeFileSync(path.join(overrideRoot, 'provider-models.json'), '{')
+      }
+
+      expect(realRegistryService.getCatalogVersion('models.json')).toBe(versions['models.json'])
+      expect(realRegistryService.getCatalogVersion('provider-models.json')).toBe(versions['provider-models.json'])
+      const initialFallbacks = realRegistryService.getRegistryFallbacks()
+      expect(initialFallbacks.length).toBeGreaterThan(0)
+      expect(initialFallbacks.every(({ namespace }) => namespace === 'bundled')).toBe(true)
+      expect(readActiveOverrideManifest()).toBeNull()
+
+      netFetchMock.mockImplementation(async (url: string) => {
+        if (url.startsWith('https://api.ipinfo.io/')) {
+          return { ok: true, json: async () => ({ country_code: 'US' }) }
+        }
+        if (url.endsWith('/manifest.json')) {
+          return response(
+            JSON.stringify({
+              ...manifestPayload,
+              files: { ...versions, 'providers.json': bundledCatalog.providers.version }
+            })
+          )
+        }
+        if (url.endsWith('/models.json')) {
+          return response(JSON.stringify({ version: versions['models.json'], models: [] }))
+        }
+        if (url.endsWith('/provider-models.json')) {
+          return response(JSON.stringify({ version: versions['provider-models.json'], overrides: [] }))
+        }
+        return response('', false)
+      })
+
+      const updater = new RealUpdaterService()
+      await updater.check()
+
+      expect(probeOverrideSnapshot()).toBeNull()
+      expect(readActiveOverrideManifest()?.revision).toBe(2)
+      expect(readModelRegistry(path.join(overrideRoot, 'models.json')).version).toBe(versions['models.json'])
+      expect(readProviderModelRegistry(path.join(overrideRoot, 'provider-models.json')).version).toBe(
+        versions['provider-models.json']
+      )
+      expect(realRegistryService.getCatalogVersion('models.json')).toBe(versions['models.json'])
+      expect(realRegistryService.getCatalogVersion('provider-models.json')).toBe(versions['provider-models.json'])
+      expect(realRegistryService.getRegistryFallbacks()).toEqual([])
+
+      // Pin mtimes in the past and record inodes so a second check proves no disk rewrite happens.
+      const sentinelTime = new Date(1_700_000_000_000)
+      const snapshotFiles = ['manifest.json', 'models.json', 'provider-models.json'].map((name) =>
+        path.join(overrideRoot, name)
+      )
+      const initialInodes = snapshotFiles.map((filePath) => {
+        utimesSync(filePath, sentinelTime, sentinelTime)
+        return statSync(filePath).ino
+      })
+
+      await updater.check()
+
+      snapshotFiles.forEach((filePath, index) => {
+        const stats = statSync(filePath)
+        expect(stats.mtimeMs).toBe(sentinelTime.getTime())
+        expect(stats.ino).toBe(initialInodes[index])
+      })
+    }
+  )
 })

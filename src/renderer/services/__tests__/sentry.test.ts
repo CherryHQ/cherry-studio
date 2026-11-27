@@ -1,0 +1,158 @@
+import type * as SentryRenderer from '@sentry/electron/renderer'
+import { BrowserClient, defaultStackParser } from '@sentry/electron/renderer'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { initMock, captureExceptionMock, captureEventMock } = vi.hoisted(() => ({
+  initMock: vi.fn(),
+  captureExceptionMock: vi.fn(),
+  captureEventMock: vi.fn()
+}))
+
+vi.mock('@sentry/electron/renderer', async (importOriginal) => ({
+  ...(await importOriginal<typeof SentryRenderer>()),
+  init: initMock,
+  captureException: captureExceptionMock,
+  captureEvent: captureEventMock,
+  scopeToMainIntegration: () => ({ name: 'ScopeToMain' })
+}))
+vi.unmock('@logger')
+
+import { IpcError } from '@shared/ipc/errors/IpcError'
+
+import { loggerService } from '../LoggerService'
+import { initSentry } from '../sentry'
+
+beforeEach(() => {
+  vi.clearAllMocks()
+  captureEventMock.mockReset()
+  vi.stubEnv('DEV', false)
+  document.head.innerHTML = '<meta name="logger-window-source" content="QuickAssistant" />'
+})
+
+afterEach(() => {
+  vi.unstubAllEnvs()
+})
+
+describe('renderer Sentry initialization', () => {
+  it('forwards repeated and distinct failures through the SDK for main-process policy', async () => {
+    initSentry()
+    const events: SentryRenderer.ErrorEvent[] = []
+    const client = new BrowserClient({
+      ...initMock.mock.calls[0][0],
+      dsn: 'https://public@example.invalid/1',
+      stackParser: defaultStackParser,
+      transport: () => ({
+        send: async (envelope) => {
+          for (const [header, event] of envelope[1]) {
+            if (header.type === 'event') events.push(event as SentryRenderer.ErrorEvent)
+          }
+          return { statusCode: 200 }
+        },
+        flush: async () => true
+      })
+    })
+    client.init()
+    captureEventMock.mockImplementation((event) => client.captureEvent(event))
+    try {
+      for (const reason of ['render_failed', 'render_failed', 'out_of_memory', 'render_failed']) {
+        loggerService.withContext('ErrorBoundary').error('Render failed', {
+          operation: 'react.render',
+          failure: { source: 'application', kind: 'defect', reason, outcome: 'failed' }
+        })
+        await client.flush(2000)
+      }
+      expect(events.map((event) => event.tags?.['failure.reason'])).toEqual([
+        'render_failed',
+        'render_failed',
+        'out_of_memory',
+        'render_failed'
+      ])
+    } finally {
+      await client.close(2000)
+    }
+  })
+
+  it('keeps unclassified handled renderer errors in local diagnostics', () => {
+    initSentry()
+    loggerService.withContext('Caller').error('Failed', new Error('Private details'), { operation: 'react.render' })
+    expect(captureExceptionMock.mock.calls).toHaveLength(0)
+  })
+
+  it('keeps remote-owned failures local even when caught by a global exception handler', () => {
+    initSentry()
+    const error = IpcError.fromJSON({ code: 'INTERNAL', message: 'Main failure', reportingHandled: true })
+    loggerService.withContext('Caller').error('IPC failed', error, {
+      failure: { source: 'application', kind: 'defect', reason: 'execution_failed', outcome: 'failed' }
+    })
+    expect(captureExceptionMock).not.toHaveBeenCalled()
+    expect(initMock.mock.calls[0][0].beforeSend({}, { originalException: error })).toBeNull()
+    expect(
+      initMock.mock.calls[0][0].beforeSend(
+        {},
+        {
+          originalException: Object.assign(new Error('cancelled'), { code: 'ERR_CANCELED' })
+        }
+      )
+    ).toBeNull()
+  })
+
+  it('opts into error capture and IPC bridging without enabling ambient data collection', () => {
+    initSentry()
+
+    const options = initMock.mock.calls[0][0]
+    expect(options.defaultIntegrations).toBe(false)
+    expect(options.integrations.map((integration: { name: string }) => integration.name).sort()).toEqual(
+      ['EventFilters', 'FunctionToString', 'BrowserApiErrors', 'GlobalHandlers', 'LinkedErrors', 'ScopeToMain'].sort()
+    )
+  })
+
+  it('does not install renderer capture in development', () => {
+    vi.stubEnv('DEV', true)
+
+    initSentry()
+
+    expect(initMock).not.toHaveBeenCalled()
+  })
+
+  it('sanitizes events and attaches the running build and window context', () => {
+    initSentry()
+
+    const options = initMock.mock.calls[0][0]
+    // No DSN here on purpose: events ride IPC to the main process, where the
+    // consent gate lives. A DSN would let the renderer report around it.
+    expect(options.dsn).toBeUndefined()
+
+    const event = options.beforeSend({
+      extra: { apiKey: 'real-api-key' }
+    })
+
+    expect(JSON.stringify(event)).not.toContain('real-api-key')
+    expect(event.tags).toMatchObject({ window: 'QuickAssistant', 'app.edition': 'global', 'event.process': 'renderer' })
+    expect(options.release).toBe(`CherryStudio@${event.tags['app.version']}`)
+  })
+
+  it('captures handled render errors in their originating process with safe context', () => {
+    initSentry()
+    const cause = new Error('Storage unavailable')
+    const error = new AggregateError([cause], 'Render failed', { cause })
+    loggerService
+      .withContext('ErrorBoundary', { prompt: 'private conversation' })
+      .error('Caught a render error', error, {
+        operation: 'react.render',
+        failure: { source: 'application', kind: 'defect', reason: 'render_failed', outcome: 'failed' },
+        componentStack: 'at MessageList',
+        apiKey: 'private-key'
+      })
+    const [reported, context] = captureExceptionMock.mock.calls[0]
+    expect(reported).toBe(error)
+    expect(reported.cause).toBe(cause)
+    expect(reported.errors).toEqual([cause])
+    expect(context.tags).toMatchObject({
+      module: 'ErrorBoundary',
+      operation: 'react.render',
+      'event.process': 'renderer'
+    })
+    expect(context.extra).toEqual({ componentStack: 'at MessageList' })
+    expect(JSON.stringify(context)).not.toContain('private')
+  })
+})

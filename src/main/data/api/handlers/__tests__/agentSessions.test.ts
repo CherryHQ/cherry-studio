@@ -1,30 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  listByCursorMock,
-  createSessionMock,
-  getByIdMock,
-  getLatestActiveMock,
-  updateMock,
-  setWorkspaceMock,
-  reorderMock,
-  reorderBatchMock
-} = vi.hoisted(() => ({
-  listByCursorMock: vi.fn(),
-  createSessionMock: vi.fn(),
-  getByIdMock: vi.fn(),
-  getLatestActiveMock: vi.fn(),
-  updateMock: vi.fn(),
-  setWorkspaceMock: vi.fn(),
-  reorderMock: vi.fn(),
-  reorderBatchMock: vi.fn()
-}))
+const { getConversationByIdMock, getLatestActiveMock, updateMock, setWorkspaceMock, reorderMock, reorderBatchMock } =
+  vi.hoisted(() => ({
+    getConversationByIdMock: vi.fn(),
+    getLatestActiveMock: vi.fn(),
+    updateMock: vi.fn(),
+    setWorkspaceMock: vi.fn(),
+    reorderMock: vi.fn(),
+    reorderBatchMock: vi.fn()
+  }))
 
 vi.mock('@data/services/AgentSessionService', () => ({
   agentSessionService: {
-    listByCursor: listByCursorMock,
-    create: createSessionMock,
-    getById: getByIdMock,
+    getConversationById: getConversationByIdMock,
     getLatestActive: getLatestActiveMock,
     update: updateMock,
     setWorkspace: setWorkspaceMock,
@@ -38,26 +26,8 @@ import { agentSessionHandlers } from '../agentSessions'
 describe('agentSessionHandlers', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-  })
-
-  describe('/agent-sessions', () => {
-    it('forwards query to agentSessionService.listByCursor', async () => {
-      const response = { items: [], nextCursor: undefined }
-      listByCursorMock.mockResolvedValueOnce(response)
-
-      const result = await agentSessionHandlers['/agent-sessions'].GET({
-        query: {
-          agentId: 'agent-1',
-          limit: '10'
-        }
-      } as never)
-
-      expect(listByCursorMock).toHaveBeenCalledWith({
-        agentId: 'agent-1',
-        limit: 10
-      })
-      expect(result).toBe(response)
-    })
+    // `getConversationById` is synchronous; scope violations throw inline.
+    getConversationByIdMock.mockReturnValue({ id: 'session-1' })
   })
 
   describe('/agent-sessions/latest', () => {
@@ -79,60 +49,50 @@ describe('agentSessionHandlers', () => {
       getLatestActiveMock.mockReturnValueOnce(session)
 
       await expect(
-        agentSessionHandlers['/agent-sessions/latest'].GET({ query: { agentId: 'agent-1' } } as never)
+        agentSessionHandlers['/agent-sessions/latest'].GET({ query: { agentId: 'agent-1' } })
       ).resolves.toEqual({ session })
 
       expect(getLatestActiveMock).toHaveBeenCalledWith({ agentId: 'agent-1' })
     })
 
     it('rejects an empty agentId', async () => {
-      await expect(
-        agentSessionHandlers['/agent-sessions/latest'].GET({ query: { agentId: '' } } as never)
-      ).rejects.toThrow()
+      await expect(agentSessionHandlers['/agent-sessions/latest'].GET({ query: { agentId: '' } })).rejects.toThrow()
 
       expect(getLatestActiveMock).not.toHaveBeenCalled()
     })
   })
 
   describe('/agent-sessions/:sessionId', () => {
-    it('forwards manual-name marker updates to AgentSessionService', async () => {
-      const response = { id: 'session-1', name: 'Renamed session', isNameManuallyEdited: true }
-      updateMock.mockResolvedValueOnce(response)
-
-      const result = await agentSessionHandlers['/agent-sessions/:sessionId'].PATCH({
-        params: { sessionId: 'session-1' },
-        body: {
-          name: 'Renamed session',
-          isNameManuallyEdited: true
-        }
+    it('rejects a mutation for a session outside the conversation scope before touching it', async () => {
+      getConversationByIdMock.mockImplementationOnce(() => {
+        throw new Error('not found')
       })
 
-      expect(updateMock).toHaveBeenCalledWith('session-1', {
-        name: 'Renamed session',
-        isNameManuallyEdited: true
-      })
-      expect(result).toBe(response)
+      await expect(
+        agentSessionHandlers['/agent-sessions/:sessionId'].PATCH({
+          params: { sessionId: 'session-bg' },
+          body: { name: 'Renamed' }
+        })
+      ).rejects.toThrow('not found')
+
+      expect(updateMock).not.toHaveBeenCalled()
     })
   })
 
   describe('/agent-sessions/:sessionId/workspace', () => {
-    it('forwards parsed workspace body to AgentSessionService', async () => {
-      const response = { id: 'session-1', workspaceId: 'workspace-1' }
-      setWorkspaceMock.mockResolvedValueOnce(response)
-
-      const result = await agentSessionHandlers['/agent-sessions/:sessionId/workspace'].PUT({
-        params: { sessionId: 'session-1' },
-        body: {
-          type: 'user',
-          workspaceId: 'workspace-1'
-        }
-      } as never)
-
-      expect(setWorkspaceMock).toHaveBeenCalledWith('session-1', {
-        type: 'user',
-        workspaceId: 'workspace-1'
+    it('rejects an out-of-scope session before validating the body', async () => {
+      getConversationByIdMock.mockImplementationOnce(() => {
+        throw new Error('not found')
       })
-      expect(result).toBe(response)
+
+      await expect(
+        agentSessionHandlers['/agent-sessions/:sessionId/workspace'].PUT({
+          params: { sessionId: 'session-bg' },
+          body: { type: 'nonsense' }
+        } as never)
+      ).rejects.toThrow('not found')
+
+      expect(setWorkspaceMock).not.toHaveBeenCalled()
     })
 
     it('rejects invalid workspace body before calling the service', async () => {
@@ -146,6 +106,44 @@ describe('agentSessionHandlers', () => {
       ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' })
 
       expect(setWorkspaceMock).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('/agent-sessions/:id/order', () => {
+    it('rejects an out-of-scope session before reordering', async () => {
+      getConversationByIdMock.mockImplementationOnce(() => {
+        throw new Error('not found')
+      })
+
+      await expect(
+        agentSessionHandlers['/agent-sessions/:id/order'].PATCH({
+          params: { id: 'session-bg' },
+          body: { after: 'session-2' }
+        })
+      ).rejects.toThrow('not found')
+
+      expect(reorderMock).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('/agent-sessions/order:batch', () => {
+    it('rejects when any moved session is out of scope and reorders nothing', async () => {
+      getConversationByIdMock.mockImplementationOnce(() => {
+        throw new Error('not found')
+      })
+
+      await expect(
+        agentSessionHandlers['/agent-sessions/order:batch'].PATCH({
+          body: {
+            moves: [
+              { id: 'session-1', anchor: { after: 'session-2' } },
+              { id: 'session-bg', anchor: { after: 'session-2' } }
+            ]
+          }
+        })
+      ).rejects.toThrow('not found')
+
+      expect(reorderBatchMock).not.toHaveBeenCalled()
     })
   })
 })

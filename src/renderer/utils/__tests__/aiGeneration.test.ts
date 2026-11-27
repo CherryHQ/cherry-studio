@@ -1,11 +1,16 @@
+import { mockPreferenceService } from '@test-mocks/renderer/PreferenceService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { preferenceService } from '@data/PreferenceService'
+import i18n from '@renderer/i18n/resolver'
 
 import { fetchGenerate, fetchMessagesSummary, fetchNoteSummary } from '../aiGeneration'
 
 // Stand-in Model — only `.id` reaches the request; nothing else is inspected.
 const TEST_MODEL = { id: 'quick-model', provider: 'test-provider' }
 
-const { generateTextMock, ipcRequestMock } = vi.hoisted(() => ({
+const { generateTextMock, ipcRequestMock, ipcEvents } = vi.hoisted(() => ({
+  ipcEvents: new Map<string, Set<(payload: any) => void>>(),
   generateTextMock:
     vi.fn<
       (args: {
@@ -14,13 +19,23 @@ const { generateTextMock, ipcRequestMock } = vi.hoisted(() => ({
         reasoningEffort?: string
         system?: string
         prompt?: string
+        streamDeltas?: boolean
       }) => Promise<{ text: string }>
     >(),
   ipcRequestMock: vi.fn()
 }))
 vi.mock('@renderer/ipc', () => ({
-  ipcApi: { request: (route: string, input: any) => ipcRequestMock(route, input) }
+  ipcApi: {
+    request: (route: string, input: any) => ipcRequestMock(route, input),
+    on: (event: string, callback: (payload: any) => void) => {
+      const listeners = ipcEvents.get(event) ?? new Set()
+      listeners.add(callback)
+      ipcEvents.set(event, listeners)
+      return () => listeners.delete(callback)
+    }
+  }
 }))
+const emit = (event: string, payload: unknown) => ipcEvents.get(event)?.forEach((callback) => callback(payload))
 
 const { readQuickModelMock, readDefaultModelMock } = vi.hoisted(() => ({
   readQuickModelMock: vi.fn(),
@@ -31,11 +46,9 @@ vi.mock('@renderer/utils/model', () => ({
   readDefaultModel: () => readDefaultModelMock()
 }))
 
-vi.mock('@renderer/i18n/resolver', () => ({
-  default: { t: (key: string) => key }
-}))
-
-beforeEach(() => {
+beforeEach(async () => {
+  mockPreferenceService._resetMockState()
+  await i18n.changeLanguage('en-US')
   vi.clearAllMocks()
   generateTextMock.mockResolvedValue({ text: 'A title' })
   ipcRequestMock.mockImplementation((route: string, input: any) => {
@@ -48,28 +61,8 @@ beforeEach(() => {
 })
 
 describe('aiGeneration reasoning opt-out', () => {
-  it('fetchMessagesSummary disables reasoning on the naming request', async () => {
-    await fetchMessagesSummary({ messages: [{ role: 'user', parts: [] } as never] })
-
-    expect(generateTextMock).toHaveBeenCalledWith(
-      expect.objectContaining({ uniqueModelId: TEST_MODEL.id, reasoningEffort: 'none' })
-    )
-  })
-
   it('fetchNoteSummary disables reasoning on the naming request', async () => {
     expect(await fetchNoteSummary({ content: 'note body' })).toBe('A title')
-
-    expect(generateTextMock).toHaveBeenCalledWith(
-      expect.objectContaining({ uniqueModelId: TEST_MODEL.id, reasoningEffort: 'none' })
-    )
-  })
-
-  it('fetchGenerate disables reasoning on the generation request', async () => {
-    await fetchGenerate({ prompt: 'system prompt', content: 'user content' })
-
-    expect(generateTextMock).toHaveBeenCalledWith(
-      expect.objectContaining({ uniqueModelId: TEST_MODEL.id, reasoningEffort: 'none' })
-    )
   })
 })
 
@@ -124,5 +117,72 @@ describe('fetchGenerate cancellation', () => {
 
     expect(generateTextMock.mock.calls[0][0]).not.toHaveProperty('requestId')
     expect(ipcRequestMock).not.toHaveBeenCalledWith('ai.text.abort', expect.anything())
+  })
+})
+
+describe('fetchGenerate streaming', () => {
+  // Catches deltas from another generation leaking in, or a listener left behind after the reply.
+  it('reports only its own request deltas while generating, then stops listening', async () => {
+    const deltas: string[] = []
+    generateTextMock.mockImplementationOnce(async ({ requestId, streamDeltas }) => {
+      expect(streamDeltas).toBe(true)
+      emit('ai.text.delta', { requestId, delta: 'Hel' })
+      emit('ai.text.delta', { requestId: 'someone-else', delta: 'XX' })
+      emit('ai.text.delta', { requestId, delta: 'lo' })
+      return { text: 'Hello' }
+    })
+
+    const text = await fetchGenerate({ prompt: 'p', content: 'c', onTextDelta: (delta) => deltas.push(delta) })
+
+    expect(text).toBe('Hello')
+    expect(deltas).toEqual(['Hel', 'lo'])
+    expect(ipcEvents.get('ai.text.delta')?.size ?? 0).toBe(0)
+  })
+})
+
+// Catch unbounded/Markdown output and cross-talk from the conversation preference.
+describe('note naming boundary', () => {
+  it.each([
+    ['a'.repeat(3000), 'a'.repeat(37)],
+    ['# **Roadmap** [Plan](https://example.test/a/b)\n\nLater paragraph', 'Roadmap Plan'],
+    ['| A | B |\n| --- | --- |\n| x | y |', null],
+    ['', null]
+  ])('normalizes the model response %j', async (text, expected) => {
+    generateTextMock.mockResolvedValue({ text })
+    expect(await fetchNoteSummary({ content: '# Note\n' + 'body '.repeat(600) })).toBe(expected)
+  })
+
+  it('resolves the translated note prompt and substitutes the actual language independently of topic preferences', async () => {
+    await preferenceService.set('app.language', 'zh-CN')
+    await preferenceService.set('topic.naming_prompt', 'Distinct conversation instruction {{language}}')
+    await i18n.changeLanguage('zh-CN')
+    const translated = i18n.t('prompts.note_title')
+    expect(translated).toContain('{{language}}')
+    expect(translated).toContain('37')
+    expect(translated).toContain('笔记')
+
+    await fetchNoteSummary({ content: 'note body' })
+    expect(generateTextMock.mock.calls[0][0].system).toBe(translated.replace('{{language}}', 'zh-CN'))
+    expect(generateTextMock.mock.calls[0][0].system).not.toContain('Distinct conversation')
+    expect(generateTextMock.mock.calls[0][0].system).not.toContain('{{language}}')
+
+    await fetchMessagesSummary({ messages: [{ role: 'user', parts: [] } as never] })
+    expect(generateTextMock.mock.calls[1][0].system).toBe('Distinct conversation instruction zh-CN')
+  })
+
+  it('preserves long conversation names while bounding only note names', async () => {
+    generateTextMock.mockResolvedValue({ text: 'a'.repeat(80) })
+    expect(await fetchMessagesSummary({ messages: [] })).toEqual({ text: 'a'.repeat(80) })
+    expect(await fetchNoteSummary({ content: 'note' })).toBe('a'.repeat(37))
+  })
+
+  it('does not invent a title without a model or on generation failure', async () => {
+    readQuickModelMock.mockResolvedValue(null)
+    readDefaultModelMock.mockResolvedValue(null)
+    expect(await fetchNoteSummary({ content: 'note' })).toBeNull()
+    expect(generateTextMock).not.toHaveBeenCalled()
+    readDefaultModelMock.mockResolvedValue(TEST_MODEL)
+    generateTextMock.mockRejectedValue(new Error('offline'))
+    expect(await fetchNoteSummary({ content: 'note' })).toBeNull()
   })
 })

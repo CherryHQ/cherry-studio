@@ -58,7 +58,7 @@ without good reason.
 - **preboot** — the phase this directory owns: setup code that must run
   before `application.bootstrap()` is called. Typically synchronous, but
   may be async when the operation cannot be expressed synchronously
-  (e.g. a v1→v2 migration gate that awaits a DB probe). Preboot modules
+  (e.g. a legacy upgrade gate that awaits a native dialog). Preboot modules
   must not depend on any lifecycle-managed service — that is the real
   constraint, not whether the code awaits. This is what an OS or Linux
   developer would call "early boot" or "init phase 0". It is *not* a
@@ -85,14 +85,16 @@ without good reason.
 Throughout `core/preboot/`, the word **userData** refers exclusively to
 Electron's `app.getPath('userData')` directory — the OS-level directory
 tree where Chromium and Electron persist their state alongside the
-application's own files.
+application's own files. With `CS_DEV_PROFILE_ROOT`, this directory is
+`{profileRoot}/userData` instead of the platform default plus a suffix.
 
 It does **not** mean "user data" in the colloquial sense (用户数据). The
 Electron userData directory contains a mix of user content
 (`Data/cherrystudio.sqlite`, `Data/Files`, `Data/KnowledgeBase`, …) AND
 Chromium runtime state (`Network/`, `Partitions/`, `IndexedDB`,
 `Local Storage`, …) AND, on Windows and Linux, application logs
-(`logs/` — macOS keeps them in `~/Library/Logs` instead).
+(`logs/` — macOS normally keeps them in `~/Library/Logs`; profile-root mode
+uses `{profileRoot}/logs` on every platform).
 
 ## Layout
 
@@ -100,11 +102,11 @@ Chromium runtime state (`Network/`, `Partitions/`, `IndexedDB`,
 preboot/
 ├── singleInstance.ts    claims Electron's single-instance lock and exits
 │                        second instances. Runs after userData resolution so
-│                        dev instances with different userData suffixes use
-│                        isolated locks.
-├── userDataLocation.ts  resolves userData (dev suffix or BootConfig) and
-│                        exports the shared isUsableDataDir(p) validator
-│                        used by v1→v2 migration
+│                        dev instances with different profile roots or
+│                        userData suffixes use isolated locks.
+├── userDataLocation.ts  resolves userData (dev profile root, suffix, or
+│                        BootConfig) and exports the shared isUsableDataDir(p) validator
+│                        used by legacy profile detection
 ├── chromiumFlags.ts     Chromium startup flags that must run before
 │                        app.whenReady()
 ├── crashTelemetry.ts    crashReporter + process-level error hooks +
@@ -115,33 +117,42 @@ preboot/
 │                        backup-restore gate; promotes a staged restored DB
 │                        (if any) at the top of startApp(), after the
 │                        single-instance lock and the frozen path registry,
-│                        before v2MigrationGate reads the DB. Thin shell that
-│                        never throws — except when recovery left no live DB
-│                        at all (booting on would create a fresh empty
-│                        database), where it fails fast instead. The
+│                        before legacyUpgradeGate reads the DB. Thin shell that
+│                        synchronously isolates sessionData before Sentry or
+│                        asynchronous startup can open the live profile. An
+│                        isolated restore launch relaunches before bootstrap;
+│                        the next normal launch cleans up the temporary session.
+│                        Stranded DBs and unresolved isolated journals fail fast. The
 │                        promotion logic lives in src/main/data/db/restore/
-│                        (same layering as v2MigrationGate → MigrationEngine).
-├── v2MigrationGate.ts   v1→v2 migration decision gate; runs before
-│                        bootstrap. Calls resolveMigrationPaths() to
-│                        detect v1 legacy userData before engine init.
-│                        Temporary — scoped for deletion once all
-│                        users have migrated off v1. Its fat
-│                        orchestrating-gate shape is tolerated only
-│                        because it is throwaway — do not copy it for
-│                        permanent capabilities.
+│                        (same layering as legacyUpgradeGate → legacyUpgrade).
+├── legacyUpgradeGate.ts blocks unmigrated profiles before bootstrap and
+│                        offers a platform-specific intermediate-version download.
+│                        Detection lives in data/migration/legacyUpgrade.ts.
 └── __tests__/           unit tests for each sibling module
 ```
 
 The directory is intentionally flat. New domains add a sibling file rather
 than a subdirectory.
 
-### Development userData suffix
+### Development profile isolation
 
 Unpackaged development runs never read the BootConfig userData mapping
 (`app.user_data_path`).
 Instead, `userDataLocation.ts` appends a suffix to Electron's default
 userData directory before the path registry and single-instance lock are
 initialized. The default suffix is `Dev`.
+
+Set `CS_DEV_PROFILE_ROOT` to an absolute directory when the entire writable
+development profile must be isolated. Cherry home, BootConfig, legacy config
+discovery, Electron `userData`, and logs are placed below that root. Relative
+paths and the filesystem root abort startup. Packaged builds ignore the
+variable. When set, it takes precedence over `CS_DEV_USER_DATA_SUFFIX`.
+Electron's temporary directory is explicitly set to `{profileRoot}/home/temp`
+before the path registry is initialized; macOS does not honor `TMPDIR` for this API.
+
+```bash
+CS_DEV_PROFILE_ROOT=/absolute/path/to/cherry-profile pnpm dev
+```
 
 Set `CS_DEV_USER_DATA_SUFFIX` to run multiple development instances with
 isolated app data and locks. Use `.env` for a persistent local default:

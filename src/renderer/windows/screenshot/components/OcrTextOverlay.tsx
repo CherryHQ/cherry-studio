@@ -16,8 +16,9 @@
 
 import { useEffect, useLayoutEffect, useRef } from 'react'
 
+import type { OcrTextLine } from '@shared/ipc/schemas/screenshot'
+
 import { Z_INDEX } from '../constants'
-import type { OcrTextLine } from '../hooks/useOcr'
 import type { SelectionRect } from '../types'
 
 interface OcrTextOverlayProps {

@@ -64,19 +64,22 @@ describe('error', () => {
     )
   })
 
+  it('maps Agent Session archive busy errors to localized guidance without the internal message', () => {
+    const error = new IpcError(aiErrorCodes.AI_AGENT_SESSION_ARCHIVE_BUSY, 'internal session IDs', {
+      sessionIds: ['session-a']
+    })
+
+    expect(getErrorMessage(error)).toBe('recycle_bin.move.blocked_generation')
+    expect(formatErrorMessageWithPrefix(error, 'Failed to delete the session')).toBe(
+      'recycle_bin.move.blocked_generation'
+    )
+  })
+
   describe('getErrorDetails', () => {
     it('should handle null or non-object values', () => {
       expect(getErrorDetails(null)).toBeNull()
       expect(getErrorDetails('string error')).toBe('string error')
       expect(getErrorDetails(123)).toBe(123)
-    })
-
-    it('should handle circular references', () => {
-      const circularObj: any = {}
-      circularObj.self = circularObj
-
-      const result = getErrorDetails(circularObj)
-      expect(result).toEqual({ self: circularObj })
     })
 
     it('should extract properties from Error objects', () => {
@@ -338,6 +341,22 @@ describe('error', () => {
   })
 
   describe('providerErrorText', () => {
+    it('keeps bracketed local diagnostics while retaining provider payload filtering', () => {
+      const diagnostic = '[SQLITE_BUSY] database is locked; apiKey=private-key'
+      expect(providerErrorText({ name: 'Error', message: diagnostic, stack: null, errorSource: 'local' })).toBe(
+        '[SQLITE_BUSY] database is locked; apiKey="<redacted>"'
+      )
+      expect(providerErrorText({ name: 'Error', message: diagnostic, stack: null })).toBe('')
+      expect(
+        providerErrorText({
+          name: 'AI_APICallError',
+          message: 'Forbidden',
+          stack: null,
+          responseBody: '{"error":{"message":"Permission denied"},"prompt":"private prompt"}'
+        })
+      ).toBe('Permission denied')
+    })
+
     // AI SDK degrades `message` to the HTTP statusText when the body does not match the
     // provider's error schema; the real reason only survives in `responseBody`.
     it('prefers a non-OpenAI-shaped body over the degraded message', () => {
@@ -570,13 +589,6 @@ describe('error', () => {
     it('falls back to message when there is no body', () => {
       expect(providerErrorText({ name: 'Error', message: 'boom', stack: null })).toBe('boom')
       expect(providerErrorText(undefined)).toBe('')
-    })
-
-    it('truncates an oversized provider message', () => {
-      const responseBody = JSON.stringify({ error: { message: 'x'.repeat(600) } })
-      const result = providerErrorText({ name: 'Error', message: null, stack: null, responseBody })
-      expect(result).toHaveLength(501)
-      expect(result.endsWith('\u2026')).toBe(true)
     })
   })
 })

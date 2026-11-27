@@ -11,16 +11,23 @@
 import path from 'node:path'
 
 import { loggerService } from '@logger'
+import { logFailure } from '@main/core/logger/logFailure'
 import { exists, isSameFile, move as fsMove } from '@main/utils/file'
 import type { FileEntry, FileEntryId } from '@shared/data/types/file'
 import { SafeNameSchema } from '@shared/data/types/file'
 import { canonicalizeFilePath } from '@shared/utils/file'
 
+import { classifyFileFailure } from '../../failureFacts'
+import { runPathMutationExclusive } from '../../pathMutationLock'
 import type { FileManagerDeps } from '../deps'
 
 const logger = loggerService.withContext('internal/entry/rename')
 
 export async function rename(deps: FileManagerDeps, id: FileEntryId, newName: string): Promise<FileEntry> {
+  return deps.contentWriteLock.runExclusive(id, () => runPathMutationExclusive(() => renameLocked(deps, id, newName)))
+}
+
+async function renameLocked(deps: FileManagerDeps, id: FileEntryId, newName: string): Promise<FileEntry> {
   // Up-front name validation rejects path separators, `..`, null bytes, and
   // over-length input before any FS or DB side effect. Pairs with the
   // service-level guard in FileEntryService.update / setExternalPathAndName;
@@ -55,17 +62,19 @@ export async function rename(deps: FileManagerDeps, id: FileEntryId, newName: st
   if (target === entry.externalPath) {
     return entry
   }
-  if (await exists(target)) {
-    // On case-insensitive filesystems (macOS APFS / Windows NTFS) a
-    // `Foo.pdf → foo.pdf` rename hits this branch because `exists` reports
-    // the file under its on-disk case. If both paths resolve to the same
-    // inode it's a legitimate case-only rename — fall through to `fsMove`,
-    // which the OS treats as an in-place case fix.
-    if (!(await isSameFile(target, oldPath))) {
-      throw new Error(`rename: target path already exists: ${target}`)
+  try {
+    if (await exists(target)) {
+      // Both names can resolve to the same inode on case-insensitive filesystems;
+      // allow fsMove to apply that case-only rename.
+      if (!(await isSameFile(target, oldPath))) {
+        throw Object.assign(new Error(`rename: target path already exists: ${target}`), { code: 'EEXIST' })
+      }
     }
+    await fsMove(oldPath, target)
+  } catch (error) {
+    logFailure(logger, 'File rename failed', error, 'file.rename', classifyFileFailure(error, true))
+    throw error
   }
-  await fsMove(oldPath, target)
   const canonical = target
   // Single atomic DB write — `setExternalPathAndName` is the only sanctioned
   // mutation site for `externalPath`. Doing both column changes in one

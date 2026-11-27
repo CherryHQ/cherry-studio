@@ -160,6 +160,7 @@ export function useCache<K extends UseCacheKey>(
 ): [InferUseCacheValue<K>, (value: CacheSetStateAction<InferUseCacheValue<K>>) => void] {
   // Get the default value for this key (works with both fixed and template keys)
   const defaultValue = getUseCacheDefaultValue(key)
+  const fallbackValue = initValue !== undefined ? initValue : defaultValue!
 
   /**
    * Subscribe to cache changes using React's useSyncExternalStore
@@ -212,23 +213,24 @@ export function useCache<K extends UseCacheKey>(
    * Memoized setter function for updating the cache value.
    * Accepts a concrete value or a functional updater `(prev) => next`. The
    * updater is resolved against the latest stored value via the same default
-   * fallback chain as the hook return (`get ?? initValue ?? schema default`),
-   * so it stays correct across an `await`.
+   * fallback chain as the hook return, treating only undefined as absent,
+   * so it preserves explicit null values and stays correct across an `await`.
    * @param newValue - New value, or an updater computing it from the latest value
    */
   const setValue = useCallback(
     (newValue: CacheSetStateAction<InferUseCacheValue<K>>) => {
       if (typeof newValue === 'function') {
-        const prev = (cacheService.get(key) ?? initValue ?? defaultValue) as ReadonlyValue<InferUseCacheValue<K>>
+        const storedValue = cacheService.get(key)
+        const prev = (storedValue !== undefined ? storedValue : fallbackValue) as ReadonlyValue<InferUseCacheValue<K>>
         cacheService.set(key, newValue(prev))
       } else {
         cacheService.set(key, newValue)
       }
     },
-    [key, initValue, defaultValue]
+    [key, fallbackValue]
   )
 
-  return [value ?? initValue ?? defaultValue!, setValue]
+  return [value !== undefined ? value : fallbackValue, setValue]
 }
 
 /**
@@ -479,43 +481,45 @@ function useCacheKeysSelector<Values, Selection>(
   // not reference. A content/order change is a snapshot-shape change: it
   // rebuilds the subscription set and the snapshot closure together, keeping
   // the subscription set and the snapshot read set the same by construction.
-  const keysDep = keys.join(CACHE_KEYS_DEP_SEPARATOR)
+  const keysDep = useMemo(() => keys.join(CACHE_KEYS_DEP_SEPARATOR), [keys])
   const stableKeys = useMemo<readonly string[]>(
     () => [...keys],
     // eslint-disable-next-line react-hooks/exhaustive-deps -- keysDep is the content identity of `keys`
     [keysDep]
   )
 
-  const subscribe = useCallback(
-    (onStoreChange: () => void) => {
-      const disposers = stableKeys.map((key) => subscribeKey(key, onStoreChange))
-      return () => disposers.forEach((dispose) => dispose())
-    },
-    [stableKeys, subscribeKey]
-  )
+  const { subscribe, getSnapshot } = useMemo(() => {
+    let cached: readonly unknown[] | undefined
+    let subscribed = false
+    let dirty = true
 
-  // Idempotent base snapshot: reuse the same tuple while every entry is
-  // Object.is-unchanged, create a new tuple as soon as any entry changed.
-  // This satisfies getSnapshot's caching contract (no "getSnapshot should be
-  // cached" warnings) without a store-level version counter.
-  const getSnapshot = useMemo(() => {
-    let cachedValues: readonly unknown[] | undefined
-
-    return () => {
-      const nextValues = stableKeys.map((key) => readKey(key))
-      const prevValues = cachedValues
-      if (
-        prevValues !== undefined &&
-        nextValues.length === prevValues.length &&
-        nextValues.every((value, index) => Object.is(value, prevValues[index]))
-      ) {
-        return prevValues
+    function getSnapshot(): Values {
+      if (!subscribed || dirty || !cached) {
+        const values = stableKeys.map(readKey)
+        const previous = cached
+        if (!previous || !values.every((value, i) => Object.is(value, previous[i]))) cached = values
+        dirty = false
       }
-
-      cachedValues = nextValues
-      return nextValues
+      return cached as Values
     }
-  }, [stableKeys, readKey]) as () => Values
+
+    function subscribe(notify: () => void) {
+      const onChange = () => {
+        dirty = true
+        notify()
+      }
+      const disposers = stableKeys.map((key) => subscribeKey(key, onChange))
+      subscribed = true
+      // A key may have changed between rendering the snapshot and attaching its listener.
+      dirty = true
+      return () => {
+        subscribed = false
+        disposers.forEach((dispose) => dispose())
+      }
+    }
+
+    return { subscribe, getSnapshot }
+  }, [stableKeys, readKey, subscribeKey])
 
   return useSyncExternalStoreWithSelector(subscribe, getSnapshot, getSnapshot, selector, isEqual)
 }
@@ -588,6 +592,19 @@ export function useSharedCacheSelector<const Keys extends readonly SharedCacheKe
   isEqual: (a: Selection, b: Selection) => boolean = shallowEqual
 ): Selection {
   return useCacheKeysSelector(keys, subscribeSharedKey, readSharedKey, selector, isEqual)
+}
+
+/**
+ * Latest persisted value reader: a stable getter for the stored value, for call sites that
+ * must compare against the store at effect time instead of the render snapshot.
+ *
+ * @param key - Cache key from the predefined schema
+ * @returns A stable getter for the latest persisted value
+ *
+ * @example useEffect(() => { reconcile(readPinnedTabs()) }, [readPinnedTabs])
+ */
+export function usePersistCacheReader<K extends RendererPersistCacheKey>(key: K): () => RendererPersistCacheSchema[K] {
+  return useCallback(() => cacheService.getPersist(key), [key])
 }
 
 /**

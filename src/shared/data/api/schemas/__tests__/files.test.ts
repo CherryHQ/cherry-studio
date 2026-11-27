@@ -1,11 +1,22 @@
 import { describe, expect, it } from 'vitest'
 
-import { ListFilesQuerySchema } from '../files'
+import { LIST_FILES_MAX_LIMIT, ListFilesQuerySchema } from '../files'
 
 describe('ListFilesQuerySchema', () => {
   it('accepts a query without origin or inTrash', () => {
     const result = ListFilesQuerySchema.safeParse({})
     expect(result.success).toBe(true)
+  })
+
+  it('accepts exact file entry ids up to the collection limit', () => {
+    const ids = Array.from(
+      { length: LIST_FILES_MAX_LIMIT },
+      (_, index) => `019606a0-0000-7000-8000-${String(index).padStart(12, '0')}`
+    )
+
+    expect(ListFilesQuerySchema.parse({ ids }).ids).toEqual(ids)
+    expect(ListFilesQuerySchema.safeParse({ ids: [] }).success).toBe(false)
+    expect(ListFilesQuerySchema.safeParse({ ids: [...ids, crypto.randomUUID()] }).success).toBe(false)
   })
 
   it('accepts inTrash=true with origin=internal', () => {

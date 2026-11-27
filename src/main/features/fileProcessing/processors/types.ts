@@ -38,6 +38,8 @@ export interface FileProcessingExecutionContext {
 export type FileProcessingRemoteContext = object
 
 export interface FileProcessingPrepareContext {
+  /** Provider-owned recovery data, validated by the capability before use. */
+  remoteState?: unknown
   /**
    * Provider-specific task identifier (e.g. MinerU's `data_id`), supplied by the
    * caller. Optional at this generic boundary because most processors do not use
@@ -60,6 +62,12 @@ export interface PersistableRemoteState {
   stage?: string
   /** Public endpoint URL. */
   apiHost?: string
+  /** Doc2X parse model selected when the task was started. */
+  modelVersion?: string
+  /** Doc2X v3 export setting selected when the task was started. */
+  formulaLevel?: 0 | 1 | 2
+  /** Doc2X v3 cross-page table merging setting selected when the task was started. */
+  mergeCrossPageForms?: boolean
 }
 
 export type FileProcessingRemotePollResult<
@@ -139,13 +147,8 @@ export interface FileProcessingCapabilityHandler<
   Feature extends FileProcessorFeature = FileProcessorFeature,
   RemoteContext extends FileProcessingRemoteContext = FileProcessingRemoteContext
 > {
-  /**
-   * Execution model declared statically on the handler. Mirrors the `mode`
-   * field on PreparedJob but is available without awaiting prepare(), so the
-   * orchestrator can route to the correct JobHandler synchronously at enqueue
-   * time. Runtime assertion: prepared.mode must equal this value.
-   */
-  readonly mode: 'background' | 'remote-poll'
+  /** Auto handlers select their execution model during preparation. */
+  readonly mode: 'background' | 'remote-poll' | 'auto'
   prepare(
     file: FileInfo,
     config: FileProcessorMerged,

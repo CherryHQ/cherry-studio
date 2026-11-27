@@ -3,12 +3,16 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 
 import { setupTestDatabase } from '@test-helpers/db'
-import { MockMainDbServiceExport, MockMainDbServiceUtils } from '@test-mocks/main/DbService'
+import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { paintingFileRefTable } from '@data/db/schemas/fileRelations'
+import { paintingTable } from '@data/db/schemas/painting'
+import { ErrorCode } from '@shared/data/api/errors'
 import type { FileEntryId } from '@shared/data/types/file'
 import type { AbsoluteFilePath } from '@shared/types/file'
+import { KeyedMutex } from '@shared/utils/async'
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -22,8 +26,17 @@ const mockLoggerWarn = mockMainLoggerService.warn
 const { application } = await import('@application')
 const { fileEntryService } = await import('@data/services/FileEntryService')
 const { fileRefService } = await import('@data/services/FileRefService')
-const { batchPermanentDelete, batchRestore, batchTrash, emptyTrash, permanentDelete, restore, trash } =
-  await import('../lifecycle')
+const {
+  batchPermanentDeleteFromTrash,
+  batchRemoveFromLibrary,
+  batchRestore,
+  batchTrash,
+  permanentDelete,
+  permanentDeleteFromTrash,
+  removeExternalFromLibrary,
+  restore,
+  trash
+} = await import('../lifecycle')
 const { exists } = await import('@main/utils/file')
 const { createInternal, ensureExternal } = await import('../create')
 
@@ -61,7 +74,7 @@ describe('internal/entry/lifecycle', () => {
         clear: vi.fn()
       },
       versionCache: { get: vi.fn(), set: vi.fn(), invalidate: vi.fn(), clear: vi.fn() },
-      contentWriteLock: {} as FileManagerDeps['contentWriteLock']
+      contentWriteLock: new KeyedMutex()
     }
   })
 
@@ -88,6 +101,24 @@ describe('internal/entry/lifecycle', () => {
     return e.id
   }
 
+  async function seedPersistentRef(fileEntryId: FileEntryId): Promise<void> {
+    const suffix = fileEntryId.slice(-12)
+    const paintingId = `11111111-1111-4111-8111-${suffix}`
+    await dbh.db.insert(paintingTable).values({
+      id: paintingId,
+      providerId: 'provider',
+      modelId: null,
+      prompt: 'prompt',
+      orderKey: paintingId
+    })
+    await dbh.db.insert(paintingFileRefTable).values({
+      id: `22222222-2222-4222-8222-${suffix}`,
+      fileEntryId,
+      sourceId: paintingId,
+      role: 'output'
+    })
+  }
+
   describe('trash', () => {
     it('marks an internal entry as trashed', async () => {
       const id = await makeInternal()
@@ -101,9 +132,28 @@ describe('internal/entry/lifecycle', () => {
       }
     })
 
-    it('throws when called on an external entry (CHECK fe_external_no_delete)', async () => {
+    it('throws when called on an external entry', async () => {
       const id = await makeExternal()
       expect(() => trash(deps, id)).toThrow()
+    })
+
+    it('reports an already-trashed internal entry as a batch failure without rewriting its timestamps', async () => {
+      const id = await makeInternal()
+      const now = vi.spyOn(Date, 'now').mockReturnValue(1_900_000_000_000)
+      trash(deps, id)
+      const firstTrash = fileEntryService.getById(id)
+
+      now.mockReturnValue(1_900_000_001_000)
+      const result = batchTrash(deps, [id])
+      const afterRetry = fileEntryService.getById(id)
+
+      expect(result).toEqual({ succeeded: [], failed: [{ id, error: expect.any(String) }] })
+      expect(firstTrash.origin).toBe('internal')
+      expect(afterRetry.origin).toBe('internal')
+      expect(afterRetry.updatedAt).toBe(firstTrash.updatedAt)
+      if (firstTrash.origin === 'internal' && afterRetry.origin === 'internal') {
+        expect(afterRetry.deletedAt).toBe(firstTrash.deletedAt)
+      }
     })
   })
 
@@ -123,6 +173,24 @@ describe('internal/entry/lifecycle', () => {
     it('throws on an external entry', async () => {
       const id = await makeExternal()
       await expect(restore(deps, id)).rejects.toThrow()
+    })
+
+    it('reports an already-restored internal entry as a batch failure without rewriting updatedAt', async () => {
+      const id = await makeInternal()
+      const now = vi.spyOn(Date, 'now').mockReturnValue(1_900_000_000_000)
+      trash(deps, id)
+      now.mockReturnValue(1_900_000_001_000)
+      await restore(deps, id)
+      const firstRestore = fileEntryService.getById(id)
+
+      now.mockReturnValue(1_900_000_002_000)
+      const result = batchRestore(deps, [id])
+      const afterRetry = fileEntryService.getById(id)
+
+      expect(result).toEqual({ succeeded: [], failed: [{ id, error: expect.any(String) }] })
+      expect(afterRetry.updatedAt).toBe(firstRestore.updatedAt)
+      expect(afterRetry.origin).toBe('internal')
+      if (afterRetry.origin === 'internal') expect(afterRetry.deletedAt).toBeUndefined()
     })
   })
 
@@ -158,22 +226,6 @@ describe('internal/entry/lifecycle', () => {
       expect(fileEntryService.findById(id)).toBeNull()
     })
 
-    it('removes the entry from DanglingCache reverse index when external', async () => {
-      const id = await makeExternal()
-      const entry = fileEntryService.getById(id)
-      if (entry.origin !== 'external') throw new Error('expected external entry')
-      vi.mocked(deps.danglingCache.removeEntry).mockClear()
-      await permanentDelete(deps, id)
-      expect(deps.danglingCache.removeEntry).toHaveBeenCalledWith(id, entry.externalPath)
-    })
-
-    it('does not call removeEntry for internal entries', async () => {
-      const id = await makeInternal()
-      vi.mocked(deps.danglingCache.removeEntry).mockClear()
-      await permanentDelete(deps, id)
-      expect(deps.danglingCache.removeEntry).not.toHaveBeenCalled()
-    })
-
     it('warn-logs a non-ENOENT unlink failure but still removes the DB row (DB-FS convergence)', async () => {
       // Regression guard: lifecycle.ts:48-57 best-effort unlinks the
       // internal physical file after the DB row is gone. ENOENT (file
@@ -196,19 +248,73 @@ describe('internal/entry/lifecycle', () => {
 
       // DB row is gone — DB delete is mandatory regardless of FS outcome.
       expect(fileEntryService.findById(id)).toBeNull()
-      // The non-ENOENT unlink failure surfaced via logger.warn, including
-      // the physical path so operators can grep / `ls` the leak directly
-      // (S3 — the previous payload only had `id`, forcing reconstruction
-      // from the since-removed DB row).
       const warnCalls = mockLoggerWarn.mock.calls.filter(
         ([msg]) => typeof msg === 'string' && msg.includes('failed to unlink internal physical file')
       )
       expect(warnCalls).toHaveLength(1)
-      expect(warnCalls[0][1]).toMatchObject({ id, physical })
+      expect(warnCalls[0][1]).toEqual({ id, code: expect.stringMatching(/^(EPERM|EISDIR)$/) })
+      expect(JSON.stringify(warnCalls)).not.toContain(physical)
 
       // Manual cleanup of the directory we swapped in.
       const { rmdir } = await import('node:fs/promises')
       await rmdir(physical)
+    })
+  })
+
+  describe('protected user delete actions', () => {
+    it('rejects permanent deletion of an active internal entry and preserves its row and blob', async () => {
+      const id = await makeInternal()
+      const entry = fileEntryService.getById(id)
+      const physical = path.join(filesDir, `${id}.${entry.ext}`)
+
+      await expect(permanentDeleteFromTrash(deps, id)).rejects.toMatchObject({
+        code: ErrorCode.INVALID_OPERATION
+      })
+
+      expect(fileEntryService.findById(id)).not.toBeNull()
+      expect(await exists(physical as AbsoluteFilePath)).toBe(true)
+    })
+
+    it('rejects permanent deletion of a referenced trashed internal entry and preserves its row and blob', async () => {
+      const id = await makeInternal()
+      const entry = fileEntryService.getById(id)
+      const physical = path.join(filesDir, `${id}.${entry.ext}`)
+      trash(deps, id)
+      await seedPersistentRef(id)
+
+      await expect(permanentDeleteFromTrash(deps, id)).rejects.toMatchObject({
+        code: ErrorCode.INVALID_OPERATION,
+        message: expect.stringMatching(/referenced/i)
+      })
+
+      expect(fileEntryService.findById(id)).not.toBeNull()
+      expect(await exists(physical as AbsoluteFilePath)).toBe(true)
+    })
+
+    it('removes an unreferenced external entry from the library without deleting the user file', async () => {
+      const id = await makeExternal()
+      const entry = fileEntryService.getById(id)
+      if (entry.origin !== 'external') throw new Error('expected external entry')
+
+      await removeExternalFromLibrary(deps, id)
+
+      expect(fileEntryService.findById(id)).toBeNull()
+      expect(await exists(entry.externalPath)).toBe(true)
+    })
+
+    it('rejects removal of a referenced external entry and preserves its row and user file', async () => {
+      const id = await makeExternal()
+      const entry = fileEntryService.getById(id)
+      if (entry.origin !== 'external') throw new Error('expected external entry')
+      await seedPersistentRef(id)
+
+      await expect(removeExternalFromLibrary(deps, id)).rejects.toMatchObject({
+        code: ErrorCode.INVALID_OPERATION,
+        message: expect.stringMatching(/referenced/i)
+      })
+
+      expect(fileEntryService.findById(id)).not.toBeNull()
+      expect(await exists(entry.externalPath)).toBe(true)
     })
   })
 
@@ -231,82 +337,19 @@ describe('internal/entry/lifecycle', () => {
       expect(result.failed).toHaveLength(1)
     })
 
-    it('batchPermanentDelete deletes both internal and external rows', async () => {
+    it('protected delete batches partition successes and invalid-origin failures', async () => {
       const internal = await makeInternal()
+      trash(deps, internal)
       const external = await makeExternal()
-      const result = await batchPermanentDelete(deps, [internal, external])
-      expect(result.succeeded.sort()).toEqual([internal, external].sort())
-      expect(result.failed).toEqual([])
-    })
 
-    it('emptyTrash selects internal trashed entries inside the delete write tx', async () => {
-      const trashed = await makeInternal()
-      const restored = await makeInternal()
-      const active = await makeInternal()
-      const external = await makeExternal()
-      trash(deps, trashed)
-      trash(deps, restored)
-      await restore(deps, restored)
-      const findManySpy = vi.spyOn(deps.fileEntryService, 'findMany')
-      const withWriteTx = MockMainDbServiceExport.dbService.withWriteTx
+      const trashResult = await batchPermanentDeleteFromTrash(deps, [internal, external])
+      expect(trashResult.succeeded).toEqual([internal])
+      expect(trashResult.failed).toEqual([{ id: external, error: expect.stringMatching(/invalid operation/i) }])
 
-      withWriteTx.mockClear()
-      withWriteTx.mockImplementationOnce((fn: (tx: unknown) => unknown) => {
-        const callbackResult = fn(dbh.db)
-        expect(callbackResult).not.toBeInstanceOf(Promise)
-        return callbackResult
-      })
-      const result = await emptyTrash(deps)
-
-      expect(withWriteTx).toHaveBeenCalledTimes(1)
-      expect(findManySpy).not.toHaveBeenCalled()
-      expect(result).toEqual({ succeeded: [trashed], failed: [] })
-      expect(fileEntryService.findById(trashed)).toBeNull()
-      expect(fileEntryService.findById(restored)).not.toBeNull()
-      expect(fileEntryService.findById(active)).not.toBeNull()
-      expect(fileEntryService.findById(external)).not.toBeNull()
-    })
-
-    it('composes each batch DB write loop inside one serialized write tx', async () => {
-      const trashInternal = await makeInternal()
-      const trashExternal = await makeExternal()
-      const deleteInternal = await makeInternal()
-      const deleteExternal = await makeExternal()
-      const withWriteTx = MockMainDbServiceExport.dbService.withWriteTx
-
-      withWriteTx.mockClear()
-      batchTrash(deps, [trashInternal, trashExternal])
-      expect(withWriteTx).toHaveBeenCalledTimes(1)
-
-      withWriteTx.mockClear()
-      await batchPermanentDelete(deps, [deleteInternal, deleteExternal])
-      expect(withWriteTx).toHaveBeenCalledTimes(1)
-    })
-
-    it('side-channels the full Error object through logger.warn so the stack is preserved', async () => {
-      // Regression guard for 5bcf03529: BatchMutationResult.failed[].error is
-      // a string for IPC serialisation, so the wire format drops the stack.
-      // The fix routes the original Error through logger.warn as { id, err };
-      // a refactor to logger.warn(..., { id, msg: err.message }) would satisfy
-      // toHaveBeenCalledWith on { id } but fail the `instanceof Error` +
-      // non-empty `stack` assertions below — exactly the regression we want
-      // to catch.
-      mockLoggerWarn.mockClear()
-      const internal = await makeInternal()
-      const external = await makeExternal()
-      const result = batchTrash(deps, [internal, external])
-      expect(result.failed).toHaveLength(1)
-      const warnCalls = mockLoggerWarn.mock.calls.filter(([msg]) => msg === 'batch op item failed')
-      expect(warnCalls).toHaveLength(1)
-      const [, payload] = warnCalls[0]
-      expect(payload.id).toBe(external)
-      // The contract: payload.err must be the original Error (with stack),
-      // not its `.message` projection. `toBeInstanceOf` tolerates whichever
-      // Error subclass the CHECK constraint raises while still catching a
-      // string downgrade.
-      expect(payload.err).toBeInstanceOf(Error)
-      expect(typeof payload.err.stack).toBe('string')
-      expect(payload.err.stack.length).toBeGreaterThan(0)
+      const activeInternal = await makeInternal()
+      const libraryResult = await batchRemoveFromLibrary(deps, [external, activeInternal])
+      expect(libraryResult.succeeded).toEqual([external])
+      expect(libraryResult.failed).toEqual([{ id: activeInternal, error: expect.stringMatching(/invalid operation/i) }])
     })
   })
 })

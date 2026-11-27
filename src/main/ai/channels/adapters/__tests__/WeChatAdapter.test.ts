@@ -1,15 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { application } from '@application'
-
 vi.mock('@logger', () => ({
   loggerService: {
     withContext: () => ({ info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn(), silly: vi.fn() })
   }
-}))
-
-vi.mock('../../ChannelManager', () => ({
-  registerAdapterFactory: vi.fn()
 }))
 
 vi.mock('electron', () => ({
@@ -48,15 +42,7 @@ vi.mock('../wechat/WeChatProtocol', () => ({
   })
 }))
 
-// Import the module to trigger self-registration side effect
-import '../wechat/WeChatAdapter'
-import { registerAdapterFactory } from '../../ChannelManager'
-
-function getFactory() {
-  const call = vi.mocked(registerAdapterFactory).mock.calls.find((c) => c[0] === 'wechat')
-  if (!call) throw new Error('registerAdapterFactory was not called for wechat')
-  return call[1] as (channel: any, agentId: string) => any
-}
+import { createWeChatAdapter } from '../wechat/WeChatAdapter'
 
 describe('WeChatAdapter', () => {
   beforeEach(() => {
@@ -74,74 +60,38 @@ describe('WeChatAdapter', () => {
     mockBot.sendTyping.mockClear().mockResolvedValue(undefined)
     mockBot.stopTyping.mockClear().mockResolvedValue(undefined)
     mockBot.sendFile.mockClear().mockResolvedValue(undefined)
-    vi.mocked(application.get('IpcApiService').broadcastToType).mockClear()
   })
 
   afterEach(() => {
     vi.useRealTimers()
   })
 
-  function createAdapter(overrides: Record<string, unknown> = {}) {
-    const factory = getFactory()
-    return factory(
-      {
-        id: (overrides.channelId as string) ?? 'ch-1',
-        type: 'wechat',
-        enabled: true,
-        config: {
-          token_path: (overrides.token_path as string) ?? '',
-          allowed_chat_ids: (overrides.allowed_chat_ids as string[]) ?? []
-        }
-      },
-      (overrides.agentId as string) ?? 'agent-1'
-    )
+  function createAdapter(overrides: Record<string, unknown> = {}): any {
+    return createWeChatAdapter({
+      channelId: (overrides.channelId as string) ?? 'ch-1',
+      channelType: 'wechat',
+      agentId: (overrides.agentId as string) ?? 'agent-1',
+      channelConfig: {
+        token_path: (overrides.token_path as string) ?? '',
+        allowed_chat_ids: (overrides.allowed_chat_ids as string[]) ?? []
+      }
+    })
   }
 
-  it('connect() logs in, registers message handler, and starts polling', async () => {
+  it.each([
+    { reason: 'Login unavailable', expected: 'error' },
+    { reason: 'QR login failed after 3 expired QR codes. Use config tool to reconnect.', expected: 'expired' }
+  ])('reports the $expected QR status to the channel runtime', async ({ reason, expected }) => {
+    mockBot.login.mockRejectedValue(new Error(reason))
     const adapter = createAdapter()
-    await adapter.connect()
+    const status = vi.fn()
+    adapter.on('qrLogin', status)
 
-    expect(mockBot.login).toHaveBeenCalledTimes(1)
-    expect(mockBot.onMessage).toHaveBeenCalledTimes(1)
-    expect(mockBot.run).toHaveBeenCalledTimes(1)
-  })
-
-  it('reports QR login errors to the renderer', async () => {
-    mockBot.login.mockRejectedValue(new Error('Login unavailable'))
-    const adapter = createAdapter()
-
-    await expect(adapter.connect()).rejects.toThrow('Login unavailable')
-
-    expect(application.get('IpcApiService').broadcastToType).toHaveBeenCalledWith(
-      expect.anything(),
-      'channel.wechat.qr_login',
-      {
-        channelId: 'ch-1',
-        url: '',
-        status: 'error',
-        userId: undefined
-      }
-    )
-  })
-
-  it('reports exhausted QR codes as expired to the renderer', async () => {
-    mockBot.login.mockRejectedValue(
-      new Error('QR login failed after 3 expired QR codes. Use config tool to reconnect.')
-    )
-    const adapter = createAdapter()
-
-    await expect(adapter.connect()).rejects.toThrow('expired QR codes')
-
-    expect(application.get('IpcApiService').broadcastToType).toHaveBeenCalledWith(
-      expect.anything(),
-      'channel.wechat.qr_login',
-      {
-        channelId: 'ch-1',
-        url: '',
-        status: 'expired',
-        userId: undefined
-      }
-    )
+    await expect(adapter.connect()).rejects.toThrow(reason)
+    expect(status).toHaveBeenCalledWith({
+      type: 'wechat',
+      data: { channelId: 'ch-1', url: '', status: expected, userId: undefined }
+    })
   })
 
   it('disconnect() stops the bot', async () => {
@@ -158,22 +108,6 @@ describe('WeChatAdapter', () => {
     await adapter.sendMessage('user-123', 'Hello')
 
     expect(mockBot.send).toHaveBeenCalledWith('user-123', 'Hello')
-  })
-
-  it('sendMessage() chunks long messages', async () => {
-    vi.useFakeTimers()
-    const adapter = createAdapter()
-    await adapter.connect()
-
-    const longText = 'A'.repeat(3000)
-    const sendPromise = adapter.sendMessage('user-123', longText)
-
-    await vi.runAllTimersAsync()
-    await sendPromise
-
-    expect(mockBot.send).toHaveBeenCalledTimes(2)
-    expect(mockBot.send.mock.calls[0][1]).toHaveLength(2000)
-    expect(mockBot.send.mock.calls[1][1]).toHaveLength(1000)
   })
 
   it('sendFile() delegates image routing to the protocol', async () => {

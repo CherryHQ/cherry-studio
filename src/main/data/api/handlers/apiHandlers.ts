@@ -11,7 +11,6 @@
  * - providers.ts - Provider API handlers
  * - translate.ts - Translate API handlers
  */
-
 import type { ApiImplementation } from '@shared/data/api/types'
 
 import { agentChannelHandlers } from './agentChannels'
@@ -20,7 +19,12 @@ import { agentSessionMessageHandlers } from './agentSessionMessages'
 import { agentSessionHandlers } from './agentSessions'
 import { agentWorkspaceHandlers } from './agentWorkspaces'
 import { aiUsageRecordHandlers } from './aiUsageRecords'
+import { apiGatewayPairedDeviceHandlers } from './apiGatewayPairedDevices'
+import { archiveHandlers } from './archives'
+import { artifactHandlers } from './artifacts'
 import { assistantHandlers } from './assistants'
+import { browserVisitHandlers } from './browserVisits'
+import { diagnosticReportHandlers } from './diagnosticReports'
 import { fileHandlers } from './files'
 import { groupHandlers } from './groups'
 import { jobHandlers } from './jobs'
@@ -30,6 +34,7 @@ import { messageHandlers } from './messages'
 import { miniAppHandlers } from './miniApps'
 import { modelHandlers } from './models'
 import { noteHandlers } from './notes'
+import { notificationHandlers } from './notifications'
 import { paintingHandlers } from './paintings'
 import { pinHandlers } from './pins'
 import { promptHandlers } from './prompts'
@@ -37,7 +42,6 @@ import { providerHandlers } from './providers'
 import { searchHandlers } from './search'
 import { skillHandlers } from './skills'
 import { tagHandlers } from './tags'
-import { temporaryChatHandlers } from './temporaryChats'
 import { topicHandlers } from './topics'
 import { translateHandlers } from './translate'
 
@@ -49,13 +53,17 @@ import { translateHandlers } from './translate'
  * TypeScript ensures exhaustive coverage - missing handlers cause compile errors.
  */
 export const apiHandlers: ApiImplementation = {
+  ...apiGatewayPairedDeviceHandlers,
   ...agentHandlers,
+  ...artifactHandlers,
+  ...archiveHandlers,
   ...assistantHandlers,
   ...agentChannelHandlers,
+  ...browserVisitHandlers,
+  ...diagnosticReportHandlers,
   ...topicHandlers,
   ...messageHandlers,
   ...fileHandlers,
-  ...temporaryChatHandlers,
   ...modelHandlers,
   ...paintingHandlers,
   ...providerHandlers,
@@ -67,6 +75,7 @@ export const apiHandlers: ApiImplementation = {
   ...mcpServerHandlers,
   ...miniAppHandlers,
   ...noteHandlers,
+  ...notificationHandlers,
   ...tagHandlers,
   ...groupHandlers,
   ...pinHandlers,

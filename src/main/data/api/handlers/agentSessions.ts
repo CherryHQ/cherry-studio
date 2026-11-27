@@ -1,7 +1,8 @@
 /**
  * Agent session domain API handlers.
  *
- * Sessions are pure agent instances. Cognitive config (model / instructions /
+ * Sessions are agent instances with a per-session model override (`model`,
+ * null follows the parent agent). Remaining cognitive config (instructions /
  * mcps / disabledTools / configuration) lives on the parent agent and is
  * fetched separately; the selected workspace is exposed as a normalized
  * session relation.
@@ -13,6 +14,7 @@ import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/sc
 import {
   type AgentSessionSchemas,
   CreateAgentSessionSchema,
+  GetAgentSessionQuerySchema,
   LatestAgentSessionQuerySchema,
   ListAgentSessionsQuerySchema,
   SetAgentSessionWorkspaceSchema,
@@ -25,7 +27,7 @@ export const agentSessionHandlers: HandlersFor<AgentSessionSchemas> = {
     GET: async ({ query }) => {
       const parsed = ListAgentSessionsQuerySchema.safeParse(query ?? {})
       if (!parsed.success) throw toDataApiError(parsed.error)
-      return agentSessionService.listByCursor(parsed.data)
+      return agentSessionService.listByCursor({ ...parsed.data, scope: 'ordinary' })
     },
 
     POST: async ({ body }) => {
@@ -44,11 +46,15 @@ export const agentSessionHandlers: HandlersFor<AgentSessionSchemas> = {
   },
 
   '/agent-sessions/:sessionId': {
-    GET: async ({ params }) => {
-      return agentSessionService.getById(params.sessionId)
+    GET: async ({ params, query }) => {
+      const parsed = GetAgentSessionQuerySchema.safeParse(query ?? {})
+      if (!parsed.success) throw toDataApiError(parsed.error)
+      return agentSessionService.getConversationById(params.sessionId, parsed.data)
     },
 
     PATCH: async ({ params, body }) => {
+      // Mutations scope like reads: background sessions are not addressable here.
+      agentSessionService.getConversationById(params.sessionId)
       const parsed = UpdateAgentSessionSchema.safeParse(body)
       if (!parsed.success) throw toDataApiError(parsed.error)
       return agentSessionService.update(params.sessionId, parsed.data)
@@ -57,6 +63,7 @@ export const agentSessionHandlers: HandlersFor<AgentSessionSchemas> = {
 
   '/agent-sessions/:sessionId/workspace': {
     PUT: async ({ params, body }) => {
+      agentSessionService.getConversationById(params.sessionId)
       const parsed = SetAgentSessionWorkspaceSchema.safeParse(body)
       if (!parsed.success) throw toDataApiError(parsed.error)
       return agentSessionService.setWorkspace(params.sessionId, parsed.data)
@@ -65,6 +72,8 @@ export const agentSessionHandlers: HandlersFor<AgentSessionSchemas> = {
 
   '/agent-sessions/:id/order': {
     PATCH: async ({ params, body }) => {
+      // Mutations scope like reads: background sessions are not addressable here.
+      agentSessionService.getConversationById(params.id)
       const parsed = OrderRequestSchema.parse(body)
       agentSessionService.reorder(params.id, parsed)
       return undefined
@@ -74,6 +83,8 @@ export const agentSessionHandlers: HandlersFor<AgentSessionSchemas> = {
   '/agent-sessions/order:batch': {
     PATCH: async ({ body }) => {
       const parsed = OrderBatchRequestSchema.parse(body)
+      // Mutations scope like reads: background sessions are not addressable here.
+      parsed.moves.forEach((move) => agentSessionService.getConversationById(move.id))
       agentSessionService.reorderBatch(parsed.moves)
       return undefined
     }

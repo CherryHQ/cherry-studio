@@ -1,8 +1,21 @@
 import { describe, expect, it } from 'vitest'
 
-import { CreateAgentSessionSchema, SetAgentSessionWorkspaceSchema, UpdateAgentSessionSchema } from '../agentSessions'
+import {
+  CreateAgentSessionSchema,
+  ListAgentSessionsQuerySchema,
+  SetAgentSessionWorkspaceSchema,
+  UpdateAgentSessionSchema
+} from '../agentSessions'
 
 describe('AgentSession schemas', () => {
+  it('accepts non-empty exact ids and enforces the list limit', () => {
+    const ids = Array.from({ length: 200 }, (_, index) => `session-${index}`)
+
+    expect(ListAgentSessionsQuerySchema.parse({ ids }).ids).toEqual(ids)
+    expect(ListAgentSessionsQuerySchema.safeParse({ ids: [] }).success).toBe(false)
+    expect(ListAgentSessionsQuerySchema.safeParse({ ids: [...ids, 'overflow'] }).success).toBe(false)
+  })
+
   it('accepts workspace changes through the dedicated workspace source body', () => {
     expect(SetAgentSessionWorkspaceSchema.safeParse({ type: 'user', workspaceId: 'workspace-1' }).success).toBe(true)
     expect(SetAgentSessionWorkspaceSchema.safeParse({ type: 'system' }).success).toBe(true)
@@ -65,4 +78,17 @@ describe('AgentSession schemas', () => {
     ).toBe(false)
     expect(UpdateAgentSessionSchema.safeParse({ name: overflowName }).success).toBe(false)
   })
+})
+
+// Malformed locale tags must fail at the API boundary, before Intl.Collator runs.
+describe('localized name query', () => {
+  it.each(['zh-CN', 'zh-TW', 'tr-TR', 'ar', 'ko', 'de-u-co-phonebk'])('accepts locale %s', (sortLocale) => {
+    expect(ListAgentSessionsQuerySchema.parse({ sortBy: 'name', sortLocale })).toEqual({ sortBy: 'name', sortLocale })
+  })
+  it.each(['', 'en_US', 'not a locale', 'en-u-ca-gregory-u-ca-buddhist'])(
+    'rejects malformed locale %s',
+    (sortLocale) => {
+      expect(ListAgentSessionsQuerySchema.safeParse({ sortBy: 'name', sortLocale }).success).toBe(false)
+    }
+  )
 })

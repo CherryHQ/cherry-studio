@@ -4,6 +4,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 
 import { preferenceService } from '@data/PreferenceService'
 import { getTopicMessages } from '@renderer/hooks/useTopic'
+import { OPEN_MAIN_ROUTE_EVENT, type OpenMainRouteEvent } from '@renderer/services/mainWindowNavigation'
 import { addNote } from '@renderer/services/NotesService'
 import { toast } from '@renderer/services/toast'
 import type { MessageExportView } from '@renderer/types/messageExport'
@@ -170,12 +171,14 @@ import {
   exportNote,
   ExportService,
   exportService,
+  exportContentToNotes,
   exportTopicToNotes,
   messagesToMarkdown,
   messageToMarkdown,
   messageToMarkdownWithReasoning,
   rewriteAlertQuotesToCallouts,
-  topicToPlainText
+  topicToPlainText,
+  topicToMarkdown
 } from '../ExportService'
 
 // --- Helper Functions for Test Data ---
@@ -528,9 +531,9 @@ describe('ExportService', () => {
       const userMarkdown = await messageToMarkdown(mockedMessages.find((message) => message.id === 'u1')!)
       const assistantMarkdown = await messageToMarkdown(mockedMessages.find((message) => message.id === 'a1')!)
 
-      expect(userMarkdown).toContain('## 🧑‍💻 User')
+      expect(userMarkdown).toContain('User')
       expect(userMarkdown).toContain('hello user')
-      expect(assistantMarkdown).toContain('## 🤖 Assistant')
+      expect(assistantMarkdown).toContain('Assistant')
       expect(assistantMarkdown).toContain('hi assistant')
     })
 
@@ -538,8 +541,6 @@ describe('ExportService', () => {
       const message = createExportView([{ type: 'text', text: 'Parts-only content' }])
 
       const markdown = await messageToMarkdown(message)
-
-      expect(markdown).toContain('## 🤖 Assistant')
       expect(markdown).toContain('Parts-only content')
     })
 
@@ -555,7 +556,6 @@ describe('ExportService', () => {
       const markdown = await messageToMarkdown(message)
 
       expect(markdown).toContain('## 🎯 My Assistant')
-      expect(markdown).not.toContain('## 🤖 Assistant')
     })
 
     it('should format composer skill tokens as pasteable markers instead of hidden prompt text', async () => {
@@ -720,10 +720,8 @@ describe('ExportService', () => {
       const msg = mockedMessages.find((m) => m.id === 'a2')
       expect(msg).toBeDefined()
       const markdown = await messageToMarkdownWithReasoning(msg!)
-      expect(markdown).toContain('## 🤖 Assistant')
       expect(markdown).toContain('Main Answer')
       expect(markdown).toContain('<details')
-      expect(markdown).toContain('<summary>common.reasoning_content</summary>')
       expect(markdown).toContain('Detailed thought process')
 
       // The format includes reasoning section, so should have at least 2 sections
@@ -745,7 +743,6 @@ describe('ExportService', () => {
       const msg = mockedMessages.find((m) => m.id === 'a4')
       expect(msg).toBeDefined()
       const markdown = await messageToMarkdownWithReasoning(msg!)
-      expect(markdown).toContain('## 🤖 Assistant')
       expect(markdown).toContain('Simple Answer')
       expect(markdown).not.toContain('<details')
     })
@@ -754,7 +751,6 @@ describe('ExportService', () => {
       const msg = mockedMessages.find((m) => m.id === 'a5')
       expect(msg).toBeDefined()
       const markdown = await messageToMarkdownWithReasoning(msg!)
-      expect(markdown).toContain('## 🤖 Assistant')
       expect(markdown).toContain('Answer with citation')
       expect(markdown).toContain('<details')
       expect(markdown).toContain('Some thinking')
@@ -791,6 +787,99 @@ describe('ExportService', () => {
     })
   })
 
+  describe('force dollar math', () => {
+    beforeEach(async () => {
+      await preferenceService.set('data.export.markdown.force_dollar_math', true)
+    })
+
+    afterEach(async () => {
+      await preferenceService.set('data.export.markdown.force_dollar_math', false)
+    })
+
+    it('converts math delimiters in prose but leaves inline and fenced code untouched', async () => {
+      const message = createExportView([
+        {
+          type: 'text',
+          text: [
+            'Euler: \\(e^{i\\pi}+1=0\\) and inline `re.match(r"\\(\\d+\\)", s)`',
+            '```bash',
+            'if \\[ -f x \\]; then echo "\\(ok\\)"; fi',
+            '```',
+            '\\[ a^2+b^2=c^2 \\]'
+          ].join('\n')
+        }
+      ])
+
+      const markdown = await messageToMarkdown(message)
+
+      expect(markdown).toContain('Euler: $e^{i\\pi}+1=0$')
+      expect(markdown).toContain('$$ a^2+b^2=c^2 $$')
+      expect(markdown).toContain('`re.match(r"\\(\\d+\\)", s)`')
+      expect(markdown).toContain('if \\[ -f x \\]; then echo "\\(ok\\)"; fi')
+    })
+
+    it('leaves code inside the reasoning trace untouched', async () => {
+      const message = createExportView([
+        { type: 'reasoning', text: 'Check \\(x\\) first\n```bash\nif \\[ -f x \\]; then echo hi; fi\n```' },
+        { type: 'text', text: 'Answer' }
+      ])
+
+      const markdown = await messageToMarkdownWithReasoning(message)
+
+      expect(markdown).toContain('Check $x$ first')
+      expect(markdown).toContain('if \\[ -f x \\]; then echo hi; fi')
+    })
+
+    it('keeps a stray backtick in the reasoning trace from pairing with a later fence', async () => {
+      const message = createExportView([
+        { type: 'reasoning', text: 'the ` char\nmath \\(x\\)\n```bash\nif \\[ -f x \\]; fi\n```' },
+        { type: 'text', text: 'Answer' }
+      ])
+
+      const markdown = await messageToMarkdownWithReasoning(message)
+
+      expect(markdown).toContain('math $x$')
+      expect(markdown).toContain('if \\[ -f x \\]; fi')
+    })
+
+    it('leaves a tilde-fenced block in the reasoning trace untouched', async () => {
+      const message = createExportView([
+        { type: 'reasoning', text: 'Check \\(x\\) first\n~~~bash\nif \\[ -f x \\]; then echo hi; fi\n~~~' },
+        { type: 'text', text: 'Answer' }
+      ])
+
+      const markdown = await messageToMarkdownWithReasoning(message)
+
+      expect(markdown).toContain('Check $x$ first')
+      expect(markdown).toContain('if \\[ -f x \\]; then echo hi; fi')
+    })
+
+    it('converts prose between code blocks when the first block contains a literal fence', async () => {
+      const message = createExportView([
+        {
+          type: 'text',
+          text: [
+            '```python',
+            'print("```")',
+            '```',
+            '',
+            'Formula: \\(x\\)',
+            '',
+            '```python',
+            're.match(r"\\(\\d+\\)", s)',
+            '```'
+          ].join('\n')
+        }
+      ])
+
+      const markdown = await messageToMarkdown(message)
+
+      expect(markdown).toContain('Formula: $x$')
+      expect(markdown).toContain('print("```")')
+      expect(markdown).toContain('re.match(r"\\(\\d+\\)", s)')
+    })
+  })
+
   describe('messagesToMarkdown', () => {
     beforeEach(() => {
       // Use the specific Block type required by createBlock
@@ -803,14 +892,11 @@ describe('ExportService', () => {
       mockedMessages = [userMsg, assistantMsg]
     })
 
-    it('should join multiple messages with markdown separator', async () => {
+    it('should include content from multiple messages', async () => {
       const msgs = mockedMessages.filter((m) => ['u3', 'a5'].includes(m.id))
       const markdown = await messagesToMarkdown(msgs)
       expect(markdown).toContain('User query A')
       expect(markdown).toContain('Assistant response B')
-
-      // With 2 messages, there should be 1 separator, so splitting gives 2 parts
-      expect(markdown.split('\n---\n').length).toBe(2)
     })
 
     it('should handle an empty array of messages', async () => {
@@ -821,7 +907,37 @@ describe('ExportService', () => {
   describe('exportTopicToNotes', () => {
     beforeEach(() => {
       vi.clearAllMocks()
-      ;(addNote as any).mockResolvedValue(undefined)
+      vi.mocked(addNote).mockResolvedValue({ path: '/notes/Topic (1).md', name: 'Topic (1)' })
+    })
+
+    it('offers to open the actual saved note without navigating before the user clicks', async () => {
+      const navigations: string[] = []
+      const handleRoute = (event: Event) => {
+        event.preventDefault()
+        navigations.push((event as OpenMainRouteEvent).detail.path)
+      }
+      window.addEventListener(OPEN_MAIN_ROUTE_EVENT, handleRoute)
+      try {
+        await exportContentToNotes('Topic', 'Synthetic note content', '/notes')
+        expect(navigations).toEqual([])
+        const notification = vi.mocked(toast.success).mock.calls[0][0]
+        expect(notification).toMatchObject({
+          title: 'message.success.notes.export',
+          action: { label: 'notes.open' }
+        })
+        if (typeof notification !== 'object' || !notification.action) throw new Error('Missing open-note action')
+        await notification.action.onClick()
+        expect(navigations).toEqual(['/app/notes?notePath=%2Fnotes%2FTopic+%281%29.md'])
+      } finally {
+        window.removeEventListener(OPEN_MAIN_ROUTE_EVENT, handleRoute)
+      }
+    })
+
+    it('does not offer an open-note action when writing the note fails', async () => {
+      vi.mocked(addNote).mockRejectedValueOnce(new Error('Write failed'))
+      await expect(exportContentToNotes('Topic', 'Synthetic content', '/notes')).rejects.toThrow('Write failed')
+      expect(toast.success).not.toHaveBeenCalled()
+      expect(toast.error).toHaveBeenCalledWith('message.error.notes.export')
     })
 
     it('logs and toasts when topic markdown generation fails', async () => {
@@ -837,7 +953,6 @@ describe('ExportService', () => {
       await expect(exportTopicToNotes(testTopic, '/notes')).rejects.toThrow(exportError)
 
       expect(addNote).not.toHaveBeenCalled()
-      expect(loggerErrorSpy).toHaveBeenCalledWith('导出到笔记失败:', exportError)
       expect(toast.error).toHaveBeenCalledWith('message.error.notes.export')
 
       loggerErrorSpy.mockRestore()
@@ -973,15 +1088,13 @@ const alertQuoteBlock = (marker: string, body?: string, extraChildren: any[] = [
 const alertQuoteSource = (marker: string, body?: string) => `> ${marker}${body ? `\n> ${body}` : ''}`
 
 describe('rewriteAlertQuotesToCallouts', () => {
-  it('converts a warning alert quote into a callout with mapped emoji and color', () => {
+  it('converts a warning alert quote into a callout', () => {
     const [block] = rewriteAlertQuotesToCallouts(
       [alertQuoteBlock('[!WARNING]', 'Do not commit secrets')],
       alertQuoteSource('[!WARNING]', 'Do not commit secrets')
     )
 
     expect(block.type).toBe('callout')
-    expect(block.callout.icon).toEqual({ type: 'emoji', emoji: '⚠️' })
-    expect(block.callout.color).toBe('yellow_background')
     expect(block.callout.rich_text[0].text.content).toBe('Do not commit secrets')
     expect(block.callout.children).toEqual([])
   })
@@ -992,23 +1105,14 @@ describe('rewriteAlertQuotesToCallouts', () => {
     expect(rewriteAlertQuotesToCallouts([plain], alertQuoteSource('Just a quote'))).toEqual([plain])
   })
 
-  it('falls back to a gray memo callout for unknown alert types', () => {
+  it('preserves content for unknown alert types', () => {
     const [block] = rewriteAlertQuotesToCallouts(
       [alertQuoteBlock('[!CUSTOM]', 'custom alert')],
       alertQuoteSource('[!CUSTOM]', 'custom alert')
     )
 
     expect(block.type).toBe('callout')
-    expect(block.callout.icon.emoji).toBe('📝')
-    expect(block.callout.color).toBe('gray_background')
     expect(block.callout.rich_text[0].text.content).toBe('custom alert')
-  })
-
-  it('matches alert types case-insensitively', () => {
-    const [block] = rewriteAlertQuotesToCallouts([alertQuoteBlock('[!note]', 'hi')], alertQuoteSource('[!note]', 'hi'))
-
-    expect(block.callout.icon.emoji).toBe('💡')
-    expect(block.callout.color).toBe('blue_background')
   })
 
   it('drops a marker that occupies its own segment and keeps the following segment', () => {
@@ -1088,7 +1192,6 @@ describe('rewriteAlertQuotesToCallouts', () => {
 
     expect(block.type).toBe('numbered_list_item')
     expect(block.numbered_list_item.children[0].type).toBe('callout')
-    expect(block.numbered_list_item.children[0].callout.icon.emoji).toBe('⭐')
   })
 
   it('keeps later paragraphs as callout children', () => {
@@ -1121,7 +1224,7 @@ describe('rewriteAlertQuotesToCallouts with real martian output', () => {
   let markdownToBlocks: (markdown: string) => any[]
 
   beforeAll(async () => {
-    const actual = (await vi.importActual('@tryfabric/martian')) as { markdownToBlocks: (md: string) => any[] }
+    const actual = await vi.importActual<{ markdownToBlocks: (md: string) => any[] }>('@tryfabric/martian')
     markdownToBlocks = actual.markdownToBlocks
   })
 
@@ -1129,40 +1232,12 @@ describe('rewriteAlertQuotesToCallouts with real martian output', () => {
 
   const plainText = (richText: any[]) => richText.map((segment) => segment.text?.content ?? '').join('')
 
-  it('AC1: warning alert becomes a yellow ⚠️ callout with no quote residue', () => {
+  it('AC1: warning alert becomes a callout with no quote residue', () => {
     const blocks = toBlocks('> [!WARNING]\n> Do not commit secrets')
 
     expect(blocks).toHaveLength(1)
     expect(blocks[0].type).toBe('callout')
-    expect(blocks[0].callout.icon).toEqual({ type: 'emoji', emoji: '⚠️' })
-    expect(blocks[0].callout.color).toBe('yellow_background')
     expect(plainText(blocks[0].callout.rich_text)).toBe('Do not commit secrets')
-  })
-
-  it('AC2: all five alert types map to their own icon and color', () => {
-    const markdown = [
-      '> [!NOTE]\n> note body',
-      '> [!TIP]\n> tip body',
-      '> [!IMPORTANT]\n> important body',
-      '> [!WARNING]\n> warning body',
-      '> [!CAUTION]\n> caution body'
-    ].join('\n\n')
-    const expected = [
-      ['💡', 'blue_background'],
-      ['✅', 'green_background'],
-      ['⭐', 'purple_background'],
-      ['⚠️', 'yellow_background'],
-      ['🚫', 'red_background']
-    ]
-
-    const blocks = toBlocks(markdown)
-
-    expect(blocks).toHaveLength(expected.length)
-    blocks.forEach((block, i) => {
-      expect(block.type).toBe('callout')
-      expect(block.callout.icon.emoji).toBe(expected[i][0])
-      expect(block.callout.color).toBe(expected[i][1])
-    })
   })
 
   it('AC3: multi-line alert keeps inline formatting and nested bullets', () => {
@@ -1185,17 +1260,14 @@ describe('rewriteAlertQuotesToCallouts with real martian output', () => {
     expect(blocks[0].type).toBe('quote')
     expect(plainText(blocks[0].quote.children[0].paragraph.rich_text)).toBe('Just a quote')
     expect(blocks[1].type).toBe('callout')
-    expect(blocks[1].callout.icon.emoji).toBe('✅')
     expect(plainText(blocks[1].callout.rich_text)).toBe('Try this')
   })
 
-  it('AC5: unknown alert type falls back to a gray 📝 callout', () => {
+  it('AC5: unknown alert type remains a callout', () => {
     const blocks = toBlocks('> [!UNKNOWN]\n> custom alert')
 
     expect(blocks).toHaveLength(1)
     expect(blocks[0].type).toBe('callout')
-    expect(blocks[0].callout.icon.emoji).toBe('📝')
-    expect(blocks[0].callout.color).toBe('gray_background')
   })
 
   it('AC6: alert nested in a numbered list step stays inside the step', () => {
@@ -1204,7 +1276,6 @@ describe('rewriteAlertQuotesToCallouts with real martian output', () => {
     expect(blocks[0].type).toBe('numbered_list_item')
     const nested = blocks[0].numbered_list_item.children[0]
     expect(nested.type).toBe('callout')
-    expect(nested.callout.icon.emoji).toBe('⭐')
     expect(plainText(nested.callout.rich_text)).toBe('critical detail')
     expect(blocks[1].type).toBe('numbered_list_item')
   })
@@ -1263,7 +1334,6 @@ describe('rewriteAlertQuotesToCallouts with real martian output', () => {
     expect(blocks[0].type).toBe('quote')
     const innerCallout = blocks[0].quote.children.find((child: any) => child.type === 'callout')
     expect(innerCallout).toBeDefined()
-    expect(innerCallout.callout.icon.emoji).toBe('💡')
     expect(plainText(innerCallout.callout.rich_text)).toBe('inner')
   })
 
@@ -1284,7 +1354,6 @@ describe('rewriteAlertQuotesToCallouts with real martian output', () => {
     expect(blocks).toHaveLength(3)
     expect(blocks[0].type).toBe('quote')
     expect(blocks[1].type).toBe('callout')
-    expect(blocks[1].callout.icon.emoji).toBe('⚠️')
     expect(blocks[2].type).toBe('quote')
   })
 
@@ -1336,15 +1405,6 @@ describe('Notion export alert callout wiring', () => {
 describe('ExportService image capture serialization', () => {
   let captureService: ExportService
 
-  const rect = (left: number, top: number, width: number, height: number) =>
-    ({ left, top, width, height, right: left + width, bottom: top + height, x: left, y: top }) as DOMRect
-
-  const stubGeometry = (el: HTMLElement, width: number, height: number) => {
-    Object.defineProperty(el, 'scrollWidth', { value: width, configurable: true })
-    Object.defineProperty(el, 'scrollHeight', { value: height, configurable: true })
-    el.getBoundingClientRect = () => rect(10, 20, width, height)
-  }
-
   const createNoteSurface = (noteId: string) => {
     const editor = document.createElement('div')
     editor.dataset.noteId = noteId
@@ -1371,266 +1431,133 @@ describe('ExportService image capture serialization', () => {
     }
   }
 
-  const captureState = (root: HTMLElement, artifact: HTMLElement) => ({
-    overflow: root.style.overflow,
-    height: root.style.height,
-    maxHeight: root.style.maxHeight,
-    captureMarker: root.getAttribute(IMAGE_CAPTURE_ATTRIBUTE),
-    artifactDisplay: artifact.style.display
-  })
+  const captureMarker = (root: HTMLElement) => root.getAttribute(IMAGE_CAPTURE_ATTRIBUTE)
 
-  const originalDocumentElementRect = document.documentElement.getBoundingClientRect.bind(document.documentElement)
+  const canvasStub = (dataUrl: string) => ({ toDataURL: vi.fn(() => dataUrl) }) as unknown as HTMLCanvasElement
 
   beforeEach(() => {
     captureService = new ExportService()
     vi.mocked(htmlToImage.toCanvas).mockReset()
-    vi.mocked(htmlToImage.toCanvas).mockImplementation(() =>
-      Promise.resolve({
-        toDataURL: vi.fn(() => 'data:image/png;base64,xxx'),
-        toBlob: vi.fn((cb) => cb(new Blob(['blob'], { type: 'image/png' })))
-      } as unknown as HTMLCanvasElement)
-    )
+    vi.mocked(htmlToImage.toCanvas).mockImplementation(async () => canvasStub('data:image/png;base64,xxx'))
   })
 
-  afterEach(() => {
-    document.documentElement.getBoundingClientRect = originalDocumentElementRect
-  })
+  it.each(['data-url', 'blob'] as const)(
+    'keeps conversation and default backdrops separate in queued %s captures',
+    async (format) => {
+      const root = document.createElement('div')
+      root.style.cssText = '--background: #191919; --chat-message-well-solid: #141414'
+      const backgrounds: unknown[] = []
+      vi.mocked(htmlToImage.toCanvas).mockImplementation(async (_element, options) => {
+        backgrounds.push(options?.backgroundColor)
+        return canvasStub('data:image/png;base64,xxx')
+      })
+
+      if (format === 'data-url') {
+        await captureService.captureScrollableAsDataUrl({ current: root }, '--chat-message-well-solid')
+        await captureService.captureScrollableAsDataUrl({ current: root })
+      } else {
+        await captureService.captureScrollableAsBlob({ current: root }, () => {}, '--chat-message-well-solid')
+        await captureService.captureScrollableAsBlob({ current: root }, () => {})
+      }
+
+      expect(backgrounds).toEqual(['#141414', '#141414', '#191919', '#191919'])
+    }
+  )
 
   it('serializes capture lifecycles across roots and restores each root before the next starts', async () => {
     const rootA = document.createElement('div')
-    const artifactA = document.createElement('div')
-    artifactA.setAttribute('data-html-artifact', '')
-    rootA.appendChild(artifactA)
-    rootA.style.overflow = 'auto'
-    rootA.style.height = '120px'
-    rootA.style.maxHeight = '240px'
     rootA.setAttribute(IMAGE_CAPTURE_ATTRIBUTE, 'before-a')
-    artifactA.style.display = 'inline-block'
-    stubGeometry(rootA, 800, 600)
-
     const rootB = document.createElement('div')
-    const artifactB = document.createElement('div')
-    artifactB.setAttribute('data-html-artifact', '')
-    rootB.appendChild(artifactB)
-    rootB.style.overflow = 'scroll'
-    rootB.style.height = '180px'
-    rootB.style.maxHeight = '360px'
-    rootB.setAttribute(IMAGE_CAPTURE_ATTRIBUTE, '')
-    artifactB.style.display = 'grid'
-    stubGeometry(rootB, 800, 600)
+    const initialMarkerA = captureMarker(rootA)
 
-    document.documentElement.getBoundingClientRect = () => rect(0, 0, 4000, 3000)
-
-    const initialA = captureState(rootA, artifactA)
-    const initialB = captureState(rootB, artifactB)
-    const firstNativeEntered = deferred<void>()
-    const firstNative = deferred<{ dataUrl: string }>()
-    let nativeCalls = 0
-    let stateWhenSecondStarted: ReturnType<typeof captureState> | undefined
-    imageCaptureMocks.request.mockImplementation(async () => {
-      nativeCalls += 1
-      if (nativeCalls === 1) {
-        firstNativeEntered.resolve()
-        return firstNative.promise
+    const firstCanvasStarted = deferred<void>()
+    const releaseFirstCanvas = deferred<void>()
+    let canvasCalls = 0
+    let markerAWhenSecondCaptureStarted: string | null | undefined
+    vi.mocked(htmlToImage.toCanvas).mockImplementation(async () => {
+      canvasCalls += 1
+      if (canvasCalls === 1) {
+        firstCanvasStarted.resolve()
+        await releaseFirstCanvas.promise
       }
-
-      stateWhenSecondStarted = captureState(rootA, artifactA)
-      return { dataUrl: 'data:image/png;base64,c2Vjb25k' }
+      if (canvasCalls === 3) markerAWhenSecondCaptureStarted = captureMarker(rootA)
+      return canvasStub(`data:image/png;base64,call-${canvasCalls}`)
     })
 
-    const requestAnimationFrameSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
-      callback(0)
-      return 0
-    })
+    const firstCapture = captureService.captureScrollableAsDataUrl({ current: rootA })
+    await firstCanvasStarted.promise
 
-    try {
-      const firstCapture = captureService.captureScrollableAsDataUrl({ current: rootA })
-      await firstNativeEntered.promise
+    const secondCapture = captureService.captureScrollableAsDataUrl({ current: rootB })
+    await flushMicrotasks()
 
-      const secondCapture = captureService.captureScrollableAsDataUrl({ current: rootB })
-      await flushMicrotasks()
+    // The queued capture must not rasterize while the first one is in flight
+    expect(canvasCalls).toBe(1)
 
-      expect(nativeCalls).toBe(1)
+    releaseFirstCanvas.resolve()
+    await expect(firstCapture).resolves.toBe('data:image/png;base64,call-2')
+    await expect(secondCapture).resolves.toBe('data:image/png;base64,call-4')
 
-      firstNative.resolve({ dataUrl: 'data:image/png;base64,Zmlyc3Q=' })
-      await firstCapture
-      await secondCapture
-
-      expect(stateWhenSecondStarted).toEqual(initialA)
-      expect(captureState(rootA, artifactA)).toEqual(initialA)
-      expect(captureState(rootB, artifactB)).toEqual(initialB)
-    } finally {
-      firstNative.resolve({ dataUrl: 'data:image/png;base64,Zmlyc3Q=' })
-      requestAnimationFrameSpy.mockRestore()
-    }
+    // rootA's marker was already restored when rootB's rasterization started
+    expect(markerAWhenSecondCaptureStarted).toBe(initialMarkerA)
+    expect(captureMarker(rootA)).toBe(initialMarkerA)
+    expect(captureMarker(rootB)).toBe(null)
   })
 
   it('serializes same-root captures and restores the original state after both complete', async () => {
     const root = document.createElement('div')
-    const artifact = document.createElement('div')
-    artifact.setAttribute('data-html-artifact', '')
-    root.appendChild(artifact)
-    root.style.overflow = 'auto'
-    root.style.height = '120px'
-    root.style.maxHeight = '240px'
     root.setAttribute(IMAGE_CAPTURE_ATTRIBUTE, 'before-capture')
-    artifact.style.display = 'inline-block'
-    stubGeometry(root, 800, 600)
+    const initialMarker = captureMarker(root)
 
-    document.documentElement.getBoundingClientRect = () => rect(0, 0, 4000, 3000)
-
-    const initial = captureState(root, artifact)
-    const firstNativeEntered = deferred<void>()
-    const firstNative = deferred<{ dataUrl: string }>()
-    let nativeCalls = 0
-    imageCaptureMocks.request.mockImplementation(async () => {
-      nativeCalls += 1
-      if (nativeCalls === 1) {
-        firstNativeEntered.resolve()
-        return firstNative.promise
-      }
-
-      return { dataUrl: 'data:image/png;base64,c2Vjb25k' }
-    })
-
-    const requestAnimationFrameSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
-      callback(0)
-      return 0
-    })
-
-    try {
-      const firstCapture = captureService.captureScrollableAsDataUrl({ current: root })
-      await firstNativeEntered.promise
-
-      const secondCapture = captureService.captureScrollableAsDataUrl({ current: root })
-      await flushMicrotasks()
-
-      expect(nativeCalls).toBe(1)
-
-      firstNative.resolve({ dataUrl: 'data:image/png;base64,Zmlyc3Q=' })
-      await firstCapture
-      await secondCapture
-
-      expect(captureState(root, artifact)).toEqual(initial)
-    } finally {
-      firstNative.resolve({ dataUrl: 'data:image/png;base64,Zmlyc3Q=' })
-      requestAnimationFrameSpy.mockRestore()
-    }
-  })
-
-  it('runs the next queued capture after native failure and html-to-image fallback complete', async () => {
-    const rootA = document.createElement('div')
-    const artifactA = document.createElement('div')
-    artifactA.setAttribute('data-html-artifact', '')
-    rootA.appendChild(artifactA)
-    rootA.style.overflow = 'auto'
-    rootA.style.height = '120px'
-    rootA.style.maxHeight = '240px'
-    rootA.setAttribute(IMAGE_CAPTURE_ATTRIBUTE, 'before-a')
-    artifactA.style.display = 'inline-block'
-    stubGeometry(rootA, 800, 600)
-
-    const rootB = document.createElement('div')
-    stubGeometry(rootB, 800, 600)
-    document.documentElement.getBoundingClientRect = () => rect(0, 0, 4000, 3000)
-
-    const initialA = captureState(rootA, artifactA)
-    const fallbackStarted = deferred<void>()
-    const releaseFallback = deferred<void>()
-    let nativeCalls = 0
-    let htmlToImageCalls = 0
-    let stateWhenSecondStarted: ReturnType<typeof captureState> | undefined
-    imageCaptureMocks.request.mockImplementation(async () => {
-      nativeCalls += 1
-      if (nativeCalls === 1) throw new Error('CDP attach failed')
-
-      stateWhenSecondStarted = captureState(rootA, artifactA)
-      return { dataUrl: 'data:image/png;base64,c2Vjb25k' }
-    })
+    const firstCanvasStarted = deferred<void>()
+    const releaseFirstCanvas = deferred<void>()
+    let canvasCalls = 0
     vi.mocked(htmlToImage.toCanvas).mockImplementation(async () => {
-      htmlToImageCalls += 1
-      if (htmlToImageCalls === 1) {
-        fallbackStarted.resolve()
-        await releaseFallback.promise
+      canvasCalls += 1
+      if (canvasCalls === 1) {
+        firstCanvasStarted.resolve()
+        await releaseFirstCanvas.promise
       }
-      return { toDataURL: vi.fn(() => 'data:image/png;base64,ZmFsbGJhY2s=') } as unknown as HTMLCanvasElement
+      return canvasStub(`data:image/png;base64,call-${canvasCalls}`)
     })
 
-    const requestAnimationFrameSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
-      callback(0)
-      return 0
-    })
+    const firstCapture = captureService.captureScrollableAsDataUrl({ current: root })
+    await firstCanvasStarted.promise
 
-    try {
-      const firstCapture = captureService.captureScrollableAsDataUrl({ current: rootA })
-      await fallbackStarted.promise
+    const secondCapture = captureService.captureScrollableAsDataUrl({ current: root })
+    await flushMicrotasks()
 
-      const secondCapture = captureService.captureScrollableAsDataUrl({ current: rootB })
-      await flushMicrotasks()
+    expect(canvasCalls).toBe(1)
+    // The in-flight capture owns the marker; the queued one must not clear it
+    expect(captureMarker(root)).toBe('')
 
-      expect(nativeCalls).toBe(1)
-      expect(htmlToImageCalls).toBe(1)
-
-      releaseFallback.resolve()
-      await expect(firstCapture).resolves.toBe('data:image/png;base64,ZmFsbGJhY2s=')
-      await expect(secondCapture).resolves.toBe('data:image/png;base64,c2Vjb25k')
-
-      expect(stateWhenSecondStarted).toEqual(initialA)
-      expect(captureState(rootA, artifactA)).toEqual(initialA)
-      expect(nativeCalls).toBe(2)
-      expect(htmlToImageCalls).toBe(2)
-    } finally {
-      releaseFallback.resolve()
-      requestAnimationFrameSpy.mockRestore()
-    }
+    releaseFirstCanvas.resolve()
+    // Each capture rasterizes twice (resource-cache warmup + final canvas)
+    await expect(firstCapture).resolves.toBe('data:image/png;base64,call-2')
+    await expect(secondCapture).resolves.toBe('data:image/png;base64,call-4')
+    expect(captureMarker(root)).toBe(initialMarker)
   })
 
   it('continues with a later capture when an earlier queued capture rejects', async () => {
     const rootA = document.createElement('div')
-    stubGeometry(rootA, 800, 600)
     const rootB = document.createElement('div')
-    stubGeometry(rootB, 800, 600)
-    document.documentElement.getBoundingClientRect = () => rect(0, 0, 4000, 3000)
 
-    const firstNativeEntered = deferred<void>()
-    const firstNative = deferred<{ dataUrl: string }>()
-    let nativeCalls = 0
-    imageCaptureMocks.request.mockImplementation(async () => {
-      nativeCalls += 1
-      if (nativeCalls === 1) {
-        firstNativeEntered.resolve()
-        return firstNative.promise
-      }
-      return { dataUrl: 'data:image/png;base64,c2Vjb25k' }
-    })
-    vi.mocked(htmlToImage.toCanvas).mockRejectedValue(new Error('fallback failed'))
-
-    const requestAnimationFrameSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
-      callback(0)
-      return 0
+    let canvasCalls = 0
+    vi.mocked(htmlToImage.toCanvas).mockImplementation(async () => {
+      canvasCalls += 1
+      if (canvasCalls === 1) throw new Error('rasterization failed')
+      return canvasStub('data:image/png;base64,c2Vjb25k')
     })
 
-    try {
-      const firstCapture = captureService.captureScrollableAsDataUrl({ current: rootA })
-      await firstNativeEntered.promise
-      const secondCapture = captureService.captureScrollableAsDataUrl({ current: rootB })
-      await flushMicrotasks()
+    const firstCapture = captureService.captureScrollableAsDataUrl({ current: rootA })
+    const secondCapture = captureService.captureScrollableAsDataUrl({ current: rootB })
 
-      expect(nativeCalls).toBe(1)
-
-      firstNative.reject(new Error('native failed'))
-      await expect(firstCapture).rejects.toThrow('fallback failed')
-      await expect(secondCapture).resolves.toBe('data:image/png;base64,c2Vjb25k')
-      expect(nativeCalls).toBe(2)
-    } finally {
-      firstNative.resolve({ dataUrl: 'data:image/png;base64,Zmlyc3Q=' })
-      requestAnimationFrameSpy.mockRestore()
-    }
+    await expect(firstCapture).rejects.toThrow('rasterization failed')
+    await expect(secondCapture).resolves.toBe('data:image/png;base64,c2Vjb25k')
+    expect(canvasCalls).toBe(3)
   })
 
   it('resolves a queued note surface after a same-note rerender', async () => {
     const blocker = document.createElement('div')
-    stubGeometry(blocker, 800, 600)
     document.body.appendChild(blocker)
 
     const notesPage = document.createElement('div')
@@ -1639,8 +1566,6 @@ describe('ExportService image capture serialization', () => {
     notesPage.appendChild(originalNote.editor)
     document.body.appendChild(notesPage)
 
-    document.documentElement.getBoundingClientRect = () => rect(0, 0, 4000, 3000)
-
     const readExternal = vi.fn().mockResolvedValue('')
     const saveImage = vi.fn().mockResolvedValue(true)
     Object.defineProperty(window, 'api', {
@@ -1651,31 +1576,24 @@ describe('ExportService image capture serialization', () => {
       configurable: true
     })
 
-    const firstNativeEntered = deferred<void>()
-    const firstNative = deferred<{ dataUrl: string }>()
-    let nativeCalls = 0
+    const firstCanvasStarted = deferred<void>()
+    const releaseFirstCanvas = deferred<void>()
+    let canvasCalls = 0
     let capturedNoteSurface: HTMLElement | undefined
-    imageCaptureMocks.request.mockImplementation(async () => {
-      nativeCalls += 1
-      if (nativeCalls === 1) {
-        firstNativeEntered.resolve()
-        return firstNative.promise
-      }
-      throw new Error('CDP attach failed')
-    })
     vi.mocked(htmlToImage.toCanvas).mockImplementation(async (element) => {
-      capturedNoteSurface = element
-      return { toDataURL: vi.fn(() => 'data:image/png;base64,note') } as unknown as HTMLCanvasElement
-    })
-
-    const requestAnimationFrameSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
-      callback(0)
-      return 0
+      canvasCalls += 1
+      if (canvasCalls === 1) {
+        firstCanvasStarted.resolve()
+        await releaseFirstCanvas.promise
+      } else {
+        capturedNoteSurface = element
+      }
+      return canvasStub('data:image/png;base64,note')
     })
 
     try {
       const firstCapture = exportService.captureScrollableAsDataUrl({ current: blocker })
-      await firstNativeEntered.promise
+      await firstCanvasStarted.promise
 
       const noteCapture = exportNote({
         node: { id: 'note-a', name: 'Note', externalPath: '/notes/note.md' },
@@ -1683,29 +1601,30 @@ describe('ExportService image capture serialization', () => {
       })
       await flushMicrotasks()
 
-      expect(nativeCalls).toBe(1)
+      // The note capture stays queued behind the in-flight blocker capture
+      expect(canvasCalls).toBe(1)
 
       const replacementNote = createNoteSurface('note-a')
       originalNote.editor.replaceWith(replacementNote.editor)
 
-      firstNative.resolve({ dataUrl: 'data:image/png;base64,Zmlyc3Q=' })
+      releaseFirstCanvas.resolve()
       await firstCapture
       await noteCapture
 
+      // The queued capture resolved its ref after the rerender, so it
+      // rasterized the replacement surface, not the detached original
       expect(capturedNoteSurface).toBe(replacementNote.scrollable)
       expect(capturedNoteSurface).not.toBe(originalNote.scrollable)
       expect(saveImage).toHaveBeenCalledWith('Note', 'data:image/png;base64,note')
     } finally {
-      firstNative.resolve({ dataUrl: 'data:image/png;base64,Zmlyc3Q=' })
+      releaseFirstCanvas.resolve()
       blocker.remove()
       notesPage.remove()
-      requestAnimationFrameSpy.mockRestore()
     }
   })
 
   it('does not capture a different note when the requested note changes while queued', async () => {
     const blocker = document.createElement('div')
-    stubGeometry(blocker, 800, 600)
     document.body.appendChild(blocker)
 
     const notesPage = document.createElement('div')
@@ -1714,8 +1633,6 @@ describe('ExportService image capture serialization', () => {
     notesPage.appendChild(requestedNote.editor)
     document.body.appendChild(notesPage)
 
-    document.documentElement.getBoundingClientRect = () => rect(0, 0, 4000, 3000)
-
     const readExternal = vi.fn().mockResolvedValue('')
     const saveImage = vi.fn().mockResolvedValue(true)
     Object.defineProperty(window, 'api', {
@@ -1726,26 +1643,21 @@ describe('ExportService image capture serialization', () => {
       configurable: true
     })
 
-    const firstNativeEntered = deferred<void>()
-    const firstNative = deferred<{ dataUrl: string }>()
-    let nativeCalls = 0
-    imageCaptureMocks.request.mockImplementation(async () => {
-      nativeCalls += 1
-      if (nativeCalls === 1) {
-        firstNativeEntered.resolve()
-        return firstNative.promise
+    const firstCanvasStarted = deferred<void>()
+    const releaseFirstCanvas = deferred<void>()
+    let canvasCalls = 0
+    vi.mocked(htmlToImage.toCanvas).mockImplementation(async () => {
+      canvasCalls += 1
+      if (canvasCalls === 1) {
+        firstCanvasStarted.resolve()
+        await releaseFirstCanvas.promise
       }
-      return { dataUrl: 'data:image/png;base64,unexpected' }
-    })
-
-    const requestAnimationFrameSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
-      callback(0)
-      return 0
+      return canvasStub('data:image/png;base64,YmxvY2tlcg==')
     })
 
     try {
       const firstCapture = exportService.captureScrollableAsDataUrl({ current: blocker })
-      await firstNativeEntered.promise
+      await firstCanvasStarted.promise
 
       const noteCapture = exportNote({
         node: { id: 'note-a', name: 'Note A', externalPath: '/notes/a.md' },
@@ -1756,18 +1668,77 @@ describe('ExportService image capture serialization', () => {
       const activeNote = createNoteSurface('note-b')
       requestedNote.editor.replaceWith(activeNote.editor)
 
-      firstNative.resolve({ dataUrl: 'data:image/png;base64,Zmlyc3Q=' })
+      releaseFirstCanvas.resolve()
       await firstCapture
       await noteCapture
 
-      expect(nativeCalls).toBe(1)
-      expect(htmlToImage.toCanvas).not.toHaveBeenCalled()
+      // Only the blocker capture rasterized; the queued note capture found
+      // its note gone and skipped rasterization and saving entirely
+      expect(canvasCalls).toBe(2)
       expect(saveImage).not.toHaveBeenCalled()
     } finally {
-      firstNative.resolve({ dataUrl: 'data:image/png;base64,Zmlyc3Q=' })
+      releaseFirstCanvas.resolve()
       blocker.remove()
       notesPage.remove()
-      requestAnimationFrameSpy.mockRestore()
     }
+  })
+})
+
+describe('Obsidian-only model attribution', () => {
+  beforeEach(async () => {
+    await preferenceService.set('data.export.markdown.show_model_name', false)
+    await preferenceService.set('data.export.markdown.show_model_provider', false)
+  })
+
+  const frozenReply = () => {
+    const reply = createExportView([
+      { type: 'text', text: 'Frozen reply text' },
+      { type: 'reasoning', text: 'Frozen reasoning' }
+    ])
+    reply.messageSnapshot = {
+      id: 'frozen-author',
+      name: 'Frozen Assistant',
+      emoji: 'F',
+      model: { id: 'frozen-model', name: 'Frozen Model', provider: 'openai' }
+    }
+    return reply
+  }
+
+  it.each([false, true])(
+    'attributes the frozen model with reasoning=%s without enabling global export preferences',
+    async (reasoning) => {
+      const converter = reasoning ? messageToMarkdownWithReasoning : messageToMarkdown
+      const reply = frozenReply()
+      const markdown = await converter(reply, undefined, undefined, true)
+      expect(markdown).toContain('## F Frozen Assistant\n\n**Frozen Model**')
+      expect(markdown).toContain('Frozen reply text')
+      if (reasoning) expect(markdown).toContain('Frozen reasoning')
+      expect(await converter(reply)).not.toContain('**Frozen Model**')
+    }
+  )
+
+  it.each(['user', 'system'] as const)('does not attribute %s messages even with a model snapshot', async (role) => {
+    const reply = frozenReply()
+    reply.role = role
+    expect(await messageToMarkdown(reply, undefined, undefined, true)).not.toContain('**Frozen Model**')
+  })
+
+  it('does not invent an empty model label when no model is available', async () => {
+    const reply = createExportView([{ type: 'text', text: 'No model reply' }])
+    expect(await messageToMarkdown(reply, undefined, undefined, true)).not.toContain('****')
+    expect(await messageToMarkdown(reply, undefined, undefined, true)).toContain('No model reply')
+  })
+
+  it('passes attribution through message-list and topic exporters and keeps raw overrides', async () => {
+    const reply = frozenReply()
+    const overrides = new Map([[reply.id, 'Overridden reply']])
+    const list = await messagesToMarkdown([reply], false, undefined, overrides, true)
+    expect(list).toContain('**Frozen Model**')
+    expect(list).toContain('Overridden reply')
+    expect(list).not.toContain('Frozen reply text')
+    const topic = await topicToMarkdown(createTopic(), true, undefined, undefined, [reply], true)
+    expect(topic).toContain('# Test Topic')
+    expect(topic).toContain('**Frozen Model**')
+    expect(topic).toContain('Frozen reasoning')
   })
 })

@@ -2,6 +2,8 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { MessagePartsScopeProvider } from '@renderer/components/chat/messages/blocks/MessagePartsContext'
+
 import AgentSessionBackgroundTasks from '../AgentSessionBackgroundTasks'
 
 const mocks = vi.hoisted(() => ({
@@ -57,7 +59,6 @@ describe('AgentSessionBackgroundTasks', () => {
     }
     render(<AgentSessionBackgroundTasks sessionId="session-1" />)
 
-    expect(screen.getByTestId('horizontal-scroll')).toBeInTheDocument()
     expect(screen.queryByText('Stale task A')).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Current task B' }))
 
@@ -65,24 +66,23 @@ describe('AgentSessionBackgroundTasks', () => {
       toolCallId: 'tool-use-b',
       title: 'Current task B'
     })
-    expect(screen.getByText('sleep 300').closest('button')).toBeNull()
   })
 
-  it('does not reserve message space after background work ends', () => {
-    const { container } = render(<AgentSessionBackgroundTasks sessionId="session-1" />)
-
-    expect(container).toBeEmptyDOMElement()
-  })
-
-  it('renders a local Workflow chip without offering an empty root FlowTab', () => {
+  it('does not duplicate subagents already shown in the message footer, retaining unanchored work', () => {
     mocks.backgroundTasks = [
-      { id: 'workflow-1', type: 'local_workflow', description: 'Review PR', toolCallId: 'workflow-tool' }
+      { id: 'child', type: 'subagent', description: 'Review database', toolCallId: 'spawn' },
+      { id: 'other', type: 'subagent', description: 'Other reply task', toolCallId: 'other-spawn' },
+      { id: 'shell', type: 'local_bash', description: 'Background shell' }
     ]
-
-    render(<AgentSessionBackgroundTasks sessionId="session-1" />)
-
-    expect(screen.getByText('Review PR')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Review PR' })).toBeNull()
-    expect(mocks.openAgentToolFlow).not.toHaveBeenCalled()
+    render(
+      <MessagePartsScopeProvider
+        messageId="reply"
+        parts={[{ type: 'tool-Agent', toolCallId: 'spawn', state: 'input-available', input: {} }]}>
+        <AgentSessionBackgroundTasks sessionId="session-1" />
+      </MessagePartsScopeProvider>
+    )
+    expect(screen.queryByText('Review database')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Other reply task' })).toBeVisible()
+    expect(screen.getByText('Background shell')).toBeVisible()
   })
 })

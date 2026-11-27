@@ -136,6 +136,15 @@ const RESERVED_UNIQUE_MODEL_ID_ROUTE_CHARS = ['?', '#'] as const
 export type UniqueModelId = `${string}${typeof UNIQUE_MODEL_ID_SEPARATOR}${string}`
 
 /**
+ * The reserved route characters of a modelId (`#`, `?`) — a value carrying one
+ * cannot be part of an id that round-trips through a URL. Callers ask this
+ * question by going through `UniqueModelIdSchema` or `createUniqueModelId`.
+ */
+function hasReservedRouteChar(value: string): boolean {
+  return RESERVED_UNIQUE_MODEL_ID_ROUTE_CHARS.some((char) => value.includes(char))
+}
+
+/**
  * Syntactic check for "looks like an encoded UniqueModelId" — value is a
  * string and contains the separator. Permissive on purpose: empty providerId
  * or modelId parts are accepted here so handler boundaries that legitimately
@@ -160,7 +169,7 @@ export const UniqueModelIdSchema = z.custom<UniqueModelId>(
     if (idx <= 0) return false
     const modelId = value.slice(idx + UNIQUE_MODEL_ID_SEPARATOR.length)
     if (modelId.length === 0) return false
-    return !RESERVED_UNIQUE_MODEL_ID_ROUTE_CHARS.some((char) => modelId.includes(char))
+    return !hasReservedRouteChar(modelId)
   },
   { message: `Must be a valid UniqueModelId (providerId${UNIQUE_MODEL_ID_SEPARATOR}modelId)` }
 )
@@ -254,29 +263,32 @@ export type RuntimeReasoning = z.infer<typeof RuntimeReasoningSchema>
 
 export type ParameterSupport = z.infer<typeof ParameterSupportDbSchema>
 
-/** Runtime form: strict parameter support with more fields (not derivable from DB form — different shape) */
+/** Runtime support retains catalog ranges and accepts legacy flat bounds. */
 export const RuntimeParameterSupportSchema = z.object({
   temperature: z
     .object({
       supported: z.boolean(),
-      min: z.number(),
-      max: z.number(),
+      range: NumericRangeSchema.optional(),
+      min: z.number().optional(),
+      max: z.number().optional(),
       default: z.number().optional()
     })
     .optional(),
   topP: z
     .object({
       supported: z.boolean(),
-      min: z.number(),
-      max: z.number(),
+      range: NumericRangeSchema.optional(),
+      min: z.number().optional(),
+      max: z.number().optional(),
       default: z.number().optional()
     })
     .optional(),
   topK: z
     .object({
       supported: z.boolean(),
-      min: z.number(),
-      max: z.number()
+      range: NumericRangeSchema.optional(),
+      min: z.number().optional(),
+      max: z.number().optional()
     })
     .optional(),
   frequencyPenalty: z.boolean().optional(),
@@ -398,6 +410,8 @@ export const ModelSchema = z.object({
   supportsStreaming: z.boolean(),
   /** Reasoning configuration */
   reasoning: RuntimeReasoningSchema.optional(),
+  /** User-row provenance for request defaults; never persisted as model metadata. */
+  userDefaultReasoningEffort: ReasoningEffortSchema.optional(),
   /** Whether this exact provider-model pair supports the provider's Fast transport. */
   supportsFastMode: z.boolean().optional(),
   /** Endpoint-projected request controls safe to expose to the renderer. */
@@ -406,7 +420,9 @@ export const ModelSchema = z.object({
       serviceTier: z
         .object({
           default: ServiceTierSelectionSchema,
-          options: z.array(ServiceTierSelectionSchema).min(1)
+          options: z.array(ServiceTierSelectionSchema).min(1),
+          /** Registry provider term per tier, for the UI's secondary detail line only — never a wire value. */
+          values: z.partialRecord(ServiceTierSelectionSchema, z.string().min(1)).optional()
         })
         .refine((control) => control.options.includes(control.default), {
           message: 'service tier default must be one of its options',
@@ -419,6 +435,8 @@ export const ModelSchema = z.object({
   parameterSupport: RuntimeParameterSupportSchema.optional(),
 
   pricing: RuntimeModelPricingSchema.optional(),
+  /** Runtime provenance; never inferred by comparing prices with the catalog. */
+  hasCustomPricing: z.boolean().optional(),
 
   /**
    * Painting-page metadata (per-mode `supports.*` widget specs).
@@ -445,3 +463,18 @@ export const ModelSchema = z.object({
 })
 
 export type Model = z.infer<typeof ModelSchema>
+
+/**
+ * The result of listing a provider's models. A provider may list entries that
+ * cannot be offered as models — it drops them, and a caller that only received
+ * the models would not know they were held back, so the listing carries their
+ * names too and the fetcher that dropped them says why.
+ *
+ * A provider with nothing to hold back returns the same envelope with `models`
+ * alone, so every fetcher and `ai.provider.model.list` share one shape.
+ */
+export interface ListedModels<M = Partial<Model>> {
+  models: M[]
+  /** Names the provider lists but that are dropped from the model list. */
+  skippedModels?: string[]
+}

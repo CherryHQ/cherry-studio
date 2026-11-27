@@ -8,8 +8,9 @@ import { assistantDataService } from '@data/services/AssistantService'
 import { loggerService } from '@logger'
 import { mcpServerService } from '@main/data/services/McpServerService'
 import { isMcpToolDisabledBySource, isMcpToolForcePromptBySource } from '@shared/ai/tools/mcpSourcePolicy'
-import { type Assistant, DEFAULT_MCP_MODE, type McpMode } from '@shared/data/types/assistant'
+import type { Assistant, McpMode } from '@shared/data/types/assistant'
 import type { McpServer } from '@shared/data/types/mcpServer'
+import { getEffectiveMcpMode, isBrowserMcpServer } from '@shared/utils/mcp'
 
 const logger = loggerService.withContext('resolveAssistantMcpTools')
 
@@ -46,19 +47,13 @@ async function warmToolsCacheWithTimeout(serverId: string): Promise<boolean> {
   }
 }
 
-/** `settings.mcpMode` if set; else the shared default ('manual' — only linked
- *  servers; with zero links that resolves to no tools, same as 'disabled'). */
-export function getEffectiveMcpMode(assistant: Assistant): McpMode {
-  return assistant.settings?.mcpMode ?? DEFAULT_MCP_MODE
-}
-
 export function resolveServersForAssistant(assistant: Assistant, mode: McpMode): McpServer[] {
   const linkedIds = mode === 'auto' ? null : new Set(assistant.mcpServerIds)
   // Manual mode with nothing linked can only resolve to an empty set — skip the query. Every chat
   // request reaches here (the resource-tool gate), and 'manual' is the default mode.
   if (linkedIds?.size === 0) return []
   const { items: activeServers } = mcpServerService.list({ isActive: true })
-  return linkedIds ? activeServers.filter((server) => linkedIds.has(server.id)) : activeServers
+  return activeServers.filter((server) => !isBrowserMcpServer(server) && (!linkedIds || linkedIds.has(server.id)))
 }
 
 /**
@@ -145,7 +140,7 @@ export async function resolveAssistantMcpToolIds(assistantId: string): Promise<s
           timeoutMs: WARM_TOOLS_TIMEOUT_MS
         })
       }
-      const tools = catalog.listTools(server.id)
+      const tools = catalog.listTools(server.id, { audience: 'model' })
       return tools.filter((tool) => !isToolDisabled(server, tool)).map((tool) => tool.id)
     })
   )

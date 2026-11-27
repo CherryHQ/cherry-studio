@@ -2,7 +2,7 @@ import type { RawMessageStreamEvent } from '@anthropic-ai/sdk/resources/messages
 import type { FinishReason, UIMessageChunk } from 'ai'
 import { describe, expect, it } from 'vitest'
 
-import { googleReasoningCache } from '../../reasoningCache'
+import { googleReasoningCache, openRouterReasoningCache } from '../../reasoningCache'
 import { AnthropicMessageConverter } from '../converters/AnthropicMessageConverter'
 import { AnthropicSseFormatter } from '../formatters/AnthropicSseFormatter'
 import { AiSdkToAnthropicSse } from '../stream/AiSdkToAnthropicSse'
@@ -28,16 +28,30 @@ interface GatewayUsage {
   inputTokens?: number
   outputTokens?: number
   cachedInputTokens?: number
+  cacheWriteInputTokens?: number
 }
 
 const createFinish = (finishReason: FinishReason | undefined = 'stop', usage?: GatewayUsage): UIMessageChunk => {
+  const withCacheBreakdown = usage?.cachedInputTokens !== undefined || usage?.cacheWriteInputTokens !== undefined
   const messageMetadata =
     usage !== undefined
       ? {
           stats: {
             totalTokens: (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0),
             inputTokens: usage.inputTokens ?? 0,
-            outputTokens: usage.outputTokens ?? 0
+            outputTokens: usage.outputTokens ?? 0,
+            // Mirror the runtime projection: top-level `inputTokens` is the
+            // cache-inclusive total, the split lives in `inputTokenDetails`.
+            ...(withCacheBreakdown
+              ? {
+                  inputTokenDetails: {
+                    ...(usage.cachedInputTokens !== undefined ? { cacheReadTokens: usage.cachedInputTokens } : {}),
+                    ...(usage.cacheWriteInputTokens !== undefined
+                      ? { cacheWriteTokens: usage.cacheWriteInputTokens }
+                      : {})
+                  }
+                }
+              : {})
           }
         }
       : undefined
@@ -92,7 +106,8 @@ describe('AiSdkToAnthropicSse', () => {
         type: 'message_start',
         message: {
           role: 'assistant',
-          model: 'test:model'
+          model: 'test:model',
+          stop_details: null
         }
       })
 
@@ -120,7 +135,7 @@ describe('AiSdkToAnthropicSse', () => {
       // Verify message_delta with stop_reason
       expect(events[5]).toMatchObject({
         type: 'message_delta',
-        delta: { stop_reason: 'end_turn' }
+        delta: { stop_reason: 'end_turn', stop_details: null }
       })
 
       // Verify message_stop
@@ -260,6 +275,48 @@ describe('AiSdkToAnthropicSse', () => {
       expect(toolBlocks.length).toBe(1)
     })
 
+    it('replays the reasoning available at each call while sharing finalized provider details', () => {
+      const model = 'openrouter:test'
+      const adapter = new AiSdkToAnthropicSse({ model })
+      const encrypted = { type: 'reasoning.encrypted', data: 'opaque', extension: { version: 2 } }
+      const tail = { type: 'reasoning.text', text: 'first', signature: 'sig' }
+      const details = [encrypted, tail]
+      function publish(toolCallId: string) {
+        adapter.transformChunk({
+          type: 'tool-input-available',
+          toolName: 'Bash',
+          toolCallId,
+          input: {},
+          providerMetadata: { openrouter: { reasoning_details: details } }
+        })
+      }
+      publish('reason_1')
+      tail.text += ' second'
+      details.push({ ...encrypted, data: 'next' })
+      publish('reason_2')
+
+      const [message] = new AnthropicMessageConverter({ openRouterReasoningCache }).toUIMessages({
+        model,
+        max_tokens: 1024,
+        messages: [
+          {
+            role: 'assistant',
+            content: [
+              { type: 'tool_use', id: 'reason_1', name: 'Bash', input: {} },
+              { type: 'tool_use', id: 'reason_2', name: 'Bash', input: {} }
+            ]
+          }
+        ]
+      })
+      const replay = message.parts.map(
+        (part) => part.type === 'dynamic-tool' && part.callProviderMetadata?.openrouter?.reasoning_details
+      )
+      expect(replay).toEqual([[encrypted, { ...tail, text: 'first' }], details])
+      for (const captured of replay) {
+        expect(Array.isArray(captured) && captured[0]).toBe(encrypted)
+      }
+    })
+
     // Anthropic's wire format has nowhere to carry Gemini's thought signature, and
     // Gemini 3 rejects a replayed functionCall without it — writer and reader must
     // agree on the cache key. Two calls of the same tool pin that the key is the call
@@ -315,6 +372,42 @@ describe('AiSdkToAnthropicSse', () => {
   })
 
   describe('Reasoning/Thinking Processing', () => {
+    it('preserves redacted ciphertext in streamed and non-streaming blocks for native replay', async () => {
+      const adapter = new AiSdkToAnthropicSse({ model: 'test:model' })
+      const redacted = { type: 'redacted_thinking' as const, data: 'opaque-native-ciphertext' }
+      const events = await collectEvents(
+        adapter.transform(
+          createMockStream([
+            {
+              type: 'reasoning-start',
+              id: 'redacted',
+              providerMetadata: { anthropic: { redactedData: redacted.data } }
+            },
+            { type: 'reasoning-end', id: 'redacted' },
+            createTextDelta('answer'),
+            createFinish()
+          ])
+        )
+      )
+
+      expect(events.filter((event) => event.type.startsWith('content_block')).slice(0, 2)).toEqual([
+        { type: 'content_block_start', index: 0, content_block: redacted },
+        { type: 'content_block_stop', index: 0 }
+      ])
+      const response = adapter.buildNonStreamingResponse()
+      expect(response.content[0]).toEqual(redacted)
+      const replay = new AnthropicMessageConverter().toUIMessages({
+        model: 'test:model',
+        max_tokens: 1024,
+        messages: [{ role: 'assistant', content: response.content }]
+      })
+      expect(replay[0].parts[0]).toEqual({
+        type: 'reasoning',
+        text: '',
+        providerMetadata: { anthropic: { redactedData: redacted.data } }
+      })
+    })
+
     it('should emit thinking block for reasoning events', async () => {
       const adapter = new AiSdkToAnthropicSse({ model: 'test:model' })
 
@@ -451,9 +544,8 @@ describe('AiSdkToAnthropicSse', () => {
         const events = await collectEvents(outputStream)
 
         const messageDelta = events.find((e) => e.type === 'message_delta')
-        if (messageDelta && messageDelta.type === 'message_delta') {
-          expect(messageDelta.delta.stop_reason).toBe(expectedReason)
-        }
+        expect(messageDelta?.type).toBe('message_delta')
+        if (messageDelta?.type === 'message_delta') expect(messageDelta.delta.stop_reason).toBe(expectedReason)
       }
     })
   })
@@ -478,13 +570,74 @@ describe('AiSdkToAnthropicSse', () => {
 
       const messageDelta = events.find((e) => e.type === 'message_delta')
       if (messageDelta && messageDelta.type === 'message_delta') {
-        // The UIMessageChunk usage projection carries no cache-token breakdown,
-        // so only prompt/completion tokens are asserted here.
+        // No cache breakdown is projected here, so the cache-inclusive total
+        // stays on `input_tokens` and the cache buckets keep their defaults.
         expect(messageDelta.usage).toMatchObject({
           input_tokens: 100,
-          output_tokens: 50
+          output_tokens: 50,
+          cache_read_input_tokens: null
         })
       }
+    })
+
+    it('should split the projected input total into uncached input and cache buckets', async () => {
+      const adapter = new AiSdkToAnthropicSse({ model: 'test:model' })
+
+      // The projection's `inputTokens` is the cache-inclusive total (12 + 200 + 100),
+      // with the split carried on `inputTokenDetails`.
+      const stream = createMockStream([
+        createTextDelta('Hello'),
+        createFinish('stop', {
+          inputTokens: 312,
+          outputTokens: 50,
+          cachedInputTokens: 200,
+          cacheWriteInputTokens: 100
+        })
+      ])
+
+      const outputStream = adapter.transform(stream)
+      const events = await collectEvents(outputStream)
+
+      const messageDelta = events.find((e) => e.type === 'message_delta')
+      expect(messageDelta && messageDelta.type === 'message_delta').toBe(true)
+      if (messageDelta && messageDelta.type === 'message_delta') {
+        expect(messageDelta.usage).toMatchObject({
+          input_tokens: 12,
+          output_tokens: 50,
+          cache_read_input_tokens: 200,
+          cache_creation_input_tokens: 100
+        })
+      }
+    })
+
+    it('should surface the cache split in the non-streaming usage', async () => {
+      const adapter = new AiSdkToAnthropicSse({ model: 'test:model' })
+
+      const stream = createMockStream([
+        createTextDelta('Hello'),
+        createFinish('stop', {
+          inputTokens: 312,
+          outputTokens: 50,
+          cachedInputTokens: 200
+        })
+      ])
+
+      const outputStream = adapter.transform(stream)
+      const reader = outputStream.getReader()
+      while (true) {
+        const { done } = await reader.read()
+        if (done) break
+      }
+      reader.releaseLock()
+
+      const response = adapter.buildNonStreamingResponse()
+
+      expect(response.usage).toMatchObject({
+        input_tokens: 112,
+        output_tokens: 50,
+        cache_read_input_tokens: 200,
+        cache_creation_input_tokens: 0
+      })
     })
   })
 
@@ -518,6 +671,7 @@ describe('AiSdkToAnthropicSse', () => {
         type: 'message',
         role: 'assistant',
         model: 'test:model',
+        stop_details: null,
         stop_reason: 'tool_use'
       })
 
@@ -597,6 +751,7 @@ describe('AiSdkToAnthropicSse', () => {
           content: [],
           model: 'test',
           container: null,
+          stop_details: null,
           stop_reason: null,
           stop_sequence: null,
           usage: {
@@ -662,5 +817,61 @@ describe('AiSdkToAnthropicSse', () => {
         expect(messageStart.message.usage.input_tokens).toBe(500)
       }
     })
+  })
+})
+
+it.each([null, undefined, [], true, 42, 'invalid json'])(
+  'rejects non-object tool input without fabricating arguments: %j',
+  (input) => {
+    const adapter = new AiSdkToAnthropicSse({ model: 'test-model' })
+    expect(() =>
+      adapter.transformChunk({
+        type: 'tool-input-error',
+        toolCallId: 'bad-input',
+        toolName: 'read_file',
+        input,
+        errorText: 'Invalid tool arguments'
+      })
+    ).toThrow('Invalid tool arguments')
+  }
+)
+
+it('completes an other finish reason successfully', async () => {
+  const adapter = new AiSdkToAnthropicSse({ model: 'test:model' })
+  const events = await collectEvents(adapter.transform(createMockStream([{ type: 'finish', finishReason: 'other' }])))
+  expect(events).toContainEqual(
+    expect.objectContaining({ type: 'message_delta', delta: expect.objectContaining({ stop_reason: 'end_turn' }) })
+  )
+  expect(events.at(-1)?.type).toBe('message_stop')
+  expect(events).not.toContainEqual(expect.objectContaining({ type: 'error' }))
+})
+
+describe('terminal failure reasons', () => {
+  it.each(['error'] as const)('rejects %s while reading after a tool call', async (reason) => {
+    const adapter = new AiSdkToAnthropicSse({ model: 'test:model' })
+    const stream = new ReadableStream<UIMessageChunk>({
+      start(controller) {
+        controller.enqueue({ type: 'tool-input-available', toolCallId: 'call', toolName: 'read', input: {} })
+        controller.enqueue({ type: 'finish', finishReason: reason })
+        controller.close()
+      }
+    })
+    const read = async () => {
+      const events: unknown[] = []
+      for await (const event of adapter.transform(stream)) events.push(event)
+      return events
+    }
+    await expect(read()).rejects.toMatchObject({ statusCode: 502 })
+  })
+
+  it.each(['error'] as const)('rejects %s with 502, including after a tool call', (reason) => {
+    for (const withTool of [false, true]) {
+      const adapter = new AiSdkToAnthropicSse({ model: 'test:model' })
+      if (withTool)
+        adapter.transformChunk({ type: 'tool-input-available', toolCallId: 'call', toolName: 'read', input: {} })
+      expect(() => adapter.transformChunk({ type: 'finish', finishReason: reason })).toThrow(
+        expect.objectContaining({ statusCode: 502 })
+      )
+    }
   })
 })

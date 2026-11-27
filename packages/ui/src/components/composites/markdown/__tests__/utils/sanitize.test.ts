@@ -1,3 +1,4 @@
+import type { Element, Root } from 'hast'
 import rehypeParse from 'rehype-parse'
 import rehypeStringify from 'rehype-stringify'
 import { defaultRehypePlugins } from 'streamdown'
@@ -5,6 +6,77 @@ import { unified } from 'unified'
 import { describe, expect, it } from 'vitest'
 
 import { createMarkdownSanitizeSchema, rehypePrefixSvgReferences } from '../..'
+import { rehypeNormalizeLinkScheme } from '../../utils/normalize-link-scheme'
+
+describe('link scheme normalization before sanitize', () => {
+  it.each([
+    ['ZOTERO://select/items/ABCD1234', 'zotero://select/items/ABCD1234'],
+    ['Obsidian://open?vault=My%20Vault&file=Note', 'obsidian://open?vault=My%20Vault&file=Note'],
+    ['SIYUAN://blocks/20210101000000-abcdefg', 'siyuan://blocks/20210101000000-abcdefg'],
+    ['/foo/Bar', '/foo/Bar'],
+    ['#Anchor', '#Anchor'],
+    ['mailto:Foo@Bar.com', 'mailto:Foo@Bar.com'],
+    ['MAILTO:Foo@Bar.com', 'mailto:Foo@Bar.com']
+  ])('preserves the destination of %s, changing only its scheme', async (href, expected) => {
+    const { sanitize } = defaultRehypePlugins as Record<string, any>
+    const [sanitizeFn, schema] = sanitize
+    const pipeline = unified()
+      .use(rehypeParse, { fragment: true })
+      .use(rehypeNormalizeLinkScheme)
+      .use(sanitizeFn, createMarkdownSanitizeSchema(schema, ['zotero', 'obsidian', 'siyuan']))
+    const tree = (await pipeline.run(pipeline.parse(`<a href="${href}">Note</a>`))) as Root
+
+    expect((tree.children[0] as Element).properties.href).toBe(expected)
+  })
+
+  it.each(['DATA:text/html;base64,xxx', 'JAVASCRIPT:alert(1)'])(
+    'still strips the dangerous href %s after normalization',
+    async (href) => {
+      const { sanitize } = defaultRehypePlugins as Record<string, any>
+      const [sanitizeFn, schema] = sanitize
+      const output = String(
+        await unified()
+          .use(rehypeParse, { fragment: true })
+          .use(rehypeNormalizeLinkScheme)
+          .use(sanitizeFn, createMarkdownSanitizeSchema(schema, ['zotero', 'obsidian', 'siyuan']))
+          .use(rehypeStringify)
+          .process(`<a href="${href}">Note</a>`)
+      )
+
+      expect(output).toBe('<a>Note</a>')
+    }
+  )
+
+  it.each(['xlinkHref', 'xLinkHref'])('normalizes SVG href and %s without rewriting other content', (property) => {
+    const tree: Root = {
+      type: 'root',
+      children: [
+        {
+          type: 'element',
+          tagName: 'use',
+          properties: {
+            href: 'HTTPS://example.com/Icon%2FPath#Anchor',
+            [property]: 'HTTPS://example.com/Icon%2FPath#Anchor',
+            title: 'HTTPS://Keep'
+          },
+          children: []
+        },
+        { type: 'element', tagName: 'img', properties: { src: 'HTTPS://example.com/Image.png' }, children: [] },
+        { type: 'text', value: 'HTTPS://Keep' }
+      ]
+    }
+
+    rehypeNormalizeLinkScheme()(tree)
+
+    expect((tree.children[0] as Element).properties).toEqual({
+      href: 'https://example.com/Icon%2FPath#Anchor',
+      [property]: 'https://example.com/Icon%2FPath#Anchor',
+      title: 'HTTPS://Keep'
+    })
+    expect((tree.children[1] as Element).properties.src).toBe('HTTPS://example.com/Image.png')
+    expect(tree.children[2]).toEqual({ type: 'text', value: 'HTTPS://Keep' })
+  })
+})
 
 describe('Markdown sanitize schema', () => {
   it('preserves common SVG content required for gradients and clipping', async () => {
@@ -226,5 +298,34 @@ describe('Markdown sanitize schema', () => {
     expect(output).toContain('class="markdown-alert markdown-alert-note"')
     expect(output).toContain('class="markdown-alert-title"')
     expect(output).not.toContain('injected')
+  })
+})
+
+describe('additional link protocol injection', () => {
+  it.each([false, true])('keeps injected knowledge hrefs (harden: %s)', async (withHarden) => {
+    const { sanitize, harden } = defaultRehypePlugins as Record<string, any>
+    const [sanitizeFn, schema] = sanitize
+    const [hardenFn, hardenOptions] = harden
+    const hrefs = ['zotero://select/items/Note', 'obsidian://new?vault=Notes', 'siyuan://blocks/Note']
+    const html =
+      hrefs.map((href) => `<a href="${href}">Note</a>`).join('') +
+      '<a href="javascript:alert(1)">Bad</a><a href="file:///secret">Bad</a>' +
+      '<img src="zotero://select/items/Note"><img src="data:image/png;base64,AA==">'
+    for (const injected of [false, true]) {
+      const extended = createMarkdownSanitizeSchema(
+        schema,
+        injected ? ['zotero', 'obsidian', 'siyuan', 'zotero'] : undefined
+      )
+      expect(extended.protocols?.src).toEqual(createMarkdownSanitizeSchema(schema).protocols?.src)
+      expect(new Set(extended.protocols?.href).size).toBe(extended.protocols?.href?.length)
+      const pipeline = unified().use(rehypeParse, { fragment: true }).use(sanitizeFn, extended)
+      if (withHarden) pipeline.use(hardenFn, { ...hardenOptions, linkBlockPolicy: 'text-only' })
+      const output = String(await pipeline.use(rehypeStringify).process(html))
+      for (const href of hrefs) expect(output.includes(`href="${href}"`)).toBe(injected)
+      expect(output).not.toContain('javascript:')
+      expect(output).not.toContain('file:///')
+      expect(output).not.toContain('src="zotero:')
+      expect(output).toContain('src="data:image/png;base64,AA=="')
+    }
   })
 })

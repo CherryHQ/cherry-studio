@@ -28,8 +28,16 @@ export class PluginError extends Error {
 
 const YAML_PARSE_OPTIONS = { schema: 'failsafe' as const }
 
+function parseFrontmatterYaml(block: string): object {
+  // gray-matter's delimiter slice leaves a bare terminal CR in CRLF files,
+  // which YAML rejects after a quoted or flow scalar.
+  return parse(block.replace(/\r\n?/g, '\n'), YAML_PARSE_OPTIONS) as object
+}
+
 // Skill markdown filename variants (case-insensitive support)
 const SKILL_MD_VARIANTS = ['SKILL.md', 'skill.md']
+
+const ALLOWED_HIDDEN_DIRS = new Set(['.agents', '.claude', '.gemini'])
 
 /**
  * Find the skill markdown file in a directory (supports SKILL.md or skill.md)
@@ -185,7 +193,7 @@ export async function parsePluginMetadata(
   try {
     const parsed = matter(content, {
       engines: {
-        yaml: (s) => parse(s, YAML_PARSE_OPTIONS) as object
+        yaml: parseFrontmatterYaml
       }
     })
     data = parsed.data ?? {}
@@ -273,9 +281,10 @@ export async function findAllSkillDirectories(
   try {
     const entries = await fs.promises.readdir(dirPath, { withFileTypes: true })
 
+    const isRoot = path.relative(basePath, dirPath) === ''
     for (const entry of entries) {
-      // Skip hidden directories and node_modules
-      if (entry.name.startsWith('.') || entry.name === 'node_modules') continue
+      if (entry.name === 'node_modules') continue
+      if (entry.name.startsWith('.') && !(isRoot && ALLOWED_HIDDEN_DIRS.has(entry.name))) continue
       // Support both directories and symlinks pointing to directories
       if (await isDirectoryOrSymlinkToDirectory(entry, dirPath)) {
         const subDirPath = path.join(dirPath, entry.name)
@@ -343,7 +352,7 @@ export async function parseSkillMetadata(
   try {
     const parsed = matter(content, {
       engines: {
-        yaml: (s) => parse(s, YAML_PARSE_OPTIONS) as object
+        yaml: parseFrontmatterYaml
       }
     })
     data = parsed.data ?? {}

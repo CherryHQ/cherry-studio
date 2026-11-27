@@ -3,6 +3,20 @@
  * Main entry point for the model and provider registry system
  */
 
+export type { Registry, RegistryCatalog, ModelSnapshot } from './registry'
+export { createRegistry, parseModelSnapshot } from './registry'
+export type { CatalogManifest, RegistryFileName, RemoteRegistryFileName } from './catalog'
+export {
+  CatalogManifestSchema,
+  REGISTRY_FILES,
+  REGISTRY_MIN_APP_VERSION,
+  REGISTRY_SCHEMA_VERSION,
+  REMOTE_REGISTRY_FILES
+} from './catalog'
+export { ModelConfigSchema, ModelListSchema } from './schemas/model'
+export { ProviderConfigSchema, ProviderListSchema } from './schemas/provider'
+export { ProviderModelOverrideSchema, ProviderModelListSchema } from './schemas/provider-models'
+
 // Enums — const objects (SCREAMING_CASE)
 export {
   CANONICAL_PARAM_KEY,

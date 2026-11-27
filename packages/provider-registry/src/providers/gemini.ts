@@ -1,6 +1,15 @@
 import { defineProvider } from './types'
 
-const webToolModels = ['gemini-2', 'gemini-3', 'gemini-flash-latest', 'gemini-pro-latest', 'gemini-flash-lite-latest']
+const webToolModels = [
+  'gemini-2',
+  'gemini-3',
+  'gemini-4-argon',
+  'gemini-4-hydrogen',
+  'gemini-4-neon',
+  'gemini-flash-latest',
+  'gemini-pro-latest',
+  'gemini-flash-lite-latest'
+]
 const webSearchImageModels = ['gemini-3-pro-image', 'gemini-3-pro-image-preview']
 
 export default defineProvider({

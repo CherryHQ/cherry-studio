@@ -14,6 +14,62 @@ const qwenImage3Supports: ImageModeDef['supports'] = {
   }
 }
 
+// Frozen docs record only T2I, 1 output, and 1664x928 max (no fixed size enum);
+// SizeSpecSchema requires symmetric bounds + paired enum, so size stays free-form text.
+const qwenImage1T2iSupports: ImageModeDef['supports'] = {
+  negativePrompt: { multiline: true, type: 'text' },
+  numImages: { default: 1, max: 1, min: 1, type: 'range' },
+  seed: { type: 'text' },
+  size: { type: 'text' }
+}
+
+/** qwen-image-2.0 / -pro support t2i + edit (up to 3 ref images) with up to 6 outputs and 512*512..2048*2048 area. */
+const qwenImage20SizeOptions = ['2048x2048', '2688x1536', '1536x2688', '2368x1728', '1728x2368']
+
+const qwenImage20GenerateSupports: ImageModeDef['supports'] = {
+  negativePrompt: { multiline: true, type: 'text' },
+  numImages: { default: 1, max: 6, min: 1, type: 'range' },
+  seed: { type: 'text' },
+  size: { default: '2048x2048', options: qwenImage20SizeOptions, render: 'chips', type: 'enum' }
+}
+
+const qwenImage20EditSupports: ImageModeDef['supports'] = {
+  ...qwenImage20GenerateSupports,
+  size: { options: qwenImage20SizeOptions, render: 'chips', type: 'enum' }
+}
+
+/** qwen-image-2.1-pro / -turbo support t2i + edit (up to 10 ref images); negative_prompt is 3.0-only. */
+const qwenImage21Supports: ImageModeDef['supports'] = {
+  numImages: { default: 1, max: 6, min: 1, type: 'range' },
+  seed: { type: 'text' },
+  size: {
+    default: 'auto',
+    options: ['auto', '1024x1024', '2048x2048', '2688x1536', '1536x2688', '2368x1728', '1728x2368'],
+    render: 'chips',
+    type: 'enum'
+  }
+}
+
+/** qwen-image-edit-max / -plus are edit-only with up to 6 outputs and 2048x2048 max pixel area. */
+const qwenImageEditMultiSupports: ImageModeDef['supports'] = {
+  negativePrompt: { multiline: true, type: 'text' },
+  numImages: { default: 1, max: 6, min: 1, type: 'range' },
+  seed: { type: 'text' },
+  size: {
+    options: ['1024x1024', '2048x2048', '2688x1536', '1536x2688', '2368x1728', '1728x2368'],
+    render: 'chips',
+    type: 'enum'
+  }
+}
+
+// Frozen CN docs record only T2I, 1 output, and 2048x2048 max (no size enum or default);
+// keep size free-form text rather than inventing unverified presets.
+const zImageTurboSupports: ImageModeDef['supports'] = {
+  numImages: { default: 1, max: 1, min: 1, type: 'range' },
+  seed: { type: 'text' },
+  size: { type: 'text' }
+}
+
 export default defineCreator({
   id: 'alibaba',
   name: 'Alibaba (Qwen)',
@@ -37,6 +93,7 @@ export default defineCreator({
       budget: { min: 0, max: 262144 },
       toggle: true
     },
+    { pattern: '^qwen3[.-]8-flash-next$', effort: ['low', 'medium', 'xhigh'] },
     // QwQ/QVQ always-reasoning previews.
     { pattern: '^qwq|^qvq', toggle: false },
     { pattern: '^qwen', toggle: true, template: true },
@@ -93,6 +150,21 @@ export default defineCreator({
       contextWindow: 1000000,
       maxInputTokens: 991808,
       maxOutputTokens: 131072
+    },
+    {
+      id: 'qwen3-8-flash-next',
+      name: 'Qwen 3.8 Flash Next',
+      family: 'qwen',
+      capabilities: [
+        'function-call',
+        'reasoning',
+        'image-recognition',
+        'video-recognition',
+        'structured-output',
+        'file-input'
+      ],
+      inputModalities: ['text', 'image', 'video'],
+      outputModalities: ['text']
     },
     {
       id: 'qwen3-8-max',
@@ -195,6 +267,127 @@ export default defineCreator({
               }
             }
           }
+        }
+      }
+    },
+    {
+      id: 'qwen-image-max',
+      name: 'Qwen Image Max',
+      family: 'qwen',
+      capabilities: ['image-generation'],
+      inputModalities: ['text'],
+      outputModalities: ['image'],
+      imageGeneration: {
+        modes: {
+          generate: { supports: qwenImage1T2iSupports }
+        }
+      }
+    },
+    {
+      id: 'qwen-image-plus',
+      name: 'Qwen Image Plus',
+      family: 'qwen',
+      capabilities: ['image-generation'],
+      inputModalities: ['text'],
+      outputModalities: ['image'],
+      imageGeneration: {
+        modes: {
+          generate: { supports: qwenImage1T2iSupports }
+        }
+      }
+    },
+    {
+      id: 'qwen-image-2-0',
+      name: 'Qwen Image 2.0',
+      family: 'qwen',
+      capabilities: ['image-recognition', 'image-generation'],
+      inputModalities: ['text', 'image'],
+      outputModalities: ['image'],
+      imageGeneration: {
+        modes: {
+          edit: { maxInputImages: 3, supports: qwenImage20EditSupports },
+          generate: { supports: qwenImage20GenerateSupports }
+        }
+      }
+    },
+    {
+      id: 'qwen-image-2-0-pro',
+      name: 'Qwen Image 2.0 Pro',
+      family: 'qwen',
+      capabilities: ['image-recognition', 'image-generation'],
+      inputModalities: ['text', 'image'],
+      outputModalities: ['image'],
+      imageGeneration: {
+        modes: {
+          edit: { maxInputImages: 3, supports: qwenImage20EditSupports },
+          generate: { supports: qwenImage20GenerateSupports }
+        }
+      }
+    },
+    {
+      id: 'qwen-image-2-1-pro',
+      name: 'Qwen Image 2.1 Pro',
+      family: 'qwen',
+      capabilities: ['image-recognition', 'image-generation'],
+      inputModalities: ['text', 'image'],
+      outputModalities: ['image'],
+      imageGeneration: {
+        modes: {
+          edit: { maxInputImages: 10, supports: qwenImage21Supports },
+          generate: { supports: qwenImage21Supports }
+        }
+      }
+    },
+    {
+      id: 'qwen-image-2-1-turbo',
+      name: 'Qwen Image 2.1 Turbo',
+      family: 'qwen',
+      capabilities: ['image-recognition', 'image-generation'],
+      inputModalities: ['text', 'image'],
+      outputModalities: ['image'],
+      imageGeneration: {
+        modes: {
+          edit: { maxInputImages: 10, supports: qwenImage21Supports },
+          generate: { supports: qwenImage21Supports }
+        }
+      }
+    },
+    {
+      id: 'qwen-image-edit-max',
+      name: 'Qwen Image Edit Max',
+      family: 'qwen',
+      capabilities: ['image-recognition', 'image-generation'],
+      inputModalities: ['text', 'image'],
+      outputModalities: ['image'],
+      imageGeneration: {
+        modes: {
+          edit: { supports: qwenImageEditMultiSupports }
+        }
+      }
+    },
+    {
+      id: 'qwen-image-edit-plus',
+      name: 'Qwen Image Edit Plus',
+      family: 'qwen',
+      capabilities: ['image-recognition', 'image-generation'],
+      inputModalities: ['text', 'image'],
+      outputModalities: ['image'],
+      imageGeneration: {
+        modes: {
+          edit: { supports: qwenImageEditMultiSupports }
+        }
+      }
+    },
+    {
+      id: 'z-image-turbo',
+      name: 'Z-Image Turbo',
+      family: 'z-image',
+      capabilities: ['image-generation'],
+      inputModalities: ['text'],
+      outputModalities: ['image'],
+      imageGeneration: {
+        modes: {
+          generate: { supports: zImageTurboSupports }
         }
       }
     },

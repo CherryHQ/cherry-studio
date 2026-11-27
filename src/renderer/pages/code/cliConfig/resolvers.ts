@@ -7,6 +7,7 @@ import {
   CODEX_CHAT_ENDPOINT,
   CODEX_RESPONSES_ENDPOINT,
   HERMES_ENDPOINTS,
+  MINIMAX_ENDPOINTS,
   OPEN_CODE_ENDPOINTS,
   PI_ENDPOINTS
 } from './constants'
@@ -151,6 +152,40 @@ export function resolveHermesProviderInfo(provider: Provider, modelEndpointTypes
       : formatApiHost(rawBaseUrl)
 
   return { apiMode, baseUrl, endpointType }
+}
+
+/** MiniMax Code `api` values (`custom_provider.<key>.api`); the default is `anthropic-messages`. */
+export type MinimaxApi = 'anthropic-messages' | 'openai-completions' | 'openai-responses'
+
+export interface MinimaxProviderInfo {
+  api: MinimaxApi
+  baseUrl: string
+  endpointType: EndpointType
+}
+
+export function resolveMinimaxProviderInfo(
+  provider: Provider,
+  modelEndpointTypes?: EndpointType[]
+): MinimaxProviderInfo {
+  const endpointType = resolveSupportedEndpointType(
+    provider,
+    modelEndpointTypes,
+    MINIMAX_ENDPOINTS,
+    'openai-chat-completions'
+  )
+  const rawBaseUrl = provider.endpointConfigs?.[endpointType]?.baseUrl
+  const api: MinimaxApi =
+    endpointType === 'anthropic-messages'
+      ? 'anthropic-messages'
+      : endpointType === 'openai-responses'
+        ? 'openai-responses'
+        : 'openai-completions'
+  const baseUrl =
+    endpointType === 'anthropic-messages'
+      ? withoutTrailingApiVersion(formatApiHost(rawBaseUrl, false))
+      : formatApiHost(rawBaseUrl)
+
+  return { api, baseUrl, endpointType }
 }
 
 export function modelSupportsReasoningEffort(modelRecord: Model | null): boolean {

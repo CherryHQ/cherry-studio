@@ -6,12 +6,13 @@
 import * as z from 'zod'
 
 import { VENDOR_PATTERNS, type VendorKey } from '../patterns/vendor-patterns'
-import { MetadataSchema, ProviderIdSchema, VersionSchema, ZodCurrencySchema } from './common'
+import { EndpointTypeSchema, MetadataSchema, ProviderIdSchema, VersionSchema, ZodCurrencySchema } from './common'
 import { ENDPOINT_TYPE, type EndpointType, objectValues, SERVER_TOOL, SERVER_TOOL_MODEL_SCOPE } from './enums'
 import { looseArray } from './forwardCompat'
+import { ModelConfigSchema } from './model'
 import { ReasoningWireProfileSchema } from './reasoningWire'
 
-export const EndpointTypeSchema = z.enum(objectValues(ENDPOINT_TYPE))
+export { EndpointTypeSchema } from './common'
 const endpointTypeValues: readonly string[] = objectValues(ENDPOINT_TYPE)
 export const ProviderEditionSchema = z.enum(['global', 'cn'])
 export type ProviderEdition = z.infer<typeof ProviderEditionSchema>
@@ -25,7 +26,7 @@ export type ProviderEdition = z.infer<typeof ProviderEditionSchema>
  *
  * Model availability remains a provider-model concern; this only describes
  * how the provider carries an enabled Fast request. `openai-priority` means the
- * `serviceTier` provider option on the OpenAI namespace — the tier *value* is
+ * `service_tier` field on the OpenAI-compatible wire — the tier *value* is
  * vendor-specific and travels in `fastMode.serviceTier` (OpenAI's `priority`,
  * Ark's `fast`), so a new vendor never has to expand this enum: enum expansion
  * is a breaking wire change, an optional field is not.
@@ -131,6 +132,7 @@ export const REASONING_FORMAT_TYPES = ProviderReasoningFormatSchema.options.map(
 
 export const ProviderWebsiteSchema = z.object({
   website: z.object({
+    billing: z.url().optional(),
     official: z.url().optional(),
     docs: z.url().optional(),
     apiKey: z.url().optional(),
@@ -216,6 +218,26 @@ export const ProviderConfigSchema = z
      * to `'api'` (the provider exposes a `/models` endpoint).
      */
     modelListSource: z.enum(['api', 'registry']).default('api'),
+    /** Append registry-only models omitted by the API list. Absent means API-only. */
+    supplementModelsFromRegistry: z.boolean().optional(),
+    /** Provider-local resource IDs must never match global catalog model names. */
+    modelResolution: z
+      .discriminatedUnion('source', [
+        z.object({ source: z.literal('catalog') }),
+        z.object({
+          source: z.literal('provider'),
+          defaults: ModelConfigSchema.pick({
+            capabilities: true,
+            inputModalities: true,
+            outputModalities: true,
+            endpointTypes: true,
+            imageGeneration: true
+          })
+            .required({ capabilities: true, inputModalities: true, outputModalities: true, endpointTypes: true })
+            .extend({ supportsStreaming: z.boolean() })
+        })
+      ])
+      .optional(),
     /**
      * Which credential kinds the provider accepts — the auth UIs to surface and
      * the runtime credential semantics. A *set*, because a provider can offer

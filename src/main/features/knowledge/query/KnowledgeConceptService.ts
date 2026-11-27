@@ -2,6 +2,7 @@ import { application } from '@application'
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
+import { runRipgrep } from '@main/ai/mcp/servers/filesystem'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { KnowledgeItem, KnowledgeItemStatus, KnowledgeItemType } from '@shared/data/types/knowledge'
 import { getKnowledgeItemDisplayTitle } from '@shared/data/types/knowledge'
@@ -22,14 +23,16 @@ const CONCEPT_GREP_MAX_MATCHES = 200
 /** Characters of context kept on each side of a grep match in its snippet. */
 const CONCEPT_GREP_SNIPPET_PAD = 60
 /**
- * Max characters of any single line {@link KnowledgeConceptService.grepConcept} runs the pattern over. Matching one
- * bounded line at a time keeps a catastrophic-backtracking pattern (e.g. `(a+)+$`) from freezing the main-process
- * event loop by spanning the whole document; matches past this point on an over-long line are not scanned. This only
- * removes the whole-document blow-up — a pathological pattern can still backtrack exponentially within one 2000-char
- * line, so it is not RE2/ripgrep-grade linear-time matching. Reuses the same 2000-char value as the filesystem grep
- * tool (there it truncates displayed lines; here it bounds the text the pattern actually runs over).
+ * Max characters of any single line {@link KnowledgeConceptService.grepConcept} hands to ripgrep; matches past this
+ * point on an over-long line are not scanned. It bounds each JSON record ripgrep emits (the record carries the whole
+ * line plus every submatch), so one huge single-line document cannot balloon the output buffered in the main process.
  */
 const CONCEPT_GREP_MAX_LINE_CHARS = 2000
+/**
+ * Wall-clock cap on one ripgrep run. The default engine is linear-time, but `--engine auto` falls back to backtracking
+ * PCRE2 for look-around / backreferences, which can grind through its per-line match limit on every line.
+ */
+const CONCEPT_GREP_TIMEOUT_MS = 5000
 /** Hard ceiling on nodes {@link KnowledgeConceptService.getOrganizationTree} returns, bounding the response for a huge base. */
 export const KNOWLEDGE_TREE_MAX_NODES = 1000
 
@@ -115,71 +118,95 @@ export interface KnowledgeConceptMutationResult {
   notFound: string[]
 }
 
-/** Compile a kb_read grep-mode pattern (always global; case-insensitive unless told otherwise), turning a bad pattern into a validation error. */
-function compileGrepRegex(pattern: string, ignoreCase: boolean): RegExp {
-  try {
-    return new RegExp(pattern, ignoreCase ? 'gi' : 'g')
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
+/** ripgrep `--json` records; `start` offsets are UTF-8 byte offsets within `lines.text`. */
+type RipgrepJsonRecord =
+  | {
+      type: 'match'
+      data: {
+        line_number: number
+        lines: { text: string }
+        submatches: Array<{ match: { text: string }; start: number }>
+      }
+    }
+  | { type: 'begin' | 'end' | 'context' | 'summary' }
+
+async function runConceptRipgrep(args: string[], input: string): Promise<string> {
+  const result = await runRipgrep([...args, '-'], { input, timeoutMs: CONCEPT_GREP_TIMEOUT_MS })
+  if (!result.ok) {
+    throw new Error('kb_read grep is unavailable: the bundled ripgrep binary could not be started')
+  }
+  // A slow or rejected pattern goes back to the model to rewrite — never fall back to an in-process RegExp.
+  if (result.exitCode === null) {
+    const message = `kb_read pattern did not finish within ${CONCEPT_GREP_TIMEOUT_MS / 1000}s; simplify it (avoid nested quantifiers such as (a+)+)`
+    throw DataApiErrorFactory.validation({ pattern: [message] }, message)
+  }
+  if (result.exitCode > 1) {
+    const message = result.stderr.trim()
     throw DataApiErrorFactory.validation({ pattern: [message] }, `Invalid kb_read regular expression: ${message}`)
   }
+  return result.stdout
 }
 
 /**
- * Scan `text` for every match of the global `regex`, one line at a time, returning the
- * total count and the first `limit` matches with 1-based line numbers, document-absolute
- * offsets, and padded snippets. Each line is matched independently and truncated at
- * {@link CONCEPT_GREP_MAX_LINE_CHARS}, so a single regex evaluation never runs over more
- * than one bounded line — a catastrophic-backtracking pattern therefore cannot freeze the
- * main process by spanning the whole document (this mirrors the line-oriented fallback in
- * the filesystem grep tool). Anchors (`^`/`$`) consequently bind to each line, and a match
- * cannot span lines. `lastIndex` is advanced past zero-width matches so an empty-matching
- * pattern cannot spin. `regex` MUST carry the global flag (the caller compiles it so); it
- * is reset at the start of every line.
+ * Grep `text` line by line with ripgrep, returning the total match count and the first `limit` matches with
+ * 1-based line numbers, document-absolute UTF-16 offsets, and padded snippets. Anchors bind to each line and a
+ * match cannot span lines.
  */
-function scanConceptMatches(
+async function grepConceptText(
   text: string,
-  regex: RegExp,
+  pattern: string,
+  ignoreCase: boolean,
   limit: number
-): { totalMatches: number; matches: KnowledgeConceptGrepMatch[] } {
-  const matches: KnowledgeConceptGrepMatch[] = []
-  let totalMatches = 0
-  let lineNumber = 0
-  // Absolute offset of the current line's first character within `text`.
+): Promise<{ totalMatches: number; matches: KnowledgeConceptGrepMatch[] }> {
+  const lines = text.split('\n')
+  const input = lines.map((line) => line.slice(0, CONCEPT_GREP_MAX_LINE_CHARS)).join('\n')
+  const args = [
+    '--no-config',
+    '--text',
+    '--engine',
+    'auto',
+    // The default BOM sniffing strips a leading U+FEFF, shifting line 1's byte offsets off `text`.
+    '--encoding',
+    'none',
+    ...(ignoreCase ? ['--ignore-case'] : []),
+    '--regexp',
+    pattern
+  ]
+
+  const totalMatches = Number((await runConceptRipgrep([...args, '--count-matches'], input)).trim() || 0)
+  if (totalMatches === 0) return { totalMatches, matches: [] }
+
+  const lineStarts: number[] = []
   let lineStart = 0
+  for (const line of lines) {
+    lineStarts.push(lineStart)
+    lineStart += line.length + 1
+  }
 
-  while (lineStart <= text.length) {
-    lineNumber++
-    const newlineIndex = text.indexOf('\n', lineStart)
-    const lineEnd = newlineIndex === -1 ? text.length : newlineIndex
-    // Run the pattern over a single, truncated line so backtracking can't blow up across the
-    // whole document; a match past the per-line cap on an over-long line is dropped.
-    const line = text.slice(lineStart, Math.min(lineEnd, lineStart + CONCEPT_GREP_MAX_LINE_CHARS))
+  const matches: KnowledgeConceptGrepMatch[] = []
+  const stdout = await runConceptRipgrep([...args, '--json', '--max-count', String(limit)], input)
+  for (const rawRecord of stdout.split('\n')) {
+    if (matches.length >= limit) break
+    if (!rawRecord) continue
+    const record = JSON.parse(rawRecord) as RipgrepJsonRecord
+    if (record.type !== 'match') continue
 
-    regex.lastIndex = 0
-    for (let result = regex.exec(line); result !== null; result = regex.exec(line)) {
-      totalMatches++
-      const matchLength = result[0].length
-      const start = lineStart + result.index
-      const end = start + matchLength
-
-      if (matches.length < limit) {
-        matches.push({
-          line: lineNumber,
-          charStart: start,
-          charEnd: end,
-          snippet: text.slice(
-            Math.max(0, start - CONCEPT_GREP_SNIPPET_PAD),
-            Math.min(text.length, end + CONCEPT_GREP_SNIPPET_PAD)
-          )
-        })
-      }
-
-      // Zero-width match: bump lastIndex so exec() advances past the same position.
-      regex.lastIndex = result.index + (matchLength > 0 ? matchLength : 1)
+    const { line_number: line, lines: matchedLine, submatches } = record.data
+    const lineBytes = Buffer.from(matchedLine.text, 'utf-8')
+    for (const { match, start } of submatches) {
+      if (matches.length >= limit) break
+      const charStart = lineStarts[line - 1] + lineBytes.subarray(0, start).toString('utf-8').length
+      const charEnd = charStart + match.text.length
+      matches.push({
+        line,
+        charStart,
+        charEnd,
+        snippet: text.slice(
+          Math.max(0, charStart - CONCEPT_GREP_SNIPPET_PAD),
+          Math.min(text.length, charEnd + CONCEPT_GREP_SNIPPET_PAD)
+        )
+      })
     }
-
-    lineStart = lineEnd + 1
   }
 
   return { totalMatches, matches }
@@ -224,8 +251,9 @@ export class KnowledgeConceptService {
   /**
    * Search a knowledge concept's indexed text for a regular expression, returning
    * the total match count and the first `maxMatches` matches (line, offsets, a
-   * padded snippet). The pattern is compiled global, case-insensitive by default;
-   * an invalid pattern throws a validation error. Throws NOT_FOUND when the
+   * padded snippet). The pattern runs in a ripgrep child process (Rust regex, PCRE2
+   * for look-around / backreferences), case-insensitive by default; an invalid,
+   * too-slow, or timed-out pattern throws a validation error. Throws NOT_FOUND when the
    * Concept ID does not resolve to a readable, visible document in this base.
    */
   async grepConcept(
@@ -239,8 +267,7 @@ export class KnowledgeConceptService {
       Math.max(options.maxMatches ?? CONCEPT_GREP_DEFAULT_MAX_MATCHES, 1),
       CONCEPT_GREP_MAX_MATCHES
     )
-    const regex = compileGrepRegex(options.pattern, options.ignoreCase ?? true)
-    const { totalMatches, matches } = scanConceptMatches(text, regex, limit)
+    const { totalMatches, matches } = await grepConceptText(text, options.pattern, options.ignoreCase ?? true, limit)
 
     return {
       conceptId,

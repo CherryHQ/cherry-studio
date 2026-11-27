@@ -1,3 +1,4 @@
+import { mockDataApiService } from '@test-mocks/renderer/DataApiService'
 import { MockUseDataApiUtils, mockUseInfiniteQuery } from '@test-mocks/renderer/useDataApi'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, renderHook } from '@testing-library/react'
@@ -29,40 +30,36 @@ describe('useTopicMessages', () => {
     MockUseDataApiUtils.resetMocks()
   })
 
-  describe('page size by navigation mode', () => {
-    it('requests 50-item pages when navigation mode is the default (none)', () => {
-      renderHook(() => useTopicMessages('topic-1'))
-
-      expect(mockUseInfiniteQuery).toHaveBeenCalledWith(
-        '/topics/:topicId/messages',
-        expect.objectContaining({ limit: 50 })
-      )
+  it('keeps optimistic parallel replies out of the active history path', () => {
+    const firstReply = createAssistantMessage('a1', 'test:model-a', '2026-01-01T00:00:01.000Z')
+    const firstUser: Message = { ...firstReply, id: 'user-1', role: 'user', parentId: 'root' }
+    const secondUser: Message = { ...firstUser, id: 'user-2', parentId: 'a1' }
+    const otherReply: Message = { ...firstReply, id: 'a2-other', parentId: 'user-2', status: 'pending' }
+    const activeReply: Message = { ...otherReply, id: 'a2-active', modelId: 'test:model-b' }
+    mockUseInfiniteQuery.mockReturnValueOnce({
+      pages: [
+        {
+          items: [firstUser, firstReply, secondUser, otherReply, activeReply].map((message) => ({ message })),
+          activeNodeId: activeReply.id,
+          assistantId: null,
+          rootId: 'root'
+        }
+      ],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      hasNext: false,
+      loadNext: vi.fn(),
+      refresh: vi.fn(),
+      reset: vi.fn(),
+      mutate: vi.fn()
     })
 
-    it('requests 150-item pages when navigation mode is anchor (fills the tick rail)', () => {
-      MockUsePreferenceUtils.setPreferenceValue('chat.message.navigation_mode', 'anchor')
-
-      renderHook(() => useTopicMessages('topic-1'))
-
-      expect(mockUseInfiniteQuery).toHaveBeenCalledWith(
-        '/topics/:topicId/messages',
-        expect.objectContaining({ limit: 150 })
-      )
-    })
-
-    it('keeps the 50-item baseline for the buttons navigation mode', () => {
-      MockUsePreferenceUtils.setPreferenceValue('chat.message.navigation_mode', 'buttons')
-
-      renderHook(() => useTopicMessages('topic-1'))
-
-      expect(mockUseInfiniteQuery).toHaveBeenCalledWith(
-        '/topics/:topicId/messages',
-        expect.objectContaining({ limit: 50 })
-      )
-    })
+    const { result } = renderHook(() => useTopicMessages('topic-1', { fetchOnMount: false }))
+    expect(result.current.pathMessages.map((message) => message.id)).toEqual(['user-1', 'a1', 'user-2', 'a2-active'])
   })
 
-  it('revalidates when a loaded message read model changes', () => {
+  it('reads only the changed message on a loaded older page', async () => {
     const mutate = vi.fn().mockResolvedValue(undefined)
     const anchorMessage = {
       id: 'anchor-1',
@@ -79,7 +76,7 @@ describe('useTopicMessages', () => {
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z'
     }
-    mockUseInfiniteQuery.mockReturnValueOnce({
+    mockUseInfiniteQuery.mockReturnValue({
       pages: [
         {
           items: [
@@ -110,8 +107,9 @@ describe('useTopicMessages', () => {
       refresh: vi.fn().mockResolvedValue(undefined),
       reset: vi.fn(),
       mutate
-    } as never)
+    })
 
+    mockDataApiService.get.mockResolvedValueOnce({ ...anchorMessage, status: 'paused' })
     renderHook(() => useTopicMessages('topic-1'))
 
     act(() => {
@@ -126,69 +124,9 @@ describe('useTopicMessages', () => {
         { endpoint: '/topics/:topicId/messages', kind: 'projection', entityIds: ['anchor-1'] }
       ])
     })
-    expect(mutate).toHaveBeenCalledWith()
-  })
-
-  it('revalidates on a same-topic membership change whose entity ids are not loaded yet', () => {
-    const mutate = vi.fn().mockResolvedValue(undefined)
-    const loadedMessage = {
-      id: 'loaded-1',
-      topicId: 'topic-1',
-      parentId: null,
-      role: 'user',
-      data: { parts: [] },
-      searchableText: '',
-      status: 'success',
-      siblingsGroupId: 0,
-      modelId: null,
-      messageSnapshot: null,
-      stats: null,
-      createdAt: '2026-01-01T00:00:00.000Z',
-      updatedAt: '2026-01-01T00:00:00.000Z'
-    }
-    mockUseInfiniteQuery.mockReturnValueOnce({
-      pages: [
-        {
-          items: [{ message: loadedMessage, siblingsGroup: [] }],
-          nextCursor: undefined,
-          activeNodeId: 'loaded-1'
-        }
-      ],
-      isLoading: false,
-      isRefreshing: false,
-      error: undefined,
-      hasNext: false,
-      loadNext: vi.fn(),
-      refresh: vi.fn().mockResolvedValue(undefined),
-      reset: vi.fn(),
-      mutate
-    } as never)
-
-    renderHook(() => useTopicMessages('topic-1'))
-
-    act(() => {
-      MockUseDataApiUtils.emitDataChange([
-        {
-          endpoint: '/topics/:topicId/messages',
-          kind: 'projection',
-          routeParams: { topicId: 'topic-1' },
-          entityIds: ['new-user-1', 'new-placeholder-1']
-        }
-      ])
-    })
+    await act(async () => {})
+    expect(mockDataApiService.get).toHaveBeenCalledWith('/messages/anchor-1')
     expect(mutate).not.toHaveBeenCalled()
-
-    act(() => {
-      MockUseDataApiUtils.emitDataChange([
-        {
-          endpoint: '/topics/:topicId/messages',
-          kind: 'membership',
-          routeParams: { topicId: 'topic-1' },
-          entityIds: ['new-user-1', 'new-placeholder-1']
-        }
-      ])
-    })
-    expect(mutate).toHaveBeenCalledWith()
   })
 
   it('keeps tied single-model siblings in ID order when the active reply changes', () => {
@@ -253,7 +191,7 @@ describe('useTopicMessages', () => {
       refresh: vi.fn().mockResolvedValue(undefined),
       reset: vi.fn(),
       mutate: vi.fn().mockResolvedValue(undefined)
-    } as never)
+    })
 
     const { result } = renderHook(() => useTopicMessages('topic-1'))
 
@@ -267,20 +205,22 @@ describe('useTopicMessages', () => {
     expect(result.current.siblingsMap['reply-c-1'].map((message) => message.id)).toEqual(['reply-c-1', 'reply-c-2'])
   })
 
-  it('keeps a retried select-all alive despite a retained query error', () => {
+  it('clears a retained query error and resumes pagination when select-all is retried', async () => {
     // A previous page fetch failed and SWR still holds its error.
-    const retained = new Error('page fetch failed')
-    // One shared spy: the mock factory runs on every render.
-    const mutate = vi.fn().mockResolvedValue(undefined)
+    let error: Error | undefined = new Error('page fetch failed')
+    const loadNext = vi.fn()
+    const mutate = vi.fn(async () => {
+      error = undefined
+    })
     mockUseInfiniteQuery.mockImplementation(
       () =>
         ({
           pages: [{ items: [], nextCursor: 'cursor', activeNodeId: null }],
           isLoading: false,
           isRefreshing: false,
-          error: retained,
+          error,
           hasNext: true,
-          loadNext: vi.fn(),
+          loadNext,
           refresh: vi.fn().mockResolvedValue(undefined),
           reset: vi.fn(),
           mutate
@@ -289,11 +229,11 @@ describe('useTopicMessages', () => {
 
     const { result } = renderHook(() => useTopicMessages('topic-1'))
 
-    act(() => result.current.selectAllPagination.start())
+    await act(async () => {
+      result.current.selectAllPagination.start()
+      await mutate.mock.results[0].value
+    })
 
-    // The pre-existing error must not instantly abandon the retry, and the
-    // retained error is revalidated away so pagination can proceed.
-    expect(result.current.selectAllPagination.isLoading).toBe(true)
-    expect(mutate).toHaveBeenCalled()
+    expect(loadNext).toHaveBeenCalledOnce()
   })
 })

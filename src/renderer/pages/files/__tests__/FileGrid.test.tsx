@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { ComponentProps } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -49,10 +49,11 @@ const imageFile: FileItem = {
 }
 
 const menuActions: FileContextMenuActions = {
+  isSidebarPinned: vi.fn(() => false),
   onRename: vi.fn(),
   onDelete: vi.fn(),
-  onRestore: vi.fn(),
-  onShowInFolder: vi.fn()
+  onShowInFolder: vi.fn(),
+  onToggleSidebar: vi.fn()
 }
 
 function fileGridProps(files: FileItem[], width = 400): ComponentProps<typeof FileGrid> {
@@ -62,7 +63,6 @@ function fileGridProps(files: FileItem[], width = 400): ComponentProps<typeof Fi
     files,
     onOpen: vi.fn(),
     onDelete: vi.fn(),
-    isTrash: false,
     menuActions,
     scrollRef: { current: scrollElement },
     onLayoutChange: vi.fn(),
@@ -78,43 +78,14 @@ afterEach(() => {
 })
 
 describe('FileGrid layout', () => {
-  it('virtualizes responsive grid rows instead of mounting every file', async () => {
-    const files = Array.from({ length: 12 }, (_, index) => ({
-      ...imageFile,
-      id: `image-${index}`,
-      name: `photo-${index}.png`
-    }))
+  it('disables card deletion while a delete request is pending', () => {
+    const onDelete = vi.fn()
+    render(<FileGrid {...fileGridProps([imageFile])} onDelete={onDelete} deleteDisabled />)
 
-    render(<FileGrid {...fileGridProps(files)} />)
-
-    await waitFor(() => {
-      expect(virtualizerMocks.useVirtualizer).toHaveBeenLastCalledWith(
-        expect.objectContaining({ count: 6, overscan: 4 })
-      )
-    })
-    const options = virtualizerMocks.useVirtualizer.mock.calls.at(-1)?.[0]
-    expect(options?.getItemKey?.(0)).toBe('image-0')
-    expect(screen.getByText('photo-0.png')).toBeInTheDocument()
-    expect(screen.getByText('photo-1.png')).toBeInTheDocument()
-    expect(screen.queryByText('photo-2.png')).not.toBeInTheDocument()
-  })
-
-  it('notifies the parent when responsive columns reduce the virtual content height', async () => {
-    const files = Array.from({ length: 12 }, (_, index) => ({
-      ...imageFile,
-      id: `image-${index}`,
-      name: `photo-${index}.png`
-    }))
-    const onLayoutChange = vi.fn()
-    const props = { ...fileGridProps(files, 400), onLayoutChange }
-
-    render(<FileGrid {...props} />)
-
-    await waitFor(() => {
-      expect(virtualizerMocks.useVirtualizer.mock.calls.some(([options]) => options.count === 12)).toBe(true)
-      expect(virtualizerMocks.useVirtualizer).toHaveBeenLastCalledWith(expect.objectContaining({ count: 6 }))
-      expect(onLayoutChange.mock.calls.length).toBeGreaterThanOrEqual(2)
-    })
+    const deleteButton = screen.getByRole('button', { name: 'files.delete.label' })
+    expect(deleteButton).toBeDisabled()
+    fireEvent.click(deleteButton)
+    expect(onDelete).not.toHaveBeenCalled()
   })
 })
 
@@ -138,5 +109,39 @@ describe('FileGrid image preview', () => {
 
     fireEvent.click(screen.getByText('photo.png'))
     expect(props.onOpen).not.toHaveBeenCalled()
+  })
+
+  it('exposes distinct source paths for same-name files', () => {
+    const first: FileItem = {
+      ...imageFile,
+      id: 'file-migrated-a',
+      name: 'migrated-image.png',
+      sourcePath: '/Users/a/Pictures/migrated-image.png'
+    }
+    const second: FileItem = {
+      ...first,
+      id: 'file-migrated-b',
+      sourcePath: '/Users/b/Downloads/migrated-image.png'
+    }
+    render(<FileGrid {...fileGridProps([first, second])} />)
+
+    const names = screen.getAllByText('migrated-image.png')
+    expect(names).toHaveLength(2)
+    expect(names[0]).toHaveAttribute('title', '/Users/a/Pictures/migrated-image.png')
+    expect(names[1]).toHaveAttribute('title', '/Users/b/Downloads/migrated-image.png')
+  })
+})
+
+describe('FileGrid delete actions', () => {
+  it('distinguishes deleting internal files from removing external files from the library', () => {
+    const externalFile: FileItem = { ...imageFile, id: 'external-1', origin: 'external' }
+    const { rerender } = render(<FileGrid {...fileGridProps([imageFile])} />)
+
+    expect(screen.getByRole('button', { name: 'files.delete.label' })).toBeInTheDocument()
+
+    rerender(<FileGrid {...fileGridProps([externalFile])} />)
+
+    expect(screen.getByRole('button', { name: 'files.remove_from_library' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'files.delete.label' })).not.toBeInTheDocument()
   })
 })

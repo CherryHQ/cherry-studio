@@ -43,6 +43,7 @@ export interface ComposerToolLauncher {
   rootPanelPlacement?: 'trailing'
   order?: number
   label: ReactNode | string
+  shortcut?: string
   description?: ReactNode | string
   tooltip?: ReactNode | string
   tooltipAnchor?: ReactElement

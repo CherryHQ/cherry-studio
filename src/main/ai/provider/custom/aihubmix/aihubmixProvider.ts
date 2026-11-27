@@ -12,7 +12,14 @@ import { AnthropicMessagesLanguageModel } from '@ai-sdk/anthropic/internal'
 import { GoogleGenerativeAILanguageModel } from '@ai-sdk/google/internal'
 import { OpenAICompatibleChatLanguageModel, OpenAICompatibleEmbeddingModel } from '@ai-sdk/openai-compatible'
 import { OpenAIChatLanguageModel, OpenAIResponsesLanguageModel, OpenAISpeechModel } from '@ai-sdk/openai/internal'
-import type { EmbeddingModelV3, ImageModelV3, LanguageModelV3, ProviderV3, RerankingModelV3 } from '@ai-sdk/provider'
+import type {
+  EmbeddingModelV3,
+  ImageModelV3,
+  LanguageModelV3,
+  LanguageModelV3CallOptions,
+  ProviderV3,
+  RerankingModelV3
+} from '@ai-sdk/provider'
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { loadApiKey, withoutTrailingSlash } from '@ai-sdk/provider-utils'
 
@@ -39,6 +46,32 @@ export interface AihubmixProvider extends ProviderV3 {
   embeddingModel(modelId: string): EmbeddingModelV3
   imageModel(modelId: string): ImageModelV3
   rerankingModel(modelId: string): RerankingModelV3
+}
+
+// AiHubMix's Anthropic backends reject the example-induced advanced-tool-use beta.
+// Mirror the CherryIN guard to keep tool calls compatible (#22163).
+function omitToolInputExamples(options: LanguageModelV3CallOptions): LanguageModelV3CallOptions {
+  if (!options.tools?.some((tool) => tool.type === 'function' && tool.inputExamples != null)) return options
+
+  return {
+    ...options,
+    tools: options.tools.map((tool) => {
+      if (tool.type !== 'function' || tool.inputExamples == null) return tool
+      const { inputExamples, ...rest } = tool
+      void inputExamples
+      return rest
+    })
+  }
+}
+
+class AihubmixAnthropicMessagesLanguageModel extends AnthropicMessagesLanguageModel {
+  override doGenerate(options: LanguageModelV3CallOptions) {
+    return super.doGenerate(omitToolInputExamples(options))
+  }
+
+  override doStream(options: LanguageModelV3CallOptions) {
+    return super.doStream(omitToolInputExamples(options))
+  }
 }
 
 export function createAihubmix(options: AihubmixProviderSettings = {}): AihubmixProvider {
@@ -70,7 +103,7 @@ export function createAihubmix(options: AihubmixProviderSettings = {}): Aihubmix
 
   const createAnthropicModel = (modelId: string) => {
     const headers = authHeaders()
-    return new AnthropicMessagesLanguageModel(modelId, {
+    return new AihubmixAnthropicMessagesLanguageModel(modelId, {
       provider: `${AIHUBMIX_PROVIDER_NAME}.anthropic`,
       baseURL: anthropicBaseURL,
       headers: () => ({ ...headers, 'x-api-key': resolveApiKey() }),

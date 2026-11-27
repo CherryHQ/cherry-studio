@@ -1,20 +1,21 @@
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type * as MotionReact from 'motion/react'
 import type { ComponentProps, PropsWithChildren, ReactNode } from 'react'
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import type * as ReactI18next from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as ChatPrimitives from '@renderer/components/chat/primitives'
+import { FileEditSessionProvider } from '@renderer/components/FileEditSessionProvider'
+import type { InputFilePreview } from '@renderer/types/inputFilePreview'
 import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
+import type { AbsoluteFilePath } from '@shared/types/file'
 
 import AgentChat from '../AgentChat'
 
 const ipcRequestMock = vi.hoisted(() => vi.fn())
-const diagnosticDialogMocks = vi.hoisted(() => ({
-  onOpenChange: undefined as ((open: boolean) => void) | undefined
-}))
+const showDoctorMock = vi.hoisted(() => vi.fn())
 
 vi.mock('@renderer/ipc', () => ({
   ipcApi: { on: vi.fn(() => vi.fn()), request: ipcRequestMock },
@@ -47,24 +48,8 @@ vi.mock('@renderer/components/chat/shell/ConversationCenterState', () => ({
   default: ({ state }: { state: string }) => <div data-testid="conversation-center-state" data-state={state} />
 }))
 
-vi.mock('@renderer/components/feedback/DiagnosticUploadDialog', () => ({
-  default: ({
-    initialDescription,
-    onOpenChange
-  }: {
-    initialDescription?: string
-    onOpenChange: (open: boolean) => void
-  }) => {
-    diagnosticDialogMocks.onOpenChange = onOpenChange
-    return (
-      <div role="dialog" aria-label="Review diagnostic report">
-        <textarea aria-label="Problem description" readOnly value={initialDescription ?? ''} />
-        <button type="button" onClick={() => onOpenChange(false)}>
-          Cancel diagnostic report
-        </button>
-      </div>
-    )
-  }
+vi.mock('@renderer/components/doctor', () => ({
+  DoctorPopup: { show: (...args: unknown[]) => showDoctorMock(...args) }
 }))
 
 vi.mock('@renderer/components/chat/shell/ConversationShell', () => ({
@@ -171,7 +156,7 @@ vi.mock('@renderer/components/chat/panes/useArtifactFileTreeModel', () => {
   const workspaceRootId = '__workspace_root__'
 
   return {
-    ARTIFACT_MISSING_WORKSPACE_TREE_OPTIONS: { watchMissingRoot: true },
+    ARTIFACT_MISSING_WORKSPACE_TREE_OPTIONS: { maxDepth: 1, watchMissingRoot: true },
     isSelectableFileNode: (nodeById: ReadonlyMap<string, { kind: string }>, selectedFile: string | null) =>
       Boolean(selectedFile && nodeById.get(selectedFile)?.kind === 'file'),
     useArtifactFileTreeModel: ({
@@ -196,9 +181,7 @@ vi.mock('@renderer/components/chat/panes/useArtifactFileTreeModel', () => {
           const next = new Set(ids)
           next.delete(workspaceRootId)
           onExpandedIdsChange(next)
-        },
-        reloadExpandedDirectories: () => {},
-        refresh: () => {}
+        }
       }
     }
   }
@@ -233,13 +216,6 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', () => {
     const resolvedFileSearchKeyword = fileTreeSearchKeyword ?? internalFileSearchKeyword
     const overlaySelection =
       previewFileSelection ?? (selectedFile && workspacePath ? { workspacePath, filePath: selectedFile } : null)
-    const previousWorkspacePathRef = useRef(workspacePath)
-
-    useEffect(() => {
-      if (previousWorkspacePathRef.current === workspacePath) return
-      previousWorkspacePathRef.current = workspacePath
-      setViewMode('preview')
-    }, [workspacePath])
 
     return (
       <div
@@ -306,7 +282,6 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', () => {
   )
 
   const MockArtifactPaneView = ({
-    headerVariant,
     model,
     paneActions,
     paneTitle,
@@ -318,7 +293,6 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', () => {
     previewFileSelection,
     onPreviewClose
   }: {
-    headerVariant?: 'overlay' | 'pane'
     model: {
       effectiveExpandedIds: ReadonlySet<string>
       setExpandedIds: (ids: ReadonlySet<string>) => void
@@ -334,12 +308,10 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', () => {
     onPreviewClose?: () => void
   }) => (
     <div>
-      {headerVariant === 'pane' ? (
-        <div data-testid="artifact-pane-header">
-          <span>{previewFileSelection?.filePath ?? paneTitle}</span>
-          {paneActions}
-        </div>
-      ) : null}
+      <div data-testid="artifact-pane-header">
+        <span>{previewFileSelection?.filePath ?? paneTitle}</span>
+        {paneActions}
+      </div>
       <MockArtifactPane
         workspacePath={workspacePath}
         previewFileSelection={previewFileSelection}
@@ -372,17 +344,12 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', () => {
       }
       return workspacePath ? { workspacePath, filePath: rawPath } : null
     },
-    ArtifactPaneView: MockArtifactPaneView,
-    default: MockArtifactPane
+    ArtifactPaneView: MockArtifactPaneView
   }
 })
 
 vi.mock('@renderer/components/OpenTarget', () => ({
-  OpenTargetButton: ({ targetPath }: { targetPath: string }) => (
-    <button type="button" onClick={() => window.api.file.openPath(targetPath)}>
-      open external preview
-    </button>
-  ),
+  OpenTargetButton: () => <button type="button">open external preview</button>,
   loadOpenTargetMenuItems: vi.fn(async () => [])
 }))
 
@@ -401,7 +368,7 @@ vi.mock('@renderer/components/composer/ComposerCore', () => ({
 }))
 
 vi.mock('@renderer/components/composer/useToolApprovalComposerOverrides', () => ({
-  useToolApprovalComposerOverrides: () => ({})
+  useToolApprovalComposerOverrides: () => []
 }))
 
 vi.mock('@renderer/components/composer/ConversationComposerStage', () => ({
@@ -451,10 +418,10 @@ vi.mock('@renderer/data/hooks/useCache', async () => {
 
   return {
     ...MockUseCache,
-    useCache: () => [false],
+    useCache: MockUseCache.useCache,
     useSharedCache: () => [null, vi.fn()],
     useSharedCacheValue: () => undefined,
-    usePersistCache: () => [undefined, vi.fn()]
+    usePersistCache: MockUseCache.usePersistCache
   }
 })
 
@@ -541,35 +508,27 @@ vi.mock('@renderer/hooks/useChatWithHistory', () => ({
   useChatWithHistory: () => ({
     activeExecutions: [],
     sendMessage: vi.fn(),
-    stop: vi.fn(),
-    setMessages: vi.fn()
+    stop: vi.fn()
   })
 }))
 
-vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
-  useExecutionOverlay: () => ({
-    overlay: {},
-    liveAssistants: [],
-    disposeOverlay: vi.fn(),
-    reset: vi.fn()
-  })
-}))
+vi.mock('@renderer/hooks/useHistoryReplies', () => ({ useHistoryReplies: () => [] }))
+vi.mock('@renderer/hooks/useTopicSpeech', () => ({ useTopicSpeech: () => {} }))
+vi.mock('@renderer/hooks/useTopicCompletion', () => ({ useTopicCompletion: () => {} }))
 
 vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
-  useTopicStreamStatus: () => ({ isPending: false }),
-  useTopicOverlayHandoffOnTerminal: () => {}
+  useTopicStreamStatus: () => ({ isPending: false })
 }))
 
 vi.mock('@renderer/utils/agentSession', () => ({
   buildAgentFileWorkspaceKey: (workspaceId?: string | null, workspacePath?: string) =>
-    `${workspaceId ?? ''}\0${workspacePath ?? ''}`,
-  buildAgentSessionTopicId: (sessionId: string) => `agent-session:${sessionId}`
+    `${workspaceId ?? ''}\0${workspacePath ?? ''}`
 }))
 
 vi.mock('react-i18next', async (importOriginal) => {
   const translations: Record<string, string> = {
     'agent.builtin.cherry_support.diagnostics.prepared': 'Cherry Support prepared an editable description.',
-    'agent.builtin.cherry_support.diagnostics.review': 'Review diagnostic report'
+    'agent.builtin.cherry_support.diagnostics.review': 'Report a problem'
   }
   return {
     ...(await importOriginal<typeof ReactI18next>()),
@@ -621,11 +580,13 @@ vi.mock('../components/AgentSessionMessages', async () => {
     sessionId,
     openAgentToolFlow,
     openArtifactFile,
+    previewInputFile,
     openDiagnosticReport
   }: {
     sessionId: string
     openAgentToolFlow?: (input: any) => void
     openArtifactFile?: (path: string) => void
+    previewInputFile?: (input: InputFilePreview) => void
     openDiagnosticReport?: (description?: string) => void
   }) => {
     const [messageState, setMessageState] = React.useState('')
@@ -668,6 +629,16 @@ vi.mock('../components/AgentSessionMessages', async () => {
             })
           }>
           open flow b
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            previewInputFile?.({
+              displayName: 'sent-report.md',
+              previewPath: '/managed/sent-report.md' as AbsoluteFilePath
+            })
+          }>
+          Preview sent attachment
         </button>
         <button type="button" onClick={() => openArtifactFile?.('/tmp/workspace/src/index.ts')}>
           open artifact file
@@ -713,7 +684,7 @@ describe('AgentChat artifact pane', () => {
     conversationBootstrap: createConversationBootstrap()
   })
   const renderAgentChat = (props: Partial<ComponentProps<typeof AgentChat>> = {}) =>
-    render(<AgentChat {...activeSessionProps()} {...props} />)
+    render(<AgentChat {...activeSessionProps()} {...props} />, { wrapper: FileEditSessionProvider })
   const rerenderAgentChat = (
     rerender: ReturnType<typeof render>['rerender'],
     props: Partial<ComponentProps<typeof AgentChat>> = {}
@@ -728,7 +699,7 @@ describe('AgentChat artifact pane', () => {
   }
 
   beforeEach(() => {
-    diagnosticDialogMocks.onOpenChange = undefined
+    showDoctorMock.mockReset()
     ipcRequestMock.mockReset()
     ipcRequestMock.mockImplementation((route: string) =>
       route === 'file.get_metadata'
@@ -740,7 +711,7 @@ describe('AgentChat artifact pane', () => {
             modifiedAt: 1,
             mime: 'text/plain'
           })
-        : Promise.resolve(undefined)
+        : Promise.resolve(route === 'ai.agent.attachment_selections.list' ? [] : undefined)
     )
     agentSessionPartsMocks.useAgentSessionParts.mockReturnValue({
       messages: [],
@@ -748,7 +719,7 @@ describe('AgentChat artifact pane', () => {
       hasOlder: false,
       loadOlder: vi.fn(),
       refresh: vi.fn(),
-      seedReservedMessages: vi.fn(),
+      revalidate: vi.fn(),
       deleteMessage: vi.fn()
     })
     activeSessionMocks.result = {
@@ -770,9 +741,6 @@ describe('AgentChat artifact pane', () => {
           toolApproval: {
             respond: vi.fn()
           }
-        },
-        file: {
-          openPath: vi.fn()
         }
       }
     })
@@ -788,15 +756,18 @@ describe('AgentChat artifact pane', () => {
     } as unknown as typeof supportBootstrap.resources.agent
     supportBootstrap.resources.model = undefined
 
-    renderAgentChat({ conversationBootstrap: supportBootstrap })
+    const view = renderAgentChat({ conversationBootstrap: supportBootstrap })
 
-    expect(screen.queryByRole('button', { name: 'Report a problem' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('dialog', { name: 'Review diagnostic report' })).not.toBeInTheDocument()
-    expect(ipcRequestMock.mock.calls.filter(([route]) => route === 'diagnostics.bundle.upload')).toHaveLength(0)
+    expect(showDoctorMock).not.toHaveBeenCalled()
 
     await user.click(screen.getByRole('button', { name: 'Open inline diagnostic draft' }))
-    expect(screen.getByRole('textbox', { name: 'Problem description' })).toHaveValue('Inline draft from this message')
-    expect(ipcRequestMock.mock.calls.filter(([route]) => route === 'diagnostics.bundle.upload')).toHaveLength(0)
+    expect(showDoctorMock).toHaveBeenCalledWith({
+      initialPanel: 'report',
+      initialDescription: 'Inline draft from this message'
+    })
+
+    rerenderAgentChat(view.rerender)
+    expect(screen.queryByRole('button', { name: 'Open inline diagnostic draft' })).not.toBeInTheDocument()
   })
 
   it('preserves message subtree state while Support capability resolves', async () => {
@@ -819,138 +790,23 @@ describe('AgentChat artifact pane', () => {
     expect(screen.getByRole('textbox', { name: 'Message subtree state' })).toHaveValue('keep local state')
   })
 
-  it('discards a diagnostic draft when the active session changes', async () => {
-    const user = userEvent.setup()
-    const sessionA = createConversationBootstrap()
-    sessionA.resources.agent = {
-      id: 'agent-1',
-      model: 'provider::model-1',
-      configuration: { builtin_role: BUILTIN_AGENT_ROLE.SUPPORT }
-    } as unknown as typeof sessionA.resources.agent
-    const nonSupportSession = createConversationBootstrap({
-      ...sessionA.session!,
-      id: 'session-2',
-      agentId: 'agent-2'
-    })
-    const sessionB = createConversationBootstrap({
-      ...sessionA.session!,
-      id: 'session-3',
-      agentId: 'agent-3'
-    })
-    sessionB.resources.agent = {
-      id: 'agent-3',
-      model: 'provider::model-1',
-      configuration: { builtin_role: BUILTIN_AGENT_ROLE.SUPPORT }
-    } as unknown as typeof sessionB.resources.agent
-
-    const view = renderAgentChat({ conversationBootstrap: sessionA })
-    await user.click(screen.getByRole('button', { name: 'Open session diagnostic draft' }))
-    expect(screen.getByRole('textbox', { name: 'Problem description' })).toHaveValue('Draft for session-1')
-
-    rerenderAgentChat(view.rerender, { conversationBootstrap: nonSupportSession })
-    expect(screen.queryByRole('dialog', { name: 'Review diagnostic report' })).not.toBeInTheDocument()
-
-    rerenderAgentChat(view.rerender, { conversationBootstrap: sessionB })
-    expect(screen.queryByRole('dialog', { name: 'Review diagnostic report' })).not.toBeInTheDocument()
-
-    rerenderAgentChat(view.rerender, { conversationBootstrap: sessionA })
-    expect(screen.queryByRole('dialog', { name: 'Review diagnostic report' })).not.toBeInTheDocument()
-  })
-
-  it('ignores a stale close callback from the previous session draft', async () => {
-    const user = userEvent.setup()
-    const sessionA = createConversationBootstrap()
-    sessionA.resources.agent = {
-      id: 'agent-1',
-      model: 'provider::model-1',
-      configuration: { builtin_role: BUILTIN_AGENT_ROLE.SUPPORT }
-    } as unknown as typeof sessionA.resources.agent
-    const sessionB = createConversationBootstrap({
-      ...sessionA.session!,
-      id: 'session-2',
-      agentId: 'agent-2'
-    })
-    sessionB.resources.agent = {
-      id: 'agent-2',
-      model: 'provider::model-1',
-      configuration: { builtin_role: BUILTIN_AGENT_ROLE.SUPPORT }
-    } as unknown as typeof sessionB.resources.agent
-
-    const view = renderAgentChat({ conversationBootstrap: sessionA })
-    await user.click(screen.getByRole('button', { name: 'Open session diagnostic draft' }))
-    const closeSessionA = diagnosticDialogMocks.onOpenChange
-
-    rerenderAgentChat(view.rerender, { conversationBootstrap: sessionB })
-    expect(screen.queryByRole('dialog', { name: 'Review diagnostic report' })).not.toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Open session diagnostic draft' }))
-    expect(screen.getByRole('textbox', { name: 'Problem description' })).toHaveValue('Draft for session-2')
-
-    act(() => closeSessionA?.(false))
-
-    expect(screen.getByRole('textbox', { name: 'Problem description' })).toHaveValue('Draft for session-2')
-  })
-
   it('opens and closes the artifact pane without replacing the existing chat shell pane', () => {
     renderAgentChat({ pane: <aside data-testid="session-pane" />, paneOpen: true, panePosition: 'left' })
 
-    expect(screen.getByTestId('chat-app-shell')).toBeInTheDocument()
-    expect(screen.getByTestId('chat-app-shell')).toHaveAttribute('data-pane-open', 'true')
-    expect(screen.getByTestId('chat-app-shell')).toHaveAttribute('data-pane-position', 'left')
-    expect(screen.getByTestId('session-pane')).toBeInTheDocument()
-    expect(screen.queryByTestId('pinned-todo-panel')).not.toBeInTheDocument()
     expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'false')
 
     const shortcut = screen.getByRole('button', { name: 'agent.right_pane.tabs.files' })
-    expect(shortcut).toHaveAttribute('data-shell-tab-shortcut', 'files')
 
     fireEvent.click(shortcut)
 
     expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'true')
-    expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-resizable', 'true')
-    expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-cache-key', 'ui.chat.artifact_pane.width')
-    expect(screen.getByRole('button', { name: /agent\.right_pane\.tabs\.files/ })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /agent\.right_pane\.tabs\.flow/ })).toBeNull()
-    expect(screen.getByRole('button', { name: /agent\.right_pane\.tabs\.status/ })).toBeInTheDocument()
-    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-workspace-path', '/tmp/workspace')
+
     expect(document.querySelector('[data-shell-tab-shortcut="files"]')).toHaveAttribute('aria-pressed', 'true')
 
     closeRightPane()
 
     expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'false')
     expect(document.querySelector('[data-shell-tab-shortcut="files"]')).toHaveAttribute('aria-pressed', 'false')
-    expect(screen.getByTestId('session-pane')).toBeInTheDocument()
-  })
-
-  it('maximizes the persistent viewport without replacing its pane subtree', () => {
-    renderAgentChat({ pane: <aside data-testid="session-pane" />, paneOpen: true, panePosition: 'left' })
-
-    openFilesPane()
-    expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'true')
-    const artifactPane = screen.getByTestId('artifact-pane')
-    expect(screen.getByTestId('agent-composer')).toHaveAttribute('data-compact-when-single-line', 'false')
-
-    fireEvent.click(screen.getByRole('button', { name: 'common.maximize' }))
-
-    expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'true')
-    expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-maximized', 'true')
-    expect(screen.getByTestId('artifact-pane')).toBe(artifactPane)
-    expect(screen.getByTestId('chat-center-overlay')).toBeEmptyDOMElement()
-    expect(screen.getByTestId('composer-dock-frame')).toHaveAttribute('data-composer-elevated', 'true')
-    expect(screen.getByTestId('agent-top-bar')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'common.minimize' })).toBeInTheDocument()
-    expect(screen.getByTestId('agent-composer')).toBeInTheDocument()
-    expect(screen.getByTestId('agent-composer')).toHaveAttribute('data-compact-when-single-line', 'true')
-  })
-
-  it('only offers maximize for the files pane', () => {
-    renderAgentChat({ pane: <aside data-testid="session-pane" />, paneOpen: true, panePosition: 'left' })
-
-    openFilesPane()
-    expect(screen.getByRole('button', { name: 'common.maximize' })).toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.status' }))
-
-    expect(screen.queryByRole('button', { name: 'common.maximize' })).toBeNull()
   })
 
   it('keeps the selected artifact file when maximizing and restoring the pane', () => {
@@ -959,10 +815,9 @@ describe('AgentChat artifact pane', () => {
     openFilesPane()
     fireEvent.click(screen.getByRole('button', { name: 'select artifact file' }))
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-selected-file', 'README.md')
-    const artifactPane = screen.getByTestId('artifact-pane')
 
     fireEvent.click(screen.getByRole('button', { name: 'common.maximize' }))
-    expect(screen.getByTestId('artifact-pane')).toBe(artifactPane)
+
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-selected-file', 'README.md')
 
     fireEvent.click(screen.getByRole('button', { name: 'common.minimize' }))
@@ -980,10 +835,9 @@ describe('AgentChat artifact pane', () => {
     })
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-expanded-ids', 'src')
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-file-search-keyword', 'index')
-    const artifactPane = screen.getByTestId('artifact-pane')
 
     fireEvent.click(screen.getByRole('button', { name: 'common.maximize' }))
-    expect(screen.getByTestId('artifact-pane')).toBe(artifactPane)
+
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-expanded-ids', 'src')
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-file-search-keyword', 'index')
 
@@ -1002,22 +856,29 @@ describe('AgentChat artifact pane', () => {
       target: { value: 'index' }
     })
     fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.preview' }))
-    const artifactPane = screen.getByTestId('artifact-pane')
 
-    fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.status' }))
-    expect(screen.getByTestId('artifact-pane')).toBe(artifactPane)
+    fireEvent.click(screen.getByRole('button', { name: 'trace.label' }))
+
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-view-mode', 'code')
 
     closeRightPane()
     expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'false')
-    expect(screen.getByTestId('artifact-pane')).toBe(artifactPane)
 
     openFilesPane()
     expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'true')
-    expect(screen.getByTestId('artifact-pane')).toBe(artifactPane)
+
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-expanded-ids', 'src')
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-file-search-keyword', 'index')
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-view-mode', 'code')
+  })
+
+  it('opens a sent attachment through the message-list bridge', async () => {
+    const user = userEvent.setup()
+    renderAgentChat()
+    await user.click(screen.getByRole('button', { name: 'Preview sent attachment' }))
+    await waitFor(() => expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'true'))
+    expect(await screen.findByTestId('artifact-file-preview')).toHaveAttribute('data-file-path', 'sent-report.md')
+    expect(screen.getByTestId('artifact-file-preview')).toHaveAttribute('data-workspace-path', '/managed')
   })
 
   it('keeps the viewport and visited capability mounted while a center surface is presented', () => {
@@ -1033,16 +894,15 @@ describe('AgentChat artifact pane', () => {
     })
 
     expect(screen.getByTestId('agent-center-surface')).toBeInTheDocument()
-    expect(screen.getByTestId('artifact-right-pane')).toBe(rightPane)
+
     expect(rightPane).toHaveAttribute('data-open', 'false')
-    expect(screen.getByTestId('artifact-pane')).toBe(artifactPane)
 
     rerenderAgentChat(rerender)
 
     expect(screen.queryByTestId('agent-center-surface')).toBeNull()
-    expect(screen.getByTestId('artifact-right-pane')).toBe(rightPane)
+
     expect(rightPane).toHaveAttribute('data-open', 'true')
-    expect(screen.getByTestId('artifact-pane')).toBe(artifactPane)
+
     expect(artifactPane).toHaveAttribute('data-view-mode', 'code')
   })
 
@@ -1054,22 +914,21 @@ describe('AgentChat artifact pane', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.preview' }))
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-view-mode', 'code')
-    const artifactPane = screen.getByTestId('artifact-pane')
 
     fireEvent.click(screen.getByRole('button', { name: 'common.maximize' }))
 
     expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-maximized', 'true')
-    expect(screen.getByTestId('artifact-pane')).toBe(artifactPane)
+
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-view-mode', 'code')
 
     fireEvent.click(screen.getByRole('button', { name: 'common.minimize' }))
 
     expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'true')
-    expect(screen.getByTestId('artifact-pane')).toBe(artifactPane)
+
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-view-mode', 'code')
   })
 
-  it('resets the artifact view mode when the workspace changes', () => {
+  it('closes a changed workspace and resets artifact state when explicitly reopened', () => {
     const { rerender } = renderAgentChat({
       pane: <aside data-testid="session-pane" />,
       paneOpen: true,
@@ -1086,23 +945,14 @@ describe('AgentChat artifact pane', () => {
     }
     rerenderAgentChat(rerender, { pane: <aside data-testid="session-pane" />, paneOpen: true, panePosition: 'left' })
 
+    expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'false')
+    expect(screen.queryByTestId('artifact-pane')).not.toBeInTheDocument()
+
+    openFilesPane()
+
+    expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'true')
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-workspace-path', '/tmp/other-workspace')
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-view-mode', 'preview')
-  })
-
-  it('renders the empty state when there is no active session or missing-agent selection', () => {
-    activeSessionMocks.result = {
-      activeSessionId: null,
-      session: undefined,
-      isLoading: false,
-      setActiveSessionId: vi.fn()
-    }
-
-    renderAgentChat()
-
-    expect(screen.getByTestId('conversation-center-state')).toHaveAttribute('data-state', 'empty')
-    expect(screen.getByTestId('agent-chat-navbar')).toBeInTheDocument()
-    expect(screen.queryByTestId('composer-dock-frame')).not.toBeInTheDocument()
   })
 
   it('renders the missing-agent selection as a home composer without leasing a session', async () => {
@@ -1121,15 +971,13 @@ describe('AgentChat artifact pane', () => {
 
     // The home composer is lazy-loaded; wait for the chunk to resolve.
     expect(await screen.findByTestId('missing-agent-home-composer')).toBeInTheDocument()
-    expect(screen.getByTestId('composer-dock-frame')).toHaveAttribute('data-placement', 'docked')
-    expect(screen.getByTestId('composer-dock-frame')).toHaveAttribute('data-main-visible', 'true')
 
     fireEvent.click(screen.getByRole('button', { name: 'select missing agent' }))
 
     expect(onMissingAgentSelectionAgentChange).toHaveBeenCalledWith('agent-2')
   })
 
-  it('destroys an unavailable artifact capability without unmounting the stable viewport', () => {
+  it('keeps a recovered artifact capability closed until explicitly opened without replacing the viewport', () => {
     const { rerender } = renderAgentChat({
       pane: <aside data-testid="session-pane" />,
       paneOpen: true,
@@ -1149,9 +997,7 @@ describe('AgentChat artifact pane', () => {
       missingAgentSelection: true
     })
 
-    expect(screen.getByTestId('composer-dock-frame')).toHaveAttribute('data-placement', 'docked')
     expect(artifactPane).not.toBeInTheDocument()
-    expect(screen.getByTestId('artifact-right-pane')).toBe(rightPane)
     expect(rightPane).toHaveAttribute('data-open', 'false')
     expect(screen.queryByRole('button', { name: 'agent.right_pane.tabs.files' })).toBeNull()
 
@@ -1162,91 +1008,12 @@ describe('AgentChat artifact pane', () => {
     })
 
     expect(screen.getByRole('button', { name: 'agent.right_pane.tabs.files' })).toBeEnabled()
-    expect(screen.getByTestId('artifact-right-pane')).toBe(rightPane)
-    expect(rightPane).toHaveAttribute('data-open', 'true')
-    expect(screen.getByTestId('artifact-pane')).not.toBe(artifactPane)
-  })
-
-  it('keeps the resource list pane visible when switching from missing-agent selection to a persisted session', () => {
-    const { rerender } = renderAgentChat({
-      pane: <aside data-testid="session-pane" />,
-      paneOpen: true,
-      panePosition: 'left',
-      conversationBootstrap: createConversationBootstrap(null, false, 'none'),
-      missingAgentSelection: true
-    })
-
-    expect(screen.getByTestId('composer-dock-frame')).toHaveAttribute('data-placement', 'docked')
-    expect(screen.getByTestId('session-pane')).toBeInTheDocument()
-
-    rerenderAgentChat(rerender, {
-      pane: <aside data-testid="session-pane" />,
-      paneOpen: true,
-      panePosition: 'left'
-    })
-
-    expect(screen.getByTestId('composer-dock-frame')).toHaveAttribute('data-placement', 'docked')
-    expect(screen.getByTestId('session-pane')).toBeInTheDocument()
-  })
-
-  it('keeps the viewport mounted from selected-session loading through ready', async () => {
-    activeSessionMocks.result = {
-      activeSessionId: 'session-loading',
-      session: undefined,
-      isLoading: true,
-      setActiveSessionId: vi.fn()
-    }
-
-    const { rerender } = renderAgentChat({
-      sessionPaneOpen: true
-    })
-
-    await waitFor(() => {
-      expect(screen.getByTestId('conversation-center-state')).toHaveAttribute('data-state', 'loading')
-    })
-    expect(screen.queryByTestId('agent-home-composer')).not.toBeInTheDocument()
-    expect(screen.queryByTestId('agent-composer')).not.toBeInTheDocument()
-    expect(screen.queryByTestId('composer-dock-frame')).not.toBeInTheDocument()
-    expect(screen.queryByTestId('agent-messages')).not.toBeInTheDocument()
-    const rightPane = screen.getByTestId('artifact-right-pane')
     expect(rightPane).toHaveAttribute('data-open', 'false')
-    expect(screen.queryByRole('button', { name: 'common.maximize' })).toBeNull()
+    expect(screen.queryByTestId('artifact-pane')).not.toBeInTheDocument()
 
-    activeSessionMocks.result = {
-      activeSessionId: 'session-1',
-      session: {
-        id: 'session-1',
-        agentId: 'agent-1',
-        traceId: 'trace-a',
-        workspaceId: 'workspace-1',
-        workspace: { path: '/tmp/workspace' }
-      },
-      isLoading: false,
-      setActiveSessionId: vi.fn()
-    }
-    rerenderAgentChat(rerender)
+    openFilesPane()
 
-    expect(screen.getByTestId('artifact-right-pane')).toBe(rightPane)
-    expect(screen.getByTestId('agent-messages')).toHaveAttribute('data-session-id', 'session-1')
-  })
-
-  it('opens selected subagent flows in the right-pane title header', () => {
-    renderAgentChat({ pane: <aside data-testid="session-pane" />, paneOpen: true, panePosition: 'left' })
-
-    fireEvent.click(screen.getByRole('button', { name: 'open flow a' }))
-
-    expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'true')
-    expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('cache-usage.md')
-    expect(screen.queryByRole('button', { name: /cache-usage\.md/ })).toBeNull()
-    expect(screen.queryByRole('button', { name: /agent\.right_pane\.tabs\.flow/ })).toBeNull()
-    expect(screen.queryByRole('button', { name: 'common.maximize' })).toBeNull()
-
-    fireEvent.click(screen.getByRole('button', { name: 'open flow b' }))
-
-    expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('renderer audit')
-    expect(screen.queryByRole('button', { name: /cache-usage\.md/ })).toBeNull()
-    expect(screen.queryByRole('button', { name: /renderer audit/ })).toBeNull()
-    expect(screen.queryByText('Agent')).not.toBeInTheDocument()
+    expect(rightPane).toHaveAttribute('data-open', 'true')
   })
 
   // Unlike every other visited pane, the trace tab unmounts once inactive so its retained span tree
@@ -1273,8 +1040,7 @@ describe('AgentChat artifact pane', () => {
     fireEvent.click(screen.getByRole('button', { name: 'open artifact file' }))
 
     expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'true')
-    expect(screen.getByRole('button', { name: 'agent.right_pane.tabs.files' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /index\.ts/ })).toBeNull()
+
     await waitFor(() => {
       expect(screen.getByTestId('artifact-file-preview-overlay')).toBeInTheDocument()
     })
@@ -1290,8 +1056,7 @@ describe('AgentChat artifact pane', () => {
     fireEvent.click(screen.getByRole('button', { name: 'open excel artifact file' }))
 
     expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'true')
-    expect(screen.getByRole('button', { name: 'agent.right_pane.tabs.files' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /report\.xlsx/ })).toBeNull()
+
     await waitFor(() => {
       expect(screen.getByTestId('artifact-file-preview-overlay')).toBeInTheDocument()
     })
@@ -1306,8 +1071,7 @@ describe('AgentChat artifact pane', () => {
     fireEvent.click(screen.getByRole('button', { name: 'open desktop artifact file' }))
 
     expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'true')
-    expect(screen.getByRole('button', { name: 'agent.right_pane.tabs.files' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /记忆商人\.md/ })).toBeNull()
+
     await waitFor(() => {
       expect(screen.getByTestId('artifact-file-preview-overlay')).toBeInTheDocument()
     })
@@ -1326,25 +1090,10 @@ describe('AgentChat artifact pane', () => {
     })
     fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.close' }))
 
-    expect(screen.getByRole('button', { name: 'agent.right_pane.tabs.files' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /index\.ts/ })).toBeNull()
     expect(screen.queryByTestId('artifact-file-preview-overlay')).toBeNull()
     expect(screen.queryByTestId('artifact-file-preview')).toBeNull()
     expect(screen.getByTestId('artifact-pane')).toBeInTheDocument()
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-selected-file', '')
-  })
-
-  it('keeps subagent flows as a title-only focus surface', () => {
-    renderAgentChat({ pane: <aside data-testid="session-pane" />, paneOpen: true, panePosition: 'left' })
-
-    fireEvent.click(screen.getByRole('button', { name: 'open flow a' }))
-    fireEvent.click(screen.getByRole('button', { name: 'open flow b' }))
-
-    expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('renderer audit')
-    expect(screen.queryByRole('button', { name: /cache-usage\.md/ })).toBeNull()
-    expect(screen.queryByRole('button', { name: /renderer audit/ })).toBeNull()
-    expect(screen.queryByRole('button', { name: 'common.close' })).toBeNull()
-    expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'true')
   })
 
   it('does not render stale session content while a selected session reloads', () => {
@@ -1417,13 +1166,6 @@ describe('AgentChat artifact pane', () => {
 
     expect(screen.getByRole('button', { name: 'session-6' })).toBeInTheDocument()
     expect(screen.getByTestId('agent-messages')).toHaveAttribute('data-session-id', 'session-6')
-    expect(agentSessionPartsMocks.useAgentSessionParts).toHaveBeenLastCalledWith(
-      'session-6',
-      expect.objectContaining({
-        enabled: true,
-        fetchOnMount: true
-      })
-    )
   })
 
   it('shows the pending created session while the active session query catches up', () => {

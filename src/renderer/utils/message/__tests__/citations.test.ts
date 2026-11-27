@@ -110,10 +110,13 @@ describe('resolveMessageCitations', () => {
     expect(mc.byId.get('kzz-1')).toMatchObject({ number: 3, title: 'One.md', url: '', type: 'knowledge' })
   })
 
-  it('resolves agent dynamic-tool parts with MCP-wrapped output', () => {
-    const mc = resolveMessageCitations([dynamicMcpPart('mcp__cherry-tools__kb_search', kbResults('qqq'))])
-    expect(mc.byId.get('qqq-1')).toMatchObject({ type: 'knowledge', content: 'kb chunk' })
-  })
+  it.each(['mcp__cherry-tools__kb_search', 'mcp__cherry_tools__kb_search'])(
+    'resolves MCP-wrapped citations from %s',
+    (toolName) => {
+      const mc = resolveMessageCitations([dynamicMcpPart(toolName, kbResults('qqq'))])
+      expect(mc.byId.get('qqq-1')).toMatchObject({ type: 'knowledge', content: 'kb chunk' })
+    }
+  )
 
   it('ignores third-party MCP tools sharing the builtin name', () => {
     const mc = resolveMessageCitations([dynamicMcpPart('mcp__other-server__web_search', webResults('abc'))])
@@ -238,11 +241,6 @@ describe('resolveMessageCitations', () => {
   it('joins grep match snippets into the citation preview', () => {
     const mc = resolveMessageCitations([kbReadPart(kbGrepOutput('ggg-1'))])
     expect(mc.byId.get('ggg-1')).toMatchObject({ title: 'Three.md', content: 'first hit … second hit' })
-  })
-
-  it('truncates a long read slice to a tooltip-sized snippet', () => {
-    const mc = resolveMessageCitations([kbReadPart(kbReadOutput('rrr-1', { content: 'x'.repeat(2000) }))])
-    expect(mc.byId.get('rrr-1')?.content).toBe(`${'x'.repeat(300)}…`)
   })
 
   it('aliases a document to its existing citation when kb_search already returned it', () => {

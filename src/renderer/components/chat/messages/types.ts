@@ -3,14 +3,18 @@ import type { ReactNode } from 'react'
 import type { DeleteMessageOptions, MessageDeleteAvailability } from '@renderer/hooks/chat/ChatWriteContext'
 import type { SerializedError } from '@renderer/types/error'
 import type { FileMetadata } from '@renderer/types/file'
+import type { FileLocation } from '@renderer/types/fileLocation'
+import type { InputFilePreview } from '@renderer/types/inputFilePreview'
 import type { Citation, MessageUiState } from '@renderer/types/message'
-import type { MessageExportView } from '@renderer/types/messageExport'
+import type { MessageExportTarget, MessageExportView } from '@renderer/types/messageExport'
 import type { McpTool } from '@renderer/types/tool'
 import type { Topic } from '@renderer/types/topic'
+import type { MessagePartRows } from '@renderer/utils/message/messagePartRows'
 import type { AgentSessionDelivery } from '@shared/ai/agentSessionDelivery'
 import type { AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
 import type {
   ChatMessageStyle,
+  MultiModelFoldDisplayMode,
   MultiModelGridPopoverTrigger,
   MultiModelMessageStyle,
   TranslateLangCode
@@ -25,9 +29,12 @@ import type {
   MessageStatus,
   ModelSnapshot
 } from '@shared/data/types/message'
-import type { Model } from '@shared/data/types/model'
+import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { TranslateLanguage } from '@shared/data/types/translate'
+import type { OutputFor } from '@shared/ipc/types'
 import type { FileUrlString } from '@shared/types/file'
+
+import type { ActionAvailabilityInput } from '../actions/actionTypes'
 
 export type { MessageUiState } from '@renderer/types/message'
 
@@ -64,7 +71,7 @@ export interface MessageGroupRuntime {
 }
 
 export interface MessageSiblingInfo {
-  group: Array<{ id: string }>
+  group: Array<{ id: string; preview?: string }>
   activeIndex: number
 }
 
@@ -117,6 +124,15 @@ export interface MessageMenuConfig {
   exportMenuOptions: MessageMenuExportOptions
 }
 
+/**
+ * Backdrop the conversation image exports paint behind the captured messages.
+ * The solid variant, not `--chat-message-well` itself: an export has no window behind
+ * it, so it needs the tone the message well resolves to rather than the translucent
+ * value, which would leave the PNG semi-transparent. The generic `--background`
+ * default would make the export lighter than the conversation on screen.
+ */
+export const CHAT_CAPTURE_BACKDROP_VARIABLE = '--chat-message-well-solid'
+
 export const defaultMessageMenuExportOptions: MessageMenuExportOptions = {
   image: false,
   markdown: false,
@@ -154,12 +170,6 @@ export interface MessageErrorDiagnosisResult {
   steps: MessageErrorDiagnosisStep[]
 }
 
-export interface MessageErrorDiagnosisContext {
-  errorSource?: string
-  providerName?: string
-  modelId?: string
-}
-
 export interface MessageErrorDiagnosisInput {
   message: MessageListItem
   partId: string
@@ -192,8 +202,7 @@ export interface MessageErrorDetailInput {
   message: MessageListItem
   partId: string
   error?: SerializedError
-  cachedDiagnosis?: MessageErrorDiagnosisResult
-  diagnosisContext?: MessageErrorDiagnosisContext
+  localizedErrorMessage?: string
 }
 
 export interface OpenAgentToolFlowInput {
@@ -202,12 +211,20 @@ export interface OpenAgentToolFlowInput {
   title?: string
 }
 
+export type MessageInputFilePreview = InputFilePreview
+
 export interface RemoveMessageErrorPartInput {
   messageId: string
   partId: string
 }
 
 export interface MessageListItem {
+  /** Durable owner when this row is a segment of an execution. */
+  sourceMessageId?: string
+  isRunBoundary?: boolean
+  presentation?: 'content' | 'marker' | 'interrupted'
+  showHeader?: boolean
+  partIds?: readonly string[]
   id: string
   role: CherryUIMessage['role']
   assistantId?: string
@@ -254,19 +271,27 @@ export interface AnchorMessage {
 }
 
 export interface MessageRenderConfig {
+  subagentListTitle?: string
   userName: string
   narrowMode: boolean
   messageStyle: ChatMessageStyle
   messageFont: string
   fontSize: number
   renderInputMessageAsMarkdown: boolean
+  userMessageDefaultExpanded: boolean
   codeFancyBlock: boolean
   thoughtAutoCollapse: boolean
   collapseCompletedToolHistory: boolean
+  /** Open tool groups and the finished process by default, so each step reads without a click. */
+  expandToolSteps: boolean
+  /** Open running (live) nested tool groups by default; Agent keeps them visible while the turn runs. */
+  expandLiveToolSteps: boolean
+  keepIntermediateAssistantText: boolean
   mathEnableSingleDollar: boolean
   showMessageOutline: boolean
   showEstimatedTokens: boolean
   multiModelMessageStyle: MultiModelMessageStyle
+  multiModelFoldDisplayMode: MultiModelFoldDisplayMode
   multiModelGridColumns: number
   multiModelGridPopoverTrigger: MultiModelGridPopoverTrigger
 }
@@ -278,19 +303,24 @@ export const defaultMessageRenderConfig: MessageRenderConfig = {
   messageFont: 'system',
   fontSize: 14,
   renderInputMessageAsMarkdown: false,
+  userMessageDefaultExpanded: false,
   codeFancyBlock: true,
   thoughtAutoCollapse: true,
   collapseCompletedToolHistory: true,
+  expandToolSteps: false,
+  expandLiveToolSteps: false,
+  keepIntermediateAssistantText: false,
   mathEnableSingleDollar: false,
   showMessageOutline: false,
   showEstimatedTokens: false,
   multiModelMessageStyle: 'horizontal',
+  multiModelFoldDisplayMode: 'expanded',
   multiModelGridColumns: 2,
   multiModelGridPopoverTrigger: 'click'
 }
 
 export type MessageRenderConfigUpdate = Partial<
-  Pick<MessageRenderConfig, 'multiModelGridColumns' | 'multiModelGridPopoverTrigger'>
+  Pick<MessageRenderConfig, 'multiModelGridColumns' | 'multiModelGridPopoverTrigger' | 'multiModelFoldDisplayMode'>
 >
 
 /**
@@ -299,7 +329,7 @@ export type MessageRenderConfigUpdate = Partial<
  * stream snapshots); `liveMessageIds` marks the mutable streaming tail.
  */
 export interface MessageStreamingLayers {
-  historyPartsByMessageId: Record<string, CherryMessagePart[]>
+  historyPartsByMessageId: MessagePartRows
   liveMessageIds: readonly string[]
 }
 
@@ -311,12 +341,16 @@ export interface MessageTailSlot {
 export interface MessageListState {
   topic: Topic
   messages: MessageListItem[]
-  partsByMessageId: Record<string, CherryMessagePart[]>
+  partsByMessageId: MessagePartRows
   /** When provided, streaming updates stay isolated from historical message subtrees. */
   streamingLayers?: MessageStreamingLayers
   beforeList?: ReactNode
+  /** Transient presentation inside the scroller, excluded from history actions and exports. */
+  afterMessages?: ReactNode
   /** Optional adapter-owned content rendered after one message's body. */
   messageTail?: MessageTailSlot
+  /** Optional adapter-owned content rendered above the list group that opens with this message. */
+  messageHead?: MessageTailSlot
   /** Renders the live turn's processing status inline, replacing the default placeholder. Receives
    *  that placeholder as a fallback, so an override (e.g. an ephemeral agent api-retry line) can take
    *  over while active and fall back to the placeholder otherwise. Called only in the message that owns
@@ -359,13 +393,20 @@ export const DEFAULT_MESSAGE_LIST_CONFIG = {
 } as const satisfies Pick<MessageListState, 'estimateSize' | 'overscan' | 'loadOlderDelayMs' | 'loadingResetDelayMs'>
 
 export interface MessageListActions {
+  openMcpApp?: (messageId: string, toolCallId: string, requestId: string) => Promise<OutputFor<'mcp.app.open'>>
+  addGeneratedImageToComposer?: (image: { url: string; name: string }) => void | Promise<void>
+  openForkSourceSession?: (sessionId: string) => Promise<void>
+  /** Sends again a user message (status `paused`) that the runtime withdrew before the agent received it. */
+  resendUnsentMessage?: (message: MessageListItem) => void
+  /** Moves such a withdrawn user message back into the composer. */
+  editUnsentMessage?: (message: MessageListItem) => void
   loadOlder?: () => void
   bindRuntime?: (runtime: MessageListRuntime) => void | (() => void)
   bindMessageRuntime?: (messageId: string, runtime: MessageRuntime) => void | (() => void)
   bindMessageGroupRuntime?: (messageIds: string[], runtime: MessageGroupRuntime) => void | (() => void)
   locateMessage?: (messageId: string, highlight?: boolean) => void
   startNewContext?: () => void
-  saveCodeBlock?: (data: { msgBlockId: string; codeBlockId: string; newContent: string }) => void | Promise<void>
+  saveCodeBlock?: (data: { msgBlockId: string; originalContent: string; newContent: string }) => void | Promise<void>
   saveTextFile?: (fileName: string, content: string) => string | null | void | Promise<string | null | void>
   saveImage?: (fileName: string, dataUrl: string) => boolean | Promise<boolean>
   saveToKnowledge?: (message: MessageExportView) => void | Promise<void>
@@ -377,17 +418,22 @@ export interface MessageListActions {
   exportToObsidian?: (message: MessageExportView) => void | Promise<void>
   exportToJoplin?: (message: MessageExportView) => void | Promise<void>
   exportToSiyuan?: (message: MessageExportView) => void | Promise<void>
-  openArtifactFile?: (path: string) => void | Promise<void>
+  openArtifactFile?: (path: string, location?: FileLocation) => void | Promise<void>
   openDiagnosticReport?: (description?: string) => void
   resolvePath?: (path: string) => string
+  previewInputFile?: (input: MessageInputFilePreview) => void | Promise<void>
   isDirectory?: (path: string) => Promise<boolean>
   openFile?: (target: MessageAttachmentTarget) => void | Promise<void>
   openPath?: (path: string) => void | Promise<void>
   openCitationsPanel?: (data: { citations: Citation[] }) => void
+  isAgentToolFlowActive?: (toolCallId: string) => boolean
   openAgentToolFlow?: (input: OpenAgentToolFlowInput) => void
+  openBrowserUrl?: (url: string) => void
   openExternalUrl?: (url: string) => void | Promise<void>
   navigateToRoute?: (target: { path: string; query?: Record<string, string> }) => void | Promise<void>
   openUserProfile?: () => void | Promise<void>
+  /** Opens or closes the profile of the conversation's current Assistant or Agent. */
+  toggleAuthorProfile?: () => void
   copyText?: (text: string, options?: { successMessage?: string; emptyMessage?: string }) => void | Promise<void>
   copyRichContent?: (
     content: { plainText: string; html: string; customFormats?: Record<string, string> },
@@ -420,9 +466,15 @@ export interface MessageListActions {
   toggleMultiSelectMode?: (enabled: boolean) => void
   copySelectedMessages?: (messageIds?: readonly string[]) => void | Promise<void>
   saveSelectedMessages?: (messageIds?: readonly string[]) => void | Promise<void>
+  exportSelectedMessages?: (
+    messageIds: readonly string[] | undefined,
+    target: MessageExportTarget
+  ) => void | Promise<void>
   deleteSelectedMessages?: (messageIds?: readonly string[]) => void | Promise<void>
   updateMessageUiState?: (messageId: string, updates: MessageUiState) => void
   updateRenderConfig?: (updates: MessageRenderConfigUpdate) => void
+  canEditMessage?: (message: MessageListItem) => boolean
+  editLabel?: string
   editMessage?: (messageId: string, parts: CherryMessagePart[]) => void | Promise<void>
   /** Open the inline editor for a message. Absent = editing unavailable (read-only embeds). */
   startEditing?: (
@@ -430,20 +482,32 @@ export interface MessageListActions {
     parts: CherryMessagePart[],
     options?: { lockedMentionedModels?: Model[] }
   ) => void
+  /** Presentation eligibility for deleting this message on this surface. Absent = every message the action supports. */
+  canDeleteMessage?: (message: MessageListItem) => boolean
   getMessageDeleteAvailability?: (messageId: string) => MessageDeleteAvailability
   deleteMessage?: (messageId: string, options?: DeleteMessageOptions) => void | Promise<void>
   startMessageBranch?: (messageId: string) => void | Promise<void>
+  forkSession?: {
+    label: string
+    availability: (message: MessageListItem) => ActionAvailabilityInput
+    run: (messageId: string) => void | Promise<void>
+  }
   copyBranchToNewTopic?: (messageId: string) => void | Promise<void>
   setActiveBranch?: (messageId: string) => void | Promise<void>
   deleteMessageGroup?: (messageIds: readonly string[]) => void | Promise<void>
   deleteMessageGroupWithConfirm?: (messageIds: readonly string[]) => void | Promise<void>
   regenerateMessage?: (messageId: string) => void | Promise<void>
+  /** Regenerate a specific reply with an explicit model (per-reply retry identity). */
+  regenerateMessageUsingModel?: (messageId: string, modelId: UniqueModelId) => void | Promise<void>
 }
 
 export interface MessageListMeta {
   selectionLayer: boolean
   userProfile?: MessageUserProfile
   assistantProfile?: MessageUserProfile
+  /** Current avatars keyed by author id; absent authors retain their message snapshot. */
+  authorAvatars?: ReadonlyMap<string, string>
+  assistantAvatarSources?: ReadonlyMap<string, string>
   imageExportFileName?: string
   /** Usage-record partition this surface's messages belong to. Defaults to 'chat'. */
   aiUsageMessageKind?: AiUsageRecordMessageKind

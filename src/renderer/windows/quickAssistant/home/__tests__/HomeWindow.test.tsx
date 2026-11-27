@@ -1,8 +1,12 @@
 import '@testing-library/jest-dom/vitest'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { VoiceTargetRegistration } from '@renderer/services/voice'
+import { AutoReadService } from '@renderer/services/voice/AutoReadService'
+import type { ExecutionFinishEvent, ExecutionContentUpdate } from '@renderer/types/message'
+import type { ActiveExecution } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 
@@ -30,33 +34,37 @@ const state = vi.hoisted(() => ({
     providerId: 'anthropic',
     group: 'Anthropic'
   } as TestModel | undefined,
-  messages: [] as never[],
-  activeExecutions: [] as never[],
-  liveAssistants: [] as never[],
+  activeExecutions: [] as ActiveExecution[],
+  isPending: false,
   sendMessage: vi.fn(),
   stopChat: vi.fn(),
-  setMessages: vi.fn(),
-  resetExecutionMessages: vi.fn(),
-  clearExecutionMessages: vi.fn(),
   resetTemporaryTopic: vi.fn(),
+  temporaryTopicId: 'temp-topic',
+  bindVoiceTarget: vi.fn(),
+  unbindVoiceTarget: vi.fn(),
+  voiceTargetRegistration: null as VoiceTargetRegistration | null,
+  overlayOnUpdate: null as ((executionId: string, event: ExecutionContentUpdate) => void) | null,
+  autoReadUpdate: vi.fn(),
+  overlayOnFinish: null as ((executionId: string, event: ExecutionFinishEvent) => void) | null,
+  autoReadEnabled: false,
+  autoReadConsume: vi.fn(),
+  readMessageAloud: vi.fn(),
   isMac: false,
   theme: 'light',
   windowStyle: 'default'
 }))
 
-import HomeWindow, { finalizeLiveMessages } from '../HomeWindow'
+import HomeWindow, { finalizeReply } from '../HomeWindow'
 
 vi.mock('@renderer/ipc', () => ({
   ipcApi: { request: vi.fn(), on: vi.fn(() => () => {}) },
   useIpcOn: vi.fn()
 }))
 
-vi.mock('@ai-sdk/react', () => ({
-  useChat: () => ({
-    messages: state.messages,
+vi.mock('@renderer/hooks/useStreamCommands', () => ({
+  useStreamCommands: () => ({
     sendMessage: state.sendMessage,
-    stop: state.stopChat,
-    setMessages: state.setMessages
+    stop: state.stopChat
   })
 }))
 
@@ -65,6 +73,7 @@ vi.mock('@data/hooks/usePreference', () => ({
     const values: Record<string, unknown> = {
       'feature.quick_assistant.read_clipboard_at_startup': false,
       'feature.quick_assistant.assistant_id': state.quickAssistantId,
+      'feature.voice.auto_read.enabled': state.autoReadEnabled,
       'app.language': 'en-US',
       'ui.window_style': state.windowStyle
     }
@@ -92,22 +101,36 @@ vi.mock('@renderer/hooks/useModel', () => ({
 
 vi.mock('@renderer/hooks/useTemporaryTopic', () => ({
   useTemporaryTopic: () => ({
-    topicId: 'temp-topic',
-    ready: true,
+    topicId: state.temporaryTopicId,
+    ready: Boolean(state.temporaryTopicId),
     reset: state.resetTemporaryTopic
   })
 }))
 
 vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
-  useTopicStreamStatus: () => ({ activeExecutions: state.activeExecutions, isPending: false })
+  useTopicStreamStatus: () => ({ activeExecutions: state.activeExecutions, isPending: state.isPending })
 }))
 
-vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
-  useExecutionOverlay: () => ({
-    liveAssistants: state.liveAssistants,
-    reset: state.resetExecutionMessages,
-    clear: state.clearExecutionMessages
-  })
+vi.mock('@renderer/hooks/useTopicSpeech', () => ({
+  useTopicSpeech: (_topicId: string, _expected: unknown, enabled: boolean, cb: typeof state.overlayOnUpdate) => {
+    state.overlayOnUpdate = enabled ? cb : null
+  }
+}))
+vi.mock('@renderer/hooks/useTopicCompletion', () => ({
+  useTopicCompletion: (_topicId: string, _expected: unknown, cb: typeof state.overlayOnFinish) => {
+    state.overlayOnFinish = cb
+  }
+}))
+
+vi.mock('@renderer/services/voice', () => ({
+  autoReadService: {
+    update: state.autoReadUpdate,
+    consume: state.autoReadConsume
+  },
+  readMessageAloud: state.readMessageAloud,
+  voiceTargetManager: {
+    bind: state.bindVoiceTarget
+  }
 }))
 
 vi.mock('@renderer/i18n/resolver', () => ({
@@ -132,15 +155,21 @@ vi.mock('../components/InputBar', () => ({
     text,
     placeholder,
     handleChange,
-    handleKeyDown
+    handleKeyDown,
+    inputRef,
+    dictationTargetId
   }: {
     text: string
     placeholder: string
     handleChange: (event: React.ChangeEvent<HTMLInputElement>) => void
     handleKeyDown: (event: React.KeyboardEvent<HTMLInputElement>) => void
+    inputRef?: React.RefObject<HTMLInputElement | null>
+    dictationTargetId?: string
   }) => (
     <input
+      ref={inputRef}
       data-testid="quick-input"
+      data-dictation-target={dictationTargetId}
       value={text}
       placeholder={placeholder}
       onChange={handleChange}
@@ -153,21 +182,43 @@ vi.mock('../components/FeatureMenus', () => ({
   default: vi.fn(
     ({
       ref,
-      onSendMessage
+      onSendMessage,
+      setRoute
     }: {
       ref?: React.RefObject<{ useFeature: () => void; resetSelectedIndex: () => void } | null>
       onSendMessage: () => void
+      setRoute: (route: 'chat' | 'translate' | 'summary' | 'explanation') => void
     }) => {
       if (ref) {
         ref.current = { useFeature: onSendMessage, resetSelectedIndex: vi.fn() }
       }
-      return <div data-testid="feature-menus" />
+      return (
+        <div data-testid="feature-menus">
+          <button type="button" onClick={() => setRoute('chat')}>
+            Chat route
+          </button>
+          <button type="button" onClick={() => setRoute('translate')}>
+            Translate route
+          </button>
+        </div>
+      )
     }
   )
 }))
 
 vi.mock('../components/Footer', () => ({
-  default: () => <div data-testid="footer" />
+  default: ({ loading, onEsc, onReadAloud }: { loading?: boolean; onEsc: () => void; onReadAloud?: () => void }) => (
+    <div data-testid="footer">
+      <button type="button" onClick={onEsc}>
+        Escape
+      </button>
+      {!loading && onReadAloud && (
+        <button type="button" onClick={onReadAloud}>
+          Read result aloud
+        </button>
+      )}
+    </div>
+  )
 }))
 
 vi.mock('../components/ClipboardPreview', () => ({
@@ -176,14 +227,20 @@ vi.mock('../components/ClipboardPreview', () => ({
 }))
 
 vi.mock('../../chat/ChatWindow', () => ({
-  default: () => <div data-testid="chat-window" />
+  default: ({ messages }: { messages: CherryUIMessage[] }) => (
+    <div data-testid="chat-window">
+      {messages.map((message) => (
+        <p key={message.id}>{message.parts.map((part) => (part.type === 'text' ? part.text : '')).join('')}</p>
+      ))}
+    </div>
+  )
 }))
 
 vi.mock('../../translate/TranslateWindow', () => ({
   default: () => <div data-testid="translate-window" />
 }))
 
-describe('finalizeLiveMessages', () => {
+describe('finalizeReply', () => {
   afterEach(() => {
     vi.restoreAllMocks()
   })
@@ -209,7 +266,7 @@ describe('finalizeLiveMessages', () => {
       parts: [{ type: 'text', text: 'done', state: 'done' }]
     } as CherryUIMessage
 
-    const result = finalizeLiveMessages([liveMessage, unchangedMessage])
+    const result = [finalizeReply(liveMessage), finalizeReply(unchangedMessage)]
 
     expect(result[0].parts[0]).toMatchObject({ type: 'text', state: 'done' })
     expect(result[0].parts[1]).toMatchObject({ type: 'reasoning', state: 'done' })
@@ -233,10 +290,22 @@ describe('HomeWindow', () => {
     }
     state.sendMessage.mockClear()
     state.stopChat.mockClear()
-    state.setMessages.mockClear()
-    state.resetExecutionMessages.mockClear()
-    state.clearExecutionMessages.mockClear()
     state.resetTemporaryTopic.mockClear()
+    state.temporaryTopicId = 'temp-topic'
+    state.activeExecutions = []
+    state.isPending = false
+    state.bindVoiceTarget.mockReset()
+    state.unbindVoiceTarget.mockReset()
+    state.voiceTargetRegistration = null
+    state.bindVoiceTarget.mockImplementation((registration: VoiceTargetRegistration) => {
+      state.voiceTargetRegistration = registration
+      return state.unbindVoiceTarget
+    })
+    state.overlayOnFinish = null
+    state.autoReadEnabled = false
+    state.autoReadUpdate.mockReset()
+    state.autoReadConsume.mockReset()
+    state.readMessageAloud.mockReset()
     state.isMac = false
     state.theme = 'light'
     state.windowStyle = 'default'
@@ -266,6 +335,18 @@ describe('HomeWindow', () => {
     expect(state.sendMessage).toHaveBeenCalledWith({ text: 'hello' }, { body: { mentionedModels: [quickModelId] } })
   })
 
+  it('shows sent inputs only in their own temporary conversation', async () => {
+    const window = render(<HomeWindow draggable={false} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Chat route' }))
+    const input = screen.getByTestId('quick-input')
+    fireEvent.change(input, { target: { value: 'first question' } })
+    fireEvent.keyDown(input, { code: 'Enter', key: 'Enter' })
+    expect(await screen.findByText('first question')).toBeVisible()
+    state.temporaryTopicId = 'another-topic'
+    window.rerender(<HomeWindow draggable={false} />)
+    expect(screen.queryByText('first question')).not.toBeInTheDocument()
+  })
+
   it('does not fall back to the default model while the quick model is unresolved', () => {
     state.quickModel = undefined
 
@@ -282,5 +363,241 @@ describe('HomeWindow', () => {
 
     expect(screen.getByTestId('quick-input')).toHaveValue('hello')
     expect(screen.queryByTestId('clipboard-preview')).not.toBeInTheDocument()
+  })
+
+  it('binds dictation to the temporary topic and replaces the live input selection without sending', async () => {
+    render(<HomeWindow draggable={false} />)
+    await waitFor(() => expect(state.voiceTargetRegistration).not.toBeNull())
+
+    const input = screen.getByTestId<HTMLInputElement>('quick-input')
+    fireEvent.change(input, { target: { value: 'hello world' } })
+    input.setSelectionRange(6, 11)
+
+    expect(state.voiceTargetRegistration).toMatchObject({
+      targetId: 'quick-assistant-input:temp-topic',
+      sourceEntityId: 'temp-topic',
+      owner: window
+    })
+    expect(state.voiceTargetRegistration?.captureReplaceRange()).toEqual({ from: 6, to: 11 })
+
+    act(() => {
+      expect(state.voiceTargetRegistration?.replaceRange({ from: 6, to: 11 }, 'voice')).toBe(true)
+    })
+
+    expect(input).toHaveValue('hello voice')
+    expect(input.selectionStart).toBe(11)
+    expect(input.selectionEnd).toBe(11)
+    expect(state.sendMessage).not.toHaveBeenCalled()
+  })
+
+  it('unbinds the old input target and binds a distinct target when the temporary topic changes', async () => {
+    const { rerender, unmount } = render(<HomeWindow draggable={false} />)
+    await waitFor(() => expect(state.bindVoiceTarget).toHaveBeenCalledOnce())
+
+    state.temporaryTopicId = 'temp-topic-next'
+    rerender(<HomeWindow draggable={false} />)
+
+    await waitFor(() => expect(state.bindVoiceTarget).toHaveBeenCalledTimes(2))
+    expect(state.unbindVoiceTarget).toHaveBeenCalledOnce()
+    expect(state.bindVoiceTarget.mock.calls[1][0]).toMatchObject({
+      targetId: 'quick-assistant-input:temp-topic-next',
+      sourceEntityId: 'temp-topic-next'
+    })
+
+    unmount()
+    expect(state.unbindVoiceTarget).toHaveBeenCalledTimes(2)
+  })
+
+  it('reads eligible live text before completion through the incremental coordinator', async () => {
+    state.autoReadEnabled = true
+    const spoken: string[] = []
+    const coordinator = new AutoReadService({
+      supportsStreaming: async () => true,
+      playback: {
+        start: async (input) => {
+          spoken.push(input.text)
+          return { status: 'started' }
+        },
+        stopAutoRead: async () => true
+      }
+    })
+    state.autoReadUpdate.mockImplementation((input) => coordinator.update(input))
+    const view = render(<HomeWindow draggable={false} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Chat route' }))
+    state.activeExecutions = [{ executionId: 'provider::model', attemptId: 7 }]
+    view.rerender(<HomeWindow draggable={false} />)
+    await act(async () => {
+      state.overlayOnUpdate?.('provider::model', {
+        type: 'snapshot',
+        attemptId: 7,
+        message: {
+          id: 'active-assistant',
+          role: 'assistant',
+          parts: [
+            { type: 'reasoning', text: 'Private.' },
+            { type: 'text', text: 'Live answer. ' }
+          ]
+        }
+      })
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(spoken).toEqual(['Live answer.'])
+    await coordinator.setEnabled(true)
+    await coordinator.setEnabled(false)
+  })
+
+  it('forwards a tracked chat finish to auto-read and exposes that exact result for manual playback', async () => {
+    state.autoReadEnabled = true
+    const view = render(<HomeWindow draggable={false} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Chat route' }))
+    state.activeExecutions = [{ executionId: 'provider::model', attemptId: 7 }]
+    view.rerender(<HomeWindow draggable={false} />)
+    const message = {
+      id: 'quick-result-7',
+      role: 'assistant',
+      parts: [{ type: 'text', text: 'spoken result', state: 'done' }]
+    } as CherryUIMessage
+
+    const finishEvent = {
+      attemptId: 7,
+      message,
+      isAbort: false,
+      isError: false
+    }
+    act(() => {
+      state.overlayOnFinish?.('provider::model', finishEvent)
+      state.overlayOnFinish?.('provider::model', finishEvent)
+    })
+
+    expect(state.autoReadConsume).toHaveBeenCalledOnce()
+    expect(state.autoReadConsume).toHaveBeenCalledWith({
+      enabled: true,
+      message,
+      attemptId: 7,
+      isAbort: false,
+      isError: false,
+      eligible: true
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Read result aloud' }))
+    expect(state.readMessageAloud).toHaveBeenCalledWith({
+      messageId: 'quick-result-7',
+      parts: message.parts,
+      focusOnClose: expect.any(Function)
+    })
+
+    const input = screen.getByTestId('quick-input')
+    input.blur()
+    const focusOnClose = state.readMessageAloud.mock.calls[0][0].focusOnClose as () => void
+    act(() => focusOnClose())
+    expect(input).toHaveFocus()
+
+    state.isPending = true
+    view.rerender(<HomeWindow draggable={false} />)
+    expect(screen.queryByRole('button', { name: 'Read result aloud' })).not.toBeInTheDocument()
+  })
+
+  it('does not infer auto-read from an execution disappearing without a finish event', () => {
+    state.autoReadEnabled = true
+    const view = render(<HomeWindow draggable={false} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Chat route' }))
+    state.activeExecutions = [{ executionId: 'provider::model', attemptId: 8 }]
+    view.rerender(<HomeWindow draggable={false} />)
+
+    state.activeExecutions = []
+    view.rerender(<HomeWindow draggable={false} />)
+
+    expect(state.autoReadConsume).not.toHaveBeenCalled()
+    expect(screen.queryByRole('button', { name: 'Read result aloud' })).not.toBeInTheDocument()
+  })
+
+  it('marks translate finishes ineligible and never offers manual playback', () => {
+    state.autoReadEnabled = true
+    const view = render(<HomeWindow draggable={false} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Translate route' }))
+    state.activeExecutions = [{ executionId: 'provider::model', attemptId: 9 }]
+    view.rerender(<HomeWindow draggable={false} />)
+    const message = {
+      id: 'translated-result',
+      role: 'assistant',
+      parts: [{ type: 'text', text: 'translated clipboard text', state: 'done' }]
+    } as CherryUIMessage
+
+    act(() => {
+      state.overlayOnFinish?.('provider::model', {
+        attemptId: 9,
+        message,
+        isAbort: false,
+        isError: false
+      })
+    })
+
+    expect(state.autoReadConsume).toHaveBeenCalledWith(expect.objectContaining({ message, eligible: false }))
+    expect(screen.queryByRole('button', { name: 'Read result aloud' })).not.toBeInTheDocument()
+    expect(state.readMessageAloud).not.toHaveBeenCalled()
+  })
+
+  it('replaces a finished temporary reply at the same anchor and ignores an older replay', async () => {
+    const window = render(<HomeWindow draggable={false} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Chat route' }))
+    const finish = (attemptId: number, text: string) =>
+      act(() =>
+        state.overlayOnFinish?.('provider::model', {
+          attemptId,
+          isAbort: false,
+          isError: false,
+          message: { id: 'same-anchor', role: 'assistant', parts: [{ type: 'text', text }] }
+        })
+      )
+    finish(1, 'old reply')
+    expect(await screen.findByText('old reply')).toBeInTheDocument()
+    finish(2, 'new reply')
+    finish(1, 'old reply')
+    expect(screen.queryByText('old reply')).not.toBeInTheDocument()
+    expect(screen.getAllByText('new reply')).toHaveLength(1)
+    state.temporaryTopicId = 'another-topic'
+    window.rerender(<HomeWindow draggable={false} />)
+    expect(screen.queryByText('new reply')).not.toBeInTheDocument()
+  })
+
+  it('rejects a stale completion after the temporary topic is reset', () => {
+    state.autoReadEnabled = true
+    const view = render(<HomeWindow draggable={false} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Chat route' }))
+    state.activeExecutions = [{ executionId: 'provider::model', attemptId: 10 }]
+    view.rerender(<HomeWindow draggable={false} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Escape' }))
+    act(() => {
+      state.overlayOnFinish?.('provider::model', {
+        attemptId: 10,
+        message: {
+          id: 'stale-result-before-rebind',
+          role: 'assistant',
+          parts: [{ type: 'text', text: 'must stay silent', state: 'done' }]
+        },
+        isAbort: false,
+        isError: false
+      })
+    })
+    state.temporaryTopicId = 'temp-topic-next'
+    state.activeExecutions = []
+    view.rerender(<HomeWindow draggable={false} />)
+
+    act(() => {
+      state.overlayOnFinish?.('provider::model', {
+        attemptId: 10,
+        message: {
+          id: 'stale-result',
+          role: 'assistant',
+          parts: [{ type: 'text', text: 'must stay silent', state: 'done' }]
+        },
+        isAbort: false,
+        isError: false
+      })
+    })
+
+    expect(state.autoReadConsume).not.toHaveBeenCalled()
+    expect(screen.queryByRole('button', { name: 'Read result aloud' })).not.toBeInTheDocument()
   })
 })

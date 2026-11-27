@@ -1,6 +1,24 @@
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { formatFileSize, getFileDirectory, getFileExtension, removeSpecialCharactersForFileName } from '../file'
+import {
+  anyFileExt,
+  formatFileSize,
+  getFileDirectory,
+  getFileExtension,
+  isSupportedExtension,
+  isSupportedFile,
+  removeFileExtension,
+  removeSpecialCharactersForFileName
+} from '../file'
+
+const mocks = vi.hoisted(() => ({ request: vi.fn() }))
+
+vi.mock('@renderer/ipc', () => ({ ipcApi: { request: mocks.request } }))
+
+beforeEach(() => {
+  mocks.request.mockReset()
+  mocks.request.mockResolvedValue({ kind: 'file', type: 'other' })
+})
 
 describe('file', () => {
   describe('getFileDirectory', () => {
@@ -70,33 +88,53 @@ describe('file', () => {
     })
   })
 
+  describe('removeFileExtension', () => {
+    it('should strip a plain extension', () => {
+      expect(removeFileExtension('document.pdf')).toBe('document')
+      expect(removeFileExtension('archive.tar.gz')).toBe('archive.tar')
+      expect(removeFileExtension('noextension')).toBe('noextension')
+    })
+
+    it('should keep a leading-dot file name intact', () => {
+      // A leading dot starts a hidden file name, not an extension — stripping it
+      // used to yield an empty string as the pasted attachment's origin_name.
+      expect(removeFileExtension('.env')).toBe('.env')
+      expect(removeFileExtension('.gitignore')).toBe('.gitignore')
+      expect(removeFileExtension('.config.json')).toBe('.config')
+    })
+
+    it('should only consider the base name when the path has dots in directories', () => {
+      expect(removeFileExtension('/srv/app.d/file')).toBe('/srv/app.d/file')
+      expect(removeFileExtension('/home/john.doe/notes')).toBe('/home/john.doe/notes')
+      expect(removeFileExtension('C:\\dir.x\\name')).toBe('C:\\dir.x\\name')
+    })
+  })
+
   describe('formatFileSize', () => {
-    it('should format size in MB for large files', () => {
-      // 验证大文件以 MB 为单位格式化
-      const size = 1048576 // 1MB
-      const result = formatFileSize(size)
-      expect(result).toBe('1.0 MB')
+    it('renders missing or non-finite sizes as a dash', () => {
+      expect(formatFileSize(null)).toBe('—')
+      expect(formatFileSize(undefined)).toBe('—')
+      expect(formatFileSize(Number.NaN)).toBe('—')
+      expect(formatFileSize(Number.POSITIVE_INFINITY)).toBe('—')
     })
 
-    it('should format size in KB for medium files', () => {
-      // 验证中等大小文件以 KB 为单位格式化
-      const size = 1024 // 1KB
-      const result = formatFileSize(size)
-      expect(result).toBe('1 KB')
+    it('keeps sizes below 1 KB in bytes', () => {
+      expect(formatFileSize(0)).toBe('0 B')
+      expect(formatFileSize(500)).toBe('500 B')
+      expect(formatFileSize(1023)).toBe('1023 B')
     })
 
-    it('should format small size in KB with decimals', () => {
-      // 验证小文件以 KB 为单位并带小数
-      const size = 500
-      const result = formatFileSize(size)
-      expect(result).toBe('0.49 KB')
+    it('shows one decimal below 10 and whole numbers from 10 up', () => {
+      expect(formatFileSize(1024)).toBe('1.0 KB')
+      expect(formatFileSize(1536)).toBe('1.5 KB')
+      expect(formatFileSize(10 * 1024)).toBe('10 KB')
+      expect(formatFileSize(1024 * 1024)).toBe('1.0 MB')
+      expect(formatFileSize(15.3 * 1024 * 1024)).toBe('15 MB')
+      expect(formatFileSize(2.5 * 1024 ** 3)).toBe('2.5 GB')
     })
 
-    it('should handle zero size', () => {
-      // 验证零大小的边界情况
-      const size = 0
-      const result = formatFileSize(size)
-      expect(result).toBe('0.00 KB')
+    it('caps the unit at TB', () => {
+      expect(formatFileSize(2048 * 1024 ** 4)).toBe('2048 TB')
     })
   })
 
@@ -114,6 +152,49 @@ describe('file', () => {
     it('should return empty string for empty input', () => {
       // 验证空字符串
       expect(removeSpecialCharactersForFileName('')).toBe('')
+    })
+  })
+
+  describe('isSupportedFile', () => {
+    it('accepts a listed extension without consulting the file', async () => {
+      expect(await isSupportedFile('/tmp/report.pdf', new Set(['.pdf']))).toBe(true)
+      expect(mocks.request).not.toHaveBeenCalled()
+    })
+
+    it('accepts an unlisted extension when the file content is text', async () => {
+      mocks.request.mockResolvedValue({ kind: 'file', type: 'text' })
+
+      expect(await isSupportedFile('/tmp/netlist.sp', new Set(['.pdf']))).toBe(true)
+    })
+
+    it('rejects an unlisted binary extension', async () => {
+      expect(await isSupportedFile('/tmp/weights.onnx', new Set(['.pdf']))).toBe(false)
+    })
+
+    it('accepts any extension when the allowlist carries the wildcard', async () => {
+      // The wildcard means "this caller only needs the path" — an unknown binary
+      // format must not be rejected on a caller that never reads the bytes.
+      expect(await isSupportedFile('/tmp/weights.onnx', new Set([anyFileExt]))).toBe(true)
+    })
+  })
+
+  describe('isSupportedExtension', () => {
+    // The pathless-paste checks (clipboard images) can only consult the allowlist, so
+    // the array form of the same question has to answer identically to isSupportedFile.
+    it('accepts a listed extension', () => {
+      expect(isSupportedExtension('.png', ['.png'])).toBe(true)
+    })
+
+    it('rejects an unlisted extension without the wildcard', () => {
+      expect(isSupportedExtension('.avif', ['.png'])).toBe(false)
+    })
+
+    it('accepts an unlisted extension when the allowlist carries the wildcard', () => {
+      expect(isSupportedExtension('.avif', ['.png', anyFileExt])).toBe(true)
+    })
+
+    it('rejects an extensionless name without the wildcard', () => {
+      expect(isSupportedExtension('.', ['.png'])).toBe(false)
     })
   })
 })

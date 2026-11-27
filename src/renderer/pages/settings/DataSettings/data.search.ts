@@ -1,6 +1,6 @@
 import type { SettingsSearchEntry } from '../settingsSearch/types'
 
-// Data settings switches its 13 panels via component state, not sub-routes, so
+// Data settings switches its panels via component state, not sub-routes, so
 // each entry carries the owning panel key — jumps navigate as /settings/data?panel=<key>
 // and DataSettings mounts that panel before the anchor lookup. Conditional rows
 // (v1 remigration) and modal-only actions stay out per D8.
@@ -44,7 +44,8 @@ export const entries: SettingsSearchEntry[] = [
     anchorId: 'data-reset',
     titleKey: 'settings.data.data_reset.title',
     panel: 'data',
-    groupKey: 'settings.data.data.title'
+    groupKey: 'settings.data.data.title',
+    aliases: ['reset', '恢复出厂', '清空数据']
   },
   {
     anchorId: 'data-privacy-mode',
@@ -129,6 +130,12 @@ export const entries: SettingsSearchEntry[] = [
   {
     anchorId: 'import-claude',
     titleKey: 'settings.data.import_settings.claude',
+    panel: 'import_settings',
+    groupKey: 'settings.data.import_settings.title'
+  },
+  {
+    anchorId: 'import-deepseek',
+    titleKey: 'agent.import.title',
     panel: 'import_settings',
     groupKey: 'settings.data.import_settings.title'
   },

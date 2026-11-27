@@ -13,7 +13,6 @@
  *   `isTextByContent`, `mimeToExt`).
  * - `./path` — path predicates (`isPathInside`, `isSameOrInside`, `canWrite`, …).
  * - `./pathStatus` — `getPathStatus` + its result types.
- * - `./shell` — OS open / reveal (`open`, `showInFolder`).
  *
  * Related surfaces that live elsewhere (not here):
  * - Legacy v1 file helpers (`getFileExt`, `readTextFileWithAutoEncoding`,
@@ -48,12 +47,12 @@
  */
 
 export { createContentHasher, hashContent, parseContentHash } from './contentHash'
+export { createPathOverlapCheck, nearestExistingRealPathSync, type PathNameBehavior } from './pathIdentity'
 export {
   assertPathVersionUnchanged,
   atomicWriteFile,
   atomicWriteIfUnchanged,
   type AtomicWriteStream,
-  compressImage,
   copy,
   copyNew,
   createAtomicWriteStream,
@@ -88,6 +87,14 @@ export {
   write
 } from './fs'
 export { decodeTextBufferIfText, getFileType, isTextByContent, mimeToExt } from './metadata'
-export { canWrite, isNotEmptyDir, isOutsidePath, isPathInside, isSameOrInside, resolvePath } from './path'
+export {
+  canonicalizePathForContainment,
+  canWrite,
+  foldPathSegment,
+  isNotEmptyDir,
+  isOutsidePath,
+  isPathInside,
+  isSameOrInside,
+  resolvePath
+} from './path'
 export { getPathStatus, type PathStatus, type PathStatusKind } from './pathStatus'
-export { open, showInFolder } from './shell'

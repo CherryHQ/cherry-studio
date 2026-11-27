@@ -4,7 +4,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { QuickPanelContextType, QuickPanelListItem, QuickPanelOpenOptions } from '@renderer/components/QuickPanel'
 
 import type { ComposerToolLauncher } from '../../toolLauncher'
-import { createUnifiedQuickPanelOpenOptions, hasUnifiedQuickPanelRootContent } from '../unifiedPanel'
+import {
+  createUnifiedQuickPanelOpenOptions,
+  hasUnifiedQuickPanelRootContent,
+  prepareComposerQuickPanelSearch
+} from '../unifiedPanel'
 
 const quickPanel = {
   open: vi.fn(),
@@ -57,76 +61,98 @@ beforeEach(() => {
 })
 
 describe('createUnifiedQuickPanelOpenOptions', () => {
-  it('keeps system actions above resource results while preserving business order during search', () => {
-    const options = createUnifiedQuickPanelOpenOptions(
-      [
-        {
-          id: 'attachment',
-          kind: 'command',
-          label: 'Attachment',
-          description: 'notes',
-          icon: 'paperclip',
-          sources: ['popover']
-        },
-        {
-          id: 'slash-command',
-          kind: 'command',
-          label: 'Slash command',
-          description: 'notes',
-          icon: 'slash',
-          sources: ['root-panel']
-        }
-      ],
-      {
-        quickPanel,
-        leadingItems: [{ id: 'new-topic', label: 'New topic', filterText: 'notes', icon: 'plus' }],
-        additionalItems: [{ id: 'agent-skill', label: 'Agent skill', filterText: 'notes', icon: 'skill' }],
-        resourceItems: [{ id: 'file:notes', label: 'notes.md', description: '/workspace/notes.md', icon: 'file' }]
-      }
-    )
-
-    expect(options.sortFn).toEqual(expect.any(Function))
-
-    const reversedItems = [...options.list].reverse()
-    expect(labels(options.sortFn!(reversedItems, 'notes'))).toEqual([
-      'New topic',
-      'Attachment',
-      'Slash command',
-      'Agent skill',
-      'notes.md'
-    ])
+  it('excludes Off dictation from both root and search results and restores On', () => {
+    const launcher: ComposerToolLauncher = {
+      id: 'dictation',
+      kind: 'command',
+      label: 'Local dictation',
+      icon: 'mic',
+      hidden: true,
+      sources: ['root-panel'],
+      action: vi.fn()
+    }
+    const off = createUnifiedQuickPanelOpenOptions([launcher], { quickPanel, onToolLauncherSelect: vi.fn() })
+    expect(labels(getVisibleItems(off, ''))).not.toContain('Local dictation')
+    expect(labels(getVisibleItems(off, 'dictation'))).not.toContain('Local dictation')
+    const on = createUnifiedQuickPanelOpenOptions([{ ...launcher, hidden: false }], {
+      quickPanel,
+      onToolLauncherSelect: vi.fn()
+    })
+    expect(labels(getVisibleItems(on, 'dictation'))).toContain('Local dictation')
   })
 
-  it('renders skills above trailing command items', () => {
+  it('flattens actionable leaves through nested submenus without looping on cycles', () => {
+    const leafAction = vi.fn()
+    const onToolLauncherSelect = vi.fn()
     const options = createUnifiedQuickPanelOpenOptions(
       [
         {
-          id: 'agent-skills',
-          kind: 'panel',
-          label: 'Skills',
-          icon: 'skill',
-          sources: ['root-panel']
-        },
-        {
-          id: 'mcp-status',
-          kind: 'panel',
-          label: 'MCP',
-          icon: 'plug',
-          sources: ['root-panel']
-        },
-        {
-          id: 'slash-command',
-          kind: 'command',
-          label: 'Slash command',
-          icon: 'slash',
-          sources: ['root-panel'],
-          rootPanelPlacement: 'trailing'
+          id: 'outer',
+          kind: 'group',
+          label: 'Outer',
+          icon: 'outer',
+          sources: ['popover'],
+          submenu: [
+            {
+              id: 'inner',
+              kind: 'group',
+              label: 'Inner',
+              icon: 'inner',
+              sources: ['popover'],
+              submenu: [
+                {
+                  id: 'leaf',
+                  kind: 'command',
+                  label: 'Nested leaf',
+                  icon: 'leaf',
+                  sources: ['popover'],
+                  action: leafAction
+                }
+              ]
+            }
+          ]
         }
       ],
-      { quickPanel }
+      { quickPanel, onToolLauncherSelect }
     )
 
-    expect(labels(options.list)).toEqual(['Skills', 'MCP', 'Slash command'])
+    expect(labels(getVisibleItems(options, 'nested'))).toEqual(['Nested leaf'])
+    getVisibleItems(options, 'nested')[0].action?.({
+      action: 'enter',
+      context: quickPanel,
+      item: getVisibleItems(options, 'nested')[0],
+      parentPanel: options,
+      searchText: 'nested'
+    })
+    expect(onToolLauncherSelect).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'leaf', action: leafAction }),
+      expect.objectContaining({ source: 'popover', parentPanel: options, searchText: 'nested' })
+    )
+  })
+
+  it('prepares a slash-triggered submenu search without tracking the consumed trigger', () => {
+    const inputAdapter = {
+      deleteTriggerRange: vi.fn(),
+      focus: vi.fn(),
+      getCursorOffset: () => 7,
+      getText: () => '/skills',
+      insertText: vi.fn()
+    }
+
+    expect(
+      prepareComposerQuickPanelSearch({
+        inputAdapter,
+        queryAnchor: 0,
+        triggerInfo: { type: 'input', position: 0, originalText: '/skills' }
+      })
+    ).toEqual({
+      queryAnchor: undefined,
+      trackInputQuery: true,
+      consumeQueryOnDismiss: true,
+      triggerInfo: { type: 'button' }
+    })
+    expect(inputAdapter.deleteTriggerRange).toHaveBeenCalledWith({ from: 0, to: 7 })
+    expect(inputAdapter.focus).toHaveBeenCalledOnce()
   })
 
   it('flattens actionable submenu and skill items into root search without exposing status rows', () => {
@@ -211,6 +237,35 @@ describe('createUnifiedQuickPanelOpenOptions', () => {
       searchText: 'pdf'
     })
     expect(insertSkill).toHaveBeenCalledOnce()
+  })
+
+  it('does not expose search items owned by a disabled launcher', () => {
+    const options = createUnifiedQuickPanelOpenOptions(
+      [
+        {
+          id: 'disabled-owner',
+          kind: 'panel',
+          label: 'Disabled owner',
+          icon: 'disabled',
+          sources: ['root-panel'],
+          disabled: true,
+          rootSearchItems: [{ id: 'owned-resource', label: 'Owned resource', icon: 'resource', action: vi.fn() }],
+          submenu: [
+            {
+              id: 'owned-command',
+              kind: 'command',
+              label: 'Owned command',
+              icon: 'command',
+              sources: ['root-panel'],
+              action: vi.fn()
+            }
+          ]
+        }
+      ],
+      { quickPanel }
+    )
+
+    expect(labels(getVisibleItems(options, 'owned'))).toEqual([])
   })
 
   it('matches flattened submenu items by searchAliases when label and description are React nodes', () => {
@@ -330,6 +385,176 @@ describe('createUnifiedQuickPanelOpenOptions', () => {
     expect(options.sortFn!(reversedItems, '')).toEqual(reversedItems)
   })
 
+  it('ranks exact slash commands ahead of skills and MCP skills mentioning them in descriptions', () => {
+    const options = createUnifiedQuickPanelOpenOptions(
+      [
+        {
+          id: 'agent-skills',
+          kind: 'panel',
+          label: 'Skills',
+          icon: 'skill',
+          order: 40,
+          sources: ['root-panel'],
+          rootSearchItems: [
+            {
+              id: 'skill:session-cleanup',
+              label: 'session-cleanup',
+              description: 'Clean up files and run /compact or /clear when done',
+              filterText: 'session-cleanup Clean up files and run /compact or /clear when done',
+              searchAliases: ['Skills'],
+              icon: 'skill',
+              action: vi.fn()
+            },
+            {
+              id: 'skill:compact-notes',
+              label: 'compact-notes',
+              description: 'Summarize notes',
+              filterText: 'compact-notes Summarize notes',
+              searchAliases: ['Skills'],
+              icon: 'skill',
+              action: vi.fn()
+            },
+            {
+              id: 'mcp-skill:["srv","skill://ctx"]',
+              label: 'context-helper · srv',
+              description: 'Track context usage and run /usage checks — skill://ctx',
+              filterText: 'context-helper srv srv-id Track context usage and run /usage checks skill://ctx',
+              searchAliases: ['Skills'],
+              icon: 'mcp',
+              action: vi.fn()
+            }
+          ],
+          action: vi.fn()
+        },
+        {
+          id: 'slash-command:/goal',
+          kind: 'command',
+          label: '目标模式',
+          description: '设定一个持续推进的目标',
+          searchAliases: ['斜杠命令', '/goal', 'Set a goal to work toward until it is completed'],
+          sources: ['popover', 'root-panel'],
+          order: 79.5,
+          icon: 'target',
+          action: vi.fn()
+        },
+        {
+          id: 'slash-command:/clear',
+          kind: 'command',
+          label: '/clear',
+          description: 'Start a new conversation with empty context',
+          searchAliases: ['Slash Commands', 'Start a new conversation with empty context'],
+          sources: ['root-panel'],
+          rootPanelPlacement: 'trailing',
+          order: 20.01,
+          icon: 'terminal',
+          action: vi.fn()
+        },
+        {
+          id: 'slash-command:/compact',
+          kind: 'command',
+          label: '/compact',
+          description: 'Free up context by summarizing the conversation so far',
+          searchAliases: ['Slash Commands', 'Free up context by summarizing the conversation so far'],
+          sources: ['root-panel'],
+          rootPanelPlacement: 'trailing',
+          order: 20.02,
+          icon: 'terminal',
+          action: vi.fn()
+        },
+        {
+          id: 'slash-command:/context',
+          kind: 'command',
+          label: '/context',
+          description: 'Visualize current context usage as a colored grid',
+          searchAliases: ['Slash Commands', 'Visualize current context usage as a colored grid'],
+          sources: ['root-panel'],
+          rootPanelPlacement: 'trailing',
+          order: 20.03,
+          icon: 'terminal',
+          action: vi.fn()
+        },
+        {
+          id: 'slash-command:/usage',
+          kind: 'command',
+          label: '/usage',
+          description: 'Show session cost, plan usage limits, and activity stats',
+          searchAliases: ['Slash Commands', 'Show session cost, plan usage limits, and activity stats'],
+          sources: ['root-panel'],
+          rootPanelPlacement: 'trailing',
+          order: 20.04,
+          icon: 'terminal',
+          action: vi.fn()
+        }
+      ],
+      { quickPanel }
+    )
+
+    expect(labels(getVisibleItems(options, 'compact'))[0]).toBe('/compact')
+    expect(labels(getVisibleItems(options, 'compact'))).toEqual(['/compact', 'compact-notes', 'session-cleanup'])
+    expect(labels(getVisibleItems(options, 'clear'))[0]).toBe('/clear')
+    expect(labels(getVisibleItems(options, 'context'))[0]).toBe('/context')
+    expect(labels(getVisibleItems(options, 'usage'))[0]).toBe('/usage')
+    expect(labels(getVisibleItems(options, 'goal'))[0]).toBe('目标模式')
+  })
+
+  it('lets exact or prefix name matches outrank section layer and breaks ties by section, order, and index', () => {
+    const options = createUnifiedQuickPanelOpenOptions(
+      [
+        {
+          id: 'helper-command',
+          kind: 'command',
+          label: 'helper-tool',
+          description: 'Inspect report',
+          icon: 'command',
+          sources: ['root-panel'],
+          action: vi.fn()
+        },
+        {
+          id: 'first-prefix',
+          kind: 'command',
+          label: 'report-summary',
+          icon: 'command',
+          sources: ['root-panel'],
+          action: vi.fn()
+        },
+        {
+          id: 'second-prefix',
+          kind: 'command',
+          label: 'report-export',
+          icon: 'command',
+          sources: ['root-panel'],
+          action: vi.fn()
+        }
+      ],
+      {
+        quickPanel,
+        resourceItems: [
+          { id: 'file:report', label: 'report', description: '/workspace/report', icon: 'file' },
+          { id: 'file:report-draft', label: 'report-draft', description: '/workspace/report-draft', icon: 'file' }
+        ]
+      }
+    )
+
+    // Exact match in resources outranks prefix/description matches in commands,
+    // while equal prefix scores keep commands before resources and static order within commands.
+    expect(labels(getVisibleItems(options, 'report'))).toEqual([
+      'report',
+      'report-summary',
+      'report-export',
+      'report-draft',
+      'helper-tool'
+    ])
+
+    // Reversed input order still resolves equal prefix scores by section layer and static order.
+    const matching = options.list.filter((item) => item.label !== 'helper-tool')
+    expect(labels(options.sortFn!([...matching].reverse(), 'report'))).toEqual([
+      'report',
+      'report-summary',
+      'report-export',
+      'report-draft'
+    ])
+  })
+
   it('filters by explicit text, search aliases, pinyin, and pinyin initials without loose fuzzy subsequence', () => {
     const options = createUnifiedQuickPanelOpenOptions(
       [
@@ -349,7 +574,8 @@ describe('createUnifiedQuickPanelOpenOptions', () => {
             id: 'skill:pdf',
             label: 'pdf',
             description: 'Read and analyze PDFs',
-            filterText: 'pdf',
+            filterText: 'pdf Read and analyze PDFs',
+            searchAliases: ['Skills'],
             icon: 'skill'
           }
         ],
@@ -364,9 +590,10 @@ describe('createUnifiedQuickPanelOpenOptions', () => {
     const quickPhrases = options.list.find((item) => item.label === '提示词管理')!
     const webSearch = options.list.find((item) => item.label === '网络搜索')!
 
-    // Skills keep their explicit root-panel search field and do not match descriptions.
+    // Skills match both their explicit name and description search fields.
     expect(filterFn(skill, 'pdf', fuzzyRegex, pinyinCache)).toBe(true)
-    expect(filterFn(skill, 'analyze', fuzzyRegex, pinyinCache)).toBe(false)
+    expect(filterFn(skill, 'analyze', fuzzyRegex, pinyinCache)).toBe(true)
+    expect(filterFn(skill, 'skills', fuzzyRegex, pinyinCache)).toBe(true)
 
     // Chinese row matches by substring, pinyin substring, and pinyin initial substring...
     expect(filterFn(quickPhrases, '提示词', fuzzyRegex, pinyinCache)).toBe(true)
@@ -443,7 +670,7 @@ describe('createUnifiedQuickPanelOpenOptions', () => {
         source: 'popover',
         inputAdapter,
         parentPanel: options,
-        queryAnchor: 0,
+        queryAnchor: undefined,
         searchText: 'ask',
         triggerInfo: { type: 'input', position: 0, originalText: '/ask' }
       })
@@ -455,7 +682,7 @@ describe('createUnifiedQuickPanelOpenOptions', () => {
         source: 'root-panel',
         inputAdapter,
         parentPanel: options,
-        queryAnchor: 0,
+        queryAnchor: undefined,
         searchText: 'ask',
         triggerInfo: { type: 'input', position: 0, originalText: '/ask' }
       })
@@ -507,9 +734,10 @@ describe('createUnifiedQuickPanelOpenOptions', () => {
         title: 'Thinking',
         symbol: 'thinking',
         parentPanel: options,
-        queryAnchor: 0,
+        queryAnchor: undefined,
         triggerInfo: { type: 'button' },
         trackInputQuery: true,
+        consumeQueryOnDismiss: true,
         list: [expect.objectContaining({ label: 'Low' })]
       })
     )
@@ -530,7 +758,7 @@ describe('createUnifiedQuickPanelOpenOptions', () => {
       expect.objectContaining({
         source: 'root-panel',
         parentPanel: options,
-        queryAnchor: 0,
+        queryAnchor: undefined,
         searchText: 'think',
         triggerInfo: { type: 'input', position: 0, originalText: '/think' }
       })
@@ -583,49 +811,6 @@ describe('createUnifiedQuickPanelOpenOptions', () => {
           expect.objectContaining({ label: 'Smart Approval', isSelected: true }),
           expect.objectContaining({ label: 'Full Access' })
         ]
-      })
-    )
-  })
-
-  it('preserves tooltip metadata for submenu rows', () => {
-    const tooltipAnchor = createElement('span', { 'aria-label': 'warning' })
-    const options = createUnifiedQuickPanelOpenOptions(
-      [
-        {
-          id: 'permission-mode',
-          kind: 'group',
-          label: 'Permission Mode',
-          icon: 'shield',
-          sources: ['popover'],
-          submenu: [
-            {
-              id: 'permission-mode-auto',
-              kind: 'command',
-              label: 'Approve for Me',
-              icon: 'shield-alert',
-              tooltip: 'Needs a model that supports it.',
-              tooltipAnchor,
-              sources: ['popover']
-            }
-          ]
-        }
-      ],
-      { quickPanel }
-    )
-    const permissionMode = options.list[0]
-
-    permissionMode.action?.({
-      action: 'enter',
-      context: quickPanel,
-      item: permissionMode,
-      parentPanel: options
-    })
-
-    const submenu = vi.mocked(quickPanel.open).mock.calls[0][0]
-    expect(submenu.list[0]).toEqual(
-      expect.objectContaining({
-        tooltip: 'Needs a model that supports it.',
-        tooltipAnchor
       })
     )
   })

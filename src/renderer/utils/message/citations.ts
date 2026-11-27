@@ -36,6 +36,7 @@ import {
   normalizeCitationMarks
 } from '@renderer/utils/citation'
 import { cleanMarkdownContent } from '@renderer/utils/formats'
+import { messagePartsAt, type MessagePartRows } from '@renderer/utils/message/messagePartRows'
 import {
   CITATION_SNIPPET_MAX_CHARS,
   KB_READ_TOOL_NAME,
@@ -108,7 +109,7 @@ function sourceIdToNumber(sourceId: unknown): number | undefined {
 /** `mcp__cherry-tools__web_search` → `web_search`; null for any other server or tool. */
 function citableCherryToolName(wireName: string): string | null {
   const parsed = parseFunctionCallToolName(wireName)
-  if (!parsed || parsed.serverPart !== CHERRY_TOOLS_MCP_SERVER) return null
+  if (!parsed || ![CHERRY_TOOLS_MCP_SERVER, 'cherry_tools'].includes(parsed.serverPart)) return null
   return CITABLE_TOOL_NAMES.has(parsed.toolPart) ? parsed.toolPart : null
 }
 
@@ -401,14 +402,14 @@ function isSameRegistry(
  */
 export function buildCitationPartsRegistry(
   messageIds: readonly string[],
-  partsByMessageId: Readonly<Record<string, readonly CherryMessagePart[] | undefined>>,
+  partsByMessageId: MessagePartRows,
   previous?: CitationPartsRegistry
 ): CitationPartsRegistry {
   const parts: CherryMessagePart[] = []
   const prefixCountByMessageId = new Map<string, number>()
   for (const messageId of messageIds) {
     prefixCountByMessageId.set(messageId, parts.length)
-    for (const part of partsByMessageId[messageId] ?? EMPTY_PARTS) {
+    for (const part of messagePartsAt(partsByMessageId, messageId) ?? EMPTY_PARTS) {
       if (resolveCitableToolName(part) !== null) parts.push(part)
     }
   }

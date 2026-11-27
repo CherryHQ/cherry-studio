@@ -110,7 +110,7 @@ export class CommandService extends BaseService {
     })
 
     // Returns the promise so execute() can log a rejection instead of dropping it.
-    this.registerHandler('screenshot.capture', () => application.get('ScreenshotOverlayService').startCapture())
+    this.registerHandler('screenshot.capture', () => application.get('ScreenshotChatService').startCapture())
   }
 
   private getDefaultContext(): ContextReader {

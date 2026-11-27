@@ -89,10 +89,12 @@ describe('useProviderModelSync', () => {
   })
 
   it('creates models only when both current snapshot and latest server models are empty', async () => {
-    fetchResolvedProviderModelsMock.mockResolvedValue([
-      { id: 'openai:model-alpha', providerId: 'openai', name: 'Alpha' },
-      { id: 'openai:model-beta', providerId: 'openai', name: 'Beta' }
-    ])
+    fetchResolvedProviderModelsMock.mockResolvedValue({
+      models: [
+        { id: 'openai:model-alpha', providerId: 'openai', name: 'Alpha' },
+        { id: 'openai:model-beta', providerId: 'openai', name: 'Beta' }
+      ]
+    })
     createModelsMock.mockResolvedValue([{ id: 'openai:model-alpha' }, { id: 'openai:model-beta' }])
 
     const { result } = renderHook(() => useProviderModelSync('openai', { existingModels: [] }))
@@ -112,7 +114,7 @@ describe('useProviderModelSync', () => {
     const provider = { id: 'new-api', defaultChatEndpoint: 'openai-chat-completions' }
     const model = { id: 'new-api:model-alpha', providerId: 'new-api', name: 'Alpha' }
     useProviderMock.mockReturnValue({ provider })
-    fetchResolvedProviderModelsMock.mockResolvedValue([model])
+    fetchResolvedProviderModelsMock.mockResolvedValue({ models: [model] })
     resolveCreateModelEndpointTypesMock.mockReturnValue(['openai-chat-completions'])
     createModelsMock.mockResolvedValue([{ id: 'new-api:model-alpha' }])
 
@@ -138,7 +140,7 @@ describe('useProviderModelSync', () => {
     const updatedProvider = { id: 'new-api', defaultChatEndpoint: 'anthropic-messages' }
     const model = { id: 'new-api:model-alpha', providerId: 'new-api', name: 'Alpha' }
     useProviderMock.mockReturnValue({ provider: currentProvider })
-    fetchResolvedProviderModelsMock.mockResolvedValue([model])
+    fetchResolvedProviderModelsMock.mockResolvedValue({ models: [model] })
     resolveCreateModelEndpointTypesMock.mockReturnValue(['anthropic-messages'])
     createModelsMock.mockResolvedValue([{ id: 'new-api:model-alpha' }])
 

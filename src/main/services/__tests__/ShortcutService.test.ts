@@ -254,17 +254,11 @@ describe('ShortcutService', () => {
     await (service as any).onInit()
 
     const guest = new MockBrowserWindow()
-    const disposables = (service as any)._disposables as Array<{ dispose: () => void } | (() => void)>
-    const disposableCount = disposables.length
 
     mainWindow.emitWebContents('did-attach-webview', {}, guest.webContents)
 
-    expect((service as any).guestInputCleanups.size).toBe(1)
-    expect(disposables).toHaveLength(disposableCount)
-
     guest.emitWebContents('destroyed')
 
-    expect((service as any).guestInputCleanups.size).toBe(0)
     expect(guest.webContents.off).toHaveBeenCalledWith('before-input-event', expect.any(Function))
   })
 

@@ -2,18 +2,20 @@ import { application } from '@application'
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
-import type { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import {
   type CreateKnowledgeBaseDto,
   type KnowledgeAddItemInput,
   KnowledgeAddItemInputSchema,
+  KnowledgeRestoreUrlItemInputSchema,
   type KnowledgeBase,
   type KnowledgeItem,
   type RestoreKnowledgeBaseDto,
   type RestoreKnowledgeBaseResult
 } from '@shared/data/types/knowledge'
+import type { KeyedMutex } from '@shared/utils/async'
 
+import type { FileProcessingWaitManager } from '../ingestion/FileProcessingWaitManager'
 import type { KnowledgeIngestionService } from '../ingestion/KnowledgeIngestionService'
 import { classifyKnowledgeItemRestoreSource } from '../items'
 import { getKnowledgeBaseFilePath } from '../pathStorage'
@@ -26,7 +28,8 @@ const logger = loggerService.withContext('Knowledge:BaseAdmin')
 export class KnowledgeBaseAdminService {
   constructor(
     private readonly knowledgeLockManager: KeyedMutex,
-    private readonly ingestionService: KnowledgeIngestionService
+    private readonly ingestionService: KnowledgeIngestionService,
+    private readonly fileProcessingWaits: FileProcessingWaitManager
   ) {}
 
   async createBase(dto: CreateKnowledgeBaseDto): Promise<KnowledgeBase> {
@@ -66,7 +69,10 @@ export class KnowledgeBaseAdminService {
   }
 
   async deleteBase(baseId: string): Promise<void> {
-    await cancelActiveKnowledgeJobs(baseId, 'delete-base', { onCancelTimeout: 'proceed' })
+    await cancelActiveKnowledgeJobs(baseId, 'delete-base', {
+      onCancelTimeout: 'proceed',
+      fileProcessingWaits: this.fileProcessingWaits
+    })
 
     await this.knowledgeLockManager.runExclusive(baseId, async () => {
       try {
@@ -119,6 +125,8 @@ export class KnowledgeBaseAdminService {
       fileProcessorId: sourceBase.fileProcessorId,
       chunkSize: sourceBase.chunkSize,
       chunkOverlap: sourceBase.chunkOverlap,
+      chunkStrategy: sourceBase.chunkStrategy,
+      chunkSeparator: sourceBase.chunkSeparator,
       threshold: sourceBase.threshold,
       documentCount: sourceBase.documentCount,
       groupId: sourceBase.groupId ?? undefined
@@ -156,7 +164,7 @@ export class KnowledgeBaseAdminService {
     const inputs = restorableRootItems.map((item) => this.toRestoreRuntimeInput(sourceBase.id, item))
     const restoredBase = await this.createBase(createDto)
     try {
-      await this.ingestionService.addItems(restoredBase.id, inputs)
+      await this.ingestionService.addItems(restoredBase.id, inputs, undefined, { copyInline: true })
     } catch (error) {
       try {
         await this.deleteBase(restoredBase.id)
@@ -199,7 +207,11 @@ export class KnowledgeBaseAdminService {
           type: 'file',
           data: {
             source: item.data.source,
-            path: getKnowledgeBaseFilePath(sourceBaseId, item.data.relativePath),
+            // A `preparing` file has not been copied into the source base yet, so copy its original.
+            path:
+              item.status === 'preparing'
+                ? item.data.source
+                : getKnowledgeBaseFilePath(sourceBaseId, item.data.relativePath),
             // Carry the processed artifact across so the new base indexes from it
             // instead of re-running the (slow, paid) file processor.
             ...(item.data.indexedRelativePath
@@ -210,7 +222,10 @@ export class KnowledgeBaseAdminService {
       }
 
       if (item.type === 'url') {
-        return KnowledgeAddItemInputSchema.parse({
+        // Restore carries previously saved records verbatim: the persisted URL
+        // schema allows any non-empty string, so the strict add-time URL rule must
+        // not reject them here (one malformed record would abort the whole base).
+        return KnowledgeRestoreUrlItemInputSchema.parse({
           type: 'url',
           data: {
             source: item.data.source,

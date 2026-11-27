@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-25-assistant-message-edit-without-model-access.md
+2026-11-25-assistant-message-edit-without-model-access.md: 3d9568797e49f592a3c43f980205a900e867351a
+2026-11-25-assistant-message-edit-without-model-access.zh.md: 395f185c2f05d2299d17876fb80e65f2b273d6de

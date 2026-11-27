@@ -1,11 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { KnowledgeItem } from '@shared/data/types/knowledge'
+import type { KnowledgeItem, KnowledgeItemOf } from '@shared/data/types/knowledge'
 import type { PosixRelativeFilePath } from '@shared/utils/file'
 
 const {
   chooseDirectoryPathPrefixMock,
-  expandDirectoryOwnerToTreeMock,
   knowledgeItemCreateActiveMock,
   knowledgeItemUpdateStatusMock,
   knowledgeItemUpdateDirectoryRelativePathMock,
@@ -13,7 +12,6 @@ const {
   loggerWarnMock
 } = vi.hoisted(() => ({
   chooseDirectoryPathPrefixMock: vi.fn(),
-  expandDirectoryOwnerToTreeMock: vi.fn(),
   knowledgeItemCreateActiveMock: vi.fn(),
   knowledgeItemUpdateStatusMock: vi.fn(),
   knowledgeItemUpdateDirectoryRelativePathMock: vi.fn(),
@@ -39,27 +37,14 @@ vi.mock('@logger', () => ({
 }))
 
 vi.mock('../../pipeline/sources/directory', () => ({
-  chooseDirectoryPathPrefix: chooseDirectoryPathPrefixMock,
-  expandDirectoryOwnerToTree: expandDirectoryOwnerToTreeMock
+  chooseDirectoryPathPrefix: chooseDirectoryPathPrefixMock
 }))
 
-import type { PrepareKnowledgeItemOptions } from '../prepareItem'
-
-const { prepareKnowledgeItem } = await import('../prepareItem')
+const { createExpandedDirectoryChildren, pinDirectoryPathPrefix } = await import('../prepareItem')
 
 const baseId = 'kb-1'
 
-function createPrepareOptions(item: KnowledgeItem): PrepareKnowledgeItemOptions {
-  const signal = new AbortController().signal
-  return {
-    baseId,
-    item,
-    signal,
-    onDirectoryCopyProgress: vi.fn()
-  }
-}
-
-function createDirectoryItem(id = 'dir-1', groupId: string | null = null): KnowledgeItem {
+function createDirectoryItem(id = 'dir-1', groupId: string | null = null): KnowledgeItemOf<'directory'> {
   return {
     id,
     baseId,
@@ -73,21 +58,7 @@ function createDirectoryItem(id = 'dir-1', groupId: string | null = null): Knowl
   }
 }
 
-function createNoteItem(id = 'note-1'): KnowledgeItem {
-  return {
-    id,
-    baseId,
-    groupId: null,
-    type: 'note',
-    data: { source: id, content: `hello ${id}` },
-    status: 'processing',
-    error: null,
-    createdAt: '2026-04-08T00:00:00.000Z',
-    updatedAt: '2026-04-08T00:00:00.000Z'
-  }
-}
-
-function createFileItem(id = 'file-1', groupId: string | null = null): KnowledgeItem {
+function createFileItem(id = 'file-1', groupId: string | null = null): KnowledgeItemOf<'file'> {
   return {
     id,
     baseId,
@@ -104,12 +75,11 @@ function createFileItem(id = 'file-1', groupId: string | null = null): Knowledge
   }
 }
 
-describe('prepareKnowledgeItem', () => {
+describe('prepareItem', () => {
   beforeEach(() => {
     vi.clearAllMocks()
 
     chooseDirectoryPathPrefixMock.mockReturnValue('docs')
-    expandDirectoryOwnerToTreeMock.mockResolvedValue([])
     knowledgeItemGetItemsByBaseIdMock.mockReturnValue([])
     knowledgeItemCreateActiveMock.mockImplementation((_baseId: string, item: Partial<KnowledgeItem>) => ({
       id: `${item.type}-created`,
@@ -137,53 +107,69 @@ describe('prepareKnowledgeItem', () => {
     )
   })
 
-  it('returns leaf items directly', async () => {
-    const note = createNoteItem()
+  it('pins the deduped prefix onto the container and returns it', () => {
+    const root = createDirectoryItem('dir-root')
+    chooseDirectoryPathPrefixMock.mockReturnValueOnce('dir-root-prefix')
 
-    await expect(prepareKnowledgeItem(createPrepareOptions(note))).resolves.toEqual([note])
+    expect(pinDirectoryPathPrefix(baseId, root)).toBe('dir-root-prefix')
 
-    expect(knowledgeItemCreateActiveMock).not.toHaveBeenCalled()
-    expect(knowledgeItemUpdateStatusMock).not.toHaveBeenCalled()
+    expect(knowledgeItemUpdateDirectoryRelativePathMock).toHaveBeenCalledWith(root.id, 'dir-root-prefix')
   })
 
-  it('expands directory trees and returns only file leaves', async () => {
+  it('excludes the container itself from the reserved names so a reindex keeps its own prefix', () => {
+    // On reindex the directory already owns its `relativePath` prefix (`docs`). If it
+    // counted itself as reserved, expansion would dedupe it to `docs_1` every run.
+    const root = createDirectoryItem('dir-root')
+    // Pin the container's own prefix, as if it had already been indexed once.
+    root.data = { source: '/abs/docs', relativePath: 'docs' as PosixRelativeFilePath }
+    const sibling = createFileItem('file-sibling') // top-level relativePath `file-sibling.md`
+    knowledgeItemGetItemsByBaseIdMock.mockReturnValueOnce([root, sibling])
+
+    pinDirectoryPathPrefix(baseId, root)
+
+    const reserved = chooseDirectoryPathPrefixMock.mock.calls[0][1] as Set<string>
+    expect(reserved.has('docs')).toBe(false)
+    // Sibling names are still reserved — only the container under reindex is exempt.
+    expect(reserved.has('file-sibling.md')).toBe(true)
+  })
+
+  it('keeps a deleting directory’s prefix reserved, since its cleanup still removes that folder', () => {
+    const deletingDir: KnowledgeItemOf<'directory'> = {
+      id: 'dir-deleting',
+      baseId,
+      groupId: null,
+      type: 'directory',
+      data: { source: '/old/docs', relativePath: 'docs' as PosixRelativeFilePath },
+      status: 'deleting',
+      error: null,
+      createdAt: '2026-04-08T00:00:00.000Z',
+      updatedAt: '2026-04-08T00:00:00.000Z'
+    }
+    knowledgeItemGetItemsByBaseIdMock.mockImplementation((_baseId: string, options?: { includeDeleting?: boolean }) =>
+      options?.includeDeleting ? [deletingDir] : []
+    )
+
+    pinDirectoryPathPrefix(baseId, createDirectoryItem('dir-new'))
+
+    const reserved = chooseDirectoryPathPrefixMock.mock.calls[0][1] as Set<string>
+    expect(reserved.has('docs')).toBe(true)
+  })
+
+  it('creates rows for an expanded tree and returns only file leaves', async () => {
     const root = createDirectoryItem('dir-root')
     const childDir = createDirectoryItem('dir-child', root.id)
     const childFile = createFileItem('file-child', childDir.id)
     knowledgeItemCreateActiveMock.mockReturnValueOnce(childDir).mockReturnValueOnce(childFile)
-    chooseDirectoryPathPrefixMock.mockReturnValueOnce('dir-root-prefix')
-    expandDirectoryOwnerToTreeMock.mockResolvedValueOnce([
-      {
-        type: 'directory',
-        data: childDir.data,
-        children: [
-          {
-            type: 'file',
-            data: childFile.data
-          }
-        ]
-      }
-    ])
 
-    const options = createPrepareOptions(root)
-    await expect(prepareKnowledgeItem(options)).resolves.toEqual([childFile])
+    await expect(
+      createExpandedDirectoryChildren(
+        baseId,
+        root,
+        [{ type: 'directory', data: childDir.data, children: [{ type: 'file', data: childFile.data }] }],
+        new AbortController().signal
+      )
+    ).resolves.toEqual([childFile])
 
-    expect(expandDirectoryOwnerToTreeMock).toHaveBeenCalledWith(
-      root,
-      baseId,
-      'dir-root-prefix',
-      options.signal,
-      options.onDirectoryCopyProgress
-    )
-    expect(knowledgeItemUpdateDirectoryRelativePathMock).toHaveBeenCalledWith(root.id, 'dir-root-prefix')
-    // The container prefix must be pinned BEFORE any byte is copied (expansion) or any child
-    // row is created, so a mid-expansion crash leaves the pinned row for the retry to reclaim.
-    expect(knowledgeItemUpdateDirectoryRelativePathMock.mock.invocationCallOrder[0]).toBeLessThan(
-      expandDirectoryOwnerToTreeMock.mock.invocationCallOrder[0]
-    )
-    expect(knowledgeItemUpdateDirectoryRelativePathMock.mock.invocationCallOrder[0]).toBeLessThan(
-      knowledgeItemCreateActiveMock.mock.invocationCallOrder[0]
-    )
     expect(knowledgeItemCreateActiveMock).toHaveBeenNthCalledWith(1, baseId, {
       groupId: root.id,
       type: 'directory',
@@ -199,32 +185,10 @@ describe('prepareKnowledgeItem', () => {
     expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(childDir.id, 'processing')
   })
 
-  it('excludes the container itself from the reserved names so a reindex keeps its own prefix', () => {
-    // On reindex the directory already owns its `relativePath` prefix (`docs`). If it
-    // counted itself as reserved, expansion would dedupe it to `docs_1` every run.
+  it('marks an empty directory root failed and returns no leaves', async () => {
     const root = createDirectoryItem('dir-root')
-    // Pin the container's own prefix, as if it had already been indexed once.
-    root.data = { source: '/abs/docs', relativePath: 'docs' as PosixRelativeFilePath }
-    const sibling = createFileItem('file-sibling') // top-level relativePath `file-sibling.md`
-    knowledgeItemGetItemsByBaseIdMock.mockReturnValueOnce([root, sibling])
-    expandDirectoryOwnerToTreeMock.mockResolvedValueOnce([
-      { type: 'file', data: { source: '/abs/docs/a.md', relativePath: 'docs/a.md' as PosixRelativeFilePath } }
-    ])
 
-    return prepareKnowledgeItem(createPrepareOptions(root)).then(() => {
-      const reserved = chooseDirectoryPathPrefixMock.mock.calls[0][1] as Set<string>
-      expect(reserved.has('docs')).toBe(false)
-      // Sibling names are still reserved — only the container under reindex is exempt.
-      expect(reserved.has('file-sibling.md')).toBe(true)
-    })
-  })
-
-  it('marks empty directory roots failed and returns no leaves', async () => {
-    const root = createDirectoryItem('dir-root')
-    chooseDirectoryPathPrefixMock.mockReturnValueOnce('dir-root')
-    expandDirectoryOwnerToTreeMock.mockResolvedValueOnce([])
-
-    await expect(prepareKnowledgeItem(createPrepareOptions(root))).resolves.toEqual([])
+    await expect(createExpandedDirectoryChildren(baseId, root, [], new AbortController().signal)).resolves.toEqual([])
 
     expect(loggerWarnMock).toHaveBeenCalledWith('Directory expansion produced no indexable files', {
       baseId,
@@ -234,47 +198,29 @@ describe('prepareKnowledgeItem', () => {
     expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(root.id, 'failed', {
       error: 'Directory contains no indexable files'
     })
-    // Pin now precedes the empty check (pin-first crash-safety), so an empty dir still
-    // reserves its top-level name — a failure-path change we accept as more correct.
-    expect(knowledgeItemUpdateDirectoryRelativePathMock).toHaveBeenCalledWith(root.id, 'dir-root')
   })
 
-  it('stops creating children when the runtime signal is aborted after expansion', async () => {
+  it('creates no children once the runtime signal is aborted', async () => {
     const root = createDirectoryItem('dir-root')
     const controller = new AbortController()
     const abortError = new Error('interrupted')
-    expandDirectoryOwnerToTreeMock.mockImplementationOnce(async () => {
-      controller.abort(abortError)
-      return [
-        {
-          type: 'file',
-          data: {
-            source: '/docs/file-child.md',
-            relativePath: 'file-child.md' as PosixRelativeFilePath
-          }
-        }
-      ]
-    })
+    controller.abort(abortError)
 
     await expect(
-      prepareKnowledgeItem({
-        ...createPrepareOptions(root),
-        signal: controller.signal
-      })
+      createExpandedDirectoryChildren(
+        baseId,
+        root,
+        [
+          {
+            type: 'file',
+            data: { source: '/docs/file-child.md', relativePath: 'file-child.md' as PosixRelativeFilePath }
+          }
+        ],
+        controller.signal
+      )
     ).rejects.toBe(abortError)
 
     expect(knowledgeItemCreateActiveMock).not.toHaveBeenCalled()
     expect(knowledgeItemUpdateStatusMock).not.toHaveBeenCalled()
-  })
-
-  it('propagates expansion failures without marking the source failed', async () => {
-    const root = createDirectoryItem('dir-root')
-    expandDirectoryOwnerToTreeMock.mockRejectedValueOnce(new Error('directory expansion failed'))
-
-    await expect(prepareKnowledgeItem(createPrepareOptions(root))).rejects.toThrow('directory expansion failed')
-
-    expect(knowledgeItemUpdateStatusMock).not.toHaveBeenCalledWith(root.id, 'failed', {
-      error: 'directory expansion failed'
-    })
   })
 })

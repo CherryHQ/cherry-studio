@@ -3,7 +3,7 @@ import {
   getResourceTimeBucket,
   type ResourceListTimeBucket,
   sortRankedResourceItems
-} from './base'
+} from '@renderer/utils/chat/resourceListBase'
 
 const RESOURCE_TIME_BUCKET_RANK: Record<ResourceListTimeBucket, number> = {
   today: 1,

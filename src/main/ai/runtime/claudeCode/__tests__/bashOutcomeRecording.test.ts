@@ -22,7 +22,7 @@ vi.mock('@data/services/McpServerService', () => ({ mcpServerService: {} }))
 vi.mock('@main/ai/toolApproval/ToolApprovalRegistry', () => ({ toolApprovalRegistry: { abort: vi.fn() } }))
 vi.mock('@main/ai/tools/adapters/claudeCode/agentTools', () => ({ createClaudeAgentToolPolicySnapshot: vi.fn() }))
 vi.mock('@main/core/lifecycle', async () => {
-  const actual = (await vi.importActual('@main/core/lifecycle')) as Record<string, unknown>
+  const actual = await vi.importActual<Record<string, unknown>>('@main/core/lifecycle')
   class StubBase {}
   return { ...actual, BaseService: StubBase }
 })
@@ -168,12 +168,11 @@ describe('bashOutcomeHook', () => {
       builtinRole: undefined,
       mountedServers: new Set(),
       pluginDirectories: new Map(),
-      supportsImages: false,
-      agentsMdLoader: { createPreToolUseHook: () => async () => ({}) } as never
+      supportsImages: false
     })
-    // PreToolUse: [toolGuardHook, skillDependencyAdvisoryHook, agentsMdHook, rtkRewriteHook, steerHook].
+    // PreToolUse: [toolGuardHook, skillDependencyAdvisoryHook, rtkRewriteHook, steerHook].
     toolGuardHook = hooks!.PreToolUse![0].hooks[0]
-    rtkRewriteHook = hooks!.PreToolUse![0].hooks[3]
+    rtkRewriteHook = hooks!.PreToolUse![0].hooks[2]
     postToolBatchHooks = hooks!.PostToolBatch!.flatMap(({ hooks }) => hooks)
     // PostToolUse: [postToolTimingHook, bashOutcomeHook] — the outcome hook is the second entry.
     bashOutcomeHook = hooks!.PostToolUse![0].hooks[1]

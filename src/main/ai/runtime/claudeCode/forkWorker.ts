@@ -1,0 +1,170 @@
+import { mkdir, writeFile } from 'node:fs/promises'
+import path from 'node:path'
+import { isDeepStrictEqual } from 'node:util'
+import { parentPort, workerData } from 'node:worker_threads'
+
+import type { SessionKey, SessionStore, SessionStoreEntry } from '@anthropic-ai/claude-agent-sdk'
+
+import type { ClaudeForkCheckpoint } from './forkCheckpoint'
+
+export interface ClaudeForkWorkerInput {
+  entries: SessionStoreEntry[]
+  checkpoint: ClaudeForkCheckpoint
+  checkpoints: ClaudeForkCheckpoint[]
+  checkpointEntryCounts?: number[]
+  artifactDirectory: string
+  targetCwd: string
+}
+
+async function run(input: ClaudeForkWorkerInput): Promise<unknown> {
+  const { checkpoint } = input
+  const sourceIds = new Set<string>()
+  const mainEntries = input.entries.filter((entry) => !entry.isSidechain)
+  for (const entry of mainEntries) {
+    if (entry.uuid) {
+      if (sourceIds.has(entry.uuid)) throw new Error('history_corrupt')
+      sourceIds.add(entry.uuid)
+    }
+  }
+  // env is a worker-private copy, set before importing the SDK. Never use SHARE_ENV.
+  process.env.CLAUDE_CONFIG_DIR = checkpoint.configDir
+  const sdk = await import('@anthropic-ai/claude-agent-sdk')
+  const output: SessionStoreEntry[] = []
+  let outputKey: SessionKey | undefined
+  const store: SessionStore = {
+    async load(key) {
+      // oxlint-disable-next-line no-restricted-globals -- Fork once: isolate selected source entries before the native worker imports them.
+      return key.sessionId === checkpoint.runtimeSessionId ? structuredClone(input.entries) : null
+    },
+    async append(key, entries) {
+      if (key.sessionId === checkpoint.runtimeSessionId || (outputKey && outputKey.sessionId !== key.sessionId)) {
+        throw new Error('history_corrupt')
+      }
+      outputKey = key
+      // oxlint-disable-next-line no-restricted-globals -- Fork once: detach exported native entries before the worker continues rewriting them.
+      output.push(...structuredClone(entries))
+    }
+  }
+  // Original UUIDs enter once; only the SDK creates the new UUIDs.
+  const result = await sdk.forkSession(checkpoint.runtimeSessionId, {
+    // The fixed store supplies the source prefix in the target project's namespace.
+    // Let the public SDK choose projectKey; do not duplicate its directory encoder.
+    dir: input.targetCwd,
+    sessionStore: store,
+    upToMessageId: checkpoint.messageUuid
+  })
+  if (outputKey?.sessionId !== result.sessionId || !output.length) throw new Error('history_corrupt')
+  if (!outputKey.projectKey || path.basename(outputKey.projectKey) !== outputKey.projectKey) {
+    throw new Error('history_corrupt')
+  }
+  const mapping = new Map<string, string>()
+  for (const entry of output) {
+    const from = entry.forkedFrom as { sessionId?: string; messageUuid?: string } | undefined
+    if (from?.sessionId === checkpoint.runtimeSessionId && from.messageUuid && entry.uuid) {
+      if (mapping.has(from.messageUuid)) throw new Error('history_corrupt')
+      mapping.set(from.messageUuid, entry.uuid)
+    }
+  }
+  const readContext = (sessionId: string, entries: SessionStoreEntry[]) =>
+    sdk.getSessionMessages(sessionId, {
+      dir: input.targetCwd,
+      includeSystemMessages: true,
+      sessionStore: {
+        async load(key) {
+          // oxlint-disable-next-line no-restricted-globals -- Fork once: isolate the worker-owned entries returned to the native session loader.
+          return key.sessionId === sessionId ? structuredClone(entries) : null
+        },
+        async append() {
+          throw new Error('unsupported_checkpoint')
+        }
+      }
+    })
+  // Native loaders own retry and compaction ancestry; the fork must preserve their selected context.
+  const [sourceContext, forkContext] = await Promise.all([
+    readContext(checkpoint.runtimeSessionId, input.entries),
+    readContext(result.sessionId, output)
+  ]).catch(() => {
+    throw new Error('unsupported_checkpoint')
+  })
+  if (
+    !sourceContext.some((message) => message.uuid === checkpoint.messageUuid) ||
+    sourceContext.length !== forkContext.length ||
+    sourceContext.some((message, index) => {
+      const forked = forkContext[index]
+      return (
+        mapping.get(message.uuid) !== forked.uuid ||
+        message.type !== forked.type ||
+        !isDeepStrictEqual(message.message, forked.message)
+      )
+    })
+  )
+    throw new Error('unsupported_checkpoint')
+  const replacements = input.entries
+    .filter((entry) => entry.type === 'content-replacement')
+    .flatMap((entry) => (Array.isArray(entry.replacements) ? entry.replacements : []))
+  const copiedReplacements = output
+    .filter((entry) => entry.type === 'content-replacement')
+    .flatMap((entry) => (Array.isArray(entry.replacements) ? entry.replacements : []))
+  if (
+    JSON.stringify(replacements) !== JSON.stringify(copiedReplacements) ||
+    containsSourceUuid(copiedReplacements, sourceIds)
+  )
+    throw new Error('unsupported_checkpoint')
+  // The public SDK moves replacement records to the tail. An earlier inherited prefix
+  // must not silently lose replacements that already existed at its checkpoint.
+  for (const [index, value] of input.checkpoints.entries()) {
+    if (value.messageUuid === checkpoint.messageUuid) continue
+    if (replacements.length && !input.checkpointEntryCounts) throw new Error('unsupported_checkpoint')
+    for (const entry of input.entries.slice(0, input.checkpointEntryCounts?.[index] ?? 0)) {
+      if (entry.type === 'content-replacement') throw new Error('unsupported_checkpoint')
+    }
+  }
+  const chunks = output.map((entry) => Buffer.from(JSON.stringify(entry) + '\n'))
+  const bytes = Buffer.concat(chunks)
+  const checkpoints = input.checkpoints.map((value) => {
+    const uuid = mapping.get(value.messageUuid)
+    const end = output.findIndex((entry) => entry.uuid === uuid)
+    if (!uuid || end < 0) throw new Error('history_corrupt')
+    return {
+      ...value,
+      runtimeSessionId: result.sessionId,
+      messageUuid: uuid
+    }
+  })
+  await mkdir(input.artifactDirectory, { recursive: true })
+  const file = path.join(input.artifactDirectory, result.sessionId + '.jsonl')
+  await writeFile(file, bytes, { flag: 'wx', mode: 0o600 })
+  return {
+    resumeToken: result.sessionId,
+    checkpoints,
+    publish: [
+      {
+        source: file,
+        target: path.join(checkpoint.configDir, 'projects', outputKey.projectKey, result.sessionId + '.jsonl')
+      }
+    ]
+  }
+}
+
+function containsSourceUuid(value: unknown, sourceIds: ReadonlySet<string>): boolean {
+  if (typeof value === 'string') return sourceIds.has(value)
+  if (Array.isArray(value)) return value.some((item) => containsSourceUuid(item, sourceIds))
+  if (value && typeof value === 'object')
+    return Object.entries(value).some(([key, item]) => sourceIds.has(key) || containsSourceUuid(item, sourceIds))
+  return false
+}
+
+void run(workerData as ClaudeForkWorkerInput).then(
+  (result) => parentPort?.postMessage({ result }),
+  (error) =>
+    parentPort?.postMessage({
+      error:
+        (error as NodeJS.ErrnoException)?.code === 'ENOENT'
+          ? 'history_missing'
+          : error instanceof SyntaxError
+            ? 'history_corrupt'
+            : error instanceof Error
+              ? error.message
+              : 'history_corrupt'
+    })
+)

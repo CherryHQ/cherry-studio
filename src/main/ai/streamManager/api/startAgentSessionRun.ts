@@ -1,10 +1,12 @@
 import { application } from '@application'
+import type { DbOrTx } from '@data/db/types'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
+import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
+import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
-import { buildAgentSessionTopicId } from '../../agentSession/topic'
 import { agentChatContextProvider } from '../context/AgentChatContextProvider'
 import type { StreamListener } from '../types'
 
@@ -24,9 +26,15 @@ export async function startAgentSessionRun(input: {
   userParts: CherryMessagePart[]
   listeners: StreamListener[]
   headless?: boolean
+  /** Explicit override from a bound channel, scoped to this headless turn. */
+  permissionModeOverride?: AgentPermissionMode
   /** Recipients authorized only for this run; [] deliberately disables notify. */
   trustedNotifyChannels?: readonly NotifyChannel[]
   requireIdle?: { expectedAgentId: string }
+  /** Synchronously assert admission after preparation, inside the message-write transaction. */
+  beforePersist?: () => void
+  /** Commit caller-owned durable admission alongside the reserved messages, before activation. */
+  onPersist?: (tx: DbOrTx, messages: { assistantMessageId: string; userMessageId: string }) => void
 }): Promise<StartAgentSessionRunResult> {
   if (input.listeners.length === 0) {
     throw new Error('startAgentSessionRun requires at least one listener')
@@ -81,12 +89,17 @@ export async function startAgentSessionRun(input: {
           userMessageParts: input.userParts,
           headless: input.headless === true
         },
-        { trustedNotifyChannels: input.trustedNotifyChannels },
+        {
+          trustedNotifyChannels: input.trustedNotifyChannels,
+          ...(input.permissionModeOverride ? { permissionModeOverride: input.permissionModeOverride } : {})
+        },
         {
           hasLiveStream: false,
           requireIdle: input.requireIdle !== undefined,
-          expectedAgentId: input.requireIdle?.expectedAgentId
-        }
+          expectedAgentId: input.requireIdle?.expectedAgentId,
+          beforePersist: input.beforePersist
+        },
+        input.onPersist
       )
     } catch (error) {
       if (input.requireIdle && isDataApiError(error) && error.code === ErrorCode.RESOURCE_LOCKED) {

@@ -1,14 +1,12 @@
-import * as path from 'path'
-
 import { Node, Project } from 'ts-morph'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
-  HardcodedStringDetector,
   hasCJK,
   hasEnglishUIText,
   isInCodeContext,
   isNonUIString,
+  shouldSkipFile,
   shouldSkipNode
 } from '../i18n-check-hardcoded-strings'
 
@@ -87,20 +85,6 @@ describe('i18n-check-hardcoded-strings', () => {
       expect(hasEnglishUIText('Save As')).toBe(true)
       expect(hasEnglishUIText('Open Project')).toBe(true)
     })
-
-    it('should reject single words', () => {
-      expect(hasEnglishUIText('Save')).toBe(false)
-      expect(hasEnglishUIText('Cancel')).toBe(false)
-    })
-
-    it('should reject lowercase text', () => {
-      expect(hasEnglishUIText('create new file')).toBe(false)
-      expect(hasEnglishUIText('save as')).toBe(false)
-    })
-
-    it('should reject too long phrases', () => {
-      expect(hasEnglishUIText('This Is A Very Long Phrase With Many Words')).toBe(false)
-    })
   })
 
   describe('isNonUIString', () => {
@@ -132,94 +116,29 @@ describe('i18n-check-hardcoded-strings', () => {
     })
   })
 
-  describe('File filtering', () => {
-    const IGNORED_DIRS = ['__tests__', 'node_modules', 'i18n', 'locales', 'types', 'assets']
-    const IGNORED_FILES = ['*.test.ts', '*.test.tsx', '*.d.ts']
-
-    const mockShouldSkipFile = (filePath: string): boolean => {
-      const relativePath = filePath.replace(mockSrcDir + '/', '')
-
-      if (IGNORED_DIRS.some((dir) => relativePath.includes(dir))) {
-        return true
-      }
-
-      const fileName = path.basename(filePath)
-      if (
-        IGNORED_FILES.some((pattern) => {
-          const regex = new RegExp(pattern.replace('*', '.*'))
-          return regex.test(fileName)
-        })
-      ) {
-        return true
-      }
-
-      return false
-    }
-
-    it('should skip test files', () => {
-      expect(mockShouldSkipFile(`${mockSrcDir}/components/Button.test.tsx`)).toBe(true)
-      expect(mockShouldSkipFile(`${mockSrcDir}/utils/helper.test.ts`)).toBe(true)
+  describe('shouldSkipFile', () => {
+    // `IGNORED_FILES` holds globs, but they used to be converted with
+    // `pattern.replace('*', '.*')` — dots left unescaped and the result
+    // unanchored — so `*.d.ts` also matched plain source files whose name
+    // happens to contain `d<any>ts` and those files silently left the gate.
+    it('skips the file kinds it is meant to skip', () => {
+      expect(shouldSkipFile(`${mockSrcDir}/components/Button.test.tsx`, mockSrcDir)).toBe(true)
+      expect(shouldSkipFile(`${mockSrcDir}/utils/helper.test.ts`, mockSrcDir)).toBe(true)
+      expect(shouldSkipFile(`${mockSrcDir}/types/index.d.ts`, mockSrcDir)).toBe(true)
+      expect(shouldSkipFile(`${mockSrcDir}/ai/prompts/coding-prompts.ts`, mockSrcDir)).toBe(true)
     })
 
-    it('should skip type definition files', () => {
-      expect(mockShouldSkipFile(`${mockSrcDir}/types/index.d.ts`)).toBe(true)
+    it('keeps skipping everything inside ignored directories', () => {
+      expect(shouldSkipFile(`${mockSrcDir}/components/__tests__/Button.tsx`, mockSrcDir)).toBe(true)
+      expect(shouldSkipFile(`${mockSrcDir}/i18n/resolver.ts`, mockSrcDir)).toBe(true)
     })
 
-    it('should skip i18n/locales directories', () => {
-      expect(mockShouldSkipFile(`${mockSrcDir}/i18n/locales/en-us.json`)).toBe(true)
-      expect(mockShouldSkipFile(`${mockSrcDir}/locales/zh-cn.json`)).toBe(true)
-    })
-
-    it('should skip __tests__ directories', () => {
-      expect(mockShouldSkipFile(`${mockSrcDir}/components/__tests__/Button.test.tsx`)).toBe(true)
-    })
-
-    it('should NOT skip regular component files', () => {
-      expect(mockShouldSkipFile(`${mockSrcDir}/components/Button.tsx`)).toBe(false)
-      expect(mockShouldSkipFile(`${mockSrcDir}/pages/Home.tsx`)).toBe(false)
-    })
-
-    it('should NOT skip regular TypeScript files', () => {
-      expect(mockShouldSkipFile(`${mockSrcDir}/utils/helper.ts`)).toBe(false)
-    })
-  })
-
-  describe('HardcodedStringDetector', () => {
-    // These are integration tests that would require actual files
-    // For unit testing, we test the exported utility functions instead
-
-    it('should be instantiable', () => {
-      const detector = new HardcodedStringDetector()
-      expect(detector).toBeDefined()
-    })
-  })
-
-  describe('Legacy pattern compatibility (regex patterns for reference)', () => {
-    // Keep legacy pattern tests for backward compatibility reference
-    const CHINESE_PATTERNS = [
-      { regex: />([^<]*[\u4e00-\u9fff][^<]*)</g, name: 'JSX text content' },
-      {
-        regex: /(?:placeholder|title|label|message|description|tooltip)=["']([^"']*[\u4e00-\u9fff][^"']*)["']/g,
-        name: 'attribute'
-      }
-    ]
-
-    it('should detect Chinese characters in JSX text content (regex)', () => {
-      const testLine = '<span>测试文本</span>'
-      const matches = testLine.match(CHINESE_PATTERNS[0].regex)
-      expect(matches).not.toBeNull()
-    })
-
-    it('should detect Chinese characters in placeholder attribute (regex)', () => {
-      const testLine = 'placeholder="请输入内容"'
-      const matches = testLine.match(CHINESE_PATTERNS[1].regex)
-      expect(matches).not.toBeNull()
-    })
-
-    it('should detect Chinese characters in title attribute (regex)', () => {
-      const testLine = 'title="提示信息"'
-      const matches = testLine.match(CHINESE_PATTERNS[1].regex)
-      expect(matches).not.toBeNull()
+    it('does NOT skip source files whose names merely contain glob fragments', () => {
+      expect(shouldSkipFile(`${mockSrcDir}/components/AskUserQuestionCard.tsx`, mockSrcDir)).toBe(false)
+      expect(shouldSkipFile(`${mockSrcDir}/components/layout/shared.tsx`, mockSrcDir)).toBe(false)
+      expect(shouldSkipFile(`${mockSrcDir}/services/read.ts`, mockSrcDir)).toBe(false)
+      expect(shouldSkipFile(`${mockSrcDir}/utils/useLatest.ts`, mockSrcDir)).toBe(false)
+      expect(shouldSkipFile(`${mockSrcDir}/utils/prompt.ts`, mockSrcDir)).toBe(false)
     })
   })
 

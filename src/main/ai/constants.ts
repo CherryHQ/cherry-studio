@@ -1,5 +1,11 @@
 export const DEFAULT_TIMEOUT = 30 * 1000 * 60
 
+/**
+ * Idle-chunk bound for chat stream turns. Separate from `DEFAULT_TIMEOUT` on purpose: during a long
+ * silent reasoning phase the provider's only sign of life is an SSE comment, which never becomes a chunk.
+ */
+export const CHAT_STREAM_IDLE_TIMEOUT_MS = 120 * 1000 * 60
+
 export const DEFAULT_MAX_TOKENS = 8192
 
 /**
@@ -72,5 +78,7 @@ export const MIN_INPUT_ROOM_RATIO = 0.2
 
 /** Internal Claude Agent SDK → Cherry API Gateway bridge for Codex priority requests. */
 export const CHERRY_FAST_MODE_HEADER = 'X-Cherry-Fast-Mode'
-/** Process-local credential proving that a gateway request originated inside Cherry. */
-export const CHERRY_INTERNAL_REQUEST_TOKEN_HEADER = 'X-Cherry-Internal-Request-Token'
+
+/** Internal Agent request selections, interpreted only after gateway authentication. */
+export const CHERRY_REASONING_EFFORT_HEADER = 'X-Cherry-Reasoning-Effort'
+export const CHERRY_SERVICE_TIER_HEADER = 'X-Cherry-Service-Tier'

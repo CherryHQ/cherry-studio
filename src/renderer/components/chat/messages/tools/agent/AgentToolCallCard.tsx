@@ -1,4 +1,10 @@
+import { Check, ChevronRight, Circle, CircleStop, Loader2, TriangleAlert } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
+
+import { Button, Tooltip } from '@cherrystudio/ui'
+import { cn } from '@renderer/utils/style'
 import { SESSION_CREATE_TOOL_NAME, SESSION_SEND_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
+import { isDeferredToolOutput, isPersistedToolOutput } from '@shared/ai/transport'
 
 import { useOptionalMessageListActions } from '../../MessageListProvider'
 import {
@@ -7,9 +13,11 @@ import {
   type ToolInput,
   type ToolOutput
 } from '../shared/agentToolTypes'
+import { DeferredToolDetails } from '../shared/DeferredToolDetails'
 import { type ToolStatus, ToolStatusIndicator } from '../shared/GenericTools'
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
 import { extractToolErrorText } from '../toolError'
+import { useToolOutputReference } from '../useToolResponsePreview'
 import { AgentToolDisclosure, AgentToolDisclosureLabel } from './AgentToolDisclosure'
 import { SessionCreateTool } from './SessionCreateTool'
 import { SessionSendTool } from './SessionSendTool'
@@ -47,7 +55,7 @@ export function AgentToolCallCard({
   toolCallId,
   toolName,
   input,
-  output,
+  output: rawOutput,
   isStreaming = false,
   status,
   hasError = false,
@@ -66,7 +74,10 @@ export function AgentToolCallCard({
   openFlowOnClick?: boolean
   showInlineDetails?: boolean
 }) {
+  const deferredOutput = useToolOutputReference(rawOutput, toolCallId)
+  const output = isDeferredToolOutput(rawOutput) || isPersistedToolOutput(rawOutput) ? undefined : rawOutput
   const actions = useOptionalMessageListActions()
+  const { t } = useTranslation()
   const renderedItem =
     isCherrySessionTool &&
     (toolName === SESSION_CREATE_TOOL_NAME || toolName === `mcp__cherry-tools__${SESSION_CREATE_TOOL_NAME}`)
@@ -88,16 +99,81 @@ export function AgentToolCallCard({
             title: getAgentToolFlowTitle(toolName, input)
           })
       : undefined
+  if (openToolFlow) {
+    const requestedModel =
+      input && typeof input === 'object' && 'model' in input && typeof input.model === 'string'
+        ? input.model.trim()
+        : ''
+    const title = getAgentToolFlowTitle(toolName, input) ?? t('agent.right_pane.info.subagents')
+    const running = status === 'streaming' || status === 'invoking'
+    const failed = hasError || status === 'error'
+    const Icon = failed
+      ? TriangleAlert
+      : running
+        ? Loader2
+        : status === 'done'
+          ? Check
+          : status === 'cancelled'
+            ? CircleStop
+            : Circle
+    const label = failed
+      ? t('message.tools.status.failed')
+      : running
+        ? t('message.tools.status.running')
+        : status === 'done'
+          ? t('common.completed')
+          : status === 'cancelled'
+            ? t('message.tools.cancelled')
+            : t('message.tools.pending')
+    const selected = actions?.isAgentToolFlowActive?.(toolCallId ?? '') ?? false
+    return (
+      <Tooltip content={title} delay={600} asChild>
+        <Button
+          variant="ghost"
+          aria-pressed={selected}
+          onClick={openToolFlow}
+          className={cn('h-8 w-full justify-start gap-2 rounded-md px-2 text-sm font-normal', selected && 'bg-accent')}>
+          <span
+            className={cn(
+              'flex shrink-0 items-center',
+              failed
+                ? 'text-error'
+                : status === 'done'
+                  ? 'text-success'
+                  : running
+                    ? 'text-info'
+                    : 'text-muted-foreground'
+            )}>
+            <Icon aria-hidden="true" className={cn('size-3.5', running && 'motion-safe:animate-spin')} />
+          </span>
+          <span className="min-w-0 flex-1 truncate text-left">{title}</span>
+          {requestedModel && (
+            <span className="max-w-[55%] truncate text-xs text-muted-foreground" title={requestedModel}>
+              {t('message.tools.subagent.requestedModel', { model: requestedModel })}
+            </span>
+          )}
+          {status === 'done' && !failed ? (
+            <span className="sr-only">{label}</span>
+          ) : (
+            <span className="shrink-0 text-xs text-muted-foreground">{label}</span>
+          )}
+          <ChevronRight aria-hidden="true" className="size-3.5 shrink-0 text-muted-foreground" />
+        </Button>
+      </Tooltip>
+    )
+  }
+
   const errorText = shouldShowHeaderErrorText(toolName, renderedItem) ? extractToolErrorText(output) : undefined
 
   const toolContentItem: ToolDisclosureItem = {
     ...renderedItem,
+    ...(deferredOutput ? { children: <DeferredToolDetails resultRef={deferredOutput.$deferredToolResult} /> } : {}),
     label: (
       <AgentToolDisclosureLabel
         label={
           <div className="flex min-w-0 items-center gap-1.5">
             <div className="min-w-0">{renderedItem.label}</div>
-            {status && (status !== 'done' || hasError) && (
+            {status && (status !== 'done' || hasError || openFlowOnClick) && (
               <ToolStatusIndicator status={status} hasError={hasError} errorText={errorText} />
             )}
           </div>
@@ -109,7 +185,7 @@ export function AgentToolCallCard({
     }
   }
   const canShowInlineDetails =
-    showInlineDetails && renderedItem.children !== undefined && renderedItem.children !== null
+    showInlineDetails && toolContentItem.children !== undefined && toolContentItem.children !== null
 
   return (
     <AgentToolDisclosure
@@ -120,6 +196,7 @@ export function AgentToolCallCard({
       onOpenDetails={openToolFlow}
       stateId={toolCallId}
       showInlineDetails={canShowInlineDetails}
+      unmountOnClose={!!deferredOutput}
     />
   )
 }

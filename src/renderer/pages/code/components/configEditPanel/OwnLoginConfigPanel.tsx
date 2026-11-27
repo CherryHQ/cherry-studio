@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@cherrystudio/ui'
+import { CliIcon } from '@renderer/components/icons/CliIcon'
 import { SettingContainer, SettingGroup, SettingTitle } from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
 import {
@@ -16,7 +17,6 @@ import { toast } from '@renderer/services/toast'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import { CLI_OWN_LOGIN_PROVIDER_ID, type CodeCli } from '@shared/types/codeCli'
 
-import { CliIcon } from '../CliIcon'
 import { AdvancedConfigToggle } from './AdvancedConfigToggle'
 import { CliConfigEditor } from './CliConfigEditor'
 import { renderToolFields } from './toolFieldRenderer'
@@ -24,6 +24,7 @@ import { renderToolFields } from './toolFieldRenderer'
 const logger = loggerService.withContext('OwnLoginConfigPanel')
 
 export interface OwnLoginConfigPanelProps {
+  open?: boolean
   onClose: () => void
   cliTool: CodeCli
   toolName: string
@@ -36,6 +37,7 @@ export interface OwnLoginConfigPanelProps {
  * or credentials. Persists the blob to the tool preference and, when own login is
  * active, re-applies it to the CLI config file (see useConfigPanelController). */
 export const OwnLoginConfigPanel: FC<OwnLoginConfigPanelProps> = ({
+  open = true,
   onClose,
   cliTool,
   toolName,
@@ -132,7 +134,7 @@ export const OwnLoginConfigPanel: FC<OwnLoginConfigPanelProps> = ({
   })
 
   return (
-    <Dialog open onOpenChange={(o) => (!o ? onClose() : undefined)}>
+    <Dialog open={open} onOpenChange={(o) => (!o ? onClose() : undefined)}>
       <DialogContent
         size="lg"
         aria-describedby={undefined}

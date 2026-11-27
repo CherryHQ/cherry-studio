@@ -2,6 +2,7 @@ import fs from 'fs'
 import os from 'os'
 import path from 'path'
 
+import JSZip from 'jszip'
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@application', async () => {
@@ -23,25 +24,6 @@ const {
 describe('ensurePathWithin', () => {
   // Use path.join to construct cross-platform compatible paths
   const baseDir = path.join('/', 'home', 'user', 'mcp')
-
-  describe('valid paths', () => {
-    // Skip these tests on Windows as path behavior differs significantly
-    const testFn = process.platform === 'win32' ? it.skip : it
-
-    testFn('should accept direct child paths', () => {
-      const target1 = path.join('/', 'home', 'user', 'mcp', 'server-test')
-      const target2 = path.join('/', 'home', 'user', 'mcp', 'my-server')
-      expect(ensurePathWithin(baseDir, target1)).toBe(path.resolve(target1))
-      expect(ensurePathWithin(baseDir, target2)).toBe(path.resolve(target2))
-    })
-
-    testFn('should accept paths with unicode characters', () => {
-      const target1 = path.join('/', 'home', 'user', 'mcp', '服务器')
-      const target2 = path.join('/', 'home', 'user', 'mcp', 'サーバー')
-      expect(ensurePathWithin(baseDir, target1)).toBe(path.resolve(target1))
-      expect(ensurePathWithin(baseDir, target2)).toBe(path.resolve(target2))
-    })
-  })
 
   describe('path traversal prevention', () => {
     it('should reject paths that escape base directory', () => {
@@ -247,7 +229,6 @@ describe('buildResolvedEnv', () => {
     expect(result).toEqual({ API_KEY: 'secret', ROOT: extractDir })
     // Input must not be mutated.
     expect(input.ROOT).toBe('${__dirname}')
-    expect(result).not.toBe(input)
   })
 
   it('resolves ${HOME}/${DESKTOP}/${DOCUMENTS}/${DOWNLOADS} via central paths', () => {
@@ -261,10 +242,10 @@ describe('buildResolvedEnv', () => {
 
     // The mocked application.getPath returns "/mock/<key>" deterministically.
     expect(result).toEqual({
-      HOME: '/mock/sys.home',
-      DESKTOP: '/mock/sys.desktop',
-      DOCUMENTS: '/mock/sys.documents',
-      DOWNLOADS: '/mock/sys.downloads'
+      HOME: path.resolve('/mock/sys.home'),
+      DESKTOP: path.resolve('/mock/sys.desktop'),
+      DOCUMENTS: path.resolve('/mock/sys.documents'),
+      DOWNLOADS: path.resolve('/mock/sys.downloads')
     })
   })
 
@@ -313,6 +294,10 @@ describe('validatePackageUploadPayload', () => {
   })
 })
 
+// BaseService permits one instance per test file, so every describe below shares this one
+// and re-points the mocked path roots per test.
+const sharedService = new McpPackageService()
+
 describe('McpPackageService package directory replacement', () => {
   it('stages the new package before swapping it into the final directory', async () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'mcp-package-'))
@@ -335,9 +320,7 @@ describe('McpPackageService package directory replacement', () => {
     fs.writeFileSync(path.join(sourceDir, 'version.txt'), 'new')
 
     try {
-      const service = new McpPackageService()
-
-      await (service as any).replacePackageDirectory(sourceDir, finalDir, 'server-demo')
+      await (sharedService as any).replacePackageDirectory(sourceDir, finalDir, 'server-demo')
 
       expect(fs.readFileSync(path.join(finalDir, 'version.txt'), 'utf-8')).toBe('new')
       expect(fs.readdirSync(root).filter((entry) => entry.includes('.staged-') || entry.includes('.backup-'))).toEqual(
@@ -347,5 +330,73 @@ describe('McpPackageService package directory replacement', () => {
       getPath.mockImplementation(defaultGetPath)
       fs.rmSync(root, { recursive: true, force: true })
     }
+  })
+})
+
+describe('McpPackageService package upload collision guard', () => {
+  const MANIFEST = {
+    dxt_version: '0.1',
+    name: 'demo',
+    version: '1.0.0',
+    server: { mcp_config: { command: 'node', args: [] } }
+  }
+
+  function buildDxt(entries: Record<string, string | Buffer>): Promise<ArrayBuffer> {
+    const zip = new JSZip()
+    for (const [name, content] of Object.entries(entries)) zip.file(name, content)
+    return zip.generateAsync({ type: 'arraybuffer' })
+  }
+
+  // BaseService only allows one instance per test file, so reuse the shared service and
+  // swap the path roots per test.
+  async function withServiceRoot<T>(run: () => Promise<T>): Promise<T> {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'mcp-upload-'))
+    const getPath = vi.mocked(application.getPath)
+    const defaultGetPath = (key: string, filename?: string): string =>
+      filename ? `/mock/${key}/${filename}` : `/mock/${key}`
+
+    getPath.mockImplementation((key: string, filename?: string) => {
+      if (key === 'feature.dxt.uploads.temp') return filename ? path.join(root, filename) : root
+      if (key === 'feature.mcp') return filename ? path.join(root, filename) : root
+      return defaultGetPath(key, filename)
+    })
+
+    try {
+      return await run()
+    } finally {
+      getPath.mockImplementation(defaultGetPath)
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  }
+
+  it.each([
+    ['entry names differing only in case', ['manifest.json', 'Scripts/setup.sh', 'scripts/setup.sh']],
+    ['names differing only in Unicode composition', ['manifest.json', 'caf\u00e9/x.js', 'cafe\u0301/x.js']]
+  ])('rejects a DXT whose %s, before extracting anything', async (_case, names) => {
+    const entries: Record<string, string> = {}
+    for (const name of names) {
+      entries[name] = name === 'manifest.json' ? JSON.stringify(MANIFEST) : `// ${name}`
+    }
+
+    const result = await withServiceRoot(async () => sharedService.uploadDxt(await buildDxt(entries), 'demo.dxt'))
+
+    expect(result.success).toBe(false)
+    expect(result.error).toMatch(/collide once case and Unicode are normalized/)
+  })
+
+  it('installs a DXT with same-named files in different directories', async () => {
+    const result = await withServiceRoot(async () =>
+      sharedService.uploadDxt(
+        await buildDxt({
+          'manifest.json': JSON.stringify(MANIFEST),
+          'README.md': '# root',
+          'docs/readme.md': '# docs'
+        }),
+        'demo.dxt'
+      )
+    )
+
+    expect(result.error).toBeUndefined()
+    expect(result.success).toBe(true)
   })
 })

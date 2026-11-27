@@ -7,11 +7,18 @@
  * single `persistAssistant` handles success / paused / error uniformly.
  */
 
+import type { RootProjectionCheckpoint } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
+import { agentSessionService } from '@data/services/AgentSessionService'
+import { loggerService } from '@logger'
+import { RuntimeForkAnchorSchema, type RuntimeForkAnchor } from '@main/ai/runtime/fork'
+import { preparePiBranch } from '@main/ai/runtime/pi/piContext'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 
-import type { PersistAssistantInput, PersistenceBackend } from '../../streamManager'
+import type { PersistAssistantInput, PersistedAssistant, PersistenceBackend } from '../../streamManager'
+
+const logger = loggerService.withContext('AgentSessionMessageBackend')
 
 export interface AgentSessionMessageBackendOptions {
   /** Cherry Studio agent-session id. */
@@ -22,11 +29,19 @@ export interface AgentSessionMessageBackendOptions {
   modelId?: UniqueModelId
   /** Opaque runtime resume token persisted for future recovery; `undefined` when unknown. */
   runtimeResumeToken?: string | (() => string | undefined)
+  forkAnchor?: () => RuntimeForkAnchor | undefined
+  projection?: () => RootProjectionCheckpoint | undefined
+  /** Identities parallel to the saved reply's parts, with their assigned timeline positions. */
+  partPlacement?: (
+    messageId: string
+  ) => { partIds: readonly string[]; positions?: ReadonlyMap<string, number> } | undefined
+  /** Runs at the synchronous commit boundary, before any terminal observer or post-save work. */
+  onPersisted?: () => void
   /** Post-success hook — typically session auto-rename. */
   afterPersist?: (finalMessage: CherryUIMessage) => Promise<void>
 }
 
-export class AgentSessionMessageBackend implements PersistenceBackend {
+export class AgentSessionMessageBackend implements PersistenceBackend<'agents-db'> {
   readonly kind = 'agents-db'
   readonly canPersistEmptyTerminal = true
   readonly canPersistEmptySuccessTerminal = true
@@ -36,24 +51,63 @@ export class AgentSessionMessageBackend implements PersistenceBackend {
     this.afterPersist = opts.afterPersist
   }
 
-  persistAssistant(input: PersistAssistantInput): void {
+  persistAssistant(input: PersistAssistantInput): PersistedAssistant<'agents-db'> {
     const { finalMessage, status, runtimeStats } = input
     const runtimeResumeToken = this.getRuntimeResumeToken()
-    agentSessionMessageService.saveMessage(
-      {
-        sessionId: this.opts.sessionId,
-        ...(runtimeResumeToken ? { runtimeResumeToken } : {}),
-        ...(runtimeStats ? { runtimeStats } : {}),
-        message: {
-          id: finalMessage?.id ?? this.opts.assistantMessageId,
-          role: 'assistant',
-          status,
-          data: { parts: finalMessage?.parts ?? [] },
-          modelId: this.opts.modelId
+    let forkAnchor: RuntimeForkAnchor | undefined
+    if (status === 'success') {
+      try {
+        const candidate = this.opts.forkAnchor?.()
+        forkAnchor = candidate === undefined ? undefined : RuntimeForkAnchorSchema.parse(candidate)
+      } catch (error) {
+        logger.warn('Fork checkpoint capture failed; preserving completed answer', { error })
+      }
+    }
+    const projection = this.opts.projection?.()
+    const parts = finalMessage?.parts ?? []
+    const messageId = finalMessage?.id ?? this.opts.assistantMessageId
+    const placement = this.opts.partPlacement?.(messageId)
+    const save = (runtimeAnchor?: RuntimeForkAnchor) => {
+      const nativeContext =
+        runtimeResumeToken && runtimeAnchor?.checkpoint.runtime === 'pi'
+          ? preparePiBranch(this.opts.sessionId, messageId, runtimeResumeToken)
+          : undefined
+      return agentSessionMessageService.saveMessage(
+        {
+          sessionId: this.opts.sessionId,
+          runtimeAnchor,
+          ...(runtimeAnchor && nativeContext ? { nativeContextId: nativeContext.id } : {}),
+          ...(runtimeResumeToken ? { runtimeResumeToken } : {}),
+          ...(runtimeStats ? { runtimeStats } : {}),
+          ...placement,
+          message: {
+            id: messageId,
+            role: 'assistant',
+            status,
+            data: { parts },
+            modelId: this.opts.modelId
+          }
+        },
+        {
+          publishDataChange: true,
+          projection
         }
-      },
-      { publishDataChange: true }
-    )
+      )
+    }
+    let saved
+    try {
+      saved = save(forkAnchor)
+    } catch (error) {
+      if (!forkAnchor) throw error
+      logger.warn('Fork checkpoint persistence failed; retrying completed answer without checkpoint', { error })
+      saved = save()
+    }
+    this.opts.onPersisted?.()
+    return {
+      messageId: saved.id,
+      messageRevision: String(Date.parse(saved.updatedAt)),
+      historyRevision: String(Date.parse(agentSessionService.getById(this.opts.sessionId).updatedAt))
+    }
   }
 
   markTerminalError(): void {

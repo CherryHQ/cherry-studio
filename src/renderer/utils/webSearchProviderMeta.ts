@@ -19,21 +19,46 @@ export type WebSearchProviderFeatureSection = {
   entries: WebSearchProviderMenuEntry[]
 }
 
-const WEB_SEARCH_CAPABILITY_ORDER: readonly WebSearchCapability[] = ['searchKeywords', 'fetchUrls'] as const
+const WEB_SEARCH_CAPABILITY_ORDER: readonly WebSearchCapability[] = [
+  'searchKeywords',
+  'fetchUrls',
+  'searchImages'
+] as const
 
 type WebSearchProviderDisplayMeta = {
   descriptionKey: string
-  iconRef: IconRef
+  iconRef?: IconRef
   officialWebsite?: string
   apiKeyWebsite?: string
 }
 
 const WEB_SEARCH_PROVIDER_DISPLAY_META: Record<WebSearchProviderId, WebSearchProviderDisplayMeta> = {
+  crawl4ai: {
+    descriptionKey: 'settings.tool.websearch.provider_description.crawl4ai',
+    officialWebsite: 'https://crawl4ai.com'
+  },
+  desearch: {
+    descriptionKey: 'settings.tool.websearch.provider_description.desearch',
+    iconRef: providerIconRef('desearch'),
+    officialWebsite: 'https://desearch.ai',
+    apiKeyWebsite: 'https://console.desearch.ai/api-keys'
+  },
+  stepfun: {
+    descriptionKey: 'settings.tool.websearch.provider_description.stepfun',
+    iconRef: providerIconRef('step'),
+    officialWebsite: 'https://platform.stepfun.com/docs/zh/api-reference/search/search'
+  },
   bocha: {
     descriptionKey: 'settings.tool.websearch.provider_description.bocha',
     iconRef: providerIconRef('bocha'),
     officialWebsite: 'https://bochaai.com',
     apiKeyWebsite: 'https://open.bochaai.com/overview'
+  },
+  deepseek: {
+    descriptionKey: 'settings.tool.websearch.provider_description.deepseek',
+    iconRef: providerIconRef('deepseek'),
+    officialWebsite: 'https://api-docs.deepseek.com/guides/search',
+    apiKeyWebsite: 'https://platform.deepseek.com/api_keys'
   },
   exa: {
     descriptionKey: 'settings.tool.websearch.provider_description.exa',
@@ -68,16 +93,39 @@ const WEB_SEARCH_PROVIDER_DISPLAY_META: Record<WebSearchProviderId, WebSearchPro
     officialWebsite: 'https://querit.ai',
     apiKeyWebsite: 'https://www.querit.ai/en/dashboard/api-keys'
   },
+  searchapi: {
+    descriptionKey: 'settings.tool.websearch.provider_description.searchapi',
+    officialWebsite: 'https://www.searchapi.io',
+    apiKeyWebsite: 'https://www.searchapi.io/api_tokens'
+  },
   searxng: {
     descriptionKey: 'settings.tool.websearch.provider_description.searxng',
     iconRef: providerIconRef('searxng'),
     officialWebsite: 'https://docs.searxng.org'
+  },
+  serpkite: {
+    descriptionKey: 'settings.tool.websearch.provider_description.serpkite',
+    iconRef: providerIconRef('serpkite'),
+    officialWebsite: 'https://serpkite.com',
+    apiKeyWebsite: 'https://app.serpkite.com/keys'
+  },
+  serply: {
+    descriptionKey: 'settings.tool.websearch.provider_description.serply',
+    iconRef: providerIconRef('serply'),
+    officialWebsite: 'https://serply.io',
+    apiKeyWebsite: 'https://serply.io'
   },
   tavily: {
     descriptionKey: 'settings.tool.websearch.provider_description.tavily',
     iconRef: providerIconRef('tavily'),
     officialWebsite: 'https://tavily.com',
     apiKeyWebsite: 'https://app.tavily.com/home'
+  },
+  yuanbao: {
+    descriptionKey: 'settings.tool.websearch.provider_description.yuanbao',
+    iconRef: providerIconRef('yuanbao'),
+    officialWebsite: 'https://cloud.tencent.com/document/product/1806/130615',
+    apiKeyWebsite: 'https://console.cloud.tencent.com/wsapi/index?tab=apikey'
   },
   zhipu: {
     descriptionKey: 'settings.tool.websearch.provider_description.zhipu',
@@ -90,6 +138,11 @@ const WEB_SEARCH_PROVIDER_DISPLAY_META: Record<WebSearchProviderId, WebSearchPro
     iconRef: providerIconRef('firecrawl'),
     officialWebsite: 'https://firecrawl.dev',
     apiKeyWebsite: 'https://firecrawl.dev/app/api-keys'
+  },
+  duckduckgo: {
+    descriptionKey: 'settings.tool.websearch.provider_description.duckduckgo',
+    iconRef: providerIconRef('duck'),
+    officialWebsite: 'https://duckduckgo.com'
   }
 }
 
@@ -97,7 +150,7 @@ export function getWebSearchProviderDescriptionKey(providerId: WebSearchProvider
   return WEB_SEARCH_PROVIDER_DISPLAY_META[providerId].descriptionKey
 }
 
-export function getWebSearchProviderIconRef(providerId: WebSearchProviderId): IconRef {
+export function getWebSearchProviderIconRef(providerId: WebSearchProviderId): IconRef | undefined {
   return WEB_SEARCH_PROVIDER_DISPLAY_META[providerId].iconRef
 }
 
@@ -110,9 +163,9 @@ export function getWebSearchProviderApiKeyWebsite(providerId: WebSearchProviderI
 }
 
 export function getWebSearchCapabilityTitleKey(capability: WebSearchCapability): string {
-  return capability === 'fetchUrls'
-    ? 'settings.tool.websearch.fetch_urls_provider'
-    : 'settings.tool.websearch.search_provider'
+  if (capability === 'fetchUrls') return 'settings.tool.websearch.fetch_urls_provider'
+  if (capability === 'searchImages') return 'settings.tool.websearch.search_images_provider'
+  return 'settings.tool.websearch.search_provider'
 }
 
 export function createWebSearchMenuEntry(

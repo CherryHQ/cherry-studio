@@ -5,6 +5,7 @@ import {
   LOCAL_MODEL_CAPABILITIES,
   LOCAL_MODEL_DOWNLOAD_RESULTS,
   LOCAL_MODEL_ERROR_CODES,
+  LOCAL_MODEL_STATUS_HINT_CODES,
   LOCAL_MODEL_STATUSES
 } from '@shared/data/presets/localModel'
 
@@ -36,11 +37,15 @@ export const localModelRequestSchemas = {
       models: z.array(z.object({ id: z.enum(LOCAL_MODEL_BUNDLE_IDS), capability: z.enum(LOCAL_MODEL_CAPABILITIES) }))
     })
   }),
-  // `errorCode` is present exactly when `status` is 'error' and says why (failed
-  // download vs. incomplete files on disk), so the cards can word the notice.
+  // `errorCode` explains failures; `hintCode` explains complete model files with a
+  // missing shared runtime without changing the download-ready status.
   'local_model.get_status': defineRoute({
     input: bundleInput,
-    output: z.object({ status: z.enum(LOCAL_MODEL_STATUSES), errorCode: z.enum(LOCAL_MODEL_ERROR_CODES).optional() })
+    output: z.object({
+      status: z.enum(LOCAL_MODEL_STATUSES),
+      errorCode: z.enum(LOCAL_MODEL_ERROR_CODES).optional(),
+      hintCode: z.enum(LOCAL_MODEL_STATUS_HINT_CODES).optional()
+    })
   }),
   // All coalesced callers receive the same terminal result; only genuine failures reject.
   'local_model.download': defineRoute({

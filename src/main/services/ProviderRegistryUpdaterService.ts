@@ -14,7 +14,7 @@ import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { notifyDataApiDataChange } from '@main/data/dataApiDataChange'
 import { providerRegistryService } from '@main/data/services/ProviderRegistryService'
-import { readActiveOverrideManifest } from '@main/data/services/utils/registryDataPaths'
+import { probeOverrideSnapshot, readActiveOverrideManifest } from '@main/data/services/utils/registryDataPaths'
 import { writeProviderRegistrySnapshot } from '@main/services/providerRegistrySnapshot'
 import { regionService } from '@main/services/RegionService'
 import { generateUserAgent } from '@main/utils/systemInfo'
@@ -30,8 +30,15 @@ const logger = loggerService.withContext('ProviderRegistryUpdaterService')
 // x-files/app-upgrade-config so the same GitCode repo mirror serves CN clients.
 const REMOTE_BRANCH = 'x-files/provider-registry'
 const REMOTE_SUBPATH = `v${REGISTRY_SCHEMA_VERSION}`
-const REGISTRY_URL_GITHUB = `https://raw.githubusercontent.com/CherryHQ/cherry-studio/refs/heads/${REMOTE_BRANCH}/${REMOTE_SUBPATH}`
-const REGISTRY_URL_GITCODE = `https://raw.gitcode.com/CherryHQ/cherry-studio/raw/${encodeURIComponent(REMOTE_BRANCH)}/${REMOTE_SUBPATH}`
+export const REGISTRY_URL_GITHUB = `https://raw.githubusercontent.com/CherryHQ/cherry-studio/refs/heads/${REMOTE_BRANCH}/${REMOTE_SUBPATH}`
+export const REGISTRY_URL_GITCODE = `https://raw.gitcode.com/CherryHQ/cherry-studio/raw/${encodeURIComponent(REMOTE_BRANCH)}/${REMOTE_SUBPATH}`
+
+/**
+ * The mirror an update cycle fetches from; the network doctor probes the same one.
+ * Unknown egress keeps the updater's historical GitCode fallback.
+ */
+export const resolveRegistryBaseUrl = async (): Promise<string> =>
+  (await regionService.getCountry()).toLowerCase() === 'cn' ? REGISTRY_URL_GITCODE : REGISTRY_URL_GITHUB
 
 const MANIFEST_FILE = 'manifest.json'
 
@@ -55,6 +62,10 @@ const CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000
 // Short delay before the first check, letting boot I/O settle. registerInterval
 // only fires after one full interval, so the initial pull is scheduled separately.
 const INITIAL_CHECK_DELAY_MS = 30_000
+
+function hasOverrideFallback(): boolean {
+  return providerRegistryService.getRegistryFallbacks().some(({ namespace }) => namespace === 'override')
+}
 
 interface StagedFile {
   file: RemoteRegistryFileName
@@ -93,7 +104,12 @@ export class ProviderRegistryUpdaterService extends BaseService {
       if (!result) return
       const { staged, manifest, manifestBody } = result
       const currentManifest = readActiveOverrideManifest()
-      if (!this.hasChanges(staged) && (!currentManifest || currentManifest.revision === manifest.revision)) {
+      if (
+        !this.hasChanges(staged) &&
+        !hasOverrideFallback() &&
+        !probeOverrideSnapshot() &&
+        (!currentManifest || currentManifest.revision === manifest.revision)
+      ) {
         logger.debug('registry update: catalog already current')
         return
       }
@@ -115,8 +131,7 @@ export class ProviderRegistryUpdaterService extends BaseService {
     manifest: CatalogManifest
     manifestBody: string
   } | null> {
-    const inCn = (await regionService.getCountry()).toLowerCase() === 'cn'
-    const baseUrl = inCn ? REGISTRY_URL_GITCODE : REGISTRY_URL_GITHUB
+    const baseUrl = await resolveRegistryBaseUrl()
     const headers = {
       'User-Agent': generateUserAgent(),
       'Cache-Control': 'no-cache',
@@ -142,7 +157,13 @@ export class ProviderRegistryUpdaterService extends BaseService {
       return null
     }
     const activeManifest = readActiveOverrideManifest()
-    if (activeManifest && manifest.revision <= activeManifest.revision) {
+    if (
+      activeManifest &&
+      (manifest.revision < activeManifest.revision ||
+        (manifest.revision === activeManifest.revision &&
+          providerRegistryService.getCatalogVersion('models.json') !== null &&
+          !hasOverrideFallback()))
+    ) {
       logger.debug(
         `registry update: remote revision ${manifest.revision} is not newer than active revision ${activeManifest.revision}, skipping`
       )

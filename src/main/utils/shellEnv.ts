@@ -142,7 +142,8 @@ async function getWindowsEnvironment(): Promise<Record<string, string>> {
  * @returns {Promise<Object>} A promise that resolves with an object containing
  * the environment variables, or rejects with an error.
  */
-function getLoginShellEnvironment(): Promise<Record<string, string>> {
+function getLoginShellEnvironment(signal?: AbortSignal): Promise<Record<string, string>> {
+  signal?.throwIfAborted()
   // On Windows, skip the shell spawn entirely — `cmd.exe /c set` just inherits
   // the (potentially stale) parent process env. Instead, read the current PATH
   // straight from the Windows registry.
@@ -208,6 +209,8 @@ function getLoginShellEnvironment(): Promise<Record<string, string>> {
     }
 
     const child = spawn(shellPath, commandArgs, {
+      signal,
+      killSignal: 'SIGKILL',
       cwd: homeDirectory, // Run the command in the user's home directory
       detached: false, // Stay attached so we can clean up reliably
       stdio: ['ignore', 'pipe', 'pipe'], // stdin, stdout, stderr
@@ -223,7 +226,7 @@ function getLoginShellEnvironment(): Promise<Record<string, string>> {
         ' '
       )}. CWD: ${homeDirectory}`
       logger.error(errorMessage)
-      child.kill()
+      child.kill('SIGKILL')
       rejectOnce(new Error(errorMessage))
     }, SHELL_ENV_TIMEOUT_MS)
 
@@ -319,13 +322,40 @@ function loadShellEnv(): Promise<Record<string, string>> {
   // is always populated and `inflight` always cleared.
   inflight = fetchShellEnv()
     .then((env) => {
-      cachedEnv = env
-      return env
+      cachedEnv = stripNullBytes(env)
+      return cachedEnv
     })
     .finally(() => {
       inflight = null
     })
   return inflight
+}
+
+/**
+ * Node's child_process validates spawn env values and rejects embedded NUL bytes;
+ * a Windows registry PATH (REG_EXPAND_SZ) or a corrupted profile can carry them,
+ * which otherwise fails every spawn with `must be a string without null bytes`.
+ */
+function stripNullBytes(env: Record<string, string>): Record<string, string> {
+  let stripped = false
+  const out: Record<string, string> = {}
+  for (const key of Object.keys(env)) {
+    if (key.includes('\0')) {
+      stripped = true
+      continue
+    }
+    const value = env[key]
+    if (value.includes('\0')) {
+      out[key] = value.replace(/\0/g, '')
+      stripped = true
+    } else {
+      out[key] = value
+    }
+  }
+  if (stripped) {
+    logger.warn('Captured shell environment contained NUL bytes; stripped them from the cached env')
+  }
+  return out
 }
 
 /**
@@ -336,13 +366,17 @@ function loadShellEnv(): Promise<Record<string, string>> {
  * `removeEnvProxy`, merging per-spawn overrides), and handing out the cached
  * object itself would let one such mutation silently poison every later reader.
  */
-export async function getRawShellEnv(): Promise<Record<string, string>> {
-  const env = cachedEnv ?? (await loadShellEnv())
+export async function getRawShellEnv(signal?: AbortSignal): Promise<Record<string, string>> {
+  signal?.throwIfAborted()
+  // A cancellable cold query owns its shell; aborting it must not poison the shared app cache.
+  const env = cachedEnv ?? (await (signal ? getLoginShellEnvironment(signal).then(stripNullBytes) : loadShellEnv()))
+  signal?.throwIfAborted()
+  cachedEnv ??= env
   return { ...env }
 }
 
-export async function getShellEnv(): Promise<Record<string, string>> {
-  const env = await getRawShellEnv()
+export async function getShellEnv(signal?: AbortSignal): Promise<Record<string, string>> {
+  const env = await getRawShellEnv(signal)
   appendCherryToolDirsToPath(env)
   applyBinaryExecutionEnv(env)
   return env

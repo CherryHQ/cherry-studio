@@ -13,11 +13,12 @@
 import type { LanguageModelV3Message, LanguageModelV3Prompt, LanguageModelV3StreamPart } from '@ai-sdk/provider'
 import { generateText, type LanguageModel, type LanguageModelMiddleware, type ModelMessage, pruneMessages } from 'ai'
 
-import { fromAISDK, toAISDK } from './adapter'
+import { fromAISDK, repairToolResultNames, toAISDK } from './adapter'
 import { Janitor, summarizeHistory, type SummarizeHistoryOptions } from './janitor'
 import { fromModelMessages } from './modelMessageAdapter'
 import { type TruncateOptions, truncateToolResults } from './truncator'
 import type { ContextLogger, ContextMessage } from './types'
+import { getContextInputTokens } from './usage'
 
 type CompressRole = 'system' | 'user' | 'assistant'
 
@@ -193,7 +194,7 @@ export function createContextMiddleware(options: ContextMiddlewareOptions): Lang
     specificationVersion: 'v3',
 
     transformParams: async ({ params }) => {
-      let { prompt } = params
+      let prompt = repairToolResultNames(params.prompt)
 
       // 1. Truncate large tool results
       if (options.truncate) {
@@ -229,8 +230,9 @@ export function createContextMiddleware(options: ContextMiddlewareOptions): Lang
 
       if (!janitor) return result
 
-      if (result.usage?.inputTokens?.total != null) {
-        janitor.feedTokenUsage(result.usage.inputTokens.total)
+      const inputTokens = getContextInputTokens(result.usage?.inputTokens?.total, result.providerMetadata)
+      if (inputTokens != null) {
+        janitor.feedTokenUsage(inputTokens)
       } else if (!usageWarned) {
         usageWarned = true
         logger.warn(
@@ -250,8 +252,9 @@ export function createContextMiddleware(options: ContextMiddlewareOptions): Lang
       const transform = new TransformStream<LanguageModelV3StreamPart, LanguageModelV3StreamPart>({
         transform(chunk, controller) {
           if (chunk.type === 'finish') {
-            if (chunk.usage?.inputTokens?.total != null) {
-              janitor.feedTokenUsage(chunk.usage.inputTokens.total)
+            const inputTokens = getContextInputTokens(chunk.usage?.inputTokens?.total, chunk.providerMetadata)
+            if (inputTokens != null) {
+              janitor.feedTokenUsage(inputTokens)
             } else if (!usageWarned) {
               usageWarned = true
               logger.warn(
@@ -319,7 +322,8 @@ function toCompressRole(role: string): CompressRole {
  */
 export function createCompressionAdapter(
   model: LanguageModel,
-  maxOutputTokens: number = COMPRESSION_MIN_OUTPUT_TOKENS
+  maxOutputTokens: number = COMPRESSION_MIN_OUTPUT_TOKENS,
+  abortSignal?: AbortSignal
 ): (messages: ContextMessage[]) => Promise<string> {
   return async (messages: ContextMessage[]): Promise<string> => {
     const formatted = messages.map((m): { role: CompressRole; content: string } => {
@@ -344,11 +348,17 @@ export function createCompressionAdapter(
       }
     })
 
-    const { text } = await generateText({
+    const { text, finishReason } = await generateText({
       model,
       messages: formatted,
-      maxOutputTokens
+      maxOutputTokens,
+      abortSignal
     })
+
+    if (finishReason === 'length') throw new Error('Compaction summary exceeded the output token limit')
+    if (finishReason === 'error' || finishReason === 'content-filter' || finishReason === 'tool-calls') {
+      throw new Error(`Compaction summary ended with ${finishReason}`)
+    }
 
     // Return the model's output verbatim — an empty string included. Both
     // callers already fail open on an empty summary (`compactHistory` keeps the

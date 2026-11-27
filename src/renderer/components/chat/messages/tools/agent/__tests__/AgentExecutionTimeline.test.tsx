@@ -1,79 +1,150 @@
-import { render } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { projectionIpc } from '@test-mocks/renderer/ProjectionIpc'
+import { act, render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import i18next from 'i18next'
+import { use } from 'react'
+import { expect, it, vi } from 'vitest'
 
+import { MessagePartsScopeProvider, PartsProvider } from '@renderer/components/chat/messages/blocks/MessagePartsContext'
+import { messageProjectionService } from '@renderer/services/aiTransport'
 import type { NormalToolResponse } from '@renderer/types/mcpTool'
+import { replyParts } from '@renderer/utils/message/messagePartRows'
+import type { CherryMessagePart } from '@shared/data/types/message'
 
-const cardProps = vi.hoisted(() => ({
-  current: undefined as Record<string, unknown> | undefined
-}))
-
-vi.mock('@renderer/components/chat/messages/blocks/MessagePartsContext', () => ({
-  usePartsMap: () => new Map()
-}))
-
-vi.mock('../AgentToolCallCard', () => ({
-  AgentToolCallCard: (props: Record<string, unknown>) => {
-    cardProps.current = props
-    return <div data-testid="agent-tool-card" />
-  }
-}))
-
+import { SubagentStatusContext, SubagentStatusProvider } from '../../../blocks/SubagentStatusContext'
+import { buildToolResponseFromPart } from '../../toolResponse'
 import { AgentExecutionTimeline } from '../AgentExecutionTimeline'
 
-function toolResponse(name: 'Agent' | 'Task', response: unknown): NormalToolResponse {
-  return {
-    id: `response-${name}`,
-    toolCallId: `tool-${name}`,
-    tool: { name },
-    arguments: { description: 'Inspect the workspace' },
-    response,
-    status: 'done'
-  } as unknown as NormalToolResponse
-}
+// Catches running tool cards hiding preliminary output until the command exits.
+it('shows successive Bash output while the tool is still running', async () => {
+  const part: CherryMessagePart = {
+    type: 'dynamic-tool',
+    toolCallId: 'child-bash',
+    toolName: 'bash',
+    state: 'output-available',
+    preliminary: true,
+    input: { command: 'long-running-command' },
+    output: [{ type: 'text', text: 'TOOL-FIRST' }],
+    callProviderMetadata: { cherry: { transport: 'pi-agent' } }
+  }
+  const user = userEvent.setup()
+  const { rerender } = render(
+    <AgentExecutionTimeline toolResponse={buildToolResponseFromPart(part) as NormalToolResponse} />
+  )
+  await user.click(screen.getByRole('button', { name: /long-running-command/ }))
+  expect(screen.getByText('TOOL-FIRST')).toBeVisible()
+  expect(screen.queryByText('TOOL-LAST')).not.toBeInTheDocument()
+  rerender(
+    <AgentExecutionTimeline
+      toolResponse={
+        buildToolResponseFromPart({
+          ...part,
+          output: [{ type: 'text', text: 'TOOL-FIRST\nTOOL-LAST' }]
+        }) as NormalToolResponse
+      }
+    />
+  )
+  expect(screen.getByText(/TOOL-FIRST\s+TOOL-LAST/)).toBeVisible()
+})
 
-describe('AgentExecutionTimeline', () => {
-  beforeEach(() => {
-    cardProps.current = undefined
-  })
+// A steer can move a background task's terminal event into a later message.
+it.each([
+  ['completed', 'message.tools.completed'],
+  ['error', 'message.tools.error'],
+  ['stopped', 'message.tools.cancelled']
+] as const)('updates the visible background task status to %s across a continuation', (status, label) => {
+  const launched: CherryMessagePart = {
+    type: 'data-agent-task-event',
+    data: { event: 'started', taskId: 'task-1', toolUseId: 'tool-Agent', status: 'in_progress' }
+  }
+  const settled: CherryMessagePart = {
+    type: 'data-agent-task-event',
+    data: { event: 'notification', taskId: 'task-1', status }
+  }
+  const part: CherryMessagePart = {
+    type: 'dynamic-tool',
+    toolCallId: 'tool-Agent',
+    toolName: 'Agent',
+    state: 'output-available',
+    input: { description: 'Inspect the workspace' },
+    output: { status: 'async_launched', taskId: 'task-1' }
+  }
+  const view = (continuation: CherryMessagePart[]) => (
+    <SubagentStatusProvider messageIds={['original', 'continuation']} rows={{ original: [launched], continuation }}>
+      <PartsProvider value={{ original: [launched] }}>
+        <MessagePartsScopeProvider messageId="original" parts={[launched]}>
+          <AgentExecutionTimeline toolResponse={buildToolResponseFromPart(part) as NormalToolResponse} />
+        </MessagePartsScopeProvider>
+      </PartsProvider>
+    </SubagentStatusProvider>
+  )
+  const { rerender } = render(view([]))
+  expect(screen.getByText(i18next.t('message.tools.invoking'))).toBeVisible()
+  rerender(view([settled]))
+  expect(screen.getByText(i18next.t(label))).toBeVisible()
+  expect(screen.queryByText(i18next.t('message.tools.invoking'))).not.toBeInTheDocument()
+})
 
-  it('passes an async Agent launch receipt to the collapsed card', () => {
-    const receipt = { status: 'async_launched', taskId: 'task-1' }
-
-    render(<AgentExecutionTimeline toolResponse={toolResponse('Agent', receipt)} />)
-
-    expect(cardProps.current).toMatchObject({
-      output: receipt,
-      openFlowOnClick: true,
-      showInlineDetails: false
-    })
-  })
-
-  it('passes completed Task statistics to the collapsed card', () => {
-    const receipt = {
-      status: 'completed',
-      totalTokens: 1200,
-      totalToolUseCount: 4,
-      totalDurationMs: 9000
-    }
-
-    render(<AgentExecutionTimeline toolResponse={toolResponse('Task', receipt)} />)
-
-    expect(cardProps.current).toMatchObject({
-      output: receipt,
-      openFlowOnClick: true,
-      showInlineDetails: false
-    })
-  })
-
-  it('only enables Session cards for the Cherry tools server', () => {
-    const response = toolResponse('Task', { ok: true, sessionId: 'not-a-cherry-session' })
-    response.tool = { id: 'session_create', name: 'session_create', type: 'mcp', serverId: 'tmux' } as never
-
-    const { rerender } = render(<AgentExecutionTimeline toolResponse={response} />)
-    expect(cardProps.current).toMatchObject({ isCherrySessionTool: false })
-
-    response.tool = { ...response.tool, serverId: 'cherry-tools' } as never
-    rerender(<AgentExecutionTimeline toolResponse={response} />)
-    expect(cardProps.current).toMatchObject({ isCherrySessionTool: true })
-  })
+it('applies an addressed continuation event to the list summary without rereading historical text for 1,000 calls', async () => {
+  const ipc = projectionIpc()
+  const target = { kind: 'topic' as const, topicId: 'task-continuation' }
+  const off = messageProjectionService.subscribe(target, () => {})
+  const continuation = { id: 'continuation', role: 'assistant' as const, partIds: [], parts: [] }
+  const attachment = ipc.attachments[0]
+  await act(async () => attachment.resolve({ ...target, revision: 0, executions: [], messages: [continuation] }))
+  let textReads = 0
+  const textPart: CherryMessagePart = {
+    get type() {
+      textReads++
+      return 'text' as const
+    },
+    text: 'history'
+  }
+  const tasks: CherryMessagePart[] = Array.from({ length: 1000 }, (_, i) => ({
+    type: 'data-agent-task-event',
+    data: { taskId: String(i), toolUseId: String(i), event: 'started', status: 'in_progress' }
+  }))
+  const rows = replyParts({ original: [textPart, ...tasks] }, [continuation])
+  function Summary() {
+    const lookup = use(SubagentStatusContext)
+    const completed = tasks.filter((_, i) => lookup(String(i)) === 'done').length
+    return <span>{completed} completed</span>
+  }
+  const tree = render(
+    <SubagentStatusProvider messageIds={['original', 'continuation']} rows={rows} target={target}>
+      <Summary />
+    </SubagentStatusProvider>
+  )
+  try {
+    expect(screen.getByText('0 completed')).toBeVisible()
+    const initialReads = textReads
+    expect(initialReads).toBe(1)
+    act(() =>
+      ipc.emit(attachment.subscriptionId, {
+        kind: 'topic',
+        type: 'parts',
+        revision: 1,
+        patches: [
+          {
+            type: 'part-add',
+            partId: 'finish',
+            placement: { messageId: continuation.id, pos: 1 },
+            part: { type: 'data-agent-task-event', data: { taskId: '987', event: 'notification', status: 'completed' } }
+          }
+        ]
+      })
+    )
+    expect(screen.getByText('1 completed')).toBeVisible()
+    expect(textReads).toBe(initialReads)
+    tree.rerender(
+      <SubagentStatusProvider messageIds={['original', 'continuation']} rows={{}} target={target}>
+        <Summary />
+      </SubagentStatusProvider>
+    )
+    expect(screen.getByText('0 completed')).toBeVisible()
+  } finally {
+    tree.unmount()
+    off()
+    vi.restoreAllMocks()
+  }
 })

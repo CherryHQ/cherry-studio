@@ -1,4 +1,3 @@
-import type { McpError } from '@modelcontextprotocol/sdk/types.js'
 import { AISDKError, APICallError, type NoSuchToolError } from 'ai'
 import { InvalidToolInputError } from 'ai'
 import { type AxiosError, isAxiosError } from 'axios'
@@ -16,7 +15,8 @@ import type {
 } from '@renderer/types/error'
 import { isSerializedAiSdkApiCallError, isSerializedAiSdkRetryError } from '@renderer/types/error'
 import { getSafeProviderErrorMessage, serializeNestedProviderError } from '@shared/ai/providerError'
-import { aiErrorDetail, aiStreamAdmissionReason } from '@shared/ipc/errors/ai'
+import { aiErrorDetail, aiStreamAdmissionReason, isAgentSessionArchiveBusyError } from '@shared/ipc/errors/ai'
+import { getSafeLocalErrorMessage } from '@shared/utils/localError'
 import { safeSerialize } from '@shared/utils/serialize'
 
 import { formatErrorDetails } from './errorDetails'
@@ -39,8 +39,8 @@ export function formatErrorMessage(error: unknown): string {
 }
 
 export function getErrorMessage(error: unknown): string {
-  const admissionMessage = getAiStreamAdmissionMessage(error)
-  if (admissionMessage) return admissionMessage
+  const actionableMessage = getActionableAiErrorMessage(error)
+  if (actionableMessage) return actionableMessage
   if (error instanceof Error && error.message) {
     return error.message
   } else {
@@ -49,13 +49,14 @@ export function getErrorMessage(error: unknown): string {
 }
 
 export function formatErrorMessageWithPrefix(error: unknown, prefix: string): string {
-  const admissionMessage = getAiStreamAdmissionMessage(error)
-  if (admissionMessage) return admissionMessage
+  const actionableMessage = getActionableAiErrorMessage(error)
+  if (actionableMessage) return actionableMessage
   const msg = getErrorMessage(error)
   return `${prefix}: ${msg}`
 }
 
-function getAiStreamAdmissionMessage(error: unknown): string | undefined {
+function getActionableAiErrorMessage(error: unknown): string | undefined {
+  if (isAgentSessionArchiveBusyError(error)) return t('recycle_bin.move.blocked_generation')
   switch (aiStreamAdmissionReason(error)) {
     case 'SINGLE_MODEL_REQUIRED':
       return t('message.error.stream_admission.single_model_required')
@@ -120,7 +121,7 @@ export const isAbortError = (error: any): boolean => {
 }
 
 // TODO: format
-export const formatMcpError = (error: McpError) => {
+export const formatMcpError = (error: { message: string }) => {
   return error.message
 }
 
@@ -346,6 +347,7 @@ function retryProviderText(error: SerializedError): string {
  *  whenever the body misses the SDK's error schema, so `responseBody` wins. */
 export function providerErrorText(error: SerializedError | undefined): string {
   if (!error) return ''
+  if (error.errorSource === 'local') return getSafeLocalErrorMessage(error.message)
   const payload = getSafeProviderErrorMessage({ responseBody: error.responseBody, data: error.data })
   return payload || retryProviderText(error) || getSafeProviderErrorMessage({ message: error.message })
 }

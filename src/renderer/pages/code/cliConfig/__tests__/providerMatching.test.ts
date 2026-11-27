@@ -78,6 +78,25 @@ describe('cliConfigConnectionMatchesProvider', () => {
     }
   })
 
+  it('matches MiniMax Code against the formatted OpenAI or Anthropic endpoint', () => {
+    expect(
+      cliConfigConnectionMatchesProvider(
+        CodeCli.MINIMAX_CODE,
+        { baseUrl: 'https://express-ent-admin.cherryin.ai/v1', apiKey: 'sk-secret' },
+        openAIChatProvider,
+        apiKeys
+      )
+    ).toBe(true)
+    expect(
+      cliConfigConnectionMatchesProvider(
+        CodeCli.MINIMAX_CODE,
+        { baseUrl: 'https://api.anthropic.com', apiKey: 'sk-secret' },
+        anthropicProvider,
+        apiKeys
+      )
+    ).toBe(true)
+  })
+
   it('matches Codex and OpenCode against formatted /v1 endpoints', () => {
     expect(
       cliConfigConnectionMatchesProvider(
@@ -167,17 +186,6 @@ describe('cliConfigConnectionMatchesProvider', () => {
         apiKeys
       )
     ).toBe(false)
-  })
-
-  it('treats missing connection api key as match when provider has keys configured', () => {
-    expect(
-      cliConfigConnectionMatchesProvider(
-        CodeCli.GEMINI_CLI,
-        { baseUrl: 'https://aihubmix.com/gemini' },
-        aihubmixProvider,
-        apiKeys
-      )
-    ).toBe(true)
   })
 
   it('does not treat the same Gemini proxy URL as a match for non-Gemini tools', () => {

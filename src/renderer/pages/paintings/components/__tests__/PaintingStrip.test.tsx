@@ -1,6 +1,8 @@
 import { render, screen } from '@testing-library/react'
-import type { ButtonHTMLAttributes, ReactNode } from 'react'
+import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
+
+import type * as CherryStudioUi from '@cherrystudio/ui'
 
 import type { PaintingData } from '../../model/types/paintingData'
 
@@ -8,25 +10,7 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
-vi.mock('@cherrystudio/ui', () => ({
-  Button: ({
-    children,
-    size,
-    type = 'button',
-    variant,
-    ...props
-  }: ButtonHTMLAttributes<HTMLButtonElement> & { children?: ReactNode; size?: string; variant?: string }) => {
-    void size
-    void variant
-    return (
-      <button type={type} {...props}>
-        {children}
-      </button>
-    )
-  },
-  ConfirmDialog: () => null,
-  Tooltip: ({ children }: { children: ReactNode }) => children
-}))
+vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal<typeof CherryStudioUi>())
 
 vi.mock('../PaintingSkeletonSurface', () => ({
   default: () => <div data-testid="painting-skeleton-surface" />
@@ -44,19 +28,22 @@ const painting: PaintingData = {
 }
 
 describe('PaintingStrip', () => {
-  it('uses the skeleton surface for a running painting without a preview yet', () => {
+  it('requests deletion of the selected painting', async () => {
+    const user = userEvent.setup()
+    const onDeletePainting = vi.fn().mockResolvedValue(undefined)
+
     render(
       <PaintingStrip
-        runningPaintingId={painting.id}
         items={[painting]}
         hasMore={false}
         loadMore={vi.fn()}
-        onDeletePainting={vi.fn()}
+        onDeletePainting={onDeletePainting}
         onSelectPainting={vi.fn()}
         onAddPainting={vi.fn()}
       />
     )
 
-    expect(screen.getByTestId('painting-skeleton-surface')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'paintings.button.delete.image.label' }))
+    expect(onDeletePainting).toHaveBeenCalledWith(painting)
   })
 })

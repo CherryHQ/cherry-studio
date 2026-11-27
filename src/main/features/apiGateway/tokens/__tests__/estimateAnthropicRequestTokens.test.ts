@@ -53,6 +53,14 @@ beforeEach(() => {
 })
 
 describe('estimateAnthropicRequestTokens', () => {
+  it('resolves an internal Work token-count request through the agent route', async () => {
+    resolveTo(textModel)
+
+    await estimateAnthropicRequestTokens(body([{ role: 'user', content: 'hello' }]), undefined, true)
+
+    expect(mocks.resolveGatewayModelAddress).toHaveBeenCalledWith('p:m', true)
+  })
+
   it('#17079: a base64 image nested in tool_result costs its image constant, not its base64 length', async () => {
     resolveTo(textModel)
     const messages = [
@@ -164,7 +172,7 @@ describe('estimateAnthropicRequestTokens', () => {
 
   it('degrades to a raw-size heuristic (no 500) when blocks are malformed', async () => {
     resolveTo(textModel)
-    // `content: z.unknown()` lets null blocks through — conversion throws, the wrapper catches.
+    // Loose block elements (`z.unknown()`) let null blocks through — conversion throws, the wrapper catches.
     const count = await estimateAnthropicRequestTokens(body([{ role: 'user', content: [null] }], [null]))
     expect(Number.isFinite(count)).toBe(true)
     expect(count).toBeGreaterThan(0)

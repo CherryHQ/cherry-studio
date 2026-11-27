@@ -26,6 +26,7 @@ interface PlatformFlags {
 
 const disableHardwareAccelerationMock = vi.fn()
 const appendSwitchMock = vi.fn()
+const hasSwitchMock = vi.fn()
 const bootConfigGetMock = vi.fn()
 
 function stubElectron() {
@@ -34,7 +35,8 @@ function stubElectron() {
     app: {
       disableHardwareAcceleration: disableHardwareAccelerationMock,
       commandLine: {
-        appendSwitch: appendSwitchMock
+        appendSwitch: appendSwitchMock,
+        hasSwitch: hasSwitchMock
       }
     }
   }))
@@ -43,6 +45,7 @@ function stubElectron() {
 function stubConstants(flags: PlatformFlags) {
   vi.doMock('@main/core/platform', () => ({
     isLinux: flags.isLinux,
+    isLinuxWayland: flags.isLinux && process.env.XDG_SESSION_TYPE === 'wayland',
     isWin: flags.isWin,
     isPortable: false,
     isMac: !flags.isLinux && !flags.isWin,
@@ -72,6 +75,7 @@ beforeEach(() => {
   vi.resetModules()
   disableHardwareAccelerationMock.mockReset()
   appendSwitchMock.mockReset()
+  hasSwitchMock.mockReset().mockReturnValue(false)
   bootConfigGetMock.mockReset()
 })
 
@@ -177,61 +181,55 @@ describe('configureChromiumFlags', () => {
     })
   })
 
-  describe('unconditional feature flags', () => {
-    const UNCONDITIONAL_FEATURES =
-      'DocumentPolicyIncludeJSCallStacksInCrashReports,EarlyEstablishGpuChannel,EstablishGpuChannelAsync,PageAllocatorRetryOnCommitFailure'
+  describe('Linux key storage backend', () => {
+    function stubDesktop(desktop: string, session = '') {
+      vi.stubEnv('XDG_CURRENT_DESKTOP', desktop)
+      vi.stubEnv('DESKTOP_SESSION', session)
+      vi.stubEnv('KDE_FULL_SESSION', '')
+    }
 
-    it('always appends the unconditional enable-features flag on macOS', async () => {
-      stubConstants({ isLinux: false, isWin: false })
+    async function configure(flags: PlatformFlags) {
+      stubConstants(flags)
       stubElectron()
       stubBootConfig()
-
       const { configureChromiumFlags } = await loadModule()
       configureChromiumFlags()
+    }
 
-      expect(appendSwitchMock).toHaveBeenCalledWith('enable-features', UNCONDITIONAL_FEATURES)
+    it('selects libsecret on desktops Chromium does not recognise (Hyprland)', async () => {
+      stubDesktop('Hyprland')
+      await configure({ isLinux: true, isWin: false })
+
+      expect(appendSwitchMock).toHaveBeenCalledWith('password-store', 'gnome-libsecret')
     })
 
-    it('always appends the unconditional enable-features flag on Windows', async () => {
-      stubConstants({ isLinux: false, isWin: true })
-      stubElectron()
-      stubBootConfig()
+    it('leaves KDE sessions to KWallet', async () => {
+      stubDesktop('KDE')
+      await configure({ isLinux: true, isWin: false })
 
-      const { configureChromiumFlags } = await loadModule()
-      configureChromiumFlags()
-
-      expect(appendSwitchMock).toHaveBeenCalledWith('enable-features', UNCONDITIONAL_FEATURES)
+      expect(appendSwitchMock).not.toHaveBeenCalledWith('password-store', expect.anything())
     })
 
-    it('always appends the unconditional enable-features flag on Linux Wayland', async () => {
-      vi.stubEnv('XDG_SESSION_TYPE', 'wayland')
-      stubConstants({ isLinux: true, isWin: false })
-      stubElectron()
-      stubBootConfig()
+    it('detects KDE from DESKTOP_SESSION when XDG_CURRENT_DESKTOP is empty', async () => {
+      stubDesktop('', 'plasma-kde')
+      await configure({ isLinux: true, isWin: false })
 
-      const { configureChromiumFlags } = await loadModule()
-      configureChromiumFlags()
-
-      expect(appendSwitchMock).toHaveBeenCalledWith('enable-features', UNCONDITIONAL_FEATURES)
+      expect(appendSwitchMock).not.toHaveBeenCalledWith('password-store', expect.anything())
     })
-  })
 
-  describe('all off baseline', () => {
-    it('macOS with BootConfig off: only the unconditional feature flag is appended', async () => {
-      stubConstants({ isLinux: false, isWin: false })
-      stubElectron()
-      stubBootConfig({ disableHardwareAcceleration: false })
+    it('respects a user-supplied --password-store', async () => {
+      stubDesktop('Hyprland')
+      hasSwitchMock.mockImplementation((name: string) => name === 'password-store')
+      await configure({ isLinux: true, isWin: false })
 
-      const { configureChromiumFlags } = await loadModule()
-      configureChromiumFlags()
+      expect(appendSwitchMock).not.toHaveBeenCalledWith('password-store', expect.anything())
+    })
 
-      expect(disableHardwareAccelerationMock).not.toHaveBeenCalled()
-      // Only the unconditional enable-features call: 1 total.
-      expect(appendSwitchMock).toHaveBeenCalledTimes(1)
-      expect(appendSwitchMock).toHaveBeenCalledWith(
-        'enable-features',
-        'DocumentPolicyIncludeJSCallStacksInCrashReports,EarlyEstablishGpuChannel,EstablishGpuChannelAsync,PageAllocatorRetryOnCommitFailure'
-      )
+    it('does nothing outside Linux', async () => {
+      stubDesktop('Hyprland')
+      await configure({ isLinux: false, isWin: true })
+
+      expect(appendSwitchMock).not.toHaveBeenCalledWith('password-store', expect.anything())
     })
   })
 })

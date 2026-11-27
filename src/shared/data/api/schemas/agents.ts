@@ -5,18 +5,20 @@
  * Entity schemas live here (Rule C/D: entity role wins when a type is both
  * a response payload and an entity). DTOs are derived via .pick().
  */
-
 import * as z from 'zod'
 
+import { MAX_HEARTBEAT_TIMEOUT_MINUTES } from '@shared/ai/agentHeartbeat'
+import { AgentPromptOverridesPatchSchema, AgentPromptOverridesSchema } from '@shared/ai/agentPromptSections'
 import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
 import { AgentLanguageSchema } from '@shared/data/types/agentLanguage'
+import { FileEntryIdSchema } from '@shared/data/types/file'
 import { ServiceTierSelectionSchema, UniqueModelIdSchema } from '@shared/data/types/model'
 import { ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
 
 import type { OffsetPaginationResponse } from '../types'
 import type { OrderEndpoints } from './_endpointHelpers'
 import { AgentSessionWorkspaceSourceSchema } from './agentWorkspaces'
-import { TriggerSchema } from './jobs'
+import { type JobSnapshot, TriggerSchema } from './jobs'
 
 // ============================================================================
 // Field atoms (shared validators reused across entity and DTO schemas)
@@ -41,7 +43,7 @@ export type AgentSkillUpdateDto = z.infer<typeof AgentSkillUpdateSchema>
 
 export const AgentPermissionModeSchema = z.enum(['default', 'acceptEdits', 'bypassPermissions', 'plan', 'auto'])
 export type AgentPermissionMode = z.infer<typeof AgentPermissionModeSchema>
-export const AGENT_TYPES = ['claude-code', 'pi', 'dsh'] as const
+export const AGENT_TYPES = ['claude-code', 'pi', 'pi-durable'] as const
 export const AgentTypeSchema = z.enum(AGENT_TYPES)
 export type AgentType = z.infer<typeof AgentTypeSchema>
 export const AgentSchedulerTypeSchema = z.enum(['cron', 'interval', 'one-time'])
@@ -63,8 +65,14 @@ export const AgentConfigurationSchema = z
     scheduler_last_run: z.string().optional(),
     heartbeat_enabled: z.boolean().optional(),
     heartbeat_interval: z.number().optional(),
-    builtin_role: z.enum([BUILTIN_AGENT_ROLE.ASSISTANT, BUILTIN_AGENT_ROLE.SUPPORT]).optional(),
-    language: AgentLanguageSchema.nullable().optional()
+    heartbeat_timeout_minutes: z.number().int().positive().max(MAX_HEARTBEAT_TIMEOUT_MINUTES).optional(),
+    builtin_role: z
+      .enum([BUILTIN_AGENT_ROLE.ASSISTANT, BUILTIN_AGENT_ROLE.SUPPORT, BUILTIN_AGENT_ROLE.DOCTOR])
+      .optional(),
+    language: AgentLanguageSchema.nullable().optional(),
+    claude_code_native_prompt_enabled: z.boolean().optional(),
+    /** The Agent's own text for editable blocks of its System Prompt. */
+    prompt_overrides: AgentPromptOverridesSchema.optional()
   })
   // .loose() (passthrough) is intentional: the configuration object is stored as a JSON blob
   // and may contain keys written by older or newer versions of the app. Unknown fields must
@@ -150,10 +158,14 @@ export const AgentEntitySchema = AgentBaseSchema.extend({
   /** Persistent ordering key. Read-only; modified only through order endpoints. */
   orderKey: z.string(),
   model: UniqueModelIdSchema.nullable(),
+  /** Read-only soft-delete timestamp, present only for trashed agents. */
+  deletedAt: z.string().optional(),
   /**
    * Human-readable primary model name resolved from the current runtime Model
    * at read time. Edits still go through the `model` UniqueModelId field.
    */
+  avatarFileId: FileEntryIdSchema.optional(),
+  avatarSrc: z.string().optional(),
   modelName: z.string().nullable()
 })
 
@@ -181,8 +193,8 @@ export const ScheduledTaskEntitySchema = z.strictObject({
   lastRun: z.string().nullable().optional(),
   /** Live enable/disable flag — pause/resume flips this. */
   enabled: z.boolean(),
-  /** Output-only derived label kept for UI continuity (active / paused / completed). */
-  status: z.enum(['active', 'paused', 'completed']),
+  /** Output-only state derived from the schedule and its execution history. */
+  status: z.enum(['active', 'paused', 'completed', 'missed']),
   createdAt: z.string(),
   updatedAt: z.string()
 })
@@ -217,18 +229,29 @@ export type TaskRunLogEntity = z.infer<typeof TaskRunLogEntitySchema>
  * `configuration` is itself a partial: callers send only the first-level keys
  * they intend to change, and AgentService shallow-merges them onto the latest
  * persisted configuration inside the write transaction. Nested values such as
- * `env_vars` still replace as a whole. An explicitly present `undefined` value
- * removes that configuration key; omission preserves it.
+ * `env_vars` still replace as a whole, except `prompt_overrides`, which merges
+ * block by block. An explicitly present `undefined` value removes that
+ * configuration key; omission preserves it.
  */
-export const UpdateAgentSchema = AgentEntitySchema.pick(AGENT_MUTABLE_FIELDS).partial().extend({
-  configuration: AgentConfigurationSchema.partial().optional(),
-  /**
-   * Per-skill enablement changes for this agent. Omitted means "leave skills
-   * unchanged"; an empty array is a no-op. The server applies each update
-   * without replacing unrelated skill rows.
-   */
-  skillUpdates: AgentSkillUpdateListSchema.optional()
-})
+export const UpdateAgentSchema = AgentEntitySchema.pick(AGENT_MUTABLE_FIELDS)
+  .partial()
+  .extend({
+    // Nullable overrides of the picked columns: `null` clears the tier so the
+    // runtime falls back to the main model (unset is the default state).
+    planModel: UniqueModelIdSchema.nullable().optional(),
+    smallModel: UniqueModelIdSchema.nullable().optional(),
+    configuration: AgentConfigurationSchema.partial()
+      .extend({ prompt_overrides: AgentPromptOverridesPatchSchema.optional() })
+      .optional(),
+    /** Validation basis for `configuration.reasoning_effort` normalization: the model the caller is actually steering (a session-level override when set). Omitted falls back to the agent's (possibly patched) model (cherry-pr-review inv_98911732422a84bf). */
+    reasoningValidationModelId: UniqueModelIdSchema.optional(),
+    /**
+     * Per-skill enablement changes for this agent. Omitted means "leave skills
+     * unchanged"; an empty array is a no-op. The server applies each update
+     * without replacing unrelated skill rows.
+     */
+    skillUpdates: AgentSkillUpdateListSchema.optional()
+  })
 export type UpdateAgentDto = z.infer<typeof UpdateAgentSchema>
 
 // Agent creation and task command schemas live on IpcApi (`ai.agent.*` in
@@ -244,6 +267,13 @@ export const ListQuerySchema = z.strictObject({
 })
 export type ListQuery = z.infer<typeof ListQuerySchema>
 
+export const ListTasksQuerySchema = ListQuerySchema.extend({
+  status: z
+    .union([ScheduledTaskEntitySchema.shape.status, z.array(ScheduledTaskEntitySchema.shape.status).min(1)])
+    .optional()
+})
+export type ListTasksQuery = z.infer<typeof ListTasksQuerySchema>
+
 export const AGENTS_DEFAULT_PAGE = 1
 export const AGENTS_DEFAULT_LIMIT = 100
 export const AGENTS_MAX_LIMIT = 500
@@ -255,6 +285,11 @@ export const AGENTS_MAX_LIMIT = 500
  *   builtin Cherry Assistant fallback when its stored description is blank.
  */
 export const ListAgentsQuerySchema = z.strictObject({
+  ids: z.array(z.string().min(1)).min(1).max(AGENTS_MAX_LIMIT).optional(),
+  /** Only the builtin agent holding this role, which has no fixed ID except Support's. */
+  builtinRole: z.enum(BUILTIN_AGENT_ROLE).optional(),
+  /** `true` lists only trashed agents; omitted/false lists active agents. */
+  inTrash: z.boolean().optional(),
   /** Free-text match against name OR description, including builtin fallback text (case-insensitive LIKE). */
   search: z.string().trim().min(1).optional(),
   /** Positive integer, defaults to {@link AGENTS_DEFAULT_PAGE}. */
@@ -268,6 +303,16 @@ export type ListAgentsQuery = z.output<typeof ListAgentsQuerySchema>
 // ============================================================================
 // API Schema definitions
 // ============================================================================
+
+/** Activity of one Agent: its own sessions, task runs and recent token use only. */
+export interface AgentStats {
+  /** Ordinary conversations, excluding scheduled-task runs and deleted sessions. */
+  sessionCount: number
+  /** Runs of this Agent's scheduled tasks started in the last 7 days (rolling). */
+  recentTaskRunCount: number
+  /** Tokens attributed to this Agent over the last 7 days (rolling). */
+  recentTokens: number
+}
 
 export type AgentSchemas = {
   /** List all agents. Creation is a mixed filesystem + DB command on IpcApi (`ai.agent.create`). */
@@ -291,10 +336,18 @@ export type AgentSchemas = {
     }
   }
 
+  /** Usage overview of one Agent, for its profile. */
+  '/agents/:agentId/stats': {
+    GET: {
+      params: { agentId: string }
+      response: AgentStats
+    }
+  }
+
   /** List scheduled tasks across every agent (settings overview, paginated) */
   '/agent-tasks': {
     GET: {
-      query?: ListQuery
+      query?: ListTasksQuery
       response: OffsetPaginationResponse<ScheduledTaskListItem>
     }
   }
@@ -303,16 +356,23 @@ export type AgentSchemas = {
   '/agent-tasks/:taskId': {
     GET: {
       params: { taskId: string }
-      response: ScheduledTaskEntity
+      response: ScheduledTaskListItem
     }
   }
 
   /** List tasks for an agent (mutations live on IpcApi `ai.agent.task.*`) */
+  '/agents/:agentId/heartbeat': {
+    GET: {
+      params: { agentId: string }
+      response: { scheduleEnabled: boolean; latestRun: JobSnapshot | null }
+    }
+  }
+
   '/agents/:agentId/tasks': {
     GET: {
       params: { agentId: string }
       query?: ListQuery
-      response: OffsetPaginationResponse<ScheduledTaskEntity>
+      response: OffsetPaginationResponse<ScheduledTaskEntity> & { activeTotal: number }
     }
   }
 

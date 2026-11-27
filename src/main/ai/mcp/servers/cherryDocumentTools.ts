@@ -1,18 +1,24 @@
 import { randomUUID } from 'node:crypto'
-import { mkdir, readdir, rm, stat, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 
 import type { formatFromExtension, toMarkdownBytes } from '@firecrawl/anydoc'
-import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js'
-import * as z from 'zod'
+import type { McpServer } from '@modelcontextprotocol/server'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { resolveLocalFile, resolveWorkspaceFile } from '@main/ai/channels'
 import { listAgentSessionAttachments } from '@main/ai/messages/agentSessionAttachments'
+import { isWinArm64 } from '@main/core/platform'
+import { t } from '@main/i18n'
 import type { FileAttachment } from '@main/utils/downloadAsBase64'
-import { isAbortError } from '@main/utils/error'
 import { isSameOrInside, realpath } from '@main/utils/file'
+import {
+  extractPdfTextLayerMarkdown,
+  inspectPdfText,
+  isMalformedPdfError,
+  isScannedPdfError
+} from '@main/utils/pdfText'
 import {
   TO_MARKDOWN_DESCRIPTION,
   TO_MARKDOWN_TOOL_NAME,
@@ -39,23 +45,6 @@ let anydocModulePromise: Promise<AnydocModule> | undefined
 
 function loadAnydocModule(): Promise<AnydocModule> {
   return (anydocModulePromise ??= import('@firecrawl/anydoc'))
-}
-
-function toMcpInputSchema(schema: z.ZodType): Tool['inputSchema'] {
-  const json = z.toJSONSchema(schema) as Record<string, unknown>
-  delete json.$schema
-  return json as Tool['inputSchema']
-}
-
-function throwIfAborted(signal: AbortSignal): void {
-  if (signal.aborted) {
-    throw signal.reason ?? Object.assign(new Error('aborted'), { name: 'AbortError' })
-  }
-}
-
-function errorResult(error: unknown): CallToolResult {
-  const message = error instanceof Error ? error.message : String(error)
-  return { content: [{ type: 'text', text: `Error: ${message}` }], isError: true }
 }
 
 /**
@@ -108,50 +97,87 @@ async function cleanupStaleOutputs(directory: string): Promise<void> {
   )
 }
 
-export class CherryDocumentTools {
-  constructor(private readonly context: CherryDocumentContext) {}
+async function convertWithAnydoc(bytes: Buffer, extension: string): Promise<string | null> {
+  const pdf = extension === '.pdf'
+  if (pdf && (await inspectPdfText(bytes)).hasTextlessPages) return null
 
-  tools(): Tool[] {
-    return [
+  if (isWinArm64) throw new Error(t('agent.tools.to_markdown.unsupported_windows_arm64'))
+
+  const anydoc = await loadAnydocModule()
+  try {
+    return await anydoc.toMarkdownBytes(bytes, anydoc.formatFromExtension(extension) ?? undefined)
+  } catch (error) {
+    if (pdf && isScannedPdfError(error)) return null
+    if (pdf && isMalformedPdfError(error)) {
+      const reason = error instanceof Error ? error.message : String(error)
+      logger.warn(`anydoc rejected PDF as malformed (${reason}); falling back to pdfjs text layer`)
+      return await extractPdfTextLayerMarkdown(bytes)
+    }
+    throw error
+  }
+}
+
+async function processScannedPdf(source: FileAttachment, bytes: Buffer, signal: AbortSignal): Promise<string> {
+  const service = application.get('FileProcessingService')
+  signal.throwIfAborted()
+  const stagingDirectory = await mkdtemp(application.getPath('feature.file_processing.temp', 'agent-pdf-'))
+  try {
+    const inputPath = AbsoluteFilePathSchema.parse(path.join(stagingDirectory, path.basename(source.filename)))
+    const outputPath = AbsoluteFilePathSchema.parse(path.join(stagingDirectory, 'converted.md'))
+    await writeFile(inputPath, bytes, { flag: 'wx', mode: 0o600, signal })
+    const { task, done } = await service.startTask(
       {
-        name: TO_MARKDOWN_TOOL_NAME,
-        description: TO_MARKDOWN_DESCRIPTION,
-        inputSchema: toMcpInputSchema(toMarkdownInputSchema)
-      }
-    ]
-  }
-
-  handles(toolName: string): boolean {
-    return toolName === TO_MARKDOWN_TOOL_NAME
-  }
-
-  async call(args: unknown, signal: AbortSignal): Promise<CallToolResult> {
+        feature: 'document_to_markdown',
+        file: { kind: 'path', path: inputPath },
+        output: { kind: 'path', path: outputPath }
+      },
+      signal
+    )
+    const cancel = () => {
+      void service
+        .cancelTask(task.id)
+        .catch((error) => logger.warn('Failed to cancel Agent document processing', error))
+    }
+    signal.addEventListener('abort', cancel, { once: true })
+    if (signal.aborted) cancel()
     try {
-      const { path: sourcePath } = toMarkdownInputSchema.parse(args)
-      const source = await resolveDocumentSource(this.context, sourcePath)
-      throwIfAborted(signal)
+      const result = await done
+      signal.throwIfAborted()
+      if (result.status !== 'completed') throw new Error(result.error)
+      return await readFile(outputPath, { encoding: 'utf-8', signal })
+    } finally {
+      signal.removeEventListener('abort', cancel)
+    }
+  } finally {
+    await rm(stagingDirectory, { recursive: true, force: true })
+  }
+}
 
-      const anydoc = await loadAnydocModule()
-      const format = anydoc.formatFromExtension(path.extname(source.filename)) ?? undefined
-      const markdown = (await anydoc.toMarkdownBytes(Buffer.from(source.data, 'base64'), format)).trim()
+export function registerDocumentTools(server: McpServer, context: CherryDocumentContext): void {
+  server.registerTool(
+    TO_MARKDOWN_TOOL_NAME,
+    { description: TO_MARKDOWN_DESCRIPTION, inputSchema: toMarkdownInputSchema },
+    async ({ path: sourcePath }, ctx) => {
+      const signal = ctx.mcpReq.signal
+      const source = await resolveDocumentSource(context, sourcePath)
+      signal.throwIfAborted()
+
+      const bytes = Buffer.from(source.data, 'base64')
+      const converted = await convertWithAnydoc(bytes, path.extname(source.filename).toLowerCase())
+      const markdown = (converted ?? (await processScannedPdf(source, bytes, signal))).trim()
       if (!markdown) throw new Error('Document conversion produced no text')
-      throwIfAborted(signal)
+      signal.throwIfAborted()
 
-      const outputDirectory = path.join(this.context.agentDataPath, 'tmp', 'to-markdown')
+      const outputDirectory = path.join(context.agentDataPath, 'tmp', 'to-markdown')
       await mkdir(outputDirectory, { recursive: true })
       await cleanupStaleOutputs(outputDirectory).catch((error) => {
         logger.warn('Failed to clean stale document conversion outputs', error as Error)
       })
 
       const outputPath = path.join(outputDirectory, `${randomUUID()}.md`)
-      await writeFile(outputPath, markdown, { encoding: 'utf-8', flag: 'wx' })
+      await writeFile(outputPath, markdown, { encoding: 'utf-8', flag: 'wx', signal })
       const output = toMarkdownOutputSchema.parse({ path: outputPath, chars: markdown.length })
       return { content: [{ type: 'text', text: JSON.stringify(output) }] }
-    } catch (error) {
-      if (signal.aborted || isAbortError(error)) throw error
-      const normalizedError = error instanceof Error ? error : new Error(String(error))
-      logger.error('cherry-tools document conversion failed', normalizedError)
-      return errorResult(normalizedError)
     }
-  }
+  )
 }

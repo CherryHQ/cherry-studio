@@ -1,9 +1,14 @@
-import { type CSSProperties, memo, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { type CSSProperties, memo, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import BeatLoader from 'react-spinners/BeatLoader'
 
-import { type MarkdownSource } from '@cherrystudio/ui'
+import { type MarkdownSource, ScrollArea } from '@cherrystudio/ui'
+import { useProjectionPart } from '@renderer/hooks/agent/useProjectionPart'
+import type { CherryMessagePart } from '@shared/data/types/message'
 
+import { useMessageDisclosureState } from '../hooks/useMessageDisclosureState'
+import { getDistanceToBottom, getRealBottom } from '../list/scrollGeometry'
+import { VERTICAL_SCROLL_OVERFLOW_TOLERANCE_PX } from '../list/ScrollOwnershipContext'
 import ChatMarkdown from '../markdown/ChatMarkdown'
 import { useMessageRenderConfig } from '../MessageListProvider'
 import ThinkingEffect from './ThinkingEffect'
@@ -11,10 +16,9 @@ import { normalizeThinkingPreview, scanThinkingPreview, type ThinkingPreviewScan
 import { useMinimumDisplayDuration } from './useMinimumDisplayDuration'
 import { useScrollAnchor } from './useScrollAnchor'
 
-// This content treatment stays owner-local because the nearest readable shared role shifts it beyond the 90% gate.
-const THINKING_MUTED_COLOR = 'color-mix(in oklch, var(--foreground) 44.4444%, transparent)'
-const THINKING_SECONDARY_COLOR = 'var(--muted-foreground)'
 const THINKING_PREVIEW_MIN_DURATION_MS = 1000
+const THINKING_CONTENT_PANEL_BASE_CLASSNAME = 'mt-1.5 rounded-xl bg-muted text-[13px] leading-5 text-muted-foreground'
+const THINKING_CONTENT_PANEL_CAPPED_CLASSNAME = `${THINKING_CONTENT_PANEL_BASE_CLASSNAME} max-h-[min(32rem,60dvh)] overflow-auto`
 
 function getThinkingPreviewKey(preview: string): string {
   return preview
@@ -29,6 +33,7 @@ interface Props {
   id: string
   /** Markdown content to render */
   content: string
+  livePart?: CherryMessagePart
   /** Whether this block is currently streaming */
   isStreaming: boolean
   /** Whether to expose a one-line content preview in the title row */
@@ -38,43 +43,98 @@ interface Props {
 interface ThinkingBlockContentProps {
   id: string
   content: string
+  livePart?: CherryMessagePart
   isStreaming: boolean
 }
 
-export const ThinkingBlockContent = memo(({ id, content, isStreaming }: ThinkingBlockContentProps) => {
-  const block = useMemo<MarkdownSource>(
-    () => ({
-      id,
-      content,
-      status: isStreaming ? 'streaming' : 'success'
-    }),
-    [id, content, isStreaming]
-  )
-  const { messageFont, fontSize } = useMessageRenderConfig()
+export const ThinkingBlockContent = memo(
+  ({ id, content: initialContent, livePart, isStreaming: initiallyStreaming }: ThinkingBlockContentProps) => {
+    const part = useProjectionPart(id, livePart)
+    const isStreaming = initiallyStreaming && (part?.type !== 'reasoning' || part.state === 'streaming')
+    const content = part?.type === 'reasoning' ? part.text : initialContent
+    const block = useMemo<MarkdownSource>(
+      () => ({
+        id,
+        content,
+        status: isStreaming ? 'streaming' : 'success'
+      }),
+      [id, content, isStreaming]
+    )
+    const { messageFont, fontSize } = useMessageRenderConfig()
 
-  if (!content) return null
+    if (!content) return null
 
-  return (
-    <div
-      className="relative [&_.markdown>p:only-child]:mb-0!"
-      style={
-        {
-          '--markdown-foreground': THINKING_MUTED_COLOR,
-          color: THINKING_MUTED_COLOR,
-          fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
-          fontSize
-        } as CSSProperties
-      }>
-      <ChatMarkdown block={block} />
-    </div>
-  )
-})
+    return (
+      <div
+        className="relative text-muted-foreground [&_.markdown>p:only-child]:mb-0!"
+        style={
+          {
+            '--markdown-foreground': 'var(--muted-foreground)',
+            fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
+            fontSize
+          } as CSSProperties
+        }>
+        <ChatMarkdown block={block} />
+      </div>
+    )
+  }
+)
 ThinkingBlockContent.displayName = 'ThinkingBlockContent'
 
-const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, showTitlePreview = false }) => {
+const ThinkingBlock: React.FC<Props> = ({
+  id,
+  content: initialContent,
+  livePart,
+  isStreaming: initiallyStreaming,
+  showTitlePreview = false
+}) => {
+  const part = useProjectionPart(id, livePart)
+  const isStreaming = initiallyStreaming && (part?.type !== 'reasoning' || part.state === 'streaming')
+  const content = part?.type === 'reasoning' ? part.text : initialContent
   const { thoughtAutoCollapse } = useMessageRenderConfig()
-  const [isExpanded, setIsExpanded] = useState(!thoughtAutoCollapse)
+  const [isExpanded, setIsExpanded] = useMessageDisclosureState(`reasoning:${id}`, !thoughtAutoCollapse)
   const contentId = useId()
+  const contentRef = useRef<HTMLDivElement>(null)
+  const followingRef = useRef(true)
+  const [previousThoughtAutoCollapse, setPreviousThoughtAutoCollapse] = useMessageDisclosureState(
+    `reasoning-preference:${id}`,
+    thoughtAutoCollapse
+  )
+  // Tracks whether the user explicitly toggled this block in the current mount.
+  // While streaming the block auto-expands (effectiveExpanded) without writing
+  // to the disclosure cache, so a live `true` never leaks into the completed
+  // mount. After streaming ends the view falls back to the cached preference
+  // default (collapsed when auto-collapse is on).
+  const [hasManualOverride, setHasManualOverride] = useState(false)
+  const hasContent = !!content
+
+  // A new reasoning part starts without a manual override.
+  useEffect(() => {
+    setHasManualOverride(false)
+  }, [id])
+
+  // While streaming, show the thinking expanded so the live run stays followable,
+  // unless the user explicitly collapsed it in this mount. After streaming ends,
+  // fall back to the cached disclosure (collapsed by default when auto-collapse
+  // is on), which is what auto-collapses Agent thinking into the summary bar.
+  const effectiveExpanded = isStreaming && !hasManualOverride ? true : isExpanded
+
+  const toggleExpanded = useCallback(() => {
+    const next = !effectiveExpanded
+    setHasManualOverride(true)
+    setIsExpanded(next)
+  }, [effectiveExpanded, setIsExpanded])
+
+  useEffect(() => {
+    const panel = contentRef.current
+    if (!panel || !effectiveExpanded || !isStreaming) return
+    const observer = new ResizeObserver(() => {
+      if (followingRef.current) panel.scrollTop = getRealBottom(panel)
+    })
+    observer.observe(panel)
+    if (panel.firstElementChild) observer.observe(panel.firstElementChild)
+    return () => observer.disconnect()
+  }, [hasContent, effectiveExpanded, isStreaming])
   const thinkingPreviewScanStateRef = useRef<ThinkingPreviewScanState | undefined>(undefined)
   const { anchorRef, withScrollAnchor } = useScrollAnchor<HTMLDivElement>()
 
@@ -100,8 +160,12 @@ const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, showTitlePre
   }, [thinkingPreviewScanResult])
 
   useEffect(() => {
-    setIsExpanded(!thoughtAutoCollapse)
-  }, [thoughtAutoCollapse])
+    if (previousThoughtAutoCollapse !== thoughtAutoCollapse) {
+      setIsExpanded(!thoughtAutoCollapse)
+      setHasManualOverride(false)
+    }
+    setPreviousThoughtAutoCollapse(thoughtAutoCollapse)
+  }, [previousThoughtAutoCollapse, setIsExpanded, setPreviousThoughtAutoCollapse, thoughtAutoCollapse])
 
   if (!content) {
     return null
@@ -115,21 +179,20 @@ const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, showTitlePre
       <div
         role="button"
         tabIndex={0}
-        aria-expanded={isExpanded}
+        aria-expanded={effectiveExpanded}
         aria-controls={contentId}
         className="w-full rounded border-0 bg-transparent p-0 text-left focus-visible:bg-accent/50 focus-visible:outline-none"
-        onClick={() =>
-          withScrollAnchor(() => setIsExpanded((expanded) => !expanded), { enterReadingMode: !isExpanded })
-        }
+        onClick={() => withScrollAnchor(toggleExpanded, { enterReadingMode: !effectiveExpanded })}
         onKeyDown={(e) => {
           if (e.target !== e.currentTarget) return
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault()
-            withScrollAnchor(() => setIsExpanded((expanded) => !expanded), { enterReadingMode: !isExpanded })
+            withScrollAnchor(toggleExpanded, { enterReadingMode: !effectiveExpanded })
           }
         }}>
         <ThinkingEffect
           thinkingTimeText={<ThinkingTimeSeconds isThinking={isThinking} />}
+          isExpanded={effectiveExpanded}
           trailing={
             isThinking ? (
               <>
@@ -142,8 +205,7 @@ const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, showTitlePre
                 {streamingPreviewText && (
                   <span
                     aria-hidden="true"
-                    className="min-w-0 flex-1 overflow-hidden text-[13px] leading-5 whitespace-nowrap"
-                    style={{ color: THINKING_MUTED_COLOR }}>
+                    className="min-w-0 flex-1 overflow-hidden text-[13px] leading-5 whitespace-nowrap text-muted-foreground">
                     {streamingPreviewText}
                   </span>
                 )}
@@ -151,21 +213,30 @@ const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, showTitlePre
             ) : showTitlePreview && previewText ? (
               <span
                 aria-hidden="true"
-                className="min-w-0 flex-1 truncate text-[13px] leading-5 whitespace-nowrap"
-                style={{ color: THINKING_MUTED_COLOR }}>
+                className="min-w-0 flex-1 truncate text-[13px] leading-5 whitespace-nowrap text-muted-foreground">
                 {previewText}
               </span>
             ) : null
           }
         />
       </div>
-      <div
-        id={contentId}
-        hidden={!isExpanded}
-        className="mt-1.5 max-h-96 overflow-auto rounded-xl bg-muted px-4 py-3 text-[13px] leading-5"
-        style={{ color: THINKING_SECONDARY_COLOR }}>
+      <ScrollArea
+        viewportProps={{
+          ref: contentRef,
+          id: contentId,
+          onScroll: () => {
+            const panel = contentRef.current
+            if (!panel || !effectiveExpanded || !isStreaming) return
+            followingRef.current = getDistanceToBottom(panel) <= VERTICAL_SCROLL_OVERFLOW_TOLERANCE_PX
+          }
+        }}
+
+        hidden={!effectiveExpanded}
+        type="auto"
+        contentProps={{ className: 'px-4 py-3' }}
+        className={isStreaming ? THINKING_CONTENT_PANEL_CAPPED_CLASSNAME : THINKING_CONTENT_PANEL_BASE_CLASSNAME}>
         <ThinkingBlockContent id={id} content={content} isStreaming={isStreaming} />
-      </div>
+      </ScrollArea>
     </div>
   )
 }

@@ -2,7 +2,6 @@ import { useCallback, useState } from 'react'
 
 import { useInvalidateCache, useMutation, useQuery } from '@data/hooks/useDataApi'
 import { createAgentAndRefresh } from '@renderer/services/createAgent'
-import { deleteAgentAndRefresh } from '@renderer/services/deleteAgent'
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
 import { AGENTS_MAX_LIMIT, type UpdateAgentDto } from '@shared/data/api/schemas/agents'
 import type { CreateAgentCommand } from '@shared/ipc/schemas/ai'
@@ -62,28 +61,19 @@ export function useAgentMutations() {
   return { createAgent, isCreatingAgent }
 }
 
-/**
- * Mutation hook scoped to a single agent id. PATCH accepts any `AgentBase`
- * subset (typed as `UpdateAgentDto`); the backend merges at the row level.
- * Plain DELETE removes the agent only; sessions remain as history.
- */
+/** Mutation hook scoped to a single agent id. */
 export function useAgentMutationsById(id: string) {
   const path = `/agents/${id}` as const
-  const invalidate = useInvalidateCache()
 
   const { trigger: updateTrigger } = useMutation('PATCH', path, {
     // skillUpdates writes the agent_skill join table, which backs `GET /skills?agentId=…`
     // (per-agent isEnabled projection) — refresh it so those lists don't go stale.
-    refresh: ({ args }) =>
-      args?.body?.skillUpdates !== undefined ? ['/agents', '/agents/*', '/skills'] : ['/agents', '/agents/*']
+    refresh: ({ args }) => (args?.body?.skillUpdates !== undefined ? ['/agents', path, '/skills'] : ['/agents', path])
   })
   const updateAgent = useCallback(
     (dto: UpdateAgentDto): Promise<AgentDetail> => updateTrigger({ body: dto }),
     [updateTrigger]
   )
-  const deleteAgent = useCallback(async (): Promise<void> => {
-    await deleteAgentAndRefresh(id, invalidate)
-  }, [id, invalidate])
 
-  return { updateAgent, deleteAgent }
+  return { updateAgent }
 }

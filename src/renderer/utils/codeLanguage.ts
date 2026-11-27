@@ -70,10 +70,16 @@ export function getLanguageByExtension(extension: string): string {
 export function getLanguageByFilePath(filePath: string): string {
   if (!filePath) return 'text'
 
-  const ext = filePath.split('.').pop()
-  if (!ext) return 'text'
+  // Take the basename before looking for the extension. Splitting on `.` alone reads the last
+  // dot of the whole path, so a dot inside a directory name or a dotless file name feeds a path
+  // fragment to the lookup: `/home/john.doe/notes` yielded `doe/notes` and `/srv/Makefile`
+  // yielded `/srv/makefile`, both of which became the language label shown in the file preview
+  // and in the agent's read/write tools (and match no highlighter).
+  const basename = filePath.split(/[\\/]/).pop() ?? ''
+  const dot = basename.lastIndexOf('.')
+  if (dot < 0) return 'text'
 
-  return getLanguageByExtension(ext)
+  return getLanguageByExtension(basename.slice(dot + 1))
 }
 
 /**

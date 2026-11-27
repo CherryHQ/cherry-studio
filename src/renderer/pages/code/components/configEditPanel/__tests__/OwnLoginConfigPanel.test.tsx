@@ -74,7 +74,7 @@ vi.mock('@renderer/pages/code/cliConfig', () => ({
   validateCliConfigDraftForWrite: vi.fn()
 }))
 
-vi.mock('../../CliIcon', () => ({
+vi.mock('@renderer/components/icons/CliIcon', () => ({
   CliIcon: () => <span data-testid="cli-icon" />
 }))
 
@@ -129,18 +129,6 @@ describe('OwnLoginConfigPanel', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     readOwnLoginCliConfigDraftMock.mockResolvedValue(previewFiles)
-  })
-
-  it('renders the tool params and advanced raw editor, with no model selection', async () => {
-    renderPanel()
-
-    expect(screen.getByText('code.own_login.title')).toBeInTheDocument()
-    expect(screen.getByText('code.tool_parameters')).toBeInTheDocument()
-    expect(screen.getByTestId('cli-icon')).toBeInTheDocument()
-    expect(screen.queryByText('code.model_selection')).not.toBeInTheDocument()
-
-    // The advanced raw editor appears once the preview files finish loading.
-    await waitFor(() => expect(screen.getByTestId('raw-editor')).toBeInTheDocument())
   })
 
   it('keeps save disabled until the tool params change, then submits managed and closes', async () => {

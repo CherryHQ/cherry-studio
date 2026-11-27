@@ -8,10 +8,12 @@ const useProviderMock = vi.fn()
 const updateProviderMock = vi.fn()
 const syncProviderModelsMock = vi.fn()
 
-vi.mock('@cherrystudio/ui', () => {
+vi.mock('@cherrystudio/ui', async () => {
   const React = require('react')
+  const { MockCherrystudioUI } = await import('@test-mocks/renderer/CherrystudioUI')
 
   return {
+    HelpTooltip: MockCherrystudioUI.HelpTooltip,
     Badge: ({ children, ...props }: any) => React.createElement('span', props, children),
     Button: ({ children, onClick, ...props }: any) =>
       React.createElement('button', { ...props, onClick, type: props.type ?? 'button' }, children),
@@ -123,6 +125,35 @@ describe('ProviderCustomHeaderDrawer', () => {
         defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES
       })
     )
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('saves an image-only provider without recording its image endpoint as the chat default', async () => {
+    const user = userEvent.setup()
+    const onClose = vi.fn()
+    // ComfyUI declares one endpoint and it is an image one, so the drawer's
+    // primary slot is validated through the image draft — the text drafts stay
+    // empty by construction (`resolveEndpointTypes` keeps image endpoints out).
+    const comfyui = {
+      id: 'comfyui',
+      name: 'ComfyUI',
+      authOptional: true,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]: { adapterFamily: 'comfyui', baseUrl: 'http://localhost:8188' }
+      },
+      settings: {}
+    } as any
+    useProviderMock.mockReturnValue({ provider: comfyui, updateProvider: updateProviderMock })
+
+    render(<ProviderCustomHeaderDrawer providerId={comfyui.id} open onClose={onClose} />)
+
+    await user.click(screen.getByRole('button', { name: 'common.save' }))
+
+    await waitFor(() => expect(updateProviderMock).toHaveBeenCalledTimes(1))
+    const payload = updateProviderMock.mock.calls[0][0]
+    expect(payload.endpointConfigs).toEqual(comfyui.endpointConfigs)
+    expect(payload.defaultChatEndpoint).toBeUndefined()
+    expect(payload.providerSettings).toEqual({ extraHeaders: {} })
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 

@@ -1,5 +1,4 @@
 import { loggerService } from '@logger'
-import { FILE_TYPE, type FileMetadata, type FileType } from '@renderer/types/file'
 import {
   type ComposerClipboardTokenKind,
   isComposerClipboardPromptTokenKind,
@@ -7,16 +6,15 @@ import {
 } from '@renderer/utils/composerTokenPolicy'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { type CherryFileMeta, type ComposerMessageToken, readCherryMeta } from '@shared/data/types/uiParts'
-import { type FileUrlString } from '@shared/types/file'
+import { AbsoluteFilePathSchema, FILE_TYPE, type FileType, type FileUrlString } from '@shared/types/file'
 import { fileUrlToPath, getFileTypeByExt } from '@shared/utils/file'
 
-import { type ComposerAttachment, toComposerAttachment } from './composerAttachment'
+import type { ComposerAttachment } from './composerAttachment'
 import {
   createComposerSecureRandomId,
   isComposerFileTokenPathLike,
   readComposerFileTokenIdSuffix,
-  readComposerFileTokenSourceIdFromTokenId,
-  withComposerFileTokenSourceId
+  readComposerFileTokenSourceIdFromTokenId
 } from './composerFileTokenSource'
 
 const logger = loggerService.withContext('composerClipboard')
@@ -32,6 +30,7 @@ export interface ComposerClipboardSourceToken {
   kind: string
   label: string
   description?: string
+  sourceMessageId?: string
   promptText?: string
   payload?: unknown
 }
@@ -41,6 +40,7 @@ export interface ComposerClipboardToken {
   kind: ComposerClipboardTokenKind
   label: string
   description?: string
+  sourceMessageId?: string
   promptText?: string
   payload?: {
     type?: string
@@ -166,7 +166,7 @@ function readFileDisplayPayload(
 
 interface FileRestorationRegistryEntry {
   sourceId: string
-  file: FileMetadata
+  file: ComposerAttachment
   expiresAt: number
 }
 
@@ -182,21 +182,23 @@ function pruneExpiredFileRestorationHandles(now = Date.now()) {
   }
 }
 
-function registerFileRestorationHandle(file: FileMetadata): string {
+function registerFileRestorationHandle(file: ComposerAttachment): string {
   pruneExpiredFileRestorationHandles()
 
-  const restorableFile = withComposerFileTokenSourceId(file)
   const handle = createFileRestorationHandle()
 
   fileRestorationRegistry.set(handle, {
-    sourceId: restorableFile.fileTokenSourceId,
-    file: restorableFile,
+    sourceId: file.fileTokenSourceId,
+    file,
     expiresAt: Date.now() + COMPOSER_CLIPBOARD_FILE_HANDLE_TTL_MS
   })
+  // Release retained image bytes even if the user never pastes or copies again.
+  const timer = setTimeout(() => fileRestorationRegistry.delete(handle), COMPOSER_CLIPBOARD_FILE_HANDLE_TTL_MS)
+  timer.unref?.()
   return handle
 }
 
-function resolveFileRestorationHandle(handle: string, sourceId: string): FileMetadata | null {
+function resolveFileRestorationHandle(handle: string, sourceId: string): ComposerAttachment | null {
   pruneExpiredFileRestorationHandles()
 
   const entry = fileRestorationRegistry.get(handle)
@@ -204,39 +206,37 @@ function resolveFileRestorationHandle(handle: string, sourceId: string): FileMet
   return { ...entry.file }
 }
 
-function createFileMetadataFromWritePayload(
+function createAttachmentFromWritePayload(
   token: Pick<ComposerClipboardSourceToken, 'id' | 'label'>,
   payload: unknown
-): FileMetadata | null {
+): ComposerAttachment | null {
   if (!isRecord(payload)) return null
 
   const sourceId = readComposerFileTokenSourceIdFromTokenId(token.id)
   const payloadSourceId = readString(payload.fileTokenSourceId)
   const path = stripFileUrl(readString(payload.path))
-  if (!sourceId || payloadSourceId !== sourceId || !path) return null
+  const blob = payload.blob instanceof Blob ? payload.blob : undefined
+  if (!sourceId || payloadSourceId !== sourceId || (!path && !blob)) return null
 
   const name = readString(payload.name) || readString(payload.origin_name) || token.label
   const ext = readString(payload.ext) || getFileExtensionFromName(name)
   const type = isFileType(payload.type) ? payload.type : getFileTypeByExt(ext)
-  const rawId = readString(payload.id)
 
   return {
-    id: rawId && !hasUnsafeComposerClipboardFileTokenId({ id: rawId, kind: 'file' }) ? rawId : sourceId,
     fileTokenSourceId: sourceId,
     name,
     origin_name: readString(payload.origin_name) || name,
-    path,
+    ...(path && { path: AbsoluteFilePathSchema.parse(path) }),
+    ...(blob && { blob }),
     size: readNumber(payload.size) ?? 0,
     ext,
-    type,
-    created_at: readString(payload.created_at) ?? '',
-    count: readNumber(payload.count) ?? 1
+    type
   }
 }
 
 function createFilePayloadForWrite(token: Pick<ComposerClipboardSourceToken, 'id' | 'label' | 'payload'>) {
   const payload = readFileDisplayPayload(token.payload)
-  const file = createFileMetadataFromWritePayload(token, token.payload)
+  const file = createAttachmentFromWritePayload(token, token.payload)
   const handle = file ? registerFileRestorationHandle(file) : null
   if (!handle) return payload
 
@@ -305,7 +305,11 @@ function createComposerClipboardTextHtml(text: string): string {
   return `<p>${inlineHtml || '<br>'}</p>`
 }
 
-function sanitizeComposerClipboardToken(token: unknown, mode: 'read' | 'write'): ComposerClipboardToken | null {
+function sanitizeComposerClipboardToken(
+  token: unknown,
+  mode: 'read' | 'write',
+  trustedPromptText = false
+): ComposerClipboardToken | null {
   if (!isRecord(token)) return null
 
   const id = readString(token.id)
@@ -315,6 +319,8 @@ function sanitizeComposerClipboardToken(token: unknown, mode: 'read' | 'write'):
   if (hasUnsafeComposerClipboardFileTokenId({ id, kind })) return null
 
   const description = readString(token.description)
+  const sourceMessageId =
+    kind === 'quote' && (mode === 'write' || trustedPromptText) ? readString(token.sourceMessageId) : undefined
   const promptText = readString(token.promptText)
   const payload =
     kind === 'file'
@@ -328,6 +334,7 @@ function sanitizeComposerClipboardToken(token: unknown, mode: 'read' | 'write'):
     kind,
     label,
     ...(description && { description }),
+    ...(sourceMessageId && { sourceMessageId }),
     ...(promptText && { promptText }),
     ...(payload && { payload })
   }
@@ -349,7 +356,7 @@ function sanitizeComposerClipboardSegment(
   const fallbackText = readString(segment.fallbackText)
   if (!fallbackText) return null
 
-  const token = sanitizeComposerClipboardToken(segment.token, 'read')
+  const token = sanitizeComposerClipboardToken(segment.token, 'read', trustedPromptText)
   if (!token) {
     return isUnsafeComposerClipboardFileToken(segment.token) ? { type: 'text', text: fallbackText } : null
   }
@@ -375,7 +382,9 @@ export function createComposerClipboardFragment(segments: readonly ComposerClipb
 
   const requiresPromptNonce = safeSegments.some(
     (segment) =>
-      segment.type === 'token' && isComposerClipboardPromptTokenKind(segment.token.kind) && segment.token.promptText
+      segment.type === 'token' &&
+      (segment.token.sourceMessageId ||
+        (isComposerClipboardPromptTokenKind(segment.token.kind) && segment.token.promptText))
   )
 
   return JSON.stringify({
@@ -636,7 +645,7 @@ export function createComposerAttachmentFromComposerClipboardToken(
   if (!sourceId) return null
 
   const file = resolveFileRestorationHandle(token.payload.handle, sourceId)
-  return file ? toComposerAttachment(file) : null
+  return file
 }
 
 export function readComposerClipboardFragment(value: string): ComposerClipboardFragment | null {

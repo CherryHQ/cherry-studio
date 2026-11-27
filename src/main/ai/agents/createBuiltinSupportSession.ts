@@ -23,7 +23,7 @@ export function createBuiltinSupportSession(): AgentSessionEntity {
     return result
   })
 
-  if (ensured.created) {
+  if (ensured.created || ensured.restored) {
     agentService.emitAgentCreated(ensured.agent)
   }
   agentSessionService.notifyReadModelChange([sessionId], 'membership')

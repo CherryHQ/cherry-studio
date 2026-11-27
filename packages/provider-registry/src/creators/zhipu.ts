@@ -61,8 +61,34 @@ export default defineCreator({
     { id: 'glm-z1-airx', name: 'GLM-Z1-AirX', capabilities: ['reasoning'], contextWindow: 131072 },
     { id: 'glm-z1-flash', name: 'GLM-Z1-Flash', capabilities: ['reasoning'], contextWindow: 131072 },
     {
+      id: 'glm-5-3',
+      name: 'GLM 5.3',
+      capabilities: ['function-call', 'reasoning', 'structured-output'],
+      maxOutputTokens: 131072
+    },
+    {
       id: 'glm-5-3-flash',
       name: 'GLM-5.3-Flash',
+      family: 'glm',
+      capabilities: [
+        'function-call',
+        'reasoning',
+        'image-recognition',
+        'video-recognition',
+        'structured-output',
+        'file-input'
+      ],
+      inputModalities: ['text', 'image', 'video'],
+      outputModalities: ['text'],
+      contextWindow: 1000000,
+      maxOutputTokens: 131072,
+      openWeights: true
+    },
+    {
+      // TokenHub's enhanced lightweight multimodal tier (cloud.tencent.com/document/product/1823/132061):
+      // same 1M context / 128K output envelope as glm-5-3-flash, always-on reasoning.
+      id: 'glm-5-3-flashx',
+      name: 'GLM-5.3-FlashX',
       family: 'glm',
       capabilities: [
         'function-call',

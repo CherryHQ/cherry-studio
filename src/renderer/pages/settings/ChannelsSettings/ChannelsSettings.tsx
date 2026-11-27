@@ -2,8 +2,8 @@ import type { FC } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { MenuItem, MenuList, PageHeader, RowFlex } from '@cherrystudio/ui'
-import Scrollbar from '@renderer/components/Scrollbar'
+import { MenuItem, MenuList, PageHeader, RowFlex, ScrollArea } from '@cherrystudio/ui'
+import { AVAILABLE_CHANNELS, type AvailableChannel } from '@renderer/components/channel/channelTypes'
 import {
   settingsSubmenuItemClassName,
   settingsSubmenuItemLabelClassName,
@@ -13,7 +13,6 @@ import {
 import { getChannelTypeIcon } from '@renderer/utils/agentSession'
 
 import ChannelDetail from './ChannelDetail'
-import { AVAILABLE_CHANNELS, type AvailableChannel } from './channelTypes'
 
 const ChannelsSettings: FC = () => {
   const { t } = useTranslation()
@@ -23,7 +22,7 @@ const ChannelsSettings: FC = () => {
     <RowFlex className="flex-1">
       <div className={`flex flex-col ${settingsSubmenuScrollClassName}`}>
         <PageHeader title={t('settings.channels.title')} />
-        <Scrollbar className="min-h-0 flex-1">
+        <ScrollArea className="min-h-0 flex-1">
           <MenuList className={settingsSubmenuListClassName}>
             {AVAILABLE_CHANNELS.map((ch) => {
               const iconSrc = getChannelTypeIcon(ch.type)
@@ -42,7 +41,7 @@ const ChannelsSettings: FC = () => {
               )
             })}
           </MenuList>
-        </Scrollbar>
+        </ScrollArea>
       </div>
       <div className="relative flex-1">
         <ChannelDetail key={selectedType.type} channelDef={selectedType} />

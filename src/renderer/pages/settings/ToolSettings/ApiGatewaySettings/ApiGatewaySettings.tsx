@@ -21,11 +21,12 @@ import {
   SettingGroup,
   SettingRowTitle,
   SettingsContentColumn,
-  SettingTitle
+  SettingsPageHeader
 } from '@renderer/components/SettingsPrimitives'
 import { useApiGateway } from '@renderer/hooks/useApiGateway'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { toast } from '@renderer/services/toast'
+import { openExternalWebsite } from '@renderer/services/website'
 import { cn } from '@renderer/utils/style'
 import { gatewayClientOrigin } from '@shared/utils/apiGateway'
 
@@ -53,7 +54,10 @@ const ApiGatewaySettings: FC = () => {
     setApiGatewayConfig
   } = useApiGateway()
 
-  const serverHost = apiGatewayConfig.host || API_SERVER_DEFAULTS.HOST
+  // 0.0.0.0 is a bind address, not a reachable one — render the loopback URL instead
+  // (LAN URLs live in Device Connections settings).
+  const configuredHost = apiGatewayConfig.host || API_SERVER_DEFAULTS.HOST
+  const serverHost = configuredHost === '0.0.0.0' ? API_SERVER_DEFAULTS.HOST : configuredHost
   const serverPort = apiGatewayConfig.port || API_SERVER_DEFAULTS.PORT
   const serverUrl = gatewayClientOrigin(serverHost, serverPort)
   const apiKey = apiGatewayConfig.apiKey || ''
@@ -100,22 +104,21 @@ const ApiGatewaySettings: FC = () => {
     if (apiGatewayRunning) {
       // The ElysiaJS `@elysia/openapi` plugin serves the docs UI at `/openapi`
       // (the Express `/api-docs` path was removed in the gateway migration).
-      window.open(`${serverUrl}/openapi`, '_blank')
+      void openExternalWebsite(`${serverUrl}/openapi`)
     }
   }
 
   return (
     <Container theme={theme}>
-      <HeaderRow>
-        <div className="min-w-0">
-          <SettingTitle className="justify-start gap-2">
+      <SettingsPageHeader
+        title={
+          <>
             <GatewayIcon width={16} height={16} />
             {t('apiGateway.title')}
-          </SettingTitle>
-          <PageDescription>{t('apiGateway.description')}</PageDescription>
-        </div>
-      </HeaderRow>
-
+          </>
+        }
+        help={t('apiGateway.description')}
+      />
       <StatusCard $running={apiGatewayRunning}>
         <StatusSection>
           <StatusIcon $running={apiGatewayRunning}>
@@ -136,7 +139,6 @@ const ApiGatewaySettings: FC = () => {
             <StatusSubtext>{apiGatewayRunning ? serverUrl : t('apiGateway.messages.notEnabled')}</StatusSubtext>
           </StatusContent>
         </StatusSection>
-
         <StatusActions>
           {apiGatewayRunning && (
             <Button variant="outline" onClick={openApiDocs}>
@@ -165,7 +167,6 @@ const ApiGatewaySettings: FC = () => {
           )}
         </StatusActions>
       </StatusCard>
-
       <Sections>
         {!apiGatewayRunning && (
           <SettingGroup theme={theme} className="mt-0 overflow-hidden p-0">
@@ -259,7 +260,6 @@ const ApiGatewaySettings: FC = () => {
                 </InputGroupAddon>
               </InputGroup>
             </Field>
-
             <Field>
               <SettingRowTitle>{t('apiGateway.authHeader.title')}</SettingRowTitle>
               <InputGroup className="mt-2 min-w-0">
@@ -298,14 +298,6 @@ const Container = ({ className, ...props }: React.ComponentPropsWithoutRef<typeo
   />
 )
 
-const HeaderRow = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('flex items-center justify-between gap-4', className)} {...props} />
-)
-
-const PageDescription = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('mt-2 max-w-140 text-foreground-tertiary text-xs leading-5', className)} {...props} />
-)
-
 const StatusCard = ({
   $running,
   className,
@@ -313,7 +305,7 @@ const StatusCard = ({
 }: React.ComponentPropsWithoutRef<'div'> & { $running: boolean }) => (
   <div
     className={cn(
-      'mt-5 flex flex-wrap items-center justify-between gap-4 rounded-xl border p-4',
+      'flex flex-wrap items-center justify-between gap-4 rounded-xl border p-4',
       $running
         ? 'border-success-border bg-success-subtle text-success-subtle-foreground'
         : 'border-border bg-card text-card-foreground',

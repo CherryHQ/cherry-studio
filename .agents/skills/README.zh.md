@@ -1,5 +1,7 @@
 # Skills 管理说明
 
+[English](README.md) | 中文
+
 本目录是仓库内 skills 的唯一维护来源（single source of truth）。
 
 ## 新增 Skill 流程

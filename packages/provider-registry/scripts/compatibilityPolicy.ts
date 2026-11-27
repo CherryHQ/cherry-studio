@@ -3,7 +3,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { REGISTRY_SCHEMA_VERSION } from '../src/registry-loader'
+import { REGISTRY_SCHEMA_VERSION } from '../src/catalog'
 
 interface CompatibilityPolicyInput {
   baseVersion: number | null
@@ -91,17 +91,20 @@ function readBaseBaselines(repositoryRoot: string, baseRef: string, compatPath: 
 export function checkCompatibilityPolicy(baseRef: string): void {
   const repositoryRoot = path.resolve(scriptDirectory, '../../..')
   const packageRoot = path.resolve(scriptDirectory, '..')
-  const registryLoaderPath = 'packages/provider-registry/src/registry-loader.ts'
   let baseVersion: number | null = null
-
-  try {
-    const baseSource = execFileSync('git', ['show', `${baseRef}:${registryLoaderPath}`], {
-      cwd: repositoryRoot,
-      encoding: 'utf8'
-    })
-    baseVersion = parseVersion(baseSource)
-  } catch {
-    // This is the initial introduction of the versioned remote registry contract.
+  // Older refs kept the version constant in the Node loader.
+  for (const sourcePath of ['src/catalog.ts', 'src/registry-loader.ts']) {
+    try {
+      const baseSource = execFileSync('git', ['show', `${baseRef}:packages/provider-registry/${sourcePath}`], {
+        cwd: repositoryRoot,
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'ignore']
+      })
+      baseVersion = parseVersion(baseSource)
+      if (baseVersion !== null) break
+    } catch {
+      continue
+    }
   }
 
   const violations = getCompatibilityPolicyViolations({

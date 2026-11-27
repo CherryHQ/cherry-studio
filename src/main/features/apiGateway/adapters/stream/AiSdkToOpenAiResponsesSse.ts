@@ -19,7 +19,7 @@
  * @see https://platform.openai.com/docs/api-reference/responses-streaming
  */
 
-import type { FinishReason, UIMessageChunk } from 'ai'
+import type { FinishReason, ProviderMetadata, UIMessageChunk } from 'ai'
 
 import type OpenAI from '@cherrystudio/openai'
 import { loggerService } from '@logger'
@@ -55,15 +55,18 @@ type StreamingResponseFields = Pick<
  * During streaming, we only emit a subset of fields.
  */
 type PartialStreamingResponse = StreamingResponseFields & {
-  usage?: Partial<ResponseUsage>
+  usage?: StreamingUsage
 }
 
 /**
  * Minimal usage type for streaming responses.
  * The SDK's ResponseUsage requires input_tokens_details and output_tokens_details,
- * but during streaming we may only have the basic token counts.
+ * but the details are only present when the usage projection carries them.
  */
-type StreamingUsage = Pick<ResponseUsage, 'input_tokens' | 'output_tokens' | 'total_tokens'>
+type StreamingUsage = Pick<ResponseUsage, 'input_tokens' | 'output_tokens' | 'total_tokens'> & {
+  input_tokens_details?: Partial<ResponseUsage['input_tokens_details']> & { cache_write_tokens?: number }
+  output_tokens_details?: ResponseUsage['output_tokens_details']
+}
 
 /**
  * OpenAI Responses finish reasons
@@ -83,11 +86,14 @@ interface ToolCallState {
   arguments: string
 }
 
-/** An open `reasoning` output item, accumulating its summary text. */
+/** An open `reasoning` output item. */
 interface ReasoningState {
   itemId: string
   outputIndex: number
   text: string
+  rawText: string
+  native: boolean
+  encryptedContent?: string
 }
 
 /**
@@ -109,6 +115,10 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
   private messageOutputIndex: number | null = null
   private reasoning: ReasoningState | null = null
   private reasoningCount = 0
+
+  override getMessageId(): string {
+    return `resp_${this.state.messageId}`
+  }
 
   constructor(options: StreamAdapterOptions) {
     super(options)
@@ -136,7 +146,7 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
    */
   private buildBaseResponse(status: ResponseStatus = 'in_progress'): PartialStreamingResponse {
     return {
-      id: `resp_${this.state.messageId}`,
+      id: this.getMessageId(),
       object: 'response',
       created_at: this.createdAt,
       status,
@@ -148,16 +158,26 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
   }
 
   /**
-   * Build usage object for streaming responses.
-   * Uses StreamingUsage which only includes basic token counts,
-   * omitting the detailed breakdowns (input_tokens_details, output_tokens_details)
-   * that are not available during streaming.
+   * Build usage object for streaming and non-streaming responses.
+   * The detailed breakdowns are forwarded only when the usage projection carries
+   * them — an absent breakdown stays absent rather than serializing as an explicit 0.
    */
   private buildUsage(): StreamingUsage {
     return {
       input_tokens: this.state.inputTokens,
       output_tokens: this.state.outputTokens,
-      total_tokens: this.state.inputTokens + this.state.outputTokens
+      total_tokens: this.state.inputTokens + this.state.outputTokens,
+      ...(this.state.cacheReadTokens !== undefined || this.state.cacheWriteTokens !== undefined
+        ? {
+            input_tokens_details: {
+              ...(this.state.cacheReadTokens !== undefined ? { cached_tokens: this.state.cacheReadTokens } : {}),
+              ...(this.state.cacheWriteTokens !== undefined ? { cache_write_tokens: this.state.cacheWriteTokens } : {})
+            }
+          }
+        : {}),
+      ...(this.state.reasoningTokens !== undefined
+        ? { output_tokens_details: { reasoning_tokens: this.state.reasoningTokens } }
+        : {})
     }
   }
 
@@ -258,16 +278,22 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
         this.emitTextDelta(chunk.delta || '')
         break
 
-      // Reasoning rides in its own `reasoning` output item. `reasoning-start` is ignored:
-      // the item opens on the first non-empty delta, so a reasoning-less turn emits none.
+      case 'reasoning-start':
+        this.ensureReasoningItem(chunk.providerMetadata)
+        break
+
       case 'reasoning-delta':
-        this.emitReasoningDelta(chunk.delta || '')
+        this.ensureReasoningItem(chunk.providerMetadata)
+        this.emitReasoningDelta(chunk.delta || '', chunk.providerMetadata)
         break
 
       case 'reasoning-end':
-        this.closeReasoningItem()
+        this.ensureReasoningItem(chunk.providerMetadata)
+        // Native summary parts share one item; the final part supplies its encrypted content.
+        if (!this.reasoning?.native) this.closeReasoningItem()
         break
 
+      case 'tool-input-error':
       case 'tool-input-available':
         this.handleToolCall({
           toolCallId: chunk.toolCallId,
@@ -288,7 +314,7 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
         throw new Error(chunk.errorText)
 
       default:
-        // start / start-step / finish-step / text-start|end / reasoning-start /
+        // start / start-step / finish-step / text-start|end /
         // tool-input-start|delta / tool-output-available / source-url / file / abort —
         // no Responses-API semantic event here.
         break
@@ -300,6 +326,15 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
     if (!metadata) return
     if (metadata.stats?.inputTokens !== undefined) this.state.inputTokens = metadata.stats.inputTokens
     if (metadata.stats?.outputTokens !== undefined) this.state.outputTokens = metadata.stats.outputTokens
+    if (metadata.stats?.inputTokenDetails?.cacheReadTokens !== undefined) {
+      this.state.cacheReadTokens = metadata.stats.inputTokenDetails.cacheReadTokens
+    }
+    if (metadata.stats?.inputTokenDetails?.cacheWriteTokens !== undefined) {
+      this.state.cacheWriteTokens = metadata.stats.inputTokenDetails.cacheWriteTokens
+    }
+    if (metadata.stats?.outputTokenDetails?.reasoningTokens !== undefined) {
+      this.state.reasoningTokens = metadata.stats.outputTokenDetails.reasoningTokens
+    }
   }
 
   /**
@@ -323,19 +358,49 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
     this.emit(event)
   }
 
-  /**
-   * Append to the open `reasoning` item, opening one on the first delta.
-   *
-   * The chain rides in `summary` (what clients render and echo back) and is mirrored into
-   * `content` as `reasoning_text` — the model gives us raw reasoning, not a summary, but
-   * `summary` is the field every Responses client reads.
-   */
-  private emitReasoningDelta(delta: string): void {
+  private emitReasoningDelta(delta: string, metadata?: ProviderMetadata): void {
     if (!delta) return
 
-    if (!this.reasoning) {
+    this.ensureReasoningItem(undefined, true)
+    const native = metadata?.openai ?? metadata?.azure ?? metadata?.xai
+    if (native?.rawReasoningContent === true) {
+      this.reasoning!.rawText += delta
+      this.emit({
+        type: 'response.reasoning_text.delta',
+        item_id: this.reasoning!.itemId,
+        output_index: this.reasoning!.outputIndex,
+        content_index: 0,
+        delta,
+        sequence_number: this.nextSequence()
+      })
+      return
+    }
+    this.reasoning!.text += delta
+    this.emit({
+      type: 'response.reasoning_summary_text.delta',
+      item_id: this.reasoning!.itemId,
+      output_index: this.reasoning!.outputIndex,
+      summary_index: 0,
+      delta,
+      sequence_number: this.nextSequence()
+    })
+  }
+
+  private ensureReasoningItem(metadata?: ProviderMetadata, hasText = false): void {
+    const native = metadata?.openai ?? metadata?.azure ?? metadata?.xai
+    const itemId = typeof native?.itemId === 'string' ? native.itemId : undefined
+    const encryptedContent =
+      typeof native?.reasoningEncryptedContent === 'string' ? native.reasoningEncryptedContent : undefined
+    if (itemId && this.reasoning && this.reasoning.itemId !== itemId) this.closeReasoningItem()
+    if (!this.reasoning && (hasText || itemId || encryptedContent)) {
       const outputIndex = this.nextOutputIndex++
-      this.reasoning = { itemId: `rs_${this.state.messageId}_${this.reasoningCount++}`, outputIndex, text: '' }
+      this.reasoning = {
+        itemId: itemId ?? `rs_${this.state.messageId}_${this.reasoningCount++}`,
+        outputIndex,
+        text: '',
+        rawText: '',
+        native: !!itemId
+      }
 
       this.emit({
         type: 'response.output_item.added',
@@ -353,21 +418,13 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
       })
     }
 
-    this.reasoning.text += delta
-    this.emit({
-      type: 'response.reasoning_summary_text.delta',
-      item_id: this.reasoning.itemId,
-      output_index: this.reasoning.outputIndex,
-      summary_index: 0,
-      delta,
-      sequence_number: this.nextSequence()
-    })
+    if (this.reasoning && encryptedContent !== undefined) this.reasoning.encryptedContent = encryptedContent
   }
 
   /** Close the open reasoning item, if any. Idempotent — several paths may reach it. */
   private closeReasoningItem(): void {
     if (!this.reasoning) return
-    const { itemId, outputIndex, text } = this.reasoning
+    const { itemId, outputIndex, text, rawText, native, encryptedContent } = this.reasoning
     this.reasoning = null
 
     this.emit({
@@ -387,11 +444,25 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
       sequence_number: this.nextSequence()
     })
 
+    if (rawText) {
+      this.emit({
+        type: 'response.reasoning_text.done',
+        item_id: itemId,
+        output_index: outputIndex,
+        content_index: 0,
+        text: rawText,
+        sequence_number: this.nextSequence()
+      })
+    }
+
+    // Preserve the legacy projection when adapting a protocol without Responses items.
+    const content = rawText || (!native ? text : '')
     const item: ResponseReasoningItem = {
       type: 'reasoning',
       id: itemId,
-      summary: [{ type: 'summary_text', text }],
-      content: [{ type: 'reasoning_text', text }],
+      summary: text ? [{ type: 'summary_text', text }] : [],
+      ...(content && { content: [{ type: 'reasoning_text' as const, text: content }] }),
+      ...(encryptedContent !== undefined && { encrypted_content: encryptedContent }),
       status: 'completed'
     }
     this.outputItems.set(outputIndex, item)
@@ -485,23 +556,20 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
   private handleFinish(chunk: { finishReason?: FinishReason; messageMetadata?: unknown }): void {
     this.applyUsageMetadata(chunk.messageMetadata as GatewayUsageMetadata | undefined)
 
-    if (!this.finishReason) {
-      switch (chunk.finishReason) {
-        case 'stop':
-          this.finishReason = 'stop'
-          break
-        case 'length':
-          this.finishReason = 'max_output_tokens'
-          break
-        case 'tool-calls':
-          this.finishReason = 'tool_calls'
-          break
-        case 'content-filter':
-          this.finishReason = 'content_filter'
-          break
-        default:
-          this.finishReason = 'stop'
-      }
+    switch (chunk.finishReason) {
+      case 'length':
+        this.finishReason = 'max_output_tokens'
+        break
+      case 'tool-calls':
+        this.finishReason = 'tool_calls'
+        break
+      case 'content-filter':
+        this.finishReason = 'content_filter'
+        break
+      case 'stop':
+      case 'other':
+      default:
+        this.finishReason = this.toolCalls.size > 0 ? 'tool_calls' : 'stop'
     }
 
     this.state.stopReason = this.finishReason
@@ -589,7 +657,7 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
    */
   buildNonStreamingResponse(): Response {
     const partialResponse: PartialStreamingResponse = {
-      id: `resp_${this.state.messageId}`,
+      id: this.getMessageId(),
       object: 'response',
       created_at: this.createdAt,
       status: this.terminalStatus(),

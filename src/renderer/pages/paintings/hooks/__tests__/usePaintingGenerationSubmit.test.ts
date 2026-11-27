@@ -1,11 +1,19 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import en from '@renderer/i18n/locales/en-us.json'
+import i18n from '@renderer/i18n/resolver'
+import { toast } from '@renderer/services/toast'
 import type { FileEntry } from '@shared/data/types/file'
 
 import type { PaintingData } from '../../model/types/paintingData'
 
 const mockValidateBeforeGenerate = vi.hoisted(() => vi.fn())
+const mockProvider = vi.hoisted(() => ({ id: 'openai', presetProviderId: undefined as string | undefined }))
+vi.mock('../usePaintingProviderRuntime', () => ({
+  usePaintingProviderRuntime: () => ({ provider: mockProvider })
+}))
+
 const mockGenerate = vi.hoisted(() => vi.fn())
 const mockPresentGuardFeedback = vi.hoisted(() => vi.fn())
 
@@ -76,7 +84,7 @@ describe('usePaintingGenerationSubmit', () => {
     })
 
     expect(materialize).toHaveBeenCalledTimes(1)
-    expect(mockGenerate).toHaveBeenCalledWith(entries)
+    expect(mockGenerate).toHaveBeenCalledWith(entries, expect.any(Function))
   })
 
   it('aborts without generating when the input set is incomplete', async () => {
@@ -132,6 +140,42 @@ describe('usePaintingGenerationSubmit', () => {
     expect(mockGenerate).not.toHaveBeenCalled()
   })
 
+  it('ends preparation before the provider finishes, independently of the visible record', async () => {
+    let prepared!: () => void
+    let finish!: () => void
+    mockGenerate.mockImplementationOnce(async (_entries, onPrepared) => {
+      prepared = onPrepared
+      await new Promise<void>((resolve) => {
+        finish = resolve
+      })
+    })
+    const { result, rerender } = renderHook(
+      (painting) =>
+        usePaintingGenerationSubmit({
+          painting,
+          onPaintingChange: vi.fn(),
+          ensureCurrentCatalog: async () => []
+        }),
+      { initialProps: makePainting() }
+    )
+    let pending!: Promise<void>
+    await act(async () => {
+      pending = result.current.submit(async () => ({ entries: [], complete: true }))
+    })
+    expect(result.current.preparing).toBe(true)
+    act(() => {
+      prepared()
+    })
+    rerender(makePainting({ id: 'new-draft' }))
+    expect(result.current.preparing).toBe(false)
+    expect(result.current.submitting).toBe(true)
+    await act(async () => {
+      finish()
+      await pending
+    })
+    expect(result.current.submitting).toBe(false)
+  })
+
   it('exposes submitting for the duration of a request', async () => {
     let release!: () => void
     const materialize = vi.fn(
@@ -155,3 +199,52 @@ describe('usePaintingGenerationSubmit', () => {
     await waitFor(() => expect(result.current.submitting).toBe(false))
   })
 })
+
+it.each([
+  [{ size: '12x12' }, 'paintings.seedream.invalid_size'],
+  [{ outputFormat: 'jpeg', background: 'transparent' }, 'paintings.seedream.transparent_png']
+])('rejects %j readably before guard and materialization', async (params, key) => {
+  await i18n.init({ lng: 'en', resources: { en: { translation: en } }, keySeparator: false })
+  vi.clearAllMocks()
+  mockValidateBeforeGenerate.mockResolvedValue({ ok: true })
+  const materialize = vi.fn().mockResolvedValue({ entries: [], complete: true })
+  const { result } = renderSubmit(makePainting({ model: 'doubao-seedream-5-5', params }))
+  await act(async () => {
+    await result.current.submit(materialize)
+  })
+  expect(materialize).not.toHaveBeenCalled()
+  expect(mockValidateBeforeGenerate).not.toHaveBeenCalled()
+  expect(mockGenerate).not.toHaveBeenCalled()
+  expect(toast.error).toHaveBeenCalledWith(en[key as keyof typeof en] ?? 'missing translation')
+  expect(result.current.submitting).toBe(false)
+})
+
+it.each([
+  ['dmxapi', undefined],
+  ['user-provider-uuid', 'dmxapi']
+])(
+  'displays the unsupported-provider toast for DMXAPI %s without materializing or generating',
+  async (id, presetProviderId) => {
+    await i18n.init({ lng: 'en', resources: { en: { translation: en } }, keySeparator: false })
+    vi.clearAllMocks()
+    mockProvider.id = id
+    mockProvider.presetProviderId = presetProviderId
+    mockValidateBeforeGenerate.mockResolvedValue({ ok: true })
+    const materialize = vi.fn().mockResolvedValue({ entries: [], complete: true })
+    const { result } = renderSubmit(makePainting({ providerId: id, model: 'doubao-seedream-5-5' }))
+    try {
+      await act(async () => {
+        await result.current.submit(materialize)
+      })
+      expect(toast.error).toHaveBeenCalledExactlyOnceWith(en['paintings.seedream.dmxapi_unsupported'])
+      expect(materialize).not.toHaveBeenCalled()
+      expect(mockGenerate).not.toHaveBeenCalled()
+      expect(mockValidateBeforeGenerate).not.toHaveBeenCalled()
+      expect(result.current.submitting).toBe(false)
+      expect(result.current.preparing).toBe(false)
+    } finally {
+      mockProvider.id = 'openai'
+      mockProvider.presetProviderId = undefined
+    }
+  }
+)

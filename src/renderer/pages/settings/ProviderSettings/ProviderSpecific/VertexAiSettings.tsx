@@ -3,18 +3,13 @@ import type { FC } from 'react'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Input, Popover, PopoverAnchor, PopoverContent, PopoverTrigger, Textarea } from '@cherrystudio/ui'
+import { Input, Popover, PopoverAnchor, PopoverContent, PopoverTrigger, Textarea, HelpTooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useProvider, useProviderAuthConfig, useProviderMutations } from '@renderer/hooks/useProvider'
 import { toast } from '@renderer/services/toast'
 import { DEFAULT_VERTEX_AI_LOCATIONS, parseVertexAIServiceAccountJson } from '@renderer/utils/vertexAi'
 
-import {
-  ProviderHelpLink,
-  ProviderHelpText,
-  ProviderHelpTextRow,
-  ProviderSettingsSubtitle
-} from '../primitives/ProviderSettingsPrimitives'
+import { ProviderHelpLink, ProviderSettingsSubtitle } from '../primitives/ProviderSettingsPrimitives'
 
 const logger = loggerService.withContext('VertexAiSettings')
 
@@ -259,10 +254,16 @@ const VertexAiSettings: FC<Props> = ({ providerId }) => {
         <Info className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
         <span>{t('settings.provider.vertex_ai.service_account.description')}</span>
       </div>
-
       <div className="mt-1.5 flex items-baseline gap-1.5">
-        <ProviderSettingsSubtitle className="mt-0">
+        <ProviderSettingsSubtitle className="mt-0 flex items-center gap-1.5">
           {t('settings.provider.vertex_ai.service_account.json_input')}
+          <HelpTooltip
+            content={
+              serviceAccountJsonError
+                ? t('settings.provider.vertex_ai.service_account.json_parse_error')
+                : t('settings.provider.vertex_ai.service_account.json_input_help')
+            }
+          />
         </ProviderSettingsSubtitle>
         {apiKeyWebsite && (
           <ProviderHelpLink target="_blank" href={apiKeyWebsite} className="mx-0">
@@ -279,16 +280,9 @@ const VertexAiSettings: FC<Props> = ({ providerId }) => {
         spellCheck={false}
         rows={1}
       />
-      <ProviderHelpTextRow>
-        <ProviderHelpText className={serviceAccountJsonError ? 'text-destructive' : undefined}>
-          {serviceAccountJsonError
-            ? t('settings.provider.vertex_ai.service_account.json_parse_error')
-            : t('settings.provider.vertex_ai.service_account.json_input_help')}
-        </ProviderHelpText>
-      </ProviderHelpTextRow>
-
-      <ProviderSettingsSubtitle className="mt-1.5">
+      <ProviderSettingsSubtitle className="mt-1.5 flex items-center gap-1.5">
         {t('settings.provider.vertex_ai.service_account.client_email')}
+        <HelpTooltip content={t('settings.provider.vertex_ai.service_account.client_email_help')} />
       </ProviderSettingsSubtitle>
       <div className="relative mt-1.5 w-full">
         <Input
@@ -310,12 +304,9 @@ const VertexAiSettings: FC<Props> = ({ providerId }) => {
           {showClientEmail ? <Eye className="size-4" /> : <EyeOff className="size-4" />}
         </button>
       </div>
-      <ProviderHelpTextRow>
-        <ProviderHelpText>{t('settings.provider.vertex_ai.service_account.client_email_help')}</ProviderHelpText>
-      </ProviderHelpTextRow>
-
-      <ProviderSettingsSubtitle className="mt-1.5">
+      <ProviderSettingsSubtitle className="mt-1.5 flex items-center gap-1.5">
         {t('settings.provider.vertex_ai.service_account.private_key')}
+        <HelpTooltip content={t('settings.provider.vertex_ai.service_account.private_key_help')} />
       </ProviderSettingsSubtitle>
       <div className="relative mt-1.5 w-full">
         <Textarea.Input
@@ -344,12 +335,10 @@ const VertexAiSettings: FC<Props> = ({ providerId }) => {
           {showPrivateKey ? <Eye className="size-4" /> : <EyeOff className="size-4" />}
         </button>
       </div>
-      <ProviderHelpTextRow>
-        <ProviderHelpText>{t('settings.provider.vertex_ai.service_account.private_key_help')}</ProviderHelpText>
-      </ProviderHelpTextRow>
       <>
-        <ProviderSettingsSubtitle className="mt-1.5">
+        <ProviderSettingsSubtitle className="mt-1.5 flex items-center gap-1.5">
           {t('settings.provider.vertex_ai.project_id')}
+          <HelpTooltip content={t('settings.provider.vertex_ai.project_id_help')} />
         </ProviderSettingsSubtitle>
         <div className="relative mt-1.5 w-full">
           <Input
@@ -371,14 +360,10 @@ const VertexAiSettings: FC<Props> = ({ providerId }) => {
             {showProjectId ? <Eye className="size-4" /> : <EyeOff className="size-4" />}
           </button>
         </div>
-        <ProviderHelpTextRow>
-          <ProviderHelpText>{t('settings.provider.vertex_ai.project_id_help')}</ProviderHelpText>
-        </ProviderHelpTextRow>
-
-        <ProviderSettingsSubtitle className="mt-1.5">
+        <ProviderSettingsSubtitle className="mt-1.5 flex items-center gap-1.5">
           {t('settings.provider.vertex_ai.location')}
+          <HelpTooltip content={t('settings.provider.vertex_ai.location_help')} />
         </ProviderSettingsSubtitle>
-
         <Popover open={dropdownOpen} onOpenChange={setDropdownOpen}>
           <PopoverAnchor asChild>
             <div className="relative mt-1.5 w-full">
@@ -433,9 +418,6 @@ const VertexAiSettings: FC<Props> = ({ providerId }) => {
             </div>
           </PopoverContent>
         </Popover>
-        <ProviderHelpTextRow>
-          <ProviderHelpText>{t('settings.provider.vertex_ai.location_help')}</ProviderHelpText>
-        </ProviderHelpTextRow>
       </>
     </div>
   )

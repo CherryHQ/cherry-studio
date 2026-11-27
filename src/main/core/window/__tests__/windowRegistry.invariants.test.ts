@@ -37,11 +37,8 @@ describe('WINDOW_TYPE_REGISTRY behavior invariants', () => {
   })
 })
 
-// The shared preload bundle is code-split, and Electron's sandbox blocks a preload from
-// requiring its own chunks — it fails with "module not found: ./chunks/…". The window then
-// loads without `window.api`, so the renderer throws while initialising and never mounts.
-// On an ordinary window that reads as a blank page; on the screenshot overlay it produced a
-// transparent, always-on-top, click-swallowing window that could only be force-quit.
+// Trusted application windows retain the full preload environment.
+// Untrusted webviews use their own sandboxed bundle outside this registry.
 describe('WINDOW_TYPE_REGISTRY preload invariants', () => {
   it('every window using the shared preload disables the sandbox', () => {
     for (const entry of Object.values(WINDOW_TYPE_REGISTRY)) {

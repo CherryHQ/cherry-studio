@@ -72,6 +72,7 @@ export function useResourceLibrary({
   // Agent search stays server-side so matching spans the full database, not only the
   // current page. The main service resolves the builtin fallback description for this predicate.
   const agents = agentAdapter.useList({ enabled: isAgent, search: isAgent ? trimmedSearch : undefined })
+  const baseSkills = skillAdapter.useList({ enabled: isSkill })
   const skills = skillAdapter.useList({ enabled: isSkill, search: isSkill ? trimmedSearch : undefined })
   const prompts = promptAdapter.useList({ enabled: isPrompt, search: isPrompt ? trimmedSearch : undefined })
 
@@ -84,6 +85,7 @@ export function useResourceLibrary({
         name: a.name,
         description: a.description || '',
         avatar: a.emoji || '💬',
+        avatarSrc: a.avatarSrc,
         // Embedded by AssistantService.list through ModelService; null when the
         // bound model row was removed.
         model: a.modelName ?? undefined,
@@ -105,6 +107,7 @@ export function useResourceLibrary({
         name: a.name ?? '',
         description: getAgentDescriptionForDisplay(a, t),
         avatar: getAgentAvatarFromConfiguration(a.configuration),
+        avatarSrc: a.avatarSrc,
         model: a.modelName ?? undefined,
         createdAt: a.createdAt,
         updatedAt: a.updatedAt,
@@ -147,14 +150,14 @@ export function useResourceLibrary({
     if (isAssistant) return baseAssistants.data.map(buildAssistantItem)
     if (isAgent) return agents.data.map(buildAgentItem)
     if (isPrompt) return prompts.data.map(buildPromptItem)
-    return skills.data.map(buildSkillItem)
+    return baseSkills.data.map(buildSkillItem)
   }, [
     isAssistant,
     isAgent,
     isPrompt,
     baseAssistants.data,
     agents.data,
-    skills.data,
+    baseSkills.data,
     prompts.data,
     buildAssistantItem,
     buildAgentItem,
@@ -186,25 +189,26 @@ export function useResourceLibrary({
       ? agents.isLoading
       : isPrompt
         ? prompts.isLoading
-        : skills.isLoading
+        : baseSkills.isLoading || skills.isLoading
   const isRefreshing = isAssistant
     ? baseAssistants.isRefreshing || filteredAssistants.isRefreshing
     : isAgent
       ? agents.isRefreshing
       : isPrompt
         ? prompts.isRefreshing
-        : skills.isRefreshing
+        : baseSkills.isRefreshing || skills.isRefreshing
   const error = isAssistant
     ? (baseAssistants.error ?? filteredAssistants.error ?? assistantGroups.error)
     : isAgent
       ? agents.error
       : isPrompt
         ? prompts.error
-        : skills.error
+        : (baseSkills.error ?? skills.error)
 
   const baseAssistantsRefetch = baseAssistants.refetch
   const filteredAssistantsRefetch = filteredAssistants.refetch
   const agentsRefetch = agents.refetch
+  const baseSkillsRefetch = baseSkills.refetch
   const skillsRefetch = skills.refetch
   const promptsRefetch = prompts.refetch
   const groupsRefetch = assistantGroups.refetch
@@ -219,6 +223,7 @@ export function useResourceLibrary({
     } else if (isPrompt) {
       promptsRefetch()
     } else {
+      baseSkillsRefetch()
       skillsRefetch()
     }
   }, [
@@ -228,6 +233,7 @@ export function useResourceLibrary({
     baseAssistantsRefetch,
     filteredAssistantsRefetch,
     agentsRefetch,
+    baseSkillsRefetch,
     skillsRefetch,
     promptsRefetch,
     groupsRefetch
