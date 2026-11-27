@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/feature/2026-11-15-send-scroll-preference.md
+2026-11-15-send-scroll-preference.md: 5b934297daa412f83cf6e2403b9c1dd2322535b4
+2026-11-15-send-scroll-preference.zh.md: de65632075ec9feb361fc449a9c6582e81940c34

@@ -3,7 +3,17 @@ self-hosted-runner:
     - windows-signing
 paths:
   .github/workflows/qa-ondemand.yml:
-    ignore:
+    ignore: &concurrency-queue-ignore
       # TODO: Upgrade actionlint and remove this ignore once concurrency.queue support is released.
       # Upstream fix: https://github.com/rhysd/actionlint/pull/654 (issue #657).
       - '^unexpected key "queue" for "concurrency" section\. expected one of "cancel-in-progress", "group"$'
+  .github/workflows/release.yml:
+    ignore: *concurrency-queue-ignore
+  .github/workflows/release-target.yml:
+    ignore: *concurrency-queue-ignore
+  .github/workflows/prepare-release.yml:
+    ignore: *concurrency-queue-ignore
+  .github/workflows/post-release.yml:
+    ignore: *concurrency-queue-ignore
+  .github/workflows/backport-release-fixes.yml:
+    ignore: *concurrency-queue-ignore

@@ -25,6 +25,7 @@ import type { CreateTopicDto } from '@shared/data/api/schemas/topics'
 import type { FileEntryId } from '@shared/data/types/file'
 import type { Message, MessageRole, MessageRuntimeStatsInput, MessageStatus } from '@shared/data/types/message'
 import type { Topic } from '@shared/data/types/topic'
+import { applyMaxMessagesWindow } from '@shared/utils/contextSettings'
 
 import { aiUsageRecordService, mergeMessageUsageProjection } from './AiUsageRecordService'
 import { messageService } from './MessageService'
@@ -202,13 +203,14 @@ export class TemporaryChatService {
     return row ? rowToTopic(row) : null
   }
 
-  listMessages(topicId: string): Message[] {
+  listMessages(topicId: string, maxMessages: number | null = null): Message[] {
     if (!this.topics.has(topicId)) {
       throw DataApiErrorFactory.notFound('TemporaryTopic', topicId)
     }
     const rows = this.messages.get(topicId) ?? []
     // structuredClone ensures outer mutation cannot affect the store's arrays.
-    return structuredClone(rows).map(rowToMessage)
+    // oxlint-disable-next-line no-restricted-globals -- Copy only the selected user-aligned window; callers must not mutate stored message rows.
+    return structuredClone(applyMaxMessagesWindow(rows, maxMessages)).map(rowToMessage)
   }
 
   persist(topicId: string): { topicId: string; messageCount: number } {

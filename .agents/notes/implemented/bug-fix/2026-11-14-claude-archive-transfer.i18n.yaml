@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-14-claude-archive-transfer.md
+2026-11-14-claude-archive-transfer.md: 01ffd2fae8d90de7c880e9354d75fd6c75436043
+2026-11-14-claude-archive-transfer.zh.md: 2f03403b66dd8794832435ccfa46c8b79be85d3c

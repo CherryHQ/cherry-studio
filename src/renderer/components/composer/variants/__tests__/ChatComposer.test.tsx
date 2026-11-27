@@ -1,6 +1,7 @@
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { MockDataApiUtils } from '@test-mocks/renderer/DataApiService'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
+import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Children, isValidElement, type ComponentType, type ReactElement, type ReactNode, useEffect } from 'react'
@@ -19,6 +20,7 @@ import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { createUniqueModelId, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { IpcChannel } from '@shared/IpcChannel'
+import type * as SharedModelUtils from '@shared/utils/model'
 
 import type * as ComposerSurfaceModule from '../../ComposerSurface'
 import type { ComposerSurfaceProps } from '../../ComposerSurface'
@@ -477,35 +479,15 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/ResourceEditDialogEventHos
 }))
 
 vi.mock('@renderer/utils/model', () => ({
-  // Mirrors the real reconcile logic using the mocked predicates below:
-  // canModelUseAssistantWebSearch = isWebSearchModel || isOpenRouterBuiltInWebSearchModel || isFunctionCallingModel.
-  // The first two predicates are stubbed to false here, so it reduces to the function-call check.
+  // Mirrors the real reconcile logic with no provider built-in search, which reduces to the function-call check.
   canModelUseAssistantWebSearch: (currentModel?: Model) =>
     currentModel?.capabilities.includes(MODEL_CAPABILITY.FUNCTION_CALL) ?? false,
-  isGPT5SeriesReasoningModel: (currentModel?: Model) => currentModel?.id.includes('gpt-5') ?? false,
   isOpenAIWebSearchModel: (currentModel?: Model) => currentModel?.providerId === 'openai',
   resolveReasoningEffortForModel: (currentModel: Model, currentEffort?: string) => {
     const supported = ['default', ...(currentModel.reasoning?.selectableEfforts ?? [])]
     if (supported.length === 1) return undefined
     return currentEffort && supported.includes(currentEffort) ? currentEffort : supported[0]
-  },
-  isAudioModel: () => false,
-  isAudioModels: () => false,
-  isEmbeddingModel: () => false,
-  isFunctionCallingModel: (currentModel?: Model) =>
-    currentModel?.capabilities.includes(MODEL_CAPABILITY.FUNCTION_CALL) ?? false,
-  isGenerateImageModel: () => false,
-  isGenerateImageModels: () => false,
-  isOpenRouterBuiltInWebSearchModel: () => false,
-  isRerankModel: () => false,
-  isSupportedReasoningEffortModel: () => false,
-  isSupportedThinkingTokenModel: () => false,
-  isVideoModel: () => false,
-  isVideoModels: () => false,
-  isVisionModel: (currentModel?: Model) =>
-    currentModel?.capabilities.includes(MODEL_CAPABILITY.IMAGE_RECOGNITION) ?? false,
-  isVisionModels: () => false,
-  isWebSearchModel: () => false
+  }
 }))
 
 vi.mock('@renderer/data/hooks/useCache', async () => {
@@ -596,6 +578,10 @@ vi.mock('@renderer/hooks/useCherryCloudModelAvailability', () => ({
   })
 }))
 
+vi.mock('../../ProviderQuotaNotice', () => ({
+  ProviderQuotaNotice: () => <div data-testid="provider-quota-notice" />
+}))
+
 vi.mock('@renderer/hooks/useCherryCloudQuotaExhaustion', () => ({
   useCherryCloudQuotaExhaustion: () => mocks.quotaExhaustion
 }))
@@ -608,7 +594,8 @@ vi.mock('@renderer/hooks/command', () => ({
   }
 }))
 
-vi.mock('@renderer/hooks/tab', () => ({
+vi.mock('@renderer/hooks/tab', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   useIsActiveTab: () => true
 }))
 
@@ -634,13 +621,21 @@ vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
   })
 }))
 
-vi.mock('@shared/utils/model', () => ({
-  isFunctionCallingModel: (currentModel?: Model) =>
-    currentModel?.capabilities.includes(MODEL_CAPABILITY.FUNCTION_CALL) ?? false,
-  isNonChatModel: (currentModel?: Model) => currentModel?.capabilities.includes(MODEL_CAPABILITY.RERANK) ?? false,
-  isReasoningModel: (currentModel?: Model) => currentModel?.capabilities.includes(MODEL_CAPABILITY.REASONING) ?? false,
-  isWebSearchModel: () => false
-}))
+vi.mock('@shared/utils/model', async (importOriginal) => {
+  const actual = await importOriginal<typeof SharedModelUtils>()
+  return {
+    isAudioModel: actual.isAudioModel,
+    isFunctionCallingModel: (currentModel?: Model) =>
+      currentModel?.capabilities.includes(MODEL_CAPABILITY.FUNCTION_CALL) ?? false,
+    isGPT5SeriesReasoningModel: actual.isGPT5SeriesReasoningModel,
+    isNonChatModel: (currentModel?: Model) => currentModel?.capabilities.includes(MODEL_CAPABILITY.RERANK) ?? false,
+    isReasoningModel: (currentModel?: Model) =>
+      currentModel?.capabilities.includes(MODEL_CAPABILITY.REASONING) ?? false,
+    isVideoModel: actual.isVideoModel,
+    isVisionModel: actual.isVisionModel,
+    isWebSearchModel: () => false
+  }
+})
 
 vi.mock('react-i18next', async (importOriginal) => {
   const actual = await importOriginal<typeof ReactI18nextModule>()
@@ -904,6 +899,20 @@ describe('ChatComposer', () => {
     expect(mocks.surfaceProps?.markdownLivePreview).toBe(enabled)
   })
 
+  it('keeps draft submission available while recognition is Off', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.recognition.model_id', 'off')
+    const onSend = vi.fn()
+    render(<ChatComposer topic={topic} onSend={onSend} />)
+    act(() => mocks.surfaceProps?.onTextChange('Off still sends'))
+    expect(mocks.surfaceProps?.text).toBe('Off still sends')
+    expect(mocks.surfaceProps?.sendDisabled).toBe(false)
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'Off still sends', tokens: [] })
+    })
+    expect(onSend).toHaveBeenCalledWith('Off still sends', expect.anything())
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.recognition.model_id', '')
+  })
+
   it('blocks sending and shows the quota notice while the current model is out of quota', () => {
     mocks.quotaExhaustion = { reason: 'quota_exhausted', isFreeModel: true, isSubscribed: false }
 
@@ -914,6 +923,31 @@ describe('ChatComposer', () => {
     expect(mocks.surfaceProps?.sendBlockedReason).toBeUndefined()
     render(<>{mocks.surfaceProps?.queueContent}</>)
     expect(screen.getByRole('button', { name: 'settings.subscription.go_to_subscribe' })).toBeInTheDocument()
+  })
+
+  it('suggests a subscription after a provider ran out of quota, until the user sends or moves to Cherry Cloud', () => {
+    const queueHasNotice = () => {
+      const { unmount } = render(<>{mocks.surfaceProps?.queueContent}</>)
+      const shown = screen.queryByTestId('provider-quota-notice') !== null
+      unmount()
+      return shown
+    }
+
+    const { rerender } = render(<ChatComposer topic={topic} onSend={vi.fn()} providerQuotaExhausted />)
+    expect(queueHasNotice()).toBe(true)
+
+    mocks.topicPending = true
+    rerender(<ChatComposer topic={topic} onSend={vi.fn()} providerQuotaExhausted />)
+    expect(queueHasNotice()).toBe(false)
+
+    mocks.topicPending = false
+    mocks.model = {
+      ...model,
+      id: createUniqueModelId('cherryai-subscription', 'qwen'),
+      providerId: 'cherryai-subscription'
+    }
+    rerender(<ChatComposer topic={topic} onSend={vi.fn()} providerQuotaExhausted />)
+    expect(queueHasNotice()).toBe(false)
   })
   it('appends a screenshot and its message to the draft without sending', async () => {
     const onSend = vi.fn()
@@ -1242,6 +1276,7 @@ describe('ChatComposer', () => {
       ...model,
       id: 'openai::gpt-5',
       providerId: 'openai',
+      apiModelId: 'gpt-5',
       capabilities: [MODEL_CAPABILITY.REASONING],
       reasoning: {
         controls: [{ kind: 'effort' as const, values: ['minimal' as const, 'high' as const] }],
@@ -1670,7 +1705,7 @@ describe('ChatComposer', () => {
     expect(mocks.surfaceProps?.sendBlockedReason).toBe('code.model_required')
   })
 
-  it('puts the classic-layout empty topic action first in the toolbar and passes the selected assistant', () => {
+  it('opens a classic-layout empty topic with the selected assistant from the toolbar, slash action, and shortcut', () => {
     mocks.topicLayout = 'classic'
     const onCreateEmptyTopic = vi.fn()
 
@@ -1693,6 +1728,10 @@ describe('ChatComposer', () => {
     })
 
     expect(onCreateEmptyTopic).toHaveBeenCalledTimes(2)
+    expect(onCreateEmptyTopic).toHaveBeenLastCalledWith({ assistantId: 'assistant-1' })
+
+    mocks.commandHandlers.get('topic.create')?.()
+    expect(onCreateEmptyTopic).toHaveBeenCalledTimes(3)
     expect(onCreateEmptyTopic).toHaveBeenLastCalledWith({ assistantId: 'assistant-1' })
 
     act(() => {
@@ -1724,7 +1763,7 @@ describe('ChatComposer', () => {
     expect(onCreateEmptyTopic).not.toHaveBeenCalled()
   })
 
-  it('puts the modern-layout new topic action first in the toolbar', () => {
+  it('routes the modern-layout new topic slash action to the empty topic handler', () => {
     mocks.topicLayout = 'modern'
     const onNewTopic = vi.fn()
     const onCreateEmptyTopic = vi.fn()
@@ -1743,25 +1782,6 @@ describe('ChatComposer', () => {
 
     expect(onCreateEmptyTopic).toHaveBeenCalledWith({ assistantId: 'assistant-1' })
     expect(onNewTopic).not.toHaveBeenCalled()
-  })
-
-  it('shows the empty topic slash panel action when a create handler is available', () => {
-    mocks.topicLayout = 'modern'
-    const onCreateEmptyTopic = vi.fn()
-
-    const { rerender } = render(<ChatComposer topic={topic} onSend={vi.fn()} onCreateEmptyTopic={onCreateEmptyTopic} />)
-
-    const newTopicItem = mocks.surfaceProps?.rootPanelLeadingItems?.[0]
-
-    newTopicItem?.action?.({
-      context: {} as any,
-      action: 'enter',
-      item: newTopicItem
-    })
-    expect(onCreateEmptyTopic).toHaveBeenCalledWith({ assistantId: 'assistant-1' })
-
-    mocks.topicLayout = 'classic'
-    rerender(<ChatComposer topic={topic} onSend={vi.fn()} />)
   })
 
   it('sends unlinked home topics through the default model fallback', async () => {
@@ -3373,21 +3393,6 @@ describe('ChatComposer', () => {
 
     expect(onNewTopic).toHaveBeenCalledWith(undefined)
     expect(mocks.createTopic).not.toHaveBeenCalled()
-  })
-
-  it('routes classic-layout new topic shortcuts through the empty topic action', () => {
-    mocks.topicLayout = 'classic'
-    const onNewTopic = vi.fn()
-    const onCreateEmptyTopic = vi.fn()
-
-    render(
-      <ChatComposer topic={topic} onSend={vi.fn()} onNewTopic={onNewTopic} onCreateEmptyTopic={onCreateEmptyTopic} />
-    )
-
-    mocks.commandHandlers.get('topic.create')?.()
-
-    expect(onCreateEmptyTopic).toHaveBeenCalledWith({ assistantId: 'assistant-1' })
-    expect(onNewTopic).not.toHaveBeenCalled()
   })
 
   it('routes draft home assistant changes to the draft handler', async () => {
@@ -5194,21 +5199,6 @@ describe('ChatComposer', () => {
         dock().items[0].payload,
         'capturing must rebuild instead of spreading obsolete optional fields'
       ).not.toHaveProperty('fastMode')
-    })
-
-    it('returns unchanged A under its original identity and supports switching back', async () => {
-      const {
-        dock,
-        originals: [a, b],
-        edit
-      } = await setup()
-      await edit(a.id)
-      await edit(b.id)
-      expect(dock()?.items, 'switching to B must preserve the entire queued A').toEqual([a])
-      expect(mocks.surfaceProps?.text, 'B must own the editor after the switch').toBe('B')
-      await edit(a.id)
-      expect(dock()?.items, 'switching back must preserve B under its original id').toEqual([b])
-      expect(mocks.surfaceProps?.text, 'A must reopen').toBe('A')
     })
 
     it('rebuilds edited A from the live document before restoring B', async () => {

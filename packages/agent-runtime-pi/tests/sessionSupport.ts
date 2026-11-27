@@ -69,6 +69,7 @@ export function respondingModel(
   const model: TestStream = (model, context, options) => {
     const stream = createAssistantMessageEventStream()
     const call = {
+      // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
       ...structuredClone(context),
       ...options,
       model,
@@ -86,6 +87,7 @@ export function respondingModel(
     void (async () => {
       try {
         options?.signal?.throwIfAborted()
+        // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
         message = structuredClone(await Promise.race([respond(call, calls.length), aborted]))
         Object.assign(message, { api: model.api, provider: model.provider, model: model.id })
         calculateCost(model, message.usage)
@@ -166,8 +168,9 @@ export function tempDir(label: string): string {
 }
 
 type Defaulted = 'cwd' | 'agentDir' | 'model' | 'modelRuntime' | 'systemPrompt'
-export type TestSessionOptions = Omit<AgentRuntimeSessionOptions, Defaulted> &
+export type TestSessionOptions = Omit<AgentRuntimeSessionOptions, Defaulted | 'onEvent'> &
   Partial<Pick<AgentRuntimeSessionOptions, 'cwd' | 'agentDir' | 'systemPrompt'>> & {
+    onEvent?: (event: AgentRuntimeEvent, manager: SessionManager) => void
     entries?: SessionEntry[]
     sessionId?: string
     history?: Message[]
@@ -177,7 +180,7 @@ export type TestSessionOptions = Omit<AgentRuntimeSessionOptions, Defaulted> &
   }
 
 export async function createTestSession(options: TestSessionOptions) {
-  const { stream, model, history, entries, sessionId, signal, ...sessionOptions } = options
+  const { stream, model, history, entries, sessionId, signal, onEvent, ...sessionOptions } = options
   const binding = await createTestBinding({ stream, model, signal })
   const cwd = options.cwd ?? tempDir('cwd')
   const sessionManager = options.sessionManager ?? SessionManager.inMemory(cwd, { id: sessionId }, entries)
@@ -188,6 +191,7 @@ export async function createTestSession(options: TestSessionOptions) {
     agentDir: options.agentDir ?? tempDir('agent'),
     systemPrompt: 'You are Cherry.',
     ...sessionOptions,
+    onEvent: onEvent && ((event) => onEvent(event, sessionManager)),
     settings: { retry: { enabled: false }, ...sessionOptions.settings },
     ...binding
   })
@@ -211,9 +215,9 @@ export const messageText = (message: Message) =>
 export function hostStore() {
   const entries: SessionEntry[] = []
   const events: AgentRuntimeEvent[] = []
-  const onEvent = (event: AgentRuntimeEvent) => {
+  const onEvent = (event: AgentRuntimeEvent, manager: SessionManager) => {
     events.push(event)
-    if (event.type === 'session-append') entries.push(...plain(event.entries))
+    if (event.type === 'session-append') entries.push(...plain(event.entries.map(({ id }) => manager.getEntry(id)!)))
   }
   return { entries, events, onEvent }
 }

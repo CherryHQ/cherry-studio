@@ -36,12 +36,13 @@ import {
 import { BracesVariableIcon } from '@renderer/components/icons/BracesVariableIcon'
 import Favicon from '@renderer/components/icons/FallbackFavicon'
 import { ipcApi } from '@renderer/ipc'
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { ImagePreviewService } from '@renderer/services/ImagePreviewService'
-import { COMPOSER_FILE_KIND, type ComposerFileKind, FILE_TYPE } from '@renderer/types/file'
+import { COMPOSER_FILE_KIND, type ComposerFileKind } from '@renderer/types/file'
 import { formatFileSize } from '@renderer/utils/file'
 import { normalizeFilePreviewPath } from '@renderer/utils/filePreview'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
-import type { AbsoluteFilePath, FileUrlString } from '@shared/types/file'
+import { type AbsoluteFilePath, FILE_TYPE, type FileUrlString } from '@shared/types/file'
 import { fileUrlToPath } from '@shared/utils/file'
 
 import type { ChatInputTokenKind, ChatTokenView } from '../chatTokenView'
@@ -313,6 +314,14 @@ export function LinkComposerToken(props: ComposerTokenProps) {
   }
   const handleClick: MouseEventHandler<HTMLSpanElement> = (event) => {
     stopTokenActionEvent(event)
+    const selection = window.getSelection()
+    if (
+      props.readOnly &&
+      selection &&
+      !selection.isCollapsed &&
+      selection.getRangeAt(0).intersectsNode(event.currentTarget)
+    )
+      return
     openLink(event.metaKey || event.ctrlKey || event.shiftKey || event.altKey)
   }
   const handleKeyDown = (event: ReactKeyboardEvent<HTMLSpanElement>) => {
@@ -326,15 +335,19 @@ export function LinkComposerToken(props: ComposerTokenProps) {
   const chipElement = renderActiveComposerTokenElement({
     ...props,
     colorClassName: 'text-link',
-    className: cn('cursor-pointer rounded-[4px] focus-visible:bg-accent focus-visible:outline-none', props.className),
+    className: cn(
+      'cursor-pointer rounded-[4px] focus-visible:bg-accent focus-visible:outline-none',
+      props.readOnly && 'inline select-text',
+      props.className
+    ),
     // 编辑态也和只读态一样显示站点图标；拿不到图标时退回链接字形（而不是首字母方块），
     // 这样编辑中的链接和已发送消息里的链接长得一样。
     icon: (
-      <span className={composerLinkFaviconClassName} data-composer-link-favicon="">
+      <span className={cn(composerLinkFaviconClassName, props.readOnly && 'mr-1')} data-composer-link-favicon="">
         <Favicon hostname={link.hostname} alt="" fallback={tokenIconByKind.link} />
       </span>
     ),
-    children: <span className="min-w-0 truncate">{link.label}</span>,
+    children: <span className={props.readOnly ? undefined : 'min-w-0 truncate'}>{link.label}</span>,
     hideNativeTitle: true,
     interactionProps: {
       href: props.readOnly ? link.url : undefined,
@@ -1083,7 +1096,31 @@ export function ReferenceComposerToken(props: ComposerTokenProps) {
 
 export function QuoteComposerToken(props: ComposerTokenProps) {
   const quoteTooltipContent = getQuoteTooltipContent(props.token.description, props.token.promptText)
-  const tokenElement = renderActiveComposerTokenElement({ ...props, icon: tokenIconByKind.quote })
+  const { t } = useTranslation()
+  const sourceMessageId = props.token.sourceMessageId
+  const locateQuote = () => void EventEmitter.emit(EVENT_NAMES.LOCATE_QUOTED_MESSAGE, sourceMessageId)
+  const tokenElement = renderActiveComposerTokenElement({
+    ...props,
+    icon: tokenIconByKind.quote,
+    className: cn(sourceMessageId && 'cursor-pointer hover:underline focus-visible:underline', props.className),
+    interactionProps: sourceMessageId
+      ? {
+          role: 'link',
+          tabIndex: 0,
+          'aria-label': t('chat.input.locate_editing_message'),
+          onClick: (event) => {
+            stopTokenActionEvent(event)
+            locateQuote()
+          },
+          onKeyDown: (event) => {
+            if (event.key !== 'Enter' && event.key !== ' ') return
+            event.preventDefault()
+            event.stopPropagation()
+            locateQuote()
+          }
+        }
+      : undefined
+  })
 
   if (!quoteTooltipContent) return tokenElement
 
@@ -1095,7 +1132,7 @@ export function QuoteComposerToken(props: ComposerTokenProps) {
       delayDuration={300}
       showArrow={false}
       contentProps={{ className: QUOTE_TOOLTIP_CONTENT_CLASS_NAME }}
-      triggerProps={props.readOnly ? { tabIndex: 0, 'aria-label': props.token.label } : undefined}>
+      triggerProps={props.readOnly && !sourceMessageId ? { tabIndex: 0, 'aria-label': props.token.label } : undefined}>
       {tokenElement}
     </NormalTooltip>
   )

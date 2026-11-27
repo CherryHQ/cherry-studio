@@ -40,6 +40,7 @@ interface CodeCliContentPanelProps {
   providerActionsDisabled?: boolean
   resolveProviderMeta: (provider: Provider, cfg?: CliProviderConfig) => { providerName: string; modelName?: string }
   onInstall: () => void
+  onRetryDetection: () => void
   onUpgrade: () => void
   onRemove?: () => void
   onLaunch: () => void
@@ -80,6 +81,7 @@ export const CodeCliContentPanel: FC<CodeCliContentPanelProps> = ({
   providerActionsDisabled,
   resolveProviderMeta,
   onInstall,
+  onRetryDetection,
   onUpgrade,
   onRemove,
   onLaunch,
@@ -112,6 +114,7 @@ export const CodeCliContentPanel: FC<CodeCliContentPanelProps> = ({
             toolName={activeMeta.label}
             status={versionStatus}
             onInstall={onInstall}
+            onRetryDetection={onRetryDetection}
             onUpgrade={onUpgrade}
             onRemove={onRemove}
             onLaunch={onLaunch}

@@ -160,9 +160,9 @@ describe('AiSdkToOpenAiResponsesSse', () => {
     const createReasoningDelta = (text: string): UIMessageChunk => ({ type: 'reasoning-delta', id: 'r_0', delta: text })
 
     // Catches duplicating one native reasoning item when the SDK streams multiple summary parts.
-    it('keeps one native identity and the final ciphertext across summary parts', async () => {
+    it.each(['openai', 'azure', 'xai'])('keeps %s ciphertext across summary parts', async (namespace) => {
       const adapter = new AiSdkToOpenAiResponsesSse({ model: 'openai:gpt-5' })
-      const providerMetadata = { openai: { itemId: 'rs_native' } }
+      const providerMetadata = { [namespace]: { itemId: 'rs_native' } }
       const events = await collectEvents(
         adapter.transform(
           createMockStream([
@@ -174,7 +174,9 @@ describe('AiSdkToOpenAiResponsesSse', () => {
             {
               type: 'reasoning-end',
               id: 'rs_native:1',
-              providerMetadata: { openai: { itemId: 'rs_native', reasoningEncryptedContent: 'final-ciphertext' } }
+              providerMetadata: {
+                [namespace]: { itemId: 'rs_native', reasoningEncryptedContent: 'final-ciphertext' }
+              }
             },
             createTextDelta('answer'),
             createFinish()
@@ -188,7 +190,6 @@ describe('AiSdkToOpenAiResponsesSse', () => {
           id: 'rs_native',
           status: 'completed',
           summary: [{ type: 'summary_text', text: 'first second' }],
-          content: [{ type: 'reasoning_text', text: 'first second' }],
           encrypted_content: 'final-ciphertext'
         }
       ])
@@ -467,3 +468,42 @@ it.each([null, undefined, [], true, 42, 'invalid json'])(
     ).toThrow('Invalid tool arguments')
   }
 )
+
+it('completes an other finish reason successfully', async () => {
+  const adapter = new AiSdkToOpenAiResponsesSse({ model: 'test:model' })
+  const events = await collectEvents(adapter.transform(createMockStream([{ type: 'finish', finishReason: 'other' }])))
+  expect(events).toContainEqual(
+    expect.objectContaining({ type: 'response.completed', response: expect.objectContaining({ status: 'completed' }) })
+  )
+  expect(events.some((event) => event.type === 'error')).toBe(false)
+})
+
+describe('terminal failure reasons', () => {
+  it.each(['error'] as const)('rejects %s while reading after a tool call', async (reason) => {
+    const adapter = new AiSdkToOpenAiResponsesSse({ model: 'test:model' })
+    const stream = new ReadableStream<UIMessageChunk>({
+      start(controller) {
+        controller.enqueue({ type: 'tool-input-available', toolCallId: 'call', toolName: 'read', input: {} })
+        controller.enqueue({ type: 'finish', finishReason: reason })
+        controller.close()
+      }
+    })
+    const read = async () => {
+      const events: unknown[] = []
+      for await (const event of adapter.transform(stream)) events.push(event)
+      return events
+    }
+    await expect(read()).rejects.toMatchObject({ statusCode: 502 })
+  })
+
+  it.each(['error'] as const)('rejects %s with 502, including after a tool call', (reason) => {
+    for (const withTool of [false, true]) {
+      const adapter = new AiSdkToOpenAiResponsesSse({ model: 'test:model' })
+      if (withTool)
+        adapter.transformChunk({ type: 'tool-input-available', toolCallId: 'call', toolName: 'read', input: {} })
+      expect(() => adapter.transformChunk({ type: 'finish', finishReason: reason })).toThrow(
+        expect.objectContaining({ statusCode: 502 })
+      )
+    }
+  })
+})

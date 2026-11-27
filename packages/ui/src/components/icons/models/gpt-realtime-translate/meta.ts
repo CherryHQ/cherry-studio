@@ -2,6 +2,7 @@ import { type IconMeta } from '../../types'
 
 export const meta: IconMeta = {
   id: 'gpt-realtime-translate',
-  colorPrimary: '#000000',
-  colorScheme: 'color'
+  colorPrimary: '#bd7ffb',
+  colorScheme: 'color',
+  artworkKind: 'tile'
 }

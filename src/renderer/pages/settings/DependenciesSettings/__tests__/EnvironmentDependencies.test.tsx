@@ -4,6 +4,7 @@ import React from 'react'
 import { gt as semverGt } from 'semver'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as CherryStudioUi from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { BABELDOC_MINIMUM_VERSION } from '@shared/data/presets/binaryTools'
 import type { BinaryToolInstalledSizes, BinaryToolSnapshot } from '@shared/types/binary'
@@ -94,7 +95,8 @@ vi.mock('semver', () => ({
   gt: vi.fn(() => true),
   valid: vi.fn((version: string) => (/^\d+\.\d+\.\d+/.test(version) ? version : null))
 }))
-vi.mock('@cherrystudio/ui', () => {
+vi.mock('@cherrystudio/ui', async (importOriginal) => {
+  const { PageHeader } = await importOriginal<typeof CherryStudioUi>()
   const passthrough =
     (tag: string) =>
     ({ children, closeOnOverlayClick, ...props }: { children?: React.ReactNode; closeOnOverlayClick?: boolean }) => {
@@ -123,6 +125,9 @@ vi.mock('@cherrystudio/ui', () => {
         )
       : null
   return {
+    PageHeader,
+    HelpTooltip: () => null,
+
     Badge: passthrough('span'),
     Button: ({ children, onClick, 'aria-label': ariaLabel, disabled, title }: any) =>
       React.createElement('button', { onClick, 'aria-label': ariaLabel, disabled, title }, children),
@@ -1148,7 +1153,7 @@ describe('EnvironmentDependencies', () => {
       setSnapshots({ uv: miseSnapshot('uv', 'uv', '1.0.0', false) })
       ipcMocks.installedSizes.mockResolvedValueOnce({ uv: 0 })
       render(<EnvironmentDependencies />)
-      expect(await screen.findByText('0.00 KB')).toBeInTheDocument()
+      expect(await screen.findByText('0 B')).toBeInTheDocument()
     })
 
     it('U3 invalidates immediately on events, while snapshots wait, and ignores an old rejection after new success', async () => {

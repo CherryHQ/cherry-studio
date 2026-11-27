@@ -26,6 +26,7 @@ import {
 
 const TEMPLATE_AGENT_JSON = JSON.stringify({
   name: { 'en-US': 'Cherry Assistant', 'zh-CN': 'Cherry Assistant CN' },
+  type: 'pi-durable',
   instructions: { 'en-US': 'English instructions', 'zh-CN': 'Chinese instructions' },
   configuration: { permission_mode: 'default' },
   skills: ['cherry-assistant-guide']
@@ -123,6 +124,7 @@ describe('BuiltinAgentProvisioner', () => {
   it('builds creation defaults from the bundled Agent definition', () => {
     expect(loadBuiltinAgentDefaults('assistant')).toEqual({
       name: 'Cherry Assistant',
+      type: 'pi-durable',
       configuration: { permission_mode: 'default', builtin_role: 'assistant' }
     })
   })
@@ -138,6 +140,15 @@ describe('BuiltinAgentProvisioner', () => {
     )
   })
 
+  it('rejects a runtime the app cannot use', () => {
+    writeFile(
+      path.join(templateDir, 'agent.json'),
+      JSON.stringify({ name: 'Cherry Assistant', type: 'unknown', configuration: {} })
+    )
+
+    expect(() => loadBuiltinAgentDefaults('assistant')).toThrow('Builtin Agent package type is invalid for assistant')
+  })
+
   it('copies persona and memory templates into agent data without copying product files', async () => {
     const result = await provisionBuiltinAgent(agentDataPath, 'assistant')
 
@@ -147,6 +158,7 @@ describe('BuiltinAgentProvisioner', () => {
     expect(fs.readFileSync(path.join(agentDataPath, 'memory', 'FACT.md'), 'utf-8')).toBe('TEMPLATE_FACT')
     expect(result).toEqual({
       name: 'Cherry Assistant',
+      type: 'pi-durable',
       instructions: 'English instructions',
       configuration: { permission_mode: 'default' },
       skills: ['cherry-assistant-guide']

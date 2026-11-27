@@ -9,7 +9,7 @@ const Dbrx = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const DbrxIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Dbrx, {
   Avatar: DbrxAvatar,
-  colorPrimary: '#EE3D2C'
+  colorPrimary: '#fdeeec'
 })
 
 export default DbrxIcon

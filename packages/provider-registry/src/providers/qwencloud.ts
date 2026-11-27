@@ -188,6 +188,7 @@ const qwenImage20Supports: ImageModeDef['supports'] = {
 }
 
 const qwenImage20EditMode: ImageModeDef = {
+  maxInputImages: 3,
   supports: {
     ...qwenImage20Supports,
     size: { options: qwenImage20SizeOptions, render: 'chips', type: 'enum' }

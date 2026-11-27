@@ -11,6 +11,7 @@ import { jsonSchema, tool } from 'ai'
 import mime from 'mime'
 
 import type OpenAI from '@cherrystudio/openai'
+import { loggerService } from '@logger'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -19,6 +20,9 @@ import { parseDataUrl } from '@shared/utils/dataUrl'
 import type { IMessageConverter, StreamTextOptions } from '../interfaces'
 import type { ReasoningEffort } from './providerOptionsMapper'
 import { mapReasoningEffortToProviderOptions } from './providerOptionsMapper'
+import { isBlankToolName } from './toolName'
+
+const logger = loggerService.withContext('OpenAiResponsesMessageConverter')
 
 let uiMessageSeq = 0
 function nextUIMessageId(): string {
@@ -82,15 +86,6 @@ function functionOutputToConversion(callId: string, output: FunctionCallOutput['
 }
 
 /**
- * The reasoning chain a client echoed back. `content` (`reasoning_text`) is the raw chain and
- * wins; `summary` is the fallback. Encrypted-only items retain their metadata with empty text.
- */
-function reasoningItemText(item: OpenAI.Responses.ResponseReasoningItem): string {
-  const content = item.content?.map((part) => part.text).join('') ?? ''
-  return content || (item.summary?.map((part) => part.text).join('') ?? '')
-}
-
-/**
  * Extended ResponseCreateParams with reasoning_effort
  */
 export type ResponsesCreateParams = ResponseCreateParams & {
@@ -148,18 +143,36 @@ export class OpenAiResponsesMessageConverter implements IMessageConverter<Respon
       // reasoning → assistant reasoning part. Emitted just ahead of the message or
       // function_call it belongs to, and `coalesceConsecutiveSameRole` merges the two.
       if ('type' in item && item.type === 'reasoning') {
-        const text = reasoningItemText(item)
-        if (text || item.id || item.encrypted_content) {
+        const raw =
+          item.content
+            ?.filter((part) => part.type === 'reasoning_text')
+            .map((part) => part.text)
+            .join('') ?? ''
+        const summary = item.summary?.map((part) => part.text).join('') ?? ''
+        if (raw || summary || item.id || item.encrypted_content) {
           const metadata = {
             itemId: item.id,
+            rawReasoningContent: false,
             ...(item.encrypted_content != null && { reasoningEncryptedContent: item.encrypted_content })
           }
-          const part: ReasoningUIPart = {
-            type: 'reasoning',
-            text,
-            providerMetadata: { openai: metadata, azure: metadata }
+          const parts: ReasoningUIPart[] = []
+          if (raw) {
+            const rawMetadata = { ...metadata, rawReasoningContent: true }
+            parts.push({
+              type: 'reasoning',
+              text: raw,
+              providerMetadata: { openai: rawMetadata, azure: rawMetadata, xai: rawMetadata }
+            })
           }
-          messages.push({ id: nextUIMessageId(), role: 'assistant', parts: [part] })
+          // Older gateway replies can mirror the same text in both fields.
+          if (!raw || (summary && summary !== raw)) {
+            parts.push({
+              type: 'reasoning',
+              text: summary,
+              providerMetadata: { openai: metadata, azure: metadata, xai: metadata }
+            })
+          }
+          messages.push({ id: nextUIMessageId(), role: 'assistant', parts })
         }
         continue
       }
@@ -276,9 +289,19 @@ export class OpenAiResponsesMessageConverter implements IMessageConverter<Respon
     if (!tools || tools.length === 0) return undefined
 
     const aiSdkTools: ToolSet = {}
+    const droppedTools: Array<{ index: number; path: string; name: string; description?: string | null }> = []
 
-    for (const toolDef of tools) {
+    for (const [index, toolDef] of tools.entries()) {
       if (toolDef.type !== 'function') continue
+      if (isBlankToolName(toolDef.name)) {
+        droppedTools.push({
+          index,
+          path: `tools[${index}].name`,
+          name: toolDef.name,
+          description: toolDef.description
+        })
+        continue
+      }
 
       const funcTool = toolDef
       const rawSchema = funcTool.parameters
@@ -291,6 +314,14 @@ export class OpenAiResponsesMessageConverter implements IMessageConverter<Respon
       })
 
       aiSdkTools[funcTool.name] = aiTool
+    }
+
+    if (droppedTools.length > 0) {
+      logger.warn('Dropped tools with empty or whitespace-only names before provider request', {
+        inputFormat: 'openai-responses',
+        model: params.model,
+        droppedTools
+      })
     }
 
     return Object.keys(aiSdkTools).length > 0 ? aiSdkTools : undefined

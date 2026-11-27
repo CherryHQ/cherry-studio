@@ -180,6 +180,36 @@ describe('EditModelDrawer', () => {
     useProviderMock.mockReturnValue({ provider: { id: 'openai', name: 'OpenAI' } })
   })
 
+  it('saves a default reasoning tier through the existing autosave path', async () => {
+    const user = userEvent.setup()
+    const model: Model = {
+      ...modelWithFullPricing,
+      reasoning: { selectableEfforts: ['none', 'auto', 'low', 'medium', 'high'], defaultEffort: 'medium' }
+    }
+    render(<EditModelDrawer providerId="openai" open onClose={vi.fn()} model={model} />)
+    await user.click(screen.getByRole('button', { name: 'currency-high' }))
+    await waitFor(() =>
+      expect(updateModelMock.mock.lastCall?.[2]).toMatchObject({ reasoning: { defaultEffort: 'high' } })
+    )
+    expect(screen.queryByRole('button', { name: 'currency-none' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'currency-auto' })).not.toBeInTheDocument()
+  })
+
+  it.each([undefined, { selectableEfforts: [] }, { selectableEfforts: ['none', 'auto'] }])(
+    'hides reasoning when no real tier is exposed (%j)',
+    (reasoning) => {
+      render(
+        <EditModelDrawer
+          providerId="openai"
+          open
+          onClose={vi.fn()}
+          model={{ ...modelWithFullPricing, reasoning: reasoning as Model['reasoning'] }}
+        />
+      )
+      expect(screen.queryByLabelText('settings.models.edit.default_reasoning_effort')).not.toBeInTheDocument()
+    }
+  )
+
   it('saves an image rate without inventing token prices and retains it when editing tokens', async () => {
     const user = userEvent.setup()
     const model = { ...modelWithFullPricing, pricing: undefined }

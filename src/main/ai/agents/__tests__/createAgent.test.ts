@@ -7,20 +7,25 @@ const {
   removeAgentDataDirectory,
   createAgentWithId,
   syncHeartbeatSchedule,
-  repairHeartbeatSchedules
+  repairHeartbeatSchedules,
+  reconcileAgent
 } = vi.hoisted(() => ({
   createAgentDataDirectory: vi.fn(),
   removeAgentDataDirectory: vi.fn(),
   createAgentWithId: vi.fn(),
   syncHeartbeatSchedule: vi.fn(),
-  repairHeartbeatSchedules: vi.fn()
+  repairHeartbeatSchedules: vi.fn(),
+  reconcileAgent: vi.fn()
 }))
 
 vi.mock('@data/services/AgentService', () => ({ agentService: { createAgentWithId } }))
 vi.mock('../agentDataDirectory', () => ({ createAgentDataDirectory, removeAgentDataDirectory }))
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
-  return mockApplicationFactory({ AgentJobsService: { waitForHeartbeat: syncHeartbeatSchedule } } as never)
+  return mockApplicationFactory({
+    AgentJobsService: { waitForHeartbeat: syncHeartbeatSchedule },
+    ChannelManager: { reconcileAgent }
+  } as never)
 })
 vi.mock('uuid', () => ({ v4: () => '11111111-1111-4111-8111-111111111111' }))
 
@@ -41,6 +46,7 @@ describe('createAgent', () => {
     createAgentWithId.mockImplementation((id: string, input: object) => ({ id, ...input }))
     syncHeartbeatSchedule.mockResolvedValue('created')
     repairHeartbeatSchedules.mockResolvedValue(undefined)
+    reconcileAgent.mockImplementation(() => undefined)
   })
 
   it('provisions Agent data before committing the database row', async () => {
@@ -102,5 +108,37 @@ describe('createAgent', () => {
     })
     expect(removeAgentDataDirectory).not.toHaveBeenCalled()
     expect(repairHeartbeatSchedules).not.toHaveBeenCalled()
+  })
+
+  describe('with channels', () => {
+    const withChannels = {
+      ...request,
+      channels: [{ type: 'telegram' as const, name: 'Telegram', isActive: true, config: { bot_token: 't' } }]
+    }
+
+    it('starts the channels only after the Agent and its channels are committed', async () => {
+      await createAgent(withChannels)
+
+      expect(reconcileAgent).toHaveBeenCalledWith('11111111-1111-4111-8111-111111111111')
+      expect(createAgentWithId.mock.invocationCallOrder[0]).toBeLessThan(reconcileAgent.mock.invocationCallOrder[0])
+    })
+
+    it('starts no channel when the database write fails', async () => {
+      createAgentWithId.mockImplementation(() => {
+        throw new Error('channel rejected')
+      })
+
+      await expect(createAgent(withChannels)).rejects.toThrow('channel rejected')
+      expect(reconcileAgent).not.toHaveBeenCalled()
+    })
+
+    it('keeps the committed Agent when its channels fail to start', async () => {
+      reconcileAgent.mockImplementation(() => {
+        throw new Error('adapter failed')
+      })
+
+      await expect(createAgent(withChannels)).resolves.toMatchObject({ id: '11111111-1111-4111-8111-111111111111' })
+      expect(removeAgentDataDirectory).not.toHaveBeenCalled()
+    })
   })
 })

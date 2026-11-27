@@ -1,5 +1,6 @@
 import type { ItemId, JsonValue, ThreadId } from '@cherrystudio/agent-runtime'
 
+import { blockedByApproval } from '../approval/approval'
 import { fieldsOf, numberField, stringField } from '../args'
 import type {
   CallKey,
@@ -11,7 +12,6 @@ import type {
   HistoryEntry,
   RoundDetails
 } from '../facts'
-import type { ApprovalOutcome } from '../hostFacts'
 import { armSeq } from '../keys'
 import { runActive, startsTurn, type Turn, turnKind } from '../turns'
 import {
@@ -338,34 +338,30 @@ export function lastError(history: readonly HistoryEntry[]): string | undefined 
 
 /**
  * The stop a goal round asks for at its end, the latest one winning (R4, D9): one of its calls a person denied or
- * nobody could approve (the host's outcomes on `thread`, matched by call key), a question the person dismissed, or the
- * same call repeated 5 times.
+ * nobody could approve (read from the call's blocked result), a question the person dismissed, or the same call
+ * repeated 5 times.
  */
-export function roundStopRequest(
-  round: readonly HistoryEntry[],
-  thread: ThreadId,
-  approvals: readonly ApprovalOutcome[]
-): StopRequest | undefined {
+export function roundStopRequest(round: readonly HistoryEntry[]): StopRequest | undefined {
   let request: StopRequest | undefined
   let repeat = { key: '', count: 0 }
   for (const entry of round) {
-    if (entry.kind === 'tool-result' && entry.tool === 'AskUserQuestion')
-      if (stringField(fieldsOf(entry.details), 'outcome') === 'declined')
+    if (entry.kind === 'tool-result') {
+      if (entry.tool === 'AskUserQuestion' && stringField(fieldsOf(entry.details), 'outcome') === 'declined')
         request = { code: 'needs_user_input', message: 'the user dismissed the question' }
+      const blocked = blockedByApproval(entry)
+      if (blocked === 'denied') request = { code: 'approval_denied', message: `tool call ${entry.callId} was denied` }
+      if (blocked === 'unavailable')
+        request = {
+          code: 'awaiting_approval',
+          message: `tool call ${entry.callId} needs approval and nobody can give it`
+        }
+    }
     if (entry.kind !== 'assistant') continue
     for (const call of entry.toolCalls) {
       const key = toolCallKey(call.name, call.args)
       repeat = { key, count: repeat.key === key ? repeat.count + 1 : 1 }
       if (repeat.count >= STOP_REPEAT_AT)
         request = { code: 'no_progress', message: `the same ${call.name} call was repeated ${repeat.count} times` }
-      const outcome = approvals.find(({ call: ref }) => ref.thread === thread && ref.key === call.callKey)
-      if (outcome?.state === 'denied')
-        request = { code: 'approval_denied', message: `tool call ${call.callId} was denied` }
-      if (outcome?.state === 'unavailable')
-        request = {
-          code: 'awaiting_approval',
-          message: `tool call ${call.callId} needs approval and nobody can give it`
-        }
     }
   }
   return request

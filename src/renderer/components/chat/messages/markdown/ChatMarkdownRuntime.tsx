@@ -8,6 +8,7 @@ import {
   useOptionalMessageListActions
 } from '@renderer/components/chat/messages/MessageListProvider'
 import { AppMarkdown, MarkdownHostProvider } from '@renderer/components/markdown'
+import type { FileLocation } from '@renderer/types/fileLocation'
 import { removeSvgEmptyLines } from '@renderer/utils/formats'
 import { openFileTarget } from '@renderer/utils/openFileTarget'
 import { isWin } from '@renderer/utils/platform'
@@ -57,18 +58,22 @@ const ChatMarkdownRuntime: FC<ChatMarkdownProps> = ({
     [components]
   )
   const remarkPlugins = inlineHtmlPreviewMode ? HTML_ARTIFACT_REMARK_PLUGINS : undefined
-  // Relative markdown links are workspace files only when the host has the
-  // workspace-aware artifact opener. Other chat surfaces retain link hardening.
+  // Host file openers own path resolution; relative paths without a workspace are rejected.
+  // Surfaces without a file opener retain link hardening.
   const openFilePath = useMemo(
     () =>
-      actions?.openArtifactFile
-        ? (path: string) =>
-            openFileTarget(path, {
-              openArtifactFile: actions.openArtifactFile,
-              openPath: actions.openPath,
-              isDirectory: actions.isDirectory,
-              onError: () => actions.notifyError?.(t('chat.input.tools.open_file_error', { path }))
-            })
+      actions?.openArtifactFile || actions?.openPath
+        ? (path: string, location?: FileLocation) =>
+            openFileTarget(
+              path,
+              {
+                openArtifactFile: actions.openArtifactFile,
+                openPath: actions.openPath,
+                isDirectory: actions.isDirectory,
+                onError: () => actions.notifyError?.(t('chat.input.tools.open_file_error', { path }))
+              },
+              location
+            )
         : undefined,
     [actions, t]
   )

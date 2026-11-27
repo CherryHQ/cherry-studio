@@ -83,6 +83,18 @@ describe('summarizeModelMessages', () => {
     await summarizeModelMessages([{ role: 'user', content: 'q' }], model, { maxOutputTokens: 12_345 })
     expect(seenMaxOutputTokens).toBe(12_345)
   })
+
+  it('rejects a truncated summary instead of treating it as complete', async () => {
+    const model = createSummarizerModel('incomplete summary')
+    const generate = model.doGenerate.bind(model)
+    model.doGenerate = async (options) => ({
+      ...(await generate(options)),
+      finishReason: { unified: 'length', raw: 'length' }
+    })
+    await expect(summarizeModelMessages([{ role: 'user', content: 'question' }], model)).rejects.toThrow(
+      'output token limit'
+    )
+  })
 })
 
 describe('resolveCompressionOutputTokens', () => {

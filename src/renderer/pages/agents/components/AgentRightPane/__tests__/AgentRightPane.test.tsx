@@ -19,13 +19,14 @@ import {
   HoverCardTrigger as RealHoverCardTrigger
 } from '@cherrystudio/ui/components'
 import type * as ArtifactPanePath from '@renderer/components/chat/panes/artifactPanePath'
-import { useRightPanelState } from '@renderer/components/chat/panes/Shell'
+import { useRightPanelActions, useRightPanelState } from '@renderer/components/chat/panes/Shell'
 import type * as ChatPrimitives from '@renderer/components/chat/primitives'
 import type * as CommandComponents from '@renderer/components/command'
 import { useOptionalFilePreviewNavigation } from '@renderer/components/FilePreview/useFilePreviewNavigation'
 import type { WebviewAnnotationSavedPayload } from '@renderer/components/WebviewAnnotationControls'
 import type * as RendererIpc from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import type { FileLocation } from '@renderer/types/fileLocation'
 import type { AgentSessionBackgroundTask } from '@shared/ai/agentSessionBackgroundTasks'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { ComputerUseControl } from '@shared/ipc/schemas/computerUse'
@@ -249,11 +250,11 @@ vi.mock('@renderer/ipc', async (importActual) => ({
 }))
 
 vi.mock('@renderer/services/toast', () => ({
-  toast: { error: toastErrorMock }
+  toast: { error: toastErrorMock, closeToast: vi.fn() }
 }))
 
 vi.mock('@renderer/utils/filePath', () => ({
-  resolveInlineFilePath: (path: string) => path
+  expandHomeRelativePath: (path: string) => path
 }))
 
 vi.mock('@renderer/components/chat/panes/ArtifactPane', async () => ({
@@ -284,7 +285,7 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', async () => ({
     onSelectedFileChange: (file: string | null) => void
     paneActions?: ReactNode
     paneTitle?: ReactNode
-    previewFileSelection?: { workspacePath: string; filePath: string } | null
+    previewFileSelection?: { workspacePath: string; filePath: string; location?: FileLocation } | null
     searchKeyword?: string
     selectedFile: string | null
   }) => {
@@ -294,6 +295,7 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', async () => ({
       <div
         data-testid="artifact-pane"
         data-edit-mode={editMode}
+        data-source-location={JSON.stringify(previewFileSelection?.location ?? null)}
         data-search-keyword={searchKeyword}
         data-selected-file={selectedFile ?? ''}>
         <div data-testid="artifact-pane-header">
@@ -590,11 +592,19 @@ function ArtifactCapabilityProbe() {
   return <output data-testid="can-open-artifact-file">{String(canOpenArtifactFile)}</output>
 }
 
-function OpenArtifactButton({ path = 'report.md' }: { path?: string }) {
+function OpenArtifactButton({
+  path = 'report.md',
+  location,
+  label = 'open artifact'
+}: {
+  path?: string
+  location?: FileLocation
+  label?: string
+}) {
   const { openArtifactFile } = useAgentRightPaneActions()
   return (
-    <button type="button" onClick={() => openArtifactFile(path)}>
-      open artifact
+    <button type="button" onClick={() => openArtifactFile(path, location)}>
+      {label}
     </button>
   )
 }
@@ -744,7 +754,7 @@ describe('AgentRightPane', () => {
     MockUsePreferenceUtils.setPreferenceValue('feature.agent.file_pane.auto_save', true)
     uiMockState.useRealHoverCard = false
     ipcRequestMock.mockImplementation(async (route: string) => {
-      if (route === 'ai.tool.get_result') return { found: true, output: 'Loaded flow result' }
+      if (route === 'ai.tool.get_result') return { status: 'ready', purpose: 'preview', output: 'Loaded flow result' }
       if (route === 'ai.projection.attach') return null
       return {
         kind: 'file',
@@ -771,6 +781,138 @@ describe('AgentRightPane', () => {
       hasLoaded: fileTreeModelState.hasLoaded,
       nodeById: fileTreeModelState.nodeById
     }))
+  })
+
+  it('requests a missing context reading when session details are opened', async () => {
+    const user = userEvent.setup()
+    render(
+      <TestAgentRightPane sessionId="session-a" messages={[]} partsByMessageId={{}}>
+        <AgentRightPane.Shortcuts />
+      </TestAgentRightPane>
+    )
+
+    expect(ipcRequestMock).not.toHaveBeenCalledWith('ai.agent.session.refresh_context_usage', expect.anything())
+
+    await user.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.details' }))
+
+    expect(ipcRequestMock).toHaveBeenCalledWith('ai.agent.session.refresh_context_usage', { sessionId: 'session-a' })
+    expect(screen.getByText('agent.right_pane.info.context_details.unavailable')).toBeVisible()
+  })
+
+  it('navigates repeatedly within one file and clears locations for a plain open', async () => {
+    resolveArtifactPaneFileSelectionMock.mockImplementation((workspacePath: string, filePath: string) => ({
+      workspacePath,
+      filePath
+    }))
+    render(
+      <TestAgentRightPane
+        defaultOpen
+        sessionId="session-a"
+        workspacePath="/workspace"
+        messages={[]}
+        partsByMessageId={{}}>
+        <OpenArtifactButton path="source.ts" location={{ line: 42 }} label="line 42" />
+        <OpenArtifactButton path="source.ts" location={{ line: 7, endLine: 9 }} label="lines 7-9" />
+        <OpenArtifactButton path="source.ts" label="plain" />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+    for (const [label, location] of [
+      ['line 42', { line: 42 }],
+      ['lines 7-9', { line: 7, endLine: 9 }],
+      ['line 42', { line: 42 }],
+      ['plain', null]
+    ] as const) {
+      await userEvent.click(screen.getByRole('button', { name: label }))
+      await waitFor(() =>
+        expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-source-location', JSON.stringify(location))
+      )
+    }
+    expect(screen.getAllByRole('tab')).toHaveLength(1)
+  })
+
+  it('opens located HTML in the file pane instead of the browser', async () => {
+    resolveArtifactPaneFileSelectionMock.mockReturnValue({ workspacePath: '/workspace', filePath: 'artifact.html' })
+    render(
+      <TestAgentRightPane
+        defaultOpen
+        sessionId="session-a"
+        workspacePath="/workspace"
+        messages={[]}
+        partsByMessageId={{}}>
+        <OpenArtifactButton path="artifact.html" location={{ line: 42 }} />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+    await userEvent.click(screen.getByRole('button', { name: 'open artifact' }))
+    await waitFor(() =>
+      expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-source-location', JSON.stringify({ line: 42 }))
+    )
+    expect(screen.queryByTestId('webview-browser')).not.toBeInTheDocument()
+  })
+
+  it('keeps the current source location and draft when a dirty-file transition is canceled', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.agent.file_pane.auto_save', false)
+    resolveArtifactPaneFileSelectionMock.mockImplementation((workspacePath: string, filePath: string) => ({
+      workspacePath,
+      filePath
+    }))
+    const pane = () => (
+      <TestAgentRightPane
+        defaultOpen
+        sessionId="session-a"
+        workspacePath="/workspace"
+        messages={[]}
+        partsByMessageId={{}}>
+        <OpenArtifactButton path="current.ts" location={{ line: 42 }} label="current" />
+        <OpenArtifactButton path="next.ts" location={{ line: 7 }} label="next" />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+    const view = render(pane())
+    await userEvent.click(screen.getByRole('button', { name: 'current' }))
+    await waitFor(() =>
+      expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-source-location', JSON.stringify({ line: 42 }))
+    )
+    fileSessionState.isDirty = true
+    view.rerender(pane())
+    await userEvent.click(screen.getByRole('button', { name: 'next' }))
+    expect(await screen.findByRole('dialog')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.edit.leave.keep_editing' }))
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-selected-file', 'current.ts')
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-source-location', JSON.stringify({ line: 42 }))
+    expect(fileSessionDiscardMock).not.toHaveBeenCalled()
+  })
+
+  it('ignores obsolete file metadata when a newer located link has opened', async () => {
+    resolveArtifactPaneFileSelectionMock.mockImplementation((workspacePath: string, filePath: string) => ({
+      workspacePath,
+      filePath
+    }))
+    const old = Promise.withResolvers<PhysicalFileMetadata>()
+    ipcRequestMock.mockImplementation((route: string, handle: { path?: string }) =>
+      route === 'file.get_metadata' && handle?.path?.endsWith('old.ts')
+        ? old.promise
+        : Promise.resolve({ kind: 'file', type: 'text', size: 1 })
+    )
+    render(
+      <TestAgentRightPane
+        defaultOpen
+        sessionId="session-a"
+        workspacePath="/workspace"
+        messages={[]}
+        partsByMessageId={{}}>
+        <OpenArtifactButton path="old.ts" location={{ line: 42 }} label="old" />
+        <OpenArtifactButton path="new.ts" location={{ line: 7 }} label="new" />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+    await userEvent.click(screen.getByRole('button', { name: 'old' }))
+    await userEvent.click(screen.getByRole('button', { name: 'new' }))
+    await waitFor(() => expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-selected-file', 'new.ts'))
+    await act(async () => old.resolve({ kind: 'file', type: 'text', size: 1 } as PhysicalFileMetadata))
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-selected-file', 'new.ts')
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-source-location', JSON.stringify({ line: 7 }))
   })
 
   it('activates the first attachment preview after metadata resolves in an empty system workspace', async () => {
@@ -900,6 +1042,55 @@ describe('AgentRightPane', () => {
     }
   })
 
+  it.each(['missing-completion', 'completed-update', 'empty-list', 'no-tools'] as const)(
+    'hides a settled task plan without inventing completion (%s)',
+    (scenario) => {
+      uiMockState.useRealHoverCard = true
+      const tool = (id: string, toolName: string, input: unknown, output: unknown): CherryMessagePart => ({
+        type: 'dynamic-tool',
+        toolCallId: id,
+        toolName,
+        state: 'output-available',
+        input,
+        output
+      })
+      const initial =
+        scenario === 'no-tools'
+          ? []
+          : [
+              tool(
+                'create',
+                'TaskCreate',
+                { subject: 'Inspect setup', activeForm: 'Inspecting setup' },
+                'Task #1 created successfully: Inspect setup'
+              ),
+              tool('start', 'TaskUpdate', { taskId: '1', status: 'in_progress' }, 'Updated task #1 status')
+            ]
+      const pane = (parts: CherryMessagePart[], status: 'pending' | 'success') => (
+        <TestAgentRightPane
+          sessionId="diagnostic-24240"
+          messages={createTaskMessages(parts, status)}
+          partsByMessageId={{ m1: parts }}>
+          <AgentTaskProgressCapsule />
+        </TestAgentRightPane>
+      )
+      const view = render(pane(initial, 'pending'))
+      if (scenario !== 'no-tools') expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '0')
+      const terminal =
+        scenario === 'completed-update'
+          ? [tool('complete', 'TaskUpdate', { taskId: '1', status: 'completed' }, 'Updated task #1 status')]
+          : scenario === 'empty-list'
+            ? [tool('list', 'TaskList', {}, 'No tasks found')]
+            : []
+      const parts: CherryMessagePart[] = [...initial, ...terminal, { type: 'text', text: 'All done.', state: 'done' }]
+      view.rerender(pane(parts, 'success'))
+      expect(screen.queryByRole('progressbar')).toBeNull()
+      view.unmount()
+      render(pane(parts, 'success'))
+      expect(screen.queryByRole('progressbar')).toBeNull()
+    }
+  )
+
   it('opens the current task plan from hover and keyboard focus, then hides it after completion', async () => {
     uiMockState.useRealHoverCard = true
     const user = userEvent.setup()
@@ -979,8 +1170,7 @@ describe('AgentRightPane', () => {
       </TestAgentRightPane>
     )
 
-    expect(within(screen.getByTestId('agent-task-progress-details')).getByText('Collect context')).toBeInTheDocument()
-    expect(screen.queryByText('Collecting context')).toBeNull()
+    expect(screen.queryByTestId('agent-task-progress-capsule')).toBeNull()
   })
 
   it('opens details without claiming the work panel and preserves the files shortcut', () => {
@@ -998,6 +1188,43 @@ describe('AgentRightPane', () => {
     fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.files' }))
     expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
     expect(screen.getByTestId('artifact-pane')).toBeInTheDocument()
+  })
+
+  it('keeps the profile pane and the session details card mutually exclusive', () => {
+    function OpenProfileButton() {
+      const actions = useRightPanelActions()
+      return (
+        <button type="button" onClick={() => actions.tryOpen('profile')}>
+          open profile
+        </button>
+      )
+    }
+    render(
+      <TestAgentRightPane
+        agentId="agent-a"
+        sessionId="session-a"
+        workspacePath="/workspace"
+        messages={[]}
+        partsByMessageId={{}}>
+        <AgentRightPane.Shortcuts />
+        <AgentRightPane.Viewport />
+        <OpenProfileButton />
+        <ActivePanelProbe />
+      </TestAgentRightPane>
+    )
+    const detailsToggle = screen.getByRole('button', { name: 'agent.right_pane.tabs.details' })
+
+    fireEvent.click(detailsToggle)
+    expect(screen.getByRole('dialog', { name: 'agent.right_pane.tabs.details' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'open profile' }))
+    expect(screen.getByTestId('active-panel')).toHaveTextContent('profile')
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
+    expect(screen.queryByRole('dialog', { name: 'agent.right_pane.tabs.details' })).toBeNull()
+
+    fireEvent.click(detailsToggle)
+    expect(screen.getByRole('dialog', { name: 'agent.right_pane.tabs.details' })).toBeInTheDocument()
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
   })
 
   it('opens a blank browser when no preview URL has been reported', () => {
@@ -1135,7 +1362,7 @@ describe('AgentRightPane', () => {
       $deferredToolResult: deferredToolResult
     })
     const message = createPreviewMessage('m-existing-deferred', [part])
-    const result = createDeferredPromise<{ found: true; output: string }>()
+    const result = createDeferredPromise<{ status: 'ready'; purpose: 'preview'; output: string }>()
     ipcRequestMock.mockReturnValue(result.promise)
     resolveArtifactPaneFileSelectionMock.mockReturnValue({
       workspacePath: '/workspace',
@@ -1154,8 +1381,12 @@ describe('AgentRightPane', () => {
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'open artifact' }))
-    await waitFor(() => expect(ipcRequestMock).toHaveBeenCalledWith('ai.tool.get_result', deferredToolResult))
-    await act(async () => result.resolve({ found: true, output: 'Ready at http://localhost:6750/' }))
+    await waitFor(() =>
+      expect(ipcRequestMock).toHaveBeenCalledWith('ai.tool.get_result', { ...deferredToolResult, purpose: 'preview' })
+    )
+    await act(async () =>
+      result.resolve({ status: 'ready', purpose: 'preview', output: 'Ready at http://localhost:6750/' })
+    )
 
     expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-url', 'file:///workspace/artifact.html')
   })
@@ -1169,7 +1400,7 @@ describe('AgentRightPane', () => {
         messageId: `m-${kind}-initial-history`,
         toolCallId: `bash-${kind}-initial-history`
       }
-      const result = createDeferredPromise<{ found: true; output: string }>()
+      const result = createDeferredPromise<{ status: 'ready'; purpose: 'preview'; output: string }>()
       if (kind === 'deferred') ipcRequestMock.mockReturnValue(result.promise)
       resolveArtifactPaneFileSelectionMock.mockReturnValue({
         workspacePath: '/workspace',
@@ -1201,8 +1432,15 @@ describe('AgentRightPane', () => {
       const hydratedMessage = createPreviewMessage(deferredToolResult.messageId, [hydratedPart])
       rerender(renderPane([hydratedMessage], { [hydratedMessage.id]: [hydratedPart] }, false))
       if (kind === 'deferred') {
-        await waitFor(() => expect(ipcRequestMock).toHaveBeenCalledWith('ai.tool.get_result', deferredToolResult))
-        await act(async () => result.resolve({ found: true, output: 'Ready at http://localhost:6775/' }))
+        await waitFor(() =>
+          expect(ipcRequestMock).toHaveBeenCalledWith('ai.tool.get_result', {
+            ...deferredToolResult,
+            purpose: 'preview'
+          })
+        )
+        await act(async () =>
+          result.resolve({ status: 'ready', purpose: 'preview', output: 'Ready at http://localhost:6775/' })
+        )
       }
 
       expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-url', 'file:///workspace/artifact.html')
@@ -1339,7 +1577,7 @@ describe('AgentRightPane', () => {
         messageId: `m-older-${kind}`,
         toolCallId: `bash-older-${kind}`
       }
-      const result = createDeferredPromise<{ found: true; output: string }>()
+      const result = createDeferredPromise<{ status: 'ready'; purpose: 'preview'; output: string }>()
       if (kind === 'deferred') ipcRequestMock.mockReturnValue(result.promise)
       resolveArtifactPaneFileSelectionMock.mockReturnValue({
         workspacePath: '/workspace',
@@ -1371,8 +1609,15 @@ describe('AgentRightPane', () => {
         })
       )
       if (kind === 'deferred') {
-        await waitFor(() => expect(ipcRequestMock).toHaveBeenCalledWith('ai.tool.get_result', deferredToolResult))
-        await act(async () => result.resolve({ found: true, output: 'Ready at http://localhost:6925/' }))
+        await waitFor(() =>
+          expect(ipcRequestMock).toHaveBeenCalledWith('ai.tool.get_result', {
+            ...deferredToolResult,
+            purpose: 'preview'
+          })
+        )
+        await act(async () =>
+          result.resolve({ status: 'ready', purpose: 'preview', output: 'Ready at http://localhost:6925/' })
+        )
       }
 
       expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-url', 'file:///workspace/artifact.html')
@@ -1454,7 +1699,7 @@ describe('AgentRightPane', () => {
         messageId: '00000000-0000-7000-8000-000000000001',
         toolCallId: `bash-after-delete-${kind}`
       }
-      const deferredResult = createDeferredPromise<{ found: true; output: string }>()
+      const deferredResult = createDeferredPromise<{ status: 'ready'; purpose: 'preview'; output: string }>()
       if (kind === 'deferred') ipcRequestMock.mockReturnValue(deferredResult.promise)
       resolveArtifactPaneFileSelectionMock.mockReturnValue({
         workspacePath: '/workspace',
@@ -1482,8 +1727,12 @@ describe('AgentRightPane', () => {
       const olderMessage = createPreviewMessage(deferredRef.messageId, [olderPart], '2026-01-01T00:00:00.000Z')
       rerender(renderPane([olderMessage], { [olderMessage.id]: [olderPart] }))
       if (kind === 'deferred') {
-        await waitFor(() => expect(ipcRequestMock).toHaveBeenCalledWith('ai.tool.get_result', deferredRef))
-        await act(async () => deferredResult.resolve({ found: true, output: 'Ready at http://localhost:7220/' }))
+        await waitFor(() =>
+          expect(ipcRequestMock).toHaveBeenCalledWith('ai.tool.get_result', { ...deferredRef, purpose: 'preview' })
+        )
+        await act(async () =>
+          deferredResult.resolve({ status: 'ready', purpose: 'preview', output: 'Ready at http://localhost:7220/' })
+        )
       }
 
       expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-url', 'file:///workspace/artifact.html')
@@ -1608,7 +1857,11 @@ describe('AgentRightPane', () => {
       }
     })
     const messages = [createPreviewMessage('m1', [part])]
-    ipcRequestMock.mockResolvedValue({ found: true, output: 'Ready at http://localhost:6100/app' })
+    ipcRequestMock.mockResolvedValue({
+      status: 'ready',
+      purpose: 'preview',
+      output: 'Ready at http://localhost:6100/app'
+    })
 
     render(
       <TestAgentRightPane sessionId="session-a" messages={messages} partsByMessageId={{ m1: [part] }}>
@@ -1618,7 +1871,9 @@ describe('AgentRightPane', () => {
     )
     fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.browser' }))
 
-    await waitFor(() => expect(ipcRequestMock).toHaveBeenCalledWith('ai.tool.get_result', deferredToolResult))
+    await waitFor(() =>
+      expect(ipcRequestMock).toHaveBeenCalledWith('ai.tool.get_result', { ...deferredToolResult, purpose: 'preview' })
+    )
     await waitFor(() =>
       expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-url', 'http://localhost:6100/app')
     )
@@ -1632,7 +1887,7 @@ describe('AgentRightPane', () => {
     }
     const part = createPreviewToolPart('bash-lazy', 'Bash', { $deferredToolResult: deferredToolResult })
     const messages = [createPreviewMessage('m-lazy', [part])]
-    const result = createDeferredPromise<{ found: true; output: string }>()
+    const result = createDeferredPromise<{ status: 'ready'; purpose: 'preview'; output: string }>()
     ipcRequestMock.mockReturnValue(result.promise)
 
     render(
@@ -1646,8 +1901,12 @@ describe('AgentRightPane', () => {
     expect(ipcRequestMock).not.toHaveBeenCalled()
 
     fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.browser' }))
-    await waitFor(() => expect(ipcRequestMock).toHaveBeenCalledWith('ai.tool.get_result', deferredToolResult))
-    await act(async () => result.resolve({ found: true, output: 'Ready at http://localhost:6125/' }))
+    await waitFor(() =>
+      expect(ipcRequestMock).toHaveBeenCalledWith('ai.tool.get_result', { ...deferredToolResult, purpose: 'preview' })
+    )
+    await act(async () =>
+      result.resolve({ status: 'ready', purpose: 'preview', output: 'Ready at http://localhost:6125/' })
+    )
 
     expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-url', 'http://localhost:6125/')
   })
@@ -1678,7 +1937,7 @@ describe('AgentRightPane', () => {
     fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.browser' }))
 
     expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-url', 'http://localhost:6150/')
-    expect(ipcRequestMock).not.toHaveBeenCalledWith('ai.tool.get_result', deferredToolResult)
+    expect(ipcRequestMock).not.toHaveBeenCalledWith('ai.tool.get_result', { ...deferredToolResult, purpose: 'preview' })
   })
 
   it('waits for a newer deferred result before falling back to an older preview URL', async () => {
@@ -1692,7 +1951,7 @@ describe('AgentRightPane', () => {
       $deferredToolResult: newerRef,
       excerpt: { head: 'Still compiling', tail: 'No address yet', totalChars: 40_000, totalLines: 2 }
     })
-    const result = createDeferredPromise<{ found: true; output: string }>()
+    const result = createDeferredPromise<{ status: 'ready'; purpose: 'preview'; output: string }>()
     ipcRequestMock.mockReturnValue(result.promise)
 
     render(
@@ -1708,7 +1967,9 @@ describe('AgentRightPane', () => {
 
     expect(screen.getByTestId('webview-browser')).not.toHaveAttribute('data-url')
 
-    await act(async () => result.resolve({ found: true, output: 'Build completed without a preview address' }))
+    await act(async () =>
+      result.resolve({ status: 'ready', purpose: 'preview', output: 'Build completed without a preview address' })
+    )
 
     await waitFor(() =>
       expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-url', 'http://localhost:6200/')
@@ -1716,7 +1977,7 @@ describe('AgentRightPane', () => {
   })
 
   it.each([
-    { caseName: 'is unavailable', reply: () => Promise.resolve({ found: false }), suffix: 'missing' },
+    { caseName: 'is unavailable', reply: () => Promise.resolve({ status: 'unavailable' }), suffix: 'missing' },
     { caseName: 'request fails', reply: () => Promise.reject(new Error('result lookup failed')), suffix: 'error' }
   ])('falls back to an older preview URL when the deferred result $caseName', async ({ reply, suffix }) => {
     const olderPart = createPreviewToolPart(`bash-old-${suffix}`, 'Bash', 'Ready at http://localhost:6300/')
@@ -1741,15 +2002,17 @@ describe('AgentRightPane', () => {
     )
     fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.browser' }))
 
-    await waitFor(() => expect(ipcRequestMock).toHaveBeenCalledWith('ai.tool.get_result', newerRef))
+    await waitFor(() =>
+      expect(ipcRequestMock).toHaveBeenCalledWith('ai.tool.get_result', { ...newerRef, purpose: 'preview' })
+    )
     await waitFor(() =>
       expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-url', 'http://localhost:6300/')
     )
   })
 
   it('does not let a stale deferred result replace the current session preview URL', async () => {
-    const resultA = createDeferredPromise<{ found: true; output: string }>()
-    const resultB = createDeferredPromise<{ found: true; output: string }>()
+    const resultA = createDeferredPromise<{ status: 'ready'; purpose: 'preview'; output: string }>()
+    const resultB = createDeferredPromise<{ status: 'ready'; purpose: 'preview'; output: string }>()
     ipcRequestMock.mockImplementation((_route: string, ref: { topicId: string }) =>
       ref.topicId === 'agent-session:session-a' ? resultA.promise : resultB.promise
     )
@@ -1768,18 +2031,26 @@ describe('AgentRightPane', () => {
     )
     const { rerender } = render(renderPane('session-a', 'm-a', partA))
     fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.browser' }))
-    await waitFor(() => expect(ipcRequestMock).toHaveBeenCalledWith('ai.tool.get_result', refA))
+    await waitFor(() =>
+      expect(ipcRequestMock).toHaveBeenCalledWith('ai.tool.get_result', { ...refA, purpose: 'preview' })
+    )
 
     rerender(renderPane('session-b', 'm-b', partB))
     expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
     fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.browser' }))
-    await waitFor(() => expect(ipcRequestMock).toHaveBeenCalledWith('ai.tool.get_result', refB))
-    await act(async () => resultB.resolve({ found: true, output: 'Ready at http://localhost:6400/' }))
+    await waitFor(() =>
+      expect(ipcRequestMock).toHaveBeenCalledWith('ai.tool.get_result', { ...refB, purpose: 'preview' })
+    )
+    await act(async () =>
+      resultB.resolve({ status: 'ready', purpose: 'preview', output: 'Ready at http://localhost:6400/' })
+    )
     await waitFor(() =>
       expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-url', 'http://localhost:6400/')
     )
 
-    await act(async () => resultA.resolve({ found: true, output: 'Ready at http://localhost:6500/' }))
+    await act(async () =>
+      resultA.resolve({ status: 'ready', purpose: 'preview', output: 'Ready at http://localhost:6500/' })
+    )
 
     expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-url', 'http://localhost:6400/')
   })
@@ -1822,18 +2093,20 @@ describe('AgentRightPane', () => {
       $deferredToolResult: deferredRef
     })
     const newerMessage = createPreviewMessage(deferredRef.messageId, [newerPart])
-    const result = createDeferredPromise<{ found: true; output: string }>()
+    const result = createDeferredPromise<{ status: 'ready'; purpose: 'preview'; output: string }>()
     ipcRequestMock.mockReturnValue(result.promise)
 
     rerender(
       renderPane([olderMessage, newerMessage], { [olderMessage.id]: [olderPart], [newerMessage.id]: [newerPart] })
     )
-    await waitFor(() => expect(ipcRequestMock).toHaveBeenCalledWith('ai.tool.get_result', deferredRef))
+    await waitFor(() =>
+      expect(ipcRequestMock).toHaveBeenCalledWith('ai.tool.get_result', { ...deferredRef, purpose: 'preview' })
+    )
     expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-url', 'file:///workspace/artifact.html')
 
     await act(async () => {
       if (rejectResult) result.reject(new Error('result lookup failed'))
-      else result.resolve({ found: true, output: 'Build completed without a preview address' })
+      else result.resolve({ status: 'ready', purpose: 'preview', output: 'Build completed without a preview address' })
     })
 
     expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-url', 'file:///workspace/artifact.html')
@@ -1855,8 +2128,8 @@ describe('AgentRightPane', () => {
       messageId: `m-source-new-${suffix}`,
       toolCallId: `bash-source-new-${suffix}`
     }
-    const olderResult = createDeferredPromise<{ found: true; output: string }>()
-    const newerResult = createDeferredPromise<{ found: true; output: string }>()
+    const olderResult = createDeferredPromise<{ status: 'ready'; purpose: 'preview'; output: string }>()
+    const newerResult = createDeferredPromise<{ status: 'ready'; purpose: 'preview'; output: string }>()
     ipcRequestMock.mockImplementation((_route: string, ref: { toolCallId: string }) =>
       ref.toolCallId === olderRef.toolCallId ? olderResult.promise : newerResult.promise
     )
@@ -1881,7 +2154,9 @@ describe('AgentRightPane', () => {
     const { rerender } = render(renderPane([olderMessage], { [olderMessage.id]: [olderPart] }))
 
     fireEvent.click(screen.getByRole('button', { name: 'open artifact' }))
-    await waitFor(() => expect(ipcRequestMock).toHaveBeenCalledWith('ai.tool.get_result', olderRef))
+    await waitFor(() =>
+      expect(ipcRequestMock).toHaveBeenCalledWith('ai.tool.get_result', { ...olderRef, purpose: 'preview' })
+    )
 
     const newerPart = createPreviewToolPart(newerRef.toolCallId, 'TaskOutput', {
       $deferredToolResult: newerRef
@@ -1893,13 +2168,16 @@ describe('AgentRightPane', () => {
         [newerMessage.id]: [newerPart]
       })
     )
-    await waitFor(() => expect(ipcRequestMock).toHaveBeenCalledWith('ai.tool.get_result', newerRef))
+    await waitFor(() =>
+      expect(ipcRequestMock).toHaveBeenCalledWith('ai.tool.get_result', { ...newerRef, purpose: 'preview' })
+    )
 
     await act(async () => {
       if (outcome === 'request rejects') newerResult.reject(new Error('newer result lookup failed'))
       else {
         newerResult.resolve({
-          found: true,
+          status: 'ready',
+          purpose: 'preview',
           output: outcome === 'contains a URL' ? 'Ready at http://localhost:7050/' : 'Build completed'
         })
       }
@@ -1912,7 +2190,9 @@ describe('AgentRightPane', () => {
       return
     }
 
-    await act(async () => olderResult.resolve({ found: true, output: 'Ready at http://localhost:7000/' }))
+    await act(async () =>
+      olderResult.resolve({ status: 'ready', purpose: 'preview', output: 'Ready at http://localhost:7000/' })
+    )
     expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-url', 'file:///workspace/artifact.html')
   })
 
@@ -1926,7 +2206,7 @@ describe('AgentRightPane', () => {
       messageId: 'm-repeated-new',
       toolCallId: 'bash-repeated-new'
     }
-    const newerResult = createDeferredPromise<{ found: true; output: string }>()
+    const newerResult = createDeferredPromise<{ status: 'ready'; purpose: 'preview'; output: string }>()
     resolveArtifactPaneFileSelectionMock.mockReturnValue({
       workspacePath: '/workspace',
       filePath: 'artifact.html'
@@ -1961,8 +2241,12 @@ describe('AgentRightPane', () => {
         [newerMessage.id]: [newerPart]
       })
     )
-    await waitFor(() => expect(ipcRequestMock).toHaveBeenCalledWith('ai.tool.get_result', newerRef))
-    await act(async () => newerResult.resolve({ found: true, output: `Ready at ${previewUrl}` }))
+    await waitFor(() =>
+      expect(ipcRequestMock).toHaveBeenCalledWith('ai.tool.get_result', { ...newerRef, purpose: 'preview' })
+    )
+    await act(async () =>
+      newerResult.resolve({ status: 'ready', purpose: 'preview', output: `Ready at ${previewUrl}` })
+    )
 
     await waitFor(() => expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-url', previewUrl))
   })
@@ -2205,7 +2489,7 @@ describe('AgentRightPane', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Native child transcript is unavailable')
     expect(screen.getByRole('heading', { name: 'agent.right_pane.info.context_usage' })).toBeInTheDocument()
-    expect(screen.getByText('common.unknown')).toBeVisible()
+    expect(screen.getByText('agent.right_pane.info.context_details.unavailable')).toBeVisible()
     expect(screen.queryByRole('meter')).toBeNull()
     expect(screen.queryByRole('button', { name: 'chat.input.send' })).toBeNull()
     expect(ipcRequestMock).toHaveBeenCalledWith('ai.projection.attach', {
@@ -2239,7 +2523,9 @@ describe('AgentRightPane', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'open flow' }))
 
-    await waitFor(() => expect(ipcRequestMock).toHaveBeenCalledWith('ai.tool.get_result', deferredToolResult))
+    await waitFor(() =>
+      expect(ipcRequestMock).toHaveBeenCalledWith('ai.tool.get_result', { ...deferredToolResult, purpose: 'preview' })
+    )
   })
 
   it('identifies the parent task when opening a nested subtask', () => {
@@ -2629,7 +2915,7 @@ describe('AgentRightPane', () => {
       }
     } as unknown as CherryMessagePart
     const messages = [
-      { id: 'm1', role: 'assistant', parts: [todoPart], metadata: { status: 'success' } }
+      { id: 'm1', role: 'assistant', parts: [todoPart], metadata: { status: 'pending' } }
     ] as CherryUIMessage[]
 
     render(
@@ -3273,6 +3559,40 @@ describe('AgentRightPane', () => {
     // Closing the attachment itself still returns to the file it was opened from.
     await user.click(screen.getByRole('button', { name: 'close notes.md' }))
     expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('README.md')
+  })
+
+  it.each([false, true])('clears source navigation on session changes (attachment tab=%s)', async (attachment) => {
+    resolveArtifactPaneFileSelectionMock.mockImplementation((workspacePath: string, filePath: string) => ({
+      workspacePath,
+      filePath
+    }))
+    const user = userEvent.setup()
+    const pane = (sessionId: string) => (
+      <TestAgentRightPane
+        defaultOpen
+        sessionId={sessionId}
+        workspacePath="/workspace"
+        messages={[]}
+        partsByMessageId={{}}>
+        <OpenArtifactButton path="source.ts" location={{ line: 42 }} label="located source" />
+        <PreviewInputButton path="/workspace/notes.md" />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+    const { rerender } = render(pane('session-a'))
+    if (attachment) {
+      await user.click(screen.getByRole('button', { name: 'Preview attachment' }))
+      await screen.findByTestId('artifact-file-preview-overlay')
+    }
+    await user.click(screen.getByRole('button', { name: 'located source' }))
+    await waitFor(() =>
+      expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-source-location', JSON.stringify({ line: 42 }))
+    )
+
+    rerender(pane('session-b'))
+
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-source-location', 'null')
+    expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('source.ts')
   })
 
   it('drops every attachment tab when the session changes and keeps workspace files open', async () => {

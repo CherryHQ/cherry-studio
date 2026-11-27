@@ -1,7 +1,6 @@
 import { execFile, execFileSync } from 'node:child_process'
 import { existsSync, mkdirSync, readdirSync, statSync, writeFileSync } from 'node:fs'
 import { basename, dirname, extname, join } from 'node:path'
-import { pathToFileURL } from 'node:url'
 import { promisify } from 'node:util'
 
 import { getSensitiveConfigValues } from './config'
@@ -887,35 +886,6 @@ export function readWindowsExternalText(): {
   return JSON.parse(output)
 }
 
-export async function inspectImageInExternalBrowser(
-  paths: RunPaths,
-  candidatePath: string
-): Promise<{ width: number; height: number; screenshot: string }> {
-  const filePath = resolveAllowedPath(candidatePath, [paths.evidence])
-  const resource = registerExternalResource(paths, 'windows', { kind: 'browser', title: basename(filePath) })
-  const { chromium } = await import('@playwright/test')
-  const browser = await chromium.launchPersistentContext(join(paths.private, 'external-image-viewer'), {
-    channel: 'msedge',
-    headless: false
-  })
-  try {
-    const page = await browser.newPage()
-    await page.goto(pathToFileURL(filePath).href)
-    const image = page.locator('img')
-    await image.waitFor({ state: 'visible' })
-    const dimensions = await image.evaluate((element) => ({
-      width: (element as HTMLImageElement).naturalWidth,
-      height: (element as HTMLImageElement).naturalHeight
-    }))
-    const screenshot = join(paths.evidence, 'external-image-viewer.png')
-    await page.screenshot({ path: screenshot })
-    observeExternalResource(paths, resource)
-    return { ...dimensions, screenshot }
-  } finally {
-    await browser.close()
-  }
-}
-
 export function readWindowsPrintDialog(paths: RunPaths): string[] {
   const record = readAppRecord(paths)
   if (record.platform !== 'windows') throw new Error('Native Windows print inspection requires Windows')
@@ -1011,10 +981,14 @@ function chooseNativeSelection(
           cap: 10,
           action: [],
           condition: '(exists splitter group 1 of window 1)',
-          extra:
+          extra: [
             macProductMajor >= 27
-              ? 'if (count of buttons of splitter group 1 of window 1) ≥ 2 then set reached to true'
-              : `if exists ${acceptButton} then set reached to true`,
+              ? 'if (count of buttons of splitter group 1 of window 1) ≥ 2 then'
+              : `if exists ${acceptButton} then`,
+            'set previousWindowCount to count of windows',
+            'if previousWindowCount > 0 then set reached to true',
+            'end if'
+          ].join('\n'),
           detail: 'panel splitter group or accept button missing'
         },
         {
@@ -1063,7 +1037,7 @@ function chooseNativeSelection(
         {
           stage: 'completion',
           cap: 5,
-          action: ['set previousWindowCount to count of windows', `click ${acceptButton}`],
+          action: ['if not frontmost then error "Owned native file panel is not frontmost"', 'key code 36'],
           condition: '(count of windows) < previousWindowCount',
           detail: 'panel window count did not decrease'
         }

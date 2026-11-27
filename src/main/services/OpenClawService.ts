@@ -10,7 +10,6 @@ import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isWin } from '@main/core/platform'
-import type { Model, Provider, ProviderType, VertexProvider } from '@main/data/migration/legacyTypes'
 import { t } from '@main/i18n'
 import { atomicWriteFile, remove } from '@main/utils/file'
 import { crossPlatformSpawn, removeEnvProxy, terminateProcessTree } from '@main/utils/processRunner'
@@ -31,6 +30,7 @@ import { formatApiHost, hasApiVersion, withoutTrailingSlash } from '@shared/util
 import { isNonChatModel } from '@shared/utils/model'
 import { redactSecretText } from '@shared/utils/redaction'
 
+import type { Model, Provider, ProviderType, VertexProvider } from './openClawProviderTypes'
 import { vertexAiService } from './VertexAiService'
 
 const logger = loggerService.withContext('OpenClawService')
@@ -42,6 +42,7 @@ const openclawConfigBakPath = () => path.join(openclawConfigDir(), 'openclaw.jso
 const openclawLegacyConfigPath = () => path.join(openclawConfigDir(), 'openclaw.cherry.json')
 const DEFAULT_GATEWAY_PORT = 18790
 const GATEWAY_PROBE_INTERVAL_MS = 5000
+const GATEWAY_STARTUP_TIMEOUT_MS = 60_000
 const OPENCLAW_COMMAND_TIMEOUT_MS = 10000
 const OPENCLAW_SCHEMA_TIMEOUT_MS = 30000
 const OPENCLAW_VERSION_TIMEOUT_MS = 5000
@@ -980,14 +981,12 @@ export class OpenClawService extends BaseService {
       }
     })
 
-    // Wait for gateway to become ready (max 30 seconds)
-    const maxWaitMs = 30000
     const pollIntervalMs = 1000
     const startTime = Date.now()
     let pollCount = 0
     let lastError = ''
 
-    while (Date.now() - startTime < maxWaitMs) {
+    while (Date.now() - startTime < GATEWAY_STARTUP_TIMEOUT_MS) {
       await new Promise((r) => setTimeout(r, pollIntervalMs))
       pollCount++
 
@@ -1014,7 +1013,7 @@ export class OpenClawService extends BaseService {
       .filter(Boolean)
       .join('\n')
     const detail = diagnostics ? `\n${diagnostics}` : ''
-    throw new Error(`Gateway failed to start within ${maxWaitMs}ms (${pollCount} polls)${detail}`)
+    throw new Error(`Gateway failed to start within ${GATEWAY_STARTUP_TIMEOUT_MS}ms (${pollCount} polls)${detail}`)
   }
 
   /**
