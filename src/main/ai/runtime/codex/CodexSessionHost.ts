@@ -275,11 +275,6 @@ export class CodexSessionHost extends LocalConnection {
     return this.session?.listCommands() ?? null
   }
 
-  async setConfigOption(configId: string, value: string | boolean) {
-    const info = await this.connected.setConfigOption(configId, value)
-    this.events.push({ type: 'local-session-info', info })
-    return info
-  }
   async setMode(configId: string, value: string) {
     const info = this.connected.setMode(configId, value)
     this.events.push({ type: 'local-session-info', info })

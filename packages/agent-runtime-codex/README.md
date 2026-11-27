@@ -6,7 +6,7 @@ Chat opens `CodexSession` from `@cherrystudio/agent-runtime-codex`. The session 
 
 The package exports `listCodexBuiltinCommands()` for unconditional built-ins. A live catalog also includes commands whose native capabilities the session has verified. Each handler defines its name, aliases and argument hint alongside its behavior. Use `session.listCommands()` for the interactive menu. It adds enabled skills discovered through `skills/list` for the current workspace. Built-in names and aliases take precedence. Typing a skill directly also resolves its native path, even before the menu opens. After a menu has been requested, `skills/changed` publishes the refreshed catalog through the session host.
 
-On Codex 0.172.0 and later, interactive sessions discover collaboration modes and the thread’s goals feature in the background. Plan requires both Plan and Default modes and a known model. `/plan <task>` sends the original task with native collaboration settings, and `/plan off` selects Default. A goal-enabled thread exposes `/goal` to read, set, pause, resume or clear its objective. The session options expose collaboration mode and the current goal’s active/paused state while connected. These controls are omitted from offline option snapshots.
+On Codex 0.172.0 and later, interactive sessions discover collaboration modes and the thread’s goals feature in the background. With both Plan and Default modes and a known model, the QuickPanel Plan shortcut selects native Plan with a read-only sandbox. `/plan <task>` uses the same mode, and `/plan off` restores the prior work mode. A goal-enabled thread exposes `/goal` to read, set, pause, resume or clear its objective.
 
 ## History and delivery
 

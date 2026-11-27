@@ -294,7 +294,7 @@ it('returns the selected label and notes under the native question ID, and the t
   }
 })
 
-it('uses native plan settings and distinguishes a consumed steer from an interrupted one', async () => {
+it('keeps Goal in slash commands and uses native Plan and steer settings', async () => {
   const peer = createPeer()
   const events: CodexSessionEvent[] = []
   try {
@@ -307,7 +307,12 @@ it('uses native plan settings and distinguishes a consumed steer from an interru
       }
     )
     await peer.handshake('codex/0.172.0')
-    peer.send({ id: (await peer.read()).id, result: { data: [{ id: 'model', displayName: 'Model' }] } })
+    peer.send({
+      id: (await peer.read()).id,
+      result: {
+        data: [{ id: 'model', displayName: 'Model', supportedReasoningEfforts: [{ reasoningEffort: 'high' }] }]
+      }
+    })
     peer.send({
       id: (await peer.read()).id,
       result: { thread: { id: 'thread' }, model: 'model', reasoningEffort: 'high' }
@@ -334,16 +339,29 @@ it('uses native plan settings and distinguishes a consumed steer from an interru
     })
     peer.send({ id: setGoal.id, result: { goal: { threadId: 'thread', objective: 'ship', status: 'active' } } })
     await setting
-    expect(session.info.configOptions).toContainEqual(
-      expect.objectContaining({ id: 'goal-status', name: 'ship', currentValue: 'active' })
-    )
-    const planned = session.send([{ type: 'text', text: '/plan review' }], 'first')
+    expect(session.info).not.toHaveProperty('configOptions')
+    for (const [command, status] of [
+      ['pause', 'paused'],
+      ['resume', 'active']
+    ] as const) {
+      const updated = session.send([{ type: 'text', text: `/goal ${command}` }])
+      const request = await peer.read()
+      expect(request).toMatchObject({
+        method: 'thread/goal/set',
+        params: { threadId: 'thread', origin: 'user', status }
+      })
+      peer.send({ id: request.id, result: { goal: { threadId: 'thread', objective: 'ship', status } } })
+      await updated
+    }
+    session.setMode('codex-mode', 'readOnly')
+    const planned = session.send([{ type: 'text', text: 'review' }], 'first')
     const turn = await peer.read()
     expect(turn).toMatchObject({
       method: 'turn/start',
       params: {
         clientUserMessageId: 'first',
         collaborationMode: { mode: 'plan', settings: { model: 'model', reasoning_effort: 'high' } },
+        sandboxPolicy: { type: 'readOnly', networkAccess: false },
         input: [{ type: 'text', text: 'review' }]
       }
     })
@@ -386,6 +404,26 @@ it('uses native plan settings and distinguishes a consumed steer from an interru
       { status: 'acknowledged', inputId: 'used', facts: ['accepted', 'placed'] },
       { status: 'unknown', inputId: 'dropped', error: { code: 'missing-echo' } }
     ])
+    session.setMode('codex-mode', 'workspace')
+    const working = session.send([{ type: 'text', text: 'implement' }])
+    const nextTurn = await peer.read()
+    expect(nextTurn).toMatchObject({
+      method: 'turn/start',
+      params: {
+        collaborationMode: { mode: 'default' },
+        sandboxPolicy: { type: 'workspaceWrite' }
+      }
+    })
+    peer.send({ id: nextTurn.id, result: { turn: { id: 'work' } } })
+    await working
+    peer.send({
+      method: 'turn/completed',
+      params: { threadId: 'thread', turn: { id: 'work', status: 'completed' } }
+    })
+    await session.send([{ type: 'text', text: '/plan' }])
+    expect(session.info.mode.currentValue).toBe('readOnly')
+    await session.send([{ type: 'text', text: '/plan off' }])
+    expect(session.info.mode.currentValue).toBe('workspace')
   } finally {
     peer.close()
   }

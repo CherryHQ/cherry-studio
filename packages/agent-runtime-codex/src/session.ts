@@ -29,7 +29,6 @@ import {
   type CodexLaunch,
   type CodexProcessHost
 } from './launcher'
-import { goalSchema } from './responses'
 import { CodexSkills } from './skills'
 import { subtractTokens, tokenUsageUpdate, turnUsage, type TokenCounts } from './usage'
 
@@ -169,7 +168,11 @@ export class CodexSession {
     return this.thread.id
   }
   get info() {
-    return { ...this.thread.info, configOptions: this.controls.options() }
+    const info = this.thread.info
+    return {
+      ...info,
+      mode: this.controls.collaboration === 'plan' ? { ...info.mode, currentValue: 'readOnly' as const } : info.mode
+    }
   }
 
   close() {
@@ -182,33 +185,19 @@ export class CodexSession {
   }
   private async discoverControls() {
     const controls = this.controls
-    controls.collaboration = this.thread.collaboration
+    controls.collaboration ??=
+      this.thread.collaboration ?? (this.thread.info.mode.currentValue === 'readOnly' ? 'plan' : undefined)
     if (this.options.headless || !this.client.atLeast(172)) return
     const threadId = this.id
     await controls.discover(this.client, threadId, this.thread.info.activeModel?.id)
-    if (controls === this.controls && controls.goals && controls.goal === undefined && !this.options.signal.aborted)
-      await this.client
-        .request('thread/goal/get', { threadId }, ({ goal }) => {
-          if (goal && goal.threadId !== threadId) throw new Error('Codex returned another thread’s goal')
-          controls.goal = goal
-        })
-        .catch(() => {
-          controls.goals = false
-        })
+    if (controls === this.controls && controls.goals && !this.options.signal.aborted)
+      await controls.goalCommand(this.client, threadId, '').catch(() => {
+        controls.goals = false
+      })
     if (controls !== this.controls || this.options.signal.aborted) return
     this.host.emit({ type: 'options-changed' })
   }
 
-  async setConfigOption(id: string, value: string | boolean) {
-    await this.loadControls()
-    this.requireIdle()
-    if (id === 'collaboration' && this.controls.plan && (value === 'default' || value === 'plan'))
-      this.controls.collaboration = value
-    else if (id === 'goal-status' && this.controls.canChangeGoalStatus && (value === 'paused' || value === 'active'))
-      await this.controls.goalCommand(this.client, this.id, value === 'active' ? 'resume' : 'pause')
-    else throw new Error('This session option is no longer available')
-    return this.info
-  }
   async listCommands(): Promise<CodexCommand[]> {
     if (this.options.headless) return []
     this.commandsObserved = true
@@ -230,10 +219,17 @@ export class CodexSession {
     const { mode } = this.thread.info
     const option = mode.options.find((o) => o.value === value)
     if (id !== mode.id || !option) throw new Error('This session option is no longer available')
-    this.modeOverride = option.value
-    this.thread.info = { ...this.thread.info, mode: { ...mode, currentValue: option.value } }
+    this.selectMode(option.value)
     return this.info
   }
+
+  private selectMode(value: CodexMode) {
+    this.controls.collaboration = value === 'readOnly' ? 'plan' : 'default'
+    if (value === 'readOnly') return
+    this.modeOverride = value
+    this.thread.info = { ...this.thread.info, mode: { ...this.thread.info.mode, currentValue: value } }
+  }
+
   setThoughtLevel(id: string, value: string) {
     this.requireIdle()
     const { thoughtLevel } = this.thread.info
@@ -265,7 +261,7 @@ export class CodexSession {
     try {
       return await apply({
         headless: this.options.headless,
-        fullAccess: this.thread.info.mode.currentValue === 'fullAccess',
+        fullAccess: this.controls.collaboration !== 'plan' && this.thread.info.mode.currentValue === 'fullAccess',
         knownItems: turn.approvalItems,
         signal: AbortSignal.any([this.options.signal, turn.controller.signal, controller.signal]),
         host: this.host
@@ -285,14 +281,6 @@ export class CodexSession {
       return
     }
     if (params.threadId !== undefined && params.threadId !== this.id) return
-    if ((method === 'thread/goal/updated' || method === 'thread/goal/cleared') && params.threadId === this.id) {
-      const goal = method === 'thread/goal/cleared' ? null : goalSchema.safeParse(params.goal).data
-      if (goal === null || goal?.threadId === this.id) {
-        this.controls.goal = goal
-        this.host.emit({ type: 'options-changed' })
-      }
-      return
-    }
     if (method === 'serverRequest/resolved') {
       if (params.threadId === this.id && (typeof params.requestId === 'string' || typeof params.requestId === 'number'))
         this.requests.get(params.requestId)?.abort()
@@ -492,7 +480,9 @@ export class CodexSession {
     turn.controller.signal.throwIfAborted()
     this.thread.id = threadId
     this.thread.collaboration = undefined
+    const collaboration = this.controls.collaboration
     this.controls = new CodexControls()
+    this.controls.collaboration = collaboration
     this.controlDiscovery = undefined
     this.lastUsage = undefined
     this.host.emit({ type: 'thread-changed', threadId })
@@ -693,8 +683,13 @@ export class CodexSession {
       const input =
         promptText === undefined ? content.map(toNativeInput) : [toNativeInput({ type: 'text', text: promptText })]
       if (skillInput) input.unshift(skillInput)
+      if (this.controls.collaboration) {
+        await this.loadControls()
+        if (this.turn !== turn) return
+      }
       turn.expectsStart = true
       const effort = this.thread.info.thoughtLevel?.currentValue
+      const mode = this.controls.collaboration === 'plan' ? 'readOnly' : this.modeOverride
       await this.client.request(
         'turn/start',
         {
@@ -705,11 +700,7 @@ export class CodexSession {
           ),
           threadId: this.id,
           input,
-          ...(this.options.headless
-            ? UNATTENDED_TURN_MODE
-            : this.modeOverride
-              ? CODEX_TURN_MODE_PARAMS[this.modeOverride]
-              : {}),
+          ...(this.options.headless ? UNATTENDED_TURN_MODE : mode ? CODEX_TURN_MODE_PARAMS[mode] : {}),
           ...(this.effortOverride && { effort: this.effortOverride })
         },
         ({ turn: native }) => this.bindTurn(turn, native.id)
@@ -830,7 +821,8 @@ export class CodexSession {
       argumentHint: '[task | off]',
       available: (session) => session.controls.plan,
       run(session, _turn, task) {
-        session.controls.collaboration = task === 'off' ? 'default' : 'plan'
+        const mode = session.thread.info.mode.currentValue
+        session.selectMode(task === 'off' ? (mode === 'readOnly' ? 'workspace' : mode) : 'readOnly')
         session.host.emit({ type: 'options-changed' })
         return task === 'off' ? 'Left Plan mode.' : task ? { prompt: task } : 'Entered Plan mode.'
       }
@@ -840,10 +832,8 @@ export class CodexSession {
       description: 'Read, set, pause, resume or clear the thread goal',
       argumentHint: '[objective | pause | resume | clear]',
       available: (session) => session.controls.goals,
-      async run(session, _turn, args) {
-        const result = await session.controls.goalCommand(session.client, session.id, args)
-        session.host.emit({ type: 'options-changed' })
-        return result
+      run(session, _turn, args) {
+        return session.controls.goalCommand(session.client, session.id, args)
       }
     },
     {
