@@ -21,7 +21,7 @@ import { DataApiError } from '@shared/data/api/errors'
 import type { SerializedError } from '@shared/types/error'
 
 import type { OutputFormat } from '../adapters'
-import { buildStreamErrorFrame, gatewayErrorHandler, internalGatewayError } from '../errors'
+import { buildStreamErrorFrame, gatewayErrorHandler, internalGatewayError, objectGatewayError } from '../errors'
 import { CountTokensBodySchema, MessagesBodySchema } from '../routes/schemas'
 
 it('reports a status-only 413 as request_too_large to Anthropic streaming clients', () => {
@@ -1016,5 +1016,179 @@ it('preserves trusted internal validation details while classifying the request 
     code: 'bad_request',
     message: 'invalid google provider options',
     cause: { name: 'AI_TypeValidationError' }
+  })
+})
+
+describe('statusless context-overflow classification (#24258)', () => {
+  const overflowText = 'Your input exceeds the context window of this model.'
+
+  it.each([
+    {
+      id: 'raw-error',
+      input: () => Object.assign(new Error(overflowText), markers),
+      expectedMessage: `context_length_exceeded: ${overflowText}`
+    },
+    {
+      id: 'serialized-error',
+      input: () => serializeError(new Error(overflowText)),
+      expectedMessage: `context_length_exceeded: ${overflowText}`
+    },
+    {
+      id: 'statusless-apicall-error',
+      input: () =>
+        serializeError(
+          new APICallError({
+            message: overflowText,
+            url: 'https://private.invalid',
+            requestBodyValues: { secret: 'MARKER_REQUEST' }
+          })
+        ),
+      expectedMessage: `context_length_exceeded: ${overflowText}`
+    },
+    {
+      id: 'code-only-overflow',
+      input: () => ({ ...markers, code: 'context_length_exceeded', message: 'The request cannot be processed.' }),
+      expectedMessage: 'context_length_exceeded: The request cannot be processed.'
+    },
+    {
+      id: 'redacts-secret-in-overflow',
+      input: () => new Error(`${overflowText} Authorization: Bearer sk-private-fixture`),
+      expectedMessage: `context_length_exceeded: ${overflowText} Authorization: "<redacted>"`
+    },
+    {
+      id: 'drops-json-container-in-overflow',
+      input: () => new Error(`${overflowText} {"prompt":"MARKER_PRIVATE_MESSAGE"}`),
+      expectedMessage: 'context_length_exceeded: Context length exceeded'
+    }
+  ])('maps public statusless overflow ($id) to HTTP 400 across all dialects and stream boundaries', async (sample) => {
+    for (const dialect of dialects) {
+      for (const mode of ['non-streaming', 'before-commit', 'after-commit'] as const) {
+        const test: Case = {
+          id: `statusless-overflow-${sample.id}`,
+          origin: 'statusless overflow fixture',
+          input: sample.input,
+          status: 400,
+          message: sample.expectedMessage
+        }
+        active = { test, format: dialect.format, mode }
+        releaseError = undefined
+        const response = await fetch(`${baseUrl}${dialect.path}`, { signal: AbortSignal.timeout(5000) })
+        let content: string
+        if (mode === 'after-commit') {
+          const reader = response.body!.getReader()
+          const first = await reader.read()
+          releaseError!()
+          content = new TextDecoder().decode(first.value)
+          for (;;) {
+            const part = await reader.read()
+            if (part.done) break
+            content += new TextDecoder().decode(part.value)
+          }
+          expect(response.status).toBe(200)
+        } else {
+          expect(response.status).toBe(400)
+          content = await response.text()
+        }
+        const rawPayload =
+          mode === 'after-commit'
+            ? content
+                .split('\n')
+                .findLast((line) => line.startsWith('data: '))!
+                .slice(6)
+            : content
+        const body = JSON.parse(rawPayload)
+        if (dialect.format === 'anthropic') {
+          expect(body).toEqual({
+            type: 'error',
+            error: { type: 'invalid_request_error', message: sample.expectedMessage }
+          })
+        } else if (dialect.format === 'openai') {
+          expect(body).toEqual({
+            error: {
+              type: 'invalid_request_error',
+              code: 'context_length_exceeded',
+              message: sample.expectedMessage
+            }
+          })
+        } else if (dialect.format === 'openai-responses') {
+          expect(body).toEqual(
+            mode === 'after-commit'
+              ? { type: 'error', code: 'context_length_exceeded', message: sample.expectedMessage }
+              : {
+                  error: {
+                    type: 'invalid_request_error',
+                    code: 'context_length_exceeded',
+                    message: sample.expectedMessage
+                  }
+                }
+          )
+        } else {
+          expect(body).toEqual({
+            error: { code: 400, status: 'INVALID_ARGUMENT', message: sample.expectedMessage }
+          })
+        }
+        expect(content).not.toMatch(/MARKER_|sk-private-fixture/)
+      }
+    }
+  })
+
+  it.each([
+    ['TypeError', () => Object.assign(new TypeError(overflowText), markers)],
+    ['local-error', () => Object.assign(new Error(overflowText), markers, { errorSource: 'local' })],
+    [
+      'rate-limit-too-many-tokens',
+      () => ({ ...markers, code: 'rate_limit_exceeded', message: 'Too many tokens; retry later.' })
+    ],
+    ['invalid-parameter-mentioning-context', () => new Error('The maximum context length parameter is invalid.')]
+  ])(
+    'keeps non-overflow or local statusless errors (%s) on HTTP 500 without leaking text',
+    async (_label, makeError) => {
+      active = {
+        test: { id: 'statusless-guard', origin: 'guard', input: makeError, status: 500, message: genericMessage },
+        format: 'anthropic',
+        mode: 'non-streaming'
+      }
+      const response = await fetch(`${baseUrl}/v1/messages`, { signal: AbortSignal.timeout(5000) })
+      expect(response.status).toBe(500)
+      const body = await response.json()
+      expect(body.error.type).toBe('api_error')
+      if (!isDev) {
+        expect(body.error.message).toBe(genericMessage)
+      }
+    }
+  )
+
+  it('shapes statusless internal runtime overflows for Claude Code compaction and OpenAI/Pi clients', () => {
+    const plainOverflow = new Error(overflowText)
+    const anthropicErr = objectGatewayError(plainOverflow, serializeError(plainOverflow), 'anthropic') as Error & {
+      status?: number
+      error?: { type: string; error: { type: string; message: string } }
+    }
+    expect(anthropicErr.status).toBe(400)
+    expect(anthropicErr.message).toBe(`Prompt is too long: ${overflowText}`)
+    expect(anthropicErr.error).toEqual({
+      type: 'error',
+      error: { type: 'invalid_request_error', message: `Prompt is too long: ${overflowText}` }
+    })
+
+    const countedOverflow = new Error(
+      "This model's maximum context length is 128000 tokens. However, you requested 140000 tokens."
+    )
+    const countedErr = objectGatewayError(countedOverflow, serializeError(countedOverflow), 'anthropic') as Error & {
+      status?: number
+    }
+    expect(countedErr.status).toBe(400)
+    expect(countedErr.message).toBe(
+      "Prompt is too long: 140000 tokens > 128000 maximum. This model's maximum context length is 128000 tokens. However, you requested 140000 tokens."
+    )
+
+    const openaiErr = objectGatewayError(plainOverflow, serializeError(plainOverflow), 'openai') as Error & {
+      status?: number
+      error?: { error: { type: string; code: string; message: string } }
+    }
+    expect(openaiErr.status).toBe(400)
+    expect(openaiErr.error).toEqual({
+      error: { type: 'invalid_request_error', code: 'context_length_exceeded', message: overflowText }
+    })
   })
 })
