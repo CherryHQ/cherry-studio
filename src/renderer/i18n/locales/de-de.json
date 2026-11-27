@@ -2459,6 +2459,7 @@
   "library.config.dialogs.edit.section.capabilities": "Fähigkeiten",
   "library.config.dialogs.edit.section.heartbeat": "Heartbeat",
   "library.config.dialogs.edit.section.run": "Ausführung",
+  "library.config.dialogs.edit.skills_fixed_hint": "Die Liste der Fähigkeiten dieses Agenten ist vom System festgelegt. Er nutzt nur die mitgelieferten Fähigkeiten.",
   "library.config.dialogs.edit.tasks.add": "Neue Aufgabe",
   "library.config.dialogs.edit.tasks.add_manually": "Manuell erstellen",
   "library.config.dialogs.edit.tasks.add_with_agent": "Mit dem Agenten erstellen",

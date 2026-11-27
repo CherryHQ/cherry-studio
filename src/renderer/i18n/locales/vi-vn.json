@@ -2459,6 +2459,7 @@
   "library.config.dialogs.edit.section.capabilities": "Khả năng",
   "library.config.dialogs.edit.section.heartbeat": "Heartbeat",
   "library.config.dialogs.edit.section.run": "Chạy",
+  "library.config.dialogs.edit.skills_fixed_hint": "Danh sách kỹ năng của Agent này do hệ thống cố định. Agent chỉ dùng những kỹ năng đi kèm với nó.",
   "library.config.dialogs.edit.tasks.add": "Tác vụ mới",
   "library.config.dialogs.edit.tasks.add_manually": "Tạo thủ công",
   "library.config.dialogs.edit.tasks.add_with_agent": "Tạo bằng Agent",

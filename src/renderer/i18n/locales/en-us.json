@@ -2459,6 +2459,7 @@
   "library.config.dialogs.edit.section.capabilities": "Capabilities",
   "library.config.dialogs.edit.section.heartbeat": "Heartbeat",
   "library.config.dialogs.edit.section.run": "Run",
+  "library.config.dialogs.edit.skills_fixed_hint": "This Agent's skill list is fixed by the system. It uses only the skills it comes with.",
   "library.config.dialogs.edit.tasks.add": "New task",
   "library.config.dialogs.edit.tasks.add_manually": "Create manually",
   "library.config.dialogs.edit.tasks.add_with_agent": "Create with Agent",
