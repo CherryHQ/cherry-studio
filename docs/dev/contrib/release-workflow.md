@@ -137,7 +137,7 @@ Before building, the workflow verifies that:
 
 - The workflow was started from `main`, with a valid tag and exact release SHA.
 - The branch version matches `package.json`.
-- CI succeeded for the exact branch commit.
+- Full CI succeeded for a push to the exact release branch at the expected commit.
 - A matching published release does not already exist.
 
 Formal releases compile Global and CN JS once each in parallel on Linux with `build:release` or `build:release:cn`. Each edition starts packaging as soon as its own bundle succeeds, without waiting for the other edition. Platform jobs download the corresponding `release-js-<edition>` artifact and invoke electron-builder separately. Each bundle includes main, preload, renderer, and utility-process outputs with a source SHA, edition, version, and SHA-256 file inventory. Packaging rejects missing, altered, or mismatched bundles. Native dependencies and helpers are prepared for the packaging target, rather than copied from the bundle builder. Sentry uploads run in each edition's bundle job, including utility-process sourcemaps.

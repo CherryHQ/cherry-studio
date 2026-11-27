@@ -35,14 +35,39 @@ describe('desktop regression and smoke report bundle', () => {
     }
     expect(upload.with.name).toBe('test-evidence-${{ matrix.platform }}')
     expect(smokeUpload.with.name).toBe('smoke-evidence-${{ matrix.platform }}')
-    expect(upload.with.path.trim().split('\n')).toEqual(
-      ['report', 'evidence', 'agent-workspace', 'fixtures', 'release/installation.json'].map(
+    expect(upload.with.path.trim().split('\n')).toEqual([
+      ...['report', 'evidence', 'agent-workspace', 'fixtures', 'release'].map(
         (path) => `\${{ runner.temp }}/cherry-regression/${path}`
+      ),
+      // The installer payload stays out of the archive; only the identity record is published.
+      ...['*.dmg', '*.exe'].map((pattern) => `!\${{ runner.temp }}/cherry-regression/release/${pattern}`)
+    ])
+    // The artifact identity record must be asserted between the report and the upload: uploading
+    // alone cannot fail on a missing single file, and running the check before the upload keeps the
+    // evidence downloadable when the assertion fails.
+    const verify = platformSteps.find(
+      (step: { name: string }) => step.name === 'Verify artifact identity evidence'
+    ) as { if: string; run: string }
+    expect(verify.run).toContain('cli.ts verify-evidence --run-dir "$RUN_DIR"')
+    expect(platformSteps.indexOf(finalize)).toBeLessThan(platformSteps.indexOf(verify))
+    expect(platformSteps.indexOf(verify)).toBeLessThan(platformSteps.indexOf(upload))
+    for (const outcome of ['success', 'failure', 'skipped']) {
+      expect(runInNewContext(verify.if, { always: () => true, steps: { platform_report: { outcome } } })).toBe(
+        outcome === 'success'
       )
-    )
+    }
     expect(smokeUpload.with.path.trim().split('\n')).toEqual(
       ['report', 'evidence'].map((path) => `\${{ runner.temp }}/cherry-regression/${path}`)
     )
+    const aggregateVerify = steps.find((step) => step.name === 'Verify artifact identity evidence') as {
+      name: string
+      run: string
+    }
+    const assemble = steps.find((step) => step.name === 'Assemble complete report')!
+    const uploadReport = steps.find((step) => step.name === 'Upload aggregate report')!
+    expect(aggregateVerify.run).toContain('verify-evidence --aggregate-root combined-report')
+    expect(steps.indexOf(assemble)).toBeLessThan(steps.indexOf(aggregateVerify))
+    expect(steps.indexOf(aggregateVerify)).toBeLessThan(steps.indexOf(uploadReport))
   })
 
   it('checks selected suite outcomes even when the other suite passes', () => {

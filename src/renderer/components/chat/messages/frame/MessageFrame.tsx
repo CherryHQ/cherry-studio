@@ -12,9 +12,11 @@ import { classNames, cn } from '@renderer/utils/style'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { createUniqueModelId, type Model } from '@shared/data/types/model'
 
+import CompactionAnchorBlock from '../blocks/CompactionAnchorBlock'
 import MessageImageBlock from '../blocks/MessageImageBlock'
 import { MessagePartsScopeProvider, useMessageParts } from '../blocks/MessagePartsContext'
 import { getHoistedAttachments } from '../blocks/MessagePartsRenderer'
+import MessageTimelineMarker from '../blocks/MessageTimelineMarker'
 import { useScrollRuntimeNavigation } from '../list/ScrollOwnershipContext'
 import SiblingNavigator from '../list/SiblingNavigator'
 import {
@@ -117,7 +119,7 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
   const isApprovalAnchor = activityState.isApprovalAnchor
   const showMenuBar = !hideMenuBar && !isEditing && !isStreamTarget && !isApprovalAnchor
   const isUserBubbleMessage = messageStyle === 'bubble' && !isAssistantMessage && !isMultiSelectMode
-  const showAssistantFooterActions = showMenuBar && isAssistantMessage
+  const showAssistantFooterActions = showMenuBar && isAssistantMessage && message.isRunBoundary !== false
   const showUserFooterActions = showMenuBar && !isAssistantMessage && !isMultiSelectMode && !isUserBubbleMessage
   const keepAssistantFooterVisible = isLatestAssistantMessage || isMessageMenuOpen
   const assistantFooterVisibilityClass = keepAssistantFooterVisible
@@ -217,6 +219,17 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
       <MessageContent message={message} />
     </MessageErrorBoundary>
   )
+  if (message.presentation === 'marker' || message.presentation === 'interrupted')
+    return (
+      <div data-message-id={message.id} className="message-timeline-marker w-full" style={messageContentStyle}>
+        {message.presentation === 'interrupted' ? (
+          <MessageTimelineMarker>{t('message.chat.completion.interrupted')}</MessageTimelineMarker>
+        ) : messageParts[0]?.type === 'data-compaction-anchor' ? (
+          <CompactionAnchorBlock partId={message.partIds?.[0]} data={messageParts[0].data} />
+        ) : null}
+      </div>
+    )
+
   const plainMessageContent = (
     <>
       {isHorizontalMultiModelLayout ? (
@@ -320,6 +333,7 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
           key={model ? createUniqueModelId(model.provider, model.id) : ''}
           isGroupContextMessage={isGroupContextMessage}
           showModelIdentity={showModelIdentity}
+          showHeader={message.showHeader}
           contentSlot={plainMessageContent}
           footerSlot={userFooter ?? assistantFooter}
         />

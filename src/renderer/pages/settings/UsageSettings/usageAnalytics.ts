@@ -1,6 +1,7 @@
 import type {
   AiUsageRecordCostTotal,
   AiUsageRecordDailyCost,
+  AiUsageRecordGroupFilter,
   AiUsageRecordGroupIdentity,
   AiUsageRecordStatsMetrics,
   AiUsageRecordStatsResponse,
@@ -345,4 +346,45 @@ export function buildTotalChartSeries(
   })
   const otherTotal = getMetricValue(stats.other, metric)
   return [...series, { key: 'other', values: [otherTotal], total: otherTotal }].filter((item) => item.total > 0)
+}
+
+export function rangeFromPeriodKey(
+  periodKey: string,
+  rollup: UsageRollupKey,
+  bounds: BoundedTimeRange
+): BoundedTimeRange {
+  if (rollup === 'total') return bounds
+  const start = startOfLocalDay(parseDateKey(periodKey))
+  const end =
+    rollup === 'monthly'
+      ? new Date(start.getFullYear(), start.getMonth() + 1, 0)
+      : rollup === 'weekly'
+        ? new Date(start.getFullYear(), start.getMonth(), start.getDate() + 6)
+        : start
+
+  return {
+    from: Math.max(start.getTime(), bounds.from),
+    to: Math.min(endOfLocalDay(end).getTime(), bounds.to)
+  }
+}
+
+export function toUsageEntryGroupFilter(
+  groupBy: GroupByKey,
+  identity: AiUsageRecordGroupIdentity
+): AiUsageRecordGroupFilter {
+  switch (groupBy) {
+    case 'provider':
+      return { providerId: identity.providerId ?? null }
+    case 'model':
+      return { providerId: identity.providerId ?? null, modelId: identity.modelId ?? null }
+    case 'source':
+      return { sourceType: identity.sourceType ?? null, sourceId: identity.sourceId ?? null }
+    case 'apiKey':
+      return {
+        providerId: identity.providerId ?? null,
+        apiKeyId: identity.apiKeyId ?? null,
+        apiKeyAttribution: identity.apiKeyAttribution ?? 'unknown',
+        authMethod: identity.authMethod ?? null
+      }
+  }
 }

@@ -1,4 +1,51 @@
 import type OpenAI from '@cherrystudio/openai'
+import type { LivePartPatch } from '@shared/ai/messageProjection'
+import type { CherryUIMessage, CherryMessagePart } from '@shared/data/types/message'
+
+export interface ProjectionPartReader {
+  read(partId: string): CherryMessagePart | undefined
+  subscribe(partId: string, listener: () => void): () => void
+}
+
+export interface ProjectionLayoutSlot {
+  readonly partId: string
+}
+
+export type ProjectionLayoutNode =
+  | { readonly slots: readonly ProjectionLayoutSlot[] }
+  | { readonly children: readonly ProjectionLayoutNode[] }
+
+export interface ProjectionLayoutReader {
+  row(messageId: string): ProjectionRowReader | undefined
+}
+
+export interface ProjectionRowReader {
+  getSnapshot(): ProjectionLayoutNode
+  subscribe(listener: () => void): () => void
+}
+
+export type MessageTextChange = {
+  messageId: string
+  partId: string
+  turnOrigin?: NonNullable<CherryUIMessage['metadata']>['turnOrigin']
+} & (
+  | { type: 'text-open'; afterTextPartId?: string }
+  | ({ type: 'text-append'; offset: number } & Pick<Extract<LivePartPatch, { type: 'part-append' }>, 'text'>)
+  | { type: 'text-correct'; text: string }
+)
+
+export interface ExecutionFinishEvent {
+  attemptId: number
+  userMessageId?: string
+  message: CherryUIMessage
+  isAbort: boolean
+  isError: boolean
+}
+
+export type ExecutionContentUpdate = { attemptId: number } & (
+  | { type: 'snapshot'; message: CherryUIMessage; partId?: never; text?: never }
+  | (MessageTextChange & { message?: never })
+)
 
 export type Usage = OpenAI.Completions.CompletionUsage & {
   thoughts_tokens?: number

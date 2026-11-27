@@ -2,6 +2,7 @@ import type { CallToolResult } from '@modelcontextprotocol/client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { createToolInvokeTool } from '@main/ai/tools/adapters/aiSdk/meta/toolInvoke'
+import type { McpAppReference } from '@shared/types/mcpApp'
 
 import { createMcpJsonSchemaValidator } from '../../mcpSchema'
 import { ToolRegistry } from '../../registry'
@@ -119,6 +120,8 @@ describe('mcpTools execute wrapper', () => {
     expect(callTool).toHaveBeenCalledWith({
       serverId: 's1',
       name: 't',
+      audience: 'model',
+      onAppResult: expect.any(Function),
       args: { q: 'x' },
       callId: 'call-3',
       scope: undefined,
@@ -127,6 +130,22 @@ describe('mcpTools execute wrapper', () => {
     })
     expect(out.content).toEqual([{ type: 'text', text: 'ok' }])
     expect(out.metadata).toEqual({ description: '', name: 't', serverName: 's1', serverId: 's1', type: 'mcp' })
+  })
+
+  it('records the invocation input and the runtime-issued App reference on the tool result', async () => {
+    const execute = await registerToolExecute(new ToolRegistry())
+    getById.mockReturnValue(activeServer('s1'))
+    const reference = { serverId: 's1', serverKey: 'source', toolName: 't', resourceUri: 'ui://test/app' }
+    callTool.mockImplementationOnce(async (request) => {
+      const { onAppResult } = request as { onAppResult: (reference: McpAppReference) => void }
+      onAppResult(reference)
+      return { content: [], structuredContent: { count: 3 }, _meta: { viewOnly: 'private' } }
+    })
+    await expect(execute({ count: 3 }, { toolCallId: 'call-app', messages: [] })).resolves.toMatchObject({
+      structuredContent: { count: 3 },
+      _meta: { viewOnly: 'private' },
+      metadata: { type: 'mcp', app: reference, appInput: { count: 3 } }
+    })
   })
 
   it('rejects Draft 2020-12-invalid deferred arguments before calling the MCP runtime', async () => {
@@ -198,6 +217,8 @@ describe('mcpTools execute wrapper', () => {
     expect(callTool).toHaveBeenCalledExactlyOnceWith({
       serverId: 'server-a',
       name: 'executeSql',
+      audience: 'model',
+      onAppResult: expect.any(Function),
       args: { sql: 'select 1' },
       callId: 'call-reimbursement'
     })

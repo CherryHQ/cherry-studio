@@ -744,6 +744,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup()
+  vi.useRealTimers()
   vi.clearAllMocks()
 })
 
@@ -2178,6 +2179,33 @@ describe('edit dialogs', () => {
     expect(updateAgentMock).not.toHaveBeenCalled()
   })
 
+  it('adds two Pi Durable built-in rows to the summary while a knowledge base is linked', async () => {
+    const user = userEvent.setup()
+    const agent: AgentDetail = {
+      ...PI_AGENT,
+      type: 'pi-durable',
+      knowledgeBaseIds: ['kb-1'],
+      disabledTools: ['mcp__cherry-tools__kb_search']
+    }
+    render(<AgentEditDialog open resource={agent} onOpenChange={vi.fn()} />)
+
+    const toolSummary = () => screen.getByRole('button', { name: /^Built-in tools:/ }).getAttribute('aria-label')
+    const [, enabled, total] = toolSummary()?.match(/Enabled (\d+) \/ (\d+)$/) ?? []
+    expect(Number(enabled)).toBe(Number(total) - 1)
+    await openSubPage(user, 'Built-in tools')
+    expect(screen.getByRole('switch', { name: 'Knowledge Search' })).not.toBeChecked()
+    expect(screen.getByRole('switch', { name: 'Manage Knowledge' })).toBeChecked()
+
+    await back(user)
+    await openSubPage(user, 'Knowledge')
+    await user.click(screen.getByRole('switch', { name: 'Knowledge One' }))
+    await back(user)
+    expect(toolSummary()).toBe(`Built-in tools: Enabled ${Number(enabled) - 1} / ${Number(total) - 2}`)
+    await openSubPage(user, 'Built-in tools')
+    expect(screen.queryByRole('switch', { name: 'Knowledge Search' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('switch', { name: 'Manage Knowledge' })).not.toBeInTheDocument()
+  })
+
   it('preserves a knowledge-base re-selection made while its removal is saving', async () => {
     let resolveFirstSave: (() => void) | undefined
     updateAgentMock.mockImplementationOnce(
@@ -2359,14 +2387,33 @@ describe('edit dialogs', () => {
     expect(screen.getByRole('heading', { name: title })).toBeInTheDocument()
   })
 
-  // A sealed builtin role has no skills page, so its deep link lands on the settings page.
-  it('opens the settings page for a skills deep link on an Agent without a skills page', () => {
-    const sealed = { ...AGENT, configuration: { ...AGENT.configuration, builtin_role: 'support' as const } }
-    render(<AgentEditDialog open resource={sealed} onOpenChange={vi.fn()} initialTab="tools.skills" />)
+  it.each([
+    ['support', undefined],
+    ['doctor', undefined],
+    ['support', 'tools.skills'],
+    ['doctor', 'tools.skills']
+  ] as const)('shows a read-only skills notice for %s when opened with %s', (role, initialTab) => {
+    const sealed = { ...AGENT, configuration: { ...AGENT.configuration, builtin_role: role } }
+    render(<AgentEditDialog open resource={sealed} onOpenChange={vi.fn()} initialTab={initialTab} />)
 
     expect(screen.getByRole('heading', { name: 'Edit Agent' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /^技能:/ })).not.toBeInTheDocument()
+    expect(screen.getByText(/skill list is fixed by the system/i)).toBeVisible()
+    expect(screen.queryByRole('button', { name: /^技能(?:$|:)/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('switch', { name: 'Skill One' })).not.toBeInTheDocument()
   })
+
+  it.each(['assistant', undefined] as const)(
+    'offers editable skills without the fixed-list notice for %s',
+    async (role) => {
+      const user = userEvent.setup()
+      const agent = role ? { ...AGENT, configuration: { ...AGENT.configuration, builtin_role: role } } : AGENT
+      render(<AgentEditDialog open resource={agent} onOpenChange={vi.fn()} />)
+
+      expect(screen.queryByText(/skill list is fixed by the system/i)).not.toBeInTheDocument()
+      await user.click(screen.getByRole('button', { name: /^技能:/ }))
+      expect(screen.getByRole('switch', { name: 'Skill One' })).toBeEnabled()
+    }
+  )
 
   it('waits for background skill refresh before initializing the editable baseline', async () => {
     installedSkillsState.current = {
@@ -2739,6 +2786,7 @@ describe('edit dialogs', () => {
   })
 
   it('persists the latest edit made while an earlier save is still in flight', async () => {
+    vi.useFakeTimers()
     let resolveFirstSave: (() => void) | undefined
     updateAssistantMock.mockImplementationOnce(
       () =>
@@ -2750,7 +2798,8 @@ describe('edit dialogs', () => {
 
     const nameInput = screen.getByLabelText('Name')
     fireEvent.change(nameInput, { target: { value: 'First Edit' } })
-    await waitFor(() => expect(updateAssistantMock).toHaveBeenCalledTimes(1))
+    await act(() => vi.advanceTimersByTimeAsync(700))
+    expect(updateAssistantMock).toHaveBeenCalledTimes(1)
     expect(updateAssistantMock).toHaveBeenNthCalledWith(1, {
       body: expect.objectContaining({ name: 'First Edit' })
     })
@@ -2758,11 +2807,11 @@ describe('edit dialogs', () => {
     // Keep editing while the first PATCH is still in flight.
     fireEvent.change(nameInput, { target: { value: 'Second Edit' } })
     // Let the debounce fire; the in-flight guard must queue — not drop — this edit.
-    await new Promise((resolve) => setTimeout(resolve, 700))
+    await act(() => vi.advanceTimersByTimeAsync(700))
     expect(updateAssistantMock).toHaveBeenCalledTimes(1)
 
-    resolveFirstSave?.()
-    await waitFor(() => expect(updateAssistantMock).toHaveBeenCalledTimes(2))
+    await act(async () => resolveFirstSave?.())
+    expect(updateAssistantMock).toHaveBeenCalledTimes(2)
     expect(updateAssistantMock).toHaveBeenNthCalledWith(2, {
       body: expect.objectContaining({ name: 'Second Edit' })
     })
