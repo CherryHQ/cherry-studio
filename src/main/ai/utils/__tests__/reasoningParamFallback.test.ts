@@ -129,6 +129,74 @@ describe('withReasoningParamFallback', () => {
     expect(baseFetch).toHaveBeenCalledTimes(1)
   })
 
+  it('retries on a structured envelope naming reasoning_effort as the rejected parameter', async () => {
+    const ok = jsonResponse(200, {})
+    const baseFetch = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse(400, { error: { param: 'reasoning_effort', message: 'unsupported value' } }))
+      .mockResolvedValueOnce(ok)
+    const wrapped = withReasoningParamFallback(baseFetch)
+
+    const result = await wrapped('https://api.example.com/v1/chat/completions', {
+      method: 'POST',
+      body: JSON.stringify({ model: 'gpt-6-luna', reasoning_effort: 'xhigh' })
+    })
+
+    expect(result).toBe(ok)
+    expect(baseFetch).toHaveBeenCalledTimes(2)
+  })
+
+  it('retries when a message-only envelope puts the rejection wording before the field name', async () => {
+    const ok = jsonResponse(200, {})
+    const baseFetch = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse(400, { error: { message: 'Unrecognized request argument supplied: reasoning' } })
+      )
+      .mockResolvedValueOnce(ok)
+    const wrapped = withReasoningParamFallback(baseFetch)
+
+    const result = await wrapped('https://api.example.com/v1/responses', {
+      method: 'POST',
+      body: JSON.stringify({ model: 'gpt-6-luna', input: [], reasoning: { effort: 'high' } })
+    })
+
+    expect(result).toBe(ok)
+    expect(baseFetch).toHaveBeenCalledTimes(2)
+    const retryBody = JSON.parse((baseFetch.mock.calls[1][1] as RequestInit).body as string)
+    expect(retryBody).not.toHaveProperty('reasoning')
+  })
+
+  it('preserves the original 400 when a structured envelope blames model, even if the model id mentions reasoning', async () => {
+    const modelError = jsonResponse(400, {
+      error: { param: 'model', message: 'The model `reasoning_effort-v2` does not exist' }
+    })
+    const baseFetch = vi.fn(async () => modelError)
+    const wrapped = withReasoningParamFallback(baseFetch)
+
+    const result = await wrapped('https://api.example.com/v1/chat/completions', {
+      method: 'POST',
+      body: JSON.stringify({ model: 'reasoning_effort-v2', reasoning_effort: 'medium' })
+    })
+
+    expect(result).toBe(modelError)
+    expect(baseFetch).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not parse the request body on a non-400 response', async () => {
+    const parseSpy = vi.spyOn(JSON, 'parse')
+    const baseFetch = vi.fn(async () => jsonResponse(200, { ok: true }))
+    const wrapped = withReasoningParamFallback(baseFetch)
+
+    await wrapped('https://api.example.com/v1/chat/completions', {
+      method: 'POST',
+      body: JSON.stringify({ model: 'gpt-6-luna', reasoning_effort: 'medium' })
+    })
+
+    expect(parseSpy).not.toHaveBeenCalled()
+    parseSpy.mockRestore()
+  })
+
   it('never inspects requests without a body', async () => {
     const rejection = badReasoning()
     const baseFetch = vi.fn(async () => rejection)
