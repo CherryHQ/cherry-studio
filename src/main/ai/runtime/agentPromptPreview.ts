@@ -72,6 +72,7 @@ export async function previewAgentSystemPrompt(draft: AgentSystemPromptDraft): P
   const agent = {
     name: stored?.name ?? '',
     type: stored?.type ?? draft.agentType ?? 'pi-durable',
+    name: stored?.name ?? '',
     disabledTools: draft.disabledTools,
     knowledgeBaseIds: draft.knowledgeBaseIds,
     instructions: draft.instructions,

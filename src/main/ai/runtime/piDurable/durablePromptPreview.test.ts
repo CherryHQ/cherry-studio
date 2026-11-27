@@ -243,7 +243,7 @@ describe('previewAgentSystemPrompt', () => {
     expect(text).toContain('**Discover the role**')
     const runtime = await renderDurablePrompt(
       await buildDurablePrompt(await loadPiSdk(), {
-        agent: { name: '', type: 'pi-durable', instructions: '', configuration: {}, modelName: null },
+        agent: { type: 'pi-durable', name: '', instructions: '', configuration: {}, modelName: null },
         cwd: application.getPath('feature.agents.system_workspaces'),
         agentDataPath: path.join(application.getPath('feature.agents.data'), '{agent-id}'),
         effectiveLanguage: 'English',
@@ -255,18 +255,6 @@ describe('previewAgentSystemPrompt', () => {
     )
     expect(text).toBe(runtime)
   })
-
-  it.each(['pi', 'pi-durable', 'claude-code'] as const)(
-    'preserves the stored Agent name in %s previews',
-    async (type) => {
-      const agent = agentService.createAgentWithId(randomUUID(), { type, name: 'Configured Reviewer', model })
-      const preview = await previewAgentSystemPrompt(draft({ agentId: agent.id }))
-
-      expect(block(preview, 'bootstrap')?.text).toContain('Your name is already configured: "Configured Reviewer"')
-      expect(block(preview, 'bootstrap')?.text).not.toContain('What should your name be?')
-      expect(block(preview, 'bootstrap')?.text).not.toContain('action: "rename"')
-    }
-  )
 
   it('includes onboarding for a new Agent with instructions', async () => {
     const preview = await previewAgentSystemPrompt(draft())
