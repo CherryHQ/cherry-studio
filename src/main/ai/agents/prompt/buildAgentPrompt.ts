@@ -48,7 +48,7 @@ export interface BuildAgentPromptOptions {
   branchHead?: string | null
   workspacePath: string
   agentDataPath: string
-  agent: Pick<AgentEntity, 'instructions' | 'configuration' | 'modelName'>
+  agent: Pick<AgentEntity, 'instructions' | 'configuration' | 'modelName' | 'name'>
   /** Formats a model-facing call reference when the session can reach the tool. */
   referenceTool?: (server: string, tool: string) => string | undefined
   toolCallHint?: string
@@ -106,7 +106,8 @@ export async function buildAgentPrompt({
     workspacePath,
     agent.configuration,
     hasAgentInstructions,
-    agentDataPath
+    agentDataPath,
+    agent.name
   )
 
   const base: AgentPromptBase =

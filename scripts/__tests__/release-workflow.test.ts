@@ -348,6 +348,11 @@ describe('hotfix release notes', () => {
     expect(() => extractHotfixReleaseNote(`${HOTFIX_BODY}\n\n${HOTFIX_BODY}`)).toThrow('at most one release-note block')
   })
 
+  it('ignores an inline release-note opener inside a shell example', () => {
+    const body = ['```sh', '# Example opener: ```release-note', '```'].join('\n')
+    expect(extractHotfixReleaseNote(body)).toBeNull()
+  })
+
   it.each(['\n', '\r\n'])('rejects an empty hotfix note fence with line ending %j', (newline) => {
     const body = ['```release-note', '```'].join(newline)
     expect(() => extractHotfixReleaseNote(body)).toThrow('exact English and Chinese language markers')
@@ -1254,6 +1259,49 @@ describe('release publication state', () => {
 
 describe('release workflow gates', () => {
   const workflowRoot = path.resolve(import.meta.dirname, '../..', '.github/workflows')
+
+  it.skipIf(spawnSync('jq', ['--version']).status !== 0).each([
+    ['release/v2.2.2', 0],
+    ['main', 1]
+  ])('checks the release branch even when %s has a successful run at the same SHA', (branch, status) => {
+    const workflow = parse(fs.readFileSync(path.join(workflowRoot, 'release.yml'), 'utf8'))
+    const step = workflow.jobs.prepare.steps.find(
+      (entry: { name?: string }) => entry.name === 'Verify release commit passed CI'
+    )
+    const sha = 'a'.repeat(40)
+    const result = spawnSync(
+      'bash',
+      [
+        '-e',
+        '-o',
+        'pipefail',
+        '-c',
+        `gh() {
+          [[ " $* " == *" branch=$RELEASE_BRANCH "* ]] || return 2
+          printf '%s' "$CI_RUN"
+        }
+        ${step.run}`
+      ],
+      {
+        encoding: 'utf8',
+        env: {
+          ...process.env,
+          GITHUB_REPOSITORY: 'test/release',
+          RELEASE_BRANCH: 'release/v2.2.2',
+          RELEASE_SHA: sha,
+          CI_RUN: JSON.stringify({
+            head_branch: branch,
+            head_sha: sha,
+            event: 'push',
+            status: 'completed',
+            conclusion: 'success'
+          })
+        }
+      }
+    )
+    expect(result.status, result.stderr).toBe(status)
+    if (status) expect(result.stderr).toContain('CI result did not match the exact release commit')
+  })
 
   it('publishes npm packages without creating remote tags or GitHub releases', () => {
     const workflow = parse(fs.readFileSync(path.join(workflowRoot, 'release-packages.yml'), 'utf8'))

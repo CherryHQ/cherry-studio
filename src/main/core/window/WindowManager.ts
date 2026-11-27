@@ -1401,6 +1401,7 @@ export class WindowManager extends BaseService {
       show: showMode === 'immediate',
       webPreferences: {
         ...(preloadPath ? { preload: preloadPath } : {}),
+        ...(isMac ? { scrollBounce: true } : {}),
         ...config.webPreferences
       }
     })

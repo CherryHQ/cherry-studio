@@ -13,7 +13,7 @@ type PiSdk = Awaited<ReturnType<typeof loadPiSdk>>
 interface DurablePromptOptions {
   sessionId?: string
   branchHead?: string | null
-  agent: Pick<AgentEntity, 'instructions' | 'configuration' | 'modelName' | 'type'>
+  agent: Pick<AgentEntity, 'name' | 'instructions' | 'configuration' | 'modelName' | 'type'>
   cwd: string
   agentDataPath: string
   effectiveLanguage: string | null

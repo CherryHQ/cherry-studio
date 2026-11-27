@@ -154,17 +154,6 @@ describe('where the two sub-brands disagree', () => {
     expect(resolvePosixRelativeSegments(both)).toEqual(['a\\b.txt'])
   })
 
-  it('nests as value sets but not as types — the brand records the reading', () => {
-    // Every Windows-relative string is also POSIX-relative: POSIX only refuses the
-    // empty string, a leading `/`, and NUL, all of which Windows refuses too. The
-    // brands stay distinct because they mean different readings of the same string.
-    const both = 'a\\b.txt'
-    expect(accepts(WindowsRelativeFilePathSchema, both)).toBe(true)
-    expect(accepts(PosixRelativeFilePathSchema, both)).toBe(true)
-    expect(resolveWindowsRelativeSegments(both)).toEqual(['a', 'b.txt'])
-    expect(resolvePosixRelativeSegments(both)).toEqual(['a\\b.txt'])
-  })
-
   it('splits a backslash name into two segments only on Windows', () => {
     expect(resolvePosixRelativeSegments('a/b/c\\d.txt')).toEqual(['a', 'b', 'c\\d.txt'])
     expect(resolveWindowsRelativeSegments('a/b/c\\d.txt')).toEqual(['a', 'b', 'c', 'd.txt'])

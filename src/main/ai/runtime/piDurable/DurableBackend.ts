@@ -1,10 +1,18 @@
 import { createHash, randomUUID } from 'node:crypto'
 
-import type { ConversationId, EntryId, AgentChange, ModelRef, Registry, Storage } from '@earendil-works/pi-durable'
+import type {
+  ConversationId,
+  EntryId,
+  AgentChange,
+  ModelRef,
+  Registry,
+  Storage,
+  TaskId
+} from '@earendil-works/pi-durable'
 
 import { application } from '@application'
 import type { HostPorts, BehaviorEvent, CallRef } from '@cherrystudio/agent-behavior'
-import { runtimeId, type ThreadId } from '@cherrystudio/agent-runtime'
+import { runtimeId, type Thread, type ThreadId } from '@cherrystudio/agent-runtime'
 import type { DurableFollowup, DurableRecoveryWork, PiDurableRuntime } from '@cherrystudio/agent-runtime-pi-durable'
 import type { AgentSessionContextRow } from '@data/db/schemas/agentSessionContext'
 import { agentService } from '@data/services/AgentService'
@@ -18,6 +26,7 @@ import { createPiTelemetry } from '@main/ai/observability'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
 import { formatGatewayModelId } from '@shared/utils/apiGateway'
+import { Sequencer } from '@shared/utils/async'
 import { createLocalError } from '@shared/utils/localError'
 import { getRawModelId } from '@shared/utils/model'
 
@@ -50,11 +59,16 @@ const logger = loggerService.withContext('DurableBackend')
 export class DurableBackend {
   runtime!: PiDurableRuntime
   private readonly roots = new Map<string, DurableRoot>()
+  private readonly preparedRoots = new Map<string, { root: DurableRoot; attaching: boolean }>()
   private readonly nativeRoots = new Map<ThreadId, string>()
 
-  private readonly retired: DurableRoot[] = []
+  private readonly retired = new Set<DurableRoot>()
+  private readonly deferredReclaims = new Map<string, TaskId>()
+  private readonly hostOperations = new Sequencer()
   private models?: Binding['modelRuntime']
   private shutdownPromise?: Promise<void>
+  private stopping = false
+  private nativeStopped = false
 
   private constructor(private readonly registry: Registry) {}
 
@@ -168,7 +182,27 @@ export class DurableBackend {
         failure.name = 'PiDurableInitializationError'
         throw failure
       }
-      owner.runtime = created.value
+      const runtime = created.value
+      owner.runtime = { ...runtime, open: (ref) => owner.openThread(runtime, ref) }
+      owner.runtime.durable.observeCommits({
+        advance({ changes }) {
+          for (const [contextId, blocker] of owner.deferredReclaims) {
+            if (
+              !changes.some(
+                (change) =>
+                  change.type === 'task' && change.value.id === blocker && change.value.state.status === 'terminal'
+              )
+            )
+              continue
+            owner.deferredReclaims.delete(contextId)
+            owner.retryReclaim(contextId)
+          }
+        },
+        end() {
+          owner.nativeStopped = true
+          owner.deferredReclaims.clear()
+        }
+      })
       for (const refs of recovery.modelRefs.values())
         for (const ref of refs)
           if (!owner.models!.getModel(ref.provider, ref.modelId))
@@ -192,8 +226,8 @@ export class DurableBackend {
       return { owner, pending, root: host, recovery }
     } catch (error) {
       if (storageOwned) await root.storage.close(BACKGROUND_CONTEXT)
-      if (owner.runtime) await owner.runtime.shutdown()
-      await owner.closeHosts()
+      if (owner.runtime) await owner.shutdown()
+      else await owner.closeHosts()
       throw error
     }
   }
@@ -203,11 +237,20 @@ export class DurableBackend {
     this.nativeRoots.set(runtimeId(String(id)), root.context.id)
   }
 
-  async prepare(
+  prepare(
     input: AgentRuntimeConnectInput,
     context: AgentSessionContextRow,
     checkpoints: readonly ModelRef[] = []
   ): Promise<DurableRoot> {
+    return this.hostOperations.queue(() => this.prepareHost(input, context, checkpoints))
+  }
+
+  private async prepareHost(
+    input: AgentRuntimeConnectInput,
+    context: AgentSessionContextRow,
+    checkpoints: readonly ModelRef[]
+  ): Promise<DurableRoot> {
+    if (this.stopping) throw new Error('Durable backend is closing')
     const previous = this.roots.get(context.id)
     if (previous?.input === input) return previous
     const desktop = await prepareDurableDesktop(input, (event) => this.roots.get(context.id)?.sink?.event(event), {
@@ -262,15 +305,99 @@ export class DurableBackend {
           model: { provider: binding.model.provider, modelId: binding.model.id }
         }
       }
-      if (previous) this.retired.push(previous)
-      this.roots.set(context.id, host)
-      if (context.nativeThreadId) this.nativeRoots.set(runtimeId(context.nativeThreadId), context.id)
       for (const extension of desktop.registry.snapshot().installed()) this.registry.install(extension)
+      if (previous) {
+        const abandoned = this.preparedRoots.get(context.id)
+        if (abandoned) this.retirePrepared(abandoned.root)
+        this.preparedRoots.set(context.id, { root: host, attaching: false })
+      } else {
+        this.roots.set(context.id, host)
+      }
+      if (context.nativeThreadId) this.nativeRoots.set(runtimeId(context.nativeThreadId), context.id)
       return host
     } catch (error) {
       await desktop.close()
       throw error
     }
+  }
+
+  private async openThread(runtime: PiDurableRuntime, ref: Thread) {
+    const contextId = this.nativeRoots.get(ref.id)
+    const prepared = contextId && this.preparedRoots.get(contextId)
+    // The connection installs its sink immediately before opening the root. Other opens borrow the native handle.
+    if (
+      !prepared ||
+      prepared.attaching ||
+      !prepared.root.sink ||
+      prepared.root.context.nativeThreadId !== ref.id ||
+      prepared.root.context.backendId !== ref.backendId
+    ) {
+      return runtime.open(ref)
+    }
+    prepared.attaching = true
+    const host = prepared.root
+    const opened = await runtime.open(ref)
+    if (opened.status !== 'confirmed') {
+      await this.hostOperations.queue(() => this.retirePrepared(host))
+      return opened
+    }
+
+    const handle = opened.value
+    return {
+      ...opened,
+      value: {
+        ...handle,
+        durable: {
+          ...handle.durable,
+          configure: (change: AgentChange) => {
+            if (change !== host.agent) return handle.durable.configure(change)
+            return this.hostOperations.queue(async () => {
+              const id = host.context.id
+              if (this.stopping || this.preparedRoots.get(id) !== prepared)
+                throw new Error('Durable root is unavailable')
+              try {
+                await handle.durable.configure(change)
+              } catch (error) {
+                this.retirePrepared(host)
+                throw error
+              }
+              this.preparedRoots.delete(id)
+              this.retired.add(this.roots.get(id)!)
+              this.roots.set(id, host)
+            })
+          }
+        },
+        release: async () => {
+          try {
+            await handle.release()
+          } finally {
+            const id = host.context.id
+            if (this.preparedRoots.get(id) === prepared) {
+              await this.hostOperations.queue(() => this.retirePrepared(host))
+            } else if (
+              this.roots.get(id) === host &&
+              !this.stopping &&
+              !this.deferredReclaims.has(id) &&
+              [...this.retired].some((item) => item.context.id === id)
+            ) {
+              try {
+                await this.hostOperations.queue(() => this.reclaimRetiredHost(host))
+              } catch (error) {
+                logger.warn('Failed to reclaim retired durable desktop on handle release', { contextId: id, error })
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  private retirePrepared(host: DurableRoot) {
+    const id = host.context.id
+    if (this.preparedRoots.get(id)?.root !== host) return
+    this.preparedRoots.delete(id)
+    this.retired.add(host)
+    if (!this.deferredReclaims.has(id)) this.retryReclaim(id)
   }
 
   registerChild(thread: ThreadId, rootContextId: string): void {
@@ -361,19 +488,191 @@ export class DurableBackend {
     }
   }
 
+  reclaimRetired(root: DurableRoot): Promise<void> {
+    return this.hostOperations.queue(() => this.reclaimRetiredHost(root))
+  }
+
+  private retryReclaim(contextId: string) {
+    void this.hostOperations
+      .queue(async () => {
+        const root = this.roots.get(contextId)
+        if (root) await this.reclaimRetiredHost(root)
+      })
+      .catch((error) => logger.warn('Failed to retry retired durable desktop reclamation', { contextId, error }))
+  }
+
+  private async reclaimRetiredHost(root: DurableRoot): Promise<void> {
+    if (this.stopping || this.roots.get(root.context.id) !== root) return
+    const candidates = [...this.retired].filter((item) => item.context.id === root.context.id)
+    if (candidates.length === 0) return
+    const rootThreadId = root.context.nativeThreadId ?? contexts.context(root.context.id)?.nativeThreadId
+    if (!rootThreadId) return
+
+    const [{ AgentDoc }, { BACKGROUND_CONTEXT }, { nonterminalTaskStates }] = await Promise.all([
+      import('@earendil-works/pi-durable'),
+      import('@earendil-works/chord/context'),
+      import('@cherrystudio/agent-runtime-pi-durable')
+    ])
+
+    const retiredExtensionNames = new Set(
+      candidates.flatMap((candidate) =>
+        candidate.desktop.registry
+          .snapshot()
+          .installed()
+          .map((extension) => extension.name)
+      )
+    )
+    const currentExtensionNames = root.desktop.registry
+      .snapshot()
+      .installed()
+      .map((extension) => extension.name)
+    const rootConversationId = Number(rootThreadId) as ConversationId
+
+    const reclaimed = await this.runtime.durable.commit(async (tx) => {
+      this.deferredReclaims.delete(root.context.id)
+      const subtree: ConversationId[] = [rootConversationId]
+      const seen = new Set<ConversationId>([rootConversationId])
+      for (let index = 0; index < subtree.length; index++) {
+        const ownerConversationId = subtree[index]
+        let cursor: Parameters<typeof tx.scanConversations>[2]
+        do {
+          const page = await tx.scanConversations({ ownerConversationId }, 256, cursor)
+          for (const child of page.items) {
+            if (seen.has(child.id)) continue
+            seen.add(child.id)
+            subtree.push(child.id)
+          }
+          cursor = page.next
+        } while (cursor)
+      }
+
+      for (const conversationId of subtree) {
+        for (const status of nonterminalTaskStates) {
+          const {
+            items: [blocker]
+          } = await tx.scanTasks({ conversationId, status }, 1)
+          if (blocker) {
+            // Record the blocker on the mutation line before its terminal commit can publish.
+            this.deferredReclaims.set(root.context.id, blocker.id)
+            return false
+          }
+        }
+      }
+
+      for (const conversationId of subtree) {
+        if (conversationId === rootConversationId) continue
+        const doc = await tx.doc(AgentDoc, conversationId)
+        const updated = rewriteRetiredExtensions(doc.extensions, retiredExtensionNames, currentExtensionNames)
+        if (updated !== undefined) doc.extensions = updated
+      }
+      return true
+    }, BACKGROUND_CONTEXT)
+
+    if (!reclaimed) return
+
+    for (const candidate of candidates) {
+      for (const extension of candidate.desktop.registry.snapshot().installed()) {
+        this.registry.uninstall(extension)
+      }
+    }
+    for (const candidate of candidates) {
+      try {
+        await candidate.desktop.close()
+        this.retired.delete(candidate)
+      } catch (error) {
+        logger.warn('Failed to close retired durable desktop; retaining for retry', {
+          contextId: candidate.context.id,
+          error
+        })
+      }
+    }
+  }
+
   shutdown(): Promise<void> {
-    return (this.shutdownPromise ??= this.stop().catch((error) => {
-      this.shutdownPromise = undefined
-      throw error
-    }))
+    return (this.shutdownPromise ??= this.hostOperations
+      .queue(() => this.stop())
+      .catch((error) => {
+        this.shutdownPromise = undefined
+        throw error
+      }))
   }
   private async stop(): Promise<void> {
+    this.stopping = true
+    this.deferredReclaims.clear()
     const result = await this.runtime.shutdown()
-    if (result.status !== 'confirmed') throw new Error(result.error.message)
+    if (result.status !== 'confirmed') {
+      if (!this.nativeStopped) throw new Error(result.error.message)
+      logger.warn('Durable runtime shutdown did not confirm after the native scheduler stopped', {
+        error: result.error
+      })
+    }
     await this.closeHosts()
   }
   private async closeHosts() {
-    for (const root of [...this.roots.values(), ...this.retired]) await root.desktop.close()
+    const errors: unknown[] = []
+    const prepared = [...this.preparedRoots.values()].map(({ root }) => root)
+    for (const root of [...this.roots.values(), ...prepared, ...this.retired]) {
+      try {
+        await root.desktop.close()
+        if (this.roots.get(root.context.id) === root) this.roots.delete(root.context.id)
+        if (this.preparedRoots.get(root.context.id)?.root === root) this.preparedRoots.delete(root.context.id)
+        this.retired.delete(root)
+      } catch (error) {
+        errors.push(error)
+      }
+    }
+    if (errors.length) throw errors[0]
+  }
+}
+
+function replaceExtensionList(
+  names: readonly string[],
+  retired: ReadonlySet<string>,
+  replacement: readonly string[]
+): string[] | undefined {
+  let matched = false
+  let inserted = false
+  const result: string[] = []
+  const seen = new Set<string>()
+  const pushUnique = (name: string) => {
+    if (seen.has(name)) return
+    seen.add(name)
+    result.push(name)
+  }
+  for (const name of names) {
+    if (!retired.has(name)) {
+      pushUnique(name)
+      continue
+    }
+    matched = true
+    if (!inserted) {
+      inserted = true
+      for (const nextName of replacement) pushUnique(nextName)
+    }
+  }
+  return matched ? result : undefined
+}
+
+function rewriteRetiredExtensions(
+  extensions: readonly string[] | { readonly add?: readonly string[]; readonly remove?: readonly string[] } | undefined,
+  retired: ReadonlySet<string>,
+  replacement: readonly string[]
+): string[] | { add?: string[]; remove?: string[] } | undefined {
+  if (Array.isArray(extensions)) return replaceExtensionList(extensions, retired, replacement)
+  if (!extensions || typeof extensions !== 'object') return undefined
+  const patch = extensions as { readonly add?: readonly string[]; readonly remove?: readonly string[] }
+  const nextAdd = patch.add ? replaceExtensionList(patch.add, retired, replacement) : undefined
+  const nextRemove = patch.remove?.some((name) => retired.has(name))
+    ? patch.remove.filter((name) => !retired.has(name))
+    : undefined
+  if (!nextAdd && !nextRemove) return undefined
+  return {
+    ...(nextAdd !== undefined ? { add: nextAdd } : patch.add !== undefined ? { add: [...patch.add] } : {}),
+    ...(nextRemove !== undefined
+      ? { remove: nextRemove }
+      : patch.remove !== undefined
+        ? { remove: [...patch.remove] }
+        : {})
   }
 }
 
