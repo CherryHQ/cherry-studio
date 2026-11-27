@@ -77,6 +77,12 @@ The first user input uses the topic's virtual root just like later edited inputs
 
 Keep this note proposed through intermediate layers. Publish implementation above the Spec with the required stack workflow. No feature completion is inferred from a storage layer, mocked dialog or passing documentation gates.
 
+### Partial implementation boundary
+
+The first retry-source guard captures the failed reply's persisted ancestor path before asynchronous preparation. The final reset compares message identity, topic, parent, role, status, sibling group, model and saved data inside its write transaction. Changed reply content/controls, edited history or deleted/reparented ancestors reject before clearing the reply or descendant context anchors. Compaction summaries, usage/timing projections and unrelated sibling edits do not invalidate this content-path check. This adds two full-path reads and a comparison per explicit retry.
+
+This guard is only part of AC1/AC2. It is not the read-only effective-request preview, a configuration/file-availability binding or a new retry UI. Existing context preparation can still write traces/compaction state or call a compression model before a stale source is rejected; the guard does not promise otherwise. Replacement, edited resend and native acceptance remain unfinished.
+
 ## Alternatives considered
 
 - Delete the old answer before requesting a replacement: can lose a usable reply on provider failure or cancellation.
