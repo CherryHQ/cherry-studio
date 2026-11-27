@@ -192,6 +192,16 @@ type HeaderActionButtonProps = ComponentProps<typeof Button> & {
   ref?: Ref<HTMLButtonElement>
 }
 
+type GroupHeaderActionButtonProps = HeaderActionButtonProps & {
+  /**
+   * When true, the parent group-header action cluster stays visible instead of
+   * revealing on hover. Mirrors the `alwaysVisible` convention used by
+   * `SectionCollapseActionButton` — the prop is consumed by `GroupHeader` for
+   * layout and is not forwarded to the DOM.
+   */
+  alwaysVisible?: boolean
+}
+
 type HeaderItemProps = Omit<ComponentProps<typeof Button>, 'children' | 'command'> & {
   actions?: ReactNode
   /** When set, the button reveals this command's keyboard shortcut inline on hover. */
@@ -247,12 +257,14 @@ function HeaderActionButton({
 }
 
 function GroupHeaderActionButton({
+  alwaysVisible,
   className,
   ref,
   size = null,
   variant = 'ghost',
   ...props
-}: HeaderActionButtonProps) {
+}: GroupHeaderActionButtonProps) {
+  void alwaysVisible
   return (
     <Button
       ref={ref}

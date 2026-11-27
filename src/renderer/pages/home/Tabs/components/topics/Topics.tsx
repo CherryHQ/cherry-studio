@@ -1111,6 +1111,12 @@ export function Topics({
 
       if (!assistantGroupId) return null
 
+      // The New Topic action stays visible at all times (#18168): it is a frequent,
+      // discoverable entry point, and reserving its space avoids a control popping
+      // in under the cursor. `alwaysVisible` lifts the hover-only cluster in
+      // `GroupHeader` so both buttons share the stable layout.
+      const persistentActionClassName = 'size-7 min-h-7 min-w-7 [&_svg]:size-4!'
+
       return (
         <>
           {assistantGroupId && (
@@ -1118,6 +1124,7 @@ export function Topics({
               <AssistantGroupMoreMenu
                 assistantId={assistantGroupId}
                 assistantIconType={assistantIconType}
+                buttonClassName={persistentActionClassName}
                 deleteAssistantDisabled={deletingAssistantId !== null}
                 deleteTopicsDisabled={
                   deletingAssistantGroupId !== null ||
@@ -1142,9 +1149,11 @@ export function Topics({
           )}
           <Tooltip title={t('chat.conversation.new')} delay={500}>
             <ResourceList.GroupHeaderActionButton
+              alwaysVisible
               data-ui="chat.topic-list.action.create"
               type="button"
               aria-label={t('chat.conversation.new')}
+              className={persistentActionClassName}
               onClick={(event) => {
                 event.stopPropagation()
                 void onNewTopic?.({ assistantId: assistantGroupId })
