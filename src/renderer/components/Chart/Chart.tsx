@@ -20,7 +20,10 @@ export function Chart(props: ChartProps) {
       loadingColor={theme.colors[0] ?? theme.mutedForeground}
       loadingLabel={props.loadingLabel}
       loadingTextColor={theme.mutedForeground}
+      onClick={props.onDataPointClick}
+      onTimelineChange={props.type === 'pie' ? props.onTimelineChange : undefined}
       option={option}
+      timelineIndex={props.type === 'pie' ? props.timeline?.currentIndex : undefined}
     />
   )
 }

@@ -200,14 +200,18 @@ function getTokensPerSecond(row: AiUsageRecordRow): number | null {
   return row.outputTokens / (generationMs / 1000)
 }
 
-function getListSortValue(row: AiUsageRecordRow, sortBy: AiUsageRecordListSortBy): number | null {
+function getListSortValue(
+  row: AiUsageRecordRow,
+  sortBy: AiUsageRecordListSortBy,
+  costCurrency?: Currency
+): number | null {
   switch (sortBy) {
     case 'createdAt':
       return row.createdAt
     case 'totalTokens':
       return getAiUsageRecordTotalTokens(row)
     case 'cost':
-      return row.cost
+      return costCurrency && row.costCurrency !== costCurrency ? null : row.cost
     case 'timeFirstTokenMs':
       return row.timeFirstTokenMs
     case 'tokensPerSecond':
@@ -523,6 +527,10 @@ function aggregateOrder(metric: AiUsageRecordMetric, currency: Currency | undefi
   }
 }
 
+function nullableIdentity(column: AnySQLiteColumn, value: string | null): SQL {
+  return value === null ? isNull(column) : eq(column, value)
+}
+
 function listAiUsageRecords(query: AiUsageRecordListServiceQuery): AiUsageRecordListResponse {
   const db = application.get('DbService').getDb()
   const { limit } = query
@@ -538,8 +546,26 @@ function listAiUsageRecords(query: AiUsageRecordListServiceQuery): AiUsageRecord
       eq(aiUsageRecordTable.messageId, query.messageId)
     )
   }
-  if (sortBy === 'cost' && query.costCurrency) {
-    filterConditions.push(eq(aiUsageRecordTable.costCurrency, query.costCurrency))
+  if (query.providerId !== undefined) {
+    filterConditions.push(nullableIdentity(aiUsageRecordTable.providerId, query.providerId))
+  }
+  if (query.modelId !== undefined) {
+    filterConditions.push(nullableIdentity(aiUsageRecordTable.modelId, query.modelId))
+  }
+  if (query.sourceType !== undefined) {
+    filterConditions.push(nullableIdentity(aiUsageRecordTable.sourceType, query.sourceType))
+  }
+  if (query.sourceId !== undefined) {
+    filterConditions.push(nullableIdentity(aiUsageRecordTable.sourceId, query.sourceId))
+  }
+  if (query.apiKeyId !== undefined) {
+    filterConditions.push(nullableIdentity(aiUsageRecordTable.apiKeyId, query.apiKeyId))
+  }
+  if (query.apiKeyAttribution !== undefined) {
+    filterConditions.push(eq(aiUsageRecordTable.apiKeyAttribution, query.apiKeyAttribution))
+  }
+  if (query.authMethod !== undefined) {
+    filterConditions.push(nullableIdentity(aiUsageRecordTable.authMethod, query.authMethod))
   }
   const filterWhere = filterConditions.length > 0 ? and(...filterConditions) : undefined
   const tokensPerSecond = sql<number>`CASE
@@ -558,11 +584,17 @@ function listAiUsageRecords(query: AiUsageRecordListServiceQuery): AiUsageRecord
     )
   END`
   const totalTokens = totalTokensValue()
+  // Sort non-matching currencies and unpriced rows as NULL so they sort after the selected currency instead of disappearing.
+  const scopedCost = query.costCurrency
+    ? sql<
+        number | null
+      >`CASE WHEN ${aiUsageRecordTable.costCurrency} = ${query.costCurrency} THEN ${aiUsageRecordTable.cost} ELSE NULL END`
+    : aiUsageRecordTable.cost
   const sortExpression =
     sortBy === 'totalTokens'
       ? totalTokens
       : sortBy === 'cost'
-        ? aiUsageRecordTable.cost
+        ? scopedCost
         : sortBy === 'timeFirstTokenMs'
           ? aiUsageRecordTable.timeFirstTokenMs
           : sortBy === 'tokensPerSecond'
@@ -611,7 +643,7 @@ function listAiUsageRecords(query: AiUsageRecordListServiceQuery): AiUsageRecord
         ? sortsByCreatedAt
           ? encodeCursor(tail.createdAt, tail.id)
           : encodeMetricCursor({
-              value: getListSortValue(tail, sortBy),
+              value: getListSortValue(tail, sortBy, query.costCurrency),
               createdAt: tail.createdAt,
               id: tail.id
             })
@@ -647,10 +679,6 @@ function getAiUsageRecordStats(query: AiUsageRecordStatsQuery): AiUsageRecordSta
     totals,
     other: subtractMetrics(totals, buckets)
   }
-}
-
-function nullableIdentity(column: AnySQLiteColumn, value: string | null): SQL {
-  return value === null ? isNull(column) : eq(column, value)
 }
 
 function topGroupCondition(groupBy: AiUsageRecordGroupBy, buckets: AiUsageRecordStatsBucket[]): SQL | undefined {

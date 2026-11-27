@@ -17,6 +17,7 @@ const { values } = parseArgs({
     committed: { type: 'boolean' },
     group: { type: 'string' },
     shard: { type: 'string' },
+    'no-tests': { type: 'boolean' },
     'github-output': { type: 'boolean' }
   }
 })
@@ -45,6 +46,7 @@ if (process.env.VALIDATION_PLAN) {
     plan = createPlan([], `Full validation: comparison history unavailable (${values.base})`)
   }
 }
+if (values['no-tests']) plan = { ...plan, projects: [], platform: false }
 
 if (values['github-output']) {
   if (!process.env.GITHUB_OUTPUT) throw new Error('GITHUB_OUTPUT is required')
