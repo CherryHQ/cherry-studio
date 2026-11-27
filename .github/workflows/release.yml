@@ -861,6 +861,20 @@ jobs:
           TENCENT_CLOUD_SECRET_KEY: ${{ secrets.TENCENT_CLOUD_SECRET_KEY }}
         run: python scripts/release/release-cos.py prepare-sync
 
+      - name: Check whether the GitCode release token can read mirror settings
+        if: github.ref == 'refs/heads/DeJeune/gitcode-v2.2.4-recovery' && inputs.dry_run
+        env:
+          GITCODE_TOKEN: ${{ secrets.GITCODE_TOKEN }}
+        run: |
+          for url in \
+            'https://web-api.gitcode.com/api/v2/projects/CherryHQ%2Fcherry-studio/repo_remote_mirror' \
+            'https://api.gitcode.com/api/v5/repos/CherryHQ/cherry-studio/repo_remote_mirror'; do
+            status="$(curl -sS --max-time 20 -o "$RUNNER_TEMP/mirror-status.json" -w '%{http_code}' \
+              -H "Authorization: Bearer $GITCODE_TOKEN" "$url")"
+            printf '%s HTTP %s\n' "$url" "$status"
+            jq -c '{error_code,error_code_name,message}' "$RUNNER_TEMP/mirror-status.json" || true
+          done
+
       - name: Restore the exact GitCode release tag
         if: github.ref == 'refs/heads/DeJeune/gitcode-v2.2.4-recovery' && !inputs.dry_run
         env:
