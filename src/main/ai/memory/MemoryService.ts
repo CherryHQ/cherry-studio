@@ -9,7 +9,12 @@ import type { MemoryScope } from '@shared/types/memory'
 import { isMemoryEditor, type MemoryAuthority } from './memoryAuthority'
 import type { MemoryLegacyOriginal, MemoryMutationSource } from './memoryBackups'
 import type { MemoryEntry, MemoryRevision, MemoryUse } from './memoryEntries'
-import { memoryEntryPreview } from './memoryFiles'
+import {
+  finishExtractionInvalidation,
+  stageExtractionInvalidation,
+  withReconciledExtractionHistory
+} from './memoryExtractionState'
+import { memoryEntryPreview, memoryHash } from './memoryFiles'
 import {
   type MemoryAccess,
   type MemoryApproval,
@@ -49,6 +54,7 @@ export interface MemorySession extends Disposable {
 @ServicePhase(Phase.WhenReady)
 export class MemoryService extends BaseService {
   private readonly entrySnapshots = new Map<string, ReturnType<MemorySession['entry']>>()
+  private readonly entryRevisions = new Map<string, string>()
   private readonly stores = new Map<string, Promise<MemoryStore>>()
   private readonly work = createInFlightWorkTracker()
   private readonly pauses = new Set<symbol>()
@@ -64,9 +70,6 @@ export class MemoryService extends BaseService {
   private readonly invalidated = new Emitter<MemoryScope | undefined>()
   readonly onInvalidated = this.invalidated.event
 
-  private readonly historyReplaced = new Emitter<void>()
-  readonly onHistoryReplaced = this.historyReplaced.event
-
   protected override onReady(): void {
     this.stopped = false
   }
@@ -76,6 +79,9 @@ export class MemoryService extends BaseService {
     const scope = session.scope
     const key = JSON.stringify([contextId, scope.kind, scope.kind === 'private' ? scope.agentId : ''])
     await session.assertRuntimeSafe(assertHistory)
+    const revision = memoryHash(Buffer.from(JSON.stringify(await session.revisions())))
+    if (this.entryRevisions.get(key) !== revision) this.entrySnapshots.delete(key)
+    this.entryRevisions.set(key, revision)
     let pending = this.entrySnapshots.get(key)
     if (!pending) {
       pending = session.entry().then(async (snapshot) => {
@@ -96,7 +102,8 @@ export class MemoryService extends BaseService {
   open(
     authority: MemoryAuthority,
     source: 'controlled' | 'dreaming' | 'migration' | 'extraction' = 'controlled',
-    extractionSources?: readonly MemoryEntry['sources'][number][]
+    extractionSources?: readonly MemoryEntry['sources'][number][],
+    earliestSourceAt?: number
   ): MemorySession {
     authority.assertAuthorized()
     const scope = Object.freeze({ ...authority.scope })
@@ -138,7 +145,13 @@ export class MemoryService extends BaseService {
         })()
       )
     const notify = (source: MemoryMutationSource, result: MemoryCommitResult) => {
-      if (result.batchId) this.changed.fire({ scope, source, result })
+      if (scope.kind === 'shared' && (source === 'clear' || source === 'recovery')) {
+        const changed =
+          (source === 'clear' && !result.error) ||
+          result.files.some((file) => file.outcome === 'applied' || file.outcome === 'pending')
+        finishExtractionInvalidation(result.batchId, changed)
+      }
+      if (result.batchId || source === 'clear') this.changed.fire({ scope, source, result })
       return result
     }
     const validations: Array<() => Promise<void>> = []
@@ -154,7 +167,8 @@ export class MemoryService extends BaseService {
           target,
           source === 'controlled' ? purpose : 'extraction',
           extractionSources,
-          source !== 'controlled'
+          source !== 'controlled',
+          earliestSourceAt
         )
         if (source === 'dreaming' && !view.receipt) throw new Error('Structured memory organization is not available')
         validations.push(view.validate)
@@ -194,12 +208,14 @@ export class MemoryService extends BaseService {
       previewClear: () => run((store) => store.previewClear(access)),
       clear: (token, approve) =>
         run(async (store) => {
-          return notify('clear', await store.clear(access, token, approve))
+          const apply = async () => notify('clear', await store.clear(access, token, approve))
+          return scope.kind === 'shared' ? withReconciledExtractionHistory(apply) : apply()
         }),
       previewRecovery: () => run((store) => store.previewRecovery(access), 'recovery'),
       recover: (token, approve) =>
         run(async (store) => {
-          return notify('recovery', await store.recover(access, token, approve))
+          const apply = async () => notify('recovery', await store.recover(access, token, approve))
+          return scope.kind === 'shared' ? withReconciledExtractionHistory(apply) : apply()
         }, 'recovery')
     }
   }
@@ -226,20 +242,16 @@ export class MemoryService extends BaseService {
 
   /** A restored filesystem/database must never reuse receipts from the previous state. */
   invalidateAll(): void {
-    this.historyReplaced.fire()
-    this.expireSessions()
-  }
-
-  private expireSessions(): void {
     this.generation++
     this.entrySnapshots.clear()
+    this.entryRevisions.clear()
     this.invalidated.fire(undefined)
     for (const session of this.sessions) session.dispose()
   }
 
   protected async onStop(): Promise<void> {
     this.stopped = true
-    this.expireSessions()
+    this.invalidateAll()
     if (!(await this.work.drain())) throw new Error('Memory operations did not finish before shutdown')
     this.stores.clear()
   }
@@ -247,7 +259,6 @@ export class MemoryService extends BaseService {
   protected onDestroy(): void {
     this.changed.dispose()
     this.invalidated.dispose()
-    this.historyReplaced.dispose()
   }
 
   private async getStore(scope: MemoryScope): Promise<MemoryStore> {
@@ -263,8 +274,12 @@ export class MemoryService extends BaseService {
     let pending = this.stores.get(key)
     if (!pending) {
       const backups = application.getPath('feature.memory.backups')
-      const store = new MemoryStore(root, path.join(backups, key), path.dirname(backups), () =>
-        this.invalidated.fire(scope)
+      const store = new MemoryStore(
+        root,
+        path.join(backups, key),
+        path.dirname(backups),
+        () => this.invalidated.fire(scope),
+        scope.kind === 'shared' ? stageExtractionInvalidation : undefined
       )
       pending = store.initialize().then(() => store)
       this.stores.set(key, pending)

@@ -275,6 +275,10 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       throw new Error("'reserved-branch' target requires parentAnchorId")
     }
 
+    const recordSubmission =
+      req.trigger === 'submit-message' && topic?.assistantId
+        ? application.get('MemoryDreamingService').authorizeSubmission('assistant', req.topicId, topic.assistantId)
+        : undefined
     if (ctx.hasLiveStream && req.trigger === 'submit-message') {
       // A reserved branch belongs to another tree path and must never be injected as a steer
       // into the topic's running turn. Renderer queues it until idle; this synchronous check
@@ -297,6 +301,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         modelId: steerModelId
       })
 
+      recordSubmission?.(userMessage.id, userMessage.data.parts ?? [])
       return {
         topicId: req.topicId,
         models: [],
@@ -424,6 +429,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         }))
       })
 
+      recordSubmission?.(userMessage.id, userMessage.data.parts ?? [])
       const shouldAutoNameInitialTurn = !isRegenerate && !req.parentAnchorId
       if (shouldAutoNameInitialTurn) {
         topicNamingService.maybeRenameFromFirstUserMessage(req.topicId, userMessage.id)

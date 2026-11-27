@@ -1083,6 +1083,16 @@ describe('AgentSessionRuntimeService', () => {
       expect(mocks.finalizeSessionDelivery).not.toHaveBeenCalled()
     })
 
+    it.each([false, true])('limits memory source identity to interactive input (headless: %s)', (headless) => {
+      const service = new AgentSessionRuntimeService()
+      const events: Array<{ memoryUserMessageId?: string }> = []
+      service.onTurnTerminal((event) => events.push(event))
+      service.beginTurn({ ...baseTurnInput, userMessage: userMessage('real-input'), headless })
+      service.markTurnTerminal('session-1', 'success')
+      expect(events).toHaveLength(1)
+      expect(events[0].memoryUserMessageId).toBe(headless ? undefined : 'real-input')
+    })
+
     it('stays busy throughout the next-turn drain, closing the clobber window', async () => {
       const service = new AgentSessionRuntimeService()
       service.beginTurn(baseTurnInput)
@@ -6649,6 +6659,8 @@ describe('AgentSessionRuntimeService', () => {
         validateSession: vi.fn()
       })
       const service = new AgentSessionRuntimeService()
+      const terminal = vi.fn()
+      service.onTurnTerminal(terminal)
       const handle = service.beginTurn({
         ...baseTurnInput,
         userMessage: userMessage('user-1'),
@@ -6699,6 +6711,7 @@ describe('AgentSessionRuntimeService', () => {
       await expect(reader.read()).resolves.toMatchObject({ done: true })
       await terminalListener(handle).onDone({ status: 'success', isTopicDone: true })
       expect(getEntry(service).runtimeState.execution.kind).toBe('idle')
+      expect(terminal).toHaveBeenCalledWith(expect.objectContaining({ memoryUserMessageId: 'user-1' }))
       void service.closeSession('session-1')
     })
 

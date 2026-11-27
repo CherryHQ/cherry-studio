@@ -229,6 +229,7 @@ export class AgentSessionService {
       })
     }
     notifyDataApiDataChange(effects)
+    if (kind === 'membership') for (const sessionId of new Set(sessionIds)) this.sessionUpdated.fire({ sessionId })
   }
 
   notifyPurged(sessionIds: readonly string[]): void {

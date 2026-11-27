@@ -303,7 +303,7 @@ export type MessageSchemas = {
   '/messages/:id/siblings': {
     POST: {
       params: { id: string }
-      body: MessageData
+      body: MessageData & { resend?: boolean }
       response: Message
     }
   }

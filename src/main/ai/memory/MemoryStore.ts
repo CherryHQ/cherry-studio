@@ -132,7 +132,8 @@ export class MemoryStore {
     private readonly root: string,
     private readonly backupRoot: string,
     private readonly backupDataRoot = path.dirname(backupRoot),
-    private readonly onInvalidate?: () => void
+    private readonly onInvalidate?: () => void,
+    private readonly beforeHistoryWrite?: (batchId: string, changes: readonly MemoryFileChange[]) => void
   ) {
     const relative = path.relative(path.resolve(root), path.resolve(backupRoot))
     if (!relative || (!path.isAbsolute(relative) && relative !== '..' && !relative.startsWith(`..${path.sep}`))) {
@@ -191,20 +192,20 @@ export class MemoryStore {
     target: string,
     purpose: MemoryUse = 'current',
     extractionSources?: readonly MemoryEntry['sources'][number][],
-    maintenance = false
+    maintenance = false,
+    earliestSourceAt?: number
   ) {
     assertMemoryTarget(target)
     access.assertAuthorized()
     const generation = this.generation
     const snapshot = await this.entrySnapshot()
     const files = new Map([...snapshot].map(([name, bytes]) => [name, bytes ? this.decode(bytes) : '']))
-    const content = memoryModelView(files, target, purpose, extractionSources)
+    const content = memoryModelView(files, target, purpose, extractionSources, earliestSourceAt)
     const structured = [...files.values()]
       .flatMap((text) => entriesIn(parseMemoryEntries(text)))
       .filter((entry) => !isMemoryRevision(entry))
     const afterClear =
-      !maintenance &&
-      purpose === 'current' &&
+      ((!maintenance && purpose === 'current') || (maintenance && purpose === 'extraction')) &&
       structured.length > 0 &&
       structured.every((entry) => entry.clearedAt !== undefined)
     const validate = async () => {
@@ -329,7 +330,7 @@ export class MemoryStore {
     for (const mutation of intent) {
       const baseline = this.baseline(access, mutation.receipt)
       const before = await this.readMatching(baseline)
-      if (source === 'controlled' && baseline.afterClear) afterClear.add(baseline.path)
+      if ((source === 'controlled' || source === 'extraction') && baseline.afterClear) afterClear.add(baseline.path)
       if (baseline.revisionContent !== undefined) {
         if (source !== 'extraction' || mutation.kind !== 'write' || mutation.content !== baseline.revisionContent)
           invalidEntries()
@@ -566,6 +567,7 @@ export class MemoryStore {
       batchId: batch.id,
       files: changes.map((change) => ({ path: change.path, hash: memoryHash(change.before), outcome: 'pending' }))
     }
+    if (source === 'clear' || source === 'recovery') this.beforeHistoryWrite?.(batch.id, changes)
     for (const [index, change] of changes.entries()) {
       const step = steps.get(change.path)!
       try {

@@ -9,12 +9,16 @@ sources:
 
 # Memory Reference
 
-Cherry Studio provides three memory mechanisms that differ in who they serve,
-how they persist, and where they are stored: managed shared/private Markdown
-memory (`MEMORY.md` / `.memories/`), the Knowledge Base, and the built-in
-`@cherry/memory` graph MCP server. SOUL.md and USER.md keep their identity roles.
-Legacy FACT is migrated privately; JOURNAL remains unchanged history.
+Managed memory stores shared personal context and Agent-private knowledge in
+`MEMORY.md` and `.memories/`. Conversation extraction writes eligible new facts;
+Dreaming organizes existing files. The `memory_search` tool retrieves historical
+conversations for the current answer. Knowledge Base and `@cherry/memory`
+graph MCP remain independent capabilities.
+
+`SOUL.md` and `USER.md` keep their identity roles. Legacy FACT is migrated
+privately; JOURNAL remains unchanged history. The Agent's existing Memory tab
+shows identity and legacy files.
 
 | Document | What it covers |
 |---|---|
-| [Memory Feature Overview](./overview.md) | Comparison of the mechanisms: scope, persistence, storage, and when to use each; plus the v1 Global Memory removal note |
+| [Memory Feature Overview](./overview.md) | Settings, access, conversation snapshots, extraction, recall, organization, recovery, and current limitations |

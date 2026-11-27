@@ -127,6 +127,8 @@ function assertActiveAssistantTx(tx: Pick<DbOrTx, 'select'>, assistantId: string
 }
 
 export class TopicService {
+  private readonly memoryAccessRevoked = new Emitter<string>()
+  readonly onMemoryAccessRevoked = this.memoryAccessRevoked.event
   private readonly changed = new Emitter<readonly string[]>()
   readonly onChanged = this.changed.event
 
@@ -137,6 +139,7 @@ export class TopicService {
   ): void {
     if (topicIds.length === 0) return
     const entityIds = [...new Set(topicIds)]
+    if (options.deleted) for (const id of entityIds) this.memoryAccessRevoked.fire(id)
     this.changed.fire(entityIds)
     // A terminal single delete scopes its by-id effect to that exact id; batches keep
     // one broadcast-wide entry per the shared data-change contract (batch = one entry,
@@ -426,6 +429,7 @@ export class TopicService {
     this.notifyReadModelChange([id], 'projection', {
       artifactAssistantIds: previousAssistantId === row.assistantId ? [] : [previousAssistantId, row.assistantId]
     })
+    if (previousAssistantId !== row.assistantId) this.memoryAccessRevoked.fire(id)
 
     logger.info('Updated topic', { id, changes: Object.keys(dto) })
 
@@ -478,6 +482,7 @@ export class TopicService {
     this.notifyReadModelChange([id], 'projection', {
       artifactAssistantIds: previousAssistantId === row.assistantId ? [] : [previousAssistantId, row.assistantId]
     })
+    if (previousAssistantId !== row.assistantId) this.memoryAccessRevoked.fire(id)
     return rowToTopic(row)
   }
 

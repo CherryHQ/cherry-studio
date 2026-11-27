@@ -219,7 +219,7 @@
 | Document | Description |
 |----------|-------------|
 | [Memory Reference](./references/memory/README.md) | Entry point for managed shared/private memory, legacy migration, Knowledge Base, and graph memory |
-| [Memory Feature Overview](./references/memory/overview.md) | Shared and private managed file memory, legacy migration, Knowledge Base, and independent graph memory |
+| [Memory Feature Overview](./references/memory/overview.md) | Current shared/private memory behavior, conversation extraction and recall, Dreaming, recovery, and legacy-file boundaries |
 
 ### Mini App
 

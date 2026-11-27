@@ -222,6 +222,8 @@ export interface ConversationUnsuccessfulEvent {
 
 export interface ConversationCompletedEvent {
   completedTaskCount?: number
+  /** Persisted response anchors; memory admission resolves their authorized user parents. */
+  memoryResponseIds?: string[]
   responseText?: string
   topicId: string
   turnId: string
@@ -239,6 +241,7 @@ export interface ActiveStream {
   hasTaskResultOwner?: boolean
   completedTaskCount?: number
   completionFailed?: boolean
+  chainedTerminalPending?: boolean
   terminalLifecyclePending?: boolean
   topicId: string
   /** Unique per stream lifecycle for renderer-side unread/seen tracking. */
