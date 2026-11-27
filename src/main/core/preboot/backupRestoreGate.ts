@@ -64,8 +64,9 @@ export function prepareBackupRestoreSession(): boolean {
  */
 export async function runBackupRestoreGate(isolatedSession = false): Promise<'handled' | 'skipped'> {
   let promotionError: unknown
+  let refusal: string | undefined
   try {
-    await runRestorePromotion()
+    refusal = await runRestorePromotion()
   } catch (error) {
     promotionError = error
     logger.error('Restore promotion crashed unexpectedly — attempting last-resort recovery', error as Error)
@@ -95,7 +96,9 @@ export async function runBackupRestoreGate(isolatedSession = false): Promise<'ha
         defaultId: 0,
         cancelId: 0
       },
-      technicalDetail: promotionError ? `${journalLine}\n${stringifyThrown(promotionError)}` : journalLine
+      technicalDetail: [journalLine, refusal, promotionError ? stringifyThrown(promotionError) : undefined]
+        .filter(Boolean)
+        .join('\n')
     })
   }
   cleanupTerminalRestoreArtifacts()

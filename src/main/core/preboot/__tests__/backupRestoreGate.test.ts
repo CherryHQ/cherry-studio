@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { application } from '@application'
 import type { readRestoreJournal } from '@data/db/restore/restoreJournal'
 
-const runRestorePromotionMock = vi.fn<() => Promise<void>>()
+const runRestorePromotionMock = vi.fn<() => Promise<string | undefined>>()
 const markRestoreFailedAfterCrashMock = vi.fn<() => void>()
 const isLiveDbStrandedMock = vi.fn<() => boolean>()
 const cleanupTerminalRestoreArtifactsMock = vi.fn<() => void>()
@@ -167,7 +167,10 @@ describe('runBackupRestoreGate', () => {
     async (state) => {
       setJournalState('staged')
       const isolated = prepareBackupRestoreSession()
-      runRestorePromotionMock.mockImplementation(async () => setJournalState(state))
+      runRestorePromotionMock.mockImplementation(async () => {
+        setJournalState(state)
+        return undefined
+      })
       cleanupTerminalRestoreArtifactsMock.mockImplementation(() =>
         readRestoreJournalMock.mockReturnValue({ kind: 'none' })
       )
@@ -209,6 +212,20 @@ describe('runBackupRestoreGate', () => {
     expect(copied).toContain('promotion crash')
     expect(copied).toContain('failed')
     expect(copied).not.toContain('previous data')
+  })
+
+  it('copies the admission refusal reason, not just the expired journal state', async () => {
+    runRestorePromotionMock.mockImplementation(async () => {
+      setJournalState('expired')
+      return 'live fingerprint mismatch — the DB changed after staging'
+    })
+    showMessageBoxMock.mockResolvedValueOnce({ response: 1 }).mockResolvedValue({ response: 0 })
+
+    await expect(runBackupRestoreGate()).resolves.toBe('skipped')
+
+    const copied = String(writeTextMock.mock.calls[0]?.[0])
+    expect(copied).toContain('expired')
+    expect(copied).toContain('live fingerprint mismatch')
   })
 
   it.each(['promoting', 'completed', 'failed'] as const)(
