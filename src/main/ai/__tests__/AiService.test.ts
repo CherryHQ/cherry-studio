@@ -708,11 +708,15 @@ describe('AiService', () => {
     const report = vi.fn()
     mockApplicationGet.mockReturnValue({ amdModelUseReporter: () => report })
     const persist = vi.fn()
-    const failedInvocation = { context: { providerId: 'cherryai-subscription', modelId: 'amd/qwen' }, usage: {} }
+    const context = { providerId: 'cherryai-subscription', modelId: 'amd/qwen' }
+    const failedInvocation = { context, usage: {} }
+    const promptOnlyInvocation = { context, usage: { inputTokens: 5, totalTokens: 5 } }
 
-    ;(service as any).invocationRecorder(persist)(failedInvocation)
+    const record = (service as any).invocationRecorder(persist)
+    record(failedInvocation)
+    record(promptOnlyInvocation)
 
-    expect(persist.mock.calls).toEqual([[failedInvocation]])
+    expect(persist.mock.calls).toEqual([[failedInvocation], [promptOnlyInvocation]])
     expect(report).not.toHaveBeenCalled()
   })
 

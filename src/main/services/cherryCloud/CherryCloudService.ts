@@ -966,9 +966,11 @@ export class CherryCloudService extends BaseService {
 
   private async openAmdEntryOnce(senderId: WindowId | null, modelId: string, clicks: AmdEntryClick[]): Promise<void> {
     let scopeId: string | null = null
-    const settle = (result: 'opened' | 'already_authorized' | 'not_signed_in' | 'cancelled' | 'failed') => {
+    const settle = (outcome: 'opened' | 'already_authorized' | 'not_signed_in' | 'cancelled' | 'failed') => {
       // Later clicks start a new attempt instead of joining one that has already settled.
       if (this.amdEntry?.clicks === clicks) this.amdEntry = null
+      // An attempt that outlived its account is reported unscoped and leaves no correlation behind.
+      const result = scopeId && !this.isCurrentScope(scopeId) ? 'cancelled' : outcome
       if (result === 'opened' && scopeId) {
         for (const click of clicks) this.amdEntries.set(click.modelId, { ...click, scopeId })
       }

@@ -858,8 +858,8 @@ export class AiService extends BaseService {
     }
     return (input) => {
       persist(input)
-      // A failed stream still records an empty usage; only an answer that produced output counts as use.
-      if (!((input.usage?.outputTokens ?? input.usage?.totalTokens ?? 0) > 0)) return
+      // Billing records every finish; only an invocation that produced output tokens counts as AMD use.
+      if (!((input.usage?.outputTokens ?? 0) > 0)) return
       try {
         reportAmdUse?.(input.context.providerId, input.context.modelId)
       } catch {

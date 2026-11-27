@@ -2191,6 +2191,30 @@ describe('CherryCloudService', () => {
       )
     })
 
+    it('reports an entry whose account changed before the browser opened as unscoped and keeps no flow for it', async () => {
+      const service = await createSignedInService()
+      await syncAmd(service)
+      mocks.trackEvent.mockClear()
+      mocks.openExternal.mockClear()
+      const browser = Promise.withResolvers<void>()
+      mocks.openExternal.mockReturnValueOnce(browser.promise)
+      mockCloudRoute(entryPath, jsonResponse({ entry_url: entryUrl, expires_in: 60 }))
+
+      const entry = service.openAmdEntry('w1', amdModelId, authorizationId)
+      await vi.waitFor(() => expect(mocks.openExternal).toHaveBeenCalledTimes(1))
+      mockCloudRoute('/api/v1/product-sessions/current', new Response(null, { status: 204 }))
+      await service.revokeCurrentSession()
+      browser.resolve()
+      await entry
+
+      await vi.waitFor(() =>
+        expect(reported('amd_entry_open').map(({ flow_id, result }) => [flow_id, result])).toEqual([
+          [authorizationId, 'cancelled']
+        ])
+      )
+      expect(service['amdEntries'].size).toBe(0)
+    })
+
     it('links each model that joined one entry to its own click when both turn usable', async () => {
       const otherModelId = 'amd/llama'
       const twoModelCatalog = (activationRequired: boolean) => ({
