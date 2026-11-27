@@ -26,6 +26,7 @@
   "file_preview.pptd.unsupported_element": "Nepodporovaný prvek {{id}} ({{type}})",
   "file_preview.too_large.action": "Otevřít ve výchozí aplikaci",
   "file_preview.too_large.description": "Velikost souboru {{size}} překračuje limit náhledu {{limit}}.",
+  "file_preview.too_large.generic_description": "Tento soubor překračuje velikost povolenou pro náhled.",
   "file_preview.too_large.title": "Soubor je příliš velký na náhled",
   "file_preview.unsupported.action": "Otevřít ve výchozí aplikaci",
   "file_preview.unsupported.description": "Tento typ souboru zatím nelze zobrazit v náhledu.",

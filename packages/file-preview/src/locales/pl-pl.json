@@ -26,6 +26,7 @@
   "file_preview.pptd.unsupported_element": "Nieobsługiwany element {{id}} ({{type}})",
   "file_preview.too_large.action": "Otwórz w domyślnej aplikacji",
   "file_preview.too_large.description": "Rozmiar pliku {{size}} przekracza limit podglądu wynoszący {{limit}}.",
+  "file_preview.too_large.generic_description": "Ten plik przekracza rozmiar dozwolony dla podglądu.",
   "file_preview.too_large.title": "Plik zbyt duży do podglądu",
   "file_preview.unsupported.action": "Otwórz w domyślnej aplikacji",
   "file_preview.unsupported.description": "Ten typ pliku nie jest jeszcze obsługiwany w podglądzie.",

@@ -26,6 +26,7 @@
   "file_preview.pptd.unsupported_element": "サポートされていない要素 {{id}}（{{type}}）",
   "file_preview.too_large.action": "デフォルトのアプリで開く",
   "file_preview.too_large.description": "ファイルサイズ {{size}} はプレビュー上限の {{limit}} を超えています。",
+  "file_preview.too_large.generic_description": "このファイルはプレビューできるサイズを超えています。",
   "file_preview.too_large.title": "ファイルが大きすぎてプレビューできません",
   "file_preview.unsupported.action": "デフォルトのアプリで開く",
   "file_preview.unsupported.description": "このファイルタイプはまだプレビューできません。",

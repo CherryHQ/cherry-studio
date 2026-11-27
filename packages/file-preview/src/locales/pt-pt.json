@@ -26,6 +26,7 @@
   "file_preview.pptd.unsupported_element": "Elemento não suportado {{id}} ({{type}})",
   "file_preview.too_large.action": "Abrir com aplicação padrão",
   "file_preview.too_large.description": "O tamanho do ficheiro {{size}} excede o limite de pré-visualização de {{limit}}.",
+  "file_preview.too_large.generic_description": "Este ficheiro excede o tamanho permitido para pré-visualização.",
   "file_preview.too_large.title": "Ficheiro demasiado grande para pré-visualizar",
   "file_preview.unsupported.action": "Abrir com aplicação padrão",
   "file_preview.unsupported.description": "Este tipo de ficheiro ainda não pode ser visualizado.",
