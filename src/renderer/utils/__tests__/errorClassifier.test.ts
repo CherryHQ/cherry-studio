@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import type { SerializedError } from '@renderer/types/error'
 
-import { classifyError, getLocalModelResolutionFailure } from '../errorClassifier'
+import { classifyError, getLocalModelResolutionFailure, isUnattributedClaudeCodeExit } from '../errorClassifier'
 import { serializeToastError } from '../errorToast'
 
 function makeError(overrides: Partial<SerializedError> = {}): SerializedError {
@@ -909,55 +909,6 @@ required service tier.`
   })
 })
 
-describe('getLocalModelResolutionFailure', () => {
-  it.each([
-    'Cannot resolve modelId: not in request and assistant has no model',
-    'Cannot resolve providerId: not in request and assistant has no model'
-  ])('does not invent an identifier for %s', (message) => {
-    expect(getLocalModelResolutionFailure(makeError({ message }))).toEqual({})
-    expect(classifyError(makeError({ message }), 'openai')).toEqual({
-      category: 'model',
-      i18nKey: 'error.diagnosis.model',
-      navTarget: '/settings/provider?id=openai'
-    })
-  })
-
-  it.each([
-    ["Model with id 'openai/gpt-test' not found", { modelId: 'openai/gpt-test' }],
-    ['Cannot resolve modelId: not-a-real-model', { modelId: 'not-a-real-model' }],
-    ['Cannot resolve modelId="gpt-test" providerId="openai"', { providerId: 'openai', modelId: 'gpt-test' }],
-    ['Cannot resolve modelId [gpt-test,other-model]', { modelId: 'gpt-test' }]
-  ])('preserves identifiers supplied by %s', (message, expected) => {
-    expect(getLocalModelResolutionFailure(makeError({ message }))).toEqual(expected)
-  })
-
-  it('does not mistake a provider response for a local resolution failure', () => {
-    expect(getLocalModelResolutionFailure(makeError({ message: 'Model not found', status: 404 }))).toBeNull()
-  })
-})
-
-it('uses the terminal structured quota identity ahead of copied retry text, preserving explicit outer facts', () => {
-  const attempts = [makeApiCallAttempt({ statusCode: 429, providerErrorCategory: 'quota', message: 'Plan depleted' })]
-  expect(classifyError(makeCopiedRetry('Too Many Requests', attempts)).category).toBe('quota')
-  expect(
-    classifyError(makeCopiedRetry('Too Many Requests', attempts, { providerErrorCategory: 'auth' })).category
-  ).toBe('auth')
-  expect(classifyError(makeCopiedRetry('Too Many Requests', attempts, { statusCode: 503 })).category).toBe('server')
-  expect(
-    classifyError(makeCopiedRetry('Too Many Requests', attempts, { finishReason: 'content-filter' })).category
-  ).toBe('content')
-  const retry = makeCopiedRetry('Too Many Requests', [
-    ...attempts,
-    makeApiCallAttempt({ statusCode: 429, providerErrorCategory: 'rate_limit' })
-  ])
-  expect(classifyError(retry).category).toBe('rate_limit')
-  const unmarkedTerminal = makeCopiedRetry('Too Many Requests', [
-    ...attempts,
-    makeApiCallAttempt({ statusCode: 429, message: 'Too Many Requests' })
-  ])
-  expect(classifyError(unmarkedTerminal).category).toBe('rate_limit')
-})
-
 describe('Work runtime HTTP 4xx in response stream (#25031)', () => {
   it.each([
     '400 Invalid tool definition: missing parameters',
@@ -1045,5 +996,93 @@ describe('Work runtime HTTP 4xx in response stream (#25031)', () => {
       i18nKey: 'error.diagnosis.tool_concurrency',
       navTarget: '/settings/provider?id=appo-deepseek'
     })
+  })
+})
+
+describe('getLocalModelResolutionFailure', () => {
+  it.each([
+    'Cannot resolve modelId: not in request and assistant has no model',
+    'Cannot resolve providerId: not in request and assistant has no model'
+  ])('does not invent an identifier for %s', (message) => {
+    expect(getLocalModelResolutionFailure(makeError({ message }))).toEqual({})
+    expect(classifyError(makeError({ message }), 'openai')).toEqual({
+      category: 'model',
+      i18nKey: 'error.diagnosis.model',
+      navTarget: '/settings/provider?id=openai'
+    })
+  })
+
+  it.each([
+    ["Model with id 'openai/gpt-test' not found", { modelId: 'openai/gpt-test' }],
+    ['Cannot resolve modelId: not-a-real-model', { modelId: 'not-a-real-model' }],
+    ['Cannot resolve modelId="gpt-test" providerId="openai"', { providerId: 'openai', modelId: 'gpt-test' }],
+    ['Cannot resolve modelId [gpt-test,other-model]', { modelId: 'gpt-test' }]
+  ])('preserves identifiers supplied by %s', (message, expected) => {
+    expect(getLocalModelResolutionFailure(makeError({ message }))).toEqual(expected)
+  })
+
+  it('does not mistake a provider response for a local resolution failure', () => {
+    expect(getLocalModelResolutionFailure(makeError({ message: 'Model not found', status: 404 }))).toBeNull()
+  })
+})
+
+it('uses the terminal structured quota identity ahead of copied retry text, preserving explicit outer facts', () => {
+  const attempts = [makeApiCallAttempt({ statusCode: 429, providerErrorCategory: 'quota', message: 'Plan depleted' })]
+  expect(classifyError(makeCopiedRetry('Too Many Requests', attempts)).category).toBe('quota')
+  expect(
+    classifyError(makeCopiedRetry('Too Many Requests', attempts, { providerErrorCategory: 'auth' })).category
+  ).toBe('auth')
+  expect(classifyError(makeCopiedRetry('Too Many Requests', attempts, { statusCode: 503 })).category).toBe('server')
+  expect(
+    classifyError(makeCopiedRetry('Too Many Requests', attempts, { finishReason: 'content-filter' })).category
+  ).toBe('content')
+  const retry = makeCopiedRetry('Too Many Requests', [
+    ...attempts,
+    makeApiCallAttempt({ statusCode: 429, providerErrorCategory: 'rate_limit' })
+  ])
+  expect(classifyError(retry).category).toBe('rate_limit')
+  const unmarkedTerminal = makeCopiedRetry('Too Many Requests', [
+    ...attempts,
+    makeApiCallAttempt({ statusCode: 429, message: 'Too Many Requests' })
+  ])
+  expect(classifyError(unmarkedTerminal).category).toBe('rate_limit')
+})
+
+describe('isUnattributedClaudeCodeExit', () => {
+  it.each([
+    ['POSIX code', { processExitCode: 134 }, true],
+    ['code 3 control', { processExitCode: 3 }, true],
+    ['Windows status', { processExitCode: 3221225785 }, true],
+    ['signal only', { processExitSignal: 'SIGABRT' }, true],
+    ['null code with signal', { processExitCode: null, processExitSignal: 'SIGABRT' }, true],
+    ['recognised category', { claudeCodeExitCategory: 'auth', processExitCode: 1 }, false],
+    ['invalid category', { claudeCodeExitCategory: 'future-category', processExitCode: 134 }, false],
+    ['missing reference', { diagnosticReference: undefined, processExitCode: 134 }, false],
+    ['empty reference', { diagnosticReference: '', processExitCode: 134 }, false],
+    ['blank reference', { diagnosticReference: ' \t ', processExitCode: 134 }, false],
+    ['code zero', { processExitCode: 0 }, false],
+    ['code zero with signal', { processExitCode: 0, processExitSignal: 'SIGABRT' }, false],
+    ['no exit status', {}, false],
+    ['blank signal', { processExitSignal: ' \t ' }, false],
+    ['string code', { processExitCode: '134' }, false],
+    ['string code with signal', { processExitCode: '134', processExitSignal: 'SIGABRT' }, false],
+    ['fractional code', { processExitCode: 1.5 }, false],
+    ['unsafe integer', { processExitCode: Number.MAX_SAFE_INTEGER + 1 }, false],
+    ['non-finite code', { processExitCode: Infinity }, false],
+    ['ordinary error mentioning 134', { claudeCodeExitCategory: undefined, message: 'Unmapped failure 134' }, false]
+  ] as const)('%s', (_case, fields, expected) => {
+    expect(
+      isUnattributedClaudeCodeExit(
+        makeError({
+          claudeCodeExitCategory: 'unknown',
+          diagnosticReference: 'diagnostic-ref',
+          ...fields
+        })
+      )
+    ).toBe(expected)
+  })
+
+  it('does not attribute an absent error', () => {
+    expect(isUnattributedClaudeCodeExit()).toBe(false)
   })
 })
