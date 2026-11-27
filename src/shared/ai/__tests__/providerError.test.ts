@@ -476,3 +476,29 @@ describe('interrupted response transport', () => {
     expect(result).toMatchObject({ providerErrorCategory: 'network' })
   })
 })
+
+describe('status-prefixed provider JSON messages (#25526)', () => {
+  it.each([
+    'API Error: 400 {"code":"11-128","message":"Illegal API invocation from an unapproved channel"}',
+    'API Error: 400 {"code":"11-128","message":"Illegal API invocation from an unapproved channel","type":"error","error":{"code":"11-128","type":"invalid_request_error","message":"Illegal API invocation from an unapproved channel"}}',
+    '400: {"code":"11-128","message":"Illegal API invocation from an unapproved channel"}'
+  ])('extracts the upstream message from %s', (message) => {
+    expect(getSafeProviderErrorMessage({ message })).toBe('Illegal API invocation from an unapproved channel')
+  })
+
+  it('keeps plain status-prefixed text intact and drops container-only payloads without leaking fields', () => {
+    expect(getSafeProviderErrorMessage({ message: 'API Error: 400 Provider returned error' })).toBe(
+      'API Error: 400 Provider returned error'
+    )
+    expect(
+      getSafeProviderErrorMessage({
+        message: 'API Error: 400 {"prompt":"private user prompt","trace":"internal trace"}'
+      })
+    ).toBe('')
+    expect(
+      getSafeProviderErrorMessage({
+        message: 'API Error: 400 {"error":{"message":"{\\"prompt\\":\\"private\\"}"}}'
+      })
+    ).toBe('')
+  })
+})

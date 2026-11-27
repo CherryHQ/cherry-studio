@@ -16,6 +16,7 @@
 
 import { isEqual } from 'es-toolkit/compat'
 
+import { application } from '@application'
 import type {
   ProtoModelConfig,
   ProtoProviderConfig,
@@ -49,7 +50,8 @@ import {
   stripDateSnapshot,
   stripVariantQuantDateSuffixes
 } from '@cherrystudio/provider-registry'
-import { type RegistryFileName, RegistryLoader } from '@cherrystudio/provider-registry/node'
+import { bundledCatalog } from '@cherrystudio/provider-registry/data'
+import { type RegistryFileName, RegistryLoader, type RegistryPaths } from '@cherrystudio/provider-registry/node'
 import type { StoredEndpointConfigOverride } from '@data/db/schemas/userProvider'
 import { loggerService } from '@logger'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
@@ -69,8 +71,19 @@ import { projectModelParameterSupport } from '@shared/utils/model'
 
 import { getDataService, registerDataService } from './dataServiceRegistry'
 import { resolveRegistryPaths } from './utils/registryDataPaths'
+import { describeRegistryLoadFailure } from './utils/registryLoadFailure'
 
 const logger = loggerService.withContext('DataApi:ProviderRegistryService')
+const REGISTRY_IDLE_TTL_MS = 30_000
+const FALLBACK_LOG_INTERVAL_MS = 10 * 60_000
+
+interface RegistryFallback {
+  file: RegistryFileName
+  path: string
+  namespace: 'bundled' | 'override'
+  message: string
+  cause: string
+}
 
 export interface ProviderDisplayMetadata {
   description?: string
@@ -743,35 +756,101 @@ function projectImageGenerationSupport(
  * @see {@link mergeModelWithUser} for the three-layer merge (preset → override → user)
  */
 class ProviderRegistryService {
-  private loader: RegistryLoader | null = null
+  private bundledLoader: RegistryLoader | null = null
+  private overrideLoader: RegistryLoader | null = null
+  private overridePaths: RegistryPaths | null = null
+  private retryOverrideAt = 0
+  private readonly registryFallbacks = new Map<string, RegistryFallback>()
+  private readonly fallbackLogTimes = new Map<RegistryFileName, number>()
 
-  /** Lazily create the shared RegistryLoader instance. */
-  private getLoader(): RegistryLoader {
-    if (!this.loader) {
-      this.loader = new RegistryLoader(resolveRegistryPaths())
+  private createLoader(paths: RegistryPaths, namespace: RegistryFallback['namespace']): RegistryLoader {
+    return new RegistryLoader(paths, {
+      idleTtlMs: REGISTRY_IDLE_TTL_MS,
+      fallbacks: bundledCatalog,
+      onDiskLoad: ({ path }) => this.registryFallbacks.delete(path),
+      onFallback: ({ file, path, error }) => {
+        const failure = { file, path, namespace, ...describeRegistryLoadFailure(error) }
+        this.registryFallbacks.set(path, failure)
+        const now = Date.now()
+        const lastLog = this.fallbackLogTimes.get(file)
+        if (lastLog === undefined || now - lastLog >= FALLBACK_LOG_INTERVAL_MS) {
+          this.fallbackLogTimes.set(file, now)
+          logger.warn('Using the in-bundle provider registry', failure)
+        }
+      }
+    })
+  }
+
+  private getBundledLoader(): RegistryLoader {
+    if (!this.bundledLoader) {
+      const paths = resolveRegistryPaths()
+      const models = application.getPath('feature.provider_registry.data', 'models.json')
+      this.overridePaths = paths.models === models ? null : paths
+      this.bundledLoader = this.createLoader(
+        {
+          models,
+          providers: paths.providers,
+          providerModels: application.getPath('feature.provider_registry.data', 'provider-models.json')
+        },
+        'bundled'
+      )
     }
-    return this.loader
+    return this.bundledLoader
+  }
+
+  private getModelLoader(): RegistryLoader {
+    const bundled = this.getBundledLoader()
+    const paths = this.overridePaths
+    if (!paths || Date.now() < this.retryOverrideAt) return bundled
+
+    const override = (this.overrideLoader ??= this.createLoader(paths, 'override'))
+    // Load both files before exposing either one to model lookups.
+    override.loadModels()
+    override.loadProviderModels()
+    if (
+      this.registryFallbacks.has(paths.models) ||
+      this.registryFallbacks.has(paths.providerModels) ||
+      (this.retryOverrideAt !== 0 && resolveRegistryPaths().models !== paths.models)
+    ) {
+      override.invalidate()
+      this.overrideLoader = null
+      this.retryOverrideAt = Date.now() + REGISTRY_IDLE_TTL_MS
+      return bundled
+    }
+    this.retryOverrideAt = 0
+    return override
   }
 
   clearCache(): void {
-    this.loader = null
+    this.bundledLoader?.invalidate()
+    this.overrideLoader?.invalidate()
+    this.bundledLoader = null
+    this.overrideLoader = null
+    this.overridePaths = null
+    this.retryOverrideAt = 0
+    this.registryFallbacks.clear()
+  }
+
+  /** Active fallbacks, cleared when their source becomes readable again. */
+  getRegistryFallbacks(): RegistryFallback[] {
+    return [...this.registryFallbacks.values()].filter(
+      ({ file, namespace }) => !this.overrideLoader || namespace === 'override' || file === 'providers.json'
+    )
   }
 
   /**
    * Current version string of a registry file as the loader sees it
-   * (override-or-bundled), or `null` if unreadable. The remote updater uses this
-   * to decide whether a downloaded catalog is newer than what's on disk.
+   * (override, packaged file, or in-bundle fallback), or `null` if unavailable.
    */
   getCatalogVersion(file: RegistryFileName): string | null {
     try {
-      const loader = this.getLoader()
       switch (file) {
         case 'models.json':
-          return loader.getModelsVersion()
+          return this.getModelLoader().getModelsVersion()
         case 'providers.json':
-          return loader.getProvidersVersion()
+          return this.getBundledLoader().getProvidersVersion()
         case 'provider-models.json':
-          return loader.getProviderModelsVersion()
+          return this.getModelLoader().getProviderModelsVersion()
       }
     } catch {
       return null
@@ -779,7 +858,7 @@ class ProviderRegistryService {
   }
 
   private findRegistryProvider(providerId: string): ProtoProviderConfig | undefined {
-    return this.getLoader()
+    return this.getBundledLoader()
       .loadProviders()
       .find((provider) => provider.id === providerId)
   }
@@ -1023,11 +1102,12 @@ class ProviderRegistryService {
     const modelIds = Array.from(
       new Set([model.apiModelId, model.presetModelId].filter((value): value is string => !!value))
     )
+    const loader = this.getModelLoader()
     let contract: ProviderModelReasoningContract | undefined
     let matchedOverride: ProtoProviderModelOverride | null = null
     for (const providerId of providerIds) {
       for (const modelId of modelIds) {
-        const candidate = this.getLoader().findOverride(providerId, modelId)
+        const candidate = loader.findOverride(providerId, modelId)
         contract = effectiveEndpoint ? candidate?.reasoningContracts?.[effectiveEndpoint] : undefined
         if (contract) matchedOverride = candidate
         if (contract) break
@@ -1035,7 +1115,7 @@ class ProviderRegistryService {
       if (contract) break
     }
 
-    const presetReasoning = this.getLoader().findModel(matchedOverride?.modelId ?? model.presetModelId ?? '')?.reasoning
+    const presetReasoning = loader.findModel(matchedOverride?.modelId ?? model.presetModelId ?? '')?.reasoning
     const support = mergeReasoningSupport(presetReasoning ?? model.reasoning, contract?.support)
     if (support && model.userDefaultReasoningEffort !== undefined) {
       support.defaultEffort = model.userDefaultReasoningEffort
@@ -1047,8 +1127,7 @@ class ProviderRegistryService {
     // Without this the row silently takes the newer wire and Claude <=4.5 /
     // Gemini 2.x emit a dialect their API rejects. Support resolution above is
     // untouched: controls still come from the row, only the dialect is looked up.
-    const wireDialect =
-      support?.wireDialect ?? this.getLoader().findModel(model.apiModelId ?? '')?.reasoning?.wireDialect
+    const wireDialect = support?.wireDialect ?? loader.findModel(model.apiModelId ?? '')?.reasoning?.wireDialect
 
     const resolved = resolveReasoningProfileFromRegistry({
       endpointType: effectiveEndpoint,
@@ -1081,10 +1160,11 @@ class ProviderRegistryService {
     const modelIds = Array.from(
       new Set([model.apiModelId, model.presetModelId].filter((value): value is string => !!value))
     )
+    const loader = this.getModelLoader()
     let override: ProtoProviderModelOverride | null = null
     for (const providerId of providerIds) {
       for (const modelId of modelIds) {
-        const candidate = this.getLoader().findOverride(providerId, modelId)
+        const candidate = loader.findOverride(providerId, modelId)
         if (candidate?.requestControls?.serviceTier) {
           override = candidate
           break
@@ -1135,7 +1215,6 @@ class ProviderRegistryService {
     reasoningProfile: ResolvedReasoningProfile
     serviceTierControl?: ResolvedServiceTierControl
   } {
-    const loader = this.getLoader()
     const presetProvider = this.resolveProviderPreset(providerContext.id, providerContext.presetProviderId)
     if (presetProvider?.modelResolution?.source === 'provider') {
       return {
@@ -1155,6 +1234,7 @@ class ProviderRegistryService {
         reasoningProfile: resolveReasoningProfileFromRegistry({ endpointType: undefined, format: { type: 'none' } })
       }
     }
+    const loader = this.getModelLoader()
     const registryOverride = presetProvider ? loader.findOverride(presetProvider.id, modelId) : null
     const presetModel =
       loader.findModel(registryOverride?.modelId ?? modelId) ??
@@ -1240,7 +1320,7 @@ class ProviderRegistryService {
     presetProvider: ProtoProviderConfig,
     includeDisabled = false
   ): Model[] {
-    const loader = this.getLoader()
+    const loader = this.getModelLoader()
     const overrides = loader.getOverridesForProvider(presetProvider.id)
     const providerContext: ReasoningProviderContext = {
       id: providerId,
@@ -1282,7 +1362,6 @@ class ProviderRegistryService {
   }
 
   listProviderRegistryModels(options: ListProviderRegistryModelsOptions = {}): Model[] {
-    const loader = this.getLoader()
     const includeDisabled = options.disabled ?? false
 
     if (options.providerId) {
@@ -1294,6 +1373,7 @@ class ProviderRegistryService {
       return presetProvider ? this.listProviderPresetModels(options.providerId, presetProvider, includeDisabled) : []
     }
 
+    const loader = this.getModelLoader()
     const overrides = loader.loadProviderModels()
     const providerContextByProvider = new Map<string, ReasoningProviderContext>()
     const results: Model[] = []

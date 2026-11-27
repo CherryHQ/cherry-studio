@@ -91,6 +91,7 @@ export const DOCTOR_CHECK_IDS = [
   'install-version-channel',
   'install-update-available',
   'install-native-modules',
+  'install-provider-registry-readable',
   'permission-screen-capture',
   'permission-accessibility',
   'storage-userdata-location',
@@ -172,6 +173,14 @@ export const DOCTOR_CHECK_CATALOG = {
     scope: 'global',
     fixes: [],
     details: ['unavailable'],
+    requires: []
+  },
+  'install-provider-registry-readable': {
+    domain: 'install',
+    tier: 'quick',
+    scope: 'any',
+    fixes: [],
+    details: ['unreadable', 'unreadable_override'],
     requires: []
   },
   'permission-screen-capture': {
