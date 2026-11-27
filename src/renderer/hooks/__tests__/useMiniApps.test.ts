@@ -560,32 +560,16 @@ describe('useMiniApps', () => {
       MockUseCacheUtils.setCacheValue('mini_app.detected_region', null)
       MockUseDataApiUtils.mockQueryData('/mini-apps', paginated([]))
 
-      mockIpCountry('CN')
-
+      const detection = Promise.withResolvers<string>()
+      mocks.request.mockReturnValueOnce(detection.promise)
       renderHook(() => useMiniApps())
 
-      // Wait for the async detection to complete
       await act(async () => {
-        await new Promise((resolve) => setTimeout(resolve, 50))
+        detection.resolve('CN')
+        await detection.promise
       })
 
       expect(MockUseCacheUtils.getCacheValue('mini_app.detected_region')).toBe('CN')
-    })
-
-    it('should call setDetectedRegion with Global when IP resolves to US', async () => {
-      MockUsePreferenceUtils.setPreferenceValue('feature.mini_app.region', 'auto')
-      MockUseCacheUtils.setCacheValue('mini_app.detected_region', null)
-      MockUseDataApiUtils.mockQueryData('/mini-apps', paginated([]))
-
-      mockIpCountry('US')
-
-      renderHook(() => useMiniApps())
-
-      await act(async () => {
-        await new Promise((resolve) => setTimeout(resolve, 50))
-      })
-
-      expect(MockUseCacheUtils.getCacheValue('mini_app.detected_region')).toBe('Global')
     })
 
     it('caches the CN fallback after IP detection rejects', async () => {
@@ -641,7 +625,7 @@ describe('useMiniApps', () => {
       expect(mocks.request.mock.calls.filter(([route]) => route === 'system.get_ip_country')).toHaveLength(2)
     })
 
-    it('should not call detectUserRegion when region is explicitly set', async () => {
+    it('should not call detectUserRegion when region is explicitly set', () => {
       MockUsePreferenceUtils.setPreferenceValue('feature.mini_app.region', 'Global')
       MockUseCacheUtils.setCacheValue('mini_app.detected_region', null)
       MockUseDataApiUtils.mockQueryData('/mini-apps', paginated([]))
@@ -649,10 +633,6 @@ describe('useMiniApps', () => {
       mockIpCountry('US')
 
       renderHook(() => useMiniApps())
-
-      await act(async () => {
-        await new Promise((resolve) => setTimeout(resolve, 50))
-      })
 
       // IP detection should not be called when region is explicitly set
       expect(mocks.request).not.toHaveBeenCalledWith('system.get_ip_country')

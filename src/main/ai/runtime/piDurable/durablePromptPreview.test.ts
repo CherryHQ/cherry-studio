@@ -243,7 +243,7 @@ describe('previewAgentSystemPrompt', () => {
     expect(text).toContain('**Discover the role**')
     const runtime = await renderDurablePrompt(
       await buildDurablePrompt(await loadPiSdk(), {
-        agent: { type: 'pi-durable', instructions: '', configuration: {}, modelName: null },
+        agent: { type: 'pi-durable', name: '', instructions: '', configuration: {}, modelName: null },
         cwd: application.getPath('feature.agents.system_workspaces'),
         agentDataPath: path.join(application.getPath('feature.agents.data'), '{agent-id}'),
         effectiveLanguage: 'English',

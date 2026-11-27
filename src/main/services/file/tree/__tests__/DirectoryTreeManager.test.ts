@@ -121,26 +121,17 @@ describe.skipIf(!ripgrepAvailable)('DirectoryTreeManager integration', () => {
     vi.restoreAllMocks()
   })
 
-  it('scans the root and hands every consumer the same snapshot', async () => {
+  it('shares the initial scan and sends live mutations to every attached sender', async () => {
     await writeFile(path.join(tmp, 'a.md'), 'a')
-
     const sender1 = makeSender(1)
     const sender2 = makeSender(2)
 
     const created1 = await registry.create(owned(sender1), tmp, undefined)
     const created2 = await registry.create(owned(sender2), tmp, undefined)
-
     expect(created1.treeId).not.toBe(created2.treeId)
-    expect(created1.snapshot.path).toBe(created2.snapshot.path)
+    expect(created1.snapshot).toEqual(created2.snapshot)
     expect(Object.keys(created1.snapshot.children ?? {})).toContain('a.md')
-  })
 
-  it('fans real watcher mutations out to every attached sender', async () => {
-    const sender1 = makeSender(1)
-    const sender2 = makeSender(2)
-
-    const created1 = await registry.create(owned(sender1), tmp, undefined)
-    const created2 = await registry.create(owned(sender2), tmp, undefined)
     expect(registry.activateTree(created1.treeId, created1.revision, sender1.id)).toBe(true)
     expect(registry.activateTree(created2.treeId, created2.revision, sender2.id)).toBe(true)
 

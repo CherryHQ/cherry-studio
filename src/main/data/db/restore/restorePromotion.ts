@@ -49,8 +49,10 @@ interface PromotionContext {
  * (backupRestoreGate.ts) swallows those — unless recovery left no live DB at
  * all (see isLiveDbStranded) — because a preboot exception would dead-loop
  * the "Unable to Start" fail-fast path.
+ *
+ * @returns the admission refusal reason when this call expired the restore, otherwise `undefined`.
  */
-export async function runRestorePromotion(): Promise<void> {
+export async function runRestorePromotion(): Promise<string | undefined> {
   const read = readRestoreJournal()
   if (read.kind === 'none') {
     return
@@ -69,7 +71,8 @@ export async function runRestorePromotion(): Promise<void> {
     case 'staged':
       return promoteStaged(journal)
     case 'promoting':
-      return recoverPromoting(journal)
+      await recoverPromoting(journal)
+      return
   }
 }
 
@@ -197,7 +200,7 @@ function buildContext(journal: StagedJournal | PromotingJournal): PromotionConte
 
 // ─── staged: admission gate, then forward execution ───
 
-async function promoteStaged(journal: StagedJournal): Promise<void> {
+async function promoteStaged(journal: StagedJournal): Promise<string | undefined> {
   const ctx = buildContext(journal)
 
   try {
@@ -219,6 +222,7 @@ async function promoteStaged(journal: StagedJournal): Promise<void> {
   logger.info('Restore admission gate passed, promoting', { restoreId: journal.restoreId })
   const promoting = markStep({ ...journal, state: 'promoting', step: 'gate-passed' }, 'gate-passed')
   await executeForward(ctx, promoting)
+  return undefined
 }
 
 /**
@@ -292,12 +296,13 @@ function chainIsBundledPrefix(chain: readonly AppliedMigration[]): boolean {
   )
 }
 
-function expire(ctx: PromotionContext, reason: string): void {
+function expire(ctx: PromotionContext, reason: string): string {
   logger.warn('Restore refused at admission gate — old DB stays live', {
     restoreId: ctx.journal.restoreId,
     reason
   })
   finalize(ctx, 'expired')
+  return reason
 }
 
 // ─── promoting: crash re-entry ───

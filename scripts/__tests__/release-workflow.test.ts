@@ -348,6 +348,16 @@ describe('hotfix release notes', () => {
     expect(() => extractHotfixReleaseNote(`${HOTFIX_BODY}\n\n${HOTFIX_BODY}`)).toThrow('at most one release-note block')
   })
 
+  it('ignores an inline release-note opener inside a shell example', () => {
+    const body = ['```sh', '# Example opener: ```release-note', '```'].join('\n')
+    expect(extractHotfixReleaseNote(body)).toBeNull()
+  })
+
+  it.each(['\n', '\r\n'])('rejects an empty hotfix note fence with line ending %j', (newline) => {
+    const body = ['```release-note', '```'].join(newline)
+    expect(() => extractHotfixReleaseNote(body)).toThrow('exact English and Chinese language markers')
+  })
+
   it('requires Chinese content in a provided Chinese description', () => {
     expect(() => extractHotfixReleaseNote(hotfixBody('[Chat] Fix the issue.', '[Chat] Fix the issue.'))).toThrow(
       'must contain Chinese content'
@@ -934,6 +944,25 @@ describe('release publication state', () => {
     expect(bodyWithoutChanges).toContain('<summary>Release Notes</summary>\n\nEnglish notes\n\n</details>')
   })
 
+  it.each([
+    ['a missing Chinese marker', '<!--LANG:en-->\nEnglish notes\n<!--LANG:END-->', 'bilingual markers'],
+    [
+      'an empty English section',
+      '<!--LANG:en-->\n\n<!--LANG:zh-CN-->\n中文说明\n<!--LANG:END-->',
+      'non-empty English and Chinese sections'
+    ]
+  ])('rejects a release body with %s', (_case, notes, error) => {
+    expect(() =>
+      composeReleaseBody({
+        builderContent: builderYaml(notes),
+        generatedNotes: '',
+        productName: 'Cherry Studio',
+        repository: 'CherryHQ/cherry-studio',
+        tag: 'v1.2.0'
+      })
+    ).toThrow(error)
+  })
+
   it('accepts only an exact-head all-platform build with artifacts and no open release pull request', () => {
     expect(() =>
       validatePublishState({
@@ -1231,6 +1260,49 @@ describe('release publication state', () => {
 describe('release workflow gates', () => {
   const workflowRoot = path.resolve(import.meta.dirname, '../..', '.github/workflows')
 
+  it.skipIf(spawnSync('jq', ['--version']).status !== 0).each([
+    ['release/v2.2.2', 0],
+    ['main', 1]
+  ])('checks the release branch even when %s has a successful run at the same SHA', (branch, status) => {
+    const workflow = parse(fs.readFileSync(path.join(workflowRoot, 'release.yml'), 'utf8'))
+    const step = workflow.jobs.prepare.steps.find(
+      (entry: { name?: string }) => entry.name === 'Verify release commit passed CI'
+    )
+    const sha = 'a'.repeat(40)
+    const result = spawnSync(
+      'bash',
+      [
+        '-e',
+        '-o',
+        'pipefail',
+        '-c',
+        `gh() {
+          [[ " $* " == *" branch=$RELEASE_BRANCH "* ]] || return 2
+          printf '%s' "$CI_RUN"
+        }
+        ${step.run}`
+      ],
+      {
+        encoding: 'utf8',
+        env: {
+          ...process.env,
+          GITHUB_REPOSITORY: 'test/release',
+          RELEASE_BRANCH: 'release/v2.2.2',
+          RELEASE_SHA: sha,
+          CI_RUN: JSON.stringify({
+            head_branch: branch,
+            head_sha: sha,
+            event: 'push',
+            status: 'completed',
+            conclusion: 'success'
+          })
+        }
+      }
+    )
+    expect(result.status, result.stderr).toBe(status)
+    if (status) expect(result.stderr).toContain('CI result did not match the exact release commit')
+  })
+
   it('publishes npm packages without creating remote tags or GitHub releases', () => {
     const workflow = parse(fs.readFileSync(path.join(workflowRoot, 'release-packages.yml'), 'utf8'))
     const changesets = workflow.jobs.release.steps.find((step: { id?: string }) => step.id === 'changesets')
@@ -1390,7 +1462,7 @@ describe('release workflow gates', () => {
       fs.rmSync(path.join(root, 'dist'), { recursive: true, force: true })
       for (const file of expected.files) write(root, `dist/${file}`, 'installer')
       for (const manifest of expected.manifests) {
-        write(root, `dist/${manifest.file}`, JSON.stringify({ files: manifest.urls.map((url) => ({ url })) }))
+        write(root, `dist/${manifest.file}`, JSON.stringify({ version, files: manifest.urls.map((url) => ({ url })) }))
       }
       const env = { ...process.env, EDITION: edition, PLATFORM: platform, ARCH: architecture }
       execFileSync('bash', ['-e', '-c', validation.run], { cwd: root, env, stdio: 'pipe' })

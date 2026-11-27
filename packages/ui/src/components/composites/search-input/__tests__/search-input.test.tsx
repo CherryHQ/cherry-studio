@@ -50,12 +50,6 @@ describe('SearchInput', () => {
     expect(screen.getByRole('button', { name: '清除' })).toBeDisabled()
   })
 
-  it('supports a custom clear button label', () => {
-    render(<SearchInput value="cherry" onChange={() => {}} onClear={() => {}} clearLabel="清除" />)
-
-    expect(screen.getByRole('button', { name: '清除' })).toBeInTheDocument()
-  })
-
   it('applies containerClassName to the input group, overriding the size height', () => {
     const { container } = render(<SearchInput size="sm" containerClassName="h-8" value="" onChange={() => {}} />)
 

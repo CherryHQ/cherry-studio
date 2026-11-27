@@ -149,6 +149,8 @@ export type AppEventSchemas = {
   'app.updater.not_available': AppUpdaterNotAvailablePayload
   'app.updater.download_progress': ProgressInfo
   'app.updater.downloaded': UpdateInfo
+  /** Main no longer installs the release it last downloaded; renderers drop its readiness. */
+  'app.updater.download_revoked': void
   'app.updater.run_check': void
   /** Main dropped the previous channel's check and download; renderers forget their snapshot. */
   'app.updater.channel_retired': void

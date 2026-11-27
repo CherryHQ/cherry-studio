@@ -9,6 +9,7 @@ import type { Citation, MessageUiState } from '@renderer/types/message'
 import type { MessageExportTarget, MessageExportView } from '@renderer/types/messageExport'
 import type { McpTool } from '@renderer/types/tool'
 import type { Topic } from '@renderer/types/topic'
+import type { MessagePartRows } from '@renderer/utils/message/messagePartRows'
 import type { AgentSessionDelivery } from '@shared/ai/agentSessionDelivery'
 import type { AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
 import type {
@@ -30,6 +31,7 @@ import type {
 } from '@shared/data/types/message'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { TranslateLanguage } from '@shared/data/types/translate'
+import type { OutputFor } from '@shared/ipc/types'
 import type { FileUrlString } from '@shared/types/file'
 
 import type { ActionAvailabilityInput } from '../actions/actionTypes'
@@ -217,6 +219,12 @@ export interface RemoveMessageErrorPartInput {
 }
 
 export interface MessageListItem {
+  /** Durable owner when this row is a segment of an execution. */
+  sourceMessageId?: string
+  isRunBoundary?: boolean
+  presentation?: 'content' | 'marker' | 'interrupted'
+  showHeader?: boolean
+  partIds?: readonly string[]
   id: string
   role: CherryUIMessage['role']
   assistantId?: string
@@ -278,6 +286,8 @@ export interface MessageRenderConfig {
   collapseCompletedToolHistory: boolean
   /** Open tool groups and the finished process by default, so each step reads without a click. */
   expandToolSteps: boolean
+  /** Open running (live) nested tool groups by default; Agent keeps them visible while the turn runs. */
+  expandLiveToolSteps: boolean
   keepIntermediateAssistantText: boolean
   mathEnableSingleDollar: boolean
   showMessageOutline: boolean
@@ -300,6 +310,7 @@ export const defaultMessageRenderConfig: MessageRenderConfig = {
   thoughtAutoCollapse: true,
   collapseCompletedToolHistory: true,
   expandToolSteps: false,
+  expandLiveToolSteps: false,
   keepIntermediateAssistantText: false,
   mathEnableSingleDollar: false,
   showMessageOutline: false,
@@ -320,7 +331,7 @@ export type MessageRenderConfigUpdate = Partial<
  * stream snapshots); `liveMessageIds` marks the mutable streaming tail.
  */
 export interface MessageStreamingLayers {
-  historyPartsByMessageId: Record<string, CherryMessagePart[]>
+  historyPartsByMessageId: MessagePartRows
   liveMessageIds: readonly string[]
 }
 
@@ -332,7 +343,7 @@ export interface MessageTailSlot {
 export interface MessageListState {
   topic: Topic
   messages: MessageListItem[]
-  partsByMessageId: Record<string, CherryMessagePart[]>
+  partsByMessageId: MessagePartRows
   /** When provided, streaming updates stay isolated from historical message subtrees. */
   streamingLayers?: MessageStreamingLayers
   beforeList?: ReactNode
@@ -340,6 +351,8 @@ export interface MessageListState {
   afterMessages?: ReactNode
   /** Optional adapter-owned content rendered after one message's body. */
   messageTail?: MessageTailSlot
+  /** Optional adapter-owned content rendered above the list group that opens with this message. */
+  messageHead?: MessageTailSlot
   /** Renders the live turn's processing status inline, replacing the default placeholder. Receives
    *  that placeholder as a fallback, so an override (e.g. an ephemeral agent api-retry line) can take
    *  over while active and fall back to the placeholder otherwise. Called only in the message that owns
@@ -382,6 +395,7 @@ export const DEFAULT_MESSAGE_LIST_CONFIG = {
 } as const satisfies Pick<MessageListState, 'estimateSize' | 'overscan' | 'loadOlderDelayMs' | 'loadingResetDelayMs'>
 
 export interface MessageListActions {
+  openMcpApp?: (messageId: string, toolCallId: string, requestId: string) => Promise<OutputFor<'mcp.app.open'>>
   addGeneratedImageToComposer?: (image: { url: string; name: string }) => void | Promise<void>
   openForkSourceSession?: (sessionId: string) => Promise<void>
   /** Sends again a user message (status `paused`) that the runtime withdrew before the agent received it. */
@@ -459,8 +473,6 @@ export interface MessageListActions {
     target: MessageExportTarget
   ) => void | Promise<void>
   deleteSelectedMessages?: (messageIds?: readonly string[]) => void | Promise<void>
-  /** Deletes every loaded, selectable message older than `messageId`, after confirmation. */
-  deleteMessagesBefore?: (messageId: string) => void | Promise<void>
   updateMessageUiState?: (messageId: string, updates: MessageUiState) => void
   updateRenderConfig?: (updates: MessageRenderConfigUpdate) => void
   canEditMessage?: (message: MessageListItem) => boolean

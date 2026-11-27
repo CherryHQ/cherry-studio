@@ -1,6 +1,7 @@
 import { classifyError, type ErrorCategory, getLocalModelResolutionFailure } from '@renderer/utils/errorClassifier'
+import { type MessagePartRows, messagePartsAt } from '@renderer/utils/message/messagePartRows'
 import { CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
-import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import type { CherryUIMessage } from '@shared/data/types/message'
 import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
 
 /** Failures another provider's model can get past; request-shaped and local-tool failures would recur. */
@@ -22,12 +23,12 @@ const PROVIDER_SWITCH_CATEGORIES: ReadonlySet<ErrorCategory> = new Set<ErrorCate
  */
 export function shouldSuggestSubscriptionModel(
   messages: readonly CherryUIMessage[],
-  partsByMessageId?: Readonly<Record<string, readonly CherryMessagePart[] | undefined>>
+  partsByMessageId?: MessagePartRows
 ): boolean {
   const message = messages.at(-1)
   if (message?.role !== 'assistant' || message.metadata?.status !== 'error') return false
 
-  const parts = partsByMessageId?.[message.id] ?? message.parts
+  const parts = messagePartsAt(partsByMessageId, message.id) ?? message.parts
   const errorPart = parts.findLast((part) => part.type === 'data-error')
   if (errorPart?.type !== 'data-error') return false
 

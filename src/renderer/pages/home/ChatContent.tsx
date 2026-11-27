@@ -4,7 +4,6 @@ import { useTranslation } from 'react-i18next'
 
 import { MessageEditingProvider } from '@renderer/components/chat/editing/MessageEditingContext'
 import type { TopicMessageFlowLiveState } from '@renderer/components/chat/flow'
-import { RefreshProvider } from '@renderer/components/chat/messages/blocks/MessagePartsContext'
 import type { MessageListActions, MessageListSelectAllPagination } from '@renderer/components/chat/messages/types'
 import { ConversationGreeting } from '@renderer/components/chat/shell/ConversationGreeting'
 import ConversationStageCenter from '@renderer/components/chat/shell/ConversationStageCenter'
@@ -15,18 +14,25 @@ import type {
   ChatConversationControlsChangeHandler
 } from '@renderer/components/composer/variants/ChatComposer'
 import { ResourceEditDialogEventHost } from '@renderer/components/resourceCatalog/dialogs/ResourceEditDialogEventHost'
+import { useQuery } from '@renderer/data/hooks/useDataApi'
+import { usePreference } from '@renderer/data/hooks/usePreference'
 import { ChatWriteProvider } from '@renderer/hooks/chat/ChatWriteContext'
 import { SiblingsProvider } from '@renderer/hooks/SiblingsContext'
 import { useTopicMessages } from '@renderer/hooks/useTopicMessages'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Topic } from '@renderer/types/topic'
+import { endsWithProviderQuotaError } from '@renderer/utils/message/providerQuotaError'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { isUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
+import { hasClearContextPart } from '@shared/data/types/uiParts'
+import { normalizeMaxMessages, resolveMaxMessages } from '@shared/utils/contextSettings'
 
 import ChatComposerSlot from './ChatComposerSlot'
 import ChatMain from './ChatMain'
 import { useTopicBranchActions } from './hooks/useTopicBranchActions'
+import { findContextWindowBoundary } from './messages/contextWindowBoundary'
+import { ContextWindowDivider } from './messages/ContextWindowDivider'
 import type { AddNewTopicPayload } from './types'
 import { useChatRuntimeState } from './useChatRuntimeState'
 
@@ -71,7 +77,10 @@ const ChatContent: FC<Props> = ({
 }) => {
   const {
     uiMessages,
+    displayIndex,
     siblingsMap,
+    pathMessages,
+    replyHistory,
     isLoading: isHistoryLoading,
     isStale: isHistoryStale,
     refresh,
@@ -98,9 +107,11 @@ const ChatContent: FC<Props> = ({
       composerModelId={composerModelId}
       isHistoryLoading={isHistoryLoading}
       isHistoryStale={isHistoryStale}
-      initialMessages={uiMessages}
+      displayIndex={displayIndex}
       uiMessages={uiMessages}
       siblingsMap={siblingsMap}
+      pathMessages={pathMessages}
+      replyHistory={replyHistory}
       refresh={refresh}
       activeNodeId={activeNodeId}
       loadOlder={loadOlder}
@@ -119,12 +130,13 @@ interface InnerProps extends Props {
   isHistoryLoading: boolean
   isHistoryStale: boolean
   onBranchLiveStateChange?: (state: TopicMessageFlowLiveState | null) => void
-  /** One-time seed for `useChat(messages:)` — consumed on mount only. */
-  initialMessages: CherryUIMessage[]
   /** Live DB-backed message list; reactive to SWR refreshes. */
   uiMessages: CherryUIMessage[]
+  displayIndex: ReturnType<typeof useTopicMessages>['displayIndex']
   siblingsMap: ReturnType<typeof useTopicMessages>['siblingsMap']
-  refresh: () => Promise<CherryUIMessage[]>
+  pathMessages: ReturnType<typeof useTopicMessages>['pathMessages']
+  replyHistory: ReturnType<typeof useTopicMessages>['replyHistory']
+  refresh: () => Promise<void>
   activeNodeId: string | null
   loadOlder: () => void
   hasOlder: boolean
@@ -147,9 +159,11 @@ const ChatContentInner: FC<InnerProps> = ({
   composerModelId,
   isHistoryLoading,
   isHistoryStale,
-  initialMessages,
   uiMessages,
+  displayIndex,
   siblingsMap,
+  pathMessages,
+  replyHistory,
   refresh,
   activeNodeId,
   loadOlder,
@@ -165,8 +179,9 @@ const ChatContentInner: FC<InnerProps> = ({
   const runtime = useChatRuntimeState({
     topic,
     isHistoryLoading,
-    initialMessages,
+    replyHistory,
     uiMessages,
+    displayIndex,
     refresh,
     activeNodeId,
     messagesCacheMutate,
@@ -190,6 +205,41 @@ const ChatContentInner: FC<InnerProps> = ({
       }),
     [topic.id]
   )
+  const [globalMaxMessages] = usePreference('chat.context_settings.max_messages')
+  const maxMessages = normalizeMaxMessages(
+    resolveMaxMessages(topic.assistantId ? assistant?.settings?.contextSettings : undefined, globalMaxMessages)
+  )
+  const nextTurnFillsActiveNode = runtime.composerChatTarget.mode === 'reserved-branch'
+  const canPreviewContextWindow =
+    !isHistoryLoading &&
+    !isHistoryStale &&
+    !runtime.isTurnBusy &&
+    (!topic.assistantId || assistant?.id === topic.assistantId)
+  const precedingMessageId = hasOlder ? (pathMessages[0]?.parentId ?? undefined) : undefined
+  const boundary = useMemo(
+    () =>
+      canPreviewContextWindow
+        ? findContextWindowBoundary(pathMessages, maxMessages, { nextTurnFillsActiveNode, precedingMessageId })
+        : null,
+    [canPreviewContextWindow, maxMessages, nextTurnFillsActiveNode, pathMessages, precedingMessageId]
+  )
+  const pageEdgeMessageId = boundary?.precedingMessageId
+  const { data: pageEdgeMessage } = useQuery('/messages/:id', {
+    enabled: Boolean(pageEdgeMessageId),
+    params: { id: pageEdgeMessageId ?? '' }
+  })
+  const pageEdgeHasEarlierHistory =
+    pageEdgeMessage !== undefined &&
+    pageEdgeMessage.id === pageEdgeMessageId &&
+    pageEdgeMessage.role !== 'root' &&
+    !hasClearContextPart(pageEdgeMessage.data.parts)
+  const contextWindowSlots = useMemo(() => {
+    if (maxMessages === null || !boundary || (pageEdgeMessageId && !pageEdgeHasEarlierHistory)) return {}
+    const divider = <ContextWindowDivider limit={maxMessages} />
+    return boundary.kind === 'before'
+      ? { messageHead: { messageId: boundary.messageId, content: divider } }
+      : { afterMessages: divider }
+  }, [boundary, maxMessages, pageEdgeHasEarlierHistory, pageEdgeMessageId])
   const siblingsContextValue = useMemo(() => ({ siblingsMap, activeNodeId }), [siblingsMap, activeNodeId])
   const contextUsage = useMemo<ChatContextUsageSource | null>(() => {
     if (isHistoryStale) return null
@@ -205,6 +255,10 @@ const ChatContentInner: FC<InnerProps> = ({
   const suggestSubscriptionModel = useMemo(
     () => !isHistoryStale && shouldSuggestSubscriptionModel(runtime.messages, runtime.partsByMessageId),
     [isHistoryStale, runtime.messages, runtime.partsByMessageId]
+  )
+  const providerQuotaExhausted = useMemo(
+    () => !isHistoryStale && endsWithProviderQuotaError(uiMessages, activeNodeId),
+    [activeNodeId, isHistoryStale, uiMessages]
   )
 
   useEffect(() => {
@@ -267,6 +321,8 @@ const ChatContentInner: FC<InnerProps> = ({
         openCitationsPanel={onOpenCitationsPanel}
         addGeneratedImageToComposer={supportsImageInput ? addGeneratedImageToComposer : undefined}
         onStartBranchDraft={reserveBranch}
+        messageHead={contextWindowSlots.messageHead}
+        afterMessages={contextWindowSlots.afterMessages}
       />
     </div>
   )
@@ -275,6 +331,7 @@ const ChatContentInner: FC<InnerProps> = ({
       placement="home"
       topic={topic}
       contextUsage={contextUsage}
+      providerQuotaExhausted={providerQuotaExhausted}
       onSend={runtime.sendMessage}
       chatTarget={runtime.composerChatTarget}
       onNewTopic={onNewTopic}
@@ -289,6 +346,7 @@ const ChatContentInner: FC<InnerProps> = ({
       placement="docked"
       topic={topic}
       contextUsage={contextUsage}
+      providerQuotaExhausted={providerQuotaExhausted}
       onSend={runtime.sendMessage}
       chatTarget={runtime.composerChatTarget}
       onNewTopic={onNewTopic}
@@ -306,12 +364,10 @@ const ChatContentInner: FC<InnerProps> = ({
   return (
     <ChatWriteProvider value={runtime.chatWriteActions}>
       <SiblingsProvider value={siblingsContextValue}>
-        <RefreshProvider value={refresh}>
-          <MessageEditingProvider>
-            <ConversationStageCenter placement={placement} main={main} composer={composer} />
-            <ResourceEditDialogEventHost />
-          </MessageEditingProvider>
-        </RefreshProvider>
+        <MessageEditingProvider>
+          <ConversationStageCenter placement={placement} main={main} composer={composer} />
+          <ResourceEditDialogEventHost />
+        </MessageEditingProvider>
       </SiblingsProvider>
     </ChatWriteProvider>
   )

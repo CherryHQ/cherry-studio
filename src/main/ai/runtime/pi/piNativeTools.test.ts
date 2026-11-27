@@ -23,26 +23,25 @@ import { runtimeId, type ObservationPayload, type OperationResult } from '@cherr
 import { createPiRuntime } from '@cherrystudio/agent-runtime-pi'
 
 import { readPiApprovalFacts } from './piApprovalFacts'
-import { createPiMcpExtension } from './piMcpExtension'
+import { createPiMcpExtension, isPiToolDisabled } from './piMcpExtension'
 import { PiMessageMetadata, resolvePiMcpToolMetadata } from './PiMessageMetadata'
 
 // Real SDK session + MCP wire + QuickJS: catches bypassed nested policy and lost structured results.
 it.each(['cherry-tools', 'my-server', 'my_server'])(
   'runs native MCP with binding %s and blocks forbidden nested calls',
   async (binding) => {
+    const cherry = binding === 'cherry-tools'
     const shadowId = '87654321-4321-4321-8321-abcdef123456'
     const shadowName = binding === 'my-server' ? 'my_server' : 'my-server'
+    const shadowPrefix = `mcp__${shadowId.replaceAll('-', '_')}__`
     const longTool = 'read_' + 'long_name_'.repeat(8)
-    const serverId = binding === 'cherry-tools' ? binding : '12345678-1234-4234-8234-123456789abc'
+    const serverId = cherry ? binding : '12345678-1234-4234-8234-123456789abc'
     const nativePrefix = `mcp__${serverId.replaceAll('-', '_')}__`
-    const snapshots = new Map(
-      binding === 'cherry-tools'
-        ? []
-        : [
-            [binding, { id: serverId, name: binding }],
-            [shadowName, { id: shadowId, name: shadowName }]
-          ]
-    )
+    const snapshots = new Map([[shadowName, { id: shadowId, name: shadowName }]])
+    if (!cherry) snapshots.set(binding, { id: serverId, name: binding })
+    const knowledgeReads = ['kb_search', 'kb_list', 'kb_read']
+    const shadowTools = cherry ? knowledgeReads : ['forbidden']
+    const disabled = new Set(cherry ? ['mcp__cherry-tools__kb_search'] : [`${nativePrefix}forbidden`])
     const cwd = await mkdtemp(join(tmpdir(), 'cherry-pi-native-'))
     const calls: string[] = []
     const events: ObservationPayload[] = []
@@ -50,7 +49,13 @@ it.each(['cherry-tools', 'my-server', 'my_server'])(
     const server = serveMcpTestServer(() => {
       const fixture = new Server({ name: 'fixture', version: '1.0.0' }, { capabilities: { tools: {} } })
       fixture.setRequestHandler('tools/list', async () => ({
-        tools: ['read_value', 'forbidden', longTool, 'report_artifacts'].map((name) => ({
+        tools: [
+          'read_value',
+          'forbidden',
+          longTool,
+          'report_artifacts',
+          ...(cherry ? [...knowledgeReads, 'kb_manage'] : [])
+        ].map((name) => ({
           name,
           description: name,
           inputSchema: { type: 'object' as const }
@@ -65,14 +70,24 @@ it.each(['cherry-tools', 'my-server', 'my_server'])(
     const shadow = serveMcpTestServer(() => {
       const fixture = new Server({ name: 'shadow', version: '1.0.0' }, { capabilities: { tools: {} } })
       fixture.setRequestHandler('tools/list', async () => ({
-        tools: [{ name: 'forbidden', inputSchema: { type: 'object' as const } }]
+        tools: shadowTools.map((name) => ({ name, inputSchema: { type: 'object' as const } }))
       }))
-      fixture.setRequestHandler('tools/call', async () => {
-        calls.push('shadow:forbidden')
+      fixture.setRequestHandler('tools/call', async ({ params }) => {
+        calls.push(`shadow:${params.name}`)
         return { content: [{ type: 'text', text: 'allowed on the other server' }] }
       })
       return fixture
     })
+    const script = [
+      `await tools.${nativePrefix}report_artifacts({artifacts:[{path:"/workspace/report.html"}]});`,
+      `const result = await tools.${nativePrefix}read_value({}); text(result.structuredContent.value);`,
+      `const long = await searchTools("${longTool}", { namespace: "mcp__${serverId.replaceAll('-', '_')}" }); await tools[long[0].name]({});`,
+      ...shadowTools.map((name) => `await tools.${shadowPrefix}${name}({});`),
+      ...(cherry ? [`await tools.${nativePrefix}kb_manage({});`] : []),
+      ...(cherry ? knowledgeReads : ['forbidden']).map(
+        (name) => `try { await tools.${nativePrefix}${name}({}) } catch (e) { text(e.message) }`
+      )
+    ].join('\n')
     const pi = await import('@earendil-works/pi-coding-agent')
     const modelRuntime = await ModelRuntime.create({
       credentials: new InMemoryCredentialStore(),
@@ -94,9 +109,7 @@ it.each(['cherry-tools', 'my-server', 'my_server'])(
                   type: 'toolCall',
                   id: 'script',
                   name: 'codemode',
-                  arguments: {
-                    code: `await tools.${nativePrefix}report_artifacts({artifacts:[{path:"/workspace/report.html"}]}); const result = await tools.${nativePrefix}read_value({}); text(result.structuredContent.value); const long = await searchTools("${longTool}", { namespace: "mcp__${serverId.replaceAll('-', '_')}" }); await tools[long[0].name]({}); ${binding === 'cherry-tools' ? '' : `await tools.mcp__${shadowId.replaceAll('-', '_')}__forbidden({});`} try { await tools.${nativePrefix}forbidden({}) } catch (e) { text(e.message) }`
-                  }
+                  arguments: { code: script }
                 }
               ]
             : [{ type: 'text', text: 'done' }],
@@ -153,7 +166,7 @@ it.each(['cherry-tools', 'my-server', 'my_server'])(
           additionalReadOnlyRoots: [],
           getInteractionState: () => ({ currentTurn: 'headless', userResponse: 'unavailable' }),
           getPermissionMode: () => 'bypassPermissions',
-          isDisabled: (name) => name === `${nativePrefix}forbidden`,
+          isDisabled: (name) => isPiToolDisabled(disabled, name, resolveMetadata(name)),
           autoApprovedTools: new Set(),
           approvalRequiredTools: new Set(),
           nonBypassableApprovalTools: new Set(),
@@ -183,8 +196,8 @@ it.each(['cherry-tools', 'my-server', 'my_server'])(
           createPiMcpExtension(
             pi,
             {
-              fixture: { id: binding === 'cherry-tools' ? undefined : serverId, name: binding, connect: server },
-              ...(binding === 'cherry-tools' ? {} : { shadow: { id: shadowId, name: shadowName, connect: shadow } })
+              fixture: { id: cherry ? undefined : serverId, name: binding, connect: server },
+              shadow: { id: shadowId, name: shadowName, connect: shadow }
             },
             join(cwd, 'mcp.log')
           )
@@ -213,7 +226,8 @@ it.each(['cherry-tools', 'my-server', 'my_server'])(
         'report_artifacts',
         'read_value',
         longTool,
-        ...(binding === 'cherry-tools' ? [] : ['shadow:forbidden'])
+        ...shadowTools.map((name) => `shadow:${name}`),
+        ...(cherry ? ['kb_manage'] : [])
       ])
       expect(resolveMetadata(`${nativePrefix}read_value`)).toEqual({
         type: 'mcp',
@@ -236,7 +250,7 @@ it.each(['cherry-tools', 'my-server', 'my_server'])(
       const artifacts = projected.parts.filter(
         (part) => part.type === 'dynamic-tool' && part.toolName.endsWith('__report_artifacts')
       )
-      if (binding === 'cherry-tools') {
+      if (cherry) {
         expect(artifacts).toMatchObject([
           {
             state: 'output-available',

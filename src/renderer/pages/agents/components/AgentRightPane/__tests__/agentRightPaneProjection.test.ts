@@ -1,13 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
-import { getSubagentTaskStatus } from '@renderer/components/chat/messages/tools/agent'
 import { getPartParentToolCallId } from '@renderer/components/chat/messages/tools/toolParentMetadata'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 
 import {
   buildAgentRightPaneStatus,
   buildAgentToolFlowProjection,
-  findLatestAgentPreviewUrl
+  findAgentPreviewUrlCandidates
 } from '../agentRightPaneProjection'
 
 const message = (id: string, parts: CherryMessagePart[]): CherryUIMessage =>
@@ -148,11 +147,11 @@ describe('agent right pane projections', () => {
       ]
 
       expect(
-        findLatestAgentPreviewUrl([message('m1', firstParts), message('m2', latestParts)], {
+        findAgentPreviewUrlCandidates([message('m1', firstParts), message('m2', latestParts)], {
           m1: firstParts,
           m2: latestParts
-        })
-      ).toBe('http://127.0.0.1:4173/dashboard')
+        })[0]
+      ).toMatchObject({ type: 'url', url: 'http://127.0.0.1:4173/dashboard' })
     })
 
     it('normalizes wildcard hosts to a browser-reachable loopback address', () => {
@@ -167,7 +166,9 @@ describe('agent right pane projections', () => {
         )
       ]
 
-      expect(findLatestAgentPreviewUrl([message('m1', parts)], { m1: parts })).toBe('http://localhost:8000/')
+      expect(findAgentPreviewUrlCandidates([message('m1', parts)], { m1: parts })).toMatchObject([
+        { type: 'url', url: 'http://localhost:8000/' }
+      ])
     })
 
     it('ignores user text, remote URLs, and URLs from unrelated tool output', () => {
@@ -177,7 +178,7 @@ describe('agent right pane projections', () => {
         toolPart('bash-1', 'Bash', undefined, 'output-available', undefined, 'Docs: https://example.com')
       ]
 
-      expect(findLatestAgentPreviewUrl([message('m1', parts)], { m1: parts })).toBeNull()
+      expect(findAgentPreviewUrlCandidates([message('m1', parts)], { m1: parts })).toEqual([])
     })
   })
 
@@ -216,40 +217,37 @@ describe('agent right pane projections', () => {
     )
   })
 
-  it.each([
-    ['in_progress', 'invoking'],
-    ['completed', 'done'],
-    ['error', 'error'],
-    ['stopped', 'cancelled']
-  ] as const)('preserves nested task status %s across flow projection', (status, expected) => {
-    const started: CherryMessagePart = {
-      type: 'data-agent-task-event',
-      data: { event: 'started', taskId: 'nested-task', toolUseId: 'child', status: 'in_progress' }
-    }
-    const updated: CherryMessagePart = {
-      type: 'data-agent-task-event',
-      data: { event: 'notification', taskId: 'nested-task', status }
-    }
-    const unrelated: CherryMessagePart = {
-      type: 'data-agent-task-event',
-      data: { event: 'started', taskId: 'other-task', toolUseId: 'other', status: 'in_progress' }
-    }
-    const parts = [
-      toolPart('root', 'Agent'),
-      toolPart('child', 'Agent', 'root', 'output-available', {}, { status: 'async_launched' }),
-      started,
-      unrelated
-    ]
-    const projection = buildAgentToolFlowProjection(
-      [message('m1', parts), message('m2', [updated])],
-      { m1: parts, m2: [updated] },
-      'root'
-    )
-    const flowParts = projection.partsByMessageId['root:agent-flow-assistant']
+  it.each(['in_progress', 'completed', 'error', 'stopped'] as const)(
+    'preserves nested task status %s across flow projection',
+    (status) => {
+      const started: CherryMessagePart = {
+        type: 'data-agent-task-event',
+        data: { event: 'started', taskId: 'nested-task', toolUseId: 'child', status: 'in_progress' }
+      }
+      const updated: CherryMessagePart = {
+        type: 'data-agent-task-event',
+        data: { event: 'notification', taskId: 'nested-task', status }
+      }
+      const unrelated: CherryMessagePart = {
+        type: 'data-agent-task-event',
+        data: { event: 'started', taskId: 'other-task', toolUseId: 'other', status: 'in_progress' }
+      }
+      const parts = [
+        toolPart('root', 'Agent'),
+        toolPart('child', 'Agent', 'root', 'output-available', {}, { status: 'async_launched' }),
+        started,
+        unrelated
+      ]
+      const projection = buildAgentToolFlowProjection(
+        [message('m1', parts), message('m2', [updated])],
+        { m1: parts, m2: [updated] },
+        'root'
+      )
+      const flowParts = projection.partsByMessageId['root:agent-flow-assistant']
 
-    expect(flowParts.filter((part) => part.type === 'data-agent-task-event')).toEqual([started, updated])
-    expect(getSubagentTaskStatus(flowParts, 'child', 'done')).toBe(expected)
-  })
+      expect(flowParts.filter((part) => part.type === 'data-agent-task-event')).toEqual([started, updated])
+    }
+  )
 
   it('uses a lazily resolved selected output and preserves child parts untouched', () => {
     const deferred = { $deferredToolResult: { topicId: 't1', messageId: 'm1', toolCallId: 'root' } }

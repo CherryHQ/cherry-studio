@@ -341,6 +341,22 @@ describe('error', () => {
   })
 
   describe('providerErrorText', () => {
+    it('keeps bracketed local diagnostics while retaining provider payload filtering', () => {
+      const diagnostic = '[SQLITE_BUSY] database is locked; apiKey=private-key'
+      expect(providerErrorText({ name: 'Error', message: diagnostic, stack: null, errorSource: 'local' })).toBe(
+        '[SQLITE_BUSY] database is locked; apiKey="<redacted>"'
+      )
+      expect(providerErrorText({ name: 'Error', message: diagnostic, stack: null })).toBe('')
+      expect(
+        providerErrorText({
+          name: 'AI_APICallError',
+          message: 'Forbidden',
+          stack: null,
+          responseBody: '{"error":{"message":"Permission denied"},"prompt":"private prompt"}'
+        })
+      ).toBe('Permission denied')
+    })
+
     // AI SDK degrades `message` to the HTTP statusText when the body does not match the
     // provider's error schema; the real reason only survives in `responseBody`.
     it('prefers a non-OpenAI-shaped body over the degraded message', () => {

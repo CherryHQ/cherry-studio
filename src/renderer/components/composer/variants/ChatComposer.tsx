@@ -60,6 +60,7 @@ import { createComposerFileTokenSourceId } from '@renderer/utils/message/compose
 import { canEditAssistantMessageParts } from '@renderer/utils/message/partsHelpers'
 import { isOpenAIWebSearchModel, resolveReasoningEffortForModel } from '@renderer/utils/model'
 import type { ComposerChatTarget, ComposerQueuedMessagePayload } from '@shared/ai/transport'
+import { isManagedCherryCloudModel } from '@shared/data/presets/cherryai'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import {
@@ -77,6 +78,7 @@ import { isGPT5SeriesReasoningModel, isNonChatModel, isVisionModel } from '@shar
 import { CherryCloudQuotaNotice } from '../CherryCloudQuotaNotice'
 import { createComposerUserMessageParts, trimComposerDraftBoundaryBlankLines } from '../composerDraft'
 import type { InputHistoryDirection } from '../inputHistoryNavigation'
+import { ProviderQuotaNotice } from '../ProviderQuotaNotice'
 import { QueuedFollowupsDock } from '../QueuedFollowupsDock'
 import { SubscriptionModelNotice } from '../SubscriptionModelNotice'
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from '../tokens'
@@ -164,6 +166,8 @@ export interface ChatContextUsageSource {
 export interface ChatComposerProps {
   topic?: Topic
   contextUsage?: ChatContextUsageSource | null
+  /** The latest reply failed because a provider other than Cherry Cloud ran out of quota. */
+  providerQuotaExhausted?: boolean
   scopeKey?: string
   topicId?: string
   assistantId?: string
@@ -267,6 +271,7 @@ type ChatPlacementComposerProps =
 const ChatComposerRoot = ({
   topic,
   contextUsage,
+  providerQuotaExhausted,
   scopeKey,
   topicId,
   assistantId,
@@ -327,6 +332,7 @@ const ChatComposerRoot = ({
             scopeKey={resolvedScopeKey}
             topicId={resolvedTopicId}
             contextUsage={contextUsage}
+            providerQuotaExhausted={providerQuotaExhausted}
             assistantId={resolvedAssistantId}
             resolvedContext={resolvedContext}
             resolvedProviders={resolvedProviders}
@@ -369,6 +375,7 @@ const ChatComposerInner = ({
   scopeKey,
   topicId,
   contextUsage,
+  providerQuotaExhausted = false,
   assistantId,
   resolvedContext,
   resolvedProviders,
@@ -942,6 +949,11 @@ const ChatComposerInner = ({
   }, [scopeKey])
 
   const loading = isPending || isSending || awaitingApproval
+  // Once the user has moved to a Cherry Cloud model, the subscription suggestion has served its purpose.
+  const showProviderQuotaNotice =
+    providerQuotaExhausted &&
+    !loading &&
+    !effectiveSubmittedModels.some((model) => isManagedCherryCloudModel(model.providerId))
   const clearContextDisabled =
     loading ||
     Boolean(editingMessageForCurrentTopic) ||
@@ -1402,7 +1414,7 @@ const ChatComposerInner = ({
     Object.assign(actionsRef.current, { addNewTopic })
   }, [actionsRef, addNewTopic])
 
-  useComposerQuoteInsertion(actionsRef)
+  useComposerQuoteInsertion(actionsRef, topicId, !editingMessageForCurrentTopic)
   useComposerPrefill(actionsRef, {
     topicId: streamScopeKey,
     enabled: !editingMessageForCurrentTopic,
@@ -1737,8 +1749,7 @@ const ChatComposerInner = ({
       }
 
       if (editingMessageForCurrentTopic) {
-        // Save-only edits stay available out of quota; only the resend is held.
-        if (quotaBlocksSend) return
+        if (quotaBlocksSend && editingMessageForCurrentTopic.message.role !== 'assistant') return
         await commitEditedMessage(draft, true)
         return
       }
@@ -1989,9 +2000,13 @@ const ChatComposerInner = ({
           }
           onPause={onPause}
           queueContent={
-            quotaExhaustion || suggestSubscriptionModel ? (
+            quotaExhaustion || showProviderQuotaNotice || suggestSubscriptionModel ? (
               <>
-                {quotaExhaustion ? <CherryCloudQuotaNotice exhaustion={quotaExhaustion} /> : null}
+                {quotaExhaustion ? (
+                  <CherryCloudQuotaNotice exhaustion={quotaExhaustion} />
+                ) : showProviderQuotaNotice ? (
+                  <ProviderQuotaNotice />
+                ) : null}
                 <SubscriptionModelNotice
                   providerFailed={suggestSubscriptionModel && !isMentionedModelSelectorLocked}
                   currentModel={effectiveSubmittedModel}
