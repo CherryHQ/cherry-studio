@@ -129,15 +129,6 @@ export async function readCliConfigDraft(args: CliConfigDraftBuildArgs): Promise
   return buildCliConfigDraftFiles(args, context)
 }
 
-export async function prepareCliModelConfig(args: CliConfigDraftBuildArgs): Promise<CliConfigFileDraft[]> {
-  const context = await resolveContext(args)
-  if (!context) throw new Error(`${args.cliTool} does not use config files`)
-  assertCliConfigCredentials(args.cliTool, context)
-  const files = await buildCliConfigDraftFiles(args, context)
-  validateCliConfigDraftForWrite(files)
-  return files
-}
-
 async function buildCliConfigDraftFiles(
   args: CliConfigDraftBuildArgs,
   context: ResolvedCliConfigContext

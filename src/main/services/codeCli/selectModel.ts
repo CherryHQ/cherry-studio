@@ -4,7 +4,11 @@ import { t } from '@main/i18n'
 import { getEnvironmentValue } from '@main/utils/env'
 import { getRawShellEnv } from '@main/utils/shellEnv'
 import { getLocalAgentProtocol } from '@shared/ai/localAgent'
-import { getLocalAgentModelStorage, LOCAL_AGENT_MODEL_CONFIG } from '@shared/ai/localAgentModel'
+import {
+  getLocalAgentLaunchBinding,
+  getLocalAgentModelStorage,
+  LOCAL_AGENT_MODEL_CONFIG
+} from '@shared/ai/localAgentModel'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { getCliConfigTargets } from '@shared/utils/cliConfig'
 import type { CliConfigTarget, CliConfigWriteFile, FileConfiguredCli } from '@shared/utils/cliConfig'
@@ -29,7 +33,6 @@ export async function selectLocalAgentModel(
   selection: {
     sourceModelId?: UniqueModelId
     sourceModelViaGateway?: boolean
-    files?: CliConfigWriteFile[]
     expectedFiles?: { target: CliConfigTarget; content: string | null }[]
   } = {}
 ) {
@@ -39,30 +42,31 @@ export async function selectLocalAgentModel(
   if (!agent || agent.type !== 'local' || !config || !native) {
     throw new Error(t('code_cli.model.unsupported'))
   }
-  if (
-    native.type === 'agent' ||
-    (native.nativeSelection === 'agent' && !config.sourceModelId && !selection.sourceModelId)
-  ) {
-    const gatewayAtLaunch =
-      native.type === 'agent' &&
-      native.gatewayModelEndpoint &&
+  if (selection.sourceModelId || selection.sourceModelViaGateway) {
+    // A Cherry model lives only on the Agent; each launch binds it without touching CLI files.
+    const binds =
       !config.executableOverride &&
-      selection.sourceModelViaGateway
+      (getLocalAgentLaunchBinding(config.presetId) || (native.type === 'agent' && native.gatewayModelEndpoint))
     if (
-      ((selection.sourceModelId || selection.sourceModelViaGateway) &&
-        (!gatewayAtLaunch || !selection.sourceModelId || nativeModel !== undefined)) ||
-      selection.files?.length ||
+      !binds ||
+      !selection.sourceModelId ||
+      !selection.sourceModelViaGateway ||
+      nativeModel !== undefined ||
       selection.expectedFiles?.length
     )
-      throw new Error(t('code_cli.model.unsupported'))
+      throw new Error(t('code_cli.model.cherry_model_unsupported'))
     const updated = agentService.updateAgent(agentId, {
       configuration: {
-        localRuntime: {
-          nativeModel,
-          sourceModelId: selection.sourceModelId,
-          sourceModelViaGateway: gatewayAtLaunch ? true : undefined
-        }
+        localRuntime: { nativeModel: undefined, sourceModelId: selection.sourceModelId, sourceModelViaGateway: true }
       }
+    })
+    if (!updated) throw new Error(t('code_cli.model.agent_missing'))
+    return updated
+  }
+  if (native.type === 'agent' || native.nativeSelection === 'agent') {
+    if (selection.expectedFiles?.length) throw new Error(t('code_cli.model.unsupported'))
+    const updated = agentService.updateAgent(agentId, {
+      configuration: { localRuntime: { nativeModel, sourceModelId: undefined, sourceModelViaGateway: undefined } }
     })
     if (!updated) throw new Error(t('code_cli.model.agent_missing'))
     return updated
@@ -70,10 +74,6 @@ export async function selectLocalAgentModel(
   const shellEnv = await getRawShellEnv()
   if (hasConfigOverrides(native.overrides, config.env, shellEnv)) {
     throw new Error(t('code_cli.model.environment_mismatch'))
-  }
-  if (selection.sourceModelId && !selection.files?.length) throw new Error(t('code_cli.model.provider_config_missing'))
-  if (config.sourceModelId && !selection.sourceModelId && !selection.files?.length) {
-    throw new Error(t('code_cli.model.provider_clear_required'))
   }
   const updated = await application.get('CodeCliService').updateConfigFiles(
     native.tool,
@@ -87,20 +87,7 @@ export async function selectLocalAgentModel(
         throw new Error(t('code_cli.model.config_changed'))
       }
       const current = currentFiles.find((file) => file.target === native.target)!
-
-      const files = selection.files?.map((file) => ({ ...file })) ?? []
-      const primary = files.find((file) => file.target === native.target)
-      if (selection.sourceModelId) {
-        if (!primary || primary.content === undefined) throw new Error(t('code_cli.model.model_config_missing'))
-        nativeModel = readNativeModelConfig(native.target, primary.content)
-        if (!nativeModel) throw new Error(t('code_cli.model.default_missing'))
-      } else {
-        const model = native.nativeSelection === 'agent' ? undefined : nativeModel
-        const content = updateNativeModelConfig(native.target, primary?.content ?? current.content, model)
-        if (primary) primary.content = content
-        else files.push({ target: native.target, content })
-      }
-      return files
+      return [{ target: native.target, content: updateNativeModelConfig(native.target, current.content, nativeModel) }]
     },
     () => {
       // Re-read after queued I/O so an enable or environment edit is not overwritten.
@@ -111,11 +98,7 @@ export async function selectLocalAgentModel(
         throw new Error(t('code_cli.model.environment_mismatch'))
       const updated = agentService.updateAgent(agentId, {
         configuration: {
-          localRuntime: {
-            nativeModel,
-            sourceModelId: selection.sourceModelId,
-            sourceModelViaGateway: selection.sourceModelId ? selection.sourceModelViaGateway : undefined
-          }
+          localRuntime: { nativeModel, sourceModelId: undefined, sourceModelViaGateway: undefined }
         }
       })
       if (!updated) throw new Error(t('code_cli.model.agent_missing'))
@@ -142,6 +125,7 @@ export function syncLocalAgentConfigModel(
   if (
     !agent ||
     !config ||
+    config.sourceModelViaGateway ||
     ((native.nativeSelection === 'agent' || getLocalAgentProtocol(presetId) === 'acp') && !config.sourceModelId) ||
     hasConfigOverrides(native.overrides, config.env, shellEnv)
   )

@@ -3,9 +3,6 @@
  * the internal loopback listener, never the user-facing gateway.
  */
 import { application } from '@application'
-import { gatewayClientOrigin } from '@shared/utils/apiGateway'
-
-import type { CliGatewayRoute } from './cli/cliGatewayRoute'
 
 /**
  * Gateway identity for connection signatures: a restarted internal listener rebuilds the connection.
@@ -24,32 +21,4 @@ export async function resolveApiGatewayRuntime(sessionId: string): Promise<{
   const apiGatewayService = application.get('ApiGatewayService')
   const { baseUrl, apiKey } = await apiGatewayService.ensureInternalGateway(sessionId)
   return { baseUrl, apiKey, usageHeaders: apiGatewayService.getAgentSessionUsageHeaders(sessionId) }
-}
-
-export async function bindCliGatewayRoute(
-  sessionId: string,
-  route: CliGatewayRoute | undefined
-): Promise<{ dispose(): void } | undefined> {
-  if (!route) return undefined
-  const gateway = application.get('ApiGatewayService')
-  const current = gateway.getCurrentConfig()
-  if (
-    !current.apiKey ||
-    route.apiKey !== current.apiKey ||
-    URL.parse(route.baseUrl)?.origin !== gatewayClientOrigin(current.host, current.port)
-  )
-    return undefined
-
-  const lease = await gateway.createScopedCredential({
-    paths: [route.path],
-    model: route.model,
-    agentSessionId: sessionId
-  })
-  try {
-    route.install(lease)
-    return lease
-  } catch (error) {
-    lease.dispose()
-    throw error
-  }
 }

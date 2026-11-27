@@ -2,6 +2,7 @@ import { basename } from 'node:path'
 
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
+import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { act, fireEvent, render, renderHook, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { type ComponentProps, type ReactNode, useEffect, useRef } from 'react'
@@ -1788,6 +1789,7 @@ describe('AgentComposer', () => {
   })
 
   it('renders Pi effort without treating it as a permission mode', async () => {
+    MockUseDataApiUtils.mockQueryData('/models', [])
     mocks.ipcApiRequest.mockResolvedValue({
       info: {
         models: [],

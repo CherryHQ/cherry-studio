@@ -2,12 +2,7 @@ import { applyEdits, findNodeAtLocation, modify, parse, parseTree, type ParseErr
 import * as toml from 'smol-toml'
 import { isCollection, parseDocument } from 'yaml'
 
-import type {
-  AcpGatewayConfig,
-  AcpGatewayOverlay,
-  AcpJsonModelProfile,
-  AcpYamlModelProfile
-} from '@cherrystudio/agent-runtime-acp/profile'
+import type { AcpJsonModelProfile, AcpYamlModelProfile } from '@cherrystudio/agent-runtime-acp/profile'
 import type { TomlModelProfile } from '@cherrystudio/agent-runtime/cli'
 import { t } from '@main/i18n'
 import type { CliConfigTarget } from '@shared/utils/cliConfig'
@@ -17,10 +12,7 @@ export type CliModelProfile =
   | AcpYamlModelProfile<CliConfigTarget>
   | TomlModelProfile<CliConfigTarget>
 
-export type CliModelBinding = { profile?: CliModelProfile } & (
-  | { gateway?: AcpGatewayConfig<CliConfigTarget>; gatewayOverlay?: never }
-  | { gateway?: never; gatewayOverlay: AcpGatewayOverlay<CliConfigTarget> }
-)
+export type CliModelBinding = { profile?: CliModelProfile }
 
 function parseToml(content: string) {
   try {

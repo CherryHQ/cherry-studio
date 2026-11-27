@@ -1,5 +1,4 @@
 import '@data/services/AgentGlobalSkillService'
-import { readFileSync } from 'node:fs'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -13,7 +12,6 @@ import type * as Platform from '@main/core/platform'
 import { t } from '@main/i18n'
 import { codeCliHandlers } from '@main/ipc/handlers/codeCli'
 import { CodeCliService } from '@main/services/codeCli/CodeCliService'
-import { getRawShellEnv } from '@main/utils/shellEnv'
 import type { LocalAgentConfiguration } from '@shared/ai/localAgent'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { CodeCli } from '@shared/types/codeCli'
@@ -65,7 +63,7 @@ describe('global local agent model selection', () => {
     await selectLocalAgentModel(agent.id, model)
     await expect(
       selectLocalAgentModel(agent.id, undefined, {
-        files: [{ target: 'pi-settings', content: '{}' }]
+        expectedFiles: [{ target: 'pi-settings', content: '{}' }]
       })
     ).rejects.toThrow(t('code_cli.model.unsupported'))
     expect(agentService.getAgent(agent.id)?.configuration?.localRuntime?.nativeModel).toBe(model)
@@ -123,61 +121,61 @@ describe('global local agent model selection', () => {
     expect(agentService.getAgent(agent.id)?.configuration?.localRuntime?.nativeModel).toBe('private-model')
   })
 
-  it('keeps Poolside native and gateway defaults consistent with the saved Agent', async () => {
+  it('keeps the Poolside native model on the Agent and refuses a Cherry model it cannot bind', async () => {
+    const [file] = await service.readConfigFiles(['poolside-settings'])
+    await mkdir(path.dirname(file.path), { recursive: true })
+    await writeFile(file.path, 'model: user\n')
     const agent = createLocalAgent('local-poolside', 'Poolside', { presetId: 'poolside' })
     await selectLocalAgentModel(agent.id, 'poolside/laguna-xs-2.1')
-    expect((await service.readConfigFiles(['poolside-settings']))[0].content).toContain('model: poolside/laguna-xs-2.1')
+    await expect(
+      selectLocalAgentModel(agent.id, undefined, {
+        sourceModelId: createUniqueModelId('provider', 'test'),
+        sourceModelViaGateway: true
+      })
+    ).rejects.toThrow(t('code_cli.model.cherry_model_unsupported'))
+    expect(await readFile(file.path, 'utf8')).toBe('model: user\n')
     expect(agentService.getAgent(agent.id)?.configuration?.localRuntime?.nativeModel).toBe('poolside/laguna-xs-2.1')
-    const gateway =
-      'pool:\n  api_url: https://native.test/v1\n  default_agent_server: cherry-poolside\nagent_servers:\n  cherry-poolside:\n    default_config_options:\n      model: provider:test\n'
-    const selected = await selectLocalAgentModel(agent.id, undefined, {
-      sourceModelId: createUniqueModelId('provider', 'test'),
-      sourceModelViaGateway: true,
-      files: [{ target: 'poolside-settings', content: gateway }]
-    })
-    expect(selected.configuration?.localRuntime).toMatchObject({
-      nativeModel: 'provider:test',
-      sourceModelViaGateway: true
-    })
-    const restored = await selectLocalAgentModel(agent.id, 'poolside/laguna-s-2.1', {
-      files: [{ target: 'poolside-settings', content: 'pool:\n  api_url: https://native.test/v1\n' }]
-    })
-    expect(restored.configuration?.localRuntime?.sourceModelId).toBeUndefined()
-    expect((await service.readConfigFiles(['poolside-settings']))[0].content).not.toContain('cherry-poolside')
-    expect(restored.configuration?.localRuntime?.nativeModel).toBe('poolside/laguna-s-2.1')
   })
 
   it.each([
-    [
-      'qwen',
-      'qwen-settings',
-      '{"model":{"name":"provider:model"},"modelProviders":{"openai":[{"id":"provider:model"}]}}',
-      'provider:model'
-    ],
-    ['kilo', 'kilo-config', '{"model":"cherry-gateway/provider:model"}', 'cherry-gateway/provider:model'],
-    ['copilot', 'copilot-settings', '{"model":"cherry-gateway/provider:model"}', 'cherry-gateway/provider:model'],
-    [
-      'factory-droid',
-      'factory-settings',
-      '{"sessionDefaultSettings":{"model":"custom:provider:model"}}',
-      'custom:provider:model'
-    ],
-    ['mistral-vibe', 'vibe-config', 'active_model="cherry-gateway"', 'cherry-gateway']
-  ] as const)('synchronizes %s global config and chat model identity', async (presetId, target, content, expected) => {
-    const agent = createLocalAgent(`new-${presetId}`, presetId, { presetId })
-    const selected = await selectLocalAgentModel(agent.id, undefined, {
-      sourceModelId: createUniqueModelId('provider', 'model'),
-      sourceModelViaGateway: true,
-      files: [{ target, content }]
-    })
-    expect(selected.configuration?.localRuntime?.nativeModel).toBe(expected)
-    const saved = await service.readConfigFiles([target])
-    expect(saved[0].content).toBe(content)
-    const restored = await selectLocalAgentModel(agent.id, 'native-model', {
-      files: [{ target, content: target === 'vibe-config' ? '' : '{}' }]
-    })
-    expect(restored.configuration?.localRuntime).toMatchObject({ nativeModel: 'native-model' })
-    expect(restored.configuration?.localRuntime?.sourceModelId).toBeUndefined()
+    ['qwen', 'qwen-settings', '{"model":{"name":"user-model"}}'],
+    ['kilo', 'kilo-config', '{"model":"user/model"}'],
+    ['copilot', 'copilot-settings', '{"model":"user-model"}'],
+    ['mistral-vibe', 'vibe-config', 'active_model = "user"\n'],
+    ['claude', 'claude-settings', '{"env":{"ANTHROPIC_MODEL":"user"}}'],
+    ['codex', 'codex-config', 'model = "user"\n']
+  ] as const)(
+    'stores a %s Cherry model on the Agent alone and leaves the CLI files untouched',
+    async (presetId, target, content) => {
+      const [file] = await service.readConfigFiles([target])
+      await mkdir(path.dirname(file.path), { recursive: true })
+      await writeFile(file.path, content)
+      const agent = createLocalAgent(`cherry-${presetId}`, presetId, { presetId, nativeModel: 'native' })
+      const sourceModelId = createUniqueModelId('provider', 'model')
+
+      const selected = await selectLocalAgentModel(agent.id, undefined, { sourceModelId, sourceModelViaGateway: true })
+      expect(selected.configuration?.localRuntime).toMatchObject({ sourceModelId, sourceModelViaGateway: true })
+      expect(selected.configuration?.localRuntime?.nativeModel).toBeUndefined()
+      expect(await readFile(file.path, 'utf8')).toBe(content)
+
+      const restored = await selectLocalAgentModel(agent.id)
+      expect(restored.configuration?.localRuntime?.sourceModelId).toBeUndefined()
+      expect(restored.configuration?.localRuntime?.sourceModelViaGateway).toBeUndefined()
+    }
+  )
+
+  it.each([
+    ['factory-droid', { sourceModelViaGateway: true }],
+    ['pi-acp', { sourceModelViaGateway: false }]
+  ] as const)('rejects a %s Cherry model it cannot bind at launch', async (presetId, selection) => {
+    const agent = createLocalAgent(`unbound-${presetId}`, presetId, { presetId, nativeModel: 'native' })
+    await expect(
+      selectLocalAgentModel(agent.id, undefined, {
+        sourceModelId: createUniqueModelId('provider', 'model'),
+        ...selection
+      })
+    ).rejects.toThrow(t('code_cli.model.cherry_model_unsupported'))
+    expect(agentService.getAgent(agent.id)?.configuration?.localRuntime?.nativeModel).toBe('native')
   })
 
   it('does not change the saved model when native persistence is unsupported', async () => {
@@ -188,54 +186,6 @@ describe('global local agent model selection', () => {
     await expect(selectLocalAgentModel(agent.id, 'next')).rejects.toThrow(t('code_cli.model.unsupported'))
     expect(agentService.getAgent(agent.id)?.configuration?.localRuntime?.nativeModel).toBe('previous')
   })
-  it.each([false, true])(
-    'commits model source (gateway: %s) and restores native selection without leftovers',
-    async (viaGateway) => {
-      const agent = createLocalAgent('unified-pi', 'Pi', { presetId: 'pi-acp' })
-      const sourceModelId = createUniqueModelId('custom', 'model-a')
-      const selected = await selectLocalAgentModel(agent.id, undefined, {
-        sourceModelId,
-        sourceModelViaGateway: viaGateway,
-        files: [
-          {
-            target: 'pi-settings',
-            content: JSON.stringify({ defaultProvider: 'cherry-custom', defaultModel: 'model-a', theme: 'dark' })
-          },
-          {
-            target: 'pi-models',
-            content: JSON.stringify({
-              providers: { 'cherry-custom': { baseUrl: 'https://example.test', apiKey: 'test-key' } }
-            })
-          }
-        ]
-      })
-      expect(selected.configuration?.localRuntime).toMatchObject({
-        sourceModelId,
-        nativeModel: 'cherry-custom/model-a'
-      })
-      expect(agentService.getAgent(agent.id)?.configuration?.localRuntime?.sourceModelViaGateway).toBe(viaGateway)
-      const modelsPath = path.join(home, '.pi/agent/models.json')
-      expect(JSON.parse(await readFile(modelsPath, 'utf8')).providers['cherry-custom'].apiKey).toBe('test-key')
-      await expect(selectLocalAgentModel(agent.id, 'anthropic/claude-sonnet-4-6')).rejects.toThrow(
-        t('code_cli.model.provider_clear_required')
-      )
-      const restored = await selectLocalAgentModel(agent.id, 'anthropic/claude-sonnet-4-6', {
-        files: [
-          { target: 'pi-settings', content: '{"theme":"dark"}' },
-          { target: 'pi-models', content: '{"providers":{}}' }
-        ]
-      })
-      expect(restored.configuration?.localRuntime?.sourceModelId).toBeUndefined()
-      expect(restored.configuration?.localRuntime?.sourceModelViaGateway).toBeUndefined()
-      expect(JSON.parse(await readFile(path.join(home, '.pi/agent/settings.json'), 'utf8'))).toEqual({
-        defaultProvider: 'anthropic',
-        defaultModel: 'claude-sonnet-4-6',
-        theme: 'dark'
-      })
-      expect(JSON.parse(await readFile(modelsPath, 'utf8')).providers).toEqual({})
-    }
-  )
-
   it('rejects stale drafts without overwriting disk or the saved selection', async () => {
     const agent = createLocalAgent('stale-pi', 'Pi', { presetId: 'pi-acp' })
     await selectLocalAgentModel(agent.id, 'anthropic/first')
@@ -270,27 +220,6 @@ describe('global local agent model selection', () => {
     expect(selected.configuration?.localRuntime?.nativeModel).toBe('next')
   })
 
-  it('rejects a mixed-case Windows home override before writing a model to the wrong directory', async () => {
-    const agent = createLocalAgent('windows-env-model', 'Codex', {
-      presetId: 'codex',
-      env: { Codex_Home: '/different/home' }
-    })
-    platform.isWin = true
-    vi.mocked(getRawShellEnv).mockResolvedValue({ codex_home: '/terminal/home' })
-    try {
-      await expect(
-        selectLocalAgentModel(agent.id, undefined, {
-          sourceModelId: createUniqueModelId('provider', 'model'),
-          sourceModelViaGateway: true,
-          files: [{ target: 'codex-config', content: 'model = "next"' }]
-        })
-      ).rejects.toThrow(t('code_cli.model.environment_mismatch'))
-      expect(agentService.getAgent(agent.id)?.configuration?.localRuntime?.nativeModel).toBeUndefined()
-    } finally {
-      platform.isWin = process.platform === 'win32'
-      vi.mocked(getRawShellEnv).mockResolvedValue({})
-    }
-  })
   it('checks editor drafts inside the queue so concurrent writes cannot share a stale snapshot', async () => {
     const agent = createLocalAgent('queued-pi', 'Pi', { presetId: 'pi-acp' })
     const original = '{"defaultProvider":"native","defaultModel":"original"}'
@@ -316,50 +245,20 @@ describe('global local agent model selection', () => {
     expect(agentService.getAgent(agent.id)?.configuration?.localRuntime?.nativeModel).toBe('native/first')
   })
 
-  it('publishes committed editor state and restores files when the Agent projection rejects it', async () => {
+  it('keeps an Agent-owned Cherry model when the global CLI config changes', async () => {
     const sourceModelId = createUniqueModelId('custom', 'example')
-    const agent = createLocalAgent('editor-rollback', 'Claude', {
+    const agent = createLocalAgent('editor-cherry', 'Claude', {
       presetId: 'claude',
-      nativeModel: 'example',
       sourceModelId,
       sourceModelViaGateway: true
     })
-    const original = '{"model":"example","effortLevel":"medium"}'
-    const content = original.replace('medium', 'high')
-    const filename = path.join(home, '.claude/settings.json')
-    await service.writeConfigFiles({
-      cliTool: CodeCli.CLAUDE_CODE,
-      files: [{ target: 'claude-settings', content: original }],
-      preserveModelSource: true
-    })
-    const notifications: { nativeModel?: string; content: string }[] = []
-    const broadcast = vi.spyOn(application.get('WindowManager'), 'broadcast').mockImplementation(() => {
-      notifications.push({
-        nativeModel: agentService.getAgent(agent.id)?.configuration?.localRuntime?.nativeModel,
-        content: readFileSync(filename, 'utf8')
-      })
-    })
-    try {
-      await service.writeConfigFiles({
-        cliTool: CodeCli.CLAUDE_CODE,
-        files: [{ target: 'claude-settings', content }],
-        expectedFiles: [{ target: 'claude-settings', content: original }],
-        preserveModelSource: true
-      })
-      await expect(
-        service.writeConfigFiles({ cliTool: CodeCli.CLAUDE_CODE, files: [{ target: 'claude-settings', content: '{' }] })
-      ).rejects.toThrow(t('code_cli.model.invalid_config', { format: 'JSON' }))
+    const content = '{"model":"global","effortLevel":"high"}'
+    await service.writeConfigFiles({ cliTool: CodeCli.CLAUDE_CODE, files: [{ target: 'claude-settings', content }] })
 
-      expect(notifications).toEqual([{ nativeModel: 'example', content }])
-      expect(await readFile(filename, 'utf8')).toBe(content)
-      expect(agentService.getAgent(agent.id)?.configuration?.localRuntime).toMatchObject({
-        nativeModel: 'example',
-        sourceModelId,
-        sourceModelViaGateway: true
-      })
-    } finally {
-      broadcast.mockRestore()
-    }
+    expect(await readFile(path.join(home, '.claude/settings.json'), 'utf8')).toBe(content)
+    const runtime = agentService.getAgent(agent.id)?.configuration?.localRuntime
+    expect(runtime).toMatchObject({ sourceModelId, sourceModelViaGateway: true })
+    expect(runtime?.nativeModel).toBeUndefined()
   })
 
   it('retains model source for parameter edits and rejects an editor draft after an external edit', async () => {

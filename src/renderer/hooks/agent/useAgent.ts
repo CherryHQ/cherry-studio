@@ -23,7 +23,7 @@ import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import { AGENTS_MAX_LIMIT } from '@shared/data/api/schemas/agents'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
-import type { CliConfigTarget, CliConfigWriteFile } from '@shared/utils/cliConfig'
+import type { CliConfigTarget } from '@shared/utils/cliConfig'
 
 type Result<T> = { success: true; data: T } | { success: false; error: Error }
 type UpdateAgentModelInput = {
@@ -183,7 +183,6 @@ export const useUpdateAgent = () => {
         path: string
         content: string | null
       }[]
-      files?: CliConfigWriteFile[]
     }
   ) => {
     try {

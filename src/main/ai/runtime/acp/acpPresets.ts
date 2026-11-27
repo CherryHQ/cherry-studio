@@ -22,7 +22,6 @@ import { antigravityCli } from '@cherrystudio/agent-runtime-antigravity-acp/cli'
 import { clinePreset } from '@cherrystudio/agent-runtime-cline-acp'
 import { codeBuddyPreset } from '@cherrystudio/agent-runtime-codebuddy-acp'
 import {
-  copilotGateway,
   copilotModelProfile,
   readCopilotAccount,
   readCopilotSubscriptionUsage
@@ -31,18 +30,16 @@ import { copilotCli } from '@cherrystudio/agent-runtime-copilot-acp/cli'
 import { deepAgentsPreset } from '@cherrystudio/agent-runtime-deepagents-acp'
 import { dshEnvironment, dshPreset, prepareDshChat } from '@cherrystudio/agent-runtime-deepseek-harness-acp'
 import {
-  factoryGateway,
   factoryModelProfile,
   readFactoryAccount,
   readFactorySubscriptionUsage
 } from '@cherrystudio/agent-runtime-factory-acp'
 import { factoryCli } from '@cherrystudio/agent-runtime-factory-acp/cli'
-import { glmGateway, glmModelProfile, readGlmSubscriptionUsage } from '@cherrystudio/agent-runtime-glm-acp'
+import { glmModelProfile, readGlmSubscriptionUsage } from '@cherrystudio/agent-runtime-glm-acp'
 import { glmCli } from '@cherrystudio/agent-runtime-glm-acp/cli'
 import { goosePreset } from '@cherrystudio/agent-runtime-goose-acp'
 import {
   createGrokAcpAdapter,
-  grokGateway,
   grokModelProfile,
   readGrokAccount,
   readGrokModelCatalog,
@@ -52,27 +49,25 @@ import { grokCli } from '@cherrystudio/agent-runtime-grok-acp/cli'
 import { hermesPreset } from '@cherrystudio/agent-runtime-hermes-acp'
 import { applyJunieGatewayModel } from '@cherrystudio/agent-runtime-junie-acp'
 import { junieCli } from '@cherrystudio/agent-runtime-junie-acp/cli'
-import { kimiGateway, kimiModelProfile, readKimiAccount } from '@cherrystudio/agent-runtime-kimi-acp'
+import { kimiModelProfile, readKimiAccount } from '@cherrystudio/agent-runtime-kimi-acp'
 import { kimiCli } from '@cherrystudio/agent-runtime-kimi-acp/cli'
 import { minimaxPreset } from '@cherrystudio/agent-runtime-minimax-acp'
-import { ompGateway, ompModelProfile } from '@cherrystudio/agent-runtime-omp-acp'
+import { ompModelProfile } from '@cherrystudio/agent-runtime-omp-acp'
 import { attachOpenClawGateway, openClawPreset, openClawEnvironment } from '@cherrystudio/agent-runtime-openclaw-acp'
 import {
-  kiloGatewayOverlay,
   kiloModelProfile,
   openCodeAcpAdapter,
-  openCodeGatewayOverlay,
   openCodeModelProfile,
   readOpenCodeGoSubscriptionUsage
 } from '@cherrystudio/agent-runtime-opencode-acp'
 import { openCodeCli } from '@cherrystudio/agent-runtime-opencode-acp/cli'
-import { piAcpAdapter, piGateway, piModelProfile, preparePiAcpLaunch } from '@cherrystudio/agent-runtime-pi-acp'
+import { piAcpAdapter, piModelProfile, preparePiAcpLaunch } from '@cherrystudio/agent-runtime-pi-acp'
 import { poolsidePreset } from '@cherrystudio/agent-runtime-poolside-acp'
 import { readQoderSubscriptionUsage } from '@cherrystudio/agent-runtime-qoder-acp'
 import { qoderCli, qoderGlobalCli } from '@cherrystudio/agent-runtime-qoder-acp/cli'
 import { qwenPreset } from '@cherrystudio/agent-runtime-qwen-acp'
 import { snowPreset } from '@cherrystudio/agent-runtime-snow-acp'
-import { readVibeAccount, vibeGateway, vibeModelProfile } from '@cherrystudio/agent-runtime-vibe-acp'
+import { readVibeAccount, vibeModelProfile } from '@cherrystudio/agent-runtime-vibe-acp'
 import { zcodePreset } from '@cherrystudio/agent-runtime-zcode-acp'
 import type { LaunchSpec, SpawnStdio } from '@cherrystudio/agent-runtime/stdio'
 import type { CliModelBinding } from '@main/ai/runtime/cli/cliModelProfile'
@@ -145,7 +140,6 @@ const presets: ReadonlyMap<string, DesktopAcpPreset> = new Map<string, DesktopAc
   [
     grokCli.id,
     {
-      gateway: grokGateway,
       profile: grokModelProfile,
       account: { transport: 'acp', read: readGrokAccount },
       readModelCatalog: readGrokModelCatalog,
@@ -168,17 +162,15 @@ const presets: ReadonlyMap<string, DesktopAcpPreset> = new Map<string, DesktopAc
     openCodeCli.id,
     {
       profile: openCodeModelProfile,
-      gatewayOverlay: openCodeGatewayOverlay,
       protocol: openCodeAcpAdapter,
       subscriptionUsage: { transport: 'cli', executable: openCodeCli.executable, read: readOpenCodeGoSubscriptionUsage }
     }
   ],
-  ['kilo', { profile: kiloModelProfile, gatewayOverlay: kiloGatewayOverlay }],
+  ['kilo', { profile: kiloModelProfile }],
   [
     glmCli.id,
     {
       profile: glmModelProfile,
-      gateway: glmGateway,
       subscriptionUsage: { transport: 'acp', read: readGlmSubscriptionUsage }
     }
   ],
@@ -186,16 +178,14 @@ const presets: ReadonlyMap<string, DesktopAcpPreset> = new Map<string, DesktopAc
     kimiCli.id,
     {
       profile: kimiModelProfile,
-      gateway: kimiGateway,
       account: { transport: 'acp', read: readKimiAccount },
       subscriptionUsage: { transport: 'acp', read: readNegotiatedAcpUsage }
     }
   ],
-  ['omp', { profile: ompModelProfile, gateway: ompGateway }],
+  ['omp', { profile: ompModelProfile }],
   [
     copilotCli.id,
     {
-      gateway: copilotGateway,
       profile: copilotModelProfile,
       account: { transport: 'cli', read: readCopilotAccount },
       subscriptionUsage: { transport: 'cli', executable: copilotCli.executable, read: readCopilotSubscriptionUsage }
@@ -205,7 +195,6 @@ const presets: ReadonlyMap<string, DesktopAcpPreset> = new Map<string, DesktopAc
     factoryCli.id,
     {
       profile: factoryModelProfile,
-      gateway: factoryGateway,
       account: { transport: 'acp', read: readFactoryAccount, args: factoryCli.accountArgs },
       subscriptionUsage: { transport: 'cli', executable: factoryCli.executable, read: readFactorySubscriptionUsage }
     }
@@ -221,16 +210,12 @@ const presets: ReadonlyMap<string, DesktopAcpPreset> = new Map<string, DesktopAc
       }
     }
   ],
-  [
-    'mistral-vibe',
-    { profile: vibeModelProfile, gateway: vibeGateway, account: { transport: 'acp', read: readVibeAccount } }
-  ],
+  ['mistral-vibe', { profile: vibeModelProfile, account: { transport: 'acp', read: readVibeAccount } }],
   [
     'pi-acp',
     {
       protocol: piAcpAdapter,
       profile: piModelProfile,
-      gateway: piGateway,
       prepareCommand: (command) =>
         preparePiAcpLaunch(command, {
           requireRuntime: requireLaunchRuntime,
