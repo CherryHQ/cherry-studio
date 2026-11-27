@@ -461,11 +461,15 @@ describe('previewAgentSystemPrompt', () => {
   it('loads bundled feedback skills without importing project instructions or external skills for Cherry Support', async () => {
     new CherrySupportSeeder().run(dbh.db)
     const session = agentSessionService.getLatestActive({ agentId: CHERRY_SUPPORT_AGENT_ID })!
-    const localSkill = path.join(session.workspace.path, '.agents', 'skills', 'workspace-skill')
+    const project = path.join(root, 'support-project')
+    const localSkill = path.join(project, '.agents', 'skills', 'workspace-skill')
     const piRoot = application.getPath('feature.agents.pi.root')
     await mkdir(localSkill, { recursive: true })
     await mkdir(piRoot, { recursive: true })
-    await writeFile(path.join(session.workspace.path, 'AGENTS.md'), 'Workspace instruction marker')
+    const workspace = agentWorkspaceService.findOrCreateByPath(project)
+    agentSessionService.setWorkspace(session.id, { type: 'user', workspaceId: workspace.id })
+    await writeFile(path.join(project, 'system.md'), 'Workspace system prompt marker')
+    await writeFile(path.join(project, 'AGENTS.md'), 'Workspace instruction marker')
     await writeFile(path.join(piRoot, 'AGENTS.md'), 'Global instruction marker')
     await writeFile(
       path.join(localSkill, 'SKILL.md'),
@@ -477,6 +481,8 @@ describe('previewAgentSystemPrompt', () => {
       draft({ agentId: CHERRY_SUPPORT_AGENT_ID, sessionId: session.id, skillIds: ['global-skill'] })
     )
 
+    expect(block(preview, 'cwd')?.text).toBe(workspace.path.replaceAll('\\', '/'))
+    expect(block(preview, 'workspace_system')).toBeUndefined()
     expect(block(preview, 'project_context')).toBeUndefined()
     const skills = block(preview, 'skills')?.text
     expect(skills).toContain('cherry-studio-feedback')

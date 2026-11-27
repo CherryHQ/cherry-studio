@@ -197,7 +197,7 @@ Runtime adapters own only native mechanics:
 
 | Runtime-neutral Cherry policy | Runtime-specific carrier |
 |---|---|
-| `system.md` selects native vs custom base; Cherry append survives either choice | Claude maps into its preset/custom prompt, Pi uses system/append overrides. |
+| Open Agents can select a custom base with `system.md`. Cherry append applies to either base. | Claude maps into its preset/custom prompt, Pi uses system/append overrides. |
 | Common append text and block order | Claude uses the preset's `append`; Pi uses `appendSystemPromptOverride`. |
 | Workspace instruction authority | Claude uses native `CLAUDE.md` / `AGENTS.md` loading with `claude-md-and-agents-md`. Pi and Pi Durable load Pi's native context files. Claude Code and Pi Durable skip native project instructions for sealed Agents. |
 | Enabled managed skill content | Claude injects plugins and settings. Pi uses `additionalSkillPaths`. Pi Durable combines bundled skills with managed and workspace skills for open Agents and uses only bundled skills for sealed Agents. |
