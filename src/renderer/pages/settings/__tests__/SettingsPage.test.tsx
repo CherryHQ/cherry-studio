@@ -82,6 +82,7 @@ vi.mock('react-i18next', () => ({
         'settings.menuGroups.personal': '偏好',
         'settings.menuGroups.quickAccess': '快捷入口',
         'settings.menuGroups.system': '系统',
+        'settings.memory.title': zhCN['settings.memory.title'],
         'settings.model': '默认模型',
         'settings.computerUse.title': '电脑操作',
         'settings.browser.title': '浏览器',
@@ -183,15 +184,19 @@ describe('SettingsPage', () => {
     expect(navigateMock).toHaveBeenCalledWith({ to: '/settings/dependencies' })
   })
 
-  it('opens skills and built-in prompt management', () => {
+  it('opens skills, shared memory, and built-in tools under one Tools group', () => {
     render(<SettingsPage />)
 
     const skillsItem = screen.getByRole('button', { name: '技能' })
+    const memoryItem = screen.getByRole('button', { name: '共享记忆' })
 
     fireEvent.click(skillsItem)
     expect(navigateMock).toHaveBeenCalledWith({ to: '/settings/skills' })
+    fireEvent.click(memoryItem)
+    expect(navigateMock).toHaveBeenCalledWith({ to: '/settings/memory' })
 
     const builtinToolsItem = screen.getByRole('button', { name: '内置工具' })
+    expect(screen.getAllByText('工具')).toHaveLength(1)
     fireEvent.click(builtinToolsItem)
     expect(navigateMock).toHaveBeenCalledWith({ to: '/settings/prompts' })
   })

@@ -46,6 +46,7 @@ export interface AssistantFormState {
   enableMaxToolCalls: boolean
   customParameters: CustomParameter[]
   enableBrowser: boolean
+  enableSharedMemory: boolean
   mcpMode: AssistantSettings['mcpMode']
   /** `settings.replyLanguage` in the Agent form's shape, so both share the reply language select. */
   languageMode: AgentLanguageMode
@@ -99,6 +100,7 @@ export function initialAssistantFormState(assistant: Assistant): AssistantFormSt
     enableMaxToolCalls: settings.enableMaxToolCalls ?? true,
     customParameters: settings.customParameters ?? [],
     enableBrowser: settings.enableBrowser ?? true,
+    enableSharedMemory: settings.enableSharedMemory === true,
     mcpMode: mcpMode.success ? mcpMode.data : DEFAULT_ASSISTANT_SETTINGS.mcpMode,
     languageMode: settings.replyLanguage?.mode ?? 'off',
     languageCustom: settings.replyLanguage?.mode === 'custom' ? settings.replyLanguage.language : '',
@@ -181,6 +183,7 @@ export function diffAssistantUpdate(
     ...(baseline.maxToolCalls !== form.maxToolCalls ? { maxToolCalls: form.maxToolCalls } : {}),
     ...(baseline.enableMaxToolCalls !== form.enableMaxToolCalls ? { enableMaxToolCalls: form.enableMaxToolCalls } : {}),
     ...(baseline.enableBrowser !== form.enableBrowser ? { enableBrowser: form.enableBrowser } : {}),
+    ...(baseline.enableSharedMemory !== form.enableSharedMemory ? { enableSharedMemory: form.enableSharedMemory } : {}),
     ...(baseline.mcpMode !== form.mcpMode ? { mcpMode: form.mcpMode } : {}),
     ...(replyLanguage ? { replyLanguage } : {}),
     ...(customParametersChanged ? { customParameters: form.customParameters } : {}),

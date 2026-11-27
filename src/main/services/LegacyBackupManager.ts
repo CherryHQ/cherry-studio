@@ -383,6 +383,7 @@ class BackupManager {
         const aiStreamManager = application.get('AiStreamManager')
         const jobManager = application.get('JobManager')
         const agentJobs = application.get('AgentJobsService')
+        const memory = application.get('MemoryService')
         const artifactBackfill = application.get('ArtifactBackfillService')
         const writerHolds: Array<{ dispose(): void }> = []
         try {
@@ -390,10 +391,12 @@ class BackupManager {
           writerHolds.push(agentLifecycle.pauseExecution(quiesceReason))
           writerHolds.push(agentJobs.pause(quiesceReason))
           writerHolds.push(jobManager.pause(quiesceReason))
+          writerHolds.push(memory.pause(quiesceReason))
           writerHolds.push(artifactBackfill.pause())
 
           const writerVerdicts = await Promise.all([
             agentJobs.drainInFlight({ timeoutMs: QUIESCE_TIMEOUT_MS }),
+            memory.drainInFlight({ timeoutMs: QUIESCE_TIMEOUT_MS }),
             aiStreamManager.drainInFlight({ timeoutMs: QUIESCE_TIMEOUT_MS }),
             agentLifecycle.drainInFlight({ timeoutMs: QUIESCE_TIMEOUT_MS }),
             jobManager.drainInFlight({ timeoutMs: QUIESCE_TIMEOUT_MS }),
@@ -970,13 +973,16 @@ class BackupManager {
         this.assertWritersDrained([heartbeatVerdict])
         this.assertWritersDrained([await agentLifecycle.drainIngress({ timeoutMs: QUIESCE_TIMEOUT_MS })])
         const aiStreamManager = application.get('AiStreamManager')
+        const memory = application.get('MemoryService')
         const artifactBackfill = application.get('ArtifactBackfillService')
         writerHolds.push(aiStreamManager.pause('backup restore'))
+        writerHolds.push(memory.pause('backup restore'))
         writerHolds.push(agentLifecycle.pauseExecution('backup restore'))
         writerHolds.push(artifactBackfill.pause())
         this.assertWritersDrained(
           await Promise.all([
             aiStreamManager.drainInFlight({ timeoutMs: QUIESCE_TIMEOUT_MS }),
+            memory.drainInFlight({ timeoutMs: QUIESCE_TIMEOUT_MS }),
             agentLifecycle.drainInFlight({ timeoutMs: QUIESCE_TIMEOUT_MS }),
             artifactBackfill.drainInFlight({ timeoutMs: QUIESCE_TIMEOUT_MS })
           ])
@@ -1001,6 +1007,7 @@ class BackupManager {
         }
         writeRestoreJournal(journal)
         journalCommitted = true
+        memory.invalidateAll()
 
         onProgress({ stage: 'completed', progress: 100, total: 100 })
         logger.info('[restoreDirect] Restore journal committed and ready for relaunch', { restoreId })
