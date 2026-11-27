@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-27-translation-cancel-settlement.md
+2026-11-27-translation-cancel-settlement.md: 31b3c903b71dbc8d0d7db4fe6b7382d6ae5651ae
+2026-11-27-translation-cancel-settlement.zh.md: 61bcd5aa6c1d6217ac702059af45a228a3e90972

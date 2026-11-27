@@ -530,6 +530,25 @@ describe('MessageAnchorLine', () => {
   })
 
   describe('strip geometry', () => {
+    it('updates the active turn without measuring the strip again when the reply changes', () => {
+      restoreGeometry = installRailGeometry({ scrollHeight: 400, clientHeight: RAIL_VIEWPORT_PX }).restore
+      const initial = makeTurnMessages(40)
+      const { container, rerender } = renderRail({ messages: initial, activeMessageId: 'turn-assistant-39' })
+      const strip = container.querySelector<HTMLElement>('.overflow-y-auto')!
+      const readHeight = vi.fn(() => 400)
+      Object.defineProperty(strip, 'scrollHeight', { configurable: true, get: readHeight })
+      const reply = makeMessage({ id: 'replacement-reply', role: 'assistant', parentId: 'turn-user-37' })
+      const next = initial.map((message) => (message.id === 'turn-assistant-37' ? reply : message))
+
+      rerender(rail({ messages: next, activeMessageId: reply.id }))
+
+      expect(container.querySelector('[aria-current="true"]')).toHaveAccessibleName(
+        'chat.navigation.anchor.jump_to_turn 38'
+      )
+      expect(strip.scrollTop).toBe(400 - RAIL_VIEWPORT_PX)
+      expect(readHeight).not.toHaveBeenCalled()
+    })
+
     it('centers a short strip while older history loads and after resizing', () => {
       const metrics = { wrapperHeight: RAIL_HEIGHT_PX, scrollHeight: 50, clientHeight: RAIL_VIEWPORT_PX }
       const geometry = installRailGeometry(metrics)

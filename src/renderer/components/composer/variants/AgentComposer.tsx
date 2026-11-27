@@ -478,7 +478,8 @@ function AgentComposerContextUsage({ model, sessionId }: { model?: Model; sessio
   const { t } = useTranslation()
   const { percentage, usage } = useAgentSessionContextUsage(sessionId, model)
   const compaction = useAgentSessionCompaction(sessionId)
-  if (percentage === null || !usage) return null
+  // Keep the adjacent controls in place while the runtime provides its first reading.
+  if (percentage === null || !usage) return <span aria-hidden="true" className="size-5 shrink-0" />
 
   const isCompacting = compaction.status === 'compacting'
   const label = t('agent.right_pane.info.context_usage')

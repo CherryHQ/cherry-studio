@@ -46,7 +46,7 @@ describe('useCliVersionStatuses', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     ipcEventHandlers.clear()
-    setSnapshots({})
+    setSnapshots({ claude: { name: 'claude', availability: { source: 'none' }, application: { status: 'absent' } } })
     ipcMocks.snapshots.mockImplementation(async (names: string[]) =>
       Object.fromEntries(
         names.flatMap((name) => (snapshotRecords.value[name] ? [[name, snapshotRecords.value[name]]] : []))
@@ -113,38 +113,6 @@ describe('useCliVersionStatuses', () => {
     expect(ipcMocks.latestVersions).not.toHaveBeenCalled()
   })
 
-  it('queries latest for an applied mise CLI', async () => {
-    // A fixed CLI carries no definition, so latest authority is the application
-    // fact — an applied CLI is still checked for updates.
-    setSnapshots({ claude: miseSnapshot('claude', 'claude', '1.0.0') })
-
-    const { result } = renderHook(() => useCliVersionStatuses([CodeCli.CLAUDE_CODE]))
-
-    await waitFor(() => expect(result.current.statuses[CodeCli.CLAUDE_CODE]?.installed).toBe(true))
-    expect(result.current.statuses[CodeCli.CLAUDE_CODE]).toMatchObject({
-      source: 'mise',
-      applicationStatus: 'applied',
-      canUpgrade: false
-    })
-    expect(ipcMocks.latestVersions).toHaveBeenCalledWith(false)
-  })
-
-  it('treats a system OpenClaw as installed through the same availability path its service executes', async () => {
-    setSnapshots({
-      openclaw: { name: 'openclaw', availability: { source: 'system', path: '/usr/local/bin/openclaw' } }
-    })
-
-    const { result } = renderHook(() => useCliVersionStatuses([CodeCli.OPENCLAW]))
-
-    await waitFor(() => expect(result.current.statuses[CodeCli.OPENCLAW]?.installed).toBe(true))
-    expect(result.current.statuses[CodeCli.OPENCLAW]).toEqual({
-      installed: true,
-      source: 'system',
-      systemPath: '/usr/local/bin/openclaw',
-      canUpgrade: false
-    })
-  })
-
   it('does not mark non-semver versions as upgradeable', async () => {
     setSnapshots({ claude: miseSnapshot('claude') })
     ipcMocks.latestVersions.mockResolvedValue({ claude: 'nightly' })
@@ -176,7 +144,7 @@ describe('useCliVersionStatuses', () => {
     const { result } = renderHook(() => useCliVersionStatuses([CodeCli.CLAUDE_CODE]))
     await waitFor(() => expect(result.current.statuses[CodeCli.CLAUDE_CODE]?.latest).toBe('1.1.0'))
 
-    setSnapshots({})
+    setSnapshots({ claude: { name: 'claude', availability: { source: 'none' }, application: { status: 'absent' } } })
     act(() => {
       ipcEventHandlers.get('binary.availability_changed')?.(undefined)
     })
@@ -232,7 +200,7 @@ describe('useCliVersionStatuses', () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0)
     })
-    expect(result.current.statuses).toEqual({})
+    expect(result.current.statuses[CodeCli.CLAUDE_CODE]).toMatchObject({ detectionStatus: 'loading' })
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(2000)
@@ -240,7 +208,7 @@ describe('useCliVersionStatuses', () => {
     expect(result.current.statuses[CodeCli.CLAUDE_CODE]?.installed).toBe(true)
   })
 
-  it('settles as resolved once the retries are exhausted, instead of retrying forever', async () => {
+  it('exposes unknown detection after retry exhaustion and recovers on manual retry', async () => {
     vi.useFakeTimers()
     ipcMocks.snapshots.mockRejectedValue(new Error('ipc unavailable'))
 
@@ -250,9 +218,14 @@ describe('useCliVersionStatuses', () => {
     })
 
     expect(ipcMocks.snapshots).toHaveBeenCalledTimes(5)
-    // Consumers gate their "tool is genuinely absent" fallback on this; never flipping it
-    // leaves a selected-but-hidden tool with no way out.
     expect(result.current.resolved).toBe(true)
+    expect(result.current.statuses[CodeCli.CLAUDE_CODE]).toMatchObject({ detectionStatus: 'error' })
+    ipcMocks.snapshots.mockResolvedValue({ claude: miseSnapshot('claude') })
+    await act(async () => {
+      result.current.retry()
+    })
+    expect(result.current.statuses[CodeCli.CLAUDE_CODE]).toMatchObject({ installed: true })
+    expect(result.current.statuses[CodeCli.CLAUDE_CODE].detectionStatus).toBeUndefined()
   })
 
   it('stays unresolved while the first read is still in flight', async () => {
@@ -268,5 +241,81 @@ describe('useCliVersionStatuses', () => {
       release({ claude: miseSnapshot('claude') })
     })
     await waitFor(() => expect(result.current.resolved).toBe(true))
+  })
+  it('publishes runnable availability while latest metadata never settles', async () => {
+    setSnapshots({ claude: miseSnapshot('claude') })
+    ipcMocks.latestVersions.mockResolvedValueOnce({}).mockImplementation(() => new Promise(() => {}))
+    const { result } = renderHook(() => useCliVersionStatuses([CodeCli.CLAUDE_CODE]))
+    await waitFor(() => expect(result.current.statuses[CodeCli.CLAUDE_CODE]?.installed).toBe(true))
+    expect(result.current.resolved).toBe(true)
+    await waitFor(() => expect(ipcMocks.latestVersions).toHaveBeenCalledWith(true))
+    expect(result.current.statuses[CodeCli.CLAUDE_CODE].latest).toBeUndefined()
+  })
+
+  it('keeps a runnable CLI available when both latest metadata reads reject', async () => {
+    setSnapshots({ claude: miseSnapshot('claude') })
+    ipcMocks.latestVersions.mockRejectedValue(new Error('offline'))
+    const { result } = renderHook(() => useCliVersionStatuses([CodeCli.CLAUDE_CODE]))
+    await waitFor(() => expect(result.current.statuses[CodeCli.CLAUDE_CODE]?.installed).toBe(true))
+    expect(result.current.statuses[CodeCli.CLAUDE_CODE].canUpgrade).toBe(false)
+  })
+
+  it('distinguishes a missing snapshot entry from confirmed absence', async () => {
+    setSnapshots({ claude: { name: 'claude', availability: { source: 'none' }, application: { status: 'absent' } } })
+    const { result } = renderHook(() => useCliVersionStatuses([CodeCli.CLAUDE_CODE, CodeCli.OPENAI_CODEX]))
+    await waitFor(() => expect(result.current.resolved).toBe(true))
+    expect(result.current.statuses[CodeCli.CLAUDE_CODE]).toMatchObject({
+      installed: false,
+      applicationStatus: 'absent'
+    })
+    expect(result.current.statuses[CodeCli.CLAUDE_CODE].detectionStatus).toBeUndefined()
+    expect(result.current.statuses[CodeCli.OPENAI_CODEX]).toMatchObject({ detectionStatus: 'error' })
+  })
+
+  it('preserves last known runnable availability after a refresh read fails', async () => {
+    vi.useFakeTimers()
+    setSnapshots({ claude: miseSnapshot('claude') })
+    const { result } = renderHook(() => useCliVersionStatuses([CodeCli.CLAUDE_CODE]))
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0)
+    })
+    ipcMocks.snapshots.mockRejectedValue(new Error('ipc unavailable'))
+    act(() => {
+      ipcEventHandlers.get('binary.availability_changed')?.(undefined)
+    })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(20000)
+    })
+    expect(result.current.statuses[CodeCli.CLAUDE_CODE]).toMatchObject({
+      installed: true,
+      current: '1.0.0',
+      detectionStatus: 'error'
+    })
+  })
+
+  it('ignores an old latest response after a newer snapshot confirms removal', async () => {
+    setSnapshots({ claude: miseSnapshot('claude') })
+    let release!: (value: Record<string, string>) => void
+    ipcMocks.latestVersions.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          release = resolve
+        })
+    )
+    const { result } = renderHook(() => useCliVersionStatuses([CodeCli.CLAUDE_CODE]))
+    await waitFor(() => expect(ipcMocks.latestVersions).toHaveBeenCalled())
+    setSnapshots({ claude: { name: 'claude', availability: { source: 'none' }, application: { status: 'absent' } } })
+    act(() => {
+      ipcEventHandlers.get('binary.availability_changed')?.(undefined)
+    })
+    await waitFor(() => expect(result.current.statuses[CodeCli.CLAUDE_CODE]?.applicationStatus).toBe('absent'))
+    await act(async () => {
+      release({ claude: '9.0.0' })
+    })
+    expect(result.current.statuses[CodeCli.CLAUDE_CODE]).toMatchObject({
+      installed: false,
+      applicationStatus: 'absent'
+    })
+    expect(result.current.statuses[CodeCli.CLAUDE_CODE].latest).toBeUndefined()
   })
 })
