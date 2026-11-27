@@ -1,15 +1,16 @@
+import { spawn } from 'node:child_process'
 import { existsSync } from 'node:fs'
-import { mkdir, mkdtemp, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import type { ServerResponse } from 'node:http'
 import path from 'node:path'
 
-import { type HookCallback, type PermissionMode, query } from '@anthropic-ai/claude-agent-sdk'
+import { type HookCallback, type PermissionMode, query, type SpawnOptions } from '@anthropic-ai/claude-agent-sdk'
 import { startTestHttpServer, type TestHttpServer } from '@test-helpers/http/server'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import { resolveSandboxPolicy } from '@main/ai/toolApproval/sandboxPolicy'
 
-import { sandboxEscapeGuidance, toClaudeCodeSandboxSettings } from '../sandboxSettings'
+import { assertSandboxSettingsUnchanged, sandboxEscapeGuidance, toClaudeCodeSandboxSettings } from '../sandboxSettings'
 
 // Each case starts the native CLI and runs one Bash turn.
 vi.setConfig({ testTimeout: 90_000 })
@@ -57,6 +58,16 @@ function reply(res: ServerResponse, model: string, block: ReplyBlock, stopReason
   res.end()
 }
 
+// Seatbelt refuses a nested profile, so the CLI's own sandbox cannot apply inside this one.
+function spawnInsideSeatbelt({ command, args, cwd, env, signal }: SpawnOptions) {
+  return spawn('/usr/bin/sandbox-exec', ['-p', '(version 1)(allow default)', command, ...args], {
+    cwd,
+    env,
+    signal,
+    stdio: ['pipe', 'pipe', 'ignore']
+  })
+}
+
 // Mirrors how the session hooks feed a sandboxed Bash result to `sandboxEscapeGuidance`.
 const escapeGuidanceHook: HookCallback = async (input) => {
   if (input.hook_event_name !== 'PostToolUse' && input.hook_event_name !== 'PostToolUseFailure') return {}
@@ -99,7 +110,11 @@ describe.runIf(process.platform === 'darwin')('Claude Code shell sandbox on macO
     if (root) await rm(root, { recursive: true, force: true })
   })
 
-  async function runBash(input: Record<string, unknown>, permissionMode: PermissionMode) {
+  async function runBash(
+    input: Record<string, unknown>,
+    permissionMode: PermissionMode,
+    spawnClaudeCodeProcess?: typeof spawnInsideSeatbelt
+  ) {
     let toolResult: string | undefined
     let toolSent = false
     const model = await startTestHttpServer((req, res) => {
@@ -140,6 +155,7 @@ describe.runIf(process.platform === 'darwin')('Claude Code shell sandbox on macO
           },
           settingSources: [],
           sandbox: toClaudeCodeSandboxSettings(policy),
+          ...(spawnClaudeCodeProcess ? { spawnClaudeCodeProcess } : {}),
           permissionMode,
           allowDangerouslySkipPermissions: true,
           model: 'claude-sonnet-4-6',
@@ -217,6 +233,36 @@ describe.runIf(process.platform === 'darwin')('Claude Code shell sandbox on macO
     expect(toolResult).toContain(`deny network-outbound ${PUBLIC_HOST}:80`)
     expect(toolResult).toContain(`The sandbox blocked network access to ${PUBLIC_HOST}.`)
     expect(toolResult).toContain('`dangerouslyDisableSandbox: true`')
+  })
+
+  it.each(['acceptEdits', 'bypassPermissions'] as const)(
+    'runs no Bash command when the sandbox cannot be applied in %s mode (AC11)',
+    async (mode) => {
+      const marker = path.join(root, 'work', `unsandboxed-${mode}.txt`)
+
+      const { toolResult, approvals } = await runBash(
+        { command: `touch '${marker}'`, description: 'sandbox start probe' },
+        mode,
+        spawnInsideSeatbelt
+      )
+
+      expect(approvals).toEqual([])
+      expect(toolResult).toContain('sandbox_apply: Operation not permitted')
+      expect(existsSync(marker)).toBe(false)
+    }
+  )
+
+  it('refuses the sandbox when a real settings tier changes it (AC11)', async () => {
+    const project = path.join(root, 'project-settings')
+    await mkdir(path.join(project, '.claude'), { recursive: true })
+    const settingsFile = path.join(project, '.claude', 'settings.json')
+    const options = { cwd: project, settingSources: ['project' as const] }
+
+    await writeFile(settingsFile, JSON.stringify({ permissions: { allow: ['Read(*)'] } }))
+    await expect(assertSandboxSettingsUnchanged(options)).resolves.toBeUndefined()
+
+    await writeFile(settingsFile, JSON.stringify({ sandbox: { excludedCommands: ['gh *'] } }))
+    await expect(assertSandboxSettingsUnchanged(options)).rejects.toThrow('project: sandbox')
   })
 
   it('routes a request to leave the sandbox to canUseTool and does not run it when denied (AC3)', async () => {
