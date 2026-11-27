@@ -4,6 +4,7 @@ import { loggerService } from '@logger'
 import { resolveAiSdkProviderId, resolveEndpointProviderOptionsKey } from '@main/ai/provider/endpoint'
 import { ToolContinuationRouteError } from '@main/ai/provider/replayRoute'
 import type { CallOverrides, InProcessUsageContext } from '@main/ai/types'
+import { deriveAgentSessionRoutingKey, usesOpenRouterSessionRouting } from '@main/ai/utils/agentSessionRouting'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 
 import { MessageConverterFactory, type StreamAdapterOptions } from './adapters'
@@ -141,6 +142,20 @@ export async function prepareGatewayMessage(config: MessageConfig) {
   const providerOptions = agentSessionId
     ? applyAgentPromptCacheKey(provider, model, extractedProviderOptions, agentSessionId)
     : extractedProviderOptions
+  const providerSessionHeader = Object.keys(provider.settings?.extraHeaders ?? {}).find(
+    (name) => name.toLowerCase() === 'x-session-id'
+  )
+  const agentSessionRoutingHeaders =
+    agentSessionId &&
+    endpoint.endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES &&
+    usesOpenRouterSessionRouting(provider, endpoint.endpointType)
+      ? {
+          [providerSessionHeader ?? 'x-session-id']:
+            config.requestHeaders?.get('x-session-id') ??
+            new Headers(provider.settings?.extraHeaders).get('x-session-id') ??
+            deriveAgentSessionRoutingKey(agentSessionId)
+        }
+      : undefined
 
   // 3. Assemble first-class per-request overrides (sampling / tools / provider options).
   const callOverrides: CallOverrides = {
@@ -156,7 +171,15 @@ export async function prepareGatewayMessage(config: MessageConfig) {
     }),
     ...(converter.toClientToolName ? { toClientToolName: converter.toClientToolName.bind(converter) } : {})
   }
-  return { ...request, messages, convertedMessages, callOverrides, adapterOptions, internal }
+  return {
+    ...request,
+    messages,
+    convertedMessages,
+    callOverrides,
+    adapterOptions,
+    internal,
+    agentSessionRoutingHeaders
+  }
 }
 
 export function gatewayPromptOptions(
@@ -170,6 +193,7 @@ export function gatewayPromptOptions(
     resolvedModel: request.resolvedModel,
     messages: request.messages,
     callOverrides: request.callOverrides,
+    ...(request.agentSessionRoutingHeaders ? { headers: request.agentSessionRoutingHeaders } : {}),
     contextOwner: 'caller' as const,
     ...(request.adapterOptions.captureReplay && { replayProviderState: true }),
     ...(usageContext ? { usageContext } : {}),

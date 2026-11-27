@@ -180,6 +180,22 @@ function mergeAnthropicCustomHeaders(...sources: CustomHeaderSource[]): string |
     .join('\n')
 }
 
+function selectAnthropicCustomHeader(
+  source: string | undefined,
+  headerName: string
+): Record<string, string> | undefined {
+  if (!source) return undefined
+  const expectedName = headerName.toLowerCase()
+  let selectedHeader: Record<string, string> | undefined
+  for (const line of source.split('\n')) {
+    const separator = line.indexOf(':')
+    if (separator < 0) continue
+    const name = line.slice(0, separator).trim()
+    if (name.toLowerCase() === expectedName) selectedHeader = { [name]: line.slice(separator + 1).trim() }
+  }
+  return selectedHeader
+}
+
 function buildUsageModels(
   entries: Array<{ sdkModelId: string; ref: RuntimeModelRef }>
 ): Extract<AgentSessionUsageCapture, { owner: 'agent-sdk' }>['frozenModels'] {
@@ -917,9 +933,11 @@ function mergeRuntimeSettings(
           [CHERRY_FAST_MODE_HEADER]: String(requestOptions.fastMode === true)
         }
       : undefined
+  const explicitAgentSessionHeader = selectAnthropicCustomHeader(settings.env?.ANTHROPIC_CUSTOM_HEADERS, 'x-session-id')
   const customHeaders = mergeAnthropicCustomHeaders(
     settings.env?.ANTHROPIC_CUSTOM_HEADERS,
     route.customHeaders,
+    explicitAgentSessionHeader,
     requestHeaders
   )
   const env = mergeAgentLoopbackProxyBypass(
