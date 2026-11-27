@@ -56,6 +56,7 @@ export interface CallOverrides {
   /** Client tool definitions WITHOUT `execute` — the model emits the call and the gateway forwards it. */
   tools?: ToolSet
   toolChoice?: ToolChoice<ToolSet>
+  activeTools?: string[]
   providerOptions?: ProviderOptions
 }
 

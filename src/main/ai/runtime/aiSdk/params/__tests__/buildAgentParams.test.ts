@@ -6,7 +6,7 @@ import { createOpenAI } from '@ai-sdk/openai'
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import type { LanguageModelV3CallOptions } from '@ai-sdk/provider'
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
-import { InvalidToolInputError, type Tool, type ToolSet } from 'ai'
+import { generateText, InvalidToolInputError, tool, type Tool, type ToolSet } from 'ai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as z from 'zod'
 
@@ -657,6 +657,46 @@ describe('buildAgentParams standard model parameters', () => {
     })
     return { provider, model }
   }
+
+  it('keeps caller tool restrictions through parameter assembly onto the provider wire', async () => {
+    const { provider, model } = makeSetup(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
+    const { options, tools } = await buildAgentParams({
+      request: {
+        conversation: CONVERSATION,
+        contextOwner: 'caller',
+        callOverrides: {
+          tools: {
+            read: tool({ inputSchema: z.object({ path: z.string() }) }),
+            remove: tool({ inputSchema: z.object({ path: z.string() }) })
+          },
+          toolChoice: 'required',
+          activeTools: ['read']
+        }
+      },
+      signal: undefined,
+      provider,
+      model
+    })
+    let body: { tools?: { functionDeclarations: { name: string }[] }[]; toolConfig?: unknown } = {}
+    const google = createGoogleGenerativeAI({
+      apiKey: 'test-key',
+      fetch: async (_input, init) => {
+        body = JSON.parse(String(init?.body))
+        return new Response(
+          JSON.stringify({
+            candidates: [{ content: { role: 'model', parts: [{ text: 'OK' }] }, finishReason: 'STOP' }]
+          }),
+          {
+            headers: { 'content-type': 'application/json' }
+          }
+        )
+      }
+    })
+    await generateText({ ...options, model: google('gemini-2.5-flash'), tools, prompt: 'Read a file.' })
+    expect(body.toolConfig).toEqual({ functionCallingConfig: { mode: 'ANY' } })
+    expect(body.tools?.[0].functionDeclarations.map((declaration) => declaration.name)).toEqual(['read'])
+    expect(tools).toHaveProperty('remove')
+  })
 
   it('passes enabled assistant sampling settings directly to ToolLoopAgent options', async () => {
     const { provider, model } = makeSetup(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)

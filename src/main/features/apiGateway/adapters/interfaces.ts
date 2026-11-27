@@ -60,6 +60,7 @@ export interface StreamTextOptions {
   topK?: number
   stopSequences?: string[]
   toolChoice?: ToolChoice<ToolSet>
+  activeTools?: string[]
 }
 
 /**
