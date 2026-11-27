@@ -222,8 +222,20 @@ const TranslatePage: FC = () => {
   const [translateOutput, setTranslateOutput] = useCache('translate.output')
   const [isDetecting, setIsDetecting] = useCache('translate.detecting')
 
-  // Every output write goes through smoothReset: a direct setTranslateOutput is replayed over by the queue's next frame.
-  const { reset: resetOutputStream, update: smoothUpdate } = useSmoothStream({ onUpdate: setTranslateOutput })
+  const {
+    translate: runTranslate,
+    isTranslating,
+    cancel
+  } = useTranslate({
+    loggerContext: 'TranslatePage',
+    onResponse: (text, isComplete) => smoothUpdate(text, isComplete)
+  })
+
+  const { reset: resetOutputStream, update: smoothUpdate } = useSmoothStream({
+    onUpdate: setTranslateOutput,
+    streamDone: !isTranslating,
+    initialText: translateOutput
+  })
   const [outputRevision, setOutputRevision] = useState(0)
   const smoothReset = useCallback(
     (text = '') => {
@@ -232,14 +244,6 @@ const TranslatePage: FC = () => {
     },
     [resetOutputStream]
   )
-  const {
-    translate: runTranslate,
-    isTranslating,
-    cancel
-  } = useTranslate({
-    loggerContext: 'TranslatePage',
-    onResponse: smoothUpdate
-  })
   const [inputCopied, setInputCopied] = useTemporaryValue(false, 2000)
   const [outputCopied, setOutputCopied] = useTemporaryValue(false, 2000)
   const [historyOpen, setHistoryOpen] = useState(false)

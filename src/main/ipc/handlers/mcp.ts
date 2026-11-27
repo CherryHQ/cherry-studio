@@ -14,6 +14,13 @@ import type { IpcHandlersFor } from '@shared/ipc/types'
  * tool.call_progress / server.log events are emitted by the services, not here.
  */
 export const mcpHandlers: IpcHandlersFor<typeof mcpRequestSchemas> = {
+  'mcp.app.open': async (input, { senderId }) => {
+    if (!senderId) throw new Error('MCP App requires a managed window')
+    return application.get('McpAppViewService').open(senderId, input)
+  },
+  'mcp.app.close': async ({ id }, { senderId }) => {
+    if (senderId) await application.get('McpAppViewService').close(senderId, id)
+  },
   'mcp.catalog.observe': async ({ serverId, requestId }, { senderId }) => {
     if (!senderId) throw new Error('MCP catalog observation requires a managed window')
     application.get('McpRuntimeService').observeDesktopCatalog(senderId, requestId, serverId)
@@ -38,6 +45,14 @@ export const mcpHandlers: IpcHandlersFor<typeof mcpRequestSchemas> = {
   'mcp.server.refresh_tools': async ({ serverId }, { senderId }) => {
     // The caller's window lets an OAuth-only server (QVeris) open the sign-in browser.
     await application.get('McpCatalogService').refreshTools(serverId, senderId)
+  },
+  'mcp.server.list_skills': async ({ serverId, requestId, includeDisabled }, { senderId }) => {
+    if (!senderId) throw new Error('MCP skill discovery requires a managed window')
+    return application
+      .get('McpRuntimeService')
+      .runDesktopRequest(senderId, requestId, (signal) =>
+        application.get('McpCatalogService').listSkills(serverId, signal, includeDisabled)
+      )
   },
   'mcp.server.list_prompts': async ({ serverId }) => application.get('McpRuntimeService').listPrompts(serverId),
   'mcp.server.list_resources': async ({ serverId }) => application.get('McpRuntimeService').listResources(serverId),

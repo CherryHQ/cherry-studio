@@ -53,14 +53,12 @@ describe('durable delivery native branch admission', () => {
         const source = runtime.openTurnStream({ ...request, signal: new AbortController().signal })
         if (source.kind !== 'messages') throw new Error('Expected message projections')
         completion = (async () => {
-          let text = ''
           for await (const event of source.stream) {
             if (event.type === 'error') throw event.error
-            if (event.type === 'message')
-              text = event.parts.flatMap((part) => (part.type === 'text' ? [part.text] : [])).join('')
           }
+          const entries = source.readParts()
           runtime.markTurnTerminal(request.sessionId, 'success')
-          return text
+          return entries.flatMap(({ payload: part }) => (part.type === 'text' ? [part.text] : [])).join('')
         })()
       }
     })
@@ -93,7 +91,6 @@ describe('durable delivery native branch admission', () => {
                 replaces: {}
               }
             })
-            events.push({ type: 'chunk', chunk: { type: 'finish', finishReason: 'stop' } })
             events.push({ type: 'turn-complete' })
           },
           close: async () => {
@@ -149,7 +146,7 @@ describe('durable delivery native branch admission', () => {
       message: { role: 'assistant', status: 'success', data: { parts: [{ type: 'text', text: 'A history' }] } }
     })
     application.get('DbService').withWriteTx((tx) => reservePiBranchTx(tx, 'target', a.id, 'native-A'))
-    await runtime.primeConnection('target')
+    await runtime['commandConnection']('target')
     expect(runtime.getExecutionHead('target')).toBe(a.id)
     const b = messages.saveMessage({
       sessionId: 'target',
@@ -203,7 +200,7 @@ describe('durable delivery native branch admission', () => {
     expect(completion).toBeUndefined()
   })
 
-  it('keeps B history when a warm lease recreates A while its old connection closes', async () => {
+  it('keeps B history when a concurrent command requests the closing branch A while its old connection closes', async () => {
     const { delivery, b } = await prepare()
     const closing = Promise.withResolvers<void>()
     const release = Promise.withResolvers<void>()
@@ -214,7 +211,7 @@ describe('durable delivery native branch admission', () => {
     const service = new AgentSessionDeliveryService()
     service.kick('target')
     await closing.promise
-    runtime.acquireWarmLease('target', undefined)
+    await expect(runtime['commandConnection']('target')).rejects.toThrow('busy')
     release.resolve()
     await service.drainSessionQueues(['target'])
 

@@ -2,7 +2,7 @@ import type { RawMessageStreamEvent } from '@anthropic-ai/sdk/resources/messages
 import type { FinishReason, UIMessageChunk } from 'ai'
 import { describe, expect, it } from 'vitest'
 
-import { googleReasoningCache } from '../../reasoningCache'
+import { googleReasoningCache, openRouterReasoningCache } from '../../reasoningCache'
 import { AnthropicMessageConverter } from '../converters/AnthropicMessageConverter'
 import { AnthropicSseFormatter } from '../formatters/AnthropicSseFormatter'
 import { AiSdkToAnthropicSse } from '../stream/AiSdkToAnthropicSse'
@@ -273,6 +273,48 @@ describe('AiSdkToAnthropicSse', () => {
         return false
       })
       expect(toolBlocks.length).toBe(1)
+    })
+
+    it('replays the reasoning available at each call while sharing finalized provider details', () => {
+      const model = 'openrouter:test'
+      const adapter = new AiSdkToAnthropicSse({ model })
+      const encrypted = { type: 'reasoning.encrypted', data: 'opaque', extension: { version: 2 } }
+      const tail = { type: 'reasoning.text', text: 'first', signature: 'sig' }
+      const details = [encrypted, tail]
+      function publish(toolCallId: string) {
+        adapter.transformChunk({
+          type: 'tool-input-available',
+          toolName: 'Bash',
+          toolCallId,
+          input: {},
+          providerMetadata: { openrouter: { reasoning_details: details } }
+        })
+      }
+      publish('reason_1')
+      tail.text += ' second'
+      details.push({ ...encrypted, data: 'next' })
+      publish('reason_2')
+
+      const [message] = new AnthropicMessageConverter({ openRouterReasoningCache }).toUIMessages({
+        model,
+        max_tokens: 1024,
+        messages: [
+          {
+            role: 'assistant',
+            content: [
+              { type: 'tool_use', id: 'reason_1', name: 'Bash', input: {} },
+              { type: 'tool_use', id: 'reason_2', name: 'Bash', input: {} }
+            ]
+          }
+        ]
+      })
+      const replay = message.parts.map(
+        (part) => part.type === 'dynamic-tool' && part.callProviderMetadata?.openrouter?.reasoning_details
+      )
+      expect(replay).toEqual([[encrypted, { ...tail, text: 'first' }], details])
+      for (const captured of replay) {
+        expect(Array.isArray(captured) && captured[0]).toBe(encrypted)
+      }
     })
 
     // Anthropic's wire format has nowhere to carry Gemini's thought signature, and

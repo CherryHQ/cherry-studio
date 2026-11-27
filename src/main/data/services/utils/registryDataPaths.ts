@@ -8,7 +8,8 @@ import {
   CatalogManifestSchema,
   isCatalogManifestCompatible,
   type RegistryPaths,
-  REMOTE_REGISTRY_FILES
+  REMOTE_REGISTRY_FILES,
+  type RemoteRegistryFileName
 } from '@cherrystudio/provider-registry/node'
 
 /**
@@ -18,29 +19,68 @@ import {
 export const OVERRIDE_MANIFEST = 'manifest.json'
 
 /**
+ * Reason an existing override snapshot on disk is rejected. `file` names the
+ * first failing catalog file (`'manifest.json'` when the manifest itself fails).
+ */
+export interface OverrideSnapshotRejection {
+  file: RemoteRegistryFileName | typeof OVERRIDE_MANIFEST
+  cause: 'missing' | 'unparsable' | 'version-mismatch' | 'incompatible' | 'manifest-unparsable'
+}
+
+function inspectOverrideSnapshot(): { manifest: CatalogManifest } | { rejection: OverrideSnapshotRejection } | null {
+  const manifestPath = application.getPath('feature.provider_registry.override', OVERRIDE_MANIFEST)
+  if (!existsSync(manifestPath)) return null
+
+  let manifest: CatalogManifest
+  try {
+    manifest = CatalogManifestSchema.parse(JSON.parse(readFileSync(manifestPath, 'utf-8')))
+  } catch {
+    return { rejection: { file: OVERRIDE_MANIFEST, cause: 'manifest-unparsable' } }
+  }
+  if (!isCatalogManifestCompatible(manifest, app.getVersion())) {
+    return { rejection: { file: OVERRIDE_MANIFEST, cause: 'incompatible' } }
+  }
+
+  for (const file of REMOTE_REGISTRY_FILES) {
+    if (!existsSync(application.getPath('feature.provider_registry.override', file))) {
+      return { rejection: { file, cause: 'missing' } }
+    }
+  }
+  for (const file of REMOTE_REGISTRY_FILES) {
+    let data: unknown
+    try {
+      data = JSON.parse(readFileSync(application.getPath('feature.provider_registry.override', file), 'utf-8'))
+    } catch {
+      return { rejection: { file, cause: 'unparsable' } }
+    }
+    if (typeof data !== 'object' || data === null || Array.isArray(data)) {
+      return { rejection: { file, cause: 'unparsable' } }
+    }
+    const version = (data as { version?: unknown }).version
+    if (typeof version !== 'string' || version !== manifest.files[file]) {
+      return { rejection: { file, cause: 'version-mismatch' } }
+    }
+  }
+  return { manifest }
+}
+
+/**
+ * Report the first reason an on-disk override snapshot is rejected (`'manifest.json'`
+ * in `file` when the manifest itself fails), or `null` when absent or active.
+ */
+export function probeOverrideSnapshot(): OverrideSnapshotRejection | null {
+  const result = inspectOverrideSnapshot()
+  return result && 'rejection' in result ? result.rejection : null
+}
+
+/**
  * Read the active complete override manifest for this build. The provider file
  * is deliberately excluded: unsigned remote data may enrich models but cannot
  * replace credential-bearing routing configuration.
  */
 export function readActiveOverrideManifest(): CatalogManifest | null {
-  const manifestPath = application.getPath('feature.provider_registry.override', OVERRIDE_MANIFEST)
-  if (!existsSync(manifestPath)) return null
-  for (const file of REMOTE_REGISTRY_FILES) {
-    if (!existsSync(application.getPath('feature.provider_registry.override', file))) return null
-  }
-  try {
-    const manifest = CatalogManifestSchema.parse(JSON.parse(readFileSync(manifestPath, 'utf-8')))
-    if (!isCatalogManifestCompatible(manifest, app.getVersion())) return null
-    for (const file of REMOTE_REGISTRY_FILES) {
-      const data = JSON.parse(
-        readFileSync(application.getPath('feature.provider_registry.override', file), 'utf-8')
-      ) as { version?: unknown }
-      if (typeof data.version !== 'string' || data.version !== manifest.files[file]) return null
-    }
-    return manifest
-  } catch {
-    return null
-  }
+  const result = inspectOverrideSnapshot()
+  return result && 'manifest' in result ? result.manifest : null
 }
 
 /**

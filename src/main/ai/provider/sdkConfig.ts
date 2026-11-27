@@ -6,6 +6,7 @@ import type { AppProviderSettingsMap } from '../types'
 import { resolveProviderAiSdkConfig } from './config'
 import type { ServingCredentialReceipt } from './credential'
 import { type ResolvedEndpoint, resolveProviderOptionsKey, resolveWireModelId } from './endpoint'
+import { getReplayRouteId } from './replayRoute'
 
 export type AppProviderKey = StringKeys<AppProviderSettingsMap>
 
@@ -46,4 +47,12 @@ export async function resolveSdkConfig(
     },
     credentialReceipt
   }
+}
+
+export async function resolveReplayRouteId(provider: Provider, model: Model, resolvedEndpoint: ResolvedEndpoint) {
+  const { config } = await resolveProviderAiSdkConfig(provider, model, { resolvedEndpoint, routeOnly: true })
+  return getReplayRouteId(provider.id, resolvedEndpoint.endpointType, {
+    ...config,
+    modelId: resolveWireModelId(model, resolvedEndpoint.endpointType)
+  })
 }

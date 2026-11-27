@@ -7,9 +7,8 @@ import { useComposerToolDispatch, useComposerToolState } from '@renderer/compone
 import HorizontalScrollContainer from '@renderer/components/HorizontalScrollContainer'
 import ImageViewer from '@renderer/components/ImageViewer'
 import { toast } from '@renderer/services/toast'
-import { FILE_TYPE } from '@renderer/types/file'
 import { toComposerAttachments } from '@renderer/utils/message/composerAttachment'
-import type { AbsoluteFilePath } from '@shared/types/file'
+import { type AbsoluteFilePath, FILE_TYPE } from '@shared/types/file'
 import { toSafeFileUrl } from '@shared/utils/file'
 
 import { downloadImages } from '../utils/downloadImages'

@@ -10,7 +10,7 @@ File-preview icon selection differed across composer tokens, message attachments
 
 ## Decision
 
-Expand the presentation mapping only: token `word` gains `odt/rtf`, `excel` gains `ods/tsv`, `powerpoint` gains `odp`, `document` gains `epub`; icon map gains `markdown/jsonl/text/epub/avif/heic/heif/tgz`; artifact labels gain `mdx/epub`; format labels gain `odt/ods/csv/tsv/odp/rtf/epub/markdown/mdx/text`. Keep `documentExts`/`imageExts` unchanged so `officeparser`, image preview, and upload capability stay with their verified formats (legacy `.ppt` stays out of `documentExts`; `avif/heic/heif` stay out of `imageExts` and degrade to icon-only).
+Expand the presentation mapping only: token `word` gains `odt/rtf`, `excel` gains `ods/tsv`, `powerpoint` gains `odp`, `document` gains `epub`; icon map gains `markdown/jsonl/text/epub/avif/heic/heif/tgz`; artifact labels gain `mdx/epub`; format labels gain `odt/ods/csv/tsv/odp/rtf/epub/markdown/mdx/text`. Files list/grid render the shared `FileIcon` via `getFileIconPath(name, format)` instead of generic `typeIcons[file.type]`, keeping neutral `typeIconColors`/`typeBgColors`. Keep `documentExts`/`imageExts` unchanged so `officeparser`, image preview, and upload capability stay with their verified formats (legacy `.ppt` stays out of `documentExts`; `avif/heic/heif` stay out of `imageExts` and degrade to icon-only).
 
 ## Alternatives considered
 
@@ -20,11 +20,12 @@ Expand the presentation mapping only: token `word` gains `odt/rtf`, `excel` gain
 
 ## Consequences
 
-Composer tokens, message attachments, artifact cards, and Files labels share one office-family mapping. Unknown files keep generic `document` glyph with `fallback/FILE` variant, distinct from `text` variant. `documentExts`/`imageExts` remain the processing source of truth; presentation may be richer.
+Composer tokens, message attachments, artifact cards, and Files list/grid icons plus labels share one office-family mapping. Unknown files keep generic `document` glyph with `fallback/FILE` variant, distinct from `text` variant. `documentExts`/`imageExts` remain the processing source of truth; presentation may be richer.
 
 ## Verification
 
 - Regression — `src/renderer/utils/__tests__/fileIconName.test.ts`: office families, `epub/markdown/jsonl/text/avif/heic/heif/tgz` map to existing collection glyphs.
 - Regression — `src/renderer/components/composer/tokenView/__tests__/fileTokenPresentation.test.tsx`: office/epub variants unified, archives/unknown stay on fallback.
-- Regression — `src/renderer/components/composer/__tests__/ComposerToken.test.tsx`, `FileList.test.tsx`, `MainTextBlock.test.tsx`, `fileExtensions.test.ts`, `fileType.test.ts`: 69 passed in focused run.
+- Regression — `src/renderer/pages/files/__tests__/fileDisplay.test.ts`: `getFileIconPath` plus shared map covers office/epub, archives use `zip`, unknown uses generic `document`.
+- Regression — `src/renderer/components/composer/__tests__/ComposerToken.test.tsx`, `FileList.test.tsx`, `FileGrid.test.tsx`, `MainTextBlock.test.tsx`, `fileExtensions.test.ts`, `fileType.test.ts`: focused run passes.
 - `pnpm exec tsc --noEmit -p tsconfig.web.json --composite false` clean.

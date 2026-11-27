@@ -58,7 +58,7 @@ import {
 } from '@renderer/services/recycleBinFeedback'
 import { toast } from '@renderer/services/toast'
 import { getAgentModelFallbackSnapshot } from '@renderer/utils/agent'
-import { buildAgentFileWorkspaceKey, buildAgentSessionTopicId } from '@renderer/utils/agentSession'
+import { buildAgentFileWorkspaceKey } from '@renderer/utils/agentSession'
 import { getConversationListSortLocale } from '@renderer/utils/chat/conversationListSort'
 import { withSoleGroupLabelHidden } from '@renderer/utils/chat/resourceListBase'
 import {
@@ -92,6 +92,8 @@ import {
   getSidebarShortcutResourceIds,
   SIDEBAR_SHORTCUT_PROVIDER_IDS
 } from '@renderer/utils/sidebar'
+import { AGENT_SESSION_STREAM_TOPIC_CACHE_KEY } from '@shared/ai/agentSessionStreamTopic'
+import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
 import { isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
 import { classifyTurn } from '@shared/ai/transport'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
@@ -158,7 +160,9 @@ type SessionsProps = ControlledSessionsProps
 const logger = loggerService.withContext('AgentSessions')
 
 function isAgentSessionBusy(sessionId: string): boolean {
-  const entry = cacheService.getShared(`topic.stream.statuses.${buildAgentSessionTopicId(sessionId)}` as const)
+  const topicId =
+    cacheService.getShared(AGENT_SESSION_STREAM_TOPIC_CACHE_KEY(sessionId)) ?? buildAgentSessionTopicId(sessionId)
+  const entry = cacheService.getShared(`topic.stream.statuses.${topicId}` as const)
   const flags = classifyTurn(entry?.status)
   return flags.isStreamLive || flags.isAwaitingApproval || (entry?.awaitingApprovalAnchors?.length ?? 0) > 0
 }

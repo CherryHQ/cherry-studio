@@ -10,6 +10,7 @@ type Selection = {
   input: AgentAttachmentSelection
   owner: FileIntakeOwner
   auth: UploadOwner
+  generation: number
   expiresAt: number
   commandId?: string
 }
@@ -81,6 +82,7 @@ export class AttachmentPresenceService extends BaseService {
       input,
       owner,
       auth,
+      generation,
       expiresAt: Date.now() + 24 * 60 * 60 * 1000,
       commandId: previous?.commandId
     })
@@ -99,12 +101,22 @@ export class AttachmentPresenceService extends BaseService {
   owners(): string[] {
     return [...new Set([...this.rows.values()].map((row) => row.owner.ownerId))]
   }
-  cancelOwner(owner: FileIntakeOwner): void {
+  private deleteMatching(predicate: (row: Selection) => boolean): void {
     for (const [key, row] of this.rows)
-      if (row.owner.ownerId === owner.ownerId) {
+      if (predicate(row)) {
         this.rows.delete(key)
         this.markChanged(row.input.sessionId)
       }
+    if (this.rows.size === 0 && this.expiryTimer) {
+      clearTimeout(this.expiryTimer)
+      this.expiryTimer = undefined
+    }
+  }
+  cancelOwner(owner: FileIntakeOwner): void {
+    this.deleteMatching((row) => row.owner.ownerId === owner.ownerId)
+  }
+  disconnect(generation: number): void {
+    this.deleteMatching((row) => row.generation === generation)
   }
   async list(sessionId: string): Promise<AgentAttachmentSelection[]> {
     return Promise.all(

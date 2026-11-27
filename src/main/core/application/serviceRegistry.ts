@@ -4,6 +4,7 @@ import { DbService } from '@data/db/DbService'
 import { PreferenceService } from '@data/PreferenceService'
 import { AgentJobsService } from '@main/ai/agents/AgentJobsService'
 import { AgentLifecycleService } from '@main/ai/agents/AgentLifecycleService'
+import { ArtifactBackfillService } from '@main/ai/agents/ArtifactBackfillService'
 import { AgentSessionDeliveryService } from '@main/ai/agentSession/AgentSessionDeliveryService'
 import { AgentSessionRuntimeService } from '@main/ai/agentSession/AgentSessionRuntimeService'
 import { AgentImportService } from '@main/ai/agentSession/import/AgentImportService'
@@ -14,6 +15,7 @@ import { AsrInferenceService } from '@main/ai/localModel'
 import { EmbeddingInferenceService } from '@main/ai/localModel'
 import { LocalModelService } from '@main/ai/localModel'
 import { OcrInferenceService } from '@main/ai/localModel'
+import { McpAppViewService } from '@main/ai/mcp/McpAppViewService'
 import { McpCatalogService } from '@main/ai/mcp/McpCatalogService'
 import { McpPackageService } from '@main/ai/mcp/McpPackageService'
 import { McpRuntimeService } from '@main/ai/mcp/McpRuntimeService'
@@ -130,6 +132,7 @@ export const services = {
   WindowManager,
   UtilityProcessManager,
   DbService,
+  ArtifactBackfillService,
   CacheService,
   DataApiService,
   IpcApiService,
@@ -192,6 +195,7 @@ export const services = {
   McpPackageService,
   McpRuntimeService,
   McpCatalogService,
+  McpAppViewService,
   BinaryManager,
   OpenClawService,
   PdfTranslationService,
