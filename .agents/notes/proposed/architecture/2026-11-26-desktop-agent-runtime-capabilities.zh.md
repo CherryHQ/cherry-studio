@@ -32,7 +32,7 @@ Runtime 声明模式选项在当前会话、下一轮或重连后生效。Main �
 
 Main 的本机连接检查、模型查询与会话打开共用一张表，派发到 ACP、Cursor、Codex 或 Claude 适配器。适配器实现这三项操作。保存的预设配置通过预设 ID 标识 runtime，从预设声明取得协议。自定义命令使用 ACP。CLI 发现与安装使用桌面 Code CLI 服务。MCP 租约由桌面的 MCP bridge 持有。
 
-CLI 启动准备从进程环境使用的同一份配置快照解析 Gateway 路由。能够注入会话凭据的 runtime 提供已解析路由和注入操作。Gateway 校验路由后签发限定范围的凭据。只使用公共密钥的请求保留 provider 用量，归属会话为空。
+[本地 Agent 的启动级模型绑定](2026-11-27-local-agent-launch-model-binding.md) 负责一次启动如何获得 Cherry 模型及其凭据。每次启动获得限定于其会话和模型的凭据。只使用公共密钥的请求保留 provider 用量，归属会话为空。
 
 ACP 适配器可以声明在启动时应用 Cherry 模型。Agent Services 把选中的 Cherry 模型保存在 Agent 中。Main 解析端点和模型地址，并向所属 runtime 提供限定范围的凭据。清除选项后恢复原生选模。多个会话共用进程的托管服务可以使用共用的 provider 配置。只有原生请求携带对应会话凭据时，用量才归该会话。
 

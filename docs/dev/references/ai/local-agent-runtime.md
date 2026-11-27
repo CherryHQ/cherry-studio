@@ -3,6 +3,7 @@ description: Local CLI agent configuration, native model ownership, protocol dri
 sources:
   - src/shared/ai/localAgentUsage.ts
   - src/shared/ai/localAgent.ts
+  - src/shared/ai/localAgentModel.ts
   - src/shared/ai/agentPermissionMode.ts
   - src/shared/ai/agentSessionCost.ts
   - src/shared/ai/executionIdentity.ts
@@ -161,46 +162,68 @@ Agent Services offers native models and Cherry models through the unified gatewa
 For ACP, a native selection in Agent Services saves the Agent's launch preference.
 Opening the conversation picker before connecting loads the installed native
 catalog. Selecting a model there uses the Agent launch preference. Once
-connected, native choices and switches use the active ACP session. Adapters
-with gateway support also show gateway models through their existing settings.
-Gateway selections that configure CLI files update the file and the Agent
-record together. A failed update restores the file or the selection as
-appropriate. Stale editor drafts fail before writing. Gateway selections keep
-the Cherry model ID separately from the native ID and inject only Cherry gateway
-credentials. Switching back removes Cherry-owned configuration while preserving
-user settings and credentials.
+connected, native choices and switches use the active ACP session.
 
-DeepAgents and Junie save the Cherry model on the Agent and apply it when the
-ACP connection opens. These models use the internal gateway with a
-session-scoped credential. Junie reads a connection-local model profile that
-references the credential through the child environment.
+A Cherry model selection belongs to the Agent record alone
+(`sourceModelId` with `sourceModelViaGateway`). Selecting, switching or clearing
+it writes no CLI file and neither starts nor enables the user-facing API
+Gateway. Agent Services offers Cherry models only for presets with an entry in
+the launch-binding table (`getLocalAgentLaunchBinding`) and for DeepAgents and
+Junie. Factory Droid and Poolside offer none.
+
+Every process Cherry spawns for that Agent binds the model at spawn: chat
+sessions, scheduled tasks and Cherry-launched terminals. Catalog, account and
+sign-in probes run without a binding. Main resolves the model and obtains a
+credential from the internal loopback gateway that authorizes only the chat
+routes and that model, attributed to the session. The preset's binding then
+hands the connection to the CLI without touching the user's files:
+
+- Claude Code receives SDK flag settings in sessions and a private
+  `--settings` file in terminals.
+- Codex receives `-c` overrides that select a Cherry provider and read its key
+  from the child environment.
+- OpenCode and Kilo receive generated configuration through
+  `OPENCODE_CONFIG_CONTENT` and `KILO_CONFIG_CONTENT`, merged into any value the
+  Agent already passes.
+- goose and GLM receive the generated connection as environment variables
+  through their preset launch hook.
+- The other presets get a per-launch overlay home behind their documented home
+  variable. The shared configuration adapters render the CLI's files there from
+  the user's current files plus the Cherry provider. Every other entry links to
+  the user's home. When the launch ends, entries the CLI created move to the
+  user's home, and files it replaced or deleted are applied only while the
+  user's file is unchanged. Generated files are discarded.
+  `LocalAgentOverlayService` reconciles overlays left by an abnormal exit at
+  startup. A launch fails before writing anything when the home variable would
+  leave a generated file outside the overlay, for example when
+  `CLINE_DATA_DIR` overrides `CLINE_DIR`.
+
+The credential and overlay are released when the session or task ends.
+Terminals keep their binding until Cherry stops. DeepAgents and Junie apply the
+Cherry model when the ACP connection opens. Junie reads a connection-local model
+profile that references the credential through the child environment.
 
 Claude Code and Codex native model selections are Cherry chat overrides.
 Use native configuration clears the override and lets the runtime resolve the
 model for the next connection. Claude's native Default entry remains a selectable
 model alias. Cursor displays its `auto` and `default` aliases as one Auto option.
 An Agent without a model override uses Auto. The separate Cursor Router
-(`auto-smart`) retains its catalog entry. Gateway selections that manage CLI
-files retain their file configuration workflow.
+(`auto-smart`) retains its catalog entry.
 
-For a local launch, Main reads the files needed for startup and gateway binding
-in one batch. The harness interprets the same snapshot for both operations.
-When the launch can inject credentials, Main verifies the resolved route and
-obtains a session-scoped credential. Requests that use the public gateway key
-keep their provider usage records with no session association.
+Requests that use the public gateway key keep their provider usage records with
+no session association.
 
-For Grok Build, applying a Cherry model also binds the native `session_summary`
-and `prompt_suggestion` roles. User-pinned roles keep their own model. Gateway
-configuration gives the summary a dedicated Chat Completions endpoint, including
-when the primary conversation uses Responses. Existing installations pick up the
-binding the next time the model configuration is applied.
+For Grok Build, a Cherry model also binds the native `session_summary` and
+`prompt_suggestion` roles. User-pinned roles keep their own model. The launch
+credential also authorizes the dedicated summary Chat Completions endpoint,
+including when the primary conversation uses Responses.
 
 Without a Cherry chat override, new chats, terminal sessions and managed WebUIs use the native default. Model
 arguments, environment and project settings can override it. Open sessions keep
 their current model. Newly opened ACP sessions apply the saved Agent preference
 when supported. On restore, an ordinary Agent preference leaves the native
-current model in effect when the runtime reports one. Explicit gateway bindings
-may apply their configured model.
+current model in effect when the runtime reports one. A Cherry model binding
+applies its model.
 Presets without an applicable model control follow their CLI default.
 
 Presets with native files use the shared **CLI configuration files** editor,
@@ -208,6 +231,7 @@ which opens without a Cherry model selection. DeepAgents instead uses launch
 arguments and environment. DeepSeek Harness and Hermes require their managed
 service to stop before editing. Raw edits retain native file formats, check for
 concurrent edits and synchronize only Agents using the same configuration root.
+They never change an Agent's Cherry model selection.
 
 ### WebUI and managed gateways
 

@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/architecture/2026-11-27-local-agent-launch-model-binding.md
+2026-11-27-local-agent-launch-model-binding.md: e2b6e44607c01af602f572da9162e8ef4b0cd362
+2026-11-27-local-agent-launch-model-binding.zh.md: de4328176310ec65de657fd00aacaff8b2048311

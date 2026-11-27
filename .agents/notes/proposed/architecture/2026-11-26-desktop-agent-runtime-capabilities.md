@@ -32,7 +32,7 @@ An idle session exposes the permission control declared by its selected runtime.
 
 Main uses one adapter table for local connection checks, model discovery and session opening across ACP, Cursor, Codex and Claude. An adapter implements all three operations. A saved preset identifies its runtime by preset ID and takes its protocol from the preset declaration. A custom command uses ACP. CLI discovery and installation use the desktop Code CLI services. MCP leases belong to the desktop MCP bridge.
 
-CLI launch preparation resolves the gateway route from the same configuration snapshot as the process environment. A runtime that can install a session credential publishes the resolved route and its installer. The gateway verifies the route before issuing a scoped credential. Gateway requests using only the public credential retain provider-level usage without a session attachment.
+[Launch-scoped model binding](2026-11-27-local-agent-launch-model-binding.md) owns how a launch receives a Cherry model and its credential. Each launch gets a credential scoped to its session and model. Gateway requests using only the public credential retain provider-level usage without a session attachment.
 
 An ACP adapter can declare a Cherry model selection that it applies at launch. Agent Services saves the selected Cherry model on the Agent. Main resolves its endpoint and model address and supplies a scoped credential to the owned runtime. Clearing the selection restores native model selection. A managed service that shares one process across sessions can use a shared provider configuration; usage is associated with a session only when the native request carries that session’s credential.
 
