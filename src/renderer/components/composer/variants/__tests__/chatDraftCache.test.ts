@@ -47,6 +47,16 @@ const file = { fileTokenSourceId: 'source-1', name: 'doc.pdf', path: '/tmp/doc.p
 
 describe('chatDraftCache', () => {
   beforeEach(() => {
+    Object.defineProperty(navigator, 'locks', {
+      configurable: true,
+      value: {
+        request: (_key: string, action: () => void) => {
+          action()
+          return Promise.resolve()
+        }
+      }
+    })
+
     vi.mocked(cacheService.get).mockReset()
     vi.mocked(cacheService.set).mockReset()
   })

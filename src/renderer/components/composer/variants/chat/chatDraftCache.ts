@@ -130,72 +130,107 @@ function readPersistedChatDraft(topicId: string): PersistedChatDraftEntry | null
   }
 }
 
-const pendingDraftWrites = new Map<string, number>()
+export interface ChatDraftOwner {
+  revision: string | null
+}
 
-function writePersistedChatDraft(topicId: string, draft: ChatComposerDraftCache) {
-  const key = getChatDraftCacheKey(topicId)
-  const revision = (pendingDraftWrites.get(key) ?? 0) + 1
-  pendingDraftWrites.set(key, revision)
-  const expiresAt = Date.now() + DRAFT_CACHE_TTL
-  const invalidate = () => {
-    if (pendingDraftWrites.get(key) !== revision) return
-    try {
-      localStorage.removeItem(key)
-    } catch {
-      // Storage may be unavailable entirely; the live draft remains in memory.
-    }
-  }
+const revisionKey = (topicId: string) => `${getChatDraftCacheKey(topicId)}.revision`
+
+function readDraftRevision(topicId: string): string | null {
   try {
-    if (!hasChatDraftContent(draft)) {
-      invalidate()
-      return
-    }
-    // Blob bytes need an asynchronous read. A renderer crash before completion still loses
-    // that latest edit; the synchronous API cannot guarantee a durable image write on unload.
-    const entry: PersistedChatDraftEntry = { expiresAt, value: draft }
-    const blobs = new Set<Blob>()
-    // Inspect both the attachment and token payload, which can share the same Blob.
-    JSON.stringify(entry, (_key, value: unknown) => {
-      if (value instanceof Blob) blobs.add(value)
-      return value
-    })
-    if (blobs.size === 0) {
-      localStorage.setItem(key, JSON.stringify(entry))
-      return
-    }
-    // Remove the older mirror while image bytes are being read. Never resurrect an older edit
-    // if a reload races the asynchronous image serialization or that serialization fails.
-    invalidate()
-    void Promise.all(
-      [...blobs].map(async (blob) => {
-        const bytes = new Uint8Array(await blob.arrayBuffer())
-        let binary = ''
-        for (let start = 0; start < bytes.length; start += 8192) {
-          binary += String.fromCharCode(...bytes.subarray(start, start + 8192))
-        }
-        return [blob, { __chatDraftBlob: true, type: blob.type, data: btoa(binary) }] as const
-      })
-    )
-      .then((encoded) => {
-        if (pendingDraftWrites.get(key) !== revision) return
-        const values = new Map(encoded)
-        const written = new Map<Blob, number>()
-        localStorage.setItem(
-          key,
-          JSON.stringify(entry, (_key, value: unknown) => {
-            if (!(value instanceof Blob)) return value
-            const existing = written.get(value)
-            if (existing !== undefined) return { __chatDraftBlobRef: existing }
-            const id = written.size
-            written.set(value, id)
-            return { ...values.get(value), id }
-          })
-        )
-      })
-      .catch(invalidate)
+    return localStorage.getItem(revisionKey(topicId))
   } catch {
-    invalidate()
+    return null
   }
+}
+
+export function createChatDraftOwner(topicId: string): ChatDraftOwner {
+  return { revision: readDraftRevision(topicId) }
+}
+
+function withDraftLock(topicId: string, action: () => void): void {
+  // Without a shared lock the renderer keeps its memory draft but must not race another window.
+  if (!navigator.locks) return
+  void navigator.locks.request(getChatDraftCacheKey(topicId), action).catch(() => {})
+}
+
+function writePersistedChatDraft(
+  topicId: string,
+  draft: ChatComposerDraftCache,
+  owner?: ChatDraftOwner,
+  onlyIfOwned = false
+) {
+  const key = getChatDraftCacheKey(topicId)
+  const expected = owner?.revision ?? null
+  const revision = crypto.randomUUID()
+  if (owner) owner.revision = revision
+  const expiresAt = Date.now() + DRAFT_CACHE_TTL
+  const commit = (action: () => void) =>
+    withDraftLock(topicId, () => {
+      if (readDraftRevision(topicId) !== revision) return
+      try {
+        action()
+      } catch {
+        localStorage.removeItem(key)
+      }
+    })
+  const invalidate = () => commit(() => localStorage.removeItem(key))
+  withDraftLock(topicId, () => {
+    if (onlyIfOwned && readDraftRevision(topicId) !== expected) return
+    try {
+      localStorage.setItem(revisionKey(topicId), revision)
+      cacheService.set(key, draft, DRAFT_CACHE_TTL)
+      if (!hasChatDraftContent(draft)) {
+        localStorage.removeItem(key)
+        return
+      }
+      const entry: PersistedChatDraftEntry = { expiresAt, value: draft }
+      const blobs = new Set<Blob>()
+      JSON.stringify(entry, (_key, value: unknown) => {
+        if (value instanceof Blob) blobs.add(value)
+        return value
+      })
+      if (blobs.size === 0) {
+        localStorage.setItem(key, JSON.stringify(entry))
+        return
+      }
+      localStorage.removeItem(key)
+      void Promise.all(
+        [...blobs].map(async (blob) => {
+          const bytes = new Uint8Array(await blob.arrayBuffer())
+          let binary = ''
+          for (let start = 0; start < bytes.length; start += 8192) {
+            binary += String.fromCharCode(...bytes.subarray(start, start + 8192))
+          }
+          return [blob, { __chatDraftBlob: true, type: blob.type, data: btoa(binary) }] as const
+        })
+      )
+        .then((encoded) => {
+          const values = new Map(encoded)
+          const written = new Map<Blob, number>()
+          commit(() =>
+            localStorage.setItem(
+              key,
+              JSON.stringify(entry, (_key, value: unknown) => {
+                if (!(value instanceof Blob)) return value
+                const existing = written.get(value)
+                if (existing !== undefined) return { __chatDraftBlobRef: existing }
+                const id = written.size
+                written.set(value, id)
+                return { ...values.get(value), id }
+              })
+            )
+          )
+        })
+        .catch(invalidate)
+    } catch {
+      try {
+        localStorage.removeItem(key)
+      } catch {
+        /* Storage is unavailable. */
+      }
+    }
+  })
 }
 
 // Remove persisted drafts whose TTL already elapsed (e.g. for topics that no longer exist).
@@ -208,7 +243,7 @@ function pruneExpiredPersistedChatDrafts() {
     const now = Date.now()
     for (let index = localStorage.length - 1; index >= 0; index--) {
       const key = localStorage.key(index)
-      if (!key?.startsWith('chat.composer_draft.')) continue
+      if (!key?.startsWith('chat.composer_draft.') || key.endsWith('.revision')) continue
       const raw = localStorage.getItem(key)
       if (!raw) continue
       try {
@@ -273,7 +308,11 @@ export function subscribeChatDraftCache(topicId: string, listener: () => void): 
   return cacheService.subscribe(getChatDraftCacheKey(topicId), listener)
 }
 
-export function writeChatDraftCache(topicId: string, draft: ChatComposerDraftCache) {
+export function writeChatDraftCache(
+  topicId: string,
+  draft: ChatComposerDraftCache,
+  options?: { owner: ChatDraftOwner; onlyIfOwned?: boolean }
+) {
   pruneExpiredPersistedChatDrafts()
 
   const value: ChatComposerDraftCache = {
@@ -284,6 +323,6 @@ export function writeChatDraftCache(topicId: string, draft: ChatComposerDraftCac
     mentionedModelIds: [...draft.mentionedModelIds],
     modelMultiSelectMode: draft.modelMultiSelectMode
   }
-  cacheService.set(getChatDraftCacheKey(topicId), value, DRAFT_CACHE_TTL)
-  writePersistedChatDraft(topicId, value)
+  if (!options?.onlyIfOwned) cacheService.set(getChatDraftCacheKey(topicId), value, DRAFT_CACHE_TTL)
+  writePersistedChatDraft(topicId, value, options?.owner, options?.onlyIfOwned)
 }

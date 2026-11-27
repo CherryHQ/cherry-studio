@@ -92,7 +92,12 @@ import {
   renderChatInputControls,
   renderChatToolbarControls
 } from './chat/chatComposerControls'
-import { type ChatComposerDraftCache, readChatDraftCache, writeChatDraftCache } from './chat/chatDraftCache'
+import {
+  type ChatComposerDraftCache,
+  createChatDraftOwner,
+  readChatDraftCache,
+  writeChatDraftCache
+} from './chat/chatDraftCache'
 import {
   createEditableMessageDraft,
   getEditableKnowledgeBases,
@@ -735,13 +740,17 @@ const ChatComposerInner = ({
     if (!historyPreview.draft) return
 
     const visibleDraft = actionsRef.current.getDraft()
-    writeChatDraftCache(draftCacheScopeKey, {
-      text: visibleDraft.text,
-      tokens: visibleDraft.tokens,
-      files: filesRef.current,
-      knowledgeBaseIds: knowledgeBaseIdsRef.current,
-      ...mentionedModelDraftRef.current
-    })
+    writeChatDraftCache(
+      draftCacheScopeKey,
+      {
+        text: visibleDraft.text,
+        tokens: visibleDraft.tokens,
+        files: filesRef.current,
+        knowledgeBaseIds: knowledgeBaseIdsRef.current,
+        ...mentionedModelDraftRef.current
+      },
+      { owner: draftOwnerRef.current }
+    )
   }, [actionsRef, draftCacheScopeKey, exitInputHistoryPreview, filesRef, knowledgeBaseIdsRef])
   const handleMentionedModelsSelect = useCallback(
     (nextModels: Model[]) => {
@@ -949,6 +958,7 @@ const ChatComposerInner = ({
   // editor to the current text, so getDraft() serializes the live tokens consistently. Every
   // persistable change is observed through text, files, knowledge bases, model selection, or the editor token revision.
   // The revision covers token-only edits whose serialized text stays unchanged.
+  const draftOwnerRef = useRef(createChatDraftOwner(draftCacheScopeKey))
   const persistedOnceRef = useRef(false)
   useEffect(() => {
     if (isInputHistoryActive || !isKnowledgeBaseDraftHydrated || !isMentionedModelDraftHydrated) return
@@ -963,13 +973,17 @@ const ChatComposerInner = ({
     if (editingMessage) return
     syncKnowledgeBaseIds()
     const draft = actionsRef.current.getDraft()
-    writeChatDraftCache(draftCacheScopeKey, {
-      text: draft.text,
-      tokens: draft.tokens,
-      files,
-      knowledgeBaseIds: knowledgeBaseIdsRef.current,
-      ...mentionedModelDraftRef.current
-    })
+    writeChatDraftCache(
+      draftCacheScopeKey,
+      {
+        text: draft.text,
+        tokens: draft.tokens,
+        files,
+        knowledgeBaseIds: knowledgeBaseIdsRef.current,
+        ...mentionedModelDraftRef.current
+      },
+      { owner: draftOwnerRef.current }
+    )
   }, [
     actionsRef,
     draftCacheScopeKey,
@@ -991,16 +1005,20 @@ const ChatComposerInner = ({
     const savedDraft = savedDraftBeforeEditingRef.current
     if (editingMessage && !savedDraft) return
     const draft = savedDraft ? { text: savedDraft.text, tokens: savedDraft.draftTokens } : surfaceGetDraftRef.current()
-    writeChatDraftCache(draftCacheScopeKey, {
-      text: draft.text,
-      tokens: draft.tokens,
-      files: savedDraft?.files ?? filesRef.current,
-      knowledgeBaseIds: savedDraft?.knowledgeBaseIds ?? knowledgeBaseIdsRef.current,
-      mentionedModelIds:
-        savedDraft?.mentionedModels.map((model) => model.id) ?? mentionedModelDraftRef.current.mentionedModelIds,
-      modelMultiSelectMode:
-        savedDraft?.mentionedModelMultiSelectMode ?? mentionedModelDraftRef.current.modelMultiSelectMode
-    })
+    writeChatDraftCache(
+      draftCacheScopeKey,
+      {
+        text: draft.text,
+        tokens: draft.tokens,
+        files: savedDraft?.files ?? filesRef.current,
+        knowledgeBaseIds: savedDraft?.knowledgeBaseIds ?? knowledgeBaseIdsRef.current,
+        mentionedModelIds:
+          savedDraft?.mentionedModels.map((model) => model.id) ?? mentionedModelDraftRef.current.mentionedModelIds,
+        modelMultiSelectMode:
+          savedDraft?.mentionedModelMultiSelectMode ?? mentionedModelDraftRef.current.modelMultiSelectMode
+      },
+      { owner: draftOwnerRef.current, onlyIfOwned: true }
+    )
   })
   useEffect(() => () => persistFinalDraft(), [draftCacheScopeKey])
 

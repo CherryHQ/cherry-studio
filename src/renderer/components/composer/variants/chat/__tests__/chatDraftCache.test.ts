@@ -4,6 +4,7 @@ import { cacheService } from '@data/CacheService'
 
 import {
   type ChatComposerDraftCache,
+  createChatDraftOwner,
   getChatDraftCacheKey,
   readChatDraftCache,
   readChatDraftPresence,
@@ -31,7 +32,34 @@ const seedPersistedDraft = (topicId: string, draft: ChatComposerDraftCache, ttlM
 
 describe('chatDraftCache', () => {
   beforeEach(() => {
+    Object.defineProperty(navigator, 'locks', {
+      configurable: true,
+      value: {
+        request: (_key: string, action: () => void) => {
+          action()
+          return Promise.resolve()
+        }
+      }
+    })
+
     localStorage.clear()
+  })
+
+  it('prevents an untouched window cleanup from deleting a newer draft', () => {
+    const untouched = createChatDraftOwner('topic-owner')
+    const editing = createChatDraftOwner('topic-owner')
+    writeChatDraftCache('topic-owner', sampleDraft(), { owner: editing })
+    writeChatDraftCache('topic-owner', emptyDraft(), { owner: untouched, onlyIfOwned: true })
+    expect(JSON.parse(localStorage.getItem(getChatDraftCacheKey('topic-owner'))!).value.text).toBe(sampleDraft().text)
+  })
+
+  it('prevents stale cleanup from restoring a draft after another window clears it', () => {
+    const stale = createChatDraftOwner('topic-owner-clear')
+    writeChatDraftCache('topic-owner-clear', sampleDraft(), { owner: stale })
+    const sender = createChatDraftOwner('topic-owner-clear')
+    writeChatDraftCache('topic-owner-clear', emptyDraft(), { owner: sender })
+    writeChatDraftCache('topic-owner-clear', sampleDraft(), { owner: stale, onlyIfOwned: true })
+    expect(localStorage.getItem(getChatDraftCacheKey('topic-owner-clear'))).toBeNull()
   })
 
   it('round-trips a written draft through the memory tier', () => {
