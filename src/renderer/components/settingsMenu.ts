@@ -3,6 +3,7 @@ import {
   Archive,
   AudioLines,
   Bell,
+  Brain,
   Cloud,
   Command,
   Crop,
@@ -82,6 +83,12 @@ export const settingsMenu: readonly SettingsMenuEntry[] = [
     route: '/settings/skills',
     titleKey: 'settings.skills.title',
     icon: createElement(ToolCase),
+    groupKey: 'settings.menuGroups.capabilities'
+  },
+  {
+    route: '/settings/memory',
+    titleKey: 'settings.memory.title',
+    icon: createElement(Brain),
     groupKey: 'settings.menuGroups.capabilities'
   },
   {

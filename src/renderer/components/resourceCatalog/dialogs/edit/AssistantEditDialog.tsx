@@ -106,6 +106,7 @@ type AssistantEditFormValues = {
   enableMaxToolCalls: boolean
   customParameters: AssistantFormState['customParameters']
   enableBrowser: boolean
+  enableSharedMemory: boolean
   mcpMode: AssistantFormState['mcpMode']
   languageMode: AssistantFormState['languageMode']
   languageCustom: string
@@ -148,6 +149,7 @@ function defaultValuesForAssistant(resource: AssistantEditDialogResource): Assis
     enableMaxToolCalls: form.enableMaxToolCalls,
     customParameters: form.customParameters.map((parameter) => ({ ...parameter })),
     enableBrowser: form.enableBrowser,
+    enableSharedMemory: form.enableSharedMemory,
     mcpMode: form.mcpMode,
     languageMode: form.languageMode,
     languageCustom: form.languageCustom,
@@ -190,6 +192,7 @@ function buildAssistantFormState(baseline: AssistantFormState, values: Assistant
     enableMaxToolCalls: values.enableMaxToolCalls,
     customParameters: values.customParameters,
     enableBrowser: values.enableBrowser,
+    enableSharedMemory: values.enableSharedMemory,
     mcpMode: values.mcpMode,
     languageMode: values.languageMode,
     languageCustom: values.languageCustom,
@@ -687,6 +690,14 @@ function AssistantSettingsCards({
             aria-label={labels.browser}
             checked={values.enableBrowser}
             onCheckedChange={(checked) => set('enableBrowser', checked)}
+          />
+        </SettingsRow>
+        <SettingsRow label={t('settings.memory.title')}>
+          <Switch
+            size="sm"
+            aria-label={t('settings.memory.title')}
+            checked={values.enableSharedMemory}
+            onCheckedChange={(checked) => set('enableSharedMemory', checked)}
           />
         </SettingsRow>
       </SettingsSection>

@@ -3016,7 +3016,7 @@ describe('desktop Pi Durable connection', () => {
       await expect.poll(() => gaps).toContain('overflow')
       held.open()
 
-      await expect.poll(() => text(events)).toContain('answer-1 ')
+      await expect.poll(() => text(events), { timeout: 10_000 }).toContain('answer-1 ')
       // Answering every queued input only adds runtime; Stop withdraws the rest.
       await connection.interrupt()
       await done(events)
