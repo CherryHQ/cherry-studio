@@ -198,6 +198,15 @@ describe('attachment image padding', () => {
     expect(await materializeNativeFilePart(part)).toEqual(part)
   })
 
+  it('downscales an oversized image before applying the minimum-edge padding', async () => {
+    const part = partFor(await input(4000, 4))
+
+    const result = await materializeNativeFilePart(part)
+
+    const output = Buffer.from(result!.url.split(',')[1], 'base64')
+    expect(await sharp(output).metadata()).toMatchObject({ format: 'png', width: 2000, height: 15 })
+  })
+
   it('pads a percent-encoded image', async () => {
     const bytes = await input(4, 4)
     const part = partFor(bytes)

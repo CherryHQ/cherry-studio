@@ -51,7 +51,7 @@ export async function clampImageForModel(
   maxEdge: number = MODEL_IMAGE_MAX_EDGE
 ): Promise<Uint8Array | null> {
   const sharp = (await import('sharp')).default
-  const image = sharp(bytes, { failOn: 'none' })
+  const image = sharp(bytes, { failOn: 'none', animated: true })
   const { width, height } = await image.metadata()
   if (!width || !height) throw new Error('could not read image dimensions')
   if (width <= maxEdge && height <= maxEdge) return null

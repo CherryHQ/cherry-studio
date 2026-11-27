@@ -22,6 +22,7 @@ import mime from 'mime'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { read as fsRead } from '@main/utils/file'
+import { clampImageForModel } from '@main/utils/image'
 import type { FileUIPart } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
@@ -133,7 +134,7 @@ async function validateImage(normalized: FileUIPart): Promise<FileUIPart | null>
     if (comma < 0) return null
     const header = normalized.url.slice(0, comma)
     const payload = normalized.url.slice(comma + 1)
-    const bytes = /;base64$/i.test(header)
+    let bytes: Uint8Array = /;base64$/i.test(header)
       ? Buffer.from(payload, 'base64')
       : Buffer.from(
           payload.replace(/%([0-9a-f]{2})/gi, (_, hex: string) => String.fromCharCode(parseInt(hex, 16))),
@@ -150,12 +151,28 @@ async function validateImage(normalized: FileUIPart): Promise<FileUIPart | null>
         limitInputPixels: MAX_ATTACHMENT_IMAGE_PIXELS,
         animated
       }).metadata()
-      const width = metadata.width
-      const height = metadata.pageHeight ?? metadata.height
+      let width = metadata.width
+      let height = metadata.pageHeight ?? metadata.height
       if (!width || !height) throw new Error('Image dimensions are unavailable')
+      const clamped = await clampImageForModel(bytes)
+      if (clamped) {
+        bytes = clamped
+        const clampedMetadata = await sharp(bytes, {
+          failOn: 'error',
+          limitInputPixels: MAX_ATTACHMENT_IMAGE_PIXELS,
+          animated
+        }).metadata()
+        width = clampedMetadata.width
+        height = clampedMetadata.pageHeight ?? clampedMetadata.height
+        if (!width || !height) throw new Error('Clamped image dimensions are unavailable')
+      }
       const padW = Math.max(width, MIN_ATTACHMENT_IMAGE_EDGE)
       const padH = Math.max(height, MIN_ATTACHMENT_IMAGE_EDGE)
-      if (padW === width && padH === height) return normalized
+      if (padW === width && padH === height) {
+        return clamped
+          ? { ...normalized, url: `data:${normalized.mediaType};base64,${Buffer.from(bytes).toString('base64')}` }
+          : normalized
+      }
       if (padW * padH * (metadata.pages ?? 1) > MAX_ATTACHMENT_IMAGE_PIXELS) {
         throw new Error('Padded image exceeds the pixel budget')
       }
