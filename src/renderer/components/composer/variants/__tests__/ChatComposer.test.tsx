@@ -9,7 +9,11 @@ import type * as ReactI18nextModule from 'react-i18next'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { cacheService } from '@data/CacheService'
-import { MessageEditingProvider, useMessageEditing } from '@renderer/components/chat/editing/MessageEditingContext'
+import {
+  clearAllMessageEditSessions,
+  MessageEditingProvider,
+  useMessageEditing
+} from '@renderer/components/chat/editing/MessageEditingContext'
 import type * as ModelSpeedControlModule from '@renderer/components/ModelSpeedControl'
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
 import type { CherryCloudQuotaExhaustion } from '@renderer/hooks/useCherryCloudQuotaExhaustion'
@@ -712,6 +716,7 @@ const originalFetch = globalThis.fetch
 
 describe('ChatComposer', () => {
   beforeEach(() => {
+    clearAllMessageEditSessions()
     mocks.quotaExhaustion = null
     mocks.exhaustedTargets.clear()
     mocks.availabilityRevision = 1
@@ -3946,6 +3951,303 @@ describe('ChatComposer', () => {
         userMessageParts: [{ type: 'text', text: 'topic 2 draft' }]
       })
     )
+  })
+
+  it('preserves unsent message edit draft and edit mode across topic remounts and restores original draft on cancel', async () => {
+    const forkAndResend = vi.fn().mockResolvedValue(undefined)
+    mocks.chatWrite = { pause: vi.fn(), editMessage: vi.fn(), resend: vi.fn(), forkAndResend }
+    mocks.getDraft.mockImplementation((props?: ComposerSurfaceProps) => ({
+      text: props?.text ?? '',
+      tokens: props?.draftTokens ?? []
+    }))
+    const drafts = new Map<string, any>([
+      [
+        'chat.composer_draft.topic-1',
+        {
+          text: 'regular draft 1',
+          tokens: [],
+          files: [],
+          knowledgeBaseIds: [],
+          mentionedModelIds: [],
+          modelMultiSelectMode: false
+        }
+      ],
+      [
+        'chat.composer_draft.topic-2',
+        {
+          text: 'topic 2 draft',
+          tokens: [],
+          files: [],
+          knowledgeBaseIds: [],
+          mentionedModelIds: [],
+          modelMultiSelectMode: false
+        }
+      ]
+    ])
+    vi.mocked(cacheService.get).mockImplementation((key: string) => drafts.get(key))
+    vi.mocked(cacheService.set).mockImplementation((key: string, value: any) => {
+      drafts.set(key, value)
+    })
+
+    const message = {
+      id: 'message-1',
+      role: 'user',
+      topicId: topic.id,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      status: 'success'
+    } as const
+    const topicTwo = { ...topic, id: 'topic-2' }
+    const onSend = vi.fn().mockResolvedValue(undefined)
+
+    const firstView = render(
+      <MessageEditingProvider topicId={topic.id}>
+        <StartEditingOnMount message={message as any} parts={[{ type: 'text', text: 'Hello' }] as any} />
+        <ChatComposer topic={topic} onSend={onSend} />
+      </MessageEditingProvider>
+    )
+
+    await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe('message-1'))
+    expect(mocks.surfaceProps?.text).toBe('Hello')
+
+    act(() => {
+      mocks.surfaceProps?.onTextChange('Unsent edit draft 123')
+    })
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe('Unsent edit draft 123'))
+
+    // Switch to another topic (mirrors Chat.tsx remounting <ChatContent key={activeTopic.id} />).
+    firstView.unmount()
+
+    expect(drafts.get('chat.composer_draft.topic-1')).toMatchObject({ text: 'regular draft 1' })
+
+    const secondView = render(
+      <MessageEditingProvider topicId={topicTwo.id}>
+        <ChatComposer topic={topicTwo} onSend={onSend} />
+      </MessageEditingProvider>
+    )
+
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe('topic 2 draft'))
+    expect(mocks.surfaceProps?.editingState).toBeUndefined()
+
+    // Return to the original topic — edit mode and unsent edit draft must be restored.
+    secondView.unmount()
+
+    const returnedView = render(
+      <MessageEditingProvider topicId={topic.id}>
+        <ChatComposer topic={topic} onSend={onSend} />
+      </MessageEditingProvider>
+    )
+
+    await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe('message-1'))
+    expect(mocks.surfaceProps?.text).toBe('Unsent edit draft 123')
+
+    // Cancelling after return restores the original regular draft and clears the stored edit session.
+    act(() => {
+      mocks.surfaceProps?.editingState?.onCancel()
+    })
+
+    await waitFor(() => expect(mocks.surfaceProps?.editingState).toBeUndefined())
+    expect(mocks.surfaceProps?.text).toBe('regular draft 1')
+
+    returnedView.unmount()
+
+    render(
+      <MessageEditingProvider topicId={topic.id}>
+        <ChatComposer topic={topic} onSend={onSend} />
+      </MessageEditingProvider>
+    )
+
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe('regular draft 1'))
+    expect(mocks.surfaceProps?.editingState).toBeUndefined()
+  })
+
+  it('restores unsent edit draft and allows resending with preserved file metadata after returning to the topic', async () => {
+    const forkAndResend = vi.fn().mockResolvedValue(undefined)
+    mocks.chatWrite = { pause: vi.fn(), editMessage: vi.fn(), resend: vi.fn(), forkAndResend }
+    mocks.getDraft.mockImplementation((props?: ComposerSurfaceProps) => ({
+      text: props?.text ?? '',
+      tokens: props?.draftTokens ?? []
+    }))
+    const message = {
+      id: 'message-1',
+      role: 'user',
+      topicId: topic.id,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      status: 'success'
+    } as const
+    const filePart = {
+      type: 'file',
+      url: 'file:///stored/report.pdf',
+      mediaType: 'application/pdf',
+      filename: 'report.pdf',
+      providerMetadata: {
+        cherry: {
+          fileEntryId: 'entry-1',
+          fileTokenSourceId: 'source-1'
+        }
+      }
+    } as const
+
+    const firstView = render(
+      <MessageEditingProvider topicId={topic.id}>
+        <StartEditingOnMount message={message as any} parts={[{ type: 'text', text: 'old text' }, filePart] as any} />
+        <ChatComposer topic={topic} onSend={vi.fn()} />
+      </MessageEditingProvider>
+    )
+
+    await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe('message-1'))
+
+    act(() => {
+      mocks.surfaceProps?.onTextChange('edited after switch')
+    })
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe('edited after switch'))
+
+    firstView.unmount()
+
+    const returnedView = render(
+      <MessageEditingProvider topicId={topic.id}>
+        <ChatComposer topic={topic} onSend={vi.fn()} />
+      </MessageEditingProvider>
+    )
+
+    await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe('message-1'))
+    expect(mocks.surfaceProps?.text).toBe('edited after switch')
+    const fileTokens = (mocks.surfaceProps?.tokens ?? []).map(serializeComposerToken)
+    expect(fileTokens).toHaveLength(1)
+
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'edited after switch', tokens: fileTokens })
+    })
+
+    expect(forkAndResend).toHaveBeenCalledWith(
+      'message-1',
+      [
+        expect.objectContaining({ type: 'text', text: 'edited after switch' }),
+        expect.objectContaining({
+          type: 'file',
+          url: 'file:///stored/report.pdf',
+          providerMetadata: {
+            cherry: expect.objectContaining({
+              fileEntryId: 'entry-1',
+              fileTokenSourceId: 'source-1'
+            })
+          }
+        })
+      ],
+      expect.any(Object)
+    )
+    await waitFor(() => expect(mocks.surfaceProps?.editingState).toBeUndefined())
+
+    returnedView.unmount()
+
+    render(
+      <MessageEditingProvider topicId={topic.id}>
+        <ChatComposer topic={topic} onSend={vi.fn()} />
+      </MessageEditingProvider>
+    )
+
+    expect(mocks.surfaceProps?.editingState).toBeUndefined()
+  })
+
+  it('preserves modified assistant reasoning draft across topic remounts', async () => {
+    mocks.chatWrite = { pause: vi.fn(), editMessage: vi.fn(), resend: vi.fn(), forkAndResend: vi.fn() }
+    mocks.getDraft.mockImplementation((props?: ComposerSurfaceProps) => ({
+      text: props?.text ?? '',
+      tokens: props?.draftTokens ?? []
+    }))
+    const assistantMessage = {
+      id: 'assistant-msg-1',
+      role: 'assistant',
+      topicId: topic.id,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      status: 'success'
+    } as const
+    const parts = [
+      { type: 'reasoning', text: 'original reasoning' },
+      { type: 'text', text: 'original reply' }
+    ] as const
+
+    const firstView = render(
+      <MessageEditingProvider topicId={topic.id}>
+        <StartEditingOnMount message={assistantMessage as any} parts={parts as any} />
+        <ChatComposer topic={topic} onSend={vi.fn()} />
+      </MessageEditingProvider>
+    )
+
+    await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe('assistant-msg-1'))
+    expect(mocks.surfaceProps?.editingState?.reasoning?.value).toBe('original reasoning')
+
+    act(() => {
+      mocks.surfaceProps?.onTextChange('edited reply')
+      mocks.surfaceProps?.editingState?.reasoning?.onChange('edited reasoning')
+    })
+    await waitFor(() => expect(mocks.surfaceProps?.editingState?.reasoning?.value).toBe('edited reasoning'))
+
+    firstView.unmount()
+
+    render(
+      <MessageEditingProvider topicId={topic.id}>
+        <ChatComposer topic={topic} onSend={vi.fn()} />
+      </MessageEditingProvider>
+    )
+
+    await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe('assistant-msg-1'))
+    expect(mocks.surfaceProps?.text).toBe('edited reply')
+    expect(mocks.surfaceProps?.editingState?.reasoning?.value).toBe('edited reasoning')
+  })
+
+  it('restores unsent edit draft when returning to the original topic under a shared MessageEditingProvider', async () => {
+    mocks.chatWrite = { pause: vi.fn(), editMessage: vi.fn(), resend: vi.fn(), forkAndResend: vi.fn() }
+    mocks.getDraft.mockImplementation((props?: ComposerSurfaceProps) => ({
+      text: props?.text ?? '',
+      tokens: props?.draftTokens ?? []
+    }))
+    const message = {
+      id: 'message-1',
+      role: 'user',
+      topicId: topic.id,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      status: 'success'
+    } as const
+    const nextTopic = { ...topic, id: 'topic-2' }
+    vi.mocked(cacheService.get).mockImplementation((key: string) =>
+      key === 'chat.composer_draft.topic-2'
+        ? { text: 'topic 2 draft', tokens: [], files: [], knowledgeBaseIds: [] }
+        : undefined
+    )
+    const onSend = vi.fn().mockResolvedValue(undefined)
+    const view = render(
+      <MessageEditingProvider>
+        <StartEditingOnMount message={message as any} parts={[{ type: 'text', text: 'Hello' }] as any} />
+        <ChatComposer topic={topic} onSend={onSend} />
+      </MessageEditingProvider>
+    )
+
+    await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe('message-1'))
+
+    act(() => {
+      mocks.surfaceProps?.onTextChange('Unsent edit draft 123')
+    })
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe('Unsent edit draft 123'))
+
+    view.rerender(
+      <MessageEditingProvider>
+        <StartEditingOnMount enabled={false} message={message} parts={[{ type: 'text', text: 'Hello' }]} />
+        <ChatComposer topic={nextTopic} onSend={onSend} />
+      </MessageEditingProvider>
+    )
+
+    await waitFor(() => expect(mocks.surfaceProps?.editingState).toBeUndefined())
+    expect(mocks.surfaceProps?.text).toBe('topic 2 draft')
+
+    view.rerender(
+      <MessageEditingProvider>
+        <StartEditingOnMount enabled={false} message={message} parts={[{ type: 'text', text: 'Hello' }]} />
+        <ChatComposer topic={topic} onSend={onSend} />
+      </MessageEditingProvider>
+    )
+
+    await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe('message-1'))
+    expect(mocks.surfaceProps?.text).toBe('Unsent edit draft 123')
   })
 
   it('preserves Cherry file metadata when resending an edited message with an existing attachment', async () => {

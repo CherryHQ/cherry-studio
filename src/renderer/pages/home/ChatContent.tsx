@@ -357,7 +357,7 @@ const ChatContentInner: FC<InnerProps> = ({
   return (
     <ChatWriteProvider value={runtime.chatWriteActions}>
       <SiblingsProvider value={siblingsContextValue}>
-        <MessageEditingProvider>
+        <MessageEditingProvider topicId={topic.id}>
           <ConversationStageCenter placement={placement} main={main} composer={composer} />
           <ResourceEditDialogEventHost />
         </MessageEditingProvider>
