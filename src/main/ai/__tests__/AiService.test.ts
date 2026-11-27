@@ -2671,6 +2671,8 @@ describe('AiService tool approval', () => {
           providerSettings: {},
           modelId: input.model.apiModelId ?? input.model.id
         },
+        replayRouteId: 'fixture-route',
+        endpointType,
         credentialReceipt: { attribution: 'matched', id: 'fallback-key', masked: 'sk-o****udio' },
         tools: undefined,
         plugins: [],
