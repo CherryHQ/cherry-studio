@@ -255,4 +255,49 @@ describe('computeModelFieldReset', () => {
     // had no `initialValue`, leaking 'vivid' to the wire).
     expect(patch).toEqual({ style: undefined })
   })
+
+  it('diffs the same model across providers instead of early-returning', async () => {
+    prefetchMock.mockImplementation(async (_path: string, options?: unknown) => {
+      const params = (options as PrefetchCallOptions | undefined)?.params
+      if (params?.providerId === 'gemini') {
+        return generateSupport({
+          size: { type: 'enum', options: ['1024x1024'], default: '1024x1024' }
+        })
+      }
+      return generateSupport({
+        size: { type: 'enum', options: ['2048x2048'], default: '2048x2048' }
+      })
+    })
+
+    const patch = await computeModelFieldReset({
+      oldProviderId: 'gemini',
+      newProviderId: 'aggregator',
+      oldModelId: 'gemini-2.5-flash-image',
+      newModelId: 'gemini-2.5-flash-image',
+      mode: 'generate',
+      currentValues: { size: '1024x1024' }
+    })
+
+    expect(prefetchMock).toHaveBeenCalledTimes(2)
+    expect(patch).toEqual({ size: '2048x2048' })
+  })
+
+  it('keeps compatible params for the same model across providers', async () => {
+    prefetchMock.mockImplementation(async () =>
+      generateSupport({
+        size: { type: 'enum', options: ['1024x1024', '2048x2048'], default: '1024x1024' }
+      })
+    )
+
+    const patch = await computeModelFieldReset({
+      oldProviderId: 'gemini',
+      newProviderId: 'aggregator',
+      oldModelId: 'gemini-2.5-flash-image',
+      newModelId: 'gemini-2.5-flash-image',
+      mode: 'generate',
+      currentValues: { size: '1024x1024' }
+    })
+
+    expect(patch).toEqual({})
+  })
 })

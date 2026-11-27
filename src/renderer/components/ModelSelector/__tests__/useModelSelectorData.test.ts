@@ -377,7 +377,7 @@ describe('useModelSelectorData', () => {
     expect(byModelId.get('openai::unique')?.showIdentifier).toBe(false)
   })
 
-  it('uses provider groups to disambiguate matching names from different providers', () => {
+  it('flags matching names from different providers for disambiguation', () => {
     wireDeps({
       providers: [makeProvider('openai'), makeProvider('anthropic')],
       models: [
@@ -391,7 +391,25 @@ describe('useModelSelectorData', () => {
       result.current.modelItems.map((item) => [item.modelId, item])
     )
 
-    expect(byModelId.get('openai::gpt-4')?.showIdentifier).toBe(false)
-    expect(byModelId.get('anthropic::claude-alias')?.showIdentifier).toBe(false)
+    expect(byModelId.get('openai::gpt-4')?.showIdentifier).toBe(true)
+    expect(byModelId.get('anthropic::claude-alias')?.showIdentifier).toBe(true)
+  })
+
+  it('flags identical model ids served by different providers for disambiguation', () => {
+    wireDeps({
+      providers: [makeProvider('gemini'), makeProvider('aggregator')],
+      models: [
+        makeModel('gemini-2.5-flash-image', 'gemini', { name: 'Gemini Flash Image' }),
+        makeModel('gemini-2.5-flash-image', 'aggregator', { name: 'Gemini Flash Image' })
+      ]
+    })
+
+    const { result } = renderHook(() => useModelSelectorData({ searchText: '' }))
+    const byModelId = new Map<string, ModelSelectorModelItem>(
+      result.current.modelItems.map((item) => [item.modelId, item])
+    )
+
+    expect(byModelId.get('gemini::gemini-2.5-flash-image')?.showIdentifier).toBe(true)
+    expect(byModelId.get('aggregator::gemini-2.5-flash-image')?.showIdentifier).toBe(true)
   })
 })

@@ -32,21 +32,33 @@ const logger = loggerService.withContext('paintings/modelFieldReset')
  *
  * Returns `{}` when the new model has no registry block (custom or
  * user-named models without an `imageGeneration` entry) — no info, no
- * patch. Cross-provider switches go through `createPaintingData`, which
- * starts from a clean slate; this helper handles the same-provider case
- * (including the first model selection, where `oldModelId` is undefined).
+ * patch. Same-provider switches (including the first model selection, where
+ * `oldModelId` is undefined) and cross-provider switches to the same
+ * `apiModelId` diff through here; cross-provider switches to a *different*
+ * model still go through `createDefaultPainting`, which starts from a clean
+ * slate.
  */
 export async function computeModelFieldReset(input: {
-  providerId: string
+  /** Legacy single-provider shorthand; prefer oldProviderId/newProviderId. */
+  providerId?: string
+  oldProviderId?: string
+  newProviderId?: string
   oldModelId: string | undefined
   newModelId: string
   mode: ImageGenerationMode | undefined
   currentValues?: Record<string, unknown>
 }): Promise<Record<string, unknown>> {
-  const { providerId, oldModelId, newModelId, mode, currentValues = {} } = input
-  if (oldModelId && oldModelId === newModelId) return {}
+  const oldProvider = input.oldProviderId ?? input.providerId
+  const newProvider = input.newProviderId ?? input.providerId
+  if (!newProvider) return {}
+  const { oldModelId, newModelId, mode, currentValues = {} } = input
+  // Same model on the same provider: nothing to diff. Note the same
+  // `apiModelId` on a *different* provider intentionally falls through —
+  // registry blocks can differ per provider, so diff them instead of
+  // returning early.
+  if (oldModelId && oldModelId === newModelId && oldProvider === newProvider) return {}
 
-  const fetchSupport = async (modelId: string): Promise<ImageGenerationSupport | undefined> => {
+  const fetchSupport = async (providerId: string, modelId: string): Promise<ImageGenerationSupport | undefined> => {
     try {
       const result = await prefetch('/providers/:providerId/models/:modelId*/image-generation-support', {
         params: { providerId, modelId }
@@ -59,8 +71,8 @@ export async function computeModelFieldReset(input: {
   }
 
   const [oldSupport, newSupport] = await Promise.all([
-    oldModelId ? fetchSupport(oldModelId) : Promise.resolve(undefined),
-    fetchSupport(newModelId)
+    oldModelId && oldProvider ? fetchSupport(oldProvider, oldModelId) : Promise.resolve(undefined),
+    fetchSupport(newProvider, newModelId)
   ])
 
   const oldItems = oldSupport ? imageGenerationToFields(oldSupport, { mode }) : []
