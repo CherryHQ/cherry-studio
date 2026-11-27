@@ -726,7 +726,7 @@ const AgentPage = () => {
   )
 
   const handleOpenAgentChatFromLibrary = useCallback(
-    (agentId: string) => void handleAgentConversationSelect(agentId),
+    (agentId: string) => void handleAgentConversationSelect({ type: 'agent', agentId }),
     [handleAgentConversationSelect]
   )
 
