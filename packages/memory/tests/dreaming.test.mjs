@@ -2,21 +2,23 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { engineHost } from './engine-host.mjs'
-void test('manual organization uses the validated proposal and leaves the first conversation snapshot stable', async () => {
-  const { session, approve } = engineHost()
+void test('automatic organization uses the validated proposal and leaves the first conversation snapshot stable', async () => {
+  const { session, ports, approve } = engineHost()
   const read = await session.read('MEMORY.md')
   await session.commit([{ kind: 'write', receipt: read.receipt, content: 'Original.' }], approve)
   assert.equal((await session.context()).content, 'Original.')
-  await session.requestOrganization()
+  const eligibleAt = ports.now() + 7 * 86400000
+  ports.now = () => eligibleAt
   assert.equal(await session.runMaintenance({ extraction: false, organization: true }), 'organized')
   assert.equal((await session.read('MEMORY.md')).content, 'Organized.')
   assert.equal((await session.context()).content, 'Original.')
 })
-void test('interrupting a model call discards its output and preserves a manual request', async () => {
+void test('interrupting a model call discards its output and preserves automatic eligibility', async () => {
   const { session, ports, engine, approve } = engineHost()
   const { receipt } = await session.read('MEMORY.md')
   await session.commit([{ kind: 'write', receipt, content: 'before' }], approve)
-  await session.requestOrganization()
+  const eligibleAt = ports.now() + 7 * 86400000
+  ports.now = () => eligibleAt
   const normal = ports.model
   let started, release
   const ready = new Promise((r) => {
