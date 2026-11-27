@@ -509,6 +509,7 @@ function describeCreated(blank: AgentFormState, created: AgentFormState): string
     (field) =>
       field === 'model' ||
       field === 'permissionMode' ||
+      field === 'skills' ||
       (field !== 'avatar' && field !== 'name' && field !== 'description' && isChanged(field, blank, created))
   ).map((field) => setLine(field, created))
 }
@@ -568,7 +569,7 @@ function planAgentCreate(input: z.infer<typeof CreateAgentToolInputSchema>, fall
     permissionMode: form.permissionMode || caps.createDefaults.permissionMode,
     avatar: form.avatar || DEFAULT_AGENT_CREATE_AVATAR
   }
-  return { blank, created, model }
+  return { blank, created, model, skillIds: input.skillIds === undefined ? undefined : created.skillIds }
 }
 
 /**
@@ -587,7 +588,8 @@ export async function createAgentFromTool(
 async function executeAgentCreate({
   blank,
   created,
-  model
+  model,
+  skillIds
 }: ReturnType<typeof planAgentCreate>): Promise<AgentConfigToolOutput> {
   resolveModel(model, NEW_AGENT_TYPE)
 
@@ -601,7 +603,7 @@ async function executeAgentCreate({
       description: created.description,
       prompt: created.instructions,
       knowledgeBaseIds: created.knowledgeBaseIds,
-      skillIds: created.skillIds,
+      skillIds,
       mcpServerIds: created.mcps,
       disabledTools: created.disabledTools,
       agentSettings: {
@@ -614,7 +616,14 @@ async function executeAgentCreate({
       }
     })
   )
-  return { ...toOutput(agent, describeCreated(blank, created)), highlights: agentHighlights(created) }
+  const effectiveSkillIds = agentGlobalSkillService
+    .list({ agentId: agent.id })
+    .filter((skill) => skill.isEnabled)
+    .map((skill) => skill.id)
+  return {
+    ...toOutput(agent, describeCreated(blank, { ...created, skillIds: effectiveSkillIds })),
+    highlights: agentHighlights(created)
+  }
 }
 
 /**

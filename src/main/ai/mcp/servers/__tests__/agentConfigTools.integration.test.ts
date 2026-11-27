@@ -228,6 +228,71 @@ describe('Agent create and configure tools', () => {
   })
 
   describe('create_agent', () => {
+    it.each([
+      {
+        skillIds: undefined,
+        expected: ['another-skill', BUILTIN_SKILL, USER_SKILL],
+        names: ['Another skill', 'Built-in', 'Code Review']
+      },
+      { skillIds: [], expected: [BUILTIN_SKILL], names: ['Built-in'] },
+      { skillIds: [USER_SKILL], expected: [BUILTIN_SKILL, USER_SKILL], names: ['Built-in', 'Code Review'] }
+    ])('applies and reports the skill selection $skillIds', async ({ skillIds, expected, names }) => {
+      dbh.db
+        .insert(agentGlobalSkillTable)
+        .values([
+          {
+            id: 'another-skill',
+            name: 'Another skill',
+            folderName: 'another-skill',
+            source: 'local',
+            contentHash: 'c',
+            isEnabled: true
+          },
+          {
+            id: 'paused-skill',
+            name: 'Paused skill',
+            folderName: 'paused-skill',
+            source: 'local',
+            contentHash: 'd',
+            isEnabled: false
+          },
+          {
+            id: 'paused-builtin',
+            name: 'Paused built-in',
+            folderName: 'paused-builtin',
+            source: 'builtin',
+            contentHash: 'e',
+            isEnabled: false
+          }
+        ])
+        .run()
+
+      const result = await callBuiltinTool(assistantServer, 'create_agent', {
+        name: 'Reviewer',
+        instructions: 'Review.',
+        ...(skillIds !== undefined ? { skillIds } : {})
+      })
+
+      expect(result.isError, toolText(result)).not.toBe(true)
+      const { agentId, summary } = result.structuredContent as { agentId: string; summary: string[] }
+      const effectiveIds = () =>
+        agentGlobalSkillService
+          .list({ agentId })
+          .filter((skill) => skill.isEnabled)
+          .map((skill) => skill.id)
+          .sort()
+      expect.soft(effectiveIds()).toEqual(expected)
+      const reportedSkills = summary.find((line) => line.startsWith('Skills: '))?.slice('Skills: '.length)
+      expect.soft(reportedSkills?.split(', ').sort()).toEqual(names)
+      agentGlobalSkillService.updateGlobalEnabled('another-skill', false)
+      agentGlobalSkillService.updateGlobalEnabled('another-skill', true)
+      agentGlobalSkillService.updateGlobalEnabled('paused-skill', true)
+      agentGlobalSkillService.updateGlobalEnabled('paused-builtin', true)
+      expect(effectiveIds()).toEqual(
+        [...expected, 'paused-builtin', ...(skillIds === undefined ? ['paused-skill'] : [])].sort()
+      )
+    })
+
     it('creates a Pi Durable Agent that carries every supplied field and shows up in the Agent list', async () => {
       const result = await callBuiltinTool(assistantServer, 'create_agent', {
         name: 'Reviewer',
@@ -646,13 +711,13 @@ describe('Agent create and configure tools', () => {
       })
       expect(previewAgentConfigChange(approvalId).ok).toBe(true)
       const input = prepareAgentConfigApproval(approvalId, { approved: true }).executionInput!()
-      agentGlobalSkillService.upsertJoin('target', USER_SKILL, true)
+      agentGlobalSkillService.upsertJoin('target', USER_SKILL, false)
 
       const result = await callBuiltinTool(assistantServer, 'update_agent', input)
 
       expect(result.isError).toBe(true)
       expect(agentService.getAgent('target')?.description).toBe('Original description')
-      expect(skillEnabledFor('target', USER_SKILL)).toBe(true)
+      expect(skillEnabledFor('target', USER_SKILL)).toBe(false)
     })
 
     it('shows a schedule-only heartbeat change while the heartbeat is off', () => {

@@ -21,7 +21,8 @@ export type AgentCreateValues = {
   description: string
   prompt: string
   knowledgeBaseIds: string[]
-  skillIds: string[]
+  skillIds?: string[]
+  disabledSkillIds?: string[]
   mcpServerIds?: string[]
   /** Opt-out list of built-in tools (empty = all enabled). */
   disabledTools?: string[]
@@ -45,7 +46,8 @@ export function buildCreateAgentCommand(values: AgentCreateValues): CreateAgentC
     description: values.description,
     instructions: values.prompt,
     ...(caps.knowledgeBases ? { knowledgeBaseIds: values.knowledgeBaseIds } : {}),
-    ...(caps.skills ? { skillIds: values.skillIds } : {}),
+    ...(caps.skills && values.skillIds !== undefined ? { skillIds: values.skillIds } : {}),
+    ...(caps.skills && values.disabledSkillIds?.length ? { disabledSkillIds: values.disabledSkillIds } : {}),
     ...(caps.mcp && values.mcpServerIds?.length ? { mcps: values.mcpServerIds } : {}),
     ...(values.disabledTools?.length ? { disabledTools: values.disabledTools } : {}),
     ...(values.channels?.length ? { channels: values.channels } : {}),

@@ -75,6 +75,7 @@ type AgentRelationField = 'mcps' | 'knowledgeBaseIds'
 type AgentCreateInput = AgentBase & {
   type: AgentType
   skillIds?: string[]
+  disabledSkillIds?: string[]
   channels?: AgentChannelDraft[]
 }
 
@@ -433,7 +434,7 @@ export class AgentService {
     const row = withSqliteErrors(
       () =>
         application.get('DbService').withWriteTx((tx) => {
-          getDataService('AgentGlobalSkillService').assertSkillsExistTx(tx, skillIds, 'create agent')
+          globalSkillService.assertSkillsExistTx(tx, skillIds, 'create agent')
           this.assertKnowledgeBasesExistTx(tx, knowledgeBaseIds)
           const result = this.createAgentTx(tx, id, insertData, 'first')
           // Insert junction rows for MCP associations
@@ -448,12 +449,8 @@ export class AgentService {
               .values(knowledgeBaseIds.map((knowledgeBaseId) => ({ agentId: id, knowledgeBaseId })))
               .run()
           }
-          // Enable the selected global skills for the new agent. DB-only: workspace
-          // symlinks don't exist yet (no session/workspace at create time) and get
-          // reconciled later by SkillService when a workspace appears.
-          for (const skillId of skillIds) {
-            globalSkillService.upsertJoinTx(tx, id, skillId, true)
-          }
+          const selection = req.skillIds === undefined ? undefined : new Set(skillIds)
+          globalSkillService.applyCreateSelectionTx(tx, id, selection, req.disabledSkillIds)
           if (!result) return null
           if (avatarFileId) this.setAvatarSlotTx(tx, id, avatarFileId)
           // A rejected channel throws here and rolls back the Agent with it.

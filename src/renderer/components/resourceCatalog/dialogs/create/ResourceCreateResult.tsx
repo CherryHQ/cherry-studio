@@ -286,7 +286,11 @@ export function ResourceCreateResultView({
   const { values, generated } = created
   const isAgent = kind === 'agent'
   const { model } = useModelById(values.modelId)
-  const { skills } = useInstalledSkills(undefined, { enabled: isAgent })
+  const {
+    skills,
+    loading: skillsLoading,
+    error: skillsError
+  } = useInstalledSkills(isAgent ? created.id : undefined, { enabled: isAgent })
   const { bases } = useKnowledgeBases()
   const { mcpServers } = useMcpServers()
 
@@ -308,11 +312,14 @@ export function ResourceCreateResultView({
   const builtinTools = getAgentBuiltinTools(values.agentType, values.knowledgeBaseIds.length > 0)
   const disabledTools = new Set(values.disabledTools)
   const settings = values.agentSettings
-  // Builtin skills are always enabled for a new Agent, whatever was picked.
-  const skillIds = [
-    ...skills.filter((skill) => skill.source === 'builtin').map((skill) => skill.id),
-    ...values.skillIds
-  ]
+  const skillSummary = skillsLoading
+    ? t('common.loading')
+    : skillsError
+      ? t('common.error')
+      : skills
+          .filter((skill) => skill.isEnabled)
+          .map((skill) => skill.name)
+          .join(t('library.config.dialogs.create.result.list_separator')) || notAdded
 
   return (
     <>
@@ -342,9 +349,7 @@ export function ResourceCreateResultView({
                 : t('library.config.dialogs.create.result.empty.not_enabled')}
           </SummaryRow>
           {isAgent ? (
-            <SummaryRow label={t('library.config.agent.section.tools.tab.skills')}>
-              {namesOf(skills, skillIds, notAdded)}
-            </SummaryRow>
+            <SummaryRow label={t('library.config.agent.section.tools.tab.skills')}>{skillSummary}</SummaryRow>
           ) : null}
           <SummaryRow label={t('library.config.agent.section.tools.tab.mcp')}>
             {namesOf(

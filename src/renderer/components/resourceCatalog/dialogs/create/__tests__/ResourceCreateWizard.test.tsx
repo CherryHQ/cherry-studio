@@ -67,11 +67,23 @@ vi.mock('@renderer/hooks/useModel', () => ({
 
 // Installed catalogs the result page resolves names from.
 vi.mock('@renderer/hooks/useSkills', () => ({
-  useInstalledSkills: () => ({
+  useInstalledSkills: (agentId?: string) => ({
     skills: [
-      { id: 'skill-builtin', name: 'Builtin skill', source: 'builtin' },
-      { id: 'skill-review', name: 'Review skill', source: 'local' },
-      { id: 'skill-unused', name: 'Unused skill', source: 'local' }
+      {
+        id: 'skill-builtin',
+        name: 'Builtin skill',
+        source: 'builtin',
+        isGlobalEnabled: true,
+        isEnabled: agentId === 'agent-1'
+      },
+      {
+        id: 'skill-review',
+        name: 'Review skill',
+        source: 'local',
+        isGlobalEnabled: true,
+        isEnabled: agentId === 'agent-1'
+      },
+      { id: 'skill-unused', name: 'Unused skill', source: 'local', isGlobalEnabled: true, isEnabled: false }
     ]
   }),
   useReconcileSkillsOnOpen: vi.fn()
@@ -177,6 +189,9 @@ vi.mock('../steps/CapabilityStep', () => ({
     <div data-testid="capability-step">
       <button type="button" onClick={() => form.setValue('skillIds', ['skill-review'])}>
         select skill
+      </button>
+      <button type="button" onClick={() => form.setValue('disabledSkillIds', ['skill-unused'])}>
+        turn off skill
       </button>
     </div>
   )
@@ -533,7 +548,6 @@ describe('ResourceCreateWizard', () => {
       agentType: 'pi-durable',
       permissionMode: 'auto',
       modelId: 'provider::default',
-      skillIds: [],
       knowledgeBaseIds: [],
       mcpServerIds: [],
       enableWebSearch: false
@@ -1731,22 +1745,38 @@ describe('ResourceCreateWizard result page', () => {
     await user.click(screen.getByRole('button', { name: CREATE }))
   }
 
-  it('ends a manual create on the result page with what was configured', async () => {
+  it('submits a manual skill opt-out and reports the created Agent’s effective skills', async () => {
     const user = userEvent.setup()
-    render(<ResultHost kind="agent" onSubmit={vi.fn().mockResolvedValue('agent-1')} />)
+    const request = vi.mocked(window.api.ipcApi.request)
+    const onSubmit = vi.fn().mockResolvedValue('agent-1')
+    render(<ResultHost kind="agent" onSubmit={onSubmit} />)
 
-    await createManually(user)
+    await user.type(screen.getByRole('textbox', { name: 'draft description' }), 'Review my GitHub PRs')
+    await user.click(screen.getByRole('button', { name: 'fill basic' }))
+    await user.click(screen.getByRole('button', { name: MANUAL }))
+    await user.click(screen.getByRole('button', { name: NEXT }))
+    await user.click(screen.getByRole('button', { name: NEXT }))
+    await user.click(screen.getByRole('button', { name: 'turn off skill' }))
+    await walkToLastStep(user)
+    await waitFor(() => expect(request).toHaveBeenCalledWith('agent.system_prompt.preview', expect.anything()))
+    expect
+      .soft(request)
+      .toHaveBeenCalledWith('agent.system_prompt.preview', expect.objectContaining({ skillIds: ['skill-review'] }))
+    await user.click(screen.getByRole('button', { name: CREATE }))
 
     expect(
       await screen.findByRole('heading', { name: 'library.config.dialogs.create.result.agent_title' })
     ).toBeVisible()
+    expect.soft(summaryValue(SKILLS_ROW)?.textContent).toBe(`Builtin skill${LIST_SEPARATOR}Review skill`)
+    const command = buildCreateAgentCommand(onSubmit.mock.calls[0][0])
+    expect.soft(command.skillIds).toBeUndefined()
+    expect(command.disabledSkillIds).toEqual(['skill-unused'])
     expect(screen.getByText('My Resource')).toBeVisible()
     // Manual create seeds an Agent's prompt from the purpose, so it counts as filled, not generated.
     expect(summaryValue(PROMPT_ROW)).toHaveTextContent('library.config.dialogs.create.result.prompt_filled')
     expect(summaryValue('common.model')).toHaveTextContent('Picked model')
     expect(summaryValue(PERMISSION_ROW)).toHaveTextContent('agent.settings.tooling.permissionMode.auto.title')
     expect(summaryValue(TOOLS_ROW)?.textContent).toMatch(/tools_enabled:(\d+)\/\1$/)
-    expect(summaryValue(SKILLS_ROW)).toHaveTextContent(/^Builtin skill$/)
     expect(summaryValue(MCP_ROW)).toHaveTextContent(`${RESULT}.empty.not_bound`)
     expect(summaryValue(KNOWLEDGE_ROW)).toHaveTextContent(`${RESULT}.empty.not_linked`)
     expect(summaryValue(HEARTBEAT_ROW)).toHaveTextContent(`${RESULT}.heartbeat_off`)

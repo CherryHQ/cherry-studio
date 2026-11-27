@@ -8,9 +8,11 @@ import { AgentPromptField } from '@renderer/components/resourceCatalog/dialogs/c
 import { settingsPillClassName } from '@renderer/components/resourceCatalog/dialogs/components/EditDialogPages'
 import { HeartbeatCard } from '@renderer/components/resourceCatalog/dialogs/components/HeartbeatCard'
 import { ReplyLanguageSelect } from '@renderer/components/resourceCatalog/dialogs/components/ReplyLanguageSelect'
+import { useInstalledSkills } from '@renderer/hooks/useSkills'
 import { type AgentCreateSettings, normalizeAgentLanguageInput } from '@shared/ai/agentForm'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 
+import { getCreateSkillIds } from '../getCreateSkillIds'
 import type { ResourceCreateWizardFormValues } from '../types'
 
 type AdvancedStepProps = {
@@ -21,6 +23,7 @@ type AdvancedStepProps = {
 /** Agent's last step: System Prompt, reply language, heartbeat (when the runtime has one), and env vars. */
 export function AdvancedStep({ form, portalContainer }: AdvancedStepProps) {
   const { t } = useTranslation()
+  const { skills } = useInstalledSkills()
   const [replyLanguageDraft, setReplyLanguageDraft] = useState<string>()
   const previewLanguage = replyLanguageDraft === '' ? '' : normalizeAgentLanguageInput(replyLanguageDraft)
   const [
@@ -29,6 +32,7 @@ export function AdvancedStep({ form, portalContainer }: AdvancedStepProps) {
     name,
     prompt,
     skillIds,
+    disabledSkillIds,
     disabledTools,
     knowledgeBaseIds,
     claudeCodeNativePromptEnabled,
@@ -45,6 +49,7 @@ export function AdvancedStep({ form, portalContainer }: AdvancedStepProps) {
       'name',
       'prompt',
       'skillIds',
+      'disabledSkillIds',
       'disabledTools',
       'knowledgeBaseIds',
       'claudeCodeNativePromptEnabled',
@@ -73,7 +78,7 @@ export function AdvancedStep({ form, portalContainer }: AdvancedStepProps) {
         draft={{
           agentType,
           claudeCodeNativePromptEnabled,
-          skillIds,
+          skillIds: getCreateSkillIds(skills, skillIds, disabledSkillIds),
           disabledTools,
           knowledgeBaseIds,
           languageMode: previewLanguage === null ? languageMode : 'custom',

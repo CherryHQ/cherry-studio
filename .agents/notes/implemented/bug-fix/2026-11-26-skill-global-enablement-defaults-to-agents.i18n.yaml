@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-26-skill-global-enablement-defaults-to-agents.md
+2026-11-26-skill-global-enablement-defaults-to-agents.md: ef71211197b66a55d042f51b19d1e03a72fea3dd
+2026-11-26-skill-global-enablement-defaults-to-agents.zh.md: 531a25903ca823b840b6ed9931379aa0f5329091

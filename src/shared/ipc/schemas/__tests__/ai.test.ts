@@ -150,6 +150,13 @@ describe('ai.agent.create IPC schema', () => {
     expect(createAgent.safeParse({ ...base, tagIds: [] }).success).toBe(false)
   })
 
+  it('accepts explicit opt-outs while leaving the remaining skills inherited', () => {
+    expect(createAgent.parse({ ...base, disabledSkillIds: ['skill-a'] })).toEqual({
+      ...base,
+      disabledSkillIds: ['skill-a']
+    })
+  })
+
   it('deduplicates create-only sets at the IPC boundary', () => {
     expect(
       createAgent.parse({

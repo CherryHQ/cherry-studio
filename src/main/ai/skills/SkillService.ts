@@ -97,13 +97,6 @@ export class SkillService {
   // Public API
   // ===========================================================================
 
-  /**
-   * List installed skills.
-   *
-   * Without `agentId`, the global catalog includes disabled skills and forces
-   * `isEnabled` to false. With `agentId`, globally disabled skills are omitted
-   * and `isEnabled` reflects the per-agent state of the remaining skills.
-   */
   async getById(id: string): Promise<InstalledSkill | null> {
     return agentGlobalSkillService.getById(id)
   }
@@ -116,6 +109,13 @@ export class SkillService {
     })
   }
 
+  /**
+   * List installed skills.
+   *
+   * Without `agentId`, the global catalog includes disabled skills and reports
+   * `isEnabled` as false. With `agentId`, only globally enabled skills appear.
+   * Each is enabled by default until the Agent has an explicit override.
+   */
   async list(query: ListSkillsQuery = {}): Promise<InstalledSkill[]> {
     return agentGlobalSkillService.list(query)
   }
@@ -1415,6 +1415,7 @@ export class SkillService {
           description: metadata.description ?? null,
           folderName,
           source: 'local',
+          isEnabled: false,
           sourceUrl: null,
           namespace: null,
           author: metadata.author ?? null,
@@ -1652,10 +1653,9 @@ export class SkillService {
    * - If files were updated, refreshes the metadata row in-place.
    * - If the row is missing (first install), inserts it.
    *
-   * Per-agent enablement needs no fan-out here: `AgentGlobalSkillService.list()`
-   * defaults a builtin skill to enabled for every agent until a user explicitly
-   * toggles it off, so a fresh `agent_global_skill` row is enabled everywhere —
-   * for existing and future agents alike — without any `agent_skill` rows.
+   * Per-agent enablement needs no fan-out. Every globally enabled skill is
+   * enabled by default for existing and future Agents. An `agent_skill` row
+   * records an explicit choice for one Agent.
    */
   async syncBuiltinSkill(
     folderName: string,

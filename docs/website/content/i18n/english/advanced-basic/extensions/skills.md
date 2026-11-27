@@ -40,7 +40,7 @@ Open the skill details to confirm what it instructs the Agent to do, whether it 
 {% step %}
 #### 3. Bind to Agent
 
-First, ensure the skill's global switch is enabled in [Settings] → [Skills]. Then, go to [Work] → Agent menu → [Edit] → [Skills] to enable it for this specific Agent. Skill toggles are automatically saved with the Agent configuration and take effect from the next message.
+Enable the skill in [Settings] → [Skills]. Skills created by an Agent or discovered in the managed skill folder start with this switch off. Agents inherit globally enabled skills by default. To change the selection for a specific Agent, go to [Work] → Agent menu → [Edit] → [Skills]. Changes take effect from the next message.
 {% endstep %}
 
 {% step %}
@@ -56,11 +56,11 @@ Provide the Agent with a small sample to check if the steps, output format, and 
 
 | Status | Effect | When to Use |
 | -------- | ------------------------ | ------------------------- |
-| Globally Enabled | Makes the skill appear in the Agent's available skill directory | The skill source is trusted and may be used by one or more Agents |
+| Globally Enabled | Enables the skill for every Agent by default | The skill source is trusted and may be used by one or more Agents |
 | Globally Disabled | Pauses all Agents from using the skill but retains the installed content | Temporary suspension, troubleshooting, or awaiting security checks |
-| Agent Enabled | Allows only the current Agent to load the skill | The process aligns with the current Agent's long-term responsibilities |
+| Agent Enabled | Lets the current Agent load a globally enabled skill | The process aligns with the current Agent's long-term responsibilities |
 
-Turning off the global switch does not uninstall the skill; after re-enabling it, you must still check the enablement status for each Agent. Uninstalling removes the skill content and cleans up associations.
+The Agent creation wizard shows globally enabled skills as on. Turn off optional skills the Agent should skip. Per-Agent choices survive global switch changes. Turning off the global switch keeps the installed skill. Uninstalling removes the skill content and cleans up associations.
 
 ### Exporting Skills to External Agents
 
@@ -90,7 +90,7 @@ Uninstalling a skill removes it from the global capability library and cleans up
 
 <summary>Why isn't the Agent using the skill after installation? </summary>
 
-First, confirm the skill is not globally disabled. Then, enable it in the [Skills] section of the Agent edit window, or ask the Agent to help you complete the binding. Finally, send a new message to test.
+Confirm the global switch is on. Check the Agent edit window under [Skills] for any per-Agent opt-out, then send a new message to test.
 
 </details>
 

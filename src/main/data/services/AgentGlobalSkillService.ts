@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, or, type SQL, sql } from 'drizzle-orm'
+import { and, asc, eq, inArray, ne, or, type SQL, sql } from 'drizzle-orm'
 
 import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
@@ -61,8 +61,9 @@ export class AgentGlobalSkillService {
    *
    * Without an agent, every installed skill is returned for the global
    * settings catalog and `isEnabled` is false. With `query.agentId`, globally
-   * disabled skills are excluded from the Agent capability catalog; remaining
-   * rows project the `agent_skill` preference (with builtins enabled by default).
+   * disabled skills are excluded from the Agent capability catalog. Globally
+   * enabled skills are enabled for every Agent by default until that Agent has
+   * an explicit `agent_skill` override.
    */
   list(query: ListSkillsQuery = {}): InstalledSkill[] {
     const conditions: SQL[] = []
@@ -96,7 +97,7 @@ export class AgentGlobalSkillService {
     const enabledMap = this.loadEnabledMap(query.agentId)
     return skills.map((s) => ({
       ...s,
-      isEnabled: enabledMap.get(s.id) ?? s.source === 'builtin'
+      isEnabled: enabledMap.get(s.id) ?? s.isGlobalEnabled
     }))
   }
 
@@ -209,6 +210,29 @@ export class AgentGlobalSkillService {
         set: { isEnabled }
       })
       .run()
+  }
+
+  applyCreateSelectionTx(
+    tx: DbOrTx,
+    agentId: string,
+    selectedIds: ReadonlySet<string> | undefined,
+    disabledIds: readonly string[] = []
+  ): void {
+    if (!selectedIds && !disabledIds.length) return
+
+    const skills = tx
+      .select({ id: agentGlobalSkillTable.id })
+      .from(agentGlobalSkillTable)
+      .where(
+        and(
+          ne(agentGlobalSkillTable.source, 'builtin'),
+          selectedIds ? undefined : inArray(agentGlobalSkillTable.id, [...disabledIds])
+        )
+      )
+      .all()
+    for (const { id } of skills) {
+      this.upsertJoinTx(tx, agentId, id, selectedIds?.has(id) ?? false)
+    }
   }
 
   /** Publish the agent-scoped Skill projection only after its caller-owned transaction commits. */

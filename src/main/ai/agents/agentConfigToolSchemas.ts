@@ -45,6 +45,9 @@ const settingsShape = {
 
 const createAgent = z.strictObject({
   ...settingsShape,
+  skillIds: settingsShape.skillIds.describe(
+    'Complete selection of globally enabled optional skills. Omit to inherit all globally enabled skills. Pass [] to enable no optional skills. Built-in skills keep their global state.'
+  ),
   name: z.string().trim().min(1).describe('Short display name, e.g. "Python Reviewer" or "周报助手".'),
   instructions: z
     .string()
