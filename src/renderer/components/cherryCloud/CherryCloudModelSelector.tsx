@@ -44,7 +44,7 @@ type WithoutComposition<T> = T extends unknown ? Omit<T, 'composition'> : never
 export type CherryCloudModelSelectorProps = WithoutComposition<ModelSelectorProps> & {
   offerFilter?: CherryCloudOfferFilter
   showSubscriptionOffers?: boolean
-  /** The picked model runs utility tasks (naming, translation), which may use the built-in CherryAI model signed out. */
+  /** The picked model serves only utility tasks, which may use the built-in CherryAI model signed out. */
   forUtilityTask?: boolean
 }
 
