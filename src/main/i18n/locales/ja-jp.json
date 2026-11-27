@@ -50,6 +50,8 @@
   "agent.session.pi.legacy_tool_policy_unresolved": "以前のランタイムで無効にした一部のツールを対応付けできませんでした。実行する前に、このエージェントのツールへのアクセス権限を再設定してください。",
   "agent.session.run_status.busy": "Agent セッションは処理中です。しばらくしてからもう一度お試しください。",
   "agent.session.run_status.unavailable": "Agent セッションは利用できなくなりました。",
+  "agent.session.runtime.connection_ended": "実行環境への接続が予期せず切断されたため、応答の生成を停止しました。再試行する前に、ツールの操作による影響を確認してください。",
+  "agent.session.runtime.inactive": "実行環境で {{minutes}} 分間アクティビティがなかったため、応答の生成を停止しました。再試行する前に、ツールの操作による影響を確認してください。",
   "agent.session.workspace_status.inaccessible": "ワークスペースパスにアクセスできません: {{path}}",
   "agent.session.workspace_status.missing": "ワークスペースパスが存在しません: {{path}}",
   "agent.session.workspace_status.not_directory": "ワークスペースパスがフォルダーではありません: {{path}}",

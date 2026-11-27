@@ -50,6 +50,8 @@
   "agent.session.pi.legacy_tool_policy_unresolved": "Certains outils désactivés de l’ancien environnement n’ont pas pu être associés. Reconfigurez l’accès aux outils de cet agent avant de l’exécuter.",
   "agent.session.run_status.busy": "La session Agent est occupée. Veuillez réessayer dans quelques instants.",
   "agent.session.run_status.unavailable": "La session Agent n’est plus disponible.",
+  "agent.session.runtime.connection_ended": "La connexion à l’environnement d’exécution s’est interrompue de manière inattendue. La génération de la réponse a été arrêtée ; vérifiez les effets des actions des outils avant de réessayer.",
+  "agent.session.runtime.inactive": "Aucune activité dans l’environnement d’exécution depuis {{minutes}} minutes. La génération de la réponse a été arrêtée ; vérifiez les effets des actions des outils avant de réessayer.",
   "agent.session.workspace_status.inaccessible": "Le chemin de l'espace de travail n'est pas accessible : {{path}}",
   "agent.session.workspace_status.missing": "Le chemin de l'espace de travail n'existe pas : {{path}}",
   "agent.session.workspace_status.not_directory": "Le chemin de l’espace de travail n’est pas un répertoire : {{path}}",

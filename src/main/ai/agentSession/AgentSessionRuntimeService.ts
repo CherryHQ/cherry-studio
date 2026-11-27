@@ -28,8 +28,10 @@ import {
   type Event,
   Injectable,
   Phase,
-  ServicePhase
+  ServicePhase,
+  Signal
 } from '@main/core/lifecycle'
+import { t } from '@main/i18n'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import { AGENT_SESSION_API_RETRY_CACHE_KEY, type AgentSessionApiRetryInfo } from '@shared/ai/agentSessionApiRetry'
@@ -148,6 +150,9 @@ import { readSessionHistory } from './sessionHistory'
 
 const logger = loggerService.withContext('AgentSessionRuntimeService')
 const DEFAULT_IDLE_TTL_MS = 5 * 60 * 1000
+/** Bound runtime-event inactivity separately from the 5-minute idle-resource TTL
+ * and the 120-minute CHAT_STREAM_IDLE_TIMEOUT_MS product-stream backstop. */
+export const REPLY_INACTIVITY_TIMEOUT_MS = 30 * 60 * 1000
 const CONTEXT_USAGE_REFRESH_THROTTLE_MS = 3_000
 /** Stream abort reasons that mean the user stopped the work, as opposed to teardown. */
 const USER_STOP_REASONS: ReadonlySet<unknown> = new Set(['user-requested', 'remote-cancel'])
@@ -299,6 +304,7 @@ type PendingNativeInput = {
   input: AgentRuntimeUserInput
   generation?: string
   contextId?: string
+  skipRequeue?: boolean
   turnOptions?: Pick<
     QueuedAgentSessionInput,
     'reasoningEffort' | 'serviceTier' | 'fastMode' | 'permissionModeOverride' | 'trustedNotifyChannels'
@@ -364,6 +370,16 @@ type AgentSessionRuntimeEntry = {
   rootProjections?: Map<string, RootMessageProjection>
   timeline?: { lastPos: number }
   idleTimer?: ReturnType<typeof setTimeout>
+  replyInactivityWatchdog?: {
+    turn: AgentSessionRun
+    connection?: AgentRuntimeConnection
+    generation?: string
+    deadline: number
+    paused: boolean
+    timer?: ReturnType<typeof setTimeout>
+  }
+  stoppedReply?: AgentSessionRun
+  observedApprovals?: Map<string, { connection: AgentRuntimeConnection; generation?: string }>
   /** Throttle stamp for {@link AgentSessionRuntimeService.refreshContextUsageOnDemand}. */
   lastContextUsageRefreshAt?: number
   /** Single-flight marker for context-usage reads on the current connection. */
@@ -539,8 +555,10 @@ export class AgentSessionRuntimeService extends BaseService {
   /** Async connection resources live outside the pure state; attempt ids reject stale completions. */
   private readonly connectionAttempts = new Map<
     AgentSessionRuntimeEntry,
-    { id: string; promise: Promise<boolean>; interrupt?: boolean }
+    { id: string; promise: Promise<boolean | 'retired'>; retirement: Signal<'retired'>; interrupt?: boolean }
   >()
+  /** Connections installed or closing through a live path; retired cleanup must not close them. */
+  private readonly claimedConnections = new WeakSet<AgentRuntimeConnection>()
   /** Promise resources for a rebuild-blocked connection; the state only owns the blocked phase. */
   private readonly backgroundWorkWaiters = new Map<
     AgentSessionRuntimeEntry,
@@ -650,6 +668,9 @@ export class AgentSessionRuntimeService extends BaseService {
    * the turn, so nothing else retires them once their request is aborted.
    */
   private retireAbortedApprovalCard(aborted: AbortedApproval): void {
+    for (const entry of this.allEntries()) {
+      if (entry.observedApprovals?.has(aborted.approvalId)) this.syncReplyInactivityWatchdog(entry)
+    }
     if (aborted.presentation !== 'message') return
     try {
       agentSessionMessageService.retireAbandonedApproval(
@@ -787,6 +808,7 @@ export class AgentSessionRuntimeService extends BaseService {
     entry.runtimeState = transition.state
     if (this.runtimeStatus(entry) !== 'idle' || hasAgentSessionRuntimeBackgroundWork(entry.runtimeState))
       entry.prediction?.controller.abort()
+    this.syncReplyInactivityWatchdog(entry)
     this.syncRuntimeActivity()
     for (const effect of transition.effects) this.applyRuntimeStateEffect(entry, effect)
     this.flushDeferredPlacements(entry)
@@ -1571,6 +1593,8 @@ export class AgentSessionRuntimeService extends BaseService {
       ...(turn &&
         !turn.continuedInBackground && { input: { ids: turn.taskIds, replyId: turn.runId, outcomes: new Map() } })
     }
+    entry.stoppedReply = getAgentSessionRuntimeNativeTurn(entry.runtimeState)
+    this.clearReplyInactivityWatchdog(entry)
     entry.stopping = stopping
     // Stop withdraws queued follow-ups; input arriving after Stop waits for the native confirmation.
     this.applyRuntimeStateEvent(entry, { type: 'clear-queue' })
@@ -2058,6 +2082,9 @@ export class AgentSessionRuntimeService extends BaseService {
       ...(!decision.approved && { reasonSource: 'user' as const })
     })
     if (!dispatched) return { ok: false, reason: 'rejected' }
+    for (const entry of this.allEntries()) {
+      if (entry.observedApprovals?.has(approvalId)) this.syncReplyInactivityWatchdog(entry)
+    }
 
     if (dispatched.presentation === 'stream') {
       const entry = this.entryForContext(dispatched.sessionId, dispatched.contextId)
@@ -2146,6 +2173,7 @@ export class AgentSessionRuntimeService extends BaseService {
 
   protected async onStop(): Promise<void> {
     this.isShuttingDown = true
+    for (const entry of this.allEntries()) this.clearReplyInactivityWatchdog(entry)
     this.startupRecovery.resolve()
     await Promise.allSettled([...this.replyRecoveries, this.recovery])
     await this.forks.cancel()
@@ -2164,6 +2192,7 @@ export class AgentSessionRuntimeService extends BaseService {
 
   protected async onDestroy(): Promise<void> {
     this.isShuttingDown = true
+    for (const entry of this.allEntries()) this.clearReplyInactivityWatchdog(entry)
     await Promise.allSettled([...this.replyRecoveries, this.recovery])
     childTimelines.subscriptions.dispose()
     await this.forks.cancel()
@@ -2419,14 +2448,15 @@ export class AgentSessionRuntimeService extends BaseService {
       // fresh one passes the reconcile above.
       const existingAttempt = this.connectionAttempts.get(entry)
       if (existingAttempt) {
-        await existingAttempt.promise.catch(() => false)
+        if ((await existingAttempt.promise.catch(() => false)) === 'retired') return false
         continue
       }
 
       const attemptId = crypto.randomUUID()
       entry.connectionGeneration = attemptId
       this.applyRuntimeStateEvent(entry, { type: 'connection-started', attemptId })
-      const connecting = this.connect(entry, target, attemptId).finally(() => {
+      const retirement = new Signal<'retired'>()
+      const connecting = Promise.race([this.connect(entry, target, attemptId, retirement), retirement]).finally(() => {
         if (this.connectionAttempts.get(entry)?.id === attemptId) {
           this.connectionAttempts.delete(entry)
         }
@@ -2438,8 +2468,9 @@ export class AgentSessionRuntimeService extends BaseService {
           this.applyRuntimeStateEvent(entry, { type: 'connection-disconnected' })
         }
       })
-      this.connectionAttempts.set(entry, { id: attemptId, promise: connecting })
+      this.connectionAttempts.set(entry, { id: attemptId, promise: connecting, retirement })
       const connected = await connecting
+      if (connected === 'retired') return false
       if (connected) return true
     }
 
@@ -2449,7 +2480,8 @@ export class AgentSessionRuntimeService extends BaseService {
   private async connect(
     entry: AgentSessionRuntimeEntry,
     target: AgentSessionConnectionTarget,
-    attemptId: string
+    attemptId: string,
+    retirement: Signal<'retired'>
   ): Promise<boolean> {
     const driver = runtimeDriverRegistry.getAgentSessionDriver(entry.agentType)
     if (!driver) throw new Error(`Unsupported agent runtime type: ${entry.agentType}`)
@@ -2474,6 +2506,13 @@ export class AgentSessionRuntimeService extends BaseService {
       ...this.inputCallbacks(entry, attemptId)
     }
     const connection = await driver.connect(request)
+    if (retirement.isResolved) {
+      // Wait for in-flight retries that may reuse this exact connection before closing it.
+      void this.closeRetiredConnection(entry.sessionId, connection).catch((error) =>
+        logger.warn('Retired agent runtime connection close failed', { sessionId: entry.sessionId, error })
+      )
+      return false
+    }
     const attempt = this.connectionAttempts.get(entry)
     const interrupt = attempt?.id === attemptId && attempt.interrupt
     const owner = connection.contextId && this.entryForContext(entry.sessionId, connection.contextId)
@@ -2496,6 +2535,36 @@ export class AgentSessionRuntimeService extends BaseService {
       this.currentConnection(entry) === connection &&
       (connection.preparedFor?.(request) ?? true)
     )
+  }
+
+  private async closeRetiredConnection(sessionId: string, connection: AgentRuntimeConnection): Promise<void> {
+    while (!this.claimedConnections.has(connection) && !this.isConnectionOwned(sessionId, connection)) {
+      const pending = this.pendingConnectionAttempts(sessionId, connection.contextId)
+      if (!pending.length) {
+        this.claimedConnections.add(connection)
+        await (connection.closeForEdit ? connection.closeForEdit() : connection.close())
+        return
+      }
+      await Promise.allSettled(pending)
+    }
+  }
+
+  private isConnectionOwned(sessionId: string, connection: AgentRuntimeConnection): boolean {
+    for (const entry of this.allEntries()) {
+      if (entry.sessionId === sessionId && this.currentConnection(entry) === connection) return true
+    }
+    return false
+  }
+
+  private pendingConnectionAttempts(sessionId: string, contextId?: string): Promise<boolean | 'retired'>[] {
+    const pending: Promise<boolean | 'retired'>[] = []
+    for (const entry of this.allEntries()) {
+      if (entry.sessionId !== sessionId) continue
+      if (contextId && entry.secondaryContextId && entry.secondaryContextId !== contextId) continue
+      const attempt = this.connectionAttempts.get(entry)
+      if (attempt) pending.push(attempt.promise)
+    }
+    return pending
   }
 
   private inputCallbacks(
@@ -2522,9 +2591,13 @@ export class AgentSessionRuntimeService extends BaseService {
     modelId: UniqueModelId,
     attemptId: string
   ): boolean {
-    if (this.currentConnection(entry) === connection) return this.isCurrentGeneration(entry, attemptId)
+    if (this.currentConnection(entry) === connection) {
+      this.claimedConnections.add(connection)
+      return this.isCurrentGeneration(entry, attemptId)
+    }
     this.applyRuntimeStateEvent(entry, { type: 'connection-connected', attemptId, connection })
     if (this.currentConnection(entry) !== connection) return false
+    this.claimedConnections.add(connection)
     connection.bindInputs?.(this.inputCallbacks(entry, attemptId))
     entry.contextUsageModel = modelId
     entry.usageCapture = connection.usageCapture
@@ -2577,6 +2650,7 @@ export class AgentSessionRuntimeService extends BaseService {
         return
       }
     }
+    if (pending.skipRequeue) return
     if (!agentSessionMessageService.hasSessionMessage(entry.sessionId, inputId)) {
       logger.warn('Dropping unrecoverable pending native input whose message no longer exists', {
         sessionId: entry.sessionId,
@@ -2736,8 +2810,31 @@ export class AgentSessionRuntimeService extends BaseService {
     try {
       for await (const event of connection.events) {
         if (!this.isCurrentEntry(entry) || this.currentConnection(entry) !== connection) break
+        if (event.type === 'tool-approval-request') {
+          ;(entry.observedApprovals ??= new Map()).set(event.request.approvalId, {
+            connection,
+            generation: entry.connectionGeneration
+          })
+          this.syncReplyInactivityWatchdog(entry)
+        }
         this.handleRuntimeEvent(entry, event, connection)
+        if (this.isCurrentEntry(entry) && this.currentConnection(entry) === connection)
+          this.syncReplyInactivityWatchdog(entry, { connection, event })
       }
+      const turn = getAgentSessionRuntimeNativeTurn(entry.runtimeState)
+      const reply = turn && getAgentSessionRuntimeReply(entry.runtimeState, turn)
+      if (
+        this.isCurrentEntry(entry) &&
+        this.currentConnection(entry) === connection &&
+        !entry.closing &&
+        !entry.stopping &&
+        !this.isShuttingDown &&
+        turn !== entry.stoppedReply &&
+        reply &&
+        !['awaiting-persistence', 'settled'].includes(reply.delivery.kind) &&
+        (!reply.terminal || reply.terminal.status === 'success')
+      )
+        this.failReplyExecution(entry, connection, new Error(t('agent.session.runtime.connection_ended')))
     } catch (error) {
       if (this.isCurrentEntry(entry) && this.currentConnection(entry) === connection) {
         this.handleRuntimeError(entry, error)
@@ -3023,6 +3120,8 @@ export class AgentSessionRuntimeService extends BaseService {
         break
       }
       case 'stop-confirmed': {
+        entry.stoppedReply = getAgentSessionRuntimeNativeTurn(entry.runtimeState)
+        this.clearReplyInactivityWatchdog(entry)
         const stopping = entry.stopping
         if (!stopping || stopping.connection !== connection) break
         this.applyRuntimeStateEvent(entry, { type: 'connection-occupancy', occupancy: 'stopping', active: false })
@@ -4140,6 +4239,172 @@ export class AgentSessionRuntimeService extends BaseService {
     })
   }
 
+  private syncReplyInactivityWatchdog(
+    entry: AgentSessionRuntimeEntry,
+    progress?: { connection: AgentRuntimeConnection; event: AgentRuntimeEvent }
+  ): void {
+    const turn = getAgentSessionRuntimeNativeTurn(entry.runtimeState)
+    const reply = turn && getAgentSessionRuntimeReply(entry.runtimeState, turn)
+    const previous = entry.replyInactivityWatchdog
+    const connection = this.currentConnection(entry)
+    let renew = false
+    if (progress) {
+      if (progress.connection !== connection) return
+      const event = progress.event
+      switch (event.type) {
+        case 'message.text-open':
+        case 'message.text-append':
+        case 'message.text-finish':
+        case 'message.parts':
+        case 'message.tool-output':
+        case 'message-projection':
+        case 'response-start':
+        case 'message-metadata':
+        case 'usage':
+        case 'tool-input-available':
+        case 'data-retry':
+        case 'background-task-event':
+        case 'background-tasks':
+        case 'background-results':
+        case 'background-work-state':
+        case 'autonomous-turn-state':
+        case 'compaction-start':
+        case 'compaction-complete':
+        case 'compaction-error':
+        case 'api-retry':
+        case 'steer-boundary':
+        case 'run-started':
+          renew = true
+          break
+        case 'input-state':
+          renew =
+            event.contextId === connection?.contextId &&
+            (event.input.facts.includes('placed') || event.input.outcome !== undefined)
+          break
+        case 'turn-complete':
+          renew = reply?.terminal?.status === 'success' && reply.pendingResultToolCallIds?.length !== 0
+          break
+        case 'error':
+        case 'stop-confirmed':
+          this.clearReplyInactivityWatchdog(entry)
+          return
+        case 'tool-approval-request':
+        case 'context-usage':
+        case 'supported-commands':
+        case 'resume-token':
+        case 'run-checkpoint':
+        case 'followup-queue':
+        case 'input-submission':
+        case 'steer-undelivered':
+          break
+        default:
+          event satisfies never
+      }
+    }
+    let paused = false
+    for (const [approvalId, observed] of entry.observedApprovals ?? []) {
+      const pending = toolApprovalRegistry.peek(approvalId)
+      if (!pending || observed.connection !== connection || observed.generation !== entry.connectionGeneration) {
+        entry.observedApprovals!.delete(approvalId)
+      } else if (
+        pending.sessionId === entry.sessionId &&
+        (pending.presentation === 'stream' || pending.presentation === 'message')
+      )
+        paused = true
+    }
+    if (
+      !this.isCurrentEntry(entry) ||
+      entry.closing ||
+      entry.stopping ||
+      this.isShuttingDown ||
+      !turn ||
+      turn === entry.stoppedReply ||
+      !reply ||
+      ['awaiting-persistence', 'settled', 'suspending'].includes(reply.delivery.kind) ||
+      (reply.terminal && reply.terminal.status !== 'success') ||
+      (!previous && !turn.controller)
+    ) {
+      this.clearReplyInactivityWatchdog(entry)
+      return
+    }
+    const deadline =
+      !previous || renew || (previous.paused && !paused) ? Date.now() + REPLY_INACTIVITY_TIMEOUT_MS : previous.deadline
+    if (
+      previous?.turn === turn &&
+      previous.connection === connection &&
+      previous.generation === entry.connectionGeneration &&
+      previous.deadline === deadline &&
+      previous.paused === paused
+    )
+      return
+    this.clearReplyInactivityWatchdog(entry)
+    const watchdog: NonNullable<AgentSessionRuntimeEntry['replyInactivityWatchdog']> = {
+      turn,
+      connection,
+      generation: entry.connectionGeneration,
+      deadline,
+      paused
+    }
+    entry.replyInactivityWatchdog = watchdog
+    if (paused) return
+    watchdog.timer = setTimeout(
+      () => {
+        if (
+          entry.replyInactivityWatchdog !== watchdog ||
+          !this.isCurrentEntry(entry) ||
+          getAgentSessionRuntimeNativeTurn(entry.runtimeState) !== turn ||
+          this.currentConnection(entry) !== connection ||
+          entry.connectionGeneration !== watchdog.generation
+        )
+          return
+        this.syncReplyInactivityWatchdog(entry)
+        if (entry.replyInactivityWatchdog !== watchdog) return
+        this.failReplyExecution(
+          entry,
+          connection,
+          new Error(
+            t('agent.session.runtime.inactive', {
+              minutes: REPLY_INACTIVITY_TIMEOUT_MS / 60_000
+            })
+          )
+        )
+      },
+      Math.max(0, deadline - Date.now())
+    )
+    watchdog.timer.unref?.()
+  }
+
+  private clearReplyInactivityWatchdog(entry: AgentSessionRuntimeEntry): void {
+    clearTimeout(entry.replyInactivityWatchdog?.timer)
+    entry.replyInactivityWatchdog = undefined
+  }
+
+  private failReplyExecution(
+    entry: AgentSessionRuntimeEntry,
+    connection: AgentRuntimeConnection | undefined,
+    error: Error
+  ): void {
+    this.clearReplyInactivityWatchdog(entry)
+    entry.deferredPlacements = undefined
+    // Pending native inputs still reconcile, but recovery must not requeue withdrawn work.
+    for (const pending of entry.pendingInputs?.values() ?? []) pending.skipRequeue = true
+    this.applyRuntimeStateEvent(entry, { type: 'clear-queue' })
+    for (const turn of getAgentSessionRuntimeTurns(entry.runtimeState)) {
+      const reply = getAgentSessionRuntimeReply(entry.runtimeState, turn)
+      if (!reply || ['awaiting-persistence', 'settled'].includes(reply.delivery.kind)) continue
+      this.applyRuntimeStateEvent(entry, { type: 'runtime-terminal', turn, outcome: { status: 'error', error } })
+    }
+    if (this.currentConnection(entry) === connection) {
+      const attempt = this.connectionAttempts.get(entry)
+      this.connectionAttempts.delete(entry)
+      this.closeConnection(entry)
+      if (entry.runtimeState.connection.kind === 'connecting')
+        this.applyRuntimeStateEvent(entry, { type: 'connection-disconnected' })
+      attempt?.retirement.resolve('retired')
+    }
+    void this.closeRuntimeConnection(connection, entry)
+  }
+
   private refreshIdleTimer(entry: AgentSessionRuntimeEntry): void {
     this.clearIdleTimer(entry)
     if (this.currentConnection(entry)?.retainWhileIdle) return
@@ -4186,6 +4451,7 @@ export class AgentSessionRuntimeService extends BaseService {
 
   private async closeEntry(entry: AgentSessionRuntimeEntry, interrupt = false): Promise<void> {
     this.clearIdleTimer(entry)
+    this.clearReplyInactivityWatchdog(entry)
     entry.closing = true
     const turns = getAgentSessionRuntimeTurns(entry.runtimeState)
     const streamDrain = Promise.allSettled(
@@ -4266,6 +4532,8 @@ export class AgentSessionRuntimeService extends BaseService {
     entry: AgentSessionRuntimeEntry,
     resetRuntimeState = true
   ): AgentRuntimeConnection | undefined {
+    this.clearReplyInactivityWatchdog(entry)
+    entry.observedApprovals = undefined
     const connection = this.currentConnection(entry)
     if (connection && resetRuntimeState) this.resetConnectionRuntimeState(entry, connection)
     if (connection) this.applyRuntimeStateEvent(entry, { type: 'connection-disconnected', connection })
@@ -4286,6 +4554,7 @@ export class AgentSessionRuntimeService extends BaseService {
     interrupt = false
   ): Promise<void> {
     if (!connection) return
+    this.claimedConnections.add(connection)
     const entry = typeof owner === 'string' ? undefined : owner
     const sessionId = typeof owner === 'string' ? owner : owner.sessionId
     entry?.prediction?.controller.abort()

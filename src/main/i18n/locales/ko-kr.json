@@ -50,6 +50,8 @@
   "agent.session.pi.legacy_tool_policy_unresolved": "이전 런타임에서 비활성화된 일부 도구를 연결할 수 없습니다. 실행하기 전에 이 에이전트의 도구 접근 권한을 다시 설정하세요.",
   "agent.session.run_status.busy": "에이전트 세션이 사용 중입니다. 잠시 후 다시 시도하세요.",
   "agent.session.run_status.unavailable": "에이전트 세션을 더 이상 사용할 수 없습니다.",
+  "agent.session.runtime.connection_ended": "실행 환경과의 연결이 예기치 않게 종료되어 응답 생성이 중단되었습니다. 다시 시도하기 전에 도구 실행으로 발생한 영향을 확인하세요.",
+  "agent.session.runtime.inactive": "{{minutes}}분 동안 실행 환경에 활동이 없어 응답 생성이 중단되었습니다. 다시 시도하기 전에 도구 실행으로 발생한 영향을 확인하세요.",
   "agent.session.workspace_status.inaccessible": "워크스페이스 경로에 접근할 수 없습니다: {{path}}",
   "agent.session.workspace_status.missing": "워크스페이스 경로가 존재하지 않습니다: {{path}}",
   "agent.session.workspace_status.not_directory": "워크스페이스 경로가 디렉터리가 아닙니다: {{path}}",

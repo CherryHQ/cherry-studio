@@ -14,7 +14,12 @@ import { SequencerByKey } from '@shared/utils/async'
 
 import { prepareAgentSessionWorkspaceDirectory } from '../agentSessionWorkspace'
 import { AgentSessionForkError, type RuntimeForkInput } from '../fork'
-import { type AgentRuntimeConnectInput, type AgentSessionRuntimeDriver, unavailableNativeContext } from '../types'
+import {
+  type AgentRuntimeConnectInput,
+  type AgentSessionRuntimeDriver,
+  type UnavailableNativeContext,
+  unavailableNativeContext
+} from '../types'
 import { DurableBackend, type DurableRoot } from './DurableBackend'
 import { prepareDurableBranch } from './durableContext'
 import { forkDurable } from './durableFork'
@@ -184,8 +189,24 @@ export class PiDurableRuntimeDriver implements AgentSessionRuntimeDriver {
     return rebuilt
   }
 
-  private connectBranch(input: AgentRuntimeConnectInput, context: AgentSessionContextRow) {
-    return this.operations.queue(context.backendId, () => this.open(this.slot(context.backendId), input, context))
+  private async connectBranch(input: AgentRuntimeConnectInput, context: AgentSessionContextRow) {
+    while (true) {
+      const opened = await this.operations.queue<
+        | PiDurableRuntimeConnection
+        | UnavailableNativeContext
+        | { status: 'closing'; connection: PiDurableRuntimeConnection }
+      >(context.backendId, () => {
+        const slot = this.slot(context.backendId)
+        const existing = slot.connections.get(context.id)
+        if (existing?.isClosing) return { status: 'closing' as const, connection: existing }
+        return this.open(slot, input, context)
+      })
+      if ('status' in opened && opened.status === 'closing') {
+        await opened.connection.close()
+        continue
+      }
+      return opened
+    }
   }
 
   private async open(

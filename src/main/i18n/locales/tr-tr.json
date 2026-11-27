@@ -50,6 +50,8 @@
   "agent.session.pi.legacy_tool_policy_unresolved": "Önceki çalışma ortamındaki bazı devre dışı araçlar eşleştirilemedi. Çalıştırmadan önce bu aracının araç erişimini yeniden yapılandırın.",
   "agent.session.run_status.busy": "Ajan Oturumu meşgul. Lütfen kısa süre sonra tekrar deneyin.",
   "agent.session.run_status.unavailable": "Ajan Oturumu artık kullanılamıyor.",
+  "agent.session.runtime.connection_ended": "Çalışma ortamıyla bağlantı beklenmedik şekilde sona erdi. Yanıt oluşturma durduruldu; yeniden denemeden önce araçların yaptığı işlemlerin etkilerini kontrol edin.",
+  "agent.session.runtime.inactive": "Çalışma ortamında {{minutes}} dakikadır etkinlik yok. Yanıt oluşturma durduruldu; yeniden denemeden önce araçların yaptığı işlemlerin etkilerini kontrol edin.",
   "agent.session.workspace_status.inaccessible": "Çalışma alanı yoluna erişilemiyor: {{path}}",
   "agent.session.workspace_status.missing": "Çalışma alanı yolu mevcut değil: {{path}}",
   "agent.session.workspace_status.not_directory": "Çalışma alanı yolu bir dizin değil: {{path}}",

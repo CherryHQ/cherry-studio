@@ -324,6 +324,13 @@ product completion while that reply has undrained results. Empty display task li
 release do not settle it; confirmed result drainage, ordered content and final persistence do.
 Before terminal persistence begins, an error or pause replaces held intermediate success;
 later success cannot erase that failure or pause. Events after settlement cannot reopen the reply.
+The executing reply has a 30-minute runtime-event inactivity deadline, including held success
+with non-empty or unknown pending results. Unexpected event-stream EOF fails an unresolved reply
+immediately, including during approval waits. Failure retains received content and the assistant
+identity, withdraws queued follow-ups and deferred placements, and detaches the connection before
+asynchronous close. Normal terminal persistence still completes. Recovery requires an explicit user
+retry after reviewing possible tool side effects; the host never automatically resubmits execution.
+
 The model still chooses foreground/background through the native tool arguments. A resident command
 can retain the connection without holding a reply open. A notification without proven ownership
 cannot reopen a settled reply.
@@ -1180,7 +1187,7 @@ from idle activity or an empty product-input map.
 Native submission and assistant metadata carry the consuming run's stable identity.
 Ordinary steer may start a later run after normal completion; it has no run-only constraint.
 Background continuation keeps the child identity. Independent continuation of a completed
-foreground child is rejected because native tool ownership is immutable. Successful committed boundaries support ownerless same-storage desktop forks; each root retains its own model options, approvals, extensions and environment. Before shared recovery resumes unfinished roots, their stored request selections and Main projection consumers are restored. Selecting a recovered root reuses its consumer. While that Run drains, its projection, stop and approval commands use the topic assigned at admission. A subsequent foreground Run enters through the session topic and reconciles the requested model and tools before sending. Final release closes the backend once and drains observations before product writers stop. Edit and resend retains sibling-message branches, preparing an ownerless native fork at the predecessor or a fresh context for the first input. File rewind and `vcc_recall` remain unavailable. See the
+foreground child is rejected because native tool ownership is immutable. Successful committed boundaries support ownerless same-storage desktop forks; each root retains its own model options, approvals, extensions and environment. Before shared recovery resumes unfinished roots, their stored request selections and Main projection consumers are restored. Selecting a recovered root reuses its consumer. While that Run drains, its projection, stop and approval commands use the topic assigned at admission. A subsequent foreground Run enters through the session topic and reconciles the requested model and tools before sending. Final release closes the backend once and drains observations before product writers stop. When a queued `connect()` encounters a cached branch connection that is already closing, `PiDurableRuntimeDriver` yields the backend queue, awaits that close to finish, and reopens instead of returning the closing connection to the retry. Edit and resend retains sibling-message branches, preparing an ownerless native fork at the predecessor or a fresh context for the first input. File rewind and `vcc_recall` remain unavailable. See the
 [driver README](../../../../src/main/ai/runtime/piDurable/README.md) for storage and recovery boundaries.
 
 ### Pi code mode
@@ -1385,6 +1392,35 @@ sessions of their runtime. See
 
 ## Idle and shutdown
 
+`REPLY_INACTIVITY_TIMEOUT_MS` bounds the currently executing reply to 30 minutes without
+qualifying runtime events, starting when its stream opens, including connection setup. Message
+content/projections, response metadata and usage, tool input/output, retries, background task and
+result activity, autonomous ownership, compaction, steer boundaries and `run-started` renew it. `input-state`
+renews only for the current connection context with placement or an outcome. Held `turn-complete`
+success renews it; terminal handoff disarms it. Unknown pending results remain held until confirmed
+drainage or an error; timeout never fabricates drainage.
+
+Context usage reads, command catalogs, resume tokens, `run-checkpoint`, admission-only input facts, queue edits,
+renderer attachment, outbound commands and status publication do not renew the deadline. Only the
+native execution owner is supervised; suspended/deferred replies and idle background occupancy
+have no independent timer. Entry, reply, watchdog and connection-generation fences reject stale
+callbacks. Connection attachment preserves the current deadline.
+
+Confirmed `stream` or `message` human approvals observed on the same connection generation pause
+the deadline, using the public approval registry facts without requiring a context ID. After the
+last applicable approval resolves or aborts, the reply receives a fresh 30 minutes. The manager's
+existing two-hour approval backstop remains in effect. Unexpected EOF still fails immediately.
+A genuinely silent foreground tool running for 30 minutes also fails; there is no tool exemption.
+
+This execution bound is separate from the five-minute idle-resource TTL below and the existing
+120-minute `CHAT_STREAM_IDLE_TIMEOUT_MS` product-stream backstop. Stop, close, entry replacement,
+shutdown, destruction and terminal persistence handoff clear the watchdog. Inactivity and unexpected
+EOF release host waiters for any pending startup, so an explicit retry or session close can proceed
+while the original driver call is still pending. If that call eventually returns an unowned connection,
+the host closes it without installing it or acquiring a session close barrier. An installed connection
+still closes asynchronously with the existing 20-second bound, close barrier and failure tracking.
+A hanging close cannot delay the visible inactivity/EOF error. Neither failure automatically retries.
+
 After a turn reaches terminal state, the runtime entry becomes `idle`.
 For a short idle window it keeps:
 
@@ -1419,7 +1455,7 @@ unfinished root tasks; explicit interruption cancels them. Reopen applies shared
 `onOpen` before native resume, disarming goals and stopping interrupted background children.
 Repeated `closeSession()` calls join the in-flight close. A closing session rejects new
 input and replacement turns until the old reply releases ownership. Teardown joins a pending
-`driver.connect()` and closes a late connection before completing. It keeps the current
+`driver.connect()` and closes a late connection before completing. A late connection from a retired startup attempt is not closed while an in-flight retry for the same session can still reuse it; retired cleanup closes it only once no connection attempt remains pending and the connection is still unclaimed and unowned. It keeps the current
 connection's fact consumer alive through native observation drain, waits for the captured
 stream persistence loops, then flushes each owned projection. Only after that flush does it
 clear the entry. No projection write may follow the final flush.
