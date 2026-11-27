@@ -7,16 +7,16 @@ export default openaiCompatible({
   id: 'hubris',
   name: 'Hubris',
   availableInEditions: ['global'],
-  baseUrl: 'https://api.hubris.pw/v1',
-  anthropic: 'https://api.hubris.pw',
+  baseUrl: 'https://api.hubris.pro/v1',
+  anthropic: 'https://api.hubris.pro',
   reasoningFormat: {
     type: 'openai-chat',
     wire: modeWire('reasoning.effort', { off: 'none', auto: EFFORT, effort: EFFORT }, { autoEffort: 'medium' })
   },
   website: {
-    apiKey: 'https://hubris.pw/keys',
-    docs: 'https://hubris.pw/docs',
-    models: 'https://hubris.pw/models',
-    official: 'https://hubris.pw'
+    apiKey: 'https://hubris.pro/keys',
+    docs: 'https://hubris.pro/docs',
+    models: 'https://hubris.pro/models',
+    official: 'https://hubris.pro'
   }
 })

@@ -1255,7 +1255,7 @@ describe('listModels — hubrisFetcher catalogue metadata', () => {
       id: 'hubris',
       defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
       endpointConfigs: {
-        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.hubris.pw/v1' }
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.hubris.pro/v1' }
       },
       ...overrides
     })
@@ -1315,8 +1315,8 @@ describe('listModels — hubrisFetcher catalogue metadata', () => {
     const { models } = await listModels(makeHubrisProvider())
 
     expect(aiSdkGetFromApiMock.mock.calls.map(([call]) => call.url)).toEqual([
-      'https://api.hubris.pw/v1/models',
-      'https://api.hubris.pw/v1/models?output_modalities=embeddings'
+      'https://api.hubris.pro/v1/models',
+      'https://api.hubris.pro/v1/models?output_modalities=embeddings'
     ])
     expect(models.map((model) => model.apiModelId)).toEqual([
       'anthropic/claude-sonnet-5',

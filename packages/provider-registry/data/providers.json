@@ -819,11 +819,11 @@
       "endpointConfigs": {
         "anthropic-messages": {
           "adapterFamily": "anthropic",
-          "baseUrl": "https://api.hubris.pw"
+          "baseUrl": "https://api.hubris.pro"
         },
         "openai-chat-completions": {
           "adapterFamily": "openai-compatible",
-          "baseUrl": "https://api.hubris.pw/v1",
+          "baseUrl": "https://api.hubris.pro/v1",
           "reasoningFormat": {
             "type": "openai-chat",
             "wire": {
@@ -868,10 +868,10 @@
       "id": "hubris",
       "metadata": {
         "website": {
-          "apiKey": "https://hubris.pw/keys",
-          "docs": "https://hubris.pw/docs",
-          "models": "https://hubris.pw/models",
-          "official": "https://hubris.pw"
+          "apiKey": "https://hubris.pro/keys",
+          "docs": "https://hubris.pro/docs",
+          "models": "https://hubris.pro/models",
+          "official": "https://hubris.pro"
         }
       },
       "name": "Hubris"
