@@ -99,7 +99,7 @@ export function setMessageProvenanceTx(
   tx.insert(appStateTable)
     .values({
       key: messagePrefix + sessionId + ':' + messageId,
-      value: { source: provenance.source, sourceOrder: provenance.sourceOrder }
+      value: { source: provenance.source, sourceOrder: provenance.sourceOrder, isSetup: provenance.isSetup }
     })
     .run()
 }
