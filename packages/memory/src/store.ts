@@ -4,6 +4,7 @@ import {
   createMemoryBackup,
   hasCompletedRecovery,
   hasOrderedRecovery,
+  controlledSaveTime,
   decodeOriginal,
   latestMemoryBackup,
   memoryBatchStatus,
@@ -193,8 +194,7 @@ export class MemoryStore {
       .flatMap((text) => entriesIn(parseMemoryEntries(text)))
       .filter((entry) => !isMemoryRevision(entry))
     const afterClear =
-      purpose === 'extraction' &&
-      maintenance &&
+      ((purpose === 'extraction' && maintenance) || (purpose === 'current' && !maintenance)) &&
       structured.length > 0 &&
       structured.every((entry) => entry.clearedAt !== undefined)
     const validate = async () => {
@@ -337,7 +337,7 @@ export class MemoryStore {
     for (const mutation of intent) {
       const baseline = this.baseline(access, mutation.receipt)
       const before = await this.readMatching(baseline)
-      if (source === 'extraction' && baseline.afterClear) afterClear.add(baseline.path)
+      if ((source === 'controlled' || source === 'extraction') && baseline.afterClear) afterClear.add(baseline.path)
       if (baseline.revisionContent !== undefined) {
         if (source !== 'extraction' || mutation.kind !== 'write' || mutation.content !== baseline.revisionContent)
           invalidEntries()
@@ -837,7 +837,12 @@ export class MemoryStore {
       if (conflict) {
         if (restoringMerge) prerequisiteConflict = true
       } else {
-        changes.push({ path: step.path, before, after: decodeOriginal(this.backups, step) })
+        changes.push({
+          path: step.path,
+          before,
+          after: decodeOriginal(this.backups, step),
+          controlledSaveAt: controlledSaveTime(batch, step)
+        })
       }
     }
     return { changes, files }
@@ -1015,7 +1020,13 @@ export class MemoryStore {
         )
           invalidEntries()
       } else {
-        if (protectedEntries.length && after.some((part) => typeof part === 'string' && part.trim())) invalidEntries()
+        const blocksText = protectedEntries.some(
+          (entry) =>
+            change.controlledSaveAt === undefined ||
+            entry.clearedAt === undefined ||
+            entry.clearedAt >= change.controlledSaveAt
+        )
+        if (blocksText && after.some((part) => typeof part === 'string' && part.trim())) invalidEntries()
         const localProtected = oldEntries.filter((entry) => entry.status !== 'active')
         after = after.map((part) => {
           if (typeof part === 'string') return part

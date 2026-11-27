@@ -4,14 +4,13 @@ import { MEMORY_ENTRY, utf8Length } from './files'
 import type { MemoryAccess, MemoryStore, MemoryRead, MemoryMutation, MemoryApproval } from './store'
 import { anchorMemoryTime } from './time'
 
-export async function extractAndSave(
+export async function prepareExtraction(
   store: MemoryStore,
   access: MemoryAccess,
   source: ConversationWindow & { kind: 'chat' | 'agent'; conversationId: string },
   model: MemoryModel,
   signal: AbortSignal,
   validate: () => Promise<void>,
-  approve: MemoryApproval,
   applied: readonly { path: string; after: string | null }[] = []
 ) {
   const timeZone = source.timeZone
@@ -45,6 +44,28 @@ export async function extractAndSave(
     ...candidate,
     text: anchorMemoryTime(candidate, source.messages, timeZone)
   }))
+  return { proposal, files, entry, existingPaths, current }
+}
+
+export async function extractAndSave(
+  store: MemoryStore,
+  access: MemoryAccess,
+  source: ConversationWindow & { kind: 'chat' | 'agent'; conversationId: string },
+  model: MemoryModel,
+  signal: AbortSignal,
+  validate: () => Promise<void>,
+  approve: MemoryApproval,
+  applied: readonly { path: string; after: string | null }[] = []
+) {
+  const { proposal, files, entry, existingPaths, current } = await prepareExtraction(
+    store,
+    access,
+    source,
+    model,
+    signal,
+    validate,
+    applied
+  )
   const additions = [
     ...new Set(
       proposal.candidates
