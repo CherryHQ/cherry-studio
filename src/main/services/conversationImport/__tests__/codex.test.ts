@@ -1,19 +1,30 @@
-import { mkdtemp, writeFile, rm, readdir } from 'node:fs/promises'
+import { mkdir, mkdtemp, writeFile, rm, readdir } from 'node:fs/promises'
+import * as fs from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
+import { zstdCompressSync } from 'node:zlib'
 
 import Database from 'better-sqlite3'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { application } from '@application'
 
 import { codexAdapter } from '../codex'
+import { queryReadonlyDatabase } from '../readonlySqlite'
 import type { SessionRef } from '../types'
 
 let root: string
+vi.mock('node:fs/promises', async (importOriginal) => {
+  const actual = await importOriginal<typeof fs>()
+  return { ...actual, lstat: vi.fn(actual.lstat), copyFile: vi.fn(actual.copyFile) }
+})
 const signal = () => new AbortController().signal
 beforeEach(async () => {
   root = await mkdtemp(path.join(tmpdir(), 'cherry-codex-import-'))
+  vi.spyOn(application, 'getPath').mockImplementation((_key, filename) => path.join(root, 'scratch', filename ?? ''))
 })
 afterEach(async () => {
+  vi.restoreAllMocks()
   await rm(root, { recursive: true, force: true })
 })
 const row = (type: string, payload: object, timestamp = '2026-01-01T00:00:00Z') => ({ type, payload, timestamp })
@@ -62,7 +73,8 @@ describe('Codex raw rollout contract', () => {
       'CREATE TABLE thread_items(thread_id TEXT, item_id TEXT, rollout_ordinal INTEGER, created_at_ms INTEGER, item_json TEXT)'
     )
     const insert = db.prepare('INSERT INTO thread_items VALUES(?, ?, ?, ?, ?)')
-    for (const thread of ['shared', 'database']) {
+    const databaseId = '00000000-0000-4000-8000-000000000001'
+    for (const thread of ['shared', 'blank-conflict', 'named-conflict', 'fork', databaseId]) {
       insert.run(thread, 'answer', 8, 1000, JSON.stringify({ type: 'agentMessage', text: 'Answer' }))
       insert.run(
         thread,
@@ -74,10 +86,18 @@ describe('Codex raw rollout contract', () => {
     }
     db.close()
     await file('rollout-shared.jsonl', [meta('shared'), message('In both')])
-    await file('rollout-ambiguous.jsonl', [meta('database'), meta('fork')])
+    await file('rollout-ambiguous.jsonl', [meta('blank-conflict'), meta('fork')])
+    await file('rollout-named.jsonl', [meta('named-conflict'), meta('fork')])
+    await file('session_index.jsonl', [{ id: 'named-conflict', thread_name: 'Ambiguous' }])
+    const archive = path.join(root, 'rollout-2026-01-01T00-00-00-' + databaseId + '.jsonl.zst')
+    await writeFile(
+      archive,
+      zstdCompressSync(JSON.stringify({ ...meta(databaseId, { history_mode: 'paginated' }), ordinal: 0 }) + '\n')
+    )
     const refs = await discover()
-    expect(refs.map((r) => r.originalSessionId)).toEqual(['shared', 'database'])
-    const ref = refs[1]
+    expect(refs.map((r) => r.originalSessionId).sort()).toEqual([databaseId, 'named-conflict', 'shared'])
+    const ref = refs.find((r) => r.originalSessionId === databaseId)!
+    expect(refs.filter((r) => r.path === dbPath)).toEqual([ref])
     const session = await codexAdapter.read(ref, signal())
     expect(session.messages.map((m) => [m.role, m.timestamp, m.data.parts])).toEqual([
       ['user', 2000, [{ type: 'text', text: 'Question' }]],
@@ -90,7 +110,7 @@ describe('Codex raw rollout contract', () => {
       const updated = JSON.stringify({ type: 'agentMessage', text: 'Updated' })
       edit.run(updated, 'shared', 'answer')
       expect((await codexAdapter.read(ref, signal())).sourceFingerprint).toBe(session.sourceFingerprint)
-      edit.run(updated, 'database', 'answer')
+      edit.run(updated, databaseId, 'answer')
       expect((await codexAdapter.read(ref, signal())).sourceFingerprint).not.toBe(session.sourceFingerprint)
     } finally {
       writer.close()
@@ -113,6 +133,51 @@ describe('Codex raw rollout contract', () => {
       ['user', [{ type: 'text', text: '> Which file?\n\nfirst.md\nsecond.md\n\n> When?\n\nNow' }]],
       ['assistant', [{ type: 'text', text: 'Done\n\n**References**\n\n- first.md:1-2 — files' }]]
     ])
+  })
+  it('includes WAL commits made while the main database is being copied', async () => {
+    const file = path.join(root, 'active.sqlite')
+    const writer = new Database(file)
+    try {
+      writer.pragma('journal_mode = WAL')
+      writer.pragma('wal_autocheckpoint = 0')
+      writer.exec('CREATE TABLE items(value); INSERT INTO items VALUES (1)')
+      const actual = await vi.importActual<typeof fs>('node:fs/promises')
+      vi.spyOn(fs, 'copyFile').mockImplementation(async (src, dest, mode) => {
+        await actual.copyFile(src, dest, mode)
+        if (src === file) writer.exec('INSERT INTO items VALUES (2)')
+      })
+      expect(
+        await queryReadonlyDatabase(file, (db) => db.prepare('SELECT sum(value) AS total FROM items').get()?.total)
+      ).toBe(3)
+    } finally {
+      writer.close()
+    }
+  })
+  it('never recreates source sidecars if the last Codex writer closes before SQLite opens', async () => {
+    const file = path.join(root, 'race.sqlite')
+    const writer = new Database(file)
+    try {
+      writer.pragma('journal_mode = WAL')
+      writer.exec('CREATE TABLE items(value); INSERT INTO items VALUES (42)')
+      const actual = await vi.importActual<typeof fs>('node:fs/promises')
+      const stat = vi.spyOn(fs, 'lstat').mockImplementation(async (...args: Parameters<typeof fs.lstat>) => {
+        const info = await actual.lstat(...args)
+        if (args[0] === file + '-shm' && writer.open) writer.close()
+        return info
+      })
+      const read = () => queryReadonlyDatabase(file, (db) => db.prepare('SELECT value FROM items').get()?.value)
+      try {
+        expect(await read()).toBe(42)
+      } catch (err) {
+        expect((err as Error).message).toMatch(/source_changed|unsupported_readonly_wal/)
+      }
+      expect(writer.open).toBe(false)
+      stat.mockRestore()
+      expect(await read()).toBe(42)
+      expect((await readdir(root)).filter((f) => f === 'race.sqlite-wal' || f === 'race.sqlite-shm')).toEqual([])
+    } finally {
+      if (writer.open) writer.close()
+    }
   })
   it('uses the latest index name without importing mirrored events or source policy', async () => {
     await file('session_index.jsonl', [
@@ -169,13 +234,28 @@ describe('Codex raw rollout contract', () => {
     expect(result.diagnostics.some((d) => d.severity === 'error')).toBe(true)
   })
   it('rejects conflicting physical rollouts for one thread', async () => {
-    await file('rollout-a.jsonl', [meta(), message('a')])
+    await file('rollout-a.jsonl', [row('event_msg', { type: 'prelude' }), meta(), message('a')])
     await file('rollout-b.jsonl', [meta(), message('b')])
     const refs = await discover()
     expect(refs).toHaveLength(1)
     expect((await codexAdapter.read(refs[0], signal())).diagnostics).toContainEqual(
       expect.objectContaining({ code: 'unsupported_history_layout', severity: 'error' })
     )
+  })
+  it('limits automatic scans to active and archived sessions and accepts an unspecified provider', async () => {
+    for (const dir of ['sessions', 'archived_sessions', 'tmp']) {
+      await mkdir(path.join(root, dir))
+      await file(dir + '/rollout-a.jsonl', [
+        meta(dir, { model_provider: null }),
+        row('turn_context', { model: 'm' }),
+        message('Hello', 'assistant')
+      ])
+    }
+    expect(await discover()).toHaveLength(3)
+    vi.mocked(application.getPath).mockReturnValue(root)
+    const refs = await discover()
+    expect(refs.map((r) => r.originalSessionId).sort()).toEqual(['archived_sessions', 'sessions'])
+    expect((await codexAdapter.read(refs[0], signal())).messages[0].messageSnapshot?.model.provider).toBe('openai')
   })
   it('keeps tools inert and diagnoses bad lines and missing time', async () => {
     const p = await file('rollout-a.jsonl', [
@@ -297,9 +377,20 @@ describe('Codex raw rollout contract', () => {
   })
   it('does not hide conflicting Guardian copies or malformed and incomplete rollouts', async () => {
     const guardian = meta('thread', { cli_version: '0.164.0-alpha.11.1', source: { subagent: { other: 'guardian' } } })
+    const repeated = row('response_item', { ...message('same').payload, id: 'duplicate' })
+    const duplicate = await file('rollout-duplicate.jsonl', [
+      { ...guardian, payload: { ...guardian.payload, id: 'duplicate-thread' } },
+      repeated,
+      repeated
+    ])
+    const duplicateRef = (await discover()).find((r) => r.path === duplicate)!
+    expect(duplicateRef.filteredReason).toBeUndefined()
+    expect((await codexAdapter.read(duplicateRef, signal())).diagnostics).toContainEqual(
+      expect.objectContaining({ code: 'duplicate_message_id', severity: 'error' })
+    )
     await file('rollout-a.jsonl', [guardian, message('review')])
     await file('rollout-b.jsonl', [meta(), message('real user task')])
-    const [ref] = await discover()
+    const ref = (await discover()).find((r) => r.originalSessionId === 'thread')!
     expect(ref.filteredReason).toBeUndefined()
     expect((await codexAdapter.read(ref, signal())).diagnostics).toContainEqual(
       expect.objectContaining({ code: 'unsupported_history_layout' })

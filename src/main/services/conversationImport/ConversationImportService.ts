@@ -28,6 +28,7 @@ import { claudeCodeAdapter } from './claudeCode'
 import { codexAdapter } from './codex'
 import { dshAdapter } from './dsh'
 import { opencodeAdapter } from './opencode'
+import { withReadonlyDatabaseSnapshots } from './readonlySqlite'
 import { IMPORT_LIMITS, type HistorySourceAdapter, type NormalizedSession, type SessionRef } from './types'
 import { workbuddyAdapter } from './workbuddy'
 
@@ -128,7 +129,11 @@ export class ConversationImportService extends BaseService {
     scan.abort.signal.throwIfAborted()
     return scan
   }
-  async preview(owner: string, scanId: string, targetAgentId: string, selections: ImportSelection[]) {
+  preview(owner: string, scanId: string, targetAgentId: string, selections: ImportSelection[]) {
+    return withReadonlyDatabaseSnapshots(() => this.preparePreview(owner, scanId, targetAgentId, selections))
+  }
+
+  private async preparePreview(owner: string, scanId: string, targetAgentId: string, selections: ImportSelection[]) {
     const scan = this.requireScan(owner)
     if (scan.id !== scanId || scan.busy) throw new Error('invalid_preview')
     this.target(targetAgentId)
@@ -235,7 +240,11 @@ export class ConversationImportService extends BaseService {
       scan.busy = false
     }
   }
-  async commit(owner: string, previewId: string, refs: string[]): Promise<ImportOutcome[]> {
+  commit(owner: string, previewId: string, refs: string[]): Promise<ImportOutcome[]> {
+    return withReadonlyDatabaseSnapshots(() => this.commitPreview(owner, previewId, refs))
+  }
+
+  private async commitPreview(owner: string, previewId: string, refs: string[]): Promise<ImportOutcome[]> {
     const scan = this.requireScan(owner)
     const preview = scan.preview
     if (
