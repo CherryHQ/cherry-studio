@@ -8,6 +8,8 @@ sources:
   - src/renderer/pages/home/hooks/useToolApprovalBridge.ts
   - src/renderer/components/chat/messages/tools/hooks/useToolApproval.ts
   - src/main/ai/runtime/claudeCode/settingsBuilder.ts
+  - src/main/ai/runtime/claudeCode/sandboxSettings.ts
+  - src/main/ai/toolApproval/sandboxPolicy.ts
   - src/main/ai/runtime/claudeCode/ClaudeCodeRuntimeDriver.ts
   - src/main/ai/runtime/claudeCode/ToolApprovalRegistry.ts
   - src/main/ai/runtime/claudeCode/hooks.ts
@@ -195,6 +197,27 @@ This is a usability guard, not operating-system isolation or proof of safety. Un
 programs, script files, aliases, Git hooks and ambient configuration can still have arbitrary
 side effects. Shell filesystem access is not contained by this policy. SQLite protection,
 disabled tools, install and role-specific guards can independently tighten the outcome.
+
+## Shell sandbox
+
+An Agent whose capabilities declare a `sandbox` overlay runs Claude Code Bash in the SDK's
+macOS sandbox; today only Cherry Support declares one, and it is empty. `resolveSandboxPolicy`
+merges the overlay into the base policy and returns nothing off macOS, so Linux and Windows keep
+the per-call shell approval. The Claude Code adapter turns the policy into the SDK `sandbox`
+option: writes stay in the workspace, Agent data and temp directories, the network allowlist is
+strict and empty, and sandboxed Bash runs without a card.
+
+Before a sandboxed connection starts, `assertSandboxSettingsUnchanged` resolves every other
+settings tier the CLI would load for the same cwd and setting sources. A tier with its own
+`sandbox` block, a `policyHelper`, or `WebFetch(domain:…)` / `Edit(…)` allow rules fails the
+build, so the turn errors before any command runs.
+
+The connection's verified state reaches the guard table as `sandboxed`. A Bash call with
+`dangerouslyDisableSandbox` set asks through `sandbox-escape`, whose reason says the command
+leaves the sandbox; Full Access skips that card. Support's `support-bash` asks only for shell
+calls the sandbox does not cover (PowerShell, escapes, or any call without a sandbox), and
+headless or responder-less turns deny every Support shell call in every mode. PowerShell and
+other tools, MCP web access included, are outside this boundary.
 
 ## Persistent decisions
 

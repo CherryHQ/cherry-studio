@@ -26,7 +26,12 @@ import {
 } from '@main/ai/toolApproval/builtinToolPolicy'
 import { type CommandCheck, checkCommand, type CommandDialect } from '@main/ai/toolApproval/commandPolicy'
 import { detectGlobalInstall, detectMiseMutation } from '@main/ai/toolApproval/dependencyGuard'
-import type { GuardHit, ToolGuardContext, ToolGuardRule } from '@main/ai/toolApproval/toolGuards'
+import {
+  type GuardHit,
+  requestsSandboxEscape,
+  type ToolGuardContext,
+  type ToolGuardRule
+} from '@main/ai/toolApproval/toolGuards'
 import { evaluateUserDataSqliteGuard, USER_DATA_SQLITE_GUARD_REASON } from '@main/ai/toolApproval/userDataSqliteGuard'
 import { t } from '@main/i18n'
 import { claudeToolRequiresUserInteraction } from '@shared/ai/claudecode/toolRegistry'
@@ -153,6 +158,14 @@ function commandDecision(ctx: ToolGuardContext): Promise<CommandCheck> | undefin
 }
 
 const CROSS_CUTTING_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
+  {
+    // First so its reason wins ties with other asks: the card must say the command leaves the sandbox.
+    id: 'sandbox-escape',
+    bypassBehavior: 'skipInteractiveEffect',
+    match: { tool: 'Bash', when: (ctx) => (requestsSandboxEscape(ctx) ? {} : null) },
+    effect: 'ask',
+    reason: 'This command asks to run outside the sandbox, with network access and without the sandbox write limits.'
+  },
   {
     id: 'command-policy-deny',
     bypassBehavior: 'enforce',

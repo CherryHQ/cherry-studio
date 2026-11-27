@@ -2,6 +2,7 @@ import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
+import type * as ClaudeAgentSdk from '@anthropic-ai/claude-agent-sdk'
 import type { McpSdkServerConfigWithInstance } from '@anthropic-ai/claude-agent-sdk'
 import { connectMcpTestClient } from '@test-helpers/mcp/client'
 import { MockMainPreferenceServiceExport, MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
@@ -69,7 +70,13 @@ const mocks = vi.hoisted(() => ({
   getTurnTrustedNotifyChannels: vi.fn(),
   rtkRewrite: vi.fn(),
   platform: { isLinux: false, isMac: false },
-  isWin: false
+  isWin: false,
+  resolveSettings: vi.fn()
+}))
+
+vi.mock('@anthropic-ai/claude-agent-sdk', async (importOriginal) => ({
+  ...(await importOriginal<typeof ClaudeAgentSdk>()),
+  resolveSettings: mocks.resolveSettings
 }))
 
 vi.mock('electron', () => ({
@@ -3401,6 +3408,130 @@ describe('buildClaudeCodeSessionSettings', () => {
       disposeToolPolicySnapshot('session-1')
 
       expect(mocks.mcpSubscriptionDispose).toHaveBeenCalledOnce()
+    })
+  })
+
+  describe('Bash sandbox wiring', () => {
+    const NO_OTHER_SETTINGS = { effective: {}, provenance: {}, sources: [] }
+
+    function useAgent(configuration: Record<string, unknown>) {
+      mocks.getAgent.mockReturnValue({
+        id: 'agent-1',
+        type: 'claude-code',
+        model: 'anthropic::claude-sonnet',
+        mcps: [],
+        allowedTools: [],
+        configuration
+      })
+    }
+
+    function build() {
+      return buildClaudeCodeSessionSettings(
+        { id: 'session-1', agentId: 'agent-1', workspace: { type: 'user', path: '/workspace/project' } } as never,
+        {} as never
+      )
+    }
+
+    async function preToolUseDecision(
+      settings: Awaited<ReturnType<typeof buildClaudeCodeSessionSettings>>,
+      toolInput: Record<string, unknown>
+    ) {
+      const hook = settings.hooks?.PreToolUse?.[0]?.hooks.find((candidate) => candidate.name === 'toolGuardHook')
+      const output = await hook?.(
+        { hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: toolInput } as never,
+        'tool-use-1',
+        {} as never
+      )
+      return (output as { hookSpecificOutput?: { permissionDecision?: string } } | undefined)?.hookSpecificOutput
+        ?.permissionDecision
+    }
+
+    beforeEach(() => {
+      mocks.platform.isMac = true
+      mocks.resolveSettings.mockResolvedValue(NO_OTHER_SETTINGS)
+    })
+
+    it('sandboxes Support Bash on macOS and runs local commands without asking (AC1, AC2)', async () => {
+      useAgent({ builtin_role: 'support', permission_mode: 'acceptEdits' })
+
+      const settings = await build()
+
+      expect(settings.sandbox).toMatchObject({
+        enabled: true,
+        failIfUnavailable: true,
+        autoAllowBashIfSandboxed: true,
+        network: { strictAllowlist: true, allowedDomains: [] }
+      })
+      expect(mocks.resolveSettings).toHaveBeenCalledWith({ cwd: '/workspace/project', settingSources: [] })
+      await expect(preToolUseDecision(settings, { command: 'ls -la' })).resolves.toBeUndefined()
+    })
+
+    it('shows the Bash card with the sandbox reason when a command asks to leave (AC3)', async () => {
+      useAgent({ builtin_role: 'support', permission_mode: 'acceptEdits' })
+      mocks.createToolPolicySnapshot.mockResolvedValue({
+        resolve: vi.fn(() => ({ approval: 'auto' })),
+        isDisabled: vi.fn(() => false),
+        getPermissionMode: vi.fn(() => 'acceptEdits'),
+        update: vi.fn(),
+        setPermissionMode: vi.fn()
+      })
+      const settings = await build()
+      const emit = vi.fn()
+      settings.approvalEmitter!.emit = emit
+      const input = { command: 'gh issue create --title bug', dangerouslyDisableSandbox: true }
+
+      await expect(preToolUseDecision(settings, input)).resolves.toBe('ask')
+      void settings.canUseTool!('Bash', input, {
+        signal: new AbortController().signal,
+        toolUseID: 'escape',
+        matchedAskRule: undefined
+      } as never)
+
+      await vi.waitFor(() =>
+        expect(emit).toHaveBeenCalledWith(
+          expect.objectContaining({
+            toolName: 'Bash',
+            input,
+            providerMetadata: {
+              cherry: expect.objectContaining({
+                commandPolicy: expect.objectContaining({ reason: expect.stringContaining('outside the sandbox') })
+              })
+            }
+          })
+        )
+      )
+    })
+
+    it('keeps per-call approval and no sandbox for Support outside macOS (AC6)', async () => {
+      mocks.platform.isMac = false
+      useAgent({ builtin_role: 'support', permission_mode: 'acceptEdits' })
+
+      const settings = await build()
+
+      expect(settings.sandbox).toBeUndefined()
+      expect(mocks.resolveSettings).not.toHaveBeenCalled()
+      await expect(preToolUseDecision(settings, { command: 'ls -la' })).resolves.toBe('ask')
+    })
+
+    it.each([
+      ['Assistant', { builtin_role: 'assistant' }],
+      ['Doctor', { builtin_role: 'doctor' }],
+      ['a user Agent', {}]
+    ])('gives %s no sandbox (AC7)', async (_label, configuration) => {
+      useAgent(configuration)
+
+      expect((await build()).sandbox).toBeUndefined()
+    })
+
+    it('fails the build before any command runs when another tier changes the sandbox (AC11)', async () => {
+      useAgent({ builtin_role: 'support', permission_mode: 'bypassPermissions' })
+      mocks.resolveSettings.mockResolvedValue({
+        effective: {},
+        provenance: {},
+        sources: [{ source: 'managed', settings: { sandbox: { enabled: false } } }]
+      })
+
+      await expect(build()).rejects.toThrow('cannot be verified')
     })
   })
 })

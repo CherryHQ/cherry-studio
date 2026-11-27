@@ -13,6 +13,7 @@
 
 import { type AssistantToolName, DEFAULT_ASSISTANT_TOOL_NAMES } from '@main/ai/toolApproval/assistantToolNames'
 import { CHERRY_MCP_SERVER } from '@main/ai/toolApproval/builtinToolPolicy'
+import type { SandboxOverlay } from '@main/ai/toolApproval/sandboxPolicy'
 import { getAgentConfigToolKind } from '@shared/ai/agentConfigToolKind'
 import { BROWSER_TOOL_GROUP } from '@shared/ai/browserTools'
 import { BUILTIN_AGENT_ROLE, type BuiltinAgentRole, isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
@@ -49,6 +50,8 @@ export interface AgentCapabilities {
     /** Mount the Doctor probe/write tools; only the doctor Agent is allowed to reach them. */
     doctor?: true
   }
+  /** What this Agent adds to the base shell sandbox. Absent means its shell commands run unsandboxed. */
+  sandbox?: SandboxOverlay
 }
 
 const DEFAULT_CAPABILITIES: AgentCapabilities = {
@@ -74,7 +77,8 @@ const CAPABILITIES_BY_ROLE: Record<BuiltinAgentRole, AgentCapabilities> = {
       tools: ['navigate', 'diagnose', 'product_info', 'apply_setting', 'prepare_diagnostic_report'],
       toolsInChannelSessions: ['navigate', 'diagnose', 'product_info', 'apply_setting', 'prepare_diagnostic_report'],
       runtimes: ['claude-code']
-    }
+    },
+    sandbox: {}
   },
   [BUILTIN_AGENT_ROLE.DOCTOR]: {
     environment: 'sealed',

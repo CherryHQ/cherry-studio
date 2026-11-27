@@ -1,24 +1,39 @@
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { resolveSandboxPolicy, type SandboxOverlay } from '@main/ai/toolApproval/sandboxPolicy'
 
-import { toClaudeCodeSandboxSettings } from '../sandboxSettings'
+import { assertSandboxSettingsUnchanged, toClaudeCodeSandboxSettings } from '../sandboxSettings'
+
+const mocks = vi.hoisted(() => ({ isMac: true, resolveSettings: vi.fn() }))
+
+vi.mock('@main/core/platform', () => ({
+  get isMac() {
+    return mocks.isMac
+  }
+}))
+
+vi.mock('@anthropic-ai/claude-agent-sdk', () => ({ resolveSettings: mocks.resolveSettings }))
 
 const home = '/Users/probe'
 
+beforeEach(() => {
+  mocks.isMac = true
+})
+
 function settingsFor(overlay: SandboxOverlay) {
-  const policy = resolveSandboxPolicy(overlay, 'darwin', home)
+  const policy = resolveSandboxPolicy(overlay, home)
   if (!policy) throw new Error('expected a sandbox policy on darwin')
   return toClaudeCodeSandboxSettings(policy)
 }
 
 describe('resolveSandboxPolicy', () => {
   it('gives no sandbox to an Agent without an overlay', () => {
-    expect(resolveSandboxPolicy(undefined, 'darwin', home)).toBeUndefined()
+    expect(resolveSandboxPolicy(undefined, home)).toBeUndefined()
   })
 
-  it.each(['linux', 'win32'] as const)('gives no sandbox on %s', (platform) => {
-    expect(resolveSandboxPolicy({}, platform, home)).toBeUndefined()
+  it('gives no sandbox outside macOS', () => {
+    mocks.isMac = false
+    expect(resolveSandboxPolicy({}, home)).toBeUndefined()
   })
 })
 
@@ -78,5 +93,42 @@ describe('overlay merge (AC10)', () => {
 
     expect(settings.network?.allowedDomains).toEqual(['github.com'])
     expect(settings.network?.deniedDomains).toEqual(['example.com'])
+  })
+})
+
+describe('assertSandboxSettingsUnchanged (AC11)', () => {
+  const options = { cwd: '/workspace/project', settingSources: [] }
+  const managed = (settings: Record<string, unknown>) => ({
+    effective: settings,
+    provenance: {},
+    sources: [{ source: 'managed', settings }]
+  })
+
+  it('passes when no other settings tier touches the sandbox', async () => {
+    mocks.resolveSettings.mockResolvedValue(managed({ permissions: { allow: ['Read(*)'], deny: ['WebFetch'] } }))
+
+    await expect(assertSandboxSettingsUnchanged(options)).resolves.toBeUndefined()
+    expect(mocks.resolveSettings).toHaveBeenCalledWith(options)
+  })
+
+  it.each([
+    ['its own sandbox block', { sandbox: { excludedCommands: ['gh *'] } }, 'managed: sandbox'],
+    [
+      'a network allow rule',
+      { permissions: { allow: ['WebFetch(domain:github.com)'] } },
+      'WebFetch(domain:github.com)'
+    ],
+    ['a write allow rule', { permissions: { allow: ['Edit(~/.ssh/**)'] } }, 'Edit(~/.ssh/**)'],
+    ['a policyHelper it cannot run', { policyHelper: { command: '/usr/local/bin/policy' } }, 'managed: policyHelper']
+  ])('rejects a tier that adds %s', async (_label, settings, evidence) => {
+    mocks.resolveSettings.mockResolvedValue(managed(settings))
+
+    await expect(assertSandboxSettingsUnchanged(options)).rejects.toThrow(evidence)
+  })
+
+  it('rejects when the settings cannot be resolved', async () => {
+    mocks.resolveSettings.mockRejectedValue(new Error('plutil failed'))
+
+    await expect(assertSandboxSettingsUnchanged(options)).rejects.toThrow('plutil failed')
   })
 })

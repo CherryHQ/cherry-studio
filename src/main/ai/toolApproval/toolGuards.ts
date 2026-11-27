@@ -40,6 +40,8 @@ export interface ToolGuardContext {
   /** Whether the connection model accepts native image input. Undefined preserves legacy behavior. */
   readonly supportsImages?: boolean
   readonly interaction: ToolGuardInteractionState
+  /** Whether the connection running this call has a verified Bash sandbox. */
+  readonly sandboxed?: boolean
   /** Live disabled predicate; returns false when no snapshot is bound (canUseTool fails closed). */
   readonly isDisabled: (toolName: string) => boolean
   /**
@@ -102,6 +104,18 @@ export interface ToolGuardDecision {
   effect: 'deny' | 'ask'
   reason: string
   ruleId: string
+}
+
+/** A Bash call that runs inside the connection's verified sandbox. */
+export function runsInSandbox(ctx: ToolGuardContext): boolean {
+  const escape = ctx.input?.dangerouslyDisableSandbox
+  // Anything but an absent or literal `false` flag counts as an escape, so a malformed one still asks.
+  return ctx.toolName === 'Bash' && ctx.sandboxed === true && (escape === undefined || escape === false)
+}
+
+/** A Bash call that asks to leave the connection's verified sandbox. */
+export function requestsSandboxEscape(ctx: ToolGuardContext): boolean {
+  return ctx.toolName === 'Bash' && ctx.sandboxed === true && !runsInSandbox(ctx)
 }
 
 function appliesToAgent(rule: ToolGuardRule, ctx: ToolGuardContext): boolean {

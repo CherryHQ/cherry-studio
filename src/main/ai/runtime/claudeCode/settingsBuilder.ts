@@ -54,6 +54,7 @@ import {
 } from '@main/ai/toolApproval/builtinToolPolicy'
 import { checkCommand, commandContextChangedReason } from '@main/ai/toolApproval/commandPolicy'
 import { detectGlobalInstall } from '@main/ai/toolApproval/dependencyGuard'
+import { resolveSandboxPolicy } from '@main/ai/toolApproval/sandboxPolicy'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { evaluateToolGuards } from '@main/ai/toolApproval/toolGuards'
 import { type ClaudeToolContext, resolveDisallowedTools } from '@main/ai/tools/adapters/claudeCode/toolConditions'
@@ -89,6 +90,7 @@ import {
 } from './guardRules'
 import { buildClaudeCodeHooks, surfaceExitPlanModeInput } from './hooks'
 import { buildMcpServers, buildMcpToolMetadata, warmAgentMcpToolCaches } from './mcpCatalog'
+import { assertSandboxSettingsUnchanged, toClaudeCodeSandboxSettings } from './sandboxSettings'
 import { buildPluginDirectoryIndex } from './skillDependencies'
 import { decisionToPermissionResult } from './ToolApprovalRegistry'
 import type { ClaudeCodeSettings, McpToolDisplayMetadata } from './types'
@@ -199,6 +201,10 @@ export async function buildClaudeCodeSessionSettings(
   // Validate before opening MCP connections, then overlap the independent setup work.
   const cwd = session.workspace.path
   await prepareClaudeCodeWorkspaceDirectory(session)
+  // Sealed agents exclude filesystem settings and native workspace instructions.
+  const settingSources = capabilities.environment === 'sealed' ? [] : getSettingSources(provider)
+  const sandboxPolicy = resolveSandboxPolicy(capabilities.sandbox, application.getPath('sys.home'))
+  if (sandboxPolicy) await assertSandboxSettingsUnchanged({ cwd, settingSources })
   const mcpWarmPromise = warmAgentMcpToolCaches(agent)
   const effectiveModelId = options?.effectiveModelId ?? session.model ?? agent.model ?? undefined
   const [agentDataPath, env, workspacePlugins] = await Promise.all([
@@ -236,7 +242,8 @@ export async function buildClaudeCodeSessionSettings(
     mountedServers,
     agentDataPath,
     await buildPluginDirectoryIndex(plugins?.map((plugin) => plugin.path) ?? []),
-    options?.supportsImages !== false
+    options?.supportsImages !== false,
+    sandboxPolicy !== undefined
   )
 
   // 5. System prompt. The citation guidance is gated on the same resolved scope that decides whether
@@ -344,8 +351,8 @@ export async function buildClaudeCodeSessionSettings(
     env,
     pathToClaudeCodeExecutable: resolveClaudeExecutablePath(),
     systemPrompt,
-    // Sealed agents exclude filesystem settings and native workspace instructions.
-    settingSources: capabilities.environment === 'sealed' ? [] : getSettingSources(provider),
+    settingSources,
+    ...(sandboxPolicy ? { sandbox: toClaudeCodeSandboxSettings(sandboxPolicy) } : {}),
     settings: {
       autoCompactEnabled: true,
       cleanupPeriodDays: CLAUDE_SESSION_RETENTION_DAYS,
@@ -493,7 +500,8 @@ async function buildToolPermissions(
   mountedServers: ReadonlySet<string>,
   agentDataPath: string,
   pluginDirectories: ReadonlyMap<string, string>,
-  supportsImages: boolean
+  supportsImages: boolean,
+  sandboxed: boolean
 ): Promise<{
   canUseTool: CanUseTool
   hooks: ClaudeCodeSettings['hooks']
@@ -573,6 +581,7 @@ async function buildToolPermissions(
           cwd,
           agentDataPath,
           interaction: interactionState,
+          sandboxed,
           isDisabled: (name) => snapshot.isDisabled(name)
         })
       : undefined
@@ -727,7 +736,8 @@ async function buildToolPermissions(
     builtinRole,
     mountedServers,
     pluginDirectories,
-    supportsImages
+    supportsImages,
+    sandboxed
   })
 
   const disallowedTools = resolveDisallowedTools({ disabledTools: agent.disabledTools }, conditionContext)

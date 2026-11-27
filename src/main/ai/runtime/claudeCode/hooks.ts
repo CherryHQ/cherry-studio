@@ -68,6 +68,8 @@ export interface ClaudeCodeHookContext {
   /** Loaded plugin directories by manifest name; indexed once per session. */
   pluginDirectories: ReadonlyMap<string, string>
   supportsImages: boolean
+  /** Whether this connection's Bash runs in a verified sandbox; fixed for the connection's lifetime. */
+  sandboxed?: boolean
 }
 
 export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSettings['hooks'] {
@@ -98,6 +100,7 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
       signal: options?.signal,
       supportsImages: ctx.supportsImages,
       interaction,
+      sandboxed: ctx.sandboxed,
       isDisabled: (name) => snapshot?.isDisabled(name) ?? false,
       bashNoProgressRun: (command) => sessionState().getBashNoProgressRun(sessionId, command, input.agent_id)
     })
