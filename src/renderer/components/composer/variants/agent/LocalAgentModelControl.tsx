@@ -221,8 +221,9 @@ function ModelControlButton({
   saving,
   disabled,
   side,
-  iconOnly
-}: {
+  iconOnly,
+  ...buttonProps
+}: ComponentProps<typeof Button> & {
   model?: ComponentProps<typeof LocalAgentModelAvatar>['model']
   presetId?: string
   label: string
@@ -234,6 +235,7 @@ function ModelControlButton({
   const { t } = useTranslation()
   return (
     <Button
+      {...buttonProps}
       variant="ghost"
       size="sm"
       disabled={disabled}

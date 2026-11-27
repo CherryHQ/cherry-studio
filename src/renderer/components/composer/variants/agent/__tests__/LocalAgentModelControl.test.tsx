@@ -250,21 +250,21 @@ describe('local agent model persistence', () => {
 
   it.each([
     ['Second', 'second'],
-    ['默认模型', undefined]
-  ] as const)('retains the selection on failure and allows retry: %s', async (label, nativeModel) => {
+    ['沿用原生配置', undefined]
+  ] as const)('retains the Codex model on failure and allows retry: %s', async (label, nativeModel) => {
     const user = userEvent.setup()
-    updateNativeModel.mockResolvedValueOnce(undefined).mockResolvedValueOnce(agent)
-    render(<LocalAgentModelControl agent={agent} info={info} disabled={false} side="bottom" />)
+    const codexAgent = {
+      ...agent,
+      configuration: { localRuntime: { ...agent.configuration!.localRuntime!, presetId: 'codex' } }
+    }
+    updateNativeModel.mockResolvedValueOnce(undefined).mockResolvedValueOnce(codexAgent)
+    render(<LocalAgentModelControl agent={codexAgent} info={info} disabled={false} side="top" />)
     await user.click(screen.getByRole('button', { name: '选择模型' }))
     await user.click(await screen.findByText(label))
     expect(await screen.findByText(label)).toBeVisible()
     expect(screen.getByRole('button', { name: '选择模型' })).toHaveTextContent('First')
     await user.click(screen.getByText(label))
     await waitFor(() => expect(screen.queryByText(label)).not.toBeInTheDocument())
-    expect(updateNativeModel).toHaveBeenLastCalledWith(
-      agent.id,
-      nativeModel,
-      expect.objectContaining({ files: undefined })
-    )
+    expect(updateNativeModel).toHaveBeenLastCalledWith(codexAgent.id, nativeModel)
   })
 })
