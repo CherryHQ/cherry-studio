@@ -46,18 +46,29 @@ class MermaidRenderService {
   }
 
   private next() {
-    if (this.running) return
-    const job = this.queue.shift()
-    if (!job) return
-    const worker = (this.worker ??= this.spawn())
-    const id = ++this.nextId
-    const timer = setTimeout(() => {
-      logger.warn(`Stopping a Mermaid render that exceeded ${MERMAID_RENDER_DEADLINE_MS} ms`)
-      this.restart(new Error(`Diagram took longer than ${MERMAID_RENDER_DEADLINE_MS / 1000} s to render`))
-    }, MERMAID_RENDER_DEADLINE_MS)
-    this.running = { id, job, timer }
-    const request: MermaidRenderRequest = { id, source: job.source, theme: job.theme, diagramId: job.diagramId }
-    worker.postMessage(request)
+    while (!this.running) {
+      const job = this.queue.shift()
+      if (!job) return
+
+      const id = ++this.nextId
+      const request: MermaidRenderRequest = { id, source: job.source, theme: job.theme, diagramId: job.diagramId }
+      try {
+        const worker = (this.worker ??= this.spawn())
+        worker.postMessage(request)
+      } catch (cause) {
+        const error = cause instanceof Error ? cause : new Error('Could not dispatch diagram render', { cause })
+        this.worker?.terminate()
+        this.worker = null
+        for (const waiter of job.waiters) waiter.reject(error)
+        continue
+      }
+
+      const timer = setTimeout(() => {
+        logger.warn(`Stopping a Mermaid render that exceeded ${MERMAID_RENDER_DEADLINE_MS} ms`)
+        this.restart(new Error(`Diagram took longer than ${MERMAID_RENDER_DEADLINE_MS / 1000} s to render`))
+      }, MERMAID_RENDER_DEADLINE_MS)
+      this.running = { id, job, timer }
+    }
   }
 
   private spawn(): Worker {
