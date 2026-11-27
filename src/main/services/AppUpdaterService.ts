@@ -1,7 +1,7 @@
 import type { ProgressInfo, UpdateInfo } from 'builder-util-runtime'
 import { CancellationError, CancellationToken, HttpError } from 'builder-util-runtime'
 import { eq } from 'drizzle-orm'
-import { app, net } from 'electron'
+import { app, autoUpdater as nativeUpdater, net } from 'electron'
 import type { Logger, NsisUpdater, UpdateCheckResult } from 'electron-updater'
 import { AppUpdater, autoUpdater } from 'electron-updater'
 import semver from 'semver'
@@ -13,7 +13,7 @@ import { computeBackoff } from '@main/core/job/runtime/backoff'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { logFailure } from '@main/core/logger/logFailure'
 import { isMacElectronBridgePackage } from '@main/core/macElectronBridge'
-import { isWin } from '@main/core/platform'
+import { isMac, isWin } from '@main/core/platform'
 import { WindowType } from '@main/core/window/types'
 import { getAppLanguage, t } from '@main/i18n'
 import { regionService } from '@main/services/RegionService'
@@ -162,9 +162,11 @@ export class AppUpdaterService extends BaseService {
   private retirements = 0
   // electron-updater installs whatever it cached last, so installation names the version it confirmed.
   private downloadedVersion: string | null = null
-  // Native install failures are dispatched synchronously and belong to the install attempt, not a check.
-  private installFailure: Error | null = null
-  private installing = false
+  // A native install failure belongs to its attempt until the quit handoff, even when Squirrel.Mac reports it later.
+  private failInstall: ((error: Error) => void) | null = null
+  private pendingInstall: Promise<void> | null = null
+  // MacUpdater keeps a failed attempt claimed and ignores later installs until the app restarts.
+  private installClaimed = false
   // Queued or running checks plus unsettled downloads; the read-only query must not add a feed request.
   private updaterActivity = 0
   // electron-updater returns its in-flight check promise. The next check waits
@@ -344,8 +346,8 @@ export class AppUpdaterService extends BaseService {
 
   private registerAutoUpdaterListeners(): void {
     const onError = (error: Error) => {
-      if (this.installing) {
-        this.installFailure = error
+      if (this.failInstall) {
+        this.failInstall(error)
         return
       }
       if (this.listeningGeneration === 0 || this.listeningGeneration !== this.checkGeneration) return
@@ -717,20 +719,36 @@ export class AppUpdaterService extends BaseService {
     if (version !== this.downloadedVersion) {
       throw new IpcError(IpcErrorCode.VALIDATION_FAILED, 'The confirmed update is no longer the downloaded one')
     }
+    if (this.installClaimed) {
+      throw new IpcError(IpcErrorCode.INTERNAL, 'The updater cannot install again until the app restarts')
+    }
+    this.pendingInstall ??= this.runInstall().finally(() => {
+      this.pendingInstall = null
+    })
+    return this.pendingInstall
+  }
+
+  /** Settles at the native `before-quit-for-update` handoff, or rejects with the installer's error before it. */
+  private async runInstall(): Promise<void> {
     application.markQuitting()
     await new Promise((resolve) => setImmediate(resolve))
-    this.installFailure = null
-    this.installing = true
+    let handedOff: () => void = () => undefined
+    let failure: Error | null
     try {
-      autoUpdater.quitAndInstall(true, true)
+      failure = await new Promise<Error | null>((resolve) => {
+        this.failInstall = resolve
+        handedOff = () => resolve(null)
+        nativeUpdater.once('before-quit-for-update', handedOff)
+        autoUpdater.quitAndInstall(true, true)
+      })
     } finally {
-      this.installing = false
+      this.failInstall = null
+      nativeUpdater.removeListener('before-quit-for-update', handedOff)
     }
-    const failure = this.installFailure as Error | null
-    if (failure) {
-      logFailure(logger, 'update install failed', failure, 'update.install', classifyUpdateFailure(failure))
-      throw new IpcError(IpcErrorCode.INTERNAL, 'The downloaded update could not be installed')
-    }
+    if (!failure) return
+    if (isMac) this.installClaimed = true
+    logFailure(logger, 'update install failed', failure, 'update.install', classifyUpdateFailure(failure))
+    throw new IpcError(IpcErrorCode.INTERNAL, 'The downloaded update could not be installed')
   }
 
   /**
