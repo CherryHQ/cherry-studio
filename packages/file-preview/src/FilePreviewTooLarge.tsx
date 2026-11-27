@@ -14,10 +14,15 @@ export function FilePreviewTooLarge({ sizeBytes, limitBytes }: { sizeBytes: numb
     <EmptyState
       icon={FileWarning}
       title={t('file_preview.too_large.title')}
-      description={t('file_preview.too_large.description', {
-        size: formatFileSize(sizeBytes),
-        limit: formatFileSize(limitBytes)
-      })}
+      // A file within the package cap was rejected by a host policy whose limit is unknown here.
+      description={
+        sizeBytes > limitBytes
+          ? t('file_preview.too_large.description', {
+              size: formatFileSize(sizeBytes),
+              limit: formatFileSize(limitBytes)
+            })
+          : t('file_preview.too_large.generic_description')
+      }
       actionLabel={onRequestOpen ? t('file_preview.too_large.action') : undefined}
       onAction={onRequestOpen ? () => onRequestOpen('too_large') : undefined}
       className="h-full"

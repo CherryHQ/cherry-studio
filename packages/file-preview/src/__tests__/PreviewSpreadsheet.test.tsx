@@ -118,5 +118,8 @@ describe('spreadsheet host integration', () => {
 
     await screen.findByRole('heading', { name: 'File too large to preview' })
     expect(screen.queryByRole('link', { name: 'Details' })).not.toBeInTheDocument()
+    // The 1-byte workbook is under the package cap, so the copy must not claim it exceeds that cap.
+    expect(screen.getByText('This file exceeds the size allowed for preview.')).toBeInTheDocument()
+    expect(screen.queryByText(/exceeds the .* preview limit/)).not.toBeInTheDocument()
   })
 })

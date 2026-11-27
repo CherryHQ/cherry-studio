@@ -26,6 +26,7 @@
   "file_preview.pptd.unsupported_element": "지원하지 않는 요소 {{id}}({{type}})",
   "file_preview.too_large.action": "기본 앱으로 열기",
   "file_preview.too_large.description": "파일 크기 {{size}}가 미리보기 제한 {{limit}}를 초과했습니다.",
+  "file_preview.too_large.generic_description": "이 파일은 미리 보기에 허용된 크기를 초과합니다.",
   "file_preview.too_large.title": "파일이 너무 커서 미리 볼 수 없습니다",
   "file_preview.unsupported.action": "기본 앱으로 열기",
   "file_preview.unsupported.description": "이 파일 형식은 아직 미리보기를 지원하지 않습니다.",

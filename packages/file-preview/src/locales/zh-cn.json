@@ -26,6 +26,7 @@
   "file_preview.pptd.unsupported_element": "不支持的元素 {{id}}（{{type}}）",
   "file_preview.too_large.action": "用默认应用打开",
   "file_preview.too_large.description": "文件大小 {{size}} 超过 {{limit}} 的预览大小限制。",
+  "file_preview.too_large.generic_description": "此文件超过了允许预览的大小。",
   "file_preview.too_large.title": "文件过大，无法预览",
   "file_preview.unsupported.action": "用默认应用打开",
   "file_preview.unsupported.description": "此文件类型暂不支持预览。",
