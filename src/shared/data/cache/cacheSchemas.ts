@@ -134,7 +134,8 @@ export type UseCacheSchema = {
   'chat.multi_select_mode': boolean
   'chat.selected_message_ids': string[]
   'chat.web_search.searching': boolean
-  // Per-topic composer draft. Renderer memory only; app restart discards it.
+  // Per-topic composer draft. Live state is renderer memory; chatDraftCache mirrors it to
+  // localStorage (24h TTL) so window reloads and restarts restore the unsent draft.
   'chat.composer_draft.${topicId}': CacheValueTypes.CacheChatComposerDraft
   // Message-list scroll position memory, keyed per topic / agent session.
   // `null` = follow the latest message (at bottom or never scrolled).

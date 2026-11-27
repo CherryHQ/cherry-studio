@@ -17,13 +17,22 @@ const EMPTY_DRAFT_CACHE: ChatComposerDraftCache = {
   modelMultiSelectMode: false
 }
 
+/**
+ * localStorage mirrors each draft under the same key so a window reload (or full restart) can
+ * restore it; the memory tier stays the live read/write path within a session. Expiry is checked
+ * on read because localStorage has no TTL of its own.
+ */
+type PersistedChatDraftEntry = {
+  expiresAt: number
+  value: ChatComposerDraftCache
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-export function readChatDraftCache(topicId: string): ChatComposerDraftCache {
-  const cached = cacheService.get(getChatDraftCacheKey(topicId))
-  if (!isRecord(cached)) return EMPTY_DRAFT_CACHE
+function normalizeDraftCache(cached: unknown): ChatComposerDraftCache | null {
+  if (!isRecord(cached)) return null
 
   return {
     text: typeof cached.text === 'string' ? cached.text : '',
@@ -35,6 +44,77 @@ export function readChatDraftCache(topicId: string): ChatComposerDraftCache {
     mentionedModelIds: Array.isArray(cached.mentionedModelIds) ? cached.mentionedModelIds.filter(isUniqueModelId) : [],
     modelMultiSelectMode: cached.modelMultiSelectMode === true
   }
+}
+
+function readPersistedChatDraft(topicId: string): ChatComposerDraftCache | null {
+  const key = getChatDraftCacheKey(topicId)
+  try {
+    const raw = localStorage.getItem(key)
+    if (!raw) return null
+
+    const parsed: unknown = JSON.parse(raw)
+    if (!isRecord(parsed) || typeof parsed.expiresAt !== 'number' || parsed.expiresAt <= Date.now()) {
+      localStorage.removeItem(key)
+      return null
+    }
+
+    return normalizeDraftCache(parsed.value)
+  } catch {
+    return null
+  }
+}
+
+function writePersistedChatDraft(topicId: string, draft: ChatComposerDraftCache) {
+  const key = getChatDraftCacheKey(topicId)
+  try {
+    if (hasChatDraftContent(draft)) {
+      const entry: PersistedChatDraftEntry = { expiresAt: Date.now() + DRAFT_CACHE_TTL, value: draft }
+      localStorage.setItem(key, JSON.stringify(entry))
+    } else {
+      localStorage.removeItem(key)
+    }
+  } catch {
+    // Quota or serialization failure: the memory tier still holds the draft for this session.
+  }
+}
+
+// Remove persisted drafts whose TTL already elapsed (e.g. for topics that no longer exist).
+// Runs once per session, on the first draft read or write.
+let expiredDraftsPruned = false
+function pruneExpiredPersistedChatDrafts() {
+  if (expiredDraftsPruned) return
+  expiredDraftsPruned = true
+  try {
+    const now = Date.now()
+    for (let index = localStorage.length - 1; index >= 0; index--) {
+      const key = localStorage.key(index)
+      if (!key?.startsWith('chat.composer_draft.')) continue
+      const raw = localStorage.getItem(key)
+      if (!raw) continue
+      const parsed: unknown = JSON.parse(raw)
+      if (!isRecord(parsed) || typeof parsed.expiresAt !== 'number' || parsed.expiresAt <= now) {
+        localStorage.removeItem(key)
+      }
+    }
+  } catch {
+    // Best effort only; unreadable entries expire on their own read path.
+  }
+}
+
+export function readChatDraftCache(topicId: string): ChatComposerDraftCache {
+  pruneExpiredPersistedChatDrafts()
+
+  const cached = normalizeDraftCache(cacheService.get(getChatDraftCacheKey(topicId)))
+  if (cached) return cached
+
+  // After a window reload the memory tier is empty; rehydrate it from the persisted mirror.
+  const persisted = readPersistedChatDraft(topicId)
+  if (persisted) {
+    cacheService.set(getChatDraftCacheKey(topicId), persisted, DRAFT_CACHE_TTL)
+    return persisted
+  }
+
+  return EMPTY_DRAFT_CACHE
 }
 
 export function hasChatDraftContent(draft: ChatComposerDraftCache): boolean {
@@ -56,16 +136,16 @@ export function subscribeChatDraftCache(topicId: string, listener: () => void): 
 }
 
 export function writeChatDraftCache(topicId: string, draft: ChatComposerDraftCache) {
-  cacheService.set(
-    getChatDraftCacheKey(topicId),
-    {
-      text: draft.text,
-      tokens: [...draft.tokens],
-      files: [...draft.files],
-      knowledgeBaseIds: [...draft.knowledgeBaseIds],
-      mentionedModelIds: [...draft.mentionedModelIds],
-      modelMultiSelectMode: draft.modelMultiSelectMode
-    },
-    DRAFT_CACHE_TTL
-  )
+  pruneExpiredPersistedChatDrafts()
+
+  const value: ChatComposerDraftCache = {
+    text: draft.text,
+    tokens: [...draft.tokens],
+    files: [...draft.files],
+    knowledgeBaseIds: [...draft.knowledgeBaseIds],
+    mentionedModelIds: [...draft.mentionedModelIds],
+    modelMultiSelectMode: draft.modelMultiSelectMode
+  }
+  cacheService.set(getChatDraftCacheKey(topicId), value, DRAFT_CACHE_TTL)
+  writePersistedChatDraft(topicId, value)
 }
