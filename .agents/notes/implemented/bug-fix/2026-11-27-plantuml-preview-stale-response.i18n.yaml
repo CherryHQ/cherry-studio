@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-27-plantuml-preview-stale-response.md
+2026-11-27-plantuml-preview-stale-response.md: 932dde2f6ab418957302dc88df2a4cb478fbce0a
+2026-11-27-plantuml-preview-stale-response.zh.md: 0913314cc82f571b30334201a1949704a9e8c0c9

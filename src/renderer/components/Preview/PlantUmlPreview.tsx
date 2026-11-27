@@ -1,5 +1,5 @@
 import pako from 'pako'
-import React, { memo, useCallback, useEffect } from 'react'
+import React, { memo, useCallback, useEffect, useLayoutEffect, useRef } from 'react'
 
 import { loggerService } from '@logger'
 
@@ -86,8 +86,17 @@ const PlantUmlPreview = ({
   enableToolbar = false,
   ref
 }: BasicPreviewProps & { ref?: React.RefObject<BasicPreviewHandles | null> }) => {
+  const renderGenerationRef = useRef(0)
+
+  useLayoutEffect(() => {
+    return () => {
+      renderGenerationRef.current += 1
+    }
+  }, [children])
+
   // 定义渲染函数
   const renderPlantUml = useCallback(async (content: string, container: HTMLDivElement) => {
+    const generation = renderGenerationRef.current
     const url = getPlantUMLImageUrl('svg', content, false)
     const response = await fetch(url)
     if (!response.ok) {
@@ -105,7 +114,9 @@ const PlantUmlPreview = ({
     }
 
     const text = await response.text()
-    renderSvgInShadowHost(text, container)
+    if (generation === renderGenerationRef.current) {
+      renderSvgInShadowHost(text, container)
+    }
   }, [])
 
   // 使用预览渲染器 hook
