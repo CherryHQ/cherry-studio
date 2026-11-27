@@ -823,7 +823,7 @@ jobs:
       run:
         shell: bash
     concurrency:
-      group: gitcode-sync-${{ inputs.mode == 'sync-only' && inputs.tag || needs.prepare.outputs.tag }}
+      group: gitcode-sync-${{ inputs.dry_run && 'read-only' || 'write' }}-${{ inputs.mode == 'sync-only' && inputs.tag || needs.prepare.outputs.tag }}
       cancel-in-progress: false
     env:
       GH_TOKEN: ${{ github.token }}
