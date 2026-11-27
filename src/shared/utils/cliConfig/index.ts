@@ -7,6 +7,7 @@ export {
   validateCliConfigDraftForWrite
 } from './draftFiles'
 export { CliConfigError, parseJsonOrThrow } from './file'
+export { createCliGatewayProvider } from './gatewayProvider'
 export type { CliConfigFileReader, CliConfigReadFile, CliConfigReadFiles } from './file'
 export {
   CLAUDE_PERMISSION_MODES,

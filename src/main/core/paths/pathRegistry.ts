@@ -258,6 +258,7 @@ export function buildPathRegistry() {
     // (not a joined path) so the orphan sweep can never be pointed at the user's ~/.claude.
     'feature.agents.claude.projects': path.join(appUserDataData, 'Agents', '.claude', 'projects'),
     'feature.agents.channels': path.join(appUserDataData, 'Channels'),
+    'feature.agents.launch_overlays': path.join(appUserDataData, 'Agents', 'LaunchOverlays'), // per-launch CLI homes; reconciled and removed by LocalAgentOverlayService
     // NOTE(app-managed-dirs): pi dirs are new in this PR and freely relocatable —
     // pi resume tokens persist the pi session id, never a filesystem path.
     'feature.agents.pi.root': path.join(appUserDataData, 'Agents', '.pi'), // Cherry-owned pi coding-agent home; passed explicitly as agentDir

@@ -11,7 +11,7 @@ import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/fil
 import type { CliConfigTarget, CliConfigWriteFile, FileConfiguredCli } from '@shared/utils/cliConfig'
 import { CLI_CONFIG_FILE_SPECS, getCliConfigTargets } from '@shared/utils/cliConfig'
 
-import { getHermesHome } from './hermesHome'
+import { getHermesHome, resolveHermesHome } from './hermesHome'
 
 const logger = loggerService.withContext('CodeCliConfigWriter')
 
@@ -34,16 +34,21 @@ async function resolveTargetPath(
   const { pathBase, path: specPath } = CLI_CONFIG_FILE_SPECS[target]
   if (pathBase === 'deepseek-harness-home')
     return AbsoluteFilePathSchema.parse(application.getPath('external.deepseek_harness.config', specPath))
-  if (pathBase === 'hermes-home') {
-    return AbsoluteFilePathSchema.parse(path.join(await getHermesHome(), specPath))
-  }
   const env = mergeEnvironment(await getRawShellEnv(), overrides)
+  if (pathBase === 'hermes-home') {
+    const home = overrides?.HERMES_HOME ? resolveHermesHome(env) : await getHermesHome()
+    return AbsoluteFilePathSchema.parse(path.join(home, specPath))
+  }
   const directories: Partial<Record<CliConfigTarget, string | undefined>> = {
     'claude-settings': env.CLAUDE_CONFIG_DIR,
     'codex-config': env.CODEX_HOME,
     'codex-auth': env.CODEX_HOME,
     'pi-settings': env.PI_CODING_AGENT_DIR,
     'pi-models': env.PI_CODING_AGENT_DIR,
+    'qwen-settings': env.QWEN_HOME,
+    'minimax-config': env.MINIMAX_DATA_DIR?.trim() || env.MAVIS_DATA_DIR?.trim(),
+    'codebuddy-settings': env.CODEBUDDY_CONFIG_DIR,
+    'codebuddy-models': env.CODEBUDDY_CONFIG_DIR,
     'kimi-config': env.KIMI_CODE_HOME,
     'copilot-settings': env.COPILOT_HOME,
     'copilot-mcp': env.COPILOT_HOME,

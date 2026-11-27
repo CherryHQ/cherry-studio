@@ -74,3 +74,41 @@ export function getLocalAgentModelStorage(presetId: string | undefined) {
     ? ({ type: 'agent', gatewayModelEndpoint: preset?.gatewayModelEndpoint } as const)
     : undefined
 }
+
+/**
+ * How Main hands a Cherry model and its launch-scoped credential to a preset's process.
+ * `variable` is the CLI's documented override: the generated config (`config-content`) or the
+ * redirected home (`overlay-home`). Presets missing here offer no Cherry models.
+ */
+export type LocalAgentLaunchBinding =
+  | { kind: 'claude-settings' }
+  | { kind: 'codex-overrides' }
+  | { kind: 'config-content'; variable: string }
+  | { kind: 'environment' }
+  | { kind: 'overlay-home'; variable: string }
+
+const LOCAL_AGENT_LAUNCH_BINDINGS: Readonly<Record<string, LocalAgentLaunchBinding>> = {
+  [claudeCli.id]: { kind: 'claude-settings' },
+  codex: { kind: 'codex-overrides' },
+  [openCodeCli.id]: { kind: 'config-content', variable: 'OPENCODE_CONFIG_CONTENT' },
+  kilo: { kind: 'config-content', variable: 'KILO_CONFIG_CONTENT' },
+  [gooseCli.id]: { kind: 'environment' },
+  [glmCli.id]: { kind: 'environment' },
+  [kimiCli.id]: { kind: 'overlay-home', variable: 'KIMI_CODE_HOME' },
+  [piCli.id]: { kind: 'overlay-home', variable: 'PI_CODING_AGENT_DIR' },
+  [ompCli.id]: { kind: 'overlay-home', variable: 'PI_CODING_AGENT_DIR' },
+  [hermesCli.id]: { kind: 'overlay-home', variable: 'HERMES_HOME' },
+  [qwenCli.id]: { kind: 'overlay-home', variable: 'QWEN_HOME' },
+  [minimaxCli.id]: { kind: 'overlay-home', variable: 'MINIMAX_DATA_DIR' },
+  [codeBuddyCli.id]: { kind: 'overlay-home', variable: 'CODEBUDDY_CONFIG_DIR' },
+  copilot: { kind: 'overlay-home', variable: 'COPILOT_HOME' },
+  [vibeCli.id]: { kind: 'overlay-home', variable: 'VIBE_HOME' },
+  [grokCli.id]: { kind: 'overlay-home', variable: 'GROK_HOME' },
+  [clineCli.id]: { kind: 'overlay-home', variable: 'CLINE_DIR' },
+  [zcodeCli.id]: { kind: 'overlay-home', variable: 'ZCODE_HOME' },
+  [snowCli.id]: { kind: 'overlay-home', variable: 'SNOW_CONFIG_DIR' }
+}
+
+export function getLocalAgentLaunchBinding(presetId: string | undefined): LocalAgentLaunchBinding | undefined {
+  return presetId ? LOCAL_AGENT_LAUNCH_BINDINGS[presetId] : undefined
+}
