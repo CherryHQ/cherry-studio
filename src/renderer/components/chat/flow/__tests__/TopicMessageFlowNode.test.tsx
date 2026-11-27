@@ -10,8 +10,14 @@ const mocks = vi.hoisted(() => ({
   messageProviderProps: [] as Array<{
     messages: Array<{ id: string }>
     partsByMessageId: Record<string, unknown[]>
+    renderConfig?: Record<string, unknown>
   }>,
-  useQuery: vi.fn()
+  useQuery: vi.fn(),
+  renderAsMarkdown: true as boolean
+}))
+
+vi.mock('@data/hooks/usePreference', () => ({
+  usePreference: () => [mocks.renderAsMarkdown, vi.fn()]
 }))
 
 vi.mock('@data/hooks/useDataApi', () => ({
@@ -57,6 +63,7 @@ vi.mock('@renderer/components/chat/messages/MessageContentProvider', () => ({
     children: ReactNode
     messages: Array<{ id: string }>
     partsByMessageId: Record<string, unknown[]>
+    renderConfig?: Record<string, unknown>
   }) => {
     mocks.messageProviderProps.push(props)
     return <div data-testid="message-content-provider">{props.children}</div>
@@ -114,6 +121,7 @@ describe('TopicMessageFlowNode', () => {
     vi.clearAllMocks()
     mocks.messageContentProps.length = 0
     mocks.messageProviderProps.length = 0
+    mocks.renderAsMarkdown = true
     mocks.useQuery.mockReturnValue({
       data: undefined,
       error: undefined,
@@ -222,5 +230,34 @@ describe('TopicMessageFlowNode', () => {
 
     expect(screen.getByRole('alert')).toHaveTextContent('common.error')
     expect(screen.getByText('Short preview')).toBeInTheDocument()
+  })
+
+  it.each([true, false])('passes the saved markdown preference (%s) to the preview provider', async (value) => {
+    mocks.renderAsMarkdown = value
+    mocks.useQuery.mockReturnValue({
+      data: {
+        id: 'message-1',
+        topicId: 'topic-1',
+        role: 'user',
+        data: { parts: [{ type: 'text', text: '**example**' }] },
+        status: 'success',
+        createdAt: '2026-01-01T00:01:00.000Z',
+        updatedAt: '2026-01-01T00:01:00.000Z'
+      },
+      error: undefined,
+      isLoading: false
+    })
+
+    renderNode()
+
+    fireEvent.mouseEnter(getNodeElement())
+    await advancePreviewDelay()
+
+    expect(mocks.messageProviderProps.length).toBeGreaterThan(0)
+    expect(mocks.messageProviderProps[0].renderConfig).toMatchObject({
+      narrowMode: false,
+      showMessageOutline: false,
+      renderInputMessageAsMarkdown: value
+    })
   })
 })

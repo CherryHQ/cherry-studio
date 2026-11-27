@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Popover, PopoverAnchor, PopoverContent } from '@cherrystudio/ui'
 import { useDataChange, useQuery } from '@data/hooks/useDataApi'
+import { usePreference } from '@data/hooks/usePreference'
 import MessageContent from '@renderer/components/chat/messages/frame/MessageContent'
 import { MessageContentProvider } from '@renderer/components/chat/messages/MessageContentProvider'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
@@ -105,6 +106,7 @@ function TopicMessageFlowNodePreviewCard({
     }
   })
   const uiMessage = useMemo(() => (message ? sharedMessageToUIMessage(message) : null), [message])
+  const [renderInputMessageAsMarkdown] = usePreference('chat.message.render_as_markdown')
   const messageItems = useMemo(
     () =>
       uiMessage && message
@@ -158,7 +160,11 @@ function TopicMessageFlowNodePreviewCard({
         <MessageContentProvider
           messages={messageItems}
           partsByMessageId={partsByMessageId}
-          renderConfig={{ narrowMode: false, showMessageOutline: false }}>
+          renderConfig={{
+            narrowMode: false,
+            showMessageOutline: false,
+            renderInputMessageAsMarkdown
+          }}>
           <div className={cn('min-w-0', bodySmTypographyClassName)}>
             <MessageContent message={previewMessage} />
           </div>

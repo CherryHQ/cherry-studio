@@ -302,7 +302,7 @@ export const defaultMessageRenderConfig: MessageRenderConfig = {
   messageStyle: 'bubble',
   messageFont: 'system',
   fontSize: 14,
-  renderInputMessageAsMarkdown: false,
+  renderInputMessageAsMarkdown: true,
   userMessageDefaultExpanded: false,
   codeFancyBlock: true,
   thoughtAutoCollapse: true,

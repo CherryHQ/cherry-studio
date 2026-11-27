@@ -23,7 +23,9 @@ const mocks = vi.hoisted(() => ({
   onClose: vi.fn(),
   onOpenMessage: vi.fn(),
   virtualRangeEnd: Number.MAX_SAFE_INTEGER,
-  virtualScrollToIndex: vi.fn()
+  virtualScrollToIndex: vi.fn(),
+  renderAsMarkdown: true as boolean,
+  lastRenderConfig: undefined as any
 }))
 const flatItemsCache = vi.hoisted(() => new WeakMap<any[], Map<string, any[]>>())
 
@@ -76,8 +78,15 @@ function mockPreviewInfiniteQuery(path: string) {
   }
 }
 
+vi.mock('@data/hooks/usePreference', () => ({
+  usePreference: () => [mocks.renderAsMarkdown, vi.fn()]
+}))
+
 vi.mock('@renderer/components/chat/messages/MessageContentProvider', () => ({
-  MessageContentProvider: ({ children }: { children: ReactNode }) => <div>{children}</div>
+  MessageContentProvider: ({ children, renderConfig }: { children: ReactNode; renderConfig?: any }) => {
+    mocks.lastRenderConfig = renderConfig
+    return <div>{children}</div>
+  }
 }))
 
 vi.mock('@renderer/components/chat/messages/frame/MessageContent', () => ({
@@ -226,6 +235,8 @@ function setScrollGeometry(scroller: HTMLElement, geometry: { scrollTop: number;
 describe('GlobalSearchMessagePreviewPanel', () => {
   beforeEach(() => {
     scrollTargets = []
+    mocks.renderAsMarkdown = true
+    mocks.lastRenderConfig = undefined
     Object.defineProperty(window.HTMLElement.prototype, 'scrollIntoView', {
       configurable: true,
       value: function scrollIntoView(this: Element) {
@@ -524,5 +535,18 @@ describe('GlobalSearchMessagePreviewPanel', () => {
 
     expect(await screen.findByText('Tool')).toBeInTheDocument()
     expect(screen.queryByText('User')).not.toBeInTheDocument()
+  })
+
+  it.each([true, false])('passes the saved markdown preference (%s) to the preview provider', async (value) => {
+    mocks.renderAsMarkdown = value
+
+    renderPreview()
+
+    expect(await screen.findByText('message-content:topic-message-1')).toBeInTheDocument()
+    expect(mocks.lastRenderConfig).toMatchObject({
+      narrowMode: false,
+      showMessageOutline: false,
+      renderInputMessageAsMarkdown: value
+    })
   })
 })
