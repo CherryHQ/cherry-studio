@@ -298,6 +298,7 @@ export async function readDatabaseSession(ref: SessionRef, signal: AbortSignal):
         provenance: {
           source: 'codex',
           originalMessageId: row.item_id,
+          isSetup: item.type === 'userMessage' && content.role === 'system' ? true : undefined,
           sourceOrder: row.rollout_ordinal,
           originalTimestamp: new Date(timestamp).toISOString(),
           inferredTimestamp: false
