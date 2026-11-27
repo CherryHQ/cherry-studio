@@ -328,6 +328,7 @@ describe('desktop Pi Durable connection', () => {
     const root = join(directory, 'claude-history')
     mkdirSync(root)
     const records = [
+      'Generated setup',
       'Find the invoice',
       [{ type: 'tool_use', id: 'call', name: 'lookup', input: { query: 'invoice search' } }],
       [{ type: 'tool_result', tool_use_id: 'call', content: 'Invoice 42' }]
@@ -338,7 +339,8 @@ describe('desktop Pi Durable connection', () => {
         uuid: String(index),
         parentUuid: index ? String(index - 1) : null,
         timestamp: '2026-01-01T00:00:00Z',
-        type: index === 1 ? 'assistant' : 'user',
+        type: index === 2 ? 'assistant' : 'user',
+        isMeta: index === 0,
         message: { content }
       })
     )
@@ -355,6 +357,8 @@ describe('desktop Pi Durable connection', () => {
     const [imported] = await importer.commit('window', preview.previewId, refs)
     expect(imported).toMatchObject({ status: 'imported', initialization: 'ready' })
     input = { ...input, sessionId: imported.sessionId! }
+    const storedSetup = messages.listSessionMessages(input.sessionId, { limit: 10 }).items.at(-1)
+    expect(storedSetup).toMatchObject({ role: 'user', provenance: { source: 'claude-code', isSetup: true } })
     snapshot.session = agentSessionService.getById(input.sessionId)
     const current = await connect()
     const prompt = message('Continue the search')
@@ -363,7 +367,7 @@ describe('desktop Pi Durable connection', () => {
     expect(script.calls).toHaveLength(1)
     const request = JSON.stringify(script.calls[0].messages)
     expect(request).toMatch(
-      /Find the invoice[\s\S]*Historical tool call: lookup[\s\S]*invoice search[\s\S]*Historical tool result: lookup[\s\S]*Invoice 42[\s\S]*Continue the search/
+      /Generated setup[\s\S]*Find the invoice[\s\S]*Historical tool call: lookup[\s\S]*invoice search[\s\S]*Historical tool result: lookup[\s\S]*Invoice 42[\s\S]*Continue the search/
     )
     expect(script.calls[0].messages.some((message) => message.role === 'toolResult')).toBe(false)
   })

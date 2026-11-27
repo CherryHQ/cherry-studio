@@ -477,10 +477,7 @@ export function LocalHistoryImportDialog({ source, open, resolve }: Props) {
                               setReviewItems([])
                             }}
                           />
-                          <Label
-                            htmlFor={item.ref}
-                            className="block min-w-0 flex-1 cursor-pointer"
-                            title={item.sourcePath}>
+                          <Label htmlFor={item.ref} className="block min-w-0 flex-1 cursor-pointer" title={item.title}>
                             <span className="block truncate text-sm font-medium">{item.title}</span>
                             <span className="sr-only">{item.sourcePath}</span>
                           </Label>
