@@ -1,7 +1,11 @@
 import { cacheService } from '@data/CacheService'
+import { loggerService } from '@logger'
 import type { CacheChatComposerDraft } from '@shared/data/cache/cacheValueTypes'
 import { isUniqueModelId } from '@shared/data/types/model'
 
+import { excludeComposerDraftTokens } from '../../tokens'
+
+const logger = loggerService.withContext('chatDraftCache')
 const DRAFT_CACHE_TTL = 24 * 60 * 60 * 1000
 
 export const getChatDraftCacheKey = (topicId: string) => `chat.composer_draft.${topicId}` as const
@@ -21,9 +25,30 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+function readWindowDraftText(key: string): string {
+  try {
+    const entry: unknown = JSON.parse(sessionStorage.getItem(key) ?? 'null')
+    if (
+      isRecord(entry) &&
+      typeof entry.text === 'string' &&
+      typeof entry.expiresAt === 'number' &&
+      entry.expiresAt > Date.now()
+    ) {
+      return entry.text
+    }
+  } catch {
+    logger.warn('Could not read chat draft from window storage')
+  }
+  return ''
+}
+
 export function readChatDraftCache(topicId: string): ChatComposerDraftCache {
-  const cached = cacheService.get(getChatDraftCacheKey(topicId))
-  if (!isRecord(cached)) return EMPTY_DRAFT_CACHE
+  const key = getChatDraftCacheKey(topicId)
+  const cached = cacheService.get(key)
+  if (!isRecord(cached)) {
+    const text = readWindowDraftText(key)
+    return text ? { ...EMPTY_DRAFT_CACHE, text } : EMPTY_DRAFT_CACHE
+  }
 
   return {
     text: typeof cached.text === 'string' ? cached.text : '',
@@ -56,8 +81,9 @@ export function subscribeChatDraftCache(topicId: string, listener: () => void): 
 }
 
 export function writeChatDraftCache(topicId: string, draft: ChatComposerDraftCache) {
+  const key = getChatDraftCacheKey(topicId)
   cacheService.set(
-    getChatDraftCacheKey(topicId),
+    key,
     {
       text: draft.text,
       tokens: [...draft.tokens],
@@ -68,4 +94,14 @@ export function writeChatDraftCache(topicId: string, draft: ChatComposerDraftCac
     },
     DRAFT_CACHE_TTL
   )
+  // Reload recovery stores only typed text. Tokens can contain transient attachments and prompt text.
+  const { text } = excludeComposerDraftTokens(draft, () => true)
+  try {
+    const storage = sessionStorage
+    // Remove the previous snapshot first so a failed write cannot restore stale text.
+    storage.removeItem(key)
+    if (text) storage.setItem(key, JSON.stringify({ text, expiresAt: Date.now() + DRAFT_CACHE_TTL }))
+  } catch {
+    logger.warn('Could not save chat draft to window storage')
+  }
 }

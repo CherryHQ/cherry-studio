@@ -712,6 +712,7 @@ const originalFetch = globalThis.fetch
 
 describe('ChatComposer', () => {
   beforeEach(() => {
+    sessionStorage.clear()
     mocks.quotaExhaustion = null
     mocks.exhaustedTargets.clear()
     mocks.availabilityRevision = 1
