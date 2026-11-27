@@ -136,6 +136,7 @@
   "command_approval.permission_required": "此命令需要你的批准。",
   "command_approval.privilege-escalation": "提权执行命令",
   "command_approval.recursive-permissions": "递归修改权限",
+  "command_approval.sandbox_escape": "此命令请求在沙箱外运行：可以联网，也不受沙箱的写入限制。",
   "command_approval.service-mutation": "修改服务或计划任务",
   "command_approval.truncation": "截断文件内容",
   "common.agent_compaction_unchanged": "未写入摘要，对话内容保持不变。",

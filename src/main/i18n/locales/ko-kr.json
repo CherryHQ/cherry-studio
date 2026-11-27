@@ -136,6 +136,7 @@
   "command_approval.permission_required": "이 명령에는 승인이 필요합니다.",
   "command_approval.privilege-escalation": "권한을 높여 명령 실행",
   "command_approval.recursive-permissions": "권한 재귀 변경",
+  "command_approval.sandbox_escape": "이 명령은 샌드박스 밖에서 실행하도록 요청합니다. 네트워크에 접근할 수 있으며 샌드박스의 쓰기 제한도 적용되지 않습니다.",
   "command_approval.service-mutation": "서비스 또는 예약 작업 변경",
   "command_approval.truncation": "파일 내용 잘라내기",
   "common.agent_compaction_unchanged": "요약이 저장되지 않아 대화가 변경되지 않았습니다.",

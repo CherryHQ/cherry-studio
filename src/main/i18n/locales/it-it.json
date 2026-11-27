@@ -136,6 +136,7 @@
   "command_approval.permission_required": "Questo comando richiede approvazione.",
   "command_approval.privilege-escalation": "Esecuzione con privilegi elevati",
   "command_approval.recursive-permissions": "Modifica ricorsiva dei permessi",
+  "command_approval.sandbox_escape": "Questo comando chiede di essere eseguito fuori dalla sandbox, con accesso alla rete e senza i limiti di scrittura della sandbox.",
   "command_approval.service-mutation": "Modifica di servizi o attività pianificate",
   "command_approval.truncation": "Troncamento di file",
   "common.agent_compaction_unchanged": "Nessun riepilogo è stato salvato; la conversazione resta invariata.",

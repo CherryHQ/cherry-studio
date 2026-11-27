@@ -136,6 +136,7 @@
   "command_approval.permission_required": "Lệnh này cần phê duyệt.",
   "command_approval.privilege-escalation": "Thực thi với quyền nâng cao",
   "command_approval.recursive-permissions": "Thay đổi quyền đệ quy",
+  "command_approval.sandbox_escape": "Lệnh này yêu cầu chạy bên ngoài sandbox, có quyền truy cập mạng và không bị giới hạn ghi của sandbox.",
   "command_approval.service-mutation": "Thay đổi dịch vụ hoặc tác vụ đã lên lịch",
   "command_approval.truncation": "Cắt ngắn nội dung tệp",
   "common.agent_compaction_unchanged": "Không có bản tóm tắt nào được lưu; cuộc trò chuyện không thay đổi.",

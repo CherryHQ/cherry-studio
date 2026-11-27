@@ -136,6 +136,7 @@
   "command_approval.permission_required": "คำสั่งนี้ต้องได้รับอนุมัติ",
   "command_approval.privilege-escalation": "เรียกใช้ด้วยสิทธิ์ที่สูงขึ้น",
   "command_approval.recursive-permissions": "เปลี่ยนสิทธิ์แบบเรียกซ้ำ",
+  "command_approval.sandbox_escape": "คำสั่งนี้ขอทำงานนอกแซนด์บ็อกซ์ โดยเข้าถึงเครือข่ายได้และไม่อยู่ภายใต้ข้อจำกัดการเขียนของแซนด์บ็อกซ์",
   "command_approval.service-mutation": "เปลี่ยนบริการหรืองานตามกำหนดเวลา",
   "command_approval.truncation": "ตัดเนื้อหาไฟล์",
   "common.agent_compaction_unchanged": "ไม่ได้บันทึกสรุป การสนทนาไม่มีการเปลี่ยนแปลง",

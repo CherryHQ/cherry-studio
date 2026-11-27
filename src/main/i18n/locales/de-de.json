@@ -136,6 +136,7 @@
   "command_approval.permission_required": "Dieser Befehl erfordert eine Genehmigung.",
   "command_approval.privilege-escalation": "Befehl mit erhöhten Rechten ausführen",
   "command_approval.recursive-permissions": "Berechtigungen rekursiv ändern",
+  "command_approval.sandbox_escape": "Dieser Befehl soll außerhalb der Sandbox ausgeführt werden – mit Netzwerkzugriff und ohne die Schreibbeschränkungen der Sandbox.",
   "command_approval.service-mutation": "Dienste oder geplante Aufgaben ändern",
   "command_approval.truncation": "Dateiinhalt abschneiden",
   "common.agent_compaction_unchanged": "Es wurde keine Zusammenfassung übernommen; die Unterhaltung bleibt unverändert.",

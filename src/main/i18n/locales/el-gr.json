@@ -136,6 +136,7 @@
   "command_approval.permission_required": "Αυτή η εντολή απαιτεί έγκριση.",
   "command_approval.privilege-escalation": "Εκτέλεση με αυξημένα δικαιώματα",
   "command_approval.recursive-permissions": "Αναδρομική αλλαγή δικαιωμάτων",
+  "command_approval.sandbox_escape": "Αυτή η εντολή ζητά να εκτελεστεί εκτός του sandbox, με πρόσβαση στο δίκτυο και χωρίς τους περιορισμούς εγγραφής του sandbox.",
   "command_approval.service-mutation": "Αλλαγή υπηρεσιών ή προγραμματισμένων εργασιών",
   "command_approval.truncation": "Περικοπή αρχείου",
   "common.agent_compaction_unchanged": "Δεν καταχωρίστηκε σύνοψη· η συνομιλία παραμένει αμετάβλητη.",

@@ -2,6 +2,7 @@ import { mkdtemp, rm, symlink } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
@@ -439,6 +440,15 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
           expect(decision?.reason).toContain('outside the sandbox')
         }
       )
+
+      it('words the escape card in the current app language', async () => {
+        const ctx = makeCtx({ ...sandboxed, input: escape('gh issue create') })
+
+        MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'zh-CN')
+        expect((await evaluate(ctx))?.reason).toContain('沙箱外运行')
+        MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'en-US')
+        expect((await evaluate(ctx))?.reason).toContain('outside the sandbox')
+      })
 
       it('keeps asking in plan mode, where sandboxed writes would still change the workspace', async () => {
         const decision = await evaluate(makeCtx({ ...sandboxed, permissionMode: 'plan', input: { command: 'ls' } }))

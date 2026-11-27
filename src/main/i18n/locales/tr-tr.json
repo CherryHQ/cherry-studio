@@ -136,6 +136,7 @@
   "command_approval.permission_required": "Bu komut için onay gerekiyor.",
   "command_approval.privilege-escalation": "Yükseltilmiş yetkilerle çalıştırma",
   "command_approval.recursive-permissions": "İzinleri özyinelemeli değiştirme",
+  "command_approval.sandbox_escape": "Bu komut, ağ erişimiyle ve korumalı alanın yazma sınırlamaları olmadan korumalı alanın dışında çalışmak istiyor.",
   "command_approval.service-mutation": "Hizmetleri veya zamanlanmış görevleri değiştirme",
   "command_approval.truncation": "Dosya içeriğini kısaltma",
   "common.agent_compaction_unchanged": "Özet kaydedilmedi; konuşma değişmedi.",

@@ -136,6 +136,7 @@
   "command_approval.permission_required": "Tento příkaz vyžaduje schválení.",
   "command_approval.privilege-escalation": "Spuštění příkazu se zvýšenými oprávněními",
   "command_approval.recursive-permissions": "Rekurzivní změna oprávnění",
+  "command_approval.sandbox_escape": "Tento příkaz žádá o spuštění mimo sandbox, s přístupem k síti a bez omezení zápisu sandboxu.",
   "command_approval.service-mutation": "Změna služeb nebo plánovaných úloh",
   "command_approval.truncation": "Zkrácení souboru",
   "common.agent_compaction_unchanged": "Shrnutí nebylo uloženo; konverzace zůstala beze změny.",

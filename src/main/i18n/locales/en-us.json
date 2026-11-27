@@ -136,6 +136,7 @@
   "command_approval.permission_required": "This command requires approval.",
   "command_approval.privilege-escalation": "Elevated command execution",
   "command_approval.recursive-permissions": "Recursive permission change",
+  "command_approval.sandbox_escape": "This command asks to run outside the sandbox, with network access and without the sandbox write limits.",
   "command_approval.service-mutation": "Changing services or scheduled jobs",
   "command_approval.truncation": "File truncation",
   "common.agent_compaction_unchanged": "No summary was committed; the conversation is unchanged.",

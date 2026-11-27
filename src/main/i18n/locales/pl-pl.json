@@ -136,6 +136,7 @@
   "command_approval.permission_required": "To polecenie wymaga zatwierdzenia.",
   "command_approval.privilege-escalation": "Wykonanie polecenia z podwyższonymi uprawnieniami",
   "command_approval.recursive-permissions": "Rekurencyjna zmiana uprawnień",
+  "command_approval.sandbox_escape": "To polecenie prosi o uruchomienie poza piaskownicą, z dostępem do sieci i bez ograniczeń zapisu piaskownicy.",
   "command_approval.service-mutation": "Zmiana usług lub zaplanowanych zadań",
   "command_approval.truncation": "Obcięcie pliku",
   "common.agent_compaction_unchanged": "Podsumowanie nie zostało zatwierdzone; rozmowa pozostała bez zmian.",

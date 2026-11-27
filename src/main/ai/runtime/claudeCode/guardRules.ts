@@ -164,7 +164,7 @@ const CROSS_CUTTING_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
     bypassBehavior: 'skipInteractiveEffect',
     match: { tool: 'Bash', when: (ctx) => (requestsSandboxEscape(ctx) ? {} : null) },
     effect: 'ask',
-    reason: 'This command asks to run outside the sandbox, with network access and without the sandbox write limits.'
+    reason: () => t('command_approval.sandbox_escape')
   },
   {
     id: 'command-policy-deny',

@@ -136,6 +136,7 @@
   "command_approval.permission_required": "このコマンドには承認が必要です。",
   "command_approval.privilege-escalation": "権限を昇格してコマンドを実行",
   "command_approval.recursive-permissions": "権限の再帰的な変更",
+  "command_approval.sandbox_escape": "このコマンドはサンドボックス外での実行を求めています。ネットワークにアクセスでき、サンドボックスの書き込み制限も適用されません。",
   "command_approval.service-mutation": "サービスまたは定期実行ジョブの変更",
   "command_approval.truncation": "ファイル内容の切り詰め",
   "common.agent_compaction_unchanged": "要約は保存されませんでした。会話は変更されていません。",
