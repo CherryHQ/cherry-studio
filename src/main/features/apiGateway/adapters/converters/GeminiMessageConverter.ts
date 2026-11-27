@@ -105,6 +105,12 @@ export interface GeminiGenerateContentRequest {
   systemInstruction?: GeminiContent | string
   tools?: GeminiTool[]
   generationConfig?: GeminiGenerationConfig
+  toolConfig?: {
+    functionCallingConfig?: {
+      mode?: 'MODE_UNSPECIFIED' | 'AUTO' | 'NONE' | 'ANY' | 'VALIDATED'
+      allowedFunctionNames?: string[]
+    }
+  }
 }
 
 let uiMessageSeq = 0
@@ -373,22 +379,31 @@ export class GeminiMessageConverter implements IMessageConverter<GeminiGenerateC
             : geminiSchemaToJsonSchema(declaration.parameters)
         aiSdkTools[declaration.name] = tool({
           description: declaration.description || '',
-          inputSchema: jsonSchema(rawSchema)
+          inputSchema: jsonSchema(rawSchema),
+          ...(params.toolConfig?.functionCallingConfig?.mode === 'VALIDATED' ? { strict: true } : {})
         })
       }
     }
     return Object.keys(aiSdkTools).length > 0 ? aiSdkTools : undefined
   }
 
-  /** Extract sampling options from `generationConfig`. */
+  /** Extract sampling options and the caller's function-calling policy. */
   extractStreamOptions(params: GeminiGenerateContentRequest): StreamTextOptions {
     const config = params.generationConfig ?? {}
+    const choice = params.toolConfig?.functionCallingConfig
+    const mode = choice?.mode
     return {
       maxOutputTokens: config.maxOutputTokens,
       temperature: config.temperature,
       topP: config.topP,
       topK: config.topK,
-      stopSequences: config.stopSequences
+      stopSequences: config.stopSequences,
+      ...(mode && mode !== 'MODE_UNSPECIFIED'
+        ? { toolChoice: mode === 'ANY' ? 'required' : mode === 'NONE' ? 'none' : 'auto' }
+        : {}),
+      ...((mode === 'ANY' || mode === 'VALIDATED') && choice?.allowedFunctionNames?.length
+        ? { activeTools: choice.allowedFunctionNames }
+        : {})
     }
   }
 

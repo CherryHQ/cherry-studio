@@ -33,6 +33,12 @@ input validation fails; the client harness validates them and can return a tool 
 Invalid non-object arguments terminate the response through its error channel because they cannot be
 represented as tool argument objects without changing their meaning. The gateway never executes client
 tools or substitutes an empty argument object for invalid input.
+Gemini requests preserve explicit `AUTO`, `NONE`, `ANY`, and `VALIDATED` function-calling modes.
+`ANY` requires a tool call; `VALIDATED` requests strict tool schemas while allowing a text answer.
+For `ANY` and `VALIDATED`, a non-empty `allowedFunctionNames` list restricts the tools advertised
+for the current generation without removing the full tool set used to interpret history.
+An omitted or `MODE_UNSPECIFIED` mode retains the provider default; an empty allowed list leaves all tools available.
+
 Authenticated internal requests can carry Cherry reasoning, service-tier and Fast selections;
 external callers cannot override these through internal headers.
 
