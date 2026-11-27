@@ -1,12 +1,15 @@
-/** Regression coverage for the parameterless tool-schema pass (issue #21957). */
+/** Regression coverage for root object and parameterless tool-schema normalization (issues #21957, #25073). */
+import { createAnthropic } from '@ai-sdk/anthropic'
 import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { createOpenAI } from '@ai-sdk/openai'
 import type { JSONSchema7, LanguageModelV3CallOptions } from '@ai-sdk/provider'
 import type { LanguageModelMiddleware } from 'ai'
-import { asSchema, generateText, tool, wrapLanguageModel } from 'ai'
+import { asSchema, generateText, jsonSchema, tool, wrapLanguageModel } from 'ai'
 import { describe, expect, it } from 'vitest'
 import * as z from 'zod'
 
+import { createCherryIn } from '@cherrystudio/ai-sdk-provider'
+import { createAihubmix } from '@main/ai/provider/custom/aihubmix/aihubmixProvider'
 import { createMcpInputSchema } from '@main/ai/tools/adapters/aiSdk/mcpSchema'
 import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
 
@@ -91,19 +94,108 @@ describe('parameterless function-tool schemas', () => {
     ['empty properties', { type: 'object', properties: {} }],
     ['populated properties', { type: 'object', properties: { q: { type: 'string' } } }],
     ['null properties', { type: 'object', properties: null }],
-    ['undefined properties', { type: 'object', properties: undefined }],
-    ['empty schema', {}],
-    ['string', { type: 'string' }],
-    ['array', { type: 'array', items: { type: 'string' } }],
-    ['nullable object', { type: ['object', 'null'] }],
-    ['reference', { $ref: '#/$defs/x' }],
-    ['union', { anyOf: [{ type: 'object' }, { type: 'string' }] }]
-  ])('preserves %s by reference without inferring or repairing properties', async (_name, inputSchema) => {
+    ['undefined properties', { type: 'object', properties: undefined }]
+  ])('preserves %s by reference without unnecessary cloning', async (_name, inputSchema) => {
     const params: LanguageModelV3CallOptions = {
       prompt: [],
       tools: [{ type: 'function', name: 'untouched', inputSchema: inputSchema as JSONSchema7 }]
     }
     expect(await transform(params)).toBe(params)
+  })
+
+  it.each([
+    ['empty schema', {}, { type: 'object', properties: {} }],
+    [
+      'missing type with properties',
+      { properties: { q: { type: 'string' } }, required: ['q'] },
+      { type: 'object', properties: { q: { type: 'string' } }, required: ['q'] }
+    ],
+    ['string', { type: 'string', minLength: 1 }, { type: 'object', properties: {} }],
+    ['array', { type: 'array', items: { type: 'string' } }, { type: 'object', properties: {} }],
+    ['nullable object', { type: ['object', 'null'] }, { type: 'object', properties: {} }],
+    ['non-object type array', { type: ['string', 'number'] }, { type: 'object', properties: {} }],
+    ['unresolvable reference', { $ref: '#/$defs/x' }, { type: 'object', properties: {} }],
+    [
+      'non-object union',
+      { anyOf: [{ type: 'string' }, { type: 'number' }], description: 'scalar union' },
+      { type: 'object', properties: {}, description: 'scalar union' }
+    ],
+    [
+      'mixed object/scalar union',
+      { anyOf: [{ type: 'object' }, { type: 'string' }] },
+      { type: 'object', properties: {}, anyOf: [{ type: 'object' }, { type: 'string' }] }
+    ],
+    [
+      'object union without root type',
+      {
+        anyOf: [
+          { type: 'object', properties: { a: { type: 'string' } }, required: ['a'] },
+          { type: 'object', properties: { b: { type: 'number' } }, required: ['b'] }
+        ]
+      },
+      {
+        type: 'object',
+        properties: { a: { type: 'string' }, b: { type: 'number' } },
+        anyOf: [
+          { type: 'object', properties: { a: { type: 'string' } }, required: ['a'] },
+          { type: 'object', properties: { b: { type: 'number' } }, required: ['b'] }
+        ]
+      }
+    ],
+    [
+      'oneOf without root type',
+      {
+        oneOf: [
+          { type: 'object', properties: { mode: { const: 'fast' } } },
+          { type: 'object', properties: { mode: { const: 'deep' } }, limit: { type: 'integer' } }
+        ].map((entry) => ({
+          type: 'object',
+          properties: 'limit' in entry ? { mode: entry.properties.mode, limit: entry.limit } : entry.properties
+        }))
+      },
+      {
+        type: 'object',
+        properties: {
+          mode: { anyOf: [{ const: 'fast' }, { const: 'deep' }] },
+          limit: { type: 'integer' }
+        },
+        oneOf: [
+          { type: 'object', properties: { mode: { const: 'fast' } } },
+          { type: 'object', properties: { mode: { const: 'deep' }, limit: { type: 'integer' } } }
+        ]
+      }
+    ],
+    [
+      'allOf without root type',
+      {
+        allOf: [
+          { type: 'object', properties: { a: { type: 'string' } } },
+          { type: 'object', properties: { b: { type: 'number' } } }
+        ]
+      },
+      {
+        type: 'object',
+        properties: { a: { type: 'string' }, b: { type: 'number' } },
+        allOf: [
+          { type: 'object', properties: { a: { type: 'string' } } },
+          { type: 'object', properties: { b: { type: 'number' } } }
+        ]
+      }
+    ],
+    ['null schema', null, { type: 'object', properties: {} }],
+    ['boolean schema', true, { type: 'object', properties: {} }],
+    ['string schema', 'object', { type: 'object', properties: {} }],
+    ['array schema', [], { type: 'object', properties: {} }]
+  ])('normalizes %s to a valid object root schema without mutating input', async (_name, inputSchema, expected) => {
+    const params: LanguageModelV3CallOptions = {
+      prompt: [],
+      tools: [{ type: 'function', name: 'normalized', inputSchema: inputSchema as JSONSchema7 }]
+    }
+    const transformed = (await transform(params)).tools?.[0]
+    if (transformed?.type !== 'function') throw new Error('expected a transformed function tool')
+
+    expect(transformed.inputSchema).toEqual(expected)
+    expect(transformed.inputSchema.type).toBe('object')
   })
 
   it('adds properties only at the explicit object root and preserves all other fields and branches', async () => {
@@ -126,23 +218,61 @@ describe('parameterless function-tool schemas', () => {
     expect(Object.hasOwn(inputSchema, 'properties')).toBe(false)
   })
 
-  it('preserves an object root with $ref by reference without mutation', async () => {
+  it.each([undefined, 'object'] as const)(
+    'dereferences a local root $ref (type=%s) while keeping $defs and never mutating the source',
+    async (type) => {
+      const inputSchema: JSONSchema7 = {
+        ...(type ? { type } : {}),
+        $ref: '#/$defs/Input',
+        $defs: { Input: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] } }
+      }
+      // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
+      const original = structuredClone(inputSchema)
+      const params: LanguageModelV3CallOptions = {
+        prompt: [],
+        tools: [{ type: 'function', name: 'lookup', inputSchema }]
+      }
+
+      const result = await transform(params)
+      const transformed = result.tools?.[0]
+      if (transformed?.type !== 'function') throw new Error('expected a transformed function tool')
+
+      expect(transformed.inputSchema).toEqual({
+        type: 'object',
+        properties: { query: { type: 'string' } },
+        required: ['query'],
+        $defs: original.$defs
+      })
+      expect(inputSchema).toEqual(original)
+    }
+  )
+
+  it('resolves chained root $ref and preserves nested $defs references', async () => {
     const inputSchema: JSONSchema7 = {
-      type: 'object',
-      $ref: '#/$defs/Input',
-      $defs: { Input: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] } }
+      $ref: '#/$defs/Alias',
+      $defs: {
+        Alias: { $ref: '#/$defs/Input' },
+        Input: {
+          type: 'object',
+          properties: { item: { $ref: '#/$defs/Item' } },
+          required: ['item']
+        },
+        Item: { type: 'string' }
+      }
     }
-    // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
-    const original = structuredClone(inputSchema)
-    const params: LanguageModelV3CallOptions = {
+    const result = await transform({
       prompt: [],
-      tools: [{ type: 'function', name: 'lookup', inputSchema }]
-    }
+      tools: [{ type: 'function', name: 'nested_ref', inputSchema }]
+    })
+    const transformed = result.tools?.[0]
+    if (transformed?.type !== 'function') throw new Error('expected a transformed function tool')
 
-    const result = await transform(params)
-
-    expect(result).toBe(params)
-    expect(inputSchema).toEqual(original)
+    expect(transformed.inputSchema).toEqual({
+      type: 'object',
+      properties: { item: { $ref: '#/$defs/Item' } },
+      required: ['item'],
+      $defs: inputSchema.$defs
+    })
   })
 
   it.each([
@@ -236,4 +366,113 @@ describe('parameterless function-tool schemas', () => {
       .functionDeclarations[0].parameters
     expect(sent).toEqual({ type: 'object', properties: { query: { type: 'string' } }, required: ['query'] })
   })
+
+  it.each([
+    {
+      provider: 'anthropic',
+      createModel: (fetch: typeof globalThis.fetch) => createAnthropic({ apiKey: 'test-key', fetch })('claude-opus-5')
+    },
+    {
+      provider: 'aihubmix',
+      createModel: (fetch: typeof globalThis.fetch) =>
+        createAihubmix({ apiKey: 'test-key', baseURL: 'http://127.0.0.1:1', fetch })('claude-sonnet-4-6')
+    },
+    {
+      provider: 'cherryin',
+      createModel: (fetch: typeof globalThis.fetch) =>
+        createCherryIn({
+          apiKey: 'test-key',
+          endpointType: 'anthropic',
+          anthropicBaseURL: 'http://127.0.0.1:1',
+          fetch
+        })('anthropic/claude-haiku-5.5')
+    }
+  ])(
+    'always emits input_schema.type === "object" on $provider for non-object and $ref root schemas',
+    async ({ provider, createModel }) => {
+      let capturedBody: unknown
+      const captureFetch: typeof globalThis.fetch = async (_input, init) => {
+        capturedBody = JSON.parse(String(init?.body))
+        return new Response(JSON.stringify({ error: { message: 'captured' } }), {
+          status: 400,
+          headers: { 'content-type': 'application/json' }
+        })
+      }
+      const model = wrapLanguageModel({
+        model: createModel(captureFetch),
+        middleware: await getMiddleware({
+          aiSdkProviderId: provider,
+          runtimeProviderId: provider,
+          endpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+        })
+      })
+
+      const mcpRefSchema: JSONSchema7 = {
+        $ref: '#/$defs/Input',
+        $defs: { Input: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] } }
+      }
+
+      await expect(
+        generateText({
+          model,
+          prompt: 'hello',
+          tools: {
+            empty_obj: tool({ inputSchema: jsonSchema({}) }),
+            missing_type_props: tool({
+              inputSchema: jsonSchema({ properties: { q: { type: 'string' } }, required: ['q'] })
+            }),
+            scalar_type: tool({ inputSchema: jsonSchema({ type: 'string' }) }),
+            mcp_root_ref: tool({ inputSchema: createMcpInputSchema(mcpRefSchema) }),
+            root_union: tool({
+              inputSchema: jsonSchema({
+                anyOf: [
+                  { type: 'object', properties: { a: { type: 'string' } }, required: ['a'] },
+                  { type: 'object', properties: { b: { type: 'number' } }, required: ['b'] }
+                ]
+              })
+            }),
+            root_oneof: tool({
+              inputSchema: jsonSchema({
+                oneOf: [
+                  { type: 'object', properties: { id: { type: 'string' } } },
+                  { type: 'object', properties: { slug: { type: 'string' } } }
+                ]
+              })
+            }),
+            root_allof: tool({
+              inputSchema: jsonSchema({
+                allOf: [
+                  { type: 'object', properties: { x: { type: 'string' } } },
+                  { type: 'object', properties: { y: { type: 'number' } } }
+                ]
+              })
+            }),
+            malformed_null: tool({ inputSchema: jsonSchema(null as never) }),
+            malformed_string: tool({ inputSchema: jsonSchema('invalid' as never) })
+          }
+        })
+      ).rejects.toBeDefined()
+
+      const sentTools = (
+        capturedBody as {
+          tools: Array<{
+            name: string
+            input_schema: { type?: unknown; properties?: Record<string, unknown>; $ref?: string }
+          }>
+        }
+      ).tools
+      const byName = Object.fromEntries(sentTools.map((entry) => [entry.name, entry.input_schema]))
+
+      for (const sentTool of sentTools) {
+        expect(sentTool.input_schema.type, `${sentTool.name} missing object type`).toBe('object')
+        expect(sentTool.input_schema.$ref, `${sentTool.name} kept root $ref`).toBeUndefined()
+        expect(sentTool.input_schema.properties, `${sentTool.name} missing properties`).toEqual(expect.any(Object))
+      }
+      expect(byName.missing_type_props.properties).toEqual({ q: { type: 'string' } })
+      expect(byName.mcp_root_ref.properties).toEqual({ query: { type: 'string' } })
+      expect(byName.root_union.properties).toEqual({ a: { type: 'string' }, b: { type: 'number' } })
+      expect(byName.root_oneof.properties).toEqual({ id: { type: 'string' }, slug: { type: 'string' } })
+      expect(byName.root_allof.properties).toEqual({ x: { type: 'string' }, y: { type: 'number' } })
+    }
+  )
 })

@@ -5,6 +5,7 @@ import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 import { startup, type SpawnOptions } from '@anthropic-ai/claude-agent-sdk'
+import { childTimeline } from '@test-helpers/childTimeline'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockApplicationUtils } from '@test-mocks/main/application'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
@@ -25,7 +26,8 @@ import { agentService } from '@data/services/AgentService'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
 import { AgentSessionRuntimeService } from '@main/ai/agentSession/AgentSessionRuntimeService'
-import { ChildThreadProjection, savedChildView } from '@main/ai/agentSession/ChildThreadProjection'
+import { savedChildView } from '@main/ai/agentSession/childArchive'
+import { ChildThreadProjection } from '@main/ai/agentSession/ChildThreadProjection'
 import { readSessionHistory } from '@main/ai/agentSession/sessionHistory'
 import { ThreadMessageProjection } from '@main/ai/agentSession/ThreadMessageProjection'
 import { prepareClaudeBranch, reserveClaudeBranchTx } from '@main/ai/runtime/claudeCode/claudeContext'
@@ -36,6 +38,7 @@ import { BaseService } from '@main/core/lifecycle/BaseService'
 import { getSentryLogContext } from '@shared/utils/sentry'
 
 import { ClaudeFeed } from '../../../../../../packages/agent-runtime-claude-code/src/observation'
+import { ClaudeOwner } from '../../../../../../packages/agent-runtime-claude-code/src/owner'
 import { fixture, spawnChild } from '../../../../../../packages/agent-runtime-claude-code/tests/nativeFixture'
 import { assistantMessage, wireProcess } from '../../../../../../packages/agent-runtime-claude-code/tests/wireFixture'
 import type { AgentRuntimeConnection, AgentRuntimeEvent, AgentRuntimeConnectInput } from '../../types'
@@ -161,11 +164,9 @@ async function desktop(options: Parameters<typeof fixture>[0] = {}) {
     type: T,
     predicate: (event: Extract<AgentRuntimeEvent, { type: T }>) => boolean = () => true
   ) => {
+    const hasType = (event: AgentRuntimeEvent): event is Extract<AgentRuntimeEvent, { type: T }> => event.type === type
     const find = () =>
-      events.find(
-        (event): event is Extract<AgentRuntimeEvent, { type: T }> =>
-          event.type === type && predicate(event as Extract<AgentRuntimeEvent, { type: T }>)
-      )
+      events.find((event): event is Extract<AgentRuntimeEvent, { type: T }> => hasType(event) && predicate(event))
     await expect.poll(() => find() ?? events.find((event) => event.type === 'error'), { timeout: 15000 }).toBeDefined()
     expect(events.filter((event) => event.type === 'error')).toEqual([])
     return find()!
@@ -242,7 +243,6 @@ it('continues product history and keeps SDK background notifications in one Main
     userMessage: user,
     headless: true
   })
-  await service.primeConnection(test.sessionId)
   const source = service.openTurnStream({
     sessionId: test.sessionId,
     turnId: handle.turnId,
@@ -250,9 +250,10 @@ it('continues product history and keeps SDK background notifications in one Main
   })
   if (source.kind !== 'messages') throw new Error('Expected message stream')
   const reading = pipeMessageStream(
-    source.stream,
+    source,
     handle.abortController.signal,
-    { id: reply.id, role: 'assistant', parts: [] },
+    { id: reply.id, role: 'assistant' },
+    () => {},
     () => {},
     () => {}
   )
@@ -319,9 +320,17 @@ it('joins native steer to the shared answer while keeping foreground child histo
   const connection = await test.connect()
   await connection.send(first)
   const request = await test.request()
+  using refresh = vi.spyOn(ClaudeOwner.prototype, 'refresh')
   request.reply.block(spawnChild('toolu_desktop'))
   request.reply.finish('tool_use')
   const child = await test.request()
+  await expect
+    .poll(() => childTimeline(test.sessionId, 'toolu_desktop')?.snapshot().messages[0])
+    .toMatchObject({
+      role: 'user',
+      parts: [{ type: 'text', text: 'Child toolu_desktop' }]
+    })
+  expect(refresh).not.toHaveBeenCalled()
   const second = test.input('Use the revised requirement')
   expect(connection.redirect!({ ...second, systemReminder: true })).toBe(true)
   await expect
@@ -364,7 +373,7 @@ it('joins native steer to the shared answer while keeping foreground child histo
     ...new Map(test.nativeInputs.filter((state) => state.outcome).map((state) => [state.inputId, state])).values()
   ]
   expect(replies.map((state) => state.inputId)).toEqual(expect.arrayContaining([first.message.id, second.message.id]))
-  const context = contexts.findChild(test.sessionId, 'toolu_desktop')!
+  const context = contexts.context(contexts.childArchive(test.sessionId, 'toolu_desktop')!.id)
   expect(context).toBeDefined()
   await expect.poll(() => JSON.stringify(savedChildView(context).messages)).toContain('Independent child answer')
 
@@ -395,7 +404,9 @@ it('accepts steer across native completion and closes the actual subprocess', as
   next.reply.block({ type: 'text', text: 'Second answer' })
   next.reply.finish()
   await expect.poll(() => test.events.filter((event) => event.type === 'turn-complete').length).toBe(2)
-  expect(test.events.filter((event) => event.type === 'steer-boundary')).toHaveLength(1)
+  expect(test.events.filter((event) => event.type === 'run-started')).toEqual([
+    expect.objectContaining({ inputIds: [second.message.id] })
+  ])
   await connection.closeForEdit!()
   expect(test.children.every((child) => child.exitCode !== null || child.signalCode !== null)).toBe(true)
   expect(test.events.filter((event) => event.type === 'error')).toEqual([])
@@ -410,11 +421,19 @@ it.each(['backup', 'close'] as const)(
     const connection = await test.connect()
     await connection.send(input)
     const request = await test.request()
+    using refresh = vi.spyOn(ClaudeOwner.prototype, 'refresh')
     request.reply.block(spawnChild('toolu_background_desktop', true))
     request.reply.finish('tool_use')
     const requests = [await test.request(), await test.request()]
     const parent = requests.find((value) => JSON.stringify(value.body.messages).includes('tool_result'))!
     const child = requests.find((value) => value !== parent)!
+    const opening = () => childTimeline(test.sessionId, 'toolu_background_desktop')?.snapshot().messages[0]
+    await expect.poll(opening).toMatchObject({
+      role: 'user',
+      parts: [{ type: 'text', text: 'Child toolu_background_desktop' }]
+    })
+    const liveOpening = opening()
+    expect(refresh).not.toHaveBeenCalled()
     parent.reply.block({ type: 'text', text: 'Parent done' })
     parent.reply.finish()
     await test.wait('turn-complete')
@@ -465,7 +484,7 @@ it.each(['backup', 'close'] as const)(
     await Promise.all([closing, draining])
     if (mode === 'backup')
       expect(test.children.some((child) => child.exitCode === null && child.signalCode === null)).toBe(true)
-    const context = contexts.findChild(test.sessionId, 'toolu_background_desktop')!
+    const context = contexts.context(contexts.childArchive(test.sessionId, 'toolu_background_desktop')!.id)
     await expect.poll(() => JSON.stringify(savedChildView(context).messages)).toContain('Late child block two')
     const childResponses = test.events
       .filter((event) => event.type === 'response-start')
@@ -487,10 +506,11 @@ it.each(['backup', 'close'] as const)(
     await new Promise((resolve) => setTimeout(resolve, 160))
     expect(dbh.sqlite.prepare('SELECT total_changes() AS count').get()).toEqual(changes)
     await connection.close()
-    const reopened = await test.connect()
-    await expect.poll(async () => Boolean(await reopened.childProjection!('toolu_background_desktop'))).toBe(true)
-    const projection = await reopened.childProjection!('toolu_background_desktop')
+    await test.connect()
+    await expect.poll(() => Boolean(childTimeline(test.sessionId, 'toolu_background_desktop'))).toBe(true)
+    const projection = childTimeline(test.sessionId, 'toolu_background_desktop')
     expect(projection!.snapshot().canSubmit).toBe(false)
+    expect(projection!.snapshot().messages[0]).toEqual(liveOpening)
     expect(projection!.snapshot().messages).toEqual(saved)
   },
   30000
@@ -562,8 +582,8 @@ it('restores nested children under their immediate parent after an attachment fa
   rootResult.reply.block({ type: 'text', text: 'Root answer' })
   rootResult.reply.finish()
   await test.wait('turn-complete')
-  const outer = contexts.findChild(test.sessionId, 'toolu_outer')!
-  const inner = contexts.findChild(test.sessionId, 'toolu_inner')!
+  const outer = contexts.context(contexts.childArchive(test.sessionId, 'toolu_outer')!.id)
+  const inner = contexts.context(contexts.childArchive(test.sessionId, 'toolu_inner')!.id)
   expect(inner.parentContextId).toBe(outer.id)
   await expect.poll(() => JSON.stringify(savedChildView(inner).messages)).toContain('Grandchild answer')
   expect(
@@ -583,14 +603,10 @@ it('restores nested children under their immediate parent after an attachment fa
       return originalAttach.call(this)
     })
   try {
-    const reopened = await test.connect()
+    await test.connect()
     await expect.poll(() => failed).toBe(true)
     expect(savedChildView(contexts.context(inner.id)).messages).toEqual(saved)
-    const projections = await Promise.all([
-      reopened.childProjection!('toolu_inner'),
-      reopened.childProjection!('toolu_inner')
-    ])
-    for (const projection of projections) expect(projection?.snapshot().messages).toEqual(saved)
+    expect(childTimeline(test.sessionId, 'toolu_inner')?.snapshot().messages).toEqual(saved)
     expect(contexts.children(outer.id).filter((context) => context.spawnToolCallId === 'toolu_inner')).toHaveLength(1)
   } finally {
     attach.mockRestore()
@@ -623,7 +639,7 @@ it('stops one background child while its sibling persists its answer', async () 
   await stopped.reply.closed
   kept.reply.block({ type: 'text', text: 'Sibling survived' })
   kept.reply.finish()
-  const context = contexts.findChild(test.sessionId, 'toolu_keep')!
+  const context = contexts.context(contexts.childArchive(test.sessionId, 'toolu_keep')!.id)
   await expect.poll(() => JSON.stringify(savedChildView(context).messages)).toContain('Sibling survived')
   expect(test.events.filter((event) => event.type === 'error')).toEqual([])
 }, 30000)
@@ -791,7 +807,7 @@ it('submits native image blocks and local document paths through the common owne
   request.reply.finish()
   await test.wait('turn-complete')
   const saved = dbh.db.select().from(sessionMessagesTable).where(eq(sessionMessagesTable.id, input.message.id)).get()
-  expect(saved).toMatchObject({ inputContextId: expect.any(String), nativeInputId: expect.any(String) })
+  expect(saved).toMatchObject({ inputContextId: expect.any(String), nativeInputId: null })
   expect(test.nativeInputs.some((state) => state.inputId === input.message.id && state.outcome === 'completed')).toBe(
     true
   )
@@ -862,10 +878,94 @@ it('creates a reserved empty Claude branch and reopens it after its first answer
   await test.wait('turn-complete')
 }, 30000)
 
+it.each(['missing archive', 'invalid token', 'missing binding'])(
+  'rebuilds Claude context from the selected product history after %s',
+  async (failure) => {
+    const test = await desktop()
+    const token = failure === 'invalid token' ? 'invalid-session-id' : randomUUID()
+    const previous = test.input('Remember the blue notebook')
+    const original = prepareClaudeBranch(test.sessionId, test.configDir, token, previous.message.id)
+    if (failure === 'missing archive') contexts.bindContext(original.id, token)
+    if (failure === 'missing binding') dbh.db.transaction((tx) => contexts.detachBranchTx(tx, original.id))
+    const answer = messages.saveMessage({
+      sessionId: test.sessionId,
+      runtimeResumeToken: token,
+      message: { role: 'assistant', status: 'success', data: { parts: [{ type: 'text', text: 'Notebook saved' }] } }
+    })
+    const request = await ports.build()
+    ports.build.mockImplementation(async (_sessionId: string, resume?: string | null) => ({
+      ...request,
+      options: { ...request.options, resume: resume ?? undefined }
+    }))
+    const next = test.input('What should you remember?')
+    if (failure === 'missing archive') {
+      dbh.db.transaction((tx) => {
+        messages.bindInputContextTx(tx, test.sessionId, next.message.id, original.id)
+        tx.update(sessionMessagesTable)
+          .set({ nativeInputId: 'stale-input' })
+          .where(eq(sessionMessagesTable.id, next.message.id))
+          .run()
+      })
+    }
+    const connection = await test.connect(undefined, answer.id)
+    expect(connection.contextId).not.toBe(original.id)
+    await connection.send({
+      ...next,
+      context: await readSessionHistory(test.sessionId, next.message.id, connection.contextId)
+    })
+    const response = await test.request()
+    expect(JSON.stringify(response.body.messages)).toContain('Remember the blue notebook')
+    expect(JSON.stringify(response.body.messages)).toContain('Notebook saved')
+    response.reply.block({ type: 'text', text: 'Context recovered' })
+    response.reply.finish()
+    await test.wait('turn-complete')
+    expect(messages.inputBinding(test.sessionId, next.message.id)).toMatchObject({ contextId: connection.contextId })
+    expect(messages.inputBinding(test.sessionId, next.message.id)?.nativeInputId).not.toBe('stale-input')
+    await connection.closeForEdit!()
+    const reopened = await test.connect(undefined, answer.id)
+    expect(reopened.contextId).toBe(connection.contextId)
+    const followup = test.input('Continue again')
+    expect(await readSessionHistory(test.sessionId, followup.message.id, reopened.contextId)).toBeUndefined()
+  },
+  30000
+)
+
+it('reuses the original Claude archive with a stale hint or missing product binding', async () => {
+  const test = await desktop()
+  const first = await test.connect()
+  await first.send(test.input('Remember the blue notebook'))
+  const response = await test.request()
+  response.reply.block({ type: 'text', text: 'Notebook saved' })
+  response.reply.finish()
+  await test.wait('turn-complete')
+  await first.closeForEdit!()
+  const original = contexts.context(first.contextId!)
+  const answer = messages.saveMessage({
+    sessionId: test.sessionId,
+    runtimeResumeToken: original.nativeThreadId!,
+    message: { role: 'assistant', status: 'success', data: { parts: [{ type: 'text', text: 'Notebook saved' }] } }
+  })
+  const reopened = await test.connect('stale-token', answer.id)
+  expect(reopened.contextId).toBe(original.id)
+  await reopened.closeForEdit!()
+  dbh.db.transaction((tx) => contexts.detachBranchTx(tx, original.id))
+
+  const restored = await test.connect('stale-token', answer.id)
+  expect(contexts.context(restored.contextId!).nativeThreadId).toBe(original.nativeThreadId)
+  const next = test.input('What should you remember?')
+  expect(await readSessionHistory(test.sessionId, next.message.id, restored.contextId)).toBeUndefined()
+  test.events.length = 0
+  await restored.send(next)
+  const continuation = await test.request()
+  expect(JSON.stringify(continuation.body.messages)).toContain('Remember the blue notebook')
+  continuation.reply.block({ type: 'text', text: 'Context kept' })
+  continuation.reply.finish()
+  await test.wait('turn-complete')
+}, 30000)
+
 // A slow desktop observer must settle from a recovered baseline after the bounded feed folds its result.
 it('recovers current content and one terminal result after observer overflow, then accepts another input', async () => {
   const test = await desktop()
-  const connection = await test.connect()
   const observed: { feed?: ClaudeFeed } = {}
   const publish = ClaudeFeed.prototype.publish
   const feedSpy = vi.spyOn(ClaudeFeed.prototype, 'publish').mockImplementation(function (
@@ -877,22 +977,32 @@ it('recovers current content and one terminal result after observer overflow, th
     if (native?.some((entry) => entry.source === 'live' && entry.message.type === 'assistant')) observed.feed = this
     return publish.call(this, events, native, ...rest)
   })
-  const original = ThreadMessageProjection.prototype.accept
+  const observe = ClaudeFeed.prototype.observe
   const paused = Promise.withResolvers<void>()
   const resume = Promise.withResolvers<void>()
   let held = false
   const spy = vi
-    .spyOn(ThreadMessageProjection.prototype, 'accept')
-    .mockImplementation(async function (this: ThreadMessageProjection, event, refresh) {
-      const events = 'type' in event ? [event] : event
-      if (!held && events.some((item) => item.type === 'message.upsert' && item.message.role === 'assistant')) {
-        held = true
-        paused.resolve()
-        await resume.promise
-      }
-      return original.call(this, event, refresh)
+    .spyOn(ClaudeFeed.prototype, 'observe')
+    .mockImplementation(function (this: ClaudeFeed, sink, needsRecovery) {
+      return observe.call(
+        this,
+        async (batch) => {
+          if (
+            needsRecovery &&
+            !held &&
+            batch.events.some((event) => event.type === 'message.reconcile' && event.message.role === 'assistant')
+          ) {
+            held = true
+            paused.resolve()
+            await resume.promise
+          }
+          await sink(batch)
+        },
+        needsRecovery
+      )
     })
   try {
+    const connection = await test.connect()
     const first = test.input('Produce many blocks')
     await connection.send(first)
     const request = await test.request()
@@ -1025,7 +1135,6 @@ it.each(['unmappable child', 'root compaction'] as const)(
       userMessage: user,
       headless: true
     })
-    await service.primeConnection(test.sessionId)
     const source = service.openTurnStream({
       sessionId: test.sessionId,
       turnId: handle.turnId,
@@ -1034,12 +1143,13 @@ it.each(['unmappable child', 'root compaction'] as const)(
     if (source.kind !== 'messages') throw new Error('Expected message stream')
     let current = ''
     const reading = pipeMessageStream(
-      source.stream,
+      source,
       handle.abortController.signal,
-      { id: reply.id, role: 'assistant', parts: [] },
+      { id: reply.id, role: 'assistant' },
       (message) => {
         current = JSON.stringify(message.parts)
       },
+      () => {},
       () => {}
     )
     await expect.poll(() => wire.inputs.length).toBe(1)
@@ -1055,6 +1165,7 @@ it.each(['unmappable child', 'root compaction'] as const)(
     await test.wait('message-projection', (event) =>
       JSON.stringify(event.projection.messages).includes('Earlier root content')
     )
+    const readArchive = vi.spyOn(nativeHandle!.claude, 'archive')
     if (scenario === 'unmappable child') {
       wire.send(
         assistantMessage(sessionId, [text('Unmappable child content')], {
@@ -1063,7 +1174,6 @@ it.each(['unmappable child', 'root compaction'] as const)(
         })
       )
     } else {
-      // A fabricated process has no native archive, so boundary refresh cannot read native storage.
       wire.send({
         type: 'stream_event',
         uuid: randomUUID(),
@@ -1072,10 +1182,6 @@ it.each(['unmappable child', 'root compaction'] as const)(
         event: { type: 'message_start', message: { ...baseline.message, content: [] } }
       })
       await test.wait('context-usage', (event) => event.result.status === 'confirmed')
-      expect(await nativeHandle!.claude.archive()).toMatchObject({
-        status: 'rejected',
-        error: { code: 'native-storage-missing' }
-      })
       const beforeBoundary = test.events.length
       wire.send({
         type: 'system',
@@ -1111,6 +1217,7 @@ it.each(['unmappable child', 'root compaction'] as const)(
     )
     expect(projected.projection.live).toContain(continuation.uuid)
     await expect.poll(() => current).toContain('Main continues')
+    if (scenario === 'root compaction') expect(readArchive.mock.calls).toEqual([])
     expect(service.isSessionBusy(test.sessionId)).toBe(true)
     if (scenario === 'unmappable child')
       wire.send(assistantMessage(sessionId, [text('Main finishes')], { user_message_uuid: inputId }))

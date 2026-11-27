@@ -1,4 +1,4 @@
-import type { ImageModeDef, ReasoningSupport } from '../schemas/model'
+import type { ImageGenerationSupport, ImageModeDef, ReasoningSupport } from '../schemas/model'
 import type { ProviderModelOverride } from '../schemas/provider-models'
 import type { ReasoningWireProfile } from '../schemas/reasoningWire'
 import { fixedSamplingParameterSupport } from './parameterSupports'
@@ -74,6 +74,11 @@ const wanxT2iSupports: ImageModeDef['supports'] = {
   }
 }
 
+const dashscopeMultimodalSyncTransport = {
+  endpoint: '/api/v1/services/aigc/multimodal-generation/generation',
+  isSync: true
+} as const
+
 /** qwen-image-3.0 / -pro serve both t2i and editing off one sync multimodal endpoint. */
 const qwenImage3Mode: ImageModeDef = {
   supports: {
@@ -89,10 +94,107 @@ const qwenImage3Mode: ImageModeDef = {
       type: 'enum'
     }
   },
-  vendorTransport: { endpoint: '/api/v1/services/aigc/multimodal-generation/generation', isSync: true }
+  vendorTransport: dashscopeMultimodalSyncTransport
 }
 
 const qwenImage3ImageGeneration = { modes: { edit: qwenImage3Mode, generate: qwenImage3Mode } }
+
+// Frozen docs list only T2I, 1 output, and 1664x928 max (no size enum);
+// keep size free-form text instead of copying qwen-image's sibling chips.
+const qwenImage1SyncT2iMode: ImageModeDef = {
+  supports: {
+    addWatermark: { default: false, type: 'switch' },
+    negativePrompt: { multiline: true, type: 'text' },
+    numImages: { default: 1, max: 1, min: 1, type: 'range' },
+    promptExtend: { default: true, type: 'switch' },
+    seed: { type: 'text' },
+    size: { type: 'text' }
+  },
+  vendorTransport: dashscopeMultimodalSyncTransport
+}
+
+const qwenImage20SizeOptions = ['2048x2048', '2688x1536', '1536x2688', '2368x1728', '1728x2368']
+
+const qwenImage20Supports: ImageModeDef['supports'] = {
+  addWatermark: { default: false, type: 'switch' },
+  negativePrompt: { multiline: true, type: 'text' },
+  numImages: { default: 1, max: 6, min: 1, type: 'range' },
+  promptExtend: { default: true, type: 'switch' },
+  seed: { type: 'text' },
+  size: { default: '2048x2048', options: qwenImage20SizeOptions, render: 'chips', type: 'enum' }
+}
+
+const qwenImage20ImageGeneration: ImageGenerationSupport = {
+  modes: {
+    edit: {
+      maxInputImages: 3,
+      supports: {
+        ...qwenImage20Supports,
+        size: { options: qwenImage20SizeOptions, render: 'chips', type: 'enum' }
+      },
+      vendorTransport: dashscopeMultimodalSyncTransport
+    },
+    generate: {
+      supports: qwenImage20Supports,
+      vendorTransport: dashscopeMultimodalSyncTransport
+    }
+  }
+}
+
+const qwenImage21Supports: ImageModeDef['supports'] = {
+  addWatermark: { default: false, type: 'switch' },
+  numImages: { default: 1, max: 6, min: 1, type: 'range' },
+  promptExtend: { default: true, type: 'switch' },
+  seed: { type: 'text' },
+  size: {
+    default: 'auto',
+    options: ['auto', '1024x1024', '2048x2048', '2688x1536', '1536x2688', '2368x1728', '1728x2368'],
+    render: 'chips',
+    type: 'enum'
+  }
+}
+
+const qwenImage21ImageGeneration: ImageGenerationSupport = {
+  modes: {
+    edit: {
+      maxInputImages: 10,
+      supports: qwenImage21Supports,
+      vendorTransport: dashscopeMultimodalSyncTransport
+    },
+    generate: {
+      supports: qwenImage21Supports,
+      vendorTransport: dashscopeMultimodalSyncTransport
+    }
+  }
+}
+
+const qwenImageEditMultiMode: ImageModeDef = {
+  supports: {
+    addWatermark: { default: false, type: 'switch' },
+    negativePrompt: { multiline: true, type: 'text' },
+    numImages: { default: 1, max: 6, min: 1, type: 'range' },
+    promptExtend: { default: true, type: 'switch' },
+    seed: { type: 'text' },
+    size: {
+      options: ['1024x1024', '2048x2048', '2688x1536', '1536x2688', '2368x1728', '1728x2368'],
+      render: 'chips',
+      type: 'enum'
+    }
+  },
+  vendorTransport: dashscopeMultimodalSyncTransport
+}
+
+// Frozen CN docs omit both a size enum/default and a prompt_extend default for z-image-turbo;
+// keep size free-form text and promptExtend without a default rather than copying qwencloud.
+const zImageTurboMode: ImageModeDef = {
+  supports: {
+    numImages: { default: 1, max: 1, min: 1, type: 'range' },
+    promptExtend: { type: 'switch' },
+    seed: { type: 'text' },
+    size: { type: 'text' }
+  },
+  vendorTransport: dashscopeMultimodalSyncTransport
+}
 
 const responsesEffortWire = modeWire(
   'reasoningEffort',
@@ -426,6 +528,51 @@ export default defineProvider({
         }
       },
       modelId: 'qwen-image-edit'
+    },
+    {
+      apiModelId: 'qwen-image-max',
+      imageGeneration: { modes: { generate: qwenImage1SyncT2iMode } },
+      modelId: 'qwen-image-max'
+    },
+    {
+      apiModelId: 'qwen-image-plus',
+      imageGeneration: { modes: { generate: qwenImage1SyncT2iMode } },
+      modelId: 'qwen-image-plus'
+    },
+    {
+      apiModelId: 'qwen-image-2.0',
+      imageGeneration: qwenImage20ImageGeneration,
+      modelId: 'qwen-image-2-0'
+    },
+    {
+      apiModelId: 'qwen-image-2.0-pro',
+      imageGeneration: qwenImage20ImageGeneration,
+      modelId: 'qwen-image-2-0-pro'
+    },
+    {
+      apiModelId: 'qwen-image-2.1-pro',
+      imageGeneration: qwenImage21ImageGeneration,
+      modelId: 'qwen-image-2-1-pro'
+    },
+    {
+      apiModelId: 'qwen-image-2.1-turbo',
+      imageGeneration: qwenImage21ImageGeneration,
+      modelId: 'qwen-image-2-1-turbo'
+    },
+    {
+      apiModelId: 'qwen-image-edit-max',
+      imageGeneration: { modes: { edit: qwenImageEditMultiMode } },
+      modelId: 'qwen-image-edit-max'
+    },
+    {
+      apiModelId: 'qwen-image-edit-plus',
+      imageGeneration: { modes: { edit: qwenImageEditMultiMode } },
+      modelId: 'qwen-image-edit-plus'
+    },
+    {
+      apiModelId: 'z-image-turbo',
+      imageGeneration: { modes: { generate: zImageTurboMode } },
+      modelId: 'z-image-turbo'
     },
     {
       apiModelId: 'qwen-mt-image',
