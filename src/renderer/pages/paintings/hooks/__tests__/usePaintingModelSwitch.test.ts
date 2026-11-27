@@ -39,7 +39,7 @@ function makeModel(providerId: string, apiModelId: string, editCapable: boolean)
     supportsStreaming: false,
     isEnabled: true,
     isHidden: false
-  } as Model
+  }
 }
 
 function makeOption(providerId: string, apiModelId: string, editCapable: boolean): ModelOption<Model> {
