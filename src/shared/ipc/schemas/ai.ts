@@ -270,6 +270,7 @@ export const aiRequestSchemas = {
       // With a requestId: also push each text delta to the caller as `ai.text.delta` while generating.
       streamDeltas: z.boolean().optional(),
       ...aiChatRequestShape,
+      utilityTask: z.boolean().optional(),
       disableTools: z.boolean().optional(),
       reasoningEffort: ReasoningEffortOptionSchema.optional(),
       serviceTier: ServiceTierSelectionSchema.optional(),

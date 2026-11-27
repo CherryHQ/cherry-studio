@@ -58,6 +58,7 @@ async function generateDiagnosis(system: string, prompt: string): Promise<string
   const result = await ipcApi
     .request('ai.text.generate', {
       uniqueModelId: model.id,
+      utilityTask: true,
       reasoningEffort: 'none',
       // Diagnosis only needs a short text answer, never tool calls.
       disableTools: true,

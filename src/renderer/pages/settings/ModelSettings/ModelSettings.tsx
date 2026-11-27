@@ -280,6 +280,7 @@ const ModelSettings: FC<ModelSettingsProps> = ({
               providers={providers}
               filter={chatModelFilter}
               showSubscriptionOffers={!modelFilter}
+              forUtilityTask
               compact={compact}
               onSelect={onSelectQuick}
               placeholder={t('settings.models.empty')}
@@ -309,6 +310,7 @@ const ModelSettings: FC<ModelSettingsProps> = ({
               providers={providers}
               filter={translateModelFilter}
               showSubscriptionOffers={!modelFilter}
+              forUtilityTask
               compact={compact}
               onSelect={onSelectTranslate}
               placeholder={t('settings.models.empty')}

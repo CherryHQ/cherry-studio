@@ -128,7 +128,12 @@ required service tier.`,
       await expect(diagnoseError(makeError(), 'en')).resolves.toMatchObject({ summary: 'Error' })
       expect(mockIpcRequest).toHaveBeenCalledExactlyOnceWith(
         'ai.text.generate',
-        expect.objectContaining({ uniqueModelId: defaultModel.id, requestOptions: { maxRetries: 0 } })
+        expect.objectContaining({
+          uniqueModelId: defaultModel.id,
+          // Diagnosis must keep working for a signed-out user on the built-in free model.
+          utilityTask: true,
+          requestOptions: { maxRetries: 0 }
+        })
       )
     })
 

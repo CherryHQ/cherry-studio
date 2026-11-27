@@ -1076,6 +1076,7 @@ export class AiStreamManager extends BaseService {
     source?: SourceSnapshot | null
     /** Per-request retry limit; `0` also disables model fallback. */
     maxRetries?: number
+    utilityTask?: boolean
   }): SendResult {
     const messages: CherryUIMessage[] =
       input.messages && input.messages.length > 0
@@ -1091,6 +1092,7 @@ export class AiStreamManager extends BaseService {
       trigger: 'submit-message',
       uniqueModelId: input.uniqueModelId,
       ...(input.resolvedModel ? { resolvedModel: input.resolvedModel } : {}),
+      ...(input.utilityTask ? { utilityTask: true } : {}),
       messages,
       callOverrides: input.callOverrides,
       contextOwner: input.contextOwner,

@@ -378,6 +378,7 @@ export class TopicNamingService {
     // the renderer omits assistantId for the same reason.
     const request: AsInProcessChat<AiGenerateRequest> = {
       uniqueModelId,
+      utilityTask: true,
       conversation: { id: chatId, topicId: chatId },
       system: systemPrompt,
       prompt,

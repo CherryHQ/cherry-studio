@@ -943,6 +943,7 @@ const TranslatePage: FC = () => {
               value={selectedModelId}
               onSelect={handleModelIdSelect}
               filter={modelSelectorFilter}
+              forUtilityTask
               showTagFilter={false}
               showPinnedModels
               prioritizedProviderIds={PRIORITIZED_PROVIDER_IDS}
