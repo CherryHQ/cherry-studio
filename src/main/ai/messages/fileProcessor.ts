@@ -317,6 +317,21 @@ async function validateImage(
       }
       return { ...normalized, url: `data:${normalized.mediaType};base64,${padded.toString('base64')}` }
     } catch (error) {
+      try {
+        const firstFrame = await sharp(bytes, {
+          failOn: 'error',
+          limitInputPixels: MAX_ATTACHMENT_IMAGE_PIXELS
+        }).metadata()
+        if (
+          (firstFrame.width ?? 0) > MAX_ATTACHMENT_IMAGE_EDGE ||
+          (firstFrame.pageHeight ?? firstFrame.height ?? 0) > MAX_ATTACHMENT_IMAGE_EDGE
+        ) {
+          onFailure?.(`image exceeds the ${MAX_ATTACHMENT_IMAGE_EDGE} px provider limit and could not be resized`)
+          return null
+        }
+      } catch {
+        return null
+      }
       logger.warn('Failed to pad image attachment', {
         filename: normalized.filename,
         reason: error instanceof Error ? error.message : String(error)

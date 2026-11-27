@@ -222,6 +222,22 @@ describe('attachment image padding', () => {
     }
   })
 
+  it('uses the named failure note when all-frame metadata rejects an oversized animation', async () => {
+    const bytes = await input(23, 17)
+    const part = filePart({ url: `data:image/gif;base64,${bytes.toString('base64')}`, mediaType: 'image/gif' })
+    const metadata = vi
+      .spyOn(sharp.prototype, 'metadata')
+      .mockRejectedValueOnce(new Error('Input image exceeds pixel limit'))
+      .mockResolvedValueOnce({ format: 'gif', width: 8400, height: 20, pageHeight: 20, pages: 600 })
+    const reason = vi.fn()
+    try {
+      expect(await materializeNativeFilePart(part, reason)).toBeNull()
+      expect(reason).toHaveBeenCalledWith(expect.stringContaining('8192'))
+    } finally {
+      metadata.mockRestore()
+    }
+  })
+
   it('retains the original when the planned animation exceeds the pixel budget', async () => {
     const part = partFor(await input(4, 4))
     const metadata = vi.spyOn(sharp.prototype, 'metadata').mockResolvedValueOnce({
