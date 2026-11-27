@@ -94,6 +94,12 @@ describe('inferReasoningControls (ingest-time heuristics)', () => {
 
   it.each([
     // [id, expected controls]
+    ['swe-2-flash', [{ kind: 'effort', values: ['medium', 'high', 'max'] }]],
+    ['swe-2.1-ultrafast', [{ kind: 'effort', values: ['low', 'medium', 'high', 'xhigh', 'max'] }]],
+    ['recursive/flint-v1.0', [{ kind: 'effort', values: ['low', 'medium', 'high'] }]],
+    ['beam', [{ kind: 'effort', values: ['low', 'medium', 'high', 'xhigh', 'max'] }]],
+    ['sakana/fugu-ultra-v2', [{ kind: 'effort', values: ['high', 'xhigh', 'max'] }]],
+    ['sakana/namazu', [{ kind: 'effort', values: ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] }]],
     ['gpt-5.1', [{ kind: 'effort', values: ['none', 'low', 'medium', 'high'] }]],
     ['gpt-5.2-pro', [{ kind: 'effort', values: ['medium', 'high', 'xhigh'] }]],
     ['o3', [{ kind: 'effort', values: ['low', 'medium', 'high'] }]],

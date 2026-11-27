@@ -86,43 +86,109 @@ export const defaultFilterFn: QuickPanelFilterFn = (item, searchText, _fuzzyRege
   }
 }
 
-/**
- * Calculate match score for sorting
- * Higher score = better match
- */
-const calculateMatchScore = (item: QuickPanelListItem, searchText: string): number => {
-  const filterText = buildItemHaystack(item)
-  const lowerFilterText = filterText.toLowerCase()
-  const lowerSearchText = searchText.toLowerCase()
+function isSlashCommandToken(text: string): boolean {
+  return /^\/[^\s/]+$/.test(text)
+}
 
-  // Exact match (highest priority)
-  if (lowerFilterText === lowerSearchText) {
+function getSlashCommandName(text: string): string | undefined {
+  return isSlashCommandToken(text) ? text.slice(1) : undefined
+}
+
+function findEarliestSubstringIndex(candidates: readonly string[], query: string): number {
+  let earliest = -1
+  for (const candidate of candidates) {
+    const index = candidate.indexOf(query)
+    if (index !== -1 && (earliest === -1 || index < earliest)) {
+      earliest = index
+    }
+  }
+  return earliest
+}
+
+/**
+ * Calculate match score for sorting.
+ * Higher score = better match, prioritizing name/command matches over aliases and descriptions.
+ */
+export const calculateMatchScore = (item: QuickPanelListItem, searchText: string): number => {
+  const lowerSearchText = searchText.toLowerCase()
+  if (!lowerSearchText) return 0
+
+  const lowerLabel = typeof item.label === 'string' ? item.label.toLowerCase() : ''
+  const isBareQuery = !lowerSearchText.startsWith('/')
+  const commandName = isBareQuery ? getSlashCommandName(lowerLabel) : undefined
+
+  // Tier 1: Exact name match
+  if (lowerLabel === lowerSearchText) {
     return 1000
   }
-
-  // Label exact match (very high priority)
-  if (typeof item.label === 'string' && item.label.toLowerCase() === lowerSearchText) {
-    return 900
+  if (commandName === lowerSearchText) {
+    return 950
   }
 
-  // Starts with search text (high priority)
-  if (lowerFilterText.startsWith(lowerSearchText)) {
-    return 800
+  const lowerAliases = (item.searchAliases ?? []).map((alias) => alias.toLowerCase())
+  if (isBareQuery && lowerAliases.some((alias) => getSlashCommandName(alias) === lowerSearchText)) {
+    return 930
   }
 
-  // Label starts with search text
-  if (typeof item.label === 'string' && item.label.toLowerCase().startsWith(lowerSearchText)) {
+  const lowerFilterText = item.filterText ? item.filterText.toLowerCase() : ''
+  if (!lowerLabel && lowerFilterText === lowerSearchText) {
+    return 920
+  }
+
+  // Tier 2: Prefix name match
+  if (lowerLabel.startsWith(lowerSearchText) || commandName?.startsWith(lowerSearchText)) {
+    return 850
+  }
+  if (!lowerLabel && lowerFilterText.startsWith(lowerSearchText)) {
+    return 770
+  }
+
+  // Tier 3: Exact / prefix alias match
+  if (lowerAliases.some((alias) => alias === lowerSearchText)) {
+    return 740
+  }
+  if (
+    lowerAliases.some(
+      (alias) =>
+        alias.startsWith(lowerSearchText) ||
+        (isBareQuery && Boolean(getSlashCommandName(alias)?.startsWith(lowerSearchText)))
+    )
+  ) {
     return 700
   }
 
-  // Contains search text (medium priority)
-  if (lowerFilterText.includes(lowerSearchText)) {
-    // Earlier position = higher score
-    const position = lowerFilterText.indexOf(lowerSearchText)
-    return 600 - position
+  // Tier 4: Substring match in name (label)
+  if (lowerLabel) {
+    const labelPosition = lowerLabel.indexOf(lowerSearchText)
+    if (labelPosition !== -1) {
+      return Math.max(500, 649 - labelPosition)
+    }
   }
 
-  // Pinyin fuzzy match (lower priority)
+  // Tier 5: Substring match in aliases
+  const aliasPosition = findEarliestSubstringIndex(lowerAliases, lowerSearchText)
+  if (aliasPosition !== -1) {
+    return Math.max(350, 499 - aliasPosition)
+  }
+
+  // Tier 6: Substring match in description
+  const lowerDescription = typeof item.description === 'string' ? item.description.toLowerCase() : ''
+  if (lowerDescription) {
+    const descPosition = lowerDescription.indexOf(lowerSearchText)
+    if (descPosition !== -1) {
+      return Math.max(250, 349 - descPosition)
+    }
+  }
+
+  // Tier 7: Substring match in remaining filterText
+  if (lowerFilterText) {
+    const filterPosition = lowerFilterText.indexOf(lowerSearchText)
+    if (filterPosition !== -1) {
+      return Math.max(150, 249 - filterPosition)
+    }
+  }
+
+  // Tier 8: Pinyin / fuzzy match
   return 100
 }
 
@@ -133,9 +199,8 @@ const calculateMatchScore = (item: QuickPanelListItem, searchText: string): numb
 export const defaultSortFn: QuickPanelSortFn = (items, searchText) => {
   if (!searchText) return items
 
-  return [...items].sort((a, b) => {
-    const scoreA = calculateMatchScore(a, searchText)
-    const scoreB = calculateMatchScore(b, searchText)
-    return scoreB - scoreA
-  })
+  return items
+    .map((item) => ({ item, score: calculateMatchScore(item, searchText) }))
+    .sort((a, b) => b.score - a.score)
+    .map(({ item }) => item)
 }

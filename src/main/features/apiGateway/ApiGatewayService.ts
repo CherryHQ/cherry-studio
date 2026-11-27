@@ -1,7 +1,8 @@
+import { createHmac, randomBytes } from 'node:crypto'
 import { hostname, networkInterfaces } from 'node:os'
 
 import type { ProviderHeaders } from '@earendil-works/pi-ai'
-import { Mutex } from 'async-mutex'
+import { E_CANCELED, Mutex } from 'async-mutex'
 import { retry } from 'es-toolkit'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -12,6 +13,7 @@ import type { InProcessUsageContext } from '@main/ai/types'
 import { createLatestReconciler, type LatestReconciler } from '@main/core/concurrency/latestReconciler'
 import { type Activatable, BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { ServiceTierSelection } from '@shared/data/types/model'
+import type { RetryPartData } from '@shared/data/types/uiParts'
 import type { OutputFor } from '@shared/ipc/types'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import type { ApiGatewayConfig, ApiGatewayStopOutcome } from '@shared/types/apiGateway'
@@ -28,6 +30,8 @@ const logger = loggerService.withContext('ApiGatewayService')
 const AGENT_SESSION_ID_HEADER = 'x-cherry-agent-session-id'
 const AGENT_USAGE_CAPTURE_HEADER = 'x-cherry-agent-usage-capture'
 const INTERNAL_GATEWAY_HOST = '127.0.0.1'
+const REQUEST_UNIT_BYTES = 1024 * 1024
+const INTERNAL_REQUEST_BUDGET = 32
 
 /** What a scoped internal credential may call: one generation path, one model address. */
 export type InternalCredentialScope = { path: string; model: string }
@@ -49,8 +53,15 @@ function presentedToken(headers: Headers): string | undefined {
 export class ApiGatewayService extends BaseService implements Activatable {
   private apiGateway: ApiGateway | null = null
   private readonly lanMutex = new Mutex()
+  private availableInternalRequestUnits = INTERNAL_REQUEST_BUDGET
+  private readonly pendingInternalRequests = new Set<{
+    units: number
+    grant: (release: () => void) => void
+    cancel: (reason: unknown) => void
+  }>()
   /** Never persisted or shown to the user; unrestricted on the internal listener. */
   private readonly internalApiKey = `cs-internal-${uuidv4()}`
+  private readonly agentCredentialSecret = randomBytes(32)
   /** Live scoped credentials; each authorizes only its own scope until disposed. */
   private readonly scopedCredentials = new Map<string, InternalCredentialScope>()
   private readonly usageCaptures = new Map<string, InProcessUsageContext>()
@@ -155,6 +166,8 @@ export class ApiGatewayService extends BaseService implements Activatable {
   }
 
   protected async onStop(): Promise<void> {
+    for (const request of this.pendingInternalRequests) request.cancel(E_CANCELED)
+    this.pendingInternalRequests.clear()
     const internalGateway = this.internalGateway
     this.internalGateway = null
     this.internalOrigin = undefined
@@ -362,11 +375,18 @@ export class ApiGatewayService extends BaseService implements Activatable {
   }
 
   /**
-   * Base URL and unrestricted credential for Cherry-launched consumers. Served by a dedicated loopback
+   * Base URL and credential for Cherry-launched consumers. Served by a dedicated loopback
    * listener so internal traffic never depends on, or turns on, the user-facing gateway.
    */
-  async ensureInternalGateway(): Promise<{ baseUrl: string; apiKey: string }> {
-    return { baseUrl: await this.ensureInternalListener(), apiKey: this.internalApiKey }
+  async ensureInternalGateway(sessionId?: string): Promise<{ baseUrl: string; apiKey: string }> {
+    return {
+      baseUrl: await this.ensureInternalListener(),
+      apiKey: sessionId === undefined ? this.internalApiKey : this.agentApiKey(sessionId)
+    }
+  }
+
+  private agentApiKey(sessionId: string): string {
+    return `cs-agent-${createHmac('sha256', this.agentCredentialSecret).update(sessionId).digest('base64url')}`
   }
 
   /** A credential for one consumer run that authorizes only `scope`, revoked by `dispose`. */
@@ -416,7 +436,63 @@ export class ApiGatewayService extends BaseService implements Activatable {
   /** Whether the request presents an internal credential; external callers never hold one. */
   isInternalRequest(headers: Headers): boolean {
     const token = presentedToken(headers)
-    return !!token && (isValidToken(token, this.internalApiKey) || this.scopedCredentials.has(token))
+    return (
+      !!token &&
+      (isValidToken(token, this.internalApiKey) ||
+        this.scopedCredentials.has(token) ||
+        !!this.getAgentSessionId(headers))
+    )
+  }
+
+  /** Limit overlapping internal HTTP payloads before image preparation and SDK encoding. */
+  async acquireInternalRequestBudget(headers: Headers, signal: AbortSignal): Promise<() => void> {
+    signal.throwIfAborted()
+    const length = Number(headers.get('content-length'))
+    const units =
+      Number.isSafeInteger(length) && length > 0
+        ? Math.min(INTERNAL_REQUEST_BUDGET, Math.ceil(length / REQUEST_UNIT_BYTES))
+        : INTERNAL_REQUEST_BUDGET
+    const release = await new Promise<() => void>((resolve, reject) => {
+      const request = {
+        units,
+        grant: (release: () => void) => {
+          signal.removeEventListener('abort', abort)
+          resolve(release)
+        },
+        cancel: (reason: unknown) => {
+          signal.removeEventListener('abort', abort)
+          reject(reason)
+        }
+      }
+      const abort = () => {
+        this.pendingInternalRequests.delete(request)
+        request.cancel(signal.reason)
+        this.grantInternalRequestBudget()
+      }
+      signal.addEventListener('abort', abort, { once: true })
+      this.pendingInternalRequests.add(request)
+      this.grantInternalRequestBudget()
+    })
+    if (signal.aborted) {
+      release()
+      signal.throwIfAborted()
+    }
+    return release
+  }
+
+  private grantInternalRequestBudget(): void {
+    for (const request of this.pendingInternalRequests) {
+      if (request.units > this.availableInternalRequestUnits) break
+      this.pendingInternalRequests.delete(request)
+      this.availableInternalRequestUnits -= request.units
+      let released = false
+      request.grant(() => {
+        if (released) return
+        released = true
+        this.availableInternalRequestUnits += request.units
+        this.grantInternalRequestBudget()
+      })
+    }
   }
 
   /** The scope of a live scoped credential; undefined for every other request. */
@@ -454,11 +530,14 @@ export class ApiGatewayService extends BaseService implements Activatable {
 
   createAgentObjectTransports(input: {
     sessionId: string
+    replayRouteId?: string
+    omitGeminiSignaturesFor?: ReadonlySet<number>
     headers?: ProviderHeaders
     reasoningEffort?: ReasoningEffortOption
     serviceTier?: ServiceTierSelection
     fastMode?: boolean
     traceContext?: InProcessUsageContext['traceContext']
+    onRetryEvent?: (event: RetryPartData) => void
   }) {
     const headers = new Headers()
     for (const [name, value] of Object.entries(input.headers ?? {})) {
@@ -471,6 +550,9 @@ export class ApiGatewayService extends BaseService implements Activatable {
       requestHeaders: headers,
       agentContext: {
         agentSessionId: sessionId,
+        replayRouteId: input.replayRouteId,
+        omitGeminiSignaturesFor: input.omitGeminiSignaturesFor,
+        onRetryEvent: input.onRetryEvent,
         reasoningEffort: input.reasoningEffort ?? 'default',
         serviceTier: input.serviceTier,
         fastMode: input.fastMode === true,
@@ -510,11 +592,13 @@ export class ApiGatewayService extends BaseService implements Activatable {
     }
   }
 
-  /** Agent session id of an unrestricted internal request; undefined for every other caller. */
+  /** The session named by the request and verified against its issued credential. */
   getAgentSessionId(headers: Headers): string | undefined {
     const token = presentedToken(headers)
-    if (!token || !isValidToken(token, this.internalApiKey)) return undefined
-    return headers.get(AGENT_SESSION_ID_HEADER)?.trim() || undefined
+    const sessionId = headers.get(AGENT_SESSION_ID_HEADER)?.trim()
+    return sessionId && token?.startsWith('cs-agent-') && isValidToken(token, this.agentApiKey(sessionId))
+      ? sessionId
+      : undefined
   }
 
   /** Capture the reserved continuation or active turn of the requesting Agent session. */

@@ -12,6 +12,14 @@ dependencies outside the bundled CommonJS Main entry; a static import fails duri
 
 ## Model requests
 
+The gateway binding records the serving route on successful native replies.
+Before Pi converts a later request, the binding remaps matching history to the
+current runtime registration so signed blocks can survive reopening. Foreign
+history uses Pi's native conversion to remove replay state while preserving
+ordinary text and client tool pairs. An active tool result that needs its source
+route continues on the original route when available. The trusted object
+transport checks that the resolved SDK route still matches before sending.
+
 ```text
 Pi session → native Pi provider → protocol objects → Cherry gateway → AI SDK execution
 ```
@@ -19,6 +27,11 @@ Pi session → native Pi provider → protocol objects → Cherry gateway → AI
 Pi owns context, streaming, reasoning replay, tools and compaction. Cherry's gateway owns provider
 selection, upstream credentials and billing. Pi's native transcript remains the replay source;
 product messages are a display projection. Tools advertised to the gateway have no executor there.
+
+The desktop driver reopens the original transcript when it can verify its identity,
+including through a persisted resume token if the branch binding is missing.
+It uses the [Session reference history](../../../../../docs/dev/references/ai/agent-session-runtime.md#first-submission-without-native-history)
+to continue in a fresh native session when the original transcript cannot be located.
 
 Pi and Pi Durable use one gateway compatibility predicate for model selection, child catalogs and
 native binding. The desktop binding injects native protocol object transports; upstream API keys,
@@ -35,7 +48,20 @@ No internal HTTP listener, request JSON codec or SSE formatter is used. Restarti
 does not retire these connections. The same context carries reasoning, tier and Fast settings
 to the same Cherry parameter builder used by other requests.
 
-The behavior adapter disables native retries; the object transport and gateway do not add retries.
+The behavior adapter, native provider and AI SDK built-in retries remain disabled. Internal object
+requests reuse `AiService`'s `createRetryableWrap` (`ai-retry`), with three retries after the first
+attempt on the same provider, model and request. The wrapper is applied after provider middleware,
+so every attempt retains request transforms, tracing and usage capture.
+Retryable failures before the first content chunk can retry, including errors delivered after the
+upstream stream opens. Once text, reasoning or tool-input content has been forwarded, the stream
+is not replayed. Cancellation stops pending backoff; exhaustion reports the last upstream error.
+The explicit request count enables retries independently of the chat retry toggle and count;
+backoff follows `chat.retry.backoff_enabled` and honors `Retry-After`. API-key and model fallback
+remain disabled. HTTP gateway requests retain their existing no-retry policy.
+Caller retry events travel through a typed gateway callback, outside native protocol events.
+The binding identifies the native call owner so root and child replies reuse the chat
+`data-retry` status independently. Settlement or cancellation clears the status; child
+projections apply it only to their live view, never to native history or the product archive.
 Native usage is for context and display; it must not create another billing record. Only root model
 calls emit native usage updates on the root stream; child, summary and verifier calls still contribute
 to gateway billing. Desktop-owned summaries freeze their initiating owner before the gateway hop. Product message totals use the gateway's aggregated provider calls.
@@ -78,9 +104,9 @@ Large tool output is saved under `feature.agents.outputs`, which read tools may 
 
 ## Desktop ownership
 
-`ThreadMessageProjection` receives authoritative SDK messages from the runtime adapter. Main applies
-tool display metadata, and `RootMessageProjection` groups native messages into product replies without
-a second SDK reader. Child output uses an independent `ChildThreadProjection` and product archive;
+The root adapter forwards a native source snapshot for structural reconciliation and delivers text suffixes
+directly. Main applies display metadata at the boundary, and `RootMessageProjection` owns the accepted
+parts. Child output uses an independent `ChildThreadProjection` and product archive;
 the parent reply carries task-card metadata. Goal rounds and background delivery announce autonomous
 turn boundaries.
 Observation loss fails the turn and retires the owner.

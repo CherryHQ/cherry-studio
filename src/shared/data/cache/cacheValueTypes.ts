@@ -75,6 +75,8 @@ export interface Tab {
   url: string
   title: string
   icon?: string
+  /** Emoji descriptor shown when an image `icon` fails to load. */
+  iconFallback?: string
   metadata?: Record<string, unknown>
   // LRU 字段
   lastAccessTime?: number // open/switch 时更新
@@ -143,6 +145,7 @@ export interface CacheComposerSerializedToken {
   label: string
   icon?: string
   description?: string
+  sourceMessageId?: string
   promptText?: string
   payload?: unknown
   index: number
@@ -190,6 +193,20 @@ export interface CacheAskUserQuestionDraft {
 }
 
 export type ExternalOpenTargetPreferences = Record<string, string>
+
+/** Icon and "not done yet" rule of a profile starter; Assistant questions are always `generic`. */
+export type ProfileStarterKind = 'schedule' | 'github' | 'skills' | 'memory' | 'knowledge' | 'generic'
+
+/** A generated Agent suggestion or Assistant opening question; `prompt` goes into the composer. */
+export interface ProfileStarter {
+  kind: ProfileStarterKind
+  title: string
+  hint: string
+  prompt: string
+}
+
+/** Generated starters per Assistant / Agent ID; `hash` identifies compatible generations. */
+export type ProfileStartersCache = Record<string, { hash: string; items: ProfileStarter[] }>
 
 export type CachePaintingGenerationState = {
   status: 'running' | 'failed' | 'canceled'

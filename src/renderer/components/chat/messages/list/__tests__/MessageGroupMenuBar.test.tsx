@@ -223,4 +223,45 @@ describe('MessageGroupMenuBar', () => {
     expect(notifyInfo).toHaveBeenCalledWith('message.group.retry_skipped_same_model')
     expect(mocks.t).toHaveBeenCalledWith('message.group.retry_skipped_same_model', { count: 2 })
   })
+
+  it('retries each failed model with that reply own model', async () => {
+    const user = userEvent.setup()
+    const regenerateMessage = vi.fn().mockResolvedValue(undefined)
+    const regenerateMessageUsingModel = vi.fn().mockResolvedValue(undefined)
+    mocks.actions = { regenerateMessage, regenerateMessageUsingModel, notifyInfo: vi.fn() }
+    const failedMessages = [
+      {
+        ...messages[0],
+        id: 'gpt-selected-old',
+        status: 'error',
+        modelId: 'openai::gpt-4o',
+        createdAt: '2026-01-01T00:00:00.000Z'
+      },
+      {
+        ...messages[0],
+        id: 'claude-new',
+        status: 'error',
+        modelId: 'anthropic::claude-sonnet',
+        createdAt: '2026-01-01T00:00:01.000Z'
+      }
+    ] as MessageListItem[]
+
+    render(
+      <MessageGroupMenuBar
+        multiModelMessageStyle="horizontal"
+        setMultiModelMessageStyle={vi.fn()}
+        messages={failedMessages}
+        selectMessageId="gpt-selected-old"
+        setSelectedMessage={vi.fn()}
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: 'message.group.retry_failed' }))
+
+    expect(regenerateMessageUsingModel.mock.calls).toEqual([
+      ['gpt-selected-old', 'openai::gpt-4o'],
+      ['claude-new', 'anthropic::claude-sonnet']
+    ])
+    expect(regenerateMessage).not.toHaveBeenCalled()
+  })
 })

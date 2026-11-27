@@ -10,7 +10,7 @@ import { StreamAdapterFactory } from './adapters'
 import { buildStreamErrorFrame, internalGatewayError } from './errors'
 import type { MessageConfig } from './gatewayRequest'
 import { gatewayPromptOptions, prepareGatewayMessage } from './prepareGatewayMessage'
-import { isStartupCommitChunk, streamInterruptedError } from './streamLifecycle'
+import { isStartupCommitChunk, requiresSemanticFrames, streamInterruptedError } from './streamLifecycle'
 
 export type { MessageConfig } from './gatewayRequest'
 
@@ -18,7 +18,16 @@ const logger = loggerService.withContext('ProxyStreamService')
 
 type StartupState = 'pending' | 'committed' | 'abandoned' | 'failed'
 
-export async function processMessage(config: MessageConfig): Promise<Response> {
+export async function processMessage(config: MessageConfig, release?: () => void): Promise<Response> {
+  try {
+    return await startMessage(config, release)
+  } catch (error) {
+    release?.()
+    throw error
+  }
+}
+
+async function startMessage(config: MessageConfig, release?: () => void): Promise<Response> {
   const request = await prepareGatewayMessage(config)
   const { messages, convertedMessages, adapterOptions, internal, outputFormat, logContext, isStreaming } = request
   const { onError, onComplete, signal } = config
@@ -76,6 +85,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
           if (closed) return
           closed = true
           signal?.removeEventListener('abort', onAbort)
+          release?.()
           try {
             controller.close()
           } catch {
@@ -110,9 +120,13 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
         let callbackError: SerializedError | undefined
         const sseListener = new SseListener(write, complete, () => !closed, {
           id: `gateway:${streamId}`,
-          // Commit before transforming a semantic chunk: adapter output for `start`
-          // is protocol scaffolding, not proof that the provider has started.
+          // Keep commit-before-transform for existing startup chunks such as finish(error).
           formatChunk: (chunk) => {
+            if (startupState === 'pending' && requiresSemanticFrames(chunk)) {
+              const { opening, events } = adapter.transformChunkWithOpening(chunk)
+              if (events.length > 0) commit()
+              return [...opening, ...events].map((event) => formatter.formatEvent(event))
+            }
             if (isStartupCommitChunk(chunk)) commit()
             return adapter.transformChunk(chunk).map((event) => formatter.formatEvent(event))
           },
@@ -293,5 +307,6 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
     throw error
   } finally {
     signal?.removeEventListener('abort', onAbort)
+    release?.()
   }
 }

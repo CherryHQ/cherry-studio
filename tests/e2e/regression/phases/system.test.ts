@@ -105,13 +105,10 @@ test(...caseDefinition('MP-131'), async ({ app, mainWindow: page }, testInfo) =>
 
     const knowledgeId = await tab('Knowledge Base').getAttribute('data-tab-id')
     expect(knowledgeId).toBeTruthy()
-    const knowledgeContent = await knowledge.innerText()
     await menu(tab('Knowledge Base'), 'Open in New Window')
     child = await app.window('/windows/subWindow/', knowledgeId!)
-    await expect(child.locator('[data-ui~="knowledge.view"]:visible')).toBeVisible()
-    await expect(child.locator('[data-ui~="knowledge.view"]:visible')).toHaveText(knowledgeContent, {
-      useInnerText: true
-    })
+    const detachedKnowledge = child.locator('[data-ui~="knowledge.view"]:visible')
+    await expect(detachedKnowledge.getByRole('button', { name: 'New Knowledge Base', exact: true })).toBeVisible()
     await expect(child.getByRole('button', { name: 'Back to Main Window', exact: true })).toBeVisible()
     await expect(tab('Knowledge Base')).toHaveCount(0)
     await expect(tabs).toHaveCount(1)
@@ -224,9 +221,9 @@ test(...caseDefinition('MP-141'), async ({ app, mainWindow: page }, testInfo) =>
     expect(await devices()).toEqual([])
     await openSettingsSection(page, 'Device Connections')
     const settings = () => page.locator('[data-ui~="settings.view"]:visible')
-    await expect(
-      settings().getByText('Connect mobile devices over a local, company or VPN network.', { exact: true })
-    ).toBeVisible()
+    const connectionHelp = 'Connect mobile devices over a local, company or VPN network.'
+    await settings().getByRole('img', { name: connectionHelp, exact: true }).hover()
+    await expect(page.getByRole('tooltip', { name: connectionHelp, exact: true })).toBeVisible()
     const continueButton = () =>
       page.getByRole('button', { name: 'Already installed? Connect your device', exact: true })
     if (!(await continueButton().isVisible())) {

@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-24-gemini-chat-tool-enums.md
+2026-11-24-gemini-chat-tool-enums.md: c333ef9d2ab5e6056b64bf9146ea9bfbdb0801ad
+2026-11-24-gemini-chat-tool-enums.zh.md: b0f2181af22ab521ad9b16d6968aa67ff1f5dc11

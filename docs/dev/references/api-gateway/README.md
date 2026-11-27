@@ -24,8 +24,8 @@ owns outgoing serialization and transport, including same-protocol requests.
 This preserves supported semantics, not arbitrary wire fields or byte identity.
 There is no separate raw HTTP branch. Desktop Pi and Pi Durable inject native protocol object
 transports into this same conversion and execution path. They exchange request/event objects
-without an internal HTTP listener, request JSON encoding or SSE formatting. Native replay,
-tools and retry ownership remain in Pi; external clients, including Claude Code, keep HTTP.
+without an internal HTTP listener, request JSON encoding or SSE formatting. Native replay and
+tools remain in Pi; external clients, including Claude Code, keep HTTP.
 Object calls carry a typed trusted context for session ownership, request selections and usage.
 They do not authenticate through synthetic bearer headers. Explicit child captures take precedence
 over a root binding's defaults and ambient trace parent.
@@ -41,6 +41,11 @@ represented as tool argument objects without changing their meaning. The gateway
 tools or substitutes an empty argument object for invalid input.
 Authenticated internal requests can carry Cherry reasoning, service-tier and Fast selections;
 external callers cannot override these through internal headers.
+Internal Agent calls to `POST /v1/messages` share a request-size-weighted allowance
+before conversion and outbound encoding. Larger image-heavy calls may wait for a
+previous response to finish, fail, or disconnect. The queued call retains its full
+model history. Cancelling a queued call lets the next request proceed as soon as
+the available allowance can cover it.
 
 Responses reasoning preserves provider-issued item IDs and encrypted content in both streaming and
 non-streaming output and on subsequent input, including items with no readable summary. The gateway
@@ -145,8 +150,7 @@ src/main/features/apiGateway/        ← the HTTP server (Elysia + @elysia/node)
 ├── prepareGatewayMessage.ts         ← shared protocol conversion and request overrides
 ├── objectStream.ts                  ← native protocol object transport for Pi / Pi Durable
 ├── proxyStream.ts                   ← `processMessage()` — converter → single SDK call → response adapter
-├── reasoningCache.ts                ← google / openrouter reasoning-signature caches
-├── openrouter.ts                    ← OpenRouter `reasoning_details` type contract (used by reasoningCache)
+├── reasoningCache.ts                ← Google signatures and OpenRouter reasoning details captured per tool call
 ├── providerExport.ts                ← provider/model export payload served to paired devices over remote access
 ├── middleware/
 │   └── auth.ts                      ← desktop API-key auth
@@ -275,11 +279,14 @@ the listener fails, it remains unbound and the command reports an error.
 
 ### Internal listener for Cherry consumers
 
-Agent runtimes and PDF translation reach models through a second listener that
+Claude Code and PDF translation reach models through a second listener that
 `ApiGatewayService` starts on `127.0.0.1` with an ephemeral port the first time
 it is needed. It is independent of the user's `enabled` preference and stays up
-until the service stops. Its keys live only in memory and are never persisted or
-shown: `ensureInternalGateway` returns one unrestricted key, and
+until the service stops. Its keys live only in memory. `ensureInternalGateway`
+issues Claude Code a credential bound to its Agent session. The listener
+verifies that credential against the claimed session before opening its replay
+checkpoint. Calling `ensureInternalGateway` without a session ID returns the
+general internal key, which grants no checkpoint access.
 `createScopedCredential({ path, model })` issues a key for a single consumer run
 that only calls that path with that model and is revoked by `dispose`. The
 internal listener accepts only those keys, sent in a header, and the public
@@ -288,8 +295,8 @@ are listed and served by the public gateway as `cherryai-subscription:<apiModelI
 including in Code Mate's gateway model picker. Requests use the signed-in CherryAI
 account and its subscription quota; the provider refreshes model entitlements
 before sending, and the server enforces quota. Internal consumers still apply
-their feature-specific model selection rules. Gateway requests run without Cherry's retries or
-fallback models, so a request is served only by the model it named.
+their feature-specific model selection rules. Gateway requests run without
+Cherry's retries or fallback models.
 
 Internal Anthropic requests prefer Anthropic Messages when the model declares
 that endpoint and the provider configures it. This preserves native thinking
@@ -659,9 +666,17 @@ Public gateway clients continue to receive the sanitized errors above.
   window messages, or run summary compaction. Protocol conversion and provider
   serialization still run normally. Prompt assembly, deferred-tool discovery,
   and Responses system-message removal apply only to Cherry-owned context.
+- **Claude Code provider state.** For authenticated Claude Code Agent sessions,
+  the gateway records upstream replay state in the Agent session checkpoint and
+  matches it to assistant blocks that occur exactly once in the returned history.
+  The AI SDK applies route compatibility to matched state. When a pending tool
+  continuation requires its original route, the gateway resolves that route
+  directly, even if the newly requested model is disabled.
 - **Caller-owned loop.** Gateway requests use single-step SDK `streamText` /
   `generateText`, without `ToolLoopAgent`, local tool execution, AI tool repair,
-  generation retry, or model fallback. Application chat retains its loop.
+  or model fallback. HTTP gateway requests disable SDK request retries. Internal Pi object
+  requests use [ai-retry before content](../../../../src/main/ai/runtime/pi/README.md#model-requests).
+  Application chat retains its loop.
 - **Assistant-agnostic.** No assistant/topic context. Sampling, client tools,
   and provider options ride as per-request `CallOverrides`.
 - **Main owns running state.** `feature.api_gateway.running` in the Shared Cache is

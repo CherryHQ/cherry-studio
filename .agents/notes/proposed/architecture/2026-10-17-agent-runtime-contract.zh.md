@@ -60,7 +60,7 @@ interface Observation {
 
 异步工厂与 `create` 保留在具体适配器。Pi 接收 `AgentRuntimeSessionOptions`，包含原生 `ModelRuntime`、`Model` 和 `SessionManager`；Pi Durable 接收原生 `HarnessOptions`、独占存储工厂和 `ConversationCreateOptions`。这些都是强类型配置，不是任意 options 袋。初始化失败时清理已取得的资源；宿主共享模型服务仍是借用资源。
 
-Pi Durable 还提供 Runtime 级 `resume`、具体句柄上的 `lookupInput` 和 `retractInput`，以及 `input.submit` 的去重能力。原生命令发现、配置变更、上下文编辑和 fork 不属于公共强制方法。工具、审批和模型桥保留在现有适配器与宿主边界；只有消费者需要跨实现相同语义时才提取公共行为。
+Pi Durable 的具体 Runtime 提供 `resume` 和 `lookupInput`。线程句柄的 `input.submit` 按会话内的请求键去重。单笔输入撤回属于原生 SDK 能力。原生命令发现、配置变更、上下文编辑和 fork 不属于公共强制方法。工具、审批和模型桥保留在现有适配器与宿主边界；只有消费者需要跨实现相同语义时才提取公共行为。
 
 接口没有通用 `spawn`、精确任务取消、交互响应、历史分页或重放游标。可选的 `ThreadHandle.input` 表达只读访问，可选的 `Subagent.child` 表达没有可访问上下文的关系。当前 Pi 和 Durable 的具体句柄均提供输入。Pi 托管 child 的输入经过扩展所有者，只暴露 `steer`。[子智能体控制文档](2026-10-18-agent-runtime-subagent-control.md)记录本轮已实现部分及剩余控制方案。
 
@@ -84,9 +84,9 @@ Pi 托管 child 输入使用所有者的 `messageSubagent`：运行中的 child 
 
 提交回执报告证据：`accepted`、`queued`、`dispatch-started`、`locally-handled` 和 `placed` 是事实集合，不是线性状态机。排队、派发和放置均不证明模型已消费。确认接纳不证明执行完成或目标成功。通用操作返回 `confirmed`、`rejected`、`unsupported` 或 `unknown`；提交使用 `acknowledged` 表示已确认交接。预期失败通过结果表达；编程错误仍可抛出。v0 的错误码是字符串，不是穷尽的公共枚举。诊断消息不能携带密钥或原生对象；宿主把注入的错误回调接到 `loggerService`。
 
-只有明确未接纳时才返回拒绝。Main 在派发前保存用户消息与已捕获的 `inputContextId`，调用方停止等待后仍持有原生操作，并在证据确认时绑定 `nativeInputId`。原生 runtime 拥有回执和结果，连接消费它们，不持久化第二份回执日志。明确 `rejected` 或 `unsupported` 后解除本次绑定；未知结果保留目标，不自动重发。后续查询失败不能抹去已确认接纳。
+Main 在派发前保存用户消息和本次捕获的 `inputContextId`。原生目标负责记录接纳与终态。明确未接纳时释放本次绑定。投递不确定时保留原目标，不自动重发。
 
-同一 `InputId` 的文本、目标和 busy 策略不可变，变更时创建新的逻辑输入。Pi 没有持久的原生输入去重，未知结果不能触发自动重试。Durable 的原生去重键与查询允许采用不同的投递政策；对于有消息记录的输入，Main 可显式将消息 ID 作为 key 传入，并在重开后查询已捕获目标。任何获准重试都需要实际提交的原草稿，不能从编辑后的展示内容重建。原生同类型去重不会校验 payload 相等。查询未找到不证明没有副作用。撤回区分 `withdrawn`、`already-placed` 和 `already-settled`；撤回单个输入不是中断会话。
+同一 `InputId` 固定正文、目标和忙时策略。普通 Pi Durable 输入使用该 ID 作为原生请求键。子会话命令保留父会话决策选定的子提交键。对账只读原提交及其完成时的回答。子提交接纳前，父命令记录只能证明已开始派发。普通 Pi 和 Claude 缺少运行时证据时返回未知。调用方停止等待后，Main 仍持有在途提交。后续查询失败保留已确认的接纳。若允许重试，使用最初实际派发的草稿。调用方负责保证内容一致，原生只按键与提交类型去重。撤回单笔输入区分 `withdrawn`、`already-placed` 和 `already-settled`。
 
 ### 只公开消费者需要引用的身份
 
@@ -309,7 +309,7 @@ ChildThreadProjection messages -> child view publisher -+-> shared projection IP
 | 共享契约 | 快照、补丁、排序与 revision 应用逻辑位于 [messageProjection.ts](../../../../src/shared/ai/messageProjection.ts)。保留 `CherryUIMessage`；所有者各自的活动、可用性和终态事实使用强类型状态传递，不从内容推导。 |
 | Main 发布 | 共享差异计算、批处理和订阅交付。Child 原生映射/对账及归档写入留在 `ChildThreadProjection`；root 执行与终态持久化留在 `AiStreamManager` 及其 listener。每个视图捕获自己的所有者和目标。 |
 | IPC | 使用 `ai.projection.*` 下统一的 attach/detach/changed 操作。按所有者权限解析既有 root/child 地址；`toolCallId` 仅为 child 查找入参。订阅身份是临时交付状态，不新增持久关系。输入、审批和中断仍通过所有者路由命令。 |
-| Renderer | 共享订阅 store 与补丁 reducer。让 `useAgentChildProjection` 和 `useExecutionOverlay` 封装各自的视图；保留引用稳定性、批量通知和终态到 DB 的交接。两个视图不能创建两套原生 reader 或 writer。 |
+| Renderer | 共享订阅 store 与补丁 reducer。通过 `useAgentChildProjection` 读子会话投影，通过 `useStreamCommands` 读 topic 投影；保留引用稳定性、批量通知和终态到 DB 的交接。两个视图不能创建两套原生 reader 或 writer。 |
 
 基线只在其声明的范围内完整：root 实时 overlay 不替换 topic 的已存历史，child 视图不包含父级或兄弟。Root 路由保留捕获的 topic、执行 attempt 和消息 anchor，覆盖多模型并发及续接。仅复用 model/execution ID，不能把迟到更新路由到新 attempt。所有者状态与其内容必须在一致的 revision 边界交付；观察到 idle、不可用或脱离状态，都不能证明输入成功完成。
 
@@ -322,7 +322,7 @@ ChildThreadProjection messages -> child view publisher -+-> shared projection IP
 
 先在 [#22413](https://github.com/CherryHQ/cherry-studio/pull/22413) 修复既有 replay/终态交接，覆盖终态附着响应，以及 replay buffer 已不覆盖排队 live chunk 的场景。共享投影交付不能修复仍使用旧路径的消费者。这项迁移放到 P3 child PR 之上的聚焦后续 PR，覆盖 AC17–AC18；仅给 child API 改名不算完成。
 
-两个真实生产端及其桌面消费者已使用共享路径。[ExecutionStreamOverlayService](../../../../src/renderer/services/aiTransport/ExecutionStreamOverlayService.ts) 消费 Main 快照；[useChatWithHistory](../../../../src/renderer/hooks/useChatWithHistory.ts)、快捷助手和划词窗口通过 [useStreamCommands](../../../../src/renderer/hooks/useStreamCommands.ts) 处理输入、停止和错误。旧 `IpcChatTransport`、`TopicStreamSubscription`、child 专用观察路由及 Renderer 重复 reader 已移除。保留 Main SDK 累积和仍有消费者的原始 listener。Claude Code 原生适配器迁移和 Durable 宿主接入仍是独立工作。
+两个真实生产端及其桌面消费者已使用共享路径。[MessageProjectionService](../../../../src/renderer/services/aiTransport/MessageProjectionService.ts) 消费 Main 快照；[useChatWithHistory](../../../../src/renderer/hooks/useChatWithHistory.ts)、快捷助手和划词窗口通过 [useStreamCommands](../../../../src/renderer/hooks/useStreamCommands.ts) 处理输入、停止和错误。旧 `IpcChatTransport`、`TopicStreamSubscription`、child 专用观察路由及 Renderer 重复 reader 已移除。保留 Main SDK 累积和仍有消费者的原始 listener。Claude Code 原生适配器迁移和 Durable 宿主接入仍是独立工作。
 
 本地实现验证覆盖发布 revision、基线/live 重叠、重复交付、gap 与溢出恢复、旧订阅隔离、共享租约、父子隔离、模型重试隔离、终态内容、宿主审批决定及持久化成功/失败屏障，也覆盖四个桌面消费者组件。新隔离 Electron 实例使用 Claude Sonnet 4.5 验证了普通对话（185 次更新、181 次追加）、Pi root 与父结束后的同一 child 续接（74 次 child 更新、70 次追加）、快捷助手、划词窗口、已保存历史刷新，以及停止后再次发送。这些观察验证交付行为，不构成比较性能结论。两条旧 `subagentWake` 测试在干净的 P3 父分支检出中也失败，单独保留为已知问题。P3 续接顺序、崩溃/恢复和比较性能门槛仍未关闭。
 
@@ -342,6 +342,8 @@ P1 使用 `DbService` 保存 Cherry 的上下文关联及消息上的两个输�
 | 流式片段、观察 revision 与当前 Item 映射 | Main 投影所有者 | 保留在内存，将合并后的更新写回同一展示行；不作为原生事件归档。 |
 
 部分文本同时存在于原生历史与展示消息中，因为二者的保留规则和消费者不同。原生压缩或分支不能删除产品归档；产品编辑也不能静默改写模型的原生上下文。不再保存第三份完整 transcript，不把 Durable entry/submission/task/commit 镜像到 Cherry 表。保持已提交消息版本稳定，不强制向独立输入记录复制正文。未来若有重试消费者需要保留消息无法重现的变换后载荷，应为该路径单独论证私有载荷快照，不能据此要求每条输入都存一份。
+
+更换 harness 或显式切换上下文时，用选中分支的产品消息构建有预算的参考历史，初始化新原生线程。Cherry 存储原生绑定和输入关联。[智能体会话 Timeline Spec](2026-11-19-agent-session-timeline-and-context-transfer.md) 负责切换、旧运行时释放和原生历史保留规则，并允许每个会话有多个根绑定。
 
 ```mermaid
 flowchart LR
@@ -449,7 +451,7 @@ P1/P2 保留稀疏锚点绑定与 fork checkpoint；分支末端由现有产品�
 | UI 操作 | 产品/Main 操作 | Harness 操作与边界 |
 | --- | --- | --- |
 | 创建空会话 | 创建/复用产品占位会话及 workspace 关联。 | 可到首次输入时才创建原生上下文，不为展示空会话预先创建文件。 |
-| 打开会话或窗口重连 | 读取归档、解析绑定，有条件时附加观察。 | 严格 `open` 后 `observe`；不隐式输入、fork 或 Durable `resume`。原生状态缺失不隐藏归档。 |
+| 打开会话或窗口重连 | 读取选中分支的归档页并订阅 Main 的 Timeline，空闲时也能收到后续变化。 | 浏览触发的原生打开和调度器恢复次数均为零。原生状态缺失时历史仍可读。详见[打开归档与启动执行](2026-11-19-agent-session-timeline-and-context-transfer.md#opening-an-archive-and-starting-work)。 |
 | 选择其他分支或历史节点 | 更新产品选择并加载该路径。 | 不修改原生状态。窗口切换后，活跃来源仍写入已捕获的分支。 |
 | 在当前原生末端发送 | 持久化用户消息及已捕获的输入 context；原生派发前捕获目标/锚点。 | 按支持的策略调用 `handle.input.submit`，回执与完成分别消费。 |
 | Busy 时发送 | 保持已捕获目标及所选、受支持的 `whenBusy` 策略。排队草稿不能跟随之后的分支切换。 | 原生接纳决定 reject/steer/follow-up；钩子和命令保留前文处理边界，不模拟原子 idle 接纳。 |
@@ -501,9 +503,9 @@ Durable 的数字 conversation ID 只标识 store 内记录，不能标识 store
 | --- | --- | --- |
 | `agent_runtime_backend` | 稳定 backend ID、harness 类型、带版本的私有定位信息、创建意图和已确认的原生绑定。 | 原生存储只有一个 Main 所有者；位置变更保留身份，打开不初始化缺失的已绑定 store。 |
 | `agent_session_context` | 产品上下文 ID、`sessionId`、backend ID、单个可选的 `nativeThreadId`，以及显式的 `bindingState: pending | bound`。 | 身份按 `(sessionId, backendId, nativeThreadId)` 唯一；pending 记录可以预留 ID，bound 记录必须持有原生证据确认的 ID。它描述原生关联，不表达消息前序。 |
-| 既有用户消息及 Main 私有输入身份 | 复用消息 ID 作为 `InputId`，保留内容、已捕获的 `inputContextId` 和有证据的 `nativeInputId`；稳定 Durable key 由消息 ID 得出。 | 原生身份以 context 为作用域。两个字段都不证明接纳或完成。改变已派发输入时创建新消息/输入。 |
+| 既有用户消息及 Main 私有输入身份 | 消息 ID 即 `InputId`，`inputContextId` 记录派发目标。 | 恢复旧输入时只在原会话内使用已有的 `nativeInputId` 查证。 |
 
-使用 `Context` 表示原生关联，保留 `InputId` 作为逻辑 Runtime 身份，不另建输入实体。两个消息字段仅供 Main 使用，不进入可编辑 parts 或公开 DTO。`inputContextId` 在派发前固定路由；`nativeInputId` 将仅有原生 ref 的 Durable 冷启动排队快照与产品消息关联。不保存 `contentHash`、`whenBusy`、`facts`、`outcome` 或 `responseMessageId`。数据服务接收身份，不接受 runtime 回执类型或 harness 策略。
+产品输入事件携带原始 `InputId`。原生自主提交保留其原生身份。Main 在用户行上记录一次放置位置，用 `replyId` 表示 Run 归属。首次观察在一份快照中提供历史输入事实。后续原生输入发生变化时才发布增量事件。
 
 P1 不新增 `agent_session_input` 或 `agent_session_input_attempt`。原生 runtime 拥有持久接纳、队列和恢复状态；连接拥有临时 pending/steer 状态。Cherry 拥有消息、展示结果和跨存储身份。确认接纳不等于完成。未知接纳保留已捕获目标，不自动重试；查询不到不证明未接纳。两种存储不构成原子事务，宿主不承诺恰好执行一次。
 
@@ -526,8 +528,8 @@ P1 不新增 `agent_session_input` 或 `agent_session_input_attempt`。原生 ru
 [DbService.withWriteTx](../../../../src/main/data/db/DbService.ts)只执行同步数据库操作。数据服务组合 `*Tx` 写入；生命周期协调者在事务外执行 harness／文件操作，并在窗口停止等待后继续持有其 Promise。DataApi 端点不能把原生执行藏进数据库 mutation。
 
 1. 提交上下文创建意图，或将保留的用户消息绑定到已捕获的 `inputContextId`。准备失败时不调用 harness，也不遗留绑定。不需要第二份输入正文或永久哈希。
-2. 在事务外调用原生操作。派发前订阅来源，缓存那些早于回执提供原生身份的事实。只通过原生证据绑定，不按文本或到达顺序归属。按上下文串行处理宿主写入。
-3. 将新证实的 `nativeInputId` 绑定到已捕获 context。连接消费回执事实和终态，不向数据库镜像这些状态。只有明确未接纳时才解除本次绑定。
+2. 在派发前订阅。适配器在原生来源识别产品输入变化，异步投递仍携带原始目标。
+3. 按产品 ID 和原 context 处理放置、本地命令和终态。只有本次尝试明确未接纳才释放目标。
 4. 宣布产品投递完成前，保存最终展示及投影映射。完成由原生终态证据决定，foreground idle 或确认接纳都不充分。流式更新合并写回既有行。
 
 即使都使用 SQLite，原生提交与 Cherry 事务仍是两个独立故障边界。不实现分布式事务，也不承诺模型／工具恰好执行一次。
