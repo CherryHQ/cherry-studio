@@ -38,7 +38,10 @@ vi.mock('node:fs', async (importOriginal) => {
   const actual = await importOriginal<typeof Fs>()
   return {
     ...actual,
-    createWriteStream: (file: Parameters<typeof actual.createWriteStream>[0], options?: Fs.WriteStreamOptions) =>
+    createWriteStream: (
+      file: Parameters<typeof actual.createWriteStream>[0],
+      options?: Parameters<typeof actual.createWriteStream>[1]
+    ) =>
       actual.createWriteStream(file, {
         ...options,
         fs: {
