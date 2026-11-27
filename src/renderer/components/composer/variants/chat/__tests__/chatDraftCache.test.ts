@@ -89,6 +89,24 @@ describe('chatDraftCache', () => {
     set.mockRestore()
   })
 
+  it('rejects a draft whose deadline passes between validation and memory hydration', () => {
+    seedPersistedDraft('topic-expiry-race', sampleDraft(), 100)
+    const deadline = Date.now() + 100
+    const now = vi
+      .spyOn(Date, 'now')
+      .mockReturnValueOnce(deadline - 1)
+      .mockReturnValue(deadline)
+    const set = vi.spyOn(cacheService, 'set')
+    try {
+      expect(readChatDraftCache('topic-expiry-race')).toEqual(emptyDraft())
+      expect(set.mock.calls.some(([key]) => key === getChatDraftCacheKey('topic-expiry-race'))).toBe(false)
+      expect(localStorage.getItem(getChatDraftCacheKey('topic-expiry-race'))).toBeNull()
+    } finally {
+      now.mockRestore()
+      set.mockRestore()
+    }
+  })
+
   it('removes an old mirror if the replacement write fails', () => {
     writeChatDraftCache('topic-quota', sampleDraft())
     const set = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
@@ -131,6 +149,8 @@ describe('chatDraftCache', () => {
     } as ChatComposerDraftCache
     writeChatDraftCache('topic-image', draft)
     await vi.waitFor(() => expect(localStorage.getItem(getChatDraftCacheKey('topic-image'))).not.toBeNull())
+    const raw = localStorage.getItem(getChatDraftCacheKey('topic-image'))!
+    expect(raw.split(btoa('image bytes')).length - 1).toBe(1)
     const get = vi.spyOn(cacheService, 'get').mockReturnValue(undefined)
     try {
       const restored = readChatDraftCache('topic-image')
@@ -138,9 +158,30 @@ describe('chatDraftCache', () => {
       expect(restored.files[0].blob?.size).toBe(11)
       expect((restored.tokens[0].payload as typeof file).blob).toBeInstanceOf(Blob)
       expect(restored.files[0].blob?.type).toBe('image/png')
+      expect((restored.tokens[0].payload as typeof file).blob).toBe(restored.files[0].blob)
     } finally {
       get.mockRestore()
     }
+  })
+
+  it('restores the previous inline Blob format and rejects unknown Blob references', () => {
+    const file = {
+      fileTokenSourceId: 'legacy-image',
+      name: 'image.png',
+      origin_name: 'image.png',
+      ext: '.png',
+      size: 5,
+      type: 'image',
+      blob: { __chatDraftBlob: true, type: 'image/png', data: btoa('image') }
+    }
+    seedPersistedDraft('topic-legacy-image', { ...sampleDraft(), files: [file] } as unknown as ChatComposerDraftCache)
+    expect(readChatDraftCache('topic-legacy-image').files[0].blob).toBeInstanceOf(Blob)
+    seedPersistedDraft('topic-broken-ref', {
+      ...sampleDraft(),
+      files: [{ ...file, blob: { __chatDraftBlobRef: 9 } }]
+    } as unknown as ChatComposerDraftCache)
+    expect(readChatDraftCache('topic-broken-ref')).toEqual(emptyDraft())
+    expect(localStorage.getItem(getChatDraftCacheKey('topic-broken-ref'))).toBeNull()
   })
 
   it('does not resurrect an image draft cleared while serialization is pending', async () => {

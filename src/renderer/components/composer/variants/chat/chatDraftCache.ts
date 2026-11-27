@@ -46,11 +46,18 @@ function normalizeDraftCache(cached: unknown): ChatComposerDraftCache | null {
   }
 }
 
-function reviveDraftBlob(_key: string, value: unknown): unknown {
+function reviveDraftBlob(value: unknown, blobs: Map<number, Blob>): unknown {
+  if (isRecord(value) && '__chatDraftBlobRef' in value) {
+    const blob = typeof value.__chatDraftBlobRef === 'number' ? blobs.get(value.__chatDraftBlobRef) : undefined
+    if (!blob) throw new Error('Invalid draft image reference')
+    return blob
+  }
   if (!isRecord(value) || value.__chatDraftBlob !== true) return value
   if (typeof value.data !== 'string' || typeof value.type !== 'string') throw new Error('Invalid draft image')
   const binary = atob(value.data)
-  return new Blob([Uint8Array.from(binary, (char) => char.charCodeAt(0))], { type: value.type })
+  const blob = new Blob([Uint8Array.from(binary, (char) => char.charCodeAt(0))], { type: value.type })
+  if (typeof value.id === 'number') blobs.set(value.id, blob)
+  return blob
 }
 
 function isPersistedAttachment(value: unknown): boolean {
@@ -87,7 +94,8 @@ function readPersistedChatDraft(topicId: string): PersistedChatDraftEntry | null
     const raw = localStorage.getItem(key)
     if (!raw) return null
 
-    const parsed: unknown = JSON.parse(raw, reviveDraftBlob)
+    const blobs = new Map<number, Blob>()
+    const parsed: unknown = JSON.parse(raw, (_key, value: unknown) => reviveDraftBlob(value, blobs))
     if (
       !isRecord(parsed) ||
       typeof parsed.expiresAt !== 'number' ||
@@ -171,9 +179,17 @@ function writePersistedChatDraft(topicId: string, draft: ChatComposerDraftCache)
       .then((encoded) => {
         if (pendingDraftWrites.get(key) !== revision) return
         const values = new Map(encoded)
+        const written = new Map<Blob, number>()
         localStorage.setItem(
           key,
-          JSON.stringify(entry, (_key, value: unknown) => (value instanceof Blob ? values.get(value) : value))
+          JSON.stringify(entry, (_key, value: unknown) => {
+            if (!(value instanceof Blob)) return value
+            const existing = written.get(value)
+            if (existing !== undefined) return { __chatDraftBlobRef: existing }
+            const id = written.size
+            written.set(value, id)
+            return { ...values.get(value), id }
+          })
         )
       })
       .catch(invalidate)
@@ -223,7 +239,16 @@ export function readChatDraftCache(topicId: string): ChatComposerDraftCache {
   // After a window reload the memory tier is empty; rehydrate it from the persisted mirror.
   const persisted = readPersistedChatDraft(topicId)
   if (persisted) {
-    cacheService.set(getChatDraftCacheKey(topicId), persisted.value, Math.max(0, persisted.expiresAt - Date.now()))
+    const remaining = persisted.expiresAt - Date.now()
+    if (remaining <= 0) {
+      try {
+        localStorage.removeItem(getChatDraftCacheKey(topicId))
+      } catch {
+        // An expired mirror is still rejected when storage is unavailable.
+      }
+      return EMPTY_DRAFT_CACHE
+    }
+    cacheService.set(getChatDraftCacheKey(topicId), persisted.value, remaining)
     return persisted.value
   }
 
