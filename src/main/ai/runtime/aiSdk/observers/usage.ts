@@ -21,7 +21,7 @@
  * each step (see the invariant on `CherryUIMessageMetadata`).
  */
 
-import type { LanguageModelUsage } from 'ai'
+import type { LanguageModelUsage, StepResult, ToolSet } from 'ai'
 
 import { getContextTokens } from '@cherrystudio/ai-core'
 import type { MessageStats } from '@shared/data/types/message'
@@ -70,6 +70,19 @@ export function mergeUsage(a: LanguageModelUsage, b: LanguageModelUsage): Langua
 
 export { ZERO_USAGE }
 
+/**
+ * A provider-executed tool (server-side web search, code execution, …) may run
+ * several internal model hops inside ONE response. Such providers report the SUM
+ * of every hop's prompt in `usage`, so `totalTokens` is a bill, not the
+ * conversation's resident size. Anchoring on it overstates the next turn's
+ * context and can trigger a needless compaction, so the anchor must stay
+ * undefined and let `estimateContext` fall back to the token estimate over the
+ * served history.
+ */
+function hasProviderExecutedToolResult(step: StepResult<ToolSet>): boolean {
+  return step.toolResults?.some((result) => result.providerExecuted === true) ?? false
+}
+
 /** Drop `undefined`-valued keys; return `undefined` when nothing is left. */
 function compact<T extends Record<string, number | undefined>>(obj: T): { [K in keyof T]?: number } | undefined {
   const out: Record<string, number> = {}
@@ -116,7 +129,12 @@ export function attachUsageObserver(agent: Agent): void {
     // provider reported inputTokens. Otherwise totalTokens collapses to output-only
     // (addTokenCounts(undefined, out) === out) — a bogus anchor that would suppress
     // durable compaction — so leave it undefined and let estimateContext fall back to tokenx.
-    lastStepTotalTokens = getContextTokens(step.usage, step.providerMetadata)
+    // The same applies when a provider-executed tool ran inside this response: the
+    // reported prompt is the aggregate of its internal hops, not the prompt the next
+    // turn will actually send.
+    lastStepTotalTokens = hasProviderExecutedToolResult(step)
+      ? undefined
+      : getContextTokens(step.usage, step.providerMetadata)
     agent.write({
       type: 'message-metadata',
       messageMetadata: {

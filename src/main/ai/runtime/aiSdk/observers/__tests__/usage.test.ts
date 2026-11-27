@@ -123,6 +123,61 @@ describe('attachUsageObserver', () => {
     expect(meta?.stats?.contextTokens).toBeUndefined()
   })
 
+  it('does not anchor context on usage aggregated across provider-executed tools', () => {
+    const { agent, written } = makeFakeAgent()
+
+    attachUsageObserver(agent as any)
+
+    agent.fire('onStart')
+
+    // A server-side web search loop reports the SUM of every internal hop's prompt,
+    // so a short chat can arrive with six figures of input tokens. That number must
+    // remain a billing statistic, never the context anchor.
+    agent.fire('onStepFinish', {
+      usage: { inputTokens: 632_721, outputTokens: 7_487, totalTokens: 640_208 },
+      toolResults: [
+        {
+          type: 'tool-result',
+          toolCallId: 'srvtoolu_1',
+          toolName: 'web_search',
+          input: {},
+          output: { sources: [] },
+          providerExecuted: true
+        }
+      ]
+    })
+
+    const meta = (written[0] as Extract<CherryUIMessageChunk, { type: 'message-metadata' }>).messageMetadata
+    // Billing totals are still reported …
+    expect(meta?.stats?.totalTokens).toBe(640_208)
+    // … but the context anchor is left for the tokenx fallback to fill in.
+    expect(meta?.stats?.contextTokens).toBeUndefined()
+  })
+
+  it('keeps the context anchor when every tool result was executed locally', () => {
+    const { agent, written } = makeFakeAgent()
+
+    attachUsageObserver(agent as any)
+
+    agent.fire('onStart')
+    agent.fire('onStepFinish', {
+      usage: { inputTokens: 100, outputTokens: 20, totalTokens: 120 },
+      toolResults: [
+        {
+          type: 'tool-result',
+          toolCallId: 'call_1',
+          toolName: 'fs_read',
+          input: {},
+          output: { content: 'ok' },
+          providerExecuted: false
+        }
+      ]
+    })
+
+    const meta = (written[0] as Extract<CherryUIMessageChunk, { type: 'message-metadata' }>).messageMetadata
+    expect(meta?.stats?.contextTokens).toBe(120)
+  })
+
   it('resets contextTokens on onStart so a new turn does not carry forward the previous value', () => {
     const { agent, written } = makeFakeAgent()
 
