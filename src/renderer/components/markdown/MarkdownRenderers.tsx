@@ -213,6 +213,7 @@ export function MarkdownLinkRenderer({
   }
 
   const linkContent =
+    host.showLinkFavicons !== false &&
     hostname &&
     !Children.toArray(props.children).some((child) => isValidElement(child) && child.type === Favicon) &&
     shouldShowMarkdownLinkFavicon(props.node) ? (

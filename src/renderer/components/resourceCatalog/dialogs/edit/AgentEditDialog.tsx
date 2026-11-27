@@ -37,7 +37,6 @@ import { LEGACY_DSH_TOOL_PREFIX } from '@shared/ai/retiredAgentRuntime'
 import type { AgentPermissionMode, UpdateAgentDto } from '@shared/data/api/schemas/agents'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
 import type { UniqueModelId } from '@shared/data/types/model'
-import type { AgentMemoryFileKey } from '@shared/ipc/schemas/agent'
 import type { InstalledSkill } from '@shared/types/skill'
 import { isBrowserMcpServer } from '@shared/utils/mcp'
 
@@ -63,7 +62,12 @@ import { HeartbeatCard } from '../components/HeartbeatCard'
 import { KnowledgeCapabilityList } from '../components/KnowledgeCapabilityList'
 import { McpCapabilityList } from '../components/McpCapabilityList'
 import { ReplyLanguageSelect } from '../components/ReplyLanguageSelect'
-import { AgentMemoryPanel, type AgentMemoryPanelHandle, MEMORY_FILE_LABEL_KEYS } from './AgentMemoryPanel'
+import {
+  AgentMemoryPanel,
+  type AgentMemoryPanelHandle,
+  MEMORY_FILE_LABEL_KEYS,
+  type MemoryPageKey
+} from './AgentMemoryPanel'
 import { AgentTasksPage } from './AgentTasksPage'
 import { countSummary, type EditPage, type EditSubPage, resolveInitialEditPage } from './editPages'
 import { HeartbeatTasksPage, type HeartbeatTasksPageHandle } from './HeartbeatTasksPage'
@@ -280,7 +284,7 @@ function AgentEditDialogContent({
   const [page, setPage] = useState<EditPage>(() => resolveInitialEditPage('agent', initialTab, subPages))
   // The System Prompt page opens one block of the prompt as a page of its own.
   const [promptSection, setPromptSection] = useState<string | null>(null)
-  const [memoryFile, setMemoryFile] = useState<AgentMemoryFileKey | null>(null)
+  const [memoryFile, setMemoryFile] = useState<MemoryPageKey | null>(null)
   const [confirmDiscard, setConfirmDiscard] = useState(false)
   const memoryPanelRef = useRef<AgentMemoryPanelHandle>(null)
   const heartbeatPageRef = useRef<HeartbeatTasksPageHandle>(null)

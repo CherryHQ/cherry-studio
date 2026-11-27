@@ -10,7 +10,7 @@ import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { useState } from 'react'
 import type * as ReactI18next from 'react-i18next'
-import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import type * as UseModelModule from '@renderer/hooks/useModel'
@@ -2974,6 +2974,15 @@ describe('Agent configuration memory', () => {
   beforeEach(() => {
     ipcRequestMock.mockImplementation(async (route: string, input: { key?: string; content?: string }) => {
       if (route === 'agent.memory.read') return { directory: '/agents/agent-1', files }
+      if (route === 'memory.private.list') return { status: 'complete', files: ['MEMORY.md', '.memories/topic.md'] }
+      if (route === 'memory.private.read')
+        return {
+          content:
+            (input as { path: string }).path === 'MEMORY.md'
+              ? 'Private entry body\n\n[View topic](.memories/topic.md)\n\n[Internal wiki](https://wiki.private.test/notes)'
+              : 'Private topic body',
+          truncated: false
+        }
       if (route === 'agent.memory.write')
         return { ...files.find((file) => file.key === input.key), content: input.content, version: 'v2' }
       return undefined
@@ -3005,9 +3014,24 @@ describe('Agent configuration memory', () => {
     })
     expect(updateAgentMock).not.toHaveBeenCalled()
     await user.click(screen.getByRole('button', { name: 'Back' }))
-    await user.click(await screen.findByRole('button', { name: /^Event log/ }))
-    expect(screen.queryByRole('textbox', { name: 'Edit JOURNAL.jsonl' })).not.toBeInTheDocument()
-    expect(screen.getByText('{"event":"remembered"}')).toBeVisible()
+    expect(screen.queryByRole('button', { name: 'Event log' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Durable knowledge' })).toBeNull()
+    const fetch = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response())
+    onTestFinished(() => fetch.mockRestore())
+    await user.click(screen.getByRole('button', { name: 'Private memory' }))
+    expect(await screen.findByText('Private entry body')).toBeVisible()
+    expect(screen.getByRole('link', { name: 'Internal wiki' })).toHaveAttribute(
+      'href',
+      'https://wiki.private.test/notes'
+    )
+    expect(fetch).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('link', { name: 'View topic' }))
+    expect(await screen.findByText('Private topic body')).toBeVisible()
+    expect(screen.queryByRole('combobox')).toBeNull()
+    await user.click(screen.getByRole('button', { name: 'More' }))
+    await user.click(screen.getByRole('menuitemradio', { name: 'MEMORY.md' }))
+    expect(await screen.findByText('Private entry body')).toBeVisible()
+    expect(screen.queryByRole('button', { name: 'Edit' })).toBeNull()
   })
 
   // Catches the identity page of a Pi Durable System Prompt offering a second place to edit the memory files.
@@ -3035,7 +3059,7 @@ describe('Agent configuration memory', () => {
     expect(screen.queryByRole('textbox', { name: 'Edit SOUL.md' })).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'library.config.agent.prompt.edit_in_memory' }))
     expect(await screen.findByRole('button', { name: 'Persona' })).toBeVisible()
-    expect(screen.getByRole('button', { name: /^Event log/ })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Private memory' })).toBeVisible()
   })
 
   it('shows refresh and open folder as buttons on the memory file list', async () => {

@@ -9,16 +9,17 @@ import PromptEditorField, { PromptEditorIconButton } from '@renderer/components/
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { AGENT_MEMORY_MAX_WRITE_CHARS } from '@shared/ai/agentMemory'
-import type { AgentMemoryFile, AgentMemoryFileKey, AgentMemorySnapshot } from '@shared/ipc/schemas/agent'
+import type { AgentMemoryFile, AgentMemorySnapshot } from '@shared/ipc/schemas/agent'
 
-const FILE_ORDER: AgentMemoryFileKey[] = ['soul', 'user', 'fact', 'journal']
+import { PrivateMemoryPage } from './PrivateMemoryView'
 
-export const MEMORY_FILE_LABEL_KEYS: Record<AgentMemoryFileKey, string> = {
+const FILE_ORDER = ['soul', 'user', 'private'] as const
+export type MemoryPageKey = (typeof FILE_ORDER)[number]
+export const MEMORY_FILE_LABEL_KEYS = {
   soul: 'agent.memory.file.soul',
   user: 'agent.memory.file.user',
-  fact: 'agent.memory.file.fact',
-  journal: 'agent.memory.file.journal'
-}
+  private: 'agent.memory.private.title'
+} as const
 
 function useMemorySnapshot(agentId: string) {
   const [snapshot, setSnapshot] = useState<AgentMemorySnapshot | null>(null)
@@ -71,8 +72,8 @@ export function AgentMemoryPanel({
   ref
 }: {
   agent: { id: string; name: string }
-  file: AgentMemoryFileKey | null
-  onFileChange: (file: AgentMemoryFileKey) => void
+  file: MemoryPageKey | null
+  onFileChange: (file: MemoryPageKey) => void
   ref?: Ref<AgentMemoryPanelHandle>
 }) {
   const { t, i18n } = useTranslation()
@@ -87,18 +88,7 @@ export function AgentMemoryPanel({
   const files = snapshot?.files ?? []
   const selected = file ? files.find((item) => item.key === file) : undefined
   const isDirty = !!selected && draft !== null && draft.text !== selected.content
-  const isMarkdown = selected?.key !== 'journal'
-  const readOnlyReasonOf = (item: AgentMemoryFile) =>
-    // JOURNAL is append-only and written by the running agent; truncated files only
-    // contain a slice, so replacing either from the editor would destroy data.
-    item.key === 'fact' && snapshot?.factMigrated
-      ? 'agent.memory.fact_migrated'
-      : item.key === 'journal'
-        ? 'agent.memory.journal_readonly'
-        : item.truncated
-          ? 'agent.memory.truncated_readonly'
-          : null
-  const readOnlyReason = selected ? readOnlyReasonOf(selected) : null
+  const readOnlyReason = selected?.truncated ? 'agent.memory.truncated_readonly' : null
   const canEdit = !!selected && readOnlyReason === null
   const shownContent = canEdit && draft ? draft.text : (selected?.content ?? '')
   const isTooLong = isDirty && shownContent.length > AGENT_MEMORY_MAX_WRITE_CHARS
@@ -153,10 +143,6 @@ export function AgentMemoryPanel({
         await reload()
       } else if (message.includes('AGENT_MEMORY_TOO_LARGE')) {
         toast.error(t('agent.memory.truncated_readonly'))
-      } else if (message.includes('AGENT_MEMORY_READ_ONLY')) {
-        toast.error(t(selected.key === 'fact' ? 'agent.memory.fact_migrated' : 'agent.memory.journal_readonly'))
-        cancelEdit()
-        await reload()
       } else {
         toast.error(t('agent.memory.save_failed'))
       }
@@ -258,17 +244,18 @@ export function AgentMemoryPanel({
         {folderActions}
       </div>
       <div className="flex flex-col rounded-xl border border-border-subtle p-1">
-        {(files.length > 0 ? files : FILE_ORDER.map((key) => ({ key }) as AgentMemoryFile)).map((item) => {
-          const label = item.key === 'fact' && snapshot?.factMigrated ? item.name : t(MEMORY_FILE_LABEL_KEYS[item.key])
-          const note = item.name && readOnlyReasonOf(item) ? t('library.config.agent.prompt.read_only') : undefined
+        {FILE_ORDER.map((key) => {
+          const item = files.find((candidate) => candidate.key === key)
+          const label = t(MEMORY_FILE_LABEL_KEYS[key])
+          const note = item?.truncated ? t('library.config.agent.prompt.read_only') : undefined
           return (
             <Button
-              key={item.key}
+              key={key}
               type="button"
               variant="ghost"
-              disabled={files.length === 0}
+              disabled={key !== 'private' && !item}
               aria-label={note ? `${label}: ${note}` : label}
-              onClick={() => onFileChange(item.key)}
+              onClick={() => onFileChange(key)}
               className="h-9 justify-between gap-3 rounded-lg px-2.5 font-normal text-sm">
               <span className="truncate text-foreground">{label}</span>
               <span className="flex shrink-0 items-center gap-1.5 text-muted-foreground text-xs">
@@ -336,16 +323,11 @@ export function AgentMemoryPanel({
               <p className="p-3 text-muted-foreground text-xs">
                 {t(selected.exists ? 'agent.memory.empty' : 'agent.memory.not_exists')}
               </p>
-            ) : isMarkdown ? (
+            ) : (
               <div className="markdown p-3 text-xs">
                 <span aria-hidden="true" className="float-right h-6 w-6" />
                 <StaticMarkdown id={`agent-memory-${selected.key}`}>{selected.content}</StaticMarkdown>
               </div>
-            ) : (
-              <pre className="whitespace-pre-wrap break-words p-3 font-mono text-xs leading-relaxed">
-                <span aria-hidden="true" className="float-right h-6 w-6" />
-                {selected.content}
-              </pre>
             )}
           </ScrollArea>
         </div>
@@ -356,14 +338,18 @@ export function AgentMemoryPanel({
   return (
     <>
       <section className="flex min-h-0 flex-1 flex-col" aria-label={t('agent.memory.title')}>
-        {status ?? (file ? filePage : list)}
+        {file === 'private' ? (
+          <PrivateMemoryPage agentId={agent.id} openFolder={openFolder} />
+        ) : (
+          (status ?? (file ? filePage : list))
+        )}
         {selected ? (
           <footer className="flex shrink-0 flex-col gap-1 pt-3 text-muted-foreground text-xs">
             {readOnlyReason ? <p>{t(readOnlyReason)}</p> : null}
             {selected.truncated ? (
               <p>
                 {t('agent.memory.truncated', {
-                  part: t(selected.key === 'journal' ? 'agent.memory.truncated_tail' : 'agent.memory.truncated_head')
+                  part: t('agent.memory.truncated_head')
                 })}
               </p>
             ) : null}

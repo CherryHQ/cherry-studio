@@ -3,6 +3,7 @@ import { createContext, use } from 'react'
 import type { FileLocation } from '@renderer/types/fileLocation'
 
 export interface MarkdownHost {
+  showLinkFavicons?: boolean
   /** Owning surface renders relative image destinations; returns input for non-relative sources, null if resolution fails. */
   resolveImageSrc?: (src: string) => string | null
   openExternalUrl?: (url: string) => void | Promise<void>
