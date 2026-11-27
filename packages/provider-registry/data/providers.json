@@ -2268,6 +2268,27 @@
     {
       "availableInEditions": ["global"],
       "defaultChatEndpoint": "openai-chat-completions",
+      "description": "TrustedRouter - AI model provider",
+      "endpointConfigs": {
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://api.trustedrouter.com/v1"
+        }
+      },
+      "id": "trustedrouter",
+      "metadata": {
+        "website": {
+          "apiKey": "https://trustedrouter.com/console/api-keys",
+          "docs": "https://trustedrouter.com/docs",
+          "models": "https://trustedrouter.com/models",
+          "official": "https://trustedrouter.com"
+        }
+      },
+      "name": "TrustedRouter"
+    },
+    {
+      "availableInEditions": ["global"],
+      "defaultChatEndpoint": "openai-chat-completions",
       "description": "Mistral - AI model provider",
       "endpointConfigs": {
         "openai-chat-completions": {
@@ -2969,5 +2990,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "5179a16fddc562d9"
+  "version": "d3833b4472a04e87"
 }
