@@ -68,7 +68,17 @@ export function resolveGatewayModel(sourceModelId: UniqueModelId) {
 }
 
 function localized(error: unknown): unknown {
-  return error instanceof CliConfigError ? new Error(t(error.key, error.params)) : error
+  if (!(error instanceof CliConfigError)) return error
+  switch (error.key) {
+    case 'code.cli_config.invalid_model_list':
+      return new Error(t('code.cli_config.invalid_model_list', error.params))
+    case 'code.cli_config.missing_credentials':
+      return new Error(t('code.cli_config.missing_credentials', error.params))
+    case 'code.cli_config.model_conflict':
+      return new Error(t('code.cli_config.model_conflict', error.params))
+    default:
+      return error
+  }
 }
 
 function tomlLiteral(value: string) {

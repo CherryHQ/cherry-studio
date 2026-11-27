@@ -12,7 +12,7 @@ import { acpPreset } from './acpPresets'
 
 const logger = loggerService.withContext('AcpProcess')
 type ClientLifetime = Pick<AcpClient, 'signal' | 'close'>
-type Launch = Omit<Awaited<ReturnType<typeof resolveAcpLaunch>>, 'gatewayRoute'>
+type Launch = Omit<Awaited<ReturnType<typeof resolveAcpLaunch>>, 'modelBinding'>
 
 export class AcpProcess {
   private connection?: ReturnType<typeof launchAcpStdio>

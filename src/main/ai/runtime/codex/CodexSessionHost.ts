@@ -31,6 +31,7 @@ export class CodexSessionHost extends LocalConnection {
   private planPart?: number
   private session?: CodexSession
   private browser?: LocalAgentBrowserLease
+  private modelBinding?: { dispose(): Promise<void> }
 
   override get localSessionInfo() {
     return this.session?.info ?? super.localSessionInfo
@@ -40,7 +41,8 @@ export class CodexSessionHost extends LocalConnection {
     this.branchHead = branchHead
     const signal = this.abort.signal
     try {
-      const launch = await resolveCodexLaunch(this.config, cwd, signal)
+      const { modelBinding, ...launch } = await resolveCodexLaunch(this.config, cwd, signal, 'chat', this.sessionId)
+      this.modelBinding = modelBinding
       signal.throwIfAborted()
       const env = { ...launch.env }
       const browser = await acquireLocalAgentBrowserLease({
@@ -304,6 +306,8 @@ export class CodexSessionHost extends LocalConnection {
   protected override dispose() {
     void this.browser?.dispose().catch(() => {})
     this.browser = undefined
+    void this.modelBinding?.dispose().catch(() => {})
+    this.modelBinding = undefined
     super.dispose()
   }
 }

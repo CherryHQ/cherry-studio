@@ -19,9 +19,9 @@ import { getRawShellEnv } from '@main/utils/shellEnv'
 import { getLocalAgentPreset, type LocalAgentConfiguration } from '@shared/ai/localAgent'
 import type { CliConfigTarget } from '@shared/utils/cliConfig'
 
-import { resolveCliGatewayRoute } from './cliGatewayRoute'
 import { readModelProfile, type CliModelBinding, type CliModelProfile } from './cliModelProfile'
 import { type InstalledBinary, selectAvailableInstallation } from './installedCli'
+import { bindLaunchModel } from './launchBinding'
 import { resolveRequiredRuntime } from './runtimeDependency'
 
 type LaunchPurpose = 'session' | 'chat' | 'models' | 'account' | 'terminal-account' | 'cli'
@@ -128,7 +128,9 @@ export async function resolveCliProgram(
   config: LocalAgentConfiguration,
   purpose: LaunchPurpose,
   signal?: AbortSignal,
-  policy?: CliLaunchPolicy
+  policy?: CliLaunchPolicy,
+  /** `bindModel` hands the Agent's Cherry model to this launch; the caller owns `modelBinding.dispose`. */
+  options: { sessionId?: string; bindModel?: boolean } = {}
 ) {
   const terminal = purpose === 'cli' || purpose === 'terminal-account'
   const definition = getLocalAgentPreset(config.presetId)
@@ -169,7 +171,8 @@ export async function resolveCliProgram(
   }
   if (config.presetId && application.get('LocalAgentInstallService').isUninstalling(config.presetId))
     throw new Error('Local agent is being uninstalled')
-  const { path: executable, source } = installation
+  const installed: InstalledBinary = installation
+  const { path: executable, source } = installed
   const dependencies = [
     ...(!terminal && definition?.terminalCli ? [definition.terminalCli.executable] : []),
     ...(policy?.hostBinary && !config.executableOverride ? [policy.hostBinary.executable] : [])
@@ -232,95 +235,99 @@ export async function resolveCliProgram(
   }
   if (profile?.format === 'yaml' && profile.launch) targets.add(profile.target)
   if (scheduled) targets.add(scheduled.target)
-  const gatewaySelection =
-    purpose === 'session' && config.sourceModelViaGateway && config.sourceModelId && config.nativeModel
-      ? { sourceModelId: config.sourceModelId, nativeModel: config.nativeModel }
-      : undefined
-  const gatewayBinding =
-    gatewaySelection && (policy?.gatewayOverlay || (policy?.gateway?.bindCredential && profile))
-      ? { ...policy, profile }
-      : undefined
-  if (gatewayBinding?.gatewayOverlay) targets.add(gatewayBinding.gatewayOverlay.target)
-  if (gatewayBinding?.gateway && profile) {
-    const gateway = gatewayBinding.gateway
-    targets.add(profile.target)
-    if (gateway.target) targets.add(gateway.target)
-    if (gateway.envFile) targets.add(gateway.envFile)
-    if (gateway.related) targets.add(gateway.related.target)
+  const modelBinding = options.bindModel
+    ? await bindLaunchModel(config, mergeEnvironment(env, preset?.env, config.env), {
+        sessionId: options.sessionId,
+        terminal,
+        launchHook: (files, hookEnv) => injectPresetConfigEnv(policy?.profile, files, hookEnv, 'chat', lookupEnv)
+      })
+    : undefined
+  try {
+    return await finishCliProgram()
+  } catch (error) {
+    await modelBinding?.dispose()
+    throw error
   }
-  const configFiles: LaunchConfigFiles = targets.size
-    ? Object.fromEntries(
-        (
-          await application
-            .get('CodeCliService')
-            .readConfigFiles([...targets], scheduled ? mergeEnvironment(env, preset?.env, config.env) : undefined)
-        ).map(({ target, content }) => [target, content])
-      )
-    : {}
-  let nativeModel = injectPresetConfigEnv(
-    profile,
-    configFiles,
-    env,
-    purpose === 'models' ? 'models' : 'chat',
-    lookupEnv
-  )
-  const gatewayRouteFor = (childEnv: Record<string, string>) =>
-    gatewaySelection && gatewayBinding
-      ? resolveCliGatewayRoute(gatewaySelection, gatewayBinding, configFiles, childEnv, shellEnv)
-      : undefined
-  let childEnv = mergeEnvironment(env, preset?.env, config.env)
-  const windowsShell = definition?.windowsShell ?? policy?.windowsShell
-  if (isWin && windowsShell && !getEnvironmentValue(childEnv, windowsShell.variable)) {
-    const shell = await resolveWindowsShellPath(childEnv, windowsShell.allowSh)
-    if (shell) childEnv[windowsShell.variable] = shell
-  }
-  if (scheduled) {
-    const content = configFiles[scheduled.target]
-    childEnv = scheduled.merge(
-      mergeEnvironment(env, preset?.env),
-      parseJsonRecord(content),
-      config.env,
-      mergeEnvironment
+
+  async function finishCliProgram() {
+    const configFiles: LaunchConfigFiles = targets.size
+      ? Object.fromEntries(
+          (
+            await application
+              .get('CodeCliService')
+              .readConfigFiles([...targets], scheduled ? mergeEnvironment(env, preset?.env, config.env) : undefined)
+          ).map(({ target, content }) => [target, content])
+        )
+      : {}
+    // A bound launch reads only the generated connection, never a stale one left in the user's files.
+    const boundFiles = modelBinding?.files
+    let nativeModel = injectPresetConfigEnv(
+      profile,
+      boundFiles ?? configFiles,
+      env,
+      purpose === 'models' ? 'models' : 'chat',
+      lookupEnv
     )
-    if (content && policy?.profile) nativeModel = readModelProfile(policy.profile, content)
-  }
-  const binary = policy?.hostBinary
-  if (binary && !config.executableOverride) {
-    const available = await binary.resolve(childEnv, {
-      windows: isWin,
-      home: () => application.getPath('sys.home'),
-      find: (name) => findExecutableInEnv(name, { env: childEnv }),
-      installed: async () => {
-        const installed = await selectAvailableInstallation(binary, dependencySnapshots)
-        return installed.source !== 'none' ? installed.path : undefined
-      },
-      isFile: isExistingFile
-    })
-    if (!available)
-      throw Object.assign(
-        new Error(
-          t('local_agent.host_required_with_env', {
-            agent: definition?.name ?? binary.executable,
-            host: binary.label,
-            envVar: binary.envKey
-          })
-        ),
-        { code: 'LOCAL_AGENT_HOST_REQUIRED' }
+    const boundProfileFile = profile && boundFiles?.[profile.target]
+    if (!nativeModel && profile && boundProfileFile) nativeModel = readModelProfile(profile, boundProfileFile)
+    let childEnv = mergeEnvironment(env, preset?.env, config.env)
+    const windowsShell = definition?.windowsShell ?? policy?.windowsShell
+    if (isWin && windowsShell && !getEnvironmentValue(childEnv, windowsShell.variable)) {
+      const shell = await resolveWindowsShellPath(childEnv, windowsShell.allowSh)
+      if (shell) childEnv[windowsShell.variable] = shell
+    }
+    if (scheduled) {
+      const content = configFiles[scheduled.target]
+      childEnv = scheduled.merge(
+        mergeEnvironment(env, preset?.env),
+        parseJsonRecord(content),
+        config.env,
+        mergeEnvironment
       )
-    childEnv[binary.envKey] = available
-  }
-  const command = {
-    executable,
-    args: config.args.length ? config.args : [...(preset?.args ?? [])],
-    env: childEnv
-  }
-  const prepared = !terminal && !config.executableOverride ? await policy?.prepareCommand?.(command) : undefined
-  const launch = prepared ?? command
-  return {
-    ...launch,
-    installation: prepared ? undefined : installation,
-    gatewayRoute: gatewayRouteFor(launch.env),
-    ...(nativeModel ? { nativeModel } : {}),
-    source: prepared?.source ?? source
+      if (content && policy?.profile && !modelBinding) nativeModel = readModelProfile(policy.profile, content)
+    }
+    Object.assign(childEnv, modelBinding?.env)
+    const binary = policy?.hostBinary
+    if (binary && !config.executableOverride) {
+      const available = await binary.resolve(childEnv, {
+        windows: isWin,
+        home: () => application.getPath('sys.home'),
+        find: (name) => findExecutableInEnv(name, { env: childEnv }),
+        installed: async () => {
+          const installed = await selectAvailableInstallation(binary, dependencySnapshots)
+          return installed.source !== 'none' ? installed.path : undefined
+        },
+        isFile: isExistingFile
+      })
+      if (!available)
+        throw Object.assign(
+          new Error(
+            t('local_agent.host_required_with_env', {
+              agent: definition?.name ?? binary.executable,
+              host: binary.label,
+              envVar: binary.envKey
+            })
+          ),
+          { code: 'LOCAL_AGENT_HOST_REQUIRED' }
+        )
+      childEnv[binary.envKey] = available
+    }
+    const command = {
+      executable,
+      args: [
+        ...(config.args.length ? config.args : (preset?.args ?? [])),
+        ...(terminal ? [] : (modelBinding?.args ?? []))
+      ],
+      env: childEnv
+    }
+    const prepared = !terminal && !config.executableOverride ? await policy?.prepareCommand?.(command) : undefined
+    const launch = prepared ?? command
+    return {
+      ...launch,
+      installation: prepared ? undefined : installed,
+      ...(nativeModel ? { nativeModel } : {}),
+      source: prepared?.source ?? source,
+      ...(modelBinding && { modelBinding })
+    }
   }
 }

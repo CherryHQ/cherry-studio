@@ -1,18 +1,12 @@
 import { application } from '@application'
 import { acpGatewayPath } from '@cherrystudio/agent-runtime-acp/profile'
 import type { AcpLaunch, AcpModelSelection } from '@cherrystudio/agent-runtime-acp/profile'
-import { modelService } from '@data/services/ModelService'
-import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
 import { t } from '@main/i18n'
 import { getAcpLaunchBypassArgs, getLocalAgentPreset, type LocalAgentConfiguration } from '@shared/ai/localAgent'
-import { parseUniqueModelId } from '@shared/data/types/model'
-import { formatGatewayModelId } from '@shared/utils/apiGateway'
-import { isGatewayRoutableModel } from '@shared/utils/model'
-import { isAgentOnlyProvider } from '@shared/utils/provider'
 
-import { bindCliGatewayRoute } from '../agentApiGateway'
 import { resolveCliProgram } from '../cli/cliProgram'
+import { resolveGatewayModel } from '../cli/launchBinding'
 import { acpPreset } from './acpPresets'
 
 const logger = loggerService.withContext('acpLaunch')
@@ -20,9 +14,10 @@ const logger = loggerService.withContext('acpLaunch')
 export function resolveAcpLaunch(
   config: LocalAgentConfiguration,
   signal?: AbortSignal,
-  purpose: 'chat' | 'session' | 'models' | 'account' | 'terminal-account' = 'chat'
+  purpose: 'chat' | 'session' | 'models' | 'account' | 'terminal-account' = 'chat',
+  options?: { sessionId?: string; bindModel?: boolean }
 ) {
-  return resolveCliProgram(config, purpose, signal, acpPreset(config.presetId))
+  return resolveCliProgram(config, purpose, signal, acpPreset(config.presetId), options)
 }
 
 export function resolveAcpModelLaunch(config: LocalAgentConfiguration, signal?: AbortSignal) {
@@ -37,21 +32,17 @@ export async function prepareAcpChatLaunch(
 ) {
   const preset = acpPreset(config.presetId)
   const bypassArgs = bypass && getAcpLaunchBypassArgs(config)
-  const { gatewayRoute, ...launch } = await resolveAcpLaunch(
+  const endpoint = getLocalAgentPreset(config.presetId)?.gatewayModelEndpoint
+  const agentEndpoint = config.sourceModelViaGateway && config.sourceModelId && endpoint
+  const { modelBinding, ...launch } = await resolveAcpLaunch(
     bypassArgs ? { ...config, args: [...bypassArgs] } : config,
     signal,
-    'session'
+    'session',
+    { sessionId, bindModel: !agentEndpoint }
   )
-  const endpoint = getLocalAgentPreset(config.presetId)?.gatewayModelEndpoint
-  if (config.sourceModelViaGateway && config.sourceModelId && endpoint) {
+  if (agentEndpoint && config.sourceModelId) {
     if (!preset?.applyGatewayModel || config.executableOverride) throw new Error(t('code_cli.model.unsupported'))
-    const { providerId, modelId } = parseUniqueModelId(config.sourceModelId)
-    const model = modelService.getByKey(providerId, modelId)
-    const provider = providerService.getByProviderId(providerId)
-    if (!model.isEnabled || !provider.isEnabled || isAgentOnlyProvider(provider) || !isGatewayRoutableModel(model)) {
-      throw new Error(t('code_cli.model.model_config_missing'))
-    }
-    const address = formatGatewayModelId(providerId, model.apiModelId ?? modelId)
+    const { model, address } = resolveGatewayModel(config.sourceModelId)
     const lease = await application.get('ApiGatewayService').createScopedCredential({
       paths: [acpGatewayPath(endpoint)],
       model: address,
@@ -81,12 +72,17 @@ export async function prepareAcpChatLaunch(
       throw error
     }
   }
-  const prepared = await preset?.prepareChat?.(config, launch, sessionId)
-  const scopedGateway = prepared?.gateway ? undefined : await bindCliGatewayRoute(sessionId, gatewayRoute)
+  const prepared = await Promise.resolve(preset?.prepareChat?.(config, launch, sessionId)).catch(async (error) => {
+    await modelBinding?.dispose()
+    throw error
+  })
+  const leases = [prepared?.gateway, modelBinding].filter((lease) => lease !== undefined)
   return {
     launch,
-    gateway: prepared?.gateway ?? scopedGateway,
-    contextWindow: scopedGateway ? gatewayRoute?.contextWindow : undefined,
+    gateway: leases.length
+      ? { dispose: async () => void (await Promise.all(leases.map((lease) => lease.dispose()))) }
+      : undefined,
+    contextWindow: modelBinding?.contextWindow,
     mode: prepared?.mode
   }
 }

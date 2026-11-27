@@ -50,13 +50,15 @@ export async function detectLocalAgents(): Promise<LocalAgentDetection[]> {
   )
 }
 
-export async function resolveLocalAgentCli(config: LocalAgentConfiguration, signal?: AbortSignal) {
+export async function resolveLocalAgentCli(config: LocalAgentConfiguration, signal?: AbortSignal, bindModel = false) {
   const policy =
     getLocalAgentProtocol(config.presetId) === 'acp'
       ? (await import('../../ai/runtime/acp/acpPresets')).acpPreset(config.presetId)
       : undefined
-  const { executable, source, env } = await resolveCliProgram(config, 'cli', signal, policy)
-  return { executable, source, env }
+  const { executable, source, env, modelBinding } = await resolveCliProgram(config, 'cli', signal, policy, {
+    bindModel
+  })
+  return { executable, source, env, ...(modelBinding && { modelBinding }) }
 }
 
 export async function openLocalAgentTerminal(config: InputFor<'ai.local_agents.open_terminal'>) {
@@ -71,19 +73,29 @@ export async function openLocalAgentTerminal(config: InputFor<'ai.local_agents.o
   } else if (config.login && preset.providerLogin) {
     throw new Error('Pi login requires a provider')
   }
-  const launch = await resolveLocalAgentCli(config)
-  const envKeys = new Set(['PATH', ...Object.keys(mergeEnvironment(preset.env, config.env))])
+  const launch = await resolveLocalAgentCli(config, undefined, !config.login)
+  const binding = launch.modelBinding
+  const envKeys = new Set(['PATH', ...Object.keys(mergeEnvironment(preset.env, config.env, binding?.env))])
   const env = Object.fromEntries(
     Object.entries(launch.env).filter(
       ([key]) => envKeys.has(key) || key.toUpperCase() === 'PATH' || key.startsWith('MISE_')
     )
   )
-  return application.get('CodeCliService').openTerminal({
-    executable: launch.executable,
-    args,
-    env,
-    usesCherryExecutionEnv: launch.source !== 'system',
-    directory: config.directory,
-    terminal: config.terminal
-  })
+  try {
+    const result = await application.get('CodeCliService').openTerminal({
+      executable: launch.executable,
+      args: [...(binding?.args ?? []), ...args],
+      env,
+      usesCherryExecutionEnv: launch.source !== 'system',
+      directory: config.directory,
+      terminal: config.terminal
+    })
+    // Cherry cannot see the terminal exit, so its binding lives until Cherry stops.
+    if (binding && result.success) application.get('LocalAgentOverlayService').retainUntilStop(binding)
+    else await binding?.dispose()
+    return result
+  } catch (error) {
+    await binding?.dispose()
+    throw error
+  }
 }

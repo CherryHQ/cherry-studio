@@ -129,6 +129,7 @@ export class LocalClaudeConnection extends ClaudeSdkConnection {
     return this.permissionModeSource ? selectedPermissionMode(this.localSessionInfo.mode) : undefined
   }
   private browserLease?: LocalAgentBrowserLease
+  private modelBinding?: { dispose(): Promise<void> }
   private readonly sessionAllowedTools = new Set<string>()
   private unattendedDenial = false
   private permissionModeSource?: 'native' | 'selection'
@@ -147,8 +148,12 @@ export class LocalClaudeConnection extends ClaudeSdkConnection {
   async start(cwd: string): Promise<this> {
     const { sessionId, agentId, headless = false, branchHead } = this.input
     const { signal } = this.abortController
-    const launch = await resolveClaudeLaunch(this.config, cwd, signal, headless ? 'scheduled-chat' : 'chat')
-    signal.throwIfAborted()
+    const launch = await resolveClaudeLaunch(this.config, cwd, signal, headless ? 'scheduled-chat' : 'chat', sessionId)
+    this.modelBinding = launch.modelBinding
+    if (signal.aborted) {
+      await this.releaseModelBinding()
+      signal.throwIfAborted()
+    }
     this.browserLease = await acquireLocalAgentBrowserLease({
       sessionId,
       agentId,
@@ -159,7 +164,7 @@ export class LocalClaudeConnection extends ClaudeSdkConnection {
     })
     signal.throwIfAborted()
     this.processDiagnostics = createClaudeCodeProcessDiagnostics()
-    const model = this.config.nativeModel ?? (headless ? launch.nativeModel : undefined)
+    const model = launch.modelBinding?.model ?? this.config.nativeModel ?? (headless ? launch.nativeModel : undefined)
     const options: Options = {
       ...localClaudeOptions(launch, this.abortController, createSpawnClaudeCodeProcess(this.processDiagnostics)),
       model,
@@ -238,19 +243,7 @@ export class LocalClaudeConnection extends ClaudeSdkConnection {
         return { behavior: 'allow' as const, updatedInput: input }
       }
     }
-    if (this.config.sourceModelViaGateway && model) {
-      options.settings = {
-        env: {
-          ANTHROPIC_DEFAULT_FABLE_MODEL: model,
-          ANTHROPIC_DEFAULT_OPUS_MODEL: model,
-          ANTHROPIC_DEFAULT_SONNET_MODEL: model,
-          ANTHROPIC_DEFAULT_HAIKU_MODEL: model,
-          CLAUDE_CODE_SUBAGENT_MODEL: model,
-          CLAUDE_CODE_WORKFLOW_SUBAGENT_MODEL: model,
-          CLAUDE_CODE_AUTO_MODE_MODEL: model
-        }
-      }
-    }
+    if (launch.modelBinding?.settingsEnv) options.settings = { env: launch.modelBinding.settingsEnv }
     const traceEnv = await this.prepareTraceEnv()
     options.env = { ...options.env, ...traceEnv, CLAUDE_CODE_EMIT_SESSION_STATE_EVENTS: '1' }
     const context = this.prepareContext(options.env, this.resumeToken, branchHead)
@@ -449,6 +442,12 @@ export class LocalClaudeConnection extends ClaudeSdkConnection {
 
   protected async disposeSettings() {
     this.abortController.abort()
-    await this.browserLease?.dispose()
+    await Promise.all([this.browserLease?.dispose(), this.releaseModelBinding()])
+  }
+
+  private releaseModelBinding() {
+    const binding = this.modelBinding
+    this.modelBinding = undefined
+    return binding?.dispose()
   }
 }
