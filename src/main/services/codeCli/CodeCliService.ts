@@ -745,7 +745,16 @@ export class CodeCliService extends BaseService {
     const platform = process.platform
     const needsBatchCall =
       platform === 'win32' && ['.cmd', '.bat'].includes(path.extname(input.executable).toLowerCase())
-    if (input.args.some((arg) => !/^[A-Za-z0-9_./=-]+$/.test(arg))) throw new Error('Unsupported terminal argument')
+    // POSIX args are single-quoted into the launch script. Batch args are double-quoted with % doubled
+    // and trailing backslashes doubled so the C runtime does not read `\"` as a literal quote.
+    if (input.args.some((arg) => /[\0\r\n]/.test(arg) || (platform === 'win32' && arg.includes('"'))))
+      throw new Error('Unsupported terminal argument')
+    const quoteArg = (arg: string) =>
+      platform !== 'win32'
+        ? posixQuote(arg)
+        : /^[A-Za-z0-9_./=:\\-]+$/.test(arg)
+          ? arg
+          : `"${arg.replace(/%/g, '%%').replace(/(\\+)$/, '$1$1')}"`
     const executable =
       platform === 'win32'
         ? `${needsBatchCall ? 'call ' : ''}"${input.executable.replace(/%/g, '%%')}"`
@@ -754,7 +763,7 @@ export class CodeCliService extends BaseService {
       cliTool: 'local-agent',
       directory: input.directory ?? application.getPath('sys.home'),
       terminal: input.terminal,
-      baseCommand: [executable, ...input.args.map((arg) => (platform === 'win32' ? arg : posixQuote(arg)))].join(' '),
+      baseCommand: [executable, ...input.args.map(quoteArg)].join(' '),
       env: input.env,
       usesCherryExecutionEnv: input.usesCherryExecutionEnv
     })

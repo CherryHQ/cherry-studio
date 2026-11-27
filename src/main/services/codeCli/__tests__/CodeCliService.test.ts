@@ -721,6 +721,40 @@ describe('CodeCliService', () => {
       expect(script).toContain("cd '/projects/中文 folder'")
     })
 
+    it.skipIf(process.platform === 'win32')(
+      'passes terminal arguments verbatim without letting them run shell syntax',
+      async () => {
+        const fs = (await import('node:fs')).default
+        const { codeCliService } = await loadModules()
+        const args = ['--settings', '/tmp/a b/settings.json', '-c', "model='x'", '$(echo injected)', '`id`;|&']
+        await expect(
+          codeCliService.openTerminal({
+            executable: '/usr/bin/printf',
+            args: ['%s\\n', ...args],
+            env: {},
+            usesCherryExecutionEnv: false
+          })
+        ).resolves.toMatchObject({ success: true })
+        const script = String(vi.mocked(fs.writeFileSync).mock.calls.at(-1)?.[1])
+        const line = script.split('\n').find((entry) => entry.includes("'/usr/bin/printf'"))!
+        const command = line.slice(line.indexOf("'/usr/bin/printf'"))
+        const { execFileSync } = await vi.importActual<typeof import('node:child_process')>('node:child_process')
+        expect(execFileSync('/bin/sh', ['-c', command], { encoding: 'utf8' })).toBe(`${args.join('\n')}\n`)
+      }
+    )
+
+    it('refuses terminal arguments that would break the launch script', async () => {
+      const { codeCliService } = await loadModules()
+      await expect(
+        codeCliService.openTerminal({
+          executable: '/usr/local/bin/agent',
+          args: ['--name', 'a\nrm -rf ~'],
+          env: {},
+          usesCherryExecutionEnv: false
+        })
+      ).rejects.toThrow('Unsupported terminal argument')
+    })
+
     it('refuses a deleted working directory without opening a terminal', async () => {
       const fs = (await import('node:fs')).default
       vi.mocked(fs.statSync).mockReturnValueOnce(undefined)
@@ -937,6 +971,34 @@ describe('CodeCliService', () => {
         const specialScript = String(vi.mocked(fs.writeFileSync).mock.calls.at(-1)?.[1])
         expect(specialScript).toContain('set "API_URL=https://example.invalid/?a=1&b=2^3|4%%5"')
         expect(specialScript).toContain('set QUOTED=a^" ^& whoami\r\n')
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('quotes Windows terminal arguments so batch syntax and the C runtime keep them intact', async () => {
+      vi.useFakeTimers()
+      try {
+        const fs = (await import('node:fs')).default
+        const { codeCliService } = await loadModules()
+        await codeCliService.openTerminal({
+          executable: 'C:\\Tools\\agent.exe',
+          args: ['--settings', 'C:\\Users\\a b\\settings.json', '-c', "model='x%y&z'", 'C:\\my dir\\'],
+          env: {},
+          usesCherryExecutionEnv: false
+        })
+        const script = String(vi.mocked(fs.writeFileSync).mock.calls.at(-1)?.[1])
+        expect(script).toContain(
+          `"C:\\Tools\\agent.exe" --settings "C:\\Users\\a b\\settings.json" -c "model='x%%y&z'" "C:\\my dir\\\\"`
+        )
+        await expect(
+          codeCliService.openTerminal({
+            executable: 'C:\\Tools\\agent.exe',
+            args: ['a" & whoami'],
+            env: {},
+            usesCherryExecutionEnv: false
+          })
+        ).rejects.toThrow('Unsupported terminal argument')
       } finally {
         vi.useRealTimers()
       }
