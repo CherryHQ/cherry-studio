@@ -230,8 +230,8 @@ export class HermesDashboardService extends BaseService {
     }
     this.stoppingChild = child
     try {
-      await terminateProcessTree(child, false, 'Hermes Dashboard')
-      if (await waitForProcessExit(child, GRACEFUL_STOP_TIMEOUT_MS)) return
+      const gracefulStopSucceeded = await terminateProcessTree(child, false, 'Hermes Dashboard')
+      if (gracefulStopSucceeded && (await waitForProcessExit(child, GRACEFUL_STOP_TIMEOUT_MS))) return
 
       await terminateProcessTree(child, true, 'Hermes Dashboard')
       if (!(await waitForProcessExit(child, FORCE_STOP_TIMEOUT_MS))) {
