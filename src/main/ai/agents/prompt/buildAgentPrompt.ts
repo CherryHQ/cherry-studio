@@ -1,3 +1,4 @@
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { loadBuiltinAgentDefinition, provisionBuiltinAgent } from '@main/ai/agents/builtin/BuiltinAgentProvisioner'
 import { getEffectiveAgentLanguage } from '@main/ai/utils/agentLanguage'
@@ -44,7 +45,7 @@ export interface AgentRuntimePrompt {
 export interface BuildAgentPromptOptions {
   workspacePath: string
   agentDataPath: string
-  agent: Pick<AgentEntity, 'instructions' | 'configuration' | 'modelName'>
+  agent: Pick<AgentEntity, 'instructions' | 'configuration' | 'modelName'> & Partial<Pick<AgentEntity, 'id'>>
   /** Formats a model-facing call reference when the session can reach the tool. */
   referenceTool?: (server: string, tool: string) => string | undefined
   toolCallHint?: string
@@ -91,6 +92,11 @@ export async function buildAgentPrompt({
     }
   }
   if (builtinRole) await provisionBuiltinAgent(agentDataPath, builtinRole)
+  const migrated =
+    agent.id &&
+    (instructionsSlot === undefined
+      ? await application.get('MemoryService').prepareAgent(agent.id)
+      : application.get('MemoryMigrationService').isMigrated(agent.id))
 
   const resolvedInstructions = instructions?.trim()
     ? await replacePromptVariables(instructions, modelName ?? agent.modelName ?? undefined)
@@ -100,7 +106,8 @@ export async function buildAgentPrompt({
     workspacePath,
     agent.configuration,
     hasAgentInstructions,
-    agentDataPath
+    agentDataPath,
+    !migrated
   )
 
   const base: AgentPromptBase =

@@ -138,6 +138,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   constructor(private readonly input: AgentRuntimeConnectInput) {}
 
   async start(): Promise<this | UnavailableNativeContext> {
+    await application.get('MemoryMigrationService').ensureSession(this.input.sessionId)
     this.memoryGuard = openRuntimeMemoryGuard(this.input.sessionId, () => {
       void this.close().catch((error) => logger.error('Failed to stop invalidated memory runtime', { error }))
     })

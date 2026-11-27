@@ -195,6 +195,7 @@
   "agent.memory.discard.title": "Hủy các thay đổi chưa lưu?",
   "agent.memory.editor_label": "Chỉnh sửa {{name}}",
   "agent.memory.empty": "Tệp này trống.",
+  "agent.memory.fact_migrated": "FACT đã được chuyển sang bộ nhớ riêng. Bản sao này được giữ lại để tham khảo.",
   "agent.memory.file.fact": "Kiến thức lâu dài",
   "agent.memory.file.journal": "Nhật ký sự kiện",
   "agent.memory.file.soul": "Tính cách",

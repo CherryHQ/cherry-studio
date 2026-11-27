@@ -120,10 +120,18 @@ export class MemoryService extends BaseService {
         return authority.assertAuthorized()
       }
     }
-    const run = <T>(operation: (store: MemoryStore) => Promise<T>): Promise<T> =>
+    const run = <T>(
+      operation: (store: MemoryStore) => Promise<T>,
+      mode: 'active' | 'inspect' | 'recovery' = 'active'
+    ): Promise<T> =>
       this.work.track(
         (async () => {
           access.assertAuthorized()
+          if (mode !== 'recovery' && scope.kind === 'private' && source !== 'migration') {
+            const migrated = await this.prepareAgent(scope.agentId)
+            if (!migrated && mode === 'active')
+              throw new Error('Private memory migration is incomplete; original FACT content is retained')
+          }
           const store = await this.getStore(scope)
           access.assertAuthorized()
           return operation(store)
@@ -170,7 +178,7 @@ export class MemoryService extends BaseService {
           return store.prepareRevisions(access, receipt, revisions, additions)
         }),
       validateModelReads,
-      assertRuntimeSafe: (assertHistory) => run((store) => store.assertRuntimeSafe(access, assertHistory)),
+      assertRuntimeSafe: (assertHistory) => run((store) => store.assertRuntimeSafe(access, assertHistory), 'inspect'),
       commit: (mutations, approve, readReceipts, legacy, managedTargets, onWriteStart) =>
         run(async (store) =>
           notify(
@@ -188,12 +196,21 @@ export class MemoryService extends BaseService {
         run(async (store) => {
           return notify('clear', await store.clear(access, token, approve))
         }),
-      previewRecovery: () => run((store) => store.previewRecovery(access)),
+      previewRecovery: () => run((store) => store.previewRecovery(access), 'recovery'),
       recover: (token, approve) =>
         run(async (store) => {
           return notify('recovery', await store.recover(access, token, approve))
-        })
+        }, 'recovery')
     }
+  }
+
+  prepareAgent(agentId: string): Promise<boolean> {
+    return this.work.track(
+      (async () => {
+        if (this.stopped || this.pauses.size) throw new Error('Memory operations are paused')
+        return application.get('MemoryMigrationService').ensureAgent(agentId)
+      })()
+    )
   }
 
   pause(reason?: string): Disposable {

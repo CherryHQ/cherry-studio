@@ -91,7 +91,13 @@ export function AgentMemoryPanel({
   const readOnlyReasonOf = (item: AgentMemoryFile) =>
     // JOURNAL is append-only and written by the running agent; truncated files only
     // contain a slice, so replacing either from the editor would destroy data.
-    item.key === 'journal' ? 'agent.memory.journal_readonly' : item.truncated ? 'agent.memory.truncated_readonly' : null
+    item.key === 'fact' && snapshot?.factMigrated
+      ? 'agent.memory.fact_migrated'
+      : item.key === 'journal'
+        ? 'agent.memory.journal_readonly'
+        : item.truncated
+          ? 'agent.memory.truncated_readonly'
+          : null
   const readOnlyReason = selected ? readOnlyReasonOf(selected) : null
   const canEdit = !!selected && readOnlyReason === null
   const shownContent = canEdit && draft ? draft.text : (selected?.content ?? '')
@@ -148,8 +154,9 @@ export function AgentMemoryPanel({
       } else if (message.includes('AGENT_MEMORY_TOO_LARGE')) {
         toast.error(t('agent.memory.truncated_readonly'))
       } else if (message.includes('AGENT_MEMORY_READ_ONLY')) {
-        toast.error(t('agent.memory.journal_readonly'))
+        toast.error(t(selected.key === 'fact' ? 'agent.memory.fact_migrated' : 'agent.memory.journal_readonly'))
         cancelEdit()
+        await reload()
       } else {
         toast.error(t('agent.memory.save_failed'))
       }
@@ -252,7 +259,7 @@ export function AgentMemoryPanel({
       </div>
       <div className="flex flex-col rounded-xl border border-border-subtle p-1">
         {(files.length > 0 ? files : FILE_ORDER.map((key) => ({ key }) as AgentMemoryFile)).map((item) => {
-          const label = t(MEMORY_FILE_LABEL_KEYS[item.key])
+          const label = item.key === 'fact' && snapshot?.factMigrated ? item.name : t(MEMORY_FILE_LABEL_KEYS[item.key])
           const note = item.name && readOnlyReasonOf(item) ? t('library.config.agent.prompt.read_only') : undefined
           return (
             <Button

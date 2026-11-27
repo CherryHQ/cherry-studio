@@ -6,7 +6,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { getPathMock } = vi.hoisted(() => ({ getPathMock: vi.fn() }))
 
-vi.mock('@application', () => ({ application: { getPath: getPathMock } }))
+vi.mock('@application', () => ({
+  application: {
+    getPath: getPathMock,
+    get: () => ({ isMigrated: () => false, withLegacyFactWrite: (_id: string, write: () => unknown) => write() })
+  }
+}))
 
 import { AGENT_MEMORY_CONFLICT, AGENT_MEMORY_READ_ONLY, AGENT_MEMORY_TOO_LARGE, agentHandlers } from '../agent'
 

@@ -55,7 +55,6 @@ If the user wants to proceed, your goal in this conversation is to:
    - Rename yourself using \`mcp__cherry-tools__config\` (action: "rename", name: the chosen name)
    - ${soulUpdate} Use Write if the file is missing; use Edit if it already exists.
    - Update \`USER.md\` with everything you learned about the user. Use Write if the file is missing; use Edit if it already exists.
-   - If the memory tool is available, log the bootstrap completion with it (append action, tags: ["bootstrap"])
    - Mark bootstrap as complete using \`mcp__cherry-tools__config\` (action: "complete_bootstrap")
 
 Guidelines:

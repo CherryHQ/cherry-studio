@@ -195,6 +195,7 @@
   "agent.memory.discard.title": "保存されていない変更を破棄しますか？",
   "agent.memory.editor_label": "{{name}} を編集",
   "agent.memory.empty": "このファイルは空です。",
+  "agent.memory.fact_migrated": "FACT はプライベートメモリに移行されました。このコピーは参照用です。",
   "agent.memory.file.fact": "永続的な知識",
   "agent.memory.file.journal": "イベントログ",
   "agent.memory.file.soul": "ペルソナ",

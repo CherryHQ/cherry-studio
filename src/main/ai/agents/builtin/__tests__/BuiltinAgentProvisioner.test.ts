@@ -138,13 +138,13 @@ describe('BuiltinAgentProvisioner', () => {
     )
   })
 
-  it('copies persona and memory templates into agent data without copying product files', async () => {
+  it('copies persona templates without reinstalling retired FACT content or product files', async () => {
     const result = await provisionBuiltinAgent(agentDataPath, 'assistant')
 
     expect(fs.existsSync(path.join(agentDataPath, '.claude'))).toBe(false)
     expect(fs.readFileSync(path.join(agentDataPath, 'SOUL.md'), 'utf-8')).toBe('TEMPLATE_SOUL')
     expect(fs.readFileSync(path.join(agentDataPath, 'USER.md'), 'utf-8')).toBe('TEMPLATE_USER')
-    expect(fs.readFileSync(path.join(agentDataPath, 'memory', 'FACT.md'), 'utf-8')).toBe('TEMPLATE_FACT')
+    expect(fs.existsSync(path.join(agentDataPath, 'memory', 'FACT.md'))).toBe(false)
     expect(result).toEqual({
       name: 'Cherry Assistant',
       instructions: 'English instructions',
@@ -190,19 +190,19 @@ describe('BuiltinAgentProvisioner', () => {
     expect(fs.readFileSync(path.join(agentDataPath, 'SOUL.md'), 'utf-8')).toBe(customizedSoul)
   })
 
-  it('initializes missing memory templates after the agent data directory creates memory', async () => {
+  it('does not populate a retained historical memory directory from bundled templates', async () => {
     fs.mkdirSync(path.join(agentDataPath, 'memory'), { recursive: true })
 
     await provisionBuiltinAgent(agentDataPath, 'assistant')
 
-    expect(fs.readFileSync(path.join(agentDataPath, 'memory', 'FACT.md'), 'utf-8')).toBe('TEMPLATE_FACT')
+    expect(fs.existsSync(path.join(agentDataPath, 'memory', 'FACT.md'))).toBe(false)
   })
 
   it('preserves user-owned persona and memory files across provisioning', async () => {
     await provisionBuiltinAgent(agentDataPath, 'assistant')
     fs.writeFileSync(path.join(agentDataPath, 'SOUL.md'), 'CUSTOM_SOUL')
     fs.writeFileSync(path.join(agentDataPath, 'USER.md'), 'CUSTOM_USER')
-    fs.writeFileSync(path.join(agentDataPath, 'memory', 'FACT.md'), 'CUSTOM_FACT')
+    writeFile(path.join(agentDataPath, 'memory', 'FACT.md'), 'CUSTOM_FACT')
 
     await provisionBuiltinAgent(agentDataPath, 'assistant')
 

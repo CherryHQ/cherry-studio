@@ -1,6 +1,7 @@
 import { open } from 'node:fs/promises'
 import path from 'node:path'
 
+import { initializeMemoryFiles, MEMORY_TOPICS } from '@main/ai/memory/memoryFiles'
 import { ensureDir, isPathInside, lstat, mkdir, realpath, removeDir } from '@main/utils/file'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 
@@ -144,7 +145,11 @@ export async function ensureAgentDataDirectory(
 ): Promise<string> {
   const agentDataPath = agentDataDirectoryPath(agentsDataRoot, agentId)
   await ensureAgentStorageDirectory(agentsDataRoot, agentDataPath)
-  await ensureAgentStorageDirectory(agentsDataRoot, path.join(agentDataPath, 'memory'))
+  if (!(await lstatIfExists(path.join(agentDataPath, 'memory')))) {
+    // Existing scopes need the memory owner's recovery history before recreating a missing entry.
+    const createEntry = !(await lstatIfExists(path.join(agentDataPath, MEMORY_TOPICS)))
+    await initializeMemoryFiles(agentDataPath, { createEntry })
+  }
 
   if (options.createFiles !== false) {
     for (const filename of AGENT_DATA_FILES) {
@@ -185,7 +190,7 @@ export async function assertAgentDataDirectory(agentsDataRoot: string, agentId: 
 
   const memoryPath = path.join(agentDataPath, 'memory')
   const memoryStat = await lstatIfExists(memoryPath)
-  if (!memoryStat?.isDirectory || memoryStat.isSymbolicLink) {
+  if (memoryStat && (!memoryStat.isDirectory || memoryStat.isSymbolicLink)) {
     throw new Error(`Agent memory directory must be a real directory: ${memoryPath}`)
   }
 

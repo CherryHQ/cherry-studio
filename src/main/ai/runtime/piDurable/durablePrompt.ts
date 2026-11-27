@@ -11,7 +11,7 @@ import type { loadPiSdk } from '../pi/piSdk'
 type PiSdk = Awaited<ReturnType<typeof loadPiSdk>>
 
 interface DurablePromptOptions {
-  agent: Pick<AgentEntity, 'instructions' | 'configuration' | 'modelName' | 'type'>
+  agent: Pick<AgentEntity, 'instructions' | 'configuration' | 'modelName' | 'type'> & Partial<Pick<AgentEntity, 'id'>>
   cwd: string
   agentDataPath: string
   effectiveLanguage: string | null
@@ -50,7 +50,8 @@ export async function buildDurablePrompt(pi: PiSdk, options: DurablePromptOption
     {
       key: 'agent_identity',
       async render() {
-        const { text, resources } = await builder.buildMemoriesContext(agentDataPath)
+        const migrated = agent.id && application.get('MemoryMigrationService').isMigrated(agent.id)
+        const { text, resources } = await builder.buildMemoriesContext(agentDataPath, !migrated)
         return { text, source: { kind: 'memory-files', resources } }
       }
     },

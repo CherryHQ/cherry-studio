@@ -26,8 +26,9 @@ export function createClaudeCodeIdentityHooks(
         guard?.dispose()
       }
     }
+    const migrated = sessionId ? await application.get('MemoryMigrationService').ensureSession(sessionId) : false
     const sections = await Promise.all([
-      builder.buildMemoriesSection(agentDataPath),
+      builder.buildMemoriesSection(agentDataPath, !migrated),
       sessionId
         ? agentMemoryReference(
             sessionId,

@@ -133,7 +133,8 @@ export async function capturePiConnectionSnapshot(
           computerUseEnabled: application.get('PreferenceService').get('app.computer_use.agent_control.enabled'),
           knowledgeBaseIds: resolveKnowledgeBaseScope(agent.knowledgeBaseIds, selectedKnowledgeBaseIds),
           effectiveLanguage,
-          modelTransport: 'gateway-objects'
+          modelTransport: 'gateway-objects',
+          memoryMigrated: application.get('MemoryMigrationService').isMigrated(agent.id)
         })
       )
     )

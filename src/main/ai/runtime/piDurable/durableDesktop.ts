@@ -18,6 +18,7 @@ import { buildPiLoginPathPrefix, mergePiShellExecutionEnv, resolvePiShellPath } 
 import type { AgentRuntimeConnectInput, AgentRuntimeEvent } from '../types'
 import { createDurableEnvironment, runDurableFileMutation } from './durableEnvironment'
 import { createDurableMcp } from './durableMcp'
+import { withPrivateMemoryRead } from './durableMemoryRead'
 import { buildDurablePrompt } from './durablePrompt'
 import { withDurableShellTimeout } from './durableShellTimeout'
 
@@ -105,7 +106,8 @@ export async function prepareDurableDesktop(
   try {
     const isDisabled = (name: string) => isPiToolDisabled(disabled, name, mcp.metadata.get(name))
     const registry = native.createRegistry()
-    const coding = tools.createCodingTools({ images: await images.createNodePhotonImages() })
+    const readOptions = { images: await images.createNodePhotonImages() }
+    const coding = tools.createCodingTools(readOptions)
     const edit = tools.createEditTool()
     const write = tools.createWriteTool()
     const bash = tools.createBashTool({
@@ -115,7 +117,15 @@ export async function prepareDurableDesktop(
       native.defineExtension({
         ...coding,
         tools: [
-          ...(coding.tools ?? []).filter((tool) => !['bash', 'edit', 'write'].includes(tool.name)),
+          ...(coding.tools ?? []).filter((tool) => !['bash', 'edit', 'write', 'read'].includes(tool.name)),
+          withPrivateMemoryRead(
+            tools.createReadTool(readOptions),
+            input.sessionId,
+            agent.id,
+            agentDataPath,
+            (id) => Boolean(root?.isRoot(id)) && !isDisabled('read'),
+            root?.contextId
+          ),
           {
             ...edit,
             execute: (...args: Parameters<typeof edit.execute>) => runDurableFileMutation(() => edit.execute(...args))
