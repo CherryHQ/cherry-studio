@@ -43,7 +43,7 @@ vi.mock('node:fs', async (importOriginal) => {
       options?: Parameters<typeof actual.createWriteStream>[1]
     ) =>
       actual.createWriteStream(file, {
-        ...options,
+        ...(typeof options === 'string' ? { encoding: options } : options),
         fs: {
           ...actual,
           fsync: (fd: number, callback: (error: NodeJS.ErrnoException | null) => void) => {
