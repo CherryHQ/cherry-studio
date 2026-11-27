@@ -1399,9 +1399,9 @@ For other connections, when the idle timer expires, the runtime closes the entry
 
 - clears `runtimeState.queue`;
 - closes the runtime connection;
-- prewarms Claude Code when a latest resume token is known **and** a renderer window still holds a warm lease for the session (headless/channel sessions without a warm lease do not reach this prewarm path).
+- requests Claude Code prewarming when a latest resume token is known, subject to the driver's capacity and memory guards. This TTL callback does not require an open renderer window.
 
-Headless runs with no warm-lease holder tear down the runtime connection once execution is `idle`, the turn queue is empty, and no background work remains active. If background work was still running when the turn settled, the same eager close runs when that work finishes. Channel traffic therefore does not keep Claude CLI children resident across the idle TTL.
+Separately from the TTL callback, a completed headless run eagerly tears down its runtime connection when execution is `idle`, the turn queue and pending inputs are empty, no connection attempt is active, and no background work remains. This path does not depend on renderer warm leases. If background work was still running when the turn settled, the same eager-close check runs when that work finishes.
 
 Service stop and destroy close all runtime entries. User Stop (`stopSession()`) additionally
 invokes an optional connection `interrupt()` before closing, including when the visible stream has
