@@ -248,7 +248,11 @@ export const TokenDanceModelsResponseSchema = z.object({
 
 const ModelRushModelSchema = z.looseObject({
   id: z.string(),
-  name: z.string().optional(),
+  name: z
+    .string()
+    .nullable()
+    .optional()
+    .transform((v) => v ?? undefined),
   owned_by: z.string().optional(),
   modality: z.string().optional(),
   gateway_status: z.string().optional(),
