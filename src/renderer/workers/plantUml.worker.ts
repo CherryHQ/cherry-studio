@@ -1,6 +1,8 @@
 import { renderSvg } from '@plantuml/mcp-js/engine.js'
 import { instance } from '@viz-js/viz'
 
+import { registerPlantUmlOpeniconic } from './plantUmlOpeniconic'
+
 export type PlantUmlRenderResponse = { svg: string } | { error: string; line?: number }
 
 type PlantUmlEngineResult =
@@ -9,6 +11,10 @@ type PlantUmlEngineResult =
 
 // PlantUML looks up Viz.js in its worker realm for diagrams that need Graphviz.
 Object.assign(globalThis, { Viz: { instance } })
+
+// Built-in icons (`<&name>`) must not trigger the engine's lazy `openiconic.js`
+// script-tag fetch, which fails in this worker (no `document`, offline).
+registerPlantUmlOpeniconic()
 
 self.onmessage = async ({ data: source }: MessageEvent<string>) => {
   let response: PlantUmlRenderResponse
