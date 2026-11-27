@@ -272,24 +272,25 @@ export interface AiStreamAbortRequest {
   topicId: string
 }
 
-/** Resolve a tool output that was deferred at the boundary. See `transport/deferredToolResult`. */
-export interface AiToolResultRequest {
+/** Read the latest accepted tool result for an explicit consumer. */
+export type AiToolResultReadOptions =
+  | { purpose: 'preview' }
+  | { purpose: 'text-range'; cursor?: number }
+  | { purpose: 'full' }
+
+export type AiToolResultRequest = {
   topicId: string
   messageId: string
   toolCallId: string
-}
+  partId?: string
+} & AiToolResultReadOptions
 
-export type AiToolResultResponse = { found: true; output: unknown } | { found: false }
-
-/** Prewarm the next Claude Agent SDK query for an agent session. */
-export interface AiAgentSessionWarmRequest {
-  sessionId: string
-}
-
-/** Close any unused warm query for an agent session. */
-export interface AiAgentSessionWarmCloseRequest {
-  sessionId: string
-}
+export type AiToolResultResponse =
+  | { status: 'ready'; purpose: 'preview'; output: unknown; truncated: boolean }
+  | { status: 'ready'; purpose: 'text-range'; text: string; nextCursor?: number }
+  | { status: 'ready'; purpose: 'full'; output: unknown }
+  | { status: 'pending' }
+  | { status: 'unavailable' }
 
 /** Result of an attach attempt.
  *

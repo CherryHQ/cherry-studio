@@ -42,6 +42,7 @@ interface OpenAiCompatibleDelta {
   role?: 'assistant'
   content?: string | null
   reasoning_content?: string | null
+  encrypted_content?: string
   reasoning_details?: JSONValue[]
   tool_calls?: ChatCompletionChunkBase['choices'][0]['delta']['tool_calls']
 }
@@ -63,6 +64,7 @@ export interface OpenAiCompatibleChunk extends Omit<ChatCompletionChunkBase, 'ch
  */
 interface OpenAiCompatibleMessage extends OpenAI.Chat.Completions.ChatCompletionMessage {
   reasoning_content?: string | null
+  encrypted_content?: string
   reasoning_details?: JSONValue[]
 }
 
@@ -104,6 +106,7 @@ interface ToolCallState {
  */
 export class AiSdkToOpenAiSse extends BaseStreamAdapter<OpenAiCompatibleChunk> {
   private reasoningDetails?: JSONValue[]
+  private encryptedContent?: string
   private createdTimestamp: number
   private toolCalls: Map<string, ToolCallState> = new Map()
   private currentToolCallIndex = 0
@@ -157,9 +160,15 @@ export class AiSdkToOpenAiSse extends BaseStreamAdapter<OpenAiCompatibleChunk> {
   protected processChunk(chunk: UIMessageChunk): void {
     // Log only the chunk type — full payloads can carry prompt/tool/reasoning content.
     logger.silly('AiSdkToOpenAiSse - Processing chunk', { type: chunk.type })
-    const details = 'providerMetadata' in chunk ? chunk.providerMetadata?.openrouter?.reasoning_details : undefined
+    const metadata = 'providerMetadata' in chunk ? chunk.providerMetadata : undefined
+    const details = metadata?.openrouter?.reasoning_details
     // OpenRouter repeats a cumulative snapshot on reasoning and tool events.
     if (Array.isArray(details)) this.reasoningDetails = details
+    const encryptedContent = metadata?.openaiCompatible?.reasoningEncryptedContent
+    if (typeof encryptedContent === 'string' && encryptedContent && encryptedContent !== this.encryptedContent) {
+      this.encryptedContent = encryptedContent
+      this.emit(this.createBaseChunk({ encrypted_content: encryptedContent }))
+    }
     switch (chunk.type) {
       // === Text Events ===
       // OpenAI has no separate text-start/text-end; only deltas matter.
@@ -401,6 +410,7 @@ export class AiSdkToOpenAiSse extends BaseStreamAdapter<OpenAiCompatibleChunk> {
       content,
       refusal: null,
       ...(reasoningContent ? { reasoning_content: reasoningContent } : {}),
+      ...(this.encryptedContent && { encrypted_content: this.encryptedContent }),
       ...(this.reasoningDetails !== undefined ? { reasoning_details: this.reasoningDetails } : {}),
       ...(toolCallsArray.length > 0 ? { tool_calls: toolCallsArray } : {})
     }

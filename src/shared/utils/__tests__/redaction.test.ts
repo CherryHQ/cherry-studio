@@ -334,6 +334,10 @@ describe('redactDiagnosticText', () => {
     ['open C:\\Users\\John Smith\\AppData\\x.log', 'open ~\\AppData\\x.log'],
     ['open C:/Users/John Smith/AppData', 'open ~/AppData'],
     ['read C:\\Users\\Jane Mary Doe\\prefs.json', 'read ~\\prefs.json'],
+    ['read C:/Users/Jane Mary Doe/prefs.json', 'read ~/prefs.json'],
+    ['read C:\\Users\\Jane Doe/prefs.json', 'read ~/prefs.json'],
+    ['read C:/Users/Jane Doe\\prefs.json', 'read ~\\prefs.json'],
+    ['{"path":"C:\\\\Users\\\\Jane Doe/prefs.json"}', '{"path":"~/prefs.json"}'],
     ['{"path":"C:\\\\Users\\\\Jane Mary Doe\\\\prefs.json"}', '{"path":"~\\\\prefs.json"}']
   ])('replaces the home directory in %s', (text, expected) => {
     expect(redactDiagnosticText(text)).toBe(expected)
@@ -345,6 +349,7 @@ describe('redactDiagnosticText', () => {
 
   it('does not absorb the rest of a sentence into a Windows username', () => {
     expect(redactDiagnosticText('C:\\Users\\bob failed with code 5/6')).toBe('~ failed with code 5/6')
+    expect(redactDiagnosticText('C:/Users/bob failed with code 5/6')).toBe('~ failed with code 5/6')
   })
 
   it('leaves lowercase API routes that look like POSIX home paths intact', () => {

@@ -24,7 +24,7 @@ import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/con
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
 import { chooseNativeFile } from '../../../../scripts/e2e/regression/systemAutomation'
 import { expect, test } from '../fixture'
-import { customAssistantName, ensureCustomAssistant } from '../helpers/assistants'
+import { customAssistantName, ensureCustomAssistant, linkAssistantKnowledge } from '../helpers/assistants'
 import { submitChatMarker } from '../helpers/chat'
 import { EMBEDDING_PROVIDER, ensureEmbeddingProvider, ensureKnowledgeBase, knowledgeName } from '../helpers/knowledge'
 import { ensureCustomChatProvider, selectVisibleModel } from '../helpers/models'
@@ -65,22 +65,7 @@ test(...caseDefinition('K-01'), async ({ app, mainWindow }) => {
   await test.step('Query the persisted knowledge base and verify the answer and citations', async () => {
     await ensureCustomAssistant(app, page)
     await page.getByRole('button', { name: `Edit Assistant: ${customAssistantName(app)}`, exact: true }).click()
-    await page.getByRole('tab', { name: 'Knowledge', exact: true }).click()
-    const assistantDialog = page.getByRole('dialog').last()
-    if (
-      !(await assistantDialog
-        .getByText(knowledgeName(app), { exact: true })
-        .isVisible()
-        .catch(() => false))
-    ) {
-      await page.getByRole('button', { name: 'Add knowledge base', exact: true }).click()
-      await page
-        .getByRole('option')
-        .filter({ has: page.getByText(knowledgeName(app), { exact: true }) })
-        .click()
-    }
-    await expect(assistantDialog.getByText(knowledgeName(app), { exact: true })).toBeVisible()
-    await assistantDialog.getByRole('button', { name: 'Close', exact: true }).click()
+    await linkAssistantKnowledge(page, knowledgeName(app))
 
     const sendQuestion = async () => {
       const composer = page.locator('[data-ui~="chat.composer"] [contenteditable="true"]').first()
@@ -974,10 +959,7 @@ test(...caseDefinition('MP-66'), async ({ app, mainWindow }, testInfo) => {
     await assistantRow.hover()
     await assistantRow.getByRole('button', { name: 'New Chat', exact: true }).click()
     await page.getByRole('button', { name: `Edit Assistant: ${assistantName}`, exact: true }).click()
-    await page.getByRole('tab', { name: 'Knowledge', exact: true }).click()
-    await page.getByRole('button', { name: 'Add knowledge base', exact: true }).click()
-    await page.getByText(name, { exact: true }).click()
-    await page.getByRole('dialog').last().getByRole('button', { name: 'Close', exact: true }).click()
+    await linkAssistantKnowledge(page, name)
     await page
       .locator('[data-ui~="chat.composer"] [contenteditable="true"]')
       .first()

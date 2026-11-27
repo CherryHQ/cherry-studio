@@ -11,7 +11,8 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 vi.mock('../../../MessageListProvider', () => ({
-  useOptionalMessageListActions: () => actions
+  useOptionalMessageListActions: () => actions,
+  useOptionalMessageListTopicId: () => undefined
 }))
 vi.mock('@renderer/services/appErrorDetailOpen', () => ({
   openLoadedErrorDetail: (request: unknown) => detailMocks.open(request),

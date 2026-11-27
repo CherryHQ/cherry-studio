@@ -1,16 +1,17 @@
+import { LATEST_PRIVACY_POLICY_VERSION } from '../../../src/shared/utils/constants'
 import { expect, test } from './fixtures/electron.fixture'
 
 test('typing immediately after editing an assistant message preserves every character', async ({
   mainWindow: page
 }) => {
   const original = 'Original reply for issue 23288.'
-  await page.evaluate(async () => {
+  await page.evaluate(async (policyVersion) => {
     await window.api.preference.setMultiple({
       'app.language': 'en-US',
       'app.onboarding.provider_setup.status': 'skipped',
-      'app.privacy.policy_version': '20260820'
+      'app.privacy.policy_version': policyVersion
     })
-  })
+  }, LATEST_PRIVACY_POLICY_VERSION)
   const seeded = await page.evaluate(async (text) => {
     const assistant = await window.api.dataApi.request({
       id: crypto.randomUUID(),

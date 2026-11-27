@@ -107,6 +107,10 @@ selection state and DOM while content grows. Existing worker sessions parse the 
 Lezer/StreamLanguage and return semantic classes for requested lines. Pending or failed syntax work leaves complete
 plain source readable. Tiptap decorations and snapshot/HTML/Markdown worker jobs use the same parser classification.
 
+For JSON up to 100,000 characters, the viewer adds indentation guides and a gutter for folding multiline
+objects and arrays. Folding hides the rows between the brackets. Line numbers, selection copying, and image
+capture continue to use the original source.
+
 A newly visible viewer paints plain source before starting its first syntax request, even when the highlighter is
 already warm. Ready tokens then update the same rows. Off-screen requests and subsequent range updates retain their
 debounce; leaving the viewer or changing its pending range cancels the scheduled first request.

@@ -180,15 +180,22 @@ function verifyPersistence(messages: readonly CherryUIMessage[]): boolean {
     sessionId,
     message: { role: 'assistant', status: 'pending', data: { parts: [] } }
   }).id
-  const root = new RootMessageProjection(context.id)
+  const root = new RootMessageProjection(context.id, { lastPos: 0 })
   root.accept(
     { contextId: context.id, messages, live: messages.map((message) => message.id), replaces: {}, removed: [] },
     id
   )
   const parts = root.parts(id)
   const serialized = JSON.parse(JSON.stringify(parts ?? []))
-  storedMessages.replaceMessageParts(sessionId, id, parts, root.checkpoint())
-  const restored = new RootMessageProjection(context.id)
+  storedMessages.replaceMessageParts(
+    sessionId,
+    id,
+    parts,
+    root.checkpoint(),
+    root.partPlacement(id)?.partIds,
+    root.partPlacement(id)?.positions
+  )
+  const restored = new RootMessageProjection(context.id, { lastPos: storedMessages.lastTimelinePosition(sessionId) })
   const changes = restored.accept({ contextId: context.id, messages, live: [], replaces: {}, removed: [] }, id)
   return (
     changes.size === 0 &&

@@ -428,7 +428,7 @@ describe('runRestorePromotion', () => {
     sqlite.prepare("INSERT INTO app_state (key, value, created_at, updated_at) VALUES ('drift', '1', 0, 0)").run()
     sqlite.close()
 
-    await runRestorePromotion()
+    await expect(runRestorePromotion()).resolves.toMatch(/live fingerprint mismatch/)
 
     expect(journalState()).toBe('expired')
     expect(readMarker(livePath())).toBe('old')
