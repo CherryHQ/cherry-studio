@@ -148,6 +148,12 @@ describe('global local agent model selection', () => {
   })
 
   it.each([
+    [
+      'qwen',
+      'qwen-settings',
+      '{"model":{"name":"provider:model"},"modelProviders":{"openai":[{"id":"provider:model"}]}}',
+      'provider:model'
+    ],
     ['kilo', 'kilo-config', '{"model":"cherry-gateway/provider:model"}', 'cherry-gateway/provider:model'],
     ['copilot', 'copilot-settings', '{"model":"cherry-gateway/provider:model"}', 'cherry-gateway/provider:model'],
     [

@@ -2,6 +2,7 @@ import { ChevronDown, Loader2 } from 'lucide-react'
 import { type ComponentProps, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { qwenPreset } from '@cherrystudio/agent-runtime-qwen-acp'
 import { Button } from '@cherrystudio/ui'
 import { LocalAgentModelAvatar } from '@renderer/components/localAgent/LocalAgentModelAvatar'
 import { LocalAgentModelSelector } from '@renderer/components/LocalAgentModelSelector'
@@ -33,6 +34,9 @@ type LocalAgentModelControlProps = {
 export function LocalAgentModelControl(props: LocalAgentModelControlProps) {
   const config = props.agent.configuration?.localRuntime
   if (!config) return null
+  if (config.presetId === qwenPreset.id && (!props.info || props.info.modelSelection === 'current-only')) {
+    return <NativeModelControl {...props} />
+  }
   return getLocalAgentProtocol(config.presetId) === 'acp' ? (
     <AcpSessionModelControl {...props} />
   ) : (
@@ -130,7 +134,8 @@ function NativeModelControl({ agent, info, sessionId, disabled, side, iconOnly =
     config,
     false
   )
-  const liveModels = info?.models
+  const isQwen = config?.presetId === qwenPreset.id
+  const liveModels = isQwen ? undefined : info?.models
   const catalogModels = (freshCatalog ?? catalog)?.models ?? []
   const catalogById = new Map(catalogModels.map((model) => [model.id, model]))
   const nativeModels = liveModels?.length
@@ -139,7 +144,14 @@ function NativeModelControl({ agent, info, sessionId, disabled, side, iconOnly =
         return entry ? { ...entry, ...model, registryModel: entry.registryModel ?? model.registryModel } : model
       })
     : catalogModels
-  const selection = useLocalAgentModelSelection(config, nativeModels)
+  const qwenGatewayAlias =
+    isQwen && config.sourceModelViaGateway && config.sourceModelId && config.nativeModel
+      ? qwenPreset.catalogId(config.nativeModel)
+      : undefined
+  const selection = useLocalAgentModelSelection(
+    config,
+    qwenGatewayAlias ? nativeModels.filter(({ id }) => id !== qwenGatewayAlias) : nativeModels
+  )
   const { models, value } = selection
   const modelConfigOptions = info?.configOptions?.filter((option) => option.category === 'model_config')
   const label = value
@@ -197,6 +209,8 @@ function NativeModelControl({ agent, info, sessionId, disabled, side, iconOnly =
           <p className="text-xs text-muted-foreground">{t('local_agents.global_model_unavailable')}</p>
         ) : info?.resume === false ? (
           <p className="text-xs text-muted-foreground">{t('local_agents.no_resume')}</p>
+        ) : isQwen ? (
+          <p className="text-xs text-muted-foreground">{t('settings.model')}</p>
         ) : undefined
       }
       trigger={
