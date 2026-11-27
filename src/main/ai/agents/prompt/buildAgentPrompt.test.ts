@@ -107,7 +107,12 @@ describe('Agent prompt onboarding', () => {
     const { blocks } = await buildAgentPrompt({
       workspacePath,
       agentDataPath: workspacePath,
-      agent: { instructions: 'Write the report.', configuration: { bootstrap_completed: true }, modelName: null },
+      agent: {
+        name: 'Reporter',
+        instructions: 'Write the report.',
+        configuration: { bootstrap_completed: true },
+        modelName: null
+      },
       referenceTool: (server, tool) => (tool === 'report_artifacts' ? `<${server}/${tool}>` : undefined),
       toolCallHint: 'Run the reporting tool from codemode.'
     })
