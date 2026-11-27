@@ -228,7 +228,7 @@ describe('GitCode sync recovery', () => {
     expect(result.status).not.toBe(0)
     expect(result.stderr).toContain(message)
     expect(requests().every((call) => call.method === 'GET' && !call.url.includes('/releases'))).toBe(true)
-    if (mirror.MIRROR_STATUS === '404') {
+    if ('MIRROR_STATUS' in mirror && mirror.MIRROR_STATUS === '404') {
       expect(result.stderr).toContain('"update_status":"failed"')
       expect(result.stderr).not.toContain('private mirror details')
     }
