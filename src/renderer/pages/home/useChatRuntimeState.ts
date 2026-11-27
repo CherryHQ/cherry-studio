@@ -30,7 +30,7 @@ import { mergeLiveReplies, mergeMessagesById } from '@renderer/utils/message/mer
 import { activeReplyIds, replyParts } from '@renderer/utils/message/messagePartRows'
 import { isRenderableConversationMessage } from '@renderer/utils/message/messageProjection'
 import type { ActiveExecution, ComposerChatTarget } from '@shared/ai/transport'
-import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import type { CherryMessagePart, CherryUIMessage, Message } from '@shared/data/types/message'
 import type { ServiceTierSelection, UniqueModelId } from '@shared/data/types/model'
 import { hasClearContextPart } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
@@ -59,6 +59,7 @@ interface UseChatRuntimeStateParams {
   replyHistory: ReplyHistory
   displayIndex(id: string): number | undefined
   uiMessages: CherryUIMessage[]
+  siblingsMap: Record<string, Message[]>
   refresh: () => Promise<void>
   activeNodeId: string | null
   messagesCacheMutate: UseTopicMessagesCacheParams['mutate']
@@ -109,6 +110,7 @@ export function useChatRuntimeState({
   replyHistory,
   displayIndex,
   uiMessages,
+  siblingsMap,
   refresh,
   activeNodeId,
   messagesCacheMutate,
@@ -452,6 +454,7 @@ export function useChatRuntimeState({
   const { actions: chatWriteActions, retryFailedMessage } = useChatWriteActions({
     topic,
     uiMessages: messages,
+    siblingsMap,
     activeNodeId,
     regenerate,
     stop,

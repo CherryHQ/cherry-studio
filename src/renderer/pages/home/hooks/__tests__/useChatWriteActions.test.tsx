@@ -22,6 +22,7 @@ vi.mock('@renderer/services/messageUiStateCache', () => ({
 }))
 
 import type { Topic } from '@renderer/types/topic'
+import type { Message } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 
 import { useChatWriteActions } from '../useChatWriteActions'
@@ -60,7 +61,8 @@ function renderActions(
   cache = makeCache(),
   activeNodeId = uiMessages.at(-1)?.id ?? null,
   startNewContextBlocked = false,
-  stop: () => Promise<void> = vi.fn(async () => {})
+  stop: () => Promise<void> = vi.fn(async () => {}),
+  siblingsMap: Record<string, Message[]> = {}
 ) {
   const scrollToBottom = vi.fn()
   const regenerate = vi.fn<Parameters<typeof useChatWriteActions>[0]['regenerate']>(async () => {})
@@ -70,6 +72,7 @@ function renderActions(
       useChatWriteActions({
         topic: { id: 't1' } as Topic,
         uiMessages,
+        siblingsMap,
         activeNodeId,
         regenerate,
         stop,
@@ -761,6 +764,39 @@ describe('useChatWriteActions — regenerate', () => {
       })
     }
   )
+
+  it('regenerates a collapsed same-model sibling group with the tab model', async () => {
+    const olderSibling = uiMsg('a1', 'assistant', 'u1')
+    olderSibling.metadata.modelId = 'provider::model-a'
+    olderSibling.parts = [{ type: 'text', text: 'first answer' }]
+    const displayedReply = uiMsg('a2', 'assistant', 'u1')
+    displayedReply.metadata.modelId = 'provider::model-a'
+    displayedReply.parts = [{ type: 'text', text: 'second answer' }]
+    const siblingsMap = { a1: [olderSibling, displayedReply], a2: [olderSibling, displayedReply] } as Record<
+      string,
+      Message[]
+    >
+    streamOpen.mockResolvedValueOnce({ mode: 'started', reservedMessages: [] })
+    const { result, rerender } = renderActions(
+      [uiMsg('u1', 'user', 'vroot'), displayedReply],
+      makeCache(),
+      'a2',
+      false,
+      vi.fn(async () => {}),
+      siblingsMap
+    )
+    rerender({ composerModelId: 'provider::model-b' })
+
+    await result.current.actions.regenerate('a2')
+
+    expect(streamOpen).toHaveBeenCalledWith({
+      trigger: 'regenerate-message',
+      topicId: 't1',
+      parentAnchorId: 'u1',
+      appendToLiveGroupMessageId: 'a2',
+      mentionedModelIds: ['provider::model-a']
+    })
+  })
 
   it('keeps the composer model for a lone explicit reply', async () => {
     const reply = uiMsg('a1', 'assistant', 'u1', false, 'success')

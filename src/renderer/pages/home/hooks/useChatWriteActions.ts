@@ -50,8 +50,15 @@ function getDirectAssistantModelIds(messages: CherryUIMessage[], userMessageId: 
  * siblings). A tab owns its model: regenerating it must re-run that tab's model
  * instead of the composer selection owned by the group header.
  */
-function isGroupedAssistantReply(messages: CherryUIMessage[], target: CherryUIMessage | undefined): boolean {
+function isGroupedAssistantReply(
+  messages: CherryUIMessage[],
+  siblingsMap: Record<string, DbMessage[]>,
+  target: CherryUIMessage | undefined
+): boolean {
   if (target?.role !== 'assistant') return false
+  // Same-model siblings collapse to a single display row, so `messages` no longer proves the
+  // group exists; the loaded branch's sibling map is the only place that still knows about it.
+  if ((siblingsMap[target.id]?.length ?? 0) > 1) return true
   const parentId = target.metadata?.parentId
   if (!parentId) return false
 
@@ -90,6 +97,8 @@ export type ReservedMessageSeedOptions = Pick<
 interface Params {
   topic: Topic
   uiMessages: CherryUIMessage[]
+  /** Sibling groups from the loaded branch; same-model groups are collapsed in `uiMessages`. */
+  siblingsMap?: Record<string, DbMessage[]>
   activeNodeId: string | null
   regenerate: (options?: ChatRequestOptions) => Promise<void>
   stop: () => Promise<void>
@@ -114,6 +123,7 @@ export function useChatWriteActions(params: Params): Result {
   const {
     topic,
     uiMessages,
+    siblingsMap = {},
     activeNodeId,
     regenerate,
     stop,
@@ -323,7 +333,7 @@ export function useChatWriteActions(params: Params): Result {
       // regenerating a non-main tab must not fall back to the assistant's model. Ungrouped
       // replies keep the composer-driven behaviour, and an explicit `options.modelId` (the
       // model picker) still wins everywhere.
-      const groupedReplyModelId = isGroupedAssistantReply(uiMessages, target)
+      const groupedReplyModelId = isGroupedAssistantReply(uiMessages, siblingsMap, target)
         ? resolveUniqueModelId(target?.metadata?.modelId, target?.metadata?.messageSnapshot?.model)
         : undefined
       const regenerateModelId =
@@ -386,7 +396,7 @@ export function useChatWriteActions(params: Params): Result {
         }
       })
     },
-    [regenerate, capabilityBody, uiMessages, seedReservedMessages, topic.id, composerModelId]
+    [regenerate, capabilityBody, uiMessages, siblingsMap, seedReservedMessages, topic.id, composerModelId]
   )
 
   const handleForkAndResend = useCallback<ChatWriteActions['forkAndResend']>(
