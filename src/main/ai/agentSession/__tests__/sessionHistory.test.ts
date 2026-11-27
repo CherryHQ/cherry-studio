@@ -378,7 +378,12 @@ it('withholds reference history when prior native metadata belongs to the destin
     .update(agentSessionMessageTable)
     .set({
       runtimeResumeToken: '7',
-      data: { ...historical.data, runtimeAnchor: { checkpoint: { runtime: 'pi-durable' } } }
+      data: {
+        ...historical.data,
+        runtimeAnchor: {
+          checkpoint: { runtime: 'pi-durable', backendId: destination.backendId, conversationId: '7' }
+        }
+      }
     })
     .where(eq(agentSessionMessageTable.id, head))
     .run()

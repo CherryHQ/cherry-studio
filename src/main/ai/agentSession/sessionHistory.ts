@@ -74,9 +74,7 @@ function isDestinationOwnedNativeMetadata(
     if (source) return sameTarget(source)
   }
 
-  return [row.runtimeResumeToken, row.data.nativeSessionId].some(
-    (token) => token !== null && token !== undefined && token === destination.nativeThreadId
-  )
+  return false
 }
 
 /** Reuse product history only before this branch has submitted native input. */

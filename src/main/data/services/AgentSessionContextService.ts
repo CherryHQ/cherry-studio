@@ -330,7 +330,7 @@ class AgentSessionContextService {
     const previous = this.contextTx(tx, contextId)
     const context = tx
       .update(contexts)
-      .set({ backendId, nativeThreadId, checkpointMapping: null })
+      .set({ backendId, nativeThreadId, checkpointMapping: { referenceHistory: true } })
       .where(eq(contexts.id, contextId))
       .returning()
       .get()
