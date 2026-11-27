@@ -5389,7 +5389,7 @@
   "settings.mcp.url": "URL",
   "settings.memory.backup_full": "恢复备份空间不足，本次未保存新修改。",
   "settings.memory.clear": "清除全局记忆",
-  "settings.memory.clear_confirm": "确定清除本地所有记忆文件么？",
+  "settings.memory.clear_confirm": "此次操作仅清除 Cherry Studio 管理的全局共享记忆。恢复备份中可能保留原内容。",
   "settings.memory.clear_success": "清除成功",
   "settings.memory.dreaming.automatic": "自动整理记忆",
   "settings.memory.dreaming.budget": "默认模型容量不可用或不足。请切换默认模型或缩小记忆文件后重试。",
