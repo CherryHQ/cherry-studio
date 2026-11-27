@@ -83,7 +83,8 @@ void test('an admitted batch is saved, organized, recalled, cleared and recovere
   assert.equal((await session.entry()).content.match(/I prefer tea/g).length, 1)
   assert.equal(await session.runMaintenance({ extraction: true, organization: false }), 'idle')
   ports.model = organization
-  await session.requestOrganization()
+  const eligibleAt = ports.now() + 7 * 86400000
+  ports.now = () => eligibleAt
   assert.equal(await session.runMaintenance({ extraction: false, organization: true }), 'organized')
   const row = {
     owner: access.owner,
