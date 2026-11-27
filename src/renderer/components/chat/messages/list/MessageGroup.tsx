@@ -114,7 +114,7 @@ const MessageGroup = ({
   const historicalParts = useMemo(
     () =>
       isHistoricalProcessGroup
-        ? messages.flatMap((message) => partsByMessageId?.[message.id] ?? [])
+        ? messages.flatMap((message) => messagePartsAt(partsByMessageId, message.id) ?? EMPTY_MESSAGE_PARTS)
         : EMPTY_MESSAGE_PARTS,
     [isHistoricalProcessGroup, messages, partsByMessageId]
   )

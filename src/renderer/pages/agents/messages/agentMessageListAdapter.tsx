@@ -250,7 +250,7 @@ export function useAgentMessageListProviderValue({
   )
   const visibleMessages = useMemo(() => {
     if (hasOlder) return messages
-    const firstUser = messages.findIndex((message) => message.role === 'user')
+    const firstUser = messages.findIndex((message) => message.role === 'user' && !message.metadata?.provenance?.isSetup)
     return firstUser > 0
       ? messages.filter((message, index) => index >= firstUser || !message.metadata?.provenance)
       : messages

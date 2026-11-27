@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type * as CherryUi from '@cherrystudio/ui'
 import { TabIdContext } from '@renderer/hooks/tab'
 import { getCachedMessageUiState, updateCachedMessageUiState } from '@renderer/services/messageUiStateCache'
+import { PartOverrides } from '@renderer/utils/message/messagePartRows'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
@@ -53,7 +54,7 @@ const mocks = vi.hoisted(() => ({
     <div
       data-testid="message-parts-content"
       data-message-id={messageId}
-      data-part-text={parts[0]?.type === 'text' ? parts[0].text : ''}
+      data-part-text={parts.find((part) => part.type === 'text')?.text ?? ''}
       data-tool-outputs={JSON.stringify(
         parts.filter((part) => part.type === 'dynamic-tool').map((part) => part.output)
       )}
@@ -358,18 +359,23 @@ describe('MessageGroup', () => {
       ])
     )
     const elements = new Map<string, HTMLElement | null>()
+    const sparse = new PartOverrides(
+      parts,
+      new Map([['result', [...parts.result, { type: 'text', text: 'Final answer' }]]])
+    )
     const registerMessageElement = (id: string, element: HTMLElement | null) => {
       elements.set(id, element)
     }
     const { rerender } = render(
       <MessageGroup
         messages={messages.map((message) => ({ ...message }))}
-        partsByMessageId={parts}
+        partsByMessageId={sparse}
         registerMessageElement={registerMessageElement}
       />
     )
     expect(screen.getAllByTestId('message-parts-content')).toHaveLength(1)
     expect(screen.getByTestId('message-parts-content')).toHaveAttribute('data-tool-outputs', '["call","result"]')
+    expect(screen.getByTestId('message-parts-content')).toHaveAttribute('data-part-text', 'Final answer')
     expect(elements.get('call')).toBeInstanceOf(HTMLElement)
     expect(elements.get('result')).toBe(elements.get('call'))
     expect(screen.queryByText('menu')).toBeNull()
