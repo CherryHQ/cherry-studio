@@ -148,6 +148,73 @@ describe('local history atomic import', () => {
     ).toEqual([expect.objectContaining({ status: 'existing', sessionId: imported.sessionId })])
     expect(dbh.db.select().from(agentSessionTable).all()).toHaveLength(1)
   })
+  function writeWorkBuddyIndex(sourceRoot: string, timestamp: number, withCloud = false) {
+    const sourceDb = new Database(path.join(sourceRoot, 'workbuddy.db'))
+    try {
+      sourceDb.pragma('journal_mode = WAL')
+      sourceDb.exec(
+        'CREATE TABLE sessions (id TEXT PRIMARY KEY, cwd TEXT, title TEXT, custom_title TEXT, transport TEXT, deleted_at INTEGER, created_at INTEGER, updated_at INTEGER, last_activity_at INTEGER)'
+      )
+      const insert = sourceDb.prepare('INSERT INTO sessions VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      insert.run('wb', root, 'WorkBuddy', '', 'local', null, timestamp, timestamp, timestamp)
+      if (withCloud) insert.run('cloud', '', 'Cloud only', '', 'cloud', -1, timestamp, timestamp, timestamp)
+    } finally {
+      sourceDb.close()
+    }
+  }
+
+  it.each([
+    { marker: { status: 'incomplete' }, accepted: true },
+    { marker: { providerData: { isPartialAborted: true } }, accepted: true },
+    { marker: { status: 'incomplete', arguments: '{' }, accepted: false },
+    { marker: {}, accepted: false }
+  ])(
+    'imports an unmatched WorkBuddy tool call only with an interruption marker: $marker',
+    async ({ marker, accepted }) => {
+      const source = path.join(root, 'source')
+      const project = path.join(source, 'projects', 'project')
+      await mkdir(project, { recursive: true })
+      const timestamp = Date.UTC(2026, 0, 1)
+      writeWorkBuddyIndex(source, timestamp)
+      const user = {
+        sessionId: 'wb',
+        timestamp,
+        id: 'user',
+        type: 'message',
+        role: 'user',
+        content: [{ type: 'input_text', text: 'Inspect' }]
+      }
+      const call = {
+        sessionId: 'wb',
+        timestamp: timestamp + 1,
+        id: 'call',
+        parentId: 'user',
+        type: 'function_call',
+        callId: 'tool-1',
+        name: 'inspect',
+        arguments: '{"file":"notes.md"}',
+        ...marker
+      }
+      await writeFile(path.join(project, 'wb.jsonl'), [user, call].map((row) => JSON.stringify(row)).join('\n'))
+      const scan = await service.discover('window', 'workbuddy', source)
+      const { ref } = scan.candidates[0]
+      const preview = await service.preview('window', scan.scanId, 'pi', [{ ref }])
+      const [outcome] = await service.commit('window', preview.previewId, [ref])
+      if (!accepted) {
+        expect(preview.items[0].diagnostics).toContainEqual(
+          expect.objectContaining({ code: 'unsupported_tool_history', severity: 'error' })
+        )
+        expect(outcome).toMatchObject({ status: 'failed', reason: 'preview_blocked' })
+        expect(dbh.db.select().from(agentSessionTable).all()).toHaveLength(0)
+        return
+      }
+      expect(outcome.status).toBe('imported')
+      const stored = readStoredAgentSessionPath(dbh.db, outcome.sessionId!)
+      expect(stored.at(-1)).toMatchObject({ role: 'system', status: 'paused' })
+      expect(stored.at(-1)?.data.parts).toEqual([{ type: 'text', text: expect.stringContaining('tool-1') }])
+    }
+  )
+
   it('imports WorkBuddy backward intervals atomically and sends causal history to Pi', async () => {
     const sourceRoot = path.join(root, 'source')
     const project = path.join(sourceRoot, 'projects', 'project')
@@ -203,15 +270,7 @@ describe('local history atomic import', () => {
     })
     labels.push('WB answer')
     await writeFile(path.join(project, 'wb.jsonl'), rows.map((row) => JSON.stringify(row)).join('\n'))
-    const sourceDb = new Database(path.join(sourceRoot, 'workbuddy.db'))
-    sourceDb.pragma('journal_mode = WAL')
-    sourceDb.exec(
-      'CREATE TABLE sessions (id TEXT PRIMARY KEY, cwd TEXT, title TEXT, custom_title TEXT, transport TEXT, deleted_at INTEGER, created_at INTEGER, updated_at INTEGER, last_activity_at INTEGER)'
-    )
-    const insert = sourceDb.prepare('INSERT INTO sessions VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
-    insert.run('wb', root, 'WorkBuddy', '', 'local', null, timestamp, timestamp, timestamp)
-    insert.run('cloud', '', 'Cloud only', '', 'cloud', -1, timestamp, timestamp, timestamp)
-    sourceDb.close()
+    writeWorkBuddyIndex(sourceRoot, timestamp, true)
     const scan = await service.discover('window', 'workbuddy', sourceRoot)
     expect(await readdir(sourceRoot)).not.toContain('workbuddy.db-wal')
     expect(await readdir(sourceRoot)).not.toContain('workbuddy.db-shm')

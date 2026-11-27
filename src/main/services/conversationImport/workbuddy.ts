@@ -207,8 +207,7 @@ export const workbuddyAdapter: HistorySourceAdapter = {
     const diagnose = (code: string, line: number, severity: 'error' | 'warning' = 'error') =>
       result.diagnostics.push({ code, line, path: file, severity })
     const ids = new Set<string>()
-    const calls = new Map<string, string>()
-    const completed = new Set<string>()
+    const calls = new Map<string, { name: string; state: 'pending' | 'interrupted' | 'returned' }>()
     let parent: string | undefined
     for (const { text, line } of input.lines) {
       signal.throwIfAborted()
@@ -320,7 +319,6 @@ export const workbuddyAdapter: HistorySourceAdapter = {
           diagnose('unsupported_tool_history', line)
           continue
         }
-        calls.set(record.callId, record.name)
         let argumentsValue: unknown
         try {
           argumentsValue = JSON.parse(record.arguments ?? '')
@@ -328,6 +326,7 @@ export const workbuddyAdapter: HistorySourceAdapter = {
           diagnose('unsupported_tool_history', line)
           continue
         }
+        calls.set(record.callId, { name: record.name, state: status === 'paused' ? 'interrupted' : 'pending' })
         append('system', [
           {
             type: 'text',
@@ -338,16 +337,12 @@ export const workbuddyAdapter: HistorySourceAdapter = {
           }
         ])
       } else {
-        if (
-          !record.callId ||
-          !calls.has(record.callId) ||
-          completed.has(record.callId) ||
-          (record.name && record.name !== calls.get(record.callId))
-        ) {
+        const call = record.callId ? calls.get(record.callId) : undefined
+        if (!call || call.state === 'returned' || (record.name && record.name !== call.name)) {
           diagnose('unsupported_tool_history', line)
           continue
         }
-        completed.add(record.callId)
+        call.state = 'returned'
         const outputs = Array.isArray(record.output) ? record.output : [record.output]
         const output = outputs
           .map((value) => {
@@ -366,14 +361,14 @@ export const workbuddyAdapter: HistorySourceAdapter = {
             type: 'text',
             text: formatClaudeTool(
               { type: 'tool_result', content: output + '\n\nCall ID: ' + record.callId },
-              calls.get(record.callId)
+              call.name
             )
           }
         ])
       }
     }
     if (!result.messages.length) diagnose('empty_session', 0)
-    if ([...calls.keys()].some((id) => !completed.has(id))) diagnose('unsupported_tool_history', 0)
+    if ([...calls.values()].some((call) => call.state === 'pending')) diagnose('unsupported_tool_history', 0)
     result.title ||= 'WorkBuddy · ' + new Date(row.created_at).toISOString().slice(0, 10)
     const after = await readJsonl(file, signal)
     const finalIdentity = await lstat(file)

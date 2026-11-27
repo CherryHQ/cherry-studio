@@ -44,6 +44,7 @@ Codex 默认在 `sessions` 和 `archived_sessions` 查找 rollout。手动指定
 WorkBuddy 读取活动 WAL 数据库时要求 WAL 和 SHM 文件齐全。正常关闭后，两者都不存在时以只读快照打开索引，查询后复核文件状态。只剩一个辅助文件时提示重试。
 WorkBuddy 入口仅在开发环境可操作，正式构建保持禁用。三平台真实来源和打包验收尚未完成。此限制不代表读取器已覆盖所有发布版本。
 
+WorkBuddy 工具调用的参数有效且标有 `status: 'incomplete'` 或 `providerData.isPartialAborted: true` 时，即使缺少结果，也按已暂停的历史文本导入。其他缺少结果的调用会阻止导入。
 WorkBuddy 优先保存 providerData.model 中的实际模型。快速／均衡属于请求路由；只有路由信息时明确标为 WorkBuddy 路由名称，不猜测实际模型。
 
 设置入口使用 WorkBuddy 5.9.3 官方桌面包的原始应用图标。图像内容未修改；显示时补偿原图透明留白，与其他来源图标保持相同视觉尺寸。
