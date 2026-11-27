@@ -315,4 +315,21 @@ describe('useScrollPositionMemory', () => {
 
     expect(cacheService.set).toHaveBeenCalledWith('chat.scroll_anchor.t1', null)
   })
+
+  it('preserves the keyed anchor when a freeze spacer holds scrollTop past realBottom', () => {
+    // Freeze spacer (500px) holds scrollTop at 600px while realBottom shrinks to
+    // 1200 - 500 - 400 = 300px; save must not treat negative (realBottom - scrollTop) as bottom.
+    const { result } = renderHook(() => useScrollPositionMemory(buildInputs({ getBottomInset: () => 500 })))
+    flushRaf()
+
+    following = false
+    scroller.scrollHeight = 1200
+    scroller.clientHeight = 400
+    scroller.scrollTop = 600
+    handle.findItemIndex.mockReturnValue(1)
+    handle.getItemOffset.mockReturnValue(500)
+    act(() => result.current.save(true))
+
+    expect(cacheService.set).toHaveBeenCalledWith('chat.scroll_anchor.t1', { key: 'g1', offset: 100 })
+  })
 })

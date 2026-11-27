@@ -157,7 +157,7 @@ export function useScrollPositionMemory(inputs: ScrollPositionMemoryInputs): Scr
     if (!immediate && now - lastSaveAtRef.current < SAVE_THROTTLE_MS) return
     lastSaveAtRef.current = now
     const realBottom = getRealBottom(el, i.getBottomInset?.() ?? 0)
-    const atBottom = el.clientHeight > 0 && realBottom - el.scrollTop <= AT_BOTTOM_TOLERANCE_PX
+    const atBottom = el.clientHeight > 0 && Math.abs(realBottom - el.scrollTop) <= AT_BOTTOM_TOLERANCE_PX
     const anchor = computeScrollAnchor({
       following: i.isFollowing(),
       atBottom,

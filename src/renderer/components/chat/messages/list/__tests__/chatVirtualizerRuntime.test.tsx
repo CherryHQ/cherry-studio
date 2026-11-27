@@ -1,7 +1,10 @@
+import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { act, render } from '@testing-library/react'
 import { type ReactNode, type Ref } from 'react'
 import type { VListHandle } from 'virtua'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
+import { cacheService } from '@data/CacheService'
 
 import {
   type ChatVirtualizerRuntime,
@@ -1917,6 +1920,83 @@ describe('useChatVirtualizerRuntime', () => {
       expect(runtime!.freezeSpacerRef.current).toHaveStyle({ height: '500px' })
       expect(scrollTop).toBe(600)
     } finally {
+      nowSpy.mockRestore()
+      raf.restore()
+    }
+  })
+
+  it('preserves the keyed reading anchor on save and reopen after disclosure shrink freezes scrollTop past realBottom', () => {
+    const raf = installQueuedAnimationFrame()
+    const nowSpy = vi.spyOn(performance, 'now').mockReturnValue(1_000_000)
+    MockCacheUtils.resetMocks()
+
+    try {
+      let runtime: ChatVirtualizerRuntime<string> | undefined
+      let scrollTop = 600
+      let naturalScrollHeight = 1200
+      const view = render(
+        <RuntimeDomProbe
+          items={['current-user-message', 'assistant-message']}
+          topicId="topic-disclosure-freeze"
+          onRuntime={(nextRuntime) => (runtime = nextRuntime)}
+        />
+      )
+      const scroller = runtime!.scrollerRef.current!
+      Object.defineProperty(scroller, 'scrollTop', {
+        configurable: true,
+        get: () => scrollTop,
+        set: (value) => {
+          scrollTop = value
+        }
+      })
+      setElementMetric(scroller, 'clientHeight', () => 400)
+      setElementMetric(scroller, 'scrollHeight', () => {
+        const slack = Number.parseFloat(runtime!.freezeSpacerRef.current?.style.height || '0')
+        return naturalScrollHeight + slack
+      })
+      runtime!.vlistHandleRef.current = createHandle(scroller, {
+        findItemIndex: vi.fn(() => 1),
+        getItemOffset: vi.fn((index) => (index === 1 ? 500 : 0))
+      })
+      raf.tick(60)
+
+      scrollTop = 600
+      act(() => runtime!.takeUserControl('user-scrolled-up'))
+
+      naturalScrollHeight = 700
+      scrollTop = 300
+      act(() => runtime!.scrollerProps.onScroll(300))
+
+      expect(runtime!.freezeSpacerRef.current).toHaveStyle({ height: '500px' })
+      expect(scrollTop).toBe(600)
+      expect(cacheService.get('chat.scroll_anchor.topic-disclosure-freeze')).toEqual({
+        key: 'assistant-message',
+        offset: 100
+      })
+
+      view.unmount()
+
+      let reopenedRuntime: ChatVirtualizerRuntime<string> | undefined
+      let reopenedHandle: MessageVirtualListHandle | null = null
+      const reopenedHandleRef: Ref<MessageVirtualListHandle> = (nextHandle) => {
+        reopenedHandle = nextHandle
+      }
+      render(
+        <RuntimeDomProbe
+          items={['current-user-message', 'assistant-message']}
+          topicId="topic-disclosure-freeze"
+          handleRef={reopenedHandleRef}
+          onRuntime={(nextRuntime) => (reopenedRuntime = nextRuntime)}
+        />
+      )
+      const reopenedVlistHandle = createHandle(reopenedRuntime!.scrollerRef.current)
+      reopenedRuntime!.vlistHandleRef.current = reopenedVlistHandle
+      raf.tick(60)
+
+      expect(reopenedVlistHandle.scrollToIndex).toHaveBeenCalledWith(1, { align: 'start', offset: 100 })
+      expect(reopenedHandle!.isFollowing()).toBe(false)
+    } finally {
+      MockCacheUtils.resetMocks()
       nowSpy.mockRestore()
       raf.restore()
     }
