@@ -17,6 +17,7 @@ export type AgentSessionImportMetadata = z.infer<typeof AgentSessionImportMetada
 
 export const MessageProvenanceSchema = z.strictObject({
   source: HistorySourceSchema,
-  sourceOrder: z.number().int().nonnegative()
+  sourceOrder: z.number().int().nonnegative(),
+  isSetup: z.literal(true).optional()
 })
 export type MessageProvenance = z.infer<typeof MessageProvenanceSchema>
