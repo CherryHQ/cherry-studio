@@ -124,14 +124,28 @@ function providerErrorCodes(value: unknown, decodeDepth = 0): string {
 }
 
 const CLAUDE_CODE_REJECTION_PREFIX = /^API Error: Request rejected \(\d{3}\) \u00b7 /
+const HTTP_STATUS_JSON_PREFIX = /^(?:API Error:\s*[45]\d{2}\s+|[45]\d{2}:\s*)/i
 
 /** Drops the `API Error: Request rejected (429) · ` prefix Claude Code puts before a provider's own rejection text. */
 export function stripClaudeCodeRejectionPrefix(text: string): string {
   return text.replace(CLAUDE_CODE_REJECTION_PREFIX, '')
 }
 
+// Claude Code formats HTTP rejections as `API Error: 400 {"error":{"message":"..."}}`;
+// extract the safe provider message instead of dropping the whole string as a container.
+function prefixedPayloadText(value: unknown): string {
+  if (typeof value !== 'string' || value.length > MAX_PROVIDER_ERROR_INPUT_LENGTH) return ''
+  const trimmed = value.trimStart()
+  const stripped = trimmed.replace(HTTP_STATUS_JSON_PREFIX, '')
+  return stripped !== trimmed ? payloadText(stripped) : ''
+}
+
 export function getSafeProviderErrorMessage(source: ProviderErrorSource): string {
-  const text = payloadText(source.responseBody) || payloadText(source.data) || providerPayloadText(source.message)
+  const text =
+    payloadText(source.responseBody) ||
+    payloadText(source.data) ||
+    prefixedPayloadText(source.message) ||
+    providerPayloadText(source.message)
   return text.length > MAX_PROVIDER_ERROR_MESSAGE_LENGTH ? `${text.slice(0, MAX_PROVIDER_ERROR_MESSAGE_LENGTH)}…` : text
 }
 

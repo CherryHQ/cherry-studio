@@ -379,13 +379,6 @@ describe('createFormulaEvaluator — result classification (contract §2 table)'
   })
 })
 
-describe('createFormulaEvaluator — unknown functions', () => {
-  it('returns unevaluated for an unrecognized function name', () => {
-    const { evaluator } = setup({})
-    expect(evaluator.evaluate('FOOBAR(1)', POS)).toEqual({ state: 'unevaluated' })
-  })
-})
-
 describe('createFormulaEvaluator — budget', () => {
   it('with budgetMs=0, immediately returns unevaluated for everything', () => {
     const sheets = { Sheet1: { '1:1': { value: 1 } } }

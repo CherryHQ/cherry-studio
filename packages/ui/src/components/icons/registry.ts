@@ -14,6 +14,8 @@ import type { IconMeta } from './types'
  * Order matters: more specific patterns must come before general ones.
  */
 const MODEL_ICON_PATTERNS: ReadonlyArray<[RegExp, string]> = [
+  [/gpt-6[.-]2-astra/i, 'gpt-6-2-astra'],
+  [/gpt-6[.-]2-sol/i, 'gpt-6-2-sol'],
   [/gpt-6[.-]1-sol/i, 'gpt-6-1-sol'],
   [/gpt-6[.-]1-terra/i, 'gpt-6-1-terra'],
   [/gpt-6-astra/i, 'gpt-6-astra'],
@@ -121,7 +123,10 @@ const MODEL_ICON_PATTERNS: ReadonlyArray<[RegExp, string]> = [
   // Widely used model families with dedicated model marks
   [/deepseek/i, 'deepseek'],
   [/nous-|hermes|deephermes/i, 'nousresearch'],
+  [/(?:^|[-_/ ])inkling(?:[-_ .:]|$)/i, 'inkling'],
+  [/(?:^|[-_/ ])muse(?:[- ]?spark|[- ]image)(?:[-_ .:]|$)/i, 'meta'],
   [/llama|meta-/i, 'meta'],
+  [/(?:^|[-_/ ])mai[- ][a-z]/i, 'mai'],
   [/mistral|pixtral|codestral|ministral|voxtral|devstral|mixtral|magistral/i, 'mistral'],
   [/minimax|abab/i, 'minimax'],
   [/jamba|j2-/i, 'ai21'],
@@ -134,6 +139,10 @@ const MODEL_ICON_PATTERNS: ReadonlyArray<[RegExp, string]> = [
   [/cogito/i, 'deepcogito'],
   [/mercury/i, 'inception'],
   [/relace/i, 'relace'],
+  [/(?:^|\/)flint(?:[-_ .:]|$)/i, 'recursive'],
+  [/(?:^|\/)beam(?:[-_ .:]|$)/i, 'reflection'],
+  [/(?:^|\/)(?:fugu|(?:sakana[- ])?namazu)(?:[-_ .:]|$)/i, 'sakana'],
+  [/(?:^|\/)(?:scaledown[-/]|(?:extract|summarize)-1(?:[-_ .:]|$))/i, 'scaledown'],
   [/jina/i, 'jina'],
   [/(?:^|[-_/])(?:pplx|sonar)(?:[-_/]|$)/i, 'perplexity'],
   [/(?:^|[-_/])flux(?:[-_.\d]|$)/i, 'flux'],
