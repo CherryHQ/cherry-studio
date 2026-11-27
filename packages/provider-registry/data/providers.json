@@ -980,6 +980,14 @@
       "defaultChatEndpoint": "openai-responses",
       "description": "OpenAI Codex - AI model provider",
       "endpointConfigs": {
+        "openai-image-edit": {
+          "adapterFamily": "openai",
+          "baseUrl": "https://chatgpt.com/backend-api/codex"
+        },
+        "openai-image-generation": {
+          "adapterFamily": "openai",
+          "baseUrl": "https://chatgpt.com/backend-api/codex"
+        },
         "openai-responses": {
           "adapterFamily": "openai",
           "baseUrl": "https://chatgpt.com/backend-api/codex",
@@ -2969,5 +2977,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "5179a16fddc562d9"
+  "version": "223941cfbac5d194"
 }

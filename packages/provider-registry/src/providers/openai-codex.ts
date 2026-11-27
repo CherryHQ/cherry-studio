@@ -3,6 +3,8 @@ import type { ProviderModelOverride } from '../schemas/provider-models'
 import { defineProvider } from './types'
 import { openaiResponsesSummaryWire } from './wires'
 
+const CODEX_API_BASE_URL = 'https://chatgpt.com/backend-api/codex'
+
 /**
  * The Codex backend publishes its own per-model ladder in upstream
  * `codex-rs/models-manager/models.json` — it differs from the platform API
@@ -34,9 +36,11 @@ export default defineProvider({
   authMethods: ['oauth'],
   fastMode: { transport: 'openai-priority' },
   endpointConfigs: {
+    'openai-image-generation': { adapterFamily: 'openai', baseUrl: CODEX_API_BASE_URL },
+    'openai-image-edit': { adapterFamily: 'openai', baseUrl: CODEX_API_BASE_URL },
     'openai-responses': {
       adapterFamily: 'openai',
-      baseUrl: 'https://chatgpt.com/backend-api/codex',
+      baseUrl: CODEX_API_BASE_URL,
       reasoningFormat: { type: 'openai-responses', wire: openaiResponsesSummaryWire }
     }
   },
@@ -152,6 +156,18 @@ export default defineProvider({
       endpointTypes: ['openai-responses'],
       reasoningContracts: codexReasoning(['low', 'medium', 'high', 'xhigh'], 'medium')
     },
-    { modelId: 'gpt-5-3-codex-spark', apiModelId: 'gpt-5.3-codex-spark', endpointTypes: ['openai-responses'] }
+    { modelId: 'gpt-5-3-codex-spark', apiModelId: 'gpt-5.3-codex-spark', endpointTypes: ['openai-responses'] },
+    // Codex publishes no image catalog. Keep the current image IDs, not gpt-image-1 or 1-mini.
+    // gpt-image-2.5/2.6 are omitted because that API does not select them.
+    {
+      modelId: 'gpt-image-2',
+      apiModelId: 'gpt-image-2',
+      endpointTypes: ['openai-image-generation', 'openai-image-edit']
+    },
+    {
+      modelId: 'gpt-image-1-5',
+      apiModelId: 'gpt-image-1.5',
+      endpointTypes: ['openai-image-generation', 'openai-image-edit']
+    }
   ]
 })

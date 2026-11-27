@@ -23324,6 +23324,18 @@
       "supportsFastMode": true
     },
     {
+      "apiModelId": "gpt-image-1.5",
+      "endpointTypes": ["openai-image-generation", "openai-image-edit"],
+      "modelId": "gpt-image-1-5",
+      "providerId": "openai-codex"
+    },
+    {
+      "apiModelId": "gpt-image-2",
+      "endpointTypes": ["openai-image-generation", "openai-image-edit"],
+      "modelId": "gpt-image-2",
+      "providerId": "openai-codex"
+    },
+    {
       "apiModelId": "deepseek-flash",
       "endpointTypes": ["openai-chat-completions"],
       "modelId": "deepseek-flash",
@@ -46426,5 +46438,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "6ccad83ba9155937"
+  "version": "110526eaf809d815"
 }

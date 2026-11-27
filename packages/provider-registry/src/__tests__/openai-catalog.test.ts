@@ -502,4 +502,39 @@ describe('OpenAI catalog', () => {
   it('enables OpenAI web search for GPT-6 Astra', () => {
     expect(isServerToolModelEligible('gpt-6-astra', 'openai', 'web-search')).toBe(true)
   })
+
+  it.each([
+    ['gpt-image-2', 'gpt-image-2'],
+    ['gpt-image-1-5', 'gpt-image-1.5']
+  ])('lists Codex image model %s at wire id %s', (modelId, apiModelId) => {
+    const override = loader.findOverride('openai-codex', apiModelId)
+    expect(override).toMatchObject({
+      modelId,
+      apiModelId,
+      endpointTypes: ['openai-image-generation', 'openai-image-edit']
+    })
+    expect(override?.reasoningContracts).toBeUndefined()
+  })
+
+  it('sends Codex image endpoints to the Codex backend', () => {
+    const configs = loader.findProvider('openai-codex')?.endpointConfigs
+    expect(configs?.['openai-image-generation']).toMatchObject({
+      adapterFamily: 'openai',
+      baseUrl: 'https://chatgpt.com/backend-api/codex'
+    })
+    expect(configs?.['openai-image-edit']).toMatchObject({
+      adapterFamily: 'openai',
+      baseUrl: 'https://chatgpt.com/backend-api/codex'
+    })
+  })
+
+  it.each([
+    ['gpt-image-1', 'gpt-image-1'],
+    ['gpt-image-1-mini', 'gpt-image-1-mini'],
+    ['gpt-image-2-5-flare', 'gpt-image-2.5-flare'],
+    ['gpt-image-2-6-flare', 'gpt-image-2.6-flare']
+  ])('does not offer %s on Codex', (modelId, apiModelId) => {
+    const overrides = loader.getOverridesForProvider('openai-codex')
+    expect(overrides.some((override) => override.modelId === modelId || override.apiModelId === apiModelId)).toBe(false)
+  })
 })
