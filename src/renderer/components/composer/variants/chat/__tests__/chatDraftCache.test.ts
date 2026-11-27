@@ -68,6 +68,7 @@ describe('chatDraftCache', () => {
     const stale = nonempty ? sampleDraft() : emptyDraft()
     writeChatDraftCache(topic, stale)
     const oldMemory = cacheService.get(getChatDraftCacheKey(topic))
+    if (!oldMemory) throw new Error('Expected the written draft in memory')
     writeChatDraftCache(topic, nonempty ? emptyDraft() : sampleDraft())
     const newerMirror = localStorage.getItem(getChatDraftCacheKey(topic))
     // Simulate another renderer updating storage without replacing this renderer's memory tier.
