@@ -56,7 +56,7 @@ This note partially supersedes the gateway-route paragraph of [Desktop agent run
 - AC6 — A preset whose home variable would leave a generated file outside the overlay fails the launch with an explicit error and writes nothing to the user's home. (verification: unit)
 - AC7 — Scheduled tasks and Cherry-launched terminals of an Agent with a Cherry model use the selected model through the same binding. (verification: unit)
 - AC8 — Agent Services offers Cherry models only for presets that declare a binding, and Factory Droid, Poolside and Hermes offer none. (verification: renderer)
-- AC9 — The OpenClaw Gateway and DeepSeek Harness started by Cherry for an API Gateway model read a Cherry-generated configuration and a service-scoped credential, leave the user's native configuration unchanged, and release the credential when the service stops. Direct provider selections and external services keep their current configuration. (verification: unit)
+- AC9 — The OpenClaw Gateway and DeepSeek Harness started by Cherry for an API Gateway model read a Cherry-generated configuration and a service-scoped credential, write no gateway route or credential into the user's native configuration, and release the credential when the service stops. Direct provider selections and external services keep their current configuration. (verification: unit)
 - AC10 — The local Agent runtime reference describes launch-scoped binding and no longer documents file-written gateway selections. (verification: docs gate)
 
 ## Risks

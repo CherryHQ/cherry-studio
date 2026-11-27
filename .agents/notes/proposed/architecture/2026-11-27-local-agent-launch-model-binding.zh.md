@@ -56,7 +56,7 @@ Hermes 不提供 Cherry 模型。每个 Hermes 客户端都会为自己的主目
 - AC6 — 若预设的主目录变量会让某个生成文件落在 overlay 之外，启动以明确错误失败，且不向用户主目录写入任何内容。（verification: unit）
 - AC7 — 设置了 Cherry 模型的 Agent，其定时任务和从 Cherry 打开的终端通过同一绑定使用所选模型。（verification: unit）
 - AC8 — Agent Services 只为声明了绑定的预设提供 Cherry 模型，Factory Droid、Poolside 和 Hermes 不提供。（verification: renderer）
-- AC9 — Cherry 为 API Gateway 模型启动的 OpenClaw Gateway 和 DeepSeek Harness 读取 Cherry 生成的配置和服务级凭证，不改动用户的原生配置，并在服务停止时释放凭证。直连服务商的选择和外部服务保持现有配置。（verification: unit）
+- AC9 — Cherry 为 API Gateway 模型启动的 OpenClaw Gateway 和 DeepSeek Harness 读取 Cherry 生成的配置和服务级凭证，不向用户的原生配置写入网关路由或凭证，并在服务停止时释放凭证。直连服务商的选择和外部服务保持现有配置。（verification: unit）
 - AC10 — 本地 Agent 运行时参考文档描述启动级绑定，不再记载写文件的网关选择。（verification: docs gate）
 
 ## Risks
