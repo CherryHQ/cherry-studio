@@ -1422,8 +1422,6 @@
   "code_block.expand": "επιλογή",
   "code_block.more": "Περισσότερα",
   "code_block.preview.invalid_json": "Μη έγκυρη διαμόρφωση JSON",
-  "code_block.preview.plantuml_remote_notice": "Η απόδοση διαγραμμάτων PlantUML αποστέλλει τον πηγαίο κώδικα του διαγράμματος στο {{host}}.",
-  "code_block.preview.plantuml_remote_render": "Απόδοση μέσω PlantUML",
   "code_block.run": "Εκτέλεση κώδικα",
   "code_block.split.label": "Διαχωρισμός προβολής",
   "code_block.split.restore": "Ακύρωση διαχωρισμού προβολής",
