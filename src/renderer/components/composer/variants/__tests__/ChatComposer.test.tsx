@@ -3407,7 +3407,7 @@ describe('ChatComposer', () => {
     const parts = [{ type: 'text', text: 'old prompt' }] as any[]
     const renderComposer = (currentTopic: typeof topic) => (
       <MessageEditingProvider>
-        <StartEditingButton message={message as any} parts={parts} />
+        <StartEditingButton message={message} parts={parts} />
         <ChatComposer topic={currentTopic} onSend={vi.fn()} />
       </MessageEditingProvider>
     )
@@ -3650,7 +3650,7 @@ describe('ChatComposer', () => {
 
     render(
       <MessageEditingProvider>
-        <StartEditingButton message={message as any} parts={parts} />
+        <StartEditingButton message={message} parts={parts} />
         <ChatComposer topic={topic} onSend={onSend} useMentionedModelSelector />
       </MessageEditingProvider>
     )
@@ -3688,7 +3688,7 @@ describe('ChatComposer', () => {
     const parts = [{ type: 'text', text: 'old prompt' }] as any[]
     const view = render(
       <MessageEditingProvider>
-        <StartEditingButton message={message as any} parts={parts} />
+        <StartEditingButton message={message} parts={parts} />
         <ChatComposer topic={topic} onSend={onSend} useMentionedModelSelector />
       </MessageEditingProvider>
     )
