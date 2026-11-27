@@ -436,6 +436,21 @@ describe('bounded image replacements and APNG safety', () => {
     expect(cached).toHaveBeenCalledWith(expect.stringContaining('frames'))
   })
 
+  it('resizes an APNG whose only frame is its default image', async () => {
+    const bytes = await fs.readFile(new URL('./fixtures/oversized-one-frame.png', import.meta.url))
+    const output = await materializeNativeFilePart(partFor(bytes))
+    expect(output).not.toBeNull()
+    expect(output!.url).not.toBe(partFor(bytes).url)
+    const metadata = await sharp(Buffer.from(output!.url.split(',')[1], 'base64')).metadata()
+    expect(metadata.width).toBe(8192)
+  })
+
+  it('retains original animated bytes for padding-only APNG input', async () => {
+    const bytes = await fs.readFile(new URL('./fixtures/small-two-frame.png', import.meta.url))
+    const part = partFor(bytes)
+    expect(await materializeNativeFilePart(part)).toEqual(part)
+  })
+
   it('does not retain an individual replacement larger than the byte ceiling', async () => {
     const part = partFor(await noisyImage(40))
     const first = await materializeNativeFilePart(part)

@@ -164,15 +164,20 @@ export async function materializeNativeFilePart(
 
 // libvips/Sharp reads APNG as a single-frame PNG. Check the PNG chunk stream
 // before a transform so later frames never disappear silently during encoding.
-function isAnimatedPng(bytes: Buffer): boolean {
+function needsPngFramePreservation(bytes: Buffer): boolean {
   if (bytes.length < 8 || !bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))) return false
+  let frames = 0
+  let defaultIsFrame = false
   for (let offset = 8; offset + 12 <= bytes.length;) {
     const length = bytes.readUInt32BE(offset)
-    if (length > bytes.length - offset - 12) return false
-    if (bytes.toString('ascii', offset + 4, offset + 8) === 'acTL') return true
+    if (length > bytes.length - offset - 12) return frames > 0
+    const type = bytes.toString('ascii', offset + 4, offset + 8)
+    if (type === 'acTL' && length === 8) frames = bytes.readUInt32BE(offset + 8)
+    if (type === 'fcTL') defaultIsFrame = true
+    if (type === 'IDAT') return frames > 1 || (frames === 1 && !defaultIsFrame)
     offset += length + 12
   }
-  return false
+  return frames > 0
 }
 
 async function validateImage(
@@ -205,12 +210,13 @@ async function validateImage(
       const height = metadata.pageHeight ?? metadata.height
       if (!width || !height) throw new Error('Image dimensions are unavailable')
       if (
-        isAnimatedPng(bytes) &&
+        needsPngFramePreservation(bytes) &&
         (width > MAX_ATTACHMENT_IMAGE_EDGE ||
           height > MAX_ATTACHMENT_IMAGE_EDGE ||
           width < MIN_ATTACHMENT_IMAGE_EDGE ||
           height < MIN_ATTACHMENT_IMAGE_EDGE)
       ) {
+        if (width <= MAX_ATTACHMENT_IMAGE_EDGE && height <= MAX_ATTACHMENT_IMAGE_EDGE) return normalized
         onFailure?.(
           `animated PNG cannot be transformed without losing frames; provider image edges must be ${MIN_ATTACHMENT_IMAGE_EDGE}-${MAX_ATTACHMENT_IMAGE_EDGE} px`
         )
