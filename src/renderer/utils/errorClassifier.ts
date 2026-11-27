@@ -1,5 +1,6 @@
 import type { SerializedError } from '@renderer/types/error'
 import { isSerializedAiSdkRetryError, isSerializedAiSdkToolCallRepairError } from '@renderer/types/error'
+import { getExitStatusName } from '@shared/utils/claudeCodeExitStatus'
 import { classifyErrorCategory, type ErrorCategory, isErrorCategory } from '@shared/utils/errorCategory'
 
 export type { ErrorCategory } from '@shared/utils/errorCategory'
@@ -15,6 +16,7 @@ export interface ClaudeCodeExitInfo {
   category: ErrorCategory
   reference: string
   exitCode?: number
+  exitStatusName?: string
   exitSignal?: string
 }
 
@@ -63,7 +65,9 @@ export function getClaudeCodeExitInfo(error?: SerializedError): ClaudeCodeExitIn
   return {
     category,
     reference,
-    ...(typeof errorBag?.processExitCode === 'number' ? { exitCode: errorBag.processExitCode } : {}),
+    ...(typeof errorBag?.processExitCode === 'number'
+      ? { exitCode: errorBag.processExitCode, exitStatusName: getExitStatusName(errorBag.processExitCode) }
+      : {}),
     ...(typeof errorBag?.processExitSignal === 'string' ? { exitSignal: errorBag.processExitSignal } : {})
   }
 }

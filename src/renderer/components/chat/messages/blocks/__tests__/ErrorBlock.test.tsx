@@ -572,6 +572,33 @@ required service tier.`
     expect(navigateErrorTarget).toHaveBeenCalledWith('/settings/provider?id=openai')
   })
 
+  // Known NTSTATUS exits must be readable without opening details; unknown exits stay numeric.
+  it.each([
+    [3221225501, '3221225501 (STATUS_ILLEGAL_INSTRUCTION)'],
+    [-1073741795, '-1073741795 (STATUS_ILLEGAL_INSTRUCTION)'],
+    [12345, '12345']
+  ])('shows safe inline exit status for code %s', (code, expected) => {
+    mocks.translations.set('error.claude_code_exit.code', enUS['error.claude_code_exit.code'])
+    const error = {
+      name: 'ClaudeCodeProcessExitError',
+      message: 'Untrusted error details',
+      stack: null,
+      claudeCodeExitCategory: 'unknown',
+      diagnosticReference: 'inline-ref',
+      processExitCode: code,
+      processExitStatusName: 'UNTRUSTED_LABEL'
+    }
+    render(<ErrorBlock partId="message-1-part-0" error={error} message={message} />)
+
+    expect(
+      screen.getByText(
+        enUS['error.claude_code_exit.code'].replace('{{code}}', expected).replace('{{reference}}', 'inline-ref')
+      )
+    ).toBeInTheDocument()
+    expect(screen.queryByText(/UNTRUSTED_LABEL|Untrusted error details/)).toBeNull()
+    expect(error.processExitCode).toBe(code)
+  })
+
   it('does not treat an unknown exit category as a Claude Code diagnostic', async () => {
     const diagnoseMessageError = vi.fn().mockResolvedValue('diagnosed')
     mocks.actions = { diagnoseMessageError }
