@@ -5388,7 +5388,7 @@
   "settings.mcp.url": "URL",
   "settings.memory.backup_full": "Kurtarma yedeği için yeterli alan yok. Yeni değişiklikler kaydedilmedi.",
   "settings.memory.clear": "Genel belleği temizle",
-  "settings.memory.clear_confirm": "Tüm yerel bellek dosyaları temizlensin mi?",
+  "settings.memory.clear_confirm": "Yalnızca Cherry Studio tarafından yönetilen genel paylaşılan bellek temizlenir. Kurtarma yedekleri özgün içeriği hâlâ barındırabilir.",
   "settings.memory.clear_success": "Başarıyla temizlendi",
   "settings.memory.dreaming.automatic": "Belleği otomatik düzenle",
   "settings.memory.dreaming.budget": "Varsayılan modelin daha fazla kapasiteye ihtiyacı var. Modeli değiştirin veya bellek dosyalarını küçültün.",

@@ -5392,7 +5392,7 @@
   "settings.mcp.url": "URL",
   "settings.memory.backup_full": "Nu există suficient spațiu pentru o copie de recuperare. Nu s-au salvat modificări noi.",
   "settings.memory.clear": "Șterge memoria globală",
-  "settings.memory.clear_confirm": "Ștergeți toate fișierele locale de memorie?",
+  "settings.memory.clear_confirm": "Se va șterge doar memoria partajată globală gestionată de Cherry Studio. Copiile de siguranță pentru restaurare pot păstra conținutul original.",
   "settings.memory.clear_success": "Ștergere reușită",
   "settings.memory.dreaming.automatic": "Organizează automat memoria",
   "settings.memory.dreaming.budget": "Modelul implicit necesită mai multă capacitate. Schimbă modelul sau micșorează fișierele de memorie.",

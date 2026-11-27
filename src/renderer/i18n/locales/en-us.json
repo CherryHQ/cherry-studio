@@ -5388,7 +5388,7 @@
   "settings.mcp.url": "URL",
   "settings.memory.backup_full": "There is not enough space for a recovery backup. No new changes were saved.",
   "settings.memory.clear": "Clear global memory",
-  "settings.memory.clear_confirm": "Clear all local memory files?",
+  "settings.memory.clear_confirm": "This clears only the global shared memory managed by Cherry Studio. Recovery backups may still contain the original content.",
   "settings.memory.clear_success": "Cleared successfully",
   "settings.memory.dreaming.automatic": "Automatically organize memory",
   "settings.memory.dreaming.budget": "The default model needs more capacity. Choose another default model or reduce the memory files.",
