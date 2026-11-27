@@ -791,7 +791,7 @@ export function buildClaudeAgentPrompt({
 }: {
   agent: Pick<
     AgentEntity,
-    'type' | 'instructions' | 'configuration' | 'modelName' | 'disabledTools' | 'knowledgeBaseIds'
+    'type' | 'instructions' | 'configuration' | 'modelName' | 'disabledTools' | 'knowledgeBaseIds' | 'name'
   >
   cwd: string
   agentDataPath: string
