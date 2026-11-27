@@ -603,7 +603,7 @@ class AtomicWriteStreamImpl extends Writable implements AtomicWriteStream {
   }
 
   async abort(): Promise<void> {
-    if (this.aborted || this.finalized) return
+    if (this.closed || this.finalized) return
     if (this.enteredCommit) {
       await finished(this).catch(() => undefined)
       return

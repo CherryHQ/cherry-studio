@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/dev/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-22-atomic-write-flush-handle.md
-2026-11-22-atomic-write-flush-handle.md: cc3284489c43076f314c1f5e949c7719156b91a8
-2026-11-22-atomic-write-flush-handle.zh.md: c4a31247c0e39aa5a1c71824134c945a8ac39cee
+2026-11-22-atomic-write-flush-handle.md: 581a721305d9472daaa14951588098a18008628e
+2026-11-22-atomic-write-flush-handle.zh.md: 060e01ceec795601a89c98a02e5f2dac231d8488

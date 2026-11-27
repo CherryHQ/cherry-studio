@@ -202,6 +202,32 @@ describe('atomic write durability without reopening completed files', () => {
     expect(await readdir(dir)).toEqual(['backup.zip'])
   })
 
+  it('joins cleanup when shutdown aborts an already-destroyed writer', async () => {
+    faults.holdClose = true
+    const stream = createAtomicWriteStream(target)
+    const result = finished(stream).catch((error: unknown) => error)
+    await new Promise<void>((resolve, reject) =>
+      stream.write('partial', (error) => (error ? reject(error) : resolve()))
+    )
+    stream.destroy()
+    let aborted = false
+    const shutdown = stream.abort().then(() => {
+      aborted = true
+    })
+    try {
+      await vi.waitFor(() => expect(faults.releaseClose).toBeDefined())
+      expect(aborted).toBe(false)
+      expect((await readdir(dir)).length).toBe(2)
+    } finally {
+      faults.releaseClose?.()
+      faults.releaseClose = undefined
+    }
+    await shutdown
+    await result
+    expect(await readdir(dir)).toEqual(['backup.zip'])
+    expect(await readFile(target, 'utf-8')).toBe('previous backup')
+  })
+
   it('does not publish after outer destruction while waiting for close', async () => {
     faults.holdClose = true
     const onPrepared = vi.fn(async (write: Parameters<Parameters<typeof createPreparedAtomicWriteStream>[1]>[0]) => {

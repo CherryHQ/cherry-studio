@@ -12,7 +12,7 @@ The prepared-stream API also promises a flushed temporary file before invoking i
 
 ## Decision
 
-Restore the existing flush-before-handoff contract at the writer that owns the open descriptor. In-memory preparation syncs its original write handle before closing. Stream preparation uses Node's `createWriteStream({ flush: true })` and waits for `finished()` including close before handing off prepared bytes. Commit stats the prepared path and renames it without reopening it. Stream abort cleanup waits for actual close, including a pending flush, rather than treating `destroyed` as proof the descriptor is closed.
+Restore the existing flush-before-handoff contract at the writer that owns the open descriptor. In-memory preparation syncs its original write handle before closing. Stream preparation disables automatic close, waits for normal write finalization, explicitly calls fsync on the original descriptor, and closes it before handing off prepared bytes. A partial-write abort skips fsync. Destruction before commit prevents publication, and abort joins close and temporary-file cleanup even when destruction has already started. Commit stats the prepared path and renames it without reopening it.
 
 No sync error is ignored. A file-sync failure still rejects, preserves the previous destination and cleans up the temporary output. Same-directory temporary placement, rename publication, creation modes, hashes, metadata ownership and best-effort directory fsync remain unchanged. This is not a weaker network-filesystem durability mode.
 
@@ -20,7 +20,8 @@ No sync error is ignored. A file-sync failure still rejects, preserves the previ
 
 - Skip fsync or write directly into the final backup: rejected because either can weaken the existing persistence contract or destroy the previous backup on failure.
 - Retry the reopen read-only: rejected because it still requires reopening the completed object and does not address the prepared-stream handoff ordering.
-- Add custom descriptor flushing for streams: unnecessary; [Node's filesystem API](https://nodejs.org/api/fs.html) provides the close-time `flush` option in the supported runtime.
+- Use automatic close-time flushing for streams: rejected because cancellation of an unfinished write can start an unnecessary sync. Explicit descriptor syncing after normal finalization separates successful preparation from cancellation.
+- Runtime reference: [Node's filesystem API](https://nodejs.org/api/fs.html).
 
 ## Consequences
 
