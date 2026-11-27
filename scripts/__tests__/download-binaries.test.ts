@@ -522,7 +522,18 @@ describe('materialize – assembling the bundle from the shared cache', () => {
 
     const sourceStat = Object.assign(fs.statSync(source), { dev: 1, ino: 42 })
     const destinationStat = Object.assign(fs.statSync(destination), { dev: 2, ino: 42 })
-    const statSync = vi.spyOn(cjsFs, 'statSync').mockReturnValueOnce(sourceStat).mockReturnValueOnce(destinationStat)
+    const realStatSync = cjsFs.statSync
+    const stubbed = new Map([
+      [source, sourceStat],
+      [destination, destinationStat]
+    ])
+    // By path: materialize also stats the cached tree before linking it.
+    const statSync = vi
+      .spyOn(cjsFs, 'statSync')
+      .mockImplementation(
+        (target: fs.PathLike, options?: fs.StatSyncOptions) =>
+          stubbed.get(String(target)) ?? realStatSync(target, options)
+      )
     const linkSync = vi.spyOn(cjsFs, 'linkSync').mockImplementation(() => {
       throw Object.assign(new Error('cross-device link'), { code: 'EXDEV' })
     })
