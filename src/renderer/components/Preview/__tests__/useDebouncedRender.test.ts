@@ -61,6 +61,40 @@ describe('useDebouncedRender', () => {
     expect(result.current.isLoading).toBe(false)
   })
 
+  it('keeps the new preview loading while a superseded render fails', async () => {
+    const previous = Promise.withResolvers<void>()
+    const current = Promise.withResolvers<void>()
+    const renderFunction = vi.fn().mockReturnValueOnce(previous.promise).mockReturnValueOnce(current.promise)
+    const { result } = renderHook(() => useDebouncedRender('', renderFunction, { debounceDelay: 100 }))
+    result.current.containerRef.current = document.createElement('div')
+
+    act(() => result.current.triggerImmediateRender('old diagram'))
+    act(() => result.current.triggerRender('new diagram'))
+
+    await act(async () => previous.reject(new Error('Old source was invalid')))
+    expect(result.current.isLoading).toBe(true)
+    expect(result.current.error).toBeNull()
+
+    await act(async () => vi.advanceTimersByTimeAsync(100))
+    await act(async () => current.resolve())
+    expect(result.current.isLoading).toBe(false)
+    expect(result.current.error).toBeNull()
+  })
+
+  it('does not display a failure after cancelling an in-flight preview', async () => {
+    const pending = Promise.withResolvers<void>()
+    const renderFunction = () => pending.promise
+    const { result } = renderHook(() => useDebouncedRender('', renderFunction))
+    result.current.containerRef.current = document.createElement('div')
+
+    act(() => result.current.triggerImmediateRender('old diagram'))
+    act(() => result.current.cancelRender())
+    await act(async () => pending.reject(new Error('Old source was invalid')))
+
+    expect(result.current.error).toBeNull()
+    expect(result.current.isLoading).toBe(false)
+  })
+
   it('cancels pending renders', async () => {
     const renderFunction = vi.fn(async () => {})
     const { result } = renderHook(() => useDebouncedRender('', renderFunction, { debounceDelay: 100 }))

@@ -40,8 +40,10 @@ source change
 
 `useDebouncedRender` owns the host ref, loading/error state, debounced trigger,
 cancel, and an optional `shouldRender` predicate. Rendering runs inside
-`React.startTransition`. Cancelling drops a pending debounce; it does not abort
-an asynchronous render that has already started.
+`React.startTransition`. Only the current render request updates loading and
+error state, including during the debounce delay. Cancelling drops the pending
+debounce and retires its status updates. An asynchronous renderer that has
+already started continues to own its output.
 
 ## SVG boundary
 

@@ -59,15 +59,16 @@ export const useDebouncedRender = (
   const { debounceDelay = 300, shouldRender } = options
 
   const containerRef = useRef<HTMLDivElement>(null)
+  const renderVersionRef = useRef(0)
   const debouncedFunctionRef = useRef<ReturnType<typeof debounce> | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
 
   // 包装渲染函数，添加容器检查和错误处理
   const wrappedRenderFunction = useCallback(
-    async (content: string): Promise<void> => {
+    async (content: string, version: number): Promise<void> => {
       // 检查渲染前条件
-      if ((shouldRender && !shouldRender()) || !content) {
+      if (version !== renderVersionRef.current || (shouldRender && !shouldRender()) || !content) {
         return
       }
 
@@ -82,13 +83,14 @@ export const useDebouncedRender = (
         await renderFunction(content, containerRef.current)
 
         // 渲染成功，确保清除错误状态
-        setError(null)
+        if (version === renderVersionRef.current) setError(null)
       } catch (error) {
+        if (version !== renderVersionRef.current) return
         const errorMessage = error instanceof Error ? error.message : 'Unknown rendering error'
         logger.error(errorMessage)
         setError(errorMessage)
       } finally {
-        setIsLoading(false)
+        if (version === renderVersionRef.current) setIsLoading(false)
       }
     },
     [renderFunction, shouldRender]
@@ -96,9 +98,9 @@ export const useDebouncedRender = (
 
   // 创建防抖版本的渲染函数
   const debouncedRender = useMemo(() => {
-    const debouncedFn = debounce((content: string) => {
+    const debouncedFn = debounce((content: string, version: number) => {
       React.startTransition(() => {
-        void wrappedRenderFunction(content)
+        void wrappedRenderFunction(content, version)
       })
     }, debounceDelay)
 
@@ -111,9 +113,10 @@ export const useDebouncedRender = (
   // 手动触发渲染的函数
   const triggerRender = useCallback(
     (content: string) => {
+      const version = ++renderVersionRef.current
       if (content) {
         setIsLoading(true)
-        debouncedRender(content)
+        debouncedRender(content, version)
       } else {
         debouncedRender.cancel()
         setIsLoading(false)
@@ -126,10 +129,11 @@ export const useDebouncedRender = (
   // 立即触发渲染（跳过防抖），用于流式完成时立即渲染最终内容
   const triggerImmediateRender = useCallback(
     (content: string) => {
+      const version = ++renderVersionRef.current
       if (content) {
         setIsLoading(true)
         debouncedRender.cancel()
-        void wrappedRenderFunction(content)
+        void wrappedRenderFunction(content, version)
       } else {
         debouncedRender.cancel()
         setIsLoading(false)
@@ -140,6 +144,7 @@ export const useDebouncedRender = (
   )
 
   const cancelRender = useCallback(() => {
+    ++renderVersionRef.current
     debouncedRender.cancel()
     setIsLoading(false)
   }, [debouncedRender])
