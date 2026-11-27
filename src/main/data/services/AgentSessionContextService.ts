@@ -1,4 +1,5 @@
 import path from 'node:path'
+import { isDeepStrictEqual } from 'node:util'
 
 import { and, eq, isNotNull, isNull, sql } from 'drizzle-orm'
 import { v4 as uuid } from 'uuid'
@@ -14,7 +15,8 @@ import { agentSessionTable as sessions } from '@data/db/schemas/agentSession'
 import {
   agentSessionContextTable as contexts,
   type AgentSessionContextRow,
-  type AgentSessionCheckpoints
+  type AgentSessionCheckpoints,
+  type ClaudeCodeReplayEntry
 } from '@data/db/schemas/agentSessionContext'
 import type { DbOrTx } from '@data/db/types'
 
@@ -37,6 +39,51 @@ export interface RootProjectionCheckpoint {
 }
 
 class AgentSessionContextService {
+  private claudeCodeReplayContext(tx: DbOrTx, sessionId: string) {
+    return tx
+      .select({ id: contexts.id, checkpoint: contexts.checkpointMapping })
+      .from(contexts)
+      .innerJoin(backends, eq(backends.id, contexts.backendId))
+      .where(
+        and(
+          eq(contexts.sessionId, sessionId),
+          isNull(contexts.parentContextId),
+          sql`json_extract(${backends.locator}, '$.kind') = 'claude-code'`
+        )
+      )
+      .orderBy(
+        sql`json_type(${contexts.checkpointMapping}, '$.claudeCodeReplay') IS NULL`,
+        contexts.createdAt,
+        contexts.id
+      )
+      .limit(1)
+      .get()
+  }
+
+  readClaudeCodeReplay(sessionId: string) {
+    return this.claudeCodeReplayContext(application.get('DbService').getDb(), sessionId)?.checkpoint?.claudeCodeReplay
+  }
+
+  saveClaudeCodeReplay(
+    sessionId: string,
+    states: ReadonlyArray<[string, Exclude<ClaudeCodeReplayEntry, 'ambiguous'>]>
+  ): void {
+    application.get('DbService').withWriteTx((tx) => {
+      const context = this.claudeCodeReplayContext(tx, sessionId)
+      if (!context) return
+      const claudeCodeReplay = { ...context.checkpoint?.claudeCodeReplay }
+      for (const [key, state] of states) {
+        // A repeated block with different state has no unambiguous origin.
+        claudeCodeReplay[key] =
+          !Object.hasOwn(claudeCodeReplay, key) || isDeepStrictEqual(claudeCodeReplay[key], state) ? state : 'ambiguous'
+      }
+      tx.update(contexts)
+        .set({ checkpointMapping: { ...context.checkpoint, claudeCodeReplay } })
+        .where(eq(contexts.id, context.id))
+        .run()
+    })
+  }
+
   removedRootSourceIds(contextId: string): string[] {
     const row = application
       .get('DbService')
@@ -308,7 +355,11 @@ class AgentSessionContextService {
     const context = this.branchTx(tx, sessionId, getAgentSessionHead(tx, sessionId)!)
     if (context?.nativeThreadId !== nativeId) throw new Error('Native edit identity does not match the selected branch')
     tx.update(contexts)
-      .set({ nativeThreadId: nativeId, bindingState: 'bound', checkpointMapping: { fork: checkpointMapping } })
+      .set({
+        nativeThreadId: nativeId,
+        bindingState: 'bound',
+        checkpointMapping: { fork: checkpointMapping, claudeCodeReplay: context.checkpointMapping?.claudeCodeReplay }
+      })
       .where(eq(contexts.id, context.id))
       .run()
   }

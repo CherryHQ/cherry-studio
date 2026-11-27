@@ -348,6 +348,16 @@ describe('hotfix release notes', () => {
     expect(() => extractHotfixReleaseNote(`${HOTFIX_BODY}\n\n${HOTFIX_BODY}`)).toThrow('at most one release-note block')
   })
 
+  it('ignores an inline release-note opener inside a shell example', () => {
+    const body = ['```sh', '# Example opener: ```release-note', '```'].join('\n')
+    expect(extractHotfixReleaseNote(body)).toBeNull()
+  })
+
+  it.each(['\n', '\r\n'])('rejects an empty hotfix note fence with line ending %j', (newline) => {
+    const body = ['```release-note', '```'].join(newline)
+    expect(() => extractHotfixReleaseNote(body)).toThrow('exact English and Chinese language markers')
+  })
+
   it('requires Chinese content in a provided Chinese description', () => {
     expect(() => extractHotfixReleaseNote(hotfixBody('[Chat] Fix the issue.', '[Chat] Fix the issue.'))).toThrow(
       'must contain Chinese content'
@@ -932,6 +942,25 @@ describe('release publication state', () => {
     expect(bodyWithoutChanges.trim()).toBe(body.split("\n\n## What's Changed")[0])
     expect(bodyWithoutChanges).not.toContain("## What's Changed")
     expect(bodyWithoutChanges).toContain('<summary>Release Notes</summary>\n\nEnglish notes\n\n</details>')
+  })
+
+  it.each([
+    ['a missing Chinese marker', '<!--LANG:en-->\nEnglish notes\n<!--LANG:END-->', 'bilingual markers'],
+    [
+      'an empty English section',
+      '<!--LANG:en-->\n\n<!--LANG:zh-CN-->\n中文说明\n<!--LANG:END-->',
+      'non-empty English and Chinese sections'
+    ]
+  ])('rejects a release body with %s', (_case, notes, error) => {
+    expect(() =>
+      composeReleaseBody({
+        builderContent: builderYaml(notes),
+        generatedNotes: '',
+        productName: 'Cherry Studio',
+        repository: 'CherryHQ/cherry-studio',
+        tag: 'v1.2.0'
+      })
+    ).toThrow(error)
   })
 
   it('accepts only an exact-head all-platform build with artifacts and no open release pull request', () => {

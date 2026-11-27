@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
-import { afterEach, beforeEach, expect, it } from 'vitest'
+import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
@@ -255,4 +255,77 @@ it('enables Durable edits at first inputs and committed predecessor boundaries',
   expect(actions.get(later.id)?.edit).toBeNull()
   expect((await runtime.getEditTarget(sessionId, first.id)).parts).toEqual(first.data.parts)
   expect((await runtime.getEditTarget(sessionId, later.id)).parts).toEqual(later.data.parts)
+})
+
+it('rejects editing an input that joined the Run represented by its parent checkpoint', async () => {
+  user('Initial')
+  const run = answer({ runtime: 'pi', runtimeSessionId: randomUUID(), leafId: randomUUID() })
+  const steer = user('Steer inside that Run')
+  messages.linkReply(sessionId, [steer.id], run.id)
+  expect(readHistoryActions(sessionId, [steer.id]).get(steer.id)?.edit).toBe('checkpoint_unsupported')
+  await expect(runtime.getEditTarget(sessionId, steer.id)).rejects.toMatchObject({ reason: 'checkpoint_unsupported' })
+})
+
+it('allows editing an ordinary input after a steered Run but refuses editing its steer', async () => {
+  user('Initial')
+  const run = answer({ runtime: 'pi', runtimeSessionId: 'native', leafId: 'leaf' })
+  const steer = user('Steered input')
+  messages.linkReply(sessionId, [steer.id], run.id)
+  const next = user('Ordinary input')
+  answer({ runtime: 'pi', runtimeSessionId: 'native', leafId: 'next-leaf' })
+  const actions = readHistoryActions(sessionId, [steer.id, next.id])
+  expect(actions.get(steer.id)?.edit).toBe('checkpoint_unsupported')
+  expect(actions.get(next.id)?.edit).toBeNull()
+  await expect(runtime.getEditTarget(sessionId, next.id)).resolves.toMatchObject({ messageId: next.id })
+})
+
+it('preserves fork actions for addressed rows when a sibling branch becomes active', () => {
+  const first = user('Shared')
+  const left = answer({ runtime: 'pi', runtimeSessionId: 'native', leafId: 'left' })
+  const before = readHistoryActions(sessionId, [left.id]).get(left.id)
+  const sibling = messages.saveMessage({
+    sessionId,
+    parentId: first.id,
+    message: { role: 'user', data: { parts: [{ type: 'text', text: 'Sibling' }] } }
+  })
+  const right = messages.saveMessage({
+    sessionId,
+    parentId: sibling.id,
+    runtimeAnchor: { checkpoint: { runtime: 'pi', runtimeSessionId: 'native', leafId: 'right' } },
+    message: { role: 'assistant', status: 'success', data: { parts: [{ type: 'text', text: 'Right' }] } }
+  })
+  messages.selectBranch(sessionId, right.id)
+  expect(messages.getSessionMessage(sessionId, left.id).id).toBe(left.id)
+  const page = messages.listSessionMessages(sessionId, { messageId: left.id, deferToolOutputs: true })
+  expect(page.items.some((row) => row.id === left.id)).toBe(true)
+  expect(readHistoryActions(sessionId, [left.id]).get(left.id)).toEqual(before)
+  expect(before?.fork).toBeNull()
+})
+
+it('resolves a page of inactive-branch actions with a bounded number of database reads', () => {
+  const shared = user('Shared')
+  const selected = Array.from({ length: 50 }, (_, index) => {
+    user(`Left ${index}`)
+    return answer({ runtime: 'pi', runtimeSessionId: 'native', leafId: `left-${index}` }).id
+  })
+  const right = messages.saveMessage({
+    sessionId,
+    parentId: shared.id,
+    message: { role: 'user', data: { parts: [{ type: 'text', text: 'Right' }] } }
+  })
+  messages.selectBranch(sessionId, right.id)
+  const reads = vi.spyOn(dbh.sqlite, 'prepare')
+  try {
+    readHistoryActions(sessionId, selected.slice(0, 1))
+    const singleRowReads = reads.mock.calls.filter(([sql]) => /^select|^with/i.test(sql.trim())).length
+    reads.mockClear()
+    const actions = readHistoryActions(sessionId, selected)
+    expect(actions.size).toBe(50)
+    expect([...actions.values()].every((action) => action.fork === null)).toBe(true)
+    expect(reads.mock.calls.filter(([sql]) => /^select|^with/i.test(sql.trim())).length).toBeLessThanOrEqual(
+      singleRowReads + 2
+    )
+  } finally {
+    reads.mockRestore()
+  }
 })
