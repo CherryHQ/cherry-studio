@@ -1124,7 +1124,7 @@
         {
           "originalKey": "renderInputMessageAsMarkdown",
           "type": "boolean",
-          "defaultValue": false,
+          "defaultValue": true,
           "status": "classified",
           "category": "preferences",
           "targetKey": "chat.message.render_as_markdown"
