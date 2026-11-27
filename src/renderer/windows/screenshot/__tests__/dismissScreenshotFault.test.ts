@@ -6,6 +6,8 @@ vi.mock('@renderer/ipc', () => ({
   ipcApi: { request: (...args: unknown[]) => request(...args) }
 }))
 
+import { appErrorContextSchema } from '@shared/utils/appError'
+
 import { dismissScreenshotFault } from '../ScreenshotApp'
 
 function channels(): string[] {
@@ -42,5 +44,26 @@ describe('dismissScreenshotFault', () => {
 
     await expect(dismissScreenshotFault(thrown)).resolves.toBeUndefined()
     expect(channels()).toEqual(['screenshot.fail'])
+  })
+
+  it('sends a report main accepts when the error carries non-string fields', async () => {
+    const thrown = new Error('overlay boom')
+    Object.defineProperty(thrown, 'stack', { value: ['frame 1', 'frame 2'] })
+    Object.defineProperty(thrown, 'name', { value: 42 })
+    Object.defineProperty(thrown, 'message', { value: { detail: 'not a string' } })
+
+    await dismissScreenshotFault(thrown)
+
+    expect(appErrorContextSchema.safeParse(request.mock.calls[0][1]).success).toBe(true)
+  })
+
+  it('still cancels the session when main rejects the report', async () => {
+    request.mockImplementation(async (channel: string) => {
+      if (channel === 'screenshot.fail') throw new Error('invalid input')
+    })
+
+    await dismissScreenshotFault(new Error('overlay boom'))
+
+    expect(channels()).toEqual(['screenshot.fail', 'screenshot.cancel'])
   })
 })
