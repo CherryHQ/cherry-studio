@@ -12,16 +12,21 @@ const ApiGatewaySettings = () => {
   const { t } = useTranslation()
   return (
     <Container theme={theme}>
-      <SettingsPageHeader
-        title={
-          <>
-            <GatewayIcon width={16} height={16} />
-            {t('apiGateway.title')}
-          </>
-        }
-        help={t('apiGateway.description')}
+      <ApiGatewayPanel
+        renderHeader={(controls) => (
+          <SettingsPageHeader
+            title={
+              <>
+                <GatewayIcon width={16} height={16} />
+                {t('apiGateway.title')}
+              </>
+            }
+            help={t('apiGateway.description')}
+            action={controls}
+            className="mb-0"
+          />
+        )}
       />
-      <ApiGatewayPanel />
     </Container>
   )
 }

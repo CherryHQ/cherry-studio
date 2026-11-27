@@ -9,7 +9,7 @@ import { DataApiError } from '@shared/data/api/errors'
 import { gatewayClientOrigin } from '@shared/utils/apiGateway'
 
 import { gatewayErrorHandler } from './errors'
-import { screenLanRequest } from './lanGuard'
+import { allowsKeylessModelRequest, screenLanRequest } from './lanGuard'
 import { McpSessionStore } from './McpSessionStore'
 import { authorizeApiRequest, authorizeCredentialScope, type GatewaySurface } from './middleware/auth'
 import {
@@ -44,6 +44,7 @@ const buildV1Routes = (mcpSessions: McpSessionStore, surface: GatewaySurface) =>
     .guard({
       as: 'scoped',
       beforeHandle: ({ bearer, headers, set, request, body }) => {
+        if (surface === 'public' && allowsKeylessModelRequest(request)) return undefined
         const failure =
           authorizeApiRequest(headers['x-api-key'], bearer, undefined, request.headers, surface) ??
           authorizeCredentialScope(request, body, surface)
@@ -92,9 +93,7 @@ export function buildApp({
   surface = 'public'
 }: BuildAppOptions = {}) {
   const app = new Elysia({ adapter: node() })
-    // HTTP is loopback-only; remote devices use the encrypted WebSocket upgrade instead.
-    // Loopback and in-process callers are unrestricted. Runs before request-id
-    // stamping so a rejected LAN request short-circuits cheaply.
+    // Screen the peer and route before applying protocol-specific authentication.
     .onRequest(({ request, set }) => {
       const failure = screenLanRequest(request, new URL(request.url).pathname)
       if (failure) {

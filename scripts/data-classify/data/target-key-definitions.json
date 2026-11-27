@@ -6,6 +6,13 @@
   },
   "definitions": [
     {
+      "targetKey": "feature.api_gateway.lan_http_enabled",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Allow API-key authenticated model requests from the local network"
+    },
+    {
       "targetKey": "agent.input.suggestions.enabled",
       "type": "boolean",
       "defaultValue": true,

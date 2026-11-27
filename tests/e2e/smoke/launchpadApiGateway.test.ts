@@ -38,6 +38,8 @@ async function prepare(page: Page) {
   await waitForShell(page)
 }
 
+const copyBaseUrlName = `${uiLocale['common.copy']} · ${uiLocale['settings.models.base_url']}`
+
 async function openLaunchpad(page: Page) {
   await page.evaluate(() => window.api.ipcApi.request('navigation.open_route_in_main', { path: '/app/launchpad' }))
   await expect(page.getByRole('heading', { name: uiLocale['launchpad.apps'], exact: true })).toBeVisible()
@@ -54,13 +56,8 @@ test('launchpad, sidebar and device connections reach the gateway', async ({ mai
   await expect(panel).toBeVisible()
   await expect(panel.getByText(uiLocale['apiGateway.status.stopped'], { exact: true })).toBeVisible()
   await expect(panel.getByRole('button', { name: uiLocale['apiGateway.actions.start'], exact: true })).toBeVisible()
-  await expect(panel.getByRole('textbox', { name: uiLocale['apiGateway.fields.url.label'], exact: true })).toBeVisible()
-  await expect(
-    panel.getByRole('spinbutton', { name: uiLocale['apiGateway.fields.port.label'], exact: true })
-  ).toBeVisible()
-  await expect(
-    panel.getByRole('textbox', { name: uiLocale['apiGateway.fields.apiKey.label'], exact: true })
-  ).toBeVisible()
+  await expect(panel.getByRole('button', { name: copyBaseUrlName, exact: true })).toBeVisible()
+  await expect(panel.getByRole('switch', { name: uiLocale['apiGateway.connections.lan'] })).not.toBeChecked()
 
   await openLaunchpad(page)
   await tile.click({ button: 'right' })
@@ -125,7 +122,10 @@ test('launchpad, sidebar and device connections reach the gateway', async ({ mai
   ).toHaveAttribute('data-active', 'true')
 })
 
-test('gateway starts and stops and stays usable in a narrow dark window', async ({ mainWindow: page }, testInfo) => {
+test('gateway starts and stops and stays usable in a narrow dark window', async ({
+  mainWindow: page,
+  electronApp
+}, testInfo) => {
   await prepare(page)
   await page.evaluate((theme) => window.api.preference.set('ui.theme_mode', theme), ThemeMode.light)
   await page.setViewportSize({ width: 800, height: 500 })
@@ -134,12 +134,7 @@ test('gateway starts and stops and stays usable in a narrow dark window', async 
   const panel = uiLocator(page, 'api-gateway.panel').filter({ visible: true })
   await expect(panel).toBeVisible()
   await expect(page.locator('body')).toHaveClass(/light/)
-  await panel
-    .getByRole('textbox', { name: uiLocale['apiGateway.fields.apiKey.label'], exact: true })
-    .scrollIntoViewIfNeeded()
-  await expect(
-    panel.getByRole('textbox', { name: uiLocale['apiGateway.fields.apiKey.label'], exact: true })
-  ).toBeVisible()
+  await panel.getByRole('button', { name: uiLocale['common.advanced_settings'], exact: true }).click()
   const available = createServer().listen(0, '127.0.0.1')
   await once(available, 'listening')
   const port = (available.address() as AddressInfo).port
@@ -148,50 +143,18 @@ test('gateway starts and stops and stays usable in a narrow dark window', async 
   await portField.fill(String(port))
   await portField.blur()
   const url = `http://127.0.0.1:${port}`
-  await expect(panel.getByRole('textbox', { name: uiLocale['apiGateway.fields.url.label'], exact: true })).toHaveValue(
-    url
-  )
+  await expect(panel.getByText(`${url}/v1/chat/completions`, { exact: true })).toBeVisible()
   await panel.getByRole('button', { name: uiLocale['apiGateway.actions.start'], exact: true }).click()
   await expect(panel.getByText(uiLocale['apiGateway.status.running'], { exact: true })).toBeVisible()
   await page.setViewportSize({ width: 460, height: 500 })
-  await expect(panel.getByRole('textbox', { name: uiLocale['apiGateway.fields.url.label'], exact: true })).toHaveValue(
-    url
-  )
-  const gatewayUrl = await panel
-    .getByRole('textbox', { name: uiLocale['apiGateway.fields.url.label'], exact: true })
-    .inputValue()
-  await expect
-    .poll(
-      async () => {
-        const response = await fetch(`${gatewayUrl}/health`, { signal: AbortSignal.timeout(1000) }).catch(() => null)
-        if (!response) return null
-        const body = await response.json()
-        return { ok: response.ok, status: response.status, bodyStatus: body.status }
-      },
-      { timeout: 5000, intervals: [100, 250, 500] }
-    )
-    .toEqual({ ok: true, status: 200, bodyStatus: 'ok' })
-  await expect(
-    panel.getByRole('button', { name: uiLocale['apiGateway.fields.url.copyTooltip'], exact: true })
-  ).toBeVisible()
-  const runningUrl = panel.getByRole('textbox', { name: uiLocale['apiGateway.fields.url.label'], exact: true })
-  await expect
-    .poll(() =>
-      runningUrl.evaluate((input: HTMLInputElement) => {
-        const style = getComputedStyle(input)
-        const canvas = document.createElement('canvas')
-        const context = canvas.getContext('2d')!
-        context.font = style.font
-        return (
-          context.measureText(input.value).width <=
-          input.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight)
-        )
-      })
-    )
-    .toBe(true)
+  const copyBaseUrl = panel.getByRole('button', { name: copyBaseUrlName, exact: true })
+  await expect(copyBaseUrl).toBeVisible()
+  await copyBaseUrl.click()
+  await expect.poll(() => electronApp.evaluate(({ clipboard }) => clipboard.readText())).toBe(`${url}/v1`)
+  expect((await fetch(`${url}/v1/models`, { signal: AbortSignal.timeout(5000) })).status).toBe(200)
   await panel.getByRole('button', { name: uiLocale['apiGateway.actions.stop'], exact: true }).click()
   await expect(panel.getByText(uiLocale['apiGateway.status.stopped'], { exact: true })).toBeVisible()
-  await expect(fetch(`${gatewayUrl}/health`, { signal: AbortSignal.timeout(5000) })).rejects.toThrow()
+  await expect(fetch(`${url}/health`, { signal: AbortSignal.timeout(5000) })).rejects.toThrow()
   await page.evaluate((theme) => window.api.preference.set('ui.theme_mode', theme), ThemeMode.dark)
   await page.setViewportSize({ width: 460, height: 500 })
   await page.reload()
@@ -212,6 +175,7 @@ test('gateway starts and stops and stays usable in a narrow dark window', async 
   await gatewayTile(page).click()
   await expect(uiLocator(page, 'api-gateway.panel').filter({ visible: true })).toBeVisible()
   await expect(page.locator('body')).toHaveClass(/dark/)
+  await page.getByRole('button', { name: uiLocale['common.advanced_settings'], exact: true }).click()
   const darkPort = uiLocator(page, 'api-gateway.panel')
     .filter({ visible: true })
     .getByRole('spinbutton', { name: uiLocale['apiGateway.fields.port.label'], exact: true })
