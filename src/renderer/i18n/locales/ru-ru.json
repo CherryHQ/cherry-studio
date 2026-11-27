@@ -5460,7 +5460,7 @@
   "settings.mcp.url": "URL",
   "settings.memory.backup_full": "Недостаточно места для резервной копии. Новые изменения не сохранены.",
   "settings.memory.clear": "Очистить глобальную память",
-  "settings.memory.clear_confirm": "Очистить все локальные файлы памяти?",
+  "settings.memory.clear_confirm": "Будет очищена только глобальная общая память, которой управляет Cherry Studio. В резервных копиях для восстановления может сохраниться исходное содержимое.",
   "settings.memory.clear_success": "Очистка выполнена",
   "settings.memory.failed": "Не удалось завершить операцию. Проверьте оставшиеся элементы и повторите попытку.",
   "settings.memory.global": "Глобальная память",

@@ -5388,7 +5388,7 @@
   "settings.mcp.url": "URL",
   "settings.memory.backup_full": "Spazio insufficiente per una copia di ripristino. Non sono state salvate nuove modifiche.",
   "settings.memory.clear": "Cancella la memoria globale",
-  "settings.memory.clear_confirm": "Cancellare tutti i file di memoria locali?",
+  "settings.memory.clear_confirm": "Verrà cancellata solo la memoria condivisa globale gestita da Cherry Studio. Le copie di backup per il ripristino potrebbero conservare il contenuto originale.",
   "settings.memory.clear_success": "Cancellazione completata",
   "settings.memory.failed": "Impossibile completare l’operazione. Controlla gli elementi rimanenti e riprova.",
   "settings.memory.global": "Memoria globale",
