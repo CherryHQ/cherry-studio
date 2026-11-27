@@ -20,7 +20,11 @@ const PUBLIC_HOST = 'example.com'
 
 type MessagesBody = { model: string; tools?: { name: string }[]; messages: { content: unknown }[] }
 
-function reply(res: ServerResponse, model: string, block: object, stopReason: 'end_turn' | 'tool_use') {
+type ReplyBlock =
+  | { type: 'tool_use'; id: string; name: string; input: Record<string, unknown> }
+  | { type: 'text'; text: string }
+
+function reply(res: ServerResponse, model: string, block: ReplyBlock, stopReason: 'end_turn' | 'tool_use') {
   res.writeHead(200, { 'Content-Type': 'text/event-stream', Connection: 'close' })
   const send = (type: string, value: object) =>
     res.write(`event: ${type}\ndata: ${JSON.stringify({ type, ...value })}\n\n`)
@@ -36,16 +40,16 @@ function reply(res: ServerResponse, model: string, block: object, stopReason: 'e
       usage: { input_tokens: 10, output_tokens: 0 }
     }
   })
-  const isTool = 'name' in block
   send('content_block_start', {
     index: 0,
-    content_block: isTool ? { ...block, input: {} } : { type: 'text', text: '' }
+    content_block: block.type === 'tool_use' ? { ...block, input: {} } : { type: 'text', text: '' }
   })
   send('content_block_delta', {
     index: 0,
-    delta: isTool
-      ? { type: 'input_json_delta', partial_json: JSON.stringify((block as { input: object }).input) }
-      : { type: 'text_delta', text: (block as { text: string }).text }
+    delta:
+      block.type === 'tool_use'
+        ? { type: 'input_json_delta', partial_json: JSON.stringify(block.input) }
+        : { type: 'text_delta', text: block.text }
   })
   send('content_block_stop', { index: 0 })
   send('message_delta', { delta: { stop_reason: stopReason, stop_sequence: null }, usage: { output_tokens: 5 } })
