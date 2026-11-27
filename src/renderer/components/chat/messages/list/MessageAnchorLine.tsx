@@ -284,7 +284,9 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
     []
   )
 
-  const hasRail = turns.length > 0
+  const turnCount = turns.length
+  const firstTurnId = turns[0]?.anchorId ?? null
+  const hasRail = turnCount > 0
 
   // Keep the strip's reading anchor stable across async page loads and
   // viewport changes:
@@ -304,28 +306,29 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
   useLayoutEffect(() => {
     const el = railScrollRef.current
     const anchor = scrollAnchorRef.current
-    const firstId = turns[0]?.anchorId ?? null
     if (el) {
       const maxScroll = Math.max(0, el.scrollHeight - el.clientHeight)
-      const added = turns.length - anchor.count
+      const currentScrollTop = el.scrollTop
+      let target = currentScrollTop
+      const added = turnCount - anchor.count
       if (!anchor.entered) {
-        el.scrollTop = maxScroll
         anchor.entered = true
         anchor.pinned = true
-      } else if (added > 0 && firstId !== anchor.firstId) {
-        el.scrollTop += added * RAIL_TICK_PITCH_PX
-      } else if (added > 0 && maxScroll - el.scrollTop <= added * RAIL_TICK_PITCH_PX + 1) {
-        el.scrollTop = maxScroll
+      } else if (added > 0 && firstTurnId !== anchor.firstId) {
+        target += added * RAIL_TICK_PITCH_PX
+      } else if (added > 0 && maxScroll - currentScrollTop <= added * RAIL_TICK_PITCH_PX + 1) {
         anchor.pinned = true
       }
-      if (anchor.pinned) {
-        el.scrollTop = maxScroll
+      if (anchor.pinned) target = maxScroll
+      if (target !== currentScrollTop) {
+        el.scrollTop = target
+        target = el.scrollTop
       }
-      setScrollTop(el.scrollTop)
+      setScrollTop(target)
     }
-    anchor.firstId = firstId
-    anchor.count = turns.length
-  }, [turns, railHeight, bottomInset])
+    anchor.firstId = firstTurnId
+    anchor.count = turnCount
+  }, [firstTurnId, turnCount, railHeight, bottomInset])
 
   // Track the rail height so tick geometry stays exact across window/composer
   // resizes, and hide the rail once it is too short to be usable. Layout effect

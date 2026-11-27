@@ -11,6 +11,11 @@ import type { SerializedError } from '@renderer/types/error'
 import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID } from '@shared/data/presets/cherryai'
 import { createLocalError } from '@shared/utils/localError'
 
+import {
+  createClaudeCodeProcessDiagnostics,
+  createClaudeCodeProcessExitError,
+  recordClaudeCodeProcessExit
+} from '../../../../../../main/ai/runtime/claudeCode/processExitDiagnostics'
 // Exercise the desktop serializer before rendering the Work error card.
 import { serializeError } from '../../../../../../main/ai/utils/serializeError'
 import { useMessageErrorActions } from '../../hooks/useMessageErrorActions'
@@ -105,6 +110,18 @@ const message: MessageListItem = {
     name: 'GPT Test',
     provider: 'openai'
   }
+}
+
+function makeClaudeCodeExitError(
+  code: number | null,
+  signal: NodeJS.Signals | null = null,
+  stderrTail = ''
+): SerializedError {
+  const diagnostics = createClaudeCodeProcessDiagnostics('diagnostic-ref')
+  recordClaudeCodeProcessExit(diagnostics, code, signal, stderrTail)
+  return JSON.parse(
+    JSON.stringify(serializeError(createClaudeCodeProcessExitError(new Error('original'), diagnostics)))
+  )
 }
 
 describe('ErrorBlock', () => {
@@ -610,18 +627,35 @@ required service tier.`
     expect(screen.queryByText('error.diagnosis.rate_limit')).toBeNull()
   })
 
-  it('shows size guidance and the original status-less request buffer error', () => {
-    const providerMessage = '413 Failed to buffer the request body: length limit exceeded'
+  it.each(['Request payload is too large', '413 Failed to buffer the request body: length limit exceeded'])(
+    'shows size guidance and the original status-less error: %s',
+    (providerMessage) => {
+      render(
+        <ErrorBlock
+          partId="message-1-part-0"
+          error={{ name: 'Error', message: providerMessage, stack: null }}
+          message={message}
+        />
+      )
+      expect(screen.getByText('error.diagnosis.payload')).toBeInTheDocument()
+      expect(screen.getByText(providerMessage)).toBeInTheDocument()
+      expect(screen.queryByText('error.diagnosis.unknown')).toBeNull()
+    }
+  )
+
+  it('keeps response body size failures eligible for diagnosis without request-size guidance', () => {
+    mocks.actions = { diagnoseMessageError: vi.fn() }
     render(
       <ErrorBlock
         partId="message-1-part-0"
-        error={{ name: 'Error', message: providerMessage, stack: null }}
+        error={{ name: 'Error', message: 'Response body payload is too large', stack: null }}
         message={message}
       />
     )
-    expect(screen.getByText('error.diagnosis.payload')).toBeInTheDocument()
-    expect(screen.getByText(providerMessage)).toBeInTheDocument()
-    expect(screen.queryByText('error.diagnosis.unknown')).toBeNull()
+
+    expect(screen.getByText('error.diagnosis.unknown')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: AI_DIAGNOSIS_LABEL })).toBeInTheDocument()
+    expect(screen.queryByText('error.diagnosis.payload')).toBeNull()
   })
 
   it('shows a useful status when a proxy returns an HTML 413 response', () => {
@@ -643,33 +677,61 @@ required service tier.`
     expect(screen.queryByText(/<html>/)).not.toBeInTheDocument()
   })
 
-  it('shows only the safe Claude Code exit status and diagnostic reference', () => {
+  it.each([
+    { code: 134, signal: null, status: 'code 134' },
+    { code: null, signal: 'SIGABRT', status: 'signal SIGABRT' }
+  ] as const)('attributes an unresolved Claude Code exit in the heading ($status)', ({ code, signal, status }) => {
+    const diagnoseMessageError = vi.fn()
+    mocks.actions = { diagnoseMessageError }
+    mocks.translations = new Map(Object.entries(enUS))
+    const sentinel = 'PRIVATE_UNRECOGNIZED_STDERR_24938'
+    const error = makeClaudeCodeExitError(code, signal, `opaque debris ${sentinel}`)
+
+    const { container } = render(<ErrorBlock partId="part-1" error={error} message={message} />)
+
+    expect(
+      screen.getByText(
+        `Claude Code ${signal ? 'stopped' : 'exited'} unexpectedly (${status}). Diagnostic reference: diagnostic-ref`
+      )
+    ).toBeVisible()
+    expect(screen.queryByText(enUS['error.diagnosis.unknown'])).not.toBeInTheDocument()
+    expect(screen.getAllByText(/Diagnostic reference: diagnostic-ref/)).toHaveLength(1)
+    expect(JSON.stringify(error)).not.toContain(sentinel)
+    expect(container).not.toHaveTextContent(sentinel)
+    expect(screen.queryByText(error.message!)).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: AI_DIAGNOSIS_LABEL })).not.toBeInTheDocument()
+    expect(diagnoseMessageError).not.toHaveBeenCalled()
+  })
+
+  it('keeps the auth heading, exit description and provider settings recovery for a recognised Claude Code exit', async () => {
+    const user = userEvent.setup()
     const diagnoseMessageError = vi.fn()
     const navigateErrorTarget = vi.fn()
     mocks.actions = { diagnoseMessageError, navigateErrorTarget }
+    mocks.translations = new Map(Object.entries(enUS))
 
     render(
-      <ErrorBlock
-        partId="message-1-part-0"
-        error={{
-          name: 'ClaudeCodeProcessExitError',
-          message: 'Claude Code process exited with code 1',
-          stack: null,
-          claudeCodeExitCategory: 'auth',
-          diagnosticReference: 'diagnostic-ref',
-          processExitCode: 1
-        }}
-        message={message}
-      />
+      <ErrorBlock partId="part-1" error={makeClaudeCodeExitError(1, null, 'Authentication failed')} message={message} />
     )
 
-    expect(screen.getByText('error.diagnosis.auth')).toBeInTheDocument()
-    expect(screen.getByText('error.claude_code_exit.code')).toBeInTheDocument()
-    expect(screen.queryByText(/stderr|api_key|sk-ant/i)).toBeNull()
-    expect(diagnoseMessageError).not.toHaveBeenCalled()
-
-    fireEvent.click(screen.getByText(GO_TO_SETTINGS_LABEL))
+    expect(screen.getByText(enUS['error.diagnosis.auth'])).toBeVisible()
+    expect(
+      screen.getByText('Claude Code exited unexpectedly (code 1). Diagnostic reference: diagnostic-ref')
+    ).toBeVisible()
+    await user.click(screen.getByRole('button', { name: GO_TO_SETTINGS_LABEL }))
     expect(navigateErrorTarget).toHaveBeenCalledWith('/settings/provider?id=openai')
+    expect(diagnoseMessageError).not.toHaveBeenCalled()
+  })
+
+  it('keeps the generic heading for a legacy unknown Claude Code exit without a reference', () => {
+    const error = makeClaudeCodeExitError(134)
+    delete error.diagnosticReference
+
+    render(<ErrorBlock partId="part-1" error={error} message={message} />)
+
+    expect(screen.getByText('error.diagnosis.unknown')).toBeVisible()
+    expect(screen.getByText('Claude Code process exited with code 134')).toBeVisible()
+    expect(screen.queryByText(/Diagnostic reference:/)).not.toBeInTheDocument()
   })
 
   it('does not treat an unknown exit category as a Claude Code diagnostic', async () => {
@@ -864,6 +926,30 @@ required service tier.`
     await user.click(screen.getByRole('button', { name: GO_TO_SETTINGS_LABEL }))
     expect(navigateErrorTarget).toHaveBeenCalledWith('/settings/provider?id=openai')
     expect(diagnoseMessageError).not.toHaveBeenCalled()
+  })
+
+  // #25526: Claude Code formats HTTP 400 rejections as `API Error: 400 {json}`; the upstream
+  // reason must remain visible instead of being stripped by container filtering.
+  it('surfaces the upstream message from a Claude Code JSON 400 error', () => {
+    mocks.translations.set('error.diagnosis.bad_request', enUS['error.diagnosis.bad_request'])
+    mocks.translations.set('error.http.400', enUS['error.http.400'])
+
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{
+          name: 'ClaudeCodeResultError',
+          message:
+            'API Error: 400 {"code":"11-128","message":"Illegal API invocation from an unapproved channel","type":"error","error":{"code":"11-128","type":"invalid_request_error","message":"Illegal API invocation from an unapproved channel"}}',
+          stack: null,
+          statusCode: 400
+        }}
+        message={message}
+      />
+    )
+
+    expect(screen.getByText('Provider request failed (HTTP 400)')).toBeInTheDocument()
+    expect(screen.getByText(/Illegal API invocation from an unapproved channel/)).toBeInTheDocument()
   })
 
   it('requires another click to diagnose in a changed app language', async () => {

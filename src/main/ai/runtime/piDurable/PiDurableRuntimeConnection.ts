@@ -189,6 +189,8 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     for (const child of recoverChildren)
       if (!(await this.observeChild(child))) throw new Error('Durable child archive is unavailable')
     await this.childResources()
+    // Finish opening native observations before reclamation lets a queued shutdown proceed.
+    await owner.reclaimRetired(root)
     this.events.push({ type: 'resume-token', token: this.handle.thread.id })
     return this
   }

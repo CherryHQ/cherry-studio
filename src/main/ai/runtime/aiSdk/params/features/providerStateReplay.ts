@@ -83,6 +83,7 @@ export function createProviderStateReplayMiddleware({
             params.providerOptions?.[responsesOptionsKey]?.store !== false
           if (!foreign && !unaddressable) return [part]
           if (part.type === 'reasoning') return []
+          if (part.type === 'text' && !part.text.trim()) return []
           return [omitState?.(part) ?? part]
         })
         // Preserve a valid assistant turn when its only content was opaque state.
