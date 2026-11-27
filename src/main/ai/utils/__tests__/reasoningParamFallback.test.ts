@@ -203,6 +203,7 @@ describe('withReasoningParamFallback', () => {
   })
 
   it.each([
+    "Unsupported reasoning model 'reasoning'.",
     'Invalid model id: reasoning_effort-v2',
     'The requested model ID: `reasoning_effort` is not supported.',
     'Unknown model "reasoning"',
@@ -224,6 +225,7 @@ describe('withReasoningParamFallback', () => {
 
   it.each([
     'invalid_request_error: reasoning.effort value "none" is not supported',
+    "For model ID: 'reasoning_effort', unsupported parameter: 'reasoning_effort'.",
     'For this model: reasoning_effort is not supported.',
     'Invalid reasoning_effort for model with ID `reasoning_effort`.',
     "'reasoning_effort' does not support null",

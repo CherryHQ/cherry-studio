@@ -42,11 +42,15 @@ const MODEL_SUBJECT_PATTERN =
 
 /** Message-only rejection must identify the complete field or its effort value. */
 const MESSAGE_REJECTION_PATTERN =
-  /(?:unrecognized|unknown|invalid|unsupported|unexpected|not supported|not permitted)\s+(?:(?:request\s+)?(?:argument|parameter|field)(?:\s+(?:supplied|named))?\s*:?\s*)?["'`]?reasoning(?:_effort|\.effort)?["'`]?(?=\s|[.,:;]|$)|(?:^|[\s"'`])reasoning(?:_effort|\.effort)?["'`]?\s+(?:value\s+["'`][^"'`\r\n]+["'`]\s+)?(?:is\s+)?(?:unrecognized|unknown|invalid|unsupported|unexpected|not supported|not permitted)\b|(?:^|[\s"'`])reasoning(?:_effort|\.effort)?["'`]?\s+does not support\s+(?:["'`][^"'`\r\n]+["'`]|null\b)/i
+  /(?:unrecognized|unknown|invalid|unsupported|unexpected|not supported|not permitted)\s+(?:(?:request\s+)?(?:argument|parameter|field)(?:\s+(?:supplied|named))?\s*:?\s*)?["'`]?reasoning(?:_effort|\.effort)?["'`]?(?!\s+model\b)(?=\s|[.,:;]|$)|(?:^|[\s"'`])reasoning(?:_effort|\.effort)?["'`]?\s+(?:value\s+["'`][^"'`\r\n]+["'`]\s+)?(?:is\s+)?(?:unrecognized|unknown|invalid|unsupported|unexpected|not supported|not permitted)\b|(?:^|[\s"'`])reasoning(?:_effort|\.effort)?["'`]?\s+does not support\s+(?:["'`][^"'`\r\n]+["'`]|null\b)/i
 
 function isReasoningMessage(message: string): boolean {
   const rejection = MESSAGE_REJECTION_PATTERN.exec(message)
   if (!rejection) return false
+  // An explicit parameter subject can follow a model-ID context prefix.
+  const explicitParameterRejection =
+    /(?:unrecognized|unknown|invalid|unsupported|unexpected|not supported|not permitted)\s+(?:request\s+)?(?:argument|parameter|field)(?:\s+(?:supplied|named))?\s*:?\s*["'`]?reasoning(?:_effort|\.effort)?["'`]?(?!\s+model\b)(?=\s|[.,:;]|$)/i
+  if (explicitParameterRejection.test(message)) return true
   const modelSubject = MODEL_SUBJECT_PATTERN.exec(message)
   return !modelSubject || rejection.index < modelSubject.index
 }
