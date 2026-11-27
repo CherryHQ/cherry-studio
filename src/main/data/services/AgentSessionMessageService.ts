@@ -128,7 +128,7 @@ import {
   writeAgentSessionMessagePartsTx
 } from './agentSessionMessageTree'
 import { aiUsageRecordService, mergeMessageRuntimeStats } from './AiUsageRecordService'
-import { isCodexContextMessage, presentCodexHistory } from './importedCodexText'
+import { presentCodexHistory } from './importedCodexText'
 import { presentClaudeHistory, presentImportedTools } from './importedHistoryText'
 import {
   messageProvenanceSql,
@@ -2524,7 +2524,7 @@ export class AgentSessionMessageService {
     }
   ): AgentSessionMessageEntity {
     const role =
-      row.role === 'user' && row.provenance?.source === 'codex' && isCodexContextMessage(row.data) ? 'system' : row.role
+      row.role === 'user' && row.provenance?.source === 'codex' && row.provenance.isSetup ? 'system' : row.role
     const formatted =
       row.provenance?.source === 'claude-code'
         ? presentClaudeHistory(row.data)

@@ -2,6 +2,7 @@ import { mkdtemp, mkdir, writeFile, rm, readdir, readFile, realpath } from 'node
 import type * as fsPromises from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
+import { zstdCompressSync } from 'node:zlib'
 
 import { SessionManager } from '@earendil-works/pi-coding-agent'
 import { setupTestDatabase } from '@test-helpers/db'
@@ -318,7 +319,7 @@ describe('local history atomic import', () => {
   it('retries a partially written Codex rollout without reserving its thread ID or hiding the first prompt', async () => {
     const dir = path.join(root, 'source')
     const file = path.join(dir, 'rollout-partial.jsonl')
-    const first = '[Historical environment]\n\ncwd: /project\nPlease fix the login failure.'
+    const first = '[Historical environment]\ncwd: Can you explain what this field controls?'
     const message = (ordinal: number, text: string) =>
       JSON.stringify({
         ordinal,
@@ -360,6 +361,55 @@ describe('local history atomic import', () => {
       ['user', { type: 'text', text: 'Later question' }]
     ])
   })
+  it('does not reserve a database fork before its independent history can be verified', async () => {
+    const dir = path.join(root, 'source')
+    const id = '10000000-0000-4000-8000-000000000001'
+    const archive = path.join(dir, 'rollout-2026-01-01T00-00-00-' + id + '.jsonl.zst')
+    const db = new Database(path.join(dir, 'thread_history_1.sqlite'))
+    db.exec(
+      'CREATE TABLE thread_items(thread_id TEXT, item_id TEXT, rollout_ordinal INTEGER, created_at_ms INTEGER, item_json TEXT)'
+    )
+    const insert = db.prepare('INSERT INTO thread_items VALUES (?,?,?,?,?)')
+    const item = (text: string) => JSON.stringify({ type: 'userMessage', content: [{ type: 'text', text }] })
+    const header = (ordinal: number, base?: object) =>
+      zstdCompressSync(
+        JSON.stringify({
+          ordinal,
+          type: 'session_meta',
+          payload: { id, cli_version: '0.164.0-alpha.11.1', history_mode: 'paginated', history_base: base }
+        }) + '\n'
+      )
+    try {
+      insert.run(id, 'followup', 9, 1000, item('Local follow-up'))
+      const run = async () => {
+        const scan = await service.discover('win', 'codex', dir)
+        const [{ ref }] = scan.candidates
+        const preview = await service.preview('win', scan.scanId, 'pi', [{ ref }])
+        return (await service.commit('win', preview.previewId, [ref]))[0]
+      }
+      expect(await run()).toMatchObject({ status: 'failed', reason: 'preview_blocked' })
+      await writeFile(archive, header(5, { thread_id: 'parent', end_ordinal_exclusive: 5 }))
+      expect(await run()).toMatchObject({ status: 'failed', reason: 'preview_blocked' })
+      expect(counts()).toEqual([0, 0, 0, 0])
+      insert.run(id, 'original', 1, 500, item('Original task'))
+      await writeFile(archive, header(0))
+      const saved = await run()
+      expect(saved.status).toBe('imported')
+      expect(
+        agentSessionMessageService
+          .listSessionMessages(saved.sessionId!, { limit: 5 })
+          .items.reverse()
+          .map((m) => m.data.parts?.[0])
+      ).toEqual([
+        { type: 'text', text: 'Original task' },
+        { type: 'text', text: 'Local follow-up' }
+      ])
+      expect((await run()).status).toBe('existing')
+    } finally {
+      db.close()
+    }
+  })
+
   it('keeps preview read-only and imports historical times into the selected existing agent', async () => {
     await source()
     const before = dbh.db.select().from(agentTable).all()

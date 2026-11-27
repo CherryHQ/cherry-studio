@@ -1,14 +1,17 @@
 import { createHash } from 'node:crypto'
+import { realpath } from 'node:fs/promises'
 import path from 'node:path'
 
 import * as z from 'zod'
 
+import { application } from '@application'
 import { formatCodexHistoryText, formatCodexTool, isCodexContextText } from '@data/services/importedCodexText'
 import { loggerService } from '@logger'
 import type { MessageData } from '@shared/data/types/message'
 
 import { CODEX_HISTORY_DB, databaseCandidates, readDatabaseSession } from './codexDatabase'
 import { discoverJsonl, readJsonl } from './files'
+import { statIfPresent } from './readonlySqlite'
 import { IMPORT_LIMITS, type HistorySourceAdapter, type NormalizedSession, type SessionRef } from './types'
 
 const Row = z.object({
@@ -24,7 +27,7 @@ const Meta = z
     cwd: z.string().optional(),
     history_mode: z.string().optional(),
     history_base: z.unknown().optional(),
-    model_provider: z.string().optional()
+    model_provider: z.string().nullish()
   })
   .passthrough()
 
@@ -49,23 +52,54 @@ async function indexInput(file: string, signal: AbortSignal) {
   return { titles, invalidLines, bytes: input?.bytes ?? 0, fingerprint: input?.fingerprint ?? 'absent' }
 }
 
+async function* rolloutFiles(root: string, signal: AbortSignal) {
+  const home = await realpath(application.getPath('external.codex.home')).catch(() => undefined)
+  if (root !== home) {
+    yield* discoverJsonl(root, signal, true)
+    return
+  }
+  for (const name of ['sessions', 'archived_sessions']) {
+    const directory = path.join(root, name)
+    if ((await statIfPresent(directory))?.isDirectory()) yield* discoverJsonl(directory, signal, true)
+  }
+}
+
 export const codexAdapter: HistorySourceAdapter = {
   source: 'codex',
   async *discover(root, signal) {
     const indexPath = path.join(root, 'session_index.jsonl')
     const index = await indexInput(indexPath, signal)
     const sessions = new Map<string, SessionRef & { sourcePaths: string[]; originalSessionId: string }>()
+    const compressed = new Map<string, string[]>()
+    const rolloutIds = new Set<string>()
     let scanned = 0
-    for await (const file of discoverJsonl(root, signal)) {
+    for await (const file of rolloutFiles(root, signal)) {
       if (++scanned > 10_000) throw new Error('scan_limit')
-      if (!path.basename(file).startsWith('rollout-')) continue
+      const name = path.basename(file)
+      if (!name.startsWith('rollout-')) continue
+      if (name.endsWith('.jsonl.zst')) {
+        const id = /-([\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12})\.jsonl\.zst$/i.exec(name)?.[1]
+        if (id) {
+          const paths = compressed.get(id) ?? []
+          paths.push(file)
+          compressed.set(id, paths)
+        }
+        continue
+      }
       let id = file
       try {
         const input = await readJsonl(file, signal)
-        const first = input.lines.find((line) => line.text.trim())
-        const row = first && Row.safeParse(JSON.parse(first.text))
-        const meta = row && row.success && row.data.type === 'session_meta' && Meta.safeParse(row.data.payload)
-        if (meta && meta.success) id = meta.data.id
+        for (const line of input.lines) {
+          let value
+          try {
+            value = JSON.parse(line.text)
+          } catch {
+            continue
+          }
+          if (value?.type !== 'session_meta' || typeof value.payload?.id !== 'string' || !value.payload.id) continue
+          rolloutIds.add(value.payload.id)
+          if (id === file && Row.safeParse(value).success) id = value.payload.id
+        }
       } catch {
         signal.throwIfAborted()
       }
@@ -80,7 +114,6 @@ export const codexAdapter: HistorySourceAdapter = {
         })
       if (sessions.size > 10_000) throw new Error('scan_limit')
     }
-    const rolloutIds = new Set(sessions.keys())
     for (const ref of sessions.values()) {
       try {
         const session = await readCodexSession(ref, signal, index)
@@ -92,7 +125,6 @@ export const codexAdapter: HistorySourceAdapter = {
               ['unstable_identity', 'identity_conflict', 'duplicate_message_id'].includes(d.code)
           )
         ) {
-          rolloutIds.delete(ref.originalSessionId)
           continue
         }
         ref.title = session.title
@@ -103,10 +135,10 @@ export const codexAdapter: HistorySourceAdapter = {
       yield ref
     }
     try {
-      yield* await databaseCandidates(root, rolloutIds, signal)
+      yield* await databaseCandidates(root, rolloutIds, compressed, signal)
     } catch (error) {
       signal.throwIfAborted()
-      if (!rolloutIds.size || (error instanceof Error && error.message === 'scan_limit')) throw error
+      if (!sessions.size || (error instanceof Error && error.message === 'scan_limit')) throw error
       loggerService
         .withContext('CodexHistoryImport')
         .warn('Could not discover SQLite history alongside rollouts', { error })
@@ -174,6 +206,7 @@ async function readCodexSession(
     return result
   }
   result.originalSessionId = meta.data.id
+  if (ref.originalSessionId && ref.originalSessionId !== meta.data.id) diagnose('unstable_identity', undefined, 'error')
   result.sourceVersion = meta.data.cli_version
   result.workingDirectory = meta.data.cwd
   if (!/^0\.\d+\.\d+(?:[-+].*)?$/.test(meta.data.cli_version)) diagnose('unsupported_version', undefined, 'error')
@@ -346,14 +379,11 @@ async function readCodexSession(
   if (
     meta.data.cli_version === '0.164.0-alpha.11.1' &&
     source.success &&
-    !result.diagnostics.some((d) =>
-      [
-        'invalid_json',
-        'invalid_record',
-        'unsupported_version',
-        'unsupported_history_layout',
-        'unsupported_history_order'
-      ].includes(d.code)
+    !result.diagnostics.some(
+      (d) =>
+        (d.severity === 'error' && d.code !== 'empty_session') ||
+        d.code === 'invalid_json' ||
+        d.code === 'invalid_record'
     )
   )
     result.filteredReason = 'codex_guardian_review'

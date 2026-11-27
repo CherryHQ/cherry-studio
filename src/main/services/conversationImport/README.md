@@ -4,7 +4,7 @@
 - `claudeCode.ts` 解析 Claude Code 2.1 系列的 UUID／父链 JSONL 布局。当前夹具版本为 2.1.284。未知布局须报告，不代表已验证全部发布版本。
 - Claude 扫描按来源身份归集物理副本。内容相同可导入；内容不同则阻止首次导入。预览和提交指纹覆盖全部副本，已有导入身份仍按原规则跳过。
 - `files.ts` 限制输入体积。预览快照只留在内存。
-- Codex 工具输入、嵌套命令输出、环境上下文和引用标签由数据服务的 importedCodexText.ts 转成可读历史文本。新导入与旧记录读模型共用转换，不覆盖旧持久消息。旧 Codex 记录的纯环境、项目指令和应用上下文按系统角色显示；混有真实用户正文或只有无法核实的历史标题时，保留用户角色。Codex 文件末行缺少换行且 JSON 解析失败时，等写入完成后再导入。完整的末行可以没有换行。
+- Codex 工具输入、嵌套命令输出、环境上下文和引用标签由数据服务的 importedCodexText.ts 转成可读历史文本。导入时识别结构化上下文。读取已存消息时保留用户角色，只有带设置来源标记的消息才按系统角色显示。Codex 文件末行缺少换行且 JSON 解析失败时，等写入完成后再导入。完整的末行可以没有换行。
 - 跨进程契约位于 `src/shared/ipc/schemas/conversationImport.ts`。来源身份由数据服务写入，界面不能提交数据库记录。
 - Pi 历史初始化位于 `src/main/ai/runtime/pi/importedSessionHistory.ts`。失败后保留可读历史，禁止空上下文续聊。
 - 崩溃恢复清空令牌且仍有历史时，阻止续聊，不恢复不可信的旧执行状态。正常切换原生会话或明确删除全部历史不受此限制。
@@ -34,6 +34,8 @@ WorkBuddy 通过 app_state 中的 provenance.sourceOrder 保存因果顺序，�
 
 Codex rollout 的 Guardian 过滤只识别已核对的 0.164.0-alpha.11.1 布局，依据 session_meta.payload.source.subagent.other=guardian，不依据标题。先按来源 ID 汇总全部物理副本；存在副本冲突、缺失分页或损坏记录时保留校验。普通子代理及同名用户会话保留。
 
-Codex 还会只读扫描 `thread_history_1.sqlite` 的 `thread_items`。按线程 ID 与 rollout 去重。同一线程优先使用原始 rollout。数据库历史按源序号导入，保留原时间。相邻的 `state_5.sqlite` 提供标题、工作目录和 Guardian 来源标记。没有元数据的线程仍可导入。预览和提交只核对所选线程。
+Codex 默认在 `sessions` 和 `archived_sessions` 查找 rollout。手动指定其他目录时从该目录扫描。普通 rollout 优先于 `thread_history_1.sqlite` 中的同一线程。身份冲突的 rollout 会阻止对应线程回退到数据库。
+
+数据库中的 `thread_items` 只有本线程的记录。预览和提交都会读取对应 `.jsonl.zst` 的会话头，核实线程 ID、分页模式、起始序号及继承关系。无法确认独立历史时，保留重试机会。独立线程按源序号导入，保留原时间。`state_5.sqlite` 提供可选的标题、工作目录和 Guardian 来源标记。有 WAL 数据时，SQLite 在临时副本中读取已提交的更新，批次结束后清理副本。
 
 `opencode.ts` 在只读 SQLite 事务中读取同一快照。识别旧版 session/message/part，以及新版 session_v2/session_message，后者可带 session_part。只列出含消息的会话。按 seq 或旧版 time_created、id 排序。版本夹具为 1.2.0 和 2.2.5；新版结构依据 anomalyco/opencode 的 1bf08ae46a91f7793c756e4ee521e37b6b554064。旧版结构依据该提交的 v1-migration 源类型。夹具为合成数据，不能替代真实安装版验证。回退、继承 fork、压缩和未知表结构均明确拒绝。数据库指纹覆盖被选会话的逻辑快照，包含 WAL 已提交行，不要求复制数据库。
