@@ -1629,6 +1629,8 @@
   "endpoint_type.openai": "OpenAI",
   "endpoint_type.openai-embeddings": "Înglobări (OpenAI)",
   "endpoint_type.openai-response": "OpenAI-Response",
+  "error.agent_task_timeout": "Timpul pentru sarcina programată a expirat.",
+  "error.agent_task_timeout_detail": "Oprită după {{minutes}} minut(e) deoarece sarcina a atins limita de timp configurată.",
   "error.api_gateway_required": "Acest model trebuie să fie conectat prin serverul API local Cherry Studio, care este în prezent dezactivat. Activează-l pentru a rula acest agent.",
   "error.availableProviders": "Furnizori disponibili",
   "error.availableTools": "Instrumente disponibile",

@@ -23,6 +23,7 @@
  */
 
 import { application } from '@application'
+import type { ExecutionFailure } from '@cherrystudio/remote-protocol/failure'
 import type { AgentSessionType } from '@data/db/schemas/agentSession'
 import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
@@ -65,23 +66,50 @@ export type AgentTaskOutput = {
   result: string
 }
 
+export const AGENT_TASK_TIMEOUT_ERROR_I18N_KEY = 'agent_task_timeout'
+export const AGENT_TASK_TIMEOUT_DETAIL_I18N_KEY = 'agent_task_timeout_detail'
+
+export function createAgentTaskTimeoutError(timeoutMinutes: number): Error {
+  const message = `Task timed out after ${timeoutMinutes} minute(s)`
+  const executionFailure: ExecutionFailure = {
+    message,
+    retryable: false,
+    failure: {
+      version: 1,
+      reasonCode: 'timeout',
+      source: { layer: 'host' },
+      context: {}
+    }
+  }
+  return Object.assign(new Error(message), {
+    name: 'TimeoutError',
+    errorSource: 'local' as const,
+    i18nKey: AGENT_TASK_TIMEOUT_ERROR_I18N_KEY,
+    detailI18nKey: AGENT_TASK_TIMEOUT_DETAIL_I18N_KEY,
+    detailI18nValues: { minutes: String(timeoutMinutes) },
+    executionFailure
+  })
+}
+
 /** Combine the JobManager-provided abort signal with an optional per-task timeout. */
 function makeRunSignal(
   outerSignal: AbortSignal,
   timeoutMinutes: number | undefined
-): { signal: AbortSignal; dispose: () => void } {
+): { signal: AbortSignal; isTimedOut: () => boolean; dispose: () => void } {
   if (!timeoutMinutes || timeoutMinutes <= 0) {
-    return { signal: outerSignal, dispose: () => {} }
+    return { signal: outerSignal, isTimedOut: () => false, dispose: () => {} }
   }
   // Own the timeout so `dispose()` can actually release the timer on normal
   // completion (an `AbortSignal.timeout` keeps a live timer until it fires).
   const timeoutController = new AbortController()
-  const timer = setTimeout(
-    () => timeoutController.abort(new Error(`Task timed out after ${timeoutMinutes} minute(s)`)),
-    timeoutMinutes * 60_000
-  )
+  const timeoutError = createAgentTaskTimeoutError(timeoutMinutes)
+  const timer = setTimeout(() => timeoutController.abort(timeoutError), timeoutMinutes * 60_000)
   const signal = AbortSignal.any([outerSignal, timeoutController.signal])
-  return { signal, dispose: () => clearTimeout(timer) }
+  return {
+    signal,
+    isTimedOut: () => signal.aborted && signal.reason === timeoutError,
+    dispose: () => clearTimeout(timer)
+  }
 }
 
 /**
@@ -259,7 +287,7 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
     return adapter.notifyChatIds.map((chatId) => new ChannelAdapterListener(adapter, chatId, true))
   })
 
-  const { signal: runSignal, dispose } = makeRunSignal(ctx.signal, timeoutMinutes)
+  const { signal: runSignal, isTimedOut, dispose } = makeRunSignal(ctx.signal, timeoutMinutes)
   const startTimeMs = Date.now()
 
   let resolveExecution!: (text: string) => void
@@ -337,10 +365,12 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
     for (const listener of channelListeners) application.get('AiStreamManager').removeListener(topicId, listener.id)
     application.get('AiStreamManager').removeListener(topicId, sentinel.id)
     const reason = runSignal.reason
-    application
-      .get('AiStreamManager')
-      .abort(topicId, reason instanceof Error ? reason.message : String(reason ?? 'task-aborted'))
-    rejectExecution(reason instanceof Error ? reason : new Error(String(reason ?? 'Task aborted')))
+    const error = reason instanceof Error ? reason : new Error(String(reason ?? 'Task aborted'))
+    const abortReason = reason instanceof Error ? reason.message : String(reason ?? 'task-aborted')
+    const streamManager = application.get('AiStreamManager')
+    if (isTimedOut()) streamManager.abort(topicId, abortReason, { terminalError: error })
+    else streamManager.abort(topicId, abortReason)
+    rejectExecution(error)
   }
   let runError: Error | null = null
   let resultText = ''

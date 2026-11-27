@@ -1602,3 +1602,73 @@ it.each(['unanswered', 'rejected'] as const)(
   },
   15000
 )
+
+it('treats a result failure after host-initiated interrupt as paused even with a late steer input-boundary', async () => {
+  const wire = wireProcess()
+  const test = await desktop({ spawnClaudeCodeProcess: () => wire.process })
+  const connection = await test.connect()
+  const context = sessionContexts(test.sessionId).find((candidate) => candidate.nativeThreadId)!
+  await connection.send(test.input('Turn aborted mid-execution'))
+  await expect.poll(() => wire.inputs.length).toBe(1)
+
+  expect(connection.redirect?.(test.input('Late steer before stop'))).toBe(true)
+  await expect.poll(() => wire.inputs.length).toBe(2)
+
+  await connection.interrupt!()
+  wire.send({
+    type: 'result',
+    subtype: 'error_during_execution',
+    uuid: randomUUID(),
+    session_id: context.nativeThreadId!,
+    user_message_uuid: wire.inputs[1].uuid,
+    duration_ms: 1,
+    duration_api_ms: 1,
+    is_error: true,
+    num_turns: 1,
+    stop_reason: null,
+    total_cost_usd: 0,
+    errors: ['[ede_diagnostic] result_type=user last_content_type=n/a stop_reason=null'],
+    modelUsage: {},
+    permission_denials: [],
+    usage: {
+      input_tokens: 1,
+      output_tokens: 0,
+      cache_creation_input_tokens: 0,
+      cache_read_input_tokens: 0,
+      cache_creation: { ephemeral_1h_input_tokens: 0, ephemeral_5m_input_tokens: 0 },
+      iterations: [],
+      server_tool_use: { web_search_requests: 0, web_fetch_requests: 0 },
+      service_tier: 'standard',
+      inference_geo: 'us',
+      speed: 'standard'
+    }
+  })
+
+  await expect.poll(() => test.events.some((event) => event.type === 'turn-complete')).toBe(true)
+  expect(test.events).toContainEqual(expect.objectContaining({ type: 'turn-complete', status: 'paused' }))
+  expect(test.events.some((event) => event.type === 'error')).toBe(false)
+  const promptErrors = mockMainLoggerService.error.mock.calls
+    .map((call) => call[1])
+    .filter((entry) => entry?.operation === 'agent.claude.prompt')
+  expect(promptErrors).toEqual([])
+  wire.exit()
+  await connection.close()
+})
+
+it('does not misclassify an unexpected close as paused after an interrupt with no active turn', async () => {
+  const wire = wireProcess()
+  const test = await desktop({ spawnClaudeCodeProcess: () => wire.process })
+  const connection = await test.connect()
+
+  await connection.interrupt!()
+  wire.fail(new Error('Process crashed while idle'))
+
+  await expect.poll(() => test.events.some((event) => event.type === 'error')).toBe(true)
+  expect(test.events.some((event) => event.type === 'turn-complete' && event.status === 'paused')).toBe(false)
+  const promptErrors = mockMainLoggerService.error.mock.calls
+    .map((call) => call[1])
+    .filter((entry) => entry?.operation === 'agent.claude.prompt')
+  expect(promptErrors).toHaveLength(1)
+  wire.exit()
+  await connection.close()
+})

@@ -2265,6 +2265,25 @@ describe('AiStreamManager', () => {
       expect(l.errorResults[0].finalMessage?.id).toBe('assistant-1')
       expect(mgr.inspect('a')!.executions[0].finalMessage?.id).toBe('assistant-1')
     })
+
+    it('settles terminal status at most once when onExecutionError is invoked repeatedly or after completion', async () => {
+      const l = new FakeListener('l:a')
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [l]
+      })
+
+      await mgr.onExecutionError('a', 'provider-a::model-a', error('first'))
+      await mgr.onExecutionError('a', 'provider-a::model-a', error('second'))
+      await mgr.onExecutionPaused('a', 'provider-a::model-a')
+      await mgr.onExecutionDone('a', 'provider-a::model-a')
+
+      expect(l.errorResults).toHaveLength(1)
+      expect(l.pausedResults).toHaveLength(0)
+      expect(l.doneResults).toHaveLength(0)
+    })
   })
 
   describe('unsuccessful conversation outcomes', () => {
@@ -2415,6 +2434,97 @@ describe('AiStreamManager', () => {
       // Abort on a finished stream → no-op (status stays 'done')
       mgr.abort('a', 'late')
       expect(mgr.inspect('a')!.status).toBe('done')
+    })
+
+    it('finalizes via onError when abort carries a terminalError, without logging a stream failure', async () => {
+      vi.useRealTimers()
+      const source = controlledMessageSource()
+      mockStreamText.mockResolvedValueOnce(source.source)
+      const listener = new FakeListener('l:timeout')
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [listener]
+      })
+      await flushUntil(() => Boolean(mgr.inspect('a')))
+      source.enqueue({ type: 'control', chunk: { type: 'start' } })
+      mockMainLoggerService.error.mockClear()
+
+      const timeoutError = Object.assign(new Error('Task timed out after 2 minute(s)'), {
+        name: 'TimeoutError',
+        errorSource: 'local' as const,
+        i18nKey: 'agent_task_timeout',
+        detailI18nKey: 'agent_task_timeout_detail',
+        detailI18nValues: { minutes: '2' },
+        executionFailure: {
+          message: 'Task timed out after 2 minute(s)',
+          retryable: false,
+          failure: {
+            version: 1 as const,
+            reasonCode: 'timeout' as const,
+            source: { layer: 'host' as const },
+            context: {}
+          }
+        }
+      })
+      mgr.abort('a', 'Task timed out after 2 minute(s)', { terminalError: timeoutError })
+
+      await flushUntil(() => listener.errorResults.length === 1)
+      expect(listener.pausedResults).toEqual([])
+      expect(listener.errorResults[0]).toMatchObject({
+        status: 'error',
+        error: {
+          name: 'TimeoutError',
+          message: 'Task timed out after 2 minute(s)',
+          errorSource: 'local',
+          i18nKey: 'agent_task_timeout',
+          detailI18nKey: 'agent_task_timeout_detail',
+          detailI18nValues: { minutes: '2' },
+          reportingHandled: true,
+          executionFailure: {
+            message: 'Task timed out after 2 minute(s)',
+            retryable: false,
+            failure: { version: 1, reasonCode: 'timeout', source: { layer: 'host' }, context: {} }
+          }
+        }
+      })
+      expect(mockMainLoggerService.error).not.toHaveBeenCalled()
+    })
+
+    it('keeps the host terminalError when a concurrent non-abort error event arrives after abort', async () => {
+      vi.useRealTimers()
+      const source = controlledMessageSource()
+      mockStreamText.mockResolvedValueOnce(source.source)
+      const listener = new FakeListener('l:race')
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [listener]
+      })
+      await flushUntil(() => Boolean(mgr.inspect('a')))
+      source.enqueue({ type: 'control', chunk: { type: 'start' } })
+      mockMainLoggerService.error.mockClear()
+
+      const timeoutError = Object.assign(new Error('Task timed out after 2 minute(s)'), {
+        name: 'TimeoutError',
+        errorSource: 'local' as const,
+        i18nKey: 'agent_task_timeout'
+      })
+      source.enqueue({ type: 'error', error: new Error('Claude Code exited with code 1') })
+      mgr.abort('a', 'Task timed out after 2 minute(s)', { terminalError: timeoutError })
+
+      await flushUntil(() => listener.errorResults.length === 1)
+      expect(listener.errorResults[0].error).toMatchObject({
+        name: 'TimeoutError',
+        message: 'Task timed out after 2 minute(s)',
+        i18nKey: 'agent_task_timeout',
+        executionFailure: {
+          failure: { reasonCode: 'internal', source: { layer: 'host' } }
+        }
+      })
+      expect(mockMainLoggerService.error).not.toHaveBeenCalled()
     })
 
     it('cancels background work even after the visible stream has finished', async () => {

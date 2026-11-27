@@ -36,7 +36,7 @@ export interface AgentSessionMessageBackendOptions {
     messageId: string
   ) => { partIds: readonly string[]; positions?: ReadonlyMap<string, number> } | undefined
   /** Runs at the synchronous commit boundary, before any terminal observer or post-save work. */
-  onPersisted?: () => void
+  onPersisted?: (status: PersistAssistantInput['status']) => void
   /** Post-success hook — typically session auto-rename. */
   afterPersist?: (finalMessage: CherryUIMessage) => Promise<void>
 }
@@ -102,7 +102,7 @@ export class AgentSessionMessageBackend implements PersistenceBackend<'agents-db
       logger.warn('Fork checkpoint persistence failed; retrying completed answer without checkpoint', { error })
       saved = save()
     }
-    this.opts.onPersisted?.()
+    this.opts.onPersisted?.(status)
     return {
       messageId: saved.id,
       messageRevision: String(Date.parse(saved.updatedAt)),

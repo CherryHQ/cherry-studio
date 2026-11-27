@@ -1627,6 +1627,8 @@
   "endpoint_type.openai": "OpenAI",
   "endpoint_type.openai-embeddings": "Embeddings (OpenAI)",
   "endpoint_type.openai-response": "Resposta OpenAI",
+  "error.agent_task_timeout": "A tarefa agendada excedeu o tempo limite.",
+  "error.agent_task_timeout_detail": "Interrompida após {{minutes}} minuto(s) por atingir o tempo limite configurado para a tarefa.",
   "error.api_gateway_required": "Este modelo deve ser ligado através da API Gateway local do Cherry Studio, que atualmente está desativada. Ative-a para executar este agente.",
   "error.availableProviders": "Fornecedores disponíveis",
   "error.availableTools": "Ferramentas disponíveis",

@@ -1,5 +1,6 @@
 import { APICallError, JSONParseError, RetryError, TypeValidationError } from 'ai'
 
+import { executionFailureSchema } from '@cherrystudio/remote-protocol/failure'
 import { getSafeProviderErrorMessage, serializeNestedProviderError } from '@shared/ai/providerError'
 import type { SerializedError } from '@shared/types/error'
 import type { Serializable } from '@shared/types/serializable'
@@ -93,6 +94,10 @@ export function serializeError(error: unknown): SerializedError {
     // renderer cannot tell empty OCR output from a failing processor.
     if ('detailI18nKey' in e && typeof e.detailI18nKey === 'string') serialized.detailI18nKey = e.detailI18nKey
     if ('detailI18nValues' in e) serialized.detailI18nValues = toSerializable(e.detailI18nValues)
+    if ('executionFailure' in e) {
+      const parsed = executionFailureSchema.safeParse(e.executionFailure)
+      if (parsed.success) serialized.executionFailure = parsed.data
+    }
     if ('providerErrorCategory' in e && isErrorCategory(e.providerErrorCategory)) {
       serialized.providerErrorCategory = e.providerErrorCategory
     }

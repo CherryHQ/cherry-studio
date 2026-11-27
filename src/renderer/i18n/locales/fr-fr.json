@@ -1627,6 +1627,8 @@
   "endpoint_type.openai": "OpenAI",
   "endpoint_type.openai-embeddings": "Embedding (OpenAI)",
   "endpoint_type.openai-response": "Réponse OpenAI",
+  "error.agent_task_timeout": "Délai dépassé pour la tâche planifiée.",
+  "error.agent_task_timeout_detail": "Arrêtée après {{minutes}} minute(s) car la tâche a atteint le délai maximal configuré.",
   "error.api_gateway_required": "Ce modèle doit être relayé par le Serveur API local de Cherry Studio, qui est actuellement désactivé. Activez-le pour exécuter cet agent.",
   "error.availableProviders": "Fournisseurs disponibles",
   "error.availableTools": "Outils disponibles",

@@ -330,6 +330,74 @@ describe('ClaudeCodeProcessManager', () => {
     expect(mockMainLoggerService.warn).not.toHaveBeenCalledWith('Claude Code process failed', expect.anything())
   })
 
+  it('does not log a process failure when caller kill or expected exit terminates with non-zero code', async () => {
+    const killedChild = createFakeChild()
+    const expectedChild = createFakeChild()
+    const manager = new TestProcessManager(
+      vi.fn().mockReturnValueOnce(killedChild.process).mockReturnValueOnce(expectedChild.process)
+    )
+    const killedDiagnostics = createClaudeCodeProcessDiagnostics('killed-ref')
+    const expectedDiagnostics = createClaudeCodeProcessDiagnostics('expected-ref')
+    const managedKilled = manager.spawn(spawnOptions, killedDiagnostics)
+    const managedExpected = manager.spawn(spawnOptions, expectedDiagnostics)
+    const onKilledExit = vi.fn()
+    const onExpectedExit = vi.fn()
+    managedKilled.once('exit', onKilledExit)
+    managedExpected.once('exit', onExpectedExit)
+
+    managedKilled.kill('SIGKILL')
+    killedChild.stderr.end()
+    killedChild.emitExit(1)
+
+    expectedDiagnostics.expectedExit = true
+    expectedChild.stderr.end()
+    expectedChild.emitExit(1)
+
+    await vi.waitFor(() => expect(onKilledExit).toHaveBeenCalledExactlyOnceWith(1, null))
+    await vi.waitFor(() => expect(onExpectedExit).toHaveBeenCalledExactlyOnceWith(1, null))
+
+    expect(killedDiagnostics.exitCode).toBe(1)
+    expect(expectedDiagnostics.exitCode).toBe(1)
+    expect(mockMainLoggerService.warn).not.toHaveBeenCalledWith('Claude Code process failed', expect.anything())
+  })
+
+  it('does not record spawn failure or log a crash when child emits error after spawn signal aborts', () => {
+    const controller = new AbortController()
+    const child = createFakeChild()
+    const manager = new TestProcessManager(vi.fn(() => child.process))
+    const diagnostics = createClaudeCodeProcessDiagnostics('aborted-spawn-ref')
+    const managed = manager.spawn({ ...spawnOptions, signal: controller.signal }, diagnostics)
+    const onError = vi.fn()
+    managed.once('error', onError)
+
+    controller.abort(new Error('task-timeout'))
+    const abortError = Object.assign(new Error('The operation was aborted'), { name: 'AbortError' })
+    child.emitError(abortError)
+
+    expect(onError).toHaveBeenCalledExactlyOnceWith(abortError)
+    expect(diagnostics.spawnFailed).toBeUndefined()
+    expect(mockMainLoggerService.warn).not.toHaveBeenCalledWith('Claude Code process failed', expect.anything())
+  })
+
+  it('still logs a failure when expectedExit is set only during stderr drain after a non-zero exit', async () => {
+    const child = createFakeChild()
+    const manager = new TestProcessManager(vi.fn(() => child.process))
+    const diagnostics = createClaudeCodeProcessDiagnostics('late-expected-ref')
+    const managed = manager.spawn(spawnOptions, diagnostics)
+    const onExit = vi.fn()
+    managed.once('exit', onExit)
+
+    child.emitExit(1)
+    diagnostics.expectedExit = true
+    child.stderr.end('unexpected native crash')
+
+    await vi.waitFor(() => expect(onExit).toHaveBeenCalledExactlyOnceWith(1, null))
+    expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
+      'Claude Code process failed',
+      expect.objectContaining({ reference: 'late-expected-ref', exitCode: 1 })
+    )
+  })
+
   it('stops tracking a child whose spawn fails before receiving a pid', () => {
     const child = createFakeChild({ pid: undefined })
     const manager = new TestProcessManager(vi.fn(() => child.process))

@@ -1651,6 +1651,8 @@
   "endpoint_type.openai": "OpenAI",
   "endpoint_type.openai-embeddings": "Embeddings (OpenAI)",
   "endpoint_type.openai-response": "OpenAI-Response",
+  "error.agent_task_timeout": "Przekroczono limit czasu zaplanowanego zadania.",
+  "error.agent_task_timeout_detail": "Zatrzymano po {{minutes}} min, ponieważ zadanie osiągnęło skonfigurowany limit czasu.",
   "error.api_gateway_required": "Ten model musi być połączony przez lokalną bramę API Gateway programu Cherry Studio, która jest obecnie wyłączona. Włącz ją, aby uruchomić tego agenta.",
   "error.availableProviders": "Dostępni dostawcy",
   "error.availableTools": "Dostępne narzędzia",

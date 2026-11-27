@@ -1,6 +1,7 @@
 import { APICallError, JSONParseError, NoSuchToolError, RetryError, TypeValidationError } from 'ai'
 import { describe, expect, it } from 'vitest'
 
+import { toExecutionFailure } from '@shared/ai/executionFailure'
 import { createLocalError } from '@shared/utils/localError'
 
 import { serializeError } from '../serializeError'
@@ -115,6 +116,30 @@ describe('serializeError', () => {
       detailI18nValues: { reason: 'Unauthorized' },
       providerErrorCategory: 'ocr'
     })
+  })
+
+  it('retains a valid allowlisted executionFailure and drops malformed ones', () => {
+    const validFailure = {
+      message: 'Task timed out after 2 minute(s)',
+      retryable: false,
+      failure: {
+        version: 1,
+        reasonCode: 'timeout',
+        source: { layer: 'host' },
+        context: {}
+      }
+    }
+    const valid = Object.assign(new Error('Task timed out after 2 minute(s)'), {
+      executionFailure: validFailure
+    })
+    const serialized = serializeError(valid)
+    expect(serialized.executionFailure).toEqual(validFailure)
+    expect(toExecutionFailure(serialized, 'deepseek::deepseek-v4-pro')).toEqual(validFailure)
+
+    const invalid = Object.assign(new Error('Invalid'), {
+      executionFailure: { reasonCode: 'timeout', unexpected: true }
+    })
+    expect(serializeError(invalid).executionFailure).toBeUndefined()
   })
 
   describe('null preservation (FIX error-1)', () => {

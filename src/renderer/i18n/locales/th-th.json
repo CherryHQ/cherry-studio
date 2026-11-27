@@ -1627,6 +1627,8 @@
   "endpoint_type.openai": "OpenAI",
   "endpoint_type.openai-embeddings": "Embeddings (OpenAI)",
   "endpoint_type.openai-response": "OpenAI-Response",
+  "error.agent_task_timeout": "งานที่ตั้งเวลาไว้หมดเวลาแล้ว",
+  "error.agent_task_timeout_detail": "หยุดการทำงานหลังจากผ่านไป {{minutes}} นาที เนื่องจากงานถึงขีดจำกัดเวลาที่ตั้งค่าไว้แล้ว",
   "error.api_gateway_required": "โมเดลนี้ต้องเชื่อมต่อผ่าน API Gateway ในเครื่องของ Cherry Studio ซึ่งถูกปิดอยู่ เปิดใช้เพื่อรันเอเจนต์นี้",
   "error.availableProviders": "ผู้ให้บริการที่ใช้ได้",
   "error.availableTools": "เครื่องมือที่ใช้ได้",

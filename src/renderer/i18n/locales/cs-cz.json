@@ -1629,6 +1629,8 @@
   "endpoint_type.openai": "OpenAI",
   "endpoint_type.openai-embeddings": "Embeddingy (OpenAI)",
   "endpoint_type.openai-response": "OpenAI-Response",
+  "error.agent_task_timeout": "Časový limit naplánované úlohy vypršel.",
+  "error.agent_task_timeout_detail": "Zastaveno po {{minutes}} min., protože úloha dosáhla nastaveného časového limitu.",
   "error.api_gateway_required": "Tento model musí být propojen přes místní API bránu Cherry Studio, která je aktuálně vypnutá. Pro spuštění tohoto agenta ji zapněte.",
   "error.availableProviders": "Dostupní poskytovatelé",
   "error.availableTools": "Dostupné nástroje",

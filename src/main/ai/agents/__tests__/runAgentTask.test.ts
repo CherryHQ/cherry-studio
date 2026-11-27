@@ -934,7 +934,59 @@ describe('runAgentTask', () => {
       await vi.advanceTimersByTimeAsync(60_000)
 
       await assertion
-      expect(mockAbort).toHaveBeenCalledWith(buildAgentSessionTopicId('sess-new'), 'Task timed out after 1 minute(s)')
+      expect(mockAbort).toHaveBeenCalledWith(buildAgentSessionTopicId('sess-new'), 'Task timed out after 1 minute(s)', {
+        terminalError: expect.objectContaining({
+          name: 'TimeoutError',
+          message: 'Task timed out after 1 minute(s)',
+          errorSource: 'local',
+          i18nKey: 'agent_task_timeout',
+          detailI18nKey: 'agent_task_timeout_detail',
+          detailI18nValues: { minutes: '1' },
+          executionFailure: {
+            message: 'Task timed out after 1 minute(s)',
+            retryable: false,
+            failure: {
+              version: 1,
+              reasonCode: 'timeout',
+              source: { layer: 'host' },
+              context: {}
+            }
+          }
+        })
+      })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('keeps an outer cancellation non-terminal even when the timeout expires while admission is waiting', async () => {
+    vi.useFakeTimers()
+    try {
+      vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot())
+      vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSchedule('daily-summary'))
+      vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent())
+      vi.mocked(agentSessionService.create).mockReturnValueOnce(makeSession('/ws/a'))
+
+      const admission = Promise.withResolvers<{ mode: 'started' }>()
+      mockStartRun.mockImplementationOnce((opts) => {
+        captured.listeners = opts.listeners
+        return admission.promise
+      })
+
+      const outerController = new AbortController()
+      const promise = runAgentTask({
+        ...makeCtx({ input: { agentId: 'a1', prompt: 'hi', timeoutMinutes: 1 } }),
+        signal: outerController.signal
+      })
+      const assertion = expect(promise).rejects.toThrow('user-cancel')
+
+      await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalledOnce())
+      outerController.abort(new Error('user-cancel'))
+      await vi.advanceTimersByTimeAsync(60_000)
+      admission.resolve({ mode: 'started' })
+
+      await assertion
+      expect(mockAbort).toHaveBeenCalledExactlyOnceWith(buildAgentSessionTopicId('sess-new'), 'user-cancel')
     } finally {
       vi.useRealTimers()
     }

@@ -199,6 +199,9 @@ export interface StreamExecution {
   /** Approval ids already published during this execution. */
   publishedApprovalIds?: Set<string>
   error?: SerializedError
+  /** Explicit failure attached to a caller-initiated abort (e.g. task wall-clock timeout). */
+  terminalAbortError?: Error
+  settled?: boolean
   siblingsGroupId?: number
   /** Resolves when the execution loop terminates. Awaited by `onStop` for graceful shutdown. */
   loopPromise: Promise<void>
