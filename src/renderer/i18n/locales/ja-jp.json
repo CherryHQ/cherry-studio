@@ -5532,6 +5532,8 @@
   "settings.models.check.timeout_unit": "秒",
   "settings.models.check.title": "モデルチェック",
   "settings.models.check.toggle_key": "{{name}} の有効状態を切り替える",
+  "settings.models.cherryai_pinned.description": "有効にすると、サインイン済みの CherryAI モデルがモデル一覧の先頭に表示されます。無効にすると、通常のプロバイダー順に従います。",
+  "settings.models.cherryai_pinned.label": "CherryAI モデルを先頭に固定",
   "settings.models.collapse_all": "すべて折りたたむ",
   "settings.models.context_management.compress_enabled": "自動圧縮",
   "settings.models.context_management.compress_enabled_description": "コンテキストウィンドウの上限に近づいたとき、古いやり取りを自動で要約します。アシスタントごとに上書きできます",

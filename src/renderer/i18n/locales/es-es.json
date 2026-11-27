@@ -5532,6 +5532,8 @@
   "settings.models.check.timeout_unit": "s",
   "settings.models.check.title": "Verificación de modelos",
   "settings.models.check.toggle_key": "Cambiar el estado de activación de {{name}}",
+  "settings.models.cherryai_pinned.description": "Cuando está activado, los modelos de CherryAI con sesión iniciada aparecen al principio de las listas de modelos. Cuando está desactivado, siguen el orden habitual de cada proveedor.",
+  "settings.models.cherryai_pinned.label": "Fijar modelos de CherryAI al principio",
   "settings.models.collapse_all": "Contraer todo",
   "settings.models.context_management.compress_enabled": "Comprimir automáticamente",
   "settings.models.context_management.compress_enabled_description": "Resume automáticamente los turnos antiguos al acercarse al límite de la ventana de contexto. Los asistentes pueden anularlo",

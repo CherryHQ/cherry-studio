@@ -18,6 +18,7 @@ export const mockPreferenceDefaults: Record<string, any> = {
 
   // UI preferences
   'ui.language': 'zh-CN',
+  'ui.model_selector.cherryai_pinned': getDefaultValue('ui.model_selector.cherryai_pinned'),
   'ui.theme': 'light',
   'ui.font_size': 14,
 

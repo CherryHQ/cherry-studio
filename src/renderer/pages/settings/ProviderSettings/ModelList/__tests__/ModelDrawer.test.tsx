@@ -153,6 +153,7 @@ describe('Model drawers', () => {
         endpointTypes: undefined
       })
     )
+    expect(createModelMock.mock.calls[0][0]).not.toHaveProperty('capabilities')
     expect(createModelMock.mock.calls[0][0]).not.toHaveProperty('inputModalities')
     expect(onSuccess).toHaveBeenCalledWith(['openai::alpha-model'])
     expect(onClose).toHaveBeenCalledTimes(1)
@@ -317,6 +318,62 @@ describe('Model drawers', () => {
     })
 
     expect(createModelMock).toHaveBeenCalledWith(expect.objectContaining({ inputModalities: [] }))
+  })
+
+  it('preserves an explicitly emptied capability selection when adding', async () => {
+    useProviderMock.mockReturnValue({
+      provider: { id: 'openai', name: 'OpenAI' }
+    })
+
+    render(<AddModelDrawer providerId="openai" open prefill={null} onClose={vi.fn()} />)
+
+    fireEvent.change(screen.getByLabelText('settings.models.add.model_id.label'), {
+      target: { value: 'explicit-plain-model' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'settings.moresetting.label' }))
+    fireEvent.click(screen.getByRole('button', { name: 'models.type.reasoning' }))
+    fireEvent.click(screen.getByRole('button', { name: 'models.type.reasoning' }))
+
+    await act(async () => {
+      fireEvent.submit(screen.getByTestId('provider-settings-model-add-drawer-content'))
+    })
+
+    expect(createModelMock).toHaveBeenCalledWith(expect.objectContaining({ capabilities: [] }))
+  })
+
+  it('preserves prefill capabilities when adding without further edits', async () => {
+    useProviderMock.mockReturnValue({
+      provider: { id: 'openai', name: 'OpenAI' }
+    })
+
+    render(
+      <AddModelDrawer
+        providerId="openai"
+        open
+        prefill={{
+          model: {
+            id: 'openai::o3',
+            providerId: 'openai',
+            name: 'o3',
+            capabilities: [MODEL_CAPABILITY.REASONING, MODEL_CAPABILITY.FUNCTION_CALL],
+            inputModalities: ['text', 'image']
+          } as any
+        }}
+        onClose={vi.fn()}
+      />
+    )
+
+    await act(async () => {
+      fireEvent.submit(screen.getByTestId('provider-settings-model-add-drawer-content'))
+    })
+
+    expect(createModelMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        modelId: 'o3',
+        capabilities: [MODEL_CAPABILITY.REASONING, MODEL_CAPABILITY.FUNCTION_CALL],
+        inputModalities: ['text', 'image']
+      })
+    )
   })
 
   it('keeps the add-model submit disabled while creating and shows one inline error on failure', async () => {

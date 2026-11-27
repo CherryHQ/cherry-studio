@@ -5532,6 +5532,8 @@
   "settings.models.check.timeout_unit": "δευτ.",
   "settings.models.check.title": "Έλεγχος μοντέλου",
   "settings.models.check.toggle_key": "Εναλλαγή κατάστασης ενεργοποίησης για {{name}}",
+  "settings.models.cherryai_pinned.description": "Όταν είναι ενεργοποιημένο, τα συνδεδεμένα μοντέλα CherryAI εμφανίζονται στην κορυφή των λιστών μοντέλων. Όταν είναι απενεργοποιημένο, ακολουθούν την κανονική σειρά παρόχων.",
+  "settings.models.cherryai_pinned.label": "Καρφίτσωμα μοντέλων CherryAI στην κορυφή",
   "settings.models.collapse_all": "Σύμπτυξη όλων",
   "settings.models.context_management.compress_enabled": "Αυτόματη συμπίεση",
   "settings.models.context_management.compress_enabled_description": "Αυτόματη σύνοψη παλαιότερων γύρων όταν πλησιάζει το όριο του παραθύρου περιβάλλοντος. Οι βοηθοί μπορούν να το παρακάμψουν",

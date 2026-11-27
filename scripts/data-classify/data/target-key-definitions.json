@@ -1604,6 +1604,13 @@
       },
       "status": "classified",
       "description": "Independent conversation list sorting"
+    },
+    {
+      "targetKey": "ui.model_selector.cherryai_pinned",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Prioritize CherryAI signed-in models at the top of model selectors"
     }
   ]
 }

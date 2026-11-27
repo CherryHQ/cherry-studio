@@ -5532,6 +5532,8 @@
   "settings.models.check.timeout_unit": "sn",
   "settings.models.check.title": "Model Denetimi",
   "settings.models.check.toggle_key": "{{name}} etkin durumunu değiştir",
+  "settings.models.cherryai_pinned.description": "Etkinleştirildiğinde oturum açılmış CherryAI modelleri model listelerinin en üstünde görünür. Devre dışı bırakıldığında normal sağlayıcı sırasını izler.",
+  "settings.models.cherryai_pinned.label": "CherryAI modellerini üste sabitle",
   "settings.models.collapse_all": "Tümünü daralt",
   "settings.models.context_management.compress_enabled": "Otomatik sıkıştır",
   "settings.models.context_management.compress_enabled_description": "Bağlam penceresi sınırına yaklaşırken eski etkileşimleri otomatik olarak özetler. Asistanlar bunu geçersiz kılabilir",

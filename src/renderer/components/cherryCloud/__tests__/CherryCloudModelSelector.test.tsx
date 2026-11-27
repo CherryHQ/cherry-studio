@@ -1,5 +1,6 @@
 import { MockDataApiUtils } from '@test-mocks/renderer/DataApiService'
 import { mockUseQuery } from '@test-mocks/renderer/useDataApi'
+import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Fragment, type ReactNode } from 'react'
@@ -56,6 +57,7 @@ vi.mock('@renderer/services/cherryCloudSubscription', () => ({
 const request = vi.mocked(window.api.ipcApi.request)
 beforeEach(() => {
   vi.clearAllMocks()
+  MockUsePreferenceUtils.resetMocks()
   plans.phase = 'signed-out'
   mockUseQuery.mockReturnValue({
     data: [],
@@ -286,5 +288,57 @@ describe('Built-in CherryAI models', () => {
     await userEvent.click(row)
     expect(onSelect).toHaveBeenCalledWith(qwen)
     expect(request).not.toHaveBeenCalledWith('cherry_cloud.login.start', undefined)
+  })
+
+  it('toggles ui.model_selector.cherryai_pinned via the header pin button and restores natural provider order', async () => {
+    plans.phase = 'signed-in'
+    availability.hidesEveryModel = false
+    const providers = [
+      { id: 'openai', name: 'OpenAI', apiKeys: [], authType: 'api-key', settings: {}, isEnabled: true },
+      { id: 'cherryai', name: 'CherryAI', apiKeys: [], authType: 'api-key', settings: {}, isEnabled: true }
+    ]
+    const models = [
+      {
+        id: 'openai::gpt-4o',
+        providerId: 'openai',
+        name: 'GPT-4o',
+        capabilities: [],
+        isEnabled: true,
+        isHidden: false
+      },
+      qwen
+    ]
+    mockUseQuery.mockImplementation((path: string) => ({
+      data: path === '/models' ? models : path === '/providers' ? providers : [],
+      isLoading: false,
+      isRefreshing: false,
+      refetch: vi.fn(async () => undefined),
+      mutate: vi.fn(async () => undefined)
+    }))
+    try {
+      const renderSelector = () => (
+        <CherryCloudModelSelector
+          multiple={false}
+          open
+          onSelect={vi.fn()}
+          trigger={<button type="button">Models</button>}
+        />
+      )
+      const { rerender } = render(renderSelector())
+      const before = document.body.textContent ?? ''
+      expect(before.indexOf('Qwen')).toBeGreaterThan(-1)
+      expect(before.indexOf('GPT-4o')).toBeGreaterThan(-1)
+      expect(before.indexOf('Qwen')).toBeLessThan(before.indexOf('GPT-4o'))
+
+      await userEvent.click(screen.getByRole('button', { name: 'selector.common.unpin' }))
+      expect(MockUsePreferenceUtils.getPreferenceValue('ui.model_selector.cherryai_pinned')).toBe(false)
+
+      rerender(renderSelector())
+      const after = document.body.textContent ?? ''
+      expect(after.indexOf('GPT-4o')).toBeLessThan(after.indexOf('Qwen'))
+      expect(screen.getByRole('button', { name: 'selector.common.pin' })).toHaveAttribute('aria-pressed', 'false')
+    } finally {
+      availability.hidesEveryModel = true
+    }
   })
 })

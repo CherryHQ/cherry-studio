@@ -183,6 +183,30 @@ describe('renderer CacheService equality semantics', () => {
       service.setPersist(key, [{ id: 't1' }, { id: 't2' }] as any)
       expect(broadcastSync).toHaveBeenCalledTimes(1)
     })
+
+    it('captures and strips legacy unpinned CherryAI persist-cache entry once', async () => {
+      const persisted = localStorage.getItem('cs_cache_persist')
+      localStorage.setItem('cs_cache_persist', JSON.stringify({ 'ui.model_selector.cherryai_pinned': false }))
+      const service = await createService()
+      try {
+        expect(service.consumeLegacyCherryAiUnpinned()).toBe(true)
+        expect(service.consumeLegacyCherryAiUnpinned()).toBe(false)
+        expect(JSON.parse(localStorage.getItem('cs_cache_persist') ?? '{}')).not.toHaveProperty(
+          'ui.model_selector.cherryai_pinned'
+        )
+        service.cleanup()
+        const reloaded = await createService()
+        try {
+          expect(reloaded.consumeLegacyCherryAiUnpinned()).toBe(false)
+        } finally {
+          reloaded.cleanup()
+        }
+      } finally {
+        service.cleanup()
+        if (persisted === null) localStorage.removeItem('cs_cache_persist')
+        else localStorage.setItem('cs_cache_persist', persisted)
+      }
+    })
   })
 
   // hasPersist answers "has this key been overridden" (effective value differs

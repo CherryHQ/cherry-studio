@@ -40,6 +40,7 @@ import type {
 } from '@shared/data/cache/cacheTypes'
 
 const STORAGE_PERSIST_KEY = 'cs_cache_persist'
+const LEGACY_CHERRYAI_PINNED_CACHE_KEY = 'ui.model_selector.cherryai_pinned'
 
 const logger = loggerService.withContext('CacheService')
 
@@ -112,6 +113,7 @@ export class CacheService {
   private persistSaveTimer?: NodeJS.Timeout
   private persistDirty = false
   private readonly PERSIST_SAVE_DEBOUNCE_MS = 350
+  private legacyCherryAiUnpinned = false
 
   // Shared cache ready state for initialization sync
   private sharedCacheReady = false
@@ -740,6 +742,13 @@ export class CacheService {
     this.setPersist(key, DefaultRendererPersistCache[key])
   }
 
+  /** Consume legacy unpinned persist flag before loadPersistCache() strips the key. */
+  public consumeLegacyCherryAiUnpinned(): boolean {
+    const value = this.legacyCherryAiUnpinned
+    this.legacyCherryAiUnpinned = false
+    return value
+  }
+
   // ============ Hook Reference Management ============
 
   /**
@@ -1086,6 +1095,9 @@ export class CacheService {
       }
 
       const data = JSON.parse(stored)
+      if (data && typeof data === 'object' && data[LEGACY_CHERRYAI_PINNED_CACHE_KEY] === false) {
+        this.legacyCherryAiUnpinned = true
+      }
 
       // Only load keys that exist in schema, overriding defaults
       const schemaKeys = Object.keys(DefaultRendererPersistCache) as RendererPersistCacheKey[]

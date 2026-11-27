@@ -167,6 +167,24 @@ describe('settings search index', () => {
       description: t('settings.messages.user_content.default_expanded.hint')
     })
   })
+
+  it.each([
+    { locale: enUS, language: 'en-US', query: 'Pin CherryAI models to top' },
+    { locale: zhCN, language: 'zh-CN', query: '置顶 CherryAI 模型' },
+    { locale: enUS, language: 'en-US', query: 'CherryAI' }
+  ])('finds the CherryAI pin setting for $language query "$query"', ({ locale, query }) => {
+    const t = (key: string) => String(lookup(locale, key) ?? key)
+    const result = rankEntries(query, settingsSearchSections, t).find(
+      (entry) => entry.focusId === 'setting-model-cherryai-pinned'
+    )
+
+    expect(result).toMatchObject({
+      route: '/settings/model',
+      focusId: 'setting-model-cherryai-pinned',
+      title: t('settings.models.cherryai_pinned.label'),
+      description: t('settings.models.cherryai_pinned.description')
+    })
+  })
 })
 
 // Chinese queries must hit their rows via aliases even under the en-US catalog:

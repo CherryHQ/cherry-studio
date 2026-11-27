@@ -355,6 +355,12 @@ describe('ProviderRegistryService', () => {
       expect(model.inputModalities).toBeUndefined()
       expect(model.outputModalities).toBeUndefined()
     })
+
+    it('does not project ID-heuristic reasoning into declared capabilities', () => {
+      const model = createCustomModel('openrouter', 'deepseek-r1')
+
+      expect(model.capabilities).toEqual([])
+    })
   })
 
   describe('getProviderPreset', () => {

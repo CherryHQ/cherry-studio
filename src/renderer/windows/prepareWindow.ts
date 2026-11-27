@@ -1,8 +1,12 @@
+import { cacheService } from '@data/CacheService'
 import { preferenceService } from '@data/PreferenceService'
 import { DataApiDevtools } from '@data/utils/dataApiDevtools'
+import { loggerService } from '@logger'
 import { initI18n } from '@renderer/i18n/resolver'
 import { initSentry } from '@renderer/services/sentry'
 import type { UnifiedPreferenceKeyType } from '@shared/data/preference/preferenceTypes'
+
+const logger = loggerService.withContext('prepareWindow')
 
 interface PrepareWindowOptions {
   /** Preference keys the first frame reads — 'all' warms the entire cache. */
@@ -29,4 +33,15 @@ export async function prepareWindow(options: PrepareWindowOptions): Promise<void
     options.preference === 'all' ? preferenceService.preloadAll() : preferenceService.preload(options.preference)
 
   await Promise.all([initI18n(), preferencesWarm])
+
+  if (cacheService.consumeLegacyCherryAiUnpinned()) {
+    try {
+      const current = await preferenceService.get('ui.model_selector.cherryai_pinned')
+      if (current !== false) {
+        await preferenceService.set('ui.model_selector.cherryai_pinned', false)
+      }
+    } catch (error) {
+      logger.warn('Failed to migrate legacy CherryAI pin setting', error as Error)
+    }
+  }
 }

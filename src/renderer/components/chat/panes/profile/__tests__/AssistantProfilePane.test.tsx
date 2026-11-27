@@ -26,8 +26,8 @@ const nextModel = vi.hoisted(
 )
 
 // The real selector loads providers and models; picking one is all the pane needs from it.
-vi.mock('@renderer/components/ModelSelector', () => ({
-  ModelSelector: ({ trigger, onSelect }: { trigger: ReactNode; onSelect: (model: Model) => void }) => (
+vi.mock('@renderer/components/cherryCloud/CherryCloudModelSelector', () => ({
+  CherryCloudModelSelector: ({ trigger, onSelect }: { trigger: ReactNode; onSelect: (model: Model) => void }) => (
     <>
       {trigger}
       <button type="button" onClick={() => onSelect(nextModel)}>

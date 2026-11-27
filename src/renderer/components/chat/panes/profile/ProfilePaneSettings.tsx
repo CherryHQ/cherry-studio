@@ -3,7 +3,8 @@ import { useTranslation } from 'react-i18next'
 
 import { Switch } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { type ModelSelectorFilter, ModelSelector } from '@renderer/components/ModelSelector'
+import { CherryCloudModelSelector } from '@renderer/components/cherryCloud/CherryCloudModelSelector'
+import { type ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { PermissionModeSelect } from '@renderer/components/PermissionModeOption'
 import { DialogModelTrigger } from '@renderer/components/resourceCatalog/dialogs/components/DialogFormFields'
 import { ReplyLanguageSelect } from '@renderer/components/resourceCatalog/dialogs/components/ReplyLanguageSelect'
@@ -193,7 +194,7 @@ function ModelPill({
 }) {
   const { t } = useTranslation()
   return (
-    <ModelSelector
+    <CherryCloudModelSelector
       multiple={false}
       value={model}
       filter={filter}

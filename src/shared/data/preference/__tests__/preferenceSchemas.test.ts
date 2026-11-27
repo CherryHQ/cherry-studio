@@ -73,4 +73,8 @@ describe('DefaultPreferences', () => {
 
     expect(DefaultPreferences.default['ui.sidebar_shortcut']).toEqual(sidebarShortcutsDefault)
   })
+
+  it('defaults CherryAI model pinning to true', () => {
+    expect(DefaultPreferences.default['ui.model_selector.cherryai_pinned']).toBe(true)
+  })
 })

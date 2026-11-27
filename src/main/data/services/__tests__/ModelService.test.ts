@@ -778,6 +778,44 @@ describe('ModelService.create', () => {
     expect(row.supportsStreaming).toBeNull()
   })
 
+  it('inherits declared registry capabilities when DTO omits capabilities on create', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
+    const presetModel = {
+      id: 'o3',
+      name: 'o3',
+      capabilities: [MODEL_CAPABILITY.REASONING, MODEL_CAPABILITY.FUNCTION_CALL],
+      inputModalities: ['text', 'image'] as ('text' | 'image')[]
+    }
+
+    modelService.create([
+      {
+        dto: {
+          providerId: 'openai',
+          modelId: 'o3',
+          name: 'o3'
+        },
+        registryData: {
+          presetModel,
+          registryOverride: null,
+          reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
+        }
+      }
+    ])
+
+    const [row] = await dbh.db.select().from(userModelTable).where(eq(userModelTable.id, 'openai::o3'))
+    expect(row.capabilities).toBeNull()
+
+    resolveModelMock.mockReturnValue({
+      presetModel,
+      registryOverride: null,
+      reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
+    })
+
+    const [listed] = modelService.list({ providerId: 'openai' })
+    expect(listed.capabilities).toEqual([MODEL_CAPABILITY.REASONING, MODEL_CAPABILITY.FUNCTION_CALL])
+    expect(listed.inputModalities).toEqual(['text', 'image'])
+  })
+
   it('creates a custom model when dto presetModelId has no registry match', async () => {
     await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
 

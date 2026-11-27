@@ -1,9 +1,9 @@
-import { ArrowRight, Languages, MessageSquareMore, Palette, Rocket, RotateCcw, Settings2 } from 'lucide-react'
+import { ArrowRight, Languages, MessageSquareMore, Palette, Pin, Rocket, RotateCcw, Settings2 } from 'lucide-react'
 import type { FC, ReactNode, Ref } from 'react'
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, PageSidePanel, Tooltip, HelpTooltip } from '@cherrystudio/ui'
+import { Button, PageSidePanel, Switch, Tooltip, HelpTooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { DefaultModelSelector } from '@renderer/components/DefaultModelSelector'
@@ -153,6 +153,8 @@ const ModelSettings: FC<ModelSettingsProps> = ({
   const { setTimeoutTimer } = useTimer()
 
   const [translateModelPrompt, setTranslateModelPrompt] = usePreference('feature.translate.model_prompt')
+  const [cherryAIPinned, setCherryAIPinned] = usePreference('ui.model_selector.cherryai_pinned')
+  const isCherryAIPinned = cherryAIPinned !== false
 
   const chatModelFilter = useCallback(
     (model: Model) => !isNonChatModel(model) && (modelFilter?.(model) ?? true),
@@ -352,6 +354,29 @@ const ModelSettings: FC<ModelSettingsProps> = ({
                   placeholder={t('settings.models.empty')}
                 />
               </ModelSettingRow>
+            </>
+          )}
+          {!compact && (
+            <>
+              {showDividers && <SettingDivider />}
+              <div id="setting-model-cherryai-pinned" className="scroll-mt-6">
+                <SettingRow className="items-center gap-6 py-1.5">
+                  <div className="min-w-0 flex-1">
+                    <SettingRowTitle className="gap-2">
+                      <Pin size={16} className="lucide-custom shrink-0 text-foreground" />
+                      {t('settings.models.cherryai_pinned.label')}
+                      {showDescription && <HelpTooltip content={t('settings.models.cherryai_pinned.description')} />}
+                    </SettingRowTitle>
+                  </div>
+                  <div className="shrink-0">
+                    <Switch
+                      aria-label={t('settings.models.cherryai_pinned.label')}
+                      checked={isCherryAIPinned}
+                      onCheckedChange={(checked) => void setCherryAIPinned(checked)}
+                    />
+                  </div>
+                </SettingRow>
+              </div>
             </>
           )}
         </SettingGroup>

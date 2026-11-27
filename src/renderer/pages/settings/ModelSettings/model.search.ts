@@ -30,5 +30,12 @@ export const entries: SettingsSearchEntry[] = [
     titleKey: 'settings.models.painting_model',
     groupKey: 'settings.model',
     descriptionKey: 'settings.models.painting_model_description'
+  },
+  {
+    anchorId: 'cherryai-pinned',
+    titleKey: 'settings.models.cherryai_pinned.label',
+    groupKey: 'settings.model',
+    descriptionKey: 'settings.models.cherryai_pinned.description',
+    aliases: ['CherryAI', 'Cherry Cloud', 'pin', '置顶', '固定']
   }
 ]

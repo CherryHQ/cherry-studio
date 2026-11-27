@@ -1,5 +1,6 @@
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { mockUseQuery } from '@test-mocks/renderer/useDataApi'
+import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { renderHook, waitFor } from '@testing-library/react'
 import { createElement, type PropsWithChildren } from 'react'
 import { SWRConfig } from 'swr'
@@ -99,6 +100,7 @@ function wrapper({ children }: PropsWithChildren) {
 
 beforeEach(() => {
   MockUseCacheUtils.resetMocks()
+  MockUsePreferenceUtils.resetMocks()
   mocks.data = plans()
   mocks.phase = 'signed-in'
   mocks.ready = true
@@ -158,11 +160,49 @@ describe('Cloud selector policy', () => {
       rerender()
       expect(groupIds()).toEqual([CHERRYAI_PROVIDER_ID, 'other-a', 'other-b'])
 
-      MockUseCacheUtils.setPersistCacheValue('ui.model_selector.cherryai_pinned', false)
+      MockUsePreferenceUtils.setPreferenceValue('ui.model_selector.cherryai_pinned', false)
       rerender()
       expect(groupIds()).toEqual(['other-a', 'other-b', CHERRYAI_PROVIDER_ID])
     }
   )
+
+  it('uses natural provider order when CherryAI pinning is off instead of forcing it last', () => {
+    const providers: Provider[] = ['other-a', CHERRYAI_PROVIDER_ID, CHERRY_CLOUD_PROVIDER_ID, 'other-b'].map((id) => ({
+      id,
+      name: id,
+      apiKeys: [],
+      authType: 'api-key',
+      reportsActualCost: false,
+      settings: {},
+      isEnabled: true
+    }))
+    const models: Model[] = providers.map(({ id }) => ({
+      id: `${id}::model`,
+      providerId: id,
+      name: id,
+      capabilities: [],
+      supportsStreaming: true,
+      isEnabled: true,
+      isHidden: false
+    }))
+    mockUseQuery.mockImplementation((path) => ({
+      data: path === '/providers' ? providers : path === '/models' ? models : [],
+      isLoading: false,
+      isRefreshing: false,
+      refetch: vi.fn(),
+      mutate: vi.fn()
+    }))
+
+    const { result, rerender } = renderHook(() => useCherryCloudModelSelectorData({ searchText: '' }))
+    const groupIds = () =>
+      result.current.listItems.flatMap((item) => (item.type === 'group' ? [item.provider?.id] : []))
+
+    expect(groupIds()).toEqual([CHERRYAI_PROVIDER_ID, 'other-a', 'other-b'])
+
+    MockUsePreferenceUtils.setPreferenceValue('ui.model_selector.cherryai_pinned', false)
+    rerender()
+    expect(groupIds()).toEqual(['other-a', CHERRYAI_PROVIDER_ID, 'other-b'])
+  })
 
   it('projects entitlement Free tags independently of the executable model name', () => {
     const model: Model = {

@@ -1261,9 +1261,7 @@ export class CherryCloudService extends BaseService {
   ): void {
     const current = modelService.list({ providerId: CHERRY_CLOUD_PROVIDER_ID })
     const currentByModelId = new Map(current.map((model) => [parseUniqueModelId(model.id).modelId, model]))
-    const missingCapabilityModelIds = models
-      .filter((model) => model.capabilities === undefined)
-      .map((model) => model.id)
+    const missingCapabilityModelIds = models.filter((model) => !model.capabilities?.length).map((model) => model.id)
     const registryCapabilitiesByModelId = new Map<string, ModelCapability[]>()
 
     if (missingCapabilityModelIds.length > 0) {
@@ -1286,11 +1284,11 @@ export class CherryCloudService extends BaseService {
 
     const reconciledModels = models.map((model) => ({
       ...model,
-      capabilities:
-        model.capabilities ??
-        registryCapabilitiesByModelId.get(model.id) ??
-        currentByModelId.get(model.id)?.capabilities ??
-        []
+      capabilities: model.capabilities?.length
+        ? model.capabilities
+        : (registryCapabilitiesByModelId.get(model.id) ??
+          (model.capabilities === undefined ? currentByModelId.get(model.id)?.capabilities : undefined) ??
+          [])
     }))
     const remoteByModelId = new Map(reconciledModels.map((model) => [model.id, model]))
     const missing = reconciledModels.filter((model) => !currentByModelId.has(model.id))

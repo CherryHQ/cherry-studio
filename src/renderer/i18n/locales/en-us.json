@@ -5532,6 +5532,8 @@
   "settings.models.check.timeout_unit": "s",
   "settings.models.check.title": "Model Check",
   "settings.models.check.toggle_key": "Toggle {{name}} enabled state",
+  "settings.models.cherryai_pinned.description": "When enabled, CherryAI signed-in models appear at the top of model lists. When disabled, they follow the standard provider order.",
+  "settings.models.cherryai_pinned.label": "Pin CherryAI models to top",
   "settings.models.collapse_all": "Collapse all",
   "settings.models.context_management.compress_enabled": "Auto compress",
   "settings.models.context_management.compress_enabled_description": "Summarize older turns automatically when nearing the context window. Assistants can override this",
