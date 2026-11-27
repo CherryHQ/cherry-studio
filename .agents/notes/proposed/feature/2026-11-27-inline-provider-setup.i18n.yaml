@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-11-27-inline-provider-setup.md
+2026-11-27-inline-provider-setup.md: 97e114830e1a09a33fbafb8df929a634314a7cea
+2026-11-27-inline-provider-setup.zh.md: ac2fa7b20f8bcbcca86721c7126270c5906fc186
