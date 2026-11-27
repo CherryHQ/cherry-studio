@@ -44,9 +44,11 @@
   "dependencies": {
     "async-mutex": "^0.5.0",
     "js-base64": "3.7.7",
+    "mdast-util-from-markdown": "^2.0.2",
     "zod": "4.4.3"
   },
   "devDependencies": {
+    "@types/mdast": "4.0.4",
     "tsdown": "^0.22.14",
     "typescript": "npm:@typescript/typescript6@6.0.2"
   }
