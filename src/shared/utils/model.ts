@@ -13,7 +13,7 @@
 
 import { endpointImpliedCapability, MODALITY, VENDOR_PATTERNS } from '@cherrystudio/provider-registry'
 import { CHERRYAI_PROVIDER_ID, isManagedCherryAiDefaultModel } from '@shared/data/presets/cherryai'
-import type { Model } from '@shared/data/types/model'
+import type { Model, ParameterSupport, RuntimeParameterSupport } from '@shared/data/types/model'
 import { MODEL_CAPABILITY, parseUniqueModelId } from '@shared/data/types/model'
 
 /** Check if model has reasoning capability */
@@ -108,6 +108,9 @@ export const isGatewayRoutableModel = (model: Model): boolean => {
   return !isManagedCherryAiDefaultModel(model.providerId, getRawModelId(model))
 }
 
+/** Models the public API gateway and Code Mate may expose. */
+export const isPublicGatewayRoutableModel = isGatewayRoutableModel
+
 // ---------------------------------------------------------------------------
 // Reasoning configuration
 // ---------------------------------------------------------------------------
@@ -136,12 +139,26 @@ export const getModelSupportedReasoningEffortOptions = (model: Model | undefined
 // Parameter support checks
 // ---------------------------------------------------------------------------
 
+/** Preserve catalog ranges and complete the runtime support defaults. */
+export function projectModelParameterSupport(
+  support: ParameterSupport | null | undefined
+): RuntimeParameterSupport | undefined {
+  if (!support) return undefined
+  return {
+    ...support,
+    maxTokens: support.maxTokens ?? true,
+    stopSequences: support.stopSequences ?? true,
+    systemMessage: support.systemMessage ?? true
+  }
+}
+
 /** Check if model supports temperature parameter */
 export const isSupportTemperatureModel = (model: Model): boolean =>
-  model.parameterSupport?.temperature?.supported !== false
+  !isGemini4Model(model) && model.parameterSupport?.temperature?.supported !== false
 
 /** Check if model supports top_p parameter */
-export const isSupportTopPModel = (model: Model): boolean => model.parameterSupport?.topP?.supported !== false
+export const isSupportTopPModel = (model: Model): boolean =>
+  !isGemini4Model(model) && model.parameterSupport?.topP?.supported !== false
 
 /** Whether temperature and top_p are mutually exclusive for this model */
 export const isTemperatureTopPMutuallyExclusiveModel = (model: Model): boolean => {
@@ -152,8 +169,10 @@ export const isTemperatureTopPMutuallyExclusiveModel = (model: Model): boolean =
 
 /** Check if model has max temperature of 1 */
 export const isMaxTemperatureOneModel = (model: Model): boolean => {
-  if (model.parameterSupport?.temperature) {
-    return model.parameterSupport.temperature.max <= 1
+  const support = model.parameterSupport?.temperature
+  const max = support?.range?.max ?? support?.max
+  if (max !== undefined) {
+    return max <= 1
   }
   // Fallback: infer from model family
   const id = getLowerBaseModelName(getRawModelId(model))
@@ -216,6 +235,10 @@ export const isGemini3ModelId = (modelId: string): boolean => {
 
 /** Check if model is Gemini 3 series (sub-family of Gemini, ID-specific). */
 export const isGemini3Model = (model: Model): boolean => isGemini3ModelId(getRawModelId(model))
+
+/** Gemini 4 uses level-based thinking and ignores sampling parameters. */
+export const isGemini4Model = (model: Model): boolean =>
+  /^gemini-4(?:[.-]|$)/.test(getLowerBaseModelName(getRawModelId(model)))
 
 /** Check if model is a Grok model */
 export const isGrokModel = (model: Model): boolean =>
@@ -314,6 +337,14 @@ export const isClaude47SeriesModel = (model: Model): boolean => {
   return /(?:anthropic\.)?claude-opus-4[.-]7(?:[@\-:][\w\-:]+)?$/i.test(id)
 }
 
+/** Check if model rejects temperature/top_p/top_k: Claude Opus 4.7+, Claude 5.x, Fable and Mythos. */
+export const isClaudeFixedSamplingModel = (model: Model): boolean => {
+  const id = getLowerBaseModelName(stripClaudeContextMarker(getRawModelId(model)).trimStart())
+  return /(?:anthropic\.)?claude-(?:opus-4[.-](?:[7-9]|1\d)|(?:opus|sonnet|haiku|fable|mythos)-[5-9](?:[.-]\d+)?|(?:fable|mythos)-(?:latest|preview))(?:[@\-:][\w\-:]+|\[[^\]]+\])?$/i.test(
+    id
+  )
+}
+
 /** Check if model is Claude 4.5 reasoning */
 export const isClaude45ReasoningModel = (model: Model): boolean => {
   const id = getLowerBaseModelName(getRawModelId(model), '/')
@@ -390,6 +421,11 @@ export const getModelSupportedVerbosity = (model: Model | undefined | null): (st
 // ---------------------------------------------------------------------------
 // Name extraction utilities
 // ---------------------------------------------------------------------------
+
+/** Drop trailing whitespace and a trailing Claude Code `[1m]` context marker (case-insensitive). */
+export function stripClaudeContextMarker(apiModelId: string): string {
+  return apiModelId.replace(/\s*\[1m\]\s*$/i, '').trimEnd()
+}
 
 /**
  * Extract the base model name from a model ID.

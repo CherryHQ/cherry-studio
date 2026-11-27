@@ -3,7 +3,7 @@ import { FolderOpen, RefreshCw, Save, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, Input, RowFlex, Switch, WarnTooltip } from '@cherrystudio/ui'
+import { Button, Input, RowFlex, Switch, WarnTooltip, HelpTooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { LocalBackupManager } from '@renderer/components/LocalBackupManager'
@@ -12,7 +12,6 @@ import Selector from '@renderer/components/Selector'
 import {
   SettingDivider,
   SettingGroup,
-  SettingHelpText,
   SettingRow,
   SettingRowTitle,
   SettingTitle
@@ -228,6 +227,7 @@ const LocalBackupSettings: React.FC = () => {
       <SettingRow>
         <SettingRowTitle>{t('settings.data.local.autoSync.label')}</SettingRowTitle>
         <Selector
+          aria-label={t('settings.data.local.autoSync.label')}
           size={14}
           value={localBackupSyncInterval}
           onChange={onSyncIntervalChange}
@@ -250,6 +250,7 @@ const LocalBackupSettings: React.FC = () => {
       <SettingRow>
         <SettingRowTitle>{t('settings.data.local.maxBackups.label')}</SettingRowTitle>
         <Selector
+          aria-label={t('settings.data.local.maxBackups.label')}
           size={14}
           value={localBackupMaxBackups}
           onChange={onMaxBackupsChange}
@@ -267,14 +268,14 @@ const LocalBackupSettings: React.FC = () => {
       </SettingRow>
       <SettingDivider />
       <SettingRow>
-        <SettingRowTitle>{t('settings.data.backup.skip_file_data_title')}</SettingRowTitle>
+        <SettingRowTitle className="flex items-center gap-1.5">
+          {t('settings.data.backup.skip_file_data_title')}{' '}
+          <HelpTooltip content={t('settings.data.backup.skip_file_data_help')} />
+        </SettingRowTitle>
         <Switch
           checked={localBackupSkipBackupFile}
           onCheckedChange={(value) => void setLocalBackupSkipBackupFile(value)}
         />
-      </SettingRow>
-      <SettingRow>
-        <SettingHelpText>{t('settings.data.backup.skip_file_data_help')}</SettingHelpText>
       </SettingRow>
       {localBackupSync && localBackupSyncInterval > 0 && (
         <>
@@ -294,7 +295,6 @@ const LocalBackupSettings: React.FC = () => {
           customFileName={customFileName}
           setCustomFileName={setCustomFileName}
         />
-
         <LocalBackupManager
           visible={backupManagerVisible}
           onClose={closeBackupManager}

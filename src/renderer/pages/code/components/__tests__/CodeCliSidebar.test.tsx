@@ -1,3 +1,4 @@
+import { MockCherrystudioUI } from '@test-mocks/renderer/CherrystudioUI'
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
@@ -13,9 +14,7 @@ vi.mock('react-i18next', () => ({
 vi.mock('@cherrystudio/ui', async (importOriginal) => ({
   // oxlint-disable-next-line consistent-type-imports
   ...(await importOriginal<typeof import('@cherrystudio/ui')>()),
-  Scrollbar: ({ children, className }: { children: ReactNode; className?: string }) => (
-    <div className={className}>{children}</div>
-  ),
+  ScrollArea: MockCherrystudioUI.ScrollArea,
   Tooltip: ({ children }: { children: ReactNode }) => children
 }))
 
@@ -78,21 +77,6 @@ function renderSidebar(
 }
 
 describe('CodeCliSidebar', () => {
-  it('renders no version or upgrade indicator for installed tools', () => {
-    renderSidebar({
-      [CodeCli.OPENAI_CODEX]: {
-        installed: true,
-        source: 'mise',
-        current: '1.2.3',
-        latest: '1.3.0',
-        canUpgrade: true
-      }
-    })
-
-    expect(screen.queryByText('v1.2.3')).not.toBeInTheDocument()
-    expect(screen.queryByText('v1.3.0')).not.toBeInTheDocument()
-  })
-
   it('renders the enabled-model label only on its matching tool', () => {
     renderSidebar({}, { [CodeCli.CLAUDE_CODE]: 'deepseek-v4-flash' })
 

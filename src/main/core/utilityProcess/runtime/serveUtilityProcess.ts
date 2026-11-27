@@ -9,7 +9,9 @@ export type {
   ServeUtilityProcessOptions,
   UtilityProcessHandlerContext,
   UtilityProcessHandlers,
-  UtilityProcessLogger
+  UtilityProcessLogger,
+  UtilityProcessStreamContext,
+  UtilityProcessStreamHandlers
 } from './utilityProcessServer'
 
 export function serveUtilityProcess<Contract extends UtilityProcessContract, InitData = void>(

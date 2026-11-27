@@ -25,9 +25,11 @@ fetch low-relevance URLs just because they came back.
 
 ## Browser interaction
 
-Load the bundled `cherry-browser` skill for live `mcp__browser__*` tools. These control
-the current Agent Session’s visible right pane when Browser settings enables Agent
-control. History and login-data imports are managed in Browser settings.
+Load the bundled `cherry-browser` skill for the live Automation REPL. Bind with
+`var tab = await browser.getTab()` and read the emitted documentation before acting.
+It controls the current conversation’s visible browser pane when Browser control is
+enabled, independently of Code Mode. See [automation.md](automation.md) for entry
+points and recovery. History and login-data imports are managed in Browser settings.
 
 The separate web search/fetch tools cannot:
 

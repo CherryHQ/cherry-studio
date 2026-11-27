@@ -1202,3 +1202,149 @@ describe('required inputs the workflow carries no value for', () => {
     expect(prompt['1'].inputs).toEqual({ steps: 25, sampler_name: 'euler', modalities: 'IMAGE' })
   })
 })
+
+describe('seeds the workflow set to randomize', () => {
+  const rangedInfo: ObjectInfo = {
+    ...objectInfo,
+    RangedSampler: {
+      input: {
+        required: {
+          seed: ['INT', { min: 10, max: 20, step: 2, control_after_generate: true }],
+          steps: ['INT', { min: 1, max: 10, control_after_generate: true }],
+          sampler_name: [['euler', 'res_multistep'], { control_after_generate: true }]
+        }
+      }
+    }
+  }
+  const sampler = (control: string): UiNode => ({
+    id: 1,
+    type: 'KSampler',
+    widgets_values: [7, control, 20, 8, 'euler', 'normal', 1]
+  })
+
+  it('draws a fresh seed per conversion inside the widget’s range', () => {
+    const { prompt } = convertUiWorkflowToPrompt({ nodes: [sampler('randomize')], links: [] }, objectInfo, {
+      random: () => 0.5
+    })
+
+    // No declared bounds: the frontend's own 0 … 2^50.
+    expect(prompt['1'].inputs.seed).toBe(562949953421312)
+    expect(prompt['1'].inputs.steps).toBe(20)
+
+    const ranged = convertUiWorkflowToPrompt(
+      {
+        nodes: [
+          {
+            id: 1,
+            type: 'RangedSampler',
+            widgets_values: [12, 'randomize', 5, 'randomize', 'euler', 'randomize']
+          }
+        ],
+        links: []
+      },
+      rangedInfo,
+      { random: () => 0.99 }
+    )
+    // min 10, max 20, step 2 → the top step is 18; 1 … 10 → 9. A combo has no
+    // range to draw from and keeps its option.
+    expect(ranged.prompt['1'].inputs).toEqual({ seed: 18, steps: 9, sampler_name: 'euler' })
+  })
+
+  it('keeps the saved seed for any other control mode, and without a source of randomness', () => {
+    for (const control of ['fixed', 'increment', 'decrement']) {
+      const { prompt } = convertUiWorkflowToPrompt({ nodes: [sampler(control)], links: [] }, objectInfo, {
+        random: () => 0.5
+      })
+      expect(prompt['1'].inputs.seed).toBe(7)
+    }
+    const { prompt } = convertUiWorkflowToPrompt({ nodes: [sampler('randomize')], links: [] }, objectInfo)
+    expect(prompt['1'].inputs.seed).toBe(7)
+  })
+
+  it('reads the mode from a named map, as the current frontend saves it', () => {
+    const named = (control: string): UiNode => ({
+      ...sampler('fixed'),
+      widgets_values_named: { seed: 7, control_after_generate: control, steps: 20 }
+    })
+    const random = { random: () => 0.5 }
+
+    expect(
+      convertUiWorkflowToPrompt({ nodes: [named('randomize')], links: [] }, objectInfo, random).prompt['1'].inputs.seed
+    ).toBe(562949953421312)
+    expect(
+      convertUiWorkflowToPrompt({ nodes: [named('fixed')], links: [] }, objectInfo, random).prompt['1'].inputs.seed
+    ).toBe(7)
+  })
+
+  it('redraws a seed a subgraph promotes when the sampler inside is set to randomize', () => {
+    // The Qwen Image 2.1 templates: the instance binds the seed, the interior
+    // sampler holds the control mode for the widget the promotion proxies.
+    const workflow = (control: string) => ({
+      nodes: [
+        { id: 5, type: 'sub-1', inputs: [{ name: 'seed', link: null, widget: { name: 'seed' } }], widgets_values: [7] }
+      ],
+      links: [],
+      definitions: {
+        subgraphs: [
+          {
+            id: 'sub-1',
+            inputNode: { id: -10 },
+            outputNode: { id: -20 },
+            inputs: [{ name: 'seed', type: 'INT', linkIds: [34] }],
+            nodes: [
+              {
+                id: 27,
+                type: 'KSampler',
+                inputs: [{ name: 'seed', link: 34, widget: { name: 'seed' } }],
+                widgets_values: [0, control, 20, 8, 'euler', 'normal', 1],
+                widgets_values_named: { seed: 0, control_after_generate: control, steps: 20 }
+              }
+            ],
+            links: [link(34, -10, 0, 27, 0)]
+          }
+        ]
+      }
+    })
+    const seedOf = (control: string) =>
+      Object.values(convertUiWorkflowToPrompt(workflow(control), objectInfo, { random: () => 0.5 }).prompt)[0].inputs
+        .seed
+
+    expect(seedOf('randomize')).toBe(562949953421312)
+    expect(seedOf('fixed')).toBe(7)
+  })
+
+  it('redraws a PrimitiveNode that feeds a seed, and only that one', () => {
+    const { prompt } = convertUiWorkflowToPrompt(
+      {
+        nodes: [
+          {
+            id: 1,
+            type: 'PrimitiveNode',
+            outputs: [{ name: 'INT', links: [1], widget: { name: 'seed' } }],
+            widgets_values: [7, 'randomize']
+          },
+          {
+            id: 2,
+            type: 'PrimitiveNode',
+            outputs: [{ name: 'INT', links: [2], widget: { name: 'steps' } }],
+            widgets_values: [30, 'randomize']
+          },
+          {
+            id: 3,
+            type: 'KSampler',
+            inputs: [
+              { name: 'seed', link: 1, widget: { name: 'seed' } },
+              { name: 'steps', link: 2, widget: { name: 'steps' } }
+            ],
+            widgets_values: [0, 'fixed', 20, 8, 'euler', 'normal', 1]
+          }
+        ],
+        links: [link(1, 1, 0, 3, 0), link(2, 2, 0, 3, 1)]
+      },
+      objectInfo,
+      { random: () => 0.25 }
+    )
+
+    expect(prompt['3'].inputs).toMatchObject({ seed: 281474976710656, steps: 30 })
+  })
+})

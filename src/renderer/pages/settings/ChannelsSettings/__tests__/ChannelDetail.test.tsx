@@ -1,9 +1,12 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as CherryUiModule from '@cherrystudio/ui'
+import type { AvailableChannel } from '@renderer/components/channel/channelTypes'
+
 import ChannelDetail from '../ChannelDetail'
-import type { AvailableChannel } from '../channelTypes'
 
 const channelMocks = vi.hoisted(() => ({
   channels: [] as Array<Record<string, unknown>>,
@@ -14,7 +17,7 @@ const channelMocks = vi.hoisted(() => ({
 }))
 
 const agentMocks = vi.hoisted(() => ({
-  agents: [{ id: 'agent-1', name: 'Agent One' }]
+  agents: [] as Array<Record<string, unknown>>
 }))
 
 vi.mock('@logger', () => ({
@@ -33,10 +36,6 @@ vi.mock('@renderer/components/CopyButton', () => ({
 
 vi.mock('@renderer/components/resourceCatalog/selectors', () => ({
   WorkspaceSelector: ({ trigger }: { trigger: React.ReactNode }) => <>{trigger}</>
-}))
-
-vi.mock('@renderer/components/Scrollbar', () => ({
-  default: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>
 }))
 
 vi.mock('@renderer/components/SettingsPrimitives', () => ({
@@ -82,7 +81,8 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
-vi.mock('@cherrystudio/ui', () => {
+vi.mock('@cherrystudio/ui', async (importOriginal) => {
+  const actual = await importOriginal<typeof CherryUiModule>()
   const SelectContext = React.createContext<{ onValueChange?: (value: string) => void } | null>(null)
 
   const passthrough =
@@ -103,13 +103,29 @@ vi.mock('@cherrystudio/ui', () => {
     }
 
   return {
+    ...actual,
     Badge: passthrough('span'),
     Button: ({ children, onClick, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
       <button type="button" onClick={onClick} {...props}>
         {children}
       </button>
     ),
-    ConfirmDialog: ({ open }: { open?: boolean }) => (open ? <div role="dialog" /> : null),
+    ConfirmDialog: ({
+      open,
+      onConfirm,
+      confirmText
+    }: {
+      open?: boolean
+      onConfirm?: () => void
+      confirmText?: string
+    }) =>
+      open ? (
+        <div role="dialog">
+          <button type="button" onClick={() => onConfirm?.()}>
+            {confirmText ?? 'Confirm'}
+          </button>
+        </div>
+      ) : null,
     Dialog: ({
       children,
       open,
@@ -125,6 +141,7 @@ vi.mock('@cherrystudio/ui', () => {
       </div>
     ),
     DialogContent: passthrough('div'),
+    DialogDescription: passthrough('p'),
     DialogHeader: passthrough('div'),
     DialogTitle: passthrough('h2'),
     EmptyState: ({ description }: { description?: React.ReactNode }) => <div>{description}</div>,
@@ -204,10 +221,19 @@ describe('ChannelDetail', () => {
     available: true,
     defaultConfig: { token_path: '', allowed_chat_ids: [] }
   }
+  const qqChannelDef: AvailableChannel = {
+    type: 'qq',
+    name: 'QQ',
+    titleKey: 'agent.channels.qq.title',
+    description: 'agent.channels.qq.description',
+    available: true,
+    defaultConfig: { app_id: '', client_secret: '', allowed_chat_ids: [] }
+  }
 
   beforeEach(() => {
     vi.clearAllMocks()
     HTMLElement.prototype.scrollIntoView = vi.fn()
+    agentMocks.agents = [{ id: 'agent-1', name: 'Agent One', type: 'claude-code', configuration: {} }]
     channelMocks.channels = [
       {
         id: 'channel-1',
@@ -271,6 +297,242 @@ describe('ChannelDetail', () => {
     ])
   })
 
+  it('holds a Full Access channel override behind a scope confirmation', async () => {
+    const user = userEvent.setup()
+    channelMocks.channels = [{ ...channelMocks.channels[0], permissionMode: 'default' }]
+    render(<ChannelDetail channelDef={channelDef} />)
+
+    const editTooltip = await screen.findByText('common.edit')
+    const editButton = within(editTooltip.closest('[data-testid="tooltip"]') as HTMLElement).getByRole('button')
+    await user.click(editButton)
+
+    await screen.findByDisplayValue('Telegram channel')
+    await user.click(screen.getByText('agent.settings.tooling.permissionMode.bypassPermissions.title'))
+
+    expect(await screen.findByRole('dialog')).toBeInTheDocument()
+    expect(channelMocks.updateChannel).not.toHaveBeenCalledWith('channel-1', {
+      permissionMode: 'bypassPermissions'
+    })
+
+    await user.click(screen.getByText('agent.settings.tooling.permissionMode.fullAccessConfirm.confirm'))
+
+    expect(channelMocks.updateChannel).toHaveBeenCalledWith('channel-1', {
+      permissionMode: 'bypassPermissions'
+    })
+  })
+
+  it('drops a pending Full Access confirmation when another window changes the mode', async () => {
+    const user = userEvent.setup()
+    channelMocks.channels = [{ ...channelMocks.channels[0], permissionMode: 'default' }]
+    const { rerender } = render(<ChannelDetail channelDef={channelDef} />)
+
+    const editTooltip = await screen.findByText('common.edit')
+    const editButton = within(editTooltip.closest('[data-testid="tooltip"]') as HTMLElement).getByRole('button')
+    await user.click(editButton)
+
+    await screen.findByDisplayValue('Telegram channel')
+    await user.click(screen.getByText('agent.settings.tooling.permissionMode.bypassPermissions.title'))
+    expect(await screen.findByRole('dialog')).toBeInTheDocument()
+
+    channelMocks.channels = [{ ...channelMocks.channels[0], permissionMode: 'plan' }]
+    rerender(<ChannelDetail channelDef={channelDef} />)
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(channelMocks.updateChannel).not.toHaveBeenCalledWith('channel-1', {
+      permissionMode: 'bypassPermissions'
+    })
+  })
+
+  it('drops a pending Full Access confirmation when another mode is chosen', async () => {
+    const user = userEvent.setup()
+    channelMocks.channels = [{ ...channelMocks.channels[0], permissionMode: 'default' }]
+    render(<ChannelDetail channelDef={channelDef} />)
+
+    const editTooltip = await screen.findByText('common.edit')
+    const editButton = within(editTooltip.closest('[data-testid="tooltip"]') as HTMLElement).getByRole('button')
+    await user.click(editButton)
+
+    await screen.findByDisplayValue('Telegram channel')
+    await user.click(screen.getByText('agent.settings.tooling.permissionMode.bypassPermissions.title'))
+    expect(await screen.findByRole('dialog')).toBeInTheDocument()
+
+    await user.click(screen.getByText('agent.settings.tooling.permissionMode.auto.title'))
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(channelMocks.updateChannel).not.toHaveBeenCalledWith('channel-1', {
+      permissionMode: 'bypassPermissions'
+    })
+  })
+
+  it('saves Feishu mention-only changes and renders reloaded values', async () => {
+    const user = userEvent.setup()
+    const config = {
+      app_id: 'app-id',
+      app_secret: 'app-secret',
+      encrypt_key: 'encrypt-key',
+      verification_token: 'verification-token',
+      domain: 'lark',
+      allowed_chat_ids: ['chat-1']
+    }
+    channelMocks.channels = [{ ...channelMocks.channels[0], type: 'feishu', config }]
+    channelMocks.updateChannel.mockImplementationOnce(async (_id, patch) => ({
+      ...channelMocks.channels[0],
+      config: { ...config, ...patch.configPatch }
+    }))
+    const { rerender } = render(<ChannelDetail channelDef={feishuChannelDef} />)
+    await user.click(await screen.findByRole('button', { name: 'common.edit' }))
+
+    const mentionSwitch = await screen.findByRole('switch', { name: 'agent.channels.feishu.mentionOnlyLabel' })
+    expect(mentionSwitch).toHaveAttribute('aria-checked', 'true')
+    await user.click(mentionSwitch)
+    await waitFor(() => {
+      expect(channelMocks.updateChannel).toHaveBeenLastCalledWith('channel-1', {
+        configPatch: { mention_only: false }
+      })
+    })
+
+    const savedChannel = await channelMocks.updateChannel.mock.results.at(-1)!.value
+    channelMocks.channels = [savedChannel]
+    rerender(<ChannelDetail channelDef={feishuChannelDef} />)
+    const reloadedSwitch = screen.getByRole('switch', { name: 'agent.channels.feishu.mentionOnlyLabel' })
+    expect(reloadedSwitch).toHaveAttribute('aria-checked', 'false')
+    await user.click(reloadedSwitch)
+    await waitFor(() => {
+      expect(channelMocks.updateChannel).toHaveBeenLastCalledWith('channel-1', {
+        configPatch: { mention_only: true }
+      })
+    })
+  })
+
+  it('does not overwrite a credential edit that is still saving when the mention switch is toggled', async () => {
+    const user = userEvent.setup()
+    const config = { app_id: 'app-id', app_secret: 'old-secret', allowed_chat_ids: [] }
+    channelMocks.channels = [{ ...channelMocks.channels[0], type: 'feishu', config }]
+    let finishSave!: (value: unknown) => void
+    const pendingSave = new Promise((resolve) => {
+      finishSave = resolve
+    })
+    channelMocks.updateChannel
+      .mockImplementationOnce(() => pendingSave)
+      .mockResolvedValueOnce({
+        ...channelMocks.channels[0],
+        config: { ...config, app_secret: 'new-secret', mention_only: false }
+      })
+    render(<ChannelDetail channelDef={feishuChannelDef} />)
+    await user.click(await screen.findByRole('button', { name: 'common.edit' }))
+
+    try {
+      const secretInput = screen.getByPlaceholderText('agent.channels.feishu.appSecretPlaceholder')
+      await user.clear(secretInput)
+      await user.type(secretInput, 'new-secret')
+      await user.tab()
+      expect(channelMocks.updateChannel).toHaveBeenCalledWith('channel-1', {
+        configPatch: { app_secret: 'new-secret' }
+      })
+
+      await user.click(screen.getByRole('switch', { name: 'agent.channels.feishu.mentionOnlyLabel' }))
+
+      expect(channelMocks.updateChannel.mock.calls.at(-1)).toEqual([
+        'channel-1',
+        { configPatch: { mention_only: false } }
+      ])
+      const payload = channelMocks.updateChannel.mock.calls.at(-1)![1]
+      expect(payload).not.toHaveProperty('config')
+      expect(payload).not.toHaveProperty('app_secret')
+      expect(payload.configPatch).not.toHaveProperty('app_secret')
+    } finally {
+      await act(async () => {
+        finishSave({ ...channelMocks.channels[0], config: { ...config, app_secret: 'new-secret' } })
+        await pendingSave
+      })
+    }
+  })
+
+  it('preserves a QQ allowlist saved just before changing mention-only in the same stale dialog', async () => {
+    const user = userEvent.setup()
+    let saved = { app_id: 'app-id', client_secret: 'secret', allowed_chat_ids: [] as string[], mention_only: true }
+    channelMocks.channels = [{ ...channelMocks.channels[0], type: 'qq', config: saved }]
+    const applyUpdate = async (
+      _id: string,
+      { config, configPatch }: { config?: typeof saved; configPatch?: Partial<typeof saved> }
+    ) => {
+      saved = config ?? { ...saved, ...configPatch }
+      return { ...channelMocks.channels[0], config: saved }
+    }
+    channelMocks.updateChannel.mockImplementationOnce(applyUpdate).mockImplementationOnce(applyUpdate)
+    render(<ChannelDetail channelDef={qqChannelDef} />)
+    await user.click(await screen.findByRole('button', { name: 'common.edit' }))
+
+    await user.type(screen.getByPlaceholderText('agent.channels.qq.chatIdsPlaceholder'), 'chat-1')
+    await user.click(screen.getByRole('switch', { name: 'agent.channels.qq.mentionOnlyLabel' }))
+
+    await waitFor(() => expect(saved).toMatchObject({ allowed_chat_ids: ['chat-1'], mention_only: false }))
+  })
+
+  it('keeps the mention toggle when a companion Feishu field is saved while updates are pending', async () => {
+    const user = userEvent.setup()
+    const config = { app_id: 'app-id', app_secret: 'old-secret', mention_only: true, allowed_chat_ids: [] }
+    channelMocks.channels = [{ ...channelMocks.channels[0], type: 'feishu', config }]
+    let finishSave!: (value: unknown) => void
+    const pendingSave = new Promise((resolve) => {
+      finishSave = resolve
+    })
+    channelMocks.updateChannel.mockImplementationOnce(() => pendingSave)
+    render(<ChannelDetail channelDef={feishuChannelDef} />)
+    await user.click(await screen.findByRole('button', { name: 'common.edit' }))
+
+    try {
+      await user.click(screen.getByRole('switch', { name: 'agent.channels.feishu.mentionOnlyLabel' }))
+      expect(channelMocks.updateChannel).toHaveBeenLastCalledWith('channel-1', {
+        configPatch: { mention_only: false }
+      })
+
+      const secretInput = screen.getByPlaceholderText('agent.channels.feishu.appSecretPlaceholder')
+      await user.clear(secretInput)
+      await user.type(secretInput, 'new-secret')
+      await user.tab()
+      expect(channelMocks.updateChannel.mock.calls.at(-1)).toEqual([
+        'channel-1',
+        { configPatch: { app_secret: 'new-secret' } }
+      ])
+      const payload = channelMocks.updateChannel.mock.calls.at(-1)![1]
+      expect(payload).not.toHaveProperty('config')
+      expect(payload).not.toHaveProperty('mention_only')
+      expect(payload.configPatch).not.toHaveProperty('mention_only')
+
+      await user.click(screen.getByRole('button', { name: 'agent.channels.feishu.domainLark' }))
+      expect(channelMocks.updateChannel).toHaveBeenLastCalledWith('channel-1', {
+        configPatch: { domain: 'lark' }
+      })
+
+      const chatIdsInput = screen.getByPlaceholderText('agent.channels.feishu.chatIdsPlaceholder')
+      await user.type(chatIdsInput, ' chat-1, chat-2 ')
+      await user.tab()
+      expect(channelMocks.updateChannel).toHaveBeenLastCalledWith('channel-1', {
+        configPatch: { allowed_chat_ids: ['chat-1', 'chat-2'] }
+      })
+    } finally {
+      await act(async () => {
+        finishSave({ ...channelMocks.channels[0], config: { ...config, mention_only: false } })
+        await pendingSave
+      })
+    }
+  })
+
+  // Pi has no Plan mode; a saved Plan override made every inbound turn on the channel fail.
+  it('offers only the permission modes the bound Agent runtime can run', async () => {
+    agentMocks.agents = [{ id: 'agent-1', name: 'Agent One', type: 'pi', configuration: {} }]
+    channelMocks.channels = [{ ...channelMocks.channels[0], permissionMode: 'default' }]
+    render(<ChannelDetail channelDef={channelDef} />)
+
+    const editTooltip = await screen.findByText('common.edit')
+    fireEvent.click(within(editTooltip.closest('[data-testid="tooltip"]') as HTMLElement).getByRole('button'))
+    await screen.findByDisplayValue('Telegram channel')
+
+    expect(screen.getByText('agent.settings.tooling.permissionMode.acceptEdits.title')).toBeInTheDocument()
+    expect(screen.queryByText('agent.settings.tooling.permissionMode.plan.title')).not.toBeInTheDocument()
+  })
+
   it('sends null permissionMode when clearing an existing override to inherit', async () => {
     render(<ChannelDetail channelDef={channelDef} />)
 
@@ -282,7 +544,7 @@ describe('ChannelDetail', () => {
     expect(nameInput).toHaveFocus()
     expect(nameInput.selectionStart).toBe(nameInput.selectionEnd)
 
-    fireEvent.click(screen.getByText('agent.channels.security.inheritFromAgent'))
+    fireEvent.click(screen.getByText('agent.channels.security.inheritFromAgentMode'))
 
     await waitFor(() => {
       expect(channelMocks.updateChannel).toHaveBeenCalledWith('channel-1', { permissionMode: null })
@@ -335,21 +597,5 @@ describe('ChannelDetail', () => {
         })
       )
     })
-  })
-
-  it('closes the edit dialog without clearing its content first', () => {
-    const { rerender } = render(<ChannelDetail channelDef={channelDef} />)
-
-    const editTooltip = screen.getByText('common.edit')
-    const editButton = within(editTooltip.closest('[data-testid="tooltip"]') as HTMLElement).getByRole('button')
-    fireEvent.click(editButton)
-    fireEvent.click(screen.getByRole('button', { name: 'close dialog' }))
-
-    channelMocks.channels = []
-    rerender(<ChannelDetail channelDef={channelDef} />)
-
-    const title = screen.getByRole('heading', { name: 'Telegram channel' })
-    expect(title).toBeInTheDocument()
-    expect(title.closest('[data-open]')).toHaveAttribute('data-open', 'false')
   })
 })

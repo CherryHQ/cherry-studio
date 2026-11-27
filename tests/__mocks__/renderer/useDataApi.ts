@@ -54,7 +54,7 @@ type RefreshOption<TPath extends ApiPath, TMethod extends 'POST' | 'PUT' | 'DELE
  * Create mock data based on API path
  */
 function createMockDataForPath(path: string): any {
-  if (path === '/skills' || path === '/api-gateway/paired-devices') return []
+  if (path === '/skills' || path === '/api-gateway/paired-devices' || path === '/agent-channels') return []
   if (path === '/providers/:providerId/api-keys') {
     return { keys: [] }
   }
@@ -218,6 +218,7 @@ export const mockUsePaginatedQuery = vi.fn(
         hasPrev: boolean
         prevPage: () => void
         nextPage: () => void
+        goToPage: (page: number) => void
         refresh: () => Promise<unknown>
         reset: () => void
       }
@@ -241,6 +242,7 @@ export const mockUsePaginatedQuery = vi.fn(
       hasPrev: false,
       prevPage: vi.fn(),
       nextPage: vi.fn(),
+      goToPage: vi.fn(),
       refresh: vi.fn().mockResolvedValue(undefined),
       reset: vi.fn()
     } as unknown as ResponseForPath<TPath, 'GET'> extends PaginationResponse<infer T>
@@ -255,6 +257,7 @@ export const mockUsePaginatedQuery = vi.fn(
           hasPrev: boolean
           prevPage: () => void
           nextPage: () => void
+          goToPage: (page: number) => void
           refresh: () => Promise<unknown>
           reset: () => void
         }
@@ -391,6 +394,30 @@ function defaultMockUseWriteInfiniteCache<TPath extends ApiPath>(
 export const mockUseWriteInfiniteCache = vi.fn(defaultMockUseWriteInfiniteCache) as Mock &
   typeof defaultMockUseWriteInfiniteCache
 
+function defaultMockUseWriteInfinitePage<TPath extends ApiPath>(
+  path: TPath,
+  options?: Omit<MockInfiniteQueryOptions<TPath>, 'enabled' | 'swrOptions'>
+) {
+  type Page = Extract<ResponseForPath<TPath, 'GET'>, CursorPaginationResponse<unknown>>
+  const key = buildMockInfiniteQueryKey(path, options as MockInfiniteQueryOptions<TPath>)
+  return useCallback(
+    async (index: number, update: (page: Page) => Page['items']) => {
+      const pages = mockInfiniteQueryStore.get(key) as Page[] | undefined
+      const page = pages?.[index]
+      if (!pages || !page) return
+      const items = update(page)
+      if (items === page.items) return
+      const nextPages = pages.slice()
+      nextPages[index] = { ...page, items }
+      setMockInfiniteQueryPages(key, nextPages)
+    },
+    [key]
+  )
+}
+
+export const mockUseWriteInfinitePage = vi.fn(defaultMockUseWriteInfinitePage) as Mock &
+  typeof defaultMockUseWriteInfinitePage
+
 /**
  * Mock useInfiniteFlatItems helper.
  * Mirrors production: flattens `pages[].items` honoring optional reverse flags.
@@ -492,8 +519,13 @@ export const mockUseReadCache = vi.fn(() => {
   return vi.fn(
     <TResponse = unknown>(
       path: ConcreteApiPaths | TemplateApiPaths,
-      query?: Record<string, unknown>
+      query?: Record<string, unknown>,
+      infinite?: { limit: number }
     ): TResponse | undefined => {
+      if (infinite) {
+        const key = buildMockInfiniteQueryKey(path, { query, limit: infinite.limit } as never)
+        return mockInfiniteQueryStore.get(key) as TResponse | undefined
+      }
       return mockCacheStore.get(buildMockCacheKey(path as string, query)) as TResponse | undefined
     }
   )
@@ -533,6 +565,7 @@ export const MockUseDataApi = {
   useReadCache: mockUseReadCache,
   useWriteCache: mockUseWriteCache,
   useWriteInfiniteCache: mockUseWriteInfiniteCache,
+  useWriteInfinitePage: mockUseWriteInfinitePage,
   prefetch: mockPrefetch
 }
 
@@ -556,6 +589,7 @@ export const MockUseDataApiUtils = {
     mockUseReadCache.mockClear()
     mockUseWriteCache.mockClear()
     mockUseWriteInfiniteCache.mockClear()
+    mockUseWriteInfinitePage.mockClear()
     mockPrefetch.mockClear()
     mockCacheStore.clear()
     mockInfiniteQueryStore.clear()
@@ -887,6 +921,7 @@ export const MockUseDataApiUtils = {
           hasPrev: options?.hasPrev ?? false,
           prevPage: vi.fn(),
           nextPage: vi.fn(),
+          goToPage: vi.fn(),
           refresh: vi.fn(),
           reset: vi.fn()
         }
@@ -903,6 +938,7 @@ export const MockUseDataApiUtils = {
         hasPrev: false,
         prevPage: vi.fn(),
         nextPage: vi.fn(),
+        goToPage: vi.fn(),
         refresh: vi.fn(),
         reset: vi.fn()
       }

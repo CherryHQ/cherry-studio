@@ -14,6 +14,13 @@ import { inferReasoningMembership } from '../patterns/reasoning-heuristics'
  */
 describe('inferReasoningMembership', () => {
   it.each([
+    'step-5-preview',
+    'stepfun/step-5-preview',
+    'STEP-5-PREVIEW',
+    'StepFun/StEp-5-PrEvIeW',
+    // No inferred effort does not mean a model lacks reasoning membership.
+    'step-3-5-flash',
+    'step-3-7-flash',
     // Legacy matrix (verbatim behavior of inferReasoningFromModelId)
     'claude-3.7-sonnet',
     'claude-sonnet-4-5',
@@ -45,6 +52,7 @@ describe('inferReasoningMembership', () => {
     'llama-3-1-nemotron-ultra-253b-v1',
     // Gemini image SKUs ship thinking budgets (catalog: gemini-2-5-flash-image, 3-1-flash-image).
     'gemini-3-flash-image',
+    'mistralai/mistral-large-4-0',
     // Xunfei MaaS (讯飞星辰) ids omit hyphens/dots (iflytek creator): deepseek-v3.2,
     // deepseek-v4-pro, kimi-k2.6, qwen3.5-397b / qwen3.6-v35b, glm-4.7-flash,
     // glm-5.2, spark-x2 / spark-x2-flash.
@@ -62,6 +70,9 @@ describe('inferReasoningMembership', () => {
   })
 
   it.each([
+    'step-5-preview-non-reasoning',
+    'step-5',
+    'step-router-v1',
     'gpt-5.1-chat',
     'text-embedding-3-small',
     'bge-reranker-v2',

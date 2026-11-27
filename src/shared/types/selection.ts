@@ -1,0 +1,129 @@
+import * as z from 'zod'
+
+import { AgentSessionWorkspaceSourceSchema } from '@shared/data/api/schemas/agentWorkspaces'
+import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
+import { SELECTION_ACTION_RUNNER, SELECTION_ACTION_RUNNERS } from '@shared/data/preference/preferenceTypes'
+
+export const SELECTION_BUILTIN_ACTION_IDS = [
+  'translate',
+  'explain',
+  'summary',
+  'search',
+  'copy',
+  'refine',
+  'quote',
+  'ask-agent'
+] as const
+export type SelectionBuiltinActionId = (typeof SELECTION_BUILTIN_ACTION_IDS)[number]
+export const SELECTION_BUILTIN_ACTION_ID = {
+  TRANSLATE: 'translate',
+  EXPLAIN: 'explain',
+  SUMMARY: 'summary',
+  SEARCH: 'search',
+  COPY: 'copy',
+  REFINE: 'refine',
+  QUOTE: 'quote',
+  ASK_AGENT: 'ask-agent'
+} as const satisfies Record<string, SelectionBuiltinActionId>
+
+const selectionActionFields = {
+  name: z.string(),
+  enabled: z.boolean(),
+  icon: z.string().optional(),
+  selectedText: z.string().optional(),
+  programName: z.string().optional()
+}
+const builtinActionFields = { ...selectionActionFields, isBuiltIn: z.literal(true) }
+const agentBindingFields = {
+  agentId: z.string().optional(),
+  agentWorkspace: AgentSessionWorkspaceSourceSchema.optional()
+}
+
+export const BuiltinSelectionActionSchema = z.discriminatedUnion('id', [
+  z.object({
+    ...builtinActionFields,
+    id: z.literal(SELECTION_BUILTIN_ACTION_ID.SEARCH),
+    searchEngine: z.string().optional()
+  }),
+  z.object({ ...builtinActionFields, ...agentBindingFields, id: z.literal(SELECTION_BUILTIN_ACTION_ID.ASK_AGENT) }),
+  z.object({
+    ...builtinActionFields,
+    id: z.enum([
+      SELECTION_BUILTIN_ACTION_ID.TRANSLATE,
+      SELECTION_BUILTIN_ACTION_ID.EXPLAIN,
+      SELECTION_BUILTIN_ACTION_ID.SUMMARY,
+      SELECTION_BUILTIN_ACTION_ID.COPY,
+      SELECTION_BUILTIN_ACTION_ID.REFINE,
+      SELECTION_BUILTIN_ACTION_ID.QUOTE
+    ])
+  })
+])
+
+export const CustomSelectionActionSchema = z.object({
+  ...selectionActionFields,
+  ...agentBindingFields,
+  id: z.string(),
+  isBuiltIn: z.literal(false),
+  runner: z.enum(SELECTION_ACTION_RUNNERS),
+  prompt: z.string().optional(),
+  assistantId: z.string().optional()
+})
+
+/** A selection action as business code sees it; parse stored `SelectionActionItem`s through this. */
+export const SelectionActionSchema = z.discriminatedUnion('isBuiltIn', [
+  BuiltinSelectionActionSchema,
+  CustomSelectionActionSchema
+]) satisfies z.ZodType<SelectionActionItem>
+
+export type BuiltinSelectionAction = z.infer<typeof BuiltinSelectionActionSchema>
+export type SearchSelectionAction = Extract<BuiltinSelectionAction, { id: typeof SELECTION_BUILTIN_ACTION_ID.SEARCH }>
+export type AskAgentSelectionAction = Extract<
+  BuiltinSelectionAction,
+  { id: typeof SELECTION_BUILTIN_ACTION_ID.ASK_AGENT }
+>
+export type CustomSelectionAction = z.infer<typeof CustomSelectionActionSchema>
+export type SelectionAction = z.infer<typeof SelectionActionSchema>
+
+export type SelectionActionSession = SelectionAction & {
+  sessionId: string
+}
+
+export type AgentSelectionAction = AskAgentSelectionAction | (CustomSelectionAction & { runner: 'agent' })
+
+/** Agent actions open the selection agent window instead of the action window. */
+export function isAgentSelectionAction(action: SelectionAction): action is AgentSelectionAction {
+  return action.isBuiltIn
+    ? action.id === SELECTION_BUILTIN_ACTION_ID.ASK_AGENT
+    : action.runner === SELECTION_ACTION_RUNNER.AGENT
+}
+
+/** `compose` fits the compose bar to its content height in CSS pixels; `conversation` takes the conversation window size. */
+export const SelectionAgentWindowLayoutSchema = z.discriminatedUnion('mode', [
+  z.object({ mode: z.literal('compose'), height: z.number().positive() }),
+  z.object({ mode: z.literal('conversation') })
+])
+export type SelectionAgentWindowLayout = z.infer<typeof SelectionAgentWindowLayoutSchema>
+
+export const SELECTION_AGENT_STATUSES = [
+  'starting',
+  'running',
+  'awaiting-approval',
+  'needs-input',
+  'done',
+  'failed'
+] as const
+export type SelectionAgentStatus = (typeof SELECTION_AGENT_STATUSES)[number]
+
+/** What a collapsed agent window shows on its capsule; the window publishes it as its turn changes. */
+export const SelectionAgentSummarySchema = z.object({
+  agentName: z.string(),
+  agentAvatar: z.string(),
+  sessionTitle: z.string().optional(),
+  status: z.enum(SELECTION_AGENT_STATUSES),
+  /** Tool calls in the current turn. */
+  steps: z.number().int().nonnegative()
+})
+export type SelectionAgentSummary = z.infer<typeof SelectionAgentSummarySchema>
+
+/** One capsule of a display's stack, which main orders nearest the corner first. */
+export type SelectionAgentCapsule = SelectionAgentSummary & { windowId: string }

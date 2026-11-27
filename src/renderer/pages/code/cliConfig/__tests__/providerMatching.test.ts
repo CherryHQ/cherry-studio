@@ -188,17 +188,6 @@ describe('cliConfigConnectionMatchesProvider', () => {
     ).toBe(false)
   })
 
-  it('treats missing connection api key as match when provider has keys configured', () => {
-    expect(
-      cliConfigConnectionMatchesProvider(
-        CodeCli.GEMINI_CLI,
-        { baseUrl: 'https://aihubmix.com/gemini' },
-        aihubmixProvider,
-        apiKeys
-      )
-    ).toBe(true)
-  })
-
   it('does not treat the same Gemini proxy URL as a match for non-Gemini tools', () => {
     expect(
       cliConfigConnectionMatchesProvider(

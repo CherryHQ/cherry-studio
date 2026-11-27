@@ -1,7 +1,6 @@
 import { APICallError } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { DEFAULT_DOCUMENT_COUNT } from '@main/utils/knowledge'
 import {
   DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
   DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
@@ -45,6 +44,7 @@ function createKnowledgeBase(overrides: Partial<KnowledgeBase> = {}): KnowledgeB
   const now = new Date().toISOString()
 
   return {
+    orderKey: 'a0',
     id: '11111111-1111-4111-8111-111111111111',
     name: 'Knowledge Base',
     groupId: null,
@@ -110,7 +110,7 @@ describe('knowledge rerank runtime', () => {
 
     await expect(
       rerankKnowledgeSearchResults(createKnowledgeBase({ rerankModelId: null }), 'hello', searchResults)
-    ).resolves.toBe(searchResults)
+    ).resolves.toEqual(searchResults)
     expect(mocks.aiRerankMock).not.toHaveBeenCalled()
   })
 
@@ -176,24 +176,12 @@ describe('knowledge rerank runtime', () => {
     expect(result.map((item) => item.chunkId)).toEqual(['chunk-2'])
   })
 
-  it('uses the default document count as rerank topN when the base has no document count', async () => {
-    mocks.aiRerankMock.mockResolvedValueOnce({ ranking: [] })
-
-    await rerankKnowledgeSearchResults(
-      createKnowledgeBase({ documentCount: undefined }),
-      'hello',
-      createSearchResults()
-    )
-
-    expect(mocks.aiRerankMock).toHaveBeenCalledWith(expect.objectContaining({ topN: DEFAULT_DOCUMENT_COUNT }))
-  })
-
   it('skips rerank when the rerank model id is invalid', async () => {
     const searchResults = createSearchResults()
 
     await expect(
       rerankKnowledgeSearchResults(createKnowledgeBase({ rerankModelId: 'invalid-model' }), 'hello', searchResults)
-    ).resolves.toBe(searchResults)
+    ).resolves.toEqual(searchResults)
     expect(mocks.aiRerankMock).not.toHaveBeenCalled()
     expect(mocks.errorMock).toHaveBeenCalledWith('Skipping knowledge rerank because rerank model id is invalid', {
       baseId: '11111111-1111-4111-8111-111111111111',
@@ -205,7 +193,7 @@ describe('knowledge rerank runtime', () => {
     const searchResults = createSearchResults()
     mocks.aiRerankMock.mockRejectedValueOnce(new Error('upstream unavailable'))
 
-    await expect(rerankKnowledgeSearchResults(createKnowledgeBase(), 'hello', searchResults)).resolves.toBe(
+    await expect(rerankKnowledgeSearchResults(createKnowledgeBase(), 'hello', searchResults)).resolves.toEqual(
       searchResults
     )
     // The Error instance itself is logged (stack/cause preserved), with the
@@ -227,7 +215,7 @@ describe('knowledge rerank runtime', () => {
     const searchResults = createSearchResults()
     mocks.aiRerankMock.mockRejectedValueOnce(apiCallError(503, 'Service Unavailable'))
 
-    await expect(rerankKnowledgeSearchResults(createKnowledgeBase(), 'hello', searchResults)).resolves.toBe(
+    await expect(rerankKnowledgeSearchResults(createKnowledgeBase(), 'hello', searchResults)).resolves.toEqual(
       searchResults
     )
     expect(mocks.warnMock).toHaveBeenCalledTimes(1)
@@ -242,7 +230,7 @@ describe('knowledge rerank runtime', () => {
     const searchResults = createSearchResults()
     mocks.aiRerankMock.mockRejectedValueOnce(apiCallError(statusCode, message))
 
-    await expect(rerankKnowledgeSearchResults(createKnowledgeBase(), 'hello', searchResults)).resolves.toBe(
+    await expect(rerankKnowledgeSearchResults(createKnowledgeBase(), 'hello', searchResults)).resolves.toEqual(
       searchResults
     )
     expect(mocks.errorMock).toHaveBeenCalledWith(

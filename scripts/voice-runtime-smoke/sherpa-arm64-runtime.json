@@ -1,0 +1,8 @@
+{
+  "version": "1.13.6",
+  "sourceRevision": "1cb484af5e69d3c7803c1eb0b3b5ab8041e0e911",
+  "sdkSha256": "8298636d8db917ca399e0c6c76152c9c19a6d29d17684965fd281e2295ca067d",
+  "runtimeRevision": 1,
+  "cmakeJsVersion": "8.0.0",
+  "nodeAddonApiVersion": "8.3.0"
+}

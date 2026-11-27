@@ -17,13 +17,11 @@ import { ipcApi } from '@renderer/ipc'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { openExternalWebsite } from '@renderer/services/website'
-import { formatMcpError } from '@renderer/utils/error'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { cn } from '@renderer/utils/style'
 import type { UpdateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
 import type { McpServer } from '@shared/data/types/mcpServer'
 
-import { isQVerisApiKeyMissing, QVerisApiKeyGuide } from './QVerisApiKeyGuide'
 import { useMcpServerTrust } from './useMcpServerTrust'
 
 const logger = loggerService.withContext('McpServerCard')
@@ -66,15 +64,6 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
 
   const handleToggleActive = useCallback(
     async (active: boolean) => {
-      if (active && isQVerisApiKeyMissing(server)) {
-        void popup.error({
-          title: t('settings.mcp.startError'),
-          content: <QVerisApiKeyGuide />,
-          centered: true
-        })
-        return
-      }
-
       let serverForUpdate = server
       if (active) {
         const trustedServer = await ensureServerTrusted(server)
@@ -91,11 +80,7 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
             await fetchServerVersion({ ...serverForUpdate, isActive: true }, true)
             await ipcApi.request('mcp.server.refresh_tools', { serverId: serverForUpdate.id })
           } catch (error: any) {
-            void popup.error({
-              title: t('settings.mcp.startError'),
-              content: formatMcpError(error),
-              centered: true
-            })
+            toast.errorFromException(error, { category: 'mcp', mcpServer: server })
           }
         } else {
           await updateMcpServer({ body: { isActive: false } })
@@ -103,16 +88,12 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
           setVersion(null)
         }
       } catch (error: any) {
-        void popup.error({
-          title: active ? t('settings.mcp.startError') : t('settings.mcp.updateError'),
-          content: formatMcpError(error),
-          centered: true
-        })
+        toast.errorFromException(error, { category: 'mcp', mcpServer: server })
       } finally {
         setLoading(false)
       }
     },
-    [server, ensureServerTrusted, fetchServerVersion, updateMcpServer, t]
+    [server, ensureServerTrusted, fetchServerVersion, updateMcpServer]
   )
 
   const handleDelete = useCallback(async () => {
@@ -253,8 +234,7 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
               variant="ghost"
               size="icon-sm"
               className="size-7 rounded-md text-muted-foreground shadow-none hover:text-foreground"
-              onClick={handleOpenUrl}
-              data-no-dnd>
+              onClick={handleOpenUrl}>
               <ExternalLink size={13} />
             </Button>
           )}
@@ -268,7 +248,6 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
             size="xs"
             className="shadow-none data-[state=checked]:bg-success"
             onCheckedChange={handleToggleActive}
-            data-no-dnd
           />
         </ToolbarWrapper>
       </CardContainer>

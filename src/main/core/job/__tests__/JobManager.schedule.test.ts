@@ -92,8 +92,8 @@ describe('JobManager schedule control APIs', () => {
           return scheduler
         case 'JobManager':
           return jobManager
-        case 'PowerService':
-          return { preventSleep: () => ({ dispose: () => {} }) }
+        case 'RuntimeActivityService':
+          return { begin: () => ({ dispose: () => {} }) }
       }
       throw new Error(`Unexpected application.get('${name}')`)
     })

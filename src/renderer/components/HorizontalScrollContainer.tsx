@@ -2,7 +2,6 @@ import { ChevronRight } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 
 import { cn } from '@cherrystudio/ui/lib/utils'
-import Scrollbar from '@renderer/components/Scrollbar'
 
 /**
  * 水平滚动容器
@@ -55,46 +54,43 @@ const HorizontalScrollContainer: React.FC<HorizontalScrollContainerProps> = ({
     }
   }
 
-  const checkScrollability = () => {
-    const scrollElement = scrollRef.current
-    if (scrollElement) {
-      const parentElement = scrollElement.parentElement
-      const availableWidth = parentElement ? parentElement.clientWidth : scrollElement.clientWidth
-
-      // 确保容器不会超出可用宽度
-      const canScrollValue = scrollElement.scrollWidth > Math.min(availableWidth, scrollElement.clientWidth)
-      setCanScroll(canScrollValue)
-
-      // 检查是否滚动到最右侧
-      if (canScrollValue) {
-        const isAtEnd = Math.abs(scrollElement.scrollLeft + scrollElement.clientWidth - scrollElement.scrollWidth) <= 1
-        setIsScrolledToEnd(isAtEnd)
-      } else {
-        setIsScrolledToEnd(false)
-      }
-    }
-  }
-
   useEffect(() => {
     const scrollElement = scrollRef.current
     if (!scrollElement) return
 
-    checkScrollability()
-
-    const handleScroll = () => {
-      checkScrollability()
+    let frame: number | null = null
+    const checkScrollability = () => {
+      frame = null
+      const { clientWidth, scrollWidth, scrollLeft } = scrollElement
+      const availableWidth = scrollElement.parentElement?.clientWidth ?? clientWidth
+      const overflowing = scrollWidth > Math.min(availableWidth, clientWidth)
+      setCanScroll(overflowing)
+      setIsScrolledToEnd(overflowing && Math.abs(scrollLeft + clientWidth - scrollWidth) <= 1)
     }
 
-    const resizeObserver = new ResizeObserver(checkScrollability)
-    resizeObserver.observe(scrollElement)
+    const scheduleCheck = () => {
+      if (frame === null) frame = requestAnimationFrame(checkScrollability)
+    }
 
-    scrollElement.addEventListener('scroll', handleScroll)
-    window.addEventListener('resize', checkScrollability)
+    const resizeObserver = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(scheduleCheck)
+
+    if (resizeObserver) {
+      resizeObserver.observe(scrollElement)
+    } else {
+      scheduleCheck()
+      window.addEventListener('resize', scheduleCheck)
+    }
+
+    scrollElement.addEventListener('scroll', scheduleCheck, { passive: true })
 
     return () => {
-      resizeObserver.disconnect()
-      scrollElement.removeEventListener('scroll', handleScroll)
-      window.removeEventListener('resize', checkScrollability)
+      if (resizeObserver) {
+        resizeObserver.disconnect()
+      } else {
+        window.removeEventListener('resize', scheduleCheck)
+      }
+      scrollElement.removeEventListener('scroll', scheduleCheck)
+      if (frame !== null) cancelAnimationFrame(frame)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, dependencies)
@@ -108,8 +104,9 @@ const HorizontalScrollContainer: React.FC<HorizontalScrollContainerProps> = ({
         classNames?.container
       )}
       onClick={expandable ? handleContainerClick : undefined}>
-      <Scrollbar
+      <div
         ref={scrollRef}
+        data-horizontal-scroll-viewport=""
         className={cn('relative z-0 flex min-w-0 flex-1 overflow-y-hidden', classNames?.content)}
         style={{
           gap,
@@ -119,7 +116,7 @@ const HorizontalScrollContainer: React.FC<HorizontalScrollContainerProps> = ({
           scrollbarWidth: 'none'
         }}>
         {children}
-      </Scrollbar>
+      </div>
       {canScroll && !isExpanded && !isScrolledToEnd && (
         <div
           onClick={handleScrollRight}

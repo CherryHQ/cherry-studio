@@ -7,6 +7,7 @@ import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { useMessageEditing } from '@renderer/components/chat/editing/MessageEditingContext'
 import { resolvePartFromParts } from '@renderer/components/chat/messages/blocks/MessagePartsContext'
+import { useMessageAuthorAvatarSources } from '@renderer/components/chat/messages/hooks/useMessageAuthorAvatarSources'
 import { useMessageListAdapterCapabilities } from '@renderer/components/chat/messages/hooks/useMessageListAdapterCapabilities'
 import {
   pickMessageHeaderActions,
@@ -32,7 +33,9 @@ import {
   runMessageImageAction
 } from '@renderer/components/chat/messages/utils/messageImageRuntimeActions'
 import { getMessageListItemModel, toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
-import { ModelSelector, type ModelSelectorFilter } from '@renderer/components/ModelSelector'
+import { useProfilePaneToggle } from '@renderer/components/chat/panes/profile'
+import { CherryCloudModelSelector as ModelSelector } from '@renderer/components/cherryCloud/CherryCloudModelSelector'
+import { type ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { useChatWrite } from '@renderer/hooks/chat/ChatWriteContext'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { SiblingsContext } from '@renderer/hooks/SiblingsContext'
@@ -48,13 +51,13 @@ import type { Topic } from '@renderer/types/topic'
 import { formatErrorMessageWithPrefix, isAbortError } from '@renderer/utils/error'
 import { createComposerRichClipboardContentFromParts } from '@renderer/utils/message/composerClipboard'
 import { getComposerTextFromParts } from '@renderer/utils/message/composerTokens'
-import { isVisionModel } from '@renderer/utils/model'
+import { type MessagePartRows, messagePartsAt } from '@renderer/utils/message/messagePartRows'
 import { translateText } from '@renderer/utils/translate'
 import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
-import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import type { CherryUIMessage } from '@shared/data/types/message'
 import { createUniqueModelId, type Model as SharedModel, type UniqueModelId } from '@shared/data/types/model'
 import type { DoctorSubjectRef } from '@shared/types/doctor'
-import { isNonChatModel } from '@shared/utils/model'
+import { isNonChatModel, isVisionModel } from '@shared/utils/model'
 
 import {
   consumePendingTopicImageActions,
@@ -75,7 +78,7 @@ interface HomeMessageListParams {
   topic: Topic
   assistant?: Assistant
   messages: CherryUIMessage[]
-  partsByMessageId: Record<string, CherryMessagePart[]>
+  partsByMessageId: MessagePartRows
   streamingLayers?: MessageStreamingLayers
   isInitialLoading?: boolean
   isMessagesStale?: boolean
@@ -83,9 +86,12 @@ interface HomeMessageListParams {
   hasOlder?: boolean
   selectAllPagination?: MessageListSelectAllPagination
   openCitationsPanel?: MessageListActions['openCitationsPanel']
+  addGeneratedImageToComposer?: MessageListActions['addGeneratedImageToComposer']
   imageActionConsumer?: 'capture'
   onBindRuntime?: MessageListActions['bindRuntime']
   onStartBranchDraft?: MessageListActions['startMessageBranch']
+  messageHead?: MessageListState['messageHead']
+  afterMessages?: MessageListState['afterMessages']
   onComponentUpdate?(): void
   onFirstUpdate?(): void
 }
@@ -102,9 +108,12 @@ export function useHomeMessageListProviderValue({
   hasOlder = false,
   selectAllPagination,
   openCitationsPanel,
+  addGeneratedImageToComposer,
   imageActionConsumer,
   onBindRuntime,
   onStartBranchDraft,
+  messageHead,
+  afterMessages,
   onComponentUpdate,
   onFirstUpdate
 }: HomeMessageListParams): MessageListProviderValue {
@@ -255,6 +264,8 @@ export function useHomeMessageListProviderValue({
     getDoctorSubject,
     selectAllPagination
   })
+  // The conversation's current Assistant / Agent, not the snapshot each message header shows.
+  const toggleAuthorProfile = useProfilePaneToggle()?.toggle
 
   useEffect(() => {
     if (!assistant) return
@@ -271,7 +282,7 @@ export function useHomeMessageListProviderValue({
     () => {
       const lastMessage = messageItems.findLast((message) => !message.isContextBoundary)
       if (lastMessage) {
-        const parts = partsByMessageIdRef.current[lastMessage.id] ?? []
+        const parts = messagePartsAt(partsByMessageIdRef.current, lastMessage.id) ?? []
         const richContent = leafCapabilities.copyRichContent ? createComposerRichClipboardContentFromParts(parts) : null
         const text = getComposerTextFromParts(parts)
         const copyTask = richContent
@@ -455,7 +466,7 @@ export function useHomeMessageListProviderValue({
             toast.error(t('code_block.edit.save.failed.label'))
             return
           }
-          const allParts = [...(partsByMessageIdRef.current[resolved.messageId] || [])]
+          const allParts = [...(messagePartsAt(partsByMessageIdRef.current, resolved.messageId) || [])]
           allParts[resolved.index] = {
             ...resolved.part,
             text: updatedText
@@ -476,11 +487,7 @@ export function useHomeMessageListProviderValue({
   )
 
   const openPath = useCallback((path: string) => {
-    return window.api.file.openPath(path)
-  }, [])
-
-  const showInFolder = useCallback((path: string) => {
-    return window.api.file.showInFolder(path)
+    return ipcApi.request('system.shell.open_path', path)
   }, [])
 
   const abortTool = useCallback(
@@ -531,7 +538,7 @@ export function useHomeMessageListProviderValue({
       const write = requireChatWrite('translateMessage')
       const isCurrentTranslation = () => translationAbortControllersRef.current.get(messageId) === controller
 
-      const currentParts = partsByMessageIdRef.current[messageId]
+      const currentParts = messagePartsAt(partsByMessageIdRef.current, messageId)
       if (!currentParts) {
         logger.error(`[createTranslationUpdater] cannot find parts for message: ${messageId}`)
         return null
@@ -615,7 +622,7 @@ export function useHomeMessageListProviderValue({
         // a superseding call will have set a new controller by now and
         // owns the current data-translation part.
         if (translationAbortControllersRef.current.get(messageId) === controller) {
-          const currentParts = partsByMessageIdRef.current[messageId]
+          const currentParts = messagePartsAt(partsByMessageIdRef.current, messageId)
           if (currentParts) {
             const baseParts = currentParts.filter((part) => part.type !== 'data-translation')
             if (baseParts.length !== currentParts.length) {
@@ -646,7 +653,7 @@ export function useHomeMessageListProviderValue({
 
   const removeMessageTranslation = useCallback<NonNullable<MessageListActions['removeMessageTranslation']>>(
     async (messageId) => {
-      const currentParts = partsByMessageIdRef.current[messageId]
+      const currentParts = messagePartsAt(partsByMessageIdRef.current, messageId)
       if (!currentParts) return
       const baseParts = currentParts.filter((part) => part.type !== 'data-translation')
       if (baseParts.length === currentParts.length) return
@@ -661,7 +668,15 @@ export function useHomeMessageListProviderValue({
       if (!group || group.length < 2) return null
 
       const activeIndex = group.findIndex((message) => message.id === messageId)
-      return { group, activeIndex: activeIndex >= 0 ? activeIndex : 0 }
+      return {
+        group: group.map((message) => ({
+          id: message.id,
+          preview: getComposerTextFromParts(message.data.parts ?? [])
+            .replace(/\s+/g, ' ')
+            .trim()
+        })),
+        activeIndex: activeIndex >= 0 ? activeIndex : 0
+      }
     },
     [siblingsContext]
   )
@@ -774,6 +789,10 @@ export function useHomeMessageListProviderValue({
           multiple={false}
           value={currentMentionModel}
           filter={mentionModelFilter}
+          offerFilter={(offer) =>
+            !messageParts.some((part) => part.type === 'file' && part.mediaType?.startsWith('image/')) ||
+            Boolean(offer.capabilities?.includes('image-recognition'))
+          }
           onSelect={onSelectMentionModel}
           trigger={trigger}
           onOpenChange={onOpenChange}
@@ -793,6 +812,8 @@ export function useHomeMessageListProviderValue({
       isMessagesStale,
       hasOlder,
       messageNavigation,
+      messageHead: normalInteractionsEnabled ? messageHead : undefined,
+      afterMessages: normalInteractionsEnabled ? afterMessages : undefined,
       ...DEFAULT_MESSAGE_LIST_CONFIG,
       listKey: resolvedAssistantId,
       renderConfig,
@@ -823,7 +844,10 @@ export function useHomeMessageListProviderValue({
       messageUiStateCache.getMessageUiState,
       messageItems,
       messageActivityStore,
+      afterMessages,
+      messageHead,
       messageNavigation,
+      normalInteractionsEnabled,
       partsByMessageId,
       renderConfig,
       resolvedAssistantId,
@@ -835,6 +859,11 @@ export function useHomeMessageListProviderValue({
     ]
   )
 
+  const openMcpApp = useCallback<NonNullable<MessageListActions['openMcpApp']>>(
+    (messageId, toolCallId, requestId) => ipcApi.request('mcp.app.open', { topicId, messageId, toolCallId, requestId }),
+    [topicId]
+  )
+
   const actions = useMemo<MessageListActions>(
     () => ({
       loadOlder,
@@ -842,18 +871,19 @@ export function useHomeMessageListProviderValue({
       bindMessageRuntime,
       bindMessageGroupRuntime,
       locateMessage,
+      addGeneratedImageToComposer: normalInteractionsEnabled ? addGeneratedImageToComposer : undefined,
       ...(canStartNewContext && { startNewContext }),
       saveCodeBlock,
       ...exportActions,
       ...errorActions,
       ...pickMessageLeafActions(leafCapabilities),
       navigateToRoute,
-      ...pickMessageHeaderActions(headerCapabilities),
+      ...pickMessageHeaderActions({ ...headerCapabilities, toggleAuthorProfile }),
       removeMessageErrorPart,
       openPath,
       openCitationsPanel,
-      showInFolder,
       abortTool,
+      openMcpApp: normalInteractionsEnabled ? openMcpApp : undefined,
       ...selectionController.actions,
       updateMessageUiState: messageUiStateCache.updateMessageUiState,
       updateRenderConfig,
@@ -867,6 +897,7 @@ export function useHomeMessageListProviderValue({
       deleteMessageGroup,
       deleteMessageGroupWithConfirm,
       regenerateMessage,
+      regenerateMessageUsingModel,
       requestTranslationLanguages: normalInteractionsEnabled ? requestTranslationLanguages : undefined,
       retryTranslationLanguages: normalInteractionsEnabled ? retryTranslationLanguages : undefined,
       translateMessage,
@@ -875,12 +906,14 @@ export function useHomeMessageListProviderValue({
       renderRegenerateModelPicker
     }),
     [
+      openMcpApp,
       abortTool,
       abortMessageTranslation,
       bindMessageGroupRuntime,
       bindMessageRuntime,
       bindRuntime,
       canStartNewContext,
+      addGeneratedImageToComposer,
       copyBranchToNewTopic,
       getMessageDeleteAvailability,
       deleteMessage,
@@ -890,6 +923,7 @@ export function useHomeMessageListProviderValue({
       exportActions,
       errorActions,
       headerCapabilities,
+      toggleAuthorProfile,
       leafCapabilities,
       navigateToRoute,
       loadOlder,
@@ -899,13 +933,13 @@ export function useHomeMessageListProviderValue({
       openCitationsPanel,
       openPath,
       regenerateMessage,
+      regenerateMessageUsingModel,
       requestTranslationLanguages,
       retryTranslationLanguages,
       renderRegenerateModelPicker,
       removeMessageErrorPart,
       saveCodeBlock,
       setActiveBranch,
-      showInFolder,
       startEditing,
       startMessageBranch,
       startNewContext,
@@ -916,14 +950,18 @@ export function useHomeMessageListProviderValue({
     ]
   )
 
+  const assistantAvatarSources = useMessageAuthorAvatarSources(messageItems, topic.id)
   const meta = useMemo<MessageListMeta>(
     () => ({
       selectionLayer: true,
       userProfile: headerCapabilities.userProfile,
-      assistantProfile: assistant ? { name: assistant.name, avatar: assistant.emoji } : undefined,
+      assistantProfile: assistant
+        ? { name: assistant.name, avatar: assistant.avatarSrc ?? assistant.emoji }
+        : undefined,
+      assistantAvatarSources,
       imageExportFileName: topic.name
     }),
-    [assistant, headerCapabilities.userProfile, topic.name]
+    [assistant, assistantAvatarSources, headerCapabilities.userProfile, topic.name]
   )
 
   return useMemo(() => ({ state, actions, meta }), [actions, meta, state])

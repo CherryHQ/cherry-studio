@@ -18,18 +18,7 @@ export const GlobToolSchema = z.object({
 
 // Tool definition with detailed description
 export const globToolDefinition = {
-  description: `Fast file pattern matching tool that works with any codebase size.
-
-- Supports glob patterns like "**/*.js" or "src/**/*.ts"
-- Returns matching absolute file paths sorted by modification time (newest first)
-- Use this when you need to find files by name patterns
-- Patterns without "/" (e.g., "*.txt") match files at ANY depth in the directory tree
-- Patterns with "/" (e.g., "src/*.ts") match relative to the search path
-- Pattern syntax: * (any chars), ** (any path), {a,b} (alternatives), ? (single char)
-- Results are limited to 100 files
-- The path parameter must resolve within the configured workspace root if specified
-- If path is not specified, defaults to the base directory
-- IMPORTANT: Omit the path field for the default directory (don't use "undefined" or "null")`,
+  description: `Find files by glob pattern (**/*.ts, src/*.js), newest first, max 100. Paths must stay inside the workspace root.`,
   inputSchema: GlobToolSchema
 }
 

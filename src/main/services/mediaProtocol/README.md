@@ -1,6 +1,6 @@
 # mediaProtocol
 
-Serves in-memory binary media to renderer processes over the custom `cherry-media://` scheme, so a renderer can read large bytes the main process already holds without an IPC copy or a temp file on disk.
+Serves owned binary media to renderer processes over the custom `cherry-media://` scheme, so a renderer can read large bytes the main process already holds without an IPC copy or a temp file on disk.
 
 The first consumer is the screenshot overlay: each display's full-screen capture is tens of MB, and the overlay both paints it and re-reads regions of it. Structured-cloning that through IPC, or round-tripping it via disk, costs more than the whole capture.
 
@@ -14,6 +14,9 @@ cherry-media://<kind>/<id>
 One scheme carries every kind, with the kind as the host segment. `protocol.registerSchemesAsPrivileged` may only be called once per process and only before the app is ready, so a per-kind scheme would make every new media type a preboot change; a new kind is instead one entry in `MediaKind`.
 
 An unknown kind is a 400, not a fallthrough to another kind's store — ids are per-kind, so serving `cherry-media://video/<image-id>` would hand out the wrong bytes.
+
+Tool-result image previews use `cherry-media://tool-result/<topic>/<message>/<call>/<image-index>`.
+Each identity segment is percent-encoded. The responder reads the current result from its existing runtime or persisted owner and decodes only the requested image; it adds no store entry or temporary file. Replacing or deleting that result changes subsequent reads. Responses use `no-store`, and the renderer remounts image previews when its local detail request generation changes. Full copy and export still read the original result.
 
 ## Module map
 
@@ -45,7 +48,15 @@ Per `core/preboot/README.md` membership criterion 2, this module is *not* in `co
 | `secure` | treated as a secure origin, so the overlay is not blocked from loading it |
 | `supportFetchAPI` + `corsEnabled` | consumers `fetch` the bytes into a Blob and render through an object URL; a cross-origin `<img>` drawn into a canvas taints it and export throws `SecurityError`. A `corsEnabled` scheme served through `protocol.handle` needs no `Access-Control-Allow-Origin` header, so the handler sends none |
 
-No `stream` — that is for range-requested audio/video. Add it with the first kind that needs it, not in anticipation.
+| `stream` | enables audio elements to consume protocol responses, including byte ranges |
+
+## Audio and access
+
+Voice playback registers `MediaKind.Audio` with `{ webContentsId }` and returns a URL over IPC. Audio loads directly from that URL; recordings still use FileManager. Audio responses support GET, HEAD and a single byte range (206 / 416). Multiple disjoint or malformed ranges are ignored and return the full resource. Responses use `Cache-Control: no-store`.
+
+For tool-result images and entries with an access constraint, the default session's `onBeforeRequest` checks a known issuing window and a trusted main frame; access-constrained entries additionally require their owning window. Missing provenance, other windows, and untrusted/subframes are denied. This service owns that listener slot on the default session; restricted browser and mini-app sessions own their separate policies. Do not register another default-session listener over it. Protocol handlers are registered only in the default session.
+
+The owning voice session removes its output on release, cancellation or teardown; pause retains it. Removal prevents new reads, but cannot retract bytes already buffered by Chromium. The player also pauses, detaches listeners, removes `src`, and calls `load()` before releasing an output. Main guards registration against cancelled operations, including synthesis that returns late.
 
 ## Lifetime contract: every `store()` is paired with a `remove()`
 
@@ -55,7 +66,7 @@ A time-based sweep must first guess how long a session lasts, and a capture sess
 
 Leak protection is two deterministic checks instead of a timer:
 
-- the unit test asserting `has()` is `false` for every id once a session ends
+- the unit test asserting each media URL returns 404 once its owner releases it
 - the memory regression check: repeated sessions return to baseline
 
 When a genuinely fire-and-forget consumer appears (store it and never look again), design reclamation for that consumer then.
@@ -80,9 +91,8 @@ They share only the word. Merging them would put a preboot-timed Chromium scheme
 
 | Method | Contract |
 |---|---|
-| `store(kind, data, mimeType)` | stores the buffer, returns its id. Caller owns the lifetime |
+| `store(kind, data, mimeType, access?)` | stores the buffer, returns its id. Caller owns the lifetime |
 | `remove(kind, id)` | drops the entry; returns whether it existed |
-| `has(kind, id)` | whether the entry is still stored |
 | `getUrl(kind, id)` | the URL a renderer loads |
 
 ```typescript

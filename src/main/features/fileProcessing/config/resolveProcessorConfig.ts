@@ -37,7 +37,11 @@ export function getFileProcessorConfigById(processorId: FileProcessorId): FilePr
       return {
         ...capability,
         ...(capabilityOverride?.apiHost !== undefined ? { apiHost: capabilityOverride.apiHost } : {}),
-        ...(capabilityOverride?.modelId !== undefined ? { modelId: capabilityOverride.modelId } : {})
+        ...(capabilityOverride?.modelId !== undefined ? { modelId: capabilityOverride.modelId } : {}),
+        ...(capabilityOverride?.formulaLevel !== undefined ? { formulaLevel: capabilityOverride.formulaLevel } : {}),
+        ...(capabilityOverride?.mergeCrossPageForms !== undefined
+          ? { mergeCrossPageForms: capabilityOverride.mergeCrossPageForms }
+          : {})
       }
     }),
     apiKeys: override?.apiKeys,
@@ -59,7 +63,7 @@ function assertProcessorUsable(config: FileProcessorMerged, feature: FileProcess
   // platform" sent people hunting for an OS problem when all they had to do was
   // download the model.
   const requiredModel = FILE_PROCESSOR_LOCAL_MODEL[config.id]
-  if (requiredModel && !application.get('LocalModelService').isCapabilityReady(requiredModel)) {
+  if (requiredModel && !application.get('LocalModelService').isDefaultModelReady(requiredModel)) {
     throw new Error(`File processor ${config.id} needs the local ${requiredModel} model to be downloaded first`)
   }
 }

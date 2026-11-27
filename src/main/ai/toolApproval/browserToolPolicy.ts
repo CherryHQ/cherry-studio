@@ -10,12 +10,6 @@ export function resolveBrowserToolPermission(runtimeName: string) {
   return preferences.get('app.browser.agent_control.enabled') ? 'allow' : 'deny'
 }
 
-export function getAutoApprovedBrowserTools(): string[] {
-  return application.get('PreferenceService').get('app.browser.agent_control.enabled')
-    ? BROWSER_TOOL_NAMES.map((name) => `mcp__browser__${name}`)
-    : []
-}
-
 export function listBrowserToolPolicies(): BuiltinToolPolicyEntry[] {
   return BROWSER_TOOL_NAMES.map((name) => ({
     serverName: 'browser',

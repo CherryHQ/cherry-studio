@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/simplification/2026-11-04-unified-scroll-area.md
+2026-11-04-unified-scroll-area.md: 22e96931dde040ec8b9fc4b3188f3a4909395d30
+2026-11-04-unified-scroll-area.zh.md: 6f9e0cba9dd9bb977e6a1f1f00c721005019d032

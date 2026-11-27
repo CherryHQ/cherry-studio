@@ -35,7 +35,9 @@ export function useDefaultModel(options: { enabled?: boolean } = {}) {
   const [translateModelId, setTranslateModelId] = usePreference('feature.translate.model_id')
   const [paintingModelId, setPaintingModelId] = usePreference('feature.paintings.default_model_id')
 
-  const { model: defaultModel } = useModelById(enabled ? (defaultModelId as UniqueModelId) : null)
+  const { model: defaultModel, isLoading: isDefaultModelLoading } = useModelById(
+    enabled ? (defaultModelId as UniqueModelId) : null
+  )
   const { model: quickModel } = useModelById(enabled ? ((quickModelId as UniqueModelId) ?? defaultModelId) : null)
   const { model: translateModel } = useModelById(
     enabled ? ((translateModelId as UniqueModelId) ?? defaultModelId) : null
@@ -44,6 +46,9 @@ export function useDefaultModel(options: { enabled?: boolean } = {}) {
 
   return {
     defaultModel,
+    // True only while the default-model record query is in flight. Undefined data during that
+    // window is not the same as a settled miss.
+    isDefaultModelLoading,
     quickModel,
     translateModel,
     paintingModel,
@@ -71,7 +76,7 @@ export function useModels(
   const fetchEnabledFlag = options?.fetchEnabled
   const hasEnabled = fetchEnabledFlag !== undefined
 
-  const { data, isLoading, refetch } = useQuery(
+  const { data, isLoading, error, refetch } = useQuery(
     '/models',
     hasQuery || hasEnabled
       ? {
@@ -87,7 +92,7 @@ export function useModels(
 
   const models = data ?? EMPTY_MODELS
 
-  return { models, isLoading, refetch }
+  return { models, isLoading, error, refetch }
 }
 
 // ─── Layer 2: Mutations ───────────────────────────────────────────────

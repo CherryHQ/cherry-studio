@@ -9,13 +9,15 @@ import type { ResolvedAction } from '@renderer/components/chat/actions/actionTyp
 import { ResourceListActionContextMenu } from '@renderer/components/chat/actions/ResourceListActionContextMenu'
 import { CommandPopupMenu } from '@renderer/components/command'
 import ConfirmActionPopup from '@renderer/components/popups/ConfirmActionPopup'
-
 import {
   buildResourceListGroupDropAnchor,
   compareResourceOrderKey,
+  type ResourceListOrderAnchor
+} from '@renderer/utils/chat/resourceListBase'
+
+import {
   ResourceList,
   type ResourceListGroup,
-  type ResourceListOrderAnchor,
   type ResourceListReorderPayload,
   type ResourceListSection,
   type ResourceListStatus
@@ -88,6 +90,7 @@ function sortEntityRailItemsForGroupGrouping<T extends ResourceEntityRailItem>(i
 }
 
 export type ResourceEntityRailProps<T extends ResourceEntityRailItem, TActionContext = unknown> = {
+  active?: boolean
   addIcon?: ReactNode
   addLabel: string
   ariaLabel: string
@@ -101,6 +104,11 @@ export type ResourceEntityRailProps<T extends ResourceEntityRailItem, TActionCon
   collapsedState?: readonly string[]
   emptyFallback?: ReactNode
   getContextMenuActions?: (item: T) => readonly ResolvedAction<TActionContext>[]
+  /** Keyboard permanent delete for a focused real entity row. Omitted leaves the shortcut unbound. */
+  permanentDelete?: {
+    isItemEligible?: (item: T) => boolean
+    onDelete: (item: T) => void | Promise<void>
+  }
   headerActions?: ReactNode
   listRef?: RefObject<HTMLDivElement | null>
   onAdd: () => void | Promise<void>
@@ -129,6 +137,7 @@ const ENTITY_RAIL_TITLE_CLASS =
   'font-normal text-foreground group-hover:text-inherit group-focus-visible:text-inherit group-data-[selected=true]:text-inherit'
 
 export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionContext = unknown>({
+  active = true,
   addIcon,
   addLabel,
   ariaLabel,
@@ -137,6 +146,7 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
   collapsedState,
   emptyFallback,
   getContextMenuActions,
+  permanentDelete,
   headerActions,
   listRef,
   onAdd,
@@ -262,7 +272,15 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
     },
     [getContextMenuActions, onContextMenuAction, runContextMenuAction, t]
   )
-  const empty = useMemo(() => emptyFallback ?? <div className="min-h-0 flex-1" />, [emptyFallback])
+  const empty = useMemo(
+    () =>
+      emptyFallback ?? (
+        <div className="text-muted-foreground mx-auto flex h-full w-full max-w-sm items-center justify-center px-5 py-10 text-center text-xs break-words">
+          {t(variant === 'agent' ? 'selector.agent.empty_text' : 'selector.assistant.empty_text')}
+        </div>
+      ),
+    [emptyFallback, t, variant]
+  )
   const providerItems = useMemo(
     () => (groupByGroup ? sortEntityRailItemsForGroupGrouping(items) : items),
     [groupByGroup, items]
@@ -356,7 +374,17 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
         sourceGroupId === targetGroupId
       }
       onReorder={hasReorderHandler ? handleReorder : undefined}>
-      <ResourceList.Frame className="h-full min-h-0" data-testid={`${variant}-entity-rail`} presentation="left-panel">
+      <ResourceList.Frame
+        active={active}
+        className="h-full min-h-0"
+        data-testid={`${variant}-entity-rail`}
+        presentation="left-panel">
+        {permanentDelete ? (
+          <ResourceList.PermanentDelete
+            isItemEligible={permanentDelete.isItemEligible}
+            onDelete={permanentDelete.onDelete}
+          />
+        ) : null}
         <ResourceList.Header>
           <ResourceList.HeaderItem
             type="button"

@@ -2,7 +2,7 @@ import type { ReasoningEffort } from '../schemas/enums'
 import type { ReasoningSupport } from '../schemas/model'
 import type { ProviderModelOverride } from '../schemas/provider-models'
 import type { ReasoningWireProfile } from '../schemas/reasoningWire'
-import { defineProvider } from './types'
+import { defineProvider, type ProviderModelTemplate } from './types'
 
 const FIREWORKS_ENDPOINTS = ['openai-responses', 'anthropic-messages', 'openai-chat-completions'] as const
 
@@ -47,7 +47,7 @@ const reasoningContracts = (support: ReasoningSupport): ProviderModelOverride['r
   'openai-responses': { support }
 })
 
-const override = (modelId: string, support: ReasoningSupport): Partial<ProviderModelOverride> => ({
+const override = (modelId: string, support: ReasoningSupport): ProviderModelTemplate => ({
   modelId,
   endpointTypes: [...FIREWORKS_ENDPOINTS],
   reasoningContracts: reasoningContracts(support)
@@ -58,12 +58,12 @@ const toggleModels = ['kimi-k2-6', 'kimi-k2-7-code']
 // `/v1/models` does not reliably list router-backed variants; keep the exact IDs
 // advertised by Fireworks' serving-path and integration docs.
 const fastToggleModels: Array<{
-  modelId: string
+  apiModelId: string
   name: string
   pricing: NonNullable<ProviderModelOverride['pricing']>
 }> = [
   {
-    modelId: 'accounts/fireworks/routers/kimi-k2p6-fast',
+    apiModelId: 'accounts/fireworks/routers/kimi-k2p6-fast',
     name: 'Kimi K2.6 Fast',
     pricing: {
       cacheRead: { currency: 'USD', perMillionTokens: 0.3 },
@@ -72,7 +72,7 @@ const fastToggleModels: Array<{
     }
   },
   {
-    modelId: 'accounts/fireworks/routers/kimi-k2p6-turbo',
+    apiModelId: 'accounts/fireworks/routers/kimi-k2p6-turbo',
     name: 'Kimi K2.6 Turbo',
     pricing: {
       cacheRead: { currency: 'USD', perMillionTokens: 0.3 },
@@ -81,7 +81,7 @@ const fastToggleModels: Array<{
     }
   },
   {
-    modelId: 'accounts/fireworks/routers/kimi-k2p7-code-fast',
+    apiModelId: 'accounts/fireworks/routers/kimi-k2p7-code-fast',
     name: 'Kimi K2.7 Code Fast',
     pricing: {
       cacheRead: { currency: 'USD', perMillionTokens: 0.38 },
@@ -138,8 +138,11 @@ export default defineProvider({
   },
   modelsDevProvider: 'fireworks-ai',
   overrides: [
-    ...toggleModels.map((modelId) => override(modelId, toggleSupport)),
-    ...fastToggleModels.map((model) => ({ ...override(model.modelId, toggleSupport), ...model })),
+    ...fastToggleModels.map((model) => ({
+      endpointTypes: [...FIREWORKS_ENDPOINTS],
+      reasoningContracts: reasoningContracts(toggleSupport),
+      ...model
+    })),
     {
       ...override('glm-5-1-fast', toggleSupport),
       apiModelId: 'accounts/fireworks/routers/glm-5p1-fast',
@@ -167,7 +170,10 @@ export default defineProvider({
         input: { currency: 'USD', perMillionTokens: 0.3 },
         output: { currency: 'USD', perMillionTokens: 1.2 }
       }
-    },
+    }
+  ],
+  modelTemplates: [
+    ...toggleModels.map((modelId) => override(modelId, toggleSupport)),
     ...effortModels.map(({ modelId, values }) => override(modelId, effortSupport(values))),
     ...adjustableModels.map(({ modelId, values }) => override(modelId, adjustableSupport(values)))
   ]

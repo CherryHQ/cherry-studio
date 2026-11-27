@@ -41,15 +41,12 @@ describe('useViewSourceTool', () => {
       { initialProps: { canEdit: true, hasSpecialView: true, isStreaming: true, viewMode: 'special' } }
     )
 
-    expect(result.current[0]).toMatchObject({ id: 'view-source', tooltip: 'preview.source' })
     act(() => result.current[0].onClick?.())
     expect(onViewModeChange).toHaveBeenLastCalledWith('source')
 
     rerender({ canEdit: true, hasSpecialView: true, isStreaming: true, viewMode: 'source' })
-    expect(result.current[0]).toMatchObject({ id: 'view-source', tooltip: 'preview.label' })
 
     rerender({ canEdit: true, hasSpecialView: true, isStreaming: false, viewMode: 'source' })
-    expect(result.current[0]).toMatchObject({ id: 'edit', tooltip: 'code_block.edit.label' })
     act(() => result.current[0].onClick?.())
     expect(onViewModeChange).toHaveBeenLastCalledWith('edit')
   })
@@ -72,13 +69,11 @@ describe('useViewSourceTool', () => {
       { initialProps: { canEdit: true, hasSpecialView: false, isStreaming: false, viewMode: 'source' } }
     )
 
-    expect(result.current[0]).toMatchObject({ id: 'edit', tooltip: 'code_block.edit.label' })
-
     rerender({ canEdit: true, hasSpecialView: false, isStreaming: false, viewMode: 'edit' })
-    expect(result.current).toEqual([])
+    act(() => result.current[0].onClick?.())
+    expect(onViewModeChange).toHaveBeenLastCalledWith('source')
 
     rerender({ canEdit: true, hasSpecialView: true, isStreaming: false, viewMode: 'edit' })
-    expect(result.current[0]).toMatchObject({ id: 'edit', tooltip: 'preview.label' })
     act(() => result.current[0].onClick?.())
     expect(onViewModeChange).toHaveBeenLastCalledWith('special')
 

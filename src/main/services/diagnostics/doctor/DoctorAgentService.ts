@@ -9,10 +9,10 @@ import { loggerService } from '@logger'
 import { incidentErrors, readIncidentMessage } from '@main/ai/agents/doctor/doctorIncident'
 import { applyWrite, undoWrite, writeRisk } from '@main/ai/agents/doctor/doctorWrites'
 import { loadBuiltinAgentEnsureInput } from '@main/ai/agents/ensureBuiltinAgent'
-import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
-import { startAgentSessionRun, type StreamListener } from '@main/ai/streamManager'
+import { startAgentSessionRun, StreamReplyText, type StreamListener } from '@main/ai/streamManager'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { getAppLanguage } from '@main/i18n'
+import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
 import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
@@ -30,6 +30,7 @@ import type {
   DoctorAgentUndoResult,
   DoctorAgentWrite
 } from '@shared/types/doctorAgent'
+import { Sequencer } from '@shared/utils/async'
 import {
   doctorAgentKey,
   doctorAgentStateCacheKey,
@@ -72,14 +73,16 @@ export class DoctorAgentService extends BaseService {
   /** Session → key, so a tool call can find the run it belongs to without carrying the key. */
   private readonly sessions = new Map<string, DoctorAgentKey>()
   /** One write at a time across analyses: two of them may target the same provider. */
-  private writeQueue: Promise<unknown> = Promise.resolve()
+  private readonly writeQueue = new Sequencer()
 
   protected override onStop(): void {
     for (const key of Array.from(this.active.keys())) this.abort(key, 'service stopping')
   }
 
   async checkModel(modelId: UniqueModelId): Promise<{ latency: number }> {
-    return application.get('AiService').checkModel({ uniqueModelId: modelId, timeout: 15000 }, { chatOnly: true })
+    return application
+      .get('AiService')
+      .checkModel({ uniqueModelId: modelId, timeout: 15000, requestOptions: { maxRetries: 0 } }, { chatOnly: true })
   }
 
   async start(input: {
@@ -160,7 +163,7 @@ export class DoctorAgentService extends BaseService {
   }
 
   apply(input: { key: DoctorAgentKey; runId: string; proposalId: string }): Promise<DoctorAgentApplyResult> {
-    return this.serialized(async () => {
+    return this.writeQueue.queue(async () => {
       // Re-read under the lock: a queued duplicate must see the first click's outcome.
       const state = this.currentState(input.key)
       if (state.status === 'idle' || state.runId !== input.runId) return { status: 'stale' }
@@ -186,7 +189,7 @@ export class DoctorAgentService extends BaseService {
   }
 
   undo(input: { key: DoctorAgentKey; runId: string; changeId: string }): Promise<DoctorAgentUndoResult> {
-    return this.serialized(async () => {
+    return this.writeQueue.queue(async () => {
       const state = this.currentState(input.key)
       if (state.status === 'idle' || state.runId !== input.runId) return { status: 'stale' }
       const change = state.changes.find((item) => item.id === input.changeId)
@@ -214,7 +217,7 @@ export class DoctorAgentService extends BaseService {
       this.update(key, runId, (current) => ({ ...current, proposals: [...current.proposals, proposal] }))
       return { status: 'proposed', proposal }
     }
-    return this.serialized(async () => {
+    return this.writeQueue.queue(async () => {
       try {
         const applied = await applyWrite(write)
         return { status: 'applied', change: this.recordChange(key, runId, write, summary, applied) }
@@ -222,12 +225,6 @@ export class DoctorAgentService extends BaseService {
         return { status: 'failed', message: error instanceof Error ? error.message : String(error) }
       }
     })
-  }
-
-  private serialized<T>(task: () => Promise<T>): Promise<T> {
-    const next = this.writeQueue.then(task, task)
-    this.writeQueue = next.catch(() => undefined)
-    return next
   }
 
   reportForSession(sessionId: string): unknown {
@@ -316,11 +313,16 @@ export class DoctorAgentService extends BaseService {
 
   private createListener(key: DoctorAgentKey, runId: string): StreamListener {
     let text = ''
-    const toolCalls: string[] = []
+    let reply: StreamReplyText | undefined
+    const toolCalls = new Map<string, string>()
     let flushTimer: NodeJS.Timeout | undefined
     const flush = () => {
       flushTimer = undefined
-      this.update(key, runId, (current) => ({ ...current, text, toolCalls: [...toolCalls] }))
+      this.update(key, runId, (current) => ({
+        ...current,
+        text: reply?.read() ?? text,
+        toolCalls: [...toolCalls.values()]
+      }))
     }
     const scheduleFlush = () => {
       flushTimer ??= setTimeout(flush, TEXT_PUBLISH_INTERVAL_MS)
@@ -328,7 +330,7 @@ export class DoctorAgentService extends BaseService {
     const settle = (status: 'completed' | 'canceled' | 'failed', error?: string) => {
       if (flushTimer) clearTimeout(flushTimer)
       this.finish(key, runId, (current) => {
-        const run = { ...current, text, toolCalls: [...toolCalls] }
+        const run = { ...current, text: reply?.read() ?? text, toolCalls: [...toolCalls.values()] }
         return status === 'failed' ? { status, error: error ?? 'unknown error', ...run } : { status, ...run }
       })
     }
@@ -339,8 +341,32 @@ export class DoctorAgentService extends BaseService {
           text += chunk.delta
           scheduleFlush()
         } else if (chunk.type === 'tool-input-start') {
-          toolCalls.push(chunk.toolName)
+          toolCalls.set(chunk.toolCallId, chunk.toolName)
           scheduleFlush()
+        }
+      },
+      content: {
+        snapshot(message, source) {
+          if (source !== 'messages') return
+          ;(reply ??= new StreamReplyText()).reset(message)
+          toolCalls.clear()
+          for (const part of message.parts) {
+            if (part.type !== 'dynamic-tool') continue
+            toolCalls.set(part.toolCallId, part.toolName)
+          }
+          scheduleFlush()
+        },
+        part(change) {
+          reply ??= new StreamReplyText()
+          if (reply.apply(change)) scheduleFlush()
+          if (
+            (change.type === 'part-add' || change.type === 'part-put') &&
+            change.part.type === 'dynamic-tool' &&
+            toolCalls.get(change.part.toolCallId) !== change.part.toolName
+          ) {
+            toolCalls.set(change.part.toolCallId, change.part.toolName)
+            scheduleFlush()
+          }
         }
       },
       onDone: () => settle(this.active.get(key)?.abortTimer ? 'canceled' : 'completed'),

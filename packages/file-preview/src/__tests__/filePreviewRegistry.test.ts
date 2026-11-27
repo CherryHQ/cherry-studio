@@ -19,8 +19,25 @@ describe('preview format detection', () => {
     expect(resolvePreviewPlugin('attachment.xlsx', ' Application/PDF; charset=binary ')?.id).toBe('pdf')
   })
 
+  it.each(['application/rtf', 'text/rtf', 'application/x-rtf', undefined])(
+    'opens RTF as a document for media type %s',
+    (mediaType) => {
+      const name = mediaType ? 'attachment' : 'REPORT.RTF'
+      expect(resolvePreviewPlugin(name, mediaType)?.id).toBe('rtf')
+      expect(supportsPreview(name, mediaType)).toBe(true)
+      expect(canSelectPreview(name, mediaType)).toBe(false)
+    }
+  )
+
   it.each([undefined, '', ' ', 'application/octet-stream'])('falls back to the suffix for %s', (mediaType) => {
     expect(resolvePreviewPlugin('REPORT.DOCX', mediaType)?.id).toBe('word')
+  })
+
+  it('resolves PPTD manifests to the pptd plugin and keeps PPTX on powerpoint', () => {
+    expect(resolvePreviewPlugin('presentation.pptd')?.id).toBe('pptd')
+    expect(supportsPreview('PRESENTATION.PPTD')).toBe(true)
+    expect(resolvePreviewPlugin('presentation.pptx')?.id).toBe('powerpoint')
+    expect(canSelectPreview('presentation.pptd')).toBe(false)
   })
 
   it('does not treat arbitrary images or legacy Office formats as supported', () => {

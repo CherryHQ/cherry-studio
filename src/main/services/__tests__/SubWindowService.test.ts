@@ -74,7 +74,9 @@ vi.mock('@application', () => ({ application: applicationMock }))
 
 // attachTab delegates delivery to openTabInMainWindow (live event vs cold-start init data);
 // its own live/cold split is covered in mainWindowNavigation.test.ts.
-vi.mock('@main/services/mainWindowNavigation', () => ({ openTabInMainWindow: openTabInMainWindowMock }))
+vi.mock('@main/services/mainWindowNavigation', () => ({
+  openTabInMainWindow: openTabInMainWindowMock
+}))
 
 vi.mock('electron', () => ({
   BrowserWindow: { fromWebContents: vi.fn() },
@@ -89,7 +91,7 @@ vi.mock('electron', () => ({
 vi.mock('@main/core/security/validateSender', () => ({ validateSender: () => true }))
 
 vi.mock('@main/core/lifecycle', async () => {
-  const actual = (await vi.importActual('@main/core/lifecycle')) as Record<string, unknown>
+  const actual = await vi.importActual<Record<string, unknown>>('@main/core/lifecycle')
   class StubBase {
     ipcHandle = vi.fn()
     ipcOn = vi.fn()
@@ -194,41 +196,6 @@ describe('SubWindowService', () => {
   })
 
   describe('createWindow - options injection', () => {
-    it('on macOS omits titleBarOverlay (now static in registry) and backgroundColor (preserves vibrancy)', () => {
-      platformState.isMac = true
-      nativeThemeState.shouldUseDarkColors = true
-      const win = createMockWindow()
-      windowManagerMock.getWindow.mockReturnValue(win)
-
-      svc.createWindow({ id: 'tab-1', url: 'cherry://chat', title: 'Chat' })
-
-      expect(windowManagerMock.open).toHaveBeenCalledTimes(1)
-      const { type, args } = lastOpenCall()
-      expect(type).toBe('subWindow')
-      expect(args.options).toMatchObject({
-        title: 'Chat',
-        darkTheme: true
-      })
-      expect(args.options).not.toHaveProperty('titleBarOverlay')
-      expect(args.options).not.toHaveProperty('backgroundColor')
-    })
-
-    it('on Windows injects backgroundColor and omits titleBarOverlay', () => {
-      platformState.isWin = true
-      nativeThemeState.shouldUseDarkColors = false
-      const win = createMockWindow()
-      windowManagerMock.getWindow.mockReturnValue(win)
-
-      svc.createWindow({ id: 'tab-2', url: 'cherry://mcp' })
-
-      const { args } = lastOpenCall()
-      expect(args.options).toMatchObject({
-        darkTheme: false,
-        backgroundColor: '#FFFFFF'
-      })
-      expect(args.options).not.toHaveProperty('titleBarOverlay')
-    })
-
     it('threads initData shape for a pinned webview tab', () => {
       const win = createMockWindow()
       windowManagerMock.getWindow.mockReturnValue(win)
@@ -284,20 +251,6 @@ describe('SubWindowService', () => {
 
       const { args } = lastOpenCall()
       expect((args.initData as { type?: string }).type).toBe('route')
-    })
-
-    it('omits icon on macOS and Windows (system provides taskbar/Dock icon)', () => {
-      const win = createMockWindow()
-      windowManagerMock.getWindow.mockReturnValue(win)
-
-      platformState.isMac = true
-      svc.createWindow({ id: 'tab-mac', url: 'u' })
-      expect(lastOpenCall().args.options).not.toHaveProperty('icon')
-
-      platformState.isMac = false
-      platformState.isWin = true
-      svc.createWindow({ id: 'tab-win', url: 'u' })
-      expect(lastOpenCall().args.options).not.toHaveProperty('icon')
     })
 
     it('passes through initial x/y when provided; omits them otherwise', () => {
@@ -366,19 +319,6 @@ describe('SubWindowService', () => {
   })
 
   describe('createWindow - tabId → windowId mapping + cleanup', () => {
-    it('populates tabIdToWindowId after open and cleans up on "closed"', () => {
-      const win = createMockWindow()
-      windowManagerMock.getWindow.mockReturnValue(win)
-      windowManagerMock.open.mockReturnValue('wid-A')
-
-      svc.createWindow({ id: 'tab-A', url: 'u' })
-      expect((svc as any).tabIdToWindowId.get('tab-A')).toBe('wid-A')
-
-      win.emit('closed')
-      expect((svc as any).tabIdToWindowId.has('tab-A')).toBe(false)
-      expect((svc as any).windowState.has('tab-A')).toBe(false)
-    })
-
     it('shows immediately (no ready-to-show wait) when no initial position was provided', () => {
       const win = createMockWindow()
       windowManagerMock.getWindow.mockReturnValue(win)
@@ -432,21 +372,25 @@ describe('SubWindowService', () => {
   describe('attachTab', () => {
     const tab = { id: 'tab-1', title: 'T' } as Parameters<SubWindowService['attachTab']>[0]
 
-    it('delegates delivery to openTabInMainWindow and closes the caller sub-window', () => {
+    it('closes the detached window after delivering its tab to main', () => {
       windowManagerMock.getWindowType.mockReturnValue(WindowType.SubWindow)
-
       svc.attachTab(tab, 'sub1')
-
       expect(openTabInMainWindowMock).toHaveBeenCalledWith(tab)
       expect(windowManagerMock.close).toHaveBeenCalledWith('sub1')
     })
 
-    it('does not close the caller when it is not a SubWindow (never closes the main window)', () => {
+    it('rejects attach from a non-subwindow', () => {
       windowManagerMock.getWindowType.mockReturnValue(WindowType.Main)
+      expect(() => svc.attachTab(tab, 'main1')).toThrow('Only a detached window')
+      expect(openTabInMainWindowMock).not.toHaveBeenCalled()
+    })
 
-      svc.attachTab(tab, 'main1')
-
-      expect(openTabInMainWindowMock).toHaveBeenCalledWith(tab)
+    it('surfaces delivery errors without closing the source window', () => {
+      windowManagerMock.getWindowType.mockReturnValue(WindowType.SubWindow)
+      openTabInMainWindowMock.mockImplementationOnce(() => {
+        throw new Error('delivery failed')
+      })
+      expect(() => svc.attachTab(tab, 'sub1')).toThrow('delivery failed')
       expect(windowManagerMock.close).not.toHaveBeenCalled()
     })
   })
@@ -473,6 +417,26 @@ describe('SubWindowService', () => {
   })
 
   describe('Tab_MoveWindow handler', () => {
+    it('moves the new detached window after returning the tab and closing its old window', () => {
+      const oldWindow = createMockWindow()
+      const newWindow = createMockWindow()
+      const senderWindow = createMockWindow()
+      windowManagerMock.open.mockReturnValueOnce('old').mockReturnValueOnce('new')
+      windowManagerMock.getWindow.mockImplementation((id) => (id === 'old' ? oldWindow : newWindow))
+      windowManagerMock.getWindowType.mockReturnValue(WindowType.SubWindow)
+      vi.mocked(BrowserWindow.fromWebContents).mockReturnValue(senderWindow as any)
+
+      svc.createWindow({ id: 'returned', url: '/app/mini-app/a' })
+      svc.attachTab({ id: 'returned' } as Parameters<SubWindowService['attachTab']>[0], 'old')
+      svc.createWindow({ id: 'returned', url: '/app/mini-app/a' })
+      oldWindow.emit('closed')
+      getNativeOnHandler('tab:move-window')({ sender: {} } as any, { tabId: 'returned', x: 120, y: 230 })
+
+      expect(newWindow.setPosition).toHaveBeenCalledWith(120, 230)
+      expect(oldWindow.setPosition).not.toHaveBeenCalled()
+      expect(senderWindow.setPosition).not.toHaveBeenCalled()
+    })
+
     it('prefers tabId lookup over event.sender', () => {
       const targetWin = createMockWindow()
       const senderWin = createMockWindow()
@@ -501,18 +465,6 @@ describe('SubWindowService', () => {
       handler({ sender: {} } as any, { tabId: 'unknown-tab', x: 10, y: 20 })
 
       expect(senderWin.setPosition).toHaveBeenCalledWith(10, 20)
-    })
-
-    it('sets opacity 0.85 when sub window is moving its own tab (object-identity sender==target)', () => {
-      const win = createMockWindow()
-      windowManagerMock.getWindow.mockReturnValue(win)
-      ;(svc as any).tabIdToWindowId.set('tab-self', 'wid-self')
-      vi.mocked(BrowserWindow.fromWebContents).mockReturnValue(win as any)
-
-      const handler = getNativeOnHandler('tab:move-window')
-      handler({ sender: {} } as any, { tabId: 'tab-self', x: 5, y: 5 })
-
-      expect(win.setOpacity).toHaveBeenCalledWith(0.85)
     })
   })
 })

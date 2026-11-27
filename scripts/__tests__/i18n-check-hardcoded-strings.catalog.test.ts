@@ -1,4 +1,6 @@
 import type * as FileSystem from 'node:fs'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { resolve } from 'node:path'
 
 import { afterEach, expect, it, vi } from 'vitest'
@@ -11,6 +13,41 @@ vi.mock('fs', async (importOriginal) => ({ ...(await importOriginal<typeof FileS
 afterEach(() => {
   vi.restoreAllMocks()
   vi.unstubAllEnvs()
+})
+
+it.each(['renderer', 'main', 'file-preview'] as const)('preserves UI findings and exclusions in %s', (source) => {
+  const directory = mkdtempSync(resolve(tmpdir(), 'cherry-i18n-scan-'))
+  const file = resolve(directory, 'View.tsx')
+  writeFileSync(
+    file,
+    `
+    const amount = 1;
+    const label = \`你好 \${amount}\`;
+    const title = \`问候\`;
+    const data = { message: '提示' };
+    notification.info('通知');
+    const view = <div title="标题">正文</div>;
+    const english = <Button title="Save Changes" />;
+    t('忽略翻译');
+    logger.info('忽略日志');
+    type Example = { label: '忽略类型' };
+    enum Kind { One = '忽略枚举' }
+    const languageNames = { text: '忽略语言' };
+    const style = \`忽略代码\`;
+  `
+  )
+  try {
+    const expected = ['`你好 ${amount}`', '`问候`', "'提示'", "'通知'", 'title="标题"', '正文']
+    if (source !== 'main') expected.push('title="Save Changes"')
+    expect(
+      new HardcodedStringDetector()
+        .scanFile(file, source)
+        .map((finding) => finding.content)
+        .sort()
+    ).toEqual(expected.sort())
+  } finally {
+    rmSync(directory, { recursive: true, force: true })
+  }
 })
 
 it('fails the strict gate for hardcoded UI strings in the portable preview package', () => {
@@ -37,4 +74,66 @@ it('fails the strict gate for hardcoded UI strings in the portable preview packa
   expect(main).toThrow('Exit 1')
   expect(output.mock.calls.flat().join('\n')).toContain('File Preview Package')
   expect(output.mock.calls.flat().join('\n')).toContain('Preview.tsx:1')
+})
+
+it('reports literal toast text in any language and ignores translated toast text', () => {
+  const directory = mkdtempSync(resolve(tmpdir(), 'cherry-i18n-scan-'))
+  const file = resolve(directory, 'useActions.ts')
+  writeFileSync(
+    file,
+    `
+    toast.warning('Message is still syncing — try again in a moment');
+    window.toast.error(\`Failed to save\`);
+    toast.info(\`Deleted \${count} items\`);
+    toast.success({ title: 'Saved', description: '已保存' });
+    toast.loading({ title: 'Uploading', promise });
+    toast.error(t('common.error'));
+    toast.error(\`\${t('settings.mcp.deleteError')}: \${error.message}\`);
+    toast.success({ title: t('common.success'), key: 'save-result' });
+    toast.errorFromException('ignored');
+  `
+  )
+  try {
+    expect(
+      new HardcodedStringDetector()
+        .scanFile(file, 'renderer')
+        .map((finding) => [finding.content, finding.type])
+        .sort()
+    ).toEqual(
+      [
+        ["'Message is still syncing — try again in a moment'", 'english'],
+        ['`Failed to save`', 'english'],
+        ['`Deleted ${count} items`', 'english'],
+        ["'Saved'", 'english'],
+        ["'已保存'", 'chinese'],
+        ["'Uploading'", 'english']
+      ].sort()
+    )
+  } finally {
+    rmSync(directory, { recursive: true, force: true })
+  }
+})
+
+it('fails the strict gate for English toast text', () => {
+  const directory = resolve('src/renderer')
+  filesystem.existsSync.mockImplementation((path: string) => path === directory)
+  filesystem.readdirSync.mockReturnValue([{ name: 'useActions.ts', isDirectory: () => false, isFile: () => true }])
+  vi.spyOn(HardcodedStringDetector.prototype, 'scanFile').mockReturnValue([
+    {
+      file: resolve(directory, 'useActions.ts'),
+      line: 1,
+      content: "'Message is still syncing'",
+      source: 'renderer',
+      type: 'english',
+      nodeType: 'ToastCall'
+    }
+  ])
+  vi.stubEnv('I18N_STRICT', 'true')
+  vi.spyOn(console, 'log').mockImplementation(() => {})
+  vi.spyOn(console, 'error').mockImplementation(() => {})
+  vi.spyOn(process, 'exit').mockImplementation((code) => {
+    throw new Error(`Exit ${code}`)
+  })
+
+  expect(main).toThrow('Exit 1')
 })

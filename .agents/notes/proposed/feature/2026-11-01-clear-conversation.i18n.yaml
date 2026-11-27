@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-11-01-clear-conversation.md
+2026-11-01-clear-conversation.md: 346f5b67e0efb9370b35dcabe1d50b83d62bfdaa
+2026-11-01-clear-conversation.zh.md: b37c8388d53e6b52d1257b2a71809fe5cc9439e8

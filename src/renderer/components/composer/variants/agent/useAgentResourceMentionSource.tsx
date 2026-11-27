@@ -1,12 +1,12 @@
 import type { Editor } from '@tiptap/core'
-import { File, Folder } from 'lucide-react'
+import { Folder } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { FILE_TYPE } from '@renderer/types/file'
+import { FileIcon } from '@renderer/components/icons/FileIcon'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { createComposerFileTokenSourceId } from '@renderer/utils/message/composerFileTokenSource'
-import { type AbsoluteFilePath, AbsoluteFilePathSchema, type DirectoryEntry } from '@shared/types/file'
+import { type AbsoluteFilePath, AbsoluteFilePathSchema, type DirectoryEntry, FILE_TYPE } from '@shared/types/file'
 import { getFileTypeByExt } from '@shared/utils/file'
 
 import { serializeComposerDocument } from '../../composerDraft'
@@ -27,7 +27,7 @@ const getFileExtension = (fileName: string) => {
   return lastDotIndex > 0 ? fileName.slice(lastDotIndex) : ''
 }
 
-const createAttachmentFromPath = (filePath: AbsoluteFilePath): ComposerAttachment => {
+export const createAttachmentFromPath = (filePath: AbsoluteFilePath): ComposerAttachment => {
   const name = getBaseName(filePath)
   const ext = getFileExtension(name)
   return {
@@ -247,8 +247,8 @@ export function useAgentResourceMentionSource({
                 const entryPathKey = getPathComparisonKey(entryPath)
                 resourceItems.push({
                   id: createAgentResourceItemId(entryPath),
-                  label: relativePath,
-                  description: entryPath,
+                  label: getBaseName(entryPath),
+                  description: relativePath,
                   icon: <Folder size={16} />,
                   filterText: `${relativePath} ${entryPath}`,
                   disabled: mentionedFolderPathKeys.has(entryPathKey),
@@ -280,9 +280,9 @@ export function useAgentResourceMentionSource({
 
               resourceItems.push({
                 id: createAgentResourceItemId(filePath),
-                label: relativePath,
-                description: filePath,
-                icon: <File size={16} />,
+                label: getBaseName(filePath),
+                description: relativePath,
+                icon: <FileIcon path={filePath} width={16} height={16} />,
                 filterText: `${relativePath} ${filePath}`,
                 disabled: files.some(isSelectedFile),
                 command: ({ editor }) => {

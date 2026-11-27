@@ -11,7 +11,6 @@ import { useAgent } from '@renderer/hooks/agent/useAgent'
 import { useScopedMcpServers } from '@renderer/hooks/useMcpServer'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
-import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { DEFAULT_MCP_MODE } from '@shared/data/types/assistant'
 import type { McpPrompt } from '@shared/types/mcp'
 
@@ -155,7 +154,11 @@ const McpPromptComposerRuntime = ({ context }: { context: McpPromptToolContext }
       } catch (error) {
         if (!isMountedRef.current || generation !== selectionGenerationRef.current) return false
         logger.error('Failed to get MCP prompt', error as Error, { serverId: prompt.serverId, name: prompt.name })
-        toast.error(formatErrorMessageWithPrefix(error, t('chat.input.mcp_prompts.insert_failed')))
+        toast.errorFromException(error, {
+          category: 'mcp',
+          mcpServer: { id: prompt.serverId, name: prompt.serverName },
+          isCurrent: () => isMountedRef.current && generation === selectionGenerationRef.current
+        })
         return false
       } finally {
         if (requestIdRef.current === requestId) requestIdRef.current = undefined

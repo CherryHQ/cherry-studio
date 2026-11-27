@@ -47,6 +47,9 @@ const CONTEXT_SENSITIVE_ATTRIBUTES: Record<string, string[]> = {
 
 const UI_PROPERTIES = ['message', 'text', 'title', 'label', 'placeholder', 'description', 'detail']
 
+const TOAST_CALLEE = /^(window\.)?toast\.(error|info|loading|success|warning)$/
+const TOAST_TEXT_PROPERTIES = ['title', 'description']
+
 interface Finding {
   file: string
   line: number
@@ -140,6 +143,38 @@ function shouldSkipNode(node: Node): boolean {
   }
 
   return false
+}
+
+function isToastFirstArgument(node: Node): boolean {
+  const call = node.getParent()
+  return (
+    !!call &&
+    Node.isCallExpression(call) &&
+    call.getArguments()[0] === node &&
+    TOAST_CALLEE.test(call.getExpression().getText())
+  )
+}
+
+function getToastText(node: Node): string | undefined {
+  let text: string
+  if (Node.isStringLiteral(node) || Node.isNoSubstitutionTemplateLiteral(node)) {
+    text = node.getLiteralValue()
+  } else if (Node.isTemplateExpression(node)) {
+    text = [node.getHead(), ...node.getTemplateSpans().map((span) => span.getLiteral())]
+      .map((part) => part.getLiteralText())
+      .join(' ')
+  } else {
+    return undefined
+  }
+
+  const parent = node.getParent()
+  const isToastText =
+    isToastFirstArgument(node) ||
+    (!!parent &&
+      Node.isPropertyAssignment(parent) &&
+      TOAST_TEXT_PROPERTIES.includes(parent.getName()) &&
+      isToastFirstArgument(parent.getParentOrThrow()))
+  return isToastText && /\p{L}/u.test(text) ? text : undefined
 }
 
 function isNonUIString(text: string): boolean {
@@ -247,7 +282,22 @@ class HardcodedStringDetector {
   }
 
   private checkNode(node: Node, sourceFile: SourceFile, source: FindingSource, findings: Finding[]): void {
+    if (
+      !Node.isJsxText(node) &&
+      !Node.isJsxAttribute(node) &&
+      !Node.isStringLiteral(node) &&
+      !Node.isTemplateExpression(node) &&
+      !Node.isNoSubstitutionTemplateLiteral(node)
+    )
+      return
     if (shouldSkipNode(node)) return
+
+    // Toast text is always user-visible, so a literal there blocks in every language.
+    const toastText = getToastText(node)
+    if (toastText !== undefined) {
+      findings.push(createFinding(node, sourceFile, hasCJK(toastText) ? 'chinese' : 'english', source, 'ToastCall'))
+      return
+    }
 
     if (Node.isJsxText(node)) {
       const text = node.getText().trim()
@@ -471,10 +521,10 @@ export function main(): void {
 
   // Strict mode for CI
   const strictMode = process.env.I18N_STRICT === 'true' || process.argv.includes('--strict')
-  const chineseCount = findings.filter((f) => f.type === 'chinese').length
+  const blockingCount = findings.filter((f) => f.type === 'chinese' || f.nodeType === 'ToastCall').length
 
-  if (strictMode && chineseCount > 0) {
-    console.error('\n❌ Hardcoded Chinese strings detected in strict mode!')
+  if (strictMode && blockingCount > 0) {
+    console.error('\n❌ Hardcoded Chinese strings or toast text detected in strict mode!')
     console.error('Please replace these with i18n keys using the t() function.')
     process.exit(1)
   }

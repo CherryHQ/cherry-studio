@@ -17,7 +17,7 @@
  * Future extension point:
  * Resources supporting scoped ordering can define resource-specific request
  * schemas and service predicates while reusing these scope-agnostic anchors.
- * See `docs/references/data/data-ordering-guide.md` for the extension story.
+ * See `docs/dev/references/data/data-ordering-guide.md` for the extension story.
  */
 
 import * as z from 'zod'

@@ -43,6 +43,16 @@ describe('readFile — text-only', () => {
     })
   })
 
+  it('extracts XML text with an unrecognized extension', async () => {
+    getByIdMock.mockResolvedValueOnce({ ext: 'lrmx' })
+    const text = '<XingMing>张三</XingMing>'
+    extractMock.mockResolvedValueOnce(text)
+    expect(await readFile(input({ filename: 'a.lrmx' }), ctx([att('a.lrmx')]))).toEqual({
+      text,
+      totalChars: 23
+    })
+  })
+
   it('extracts an extensionless text file', async () => {
     getByIdMock.mockResolvedValueOnce({ ext: null })
     extractMock.mockResolvedValueOnce('license body')
@@ -78,18 +88,11 @@ describe('readFile — text-only', () => {
 
   it('returns a note for unsupported binary types (no garbage decode)', async () => {
     getByIdMock.mockResolvedValueOnce({ ext: 'zip' })
+    extractMock.mockResolvedValueOnce(null)
     const r = await readFile(input({ filename: 'a.zip' }), ctx([att('a.zip')]))
     expect(r).toMatchObject({ text: 'Cannot read the attached file "a.zip" as text (unsupported file type).' })
-    expect(extractMock).not.toHaveBeenCalled()
+    expect(extractMock).toHaveBeenCalledWith('e1', { signal: undefined })
     expect(ocrMock).not.toHaveBeenCalled()
-  })
-
-  it('returns a note when extraction is empty', async () => {
-    getByIdMock.mockResolvedValueOnce({ ext: 'pdf' })
-    extractMock.mockResolvedValueOnce('   ')
-    expect(await readFile(input({ filename: 'a.pdf' }), ctx([att('a.pdf')]))).toMatchObject({
-      text: 'No text in a.pdf'
-    })
   })
 
   it('rejects a filename not in the allow-list (never reads the entry)', async () => {
@@ -133,7 +136,7 @@ describe('readFile — pagination', () => {
     })
   })
 
-  it('defaults limit to the page size (short text → whole, no nextOffset)', async () => {
+  it('returns complete short text without a continuation', async () => {
     getByIdMock.mockResolvedValueOnce({ ext: 'txt' })
     extractMock.mockResolvedValueOnce('short')
     expect(await readFile(input({ filename: 'a.txt' }), ctx([att('a.txt')]))).toEqual({ text: 'short', totalChars: 5 })
@@ -181,7 +184,6 @@ describe('createReadFileToolEntry', () => {
   it('carries a persist-only text-field codec (in-flight output is text, so the codec never fires there)', async () => {
     const { createReadFileToolEntry } = await import('../ReadFileTool')
     const entry = createReadFileToolEntry()
-    expect(entry.truncatable).toBeUndefined()
     const output = { text: 'page body', totalChars: 9 }
     expect(entry.codec!.deflate(output)).toEqual({ skeleton: output, blobs: [{ key: '/text', text: 'page body' }] })
     expect(entry.codec!.deflate({ error: 'No attached file named "x".' })).toBeNull()

@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
 
-import { getAutoApprovedBrowserTools } from '../browserToolPolicy'
 import { findBuiltinToolPolicy, listBuiltinToolPolicies, toMcpRuntimeName } from '../builtinToolPolicy'
 
 const WITHOUT_HOST_TOOLS: ReadonlySet<string> = new Set(['cherry-tools', 'agent-memory', 'skills', 'mcp-manager'])
@@ -30,13 +29,8 @@ describe('builtinToolPolicy', () => {
     }
     expect(findBuiltinToolPolicy('mcp__browser__future_tool', mountedServers)).toBeUndefined()
     expect(findBuiltinToolPolicy('mcp__browser__click', WITHOUT_HOST_TOOLS)).toBeUndefined()
-    expect(getAutoApprovedBrowserTools()).toEqual(
-      expect.arrayContaining(['mcp__browser__open', 'mcp__browser__click', 'mcp__browser__execute'])
-    )
-    expect(getAutoApprovedBrowserTools()).not.toContain('mcp__browser__*')
     await preferences.set('app.browser.agent_control.enabled', false)
     expect(findBuiltinToolPolicy('mcp__browser__click', mountedServers)?.approval).toBe('required')
-    expect(getAutoApprovedBrowserTools()).toEqual([])
   })
 
   it('filters Assistant-only entries when their MCP servers are not mounted', () => {
@@ -49,12 +43,6 @@ describe('builtinToolPolicy', () => {
     ).toBe(true)
   })
 
-  it('auto-approves preparing a diagnostic draft because it has no side effects', () => {
-    expect(findBuiltinToolPolicy('mcp__assistant__prepare_diagnostic_report', WITH_HOST_TOOLS)).toMatchObject({
-      approval: 'auto'
-    })
-  })
-
   it('does not auto-approve an undeclared future tool', () => {
     expect(findBuiltinToolPolicy('mcp__cherry-tools__future_mutator', WITHOUT_HOST_TOOLS)).toBeUndefined()
     expect(
@@ -62,5 +50,27 @@ describe('builtinToolPolicy', () => {
         .map(toMcpRuntimeName)
         .includes('mcp__cherry-tools__future_mutator')
     ).toBe(false)
+  })
+
+  it('auto-approves Session renames only when cherry-tools is mounted', () => {
+    expect(findBuiltinToolPolicy('mcp__cherry-tools__session_rename', WITHOUT_HOST_TOOLS)?.approval).toBe('auto')
+    expect(findBuiltinToolPolicy('mcp__cherry-tools__session_rename', new Set())).toBeUndefined()
+  })
+
+  it('asks before every Agent or Assistant create and every settings change, even under Full Access, while config stays approval-free', () => {
+    for (const runtimeName of [
+      'mcp__assistant__create_agent',
+      'mcp__assistant__create_assistant',
+      'mcp__assistant__update_agent',
+      'mcp__cherry-tools__agent_create',
+      'mcp__cherry-tools__assistant_create',
+      'mcp__cherry-tools__config_update'
+    ]) {
+      expect(findBuiltinToolPolicy(runtimeName, WITH_HOST_TOOLS)).toMatchObject({
+        approval: 'required',
+        bypassApproval: 'enforce'
+      })
+    }
+    expect(findBuiltinToolPolicy('mcp__cherry-tools__config', WITHOUT_HOST_TOOLS)?.approval).toBe('auto')
   })
 })

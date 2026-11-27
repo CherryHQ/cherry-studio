@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/architecture/2026-10-26-message-code-block-surfaces.md
+2026-10-26-message-code-block-surfaces.md: ef69b714e0abda7cba923fee97430b4c9d73bdca
+2026-10-26-message-code-block-surfaces.zh.md: 13ab34b33a4d3bb7a80f3359ae0e664e2a9b9274

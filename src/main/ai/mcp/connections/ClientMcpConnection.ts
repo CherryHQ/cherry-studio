@@ -17,16 +17,30 @@ import {
   isJSONRPCResponse,
   isInputRequiredResult,
   type Prompt,
+  ProtocolError,
+  ProtocolErrorCode,
   type ReadResourceRequest,
   type ReadResourceResult,
   type Resource,
+  SdkError,
+  SdkErrorCode,
   type JsonSchemaValidator,
   type Tool,
   type Transport
 } from '@modelcontextprotocol/client'
 import { withInputRequired } from '@modelcontextprotocol/client'
+import { SkillsClient } from '@modelcontextprotocol/client/ext/skills'
 import { CfWorkerJsonSchemaValidator } from '@modelcontextprotocol/client/validators/cf-worker'
-import { GetPromptResultSchema, ReadResourceResultSchema } from '@modelcontextprotocol/core'
+import {
+  GetPromptResultSchema,
+  ReadResourceResultSchema,
+  RequestMetaSchema,
+  ResultSchema
+} from '@modelcontextprotocol/core'
+import { ListSkillsResultSchema, SKILLS_GET_METHOD, SKILLS_LIST_METHOD } from '@modelcontextprotocol/core/ext/skills'
+
+import { validateMcpSkill } from '@main/ai/skills/mcpSkillContent'
+import type { McpSkill } from '@shared/types/mcpSkills'
 
 import type {
   McpCallToolOptions,
@@ -41,6 +55,10 @@ import { ResourceObservations } from './ResourceObservations'
 
 const INTERACTION_TIMEOUT_MS = 10 * 60 * 1000
 const HEALTH_CHECK_TIMEOUT_MS = 5_000
+const HEALTH_PING_RESULT_SCHEMA = ResultSchema.extend({
+  _meta: RequestMetaSchema.optional()
+})
+type HealthCatalogMethod = 'listTools' | 'listPrompts' | 'listResources'
 
 interface ActiveInteraction {
   context: McpInteractionContext
@@ -64,10 +82,12 @@ function requireInteractionContext(active: ActiveInteraction | undefined, capabi
  */
 export class ClientMcpConnection implements McpConnection {
   private readonly client: Client
+  private readonly skills: SkillsClient
   private readonly interactionStorage = new AsyncLocalStorage<ActiveInteraction>()
   private readonly closeHooks: Array<() => Promise<void>> = []
   private readonly activeRequests = new Map<ActiveInteraction, AbortController>()
   private closePromise: Promise<void> | undefined
+  private healthCatalogMethod: HealthCatalogMethod | undefined
   private readonly resourceObservations: ResourceObservations
   private readonly subscriptionAbort = new AbortController()
 
@@ -94,6 +114,7 @@ export class ClientMcpConnection implements McpConnection {
       }
     })
 
+    this.skills = new SkillsClient(this.client)
     this.resourceObservations = new ResourceObservations(this.client)
     this.client.setNotificationHandler('notifications/resources/updated', async (notification) => {
       events.resourceUpdated(notification.params.uri)
@@ -141,6 +162,7 @@ export class ClientMcpConnection implements McpConnection {
   }
 
   public async connect(transport: Transport, options?: ConnectOptions): Promise<void> {
+    this.healthCatalogMethod = undefined
     await this.client.connect(transport, options)
     const subscriptions = this.recoverCatalogSubscription()
     this.addCloseHook(() => subscriptions)
@@ -157,7 +179,13 @@ export class ClientMcpConnection implements McpConnection {
         pending.set(message.id, { active, cleanup })
         active.signal.addEventListener('abort', cleanup, { once: true })
         try {
-          await send(message, sendOptions)
+          // SkillsClient.get has no metadata parameter; preserve the active host capabilities on the wire.
+          await send(
+            message.method === SKILLS_GET_METHOD
+              ? { ...message, params: this.paramsWithLogLevel(message.params ?? {}) }
+              : message,
+            sendOptions
+          )
         } catch (error) {
           cleanup()
           throw error
@@ -304,6 +332,45 @@ export class ClientMcpConnection implements McpConnection {
     }
   }
 
+  private get supportsSkills(): boolean {
+    return this.era === 'modern' && !!this.serverCapabilities?.resources && this.skills.supported
+  }
+
+  public async listSkills(options?: McpRequestOptions): Promise<McpSkill[]> {
+    if (!this.supportsSkills) return []
+    return this.withRequestContext(options, async (signal) => {
+      const skills: McpSkill[] = []
+      const cursors = new Set<string>()
+      const uris = new Set<string>()
+      let cursor: string | undefined
+      do {
+        const result = await this.client.request(
+          { method: SKILLS_LIST_METHOD, params: this.paramsWithLogLevel({ cursor, _meta: {} }) },
+          ListSkillsResultSchema,
+          { signal, timeout: options?.timeoutMs }
+        )
+        for (const skill of result.skills) {
+          if (uris.has(skill.uri)) throw new Error('Duplicate skill URI in catalog')
+          uris.add(skill.uri)
+          skills.push(validateMcpSkill(skill))
+        }
+        cursor = result.nextCursor
+        if (cursor !== undefined && cursors.has(cursor)) throw new Error('Repeated skill catalog cursor')
+        if (cursor !== undefined) cursors.add(cursor)
+      } while (cursor !== undefined)
+      return skills
+    })
+  }
+
+  public async getSkill(uri: string, options?: McpRequestOptions): Promise<McpSkill> {
+    if (!this.supportsSkills) throw new Error('Server does not advertise MCP Skills')
+    return this.withRequestContext(options, async (signal) => {
+      const { skill } = await this.skills.get(uri, { signal, timeout: options?.timeoutMs })
+      if (skill.uri !== uri) throw new Error('Server returned a different skill URI')
+      return validateMcpSkill(skill)
+    })
+  }
+
   public async listTools(cacheMode: CacheMode = 'use', signal?: AbortSignal): Promise<Tool[]> {
     const { tools } = await this.client.listTools(this.paramsWithLogLevel({}), { cacheMode, signal })
     return tools
@@ -416,8 +483,14 @@ export class ClientMcpConnection implements McpConnection {
   }
 
   public async listResourceTemplates(cacheMode: CacheMode = 'use') {
-    const { resourceTemplates } = await this.client.listResourceTemplates(this.paramsWithLogLevel({}), { cacheMode })
-    return resourceTemplates
+    try {
+      const { resourceTemplates } = await this.client.listResourceTemplates(this.paramsWithLogLevel({}), { cacheMode })
+      return resourceTemplates
+    } catch (error) {
+      // Some servers advertise resources but only implement the static catalog.
+      if (ProtocolError.isInstance(error) && error.code === ProtocolErrorCode.MethodNotFound) return []
+      throw error
+    }
   }
 
   public async listResources(cacheMode: CacheMode = 'use', signal?: AbortSignal): Promise<Resource[]> {
@@ -444,11 +517,53 @@ export class ClientMcpConnection implements McpConnection {
   }
 
   public async health(): Promise<void> {
-    if (this.era === 'modern') {
-      await this.client.discover({ timeout: HEALTH_CHECK_TIMEOUT_MS })
+    const era = this.era
+    const method = this.healthCatalogMethod ?? (era === 'modern' ? 'discover' : 'ping')
+    const check = async (selected: 'discover' | 'ping' | HealthCatalogMethod) => {
+      if (selected === 'discover') {
+        await this.client[selected]({ timeout: HEALTH_CHECK_TIMEOUT_MS })
+      } else if (selected === 'ping') {
+        await this.client.request({ method: 'ping' }, HEALTH_PING_RESULT_SCHEMA, { timeout: HEALTH_CHECK_TIMEOUT_MS })
+      } else {
+        await this.client[selected](this.paramsWithLogLevel({}), {
+          cacheMode: 'refresh',
+          timeout: HEALTH_CHECK_TIMEOUT_MS,
+          signal: AbortSignal.timeout(HEALTH_CHECK_TIMEOUT_MS)
+        })
+      }
+    }
+    const details = { era, protocolVersion: this.client.getNegotiatedProtocolVersion(), method }
+    try {
+      await check(method)
+    } catch (error) {
+      this.events.log('warning', 'health', { ...details, error })
+      const canConfirm =
+        !this.healthCatalogMethod &&
+        this.client.transport &&
+        ((ProtocolError.isInstance(error) && error.code === ProtocolErrorCode.MethodNotFound) ||
+          (SdkError.isInstance(error) &&
+            (error.code === SdkErrorCode.RequestTimeout ||
+              error.code === SdkErrorCode.MethodNotSupportedByProtocolVersion)))
+      const capabilities = this.client.getServerCapabilities()
+      const confirmation: HealthCatalogMethod | undefined = capabilities?.tools
+        ? 'listTools'
+        : capabilities?.prompts
+          ? 'listPrompts'
+          : capabilities?.resources
+            ? 'listResources'
+            : undefined
+      if (!canConfirm || !confirmation) throw error
+      try {
+        await check(confirmation)
+      } catch (confirmationError) {
+        this.events.log('warning', 'health', { ...details, confirmation, error: confirmationError })
+        throw confirmationError
+      }
+      this.healthCatalogMethod = confirmation
+      this.events.log('info', 'health', { ...details, confirmation, result: 'confirmed' })
       return
     }
-    await this.client.ping({ timeout: HEALTH_CHECK_TIMEOUT_MS })
+    this.events.log('debug', 'health', { ...details, result: 'healthy' })
   }
 
   public observeResource(uri: string, onState: (state: McpResourceObservationState) => void) {

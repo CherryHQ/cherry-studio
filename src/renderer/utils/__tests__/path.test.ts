@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import type { AbsoluteFilePath } from '@shared/types/file'
 import { PosixRelativeFilePathSchema } from '@shared/utils/file'
 
-import { getRelativePath, isPathInside, isSamePath } from '../path'
+import { getRelativePath, isPathInside, isSamePath, joinPath } from '../path'
 
 /** Fixture helper — these are shape-valid absolute paths, so the brand is safe to assert. */
 const p = (value: string) => value as AbsoluteFilePath
@@ -209,5 +209,43 @@ describe('double-slash (forward-slash UNC) paths', () => {
   it('yields no relative path, on either side', () => {
     expect(getRelativePath(p('//server/share'), p('//server/share/a.txt'))).toBe(null)
     expect(getRelativePath(p('/server/share'), p('//server/share/a.txt'))).toBe(null)
+  })
+})
+
+// A POSIX `\` is a filename byte. Copy Content reads that byte, so joinPath must
+// keep it on an absolute POSIX base and must not treat a trailing `\` as a separator.
+describe('joinPath', () => {
+  const BS = String.fromCharCode(0x5c)
+
+  it('keeps a leading backslash in a POSIX relative basename', () => {
+    expect(joinPath('/tmp', `${BS}large.txt`)).toBe(`/tmp/${BS}large.txt`)
+    expect(joinPath('/tmp/', `${BS}large.txt`)).toBe(`/tmp/${BS}large.txt`)
+  })
+
+  it('does not treat a trailing backslash on a POSIX directory name as a separator', () => {
+    expect(joinPath(`/tmp/ws${BS}`, 'large.txt')).toBe(`/tmp/ws${BS}/large.txt`)
+  })
+
+  it('joins a POSIX root and a trailing slash without doubling the separator', () => {
+    expect(joinPath('/', 'a.txt')).toBe('/a.txt')
+    expect(joinPath('/', '/a.txt')).toBe('/a.txt')
+    expect(joinPath('/tmp/', 'a.txt')).toBe('/tmp/a.txt')
+    expect(joinPath('/tmp', '/nested/a.txt')).toBe('/tmp/nested/a.txt')
+  })
+
+  it('keeps Windows drive and UNC separator folding', () => {
+    expect(joinPath('C:\\temp', 'a.txt')).toBe('C:\\temp/a.txt')
+    expect(joinPath('C:\\temp\\', 'a.txt')).toBe('C:\\temp\\a.txt')
+    expect(joinPath('C:/temp/', `${BS}a.txt`)).toBe('C:/temp/a.txt')
+    expect(joinPath('\\\\server\\share', `${BS}a.txt`)).toBe('\\\\server\\share/a.txt')
+    expect(joinPath('\\\\server\\share\\', `${BS}a.txt`)).toBe('\\\\server\\share\\a.txt')
+    expect(joinPath('//server/share/', '/a.txt')).toBe('//server/share/a.txt')
+    expect(joinPath(`//server/share${BS}`, `${BS}dir${BS}a.txt`)).toBe(`//server/share${BS}dir${BS}a.txt`)
+  })
+
+  it('joins an empty base, a relative base, and the synthetic workspace root with a slash', () => {
+    expect(joinPath('', '/nested/a.txt')).toBe('nested/a.txt')
+    expect(joinPath('notes', 'a.txt')).toBe('notes/a.txt')
+    expect(joinPath('__workspace_root__', 'notes/a.txt')).toBe('__workspace_root__/notes/a.txt')
   })
 })

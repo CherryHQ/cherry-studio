@@ -17,6 +17,7 @@ import {
   imageInputToPreviewUrl,
   type ImagePreviewOptions
 } from '@renderer/utils/image'
+import { isWin } from '@renderer/utils/platform'
 
 const logger = loggerService.withContext('ImagePreviewService')
 
@@ -81,6 +82,7 @@ const ImagePreviewContainer: React.FC<PreviewProps> = ({ src, open, resolve }) =
   return (
     <ImagePreviewDialog
       actions={contextActions}
+      className={isWin ? '[--image-preview-titlebar-height:env(titlebar-area-height,0px)]' : undefined}
       items={[{ id: src, src }]}
       labels={labels}
       onOpenChange={handleVisibleChange}

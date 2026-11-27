@@ -32,6 +32,11 @@ export const TOOL_SPECS: Record<string, ActionToolSpec> = {
     type: 'core',
     order: 20
   },
+  dialog: {
+    id: 'dialog',
+    type: 'core',
+    order: 21
+  },
   // Quick tools
   'split-view': {
     id: 'split-view',

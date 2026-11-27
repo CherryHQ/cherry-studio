@@ -4,7 +4,7 @@ import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { browserVisitTable } from '@data/db/schemas/browserVisit'
 import type { BrowserVisit, ListBrowserVisitsQuery } from '@shared/data/api/schemas/browserVisits'
-import { isSensitiveKey } from '@shared/utils/redaction'
+import { sanitizeBrowserVisitUrl } from '@shared/utils/browserUrl'
 
 import { asNumericKey, decodeListCursor, encodeCursor, keysetOrdering } from './utils/keysetCursor'
 
@@ -16,42 +16,13 @@ export interface BrowserVisitInput {
   sourceKey?: string
 }
 
-function removeSensitiveParameters(params: URLSearchParams): void {
-  for (const key of [...params.keys()]) {
-    if (isSensitiveKey(key) || /^(code|signature)$/i.test(key)) {
-      params.delete(key)
-    }
-  }
-}
-
-function sanitizeHistoryFragment(fragment: string): string {
-  const path = fragment.split('?', 1)[0]
-  let decoded = path
-  for (let layer = 0; layer < 8; layer++) {
-    if (/[?=&]/.test(decoded)) return ''
-    if (!/%[\da-f]{2}/i.test(decoded)) return path
-    try {
-      decoded = decodeURIComponent(decoded)
-    } catch {
-      return ''
-    }
-  }
-  return ''
-}
-
 function normalizeVisit(input: BrowserVisitInput) {
-  const url = new URL(input.url)
-  if (!['http:', 'https:'].includes(url.protocol) || !Number.isSafeInteger(input.visitedAt) || input.visitedAt < 0)
-    return undefined
-  url.username = ''
-  url.password = ''
-  removeSensitiveParameters(url.searchParams)
-  url.hash = sanitizeHistoryFragment(url.hash.slice(1))
-  if (url.href.length > 16_384) return undefined
+  const url = sanitizeBrowserVisitUrl(input.url)
+  if (url === undefined || !Number.isSafeInteger(input.visitedAt) || input.visitedAt < 0) return undefined
   return {
     ...input,
-    url: url.href,
-    title: (input.title === input.url ? url.href : input.title).slice(0, 1_000),
+    url,
+    title: (input.title === input.url ? url : input.title).slice(0, 1_000),
     source: input.source ?? 'local'
   }
 }

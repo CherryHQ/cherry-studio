@@ -24,8 +24,7 @@ function resolveModeSupports(
   if (!modes) return undefined
   // Prefer the requested mode; fall back to the first declared mode (mirrors
   // the form's `imageGenerationToFields` resolution).
-  const firstMode = Object.keys(modes)[0]
-  const def = modes[mode] ?? (firstMode ? modes[firstMode] : undefined)
+  const def = modes[mode] ?? Object.values(modes)[0]
   return def?.supports
 }
 

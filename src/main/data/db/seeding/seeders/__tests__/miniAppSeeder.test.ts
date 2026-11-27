@@ -10,6 +10,33 @@ import { PRESETS_MINI_APPS } from '@shared/data/presets/miniApps'
 describe('MiniAppSeeder', () => {
   const dbh = setupTestDatabase()
 
+  it.each(['baidu-ai-search', null])('retires Baidu AI Search only when preset-linked (%s)', (presetMiniAppId) => {
+    dbh.db
+      .insert(miniAppTable)
+      .values({
+        appId: 'baidu-ai-search',
+        presetMiniAppId,
+        name: 'Existing search',
+        url: 'https://chat.baidu.com/',
+        status: 'pinned',
+        orderKey: 'a0'
+      })
+      .run()
+
+    const seed = new MiniAppSeeder()
+    seed.run(dbh.db)
+    seed.run(dbh.db)
+
+    const rows = dbh.db.select().from(miniAppTable).where(eq(miniAppTable.appId, 'baidu-ai-search')).all()
+    if (presetMiniAppId) {
+      expect(rows).toHaveLength(0)
+    } else {
+      expect(rows).toMatchObject([
+        { name: 'Existing search', url: 'https://chat.baidu.com/', status: 'pinned', orderKey: 'a0' }
+      ])
+    }
+  })
+
   it('should insert all preset miniApps on empty table', async () => {
     const seed = new MiniAppSeeder()
     seed.run(dbh.db)

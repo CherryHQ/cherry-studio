@@ -8,6 +8,7 @@ import type { JobContext, JobHandler } from '@main/core/job/types'
 import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
 import { downloadImageAsBase64 } from '@main/utils/downloadAsBase64'
+import { normalizeImageSize, normalizePixelSize } from '@shared/ai/imageSize'
 import type { CleanupPolicy, FileEntry } from '@shared/data/types/file'
 import { parseUniqueModelId } from '@shared/data/types/model'
 import type { Base64String } from '@shared/types/file'
@@ -42,12 +43,11 @@ const logger = loggerService.withContext('ImageGenerationJobHandler')
  * resuming would submit a second time and bill the user twice. So non-terminal jobs
  * are cancelled at startup (`recovery: 'abandon'`) instead of resumed.
  *
- * To make results survive a restart, do what `file-processing.remote-poll` does:
- * carry a durable destination in the payload (for paintings, the already-persisted
- * `painting.id` — the row exists before enqueue) and have this handler write the
- * result there, which registers `painting_file_ref` rows and makes GC correct for
- * free. Then switch `recovery` back to `'retry'` and restore the resume branch from
- * the recipe in `docs/references/job-and-scheduler/handler-authoring.md`.
+ * To make results survive a restart, carry a durable destination in the payload
+ * (for paintings, the already-persisted `painting.id` — the row exists before
+ * enqueue) and have this handler write the result there, which registers
+ * `painting_file_ref` rows and makes GC correct for free. Then switch `recovery` back to `'retry'` and restore the resume branch from
+ * the recipe in `docs/dev/references/job-and-scheduler/handler-authoring.md`.
  */
 export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = {
   recovery: 'abandon',
@@ -71,23 +71,6 @@ export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = 
       ...config,
       modelId: resolveWireModelId(model, resolveEffectiveEndpoint(provider, model).endpointType)
     }
-    // Built fresh every execution and held in memory only. Upstream persists this
-    // to job metadata so a resumed run can still attribute its cost; with
-    // `recovery: 'abandon'` no run outlives the process, so persisting it would be
-    // a write nobody reads — and would imply a durability this handler does not have.
-    const captureContext = createAiUsageCaptureContext({
-      providerId: provider.id,
-      providerName: provider.name,
-      modelId: sdkConfig.modelId,
-      modelName: model.name,
-      pricing: model.pricing,
-      trustProviderReportedCost: provider.reportsActualCost,
-      reportedCostCurrency: provider.reportedCostCurrency,
-      credentialReceipt,
-      source: input.source ?? null,
-      messageRef: null
-    })
-    const usageStartedAt = Date.now()
 
     const transport = resolveImageTransport(sdkConfig.providerId, sdkConfig.modelId, sdkConfig.providerSettings)
     if (!transport) {
@@ -99,7 +82,27 @@ export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = 
     // No persisted-task resume branch: `recovery: 'abandon'` means a job never
     // outlives the process that enqueued it, so every execution starts at submit.
     let urls: string[]
-    const submit = await transport.submit(await buildSubmitInput(input, sdkConfig.modelId, ctx.signal))
+    const submitInput = await buildSubmitInput(input, sdkConfig, ctx.signal)
+    // Built fresh every execution and held in memory only. Upstream persists this
+    // to job metadata so a resumed run can still attribute its cost; with
+    // `recovery: 'abandon'` no run outlives the process, so persisting it would be
+    // a write nobody reads — and would imply a durability this handler does not have.
+    const captureContext = createAiUsageCaptureContext({
+      providerId: provider.id,
+      providerName: provider.name,
+      modelId: sdkConfig.modelId,
+      modelName: model.name,
+      pricing: modelService.getByKey(providerId, modelId).pricing,
+      billing: providerService.getByProviderId(providerId).settings.billing,
+      billingModelId: modelId,
+      trustProviderReportedCost: provider.reportsActualCost,
+      reportedCostCurrency: provider.reportedCostCurrency,
+      credentialReceipt,
+      source: input.source ?? null,
+      messageRef: null
+    })
+    const usageStartedAt = Date.now()
+    const submit = await transport.submit(submitInput)
     if (submit.imageUrls) {
       urls = submit.imageUrls
     } else if (submit.taskId) {
@@ -142,22 +145,27 @@ export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = 
 
 async function buildSubmitInput(
   input: ImageGenerationJobPayload,
-  modelId: string,
+  { providerId, modelId }: { providerId: string; modelId: string },
   signal: AbortSignal
 ): Promise<ImageGenerationSubmitInput> {
   const files = input.inputFileIds?.length ? await Promise.all(input.inputFileIds.map(readImageFile)) : undefined
   const mask = input.maskFileId ? await readImageFile(input.maskFileId) : undefined
+  const size =
+    providerId === 'dashscope' || providerId === 'qwencloud'
+      ? normalizePixelSize(input.size)
+      : normalizeImageSize(input.size)
   return {
     modelId,
     prompt: input.prompt,
     n: input.n,
-    size: input.size as `${number}x${number}` | undefined,
+    size: size as ImageGenerationSubmitInput['size'],
     aspectRatio: input.aspectRatio as `${number}:${number}` | undefined,
     seed: input.seed,
     files,
     mask,
     modelDescriptor: input.modelDescriptor,
     providerParams: input.providerParams,
+    requestTimeoutMs: input.requestTimeoutMs,
     signal
   }
 }

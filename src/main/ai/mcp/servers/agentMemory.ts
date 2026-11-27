@@ -9,6 +9,7 @@ import * as z from 'zod'
 import { agentService } from '@data/services/AgentService'
 import { loggerService } from '@logger'
 import { assertAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
+import { withAgentMemoryFileLock } from '@main/ai/agents/agentMemoryFileLock'
 import { isWin } from '@main/core/platform'
 
 const logger = loggerService.withContext('McpServer:AgentMemory')
@@ -91,47 +92,53 @@ async function assertRegularFileOrMissing(filePath: string): Promise<void> {
 async function memoryUpdate(content: string, ctx: MemoryToolContext): Promise<string> {
   const memoryDir = await assertMemoryDirectory(ctx)
   const factPath = await resolveFileCI(memoryDir, 'FACT.md')
-  await assertRegularFileOrMissing(factPath)
 
-  const tmpPath = path.join(memoryDir, `.FACT.md.${randomUUID()}.tmp`)
-  const handle = await open(tmpPath, 'wx', 0o600)
-  try {
-    await handle.writeFile(content, 'utf-8')
-    await handle.close()
-    await assertMemoryDirectory(ctx)
+  return withAgentMemoryFileLock(factPath, async () => {
     await assertRegularFileOrMissing(factPath)
-    await rename(tmpPath, factPath)
-  } catch (error) {
-    await handle.close().catch(() => undefined)
-    await unlink(tmpPath).catch(() => undefined)
-    throw error
-  }
 
-  logger.info('Memory FACT.md updated via tool', { agentId: ctx.agentId, length: content.length })
-  return 'Memory updated.'
+    const tmpPath = path.join(memoryDir, `.FACT.md.${randomUUID()}.tmp`)
+    const handle = await open(tmpPath, 'wx', 0o600)
+    try {
+      await handle.writeFile(content, 'utf-8')
+      await handle.close()
+      await assertMemoryDirectory(ctx)
+      await assertRegularFileOrMissing(factPath)
+      await rename(tmpPath, factPath)
+    } catch (error) {
+      await handle.close().catch(() => undefined)
+      await unlink(tmpPath).catch(() => undefined)
+      throw error
+    }
+
+    logger.info('Memory FACT.md updated via tool', { agentId: ctx.agentId, length: content.length })
+    return 'Memory updated.'
+  })
 }
 
 async function memoryAppend(text: string, tags: string[], ctx: MemoryToolContext): Promise<string> {
   const memoryDir = await assertMemoryDirectory(ctx)
   const journalPath = await resolveFileCI(memoryDir, 'JOURNAL.jsonl')
-  await assertRegularFileOrMissing(journalPath)
-  const entry: JournalEntry = { ts: new Date().toISOString(), tags, text }
 
-  const handle = await open(
-    journalPath,
-    withNoFollow(constants.O_APPEND | constants.O_CREAT | constants.O_WRONLY),
-    0o600
-  )
-  try {
-    const fileStat = await handle.stat()
-    if (!fileStat.isFile()) throw new Error(`Agent journal must be a regular file: ${journalPath}`)
-    await handle.appendFile(`${JSON.stringify(entry)}\n`, 'utf-8')
-  } finally {
-    await handle.close()
-  }
+  return withAgentMemoryFileLock(journalPath, async () => {
+    await assertRegularFileOrMissing(journalPath)
+    const entry: JournalEntry = { ts: new Date().toISOString(), tags, text }
 
-  logger.info('Journal entry appended via tool', { agentId: ctx.agentId, tags })
-  return `Journal entry added at ${entry.ts}.`
+    const handle = await open(
+      journalPath,
+      withNoFollow(constants.O_APPEND | constants.O_CREAT | constants.O_WRONLY),
+      0o600
+    )
+    try {
+      const fileStat = await handle.stat()
+      if (!fileStat.isFile()) throw new Error(`Agent journal must be a regular file: ${journalPath}`)
+      await handle.appendFile(`${JSON.stringify(entry)}\n`, 'utf-8')
+    } finally {
+      await handle.close()
+    }
+
+    logger.info('Journal entry appended via tool', { agentId: ctx.agentId, tags })
+    return `Journal entry added at ${entry.ts}.`
+  })
 }
 
 async function memorySearch(query: string, tagFilter: string, limit: number, ctx: MemoryToolContext): Promise<string> {
@@ -197,12 +204,31 @@ const MemoryInputSchema = z
   })
 
 export function createAgentMemoryServer(ctx: MemoryToolContext): McpServer {
-  const server = new McpServer({ name: 'agent-memory', version: '1.0.0' })
+  const server = new McpServer(
+    { name: 'agent-memory', version: '1.0.0' },
+    {
+      instructions: `Agent memory applies the supplied identity and retains useful facts and past events across sessions and workspaces.
+
+Before every task, read the latest <agent_identity> and use it to decide how to respond, even when the user does not mention identity or memory:
+- Apply SOUL.md's name, tone, and communication style to your actual reply, within the Agent System Prompt.
+- Follow relevant USER.md preferences and use known user context instead of asking for it again.
+- Use relevant FACT.md project facts and decisions before choosing tools, commands, or recommendations.
+Apply this context silently; do not merely summarize the files or mention unrelated personal details.
+
+Use the memory tool for persistent memory:
+- update replaces \`${path.join(ctx.agentDataPath, 'memory', 'FACT.md')}\` with durable project knowledge and decisions. Preserve existing useful facts when rewriting it. If the information will not matter in six months, use append instead.
+- append records one-time events, completed tasks, and session notes in \`${path.join(ctx.agentDataPath, 'memory', 'JOURNAL.jsonl')}\`.
+- search retrieves past journal entries. Search before asking the user to repeat information that may already be recorded; FACT.md is supplied in the identity snapshot and is not searched by this action.
+
+Keep each file's scope exclusive: SOUL.md holds persona, USER.md holds user context, FACT.md holds durable knowledge, and JOURNAL.jsonl holds events. Update relevant memory autonomously when the user asks you to remember it or it is useful for future sessions; never write merely because the tool is available.
+Use only this tool to update FACT.md or read and write JOURNAL.jsonl; never bypass it with file or shell tools.`
+    }
+  )
   server.registerTool(
     'memory',
     {
       description:
-        "Manage persistent memory in this agent's data directory across sessions and workspaces. Actions: 'update' overwrites memory/FACT.md (durable knowledge and decisions that should survive across sessions). 'append' logs to memory/JOURNAL.jsonl (one-time events, completed tasks, session notes). 'search' queries the journal. Before writing to FACT.md, ask: will this still matter in 6 months? If not, use append instead.",
+        "Persistent memory: 'update' rewrites FACT.md (durable), 'append' logs events to JOURNAL.jsonl, 'search' reads it.",
       inputSchema: MemoryInputSchema
     },
     async (args) => {

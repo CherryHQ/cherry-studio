@@ -1,7 +1,16 @@
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
+import { shell } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { loggerService } from '@logger'
+import { SkillImportError } from '@main/ai/skills/SkillImportError'
+import en from '@main/i18n/locales/en-us.json'
+import zh from '@main/i18n/locales/zh-cn.json'
+import { PluginError } from '@main/utils/markdownParser'
 
 const {
   installMock,
+  setMirrorEnabledMock,
   uninstallMock,
   installFromZipMock,
   installFromDirectoryMock,
@@ -10,13 +19,14 @@ const {
   getByIdMock,
   getInstalledSkillDirectoryMock,
   importSystemMock,
-  openPathMock,
+  syncExternalExportsMock,
   reconcileMock,
   reconcileSkillMock,
   checkRemoteUpdateMock,
   applyRemoteUpdateMock
 } = vi.hoisted(() => ({
   installMock: vi.fn(),
+  setMirrorEnabledMock: vi.fn(),
   uninstallMock: vi.fn(),
   installFromZipMock: vi.fn(),
   installFromDirectoryMock: vi.fn(),
@@ -25,15 +35,11 @@ const {
   getByIdMock: vi.fn(),
   getInstalledSkillDirectoryMock: vi.fn(),
   importSystemMock: vi.fn(),
-  openPathMock: vi.fn(),
+  syncExternalExportsMock: vi.fn(),
   reconcileMock: vi.fn(),
   reconcileSkillMock: vi.fn(),
   checkRemoteUpdateMock: vi.fn(),
   applyRemoteUpdateMock: vi.fn()
-}))
-
-vi.mock('electron', () => ({
-  shell: { openPath: openPathMock }
 }))
 
 vi.mock('@main/ai/skills/SkillService', () => ({
@@ -47,6 +53,7 @@ vi.mock('@main/ai/skills/SkillService', () => ({
   },
   skillService: {
     install: installMock,
+    setMirrorEnabled: setMirrorEnabledMock,
     uninstall: uninstallMock,
     installFromZip: installFromZipMock,
     installFromDirectory: installFromDirectoryMock,
@@ -55,6 +62,7 @@ vi.mock('@main/ai/skills/SkillService', () => ({
     getById: getByIdMock,
     getInstalledSkillDirectory: getInstalledSkillDirectoryMock,
     importSystem: importSystemMock,
+    syncExternalExports: syncExternalExportsMock,
     reconcileSkills: reconcileMock,
     reconcileSkill: reconcileSkillMock,
     checkRemoteUpdate: checkRemoteUpdateMock,
@@ -64,13 +72,43 @@ vi.mock('@main/ai/skills/SkillService', () => ({
 
 import { skillHandlers } from '../skill'
 
+const openPathMock = vi.mocked(shell.openPath)
+const logger = loggerService.withContext('skillHandlers')
+
 const ctx = { senderId: 'w1' }
 
 beforeEach(() => {
   vi.clearAllMocks()
+  MockMainPreferenceServiceUtils.resetMocks()
+  MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'zh-CN')
 })
 
 describe('skillHandlers', () => {
+  it('routes export-only reconciliation without running full reconciliation', async () => {
+    syncExternalExportsMock.mockResolvedValueOnce(undefined)
+    await skillHandlers['skill.reconcile']({ externalExportsOnly: true }, ctx)
+    expect(syncExternalExportsMock).toHaveBeenCalledOnce()
+    expect(reconcileMock).not.toHaveBeenCalled()
+    expect(reconcileSkillMock).not.toHaveBeenCalled()
+  })
+
+  it('returns mirror mutation data directly and propagates failures to IpcApi', async () => {
+    const skill = { id: 's1', mirrorEnabled: false }
+    setMirrorEnabledMock.mockResolvedValueOnce(skill)
+    await expect(
+      skillHandlers['skill.set_mirror_enabled']({ skillId: 's1', mirrorEnabled: false }, ctx)
+    ).resolves.toEqual(skill)
+    const error = new Error('export denied')
+    setMirrorEnabledMock.mockRejectedValueOnce(error)
+    await expect(skillHandlers['skill.set_mirror_enabled']({ skillId: 's1', mirrorEnabled: true }, ctx)).rejects.toBe(
+      error
+    )
+    setMirrorEnabledMock.mockResolvedValueOnce(null)
+    await expect(
+      skillHandlers['skill.set_mirror_enabled']({ skillId: 'missing', mirrorEnabled: true }, ctx)
+    ).rejects.toThrow('Skill not found')
+  })
+
   it('install wraps the installed skill in a success envelope', async () => {
     installMock.mockResolvedValue({ id: 's1' })
     expect(await skillHandlers['skill.install']({ installSource: 'src' }, ctx)).toEqual({
@@ -97,10 +135,98 @@ describe('skillHandlers', () => {
   it('install_from_zip / install_from_directory forward their path options', async () => {
     installFromZipMock.mockResolvedValue({ id: 'z' })
     installFromDirectoryMock.mockResolvedValue({ id: 'd' })
-    await skillHandlers['skill.install_from_zip']({ zipFilePath: '/a.zip' }, ctx)
-    await skillHandlers['skill.install_from_directory']({ directoryPath: '/dir' }, ctx)
+    expect(await skillHandlers['skill.install_from_zip']({ zipFilePath: '/a.zip' }, ctx)).toEqual({
+      success: true,
+      data: { id: 'z' }
+    })
+    expect(await skillHandlers['skill.install_from_directory']({ directoryPath: '/dir' }, ctx)).toEqual({
+      success: true,
+      data: { id: 'd' }
+    })
     expect(installFromZipMock).toHaveBeenCalledWith({ zipFilePath: '/a.zip' })
     expect(installFromDirectoryMock).toHaveBeenCalledWith({ directoryPath: '/dir' })
+  })
+
+  describe.each(['zip', 'directory'] as const)('local %s errors', (kind) => {
+    const invoke = () =>
+      kind === 'zip'
+        ? skillHandlers['skill.install_from_zip']({ zipFilePath: '/tmp/x.zip' }, ctx)
+        : skillHandlers['skill.install_from_directory']({ directoryPath: '/tmp/x' }, ctx)
+    const mock = kind === 'zip' ? installFromZipMock : installFromDirectoryMock
+    const missingKey = kind === 'zip' ? 'skill.import.zip_missing_skill_md' : 'skill.import.directory_missing_skill_md'
+
+    it.each(['zh-CN', 'en-US'] as const)(
+      'returns the real %s catalog without paths and logs the original diagnostics',
+      async (language) => {
+        MockMainPreferenceServiceUtils.setPreferenceValue('app.language', language)
+        const catalog = language === 'zh-CN' ? zh : en
+        const cases = [
+          {
+            error: new SkillImportError(
+              'SKILL_DIRECTORY_NOT_FOUND',
+              'No skill directory found in /tmp/zip-install-123'
+            ),
+            key: missingKey,
+            code: 'SKILL_DIRECTORY_NOT_FOUND',
+            targetPath: undefined
+          },
+          {
+            error: new SkillImportError('INVALID_ZIP_FILE', 'Not a ZIP file: /tmp/x.txt'),
+            key: 'skill.import.invalid_zip_file',
+            code: 'INVALID_ZIP_FILE',
+            targetPath: undefined
+          },
+          {
+            error: new SkillImportError('DIRECTORY_NOT_FOUND', 'Directory not found: /tmp/x'),
+            key: 'skill.import.directory_not_found',
+            code: 'DIRECTORY_NOT_FOUND',
+            targetPath: undefined
+          },
+          {
+            error: new PluginError(
+              'FILE_NOT_FOUND',
+              '/tmp/x/SKILL.md',
+              'SKILL.md or skill.md not found in skill folder'
+            ),
+            key: missingKey,
+            code: 'FILE_NOT_FOUND',
+            targetPath: '/tmp/x/SKILL.md'
+          }
+        ] as const
+        for (const { error, key, code, targetPath } of cases) {
+          const originalMessage = error.message
+          mock.mockRejectedValueOnce(error)
+          const result = await invoke()
+          expect(result).toEqual({ success: false, error: catalog[key] })
+          expect(result).toHaveProperty('error', expect.not.stringMatching(/\/tmp\/|zip-install/))
+          expect(error.message).toBe(originalMessage)
+          expect(logger.error).toHaveBeenLastCalledWith(expect.any(String), { error, failureCode: code, targetPath })
+        }
+      }
+    )
+
+    it.each([
+      new Error('EACCES: permission denied, open /tmp/unknown-file'),
+      'boom',
+      Object.assign(new Error('x'), { code: 'SKILL_DIRECTORY_NOT_FOUND' }),
+      { code: 'SKILL_DIRECTORY_NOT_FOUND' }
+    ])('preserves an unknown error verbatim: %s', async (error) => {
+      mock.mockRejectedValueOnce(error)
+      expect(await invoke()).toEqual({ success: false, error: error instanceof Error ? error.message : String(error) })
+      expect(logger.error).toHaveBeenLastCalledWith(expect.any(String), error)
+    })
+  })
+
+  it.each([
+    new SkillImportError('SKILL_DIRECTORY_NOT_FOUND', 'No skill directory found in /tmp/zip-install-marketplace'),
+    new PluginError('FILE_NOT_FOUND', '/tmp/marketplace/SKILL.md', 'SKILL.md or skill.md not found in skill folder')
+  ])('preserves classified marketplace diagnostics: %s', async (error) => {
+    installMock.mockRejectedValueOnce(error)
+    expect(await skillHandlers['skill.install']({ installSource: 'src' }, ctx)).toEqual({
+      success: false,
+      error: error.message
+    })
+    expect(logger.error).toHaveBeenLastCalledWith('Failed to install skill', error)
   })
 
   it('list_local forwards the workdir', async () => {
@@ -117,24 +243,6 @@ describe('skillHandlers', () => {
 
     await expect(skillHandlers['skill.discover_system']({}, ctx)).resolves.toEqual([{ id: 'candidate-1' }])
     expect(discoverSystemMock).toHaveBeenCalledWith()
-  })
-
-  it('system skill routes keep discovery and import separate from agent association', async () => {
-    discoverSystemMock.mockResolvedValue([])
-    importSystemMock.mockResolvedValue({ id: 'system-skill' })
-
-    await skillHandlers['skill.discover_system']({}, ctx)
-    await skillHandlers['skill.import_system']({ directoryPath: '/skill' }, ctx)
-
-    expect(discoverSystemMock).toHaveBeenCalledWith()
-    expect(importSystemMock).toHaveBeenCalledWith({ directoryPath: '/skill' })
-  })
-
-  it('reconcile delegates to SkillService.reconcileSkills with the native IpcApi contract', async () => {
-    reconcileMock.mockResolvedValue(undefined)
-
-    await expect(skillHandlers['skill.reconcile']({}, ctx)).resolves.toBeUndefined()
-    expect(reconcileMock).toHaveBeenCalledWith()
   })
 
   it('scopes reconcile to one Skill when skillId is present', async () => {

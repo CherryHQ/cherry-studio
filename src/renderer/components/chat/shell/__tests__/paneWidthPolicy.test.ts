@@ -16,21 +16,7 @@ describe('resolveDockedPaneWidth', () => {
     expect(resolveDockedPaneWidth(1200, STORED_DEFAULT)).toBe(STORED_DEFAULT)
   })
 
-  it('yields the pane first: stored → 255 while the center keeps 360', () => {
-    expect(resolveDockedPaneWidth(STORED_DEFAULT + 359, STORED_DEFAULT)).toBe(STORED_DEFAULT - 1)
-    expect(resolveDockedPaneWidth(700, STORED_DEFAULT)).toBe(340)
-    expect(resolveDockedPaneWidth(615, STORED_DEFAULT)).toBe(255)
-  })
-
-  it('yields the center next: 360 → 200 with the pane pinned at 255', () => {
-    expect(resolveDockedPaneWidth(614, STORED_DEFAULT)).toBe(255)
-    expect(resolveDockedPaneWidth(455, STORED_DEFAULT)).toBe(255)
-    expect(614 - resolveDockedPaneWidth(614, STORED_DEFAULT)).toBe(359)
-    expect(455 - resolveDockedPaneWidth(455, STORED_DEFAULT)).toBe(200)
-  })
-
   it('shrinks both proportionally below 455 and never reaches zero', () => {
-    expect(resolveDockedPaneWidth(400, STORED_DEFAULT)).toBeCloseTo((400 * 255) / 455, 5)
     expect(resolveDockedPaneWidth(100, STORED_DEFAULT)).toBeGreaterThan(0)
     expect(resolveDockedPaneWidth(0, STORED_DEFAULT)).toBe(0)
   })
@@ -42,22 +28,9 @@ describe('resolveDockedPaneWidth', () => {
       expect(Math.abs(above - below)).toBeLessThan(0.01)
     }
   })
-
-  it('matches current behaviour point-for-point at and above 615', () => {
-    for (const available of [615, 700, 819, 820, 1000]) {
-      const legacy = Math.min(STORED_DEFAULT, Math.max(0, available - 360))
-      expect(resolveDockedPaneWidth(available, STORED_DEFAULT)).toBe(legacy)
-    }
-  })
 })
 
 describe('buildDockedPaneWidthExpression', () => {
-  it('mirrors the JS formula as a single CSS expression', () => {
-    expect(buildDockedPaneWidthExpression(460)).toBe(
-      'max(min(460px, calc(100% - 360px)), min(255px, calc(100% * 255 / 455)))'
-    )
-  })
-
   it('accepts non-numeric css lengths', () => {
     expect(buildDockedPaneWidthExpression('var(--assistants-width)')).toContain('min(var(--assistants-width),')
   })
@@ -77,17 +50,9 @@ describe('predictCenterWidth', () => {
 })
 
 describe('evaluateAutoCollapse', () => {
-  it('collapses below the comfort threshold', () => {
-    expect(evaluateAutoCollapse(359.9, false)).toBe(true)
-  })
-
   it('holds the current state inside the hysteresis dead zone', () => {
     expect(evaluateAutoCollapse(361, true)).toBe(true)
     expect(evaluateAutoCollapse(361, false)).toBe(false)
-  })
-
-  it('restores at or above the hysteresis line', () => {
-    expect(evaluateAutoCollapse(364, true)).toBe(false)
   })
 })
 

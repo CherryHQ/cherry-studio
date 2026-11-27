@@ -4,10 +4,12 @@ export {
   findClosableConversationTabIds,
   useCloseConversationTabs
 } from './useCloseConversationTabs'
+export { useConversationTabTitleChangeSync } from './useConversationTabTitleChangeSync'
 export { useConversationNavigationOwner } from './useConversationNavigationOwner'
 export { TabIdContext, useCurrentTab, useCurrentTabId, useIsActiveTab } from './useCurrentTab'
 export { useMainWindowNavigation } from './useMainWindowNavigation'
 export { useTabs } from './useTabs'
+export { useTabInputFocus } from './useTabInputFocus'
 export {
   type OpenTabOptions,
   TabsContext,
@@ -17,3 +19,5 @@ export {
 } from './useTabsContext'
 export { type TabSelfVisuals, useTabSelfVisuals } from './useTabSelfVisuals'
 export type { Tab, TabsState, TabType } from '@shared/data/cache/cacheValueTypes'
+
+export { TabCommandRuntimeContext, useTabCommandRuntime } from './useTabCommandRuntime'

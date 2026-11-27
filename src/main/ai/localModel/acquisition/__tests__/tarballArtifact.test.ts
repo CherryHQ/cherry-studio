@@ -19,12 +19,12 @@ const { extractMock, FIXTURE_ARTIFACT } = vi.hoisted(() => ({
   extractMock: vi.fn(),
   FIXTURE_ARTIFACT: {
     id: 'onnxruntime-node' as const,
-    packageName: 'onnxruntime-node',
     version: '1.25.1',
-    tarballSha256: '5576b1313abe30c692fdc1b79cb6763292e7c69664dacb4a33906e98616da392',
     installDirKey: 'feature.onnxruntime.binary' as const,
     platforms: {
       'linux-x64': {
+        packageName: 'onnxruntime-node',
+        tarballSha256: '5576b1313abe30c692fdc1b79cb6763292e7c69664dacb4a33906e98616da392',
         tarballPrefix: 'package/bin/napi-v6/linux/x64/',
         installSubdir: 'napi-v6/linux/x64',
         entryFile: 'onnxruntime_binding.node',
@@ -57,7 +57,7 @@ vi.mock('../../catalog/catalog', async (importOriginal) => {
 })
 
 const { localModelStorageService } = await import('../../installation/LocalModelStorageService')
-const { artifactEntryPath, artifactRegistryOrder, isArtifactSupported, removeArtifact } =
+const { artifactEntryPath, artifactRegistryOrder, installArtifact, isArtifactSupported, removeArtifact } =
   await import('../tarballArtifact')
 
 /** A `net.fetch` Response shell streaming `content`. */
@@ -118,6 +118,19 @@ describe('shared artifact acquisition', () => {
     expect(isReady()).toBe(true)
   })
 
+  it('enforces the runtime minimum macOS version before offering installation', () => {
+    const artifact = { ...FIXTURE_ARTIFACT, minimumMacOS: '26.2' }
+    vi.stubGlobal('process', { ...process, getSystemVersion: () => '26.1' })
+    expect(isArtifactSupported(artifact)).toBe(false)
+    vi.stubGlobal('process', { ...process, getSystemVersion: () => '26.2' })
+    expect(isArtifactSupported(artifact)).toBe(true)
+    vi.stubGlobal('process', { ...process, getSystemVersion: () => '27.0' })
+    expect(isArtifactSupported(artifact)).toBe(true)
+    vi.stubGlobal('process', { ...process, getSystemVersion: undefined })
+    expect(isArtifactSupported(artifact)).toBe(false)
+    vi.unstubAllGlobals()
+  })
+
   it('resolves the entry file under the platform install dir', () => {
     expect(artifactEntryPath(FIXTURE_ARTIFACT)).toBe(
       path.join(toolchainDir, 'napi-v6', FAKE_PLATFORM, FAKE_ARCH, 'onnxruntime_binding.node')
@@ -168,6 +181,30 @@ describe('shared artifact acquisition', () => {
     expect(artifactRegistryOrder('china-first')).toEqual(['npmmirror', 'npmjs'])
     expect(artifactRegistryOrder('global-first')).toEqual(['npmjs', 'npmmirror'])
   })
+
+  it.each(['china-first', 'global-first'] as const)(
+    'installs from the other region after a corrupt %s native archive',
+    async (preference) => {
+      const urls = { china: 'https://modelscope.cn/runtime.tgz', global: 'https://github.com/runtime.tgz' }
+      const artifact = {
+        ...FIXTURE_ARTIFACT,
+        platforms: {
+          'linux-x64': { ...FIXTURE_ARTIFACT.platforms['linux-x64'], tarballUrls: urls }
+        }
+      }
+      const requested: string[] = []
+      vi.mocked(net.fetch).mockImplementation((async (url) => {
+        requested.push(String(url))
+        return tarballResponse(requested.length === 1 ? Buffer.from('corrupt archive') : FAKE_TARBALL_CONTENT)
+      }) as typeof net.fetch)
+
+      await installArtifact(artifact, new AbortController().signal, undefined, artifactRegistryOrder(preference))
+
+      expect(isReady()).toBe(true)
+      expect(fs.readFileSync(artifactEntryPath(artifact), 'utf8')).toBe('binding')
+      expect(requested).toEqual(preference === 'china-first' ? [urls.china, urls.global] : [urls.global, urls.china])
+    }
+  )
 
   it('falls back to the second mirror when the first fails', async () => {
     vi.mocked(net.fetch)

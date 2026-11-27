@@ -10,21 +10,7 @@ import { McpServerTypeSchema } from '@shared/data/types/mcpServer'
 const logger = loggerService.withContext('McpServer:McpManager')
 
 const INSTALL_TOOL_DESCRIPTION =
-  'Register a new MCP server from its connection config and enable it for the current agent. ' +
-  'Call this only when the user explicitly asks to install an MCP server. ' +
-  'This is the one-tool equivalent of manually adding a server in Settings → MCP: you supply the ' +
-  'launch config (command/args/env for stdio, baseUrl/headers for remote) as plain JSON, Cherry ' +
-  'writes it to the server registry and binds it to the current agent. By default the server is ' +
-  'registered but NOT activated; pass activate=true only when the user explicitly asks to enable ' +
-  'it right away, so its tools go live without a restart (otherwise the user enables it later in ' +
-  'Settings → MCP). For stdio servers `command` is required; for sse/streamableHttp `baseUrl` is required. ' +
-  'SECURITY: for stdio servers `command` runs an arbitrary local process with the given `env` ' +
-  '(which may carry API keys and other secrets) — never invent a config yourself; only install a ' +
-  'config the user provided or explicitly confirmed. When the user names a server but not its ' +
-  'config, resolve it instead of guessing: if the mcp-auto-install server is enabled, call its ' +
-  '`mai_install` with `dryRun: true` and pass the returned command/args here. If that result ' +
-  'lists `requiredEnvVars`, collect each value from the user before calling this tool — the ' +
-  'server cannot start without them.'
+  'Install a user-requested MCP server from their config, reusing an existing matching definition when available and attaching it to this agent. Never invent one; stdio commands run with env secrets. Reused definitions share activation, trust, and server settings across agents.'
 
 const fields = CreateMcpServerSchema.shape
 
@@ -47,7 +33,7 @@ const InstallMcpServerInputSchema = z
       .boolean()
       .optional()
       .describe(
-        'Set to true only when the user explicitly asks to enable the server immediately — it goes live and its command may start running. Defaults to false: the server is registered but left inactive for the user to enable in Settings → MCP.'
+        'Set to true only when the user explicitly asks to enable the server immediately; its command may start running. A new server defaults to inactive and untrusted. For a reused server, false or omission preserves its existing activation and trust; true enables and trusts the shared definition for every agent using it.'
       )
   })
   .superRefine((args, ctx) => {
@@ -67,8 +53,8 @@ const InstallMcpServerInputSchema = z
  * MCP server exposing a single deterministic action: `install_mcp_server`.
  *
  * The agent supplies a connection config as JSON — the same shape the renderer's MCP forms build —
- * and this registers it through `McpServerService.create` (writes the `mcp_server` row) then binds it
- * to the CURRENT agent via `AgentService.updateAgent({ mcps })`. The update fires `onAgentUpdated`,
+ * and this reuses an existing definition with the same effective connection config when one exists —
+ * otherwise creates one — and then binds it to the CURRENT agent via `AgentService.updateAgent({ mcps })`. The update fires `onAgentUpdated`,
  * which the session runtime subscribes to and reconciles live connections against, so the new server's
  * tools surface on the next re-list without a restart.
  *
@@ -77,7 +63,7 @@ const InstallMcpServerInputSchema = z
  * guarantees (name required, unknown fields rejected) are the same here as in the renderer.
  *
  * Security posture: a stdio `command` executes an arbitrary local process with the given `env`, so
- * activation is an explicit decision — the install always registers the server, but `isActive` and
+ * activation is an explicit decision — the install registers or reuses the server, but `isActive` and
  * `isTrusted` are only set when the caller passes `activate: true` (i.e. the user explicitly asked to
  * enable it right away). Without it the server is registered inactive for the user to enable in
  * Settings → MCP, matching the posture of protocol-triggered installs. Installs are tagged
@@ -85,9 +71,8 @@ const InstallMcpServerInputSchema = z
  *
  * create+updateAgent are not one transaction (the junction write only exists inside
  * `AgentService.updateAgent`'s own tx), so a bind failure deletes the created row as a
- * best-effort rollback instead of leaving an active, unbound orphan. Concurrent installs
- * read-modify-write the full mcps set, so the last writer wins; SQLite serializes the
- * writes and installs are rare and human-paced, so no locking is added here.
+ * best-effort rollback instead of leaving an active, unbound orphan. Lookup, creation, and binding
+ * run in the same synchronous execution segment without an await.
  */
 export function createMcpManagerServer(agentId: string): McpServer {
   const server = new McpServer({ name: 'mcp-manager', version: '1.0.0' })
@@ -101,6 +86,83 @@ export function createMcpManagerServer(agentId: string): McpServer {
       // need a rollback delete below.
       const agent = agentService.getAgent(agentId)
       if (!agent) throw new Error(`Agent not found: ${agentId}`)
+
+      const existing = mcpServerService.findByConfig({ ...config, type })
+      if (existing) {
+        const alreadyBound = (agent.mcps ?? []).includes(existing.id)
+        if (!alreadyBound) {
+          try {
+            if (!agentService.updateAgent(agentId, { mcps: [...(agent.mcps ?? []), existing.id] }))
+              throw new Error('Agent update failed')
+          } catch (error) {
+            logger.error('Failed to bind existing MCP server', { agentId, serverId: existing.id, error })
+            return {
+              isError: true,
+              content: [
+                {
+                  type: 'text',
+                  text: `Failed to bind existing MCP server ${existing.id} to agent: ${agentId}. No existing server was deleted, and activation and trust settings were not changed.`
+                }
+              ]
+            }
+          }
+        }
+        let final = existing
+        let refreshWarning = ''
+        if (activate && (!existing.isActive || !existing.isTrusted || existing.trustedAt === undefined)) {
+          try {
+            final = mcpServerService.update(existing.id, {
+              isActive: true,
+              isTrusted: true,
+              trustedAt:
+                existing.isTrusted === true && existing.trustedAt !== undefined ? existing.trustedAt : Date.now()
+            })
+          } catch (error) {
+            logger.error('Failed to enable existing MCP server', { agentId, serverId: existing.id, error })
+            return {
+              isError: true,
+              content: [
+                {
+                  type: 'text',
+                  text: `Existing MCP server ${existing.id} is registered for this agent, but enabling it failed. The existing definition and agent attachment were kept; no server was deleted. The requested activation was not confirmed. Review it in Settings → MCP.`
+                }
+              ]
+            }
+          }
+          try {
+            agentService.emitAgentUpdatedForIds([agentId], 'mcps')
+          } catch (error) {
+            logger.error('Failed to request agent MCP refresh', { agentId, serverId: existing.id, error })
+            refreshWarning =
+              '\nLive-session refresh could not be requested; start a fresh turn to reload this configuration.'
+          }
+        }
+        const effectiveType = final.type ?? (final.baseUrl ? 'sse' : 'stdio')
+        const attachment = alreadyBound
+          ? 'Existing MCP server reused; it was already registered for this agent. No new server or duplicate attachment was created.'
+          : 'Existing MCP server reused and registered for this agent; no new server was created.'
+        const status = final.isActive
+          ? 'It is active now. Tool availability follows the existing runtime refresh and tool policies.'
+          : 'It is registered but NOT yet active — the user must enable it in Settings → MCP before its tools can run.'
+        const activation = activate
+          ? 'Explicit activation was requested; this shared definition is enabled and trusted for every agent using it.'
+          : 'Existing activation and trust settings were preserved.'
+        logger.info('MCP server reused via tool', {
+          agentId,
+          serverId: final.id,
+          name: final.name,
+          type: effectiveType,
+          isActive: final.isActive
+        })
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `${attachment}\n  Name: ${final.name}\n  Type: ${effectiveType}\n  Launch: ${effectiveType === 'stdio' ? (final.command ?? 'N/A') : (final.baseUrl ?? 'N/A')}\n  ID: ${final.id}\n  Active: ${final.isActive}\n  Trusted: ${final.isTrusted ?? false}\n\n${status}\n${activation}\nThis is a shared server definition. Activation, trust, and server settings apply to every agent and assistant using this ID. Existing source, description, and other settings were preserved. Review or disable it anytime in Settings → MCP.${refreshWarning}`
+            }
+          ]
+        }
+      }
 
       const now = Date.now()
       // Activation is gated on explicit user intent: activate=true marks the server

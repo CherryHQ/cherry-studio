@@ -29,6 +29,7 @@ export default defineProvider({
   ],
   metadata: {
     website: {
+      billing: 'https://platform.claude.com/settings/billing',
       apiKey: 'https://console.anthropic.com/settings/keys',
       docs: 'https://docs.anthropic.com/en/docs',
       models: 'https://docs.anthropic.com/en/docs/about-claude/models',

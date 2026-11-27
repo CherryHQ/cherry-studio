@@ -2,6 +2,7 @@ import { Avatar, AvatarFallback } from '@cherrystudio/ui/components/primitives/a
 import { cn } from '@cherrystudio/ui/lib/utils'
 
 import { type IconAvatarProps } from '../../types'
+import { BailianDark } from './dark'
 import { BailianLight } from './light'
 
 export function BailianAvatar({ size = 32, shape = 'circle', className }: Omit<IconAvatarProps, 'icon'>) {
@@ -9,8 +10,9 @@ export function BailianAvatar({ size = 32, shape = 'circle', className }: Omit<I
     <Avatar
       className={cn('overflow-hidden', shape === 'circle' ? 'rounded-full' : 'rounded-[20%]', className)}
       style={{ width: size, height: size }}>
-      <AvatarFallback className="text-foreground bg-background">
-        <BailianLight style={{ width: size, height: size }} />
+      <AvatarFallback className="text-foreground">
+        <BailianLight className="dark:hidden" style={{ width: size, height: size }} />
+        <BailianDark className="hidden dark:block" style={{ width: size, height: size }} />
       </AvatarFallback>
     </Avatar>
   )

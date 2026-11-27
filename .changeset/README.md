@@ -30,6 +30,20 @@ This will:
 
 > **Note**: CI will check that PRs modifying packages include a changeset.
 
+Run `pnpm changeset:check` to validate pending changesets. Entries must name an
+existing workspace package that is neither `private: true` nor listed in
+`config.json`'s `ignore` setting. A `workspace:*` dependency does not make a package
+private, and public packages can include a changeset for their first release.
+
+Run `pnpm changeset:check --base origin/main` (or your stack's base branch) to also
+reject entries for packages with no changed files in this change scope. This
+includes committed, staged, unstaged, and untracked files relative to the merge
+base. Only newly added or edited changesets receive this scope check; pending
+changesets inherited from the base remain valid. PR CI supplies its target branch
+as the base; the release workflow checks package eligibility without a PR scope.
+Empty changesets (`pnpm changeset add --empty`) remain valid when no package
+release is needed.
+
 ### Versioning and publishing
 
 Versioning and publishing are handled automatically by CI — you do **not** need to run `changeset version` or `changeset publish` locally. See the [CI/CD Integration](#cicd-integration) section below.
@@ -47,6 +61,8 @@ See `config.json` for the changeset configuration:
 
 | Package | Description |
 | --- | --- |
+| `@cherrystudio/web-search` | Portable web-search protocols and optional content utilities |
+| `@cherrystudio/provider-registry` | Cross-platform provider/model catalogs, schemas, and lookup |
 | `@cherrystudio/ai-core` | Unified AI Provider Interface |
 | `@cherrystudio/ai-sdk-provider` | AI SDK provider bundle with CherryIN routing |
 | `@cherrystudio/extension-table-plus` | Table extension for Tiptap |
@@ -66,6 +82,13 @@ Changeset automatically handles updating peer dependency ranges when `ai-sdk-pro
 ## CI/CD Integration
 
 The release workflow (`.github/workflows/release-packages.yml`) uses [changesets/action](https://github.com/changesets/changesets/blob/main/packages/action/README.md) and works in two phases:
+
+Runs are serialized without cancelling an ongoing npm publication. Immediately
+before running Changesets, the workflow checks that its event commit is still the
+current remote `main`. Obsolete runs skip versioning and publishing. If no newer
+eligible run is queued (for example, the latest push only changed unrelated files),
+start a new manual `Release Packages` run on `main`; re-running an old event keeps
+its obsolete commit.
 
 ### Phase 1 — Accumulate changes
 

@@ -113,6 +113,19 @@ export function sortByResourceGroupRank<T>(items: readonly T[], getGroupRank: Gr
     .map(({ item }) => item)
 }
 
+/**
+ * Shared display ordering for the topic/session rails, so the "grouped, then
+ * pinned-first, then per-group order" precedence lives in one place instead of
+ * being hand-rolled per surface (#16851). Precedence:
+ *
+ * 1. `getRank` — group rank (callers fold pinned to `0` so pins float to the top).
+ * 2. Pinned rows keep their incoming order — the server returns them by
+ *    `pin.orderKey`, so they are never reshuffled by the within-group key.
+ * 3. `compareWithinGroup` — non-pinned order inside a group: recency
+ *    (`compareResourceRecency`) for time views, `compareResourceOrderKey` for
+ *    manual/drag views.
+ * 4. Stable incoming-index tiebreak.
+ */
 export function sortRankedResourceItems<T>(
   items: readonly T[],
   {
@@ -137,6 +150,11 @@ export function sortRankedResourceItems<T>(
     .map(({ item }) => item)
 }
 
+/**
+ * Within-group recency comparator for `sortRankedResourceItems`: newest
+ * `updatedAt` first. Unparseable timestamps compare equal so they defer to the
+ * caller's stable index tiebreak rather than sorting arbitrarily.
+ */
 export function compareResourceRecency<T>(getUpdatedAt: (item: T) => string): (a: T, b: T) => number {
   return (a, b) => {
     const aMs = Date.parse(getUpdatedAt(a))

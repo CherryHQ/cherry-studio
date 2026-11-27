@@ -9,7 +9,10 @@ import { CircularProgress, Flex, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { useTimer } from '@renderer/hooks/useTimer'
+import { useToolResult } from '@renderer/hooks/useToolResult'
+import { ipcApi } from '@renderer/ipc'
 import type { McpToolResponse } from '@renderer/types/mcpTool'
+import type { DeferredToolOutput, DeferredToolResultRef } from '@shared/ai/transport'
 
 import {
   useMessageRenderConfig,
@@ -18,10 +21,14 @@ import {
 } from '../../MessageListProvider'
 import { useToolApproval } from '../hooks/useToolApproval'
 import { ArgKey, ArgsSection, ArgsSectionTitle, ArgsTable, ArgValue, ResponseSection } from '../shared/ArgsTable'
+import { DeferredToolDetails } from '../shared/DeferredToolDetails'
 import { getEffectiveStatus, SkeletonSpan, ToolStatusIndicator, TruncatedIndicator } from '../shared/GenericTools'
 import { ToolApprovalOutcome } from '../shared/ToolApprovalOutcome'
 import { ToolDisclosure, type ToolDisclosureItem } from '../shared/ToolDisclosure'
+import { ToolResultLinkList } from '../shared/ToolResultLinkList'
+import { getToolResultLinks, type ToolResultLinkData } from '../shared/toolResultLinks'
 import { truncateOutput } from '../shared/truncateOutput'
+import { useToolOutputReference } from '../useToolResponsePreview'
 
 interface Props {
   toolResponse: McpToolResponse
@@ -37,6 +44,7 @@ const MAX_ARG_ARRAY_ITEMS = 24
 const logger = loggerService.withContext('MessageTools')
 
 const MessageMcpTool: FC<Props> = ({ toolResponse }) => {
+  const deferredOutput = useToolOutputReference(toolResponse.response, toolResponse.toolCallId)
   const [activeKeys, setActiveKeys] = useState<string[]>([])
   const [copiedMap, setCopiedMap] = useState<Record<string, boolean>>({})
   const { t } = useTranslation()
@@ -85,27 +93,33 @@ const MessageMcpTool: FC<Props> = ({ toolResponse }) => {
     setActiveKeys(Array.isArray(keys) ? keys : [keys])
   }
 
-  const copyContent = (content: string, toolId: string) => {
+  const copyContent = async (toolId: string) => {
     if (!copyText) return
-    Promise.resolve(copyText(content, { successMessage: t('message.copied') }))
-      .then(() => {
-        setCopiedMap((prev) => ({ ...prev, [toolId]: true }))
-        setTimeoutTimer('copyContent', () => setCopiedMap((prev) => ({ ...prev, [toolId]: false })), 2000)
+    try {
+      let response = toolResponse.response
+      if (deferredOutput) {
+        const result = await ipcApi.request('ai.tool.get_result', {
+          ...deferredOutput.$deferredToolResult,
+          purpose: 'full'
+        })
+        if (result.status !== 'ready' || result.purpose !== 'full') throw new Error(result.status)
+        response = result.output
+      }
+      await copyText(JSON.stringify({ params: toolResponse.arguments, response }, null, 2), {
+        successMessage: t('message.copied')
       })
-      .catch((error) => {
-        logger.error('Failed to copy tool response:', error as Error)
-        notifyError?.(t('message.copy.failed'))
-      })
+      setCopiedMap((prev) => ({ ...prev, [toolId]: true }))
+      setTimeoutTimer('copyContent', () => setCopiedMap((prev) => ({ ...prev, [toolId]: false })), 2000)
+    } catch (error) {
+      logger.error('Failed to copy tool response:', error as Error)
+      notifyError?.(t('message.copy.failed'))
+    }
   }
 
   // Format tool responses for collapse items
   const getDisclosureItems = (): ToolDisclosureItem[] => {
     const items: ToolDisclosureItem[] = []
     const hasError = response?.isError === true
-    const result = {
-      params: toolResponse.arguments,
-      response: toolResponse.response
-    }
     items.push({
       key: id,
       label: (
@@ -139,7 +153,7 @@ const MessageMcpTool: FC<Props> = ({ toolResponse }) => {
         <Tooltip content={t('common.copy')} delay={500}>
           <ActionButton
             className="message-action-button invisible opacity-0 transition-opacity duration-150 group-hover/tool:visible group-hover/tool:opacity-100 focus-visible:visible focus-visible:opacity-100"
-            onClick={() => copyContent(JSON.stringify(result, null, 2), id)}
+            onClick={() => void copyContent(id)}
             aria-label={t('common.copy')}>
             {copiedMap[id] ? t('common.copied') : t('common.copy')}
           </ActionButton>
@@ -153,6 +167,7 @@ const MessageMcpTool: FC<Props> = ({ toolResponse }) => {
           }}>
           <ToolResponseContent
             isExpanded={activeKeys.includes(id)}
+            deferredOutput={deferredOutput}
             args={isStreaming ? partialArguments : toolResponse.arguments}
             isStreaming={!!isStreaming}
             response={isDone || isError ? toolResponse.response : undefined}
@@ -180,28 +195,44 @@ const MessageMcpTool: FC<Props> = ({ toolResponse }) => {
 
 type ExtractedContent = {
   text: string
-  images: Array<{ data: string; mimeType: string }>
+  images: Array<{ src: string }>
+  links: ToolResultLinkData[]
 }
 
 /**
  * Extract preview content from MCP tool response using SDK schema
  */
 const extractPreviewContent = (response: unknown): ExtractedContent => {
-  if (!response) return { text: '', images: [] }
+  if (!response) return { text: '', images: [], links: [] }
 
+  // Agent results may already have been unwrapped by the message adapter.
+  const isUnwrapped = Array.isArray(response)
+  const candidate = isUnwrapped ? { content: response } : response
   const hasMcpContent =
-    typeof response === 'object' && response !== null && Object.prototype.hasOwnProperty.call(response, 'content')
-  const result = hasMcpContent ? CallToolResultSchema.safeParse(response) : null
-  if (result?.success) {
+    typeof candidate === 'object' && candidate !== null && Object.prototype.hasOwnProperty.call(candidate, 'content')
+  const result = hasMcpContent ? CallToolResultSchema.safeParse(candidate) : null
+  // Keep the JSON fallback for unwrapped results the image preview cannot fully display.
+  if (
+    result?.success &&
+    (!isUnwrapped ||
+      (result.data.content.some((item) => item.type === 'image') &&
+        result.data.content.every((item) => item.type === 'image' || item.type === 'text')))
+  ) {
     const contents = result.data.content
-    if (contents.length === 0) return { text: '', images: [] }
+    if (contents.length === 0) return { text: '', images: [], links: [] }
 
     const textParts: string[] = []
-    const images: Array<{ data: string; mimeType: string }> = []
+    const images: Array<{ src: string }> = []
+    const links: ToolResultLinkData[] = []
     for (const content of contents) {
       switch (content.type) {
         case 'text':
           if (content.text) {
+            const textLinks = getToolResultLinks(content)
+            if (textLinks) {
+              for (const link of textLinks) links.push(link)
+              break
+            }
             try {
               const parsed = JSON.parse(content.text)
               textParts.push(JSON.stringify(parsed, null, 2))
@@ -212,19 +243,31 @@ const extractPreviewContent = (response: unknown): ExtractedContent => {
           break
         case 'image':
           if (content.data) {
-            images.push({ data: content.data, mimeType: content.mimeType ?? 'image/png' })
+            images.push({ src: `data:${content.mimeType ?? 'image/png'};base64,${content.data}` })
           }
           break
         case 'resource':
           textParts.push(`[Resource: ${content.resource?.uri ?? 'unknown'}]`)
           break
+        case 'resource_link': {
+          if (content.mimeType?.startsWith('image/') && content.uri.startsWith('cherry-media://tool-result/')) {
+            images.push({ src: content.uri })
+            break
+          }
+          const resourceLinks = getToolResultLinks(content)
+          if (resourceLinks) links.push(...resourceLinks)
+          else textParts.push(content.uri)
+          break
+        }
       }
     }
-    return { text: textParts.join('\n\n'), images }
+    return { text: textParts.join('\n\n'), images, links }
   }
 
   // Fallback: return JSON string for unknown format
-  return { text: JSON.stringify(response, null, 2), images: [] }
+  const text = JSON.stringify(response, null, 2)
+  const links = getToolResultLinks({ type: 'text', text: typeof response === 'string' ? response : text })
+  return { text: links ? '' : text, images: [], links: links ?? [] }
 }
 
 const truncateArgText = (text: string): string => {
@@ -264,10 +307,11 @@ const formatArgPreviewValue = (value: unknown, depth = 0): string => {
 
 const ToolResponseContent: FC<{
   isExpanded: boolean
+  deferredOutput?: DeferredToolOutput
   args: string | Record<string, unknown> | Record<string, unknown>[] | undefined
   isStreaming: boolean
   response?: unknown
-}> = ({ isExpanded, args, isStreaming, response }) => {
+}> = ({ isExpanded, args, isStreaming, response, deferredOutput }) => {
   const [shouldRender, setShouldRender] = useState(false)
 
   useEffect(() => {
@@ -282,7 +326,40 @@ const ToolResponseContent: FC<{
 
   if (!isExpanded || !shouldRender) return null
 
-  return <ExpandedToolResponseContent args={args} isStreaming={isStreaming} response={response} />
+  return (
+    <>
+      <ExpandedToolResponseContent
+        args={args}
+        isStreaming={isStreaming}
+        response={deferredOutput ? undefined : response}
+      />
+      {deferredOutput && (
+        <>
+          <DeferredMcpMedia resultRef={deferredOutput.$deferredToolResult} />
+          <DeferredToolDetails resultRef={deferredOutput.$deferredToolResult} />
+        </>
+      )}
+    </>
+  )
+}
+
+function DeferredMcpMedia({ resultRef }: { resultRef: DeferredToolResultRef }) {
+  const { t } = useTranslation()
+  const { output, generation } = useToolResult(resultRef, 'preview')
+  const { images, links } = useMemo(() => extractPreviewContent(output), [output])
+  return (
+    <>
+      <ToolResultLinkList links={links} />
+      {images.map((image, index) => (
+        <img
+          key={`${generation}:${index}`}
+          src={image.src}
+          alt={t('message.tools.sections.output')}
+          style={{ maxWidth: 300, borderRadius: 4, marginTop: 8 }}
+        />
+      ))}
+    </>
+  )
 }
 
 // Unified tool response content component
@@ -295,7 +372,8 @@ const ExpandedToolResponseContent: FC<{
   const [showArgs, setShowArgs] = useState(false)
   const [showResponse, setShowResponse] = useState(false)
   const [highlightedResponse, setHighlightedResponse] = useState<string>('')
-  const [responseImages, setResponseImages] = useState<Array<{ data: string; mimeType: string }>>([])
+  const [responseImages, setResponseImages] = useState<Array<{ src: string }>>([])
+  const [responseLinks, setResponseLinks] = useState<ToolResultLinkData[]>([])
   const [isTruncated, setIsTruncated] = useState(false)
   const [originalLength, setOriginalLength] = useState(0)
   const highlightedForRef = useRef<{ response: unknown; highlight: typeof highlightCode } | null>(null)
@@ -341,11 +419,13 @@ const ExpandedToolResponseContent: FC<{
     const highlight = async () => {
       setHighlightedResponse('')
       setResponseImages([])
+      setResponseLinks([])
       setIsTruncated(false)
       setOriginalLength(0)
-      const { text: previewContent, images } = extractPreviewContent(response)
+      const { text: previewContent, images, links } = extractPreviewContent(response)
       if (cancelled) return
       setResponseImages(images)
+      setResponseLinks(links)
       const {
         data: truncatedContent,
         isTruncated: wasTruncated,
@@ -354,7 +434,7 @@ const ExpandedToolResponseContent: FC<{
       if (cancelled) return
       setIsTruncated(wasTruncated)
       setOriginalLength(origLen)
-      const result = await highlightCode(truncatedContent, 'json')
+      const result = truncatedContent ? await highlightCode(truncatedContent, 'json') : ''
       if (cancelled) return
       highlightedForRef.current = { response, highlight: highlightCode }
       setHighlightedResponse(result)
@@ -420,23 +500,21 @@ const ExpandedToolResponseContent: FC<{
       {renderArgsTable()}
 
       {/* Response */}
-      {response !== undefined && response !== null && (highlightedResponse || responseImages.length > 0) && (
-        <ResponseSection>
-          <ArgsSectionTitle>Response</ArgsSectionTitle>
-          {highlightedResponse && (
-            <MarkdownContainer className="markdown" dangerouslySetInnerHTML={{ __html: highlightedResponse }} />
-          )}
-          {isTruncated && <TruncatedIndicator originalLength={originalLength} />}
-          {responseImages.map((img, idx) => (
-            <img
-              key={idx}
-              src={`data:${img.mimeType};base64,${img.data}`}
-              alt="Tool output"
-              style={{ maxWidth: 300, borderRadius: 4, marginTop: 8 }}
-            />
-          ))}
-        </ResponseSection>
-      )}
+      {response !== undefined &&
+        response !== null &&
+        (highlightedResponse || responseImages.length > 0 || responseLinks.length > 0) && (
+          <ResponseSection>
+            <ArgsSectionTitle>Response</ArgsSectionTitle>
+            {highlightedResponse && (
+              <MarkdownContainer className="markdown" dangerouslySetInnerHTML={{ __html: highlightedResponse }} />
+            )}
+            {isTruncated && <TruncatedIndicator originalLength={originalLength} />}
+            <ToolResultLinkList links={responseLinks} />
+            {responseImages.map((img, idx) => (
+              <img key={idx} src={img.src} alt="Tool output" style={{ maxWidth: 300, borderRadius: 4, marginTop: 8 }} />
+            ))}
+          </ResponseSection>
+        )}
     </div>
   )
 }

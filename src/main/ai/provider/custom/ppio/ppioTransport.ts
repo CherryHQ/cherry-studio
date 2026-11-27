@@ -1,6 +1,13 @@
+import type { FetchFunction } from '@ai-sdk/provider-utils'
+import { Agent } from 'undici'
+
 import { DEFAULT_TIMEOUT } from '@main/ai/constants'
 
-import type { ImageGenerationSubmitInput, ImageGenerationTransport } from '../imageGenerationModel'
+import {
+  DEFAULT_IMAGE_REQUEST_TIMEOUT_MS,
+  type ImageGenerationSubmitInput,
+  type ImageGenerationTransport
+} from '../imageGenerationModel'
 import { createAbortError, fileToDataUrl, isTerminalHttpStatus, waitWithSignal } from '../transportUtils'
 
 /**
@@ -13,6 +20,14 @@ import { createAbortError, fileToDataUrl, isTerminalHttpStatus, waitWithSignal }
  */
 
 export const DEFAULT_PPIO_BASE_URL = 'https://api.ppio.com'
+
+// undici abandons response headers after 300s, below a sync image model's submit budget;
+// an injected fetch has no such bound, so this only backs the global-fetch fallback.
+const REQUEST_DISPATCHER_TIMEOUT_MS = 15 * 60 * 1000
+const longRunningDispatcher = new Agent({
+  headersTimeout: REQUEST_DISPATCHER_TIMEOUT_MS,
+  bodyTimeout: REQUEST_DISPATCHER_TIMEOUT_MS
+})
 
 export class PpioApiError extends Error {
   constructor(
@@ -98,15 +113,19 @@ export interface PpioProviderParams {
 export interface PpioTransportSettings {
   apiKey: string
   baseURL?: string
+  /** Proxy-aware fetch from provider settings; falls back to global `fetch` when unset. */
+  fetch?: FetchFunction
 }
 
 class PpioTransport implements ImageGenerationTransport {
   private apiKey: string
   private baseURL: string
+  private fetch?: FetchFunction
 
   constructor(settings: PpioTransportSettings) {
     this.apiKey = settings.apiKey
     this.baseURL = settings.baseURL || DEFAULT_PPIO_BASE_URL
+    this.fetch = settings.fetch
   }
 
   private async request<T>(
@@ -137,7 +156,7 @@ class PpioTransport implements ImageGenerationTransport {
       externalSignal?.addEventListener('abort', onExternalAbort, { once: true })
     }
 
-    const fetchOptions: RequestInit = {
+    const fetchOptions: RequestInit & { dispatcher?: Agent } = {
       method,
       headers: {
         'Content-Type': 'application/json',
@@ -149,9 +168,10 @@ class PpioTransport implements ImageGenerationTransport {
     if (method === 'POST') {
       fetchOptions.body = JSON.stringify(body)
     }
+    if (!this.fetch) fetchOptions.dispatcher = longRunningDispatcher
 
     try {
-      const response = await fetch(url, fetchOptions)
+      const response = await (this.fetch ?? fetch)(url, fetchOptions)
 
       if (!response.ok) {
         const errorText = (await response.text().catch(() => '')).slice(0, 500)
@@ -197,13 +217,14 @@ class PpioTransport implements ImageGenerationTransport {
 
     if (descriptor.isSync) {
       const result = await this.request<PpioSyncResult>(descriptor.endpoint, requestParams, 'POST', {
+        timeout: input.requestTimeoutMs ?? DEFAULT_IMAGE_REQUEST_TIMEOUT_MS,
         signal: input.signal
       })
       return { imageUrls: this.extractSyncImageUrls(result) }
     }
 
     const result = await this.request<{ task_id: string }>(descriptor.endpoint, requestParams, 'POST', {
-      timeout: 120000,
+      timeout: input.requestTimeoutMs ?? DEFAULT_IMAGE_REQUEST_TIMEOUT_MS,
       signal: input.signal
     })
     return { taskId: result.task_id }

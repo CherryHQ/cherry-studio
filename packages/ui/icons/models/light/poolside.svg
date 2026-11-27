@@ -1,4 +1,6 @@
-<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120" fill="none">
+<rect width="120" height="120" fill="#eeedff"/>
+<g fill="none" transform="translate(18 18) scale(5.20661157) translate(-3.9667 -3.9333)">
 <mask id="mask0_15_5618" style="mask-type:alpha" maskUnits="userSpaceOnUse" x="4" y="4" width="16" height="16">
 <path d="M20 4H4V20H20V4Z" fill="url(#paint0_linear_15_5618)"/>
 <path d="M20 4H4V20H20V4Z" fill="url(#paint1_linear_15_5618)"/>
@@ -23,4 +25,5 @@
 <stop offset="1" stop-opacity="0"/>
 </linearGradient>
 </defs>
+</g>
 </svg>

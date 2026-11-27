@@ -2,19 +2,19 @@ import { createOpenAI } from '@ai-sdk/openai'
 import { describe, expect, it } from 'vitest'
 
 /**
- * Guards the assistant message-id hunk in patches/@ai-sdk__openai@3.0.109.patch (#20237).
+ * Guards the assistant message-id hunk in patches/@ai-sdk__openai@3.0.137.patch (#20237).
  *
  * Contract: Responses message item ids from OpenAI start with `msg_`. Compatible gateways
  * may return a non-empty UUID instead. Inbound parsing must accept that id, but with
  * `store: false` replaying it as assistant input `id` makes strict providers answer
  * `Invalid 'id': message id must be a string starting with 'msg_'` and poison the topic.
- * Only `msg_`-prefixed ids are forwarded when store is false. store:true still replays
- * the original id as an item reference.
+ * Only `msg_`-prefixed ids are eligible when store is false; upstream additionally
+ * requires intact reasoning context before reasoning-model ids can be replayed.
  */
 describe('patched @ai-sdk/openai responses message ids', () => {
   const uuidItemId = 'bda7112f-9c3e-4a1d-8f52-1e0d6b7a4c99'
 
-  async function captureInput(itemId: string | undefined, store: boolean) {
+  async function captureInput(itemId: string | undefined, store: boolean, modelId = 'gpt-4.1') {
     let body: any
     const model = createOpenAI({
       apiKey: 'sk-test',
@@ -33,7 +33,7 @@ describe('patched @ai-sdk/openai responses message ids', () => {
           { status: 200, headers: { 'content-type': 'application/json' } }
         )
       }
-    }).responses('gpt-5.6')
+    }).responses(modelId)
 
     await model.doGenerate({
       prompt: [
@@ -131,5 +131,13 @@ describe('patched @ai-sdk/openai responses message ids', () => {
         providerMetadata: { openai: { itemId: uuidItemId } }
       }
     ])
+  })
+  it.each([true, false])('does not reference pruned reasoning-model messages with store:%s', async (store) => {
+    const input = await captureInput('msg_abc123', store, 'gpt-5.6')
+    expect(input).not.toContainEqual({ type: 'item_reference', id: 'msg_abc123' })
+    expect(input.find((item: { role?: string }) => item.role === 'assistant')).toMatchObject({
+      content: [{ type: 'output_text', text: 'hello' }]
+    })
+    expect(input.find((item: { role?: string }) => item.role === 'assistant')).not.toHaveProperty('id')
   })
 })

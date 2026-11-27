@@ -9,7 +9,7 @@ const Streamlake = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const StreamlakeIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Streamlake, {
   Avatar: StreamlakeAvatar,
-  colorPrimary: '#1D70FF'
+  colorPrimary: '#ebf2ff'
 })
 
 export default StreamlakeIcon

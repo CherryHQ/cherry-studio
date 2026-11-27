@@ -32,12 +32,20 @@ const PANEL_TITLE_KEYS = {
 export interface DoctorDialogParams {
   readonly initialPanel: DoctorPanel
   readonly initialDescription?: string
+  readonly chatTopicId?: string
   readonly initialRunTier?: DoctorRunTier
 }
 
 type DoctorDialogProps = DoctorDialogParams & PopupInjectedProps<Record<string, never>>
 
-export function DoctorDialog({ initialDescription, initialPanel, initialRunTier, open, resolve }: DoctorDialogProps) {
+export function DoctorDialog({
+  chatTopicId,
+  initialDescription,
+  initialPanel,
+  initialRunTier,
+  open,
+  resolve
+}: DoctorDialogProps) {
   const { t } = useTranslation()
   const reportPanelRef = useRef<DiagnosticUploadPanelHandle>(null)
   const panelHeadingRef = useRef<HTMLDivElement>(null)
@@ -148,7 +156,7 @@ export function DoctorDialog({ initialDescription, initialPanel, initialRunTier,
                   aria-label={t('settings.about.feedback.history.title')}
                   title={t('settings.about.feedback.history.title')}
                   onClick={() => setHistoryOpen(true)}>
-                  <History className="size-4" aria-hidden />
+                  <History className="size-4 text-muted-foreground!" aria-hidden />
                 </Button>
               ) : null}
             </div>
@@ -173,6 +181,7 @@ export function DoctorDialog({ initialDescription, initialPanel, initialRunTier,
         {controller.session.activePanel === 'report' ? (
           <DiagnosticUploadPanel
             ref={reportPanelRef}
+            chatTopicId={chatTopicId}
             description={controller.session.descriptionDraft}
             onBusyChange={setReportBusy}
             onDescriptionChange={controller.setDescription}

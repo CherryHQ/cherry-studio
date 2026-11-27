@@ -1,6 +1,7 @@
 import { powerMonitor } from 'electron'
 
 import { application } from '@application'
+import { isUploadChunk } from '@cherrystudio/remote-protocol'
 import { remoteLimits, type RemoteCapability } from '@cherrystudio/remote-protocol'
 import {
   acceptSecureChannel,
@@ -12,7 +13,7 @@ import {
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { remoteCommandService } from '@data/services/RemoteCommandService'
 import { loggerService } from '@logger'
-import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 
 import { RemoteAgentHub } from './agentJournal'
 import { loadDesktopIdentity } from './deviceIdentity'
@@ -20,6 +21,15 @@ import { RemoteAdvertisement } from './RemoteAdvertisement'
 import { RemoteConnection } from './RemoteConnection'
 import { RemotePairing } from './RemotePairing'
 import { RemoteTokens } from './RemoteTokens'
+
+type ConnectionEntry = {
+  address: string
+  openedAt: number
+  lastReceivedAt: number
+  onMessage: () => void
+  abort: AbortController
+  remote?: RemoteConnection
+}
 
 const logger = loggerService.withContext('RemoteAccessService')
 const transportLog: ChannelOptions['logger'] = {
@@ -35,7 +45,13 @@ const transportLog: ChannelOptions['logger'] = {
 
 @Injectable('RemoteAccessService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['AiStreamManager', 'AgentSessionRuntimeService'])
+@DependsOn([
+  'AiStreamManager',
+  'AgentSessionRuntimeService',
+  'FileManager',
+  'FileIntakeService',
+  'AttachmentPresenceService'
+])
 export class RemoteAccessService extends BaseService {
   private identity?: Promise<Uint8Array>
   private readonly advertisement = new RemoteAdvertisement((status) => {
@@ -46,41 +62,34 @@ export class RemoteAccessService extends BaseService {
   private readonly pairing = new RemotePairing()
   private readonly tokens = new RemoteTokens()
   private readonly hub = new RemoteAgentHub()
-  private readonly connections = new Map<
-    RemoteSocket,
-    { address: string; openedAt: number; abort: AbortController; remote?: RemoteConnection }
-  >()
+  private readonly connections = new Map<RemoteSocket, ConnectionEntry>()
+  private advertisementRefresh?: Disposable
+  private sweepTimer?: Disposable
+
+  private readonly refreshAdvertisement = () => {
+    if (this.endpoint?.identity)
+      this.advertisement.update(this.endpoint.identity, this.endpoint.port, this.endpoint.ipv6)
+  }
 
   protected async onInit(): Promise<void> {
     remoteCommandService.interruptPending()
     this.registerDisposable(agentSessionService.onSessionUpdated(({ sessionId }) => this.hub.publishSession(sessionId)))
-    const refreshAdvertisement = () => {
-      if (this.endpoint?.identity)
-        this.advertisement.update(this.endpoint.identity, this.endpoint.port, this.endpoint.ipv6)
-    }
-    this.registerInterval(refreshAdvertisement, 5000)
-    powerMonitor.on('resume', refreshAdvertisement)
-    this.registerDisposable(() => powerMonitor.removeListener('resume', refreshAdvertisement))
-    this.registerInterval(() => {
-      this.tokens.sweep()
-      this.hub.sweep()
-      for (const [socket, entry] of this.connections) {
-        try {
-          entry.remote?.sweep()
-          if (!entry.remote?.isAuthenticated() && Date.now() - entry.openedAt > remoteLimits.invitationMs)
-            throw new Error('Pairing timeout')
-        } catch {
-          socket.close(1008, 'Remote session expired')
-        }
-      }
-    }, 1000)
+    powerMonitor.on('resume', this.refreshAdvertisement)
+    this.registerDisposable(() => powerMonitor.removeListener('resume', this.refreshAdvertisement))
     this.registerDisposable(() => {
       this.updateDirectEndpoint(undefined)
       this.pairing.clear()
       this.tokens.clear()
       this.hub.dispose()
-      for (const socket of this.connections.keys()) socket.close(1001, 'Service stopping')
+      for (const [socket, entry] of this.connections) {
+        if (this.release(socket, entry)) socket.close(1001, 'Service stopping')
+      }
+      this.advertisementRefresh = this.sweepTimer = undefined
     })
+  }
+
+  protected onStop(): void {
+    this.closeIngress()
   }
 
   /** Gateway pushes its actual listener; temporary local API leases never enable discovery. */
@@ -90,9 +99,14 @@ export class RemoteAccessService extends BaseService {
     this.endpoint = endpoint
     this.advertisement.stop()
     if (!endpoint) {
+      this.advertisementRefresh?.dispose()
+      this.advertisementRefresh = undefined
+      this.stopSweepWhenIdle()
       application.get('CacheService').setShared('feature.remote_access.discovery_status', 'inactive')
       return
     }
+    this.advertisementRefresh ??= this.registerInterval(this.refreshAdvertisement, 5000)
+    this.ensureSweep()
     application.get('CacheService').setShared('feature.remote_access.discovery_status', 'starting')
     const advertised = endpoint
     void this.getIdentity()
@@ -110,8 +124,8 @@ export class RemoteAccessService extends BaseService {
 
   async getConnectionEndpoints() {
     const desktopIdentity = deviceIdentityId(await this.getIdentity())
-    const { addresses, port } = await application.get('ApiGatewayService').getRemoteEndpoint()
-    return { desktopIdentity, endpoints: addresses.map((host) => ({ host, port, security: 'ws' as const })) }
+    const { endpoints } = await application.get('ApiGatewayService').getRemoteEndpoint()
+    return { desktopIdentity, endpoints }
   }
 
   async createInvitation() {
@@ -147,19 +161,22 @@ export class RemoteAccessService extends BaseService {
     const entry = {
       address,
       openedAt: Date.now(),
+      lastReceivedAt: performance.now(),
+      onMessage: () => {
+        // Every frame proves the encrypted peer is alive, even while decoding or sending blocks.
+        entry.lastReceivedAt = performance.now()
+      },
       abort: new AbortController(),
       remote: undefined as RemoteConnection | undefined
     }
     this.connections.set(socket, entry)
-    socket.addEventListener('close', () => {
-      entry.abort.abort()
-      entry.remote?.dispose()
-      this.connections.delete(socket)
-    })
+    this.ensureSweep()
+    socket.addEventListener('message', entry.onMessage)
+    socket.addEventListener('close', () => this.release(socket, entry))
     void this.run(socket, entry).catch((error: unknown) => {
       if (entry.abort.signal.aborted && error === entry.abort.signal.reason) return
       logger.warn('Remote session ended with an error', { address, error: (error as Error).message })
-      socket.close(1011, 'Remote session failed')
+      if (this.release(socket, entry)) socket.close(1011, 'Remote session failed')
     })
   }
 
@@ -167,7 +184,52 @@ export class RemoteAccessService extends BaseService {
   closeIngress(): void {
     this.updateDirectEndpoint(undefined)
     this.pairing.clear()
-    for (const socket of this.connections.keys()) socket.close(1001, 'Gateway stopping')
+    for (const [socket, entry] of this.connections) {
+      if (this.release(socket, entry)) socket.close(1001, 'Gateway stopping')
+    }
+  }
+
+  private release(socket: RemoteSocket, entry: ConnectionEntry): boolean {
+    if (this.connections.get(socket) !== entry) return false
+    this.connections.delete(socket)
+    socket.removeEventListener('message', entry.onMessage)
+    entry.abort.abort()
+    entry.remote?.dispose()
+    return true
+  }
+
+  private ensureSweep(): void {
+    this.sweepTimer ??= this.registerInterval(() => this.sweep(), 1000)
+  }
+
+  private sweep(): void {
+    this.tokens.sweep()
+    this.hub.sweep()
+    for (const [socket, entry] of this.connections) {
+      try {
+        entry.remote?.sweep()
+        if (entry.remote?.isAuthenticated()) {
+          const silence = performance.now() - entry.lastReceivedAt
+          if (silence >= remoteLimits.idleMs && this.release(socket, entry)) {
+            logger.warn('Remote peer idle timeout', { address: entry.address, silenceMs: silence })
+            socket.close(4000, 'Remote peer idle timeout')
+          }
+        } else if (Date.now() - entry.openedAt > remoteLimits.invitationMs) {
+          throw new Error('Pairing timeout')
+        }
+      } catch {
+        if (this.release(socket, entry)) socket.close(1008, 'Remote session expired')
+      }
+    }
+    this.stopSweepWhenIdle()
+  }
+
+  // Outlives ingress until journals drain and presented selections clear, so device revocation still reaches them.
+  private stopSweepWhenIdle(): void {
+    if (this.endpoint || this.connections.size > 0 || !this.hub.isIdle()) return
+    if (application.get('AttachmentPresenceService').owners().length > 0) return
+    this.sweepTimer?.dispose()
+    this.sweepTimer = undefined
   }
 
   private getIdentity(): Promise<Uint8Array> {
@@ -178,7 +240,7 @@ export class RemoteAccessService extends BaseService {
     return this.identity
   }
 
-  private async run(socket: RemoteSocket, entry: { abort: AbortController; remote?: RemoteConnection }): Promise<void> {
+  private async run(socket: RemoteSocket, entry: ConnectionEntry): Promise<void> {
     const stream = new RemoteSocketStream(socket, transportLog.forComponent('remote'), 'inbound')
     const channel = await acceptSecureChannel(stream, {
       identity: await this.getIdentity(),
@@ -186,6 +248,9 @@ export class RemoteAccessService extends BaseService {
       protocolVersions: [1],
       signal: AbortSignal.any([entry.abort.signal, AbortSignal.timeout(10_000)])
     })
+    if (entry.abort.signal.aborted) return
+    const write = channel.write.bind(channel)
+    channel.write = (value, signal) => (entry.abort.signal.aborted ? Promise.resolve() : write(value, signal))
     const remote = new RemoteConnection(
       channel,
       this.pairing,
@@ -197,19 +262,45 @@ export class RemoteAccessService extends BaseService {
     entry.remote = remote
     let windowStart = Date.now()
     let count = 0
+    let uploadCount = 0
     while (!entry.abort.signal.aborted) {
       const input = await channel.read(entry.abort.signal)
+      if (entry.abort.signal.aborted) return
+      if (isUploadChunk(input)) {
+        void remote.receiveUpload(input).catch(() => {
+          if (this.release(socket, entry)) socket.close(1011, 'Remote upload failed')
+        })
+        continue
+      }
       if (Date.now() - windowStart >= 1000) {
         windowStart = Date.now()
         count = 0
+        uploadCount = 0
       }
-      if (++count > 64) throw new Error('Remote request rate exceeded')
+      const upload =
+        input !== null && typeof input === 'object' && 'method' in input && input.method === 'agent.content.read'
+      if (upload ? ++uploadCount > 512 : ++count > 256) {
+        // Awaiting keeps a flood of refusals from queueing ahead of the socket; excess must not end the session.
+        const refusal = remote.rpc.refuse(input, {
+          reason: 'RATE_LIMITED',
+          message: 'Request rate exceeded',
+          retryAfterMs: Math.max(1, windowStart + 1000 - Date.now())
+        })
+        if (refusal)
+          await remote.send(refusal).catch(() => {
+            if (this.release(socket, entry)) socket.close(1011, 'Remote request failed')
+          })
+        continue
+      }
       void remote.rpc
         .receive(input, undefined)
         .then(async (response) => {
+          if (entry.abort.signal.aborted) return
           if (response !== null) await remote.send(response)
         })
-        .catch(() => socket.close(1011, 'Remote request failed'))
+        .catch(() => {
+          if (this.release(socket, entry)) socket.close(1011, 'Remote request failed')
+        })
     }
   }
 }

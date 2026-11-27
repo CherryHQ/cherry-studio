@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/simplification/2026-11-12-native-agent-compaction.md
+2026-11-12-native-agent-compaction.md: a5a4a4c77dc31e1c15236fa6c2e6787585a2dff2
+2026-11-12-native-agent-compaction.zh.md: 6b2e2e48f64b818b6609beaa08495cedfe8bee40

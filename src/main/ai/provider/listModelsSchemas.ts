@@ -36,6 +36,27 @@ export const OpenAIModelsResponseSchema = z
     }
   })
 
+// === Poe (OpenAI-compatible with declared endpoint paths) ===
+
+const PoeModelSchema = OpenAIModelSchema.extend({
+  supported_endpoints: z.array(z.string()).optional()
+})
+
+export const PoeModelsResponseSchema = z
+  .looseObject({
+    data: z.array(
+      z.unknown().transform((model) => {
+        const parsed = PoeModelSchema.safeParse(model)
+        return parsed.success ? parsed.data : undefined
+      })
+    ),
+    object: z.string().optional()
+  })
+  .transform((response) => {
+    const data = response.data.filter((model): model is z.output<typeof PoeModelSchema> => model !== undefined)
+    return { ...response, data, skippedModelCount: response.data.length - data.length }
+  })
+
 // === GitHub Copilot (/models) ===
 export const CopilotModelsResponseSchema = z.object({
   data: z.array(
@@ -113,7 +134,10 @@ export const GeminiModelsResponseSchema = z.object({
       supportedGenerationMethods: z.array(z.string()).optional()
     })
   ),
-  nextPageToken: z.string().optional()
+  nextPageToken: z
+    .string()
+    .nullish()
+    .transform((token) => token ?? undefined)
 })
 
 // === Vertex AI Model Garden ===
@@ -291,6 +315,7 @@ export const AIHubMixModelsResponseSchema = z.object({
           input: z.number().optional(),
           output: z.number().optional()
         })
+        .nullable()
         .optional(),
       types: z.string().optional(),
       features: z.string().optional(),

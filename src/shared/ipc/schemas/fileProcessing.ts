@@ -1,10 +1,11 @@
 import * as z from 'zod'
 
-import { JobSnapshotSchema } from '@shared/data/api/schemas/jobs'
 import { FILE_PROCESSOR_FEATURES, FILE_PROCESSOR_IDS } from '@shared/data/preference/preferenceTypes'
 import { FileHandleSchema } from '@shared/data/types/file'
 import {
   FileProcessingOutputTargetSchema,
+  FileProcessingTaskIdSchema,
+  FileProcessingTaskSchema,
   ListAvailableFileProcessorsResultSchema
 } from '@shared/data/types/fileProcessing'
 
@@ -15,17 +16,17 @@ import { defineRoute } from '../define'
  * the stateful FileProcessingService in main.
  *
  * Only a Request block: these are zod *values* (renderer→main, untrusted → always
- * parsed). The file-processing domain pushes nothing main→renderer — job state/progress
- * reaches the renderer via the shared Cache (`jobs.state.*` / `jobs.progress.*`,
- * cross-window-synced by CacheService; DataApi `/jobs/:id` is only a cold-cache fallback),
- * not IPC events — so there is no Event block (unlike window.ts/selection.ts).
+ * parsed). The file-processing domain pushes nothing main→renderer — a task's state
+ * reaches the renderer via the shared Cache (`file_processing.task.*`, cross-window-synced
+ * by CacheService; `get_task` reads a task whose entry has expired), not IPC events — so
+ * there is no Event block (unlike window.ts/selection.ts).
  *
- * Inputs reuse the canonical file/job zod schemas. `FileHandleSchema.path` is
+ * Inputs reuse the canonical file zod schemas. `FileHandleSchema.path` is
  * `AbsoluteFilePathSchema`, so the schema infers the branded `FileHandle` directly —
- * the parsed `start_job` input's `file` is already a `FileHandle`, needing no cast.
+ * the parsed `start_task` input's `file` is already a `FileHandle`, needing no cast.
  */
 
-const startJobInputSchema = z
+const startTaskInputSchema = z
   .object({
     feature: z.enum(FILE_PROCESSOR_FEATURES),
     file: FileHandleSchema,
@@ -42,7 +43,12 @@ const startJobInputSchema = z
 
 // ── Request: renderer→main calls (zod values, always parsed) ──
 export const fileProcessingRequestSchemas = {
-  'file_processing.start_job': defineRoute({ input: startJobInputSchema, output: JobSnapshotSchema }),
+  'file_processing.start_task': defineRoute({ input: startTaskInputSchema, output: FileProcessingTaskSchema }),
+  /** Null when no such task exists. */
+  'file_processing.get_task': defineRoute({
+    input: z.object({ taskId: FileProcessingTaskIdSchema }).strict(),
+    output: FileProcessingTaskSchema.nullable()
+  }),
   'file_processing.list_available_processors': defineRoute({
     input: z.void(),
     output: ListAvailableFileProcessorsResultSchema

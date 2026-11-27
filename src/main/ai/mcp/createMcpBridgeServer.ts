@@ -16,6 +16,7 @@ const logger = loggerService.withContext('McpBridge')
 
 export interface McpBridgeOptions {
   interactionContext?: McpInteractionContext
+  audience?: 'model'
   /**
    * Declare `tools.listChanged` and relay cache updates as `tools/list_changed`.
    *
@@ -79,7 +80,7 @@ function toSdkResourceContents(content: McpResource): ReadResourceResult['conten
 export function createMcpBridgeServer(
   mcpId: string,
   serverSnapshot?: McpServerEntity,
-  { listChanged = true, interactionContext }: McpBridgeOptions = {}
+  { listChanged = true, interactionContext, audience }: McpBridgeOptions = {}
 ): Server {
   const serverConfig = serverSnapshot ?? mcpServerService.findByIdOrName(mcpId)
   if (!serverConfig) {
@@ -229,7 +230,10 @@ export function createMcpBridgeServer(
 
   server.setRequestHandler('tools/list', () =>
     logged('listing tools', {}, async () => ({
-      tools: application.get('McpCatalogService').listTools(serverConfig.id, { includeDisabled: false }).map(toSdkTool)
+      tools: application
+        .get('McpCatalogService')
+        .listTools(serverConfig.id, { includeDisabled: false, audience })
+        .map(toSdkTool)
     }))
   )
 
@@ -254,6 +258,7 @@ export function createMcpBridgeServer(
         serverId: serverConfig.id,
         name: request.params.name,
         args: request.params.arguments,
+        audience,
         onProgress,
         signal,
         interactionContext
@@ -264,7 +269,7 @@ export function createMcpBridgeServer(
         // Expected cancellation from the SDK side — the runtime already logged it at debug.
         logger.debug('MCP bridge: tool call aborted', { mcpId, tool: request.params.name })
       } else {
-        // Every agent runtime (dsh / pi / Claude Code) reaches Cherry's tools through this
+        // Every agent runtime (Pi / Claude Code) reaches Cherry's tools through this
         // handler, so this is the one place their tool failures are observable in-process.
         logger.error('MCP bridge: failed to call tool', {
           mcpId,
