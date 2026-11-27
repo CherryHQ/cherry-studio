@@ -627,18 +627,35 @@ required service tier.`
     expect(screen.queryByText('error.diagnosis.rate_limit')).toBeNull()
   })
 
-  it('shows size guidance and the original status-less request buffer error', () => {
-    const providerMessage = '413 Failed to buffer the request body: length limit exceeded'
+  it.each(['Request payload is too large', '413 Failed to buffer the request body: length limit exceeded'])(
+    'shows size guidance and the original status-less error: %s',
+    (providerMessage) => {
+      render(
+        <ErrorBlock
+          partId="message-1-part-0"
+          error={{ name: 'Error', message: providerMessage, stack: null }}
+          message={message}
+        />
+      )
+      expect(screen.getByText('error.diagnosis.payload')).toBeInTheDocument()
+      expect(screen.getByText(providerMessage)).toBeInTheDocument()
+      expect(screen.queryByText('error.diagnosis.unknown')).toBeNull()
+    }
+  )
+
+  it('keeps response body size failures eligible for diagnosis without request-size guidance', () => {
+    mocks.actions = { diagnoseMessageError: vi.fn() }
     render(
       <ErrorBlock
         partId="message-1-part-0"
-        error={{ name: 'Error', message: providerMessage, stack: null }}
+        error={{ name: 'Error', message: 'Response body payload is too large', stack: null }}
         message={message}
       />
     )
-    expect(screen.getByText('error.diagnosis.payload')).toBeInTheDocument()
-    expect(screen.getByText(providerMessage)).toBeInTheDocument()
-    expect(screen.queryByText('error.diagnosis.unknown')).toBeNull()
+
+    expect(screen.getByText('error.diagnosis.unknown')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: AI_DIAGNOSIS_LABEL })).toBeInTheDocument()
+    expect(screen.queryByText('error.diagnosis.payload')).toBeNull()
   })
 
   it('shows a useful status when a proxy returns an HTML 413 response', () => {
