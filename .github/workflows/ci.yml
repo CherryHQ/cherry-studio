@@ -49,16 +49,12 @@ jobs:
         run: |
           if [[ "$EVENT_NAME" == "pull_request" ]]; then
             node scripts/validation/run.mjs --committed --base HEAD^1 --no-tests --github-output
-          elif [[ "$EVENT_NAME" == "push" ]]; then
-            test_options=()
-            if [[ "$GITHUB_REF" == "refs/heads/main" ]]; then
-              test_options+=(--no-tests)
-            fi
+          elif [[ "$EVENT_NAME" == "push" && "$GITHUB_REF" == "refs/heads/main" ]]; then
             if [[ -n "$BEFORE_SHA" && "$BEFORE_SHA" != "0000000000000000000000000000000000000000" ]] &&
                git fetch --no-tags --depth=1 origin "$BEFORE_SHA"; then
-              node scripts/validation/run.mjs --committed --base "$BEFORE_SHA" "${test_options[@]}" --github-output
+              node scripts/validation/run.mjs --committed --base "$BEFORE_SHA" --no-tests --github-output
             else
-              node scripts/validation/run.mjs --all "${test_options[@]}" --github-output
+              node scripts/validation/run.mjs --all --no-tests --github-output
             fi
           else
             node scripts/validation/run.mjs --all --github-output

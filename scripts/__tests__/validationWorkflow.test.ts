@@ -189,7 +189,7 @@ describe('CI preparation and preflight', () => {
 })
 
 describe('CI validation planning', () => {
-  it('checks the whole change range and reserves ordinary CI tests for nightly or manual runs', () => {
+  it('runs full validation for release pushes, nightly and manual runs while scoping PR and main checks', () => {
     const cwd = mkdtempSync(join(tmpdir(), 'cherry-ci-plan-'))
     directories.push(cwd)
     const git = (...args: string[]) => execFileSync('git', args, { cwd, encoding: 'utf8' }).trim()
@@ -240,13 +240,11 @@ describe('CI validation planning', () => {
       expect(plan.projects).toEqual([])
       expect(plan.platform).toBe(false)
     }
-    const release = run('push', base, 'refs/heads/release/v2.0.0')
-    expect(release.projects).toEqual(['renderer'])
     expect(workflow.on.schedule.length).toBeGreaterThan(0)
-    for (const event of ['schedule', 'workflow_dispatch']) {
-      const plan = run(event)
-      expect(plan.projects).toEqual(createPlan([], 'Full validation').projects)
-      expect(plan.platform).toBe(true)
+    const full = createPlan([], 'Full validation')
+    const releaseRef = 'refs/heads/release/v2.0.0'
+    for (const plan of [run('push', base, releaseRef), run('schedule'), run('workflow_dispatch')]) {
+      expect(plan).toMatchObject({ tasks: full.tasks, projects: full.projects, platform: true })
     }
     const fallback = run('push', '0000000000000000000000000000000000000000')
     expect(fallback.tasks).toContain('types-node')
@@ -256,6 +254,7 @@ describe('CI validation planning', () => {
     writeFileSync(join(cwd, 'README.md'), 'docs only')
     commit('docs only')
     expect(run('pull_request', base).tasks).toEqual(['format', 'docs'])
+    expect(run('push', base, releaseRef)).toMatchObject({ projects: full.projects, platform: true })
   })
 
   it('fails test gates on missing classification and failed, cancelled, skipped or missing dependencies', () => {

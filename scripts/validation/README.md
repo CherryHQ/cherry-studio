@@ -52,13 +52,13 @@ cancelled, missing, or unexpectedly skipped jobs selected by the plan.
 ## CI
 
 PRs compare the checked-out merge commit with its first parent, so earlier commits
-remain covered. Pushes compare the event's before/after range. PRs and `main` pushes
-run the planned static checks and repository guards. Pushes to `release/v*` also run
-affected tests as part of the exact-commit release gate. Nightly CI runs the full plan
-at 02:17 Beijing time. Manual dispatch also runs the full plan. Concurrency groups
-are isolated by event and PR number or full ref. New PR runs replace earlier runs for that PR; new manual
-runs replace earlier manual runs for the same ref. Pushes are not cancelled,
-because a later push's affected plan does not cover the earlier push's range.
+remain covered. Pushes to `main` compare the event's before/after range. PRs and
+`main` pushes run the planned static checks and repository guards. Every push to
+`release/v*` runs the full plan as part of the exact-commit release gate. Nightly CI
+runs the full plan at 02:17 Beijing time. Manual dispatch also runs the full plan.
+Concurrency groups are isolated by event and PR number or full ref. New PR runs
+replace earlier runs for that PR. New manual runs replace earlier manual runs for
+the same ref. Pushes run independently so each pushed range is checked.
 Scheduled full validation remains independent. Pull requests targeting a parent
 stack branch also run CI.
 
