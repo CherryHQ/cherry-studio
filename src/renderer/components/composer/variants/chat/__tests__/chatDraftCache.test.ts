@@ -102,6 +102,57 @@ describe('chatDraftCache', () => {
     expect(readChatDraftCache('topic-pending-sent')).toEqual(emptyDraft())
   })
 
+  it.each([false, true])(
+    'recovers the second queued edit after an own commit unless a foreign write intervenes: %s',
+    (foreign) => {
+      const callbacks: (() => void)[] = []
+      Object.defineProperty(navigator, 'locks', {
+        configurable: true,
+        value: {
+          request: (_key: string, action: () => void) => {
+            callbacks.push(action)
+            return Promise.resolve()
+          }
+        }
+      })
+      const topic = `topic-two-edits-${foreign}`
+      writeChatDraftCache(topic, { ...sampleDraft(), text: 'first' })
+      writeChatDraftCache(topic, { ...sampleDraft(), text: 'second' })
+      callbacks.shift()!()
+      if (foreign) localStorage.setItem(`${getChatDraftCacheKey(topic)}.revision`, 'foreign')
+      expect(readChatDraftCache(topic).text).toBe(foreign ? 'first' : 'second')
+    }
+  )
+
+  it('preserves the absolute pending deadline through replay and memory hydration', () => {
+    const callbacks: (() => void)[] = []
+    Object.defineProperty(navigator, 'locks', {
+      configurable: true,
+      value: {
+        request: (_key: string, action: () => void) => {
+          callbacks.push(action)
+          return Promise.resolve()
+        }
+      }
+    })
+    const topic = 'topic-replay-expiry'
+    const now = vi.spyOn(Date, 'now').mockReturnValue(1000)
+    try {
+      writeChatDraftCache(topic, sampleDraft())
+      const deadline = JSON.parse(sessionStorage.getItem(`${getChatDraftCacheKey(topic)}.pending`)!).expiresAt
+      callbacks.length = 0 // A reload discards the old renderer's queued callbacks.
+      now.mockReturnValue(deadline - 100)
+      expect(readChatDraftCache(topic)).toEqual(sampleDraft())
+      callbacks.shift()!()
+      expect(JSON.parse(localStorage.getItem(getChatDraftCacheKey(topic))!).expiresAt).toBe(deadline)
+      expect(vi.mocked(cacheService.set).mock.calls.at(-1)?.[2]).toBe(100)
+      now.mockReturnValue(deadline + 1)
+      expect(readChatDraftCache(topic)).toEqual(emptyDraft())
+    } finally {
+      now.mockRestore()
+    }
+  })
+
   it('round-trips a written draft through the memory tier', () => {
     writeChatDraftCache('topic-write', sampleDraft())
 

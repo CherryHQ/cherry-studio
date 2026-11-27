@@ -163,13 +163,14 @@ function writePersistedChatDraft(
   topicId: string,
   draft: ChatComposerDraftCache,
   owner?: ChatDraftOwner,
-  onlyIfOwned = false
+  onlyIfOwned = false,
+  expiresAt = Date.now() + DRAFT_CACHE_TTL,
+  replayedRevision?: string
 ) {
   const key = getChatDraftCacheKey(topicId)
   const expected = owner?.revision ?? null
   const revision = crypto.randomUUID()
   if (owner) owner.revision = revision
-  const expiresAt = Date.now() + DRAFT_CACHE_TTL
   const pendingKey = `${key}.pending`
   // A renderer-local journal survives orderly reload while the shared lock is queued.
   if (!onlyIfOwned) {
@@ -189,7 +190,10 @@ function writePersistedChatDraft(
   const clearPending = () => {
     try {
       const pending = sessionStorage.getItem(pendingKey)
-      if (pending && JSON.parse(pending).revision === revision) sessionStorage.removeItem(pendingKey)
+      if (pending) {
+        const entry = JSON.parse(pending)
+        if (entry.revision === revision || entry.revision === replayedRevision) sessionStorage.removeItem(pendingKey)
+      }
     } catch {
       /* Storage is unavailable. */
     }
@@ -206,11 +210,29 @@ function writePersistedChatDraft(
   const invalidate = () => commit(() => localStorage.removeItem(key))
   withDraftLock(topicId, () => {
     if (onlyIfOwned && readDraftRevision(topicId) !== expected) return
+    const remaining = expiresAt - Date.now()
+    if (remaining <= 0) {
+      clearPending()
+      return
+    }
     try {
+      const previousRevision = readDraftRevision(topicId)
       localStorage.setItem(revisionKey(topicId), revision)
+      try {
+        const rawPending = sessionStorage.getItem(pendingKey)
+        if (rawPending) {
+          const pending = JSON.parse(rawPending)
+          // Only advance an uninterrupted local journal chain, never adopt a foreign write.
+          if (pending.expected === previousRevision) {
+            sessionStorage.setItem(pendingKey, JSON.stringify({ ...pending, expected: revision }))
+          }
+        }
+      } catch {
+        /* Storage is unavailable. */
+      }
       clearPending()
       snapshotRevisions.set(draft, revision)
-      cacheService.set(key, draft, DRAFT_CACHE_TTL)
+      cacheService.set(key, draft, remaining)
       if (!hasChatDraftContent(draft)) {
         localStorage.removeItem(key)
         return
@@ -314,7 +336,14 @@ export function readChatDraftCache(topicId: string): ChatComposerDraftCache {
         if (value) {
           snapshotRevisions.set(value, pending.expected as string | null)
           cacheService.set(getChatDraftCacheKey(topicId), value, pending.expiresAt - Date.now())
-          writePersistedChatDraft(topicId, value, createChatDraftOwner(topicId, value), true)
+          writePersistedChatDraft(
+            topicId,
+            value,
+            createChatDraftOwner(topicId, value),
+            true,
+            pending.expiresAt,
+            typeof pending.revision === 'string' ? pending.revision : undefined
+          )
           return value
         }
       }
