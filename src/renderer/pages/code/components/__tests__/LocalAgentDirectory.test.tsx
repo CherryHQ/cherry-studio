@@ -10,7 +10,7 @@ import { TabIdContext, TabsContext, type Tab, type TabsContextValue } from '@ren
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
-import type { LocalAgentConfiguration } from '@shared/ai/localAgent'
+import type { LocalAgentConfiguration, LocalAgentDetection } from '@shared/ai/localAgent'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 
 import { LocalAgentDirectory } from '../LocalAgentDirectory'
@@ -293,6 +293,31 @@ describe('local agent settings navigation', () => {
     expect(toast.error).not.toHaveBeenCalled()
     await userEvent.click(retry)
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Error: discovery unavailable'))
+  })
+
+  it.each([
+    { status: 'missing', rows: [] },
+    { status: 'uncertain', rows: [{ presetId: 'codex', source: 'none', uncertain: true as const }] }
+  ])('keeps a runnable CLI available when detection returns a $status result', async ({ rows }) => {
+    navigation.search = { id: 'codex' }
+    let detection: LocalAgentDetection[] = [{ presetId: 'codex', source: 'system', path: '/usr/local/bin/codex' }]
+    vi.mocked(ipcApi.request).mockImplementation(async (route) => {
+      if (route === 'ai.local_agents.detect') return detection as never
+      return { models: [] } as never
+    })
+    render(<LocalAgentDirectory />)
+    expect(await screen.findByRole('button', { name: '检查连接' })).toBeEnabled()
+
+    detection = rows
+    await userEvent.click(screen.getByRole('button', { name: '重新检测' }))
+    const retry = await screen.findByRole('button', { name: /^重试$/ })
+    expect(screen.getByRole('button', { name: '检查连接' })).toBeEnabled()
+    expect(screen.queryByRole('button', { name: /^安装$/ })).not.toBeInTheDocument()
+
+    detection = [{ presetId: 'codex', source: 'none' }]
+    await userEvent.click(retry)
+    expect(await screen.findByRole('button', { name: /^安装$/ })).toBeEnabled()
+    expect(ipcApi.request).not.toHaveBeenCalledWith('ai.local_agents.install', expect.anything())
   })
 
   it('does not report a launch failure while merely reading CodeBuddy WebUI status', async () => {

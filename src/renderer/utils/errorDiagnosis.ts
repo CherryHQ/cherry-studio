@@ -172,7 +172,7 @@ function buildContextHint(errorInfo: Record<string, unknown>, context?: Diagnosi
 
   if (
     status === 413 ||
-    msg.includes('payload too large') ||
+    /(?<!\bresponse\s+(?:body\s+)?)\bpayload (?:is )?too large/.test(msg) ||
     msg.includes('request entity too large') ||
     msg.includes('failed to buffer the request body: length limit exceeded')
   ) {

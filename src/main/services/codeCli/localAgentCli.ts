@@ -22,6 +22,7 @@ export async function detectLocalAgents(): Promise<LocalAgentDetection[]> {
         ...(preset.terminalCli ? [preset.terminalCli.executable] : [])
       ])
     )
+  const unresolved = (command: string) => !snapshots[command] || snapshots[command].application?.status === 'unknown'
   return Promise.all(
     LOCAL_CLI_AGENT_PRESETS.map(async (preset) => {
       const { available, installed } = await inspectAgentInstallation(preset, snapshots)
@@ -29,9 +30,15 @@ export async function detectLocalAgents(): Promise<LocalAgentDetection[]> {
         preset.terminalCli && (available.source === 'none' || available.componentId !== preset.terminalCli.executable)
           ? await selectAvailableInstallation(preset.terminalCli, snapshots)
           : available
+      const commands = [preset.executable, ...(preset.aliases ?? [])]
+      const uncertain =
+        commands.some((name) => snapshots[name]?.application?.status === 'unknown') ||
+        (installed.source === 'none' && commands.some((name) => !snapshots[name])) ||
+        (preset.terminalCli?.requiredForChat && terminal.source === 'none' && unresolved(preset.terminalCli.executable))
       return {
         presetId: preset.id,
         source: available.source,
+        ...(uncertain && { uncertain: true as const }),
         path: available.source === 'none' ? undefined : available.path,
         ...(available.source === 'none' && installed.source !== 'none' ? { incompatiblePath: installed.path } : {}),
         missingChatExecutable:

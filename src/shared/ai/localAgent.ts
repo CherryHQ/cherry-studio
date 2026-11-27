@@ -135,6 +135,7 @@ export function isLocalAgentPlaceholderTitle(
 export interface LocalAgentDetection {
   presetId: string
   source: string
+  uncertain?: true
   path?: string
   incompatiblePath?: string
   version?: string

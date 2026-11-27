@@ -46,16 +46,37 @@ describe('Error diagnosis', () => {
   })
 
   describe('diagnoseError', () => {
-    it('selects request-size guidance for a status-less request buffer rejection', async () => {
-      const message = '413 Failed to buffer the request body: length limit exceeded'
+    it.each(['Request payload is too large', '413 Failed to buffer the request body: length limit exceeded'])(
+      'selects request-size guidance for %s',
+      async (message) => {
+        respondWith(
+          JSON.stringify({ summary: 'Request too large', category: 'payload', explanation: 'Too large', steps: [] })
+        )
+        await diagnoseError(makeError({ message }), 'en')
+        const args = requestInput()
+        const context = args.system?.split('## Context\n')[1]?.split('\n')[0]
+        expect(context).toContain('request payload is too large')
+        expect(context).toContain('removing large attachments')
+        expect(JSON.parse(args.prompt as string).message).toBe(message)
+      }
+    )
+
+    it.each([
+      'Response payload is too large',
+      'Response payload too large',
+      'Response body payload is too large',
+      'Response body payload too large',
+      'Response  payload is too large'
+    ])('does not prescribe request-size recovery for %s', async (message) => {
       respondWith(
-        JSON.stringify({ summary: 'Request too large', category: 'payload', explanation: 'Too large', steps: [] })
+        JSON.stringify({ summary: 'Response too large', category: 'unknown', explanation: 'Too large', steps: [] })
       )
       await diagnoseError(makeError({ message }), 'en')
       const args = requestInput()
       const context = args.system?.split('## Context\n')[1]?.split('\n')[0]
-      expect(context).toContain('request payload is too large')
-      expect(context).toContain('removing large attachments')
+      expect(context).toBeDefined()
+      expect(context).not.toContain('request payload is too large')
+      expect(context).not.toContain('removing large attachments')
       expect(JSON.parse(args.prompt as string).message).toBe(message)
     })
 

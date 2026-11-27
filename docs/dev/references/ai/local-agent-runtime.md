@@ -338,7 +338,10 @@ own executable names, arguments and package sources.
 
 Passive discovery never starts the CLI. Check/enable performs a bounded handshake
 without prompting the model or starting login. Discovery reports the installed
-CLI version. The handshake reports the version supplied by the protocol peer.
+CLI version. A failed or incomplete discovery keeps the last known availability
+visible. Retry checks availability again. The directory offers installation once
+discovery confirms that the CLI is absent. The handshake reports the version
+supplied by the protocol peer.
 `protocolInfo` records handshake,
 session and prompt stages as each succeeds. Available tools, controls and resume
 behavior depend on the connected CLI. Authentication and known timeouts have

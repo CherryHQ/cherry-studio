@@ -174,7 +174,10 @@ export function LocalAgentDirectory({
     query: { inTrash: true, limit: AGENTS_MAX_LIMIT }
   })
   useDataChange('/agents', () => void refetchArchivedAgents())
-  const [detections, setDetections] = useState<LocalAgentDetection[]>([])
+  const [{ detections, confirmed }, setInventory] = useState(() => ({
+    detections: new Map<string, LocalAgentDetection>(),
+    confirmed: new Set<string>()
+  }))
   const [detecting, setDetecting] = useState(false)
   const [query, setQuery] = useState('')
   const search: { id?: string; tool?: CodeCli } = useSearch({ strict: false })
@@ -219,10 +222,26 @@ export function LocalAgentDirectory({
     try {
       const localDetections = await ipcApi.request('ai.local_agents.detect', {})
       if (request !== detectionRequest.current) return
-      setDetections(localDetections)
+      setInventory(({ detections }) => {
+        const next = new Map(detections)
+        const confirmed = new Set<string>()
+        for (const detection of localDetections) {
+          if (!detection.uncertain) confirmed.add(detection.presetId)
+          if (
+            !detection.uncertain ||
+            (detection.path && !detection.missingChatExecutable) ||
+            !next.has(detection.presetId)
+          )
+            next.set(detection.presetId, detection)
+        }
+        return { detections: next, confirmed }
+      })
     } catch (error) {
       logger.warn('Failed to refresh local agent installations', error as Error)
-      if (manual && request === detectionRequest.current) toast.error(String(error))
+      if (request === detectionRequest.current) {
+        setInventory(({ detections }) => ({ detections, confirmed: new Set<string>() }))
+        if (manual) toast.error(String(error))
+      }
     } finally {
       if (request === detectionRequest.current) setDetecting(false)
     }
@@ -239,13 +258,12 @@ export function LocalAgentDirectory({
     ...agents,
     ...(archivedAgents?.items ?? []).filter((a) => a.deletedAt && !agents.some((agent) => agent.id === a.id))
   ].filter((a) => a.type === 'local')
-  const installedIds = new Set(detections.filter((detection) => detection.path).map((detection) => detection.presetId))
   const getPriority = (entry: { id: string; agent?: AgentEntity; preset?: LocalAgentPreset }) =>
     !entry.agent?.deletedAt && entry.agent?.localRuntime?.enabled
       ? 2
       : Number(
           entry.preset?.protocol === 'cursor' ||
-            installedIds.has(entry.id) ||
+            !!detections.get(entry.id)?.path ||
             !!entry.agent?.localRuntime?.executableOverride
         )
   const orderIndex = new Map(
@@ -397,12 +415,13 @@ export function LocalAgentDirectory({
                 onReorderError={() => toast.error(t('common.error'))}
                 renderItem={(e, _index, { dragging, dragHandleProps }) => {
                   const enabled = !e.agent?.deletedAt && e.agent?.localRuntime?.enabled
-                  const detection = detections.find((d) => d.presetId === e.id)
+                  const detection = detections.get(e.id)
                   const executableOverride = e.agent?.localRuntime?.executableOverride
                   const sdk = e.preset?.protocol === 'cursor'
                   const unavailable =
                     !sdk &&
                     !!detection &&
+                    (confirmed.has(e.id) || !!detection.incompatiblePath) &&
                     (!detection.path || !!missingChatExecutable(detection, e.agent?.localRuntime)) &&
                     !executableOverride
                   const status = unavailable
@@ -415,7 +434,7 @@ export function LocalAgentDirectory({
                           ? t('settings.dependencies.source.bundled')
                           : detection?.path
                             ? t('local_agents.detected')
-                            : detection
+                            : confirmed.has(e.id)
                               ? t('local_agents.not_installed')
                               : t('settings.provider.not_checked')
                   const tool = e.preset
@@ -555,7 +574,15 @@ export function LocalAgentDirectory({
               onCancelNavigation: cancelNavigation,
               preset: entry?.preset,
               agent: entry?.agent,
-              detection: detections.find((d) => d.presetId === entry?.preset?.id),
+              detection: entry?.preset && detections.get(entry.preset.id),
+              detectionStatus: entry?.preset
+                ? detecting
+                  ? 'loading'
+                  : confirmed.has(entry.preset.id)
+                    ? undefined
+                    : 'unknown'
+                : undefined,
+              onRetryDetection: () => void refresh(true),
               onSaved: async (id, refreshInstallations = true) => {
                 await Promise.all([refetch(), refetchArchivedAgents()])
                 setPendingSelection(undefined)
@@ -581,6 +608,8 @@ export function LocalAgentDetails({
   preset,
   agent,
   detection,
+  detectionStatus,
+  onRetryDetection,
   onSaved,
   modelList,
   renderActions,
@@ -596,6 +625,8 @@ export function LocalAgentDetails({
   preset?: LocalAgentPreset
   agent?: AgentEntity
   detection?: LocalAgentDetection
+  detectionStatus?: 'loading' | 'unknown'
+  onRetryDetection?: () => void
   onSaved: (id: string, refreshInstallations?: boolean) => Promise<void>
   modelList?: Omit<ComponentProps<typeof LocalAgentModelList>, 'scrollElement' | 'presetId'>
   renderActions?: (config: LocalAgentConfiguration, disabled: boolean) => ReactNode
@@ -639,7 +670,7 @@ export function LocalAgentDetails({
     upgradeTargetVersion ??
     (currentVersion && latestVersion && gt(latestVersion, currentVersion) ? latestVersion : undefined)
   const [openingChat, setOpeningChat] = useState(false)
-  const installationUnknown = !!preset && !detection && !initial.executableOverride
+  const installationUnknown = Boolean(preset && !sdk && !initial.executableOverride && (!detection || detectionStatus))
   const busy = installing || busyAction !== undefined || openingChat
   const chatDisabledReason = busy
     ? t('local_agents.chat_busy')
@@ -1199,17 +1230,19 @@ export function LocalAgentDetails({
                         <Badge variant="secondary" className="px-1.5 py-0 text-xs text-muted-foreground">
                           {initial.executableOverride
                             ? t('settings.provider.not_checked')
-                            : missing
-                              ? `${missing} · ${t('local_agents.not_installed')}`
-                              : sdk
-                                ? t('settings.dependencies.source.bundled')
-                                : detection?.path
-                                  ? t('local_agents.detected')
-                                  : incompatiblePath
-                                    ? t('local_agents.incompatible')
-                                    : installationUnknown
-                                      ? t('settings.provider.not_checked')
-                                      : t('local_agents.not_installed')}
+                            : installationUnknown && detectionStatus
+                              ? t(detectionStatus === 'loading' ? 'common.loading' : 'common.unknown')
+                              : missing
+                                ? `${missing} · ${t('local_agents.not_installed')}`
+                                : sdk
+                                  ? t('settings.dependencies.source.bundled')
+                                  : detection?.path
+                                    ? t('local_agents.detected')
+                                    : incompatiblePath
+                                      ? t('local_agents.incompatible')
+                                      : installationUnknown
+                                        ? t('settings.provider.not_checked')
+                                        : t('local_agents.not_installed')}
                         </Badge>
                       )}
                     </span>
@@ -1232,6 +1265,11 @@ export function LocalAgentDetails({
                 </InputGroup>
               )}
               <div className="flex flex-wrap items-center gap-2 empty:hidden">
+                {installationUnknown && detectionStatus === 'unknown' && onRetryDetection && (
+                  <Button type="button" variant="outline" size="sm" onClick={onRetryDetection}>
+                    {t('common.retry')}
+                  </Button>
+                )}
                 {!available && detection?.terminalPath && terminalButton}
                 {available ? (
                   <>

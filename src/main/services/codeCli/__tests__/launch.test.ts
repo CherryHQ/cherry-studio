@@ -204,6 +204,17 @@ describe('local agent installation resolution', () => {
     })
   })
 
+  it('marks a failed backend lookup as uncertain while preserving verified runnable binaries', async () => {
+    const application = { status: 'unknown', reason: 'query_failed' } as const
+    inventory.snapshots.codex = { name: 'codex', availability: { source: 'none' }, application }
+    inventory.snapshots.agy = { name: 'agy', availability: { source: 'system', path: '/user/bin/agy' }, application }
+
+    const detected = await detectLocalAgents()
+    expect(detected.find(({ presetId }) => presetId === 'codex')).toMatchObject({ uncertain: true })
+    const antigravity = detected.find(({ presetId }) => presetId === 'antigravity-acp')
+    expect(antigravity).toMatchObject({ path: '/user/bin/agy', uncertain: true })
+  })
+
   it('signs into Antigravity through the same CLI used for ACP sessions', async () => {
     installSystemCommands('agy')
     await openLocalAgentTerminal({ ...config, presetId: 'antigravity-acp', login: true })
