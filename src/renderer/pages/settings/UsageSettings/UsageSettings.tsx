@@ -1,5 +1,5 @@
 import { ChartColumn, ChartLine, ChartPie, type LucideIcon } from 'lucide-react'
-import { memo, useCallback, useMemo } from 'react'
+import { memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -19,6 +19,7 @@ import { useProviders } from '@renderer/hooks/useProvider'
 import { formatCompactNumber } from '@renderer/utils/number'
 import { cn } from '@renderer/utils/style'
 import type {
+  AiUsageRecordGroupFilter,
   AiUsageRecordGroupIdentity,
   AiUsageRecordListSortBy,
   AiUsageRecordStatsBucket
@@ -41,16 +42,18 @@ import {
   GROUP_BY_LABEL_KEYS,
   METRIC_KEYS,
   METRIC_LABEL_KEYS,
+  rangeFromPeriodKey,
   ROLLUP_KEYS,
   ROLLUP_LABEL_KEYS,
   TOP_COUNT_KEYS,
+  toUsageEntryGroupFilter,
   type UsageChartType,
   type UsageTopCount,
   WINDOW_KEYS,
   WINDOW_LABEL_KEYS
 } from './usageAnalytics'
 import { formatCost, parseDateKey } from './usageDisplay'
-import { UsageDistributionChart } from './UsageDistributionChart'
+import { type UsageChartPointSelection, UsageDistributionChart } from './UsageDistributionChart'
 import { UsageEntriesTable } from './UsageEntriesTable'
 import UsageHeatmap from './UsageHeatmap'
 import {
@@ -80,26 +83,40 @@ const CHART_TYPE_ICONS: Record<UsageChartType, LucideIcon> = {
   pie: ChartPie
 }
 
+interface UsageEntryFilter {
+  selectionKey: string
+  range?: BoundedTimeRange
+  groupFilter?: AiUsageRecordGroupFilter
+  label: string
+}
+
 const UsageEntriesSection = memo(function UsageEntriesSection({
   range,
   currency,
+  groupFilter,
+  activeFilterLabel,
+  onClearFilter,
   getProviderInfo,
   dateFormatter,
   timeFormatter
 }: {
   range: BoundedTimeRange
   currency: Currency | undefined
+  groupFilter?: AiUsageRecordGroupFilter
+  activeFilterLabel?: string
+  onClearFilter?: () => void
   getProviderInfo: (id: string, snapshotName?: string | null) => { id: string; name: string }
   dateFormatter: Intl.DateTimeFormat
   timeFormatter: Intl.DateTimeFormat
 }) {
   const [sortBy, setSortBy] = usePersistCache('settings.usage.entry_sort_by')
   const [sortOrder, setSortOrder] = usePersistCache('settings.usage.entry_sort_order')
-  const { entries, total, isLoading, isRefreshing, hasNext, loadNext } = useUsageEntriesData({
+  const { entries, total, isLoading, isRefreshing, error, hasNext, loadNext } = useUsageEntriesData({
     windowRange: range,
     currency,
     sortBy,
-    sortOrder
+    sortOrder,
+    groupFilter
   })
   const handleSort = (nextSortBy: AiUsageRecordListSortBy) => {
     setSortOrder((currentOrder) => (sortBy === nextSortBy && currentOrder === 'desc' ? 'asc' : 'desc'))
@@ -112,6 +129,7 @@ const UsageEntriesSection = memo(function UsageEntriesSection({
       entryTotal={total}
       isLoading={isLoading}
       isRefreshing={isRefreshing}
+      error={error}
       hasNextPage={hasNext}
       sortBy={sortBy}
       sortOrder={sortOrder}
@@ -120,6 +138,8 @@ const UsageEntriesSection = memo(function UsageEntriesSection({
       getProviderInfo={getProviderInfo}
       dateFormatter={dateFormatter}
       timeFormatter={timeFormatter}
+      activeFilterLabel={activeFilterLabel}
+      onClearFilter={onClearFilter}
     />
   )
 })
@@ -133,6 +153,8 @@ function UsageSettings() {
   const [rollup, setRollup] = usePersistCache('settings.usage.rollup')
   const [topCount, setTopCount] = usePersistCache('settings.usage.top_count')
   const [persistedCurrency, setSelectedCurrency] = usePersistCache('settings.usage.currency')
+  // Drill-down filter is session-scoped: restoring a past date would reopen the page on an empty range.
+  const [entryFilter, setEntryFilter] = useState<UsageEntryFilter | undefined>()
   const selectedCurrency = persistedCurrency ?? undefined
   const chartType: UsageChartType =
     selectedChartType === 'pie' ? 'pie' : selectedChartType === 'line' && rollup !== 'total' ? 'line' : 'bar'
@@ -331,54 +353,93 @@ function UsageSettings() {
     },
     [providerMap]
   )
-  const getProviderName = (id: string, snapshotName?: string | null) => getProviderInfo(id, snapshotName).name
-  const getApiKeyLabel = (apiKey: UsageApiKeyDisplay): string => {
-    if (apiKey.apiKeyAttribution === 'auth') {
-      return apiKey.authMethod
-        ? `${t('settings.usage.cards.providerAuth')} · ${apiKey.authMethod}`
-        : t('settings.usage.cards.providerAuth')
-    }
+  const getProviderName = useCallback(
+    (id: string, snapshotName?: string | null) => getProviderInfo(id, snapshotName).name,
+    [getProviderInfo]
+  )
+  const getApiKeyLabel = useCallback(
+    (apiKey: UsageApiKeyDisplay): string => {
+      if (apiKey.apiKeyAttribution === 'auth') {
+        return apiKey.authMethod
+          ? `${t('settings.usage.cards.providerAuth')} · ${apiKey.authMethod}`
+          : t('settings.usage.cards.providerAuth')
+      }
 
-    if (!apiKey.apiKeyId) {
-      return t('settings.usage.cards.unattributedApiKey')
-    }
+      if (!apiKey.apiKeyId) {
+        return t('settings.usage.cards.unattributedApiKey')
+      }
 
-    const keyLabel = apiKey.apiKeyLabel || apiKey.apiKeyMasked || apiKey.apiKeyId
-    const attributionLabel =
-      apiKey.apiKeyAttribution === 'matched'
-        ? t('settings.usage.cards.matchedApiKey')
-        : t('settings.usage.cards.explicitApiKey')
-    return `${keyLabel} · ${attributionLabel}`
-  }
-  const getSourceLabel = (bucket: AiUsageRecordGroupIdentity): string => {
-    if (!bucket.sourceType || !bucket.sourceId) {
-      return t('settings.usage.cards.unattributedSource')
-    }
+      const keyLabel = apiKey.apiKeyLabel || apiKey.apiKeyMasked || apiKey.apiKeyId
+      const attributionLabel =
+        apiKey.apiKeyAttribution === 'matched'
+          ? t('settings.usage.cards.matchedApiKey')
+          : t('settings.usage.cards.explicitApiKey')
+      return `${keyLabel} · ${attributionLabel}`
+    },
+    [t]
+  )
+  const getSourceLabel = useCallback(
+    (bucket: AiUsageRecordGroupIdentity): string => {
+      if (!bucket.sourceType || !bucket.sourceId) {
+        return t('settings.usage.cards.unattributedSource')
+      }
 
-    return bucket.sourceName || bucket.sourceId
-  }
-  const getBucketLabel = (bucket: AiUsageRecordGroupIdentity): string => {
-    if (groupBy === 'provider') {
-      return getProviderName(bucket.providerId ?? '', bucket.providerName)
-    }
+      return bucket.sourceName || bucket.sourceId
+    },
+    [t]
+  )
+  const getBucketLabel = useCallback(
+    (bucket: AiUsageRecordGroupIdentity): string => {
+      if (groupBy === 'provider') {
+        return getProviderName(bucket.providerId ?? '', bucket.providerName)
+      }
 
-    if (groupBy === 'model') {
-      const modelName = displayModelId(bucket.modelId)
-      return modelName || t('settings.usage.cards.none')
-    }
+      if (groupBy === 'model') {
+        const modelName = displayModelId(bucket.modelId)
+        return modelName || t('settings.usage.cards.none')
+      }
 
-    if (groupBy === 'source') {
-      return getSourceLabel(bucket)
-    }
+      if (groupBy === 'source') {
+        return getSourceLabel(bucket)
+      }
 
-    return getApiKeyLabel({
-      apiKeyId: bucket.apiKeyId ?? null,
-      apiKeyLabel: bucket.apiKeyLabel ?? null,
-      apiKeyMasked: bucket.apiKeyMasked ?? null,
-      apiKeyAttribution: bucket.apiKeyAttribution ?? 'unknown',
-      authMethod: bucket.authMethod ?? null
-    })
-  }
+      return getApiKeyLabel({
+        apiKeyId: bucket.apiKeyId ?? null,
+        apiKeyLabel: bucket.apiKeyLabel ?? null,
+        apiKeyMasked: bucket.apiKeyMasked ?? null,
+        apiKeyAttribution: bucket.apiKeyAttribution ?? 'unknown',
+        authMethod: bucket.authMethod ?? null
+      })
+    },
+    [getApiKeyLabel, getProviderName, getSourceLabel, groupBy, t]
+  )
+  const handleWindowChange = useCallback(
+    (nextWindowKey: typeof windowKey) => {
+      setWindowKey(nextWindowKey)
+      setEntryFilter(undefined)
+    },
+    [setWindowKey]
+  )
+  const handleClearEntryFilter = useCallback(() => setEntryFilter(undefined), [])
+  const handleSelectChartPoint = useCallback(
+    (selection: UsageChartPointSelection) => {
+      setEntryFilter((current) => {
+        if (current?.selectionKey === selection.selectionKey) return undefined
+        const range = selection.periodKey ? rangeFromPeriodKey(selection.periodKey, rollup, windowRange) : undefined
+        const groupFilter = selection.identity ? toUsageEntryGroupFilter(groupBy, selection.identity) : undefined
+        const groupLabel = selection.identity ? getBucketLabel(selection.identity) : undefined
+        const label = [selection.periodLabel, groupLabel].filter(Boolean).join(' · ')
+        if (!range && !groupFilter) return
+        return {
+          selectionKey: selection.selectionKey,
+          range,
+          groupFilter,
+          label
+        }
+      })
+    },
+    [getBucketLabel, groupBy, rollup, windowRange]
+  )
 
   const formatChartValue = (value: number) =>
     chartMetric === 'cost' ? formatCost(value, exploreTotals.costCurrency) : formatCompactNumber(value)
@@ -409,7 +470,7 @@ function UsageSettings() {
                 size="sm"
               />
             )}
-            <SegmentedControl options={windowOptions} value={windowKey} onValueChange={setWindowKey} size="sm" />
+            <SegmentedControl options={windowOptions} value={windowKey} onValueChange={handleWindowChange} size="sm" />
           </div>
         </div>
 
@@ -636,12 +697,16 @@ function UsageSettings() {
                 dateFormatter={dateFormatter}
                 monthFormatter={monthFormatter}
                 getBucketLabel={getBucketLabel}
+                onSelectPoint={handleSelectChartPoint}
               />
             </UsagePanel>
 
             <UsageEntriesSection
-              range={windowRange}
+              range={entryFilter?.range ?? windowRange}
               currency={costCurrency}
+              groupFilter={entryFilter?.groupFilter}
+              activeFilterLabel={entryFilter?.label}
+              onClearFilter={handleClearEntryFilter}
               getProviderInfo={getProviderInfo}
               dateFormatter={entryDateFormatter}
               timeFormatter={entryTimeFormatter}
