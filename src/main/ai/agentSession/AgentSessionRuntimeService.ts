@@ -76,6 +76,10 @@ import { toExecutionFailure } from '@shared/ai/executionFailure'
 import { getProviderModelId, type ExecutionId } from '@shared/ai/executionIdentity'
 import {
   ACP_HOST_PERMISSION_MODE_ID,
+  ACP_LAUNCH_BYPASS_VALUE,
+  ACP_LAUNCH_PERMISSION_ID,
+  getAcpLaunchBypassArgs,
+  getAcpLaunchPermission,
   getAcpHostPermissionModeSelection,
   getAcpNativePlanModes,
   getLocalAgentLaunchMode,
@@ -2564,6 +2568,9 @@ export class AgentSessionRuntimeService extends BaseService {
     }
     entry.localWorkingDirectory = target.localWorkingDirectory
 
+    const localOverrides =
+      entry.agentType === 'local' && !target.headless ? this.getLocalSessionOverrides(entry.sessionId) : undefined
+    const launchBypass = localOverrides?.launchBypass
     const request: AgentRuntimeConnectInput = {
       sessionId: entry.sessionId,
       agentId: entry.agentId,
@@ -2573,6 +2580,9 @@ export class AgentSessionRuntimeService extends BaseService {
       knowledgeBaseIds: target.knowledgeBaseIds,
       fastMode: target.fastMode,
       headless: target.headless,
+      ...(!entry.secondaryContextId && !target.permissionModeOverride && launchBypass?.agentId === entry.agentId
+        ? { localLaunchBypass: launchBypass.presetId }
+        : {}),
       ...(target.permissionModeOverride ? { permissionModeOverride: target.permissionModeOverride } : {}),
       resumeToken: entry.lastResumeToken,
       trace: this.sessionTraceContext(entry, target.modelId),
@@ -2602,8 +2612,8 @@ export class AgentSessionRuntimeService extends BaseService {
       return false
     }
     if (entry.agentType === 'local') {
-      const overrides = target.headless ? undefined : this.getLocalSessionOverrides(entry.sessionId)
-      if (overrides && !(await this.restoreLocalSessionOverrides(entry, connection, attemptId, overrides))) return false
+      if (localOverrides && !(await this.restoreLocalSessionOverrides(entry, connection, attemptId, localOverrides)))
+        return false
       if (connection.localSessionInfo) this.publishLocalSessionInfo(entry, connection.localSessionInfo)
     }
     await this.reconcilePendingInputs(entry, connection, attemptId)
@@ -4389,20 +4399,22 @@ export class AgentSessionRuntimeService extends BaseService {
   private saveLocalSessionOverride(
     sessionId: string,
     patch: {
-      mode?: { configId: string; value: string }
+      mode?: LocalAgentSessionOverrides['mode']
+      launchBypass?: LocalAgentSessionOverrides['launchBypass']
       hostPermissionMode?: LocalAgentSessionOverrides['hostPermissionMode']
       thoughtLevel?: LocalAgentSessionOverrides['thoughtLevel']
       configOption?: { configId: string; value: string | boolean }
     }
-  ): void {
+  ): boolean {
     try {
       const cache = application.get('CacheService')
-      if (!cache.getPersist || !cache.setPersist) return
+      if (!cache.getPersist || !cache.setPersist) return false
       const store = cache.getPersist('local_agent.session_overrides') ?? {}
       const existing = store[sessionId]
       const nextEntry: LocalAgentSessionOverrides = {
         ...existing,
         ...(patch.mode ? { mode: patch.mode } : {}),
+        ...('launchBypass' in patch ? { launchBypass: patch.launchBypass } : {}),
         ...(patch.hostPermissionMode ? { hostPermissionMode: patch.hostPermissionMode } : {}),
         ...(patch.thoughtLevel ? { thoughtLevel: patch.thoughtLevel } : {}),
         ...(patch.configOption
@@ -4421,8 +4433,10 @@ export class AgentSessionRuntimeService extends BaseService {
       ]
       const nextStore = Object.fromEntries(entries.sort(([, a], [, b]) => b.updatedAt - a.updatedAt).slice(0, 500))
       cache.setPersist('local_agent.session_overrides', nextStore)
+      return true
     } catch (error) {
       logger.warn('Failed to persist local session override', error as Error, { sessionId })
+      return false
     }
   }
 
@@ -4443,6 +4457,10 @@ export class AgentSessionRuntimeService extends BaseService {
     const modeInfo = connection.localSessionInfo?.mode
     if (
       saved.mode &&
+      !(
+        connection.localSessionInfo?.launchPermission?.currentValue === ACP_LAUNCH_BYPASS_VALUE &&
+        modeInfo?.options.some(({ permissionMode, value }) => permissionMode === 'plan' && value === saved.mode?.value)
+      ) &&
       connection.setMode &&
       modeInfo &&
       modeInfo.id === saved.mode.configId &&
@@ -4557,7 +4575,14 @@ export class AgentSessionRuntimeService extends BaseService {
             saved?.hostPermissionMode?.agentId === agentId ? saved?.hostPermissionMode?.value : undefined
           )
         : undefined
-    return { info: null, idleMode, idleHostPermission }
+    const launchBypass = saved?.launchBypass
+    const idleLaunchPermission = getAcpLaunchBypassArgs(config)
+      ? getAcpLaunchPermission(
+          undefined,
+          launchBypass?.agentId === agentId && launchBypass?.presetId === config.presetId
+        )
+      : undefined
+    return { info: null, idleMode, idleHostPermission, idleLaunchPermission }
   }
 
   async setLocalMode(sessionId: string, configId: string, value: string): Promise<LocalAgentSessionView> {
@@ -4567,6 +4592,59 @@ export class AgentSessionRuntimeService extends BaseService {
     const agentId = entry?.agentId ?? agentSessionService.getById(sessionId)?.agentId
     const idle = connection ? undefined : this.localIdleView(sessionId, agentId)
     const mode = connection ? connection.localSessionInfo?.mode : idle?.idleMode
+    if (configId === ACP_LAUNCH_PERMISSION_ID) {
+      const selection = connection?.localSessionInfo?.launchPermission ?? idle?.idleLaunchPermission
+      const config = agentId ? agentService.getAgent(agentId)?.configuration?.localRuntime : undefined
+      if (
+        !agentId ||
+        !config?.enabled ||
+        !config.presetId ||
+        !getAcpLaunchBypassArgs(config) ||
+        !selection?.options.some((choice) => choice.value === value)
+      )
+        throw new Error('This session option is no longer available')
+      if (selection.currentValue === value) return this.getLocalSessionView(sessionId)
+
+      const base = connection?.localSessionInfo?.hostPermission ?? mode
+      const enable = value === ACP_LAUNCH_BYPASS_VALUE
+      const wasEnabled = selection.currentValue === ACP_LAUNCH_BYPASS_VALUE
+      if (!enable && !wasEnabled && base) return this.setLocalMode(sessionId, base.id, value)
+
+      const nativePlan = getAcpNativePlanModes(mode)
+      const host = base?.id === ACP_HOST_PERMISSION_MODE_ID
+      const targetMode =
+        enable || !base
+          ? undefined
+          : host
+            ? value === 'plan' && nativePlan
+              ? { configId: nativePlan.configId, value: nativePlan.plan }
+              : undefined
+            : { configId: base.id, value }
+      const hostPermissionMode = !enable && host && isAcpHostPermissionMode(value) ? { agentId, value } : undefined
+
+      if (this.failedClosures.has(sessionId)) throw new AgentSessionEditError('close_failed')
+      if (entry) await this.closeEntry(entry)
+      if (
+        !this.saveLocalSessionOverride(sessionId, {
+          launchBypass: enable ? { agentId, presetId: config.presetId } : null,
+          mode: targetMode,
+          hostPermissionMode
+        })
+      )
+        throw new Error('Could not save the session permission')
+
+      if (entry && connection) {
+        const reopened = await this.ensureConnection(entry)
+        const info = reopened ? this.currentConnection(entry)?.localSessionInfo : undefined
+        const active = info?.launchPermission ?? info?.hostPermission ?? info?.mode
+        if (!info || active?.currentValue !== value)
+          throw new Error('Could not reconnect with the requested permission')
+        this.refreshIdleTimer(entry)
+      }
+      const view = this.getLocalSessionView(sessionId)
+      application.get('IpcApiService').broadcast('ai.local_agents.session_updated', { sessionId, ...view })
+      return view
+    }
     if (configId === ACP_HOST_PERMISSION_MODE_ID) {
       const selection = connection ? connection.localSessionInfo?.hostPermission : idle?.idleHostPermission
       if (!agentId || !selection?.options.some((choice) => choice.value === value))

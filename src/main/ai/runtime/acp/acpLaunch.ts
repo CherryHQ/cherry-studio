@@ -5,7 +5,7 @@ import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
 import { t } from '@main/i18n'
-import { getLocalAgentPreset, type LocalAgentConfiguration } from '@shared/ai/localAgent'
+import { getAcpLaunchBypassArgs, getLocalAgentPreset, type LocalAgentConfiguration } from '@shared/ai/localAgent'
 import { parseUniqueModelId } from '@shared/data/types/model'
 import { formatGatewayModelId } from '@shared/utils/apiGateway'
 import { isGatewayRoutableModel } from '@shared/utils/model'
@@ -29,9 +29,19 @@ export function resolveAcpModelLaunch(config: LocalAgentConfiguration, signal?: 
   return resolveAcpLaunch(config, signal, 'models')
 }
 
-export async function prepareAcpChatLaunch(config: LocalAgentConfiguration, sessionId: string, signal: AbortSignal) {
+export async function prepareAcpChatLaunch(
+  config: LocalAgentConfiguration,
+  sessionId: string,
+  signal: AbortSignal,
+  bypass = false
+) {
   const preset = acpPreset(config.presetId)
-  const { gatewayRoute, ...launch } = await resolveAcpLaunch(config, signal, 'session')
+  const bypassArgs = bypass && getAcpLaunchBypassArgs(config)
+  const { gatewayRoute, ...launch } = await resolveAcpLaunch(
+    bypassArgs ? { ...config, args: [...bypassArgs] } : config,
+    signal,
+    'session'
+  )
   const endpoint = getLocalAgentPreset(config.presetId)?.gatewayModelEndpoint
   if (config.sourceModelViaGateway && config.sourceModelId && endpoint) {
     if (!preset?.applyGatewayModel || config.executableOverride) throw new Error(t('code_cli.model.unsupported'))

@@ -32,6 +32,8 @@ import {
   ACP_HOST_PERMISSION_MODE_ID,
   ACP_NATIVE_PLAN_VALUE,
   getAcpHostPermissionModeSelection,
+  getAcpLaunchBypassArgs,
+  getAcpLaunchPermission,
   getAcpNativePlanModes,
   isAcpHostPermissionMode,
   isLocalAgentPlaceholderTitle,
@@ -164,7 +166,9 @@ export class AcpConnection extends LocalConnection {
   private configChange?: Promise<void>
   private hostPermissionOverride?: AcpHostPermissionMode
   private linkedNativePlan?: NonNullable<ReturnType<typeof getAcpNativePlanModes>> & { active: boolean }
+  private booleanApprovalId?: string
   private launchMode?: LocalAgentSelection & { application: 'reconnect' }
+  private launchBypass = false
   private legacyMode?: 'mode' | 'thoughtLevel'
   private planPart?: number
   private planId?: string
@@ -211,6 +215,7 @@ export class AcpConnection extends LocalConnection {
   private readonly permissionModes = this.preset?.permissionMode
 
   get effectivePermissionMode() {
+    if (this.launchBypass) return 'bypassPermissions'
     const { mode, configOptions } = this.localSessionInfo
     const allowAllId = this.permissionModes?.allowAll
     const allowAll = allowAllId && configOptions?.find(({ id }) => id === allowAllId)
@@ -246,6 +251,7 @@ export class AcpConnection extends LocalConnection {
       )
     )
       return 'plan'
+    if (this.launchBypass) return 'bypassPermissions'
     const nativeMode = this.effectivePermissionMode
     const hostOverride = this.localSessionInfo.hostPermission && this.hostPermissionOverride
     return nativeMode === 'plan' ? nativeMode : (hostOverride ?? nativeMode)
@@ -256,18 +262,20 @@ export class AcpConnection extends LocalConnection {
     return this.localSessionInfo.resume !== true
   }
 
-  async start(cwd: string, resume?: string): Promise<this> {
+  async start(cwd: string, resume?: string, launchBypass = false): Promise<this> {
     try {
-      return await this.startConnection(cwd, resume)
+      return await this.startConnection(cwd, resume, launchBypass)
     } catch (error) {
       throw acpError(error, this.process.stderr)
     }
   }
-  private async startConnection(cwd: string, resume?: string): Promise<this> {
+  private async startConnection(cwd: string, resume: string | undefined, launchBypass: boolean): Promise<this> {
+    this.launchBypass = !this.headless && launchBypass && !!getAcpLaunchBypassArgs(this.config)
     const { launch, gateway, mode, contextWindow } = await prepareAcpChatLaunch(
       this.config,
       this.sessionId,
-      this.abort.signal
+      this.abort.signal,
+      this.launchBypass
     )
     if (this.abort.signal.aborted) {
       await gateway?.dispose()
@@ -346,6 +354,13 @@ export class AcpConnection extends LocalConnection {
       resume && agent.restore
         ? await agent.restore({ cwd, sessionId: resume, mcpServers }, configure)
         : await agent.create({ cwd, mcpServers }, configure)
+    if (this.launchBypass && selectedPermissionMode(this.localSessionInfo.mode) === 'plan') {
+      const nativePlan = getAcpNativePlanModes(this.localSessionInfo.mode)
+      if (!nativePlan) throw new Error('Could not exit Plan for the launch permission')
+      await this.setMode(nativePlan.configId, nativePlan.work)
+      if (this.localSessionInfo.mode?.currentValue !== nativePlan.work)
+        throw new Error('The agent did not exit Plan for the launch permission')
+    }
     this.localSessionInfo.protocolInfo.verified.push('session')
     this.publishResumeToken(session.thread.id)
     return this
@@ -746,9 +761,18 @@ export class AcpConnection extends LocalConnection {
       if (this.headless || !this.session || this.closed || this.active || this.configChange)
         throw new Error('ACP session is unavailable or busy')
       if (!isAcpHostPermissionMode(value)) throw new Error('This session option is no longer available')
-      if (!this.localSessionInfo.hostPermission) return this.localSessionInfo
+      if (
+        !this.localSessionInfo.hostPermission ||
+        (value === 'bypassPermissions' && this.localSessionInfo.launchPermission)
+      )
+        return this.localSessionInfo
       this.hostPermissionOverride = value
       this.localSessionInfo.hostPermission = getAcpHostPermissionModeSelection(this.localSessionInfo.mode, value)
+      if (this.localSessionInfo.launchPermission)
+        this.localSessionInfo.launchPermission = getAcpLaunchPermission(
+          this.localSessionInfo.hostPermission,
+          this.launchBypass
+        )
       this.publishSessionInfo()
       return this.localSessionInfo
     }
@@ -778,6 +802,7 @@ export class AcpConnection extends LocalConnection {
             .some((option) => option.value === value))
     )
       throw new Error('This session option is no longer available')
+    const nativeValue = category === 'mode' && configId === this.booleanApprovalId ? value === 'true' : value
     const legacyEffort = category === 'thoughtLevel' ? this.session.acp.legacyEffort : undefined
     if (legacyEffort && typeof value === 'string' && legacyEffort.read()?.id === configId) {
       this.configChange = legacyEffort.set(value).then(() => {
@@ -802,12 +827,12 @@ export class AcpConnection extends LocalConnection {
         }
         requireAcpControl(await setWorkflow(work))
         if (this.linkedNativePlan?.active !== false) throw new Error('ACP rejected the switch out of Plan')
-        requireAcpControl(await native.setConfigOption(configId, value))
+        requireAcpControl(await native.setConfigOption(configId, nativeValue))
       })()
     } else if (category === this.legacyMode && typeof value === 'string') {
       this.configChange = this.session.acp.setMode(value).then(requireAcpControl)
     } else {
-      this.configChange = this.session.acp.setConfigOption(configId, value).then(requireAcpControl)
+      this.configChange = this.session.acp.setConfigOption(configId, nativeValue).then(requireAcpControl)
     }
     try {
       await this.configChange
@@ -834,7 +859,9 @@ export class AcpConnection extends LocalConnection {
       options
         ?.filter(
           (option) =>
-            option.id !== ACP_HOST_PERMISSION_MODE_ID && (option.type === 'select' || option.type === 'boolean')
+            option.id !== ACP_HOST_PERMISSION_MODE_ID &&
+            !this.permissionModes?.persistentConfigIds?.includes(option.id) &&
+            (option.type === 'select' || option.type === 'boolean')
         )
         .map((option) => {
           const { id, name, description, category } = option
@@ -890,7 +917,19 @@ export class AcpConnection extends LocalConnection {
         }
       : undefined
     const approvalOption = configOptions?.find((option) => option.id === approvalConfigId)
-    const approval = approvalOption?.type === 'select' ? describeAcpSelection(approvalOption) : undefined
+    this.booleanApprovalId = approvalOption?.type === 'boolean' ? approvalOption.id : undefined
+    const approval: LocalAgentSelection | undefined =
+      approvalOption?.type === 'boolean'
+        ? {
+            id: approvalOption.id,
+            application: 'session',
+            currentValue: String(approvalOption.currentValue),
+            options: [
+              { value: 'false', name: 'Ask Before Acting', permissionMode: 'default' },
+              { value: 'true', name: 'Auto-approve tools', permissionMode: 'bypassPermissions' }
+            ]
+          }
+        : approvalOption && describeAcpSelection(approvalOption)
     this.linkedNativePlan = undefined
     if (approval && hasPermissionModeChoices(approval)) {
       const workflow = permission ?? (this.permissionModes?.legacyPlan ? legacySelection : undefined)
@@ -913,7 +952,7 @@ export class AcpConnection extends LocalConnection {
         break
       }
     }
-    const legacy = options == null ? legacySelection : undefined
+    const legacy = options == null || (this.permissionModes?.legacyPlan && !permission) ? legacySelection : undefined
     if (legacy) {
       if (this.preset?.legacyModes === 'effort') {
         this.legacyMode = 'thoughtLevel'
@@ -922,11 +961,19 @@ export class AcpConnection extends LocalConnection {
         permission = legacy
       }
     }
-    this.localSessionInfo.mode = this.launchMode ?? permission
+    this.localSessionInfo.mode =
+      this.launchMode ??
+      (permission && this.permissionModes?.nativePermissionNames
+        ? { ...permission, nativePermissionNames: true }
+        : permission)
     this.localSessionInfo.hostPermission =
       this.headless || (approval && hasPermissionModeChoices(approval))
         ? undefined
         : getAcpHostPermissionModeSelection(this.localSessionInfo.mode, this.hostPermissionOverride)
+    this.localSessionInfo.launchPermission =
+      !this.headless && (this.localSessionInfo.resume || this.launchBypass) && getAcpLaunchBypassArgs(this.config)
+        ? getAcpLaunchPermission(this.localSessionInfo.hostPermission ?? this.localSessionInfo.mode, this.launchBypass)
+        : undefined
     const thoughtOption = configOptions?.find((option) => option.role === 'reasoning')
     const model = this.session?.acp.model
     this.localSessionInfo.activeModel = model?.activeModel

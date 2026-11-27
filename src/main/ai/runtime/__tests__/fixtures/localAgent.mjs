@@ -160,7 +160,30 @@ const minimaxApprovals = () => [
     options: ['default', 'auto', 'bypassPermissions'].map((value) => ({ value, name: value }))
   }
 ]
+const nativeMode = (values, current = values[0]) => ({
+  id: 'mode',
+  name: 'Mode',
+  type: 'select',
+  category: 'mode',
+  currentValue: secondaryValues.mode ?? current,
+  options: values.map((value) => ({ value, name: value }))
+})
 const nativePermissionOptions = {
+  'antigravity-native-permissions': () => [nativeMode(['default', 'accept-edits', 'auto', 'plan'])],
+  'cline-native-permissions': () => [
+    nativeMode(['act', 'plan']),
+    {
+      id: 'auto_approve',
+      name: 'Auto-approve tools',
+      type: 'boolean',
+      currentValue: secondaryValues.auto_approve ?? false
+    }
+  ],
+  'devin-native-permissions': () => [nativeMode(['accept-edits', 'smart', 'ask', 'plan', 'bypass'], 'ask')],
+  'kilo-native-permissions': () => [nativeMode(['code', 'ask', 'debug', 'orchestrator', 'plan'])],
+  'kimi-native-permissions': () => [nativeMode(['default', 'auto', 'plan', 'yolo'])],
+  'qwen-native-permissions': () => [nativeMode(['default', 'auto-edit', 'auto', 'plan', 'yolo'])],
+  'muse-native-permissions': () => [nativeMode(['onRequest', 'promptUnmatched', 'denyUnmatched', 'allowAll'])],
   'copilot-native-permissions': copilotModes,
   'junie-native-permissions': junieModes,
   'minimax-native-permissions': minimaxApprovals
@@ -562,6 +585,12 @@ createInterface({ input: process.stdin }).on('line', (line) => {
     reply(id, {})
   } else if (method === 'session/set_config_option') {
     if (nativePermissionOptions[scenario]) {
+      if (
+        scenario === 'cline-native-permissions' &&
+        message.params.configId === 'auto_approve' &&
+        (message.params.type !== 'boolean' || typeof message.params.value !== 'boolean')
+      )
+        return emit({ id, error: { code: -32602, message: 'Native approval requires a boolean' } })
       if (scenario === 'junie-native-permissions' && message.params.value === 'on') {
         update({ sessionUpdate: 'config_option_update', configOptions: junieModes() })
       }

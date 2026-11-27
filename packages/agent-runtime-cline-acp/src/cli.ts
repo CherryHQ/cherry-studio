@@ -5,7 +5,12 @@ export const clineCli = {
   id: 'cline',
   terminalArgs: [],
   loginArgs: ['auth'],
-  permissionMode: { values: { act: 'default', plan: 'plan' } } satisfies AcpPermissionModes,
+  permissionMode: {
+    bypassArgs: ['--acp', '--auto-approve', 'true'],
+    values: { act: 'default', plan: 'plan' },
+    approvalConfigId: 'auto_approve',
+    legacyPlan: true
+  } satisfies AcpPermissionModes,
   name: 'Cline',
   protocol: 'acp',
   executable: 'cline',

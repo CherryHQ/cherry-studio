@@ -10,6 +10,7 @@ export interface PermissionModeChoice {
   permissionMode?: AgentPermissionMode
   requiresConfirmation?: true
   restrictHost?: true
+  workflowOnly?: true
 }
 
 export interface PermissionModeCatalog {
@@ -29,12 +30,19 @@ export function selectedPermissionMode(selection?: {
 export function hasPermissionModeChoices(selection?: {
   currentValue: string
   options: readonly PermissionModeChoice[]
+  nativePermissionNames?: true
 }): boolean {
   return (
     !!selection &&
     selection.options.some(({ value }) => value === selection.currentValue) &&
-    selection.options.every((option) => option.permissionMode && !option.requiresConfirmation) &&
-    new Set(selection.options.map((option) => option.permissionMode)).size >= 2
+    selection.options.every(
+      (option) => (option.permissionMode || option.workflowOnly) && !option.requiresConfirmation
+    ) &&
+    new Set(
+      selection.options.flatMap(({ permissionMode, value }) =>
+        permissionMode ? [selection.nativePermissionNames ? value : permissionMode] : []
+      )
+    ).size >= 2
   )
 }
 

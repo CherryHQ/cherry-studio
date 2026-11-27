@@ -223,6 +223,48 @@ describe('permissionModeTool submenu', () => {
     ).toBe(false)
   })
 
+  it('keeps Muse approval choices with the same Cherry policy independently selectable', () => {
+    const Runtime = permissionModeTool.composer!.runtime!
+    const context = {
+      t,
+      launcher: { registerLaunchers: mocks.registerLaunchers },
+      session: {
+        agentId: 'agent-local',
+        sessionId: 'session-muse',
+        agentType: 'local',
+        localPermission: {
+          mode: {
+            id: 'mode',
+            currentValue: 'onRequest',
+            nativePermissionNames: true,
+            options: [
+              { value: 'onRequest', name: 'Ask on request', permissionMode: 'default' },
+              { value: 'promptUnmatched', name: 'Ask before unmatched actions', permissionMode: 'default' },
+              { value: 'denyUnmatched', name: 'Deny unmatched actions', permissionMode: 'default' },
+              { value: 'allowAll', name: 'Allow all', permissionMode: 'bypassPermissions' }
+            ]
+          }
+        }
+      }
+    }
+    render(<Runtime context={context as any} />)
+
+    const launchers = mocks.registerLaunchers.mock.calls.at(-1)?.[0] ?? []
+    const submenu = launchers.find((item) => item.id === 'permission-mode')?.submenu ?? []
+    expect(submenu.map(({ label, active }) => [label, active])).toEqual([
+      ['Ask on request', true],
+      ['Ask before unmatched actions', false],
+      ['Deny unmatched actions', false],
+      ['Allow all', false]
+    ])
+    submenu.find(({ label }) => label === 'Deny unmatched actions')?.action?.({} as any)
+    expect(mocks.ipcRequest).toHaveBeenCalledWith('ai.local_agents.set_mode', {
+      sessionId: 'session-muse',
+      configId: 'mode',
+      value: 'denyUnmatched'
+    })
+  })
+
   it('keeps local Plan in the root panel and maps permission choices to native values', async () => {
     const user = userEvent.setup()
     mocks.agent = { id: 'agent-local', name: 'ZCode Local' }

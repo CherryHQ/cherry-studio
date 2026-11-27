@@ -417,7 +417,7 @@ the same native aliases when identifying full-access choices.
   Terminals are connection-owned and working directories provide no OS isolation.
   A command path with spaces runs directly when it resolves to an executable.
   A legacy command string without an argument array can run as approved shell input.
-- ACP sessions without a verified approval control or native Full Access choice use Cherry's shared
+- ACP sessions without a verified approval control or multiple verified approval choices use Cherry's shared
   permission menu for Ask Before Acting, Auto-accept Edits, and Full Access. Cherry
   remembers the choice per session. Auto-accept Edits covers writes within the
   workspace. Full Access selects native single-use approvals when available and
@@ -427,8 +427,18 @@ the same native aliases when identifying full-access choices.
   Plan Only in the input quick panel and Shift+Tab switch between native Plan and the working mode.
 - Copilot exposes separate workflow and approval controls. The permission menu
   changes `allow_all`, and Plan Only changes the workflow. Junie exposes
-  `brave_mode` and a separate workflow. MiniMax exposes a process-scoped
-  `permissionMode` control and a separate legacy Plan selector.
+  `brave_mode` and a separate workflow. Cline exposes a session boolean for tool
+  auto-approval alongside Act and Plan. Antigravity uses the approval choices
+  advertised by the active session. Muse retains distinct native choices for
+  actions covered by different approval rules. MiniMax's process-scoped
+  `permissionMode` setter writes CLI configuration. Cherry excludes that setter
+  from session controls and retains the native legacy Plan selector.
+  Antigravity, Grok Build, and Oh My Pi expose launch-time bypass through the same menu.
+  Cline uses its launch flag as a fallback when its native approval control is
+  unavailable. Cherry scopes launch bypass to the selected Agent session, closes
+  the old process before changing startup arguments, and restores the native
+  conversation. Entering Plan removes the flag before restoring. This changes
+  no CLI configuration file. Explicit custom arguments keep their own policy.
   When a native approval catalog becomes available, a saved Cherry-only choice
   leaves native approvals at their reported setting until the user selects a native mode.
 - ACP thoughts become reasoning parts and plan updates replace the current turn's plan.

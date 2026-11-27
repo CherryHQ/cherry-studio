@@ -7,7 +7,13 @@ import { openCodeCli } from '@cherrystudio/agent-runtime-opencode-acp/cli'
 import { qwenCli } from '@cherrystudio/agent-runtime-qwen-acp/cli'
 import { requiresPermissionConfirmation } from '@cherrystudio/agent-runtime/cli'
 
-import { getAcpHostPermissionModeSelection, getLocalAgentLaunchMode } from '../localAgent'
+import {
+  ACP_LAUNCH_BYPASS_VALUE,
+  getAcpHostPermissionModeSelection,
+  getAcpLaunchBypassArgs,
+  getAcpLaunchPermission,
+  getLocalAgentLaunchMode
+} from '../localAgent'
 
 describe('runtime permission declarations', () => {
   it.each([kimiCli, qwenCli])(
@@ -22,6 +28,41 @@ describe('runtime permission declarations', () => {
       expect(requiresPermissionConfirmation(options.find(({ value }) => value === 'yolo'))).toBe(true)
     }
   )
+
+  it('adds bypass only for documented ACP launch commands and leaves explicit arguments alone', () => {
+    expect(getAcpLaunchBypassArgs({ presetId: 'antigravity-acp', args: [] })).toEqual([
+      'acp',
+      '--dangerously-skip-permissions'
+    ])
+    expect(getAcpLaunchBypassArgs({ presetId: 'grok-build', args: ['agent', 'stdio'] })).toEqual([
+      'agent',
+      '--always-approve',
+      'stdio'
+    ])
+    expect(getAcpLaunchBypassArgs({ presetId: 'antigravity-acp', args: ['acp', '--sandbox'] })).toBeUndefined()
+    expect(getAcpLaunchBypassArgs({ presetId: 'cline', args: [] })).toEqual(['--acp', '--auto-approve', 'true'])
+    expect(getAcpLaunchBypassArgs({ presetId: 'omp', args: ['acp'] })).toEqual(['acp', '--yolo'])
+    expect(getAcpLaunchBypassArgs({ presetId: 'kimi', args: [] })).toBeUndefined()
+  })
+
+  it('uses live native bypass where available and replaces a host-only bypass with startup bypass', () => {
+    const mode = {
+      id: 'mode',
+      currentValue: 'default',
+      options: [
+        { value: 'default', name: 'Default', permissionMode: 'default' as const },
+        { value: 'yolo', name: 'YOLO', permissionMode: 'bypassPermissions' as const }
+      ]
+    }
+    expect(getAcpLaunchPermission(mode, false)).toBeUndefined()
+    const host = getAcpHostPermissionModeSelection()
+    expect(getAcpLaunchPermission(host, true)).toMatchObject({ currentValue: ACP_LAUNCH_BYPASS_VALUE })
+    expect(getAcpLaunchPermission(host, false)?.options.map(({ value }) => value)).toEqual([
+      'default',
+      'acceptEdits',
+      ACP_LAUNCH_BYPASS_VALUE
+    ])
+  })
 
   it('shows OpenCode native Plan in the shared chooser and preserves the host choice when back in Build', () => {
     const options = ['build', 'plan'].map((value) =>

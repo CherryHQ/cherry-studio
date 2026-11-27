@@ -5,7 +5,11 @@ export interface AcpPermissionModes {
   labels?: Readonly<Record<string, AgentPermissionMode>>
   configIds?: readonly string[]
   approvalConfigId?: string
+  bypassArgs?: readonly string[]
   workflowConfigId?: string
+  workflowValues?: Readonly<Record<string, 'work' | 'read-only'>>
+  persistentConfigIds?: readonly string[]
+  nativePermissionNames?: true
   legacyPlan?: true
   allowAll?: string
 }
@@ -72,6 +76,11 @@ export function acpPermissionChoice<T extends { value: string; name: string }>(
   if (control === 'sandbox') {
     return unsandboxed.has(value) || unsandboxed.has(label) ? { ...choice, requiresConfirmation: true } : choice
   }
+  const workflow =
+    declared?.workflowValues && Object.hasOwn(declared.workflowValues, value)
+      ? declared.workflowValues[value]
+      : undefined
+  if (workflow) return { ...choice, workflowOnly: true, ...(workflow === 'read-only' && { restrictHost: true }) }
   const permissionMode =
     (declared?.values && Object.hasOwn(declared.values, value) ? declared.values[value] : undefined) ??
     (declared?.labels && Object.hasOwn(declared.labels, label) ? declared.labels[label] : undefined)

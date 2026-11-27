@@ -124,7 +124,10 @@ export const LOCAL_AGENT_PRESETS: readonly LocalAgentPreset[] = [
   clineCli,
   {
     id: 'kilo',
-    permissionMode: { values: { code: 'default', plan: 'plan' } },
+    permissionMode: {
+      values: { code: 'default', plan: 'plan' },
+      workflowValues: { ask: 'read-only', debug: 'work', orchestrator: 'work' }
+    },
     terminalArgs: [],
     name: 'Kilo',
     protocol: 'acp',
@@ -153,7 +156,11 @@ export const LOCAL_AGENT_PRESETS: readonly LocalAgentPreset[] = [
   factoryCli,
   {
     id: 'devin',
-    permissionMode: { values: { 'accept-edits': 'default', smart: 'auto', plan: 'plan', bypass: 'bypassPermissions' } },
+    permissionMode: {
+      values: { 'accept-edits': 'default', smart: 'auto', plan: 'plan', bypass: 'bypassPermissions' },
+      workflowValues: { ask: 'read-only' },
+      nativePermissionNames: true
+    },
     terminalArgs: [],
     loginArgs: ['auth', 'login'],
     accountProbe: {
@@ -330,11 +337,14 @@ export interface LocalAgentSelection {
   id: string
   currentValue: string
   application?: PermissionModeApplication
+  nativePermissionNames?: true
   options: Array<PermissionModeChoice & { description?: string }>
 }
 
 export const ACP_HOST_PERMISSION_MODE_ID = 'cherry:host-permissions'
 export const ACP_NATIVE_PLAN_VALUE = 'cherry:native-plan'
+export const ACP_LAUNCH_PERMISSION_ID = 'cherry:launch-permissions'
+export const ACP_LAUNCH_BYPASS_VALUE = 'cherry:launch-bypass'
 const acpHostPermissionChoices = [
   { value: 'default', name: 'Ask Before Acting', permissionMode: 'default' },
   { value: 'acceptEdits', name: 'Auto-accept Edits', permissionMode: 'acceptEdits' },
@@ -355,7 +365,11 @@ export function getAcpHostPermissionModeSelection(
 ): LocalAgentSelection | undefined {
   if (
     hasPermissionModeChoices(nativeMode) &&
-    nativeMode?.options.some(({ permissionMode }) => permissionMode === 'bypassPermissions')
+    new Set(
+      nativeMode?.options.flatMap(({ permissionMode, value }) =>
+        permissionMode && permissionMode !== 'plan' ? [nativeMode.nativePermissionNames ? value : permissionMode] : []
+      )
+    ).size >= 2
   )
     return undefined
   const native = selectedPermissionMode(nativeMode)
@@ -373,6 +387,42 @@ export function getAcpHostPermissionModeSelection(
   }
 }
 
+export function getAcpLaunchBypassArgs(config: Pick<LocalAgentConfiguration, 'presetId' | 'args'>) {
+  const preset = getLocalAgentPreset(config.presetId)
+  if (preset?.protocol !== 'acp') return
+  if (
+    config.args.length &&
+    (config.args.length !== preset.args.length || config.args.some((arg, i) => arg !== preset.args[i]))
+  )
+    return
+  return preset.permissionMode?.bypassArgs
+}
+
+export function getAcpLaunchPermission(
+  base: LocalAgentSelection | undefined,
+  enabled: boolean
+): LocalAgentSelection | undefined {
+  if (
+    !enabled &&
+    base?.id !== ACP_HOST_PERMISSION_MODE_ID &&
+    base?.options.some(({ permissionMode }) => permissionMode === 'bypassPermissions')
+  )
+    return
+  const options = base?.options.filter(({ permissionMode }) => permissionMode !== 'bypassPermissions') ?? [
+    acpHostPermissionChoices[0]
+  ]
+  return {
+    id: ACP_LAUNCH_PERMISSION_ID,
+    currentValue: enabled
+      ? ACP_LAUNCH_BYPASS_VALUE
+      : base?.currentValue === 'bypassPermissions'
+        ? 'default'
+        : (base?.currentValue ?? 'default'),
+    nativePermissionNames: base?.nativePermissionNames,
+    options: [...options, { ...acpHostPermissionChoices[2], value: ACP_LAUNCH_BYPASS_VALUE }]
+  }
+}
+
 export function isAcpHostPermissionMode(value: string): value is AcpHostPermissionMode {
   return acpHostPermissionChoices.some((choice) => choice.value === value)
 }
@@ -387,6 +437,7 @@ export function getLocalAgentLaunchMode(
 
 export interface LocalAgentSessionOverrides {
   mode?: { configId: string; value: string }
+  launchBypass?: { agentId: string; presetId: string } | null
   hostPermissionMode?: { agentId: string; value: AcpHostPermissionMode }
   thoughtLevel?: { configId: string; value: string; modelId?: string }
   configOptions?: Record<string, string | boolean>
@@ -424,6 +475,7 @@ export interface LocalAgentSessionInfo extends LocalAgentModelCatalog {
   configOptions?: LocalAgentConfigOption[]
   mode?: LocalAgentSelection
   hostPermission?: LocalAgentSelection
+  launchPermission?: LocalAgentSelection
   thoughtLevel?: RuntimeEffortControl
   protocolInfo?: LocalAgentProtocolInfo
   images: boolean
@@ -432,8 +484,13 @@ export interface LocalAgentSessionInfo extends LocalAgentModelCatalog {
 }
 
 export type LocalAgentSessionView =
-  | { info: LocalAgentSessionInfo; idleMode?: never; idleHostPermission?: never }
-  | { info: null; idleMode?: LocalAgentSelection; idleHostPermission?: LocalAgentSelection }
+  | { info: LocalAgentSessionInfo; idleMode?: never; idleHostPermission?: never; idleLaunchPermission?: never }
+  | {
+      info: null
+      idleMode?: LocalAgentSelection
+      idleHostPermission?: LocalAgentSelection
+      idleLaunchPermission?: LocalAgentSelection
+    }
 
 export const LocalApprovalDecisionSchema = z.enum(['accept', 'acceptForSession', 'acceptAlways', 'decline', 'cancel'])
 export type LocalApprovalDecision = z.infer<typeof LocalApprovalDecisionSchema>

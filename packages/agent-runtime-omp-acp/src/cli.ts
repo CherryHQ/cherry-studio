@@ -7,7 +7,10 @@ export const ompCli = {
     overrides: ['OMP_PROFILE', 'PI_PROFILE', 'PI_CONFIG_DIR', 'PI_CODING_AGENT_DIR']
   },
   id: 'omp',
-  permissionMode: { values: { default: 'default', plan: 'plan' } } satisfies AcpPermissionModes,
+  permissionMode: {
+    bypassArgs: ['acp', '--yolo'],
+    values: { default: 'default', plan: 'plan' }
+  } satisfies AcpPermissionModes,
   credentialScope: 'provider',
   name: 'Oh My Pi',
   protocol: 'acp',

@@ -1953,15 +1953,60 @@ describe('local protocol processes', () => {
     )
   })
 
-  it('keeps MiniMax native approval and legacy Plan available together', async () => {
-    const { connection } = create('acp', 'minimax-native-permissions', undefined, 'minimax')
+  it('keeps MiniMax legacy Plan while refusing the persistent approval setter', async () => {
+    const fixture = create('acp', 'minimax-native-permissions', undefined, 'minimax')
+    const connection = fixture.connection as AcpConnection
     await connection.start(cwd)
-    await connection.setMode('permissionMode', 'bypassPermissions')
-    expect(connection.localSessionInfo.mode?.currentValue).toBe('bypassPermissions')
-    await connection.setMode('permissionMode', ACP_NATIVE_PLAN_VALUE)
-    expect(connection.localSessionInfo.mode?.currentValue).toBe(ACP_NATIVE_PLAN_VALUE)
-    await connection.setMode('permissionMode', 'default')
-    expect(connection.localSessionInfo.mode?.currentValue).toBe('default')
+    expect(connection.localSessionInfo.hostPermission?.id).toBe(ACP_HOST_PERMISSION_MODE_ID)
+    expect(connection.localSessionInfo.configOptions?.some(({ id }) => id === 'permissionMode')).toBe(false)
+    await expect(connection.setMode('permissionMode', 'bypassPermissions')).rejects.toThrow('no longer available')
+    await expect(connection.setConfigOption('permissionMode', 'bypassPermissions')).rejects.toThrow(
+      'no longer available'
+    )
+    await connection.setMode('legacy-mode', 'plan')
+    expect(connection.localSessionInfo.hostPermission?.currentValue).toBe('plan')
+    await connection.setMode('legacy-mode', 'default')
+    expect(connection.localSessionInfo.hostPermission?.currentValue).toBe('default')
+  })
+
+  it.each([
+    ['antigravity-acp', 'antigravity-native-permissions', 'accept-edits', 'acceptEdits'],
+    ['kimi', 'kimi-native-permissions', 'auto', 'auto'],
+    ['qwen', 'qwen-native-permissions', 'auto-edit', 'acceptEdits'],
+    ['devin', 'devin-native-permissions', 'smart', 'auto'],
+    ['muse-code', 'muse-native-permissions', 'denyUnmatched', 'default']
+  ])('applies %s approval through its native session control', async (preset, scenario, value, expected) => {
+    const fixture = create('acp', scenario, undefined, preset)
+    const connection = fixture.connection as AcpConnection
+    await connection.start(cwd)
+    expect(connection.localSessionInfo.hostPermission).toBeUndefined()
+    await connection.setMode('mode', value)
+    expect(connection.localSessionInfo.mode?.currentValue).toBe(value)
+    expect(connection.effectivePermissionMode).toBe(expected)
+  })
+
+  it('keeps Kilo workflows separate from approvals and can still enter native Plan', async () => {
+    const fixture = create('acp', 'kilo-native-permissions', undefined, 'kilo')
+    const connection = fixture.connection as AcpConnection
+    await connection.start(cwd)
+    const host = connection.localSessionInfo.hostPermission
+    expect(host?.id).toBe(ACP_HOST_PERMISSION_MODE_ID)
+    expect(host?.options.map(({ value }) => value)).toEqual(['default', 'acceptEdits', 'bypassPermissions', 'plan'])
+    await connection.setMode('mode', 'plan')
+    expect(connection.localSessionInfo.hostPermission?.currentValue).toBe('plan')
+  })
+
+  it('switches the native Cline boolean without making Plan an approval setting', async () => {
+    const fixture = create('acp', 'cline-native-permissions', undefined, 'cline')
+    const connection = fixture.connection as AcpConnection
+    await connection.start(cwd)
+    expect(connection.localSessionInfo.hostPermission).toBeUndefined()
+    await connection.setMode('auto_approve', 'true')
+    expect(connection.localSessionInfo.mode?.currentValue).toBe('true')
+    await connection.setMode('auto_approve', ACP_NATIVE_PLAN_VALUE)
+    expect(connection.localSessionInfo.configOptions?.find(({ id }) => id === 'mode')?.currentValue).toBe('plan')
+    await connection.setMode('auto_approve', 'false')
+    expect(connection.localSessionInfo.mode?.currentValue).toBe('false')
   })
 
   it('links Junie native approval to its workflow even when the workflow has no category', async () => {

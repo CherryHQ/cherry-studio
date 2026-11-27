@@ -24,6 +24,7 @@ export const CURSOR_PERMISSION_MODES = {
   id: 'cursor-mode',
   currentValue: 'default',
   application: 'next-turn',
+  nativePermissionNames: true,
   options: [
     { value: 'default', name: 'Auto-review', permissionMode: 'auto' },
     { value: 'plan', name: 'Plan', permissionMode: 'plan' }

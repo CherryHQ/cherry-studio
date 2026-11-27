@@ -22,6 +22,7 @@ export const grokCli = {
   ],
   name: 'Grok Build',
   protocol: 'acp',
+  permissionMode: { bypassArgs: ['agent', '--always-approve', 'stdio'] },
   subscriptionUsage: true,
   executable: 'grok',
   args: ['agent', 'stdio'],

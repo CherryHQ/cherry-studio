@@ -28,7 +28,10 @@ import { BaseService } from '@main/core/lifecycle/BaseService'
 import { AGENT_SESSION_API_RETRY_CACHE_KEY } from '@shared/ai/agentSessionApiRetry'
 import {
   ACP_HOST_PERMISSION_MODE_ID,
+  ACP_LAUNCH_BYPASS_VALUE,
+  ACP_LAUNCH_PERMISSION_ID,
   getAcpHostPermissionModeSelection,
+  getAcpLaunchPermission,
   isAcpHostPermissionMode,
   type AcpHostPermissionMode,
   type LocalAgentSelection
@@ -5077,6 +5080,77 @@ describe('AgentSessionRuntimeService', () => {
       configuration: { localRuntime: { presetId: 'kimi', enabled: true, args: [], env: {} } }
     })
     expect(service.getLocalSessionView('session-1').idleHostPermission?.currentValue).toBe('default')
+  })
+
+  it('restarts the selected ACP session for launch bypass and removes the override before Plan', async () => {
+    mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-1', workspace: { path: '/workspace' } })
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'local',
+      model: baseTurnInput.modelId,
+      configuration: { localRuntime: { presetId: 'antigravity-acp', enabled: true, args: [], env: {} } }
+    })
+    const launches: Array<string | undefined> = []
+    const closed: number[] = []
+    const resumes: Array<string | undefined> = []
+    runtimeDriverRegistry.register({
+      type: 'local',
+      async connect(input: AgentRuntimeConnectInput) {
+        expect(closed).toHaveLength(launches.length)
+        launches.push(input.localLaunchBypass)
+        resumes.push(input.resumeToken)
+        const generation = launches.length
+        const events = createAsyncQueue<AgentRuntimeEvent>(() => {
+          closed.push(generation)
+        })
+        events.push({ type: 'resume-token', token: 'native-antigravity-session' })
+        const mode: LocalAgentSelection = {
+          id: 'mode',
+          application: 'session',
+          currentValue: 'default',
+          options: [
+            { value: 'default', name: 'Default', permissionMode: 'default' },
+            { value: 'auto', name: 'Auto', permissionMode: 'auto' },
+            { value: 'plan', name: 'Plan', permissionMode: 'plan' }
+          ]
+        }
+        const info = () => ({
+          models: [],
+          images: true,
+          resume: true,
+          mode,
+          launchPermission: getAcpLaunchPermission(mode, !!input.localLaunchBypass)
+        })
+        return {
+          ...events,
+          send: vi.fn(),
+          async reconcile() {
+            return 'current' as const
+          },
+          get localSessionInfo() {
+            return info()
+          },
+          async setMode(_id: string, value: string) {
+            mode.currentValue = value
+            return info()
+          }
+        }
+      },
+      validateSession: vi.fn()
+    })
+    const service = new AgentSessionRuntimeService()
+    expect(service.getLocalSessionView('session-1').idleLaunchPermission?.currentValue).toBe('default')
+    await service.listSessionCommands('session-1')
+    const enabled = await service.setLocalMode('session-1', ACP_LAUNCH_PERMISSION_ID, ACP_LAUNCH_BYPASS_VALUE)
+    expect(enabled.info?.launchPermission?.currentValue).toBe(ACP_LAUNCH_BYPASS_VALUE)
+    expect(launches).toEqual([undefined, 'antigravity-acp'])
+    expect(closed).toEqual([1])
+    const planned = await service.setLocalMode('session-1', ACP_LAUNCH_PERMISSION_ID, 'plan')
+    expect(planned.info?.launchPermission?.currentValue).toBe('plan')
+    expect(launches).toEqual([undefined, 'antigravity-acp', undefined])
+    expect(closed).toEqual([1, 2])
+    expect(resumes).toEqual([undefined, 'native-antigravity-session', 'native-antigravity-session'])
+    await service.closeSession('session-1')
   })
 
   it('enters native OpenCode Plan and returns to Build through the shared permission menu', async () => {

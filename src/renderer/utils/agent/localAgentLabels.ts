@@ -6,7 +6,7 @@ import {
   selectedPermissionMode
 } from '@cherrystudio/agent-runtime/cli'
 import { reasoningEffortLabel } from '@renderer/utils/reasoning'
-import type { LocalAgentConfigOption, LocalAgentSelection } from '@shared/ai/localAgent'
+import { ACP_LAUNCH_BYPASS_VALUE, type LocalAgentConfigOption, type LocalAgentSelection } from '@shared/ai/localAgent'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 
 const modeNameKeys = new Map(
@@ -47,8 +47,21 @@ export function resolveUnifiedLocalPermissionModes(mode?: LocalAgentSelection) {
   return {
     id: mode.id,
     currentCanonicalMode: selectedPermissionMode(mode),
-    options: CANONICAL_PERMISSION_MODE_ORDER.flatMap((canonicalMode) => {
+    options: CANONICAL_PERMISSION_MODE_ORDER.flatMap<{
+      canonicalMode: AgentPermissionMode
+      value: string
+      name?: string
+      description?: string
+    }>((canonicalMode) => {
       const candidates = mode.options.filter((option) => option.permissionMode === canonicalMode)
+      if (mode.nativePermissionNames && canonicalMode !== 'plan') {
+        return candidates.map(({ value, name, description }) => ({
+          canonicalMode,
+          value,
+          name: value === ACP_LAUNCH_BYPASS_VALUE ? undefined : name,
+          description
+        }))
+      }
       const chosen = candidates.find((option) => option.value === mode.currentValue) ?? candidates[0]
       return chosen ? [{ canonicalMode, value: chosen.value }] : []
     })

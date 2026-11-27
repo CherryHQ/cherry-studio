@@ -103,6 +103,7 @@ export interface AgentRuntimeConnectInput {
    *  default and ignore session model overrides, which decides which resolution a captured
    *  connection model is compared against for stale-capture pinning. */
   headless?: boolean
+  localLaunchBypass?: string
   /** Explicit channel policy for this turn, independent of the Agent's stored configuration. */
   permissionModeOverride?: AgentPermissionMode
   /** Product position captured before asynchronous connection work. */

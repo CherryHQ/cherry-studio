@@ -19,7 +19,7 @@ export async function connect(input: AgentRuntimeConnectInput, config: LocalAgen
   const live = new AcpConnection(input.sessionId, input.agentId, config, input.headless)
   return withStartupSignal(
     AbortSignal.timeout(30_000),
-    () => live.start(cwd, input.resumeToken),
+    () => live.start(cwd, input.resumeToken, !!input.localLaunchBypass && input.localLaunchBypass === config.presetId),
     () => live.close()
   )
 }

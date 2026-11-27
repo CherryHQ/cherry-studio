@@ -737,7 +737,11 @@ const AgentComposerInner = ({
   }, [localInfo?.configOptions, localMode?.id, localEffort?.id])
   const nativePermissionSelection = isUnifiedLocalPermissionMode(localMode) ? localMode : undefined
   const localPermissionSelection =
-    localInfo?.hostPermission ?? localView?.idleHostPermission ?? nativePermissionSelection
+    localInfo?.launchPermission ??
+    localView?.idleLaunchPermission ??
+    localInfo?.hostPermission ??
+    localView?.idleHostPermission ??
+    nativePermissionSelection
   const localPlanOption = useMemo(() => findLocalPlanModeOption(localPermissionSelection), [localPermissionSelection])
   const lastNonPlanLocalModeRef = useRef<{ sessionId: string; value: string } | null>(null)
   const localPlanSwitchInFlightRef = useRef(false)
