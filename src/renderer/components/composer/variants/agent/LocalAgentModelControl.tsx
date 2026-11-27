@@ -102,7 +102,7 @@ export function LocalAgentModelControl({
     if (!config || disabled || saving) return false
     setSaving(true)
     try {
-      if (sessionPicker && models.find(({ id }) => id === modelId)?.source !== 'gateway') {
+      if (sessionPicker && !activeGateway && models.find(({ id }) => id === modelId)?.source !== 'gateway') {
         if (!sessionId || !modelId || status !== 'selectable') return false
         await ipcApi.request('ai.local_agents.select_session_model', { sessionId, modelId })
         return true

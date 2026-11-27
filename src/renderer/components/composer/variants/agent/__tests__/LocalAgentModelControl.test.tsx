@@ -258,6 +258,60 @@ describe('local agent model persistence', () => {
     expect(trigger).toHaveTextContent('Second')
   })
 
+  it('persists a native model and clears the gateway binding when switching off a launch-bound gateway model in an ACP session', async () => {
+    const user = userEvent.setup()
+    const gatewayModel: Model = {
+      id: 'test::gateway',
+      name: 'Gateway model',
+      providerId: 'test',
+      capabilities: [],
+      endpointTypes: ['openai-chat-completions'],
+      isEnabled: true,
+      supportsStreaming: true,
+      isHidden: false
+    }
+    const gatewayAgent: AgentEntity = {
+      ...agent,
+      configuration: {
+        localRuntime: {
+          ...agent.configuration!.localRuntime!,
+          nativeModel: undefined,
+          sourceModelId: gatewayModel.id,
+          sourceModelViaGateway: true
+        }
+      }
+    }
+    catalog.providers = [{ id: 'test', isEnabled: true }]
+    catalog.models = [gatewayModel]
+    updateNativeModel.mockResolvedValueOnce({
+      ...gatewayAgent,
+      configuration: {
+        localRuntime: {
+          ...gatewayAgent.configuration!.localRuntime!,
+          nativeModel: 'second',
+          sourceModelId: undefined,
+          sourceModelViaGateway: undefined
+        }
+      }
+    })
+
+    try {
+      render(
+        <LocalAgentModelControl agent={gatewayAgent} info={info} sessionId="session" disabled={false} side="bottom" />
+      )
+      const trigger = screen.getByRole('button', { name: '选择模型' })
+      expect(trigger).toHaveTextContent(gatewayModel.name)
+      await user.click(trigger)
+      await user.click(await screen.findByRole('option', { name: 'Second' }))
+      await waitFor(() => expect(screen.queryByRole('option', { name: 'Second' })).not.toBeInTheDocument())
+      expect(ipcApi.request).not.toHaveBeenCalledWith('ai.local_agents.select_session_model', expect.anything())
+      expect(updateNativeModel).toHaveBeenCalledWith(gatewayAgent.id, 'second')
+    } finally {
+      catalog.models = []
+      catalog.providers = []
+    }
+  })
+
   it('respects the common model-editing permission for local agents', () => {
     const props = {
       agent,
