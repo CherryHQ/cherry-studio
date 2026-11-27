@@ -31,6 +31,13 @@ const GATEWAY_PATHS = ['/v1/chat/completions', '/v1/responses', '/v1/messages']
 const GROK_SUMMARY_PATH = `/v1${GROK_SESSION_SUMMARY_PATH}/chat/completions`
 const CODEX_PROVIDER = 'cherry-studio'
 const CODEX_KEY_VARIABLE = 'CHERRY_STUDIO_API_KEY'
+// Blanked so the user's own settings cannot route a bound launch to another provider or add its headers.
+const CLAUDE_PROVIDER_RESETS = [
+  'ANTHROPIC_CUSTOM_HEADERS',
+  'CLAUDE_CODE_USE_BEDROCK',
+  'CLAUDE_CODE_USE_VERTEX',
+  'CLAUDE_CODE_USE_FOUNDRY'
+]
 const CLAUDE_MODEL_ROLES = [
   'ANTHROPIC_MODEL',
   'ANTHROPIC_DEFAULT_FABLE_MODEL',
@@ -203,6 +210,7 @@ async function applyBinding(
       ANTHROPIC_BASE_URL: credential.baseUrl,
       ANTHROPIC_AUTH_TOKEN: credential.apiKey,
       ANTHROPIC_API_KEY: '',
+      ...Object.fromEntries(CLAUDE_PROVIDER_RESETS.map((key) => [key, ''])),
       ...Object.fromEntries(CLAUDE_MODEL_ROLES.map((key) => [key, address]))
     }
     if (!input.terminal) return { env: {}, args: [], files: {}, settingsEnv, dispose: noop }

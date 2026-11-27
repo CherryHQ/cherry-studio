@@ -9,8 +9,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { application } from '@application'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
+import { resolveClaudeLaunch } from '@main/ai/runtime/claudeCode/localClaudeLaunch'
 import { t } from '@main/i18n'
 import { CodeCliService } from '@main/services/codeCli/CodeCliService'
+import { openLocalAgentTerminal } from '@main/services/codeCli/localAgentCli'
 import type { LocalAgentConfiguration } from '@shared/ai/localAgent'
 import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { createUniqueModelId } from '@shared/data/types/model'
@@ -22,7 +24,9 @@ vi.mock('@main/utils/shellEnv', () => ({ getRawShellEnv: vi.fn(async () => ({}))
 
 const ADDRESS = 'port:wire-model'
 const credential = { baseUrl: 'http://127.0.0.1:4100', apiKey: 'scoped-key', dispose: vi.fn() }
-const createScopedCredential = vi.fn(async () => credential)
+const createScopedCredential = vi.fn(async (): Promise<typeof credential> => credential)
+const openTerminal = vi.fn(async (): Promise<{ success: boolean }> => ({ success: true }))
+const installed = (name: string) => ({ [name]: { name, availability: { source: 'system', path: `/usr/bin/${name}` } } })
 
 describe('launch model binding', () => {
   const dbh = setupTestDatabase()
@@ -38,12 +42,19 @@ describe('launch model binding', () => {
       key === 'feature.agents.launch_overlays' ? path.join(overlays(), file ?? '') : getPath(key, file)
     )
     MockApplicationUtils.setService('CodeCliService', {
-      readConfigFiles: cli.readConfigFiles.bind(cli)
+      readConfigFiles: cli.readConfigFiles.bind(cli),
+      openTerminal
+    })
+    MockApplicationUtils.setService('BinaryManager', {
+      getToolSnapshots: async () => ({ ...installed('claude'), ...installed('codex') })
     })
     MockApplicationUtils.setService('ApiGatewayService', { createScopedCredential })
     MockApplicationUtils.setService('LocalAgentOverlayService', overlayService)
     credential.dispose.mockClear()
-    createScopedCredential.mockClear()
+    createScopedCredential.mockReset()
+    createScopedCredential.mockResolvedValue(credential)
+    openTerminal.mockReset()
+    openTerminal.mockResolvedValue({ success: true })
     dbh.db
       .insert(userProviderTable)
       .values({
@@ -115,6 +126,95 @@ describe('launch model binding', () => {
     expect(await readFile(path.join(real, 'sessions', 'run.jsonl'), 'utf8')).toBe('kept')
     expect(await readdir(overlays())).toEqual([])
     expect(credential.dispose).toHaveBeenCalled()
+  })
+
+  it('gives concurrent launches of one Agent their own credential and home', async () => {
+    const real = path.join(root, 'pi')
+    await mkdir(path.join(real, 'sessions'), { recursive: true })
+    const lease = (apiKey: string) => ({ ...credential, apiKey, dispose: vi.fn() })
+    const first = lease('first-key')
+    const second = lease('second-key')
+    createScopedCredential.mockResolvedValueOnce(first).mockResolvedValueOnce(second)
+    const env = { PI_CODING_AGENT_DIR: real }
+
+    const [a, b] = await Promise.all([
+      bindLaunchModel(config('pi-acp'), env, { sessionId: 'a', terminal: false }),
+      bindLaunchModel(config('pi-acp'), env, { sessionId: 'b', terminal: false })
+    ])
+    const homes = [a!.env.PI_CODING_AGENT_DIR, b!.env.PI_CODING_AGENT_DIR]
+    expect(homes[0]).not.toBe(homes[1])
+    expect(await readFile(path.join(homes[0], 'models.json'), 'utf8')).toContain('first-key')
+    expect(await readFile(path.join(homes[1], 'models.json'), 'utf8')).toContain('second-key')
+    await writeFile(path.join(homes[0], 'sessions', 'a.jsonl'), 'a')
+
+    await a!.dispose()
+    expect(first.dispose).toHaveBeenCalled()
+    expect(second.dispose).not.toHaveBeenCalled()
+    expect(await readFile(path.join(homes[1], 'sessions', 'a.jsonl'), 'utf8')).toBe('a')
+    await b!.dispose()
+    expect(await readdir(path.join(real, 'sessions'))).toEqual(['a.jsonl'])
+  })
+
+  it('routes a scheduled Claude task to the bound model, not the provider in the user settings', async () => {
+    const home = path.join(root, 'claude')
+    await mkdir(home, { recursive: true })
+    await writeFile(
+      path.join(home, 'settings.json'),
+      JSON.stringify({
+        env: {
+          ANTHROPIC_BASE_URL: 'https://user.test',
+          ANTHROPIC_AUTH_TOKEN: 'user-token',
+          ANTHROPIC_CUSTOM_HEADERS: 'X-Org: user-secret',
+          CLAUDE_CODE_USE_BEDROCK: '1'
+        }
+      })
+    )
+    const launch = await resolveClaudeLaunch(
+      config('claude', { env: { CLAUDE_CONFIG_DIR: home } }),
+      root,
+      new AbortController().signal,
+      'scheduled-chat',
+      'task-session'
+    )
+    expect(JSON.stringify(launch.env)).not.toMatch(/user\.test|user-token|user-secret/)
+    expect(launch.modelBinding?.settingsEnv).toMatchObject({
+      ANTHROPIC_BASE_URL: credential.baseUrl,
+      ANTHROPIC_CUSTOM_HEADERS: '',
+      CLAUDE_CODE_USE_BEDROCK: '',
+      ANTHROPIC_MODEL: ADDRESS
+    })
+    expect(createScopedCredential).toHaveBeenCalledWith(expect.objectContaining({ agentSessionId: 'task-session' }))
+    await launch.modelBinding?.dispose()
+  })
+
+  it('opens a Cherry-bound Codex terminal and keeps its credential until Cherry stops', async () => {
+    await openLocalAgentTerminal(config('codex'))
+    const [{ args, env }] = openTerminal.mock.calls[0] as unknown as [{ args: string[]; env: Record<string, string> }]
+    expect(args).toContain(`model='${ADDRESS}'`)
+    expect(env.CHERRY_STUDIO_API_KEY).toBe(credential.apiKey)
+    expect(credential.dispose).not.toHaveBeenCalled()
+
+    await (overlayService as unknown as { onStop(): Promise<void> }).onStop()
+    expect(credential.dispose).toHaveBeenCalled()
+  })
+
+  it.each([
+    ['fails', async () => ({ success: false })],
+    [
+      'throws',
+      async () => {
+        throw new Error('no terminal')
+      }
+    ]
+  ] as const)('releases the terminal credential when opening the terminal %s', async (_, open) => {
+    openTerminal.mockImplementationOnce(open)
+    await openLocalAgentTerminal(config('codex')).catch(() => undefined)
+    expect(credential.dispose).toHaveBeenCalled()
+  })
+
+  it('signs in through the terminal without binding a Cherry model', async () => {
+    await openLocalAgentTerminal({ ...config('codex'), login: true })
+    expect(createScopedCredential).not.toHaveBeenCalled()
   })
 
   it('refuses a launch whose config path the home variable cannot redirect, and releases the credential', async () => {

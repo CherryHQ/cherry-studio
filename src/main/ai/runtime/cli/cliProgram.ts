@@ -276,7 +276,8 @@ export async function resolveCliProgram(
       const shell = await resolveWindowsShellPath(childEnv, windowsShell.allowSh)
       if (shell) childEnv[windowsShell.variable] = shell
     }
-    if (scheduled) {
+    // A bound launch takes its provider from the binding, not from the user's saved settings.
+    if (scheduled && !modelBinding) {
       const content = configFiles[scheduled.target]
       childEnv = scheduled.merge(
         mergeEnvironment(env, preset?.env),
@@ -284,7 +285,7 @@ export async function resolveCliProgram(
         config.env,
         mergeEnvironment
       )
-      if (content && policy?.profile && !modelBinding) nativeModel = readModelProfile(policy.profile, content)
+      if (content && policy?.profile) nativeModel = readModelProfile(policy.profile, content)
     }
     Object.assign(childEnv, modelBinding?.env)
     const binary = policy?.hostBinary
