@@ -194,6 +194,7 @@
   "common.wecom_processing": "Wird verarbeitet…",
   "common.wecom_replaced": "Ein anderer Client ist verbunden. Trennen Sie ihn zuerst.",
   "common.wecom_unsupported_message": "Dieser Nachrichtentyp wird nicht unterstützt. Senden Sie Text, Sprachnachrichten, Bilder, Videos oder Dateien.",
+  "deepseek_harness.gateway_requires_default_profile": "Gateway-Modelle erfordern das standardmäßige ACP-Profil von DeepSeek Harness. Entfernen Sie die benutzerdefinierten Profilargumente oder wählen Sie ein Modell eines direkt verbundenen Anbieters.",
   "deepseek_harness.model_unavailable": "Das ausgewählte Modell ist nicht mehr verfügbar. Wählen Sie ein anderes Modell, bevor Sie den Dienst starten.",
   "dialog.all_files": "Alle Dateien",
   "dialog.architecture_mismatch.detail": "Dein Mac verwendet einen Apple-Chip, aber diese Intel-Version von Cherry Studio läuft über Rosetta. Dies kann die Leistung beeinträchtigen. Bitte lade die macOS-Version für Apple Silicon (ARM64) von unserer offiziellen Website herunter und installiere sie.",

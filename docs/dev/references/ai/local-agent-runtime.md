@@ -263,6 +263,12 @@ the running service in a separate action. External services are open-only.
   patches share write and rollback checks. Explicit `DSH_HOME` uses its own
   profile. Managed tasks connect on first send, so the model remains editable
   until then.
+- A DeepSeek Harness gateway selection writes no route or credential to the
+  DSH home. Each WebUI or ACP process gets a `--patch` overlay rendered from the
+  user's current files and a credential scoped to that process, or to its
+  session for ACP, released when the process exits. Only an explicitly chosen
+  agent preset is written to `settings.yaml`. A gateway model needs the default
+  ACP profile. Direct provider selections still write the DSH home.
 
 ## Installation and connection
 

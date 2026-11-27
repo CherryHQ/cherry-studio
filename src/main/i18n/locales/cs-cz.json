@@ -194,6 +194,7 @@
   "common.wecom_processing": "Zpracovávám…",
   "common.wecom_replaced": "K tomuto botovi se připojil jiný klient. Před novým připojením jej nejprve odpojte.",
   "common.wecom_unsupported_message": "Tento typ zprávy není podporován. Odešlete text, hlasovou zprávu, obrázky, videa nebo soubory.",
+  "deepseek_harness.gateway_requires_default_profile": "Modely brány vyžadují výchozí profil ACP nástroje DeepSeek Harness. Odstraňte argumenty vlastního profilu nebo vyberte model přímého poskytovatele.",
   "deepseek_harness.model_unavailable": "Vybraný model již neexistuje. Před spuštěním služby vyberte jiný model.",
   "dialog.all_files": "Všechny soubory",
   "dialog.architecture_mismatch.detail": "Váš Mac používá čip Apple, ale tato verze Cherry Studio pro Intel běží přes Rosetta. To může způsobit pomalejší výkon. Stáhněte a nainstalujte prosím verzi pro macOS Apple Silicon (ARM64) z našich oficiálních stránek.",

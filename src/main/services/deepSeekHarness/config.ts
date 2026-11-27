@@ -379,27 +379,68 @@ function renderProfile(
   return document.toString()
 }
 
-export function renderDeepSeekHarnessAcpGatewayPatch(
-  receipt: DeepSeekHarnessConfigReceipt,
+function renderGatewayPatch(
+  sources: readonly (readonly [id: string, file: FileSnapshot & { written: string }])[],
   route: string,
   baseUrl: string,
   credentialRef: string
 ): string {
   const patch = new Document([])
-  // Cordis replaces plugin configs wholesale; carry forward both effective configs.
-  for (const [id, file] of [
-    ['acp', receipt.acp],
-    ['llm-pi-ai', receipt.profile]
-  ] as const) {
+  // Cordis replaces plugin configs wholesale; carry forward each effective config.
+  for (const [id, file] of sources) {
     const { entries } = parseProfileDocument({ path: file.path, content: file.written })
     const entry = entries.items.findLast((item) => isMap(item) && item.get('id') === id && !item.has('insert'))
     if (!isMap(entry)) throw new Error(`Missing DeepSeek Harness ${id} configuration`)
     patch.add(patch.createNode({ id, config: entry.get('config', true)?.clone() }))
   }
-  const provider = [1, 'config', 'providers', route]
+  const provider = [sources.length - 1, 'config', 'providers', route]
   patch.setIn([...provider, 'baseURL'], baseUrl)
   patch.setIn([...provider, 'apiKeyEnv'], credentialRef)
   return patch.toString()
+}
+
+/**
+ * Renders a `--patch` overlay that routes one DSH process to the Cherry gateway. The user's DSH home is
+ * read but never written; `plugin` is the profile entry that selects the model.
+ */
+export async function renderDeepSeekHarnessGatewayPatch(
+  configDir: AbsoluteFilePath,
+  projection: DeepSeekHarnessProjection,
+  plugin: 'acp' | 'agent-default-model',
+  credentialRef: string
+): Promise<string> {
+  const files = configFiles(configDir)
+  const [settings, profile, acp] = await Promise.all([
+    readSnapshot(files.settings),
+    readSnapshot(files.profile),
+    readSnapshot(files.acp)
+  ])
+  const rendered = { ...profile, written: renderHomeProfile(profile, settings, acp, projection) }
+  const selection = plugin === 'acp' ? { ...acp, written: renderProfile(acp, projection, 'acp') } : rendered
+  return renderGatewayPatch(
+    [
+      [plugin, selection],
+      ['llm-pi-ai', rendered]
+    ],
+    projection.route,
+    projection.baseUrl,
+    credentialRef
+  )
+}
+
+/** Writes only the user's chosen agent preset, for selections whose model reaches DSH through a patch. */
+export async function writeDeepSeekHarnessAgentPreset(
+  configDir: AbsoluteFilePath,
+  agentPreset: DeepSeekHarnessProjection['agentPreset']
+): Promise<void> {
+  if (agentPreset === 'inherit') return
+  const { settings: settingsPath } = configFiles(configDir)
+  await withDeepSeekHarnessConfigLock(configDir, async () => {
+    const document = parseMappingDocument(await readSnapshot(settingsPath))
+    if (document.getIn(['agent-presets', 'default']) === agentPreset) return
+    document.setIn(['agent-presets', 'default'], agentPreset)
+    await atomicWriteFile(settingsPath, document.toString(), { mode: FILE_MODE })
+  })
 }
 
 function renderHeadlessProfile(snapshot: FileSnapshot): string {
@@ -521,15 +562,42 @@ export async function withDeepSeekHarnessConfigLock<T>(configDir: string, write:
   }
 }
 
+function configFiles(configDir: AbsoluteFilePath) {
+  const file = (...segments: string[]) => AbsoluteFilePathSchema.parse(path.join(configDir, ...segments))
+  return {
+    credentials: file(CREDENTIALS_FILE),
+    settings: file(SETTINGS_FILE),
+    profile: file(PROFILE_FILE),
+    headless: file('profiles', 'headless', PROFILE_FILE),
+    acp: file('profiles', 'acp', PROFILE_FILE)
+  }
+}
+
+function renderHomeProfile(
+  profile: FileSnapshot,
+  settings: FileSnapshot,
+  acp: FileSnapshot,
+  projection: DeepSeekHarnessProjection
+): string {
+  return renderProfile(profile, projection, 'agent-default-model', [
+    parseMappingDocument(settings).getIn(['llm-pi-ai', 'providers']),
+    ...parseProfileDocument(acp).entries.items.flatMap((item) =>
+      isMap(item) && item.get('id') === 'llm-pi-ai' && !item.has('insert') ? [item.getIn(['config', 'providers'])] : []
+    )
+  ])
+}
+
 export async function writeDeepSeekHarnessConfig(
   configDir: AbsoluteFilePath,
   projection: DeepSeekHarnessProjection
 ): Promise<DeepSeekHarnessConfigReceipt> {
-  const credentialsPath = AbsoluteFilePathSchema.parse(path.join(configDir, CREDENTIALS_FILE))
-  const settingsPath = AbsoluteFilePathSchema.parse(path.join(configDir, SETTINGS_FILE))
-  const profilePath = AbsoluteFilePathSchema.parse(path.join(configDir, PROFILE_FILE))
-  const headlessPath = AbsoluteFilePathSchema.parse(path.join(configDir, 'profiles', 'headless', PROFILE_FILE))
-  const acpPath = AbsoluteFilePathSchema.parse(path.join(configDir, 'profiles', 'acp', PROFILE_FILE))
+  const {
+    credentials: credentialsPath,
+    settings: settingsPath,
+    profile: profilePath,
+    headless: headlessPath,
+    acp: acpPath
+  } = configFiles(configDir)
   return withDeepSeekHarnessConfigLock(configDir, async () => {
     const credentials = await readSnapshot(credentialsPath)
     const settings = await readSnapshot(settingsPath)
@@ -538,14 +606,7 @@ export async function writeDeepSeekHarnessConfig(
     const acp = await readSnapshot(acpPath)
     const writtenCredentials = renderCredentials(credentials, projection.credentialRef, projection.credentialValue)
     const writtenSettings = renderSettings(settings, projection)
-    const writtenProfile = renderProfile(profile, projection, 'agent-default-model', [
-      parseMappingDocument(settings).getIn(['llm-pi-ai', 'providers']),
-      ...parseProfileDocument(acp).entries.items.flatMap((item) =>
-        isMap(item) && item.get('id') === 'llm-pi-ai' && !item.has('insert')
-          ? [item.getIn(['config', 'providers'])]
-          : []
-      )
-    ])
+    const writtenProfile = renderHomeProfile(profile, settings, acp, projection)
     const writtenHeadless = renderHeadlessProfile(headless)
     const writtenAcp = renderProfile(acp, projection, 'acp')
 

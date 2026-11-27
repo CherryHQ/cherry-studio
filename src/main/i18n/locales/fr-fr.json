@@ -194,6 +194,7 @@
   "common.wecom_processing": "Traitement…",
   "common.wecom_replaced": "Un autre client est connecté à ce bot. Déconnectez-le d’abord.",
   "common.wecom_unsupported_message": "Ce type de message n’est pas pris en charge. Envoyez du texte, des messages vocaux, des images, des vidéos ou des fichiers.",
+  "deepseek_harness.gateway_requires_default_profile": "Les modèles de passerelle nécessitent le profil ACP par défaut de DeepSeek Harness. Supprimez les arguments de profil personnalisés ou choisissez un modèle d'un fournisseur direct.",
   "deepseek_harness.model_unavailable": "Le modèle sélectionné n’existe plus. Sélectionnez un autre modèle avant de démarrer le service.",
   "dialog.all_files": "Tous les fichiers",
   "dialog.architecture_mismatch.detail": "Votre Mac utilise une puce Apple, mais cette version Intel de Cherry Studio fonctionne via Rosetta. Cela peut entraîner des ralentissements. Veuillez télécharger et installer la version macOS pour Apple Silicon (ARM64) depuis notre site officiel.",

@@ -194,6 +194,7 @@
   "common.wecom_processing": "Przetwarzanie…",
   "common.wecom_replaced": "Inny klient połączył się z tym botem. Rozłącz go przed ponownym połączeniem.",
   "common.wecom_unsupported_message": "Ten typ wiadomości nie jest obsługiwany. Wyślij tekst, głos, obrazy, wideo lub pliki.",
+  "deepseek_harness.gateway_requires_default_profile": "Modele bramy wymagają domyślnego profilu ACP DeepSeek Harness. Usuń argumenty profilu niestandardowego lub wybierz model bezpośredniego dostawcy.",
   "deepseek_harness.model_unavailable": "Wybrany model już nie istnieje. Wybierz inny model przed uruchomieniem usługi.",
   "dialog.all_files": "Wszystkie pliki",
   "dialog.architecture_mismatch.detail": "Twój komputer Mac używa układu Apple Silicon, ale ta wersja Cherry Studio dla procesorów Intel działa za pośrednictwem środowiska Rosetta. Może to powodować obniżenie wydajności. Pobierz i zainstaluj wersję macOS Apple Silicon (ARM64) z naszej oficjalnej witryny.",

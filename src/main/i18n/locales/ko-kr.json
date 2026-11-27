@@ -194,6 +194,7 @@
   "common.wecom_processing": "처리 중…",
   "common.wecom_replaced": "다른 클라이언트가 이 봇에 연결되었습니다. 다시 연결하기 전에 해당 연결을 해제하세요.",
   "common.wecom_unsupported_message": "지원하지 않는 메시지 유형입니다. 텍스트, 음성, 이미지, 동영상 또는 파일을 보내세요.",
+  "deepseek_harness.gateway_requires_default_profile": "게이트웨이 모델에는 DeepSeek Harness의 기본 ACP 프로필이 필요합니다. 사용자 지정 프로필 인수를 제거하거나 직접 연결 공급자 모델을 선택하세요.",
   "deepseek_harness.model_unavailable": "선택한 모델이 더 이상 존재하지 않습니다. 서비스를 시작하기 전에 다른 모델을 선택하세요.",
   "dialog.all_files": "모든 파일",
   "dialog.architecture_mismatch.detail": "이 Mac은 Apple 칩을 사용하지만 Intel용 Cherry Studio가 Rosetta를 통해 실행되고 있어 성능이 느려질 수 있습니다. 공식 웹사이트에서 macOS Apple Silicon(ARM64) 버전을 다운로드하여 설치하세요.",

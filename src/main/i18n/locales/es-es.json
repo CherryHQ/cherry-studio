@@ -194,6 +194,7 @@
   "common.wecom_processing": "Procesando…",
   "common.wecom_replaced": "Otro cliente se ha conectado al bot. Desconéctalo primero.",
   "common.wecom_unsupported_message": "Este tipo de mensaje no es compatible. Envíe texto, mensajes de voz, imágenes, vídeos o archivos.",
+  "deepseek_harness.gateway_requires_default_profile": "Los modelos de pasarela requieren el perfil ACP predeterminado de DeepSeek Harness. Elimina los argumentos de perfil personalizados o elige un modelo de un proveedor directo.",
   "deepseek_harness.model_unavailable": "El modelo seleccionado ya no existe. Selecciona otro modelo antes de iniciar el servicio.",
   "dialog.all_files": "Todos los archivos",
   "dialog.architecture_mismatch.detail": "Tu Mac utiliza un chip Apple, pero esta versión Intel de Cherry Studio se ejecuta mediante Rosetta. Esto puede ralentizar su funcionamiento. Descarga e instala la versión de macOS para Apple Silicon (ARM64) desde nuestro sitio web oficial.",
