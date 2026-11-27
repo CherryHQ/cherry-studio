@@ -1421,8 +1421,6 @@
   "code_block.expand": "펼치기",
   "code_block.more": "더 보기",
   "code_block.preview.invalid_json": "잘못된 JSON 설정",
-  "code_block.preview.plantuml_remote_notice": "PlantUML 다이어그램을 렌더링하면 다이어그램 소스가 {{host}}로 전송됩니다.",
-  "code_block.preview.plantuml_remote_render": "PlantUML로 렌더링",
   "code_block.run": "실행",
   "code_block.split.label": "분할 보기",
   "code_block.split.restore": "분할 보기 복원",

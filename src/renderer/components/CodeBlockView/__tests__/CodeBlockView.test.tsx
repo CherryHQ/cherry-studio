@@ -235,33 +235,21 @@ describe('CodeBlockView', () => {
     expect(screen.queryByRole('button', { name: 'code_block.run' })).not.toBeInTheDocument()
   })
 
-  it('defaults plantuml code blocks to source view and gates remote preview behind explicit confirmation', async () => {
+  it('exposes PlantUML source and switches back to the default preview when requested', async () => {
     const user = userEvent.setup()
-    const fetchMock = vi.fn()
-    vi.stubGlobal('fetch', fetchMock)
-    try {
-      render(
-        <CodeBlockView language="plantuml" editable>
-          {'@startuml\nAlice -> Bob\n@enduml'}
-        </CodeBlockView>
-      )
+    render(
+      <CodeBlockView language="plantuml" editable={false}>
+        {'@startuml\nAlice -> Bob\n@enduml'}
+      </CodeBlockView>
+    )
 
-      expect(screen.getByLabelText('Code viewer')).toHaveTextContent('@startuml')
-      expect(screen.getByRole('button', { name: 'preview.label' })).toBeInTheDocument()
-      expect(screen.getByRole('button', { name: 'code_block.edit.label' })).toBeInTheDocument()
-      expect(fetchMock).not.toHaveBeenCalled()
-
-      await user.click(screen.getByRole('button', { name: 'preview.label' }))
-
-      expect(await screen.findByText('code_block.preview.plantuml_remote_notice')).toBeInTheDocument()
-      expect(screen.getByRole('button', { name: 'code_block.preview.plantuml_remote_render' })).toBeInTheDocument()
-      expect(fetchMock).not.toHaveBeenCalled()
-    } finally {
-      vi.unstubAllGlobals()
-    }
+    await user.click(screen.getByRole('button', { name: 'preview.source' }))
+    expect(screen.getByLabelText('Code viewer')).toHaveTextContent('Alice -> Bob')
+    await user.click(screen.getByRole('button', { name: 'preview.label' }))
+    expect(screen.queryByLabelText('Code viewer')).not.toBeInTheDocument()
   })
 
-  it('stays in source view when a streamed block transitions to plantuml', () => {
+  it('shows PlantUML source during streaming and opens preview when it finishes', () => {
     const { rerender } = render(
       <CodeBlockView language="plaintext" editable isStreaming>
         {'@startuml'}
@@ -275,5 +263,12 @@ describe('CodeBlockView', () => {
     )
 
     expect(screen.getByLabelText('Code viewer')).toHaveTextContent('Alice -> Bob')
+
+    rerender(
+      <CodeBlockView language="plantuml" editable>
+        {'@startuml\nAlice -> Bob\n@enduml'}
+      </CodeBlockView>
+    )
+    expect(screen.queryByLabelText('Code viewer')).not.toBeInTheDocument()
   })
 })

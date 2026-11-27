@@ -1441,8 +1441,6 @@
   "code_block.expand": "Rozwiń",
   "code_block.more": "Więcej",
   "code_block.preview.invalid_json": "Nieprawidłowa konfiguracja JSON",
-  "code_block.preview.plantuml_remote_notice": "Renderowanie diagramów PlantUML wysyła kod źródłowy diagramu do {{host}}.",
-  "code_block.preview.plantuml_remote_render": "Renderuj przez PlantUML",
   "code_block.run": "Uruchom",
   "code_block.split.label": "Widok dzielony",
   "code_block.split.restore": "Przywróć widok dzielony",
