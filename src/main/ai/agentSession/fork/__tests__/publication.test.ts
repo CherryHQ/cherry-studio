@@ -384,6 +384,30 @@ describe('Agent fork publication', () => {
     'write failed'
   ] as const)('edits a native prefix: %s', async (outcome) => {
     if (outcome === 'first message') agentSessionMessageService.deleteSessionMessage(sessionId, messageId)
+    let originalInputId: string | undefined
+    if (outcome === 'handoff after steer') {
+      const assistant = dbh.db
+        .select()
+        .from(agentSessionMessageTable)
+        .where(eq(agentSessionMessageTable.id, messageId))
+        .get()!
+      originalInputId = agentSessionMessageService.saveMessage({
+        sessionId,
+        parentId: assistant.parentId!,
+        message: { role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'Original input' }] } }
+      }).id
+      dbh.db
+        .update(agentSessionMessageTable)
+        .set({ createdAt: assistant.createdAt - 1, pos: 0 })
+        .where(eq(agentSessionMessageTable.id, originalInputId))
+        .run()
+      dbh.db
+        .update(agentSessionMessageTable)
+        .set({ parentId: originalInputId })
+        .where(eq(agentSessionMessageTable.id, messageId))
+        .run()
+      dbh.db.update(agentSessionTable).set({ activeNodeId: messageId }).where(eq(agentSessionTable.id, sessionId)).run()
+    }
     let handoffId: string | undefined
     if (outcome === 'handoff')
       handoffId = agentSessionMessageService.saveMessage({
@@ -404,7 +428,12 @@ describe('Agent fork publication', () => {
             message: { role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'Steer' }] } }
           })
         : undefined
-    if (steer) agentSessionMessageService.linkReply(sessionId, [steer.id], messageId)
+    if (steer)
+      agentSessionMessageService.linkReply(
+        sessionId,
+        [...(originalInputId ? [originalInputId] : []), steer.id],
+        messageId
+      )
     if (outcome === 'handoff after steer')
       handoffId = agentSessionMessageService.saveMessage({
         sessionId,
@@ -477,7 +506,7 @@ describe('Agent fork publication', () => {
         outcome === 'first message'
           ? [newId]
           : outcome === 'handoff' || outcome === 'handoff after steer'
-            ? [messageId, ...(steer ? [steer.id] : []), handoffId, newId]
+            ? [...(originalInputId ? [originalInputId] : []), messageId, ...(steer ? [steer.id] : []), handoffId, newId]
             : [messageId, ...(steer ? [steer.id] : []), newId]
       )
       expect(rows.at(-1)?.data).toEqual({ parts: [{ type: 'text', text: 'New question' }] })
@@ -509,7 +538,9 @@ describe('Agent fork publication', () => {
         outcome === 'after steer' ||
         outcome === 'handoff after steer'
       ) {
-        expect(rows[0].data.parts).toEqual([{ type: 'text', text: 'Preserved answer' }])
+        expect(rows.find((row) => row.id === messageId)?.data.parts).toEqual([
+          { type: 'text', text: 'Preserved answer' }
+        ])
         expect(await readFile(publishedFile, 'utf8')).toBe('native child history')
       } else {
         expect(await readForkResources()).toEqual([])
