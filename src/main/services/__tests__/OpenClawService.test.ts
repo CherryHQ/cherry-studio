@@ -21,11 +21,19 @@ const platformMock = vi.hoisted(() => ({ isWin: false }))
 const broadcastMock = vi.hoisted(() => vi.fn())
 const cacheSetSharedMock = vi.hoisted(() => vi.fn())
 const preferenceGetMock = vi.hoisted(() => vi.fn<(key: string) => unknown>(() => 'en-US'))
-const apiGatewayMock = vi.hoisted(() => ({
-  isRunning: () => true,
-  getCurrentConfig: () => ({ host: '127.0.0.1', port: 33333 }),
-  ensureValidApiKey: async () => 'cherry-gateway-key'
-}))
+const apiGatewayMock = vi.hoisted(() => {
+  // Each credential authorizes requests only while it is in liveKeys.
+  const liveKeys = new Set<string>()
+  let issued = 0
+  return {
+    liveKeys,
+    createScopedCredential: async () => {
+      const apiKey = `cs-internal-${++issued}`
+      liveKeys.add(apiKey)
+      return { baseUrl: 'http://127.0.0.1:44444', apiKey, dispose: () => void liveKeys.delete(apiKey) }
+    }
+  }
+})
 
 function createSpawnChild() {
   return Object.assign(new EventEmitter(), {
@@ -2613,25 +2621,184 @@ describe('OpenClawService gateway status state machine', () => {
       fs.rmSync(configDir, { recursive: true, force: true })
     })
 
-    it('writes the gateway model and credential instead of the upstream endpoint and key', async () => {
-      const { modelService } = await import('@data/services/ModelService')
-      const { providerService } = await import('@data/services/ProviderService')
-      vi.mocked(providerService.getByProviderId).mockReturnValue(createProvider())
-      vi.mocked(providerService.getApiKeys).mockReturnValue([{ id: 'key-1', key: 'upstream-key', isEnabled: true }])
-      vi.mocked(modelService.getByKey).mockReturnValue(createModel())
+    describe('API Gateway selection', () => {
+      const formalPath = () => path.join(configDir, 'openclaw.json')
+      const readJson = (file: string) => JSON.parse(fs.readFileSync(file, 'utf8'))
+      type GatewayChild = ReturnType<typeof createSpawnChild> & { exitCode: number | null; signalCode: null }
+      let spawned: Array<{ child: GatewayChild; configPath: string; env: Record<string, string> }>
 
-      await expect(service.syncConfig('openai::gpt-4o', undefined, true)).resolves.toEqual({ success: true })
-      const raw = fs.readFileSync(path.join(configDir, 'openclaw.json'), 'utf8')
-      const config = JSON.parse(raw)
-      const [providerKey, entry] = Object.entries(config.models.providers)[0]
-      expect(entry).toMatchObject({
-        baseUrl: 'http://127.0.0.1:33333/v1',
-        apiKey: 'cherry-gateway-key',
-        api: 'openai-completions',
-        models: [{ id: 'openai:gpt-4o' }]
+      beforeEach(async () => {
+        const { modelService } = await import('@data/services/ModelService')
+        const { providerService } = await import('@data/services/ProviderService')
+        vi.mocked(providerService.getByProviderId).mockReturnValue(createProvider())
+        vi.mocked(providerService.getApiKeys).mockReturnValue([{ id: 'key-1', key: 'upstream-key', isEnabled: true }])
+        vi.mocked(modelService.getByKey).mockImplementation((providerId, modelId) =>
+          createModel({ id: `${providerId}::${modelId}`, apiModelId: modelId })
+        )
+        vi.mocked(application.getPath).mockImplementation((key: string, file?: string) =>
+          key === 'app.temp' ? path.join(configDir, file ?? '') : configDir
+        )
+        apiGatewayMock.liveKeys.clear()
+        spawned = []
+        checkPortOpenSpy.mockResolvedValue(false)
+        startAndWaitSpy.mockRestore()
+        vi.spyOn(service as any, 'checkGatewayHealthWithError').mockResolvedValue({
+          status: 'healthy',
+          gatewayPort: 18790
+        })
+        crossPlatformSpawnMock.mockImplementation((_path, args: string[], options: { env: Record<string, string> }) => {
+          const child: GatewayChild = Object.assign(createSpawnChild(), { exitCode: null, signalCode: null })
+          // Record the config each gateway was given; the service deletes it when that process exits.
+          if (args[0] === 'gateway')
+            spawned.push({ child, configPath: options.env.OPENCLAW_CONFIG_PATH, env: options.env })
+          return child
+        })
+        terminateProcessTreeMock.mockImplementation(async (child) => {
+          child.exitCode = 0
+          child.emit('exit', 0, null)
+        })
       })
-      expect(config.agents.defaults.model.primary).toBe(`${providerKey}/openai:gpt-4o`)
-      expect(raw).not.toContain('upstream-key')
+
+      const privateConfigOf = (index: number) => readJson(spawned[index].configPath)
+      // What OpenClaw's own config.patch does to the file it was started with.
+      const editThroughOpenClaw = (index: number, edit: Record<string, unknown>) =>
+        fs.writeFileSync(spawned[index].configPath, JSON.stringify({ ...privateConfigOf(index), ...edit }, null, 2))
+
+      it('keeps the gateway provider and credential out of the user config', async () => {
+        fs.writeFileSync(
+          formalPath(),
+          JSON.stringify({
+            models: {
+              providers: {
+                'cherry-api-gateway': { baseUrl: 'http://127.0.0.1:23333/v1', apiKey: 'cs-sk-user-gateway-key' },
+                'cherry-openai': { baseUrl: 'https://api.openai.com/v1', apiKey: 'upstream-key' },
+                external: { baseUrl: 'https://external.example.com', apiKey: 'external-key' }
+              }
+            },
+            agents: { defaults: { model: { primary: 'cherry-api-gateway/openai:gpt-4o' } } }
+          })
+        )
+
+        await expect(service.syncConfig('openai::gpt-4o', undefined, true)).resolves.toEqual({ success: true })
+
+        const raw = fs.readFileSync(formalPath(), 'utf8')
+        const config = JSON.parse(raw)
+        expect(Object.keys(config.models.providers)).toEqual(['external'])
+        expect(config.agents.defaults.model).toBeUndefined()
+        expect(config.gateway.auth.token).toEqual(expect.any(String))
+        expect(raw).not.toContain('cs-sk-user-gateway-key')
+        expect(raw).not.toContain('upstream-key')
+      })
+
+      it('runs the gateway on a private config whose credential lives as long as the process', async () => {
+        await service.syncConfig('openai::gpt-4o', undefined, true)
+        const userConfig = fs.readFileSync(formalPath(), 'utf8')
+
+        await expect(service.startGateway()).resolves.toEqual({ success: true })
+
+        expect(spawned).toHaveLength(1)
+        expect(spawned[0].configPath).not.toBe(formalPath())
+        expect(spawned[0].env.OPENCLAW_NO_RESPAWN).toBe('1')
+        const config = privateConfigOf(0)
+        const [apiKey] = apiGatewayMock.liveKeys
+        expect(config.models.providers['cherry-api-gateway']).toMatchObject({
+          baseUrl: 'http://127.0.0.1:44444/v1',
+          apiKey,
+          models: [{ id: 'openai:gpt-4o' }]
+        })
+        expect(config.agents.defaults.model.primary).toBe('cherry-api-gateway/openai:gpt-4o')
+        expect(config.gateway.auth.token).toBe(JSON.parse(userConfig).gateway.auth.token)
+        expect(fs.readFileSync(formalPath(), 'utf8')).toBe(userConfig)
+
+        spawned[0].child.emit('exit', 1, null)
+
+        await vi.waitFor(() => expect(fs.existsSync(spawned[0].configPath)).toBe(false))
+        expect(apiGatewayMock.liveKeys.size).toBe(0)
+      })
+
+      it('restarts an owned gateway on a fresh credential when the gateway model changes', async () => {
+        await service.syncConfig('openai::gpt-4o', undefined, true)
+        await service.startGateway()
+        const [firstKey] = apiGatewayMock.liveKeys
+
+        await service.syncConfig('openai::gpt-4.1', undefined, true)
+        editThroughOpenClaw(0, { channels: { telegram: { enabled: true } } })
+        await expect(service.startGateway()).resolves.toEqual({ success: true })
+
+        expect(spawned).toHaveLength(2)
+        expect(spawned[0].child.exitCode).toBe(0)
+        expect(privateConfigOf(1).channels).toEqual({ telegram: { enabled: true } })
+        const provider = privateConfigOf(1).models.providers['cherry-api-gateway']
+        expect(provider.models).toMatchObject([{ id: 'openai:gpt-4.1' }])
+        await vi.waitFor(() => expect([...apiGatewayMock.liveKeys]).toEqual([provider.apiKey]))
+        expect(provider.apiKey).not.toBe(firstKey)
+      })
+
+      it('reuses the running gateway while the gateway model is unchanged', async () => {
+        await service.syncConfig('openai::gpt-4o', undefined, true)
+        await service.startGateway()
+        checkPortOpenSpy.mockResolvedValue(true)
+        checkHealthSpy.mockResolvedValue({ status: 'healthy', gatewayPort: 18790 })
+
+        await service.syncConfig('openai::gpt-4o', undefined, true)
+        await expect(service.startGateway()).resolves.toEqual({ success: true })
+
+        expect(spawned).toHaveLength(1)
+        expect(spawned[0].child.exitCode).toBeNull()
+        expect(apiGatewayMock.liveKeys.size).toBe(1)
+      })
+
+      it('carries config edits made through OpenClaw back to the user config without the Cherry provider', async () => {
+        await service.syncConfig('openai::gpt-4o', undefined, true)
+        await service.startGateway()
+        const [apiKey] = apiGatewayMock.liveKeys
+        editThroughOpenClaw(0, { channels: { telegram: { enabled: true } } })
+
+        spawned[0].child.emit('exit', 0, null)
+
+        await vi.waitFor(() => expect(readJson(formalPath()).channels).toEqual({ telegram: { enabled: true } }))
+        const raw = fs.readFileSync(formalPath(), 'utf8')
+        expect(raw).not.toContain('cherry-api-gateway')
+        expect(raw).not.toContain(apiKey)
+      })
+
+      it('keeps the user config when it changed while the gateway ran', async () => {
+        await service.syncConfig('openai::gpt-4o', undefined, true)
+        await service.startGateway()
+        editThroughOpenClaw(0, { channels: { telegram: { enabled: true } } })
+        const userEdit = JSON.stringify({ ...readJson(formalPath()), hooks: { enabled: true } })
+        fs.writeFileSync(formalPath(), userEdit)
+
+        spawned[0].child.emit('exit', 0, null)
+
+        await vi.waitFor(() => expect(fs.existsSync(spawned[0].configPath)).toBe(false))
+        expect(fs.readFileSync(formalPath(), 'utf8')).toBe(userEdit)
+      })
+
+      it('drops only scoped gateway entries from the OpenClaw model cache once the gateway exits', async () => {
+        const cache = (agent: string) => path.join(configDir, 'agents', agent, 'agent', 'models.json')
+        const writeCache = (agent: string, providers: Record<string, unknown>) => {
+          fs.mkdirSync(path.dirname(cache(agent)), { recursive: true })
+          fs.writeFileSync(cache(agent), JSON.stringify({ providers }))
+        }
+        await service.syncConfig('openai::gpt-4o', undefined, true)
+        await service.startGateway()
+        const [apiKey] = apiGatewayMock.liveKeys
+        writeCache('main', {
+          'cherry-api-gateway': { apiKey },
+          external: { apiKey: 'external-key' }
+        })
+        writeCache('legacy', { 'cherry-api-gateway': { apiKey: 'cs-sk-user-gateway-key' } })
+
+        spawned[0].child.emit('exit', 0, null)
+
+        await vi.waitFor(() =>
+          expect(readJson(cache('main')).providers).toEqual({ external: { apiKey: 'external-key' } })
+        )
+        expect(readJson(cache('legacy')).providers).toEqual({
+          'cherry-api-gateway': { apiKey: 'cs-sk-user-gateway-key' }
+        })
+      })
     })
 
     it('aborts the sync when the existing config is not valid JSON', async () => {

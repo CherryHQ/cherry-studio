@@ -251,9 +251,14 @@ the running service in a separate action. External services are open-only.
   bypass automatic management. Password sign-in uses OpenClaw's own page. Token
   sign-in can use a Dashboard bootstrap.
 - OpenClaw uses the selected model from its managed configuration. The Cherry
-  gateway option routes requests through the API Gateway shared by the service.
-  Use this option while Cherry is running. Requests carry the gateway key for
-  the shared service and record provider usage. User-edited
+  gateway option writes no provider or credential to `openclaw.json`. Each
+  Cherry-owned Gateway reads a private copy of that file with the gateway
+  provider and a credential scoped to its process, released when it exits.
+  Changing the gateway model restarts the Gateway. On exit, Cherry removes
+  scoped entries from OpenClaw's `agents/*/agent/models.json` cache and copies
+  config edits made through OpenClaw back to `openclaw.json`, unless that file
+  changed meanwhile. Use this option while Cherry is running; requests record
+  provider usage. User-edited
   conversation names take precedence over bridge UUIDs and technical titles. Cherry
   prefers `session/load` because the bridge may lose UUID mappings across restarts.
   Native database failures surface `openclaw doctor --fix` guidance.

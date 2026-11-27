@@ -17,7 +17,7 @@ import type { RetryPartData } from '@shared/data/types/uiParts'
 import type { OutputFor } from '@shared/ipc/types'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import type { ApiGatewayConfig, ApiGatewayStopOutcome } from '@shared/types/apiGateway'
-import { gatewayClientOrigin } from '@shared/utils/apiGateway'
+import { gatewayClientOrigin, INTERNAL_CREDENTIAL_PREFIX } from '@shared/utils/apiGateway'
 import { REDACTED } from '@shared/utils/redaction'
 
 import { isGatewayBindPermissionError, mapGatewayBindError } from './bindError'
@@ -64,7 +64,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
     cancel: (reason: unknown) => void
   }>()
   /** Never persisted or shown to the user; unrestricted on the internal listener. */
-  private readonly internalApiKey = `cs-internal-${uuidv4()}`
+  private readonly internalApiKey = `${INTERNAL_CREDENTIAL_PREFIX}${uuidv4()}`
   private readonly agentCredentialSecret = randomBytes(32)
   /** Live scoped credentials; each authorizes only its own scope until disposed. */
   private readonly scopedCredentials = new Map<string, InternalCredentialScope>()
@@ -398,7 +398,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
     scope: InternalCredentialScope
   ): Promise<{ baseUrl: string; apiKey: string; dispose: () => void }> {
     const baseUrl = await this.ensureInternalListener()
-    const apiKey = `cs-internal-${uuidv4()}`
+    const apiKey = `${INTERNAL_CREDENTIAL_PREFIX}${uuidv4()}`
     this.scopedCredentials.set(apiKey, scope)
     return { baseUrl, apiKey, dispose: () => this.scopedCredentials.delete(apiKey) }
   }
