@@ -41,22 +41,24 @@ vi.mock('node:fs', async (importOriginal) => {
     createWriteStream: (
       file: Parameters<typeof actual.createWriteStream>[0],
       options?: Parameters<typeof actual.createWriteStream>[1]
-    ) =>
-      actual.createWriteStream(file, {
-        ...(typeof options === 'string' ? { encoding: options } : options),
-        fs: {
-          ...actual,
-          fsync: (fd: number, callback: (error: NodeJS.ErrnoException | null) => void) => {
-            const sync = () => {
-              faults.releaseSync = undefined
-              if (faults.syncError) callback(faults.syncError)
-              else actual.fsync(fd, callback)
-            }
-            if (faults.holdSync) faults.releaseSync = sync
-            else sync()
+    ) => {
+      const fs = {
+        ...actual,
+        fsync: (fd: number, callback: (error: NodeJS.ErrnoException | null) => void) => {
+          const sync = () => {
+            faults.releaseSync = undefined
+            if (faults.syncError) callback(faults.syncError)
+            else actual.fsync(fd, callback)
           }
+          if (faults.holdSync) faults.releaseSync = sync
+          else sync()
         }
+      }
+      return actual.createWriteStream(file, {
+        ...(typeof options === 'string' ? { encoding: options } : options),
+        fs
       })
+    }
   }
 })
 
