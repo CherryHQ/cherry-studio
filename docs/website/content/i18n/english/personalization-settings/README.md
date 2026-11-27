@@ -41,7 +41,7 @@ Appearance settings gather all your preferences for **how the interface looks, h
 | **Steer shortcut** | The key for steering a reply while it is being generated (default `⌘Return`) |
 | **Spell check** | Shows a red wavy line under misspelled English words; turn it off if you mainly type Chinese to avoid false alarms |
 | **Show estimated token count** | Shows the estimated tokens your input will use in the input box (for reference only, not actual billing) |
-| **Markdown render input messages** | When off, the messages you send aren't rendered as Markdown; only model replies are |
+| **Markdown render input messages** | On for fresh profiles (existing profiles keep their saved value); when off, the messages you send aren't rendered as Markdown, only model replies are |
 | **Paste long text as file** | Long pasted text is turned into a file attachment (on by default) |
 | **Paste long text length** | How many characters count as "long text" (default 1500) |
 | **Confirm before deleting messages** | Asks for confirmation before a message is deleted, to prevent accidents |

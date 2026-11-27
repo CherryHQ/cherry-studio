@@ -34,7 +34,7 @@ Open **Settings → Appearance → Input Settings** to adjust how the input box 
 | Steer shortcut | <kbd>Cmd</kbd> + <kbd>Return</kbd> | Sends a message that redirects an Agent while it is still running |
 | Spell Check | Off | Underlines spelling mistakes in the input box |
 | Show estimated tokens | Off | Shows an estimate of the tokens your message will use |
-| Markdown render input message | Off | Renders Markdown in messages you send |
+| Markdown render input message | On | Renders Markdown in messages you send (fresh profiles default to On; existing profiles keep their saved value) |
 | Paste long text as file | On | Pastes long text as an attachment instead of filling the input box |
 | Paste long text length | 1500 | The character count above which pasted text becomes a file |
 | Confirm before deleting messages | On | Asks before a message is deleted |

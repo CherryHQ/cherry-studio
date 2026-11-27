@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Button } from '@cherrystudio/ui'
 import { useInfiniteFlatItems } from '@data/hooks/useDataApi'
+import { usePreference } from '@data/hooks/usePreference'
 import MessageContent from '@renderer/components/chat/messages/frame/MessageContent'
 import { MessageContentProvider } from '@renderer/components/chat/messages/MessageContentProvider'
 import type { MessageListItem } from '@renderer/components/chat/messages/types'
@@ -244,6 +245,7 @@ export function GlobalSearchMessagePreviewPanel({
   // The active message id we have already auto-scrolled to, so prepending older pages does not yank back.
   const scrolledActiveMessageIdRef = useRef<string | null>(null)
   const [activeMessageId, setActiveMessageId] = useState(target.messageId)
+  const [renderInputMessageAsMarkdown] = usePreference('chat.message.render_as_markdown')
   const topicId = target.sourceType === 'topic' ? target.topicId : ''
   const sessionId = target.sourceType === 'session' ? target.sessionId : ''
   const {
@@ -424,7 +426,11 @@ export function GlobalSearchMessagePreviewPanel({
           messages={messageItems}
           partsByMessageId={partsByMessageId}
           topic={previewTopic}
-          renderConfig={{ narrowMode: false, showMessageOutline: false }}>
+          renderConfig={{
+            narrowMode: false,
+            showMessageOutline: false,
+            renderInputMessageAsMarkdown
+          }}>
           <DynamicVirtualList
             ref={virtualListRef}
             list={messageItems}
