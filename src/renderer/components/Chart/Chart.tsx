@@ -21,6 +21,7 @@ export function Chart(props: ChartProps) {
       loadingLabel={props.loadingLabel}
       loadingTextColor={theme.mutedForeground}
       onClick={props.onDataPointClick}
+      onTimelineChange={props.type === 'pie' ? props.onTimelineChange : undefined}
       option={option}
       timelineIndex={props.type === 'pie' ? props.timeline?.currentIndex : undefined}
     />

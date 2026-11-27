@@ -18,6 +18,7 @@ interface EchartsProps {
   loadingLabel: string | undefined
   loadingTextColor: string
   onClick?: (params: ChartClickParams) => void
+  onTimelineChange?: (currentIndex: number) => void
   option: EChartsCoreOption
   timelineIndex?: number
 }
@@ -30,6 +31,7 @@ export function Echarts({
   loadingLabel,
   loadingTextColor,
   onClick,
+  onTimelineChange,
   option,
   timelineIndex
 }: EchartsProps) {
@@ -38,6 +40,8 @@ export function Echarts({
   const appliedOptionRef = useRef<{ option: EChartsCoreOption; settings: SetOptionOpts } | null>(null)
   const onClickRef = useRef(onClick)
   onClickRef.current = onClick
+  const onTimelineChangeRef = useRef(onTimelineChange)
+  onTimelineChangeRef.current = onTimelineChange
   const timelineIndexRef = useRef(timelineIndex)
   timelineIndexRef.current = timelineIndex
 
@@ -71,6 +75,7 @@ export function Echarts({
         typeof params.currentIndex === 'number'
       ) {
         timelineIndexRef.current = params.currentIndex
+        onTimelineChangeRef.current?.(params.currentIndex)
       }
     }
     instance.on?.('click', handleClick)

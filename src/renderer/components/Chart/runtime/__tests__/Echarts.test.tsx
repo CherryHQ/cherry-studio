@@ -118,6 +118,7 @@ describe('Echarts', () => {
       listeners.set(event, handler)
     })
     const onClick = vi.fn()
+    const onTimelineChange = vi.fn()
 
     const view = render(
       <Echarts
@@ -127,6 +128,7 @@ describe('Echarts', () => {
         loadingLabel="Loading"
         loadingTextColor="#111"
         onClick={onClick}
+        onTimelineChange={onTimelineChange}
         option={{ series: [{ type: 'line', data: [1, 2] }] }}
         timelineIndex={2}
       />
@@ -136,6 +138,7 @@ describe('Echarts', () => {
     expect(onClick).not.toHaveBeenCalled()
 
     listeners.get('timelinechanged')?.({ currentIndex: 1 })
+    expect(onTimelineChange).toHaveBeenCalledWith(1)
     listeners.get('click')?.({
       componentType: 'series',
       seriesIndex: 0,

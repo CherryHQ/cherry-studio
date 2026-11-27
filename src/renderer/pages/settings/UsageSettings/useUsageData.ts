@@ -93,7 +93,8 @@ export function useUsageData({
   })
   const exploreTimelineResult = useQuery('/ai-usage-records/timeline', {
     query: exploreQuery,
-    enabled: rollup !== 'total'
+    enabled: rollup !== 'total',
+    swrOptions: { keepPreviousData: false }
   })
   const refetchTimeline = timelineQueryResult.refetch
   const refetchOverviewStats = overviewStatsResult.refetch
@@ -184,6 +185,10 @@ export function useUsageEntriesData({
 
   const entriesQueryKey = JSON.stringify(entriesQuery)
   const prevEntriesQueryKeyRef = useRef(entriesQueryKey)
+  const lastLoadedQueryKeyRef = useRef<string | undefined>(undefined)
+  if (!error && !isLoading && pages.length > 0) {
+    lastLoadedQueryKeyRef.current = entriesQueryKey
+  }
   const resetRef = useRef(reset)
   resetRef.current = reset
   useEffect(() => {
@@ -203,13 +208,16 @@ export function useUsageEntriesData({
   useDataChange(['/ai-usage-records'], refreshEntries)
   useEffect(() => () => refreshEntries.cancel(), [refreshEntries])
 
+  // Do not show previous-query rows under a newly applied filter/range if its initial fetch failed.
+  const hasFailedNewQuery = Boolean(error && lastLoadedQueryKeyRef.current !== entriesQueryKey)
+
   return {
-    entries,
-    total,
+    entries: hasFailedNewQuery ? [] : entries,
+    total: hasFailedNewQuery ? 0 : total,
     isLoading,
     isRefreshing,
-    error: pages.length === 0 ? error : undefined,
-    hasNext,
+    error: hasFailedNewQuery || pages.length === 0 ? error : undefined,
+    hasNext: hasFailedNewQuery ? false : hasNext,
     loadNext
   }
 }

@@ -1,5 +1,5 @@
 import { CircleAlert } from 'lucide-react'
-import { lazy, Suspense, useCallback, useMemo } from 'react'
+import { lazy, Suspense, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { EmptyState, Skeleton } from '@cherrystudio/ui'
@@ -155,14 +155,26 @@ export function UsageDistributionChart({
   const isEmpty = periodKeys.length === 0 || chartSeries.every((series) => series.total <= 0)
 
   const isLoading = rollup === 'total' ? exploreStatsLoading : exploreTimelineLoading
+  const [selectedPiePeriodKey, setSelectedPiePeriodKey] = useState<string | undefined>()
   const activePieIndex = useMemo(() => {
     if (rollup === 'total' || chartType !== 'pie') return 0
+    if (selectedPiePeriodKey) {
+      const selectedIndex = periodKeys.indexOf(selectedPiePeriodKey)
+      if (selectedIndex >= 0) return selectedIndex
+    }
     let index = Math.max(0, periodKeys.length - 1)
     while (index > 0 && chartSeries.every((series) => (series.values[index] ?? 0) <= 0)) {
       index -= 1
     }
     return index
-  }, [chartSeries, chartType, periodKeys.length, rollup])
+  }, [chartSeries, chartType, periodKeys, rollup, selectedPiePeriodKey])
+  const handlePieTimelineChange = useCallback(
+    (index: number) => {
+      const nextPeriodKey = periodKeys[index]
+      if (nextPeriodKey) setSelectedPiePeriodKey(nextPeriodKey)
+    },
+    [periodKeys]
+  )
 
   const handlePointClick = useCallback(
     (params: ChartClickParams) => {
@@ -177,8 +189,14 @@ export function UsageDistributionChart({
         return
       }
 
-      const seriesIndex = chartType === 'pie' ? params.dataIndex : params.seriesIndex
-      const seriesItem = seriesIndex !== undefined ? chartSeries[seriesIndex] : undefined
+      const seriesItem =
+        chartType === 'pie'
+          ? chartSeries[params.dataIndex]
+          : params.seriesId !== undefined
+            ? chartSeries.find((item) => item.key === params.seriesId)
+            : params.seriesIndex !== undefined
+              ? chartSeries[params.seriesIndex]
+              : undefined
       const periodIndex = chartType === 'pie' ? (params.timelineIndex ?? activePieIndex) : params.dataIndex
       const periodKey = periodKeys[periodIndex]
       if (!seriesItem || !periodKey) return
@@ -296,6 +314,7 @@ export function UsageDistributionChart({
             loading={exploreTimelineLoading}
             loadingLabel={t('settings.usage.explore.loading')}
             onDataPointClick={chartClickHandler}
+            onTimelineChange={handlePieTimelineChange}
             timeline={{ currentIndex: activePieIndex, frames }}
             option={{ tooltip, legend: {} }}
           />

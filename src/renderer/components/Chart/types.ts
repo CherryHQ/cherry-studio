@@ -51,6 +51,7 @@ interface ChartPropsBase {
   loading?: boolean
   loadingLabel?: string
   onDataPointClick?: (params: ChartClickParams) => void
+  onTimelineChange?: (currentIndex: number) => void
 }
 
 interface CartesianChartSeries {
