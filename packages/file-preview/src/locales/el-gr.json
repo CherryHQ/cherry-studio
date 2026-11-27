@@ -26,6 +26,7 @@
   "file_preview.pptd.unsupported_element": "Μη υποστηριζόμενο στοιχείο {{id}} ({{type}})",
   "file_preview.too_large.action": "Άνοιγμα με προεπιλεγμένη εφαρμογή",
   "file_preview.too_large.description": "Το μέγεθος αρχείου {{size}} υπερβαίνει το όριο προεπισκόπησης {{limit}}.",
+  "file_preview.too_large.generic_description": "Αυτό το αρχείο υπερβαίνει το επιτρεπόμενο μέγεθος για προεπισκόπηση.",
   "file_preview.too_large.title": "Το αρχείο είναι πολύ μεγάλο για προεπισκόπηση",
   "file_preview.unsupported.action": "Άνοιγμα με προεπιλεγμένη εφαρμογή",
   "file_preview.unsupported.description": "Αυτός ο τύπος αρχείου δεν μπορεί να προεπισκοπηθεί ακόμα.",
