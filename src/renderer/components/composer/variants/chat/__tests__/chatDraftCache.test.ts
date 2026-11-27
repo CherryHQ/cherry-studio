@@ -43,6 +43,7 @@ describe('chatDraftCache', () => {
     })
 
     localStorage.clear()
+    sessionStorage.clear()
   })
 
   it('prevents an untouched window cleanup from deleting a newer draft', () => {
@@ -60,6 +61,44 @@ describe('chatDraftCache', () => {
     writeChatDraftCache('topic-owner-clear', emptyDraft(), { owner: sender })
     writeChatDraftCache('topic-owner-clear', sampleDraft(), { owner: stale, onlyIfOwned: true })
     expect(localStorage.getItem(getChatDraftCacheKey('topic-owner-clear'))).toBeNull()
+  })
+
+  it.each([false, true])('binds remounted cleanup to its cached snapshot revision (nonempty: %s)', (nonempty) => {
+    const topic = `topic-remount-${nonempty}`
+    const stale = nonempty ? sampleDraft() : emptyDraft()
+    writeChatDraftCache(topic, stale)
+    const oldMemory = cacheService.get(getChatDraftCacheKey(topic))
+    writeChatDraftCache(topic, nonempty ? emptyDraft() : sampleDraft())
+    const newerMirror = localStorage.getItem(getChatDraftCacheKey(topic))
+    // Simulate another renderer updating storage without replacing this renderer's memory tier.
+    cacheService.set(getChatDraftCacheKey(topic), oldMemory)
+    const loaded = readChatDraftCache(topic)
+    const remounted = createChatDraftOwner(topic, loaded)
+    writeChatDraftCache(topic, loaded, { owner: remounted, onlyIfOwned: true })
+    expect(localStorage.getItem(getChatDraftCacheKey(topic))).toBe(newerMirror)
+  })
+
+  it('restores text after reload while its shared lock callback is still queued', () => {
+    Object.defineProperty(navigator, 'locks', {
+      configurable: true,
+      value: { request: () => new Promise(() => {}) }
+    })
+    writeChatDraftCache('topic-pending-reload', sampleDraft())
+    vi.mocked(cacheService.get).mockReturnValueOnce(undefined)
+    expect(readChatDraftCache('topic-pending-reload')).toEqual(sampleDraft())
+    vi.mocked(cacheService.get).mockReturnValueOnce(undefined)
+    expect(readChatDraftCache('topic-pending-reload')).toEqual(sampleDraft())
+  })
+
+  it('does not restore pending text after another window advances the revision', () => {
+    Object.defineProperty(navigator, 'locks', {
+      configurable: true,
+      value: { request: () => new Promise(() => {}) }
+    })
+    writeChatDraftCache('topic-pending-sent', sampleDraft())
+    localStorage.setItem(`${getChatDraftCacheKey('topic-pending-sent')}.revision`, 'sent-in-other-window')
+    vi.mocked(cacheService.get).mockReturnValueOnce(undefined)
+    expect(readChatDraftCache('topic-pending-sent')).toEqual(emptyDraft())
   })
 
   it('round-trips a written draft through the memory tier', () => {

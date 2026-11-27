@@ -24,6 +24,7 @@ const EMPTY_DRAFT_CACHE: ChatComposerDraftCache = {
  */
 type PersistedChatDraftEntry = {
   expiresAt: number
+  revision?: string | null
   value: ChatComposerDraftCache
 }
 
@@ -91,6 +92,7 @@ function isPersistedToken(value: unknown): boolean {
 function readPersistedChatDraft(topicId: string): PersistedChatDraftEntry | null {
   const key = getChatDraftCacheKey(topicId)
   try {
+    const loadedRevision = readDraftRevision(topicId)
     const raw = localStorage.getItem(key)
     if (!raw) return null
 
@@ -119,7 +121,8 @@ function readPersistedChatDraft(topicId: string): PersistedChatDraftEntry | null
       localStorage.removeItem(key)
       return null
     }
-    return { expiresAt: parsed.expiresAt, value }
+    const revision = readDraftRevision(topicId) === loadedRevision ? loadedRevision : null
+    return { expiresAt: parsed.expiresAt, value, revision }
   } catch {
     try {
       localStorage.removeItem(key)
@@ -129,6 +132,8 @@ function readPersistedChatDraft(topicId: string): PersistedChatDraftEntry | null
     return null
   }
 }
+
+const snapshotRevisions = new WeakMap<object, string | null>()
 
 export interface ChatDraftOwner {
   revision: string | null
@@ -144,8 +149,8 @@ function readDraftRevision(topicId: string): string | null {
   }
 }
 
-export function createChatDraftOwner(topicId: string): ChatDraftOwner {
-  return { revision: readDraftRevision(topicId) }
+export function createChatDraftOwner(topicId: string, snapshot?: ChatComposerDraftCache): ChatDraftOwner {
+  return { revision: snapshot ? (snapshotRevisions.get(snapshot) ?? null) : readDraftRevision(topicId) }
 }
 
 function withDraftLock(topicId: string, action: () => void): void {
@@ -165,6 +170,30 @@ function writePersistedChatDraft(
   const revision = crypto.randomUUID()
   if (owner) owner.revision = revision
   const expiresAt = Date.now() + DRAFT_CACHE_TTL
+  const pendingKey = `${key}.pending`
+  // A renderer-local journal survives orderly reload while the shared lock is queued.
+  if (!onlyIfOwned) {
+    try {
+      const pending = JSON.stringify(
+        { expected: readDraftRevision(topicId), revision, expiresAt, value: draft },
+        (_key, value: unknown) => {
+          if (value instanceof Blob) throw new Error('Image encoding is still pending')
+          return value
+        }
+      )
+      sessionStorage.setItem(pendingKey, pending)
+    } catch {
+      sessionStorage.removeItem(pendingKey)
+    }
+  }
+  const clearPending = () => {
+    try {
+      const pending = sessionStorage.getItem(pendingKey)
+      if (pending && JSON.parse(pending).revision === revision) sessionStorage.removeItem(pendingKey)
+    } catch {
+      /* Storage is unavailable. */
+    }
+  }
   const commit = (action: () => void) =>
     withDraftLock(topicId, () => {
       if (readDraftRevision(topicId) !== revision) return
@@ -179,12 +208,14 @@ function writePersistedChatDraft(
     if (onlyIfOwned && readDraftRevision(topicId) !== expected) return
     try {
       localStorage.setItem(revisionKey(topicId), revision)
+      clearPending()
+      snapshotRevisions.set(draft, revision)
       cacheService.set(key, draft, DRAFT_CACHE_TTL)
       if (!hasChatDraftContent(draft)) {
         localStorage.removeItem(key)
         return
       }
-      const entry: PersistedChatDraftEntry = { expiresAt, value: draft }
+      const entry: PersistedChatDraftEntry = { expiresAt, value: draft, revision }
       const blobs = new Set<Blob>()
       JSON.stringify(entry, (_key, value: unknown) => {
         if (value instanceof Blob) blobs.add(value)
@@ -268,10 +299,39 @@ function pruneExpiredPersistedChatDrafts() {
 export function readChatDraftCache(topicId: string): ChatComposerDraftCache {
   pruneExpiredPersistedChatDrafts()
 
-  const cached = normalizeDraftCache(cacheService.get(getChatDraftCacheKey(topicId)))
-  if (cached) return cached
+  try {
+    const pendingKey = `${getChatDraftCacheKey(topicId)}.pending`
+    const raw = sessionStorage.getItem(pendingKey)
+    if (raw) {
+      const pending: unknown = JSON.parse(raw)
+      if (
+        isRecord(pending) &&
+        typeof pending.expiresAt === 'number' &&
+        pending.expiresAt > Date.now() &&
+        pending.expected === readDraftRevision(topicId)
+      ) {
+        const value = normalizeDraftCache(pending.value)
+        if (value) {
+          snapshotRevisions.set(value, pending.expected as string | null)
+          cacheService.set(getChatDraftCacheKey(topicId), value, pending.expiresAt - Date.now())
+          writePersistedChatDraft(topicId, value, createChatDraftOwner(topicId, value), true)
+          return value
+        }
+      }
+      sessionStorage.removeItem(pendingKey)
+    }
+  } catch {
+    /* Storage is unavailable. */
+  }
+  const rawCached = cacheService.get(getChatDraftCacheKey(topicId))
+  const cached = normalizeDraftCache(rawCached)
+  if (cached) {
+    snapshotRevisions.set(cached, isRecord(rawCached) ? (snapshotRevisions.get(rawCached) ?? null) : null)
+    return cached
+  }
 
   // After a window reload the memory tier is empty; rehydrate it from the persisted mirror.
+  const emptyRevision = readDraftRevision(topicId)
   const persisted = readPersistedChatDraft(topicId)
   if (persisted) {
     const remaining = persisted.expiresAt - Date.now()
@@ -283,11 +343,14 @@ export function readChatDraftCache(topicId: string): ChatComposerDraftCache {
       }
       return EMPTY_DRAFT_CACHE
     }
+    snapshotRevisions.set(persisted.value, persisted.revision ?? null)
     cacheService.set(getChatDraftCacheKey(topicId), persisted.value, remaining)
     return persisted.value
   }
 
-  return EMPTY_DRAFT_CACHE
+  const empty = { ...EMPTY_DRAFT_CACHE }
+  snapshotRevisions.set(empty, emptyRevision)
+  return empty
 }
 
 export function hasChatDraftContent(draft: ChatComposerDraftCache): boolean {

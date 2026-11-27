@@ -958,7 +958,7 @@ const ChatComposerInner = ({
   // editor to the current text, so getDraft() serializes the live tokens consistently. Every
   // persistable change is observed through text, files, knowledge bases, model selection, or the editor token revision.
   // The revision covers token-only edits whose serialized text stays unchanged.
-  const draftOwnerRef = useRef(createChatDraftOwner(draftCacheScopeKey))
+  const draftOwnerRef = useRef(createChatDraftOwner(draftCacheScopeKey, initialDraft))
   const persistedOnceRef = useRef(false)
   useEffect(() => {
     if (isInputHistoryActive || !isKnowledgeBaseDraftHydrated || !isMentionedModelDraftHydrated) return
