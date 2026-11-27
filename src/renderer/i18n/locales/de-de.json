@@ -5388,7 +5388,7 @@
   "settings.mcp.url": "URL",
   "settings.memory.backup_full": "Es ist nicht genug Platz für eine Wiederherstellungskopie vorhanden. Neue Änderungen wurden nicht gespeichert.",
   "settings.memory.clear": "Globalen Speicher löschen",
-  "settings.memory.clear_confirm": "Alle lokalen Erinnerungsdateien löschen?",
+  "settings.memory.clear_confirm": "Es wird nur der von Cherry Studio verwaltete globale gemeinsame Speicher geleert. Sicherungen zur Wiederherstellung können den ursprünglichen Inhalt weiterhin enthalten.",
   "settings.memory.clear_success": "Erfolgreich gelöscht",
   "settings.memory.failed": "Der Vorgang konnte nicht abgeschlossen werden. Prüfe die verbleibenden Einträge und versuche es erneut.",
   "settings.memory.global": "Globaler Speicher",

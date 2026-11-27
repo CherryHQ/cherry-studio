@@ -5388,7 +5388,7 @@
   "settings.mcp.url": "URL",
   "settings.memory.backup_full": "恢复备份空间不足，本次未保存新修改。",
   "settings.memory.clear": "清除全局记忆",
-  "settings.memory.clear_confirm": "确定清除本地所有记忆文件么？",
+  "settings.memory.clear_confirm": "此次操作仅清除 Cherry Studio 管理的全局共享记忆。恢复备份中可能保留原内容。",
   "settings.memory.clear_success": "清除成功",
   "settings.memory.failed": "操作未能完成，请检查未完成的内容后重试。",
   "settings.memory.global": "全局记忆",
