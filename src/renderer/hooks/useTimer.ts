@@ -96,7 +96,11 @@ export const useTimer = () => {
   const setTimeoutTimer = useCallback(
     (key: string, ...args: Parameters<typeof setTimeout>) => {
       clearTimeout(timeoutMapRef.current.get(key))
-      const timer = setTimeout(...args)
+      const [callback, delay, ...callbackArgs] = args
+      const timer = setTimeout(function (this: unknown) {
+        timeoutMapRef.current.delete(key)
+        callback.apply(this, callbackArgs)
+      }, delay)
       timeoutMapRef.current.set(key, timer)
       return () => clearTimeoutTimer(key)
     },

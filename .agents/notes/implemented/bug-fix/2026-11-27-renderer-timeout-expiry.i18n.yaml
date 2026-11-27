@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-27-renderer-timeout-expiry.md
+2026-11-27-renderer-timeout-expiry.md: 5e2e2ba9885a6ec7d4faff45eb3e75428243218f
+2026-11-27-renderer-timeout-expiry.zh.md: 72773074341605294a0637fa1ca1b8be34cc2e7a
