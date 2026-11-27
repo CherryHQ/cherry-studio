@@ -167,6 +167,7 @@ function PrivateMemoryContent({
   return (
     <div className="markdown py-4 text-sm">
       <MarkdownHostProvider
+        showLinkFavicons={false}
         openFilePath={(href) => {
           const relative = href.replace(/^\.\//, '')
           const target = path.startsWith('.memories/') ? '.memories/' + relative : relative

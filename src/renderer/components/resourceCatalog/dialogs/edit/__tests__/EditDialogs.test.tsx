@@ -10,7 +10,7 @@ import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { useState } from 'react'
 import type * as ReactI18next from 'react-i18next'
-import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import type * as UseModelModule from '@renderer/hooks/useModel'
@@ -2979,7 +2979,7 @@ describe('Agent configuration memory', () => {
         return {
           content:
             (input as { path: string }).path === 'MEMORY.md'
-              ? 'Private entry body\n\n[View topic](.memories/topic.md)'
+              ? 'Private entry body\n\n[View topic](.memories/topic.md)\n\n[Internal wiki](https://wiki.private.test/notes)'
               : 'Private topic body',
           truncated: false
         }
@@ -3016,8 +3016,15 @@ describe('Agent configuration memory', () => {
     await user.click(screen.getByRole('button', { name: 'Back' }))
     expect(screen.queryByRole('button', { name: 'Event log' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Durable knowledge' })).toBeNull()
+    const fetch = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response())
+    onTestFinished(() => fetch.mockRestore())
     await user.click(screen.getByRole('button', { name: 'Private memory' }))
     expect(await screen.findByText('Private entry body')).toBeVisible()
+    expect(screen.getByRole('link', { name: 'Internal wiki' })).toHaveAttribute(
+      'href',
+      'https://wiki.private.test/notes'
+    )
+    expect(fetch).not.toHaveBeenCalled()
     await user.click(screen.getByRole('link', { name: 'View topic' }))
     expect(await screen.findByText('Private topic body')).toBeVisible()
     expect(screen.queryByRole('combobox')).toBeNull()
