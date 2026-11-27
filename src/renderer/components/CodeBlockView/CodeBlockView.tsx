@@ -297,12 +297,19 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
   const showPreviewTools =
     Boolean(specialViewDefinition?.supportsImageActions) && (viewMode === 'special' || viewMode === 'split')
 
+  // Image readiness reported by previews that implement onImageReadyChange; undefined
+  // means the current preview does not report it (image actions stay available).
+  const [previewImageReady, setPreviewImageReady] = useState<boolean | undefined>(undefined)
+  const handleImageReadyChange = useCallback((ready: boolean) => setPreviewImageReady(ready), [])
+  useEffect(() => setPreviewImageReady(undefined), [specialViewDefinition])
+
   const handleToggleExpanded = useCallback(() => setExpandOverride((current) => !current), [])
   const handleToggleWrapped = useCallback(() => setWrapOverride((current) => !current), [])
 
   useCopyTool({
     showPreviewTools,
     previewRef: specialViewRef,
+    previewImageReady,
     onCopySource: handleCopySource,
     setTools
   })
@@ -433,12 +440,13 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
         <SpecialView
           ref={specialViewDefinition.supportsImageActions ? specialViewRef : undefined}
           enableToolbar={codeImageTools}
-          isStreaming={isStreaming}>
+          isStreaming={isStreaming}
+          onImageReadyChange={handleImageReadyChange}>
           {source}
         </SpecialView>
       </Suspense>
     )
-  }, [source, codeImageTools, isStreaming, specialViewDefinition])
+  }, [source, codeImageTools, isStreaming, specialViewDefinition, handleImageReadyChange])
 
   const renderHeader = useMemo(() => {
     if (isInSpecialView) {

@@ -59,6 +59,23 @@ describe('PlantUmlPreview', () => {
     expect(diagram?.querySelector('image, style')).toBeNull()
   })
 
+  it('reports image readiness through onImageReadyChange', async () => {
+    const onImageReadyChange = vi.fn()
+    const { rerender } = render(<PlantUmlPreview onImageReadyChange={onImageReadyChange}>{source}</PlantUmlPreview>)
+    expect(onImageReadyChange).toHaveBeenLastCalledWith(false)
+
+    await advance()
+    await reply({ svg: svg('<text>Alice to Bob</text>') })
+    expect(onImageReadyChange).toHaveBeenLastCalledWith(true)
+
+    rerender(<PlantUmlPreview onImageReadyChange={onImageReadyChange}>{nextSource}</PlantUmlPreview>)
+    expect(onImageReadyChange).toHaveBeenLastCalledWith(false)
+
+    await advance()
+    await reply({ error: 'Cannot include diagram' })
+    expect(onImageReadyChange).toHaveBeenLastCalledWith(false)
+  })
+
   it('shows the reported PlantUML error and line when the source cannot render', async () => {
     render(<PlantUmlPreview>{source}</PlantUmlPreview>)
     await advance()

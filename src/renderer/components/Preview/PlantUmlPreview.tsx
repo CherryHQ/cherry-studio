@@ -15,6 +15,7 @@ const PlantUmlPreview = ({
   children,
   enableToolbar = false,
   isStreaming = false,
+  onImageReadyChange,
   ref
 }: BasicPreviewProps & { ref?: React.RefObject<BasicPreviewHandles | null> }) => {
   const { t } = useTranslation()
@@ -28,6 +29,7 @@ const PlantUmlPreview = ({
     container?.shadowRoot?.replaceChildren()
     setError(null)
     setIsLoading(Boolean(source))
+    onImageReadyChange?.(false)
     if (!container || !source) return
 
     const controller = new AbortController()
@@ -45,6 +47,7 @@ const PlantUmlPreview = ({
               FORBID_TAGS: ['style', 'image', 'feImage', 'use', 'animate', 'animateMotion', 'animateTransform', 'set']
             }
           })
+          onImageReadyChange?.(true)
         }
       } catch (error) {
         if (signal.aborted) return
@@ -65,7 +68,7 @@ const PlantUmlPreview = ({
       clearTimeout(timer)
       controller.abort()
     }
-  }, [source, t])
+  }, [source, t, onImageReadyChange])
 
   return (
     <ImagePreviewLayout

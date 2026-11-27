@@ -39,6 +39,11 @@ const CodeBlockNodeView: FC<ReactNodeViewProps> = (props) => {
   const isPreviewing = isSpecialView && showPreview
   const showImageTools = isPreviewing && Boolean(specialView?.supportsImageActions)
   const previewRef = useRef<BasicPreviewHandles | null>(null)
+  // Image readiness reported by previews that implement onImageReadyChange; undefined
+  // means the current preview does not report it (image actions stay available).
+  const [previewImageReady, setPreviewImageReady] = useState<boolean | undefined>(undefined)
+  const handleImageReadyChange = useCallback((ready: boolean) => setPreviewImageReady(ready), [])
+  useEffect(() => setPreviewImageReady(undefined), [specialView])
   const [tools, setTools] = useState<ActionTool[]>([])
   const { registerTool, removeTool } = useToolManager(setTools)
 
@@ -69,7 +74,13 @@ const CodeBlockNodeView: FC<ReactNodeViewProps> = (props) => {
 
   const handleViewModeChange = useCallback((mode: ViewMode) => setShowPreview(mode === 'special'), [])
 
-  useCopyTool({ showPreviewTools: showImageTools, previewRef, onCopySource: handleCopySource, setTools })
+  useCopyTool({
+    showPreviewTools: showImageTools,
+    previewRef,
+    previewImageReady,
+    onCopySource: handleCopySource,
+    setTools
+  })
   useDownloadTool({ showPreviewTools: showImageTools, previewRef, onDownloadSource: handleDownloadSource, setTools })
   useViewSourceTool({
     canEdit: isEditable && isSpecialView,
@@ -112,7 +123,9 @@ const CodeBlockNodeView: FC<ReactNodeViewProps> = (props) => {
         </div>
         <div className="special-preview-wrapper">
           <Suspense fallback={null}>
-            <SpecialComponent ref={specialView.supportsImageActions ? previewRef : undefined}>
+            <SpecialComponent
+              ref={specialView.supportsImageActions ? previewRef : undefined}
+              onImageReadyChange={handleImageReadyChange}>
               {node.textContent}
             </SpecialComponent>
           </Suspense>

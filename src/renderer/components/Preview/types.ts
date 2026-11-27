@@ -6,6 +6,12 @@ export interface BasicPreviewProps {
   enableToolbar?: boolean
   /** True while the source is still being streamed / generated. */
   isStreaming?: boolean
+  /**
+   * Reports whether the preview currently shows a rendered image. Previews that
+   * implement it let the toolbar hide image actions when there is nothing to act
+   * on; previews that don't are treated as always ready.
+   */
+  onImageReadyChange?: (ready: boolean) => void
 }
 
 /**
