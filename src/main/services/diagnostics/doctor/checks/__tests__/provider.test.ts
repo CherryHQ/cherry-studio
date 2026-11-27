@@ -46,7 +46,11 @@ beforeEach(() => {
   MockMainPreferenceServiceUtils.setPreferenceValue('chat.default_model_id', 'openai::gpt-4o')
   services.getByProviderId.mockReturnValue(provider())
   services.getByKey.mockReturnValue({ id: 'openai::gpt-4o' })
-  services.getCherryCloudStatus.mockResolvedValue({ phase: 'signed-in', displayName: 'Cherry User' })
+  services.getCherryCloudStatus.mockResolvedValue({
+    phase: 'signed-in',
+    accountId: 'account-1',
+    displayName: 'Cherry User'
+  })
   services.edition = 'cn'
 })
 
@@ -125,6 +129,45 @@ describe('provider-api-key-present', () => {
     await expect(providerApiKey.run(global)).resolves.toEqual({ status: 'pass' })
   })
 
+  it('passes for CherryAI, whose key is issued by the app', async () => {
+    services.getByProviderId.mockReturnValue(
+      provider({ id: 'cherryai', name: 'CherryAI', authMethods: undefined, authOptional: undefined, apiKeys: [] })
+    )
+    services.getCherryCloudStatus.mockResolvedValue({ phase: 'signed-out', accountId: null, displayName: null })
+    await expect(providerApiKey.run({ ...ctx, subject: { providerId: 'cherryai' } })).resolves.toEqual({
+      status: 'pass'
+    })
+  })
+
+  describe('for Cherry Cloud, which authenticates with the account session', () => {
+    const cloudSubject = { ...ctx, subject: { providerId: 'cherryai-subscription' } }
+    beforeEach(() => {
+      services.getByProviderId.mockReturnValue(
+        provider({
+          id: 'cherryai-subscription',
+          name: 'CherryAI',
+          authMethods: undefined,
+          authOptional: undefined,
+          apiKeys: []
+        })
+      )
+    })
+
+    it('passes while signed in without a user key', async () => {
+      await expect(providerApiKey.run(cloudSubject)).resolves.toEqual({ status: 'pass' })
+    })
+
+    it.each(['cn', 'global'] as const)('fails as signed out in the %s edition', async (edition) => {
+      services.edition = edition
+      services.getCherryCloudStatus.mockResolvedValue({ phase: 'signed-out', accountId: null, displayName: null })
+      await expect(providerApiKey.run(cloudSubject)).resolves.toMatchObject({
+        status: 'fail',
+        attribution: 'user-fixable',
+        detail: { variant: 'signed_out' }
+      })
+    })
+  })
+
   it('passes for providers whose authentication is optional', async () => {
     services.getByProviderId.mockReturnValue(provider({ authOptional: true, apiKeys: [] }))
     await expect(providerApiKey.run(global)).resolves.toEqual({ status: 'pass' })
@@ -198,7 +241,7 @@ describe('provider-cherry-account', () => {
   })
 
   it('warns and links to sign-in when there is no valid Cherry account session', async () => {
-    services.getCherryCloudStatus.mockResolvedValue({ phase: 'signed-out', displayName: null })
+    services.getCherryCloudStatus.mockResolvedValue({ phase: 'signed-out', accountId: null, displayName: null })
 
     await expect(cherryAccount.run(ctx)).resolves.toMatchObject({
       status: 'warn',

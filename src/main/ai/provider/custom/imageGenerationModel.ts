@@ -17,6 +17,13 @@ export interface ImageTransportDescriptor {
   mode?: ImageGenerationMode
 }
 
+/**
+ * Default bound for one submit attempt. Sync image models generate inside
+ * `submit`, so this is the whole generation for them; the previous 120s was
+ * shorter than common vendor latencies.
+ */
+export const DEFAULT_IMAGE_REQUEST_TIMEOUT_MS = 10 * 60_000
+
 export interface ImageGenerationTransport {
   submit(input: ImageGenerationSubmitInput): Promise<{ taskId?: string; imageUrls?: string[] }>
   /**
@@ -53,6 +60,8 @@ export interface ImageGenerationSubmitInput {
   /** Per-model routing, derived in main from the registry (not a user param). */
   modelDescriptor?: ImageTransportDescriptor
   providerParams: Record<string, unknown>
+  /** Per-attempt submit timeout (ms); omitted uses the transport default. */
+  requestTimeoutMs?: number
   /**
    * Abort signal forwarded from `options.abortSignal`. Async providers
    * (ppio) ignore it (they abort during `poll()`); single-shot

@@ -11,7 +11,6 @@ import { useAgent } from '@renderer/hooks/agent/useAgent'
 import { useScopedMcpServers } from '@renderer/hooks/useMcpServer'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
-import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { DEFAULT_MCP_MODE } from '@shared/data/types/assistant'
 import type { McpPrompt } from '@shared/types/mcp'
 
@@ -61,11 +60,16 @@ const McpPromptComposerRuntime = ({ context }: { context: McpPromptToolContext }
   // lands, and neither the insert nor the toast may run against a dead runtime.
   const isMountedRef = useRef(true)
   const selectionGenerationRef = useRef(0)
+  const requestIdRef = useRef<string | undefined>(undefined)
 
   useEffect(() => {
     isMountedRef.current = true
     return () => {
       isMountedRef.current = false
+      if (requestIdRef.current)
+        void ipcApi
+          .request('mcp.request.cancel', { requestId: requestIdRef.current })
+          .catch((error) => logger.debug('MCP prompt cancellation failed', { error }))
     }
   }, [])
 
@@ -94,7 +98,7 @@ const McpPromptComposerRuntime = ({ context }: { context: McpPromptToolContext }
       if (cancelled) return
       setPrompts(
         results.flatMap((result, index) => {
-          if (result.status === 'fulfilled') return (result.value as McpPrompt[] | undefined) ?? []
+          if (result.status === 'fulfilled') return result.value ?? []
           logger.warn('Failed to list MCP prompts', { serverId: servers[index].id, error: result.reason })
           return []
         })
@@ -123,8 +127,16 @@ const McpPromptComposerRuntime = ({ context }: { context: McpPromptToolContext }
   const fetchAndInsert = useCallback(
     async (prompt: McpPrompt, args: Record<string, string> | undefined, options?: QuickPanelCallBackOptions) => {
       const generation = ++selectionGenerationRef.current
+      if (requestIdRef.current)
+        void ipcApi
+          .request('mcp.request.cancel', { requestId: requestIdRef.current })
+          .catch((error) => logger.debug('MCP prompt cancellation failed', { error }))
+      const requestId = crypto.randomUUID()
+      requestIdRef.current = requestId
       try {
         const result = await ipcApi.request('mcp.server.get_prompt', {
+          requestId,
+          topicId: session?.sessionId,
           serverId: prompt.serverId,
           name: prompt.name,
           args
@@ -142,11 +154,17 @@ const McpPromptComposerRuntime = ({ context }: { context: McpPromptToolContext }
       } catch (error) {
         if (!isMountedRef.current || generation !== selectionGenerationRef.current) return false
         logger.error('Failed to get MCP prompt', error as Error, { serverId: prompt.serverId, name: prompt.name })
-        toast.error(formatErrorMessageWithPrefix(error, t('chat.input.mcp_prompts.insert_failed')))
+        toast.errorFromException(error, {
+          category: 'mcp',
+          mcpServer: { id: prompt.serverId, name: prompt.serverName },
+          isCurrent: () => isMountedRef.current && generation === selectionGenerationRef.current
+        })
         return false
+      } finally {
+        if (requestIdRef.current === requestId) requestIdRef.current = undefined
       }
     },
-    [insertPromptText, t]
+    [insertPromptText, t, session?.sessionId]
   )
 
   const handleSelect = useCallback(

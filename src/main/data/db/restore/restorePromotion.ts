@@ -535,7 +535,7 @@ function rollbackPreCommit(ctx: PromotionContext): void {
 
 /**
  * Post-commit failure (integrity or a later step): the promoted DB is live
- * but unacceptable. Park it for forensics, restore the aside, and undo ALL
+ * but unacceptable. Park it in staging, restore the aside, and undo ALL
  * file operations — entries were applied by now, so reverting only the DB
  * would leave an "old DB + new files" inconsistent state.
  *
@@ -546,10 +546,14 @@ function rollbackPreCommit(ctx: PromotionContext): void {
  */
 function revertPostCommit(ctx: PromotionContext): void {
   if (fs.existsSync(ctx.livePath) && fs.existsSync(ctx.asidePath)) {
-    const parked = path.join(ctx.userData, `work-failed-${ctx.journal.restoreId}.sqlite`)
+    const parked = path.join(
+      application.getPath('feature.backup.restore.staging'),
+      ctx.journal.restoreId,
+      'failed.sqlite'
+    )
     fs.rmSync(parked, { force: true })
     renameDurable(ctx.livePath, parked)
-    logger.warn('Promoted DB failed post-commit checks — parked for forensics', { parked })
+    logger.warn('Promoted DB failed post-commit checks — parked until rollback completes', { parked })
   }
   restoreLiveFromAside(ctx)
   inverseManifest(ctx)

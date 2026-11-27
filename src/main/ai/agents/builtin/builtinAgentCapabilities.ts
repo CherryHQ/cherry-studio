@@ -11,10 +11,12 @@
  * a data file. `agent.json` stays the Agent's content (identity, instructions, skills).
  */
 
-import { type AssistantToolName } from '@main/ai/toolApproval/assistantToolNames'
+import { type AssistantToolName, DEFAULT_ASSISTANT_TOOL_NAMES } from '@main/ai/toolApproval/assistantToolNames'
 import { CHERRY_MCP_SERVER } from '@main/ai/toolApproval/builtinToolPolicy'
+import { getAgentConfigToolKind } from '@shared/ai/agentConfigToolKind'
 import { BROWSER_TOOL_GROUP } from '@shared/ai/browserTools'
-import { BUILTIN_AGENT_ROLE, type BuiltinAgentRole } from '@shared/ai/builtinAgent'
+import { BUILTIN_AGENT_ROLE, type BuiltinAgentRole, isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
+import { COMPUTER_USE_TOOL_GROUP } from '@shared/ai/computerUseTools'
 import { AGENT_TYPES, type AgentEntity, type AgentType } from '@shared/data/api/schemas/agents'
 
 /**
@@ -32,6 +34,8 @@ export interface AgentCapabilities {
   environment: 'open' | 'sealed'
   /** Read every knowledge base, not just those bound to the Agent or picked in the composer. */
   allKnowledgeBases: boolean
+  /** Offer cherry-tools `agent_create` / `assistant_create`. Cherry Assistant creates through its host tools. */
+  createResources: boolean
   /** Tools that act on Cherry Studio itself. Absent for an Agent with no host access. */
   hostTools?: {
     /** Omit for the default assistant tool set. */
@@ -40,29 +44,49 @@ export interface AgentCapabilities {
     toolsInChannelSessions?: readonly AssistantToolName[]
     /** Runtimes that mount them. Support is claude-code-only today — historical, not by design. */
     runtimes: readonly AgentType[]
+    /** `false` leaves the workspace file tools unmounted for an Agent that never touches files. */
+    files?: false
+    /** Mount the Doctor probe/write tools; only the doctor Agent is allowed to reach them. */
+    doctor?: true
   }
 }
 
 const DEFAULT_CAPABILITIES: AgentCapabilities = {
   environment: 'open',
-  allKnowledgeBases: false
+  allKnowledgeBases: false,
+  createResources: true
 }
 
 const CAPABILITIES_BY_ROLE: Record<BuiltinAgentRole, AgentCapabilities> = {
   [BUILTIN_AGENT_ROLE.ASSISTANT]: {
     environment: 'open',
     allKnowledgeBases: true,
+    createResources: false,
     hostTools: { runtimes: AGENT_TYPES }
   },
   [BUILTIN_AGENT_ROLE.SUPPORT]: {
     environment: 'sealed',
     allKnowledgeBases: false,
+    createResources: false,
     // Product-support capabilities intentionally exclude creation of arbitrary Agents. Reusable
     // channel-linked sessions keep the full surface; per-turn guards deny UI-backed tools headlessly.
     hostTools: {
       tools: ['navigate', 'diagnose', 'product_info', 'apply_setting', 'prepare_diagnostic_report'],
       toolsInChannelSessions: ['navigate', 'diagnose', 'product_info', 'apply_setting', 'prepare_diagnostic_report'],
       runtimes: ['claude-code']
+    }
+  },
+  [BUILTIN_AGENT_ROLE.DOCTOR]: {
+    environment: 'sealed',
+    allKnowledgeBases: false,
+    createResources: false,
+    // Runs headless inside the System Doctor panel: reads through diagnose + the doctor server,
+    // writes only through bounded proposals the user applies from the panel.
+    hostTools: {
+      tools: ['diagnose', 'product_info'],
+      runtimes: ['claude-code'],
+      files: false,
+      doctor: true
     }
   }
 }
@@ -87,6 +111,27 @@ export function resolveHostTools(
   return { tools: hostTools.toolsInChannelSessions }
 }
 
+export function resolveAgentMcpToolExposure(
+  agent: Pick<AgentEntity, 'type' | 'configuration'>,
+  options: { channelLinked: boolean }
+) {
+  const host = resolveHostTools(agent, options)
+  const hostTools = host && (host.tools ?? DEFAULT_ASSISTANT_TOOL_NAMES)
+  const resourceCreateEnabled = resolveAgentCapabilities(agent).createResources
+  const selfConfigEnabled = !isProtectedBuiltinAgentRole(agent.configuration?.builtin_role)
+  return {
+    hostTools,
+    resourceCreateEnabled,
+    selfConfigEnabled,
+    allowsTool(server: string, name: string): boolean {
+      if (server === CHERRY_MCP_SERVER.ASSISTANT) return hostTools?.some((tool) => tool === name) ?? false
+      if (server !== CHERRY_MCP_SERVER.CHERRY_TOOLS) return false
+      const kind = getAgentConfigToolKind(server, name)
+      return kind === 'self_update' ? selfConfigEnabled : !kind || resourceCreateEnabled
+    }
+  }
+}
+
 /** Whether this session mounts the host (assistant) MCP servers. */
 export function hostToolsEnabled(
   agent: Pick<AgentEntity, 'type' | 'configuration'>,
@@ -95,25 +140,50 @@ export function hostToolsEnabled(
   return resolveHostTools(agent, options) !== undefined
 }
 
-/**
- * The Cherry-owned MCP servers this session mounts — the one place that decides, so the server set
- * and the tool-approval policy derived from it cannot disagree.
- */
+/** Shared surface policy for automation tools and their bundled skills. */
+export function resolveAutomationAccess(
+  agent: Pick<AgentEntity, 'configuration' | 'disabledTools'>,
+  options: { channelLinked: boolean; browserEnabled?: boolean; computerUseEnabled?: boolean }
+): { browser: boolean; computer: boolean } {
+  const local = !options.channelLinked && resolveAgentCapabilities(agent).environment === 'open'
+  return {
+    browser: local && options.browserEnabled === true && !agent.disabledTools?.includes(BROWSER_TOOL_GROUP),
+    computer: local && options.computerUseEnabled === true && !agent.disabledTools?.includes(COMPUTER_USE_TOOL_GROUP)
+  }
+}
+
+/** Resolve Cherry-owned servers for tool mounting and approval policy. */
 export function resolveMountedMcpServers(
   agent: Pick<AgentEntity, 'type' | 'configuration' | 'disabledTools'>,
-  { channelLinked, browserEnabled = false }: { channelLinked: boolean; browserEnabled?: boolean }
+  {
+    channelLinked,
+    browserEnabled = false,
+    computerUseEnabled = false
+  }: {
+    channelLinked: boolean
+    browserEnabled?: boolean
+    computerUseEnabled?: boolean
+  }
 ): ReadonlySet<string> {
-  const mounted = new Set<string>([CHERRY_MCP_SERVER.CHERRY_TOOLS, CHERRY_MCP_SERVER.AGENT_MEMORY])
+  const mounted = new Set<string>([CHERRY_MCP_SERVER.CHERRY_TOOLS])
+  const memoryDisabled = agent.disabledTools?.some((name) =>
+    ['mcp__*', 'mcp__agent_memory', 'mcp__agent_memory__*', 'mcp__agent_memory__memory'].includes(
+      name.replaceAll('-', '_')
+    )
+  )
+  if (!memoryDisabled) mounted.add(CHERRY_MCP_SERVER.AGENT_MEMORY)
   if (resolveAgentCapabilities(agent).environment === 'open') {
-    if (browserEnabled && !channelLinked && !agent.disabledTools?.includes(BROWSER_TOOL_GROUP))
-      mounted.add(CHERRY_MCP_SERVER.BROWSER)
+    const automation = resolveAutomationAccess(agent, { channelLinked, browserEnabled, computerUseEnabled })
+    if (automation.browser || automation.computer) mounted.add(CHERRY_MCP_SERVER.AUTOMATION)
     mounted.add(CHERRY_MCP_SERVER.SKILLS)
     // Registering an MCP server writes to the user's environment, so it rides the same axis as skills.
     mounted.add(CHERRY_MCP_SERVER.MCP_MANAGER)
   }
   if (hostToolsEnabled(agent, { channelLinked })) {
+    const hostTools = resolveAgentCapabilities(agent).hostTools
     mounted.add(CHERRY_MCP_SERVER.ASSISTANT)
-    mounted.add(CHERRY_MCP_SERVER.ASSISTANT_FILES)
+    if (hostTools?.files !== false) mounted.add(CHERRY_MCP_SERVER.ASSISTANT_FILES)
+    if (hostTools?.doctor) mounted.add(CHERRY_MCP_SERVER.DOCTOR)
   }
   return mounted
 }

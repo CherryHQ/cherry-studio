@@ -13,6 +13,7 @@ const claudeWebToolModels = [
 const geminiWebToolModels = [
   'gemini-2',
   'gemini-3',
+  'gemini-4-argon',
   'gemini-flash-latest',
   'gemini-pro-latest',
   'gemini-flash-lite-latest'
@@ -145,11 +146,21 @@ export default defineProvider({
   ],
   metadata: {
     website: {
+      billing: 'https://open.cherryin.ai/console/topup',
       apiKey: 'https://open.cherryin.ai/console/token',
       docs: 'https://open.cherryin.ai',
       models: 'https://open.cherryin.ai/pricing',
       official: 'https://open.cherryin.ai'
     }
   },
-  overrides: [...deepSeekModelOverrides, ...qwenAudioCompatibilityOverrides]
+  overrides: [
+    {
+      modelId: 'claude-fable-5-2',
+      apiModelId: 'anthropic/claude-fable-5.2',
+      endpointTypes: ['anthropic-messages', 'openai-chat-completions'],
+      capabilities: { remove: ['structured-output'] }
+    },
+    ...deepSeekModelOverrides,
+    ...qwenAudioCompatibilityOverrides
+  ]
 })

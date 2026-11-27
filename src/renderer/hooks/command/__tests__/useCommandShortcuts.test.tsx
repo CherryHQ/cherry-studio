@@ -7,7 +7,8 @@ import type { PreferenceShortcutType } from '@shared/data/preference/preferenceT
 
 const mocks = vi.hoisted(() => ({
   preferenceValues: {} as Partial<Record<string, PreferenceShortcutType>>,
-  setValues: vi.fn()
+  setValues: vi.fn(),
+  context: {} as Record<string, boolean>
 }))
 
 vi.mock('@renderer/utils/platform', () => ({
@@ -19,31 +20,53 @@ vi.mock('@data/hooks/usePreference', () => ({
 }))
 
 vi.mock('@renderer/hooks/command/useCommandContext', () => ({
-  useCommandContextReader: () => ({})
+  useCommandContextReader: () => mocks.context
 }))
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
-import { getAllShortcutDefaultPreferences, useCommandShortcuts } from '../useCommandShortcuts'
+import { useCommandShortcuts } from '../useCommandShortcuts'
 
 afterEach(() => {
   mocks.preferenceValues = {}
+  mocks.context = {}
   mocks.setValues.mockReset()
 })
 
 describe('useCommandShortcuts', () => {
-  it('collects reset preferences using the current platform default', () => {
-    expect(getAllShortcutDefaultPreferences()['shortcut.tab.next']).toEqual({
-      binding: ['Ctrl', 'Tab'],
-      enabled: true
-    })
+  it('keeps configured shortcuts in settings when their keyboard focus condition is inactive', () => {
+    mocks.context = { 'webview.focused': true }
+    mocks.preferenceValues = {
+      'app.sidebar.open_1': { binding: ['CommandOrControl', 'Alt', '1'], enabled: false }
+    }
+    const { result } = renderHook(() => useCommandShortcuts())
 
-    expect(getAllShortcutDefaultPreferences()['shortcut.tab.prev']).toEqual({
-      binding: ['Ctrl', 'Shift', 'Tab'],
-      enabled: true
+    expect(result.current.shortcuts.find((item) => item.command === 'app.sidebar.open_1')?.preference).toEqual({
+      binding: ['CommandOrControl', 'Alt', '1'],
+      enabled: false
     })
+  })
+
+  it('lists Quote in the chat group independently of the active selection', () => {
+    mocks.context = { 'input.focused': true }
+    const { result } = renderHook(() => useCommandShortcuts())
+    expect(result.current.shortcuts.find((item) => item.command === 'chat.message.quote_selection')).toMatchObject({
+      group: 'chat',
+      label: 'chat.message.quote',
+      preference: { binding: ['CommandOrControl', 'Shift', 'Y'], enabled: true }
+    })
+  })
+
+  it('retains feature availability filtering independently of keyboard focus', () => {
+    mocks.context = { 'feature.selection.enabled': false }
+    const { result, rerender } = renderHook(() => useCommandShortcuts())
+    expect(result.current.shortcuts.some((item) => item.command === 'selection.toggle')).toBe(false)
+
+    mocks.context = { 'feature.selection.enabled': true, 'webview.focused': true }
+    rerender()
+    expect(result.current.shortcuts.some((item) => item.command === 'selection.toggle')).toBe(true)
   })
 
   it('keeps the platform default binding when only toggling enabled', async () => {

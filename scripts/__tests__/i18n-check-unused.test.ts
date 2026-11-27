@@ -29,6 +29,29 @@ function createSourceFile(code: string, filePath = 'test.tsx') {
 
 describe('i18n-check-unused', () => {
   describe('collectUsedI18nKeysFromSource', () => {
+    it('retains leading comment references without treating quoted text as comments', () => {
+      const sourceFile = createSourceFile(`
+        // t('leading')
+        const a = 1;
+        /* t('between') */ const b = 2;
+        function f() {
+          /* t('inside') */
+          return b;
+          // t('afterReturn')
+        }
+        // t('end')
+        const quoted = "// t('quoted')";
+        const template = \`/* t('template') */\`;
+      `)
+      const keys = new Set(['leading', 'between', 'inside', 'afterReturn', 'end', 'quoted', 'template'])
+      expect([...collectUsedI18nKeysFromSource(sourceFile, keys)].sort()).toEqual([
+        'afterReturn',
+        'between',
+        'end',
+        'inside',
+        'leading'
+      ])
+    })
     it('extracts static t, i18n.t, Trans i18nKey, key properties, and comment references', () => {
       const localeKeys = new Set([
         'agent.title',

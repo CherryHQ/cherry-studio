@@ -61,6 +61,35 @@ afterEach(() => {
 })
 
 describe('useMainWindowNavigation', () => {
+  it('retargets the existing Notes tab instead of opening another editor', () => {
+    mocks.tabs = [{ id: 'notes-1', type: 'route', url: '/app/notes', title: 'Notes' }]
+    render(<MainWindowNavigationHarness />)
+    window.dispatchEvent(
+      new CustomEvent(OPEN_MAIN_ROUTE_EVENT, {
+        cancelable: true,
+        detail: { path: '/app/notes?notePath=%2Fnotes%2FTopic.md' }
+      })
+    )
+    expect(mocks.openTab).not.toHaveBeenCalled()
+    expect(mocks.updateTab).toHaveBeenCalledWith('notes-1', { url: '/app/notes?notePath=%2Fnotes%2FTopic.md' })
+    expect(mocks.setActiveTab).toHaveBeenCalledWith('notes-1')
+  })
+
+  it('keeps consecutive saved-note requests in one newly opened Notes tab', () => {
+    mocks.openTab.mockReturnValue('notes-new')
+    render(<MainWindowNavigationHarness />)
+    for (const name of ['first', 'second']) {
+      window.dispatchEvent(
+        new CustomEvent(OPEN_MAIN_ROUTE_EVENT, {
+          cancelable: true,
+          detail: { path: `/app/notes?notePath=%2Fnotes%2F${name}.md` }
+        })
+      )
+    }
+    expect(mocks.openTab).toHaveBeenCalledTimes(1)
+    expect(mocks.updateTab).toHaveBeenCalledWith('notes-new', { url: '/app/notes?notePath=%2Fnotes%2Fsecond.md' })
+    expect(mocks.setActiveTab).toHaveBeenCalledWith('notes-new')
+  })
   it('announces readiness after mounting the navigation listeners', () => {
     render(<MainWindowNavigationHarness />)
 

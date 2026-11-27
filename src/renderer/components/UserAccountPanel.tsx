@@ -1,0 +1,289 @@
+import { ChevronRight, CreditCard, Gauge, LogIn, RotateCcw, Settings } from 'lucide-react'
+import { type ReactNode, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import {
+  Avatar,
+  AvatarImage,
+  Button,
+  ColFlex,
+  EmojiAvatar,
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger
+} from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
+import { CherryCloudQuotaUsage } from '@renderer/components/CherryCloudQuotaUsage'
+import { CommandShortcut } from '@renderer/components/command'
+import useAvatar from '@renderer/hooks/useAvatar'
+import { useCherryAccountSession } from '@renderer/hooks/useCherryAccountSession'
+import { useCherryCloudPlans, useCherryCloudSubscribeReminder } from '@renderer/hooks/useCherryCloudPlans'
+import { openCherryCloudAccountPortal } from '@renderer/services/cherryCloudAccountPortal'
+import { startCherryCloudSubscription } from '@renderer/services/cherryCloudSubscription'
+import { trackSubscriptionEntryView } from '@renderer/services/cherryCloudSubscriptionAnalytics'
+import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
+import { getAppEdition } from '@renderer/utils/appEdition'
+import { formatQuotaPercent, getLowestRemainingPercent } from '@renderer/utils/cherryCloudQuota'
+import { isEmoji } from '@renderer/utils/naming'
+
+import { AppearanceMenu } from './layout/AppearanceMenu'
+import { NotificationCenterButton } from './NotificationCenter'
+
+export function UserAccountPanel({
+  onRequestClose,
+  onNotificationsOpen,
+  children
+}: {
+  onRequestClose?: () => void
+  onNotificationsOpen?: () => void
+  children?: ReactNode
+}) {
+  const [userName] = usePreference('app.user.name')
+  const { t } = useTranslation()
+  const avatar = useAvatar()
+  const {
+    status: cloudStatus,
+    loadState: cloudStatusLoadState,
+    reload: loadCloudStatus,
+    login: handleCloudLogin,
+    cancelLogin: handleCloudLoginCancel,
+    isCancellingLogin,
+    isAuthorizing
+  } = useCherryAccountSession()
+  const isGlobalEdition = getAppEdition() === 'global'
+  const showSubscribeDot = useCherryCloudSubscribeReminder()
+  const isCloudSignedIn = cloudStatus?.phase === 'signed-in'
+
+  const {
+    plansQuery: { data: plans, error: plansError, mutate: reloadPlans },
+    activePaid,
+    upcomingPaid,
+    isPlansReady
+  } = useCherryCloudPlans()
+
+  const handleOpenAccountDetails = () => {
+    onRequestClose?.()
+    openSettingsTab('/settings/profile')
+  }
+
+  const handleOpenSettings = () => {
+    onRequestClose?.()
+    openSettingsTab()
+  }
+
+  const activePaidPlan = activePaid
+  // A bought plan that has not started yet is shown as such, not offered again.
+  const upcomingPaidPlan = activePaidPlan ? undefined : upcomingPaid
+  const paidPlanName = (activePaidPlan ?? upcomingPaidPlan)?.plan.display_name
+  const remainingPercent = activePaidPlan ? (getLowestRemainingPercent(activePaidPlan) ?? null) : null
+  const cloudSubtitle = isCloudSignedIn
+    ? paidPlanName || cloudStatus.displayName || t('settings.provider.cherry_cloud.logged_in')
+    : isAuthorizing
+      ? t('settings.provider.cherry_cloud.signing_in')
+      : cloudStatusLoadState === 'error'
+        ? t('error.http.503')
+        : null
+  const cloudSubtitleRole =
+    isCloudSignedIn || isAuthorizing ? 'status' : cloudStatusLoadState === 'error' ? 'alert' : undefined
+  const accountDisplayName = userName || t('settings.profile.title')
+  const subscriptionLoading =
+    cloudStatusLoadState === 'loading' || isAuthorizing || (isCloudSignedIn && !plans && !plansError)
+  const subscriptionFailed =
+    cloudStatusLoadState === 'error' || (isCloudSignedIn && !paidPlanName && !isPlansReady && !subscriptionLoading)
+  const subscriptionAction = subscriptionLoading ? (
+    t('common.loading')
+  ) : subscriptionFailed ? (
+    t('common.retry')
+  ) : upcomingPaidPlan ? (
+    t('settings.subscription.upcoming')
+  ) : paidPlanName ? (
+    remainingPercent === null ? (
+      t('settings.subscription.no_quota')
+    ) : (
+      t('settings.subscription.remaining', { percent: formatQuotaPercent(remainingPercent) })
+    )
+  ) : (
+    <span className="text-link">{t('settings.subscription.go_to_subscribe')}</span>
+  )
+  const offersSubscription =
+    !subscriptionLoading && !subscriptionFailed && !paidPlanName && (!isCloudSignedIn || isPlansReady)
+  useEffect(() => {
+    if (offersSubscription) trackSubscriptionEntryView('account_panel')
+  }, [offersSubscription])
+  // The avatar dot leads here, so a click while it is still showing is credited to it as well.
+  const subscribeDetails = showSubscribeDot ? { via: 'avatar_dot' as const } : {}
+  const handleSubscriptionClick = () => {
+    if (cloudStatusLoadState === 'error') {
+      void loadCloudStatus()
+    } else if (!isCloudSignedIn) {
+      void startCherryCloudSubscription('account_panel', subscribeDetails)
+    } else if (!isPlansReady && !paidPlanName) {
+      void reloadPlans().catch(() => {})
+    } else if (plans) {
+      onRequestClose?.()
+      if (paidPlanName) {
+        openSettingsTab('/settings/profile')
+      } else {
+        void startCherryCloudSubscription('account_panel', subscribeDetails)
+      }
+    }
+  }
+  const cloudHeaderAction: {
+    label: string
+    loading: boolean
+    onClick: () => void | Promise<void>
+    icon: ReactNode
+  } | null = isCloudSignedIn
+    ? null
+    : isAuthorizing
+      ? {
+          label: t('common.cancel'),
+          loading: isCancellingLogin,
+          onClick: handleCloudLoginCancel,
+          icon: null
+        }
+      : cloudStatusLoadState === 'error'
+        ? {
+            label: t('common.retry'),
+            loading: false,
+            onClick: loadCloudStatus,
+            icon: <RotateCcw className="!text-muted-foreground size-4" aria-hidden />
+          }
+        : !isGlobalEdition
+          ? {
+              label: t('settings.provider.cherry_cloud.login'),
+              loading: cloudStatusLoadState === 'loading',
+              onClick: handleCloudLogin,
+              icon: <LogIn className="!text-muted-foreground size-4" aria-hidden />
+            }
+          : null
+
+  // The web account page has the full usage breakdown the desktop summary leaves out.
+  const openUsage = () => {
+    onRequestClose?.()
+    void openCherryCloudAccountPortal()
+  }
+  const subscriptionRow = (
+    <Button
+      type="button"
+      className="h-8 min-h-8 w-full justify-start gap-2 rounded-md bg-transparent px-2 py-0 text-[13px] text-foreground leading-5"
+      disabled={subscriptionLoading}
+      onClick={handleSubscriptionClick}
+      size="sm"
+      variant="ghost">
+      {paidPlanName ? (
+        <Gauge className="!text-muted-foreground size-4 shrink-0" aria-hidden />
+      ) : (
+        <CreditCard className="!text-muted-foreground size-4 shrink-0" aria-hidden />
+      )}
+      <span className="shrink-0">
+        {paidPlanName ? t('settings.subscription.usage') : t('settings.subscription.card_label')}
+      </span>
+      <span className="ml-auto flex min-w-0 items-center gap-1 text-muted-foreground">
+        <span className="truncate">{subscriptionAction}</span>
+        {showSubscribeDot && !subscriptionLoading && (
+          <span
+            aria-hidden
+            data-testid="subscribe-reminder-dot"
+            className="size-1.5 shrink-0 rounded-full bg-destructive"
+          />
+        )}
+        <ChevronRight className="size-4 shrink-0" aria-hidden />
+      </span>
+    </Button>
+  )
+
+  return (
+    <ColFlex className="w-56 p-1.5">
+      <ColFlex className="pb-1">
+        <Button
+          type="button"
+          variant="ghost"
+          aria-label={t('settings.general.user_name.label')}
+          className="h-auto min-h-9 w-full items-center justify-start gap-2 px-2 py-1 text-left"
+          onClick={handleOpenAccountDetails}
+          size="sm">
+          <span className="flex w-4 shrink-0 items-center justify-center">
+            {isEmoji(avatar) ? (
+              <EmojiAvatar size={20} fontSize={12} className="shrink-0">
+                {avatar}
+              </EmojiAvatar>
+            ) : (
+              <Avatar className="size-5 shrink-0 rounded-full">
+                <AvatarImage src={avatar} className="object-cover" />
+              </Avatar>
+            )}
+          </span>
+          <ColFlex className="min-w-0 flex-1 gap-0">
+            <span className="truncate font-medium text-[13px] text-foreground leading-[18px]">
+              {accountDisplayName}
+            </span>
+            {cloudSubtitle && cloudSubtitle !== accountDisplayName ? (
+              <span role={cloudSubtitleRole} className="truncate text-muted-foreground text-xs leading-4">
+                {cloudSubtitle}
+              </span>
+            ) : null}
+          </ColFlex>
+        </Button>
+      </ColFlex>
+      <ColFlex className="border-border-subtle gap-0.5 border-t py-1">
+        {activePaidPlan ? (
+          <HoverCard openDelay={150} closeDelay={120}>
+            <HoverCardTrigger asChild>{subscriptionRow}</HoverCardTrigger>
+            <HoverCardContent side="right" align="start" sideOffset={8} className="w-64">
+              <div className="truncate font-medium text-sm">{activePaidPlan.plan.display_name}</div>
+              <div className="mt-2 border-border border-t pt-1">
+                <CherryCloudQuotaUsage entitlement={activePaidPlan} />
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="mt-1 w-full justify-between px-0 text-muted-foreground text-xs hover:bg-transparent hover:text-foreground"
+                onClick={openUsage}>
+                {t('settings.subscription.view_usage_details')}
+                <ChevronRight className="size-3.5" aria-hidden />
+              </Button>
+            </HoverCardContent>
+          </HoverCard>
+        ) : (
+          subscriptionRow
+        )}
+        <NotificationCenterButton
+          onRequestClose={() => {
+            onNotificationsOpen?.()
+            onRequestClose?.()
+          }}
+        />
+        <AppearanceMenu onRequestClose={onRequestClose} />
+        {children}
+        {cloudHeaderAction ? (
+          <Button
+            type="button"
+            className="h-8 min-h-8 w-full justify-start gap-2 rounded-md bg-transparent px-2 py-0 text-[13px] text-foreground leading-5"
+            loading={cloudHeaderAction.loading}
+            onClick={() => void cloudHeaderAction.onClick()}
+            size="sm"
+            variant="ghost">
+            {!cloudHeaderAction.loading ? cloudHeaderAction.icon : null}
+            {cloudHeaderAction.label}
+          </Button>
+        ) : null}
+      </ColFlex>
+      <ColFlex className="border-border-subtle border-t pt-1">
+        <Button
+          className="h-8 min-h-8 w-full justify-start gap-2 rounded-md bg-transparent px-2 py-0 text-[13px] text-foreground leading-5"
+          onClick={handleOpenSettings}
+          size="sm"
+          variant="ghost">
+          <Settings className="!text-muted-foreground size-4" aria-hidden />
+          <span className="min-w-0 flex-1 text-left">{t('common.settings')}</span>
+          <CommandShortcut
+            command="app.settings.open"
+            className="ml-auto h-auto min-w-0 rounded-none bg-transparent p-0 text-[13px] shadow-none"
+          />
+        </Button>
+      </ColFlex>
+    </ColFlex>
+  )
+}

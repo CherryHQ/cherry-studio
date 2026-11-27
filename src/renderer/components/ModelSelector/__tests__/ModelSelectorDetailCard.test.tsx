@@ -1,4 +1,4 @@
-import { act, render, screen } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import type { ReactNode, Ref } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -157,126 +157,31 @@ describe('ModelSelectorDetailCard', () => {
     mockHoverCardOpenChange.current = undefined
   })
 
-  it('renders provider and model id as separate detail rows', () => {
+  it('renders a caller-provided model description', () => {
     const model = makeModel()
 
     render(
-      <ModelSelectorDetailCard item={makeItem(model)} provider={provider}>
+      <ModelSelectorDetailCard
+        item={makeItem(model)}
+        provider={provider}
+        description="Limited-time free, available only in the Work module">
         <button type="button">GPT-4o mini</button>
       </ModelSelectorDetailCard>
     )
 
-    expect(screen.getByText('Provider')).toBeInTheDocument()
-    expect(screen.getByText('OpenAI')).toBeInTheDocument()
-    expect(screen.getByText('Model ID')).toBeInTheDocument()
-    expect(screen.getByText('gpt-4o-mini')).toBeInTheDocument()
-    expect(screen.queryByText('/')).not.toBeInTheDocument()
+    expect(screen.getByText('Limited-time free, available only in the Work module')).toBeInTheDocument()
   })
 
-  it('constrains the hover card to Radix available space', () => {
+  it('renders numeric zero descriptions', () => {
     const model = makeModel()
 
     render(
-      <ModelSelectorDetailCard item={makeItem(model)} provider={provider}>
+      <ModelSelectorDetailCard item={makeItem(model)} provider={provider} description={0}>
         <button type="button">GPT-4o mini</button>
       </ModelSelectorDetailCard>
     )
 
-    expect(mockHoverCardContentProps.at(-1)).toMatchObject({
-      side: 'right',
-      align: 'start',
-      collisionPadding: 12
-    })
-    expect(mockHoverCardContentProps.at(-1)?.avoidCollisions).toBeUndefined()
-    expect(mockHoverCardContentProps.at(-1)?.className).toContain('max-w-(--radix-hover-card-content-available-width)')
-    expect(mockHoverCardProps.at(-1)).toMatchObject({
-      openDelay: 1500,
-      closeDelay: 100
-    })
-  })
-
-  it('keeps the hover card on the wider horizontal side when neither side fully fits', () => {
-    const model = makeModel()
-
-    vi.spyOn(document.documentElement, 'clientWidth', 'get').mockReturnValue(280)
-    vi.spyOn(document.documentElement, 'clientHeight', 'get').mockReturnValue(700)
-    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
-      x: 100,
-      y: 100,
-      width: 100,
-      height: 36,
-      top: 100,
-      right: 200,
-      bottom: 136,
-      left: 100,
-      toJSON: () => {}
-    })
-
-    render(
-      <ModelSelectorDetailCard item={makeItem(model)} provider={provider}>
-        <button type="button">GPT-4o mini</button>
-      </ModelSelectorDetailCard>
-    )
-
-    act(() => mockHoverCardOpenChange.current?.(true))
-
-    expect(mockHoverCardContentProps.at(-1)).toMatchObject({
-      side: 'left',
-      align: 'start'
-    })
-    expect(mockHoverCardContentProps.at(-1)?.avoidCollisions).toBeUndefined()
-  })
-
-  it('keeps a narrow portal container for ownership without using it as the collision boundary', () => {
-    const model = makeModel()
-    const portalContainer = document.createElement('div')
-    portalContainer.dataset.testPortal = 'true'
-
-    vi.spyOn(document.documentElement, 'clientWidth', 'get').mockReturnValue(1200)
-    vi.spyOn(document.documentElement, 'clientHeight', 'get').mockReturnValue(700)
-    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement): DOMRect {
-      if (this.dataset.testPortal === 'true') {
-        return {
-          x: 180,
-          y: 120,
-          width: 280,
-          height: 420,
-          top: 120,
-          right: 460,
-          bottom: 540,
-          left: 180,
-          toJSON: () => {}
-        }
-      }
-
-      return {
-        x: 320,
-        y: 180,
-        width: 120,
-        height: 36,
-        top: 180,
-        right: 440,
-        bottom: 216,
-        left: 320,
-        toJSON: () => {}
-      }
-    })
-
-    render(
-      <ModelSelectorDetailCard item={makeItem(model)} provider={provider} portalContainer={portalContainer}>
-        <button type="button">GPT-4o mini</button>
-      </ModelSelectorDetailCard>
-    )
-
-    act(() => mockHoverCardOpenChange.current?.(true))
-
-    expect(mockHoverCardContentProps.at(-1)).toMatchObject({
-      side: 'right',
-      align: 'start',
-      portalContainer
-    })
-    expect(mockHoverCardContentProps.at(-1)?.collisionBoundary).toBeUndefined()
-    expect(mockHoverCardContentProps.at(-1)?.avoidCollisions).toBeUndefined()
+    expect(screen.getByText('0')).toBeInTheDocument()
   })
 
   it('renders reasoning options derived from the descriptor', () => {

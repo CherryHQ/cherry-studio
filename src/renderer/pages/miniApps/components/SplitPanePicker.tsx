@@ -3,10 +3,10 @@ import type { FC } from 'react'
 import { useCallback, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { ScrollArea } from '@cherrystudio/ui'
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import MiniApp from '@renderer/components/MiniApp/MiniApp'
-import Scrollbar from '@renderer/components/Scrollbar'
 import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
@@ -128,14 +128,14 @@ const SplitPanePicker: FC<Props> = ({ occupiedAppId, onClose, className }) => {
           </Button>
         </Tooltip>
       </div>
-      <Scrollbar className="min-h-0 flex-1">
+      <ScrollArea className="min-h-0 flex-1">
         <div className="mx-auto flex w-full max-w-140 flex-col gap-3 py-8">
           <h2 className="m-0 px-4 py-0 font-semibold text-[14px] text-foreground opacity-80">
             {t('miniApp.split.choose')}
           </h2>
           <div className={GRID_CLASS}>{miniApps.map(renderMiniApp)}</div>
         </div>
-      </Scrollbar>
+      </ScrollArea>
     </div>
   )
 }

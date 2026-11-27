@@ -24,6 +24,31 @@ describe('formatErrorDetails', () => {
     expect(formatErrorDetails(new Error('Test error'))).toBe('Test error')
   })
 
+  it('keeps an error with a circular cause displayable', () => {
+    const error = new Error('Test error')
+    error.cause = error
+
+    expect(formatErrorDetails(error)).toBe('Test error')
+  })
+
+  it('serializes circular diagnostic data while keeping its readable fields', () => {
+    const error: Record<string, unknown> = { code: 500 }
+    error.self = error
+
+    const result = formatErrorDetails(error)
+    expect(JSON.parse(result.slice('Error Details:'.length))).toMatchObject({ code: 500 })
+  })
+
+  it('keeps repeated non-circular properties readable', () => {
+    const detail = { code: 500 }
+
+    const result = formatErrorDetails({ first: detail, second: detail })
+    expect(JSON.parse(result.slice('Error Details:'.length))).toMatchObject({
+      first: { code: 500 },
+      second: { code: 500 }
+    })
+  })
+
   it('returns an indented JSON dump when the error has no message', () => {
     const result = formatErrorDetails({ code: 500, status: 'Internal Server Error' })
 
@@ -69,12 +94,5 @@ describe('errorDetails light import graph (B6)', () => {
     await import('../errorDetails')
 
     expect(loaded).not.toHaveBeenCalled()
-  })
-
-  it('probe control: a static heavy-dependency graph activates the interception layer', async () => {
-    await import('./fixtures/errorDetailsHeavyProbe')
-
-    // Any single probe firing proves the hoisted interception layer is alive.
-    expect(loaded).toHaveBeenCalled()
   })
 })

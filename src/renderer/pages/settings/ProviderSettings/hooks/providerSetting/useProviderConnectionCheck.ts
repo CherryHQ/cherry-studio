@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { loggerService } from '@logger'
@@ -35,6 +35,19 @@ export function useProviderConnectionCheck(providerId: string, credentialsState:
   const [singleModelResult, setSingleModelResult] = useState<ModelWithStatus | null>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
   const runIdRef = useRef(0)
+  const feedbackScope = useMemo(
+    () => ({ active: true }),
+    // Each connection/credential scope owns the callbacks retained by its toasts.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [providerId, apiHost, anthropicApiHost, credentialChangeVersion]
+  )
+  useEffect(() => {
+    feedbackScope.active = true
+    return () => {
+      feedbackScope.active = false
+      toast.closeToast(`provider-check:${providerId}`)
+    }
+  }, [feedbackScope, providerId])
 
   const abortInFlightCheck = useCallback(() => {
     abortControllerRef.current?.abort()
@@ -47,7 +60,15 @@ export function useProviderConnectionCheck(providerId: string, credentialsState:
   }, [])
 
   const startSingleModelCheck = useCallback(
-    async ({ model, keySelection }: { model: Model; keySelection: ModelCheckKeySelection }) => {
+    async ({
+      model,
+      keySelection,
+      notify = true
+    }: {
+      model: Model
+      keySelection: ModelCheckKeySelection
+      notify?: boolean
+    }): Promise<'passed' | 'failed'> => {
       if (!provider) {
         return 'failed' as const
       }
@@ -58,6 +79,17 @@ export function useProviderConnectionCheck(providerId: string, credentialsState:
       const runId = ++runIdRef.current
       setIsSingleModelChecking(true)
       setSingleModelResult(null)
+      const reportFailure = (error: unknown) =>
+        toast.errorFromException(error, {
+          key: `provider-check:${providerId}`,
+          provider,
+          modelName: model.name,
+          category: error instanceof ModelCheckCredentialsError ? 'auth' : undefined,
+          actions: {
+            retry: async () => (await startSingleModelCheck({ model, keySelection, notify: false })) === 'passed'
+          },
+          isCurrent: () => feedbackScope.active
+        })
 
       try {
         const credentials = await prepareCredentials(keySelection, controller.signal)
@@ -98,33 +130,39 @@ export function useProviderConnectionCheck(providerId: string, credentialsState:
               modelId: model.id,
               error
             })
-            toast.warning(i18n.t('settings.provider.enable_failed_after_connection'))
+            if (notify) toast.warning(i18n.t('settings.provider.enable_failed_after_connection'))
+            else if (result.kind === 'ok') {
+              throw new Error(i18n.t('settings.provider.enable_failed_after_connection'), { cause: error })
+            }
           }
         }
 
         if (runId !== runIdRef.current || controller.signal.aborted) return 'failed' as const
 
         if (result.kind === 'ok') {
-          toast.success({ timeout: 2000, title: i18n.t('message.api.connection.success') })
+          if (notify) toast.success({ timeout: 2000, title: i18n.t('message.api.connection.success') })
           return 'passed' as const
         }
-
+        // Mixed failures use credential order; keep the aggregate for the results panel.
+        const error = keyResults.find((keyResult) => keyResult.kind === 'failed')?.error ?? result.error
+        if (!notify) throw error ?? new Error(i18n.t('settings.models.check.failed_to_start'))
+        reportFailure(error)
         return 'failed' as const
       } catch (error) {
         if (runId !== runIdRef.current || controller.signal.aborted) return 'failed' as const
-
         if (error instanceof ModelCheckCredentialsSaveError) {
           logger.error('Failed to persist pending API key before model check', {
             providerId: provider.id,
             modelId: model.id,
             error: error.cause
           })
-        } else if (error instanceof ModelCheckCredentialsError) {
-          toast.error(i18n.t('message.error.enter.api.label'))
-        } else {
-          logger.error('Single model check failed', { providerId: provider.id, modelId: model.id, error })
-          toast.error(i18n.t('settings.models.check.failed_to_start'))
+          return 'failed'
         }
+        if (!notify) throw error
+        if (!(error instanceof ModelCheckCredentialsError)) {
+          logger.error('Single model check failed', { providerId: provider.id, modelId: model.id, error })
+        }
+        reportFailure(error)
 
         return 'failed' as const
       } finally {
@@ -134,7 +172,7 @@ export function useProviderConnectionCheck(providerId: string, credentialsState:
         }
       }
     },
-    [abortInFlightCheck, enableProvider, i18n, models.length, prepareCredentials, provider]
+    [abortInFlightCheck, enableProvider, i18n, models.length, prepareCredentials, provider, providerId, feedbackScope]
   )
 
   useEffect(() => {

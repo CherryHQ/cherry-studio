@@ -4,6 +4,19 @@ import type { AiStreamOpenRequest } from '@shared/ai/transport'
 
 import { aiRequestSchemas } from '../ai'
 
+describe('ai.agent.workspace.register schema', () => {
+  const schema = aiRequestSchemas['ai.agent.workspace.register'].input
+  it('normalizes registration input without accepting relative or invalid paths', () => {
+    expect(schema.parse({ path: ' /tmp/workspace ', name: ' Workspace ' })).toEqual({
+      path: '/tmp/workspace',
+      name: 'Workspace'
+    })
+    for (const path of ['relative/path', '', '   ', '/tmp/bad\0path'])
+      expect(schema.safeParse({ path }).success).toBe(false)
+    expect(schema.safeParse({ path: '/tmp/workspace', name: '  ' }).success).toBe(false)
+  })
+})
+
 // The AI IPC boundary validates `uniqueModelId` with the strict `UniqueModelIdSchema`
 // (`providerId::modelId`, separator at a real position, both parts well-formed), so a
 // malformed id is rejected here instead of penetrating to `parseUniqueModelId` and
@@ -49,6 +62,18 @@ describe('ai.stream.open IPC schema', () => {
         targetMode: 'reserved-branch'
       })
     ).toMatchObject({ targetMode: 'reserved-branch' })
+  })
+
+  // Zod drops unknown keys, so a missing field would silently turn a follow-up back into a steer.
+  it('preserves the agent follow-up intent at the renderer-to-main boundary', () => {
+    expect(
+      openStream.parse({
+        trigger: 'submit-message',
+        topicId: 'topic-1',
+        userMessageParts: [{ type: 'text', text: 'after this' }],
+        followUp: true
+      })
+    ).toMatchObject({ followUp: true })
   })
 
   it('rejects an unknown target mode', () => {

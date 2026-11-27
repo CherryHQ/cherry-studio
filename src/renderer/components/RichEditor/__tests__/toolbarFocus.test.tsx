@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { RichEditorRef } from '../types'
 
 vi.mock('@renderer/hooks/useCodeStyle', () => ({
-  useCodeStyle: () => ({ activeShikiTheme: 'one-light' })
+  useCodeStyle: () => ({ activeCodeTheme: 'one-light' })
 }))
 
 import RichEditor from '../RichEditor'

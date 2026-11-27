@@ -64,7 +64,7 @@ export class ClaudeCodeTraceBridgeService extends BaseService implements Activat
     // secrets (e.g. authorization headers, API keys embedded in raw bodies). We do NOT redact
     // here: redaction would require parsing arbitrary OTLP attribute structures across the
     // ingest path and risk dropping legitimate trace data. The accepted tradeoff (local-only,
-    // developer-gated capture) needs a threat-model decision — see docs/references/ai/observability.md.
+    // developer-gated capture) needs a threat-model decision — see docs/dev/references/ai/observability.md.
     return {
       CLAUDE_CODE_ENABLE_TELEMETRY: '1',
       CLAUDE_CODE_ENHANCED_TELEMETRY_BETA: '1',

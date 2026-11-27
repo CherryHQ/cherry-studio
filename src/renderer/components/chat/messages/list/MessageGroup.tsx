@@ -1,11 +1,13 @@
 import type { ComponentProps, ReactNode } from 'react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
-import { Popover, PopoverContent, PopoverTrigger, Scrollbar } from '@cherrystudio/ui'
+import { Popover, PopoverContent, PopoverTrigger, PortalContainerProvider, ScrollArea } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import SelectionContextMenu from '@renderer/components/SelectionContextMenu'
 import { useCurrentTabId } from '@renderer/hooks/tab'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { scrollIntoView } from '@renderer/utils/dom'
+import { type MessagePartRows, messagePartsAt } from '@renderer/utils/message/messagePartRows'
 import { classNames } from '@renderer/utils/style'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart } from '@shared/data/types/message'
@@ -22,14 +24,26 @@ import { defaultMessageRenderConfig, type MessageListItem, type MessageUiState }
 import { getEffectiveMultiModelMessageStyle, isAssistantMultiModelGroup } from '../utils/messageGroupLayout'
 import { isMessageListItemProcessing } from '../utils/messageListItem'
 import MessageGroupMenuBar from './MessageGroupMenuBar'
-import { useScrollRuntimeBoundary, useScrollRuntimeNavigation } from './ScrollOwnershipContext'
+import {
+  findVerticalWheelConsumer,
+  useScrollRuntimeBoundary,
+  useScrollRuntimeNavigation
+} from './ScrollOwnershipContext'
 
 const logger = loggerService.withContext('MessageGroup')
 const EMPTY_MESSAGE_PARTS: CherryMessagePart[] = []
+const WHEEL_LINE_HEIGHT_PX = 16
+
+function normalizeWheelDelta(delta: number, deltaMode: number, pageSize: number): number {
+  if (deltaMode === WheelEvent.DOM_DELTA_LINE) return delta * WHEEL_LINE_HEIGHT_PX
+  if (deltaMode === WheelEvent.DOM_DELTA_PAGE) return delta * pageSize
+  return delta
+}
 
 interface Props {
   messages: MessageListItem[]
-  partsByMessageId?: Record<string, CherryMessagePart[]> | null
+  partsByMessageId?: MessagePartRows | null
+  quoteTopicId?: string
   captureMode?: boolean
   registerMessageElement?: (id: string, element: HTMLElement | null) => void
   isLatestAssistantGroup?: boolean
@@ -43,11 +57,15 @@ interface Props {
 
 function pickPreferredSelectedMessage(
   messages: MessageListItem[],
-  getMessageUiState: (messageId: string) => MessageUiState
+  getMessageUiState: (messageId: string) => MessageUiState,
+  activeBranchMessageId: string | null = messages.find((message) => message.isActiveBranch)?.id ?? null
 ) {
   return (
+    messages.find((message) => {
+      const ui = getMessageUiState(message.id)
+      return ui.foldSelected && (ui.foldSelectedBranchId ?? null) === activeBranchMessageId
+    }) ??
     messages.find((message) => message.isActiveBranch) ??
-    messages.find((message) => getMessageUiState(message.id).foldSelected) ??
     messages.find(isMessageListItemProcessing)
   )
 }
@@ -55,6 +73,7 @@ function pickPreferredSelectedMessage(
 const MessageGroup = ({
   messages,
   partsByMessageId,
+  quoteTopicId,
   captureMode = false,
   registerMessageElement,
   isLatestAssistantGroup = false,
@@ -74,7 +93,7 @@ const MessageGroup = ({
   const { setTimeoutTimer } = useTimer()
   const currentTabId = useCurrentTabId()
   const navigateWithScrollRuntime = useScrollRuntimeNavigation()
-  const { scrollByWheel } = useScrollRuntimeBoundary()
+  const { getScrollContainer, scrollByWheel } = useScrollRuntimeBoundary()
   const isMultiSelectMode = selection?.isMultiSelectMode ?? false
   const getMessageUiState = useCallback(
     (messageId: string) => messageUi.getMessageUiState?.(messageId) ?? {},
@@ -118,17 +137,22 @@ const MessageGroup = ({
 
   const isGrid = multiModelMessageStyle === 'grid'
 
+  const activeBranchMessage = useMemo(() => messages.find((message) => message.isActiveBranch), [messages])
+  const activeBranchMessageId = activeBranchMessage?.id ?? null
+
   // Track the selected message ID in React state. The active branch remains
   // the single source of truth for which grouped reply is used as context.
   const [selectedMessageId, setSelectedMessageIdState] = useState<string>(() => {
     if (messages.length === 1) return messages[0]?.id
-    return pickPreferredSelectedMessage(messages, getMessageUiState)?.id ?? messages.at(-1)?.id ?? messages[0]?.id
+    return (
+      pickPreferredSelectedMessage(messages, getMessageUiState, activeBranchMessageId)?.id ??
+      messages.at(-1)?.id ??
+      messages[0]?.id
+    )
   })
-  const previousActiveBranchMessageIdRef = useRef(messages.find((message) => message.isActiveBranch)?.id)
+  const previousActiveBranchMessageIdRef = useRef(activeBranchMessageId)
 
-  // Re-sync the selected ID when the active branch or group membership changes.
-  // Without this, fold mode can keep showing an old model column even after
-  // branch navigation moves the active path to another multi-model node.
+  // Branch navigation overrides browsing; streaming updates preserve it.
   useEffect(() => {
     if (captureMode) return
 
@@ -138,44 +162,48 @@ const MessageGroup = ({
     previousMessageIdsRef.current = messages.map((message) => message.id)
 
     const hasSelected = messages.some((m) => m.id === selectedMessageId)
-    const activeBranchMessage = messages.find((message) => message.isActiveBranch)
-    const activeBranchChanged = activeBranchMessage?.id !== previousActiveBranchMessageIdRef.current
-    previousActiveBranchMessageIdRef.current = activeBranchMessage?.id
+    const activeBranchChanged = activeBranchMessageId !== previousActiveBranchMessageIdRef.current
+    previousActiveBranchMessageIdRef.current = activeBranchMessageId
     let nextSelectedMessage: MessageListItem | undefined
 
     if (activeBranchChanged && activeBranchMessage && activeBranchMessage.id !== selectedMessageId) {
       nextSelectedMessage = activeBranchMessage
     } else if (!hasSelected) {
-      nextSelectedMessage = pickPreferredSelectedMessage(messages, getMessageUiState) ?? messages.at(-1) ?? messages[0]
+      nextSelectedMessage =
+        pickPreferredSelectedMessage(messages, getMessageUiState, activeBranchMessageId) ??
+        messages.at(-1) ??
+        messages[0]
     } else if (addedMessages.length > 0) {
-      nextSelectedMessage = pickPreferredSelectedMessage(addedMessages, getMessageUiState) ?? addedMessages.at(-1)
+      nextSelectedMessage =
+        pickPreferredSelectedMessage(addedMessages, getMessageUiState, activeBranchMessageId) ?? addedMessages.at(-1)
     }
 
-    if (nextSelectedMessage && nextSelectedMessage.id !== selectedMessageId) {
-      if (selectedMessageId) {
-        updateMessageUiState(selectedMessageId, { foldSelected: false })
+    const visibleMessageId = nextSelectedMessage?.id ?? selectedMessageId
+    for (const message of messages) {
+      const ui = getMessageUiState(message.id)
+      if (message.id === visibleMessageId) {
+        if (!ui.foldSelected || ui.foldSelectedBranchId !== activeBranchMessageId) {
+          updateMessageUiState(message.id, { foldSelected: true, foldSelectedBranchId: activeBranchMessageId })
+        }
+      } else if (ui.foldSelected) {
+        updateMessageUiState(message.id, { foldSelected: false })
       }
-      updateMessageUiState(nextSelectedMessage.id, { foldSelected: true })
-      setSelectedMessageIdState(nextSelectedMessage.id)
     }
-  }, [captureMode, getMessageUiState, messages, selectedMessageId, updateMessageUiState])
+    if (visibleMessageId !== selectedMessageId) setSelectedMessageIdState(visibleMessageId)
+  }, [
+    activeBranchMessage,
+    activeBranchMessageId,
+    captureMode,
+    getMessageUiState,
+    messages,
+    selectedMessageId,
+    updateMessageUiState
+  ])
 
   const setSelectedMessage = useCallback(
     (message: MessageListItem) => {
-      // 前一个
-      if (selectedMessageId) {
-        updateMessageUiState(selectedMessageId, { foldSelected: false })
-      }
-      // 当前选中的消息
-      updateMessageUiState(message.id, { foldSelected: true })
+      // Browsing changes only the visible reply; context changes use onSelectContext.
       setSelectedMessageIdState(message.id)
-
-      if (message.role === 'assistant' && message.id !== selectedMessageId) {
-        void Promise.resolve(actions.setActiveBranch?.(message.id)).catch((error) => {
-          logger.error('Failed to set active branch from message group', error as Error, { messageId: message.id })
-          actions.notifyError?.(error instanceof Error ? error.message : String(error))
-        })
-      }
 
       setTimeoutTimer(
         'setSelectedMessage',
@@ -190,7 +218,7 @@ const MessageGroup = ({
         200
       )
     },
-    [actions, navigateWithScrollRuntime, selectedMessageId, setTimeoutTimer, updateMessageUiState]
+    [navigateWithScrollRuntime, setTimeoutTimer]
   )
   useEffect(() => {
     if (captureMode) return
@@ -240,30 +268,68 @@ const MessageGroup = ({
   )
 
   const groupContextMessageId = useMemo(() => {
-    const activeBranchMessage = messages.find((message) => message.isActiveBranch)
-    if (activeBranchMessage) return activeBranchMessage.id
+    if (activeBranchMessageId) return activeBranchMessageId
     if (messages.length > 0) return messages[0].id
 
     logger.warn('Empty message group')
     return ''
-  }, [messages])
+  }, [activeBranchMessageId, messages])
 
   const handleHorizontalGroupWheel = useCallback(
     (event: WheelEvent) => {
       const target = event.target as HTMLElement | null
-      if (target?.closest('.message-content-container')) {
-        return
+      const groupContainer = event.currentTarget as HTMLDivElement
+      const verticalPageSize = getScrollContainer()?.clientHeight ?? groupContainer.clientHeight
+      const horizontalWheelDelta = normalizeWheelDelta(event.deltaX, event.deltaMode, groupContainer.clientWidth)
+      const verticalWheelDelta = normalizeWheelDelta(event.deltaY, event.deltaMode, verticalPageSize)
+      const horizontalDelta = event.shiftKey
+        ? horizontalWheelDelta || normalizeWheelDelta(event.deltaY, event.deltaMode, groupContainer.clientWidth)
+        : Math.abs(horizontalWheelDelta) > Math.abs(verticalWheelDelta)
+          ? horizontalWheelDelta
+          : 0
+      if (horizontalDelta !== 0) {
+        for (let scroller = target; scroller && scroller !== groupContainer; scroller = scroller.parentElement) {
+          const limit = scroller.scrollWidth - scroller.clientWidth
+          if (limit <= 0) continue
+          const { overflowX, overscrollBehaviorX, direction } = getComputedStyle(scroller)
+          if (!/^(auto|scroll|overlay)$/.test(overflowX)) continue
+          const position = direction === 'rtl' ? limit + scroller.scrollLeft : scroller.scrollLeft
+          const canScroll = horizontalDelta < 0 ? position > 0 : Math.ceil(position) < limit
+          if (!canScroll && overscrollBehaviorX !== 'contain' && overscrollBehaviorX !== 'none') continue
+
+          // A shifted vertical wheel is not translated to horizontal scrolling on every platform.
+          if (event.shiftKey && horizontalWheelDelta === 0) {
+            event.preventDefault()
+            event.stopPropagation()
+            if (canScroll)
+              scroller.scrollLeft += normalizeWheelDelta(event.deltaY, event.deltaMode, scroller.clientWidth)
+          }
+          return
+        }
       }
 
-      const groupContainer = event.currentTarget as HTMLDivElement
-      const horizontalDelta = event.shiftKey
-        ? event.deltaX || event.deltaY
-        : Math.abs(event.deltaX) > Math.abs(event.deltaY)
-          ? event.deltaX
-          : 0
+      const inMessageColumn = Boolean(target?.closest('.message-content-container'))
 
-      if (horizontalDelta === 0) {
-        if (event.deltaX !== 0 && event.deltaY !== 0 && scrollByWheel(event.deltaY)) {
+      // Column owns vertical while it can scroll. At its boundary the group's
+      // overflow-y:hidden blocks chaining, so forward vertical-dominant wheels
+      // to the list runtime — but keep dominant-horizontal pans on the row.
+      if (inMessageColumn) {
+        if (
+          !event.shiftKey &&
+          verticalWheelDelta !== 0 &&
+          findVerticalWheelConsumer(target, verticalWheelDelta, groupContainer)
+        ) {
+          return
+        }
+        if (horizontalDelta === 0) {
+          if (verticalWheelDelta !== 0 && scrollByWheel(verticalWheelDelta)) {
+            event.preventDefault()
+            event.stopPropagation()
+          }
+          return
+        }
+      } else if (horizontalDelta === 0) {
+        if (horizontalWheelDelta !== 0 && verticalWheelDelta !== 0 && scrollByWheel(verticalWheelDelta)) {
           event.preventDefault()
           event.stopPropagation()
         }
@@ -282,7 +348,7 @@ const MessageGroup = ({
         groupContainer.scrollLeft += horizontalDelta
       }
     },
-    [scrollByWheel]
+    [getScrollContainer, scrollByWheel]
   )
 
   useEffect(() => {
@@ -304,7 +370,9 @@ const MessageGroup = ({
         lockedMentionedModels: directAssistantModelsByUserId?.get(message.id),
         messageTail: messageTail?.messageId === message.id ? messageTail.content : undefined,
         message,
-        messageParts: partsByMessageId ? (partsByMessageId[message.id] ?? EMPTY_MESSAGE_PARTS) : undefined,
+        messageParts: partsByMessageId
+          ? (messagePartsAt(partsByMessageId, message.id) ?? EMPTY_MESSAGE_PARTS)
+          : undefined,
         index
       } satisfies ComponentProps<typeof MessageItem>
 
@@ -335,17 +403,23 @@ const MessageGroup = ({
             key={message.id}
             trigger={gridPopoverTrigger}
             content={
-              <MessageWrapper
-                tabIndex={0}
-                className={classNames([
-                  'in-popover',
-                  {
-                    [multiModelMessageStyle]: message.role === 'assistant' && messages.length > 1,
-                    selected: message.id === selectedMessageId
-                  }
-                ])}>
-                <MessageItem onSelectContext={onSelectContext} {...messageProps} />
-              </MessageWrapper>
+              <SelectionContextMenu
+                openBrowserUrl={actions.openBrowserUrl}
+                quoteTopicId={quoteTopicId}
+                replyDisabled={isMultiSelectMode}>
+                <MessageWrapper
+                  tabIndex={0}
+                  data-message-id={message.id}
+                  className={classNames([
+                    'in-popover',
+                    {
+                      [multiModelMessageStyle]: message.role === 'assistant' && messages.length > 1,
+                      selected: message.id === selectedMessageId
+                    }
+                  ])}>
+                  <MessageItem onSelectContext={onSelectContext} {...messageProps} />
+                </MessageWrapper>
+              </SelectionContextMenu>
             }
             triggerContent={messageContent}
           />
@@ -355,6 +429,9 @@ const MessageGroup = ({
       return messageContent
     },
     [
+      actions.openBrowserUrl,
+      isMultiSelectMode,
+      quoteTopicId,
       isGrid,
       isGrouped,
       isMultiModelGroup,
@@ -419,7 +496,7 @@ const GridContainer = ({
   $count,
   style,
   ...props
-}: ComponentProps<typeof Scrollbar> & { $count: number }) => {
+}: Omit<ComponentProps<'div'>, 'dir'> & { $count: number }) => {
   const isHorizontal = className?.includes('horizontal')
   const isGrid = className?.includes('grid')
   const isFoldOrVertical = className?.includes('fold') || className?.includes('vertical')
@@ -431,18 +508,27 @@ const GridContainer = ({
         ? 'repeat(1, minmax(0, 1fr))'
         : undefined
 
-  const overflowStyle = isHorizontal ? ({ overflowX: 'auto', overflowY: 'hidden' } as const) : undefined
+  const gridClassName = classNames(
+    '[&.multi-select-mode_.message-content-container]:overflow-y-hidden! [&.multi-select-mode_.message-content-container>[data-slot=scroll-area-viewport]]:overflow-y-hidden! grid w-full gap-4 overflow-y-visible [&.fold]:gap-2 [&.grid]:grid-rows-[auto] [&.multi-select-mode]:gap-2.5 [&.multi-select-mode_.MessageFooter]:hidden [&.multi-select-mode_.grid]:h-auto [&.multi-select-mode_.message-content-container]:pointer-events-none [&.multi-select-mode_.message-content-container]:max-h-[200px] [&.multi-select-mode_.message]:rounded-[10px] [&.multi-select-mode_.message]:border-[0.5px] [&.multi-select-mode_.message]:border-border [&.multi-select-mode_.message]:p-2.5',
+    className
+  )
 
+  if (!isHorizontal) {
+    return <div className={gridClassName} style={{ gridTemplateColumns, ...style }} {...props} />
+  }
+
+  const { children, onWheel, ref, ...rootProps } = props
   return (
-    <Scrollbar
-      showOnHover={isHorizontal}
-      className={classNames(
-        '[&.multi-select-mode_.message-content-container]:overflow-y-hidden! grid w-full gap-4 overflow-y-visible [&.fold]:gap-2 [&.grid]:grid-rows-[auto] [&.horizontal]:overflow-x-auto [&.horizontal]:overflow-y-hidden [&.horizontal]:pb-1 [&.multi-select-mode]:gap-2.5 [&.multi-select-mode_.MessageFooter]:hidden [&.multi-select-mode_.grid]:h-auto [&.multi-select-mode_.message-content-container]:pointer-events-none [&.multi-select-mode_.message-content-container]:max-h-[200px] [&.multi-select-mode_.message]:rounded-[10px] [&.multi-select-mode_.message]:border-[0.5px] [&.multi-select-mode_.message]:border-border [&.multi-select-mode_.message]:p-2.5',
-        className
-      )}
-      style={{ gridTemplateColumns, ...overflowStyle, ...style }}
-      {...props}
-    />
+    <ScrollArea
+      {...rootProps}
+      className={classNames('w-full', className)}
+      style={style}
+      type="hover"
+      orientation="horizontal"
+      viewportProps={{ ref, onWheel, style: { overflowX: 'auto', overflowY: 'hidden' } }}
+      contentProps={{ className: classNames(gridClassName, 'pb-1'), style: { display: 'grid', gridTemplateColumns } }}>
+      {children}
+    </ScrollArea>
   )
 }
 
@@ -473,7 +559,7 @@ const MessageWrapper = ({
       ref={messageId ? setElementRef : undefined}
       data-ui="chat.message"
       className={classNames([
-        '[&.horizontal_.message-content-container]:overflow-y-auto! [&.fold.selected]:inline-block [&.fold]:hidden [&.grid]:block [&.grid]:h-[300px] [&.grid]:cursor-pointer [&.grid]:overflow-y-hidden [&.grid]:rounded-[10px] [&.grid]:border-[0.5px] [&.grid]:border-border [&.grid_.MessageFooter]:mt-0.5 [&.grid_.MessageFooter]:mb-0.5 [&.grid_.MessageFooter]:ml-0 [&.grid_.message-body-column]:h-full [&.grid_.message-body-column]:min-h-0 [&.grid_.message-body-content]:flex [&.grid_.message-body-content]:min-h-0 [&.grid_.message-body-content]:flex-1 [&.grid_.message-content-container]:pointer-events-none [&.grid_.message-content-container]:flex-1 [&.grid_.message-content-container]:overflow-hidden [&.grid_.message-content-container]:pl-0 [&.grid_.message-header]:h-full [&.grid_.message]:h-full [&.grid_.message]:pt-0 [&.horizontal]:overflow-y-visible [&.horizontal]:p-px [&.horizontal_.MessageFooter]:mt-0.5 [&.horizontal_.MessageFooter]:mb-0.5 [&.horizontal_.MessageFooter]:ml-0 [&.horizontal_.message-body-column]:h-full [&.horizontal_.message-body-column]:min-h-0 [&.horizontal_.message-body-content]:flex [&.horizontal_.message-body-content]:min-h-0 [&.horizontal_.message-body-content]:flex-1 [&.horizontal_.message-content-container]:max-h-[calc(100vh-350px)] [&.horizontal_.message-content-container]:flex-1 [&.horizontal_.message-content-container]:pl-0 [&.horizontal_.message-header]:h-full [&.horizontal_.message]:h-full [&.horizontal_.message]:rounded-[10px] [&.horizontal_.message]:border-[0.5px] [&.horizontal_.message]:border-border [&.horizontal_.message]:p-2.5 [&.in-popover]:h-auto [&.in-popover]:max-h-[50vh] [&.in-popover]:cursor-default [&.in-popover]:overflow-y-auto [&.in-popover]:border-none [&.in-popover_.MessageFooter]:ml-0 [&.in-popover_.message-content-container]:pointer-events-auto [&.in-popover_.message-content-container]:pl-0',
+        '[&.fold.selected]:inline-block [&.fold]:hidden [&.grid]:block [&.grid]:h-[300px] [&.grid]:cursor-pointer [&.grid]:overflow-y-hidden [&.grid]:rounded-[10px] [&.grid]:border-[0.5px] [&.grid]:border-border [&.grid_.MessageFooter]:mt-0.5 [&.grid_.MessageFooter]:mb-0.5 [&.grid_.MessageFooter]:ml-0 [&.grid_.message-body-column]:h-full [&.grid_.message-body-column]:min-h-0 [&.grid_.message-body-content]:flex [&.grid_.message-body-content]:min-h-0 [&.grid_.message-body-content]:flex-1 [&.grid_.message-content-container]:pointer-events-none [&.grid_.message-content-container]:flex-1 [&.grid_.message-content-container]:overflow-hidden [&.grid_.message-content-container]:pl-0 [&.grid_.message-header]:h-full [&.grid_.message]:h-full [&.grid_.message]:pt-0 [&.horizontal]:overflow-y-visible [&.horizontal]:p-px [&.horizontal_.MessageFooter]:mt-0.5 [&.horizontal_.MessageFooter]:mb-0.5 [&.horizontal_.MessageFooter]:ml-0 [&.horizontal_.message-body-column]:h-full [&.horizontal_.message-body-column]:min-h-0 [&.horizontal_.message-body-content]:flex [&.horizontal_.message-body-content]:min-h-0 [&.horizontal_.message-body-content]:flex-1 [&.horizontal_.message-content-container]:max-h-[calc(100vh-350px)] [&.horizontal_.message-content-container]:flex-1 [&.horizontal_.message-content-container]:pl-0 [&.horizontal_.message-header]:h-full [&.horizontal_.message]:h-full [&.horizontal_.message]:rounded-[10px] [&.horizontal_.message]:border-[0.5px] [&.horizontal_.message]:border-border [&.horizontal_.message]:p-2.5 [&.in-popover]:h-auto [&.in-popover]:max-h-[50vh] [&.in-popover]:cursor-default [&.in-popover]:overflow-y-auto [&.in-popover]:border-none [&.in-popover_.MessageFooter]:ml-0 [&.in-popover_.message-content-container]:pointer-events-auto [&.in-popover_.message-content-container]:pl-0',
         { 'p-2.5': isGridCard },
         className
       ])}
@@ -493,6 +579,7 @@ const GridMessagePopover = ({
   trigger: 'hover' | 'click'
 }) => {
   const [open, setOpen] = useState(false)
+  const [contentElement, setContentElement] = useState<HTMLDivElement | null>(null)
   const isHover = trigger === 'hover'
 
   return (
@@ -505,12 +592,13 @@ const GridMessagePopover = ({
         </div>
       </PopoverTrigger>
       <PopoverContent
+        ref={setContentElement}
         onMouseEnter={isHover ? () => setOpen(true) : undefined}
         onMouseLeave={isHover ? () => setOpen(false) : undefined}
         className="z-1000 max-h-[60vh] w-auto max-w-[60vw] overflow-y-auto p-4"
         side="top"
         align="center">
-        {content}
+        <PortalContainerProvider container={contentElement}>{content}</PortalContainerProvider>
       </PopoverContent>
     </Popover>
   )
@@ -526,12 +614,12 @@ function messageArrayShallowEqual(a: MessageListItem[], b: MessageListItem[]): b
 }
 
 function messagePartsShallowEqual(
-  previous: Record<string, CherryMessagePart[]> | null | undefined,
-  next: Record<string, CherryMessagePart[]> | null | undefined,
+  previous: MessagePartRows | null | undefined,
+  next: MessagePartRows | null | undefined,
   messages: MessageListItem[]
 ): boolean {
   if (previous === next) return true
-  return messages.every((message) => previous?.[message.id] === next?.[message.id])
+  return messages.every((message) => messagePartsAt(previous, message.id) === messagePartsAt(next, message.id))
 }
 
 // Custom comparator: bail out only when latest flag / derived model map /

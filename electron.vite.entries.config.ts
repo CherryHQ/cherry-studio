@@ -1,6 +1,6 @@
 import { resolve } from 'path'
 
-import { mainExternalModules, mainResolveAlias } from './electron.vite.config'
+import { mainExternalModules, mainResolveAlias, sentrySourceMapPlugins } from './electron.vite.config'
 import { hermeticEntryGuardPlugin } from './scripts/utilityProcessEntryGuard'
 
 /**
@@ -12,11 +12,14 @@ import { hermeticEntryGuardPlugin } from './scripts/utilityProcessEntryGuard'
  * Run by `pnpm build` and `pnpm dev`; entries do NOT hot-reload — re-run
  * `pnpm build:utility-process` after changing one.
  *
- * See docs/references/utility-process/README.md.
+ * See docs/dev/references/utility-process/README.md.
  */
 export default {
   main: {
-    plugins: [hermeticEntryGuardPlugin()],
+    plugins: [
+      hermeticEntryGuardPlugin(),
+      ...(process.env.CHERRY_RELEASE_JS_ONLY === 'true' ? sentrySourceMapPlugins('utility-process') : [])
+    ],
     resolve: { alias: mainResolveAlias },
     build: {
       externalizeDeps: { include: mainExternalModules },
@@ -25,11 +28,15 @@ export default {
       lib: {
         // Keys become `<entry>.js`, which is what a definition's `entry` resolves to.
         entry: {
+          'automation-repl': resolve(__dirname, 'src/main/services/automation/utilityEntries/automationRepl.ts'),
+          'inference-tts': resolve(__dirname, 'src/main/ai/localModel/runtime/utilityEntries/inferenceTts.ts'),
+          'inference-asr': resolve(__dirname, 'src/main/ai/localModel/runtime/utilityEntries/inferenceAsr.ts'),
           'inference-embedding': resolve(
             __dirname,
             'src/main/ai/localModel/runtime/utilityEntries/inferenceEmbedding.ts'
           ),
-          'inference-ocr': resolve(__dirname, 'src/main/ai/localModel/runtime/utilityEntries/inferenceOcr.ts')
+          'inference-ocr': resolve(__dirname, 'src/main/ai/localModel/runtime/utilityEntries/inferenceOcr.ts'),
+          'voice-audio': resolve(__dirname, 'src/main/ai/voice/localAdapters/utilityEntries/voiceAudio.ts')
         }
       },
       rolldownOptions: {

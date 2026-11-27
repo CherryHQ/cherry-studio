@@ -33,6 +33,8 @@ export interface GeneratePaintingOptions {
    * and maps it onto each vendor's wire shape — no per-vendor logic here.
    */
   readonly paramValues: Record<string, unknown>
+  /** Per-attempt request timeout in ms; omitted uses the transport default. */
+  readonly requestTimeoutMs?: number
   /** Attached input images, already encoded as `data:` URL strings. */
   readonly inputImages?: string[]
 }
@@ -55,6 +57,7 @@ export function generatePainting(opts: GeneratePaintingOptions): Promise<FileMet
           prompt: opts.prompt,
           ...(opts.mode && { mode: opts.mode }),
           paramValues: opts.paramValues,
+          ...(opts.requestTimeoutMs && { requestTimeoutMs: opts.requestTimeoutMs }),
           // Painting-owned images: reaped once no painting references them (file-entry-cleanup.md §4.1).
           cleanupPolicy: 'delete_when_unreferenced',
           ...(opts.inputImages && opts.inputImages.length > 0 && { inputImages: opts.inputImages })

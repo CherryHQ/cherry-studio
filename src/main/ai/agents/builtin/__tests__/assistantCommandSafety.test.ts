@@ -1,56 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import {
-  detectDestructiveAssistantCommand,
-  isGitHubIssueCreationCommand,
-  isLarkFormSubmissionCommand,
-  isPermanentDeletionToolName
-} from '../assistantCommandSafety'
-
-describe('detectDestructiveAssistantCommand', () => {
-  it.each([
-    ['rm -rf ./build', 'permanent file deletion'],
-    ['powershell Remove-Item -Recurse C:\\temp', 'permanent Windows file deletion'],
-    ['powershell rmdir C:\\temp', 'permanent Windows file deletion'],
-    ['cmd /c del /s /q C:\\temp\\*', 'permanent Windows file deletion'],
-    ['python -c "import shutil; shutil.rmtree(\'output\')"', 'scripted permanent file deletion'],
-    ['find . -name "*.tmp" -delete', 'recursive find deletion'],
-    ['diskutil eraseDisk APFS Empty /dev/disk4', 'disk formatting or wiping'],
-    ['git reset --hard HEAD~1', 'discarding version-control data'],
-    ['git checkout .', 'discarding version-control data'],
-    ['git checkout HEAD -- src/main.ts', 'discarding version-control data'],
-    ['git checkout -f feature', 'discarding version-control data'],
-    ['git checkout feature --force', 'discarding version-control data'],
-    ['git switch --discard-changes feature', 'discarding version-control data'],
-    ['git -C nested clean -fdx', 'discarding version-control data'],
-    ['git -C "nested repo" reset --hard', 'discarding version-control data'],
-    ['git --git-dir=.git --work-tree=. clean -fd', 'discarding version-control data'],
-    ['git --work-tree . reset --hard', 'discarding version-control data'],
-    ['sqlite3 app.db "DROP TABLE users"', 'destructive database operation'],
-    ['terraform destroy -auto-approve', 'destructive infrastructure operation'],
-    ['sudo shutdown -h now', 'system shutdown or service destruction'],
-    ['history -c', 'security-log or shell-history erasure'],
-    [':(){ :|:& };:', 'a process-exhaustion payload']
-  ])('blocks %s', (command, reason) => {
-    expect(detectDestructiveAssistantCommand(command)).toBe(reason)
-  })
-
-  it.each([
-    'pnpm test',
-    'pnpm format',
-    'git diff --check',
-    'git -C nested status --short',
-    'git --work-tree=. diff --check',
-    'git checkout feature-branch',
-    'git switch feature-branch',
-    'mkdir -p output',
-    'mv draft.md final.md',
-    'cp source.md backup.md',
-    'grep -R "delete" src'
-  ])('allows non-destructive command: %s', (command) => {
-    expect(detectDestructiveAssistantCommand(command)).toBeUndefined()
-  })
-})
+import { isFeedbackSubmissionCommand, isPermanentDeletionToolName } from '../assistantCommandSafety'
 
 describe('isPermanentDeletionToolName', () => {
   it.each([
@@ -71,41 +21,81 @@ describe('isPermanentDeletionToolName', () => {
   )
 })
 
-describe('isLarkFormSubmissionCommand', () => {
+describe('isFeedbackSubmissionCommand', () => {
   it.each([
     'lark-cli base +form-submit --share-token token --as user --json fields.json --yes',
     '/usr/local/bin/lark-cli base +form-submit --share-token token',
-    '"/Applications/Lark CLI/lark-cli" base +form-submit --share-token token'
-  ])('detects %s', (command) => {
-    expect(isLarkFormSubmissionCommand(command)).toBe(true)
+    '"/Applications/Lark CLI/lark-cli" base +form-submit --share-token token',
+    'lark-cli --profile work base +form-submit --share-token token',
+    `sh -c "lark-cli base +form-submit --share-token token"`,
+    'gh issue create --repo CherryHQ/cherry-studio --title "Bug" --body-file report.md',
+    '  gh issue create --repo CherryHQ/cherry-studio',
+    '/usr/local/bin/gh issue create --repo CherryHQ/cherry-studio',
+    'cd /workspace && "C:\\Program Files\\GitHub CLI\\gh.exe" issue create --title "Bug"',
+    'GH issue create --title "Bug"',
+    'gh.EXE issue create --title "Bug"',
+    '"C:\\Program Files\\GitHub CLI\\GH.EXE" issue create --title "Bug"',
+    'gh \\\n  issue create --title "Bug"',
+    'gh -R CherryHQ/cherry-studio issue create --title "Bug"',
+    'gh --repo=CherryHQ/cherry-studio issue create --title "Bug"',
+    'gh issue -R CherryHQ/cherry-studio create --title "Bug"',
+    'gh issue new --title "Bug"',
+    'env GH_TOKEN=token gh issue create --title "Bug"',
+    'GH_TOKEN=token gh issue create --title "Bug"',
+    'command gh issue create --title "Bug"',
+    'nohup gh issue create --title "Bug"',
+    'sudo -u me gh issue create --title "Bug"',
+    'echo report.md | xargs gh issue create --body-file',
+    `bash -c 'gh issue create --title "Bug"'`,
+    'echo "$(gh issue create --title Bug)"',
+    'for repo in a b; do gh issue create -R "$repo" --title Bug; done',
+    'bash <<EOF\ngh issue create --title Bug\nEOF',
+    'gh issue "$ACTION" --title "Bug"',
+    'GH=gh; $GH issue create --title "Bug"',
+    'lark-cli base --as user +form-submit --share-token token',
+    'lark-cli base --format json +form-submit --share-token token',
+    'gh issue --repo CherryHQ/cherry-studio --web create',
+    'gh api repos/CherryHQ/cherry-studio/issues -f title=Bug -f body=details',
+    'gh api --method POST /repos/{owner}/{repo}/issues --input issue.json',
+    'gh api -XPOST repos/CherryHQ/cherry-studio/issues/',
+    'gh api -H "Accept: application/json" repos/CherryHQ/cherry-studio/issues -F title=@title.txt',
+    `gh api graphql -f query='mutation { createIssue(input: {}) { issue { url } } }'`,
+    'gh api "$ENDPOINT" -f title=Bug',
+    `python3 -c "import os; os.system('gh issue create --title Bug')"`,
+    `node -e "require('child_process').execSync('lark-cli base +form-submit --share-token t')"`,
+    'python3 <<EOF\nimport subprocess\nsubprocess.run(["gh", "issue", "create"])\nEOF'
+  ])('detects %s', async (command) => {
+    await expect(isFeedbackSubmissionCommand(command, 'bash')).resolves.toBe(true)
+  })
+
+  it.each([
+    'gh issue create --title "Bug"',
+    'gh -R CherryHQ/cherry-studio issue create --title "Bug"',
+    'cd C:\\work; & "C:\\Program Files\\GitHub CLI\\gh.exe" issue create --title "Bug"'
+  ])('detects PowerShell %s', async (command) => {
+    await expect(isFeedbackSubmissionCommand(command, 'powershell')).resolves.toBe(true)
   })
 
   it.each([
     'lark-cli auth status --json --verify',
     'lark-cli base +form-detail --share-token token --format json',
-    'printf "lark-cli base +form-submit"'
-  ])('allows non-submission command: %s', (command) => {
-    expect(isLarkFormSubmissionCommand(command)).toBe(false)
-  })
-})
-
-describe('isGitHubIssueCreationCommand', () => {
-  it.each([
-    'gh issue create --repo CherryHQ/cherry-studio --title "Bug" --body-file report.md',
-    '  gh issue create --repo CherryHQ/cherry-studio',
-    '/usr/local/bin/gh issue create --repo CherryHQ/cherry-studio',
-    'cd /workspace && "C:\\Program Files\\GitHub CLI\\gh" issue create --title "Bug"'
-  ])('detects %s', (command) => {
-    expect(isGitHubIssueCreationCommand(command)).toBe(true)
-  })
-
-  it.each([
+    'printf "lark-cli base +form-submit"',
     'gh issue list --repo CherryHQ/cherry-studio',
+    'gh issue view 12 --comments',
     'gh search issues "startup crash" --repo CherryHQ/cherry-studio',
+    'gh issue list --search "issue create"',
     'printf "gh issue create"',
     'echo gh issue create',
-    'laugh issue create'
-  ])('allows non-creation command: %s', (command) => {
-    expect(isGitHubIssueCreationCommand(command)).toBe(false)
+    'laugh issue create',
+    'command -v gh',
+    'gh issue list --label create',
+    'lark-cli base +form-detail --share-token token --as user',
+    'gh api repos/CherryHQ/cherry-studio/issues',
+    'gh api repos/CherryHQ/cherry-studio/issues --method GET -f state=open',
+    'gh api repos/CherryHQ/cherry-studio/issues/12/comments -f body=thanks',
+    `gh api graphql -f query='{ viewer { login } }'`,
+    'python3 -c "print(1)"'
+  ])('allows non-submission command: %s', async (command) => {
+    await expect(isFeedbackSubmissionCommand(command, 'bash')).resolves.toBe(false)
   })
 })

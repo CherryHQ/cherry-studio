@@ -9,7 +9,7 @@ const WorkersAi = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const WorkersAiIcon: CompoundIcon = /*#__PURE__*/ Object.assign(WorkersAi, {
   Avatar: WorkersAiAvatar,
-  colorPrimary: '#F38020'
+  colorPrimary: '#fef4eb'
 })
 
 export default WorkersAiIcon

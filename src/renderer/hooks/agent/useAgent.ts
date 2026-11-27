@@ -1,9 +1,9 @@
 /**
  * DataApi-backed agent queries and mutations.
  *
- * `agent` is the canonical reusable blueprint — sessions are pure instances of
- * it. Config (model / instructions / mcps / disabledTools /
- * configuration) lives here, not on sessions.
+ * `agent` is the canonical reusable blueprint — sessions are instances of
+ * it with their own per-session model override. Remaining config (instructions /
+ * mcps / disabledTools / configuration) lives here, not on sessions.
  */
 
 import { useCallback, useMemo } from 'react'
@@ -16,6 +16,7 @@ import { toast } from '@renderer/services/toast'
 import type { AddAgentForm, UpdateAgentBaseOptions, UpdateAgentForm, UpdateAgentFunction } from '@renderer/types/agent'
 import { parseAgentConfiguration } from '@renderer/utils/agent/utils'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import { AGENTS_MAX_LIMIT } from '@shared/data/api/schemas/agents'
 import type { UniqueModelId } from '@shared/data/types/model'
@@ -45,13 +46,16 @@ export const useAgent = (id: string | null) => {
       keepPreviousData: false
     }
   })
+  useDataChange('/agents/:agentId', (effects) => {
+    if (id && effects.some((effect) => !effect.entityIds || effect.entityIds.includes(id))) void refetch()
+  })
   const agent = useMemo((): AgentEntity | undefined => {
-    if (!data) return undefined
+    if (!data || isDataApiNotFoundError(error)) return undefined
     return {
       ...data,
       configuration: parseAgentConfiguration(data.configuration, { entityId: data.id, entityType: 'agent' })
     }
-  }, [data])
+  }, [data, error])
 
   const revalidate = useCallback(async () => {
     await refetch()

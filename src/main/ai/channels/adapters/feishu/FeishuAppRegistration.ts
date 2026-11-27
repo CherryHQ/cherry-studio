@@ -1,6 +1,3 @@
-import { net } from 'electron'
-import { delay } from 'es-toolkit'
-
 /**
  * Feishu App Registration via Device Flow.
  *
@@ -9,6 +6,9 @@ import { delay } from 'es-toolkit'
  *
  * Flow: init -> begin (returns QR URL) -> poll (returns client_id + client_secret)
  */
+import { net } from 'electron'
+import { delay } from 'es-toolkit'
+
 import { loggerService } from '@logger'
 import type { FeishuDomain } from '@shared/data/types/channel'
 

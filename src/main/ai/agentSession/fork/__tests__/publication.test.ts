@@ -1,10 +1,11 @@
 import { randomUUID } from 'node:crypto'
+import { once } from 'node:events'
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
 import { setupTestDatabase } from '@test-helpers/db'
-import { eq } from 'drizzle-orm'
+import { eq, ne } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
@@ -13,9 +14,13 @@ import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { appStateTable } from '@data/db/schemas/appState'
+import { agentSessionContextService } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
+import { replaceAgentSessionMessagePartsTx } from '@data/services/agentSessionMessageTree'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import type { RuntimeForkInput, RuntimeForkResult } from '@main/ai/runtime/fork'
+import { PiForkCheckpointSchema } from '@main/ai/runtime/pi/forkCheckpoint'
+import { preparePiBranch, reservePiBranchTx } from '@main/ai/runtime/pi/piContext'
 import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
 import * as fileUtils from '@main/utils/file'
 
@@ -32,6 +37,7 @@ describe('Agent fork publication', () => {
   let publishedFile: string
   let beforeForkResult: (input: RuntimeForkInput) => Promise<void>
   let invalidCheckpoint: boolean
+  let artifactSourceFor: (artifactDirectory: string) => string
   let previous: ReturnType<typeof runtimeDriverRegistry.getAgentSessionDriver>
 
   beforeEach(async () => {
@@ -40,6 +46,7 @@ describe('Agent fork publication', () => {
     publishedFile = path.join(directory, 'native', 'child.jsonl')
     beforeForkResult = async () => {}
     invalidCheckpoint = false
+    artifactSourceFor = (artifactDirectory) => path.join(artifactDirectory, 'native.jsonl')
     vi.spyOn(application, 'getPath').mockImplementation((_key, filename) =>
       filename ? path.join(forkRoot, filename) : forkRoot
     )
@@ -59,6 +66,7 @@ describe('Agent fork publication', () => {
     agentSessionMessageService.saveMessage({
       sessionId,
       runtimeResumeToken: 'native-parent',
+      nativeContextId: preparePiBranch(sessionId, undefined, 'native-parent').id,
       runtimeAnchor: { checkpoint: { runtime: 'pi', runtimeSessionId: 'native-parent', leafId: 'leaf' } },
       message: {
         id: messageId,
@@ -70,16 +78,14 @@ describe('Agent fork publication', () => {
     previous = runtimeDriverRegistry.getAgentSessionDriver('pi')
     runtimeDriverRegistry.register({
       type: 'pi',
-      capabilities: ['agent-session'],
+      isForkCheckpoint: (value) => PiForkCheckpointSchema.safeParse(value).success,
       validateSession() {},
-      async listAvailableTools() {
-        return []
-      },
       async connect() {
         throw new Error('Fork must not start a conversation')
       },
       async fork(input): Promise<RuntimeForkResult> {
-        const source = path.join(input.artifactDirectory, 'native.jsonl')
+        const source = artifactSourceFor(input.artifactDirectory)
+        await mkdir(path.dirname(source), { recursive: true })
         await writeFile(source, 'native child history')
         await beforeForkResult(input)
         return {
@@ -101,6 +107,157 @@ describe('Agent fork publication', () => {
     if (previous) runtimeDriverRegistry.register(previous)
     vi.restoreAllMocks()
     await rm(directory, { recursive: true, force: true })
+  })
+
+  it.each(['commit', 'write failed', 'withdrawn'])(
+    'edits queued C from Run B without removing the earlier completed Run: %s',
+    async (outcome) => {
+      const root = dbh.db
+        .select()
+        .from(agentSessionMessageTable)
+        .where(eq(agentSessionMessageTable.id, messageId))
+        .get()!.parentId!
+      const input = (text: string, parentId: string) =>
+        agentSessionMessageService.saveMessage({
+          sessionId,
+          parentId,
+          message: { role: 'user', status: 'success', data: { parts: [{ type: 'text', text }] } }
+        })
+      const a = input('A', root)
+      const b = input('B', messageId)
+      const steer = input('S', b.id)
+      const withdrawn = outcome === 'withdrawn' ? input('Withdrawn Q', steer.id) : undefined
+      if (withdrawn) {
+        const context = agentSessionContextService.branchTx(dbh.db, sessionId, steer.id)!
+        dbh.db
+          .update(agentSessionMessageTable)
+          .set({ inputContextId: context.id, status: 'paused' })
+          .where(eq(agentSessionMessageTable.id, withdrawn.id))
+          .run()
+      }
+      const c = input('C', withdrawn?.id ?? steer.id)
+      dbh.db
+        .update(agentSessionMessageTable)
+        .set({ parentId: a.id })
+        .where(eq(agentSessionMessageTable.id, messageId))
+        .run()
+      const reply = (text: string, parentId: string) =>
+        agentSessionMessageService.saveMessage({
+          sessionId,
+          parentId,
+          runtimeResumeToken: 'native-parent',
+          runtimeAnchor: { checkpoint: { runtime: 'pi', runtimeSessionId: 'native-parent', leafId: text } },
+          message: { role: 'assistant', status: 'success', data: { parts: [{ type: 'text', text }] } }
+        })
+      const rb = reply('B reply', c.id)
+      const rc = reply('C reply', rb.id)
+      const sibling = input('Independent sibling', rb.id)
+      for (const [row, pos, owner] of [
+        [a, 1, messageId],
+        [steer, 2, messageId],
+        [b, 3, rb.id],
+        [c, 4, rc.id]
+      ] as const) {
+        dbh.db
+          .update(agentSessionMessageTable)
+          .set({ pos, replyId: owner })
+          .where(eq(agentSessionMessageTable.id, row.id))
+          .run()
+      }
+      dbh.db.update(agentSessionTable).set({ activeNodeId: rc.id }).where(eq(agentSessionTable.id, sessionId)).run()
+      beforeForkResult = async (input) => {
+        expect(input.checkpoint).toMatchObject({ leafId: 'B reply' })
+      }
+      const version = agentSessionMessageService.readEditSnapshotTx(dbh.db, sessionId, c.id).version
+      const before = dbh.db
+        .select()
+        .from(agentSessionMessageTable)
+        .where(eq(agentSessionMessageTable.sessionId, sessionId))
+        .all()
+      const operation = new AgentSessionForkOperations().edit(
+        sessionId,
+        { messageId: c.id, version },
+        async () => {},
+        (tx, nativeSessionId) => {
+          const saved = agentSessionMessageService.saveMessagesTx(tx, {
+            sessionId,
+            messages: [{ role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'Edited C' }] } }]
+          })[0]
+          reservePiBranchTx(tx, sessionId, saved.id, nativeSessionId)
+          if (outcome === 'write failed') throw new Error('write failed')
+          return saved.id
+        }
+      )
+      if (outcome === 'write failed') {
+        await expect(operation).rejects.toThrow('write failed')
+        expect(
+          dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.sessionId, sessionId)).all()
+        ).toEqual(before)
+        return
+      }
+      const next = await operation
+      const kept = agentSessionMessageService.readEditSnapshotTx(dbh.db, sessionId, next).prefix
+      expect(agentSessionMessageService.getSessionMessage(sessionId, sibling.id).data.parts).toEqual([
+        { type: 'text', text: 'Independent sibling' }
+      ])
+      expect(kept.map((row) => row.id)).toEqual([a.id, messageId, steer.id, b.id, rb.id])
+      expect(agentSessionMessageService.getSessionMessage(sessionId, b.id).replyId).toBe(rb.id)
+      expect(agentSessionMessageService.getSessionMessage(sessionId, rb.id).data.parts).toEqual([
+        { type: 'text', text: 'B reply' }
+      ])
+      expect(
+        dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.id, rc.id)).get()
+      ).toBeUndefined()
+    }
+  )
+
+  it('forks a Run without a bound unplaced queue input while retaining positionless legacy input', async () => {
+    const context = preparePiBranch(sessionId, undefined, 'native-parent')
+    const input = (text: string) =>
+      agentSessionMessageService.saveMessage({
+        sessionId,
+        message: { role: 'user', status: 'success', data: { parts: [{ type: 'text', text }] } }
+      })
+    const legacy = input('Legacy')
+    const local = input('/compact')
+    dbh.db
+      .update(agentSessionMessageTable)
+      .set({ inputContextId: context.id, data: { locallyHandled: true } })
+      .where(eq(agentSessionMessageTable.id, local.id))
+      .run()
+    replaceAgentSessionMessagePartsTx(dbh.db, {
+      sessionId,
+      messageId: local.id,
+      timestampMs: Date.now(),
+      parts: [{ type: 'text', text: '/compact' }]
+    })
+    const b = input('B')
+    const queued = input('Unplaced D')
+    const rb = agentSessionMessageService.saveMessage({
+      sessionId,
+      runtimeResumeToken: 'native-parent',
+      runtimeAnchor: { checkpoint: { runtime: 'pi', runtimeSessionId: 'native-parent', leafId: 'B' } },
+      message: { role: 'assistant', status: 'success', data: { parts: [{ type: 'text', text: 'B reply' }] } }
+    })
+    dbh.db
+      .update(agentSessionMessageTable)
+      .set({ pos: 2, replyId: rb.id })
+      .where(eq(agentSessionMessageTable.id, b.id))
+      .run()
+    dbh.db
+      .update(agentSessionMessageTable)
+      .set({ inputContextId: context.id })
+      .where(eq(agentSessionMessageTable.id, queued.id))
+      .run()
+    const child = await new AgentSessionForkOperations().fork(sessionId, rb.id)
+    const texts = agentSessionMessageService
+      .listSessionMessages(child)
+      .items.flatMap((row) => row.data.parts?.filter((part) => part.type === 'text').map((part) => part.text) ?? [])
+    expect(texts).toContain('Legacy')
+    expect(texts).toContain('/compact')
+    expect(texts).toContain('B reply')
+    expect(texts).not.toContain('Unplaced D')
+    expect(agentSessionMessageService.getSessionMessage(sessionId, legacy.id).pos).toBeNull()
   })
 
   it('publishes an independent child without app_state and keeps its files after source deletion', async () => {
@@ -152,20 +309,93 @@ describe('Agent fork publication', () => {
     await expect(readFile(publishedFile)).rejects.toMatchObject({ code: 'ENOENT' })
   })
 
+  it('cancels a prepared native fork without publishing a child or retaining owned resources', async () => {
+    const prepared = Promise.withResolvers<void>()
+    beforeForkResult = async (input) => {
+      prepared.resolve()
+      await once(input.signal, 'abort')
+      input.signal.throwIfAborted()
+    }
+    const operations = new AgentSessionForkOperations()
+    const fork = operations.fork(sessionId, messageId)
+    const rejected = expect(fork).rejects.toMatchObject({ reason: 'cancelled' })
+    await prepared.promise
+    await operations.cancel(sessionId)
+    await rejected
+    expect(
+      dbh.db
+        .select()
+        .from(agentSessionTable)
+        .all()
+        .map((row) => row.id)
+    ).toEqual([sessionId])
+    expect(await readForkResources()).toEqual([])
+    await expect(readFile(publishedFile)).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+
+  it('copies conversation content without inheriting approval authority or live task ownership', async () => {
+    const source = dbh.db
+      .select()
+      .from(agentSessionMessageTable)
+      .where(eq(agentSessionMessageTable.id, messageId))
+      .get()!
+    const parts = [
+      { type: 'text' as const, text: 'Preserved answer' },
+      {
+        type: 'dynamic-tool' as const,
+        toolName: 'bash',
+        toolCallId: 'live-approval',
+        state: 'approval-requested' as const,
+        input: { command: 'echo protected' },
+        approval: { id: 'source-approval' }
+      },
+      {
+        type: 'data-agent-task-event' as const,
+        data: { event: 'started' as const, taskId: 'live-task', status: 'in_progress' as const }
+      }
+    ]
+    replaceAgentSessionMessagePartsTx(dbh.db, { sessionId, messageId, parts, timestampMs: source.updatedAt })
+    const childId = await new AgentSessionForkOperations().fork(sessionId, messageId)
+    const child = agentSessionMessageService.listSessionMessages(childId).items[0]
+    expect(child.data.parts).toEqual([
+      parts[0],
+      {
+        type: 'dynamic-tool',
+        toolName: 'bash',
+        toolCallId: 'live-approval',
+        input: { command: 'echo protected' },
+        state: 'output-error',
+        errorText: expect.any(String)
+      },
+      { type: 'data-agent-session-fork', data: { sourceSessionId: sessionId } }
+    ])
+    expect(agentSessionMessageService.getSessionMessage(sessionId, messageId).data.parts).toEqual(parts)
+  })
+
   // Editing must never append the replacement to the old native prompt or partially delete a turn.
-  it.each(['commit', 'first message', 'history changed', 'close failed', 'write failed'] as const)(
+  it.each(['commit', 'after steer', 'first message', 'history changed', 'close failed', 'write failed'] as const)(
     'edits a native prefix: %s',
     async (outcome) => {
       if (outcome === 'first message') agentSessionMessageService.deleteSessionMessage(sessionId, messageId)
-      const tail = agentSessionMessageService.saveMessages({
-        sessionId,
-        messages: [
-          { role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'Old question' }] } },
-          { role: 'assistant', status: 'success', data: { parts: [{ type: 'text', text: 'Old answer' }] } },
-          { role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'Later question' }] } },
-          { role: 'assistant', status: 'success', data: { parts: [{ type: 'text', text: 'Later answer' }] } }
-        ]
-      })
+      const steer =
+        outcome === 'after steer'
+          ? agentSessionMessageService.saveMessage({
+              sessionId,
+              message: { role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'Steer' }] } }
+            })
+          : undefined
+      if (steer) agentSessionMessageService.linkReply(sessionId, [steer.id], messageId)
+      const tail = dbh.db.transaction((tx) =>
+        agentSessionMessageService.saveMessagesTx(tx, {
+          sessionId,
+          messages: [
+            { role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'Old question' }] } },
+            { role: 'assistant', status: 'success', data: { parts: [{ type: 'text', text: 'Old answer' }] } },
+            { role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'Later question' }] } },
+            { role: 'assistant', status: 'success', data: { parts: [{ type: 'text', text: 'Later answer' }] } }
+          ]
+        })
+      )
       const target = {
         messageId: tail[0].id,
         version: agentSessionMessageService.readEditSnapshotTx(dbh.db, sessionId, tail[0].id).version
@@ -176,10 +406,12 @@ describe('Agent fork publication', () => {
         expect(input.checkpoint).toMatchObject({ leafId: 'leaf' })
         if (outcome === 'history changed')
           tail.push(
-            ...agentSessionMessageService.saveMessages({
-              sessionId,
-              messages: [{ role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'New input' }] } }]
-            })
+            ...dbh.db.transaction((tx) =>
+              agentSessionMessageService.saveMessagesTx(tx, {
+                sessionId,
+                messages: [{ role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'New input' }] } }]
+              })
+            )
           )
       }
       const operation = new AgentSessionForkOperations().edit(
@@ -193,24 +425,39 @@ describe('Agent fork publication', () => {
             sessionId,
             messages: [{ role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'New question' }] } }]
           })
+          reservePiBranchTx(tx, sessionId, saved[0].id, nativeSessionId)
           agentSessionMessageService.setEditRuntimeTx(tx, sessionId, saved[0].id, nativeSessionId)
           if (outcome === 'write failed') throw new Error('write failed')
           return saved[0].id
         }
       )
-      if (outcome === 'commit' || outcome === 'first message') {
+      if (outcome === 'commit' || outcome === 'after steer' || outcome === 'first message') {
         const newId = await operation
         const rows = agentSessionMessageService.listSessionMessages(sessionId).items.toReversed()
-        expect(rows.map((row) => row.id)).toEqual(outcome === 'commit' ? [messageId, newId] : [newId])
+        expect(rows.map((row) => row.id)).toEqual(
+          outcome === 'first message' ? [newId] : [messageId, ...(steer ? [steer.id] : []), newId]
+        )
         expect(rows.at(-1)?.data).toEqual({ parts: [{ type: 'text', text: 'New question' }] })
-        expect(agentSessionMessageService.getNativeSessionId(sessionId)).toMatch(/^[\da-f-]{36}$/)
+        if (outcome === 'commit' || outcome === 'after steer') {
+          expect(agentSessionMessageService.getNativeSessionId(sessionId)).toBe('native-child')
+          expect(
+            agentSessionMessageService
+              .readEditSnapshotTx(dbh.db, sessionId, newId)
+              .prefix.filter((row) => row.role === 'assistant')
+              .map((row) => row.data)
+          ).toEqual([
+            expect.objectContaining({
+              runtimeAnchor: { checkpoint: expect.objectContaining({ runtimeSessionId: 'native-child' }) }
+            })
+          ])
+        } else expect(agentSessionMessageService.getNativeSessionId(sessionId)).toMatch(/^[\da-f-]{36}$/)
         expect(agentSessionMessageService.getNativeSessionId(sessionId)).not.toBe(sessionId)
         expect(agentSessionMessageService.getLastRuntimeResumeToken(sessionId)).toBe(
-          outcome === 'commit' ? 'native-child' : null
+          outcome === 'commit' || outcome === 'after steer' ? 'native-child' : null
         )
         expect(agentSessionService.getById(sessionId).workspace.path).toBe(directory)
         await new AgentSessionForkOperations().recover()
-        if (outcome === 'commit') {
+        if (outcome === 'commit' || outcome === 'after steer') {
           expect(rows[0].data.parts).toEqual([{ type: 'text', text: 'Preserved answer' }])
           expect(await readFile(publishedFile, 'utf8')).toBe('native child history')
         } else {
@@ -224,6 +471,11 @@ describe('Agent fork publication', () => {
             () => {}
           )
         ).rejects.toMatchObject({ reason: 'invalid_target' })
+        for (const row of tail) expect(() => agentSessionMessageService.getSessionMessage(sessionId, row.id)).toThrow()
+        expect(rows.at(-1)?.siblings).toEqual([newId])
+        expect(agentSessionMessageService.getLastRuntimeResumeToken(sessionId)).toBe(
+          outcome === 'commit' || outcome === 'after steer' ? 'native-child' : null
+        )
       } else {
         await expect(operation).rejects.toThrow()
         expect(
@@ -246,19 +498,17 @@ describe('Agent fork publication', () => {
   })
 
   it('keeps later turns when the boundary before an edited message has no checkpoint', async () => {
-    dbh.db
-      .update(agentSessionMessageTable)
-      .set({ data: { parts: [] } })
-      .where(eq(agentSessionMessageTable.id, messageId))
-      .run()
-    const tail = agentSessionMessageService.saveMessages({
-      sessionId,
-      messages: [
-        { role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'Question A' }] } },
-        { role: 'assistant', status: 'success', data: { parts: [{ type: 'text', text: 'Answer A' }] } },
-        { role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'Question B' }] } }
-      ]
-    })
+    dbh.db.update(agentSessionMessageTable).set({ data: {} }).where(eq(agentSessionMessageTable.id, messageId)).run()
+    const tail = dbh.db.transaction((tx) =>
+      agentSessionMessageService.saveMessagesTx(tx, {
+        sessionId,
+        messages: [
+          { role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'Question A' }] } },
+          { role: 'assistant', status: 'success', data: { parts: [{ type: 'text', text: 'Answer A' }] } },
+          { role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'Question B' }] } }
+        ]
+      })
+    )
     const target = {
       messageId: tail[0].id,
       version: agentSessionMessageService.readEditSnapshotTx(dbh.db, sessionId, tail[0].id).version
@@ -270,7 +520,7 @@ describe('Agent fork publication', () => {
         async () => {},
         () => {}
       )
-    ).rejects.toMatchObject({ reason: 'legacy_history' })
+    ).rejects.toMatchObject({ reason: 'checkpoint_unsupported' })
     expect(
       agentSessionMessageService
         .listSessionMessages(sessionId)
@@ -317,9 +567,13 @@ describe('Agent fork publication', () => {
       vi.spyOn(agentSessionService, 'notifyReadModelChange').mockImplementation((ids) => notifications.push(...ids))
       await expect(new AgentSessionForkOperations().fork(sessionId, messageId)).rejects.toThrow()
       expect(dbh.db.select({ id: agentSessionTable.id }).from(agentSessionTable).all()).toEqual([{ id: sessionId }])
-      expect(dbh.db.select({ id: agentSessionMessageTable.id }).from(agentSessionMessageTable).all()).toEqual([
-        { id: messageId }
-      ])
+      expect(
+        dbh.db
+          .select({ id: agentSessionMessageTable.id })
+          .from(agentSessionMessageTable)
+          .where(ne(agentSessionMessageTable.role, 'root'))
+          .all()
+      ).toEqual([{ id: messageId }])
       expect(notifications).toEqual([])
       expect(await readForkResources()).toEqual([])
       expect(await readdir(forkRoot)).toEqual([])
@@ -355,14 +609,26 @@ describe('Agent fork publication', () => {
       await entered.promise
       await owner.recover()
       const resources = (await readForkResources())[0]
-      expect(await readFile(path.join(resources.artifactDirectory, 'native.jsonl'), 'utf8')).toBe(
-        'native child history'
-      )
+      expect(
+        await readFile(
+          path.join(resources.artifactDirectory, (await readdir(resources.artifactDirectory))[0], 'native.jsonl'),
+          'utf8'
+        )
+      ).toBe('native child history')
     } finally {
       release.resolve()
     }
     const childId = await pending
     expect(agentSessionMessageService.getLastRuntimeResumeToken(childId)).toBe('native-child')
+  })
+
+  it('refuses to publish a runtime artifact from outside the fork artifact directory', async () => {
+    artifactSourceFor = (artifactDirectory) => path.join(`${artifactDirectory}-sibling`, 'native.jsonl')
+    await expect(new AgentSessionForkOperations().fork(sessionId, messageId)).rejects.toThrow(
+      'Unowned SDK fork artifact'
+    )
+    expect(dbh.db.select({ id: agentSessionTable.id }).from(agentSessionTable).all()).toEqual([{ id: sessionId }])
+    await expect(readFile(publishedFile)).rejects.toMatchObject({ code: 'ENOENT' })
   })
 
   it('rolls back published files if persisting their ownership fails, then allows retry', async () => {

@@ -1,0 +1,386 @@
+import {
+  clampHeartbeatIntervalMinutes,
+  isHeartbeatEnabled,
+  normalizeHeartbeatTimeoutMinutes
+} from '@shared/ai/agentHeartbeat'
+import { normalizePermissionMode } from '@shared/ai/agentPermissionMode'
+import {
+  type AgentPromptOverrides,
+  type AgentPromptOverridesPatch,
+  EDITABLE_PROMPT_SECTIONS
+} from '@shared/ai/agentPromptSections'
+import { normalizePiDisabledToolId } from '@shared/ai/piBuiltinTools'
+import {
+  type AgentEntity,
+  AgentConfigurationSchema,
+  type AgentSkillUpdateDto,
+  type UpdateAgentDto
+} from '@shared/data/api/schemas/agents'
+import type { AgentConfiguration } from '@shared/data/types/agent'
+import { AgentLanguageSchema } from '@shared/data/types/agentLanguage'
+import type { UniqueModelId } from '@shared/data/types/model'
+
+// ---------------------------------------------------------------------------
+// Form state
+// ---------------------------------------------------------------------------
+
+/** Tri-state reply language: follow the global setting, no constraint, or a custom label. */
+export type AgentLanguageMode = 'inherit' | 'off' | 'custom'
+
+/**
+ * Flat, controlled form-state for the Agent create/edit dialogs.
+ *
+ * Every editable field (one per `AgentBase` column + the common
+ * `configuration.*` sub-keys surfaced by the dialog) lives on this object.
+ * The dialog diffs it against the baseline at save time and emits a minimal
+ * `UpdateAgentDto`.
+ */
+export interface AgentFormState {
+  name: string
+  description: string
+  /** `''` is the explicit "no model selected yet" draft sentinel; once chosen it is always a valid UniqueModelId. */
+  model: UniqueModelId | ''
+  planModel: UniqueModelId | ''
+  smallModel: UniqueModelId | ''
+  instructions: string
+  mcps: string[]
+  /** Knowledge bases bound to the agent (empty = kb_* tools not exposed). */
+  knowledgeBaseIds: string[]
+  skillIds: string[]
+  /** Opt-out list of disabled tool names (empty = all enabled). */
+  disabledTools: string[]
+
+  // configuration.* derived fields we edit in the library UI.
+  avatar: string
+  permissionMode: string
+  /** Raw multi-line `KEY=VALUE` text; parsed at save time. */
+  envVarsText: string
+  heartbeatEnabled: boolean
+  heartbeatInterval: number
+  heartbeatTimeoutMinutes: number
+  /** Tri-state driver for `configuration.language`: inherit (undefined), off (null), custom (string). */
+  languageMode: AgentLanguageMode
+  /** Draft label; only meaningful when `languageMode` is custom. */
+  languageCustom: string
+  /** Pi Durable only: the Agent's own text for guidance blocks of its System Prompt. */
+  claudeCodeNativePromptEnabled: boolean
+  promptOverrides: AgentPromptOverrides
+}
+
+function asString(value: unknown): string {
+  return typeof value === 'string' ? value : ''
+}
+
+/**
+ * Serialize a `configuration.env_vars` entry into a line-delimited `KEY=VALUE`
+ * text block for the textarea control. Accepts either array-of-`{key, value}`
+ * pairs (the canonical shape emitted by `envVarsFromText`) or a plain object.
+ */
+function envVarsToText(raw: unknown): string {
+  if (Array.isArray(raw)) {
+    return raw
+      .filter((item): item is { key?: unknown; value?: unknown } => typeof item === 'object' && item !== null)
+      .map(({ key, value }) => {
+        const k = asString(key)
+        if (!k) return ''
+        return `${k}=${asString(value)}`
+      })
+      .filter(Boolean)
+      .join('\n')
+  }
+  if (raw && typeof raw === 'object') {
+    return Object.entries(raw as Record<string, unknown>)
+      .map(([k, v]) => `${k}=${asString(v)}`)
+      .join('\n')
+  }
+  return ''
+}
+
+/** Reverse of `envVarsToText` — record of `KEY -> VALUE`, empty lines dropped. */
+function envVarsFromText(text: string): Record<string, string> {
+  const entries = text
+    .split(/\r?\n/)
+    .filter((line) => line.trim().length > 0)
+    .map((line): [string, string] | null => {
+      const idx = line.indexOf('=')
+      if (idx === -1) return [line.trim(), '']
+      return [line.slice(0, idx).trim(), line.slice(idx + 1)]
+    })
+    .filter((entry): entry is [string, string] => entry !== null && entry[0].length > 0)
+
+  return Object.fromEntries(entries)
+}
+
+export function buildInitialAgentFormState(agent?: AgentEntity | null, skillIds: string[] = []): AgentFormState {
+  const cfg: AgentConfiguration = agent?.configuration ?? {}
+  return {
+    name: agent?.name ?? '',
+    description: agent?.description ?? '',
+    model: agent?.model ?? '',
+    planModel: agent?.planModel ?? '',
+    smallModel: agent?.smallModel ?? '',
+    instructions: agent?.instructions ?? '',
+    mcps: [...(agent?.mcps ?? [])],
+    knowledgeBaseIds: [...(agent?.knowledgeBaseIds ?? [])],
+    skillIds: [...skillIds],
+    disabledTools: (agent?.disabledTools ?? []).map((name) =>
+      agent?.type === 'pi' || agent?.type === 'pi-durable' ? normalizePiDisabledToolId(name) : name
+    ),
+    avatar: asString(cfg.avatar),
+    permissionMode: asString(cfg.permission_mode),
+    envVarsText: envVarsToText(cfg.env_vars),
+    heartbeatEnabled: isHeartbeatEnabled(cfg),
+    heartbeatInterval: clampHeartbeatIntervalMinutes(cfg.heartbeat_interval),
+    heartbeatTimeoutMinutes: normalizeHeartbeatTimeoutMinutes(cfg.heartbeat_timeout_minutes),
+    ...initialLanguageFields(cfg.language),
+    claudeCodeNativePromptEnabled: cfg.claude_code_native_prompt_enabled !== false,
+    promptOverrides: { ...cfg.prompt_overrides }
+  }
+}
+
+function initialLanguageFields(language: unknown): Pick<AgentFormState, 'languageMode' | 'languageCustom'> {
+  if (language === null) return { languageMode: 'off', languageCustom: '' }
+  if (typeof language === 'string') {
+    const normalized = normalizeAgentLanguageInput(language)
+    return { languageMode: 'custom', languageCustom: normalized ?? language }
+  }
+  return { languageMode: 'inherit', languageCustom: '' }
+}
+
+export function applyAgentFormPatch(current: AgentFormState, patch: Partial<AgentFormState>): AgentFormState {
+  const next: AgentFormState = { ...current, ...patch }
+
+  if (Object.prototype.hasOwnProperty.call(patch, 'permissionMode')) {
+    next.permissionMode = normalizePermissionMode(patch.permissionMode)
+  }
+  // Plan and small models are no longer edited, so they follow the main model.
+  if (patch.model !== undefined && patch.model !== current.model) {
+    next.planModel = ''
+    next.smallModel = ''
+  }
+
+  return next
+}
+
+/** Result of {@link diffAgentUpdate}. */
+export interface AgentDiffResult {
+  dto: UpdateAgentDto
+}
+
+/**
+ * Compute a minimal `UpdateAgentDto` by comparing `next` to `baseline`. Returns
+ * `null` when no editable agent field changed.
+ *
+ * `configuration` contains only the keys edited by this form. Main merges those
+ * keys into the latest persisted configuration inside the write transaction.
+ */
+/** The blocks edited or restored since `before`, so a save leaves blocks another window changed alone. */
+function diffPromptOverrides(
+  before: AgentPromptOverrides,
+  after: AgentPromptOverrides
+): AgentPromptOverridesPatch | null {
+  const patch: AgentPromptOverridesPatch = {}
+  for (const block of EDITABLE_PROMPT_SECTIONS) {
+    if (before[block] !== after[block]) patch[block] = after[block] ?? null
+  }
+  return Object.keys(patch).length ? patch : null
+}
+
+export function diffAgentUpdate(baseline: AgentFormState, next: AgentFormState): AgentDiffResult | null {
+  const dto: UpdateAgentDto = {}
+  let dirty = false
+
+  if (baseline.name !== next.name) {
+    dto.name = next.name
+    dirty = true
+  }
+  if (baseline.description !== next.description) {
+    dto.description = next.description
+    dirty = true
+  }
+  if (baseline.model !== next.model) {
+    if (next.model) dto.model = next.model
+    dirty = true
+  }
+  if (baseline.planModel !== next.planModel) {
+    // null (not undefined) so the PATCH clears the column — undefined would be
+    // dropped as "field not provided" and the old override would survive.
+    dto.planModel = next.planModel || null
+    dirty = true
+  }
+  if (baseline.smallModel !== next.smallModel) {
+    dto.smallModel = next.smallModel || null
+    dirty = true
+  }
+  if (baseline.instructions !== next.instructions) {
+    dto.instructions = next.instructions
+    dirty = true
+  }
+  if (!arraysEqual(baseline.mcps, next.mcps)) {
+    dto.mcps = next.mcps
+    dirty = true
+  }
+  if (!stringSetsEqual(baseline.knowledgeBaseIds, next.knowledgeBaseIds)) {
+    dto.knowledgeBaseIds = next.knowledgeBaseIds
+    dirty = true
+  }
+  const skillUpdates = diffSkillUpdates(baseline.skillIds, next.skillIds)
+  if (skillUpdates.length > 0) {
+    dto.skillUpdates = skillUpdates
+    dirty = true
+  }
+  if (!arraysEqual(baseline.disabledTools, next.disabledTools)) {
+    dto.disabledTools = next.disabledTools
+    dirty = true
+  }
+
+  const cfgPatch: NonNullable<UpdateAgentDto['configuration']> = {}
+  let cfgDirty = false
+
+  if (baseline.avatar !== next.avatar) {
+    cfgPatch.avatar = next.avatar
+    cfgDirty = true
+  }
+  if (baseline.permissionMode !== next.permissionMode) {
+    cfgPatch.permission_mode = normalizePermissionMode(next.permissionMode)
+    cfgDirty = true
+  }
+  if (baseline.envVarsText !== next.envVarsText) {
+    cfgPatch.env_vars = envVarsFromText(next.envVarsText)
+    cfgDirty = true
+  }
+  if (baseline.heartbeatEnabled !== next.heartbeatEnabled) {
+    cfgPatch.heartbeat_enabled = next.heartbeatEnabled
+    cfgDirty = true
+  }
+  if (baseline.heartbeatInterval !== next.heartbeatInterval) {
+    if (next.heartbeatEnabled) {
+      cfgPatch.heartbeat_enabled = true
+    }
+    cfgPatch.heartbeat_interval = next.heartbeatInterval
+    cfgDirty = true
+  }
+  if (baseline.heartbeatTimeoutMinutes !== next.heartbeatTimeoutMinutes) {
+    cfgPatch.heartbeat_timeout_minutes = normalizeHeartbeatTimeoutMinutes(next.heartbeatTimeoutMinutes)
+    cfgDirty = true
+  }
+  if (baseline.claudeCodeNativePromptEnabled !== next.claudeCodeNativePromptEnabled) {
+    cfgPatch.claude_code_native_prompt_enabled = next.claudeCodeNativePromptEnabled
+    cfgDirty = true
+  }
+
+  const overridesPatch = diffPromptOverrides(baseline.promptOverrides, next.promptOverrides)
+  if (overridesPatch) {
+    cfgPatch.prompt_overrides = overridesPatch
+    cfgDirty = true
+  }
+  const languagePatch = diffLanguageUpdate(baseline, next)
+  if (languagePatch.dirty) {
+    cfgPatch.language = languagePatch.value
+    cfgDirty = true
+  }
+
+  if (cfgDirty) {
+    dto.configuration = cfgPatch
+    dirty = true
+  }
+
+  if (!dirty) return null
+
+  return { dto }
+}
+
+/** Reply language, heartbeat and env vars in the edit form's shape, so create saves what edit would. */
+export type AgentCreateSettings = Pick<
+  AgentFormState,
+  | 'languageMode'
+  | 'languageCustom'
+  | 'heartbeatEnabled'
+  | 'heartbeatInterval'
+  | 'heartbeatTimeoutMinutes'
+  | 'envVarsText'
+> &
+  Partial<Pick<AgentFormState, 'claudeCodeNativePromptEnabled'>>
+
+/**
+ * The configuration a new Agent's advanced settings produce: the keys that differ from a blank Agent,
+ * parsed exactly as the edit dialog saves them.
+ */
+export function buildAgentSettingsConfiguration(settings: AgentCreateSettings): AgentConfiguration {
+  const blank = buildInitialAgentFormState()
+  // A blank Agent has no prompt block to restore, so the patch parses as a stored configuration.
+  return AgentConfigurationSchema.parse(diffAgentUpdate(blank, { ...blank, ...settings })?.dto.configuration ?? {})
+}
+
+export function normalizeAgentLanguageInput(raw: unknown): string | null {
+  const result = AgentLanguageSchema.safeParse(raw)
+  return result.success ? result.data : null
+}
+
+function diffLanguageUpdate(
+  baseline: AgentFormState,
+  next: AgentFormState
+): { dirty: false } | { dirty: true; value: string | null | undefined } {
+  if (next.languageMode === 'inherit') {
+    return baseline.languageMode === 'inherit' ? { dirty: false } : { dirty: true, value: undefined }
+  }
+  if (next.languageMode === 'off') {
+    return baseline.languageMode === 'off' ? { dirty: false } : { dirty: true, value: null }
+  }
+  const normalized = normalizeAgentLanguageInput(next.languageCustom)
+  if (normalized === null) return { dirty: false }
+  if (baseline.languageMode === 'custom' && normalizeAgentLanguageInput(baseline.languageCustom) === normalized) {
+    return { dirty: false }
+  }
+  return { dirty: true, value: normalized }
+}
+
+function arraysEqual(a: readonly string[], b: readonly string[]): boolean {
+  if (a.length !== b.length) return false
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false
+  return true
+}
+
+function stringSetsEqual(a: readonly string[], b: readonly string[]): boolean {
+  const aSet = new Set(a)
+  const bSet = new Set(b)
+  return aSet.size === bSet.size && [...aSet].every((value) => bSet.has(value))
+}
+
+function diffSkillUpdates(baselineSkillIds: readonly string[], nextSkillIds: readonly string[]): AgentSkillUpdateDto[] {
+  const baselineSet = new Set(baselineSkillIds)
+  const nextSet = new Set(nextSkillIds)
+  const updates: AgentSkillUpdateDto[] = []
+
+  for (const skillId of baselineSkillIds) {
+    if (!nextSet.has(skillId)) updates.push({ skillId, isEnabled: false })
+  }
+  for (const skillId of nextSkillIds) {
+    if (!baselineSet.has(skillId)) updates.push({ skillId, isEnabled: true })
+  }
+
+  return updates
+}
+
+// ---------------------------------------------------------------------------
+// Unified save intent
+// ---------------------------------------------------------------------------
+
+/**
+ * Single "what should save do next?" value consumed by edit dialog save
+ * handlers.
+ */
+export type AgentSaveIntent = { kind: 'update'; payload: UpdateAgentDto }
+
+/**
+ * Resolve the current form into a save intent. Returns `null` when
+ * there's nothing to do.
+ */
+export function diffAgentSaveIntent(form: AgentFormState, baseline: AgentFormState): AgentSaveIntent | null {
+  const result = diffAgentUpdate(baseline, form)
+  if (!result) return null
+  return {
+    kind: 'update',
+    payload: result.dto
+  }
+}

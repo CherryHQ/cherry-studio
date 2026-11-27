@@ -10,6 +10,7 @@ import {
   type AgentParams,
   type AgentResult,
   type CommandReceipt,
+  type TaskMethod,
   questionInputSchema,
   encodeAgentCommand
 } from '@cherrystudio/remote-protocol/agent'
@@ -18,32 +19,45 @@ import { AgentSessionDeliveryRoutingError } from '@data/services/AgentSessionMes
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { remoteCommandService, type RemoteCommandOutcome } from '@data/services/RemoteCommandService'
 import { loggerService } from '@logger'
-import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
+import { previewAgentConfigChange } from '@main/ai/agents/agentConfigTool'
 import { serializeError } from '@main/ai/utils/serializeError'
+import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
 import { toExecutionFailure } from '@shared/ai/executionFailure'
 
 import type { RemoteAgentHub } from './agentJournal'
+import { pageOf, queryPage } from './agentPagination'
 import {
   createSessionTx,
   getSession,
+  inputDigest,
   listAgents,
   listMessages,
   listParts,
   listPersistedInteractions,
   listSessions,
   listWorkspaces,
-  pageOf,
   readPersistedContent,
+  readPersistedFileContent,
   sha256,
   sliceContent,
   toSessionSummary
 } from './agentQueries'
 import type { AgentSubscriptions } from './agentSubscriptions'
+import { getTask, getTaskRun, listTasks, listTaskRuns, readTaskContent } from './agentTaskQueries'
+import type { UploadOwner } from './RemoteUploads'
 
 const logger = loggerService.withContext('RemoteAgentHandlers')
 
+function withConfigPreview(interaction: AgentInteraction): AgentInteraction {
+  if (interaction.status !== 'pending') return interaction
+  const preview = previewAgentConfigChange(interaction.interactionId)
+  return preview.ok
+    ? { ...interaction, configPreview: preview, inputDigest: inputDigest([interaction.inputDigest, preview]) }
+    : interaction
+}
+
 export interface AgentAccess {
-  requireAgent(): { deviceId: string; grantId: string }
+  requireAgent(): UploadOwner
   /** Runs after the pending reply has been queued to the wire, so activation never leaks events ahead of its response. */
   afterReply(fn: () => void): void
 }
@@ -55,14 +69,24 @@ export function registerAgentMethods(
   access: AgentAccess,
   hub: RemoteAgentHub,
   subscriptions: AgentSubscriptions
-): void {
+): () => void {
   const on = <M extends AgentMethod>(
     name: M,
     handler: (params: AgentParams<M>, auth: Auth) => AgentResult<M> | Promise<AgentResult<M>>
   ) =>
     rpc.addMethod<AgentParams<M>, AgentResult<M>>(name, agentMethods[name] as never, (params) =>
-      handler(params, access.requireAgent())
+      Promise.resolve().then(() => handler(params, access.requireAgent()))
     )
+
+  const taskHandlers: { [M in TaskMethod]: (params: AgentParams<M>) => AgentResult<M> } = {
+    'agent.tasks.list': listTasks,
+    'agent.tasks.get': ({ taskId }) => ({ task: getTask(taskId) }),
+    'agent.tasks.runs.list': listTaskRuns,
+    'agent.tasks.runs.get': ({ taskId, runId }) => ({ run: getTaskRun(taskId, runId) }),
+    'agent.tasks.content.read': readTaskContent
+  }
+  const registerTask = <M extends TaskMethod>(name: M) => on(name, taskHandlers[name])
+  for (const name of Object.keys(taskHandlers) as TaskMethod[]) registerTask(name)
 
   const summaryOf = (sessionId: string) => {
     const summary = toSessionSummary(getSession(sessionId), hub.activeExecutionId(sessionId))
@@ -130,13 +154,15 @@ export function registerAgentMethods(
 
   on('agent.agents.list', ({ cursor, limit }) => listAgents(cursor, limit))
   on('agent.workspaces.list', ({ agentId, cursor, limit }) => listWorkspaces(agentId, cursor, limit))
-  on('agent.sessions.list', (params) => {
-    const page = listSessions(params)
-    return {
-      items: page.items.flatMap((session) => toSessionSummary(session, hub.activeExecutionId(session.id)) ?? []),
-      nextCursor: page.nextCursor
-    }
-  })
+  on('agent.sessions.list', (params) =>
+    queryPage((attemptLimit) => {
+      const page = listSessions({ ...params, limit: attemptLimit })
+      return {
+        items: page.items.flatMap((session) => toSessionSummary(session, hub.activeExecutionId(session.id)) ?? []),
+        nextCursor: page.nextCursor
+      }
+    }, params.limit)
+  )
   on('agent.sessions.get', ({ sessionId }) => ({ session: summaryOf(sessionId) }))
   on('agent.sessions.create', (params, auth) => {
     const method = 'agent.sessions.create'
@@ -167,43 +193,75 @@ export function registerAgentMethods(
       agentSessionService.notifyReadModelChange([admission.receipt.sessionId], 'membership')
     return admission.receipt
   })
-  on('agent.messages.list', ({ sessionId, historyRevision, cursor, limit }) =>
-    listMessages(sessionId, historyRevision, cursor, limit)
+  on('agent.messages.list', ({ sessionId, historyRevision, cursor, limit, partsMode }) =>
+    listMessages(sessionId, historyRevision, cursor, limit, partsMode)
   )
   on('agent.parts.list', ({ sessionId, messageId, messageRevision, cursor, limit }) =>
     listParts(sessionId, messageId, messageRevision, cursor, limit)
   )
-  on('agent.content.read', ({ sessionId, contentId, revision, offset, maxBytes }) => {
+  on('agent.content.read', async ({ sessionId, contentId, revision, offset, maxBytes }) => {
     getSession(sessionId)
     const bytes =
       hub.journal(sessionId).pins.get(`${contentId}:${revision}`) ??
       subscriptions.readContent(sessionId, contentId, revision) ??
       readPersistedContent(sessionId, contentId, revision)
+    const file = !bytes?.length
+      ? await readPersistedFileContent({ sessionId, contentId, revision, offset, maxBytes })
+      : undefined
+    if (file) {
+      access.requireAgent()
+      return file
+    }
     if (!bytes) throw new RemoteRpcError('NOT_FOUND', 'Content not found')
     return { contentId, revision, ...sliceContent(bytes, offset, maxBytes) }
   })
+  const presence = application.get('AttachmentPresenceService')
+  const generation = presence.connection()
+  on('agent.attachments.present', (params, auth) => {
+    getSession(params.sessionId)
+    return presence.present(hub.uploads.scope(auth), auth, generation, params)
+  })
+  on('agent.uploads.prepare', (params, auth) => hub.uploads.prepare(auth, params))
+  on('agent.uploads.get', ({ uploadId }, auth) => hub.uploads.get(auth, uploadId))
+  on('agent.uploads.resume', (params, auth) => hub.uploads.resume(auth, params))
+  on('agent.uploads.complete', (params, auth) => hub.uploads.complete(auth, params))
+  on('agent.uploads.cancel', ({ uploadId }, auth) => {
+    return hub.uploads.cancel(auth, uploadId)
+  })
   on('agent.messages.send', (params, auth) => {
-    const summary = summaryOf(params.sessionId)
     return command(auth, 'agent.messages.send', params, params.sessionId, async () => {
-      const started = await hub.journal(params.sessionId).startRun(
-        params.text,
-        summary.agentId,
-        (tx, reservation) =>
-          remoteCommandService.reserveExecutionTx(tx, { ...auth, commandId: params.commandId }, reservation),
-        () => {
-          if (summaryOf(params.sessionId).idleRevision !== params.expectedIdleRevision)
-            throw new RemoteRpcError('CONFLICT', 'Session is not idle at the expected revision')
-        }
-      )
-      if (!started.started)
-        return {
-          status: 'rejected',
-          error:
-            started.reason === 'busy'
-              ? { reason: 'CONFLICT', message: 'Session is busy' }
-              : { reason: 'NOT_FOUND', message: 'Session is not available' }
-        }
-      return { status: 'applied', executionId: started.executionId }
+      if (params.attachmentDraft)
+        throw new RemoteRpcError('NOT_FOUND', 'Previous attachment draft is no longer available; prepare a new send')
+      const scope = hub.uploads.scope(auth)
+      presence.submitting(scope, params.selectionId, params.commandId)
+      try {
+        return await hub.uploads.withFiles(auth, params.attachments ?? [], async (attachments) => {
+          const started = await hub.journal(params.sessionId).startRun(
+            params.text,
+            summaryOf(params.sessionId).agentId,
+            (tx, reservation) => {
+              remoteCommandService.reserveExecutionTx(tx, { ...auth, commandId: params.commandId }, reservation)
+            },
+            () => {
+              access.requireAgent()
+              if (summaryOf(params.sessionId).idleRevision !== params.expectedIdleRevision)
+                throw new RemoteRpcError('CONFLICT', 'Session is not idle at the expected revision')
+            },
+            attachments
+          )
+          if (!started.started)
+            return {
+              status: 'rejected',
+              error:
+                started.reason === 'busy'
+                  ? { reason: 'CONFLICT', message: 'Session is busy' }
+                  : { reason: 'NOT_FOUND', message: 'Session is not available' }
+            }
+          return { status: 'applied', executionId: started.executionId }
+        })
+      } finally {
+        presence.submitting(scope, params.selectionId, params.commandId)
+      }
     })
   })
   on('agent.executions.cancel', (params, auth) => {
@@ -230,24 +288,25 @@ export function registerAgentMethods(
     getSession(sessionId)
     const interaction = interactionsOf(sessionId).find((item) => item.interactionId === interactionId)
     if (!interaction) throw new RemoteRpcError('NOT_FOUND', 'Interaction not found')
-    return { interaction }
+    return { interaction: withConfigPreview(interaction) }
   })
   on('agent.interactions.respond', (params, auth) => {
     getSession(params.sessionId)
     return command(auth, 'agent.interactions.respond', params, params.sessionId, async () => {
       const journal = hub.journal(params.sessionId)
       const interaction = interactionsOf(params.sessionId).find((item) => item.interactionId === params.interactionId)
+      const response = 'response' in params ? params.response : { kind: params.decision }
       if (
         !interaction ||
         interaction.status !== 'pending' ||
         interaction.revision !== params.expectedRevision ||
         interaction.executionId !== params.expectedExecutionId ||
-        interaction.inputDigest !== params.inputDigest
+        (withConfigPreview(interaction).inputDigest !== params.inputDigest &&
+          (response.kind !== 'deny' || interaction.inputDigest !== params.inputDigest))
       ) {
         return { status: 'rejected', error: { reason: 'CONFLICT', message: 'Interaction changed since it was read' } }
       }
       const anchorId = journal.liveInteraction(params.interactionId)?.messageId ?? interaction.executionId
-      const response = 'response' in params ? params.response : { kind: params.decision }
       const approved = response.kind !== 'deny'
       let updatedInput: Record<string, unknown> | undefined
       if (response.kind === 'answer') {
@@ -283,16 +342,18 @@ export function registerAgentMethods(
         ...(updatedInput ? { updatedInput } : {}),
         ...('reason' in response ? { reason: response.reason } : {})
       }
-      if (
-        !application.get('AgentSessionRuntimeService').respondToolApproval(params.interactionId, decision, anchorId)
-      ) {
+      const settled = application
+        .get('AgentSessionRuntimeService')
+        .respondToolApproval(params.interactionId, decision, anchorId)
+      if (!settled.ok) {
         return { status: 'rejected', error: { reason: 'NOT_FOUND', message: 'Interaction is no longer pending' } }
       }
-      journal.markInteraction(params.interactionId, approved ? 'approved' : 'denied')
+      const appliedApproval = approved && settled.approved !== false
+      journal.markInteraction(params.interactionId, appliedApproval ? 'approved' : 'denied')
       return {
         status: 'applied',
         executionId: interaction.executionId,
-        result: { interactionId: params.interactionId, decision: approved ? 'approve' : 'deny' }
+        result: { interactionId: params.interactionId, decision: appliedApproval ? 'approve' : 'deny' }
       }
     })
   })
@@ -316,4 +377,5 @@ export function registerAgentMethods(
     subscriptions.close(subscriptionId)
     return { closed: true as const }
   })
+  return () => presence.disconnect(generation)
 }

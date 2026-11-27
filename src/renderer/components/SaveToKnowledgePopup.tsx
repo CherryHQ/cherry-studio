@@ -34,7 +34,11 @@ import type { NotesTreeNode } from '@renderer/types/note'
 import type { Topic } from '@renderer/types/topic'
 import type { ContentType, MessageContentStats, TopicContentStats } from '@renderer/utils/knowledge'
 import { analyzeMessageContent, CONTENT_TYPES, processMessageContent } from '@renderer/utils/knowledge'
-import { resolveKnowledgeFileMetadataEntryData } from '@renderer/utils/knowledgeFileEntry'
+import {
+  resolveKnowledgeFileBatch,
+  resolveKnowledgeFileMetadataEntryData,
+  selectKnowledgeFileBatchOutcome
+} from '@renderer/utils/knowledgeFileEntry'
 import type { KnowledgeAddItemInput } from '@shared/data/types/knowledge'
 
 const logger = loggerService.withContext('SaveToKnowledgePopup')
@@ -385,49 +389,50 @@ const PopupContainer: React.FC<Props> = ({ dialogTitle, source, sourceTitle, ope
         }
 
         if (result.files.length > 0 && selectedTypes.includes(CONTENT_TYPES.FILE)) {
-          const fileResults = await Promise.allSettled(result.files.map(resolveKnowledgeFileMetadataEntryData))
-          const fileData = fileResults.flatMap((item) => (item.status === 'fulfilled' ? [item.value] : []))
-          const failedFiles = fileResults.flatMap((item, index) =>
-            item.status === 'rejected'
-              ? [
-                  {
-                    index,
-                    source: result.files[index]?.origin_name || result.files[index]?.name,
-                    reason: item.reason instanceof Error ? item.reason.message : String(item.reason)
-                  }
-                ]
-              : []
+          const fileBatch = await resolveKnowledgeFileBatch(
+            result.files,
+            resolveKnowledgeFileMetadataEntryData,
+            (file) => file.origin_name || file.name
           )
-          const failedCount = failedFiles.length
+          const fileOutcome = selectKnowledgeFileBatchOutcome(fileBatch)
+          if (fileOutcome.fatal !== undefined) {
+            throw fileOutcome.fatal
+          }
 
-          if (failedCount > 0) {
+          if (fileOutcome.skipped.length > 0) {
             logger.warn('Failed to resolve some knowledge file entries', {
-              failedCount,
-              totalCount: fileResults.length,
-              failedFiles
+              failedCount: fileOutcome.skipped.length,
+              totalCount: result.files.length,
+              failedFiles: fileOutcome.skipped.map(({ index, source, reason }) => ({ index, source, reason }))
             })
-            toast.warning(t('chat.save.knowledge.error.file_partial_failed', { count: failedCount }))
+            toast.warning(t('chat.save.knowledge.error.file_partial_failed', { count: fileOutcome.skipped.length }))
           }
 
           items.push(
-            ...fileData.map((data) => ({
+            ...fileOutcome.resolved.map((data) => ({
               type: 'file' as const,
               data
             }))
           )
-          savedCount += fileData.length
+          savedCount += fileOutcome.resolved.length
         }
       }
 
-      if (items.length > 0) {
-        await submitKnowledgeItems(items)
-        // Only remember the base when the save actually produced knowledge items;
-        // a zero-item save (e.g. every file failed to resolve) should not be
-        // remembered as the last-used base.
-        preferenceService.set('chat.save.knowledge.last_base_id', selectedBaseId).catch((error) => {
-          logger.warn('Failed to persist last-used knowledge base:', error as Error)
-        })
+      if (items.length === 0) {
+        // Every selected entry was skipped (e.g. all referenced files are missing).
+        // Nothing was saved, so report failure instead of a zero-item success;
+        // the partial-failure warning above already tells the user why.
+        resolve({ success: false, savedCount: 0 })
+        return
       }
+
+      await submitKnowledgeItems(items)
+      // Only remember the base when the save actually produced knowledge items;
+      // a zero-item save returns early above and is not remembered as the
+      // last-used base.
+      preferenceService.set('chat.save.knowledge.last_base_id', selectedBaseId).catch((error) => {
+        logger.warn('Failed to persist last-used knowledge base:', error as Error)
+      })
 
       resolve({ success: true, savedCount })
     } catch (error) {
@@ -449,6 +454,8 @@ const PopupContainer: React.FC<Props> = ({ dialogTitle, source, sourceTitle, ope
       }
 
       toast.error(errorMessage)
+      resolve({ success: false, savedCount: 0 })
+    } finally {
       setLoading(false)
     }
   }

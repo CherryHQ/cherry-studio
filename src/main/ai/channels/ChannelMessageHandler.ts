@@ -1,7 +1,5 @@
-import { randomUUID } from 'node:crypto'
-import fs from 'node:fs/promises'
+import { createHash, randomUUID } from 'node:crypto'
 import path from 'node:path'
-import { pathToFileURL } from 'node:url'
 
 import mime from 'mime'
 
@@ -10,7 +8,6 @@ import { agentChannelService as channelService } from '@data/services/AgentChann
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
-import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import {
   isAgentSessionWorkspaceError,
   prepareAgentSessionWorkspaceDirectory
@@ -19,10 +16,11 @@ import { ChannelAdapterListener, startAgentSessionRun, type StreamListener } fro
 import type { Disposable } from '@main/core/lifecycle'
 import { t } from '@main/i18n'
 import type { FileAttachment, ImageAttachment } from '@main/utils/downloadAsBase64'
-import { AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY } from '@shared/ai/agentSessionSlashCommands'
+import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
 import type { AgentChannelEntity } from '@shared/data/api/schemas/agentChannels'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { CherryMessagePart, FileUIPart } from '@shared/data/types/message'
+import { withCherryMeta } from '@shared/data/types/uiParts'
 
 import type { ChannelAdapter, ChannelCommandEvent, ChannelMessageEvent, SendMessageOptions } from './ChannelAdapter'
 import { SLASH_COMMANDS } from './constants'
@@ -401,10 +399,6 @@ export class ChannelMessageHandler {
         return
       }
 
-      // TODO(channel-perm-override): channel-level permission_mode used to mutate
-      // session.configuration in-place; with config now living on agent, this
-      // override needs to flow as a per-dispatch option instead. Tracked separately.
-
       const workDir = session.workspace?.path
       const hasAttachments = !!(message.images?.length || message.files?.length)
       if (hasAttachments) {
@@ -413,10 +407,10 @@ export class ChannelMessageHandler {
 
       const userParts: CherryMessagePart[] = message.text ? [{ type: 'text', text: message.text }] : []
       if (message.images?.length && workDir) {
-        userParts.push(...(await this.persistImages(workDir, message.images)))
+        userParts.push(...(await this.persistImages(message.images)))
       }
       if (message.files?.length && workDir) {
-        userParts.push(...(await this.persistFiles(workDir, message.files)))
+        userParts.push(...(await this.persistFiles(message.files)))
       }
 
       const abortController = new AbortController()
@@ -537,8 +531,6 @@ export class ChannelMessageHandler {
     try {
       switch (command.command) {
         case 'new': {
-          // TODO(channel-perm-override): channel.permissionMode no longer
-          // applied here — config lives on agent now. Tracked separately.
           const newSession = this.createSessionForConversation(agentId, adapter.channelId, conversationIdOf(command))
           const trackerKey = conversationKey(agentId, adapter.channelId, conversationIdOf(command))
           this.sessionTracker.set(trackerKey, newSession.id)
@@ -716,8 +708,13 @@ export class ChannelMessageHandler {
     const sessionId = this.peekSessionId(agentId, channelId, conversationId)
     if (!sessionId) return merged
 
-    const sessionCommands =
-      application.get('CacheService').getShared(AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY(sessionId)) ?? []
+    const sessionCommands = await application
+      .get('AgentSessionRuntimeService')
+      .listSessionCommands(sessionId)
+      .catch((error) => {
+        logger.warn('Could not load channel session commands', { sessionId, error })
+        return []
+      })
     const controlNames = new Set(merged.map((cmd) => cmd.name))
     for (const cmd of sessionCommands) {
       if (controlNames.has(cmd.name)) continue
@@ -875,18 +872,22 @@ export class ChannelMessageHandler {
       resolveExecution = resolve
       rejectExecution = reject
     })
-    let accumulatedText = ''
     const sentinel: StreamListener = {
       id: `channel-completion:${chatId}`,
-      onChunk(chunk) {
-        // `text-delta`'s field is `delta`, not `text` (AI SDK `UIMessageChunk`).
-        if (chunk.type === 'text-delta') accumulatedText += chunk.delta
+      onChunk() {},
+      onDone(result) {
+        resolveExecution(
+          (
+            result.finalMessage?.parts.flatMap((part) => (part.type === 'text' ? [part.text] : [])).join('') ?? ''
+          ).trim()
+        )
       },
-      onDone() {
-        resolveExecution(accumulatedText.trim())
-      },
-      onPaused() {
-        resolveExecution(accumulatedText.trim())
+      onPaused(result) {
+        resolveExecution(
+          (
+            result.finalMessage?.parts.flatMap((part) => (part.type === 'text' ? [part.text] : [])).join('') ?? ''
+          ).trim()
+        )
       },
       onError(result) {
         rejectExecution(new Error(result.error.message ?? 'Execution failed'))
@@ -895,11 +896,16 @@ export class ChannelMessageHandler {
     }
 
     try {
+      const channel = channelService.getChannel(adapter.channelId)
+      if (!channel?.isActive || channel.agentId !== session.agentId) {
+        throw new AgentSessionRunNotStartedError('session-invalid')
+      }
       const started = await startAgentSessionRun({
         sessionId: session.id,
         userParts,
         listeners: [sentinel, new ChannelAdapterListener(adapter, chatId, false, responseOptions)],
         headless: true,
+        permissionModeOverride: channel.permissionMode ?? undefined,
         requireIdle: { expectedAgentId: session.agentId }
       })
       // No durable channel queue exists; fail visibly rather than retaining an in-memory waiter.
@@ -915,42 +921,44 @@ export class ChannelMessageHandler {
     return executionDone
   }
 
-  private async persistImages(workDir: string, images: ImageAttachment[]): Promise<FileUIPart[]> {
-    const dir = path.join(workDir, '.cherry-studio', 'channel-images')
-    await fs.mkdir(dir, { recursive: true })
-
+  private async persistImages(images: ImageAttachment[]): Promise<FileUIPart[]> {
     const parts: FileUIPart[] = []
-    for (const img of images) {
-      // media_type is attacker-supplied; only a registered extension may reach the filename.
-      const ext = mime.getExtension(img.media_type) || 'png'
-      const filename = `${Date.now()}-${randomUUID().slice(0, 8)}.${ext}`
-      const filePath = path.join(dir, filename)
-      await fs.writeFile(filePath, Buffer.from(img.data, 'base64'))
-      parts.push({ type: 'file', url: pathToFileURL(filePath).href, mediaType: img.media_type, filename })
+    for (const image of images) {
+      const ext = mime.getExtension(image.media_type) || 'png'
+      parts.push(await this.persistAttachment(`${randomUUID()}.${ext}`, image.media_type, image.data))
     }
-
     return parts
   }
 
-  private async persistFiles(workDir: string, files: FileAttachment[]): Promise<FileUIPart[]> {
-    const dir = path.join(workDir, '.cherry-studio', 'channel-files')
-    await fs.mkdir(dir, { recursive: true })
-
+  private async persistFiles(files: FileAttachment[]): Promise<FileUIPart[]> {
     const parts: FileUIPart[] = []
-    for (const file of files) {
-      const safeName = file.filename.replace(/[/\\:*?"<>|]/g, '_')
-      const filename = `${Date.now()}-${randomUUID().slice(0, 8)}-${safeName}`
-      const filePath = path.join(dir, filename)
-      await fs.writeFile(filePath, Buffer.from(file.data, 'base64'))
-      parts.push({
-        type: 'file',
-        url: pathToFileURL(filePath).href,
-        mediaType: file.media_type,
-        filename: file.filename
-      })
-    }
-
+    for (const file of files) parts.push(await this.persistAttachment(file.filename, file.media_type, file.data))
     return parts
+  }
+
+  private async persistAttachment(filename: string, mediaType: string, base64: string): Promise<FileUIPart> {
+    const bytes = Buffer.from(base64, 'base64')
+    const safeName = filename
+      .replace(/[/\\:*?"<>|]/g, '_')
+      .split('')
+      .map((character) => (character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127 ? '_' : character))
+      .join('')
+    const ext = path.extname(safeName).slice(1).toLowerCase() || null
+    const manager = application.get('FileManager')
+    const entry = await manager.createInternalEntry({
+      source: 'bytes',
+      data: bytes,
+      name: path.basename(safeName, path.extname(safeName)) || 'attachment',
+      ext,
+      cleanupPolicy: 'delete_when_unreferenced'
+    })
+    return withCherryMeta(
+      { type: 'file', url: manager.getUrl(entry.id), mediaType, filename },
+      {
+        fileEntryId: entry.id,
+        remoteAttachment: { sha256: createHash('sha256').update(bytes).digest('hex'), byteLength: bytes.length }
+      }
+    )
   }
 }
 

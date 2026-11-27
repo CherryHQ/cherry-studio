@@ -1,13 +1,15 @@
+import type { CallToolResult } from '@modelcontextprotocol/client'
 import { type JSONSchema7, type Tool } from 'ai'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import type { McpCallToolResponse } from '@main/ai/mcp/types'
+import type { McpInteractionContext } from '@main/ai/mcp/connections/McpConnection'
 import { registerMcpToolResources } from '@main/ai/messages/mcpToolResources'
 import { mcpServerService } from '@main/data/services/McpServerService'
 import { isMcpToolForcePromptBySource } from '@shared/ai/tools/mcpSourcePolicy'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import type { McpTool } from '@shared/types/mcp'
+import type { McpAppReference } from '@shared/types/mcpApp'
 
 import { getRequestContext } from '../context'
 import { createMcpInputSchema } from '../mcpSchema'
@@ -28,6 +30,18 @@ function resolveActiveServerById(serverId: string): McpServer | undefined {
     server = undefined
   }
   return server?.isActive ? server : undefined
+}
+
+function interactionContext(options: Parameters<NonNullable<Tool['execute']>>[1]): McpInteractionContext | undefined {
+  const request = getRequestContext(options)
+  if (!request?.windowId || !request.topicId) return undefined
+
+  return {
+    windowId: request.windowId,
+    topicId: request.topicId,
+    model: request.model,
+    roots: request.roots
+  }
 }
 
 /** Build the AI SDK Tool wrapper around a single McpTool. */
@@ -51,15 +65,21 @@ function createMcpTool(mcpTool: McpTool, forcePrompt: boolean): Tool {
       if (!server) {
         throw new Error(`MCP server ${mcpTool.serverId} is not active or no longer registered`)
       }
-      const result: McpCallToolResponse = await application.get('McpRuntimeService').callTool({
+      let appReference: McpAppReference | undefined
+      const result: CallToolResult = await application.get('McpRuntimeService').callTool({
         serverId: server.id,
         name: mcpTool.name,
         args,
+        audience: 'model',
+        onAppResult: (reference) => {
+          appReference = reference
+        },
         callId: toolCallId,
         // Isolation scope for abort-by-id: provider call ids (e.g. "call_0") can collide
         // across topics, and the renderer's abort presents the same topicId.
         scope: getRequestContext(options)?.topicId,
-        signal: abortSignal
+        signal: abortSignal,
+        interactionContext: interactionContext(options)
       })
 
       if (result.isError) {
@@ -69,16 +89,16 @@ function createMcpTool(mcpTool: McpTool, forcePrompt: boolean): Tool {
       const resources = getRequestContext(options)?.mcpToolResources
       if (resources) registerMcpToolResources(resources, result, metadata)
 
-      // Full McpCallToolResponse for the renderer's ToolUIPart (multimodal
+      // Full CallToolResult for the renderer's ToolUIPart (multimodal
       // parts intact); `toModelOutput` below produces the model's view.
       return {
         ...result,
-        metadata
+        metadata: appReference ? { ...metadata, app: appReference, appInput: args } : metadata
       }
     },
     toModelOutput({ output }) {
       // Model and wire capabilities are applied by the request's media routing.
-      return mcpResultToModelOutput(output as McpCallToolResponse, mcpTool.serverId)
+      return mcpResultToModelOutput(output as CallToolResult, mcpTool.serverId)
     }
   }
 }
@@ -143,7 +163,7 @@ export async function syncMcpToolsToRegistry(
     if (selectedToolIds && freshNames.size === selectedToolIds.size) break
     const namespace = namespaceForServer(server.id)
     try {
-      const enabledTools = application.get('McpCatalogService').listTools(server.id, { includeDisabled: false })
+      const enabledTools = application.get('McpCatalogService').listTools(server.id, { audience: 'model' })
       const scopedTools = selectedToolIds ? enabledTools.filter((tool) => selectedToolIds.has(tool.id)) : enabledTools
       if (!selectedToolIds || scopedTools.length > 0) targetNamespaces.add(namespace)
       const freshEntries: ToolEntry[] = []

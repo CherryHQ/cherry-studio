@@ -4,6 +4,7 @@
 
 import type { ToolSet } from 'ai'
 
+import { getEffectiveAssistantLanguage } from '@main/ai/utils/agentLanguage'
 import { replacePromptVariables } from '@main/utils/prompt'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { Model } from '@shared/data/types/model'
@@ -24,6 +25,7 @@ export interface AssembleSystemPromptInput {
   hasCitableTools?: boolean
   /** Add a volatile local-date anchor when this request can execute web search. */
   webSearchEnabled?: boolean
+  mcpInstructions?: string
   /** Injectable clock for deterministic tests. */
   now?: Date
 }
@@ -54,6 +56,16 @@ export async function assembleSystemPrompt(input: AssembleSystemPromptInput): Pr
 
   if (webSearchEnabled) {
     sections.push(buildWebSearchDateContext(input.now ?? new Date()))
+  }
+
+  if (input.mcpInstructions) sections.push(input.mcpInstructions)
+
+  // Last, so a language named in the Assistant's own prompt above still wins.
+  const replyLanguage = assistant ? getEffectiveAssistantLanguage(assistant) : null
+  if (replyLanguage) {
+    sections.push(
+      `By default, respond in ${replyLanguage}. If the instructions above specify a different language, follow that instruction instead.`
+    )
   }
 
   if (sections.length === 0) return undefined

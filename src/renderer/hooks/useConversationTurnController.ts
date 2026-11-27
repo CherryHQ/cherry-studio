@@ -4,43 +4,37 @@ import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import { getStreamBlockedMessage } from '@renderer/services/aiTransport'
 import { toast } from '@renderer/services/toast'
-import type { ActiveExecution, AiStreamOpenRequest, AiStreamOpenResponse } from '@shared/ai/transport'
-import type { CherryUIMessage } from '@shared/data/types/message'
+import type { AiStreamOpenRequest, AiStreamOpenResponse } from '@shared/ai/transport'
 
 const logger = loggerService.withContext('useConversationTurnController')
 
 export type ConversationTurnPhase = 'draft' | 'persisting' | 'opening' | 'streaming' | 'ready'
 
-export interface ReservedMessageSeedOptions {
-  activeExecutions?: readonly ActiveExecution[]
-  preserveActiveNode?: boolean
-}
-
-export interface ConversationHistoryAdapter {
-  seedReservedMessages: (messages: CherryUIMessage[], options?: ReservedMessageSeedOptions) => Promise<void> | void
-  refresh: () => Promise<unknown> | unknown
-  rollback: () => Promise<unknown> | unknown
-}
-
 export interface UseConversationTurnControllerOptions<TInput, TConversation> {
   scopeKey: string
-  historyAdapter: ConversationHistoryAdapter
+  onRollback: () => Promise<unknown> | unknown
   ensureConversation: (input: TInput) => Promise<TConversation | null> | TConversation | null
   buildStreamRequest: (input: TInput, conversation: TConversation) => AiStreamOpenRequest
   openStream?: (request: AiStreamOpenRequest, input: TInput) => Promise<AiStreamOpenResponse>
   refreshMetadata?: (conversation: TConversation, ack: AiStreamOpenResponse) => Promise<unknown> | unknown
+  onAccepted?: (ack: Exclude<AiStreamOpenResponse, { mode: 'blocked' }>, input: TInput) => Promise<void> | void
+  onError?: (error: unknown, input: TInput) => void
 }
 
 export function useConversationTurnController<TInput, TConversation>({
   scopeKey,
-  historyAdapter,
+  onRollback,
   ensureConversation,
   buildStreamRequest,
   openStream,
-  refreshMetadata
+  refreshMetadata,
+  onAccepted,
+  onError
 }: UseConversationTurnControllerOptions<TInput, TConversation>) {
   const [phase, setPhase] = useState<ConversationTurnPhase>('draft')
   const scopeEpochRef = useRef(0)
+  const callbacksRef = useRef({ onAccepted, onError })
+  callbacksRef.current = { onAccepted, onError }
 
   useLayoutEffect(() => {
     scopeEpochRef.current += 1
@@ -51,7 +45,8 @@ export function useConversationTurnController<TInput, TConversation>({
   }, [scopeKey])
 
   const send = useCallback(
-    async (input: TInput): Promise<boolean> => {
+    async (input: TInput, options: { throwOnError?: boolean } = {}): Promise<boolean> => {
+      const callbacks = callbacksRef.current
       const scopeEpoch = scopeEpochRef.current
       const isCurrentScope = () => scopeEpochRef.current === scopeEpoch
       let conversation: TConversation | null = null
@@ -75,34 +70,34 @@ export function useConversationTurnController<TInput, TConversation>({
         if (!isCurrentScope()) return ack.mode !== 'blocked'
 
         if (ack.mode === 'blocked') {
-          toast.error(getStreamBlockedMessage(ack))
-          if (isCurrentScope()) setPhase('ready')
+          setPhase('ready')
+          const message = getStreamBlockedMessage(ack)
+          if (options.throwOnError) return Promise.reject(new Error(message))
+          toast.error(message)
           return false
         }
 
-        const reservedMessages = ack.reservedMessages ?? []
-        if (reservedMessages.length > 0) {
-          await historyAdapter.seedReservedMessages(reservedMessages, {
-            activeExecutions: ack.activeExecutions,
-            preserveActiveNode: ack.preserveActiveNode
-          })
-        }
-
+        await callbacks.onAccepted?.(ack, input)
         if (isCurrentScope()) setPhase('streaming')
         return true
       } catch (err) {
-        if (isCurrentScope()) {
-          try {
-            await historyAdapter.rollback()
-          } catch (rollbackErr) {
-            logger.warn('Failed to rollback conversation history after stream open failure', rollbackErr as Error)
-          }
-          setPhase('draft')
+        if (!isCurrentScope()) return false
+        try {
+          await onRollback()
+        } catch (rollbackErr) {
+          logger.warn('Failed to rollback conversation history after stream open failure', rollbackErr as Error)
+        }
+        if (!isCurrentScope()) return false
+        setPhase('draft')
+        if (options.throwOnError) throw err
+        if (callbacks.onError) {
+          callbacks.onError(err, input)
+          return false
         }
         throw err
       }
     },
-    [buildStreamRequest, ensureConversation, historyAdapter, openStream, refreshMetadata]
+    [buildStreamRequest, ensureConversation, onRollback, openStream, refreshMetadata]
   )
 
   return {

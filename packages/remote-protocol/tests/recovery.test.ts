@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import {
   applyAgentEvents,
+  createAgentJournalWriter,
   encodeAgentCheckpointPage,
   installAgentCheckpoint,
   type AgentCheckpointPage,
@@ -55,6 +56,94 @@ const initial: AgentEventBatch['events'] = [
 ]
 
 describe('atomic event recovery', () => {
+  it('rejects the last invalid write without changing the journal cursor, row order or content', () => {
+    const projection = state()
+    const append = createAgentJournalWriter(projection, integrity)
+    expect(append(initial[0], {})).toBeUndefined()
+    const event = initial[1]
+    if (event.kind !== 'part.created') throw new Error('Expected a part')
+    expect(
+      append(
+        {
+          ...event,
+          payload: {
+            ...event.payload,
+            part: {
+              partId: 'p',
+              kind: 'text',
+              revision: '0',
+              state: 'streaming',
+              content: {
+                ref: {
+                  contentId: 'missing',
+                  revision: '0',
+                  byteLength: '3',
+                  mediaType: 'text/plain',
+                  sha256: '0'.repeat(64)
+                }
+              }
+            }
+          }
+        },
+        {}
+      )
+    ).toBe('content')
+    expect(projection.cursor.seq).toBe('1')
+    expect(projection.messages.m).toMatchObject({ revision: '0', partIds: [] })
+    expect(projection.parts.p).toBeUndefined()
+    expect(append(event, {})).toBeUndefined()
+    const suffix = {
+      kind: 'part.append',
+      seq: '3',
+      payload: {
+        messageId: 'other',
+        partId: 'p',
+        baseRevision: '0',
+        revision: '1',
+        offsetUtf8: '3',
+        text: '好'
+      }
+    } as const
+    expect(append(suffix, {})).toBe('revision')
+    expect(append({ ...suffix, payload: { ...suffix.payload, messageId: 'm' } }, {})).toBeUndefined()
+    expect(projection.parts.p).toMatchObject({ content: { text: '你好' } })
+  })
+
+  it.each([20, 20_000])('appends without inspecting %i old messages, parts or sibling identifiers', (size) => {
+    const projection = state()
+    const parts = Array.from({ length: size }, (_, n) => 'old-' + n)
+    for (const id of parts) {
+      projection.messages[id] = { messageId: id, revision: '1', role: 'assistant', status: 'success', partIds: [] }
+      projection.parts[id] = { partId: id, revision: '0', kind: 'text', content: { text: 'old' }, state: 'completed' }
+    }
+    projection.messages.m = {
+      messageId: 'm',
+      revision: '1',
+      role: 'assistant',
+      status: 'pending',
+      partIds: [...parts, 'p']
+    }
+    projection.parts.p = { partId: 'p', revision: '0', kind: 'text', content: { text: '你' }, state: 'streaming' }
+    const append = createAgentJournalWriter(projection, integrity)
+    const unrelated = () => {
+      throw new Error('suffix enumerated historical content')
+    }
+    projection.parts = new Proxy(projection.parts, { ownKeys: unrelated })
+    projection.messages = new Proxy(projection.messages, { ownKeys: unrelated })
+    projection.messages.m.partIds = new Proxy(projection.messages.m.partIds, { get: unrelated })
+    expect(
+      append(
+        {
+          kind: 'part.append',
+          seq: '1',
+          payload: { messageId: 'm', partId: 'p', baseRevision: '0', revision: '1', offsetUtf8: '3', text: '好' }
+        },
+        {}
+      )
+    ).toBeUndefined()
+    expect(projection.parts.p).toMatchObject({ content: { text: '你好' } })
+  })
+
   it('treats object prototype names as ordinary resource identifiers', () => {
     const result = applyAgentEvents(
       state(),

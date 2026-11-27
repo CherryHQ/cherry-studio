@@ -1,9 +1,10 @@
-import { APICallError, RetryError } from 'ai'
+import { APICallError, JSONParseError, RetryError, TypeValidationError } from 'ai'
 
 import { getSafeProviderErrorMessage, serializeNestedProviderError } from '@shared/ai/providerError'
 import type { SerializedError } from '@shared/types/error'
 import type { Serializable } from '@shared/types/serializable'
 import { isErrorCategory } from '@shared/utils/errorCategory'
+import { hasReportingOwner } from '@shared/utils/errorReporting'
 
 /** Lenient JSON serialization with circular-reference safety.
  *  Returns null for absent values so callers can preserve the `string | null`
@@ -35,7 +36,10 @@ function toSerializable(value: unknown): Serializable {
  *  so every `SerializedAiSdkErrorUnion` shape carries its discriminant
  *  fields and the renderer's type guards match. */
 export function serializeError(error: unknown): SerializedError {
-  if (APICallError.isInstance(error)) return serializeNestedProviderError(error) as SerializedError
+  const ownership: Record<string, Serializable> = hasReportingOwner(error) ? { reportingHandled: true } : {}
+  if (APICallError.isInstance(error) || JSONParseError.isInstance(error) || TypeValidationError.isInstance(error)) {
+    return { ...(serializeNestedProviderError(error) as SerializedError), ...ownership }
+  }
   if (error instanceof Error) {
     const e = error as unknown as Record<string, unknown>
     const isRetryError = RetryError.isInstance(error)
@@ -46,6 +50,8 @@ export function serializeError(error: unknown): SerializedError {
       stack: isRetryError ? null : (error.stack ?? null),
       cause: e.cause != null ? String(e.cause) : null
     }
+    if (e.reportingHandled === true) serialized.reportingHandled = true
+    if (e.errorSource === 'local') serialized.errorSource = 'local'
 
     if ('url' in e) serialized.url = String(e.url ?? '')
     if ('requestBodyValues' in e) serialized.requestBodyValues = toSerializable(e.requestBodyValues)
@@ -82,6 +88,14 @@ export function serializeError(error: unknown): SerializedError {
     if ('maxEmbeddingsPerCall' in e) serialized.maxEmbeddingsPerCall = (e.maxEmbeddingsPerCall as number) ?? null
     if ('values' in e) serialized.values = (e.values as unknown[]).map((v) => toSerializable(v))
     if ('i18nKey' in e && typeof e.i18nKey === 'string') serialized.i18nKey = e.i18nKey
+    // App-owned OCR diagnostic detail (attachmentRouting): the localized "why"
+    // and its interpolation values must survive the IPC boundary, or the
+    // renderer cannot tell empty OCR output from a failing processor.
+    if ('detailI18nKey' in e && typeof e.detailI18nKey === 'string') serialized.detailI18nKey = e.detailI18nKey
+    if ('detailI18nValues' in e) serialized.detailI18nValues = toSerializable(e.detailI18nValues)
+    if ('providerErrorCategory' in e && isErrorCategory(e.providerErrorCategory)) {
+      serialized.providerErrorCategory = e.providerErrorCategory
+    }
     if ('claudeCodeExitCategory' in e && isErrorCategory(e.claudeCodeExitCategory)) {
       serialized.claudeCodeExitCategory = e.claudeCodeExitCategory
     }
@@ -99,6 +113,7 @@ export function serializeError(error: unknown): SerializedError {
   return {
     name: null,
     message: safeMessage || (typeof error === 'object' && error !== null ? null : String(error)),
-    stack: null
+    stack: null,
+    ...ownership
   }
 }

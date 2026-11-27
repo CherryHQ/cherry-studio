@@ -27,6 +27,22 @@ function collectMarkers(node: Root | Element): Element[] {
 }
 
 describe('findBareFilePathMatches', () => {
+  it('keeps POSIX source locations intact for the file opener', () => {
+    expect(paths('Open /tmp/main.ts:42:5 and /tmp/main.ts#L42-L48.', 'posix')).toEqual([
+      '/tmp/main.ts:42:5',
+      '/tmp/main.ts#L42-L48'
+    ])
+  })
+
+  it.each([':42,then', ':42;then', ':42:5,then', ':42:5;then'])(
+    'ends a located path before adjacent prose: %s',
+    (suffix) => {
+      const location = suffix.split(/[,;]/)[0]
+      expect(paths(`See /tmp/main.ts${suffix} continue.`, 'posix')).toEqual([`/tmp/main.ts${location}`])
+      expect(paths(`See C:\\tmp\\main.ts${suffix} continue.`, 'windows')).toEqual([`C:\\tmp\\main.ts${location}`])
+    }
+  )
+
   it('finds POSIX and home paths while preserving Unicode and trimming sentence punctuation', () => {
     expect(paths('Saved /Users/lee/桌面/report.pdf，then ~/Downloads/archive.zip.', 'posix')).toEqual([
       '/Users/lee/桌面/report.pdf',
@@ -69,6 +85,20 @@ describe('findBareFilePathMatches', () => {
 
   it('does not join slash-containing prose after an extensionless path', () => {
     expect(paths('See /tmp/docs and/or continue below', 'posix')).toEqual([])
+  })
+
+  it('does not linkify a lone slash run in prose such as an inline division formula', () => {
+    expect(paths('I = (E₀∠δ - U)/jX_s…\n定子电流！', 'posix')).toEqual([])
+    expect(paths('P = (E₀U·sinδ)/X_d。', 'posix')).toEqual([])
+  })
+
+  it('keeps single-segment absolute paths that carry a filename signal', () => {
+    expect(paths('Open /README.md, /tmp/.env and /etc/hosts.', 'posix')).toEqual([
+      '/README.md',
+      '/tmp/.env',
+      '/etc/hosts'
+    ])
+    expect(paths("Open '/logs' now", 'posix')).toEqual(['/logs'])
   })
 
   it('keeps paths followed by line and tab boundaries', () => {
@@ -267,5 +297,38 @@ describe('rehypeBareFilePaths', () => {
 
     expect(collectMarkers(tree)).toHaveLength(0)
     expect((tree.children[0] as Element).children).toEqual([{ type: 'text', value: '/Users/lee/raw.txt' }])
+  })
+})
+
+describe('rehypeBareFilePaths className handling', () => {
+  const elementWithClassName = (className: unknown): Element =>
+    ({
+      type: 'element',
+      tagName: 'div',
+      properties: { className },
+      children: [{ type: 'text', value: '/Users/lee/math.txt' }]
+    }) as unknown as Element
+
+  const markerCount = (className: unknown): number =>
+    collectMarkers(transform({ type: 'root', children: [elementWithClassName(className)] }, 'posix')).length
+
+  it('skips an array-valued className containing katex', () => {
+    expect(markerCount(['katex', 'other'])).toBe(0)
+  })
+
+  it('skips a string-valued className containing katex', () => {
+    expect(markerCount('katex katex-display')).toBe(0)
+  })
+
+  it('linkifies text under an ordinary className', () => {
+    expect(markerCount(['plain'])).toBe(1)
+  })
+
+  it('linkifies text when className is missing', () => {
+    expect(markerCount(undefined)).toBe(1)
+  })
+
+  it('treats a numeric className as ordinary content', () => {
+    expect(markerCount(5)).toBe(1)
   })
 })

@@ -1,12 +1,21 @@
 import '@cherrystudio/ui/components/composites/markdown/styles'
-import { useId, useMemo, useState } from 'react'
+import { use, useId, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Components } from 'streamdown'
 import type { Pluggable } from 'unified'
 
-import { defaultMarkdownPlugins, Markdown, StreamingMarkdown, withMath } from '@cherrystudio/ui'
+import {
+  createCodeHighlightPlugin,
+  defaultMarkdownPlugins,
+  Markdown,
+  StreamingMarkdown,
+  withMath
+} from '@cherrystudio/ui'
+import { CodeStyleContext } from '@renderer/hooks/useCodeStyle'
+import { codeHighlightService } from '@renderer/services/CodeHighlightService'
 import { removeSvgEmptyLines } from '@renderer/utils/formats'
 import { remarkLatexMath } from '@renderer/utils/remarkLatexMath'
+import { EXTERNAL_LINK_PROTOCOLS } from '@shared/utils/externalUrlSafety'
 
 import { useMarkdownComponents } from './MarkdownRenderers'
 import { createLatexMarkdownBlockParser } from './parseLatexMarkdownBlocks'
@@ -50,14 +59,19 @@ function MarkdownContent({
   transformSource = removeSvgEmptyLines
 }: AppMarkdownProps & { id: string }) {
   const { t } = useTranslation()
-  const { openFilePath } = useMarkdownHost()
+  const { openFilePath, resolveImageSrc } = useMarkdownHost()
   const [hasStreamed, setHasStreamed] = useState(isStreaming)
   if (isStreaming && !hasStreamed) setHasStreamed(true)
 
   const parseMarkdownBlocks = useMemo(createLatexMarkdownBlockParser, [])
+  const codeStyle = use(CodeStyleContext)
+  const code = useMemo(
+    () => createCodeHighlightPlugin({ execute: codeHighlightService.highlightSnapshot, themes: codeStyle?.codeThemes }),
+    [codeStyle?.codeThemes]
+  )
   const plugins = useMemo(
-    () => ({ ...defaultMarkdownPlugins, math: withMath({ singleDollar: singleDollarMath }) }),
-    [singleDollarMath]
+    () => ({ ...defaultMarkdownPlugins, code, math: withMath({ singleDollar: singleDollarMath }) }),
+    [singleDollarMath, code]
   )
   const content = useMemo(
     () => (isStreaming && children.length > MAX_STREAMING_TRANSFORM_LENGTH ? children : transformSource(children)),
@@ -69,6 +83,7 @@ function MarkdownContent({
   )
   const markdownComponents = useMarkdownComponents({ components, hasStyleElement: /<style\b[^>]*>/i.test(content) })
   const commonProps = {
+    additionalLinkProtocols: EXTERNAL_LINK_PROTOCOLS,
     id,
     plugins,
     components: markdownComponents,
@@ -90,7 +105,9 @@ function MarkdownContent({
           {content}
         </StreamingMarkdown>
       ) : (
-        <Markdown {...commonProps}>{content}</Markdown>
+        <Markdown {...commonProps} preserveRelativeImageSrcs={Boolean(resolveImageSrc)}>
+          {content}
+        </Markdown>
       )}
     </MarkdownStreamingContext>
   )

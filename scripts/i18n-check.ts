@@ -2,7 +2,9 @@ import * as fs from 'fs'
 import * as path from 'path'
 
 import { checkTranslationValues } from './i18n-check-values'
+import { checkTranslationKeyFormat } from './i18n-key-format'
 import { collectMainTranslationKeys } from './i18n-main-keys'
+import { type LocaleKeySpec, localeKeySpec } from './i18n-plurals'
 import { sortedObjectByKeys } from './sort'
 
 const baseLocale = process.env.TRANSLATION_BASE_LOCALE ?? 'en-us'
@@ -11,26 +13,28 @@ const baseFileName = `${baseLocale}.json`
 const rendererLocalesDir = path.join(__dirname, '../src/renderer/i18n/locales')
 const mainI18nDir = path.join(__dirname, '../src/main/i18n')
 const mainSrcDir = path.join(__dirname, '../src/main')
+const filePreviewLocalesDir = path.join(__dirname, '../packages/file-preview/src/locales')
 
 /** Catalogs are flat: every key is a dotted path mapping straight to its translated string. */
 type I18N = { [key: string]: string }
 
 /**
- * 检查目标文件与基准模板的键集合是否完全一致（缺键、多键、值不是字符串都会抛错）。
+ * 检查目标文件的键集合是否符合预期（缺键、多键、值不是字符串都会抛错）。
+ * 预期键集合为基准模板的键，加上目标语言自身的复数形式（见 i18n-plurals.ts）。
  */
-function checkKeys(target: I18N, template: I18N): void {
-  for (const key in template) {
+function checkKeys(target: I18N, spec: LocaleKeySpec): void {
+  for (const key of spec.required) {
     if (!(key in target)) {
       throw new Error(`缺少属性 ${key}`)
-    }
-    if (typeof target[key] !== 'string') {
-      throw new Error(`属性 ${key} 不是字符串，catalog 必须是扁平的 key -> string`)
     }
   }
 
   for (const targetKey in target) {
-    if (!(targetKey in template)) {
+    if (!spec.allowed.has(targetKey)) {
       throw new Error(`多余属性 ${targetKey}`)
+    }
+    if (typeof target[targetKey] !== 'string') {
+      throw new Error(`属性 ${targetKey} 不是字符串，catalog 必须是扁平的 key -> string`)
     }
   }
 }
@@ -59,6 +63,7 @@ function readI18N(filePath: string): I18N {
  */
 function checkCatalog(label: string, baseFilePath: string, files: string[]): I18N {
   const baseJson = readI18N(baseFilePath)
+  checkTranslationKeyFormat(Object.keys(baseJson))
 
   if (!isSortedI18N(baseJson)) {
     throw new Error(`[${label}] 主模板 ${path.basename(baseFilePath)} 的键值未按字典序排序。`)
@@ -67,11 +72,12 @@ function checkCatalog(label: string, baseFilePath: string, files: string[]): I18
   for (const filePath of files) {
     if (path.resolve(filePath) === path.resolve(baseFilePath)) continue
     const targetJson = readI18N(filePath)
+    checkTranslationKeyFormat(Object.keys(targetJson))
     if (!isSortedI18N(targetJson)) {
       throw new Error(`[${label}] 翻译文件 ${path.basename(filePath)} 的键值未按字典序排序。`)
     }
     try {
-      checkKeys(targetJson, baseJson)
+      checkKeys(targetJson, localeKeySpec(baseJson, filePath))
     } catch (e) {
       console.error(e)
       throw new Error(`[${label}] 在检查 ${filePath} 时出错`)
@@ -144,6 +150,8 @@ function checkTranslations(): void {
   const mainBaseJson = checkCatalog('main', mainBaseFilePath, mainFiles)
 
   checkMainKeyCoverage(mainBaseJson)
+
+  checkCatalog('file-preview', path.join(filePreviewLocalesDir, baseFileName), listJsonFiles(filePreviewLocalesDir))
 }
 
 export function main() {

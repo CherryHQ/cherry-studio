@@ -1,12 +1,14 @@
 import { randomUUID } from 'node:crypto'
 import { isDeepStrictEqual } from 'node:util'
 
+import type { CreateMessageRequestParamsBase, CreateMessageResult } from '@modelcontextprotocol/client'
 import {
   type EmbeddingModelUsage,
+  type FinishReason,
   isToolUIPart,
   type LanguageModelUsage,
   type ModelMessage,
-  type UIMessageChunk
+  NoImageGeneratedError
 } from 'ai'
 
 import { application } from '@application'
@@ -35,12 +37,21 @@ import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/c
 import { messageService } from '@main/data/services/MessageService'
 import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
+import { t } from '@main/i18n'
 import { installBuiltinSkills } from '@main/utils/builtinSkills'
-import { downloadImageAsBase64 } from '@main/utils/downloadAsBase64'
+import { downloadImageAsBase64, downloadPublicImageAsBase64 } from '@main/utils/downloadAsBase64'
+import { isAgentSessionTopic } from '@shared/ai/agentSessionTopic'
 import type { CompactionSink } from '@shared/ai/compaction'
+import { createPaintingGenerateError } from '@shared/ai/paintingGenerateError'
+import {
+  isSeedream5xTargetModel,
+  sanitizeSeedreamImageParams,
+  validateSeedreamImageParams
+} from '@shared/ai/seedreamImageContract'
 import type { AiToolApprovalRespondRequest, AiToolApprovalRespondResponse } from '@shared/ai/transport'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
+import { isManagedCherryCloudModel } from '@shared/data/presets/cherryai'
 import { type Assistant } from '@shared/data/types/assistant'
 import type { CleanupPolicy, FileEntry } from '@shared/data/types/file'
 import type { ImageGenerationMode, ListedModels } from '@shared/data/types/model'
@@ -55,8 +66,8 @@ import {
   isRerankModel
 } from '@shared/utils/model'
 import { isExternalCliProvider, isOllamaProvider } from '@shared/utils/provider'
+import { getDefaultProviderBilling } from '@shared/utils/providerBillingDefaults'
 
-import { isAgentSessionTopic } from './agentSession/topic'
 import { createAnalyticsHook } from './hooks/analyticsHook'
 import { createAiUsagePlugin } from './hooks/billingHook'
 import { resolveAttachmentBudget } from './messages/attachmentBudget'
@@ -71,6 +82,7 @@ import { buildVendorProviderOptions } from './provider/custom/wire/buildImageReq
 import { DEFAULT_DIFFUSION_REGISTRATION, WIRE_REGISTRY } from './provider/custom/wire/wireProfile'
 import { resolveEffectiveEndpoint, resolveWireModelId } from './provider/endpoint'
 import { listModels as listModelsFromProvider, probeOllamaModel } from './provider/listModels'
+import { ToolContinuationRouteError } from './provider/replayRoute'
 import { resolveSdkConfig } from './provider/sdkConfig'
 import type { AgentLoopHooks, NativeFileSupport, RequestFeature } from './runtime/aiSdk'
 import {
@@ -82,7 +94,8 @@ import {
   readRetryPolicy
 } from './runtime/aiSdk'
 import { skillService } from './skills/SkillService'
-import { type MessageRuntimeTimingSink, WebContentsListener } from './streamManager'
+import type { AiStreamSource } from './streamManager'
+import { type MessageRuntimeTimingSink } from './streamManager'
 import { resolveModelTokenDialect } from './tokens/dialect'
 import { registerBuiltinTools } from './tools/adapters/aiSdk/builtin/registerBuiltinTools'
 import type {
@@ -182,6 +195,23 @@ function resolveTextRetryPolicy(
   return { ...configured, enabled: true, maxAttempts: Math.max(1, Math.trunc(requestMaxRetries)), fallbackModelIds: [] }
 }
 
+function createCallerRetryWrap(
+  maxRetries: number | undefined,
+  onRetryEvent?: Parameters<typeof createRetryableWrap>[0]['onRetryEvent']
+): ReturnType<typeof createRetryableWrap> {
+  if (maxRetries === undefined || maxRetries <= 0) return undefined
+  return createRetryableWrap({
+    retryPolicy: {
+      ...readRetryPolicy(),
+      enabled: true,
+      maxAttempts: Math.max(1, Math.trunc(maxRetries)),
+      fallbackModelIds: []
+    },
+    fallbacks: [],
+    onRetryEvent
+  })
+}
+
 function createCaptureContext(input: {
   provider: Provider
   model: Model
@@ -189,19 +219,41 @@ function createCaptureContext(input: {
   credentialReceipt: Parameters<typeof createAiUsageCaptureContext>[0]['credentialReceipt']
   source?: SourceSnapshot | null
   messageRef?: MessageRef | null
-}): AiUsageCaptureContext {
-  return createAiUsageCaptureContext({
-    providerId: input.provider.id,
-    providerName: input.provider.name,
-    modelId: input.sdkModelId,
-    modelName: input.model.name,
-    pricing: input.model.pricing,
-    trustProviderReportedCost: input.provider.reportsActualCost,
-    reportedCostCurrency: input.provider.reportedCostCurrency,
-    credentialReceipt: input.credentialReceipt,
-    source: input.source,
-    messageRef: input.messageRef
-  })
+}): () => AiUsageCaptureContext {
+  return () => {
+    const modelId = parseUniqueModelId(input.model.id).modelId
+    let pricingSnapshot: AiUsageCaptureContext['pricingSnapshot'] = null
+    try {
+      const provider = providerService.getByProviderId(input.provider.id)
+      const model = modelService.getByKey(input.provider.id, modelId)
+      pricingSnapshot = createAiUsageCaptureContext({
+        providerId: provider.id,
+        modelId,
+        pricing: model.pricing,
+        billing:
+          provider.settings.billing ??
+          getDefaultProviderBilling(
+            input.provider,
+            model,
+            resolveEffectiveEndpoint(input.provider, input.model).baseUrl
+          )
+      }).pricingSnapshot
+    } catch (error) {
+      logger.warn('Could not capture invocation pricing', { error })
+    }
+    return createAiUsageCaptureContext({
+      providerId: input.provider.id,
+      providerName: input.provider.name,
+      modelId: input.sdkModelId,
+      modelName: input.model.name,
+      pricingSnapshot,
+      trustProviderReportedCost: input.provider.reportsActualCost,
+      reportedCostCurrency: input.provider.reportedCostCurrency,
+      credentialReceipt: input.credentialReceipt,
+      source: input.source,
+      messageRef: input.messageRef
+    })
+  }
 }
 
 function createProviderCallHandler(context: AiUsageCaptureContext): RuntimeProviderCallHandler {
@@ -254,7 +306,7 @@ export type AsInProcess<T extends AiRequest> = Omit<T, 'requestOptions'> & {
   requestOptions?: AiRequestOptions
   /** Trusted in-process classification for remote token analytics. */
   tokenUsageSource?: TokenUsageSource
-  resolvedModel?: { readonly provider: Provider; readonly model: Model }
+  resolvedModel?: { readonly provider: Provider; readonly model: Model; readonly replayRouteId?: string }
 }
 
 /** Chat requests additionally carry the turn's correlation and the stream manager's sinks. */
@@ -282,6 +334,16 @@ export interface AiGenerateRequest extends AiChatRequest {
 export interface AiGenerateResult {
   text: string
   usage?: LanguageModelUsage
+  finishReason: FinishReason
+  rawFinishReason?: string
+}
+
+function toMcpSamplingStopReason(result: Pick<AiGenerateResult, 'finishReason' | 'rawFinishReason'>): string {
+  if (result.finishReason === 'length') return 'maxTokens'
+  if (result.finishReason !== 'stop') return result.rawFinishReason ?? result.finishReason
+
+  const rawReason = result.rawFinishReason?.replace(/[^a-z]/gi, '').toLowerCase()
+  return rawReason === 'stopsequence' ? 'stopSequence' : 'endTurn'
 }
 
 /** Image generation request. */
@@ -301,6 +363,8 @@ export interface AiImageRequest extends AiRequest {
    * `splitParamValues`.
    */
   paramValues: ParamValues
+  /** Per-attempt provider submit timeout (ms); omitted uses the transport default. */
+  requestTimeoutMs?: number
   /**
    * Cleanup policy stamped on the generated **output** FileEntries. AiService is
    * infrastructure — the calling business feature decides the policy
@@ -375,7 +439,7 @@ export interface AiRerankResult {
 // ── Service ────────────────────────────────────────────────────────
 
 /**
- * Lifecycle AI service. See `docs/references/ai/core-architecture.md`.
+ * Lifecycle AI service. See `docs/dev/references/ai/core-architecture.md`.
  *
  * DO NOT mirror `@DependsOn(['AiService'])` on AiStreamManager —
  * `runExecutionLoop` looks AiService up at runtime, and every `send()`
@@ -383,7 +447,14 @@ export interface AiRerankResult {
  */
 @Injectable('AiService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['McpRuntimeService', 'McpCatalogService', 'AiStreamManager', 'JobManager'])
+@DependsOn([
+  'McpRuntimeService',
+  'McpCatalogService',
+  'AiStreamManager',
+  'JobManager',
+  'AutomationReplService',
+  'RuntimeActivityService'
+])
 export class AiService extends BaseService {
   // Per-request AbortControllers for the cancellable one-shot routes (`ai.image.generate`,
   // `ai.text.generate`), paired with their `*.abort` routes. Key is the renderer-generated
@@ -399,6 +470,13 @@ export class AiService extends BaseService {
     // would otherwise overwrite (see installProviderUserAgentInterceptor).
     this.registerDisposable(installProviderUserAgentInterceptor())
     application.get('JobManager').registerHandler('image-generation.generate', imageGenerationJobHandler)
+    this.registerDisposable(
+      application.get('PreferenceService').subscribeChange('agent.skills.external_export.enabled', () => {
+        void skillService.syncExternalExports().catch((error) => {
+          logger.warn('Failed to sync external skill exports after preference change', { error })
+        })
+      })
+    )
     // Install built-in skills, then heal the CLAUDE_CONFIG_DIR/skills mirror once at
     // startup — chained (not two independent fire-and-forgets) so the mirror reconcile
     // always runs after builtin skills have synced to agent_global_skill this boot,
@@ -428,23 +506,27 @@ export class AiService extends BaseService {
   ): Promise<AiToolApprovalRespondResponse> {
     // Claude-Agent path: the runtime settles any persisted interaction card, then unblocks
     // the exact `canUseTool` invocation that issued this approval id.
-    const dispatched = application.get('AgentSessionRuntimeService').respondToolApproval(
+    const result = application.get('AgentSessionRuntimeService').respondToolApproval(
       payload.approvalId,
       {
         approved: payload.approved,
         reason: payload.reason,
         updatedInput: payload.updatedInput
       },
-      payload.anchorId
+      payload.anchorId,
+      payload.topicId
     )
-    if (dispatched) return { ok: true }
+    if (result.ok) return result
+
+    // Agent-session anchors belong to the runtime path, never the chat message table.
+    if (payload.topicId && isAgentSessionTopic(payload.topicId)) return result
 
     // MCP path: write decisions to DB, then dispatch continue-conversation when nothing is pending.
     if (!payload.topicId || !payload.anchorId) {
       logger.warn('Tool-approval response had no live registry entry and no anchor context', {
         approvalId: payload.approvalId
       })
-      return { ok: false }
+      return { ok: false, reason: 'rejected' }
     }
 
     // The approval card is clickable the moment the `tool-approval-request` chunk arrives (the live
@@ -465,7 +547,7 @@ export class AiService extends BaseService {
           topicId: payload.topicId
         }
       )
-      return { ok: false }
+      return { ok: false, reason: 'rejected' }
     }
 
     // Main is the single authority for the approval mutation: the
@@ -495,7 +577,7 @@ export class AiService extends BaseService {
         approvalId: payload.approvalId,
         anchorId: payload.anchorId
       })
-      return { ok: false }
+      return { ok: false, reason: 'rejected' }
     }
     const { parts: committedParts, appliedApprovalIds, alreadySettledApprovalIds } = approvalResult
     if (appliedApprovalIds.length === 0 && alreadySettledApprovalIds.includes(decision.approvalId)) {
@@ -517,13 +599,12 @@ export class AiService extends BaseService {
     // surface it on, so resolve through the result shape instead of dispatching into the void.
     if (!senderWc) {
       logger.warn('Tool-approval continuation skipped: no caller window', { approvalId: payload.approvalId })
-      return { ok: false }
+      return { ok: false, reason: 'rejected' }
     }
 
     const aiStreamManager = application.get('AiStreamManager')
-    const subscriber = new WebContentsListener(senderWc, payload.topicId)
     try {
-      await aiStreamManager.dispatch(subscriber, {
+      await aiStreamManager.dispatchCommand({
         trigger: 'continue-conversation',
         topicId: payload.topicId,
         parentAnchorId: payload.anchorId,
@@ -540,7 +621,7 @@ export class AiService extends BaseService {
         topicId: payload.topicId,
         error: error instanceof Error ? error.message : String(error)
       })
-      return { ok: false }
+      return { ok: false, reason: 'rejected' }
     }
     return { ok: true }
   }
@@ -548,15 +629,15 @@ export class AiService extends BaseService {
   // ── Streaming chat (agent.stream) ──
 
   /**
-   * Raw `UIMessageChunk` stream from `Agent.stream`. Caller (usually
-   * `AiStreamManager`) owns read/multicast/accumulation/terminal dispatch.
+   * One content source per execution: SDK chunks or authoritative message views.
+   * `AiStreamManager` owns consumption, publication and terminal dispatch.
    * Pre-stream errors reject the Promise; mid-stream errors come through
    * the stream itself.
    */
   async streamText(
     request: AsInProcessChat<AiStreamRequest>,
     extraFeatures: readonly RequestFeature[] = []
-  ): Promise<ReadableStream<UIMessageChunk>> {
+  ): Promise<AiStreamSource> {
     logger.info('streamText started', { chatId: request.conversation.topicId })
     const signal = request.requestOptions?.signal
     if (!signal) {
@@ -567,6 +648,7 @@ export class AiService extends BaseService {
       return application.get('AgentSessionRuntimeService').openTurnStream({
         sessionId: request.runtime.sessionId,
         turnId: request.runtime.turnId,
+        interactionWindowId: request.interactionWindowId,
         signal
       })
     }
@@ -578,6 +660,8 @@ export class AiService extends BaseService {
     const repairUsagePlugins: { current?: AiPlugin[] } = {}
     const {
       sdkConfig,
+      endpointType,
+      replayRouteId: primaryReplayRouteId,
       credentialReceipt,
       tools,
       plugins,
@@ -601,12 +685,14 @@ export class AiService extends BaseService {
         ? request.usageContext.source
         : (request.source ?? sourceSnapshotForAssistant(assistant)),
       messageRef: request.usageContext
-        ? { kind: 'agent-session', id: request.usageContext.assistantMessageId }
+        ? request.usageContext.assistantMessageId
+          ? { kind: 'agent-session', id: request.usageContext.assistantMessageId }
+          : null
         : request.messageId
           ? { kind: 'chat', id: request.messageId }
           : null
     })
-    const usagePlugin = createAiUsagePlugin(usageContext)
+    const usagePlugin = createAiUsagePlugin(usageContext, request.usageContext?.recordInvocation)
     repairUsagePlugins.current = [usagePlugin]
 
     const mediaCapabilities = resolveMediaCapabilities(model)
@@ -637,14 +723,23 @@ export class AiService extends BaseService {
 
     // An explicit per-request `maxRetries: 0` means "no retries for this request"
     // — honor it (like embedding/rerank), overriding the global retry preference.
-    const retryDisabledForRequest = request.requestOptions?.maxRetries === 0
+    const retryDisabledForRequest = request.contextOwner === 'caller' || request.requestOptions?.maxRetries === 0
+    if (request.resolvedModel?.replayRouteId && request.resolvedModel.replayRouteId !== primaryReplayRouteId) {
+      throw new ToolContinuationRouteError()
+    }
     const agentRef: { current?: Agent } = {}
     let activeRepairToolCall = options.repairToolCall
     const repairToolCall = options.repairToolCall
       ? (repairOptions: Parameters<NonNullable<typeof options.repairToolCall>>[0]) =>
           activeRepairToolCall!(repairOptions)
       : undefined
-    let wrapModel: ReturnType<typeof createRetryableWrap>
+    let wrapModel =
+      request.contextOwner === 'caller'
+        ? createCallerRetryWrap(request.requestOptions?.maxRetries, (event) =>
+            agentRef.current?.write({ type: 'data-retry', id: 'retry', data: event })
+          )
+        : undefined
+    let sdkMaxRetries = wrapModel ? 0 : options.maxRetries
     if (!retryDisabledForRequest) {
       const apiKeyFallbacks = buildApiKeyFallbackModels({
         request,
@@ -655,14 +750,19 @@ export class AiService extends BaseService {
         extraFeatures,
         primaryCredentialReceipt: credentialReceipt,
         createUsagePlugin: (fallbackReceipt) =>
-          createAiUsagePlugin(createAiUsageCaptureContext({ ...usageContext, credentialReceipt: fallbackReceipt }))
+          createAiUsagePlugin(
+            () => createAiUsageCaptureContext({ ...usageContext(), credentialReceipt: fallbackReceipt }),
+            request.usageContext?.recordInvocation
+          )
       })
       const retryPolicy = resolveTextRetryPolicy(
         readRetryPolicy(),
         request.requestOptions?.maxRetries,
         apiKeyFallbacks.length > 0
       )
+      if (retryPolicy.enabled || apiKeyFallbacks.length > 0) sdkMaxRetries = 0
       wrapModel = createRetryableWrap({
+        primaryReplayRouteId,
         apiKeyFallbacks,
         retryPolicy,
         diagnosticContext: {
@@ -686,9 +786,10 @@ export class AiService extends BaseService {
                 model,
                 sdkModelId,
                 credentialReceipt,
-                source: usageContext.source,
-                messageRef: usageContext.messageRef
-              })
+                source: usageContext().source,
+                messageRef: usageContext().messageRef
+              }),
+              request.usageContext?.recordInvocation
             )
         }),
         onFallbackActivated: (fallback) => {
@@ -702,9 +803,17 @@ export class AiService extends BaseService {
         // PersistenceListener strips it before the message is saved.
         onRetryEvent: (event) => agentRef.current?.write({ type: 'data-retry', id: 'retry', data: event })
       })
+    } else if (request.contextOwner !== 'caller') {
+      wrapModel = createRetryableWrap({
+        primaryReplayRouteId,
+        retryPolicy: { ...readRetryPolicy(), enabled: false },
+        fallbacks: []
+      })
     }
 
     const agent = new Agent({
+      contextOwner: request.contextOwner,
+      endpointType,
       providerId: sdkConfig.providerId,
       providerSettings: sdkConfig.providerSettings,
       modelId: sdkConfig.modelId,
@@ -714,7 +823,7 @@ export class AiService extends BaseService {
       wrapModel,
       tools,
       system,
-      options: wrapModel ? { ...options, maxRetries: 0, repairToolCall } : options,
+      options: wrapModel ? { ...options, maxRetries: sdkMaxRetries, repairToolCall } : options,
       hookParts: [
         this.analyticsHookPart(model, request.tokenUsageSource ?? 'chat'),
         ...(request.runtimeTimingSink
@@ -735,7 +844,16 @@ export class AiService extends BaseService {
     })
     agentRef.current = agent
 
-    return agent.stream(preparedMessages, signal)
+    return { kind: 'chunks', stream: agent.stream(preparedMessages, signal) }
+  }
+
+  private async withRuntimeActivity<T>(reason: string, operation: () => Promise<T>): Promise<T> {
+    const hold = application.get('RuntimeActivityService').begin(reason)
+    try {
+      return await operation()
+    } finally {
+      hold.dispose()
+    }
   }
 
   private analyticsHookPart(model: Model, source: TokenUsageSource = 'chat'): Partial<AgentLoopHooks> {
@@ -769,16 +887,47 @@ export class AiService extends BaseService {
     )
   }
 
+  /**
+   * Cancellable streamed generation: the same result as {@link runTextRequest}, with each text delta
+   * reported to `onTextDelta` as it arrives. A model that cannot stream answers in one piece.
+   */
+  async runTextStreamRequest(
+    requestId: string,
+    request: AsInProcess<AiGenerateRequest>,
+    onTextDelta: (delta: string) => void
+  ): Promise<AiGenerateResult> {
+    return this.runWithAbort(requestId, (signal) =>
+      this.generateTextWithMode(
+        { ...request, requestOptions: { ...request.requestOptions, signal } },
+        [],
+        'stream',
+        onTextDelta
+      )
+    )
+  }
+
   async generateText(
     request: AsInProcessChat<AiGenerateRequest>,
     extraFeatures: readonly RequestFeature[] = []
   ): Promise<AiGenerateResult> {
+    return this.generateTextWithMode(request, extraFeatures, 'generate')
+  }
+
+  private async generateTextWithMode(
+    request: AsInProcessChat<AiGenerateRequest>,
+    extraFeatures: readonly RequestFeature[],
+    mode: 'generate' | 'stream',
+    onTextDelta?: (delta: string) => void
+  ): Promise<AiGenerateResult> {
     logger.info('generateText started', { assistantId: request.assistantId })
     const signal = request.requestOptions?.signal
+    // Model messages go directly to generation, not the UI-message context scanner.
+    const { messages, ...parameterRequest } = request
 
     const repairUsagePlugins: { current?: AiPlugin[] } = {}
     const {
       sdkConfig,
+      replayRouteId: primaryReplayRouteId,
       credentialReceipt,
       tools,
       plugins,
@@ -789,7 +938,7 @@ export class AiService extends BaseService {
       assistant,
       hookParts,
       nativeFileSupport
-    } = await this.buildAgentParamsFor(request, signal, extraFeatures, () => repairUsagePlugins.current ?? [])
+    } = await this.buildAgentParamsFor(parameterRequest, signal, extraFeatures, () => repairUsagePlugins.current ?? [])
     const usageContext = createCaptureContext({
       provider,
       model,
@@ -807,8 +956,10 @@ export class AiService extends BaseService {
       : undefined
 
     // An explicit per-request `maxRetries: 0` disables retry for this request.
-    let wrapModel: ReturnType<typeof createRetryableWrap>
-    if (request.requestOptions?.maxRetries !== 0) {
+    let wrapModel =
+      request.contextOwner === 'caller' ? createCallerRetryWrap(request.requestOptions?.maxRetries) : undefined
+    let sdkMaxRetries = wrapModel ? 0 : options.maxRetries
+    if (request.contextOwner !== 'caller' && request.requestOptions?.maxRetries !== 0) {
       const apiKeyFallbacks = buildApiKeyFallbackModels({
         request,
         provider,
@@ -818,14 +969,18 @@ export class AiService extends BaseService {
         extraFeatures,
         primaryCredentialReceipt: credentialReceipt,
         createUsagePlugin: (fallbackReceipt) =>
-          createAiUsagePlugin(createAiUsageCaptureContext({ ...usageContext, credentialReceipt: fallbackReceipt }))
+          createAiUsagePlugin(() =>
+            createAiUsageCaptureContext({ ...usageContext(), credentialReceipt: fallbackReceipt })
+          )
       })
       const retryPolicy = resolveTextRetryPolicy(
         readRetryPolicy(),
         request.requestOptions?.maxRetries,
         apiKeyFallbacks.length > 0
       )
+      if (retryPolicy.enabled || apiKeyFallbacks.length > 0) sdkMaxRetries = 0
       wrapModel = createRetryableWrap({
+        primaryReplayRouteId,
         apiKeyFallbacks,
         retryPolicy,
         diagnosticContext: { assistantId: request.assistantId },
@@ -845,8 +1000,8 @@ export class AiService extends BaseService {
                 model,
                 sdkModelId,
                 credentialReceipt,
-                source: usageContext.source,
-                messageRef: usageContext.messageRef
+                source: usageContext().source,
+                messageRef: usageContext().messageRef
               })
             )
         }),
@@ -859,19 +1014,28 @@ export class AiService extends BaseService {
       })
     }
 
+    if (request.contextOwner !== 'caller' && request.requestOptions?.maxRetries === 0) {
+      wrapModel = createRetryableWrap({
+        primaryReplayRouteId,
+        retryPolicy: { ...readRetryPolicy(), enabled: false },
+        fallbacks: []
+      })
+    }
+
     // Same media gating as the streaming path — `agent.generate` hands `ModelMessage[]` to the
     // SDK as-is, so without these the structured tool-result media the converter produces would
     // be JSON/base64-encoded or rejected on OpenAI/Ollama, diverging from `stream`.
     const mediaCapabilities = resolveMediaCapabilities(model)
     const agent = new Agent({
+      contextOwner: request.contextOwner,
       providerId: sdkConfig.providerId,
       providerSettings: sdkConfig.providerSettings,
       modelId: sdkConfig.modelId,
       plugins: [...plugins, usagePlugin],
       wrapModel,
       tools,
-      system: request.system ?? system,
-      options: wrapModel ? { ...options, maxRetries: 0, repairToolCall } : options,
+      system,
+      options: wrapModel ? { ...options, maxRetries: sdkMaxRetries, repairToolCall } : options,
       hookParts: [this.analyticsHookPart(model, request.tokenUsageSource ?? 'chat'), ...hookParts],
       mediaCapabilities,
       toolResultMediaCapabilities: resolveToolResultMediaCapabilities(
@@ -881,7 +1045,70 @@ export class AiService extends BaseService {
     })
 
     // prompt and messages are mutually exclusive in AI SDK; preserve that.
-    return agent.generate(request.prompt ? { prompt: request.prompt } : { messages: request.messages ?? [] }, signal)
+    return this.withRuntimeActivity('ai:generate-text', () =>
+      agent.generate(
+        request.prompt ? { prompt: request.prompt } : { messages: messages ?? [] },
+        signal,
+        mode === 'stream' && model.supportsStreaming === false ? 'generate' : mode,
+        onTextDelta
+      )
+    )
+  }
+
+  /**
+   * Restricted host callback for an MCP embedded sampling request. The request
+   * is non-streaming and `disableTools` is enforced in buildAgentParams so an
+   * MCP server cannot recursively reach Cherry or MCP tools.
+   */
+  async generateMcpSampling(
+    model: `${string}::${string}`,
+    request: CreateMessageRequestParamsBase,
+    signal: AbortSignal
+  ): Promise<CreateMessageResult> {
+    const messages = request.messages.map((message): ModelMessage => {
+      const parts = Array.isArray(message.content) ? message.content : [message.content]
+      const content = parts.map((part) => {
+        switch (part.type) {
+          case 'text':
+            return { type: 'text' as const, text: part.text }
+          case 'image':
+            return { type: 'image' as const, image: part.data, mediaType: part.mimeType }
+          case 'audio':
+            return { type: 'file' as const, data: part.data, mediaType: part.mimeType }
+          default:
+            throw new Error(`Unsupported MCP sampling content type: ${part.type}`)
+        }
+      })
+      if (message.role === 'assistant') {
+        // AI SDK represents assistant media as files; image parts are user-only.
+        return {
+          role: 'assistant',
+          content: content.map((part) =>
+            part.type === 'image' ? { type: 'file', data: part.image, mediaType: part.mediaType } : part
+          )
+        }
+      }
+      return { role: message.role, content }
+    })
+    const result = await this.generateText({
+      uniqueModelId: model,
+      conversation: { id: `mcp-sampling:${randomUUID()}` },
+      system: request.systemPrompt,
+      messages,
+      disableTools: true,
+      callOverrides: {
+        maxOutputTokens: request.maxTokens,
+        ...(typeof request.temperature === 'number' ? { temperature: request.temperature } : {}),
+        ...(Array.isArray(request.stopSequences) ? { stopSequences: request.stopSequences } : {})
+      },
+      requestOptions: { signal }
+    })
+    return {
+      model,
+      role: 'assistant',
+      content: { type: 'text', text: result.text },
+      stopReason: toMcpSamplingStopReason(result)
+    }
   }
 
   // ── Image generation ──
@@ -897,6 +1124,31 @@ export class AiService extends BaseService {
     )
   }
 
+  #applySeedream5xGate(params: ParamValues, model: Model, provider: Provider): ParamValues {
+    // Callers can bypass renderer validation, and numImages makes the SDK fan out requests.
+    if (isSeedream5xTargetModel(model.presetModelId ?? parseUniqueModelId(model.id).modelId)) {
+      if ((provider.presetProviderId ?? provider.id) === 'dmxapi') {
+        throw createPaintingGenerateError('REMOTE_ERROR', {
+          message: 'Seedream 5.5 is not supported through DMXAPI pending protocol verification'
+        })
+      }
+      const issue = validateSeedreamImageParams(params)
+      if (issue === 'size') {
+        throw createPaintingGenerateError('REMOTE_ERROR', {
+          message:
+            'Seedream 5.5 size must be 1K, 1.5K, or 2K, or positive integer WxH dimensions with 921600–4624220 pixels and an aspect ratio between 1:16 and 16:1; use only one size source'
+        })
+      }
+      if (issue === 'background-format') {
+        throw createPaintingGenerateError('REMOTE_ERROR', {
+          message: 'Seedream 5.5 transparent background requires PNG output'
+        })
+      }
+      return sanitizeSeedreamImageParams(params)
+    }
+    return params
+  }
+
   async generateImage(request: AsInProcess<AiImageRequest>): Promise<AiImageResult> {
     logger.info('generateImage started', { assistantId: request.assistantId, uniqueModelId: request.uniqueModelId })
     const signal = request.requestOptions?.signal
@@ -910,7 +1162,7 @@ export class AiService extends BaseService {
     // fields the AI SDK call consumes (n/size/seed/aspectRatio → imageParams
     // below) vs the leftover vendor bag (cfg, the diffusion/openai knobs, …) the
     // WireProfile engine forwards.
-    const params = request.paramValues
+    const params = this.#applySeedream5xGate(request.paramValues, model, provider)
     const { structured, vendorBag } = splitParamValues(params)
     const inputImages = request.inputImages ? await normalizeImageEditInputs(request.inputImages, signal) : undefined
 
@@ -924,11 +1176,25 @@ export class AiService extends BaseService {
     // not `provider.id`: a user-added instance carries a UUID id and would fall
     // through to the direct image model, which never passes `modelDescriptor`.
     const transportProviderId = provider.presetProviderId ?? provider.id
-    if (request.uniqueModelId && hasImageTransport(transportProviderId, model.apiModelId ?? model.id)) {
-      return await this.generateImageViaJob({ ...request, inputImages }, structured, vendorBag, signal, source)
+    // Assistant-bound models resolve here without the caller spelling out
+    // `uniqueModelId` — fall back to the assistant's model so transport providers
+    // keep their native routing instead of dropping to the generic image path.
+    const effectiveUniqueModelId = request.uniqueModelId ?? assistant?.modelId
+    if (effectiveUniqueModelId && hasImageTransport(transportProviderId, model.apiModelId ?? model.id)) {
+      return await this.generateImageViaJob(
+        { ...request, uniqueModelId: effectiveUniqueModelId, inputImages },
+        structured,
+        vendorBag,
+        signal,
+        source
+      )
     }
 
     const { sdkConfig, credentialReceipt } = await this.resolveTransportFor(request)
+    const imageDownloadSettings =
+      sdkConfig.providerId === 'openai-compatible'
+        ? (sdkConfig.providerSettings as AppProviderSettingsMap['openai-compatible'])
+        : undefined
     const promptParam = inputImages
       ? { text: request.prompt, images: inputImages, ...(request.mask && { mask: request.mask }) }
       : request.prompt
@@ -937,8 +1203,12 @@ export class AiService extends BaseService {
     // canonical bag to each provider's wire — a registered profile for the
     // OpenAI / google / dashscope / aihubmix / dmxapi families, else the diffusion
     // catch-all (DEFAULT_DIFFUSION_REGISTRATION).
-    const registration = WIRE_REGISTRY[sdkConfig.providerId] ?? DEFAULT_DIFFUSION_REGISTRATION
-    const imageProviderOptions = buildVendorProviderOptions(sdkConfig.providerId, params, registration, vendorBag)
+    const wireProviderId =
+      sdkConfig.providerId === 'newapi' && sdkConfig.providerOptionsKey === 'google' ? 'google' : sdkConfig.providerId
+    const registration = WIRE_REGISTRY[wireProviderId] ?? DEFAULT_DIFFUSION_REGISTRATION
+    // OpenAI-compatible models read providerOptions[actualProviderId], not the adapter id.
+    const deliveryKey = sdkConfig.providerId === 'openai-compatible' ? sdkConfig.providerOptionsKey : wireProviderId
+    const imageProviderOptions = buildVendorProviderOptions(deliveryKey, params, registration, vendorBag)
 
     // `structured.aspectRatio` is already normalized to `X:Y` by the aspectRatio
     // native binding's `map` (in `splitParamValues`).
@@ -949,6 +1219,8 @@ export class AiService extends BaseService {
     // are NOT typed SDK options — they reach the wire via `providerOptions[id]`
     // (the WireProfile engine), which the image models read; passing them here is
     // dropped by `generateImage`, so they're omitted.
+    let imageDownloadFailed = false
+    let imageDownloadErrorDetails: string | undefined
     const imageParams = {
       model: sdkConfig.modelId,
       prompt: promptParam,
@@ -963,9 +1235,25 @@ export class AiService extends BaseService {
         return Promise.all(
           downloads.map(async ({ url }) => {
             if (signal?.aborted) return null
-            const downloaded = await downloadImageAsBase64(url.toString())
+            const downloaded =
+              sdkConfig.providerId === 'google'
+                ? await downloadPublicImageAsBase64(url.href, signal)
+                : imageDownloadSettings
+                  ? await downloadImageAsBase64(url.href, {
+                      baseURL: imageDownloadSettings.baseURL,
+                      apiKey: imageDownloadSettings.apiKey,
+                      signal,
+                      onHttpError: (host, status) => {
+                        imageDownloadErrorDetails = `${host}, HTTP ${status}`
+                      }
+                    })
+                  : await downloadImageAsBase64(url.href)
             if (signal?.aborted) return null
-            if (!downloaded) return null
+            if (!downloaded) {
+              imageDownloadFailed = true
+              if (imageDownloadSettings) imageDownloadErrorDetails ??= url.host
+              return null
+            }
             return {
               data: Buffer.from(downloaded.data, 'base64'),
               mediaType: downloaded.media_type
@@ -983,38 +1271,57 @@ export class AiService extends BaseService {
       source,
       messageRef: null
     })
-    const result = await aiCoreGenerateImage<AppProviderSettingsMap>(sdkConfig.providerId, sdkConfig.providerSettings, {
-      ...imageParams,
-      onProviderCall: createProviderCallHandler(imageUsageContext)
-    })
+    return this.withRuntimeActivity('ai:generate-image', async () => {
+      const result = await aiCoreGenerateImage<AppProviderSettingsMap>(
+        sdkConfig.providerId,
+        sdkConfig.providerSettings,
+        {
+          ...imageParams,
+          onProviderCallStart: () => createProviderCallHandler(imageUsageContext())
+        }
+      ).catch((error: unknown) => {
+        if (
+          (sdkConfig.providerId === 'google' || imageDownloadSettings) &&
+          imageDownloadFailed &&
+          !signal?.aborted &&
+          NoImageGeneratedError.isInstance(error)
+        ) {
+          const message = t('paintings.image_download_failed')
+          throw createPaintingGenerateError('REMOTE_ERROR', {
+            message: imageDownloadErrorDetails ? `${message} (${imageDownloadErrorDetails})` : message
+          })
+        }
+        throw error
+      })
 
-    const dataUrls: Base64String[] = []
-    let filteredCount = 0
-    for (const image of result.images ?? []) {
-      if (image.base64) {
-        dataUrls.push(`data:${image.mediaType || 'image/png'};base64,${image.base64}`)
-        continue
+      const dataUrls: Base64String[] = []
+      let filteredCount = 0
+      for (const image of result.images ?? []) {
+        if (image.base64) {
+          dataUrls.push(`data:${image.mediaType || 'image/png'};base64,${image.base64}`)
+          continue
+        }
+
+        filteredCount += 1
       }
 
-      filteredCount += 1
-    }
-
-    if (filteredCount > 0) {
-      logger.warn('Filtered invalid generated images', {
-        uniqueModelId: request.uniqueModelId,
-        providerId: sdkConfig.providerId,
-        modelId: sdkConfig.modelId,
-        filteredCount
-      })
-    }
-    const fileManager = application.get('FileManager')
-    const files = await Promise.all(
-      dataUrls.map((data) =>
-        fileManager.createInternalEntry({ source: 'base64', data, cleanupPolicy: request.cleanupPolicy })
+      if (filteredCount > 0) {
+        logger.warn('Filtered invalid generated images', {
+          uniqueModelId: request.uniqueModelId,
+          providerId: sdkConfig.providerId,
+          modelId: sdkConfig.modelId,
+          filteredCount
+        })
+      }
+      const fileManager = application.get('FileManager')
+      const files = await Promise.all(
+        dataUrls.map((data) =>
+          fileManager.createInternalEntry({ source: 'base64', data, cleanupPolicy: request.cleanupPolicy })
+        )
       )
-    )
 
-    return { files }
+      return { files }
+    })
   }
 
   /**
@@ -1081,6 +1388,7 @@ export class AiService extends BaseService {
         ...(inputFileIds && { inputFileIds }),
         ...(maskFileId && { maskFileId }),
         ...(modelDescriptor && { modelDescriptor }),
+        ...(request.requestTimeoutMs && { requestTimeoutMs: request.requestTimeoutMs }),
         ...(source && { source }),
         providerParams,
         cleanupPolicy: request.cleanupPolicy
@@ -1150,19 +1458,18 @@ export class AiService extends BaseService {
     })
 
     const retryPolicy = readRetryPolicy()
-    const result = await aiCoreEmbedMany<AppProviderSettingsMap>(sdkConfig.providerId, sdkConfig.providerSettings, {
-      model: sdkConfig.modelId,
-      values: request.values,
-      // A long document splits into many batches and embedMany defaults to
-      // unbounded parallelism — firing them all at once is the main rate-limit
-      // trigger. Keep the pre-feature default when retry is disabled.
-      ...(retryPolicy.enabled && { maxParallelCalls: EMBEDDING_MAX_PARALLEL_CALLS }),
-      // Disabled-default 2 = AI SDK's default, so default-config embedding keeps
-      // its prior transient-error resilience (this PR only adds, never removes).
-      maxRetries: request.requestOptions?.maxRetries ?? (retryPolicy.enabled ? retryPolicy.maxAttempts : 2),
-      onProviderCall: createProviderCallHandler(usageContext),
-      ...(signal ? { abortSignal: signal } : {})
-    })
+    const result = await this.withRuntimeActivity('ai:embed-many', () =>
+      aiCoreEmbedMany<AppProviderSettingsMap>(sdkConfig.providerId, sdkConfig.providerSettings, {
+        model: sdkConfig.modelId,
+        values: request.values,
+        // Bound batch fan-out to avoid embedding rate limits when retries are enabled.
+        ...(retryPolicy.enabled && { maxParallelCalls: EMBEDDING_MAX_PARALLEL_CALLS }),
+        // Preserve the SDK's default retry count when the global retry policy is disabled.
+        maxRetries: request.requestOptions?.maxRetries ?? (retryPolicy.enabled ? retryPolicy.maxAttempts : 2),
+        onProviderCallStart: () => createProviderCallHandler(usageContext()),
+        ...(signal ? { abortSignal: signal } : {})
+      })
+    )
 
     return { embeddings: result.embeddings, usage: result.usage }
   }
@@ -1201,14 +1508,12 @@ export class AiService extends BaseService {
       // exponential-backoff retry, defaulted from the retry preference. Rerank
       // already defaulted to 0 retries pre-feature, so keep that when disabled.
       maxRetries: request.requestOptions?.maxRetries ?? (retryPolicy.enabled ? retryPolicy.maxAttempts : 0),
-      onProviderCall: createProviderCallHandler(usageContext),
+      onProviderCallStart: () => createProviderCallHandler(usageContext()),
       ...(signal ? { abortSignal: signal } : {})
     }
 
-    const result = await aiCoreRerank<AppProviderSettingsMap>(
-      sdkConfig.providerId,
-      sdkConfig.providerSettings,
-      rerankParams
+    const result = await this.withRuntimeActivity('ai:rerank', () =>
+      aiCoreRerank<AppProviderSettingsMap>(sdkConfig.providerId, sdkConfig.providerSettings, rerankParams)
     )
 
     return {
@@ -1265,6 +1570,7 @@ export class AiService extends BaseService {
 
   /** Captures one model configuration for related probes without re-reading changing settings. */
   prepareModelCheck(uniqueModelId: UniqueModelId) {
+    // oxlint-disable-next-line no-restricted-globals -- Resolve one request model independently of mutable provider/model settings.
     const resolvedModel = structuredClone(this.getProviderAndModel({ uniqueModelId }))
     const { provider, model } = resolvedModel
     const endpoint = resolveEffectiveEndpoint(provider, model)
@@ -1283,7 +1589,8 @@ export class AiService extends BaseService {
       },
       modelId: resolveWireModelId(model, endpoint.endpointType),
       baseUrl: routeToEndpoint(endpoint.baseUrl).baseURL,
-      supportsModelListing: provider.modelListSource !== 'registry',
+      // Cherry Cloud has no model-list API; availability is the account's entitlement set.
+      supportsModelListing: provider.modelListSource !== 'registry' && !isManagedCherryCloudModel(provider.id),
       isExternalCli: isExternalCliProvider(provider),
       supportsChat: chatPrimary || !isNonChatModel(model),
       listModels: async (signal: AbortSignal) => {
@@ -1366,6 +1673,7 @@ export class AiService extends BaseService {
             probeParams[key] = spec.default
           }
         }
+        const gatedProbeParams = this.#applySeedream5xGate(probeParams, model, provider)
         const transportProviderId = provider.presetProviderId ?? provider.id
         if (request.uniqueModelId && hasImageTransport(transportProviderId, model.apiModelId ?? model.id)) {
           // Transport models run their submit/poll loop on the job system, whose
@@ -1400,7 +1708,7 @@ export class AiService extends BaseService {
                     mode: probeMode
                   }
                 : undefined,
-              providerParams: probeParams,
+              providerParams: gatedProbeParams,
               signal
             })
             // A successful submission proves connectivity; cancel to avoid a full probe generation.
@@ -1413,21 +1721,24 @@ export class AiService extends BaseService {
             ...probeRequest,
             prompt: 'a red circle',
             ...(editOnly && { mode: probeMode, inputImages: [PROBE_INPUT_IMAGE_DATA_URL] }),
-            paramValues: probeParams,
+            paramValues: gatedProbeParams,
             cleanupPolicy: 'delete_when_unreferenced'
           })
         }
       } else {
         // Latency is the probe's measured output — thinking tokens would pollute it
         // for reasoning-capable models whose provider default enables reasoning.
-        probe = this.generateText({
+        const textRequest = {
           ...probeRequest,
           // A health check has no topic; each probe is its own conversation.
           conversation: { id: `check:${randomUUID()}` },
           system: 'test',
           prompt: 'hi',
-          reasoningEffort: 'none'
-        })
+          reasoningEffort: 'none' as const
+        }
+        probe = model.supportsStreaming
+          ? this.generateTextWithMode(textRequest, [], 'stream')
+          : this.generateText(textRequest)
       }
 
       await Promise.race([probe, aborted])
@@ -1436,6 +1747,7 @@ export class AiService extends BaseService {
     } finally {
       clearTimeout(timeoutHandle)
       signal.removeEventListener('abort', onAbort)
+      controller.abort()
     }
   }
 
@@ -1455,13 +1767,16 @@ export class AiService extends BaseService {
   }
 
   private async buildAgentParamsFor(
-    request: AsInProcessChat<AiChatRequest> & { messageId?: string },
+    request: AsInProcessChat<AiChatRequest> &
+      Pick<AiStreamRequest, 'messageId' | 'messages' | 'retainedContext'> &
+      Pick<AiGenerateRequest, 'system'>,
     signal: AbortSignal | undefined,
     extraFeatures: readonly RequestFeature[] = [],
     getRepairUsagePlugins?: () => AiPlugin[]
   ) {
     const { provider, model, assistant } = this.getProviderAndModel(request)
     const built = await buildAgentParams({
+      traceContext: request.usageContext?.traceContext,
       request,
       signal,
       provider,

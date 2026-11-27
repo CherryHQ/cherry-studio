@@ -1,7 +1,14 @@
+import type { FetchFunction } from '@ai-sdk/provider-utils'
+import { Agent } from 'undici'
+
 import { DEFAULT_TIMEOUT } from '@main/ai/constants'
 import { parseDataUrl } from '@shared/utils/dataUrl'
 
-import type { ImageGenerationSubmitInput, ImageGenerationTransport } from '../imageGenerationModel'
+import {
+  DEFAULT_IMAGE_REQUEST_TIMEOUT_MS,
+  type ImageGenerationSubmitInput,
+  type ImageGenerationTransport
+} from '../imageGenerationModel'
 import { createAbortError, isTerminalHttpStatus, uint8ToBase64, waitWithSignal } from '../transportUtils'
 
 /**
@@ -23,6 +30,14 @@ import { createAbortError, isTerminalHttpStatus, uint8ToBase64, waitWithSignal }
  *   - `negative_prompt` and `seed` are forwarded as-is.
  *   - `image_url` carries the edit-mode input image (Qwen-Image-Edit-*).
  */
+
+// undici abandons response headers after 300s, below a sync image model's submit budget;
+// an injected fetch has no such bound, so this only backs the global-fetch fallback.
+const REQUEST_DISPATCHER_TIMEOUT_MS = 15 * 60 * 1000
+const longRunningDispatcher = new Agent({
+  headersTimeout: REQUEST_DISPATCHER_TIMEOUT_MS,
+  bodyTimeout: REQUEST_DISPATCHER_TIMEOUT_MS
+})
 
 export const DEFAULT_MODELSCOPE_BASE_URL = 'https://api-inference.modelscope.cn'
 
@@ -55,15 +70,19 @@ export interface ModelscopeTaskResult {
 export interface ModelscopeTransportSettings {
   apiKey: string
   baseURL?: string
+  /** Proxy-aware fetch from provider settings; falls back to global `fetch` when unset. */
+  fetch?: FetchFunction
 }
 
 class ModelscopeTransport implements ImageGenerationTransport {
   private apiKey: string
   private baseURL: string
+  private fetch?: FetchFunction
 
   constructor(settings: ModelscopeTransportSettings) {
     this.apiKey = settings.apiKey
     this.baseURL = settings.baseURL || DEFAULT_MODELSCOPE_BASE_URL
+    this.fetch = settings.fetch
   }
 
   async submit(input: ImageGenerationSubmitInput): Promise<{ taskId?: string; imageUrls?: string[] }> {
@@ -102,7 +121,7 @@ class ModelscopeTransport implements ImageGenerationTransport {
     if (input.seed !== undefined) body.seed = input.seed
 
     const response = await this.request<{ task_id: string }>(`/v1/images/generations`, 'POST', body, {
-      timeout: 120000,
+      timeout: input.requestTimeoutMs ?? DEFAULT_IMAGE_REQUEST_TIMEOUT_MS,
       signal: input.signal,
       extraHeaders: { 'X-ModelScope-Async-Mode': 'true' }
     })
@@ -210,7 +229,7 @@ class ModelscopeTransport implements ImageGenerationTransport {
       externalSignal?.addEventListener('abort', onExternalAbort, { once: true })
     }
 
-    const fetchOptions: RequestInit = {
+    const fetchOptions: RequestInit & { dispatcher?: Agent } = {
       method,
       headers: {
         Authorization: `Bearer ${this.apiKey}`,
@@ -222,9 +241,10 @@ class ModelscopeTransport implements ImageGenerationTransport {
     if (method === 'POST' && body !== undefined) {
       fetchOptions.body = JSON.stringify(body)
     }
+    if (!this.fetch) fetchOptions.dispatcher = longRunningDispatcher
 
     try {
-      const response = await fetch(`${this.baseURL}${path}`, fetchOptions)
+      const response = await (this.fetch ?? fetch)(`${this.baseURL}${path}`, fetchOptions)
       if (!response.ok) {
         const errorText = (await response.text().catch(() => '')).slice(0, 500)
         throw new ModelscopeApiError(`ModelScope API error: ${response.status} - ${errorText}`, response.status)

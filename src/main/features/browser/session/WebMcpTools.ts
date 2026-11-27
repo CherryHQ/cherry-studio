@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 
-import type { JsonSchemaType, JsonSchemaValidator } from '@modelcontextprotocol/sdk/validation'
-import { CfWorkerJsonSchemaValidator } from '@modelcontextprotocol/sdk/validation/cfworker'
+import type { JsonSchemaType, JsonSchemaValidator } from '@modelcontextprotocol/client'
+import { CfWorkerJsonSchemaValidator } from '@modelcontextprotocol/client/validators/cf-worker'
 import type { Protocol } from 'devtools-protocol'
 
 import { Signal } from '@main/core/lifecycle'
@@ -94,7 +94,7 @@ export class WebMcpTools {
   }
 
   async list(options: CommandOptions = {}) {
-    await this.session.send('Runtime.enable', undefined, options)
+    await this.session.enableRuntime(options)
     const lifetime = this.lifetime
     if (!this.capability) {
       try {

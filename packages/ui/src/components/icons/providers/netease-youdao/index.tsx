@@ -9,7 +9,7 @@ const NeteaseYoudao = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const NeteaseYoudaoIcon: CompoundIcon = /*#__PURE__*/ Object.assign(NeteaseYoudao, {
   Avatar: NeteaseYoudaoAvatar,
-  colorPrimary: '#E01E00'
+  colorPrimary: '#e01e00'
 })
 
 export default NeteaseYoudaoIcon

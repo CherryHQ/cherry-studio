@@ -1,4 +1,5 @@
 import { writeFileSync } from 'node:fs'
+import { setTimeout as delay } from 'node:timers/promises'
 
 import dayjs from 'dayjs'
 import { app, BrowserWindow, clipboard, ClipboardItem, dialog, type Display, nativeImage, screen } from 'electron'
@@ -121,6 +122,23 @@ export class ScreenshotOverlayService extends BaseService {
 
   /** Monotonic session id; a callback carrying an older one must not act. */
   private sessionGeneration = 0
+  private savingGeneration: number | null = null
+  private hiddenSourceWindow: BrowserWindow | null = null
+  private resultConsumer: {
+    submit: (result: ScreenshotResultData & { text: string }) => Promise<void>
+    dispose: () => void
+  } | null = null
+
+  public async submitResult(result: ScreenshotResultData & { text: string }): Promise<void> {
+    const consumer = this.resultConsumer
+    const generation = this.sessionGeneration
+    if (!consumer) throw new Error('No result consumer is available')
+    if (nativeImage.createFromBuffer(Buffer.from(result.pngBytes)).isEmpty()) {
+      throw new Error('The screenshot could not be decoded')
+    }
+    await consumer.submit(result)
+    if (generation === this.sessionGeneration) this.dismiss()
+  }
 
   /** Overlays whose renderer reported a painted frame. Gates the Escape rescue below. */
   private renderersReady = new Set<WindowId>()
@@ -213,7 +231,13 @@ export class ScreenshotOverlayService extends BaseService {
    * screen, when the feature is off, or when screen recording is not granted (guiding
    * the user instead).
    */
-  public async startCapture(): Promise<void> {
+  public async startCapture(
+    sourceWindowId?: WindowId,
+    consumer?: {
+      submit: (result: ScreenshotResultData & { text: string }) => Promise<void>
+      dispose: () => void
+    }
+  ): Promise<void> {
     // `capturing` carries the guard across the capture await, during which
     // `overlayWindowIds` is still empty and a second hotkey press would otherwise pass.
     if (this.capturing || this.overlayWindowIds.length > 0) return
@@ -232,11 +256,27 @@ export class ScreenshotOverlayService extends BaseService {
       // Advance only once a session is definitely starting: bumping it above the guards
       // would let a blocked second attempt freeze the FIRST session's overlays at opacity 0.
       const generation = ++this.sessionGeneration
+      const manager = application.get('WindowManager')
+      this.resultConsumer = consumer ?? null
 
       const t0 = performance.now()
       this.overlaysCreated = 0
 
       try {
+        const sourceWindow = sourceWindowId && manager.getWindow(sourceWindowId)
+        if (
+          sourceWindow &&
+          !sourceWindow.isDestroyed() &&
+          sourceWindow.isVisible() &&
+          !sourceWindow.isMinimized() &&
+          !(isMac && sourceWindow.isFullScreen())
+        ) {
+          this.hiddenSourceWindow = sourceWindow
+          sourceWindow.hide()
+          // Give the desktop compositor time to remove the source before freezing the display.
+          await delay(150)
+          if (generation !== this.sessionGeneration) return
+        }
         // Started before the capture so the enumeration — hundreds of milliseconds of
         // native work — overlaps the PNG encode and the window opening rather than
         // following them. It runs off the main thread; see listWindowsOffThread.
@@ -299,6 +339,7 @@ export class ScreenshotOverlayService extends BaseService {
           const windowId = windowManager.open<ScreenshotInitData>(WindowType.Screenshot, {
             options: bounds,
             initData: {
+              canSubmitResult: this.resultConsumer !== null,
               imageUrl: mediaProtocol.getUrl(MediaKind.Image, mediaId),
               mediaId,
               display: {
@@ -389,6 +430,11 @@ export class ScreenshotOverlayService extends BaseService {
   /** Whether the window is the one the user is currently interacting with. */
   public isActiveOverlay(windowId: WindowId): boolean {
     return this.activeOverlayWindowId === windowId
+  }
+
+  /** Whether result bytes belong to the active overlay's current capture. */
+  public isActiveCapture(windowId: WindowId, mediaId: string): boolean {
+    return this.isActiveOverlay(windowId) && this.overlayMediaIds.get(windowId) === mediaId
   }
 
   /**
@@ -571,9 +617,8 @@ export class ScreenshotOverlayService extends BaseService {
     }
   }
 
-  /** Copy the overlay's result to the clipboard and end the session. */
-  public async commit(result: ScreenshotResultData): Promise<void> {
-    const generation = this.sessionGeneration
+  /** Copy the overlay's result to the clipboard without ending the session. */
+  public async copy(result: ScreenshotResultData): Promise<void> {
     try {
       const bytes = Buffer.from(result.pngBytes)
       // createFromBuffer never throws — undecodable input yields an EMPTY image, and
@@ -584,6 +629,12 @@ export class ScreenshotOverlayService extends BaseService {
     } catch (error) {
       logger.error('Failed to copy the screenshot to the clipboard', error as Error)
     }
+  }
+
+  /** Copy the overlay's result to the clipboard and end the session. */
+  public async commit(result: ScreenshotResultData): Promise<void> {
+    const generation = this.sessionGeneration
+    await this.copy(result)
 
     // Outside the try: the overlays come down whether or not the clipboard took it, but
     // only for this session — the clipboard write yields, so a newer one may own them now.
@@ -604,6 +655,8 @@ export class ScreenshotOverlayService extends BaseService {
    */
   public async save(result: ScreenshotResultData): Promise<void> {
     const generation = this.sessionGeneration
+    if (this.savingGeneration === generation) return
+    this.savingGeneration = generation
     try {
       const saveOptions: Electron.SaveDialogOptions = {
         // Local time, not an epoch: the name is what the user scans in a file list.
@@ -654,9 +707,10 @@ export class ScreenshotOverlayService extends BaseService {
         if (!hasVisibleWindows) app.hide()
       }
     } finally {
-      // On cancel (or a throwing dialog) the overlays are hidden yet still tracked, so
-      // the session would be stuck; after a successful save the list is empty, a no-op.
-      if (isMac) this.showAllOverlays()
+      if (this.savingGeneration === generation) this.savingGeneration = null
+      // Restore only the session that opened this dialog; an older completion must
+      // not reveal a newer session's overlays over its save panel.
+      if (isMac && generation === this.sessionGeneration) this.showAllOverlays()
     }
   }
 
@@ -721,6 +775,11 @@ export class ScreenshotOverlayService extends BaseService {
 
   /** Release every session resource. Pairs with, but is not a substitute for, closing the windows. */
   private cleanup(): void {
+    this.resultConsumer?.dispose()
+    this.resultConsumer = null
+    const sourceWindow = this.hiddenSourceWindow
+    this.hiddenSourceWindow = null
+    if (sourceWindow && !sourceWindow.isDestroyed()) sourceWindow.show()
     // Makes any callback still in flight a no-op; it cannot make timers disappear,
     // which is what the loop below is for.
     this.sessionGeneration++

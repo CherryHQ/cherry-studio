@@ -30,7 +30,7 @@
  * entry system (FileManager, versionCache, DanglingCache) or just raw FS
  * (`@main/utils/file/*`). This is a call-site choice, not an intrinsic file property — the
  * same physical file can be reached either way. See
- * [architecture.md](../../../../docs/references/file/architecture.md) for the
+ * [architecture.md](../../../../docs/dev/references/file/architecture.md) for the
  * full decision matrix. Quick rules:
  *
  * - Accept `FileHandle` when the operation is meaningful regardless of which

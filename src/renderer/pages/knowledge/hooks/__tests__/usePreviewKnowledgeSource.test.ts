@@ -14,7 +14,7 @@ import type { PosixRelativeFilePath } from '@shared/utils/file'
 
 import { usePreviewKnowledgeSource } from '../usePreviewKnowledgeSource'
 
-const mockOpenPath = vi.fn()
+const mockOpenPath = vi.hoisted(() => vi.fn())
 const mockOpenExternal = vi.fn()
 const mockIpcRequest = vi.hoisted(() => vi.fn())
 const previewFileMock = vi.fn()
@@ -32,7 +32,8 @@ function createDeferred<T>() {
 
 vi.mock('@renderer/ipc', () => ({
   ipcApi: {
-    request: mockIpcRequest
+    request: (route: string, input: unknown) =>
+      route === 'system.shell.open_path' ? mockOpenPath(input) : mockIpcRequest(route, input)
   }
 }))
 
@@ -56,9 +57,6 @@ describe('usePreviewKnowledgeSource', () => {
     mockOpenPath.mockResolvedValue(undefined)
     mockOpenExternal.mockResolvedValue(undefined)
     ;(window as any).api = {
-      file: {
-        openPath: mockOpenPath
-      },
       shell: {
         openExternal: mockOpenExternal
       }

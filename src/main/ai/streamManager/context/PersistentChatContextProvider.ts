@@ -11,6 +11,7 @@ import type { ModelMessage, UIMessage } from 'ai'
 import { application } from '@application'
 import { ContextPrompts, resolveCompressionOutputTokens, summarizeModelMessages } from '@cherrystudio/ai-core'
 import { assistantDataService } from '@data/services/AssistantService'
+import { messageService } from '@data/services/MessageService'
 import { topicService } from '@data/services/TopicService'
 import { loggerService } from '@logger'
 import {
@@ -21,7 +22,6 @@ import {
 import { collectFileAttachments } from '@main/ai/messages/attachmentRouting'
 import { collectPersistedOutputPaths } from '@main/ai/messages/persistedOutputRendering'
 import { collectRetainedContext, type RetainedContext } from '@main/ai/messages/retainedContext'
-import { messageService } from '@main/data/services/MessageService'
 import { providerService } from '@main/data/services/ProviderService'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { compactionAnchorChunkId, type CompactionAnchorData, type CompactionSink } from '@shared/ai/compaction'
@@ -37,12 +37,12 @@ import {
 import type { Model } from '@shared/data/types/model'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { getKnowledgeBaseIdsFromParts, hasClearContextPart } from '@shared/data/types/uiParts'
+import { applyMaxMessagesWindow } from '@shared/utils/contextSettings'
 
 import { resolveMinContextWindow } from '../../contextBuild/resolveContextWindow'
 import { resolveInputRoom } from '../../contextBuild/resolveInputRoom'
 import { resolveOutputReservation } from '../../contextBuild/resolveOutputReservation'
 import { resolveRequestContextSettings } from '../../contextBuild/resolveRequestContextSettings'
-import { applyMaxMessagesWindow } from '../../messages/maxMessagesWindow'
 import { toModelMessages } from '../../messages/messageRules'
 import { applyTurnInputAttributes, startAiChildTurnSpan } from '../../observability'
 import { wrapSteerReminder } from '../../steerReminder'
@@ -67,18 +67,17 @@ import { resolveAssistantModelId, resolveModels, resolvePersistentSiblingsGroupI
 
 const logger = loggerService.withContext('PersistentChatContextProvider')
 
-/**
- * Adapt a turn subscriber into a {@link CompactionSink}.
- *
- * Turn-start compaction is a full summarize round-trip that runs BEFORE the
- * model stream opens, so without this the UI sits on an idle placeholder for
- * however long the summarizer takes. The subscriber is already live here (it is
- * `prepareDispatch`'s first argument), so the anchor part can stream ahead of
- * the assistant's own content. Both writes share one id, so the `done` event
- * replaces the spinner rather than appending a second anchor.
- */
-function toCompactionSink(subscriber: StreamListener): CompactionSink {
-  return (anchorId, data) => subscriber.onChunk({ type: 'data-compaction-anchor', id: anchorId, data })
+function toCompactionSink(messageIds: string[], subscriber: StreamListener): CompactionSink {
+  return (anchorId, data) => {
+    // Preparation has no execution identity yet, so its progress cannot use the execution stream.
+    const cache = application.get('CacheService')
+    for (const messageId of messageIds) {
+      const key = `message.context.compacting.${messageId}` as const
+      if (data.status === 'compacting') cache.setShared(key, true)
+      else cache.deleteShared(key)
+    }
+    subscriber.onChunk({ type: 'data-compaction-anchor', id: anchorId, data })
+  }
 }
 
 /** Media cost table for the turn. Unreachable provider row → the openai table. */
@@ -95,7 +94,7 @@ function resolveRowDialect(model: Model | undefined): TokenDialect {
 function resolveAssistantIdentity(assistantId: string | undefined) {
   if (!assistantId) return undefined
   const a = assistantDataService.getById(assistantId)
-  return { id: a.id, name: a.name, emoji: a.emoji }
+  return { id: a.id, name: a.name, emoji: a.emoji, ...(a.avatarFileId ? { avatarFileId: a.avatarFileId } : {}) }
 }
 
 /**
@@ -116,7 +115,7 @@ function resolveAssistantContextOverride(assistantId: string | undefined): Conte
 /** Author snapshot for an assistant reply: the assistant with its model nested inside. */
 function buildAssistantMessageSnapshot(
   model: Model,
-  assistant: { id: string; name: string; emoji: string } | undefined
+  assistant: Pick<MessageSnapshot, 'id' | 'name' | 'emoji' | 'avatarFileId'> | undefined
 ): MessageSnapshot | undefined {
   if (!assistant) return undefined
   return {
@@ -476,7 +475,10 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         assistantPlaceholders.map((p) => p.model),
         assistantId,
         contextSettingsOverride,
-        toCompactionSink(subscriber)
+        toCompactionSink(
+          assistantPlaceholders.map(({ placeholder }) => placeholder.id),
+          subscriber
+        )
       )
       const knowledgeBaseIds = getKnowledgeBaseIdsFromParts(userMessage.data.parts ?? [])
       const models_ = assistantPlaceholders.map(({ model, placeholder, rootSpan }) => ({
@@ -569,7 +571,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         [model],
         assistantId,
         contextSettingsOverride,
-        toCompactionSink(subscriber)
+        toCompactionSink([target.id], subscriber)
       )
       const request = this.buildStreamRequest(
         req.topicId,
@@ -715,7 +717,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         [model],
         assistantId,
         contextSettingsOverride,
-        toCompactionSink(subscriber)
+        toCompactionSink([anchor.id], subscriber)
       )
       return {
         topicId: req.topicId,
@@ -816,7 +818,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         [model],
         assistantId,
         contextSettingsOverride,
-        toCompactionSink(subscriber)
+        toCompactionSink([placeholder.id], subscriber)
       )
       const history = withSteerReminder(compactedHistory)
       return {
@@ -853,6 +855,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       id: m.id,
       role: m.role,
       parts: m.data?.parts ?? [],
+      modelId: m.role === 'assistant' && m.status === 'success' ? (m.modelId ?? undefined) : undefined,
       compactionSummary: m.compactionSummary ?? undefined,
       contextTokens: m.stats?.contextTokens ?? undefined
     }
@@ -861,7 +864,12 @@ export class PersistentChatContextProvider implements ChatContextProvider {
   private toServed(row: CompactionRow): CherryUIMessage {
     // Route the role through toContentRole to keep the virtual-root guard that the
     // rest of this file relies on (a `root` row must never reach model history).
-    return { id: row.id, role: toContentRole(row.role as MessageRole), parts: row.parts } as CherryUIMessage
+    return {
+      id: row.id,
+      role: toContentRole(row.role as MessageRole),
+      parts: row.parts,
+      ...(row.modelId && { metadata: { modelId: row.modelId } })
+    } as CherryUIMessage
   }
 
   private estimateTotal(rows: CompactionRow[], dialect: TokenDialect): number {

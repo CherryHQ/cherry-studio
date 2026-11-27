@@ -3,11 +3,17 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 
 import type { BaseNavigatorSectionTriggerProps } from './types'
 
-const BaseNavigatorSectionTrigger = ({ label, leadingSlot, actionSlot }: BaseNavigatorSectionTriggerProps) => {
+const BaseNavigatorSectionTrigger = ({
+  label,
+  leadingSlot,
+  actionSlot,
+  dragProps
+}: BaseNavigatorSectionTriggerProps) => {
   return (
     <div className="group/grp flex h-8 w-full items-center gap-1 rounded-[10px] px-2 text-sm transition-colors hover:bg-muted">
       <div className="min-w-0 flex-1">
         <AccordionTrigger
+          {...dragProps}
           className={cn(
             'min-w-0 justify-start gap-1.5 rounded-md py-0 text-left leading-none font-normal text-muted-foreground hover:no-underline focus-visible:ring-0 focus-visible:ring-offset-0',
             '[&[data-state=closed]>svg]:-rotate-90 [&[data-state=open]>svg]:rotate-0',

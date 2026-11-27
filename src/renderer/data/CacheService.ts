@@ -20,6 +20,7 @@
 import { isEqual } from 'es-toolkit/compat'
 
 import { loggerService } from '@logger'
+import { formatFileSize } from '@renderer/utils/file'
 import type {
   InferSharedCacheValue,
   InferUseCacheValue,
@@ -88,7 +89,7 @@ export type CacheSetStateAction<T> = T | ((prev: ReadonlyValue<T>) => T)
  *
  * Features:
  * - All APIs are synchronous (including shared cache via local copy)
- * - TTL lazy cleanup (check on get, not timer-based)
+ * - Memory TTL cleanup on expiry; shared TTL follows the main process
  * - Hook reference tracking (prevent deletion of active hooks)
  * - Unified sync mechanism for shared and persist
  * - Type-safe persist cache with predefined schema
@@ -106,6 +107,8 @@ export class CacheService {
   private subscribers = new Map<string, Set<CacheSubscriber>>()
 
   // Persist cache debounce
+  private memoryExpiryTimer?: ReturnType<typeof setTimeout>
+  private memoryExpiryDeadline = Infinity
   private persistSaveTimer?: NodeJS.Timeout
   private persistDirty = false
   private readonly PERSIST_SAVE_DEBOUNCE_MS = 350
@@ -284,6 +287,7 @@ export class CacheService {
       const newExpireAt = ttl ? Date.now() + ttl : undefined
       if (!Object.is(existingEntry.expireAt, newExpireAt)) {
         existingEntry.expireAt = newExpireAt
+        this.scheduleMemoryExpiry(newExpireAt)
         logger.verbose(`Updated TTL for memory cache key "${key}"`)
       } else {
         logger.verbose(`Skipped memory cache update for key "${key}" - value and TTL unchanged`)
@@ -297,8 +301,34 @@ export class CacheService {
     }
 
     this.memoryCache.set(key, entry)
+    this.scheduleMemoryExpiry(entry.expireAt)
     this.notifySubscribers(key)
     logger.verbose(`Updated memory cache for key "${key}"`)
+  }
+
+  private scheduleMemoryExpiry(expireAt: number | undefined): void {
+    if (expireAt === undefined || expireAt >= this.memoryExpiryDeadline) return
+    clearTimeout(this.memoryExpiryTimer)
+    this.memoryExpiryDeadline = expireAt
+    this.memoryExpiryTimer = setTimeout(
+      () => {
+        this.memoryExpiryTimer = undefined
+        this.memoryExpiryDeadline = Infinity
+        const expired: string[] = []
+        let next = Infinity
+        for (const [key, entry] of this.memoryCache) {
+          if (entry.expireAt === undefined) continue
+          if (entry.expireAt <= Date.now()) {
+            this.memoryCache.delete(key)
+            expired.push(key)
+          } else next = Math.min(next, entry.expireAt)
+        }
+        for (const key of expired) this.notifySubscribers(key)
+        if (next !== Infinity) this.scheduleMemoryExpiry(next)
+      },
+      Math.min(2 ** 31 - 1, Math.max(1, expireAt - Date.now()))
+    )
+    this.memoryExpiryTimer.unref?.()
   }
 
   /**
@@ -668,6 +698,9 @@ export class CacheService {
     this.persistCache.set(key, nextValue)
     this.notifySubscribers(key)
 
+    // A subscriber may have synchronously published a newer value.
+    if (this.persistCache.get(key) !== nextValue) return
+
     // Broadcast to other windows — the resolved value, never the updater itself
     this.broadcastSync({
       type: 'persist',
@@ -775,7 +808,7 @@ export class CacheService {
       withTTLCount: memory.summary.withTTLCount + shared.summary.withTTLCount,
       hookReferences: memory.summary.hookReferences + shared.summary.hookReferences + persist.summary.hookReferences,
       estimatedBytes: totalBytes,
-      estimatedSize: this.formatBytes(totalBytes)
+      estimatedSize: formatFileSize(totalBytes)
     }
 
     return {
@@ -901,17 +934,6 @@ export class CacheService {
     } catch {
       return 0
     }
-  }
-
-  /**
-   * Format bytes to human-readable size
-   */
-  private formatBytes(bytes: number): string {
-    if (bytes === 0) return '0 B'
-    const k = 1024
-    const sizes = ['B', 'KB', 'MB', 'GB']
-    const i = Math.floor(Math.log(bytes) / Math.log(k))
-    return `${(bytes / Math.pow(k, i)).toFixed(2)} ${sizes[i]}`
   }
 
   // ============ Shared Cache Ready State Management ============
@@ -1180,6 +1202,7 @@ export class CacheService {
         this.sharedCache.set(message.key, entry)
         this.notifySubscribers(message.key)
       } else if (message.type === 'persist') {
+        if (isEqual(this.persistCache.get(message.key as RendererPersistCacheKey), message.value)) return
         // Update persist cache (other windows only update memory, not localStorage)
         this.persistCache.set(message.key as RendererPersistCacheKey, message.value)
         this.notifySubscribers(message.key)
@@ -1208,6 +1231,9 @@ export class CacheService {
     }
 
     // Clear timers
+    clearTimeout(this.memoryExpiryTimer)
+    this.memoryExpiryTimer = undefined
+    this.memoryExpiryDeadline = Infinity
     if (this.persistSaveTimer) {
       clearTimeout(this.persistSaveTimer)
     }

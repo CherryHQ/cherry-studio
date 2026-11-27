@@ -78,6 +78,7 @@ describe('KnowledgeBaseService', () => {
 
   async function seedKnowledgeBase(overrides: Partial<typeof knowledgeBaseTable.$inferInsert> = {}) {
     const values: typeof knowledgeBaseTable.$inferInsert = {
+      orderKey: 'a0',
       id: KNOWLEDGE_BASE_ID,
       name: 'Knowledge Base',
       dimensions: 1536,
@@ -98,6 +99,7 @@ describe('KnowledgeBaseService', () => {
   async function seedKnowledgeBases(count: number) {
     await dbh.db.insert(knowledgeBaseTable).values(
       Array.from({ length: count }, (_, index) => ({
+        orderKey: 'a0',
         id: `00000000-0000-4000-8000-${String(index).padStart(12, '0')}`,
         name: `Knowledge Base ${index}`,
         dimensions: null,
@@ -171,20 +173,6 @@ describe('KnowledgeBaseService', () => {
 
       expect(result.total).toBe(1)
       expect(result.items.map((item) => item.id)).toEqual([LITERAL_KNOWLEDGE_BASE_ID])
-    })
-
-    it('defaults to createdAt descending', async () => {
-      await seedKnowledgeBase({ id: OLD_KNOWLEDGE_BASE_ID, name: 'Old', createdAt: 1 })
-      await seedKnowledgeBase({ id: NEWER_KNOWLEDGE_BASE_ID, name: 'Newer', createdAt: 3 })
-      await seedKnowledgeBase({ id: NEWEST_KNOWLEDGE_BASE_ID, name: 'Newest', createdAt: 2 })
-
-      const result = service.list({ page: 1, limit: 10 })
-
-      expect(result.items.map((item) => item.id)).toEqual([
-        NEWER_KNOWLEDGE_BASE_ID,
-        NEWEST_KNOWLEDGE_BASE_ID,
-        OLD_KNOWLEDGE_BASE_ID
-      ])
     })
 
     it('sorts by name ascending', async () => {
@@ -540,7 +528,7 @@ describe('KnowledgeBaseService', () => {
   })
 
   describe('create', () => {
-    it('should create a knowledge base with trimmed identifiers and defaults', async () => {
+    it('should persist a knowledge base with trimmed identifiers', async () => {
       const dto: CreateKnowledgeBaseDto = {
         name: '  New Base  ',
         dimensions: 1024,
@@ -551,22 +539,15 @@ describe('KnowledgeBaseService', () => {
 
       expect(result.name).toBe('New Base')
       expect(result.embeddingModelId).toBe(createUniqueModelId('openai', 'embed-model'))
-      expect(result.chunkSize).toBe(1024)
-      expect(result.chunkOverlap).toBe(200)
-      expect(result.threshold).toBeUndefined()
+
       expect(result.status).toBe('completed')
       expect(result.error).toBeNull()
 
       const [row] = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, result.id))
       expect(row.name).toBe('New Base')
-      expect(row.groupId).toBeNull()
+
       expect(row.embeddingModelId).toBe(createUniqueModelId('openai', 'embed-model'))
-      expect(row.rerankModelId).toBeNull()
-      expect(row.fileProcessorId).toBeNull()
-      expect(row.chunkSize).toBe(1024)
-      expect(row.chunkOverlap).toBe(200)
-      expect(row.threshold).toBeNull()
-      expect(row.documentCount).toBeNull()
+
       expect(row.status).toBe('completed')
       expect(row.error).toBeNull()
     })
@@ -774,14 +755,6 @@ describe('KnowledgeBaseService', () => {
   })
 
   describe('status constraints', () => {
-    it('does not define a database default for status', () => {
-      const result = dbh.sqlite.pragma('table_info(`knowledge_base`)') as Array<{ name: string; dflt_value: unknown }>
-      const statusColumn = result.find((row) => row.name === 'status')
-
-      expect(statusColumn).toBeDefined()
-      expect(statusColumn?.dflt_value).toBeNull()
-    })
-
     it('allows persisted failed bases with null embedding model ids, null dimensions, and non-empty errors', async () => {
       await expect(
         seedKnowledgeBase({

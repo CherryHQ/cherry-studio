@@ -7,16 +7,16 @@
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
 
 import { loggerService } from '@logger'
-import { DEFAULT_TIMEOUT } from '@main/ai/constants'
 import type { SamplingSettings } from '@main/ai/types'
 import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
 import type { AiSdkParam } from '@shared/types/aiSdk'
 import {
-  isClaude47SeriesModel,
+  isClaudeFixedSamplingModel,
   isClaudeReasoningModel,
   isGemini3Model,
+  isGemini4Model,
   isMaxTemperatureOneModel,
-  isSupportedFlexServiceTier,
+  isQwenModel,
   isSupportTemperatureModel,
   isSupportTopPModel,
   isTemperatureTopPMutuallyExclusiveModel
@@ -31,7 +31,7 @@ export type GatedSampling = Pick<SamplingSettings, 'temperature' | 'enableTemper
 
 /** Registry support plus the existing family policies for omitting explicit sampling. */
 function modelAcceptsSamplingParam(model: Model, key: 'temperature' | 'topP'): boolean {
-  if (isGemini3Model(model) || isClaude47SeriesModel(model)) return false
+  if (isGemini3Model(model) || isClaudeFixedSamplingModel(model)) return false
   return key === 'temperature' ? isSupportTemperatureModel(model) : isSupportTopPModel(model)
 }
 
@@ -41,18 +41,68 @@ type SamplingParams = {
   bodyParams: Record<string, unknown>
 }
 
-/** Omit rejected sampling from all merged parameters before SDK serialization or body passthrough. */
-export function stripRejectedSamplingParams(params: SamplingParams, model: Model): SamplingParams {
+/** Sanitize model parameters after all request overrides have been merged. */
+export function stripUnsupportedModelParams(params: SamplingParams, model: Model): SamplingParams {
   const acceptsTemperature = modelAcceptsSamplingParam(model, 'temperature')
   const acceptsTopP = modelAcceptsSamplingParam(model, 'topP')
-  if (acceptsTemperature && acceptsTopP) return params
+  const gemini4 = isGemini4Model(model)
+  const normalizeTemperature = model.providerId === 'dashscope' && isQwenModel(model)
+  const support = model.parameterSupport
+  const temperatureRange = support?.temperature?.range ?? support?.temperature
+  const topPRange = support?.topP?.range ?? support?.topP
+  const acceptsFrequencyPenalty = !gemini4 && !isGemini3Model(model) && support?.frequencyPenalty !== false
+  const acceptsPresencePenalty = !gemini4 && !isGemini3Model(model) && support?.presencePenalty !== false
+  const hasSamplingRange =
+    temperatureRange?.min !== undefined ||
+    temperatureRange?.max !== undefined ||
+    topPRange?.min !== undefined ||
+    topPRange?.max !== undefined
+  if (
+    acceptsTemperature &&
+    acceptsTopP &&
+    acceptsFrequencyPenalty &&
+    acceptsPresencePenalty &&
+    !hasSamplingRange &&
+    !normalizeTemperature
+  )
+    return params
 
-  function strip<T>(values: Record<string, T>): Record<string, T> {
-    const cleaned = { ...values }
+  function strip<T>(values: Record<string, T>): Record<string, T | number> {
+    const cleaned: Record<string, T | number> = { ...values }
     if (!acceptsTemperature) delete cleaned.temperature
     if (!acceptsTopP) {
       delete cleaned.topP
       delete cleaned.top_p
+    }
+    if (!acceptsFrequencyPenalty) {
+      delete cleaned.frequencyPenalty
+      delete cleaned.frequency_penalty
+    }
+    if (!acceptsPresencePenalty) {
+      delete cleaned.presencePenalty
+      delete cleaned.presence_penalty
+    }
+    for (const key of ['temperature', 'topP', 'top_p'] as const) {
+      const range = key === 'temperature' ? temperatureRange : topPRange
+      const value = cleaned[key]
+      if (typeof value !== 'number' || !Number.isFinite(value)) continue
+      cleaned[key] = Math.min(range?.max ?? Infinity, Math.max(range?.min ?? -Infinity, value))
+    }
+    if (gemini4 || isClaudeFixedSamplingModel(model)) {
+      delete cleaned.topK
+      delete cleaned.top_k
+    }
+    if (gemini4) {
+      delete cleaned.cachedContent
+      delete cleaned.cached_content
+    }
+    if (
+      normalizeTemperature &&
+      typeof cleaned.temperature === 'number' &&
+      Number.isFinite(cleaned.temperature) &&
+      cleaned.temperature >= 2
+    ) {
+      cleaned.temperature = 1.9
     }
     return cleaned
   }
@@ -79,7 +129,7 @@ export function getTemperature(
 
   if (!settings.enableTemperature) return undefined
 
-  if (isClaude47SeriesModel(model)) {
+  if (isClaudeFixedSamplingModel(model)) {
     logger.info(`Model ${model.id} rejects sampling parameters, disabling temperature`)
     return undefined
   }
@@ -121,7 +171,7 @@ export function getTopP(
 
   if (!settings.enableTopP) return undefined
 
-  if (isClaude47SeriesModel(model)) {
+  if (isClaudeFixedSamplingModel(model)) {
     logger.info(`Model ${model.id} rejects sampling parameters, disabling topP`)
     return undefined
   }
@@ -153,25 +203,19 @@ export function filterStandardParams(
   standardParams: Partial<Record<AiSdkParam, any>>,
   model: Model
 ): Partial<Record<AiSdkParam, any>> {
-  if (isGemini3Model(model) && 'topK' in standardParams) {
+  if ((isGemini3Model(model) || isGemini4Model(model)) && 'topK' in standardParams) {
     const { topK, ...rest } = standardParams
-    logger.info(`Gemini 3.x model ${model.id} uses default sampling settings, dropping topK=${topK} from custom params`)
+    logger.info(`Gemini model ${model.id} uses default sampling settings, dropping topK=${topK} from custom params`)
     return rest
   }
 
-  if (isClaude47SeriesModel(model) && 'topK' in standardParams) {
+  if (isClaudeFixedSamplingModel(model) && 'topK' in standardParams) {
     const { topK, ...rest } = standardParams
     logger.info(`Model ${model.id} rejects sampling parameters, dropping topK=${topK} from custom params`)
     return rest
   }
 
   return standardParams
-}
-
-/** Provider timeout override (`flex` tier gets a longer timeout). */
-export function getTimeout(model: Model): number {
-  if (isSupportedFlexServiceTier(model)) return 15 * 1000 * 60
-  return DEFAULT_TIMEOUT
 }
 
 /**

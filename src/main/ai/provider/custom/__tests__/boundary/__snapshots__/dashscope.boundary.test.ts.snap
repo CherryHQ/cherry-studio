@@ -1,5 +1,23 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
+exports[`DashScope request boundary > chat-like (canonical qwen-image-3-0) → same family as the dotted apiModelId: satisfies the wire contract and matches snapshot 1`] = `
+{
+  "input": {
+    "messages": [
+      {
+        "content": [
+          {
+            "text": "a fox",
+          },
+        ],
+        "role": "user",
+      },
+    ],
+  },
+  "model": "qwen-image-3.0",
+}
+`;
+
 exports[`DashScope request boundary > chat-like (qwen-image-3.0) → messages[] + prompt_extend/watermark/negative_prompt: satisfies the wire contract and matches snapshot 1`] = `
 {
   "input": {

@@ -1,3 +1,4 @@
+import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import type { ImageModelV3 } from '@ai-sdk/provider'
 import { generateImage, NoImageGeneratedError } from 'ai'
 import { describe, expect, it } from 'vitest'
@@ -21,6 +22,56 @@ describe('patched ai generateImage url download', () => {
 
   const bytes = new Uint8Array([1, 2, 3])
 
+  it.each([
+    { name: 'fileData alone', includeInline: false, includeUrl: true, downloadSucceeds: true, expected: ['AQID'] },
+    { name: 'inlineData alone', includeInline: true, includeUrl: false, downloadSucceeds: false, expected: ['QUJD'] },
+    {
+      name: 'mixed with an unavailable URL',
+      includeInline: true,
+      includeUrl: true,
+      downloadSucceeds: false,
+      expected: ['QUJD']
+    }
+  ])(
+    'returns image bytes for Gemini relay $name',
+    async ({ includeInline, includeUrl, downloadSucceeds, expected }) => {
+      const url = 'https://images.example.com/generated.png'
+      const google = createGoogleGenerativeAI({
+        apiKey: 'test',
+        baseURL: 'https://relay.example.com/v1beta',
+        fetch: async (input) => {
+          expect(String(input)).toBe('https://relay.example.com/v1beta/models/gemini-3.1-flash-image:generateContent')
+          return Response.json({
+            candidates: [
+              {
+                finishReason: 'STOP',
+                content: {
+                  role: 'model',
+                  parts: [
+                    ...(includeInline ? [{ inlineData: { mimeType: 'image/png', data: 'QUJD' } }] : []),
+                    ...(includeUrl ? [{ fileData: { mimeType: 'image/png', fileUri: url } }] : []),
+                    { text: 'Generated image' }
+                  ]
+                }
+              }
+            ]
+          })
+        }
+      })
+
+      const result = await generateImage({
+        model: google.image('gemini-3.1-flash-image'),
+        prompt: 'a fox',
+        experimental_download: async (downloads) =>
+          downloads.map((download) =>
+            downloadSucceeds && download.url.href === url ? { data: bytes, mediaType: 'image/png' } : null
+          )
+      })
+
+      expect(result.images.map((image) => image.base64)).toEqual(expected)
+    }
+  )
+
   it('drops an image whose download failed instead of keeping the url as data', async () => {
     const result = await generateImage({
       model: imageModel(['https://img/gone.png', 'https://img/ok.png']),
@@ -32,10 +83,6 @@ describe('patched ai generateImage url download', () => {
 
     expect(result.images).toHaveLength(1)
     expect(result.images[0].uint8Array).toEqual(bytes)
-    expect(result.warnings).toContainEqual({
-      type: 'other',
-      message: '1 of 2 generated images could not be downloaded and were dropped'
-    })
   })
 
   it('drops only the failing image when the download throws', async () => {

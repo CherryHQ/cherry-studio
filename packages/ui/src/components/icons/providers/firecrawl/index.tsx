@@ -9,7 +9,7 @@ const Firecrawl = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const FirecrawlIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Firecrawl, {
   Avatar: FirecrawlAvatar,
-  colorPrimary: '#FA5D19'
+  colorPrimary: '#fff0ea'
 })
 
 export default FirecrawlIcon

@@ -52,7 +52,6 @@ const renderWebview = (props: {
       kind={props.kind}
       onSetRefCallback={vi.fn()}
       onLoadedCallback={vi.fn()}
-      onNavigateCallback={vi.fn()}
       onFocusChange={props.onFocusChange}
     />
   )
@@ -126,7 +125,6 @@ describe('WebviewContainer', () => {
         kind="site"
         onSetRefCallback={vi.fn()}
         onLoadedCallback={onLoaded}
-        onNavigateCallback={vi.fn()}
       />
     )
     const webview = container.querySelector('webview')
@@ -152,7 +150,6 @@ describe('WebviewContainer', () => {
         kind="site"
         onSetRefCallback={vi.fn()}
         onLoadedCallback={onLoaded}
-        onNavigateCallback={vi.fn()}
       />
     )
     const webview = container.querySelector('webview')
@@ -176,7 +173,6 @@ describe('WebviewContainer', () => {
         kind="site"
         onSetRefCallback={vi.fn()}
         onLoadedCallback={onLoaded}
-        onNavigateCallback={vi.fn()}
       />
     )
     const webview = container.querySelector('webview')
@@ -200,7 +196,6 @@ describe('WebviewContainer', () => {
         kind="site"
         onSetRefCallback={vi.fn()}
         onLoadedCallback={onLoaded}
-        onNavigateCallback={vi.fn()}
       />
     )
     const webview = container.querySelector('webview')
@@ -285,10 +280,12 @@ describe('WebviewContainer', () => {
 })
 
 describe('WebviewContainer partitioning', () => {
-  it('keeps site mini apps on the shared partition with no preload', async () => {
-    const wv = await webviewIn(renderWebview({ appid: 'google', url: 'https://google.com', kind: 'site' }))
-    expect(wv.getAttribute('partition')).toBe('persist:webview')
-    expect(wv.getAttribute('preload')).toBeNull()
+  it('shares the persistent website partition across tabs with no preload', async () => {
+    const first = await webviewIn(renderWebview({ appid: 'google', url: 'https://google.com', kind: 'site' }))
+    const duplicate = await webviewIn(renderWebview({ appid: 'google', url: 'https://google.com', kind: 'site' }))
+    expect(first.getAttribute('partition')).toBe('persist:webview')
+    expect(duplicate.getAttribute('partition')).toBe(first.getAttribute('partition'))
+    expect(first.getAttribute('preload')).toBeNull()
   })
 
   it('gives each local app its own partition', async () => {
@@ -366,8 +363,7 @@ describe('WebviewContainer partition readiness', () => {
     const props = {
       kind: 'app' as const,
       onSetRefCallback: vi.fn(),
-      onLoadedCallback: vi.fn(),
-      onNavigateCallback: vi.fn()
+      onLoadedCallback: vi.fn()
     }
     const view = render(
       <WebviewContainer {...props} appid="com.example.a" url="cherry-miniapp://com.example.a/index.html" />

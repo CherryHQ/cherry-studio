@@ -30,19 +30,13 @@ export default defineConfig({
       {
         extends: true,
         plugins: mainConfig.plugins,
+        define: { __CLAUDE_CODE_BINARY_MANIFEST__: mainConfig.define.__CLAUDE_CODE_BINARY_MANIFEST__ },
         resolve: {
-          alias: mainConfig.resolve.alias
+          alias: [...mainConfig.resolve.alias, { find: '@renderer', replacement: resolve('src/renderer') }]
         },
         test: {
           name: 'main',
           environment: 'node',
-          // This project loads the REAL native better-sqlite3, which is ABI-specific (it is NOT
-          // an N-API module). Vitest runs under system Node, so the module must be built for the
-          // Node ABI — `pretest:main` guarantees that via `pnpm rebuild:node`. `pnpm dev` and
-          // packaging flip it to the Electron ABI instead (`pnpm rebuild:electron`); each flip is
-          // a cached restore (~0.3s/~2s), not a recompile. See
-          // docs/references/testing/database-testing.md.
-          //
           // pool: 'forks' — better-sqlite3 is a NAN/V8 native addon that is not safe under
           // worker_threads (its finalizers crash at thread teardown — SIGSEGV at process exit).
           // Forks give each worker a clean V8 isolate. (This mirrors Vitest 3's own default pool,
@@ -75,6 +69,21 @@ export default defineConfig({
           benchmark: {
             include: ['src/renderer/**/*.bench.{ts,tsx}', 'src/renderer/**/__tests__/**/*.bench.{ts,tsx}']
           }
+        }
+      },
+      {
+        extends: true,
+        resolve: {
+          alias: [
+            { find: /^@cherrystudio\/ui$/, replacement: resolve('packages/file-preview/src/bundledUi.ts') },
+            { find: '@cherrystudio/ui', replacement: resolve('packages/ui/src') }
+          ]
+        },
+        test: {
+          name: 'file-preview',
+          environment: 'jsdom',
+          setupFiles: ['@vitest/web-worker', 'tests/file-preview.setup.ts'],
+          include: ['packages/file-preview/src/**/*.test.{ts,tsx}']
         }
       },
       // 脚本单元测试配置
@@ -113,8 +122,12 @@ export default defineConfig({
         resolve: {
           alias: {
             '@shared': resolve('src/shared'),
+            '@cherrystudio/ai-core/contextOverflow': resolve('packages/aiCore/src/contextOverflow.ts'),
+            '@cherrystudio/provider-registry/data': resolve('packages/provider-registry/src/bundled-catalog'),
             '@cherrystudio/provider-registry/node': resolve('packages/provider-registry/src/registry-loader'),
-            '@cherrystudio/provider-registry': resolve('packages/provider-registry/src')
+            '@cherrystudio/provider-registry': resolve('packages/provider-registry/src'),
+            '@cherrystudio/web-search/catalog': resolve('packages/web-search/src/catalog.ts'),
+            '@cherrystudio/web-search': resolve('packages/web-search/src/index.ts')
           }
         },
         test: {
@@ -131,7 +144,10 @@ export default defineConfig({
         extends: true,
         resolve: {
           alias: {
-            '@shared': resolve('src/shared')
+            '@shared': resolve('src/shared'),
+            '@cherrystudio/ai-core/contextOverflow': resolve('packages/aiCore/src/contextOverflow.ts'),
+            '@cherrystudio/web-search/catalog': resolve('packages/web-search/src/catalog.ts'),
+            '@cherrystudio/web-search': resolve('packages/web-search/src/index.ts')
           }
         },
         test: {
@@ -150,8 +166,11 @@ export default defineConfig({
         resolve: {
           alias: {
             '@shared': resolve('src/shared'),
+            '@cherrystudio/provider-registry/data': resolve('packages/provider-registry/src/bundled-catalog'),
             '@cherrystudio/provider-registry/node': resolve('packages/provider-registry/src/registry-loader'),
-            '@cherrystudio/provider-registry': resolve('packages/provider-registry/src')
+            '@cherrystudio/provider-registry': resolve('packages/provider-registry/src'),
+            '@cherrystudio/web-search/catalog': resolve('packages/web-search/src/catalog.ts'),
+            '@cherrystudio/web-search': resolve('packages/web-search/src/index.ts')
           }
         },
         test: {
@@ -163,12 +182,21 @@ export default defineConfig({
           ]
         }
       },
+      {
+        extends: true,
+        test: {
+          name: 'system-speech',
+          environment: 'node',
+          include: ['native/system-speech/tests/**/*.test.ts']
+        }
+      },
       // packages/ui 单元测试配置
       {
         extends: true,
         resolve: {
           alias: {
-            '@cherrystudio/ui': resolve(__dirname, 'packages/ui/src')
+            '@cherrystudio/ui': resolve(__dirname, 'packages/ui/src'),
+            '@test-mocks': resolve(__dirname, 'tests/__mocks__')
           }
         },
         test: {
@@ -181,9 +209,22 @@ export default defineConfig({
           ]
         }
       },
+      {
+        extends: true,
+        test: {
+          name: 'web-search',
+          environment: 'node',
+          include: ['packages/web-search/src/**/__tests__/**/*.test.ts']
+        }
+      },
       ...[
+        ['agent-behavior', 'tests'],
+        ['agent-runtime', 'tests'],
+        ['agent-runtime-pi', 'tests'],
+        ['agent-runtime-pi-durable', 'tests'],
+        ['agent-runtime-acp', 'tests'],
+        ['agent-runtime-claude-code', 'tests'],
         ['ai-sdk-provider', 'src'],
-        ['dsh-bridge', '__tests__'],
         ['remote-protocol', 'tests'],
         ['remote-transport', 'tests']
       ].map(([name, directory]) => ({

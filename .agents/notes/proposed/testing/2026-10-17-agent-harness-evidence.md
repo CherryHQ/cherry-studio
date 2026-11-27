@@ -1,0 +1,439 @@
+# Agent Note: Harness samples and runtime verification
+
+Status: proposed
+
+English | [中文](2026-10-17-agent-harness-evidence.zh.md)
+
+Legacy Pi executor source/test links are pinned to pre-contraction `46d76e4` as historical evidence. Current implementation and test ownership are defined in section 11 of the [runtime boundary contraction plan](../simplification/2026-11-05-agent-runtime-boundary-ownership.md); those legacy entry points have left the production path.
+
+## Problem
+
+Methods named `prompt`, objects named `session`, and successful promises do not establish the same behavior across harnesses. A portable contract needs evidence for identity, admission, observation, interruption, ownership, and recovery. An adapter's missing operation also does not establish that its native harness lacks that capability.
+
+This note preserves the runtime stack's five-sample research and verification record. It separates pinned source research, historical executed probes, current test coverage, and application acceptance. The [harness boundaries](../architecture/2026-10-17-agent-harness-boundaries.md) and [runtime contract](../architecture/2026-10-17-agent-runtime-contract.md) own the design; this note owns its evidence and acceptance gaps. The [subagent control proposal](../architecture/2026-10-18-agent-runtime-subagent-control.md) owns changes beyond the implemented v0 contract. Migration does not mark that work implemented or establish new test results.
+
+## Proposal
+
+### Source baselines and evidence levels
+
+Validate public guarantees against these five samples. The diagrams below illustrate relationships inferred from interfaces; they are not captured execution logs. Reading source or upstream tests is not evidence that those tests passed locally.
+
+| Sample | Researched boundary | Pinned source baseline |
+| --- | --- | --- |
+| Pi | `pi-coding-agent` SDK, supplemented by RPC and the official subagent extension example | `earendil-works/pi@8efd314fa3d3232ce197d8d7a6a5660530b9d83e` |
+| DSH | `dsh-agent`, `dsh-agent-loop`, `dsh-session`, and subagent plugins | `deepseek-ai/deepseek-harness@1600d8a1e140dcde43a1a0941940a0480712c011` |
+| Pi Durable | The `pi-durable` Harness, Conversation, Submission, and Task | Same source baseline as Pi; a separate package and execution system |
+| Codex | App Server v2 host protocol, supplemented by internal collaboration handlers; these are different access boundaries | `openai/codex@ce0323f2f2d3b25e82806cd555237da3db4e1897` |
+| ACP | The protocol contract when connecting to an ACP agent; v1, the v2 baseline, and experimental extensions are distinct | `agentclientprotocol/agent-client-protocol@e7dac67ac64ec7cf69079b3bb6eff46a21e026b3` |
+
+Pi and Codex baselines come from the user-provided repositories; DSH and ACP were researched at fixed upstream commits. These baselines do not establish compatibility with Cherry's installed dependencies. In particular, the DSH research describes that upstream baseline, not Cherry's retired DSH integration.
+
+ACP is an integration protocol, not an execution engine. The sample concerns harness behavior the protocol can express; each agent still decides its execution, storage, and extensions. The pinned baseline labels v2 as a whole draft; `schema/v2/schema.json` also differs from the unstable schema that adds experimental features. [ACP versions and migration](https://github.com/agentclientprotocol/agent-client-protocol/blob/e7dac67ac64ec7cf69079b3bb6eff46a21e026b3/docs/protocol/v2/migration.mdx)
+
+| Evidence | Version and limit |
+| --- | --- |
+| Current dependency and source inspection during migration | Cherry's desktop and Pi adapter target `pi-coding-agent` / `pi-ai` **1.3.0**; the Durable adapter targets `pi-durable` / `pi-ai` / `chord` **1.3.0**. Installed package manifests agree. The linked Pi repository is still at the pinned commit, whose coding-agent and durable packages are **1.3.0**. |
+| Historical Pi offline probe | Ran directly against installed **1.2.0**, without Cherry's runtime wrapper, a model call, or an external tool. Its result stays a 1.2.0 result; this migration did not rerun it on 1.3.0. |
+| Initial Pi Durable research | Durable had not yet been introduced to Cherry and the linked source checkout had no installed dependencies. Its upstream test references were static evidence. The adapter and its offline tests now exist; this does not retroactively turn that research into an executed upstream suite. |
+| OAR comparison | Local baseline `141921ea5a818bd8b0a1c0c1e17a2593898dbefe`. Product choices are comparisons, not native guarantees. |
+
+Current dependency ownership is recorded in the [root manifest](../../../../package.json), [Pi manifest](../../../../packages/agent-runtime-pi/package.json), [Durable manifest](../../../../packages/agent-runtime-pi-durable/package.json), and [workspace patch configuration](../../../../pnpm-workspace.yaml). The Pi AI ultra and Google fetch patch targets 1.3.0. Version inspection establishes the target, not provider or desktop acceptance.
+
+### Compare identities before unifying names
+
+An execution here means work involving model and tool cooperation, not one model request. A child relationship does not establish the identity or lifetime of one assigned task; not every harness has a distinct Task entity.
+
+| Sample | Session / execution context | Input identity | Execution boundary and identity | Subagent / delegation |
+| --- | --- | --- | --- | --- |
+| Pi | `sessionId`; SessionManager retains an entry tree and active leaf | SDK input does not uniformly return a persistent Submission ID; RPC `id` correlates a command response; retained history has entry IDs | `turn_*` covers smaller model/tool cycles; work can follow `agent_end`; `agent_settled` is an outer settling boundary, but input during notification can schedule more work. No common persistent run ID accompanies subscription events. | The official example starts a Pi subprocess; its convention is not the core SDK's universal child protocol. |
+| DSH | `ThreadId`; Session is an event log with `seq` | Identified message / `MessageId`; inbox, claim, and history insertion are distinct | A `turn` contains several `step`s; session + turn locate execution, step locates an inner cycle | Local children have stable ThreadIds and later activations; external executions need not accept further messages. |
+| Pi Durable | `ConversationId` within storage | `SubmissionId`; optional conversation-scoped `requestId` deduplication | A run includes multiple turns; experimental events describe it with `inputs: SubmissionId[]`, without a separate runId; persistent Task is another dimension | A Task may own a child conversation; generation and tools also use Tasks, so Task does not mean subagent. |
+| Codex | `Thread.id`; this baseline can share `sessionId` across a parent/child thread tree | `clientUserMessageId`, queue `QueuedSubmission.id`, and the eventual user item have different purposes | Native `Turn.id`; start returns a Turn, steer can specify `expectedTurnId` | A child is a Thread; `parentThreadId` gives the relationship; a collab tool item has its own ID and receiver thread IDs. |
+| ACP v1 | `sessionId` | JSON-RPC request ID correlates the prompt request | The prompt response gives completion via `stopReason`, not a separate persistent execution ID | The core prompt/tool-call protocol does not establish a universal child relationship. |
+| ACP v2 baseline | `sessionId` | Prompt response returns the inserted user `messageId` | `state_update` reports foreground state without promising an addressable execution entity | Child sessions are described by the experimental subagent protocol, not guaranteed by the v2 baseline. |
+
+The sample sections below contain sources and limits. Identity scope is part of the contract: an equal string may be unique only within one session or one entity kind.
+
+### Pi coding-agent
+
+#### Native behavior
+
+`AgentSession` owns the current conversation, model, tools, queues, and extensions. SessionManager's entry tree supplies model context. Changing the active leaf or applying compaction is different from displaying all historical content. [SDK](https://github.com/earendil-works/pi/blob/8efd314fa3d3232ce197d8d7a6a5660530b9d83e/packages/coding-agent/docs/sdk.md), [session format](https://github.com/earendil-works/pi/blob/8efd314fa3d3232ce197d8d7a6a5660530b9d83e/packages/coding-agent/docs/session-format.md)
+
+`prompt()` can be handled by an extension command without starting a model. `steer()` joins work after the current assistant turn and its tools; `followUp()` joins after pending work in the current run. `queued` does not prove model consumption. An RPC command response does not mean execution completed successfully. [RPC](https://github.com/earendil-works/pi/blob/8efd314fa3d3232ce197d8d7a6a5660530b9d83e/packages/coding-agent/docs/rpc.md)
+
+`message_end` supplies a completed message. `agent_end` is an inner loop boundary; recovery or queued work may continue. `agent_settled` is an outer notification, but a new prompt submitted during that notification may be deferred, so it does not establish permanent idleness. None supplies a common persistent run ID. A settled event cannot simultaneously prove one input completed, one model request completed, and the entire objective succeeded. [Session events](https://github.com/earendil-works/pi/blob/8efd314fa3d3232ce197d8d7a6a5660530b9d83e/packages/coding-agent/src/core/agent-session.ts), [AgentEvent](https://github.com/earendil-works/pi/blob/8efd314fa3d3232ce197d8d7a6a5660530b9d83e/packages/agent/src/types.ts)
+
+The official subagent example spawns `--mode json -p --no-session` and sends progress to the parent tool's `onUpdate`. This composition does not by itself provide a core contract for a stable child session, conversation after restart, or independent child-stream subscription. [Official subagent example](https://github.com/earendil-works/pi/blob/8efd314fa3d3232ce197d8d7a6a5660530b9d83e/packages/coding-agent/examples/extensions/subagent/index.ts)
+
+Cherry's adapter instead uses its own in-process [subagent extension](https://github.com/CherryHQ/cherry-studio/blob/46d76e46c03d1d1f19da4ccf03cea27e24c11180/packages/agent-runtime-pi/src/subagent.ts) with native Pi sessions. Common child `input.submit` now shares its message controller, with `steer` as the only supported policy. The current choice, implemented bridge, and remaining controls belong to the [subagent control note](../architecture/2026-10-18-agent-runtime-subagent-control.md). These extension capabilities are not guarantees of Pi's official example or core API.
+
+#### Relationship example
+
+Letter labels illustrate relationships; they are not native fields.
+
+```text
+Session S
+  prompt A -> model turn -> tools -> model turn -> answer
+                      ^ steer B
+  followUp C ----------------------------------> later work
+  allowed recovery, extension continuation, queued work finish -> agent_settled
+```
+
+An InputId needs actual admission evidence. Pi has no common persistent ExecutionId for an adapter to manufacture. RPC request IDs are not recoverable run IDs, and the eventual session entry ID need not exist when input is admitted.
+
+#### Admission and control evidence
+
+| Native behavior | Consequence for the public contract |
+| --- | --- |
+| `prompt`'s `preflightResult` distinguishes `started / queued / handled`; its comment describes an internal RPC hook | It can supply evidence for a pinned SDK adapter, subject to compatibility tests. Prompt promise completion cannot establish admission timing. |
+| Pi catches a failing extension command, emits an extension error, and still returns `handled` | `handled` identifies the handling path, not a successful outcome. Preserve the error separately; do not invent a successful execution. |
+| `started` is reported after preparation and before calling the inner `agent.prompt` | It proves dispatch toward execution, not model consumption or completion. |
+| `isIdle` may remain true during asynchronous commands or input handlers | An idle snapshot is neither an atomic admission condition nor proof that no submission is in flight. |
+| Direct `steer()` can enqueue while idle and does not recheck its target execution after an asynchronous input handler | It does not guarantee “affect only E1.” Reading busy before calling cannot repair that race. |
+| Native `abort()` waits for native idle but does not clear steer/follow-up queues; inputs still in preflight may finish handling later | Its receipt cannot claim all submitted inputs were cancelled. Preventing later work needs a host admission barrier and an explicit queue policy. |
+| A prompt submitted during `agent_settled` is deferred; its call may return before the deferred action executes | Settled is neither permanent idle nor that prompt's receipt. Wait for corresponding preflight evidence or report uncertainty. |
+| Native `dispose()` synchronously triggers cancellation and detachment without awaiting all execution cleanup | Its return is not completed shutdown; owned-resource shutdown needs separate coordination. |
+
+Sources: `prompt`, `_startRun`, `_tryExecuteExtensionCommand`, `_queueUserInput`, `_emitAgentSettled`, `abort`, and `dispose` in [AgentSession](https://github.com/earendil-works/pi/blob/8efd314fa3d3232ce197d8d7a6a5660530b9d83e/packages/coding-agent/src/core/agent-session.ts). These are native facts; Cherry's [session owner](../../../../packages/agent-runtime-pi/src/session.ts) additionally coordinates user stops and extension cleanup. The [runtime adapter](../../../../packages/agent-runtime-pi/src/runtime.ts) routes managed-child interruption through that owner; it must not bypass ownership by treating a child's native `abort()` as the full control contract.
+
+`SessionManager.open(path)` creates a new context for a missing path and can initialize an empty file. Public `open(existingRef)` cannot map directly to it. Verify the loaded native identity against the expected identity and refuse a mismatched open. An `existsSync` check alone leaves a check/load race. Strictly read-only opening also involves empty-file initialization; if required, improve native strict-open support rather than copy its session parser. [SessionManager](https://github.com/earendil-works/pi/blob/8efd314fa3d3232ce197d8d7a6a5660530b9d83e/packages/coding-agent/src/core/session-manager.ts)
+
+Unpatched 1.3.0 `PromptOptions` supplies no caller input-correlation token, while `_steeringMessages` and `_followUpMessages` retain text. Together with input transforms and batched consumption, this prevents a general input-to-output mapping based on text or ordering. This is source inspection of the pinned baseline; the later [P0 check](2026-10-17-agent-harness-evidence.md#p0-input-correlation-check--2026-10-19) covers Cherry's native correlation patch. The terminal-attribution check below completes the package-level P0 evidence in the [implementation plan](../architecture/2026-10-17-agent-runtime-contract.md#desktop-integration-implementation-plan), without claiming host integration. [Pi AgentSession source](https://github.com/earendil-works/pi/blob/8efd314fa3d3232ce197d8d7a6a5660530b9d83e/packages/coding-agent/src/core/agent-session.ts), [Cherry adapter](../../../../packages/agent-runtime-pi/src/runtime.ts)
+
+### DSH
+
+#### Native behavior
+
+Session retains append-only events; `seq` is a position within that session. `turn/start` / `turn/end` enclose a model-loop execution, while `step/start` / `step/end` enclose one model call and tool execution. Plugin events may occur outside turns. Log position, execution number, and tool `callId` are different identities. [Session](https://github.com/deepseek-ai/deepseek-harness/blob/1600d8a1e140dcde43a1a0941940a0480712c011/docs/subsystems/session.md)
+
+Agent `followup()` delivers to the next turn, `steer()` to the next step, and `inject()` adds later context without waking the driver. Inbox mutations are retained as log events with MessageId. Claiming an item removes it from the queue but does not prove model-history insertion. `cancel()` also clears pending input by default; retaining it requires an explicit option. [Agent API](https://github.com/deepseek-ai/deepseek-harness/blob/1600d8a1e140dcde43a1a0941940a0480712c011/packages/core/agent/README.md), [agent loop](https://github.com/deepseek-ai/deepseek-harness/blob/1600d8a1e140dcde43a1a0941940a0480712c011/packages/core/agent-loop/README.md)
+
+SubagentManager distinguishes local continued conversations from external one-shot executions. A local child has a persistent ThreadId and at most one live activation at a time; later activation may cold-resume it. `SubagentActivation` returns childId, optional messageId, result, and dispose, not a guaranteed separate persistent activationId. Dispose targets that activation and must not stop a later resumed one. External execution does not inherit local-child messaging support. [Subagent](https://github.com/deepseek-ai/deepseek-harness/blob/1600d8a1e140dcde43a1a0941940a0480712c011/docs/subsystems/subagent.md)
+
+#### Relationship example
+
+```text
+parent Session P / turn 7 / tool call K
+  -> child Session C / activation A / inbox message M
+       -> turn 1 -> step 1, step 2 -> turn/end
+       -> activation cleanup and result delivery
+  -> later message N to C -> new activation B -> later turn
+```
+
+Child session, activation, turn, and launching tool cannot be merged into one identity. A parent's result notification must also distinguish a message from the child from the manager's report that child execution ended, or history attributes the speaker incorrectly.
+
+With persistence mounted, DSH restores its log and inbox; without it, execution can remain in memory. Loop recovery closes turns left open by a crash. That is not exact resumption from any external tool side effect. [Persistence integration](https://github.com/deepseek-ai/deepseek-harness/blob/1600d8a1e140dcde43a1a0941940a0480712c011/packages/core/agent-loop/README.md#persistence-integration)
+
+### Pi Durable
+
+#### Native behavior
+
+Harness opens storage and schedules its work. Conversation is a transcript; Submission represents admitted input or a passive write; Task is a checkpointed execution state machine. ConversationId, SubmissionId, EntryId, and TaskId are distinct typed numeric identities and require a namespace across storage instances. [Concepts and lifecycle](https://github.com/earendil-works/pi/blob/8efd314fa3d3232ce197d8d7a6a5660530b9d83e/packages/durable/README.md), [storage types](https://github.com/earendil-works/pi/blob/8efd314fa3d3232ce197d8d7a6a5660530b9d83e/packages/durable/src/types.ts)
+
+Input Submission `queued → placed → done / unanswered` distinguishes queuing, transcript placement, answered completion, and unanswered termination. `placed` does not prove model consumption. `requestId` deduplicates within a conversation; it can locate the original Submission after restart while the record remains retained and accessible. Passive writes also have Submissions without necessarily starting a model.
+
+A run can contain several model turns and steer inputs. Experimental `watchEvents()` run snapshots, `run_start`, and `run_end` carry `inputs`, without a separate runId. Generation and tools have TaskIds, so an arbitrary generation TaskId cannot identify the whole run. [Event definitions](https://github.com/earendil-works/pi/blob/8efd314fa3d3232ce197d8d7a6a5660530b9d83e/packages/durable/src/harness/events.ts)
+
+Tasks may own child conversations or child tasks; generation, tools, and compaction also use Tasks. The foreground subagent example makes the tool task the child owner. The background example uses a background anchor task as owner and a reporter task to send the answer to the parent as a follow-up. Background status changes waiting and cancellation propagation, not child conversation identity. [Foreground example](https://github.com/earendil-works/pi/blob/8efd314fa3d3232ce197d8d7a6a5660530b9d83e/packages/durable/test/examples/22-subagent-foreground.ts), [background example](https://github.com/earendil-works/pi/blob/8efd314fa3d3232ce197d8d7a6a5660530b9d83e/packages/durable/test/examples/23-subagent-background.ts)
+
+#### Relationship example
+
+```text
+Conversation C
+  Submission A -> run { inputs: [A, B] } <- steer Submission B
+                    generation Task G1 -> tool Task T -> generation Task G2
+  follow-up Submission D -> next run
+
+background anchor Task H -> child Conversation C2
+reporter Task R waits for C2's Submission -> delivers result to C
+```
+
+`watch()` / `watchEvents()` connect a current snapshot to subsequent committed updates. Slow consumers may receive replacement snapshots; reconnecting is not replay from an old token cursor. A child needs its own Conversation subscription; the parent's watch does not automatically include every descendant. Durable scheduler recovery still depends on constraints such as tool replay safety. [Observation, tasks, and recovery](https://github.com/earendil-works/pi/blob/8efd314fa3d3232ce197d8d7a6a5660530b9d83e/packages/durable/README.md#watching-a-conversation)
+
+#### Transactions and scheduling evidence
+
+| Native behavior | Consequence for the public contract |
+| --- | --- |
+| `submit` checks requestId and busy state, creates the Submission, and queues or places it in one commit | Admission and native input identity have queryable evidence; survival across processes still depends on Storage. |
+| requestId deduplication is conversation-scoped; a repeated key of the same kind returns the original Submission even when content differs | Retries must preserve the original payload. Do not promise automatic content-conflict detection or acknowledge new text under a reused key. |
+| `whenBusy: reject` checks `live.run`, not all unfinished work; idle `steer` may start a run | State the busy scope. Strict idle-only, active-only, and a specified execution precondition are different guarantees. |
+| `submit` calls scheduler.resume before commit; Submission.wait, Conversation.waitForIdle, and Conversation.abort also resume | Waiting is not always passive; even rejected submission can wake existing work throughout the shared Harness scheduler. |
+| Submission.status, Conversation queries, and watch avoid those resume paths | Prefer these for observation. The base interface omits ambiguous `waitForIdle()`. |
+| Submission.abort atomically distinguishes queued, placed, and settled | Precise withdrawal can be an additional capability; withdrawing a placed input is not interruption of the entire conversation. |
+| View attachment serializes the initial snapshot with observer registration; queued watch updates may be replaced by a new snapshot | Snapshot/update handoff is supported, not full event-log replay. Public events must express replacement scope. |
+| watch.stop detaches and discards pending frames, but an already entered asynchronous listener may finish | Stopping observation does not imply the consumer's asynchronous persistence has flushed. |
+| Harness.open reconciles leftover Task state without executing tasks; Harness.close stops and joins calls without recording task cancellation outcomes | Opening is not purely read-only. Closing is a backend-resource operation; native recovery may later continue nonterminal tasks. |
+
+Sources: [Submissions](https://github.com/earendil-works/pi/blob/8efd314fa3d3232ce197d8d7a6a5660530b9d83e/packages/durable/src/harness/submissions.ts), [Harness](https://github.com/earendil-works/pi/blob/8efd314fa3d3232ce197d8d7a6a5660530b9d83e/packages/durable/src/harness/harness.ts), [Conversation view](https://github.com/earendil-works/pi/blob/8efd314fa3d3232ce197d8d7a6a5660530b9d83e/packages/durable/src/harness/view.ts), [observation queue](https://github.com/earendil-works/pi/blob/8efd314fa3d3232ce197d8d7a6a5660530b9d83e/packages/durable/src/session/observation.ts), [Session close](https://github.com/earendil-works/pi/blob/8efd314fa3d3232ce197d8d7a6a5660530b9d83e/packages/durable/src/session/session.ts). The upstream [Submission tests](https://github.com/earendil-works/pi/blob/8efd314fa3d3232ce197d8d7a6a5660530b9d83e/packages/durable/test/harness-submissions.test.ts) cover repeated requestId without content comparison, withdrawal stages, and cancellation while waiting; their presence is source evidence, not a claim they ran here.
+
+### Community orchestration sample: pi-durable-subagents
+
+Supplementary source inspection on 2026-10-19 uses `purboo/pi-durable-subagents@5ad9ee3bd47bc1d0d758dd285f2236e9c30e8cf2`, package **1.1.0**. This is a Pi extension/CLI with its own orchestrator, not `@earendil-works/pi-durable`. Its manifest does not depend on that package and pins development Pi dependencies to **1.0.2**; this does not establish compatibility with Cherry's 1.3.0. No plugin tests or installation were run here. [Manifest](https://github.com/purboo/pi-durable-subagents/blob/5ad9ee3bd47bc1d0d758dd285f2236e9c30e8cf2/package.json), [architecture and controls](https://github.com/purboo/pi-durable-subagents/blob/5ad9ee3bd47bc1d0d758dd285f2236e9c30e8cf2/README.md)
+
+The sample separates workflow ownership and durable journals from Pi child sessions and temporary display state. `steer`, `followup`, `notify`, and `answer` have different wake/continuation/interaction semantics. This supports keeping those operations distinct from `whenBusy`; it does not justify copying every workflow/generation/attempt identity into `agent-runtime`. Its recovery model also limits external tool guarantees: a crash can leave effects whose result was not durably recorded. The documented chaos results are upstream claims, not Cherry verification. [Control and recovery contract](https://github.com/purboo/pi-durable-subagents/blob/5ad9ee3bd47bc1d0d758dd285f2236e9c30e8cf2/README.md)
+
+Execution and UI capability checks are separate, although the package still declares a Pi TUI peer. Its `live.json` holds bounded, ephemeral response previews and is not read by the orchestrator; it is not a durable token replay log. The useful design evidence is the separation of execution, native history, and current view. Cherry retains its own controller and independent Main projections; reusing this plugin's internal execution code would need a separate supported-interface evaluation. [Capability checks](https://github.com/purboo/pi-durable-subagents/blob/5ad9ee3bd47bc1d0d758dd285f2236e9c30e8cf2/src/agent/capabilities.ts), [live preview](https://github.com/purboo/pi-durable-subagents/blob/5ad9ee3bd47bc1d0d758dd285f2236e9c30e8cf2/src/agent/child/live.ts)
+
+### Codex App Server
+
+#### Native behavior
+
+Thread is the independent execution context to map. This baseline also has shared `sessionId`, child `parentThreadId`, and fork `forkedFromId`: a shared session tree, delegation, and history branching are distinct relationships. Turn has its own ID, status, items, and error. [Thread and Turn types](https://github.com/openai/codex/blob/ce0323f2f2d3b25e82806cd555237da3db4e1897/codex-rs/app-server-protocol/src/protocol/v2/thread_data.rs)
+
+`turn/start` returns Turn, but this baseline can also add input to an active turn; its name alone does not prove a new execution. `turn/steer` requires matching `expectedTurnId` and returns the actual turnId. `turn/interrupt` carries both threadId and turnId. Input may carry `clientUserMessageId`, whose presence alone does not prove retry idempotency. [Turn API](https://github.com/openai/codex/blob/ce0323f2f2d3b25e82806cd555237da3db4e1897/codex-rs/app-server-protocol/src/protocol/v2/turn.rs)
+
+The queue API has separate `QueuedSubmission.id` and `clientUserMessageId`, and list, update, delete, reorder, and start operations. Queue item, user message, and execution remain distinct. Queue-service enablement, deduplication, and crash guarantees need separate verification. [Queue types](https://github.com/openai/codex/blob/ce0323f2f2d3b25e82806cd555237da3db4e1897/codex-rs/app-server-protocol/src/protocol/v2/thread.rs), [queue processor](https://github.com/openai/codex/blob/ce0323f2f2d3b25e82806cd555237da3db4e1897/codex-rs/app-server/src/request_processors/thread_queue_processor.rs)
+
+Streaming item notifications locate content by threadId, turnId, and itemId. `CollabAgentToolCall` identifies a delegation tool operation; senderThreadId and receiverThreadIds identify participants. It is neither the child Thread nor all its later Turns. Knowing a child's identity does not establish that the current host subscription receives all its output; verify delivery separately. [Items and collaboration types](https://github.com/openai/codex/blob/ce0323f2f2d3b25e82806cd555237da3db4e1897/codex-rs/app-server-protocol/src/protocol/v2/item.rs)
+
+#### Relationship example
+
+```text
+Thread P / Turn T1 / collab item K -> child Thread C
+                                       parentThreadId = P
+                                       Turn T2 -> items / deltas
+later collab operation K2 -> same Thread C -> later Turn T3
+```
+
+The public Thread should map to the native Thread, not mechanically to the field named `sessionId`. Public input, native user item, and Turn require associations; one input does not necessarily own one Turn. This is research for a possible adapter, not an implemented Codex adapter in this stack.
+
+### ACP agents by protocol version
+
+The [ACP v1 adapter note](../../implemented/architecture/2026-11-09-agent-runtime-acp-v1.md) records the 2026-11-09 protocol/SDK refresh, Claude/Gemini research, and adapter/native-loop verification. The section below retains its original pinned baseline; desktop acceptance remains outside the adapter evidence.
+
+#### v1
+
+`session/prompt` stays pending while the agent sends message and tool updates through `session/update`; its eventual response supplies stopReason. JSON-RPC request ID correlates the call without establishing a queryable persistent execution. Final updates may follow `session/cancel`; the prompt response confirms completion. [v1 prompt turn](https://github.com/agentclientprotocol/agent-client-protocol/blob/e7dac67ac64ec7cf69079b3bb6eff46a21e026b3/docs/protocol/v1/prompt-turn.mdx)
+
+```text
+session S / prompt request Q
+  -> session/update ... -> prompt response { stopReason }
+```
+
+#### v2 baseline, still draft as a whole
+
+A successful prompt response confirms insertion of the user message and returns an agent-generated messageId. Mere receipt, queuing, or ID allocation does not satisfy that condition. Insertion does not promise persistence or model consumption; retry after a lost response may insert another message. [v2 prompt lifecycle](https://github.com/agentclientprotocol/agent-client-protocol/blob/e7dac67ac64ec7cf69079b3bb6eff46a21e026b3/docs/protocol/v2/prompt-lifecycle.mdx)
+
+Foreground execution is described independently of the prompt request through `state_update` running, requires_action, and idle. Background activity can continue while idle and trigger new foreground work. This state is not an independently identified Run, and a reconnect snapshot is not a new execution start or end.
+
+Content IDs are scoped by session and entity kind: equal messageIds may identify an agent message and an agent thought separately. Projection cannot merge them by their string alone. Restoration replays retained history, without guaranteeing retention of every inserted message. [v2 identity rules](https://github.com/agentclientprotocol/agent-client-protocol/blob/e7dac67ac64ec7cf69079b3bb6eff46a21e026b3/docs/protocol/v2/prompt-lifecycle.mdx#entity-ids), [v2 session setup](https://github.com/agentclientprotocol/agent-client-protocol/blob/e7dac67ac64ec7cf69079b3bb6eff46a21e026b3/docs/protocol/v2/session-setup.mdx)
+
+```text
+session S / prompt request Q -> insert user message M -> response { messageId: M }
+foreground state and output update separately: running / requires_action -> idle
+background child or task may continue; later foreground work may start
+```
+
+The diagram states semantic relationships, not a required arrival order for running state, message updates, and prompt responses.
+
+#### Experimental subagent representation
+
+The Subagent RFD announces a child session through `subagent_update` on the parent session; child output is delivered automatically on the same connection under the child's sessionId. A child can receive repeated delegations, so the relationship is not one task or tool call. Control capabilities are declared separately. This is compatible with the source identity needed for lanes, but not a guarantee every ACP implementation provides. [Subagent Sessions RFD](https://github.com/agentclientprotocol/agent-client-protocol/blob/e7dac67ac64ec7cf69079b3bb6eff46a21e026b3/docs/rfds/subagents.mdx)
+
+### Subagent comparison and design consequences
+
+This 2026-10-19 source comparison uses the same pinned baselines and upstream examples. Subsequent package validation is recorded separately below; source inspection itself does not establish runtime or desktop acceptance. The [abstraction admission rule](../architecture/2026-10-17-agent-harness-boundaries.md#require-evidence-before-adding-a-public-abstraction) requires each proposed guarantee to survive these differences. The [subagent proposal](../architecture/2026-10-18-agent-runtime-subagent-control.md) owns the resulting design changes.
+
+| Sample and access | Identity and reuse | Control boundary |
+| --- | --- | --- |
+| Pi official example; Cherry's own extension | The official CLI example disables session saving. Cherry retains child session identity and distinguishes live-run messages from continuation with a new run counter. | Cherry's extension owns message/stop controls; the common child input bridge now uses that owner. The extension's richer controls are not core Pi guarantees. |
+| Pi Durable example extension | A background anchor owns a reusable conversation; reporters handle messages and their results. Several submissions can share one answer. | Conversation input/abort does not create reporters. Owner task, reporter, submission, and answer are different targets. |
+| DSH SubagentManager | Local children retain sessions across activations; external providers expose one execution without a local child session. | Local messaging can cold-resume; a live activation receipt cancels that activation. External continuation is unsupported by this integration, not necessarily by the underlying harness. |
+| Codex internal collaboration tools and App Server | Child Thread, native Turn, and collaboration tool item have different identities. | Internal messaging distinguishes queue-only from triggering a turn. Internal controls are not automatically host RPCs. |
+| ACP experimental subagent RFD | Announces a reusable parent/child session association. | An observable child need not accept client input; controls are separately declared. Parent-agent authority is not client authority. |
+
+#### Creation, continuation, and control evidence
+
+- **Pi:** [the official example](https://github.com/earendil-works/pi/blob/8efd314fa3d3232ce197d8d7a6a5660530b9d83e/packages/coding-agent/examples/extensions/subagent/index.ts) uses `--no-session`, subprocess signals, and parent-tool progress. Cherry's [message path](https://github.com/CherryHQ/cherry-studio/blob/46d76e46c03d1d1f19da4ccf03cea27e24c11180/packages/agent-runtime-pi/src/subagent.ts) queues into a live run or reopens the stored child and increments `run`. Its [relationship projection](../../../../packages/agent-runtime-pi/src/runtime.ts) now uses the native child ID within its parent, replacing the former trigger/child identity. It does not expose that run counter as an exact cancellation target.
+- **Pi Durable:** [the background example](https://github.com/earendil-works/pi/blob/8efd314fa3d3232ce197d8d7a6a5660530b9d83e/packages/durable/test/examples/23-subagent-background.ts) commits anchor, conversation, and reporter creation. Reporter phases save progress; request IDs deduplicate submissions and answer entry IDs deduplicate reports. [The foreground example](https://github.com/earendil-works/pi/blob/8efd314fa3d3232ce197d8d7a6a5660530b9d83e/packages/durable/test/examples/22-subagent-foreground.ts) uses the invoking tool task as owner. Cherry's [Durable projection](../../../../packages/agent-runtime-pi-durable/src/runtime.ts) discovers relationships from native ownership and identifies them by child conversation, not reporter-per-assignment identity.
+- **DSH:** [the service contract](https://github.com/deepseek-ai/deepseek-harness/blob/1600d8a1e140dcde43a1a0941940a0480712c011/packages/subagent/subagent/README.md) separates local continuation, external execution, and parent/caller delivery. In [the manager](https://github.com/deepseek-ai/deepseek-harness/blob/1600d8a1e140dcde43a1a0941940a0480712c011/packages/subagent/subagent/src/manager.ts), `receipt(activation)` closes over that activation for disposal. Caller delivery suppresses parent notices. Cleanup failure can reject disposal without replacing a captured successful result; result, cleanup, and parent delivery are separate facts.
+- **Codex:** internal [send_message](https://github.com/openai/codex/blob/ce0323f2f2d3b25e82806cd555237da3db4e1897/codex-rs/core/src/tools/handlers/multi_agents_v2/send_message.rs) and [followup_task](https://github.com/openai/codex/blob/ce0323f2f2d3b25e82806cd555237da3db4e1897/codex-rs/core/src/tools/handlers/multi_agents_v2/followup_task.rs) select `QueueOnly` and `TriggerTurn`; busy policy alone cannot express this difference. [Agent interruption](https://github.com/openai/codex/blob/ce0323f2f2d3b25e82806cd555237da3db4e1897/codex-rs/core/src/agent/control/interrupt.rs) targets the agent, not a supplied old assignment. The [App Server request surface](https://github.com/openai/codex/blob/ce0323f2f2d3b25e82806cd555237da3db4e1897/codex-rs/app-server-protocol/src/protocol/common.rs) is separate; `thread/start` alone does not establish native subagent ownership. Internal MultiAgentV2 and App Server v2 are different version axes.
+- **ACP:** the [experimental RFD](https://github.com/agentclientprotocol/agent-client-protocol/blob/e7dac67ac64ec7cf69079b3bb6eff46a21e026b3/docs/rfds/subagents.mdx) routes child output automatically and prohibits loading/resuming a child just to watch it. Historical capabilities do not grant current control authority. Observation access must attach to the existing source without inferring permission to prompt or wake it.
+
+#### Shared rules and remaining probes
+
+The common observation layer can describe evidence-backed relationships and available output sources. A relationship alone proves neither one assignment nor an exact cancellation target. Input and control remain capabilities of the actual access; preserve unknown outcomes when only relationship or current-activity evidence exists.
+
+Pi and Durable can share Cherry product policy through different native implementations. [Pi delivery](https://github.com/CherryHQ/cherry-studio/blob/46d76e46c03d1d1f19da4ccf03cea27e24c11180/packages/agent-runtime-pi/src/subagentDelivery.ts) suppresses automatic parent wake after a user stop until another run starts; the Durable example allows a report arriving after the stop to wake the parent. An in-memory completion callback also cannot replace Durable's committed reporter state. Share pure validation or formatting only when equivalent consumers exist; moving the Pi controller into the common package would not resolve these differences.
+
+The following scenarios distinguish the required controls. The validation section below records the implemented subset; the table is not a claim that every scenario passes:
+
+| Scenario | Required distinction |
+| --- | --- |
+| One-shot work with no public child context | Keep relationship/result evidence without inventing a reopenable `Thread`. |
+| Restricted child observation and reconnection | Receive output without prompting, waking, or granting stale input/cancel authority. |
+| Message a running child, then reuse it after completion | Preserve context identity; distinguish steering from later work without assigning every message a new task. |
+| Old cancellation handle invoked after later work starts | An exact control leaves later work untouched; session-level stop does not pass as exact cancellation. |
+| Several submissions share an answer; a reporter replays after restart | Keep native attribution and avoid duplicate parent reports. Recovery coverage must actually restart the execution owner. |
+| Parent stops while child work or a report is pending | Verify foreground/background scope and Cherry's wake policy separately from input acceptance. |
+| Child creation succeeds but an admission/result receipt is lost | Preserve known child identity and uncertain input outcome; do not blindly create a second child. |
+| Host-owned child uses another harness | Route through its own runtime; the host owns the relationship and reporting without rewriting native ownership. |
+
+### Cherry and OAR integration comparison
+
+Host coordination remains necessary. The structural issue is that execution and presentation share too many identities and lifetimes, not merely a large service or two histories.
+
+| Existing desktop seam | Source structure | Design constraint |
+| --- | --- | --- |
+| Native sessions hidden behind connections | Public operations revolve around connect, send, redirect, and close; the Pi connection calls SessionManager.open/create internally | Separate native context identity, access handle, transport connection, and running resources; an opaque token alone must not define recovery semantics. |
+| Presentation turns mixed with native execution | startContinuationTurn creates a new assistant row and turnId after steer without sending a new request to the harness | Presentation segmentation may change; execution identity changes only with a real execution boundary. |
+| Input scheduling spans owners | The host queue decides when to send; redirect receipts and events decide later turns; the harness also schedules input | Confirm receipt, delivery, queuing, and context placement separately; one owner makes each scheduling decision. |
+| Child output depends on parent messages | Background flow uses rootToolCallId to find a parent-message anchor and choose the current stream or background accumulator; output without an anchor is ignored | Organize child content by its own source; retain parent tools and messages as relationships. |
+
+Sources: [desktop connection and events](../../../../src/main/ai/runtime/types.ts), [Pi creation and restoration](../../../../src/main/ai/runtime/pi/PiRuntimeConnection.ts), [host turns and background output](../../../../src/main/ai/agentSession/AgentSessionRuntimeService.ts). These are static structural findings, not reproductions of every possible race. The [desktop Pi README](../../../../src/main/ai/runtime/pi/README.md) confirms that the new package is not yet used by the existing connection.
+
+Opaque resume tokens, host input queues, and presentation history can all exist. Their existence is not the defect; unclear evidence, ownership, and competition with native state are. Product-session message delivery likewise does not establish subagent ownership; the [subagent control note](../architecture/2026-10-18-agent-runtime-subagent-control.md) records that distinction.
+
+At OAR baseline `141921ea5a818bd8b0a1c0c1e17a2593898dbefe`, `packages/oar/src/runtimes/pi-durable/session.ts` resumes on open and folds some Submission outcomes into turn_ended. Cherry's current adapter separates access from explicit resume and does not impose a universal Turn. OAR's steer-state precheck alone cannot prove admission still targets the same execution. This is guarantee-boundary analysis, not a reproduced user failure.
+
+### Verification records and remaining acceptance
+
+#### Historical execution: Pi 1.2.0 offline probe
+
+The original research records `node .context/harness-research/pi-probe.mjs` exiting 0. The script and JSON remain workspace research attachments under `.context/harness-research/`, not distributed regression tests. The retained JSON explicitly identifies `packageVersion: "1.2.0"`. Reading it during this migration is not a new execution.
+
+| Pi 1.2.0 probe | Recorded result |
+| --- | --- |
+| Can a failing local command look successful? | Prompt resolves, preflight reports handled, an extension error appears, and there are no messages; handling path and outcome must be separate. |
+| Does idle steer start execution, and does abort retract it? | Idle stays true and the queue retains the same text after abort. |
+| Are idle / abort an admission barrier while an input hook waits? | Idle is true; abort returns first; handled arrives only after releasing the hook. |
+| Does opening a missing path strictly fail? | It returns an empty context with a new sessionId; native open cannot directly implement public open. |
+
+These probes covered no model stream, extension subagent, network failure, crash, or real tool side effect. They cannot establish full adapter compatibility.
+
+#### Existing adapter tests and historical validation scope
+
+The predecessor document records passing initial adapter validation with native Pi, offline AI SDK models, and Durable's faux provider, MemoryStorage, and Node SQLite. It records no complete command transcript or exact-head mapping for that whole validation, so it remains historical evidence. The current files below preserve executable regression coverage; the dated implementation check that follows identifies the subset rerun for the subagent input change.
+
+| Current regression source | Behavior covered by its tests |
+| --- | --- |
+| [Common observation](../../../../packages/agent-runtime/tests/observation.test.ts) | Slow-consumer isolation; bounded overflow followed by gap and snapshot; snapshot first; stopping without waiting for an entered consumer; exception and mutation isolation; replacement order; asynchronous dispatch and reentrant order; stable relationships with optional child access. |
+| [Pi adapter](../../../../packages/agent-runtime-pi/tests/runtime.test.ts) | Shared content identities across accesses; streaming and release isolation; native busy rejection; command preflight and queued follow-up; rejection of a wrong native identity; orderly native file close and reopen; owner-routed child continuation and live steering; stable relationships and observation through child rebinding; one native parent notification; shutdown joining child admission. |
+| [Pi native session](../../../../packages/agent-runtime-pi/tests/nativeSession.test.ts) | Native provider execution and caller ownership of the borrowed model runtime, independent of Cherry's AI SDK bridge. |
+| [Pi Durable adapter](../../../../packages/agent-runtime-pi-durable/tests/runtime.test.ts) | Current views and input completion; busy rejection, deduplication, conversation-scoped withdrawal; admission receipts surviving later status-read failure; independent owned-child observation and continued input after parent release; stable relationships and unchanged parent output; orderly SQLite close/reopen; passive observation/query followed by explicit resume. |
+| Native behavior tests under `packages/agent-runtime-pi/tests/` | Native history, tools, compaction, goals, foreground/background subagents, continuation, and result delivery, using native test providers. The [subagent stop tests](https://github.com/CherryHQ/cherry-studio/blob/46d76e46c03d1d1f19da4ccf03cea27e24c11180/packages/agent-runtime-pi/tests/subagentStop.test.ts) also exercise child-thread interruption through the owning controller. |
+| [Cherry gateway integration](../../../../src/main/ai/runtime/pi/gatewayIntegration.test.ts) | Real gateway execution, provider selection, request options, cancellation, and SQLite billing against a loopback upstream. |
+| [Validation selection](../../../../scripts/__tests__/validationPlan.test.ts), [validation workflow](../../../../scripts/__tests__/validationWorkflow.test.ts) | Packages enter affected selection; changes to the common package include both adapters' consumer checks. |
+
+Client tool validation belongs to the executing harness. The gateway preserves object arguments and call identity even when schema validation fails, so the harness can return an error and the model can correct it. Rejecting every validation error breaks that loop; replacing null or unparseable arguments with `{}` can execute a different call. The gateway rejects non-object error inputs instead. `toolInputRecovery.test.ts` exercises both outcomes through the wire converters and a native Pi loop; its shared fixture lives in `tests/helpers/piGateway.ts`, outside production runtime code.
+
+The [Pi integration README](../../../../src/main/ai/runtime/pi/README.md) separates native package tests, gateway integration, and desktop connection ownership tests. These do not establish live-provider acceptance, the complete upstream SDK test suite, or Electron acceptance. Test files and historical passes must not be used as substitutes for those boundaries.
+
+#### Subagent input implementation check — 2026-10-19
+
+The relationship/input change was validated in the worktree based on `b362acfbeb1959059a7f1acfe68b359bc145d2c7`. This explicit selection passed 11 files / 88 tests:
+
+```sh
+pnpm exec vitest run \
+  packages/agent-runtime/tests/observation.test.ts \
+  packages/agent-runtime-pi/tests/runtime.test.ts \
+  packages/agent-runtime-pi/tests/nativeSession.test.ts \
+  packages/agent-runtime-pi/tests/subagentDelivery.test.ts \
+  packages/agent-runtime-pi-durable/tests/runtime.test.ts \
+  src/main/ai/runtime/pi/aiSdkRuntime.test.ts \
+  src/main/ai/runtime/pi/aiSdkSubagentMessage.test.ts \
+  src/main/ai/runtime/pi/aiSdkSubagentContinue.test.ts \
+  src/main/ai/runtime/pi/aiSdkSubagentStop.test.ts \
+  src/main/ai/runtime/pi/aiSdkSubagentDelivery.test.ts \
+  src/main/ai/runtime/pi/aiSdkGoalSubagents.test.ts
+```
+
+The three package typechecks and `pnpm typecheck:node` also passed. New adapter cases exercise real native loops with deterministic providers through public `open`, `observe`, and `input.submit`. Pi continuation retains its new run's once-only native report; Durable direct child input creates no reporter. These checks do not cover crash recovery, the full bridge suite, live providers, or desktop wiring.
+
+#### P0 input correlation check — 2026-10-19
+
+This check uses Cherry's worktree based on `b362acfbeb1959059a7f1acfe68b359bc145d2c7` and local Pi source changes over `8efd314fa3d3232ce197d8d7a6a5660530b9d83e`. Cherry carries the matching compiled code and declarations in its [Pi 1.3.0 dependency patch](https://github.com/CherryHQ/cherry-studio/blob/6f735510966678ca32940300197e5e6fa9001e4c/patches/@earendil-works__pi-coding-agent@1.3.0.patch). This is local implementation evidence, not an upstream release or a submitted upstream change.
+
+Native prompts, steering, follow-ups, and custom messages accept an opaque `inputId`. Pi retains message identity through transforms and queues, then emits `input_placed` with the actual native entry ID after append. Local input handling emits `input_handled`; a caught command failure includes its error. The adapter merges those facts with later receipts. Child continuation and live inbox messages use the same owner path and preserve its once-only parent report. No token is inserted into model text or the persisted transcript; placement is not a file-flush or execution-completion guarantee.
+
+In the linked Pi checkout, the following selection passed **5 files / 73 tests**. The new correlation suite covers identical transformed inputs, batched steering, follow-up order, cleared and untagged input, deferred prompts, local command failure, and custom message placement. Existing queue, prompt, and settling suites protect native behavior.
+
+```sh
+cd packages/coding-agent
+node ../../node_modules/vitest/dist/cli.js --run \
+  test/suite/agent-session-input-correlation.test.ts \
+  test/suite/agent-session-queue.test.ts \
+  test/suite/agent-session-prompt.test.ts \
+  test/suite/agent-session-boundaries.test.ts \
+  test/suite/regressions/6363-agent-settled-event.test.ts
+```
+
+In Cherry, the following selection passed **12 files / 103 tests**: 13 package cases and 90 affected bridge cases. Adapter assertions verify exact native entry associations, late receipt merging, owner-managed child continuation, and absence of fabricated successful outcomes on abort, provider error, or output truncation.
+
+```sh
+pnpm test:agent-runtime-pi \
+  packages/agent-runtime-pi/tests/runtime.test.ts \
+  packages/agent-runtime-pi/tests/nativeSession.test.ts \
+  packages/agent-runtime-pi/tests/subagentDelivery.test.ts
+pnpm test:main \
+  src/main/ai/runtime/pi/aiSdkRuntime.test.ts \
+  src/main/ai/runtime/pi/aiSdkSession.test.ts \
+  src/main/ai/runtime/pi/aiSdkSubagentMessage.test.ts \
+  src/main/ai/runtime/pi/aiSdkSubagentContinue.test.ts \
+  src/main/ai/runtime/pi/aiSdkSubagentDelivery.test.ts \
+  src/main/ai/runtime/pi/aiSdkSubagentStop.test.ts \
+  src/main/ai/runtime/pi/aiSdkSubagentBackground.test.ts \
+  src/main/ai/runtime/pi/aiSdkSubagentRebuild.test.ts \
+  src/main/ai/runtime/pi/aiSdkGoalSubagents.test.ts
+```
+
+The Pi checkout's `npm run check`, Cherry's Pi package typecheck/build, and `pnpm typecheck:node --incremental false` passed. These are deterministic native/local-provider tests. They do not complete P0's model terminal mapping, persist host input associations, or establish desktop, live-provider, or crash-recovery acceptance.
+
+#### P0 terminal attribution check — 2026-10-20
+
+The existing Pi 1.3.0 dependency patch now emits `input_settled`: native request preparation captures unanswered placed inputs, and a final reply or terminal settlement reports their actual assistant entry. Tool/boundary continuations and native retries retain the batch. The adapter forwards typed stop/abort evidence and exposes optional `InputState.response`; multiple inputs can share it. Queued input remains unresolved until it is actually placed and attributed. This patch update is validated through Cherry's public adapter; it is not an upstream release or a new source-test run in the linked Pi checkout.
+
+Durable supplies the same association through `SubmissionRecord.answer`. Inspection and the new real-Harness regression show that native `done` includes truncated answers, so the adapter reads the referenced assistant before mapping outcome. Normal final answers become `completed`, truncation becomes `unanswered` with `output-truncated`, and known failure/abort evidence remains distinct. Passive reads do not resume the scheduler. Responses follow current-view identity rules; host restart correlation is still a P1 responsibility.
+
+Verification passed for **15 selected files / 158 tests**: 54 Pi package tests, 8 Durable adapter tests, 6 common observation tests, and the 90 main-process bridge tests selected in the preceding P0 check. New assertions cover transformed/batched steering, shared answers after tools in both harnesses, retry without premature failure, abort versus undelivered input, truncation, no final answer, later follow-up failure, native entry availability before terminal events, recoverable status-read failure without losing input correlation, and owned-child continuation. The initial regression run failed on the missing terminal/response facts before the implementation.
+
+```sh
+pnpm --filter @cherrystudio/agent-runtime-pi exec vitest run \
+  tests/runtime.test.ts tests/nativeSession.test.ts tests/subagentDelivery.test.ts tests/goalState.test.ts
+pnpm --filter @cherrystudio/agent-runtime-pi-durable exec vitest run tests/runtime.test.ts
+pnpm --filter @cherrystudio/agent-runtime exec vitest run tests/observation.test.ts
+```
+
+All three package typechecks, `pnpm typecheck:node --incremental false`, and changed-file Oxlint/ESLint passed. Package builds ran during the dependency patch installation. This establishes P0's package-level AC2/AC7 evidence, not desktop rendering, host persistence, live-provider, or process-crash acceptance. Notes remain proposed through the later integration layers.
+
+#### Remaining gaps
+
+- **Product integration:** AgentSessionRuntimeService, lanes, presentation projection storage, IPC, and multi-window consumers have not migrated to the new adapters. UI behavior after a parent message finishes still needs application acceptance.
+- **Identity and coverage:** Pi content identity belongs to the current source; rebind and compaction reset it. Durable history uses native entry IDs; live-preview to retained-entry association does not promise seamless `replaces`, and uses gap plus replacement snapshot. Presentation archives are not native contexts to import back.
+- **Recovery:** SQLite coverage is orderly close/reopen, not process crash, external tool effects, or realistic simultaneous recovery of multiple Conversations. Exactly-once tool execution is not promised.
+- **Control scope:** Pi common child input uses its owner and supports only `steer`; finished-child continuation needs the native loader and remains subject to user-stop refusal. Child interrupt is not exact assignment cancellation. Durable uses ordinary native abort scope; background subtrees, queued writes, task orphaning, reporter recovery, and Cherry's parent-stop reporting policy still need focused acceptance. Continued conversation coverage does not establish unified spawn/cancel or cross-harness orchestration.
+- **Protocol scope:** The common text/reasoning protocol omits images. Pi intermediate tool execution output and Durable nested-tool progress are not projected; Durable does project retained live tool output. History pagination, exact Execution control, Interaction, and unified spawn/cancel are outside implemented v0.
+- **Input boundaries:** Full SDK-upgrade probes, storage-failure matrices, and durable host delivery records after callers stop waiting remain gaps. The Pi bridge has settle-time coordination tests, but they do not replace focused coverage for every common-handle admission/reentry path. Do not infer missing facts from a promise or idle snapshot.
+
+Unsupported or unknown can be legitimate results, but neither passes acceptance for a stronger guarantee. Package READMEs and the runtime contract retain these limits; test totals are not a substitute for explaining them.
+
+## Alternatives considered
+
+- Unify by names such as session, turn, and task: rejected because the samples give those names different identity scopes, boundaries, and persistence guarantees.
+- Treat source inspection or historical passes as current compatibility: rejected because version, adapter path, storage, and environment determine which claim was actually tested.
+- Add a common queue or scheduler to fill every native gap: rejected because it introduces competing ownership and can conceal unsupported controls; preserve native evidence and explicit limitations.
+- Require every harness to expose the richest child's conversation and cancellation behavior: rejected because one-shot tasks and observation-only children remain valid; the separate control proposal defines optional abilities.
+- Declare the adapter complete once offline tests pass: rejected because production wiring, UI projection, real providers, crash behavior, and side effects require their own acceptance.
+
+### Native gateway transition
+
+The host now registers Pi's native providers against the internal gateway. `gateway*.test.ts` uses HTTP fixtures with the production gateway converters; the old `aiSdk*.test.ts` command logs above remain historical. The affected Main scope passed 39 test files / 659 cases, and the two native Pi package files passed 15 cases. `gatewayIntegration.test.ts` exercises real gateway execution, provider resolution, reasoning selection, cancellation and SQLite billing against a loopback upstream. These checks do not establish live-provider or Electron acceptance. Desktop root wiring is present; independent child projection and Durable desktop integration remain separate work.
+
+## Acceptance criteria
+
+- AC1 — Each public guarantee is traceable to a named sample, pinned source or executed test, and an explicit evidence level; historical versions remain identifiable. (verification: docs gate — runtime contract and evidence-note maintainers)
+- AC2 — Existing Pi and Durable adapter paths demonstrate input receipts, observation continuity and gaps, access release isolation, and native identity checks without a second scheduler. (verification: unit — common-runtime and adapter test owners, using explicit affected test paths)
+- AC3 — Control verification distinguishes managed-child input restrictions, owner-routed Pi interruption, Durable scheduler activation, and native cancellation scope without claiming unified spawn/cancel is implemented. (verification: unit — Pi and Durable adapter owners)
+- AC4 — Persistence evidence identifies orderly reopen separately from crash recovery and external effects; a stronger recovery claim includes a dedicated scenario that actually exercises it. (verification: unit — adapter storage and recovery test owners)
+- AC5 — Before declaring desktop integration complete, the real application demonstrates independent child output after parent completion, the intended input/control paths, and consumer reconnection without confusing host presentation with native execution. (verification: Electron — desktop runtime and projection owners)
+
+AC1 is a documentation constraint; AC2–AC4 require evidence on the implementation revision being accepted. AC5 remains pending for independent child projection and Durable desktop wiring. This proposed note does not imply the entire stack meets those criteria.
+
+## Risks
+
+- Pinned research can drift from later upstream releases. Retain the original claim and version, then add evidence for the new version instead of relabeling old results.
+- Internal Pi preflight hooks and experimental Durable/ACP observation surfaces may change; compatibility coverage must guard the adapter's actual usage.
+- A normal reopen test can hide crash, replay, and tool-side-effect hazards. Explicitly limit conclusions until those scenarios are exercised.
+- Discoverable children or available input methods can be mistaken for ownership or parent-result delivery. Keep those behaviors under their native or orchestration owner.
+- Current-view replacement and mapping resets can be mistaken for complete history or token replay. Consumers must honor coverage and gap semantics.

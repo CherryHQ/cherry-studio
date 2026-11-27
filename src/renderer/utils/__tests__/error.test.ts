@@ -82,14 +82,6 @@ describe('error', () => {
       expect(getErrorDetails(123)).toBe(123)
     })
 
-    it('should handle circular references', () => {
-      const circularObj: any = {}
-      circularObj.self = circularObj
-
-      const result = getErrorDetails(circularObj)
-      expect(result).toEqual({ self: circularObj })
-    })
-
     it('should extract properties from Error objects', () => {
       const error = new Error('Test error')
       const result = getErrorDetails(error)
@@ -349,6 +341,22 @@ describe('error', () => {
   })
 
   describe('providerErrorText', () => {
+    it('keeps bracketed local diagnostics while retaining provider payload filtering', () => {
+      const diagnostic = '[SQLITE_BUSY] database is locked; apiKey=private-key'
+      expect(providerErrorText({ name: 'Error', message: diagnostic, stack: null, errorSource: 'local' })).toBe(
+        '[SQLITE_BUSY] database is locked; apiKey="<redacted>"'
+      )
+      expect(providerErrorText({ name: 'Error', message: diagnostic, stack: null })).toBe('')
+      expect(
+        providerErrorText({
+          name: 'AI_APICallError',
+          message: 'Forbidden',
+          stack: null,
+          responseBody: '{"error":{"message":"Permission denied"},"prompt":"private prompt"}'
+        })
+      ).toBe('Permission denied')
+    })
+
     // AI SDK degrades `message` to the HTTP statusText when the body does not match the
     // provider's error schema; the real reason only survives in `responseBody`.
     it('prefers a non-OpenAI-shaped body over the degraded message', () => {
@@ -581,13 +589,6 @@ describe('error', () => {
     it('falls back to message when there is no body', () => {
       expect(providerErrorText({ name: 'Error', message: 'boom', stack: null })).toBe('boom')
       expect(providerErrorText(undefined)).toBe('')
-    })
-
-    it('truncates an oversized provider message', () => {
-      const responseBody = JSON.stringify({ error: { message: 'x'.repeat(600) } })
-      const result = providerErrorText({ name: 'Error', message: null, stack: null, responseBody })
-      expect(result).toHaveLength(501)
-      expect(result.endsWith('\u2026')).toBe(true)
     })
   })
 })

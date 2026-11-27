@@ -10,7 +10,7 @@ import {
   DropdownMenuTrigger,
   EmptyState,
   PageHeader,
-  Scrollbar
+  ScrollArea
 } from '@cherrystudio/ui'
 import { dataApiService } from '@data/DataApiService'
 import { useInfiniteFlatItems, useInfiniteQuery, useQuery } from '@data/hooks/useDataApi'
@@ -23,6 +23,7 @@ import { ImagePreviewService } from '@renderer/services/ImagePreviewService'
 import { popup } from '@renderer/services/popup'
 import { showRecycleBinBatchUndo } from '@renderer/services/recycleBinFeedback'
 import { toast } from '@renderer/services/toast'
+import { formatFileSize } from '@renderer/utils/file'
 import { normalizeFilePreviewPath } from '@renderer/utils/filePreview'
 import { isMac } from '@renderer/utils/platform'
 import { createSidebarShortcutTarget, SIDEBAR_SHORTCUT_PROVIDER_IDS } from '@renderer/utils/sidebar'
@@ -32,14 +33,14 @@ import type { AbsoluteFilePath, FileType } from '@shared/types/file'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { createFileEntryHandle, getFileTypeByExt, toSafeFileUrl } from '@shared/utils/file'
 
-import type { FileContextMenuActions } from './FileContextMenu'
+import { FileContextMenu, type FileContextMenuActions } from './FileContextMenu'
 import type { FileItem } from './fileDisplay'
-import { formatFileSize } from './fileDisplay'
 import { FileGrid } from './FileGrid'
 import type { SortDir, SortKey } from './FileList'
 import { FileList, FileListHeader } from './FileList'
 import type { SidebarFilter } from './FileSidebar'
 import { FileSidebar } from './FileSidebar'
+import { useFileHydration } from './useFileHydration'
 
 const logger = loggerService.withContext('FilesPage')
 const FILES_PAGE_LIMIT = 100
@@ -49,20 +50,15 @@ type FileMetadataById = OutputFor<'file.batch_get_metadata'>
 type PhysicalPathById = OutputFor<'file.batch_get_physical_paths'>
 type DanglingStateById = OutputFor<'file.batch_get_dangling_states'>
 type BatchCreateInternalEntriesResult = OutputFor<'file.batch_create_internal_entries'>
-type FileBatchRoute = 'file.batch_get_metadata' | 'file.batch_get_physical_paths' | 'file.batch_get_dangling_states'
 
 interface EmbeddedFilePreview {
+  id: string
+  origin: 'internal' | 'external'
   fileName: string
   filePath: AbsoluteFilePath
   refreshKey: number
 }
 
-// Renderer-side chunk size for splitting large id lists into multiple IPC calls.
-// This is a batching knob, not the schema cap itself; it only needs to stay at
-// or below the per-request limit enforced by the shared file IPC schemas.
-// Renderer intentionally avoids importing the schema registry here because
-// schemas are main/preload IPC runtime contracts, not renderer dependencies.
-const FILE_IPC_BATCH_SIZE = 500
 // Keep at or below `FILE_IPC_MAX_BATCH_CREATE_ITEMS` from the IPC schema.
 const FILE_IPC_CREATE_BATCH_SIZE = 100
 const FILE_DETAIL_LOOKUP_CONCURRENCY = 8
@@ -88,33 +84,6 @@ async function inspectFailedFileIds(
     )
   }
   return { activeInternalIds, trashedInternalIds }
-}
-
-async function requestBatchedFileRecords<Route extends FileBatchRoute>(
-  route: Route,
-  ids: readonly FileEntryId[]
-): Promise<OutputFor<Route>> {
-  if (ids.length === 0) return {} as OutputFor<Route>
-
-  const chunks: FileEntryId[][] = []
-  for (let i = 0; i < ids.length; i += FILE_IPC_BATCH_SIZE) {
-    chunks.push(ids.slice(i, i + FILE_IPC_BATCH_SIZE))
-  }
-  const results = await Promise.all(
-    chunks.map((chunk) => {
-      switch (route) {
-        case 'file.batch_get_metadata':
-          return ipcApi.request('file.batch_get_metadata', {
-            items: chunk.map((id) => ({ key: id, handle: { kind: 'entry' as const, entryId: id } }))
-          })
-        case 'file.batch_get_physical_paths':
-          return ipcApi.request('file.batch_get_physical_paths', { ids: chunk })
-        case 'file.batch_get_dangling_states':
-          return ipcApi.request('file.batch_get_dangling_states', { ids: chunk })
-      }
-    })
-  )
-  return Object.assign({}, ...results) as OutputFor<Route>
 }
 
 async function requestBatchedInternalEntryCreates(
@@ -192,6 +161,7 @@ function toFileItem(
   const createdAt = metadata?.createdAt ?? entry.createdAt
   const updatedAt = metadata?.modifiedAt ?? entry.updatedAt
   const physicalPath = physicalPathById[entry.id]
+  const sourcePath = (entry.origin === 'external' ? entry.externalPath : physicalPath) ?? undefined
   const danglingState = entry.origin === 'external' ? danglingStateById[entry.id] : undefined
   const isMissing = danglingState === 'missing'
 
@@ -205,16 +175,18 @@ function toFileItem(
     updatedAt: formatDateTime(updatedAt),
     trashed: entry.origin === 'internal' && entry.deletedAt !== undefined,
     danglingState,
-    isMissing
+    isMissing,
+    ...(sourcePath ? { sourcePath } : {})
   }
   const originFields = entry.origin === 'external' ? { origin: 'external' as const } : { origin: 'internal' as const }
 
   if (type === 'image') {
+    const imagePath = entry.origin === 'external' ? entry.externalPath : physicalPath
     return {
       ...base,
       ...originFields,
       type,
-      previewUrl: physicalPath ? toSafeFileUrl(physicalPath, entry.ext) : undefined
+      previewUrl: imagePath ? toSafeFileUrl(imagePath, entry.ext) : undefined
     }
   }
 
@@ -309,9 +281,6 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
     },
     [entryId]
   )
-  const [metadataById, setMetadataById] = useState<FileMetadataById>({})
-  const [physicalPathById, setPhysicalPathById] = useState<PhysicalPathById>({})
-  const [danglingStateById, setDanglingStateById] = useState<DanglingStateById>({})
   const [filter, setFilter] = useState<SidebarFilter>({ kind: 'library', value: 'all' })
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const selectionAnchorIdRef = useRef<string | null>(null)
@@ -389,39 +358,12 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
     if (fileStatsError) logger.error('Failed to load file stats', fileStatsError)
   }, [fileStatsError])
 
-  useEffect(() => {
-    if (displayEntries.length === 0) {
-      if (isFilesLoading || isFilesRefreshing) return
-      setMetadataById((prev) => (Object.keys(prev).length === 0 ? prev : {}))
-      setPhysicalPathById((prev) => (Object.keys(prev).length === 0 ? prev : {}))
-      setDanglingStateById((prev) => (Object.keys(prev).length === 0 ? prev : {}))
-      return
-    }
-
-    let cancelled = false
-    const ids = displayEntries.map((entry) => entry.id)
-    const imageIds = displayEntries
-      .filter((entry) => getFileTypeByExt(entry.ext ?? '') === 'image')
-      .map((entry) => entry.id)
-    void Promise.all([
-      requestBatchedFileRecords('file.batch_get_metadata', ids),
-      requestBatchedFileRecords('file.batch_get_physical_paths', imageIds),
-      requestBatchedFileRecords('file.batch_get_dangling_states', ids)
-    ])
-      .then(([metadata, physicalPaths, danglingStates]) => {
-        if (cancelled) return
-        setMetadataById(metadata)
-        setPhysicalPathById(physicalPaths)
-        setDanglingStateById(danglingStates)
-      })
-      .catch((error) => {
-        if (!cancelled) logger.error('Failed to load file IPC metadata', error as Error)
-      })
-
-    return () => {
-      cancelled = true
-    }
-  }, [displayEntries, isFilesLoading, isFilesRefreshing])
+  const {
+    metadataById,
+    physicalPathById,
+    danglingStateById,
+    refresh: refreshFileHydration
+  } = useFileHydration(activeFilePages, activeFileType)
 
   const files = useMemo(() => {
     return displayEntries.map((entry) => toFileItem(entry, metadataById, physicalPathById, danglingStateById))
@@ -429,8 +371,8 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
 
   const refetchFiles = useCallback(async () => {
     resetActiveFiles()
-    await Promise.all([refreshActiveFiles(), refetchFileStats()])
-  }, [refetchFileStats, refreshActiveFiles, resetActiveFiles])
+    await Promise.all([refreshFileHydration(), refreshActiveFiles(), refetchFileStats()])
+  }, [refreshFileHydration, refetchFileStats, refreshActiveFiles, resetActiveFiles])
 
   const isImageGrid = filter.kind === 'type' && filter.value === 'image'
   const activeFilterLabel =
@@ -489,7 +431,8 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
 
       const requestRef = file.type === 'image' ? imageRequestTokenRef : openRequestTokenRef
       const requestToken = file.type === 'image' ? imageRequestToken : ++openRequestTokenRef.current
-      void requestBatchedFileRecords('file.batch_get_physical_paths', [file.id])
+      void ipcApi
+        .request('file.batch_get_physical_paths', { ids: [file.id] })
         .then((physicalPaths) => {
           if (requestRef.current !== requestToken) return
           const filePath = physicalPaths[file.id]
@@ -504,6 +447,8 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
             return
           }
           setEmbeddedPreview((current) => ({
+            id: file.id,
+            origin: file.origin,
             fileName: file.name,
             filePath: normalizedPath,
             refreshKey: current?.filePath === normalizedPath ? current.refreshKey + 1 : 0
@@ -528,13 +473,15 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
 
     void Promise.all([
       dataApiService.get(`/files/entries/${entryId}`),
-      requestBatchedFileRecords('file.batch_get_physical_paths', [entryId])
+      ipcApi.request('file.batch_get_physical_paths', { ids: [entryId] })
     ])
       .then(([entry, physicalPaths]) => {
         if (openRequestTokenRef.current !== requestToken) return
         const filePath = physicalPaths[entry.id]
         if (!filePath) throw new Error(`Physical path is unavailable for file ${entry.id}`)
         setEmbeddedPreview({
+          id: entry.id,
+          origin: entry.origin,
           fileName: displayNameOf(entry),
           filePath: normalizeFilePreviewPath(filePath),
           refreshKey: 0
@@ -564,6 +511,19 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
       logger.error('Failed to show file in folder', error as Error)
     })
   }, [])
+
+  const handleCopyPreviewPath = useCallback(
+    async (path: string) => {
+      try {
+        await navigator.clipboard.writeText(path)
+        toast.success(t('common.copied'))
+      } catch (error) {
+        logger.error('Failed to copy file path', error as Error)
+        toast.error(t('common.copy_failed'))
+      }
+    },
+    [t]
+  )
 
   const handleImportPaths = useCallback(
     async (paths: AbsoluteFilePath[]) => {
@@ -874,6 +834,51 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
     [handleDeleteOne, handleShowInFolder, handleToggleFileSidebar, isFilePinnedToSidebar, startInlineRename]
   )
 
+  const previewListedFile = useMemo<FileItem | null>(() => {
+    if (!embeddedPreview) return null
+    return files.find((file) => file.id === embeddedPreview.id) ?? null
+  }, [embeddedPreview, files])
+
+  // Route-targeted (e.g. pinned) entries may not be in the current page. Rename
+  // needs a visible list row for its inline editor and delete resolves targets
+  // from `files`, so both are hidden until their prerequisites exist. Show in
+  // folder, copy path and pin work from the resolved entry and stay available.
+  const isPreviewActionable = previewListedFile !== null
+
+  const previewMenuFile = useMemo<FileItem | null>(() => {
+    if (!embeddedPreview) return null
+    if (previewListedFile) return previewListedFile
+    // Build a minimal item so the preview area still offers the safe subset of
+    // the list menu for entries outside the current page.
+    const dotIndex = embeddedPreview.fileName.lastIndexOf('.')
+    const format = dotIndex > 0 ? embeddedPreview.fileName.slice(dotIndex + 1) : ''
+    return {
+      id: embeddedPreview.id,
+      name: embeddedPreview.fileName,
+      format,
+      size: '—',
+      sizeBytes: 0,
+      createdAt: '—',
+      updatedAt: '—',
+      trashed: false,
+      isMissing: false,
+      sourcePath: embeddedPreview.filePath,
+      origin: embeddedPreview.origin,
+      type: 'document'
+    }
+  }, [embeddedPreview, previewListedFile])
+
+  const previewMenuActions = useMemo<FileContextMenuActions>(
+    () => ({
+      ...listMenuActions,
+      onRename: (id: string) => {
+        closeEmbeddedPreview()
+        startInlineRename(id)
+      }
+    }),
+    [closeEmbeddedPreview, listMenuActions, startInlineRename]
+  )
+
   const handleSort = useCallback(
     (key: SortKey) => {
       if (sortKey === key) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
@@ -1000,16 +1005,18 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
             />
           )}
 
-          <Scrollbar
-            ref={contentScrollRef}
-            className="relative flex-1"
-            onScroll={handleContentScroll}
-            onClick={(e) => {
-              if (e.target === e.currentTarget) {
-                setSelectedIds(new Set())
-                setRenamingId(null)
+          <ScrollArea
+            viewportProps={{
+              ref: contentScrollRef,
+              onScroll: handleContentScroll,
+              onClick: (e) => {
+                if (e.target === e.currentTarget) {
+                  setSelectedIds(new Set())
+                  setRenamingId(null)
+                }
               }
-            }}>
+            }}
+            className="relative flex-1">
             {filteredFiles.length === 0 ? (
               // While the first load is in flight, show loading feedback instead of
               // an empty state — otherwise the no-result state flashes before the
@@ -1023,7 +1030,7 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
                   {files.length === 0 ? (
                     <EmptyState title={t('files.empty.title')} />
                   ) : (
-                    <EmptyState preset="no-result" title={t('files.empty.no_match_title')} />
+                    <EmptyState title={t('files.empty.no_match_title')} />
                   )}
                 </div>
               )
@@ -1060,34 +1067,97 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
                 )}
               </>
             )}
-          </Scrollbar>
+          </ScrollArea>
         </div>
       </div>
 
-      {embeddedPreview && (
-        <section
-          aria-label={embeddedPreview.fileName}
-          className="absolute inset-0 z-20 flex min-h-0 min-w-0 flex-col overflow-hidden">
-          <FilePreview
-            filePath={embeddedPreview.filePath}
-            refreshKey={embeddedPreview.refreshKey}
-            header={
-              <>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label={t('common.back')}
-                  className="size-6 min-h-6 min-w-6 rounded p-0 text-muted-foreground shadow-none hover:bg-accent hover:text-foreground"
-                  onClick={closeEmbeddedPreview}>
-                  <ArrowLeft className="size-3.5" />
-                </Button>
-                <span className="min-w-0 flex-1 truncate text-sm text-foreground">{embeddedPreview.fileName}</span>
-              </>
-            }
-          />
-        </section>
-      )}
+      {embeddedPreview &&
+        previewMenuFile && (
+          // The outer trigger covers the host surface only: HTML previews render
+          // inside a sandboxed iframe with a separate document, so in-frame
+          // right-clicks never bubble here. The header below stays outside the
+          // iframe and keeps the same actions reachable via right-click or the
+          // explicit header menu button.
+          <FileContextMenu
+            file={previewMenuFile}
+            actions={previewMenuActions}
+            showRename={isPreviewActionable}
+            showDelete={isPreviewActionable}
+            deleteDisabled={deleteRequestPending}>
+            <section
+              aria-label={embeddedPreview.fileName}
+              className="absolute inset-0 z-20 flex min-h-0 min-w-0 flex-col overflow-hidden">
+              <FilePreview
+                filePath={embeddedPreview.filePath}
+                refreshKey={embeddedPreview.refreshKey}
+                header={
+                  <>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label={t('common.back')}
+                      className="size-6 min-h-6 min-w-6 rounded p-0 text-muted-foreground shadow-none hover:bg-accent hover:text-foreground"
+                      onClick={closeEmbeddedPreview}>
+                      <ArrowLeft className="size-3.5" />
+                    </Button>
+                    <span className="min-w-0 flex-1 truncate text-sm text-foreground">{embeddedPreview.fileName}</span>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          aria-label={t('files.actions')}
+                          className="size-6 min-h-6 min-w-6 rounded p-0 text-muted-foreground shadow-none hover:bg-accent hover:text-foreground"
+                          onClick={(event) => event.stopPropagation()}>
+                          <MoreHorizontal className="size-3.5" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="min-w-36">
+                        {!previewMenuFile.isMissing && isPreviewActionable && (
+                          <DropdownMenuItem onSelect={() => previewMenuActions.onRename(previewMenuFile.id)}>
+                            {t('files.rename')}
+                          </DropdownMenuItem>
+                        )}
+                        {!previewMenuFile.isMissing && (
+                          <DropdownMenuItem onSelect={() => previewMenuActions.onShowInFolder(previewMenuFile.id)}>
+                            {t('files.show_in_folder')}
+                          </DropdownMenuItem>
+                        )}
+                        {previewMenuFile.sourcePath && (
+                          <DropdownMenuItem
+                            onSelect={() => void handleCopyPreviewPath(previewMenuFile.sourcePath as string)}>
+                            {t('agent.preview_pane.copy_path')}
+                          </DropdownMenuItem>
+                        )}
+                        {(!previewMenuFile.isMissing || previewMenuActions.isSidebarPinned(previewMenuFile.id)) && (
+                          <DropdownMenuItem onSelect={() => previewMenuActions.onToggleSidebar(previewMenuFile)}>
+                            {t(
+                              previewMenuActions.isSidebarPinned(previewMenuFile.id)
+                                ? 'launchpad.unpin_from_sidebar'
+                                : 'launchpad.pin_to_sidebar'
+                            )}
+                          </DropdownMenuItem>
+                        )}
+                        {isPreviewActionable && (
+                          <DropdownMenuItem
+                            disabled={deleteRequestPending}
+                            variant="destructive"
+                            onSelect={() => previewMenuActions.onDelete(previewMenuFile.id)}>
+                            {previewMenuFile.origin === 'external'
+                              ? t('files.remove_from_library')
+                              : t('files.delete.label')}
+                          </DropdownMenuItem>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </>
+                }
+              />
+            </section>
+          </FileContextMenu>
+        )}
     </div>
   )
 }

@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-07-import-cache-refresh.md
+2026-11-07-import-cache-refresh.md: 75ac0ba5ab514afb8c1609d9f44f7ca541e99c15
+2026-11-07-import-cache-refresh.zh.md: 626a8a26b83e840105576a6d2f93d461c6249a40

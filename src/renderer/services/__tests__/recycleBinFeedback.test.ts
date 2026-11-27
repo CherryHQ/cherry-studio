@@ -14,6 +14,10 @@ import {
   showRecycleBinUndo
 } from '../recycleBinFeedback'
 
+const mainWindowNavigationMocks = vi.hoisted(() => ({ openSettingsTab: vi.fn() }))
+
+vi.mock('@renderer/services/mainWindowNavigation', () => mainWindowNavigationMocks)
+
 function getInitialToastConfig(): ToastConfig {
   const config = vi.mocked(toast.success).mock.calls[0]?.[0]
 
@@ -29,6 +33,16 @@ function getUndoAction(): ToastAction {
 
   if (!action) {
     throw new Error('expected an undo action')
+  }
+
+  return action
+}
+
+function getViewArchiveAction(): ToastAction {
+  const action = getInitialToastConfig().secondaryAction
+
+  if (!action) {
+    throw new Error('expected a view-archive action')
   }
 
   return action
@@ -94,6 +108,25 @@ describe('recycleBinFeedback', () => {
 
     expect(onUndo).toHaveBeenCalledOnce()
     expect(toast.success).toHaveBeenNthCalledWith(2, 'Restored from Archive')
+  })
+
+  it('sends a user who skips undo to the Archive page instead of losing the item', async () => {
+    // Archived items leave the visible list, so this toast is the only in-place route back to them.
+    showRecycleBinUndo({ itemName: 'Draft', onUndo: vi.fn().mockResolvedValue(undefined) })
+
+    expect(getInitialToastConfig().secondaryAction).toMatchObject({ label: 'View in Archive' })
+
+    await getViewArchiveAction().onClick()
+
+    expect(mainWindowNavigationMocks.openSettingsTab).toHaveBeenCalledWith('/settings/archive')
+  })
+
+  it('offers the same Archive route on a batch archive toast', () => {
+    showRecycleBinBatchUndo({ itemCount: 2, onUndo: vi.fn() })
+
+    void getViewArchiveAction().onClick()
+
+    expect(mainWindowNavigationMocks.openSettingsTab).toHaveBeenCalledWith('/settings/archive')
   })
 
   it('logs and reports a rejected single-item restore without leaking the rejection', async () => {

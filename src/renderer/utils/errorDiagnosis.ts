@@ -1,12 +1,18 @@
 import { dataApiService } from '@data/DataApiService'
+import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import i18n from '@renderer/i18n/resolver'
+import { ipcApi } from '@renderer/ipc'
 import type { SerializedError } from '@renderer/types/error'
-import { fetchGenerate } from '@renderer/utils/aiGeneration'
-import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID } from '@shared/data/presets/cherryai'
-import type { Model } from '@shared/data/types/model'
+import { readDefaultModel } from '@renderer/utils/model'
 import type { DiagnosisResult } from '@shared/data/types/uiParts'
-import { isMcpErrorMessage, isProxyErrorMessage, isQuotaErrorMessage } from '@shared/utils/errorCategory'
+import {
+  classifyErrorCategory,
+  isGroqServiceTierPermissionErrorMessage,
+  isMcpErrorMessage,
+  isProxyErrorMessage,
+  isQuotaErrorMessage
+} from '@shared/utils/errorCategory'
 
 const logger = loggerService.withContext('errorDiagnosis')
 
@@ -20,12 +26,53 @@ export interface DiagnosisContext {
   modelId?: string
 }
 
-async function getCherryAiDefaultFreeModel(): Promise<Model> {
-  const model = await dataApiService.get(`/models/${CHERRYAI_DEFAULT_UNIQUE_MODEL_ID}`)
-  if (!model) {
-    throw new Error(`Diagnosis model not found: ${CHERRYAI_DEFAULT_UNIQUE_MODEL_ID}`)
+// Name, code, and a truncated message only: provider failures can echo the request body.
+function failureReason(error: unknown): string {
+  const detail = error instanceof Error ? `${error.name}: ${error.message.slice(0, 120)}` : String(error).slice(0, 120)
+  const code = typeof error === 'object' && error !== null && 'code' in error ? error.code : undefined
+  return typeof code === 'string' && code ? `${detail} (code ${code})` : detail
+}
+
+async function requireDiagnosisPermission() {
+  const key = 'app.privacy.data_collection.enabled'
+  if ((await preferenceService.getAuthoritative(key)) !== true || preferenceService.getCachedValue(key) === false) {
+    throw new Error(i18n.t('error.diagnosis.free_model_unavailable'))
   }
-  return model
+}
+
+async function generateDiagnosis(system: string, prompt: string): Promise<string> {
+  await requireDiagnosisPermission()
+  const unavailable = () => new Error(i18n.t('error.diagnosis.default_model_unavailable'))
+  const model = await readDefaultModel().catch((error: unknown) => {
+    logger.warn('Unable to resolve the default model for AI diagnosis', { reason: failureReason(error) })
+    return undefined
+  })
+  if (!model?.isEnabled) throw unavailable()
+  const provider = await dataApiService.get(`/providers/${model.providerId}`).catch((error: unknown) => {
+    logger.warn('Unable to load the diagnosis provider', { providerId: model.providerId, reason: failureReason(error) })
+    return undefined
+  })
+  if (!provider?.isEnabled) throw unavailable()
+
+  await requireDiagnosisPermission()
+  const result = await ipcApi
+    .request('ai.text.generate', {
+      uniqueModelId: model.id,
+      reasoningEffort: 'none',
+      // Diagnosis only needs a short text answer, never tool calls.
+      disableTools: true,
+      system,
+      prompt,
+      // Surface the real failure: a retry may switch key or model and hide it.
+      requestOptions: { maxRetries: 0 }
+    })
+    .catch((error: unknown) => {
+      logger.warn('AI diagnosis request failed', { uniqueModelId: model.id, reason: failureReason(error) })
+      return undefined
+    })
+  const text = result?.text.trim()
+  if (!text) throw unavailable()
+  return text
 }
 
 function buildContextHint(errorInfo: Record<string, unknown>, context?: DiagnosisContext): string {
@@ -65,10 +112,18 @@ function buildContextHint(errorInfo: Record<string, unknown>, context?: Diagnosi
     return `## Context\nThe user is calling ${provider} API and got an authentication error. Cherry Studio lets users configure API keys per provider in provider settings.\n`
   }
 
+  const serviceTierPermission =
+    isGroqServiceTierPermissionErrorMessage(msg) &&
+    classifyErrorCategory({ text: msg, status, finishReason }) === 'permission'
+
   // Explicit billing signals win over the HTTP 429 rate-limit default.
-  if (status === 402 || isQuotaErrorMessage(msg)) {
+  if (status === 402 || (!serviceTierPermission && isQuotaErrorMessage(msg))) {
     const provider = errorInfo.provider || context?.providerId || 'the provider'
     return `## Context\nThe user's quota or account balance is exhausted on ${provider}. Suggest checking billing on the provider's website, topping up, or switching to a different provider. DO NOT suggest waiting or retrying - this is not a transient issue.\n`
+  }
+
+  if (serviceTierPermission) {
+    return `## Context\nGroq rejected the selected service tier because it is not available for this organization. Suggest opening Response settings > Service tier in the chat composer and selecting Standard (on_demand), or checking the organization's plan and service-tier access in Groq Billing > Plans. This message does not establish quota or balance exhaustion or an invalid API key. Do not recommend topping up or regenerating the key based on this message. Do not promise that changing tiers will make the request succeed.\n`
   }
 
   // 403 sits below region/quota, matching `classifyError`'s `permission` ordering.
@@ -115,7 +170,12 @@ function buildContextHint(errorInfo: Record<string, unknown>, context?: Diagnosi
     return `## Context\nThe prompt exceeds the model's context window. Suggest clearing chat history, removing large attachments, or switching to a model with a larger context window. DO NOT suggest checking the API key.\n`
   }
 
-  if (status === 413 || msg.includes('payload too large') || msg.includes('request entity too large')) {
+  if (
+    status === 413 ||
+    msg.includes('payload too large') ||
+    msg.includes('request entity too large') ||
+    msg.includes('failed to buffer the request body: length limit exceeded')
+  ) {
     return `## Context\nThe request payload is too large for an intermediate proxy or provider. Suggest starting a new topic, removing large attachments, or summarize conversation history before retrying. DO NOT suggest changing the API key or billing.\n`
   }
 
@@ -253,7 +313,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
 - No URLs, no links, no restart suggestion, plain text only
 - Distinguish rate_limit (too many requests, transient, retry soon) from quota (billing/balance exhausted, not transient, must top up)
 - Distinguish region (geo-block, fix by proxy/switching provider) from auth (API key issue)
-- Distinguish permission (HTTP 403, request refused - plan/entitlement/resource access) from auth (key itself rejected)
+- Distinguish permission (HTTP 403 or an explicit service-tier entitlement refusal, including HTTP 400) from auth (key itself rejected)
 - For content (safety filter), suggest rephrasing, never billing/auth fixes
 
 ## Examples
@@ -270,33 +330,17 @@ The examples above demonstrate structure only. Write all four diagnosis fields i
 
   const content = JSON.stringify(errorInfo)
 
+  const response = await generateDiagnosis(prompt, content)
   try {
-    const model = await getCherryAiDefaultFreeModel()
-    const response = await fetchGenerate({ prompt, content, model, throwOnError: true })
-    if (!response) {
-      throw new Error(`Empty response from model: ${model.id}`)
-    }
     return parseResponse(response)
-  } catch (error) {
-    logger.error('Free diagnosis model unavailable', error as Error)
+  } catch {
     throw new Error(i18n.t('error.diagnosis.free_model_unavailable'))
   }
 }
 
-/**
- * Lightweight AI classification for errors that don't match any rule.
- * Returns a one-line summary in the user's language, or empty string on failure.
- */
 export async function classifyErrorByAI(error: SerializedError, language: string): Promise<string> {
   const prompt = `You are an error diagnosis assistant for Cherry Studio. Summarize this error in one sentence (max 30 words) in ${language}. Return ONLY the summary text, no JSON, no markdown, no quotes.`
   const content = `Error: ${error.name}: ${error.message}`
 
-  try {
-    const model = await getCherryAiDefaultFreeModel()
-    const response = await fetchGenerate({ prompt, content, model, throwOnError: true })
-    return response?.trim() || ''
-  } catch (error) {
-    logger.warn('Free diagnosis model unavailable for error classification', error as Error)
-    return ''
-  }
+  return generateDiagnosis(prompt, content)
 }

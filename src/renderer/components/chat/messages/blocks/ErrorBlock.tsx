@@ -1,16 +1,25 @@
-import { Link } from '@tanstack/react-router'
+import type { TFunction } from 'i18next'
 import { AlertTriangle, ChevronRight, X } from 'lucide-react'
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useMemo, useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 
 import { Button } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { getHttpMessageLabelKey, getProviderLabelKey } from '@renderer/i18n/label'
 import type { SerializedError } from '@renderer/types/error'
+import { getCherryCloudErrorPresentation } from '@renderer/utils/cherryCloudErrorPresentation'
 import { formatErrorMessageWithPrefix, providerErrorText } from '@renderer/utils/error'
-import { classifyError, getClaudeCodeExitCategory, getClaudeCodeExitInfo } from '@renderer/utils/errorClassifier'
+import {
+  classifyError,
+  type ErrorCategory,
+  getClaudeCodeExitCategory,
+  getClaudeCodeExitInfo,
+  getLocalModelResolutionFailure,
+  isUnattributedClaudeCodeExit
+} from '@renderer/utils/errorClassifier'
 
 import { useMessageListActions } from '../MessageListProvider'
 import type { MessageListItem } from '../types'
@@ -31,19 +40,26 @@ const ErrorBlock: React.FC<Props> = ({ partId, error, message }) => {
   return <MessageErrorInfo partId={partId} error={error} message={message} />
 }
 
-const ErrorMessage: React.FC<{ error: Props['error'] }> = ({ error }) => {
-  const { t, i18n } = useTranslation()
+function getClaudeCodeExitMessage(error: Props['error'], t: TFunction): string | undefined {
+  const exit = getClaudeCodeExitInfo(error)
+  if (!exit) return undefined
+  const { reference, exitCode, exitSignal } = exit
+  if (exitCode !== undefined) return t('error.claude_code_exit.code', { code: exitCode, reference })
+  if (exitSignal !== undefined) return t('error.claude_code_exit.signal', { signal: exitSignal, reference })
+  return t('error.claude_code_exit.start', { reference })
+}
 
-  const claudeCodeExit = getClaudeCodeExitInfo(error)
-  if (claudeCodeExit) {
-    const { reference, exitCode, exitSignal } = claudeCodeExit
-    if (exitCode !== undefined) return t('error.claude_code_exit.code', { code: exitCode, reference })
-    if (exitSignal !== undefined) return t('error.claude_code_exit.signal', { signal: exitSignal, reference })
-    return t('error.claude_code_exit.start', { reference })
-  }
+const ErrorMessage: React.FC<{ error: Props['error']; category: ErrorCategory }> = ({ error, category }) => {
+  const { t, i18n } = useTranslation()
+  const { navigateToRoute } = useMessageListActions()
+
+  if (isUnattributedClaudeCodeExit(error)) return null
+  const claudeCodeExitMessage = getClaudeCodeExitMessage(error, t)
+  if (claudeCodeExitMessage !== undefined) return claudeCodeExitMessage
 
   const i18nKey = error && 'i18nKey' in error ? `error.${(error as Record<string, unknown>).i18nKey}` : ''
   const errorKey = `error.${error?.message}`
+  const localModelFailure = getLocalModelResolutionFailure(error)
   const errorStatus =
     error && ('status' in error || 'statusCode' in error)
       ? ((error as Record<string, unknown>).status as number | undefined) ||
@@ -59,10 +75,37 @@ const ErrorMessage: React.FC<{ error: Props['error'] }> = ({ error }) => {
           i18nKey={i18nKey}
           values={{ provider: t(getProviderLabelKey(providerId)) }}
           components={{
-            provider: <Link style={{ color: 'var(--link)' }} to="/settings/provider" search={{ id: providerId }} />
+            provider: navigateToRoute ? (
+              <button
+                type="button"
+                className="cursor-pointer text-link hover:underline focus-visible:underline focus-visible:outline-none"
+                onClick={(event) => {
+                  event.stopPropagation()
+                  void navigateToRoute({ path: '/settings/provider', query: { id: providerId } })
+                }}
+              />
+            ) : (
+              <span />
+            )
           }}
         />
       )
+    }
+    // An app-owned detail key carries the localized "why" (e.g. which OCR path failed);
+    // its values may embed a verbatim provider diagnostic.
+    const detailKey = (error as Record<string, unknown> | undefined)?.detailI18nKey
+    if (typeof detailKey === 'string' && detailKey) {
+      const detailFullKey = `error.${detailKey}`
+      if (i18n.exists(detailFullKey)) {
+        const detailValues = (error as Record<string, unknown> | undefined)?.detailI18nValues as
+          | Record<string, string>
+          | undefined
+        return (
+          <span>
+            {t(i18nKey)} {t(detailFullKey, detailValues)}
+          </span>
+        )
+      }
     }
     return t(i18nKey)
   }
@@ -71,7 +114,15 @@ const ErrorMessage: React.FC<{ error: Props['error'] }> = ({ error }) => {
     return t(errorKey)
   }
 
-  if (typeof errorStatus === 'number' && HTTP_ERROR_CODES.includes(errorStatus)) {
+  // The headline supplies either the missing model or configuration guidance; the raw local
+  // resolution message adds no useful recovery detail.
+  if (localModelFailure) return null
+
+  if (
+    typeof errorStatus === 'number' &&
+    HTTP_ERROR_CODES.includes(errorStatus) &&
+    !(errorStatus === 429 && category === 'quota')
+  ) {
     return (
       <span>
         {t(getHttpMessageLabelKey(errorStatus.toString()))} {providerErrorText(error)}
@@ -91,59 +142,78 @@ const MessageErrorInfo: React.FC<{
     useMessageListActions()
   const { setTimeoutTimer } = useTimer()
   const { t, i18n } = useTranslation()
-  const [aiSummary, setAiSummary] = useState<string>('')
+  const [dataCollectionEnabled] = usePreference('app.privacy.data_collection.enabled')
+  const [aiSummary, setAiSummary] = useState('')
+  const [diagnosisError, setDiagnosisError] = useState('')
+  const [isDiagnosing, setIsDiagnosing] = useState(false)
 
   const errorMessage = error?.message ?? undefined
   const errorProviderId = (error as Record<string, unknown> | undefined)?.providerId as string | undefined
   const errorI18nKey = (error as Record<string, unknown> | undefined)?.i18nKey
   const claudeCodeExitCategory = getClaudeCodeExitCategory(error)
-  const hasAppOwnedI18nKey = typeof errorI18nKey === 'string' && i18n.exists(`error.${errorI18nKey}`)
+  const appOwnedErrorKey = typeof errorI18nKey === 'string' ? `error.${errorI18nKey}` : ''
+  const hasAppOwnedI18nKey = appOwnedErrorKey !== '' && i18n.exists(appOwnedErrorKey)
 
   const providerId = getMessageListItemModel(message)?.provider ?? errorProviderId
   const classification = useMemo(() => classifyError(error, providerId), [error, providerId])
-  const localizedErrorMessage = useMemo(
-    () => t(classification.i18nKey, providerId ? { provider: t(getProviderLabelKey(providerId)) } : undefined),
-    [classification.i18nKey, providerId, t]
-  )
-
-  useEffect(() => {
-    if (
-      claudeCodeExitCategory !== undefined ||
-      hasAppOwnedI18nKey ||
-      classification.category !== 'unknown' ||
-      !errorMessage ||
-      !error ||
-      !diagnoseMessageError
-    )
-      return
-    let cancelled = false
-    diagnoseMessageError({
-      message,
-      partId,
-      error,
-      language: i18n.language
-    })
-      .then((result) => {
-        const summary = typeof result === 'string' ? result : (result?.summary ?? '')
-        if (!cancelled && summary) setAiSummary(summary)
+  const localModelFailure = useMemo(() => getLocalModelResolutionFailure(error), [error])
+  const cloudPresentation = getCherryCloudErrorPresentation(error, providerId, classification.category)
+  const cherryCloudQuotaRejection = cloudPresentation.quota
+  const cherryCloudQuotaText = cherryCloudQuotaRejection ? cloudPresentation.text : ''
+  // An app-owned i18nKey is the throwing code's own display text — prefer it over a
+  // pattern-matched category heading, which can name the wrong subsystem entirely (an
+  // OCR-fallback failure must not present as a chat-provider auth error). Keys that
+  // interpolate <provider> still go through the classification branch: plain `t()`
+  // would render the raw tags, and the provider branch needs the <Trans> link form.
+  const localizedErrorMessage = useMemo(() => {
+    if (cherryCloudQuotaRejection) return t('models.detail.quota_insufficient_for_request')
+    if (hasAppOwnedI18nKey && !providerId) return t(appOwnedErrorKey)
+    if (localModelFailure) {
+      const { providerId: failedProviderId, modelId } = localModelFailure
+      if (!modelId) return t('code.select_provider_model')
+      return t('error.diagnosis.model_unavailable', {
+        model: failedProviderId ? `${failedProviderId}/${modelId}` : modelId
       })
-      .catch(() => {})
-    return () => {
-      cancelled = true
     }
-    // Intentionally exclude `error` from deps — its identity changes per render
-    // but the action input's scalar message/language fields are both stable.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (isUnattributedClaudeCodeExit(error)) return getClaudeCodeExitMessage(error, t)
+    return t(classification.i18nKey, providerId ? { provider: t(getProviderLabelKey(providerId)) } : undefined)
   }, [
-    claudeCodeExitCategory,
-    classification.category,
-    diagnoseMessageError,
-    errorMessage,
+    cherryCloudQuotaRejection,
     hasAppOwnedI18nKey,
-    i18n.language,
-    message,
-    partId
+    appOwnedErrorKey,
+    classification.i18nKey,
+    error,
+    localModelFailure,
+    providerId,
+    t
   ])
+
+  const canDiagnose =
+    dataCollectionEnabled &&
+    claudeCodeExitCategory === undefined &&
+    !hasAppOwnedI18nKey &&
+    classification.category === 'unknown' &&
+    !!errorMessage &&
+    !!diagnoseMessageError
+
+  const onDiagnose = async (event: React.MouseEvent) => {
+    event.stopPropagation()
+    if (!canDiagnose || !error || !diagnoseMessageError || isDiagnosing) return
+
+    setIsDiagnosing(true)
+    setAiSummary('')
+    setDiagnosisError('')
+    try {
+      const result = await diagnoseMessageError({ message, partId, error, language: i18n.language })
+      setAiSummary(typeof result === 'string' ? result : (result?.summary ?? ''))
+    } catch (diagnosisFailure) {
+      setDiagnosisError(
+        diagnosisFailure instanceof Error ? diagnosisFailure.message : t('error.diagnosis.free_model_unavailable')
+      )
+    } finally {
+      setIsDiagnosing(false)
+    }
+  }
 
   const onRemoveErrorPart = useCallback(
     (e: React.MouseEvent) => {
@@ -182,7 +252,7 @@ const MessageErrorInfo: React.FC<{
 
   const canOpenDetail = !!openErrorDetail
   const canRemoveErrorPart = !!removeMessageErrorPart
-  const canNavigate = !!classification.navTarget && !!navigateErrorTarget
+  const canNavigate = !!classification.navTarget && !!navigateErrorTarget && !cherryCloudQuotaRejection
 
   return (
     <div
@@ -208,18 +278,31 @@ const MessageErrorInfo: React.FC<{
         <div className="flex shrink-0 items-center justify-center text-error">
           <AlertTriangle size={15} className="lucide-custom" />
         </div>
-        <div className="pr-5 font-medium text-[13px] leading-[1.4]">{aiSummary || localizedErrorMessage}</div>
+        <div className="pr-5 font-medium text-[13px] leading-[1.4]">
+          {(canDiagnose && aiSummary) || localizedErrorMessage}
+        </div>
       </div>
 
       {/* Description */}
       <div
         className="ml-5.75 line-clamp-3 text-xs leading-normal [overflow-wrap:anywhere] [&_a]:text-link"
         style={{ color: ERROR_DESCRIPTION_COLOR }}>
-        <ErrorMessage error={error} />
+        {cherryCloudQuotaText || <ErrorMessage error={error} category={classification.category} />}
       </div>
+
+      {canDiagnose && diagnosisError && (
+        <p role="status" className="mt-2 ml-5.75 text-xs text-muted-foreground">
+          {diagnosisError}
+        </p>
+      )}
 
       {/* Footer */}
       <div className="mt-2.5 ml-5.75 flex items-center gap-2">
+        {canDiagnose && (
+          <Button size="sm" type="button" variant="outline" disabled={isDiagnosing} onClick={onDiagnose}>
+            {t(isDiagnosing ? 'error.diagnosis.ai_loading' : 'error.diagnosis.ai_button')}
+          </Button>
+        )}
         {canNavigate && (
           <Button
             size="sm"

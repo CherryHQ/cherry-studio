@@ -95,12 +95,16 @@ function useMainRouteEventBridge(handleRoute: (path: string) => void) {
  *   re-attached (openTabInMainWindow rebuilt the window around it); same
  *   request-id dedupe, delivered to `attachTab`.
  *
- * Settings paths land in the singleton settings tab; everything else goes
+ * Settings and Notes requests reuse their existing tab; everything else goes
  * through `openTab`'s exact-URL dedupe.
  */
 export function useMainWindowNavigation() {
   const openSettingsRoute = useOpenSettingsRoute()
-  const { attachTab, openTab } = useTabs()
+  const { attachTab, openTab, tabs, updateTab, setActiveTab } = useTabs()
+  const pendingNotesTabIdRef = useRef<string | null>(null)
+  useEffect(() => {
+    pendingNotesTabIdRef.current = null
+  }, [tabs])
   const initData = useWindowInitData<MainWindowInitData>()
   const handledNavigationRequestIdRef = useRef<number | null>(null)
 
@@ -108,11 +112,20 @@ export function useMainWindowNavigation() {
     (to: string) => {
       if (isSettingsPath(to)) {
         openSettingsRoute(to)
+      } else if (to.split('?')[0] === '/app/notes') {
+        const notesTab = tabs.find((tab) => tab.type === 'route' && tab.url.split('?')[0] === '/app/notes')
+        const notesTabId = notesTab?.id ?? pendingNotesTabIdRef.current
+        if (notesTabId) {
+          updateTab(notesTabId, { url: to })
+          setActiveTab(notesTabId)
+        } else {
+          pendingNotesTabIdRef.current = openTab(to)
+        }
       } else {
         openTab(to)
       }
     },
-    [openSettingsRoute, openTab]
+    [openSettingsRoute, openTab, tabs, updateTab, setActiveTab]
   )
 
   useIpcOn('navigation.open_route_requested', ({ to }) => handleRoute(to))

@@ -1,14 +1,16 @@
+import type { CallToolResult } from '@modelcontextprotocol/client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { McpCallToolResponse } from '@main/ai/mcp/types'
 import { createToolInvokeTool } from '@main/ai/tools/adapters/aiSdk/meta/toolInvoke'
+import type { McpAppReference } from '@shared/types/mcpApp'
 
+import { createMcpJsonSchemaValidator } from '../../mcpSchema'
 import { ToolRegistry } from '../../registry'
 
 const listTools = vi.fn()
 const list = vi.fn()
 const getById = vi.fn()
-const callTool = vi.fn<(req: unknown) => Promise<McpCallToolResponse>>()
+const callTool = vi.fn<(req: unknown) => Promise<CallToolResult>>()
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -16,18 +18,6 @@ vi.mock('@application', async () => {
     McpCatalogService: { listTools },
     McpRuntimeService: { callTool }
   } as Record<string, unknown>)
-})
-
-vi.mock('@application', async () => {
-  return {
-    application: {
-      get: (name: string) => {
-        if (name === 'McpCatalogService') return { listTools }
-        if (name === 'McpRuntimeService') return { callTool }
-        throw new Error(`unexpected service: ${name}`)
-      }
-    }
-  }
 })
 
 vi.mock('@main/data/services/McpServerService', () => ({
@@ -65,6 +55,17 @@ async function registerToolExecute(reg: ToolRegistry) {
 }
 
 describe('mcpTools execute wrapper', () => {
+  it('honors declared schema dialects and rejects unsupported dialects', () => {
+    const schema = { type: 'array' as const, items: [{ type: 'string' as const }], additionalItems: false }
+    const validate = createMcpJsonSchemaValidator({ ...schema, $schema: 'http://json-schema.org/draft-07/schema#' })
+    expect(validate(['ok']).success).toBe(true)
+    expect(validate([42]).success).toBe(false)
+    expect(validate(['ok', 'extra']).success).toBe(false)
+    expect(() => createMcpJsonSchemaValidator({ $schema: 'https://example.org/unknown-schema' })).toThrow(
+      /unsupported dialect/
+    )
+  })
+
   beforeEach(() => {
     listTools.mockReset()
     list.mockReset()
@@ -105,26 +106,46 @@ describe('mcpTools execute wrapper', () => {
     const execute = await registerToolExecute(reg)
 
     getById.mockReturnValue(activeServer('s1'))
-    const runtimeResult: McpCallToolResponse = {
+    const runtimeResult: CallToolResult = {
       isError: false,
       content: [{ type: 'text', text: 'ok' }]
     }
     callTool.mockResolvedValue(runtimeResult)
     const abortSignal = new AbortController().signal
 
-    const out = (await execute({ q: 'x' }, { toolCallId: 'call-3', abortSignal } as any)) as McpCallToolResponse & {
+    const out = (await execute({ q: 'x' }, { toolCallId: 'call-3', abortSignal } as any)) as CallToolResult & {
       metadata: { description: string; name: string; serverId: string; serverName: string; type: string }
     }
 
     expect(callTool).toHaveBeenCalledWith({
       serverId: 's1',
       name: 't',
+      audience: 'model',
+      onAppResult: expect.any(Function),
       args: { q: 'x' },
       callId: 'call-3',
-      signal: abortSignal
+      scope: undefined,
+      signal: abortSignal,
+      interactionContext: undefined
     })
     expect(out.content).toEqual([{ type: 'text', text: 'ok' }])
     expect(out.metadata).toEqual({ description: '', name: 't', serverName: 's1', serverId: 's1', type: 'mcp' })
+  })
+
+  it('records the invocation input and the runtime-issued App reference on the tool result', async () => {
+    const execute = await registerToolExecute(new ToolRegistry())
+    getById.mockReturnValue(activeServer('s1'))
+    const reference = { serverId: 's1', serverKey: 'source', toolName: 't', resourceUri: 'ui://test/app' }
+    callTool.mockImplementationOnce(async (request) => {
+      const { onAppResult } = request as { onAppResult: (reference: McpAppReference) => void }
+      onAppResult(reference)
+      return { content: [], structuredContent: { count: 3 }, _meta: { viewOnly: 'private' } }
+    })
+    await expect(execute({ count: 3 }, { toolCallId: 'call-app', messages: [] })).resolves.toMatchObject({
+      structuredContent: { count: 3 },
+      _meta: { viewOnly: 'private' },
+      metadata: { type: 'mcp', app: reference, appInput: { count: 3 } }
+    })
   })
 
   it('rejects Draft 2020-12-invalid deferred arguments before calling the MCP runtime', async () => {
@@ -196,6 +217,8 @@ describe('mcpTools execute wrapper', () => {
     expect(callTool).toHaveBeenCalledExactlyOnceWith({
       serverId: 'server-a',
       name: 'executeSql',
+      audience: 'model',
+      onAppResult: expect.any(Function),
       args: { sql: 'select 1' },
       callId: 'call-reimbursement'
     })

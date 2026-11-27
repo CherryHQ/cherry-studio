@@ -1,13 +1,10 @@
 import { normalizeQuoteTokenPromptText } from '@renderer/components/composer/quoteToken'
 import {
   COMPOSER_INPUT_TOKEN_KINDS,
-  COMPOSER_TOKEN_KINDS,
   type ComposerInputTokenKind,
   type ComposerTokenKind,
   isComposerTokenKind
 } from '@renderer/utils/composerTokenPolicy'
-
-export const COMPOSER_DRAFT_TOKEN_KINDS = COMPOSER_TOKEN_KINDS
 
 export type ComposerDraftTokenKind = ComposerTokenKind
 
@@ -21,6 +18,7 @@ export interface ComposerDraftToken {
   label: string
   icon?: string
   description?: string
+  sourceMessageId?: string
   promptText?: string
   payload?: unknown
 }
@@ -63,6 +61,7 @@ export function normalizeComposerTokenAttrs(attrs: Record<string, unknown>): Com
   const label = readString(attrs.label) ?? ''
   const payload = readPayload(attrs.payload)
   const promptText = normalizePromptText(kind, attrs.promptText)
+  const sourceMessageId = kind === 'quote' ? readString(attrs.sourceMessageId) : undefined
 
   return {
     id: readString(attrs.id) ?? label,
@@ -71,6 +70,7 @@ export function normalizeComposerTokenAttrs(attrs: Record<string, unknown>): Com
     ...(readString(attrs.icon) && { icon: readString(attrs.icon) }),
     ...(readString(attrs.description) && { description: readString(attrs.description) }),
     ...(promptText && { promptText }),
+    ...(sourceMessageId && { sourceMessageId }),
     ...(payload !== undefined && { payload })
   }
 }

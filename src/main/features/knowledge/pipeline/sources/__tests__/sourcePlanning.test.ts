@@ -7,6 +7,7 @@ import { planKnowledgeItemSource } from '../sourcePlanning'
 
 function createBase(fileProcessorId: string | null = 'doc2x'): KnowledgeBase {
   return {
+    orderKey: 'a0',
     id: 'kb-1',
     name: 'KB',
     groupId: null,

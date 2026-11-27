@@ -17,14 +17,18 @@ import { parse } from 'yaml'
 import pkg from './package.json'
 import { buildFlatContractCss } from './packages/ui/scripts/build-theme-css'
 import { chunkExportGuardPlugin } from './scripts/checkChunkExports'
-import { piVccBundlePlugin } from './scripts/piVccBundle'
+import { claudeCodeBinaryManifest } from './scripts/claudeCodeBinaryManifest'
 import { uiContractPlugin } from './scripts/uiContract/vitePlugin'
 import { APP_EDITIONS, type AppEdition } from './src/shared/types/appEdition'
 import { parseReleaseHistory, validateCurrentReleaseHistory } from './src/shared/utils/releaseNotes'
 import { getSentryBuildContext } from './src/shared/utils/sentry'
 
 const { buildSelectionPanel, sourcePath: selectionPanelSource } = createRequire(import.meta.url)(
-  './native/darwin/build'
+  './native/selection-panel/build'
+)
+
+const { buildExternalApp, sourceFiles: externalAppSources } = createRequire(import.meta.url)(
+  './native/external-app/build.cjs'
 )
 
 type ElectronBuilderConfig = {
@@ -76,7 +80,7 @@ const rendererEdition = resolveRendererEdition(process.env.CHERRY_EDITION)
 const sentryBuildContext = getSentryBuildContext(pkg.name, pkg.version, rendererEdition)
 const { sourceMapUploadEnabled } = resolveSentryBuildSettings(process.env)
 const sentrySourceMap = sourceMapUploadEnabled ? ('hidden' as const) : isDev
-const sentrySourceMapPlugins = (outputDirectory: 'main' | 'preload' | 'renderer') =>
+export const sentrySourceMapPlugins = (outputDirectory: 'main' | 'preload' | 'renderer' | 'utility-process') =>
   sourceMapUploadEnabled
     ? sentryVitePlugin({
         authToken: process.env.SENTRY_AUTH_TOKEN,
@@ -95,14 +99,8 @@ const sentrySourceMapPlugins = (outputDirectory: 'main' | 'preload' | 'renderer'
       })
     : []
 
-// Bundle/externalize split for the main process: everything in `dependencies` is
-// externalized below (kept in node_modules of the packaged app), and everything
-// NOT in `dependencies` (i.e. in `devDependencies`) is bundled into the main bundle by
-// Rolldown. The API gateway's Elysia stack (`elysia`, `@elysia/*`) is intentionally in
-// `devDependencies` for exactly this reason — it is pure JS and bundles cleanly. Do NOT
-// move it to `dependencies`: that would externalize it, and since devDependencies are
-// pruned from production packages, the packaged app would fail at runtime with
-// MODULE_NOT_FOUND (no test catches this). See docs/references/api-gateway/README.md.
+// `dependencies` stay external and ship whole; everything else is bundled. Only R1–R4 packages
+// belong there: see "Main-Process Dependencies" in CLAUDE.md.
 const mainExternalDependencies = [
   ...Object.keys(pkg.dependencies),
   // optionalDependencies too: platform-gated natives (e.g. node-mac-permissions) are real import
@@ -139,6 +137,18 @@ const miniAppThemeAssetPlugin = (): Plugin => ({
   }
 })
 
+const commandParserAssetsPlugin = (): Plugin => ({
+  name: 'cherry-command-parser-assets',
+  apply: 'build',
+  buildStart() {
+    const require = createRequire(import.meta.url)
+    for (const filename of ['tree-sitter.wasm', 'tree-sitter-bash.wasm', 'tree-sitter-powershell.wasm']) {
+      const source = readFileSync(require.resolve(`@vscode/tree-sitter-wasm/wasm/${filename}`))
+      this.emitFile({ type: 'asset', fileName: `assets/command-parsers/${filename}`, source })
+    }
+  }
+})
+
 /** Shared with the utility-process entries build, which must resolve identically. */
 export const mainResolveAlias = {
   '@main': resolve('src/main'),
@@ -150,30 +160,71 @@ export const mainResolveAlias = {
   '@cherrystudio/ai-core/built-in/plugins': resolve('packages/aiCore/src/core/plugins/built-in'),
   '@cherrystudio/ai-core': resolve('packages/aiCore/src'),
   '@cherrystudio/ai-sdk-provider': resolve('packages/ai-sdk-provider/src'),
+  '@cherrystudio/provider-registry/data': resolve('packages/provider-registry/src/bundled-catalog'),
   '@cherrystudio/provider-registry/node': resolve('packages/provider-registry/src/registry-loader'),
   '@cherrystudio/provider-registry': resolve('packages/provider-registry/src'),
+  '@cherrystudio/web-search/catalog': resolve('packages/web-search/src/catalog.ts'),
+  '@cherrystudio/web-search/providers/zhipu': resolve('packages/web-search/src/providers/zhipu.ts'),
+  '@cherrystudio/web-search/providers/tavily': resolve('packages/web-search/src/providers/tavily.ts'),
+  '@cherrystudio/web-search/providers/searxng': resolve('packages/web-search/src/providers/searxng.ts'),
+  '@cherrystudio/web-search/providers/exa': resolve('packages/web-search/src/providers/exa.ts'),
+  '@cherrystudio/web-search/providers/exa-mcp': resolve('packages/web-search/src/providers/exaMcp.ts'),
+  '@cherrystudio/web-search/providers/bocha': resolve('packages/web-search/src/providers/bocha.ts'),
+  '@cherrystudio/web-search/providers/stepfun': resolve('packages/web-search/src/providers/stepfun.ts'),
+  '@cherrystudio/web-search/providers/querit': resolve('packages/web-search/src/providers/querit.ts'),
+  '@cherrystudio/web-search/providers/jina': resolve('packages/web-search/src/providers/jina.ts'),
+  '@cherrystudio/web-search/providers/firecrawl': resolve('packages/web-search/src/providers/firecrawl.ts'),
+  '@cherrystudio/web-search/providers/crawl4ai': resolve('packages/web-search/src/providers/crawl4ai.ts'),
+  '@cherrystudio/web-search/providers/parallel': resolve('packages/web-search/src/providers/parallel.ts'),
+  '@cherrystudio/web-search/providers/serply': resolve('packages/web-search/src/providers/serply.ts'),
+  '@cherrystudio/web-search/providers/yuanbao': resolve('packages/web-search/src/providers/yuanbao.ts'),
+  '@cherrystudio/web-search/providers/deepseek': resolve('packages/web-search/src/providers/deepseek.ts'),
+  '@cherrystudio/web-search/providers/desearch': resolve('packages/web-search/src/providers/desearch.ts'),
+  '@cherrystudio/web-search/providers/searchapi': resolve('packages/web-search/src/providers/searchapi.ts'),
+  '@cherrystudio/web-search/providers/serpkite': resolve('packages/web-search/src/providers/serpkite.ts'),
+  '@cherrystudio/web-search/tools/config': resolve('packages/web-search/src/tools/config.ts'),
+  '@cherrystudio/web-search/tools/url-filter': resolve('packages/web-search/src/tools/urlFilter.ts'),
+  '@cherrystudio/web-search/tools/content': resolve('packages/web-search/src/tools/content.ts'),
+  '@cherrystudio/web-search': resolve('packages/web-search/src/index.ts'),
   '@test-mocks': resolve('tests/__mocks__'),
   '@test-helpers': resolve('tests/helpers')
 }
 
 export default defineConfig({
   main: {
-    define: { __APP_EDITION__: JSON.stringify(rendererEdition) },
+    define: {
+      __APP_EDITION__: JSON.stringify(rendererEdition),
+      __CLAUDE_CODE_BINARY_MANIFEST__: JSON.stringify(claudeCodeBinaryManifest(__dirname))
+    },
     plugins: [
       {
         name: 'cherry-selection-panel',
         buildStart() {
           this.addWatchFile(selectionPanelSource)
-          buildSelectionPanel()
+          if (process.env.CHERRY_RELEASE_JS_ONLY !== 'true') buildSelectionPanel()
+        }
+      },
+      {
+        name: 'cherry-external-app',
+        apply: 'build',
+        buildStart() {
+          for (const file of externalAppSources) this.addWatchFile(file)
+          if (process.env.CHERRY_RELEASE_JS_ONLY !== 'true') buildExternalApp()
         }
       },
       chunkExportGuardPlugin(),
-      piVccBundlePlugin(),
       miniAppThemeAssetPlugin(),
+      commandParserAssetsPlugin(),
       ...visualizerPlugin('main'),
       ...sentrySourceMapPlugins('main')
     ],
-    resolve: { alias: mainResolveAlias },
+    resolve: {
+      alias: [
+        ...Object.entries(mainResolveAlias).map(([find, replacement]) => ({ find, replacement })),
+        // file-stream-rotator requires Moment's callable CommonJS export, not its ESM namespace.
+        { find: /^moment$/, replacement: 'moment/moment.js' }
+      ]
+    },
     build: {
       externalizeDeps: {
         include: mainExternalModules
@@ -206,10 +257,14 @@ export default defineConfig({
     plugins: [...sentrySourceMapPlugins('preload')],
     resolve: {
       alias: {
-        '@shared': resolve('src/shared')
+        '@shared': resolve('src/shared'),
+        '@cherrystudio/web-search/catalog': resolve('packages/web-search/src/catalog.ts'),
+        '@cherrystudio/web-search': resolve('packages/web-search/src/index.ts')
       }
     },
     build: {
+      externalizeDeps: false,
+      isolatedEntries: true,
       sourcemap: sentrySourceMap,
       rolldownOptions: {
         // Unlike renderer which auto-discovers entries from HTML files,
@@ -218,7 +273,8 @@ export default defineConfig({
           preload: resolve(__dirname, 'src/preload/preload.ts'),
           simplest: resolve(__dirname, 'src/preload/simplest.ts'), // Minimal preload
           webview: resolve(__dirname, 'src/preload/webview.ts'), // Site `<webview>` guests
-          miniAppBridge: resolve(__dirname, 'src/preload/miniAppBridge.ts') // Local mini app guests (`window.cherry`)
+          miniAppBridge: resolve(__dirname, 'src/preload/miniAppBridge.ts'), // Local mini app guests (`window.cherry`)
+          mcpAppGuest: resolve(__dirname, 'src/preload/mcpAppGuest.ts')
         },
         external: ['electron'],
         output: {
@@ -260,8 +316,33 @@ export default defineConfig({
         '@cherrystudio/ai-core': resolve('packages/aiCore/src'),
         '@cherrystudio/extension-table-plus': resolve('packages/extension-table-plus/src'),
         '@cherrystudio/ai-sdk-provider': resolve('packages/ai-sdk-provider/src'),
+        '@cherrystudio/provider-registry/data': resolve('packages/provider-registry/src/bundled-catalog'),
         '@cherrystudio/provider-registry/node': resolve('packages/provider-registry/src/registry-loader'),
         '@cherrystudio/provider-registry': resolve('packages/provider-registry/src'),
+        '@cherrystudio/web-search/catalog': resolve('packages/web-search/src/catalog.ts'),
+        '@cherrystudio/web-search/providers/zhipu': resolve('packages/web-search/src/providers/zhipu.ts'),
+        '@cherrystudio/web-search/providers/tavily': resolve('packages/web-search/src/providers/tavily.ts'),
+        '@cherrystudio/web-search/providers/searxng': resolve('packages/web-search/src/providers/searxng.ts'),
+        '@cherrystudio/web-search/providers/exa': resolve('packages/web-search/src/providers/exa.ts'),
+        '@cherrystudio/web-search/providers/exa-mcp': resolve('packages/web-search/src/providers/exaMcp.ts'),
+        '@cherrystudio/web-search/providers/bocha': resolve('packages/web-search/src/providers/bocha.ts'),
+        '@cherrystudio/web-search/providers/stepfun': resolve('packages/web-search/src/providers/stepfun.ts'),
+        '@cherrystudio/web-search/providers/querit': resolve('packages/web-search/src/providers/querit.ts'),
+        '@cherrystudio/web-search/providers/jina': resolve('packages/web-search/src/providers/jina.ts'),
+        '@cherrystudio/web-search/providers/firecrawl': resolve('packages/web-search/src/providers/firecrawl.ts'),
+        '@cherrystudio/web-search/providers/crawl4ai': resolve('packages/web-search/src/providers/crawl4ai.ts'),
+        '@cherrystudio/web-search/providers/parallel': resolve('packages/web-search/src/providers/parallel.ts'),
+        '@cherrystudio/web-search/providers/serply': resolve('packages/web-search/src/providers/serply.ts'),
+        '@cherrystudio/web-search/providers/deepseek': resolve('packages/web-search/src/providers/deepseek.ts'),
+        '@cherrystudio/web-search/providers/desearch': resolve('packages/web-search/src/providers/desearch.ts'),
+        '@cherrystudio/web-search/providers/searchapi': resolve('packages/web-search/src/providers/searchapi.ts'),
+        '@cherrystudio/web-search/providers/serpkite': resolve('packages/web-search/src/providers/serpkite.ts'),
+        '@cherrystudio/web-search/tools/config': resolve('packages/web-search/src/tools/config.ts'),
+        '@cherrystudio/web-search/tools/url-filter': resolve('packages/web-search/src/tools/urlFilter.ts'),
+        '@cherrystudio/web-search/tools/content': resolve('packages/web-search/src/tools/content.ts'),
+        '@cherrystudio/web-search': resolve('packages/web-search/src/index.ts'),
+        '@cherrystudio/file-preview/core': resolve('packages/file-preview/src/core.ts'),
+        '@cherrystudio/file-preview/react': resolve('packages/file-preview/src/react.ts'),
         '@cherrystudio/ui/icons/providers': resolve('packages/ui/src/components/icons/providers'),
         '@cherrystudio/ui/icons': resolve('packages/ui/src/components/icons'),
         '@cherrystudio/ui': resolve('packages/ui/src'),
@@ -270,6 +351,7 @@ export default defineConfig({
     },
     optimizeDeps: {
       exclude: ['pyodide'],
+      include: ['pdfjs-dist/build/pdf.worker.mjs'],
       rolldownOptions: {
         transform: {
           target: 'esnext' // for dev
@@ -288,7 +370,9 @@ export default defineConfig({
           quickAssistant: resolve(__dirname, 'src/renderer/windows/quickAssistant/index.html'),
           selectionToolbar: resolve(__dirname, 'src/renderer/windows/selection/toolbar/index.html'),
           selectionAction: resolve(__dirname, 'src/renderer/windows/selection/action/index.html'),
-          migrationV2: resolve(__dirname, 'src/renderer/windows/migrationV2/index.html'),
+          selectionAgent: resolve(__dirname, 'src/renderer/windows/selection/agent/index.html'),
+          selectionCapsule: resolve(__dirname, 'src/renderer/windows/selection/capsule/index.html'),
+          legacyUpgrade: resolve(__dirname, 'src/renderer/windows/legacyUpgrade/index.html'),
           userDataRelocation: resolve(__dirname, 'src/renderer/windows/userDataRelocation/index.html'),
           subWindow: resolve(__dirname, 'src/renderer/windows/subWindow/index.html'),
           screenshot: resolve(__dirname, 'src/renderer/windows/screenshot/index.html')

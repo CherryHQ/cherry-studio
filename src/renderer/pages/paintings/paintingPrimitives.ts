@@ -12,6 +12,10 @@ export const paintingClasses = {
   centerStage: 'flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden',
   /** Pins the prompt visually to the bottom of the middle column. */
   promptDock: 'relative z-20 shrink-0 px-2 pt-2 pb-2',
+  /** Collapsed prompt dock after generate — frees artboard space (#20739). */
+  promptDockCollapsed: 'relative z-20 flex shrink-0 items-center justify-center gap-2 px-2 pt-1 pb-2',
+  promptDockToggle:
+    'inline-flex h-8 items-center gap-1.5 rounded-full border border-border-subtle bg-background/90 px-3 text-xs text-muted-foreground shadow-sm backdrop-blur-xl hover:bg-secondary-hover hover:text-foreground',
   historyStrip:
     'flex h-full w-[68px] shrink-0 flex-col gap-2 overflow-y-auto border-border-subtle border-r px-2 py-2 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden',
   historyAddButton:

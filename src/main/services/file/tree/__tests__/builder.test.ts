@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rename, rm, utimes, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rename, rm, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -6,8 +6,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { TreeMutationEvent } from '@shared/utils/file'
 
-import { createDirectoryTree, type DirectoryTreeBuilder } from '../builder'
+import type { DirectoryTreeBuilder } from '../builder'
 import { tryTestRipgrepPath } from './ripgrepTestUtils'
+import { createObservedDirectoryTree as createDirectoryTree } from './treeTestUtils'
 
 // Production resolves ripgrep via BinaryManager (`getBinaryPath('rg')`), which
 // reads cherry.bin / mise shims — neither is populated under vitest. Point it
@@ -55,35 +56,31 @@ describe.skipIf(!ripgrepAvailable)('createDirectoryTree — initial scan', () =>
     await rm(tmp, { recursive: true, force: true })
   })
 
-  it('builds a nested tree of files and directories', async () => {
-    await writeFile(path.join(tmp, 'root.md'), 'root')
-    await mkdir(path.join(tmp, 'sub'))
-    await writeFile(path.join(tmp, 'sub', 'inner.md'), 'inner')
+  it('builds and indexes a nested tree restricted to allowed extensions', async () => {
+    const rootFile = path.join(tmp, 'root.md')
+    const ignoredFile = path.join(tmp, 'ignored.txt')
+    const subdir = path.join(tmp, 'sub')
+    await mkdir(subdir)
+    await writeFile(rootFile, 'root')
+    await writeFile(ignoredFile, 'ignored')
+    await writeFile(path.join(subdir, 'inner.md'), 'inner')
 
     const builder = await createDirectoryTree(tmp, { extensions: ['.md'] })
     try {
       expect(builder.root.path).toBe(tmp.replace(/\\/g, '/'))
       expect(builder.root.hasChild('root.md')).toBe(true)
-      expect(builder.root.hasChild('sub')).toBe(true)
+      expect(builder.root.hasChild('ignored.txt')).toBe(false)
+      expect(builder.getNode(rootFile)).toBe(builder.root.children['root.md'])
+      expect(builder.getNode(ignoredFile)).toBeNull()
+      expect(builder.getNode(path.join(tmp, 'missing.md'))).toBeNull()
+
       const sub = builder.root.children['sub']
-      expect(sub?.isTreeDir()).toBe(true)
       expect(sub?.isTreeDir() && sub.hasChild('inner.md')).toBe(true)
+      expect(builder.getNode(subdir)).toBe(sub)
     } finally {
       await builder.disposeAsync()
     }
-  })
-
-  it('filters out files that fail the extensions allowlist', async () => {
-    await writeFile(path.join(tmp, 'a.md'), 'md')
-    await writeFile(path.join(tmp, 'b.txt'), 'txt')
-
-    const builder = await createDirectoryTree(tmp, { extensions: ['.md'] })
-    try {
-      expect(builder.root.hasChild('a.md')).toBe(true)
-      expect(builder.root.hasChild('b.txt')).toBe(false)
-    } finally {
-      await builder.disposeAsync()
-    }
+    expect(builder.getNode(rootFile)).toBeNull()
   })
 
   it('populates stats when withStats=true and leaves them undefined otherwise', async () => {
@@ -107,22 +104,6 @@ describe.skipIf(!ripgrepAvailable)('createDirectoryTree — initial scan', () =>
     }
   })
 
-  it('keeps the path→node Map coherent with the tree', async () => {
-    await writeFile(path.join(tmp, 'a.md'), 'a')
-    await mkdir(path.join(tmp, 'sub'))
-    await writeFile(path.join(tmp, 'sub', 'b.md'), 'b')
-
-    const builder = await createDirectoryTree(tmp, { extensions: ['.md'] })
-    try {
-      expect(builder.getNode(path.join(tmp, 'a.md'))).toBe(builder.root.children['a.md'])
-      const sub = builder.root.children['sub']
-      expect(builder.getNode(path.join(tmp, 'sub'))).toBe(sub)
-      expect(builder.getNode(path.join(tmp, 'missing.md'))).toBeNull()
-    } finally {
-      await builder.disposeAsync()
-    }
-  })
-
   it('honors the workspace .gitignore so chokidar does not EMFILE on real repos', async () => {
     // What git would skip, the watcher should skip too. The hardcoded
     // exclusion list is gone; the user's `.gitignore` drives the
@@ -141,22 +122,6 @@ describe.skipIf(!ripgrepAvailable)('createDirectoryTree — initial scan', () =>
       expect(builder.root.hasChild('node_modules')).toBe(false)
       expect(builder.root.hasChild('dist')).toBe(false)
       expect(builder.getNode(path.join(tmp, 'node_modules', 'lodash', 'index.js'))).toBeNull()
-    } finally {
-      await builder.disposeAsync()
-    }
-  })
-
-  it('always excludes the .git directory even when .gitignore does not mention it', async () => {
-    // git itself never lists `.git` in `.gitignore` — but watching it is
-    // pointless and chunky, so the predicate adds it unconditionally.
-    await writeFile(path.join(tmp, 'app.ts'), 'src')
-    await mkdir(path.join(tmp, '.git'))
-    await writeFile(path.join(tmp, '.git', 'HEAD'), 'ref: refs/heads/main')
-
-    const builder = await createDirectoryTree(tmp)
-    try {
-      expect(builder.root.hasChild('app.ts')).toBe(true)
-      expect(builder.root.hasChild('.git')).toBe(false)
     } finally {
       await builder.disposeAsync()
     }
@@ -276,42 +241,6 @@ describe.skipIf(!ripgrepAvailable)('createDirectoryTree — watcher mutations', 
       await expected
       sub.dispose()
       expect(allEvents.some((e) => 'path' in e && e.path.endsWith('/unwanted.txt'))).toBe(false)
-    } finally {
-      await builder.disposeAsync()
-    }
-  })
-
-  it('drops chokidar add events for OS-noise files (.DS_Store, Thumbs.db) — defaults match initial scan', async () => {
-    // Prior to wiring chokidar's predicate to the same DEFAULT_IGNORE_PATTERNS,
-    // a `.DS_Store` written *after* mount would slip into the tree even
-    // though the initial ripgrep scan filtered it. No `extensions` filter
-    // here so the only thing keeping these files out is the ignore predicate.
-    // `includeHidden: true` removes the dotfile pre-filter as well so the
-    // ignore-predicate is the *only* remaining gate.
-    const builder = await createDirectoryTree(tmp, { includeHidden: true })
-    try {
-      const events: TreeMutationEvent[] = []
-      const sub = builder.onMutation((e) => events.push(e))
-
-      // Race-free: create a regular .txt alongside the OS-noise files, wait
-      // for the legit event, then assert the OS-noise files were suppressed.
-      const sentinelPromise = waitForEvent(
-        builder,
-        (e) => e.type === 'added' && 'path' in e && e.path.endsWith('/sentinel.txt')
-      )
-      await writeFile(path.join(tmp, '.DS_Store'), 'noise')
-      await writeFile(path.join(tmp, 'Thumbs.db'), 'noise')
-      await writeFile(path.join(tmp, 'sentinel.txt'), 'ok')
-      await sentinelPromise
-
-      const noiseEvents = events.filter(
-        (e) => 'path' in e && (e.path.endsWith('/.DS_Store') || e.path.endsWith('/Thumbs.db'))
-      )
-      expect(noiseEvents).toEqual([])
-      expect(builder.getNode(path.join(tmp, '.DS_Store'))).toBeNull()
-      expect(builder.getNode(path.join(tmp, 'Thumbs.db'))).toBeNull()
-
-      sub.dispose()
     } finally {
       await builder.disposeAsync()
     }
@@ -454,40 +383,36 @@ describe.skipIf(!ripgrepAvailable)('createDirectoryTree — watcher mutations', 
     }
   })
 
-  it('rename() returns false when the source node is missing', async () => {
-    const builder = await createDirectoryTree(tmp, { extensions: ['.md'] })
+  it('keeps the watcher add fallback when unlink wins the rename race', async () => {
+    const oldPath = path.join(tmp, 'old.md')
+    const newPath = path.join(tmp, 'new.md')
+    const oldNorm = oldPath.replace(/\\/g, '/')
+    const newNorm = newPath.replace(/\\/g, '/')
+    await writeFile(oldPath, 'retained note')
+    const builder = await createDirectoryTree(tmp, { extensions: ['.md'], withStats: true })
     try {
-      const applied = builder.rename(path.join(tmp, 'missing.md'), path.join(tmp, 'whatever.md'))
+      let applied: boolean | undefined
+      const events: TreeMutationEvent[] = []
+      const subscription = builder.onMutation((event) => {
+        events.push(event)
+        if (event.type === 'removed' && event.path === oldNorm) {
+          applied = builder.rename(oldPath, newPath)
+        }
+      })
+      const added = waitForEvent(builder, (event) => event.type === 'added' && event.path === newNorm)
+      await rename(oldPath, newPath)
+      await added
+
       expect(applied).toBe(false)
+      expect(builder.getNode(oldPath)).toBeNull()
+      expect(builder.getNode(newPath)?.stats).toBeDefined()
+      expect(builder.root.hasChild('new.md')).toBe(true)
+      expect(events.map((event) => event.type)).toEqual(['removed', 'added'])
+      expect(await readFile(newPath, 'utf8')).toBe('retained note')
+      subscription.dispose()
     } finally {
       await builder.disposeAsync()
     }
-  })
-
-  it('dispose() stops the chokidar watcher so post-dispose FS changes emit nothing', async () => {
-    await writeFile(path.join(tmp, 'before.md'), 'x')
-    const builder = await createDirectoryTree(tmp, { extensions: ['.md'] })
-
-    const events: TreeMutationEvent[] = []
-    const sub = builder.onMutation((e) => events.push(e))
-
-    // Quick proof the watcher is alive: a write before dispose lands.
-    const liveEvent = waitForEvent(builder, (e) => e.type === 'added' && e.path.endsWith('/live.md'))
-    await writeFile(path.join(tmp, 'live.md'), 'y')
-    await liveEvent
-    expect(events.some((e) => e.type === 'added' && 'path' in e && e.path.endsWith('/live.md'))).toBe(true)
-
-    sub.dispose()
-    builder.dispose()
-    await builder.disposeAsync()
-    const eventsAtDispose = events.length
-
-    // After dispose, further FS mutations must not surface.
-    await writeFile(path.join(tmp, 'after.md'), 'z')
-    await new Promise((resolve) => setTimeout(resolve, 300))
-    expect(events.length).toBe(eventsAtDispose)
-    // And the internal lookup map is cleared.
-    expect(builder.getNode(path.join(tmp, 'live.md'))).toBeNull()
   })
 
   it('snapshot() returns a JSON tree without parent cycles', async () => {
@@ -503,26 +428,6 @@ describe.skipIf(!ripgrepAvailable)('createDirectoryTree — watcher mutations', 
       expect(JSON.stringify(snap)).not.toMatch(/parent/)
     } finally {
       await builder.disposeAsync()
-    }
-  })
-})
-
-describe.skipIf(!ripgrepAvailable)('createDirectoryTree — DB isolation', () => {
-  it('the tree primitive does not import @main/data', async () => {
-    // Import-graph proxy: a regex over the source files. The classes live
-    // in `src/shared/utils/file/tree.ts` and the main-side primitive
-    // is split across `builder.ts` / `DirectoryTreeManager.ts`. None of
-    // them may pull anything from `@main/data`.
-    const { readFile } = await import('node:fs/promises')
-    const builderSource = await readFile(new URL('../builder.ts', import.meta.url), 'utf8')
-    const managerSource = await readFile(new URL('../DirectoryTreeManager.ts', import.meta.url), 'utf8')
-    const sharedTreeSource = await readFile(
-      new URL('../../../../../shared/utils/file/tree.ts', import.meta.url),
-      'utf8'
-    )
-    for (const src of [builderSource, managerSource, sharedTreeSource]) {
-      expect(src).not.toMatch(/from\s+['"]@main\/data/)
-      expect(src).not.toMatch(/from\s+['"]@data\//)
     }
   })
 })

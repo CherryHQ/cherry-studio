@@ -31,6 +31,7 @@ import type {
   KbListInput,
   KbListOutput,
   KbListOutputItem,
+  KbManageAddItem,
   KbManageOutput,
   KbReadInput,
   KbReadOutput,
@@ -72,39 +73,13 @@ const KNOWLEDGE_BASE_NOT_FOUND_RESOURCE = 'KnowledgeBase'
  */
 const KNOWLEDGE_CONCEPT_CONTENT_NOT_FOUND_RESOURCE = 'Knowledge concept content'
 
-export const KNOWLEDGE_SEARCH_DESCRIPTION = `Search the user's private knowledge base — local documents, notes, web clippings.
+export const KNOWLEDGE_SEARCH_DESCRIPTION = `Search the user's documents, notes, and clippings. Pass known baseIds, else kb_list first; cite with [cite:id].`
 
-Use this when:
-- The user references "my notes" / "my documents" / their own materials
-- The question references topics likely covered in stored documents
-- Specific factual lookup that isn't general knowledge
+export const KNOWLEDGE_LIST_DESCRIPTION = `List knowledge bases or outline one with baseId. Metadata only; use kb_search or kb_read for content.`
 
-Workflow: when a relevant base ID is already known (for example, from an attached knowledge base), call kb_search directly with that ID in baseIds. Call kb_list first only when no relevant base ID is known. You may call this multiple times with refined queries or different baseIds if the first results are insufficient. Cite: append [cite:id] immediately after each statement a result supports, using the result's exact \`id\` field.`
+export const KNOWLEDGE_READ_DESCRIPTION = `Read one document by baseId and conceptId, or grep it with pattern. Cite with [cite:id].`
 
-export const KNOWLEDGE_LIST_DESCRIPTION = `Browse the user's knowledge bases and their structure.
-
-Two modes, selected by \`baseId\`:
-- Omit \`baseId\` to list one page of available bases — each with its name, group, item count, and a few sample sources (filenames, URLs, note titles) so you can judge what it covers. Use \`query\` to filter by base name or source. If \`nextCursor\` is returned, pass it as \`cursor\` to continue. Call this first when the user asks about their materials and you don't already know which base is relevant, then call kb_search with the chosen baseIds. If a base comes back with \`itemsUnavailable: true\` its contents could not be read this call (not that it is empty) — do not tell the user it holds nothing; retry or use kb_search.
-- Pass a \`baseId\` to outline that base instead: a flat top-down list of its folders and documents, each with a \`depth\`, title, type, \`status\`, and — for a readable document — a \`conceptId\` you can pass to kb_read. A node only carries a \`conceptId\` once its \`status\` is "completed"; a still-indexing or failed document has none. Use this to see how a base is organized, or to find a document's conceptId, without searching.
-
-This tool returns metadata and structure, not retrieved evidence. Do not answer content questions from names or sampleSources; use kb_search for relevant passages or kb_read for a known document.`
-
-export const KNOWLEDGE_READ_DESCRIPTION = `Read a single knowledge base document by its Concept ID — or grep inside it.
-
-Pass the \`conceptId\` and \`baseId\` from a kb_search hit (or a kb_list outline). Two modes, selected by \`pattern\`:
-- Omit \`pattern\` to read the document text: kb_search returns short matching chunks, kb_read returns the whole document (or a slice) so you can quote it accurately and read the surrounding context. Long documents come back in capped slices — when \`totalChars\` exceeds the returned \`charEnd\`, call again with \`charStart\` set to that \`charEnd\` to page on.
-- Pass a \`pattern\` (a regular expression) to grep instead: locate exact text — a number, code symbol, term, or quote — when semantic search is too fuzzy. Returns each match's line, character offsets, and a snippet. For meaning-based search across documents, use kb_search.
-
-Cite: append [cite:id] immediately after each statement this document supports, using the result's exact \`id\` field.`
-
-export const KNOWLEDGE_MANAGE_DESCRIPTION = `Modify a knowledge base: add a new source, or delete / re-index existing documents. Destructive — every call modifies the base and is gated behind user approval.
-
-Set \`action\`:
-- "add": import one new source. Set \`type\` and its field — "file" (\`path\`: an absolute local file path), "url" (\`url\`), or "note" (\`content\`, optional \`title\`). The source is copied in and indexed.
-- "delete": permanently remove documents. Set \`conceptIds\` to the Concept IDs (the \`conceptId\` field of a kb_search hit or a kb_list outline) to remove.
-- "refresh": re-index documents (re-read the source, rebuild chunks/embeddings). Set \`conceptIds\`.
-
-Only confirm a destructive change the user asked for. For delete/refresh, get \`conceptIds\` from kb_search or a kb_list outline first; ids that don't resolve come back in \`notFound\`.`
+export const KNOWLEDGE_MANAGE_DESCRIPTION = `Add, delete, or re-index knowledge documents, or create a knowledge base (action="create"). Destructive; get conceptIds first and confirm the user's request.`
 
 /**
  * A failed search must be distinguishable from "ran fine, found nothing": both
@@ -462,10 +437,16 @@ export async function listOrOutlineKnowledge(
 /** Longest a derived note title (its first line) may be before it is truncated. */
 const NOTE_TITLE_MAX_CHARS = 80
 
-/** kb_manage input shape — the fields the chosen `action` does not use are simply absent. */
+/**
+ * kb_manage input shape — the fields the chosen `action` does not use are simply absent.
+ * `create` targets no existing base (it takes `name` instead of `baseId`); every other action
+ * operates on `baseId`.
+ */
 type ManageKnowledgeInput = {
-  baseId: string
-  action: 'add' | 'delete' | 'refresh'
+  baseId?: string
+  action: 'add' | 'delete' | 'refresh' | 'create'
+  name?: string
+  items?: KbManageAddItem[]
   type?: 'file' | 'url' | 'note'
   path?: string
   url?: string
@@ -474,11 +455,20 @@ type ManageKnowledgeInput = {
   conceptIds?: string[]
 }
 
+/** The add-source fields, shared verbatim by the single-source form (top level) and each `items` entry. */
+type ManageAddSource = Pick<ManageKnowledgeInput, 'type' | 'path' | 'url' | 'content' | 'title'>
+
 /**
- * Apply a destructive knowledge-base change (add / delete / refresh). Like the
+ * Apply a destructive knowledge-base change (add / delete / refresh / create). Like the
  * read cores it never throws: an out-of-scope base, a missing required field, an
  * unknown base, or a service error all return `{ error }` with a message the model
  * can act on. `allowedIds` scopes which bases are reachable (empty = all).
+ *
+ * `create` is deliberately NOT scoped to `allowedIds`: the scope ceiling governs which
+ * *existing* bases an agent may reach, and a freshly created one is not in it. Every
+ * create is user-approved like the other actions (kb_manage is a `required` tool), and
+ * the caller decides what the new base grants — the Claude Code bridge elevates it into
+ * the creating session's scope; the AI-SDK path leaves binding it to the user.
  *
  * The caller is responsible for gating the call behind user approval — this core
  * executes the mutation unconditionally once invoked.
@@ -487,14 +477,44 @@ export async function manageKnowledge(
   input: ManageKnowledgeInput,
   allowedIds: readonly string[]
 ): Promise<KnowledgeManageResultOrError> {
-  if (allowedIds.length > 0 && !allowedIds.includes(input.baseId)) {
-    logger.warn('kb_manage targeted a base outside the assistant scope', { baseId: input.baseId, allowedIds })
-    return { error: `Knowledge base "${input.baseId}" is not available to this assistant.` }
-  }
   try {
     const service = application.get('KnowledgeService')
+    if (input.action === 'create') {
+      const name = input.name?.trim()
+      if (!name) {
+        return { error: 'kb_manage create requires `name` — the display name of the new knowledge base.' }
+      }
+      const base = await service.createBase({ name })
+      return { action: 'create', created: { baseId: base.id, name: base.name } }
+    }
+    if (!input.baseId) {
+      return { error: `kb_manage ${input.action} requires \`baseId\` — a knowledge base id from kb_list.` }
+    }
+    if (allowedIds.length > 0 && !allowedIds.includes(input.baseId)) {
+      logger.warn('kb_manage targeted a base outside the assistant scope', { baseId: input.baseId, allowedIds })
+      return { error: `Knowledge base "${input.baseId}" is not available to this assistant.` }
+    }
     switch (input.action) {
       case 'add': {
+        if (input.items) {
+          if (input.type || input.path || input.url || input.content || input.title) {
+            return {
+              error:
+                'kb_manage add accepts either `items` (batch) or the single-source form (`type` + its field) — not both in one call.'
+            }
+          }
+          const built: ValidatedAddInput[] = []
+          for (const [index, item] of input.items.entries()) {
+            const result = buildAddInput(item)
+            if (!result.ok) return { error: `items[${index}]: ${result.error}` }
+            built.push(result)
+          }
+          await service.addItems(
+            input.baseId,
+            built.map((entry) => entry.input)
+          )
+          return { action: 'add', added: built.map((entry) => entry.source) }
+        }
         const built = buildAddInput(input)
         if (!built.ok) return { error: built.error }
         await service.addItems(input.baseId, [built.input])
@@ -517,7 +537,7 @@ export async function manageKnowledge(
         return { action: 'refresh', refreshed: applied, notFound }
       }
       default:
-        return { error: 'kb_manage requires `action` to be "add", "delete", or "refresh".' }
+        return { error: 'kb_manage requires `action` to be "add", "delete", "refresh", or "create".' }
     }
   } catch (error) {
     if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) {
@@ -549,14 +569,18 @@ export function knowledgeManageModelOutput(
 /** Either a validated add input plus the source identifier to report, or a steer string for a missing/invalid field. */
 type AddInputResult = { ok: true; input: KnowledgeAddItemInput; source: string } | { ok: false; error: string }
 
+/** A validated add source — what batch `items` collection accumulates before one `addItems` call. */
+type ValidatedAddInput = Extract<AddInputResult, { ok: true }>
+
 /**
- * Turn the flat kb_manage `add` payload into a validated {@link KnowledgeAddItemInput}.
- * The per-type required field is checked first (a clear steer when it is missing),
- * then the assembled item is run through {@link KnowledgeAddItemInputSchema} so an
- * invalid value (e.g. a non-absolute file path) is rejected before it reaches the
- * filesystem boundary. `source` is the identifier reported back as `added`.
+ * Turn one kb_manage add source (the single-source top-level fields, or one `items` entry)
+ * into a validated {@link KnowledgeAddItemInput}. The per-type required field is checked first
+ * (a clear steer when it is missing), then the assembled item is run through
+ * {@link KnowledgeAddItemInputSchema} so an invalid value (e.g. a non-absolute file path) is
+ * rejected before it reaches the filesystem boundary. `source` is the identifier reported
+ * back as `added`.
  */
-function buildAddInput(input: ManageKnowledgeInput): AddInputResult {
+function buildAddInput(input: ManageAddSource): AddInputResult {
   switch (input.type) {
     case 'file': {
       if (!input.path) {

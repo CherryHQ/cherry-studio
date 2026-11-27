@@ -1,33 +1,40 @@
 import { parse as parsePartialJson } from 'partial-json'
-import { useDeferredValue, useMemo } from 'react'
+import { use, useDeferredValue, useMemo } from 'react'
 
-import { usePartsMap } from '@renderer/components/chat/messages/blocks/MessagePartsContext'
+import { useScopedPartsMap } from '@renderer/components/chat/messages/blocks/MessagePartsContext'
 import type { NormalToolResponse } from '@renderer/types/mcpTool'
 
+import { SubagentStatusContext } from '../../blocks/SubagentStatusContext'
 import { AgentToolsType, isAskUserQuestionToolName } from '../shared/agentToolTypes'
 import { getEffectiveStatus, StreamingContext } from '../shared/GenericTools'
 import { ToolApprovalOutcome } from '../shared/ToolApprovalOutcome'
 import { isToolPartAwaitingApproval } from '../toolResponse'
+import { useToolResponsePreview } from '../useToolResponsePreview'
 import { AgentToolCallCard } from './AgentToolCallCard'
 import { AskUserQuestionCard } from './AskUserQuestionCard'
 import { NavigateToolInline } from './NavigateTool'
 import { isCherrySessionToolResponse } from './sessionToolResult'
-import { getSubagentTaskStatus } from './subagentStatus'
 
-export function AgentExecutionTimeline({ toolResponse }: { toolResponse: NormalToolResponse }) {
+export function AgentExecutionTimeline({ toolResponse: originalResponse }: { toolResponse: NormalToolResponse }) {
+  const name = originalResponse.tool.name
+  const { toolResponse } = useToolResponsePreview(
+    originalResponse,
+    isAskUserQuestionToolName(name) ||
+      name === AgentToolsType.Agent ||
+      name === AgentToolsType.Task ||
+      name === AgentToolsType.WebSearch ||
+      name === AgentToolsType.WebFetch ||
+      name === AgentToolsType.ToolSearch ||
+      name === 'mcp__assistant__navigate' ||
+      isCherrySessionToolResponse(originalResponse)
+  )
   const { arguments: args, response, tool, status, partialArguments } = toolResponse
 
-  const partsMap = usePartsMap()
+  const partsMap = useScopedPartsMap()
   const awaitingApproval = isToolPartAwaitingApproval(partsMap, toolResponse.toolCallId)
 
   const isSubagentTool = tool?.name === AgentToolsType.Agent || tool?.name === AgentToolsType.Task
-  const taskStatus = useMemo(
-    () =>
-      isSubagentTool
-        ? getSubagentTaskStatus(Object.values(partsMap ?? {}).flat(), toolResponse.toolCallId, status)
-        : undefined,
-    [isSubagentTool, partsMap, status, toolResponse.toolCallId]
-  )
+  const taskStatus = isSubagentTool ? use(SubagentStatusContext)(toolResponse.toolCallId, status) : undefined
 
   const deferredPartialArguments = useDeferredValue(partialArguments)
   const parsedPartialArgs = useMemo(() => {
@@ -68,7 +75,7 @@ export function AgentExecutionTimeline({ toolResponse }: { toolResponse: NormalT
         toolCallId={toolResponse.toolCallId}
         toolName={tool?.name}
         input={args ?? parsedPartialArgs}
-        output={isLoading && !taskStatus ? undefined : response}
+        output={response}
         isStreaming={isLoading}
         status={effectiveStatus}
         hasError={effectiveStatus === 'error'}
@@ -79,8 +86,4 @@ export function AgentExecutionTimeline({ toolResponse }: { toolResponse: NormalT
       <ToolApprovalOutcome approval={toolResponse.approval} />
     </>
   )
-}
-
-export function AgentToolRenderer(props: { toolResponse: NormalToolResponse }) {
-  return <AgentExecutionTimeline {...props} />
 }

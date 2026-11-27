@@ -9,7 +9,7 @@ const Meta = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const MetaIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Meta, {
   Avatar: MetaAvatar,
-  colorPrimary: '#0082FB'
+  colorPrimary: '#0866FF'
 })
 
 export default MetaIcon

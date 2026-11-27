@@ -26,6 +26,22 @@ describe('useAgentSessionSlashCommands', () => {
     expect(result.current).toEqual([{ command: '/deploy', description: 'Deploy the app' }])
   })
 
+  it('preserves builtin ownership without promoting custom commands', () => {
+    MockUseCacheUtils.setSharedCacheValue(AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY('ownership'), [
+      { name: 'clear', description: 'SDK clear', argumentHint: '', builtin: true },
+      { name: 'clear', description: 'Plugin clear', argumentHint: '', builtin: false },
+      { name: 'deploy', description: 'User deploy', argumentHint: '' }
+    ])
+
+    const { result } = renderHook(() => useAgentSessionSlashCommands('ownership'))
+
+    expect(result.current).toEqual([
+      { command: '/clear', description: 'SDK clear', builtin: true },
+      { command: '/clear', description: 'Plugin clear', builtin: false },
+      { command: '/deploy', description: 'User deploy', builtin: undefined }
+    ])
+  })
+
   it('returns undefined (builtin fallback) when no catalog is cached', () => {
     const { result } = renderHook(() => useAgentSessionSlashCommands('session-2'))
 

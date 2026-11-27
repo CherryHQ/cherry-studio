@@ -9,6 +9,68 @@ export default defineCreator({
   idPrefixes: ['claude'],
   models: [
     {
+      id: 'claude-fable-5-2',
+      name: 'Claude Fable 5.2',
+      capabilities: ['reasoning', 'function-call', 'image-recognition', 'structured-output', 'file-input'],
+      inputModalities: ['text', 'image'],
+      outputModalities: ['text'],
+      contextWindow: 1000000,
+      maxOutputTokens: 128000,
+      parameterSupport: {
+        temperature: { supported: false },
+        topP: { supported: false },
+        topK: { supported: false },
+        frequencyPenalty: false,
+        presencePenalty: false,
+        maxTokens: true,
+        stopSequences: true,
+        systemMessage: true
+      },
+      reasoning: {
+        controls: [{ kind: 'effort', values: ['low', 'medium', 'high', 'xhigh', 'max'], default: 'high' }]
+      }
+    },
+    {
+      id: 'claude-haiku-5-5',
+      name: 'Claude Haiku 5.5',
+      capabilities: ['reasoning', 'function-call', 'image-recognition', 'structured-output', 'file-input'],
+      inputModalities: ['text', 'image'],
+      outputModalities: ['text'],
+      contextWindow: 1000000,
+      maxOutputTokens: 128000,
+      pricing: {
+        input: { currency: 'USD', perMillionTokens: 0.1 },
+        output: { currency: 'USD', perMillionTokens: 0.5 },
+        cacheRead: { currency: 'USD', perMillionTokens: 0.01 },
+        cacheWrite: { currency: 'USD', perMillionTokens: 0.125 },
+        inputTokenTiers: [
+          {
+            minInputTokens: 100001,
+            input: { currency: 'USD', perMillionTokens: 0.5 },
+            output: { currency: 'USD', perMillionTokens: 2.5 },
+            cacheRead: { currency: 'USD', perMillionTokens: 0.05 },
+            cacheWrite: { currency: 'USD', perMillionTokens: 0.625 }
+          }
+        ]
+      },
+      parameterSupport: {
+        temperature: { supported: false },
+        topP: { supported: false },
+        topK: { supported: false },
+        frequencyPenalty: false,
+        presencePenalty: false,
+        maxTokens: true,
+        stopSequences: true,
+        systemMessage: true
+      },
+      reasoning: {
+        controls: [
+          { kind: 'effort', values: ['low', 'medium', 'high', 'xhigh', 'max'], default: 'medium' },
+          { kind: 'toggle' }
+        ]
+      }
+    },
+    {
       id: 'claude-sonnet-5-5',
       name: 'Claude Sonnet 5.5',
       capabilities: ['reasoning', 'function-call', 'image-recognition', 'structured-output', 'file-input'],
@@ -69,6 +131,12 @@ export default defineCreator({
     }
   ],
   reasoningFamilies: [
+    {
+      pattern: '^(?:(?:[\\w-]+\\.)?anthropic\\.)?claude-haiku-5[.-]5(?:$|[\\[ @:-])',
+      effort: ['low', 'medium', 'high', 'xhigh', 'max'],
+      toggle: true,
+      wireDialect: 'effort'
+    },
     // Sonnet's lowest setting skips up-front thinking but retains progress updates between tools.
     {
       pattern: '^(?:(?:[\\w-]+\\.)?anthropic\\.)?claude-sonnet-5[.-]5(?:$|[\\[ @:-])',
@@ -79,6 +147,12 @@ export default defineCreator({
     // Opus 5.5 always uses adaptive thinking.
     {
       pattern: '^(?:(?:[\\w-]+\\.)?anthropic\\.)?claude-opus-5[.-]5(?:$|[\\[ @:-])',
+      effort: ['low', 'medium', 'high', 'xhigh', 'max'],
+      toggle: false,
+      wireDialect: 'adaptive-always'
+    },
+    {
+      pattern: '^(?:(?:[\\w-]+\\.)?anthropic\\.)?claude-fable-5[.-]2(?:$|[\\[ @:-])',
       effort: ['low', 'medium', 'high', 'xhigh', 'max'],
       toggle: false,
       wireDialect: 'adaptive-always'

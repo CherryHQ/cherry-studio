@@ -8,11 +8,11 @@ import type {
   TestResult
 } from '@playwright/test/reporter'
 
-import { getCase, selectCases } from './cases'
-import { REQUIRED_CONFIG } from './config'
+import { getCase, parseTaskSelection, selectCases } from './cases'
+import { getSensitiveConfigValues } from './config'
 import { getRunPaths } from './paths'
 import { createRedactor } from './redaction'
-import { beginCase, completeE2eCase, readRun, updatePhase, writeRun } from './state'
+import { beginCase, completeE2eCase, readRun, recordSelection, updatePhase, writeRun } from './state'
 
 function caseId(test: TestCase): string {
   const id = test.annotations.find(({ type }) => type === 'regression-case')?.description
@@ -24,7 +24,7 @@ export default class RegressionReporter implements Reporter {
   private readonly paths = getRunPaths(process.env.CHERRY_TEST_RUN_DIR ?? '')
   private readonly phases = new Set<string>()
   private readonly errors: string[] = []
-  private readonly redact = createRedactor(REQUIRED_CONFIG.map((name) => process.env[name] ?? ''))
+  private readonly redact = createRedactor(getSensitiveConfigValues())
   private started = false
   private ids: string[] = []
 
@@ -38,18 +38,40 @@ export default class RegressionReporter implements Reporter {
     let run = readRun(this.paths.runState)
     if (!this.started) {
       this.started = true
+      // TOOL-20261117-01: record the ids this execution really collected, per phase, at the moment
+      // execution starts. Judging a `--grep` rerun against a separate `--list` taken before/after
+      // the run can miss a selection that only differs while the run is in flight.
+      const recordedAt = new Date().toISOString()
       for (const phase of this.phases) {
-        const expected = selectCases(run.metadata.task).filter((testCase) => testCase.phase === phase)
+        const expected = selectCases(parseTaskSelection(run.metadata.task)).filter(
+          (testCase) => testCase.phase === phase
+        )
         if (expected.length === 0 || expected.some(({ id }) => !this.ids.includes(id))) {
           this.errors.push(`Registered cases for phase ${phase} do not match the selected task`)
         }
         run = updatePhase(run, phase, 'running')
+        run = recordSelection(
+          run,
+          phase,
+          this.ids.filter((id) => getCase(id).phase === phase),
+          recordedAt
+        )
       }
+      // Persist the selection before any case-level early return: the first collected case can be
+      // not applicable (outside the selected task or platform), and that path would otherwise drop
+      // the record for the whole execution.
+      writeRun(this.paths.runState, run)
     }
-    writeRun(this.paths.runState, beginCase(run, caseId(test)))
+    const id = caseId(test)
+    // Cases outside the run platform are recorded as not applicable at initialize time.
+    if (run.cases[id].status === 'not_applicable') return
+    writeRun(this.paths.runState, beginCase(run, id))
   }
 
   onTestEnd(test: TestCase, result: TestResult): void {
+    const id = caseId(test)
+    const run = readRun(this.paths.runState)
+    if (run.cases[id].status === 'not_applicable') return
     const artifacts = result.attachments.flatMap(({ path }) => (path ? [path] : []))
     const status = result.status === 'passed' ? 'passed' : result.status === 'skipped' ? 'blocked' : 'failed'
     const blocked = result.annotations.find(({ type }) => type === 'skip')?.description
@@ -59,8 +81,10 @@ export default class RegressionReporter implements Reporter {
         : result.status === 'skipped'
           ? `Prerequisites not met: ${blocked ?? 'See phase logs'}`
           : 'End-to-end test failed; see phase logs and the HTML report'
-    const run = completeE2eCase(readRun(this.paths.runState), caseId(test), status, this.redact(summary), artifacts)
-    writeRun(this.paths.runState, run)
+    const dataSources = result.annotations.flatMap(({ type, description }) =>
+      type === 'data-source' && description ? [this.redact(description)] : []
+    )
+    writeRun(this.paths.runState, completeE2eCase(run, id, status, this.redact(summary), artifacts, dataSources))
   }
 
   onError(error: TestError): void {

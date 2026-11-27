@@ -1,8 +1,9 @@
 /** MCP tool-result formatters. */
 
 import type { ToolResultOutput } from '@ai-sdk/provider-utils'
+import type { CallToolResult } from '@modelcontextprotocol/client'
 
-import type { McpCallToolResponse } from '@main/ai/mcp/types'
+import { mcpModelContent } from '@main/ai/mcp/toolResult'
 
 /** A single item in a tool-result `{type:'content'}` output. */
 type ToolResultContentItem = Extract<ToolResultOutput, { type: 'content' }>['value'][number]
@@ -11,23 +12,26 @@ type ToolResultContentItem = Extract<ToolResultOutput, { type: 'content' }>['val
 const unseenByModel = (label: string): string => `${label} — the model cannot see this content]`
 
 /** True if the call produced any image / audio / binary resource. */
-export function hasMultimodalContent(result: McpCallToolResponse): boolean {
+export function hasMultimodalContent(result: CallToolResult): boolean {
   return (
     Array.isArray(result?.content) &&
     result.content.some(
-      (item) => item.type === 'image' || item.type === 'audio' || (item.type === 'resource' && !!item.resource?.blob)
+      (item) =>
+        item.type === 'image' ||
+        item.type === 'audio' ||
+        (item.type === 'resource' && 'blob' in item.resource && Boolean(item.resource.blob))
     )
   )
 }
 
 /** Text summary for errors and results that cannot carry structured content. */
-export function mcpResultToTextSummary(result: McpCallToolResponse): string {
+export function mcpResultToTextSummary(result: CallToolResult): string {
   if (!result || !result.content || !Array.isArray(result.content)) {
     return JSON.stringify(result)
   }
 
   const parts: string[] = []
-  for (const item of result.content) {
+  for (const item of mcpModelContent(result)) {
     switch (item.type) {
       case 'text':
         parts.push(item.text || '')
@@ -39,7 +43,7 @@ export function mcpResultToTextSummary(result: McpCallToolResponse): string {
         parts.push(unseenByModel(`[Audio: ${item.mimeType || 'audio/mp3'}`))
         break
       case 'resource':
-        if (item.resource?.blob) {
+        if ('blob' in item.resource) {
           parts.push(
             unseenByModel(
               `[Resource: ${item.resource.mimeType || 'application/octet-stream'}, uri=${
@@ -48,7 +52,7 @@ export function mcpResultToTextSummary(result: McpCallToolResponse): string {
             )
           )
         } else {
-          parts.push(item.resource?.text || JSON.stringify(item))
+          parts.push(item.resource.text || JSON.stringify(item))
         }
         break
       default:
@@ -61,12 +65,12 @@ export function mcpResultToTextSummary(result: McpCallToolResponse): string {
 }
 
 /** Preserve media for request-level routing and expose embedded blobs through the resource reader. */
-export function mcpResultToModelOutput(result: McpCallToolResponse, serverId?: string): ToolResultOutput {
+export function mcpResultToModelOutput(result: CallToolResult, serverId?: string): ToolResultOutput {
   if (!result || !Array.isArray(result.content)) {
     return { type: 'text', value: mcpResultToTextSummary(result) }
   }
 
-  const value = result.content.map((item): ToolResultContentItem => {
+  const value = mcpModelContent(result).map((item): ToolResultContentItem => {
     if (item.type === 'image' || item.type === 'audio') {
       if (item.data) {
         const isImage = item.type === 'image'
@@ -78,7 +82,7 @@ export function mcpResultToModelOutput(result: McpCallToolResponse, serverId?: s
       }
       return { type: 'text', text: JSON.stringify(item) }
     }
-    if (item.type === 'resource' && item.resource?.blob && serverId && item.resource.uri) {
+    if (item.type === 'resource' && 'blob' in item.resource && item.resource.blob && serverId && item.resource.uri) {
       const { uri, mimeType } = item.resource
       return {
         type: 'text',

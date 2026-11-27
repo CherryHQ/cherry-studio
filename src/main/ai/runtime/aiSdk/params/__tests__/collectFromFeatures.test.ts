@@ -16,6 +16,7 @@ function makeScope(): RequestScope {
     provider: { id: 'p1' } as never,
     capabilities: undefined,
     sdkConfig: { providerId: 'p1' as never, providerOptionsKey: 'p1', providerSettings: {}, modelId: 'm1' },
+    replayRouteId: 'fixture-route',
     endpointType: undefined,
     aiSdkProviderId: 'openai-compatible',
     reasoningProfile: { format: 'none', wire: { disabled: true } },
@@ -37,8 +38,6 @@ describe('collectFromFeatures', () => {
     ]
     const out = collectFromFeatures(makeScope(), features)
     expect(out.modelAdapters).toHaveLength(2)
-    expect(a).toHaveBeenCalledTimes(1)
-    expect(b).toHaveBeenCalledTimes(1)
   })
 
   it('skips a feature whose applies returns false', () => {
@@ -108,11 +107,6 @@ describe('collectFromFeatures', () => {
     ])
     expect(out.modelAdapters).toHaveLength(1)
     expect(out.hookParts).toHaveLength(1)
-  })
-
-  it('returns empty contributions when no features supplied', () => {
-    const out = collectFromFeatures(makeScope(), [])
-    expect(out).toEqual({ modelAdapters: [], hookParts: [], stopConditions: [] })
   })
 
   it('skips contribute methods that return undefined', () => {

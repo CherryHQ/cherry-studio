@@ -35,6 +35,31 @@ describe('externalAppHandlers', () => {
     expect(listOpenTargets).toHaveBeenCalledWith(input.targetPath, input.pathKind)
   })
 
+  it('preserves the merged default row, recommendation, and remaining editor through the handler', async () => {
+    const result = {
+      pathKind: 'file' as const,
+      recommendedTargetId: 'system_default',
+      targets: [
+        {
+          id: 'system_default',
+          kind: 'system_default' as const,
+          name: 'Visual Studio Code.app',
+          iconDataUrl: 'data:image/png;base64,app'
+        },
+        { id: 'file_manager', kind: 'file_manager' as const },
+        { id: 'known:cursor', kind: 'application' as const, name: 'Cursor' }
+      ]
+    }
+    listOpenTargets.mockResolvedValue(result)
+
+    await expect(
+      externalAppHandlers['external_app.target.list'](
+        { targetPath: '/tmp/README.md', pathKind: 'file' },
+        { senderId: 'main-1' }
+      )
+    ).resolves.toBe(result)
+  })
+
   it('opens the requested target through ExternalAppService', async () => {
     openTarget.mockResolvedValue(undefined)
 

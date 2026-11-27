@@ -41,11 +41,11 @@ the bootstrap phase, not as separate top-level phases.
 
 | Module | Description | Reference Docs |
 |--------|-------------|----------------|
-| `application/` | Application singleton, service registry, bootstrap orchestration | [Lifecycle Reference](../../../docs/references/lifecycle/README.md) |
+| `application/` | Application singleton, service registry, bootstrap orchestration | [Lifecycle Reference](../../../docs/dev/references/lifecycle/README.md) |
 | `concurrency/` | `createLatestReconciler` — general latest-wins async side-effect reconciler (single-flight, level-triggered) | [concurrency/README.md](./concurrency/README.md) |
-| `diagnostics.ts` | Opt-in performance instrumentation (CPU profile, event-loop lag, service spans), gated by `CS_DIAGNOSTICS` | [diagnostics.md](../../../docs/references/diagnostics/README.md) |
-| `lifecycle/` | IoC container, service lifecycle management, phased bootstrap | [Lifecycle Reference](../../../docs/references/lifecycle/README.md) |
-| `logger/` | Winston-based logging service (preboot singleton, consumed via `@logger` alias) | [logging.md](../../../docs/references/logging/README.md) |
+| `diagnostics.ts` | Opt-in performance instrumentation (CPU profile, event-loop lag, service spans), gated by `CS_DIAGNOSTICS` | [diagnostics.md](../../../docs/dev/references/diagnostics/README.md) |
+| `lifecycle/` | IoC container, service lifecycle management, phased bootstrap | [Lifecycle Reference](../../../docs/dev/references/lifecycle/README.md) |
+| `logger/` | Winston-based logging service (preboot singleton, consumed via `@logger` alias) | [logging.md](../../../docs/dev/references/logging/README.md) |
 | `paths/` | Path registry: single source of truth for all main-process filesystem paths | [paths/README.md](./paths/README.md) |
 | `preboot/` | Pre-bootstrap synchronous setup (userData resolution, etc.) | [preboot/README.md](./preboot/README.md) |
-| `utilityProcess/` | Crash-isolated Electron utility processes: registration, typed clients, wire protocol, child runtime | [Utility Process Reference](../../../docs/references/utility-process/README.md) |
+| `utilityProcess/` | Crash-isolated Electron utility processes: registration, typed clients, wire protocol, child runtime | [Utility Process Reference](../../../docs/dev/references/utility-process/README.md) |

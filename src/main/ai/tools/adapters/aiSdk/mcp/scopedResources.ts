@@ -1,12 +1,20 @@
-/** Read published resources or embedded contents already received in this conversation. */
+/** Read published resources/templates or embedded contents already received in this conversation. */
 
 import { randomUUID } from 'node:crypto'
 
+import { UriTemplate } from '@modelcontextprotocol/client'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
+import type { McpInteractionContext } from '@main/ai/mcp/connections/McpConnection'
 import { mcpToolResourceKey } from '@main/ai/messages/mcpToolResources'
 import { atomicWriteFile, decodeTextBufferIfText, mimeToExt } from '@main/utils/file'
-import type { McpResourceEntry, McpResourceReadResult, McpResourceSavedBlob } from '@shared/ai/builtinTools'
+import type {
+  McpResourceEntry,
+  McpResourceListOutput,
+  McpResourceReadResult,
+  McpResourceSavedBlob
+} from '@shared/ai/builtinTools'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import type { McpResource } from '@shared/types/mcp'
@@ -20,6 +28,7 @@ export interface ReadScopedMcpResourceOptions {
   /** Max characters this page may return; the caller passes the request's tool-output cap. */
   charCap: number
   signal?: AbortSignal
+  interactionContext?: McpInteractionContext
   embeddedResources?: ReadonlyMap<string, McpResource>
 }
 
@@ -35,18 +44,29 @@ function toResourceEntry(resource: McpResource): McpResourceEntry {
 }
 
 /** Every resource the given servers publish. A server that fails to list is logged and skipped. */
-export async function listScopedMcpResources(servers: readonly McpServer[]): Promise<McpResourceEntry[]> {
+export async function listScopedMcpResources(servers: readonly McpServer[]): Promise<McpResourceListOutput> {
   const catalog = application.get('McpCatalogService')
-  const results = await Promise.allSettled(servers.map((server) => catalog.listResources(server.id)))
-
-  return results.flatMap((result, index) => {
-    if (result.status === 'fulfilled') return result.value.map(toResourceEntry)
+  const results = await Promise.allSettled(
+    servers.map(async (server) => {
+      const [resources, resourceTemplates] = await Promise.all([
+        catalog.listResources(server.id),
+        catalog.listResourceTemplates(server.id)
+      ])
+      return { resources: resources.map(toResourceEntry), resourceTemplates }
+    })
+  )
+  const listings = results.flatMap((result, index) => {
+    if (result.status === 'fulfilled') return [result.value]
     logger.warn('Failed to list resources for an MCP server', {
       serverId: servers[index].id,
       error: result.reason
     })
     return []
   })
+  return {
+    resources: listings.flatMap((listing) => listing.resources),
+    resourceTemplates: listings.flatMap((listing) => listing.resourceTemplates)
+  }
 }
 
 async function persistResourceBlob(content: McpResource & { blob: string }): Promise<McpResourceSavedBlob> {
@@ -67,7 +87,7 @@ async function persistResourceBlob(content: McpResource & { blob: string }): Pro
 
 export async function readScopedMcpResource(
   servers: readonly McpServer[],
-  { serverId, uri, offset = 0, charCap, signal, embeddedResources }: ReadScopedMcpResourceOptions
+  { serverId, uri, offset = 0, charCap, signal, interactionContext, embeddedResources }: ReadScopedMcpResourceOptions
 ): Promise<McpResourceReadResult> {
   const embedded = embeddedResources?.get(mcpToolResourceKey(serverId, uri))
   const server =
@@ -79,14 +99,26 @@ export async function readScopedMcpResource(
 
   // Embedded resources are already in the conversation; only remote reads require catalog admission.
   if (!embedded) {
-    let published: readonly McpResource[]
+    let published = false
     try {
-      published = await application.get('McpCatalogService').listResources(server.id)
+      const catalog = application.get('McpCatalogService')
+      const resources = await catalog.listResources(server.id)
+      published = resources.some((resource) => resource.uri === uri)
+      if (!published) {
+        const templates = await catalog.listResourceTemplates(server.id)
+        published = templates.some(({ uriTemplate }) => {
+          try {
+            return new UriTemplate(uriTemplate).match(uri) !== null
+          } catch {
+            return false
+          }
+        })
+      }
     } catch (error) {
       logger.warn('Failed to list resources while validating a read', { serverId: server.id, error })
       return { error: `Could not reach ${server.name} to verify ${uri}.` }
     }
-    if (!published.some((resource) => resource.uri === uri)) {
+    if (!published) {
       return { error: `${server.name} does not publish ${uri}. Call mcp_resource_list first.` }
     }
   }
@@ -94,7 +126,11 @@ export async function readScopedMcpResource(
   try {
     const contents = embedded
       ? [embedded]
-      : (await application.get('McpRuntimeService').getResource({ serverId: server.id, uri, signal })).contents
+      : (
+          await application
+            .get('McpRuntimeService')
+            .getResource({ serverId: server.id, uri, signal, interactionContext })
+        ).contents
     const full = contents
       .map(
         (content: McpResource) =>

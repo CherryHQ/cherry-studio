@@ -1,5 +1,6 @@
 import { ResourceCreateWizard } from '@renderer/components/resourceCatalog/dialogs/create'
 import { ResourceEditDialogHost } from '@renderer/components/resourceCatalog/dialogs/edit'
+import { ExportAssistantsDialog } from '@renderer/components/resourceCatalog/dialogs/export/ExportAssistantsDialog'
 import { ImportAssistantDialog } from '@renderer/components/resourceCatalog/dialogs/import'
 import {
   ImportSkillDialog,
@@ -15,6 +16,7 @@ import { AssistantLibraryDialog } from './AssistantLibraryDialog'
 type ResourceCatalogDialogsProps = {
   dialogs: ReturnType<typeof useResourceCatalogController>['dialogs']
   onOpenAssistantChat?: (assistantId: string) => void
+  onOpenAgentChat?: (agentId: string) => void
   onRefetch: ReturnType<typeof useResourceCatalogController>['refetch']
   resourceType: Extract<ResourceType, 'assistant' | 'agent' | 'skill'>
 }
@@ -22,6 +24,7 @@ type ResourceCatalogDialogsProps = {
 export function ResourceCatalogDialogs({
   dialogs,
   onOpenAssistantChat,
+  onOpenAgentChat,
   onRefetch,
   resourceType
 }: ResourceCatalogDialogsProps) {
@@ -32,6 +35,16 @@ export function ResourceCatalogDialogs({
         onOpenChange={dialogs.setAssistantImportOpen}
         onImported={onRefetch}
       />
+      {resourceType === 'assistant' ? (
+        <ExportAssistantsDialog
+          open={dialogs.assistantExportOpen}
+          onOpenChange={dialogs.handleAssistantExportOpenChange}
+          assistants={dialogs.exportAssistants}
+          loading={dialogs.assistantExportLoading}
+          exporting={dialogs.assistantExporting}
+          onExport={dialogs.handleExportAssistants}
+        />
+      ) : null}
       {resourceType === 'assistant' ? (
         <AssistantLibraryDialog
           open={dialogs.assistantLibraryOpen}
@@ -52,6 +65,9 @@ export function ResourceCatalogDialogs({
         modelFilter={dialogs.createDialogKind === 'agent' ? undefined : (candidate) => !isNonChatModel(candidate)}
         onOpenChange={dialogs.handleCreateDialogOpenChange}
         onSubmit={dialogs.handleSubmitCreateResource}
+        onStartConversation={(id) =>
+          (dialogs.createDialogKind === 'agent' ? onOpenAgentChat : onOpenAssistantChat)?.(id)
+        }
       />
       <ResourceEditDialogHost
         target={dialogs.editDialogTarget}

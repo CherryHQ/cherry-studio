@@ -1,5 +1,7 @@
 import type { TFunction } from 'i18next'
 
+import { formatFileSize } from './file'
+
 interface DiagnosticFileSourceSummary {
   readonly available: boolean
   readonly estimatedBytes: number
@@ -10,14 +12,6 @@ interface DiagnosticChatSourceSummary {
   readonly available: boolean
   readonly estimatedBytes: number
   readonly messageCount: number
-}
-
-export function formatDiagnosticBytes(bytes: number): string {
-  if (bytes === 0) return '0 B'
-  const units = ['B', 'KB', 'MB', 'GB']
-  const unitIndex = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1)
-  const value = bytes / 1024 ** unitIndex
-  return `${value >= 10 || unitIndex === 0 ? value.toFixed(0) : value.toFixed(1)} ${units[unitIndex]}`
 }
 
 function describeUnavailableSource(
@@ -39,7 +33,7 @@ export function describeDiagnosticFileSource(
   if (unavailableDescription) return unavailableDescription
   return t('settings.about.diagnostics.sources.summary', {
     count: source!.fileCount,
-    size: formatDiagnosticBytes(source!.estimatedBytes)
+    size: formatFileSize(source!.estimatedBytes)
   })
 }
 
@@ -52,6 +46,6 @@ export function describeDiagnosticChatSource(
   if (unavailableDescription) return unavailableDescription
   return t('settings.about.diagnostics.sources.message_summary', {
     count: source!.messageCount,
-    size: formatDiagnosticBytes(source!.estimatedBytes)
+    size: formatFileSize(source!.estimatedBytes)
   })
 }

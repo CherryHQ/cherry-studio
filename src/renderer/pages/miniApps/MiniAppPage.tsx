@@ -6,8 +6,7 @@ import BeatLoader from 'react-spinners/BeatLoader'
 
 import { cacheService } from '@data/CacheService'
 import { useSharedCacheValue } from '@data/hooks/useCache'
-import { loggerService } from '@logger'
-import { useCurrentTab, useCurrentTabId, useIsActiveTab } from '@renderer/hooks/tab'
+import { useCurrentTab, useCurrentTabId } from '@renderer/hooks/tab'
 import { useOptionalTabsContext } from '@renderer/hooks/tab'
 import { toTransientMiniApp, useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
@@ -18,7 +17,6 @@ import type { MiniApp } from '@shared/data/types/miniApp'
 import MiniAppPane from './components/MiniAppPane'
 import SplitPanePicker from './components/SplitPanePicker'
 
-const logger = loggerService.withContext('MiniAppPage')
 const MINI_APP_LOADING_COLOR = 'var(--muted-foreground)'
 
 // currentTab.url is always the app-relative route written by openTab(`/app/mini-app/<id>`),
@@ -32,10 +30,9 @@ const MiniAppPage: FC = () => {
   const { appId } = useParams({ strict: false })
   const currentTabId = useCurrentTabId()
   const currentTab = useCurrentTab()
-  const isActiveTab = useIsActiveTab()
   const tabsContext = useOptionalTabsContext()
   const updateTab = tabsContext?.updateTab
-  const { openMiniAppKeepAlive, openSplit, closeSplit } = useMiniAppPopup()
+  const { openSplit, closeSplit } = useMiniAppPopup()
   const { allApps, openedKeepAliveMiniApps, splitOpen, splitMiniAppId, isLoading, error } = useMiniApps()
 
   // Authoritative descriptor for a transient app (no database row, opened via openSmartMiniApp).
@@ -71,26 +68,6 @@ const MiniAppPage: FC = () => {
       icon: tabIcon
     })
   }, [app, currentTab, currentTabId, displayName, updateTab])
-
-  useEffect(() => {
-    // Only the active tab drives the keep-alive pool. `openMiniAppKeepAlive`
-    // mutates *global* state — `currentMiniAppId` and the LRU order of the
-    // shared keep-alive list. Background mini-app pages stay mounted (React 19
-    // Activity keep-alive), so without this guard two mounted pages — e.g. a
-    // pinned mini-app tab plus the one just opened — would each keep claiming
-    // `currentMiniAppId` and reordering themselves to the tail, ping-ponging the
-    // shared state into an infinite render loop (Maximum update depth). Each app
-    // still registers itself when it becomes active and, being kept alive, stays
-    // in the pool afterward.
-    if (!isActiveTab) return
-    if (isLoading) return
-    if (error) {
-      logger.error('Failed to load mini apps', error instanceof Error ? error : new Error(String(error)))
-      return
-    }
-    if (!app) return
-    openMiniAppKeepAlive(app)
-  }, [isActiveTab, app, openMiniAppKeepAlive, isLoading, error])
 
   // -------------- Tab Shell logic --------------
   // The shared cache syncs from Main asynchronously and does not block renderer startup,

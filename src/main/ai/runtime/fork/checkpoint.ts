@@ -1,27 +1,19 @@
-import * as z from 'zod'
-
-// Only routing is shared; each adapter owns the remaining native checkpoint fields.
-const RuntimeForkCheckpointSchema = z.looseObject({ runtime: z.string().min(1) })
-
-export const RuntimeForkAnchorSchema = z.strictObject({
-  checkpoint: RuntimeForkCheckpointSchema,
-  excludedMessageIds: z.array(z.string()).optional()
-})
-
-export type RuntimeForkCheckpoint = z.infer<typeof RuntimeForkCheckpointSchema>
-export type RuntimeForkAnchor = z.infer<typeof RuntimeForkAnchorSchema>
+import type { RuntimeForkCheckpoint } from '@data/services/agentSessionForkContract'
 
 export interface RuntimeForkInput {
   sourceSessionId: string
+  sourceBackendId?: string
   checkpoint: RuntimeForkCheckpoint
   checkpoints: RuntimeForkCheckpoint[]
   targetSessionId: string
   targetCwd: string
   artifactDirectory: string
   signal: AbortSignal
+  recordNativePreparation?(contextId: string): Promise<void>
 }
 
 export interface RuntimeForkResult {
+  contextId?: string
   resumeToken: string
   checkpoints: RuntimeForkCheckpoint[]
   publish: Array<{ source: string; target: string }>

@@ -10,9 +10,13 @@ import AgentComposer, {
 } from '@renderer/components/composer/variants/AgentComposer'
 import type { GetAgentResponse } from '@renderer/types/agent'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import type { CherryUIMessage } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
 
+import { ClaudeCodeDownloadStatus } from './ClaudeCodeDownloadStatus'
+import { useOptionalAgentRightPaneActions } from './components/AgentRightPane'
 import type { AgentChatRuntimeState } from './useAgentChatRuntimeState'
+import { useClaudeCodeBinary } from './useClaudeCodeBinary'
 
 interface AgentComposerSlotProps {
   agentId?: string
@@ -25,6 +29,7 @@ interface AgentComposerSlotProps {
   sendMessage: AgentChatRuntimeState['sendMessage']
   stop: AgentChatRuntimeState['stop']
   isStreaming: boolean
+  messages?: readonly CherryUIMessage[]
   sendDisabled: boolean
   onAgentChange?: (agentId: string | null) => void | Promise<void>
   agentChanging?: boolean
@@ -35,6 +40,8 @@ interface AgentComposerSlotProps {
   editBusy?: boolean
   cancelEditing: () => void
   resendEditedMessage: AgentChatRuntimeState['sendMessage']
+  steerWhileBusy?: boolean
+  providerQuotaExhausted?: boolean
 }
 
 function AgentComposerSlot({
@@ -48,6 +55,7 @@ function AgentComposerSlot({
   sendMessage,
   stop,
   isStreaming,
+  messages,
   sendDisabled,
   onAgentChange,
   agentChanging,
@@ -57,9 +65,13 @@ function AgentComposerSlot({
   editing,
   editBusy,
   cancelEditing,
-  resendEditedMessage
+  resendEditedMessage,
+  steerWhileBusy,
+  providerQuotaExhausted
 }: AgentComposerSlotProps) {
+  const binary = useClaudeCodeBinary(activeAgent?.type === 'claude-code')
   const compactWhenSingleLine = useRightPanelPresentationMaximized()
+  const rightPaneActions = useOptionalAgentRightPaneActions()
   const { t } = useTranslation()
   const editLaunchOptions = useMemo<AgentComposerLaunchOptions | undefined>(
     () =>
@@ -70,7 +82,6 @@ function AgentComposerSlot({
             editing: {
               messageId: editing.messageId,
               onCancel: cancelEditing,
-              description: t('agent.edit_resend.warning'),
               sendLabel: t('agent.edit_resend.save')
             }
           }
@@ -91,10 +102,16 @@ function AgentComposerSlot({
         sendMessage={isEditing ? resendEditedMessage : sendMessage}
         stop={stop}
         isStreaming={!isEditing && isStreaming}
-        sendDisabled={sendDisabled || (isEditing && (isStreaming || editBusy))}
+        messages={isEditing ? undefined : messages}
+        sendDisabled={binary.blocked || sendDisabled || (isEditing && (isStreaming || editBusy))}
         onCreateEmptySession={isEditing ? undefined : onCreateEmptySession}
         compactWhenSingleLine={compactWhenSingleLine}
+        previewInputFile={
+          rightPaneActions?.canPreviewInputFileInRightPane ? rightPaneActions.previewInputFileInRightPane : undefined
+        }
         launchOptions={isEditing ? editLaunchOptions : composerLaunchOptions}
+        steerWhileBusy={steerWhileBusy}
+        providerQuotaExhausted={!isEditing && providerQuotaExhausted}
       />
     ) : (
       <MissingAgentHomeComposer onAgentChange={onAgentChange} agentChanging={agentChanging} />
@@ -109,7 +126,14 @@ function AgentComposerSlot({
     ]
   }
 
-  return <ConversationComposerSlot composerContext={context} fallback={!isMultiSelectMode && renderComposer()} />
+  return (
+    <>
+      {!isMultiSelectMode && binary.blocked && (
+        <ClaudeCodeDownloadStatus status={binary.status} onRetry={binary.retry} />
+      )}
+      <ConversationComposerSlot composerContext={context} fallback={!isMultiSelectMode && renderComposer()} />
+    </>
+  )
 }
 
 export default memo(AgentComposerSlot)

@@ -9,6 +9,7 @@ import type {
   CodeCliToolState
 } from '@shared/data/preference/preferenceTypes'
 import { CLI_OWN_LOGIN_PROVIDER_ID, CodeCli, isApiGatewayProviderId } from '@shared/types/codeCli'
+import { Sequencer } from '@shared/utils/async'
 
 const logger = loggerService.withContext('useCodeCli')
 
@@ -39,7 +40,7 @@ export const useCodeCli = (initialTool: CodeCli = DEFAULT_TOOL, onToolChange?: (
   // never clobber each other (setConfigs takes a plain value, not an updater).
   const configsRef = useRef(configs)
   configsRef.current = configs
-  const writeQueueRef = useRef<Promise<void>>(Promise.resolve())
+  const writeQueueRef = useRef(new Sequencer())
 
   const [selectedCliTool, setSelectedCliTool] = useState<CodeCli>(initialTool)
 
@@ -66,15 +67,13 @@ export const useCodeCli = (initialTool: CodeCli = DEFAULT_TOOL, onToolChange?: (
 
   const patchToolState = useCallback(
     (toolId: CodeCliId, patch: (prev: CodeCliToolState) => CodeCliToolState): Promise<void> => {
-      const task = writeQueueRef.current.then(async () => {
+      return writeQueueRef.current.queue(async () => {
         const latest = configsRef.current
         const prev = getToolState(toolId, latest)
         const next = { ...latest, [toolId]: patch(prev) }
         configsRef.current = next
         await setConfigs(next)
       })
-      writeQueueRef.current = task.catch(() => {})
-      return task
     },
     [setConfigs]
   )
