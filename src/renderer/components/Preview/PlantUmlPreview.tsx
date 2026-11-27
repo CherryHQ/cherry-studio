@@ -2,7 +2,7 @@ import { memo, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { loggerService } from '@logger'
-import { renderPlantUml } from '@renderer/services/PlantUmlRenderService'
+import { plantUmlRenderService } from '@renderer/services/PlantUmlRenderService'
 
 import ImagePreviewLayout from './ImagePreviewLayout'
 import { ShadowWhiteContainer } from './styles'
@@ -34,7 +34,7 @@ const PlantUmlPreview = ({
     const { signal } = controller
     const timer = setTimeout(async () => {
       try {
-        const result = await renderPlantUml(source, signal)
+        const result = await plantUmlRenderService.render(source, signal)
         if (signal.aborted) return
         if ('error' in result) {
           setError(result.line ? `${result.line}: ${result.error}` : result.error)
