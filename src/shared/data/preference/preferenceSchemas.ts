@@ -457,6 +457,10 @@ export interface PreferenceSchemas {
     // target-key-definitions/complex/complex
     'feature.local_model.hardware_acceleration.enabled': boolean
     // target-key-definitions/complex/complex
+    'feature.memory.dreaming.enabled': boolean
+    // target-key-definitions/complex/complex
+    'feature.memory.generation.enabled': boolean
+    // target-key-definitions/complex/complex
     'feature.mini_app.check_updates_on_open': boolean
     // redux/settings/maxKeepAliveMinapps
     'feature.mini_app.max_keep_alive': number
@@ -946,6 +950,8 @@ export const DefaultPreferences: PreferenceSchemas = {
     'feature.file_processing.default_image_to_text': null,
     'feature.file_processing.overrides': {},
     'feature.local_model.hardware_acceleration.enabled': true,
+    'feature.memory.dreaming.enabled': true,
+    'feature.memory.generation.enabled': true,
     'feature.mini_app.check_updates_on_open': true,
     'feature.mini_app.max_keep_alive': 3,
     'feature.mini_app.open_link_external': false,
@@ -1091,7 +1097,7 @@ export const DefaultPreferences: PreferenceSchemas = {
 
 /**
  * 生成统计:
- * - 总配置项: 347
+ * - 总配置项: 349
  * - electronStore项: 2
  * - redux项: 173
  * - localStorage项: 0

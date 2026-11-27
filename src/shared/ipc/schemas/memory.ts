@@ -1,5 +1,7 @@
 import * as z from 'zod'
 
+import { MemoryDreamingStatusSchema, MemoryScopeSchema } from '@shared/types/memory'
+
 import { defineRoute } from '../define'
 
 const editor = z.object({ editorId: z.uuid() })
@@ -12,6 +14,8 @@ const result = z.object({
 })
 
 export const memoryRequestSchemas = {
+  'memory.dreaming.status': defineRoute({ input: MemoryScopeSchema, output: MemoryDreamingStatusSchema }),
+  'memory.dreaming.cancel': defineRoute({ input: MemoryScopeSchema, output: z.void() }),
   'memory.open_folder': defineRoute({ input: z.void(), output: z.void() }),
   'memory.editor.open': defineRoute({
     input: z.object({ kind: z.literal('shared') }),
