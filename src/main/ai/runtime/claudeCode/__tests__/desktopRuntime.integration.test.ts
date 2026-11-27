@@ -313,6 +313,24 @@ it('continues product history and keeps SDK background notifications in one Main
   expect(unexpected).toEqual([])
 }, 30000)
 
+it('re-checks sandbox settings before each turn on a live connection', async () => {
+  const test = await desktop()
+  const request = await ports.build()
+  ports.build.mockResolvedValue({
+    ...request,
+    options: { ...request.options, sandbox: { enabled: true }, settingSources: ['project'] }
+  })
+  const connection = await test.connect()
+  const settingsFile = path.join(test.options.cwd, '.claude', 'settings.json')
+  await mkdir(path.dirname(settingsFile), { recursive: true })
+
+  await writeFile(settingsFile, JSON.stringify({ sandbox: { excludedCommands: ['gh *'] } }))
+  await expect(connection.send(test.input('Check the GitHub login'))).rejects.toThrow('project: sandbox')
+
+  await writeFile(settingsFile, JSON.stringify({}))
+  await expect(connection.send(test.input('List the workspace'))).resolves.toBeUndefined()
+})
+
 // A native priority input must roll the host only when consumed; the child owns its own stored output.
 it('joins native steer to the shared answer while keeping foreground child history independent', async () => {
   const test = await desktop()

@@ -1,3 +1,4 @@
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { resolveSandboxPolicy, type SandboxOverlay } from '@main/ai/toolApproval/sandboxPolicy'
@@ -119,11 +120,25 @@ describe('assertSandboxSettingsUnchanged (AC11)', () => {
       'WebFetch(domain:github.com)'
     ],
     ['a write allow rule', { permissions: { allow: ['Edit(~/.ssh/**)'] } }, 'Edit(~/.ssh/**)'],
-    ['a policyHelper it cannot run', { policyHelper: { command: '/usr/local/bin/policy' } }, 'managed: policyHelper']
+    ['a policyHelper it cannot run', { policyHelper: { command: '/usr/local/bin/policy' } }, 'managed: policyHelper'],
+    [
+      'a writable additional directory',
+      { permissions: { additionalDirectories: ['~'] } },
+      'managed: permissions.additionalDirectories'
+    ]
   ])('rejects a tier that adds %s', async (_label, settings, evidence) => {
     mocks.resolveSettings.mockResolvedValue(managed(settings))
 
     await expect(assertSandboxSettingsUnchanged(options)).rejects.toThrow(evidence)
+  })
+
+  it('explains the refusal in the current app language', async () => {
+    mocks.resolveSettings.mockResolvedValue(managed({ sandbox: { enabled: false } }))
+
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'zh-CN')
+    await expect(assertSandboxSettingsUnchanged(options)).rejects.toThrow('无法验证此智能体的命令行沙箱')
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'en-US')
+    await expect(assertSandboxSettingsUnchanged(options)).rejects.toThrow('cannot be verified')
   })
 
   it('rejects when the settings cannot be resolved', async () => {

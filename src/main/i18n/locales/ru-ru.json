@@ -50,6 +50,7 @@
   "agent.session.pi.legacy_tool_policy_unresolved": "Не удалось сопоставить некоторые отключённые инструменты предыдущей среды выполнения. Перед запуском агента настройте его доступ к инструментам заново.",
   "agent.session.run_status.busy": "Сеанс Agent занят. Повторите попытку чуть позже.",
   "agent.session.run_status.unavailable": "Сеанс Agent больше недоступен.",
+  "agent.session.sandbox_unverifiable": "Не удаётся проверить песочницу оболочки этого агента: её изменяют другие настройки Claude Code ({{changes}}). Удалите эти настройки или обратитесь к администратору.",
   "agent.session.workspace_status.inaccessible": "Путь к рабочей области недоступен: {{path}}",
   "agent.session.workspace_status.missing": "Путь к рабочей области не существует: {{path}}",
   "agent.session.workspace_status.not_directory": "Путь к рабочей области не является каталогом: {{path}}",

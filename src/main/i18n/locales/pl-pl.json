@@ -50,6 +50,7 @@
   "agent.session.pi.legacy_tool_policy_unresolved": "Nie udało się zmapować niektórych wyłączonych narzędzi z poprzedniego środowiska wykonawczego. Skonfiguruj ponownie dostęp do narzędzi dla tego agenta przed jego uruchomieniem.",
   "agent.session.run_status.busy": "Sesja agenta jest zajęta. Spróbuj ponownie za chwilę.",
   "agent.session.run_status.unavailable": "Sesja agenta nie jest już dostępna.",
+  "agent.session.sandbox_unverifiable": "Nie można zweryfikować piaskownicy powłoki tego agenta, ponieważ zmieniają ją inne ustawienia Claude Code ({{changes}}). Usuń te ustawienia lub skontaktuj się z administratorem.",
   "agent.session.workspace_status.inaccessible": "Ścieżka obszaru roboczego jest niedostępna: {{path}}",
   "agent.session.workspace_status.missing": "Ścieżka obszaru roboczego nie istnieje: {{path}}",
   "agent.session.workspace_status.not_directory": "Ścieżka obszaru roboczego nie jest katalogiem: {{path}}",

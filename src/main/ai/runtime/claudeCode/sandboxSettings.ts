@@ -1,6 +1,7 @@
 import { type Options, resolveSettings, type SandboxSettings, type Settings } from '@anthropic-ai/claude-agent-sdk'
 
 import type { SandboxPolicy } from '@main/ai/toolApproval/sandboxPolicy'
+import { t } from '@main/i18n'
 
 /**
  * Translates a resolved sandbox policy into the Claude Agent SDK `sandbox` option. The session's
@@ -32,9 +33,7 @@ export async function assertSandboxSettingsUnchanged(options: Pick<Options, 'cwd
   const { sources } = await resolveSettings({ cwd: options.cwd, settingSources: options.settingSources })
   const changes = sources.flatMap(({ source, settings }) => sandboxChanges(settings).map((key) => `${source}: ${key}`))
   if (changes.length > 0) {
-    throw new Error(
-      `The shell sandbox for this Agent cannot be verified because other Claude Code settings change it (${changes.join('; ')}). Remove those settings or contact your administrator.`
-    )
+    throw new Error(t('agent.session.sandbox_unverifiable', { changes: changes.join('; ') }))
   }
 }
 
@@ -61,7 +60,8 @@ function sandboxChanges(settings: Settings): string[] {
   return [
     ...(settings.sandbox === undefined ? [] : ['sandbox']),
     ...(settings.policyHelper === undefined ? [] : ['policyHelper']),
-    // These allow rules feed the sandbox's network and write allowlists.
+    // These feed the sandbox's network and write allowlists.
+    ...(settings.permissions?.additionalDirectories?.length ? ['permissions.additionalDirectories'] : []),
     ...(settings.permissions?.allow ?? []).filter((rule) => /^(WebFetch\(domain:|Edit\()/.test(rule))
   ]
 }

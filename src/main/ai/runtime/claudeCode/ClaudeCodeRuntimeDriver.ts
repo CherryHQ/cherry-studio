@@ -89,6 +89,7 @@ import {
   type ClaudeCodeProcessDiagnostics
 } from './processExitDiagnostics'
 import { resolveClaudeConfigDirectory } from './queryOptions'
+import { assertSandboxSettingsUnchanged } from './sandboxSettings'
 import {
   AgentSessionWorkspaceError,
   disposeToolPolicySnapshot,
@@ -170,6 +171,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private sessionTornDown = false
   /** Staleness identity captured by the materialized request; live facts advance during reconcile. */
   private connectionConfig?: ConnectionConfig
+  private sandboxSettingsCheck?: Pick<Options, 'cwd' | 'settingSources'>
   private _usageCapture?: AgentSessionUsageCapture
   /** Serializes reconciles per connection so push/pull can't interleave SDK and snapshot writes. */
   private reconcileChain: Promise<unknown> = Promise.resolve()
@@ -204,6 +206,9 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     this.connectionConfig = request.connectionConfig
     this.approvalEmitter = request.settings.approvalEmitter
     this.assistantFileToolsEnabled = Boolean(request.settings.mcpServers?.['assistant-files'])
+    this.sandboxSettingsCheck = request.options.sandbox
+      ? { cwd: request.options.cwd, settingSources: request.options.settingSources }
+      : undefined
     this.context = prepareClaudeBranch(
       this.input.sessionId,
       resolveClaudeConfigDirectory(request.options.env),
@@ -325,6 +330,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     if (isFastSlashCommand(input)) {
       throw new Error('The /fast command is unavailable; use the host Fast control instead')
     }
+    // Settings were checked when this connection was built; a later turn must not trust a stale check.
+    if (this.sandboxSettingsCheck) await assertSandboxSettingsUnchanged(this.sandboxSettingsCheck)
 
     const sdkMessage = await toSdkUserMessage(
       withAgentContext(input.message, input.context),

@@ -50,6 +50,7 @@
   "agent.session.pi.legacy_tool_policy_unresolved": "Some disabled tools from the previous runtime could not be mapped. Reconfigure this agent's tool access before running it.",
   "agent.session.run_status.busy": "The Agent Session is busy. Please try again shortly.",
   "agent.session.run_status.unavailable": "The Agent Session is no longer available.",
+  "agent.session.sandbox_unverifiable": "The shell sandbox for this Agent cannot be verified because other Claude Code settings change it ({{changes}}). Remove those settings or contact your administrator.",
   "agent.session.workspace_status.inaccessible": "Workspace path is not accessible: {{path}}",
   "agent.session.workspace_status.missing": "Workspace path does not exist: {{path}}",
   "agent.session.workspace_status.not_directory": "Workspace path is not a directory: {{path}}",

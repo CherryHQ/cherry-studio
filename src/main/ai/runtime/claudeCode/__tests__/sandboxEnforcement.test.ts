@@ -263,6 +263,12 @@ describe.runIf(process.platform === 'darwin')('Claude Code shell sandbox on macO
 
     await writeFile(settingsFile, JSON.stringify({ sandbox: { excludedCommands: ['gh *'] } }))
     await expect(assertSandboxSettingsUnchanged(options)).rejects.toThrow('project: sandbox')
+
+    await writeFile(
+      settingsFile,
+      JSON.stringify({ permissions: { additionalDirectories: [path.join(root, 'outside')] } })
+    )
+    await expect(assertSandboxSettingsUnchanged(options)).rejects.toThrow('project: permissions.additionalDirectories')
   })
 
   it('routes a request to leave the sandbox to canUseTool and does not run it when denied (AC3)', async () => {

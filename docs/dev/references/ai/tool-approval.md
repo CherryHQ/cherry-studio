@@ -209,8 +209,10 @@ strict and empty, and sandboxed Bash runs without a card.
 
 Before a sandboxed connection starts, `assertSandboxSettingsUnchanged` resolves every other
 settings tier the CLI would load for the same cwd and setting sources. A tier with its own
-`sandbox` block, a `policyHelper`, or `WebFetch(domain:…)` / `Edit(…)` allow rules fails the
-build, so the turn errors before any command runs.
+`sandbox` block, a `policyHelper`, `permissions.additionalDirectories`, or `WebFetch(domain:…)` /
+`Edit(…)` allow rules fails the build with a localized error, so the turn errors before any command
+runs. A live connection repeats the check before each turn it sends, so settings changed after
+connect fail the next turn instead of riding on the first check.
 
 The connection's verified state reaches the guard table as `sandboxed`. A Bash call with
 `dangerouslyDisableSandbox` set asks through `sandbox-escape`, whose reason says the command
