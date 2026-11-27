@@ -39,7 +39,9 @@
   "scripts": {
     "build": "tsdown",
     "prepack": "pnpm build",
-    "test": "node --test tests/*.test.mjs"
+    "test": "node --test tests/*.test.mjs",
+    "test:ci": "pnpm build && pnpm test && node scripts/check-package.mjs",
+    "test:package": "pnpm build && node scripts/check-package.mjs"
   },
   "dependencies": {
     "async-mutex": "^0.5.0",

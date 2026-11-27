@@ -24,6 +24,7 @@ export const testProjects = [
 ]
 
 export const checkTasks = {
+  'memory-package': { group: 'packages', args: ['--filter', '@cherrystudio/memory', 'test:ci'] },
   format: { group: 'repository', args: ['format:check'] },
   docs: { group: 'repository', args: ['docs:check'] },
   skills: { group: 'repository', args: ['skills:check'] },
@@ -80,6 +81,7 @@ const consumers = {
   ui: ['ui', 'file-preview', 'renderer'],
   'file-preview': ['file-preview', 'renderer'],
   'provider-registry': ['provider-registry', 'shared', 'scripts', 'main', 'preload', 'renderer'],
+  memory: [],
   'web-search': ['web-search', 'shared', 'main', 'preload', 'renderer'],
   'extension-table-plus': ['renderer'],
   'remote-protocol': ['remote-protocol', 'remote-transport', 'shared', 'scripts', 'main', 'preload', 'renderer'],
@@ -161,6 +163,7 @@ export function createPlan(files, fullReason) {
       continue
     }
     add('lint', file)
+    if (scope === 'memory') add('memory-package', file)
     if (scope === 'e2e') {
       add('types-e2e', file)
       continue
@@ -225,7 +228,9 @@ export function selectedGroups(plan) {
     main: plan.projects.includes('main'),
     platform: plan.platform,
     renderer: plan.projects.includes('renderer'),
-    packages: plan.projects.some((project) => !['main', 'preload', 'renderer'].includes(project))
+    packages:
+      plan.tasks.includes('memory-package') ||
+      plan.projects.some((project) => !['main', 'preload', 'renderer'].includes(project))
   }
 }
 
