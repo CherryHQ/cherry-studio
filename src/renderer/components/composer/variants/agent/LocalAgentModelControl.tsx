@@ -31,20 +31,7 @@ type LocalAgentModelControlProps = {
   side: 'top' | 'bottom'
   iconOnly?: boolean
 }
-export function LocalAgentModelControl(props: LocalAgentModelControlProps) {
-  const config = props.agent.configuration?.localRuntime
-  if (!config) return null
-  if (config.presetId === qwenPreset.id && (!props.info || props.info.modelSelection === 'current-only')) {
-    return <NativeModelControl {...props} />
-  }
-  return getLocalAgentProtocol(config.presetId) === 'acp' ? (
-    <AcpSessionModelControl {...props} />
-  ) : (
-    <NativeModelControl {...props} />
-  )
-}
-
-function AcpSessionModelControl({
+export function LocalAgentModelControl({
   agent,
   info,
   sessionId,
@@ -55,125 +42,68 @@ function AcpSessionModelControl({
   const { t } = useTranslation()
   const [saving, setSaving] = useState(false)
   const config = agent.configuration?.localRuntime
-  const { freshCatalog, refresh, refreshError, loading } = useLocalAgentModelCatalog(
-    config?.presetId ?? agent.id,
-    config,
-    false
-  )
-  const status = info?.modelSelection
-  const models = (info?.models ?? []).map((model) => ({ ...model, source: 'native' as const }))
-  const value = info?.activeModel?.id
-  const model = models.find(({ id }) => id === value) ?? info?.activeModel
-  const options = info?.configOptions?.filter((option) => option.category === 'model_config')
-  const label = model?.name || value || config?.nativeModel || t('button.select_model')
-  const footer =
-    status === 'current-only'
-      ? t('local_agents.session_model.current_only')
-      : status === 'unsupported'
-        ? t('local_agents.session_model.unsupported')
-        : status === 'sign-in-required'
-          ? t('local_agents.sign_in_required')
-          : !info && !refreshError
-            ? t('local_agents.session_model.connect')
-            : undefined
-
-  return (
-    <LocalAgentModelSelector
-      models={models}
-      presetId={config?.presetId}
-      value={value}
-      disabled={!!info && (disabled || saving || status !== 'selectable')}
-      loaded={!!info || !!freshCatalog}
-      loading={!info && loading}
-      error={info ? undefined : refreshError}
-      onLoad={() => refresh().catch(() => {})}
-      onOpenSettings={() => openRoute('/settings/local-agents', { id: config?.presetId ?? agent.id })}
-      onSelect={async (modelId) => {
-        if (!modelId || !sessionId || disabled || saving || status !== 'selectable') return false
-        setSaving(true)
-        try {
-          await ipcApi.request('ai.local_agents.select_session_model', { sessionId, modelId })
-          return true
-        } catch (error) {
-          toast.error(String(error))
-          return false
-        } finally {
-          setSaving(false)
-        }
-      }}
-      side={side}
-      configuration={
-        sessionId && !!options?.length ? (
-          <LocalAgentConfigControl
-            sessionId={sessionId}
-            presetId={config?.presetId}
-            options={options}
-            side="bottom"
-            disabled={disabled || saving}
-          />
-        ) : undefined
-      }
-      footer={footer && <p className="text-muted-foreground">{footer}</p>}
-      trigger={
-        <ModelControlButton
-          model={model && { ...model, name: label }}
-          presetId={config?.presetId}
-          label={label}
-          disabled={disabled || saving}
-          saving={saving}
-          side={side}
-          iconOnly={iconOnly}
-        />
-      }
-    />
-  )
-}
-
-function NativeModelControl({ agent, info, sessionId, disabled, side, iconOnly = false }: LocalAgentModelControlProps) {
-  const { t } = useTranslation()
-  const [saving, setSaving] = useState(false)
-  const config = agent.configuration?.localRuntime
   const { catalog, freshCatalog, loading, refreshError, refresh } = useLocalAgentModelCatalog(
     config?.presetId ?? agent.id,
     config,
     false
   )
   const isQwen = config?.presetId === qwenPreset.id
-  const liveModels = isQwen ? undefined : info?.models
+  const status = info?.modelSelection
+  const sessionPicker =
+    !!info && getLocalAgentProtocol(config?.presetId) === 'acp' && !(isQwen && status === 'current-only')
   const catalogModels = (freshCatalog ?? catalog)?.models ?? []
-  const catalogById = new Map(catalogModels.map((model) => [model.id, model]))
-  const nativeModels = liveModels?.length
-    ? liveModels.map((model) => {
-        const entry = catalogById.get(model.id)
-        return entry ? { ...entry, ...model, registryModel: entry.registryModel ?? model.registryModel } : model
-      })
-    : catalogModels
-  const qwenGatewayAlias =
+  const liveModels = isQwen ? undefined : info?.models
+  let nativeModels = sessionPicker ? info.models : catalogModels
+  if (!sessionPicker && liveModels?.length) {
+    const catalogById = new Map(catalogModels.map((model) => [model.id, model]))
+    nativeModels = liveModels.map((model) => {
+      const entry = catalogById.get(model.id)
+      return entry ? { ...entry, ...model, registryModel: entry.registryModel ?? model.registryModel } : model
+    })
+  }
+  const gatewayAlias =
     isQwen && config.sourceModelViaGateway && config.sourceModelId && config.nativeModel
       ? qwenPreset.catalogId(config.nativeModel)
       : undefined
   const selection = useLocalAgentModelSelection(
     config,
-    qwenGatewayAlias ? nativeModels.filter(({ id }) => id !== qwenGatewayAlias) : nativeModels
+    gatewayAlias ? nativeModels.filter(({ id }) => id !== gatewayAlias) : nativeModels,
+    sessionPicker ? info.activeModel?.id : undefined
   )
-  const { models, value } = selection
+  const { models } = selection
+  const activeModel = sessionPicker ? info.activeModel : undefined
+  const activeGateway =
+    config?.sourceModelViaGateway &&
+    config.sourceModelId &&
+    (!activeModel || !config.nativeModel || activeModel.id === config.nativeModel || activeModel.id === gatewayAlias)
+  const value = sessionPicker && !activeGateway && !selection.activeGatewayModel ? activeModel?.id : selection.value
+  const followCliLabel = sessionPicker ? undefined : selection.followCliLabel
+  const selectedModel = models.find(({ id }) => id === value)
+  const label = selectedModel?.name || activeModel?.name || value || followCliLabel || t('button.select_model')
   const modelConfigOptions = info?.configOptions?.filter((option) => option.category === 'model_config')
-  const label = value
-    ? models.find((model) => model.id === value)?.name || value
-    : (selection.followCliLabel ?? t('button.select_model'))
+  const nativeRestriction = sessionPicker
+    ? status === 'selectable'
+      ? undefined
+      : status === 'current-only'
+        ? t('local_agents.session_model.current_only')
+        : status === 'sign-in-required'
+          ? t('local_agents.sign_in_required')
+          : status === 'empty'
+            ? t('local_agents.models_unavailable')
+            : t('local_agents.session_model.unsupported')
+    : selection.sourceRestrictions?.native
+  const footer = nativeRestriction ?? (info?.resume === false ? t('local_agents.no_resume') : undefined)
 
-  const selectedModelId = value
-  const selectedModel = selectedModelId
-    ? (models.find((model) => model.id === selectedModelId) ?? { id: selectedModelId, name: label })
-    : undefined
-
-  const loadModels = () => refresh().catch(() => {})
-  const selectModel = async (nativeModel?: string) => {
+  async function selectModel(modelId?: string) {
     if (!config || disabled || saving) return false
     setSaving(true)
     try {
-      const updated = await selection.select(agent, nativeModel)
-      return !!updated
+      if (sessionPicker && models.find(({ id }) => id === modelId)?.source !== 'gateway') {
+        if (!sessionId || !modelId || status !== 'selectable') return false
+        await ipcApi.request('ai.local_agents.select_session_model', { sessionId, modelId })
+        return true
+      }
+      return !!(await selection.select(agent, modelId))
     } catch (error) {
       toast.error(String(error))
       return false
@@ -181,21 +111,22 @@ function NativeModelControl({ agent, info, sessionId, disabled, side, iconOnly =
       setSaving(false)
     }
   }
+
   if (!config) return null
   return (
     <LocalAgentModelSelector
       models={models}
       presetId={config.presetId}
-      sourceRestrictions={selection.sourceRestrictions}
-      followCliLabel={selection.followCliLabel}
+      sourceRestrictions={{ ...selection.sourceRestrictions, native: nativeRestriction }}
+      followCliLabel={followCliLabel}
       value={value}
       disabled={disabled || saving}
-      loading={loading}
-      loaded={!!freshCatalog || !!liveModels?.some((model) => model.registryModel)}
-      error={refreshError}
+      loading={!sessionPicker && loading}
+      loaded={sessionPicker || !!freshCatalog || !!liveModels?.some((model) => model.registryModel)}
+      error={sessionPicker ? undefined : refreshError}
       onOpenSettings={() => openRoute('/settings/local-agents', { id: config.presetId ?? agent.id })}
       side={side}
-      onLoad={loadModels}
+      onLoad={() => refresh().catch(() => {})}
       onSelect={selectModel}
       configuration={
         sessionId && !!modelConfigOptions?.length ? (
@@ -208,18 +139,10 @@ function NativeModelControl({ agent, info, sessionId, disabled, side, iconOnly =
           />
         ) : undefined
       }
-      footer={
-        selection.sourceRestrictions?.native ? (
-          <p className="text-xs text-muted-foreground">{t('local_agents.global_model_unavailable')}</p>
-        ) : info?.resume === false ? (
-          <p className="text-xs text-muted-foreground">{t('local_agents.no_resume')}</p>
-        ) : isQwen ? (
-          <p className="text-xs text-muted-foreground">{t('settings.model')}</p>
-        ) : undefined
-      }
+      footer={footer && <p className="text-xs text-muted-foreground">{footer}</p>}
       trigger={
         <ModelControlButton
-          model={selectedModel}
+          model={selectedModel ?? (value ? { id: value, name: label } : undefined)}
           presetId={config.presetId}
           label={label}
           saving={saving}

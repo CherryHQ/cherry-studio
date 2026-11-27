@@ -159,6 +159,10 @@ Successful compaction refreshes context usage without creating a chat input.
 
 Agent Services offers native models and Cherry models through the unified gateway.
 For ACP, a native selection in Agent Services saves the Agent's launch preference.
+Opening the conversation picker before connecting loads the installed native
+catalog. Selecting a model there uses the Agent launch preference. Once
+connected, native choices and switches use the active ACP session. Adapters
+with gateway support also show gateway models through their existing settings.
 Gateway selections that configure CLI files update the file and the Agent
 record together. A failed update restores the file or the selection as
 appropriate. Stale editor drafts fail before writing. Gateway selections keep

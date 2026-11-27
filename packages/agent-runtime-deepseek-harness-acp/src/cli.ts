@@ -20,6 +20,16 @@ export function dshMode(selected?: string) {
   }
 }
 
+export function dshModelAddress(nativeModel: string, route: string): string | undefined {
+  try {
+    const value: unknown = JSON.parse(nativeModel)
+    if (Array.isArray(value) && value.length === 2 && value[0] === route && typeof value[1] === 'string')
+      return value[1]
+  } catch {
+    return undefined
+  }
+}
+
 export const dshCli = {
   id: 'deepseek-harness',
   credentialScope: 'provider',

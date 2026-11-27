@@ -68,54 +68,85 @@ beforeEach(async () => {
 afterEach(() => vi.restoreAllMocks())
 
 describe('local agent model persistence', () => {
-  it.each([false, true])('offers another configured model for Qwen (connected: %s)', async (connected) => {
+  it('loads the Antigravity catalog on open and selects a model for the first turn', async () => {
     const user = userEvent.setup()
-    const qwenAgent = {
+    const antigravity = {
       ...agent,
-      configuration: {
-        localRuntime: {
-          ...agent.configuration!.localRuntime!,
-          presetId: 'qwen',
-          nativeModel: 'first',
-          sourceModelId: 'test::first',
-          sourceModelViaGateway: true
-        }
-      }
+      configuration: { localRuntime: { ...agent.configuration!.localRuntime!, presetId: 'antigravity-acp' } }
     } satisfies AgentEntity
-    catalog.providers = [{ id: 'test', isEnabled: true }]
-    catalog.models = info.models.map(({ id, name }) => ({
-      id: `test::${id}`,
-      name,
-      providerId: 'test',
-      capabilities: [],
-      endpointTypes: ['openai-chat-completions'],
-      isEnabled: true,
-      supportsStreaming: true,
-      isHidden: false
-    }))
-    const activeModel = { id: 'first(openai)', name: 'First' }
-    vi.mocked(ipcApi.request).mockResolvedValue({
-      models: [activeModel, { id: 'native', name: 'Native model' }]
-    })
-    try {
-      render(
-        <LocalAgentModelControl
-          agent={qwenAgent}
-          sessionId="session"
-          info={connected ? { ...info, models: [activeModel], activeModel, modelSelection: 'current-only' } : undefined}
-          disabled={false}
-          side="top"
-        />
-      )
-      await user.click(screen.getByRole('button', { name: '选择模型' }))
-      expect(await screen.findByRole('option', { name: 'Second' })).not.toHaveAttribute('aria-disabled', 'true')
-      expect(await screen.findByRole('option', { name: 'Native model' })).not.toHaveAttribute('aria-disabled', 'true')
-      expect(screen.getByRole('option', { name: 'First' })).toHaveAttribute('aria-selected', 'true')
-    } finally {
-      catalog.models = []
-      catalog.providers = []
-    }
+    const request = vi.mocked(ipcApi.request)
+    request.mockResolvedValueOnce({ models: info.models })
+    updateNativeModel.mockResolvedValueOnce(antigravity)
+
+    render(<LocalAgentModelControl agent={antigravity} sessionId="session" disabled={false} side="top" />)
+    expect(request).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('button', { name: '选择模型' }))
+    await user.click(await screen.findByRole('option', { name: 'Second' }))
+    await waitFor(() => expect(screen.queryByRole('option', { name: 'Second' })).not.toBeInTheDocument())
+    expect(updateNativeModel).toHaveBeenCalledWith(antigravity.id, 'second')
   })
+
+  it.each(['disconnected', 'current-only', 'selectable'] as const)(
+    'offers configured Qwen models while %s',
+    async (status) => {
+      const user = userEvent.setup()
+      const qwenAgent = {
+        ...agent,
+        configuration: {
+          localRuntime: {
+            ...agent.configuration!.localRuntime!,
+            presetId: 'qwen',
+            nativeModel: 'first',
+            sourceModelId: 'test::first',
+            sourceModelViaGateway: true
+          }
+        }
+      } satisfies AgentEntity
+      catalog.providers = [{ id: 'test', isEnabled: true }]
+      catalog.models = info.models.map(({ id, name }) => ({
+        id: `test::${id}`,
+        name,
+        providerId: 'test',
+        capabilities: [],
+        endpointTypes: ['openai-chat-completions'],
+        isEnabled: true,
+        supportsStreaming: true,
+        isHidden: false
+      }))
+      const activeModel = { id: 'first(openai)', name: 'First' }
+      const nativeModel = { id: 'native', name: 'Native model' }
+      vi.mocked(ipcApi.request).mockResolvedValue({
+        models: [activeModel, nativeModel]
+      })
+      try {
+        render(
+          <LocalAgentModelControl
+            agent={qwenAgent}
+            sessionId="session"
+            info={
+              status === 'disconnected'
+                ? undefined
+                : {
+                    ...info,
+                    models: status === 'selectable' ? [activeModel, nativeModel] : [activeModel],
+                    activeModel,
+                    modelSelection: status
+                  }
+            }
+            disabled={false}
+            side="top"
+          />
+        )
+        await user.click(screen.getByRole('button', { name: '选择模型' }))
+        expect(await screen.findByRole('option', { name: 'Second' })).not.toHaveAttribute('aria-disabled', 'true')
+        expect(await screen.findByRole('option', { name: 'Native model' })).not.toHaveAttribute('aria-disabled', 'true')
+        expect(screen.getByRole('option', { name: 'First' })).toHaveAttribute('aria-selected', 'true')
+      } finally {
+        catalog.models = []
+        catalog.providers = []
+      }
+    }
+  )
 
   it('shows and changes the saved DeepSeek Harness gateway model from a new chat', async () => {
     const user = userEvent.setup()

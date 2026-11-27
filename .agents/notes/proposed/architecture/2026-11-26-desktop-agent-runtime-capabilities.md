@@ -36,7 +36,7 @@ CLI launch preparation resolves the gateway route from the same configuration sn
 
 An ACP adapter can declare a Cherry model selection that it applies at launch. Agent Services saves the selected Cherry model on the Agent. Main resolves its endpoint and model address and supplies a scoped credential to the owned runtime. Clearing the selection restores native model selection. A managed service that shares one process across sessions can use a shared provider configuration; usage is associated with a session only when the native request carries that session’s credential.
 
-The ACP model picker uses the installed runtime catalog while disconnected and saves the chosen native model on the conversation. Opening it leaves the conversation disconnected. Before accepting a send, the host creates or restores the actual ACP session and confirms the explicit choice. Without a conversation choice, the host follows the restored native model, Agent launch preference, then CLI default. A rejected choice leaves the draft available for a retry.
+The ACP model picker reads the installed runtime catalog on open when there is no active conversation connection. The conversation remains disconnected until launch. The picker uses the existing Agent launch preference for those native choices and for supported gateway models. An active ACP conversation uses its own catalog and switching operation for native session choices.
 
 The harness adapter interprets native approval requests and options. The common ACP package translates standard option kinds. Main owns pending approvals, cancellation and Cherry-issued session grants. A selected response uses an option ID offered by the native request.
 
@@ -96,7 +96,7 @@ A provider-wide boolean cannot express read-only child access, a volatile queue 
 - AC36 — Agent Services can save and clear a Cherry model for DeepAgents, Antigravity, and Command Code. An enabled adapter sends a native ACP turn through the internal gateway with the selected model and a credential bound to the originating session. (verification: unit, renderer and Electron)
 - AC37 — OpenClaw can use a Cherry gateway model through its managed configuration. Concurrent sessions keep a consistent model route and any usage attached to a session has a verified session credential. (verification: unit and Electron)
 - AC38 — Junie, DimAgent, Muse Code, Auggie, TRAE CN, Qoder and Qoder CN offer Cherry models when their native ACP path has been verified to send a turn to the selected local endpoint using the injected credential. (verification: native ACP and Electron)
-- AC39 — An ACP conversation can select a native model before connecting and keep the choice across reconnects. The runtime confirms the choice before the next message is accepted. A rejected choice leaves the draft intact. (verification: unit, renderer and Electron)
+- AC39 — Opening the picker before an ACP conversation connects loads the installed native catalog and offers gateway models for integrated adapters. Native changes in a connected conversation still use its session operation. (verification: renderer and Electron)
 
 ## Risks
 
