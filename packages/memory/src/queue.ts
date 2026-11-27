@@ -18,6 +18,7 @@ export interface ExtractionProgress {
   settledAt: number
   settledIds: string[]
   recent?: TurnRef[]
+  preparedMembers?: string[]
   members?: string[]
   end?: string
   retryAt: number
@@ -106,6 +107,7 @@ export class ExtractionQueue {
         s.generation++
         delete s.members
         delete s.end
+        delete s.preparedMembers
         delete s.intent
       }
       s.pending = s.pending.filter((t) => selected.has(t.userId) && t.userId !== turn.userId)
@@ -129,30 +131,57 @@ export class ExtractionQueue {
       return {
         generation: s.generation,
         end: s.end,
-        ancestors: s.recent ?? [],
+        ancestors: (s.recent ?? []).filter((t) => t.createdAt <= s.pending.find((p) => p.userId === s.end)!.createdAt),
         turns: s.pending.filter((t) => s.members!.includes(t.userId)),
         intent: s.intent,
         sourceHash: s.sourceHash
       }
     })
   }
+  admissions(key: string) {
+    return this.change(key, (s) => ({ generation: s.generation, turns: [...(s.recent ?? []), ...s.pending] }))
+  }
+
+  skipEndpoint(key: string, generation: number, end: string) {
+    return this.change(key, (s) => {
+      if (s.generation !== generation || s.end !== end || s.intent?.length) throw Error('Extraction invalidated')
+      s.pending = s.pending.filter((turn) => turn.userId !== end)
+      s.members = s.members?.filter((id) => id !== end)
+      s.end = s.members?.at(-1)
+      s.generation++
+      s.retryAt = 0
+      s.attempts = 0
+      delete s.sourceHash
+    })
+  }
+
   async check(key: string, generation: number) {
     await this.change(key, (s) => {
       if (s.generation !== generation) throw Error('Extraction invalidated')
     })
   }
-  prepare(key: string, generation: number, sourceHash: string, intent: NonNullable<ExtractionProgress['intent']>) {
+  prepare(
+    key: string,
+    generation: number,
+    sourceHash: string,
+    intent: NonNullable<ExtractionProgress['intent']>,
+    processed?: ReadonlySet<string>
+  ) {
     return this.change(key, (s) => {
       if (s.generation !== generation) throw Error('Extraction invalidated')
       s.sourceHash = sourceHash
+      s.preparedMembers = processed && s.members?.filter((id) => processed.has(id))
       s.intent = intent
     })
   }
-  finish(key: string, generation: number, end: string) {
+  finish(key: string, generation: number, end: string, processed?: ReadonlySet<string>) {
     return this.change(key, (s) => {
       if (s.generation !== generation || s.end !== end) throw Error('Extraction invalidated')
-      const completed = s.pending.filter((t) => s.members?.includes(t.userId))
-      s.pending = s.pending.filter((t) => !s.members?.includes(t.userId))
+      const members = s.members ?? []
+      const covered = processed ? members.filter((id) => processed.has(id)) : (s.preparedMembers ?? members)
+      const completed = s.pending.filter((t) => covered.includes(t.userId))
+      if (!completed.length) throw Error('Empty extraction batch')
+      s.pending = s.pending.filter((t) => !covered.includes(t.userId))
       s.recent = [...(s.recent ?? []), ...completed].slice(-8)
       const last = completed[completed.length - 1].createdAt
       s.settledIds = [
@@ -163,8 +192,9 @@ export class ExtractionQueue {
       s.generation++
       s.attempts = 0
       s.retryAt = 0
-      delete s.members
-      delete s.end
+      s.members = members.filter((id) => !covered.includes(id))
+      s.end = s.members.at(-1)
+      delete s.preparedMembers
       delete s.intent
     })
   }
@@ -183,6 +213,7 @@ export class ExtractionQueue {
       s.submitted = {}
       delete s.members
       delete s.end
+      delete s.preparedMembers
       delete s.intent
       s.attempts = 0
       s.retryAt = 0
