@@ -29,7 +29,7 @@ export default defineCreator({
   id: 'meta',
   name: 'Meta (Llama)',
   families: ['llama'],
-  idPrefixes: ['llama', 'codellama', 'code-llama'],
+  idPrefixes: ['llama', 'codellama', 'code-llama', 'muse-image'],
   reasoningFamilies: [
     { pattern: '^muse-spark-open(?:-|$)', effort: [...museSparkOpenEfforts], toggle: false },
     { pattern: '^muse-spark' }

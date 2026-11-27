@@ -249,10 +249,30 @@ index 704476da084be53d6aa194a5f774fa3ad47f5e9a..3f755ff8867a38268331f469fa834f97
      serviceTier?: ResponseCreateParamsStreaming["service_tier"];
      textVerbosity?: "low" | "medium" | "high";
 diff --git a/dist/api/openai-completions.js b/dist/api/openai-completions.js
-index c1b6038c2220633a8caf710288a8f6e6301f7a28..850633ea7ce8cd6563826d8dd0232e3d89d6515e 100644
+index c1b6038c2220633a8caf710288a8f6e6301f7a28..3d56651cc4c554d78b728d07fb04b16264ce6a7f 100644
 --- a/dist/api/openai-completions.js
 +++ b/dist/api/openai-completions.js
-@@ -152,6 +152,9 @@ function resolveCacheRetention(cacheRetention, env) {
+@@ -88,12 +88,17 @@ function isOpenAIReasoningDetail(detail) {
+             return false;
+     }
+ }
+-function parseOpenAIReasoningDetails(signature) {
++function parseOpenAIReasoningReplay(signature) {
+     if (!signature)
+         return undefined;
+     try {
+         const parsed = JSON.parse(signature);
+-        return Array.isArray(parsed) && parsed.length > 0 && parsed.every(isOpenAIReasoningDetail) ? parsed : undefined;
++        const details = Array.isArray(parsed) ? parsed : parsed?.reasoning_details;
++        const reasoningDetails = Array.isArray(details) && details.length > 0 && details.every(isOpenAIReasoningDetail)
++            ? details
++            : undefined;
++        const encryptedContent = typeof parsed?.encrypted_content === "string" ? parsed.encrypted_content : undefined;
++        return encryptedContent || reasoningDetails ? { encryptedContent, reasoningDetails } : undefined;
+     }
+     catch {
+         return undefined;
+@@ -152,6 +157,9 @@ function resolveCacheRetention(cacheRetention, env) {
  export const stream = (model, context, options) => {
      const stream = new AssistantMessageEventStream();
      const normalizedContext = resolveTranscript(context, getCompat(model).supportsMidConvoSystemMessages);
@@ -262,15 +282,36 @@ index c1b6038c2220633a8caf710288a8f6e6301f7a28..850633ea7ce8cd6563826d8dd0232e3d
      (async () => {
          const output = {
              role: "assistant",
-@@ -178,6 +181,7 @@ export const stream = (model, context, options) => {
-                 block.thinkingSignature = JSON.stringify(streamedReasoningDetails);
+@@ -170,14 +178,23 @@ export const stream = (model, context, options) => {
+             stopReason: "pending",
+             timestamp: Date.now(),
+         };
+-        // `reasoning_details` are replay metadata, not user-visible stream deltas.
+-        // Keep them in memory during streaming and serialize once when the block is finalized.
+         let streamedReasoningDetails;
+-        const applyStreamedReasoningDetails = (block) => {
+-            if (streamedReasoningDetails !== undefined) {
+-                block.thinkingSignature = JSON.stringify(streamedReasoningDetails);
++        let encryptedContent;
++        let reasoningReplayBlock;
++        const applyStreamedReasoningState = () => {
++            if (!reasoningReplayBlock)
++                return;
++            if (encryptedContent) {
++                reasoningReplayBlock.thinkingSignature = JSON.stringify({
++                    encrypted_content: encryptedContent,
++                    reasoning_details: streamedReasoningDetails,
++                });
++            }
++            else if (streamedReasoningDetails !== undefined) {
++                reasoningReplayBlock.thinkingSignature = JSON.stringify(streamedReasoningDetails);
              }
          };
 +        let objectResponse;
          try {
              const apiKey = getClientApiKey(model.provider, options?.apiKey, options?.headers);
              const compat = getCompat(model);
-@@ -195,7 +199,10 @@ export const stream = (model, context, options) => {
+@@ -195,7 +212,10 @@ export const stream = (model, context, options) => {
                  ...(options?.timeoutMs !== undefined ? { timeout: options.timeoutMs } : {}),
                  maxRetries: 0,
              };
@@ -282,7 +323,98 @@ index c1b6038c2220633a8caf710288a8f6e6301f7a28..850633ea7ce8cd6563826d8dd0232e3d
                  maxRetries: options?.maxRetries,
                  maxRetryDelayMs: options?.maxRetryDelayMs,
                  signal: options?.signal,
-@@ -496,6 +503,9 @@ export const stream = (model, context, options) => {
+@@ -229,7 +249,6 @@ export const stream = (model, context, options) => {
+                     });
+                 }
+                 else if (block.type === "thinking") {
+-                    applyStreamedReasoningDetails(block);
+                     stream.push({
+                         type: "thinking_end",
+                         contentIndex,
+@@ -262,6 +281,12 @@ export const stream = (model, context, options) => {
+                     });
+                 }
+             };
++            const endThinkingBlock = () => {
++                if (thinkingBlock) {
++                    finishBlock(thinkingBlock);
++                    thinkingBlock = null;
++                }
++            };
+             const ensureTextBlock = () => {
+                 if (!textBlock) {
+                     textBlock = { type: "text", text: "" };
+@@ -282,6 +307,9 @@ export const stream = (model, context, options) => {
+                 }
+                 return thinkingBlock;
+             };
++            const retainReasoningReplayBlock = () => {
++                reasoningReplayBlock ??= thinkingBlock ?? blocks.find(block => block.type === "thinking") ?? ensureThinkingBlock("");
++            };
+             const ensureToolCallBlock = (toolCall) => {
+                 const streamIndex = typeof toolCall.index === "number" ? toolCall.index : undefined;
+                 const name = toolCall.function?.name ?? toolCall.custom?.name ?? "";
+@@ -399,12 +427,16 @@ export const stream = (model, context, options) => {
+                             });
+                         }
+                     }
++                    if (typeof deltaFields.encrypted_content === "string" && deltaFields.encrypted_content) {
++                        retainReasoningReplayBlock();
++                        encryptedContent = deltaFields.encrypted_content;
++                    }
+                     const reasoningDetails = choice.delta.reasoning_details;
+                     if (Array.isArray(reasoningDetails)) {
+                         for (const detail of reasoningDetails) {
+                             if (!isOpenAIReasoningDetail(detail))
+                                 continue;
+-                            ensureThinkingBlock("");
++                            retainReasoningReplayBlock();
+                             streamedReasoningDetails ??= [];
+                             // Keep provider replay data in the existing signature slot. OpenRouter streams
+                             // reasoning_details as deltas: consecutive text/summary deltas are merged into
+@@ -415,6 +447,7 @@ export const stream = (model, context, options) => {
+                     if (choice.delta.content !== null &&
+                         choice.delta.content !== undefined &&
+                         choice.delta.content.length > 0) {
++                        endThinkingBlock();
+                         const block = ensureTextBlock();
+                         block.text += choice.delta.content;
+                         stream.push({
+@@ -426,6 +459,7 @@ export const stream = (model, context, options) => {
+                     }
+                     if (choice?.delta?.tool_calls) {
+                         for (const toolCall of choice.delta.tool_calls) {
++                            endThinkingBlock();
+                             const { block, state } = ensureToolCallBlock(toolCall);
+                             if (!block.id && toolCall.id) {
+                                 block.id = toolCall.id;
+@@ -456,8 +490,11 @@ export const stream = (model, context, options) => {
+                     }
+                 }
+             }
++            applyStreamedReasoningState();
+             for (const block of blocks) {
+-                finishBlock(block);
++                if (block.type !== "thinking" || block === thinkingBlock) {
++                    finishBlock(block);
++                }
+             }
+             if (options?.signal?.aborted) {
+                 throw new Error("Request was aborted");
+@@ -478,11 +515,7 @@ export const stream = (model, context, options) => {
+             stream.end();
+         }
+         catch (error) {
+-            for (const block of output.content) {
+-                if (block.type === "thinking") {
+-                    applyStreamedReasoningDetails(block);
+-                }
+-            }
++            applyStreamedReasoningState();
+             output.stopReason = options?.signal?.aborted ? "aborted" : "error";
+             output.errorMessage = formatProviderError(normalizeProviderError(error));
+             // Some providers via OpenRouter give additional information in this field.
+@@ -496,6 +529,9 @@ export const stream = (model, context, options) => {
              stream.push({ type: "error", reason: output.stopReason, error: output });
              stream.end();
          }
@@ -292,7 +424,7 @@ index c1b6038c2220633a8caf710288a8f6e6301f7a28..850633ea7ce8cd6563826d8dd0232e3d
      })();
      return stream;
  };
-@@ -598,6 +608,14 @@ function buildParams(model, context, options, compat = getCompat(model), cacheRe
+@@ -598,6 +634,14 @@ function buildParams(model, context, options, compat = getCompat(model), cacheRe
      }
      if (cacheControl) {
          applyAnthropicCacheControl(messages, params.tools, cacheControl);
@@ -307,6 +439,51 @@ index c1b6038c2220633a8caf710288a8f6e6301f7a28..850633ea7ce8cd6563826d8dd0232e3d
      }
      if (options?.toolChoice) {
          params.tool_choice = options.toolChoice;
+@@ -965,16 +1009,20 @@ export function convertMessages(model, context, compat, options) {
+             const assistantText = assistantTextParts.map((part) => part.text).join("");
+             const thinkingBlocks = msg.content.filter(isThinkingContentBlock);
+             const toolCalls = msg.content.filter(isToolCallBlock);
+-            const signedReasoningDetails = thinkingBlocks
+-                .map((block) => parseOpenAIReasoningDetails(block.thinkingSignature))
+-                .find((details) => details !== undefined);
++            const signedReasoning = thinkingBlocks
++                .map((block) => parseOpenAIReasoningReplay(block.thinkingSignature))
++                .find((state) => state !== undefined);
++            const encryptedContent = signedReasoning?.encryptedContent;
++            if (encryptedContent) {
++                assistantMsg.encrypted_content = encryptedContent;
++            }
+             const legacyReasoningDetails = toolCalls
+                 .map((toolCall) => parseLegacyEncryptedReasoningDetail(toolCall.thoughtSignature))
+                 .filter((detail) => detail !== undefined);
+-            const preservedReasoningDetails = signedReasoningDetails ?? (legacyReasoningDetails.length > 0 ? legacyReasoningDetails : undefined);
++            const preservedReasoningDetails = signedReasoning?.reasoningDetails ?? (legacyReasoningDetails.length > 0 ? legacyReasoningDetails : undefined);
+             const nonEmptyThinkingBlocks = thinkingBlocks.filter((block) => block.thinking.trim().length > 0);
+             if (nonEmptyThinkingBlocks.length > 0) {
+-                if (compat.requiresThinkingAsText) {
++                if (compat.requiresThinkingAsText && !encryptedContent) {
+                     // Convert thinking blocks to plain text (no tags to avoid model mimicking them)
+                     const thinkingText = nonEmptyThinkingBlocks
+                         .map((block) => sanitizeSurrogates(block.thinking))
+@@ -991,9 +1039,9 @@ export function convertMessages(model, context, compat, options) {
+                         assistantMsg.content = assistantText;
+                     }
+                     // reasoning_details is the structured alternative to a raw reasoning field.
+-                    if (!preservedReasoningDetails) {
++                    if (encryptedContent || !preservedReasoningDetails) {
+                         // Use the signature from the first thinking block if available (for llama.cpp server + gpt-oss)
+-                        let signature = nonEmptyThinkingBlocks[0].thinkingSignature;
++                        let signature = encryptedContent ? "reasoning_content" : nonEmptyThinkingBlocks[0].thinkingSignature;
+                         if (model.provider === "opencode-go" && signature === "reasoning") {
+                             signature = "reasoning_content";
+                         }
+@@ -1346,4 +1394,4 @@ function getCompat(model) {
+         vllmPriority: model.compat.vllmPriority,
+     };
+ }
+-//# sourceMappingURL=openai-completions.js.map
+\ No newline at end of file
++//# sourceMappingURL=openai-completions.js.map
 diff --git a/dist/api/openai-responses.d.ts b/dist/api/openai-responses.d.ts
 index 41267bd50904069aa0879cc8634ea94bc1045236..f29497be20dcb2ffce3662393738e5a82f18cf1a 100644
 --- a/dist/api/openai-responses.d.ts
@@ -372,20 +549,22 @@ index a119bf912008e77ec051af6d9701e24c9f2b468b..aadba476bcbb3abb8689089f8ee64e7a
          disableContinuation: options?.disableContinuation,
          headers: options?.headers,
 diff --git a/dist/index.d.ts b/dist/index.d.ts
-index 9c19bb0fd38cc51e814d3680e8e06519908874b5..0fcbb1efce45f566ac45ab30d7287a705d800133 100644
+index 9c19bb0fd38cc51e814d3680e8e06519908874b5..cce96f4315573c6b4275d87fdffc35dcd836068c 100644
 --- a/dist/index.d.ts
 +++ b/dist/index.d.ts
-@@ -35,3 +35,4 @@ export { uuidv7 } from "./utils/uuid.ts";
+@@ -34,4 +34,5 @@ export * from "./utils/transcript.ts";
+ export { uuidv7 } from "./utils/uuid.ts";
  export * from "./utils/validation.ts";
  export { PI_AI_VERSION } from "./utils/version.ts";
 +export { retainNestedToolCall } from "./nested-tool-records.js";
  //# sourceMappingURL=index.d.ts.map
 \ No newline at end of file
 diff --git a/dist/index.js b/dist/index.js
-index a45b61643634b192fb41453b8869e1be3eaab658..c2489650e1f12845cfe6ea5d033f5bd4dd384943 100644
+index a45b61643634b192fb41453b8869e1be3eaab658..ea4a06b0aca4f5bf02436670e23b13468b79e268 100644
 --- a/dist/index.js
 +++ b/dist/index.js
-@@ -23,3 +23,4 @@ export { uuidv7 } from "./utils/uuid.js";
+@@ -22,4 +22,5 @@ export * from "./utils/transcript.js";
+ export { uuidv7 } from "./utils/uuid.js";
  export * from "./utils/validation.js";
  export { PI_AI_VERSION } from "./utils/version.js";
 +export { retainNestedToolCall } from "./nested-tool-records.js";
@@ -641,10 +820,11 @@ index 0000000000000000000000000000000000000000..a37f8e82c6eb306f36ecad165e6562b0
 +    return parts;
 +}
 diff --git a/dist/utils/estimate.d.ts b/dist/utils/estimate.d.ts
-index 6dcca6eff16b95b83e047a6e27b65d9d7694bf2c..0b56a9ffff6251cadfaecea62a6d8c7463b718cd 100644
+index 6dcca6eff16b95b83e047a6e27b65d9d7694bf2c..1992950190d55037dacdb3ece63312f742d9a660 100644
 --- a/dist/utils/estimate.d.ts
 +++ b/dist/utils/estimate.d.ts
-@@ -15,3 +15,4 @@ export declare function estimateTextAndImageContentTokens(content: string | Arra
+@@ -14,4 +14,5 @@ export declare function estimateTextTokens(text: string): number;
+ export declare function estimateTextAndImageContentTokens(content: string | Array<TextContent | ImageContent>): number;
  export declare function estimateMessageTokens(message: Message): number;
  export declare function estimateContextTokens(context: TranscriptContext | readonly Message[]): ContextUsageEstimate;
 +export declare function estimateSystemCharacters(promptCharacters: number, toolCharacters: number): number;

@@ -68,6 +68,14 @@ export function getClaudeCodeExitInfo(error?: SerializedError): ClaudeCodeExitIn
   }
 }
 
+export function isUnattributedClaudeCodeExit(error?: SerializedError): boolean {
+  const exit = getClaudeCodeExitInfo(error)
+  if (!exit || exit.category !== 'unknown' || !exit.reference.trim()) return false
+
+  if (exit.exitCode !== undefined) return Number.isSafeInteger(exit.exitCode) && exit.exitCode !== 0
+  return error?.processExitCode == null && !!exit.exitSignal?.trim()
+}
+
 /**
  * Claude Code's own "Not logged in · Please run /login" result. It still classifies as `auth`,
  * but the fix is signing in to Claude Code (its settings page), not replacing an API key.
@@ -172,7 +180,7 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
     navTarget: navTargetFor(category, providerSuffix)
   })
 
-  if (!error) return classify('unknown')
+  if (!error || error.errorSource === 'local') return classify('unknown')
 
   const claudeCodeExitCategory = getClaudeCodeExitCategory(error)
   if (claudeCodeExitCategory) return classify(claudeCodeExitCategory)

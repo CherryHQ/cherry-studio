@@ -133,6 +133,16 @@ function EditablePaneInner({ workspacePath }: { workspacePath: string }) {
 }
 
 // A fresh SWR cache per render so file content never bleeds across tests.
+async function editAndAdvanceAutosave(editor: HTMLElement, value: string) {
+  vi.useFakeTimers()
+  try {
+    fireEvent.change(editor, { target: { value } })
+    await act(() => vi.advanceTimersByTimeAsync(1_200))
+  } finally {
+    vi.useRealTimers()
+  }
+}
+
 function EditablePaneHarness({ workspacePath }: { workspacePath: string }) {
   const [manager] = useState(() => new FileEditSessionManager())
   return (
@@ -1000,38 +1010,14 @@ describe('ArtifactPane', () => {
     expect(screen.queryByRole('button', { name: 'agent.preview_pane.comment.submit' })).not.toBeInTheDocument()
     expect(screen.getByTestId('file-preview')).toBeInTheDocument()
 
-    fireEvent.keyDown(screen.getByTestId('artifact-file-preview-overlay'), { key: 'Escape' })
-    expect(screen.queryByTestId('file-preview')).not.toBeInTheDocument()
-  })
-
-  it('switches the picker off on Escape from its toggle without closing the preview', async () => {
-    mockWorkspaceTree('/tmp/workspace', ['notes.docx'])
-    const onInsert = vi.fn()
-    render(<ArtifactPaneHarness workspacePath="/tmp/workspace" onInsertSelectionReference={onInsert} />)
-    await waitFor(() => expect(screen.getByTestId('tree-node-notes.docx')).toBeInTheDocument())
-    fireEvent.click(screen.getByTestId('tree-node-notes.docx'))
-    await screen.findByTestId('file-preview')
-
-    const toggle = screen.getByRole('button', { name: 'agent.preview_pane.pick_selection' })
     fireEvent.click(toggle)
     expect(toggle).toHaveAttribute('aria-pressed', 'true')
-
     fireEvent.keyDown(toggle, { key: 'Escape' })
-
     expect(toggle).toHaveAttribute('aria-pressed', 'false')
     expect(screen.getByTestId('file-preview')).toBeInTheDocument()
-  })
 
-  it('delegates selected files to the canonical file preview', async () => {
-    mockWorkspaceTree('/tmp/workspace', ['README.md'])
-
-    render(<ArtifactPaneHarness workspacePath="/tmp/workspace" />)
-    await waitFor(() => expect(screen.getByTestId('tree-node-README.md')).toBeInTheDocument())
-
-    fireEvent.click(screen.getByTestId('tree-node-README.md'))
-
-    expect(await screen.findByTestId('file-preview')).toHaveAttribute('data-file-path', '/tmp/workspace/README.md')
-    expect(screen.getByTestId('file-preview')).toHaveAttribute('data-preview-type', 'artifact')
+    fireEvent.keyDown(screen.getByTestId('artifact-file-preview-overlay'), { key: 'Escape' })
+    expect(screen.queryByTestId('file-preview')).not.toBeInTheDocument()
   })
 
   it('shows the ready empty state when no workspace path is available', () => {
@@ -1200,20 +1186,6 @@ describe('ArtifactPane', () => {
     }
   })
 
-  // The managed copy is entry-1.mp4; the visible name is the attachment the user sent.
-  it('shows an attachment displayName on both title surfaces', async () => {
-    const displayName = `clip${BS}part.mp4`
-    const selection = {
-      workspacePath: '/managed/message-files',
-      filePath: 'entry-1.mp4',
-      displayName,
-      previewType: 'file' as const,
-      readOnly: true as const
-    }
-
-    await expectFileTitle(selection, displayName)
-  })
-
   it('attaches an attachment preview from the managed copy it reads, labelled with its name', async () => {
     const onAttach = vi.fn()
     const attachment = {
@@ -1296,7 +1268,7 @@ describe('ArtifactPane', () => {
 
   // trim() drops a trailing space that is part of the filename.
   it('keeps significant filename whitespace on both title surfaces', async () => {
-    const displayName = 'clip.mp4 '
+    const displayName = `clip${BS}part.mp4 `
     const named = {
       workspacePath: '/managed/message-files',
       filePath: 'entry-1.mp4',
@@ -1376,7 +1348,13 @@ describe('ArtifactPane', () => {
 
     const overlay = await screen.findByTestId('artifact-file-preview-overlay')
     expect(overlay).toHaveTextContent('README.md')
-    expect(screen.getByTestId('file-preview')).toHaveAttribute('data-file-path', '/tmp/workspace/README.md')
+    const preview = within(overlay).getByTestId('file-preview')
+    expect(preview).toHaveAttribute('data-file-path', '/tmp/workspace/README.md')
+    expect(preview).toHaveAttribute('data-preview-type', 'artifact')
+    expect(within(overlay).getByRole('navigation', { name: 'breadcrumb' })).toHaveAttribute(
+      'title',
+      '/tmp/workspace/README.md'
+    )
     expect(screen.getByTestId('tree-node-README.md')).toHaveAttribute('data-selected', 'true')
 
     fireEvent.click(within(overlay).getByRole('button', { name: 'Open in Finder' }))
@@ -1540,20 +1518,6 @@ describe('ArtifactPane', () => {
     expect(items.map((item) => item.type !== 'separator' && item.id)).toEqual(['artifact-pane.file.copy'])
   })
 
-  it('shows the full path on the file breadcrumb', async () => {
-    mockWorkspaceTree('/tmp/workspace', ['README.md'])
-
-    render(<ArtifactPaneHarness workspacePath="/tmp/workspace" />)
-
-    await waitFor(() => expect(screen.getByTestId('tree-node-README.md')).toBeInTheDocument())
-    fireEvent.click(screen.getByTestId('tree-node-README.md'))
-    const overlay = await screen.findByTestId('artifact-file-preview-overlay')
-    expect(within(overlay).getByRole('navigation', { name: 'breadcrumb' })).toHaveAttribute(
-      'title',
-      '/tmp/workspace/README.md'
-    )
-  })
-
   it('applies ordered changes to an expanded directory snapshot', async () => {
     mockWorkspaceTree('/tmp/workspace', ['src/'])
     mockWorkspaceTree('/tmp/workspace/src', ['old.md'])
@@ -1587,15 +1551,18 @@ describe('ArtifactPane', () => {
     expect(screen.queryByTestId('tree-node-src/old.md')).not.toBeInTheDocument()
   })
 
-  it('searches unloaded deep files and allows selecting the result', async () => {
+  it('debounces deep search and allows selecting an unloaded result', async () => {
     mockWorkspaceTree('/tmp/workspace', ['README.md'])
     mocks.listDirectoryEntries.mockResolvedValueOnce([
       { path: '/tmp/workspace/src/feature/deep-result.ts', isDirectory: false }
     ])
-    render(<ArtifactPaneHarness workspacePath="/tmp/workspace" initialSearchKeyword="deep" />)
-
-    await waitFor(() =>
-      expect(mocks.listDirectoryEntries).toHaveBeenCalledWith(
+    vi.useFakeTimers()
+    try {
+      render(<ArtifactPaneHarness workspacePath="/tmp/workspace" initialSearchKeyword="deep" />)
+      await act(() => vi.advanceTimersByTimeAsync(199))
+      expect(mocks.listDirectoryEntries).not.toHaveBeenCalled()
+      await act(() => vi.advanceTimersByTimeAsync(1))
+      expect(mocks.listDirectoryEntries).toHaveBeenCalledExactlyOnceWith(
         '/tmp/workspace',
         expect.objectContaining({
           recursive: true,
@@ -1605,7 +1572,9 @@ describe('ArtifactPane', () => {
           maxEntries: 200
         })
       )
-    )
+    } finally {
+      vi.useRealTimers()
+    }
     await waitFor(() => expect(screen.getByTestId('tree-node-src/feature/deep-result.ts')).toBeInTheDocument())
 
     fireEvent.click(screen.getByTestId('tree-node-src/feature/deep-result.ts'))
@@ -1640,23 +1609,6 @@ describe('ArtifactPane', () => {
 
     expect(result.current.filteredTree.map((node) => node.id)).toEqual(['README.md'])
     expect(isSelectableFileNode(result.current.nodeById, deepFile)).toBe(true)
-  })
-
-  it('debounces deep file search requests', async () => {
-    mockWorkspaceTree('/tmp/workspace', ['README.md'])
-    mocks.listDirectoryEntries.mockResolvedValue([])
-
-    render(<ArtifactPaneHarness workspacePath="/tmp/workspace" initialSearchKeyword="deep" />)
-
-    await new Promise((resolve) => setTimeout(resolve, 100))
-    expect(mocks.listDirectoryEntries).not.toHaveBeenCalled()
-
-    await waitFor(() =>
-      expect(mocks.listDirectoryEntries).toHaveBeenCalledWith(
-        '/tmp/workspace',
-        expect.objectContaining({ recursive: true, searchPattern: 'deep', maxEntries: 200 })
-      )
-    )
   })
 
   it('logs directory listing errors and displays a localized load-error state', async () => {
@@ -1830,7 +1782,7 @@ describe('ArtifactPane', () => {
     fireEvent.click(screen.getByTestId('tree-node-draft.txt'))
 
     const overlay = await screen.findByTestId('artifact-file-preview-overlay')
-    fireEvent.change(await within(overlay).findByTestId('code-editor'), { target: { value: oversizedDraft } })
+    await editAndAdvanceAutosave(await within(overlay).findByTestId('code-editor'), oversizedDraft)
 
     // The debounced autosave persists the large draft; the size cap only blocks
     // loading an already-oversized file into the editor.
@@ -1922,10 +1874,7 @@ describe('ArtifactPane', () => {
       const overlay = await screen.findByTestId('artifact-file-preview-overlay')
       expect(within(overlay).queryByRole('button', { name: 'common.save' })).toBeNull()
 
-      fireEvent.change(await within(overlay).findByTestId('code-editor'), { target: { value: 'changed\n' } })
-      await act(async () => {
-        await new Promise((resolve) => setTimeout(resolve, 1_200))
-      })
+      await editAndAdvanceAutosave(await within(overlay).findByTestId('code-editor'), 'changed\n')
       expect(mocks.ipcRequest).not.toHaveBeenCalledWith('file.edit.write', expect.anything())
       expect(within(overlay).getByRole('button', { name: 'common.cancel' })).toBeInTheDocument()
 
@@ -1956,7 +1905,7 @@ describe('ArtifactPane', () => {
 
     const editor = await within(overlay).findByTestId('code-editor')
     expect(editor).toHaveValue('first\nsecond\n')
-    fireEvent.change(editor, { target: { value: 'changed\ncontent\nfirst\nsecond\n' } })
+    await editAndAdvanceAutosave(editor, 'changed\ncontent\nfirst\nsecond\n')
 
     // Autosave (debounced) writes without a manual save button.
     await waitFor(() => expect(mocks.ipcRequest).toHaveBeenCalledWith('file.edit.write', expect.anything()), {
@@ -1990,7 +1939,7 @@ describe('ArtifactPane', () => {
     fireEvent.click(screen.getByTestId('tree-node-notes.txt'))
 
     await screen.findByTestId('artifact-file-preview-overlay')
-    fireEvent.change(await screen.findByTestId('code-editor'), { target: { value: 'unsaved draft\n' } })
+    await editAndAdvanceAutosave(await screen.findByTestId('code-editor'), 'unsaved draft\n')
 
     const saveFailure = await screen.findByRole('alert', {}, { timeout: 3000 })
     expect(saveFailure).toHaveTextContent('agent.preview_pane.edit.save_failed')
@@ -2025,7 +1974,7 @@ describe('ArtifactPane', () => {
     fireEvent.click(screen.getByTestId('tree-node-notes.txt'))
 
     await screen.findByTestId('artifact-file-preview-overlay')
-    fireEvent.change(await screen.findByTestId('code-editor'), { target: { value: 'draft\n' } })
+    await editAndAdvanceAutosave(await screen.findByTestId('code-editor'), 'draft\n')
 
     // Autosave hits the stale-version guard and opens the reload dialog.
     const conflictDialog = await screen.findByRole('dialog', {}, { timeout: 3000 })
@@ -2060,7 +2009,7 @@ describe('ArtifactPane', () => {
     fireEvent.click(screen.getByTestId('tree-node-notes.txt'))
 
     await screen.findByTestId('artifact-file-preview-overlay')
-    fireEvent.change(await screen.findByTestId('code-editor'), { target: { value: 'draft\n' } })
+    await editAndAdvanceAutosave(await screen.findByTestId('code-editor'), 'draft\n')
 
     // Autosave hits the stale-version guard and opens the reload dialog.
     const conflictDialog = await screen.findByRole('dialog', {}, { timeout: 3000 })
@@ -2093,7 +2042,7 @@ describe('ArtifactPane', () => {
     fireEvent.click(screen.getByTestId('tree-node-notes.txt'))
 
     await screen.findByTestId('artifact-file-preview-overlay')
-    fireEvent.change(await screen.findByTestId('code-editor'), { target: { value: 'draft\n' } })
+    await editAndAdvanceAutosave(await screen.findByTestId('code-editor'), 'draft\n')
 
     const conflictDialog = await screen.findByRole('dialog', {}, { timeout: 3000 })
     fireEvent.click(within(conflictDialog).getByRole('button', { name: 'agent.preview_pane.edit.conflict.keep_draft' }))
@@ -2120,7 +2069,7 @@ describe('ArtifactPane', () => {
     fireEvent.click(screen.getByTestId('tree-node-notes.txt'))
 
     await screen.findByTestId('artifact-file-preview-overlay')
-    fireEvent.change(await screen.findByTestId('code-editor'), { target: { value: 'draft\n' } })
+    await editAndAdvanceAutosave(await screen.findByTestId('code-editor'), 'draft\n')
 
     const conflictDialog = await screen.findByRole('dialog', {}, { timeout: 3000 })
     fireEvent.click(within(conflictDialog).getByRole('button', { name: 'agent.preview_pane.edit.conflict.reload' }))
