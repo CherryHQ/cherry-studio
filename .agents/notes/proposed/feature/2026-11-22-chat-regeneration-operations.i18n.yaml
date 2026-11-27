@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/dev/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-11-22-chat-regeneration-operations.md
-2026-11-22-chat-regeneration-operations.md: 0a2b76780390e8d9cde52f225602805eef9eaf9e
-2026-11-22-chat-regeneration-operations.zh.md: a6904644a40db8f2c9b3605de6b511695fb37b23
+2026-11-22-chat-regeneration-operations.md: 8824011628a3fd8723edd98cec790a72c39d95b6
+2026-11-22-chat-regeneration-operations.zh.md: 82124ff4d5f123525cd7639453b1e9d9f5892703
