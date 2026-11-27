@@ -82,8 +82,13 @@ are preserved.
   Codex adapter on demand. Each adapter publishes shared runtime events. Each turn
   establishes a source in its session
   context before publishing addressed text, reasoning, plan and tool updates.
-  Opening history reads known session capabilities. A command request or send can
-  acquire a connection.
+  Selecting an interactive ACP conversation in the active chat view opens or restores
+  its production connection in the background once its workspace is known. Read-only
+  history uses Cherry’s saved messages. The permission menu displays connection status
+  until the formal connection reports its choices. A send or command request joins
+  the same opening or restore.
+  After the last interactive view leaves, a resumable idle connection is eligible for
+  the normal idle timeout. Active execution retains its connection.
 - CLI-backed adapters share executable and environment resolution in `runtime/cli`.
   The Code CLI service uses the same installation discovery. Runtime packages
   declare the native command rules, and Main provides the installed components,
@@ -160,9 +165,10 @@ Successful compaction refreshes context usage without creating a chat input.
 
 Agent Services offers native models and Cherry models through the unified gateway.
 For ACP, a native selection in Agent Services saves the Agent's launch preference.
-Opening the conversation picker before connecting loads the installed native
-catalog. Selecting a model there uses the Agent launch preference. Once
-connected, native choices and switches use the active ACP session.
+The conversation picker shows configured gateway models while an ACP connection
+opens. Native choices and switches use the active ACP session after it connects.
+Adapters that expose their native catalog separately can load it when the session
+only reports its current model.
 
 A Cherry model selection belongs to the Agent record alone
 (`sourceModelId` with `sourceModelViaGateway`). Selecting, switching or clearing
@@ -382,8 +388,9 @@ to advertised ACP IDs. CLIs with config-file-only model selection use the
 configured default.
 
 The Settings picker reads the installed runtime's catalog. The ACP Composer
-uses models from the current native session and writes through that session's
-model control. Standard ACP configuration responses or updates confirm the new
+shows connection status until the native session applies its initial
+configuration. It then reads and writes models through that session's model
+control. Standard ACP configuration responses or updates confirm the new
 model and its effort. A successful legacy setter acknowledges the requested
 model. The Composer distinguishes missing authentication, an empty catalog,
 a single current model and an unavailable model operation.
@@ -395,8 +402,9 @@ legacy model list. Each catalog entry carries its own advertised effort choices.
 A standard ACP probe can associate `thought_level` with the reported current
 model. Pi ACP's legacy thinking modes follow the same rule.
 
-An idle session shows the permission mode declared by its runtime. Main can
-record that choice before opening a connection. The live session publishes its
+Scheduled-task conversations and non-ACP runtimes can record a declared permission
+mode before opening a connection. Ordinary ACP conversations require the live
+connection to change permission modes. The live session publishes its
 current permission, effort and other configuration controls, and a disconnect
 withdraws them. Claude and Codex offer the levels advertised for the active
 model. Cursor reads the active model's effort parameter from the SDK catalog

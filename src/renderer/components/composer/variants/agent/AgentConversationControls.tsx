@@ -44,6 +44,7 @@ export interface AgentConversationControlsProps {
   agent?: AgentEntity
   model?: Model
   localInfo?: LocalAgentSessionInfo | null
+  localConnecting?: boolean
   localSessionId?: string
   workspace?: AgentConversationWorkspace | null
   workspaceId?: string | null
@@ -415,6 +416,7 @@ export function AgentConversationControls(props: AgentConversationControlsProps)
           key={props.agent.id}
           agent={props.agent}
           info={props.localInfo}
+          connecting={props.localConnecting}
           sessionId={props.localSessionId}
           disabled={!props.canChangeModel}
           side={props.side}

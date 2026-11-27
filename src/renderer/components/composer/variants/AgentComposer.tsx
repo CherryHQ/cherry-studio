@@ -1387,10 +1387,20 @@ const AgentComposerInner = ({
         ? {
             mode: localPermissionSelection,
             options: localExtraOptions,
-            disabled: isStreaming
+            connecting: localView?.connecting,
+            unavailable: localView?.permissionUnavailable,
+            disabled: isStreaming || localView?.connecting === true
           }
         : undefined,
-    [agent?.type, isStreaming, launchOptions?.editing, localExtraOptions, localPermissionSelection]
+    [
+      agent?.type,
+      isStreaming,
+      launchOptions?.editing,
+      localExtraOptions,
+      localPermissionSelection,
+      localView?.connecting,
+      localView?.permissionUnavailable
+    ]
   )
   const toolsSession = useMemo(
     () => (sessionData && localPermission ? { ...sessionData, localPermission } : sessionData),
@@ -1913,7 +1923,8 @@ const AgentComposerInner = ({
   ])
 
   const showsPermissionModeToolbar =
-    usesCherryPermissionMode || (agent?.type === 'local' && !!localPermissionSelection && !launchOptions?.editing)
+    usesCherryPermissionMode ||
+    (agent?.type === 'local' && !!(localPermissionSelection || localPermission?.unavailable) && !launchOptions?.editing)
   const renderQuickPanelShortcuts = useCallback(
     ({
       inputAdapter,
@@ -1960,6 +1971,7 @@ const AgentComposerInner = ({
 
   const controlSlots = renderControls({
     localInfo,
+    localConnecting: localView?.connecting,
     localSessionId: sessionId,
     agent,
     model,

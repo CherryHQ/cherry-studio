@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Button, Checkbox, ConfirmDialog } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
+import { loggerService } from '@logger'
 import { ChatLayoutModeProvider } from '@renderer/components/chat/layout/ChatLayoutModeContext'
 import type { MessageStreamingLayers } from '@renderer/components/chat/messages/types'
 import { useProfilePaneToggle } from '@renderer/components/chat/panes/profile'
@@ -39,6 +40,8 @@ import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useAgentWorkspaceWarning } from '@renderer/hooks/agent/useAgentWorkspaceWarning'
 import { useLocalAgentSessionInfo } from '@renderer/hooks/agent/useLocalAgentSessionInfo'
 import { useUpdateSession } from '@renderer/hooks/agent/useSession'
+import { useCurrentTabId, useIsActiveTab } from '@renderer/hooks/tab'
+import { ipcApi } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { GetAgentResponse } from '@renderer/types/agent'
 import type { ConversationCenterSlot, PaneManualToggleSignal } from '@renderer/types/conversationLayout'
@@ -71,6 +74,7 @@ import type { AgentConversationBootstrap } from './useAgentConversationBootstrap
 
 const EMPTY_MESSAGES: CherryUIMessage[] = []
 const EMPTY_PARTS: Record<string, CherryMessagePart[]> = {}
+const logger = loggerService.withContext('AgentChat')
 
 function AgentPermissionRequestComposer(props: PermissionRequestComposerProps) {
   const { openAgentToolFlow, canOpenAgentToolFlow } = useAgentRightPaneActions()
@@ -122,6 +126,7 @@ function AgentTopBarControls(props: AgentTopBarControlsProps) {
     <AgentConversationControls
       {...props}
       localInfo={view?.info ?? null}
+      localConnecting={view?.connecting}
       side="bottom"
       iconOnly={iconOnly}
       onAvatarClick={profilePane?.toggle}
@@ -697,6 +702,33 @@ const AgentChatSessionCenter = ({
   const checkLocalRestore = !!onStartNewTaskConversation && (protocol === 'acp' || protocol === 'cursor')
   const historyOnly = checkLocalRestore && localRestoreUnavailable === true
   const checkingRestore = checkLocalRestore && localRestoreUnavailable === undefined
+  const tabId = useCurrentTabId()
+  const isActiveTab = useIsActiveTab()
+  const sessionId = session.id
+  const workspacePath = session.workspace?.path
+  const canActivateRuntime =
+    (!tabId || isActiveTab) &&
+    !onStartNewTaskConversation &&
+    !session.deletedAt &&
+    !!workspacePath &&
+    activeAgent?.id === session.agentId &&
+    localRuntime?.enabled === true &&
+    protocol === 'acp'
+
+  useEffect(() => {
+    if (!canActivateRuntime || !agentId || !workspacePath) return
+    let active = true
+    void ipcApi.request('ai.local_agents.set_session_interactive', { sessionId, active: true }).catch((error) => {
+      if (active) logger.warn('Failed to prepare active ACP session', { sessionId, error })
+    })
+    return () => {
+      active = false
+      void ipcApi.request('ai.local_agents.set_session_interactive', { sessionId, active: false }).catch((error) => {
+        logger.warn('Failed to leave active ACP session', { sessionId, error })
+      })
+    }
+  }, [agentId, canActivateRuntime, sessionId, workspacePath])
+
   const composer = (
     <div className="flex w-full flex-col">
       {!isMultiSelectMode && <AgentTaskProgressCapsule />}

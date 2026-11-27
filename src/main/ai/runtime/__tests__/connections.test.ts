@@ -801,13 +801,16 @@ describe('local protocol processes', () => {
   it.each([undefined, 'native-session'])(
     'keeps initial commands and config while suppressing replay (resume=%s)',
     async (resume) => {
-      const { connection, events, text } = create('acp', 'initial-updates')
+      const { connection, events, text, closeAndDrain } = create('acp', 'initial-updates')
       await connection.start(cwd, resume)
-      await vi.waitFor(() => expect(events.some((event) => event.type === 'supported-commands')).toBe(true))
+      await closeAndDrain()
       expect(events.filter((event) => event.type === 'supported-commands')).toEqual([
         { type: 'supported-commands', commands: [{ name: 'review', description: 'Review code', argumentHint: '' }] }
       ])
       expect(connection.localSessionInfo.activeModel?.id).toBe('updated-model')
+      expect(
+        events.filter((event) => event.type === 'local-session-info').map(({ info }) => info.activeModel?.id)
+      ).toEqual(['updated-model'])
       expect(text()).toBe('')
     }
   )

@@ -76,6 +76,8 @@ export interface ToolContext {
     localPermission?: {
       mode?: LocalAgentSelection
       options?: LocalAgentConfigOption[]
+      connecting?: boolean
+      unavailable?: boolean
       disabled?: boolean
     }
   }

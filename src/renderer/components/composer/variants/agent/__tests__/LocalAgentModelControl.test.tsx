@@ -68,22 +68,31 @@ beforeEach(async () => {
 afterEach(() => vi.restoreAllMocks())
 
 describe('local agent model persistence', () => {
-  it('loads the Antigravity catalog on open and selects a model for the first turn', async () => {
+  it('uses the warming Antigravity session even when the model picker was already open', async () => {
     const user = userEvent.setup()
     const antigravity = {
       ...agent,
       configuration: { localRuntime: { ...agent.configuration!.localRuntime!, presetId: 'antigravity-acp' } }
     } satisfies AgentEntity
-    const request = vi.mocked(ipcApi.request)
-    request.mockResolvedValueOnce({ models: info.models })
-    updateNativeModel.mockResolvedValueOnce(antigravity)
-
-    render(<LocalAgentModelControl agent={antigravity} sessionId="session" disabled={false} side="top" />)
-    expect(request).not.toHaveBeenCalled()
+    const props = { agent: antigravity, sessionId: 'session', disabled: false, side: 'top' } as const
+    const { rerender } = render(<LocalAgentModelControl {...props} />)
     await user.click(screen.getByRole('button', { name: '选择模型' }))
+    expect(screen.getByText('会话连接后即可切换模型。')).toBeVisible()
+    rerender(<LocalAgentModelControl {...props} connecting />)
+    expect(screen.getByText('加载中...')).toBeVisible()
+    expect(screen.queryByRole('option')).not.toBeInTheDocument()
+    rerender(<LocalAgentModelControl {...props} info={{ ...info, models: [], modelSelection: undefined }} />)
+    expect(screen.getByText('加载中...')).toBeVisible()
+    expect(screen.queryByText('当前会话不支持切换模型。')).not.toBeInTheDocument()
+    rerender(<LocalAgentModelControl {...props} info={info} />)
     await user.click(await screen.findByRole('option', { name: 'Second' }))
     await waitFor(() => expect(screen.queryByRole('option', { name: 'Second' })).not.toBeInTheDocument())
-    expect(updateNativeModel).toHaveBeenCalledWith(antigravity.id, 'second')
+    expect(ipcApi.request).toHaveBeenCalledWith('ai.local_agents.select_session_model', {
+      sessionId: 'session',
+      modelId: 'second'
+    })
+    expect(ipcApi.request).not.toHaveBeenCalledWith('ai.local_agents.models', expect.anything())
+    expect(updateNativeModel).not.toHaveBeenCalled()
   })
 
   it.each(['disconnected', 'current-only', 'selectable'] as const)(
@@ -139,7 +148,14 @@ describe('local agent model persistence', () => {
         )
         await user.click(screen.getByRole('button', { name: '选择模型' }))
         expect(await screen.findByRole('option', { name: 'Second' })).not.toHaveAttribute('aria-disabled', 'true')
-        expect(await screen.findByRole('option', { name: 'Native model' })).not.toHaveAttribute('aria-disabled', 'true')
+        if (status === 'disconnected') {
+          expect(screen.queryByRole('option', { name: 'Native model' })).not.toBeInTheDocument()
+        } else {
+          expect(await screen.findByRole('option', { name: 'Native model' })).not.toHaveAttribute(
+            'aria-disabled',
+            'true'
+          )
+        }
         expect(screen.getByRole('option', { name: 'First' })).toHaveAttribute('aria-selected', 'true')
       } finally {
         catalog.models = []

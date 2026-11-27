@@ -162,7 +162,7 @@ async function fixture(opts: { headless?: boolean; redirect?: boolean; recovery?
         headless: opts.headless,
         messageSnapshot: snapshot
       })
-  await service['commandConnection']('root')
+  await service['ensureSessionConnection']('root')
   await emit({ type: 'supported-commands', commands: [] })
   onTestFinished(async () => {
     suspended.resolve()

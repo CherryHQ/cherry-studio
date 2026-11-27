@@ -364,6 +364,7 @@ export class AcpConnection extends LocalConnection {
     }
     this.localSessionInfo.protocolInfo.verified.push('session')
     this.publishResumeToken(session.thread.id)
+    this.publishSessionInfo()
     return this
   }
   private hostCallbacks(cwd: string, env: NodeJS.ProcessEnv): AcpClientCallbacks {
@@ -1018,6 +1019,7 @@ export class AcpConnection extends LocalConnection {
     this.publishSessionInfo()
   }
   private publishSessionInfo() {
+    if (!this.localSessionInfo.protocolInfo?.verified.includes('session')) return
     // oxlint-disable-next-line no-restricted-globals -- The queued event owns its session snapshot.
     this.events.push({ type: 'local-session-info', info: structuredClone(this.localSessionInfo) })
   }

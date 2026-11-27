@@ -469,6 +469,20 @@ export class AgentSessionService {
     return this.readById(id, undefined, options?.includeTaskReuse)
   }
 
+  isOrdinaryConversation(id: string): boolean {
+    return Boolean(
+      application
+        .get('DbService')
+        .getDb()
+        .select({ id: sessionsTable.id })
+        .from(sessionsTable)
+        .where(
+          and(eq(sessionsTable.id, id), conversationFilter, ordinaryConversationFilter, isNull(sessionsTable.deletedAt))
+        )
+        .get()
+    )
+  }
+
   isOneOffTaskSession(id: string): boolean {
     return Boolean(
       application

@@ -1,4 +1,4 @@
-import { Settings2 } from 'lucide-react'
+import { Settings2, Shield } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { requiresPermissionConfirmation } from '@cherrystudio/agent-runtime/cli'
@@ -146,12 +146,19 @@ const usePermissionModeToolController = (context: PermissionModeContext) => {
   const workflowName = localPermission?.mode?.options.find(
     ({ value, workflowOnly }) => value === currentValue && workflowOnly
   )?.name
-  const tooltipTitle = modeCard
-    ? (modeCard.nativeName ?? t(modeCard.titleKey, modeCard.titleFallback))
-    : (workflowName ?? '')
+  const connectionStatus = localPermission?.unavailable
+    ? t(localPermission.connecting ? 'common.loading' : 'local_agents.configuration_read_only')
+    : undefined
+  const tooltipTitle = localPermission?.connecting
+    ? t('common.loading')
+    : modeCard
+      ? (modeCard.nativeName ?? t(modeCard.titleKey, modeCard.titleFallback))
+      : (connectionStatus ?? workflowName ?? '')
   const launcherLabel = t('agent.settings.permissionMode.title', 'Permission Mode')
   const launcherTooltip = tooltipTitle ? `${launcherLabel} · ${tooltipTitle}` : launcherLabel
-  const disabledReason = isDisabled ? t('local_agents.configuration_read_only') : undefined
+  const disabledReason = isDisabled
+    ? t(localPermission?.connecting ? 'common.loading' : 'local_agents.configuration_read_only')
+    : undefined
   const configMenus = useMemo(() => {
     const security: ComposerToolLauncher[] = []
     const session: ComposerToolLauncher[] = []
@@ -260,9 +267,16 @@ const usePermissionModeToolController = (context: PermissionModeContext) => {
   )
 
   useEffect(() => {
-    if (isLocal && !unifiedLocalMode && !configMenus.security.length && !configMenus.session.length) return
+    if (
+      isLocal &&
+      !connectionStatus &&
+      !unifiedLocalMode &&
+      !configMenus.security.length &&
+      !configMenus.session.length
+    )
+      return
     return launcher.registerLaunchers([
-      ...(!isLocal || unifiedLocalMode || configMenus.security.length
+      ...(!isLocal || connectionStatus || unifiedLocalMode || configMenus.security.length
         ? [
             {
               ...PERMISSION_MODE_TOOLBAR_MANIFEST.toolbar,
@@ -271,8 +285,22 @@ const usePermissionModeToolController = (context: PermissionModeContext) => {
               description: tooltipTitle,
               tooltip: launcherTooltip,
               searchAliases: getQuickPanelSearchAliases(t, 'agent.settings.permissionMode.title'),
-              icon: <PermissionModeIcon mode={currentMode} />,
-              submenu: [...modeSubmenu, ...configMenus.security]
+              icon: connectionStatus ? (
+                <Shield size={18} className="text-muted-foreground" />
+              ) : (
+                <PermissionModeIcon mode={currentMode} />
+              ),
+              submenu: connectionStatus
+                ? [
+                    {
+                      id: 'permission-connection-status',
+                      kind: 'command' as const,
+                      label: connectionStatus,
+                      icon: null,
+                      disabled: true
+                    }
+                  ]
+                : [...modeSubmenu, ...configMenus.security]
             }
           ]
         : []),
@@ -319,6 +347,7 @@ const usePermissionModeToolController = (context: PermissionModeContext) => {
     ])
   }, [
     configMenus,
+    connectionStatus,
     currentMode,
     disabledReason,
     handleSelectMode,
@@ -390,6 +419,7 @@ const permissionModeTool = defineTool({
   condition: ({ session }) =>
     !!session &&
     (session.agentType !== 'local' ||
+      !!session.localPermission?.unavailable ||
       isUnifiedLocalPermissionMode(session.localPermission?.mode) ||
       !!session.localPermission?.options?.length),
 

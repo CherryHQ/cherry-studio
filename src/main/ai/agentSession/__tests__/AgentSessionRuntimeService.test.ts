@@ -10,6 +10,7 @@ import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest'
 
 import type { SubmitResult } from '@cherrystudio/agent-runtime'
+import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
@@ -696,7 +697,7 @@ describe('AgentSessionRuntimeService', () => {
           close: mocks.closeWarmSession
         }
       if (name === 'AnalyticsService') return { trackTokenUsage: mocks.trackTokenUsage }
-      if (name === 'WindowManager') return { getWindow: mocks.getWindow }
+      if (name === 'WindowManager') return { ...defaultServiceInstances.WindowManager, getWindow: mocks.getWindow }
       if (name === 'IpcApiService') return { broadcast: mocks.broadcast, send: vi.fn(), broadcastToType: vi.fn() }
       throw new Error(`Unexpected application.get(${name})`)
     })
@@ -5387,7 +5388,7 @@ describe('AgentSessionRuntimeService', () => {
     expect(connection.setConfigOption).not.toHaveBeenCalledWith('verbosity', expect.anything())
   })
 
-  it('binds effort changes and replay to the current model and rebuilds DSH on a launch mode change', async () => {
+  it('binds effort changes and replay to the current model', async () => {
     mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-1', workspace: { path: '/workspace' } })
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
@@ -5444,9 +5445,27 @@ describe('AgentSessionRuntimeService', () => {
     await service.listSessionCommands('session-1')
     expect(replayedInfo.thoughtLevel.currentValue).toBe('high')
     await service.closeSession('session-1')
+  })
 
-    // DSH mode change persists override, closes an idle connection for next-turn env injection, and broadcasts mode.
-    mocks.cachePersist.clear()
+  it('restores the open ACP conversation with the selected launch-time permission', async () => {
+    dbh.db
+      .insert(agentTable)
+      .values({ id: 'agent-dsh', type: 'local', name: 'DeepSeek', instructions: '', orderKey: 'a0' })
+      .run()
+    dbh.db
+      .insert(agentWorkspaceTable)
+      .values({ id: 'dsh-workspace', name: 'Workspace', path: '/workspace', type: 'user', orderKey: 'a0' })
+      .run()
+    dbh.db
+      .insert(agentSessionTable)
+      .values({
+        id: 'session-dsh',
+        agentId: 'agent-dsh',
+        workspaceId: 'dsh-workspace',
+        name: 'Conversation',
+        orderKey: 'a0'
+      })
+      .run()
     mocks.getAgent.mockReturnValue({
       id: 'agent-dsh',
       type: 'local',
@@ -5457,49 +5476,48 @@ describe('AgentSessionRuntimeService', () => {
     })
     mocks.hasSessionMessages.mockReturnValue(true)
     mocks.getSessionById.mockReturnValue({ id: 'session-dsh', agentId: 'agent-dsh', workspace: { path: '/workspace' } })
-    const dshClose = vi.fn()
+    const storedMode = () =>
+      (
+        mocks.cachePersist.get('local_agent.session_overrides') as
+          | Record<string, { mode?: { value: string } }>
+          | undefined
+      )?.['session-dsh']?.mode?.value
+    const opened: string[] = []
     runtimeDriverRegistry.register({
       type: 'local',
-      connect: vi.fn().mockResolvedValue({
-        ...createAsyncQueue<any>(dshClose),
-        reconcile: vi.fn().mockResolvedValue('current'),
-        localSessionInfo: {
-          models: [{ id: 'm1', name: 'Model 1' }],
-          images: false,
-          resume: true,
-          mode: {
-            id: 'dsh-mode',
-            application: 'reconnect',
-            currentValue: 'workspace-write',
-            options: [
-              { value: 'read-only', name: 'Read Only' },
-              { value: 'workspace-write', name: 'Workspace' },
-              { value: 'danger-full-access', name: 'Full Access' }
-            ]
+      async connect() {
+        const currentValue = storedMode() ?? 'workspace-write'
+        opened.push(currentValue)
+        return {
+          ...createAsyncQueue<AgentRuntimeEvent>(),
+          send: vi.fn(),
+          async reconcile() {
+            return 'current' as const
+          },
+          localSessionInfo: {
+            models: [],
+            images: false,
+            resume: true,
+            mode: {
+              id: 'dsh-mode',
+              application: 'reconnect' as const,
+              currentValue,
+              options: [
+                { value: 'read-only', name: 'Read Only' },
+                { value: 'workspace-write', name: 'Workspace' }
+              ]
+            }
           }
         }
-      }),
+      },
       validateSession: vi.fn()
     })
-    await service.listSessionCommands('session-dsh')
-    mocks.broadcast.mockClear()
-
+    const service = new AgentSessionRuntimeService()
+    await service.setLocalSessionInteractive('window', 'session-dsh', true)
     const updatedDsh = await service.setLocalMode('session-dsh', 'dsh-mode', 'read-only')
-    expect(updatedDsh.idleMode?.currentValue).toBe('read-only')
-    expect(updatedDsh.info).toBeNull()
-    expect(dshClose).toHaveBeenCalled()
-    expect(
-      (mocks.cachePersist.get('local_agent.session_overrides') as Record<string, any> | undefined)?.['session-dsh']
-        ?.mode
-    ).toEqual({
-      configId: 'dsh-mode',
-      value: 'read-only'
-    })
-    expect(mocks.broadcast).toHaveBeenCalledWith('ai.local_agents.session_updated', {
-      sessionId: 'session-dsh',
-      info: null,
-      idleMode: expect.objectContaining({ id: 'dsh-mode', currentValue: 'read-only' })
-    })
+    expect(updatedDsh.info?.mode?.currentValue).toBe('read-only')
+    expect(opened).toEqual(['workspace-write', 'read-only'])
+    await service.closeSession('session-dsh')
   })
 
   describe('on-demand session command catalog', () => {

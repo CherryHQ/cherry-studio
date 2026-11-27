@@ -484,9 +484,18 @@ export interface LocalAgentSessionInfo extends LocalAgentModelCatalog {
 }
 
 export type LocalAgentSessionView =
-  | { info: LocalAgentSessionInfo; idleMode?: never; idleHostPermission?: never; idleLaunchPermission?: never }
+  | {
+      info: LocalAgentSessionInfo
+      connecting?: never
+      permissionUnavailable?: never
+      idleMode?: never
+      idleHostPermission?: never
+      idleLaunchPermission?: never
+    }
   | {
       info: null
+      connecting?: true
+      permissionUnavailable?: true
       idleMode?: LocalAgentSelection
       idleHostPermission?: LocalAgentSelection
       idleLaunchPermission?: LocalAgentSelection

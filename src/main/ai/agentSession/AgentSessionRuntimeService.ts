@@ -103,7 +103,7 @@ import {
   type UniqueModelId
 } from '@shared/data/types/model'
 import { type AgentTaskEventPartData, getKnowledgeBaseIdsFromParts } from '@shared/data/types/uiParts'
-import type { InputFor } from '@shared/ipc/types'
+import type { InputFor, WindowId } from '@shared/ipc/types'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
 import { prepareAgentConfigApproval } from '../agents/agentConfigTool'
@@ -449,6 +449,7 @@ class AgentSessionRuntimeTerminalListener implements StreamListener {
 ])
 export class AgentSessionRuntimeService extends BaseService {
   private readonly forks = new AgentSessionForkOperations()
+  private readonly interactiveLocalSessions = new Map<WindowId, string>()
   private readonly failedClosures = new Map<string, Set<AgentRuntimeConnection>>()
   private readonly failedClosureResumeTokens = new WeakMap<AgentRuntimeConnection, string>()
   private readonly pendingEditInputs = new Map<
@@ -651,6 +652,9 @@ export class AgentSessionRuntimeService extends BaseService {
     // Delivery recovery owns rows with a persisted delivery turn, and other native owners recover separately.
     this.reconcileStalePendingMessages(this.blockedRecovery)
 
+    this.registerDisposable(
+      application.get('WindowManager').onWindowDestroyed(({ id }) => this.releaseLocalSessionInterest(id))
+    )
     this.registerDisposable(
       agentService.onAgentUpdated(({ agentId, updates, agent }) => {
         void this.handleAgentUpdated(agentId, updates, agent).catch((error) => {
@@ -1244,7 +1248,7 @@ export class AgentSessionRuntimeService extends BaseService {
     if (cached && agent.type !== 'local') return cached
     if (agent.type === 'claude-code' && application.get('ClaudeCodeBinaryService').getStatus().phase !== 'ready')
       return []
-    const connection = await this.commandConnection(sessionId)
+    const connection = await this.ensureSessionConnection(sessionId)
     const commands = await connection?.getSupportedCommands?.()
     const entry = this.entries.get(sessionId)
     if (commands && entry && this.currentConnection(entry) === connection)
@@ -1252,7 +1256,36 @@ export class AgentSessionRuntimeService extends BaseService {
     return commands ?? []
   }
 
-  private async commandConnection(
+  async setLocalSessionInteractive(windowId: WindowId, sessionId: string, active: boolean): Promise<void> {
+    if (!active) {
+      if (this.interactiveLocalSessions.get(windowId) === sessionId) this.releaseLocalSessionInterest(windowId)
+      return
+    }
+    if (this.isShuttingDown || this.isWriteQuiesced) return
+    const session = agentSessionService.getConversationById(sessionId, { excludeTaskSessions: true })
+    const agent = session.agentId ? agentService.getAgent(session.agentId) : undefined
+    const config = agent?.type === 'local' ? agent.configuration?.localRuntime : undefined
+    if (!session.workspace?.path || !config?.enabled || getLocalAgentProtocol(config.presetId) !== 'acp') return
+
+    if (this.interactiveLocalSessions.get(windowId) !== sessionId) {
+      this.releaseLocalSessionInterest(windowId)
+      this.interactiveLocalSessions.set(windowId, sessionId)
+    }
+    const entry = this.entries.get(sessionId)
+    if (entry) this.clearIdleTimer(entry)
+    await this.closingSessions.get(sessionId)?.promise
+    if (this.interactiveLocalSessions.get(windowId) === sessionId) await this.ensureSessionConnection(sessionId)
+  }
+
+  private releaseLocalSessionInterest(windowId: WindowId): void {
+    const sessionId = this.interactiveLocalSessions.get(windowId)
+    if (!sessionId) return
+    this.interactiveLocalSessions.delete(windowId)
+    const entry = this.entries.get(sessionId)
+    if (entry) this.refreshIdleTimer(entry)
+  }
+
+  private async ensureSessionConnection(
     sessionId: string,
     root?: AgentSessionContextRow
   ): Promise<AgentRuntimeConnection | undefined> {
@@ -1353,9 +1386,13 @@ export class AgentSessionRuntimeService extends BaseService {
           hasAgentSessionRuntimeBackgroundWork(entry.runtimeState)
         if (!hasLiveTurn) {
           this.closeConnectionAsync(entry)
-          if (entry.pendingInputs?.size && !entry.closing && !this.isShuttingDown) {
+          if (
+            (entry.pendingInputs?.size || this.hasInteractiveLocalSession(entry.sessionId)) &&
+            !entry.closing &&
+            !this.isShuttingDown
+          ) {
             void this.ensureConnection(entry).catch((error) =>
-              logger.warn('Failed to reconnect for pending inputs after rebuild', {
+              logger.warn('Failed to reconnect after runtime configuration changed', {
                 sessionId: entry.sessionId,
                 error
               })
@@ -2195,7 +2232,7 @@ export class AgentSessionRuntimeService extends BaseService {
     if (root.sessionId !== sessionId || childContexts.backend(root.backendId).locator.kind === 'claude-code')
       throw new Error('Child native owner is unavailable')
     const writing = (async () => {
-      const connection = await this.commandConnection(sessionId, root)
+      const connection = await this.ensureSessionConnection(sessionId, root)
       if (!connection?.messageChild || connection.contextId !== root.id)
         throw new Error('Child native owner is unavailable')
       await connection.messageChild(contextId, text)
@@ -2532,6 +2569,7 @@ export class AgentSessionRuntimeService extends BaseService {
       const attemptId = crypto.randomUUID()
       entry.connectionGeneration = attemptId
       this.applyRuntimeStateEvent(entry, { type: 'connection-started', attemptId })
+      this.publishLocalSessionInfo(entry, null)
       const connecting = this.connect(entry, target, attemptId).finally(() => {
         if (this.connectionAttempts.get(entry)?.id === attemptId) {
           this.connectionAttempts.delete(entry)
@@ -2542,6 +2580,7 @@ export class AgentSessionRuntimeService extends BaseService {
           entry.runtimeState.connection.attemptId === attemptId
         ) {
           this.applyRuntimeStateEvent(entry, { type: 'connection-disconnected' })
+          this.publishLocalSessionInfo(entry, null)
         }
       })
       this.connectionAttempts.set(entry, { id: attemptId, promise: connecting })
@@ -4562,19 +4601,22 @@ export class AgentSessionRuntimeService extends BaseService {
     const agent = agentId ? agentService.getAgent(agentId) : undefined
     const config = agent?.type === 'local' ? agent.configuration?.localRuntime : undefined
     if (!config?.enabled) return { info: null }
+    const isAcp = getLocalAgentProtocol(config.presetId) === 'acp'
+    const connecting = isAcp && this.entries.get(sessionId)?.runtimeState.connection.kind === 'connecting'
+    if (isAcp && agentSessionService.isOrdinaryConversation(sessionId))
+      return { info: null, permissionUnavailable: true, ...(connecting && { connecting: true }) }
     const saved = this.getLocalSessionOverrides(sessionId)
     let idleMode = getLocalAgentLaunchMode(config)
     const native = saved?.mode
     if (idleMode && native?.configId === idleMode.id && idleMode.options.some(({ value }) => value === native.value)) {
       idleMode = { ...idleMode, currentValue: native.value }
     }
-    const idleHostPermission =
-      getLocalAgentProtocol(config.presetId) === 'acp'
-        ? getAcpHostPermissionModeSelection(
-            idleMode,
-            saved?.hostPermissionMode?.agentId === agentId ? saved?.hostPermissionMode?.value : undefined
-          )
-        : undefined
+    const idleHostPermission = isAcp
+      ? getAcpHostPermissionModeSelection(
+          idleMode,
+          saved?.hostPermissionMode?.agentId === agentId ? saved?.hostPermissionMode?.value : undefined
+        )
+      : undefined
     const launchBypass = saved?.launchBypass
     const idleLaunchPermission = getAcpLaunchBypassArgs(config)
       ? getAcpLaunchPermission(
@@ -4582,7 +4624,7 @@ export class AgentSessionRuntimeService extends BaseService {
           launchBypass?.agentId === agentId && launchBypass?.presetId === config.presetId
         )
       : undefined
-    return { info: null, idleMode, idleHostPermission, idleLaunchPermission }
+    return { info: null, ...(connecting && { connecting: true }), idleMode, idleHostPermission, idleLaunchPermission }
   }
 
   async setLocalMode(sessionId: string, configId: string, value: string): Promise<LocalAgentSessionView> {
@@ -4591,6 +4633,7 @@ export class AgentSessionRuntimeService extends BaseService {
     const connection = this.localOptionConnection(sessionId)
     const agentId = entry?.agentId ?? agentSessionService.getById(sessionId)?.agentId
     const idle = connection ? undefined : this.localIdleView(sessionId, agentId)
+    if (idle?.permissionUnavailable || idle?.connecting) throw new Error('Local agent session is unavailable or busy')
     const mode = connection ? connection.localSessionInfo?.mode : idle?.idleMode
     if (configId === ACP_LAUNCH_PERMISSION_ID) {
       const selection = connection?.localSessionInfo?.launchPermission ?? idle?.idleLaunchPermission
@@ -4693,8 +4736,11 @@ export class AgentSessionRuntimeService extends BaseService {
     }
 
     this.saveLocalSessionOverride(sessionId, { mode: { configId, value } })
-    if (connection) await this.closeSession(sessionId)
-    const view = this.localIdleView(sessionId, agentId)
+    if (connection) {
+      await this.closeSession(sessionId)
+      if (this.hasInteractiveLocalSession(sessionId)) await this.ensureSessionConnection(sessionId)
+    }
+    const view = this.getLocalSessionView(sessionId)
     application.get('IpcApiService').broadcast('ai.local_agents.session_updated', { sessionId, ...view })
     return view
   }
@@ -4738,11 +4784,7 @@ export class AgentSessionRuntimeService extends BaseService {
     if (this.isShuttingDown || entry.agentType !== 'local') return
     const prediction = entry.prediction
     if (prediction?.localModelId && prediction.localModelId !== info?.activeModel?.id) prediction.controller.abort()
-    const view: LocalAgentSessionView = info
-      ? { info }
-      : options?.restoreUnavailable
-        ? { info: null }
-        : this.localIdleView(entry.sessionId, entry.agentId)
+    const view = info ? { info } : this.localIdleView(entry.sessionId, entry.agentId)
     application.get('IpcApiService').broadcast('ai.local_agents.session_updated', {
       sessionId: entry.sessionId,
       ...view,
@@ -4751,8 +4793,13 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   private shouldRetainWhileIdle(entry: AgentSessionRuntimeEntry): boolean {
+    if (this.hasInteractiveLocalSession(entry.sessionId)) return true
     if (!this.currentConnection(entry)?.retainWhileIdle) return false
     return entry.agentType !== 'local' || !agentSessionService.isOneOffTaskSession(entry.sessionId)
+  }
+
+  private hasInteractiveLocalSession(sessionId: string): boolean {
+    return [...this.interactiveLocalSessions.values()].includes(sessionId)
   }
 
   private refreshIdleTimer(entry: AgentSessionRuntimeEntry): void {

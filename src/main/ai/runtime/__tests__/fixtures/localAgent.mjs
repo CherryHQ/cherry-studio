@@ -556,7 +556,10 @@ createInterface({ input: process.stdin }).on('line', (line) => {
               ? undefined
               : scenario === 'mode-legacy-null'
                 ? null
-                : scenario === 'mode-legacy-empty' || scenario === 'no-models' || scenario === 'legacy-models'
+                : scenario === 'mode-legacy-empty' ||
+                    scenario === 'no-models' ||
+                    scenario === 'legacy-models' ||
+                    scenario === 'initial-updates'
                   ? []
                   : [
                       ...((scenario.startsWith('mode') && scenario !== 'mode-legacy') ||

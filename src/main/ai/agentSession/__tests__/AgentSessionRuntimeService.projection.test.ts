@@ -198,7 +198,7 @@ async function fixture(
     queue.close()
     await closed.promise
     queue = new AsyncEventQueue()
-    await service['commandConnection']('root')
+    await service['ensureSessionConnection']('root')
   }
   return { service, handle, context, user, reply, emit, project, views, done, reconnect, connections }
 }

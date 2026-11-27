@@ -501,6 +501,10 @@ export const aiRequestSchemas = {
     input: z.object({ sessionId: z.string() }),
     output: z.custom<LocalAgentSessionView>()
   }),
+  'ai.local_agents.set_session_interactive': defineRoute({
+    input: z.strictObject({ sessionId: z.string().min(1), active: z.boolean() }),
+    output: z.void()
+  }),
   'ai.local_agents.detect': defineRoute({ input: z.object({}), output: z.custom<LocalAgentDetection[]>() }),
   'ai.local_agents.web_start': defineRoute({
     input: LocalAgentConfigurationSchema,

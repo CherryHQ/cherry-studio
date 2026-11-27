@@ -25,6 +25,7 @@ import {
 type LocalAgentModelControlProps = {
   agent: AgentEntity
   info?: LocalAgentSessionInfo | null
+  connecting?: boolean
   sessionId?: string
   disabled: boolean
   side: 'top' | 'bottom'
@@ -33,6 +34,7 @@ type LocalAgentModelControlProps = {
 export function LocalAgentModelControl({
   agent,
   info,
+  connecting,
   sessionId,
   disabled,
   side,
@@ -48,12 +50,14 @@ export function LocalAgentModelControl({
   )
   const isQwen = config?.presetId === qwenPreset.id
   const status = info?.modelSelection
-  const sessionPicker =
-    !!info && getLocalAgentProtocol(config?.presetId) === 'acp' && !(isQwen && status === 'current-only')
+  const isAcp = getLocalAgentProtocol(config?.presetId) === 'acp'
+  const awaitingSession = isAcp && !!sessionId && !status
+  const sessionPicker = !!info && !!status && isAcp && !(isQwen && status === 'current-only')
+  const awaitingModelOptions = awaitingSession && (connecting === true || !!info)
   const catalogModels = (freshCatalog ?? catalog)?.models ?? []
   const liveModels = isQwen ? undefined : info?.models
-  let nativeModels = sessionPicker ? info.models : catalogModels
-  if (!sessionPicker && liveModels?.length) {
+  let nativeModels = sessionPicker ? info.models : awaitingSession ? [] : catalogModels
+  if (!awaitingSession && !sessionPicker && liveModels?.length) {
     const catalogById = new Map(catalogModels.map((model) => [model.id, model]))
     nativeModels = liveModels.map((model) => {
       const entry = catalogById.get(model.id)
@@ -69,27 +73,29 @@ export function LocalAgentModelControl({
     gatewayAlias ? nativeModels.filter(({ id }) => id !== gatewayAlias) : nativeModels,
     sessionPicker ? info.activeModel?.id : undefined
   )
-  const { models } = selection
+  const models = awaitingSession ? selection.models.filter(({ source }) => source === 'gateway') : selection.models
   const activeModel = sessionPicker ? info.activeModel : undefined
   const activeGateway =
     config?.sourceModelViaGateway &&
     config.sourceModelId &&
     (!activeModel || !config.nativeModel || activeModel.id === config.nativeModel || activeModel.id === gatewayAlias)
   const value = sessionPicker && !activeGateway && !selection.activeGatewayModel ? activeModel?.id : selection.value
-  const followCliLabel = sessionPicker ? undefined : selection.followCliLabel
+  const followCliLabel = sessionPicker || awaitingSession ? undefined : selection.followCliLabel
   const selectedModel = models.find(({ id }) => id === value)
   const label = selectedModel?.name || activeModel?.name || value || followCliLabel || t('button.select_model')
-  const nativeRestriction = sessionPicker
-    ? status === 'selectable'
-      ? undefined
-      : status === 'current-only'
-        ? t('local_agents.session_model.current_only')
-        : status === 'sign-in-required'
-          ? t('local_agents.sign_in_required')
-          : status === 'empty'
-            ? t('local_agents.models_unavailable')
-            : t('local_agents.session_model.unsupported')
-    : selection.sourceRestrictions?.native
+  const nativeRestriction = awaitingSession
+    ? t(awaitingModelOptions ? 'common.loading' : 'local_agents.session_model.connect')
+    : sessionPicker
+      ? status === 'selectable'
+        ? undefined
+        : status === 'current-only'
+          ? t('local_agents.session_model.current_only')
+          : status === 'sign-in-required'
+            ? t('local_agents.sign_in_required')
+            : status === 'empty'
+              ? t('local_agents.models_unavailable')
+              : t('local_agents.session_model.unsupported')
+      : selection.sourceRestrictions?.native
   const footer = nativeRestriction ?? (info?.resume === false ? t('local_agents.no_resume') : undefined)
 
   async function selectModel(modelId?: string) {
@@ -117,11 +123,11 @@ export function LocalAgentModelControl({
       presetId={config.presetId}
       sourceRestrictions={{ ...selection.sourceRestrictions, native: nativeRestriction }}
       followCliLabel={followCliLabel}
-      value={value}
+      value={awaitingSession && !selectedModel ? undefined : value}
       disabled={disabled || saving}
-      loading={!sessionPicker && loading}
-      loaded={sessionPicker || !!freshCatalog || !!liveModels?.some((model) => model.registryModel)}
-      error={sessionPicker ? undefined : refreshError}
+      loading={awaitingSession ? awaitingModelOptions : !sessionPicker && loading}
+      loaded={awaitingSession || sessionPicker || !!freshCatalog || !!liveModels?.some((model) => model.registryModel)}
+      error={sessionPicker || awaitingSession ? undefined : refreshError}
       onOpenSettings={() => openRoute('/settings/local-agents', { id: config.presetId ?? agent.id })}
       side={side}
       onLoad={() => refresh().catch(() => {})}
