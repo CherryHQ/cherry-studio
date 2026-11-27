@@ -21,7 +21,6 @@ import {
   COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS,
   COMPOSER_SELECTOR_BUTTON_CLASS
 } from '../shared/ComposerControlScaffolding'
-import { LocalAgentConfigControl } from './LocalAgentConfigControl'
 
 type LocalAgentModelControlProps = {
   agent: AgentEntity
@@ -80,7 +79,6 @@ export function LocalAgentModelControl({
   const followCliLabel = sessionPicker ? undefined : selection.followCliLabel
   const selectedModel = models.find(({ id }) => id === value)
   const label = selectedModel?.name || activeModel?.name || value || followCliLabel || t('button.select_model')
-  const modelConfigOptions = info?.configOptions?.filter((option) => option.category === 'model_config')
   const nativeRestriction = sessionPicker
     ? status === 'selectable'
       ? undefined
@@ -128,17 +126,6 @@ export function LocalAgentModelControl({
       side={side}
       onLoad={() => refresh().catch(() => {})}
       onSelect={selectModel}
-      configuration={
-        sessionId && !!modelConfigOptions?.length ? (
-          <LocalAgentConfigControl
-            sessionId={sessionId}
-            presetId={config.presetId}
-            options={modelConfigOptions}
-            side="bottom"
-            disabled={disabled || saving || !info}
-          />
-        ) : undefined
-      }
       footer={footer && <p className="text-xs text-muted-foreground">{footer}</p>}
       trigger={
         <ModelControlButton

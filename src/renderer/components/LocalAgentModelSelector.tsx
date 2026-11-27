@@ -52,7 +52,6 @@ interface LocalAgentModelSelectorProps {
   error?: string
   onOpenSettings?: () => void
   footer?: ReactNode
-  configuration?: ReactNode
   side?: 'top' | 'bottom'
   onLoad: () => void | Promise<void>
   onSelect: (value?: string) => Promise<boolean>
@@ -71,7 +70,6 @@ export function LocalAgentModelSelector({
   error,
   onOpenSettings,
   footer,
-  configuration,
   side = 'bottom',
   onLoad,
   onSelect
@@ -216,11 +214,6 @@ export function LocalAgentModelSelector({
       {({ contentElement }) => (
         <PortalContainerProvider container={contentElement ?? null}>
           <div className="flex h-full min-h-0 flex-col">
-            {configuration && (
-              <div className="shrink-0 px-2 py-1" onKeyDown={(event) => event.stopPropagation()}>
-                {configuration}
-              </div>
-            )}
             {(error || footer || (!footer && !loading && loaded && !models.length)) && (
               <div className="shrink-0 space-y-2 border-b border-border-subtle px-3 py-2 text-xs">
                 {error && (

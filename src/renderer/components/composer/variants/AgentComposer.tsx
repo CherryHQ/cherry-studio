@@ -137,7 +137,6 @@ import {
   writeAgentDraftCache
 } from './agent/agentDraftCache'
 import { buildAgentFilePartsForAttachments, toAccessiblePaths } from './agent/agentFileParts'
-import { LocalAgentConfigControl } from './agent/LocalAgentConfigControl'
 import { LocalAgentThoughtControl } from './agent/LocalAgentThoughtControl'
 import { useAgentPromptSuggestion } from './agent/useAgentPromptSuggestion'
 import { createAttachmentFromPath, useAgentResourceMentionSource } from './agent/useAgentResourceMentionSource'
@@ -722,19 +721,13 @@ const AgentComposerInner = ({
   }, [usingSlash, requestCommands])
   const usesCherryPermissionMode = (capabilities?.permissionModes.length ?? 0) > 0
   const supportsPlan = capabilities?.permissionModes.some((mode) => mode === 'plan') ?? false
-  const localPresetId = agent?.configuration?.localRuntime?.presetId
   const localMode = localInfo?.mode ?? localView?.idleMode
   const localEffort = localInfo?.thoughtLevel
   const localExtraOptions = useMemo(() => {
     return localInfo?.configOptions?.filter(
-      (option) =>
-        option.category !== 'model_config' &&
-        option.category !== 'mode' &&
-        option.role !== 'mode' &&
-        option.id !== localMode?.id &&
-        option.id !== localEffort?.id
+      (option) => option.category !== 'model_config' && option.category !== 'model' && option.id !== localEffort?.id
     )
-  }, [localInfo?.configOptions, localMode?.id, localEffort?.id])
+  }, [localInfo?.configOptions, localEffort?.id])
   const nativePermissionSelection = isUnifiedLocalPermissionMode(localMode) ? localMode : undefined
   const localPermissionSelection =
     localInfo?.launchPermission ??
@@ -1393,10 +1386,11 @@ const AgentComposerInner = ({
       agent?.type === 'local' && !launchOptions?.editing
         ? {
             mode: localPermissionSelection,
+            options: localExtraOptions,
             disabled: isStreaming
           }
         : undefined,
-    [agent?.type, isStreaming, launchOptions?.editing, localPermissionSelection]
+    [agent?.type, isStreaming, launchOptions?.editing, localExtraOptions, localPermissionSelection]
   )
   const toolsSession = useMemo(
     () => (sessionData && localPermission ? { ...sessionData, localPermission } : sessionData),
@@ -2012,14 +2006,6 @@ const AgentComposerInner = ({
               disabled={isStreaming}
             />
           ) : null}
-          <LocalAgentConfigControl
-            key={`config:${sessionId}`}
-            sessionId={sessionId}
-            agentName={agent.name.trim() || undefined}
-            presetId={localPresetId}
-            options={localExtraOptions}
-            disabled={isStreaming}
-          />
         </>
       ) : null}
       <AgentComposerContextUsage model={model} sessionId={sessionId} />

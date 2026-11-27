@@ -179,7 +179,7 @@ describe('permissionModeTool submenu', () => {
     expect(screen.getByRole('dialog')).toBeInTheDocument()
   })
 
-  it('mounts only when a local agent offers unified permission modes', () => {
+  it('keeps unrelated mode catalogs out of the permission toolbar', () => {
     const codexMode = {
       id: 'codex-mode',
       currentValue: 'workspace',
@@ -221,6 +221,73 @@ describe('permissionModeTool submenu', () => {
         session: { agentId: 'a3', sessionId: 's3', agentType: 'local', localPermission: {} }
       } as any)
     ).toBe(false)
+  })
+
+  it('changes execution environment from session options and confirms disabling the sandbox separately', async () => {
+    const user = userEvent.setup()
+    const Runtime = permissionModeTool.composer!.runtime!
+    render(
+      <Runtime
+        context={
+          {
+            t,
+            launcher: { registerLaunchers: mocks.registerLaunchers },
+            session: {
+              agentId: 'agent-local',
+              sessionId: 'session-local',
+              agentType: 'local',
+              localPermission: {
+                options: [
+                  {
+                    id: 'environment',
+                    name: 'Execution environment',
+                    category: 'mode',
+                    type: 'select',
+                    currentValue: 'local',
+                    options: [
+                      { value: 'local', name: 'Local' },
+                      { value: 'orb', name: 'Orb' }
+                    ]
+                  },
+                  {
+                    id: 'sandbox',
+                    name: 'Sandbox',
+                    role: 'security',
+                    type: 'boolean',
+                    currentValue: true,
+                    confirmationValue: false
+                  }
+                ]
+              }
+            }
+          } as any
+        }
+      />
+    )
+    const launchers = mocks.registerLaunchers.mock.calls.at(-1)?.[0] ?? []
+    const sessionMenu = launchers.find((item) => item.id === 'local-session-options')
+    const permissionMenu = launchers.find((item) => item.id === 'permission-mode')
+    sessionMenu?.submenu
+      ?.find((item) => item.id === 'local-option:environment')
+      ?.submenu?.find((item) => item.label === 'Orb')
+      ?.action?.({} as any)
+    expect(mocks.ipcRequest).toHaveBeenCalledWith('ai.local_agents.set_config_option', {
+      sessionId: 'session-local',
+      configId: 'environment',
+      value: 'orb'
+    })
+    expect(sessionMenu?.submenu?.some((item) => item.id === 'local-option:sandbox')).toBe(false)
+    permissionMenu?.submenu
+      ?.find((item) => item.id === 'local-option:sandbox')
+      ?.submenu?.find((item) => item.label === 'common.disabled')
+      ?.action?.({} as any)
+    expect(mocks.ipcRequest).toHaveBeenCalledTimes(1)
+    await user.click(await screen.findByRole('button', { name: 'Enable Full Access' }))
+    expect(mocks.ipcRequest).toHaveBeenLastCalledWith('ai.local_agents.set_config_option', {
+      sessionId: 'session-local',
+      configId: 'sandbox',
+      value: false
+    })
   })
 
   it('keeps Muse approval choices with the same Cherry policy independently selectable', () => {

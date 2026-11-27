@@ -169,6 +169,14 @@ const nativeMode = (values, current = values[0]) => ({
   options: values.map((value) => ({ value, name: value }))
 })
 const nativePermissionOptions = {
+  'amp-native-permissions': () => [
+    {
+      ...nativeMode(['local', 'orb']),
+      id: 'execution-environment',
+      currentValue: secondaryValues['execution-environment'] ?? 'local'
+    },
+    { ...nativeMode(['default', 'bypass']), id: 'permission', currentValue: secondaryValues.permission ?? 'default' }
+  ],
   'antigravity-native-permissions': () => [nativeMode(['default', 'accept-edits', 'auto', 'plan'])],
   'cline-native-permissions': () => [
     nativeMode(['act', 'plan']),
@@ -181,6 +189,39 @@ const nativePermissionOptions = {
   ],
   'devin-native-permissions': () => [nativeMode(['accept-edits', 'smart', 'ask', 'plan', 'bypass'], 'ask')],
   'kilo-native-permissions': () => [nativeMode(['code', 'ask', 'debug', 'orchestrator', 'plan'])],
+  'kiro-native-permissions': () => [
+    nativeMode(['vibe', 'spec', 'plan']),
+    {
+      id: 'autopilot',
+      name: 'Autonomy',
+      type: 'select',
+      currentValue: secondaryValues.autopilot ?? 'on',
+      options: [
+        { value: 'on', name: 'Autopilot' },
+        { value: 'off', name: 'Supervised' }
+      ]
+    },
+    {
+      id: 'memoryReflection',
+      name: 'Memory reflection',
+      type: 'select',
+      currentValue: secondaryValues.memoryReflection ?? 'off',
+      options: [
+        { value: 'off', name: 'Off' },
+        { value: 'on', name: 'On' }
+      ]
+    },
+    {
+      id: 'contentCollection',
+      name: 'Content collection',
+      type: 'select',
+      currentValue: 'enabled',
+      options: [
+        { value: 'enabled', name: 'Enabled' },
+        { value: 'disabled', name: 'Disabled' }
+      ]
+    }
+  ],
   'kimi-native-permissions': () => [nativeMode(['default', 'auto', 'plan', 'yolo'])],
   'qwen-native-permissions': () => [nativeMode(['default', 'auto-edit', 'auto', 'plan', 'yolo'])],
   'muse-native-permissions': () => [nativeMode(['onRequest', 'promptUnmatched', 'denyUnmatched', 'allowAll'])],

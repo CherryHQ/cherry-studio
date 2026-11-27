@@ -411,8 +411,9 @@ the same native aliases when identifying full-access choices.
   value.
 - The ACP adapter annotates the session's actual choices. The Composer uses
   those annotations for its permission menu, risk confirmation and Plan
-  shortcut. Additional controls such as sandboxing appear in the Agent
-  configuration menu. A label can trigger a risk confirmation but cannot
+  shortcut. Separate sandbox controls appear in the permission menu. Other
+  live controls appear under Agent settings in the input QuickPanel. Model
+  defaults belong in Agent Services. A label can trigger a risk confirmation but cannot
   authorize a host operation.
   Terminals are connection-owned and working directories provide no OS isolation.
   A command path with spaces runs directly when it resolves to an executable.
@@ -427,7 +428,8 @@ the same native aliases when identifying full-access choices.
   Plan Only in the input quick panel and Shift+Tab switch between native Plan and the working mode.
 - Copilot exposes separate workflow and approval controls. The permission menu
   changes `allow_all`, and Plan Only changes the workflow. Junie exposes
-  `brave_mode` and a separate workflow. Cline exposes a session boolean for tool
+  `brave_mode` and a separate workflow. Kiro maps Supervised to the default
+  permission level and Autopilot to Auto. Cline exposes a session boolean for tool
   auto-approval alongside Act and Plan. Antigravity uses the approval choices
   advertised by the active session. Muse retains distinct native choices for
   actions covered by different approval rules. MiniMax's process-scoped

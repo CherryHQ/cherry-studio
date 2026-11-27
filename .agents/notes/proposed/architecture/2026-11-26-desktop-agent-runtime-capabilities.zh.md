@@ -42,6 +42,8 @@ Harness 适配器解释原生审批请求和选项。公共 ACP 包转换标准�
 
 Composer 权限菜单使用已验证的独立 ACP 审批控制或具有多个已验证审批选项的原生权限目录。Harness 单独公布工作模式时，仅规划命令和 Shift+Tab 可在已验证的原生 Plan 与默认工作模式之间切换。新增原生支持时，已保存的 Cherry 宿主审批选择保留 CLI 报告的原生档位。其余 ACP 会话为 Cherry 的交互审批提供操作前询问、自动接受编辑和完全访问。Cherry 完全访问会选择原生请求提供的单次允许选项，并直接批准由宿主代跑的文件写入和终端操作。原生限制、只读模式、结构化提问和无人值守执行各自沿用原有策略。Cherry 按会话记住选择，生效时无需修改 CLI 配置。
 
+权限菜单包含独立的原生沙箱选项。Plan 继续使用规划快捷入口。其余本机会话选项和执行工作流归入现有会话菜单，模型默认参数归入 Agent 服务。输入框取消独立的配置按钮。原生目录用同一个 ACP 类别表示审批与工作流时，由运行时声明用途。
+
 Runtime 分别报告原生接纳和实际放入的位置。只有明确未接纳才释放绑定，允许调度器重新排队。Composer 持有未提交草稿，由当前连接决定是否直接提交持久后续输入。主动压缩是空闲线程的独立操作，匹配的原生终态解除占用并刷新上下文读数。
 
 Pi Durable、内建 Pi、Claude 和 Codex 的既有原生能力走同一组桌面输入和压缩入口。Codex Stop 可撤回尚未派发的输入。派发后缺少原生回声时，送达状态保持未知，保留原绑定。
@@ -92,7 +94,7 @@ Pi Durable、内建 Pi、Claude 和 Codex 的既有原生能力走同一组桌�
 - AC33 — 新建的默认 Amp 聊天使用官方 SDK，与登录和额度读取使用同一个 CLI 和账号。文本、图片及已支持的插话到达对应线程，SDK 会话按 Amp thread ID 恢复，取消后等待子进程退出。已有 ACP 会话及显式 ACP 命令仍可用。(verification: unit, Electron and packaged artifact)
 - AC34 — 目录项选择声明的发行版和地区。每个可用登录流程在同一 runtime 完成并刷新账号状态。仅需供应商凭据的配置不提供 harness 账号登录。需要认证的前置状态显示为登录操作。(verification: unit and Electron)
 
-- AC35 — 缺少已验证原生审批控制或多个已验证审批选项的 ACP 会话，在首轮开始前或连接已建立后，都可以用与内置 Agent 相同的权限菜单调整 Cherry 的模式。独立的仅规划命令和 Shift+Tab 可在 OpenCode 的 Plan 与 Build 之间切换。已验证的独立审批控制可以单独切换原生审批。独立工作流不会隐藏已验证的审批选项。保留语义不同的原生审批选项。排除会持久化 CLI 配置的 ACP setter。切换模式时保留 CLI 配置。已验证的启动型跳过审批仅作用于选中的桌面会话，并经新的 ACP 进程生效。进入仅规划时先移除启动覆盖，再恢复会话。Cherry 完全访问只发送原生提供的单次允许选项。切回操作前询问后恢复交互式审批，无人值守时继续拒绝请求。(verification: unit, renderer and Electron)
+- AC35 — 缺少已验证原生审批控制或多个已验证审批选项的 ACP 会话，在首轮开始前或连接已建立后，都可以用与内置 Agent 相同的权限菜单调整 Cherry 的模式。独立的仅规划命令和 Shift+Tab 可在 OpenCode 的 Plan 与 Build 之间切换。已验证的独立审批控制可以单独切换原生审批。独立工作流不会隐藏已验证的审批选项。保留语义不同的原生审批选项。排除会持久化 CLI 配置的 ACP setter。切换模式时保留 CLI 配置。已验证的启动型跳过审批仅作用于选中的桌面会话，并经新的 ACP 进程生效。进入仅规划时先移除启动覆盖，再恢复会话。Cherry 完全访问只发送原生提供的单次允许选项。切回操作前询问后恢复交互式审批，无人值守时继续拒绝请求。输入框在权限菜单显示原生审批，在会话菜单显示其余会话选项。ACP 对审批和执行工作流使用同一类别时，仍能独立选择执行工作流。模型默认参数归入设置。(verification: unit, renderer and Electron)
 - AC36 — Agent Services 可以为 DeepAgents、Antigravity 和 Command Code 保存和清除 Cherry 模型。已启用的适配器使用选中的模型和发起会话的限定凭据，向内部网关发送原生 ACP 对话轮次。(verification: unit, renderer and Electron)
 - AC37 — OpenClaw 可以通过托管配置使用 Cherry 网关模型。并发会话使用一致的模型路由，只有通过凭据验证的用量才会归到具体会话。(verification: unit and Electron)
 - AC38 — Junie、DimAgent、Muse Code、Auggie、TRAE CN、Qoder 和 Qoder CN 在验证原生 ACP 能用注入的凭据向选定本机端点发送对话轮次后，提供 Cherry 模型选项。(verification: native ACP and Electron)

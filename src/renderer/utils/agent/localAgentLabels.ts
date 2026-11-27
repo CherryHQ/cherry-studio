@@ -6,7 +6,12 @@ import {
   selectedPermissionMode
 } from '@cherrystudio/agent-runtime/cli'
 import { reasoningEffortLabel } from '@renderer/utils/reasoning'
-import { ACP_LAUNCH_BYPASS_VALUE, type LocalAgentConfigOption, type LocalAgentSelection } from '@shared/ai/localAgent'
+import {
+  ACP_LAUNCH_BYPASS_VALUE,
+  type LocalAgentConfigChoice,
+  type LocalAgentConfigOption,
+  type LocalAgentSelection
+} from '@shared/ai/localAgent'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 
 const modeNameKeys = new Map(
@@ -279,7 +284,7 @@ export function localAgentConfigOptions(options: LocalAgentConfigOption[], prese
   return options.map((option) => {
     const labels = config?.get(option.id) ?? {}
     const translated = translateLabel(option, { ...configNameKeys, ...labels }, t)
-    const translate = (choice: { value: string; name: string; description?: string | null }) => {
+    const translate = (choice: LocalAgentConfigChoice) => {
       if (option.role === 'mode' || option.category === 'mode')
         return localAgentModeOptions(
           {

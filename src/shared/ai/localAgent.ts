@@ -459,7 +459,7 @@ export type LocalAgentConfigOption = {
   name: string
   description?: string | null
   category?: string | null
-  role?: 'mode' | 'reasoning'
+  role?: 'mode' | 'reasoning' | 'security'
   application?: PermissionModeApplication
 } & (
   | { type: 'boolean'; currentValue: boolean; confirmationValue?: boolean }

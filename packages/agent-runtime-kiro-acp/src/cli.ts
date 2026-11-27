@@ -1,7 +1,16 @@
+import type { AcpPermissionModes } from '@cherrystudio/agent-runtime-acp/profile'
 import type { CliAccountProbe, CliInstaller } from '@cherrystudio/agent-runtime/cli'
 
 export const kiroCli = {
   id: 'kiro',
+  permissionMode: {
+    approvalConfigId: 'autopilot',
+    workflowConfigId: 'mode',
+    values: { vibe: 'default', plan: 'plan' },
+    labels: { supervised: 'default', autopilot: 'auto' },
+    nativeApprovalOnly: true,
+    persistentConfigIds: ['contentCollection']
+  } satisfies AcpPermissionModes,
   account: { methods: [] },
   loginArgs: ['login'],
   accountProbe: {

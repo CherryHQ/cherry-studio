@@ -254,6 +254,7 @@ export class AcpConnection extends LocalConnection {
     if (this.launchBypass) return 'bypassPermissions'
     const nativeMode = this.effectivePermissionMode
     const hostOverride = this.localSessionInfo.hostPermission && this.hostPermissionOverride
+    if (this.permissionModes?.nativeApprovalOnly && !this.localSessionInfo.hostPermission) return 'default'
     return nativeMode === 'plan' ? nativeMode : (hostOverride ?? nativeMode)
   }
 
@@ -865,8 +866,15 @@ export class AcpConnection extends LocalConnection {
         )
         .map((option) => {
           const { id, name, description, category } = option
-          const role = option === mode ? ('mode' as const) : option === thought ? ('reasoning' as const) : undefined
           const control = acpPermissionControl(option, this.permissionModes)
+          const role =
+            option === mode
+              ? ('mode' as const)
+              : option === thought
+                ? ('reasoning' as const)
+                : control === 'allow_all' || control === 'sandbox'
+                  ? ('security' as const)
+                  : undefined
           const base = {
             id,
             name,
@@ -990,9 +998,23 @@ export class AcpConnection extends LocalConnection {
       : effort
         ? { ...effort, modelId: this.localSessionInfo.activeModel?.id }
         : this.session?.acp.legacyEffort?.read()
-    this.localSessionInfo.configOptions = configOptions?.filter(
-      (option) => option.id !== this.localSessionInfo.mode?.id && option.id !== effort?.id
-    )
+    this.localSessionInfo.configOptions = configOptions?.flatMap((option) => {
+      if (option.id === effort?.id) return []
+      const isPrimaryMode = option.id === this.localSessionInfo.mode?.id
+      if (!isPrimaryMode) return [option]
+      if (option.role !== 'mode' || option.type !== 'select') return []
+      if (!hasPermissionModeChoices(this.localSessionInfo.mode)) return [option]
+      const choices = option.options.flatMap((choice) => ('group' in choice ? choice.options : [choice]))
+      const workflows = choices.filter(({ workflowOnly }) => workflowOnly)
+      return workflows.length
+        ? [
+            {
+              ...option,
+              options: choices.filter((choice) => choice.workflowOnly || choice.permissionMode === 'default')
+            }
+          ]
+        : []
+    })
     this.publishSessionInfo()
   }
   private publishSessionInfo() {

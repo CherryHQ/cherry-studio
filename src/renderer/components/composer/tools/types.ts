@@ -8,7 +8,7 @@ import type {
 } from '@renderer/components/composer/toolLauncher'
 import type { Assistant } from '@renderer/types/assistant'
 import { TopicType } from '@renderer/types/topic'
-import type { LocalAgentSelection } from '@shared/ai/localAgent'
+import type { LocalAgentConfigOption, LocalAgentSelection } from '@shared/ai/localAgent'
 import type { SlashCommand } from '@shared/ai/slashCommands'
 import type { AgentType } from '@shared/data/types/agent'
 import type { Model } from '@shared/data/types/model'
@@ -75,6 +75,7 @@ export interface ToolContext {
     knowledgeBaseIds?: readonly string[]
     localPermission?: {
       mode?: LocalAgentSelection
+      options?: LocalAgentConfigOption[]
       disabled?: boolean
     }
   }

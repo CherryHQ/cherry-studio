@@ -1,6 +1,9 @@
+import { Settings2 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
+import { requiresPermissionConfirmation } from '@cherrystudio/agent-runtime/cli'
 import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
+import type { ComposerToolLauncher } from '@renderer/components/composer/toolLauncher'
 import { PERMISSION_MODE_TOOLBAR_MANIFEST } from '@renderer/components/composer/tools/toolbarManifests'
 import { defineTool, type ToolRenderContext } from '@renderer/components/composer/tools/types'
 import {
@@ -17,6 +20,7 @@ import { getPermissionModeCards } from '@renderer/utils/agent'
 import {
   findLocalDefaultNonPlanOption,
   isUnifiedLocalPermissionMode,
+  localAgentConfigOptions,
   resolveUnifiedLocalPermissionModes
 } from '@renderer/utils/agent/localAgentLabels'
 import { isAgentFullAccessMode } from '@shared/ai/agentPermissionMode'
@@ -25,6 +29,7 @@ import { ACP_HOST_PERMISSION_MODE_ID } from '@shared/ai/localAgent'
 type PermissionMenuCard = PermissionModeCard & { value: string; nativeName?: string; nativeDescription?: string }
 
 type PermissionModeContext = ToolRenderContext<readonly [], readonly []>
+type LocalConfigChange = { id: string; currentValue: string | boolean; value: string | boolean }
 
 const usePermissionModeToolController = (context: PermissionModeContext) => {
   const { t, launcher, session: sessionContext } = context
@@ -68,13 +73,29 @@ const usePermissionModeToolController = (context: PermissionModeContext) => {
     })
   }, [agent?.type, isLocal, localHost, unifiedLocalMode])
   const planCard = permissionModeCards.find((card) => card.mode === 'plan')
-  const isDisabled = Boolean(isLocal && localPermission?.disabled)
+  const [configSaving, setConfigSaving] = useState(false)
+  const isDisabled = Boolean(isLocal && (localPermission?.disabled || configSaving))
   const localExitPlanMode = useMemo(() => {
     if (!planCard || !localPermission?.mode) return undefined
     const safeNativeOption = findLocalDefaultNonPlanOption(localPermission.mode, planCard.value)
     return permissionModeCards.find((card) => card.value === safeNativeOption?.value)
   }, [localPermission?.mode, permissionModeCards, planCard])
   const [fullAccessPending, setFullAccessPending] = useState<PermissionMenuCard>()
+  const [configPending, setConfigPending] = useState<LocalConfigChange>()
+
+  const applyConfig = useCallback(
+    (change: LocalConfigChange) => {
+      const option = localPermission?.options?.find(({ id }) => id === change.id)
+      if (!sessionId || isDisabled || !option || option.currentValue !== change.currentValue) return false
+      setConfigSaving(true)
+      void ipcApi
+        .request('ai.local_agents.set_config_option', { sessionId, configId: change.id, value: change.value })
+        .catch((error) => toast.error(String(error)))
+        .finally(() => setConfigSaving(false))
+      return true
+    },
+    [isDisabled, localPermission?.options, sessionId]
+  )
 
   // Returns false when the selection cannot apply right now so the confirm dialog stays open.
   const applyMode = useCallback(
@@ -101,6 +122,7 @@ const usePermissionModeToolController = (context: PermissionModeContext) => {
   const handleSelectMode = useCallback(
     (nextMode: PermissionMenuCard) => {
       if (isDisabled || nextMode.value === currentValue) return
+      setConfigPending(undefined)
       if (isAgentFullAccessMode(nextMode.mode)) {
         setFullAccessPending(nextMode)
         return
@@ -114,7 +136,11 @@ const usePermissionModeToolController = (context: PermissionModeContext) => {
   // Any newer mode (local or incoming) wins; confirming must never apply a stale dialog over it.
   useEffect(() => {
     setFullAccessPending(undefined)
+    setConfigPending(undefined)
   }, [agentId, currentValue, sessionId, unifiedLocalMode?.id])
+  useEffect(() => {
+    setConfigPending(undefined)
+  }, [localPermission?.options])
 
   const modeCard = permissionModeCards.find((card) => card.value === currentValue)
   const workflowName = localPermission?.mode?.options.find(
@@ -126,6 +152,73 @@ const usePermissionModeToolController = (context: PermissionModeContext) => {
   const launcherLabel = t('agent.settings.permissionMode.title', 'Permission Mode')
   const launcherTooltip = tooltipTitle ? `${launcherLabel} · ${tooltipTitle}` : launcherLabel
   const disabledReason = isDisabled ? t('local_agents.configuration_read_only') : undefined
+  const configMenus = useMemo(() => {
+    const security: ComposerToolLauncher[] = []
+    const session: ComposerToolLauncher[] = []
+    for (const option of localAgentConfigOptions(
+      localPermission?.options ?? [],
+      agent?.configuration?.localRuntime?.presetId,
+      t
+    )) {
+      const choose = (value: string | boolean, confirm: boolean) => {
+        if (value === option.currentValue || isDisabled) return
+        const change = { id: option.id, currentValue: option.currentValue, value }
+        setFullAccessPending(undefined)
+        setConfigPending(confirm ? change : undefined)
+        if (!confirm) applyConfig(change)
+      }
+      const items =
+        option.type === 'boolean'
+          ? [true, false].map((value) => ({
+              value,
+              name: t(value ? 'common.enabled' : 'common.disabled'),
+              confirm: value === option.confirmationValue
+            }))
+          : option.options
+              .flatMap((choice) =>
+                'group' in choice
+                  ? choice.options.map((item) => ({
+                      ...item,
+                      description: item.description ? `${choice.name} · ${item.description}` : choice.name
+                    }))
+                  : [choice]
+              )
+              .filter(
+                (choice) => option.role !== 'mode' || !choice.permissionMode || choice.permissionMode === 'default'
+              )
+              .map((choice) => ({ ...choice, confirm: requiresPermissionConfirmation(choice) }))
+      if (items.length < 2) continue
+      const menu: ComposerToolLauncher = {
+        id: `local-option:${option.id}`,
+        kind: 'group',
+        label: option.name,
+        description: option.description ?? undefined,
+        suffix: items.find(({ value }) => value === option.currentValue)?.name,
+        icon: null,
+        submenu: items.map((item) => ({
+          id: `local-option:${option.id}:${item.value}`,
+          kind: 'command' as const,
+          label: item.name,
+          description: 'description' in item ? (item.description ?? undefined) : undefined,
+          icon: null,
+          active: item.value === option.currentValue,
+          disabled: isDisabled,
+          disabledReason,
+          action: () => choose(item.value, item.confirm)
+        }))
+      }
+      const target = option.role === 'security' ? security : session
+      target.push(menu)
+    }
+    return { security, session }
+  }, [
+    agent?.configuration?.localRuntime?.presetId,
+    applyConfig,
+    disabledReason,
+    isDisabled,
+    localPermission?.options,
+    t
+  ])
   const modeSubmenu = useMemo(
     () =>
       permissionModeCards
@@ -167,18 +260,35 @@ const usePermissionModeToolController = (context: PermissionModeContext) => {
   )
 
   useEffect(() => {
-    if (isLocal && !unifiedLocalMode) return
+    if (isLocal && !unifiedLocalMode && !configMenus.security.length && !configMenus.session.length) return
     return launcher.registerLaunchers([
-      {
-        ...PERMISSION_MODE_TOOLBAR_MANIFEST.toolbar,
-        sources: ['popover'],
-        label: launcherLabel,
-        description: tooltipTitle,
-        tooltip: launcherTooltip,
-        searchAliases: getQuickPanelSearchAliases(t, 'agent.settings.permissionMode.title'),
-        icon: <PermissionModeIcon mode={currentMode} />,
-        submenu: modeSubmenu
-      },
+      ...(!isLocal || unifiedLocalMode || configMenus.security.length
+        ? [
+            {
+              ...PERMISSION_MODE_TOOLBAR_MANIFEST.toolbar,
+              sources: ['popover'] as const,
+              label: launcherLabel,
+              description: tooltipTitle,
+              tooltip: launcherTooltip,
+              searchAliases: getQuickPanelSearchAliases(t, 'agent.settings.permissionMode.title'),
+              icon: <PermissionModeIcon mode={currentMode} />,
+              submenu: [...modeSubmenu, ...configMenus.security]
+            }
+          ]
+        : []),
+      ...(configMenus.session.length
+        ? [
+            {
+              id: 'local-session-options',
+              kind: 'group' as const,
+              sources: ['root-panel'] as const,
+              rootPanelPlacement: 'trailing' as const,
+              label: t('local_agents.configuration'),
+              icon: <Settings2 size={16} />,
+              submenu: configMenus.session
+            }
+          ]
+        : []),
       ...(planCard
         ? [
             {
@@ -208,6 +318,7 @@ const usePermissionModeToolController = (context: PermissionModeContext) => {
         : [])
     ])
   }, [
+    configMenus,
     currentMode,
     disabledReason,
     handleSelectMode,
@@ -231,6 +342,9 @@ const usePermissionModeToolController = (context: PermissionModeContext) => {
     fullAccessPending,
     setFullAccessPending,
     applyMode,
+    configPending,
+    setConfigPending,
+    applyConfig,
     localHost,
     agentName: agent?.name.trim() || undefined
   }
@@ -238,16 +352,29 @@ const usePermissionModeToolController = (context: PermissionModeContext) => {
 
 const PermissionModeComposerRuntime = ({ context }: { context: PermissionModeContext }) => {
   const { t } = context
-  const { fullAccessPending, setFullAccessPending, applyMode, agentName, localHost } =
-    usePermissionModeToolController(context)
+  const {
+    fullAccessPending,
+    setFullAccessPending,
+    applyMode,
+    configPending,
+    setConfigPending,
+    applyConfig,
+    agentName,
+    localHost
+  } = usePermissionModeToolController(context)
 
   return (
     <FullAccessConfirmDialog
-      open={Boolean(fullAccessPending)}
+      open={Boolean(fullAccessPending || configPending)}
       onOpenChange={(open) => {
-        if (!open) setFullAccessPending(undefined)
+        if (!open) {
+          setFullAccessPending(undefined)
+          setConfigPending(undefined)
+        }
       }}
-      onConfirm={() => !!fullAccessPending && applyMode(fullAccessPending)}
+      onConfirm={() =>
+        configPending ? applyConfig(configPending) : !!fullAccessPending && applyMode(fullAccessPending)
+      }
       scopeName={agentName}
       localHost={localHost}
       t={t}
@@ -261,7 +388,10 @@ const permissionModeTool = defineTool({
   availableWithoutModel: true,
   visibleInScopes: PERMISSION_MODE_TOOLBAR_MANIFEST.visibleInScopes,
   condition: ({ session }) =>
-    !!session && (session.agentType !== 'local' || isUnifiedLocalPermissionMode(session.localPermission?.mode)),
+    !!session &&
+    (session.agentType !== 'local' ||
+      isUnifiedLocalPermissionMode(session.localPermission?.mode) ||
+      !!session.localPermission?.options?.length),
 
   composer: {
     runtime: ({ context }) => <PermissionModeComposerRuntime context={context} />

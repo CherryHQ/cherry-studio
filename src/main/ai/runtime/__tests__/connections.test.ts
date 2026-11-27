@@ -1898,7 +1898,6 @@ describe('local protocol processes', () => {
     const { connection } = create('acp', 'config-extra')
     await connection.start(cwd)
     const acp = connection as AcpConnection
-    expect(acp.localSessionInfo.configOptions).toHaveLength(3)
     expect(acp.localSessionInfo.configOptions?.[0]).toMatchObject({
       name: 'Answer detail',
       description: 'Response length',
@@ -1992,8 +1991,37 @@ describe('local protocol processes', () => {
     const host = connection.localSessionInfo.hostPermission
     expect(host?.id).toBe(ACP_HOST_PERMISSION_MODE_ID)
     expect(host?.options.map(({ value }) => value)).toEqual(['default', 'acceptEdits', 'bypassPermissions', 'plan'])
+    await connection.setConfigOption('mode', 'ask')
+    expect(connection.localSessionInfo.mode?.currentValue).toBe('ask')
     await connection.setMode('mode', 'plan')
     expect(connection.localSessionInfo.hostPermission?.currentValue).toBe('plan')
+  })
+
+  it('changes Amp execution environment independently from approvals even when both are ACP modes', async () => {
+    const { connection } = create('acp', 'amp-native-permissions', undefined, 'amp-acp')
+    await connection.start(cwd)
+    await (connection as AcpConnection).setConfigOption('execution-environment', 'orb')
+    expect(connection.localSessionInfo.mode).toMatchObject({ id: 'permission', currentValue: 'default' })
+    expect(connection.localSessionInfo.configOptions).toEqual([
+      expect.objectContaining({ id: 'execution-environment', currentValue: 'orb' })
+    ])
+  })
+
+  it('changes Kiro Autopilot separately from work modes and excludes account options', async () => {
+    const { connection } = create('acp', 'kiro-native-permissions', undefined, 'kiro')
+    await connection.start(cwd)
+    const acp = connection as AcpConnection
+    expect(acp.localSessionInfo.mode?.options).toContainEqual(
+      expect.objectContaining({ name: 'Autopilot', permissionMode: 'auto' })
+    )
+    expect(acp.localSessionInfo.hostPermission).toBeUndefined()
+    await acp.setMode('autopilot', 'off')
+    expect(acp.localSessionInfo.configOptions?.map(({ id }) => id)).toEqual(['mode', 'memoryReflection'])
+    await acp.setConfigOption('memoryReflection', 'on')
+    expect(acp.localSessionInfo.configOptions?.find(({ id }) => id === 'memoryReflection')?.currentValue).toBe('on')
+    expect(acp.localSessionInfo.mode).toMatchObject({ id: 'autopilot', currentValue: 'off' })
+    await acp.setMode('autopilot', ACP_NATIVE_PLAN_VALUE)
+    expect(acp.localSessionInfo.mode?.currentValue).toBe(ACP_NATIVE_PLAN_VALUE)
   })
 
   it('switches the native Cline boolean without making Plan an approval setting', async () => {
@@ -2054,15 +2082,15 @@ describe('local protocol processes', () => {
     await connection.start(cwd)
     expect(connection.localSessionInfo.configOptions).toMatchObject([
       { id: 'verbosity', category: '_verbosity' },
-      { id: 'model', category: 'model' },
       { id: 'context-size', category: 'model_config' },
+      { id: 'agent-mode', category: 'mode' },
       { id: 'notifications', category: undefined }
     ])
     expect((await readWire()).find(({ method }) => method === 'initialize').params.clientInfo.version).toBe(
       app.getVersion()
     )
     await (connection as AcpConnection).setConfigOption('context-size', 'large')
-    expect(connection.localSessionInfo.configOptions?.map(({ id }) => id)).toEqual(['notifications'])
+    expect(connection.localSessionInfo.configOptions?.map(({ id }) => id)).toEqual(['notifications', 'agent-mode'])
     expect(connection.localSessionInfo.thoughtLevel).toBeUndefined()
     expect(connection.localSessionInfo.models).toEqual([])
     expect(connection.localSessionInfo.activeModel).toBeUndefined()

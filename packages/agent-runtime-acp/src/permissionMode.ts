@@ -10,6 +10,7 @@ export interface AcpPermissionModes {
   workflowValues?: Readonly<Record<string, 'work' | 'read-only'>>
   persistentConfigIds?: readonly string[]
   nativePermissionNames?: true
+  nativeApprovalOnly?: true
   legacyPlan?: true
   allowAll?: string
 }
@@ -88,7 +89,7 @@ export function acpPermissionChoice<T extends { value: string; name: string }>(
     ...choice,
     ...(permissionMode ? { permissionMode } : {}),
     ...(!permissionMode && (readOnly.has(value) || readOnly.has(label)) ? { restrictHost: true as const } : {}),
-    ...(permissionMode !== 'bypassPermissions' && (unrestricted.has(value) || unrestricted.has(label))
+    ...(!permissionMode && (unrestricted.has(value) || unrestricted.has(label))
       ? { requiresConfirmation: true as const }
       : {})
   }

@@ -1661,11 +1661,7 @@ describe('AgentComposer', () => {
     await waitFor(() => expect(mocks.runtimeHostProps?.session?.localPermission?.mode).toEqual(info.mode))
     expect(screen.getByRole('button', { name: /agent\.settings\.permissionMode\.title/ })).toBeEnabled()
     expect(getControls().queryByLabelText('code.adv.permission_mode')).toBeNull()
-    expect(getControls().getAllByLabelText('local_agents.configuration')).toHaveLength(1)
-
-    // Both security and general ACP options stay in LocalAgentConfigControl while main permissions reuse permission-mode.
-    expect(getControls().getByRole('menuitemradio', { name: 'common.enabled' })).toBeInTheDocument()
-    expect(getControls().getByRole('menuitemradio', { name: 'agent.speed.summary.detailed' })).toBeInTheDocument()
+    expect(getControls().queryByLabelText('local_agents.configuration')).not.toBeInTheDocument()
 
     // Shift+Tab enters plan mode via ai.local_agents.set_mode.
     expect(mocks.surfaceProps?.onShiftTab).toBeTypeOf('function')
@@ -1833,7 +1829,7 @@ describe('AgentComposer', () => {
     expect(thoughtBtn).toHaveTextContent('assistants.settings.reasoning_effort.medium')
   })
 
-  it('uses runtime-declared permissions and omits the separate workflow selector', async () => {
+  it('keeps native execution options available without adding an input control', async () => {
     const permissionsOption = {
       id: 'permissions',
       application: 'session',
@@ -1847,7 +1843,8 @@ describe('AgentComposer', () => {
     }
     const reasoningOption = {
       id: 'reasoning',
-      name: 'Reasoning',
+      name: 'Model default',
+      category: 'model_config',
       type: 'select' as const,
       currentValue: 'medium',
       options: [
@@ -1860,7 +1857,8 @@ describe('AgentComposer', () => {
     }
     const executionMode = {
       id: 'execution-environment',
-      name: 'Native mode',
+      name: 'Execution environment',
+      category: 'mode',
       type: 'select' as const,
       currentValue: 'local',
       options: [
@@ -1908,18 +1906,14 @@ describe('AgentComposer', () => {
 
     await waitFor(() =>
       expect(mocks.runtimeHostProps?.session?.localPermission).toMatchObject({
-        mode: { id: 'permissions', currentValue: 'default' }
+        mode: { id: 'permissions', currentValue: 'default' },
+        options: [executionMode, workflow]
       })
     )
 
     const getControls = () => within(screen.getByTestId('composer-send-accessory'))
     expect(getControls().queryByRole('button', { name: 'agent.speed.title' })).not.toBeInTheDocument()
-    expect(getControls().getByRole('button', { name: 'local_agents.configuration' })).toBeInTheDocument()
-    expect(getControls().getByRole('menuitemradio', { name: 'Local' })).toBeInTheDocument()
-    expect(getControls().getByRole('menuitemradio', { name: 'Orb' })).toBeInTheDocument()
-    expect(getControls().queryByRole('menuitemradio', { name: 'Autopilot' })).not.toBeInTheDocument()
-    expect(getControls().queryByRole('menuitemradio', { name: 'Bypass' })).not.toBeInTheDocument()
-    expect(getControls().getByRole('menuitemradio', { name: 'High' })).toBeInTheDocument()
+    expect(getControls().queryByRole('button', { name: 'local_agents.configuration' })).not.toBeInTheDocument()
   })
 
   it('displays negotiated ACP effort and omits the unsupported context meter', async () => {
@@ -1971,8 +1965,7 @@ describe('AgentComposer', () => {
       'assistants.settings.reasoning_effort.high'
     )
     expect(accessory.queryByRole('menuitemradio', { name: 'High' })).not.toBeInTheDocument()
-    expect(accessory.getByRole('button', { name: 'local_agents.configuration' })).toBeInTheDocument()
-    expect(accessory.getByRole('menuitemradio', { name: 'common.enabled' })).toBeInTheDocument()
+    expect(accessory.queryByRole('button', { name: 'local_agents.configuration' })).not.toBeInTheDocument()
     expect(accessory.queryByRole('meter')).not.toBeInTheDocument()
     expect(accessory.queryByRole('status')).not.toBeInTheDocument()
     expect(accessory.queryByLabelText(/context_usage/)).not.toBeInTheDocument()
@@ -1981,7 +1974,7 @@ describe('AgentComposer', () => {
   it('allows arbitrary workspace files for local agents while honoring ACP image/audio capability exclusions', async () => {
     mocks.ipcApiRequest.mockImplementation(async (route) =>
       route === 'ai.local_agents.session_info'
-        ? { info: { images: false, audio: false, supportsEmbeddedContext: false } }
+        ? { info: { models: [], images: false, audio: false, resume: false, supportsEmbeddedContext: false } }
         : null
     )
 
