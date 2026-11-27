@@ -1,7 +1,7 @@
 import { Mutex } from 'async-mutex'
 
 import { DREAMING_INSTRUCTIONS, fitDreamingInputs, prepareDreamingPlan } from './dreaming'
-import { extractAndSave } from './extract-and-save'
+import { extractAndSave, prepareExtraction } from './extract-and-save'
 import type { MemoryModel, ConversationMessage } from './extraction'
 import { MEMORY_ENTRY, MEMORY_WARNING_BYTES, MEMORY_WARNING_LINES, utf8Length, memoryLineCount } from './files'
 import { automaticWindow, ExtractionQueue, type ExtractionProgress, type MemoryStateStore, type TurnRef } from './queue'
@@ -20,7 +20,16 @@ export interface ScopedAccess extends MemoryAccess {
   readonly conversationId: string
   readonly kind: 'chat' | 'agent'
 }
+export interface ExtractionRange {
+  fromUserId: string
+  throughResponseId: string
+}
 export interface MemoryConversationSource {
+  /** Synchronously attest that the transcript is fresh or isolated from prior memory. */
+  isHistoryIsolated?(access: ScopedAccess): boolean
+  /** Return the contiguous selected ancestry between both endpoints while extraction is authorized. */
+  range?(access: ScopedAccess, range: ExtractionRange): ReturnType<MemoryConversationSource['window']>
+
   /** Return the authorized selected ancestry ending at the fixed batch endpoint. Missing or invalid turns occupy null slots. */
   window(
     access: ScopedAccess,
@@ -34,10 +43,7 @@ export interface MemoryConversationSource {
   }>
 }
 interface OrganizationState {
-  count: number
-  first: number
-  cursor?: string
-  manual: boolean
+  files?: Record<string, { hash?: string | null; count: number; first: number }>
   revision: number
   retryAt: number
   attempts: number
@@ -51,10 +57,21 @@ export interface MemoryEnginePorts {
   scope(key: string): { storage: MemoryStorage; backup: MemoryBackupStorage }
   extraction: MemoryStateStore<ExtractionProgress>
   organization: MemoryStateStore<OrganizationState>
-  context: MemoryStateStore<{ fingerprint: string | null }>
+  context: MemoryStateStore<{ fingerprint: string | null; unobserved?: true }>
   conversations: MemoryConversationSource
   model(access: ScopedAccess): Promise<MemoryModel>
   now(): number
+}
+
+function matchesTurn(pair: { user: ConversationMessage; reply: ConversationMessage }, ref: TurnRef | undefined) {
+  return (
+    ref &&
+    pair.user.role === 'user' &&
+    pair.reply.role === 'assistant' &&
+    pair.reply.id === ref.responseId &&
+    pair.user.version === ref.inputVersion &&
+    pair.reply.version === ref.responseVersion
+  )
 }
 
 export function createMemoryEngine(ports: MemoryEnginePorts) {
@@ -69,7 +86,7 @@ export function createMemoryEngine(ports: MemoryEnginePorts) {
   let active: { scope: string; controller: AbortController } | undefined
   let paused = false,
     disposed = false
-  const initial = (): OrganizationState => ({ count: 0, first: 0, manual: false, revision: 0, retryAt: 0, attempts: 0 })
+  const initial = (): OrganizationState => ({ revision: 0, retryAt: 0, attempts: 0 })
   function invalidate(scope: string) {
     invalid.set(scope, (invalid.get(scope) ?? 0) + 1)
     if (active?.scope === scope) active.controller.abort()
@@ -95,7 +112,6 @@ export function createMemoryEngine(ports: MemoryEnginePorts) {
         if (!changes.length) {
           await ports.organization.update(access.scope, (old) => {
             const state = old ?? initial()
-            state.manual = false
             state.epoch = (state.epoch ?? 0) + 1
             return { state, value: undefined }
           })
@@ -136,7 +152,6 @@ export function createMemoryEngine(ports: MemoryEnginePorts) {
         const state = old ?? initial()
         if (pending && state.historyIntent?.id === pending.id) {
           if (changedHistory) {
-            state.manual = false
             state.epoch = (state.epoch ?? 0) + 1
           }
           delete state.historyIntent
@@ -154,8 +169,13 @@ export function createMemoryEngine(ports: MemoryEnginePorts) {
       if (result.files.some((f) => f.outcome === 'applied'))
         await ports.organization.update(access.scope, (old) => {
           const s = old ?? initial()
-          if (!s.count) s.first = ports.now()
-          s.count++
+          s.files ??= {}
+          for (const file of result.files) {
+            if (file.outcome !== 'applied') continue
+            const pending = (s.files[file.path] ??= { count: 0, first: ports.now() })
+            pending.count++
+            pending.hash = file.hash
+          }
           s.revision++
           s.attempts = 0
           s.retryAt = 0
@@ -171,11 +191,22 @@ export function createMemoryEngine(ports: MemoryEnginePorts) {
         revision = r
         fingerprint = f
       })
-      const valid = await ports.context.update(key, (old) => ({
-        state: old ?? { fingerprint },
-        value: !old || old.fingerprint === fingerprint
+      const historyKey = JSON.stringify(['history', access.kind, access.scope, access.conversationId])
+      const legacy = await ports.context.update(key, (old) => ({
+        state: old ?? { fingerprint: null, unobserved: true },
+        value: old?.unobserved ? undefined : old
       }))
-      if (!valid) throw Error('Conversation memory protection changed')
+      await ports.context.update(historyKey, (old) => {
+        guard.assertAuthorized()
+        const previous = old ?? legacy
+        if (
+          previous
+            ? previous.fingerprint !== fingerprint
+            : fingerprint !== null && !ports.conversations.isHistoryIsolated?.(access)
+        )
+          throw Error('Conversation memory protection changed')
+        return { state: old ?? { fingerprint }, value: undefined }
+      })
 
       let cached = contexts.get(key)
       if (!cached || cached.revision !== revision) {
@@ -195,6 +226,64 @@ export function createMemoryEngine(ports: MemoryEnginePorts) {
         if (contexts.get(key) === cached) contexts.delete(key)
         throw error
       }
+    }
+    async function previewExtraction(range: ExtractionRange) {
+      if (access.scope !== 'shared' || !ports.conversations.range) throw Error('Extraction preview unavailable')
+      const readRange = ports.conversations.range.bind(ports.conversations)
+      return worker.runExclusive(async () => {
+        guard.assertAuthorized()
+        const controller = new AbortController()
+        active = { scope: access.scope, controller }
+        try {
+          const progressKey = await queueKey()
+          const admitted = await queue.admissions(progressKey)
+          const refs = new Map(admitted.turns.map((t) => [t.userId, t]))
+          const source = await readRange(access, range)
+          if (
+            !source.turns.length ||
+            source.turns[0]?.user.id !== range.fromUserId ||
+            source.turns.at(-1)?.reply.id !== range.throughResponseId
+          )
+            throw Error('Invalid extraction range')
+          const messages: ConversationMessage[] = []
+          let bytes = 0
+          for (const pair of source.turns) {
+            if (!pair || !matchesTurn(pair, refs.get(pair.user.id))) throw Error('Range contains an unadmitted turn')
+            refs.delete(pair.user.id)
+            messages.push(pair.user)
+            if (pair.reply.id !== range.throughResponseId) messages.push(pair.reply)
+          }
+          for (const message of messages) {
+            const size = utf8Length(message.text)
+            bytes += size
+            if (size > 8000 || bytes > 64000) throw Error('Extraction range exceeds budget')
+          }
+          const validate = async () => {
+            guard.assertAuthorized()
+            controller.signal.throwIfAborted()
+            await queue.check(progressKey, admitted.generation)
+            await source.validate()
+            source.assertCurrent()
+          }
+          const prepared = await prepareExtraction(
+            store,
+            guard,
+            { ...source, messages, kind: access.kind, conversationId: access.conversationId },
+            await ports.model(access),
+            controller.signal,
+            validate
+          )
+          return await store.inspectHistory(async () => {
+            await prepared.current()
+            source.assertCurrent()
+            controller.signal.throwIfAborted()
+            guard.assertAuthorized()
+            return prepared.proposal
+          })
+        } finally {
+          active = undefined
+        }
+      })
     }
     async function maintain(options: { extraction: boolean; organization: boolean }) {
       if (worker.isLocked()) return 'busy'
@@ -234,20 +323,17 @@ export function createMemoryEngine(ports: MemoryEnginePorts) {
                 source.turns.map((pair) => {
                   if (!pair) return null
                   const ref = expected.get(pair.user.id)
-                  return ref &&
-                    pair.user.role === 'user' &&
-                    pair.reply.role === 'assistant' &&
-                    ref.responseId === pair.reply.id &&
-                    ref.inputVersion === pair.user.version &&
-                    ref.responseVersion === pair.reply.version
-                    ? pair
-                    : null
+                  return matchesTurn(pair, ref) ? pair : null
                 })
               )
-              if (!window.messages.length) {
-                await queue.finish(progressKey, due.generation, due.end)
+              if (!window.messages.some((m) => m.id === due.end && m.role === 'user')) {
+                await source.validate()
+                check()
+                source.assertCurrent()
+                await queue.skipEndpoint(progressKey, due.generation, due.end)
                 return 'skipped'
               }
+              const processed = new Set(window.messages.filter((m) => m.role === 'user').map((m) => m.id))
               const verify = async () => {
                 check()
                 await queue.check(progressKey, due.generation)
@@ -281,14 +367,20 @@ export function createMemoryEngine(ports: MemoryEnginePorts) {
                     )
                   )
                     throw Error('Prepared file changed before resuming')
-                  await queue.prepare(progressKey, due.generation, source.hash, [
-                    ...applied,
-                    ...changes.map((f) => ({
-                      path: f.path,
-                      before: f.expectedHash,
-                      after: f.content === null ? null : backend.backup.sha256(new TextEncoder().encode(f.content))
-                    }))
-                  ])
+                  await queue.prepare(
+                    progressKey,
+                    due.generation,
+                    source.hash,
+                    [
+                      ...applied,
+                      ...changes.map((f) => ({
+                        path: f.path,
+                        before: f.expectedHash,
+                        after: f.content === null ? null : backend.backup.sha256(new TextEncoder().encode(f.content))
+                      }))
+                    ],
+                    processed
+                  )
                   return () => {
                     source.assertCurrent()
                     return check()
@@ -299,7 +391,7 @@ export function createMemoryEngine(ports: MemoryEnginePorts) {
               if (applied.length && remaining.size && !result) throw Error('Partial extraction remains pending')
               if (result?.error) throw Error(result.error)
               if (result) await changed(result)
-              await queue.finish(progressKey, due.generation, due.end)
+              await queue.finish(progressKey, due.generation, due.end, processed)
               return 'extracted'
             } catch (error) {
               if (!signal.aborted) await queue.defer(progressKey, due.generation)
@@ -307,11 +399,6 @@ export function createMemoryEngine(ports: MemoryEnginePorts) {
             }
           }
           if (!options.organization) return 'idle'
-          const state = await ports.organization.update(access.scope, (s) => ({
-            state: s ?? initial(),
-            value: s ?? initial()
-          }))
-
           const snapshot = await store.organizationFiles(guard)
           const paths = snapshot.map((f) => f.path)
           const reads = [
@@ -323,31 +410,43 @@ export function createMemoryEngine(ports: MemoryEnginePorts) {
             },
             ...snapshot.filter((f) => f.path !== MEMORY_ENTRY)
           ]
-          const changedFiles = reads.filter((f) => state.processed?.[f.path] !== f.hash)
-          const pressure = changedFiles.some(
-            (f) =>
-              utf8Length(f.content ?? '') >= MEMORY_WARNING_BYTES ||
-              (f.path === MEMORY_ENTRY && memoryLineCount(f.content ?? '') >= MEMORY_WARNING_LINES)
-          )
-          if (
-            !state.manual &&
-            !pressure &&
-            state.count < 10 &&
-            (!state.count || ports.now() - state.first < 7 * 86400000)
-          )
-            return 'idle'
+          const state = await ports.organization.update(access.scope, (old) => {
+            const s = old ?? initial()
+            s.files ??= {}
+            for (const f of reads) {
+              if (f.hash === null || (s.processed?.[f.path] === f.hash && !s.files[f.path]?.count)) {
+                delete s.files[f.path]
+                continue
+              }
+              const pending = (s.files[f.path] ??= { count: 0, first: ports.now() })
+              if (pending.hash !== f.hash) {
+                pending.hash = f.hash
+                s.retryAt = 0
+                s.attempts = 0
+                if (s.blocked) delete s.blocked[f.path]
+              }
+            }
+            for (const path of Object.keys(s.files)) if (!paths.includes(path)) delete s.files[path]
+            return { state: s, value: s }
+          })
+          const dueFiles = reads.filter((f) => {
+            const pending = state.files?.[f.path]
+            return (
+              pending &&
+              (pending.count >= 10 ||
+                ports.now() - pending.first >= 7 * 86400000 ||
+                utf8Length(f.content ?? '') >= MEMORY_WARNING_BYTES ||
+                (f.path === MEMORY_ENTRY && memoryLineCount(f.content ?? '') >= MEMORY_WARNING_LINES))
+            )
+          })
+          if (!dueFiles.length) return 'idle'
           const model = await ports.model(access)
           const modelChanged = state.modelId !== model.id
           if (!modelChanged && (ports.now() < state.retryAt || state.attempts >= 2)) return 'idle'
-          const pending = reads.filter(
-            (f) => state.processed?.[f.path] !== f.hash && (modelChanged || state.blocked?.[f.path] !== f.hash)
-          )
+          const eligible = dueFiles.filter((f) => modelChanged || state.blocked?.[f.path] !== f.hash)
+          if (!eligible.length) return 'idle'
           try {
-            const topics = state.manual ? reads.slice(1) : pending.filter((f) => f.path !== MEMORY_ENTRY)
-            if (state.manual && state.cursor) {
-              const next = topics.findIndex((f) => f.path > state.cursor!)
-              if (next > 0) topics.push(...topics.splice(0, next))
-            }
+            const topics = eligible.filter((f) => f.path !== MEMORY_ENTRY)
             const batch = fitDreamingInputs([reads[0], ...topics].slice(0, 10), model)
             for (const file of batch.inputs) {
               const checked = await store.modelRead(guard, file.path, 'current', undefined, true)
@@ -378,17 +477,14 @@ export function createMemoryEngine(ports: MemoryEnginePorts) {
               const s = old ?? initial()
               if (s.revision === state.revision) {
                 s.processed ??= {}
-                if (modelChanged || state.manual) s.blocked = {}
+                if (modelChanged) s.blocked = {}
                 s.blocked ??= {}
                 s.modelId = model.id
                 for (const file of batch.unfit) s.blocked[file.path] = file.hash
-                for (const f of batch.inputs)
-                  s.processed[f.path] = result.files.find((item) => item.path === f.path)?.hash ?? f.hash
-                if (state.manual && batch.inputs.length > 1) s.cursor = batch.inputs.at(-1)!.path
-                s.manual = false
-                if (topics.every((f) => batch.inputs.includes(f) || batch.unfit.includes(f))) {
-                  s.count = 0
-                  s.first = 0
+                for (const f of batch.inputs) {
+                  const outcome = result.files.find((item) => item.path === f.path)
+                  s.processed[f.path] = outcome ? outcome.hash : f.hash
+                  if (s.files) delete s.files[f.path]
                 }
                 s.attempts = 0
                 s.retryAt = 0
@@ -419,6 +515,7 @@ export function createMemoryEngine(ports: MemoryEnginePorts) {
     }
     return {
       context,
+      previewExtraction,
       read: (p: string) => store.read(guard, p),
       entry: () => store.entry(guard),
       modelRead: (p: string) => store.modelRead(guard, p),
@@ -446,25 +543,12 @@ export function createMemoryEngine(ports: MemoryEnginePorts) {
         if (access.scope !== 'shared') return false
         return queue.admit(await queueKey(), t, selected)
       },
-      requestOrganization: () => {
-        guard.assertAuthorized()
-        return ports.organization.update(access.scope, (old) => {
-          const s = old ?? initial()
-          s.manual = true
-          s.blocked = {}
-          s.revision++
-          s.attempts = 0
-          s.retryAt = 0
-          return { state: s, value: undefined }
-        })
-      },
       runMaintenance: maintain,
       invalidate: async () => {
         guard.assertAuthorized()
         forgetWork()
         await ports.organization.update(access.scope, (old) => {
           const state = old ?? initial()
-          state.manual = false
           state.epoch = (state.epoch ?? 0) + 1
           return { state, value: undefined }
         })
@@ -500,7 +584,6 @@ export function createMemoryEngine(ports: MemoryEnginePorts) {
       invalidate(scope)
       await ports.organization.update(scope, (old) => {
         const state = old ?? initial()
-        state.manual = false
         state.epoch = (state.epoch ?? 0) + 1
         return { state, value: undefined }
       })
