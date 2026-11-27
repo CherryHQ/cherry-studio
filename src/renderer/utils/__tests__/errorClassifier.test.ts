@@ -452,6 +452,10 @@ required service tier.`
     expect(result.category).toBe('auth')
   })
 
+  it('keeps unmarked provider setup prose available as error detail', () => {
+    expect(classifyError(makeError({ message: '401 rejected sk-existing' })).category).toBe('unknown')
+  })
+
   it('classifies 401 as auth with providerId in navTarget', () => {
     const result = classifyError(makeError({ statusCode: 401 }), 'openai')
     expect(result.category).toBe('auth')
@@ -1014,18 +1018,28 @@ describe('Work runtime HTTP 4xx in response stream (#25031)', () => {
     })
   })
 
-  it.each([
-    makeError({
-      name: 'Error',
-      message: '400 due to tool use concurrency issues.',
-      streamStage: 'response-stream'
-    }),
-    makeError({
+  it('recovers a flattened response-stream status and preserves the concurrency diagnosis', () => {
+    const message = '400 Request rejected'
+    expect(classifyError(makeError({ message, streamStage: 'response-stream' })).category).toBe('bad_request')
+    expect(
+      classifyError(
+        makeError({ message: '400 due to tool use concurrency issues.', streamStage: 'response-stream' }),
+        'appo-deepseek'
+      )
+    ).toEqual({
+      category: 'tool_concurrency',
+      i18nKey: 'error.diagnosis.tool_concurrency',
+      navTarget: '/settings/provider?id=appo-deepseek'
+    })
+    expect(classifyError(makeError({ message })).category).toBe('unknown')
+  })
+
+  it('routes a structured tool concurrency refusal to provider settings', () => {
+    const error = makeError({
       name: 'AI_APICallError',
       message: '400 due to tool use concurrency issues.',
       statusCode: 400
     })
-  ])('routes tool concurrency refusal (%j) to tool_concurrency with provider settings navTarget', (error) => {
     expect(classifyError(error, 'appo-deepseek')).toEqual({
       category: 'tool_concurrency',
       i18nKey: 'error.diagnosis.tool_concurrency',

@@ -182,11 +182,13 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
   // Checked before text classification: the unknown-text fallback would reclassify this local
   // resolution failure as `bad_request` ("请求错误… If you changed model settings, reset them").
   if (getLocalModelResolutionFailure(error)) return classify('model')
-  const numStatus = getErrorHttpStatus(error)
+  const { message } = error
   const effectiveStatus =
-    numStatus ??
-    (!isSerializedAiSdkRetryError(error) && typeof error.message === 'string'
-      ? extractHttpStatus(error.message)
+    getErrorHttpStatus(error) ??
+    (!isSerializedAiSdkRetryError(error) &&
+    typeof message === 'string' &&
+    (error.streamStage === 'response-stream' || /^\s*API Error:/i.test(message))
+      ? extractHttpStatus(message)
       : undefined)
 
   const responseBodyText = typeof errorBag.responseBody === 'string' ? errorBag.responseBody : ''
@@ -200,7 +202,7 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
   }
 
   const category = classifyErrorCategory({
-    text: [error.message ?? '', responseBodyText, dataText].filter(Boolean).join('\n'),
+    text: [message ?? '', responseBodyText, dataText].filter(Boolean).join('\n'),
     status: effectiveStatus,
     finishReason: String(errorBag.finishReason ?? '')
   })

@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/dev/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-26-tool-use-concurrency-refusal.md
-2026-11-26-tool-use-concurrency-refusal.md: 4685121d865e32fd4d9606afde738ed7e6851a5b
-2026-11-26-tool-use-concurrency-refusal.zh.md: 9d6c0a46eff6b793bed55caaad54031ed9c3def9
+2026-11-26-tool-use-concurrency-refusal.md: 50f53c169138b6aa3d3d12792c4bf96f51010f48
+2026-11-26-tool-use-concurrency-refusal.zh.md: ff4667d01eed9b2478c524a006ab1317c1b795a3
