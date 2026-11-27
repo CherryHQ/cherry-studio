@@ -360,7 +360,10 @@ export class AppUpdaterService extends BaseService {
 
     const onUpdateAvailable = (releaseInfo: UpdateInfo) => {
       // The download that follows repoints electron-updater's installer before `update-downloaded`.
-      if (releaseInfo.version !== this.downloadedVersion) this.downloadedVersion = null
+      if (this.downloadedVersion !== null && releaseInfo.version !== this.downloadedVersion) {
+        this.downloadedVersion = null
+        application.get('IpcApiService').broadcastToType(WindowType.Main, 'app.updater.download_revoked', undefined)
+      }
       if (this.listeningGeneration === 0 || this.listeningGeneration !== this.checkGeneration) return
       if (!this.acceptedRelease) {
         this.stagedAvailable = releaseInfo

@@ -894,6 +894,25 @@ describe('AppUpdaterService', () => {
         expect(autoUpdater.quitAndInstall).toHaveBeenCalledOnce()
       })
 
+      it('tells windows the downloaded release is gone when a check announcing another one fails', async () => {
+        const ipc = application.get('IpcApiService')
+        vi.mocked(ipc.broadcastToType).mockClear()
+        // A macOS manifest without a ZIP fails the auto download before checkForUpdates resolves.
+        vi.mocked(autoUpdater.checkForUpdates).mockImplementationOnce(async () => {
+          listeners.get('update-available')?.(release('1.3.1'))
+          listeners.get('error')?.(new Error('ZIP file not provided'))
+          return checked('1.3.1') as never
+        })
+        await (
+          appUpdater as unknown as { performUpdateCheck: (manual: boolean) => Promise<unknown> }
+        ).performUpdateCheck(false)
+
+        const events = vi.mocked(ipc.broadcastToType).mock.calls.map(([, event]) => event)
+        expect(events).not.toContain('app.updater.available')
+        expect(events).toContain('app.updater.download_revoked')
+        await expect(appUpdater.quitAndInstall('1.3.0')).rejects.toMatchObject({ code: 'VALIDATION_FAILED' })
+      })
+
       it('fails only the install attempt when the native installer fails during a pending lookup', async () => {
         const ipc = application.get('IpcApiService')
         let finishLookup: (value: unknown) => void = () => undefined
