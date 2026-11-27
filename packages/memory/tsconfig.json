@@ -6,7 +6,7 @@
     "strict": true,
     "skipLibCheck": true,
     "declaration": true,
-    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
     "types": [],
     "rootDir": "src",
     "outDir": "dist"

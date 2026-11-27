@@ -42,6 +42,8 @@
     "test": "node --test tests/*.test.mjs"
   },
   "dependencies": {
+    "async-mutex": "^0.5.0",
+    "js-base64": "3.7.7",
     "zod": "4.4.3"
   },
   "devDependencies": {
