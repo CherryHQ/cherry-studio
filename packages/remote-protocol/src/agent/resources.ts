@@ -79,11 +79,13 @@ export const messageUsageSchema = z.looseObject({
 export type AgentMessageUsage = z.infer<typeof messageUsageSchema>
 
 /** Public model identity; no provider configuration or credentials. */
+export const modelSelectionSchema = z.strictObject({ modelId: unicodeText.min(1).max(2048), providerId: opaqueId })
 export const modelSummarySchema = z.looseObject({
-  modelId: unicodeText.min(1).max(2048),
-  providerId: opaqueId,
+  ...modelSelectionSchema.shape,
   name: unicodeText.min(1).max(2048)
 })
+
+export const modelOptionSchema = modelSummarySchema.extend({ providerName: unicodeText.min(1).max(4096) })
 
 const messageMetadataSchema = z
   .looseObject({

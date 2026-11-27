@@ -1,32 +1,62 @@
-import { Copy, NotebookPen, Quote } from 'lucide-react'
-import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
+import { Copy, NotebookPen, Quote, Reply } from 'lucide-react'
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, Popover, PopoverAnchor, PopoverContent } from '@cherrystudio/ui'
+import { Button, Popover, PopoverAnchor, PopoverContent, Textarea } from '@cherrystudio/ui'
+import { CommandShortcut } from '@renderer/components/command'
+import type { createQuoteToken } from '@renderer/components/composer/variants/shared/composerQuote'
+import { useCommandHandler } from '@renderer/hooks/command'
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 
 interface TextSelectionToolbarProps {
   children: ReactNode
   onCopy: (selection: Selection) => void
   onQuote: (selection: Selection) => void
   onSaveToNotes: (selection: Selection) => void
+  onStartReply: (selection: Selection) => ReturnType<typeof createQuoteToken> | null
+  onSaveReply?: (text: string, quote: ReturnType<typeof createQuoteToken>) => boolean
   isSavingNote: boolean
 }
 
 const SCOPE_SELECTOR = '[data-selection-actions-scope]'
 const EDITABLE_SELECTOR = 'input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"]'
 
+function getScopedSelection(scope: HTMLDivElement | null) {
+  const selection = window.getSelection()
+  if (!scope || !selection || selection.isCollapsed || !selection.rangeCount || !selection.toString()) return null
+
+  const range = selection.getRangeAt(0)
+  const isInScope = (node: Node) => {
+    const element = node instanceof Element ? node : node.parentElement
+    return element?.closest(SCOPE_SELECTOR) === scope && !element.closest(EDITABLE_SELECTOR)
+  }
+  return isInScope(range.startContainer) && isInScope(range.endContainer) ? selection : null
+}
+
 export function TextSelectionToolbar({
   children,
   onCopy,
   onQuote,
   onSaveToNotes,
+  onStartReply,
+  onSaveReply,
   isSavingNote
 }: TextSelectionToolbarProps) {
   const { t } = useTranslation()
   const scopeRef = useRef<HTMLDivElement>(null)
   const toolbarRef = useRef<HTMLDivElement>(null)
   const [anchor, setAnchor] = useState<DOMRect | null>(null)
-  const virtualRef = useMemo(() => ({ current: { getBoundingClientRect: () => anchor ?? new DOMRect() } }), [anchor])
+  const [reply, setReply] = useState<{
+    quote: NonNullable<ReturnType<TextSelectionToolbarProps['onStartReply']>>
+    range: Range
+    text: string
+  } | null>(null)
+  const replyRange = reply?.range
+  const isOpen = !!(replyRange || anchor)
+  const virtualRef = useMemo(
+    () => ({ current: replyRange ?? { getBoundingClientRect: () => anchor ?? new DOMRect() } }),
+    [anchor, replyRange]
+  )
 
   useEffect(() => {
     let selecting = false
@@ -35,24 +65,12 @@ export function TextSelectionToolbar({
     let frame = 0
     const dismiss = () => setAnchor(null)
     const showSelection = () => {
-      const selection = window.getSelection()
-      if (!selection || selection.isCollapsed || !selection.rangeCount || !selection.toString()) {
+      const selection = getScopedSelection(scopeRef.current)
+      if (!selection) {
         dismiss()
         return
       }
-      const range = selection.getRangeAt(0)
-      const start = range.startContainer instanceof Element ? range.startContainer : range.startContainer.parentElement
-      const end = range.endContainer instanceof Element ? range.endContainer : range.endContainer.parentElement
-      if (
-        start?.closest(SCOPE_SELECTOR) !== scopeRef.current ||
-        end?.closest(SCOPE_SELECTOR) !== scopeRef.current ||
-        start?.closest(EDITABLE_SELECTOR) ||
-        end?.closest(EDITABLE_SELECTOR)
-      ) {
-        dismiss()
-        return
-      }
-      const rect = range.getBoundingClientRect()
+      const rect = selection.getRangeAt(0).getBoundingClientRect()
       setAnchor(rect.width || rect.height ? rect : null)
     }
     const onPointerDown = (event: PointerEvent) => {
@@ -146,44 +164,127 @@ export function TextSelectionToolbar({
   }, [])
 
   const runAction = (action: (selection: Selection) => void) => {
-    const selection = window.getSelection()
-    if (selection && !selection.isCollapsed) action(selection)
+    const selection = getScopedSelection(scopeRef.current)
+    if (selection) action(selection)
     setAnchor(null)
+  }
+
+  useCommandHandler('chat.message.quote_selection', () => runAction(onQuote), {
+    enabled: () => Boolean(anchor && !reply && getScopedSelection(scopeRef.current)),
+    shouldHandleKeyEvent: (event) => !event.defaultPrevented && !event.repeat
+  })
+
+  const focusReply = useCallback((element: HTMLTextAreaElement | null) => {
+    element?.focus({ preventScroll: true })
+  }, [])
+
+  const close = () => {
+    setAnchor(null)
+    setReply(null)
+  }
+
+  const saveReply = () => {
+    if (reply?.text.trim() && onSaveReply?.(reply.text, reply.quote)) close()
   }
 
   return (
     <div ref={scopeRef} className="contents" data-selection-actions-scope>
       {children}
-      <Popover open={anchor !== null} onOpenChange={(open) => !open && setAnchor(null)}>
+      <Popover open={isOpen} onOpenChange={(open) => !open && close()}>
         <PopoverAnchor virtualRef={virtualRef} />
-        {anchor && (
+        {isOpen && (
           <PopoverContent
             ref={toolbarRef}
             side="top"
             sideOffset={8}
             collisionPadding={8}
-            className="flex w-auto gap-0.5 p-1"
+            aria-label={reply ? t('chat.message.reply') : undefined}
+            className={reply ? 'w-80 max-w-[calc(100vw-1rem)] p-3' : 'flex w-auto gap-0.5 p-1'}
             onOpenAutoFocus={(event) => event.preventDefault()}
             onCloseAutoFocus={(event) => event.preventDefault()}
             onFocusOutside={(event) => event.preventDefault()}
-            onPointerDown={(event) => event.preventDefault()}>
-            <Button type="button" variant="ghost" size="sm" onClick={() => runAction(onCopy)}>
-              <Copy aria-hidden="true" />
-              {t('common.copy')}
-            </Button>
-            <Button type="button" variant="ghost" size="sm" onClick={() => runAction(onQuote)}>
-              <Quote aria-hidden="true" />
-              {t('chat.message.quote')}
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              disabled={isSavingNote}
-              onClick={() => runAction(onSaveToNotes)}>
-              <NotebookPen aria-hidden="true" />
-              {t('notes.save')}
-            </Button>
+            onPointerDown={(event) => {
+              if (!reply) event.preventDefault()
+            }}>
+            {reply ? (
+              <form
+                className="flex flex-col gap-2"
+                onSubmit={(event) => {
+                  event.preventDefault()
+                  saveReply()
+                }}>
+                <blockquote className="rounded-e-md border-primary border-s-2 bg-muted text-muted-foreground text-sm">
+                  {reply.quote.sourceMessageId ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      aria-label={t('chat.input.locate_editing_message')}
+                      className="block h-auto w-full rounded-s-none px-3 py-2 text-start whitespace-normal"
+                      onClick={() =>
+                        void EventEmitter.emit(EVENT_NAMES.LOCATE_QUOTED_MESSAGE, reply.quote.sourceMessageId)
+                      }>
+                      <span className="line-clamp-3 whitespace-pre-wrap break-words">{reply.quote.description}</span>
+                    </Button>
+                  ) : (
+                    <div className="line-clamp-3 whitespace-pre-wrap break-words px-3 py-2">
+                      {reply.quote.description}
+                    </div>
+                  )}
+                </blockquote>
+                <Textarea.Input
+                  ref={focusReply}
+                  aria-label={t('chat.message.reply')}
+                  placeholder={t('chat.message.reply')}
+                  value={reply.text}
+                  onChange={(event) => setReply({ ...reply, text: event.target.value })}
+                />
+                <div className="flex justify-end gap-1">
+                  <Button type="button" variant="ghost" size="sm" onClick={close}>
+                    {t('common.cancel')}
+                  </Button>
+                  <Button type="submit" size="sm" disabled={!onSaveReply || !reply.text.trim()}>
+                    {t('common.save')}
+                  </Button>
+                </div>
+              </form>
+            ) : (
+              <>
+                <Button type="button" variant="ghost" size="sm" onClick={() => runAction(onCopy)}>
+                  <Copy aria-hidden="true" />
+                  {t('common.copy')}
+                </Button>
+                <Button type="button" variant="ghost" size="sm" onClick={() => runAction(onQuote)}>
+                  <Quote aria-hidden="true" />
+                  {t('chat.message.quote')}
+                  <CommandShortcut command="chat.message.quote_selection" />
+                </Button>
+                {onSaveReply && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() =>
+                      runAction((selection) => {
+                        const range = selection.getRangeAt(0).cloneRange()
+                        const quote = onStartReply(selection)
+                        if (quote) setReply({ quote, range, text: '' })
+                      })
+                    }>
+                    <Reply aria-hidden="true" />
+                    {t('chat.message.reply')}
+                  </Button>
+                )}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  disabled={isSavingNote}
+                  onClick={() => runAction(onSaveToNotes)}>
+                  <NotebookPen aria-hidden="true" />
+                  {t('notes.save')}
+                </Button>
+              </>
+            )}
           </PopoverContent>
         )}
       </Popover>

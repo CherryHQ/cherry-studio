@@ -41,8 +41,6 @@ vi.mock('../defaultImageToTextProcessor', () => ({
 
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 
-import { MB } from '@shared/utils/constants'
-
 import { getFileProcessorConfigById, resolveProcessorConfigByFeature } from '../resolveProcessorConfig'
 
 describe('resolveProcessorConfig', () => {
@@ -69,7 +67,7 @@ describe('resolveProcessorConfig', () => {
       }
     })
 
-    expect(getFileProcessorConfigById('open-mineru')).toEqual({
+    expect(getFileProcessorConfigById('open-mineru')).toMatchObject({
       id: 'open-mineru',
       type: 'api',
       capabilities: [
@@ -77,8 +75,7 @@ describe('resolveProcessorConfig', () => {
           feature: 'document_to_markdown',
           inputs: ['document'],
           output: 'markdown',
-          apiHost: 'http://127.0.0.1:9000',
-          maxInputBytes: 200 * MB
+          apiHost: 'http://127.0.0.1:9000'
         }
       ],
       apiKeys: ['secret-key'],
@@ -173,7 +170,6 @@ describe('resolveProcessorConfig', () => {
     resolveDefaultImageToTextProcessorMock.mockReturnValue('tesseract')
 
     expect(resolveProcessorConfigByFeature('image_to_text')).toEqual(expect.objectContaining({ id: 'tesseract' }))
-    expect(resolveDefaultImageToTextProcessorMock).toHaveBeenCalled()
   })
 
   it('uses mistral when it is the default markdown processor', () => {

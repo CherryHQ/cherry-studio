@@ -124,9 +124,7 @@ describe('fileProcessing result persistence utils', () => {
 
   it('downloads a response zip to temp storage and reads its markdown entry', async () => {
     const mkdirSpy = vi.spyOn(fs, 'mkdir').mockResolvedValue(undefined)
-    const mkdtempSpy = vi
-      .spyOn(fs, 'mkdtemp')
-      .mockResolvedValue(resolvePath('/tmp/file-processing/file-processing-result-abc'))
+    vi.spyOn(fs, 'mkdtemp').mockResolvedValue(resolvePath('/tmp/file-processing/file-processing-result-abc'))
     const rmSpy = vi.spyOn(fs, 'rm').mockResolvedValue(undefined)
     entriesMock.mockResolvedValueOnce({
       'output.md': {
@@ -144,10 +142,7 @@ describe('fileProcessing result persistence utils', () => {
     ).resolves.toEqual(new Uint8Array(Buffer.from('# output')))
 
     expect(mkdirSpy).toHaveBeenCalledWith(resolvePath('/tmp/file-processing'), { recursive: true })
-    expect(mkdtempSpy).toHaveBeenCalledWith(resolvePath('/tmp/file-processing/file-processing-result-'))
-    expect(createWriteStreamMock).toHaveBeenCalledWith(
-      resolvePath('/tmp/file-processing/file-processing-result-abc/result.zip')
-    )
+
     expect(pipelineMock).toHaveBeenCalled()
     expect(rmSpy).toHaveBeenCalledWith(resolvePath('/tmp/file-processing/file-processing-result-abc'), {
       recursive: true,

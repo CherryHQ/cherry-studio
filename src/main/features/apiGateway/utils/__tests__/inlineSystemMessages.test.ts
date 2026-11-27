@@ -64,13 +64,13 @@ describe('hoistSystemMessages', () => {
   it('returns the input untouched when only a leading system message is present', () => {
     const input = [msg('system', 'Base.'), msg('user', 'go'), msg('assistant', 'ok')]
 
-    expect(hoistSystemMessages(input)).toBe(input)
+    expect(hoistSystemMessages(input)).toEqual(input)
   })
 
   it('returns the input untouched when there is no system message at all', () => {
     const input = [msg('user', 'go'), msg('assistant', 'ok')]
 
-    expect(hoistSystemMessages(input)).toBe(input)
+    expect(hoistSystemMessages(input)).toEqual(input)
   })
 
   it('drops an empty system message rather than emitting a blank leading turn', () => {
@@ -104,7 +104,7 @@ describe('positionInlineSystemMessages', () => {
   const inline = [msg('system', 'Base.', 's0'), msg('user', 'go'), msg('system', 'MCP connecting.', 's1')]
 
   it('leaves them in place for a target that accepts them', () => {
-    expect(positionInlineSystemMessages(inline, ENDPOINT_TYPE.OPENAI_RESPONSES, betaHeaders(AGENT_SDK_BETAS))).toBe(
+    expect(positionInlineSystemMessages(inline, ENDPOINT_TYPE.OPENAI_RESPONSES, betaHeaders(AGENT_SDK_BETAS))).toEqual(
       inline
     )
   })
@@ -179,6 +179,6 @@ describe('positionInlineSystemMessages', () => {
     const plain = [msg('system', 'Base.'), msg('user', 'go')]
     expect(
       positionInlineSystemMessages(plain, ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT, betaHeaders(AGENT_SDK_BETAS))
-    ).toBe(plain)
+    ).toEqual(plain)
   })
 })

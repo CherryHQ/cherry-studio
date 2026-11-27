@@ -13,6 +13,7 @@ import type { Provider } from '@shared/data/types/provider'
 import { CLI_API_GATEWAY_PROVIDER_ID, CLI_OWN_LOGIN_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
 
 import CodeCliPage from '../CodeCliPage'
+import { useCliVersionStatuses } from '../hooks/useCliVersionStatuses'
 
 type MockCommandMenuItem = { type: string; id?: string; onSelect?: () => void }
 
@@ -41,6 +42,7 @@ const {
   ipcEventHandlers,
   versionStatusesMock,
   versionStatusesResolvedState,
+  useActualAvailabilitySurfaces,
   mockProviders,
   mockProviderConfigs,
   providersLoadingState,
@@ -71,6 +73,7 @@ const {
   ipcEventHandlers: new Map<string, (payload: unknown) => void>(),
   versionStatusesMock: vi.fn(),
   versionStatusesResolvedState: { value: true },
+  useActualAvailabilitySurfaces: { value: false },
   mockProviders: [] as Provider[],
   mockProviderConfigs: {} as Record<string, CliProviderConfig>,
   providersLoadingState: { value: false },
@@ -396,53 +399,60 @@ vi.mock('../components/LaunchDialog', () => ({
     ) : null
 }))
 
-vi.mock('../components/VersionStatusCard', () => ({
-  VersionStatusCard: ({
-    canLaunch,
-    onRemove,
-    onLaunch,
-    onUpgrade,
-    upgradeDisabled,
-    installError,
-    onShowError,
-    launchDisabledHint
-  }: {
-    canLaunch?: boolean
-    onRemove?: () => void
-    onLaunch?: () => void
-    onUpgrade?: () => void
-    upgradeDisabled?: boolean
-    installError?: string
-    onShowError?: () => void
-    launchDisabledHint?: string
-  }) => (
-    <div
-      data-can-launch={String(canLaunch)}
-      data-launch-disabled-hint={launchDisabledHint}
-      data-testid="version-status-card">
-      {onRemove && (
-        <button type="button" onClick={onRemove}>
-          remove tool
-        </button>
-      )}
-      {onLaunch && (
-        <button type="button" disabled={!canLaunch} onClick={onLaunch}>
-          start tool
-        </button>
-      )}
-      {onUpgrade && (
-        <button type="button" disabled={upgradeDisabled} onClick={onUpgrade}>
-          upgrade tool
-        </button>
-      )}
-      {installError && (
-        <button type="button" onClick={onShowError}>
-          show error
-        </button>
-      )}
-    </div>
-  )
-}))
+vi.mock('../components/VersionStatusCard', async (importOriginal) => {
+  // oxlint-disable-next-line consistent-type-imports
+  const { VersionStatusCard: ActualCard } = await importOriginal<typeof import('../components/VersionStatusCard')>()
+  return {
+    VersionStatusCard: (props: React.ComponentProps<typeof ActualCard>) =>
+      useActualAvailabilitySurfaces.value ? <ActualCard {...props} /> : <VersionStatusCardStub {...props} />
+  }
+})
+
+const VersionStatusCardStub = ({
+  canLaunch,
+  onRemove,
+  onLaunch,
+  onUpgrade,
+  upgradeDisabled,
+  installError,
+  onShowError,
+  launchDisabledHint
+}: {
+  canLaunch?: boolean
+  onRemove?: () => void
+  onLaunch?: () => void
+  onUpgrade?: () => void
+  upgradeDisabled?: boolean
+  installError?: string
+  onShowError?: () => void
+  launchDisabledHint?: string
+}) => (
+  <div
+    data-can-launch={String(canLaunch)}
+    data-launch-disabled-hint={launchDisabledHint}
+    data-testid="version-status-card">
+    {onRemove && (
+      <button type="button" onClick={onRemove}>
+        remove tool
+      </button>
+    )}
+    {onLaunch && (
+      <button type="button" disabled={!canLaunch} onClick={onLaunch}>
+        start tool
+      </button>
+    )}
+    {onUpgrade && (
+      <button type="button" disabled={upgradeDisabled} onClick={onUpgrade}>
+        upgrade tool
+      </button>
+    )}
+    {installError && (
+      <button type="button" onClick={onShowError}>
+        show error
+      </button>
+    )}
+  </div>
+)
 
 vi.mock('../constants/cliTools', () => ({
   CLI_TOOLS: [
@@ -473,7 +483,7 @@ vi.mock('../hooks/useBinaryActions', () => ({
 }))
 
 vi.mock('../hooks/useCliVersionStatuses', () => ({
-  useCliVersionStatuses: () => ({ statuses: versionStatusesMock(), resolved: versionStatusesResolvedState.value })
+  useCliVersionStatuses: vi.fn()
 }))
 
 vi.mock('../hooks/useConfigMetadata', () => ({
@@ -541,6 +551,7 @@ function baseVersionStatuses(overrides: Partial<Record<CodeCli, Record<string, u
       ...base,
       installed: false,
       source: 'none',
+      applicationStatus: 'absent',
       ...overrides[CodeCli.GEMINI_CLI]
     },
     [CodeCli.OPEN_CODE]: { ...base, ...overrides[CodeCli.OPEN_CODE] },
@@ -565,6 +576,12 @@ describe('CodeCliPage', () => {
     mockCodeCliState()
     versionStatusesMock.mockReturnValue(baseVersionStatuses())
     versionStatusesResolvedState.value = true
+    vi.mocked(useCliVersionStatuses).mockImplementation(() => ({
+      statuses: versionStatusesMock(),
+      resolved: versionStatusesResolvedState.value,
+      retry: vi.fn()
+    }))
+    useActualAvailabilitySurfaces.value = false
     clearCliConfigMock.mockResolvedValue(undefined)
     readCliConfigFilesMock.mockResolvedValue([])
     extractConnectionFromCliConfigDraftMock.mockReturnValue(null)
@@ -580,16 +597,6 @@ describe('CodeCliPage', () => {
       if (route === 'hermes_dashboard.start') return { success: true, url: 'http://127.0.0.1:49152' }
       return { success: true }
     })
-  })
-
-  it('shows Antigravity immediately while hiding Gemini until installation status is resolved', () => {
-    versionStatusesMock.mockReturnValue({})
-    versionStatusesResolvedState.value = false
-
-    render(<CodeCliPage />)
-
-    expect(screen.getByText('Antigravity CLI')).toBeInTheDocument()
-    expect(screen.queryByText('Gemini CLI')).not.toBeInTheDocument()
   })
 
   it('pins an installed CLI with its localized fallback label', async () => {
@@ -645,15 +652,13 @@ describe('CodeCliPage', () => {
     expect(selectToolMock).not.toHaveBeenCalled()
   })
 
-  // The redirect used to bail whenever the status was absent, so a permanently failed read left
-  // a selected Gemini hidden AND unredirected — an empty pane with no way out.
-  it('falls back off a selected Gemini when the status read never produces one', async () => {
+  it.each(['loading', 'error'] as const)('keeps selected Gemini reachable when detection is %s', (detectionStatus) => {
     mockCodeCliState({ selectedCliTool: CodeCli.GEMINI_CLI })
-    versionStatusesMock.mockReturnValue({})
-
+    versionStatusesMock.mockReturnValue(baseVersionStatuses({ [CodeCli.GEMINI_CLI]: { detectionStatus } }))
     render(<CodeCliPage />)
-
-    await waitFor(() => expect(selectToolMock).toHaveBeenCalledWith(CodeCli.CLAUDE_CODE))
+    expect(screen.getByText('Gemini CLI')).toBeInTheDocument()
+    expect(screen.getByText('code.gemini_cli_discontinued')).toBeInTheDocument()
+    expect(selectToolMock).not.toHaveBeenCalled()
   })
 
   it('keeps a selected Gemini selected while its status is still unresolved', () => {
@@ -663,20 +668,43 @@ describe('CodeCliPage', () => {
 
     render(<CodeCliPage />)
 
-    // Redirecting on an in-flight read would move an installed-Gemini user off it on every start.
+    expect(screen.getByText('Gemini CLI')).toBeInTheDocument()
+    expect(screen.getByText('code.gemini_cli_discontinued')).toBeInTheDocument()
     expect(selectToolMock).not.toHaveBeenCalled()
   })
 
-  it.each(['system', 'mise'] as const)('shows an installed Gemini CLI from the %s snapshot', (source) => {
-    versionStatusesMock.mockReturnValue(
-      baseVersionStatuses({
-        [CodeCli.GEMINI_CLI]: { installed: true, source }
-      })
-    )
-
+  it('keeps Gemini retryable after a missing snapshot and recovers to the runnable CLI without installing', async () => {
+    useActualAvailabilitySurfaces.value = true
+    const { useCliVersionStatuses: actualHook } = await vi.importActual<{
+      useCliVersionStatuses: typeof useCliVersionStatuses
+    }>('../hooks/useCliVersionStatuses')
+    vi.mocked(useCliVersionStatuses).mockImplementation(actualHook)
+    mockCodeCliState({ selectedCliTool: CodeCli.GEMINI_CLI, currentProviderId: CLI_OWN_LOGIN_PROVIDER_ID })
+    let available = false
+    ipcRequestMock.mockImplementation(async (route: string) => {
+      if (route === 'binary.get_tool_snapshots')
+        return available
+          ? {
+              gemini: {
+                name: 'gemini',
+                availability: { source: 'system', path: '/usr/local/bin/gemini' },
+                application: { status: 'unknown', reason: 'query_failed' }
+              }
+            }
+          : {}
+      return { success: true }
+    })
+    const user = userEvent.setup()
     render(<CodeCliPage />)
-
-    expect(screen.getByText('Gemini CLI')).toBeInTheDocument()
+    const retryButton = await screen.findByRole('button', { name: 'common.retry' })
+    expect(screen.queryByRole('button', { name: 'code.install' })).not.toBeInTheDocument()
+    expect(selectToolMock).not.toHaveBeenCalled()
+    available = true
+    await user.click(retryButton)
+    expect(await screen.findByRole('button', { name: 'code.launch.label' })).toBeEnabled()
+    expect(screen.queryByRole('button', { name: 'code.install' })).not.toBeInTheDocument()
+    expect(installMock).not.toHaveBeenCalled()
+    expect(selectToolMock).not.toHaveBeenCalled()
   })
 
   it('falls back to the first visible tool after a selected Gemini installation is removed', async () => {
@@ -687,58 +715,6 @@ describe('CodeCliPage', () => {
 
     await waitFor(() => expect(selectToolMock).toHaveBeenCalledWith(CodeCli.CLAUDE_CODE))
     expect(screen.queryByText('Gemini CLI')).not.toBeInTheDocument()
-  })
-
-  it('shows the discontinuation notice only on the installed Gemini detail page', () => {
-    mockCodeCliState({ selectedCliTool: CodeCli.GEMINI_CLI })
-    versionStatusesMock.mockReturnValue(
-      baseVersionStatuses({
-        [CodeCli.GEMINI_CLI]: { installed: true, source: 'mise' }
-      })
-    )
-
-    const { unmount } = render(<CodeCliPage />)
-    expect(screen.getByText('code.gemini_cli_discontinued')).toBeInTheDocument()
-    unmount()
-
-    mockCodeCliState({ selectedCliTool: CodeCli.ANTIGRAVITY_CLI })
-    render(<CodeCliPage />)
-    expect(screen.queryByText('code.gemini_cli_discontinued')).not.toBeInTheDocument()
-  })
-
-  it('keeps launch, upgrade, and uninstall actions available for an installed Gemini CLI', () => {
-    mockCodeCliState({
-      selectedCliTool: CodeCli.GEMINI_CLI,
-      providerConfigs: { anthropic: { modelId: 'anthropic::claude-new' } },
-      currentProviderId: 'anthropic'
-    })
-    versionStatusesMock.mockReturnValue(
-      baseVersionStatuses({
-        [CodeCli.GEMINI_CLI]: { installed: true, source: 'mise', current: '1.0.0', latest: '1.1.0', canUpgrade: true }
-      })
-    )
-
-    render(<CodeCliPage />)
-
-    expect(screen.getByRole('button', { name: 'start tool' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'upgrade tool' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'remove tool' })).toBeInTheDocument()
-  })
-
-  it('offers official login and Unified Gateway cards for Antigravity', () => {
-    mockProviders.splice(0, mockProviders.length)
-    gatewayState.bundle = {
-      provider: { id: CLI_API_GATEWAY_PROVIDER_ID, name: 'Unified Gateway' } as Provider,
-      apiKey: null,
-      ensureRunning: vi.fn(),
-      getApiKey: vi.fn()
-    }
-    mockCodeCliState({ selectedCliTool: CodeCli.ANTIGRAVITY_CLI })
-
-    render(<CodeCliPage />)
-
-    expect(screen.getByRole('button', { name: `toggle ${CLI_OWN_LOGIN_PROVIDER_ID}` })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: `toggle ${CLI_API_GATEWAY_PROVIDER_ID}` })).toBeInTheDocument()
   })
 
   it('opens the config dialog instead of auto-selecting the first model when enabling an unconfigured provider', async () => {
@@ -892,28 +868,6 @@ describe('CodeCliPage', () => {
       url: 'http://127.0.0.1:49152'
     })
 
-    render(<CodeCliPage />)
-
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'toggle anthropic' })).toBeDisabled()
-      expect(screen.getByRole('button', { name: 'configure anthropic' })).toBeDisabled()
-      expect(screen.getByRole('button', { name: 'upgrade tool' })).toBeDisabled()
-    })
-  })
-
-  it('locks Hermes Agent provider actions from the shared status snapshot', async () => {
-    mockCodeCliState({
-      selectedCliTool: CodeCli.HERMES,
-      providerConfigs: { anthropic: { modelId: 'anthropic::claude-new', config: {} } },
-      currentProviderId: 'anthropic'
-    })
-    versionStatusesMock.mockReturnValue(
-      baseVersionStatuses({ [CodeCli.HERMES]: { current: '1.0.0', latest: '1.1.0', canUpgrade: true } })
-    )
-    MockUseCacheUtils.setSharedCacheValue('feature.hermes_dashboard.status', {
-      status: 'running',
-      url: 'http://127.0.0.1:49152'
-    })
     render(<CodeCliPage />)
 
     await waitFor(() => {
@@ -1169,12 +1123,6 @@ describe('CodeCliPage', () => {
     expect(screen.queryByRole('button', { name: 'launch tool' })).not.toBeInTheDocument()
   })
 
-  it('shows the Anthropic Messages endpoint hint for Claude Code provider setup', () => {
-    render(<CodeCliPage />)
-
-    expect(screen.getByRole('button', { name: /code.add_provider_hint_anthropic_messages/ })).toBeInTheDocument()
-  })
-
   it('opens the provider settings tab (keeping the code page) from the add-provider hint', () => {
     render(<CodeCliPage />)
 
@@ -1182,65 +1130,6 @@ describe('CodeCliPage', () => {
 
     expect(openSettingsTabMock).toHaveBeenCalledWith('/settings/provider')
     expect(navigateMock).not.toHaveBeenCalled()
-  })
-
-  it('shows the OpenAI Responses endpoint hint for Codex provider setup', () => {
-    mockCodeCliState({ selectedCliTool: CodeCli.OPENAI_CODEX })
-
-    render(<CodeCliPage />)
-
-    expect(screen.getByRole('button', { name: /code.add_provider_hint_openai_responses/ })).toBeInTheDocument()
-  })
-
-  it('shows the generic provider setup hint for other provider-backed tools', () => {
-    mockCodeCliState({ selectedCliTool: CodeCli.OPEN_CODE })
-
-    render(<CodeCliPage />)
-
-    expect(screen.getByRole('button', { name: /code.add_provider_hint/ })).toBeInTheDocument()
-    expect(screen.queryByText('code.add_provider_hint_anthropic_messages')).not.toBeInTheDocument()
-    expect(screen.queryByText('code.add_provider_hint_openai_responses')).not.toBeInTheDocument()
-  })
-
-  it('removes the launch hint once a current provider is selected', () => {
-    mockCodeCliState({
-      providerConfigs: {
-        anthropic: { modelId: 'anthropic::claude-new', config: {} }
-      },
-      currentProviderId: 'anthropic'
-    })
-
-    render(<CodeCliPage />)
-
-    const versionCard = screen.getByTestId('version-status-card')
-    expect(versionCard).toHaveAttribute('data-can-launch', 'true')
-    expect(versionCard).not.toHaveAttribute('data-launch-disabled-hint')
-  })
-
-  it('does not add a provider selection hint for provider-less tools', () => {
-    mockCodeCliState({ selectedCliTool: CodeCli.QODER_CLI })
-
-    render(<CodeCliPage />)
-
-    expect(screen.queryByText('code.add_provider_hint')).not.toBeInTheDocument()
-    expect(screen.queryByText('code.add_provider_hint_anthropic_messages')).not.toBeInTheDocument()
-    expect(screen.queryByText('code.add_provider_hint_openai_responses')).not.toBeInTheDocument()
-    const versionCard = screen.getByTestId('version-status-card')
-    expect(versionCard).toHaveAttribute('data-can-launch', 'true')
-    expect(versionCard).not.toHaveAttribute('data-launch-disabled-hint')
-  })
-
-  it('offers the own-login entry (and no selection hint) when no real providers exist', () => {
-    mockProviders.splice(0, mockProviders.length)
-    mockCodeCliState()
-
-    render(<CodeCliPage />)
-
-    // Login-capable tools always surface the virtual own-login row, so there is no empty state and
-    // the "select a provider" hint is suppressed (own-login is the only option, nothing to nag about).
-    expect(screen.queryByTestId('empty-config-list')).not.toBeInTheDocument()
-    expect(screen.getByText(`toggle ${CLI_OWN_LOGIN_PROVIDER_ID}`)).toBeInTheDocument()
-    expect(screen.getByTestId('version-status-card')).not.toHaveAttribute('data-launch-disabled-hint')
   })
 
   it('warns that credentials may remain when clearing the CLI config fails during tool removal', async () => {

@@ -9,7 +9,7 @@ const Spark = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const SparkIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Spark, {
   Avatar: SparkAvatar,
-  colorPrimary: '#3DC8F9'
+  colorPrimary: '#eefafe'
 })
 
 export default SparkIcon

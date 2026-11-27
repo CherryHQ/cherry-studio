@@ -18,7 +18,7 @@ import type { RegressionApp } from '../RegressionApp'
 
 export async function noteKnowledgeExport(app: RegressionApp, page: Page, testInfo: TestInfo): Promise<void> {
   // Catch exports that toast success without indexing a recallable note, or overwrite a same-name source.
-  const directory = await mkdtemp(join(process.cwd(), 'tests/e2e/regression/mp79-'))
+  const directory = await mkdtemp(join(app.paths.fixtures, 'mp79-'))
   const noteName = `MP79 Observatory ${Date.now()}`
   const secret = `ORCHID-${Date.now()}-731`
   const content = `# Observatory access procedure\n\nThe observatory access code is ${secret}.\n`
@@ -40,7 +40,7 @@ export async function noteKnowledgeExport(app: RegressionApp, page: Page, testIn
   }
   testInfo.annotations.push({
     type: 'data-source',
-    description: 'Real local BM25 note indexing and configured live chat provider; no mocked recall or answers.'
+    description: 'Real local BM25 indexing and chat tool retrieval, with a scripted model in mock provider mode.'
   })
   let baseId: string | undefined
   let assistantId: string | undefined
@@ -135,7 +135,7 @@ export async function noteKnowledgeExport(app: RegressionApp, page: Page, testIn
           path: '/providers',
           body: {
             providerId,
-            name: 'MP79 live provider',
+            name: 'MP79 note recall provider',
             defaultChatEndpoint: 'openai-chat-completions',
             endpointConfigs: { 'openai-chat-completions': { baseUrl: config.baseUrl } },
             apiKeys: [{ id: 'mp79-key', key: config.apiKey, isEnabled: true }]

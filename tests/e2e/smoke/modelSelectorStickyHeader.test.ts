@@ -1,8 +1,7 @@
 import { mkdirSync, mkdtempSync, rmSync } from 'node:fs'
 
-import { _electron as electron } from '@playwright/test'
-
-import { expect, test as base } from './fixtures/electron.fixture'
+import { closeElectronApp, expect, launchSmokeElectron, test as base } from './fixtures/electron.fixture'
+import { openSettings } from './utils/navigation'
 import {
   failureEvidence,
   findRow,
@@ -37,11 +36,11 @@ const test = base.extend<{ stickyProfile: string }>({
   electronApp: async ({ stickyProfile }, use) => {
     const env = { ...process.env, CS_DEV_PROFILE_ROOT: stickyProfile, NODE_ENV: 'development' }
     Reflect.deleteProperty(env, 'ELECTRON_RENDERER_URL')
-    const app = await electron.launch({ args: ['.'], env, timeout: 60_000 })
+    const app = await launchSmokeElectron({ args: ['.'], env, timeout: 60_000 })
     try {
       await use(app)
     } finally {
-      await app.close()
+      await closeElectronApp(app)
     }
   },
   mainWindow: async ({ electronApp }, use, info) => {
@@ -86,7 +85,7 @@ test('ModelSelector sticky header hands off between two provider groups', async 
       }
     })
     await prepareStickyShell(page)
-    await page.getByRole('button', { name: 'Settings', exact: true }).click()
+    await openSettings(page)
     await expect(uiLocator(page, 'settings.view')).toBeVisible()
     await uiLocator(page, 'settings.navigation').getByText('Default Model', { exact: true }).click()
     await expect(uiLocator(page, 'settings.content')).toBeVisible()

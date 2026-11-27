@@ -363,7 +363,7 @@ describe('searchSkills', () => {
           ],
           count: 2
         }
-      } else if (requestUrl.startsWith('https://claude-plugins.dev/')) {
+      } else if (requestUrl.startsWith('https://api.claude-plugins.dev/')) {
         body = {
           skills: [
             {
@@ -409,7 +409,7 @@ describe('searchSkills', () => {
                 })),
                 count: 2
               }
-            : url.toString().startsWith('https://claude-plugins.dev/')
+            : url.toString().startsWith('https://api.claude-plugins.dev/')
               ? { skills: [] }
               : { results: [] }
       }))

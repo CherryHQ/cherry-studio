@@ -200,14 +200,18 @@ function getTokensPerSecond(row: AiUsageRecordRow): number | null {
   return row.outputTokens / (generationMs / 1000)
 }
 
-function getListSortValue(row: AiUsageRecordRow, sortBy: AiUsageRecordListSortBy): number | null {
+function getListSortValue(
+  row: AiUsageRecordRow,
+  sortBy: AiUsageRecordListSortBy,
+  costCurrency?: Currency
+): number | null {
   switch (sortBy) {
     case 'createdAt':
       return row.createdAt
     case 'totalTokens':
       return getAiUsageRecordTotalTokens(row)
     case 'cost':
-      return row.cost
+      return costCurrency && row.costCurrency !== costCurrency ? null : row.cost
     case 'timeFirstTokenMs':
       return row.timeFirstTokenMs
     case 'tokensPerSecond':
@@ -523,6 +527,10 @@ function aggregateOrder(metric: AiUsageRecordMetric, currency: Currency | undefi
   }
 }
 
+function nullableIdentity(column: AnySQLiteColumn, value: string | null): SQL {
+  return value === null ? isNull(column) : eq(column, value)
+}
+
 function listAiUsageRecords(query: AiUsageRecordListServiceQuery): AiUsageRecordListResponse {
   const db = application.get('DbService').getDb()
   const { limit } = query
@@ -538,8 +546,26 @@ function listAiUsageRecords(query: AiUsageRecordListServiceQuery): AiUsageRecord
       eq(aiUsageRecordTable.messageId, query.messageId)
     )
   }
-  if (sortBy === 'cost' && query.costCurrency) {
-    filterConditions.push(eq(aiUsageRecordTable.costCurrency, query.costCurrency))
+  if (query.providerId !== undefined) {
+    filterConditions.push(nullableIdentity(aiUsageRecordTable.providerId, query.providerId))
+  }
+  if (query.modelId !== undefined) {
+    filterConditions.push(nullableIdentity(aiUsageRecordTable.modelId, query.modelId))
+  }
+  if (query.sourceType !== undefined) {
+    filterConditions.push(nullableIdentity(aiUsageRecordTable.sourceType, query.sourceType))
+  }
+  if (query.sourceId !== undefined) {
+    filterConditions.push(nullableIdentity(aiUsageRecordTable.sourceId, query.sourceId))
+  }
+  if (query.apiKeyId !== undefined) {
+    filterConditions.push(nullableIdentity(aiUsageRecordTable.apiKeyId, query.apiKeyId))
+  }
+  if (query.apiKeyAttribution !== undefined) {
+    filterConditions.push(eq(aiUsageRecordTable.apiKeyAttribution, query.apiKeyAttribution))
+  }
+  if (query.authMethod !== undefined) {
+    filterConditions.push(nullableIdentity(aiUsageRecordTable.authMethod, query.authMethod))
   }
   const filterWhere = filterConditions.length > 0 ? and(...filterConditions) : undefined
   const tokensPerSecond = sql<number>`CASE
@@ -558,11 +584,17 @@ function listAiUsageRecords(query: AiUsageRecordListServiceQuery): AiUsageRecord
     )
   END`
   const totalTokens = totalTokensValue()
+  // Sort non-matching currencies and unpriced rows as NULL so they sort after the selected currency instead of disappearing.
+  const scopedCost = query.costCurrency
+    ? sql<
+        number | null
+      >`CASE WHEN ${aiUsageRecordTable.costCurrency} = ${query.costCurrency} THEN ${aiUsageRecordTable.cost} ELSE NULL END`
+    : aiUsageRecordTable.cost
   const sortExpression =
     sortBy === 'totalTokens'
       ? totalTokens
       : sortBy === 'cost'
-        ? aiUsageRecordTable.cost
+        ? scopedCost
         : sortBy === 'timeFirstTokenMs'
           ? aiUsageRecordTable.timeFirstTokenMs
           : sortBy === 'tokensPerSecond'
@@ -611,7 +643,7 @@ function listAiUsageRecords(query: AiUsageRecordListServiceQuery): AiUsageRecord
         ? sortsByCreatedAt
           ? encodeCursor(tail.createdAt, tail.id)
           : encodeMetricCursor({
-              value: getListSortValue(tail, sortBy),
+              value: getListSortValue(tail, sortBy, query.costCurrency),
               createdAt: tail.createdAt,
               id: tail.id
             })
@@ -647,10 +679,6 @@ function getAiUsageRecordStats(query: AiUsageRecordStatsQuery): AiUsageRecordSta
     totals,
     other: subtractMetrics(totals, buckets)
   }
-}
-
-function nullableIdentity(column: AnySQLiteColumn, value: string | null): SQL {
-  return value === null ? isNull(column) : eq(column, value)
 }
 
 function topGroupCondition(groupBy: AiUsageRecordGroupBy, buckets: AiUsageRecordStatsBucket[]): SQL | undefined {
@@ -1146,7 +1174,7 @@ function validatedBreakdown(breakdown: AiUsageCostBreakdown | undefined, field: 
   for (const [bucket, value] of Object.entries(breakdown)) {
     requiredAmount(value, `${field}.${bucket}`)
   }
-  return structuredClone(breakdown)
+  return { ...breakdown }
 }
 
 function computedCost(
@@ -1187,7 +1215,7 @@ function completeProviderBreakdown(
   const values = Object.values(breakdown)
   if (values.length === 0 || values.some((value) => !Number.isFinite(value) || value < 0)) return null
   const sum = values.reduce((total, value) => total + value, 0)
-  return Math.abs(sum - amount) <= Math.max(1e-9, Math.abs(amount) * 1e-9) ? structuredClone(breakdown) : null
+  return Math.abs(sum - amount) <= Math.max(1e-9, Math.abs(amount) * 1e-9) ? { ...breakdown } : null
 }
 
 function invocationToRow(input: RecordAiInvocationInput): InsertAiUsageRecordRow {
@@ -1254,6 +1282,7 @@ function legacyToRow(input: LegacyAggregateInput): InsertAiUsageRecordRow {
         currency: input.cost.currency,
         source: input.cost.source,
         breakdown: validatedBreakdown(input.cost.breakdown, 'cost.breakdown'),
+        // oxlint-disable-next-line no-restricted-globals -- Persist one invocation pricing snapshot independently of caller-owned pricing tiers.
         pricingSnapshot: input.cost.pricingSnapshot ? structuredClone(input.cost.pricingSnapshot) : null
       }
     : null
@@ -1432,10 +1461,10 @@ export class AiUsageRecordService {
     return getMessageUsageProjectionTx(application.get('DbService').getDb(), ref)
   }
 
-  refreshMessageProjection(ref: MessageRef): void {
+  refreshMessageProjection(ref: MessageRef, { publishDataChange = true } = {}): void {
     try {
       const rebuilt = application.get('DbService').withWriteTx((tx) => rebuildMessageUsageProjectionTx(tx, ref))
-      if (rebuilt?.changed) notifyDataApiDataChange(messageReadModelEffects([rebuilt.target]))
+      if (publishDataChange && rebuilt?.changed) notifyDataApiDataChange(messageReadModelEffects([rebuilt.target]))
     } catch (err) {
       logger.error('refreshMessageProjection failed', err as Error, ref)
     }
@@ -1451,6 +1480,21 @@ export class AiUsageRecordService {
 
   stats(query: AiUsageRecordStatsQuery): AiUsageRecordStatsResponse {
     return getAiUsageRecordStats(query)
+  }
+
+  /** Tokens used in `range`, optionally only those attributed to one Assistant / Agent / mini app. */
+  totalTokens(range: { from: number; to: number }, source?: { type: AiUsageRecordSourceType; id: string }): number {
+    const sourceConditions = source
+      ? [eq(aiUsageRecordTable.sourceType, source.type), eq(aiUsageRecordTable.sourceId, source.id)]
+      : []
+    const [row] = application
+      .get('DbService')
+      .getDb()
+      .select({ totalTokens: totalTokensSum() })
+      .from(aiUsageRecordTable)
+      .where(and(...sourceConditions, ...rangeConditions(range)))
+      .all()
+    return row.totalTokens
   }
 
   timeline(query: AiUsageRecordTimelineQuery): AiUsageRecordTimelineResponse {

@@ -1,5 +1,4 @@
 import { cherryInOAuthService } from '@main/services/oauth/CherryInOAuthService'
-import { OAuthServiceError } from '@main/services/oauth/errors'
 import type { cherryinRequestSchemas } from '@shared/ipc/schemas/cherryin'
 import type { IpcHandlersFor } from '@shared/ipc/types'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
@@ -12,7 +11,6 @@ export const cherryinHandlers: IpcHandlersFor<typeof cherryinRequestSchemas> = {
       oauthServer,
       apiHost
     })
-    if (!apiKeys) throw new OAuthServiceError('No API keys received')
     return { apiKeys }
   },
   'cherryin.get_balance': ({ apiHost }) => cherryInOAuthService.getBalance(apiHost),

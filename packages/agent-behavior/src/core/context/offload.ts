@@ -53,7 +53,3 @@ export function offloadMarker(content: string, saved: { readonly path: string } 
     tail
   ].join('\n')
 }
-
-/** D33: a summary the host's summarizer returned empty cancels the compaction; there is no fallback to the session model. */
-export const summaryDecision = (summary: string): { readonly summary: string } | { readonly decline: true } =>
-  summary.trim() ? { summary } : { decline: true }

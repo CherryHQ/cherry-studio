@@ -15,6 +15,8 @@ import type {
 
 import type { OperationResult } from '@cherrystudio/agent-runtime'
 
+import { isSyntheticClaudeModel } from './synthetic'
+
 export interface ClaudeTaskFact {
   message: SdkTaskSystemMessage
   status?: 'pending' | 'in_progress' | 'completed' | 'stopped' | 'error'
@@ -47,7 +49,6 @@ export type ClaudeControl =
   | { type: 'background-results'; result: OperationResult<readonly string[]> }
   | { type: 'background-tasks'; tasks: BackgroundTask[] }
   | { type: 'background-task-event'; data: ClaudeTaskFact }
-  | { type: 'archive-changed' }
   | { type: 'compaction-start' }
   | {
       type: 'compaction-complete'
@@ -129,10 +130,7 @@ export class ClaudeControlState {
     return {
       active: this.isTurnActive,
       aborted: this.sawAbortedMessage,
-      backgroundTasks: this.backgroundTasks.map((task) => {
-        const toolCallId = this.backgroundTaskToolCallIds.get(task.run_id ?? task.task_id)
-        return toolCallId ? { ...task, toolCallId } : task
-      }),
+      backgroundTasks: this.readBackgroundTasks(),
       backgroundWorkActive: this.backgroundTasks.length > 0 || this.backgroundWorkReleasePending,
       backgroundResults: this.resultSources()
     }
@@ -148,6 +146,16 @@ export class ClaudeControlState {
   }
 
   accept(message: SDKMessage): void {
+    if (message.type === 'assistant' && isSyntheticClaudeModel(message.message.model)) {
+      this.sawAbortedMessage ||= message.aborted === true
+      return
+    }
+    if (
+      message.type === 'stream_event' &&
+      message.event.type === 'message_start' &&
+      isSyntheticClaudeModel(message.event.message.model)
+    )
+      return
     if ('parent_tool_use_id' in message && message.parent_tool_use_id != null) {
       if (message.type === 'assistant')
         this.emit({ type: 'response-start', responseId: message.message.id, messageUuid: message.uuid })
@@ -242,7 +250,6 @@ export class ClaudeControlState {
         return
       case 'compact_boundary':
         this.handleCompactBoundarySystemMessage(message)
-        this.emit({ type: 'archive-changed' })
         return
       case 'session_state_changed':
         this.handleSessionStateChangedSystemMessage(message)
@@ -275,10 +282,17 @@ export class ClaudeControlState {
     }
     return undefined
   }
+  private readBackgroundTasks() {
+    return this.backgroundTasks.map((task) => {
+      const toolCallId = this.backgroundTaskToolCallIds.get(task.run_id ?? task.task_id)
+      return toolCallId ? { ...task, toolCallId } : task
+    })
+  }
+
   private publishBackgroundTasks(): void {
     this.emit({
       type: 'background-tasks',
-      tasks: this.snapshot.backgroundTasks
+      tasks: this.readBackgroundTasks()
     })
   }
 

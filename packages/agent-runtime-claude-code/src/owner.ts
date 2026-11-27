@@ -1,30 +1,34 @@
 import { spawn } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
+import { homedir } from 'node:os'
+import path from 'node:path'
 
 import {
   query,
   type Query,
   type SDKAssistantMessage,
   type SDKMessage,
-  type SDKUserMessage,
-  type SessionStoreEntry
+  type SDKUserMessage
 } from '@anthropic-ai/claude-agent-sdk'
 
 import {
+  cloneHistoryData,
   runtimeId,
   type BusyPolicy,
   type InputFact,
   type InputId,
   type InputState,
+  type ProductInputState,
   type ObservationPayload,
   type Observation,
   type OperationResult,
   type Subagent,
+  type Thread,
   type ThreadContextUsage,
   type SubmitResult
 } from '@cherrystudio/agent-runtime'
 
-import { readArchive } from './archive'
+import { readArchive, type NativeArchiveEntry } from './archive'
 import { normalizeContextUsage } from './contextUsage'
 import { claudeThread, isCommandLifecycle, isUuid, rejected, runtimeError } from './identity'
 import { ClaudeProjection } from './projection'
@@ -49,9 +53,15 @@ interface Input {
   steer: boolean
   boundary?: boolean
   projection: ClaudeProjection
-  state: InputState & { inputId: InputId }
-  message: SDKUserMessage
-  resolve: (result: SubmitResult) => void
+  state: ProductInputState
+}
+
+// Any explicit CLAUDE_CONFIG_DIR, even the CLI's own default, re-keys the macOS Keychain
+// credential and hides an existing `claude /login`, so only a non-default directory is passed.
+function childEnvironment(env: ClaudeSessionOptions['env'], configDir: string) {
+  const childEnv: Record<string, string | undefined> = { ...env, CLAUDE_CONFIG_DIR: configDir }
+  if (path.resolve(configDir) === path.join(homedir(), '.claude')) delete childEnv.CLAUDE_CONFIG_DIR
+  return childEnv
 }
 
 export class ClaudeOwner {
@@ -59,8 +69,8 @@ export class ClaudeOwner {
   private readonly tasks = new Map<string, Task>()
   private readonly toolOwners = new Map<string, ClaudeProjection>()
   private readonly inputs = new Map<string, Input>()
-  private readonly logicalInputs = new Set<InputId>()
-  private readonly queue: Input[] = []
+  private readonly nativeInputIds = new Map<InputId, string>()
+  private readonly queue: { input: Input; message: SDKUserMessage; resolve: (result: SubmitResult) => void }[] = []
   private wake?: () => void
   private readonly contextWindows = new Map<string, number>()
   private contextEpoch = 0
@@ -82,7 +92,7 @@ export class ClaudeOwner {
   private resetFrom?: string
   private activeSession: string
   private readonly archives = new Map<string, ClaudeArchive>()
-  private reading?: Promise<void>
+  private reading?: Promise<boolean>
   private buffered?: SDKMessage[]
 
   constructor(
@@ -107,27 +117,33 @@ export class ClaudeOwner {
     return projection
   }
 
+  lookupInput(thread: Thread, inputId: InputId) {
+    const input = this.inputs.get(this.nativeInputIds.get(inputId) ?? inputId)
+    return input?.projection.thread.id === thread.id && input.state.inputId === inputId ? input.state : undefined
+  }
+
   private async *inputStream(): AsyncGenerator<SDKUserMessage> {
     while (!this.closing && !this.lost) {
-      const input = this.queue.shift()
-      if (!input) {
+      const queued = this.queue.shift()
+      if (!queued) {
         await new Promise<void>((resolve) => {
           this.wake = resolve
         })
         continue
       }
+      const { input, message, resolve } = queued
       if (input.projection.thread.id !== this.activeSession || this.resetFrom) {
-        input.resolve({ ...rejected('submit', 'closed'), inputId: input.state.inputId })
+        resolve({ ...rejected('submit', 'closed'), inputId: input.state.inputId })
         continue
       }
       this.inputFacts(input, ['dispatch-started'])
-      input.resolve({
+      resolve({
         status: 'acknowledged',
         inputId: input.state.inputId,
         nativeInput: input.state.nativeInput,
         facts: input.state.facts
       })
-      yield input.message
+      yield message
     }
   }
 
@@ -213,7 +229,7 @@ export class ClaudeOwner {
           prompt: this.inputStream(),
           options: {
             ...this.config,
-            env: { ...this.config.env, CLAUDE_CONFIG_DIR: this.runtime.configDir },
+            env: childEnvironment(this.config.env, this.runtime.configDir),
             permissionMode: this.config.permissionMode ?? 'default',
             sessionId: this.fresh ? this.activeSession : undefined,
             resume: this.fresh ? undefined : this.activeSession,
@@ -285,7 +301,7 @@ export class ClaudeOwner {
     if (this.closing || this.lost || this.resetFrom || projection.thread.id !== this.activeSession)
       return refuse('closed')
     if (policy !== 'steer' && policy !== 'follow-up') return refuse('busy-policy', 'unsupported')
-    if (this.logicalInputs.has(inputId)) return refuse('duplicate-input')
+    if (this.inputs.has(inputId) || this.nativeInputIds.has(inputId)) return refuse('duplicate-input')
     if (typeof content === 'string' ? !content.trim() : !content.length) return refuse('empty-input')
     try {
       this.start()
@@ -294,26 +310,26 @@ export class ClaudeOwner {
       return refuse('native-start-failed')
     }
     const uuid = isUuid(inputId) ? inputId : randomUUID()
-    this.logicalInputs.add(inputId)
     return new Promise<SubmitResult>((resolve) => {
       const input: Input = {
         uuid,
         steer: policy === 'steer',
         projection,
-        resolve,
-        state: { inputId, nativeInput: { session: projection.thread, id: runtimeId<'native-input'>(uuid) }, facts: [] },
-        message: {
-          type: 'user',
-          uuid,
-          message: { role: 'user', content: structuredClone(content) },
-          priority: policy === 'steer' ? 'next' : 'later',
-          parent_tool_use_id: null,
-          session_id: this.activeSession
-        }
+        state: { inputId, nativeInput: { session: projection.thread, id: runtimeId<'native-input'>(uuid) }, facts: [] }
+      }
+      const message: SDKUserMessage = {
+        type: 'user',
+        uuid,
+        // oxlint-disable-next-line no-restricted-globals -- Detach one submitted user content payload before asynchronous SDK consumption.
+        message: { role: 'user', content: structuredClone(content) },
+        priority: policy === 'steer' ? 'next' : 'later',
+        parent_tool_use_id: null,
+        session_id: this.activeSession
       }
       if (policy !== 'steer') projection.control.beginTurn()
+      if (uuid !== inputId) this.nativeInputIds.set(inputId, uuid)
       this.inputs.set(uuid, input)
-      this.queue.push(input)
+      this.queue.push({ input, message, resolve })
       projection.publish([{ type: 'input.changed', input: input.state }])
       this.wake?.()
     })
@@ -331,8 +347,8 @@ export class ClaudeOwner {
   }
 
   private failPending(): void {
-    for (const input of this.queue.splice(0))
-      input.resolve({ ...rejected('submit', 'not-dispatched'), inputId: input.state.inputId })
+    for (const { input, resolve } of this.queue.splice(0))
+      resolve({ ...rejected('submit', 'not-dispatched'), inputId: input.state.inputId })
     for (const input of this.inputs.values()) {
       if (!input.state.outcome)
         this.inputFacts(input, [], {
@@ -387,11 +403,8 @@ export class ClaudeOwner {
       const callAgent = callOwner?.thread.id.split('/')[1]
       task ??= { sessionId: this.activeSession, agent: message.task_type === 'local_agent' }
       task.agent ||= message.task_type === 'local_agent'
-      const call = callOwner?.feed.snapshot.messages
-        .flatMap((item) => item.parts)
-        .find((part) => part.type === 'dynamic-tool' && part.toolCallId === message.tool_use_id)
-      if (call?.type === 'dynamic-tool' && ['Agent', 'Task'].includes(call.toolName))
-        task.origin ??= { toolCallId: call.toolCallId, description: message.description }
+      const call = message.tool_use_id && callOwner?.spawnCall(message.tool_use_id)
+      if (call) task.origin ??= { toolCallId: call.toolCallId, description: message.description }
       if (task.parentId === undefined)
         task.parentId =
           message.parent_task_id ??
@@ -409,6 +422,16 @@ export class ClaudeOwner {
     if (message.run_id) task.runId = message.run_id
     const child = task.agent ? this.projection(task.sessionId, message.task_id) : undefined
     const events: ObservationPayload[] = []
+    if (
+      child &&
+      message.subtype === 'task_started' &&
+      message.is_backgrounded &&
+      message.prompt &&
+      message.tool_use_id &&
+      message.tool_use_id === task.origin?.toolCallId
+    ) {
+      events.push(...child.startBackgroundTask(message.tool_use_id, message.prompt))
+    }
     if (message.subtype === 'task_started' || message.subtype === 'task_progress') {
       if (!task.terminal) events.push({ type: 'activity.changed', activity: { state: 'active' } })
     } else if (
@@ -484,7 +507,6 @@ export class ClaudeOwner {
     const projection =
       commandInput?.projection ?? (agentId ? this.projection(task?.sessionId ?? this.activeSession, agentId) : root)
     if (!agentId && 'parent_tool_use_id' in message && message.parent_tool_use_id) {
-      root.publish([{ type: 'gap', reason: 'mapping-reset' }])
       return
     }
     const events: ObservationPayload[] = []
@@ -535,12 +557,13 @@ export class ClaudeOwner {
           }
         })
     }
-    if (!agentId && message.type === 'system' && message.subtype === 'compact_boundary') {
+    const compactedContext =
+      !agentId && message.type === 'system' && message.subtype === 'compact_boundary'
+        ? { status: 'unknown' as const, error: runtimeError('contextUsage', 'compacted') }
+        : undefined
+    if (compactedContext) {
       this.contextEpoch++
-      events.push({
-        type: 'context.changed',
-        result: { status: 'unknown', error: runtimeError('contextUsage', 'compacted') }
-      })
+      events.push({ type: 'context.changed', result: compactedContext })
     }
     if (message.type === 'assistant') {
       events.push(...projection.remove(message.supersedes ?? []))
@@ -563,6 +586,7 @@ export class ClaudeOwner {
           break
         case 'compact_boundary':
           events.push({ type: 'gap', reason: 'mapping-reset' })
+          if (compactedContext) events.push({ ...projection.feed.snapshot, contextUsage: compactedContext })
           break
         case 'permission_denied':
           events.push(...projection.deny(message.tool_use_id))
@@ -692,7 +716,7 @@ export class ClaudeOwner {
     }
   }
 
-  async refresh(sessionId: string): Promise<void> {
+  async refresh(sessionId: string): Promise<boolean> {
     if (this.reading) {
       await this.reading
       return this.refresh(sessionId)
@@ -700,9 +724,9 @@ export class ClaudeOwner {
     this.buffered = []
     this.reading = (async () => {
       const archive = await readArchive(this.runtime.configDir, this.config.cwd, sessionId)
-      if (!archive) throw new Error('native-storage-missing')
+      if (!archive) return false
       const root = this.projection(sessionId)
-      const entriesFor = (agentId?: string): SessionStoreEntry[] =>
+      const entriesFor = (agentId?: string): NativeArchiveEntry[] =>
         archive.entries
           .filter((batch) => batch.subpath === (agentId ? `subagents/agent-${agentId}` : undefined))
           .flatMap((batch) => batch.entries)
@@ -727,10 +751,8 @@ export class ClaudeOwner {
         const toolCallId = native.messages.find((message) => message.parent_tool_use_id)?.parent_tool_use_id
         if (!task.origin && toolCallId) {
           const parentView = this.projection(sessionId, parentId ?? undefined)
-          const call = parentView.feed.snapshot.messages
-            .flatMap((item) => item.parts)
-            .find((part) => part.type === 'dynamic-tool' && part.toolCallId === toolCallId)
-          if (call?.type === 'dynamic-tool' && ['Agent', 'Task'].includes(call.toolName)) {
+          const call = parentView.spawnCall(toolCallId)
+          if (call) {
             const description = (call.input as { description?: unknown })?.description
             task.origin = { toolCallId, ...(typeof description === 'string' && { description }) }
           }
@@ -738,9 +760,10 @@ export class ClaudeOwner {
         this.tasks.set(native.agentId, task)
         this.relation(native.agentId, task)
       }
+      return true
     })()
     try {
-      await this.reading
+      return await this.reading
     } finally {
       this.reading = undefined
       const buffered = this.buffered
@@ -751,10 +774,12 @@ export class ClaudeOwner {
 
   async archive(projection: ClaudeProjection, refresh = true): Promise<OperationResult<ClaudeArchive>> {
     try {
-      if (refresh || !this.archives.has(projection.thread.id)) await this.refresh(projection.thread.id.split('/')[0])
+      if (!refresh) return { status: 'confirmed', value: cloneHistoryData(projection.committed()) }
+      if (!(await this.refresh(projection.thread.id.split('/')[0])))
+        return rejected('archive', 'native-storage-missing')
       const archive = this.archives.get(projection.thread.id)
       return archive
-        ? { status: 'confirmed', value: structuredClone(refresh ? archive : projection.committed(archive)) }
+        ? { status: 'confirmed', value: cloneHistoryData(archive) }
         : rejected('archive', 'native-storage-missing')
     } catch (error) {
       this.report(error)
@@ -798,7 +823,8 @@ export class ClaudeOwner {
       await Promise.race([
         Promise.all([this.pump, this.exit]),
         new Promise<void>((resolve) => {
-          timeout = setTimeout(resolve, 5000)
+          // SDK 0.3.311 escalates after 2s + 5s; allow exit delivery and source drain afterward.
+          timeout = setTimeout(resolve, 10_000)
         })
       ])
       clearTimeout(timeout)

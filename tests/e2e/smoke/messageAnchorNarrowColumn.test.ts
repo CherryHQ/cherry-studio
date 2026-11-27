@@ -1,40 +1,17 @@
-import { rm } from 'node:fs/promises'
-
-import { _electron as electron } from '@playwright/test'
-
-import { expect, test as base } from './fixtures/electron.fixture'
-
-const test = base.extend({
-  electronApp: async ({}, use, testInfo) => {
-    const profile = testInfo.outputPath('profile')
-    const app = await electron.launch({
-      args: ['.'],
-      env: { ...process.env, NODE_ENV: 'development', CS_DEV_PROFILE_ROOT: profile },
-      timeout: 60_000
-    })
-    try {
-      await use(app)
-    } finally {
-      try {
-        await app.close()
-      } finally {
-        await rm(profile, { recursive: true, force: true })
-      }
-    }
-  }
-})
+import { LATEST_PRIVACY_POLICY_VERSION } from '../../../src/shared/utils/constants'
+import { expect, test } from './fixtures/electron.fixture'
 
 test('anchor rail stays visible and navigates to the first turn in a narrow message column', async ({
   electronApp,
   mainWindow: page
 }, testInfo) => {
   test.setTimeout(120_000)
-  await page.evaluate(async () => {
+  await page.evaluate(async (policyVersion) => {
     await window.api.preference.set('app.language', 'en-US')
-    await window.api.preference.set('app.privacy.policy_version', '20260820')
+    await window.api.preference.set('app.privacy.policy_version', policyVersion)
     await window.api.preference.set('app.onboarding.provider_setup.status', 'skipped')
     await window.api.preference.set('chat.message.navigation_mode', 'anchor')
-  })
+  }, LATEST_PRIVACY_POLICY_VERSION)
   await page.reload({ waitUntil: 'domcontentloaded', timeout: 60_000 })
 
   const topicName = 'anchor-rail-narrow'

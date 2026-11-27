@@ -13,7 +13,7 @@ import { type Context, gatherInputs, step } from '../step'
  * that already started is stopped by name (H2), so the stop never reaches a turn begun after it.
  */
 async function admit(context: Context, thread: ThreadId, start: { readonly round: RoundDetails; readonly key: Key }) {
-  const inputs = await gatherInputs(context, thread)
+  const inputs = gatherInputs(context, thread)
   const admitted = await step(context, thread, (facts) => admitRound(facts, inputs, start))
   if (admitted.retracted === 'already-started')
     await step(context, thread, (facts) => decideRoundWithdrawn(facts, inputs, start))
@@ -31,7 +31,7 @@ export function idleDriver(host: HostPorts): JobHandler {
     const thread = job.scope
     for (;;) {
       await ports.waits.untilIdle(thread)
-      const inputs = await gatherInputs(context, thread)
+      const inputs = gatherInputs(context, thread)
       const decided = await step(context, thread, (facts) => decideAtIdle(facts, inputs))
       const decision = decided.result
       if (decision.kind === 'done') {

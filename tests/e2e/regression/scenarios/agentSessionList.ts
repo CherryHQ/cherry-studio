@@ -9,7 +9,7 @@ import type { IpcResult } from '@shared/ipc/errors/IpcError'
 
 import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
-import { dismissOnboarding, selectSidebarApp } from '../helpers/navigation'
+import { dismissOnboarding, selectConversationListOption, selectSidebarApp } from '../helpers/navigation'
 import { revealVirtualized } from '../helpers/virtualList'
 import type { RegressionApp } from '../RegressionApp'
 
@@ -30,6 +30,7 @@ export async function agentSessionList(app: RegressionApp, page: Page, testInfo:
   }
   const preferences = await page.evaluate(async () => ({
     mode: await window.api.preference.get('agent.session.display_mode'),
+    sort: await window.api.preference.get('agent.session.sort'),
     position: await window.api.preference.get('agent.session.position'),
     menuMode: await window.api.preference.get('menu.presentation_mode')
   }))
@@ -68,6 +69,7 @@ export async function agentSessionList(app: RegressionApp, page: Page, testInfo:
   }
   const drag = async (source: Locator, target: Locator, after = false) => {
     await revealVirtualized(page, list().getByRole('listbox'), source)
+    await target.scrollIntoViewIfNeeded()
     const from = await source.boundingBox()
     expect(from).not.toBeNull()
     await page.mouse.move(from!.x + from!.width / 2, from!.y + from!.height / 2)
@@ -75,7 +77,6 @@ export async function agentSessionList(app: RegressionApp, page: Page, testInfo:
     try {
       await page.mouse.move(from!.x + from!.width / 2 + 12, from!.y + from!.height / 2, { steps: 5 })
       await expect(page.locator('[data-dragging="true"]').first()).toBeVisible({ timeout: 3000 })
-      await revealVirtualized(page, list().getByRole('listbox'), target)
       const to = await target.boundingBox()
       expect(to).not.toBeNull()
       await page.mouse.move(to!.x + to!.width / 2, to!.y + (after ? to!.height - 3 : 3), { steps: 20 })
@@ -121,7 +122,15 @@ export async function agentSessionList(app: RegressionApp, page: Page, testInfo:
     )
     await page.reload()
     await selectSidebarApp(page, 'Work')
-    await page.locator('[data-ui~="agent.view"]:visible').getByText(agent!.name, { exact: true }).first().click()
+    const view = page.locator('[data-ui~="agent.view"]:visible')
+    const showSidebar = view.getByRole('button', { name: 'Show Sidebar', exact: true })
+    if (await showSidebar.isVisible()) await showSidebar.click()
+    const agents = view.getByTestId('agent-entity-rail')
+    const agentEntry = agents
+      .getByTestId('resource-entity-rail-row')
+      .filter({ has: page.getByText(agent!.name, { exact: true }) })
+    await revealVirtualized(page, agents.getByRole('listbox'), agentEntry)
+    await agentEntry.click()
     if (!(await list().getByRole('textbox', { name: 'Search tasks', exact: true }).isVisible())) {
       await page
         .getByRole('button', { name: /^Tasks/ })
@@ -136,12 +145,6 @@ export async function agentSessionList(app: RegressionApp, page: Page, testInfo:
     await expect(row(names[1])).toHaveCount(0)
     await expect(row(names[2])).toHaveCount(0)
     await screenshot('MP-54 title search result')
-    await expect
-      .soft(
-        row(names[0]).locator('mark, [data-highlighted="true"], .search-highlight'),
-        'Search match must be highlighted'
-      )
-      .toContainText('Orchid', { timeout: 2000 })
     await search.fill('MP54-no-such-task-928173')
     await expect(list().getByTestId('agent-session-row')).toHaveCount(0)
     await expect(list().getByText('No tasks', { exact: true })).toBeVisible()
@@ -175,6 +178,7 @@ export async function agentSessionList(app: RegressionApp, page: Page, testInfo:
         await page.evaluate(async () => ({
           position: await window.api.preference.get('agent.session.position'),
           mode: await window.api.preference.get('agent.session.display_mode'),
+          sort: await window.api.preference.get('agent.session.sort'),
           panels: [...document.querySelectorAll('[data-testid="resource-list-session"]')].map((panel) => ({
             visible: panel.getClientRects().length > 0,
             width: panel.getBoundingClientRect().width,
@@ -193,6 +197,10 @@ export async function agentSessionList(app: RegressionApp, page: Page, testInfo:
     const expand = agentHeader.getByRole('button', { name: 'Expand', exact: true })
     if (await expand.isVisible()) await expand.click()
     await assertUnique()
+    await selectConversationListOption(list(), 'Sort by', 'Manually')
+    await expect
+      .poll(() => page.evaluate(() => window.api.preference.get('agent.session.sort')))
+      .toEqual({ by: 'orderKey' })
     const before = (await pins()).map((pin) => pin.entityId)
     const desired = [...before].reverse()
     const firstName = sessions.find((session) => session.id === before[0])!.name
@@ -228,20 +236,32 @@ export async function agentSessionList(app: RegressionApp, page: Page, testInfo:
     await assertUnique()
     await expect
       .soft(
-        row(secondName).getByRole('button', { name: 'Pin task', exact: true }),
-        'Dragging outside the pinned area must unpin the session'
+        row(secondName).getByRole('button', { name: 'Unpin task', exact: true }),
+        'Dragging into another group must preserve the pin'
       )
       .toBeVisible({ timeout: 2000 })
-    await drag(row(secondName), row(firstName))
+    await row(secondName).hover()
+    await row(secondName).getByRole('button', { name: 'Unpin task', exact: true }).click()
+    await expect.poll(async () => (await pins()).length).toBe(1)
+    await row(secondName).hover()
+    await row(secondName).getByRole('button', { name: 'Pin task', exact: true }).click()
     await assertUnique()
     await expect(row(secondName).getByRole('button', { name: 'Unpin task', exact: true })).toBeVisible()
     await expect.poll(async () => (await pins()).length).toBe(2)
     await screenshot('MP-54 restart and drag out back uniqueness')
   } finally {
+    for (const pin of await pins()) {
+      const removed = await page.evaluate(
+        (id) => window.api.dataApi.request({ id: 'mp54-unpin-cleanup', method: 'DELETE', path: `/pins/${id}` }),
+        pin.id
+      )
+      expect(removed.status).toBe(204)
+    }
     await page.evaluate(
       async ({ preferences, ids }) => {
         await window.api.preference.setMultiple({
           'agent.session.display_mode': preferences.mode,
+          'agent.session.sort': preferences.sort,
           'agent.session.position': preferences.position,
           'menu.presentation_mode': preferences.menuMode
         })

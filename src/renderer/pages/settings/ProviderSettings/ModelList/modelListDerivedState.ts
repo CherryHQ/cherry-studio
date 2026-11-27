@@ -50,8 +50,6 @@ export type ModelListDerivedState = {
   hasNoModels: boolean
 }
 
-export const MODEL_COUNT_THRESHOLD = 10
-
 type CalculateModelListDerivedStateInput = {
   models: Model[]
   searchText: string

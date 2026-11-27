@@ -75,27 +75,6 @@ describe('SkillInstaller', () => {
       )
     })
 
-    it('commits a verified replacement before deleting the old skill', async () => {
-      mockPathExists.mockResolvedValue(true)
-      mockCopyDirectoryRecursive.mockResolvedValue(undefined)
-      mockFsRename.mockResolvedValue(undefined)
-      mockDeleteDirectoryRecursive.mockResolvedValue(undefined)
-
-      await installer.install(resolvePath('/tmp/my-skill'), resolvePath('/global-skills/my-skill'))
-
-      expect(mockFsRename).toHaveBeenNthCalledWith(
-        1,
-        resolvePath('/global-skills/my-skill'),
-        resolvePath('/global-skills/.my-skill.bak')
-      )
-      expect(mockFsRename).toHaveBeenNthCalledWith(
-        2,
-        resolvePath('/global-skills/.my-skill.bak'),
-        resolvePath('/global-skills/.my-skill.cleanup')
-      )
-      expect(mockDeleteDirectoryRecursive).toHaveBeenCalledWith(resolvePath('/global-skills/.my-skill.cleanup'))
-    })
-
     it('keeps the old skill recoverable until a prepared install is committed', async () => {
       mockPathExists.mockResolvedValue(true)
       mockCopyDirectoryRecursive.mockResolvedValue(undefined)

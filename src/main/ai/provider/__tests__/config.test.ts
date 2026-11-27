@@ -1,10 +1,12 @@
 import type { ImageModelV3CallOptions } from '@ai-sdk/provider'
+import { MockApplicationUtils } from '@test-mocks/main/application'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { net } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { readProviderRegistry, RegistryLoader } from '@cherrystudio/provider-registry/node'
 import { mergePresetModel } from '@data/services/ProviderRegistryService'
+import type * as CherryCloudProviderModule from '@main/ai/provider/cherryCloud'
 import {
   CHERRY_CLOUD_MODEL_GROUP,
   CHERRY_CLOUD_PROVIDER_ID,
@@ -30,7 +32,8 @@ import { resolveImageTransport } from '../custom/imageTransportRegistry'
 import { createNewApi, type NewApiProviderSettings } from '../custom/newapiProvider'
 import { buildVendorProviderOptions } from '../custom/wire/buildImageRequest'
 import { WIRE_REGISTRY } from '../custom/wire/wireProfile'
-import { resolveWireModelId } from '../endpoint'
+import { resolveEffectiveEndpoint, resolveWireModelId } from '../endpoint'
+import { resolveSdkConfig } from '../sdkConfig'
 
 // Key-backed builders resolve their serving API key lazily; Vertex/Bedrock read
 // provider auth config from the direct-import ProviderService singleton. Mock
@@ -58,7 +61,8 @@ vi.mock('@main/ai/provider/cherryai', () => ({
   generateSignature: generateSignatureMock
 }))
 
-vi.mock('@main/ai/provider/cherryCloud', () => ({
+vi.mock('@main/ai/provider/cherryCloud', async (importOriginal) => ({
+  ...(await importOriginal<typeof CherryCloudProviderModule>()),
   buildCherryCloudProviderConfig: buildCherryCloudProviderConfigMock
 }))
 
@@ -70,6 +74,7 @@ vi.mock('@main/services/CopilotService', () => ({
 
 // Import the SUT after the mock is declared.
 const { providerToAiSdkConfig, resolveProviderAiSdkConfig } = await import('../config')
+const { ModelUnavailableError } = await import('../cherryCloud')
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -148,8 +153,6 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
     const model = makeModel({ id: 'openai::gpt-4o', apiModelId: 'gpt-4o', providerId: 'openai' })
 
     const config = await providerToAiSdkConfig(provider, model, { apiKeyOverride: 'sk-selected' })
-
-    expect(resolveApiKeyMock).toHaveBeenCalledWith('openai', 'sk-selected')
     expect((config.providerSettings as Record<string, unknown>).apiKey).toBe('sk-selected')
   })
 
@@ -1373,6 +1376,36 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
   })
 
   describe('CherryAI routing', () => {
+    const cherryAiProvider = () =>
+      makeProvider({
+        id: CHERRYAI_PROVIDER_ID,
+        presetProviderId: CHERRYAI_PROVIDER_ID,
+        endpointConfigs: { [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: CHERRYAI_API_BASE_URL } },
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+      })
+    const signInPhase = (phase: 'signed-in' | 'signed-out' | 'authorizing') =>
+      MockApplicationUtils.setService('CherryCloudService', { getStatus: vi.fn(async () => ({ phase })) })
+
+    beforeEach(() => signInPhase('signed-in'))
+
+    it.each(['signed-out', 'authorizing'] as const)(
+      'refuses the built-in free model before any request while %s',
+      async (phase) => {
+        signInPhase(phase)
+        resolveApiKeyMock.mockReturnValue({ value: '', apiKeySelection: { attribution: 'unknown' } })
+        const model = makeModel({ id: CHERRYAI_DEFAULT_UNIQUE_MODEL_ID, providerId: CHERRYAI_PROVIDER_ID })
+
+        const config = await providerToAiSdkConfig(cherryAiProvider(), model)
+        const request = (config.providerSettings as { fetch: typeof fetch }).fetch(
+          `${CHERRYAI_API_BASE_URL}/chat/completions`,
+          { method: 'POST', body: JSON.stringify({ model: CHERRYAI_DEFAULT_MODEL_ID }) }
+        )
+
+        await expect(request).rejects.toThrow(ModelUnavailableError)
+        expect(net.fetch).not.toHaveBeenCalled()
+      }
+    )
+
     it('uses custom fetch to sign chat completions requests', async () => {
       resolveApiKeyMock.mockReturnValue({ value: '', apiKeySelection: { attribution: 'unknown' } })
       generateSignatureMock.mockReturnValue({
@@ -2243,6 +2276,129 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
         expect(result.images).toEqual(['QUJD'])
       }
     )
+
+    it.each([
+      ['gemini-3.1-flash-image', 'gemini-3.1-flash-image'],
+      ['nano-banana-2', 'nano-banana-2'],
+      ['models/gemini-3.1-flash-image', 'gemini-3.1-flash-image']
+    ])('sends New API Google image %s as generateContent', async (modelId, wireId) => {
+      const provider = makeProvider({
+        id: 'my-newapi',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://relay.example.com', adapterFamily: 'newapi' },
+          [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { adapterFamily: 'newapi' }
+        }
+      })
+      const model = makeModel({ apiModelId: modelId, endpointTypes: [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT] })
+      const { sdkConfig: config } = await resolveSdkConfig(provider, model, resolveEffectiveEndpoint(provider, model))
+      expect(config.providerId).toBe('newapi')
+      expect(config.providerOptionsKey).toBe('google')
+      vi.mocked(net.fetch).mockImplementation(async (input) =>
+        String(input).includes('generateContent')
+          ? Response.json({
+              candidates: [{ content: { parts: [{ inlineData: { mimeType: 'image/png', data: 'AQID' } }] } }]
+            })
+          : Response.json({ data: [{ b64_json: 'AQID' }] })
+      )
+      const result = await createNewApi(config.providerSettings as NewApiProviderSettings)
+        .imageModel(config.modelId)
+        .doGenerate({
+          prompt: 'a banana',
+          n: 1,
+          size: undefined,
+          aspectRatio: undefined,
+          seed: undefined,
+          files: undefined,
+          mask: undefined,
+          providerOptions: {}
+        })
+      const [url, request] = vi.mocked(net.fetch).mock.calls[0]
+      expect(String(url)).toBe(`https://relay.example.com/v1beta/models/${wireId}:generateContent`)
+      expect(JSON.parse(String(request?.body))).toEqual({
+        generationConfig: { responseModalities: ['IMAGE'] },
+        contents: [{ role: 'user', parts: [{ text: 'a banana' }] }]
+      })
+      expect(result.images).toEqual(['AQID'])
+    })
+
+    it.each([
+      [{ aspectRatio: '16:9' }, { aspectRatio: '16:9' }],
+      [{ imageResolution: '1K' }, { imageSize: '1K' }],
+      [{ imageResolution: '4K' }, { imageSize: '4K' }],
+      [
+        { aspectRatio: '16:9', imageResolution: '2K' },
+        { aspectRatio: '16:9', imageSize: '2K' }
+      ],
+      [{}, undefined]
+    ])('sends Google image parameters %j', async (params, imageConfig) => {
+      const requests: Array<{ url: string; body: Record<string, unknown>; headers: Headers }> = []
+      const api = createNewApi({
+        endpointType: 'gemini',
+        baseURL: 'https://relay.example.com/v1beta',
+        apiKey: 'synthetic-key',
+        headers: { 'x-custom': 'custom-value' },
+        fetch: async (input, init) => {
+          requests.push({
+            url: String(input),
+            body: JSON.parse(String(init?.body)),
+            headers: new Headers(init?.headers)
+          })
+          return String(input).includes('generateContent')
+            ? Response.json({
+                candidates: [{ content: { parts: [{ inlineData: { mimeType: 'image/png', data: 'AQID' } }] } }]
+              })
+            : Response.json({ data: [{ b64_json: 'AQID' }] })
+        }
+      })
+      const { structured, vendorBag } = splitParamValues(params)
+      const options = buildVendorProviderOptions('google', params, WIRE_REGISTRY.google, vendorBag)
+      await api.imageModel('nano-banana-2').doGenerate({
+        prompt: 'a banana',
+        n: 1,
+        size: undefined,
+        aspectRatio: structured.aspectRatio as `${number}:${number}` | undefined,
+        seed: undefined,
+        files: undefined,
+        mask: undefined,
+        providerOptions: options
+      })
+      expect(requests[0].url).toBe('https://relay.example.com/v1beta/models/nano-banana-2:generateContent')
+      expect(requests[0].body).toEqual({
+        generationConfig: { responseModalities: ['IMAGE'], ...(imageConfig && { imageConfig }) },
+        contents: [{ role: 'user', parts: [{ text: 'a banana' }] }]
+      })
+      expect(requests[0].headers.get('authorization')).toBe('Bearer synthetic-key')
+      expect(requests[0].headers.get('x-goog-api-key')).toBe('synthetic-key')
+      expect(requests[0].headers.get('x-custom')).toBe('custom-value')
+    })
+
+    it('keeps unknown banana2 on the Google SDK Imagen predict path', async () => {
+      let url = ''
+      const api = createNewApi({
+        endpointType: 'gemini',
+        baseURL: 'https://relay.example.com/v1beta',
+        apiKey: 'synthetic-key',
+        fetch: async (input) => {
+          url = String(input)
+          return url.includes(':predict')
+            ? Response.json({ predictions: [{ bytesBase64Encoded: 'AQID', mimeType: 'image/png' }] })
+            : Response.json({ data: [{ b64_json: 'AQID' }] })
+        }
+      })
+      const result = await api.imageModel('banana2').doGenerate({
+        prompt: 'a banana',
+        n: 1,
+        size: undefined,
+        aspectRatio: undefined,
+        seed: undefined,
+        files: undefined,
+        mask: undefined,
+        providerOptions: {}
+      })
+      expect(url).toBe('https://relay.example.com/v1beta/models/banana2:predict')
+      expect(result.images).toEqual(['AQID'])
+    })
 
     it.each(imageEndpoints)('preserves an explicit %s host on a New API provider instance', async (endpointType) => {
       const preset = readProviderRegistry('packages/provider-registry/data/providers.json').providers.find(

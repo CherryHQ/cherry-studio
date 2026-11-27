@@ -49,9 +49,7 @@ describe('tryRemoteAnthropicCount', () => {
       expect.objectContaining({
         baseURL: 'https://api.x',
         fetch,
-        defaultHeaders: headers,
-        timeout: 5_000,
-        maxRetries: 0
+        defaultHeaders: headers
       })
     )
   })

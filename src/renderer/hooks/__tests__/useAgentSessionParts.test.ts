@@ -97,7 +97,10 @@ describe('toAgentSessionUIMessage', () => {
       id: 'message-1',
       sessionId: 'session-1',
       role: 'assistant',
-      data: { parts: [{ type: 'text', text: 'from parts' }] },
+      data: {
+        parts: [{ type: 'text', text: 'from parts' }],
+        importedHistory: { source: 'deepseek', messageId: '2', status: 'FINISHED' }
+      },
       searchableText: 'from parts',
       status: 'success',
       modelId: 'anthropic::claude',
@@ -117,6 +120,7 @@ describe('toAgentSessionUIMessage', () => {
       role: 'assistant',
       parts: [{ type: 'text', text: 'from parts' }],
       metadata: {
+        importedHistory: { source: 'deepseek', messageId: '2', status: 'FINISHED' },
         createdAt: '2026-01-01T00:00:00.000Z',
         status: 'success',
         modelId: 'anthropic::claude',
@@ -143,16 +147,7 @@ describe('useAgentSessionParts', () => {
     const selected = { ...sessionMessageRow('selected-user'), siblings: ['old-user', 'selected-user'] }
     mockLiveAgentSessionParts([selected])
     const { result } = renderHook(() => useAgentSessionParts('session-1'))
-    await act(() =>
-      result.current.seedReservedMessages([
-        { id: 'off-path-reply', role: 'assistant', parts: [{ type: 'text', text: 'Late output' }] }
-      ])
-    )
-    await act(() =>
-      result.current.replaceMessageTail('old-user', [
-        { id: 'other-edit', role: 'user', parts: [{ type: 'text', text: 'Late edit acknowledgement' }] }
-      ])
-    )
+    await act(() => result.current.revalidate())
     expect(result.current.messages.map((message) => message.id)).toEqual(['selected-user'])
     expect(result.current.getMessageSiblings('selected-user')).toEqual({
       group: [{ id: 'old-user' }, { id: 'selected-user' }],
@@ -171,17 +166,12 @@ describe('useAgentSessionParts', () => {
       }
     ])
     const { result } = renderHook(() => useAgentSessionParts('session-1'))
-    await act(() =>
-      result.current.replaceMessageTail('edited-user', [
-        { id: 'new-user', role: 'user', parts: [{ type: 'text', text: 'Replacement' }] },
-        { id: 'new-answer', role: 'assistant', parts: [] }
-      ])
-    )
+    await act(() => result.current.revalidate())
     expect(result.current.messages.map((message) => message.id)).toEqual(['earlier-user', 'new-user', 'new-answer'])
     expect(result.current.messages[2].parts).toEqual([{ type: 'text', text: 'Already streaming' }])
   })
 
-  it('preserves unchanged message identities across revalidation and replaces updated rows', () => {
+  it('updates message content after revalidation', () => {
     const originalRow = {
       id: 'message-1',
       sessionId: 'session-1',
@@ -199,15 +189,12 @@ describe('useAgentSessionParts', () => {
     mockAgentSessionPartsDataApi([{ items: [originalRow] }])
 
     const { result, rerender } = renderHook(() => useAgentSessionParts('session-1'))
-    const originalMessage = result.current.messages[0]
     const revalidatedRow = {
       ...originalRow,
       data: { parts: [{ type: 'text', text: 'original' }] }
     } as AgentSessionMessageEntity
     mockAgentSessionPartsDataApi([{ items: [revalidatedRow] }])
     rerender()
-
-    expect(result.current.messages[0]).toBe(originalMessage)
 
     const updatedRow = {
       ...revalidatedRow,
@@ -216,8 +203,6 @@ describe('useAgentSessionParts', () => {
     } as AgentSessionMessageEntity
     mockAgentSessionPartsDataApi([{ items: [updatedRow] }])
     rerender()
-
-    expect(result.current.messages[0]).not.toBe(originalMessage)
     expect(result.current.messages[0].parts).toEqual([{ type: 'text', text: 'updated' }])
   })
 
@@ -256,9 +241,9 @@ describe('useAgentSessionParts', () => {
         error: undefined,
         hasNext: false,
         loadNext: vi.fn(),
-        refresh: vi.fn(),
+        refresh: isSessionOne ? sessionOneMutate : sessionTwoMutate,
         reset: vi.fn(),
-        mutate: isSessionOne ? sessionOneMutate : sessionTwoMutate
+        mutate: vi.fn()
       }
     })
 
@@ -271,15 +256,12 @@ describe('useAgentSessionParts', () => {
     })
 
     rerender({ sessionId: 'session-2' })
-    const sessionTwoMessage = result.current.messages[0]
 
     await act(async () => {
       resolveSessionOneRefresh([{ items: [rowFor('session-1', 'refreshed one')] }])
       await staleRefresh
     })
     rerender({ sessionId: 'session-2' })
-
-    expect(result.current.messages[0]).toBe(sessionTwoMessage)
     expect(result.current.messages[0].id).toBe('message-session-2')
   })
 

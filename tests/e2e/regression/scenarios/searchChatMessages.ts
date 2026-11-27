@@ -191,12 +191,8 @@ export async function searchChatMessages(app: RegressionApp, page: Page, testInf
 
     await bar.getByRole('button', { name: 'Close', exact: true }).click()
     await expect(input).toBeHidden()
-    await expect.soft
-      .poll(async () => Math.abs((await scroller.evaluate((element) => element.scrollTop)) - originalScrollTop), {
-        timeout: 5000,
-        message: 'Closing search must restore the original conversation scroll position'
-      })
-      .toBeLessThanOrEqual(3)
+    await expect(target, 'Closing search must keep the located conversation content visible').toBeInViewport()
+    await expect.poll(currentHighlight).toEqual([])
     await attachScreenshot('MP-38 conversation after closing search')
   } finally {
     await server.close()

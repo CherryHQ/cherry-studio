@@ -21,6 +21,7 @@ vi.mock('@renderer/components/icons/EditIcon', () => ({
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
+  HelpTooltip: MockCherrystudioUI.HelpTooltip,
   ScrollArea: MockCherrystudioUI.ScrollArea,
   Button: ({ asChild, children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { asChild?: boolean }) => {
     if (asChild) {

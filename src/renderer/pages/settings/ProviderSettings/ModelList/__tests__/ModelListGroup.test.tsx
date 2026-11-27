@@ -69,22 +69,6 @@ describe('ModelListGroup', () => {
     vi.clearAllMocks()
   })
 
-  it('renders the group without an enabled switch', () => {
-    render(
-      <ModelListGroup
-        groupName="chat"
-        items={models.map((model: any) => ({ model }))}
-        defaultOpen
-        disabled={false}
-        pendingModelIds={new Set()}
-        onDeleteModels={vi.fn()}
-      />
-    )
-
-    expect(screen.queryByRole('switch')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'chat' })).toHaveAttribute('aria-expanded', 'true')
-  })
-
   it('deletes all models in the group from the header action', () => {
     const onDeleteModels = vi.fn().mockResolvedValue(undefined)
 

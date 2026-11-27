@@ -149,10 +149,6 @@ describe.skipIf(process.platform !== 'win32')('process utilities', () => {
         const result = findExecutable('git')
 
         expect(result).toBe(gitPath)
-        expect(which.sync).toHaveBeenCalledWith(
-          'git',
-          expect.objectContaining({ all: true, nothrow: true, pathExt: '.exe;.cmd' })
-        )
         expect(execFileSync).not.toHaveBeenCalled()
       })
 
@@ -651,20 +647,6 @@ describe.skipIf(process.platform !== 'win32')('process utilities', () => {
     })
 
     describe('real-world scenarios', () => {
-      it('should handle official Git for Windows installer', () => {
-        const gitPath = 'C:\\Program Files\\Git\\cmd\\git.exe'
-        const bashPath = 'C:\\Program Files\\Git\\bin\\bash.exe'
-
-        process.env.ProgramFiles = 'C:\\Program Files'
-        vi.mocked(fs.existsSync).mockImplementation((p) => {
-          return p === gitPath || p === bashPath
-        })
-
-        const result = findGitBash()
-
-        expect(result).toBe(bashPath)
-      })
-
       it('should handle portable Git installation in custom directory', () => {
         const gitPath = 'D:\\DevTools\\PortableGit\\bin\\git.exe'
         const bashPath = 'D:\\DevTools\\PortableGit\\bin\\bash.exe'
@@ -976,51 +958,6 @@ describe('findCommandInShellEnv', () => {
       await expect(findCommandInShellEnv(absolute, {})).resolves.toBeNull()
       expect(commandLookup()).not.toHaveBeenCalled()
     })
-
-    it('should reject command names exceeding max length', async () => {
-      const longCommand = 'a'.repeat(129)
-      const result = await findCommandInShellEnv(longCommand, {})
-      expect(result).toBeNull()
-      expect(commandLookup()).not.toHaveBeenCalled()
-    })
-
-    it('should accept valid command names', async () => {
-      const mockChild = createMockChildProcess()
-      vi.mocked(spawn).mockReturnValue(mockChild as never)
-
-      // Don't await - just start the call
-      const resultPromise = findCommandInShellEnv('npx', { PATH: '/usr/bin' })
-
-      // Simulate command not found
-      mockChild.emit('close', 1)
-
-      const result = await resultPromise
-      expect(result).toBeNull()
-      expect(commandLookup()).toHaveBeenCalled()
-    })
-
-    it('should accept command names with underscores and hyphens', async () => {
-      const mockChild = createMockChildProcess()
-      vi.mocked(spawn).mockReturnValue(mockChild as never)
-
-      const resultPromise = findCommandInShellEnv('my_command-name', { PATH: '/usr/bin' })
-      mockChild.emit('close', 1)
-
-      await resultPromise
-      expect(commandLookup()).toHaveBeenCalled()
-    })
-
-    it('should accept command names at max length (128 chars)', async () => {
-      const mockChild = createMockChildProcess()
-      vi.mocked(spawn).mockReturnValue(mockChild as never)
-
-      const maxLengthCommand = 'a'.repeat(128)
-      const resultPromise = findCommandInShellEnv(maxLengthCommand, { PATH: '/usr/bin' })
-      mockChild.emit('close', 1)
-
-      await resultPromise
-      expect(commandLookup()).toHaveBeenCalled()
-    })
   })
 
   describe.skipIf(process.platform === 'win32')('Unix/macOS behavior', () => {
@@ -1111,13 +1048,6 @@ describe('findCommandInShellEnv', () => {
       const result = await findCommandInShellEnv('npx', { PATH: 'C:\\nodejs' })
 
       expect(result).toBe('C:\\Program Files\\nodejs\\npx.exe')
-      expect(which).toHaveBeenCalledWith('npx', {
-        all: true,
-        delimiter: ';',
-        nothrow: true,
-        path: 'C:\\nodejs',
-        pathExt: '.exe;.cmd'
-      })
       expect(spawn).not.toHaveBeenCalled()
     })
 

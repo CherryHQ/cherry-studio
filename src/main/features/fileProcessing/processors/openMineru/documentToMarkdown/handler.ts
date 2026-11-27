@@ -7,6 +7,7 @@ import type { FileProcessingCapabilityHandler, PreparedRemoteJob } from '../../t
 import { parseLegacyDocument } from '../legacyClient'
 import { probeOpenMineru } from '../protocol'
 import { OpenMineruRemoteStateSchema } from '../schemas'
+import { createParseTask, downloadTaskMarkdown, getParseTask, uploadTaskFile } from '../tasksClient'
 import type { OpenMineruConnection } from '../types'
 import { downloadV1Markdown, getV1ParseJob, startV1Parse } from '../v1Client'
 
@@ -19,8 +20,8 @@ export const openMineruDocumentToMarkdownHandler: FileProcessingCapabilityHandle
     signal?.throwIfAborted()
     const apiHost = resolveApiHost(config)
     if (context?.remoteState !== undefined) {
-      validateRemoteState(context.remoteState, apiHost)
-      return prepareV1Job(file, { apiHost })
+      const state = validateRemoteState(context.remoteState, apiHost)
+      return state.protocol === 'tasks' ? prepareTasksJob(file, { apiHost }) : prepareV1Job(file, { apiHost })
     }
 
     const connection = { apiHost, apiKey: getApiKey(config, 'open-mineru') }
@@ -30,6 +31,7 @@ export const openMineruDocumentToMarkdownHandler: FileProcessingCapabilityHandle
     }
     if (probe.kind === 'unreachable') throw new Error(t('file_processing.errors.open_mineru_unreachable'))
     if (probe.kind !== 'supported') throw new Error(t('file_processing.errors.open_mineru_invalid_response'))
+    if (probe.protocol === 'tasks') return prepareTasksJob(file, connection)
     if (probe.protocol === 'v1') return prepareV1Job(file, connection)
 
     return {
@@ -39,6 +41,57 @@ export const openMineruDocumentToMarkdownHandler: FileProcessingCapabilityHandle
         const response = await parseLegacyDocument({ ...connection, file, signal: executionContext.signal })
         executionContext.reportProgress(80)
         return { kind: 'response-zip', response }
+      }
+    }
+  }
+}
+
+function prepareTasksJob(
+  file: FileInfo,
+  connection: OpenMineruConnection
+): PreparedRemoteJob<'document_to_markdown', OpenMineruConnection> {
+  return {
+    mode: 'remote-poll',
+    async startRemote(signal) {
+      return {
+        providerTaskId: await createParseTask(connection, file, signal),
+        status: 'pending',
+        progress: 0,
+        remoteContext: connection
+      }
+    },
+    async pollRemote(job, signal) {
+      const task = await getParseTask(job.remoteContext, job.providerTaskId, signal)
+      const result = task.files[0]
+      if (['partial', 'failed', 'canceled'].includes(task.status) || ['failed', 'canceled'].includes(result.status)) {
+        return { status: 'failed', error: t('file_processing.errors.open_mineru_task_failed', { status: task.status }) }
+      }
+      if (result.status === 'waiting-file' && result.upload) {
+        await uploadTaskFile(job.remoteContext, file, result.upload, signal)
+      }
+      if (task.status !== 'completed') {
+        return { status: task.status === 'running' ? 'processing' : 'pending', progress: 0 }
+      }
+      if (result.status !== 'completed' || !result.result_url) {
+        throw new Error(t('file_processing.errors.open_mineru_invalid_response'))
+      }
+      return {
+        status: 'completed',
+        output: {
+          kind: 'markdown',
+          markdownContent: await downloadTaskMarkdown(job.remoteContext, result.result_url, signal)
+        }
+      }
+    },
+    toPersistable(remoteContext, providerTaskId) {
+      return { protocol: 'tasks', apiHost: remoteContext.apiHost, providerTaskId }
+    },
+    rehydrate(persisted, config) {
+      const apiHost = resolveApiHost(config)
+      const state = validateRemoteState(persisted, apiHost)
+      return {
+        providerTaskId: state.providerTaskId,
+        remoteContext: { apiHost, apiKey: getApiKey(config, 'open-mineru') }
       }
     }
   }

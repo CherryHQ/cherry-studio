@@ -1,33 +1,11 @@
 import { once } from 'node:events'
-import { rm, writeFile } from 'node:fs/promises'
+import { writeFile } from 'node:fs/promises'
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
-
-import { _electron as electron } from '@playwright/test'
 
 import { createUniqueModelId } from '../../../src/shared/data/types/model'
 import { LATEST_PRIVACY_POLICY_VERSION } from '../../../src/shared/utils/constants'
 import { selectSidebarApp } from '../regression/navigation'
-import { expect, test as base } from './fixtures/electron.fixture'
-
-const test = base.extend({
-  electronApp: async ({}, use, testInfo) => {
-    const profileRoot = testInfo.outputPath('profile')
-    const electronApp = await electron.launch({
-      args: ['.'],
-      env: { ...process.env, NODE_ENV: 'development', CS_DEV_PROFILE_ROOT: profileRoot },
-      timeout: 60000
-    })
-    try {
-      await use(electronApp)
-    } finally {
-      try {
-        await electronApp.close()
-      } finally {
-        await rm(profileRoot, { recursive: true, force: true, maxRetries: 3 })
-      }
-    }
-  }
-})
+import { expect, test } from './fixtures/electron.fixture'
 
 test('shows the provider fallback notice after a real search dispatch', async ({ mainWindow: page }, testInfo) => {
   test.setTimeout(180_000)
@@ -138,7 +116,7 @@ test('shows the provider fallback notice after a real search dispatch', async ({
       await window.api.preference.set('topic.naming.enabled', false)
     }, LATEST_PRIVACY_POLICY_VERSION)
     await page.reload()
-    await expect(page.locator('[data-ui~="app.shell"]').first()).toBeVisible({ timeout: 60_000 })
+    await expect(page.locator('[data-ui~="app.content"]').first()).toBeVisible({ timeout: 60_000 })
 
     const providerId = `fallback-smoke-${Date.now()}`
     const assistantName = `Fallback smoke ${providerId}`
@@ -244,9 +222,16 @@ test('shows the provider fallback notice after a real search dispatch', async ({
     await expect(notice).toBeVisible()
     await expect(notice).toHaveText(noticeText)
     await notifications.hover()
-    const processed = page.getByText('Processed', { exact: true })
-    await processed.first().click()
-    await processed.last().click()
+    const completedTrigger = page.getByTestId('completed-process-trigger')
+    await expect(completedTrigger).toBeVisible({ timeout: 60_000 })
+    if ((await completedTrigger.getAttribute('aria-expanded')) !== 'true') {
+      await completedTrigger.click()
+    }
+    const childTrigger = page.getByTestId('child-tool-group').getByRole('button').first()
+    await expect(childTrigger).toBeVisible({ timeout: 60_000 })
+    if ((await childTrigger.getAttribute('aria-expanded')) !== 'true') {
+      await childTrigger.click()
+    }
     const card = page.getByText(query)
     await expect(card).toBeVisible()
     await expect(page.getByText('1 search result(s)')).toBeVisible()

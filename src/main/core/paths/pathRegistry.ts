@@ -85,6 +85,7 @@ export function buildPathRegistry() {
     'app.root.resources.binaries': path.join(appRootResources, 'binaries'),
     'app.utility_process': path.join(app.getAppPath(), 'out', 'utility-process'), // utility-process entry bundles
     'app.exe_file': app.getPath('exe'),
+    'app.portable_executable': process.env.PORTABLE_EXECUTABLE_FILE || '',
     'app.install': path.dirname(app.getPath('exe')), // directory containing the executable
     'app.logs': LOGS_DIR,
     'app.crash_dumps': app.getPath('crashDumps'),
@@ -147,6 +148,7 @@ export function buildPathRegistry() {
 
     // Isolated preload for site `<webview>` guests. Local mini apps keep their capability bridge.
     'feature.webview.preload_file': path.join(app.getAppPath(), 'out/preload/webview.js'),
+    'feature.mcp.app_preload_file': path.join(app.getAppPath(), 'out/preload/mcpAppGuest.js'),
 
     // Local embedding model cache (transformers.js HF cache root, downloaded on first use)
     'feature.embedding.models': path.join(appUserDataRuntime, 'models', 'qwen3-embedding'),
@@ -242,6 +244,7 @@ export function buildPathRegistry() {
     'feature.ovms.ovocr': path.join(CHERRY_HOME, 'ovms', 'ovocr'),
 
     // Agents
+    'feature.agents.command_parser_assets': path.join(app.getAppPath(), 'out', 'main', 'assets', 'command-parsers'),
     'feature.code_cli.skills.builtin': path.join(appRootResources, 'code-cli-skills'), // conditional Code Mate skill templates (read-only)
     'feature.agents.skills.builtin': path.join(appRootResources, 'skills'), // bundled skill templates (read-only)
     'feature.agents.skills': path.join(appUserDataData, 'Skills'), // installed skills storage
@@ -296,6 +299,7 @@ export function buildPathRegistry() {
     'feature.ocr.paddleocr': path.join(appUserDataRuntime, 'models', 'pp-ocrv6'),
 
     // Version log
+    'feature.legacy_upgrade.cache': path.join(CHERRY_HOME, 'cache', 'legacy-upgrade'),
     'feature.version_log.file': path.join(appUserData, 'version.log'),
 
     // Backup restore promotion — the journal sidecar is owned by
@@ -351,6 +355,7 @@ export function buildPathRegistry() {
     'v1.trace': path.join(CHERRY_HOME, 'trace'),
     'v1.cli.install': path.join(CHERRY_HOME, 'install'),
     'v1.database.file': path.join(appUserData, 'cherrystudio.sqlite'),
+    'v1.home_config_file': path.join(CHERRY_HOME, 'config', 'config.json'),
     'v1.agents.claude': path.join(appUserData, '.claude'),
 
     // -- F. external.* — third-party tool paths (Cherry reads/writes, does NOT own) --
@@ -401,6 +406,7 @@ export function buildPathRegistry() {
     'external.openclaw.config': path.join(sysHome, '.openclaw'),
     'external.deepseek_harness.config': path.join(sysHome, '.dsh'),
     'external.pi.settings_file': path.join(sysHome, '.pi', 'agent', 'settings.json'),
+    'external.grok.version_file': path.join(sysHome, '.grok', 'version.json'),
     'external.hermes.default_home': isWin
       ? path.join(process.env.LOCALAPPDATA?.trim() || path.join(sysHome, 'AppData', 'Local'), 'hermes')
       : path.join(sysHome, '.hermes'),
@@ -437,6 +443,7 @@ type NoEnsureEntry = PathKey | `${TopNamespace}.`
  * Type-checked — typos or stale keys fail at compile time.
  */
 const NO_ENSURE = [
+  'feature.agents.command_parser_assets',
   'feature.agents.pi.sessions',
   'feature.agents.durable.stores',
   // Namespace prefixes
@@ -463,6 +470,7 @@ const NO_ENSURE = [
   'feature.pdfjs.cmaps',
   'feature.pdfjs.standard_fonts',
   'feature.webview.preload_file',
+  'feature.mcp.app_preload_file',
   'feature.code_cli.skills.builtin',
   'feature.agents.builtin',
   'feature.agents.assistant.manifest.file',

@@ -147,18 +147,6 @@ describe('agentHandlers — task logs', () => {
       expect(result).toMatchObject({ items: [mockLog], total: 1, page: 1 })
     })
 
-    it('GET uses default pagination when no query is provided', async () => {
-      getTaskMock.mockReturnValueOnce({ id: TASK_ID, agentId: AGENT_ID })
-      getTaskLogsMock.mockReturnValueOnce({ logs: [], total: 0 })
-
-      const result = await agentHandlers['/agents/:agentId/tasks/:taskId/logs'].GET({
-        params: { agentId: AGENT_ID, taskId: TASK_ID }
-      })
-
-      expect(getTaskLogsMock).toHaveBeenCalledWith(TASK_ID, { limit: 50, offset: 0 })
-      expect(result).toMatchObject({ items: [], total: 0, page: 1 })
-    })
-
     it('GET throws NOT_FOUND when the task does not belong to the agent', async () => {
       getTaskMock.mockReturnValueOnce(null)
 

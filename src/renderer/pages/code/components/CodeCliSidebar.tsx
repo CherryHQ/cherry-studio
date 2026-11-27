@@ -40,7 +40,13 @@ const SidebarStatusTag: FC<{ status?: VersionStatus; isBusy?: boolean }> = ({ st
       </span>
     )
   }
-  if (!status) return null
+  if (!status || status.detectionStatus || status.applicationStatus === 'unknown') {
+    return (
+      <span className="shrink-0 whitespace-nowrap text-[11px] text-foreground-tertiary">
+        {t(!status || status.detectionStatus === 'loading' ? 'common.loading' : 'common.unknown')}
+      </span>
+    )
+  }
   if (!status.installed) {
     return (
       <span className="shrink-0 whitespace-nowrap text-[11px] text-foreground-tertiary">{t('code.not_installed')}</span>
@@ -65,7 +71,10 @@ export const CodeCliSidebar: FC<CodeCliSidebarProps> = ({
 
   return (
     <div data-ui="code.navigation" className="flex h-full min-h-0 w-66 shrink-0 flex-col border-border-subtle border-r">
-      <ScrollArea viewportProps={{ className: 'overflow-x-hidden p-2.5' }} className="min-h-0 flex-1">
+      <ScrollArea
+        contentProps={{ className: 'p-2.5' }}
+        viewportProps={{ className: 'overflow-x-hidden' }}
+        className="min-h-0 flex-1">
         {tools.length === 0 ? (
           <div className="py-8 text-center text-foreground-tertiary text-xs">{t('code.no_tools')}</div>
         ) : (
@@ -97,7 +106,7 @@ export const CodeCliSidebar: FC<CodeCliSidebarProps> = ({
                     type="button"
                     onClick={() => onSelectTool(tool.value)}
                     className="flex min-w-0 flex-1 items-center gap-2.5 rounded-lg px-2 py-1.5 text-left outline-none focus-visible:ring-1 focus-visible:ring-ring">
-                    <CliIcon id={tool.value} size={28} className="size-7 shrink-0" />
+                    <CliIcon id={tool.value} size={32} />
                     <div className="min-w-0 flex-1">
                       <div className="flex min-w-0 items-center gap-2">
                         <div className="min-w-0 flex-1 truncate text-[13px] text-foreground">{meta.label}</div>
@@ -123,7 +132,7 @@ export const CodeCliSidebar: FC<CodeCliSidebarProps> = ({
                           variant="ghost"
                           size="icon-sm"
                           aria-label={t('common.more')}
-                          className="size-7 opacity-0 shadow-none group-focus-within/row:opacity-100 group-hover/row:opacity-100 data-[state=open]:opacity-100"
+                          className="size-7 opacity-0 shadow-none group-focus-within/row:opacity-100 group-hover/row:opacity-100 data-[state=open]:opacity-100 text-muted-foreground"
                           onClick={(event) => event.stopPropagation()}>
                           <MoreHorizontal className="size-4" />
                         </Button>

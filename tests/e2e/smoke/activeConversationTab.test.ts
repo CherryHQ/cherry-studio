@@ -1,18 +1,12 @@
 import { rm } from 'node:fs/promises'
 import { isAbsolute, parse, relative, sep } from 'node:path'
 
-import {
-  _electron as electron,
-  type ElectronApplication,
-  type Locator,
-  type Page,
-  type TestInfo
-} from '@playwright/test'
+import { type ElectronApplication, type Locator, type Page, type TestInfo } from '@playwright/test'
 
 import en from '../../../src/renderer/i18n/locales/en-us.json'
 import { ThemeMode } from '../../../src/shared/data/preference/preferenceTypes'
 import { LATEST_PRIVACY_POLICY_VERSION } from '../../../src/shared/utils/constants'
-import { expect, test as base } from './fixtures/electron.fixture'
+import { closeElectronApp, expect, launchSmokeElectron, test as base } from './fixtures/electron.fixture'
 
 const ALPHA = 'Active tab Alpha'
 const BETA = 'Active tab Beta'
@@ -41,10 +35,10 @@ const test = base.extend<{ isolatedSession: IsolatedSession }>({
     let ownedApp: ElectronApplication | undefined
     const launch = async () => {
       if (ownedApp) {
-        await ownedApp.close()
+        await closeElectronApp(ownedApp)
         ownedApp = undefined
       }
-      ownedApp = await electron.launch({
+      ownedApp = await launchSmokeElectron({
         args: ['.'],
         env: { ...process.env, NODE_ENV: 'development', CS_DEV_PROFILE_ROOT: profile },
         timeout: 60_000
@@ -57,15 +51,15 @@ const test = base.extend<{ isolatedSession: IsolatedSession }>({
       await expect
         .poll(
           async () => {
-            for (const window of ownedApp!.windows()) if ((await window.title()) === 'Cherry Studio') return true
+            for (const window of ownedApp!.windows())
+              if (/\/windows\/main\/index\.html(?:[?#]|$)/.test(window.url())) return true
             return false
           },
           { timeout: 60_000 }
         )
         .toBe(true)
       const windows = ownedApp.windows()
-      const titles = await Promise.all(windows.map((window) => window.title()))
-      const page = windows[titles.indexOf('Cherry Studio')]
+      const page = windows.find((window) => /\/windows\/main\/index\.html(?:[?#]|$)/.test(window.url()))!
       await page.waitForFunction(() => !!window.api?.preference, undefined, { timeout: 60_000 })
       return page
     }
@@ -73,7 +67,7 @@ const test = base.extend<{ isolatedSession: IsolatedSession }>({
       await use({ launch, profile })
     } finally {
       try {
-        await ownedApp?.close()
+        if (ownedApp) await closeElectronApp(ownedApp)
       } finally {
         await rm(profile, { recursive: true, force: true })
       }
@@ -160,10 +154,7 @@ async function expectDraft(page: Page, text: string) {
 }
 
 async function parkPointer(page: Page) {
-  await expect(composer(page)).toBeVisible()
-  const box = await composer(page).boundingBox()
-  expect(box).not.toBeNull()
-  await page.mouse.move(box!.x + 4, box!.y + 4)
+  await composer(page).hover({ position: { x: 4, y: 4 } })
 }
 
 async function capture(page: Page, testInfo: TestInfo, name: string) {
@@ -229,7 +220,12 @@ for (const style of ['opaque', 'transparent'] as const) {
       isolatedSession
     }, testInfo) => {
       test.setTimeout(240_000)
-      test.skip(style === 'transparent' && process.platform !== 'darwin', 'Transparent windows require macOS')
+      if (style === 'transparent' && process.platform !== 'darwin') {
+        testInfo.annotations.push({
+          type: 'platform',
+          description: 'An unsupported transparent preference must retain opaque window styling.'
+        })
+      }
       let page = await isolatedSession.launch()
       await page.evaluate(
         async ({ policyVersion, windowStyle, themeMode }) => {
@@ -245,9 +241,9 @@ for (const style of ['opaque', 'transparent'] as const) {
         { policyVersion: LATEST_PRIVACY_POLICY_VERSION, windowStyle: style, themeMode: theme }
       )
       await page.reload()
-      await expect(page.locator('[data-ui~="app.shell"]').first()).toBeVisible({ timeout: 60_000 })
+      await expect(page.locator('[data-ui~="app.content"]').first()).toBeVisible({ timeout: 60_000 })
       page = await isolatedSession.launch()
-      await expect(page.locator('[data-ui~="app.shell"]').first()).toBeVisible({ timeout: 60_000 })
+      await expect(page.locator('[data-ui~="app.content"]').first()).toBeVisible({ timeout: 60_000 })
       await expect(page.locator('html')).toHaveClass(new RegExp(`\\b${theme}\\b`))
       await expect(page.locator('body')).toHaveClass(new RegExp(`\\b${theme}\\b`))
       await expect(page.locator('body')).toHaveAttribute(
@@ -283,7 +279,7 @@ for (const style of ['opaque', 'transparent'] as const) {
       for (const topic of seeded) expect(topic.id).toMatch(/^[0-9a-f-]{36}$/i)
       expect(seeded[0].id).not.toBe(seeded[1].id)
       await page.reload()
-      await expect(page.locator('[data-ui~="app.shell"]').first()).toBeVisible({ timeout: 60_000 })
+      await expect(page.locator('[data-ui~="app.content"]').first()).toBeVisible({ timeout: 60_000 })
       await enterChat(page)
       await revealTopics(page)
       await topicRow(page, ALPHA).click()
@@ -295,7 +291,7 @@ for (const style of ['opaque', 'transparent'] as const) {
       expect(alphaId).toBeTruthy()
       expect(betaId).toBeTruthy()
       expect(alphaId).not.toBe(betaId)
-      const opaque = style === 'opaque'
+      const opaque = style === 'opaque' || process.platform !== 'darwin'
       await parkPointer(page)
       await expectSelection(page, BETA, opaque)
       await composer(page).fill('Unsent draft for Beta')

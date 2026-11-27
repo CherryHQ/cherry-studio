@@ -1,12 +1,15 @@
+import { CallToolResultSchema } from '@modelcontextprotocol/core'
 import type { DynamicToolUIPart, ProviderMetadata, ToolUIPart, UIDataTypes, UIMessagePart, UITools } from 'ai'
 import { getToolName, isToolUIPart } from 'ai'
 
 import type { McpToolResponse, McpToolResponseStatus, NormalToolResponse } from '@renderer/types/mcpTool'
 import type { BaseTool, McpTool } from '@renderer/types/tool'
+import { type MessagePartRows, messagePartEntries } from '@renderer/utils/message/messagePartRows'
 import { extractOutputMetadata, isToolType, type ToolMetadata, type ToolType } from '@renderer/utils/message/toolOutput'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import { GENERATE_IMAGE_TOOL_NAME } from '@shared/ai/builtinTools'
 import { parseFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
+import { isDeferredToolOutput } from '@shared/ai/transport'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
 import { isMetaToolName } from './meta/metaToolNames'
@@ -15,7 +18,6 @@ import { AgentToolsType } from './shared/agentToolTypes'
 /** AI-SDK-v6 ToolUIPart approval-state string literals. */
 export const APPROVAL_REQUESTED = 'approval-requested'
 export const APPROVAL_RESPONDED = 'approval-responded'
-export const CLAUDE_AGENT_TRANSPORT = AGENT_RUNTIME_CAPABILITIES['claude-code'].transport
 export const PI_AGENT_TRANSPORT = AGENT_RUNTIME_CAPABILITIES.pi.transport
 const CHERRY_AGENT_TRANSPORTS = new Set<string>([
   ...Object.values(AGENT_RUNTIME_CAPABILITIES).map((caps) => caps.transport),
@@ -44,6 +46,7 @@ type ToolResponsePart = ToolUIPart<UITools> | DynamicToolUIPart
 export type ToolResponseLike = McpToolResponse | NormalToolResponse
 
 export interface ToolRenderItem {
+  part?: CherryMessagePart
   id: string
   toolResponse: ToolResponseLike
 }
@@ -209,7 +212,8 @@ export function normalizeToolErrorResponse(errorText: string): unknown {
 
 function normalizeErrorOutput(part: ToolResponsePart): unknown {
   if (part.state !== 'output-error') return undefined
-  return normalizeToolErrorResponse(part.errorText)
+  const deferred = part.resultProviderMetadata?.cherry?.deferredToolOutput
+  return isDeferredToolOutput(deferred) ? deferred : normalizeToolErrorResponse(part.errorText)
 }
 
 function normalizeToolInput(part: ToolResponsePart): unknown {
@@ -263,13 +267,23 @@ export function buildToolResponseFromPart(part: CherryMessagePart, fallbackId?: 
     (status === 'streaming' || status === 'invoking') && typeof toolPart.input === 'string' ? toolPart.input : undefined
 
   if (toolType === 'mcp') {
+    const piResult = toolPart.state === 'output-error' ? toolPart.resultProviderMetadata?.pi?.result : toolPart.output
+    const isPi = toolPart.callProviderMetadata?.cherry?.transport === PI_AGENT_TRANSPORT
+    // Pi keeps a result with non-text blocks (a QR image, say) as its bare content array.
+    const mcpResult = CallToolResultSchema.safeParse(
+      isPi && isRecord(piResult)
+        ? piResult.structuredContent
+        : isPi && Array.isArray(piResult)
+          ? { content: piResult }
+          : undefined
+    )
     const tool = buildMcpToolDescriptor(toolName, metadata)
     const mcpResponse: McpToolResponse = {
       id: toolCallId,
       tool,
       arguments: toolPart.input as McpToolResponse['arguments'],
       status,
-      response,
+      response: mcpResult.success ? mcpResult.data : response,
       ...(approval ? { approval } : {}),
       toolCallId,
       ...(parentToolUseId ? { parentToolUseId } : {}),
@@ -293,12 +307,6 @@ export function buildToolResponseFromPart(part: CherryMessagePart, fallbackId?: 
   return normalResponse
 }
 
-export function buildToolRenderItemFromPart(part: CherryMessagePart, id: string): ToolRenderItem | null {
-  const toolResponse = buildToolResponseFromPart(part, id)
-  if (!toolResponse) return null
-  return { id, toolResponse }
-}
-
 /** Matched `ToolUIPart` plus decoded approval fields. */
 export type ToolApprovalMatch = {
   part: CherryMessagePart
@@ -315,11 +323,11 @@ export type ToolApprovalMatch = {
  * source of truth for approval state after the message-parts migration.
  */
 export function findToolPartByCallId(
-  partsMap: Record<string, CherryMessagePart[]> | null | undefined,
+  partsMap: MessagePartRows | null | undefined,
   toolCallId: string | undefined
 ): ToolApprovalMatch | null {
   if (!partsMap || !toolCallId) return null
-  for (const [messageId, parts] of Object.entries(partsMap)) {
+  for (const [messageId, parts] of messagePartEntries(partsMap)) {
     for (const part of parts) {
       if (!isToolUIPart(part as UIMessagePart<UIDataTypes, UITools>)) continue
       const p = part as unknown as ToolResponsePart
@@ -340,7 +348,7 @@ export function findToolPartByCallId(
 }
 
 export function isToolPartAwaitingApproval(
-  partsMap: Record<string, CherryMessagePart[]> | null | undefined,
+  partsMap: MessagePartRows | null | undefined,
   toolCallId: string | undefined
 ): boolean {
   return findToolPartByCallId(partsMap, toolCallId)?.state === APPROVAL_REQUESTED

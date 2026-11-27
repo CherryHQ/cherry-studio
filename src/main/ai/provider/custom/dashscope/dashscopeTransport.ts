@@ -1,7 +1,9 @@
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { Agent } from 'undici'
 
+import { normalizeModelId } from '@cherrystudio/provider-registry'
 import { DEFAULT_TIMEOUT } from '@main/ai/constants'
+import { normalizePixelSize } from '@shared/ai/imageSize'
 
 import {
   DEFAULT_IMAGE_REQUEST_TIMEOUT_MS,
@@ -135,7 +137,7 @@ function responseFamilyFor(descriptor: DashScopeModelDescriptor): ResponseFamily
   if (path.endsWith('/image-generation/generation') || path.endsWith('/multimodal-generation/generation')) {
     return 'choices'
   }
-  if (descriptor.id === 'qwen-mt-image') {
+  if (normalizeModelId(descriptor.id) === 'qwen-mt-image') {
     return 'image_url'
   }
   return 'results'
@@ -158,17 +160,13 @@ function extractImageUrls(output: DashScopeTaskOutput, family: ResponseFamily): 
 }
 
 /**
- * DashScope's `parameters.size` uses `WIDTH*HEIGHT`; the painting UI canonical
- * form is `WIDTHxHEIGHT`. Returns `undefined` for the `'auto'` sentinel and
- * empty / mismatched input so callers can omit the field entirely.
+ * DashScope's `parameters.size` uses `WIDTH*HEIGHT`; accepts canonical
+ * `WIDTHxHEIGHT` as well as `×`/`*`/`X` separators. Returns `undefined` for
+ * `'auto'` and empty / mismatched input so callers omit the field entirely.
  */
 function toDashScopeSize(size: ImageGenerationSubmitInput['size']): string | undefined {
-  if (!size) return undefined
-  const value = String(size)
-  if (value === 'auto') return undefined
-  if (/^\d+\*\d+$/.test(value)) return value
-  if (/^\d+x\d+$/i.test(value)) return value.replace(/x/i, '*')
-  return undefined
+  const normalized = normalizePixelSize(size)
+  return normalized ? normalized.replace('x', '*') : undefined
 }
 
 /**
@@ -354,42 +352,38 @@ function buildRequestBody(
   descriptor: DashScopeModelDescriptor
 ): Record<string, unknown> {
   const bag = (input.providerParams ?? {}) as DashScopeProviderParams
-  // Descriptor ids arrive in both shapes: the catalog's canonical `modelId` (no dots,
-  // what built-in listings resolve to) and the vendor `apiModelId` (what manually
-  // added models keep). List both per body family.
-  switch (descriptor.id) {
+  switch (normalizeModelId(descriptor.id)) {
     case 'z-image-turbo':
-    case 'qwen-image-3.0':
+    case 'qwen-image-max':
     case 'qwen-image-3-0':
-    case 'qwen-image-3.0-pro':
     case 'qwen-image-3-0-pro':
-    case 'qwen-image-2.0':
+    case 'qwen-image-2-1-pro':
+    case 'qwen-image-2-1-turbo':
     case 'qwen-image-2-0':
-    case 'qwen-image-2.0-pro':
     case 'qwen-image-2-0-pro':
     case 'qwen-image-edit':
+    case 'qwen-image-edit-max':
     case 'qwen-image-edit-plus':
-    case 'wan2.6-image':
     case 'wan2-6-image':
-    case 'wan2.7-image':
     case 'wan2-7-image':
-    case 'wan2.7-image-pro':
     case 'wan2-7-image-pro':
       return buildChatLikeBody(input, bag)
-    case 'qwen-image':
     case 'qwen-image-plus':
-    case 'wanx2.1-t2i-turbo':
-    case 'wanx2.1-t2i-plus':
-    case 'wanx2.0-t2i-turbo':
+      return descriptor.endpoint.endsWith('/multimodal-generation/generation')
+        ? buildChatLikeBody(input, bag)
+        : buildText2ImageBody(input, bag)
+    case 'qwen-image':
+    case 'wanx2-1-t2i-turbo':
+    case 'wanx2-1-t2i-plus':
+    case 'wanx2-0-t2i-turbo':
       return buildText2ImageBody(input, bag)
     case 'wanx-v1':
       return buildWanxV1Body(input, bag)
-    case 'wan2.5-i2i-preview':
     case 'wan2-5-i2i-preview':
       return buildWan25I2IBody(input, bag)
     case 'qwen-mt-image':
       return buildQwenMtImageBody(input, bag)
-    case 'wanx2.1-imageedit':
+    case 'wanx2-1-imageedit':
       return buildWanxImageEditBody(input, bag)
     default:
       throw new Error(`Unsupported DashScope image model: ${descriptor.id}`)

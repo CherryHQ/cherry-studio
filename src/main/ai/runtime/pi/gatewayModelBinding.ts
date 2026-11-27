@@ -1,33 +1,48 @@
 import { randomUUID } from 'node:crypto'
 
-import type { Usage } from '@earendil-works/pi-ai'
+import type { AssistantMessage, Usage } from '@earendil-works/pi-ai'
 import type { ModelRuntime } from '@earendil-works/pi-coding-agent'
-import { SpanKind, SpanStatusCode } from '@opentelemetry/api'
 
+import { application } from '@application'
 import { loggerService } from '@logger'
-import { CHERRY_FAST_MODE_HEADER, CHERRY_REASONING_EFFORT_HEADER, CHERRY_SERVICE_TIER_HEADER } from '@main/ai/constants'
-import { startAgentRuntimeChildSpan, endAgentRuntimeSpan } from '@main/ai/observability'
-import { isPiCompatibleModel, mapEndpointToPiApi, type PiApi } from '@shared/ai/piModelCompatibility'
+import { getPiTraceContext } from '@main/ai/observability'
+import { resolveGatewayModelAddress } from '@main/features/apiGateway/utils/models'
+import { isPiCompatibleModel, mapEndpointToPiApi } from '@shared/ai/piModelCompatibility'
 import { ENDPOINT_TYPE, MODALITY, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { formatApiHost, withoutTrailingApiVersion } from '@shared/utils/api'
+import type { RetryPartData } from '@shared/data/types/uiParts'
 import { formatGatewayModelId } from '@shared/utils/apiGateway'
 import { getRawModelId } from '@shared/utils/model'
 
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
-import { resolveApiGatewayRuntime } from '../agentApiGateway'
+import { needsPlainToolReasoning, ToolContinuationRouteError } from '../../provider/replayRoute'
+import { resolveReplayRouteId } from '../../provider/sdkConfig'
 import { resolveAgentContextWindow } from '../agentContextWindow'
 import type { AgentRuntimeConnectInput } from '../types'
 import { loadPiAi, loadPiApiStreamSimple, loadPiSdk } from './piSdk'
+import {
+  getForeignPiToolOrdinals,
+  getPendingPiReplayMessage,
+  preparePiReplay,
+  type ReplayAssistantMessage
+} from './replayHistory'
+
+const OBJECT_TRANSPORT_API_KEY = 'cherry-object-transport'
 
 /** Native Pi protocols target Cherry's internal gateway; Cherry retains provider credentials and billing. */
 export async function createPiGatewayModelBinding(
-  input: Pick<AgentRuntimeConnectInput, 'sessionId' | 'reasoningEffort' | 'serviceTier' | 'fastMode' | 'trace'>,
+  input: Pick<AgentRuntimeConnectInput, 'sessionId' | 'reasoningEffort' | 'serviceTier' | 'fastMode'>,
   provider: Provider,
   model: Model,
   onUsage?: (usage: Usage, nativeSessionId: string | undefined, responseId?: string) => void,
-  sharedModels?: ModelRuntime
-) {
+  sharedModels?: ModelRuntime,
+  onRetry?: (event: RetryPartData, nativeSessionId: string) => void,
+  nativeProviders?: readonly [string, ...string[]]
+): Promise<{
+  modelRuntime: ModelRuntime
+  model: NonNullable<ReturnType<ModelRuntime['getModel']>>
+  onRetry?: typeof onRetry
+}> {
   if (!isPiCompatibleModel(provider, model)) {
     throw new Error(`Provider "${provider.id}" cannot be routed through the internal gateway for pi agents`)
   }
@@ -39,7 +54,7 @@ export async function createPiGatewayModelBinding(
   const { endpointType } = resolveEffectiveEndpoint(provider, model, preferredEndpoint)
   const adapterFamily = endpointType ? provider.endpointConfigs?.[endpointType]?.adapterFamily : undefined
   const api = mapEndpointToPiApi(endpointType, adapterFamily) ?? 'openai-completions'
-  const gateway = await resolveApiGatewayRuntime(input.sessionId)
+  const gateway = application.get('ApiGatewayService')
   const modelId = formatGatewayModelId(provider.id, getRawModelId(model))
   const modalities: ('text' | 'image')[] = ['text']
   if (
@@ -48,11 +63,8 @@ export async function createPiGatewayModelBinding(
   ) {
     modalities.push('image')
   }
-  const [{ InMemoryCredentialStore }, { ModelRuntime }, streamSimple] = await Promise.all([
-    loadPiAi(),
-    loadPiSdk(),
-    loadPiApiStreamSimple(api)
-  ])
+  const [{ InMemoryCredentialStore, createAssistantMessageEventStream }, { ModelRuntime }, streamSimple] =
+    await Promise.all([loadPiAi(), loadPiSdk(), loadPiApiStreamSimple(api)])
   const modelRuntime =
     sharedModels ??
     (await ModelRuntime.create({
@@ -61,13 +73,14 @@ export async function createPiGatewayModelBinding(
       refreshOnCreate: false
     }))
   // Native provider re-registration replaces its models and stream handler.
-  const providerName = sharedModels ? `cherry-gateway/${input.sessionId}/${randomUUID()}` : provider.id
-  modelRuntime.registerProvider(providerName, {
+  const providerName =
+    nativeProviders?.[0] ?? (sharedModels ? `cherry-gateway/${input.sessionId}/${randomUUID()}` : provider.id)
+  const registration: Parameters<ModelRuntime['registerProvider']>[1] = {
     name: provider.name,
     api,
-    baseUrl: formatPiBaseUrl(gateway.baseUrl, api),
-    // Pi interpolates configured keys; supply the gateway key through runtime credentials instead.
-    apiKey: 'cherry-managed-runtime-key',
+    baseUrl: 'http://cherry-runtime.invalid',
+    // Native clients require a key even though object calls use Cherry's trusted execution path.
+    apiKey: OBJECT_TRANSPORT_API_KEY,
     models: [
       {
         id: modelId,
@@ -81,60 +94,102 @@ export async function createPiGatewayModelBinding(
         ...(provider.id === 'cherryin' && api === 'anthropic-messages' ? { compat: { allowEmptySignature: true } } : {})
       }
     ],
-    headers: {
-      ...gateway.usageHeaders,
-      [CHERRY_REASONING_EFFORT_HEADER]: input.reasoningEffort ?? 'default',
-      ...(input.serviceTier ? { [CHERRY_SERVICE_TIER_HEADER]: input.serviceTier } : {}),
-      [CHERRY_FAST_MODE_HEADER]: String(input.fastMode === true)
-    },
-    // Pi's session retry policy owns retries; neither gateway nor HTTP client retries a step.
     streamSimple: (model, context, options) => {
-      const span = startAgentRuntimeChildSpan(input.trace, 'pi.generate_content', SpanKind.CLIENT, {
-        'gen_ai.operation.name': 'chat',
-        'gen_ai.provider.name': provider.id,
-        'gen_ai.request.model': model.id
-      })
-      // Native reasoning can enlarge per-call output caps before the gateway receives them.
-      const stream = streamSimple(model, context, { ...options, reasoning: undefined, maxRetries: 0 })
-      void stream
+      const output = createAssistantMessageEventStream()
+      void (async () => {
+        try {
+          options?.signal?.throwIfAborted()
+          const pending = getPendingPiReplayMessage(context)
+          if (pending && pending.model !== model.id) {
+            const origin = await resolveGatewayModelAddress(pending.model, true).catch(() => {
+              throw new ToolContinuationRouteError()
+            })
+            const binding = await createPiGatewayModelBinding(
+              input,
+              origin.provider,
+              origin.model,
+              undefined,
+              modelRuntime,
+              onRetry
+            )
+            const stream = binding.modelRuntime.streamSimple(binding.model, context, options)
+            for await (const event of stream) output.push(event)
+            output.end(await stream.result())
+            return
+          }
+          const current = await resolveGatewayModelAddress(model.id, true)
+          const endpoint = resolveEffectiveEndpoint(current.provider, current.model, preferredEndpoint)
+          const routeId = await resolveReplayRouteId(current.provider, current.model, endpoint)
+          if (pending && pending.cherryReplayRouteId !== routeId) throw new ToolContinuationRouteError()
+          options?.signal?.throwIfAborted()
+          const stream = streamSimple(model, preparePiReplay(context, model, routeId), {
+            ...options,
+            objectTransports: gateway.createAgentObjectTransports({
+              ...input,
+              replayRouteId: routeId,
+              ...(model.api === 'google-generative-ai' && {
+                omitGeminiSignaturesFor: getForeignPiToolOrdinals(context, routeId)
+              }),
+              headers: options?.headers,
+              traceContext: getPiTraceContext(options?.telemetry),
+              onRetryEvent: (event) => {
+                if (options?.sessionId && !options.readOnlyFork) onRetry?.(event, options.sessionId)
+              }
+            }),
+            disableContinuation: true,
+            reasoning: undefined,
+            maxRetries: 0
+          })
+          for await (const event of stream) {
+            if (event.type === 'done') {
+              const message = event.message as ReplayAssistantMessage
+              message.cherryReplayRouteId = routeId
+              if (needsPlainToolReasoning(endpoint.endpointType, current.model))
+                message.cherryRequiresToolReasoning = true
+            }
+            output.push(event)
+          }
+          output.end(await stream.result())
+        } catch (cause) {
+          const reason = options?.signal?.aborted ? 'aborted' : 'error'
+          const error: AssistantMessage = {
+            role: 'assistant',
+            content: [],
+            api: model.api,
+            provider: model.provider,
+            model: model.id,
+            usage: {
+              input: 0,
+              output: 0,
+              cacheRead: 0,
+              cacheWrite: 0,
+              totalTokens: 0,
+              cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 }
+            },
+            timestamp: Date.now(),
+            stopReason: reason,
+            errorMessage: cause instanceof Error ? cause.message : String(cause)
+          }
+          output.push({ type: 'error', reason, error })
+          output.end(error)
+        }
+      })()
+      void output
         .result()
         .then((message) => {
-          onUsage?.(message.usage, options?.sessionId, message.responseId)
-          const failed = message.stopReason === 'error' || message.stopReason === 'aborted'
-          if (span) {
-            span.setAttribute(
-              'gen_ai.usage.input_tokens',
-              message.usage.input + message.usage.cacheRead + message.usage.cacheWrite
-            )
-            span.setAttribute('gen_ai.usage.output_tokens', message.usage.output)
-            endAgentRuntimeSpan(span, {
-              code: failed ? SpanStatusCode.ERROR : SpanStatusCode.OK,
-              message: message.errorMessage
-            })
-          }
+          if (!options?.readOnlyFork) onUsage?.(message.usage, options?.sessionId, message.responseId)
         })
         .catch((error) => {
-          if (span) endAgentRuntimeSpan(span, { code: SpanStatusCode.ERROR, message: String(error) })
           loggerService.withContext('PiGatewayModelBinding').error('Failed to observe native model response', { error })
         })
-      return stream
+      return output
     }
-  })
-  await modelRuntime.setRuntimeApiKey(providerName, gateway.apiKey)
+  }
+  for (const name of new Set(nativeProviders ?? [providerName])) {
+    modelRuntime.registerProvider(name, registration)
+    await modelRuntime.setRuntimeApiKey(name, OBJECT_TRANSPORT_API_KEY)
+  }
   const registered = modelRuntime.getModel(providerName, modelId)
   if (!registered) throw new Error(`Pi gateway model ${modelId} was not registered`)
-  return { modelRuntime, model: registered }
-}
-
-function formatPiBaseUrl(baseUrl: string, api: PiApi): string {
-  switch (api) {
-    case 'openai-completions':
-    case 'openai-responses':
-      return formatApiHost(baseUrl)
-    case 'google-generative-ai':
-      return formatApiHost(baseUrl, true, 'v1beta')
-    case 'anthropic-messages':
-      // Anthropic's SDK appends `/v1/messages` itself.
-      return withoutTrailingApiVersion(formatApiHost(baseUrl, false))
-  }
+  return { modelRuntime, model: registered, ...(onRetry && { onRetry }) }
 }

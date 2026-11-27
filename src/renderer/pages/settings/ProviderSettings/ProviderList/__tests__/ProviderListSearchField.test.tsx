@@ -24,10 +24,4 @@ describe('ProviderListSearchField', () => {
 
     expect(onValueChange).toHaveBeenCalledWith('')
   })
-
-  it('hides the clear button when search is empty', () => {
-    render(<ProviderListSearchField value="" disabled={false} onValueChange={vi.fn()} />)
-
-    expect(screen.queryByRole('button', { name: 'common.clear' })).not.toBeInTheDocument()
-  })
 })

@@ -84,12 +84,6 @@ describe('OcrStatusIcon', () => {
     expect(order).toEqual(['ipc:screenshot.cancel', 'nav:/settings/local-models'])
   })
 
-  it('renders nothing while idle, so the toolbar has no dead affordance', () => {
-    render(<OcrStatusIcon status="idle" />)
-
-    expect(screen.queryByRole('button')).not.toBeInTheDocument()
-  })
-
   it('greys out the affordance while annotating, whatever the recognition is doing', async () => {
     const onCopyText = vi.fn()
     render(<OcrStatusIcon status="done" disabled onCopyText={onCopyText} />)

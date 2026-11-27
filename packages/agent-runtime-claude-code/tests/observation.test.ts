@@ -1,4 +1,7 @@
 import { randomUUID } from 'node:crypto'
+import { setImmediate as nextTurn } from 'node:timers/promises'
+import { setFlagsFromString } from 'node:v8'
+import { runInNewContext } from 'node:vm'
 
 import type {
   SDKAssistantMessage,
@@ -7,12 +10,22 @@ import type {
   SDKPermissionDeniedMessage,
   SDKUserMessage
 } from '@anthropic-ai/claude-agent-sdk'
-import { expect, it } from 'vitest'
+import { expect, it, vi } from 'vitest'
 
 import { claudeThread, type ClaudeObservation } from '../src'
 import { ClaudeFeed } from '../src/observation'
 import { confirmed, observe, textOf } from './nativeFixture'
 import { assistantMessage, wireFixture } from './wireFixture'
+
+setFlagsFromString('--expose_gc')
+const collectGarbage = runInNewContext('gc') as () => void
+async function retainedHeap(): Promise<number> {
+  await nextTurn()
+  collectGarbage()
+  await nextTurn()
+  collectGarbage()
+  return process.memoryUsage().heapUsed
+}
 
 function denied(sessionId: string, toolUseId: string): SDKPermissionDeniedMessage {
   return {
@@ -25,6 +38,73 @@ function denied(sessionId: string, toolUseId: string): SDKPermissionDeniedMessag
     session_id: sessionId
   }
 }
+
+it.each([20, 20000])('publishes a task run and response without visiting %i unrelated native records', async (size) => {
+  const feed = new ClaudeFeed((error) => {
+    throw error
+  })
+  const sessionId = randomUUID()
+  feed.publish(
+    [],
+    Array.from({ length: size }, (_, n) => ({ source: 'live' as const, message: denied(sessionId, String(n)) }))
+  )
+  const observed = feed.observe(() => {})
+  await observed.drain()
+  const task = (run_id: string): SDKMessage => ({
+    type: 'system',
+    subtype: 'task_started',
+    task_id: 'child',
+    run_id,
+    description: 'Child',
+    uuid: randomUUID(),
+    session_id: sessionId
+  })
+  const progress = (task_id: string): SDKMessage => ({
+    type: 'tool_progress',
+    tool_use_id: 'tool',
+    tool_name: 'Read',
+    parent_tool_use_id: null,
+    elapsed_time_seconds: 1,
+    task_id,
+    uuid: randomUUID(),
+    session_id: sessionId
+  })
+  const old = progress('child')
+  const other = progress('sibling')
+  const resumed = task('002')
+  const entries = vi.spyOn(feed['native'], Symbol.iterator)
+  const values = vi.spyOn(feed['native'], 'values')
+  try {
+    feed.publish(
+      [],
+      [task('001'), old, other].map((message) => ({ source: 'live', message }))
+    )
+    feed.publish(
+      [],
+      [{ source: 'live', message: resumed }],
+      undefined,
+      [],
+      [{ type: 'response-start', responseId: 'reply' }]
+    )
+    await observed.drain()
+    expect([entries.mock.calls.length, values.mock.calls.length]).toEqual([0, 0])
+  } finally {
+    entries.mockRestore()
+    values.mockRestore()
+    await observed.stop()
+  }
+  const batches: ClaudeObservation[] = []
+  const late = feed.observe((batch) => {
+    batches.push(batch)
+  })
+  await late.drain()
+  const ids = batches[0].native.map(({ message }) => message.uuid)
+  expect(ids).toHaveLength(size + 2)
+  expect(ids).toContain(resumed.uuid)
+  expect(ids).toContain(other.uuid)
+  expect(ids).not.toContain(old.uuid)
+  await late.stop()
+})
 
 it('attaches current background occupancy without replaying an earlier completion or charge', async () => {
   const test = await wireFixture()
@@ -50,7 +130,9 @@ it('attaches current background occupancy without replaying an earlier completio
     })
     await expect
       .poll(() =>
-        test.view.batches.flatMap((batch) => batch.controls ?? []).some((fact) => fact.type === 'background-tasks')
+        test.view.batches
+          .flatMap((batch) => batch.controls ?? [])
+          .some((fact) => fact.type === 'background-tasks' && fact.tasks.some((task) => task.task_id === 'child'))
       )
       .toBe(true)
     expect(test.view.batches.flatMap((batch) => batch.controls ?? []).some((fact) => fact.type === 'result')).toBe(true)
@@ -113,7 +195,7 @@ it('delivers queued final content before close without waiting for a detached or
         .flatMap((batch) => batch.events)
         .some(
           (event) =>
-            event.type === 'message.upsert' &&
+            event.type === 'message.reconcile' &&
             event.message.parts.some((part) => 'text' in part && part.text === 'Last content')
         )
     ).toBe(true)
@@ -325,6 +407,19 @@ it('recovers a slow observer with a paired native baseline while other observers
     const denials = [denied(test.sessionId, 'call-a'), denied(test.sessionId, 'call-b')]
     for (const denial of denials) test.send(denial)
     for (let index = 0; index < 150; index++) test.send(test.assistant(`Block ${index}`))
+    for (let index = 1; index <= 110; index++)
+      test.send({
+        type: 'system',
+        subtype: 'thinking_tokens',
+        estimated_tokens: index,
+        estimated_tokens_delta: 1,
+        session_id: test.sessionId,
+        uuid: randomUUID()
+      })
+    await test.view.event(
+      (message) =>
+        message.type === 'system' && message.subtype === 'thinking_tokens' && message.estimated_tokens === 110
+    )
     await expect.poll(() => test.view.snapshot.messages.length).toBe(150)
     expect(batches).toHaveLength(1)
     resume()
@@ -371,15 +466,37 @@ it('isolates a throwing observer and leaves uncorrelated commands and ambiguous 
       session_id: test.sessionId,
       content: 'Local output'
     })
+    test.send(test.assistant('Before'))
+    test.send({
+      type: 'system',
+      subtype: 'task_started',
+      uuid: randomUUID(),
+      session_id: test.sessionId,
+      task_id: 'known-child',
+      run_id: '001',
+      task_type: 'local_agent',
+      description: 'Known child',
+      spawn_depth: 1
+    })
+    await expect.poll(() => test.view.snapshot.subagents?.length).toBe(1)
+    const relations = test.view.snapshot.subagents
     test.send(test.assistant('Unknown child', { parent_tool_use_id: 'unknown_parent' }))
+    test.send(test.assistant('Another unknown child', { parent_tool_use_id: 'unknown_parent' }))
     test.send(test.assistant('Root still receives'))
-    await expect.poll(() => textOf(test.view.snapshot)).toEqual(['Root still receives'])
+    await expect.poll(() => textOf(test.view.snapshot)).toEqual(['Before', 'Root still receives'])
     expect(test.view.snapshot.inputs.every((input) => input.outcome === undefined)).toBe(true)
+    expect(test.view.snapshot.subagents).toEqual(relations)
     expect(
       test.view.batches.some((batch) =>
         batch.events.some((event) => event.type === 'gap' && event.reason === 'mapping-reset')
       )
-    ).toBe(true)
+    ).toBe(false)
+    expect(
+      test.view.batches
+        .slice(1)
+        .flatMap((batch) => batch.events)
+        .some((event) => event.type === 'snapshot')
+    ).toBe(false)
     await expect
       .poll(() => test.failures.some((error) => error instanceof Error && error.message === 'Consumer failed'))
       .toBe(true)
@@ -597,5 +714,182 @@ it('retains validated rejection identity for a late subscriber and overflow reco
   await lateObservation.drain()
   expect(late[0].native.find((entry) => entry.message.uuid === source.uuid)?.isApiErrorMessage).toBe(true)
   await lateObservation.stop()
+  await observation.stop()
+})
+
+it('retains root state with compacted context in the boundary publication', async () => {
+  const test = await wireFixture({ model: 'test', contextWindow: { model: 'test', tokens: 100000 } })
+  try {
+    const nativeInput = test.view.snapshot.inputs[0].nativeInput!.id
+    test.send({
+      type: 'result',
+      subtype: 'success',
+      uuid: randomUUID(),
+      session_id: test.sessionId,
+      user_message_uuid: nativeInput,
+      result: '',
+      is_error: false,
+      stop_reason: 'end_turn',
+      usage: { input_tokens: 1, output_tokens: 1 },
+      modelUsage: {},
+      permission_denials: []
+    } as unknown as SDKMessage)
+    await expect.poll(() => test.view.snapshot.inputs[0].outcome).toBe('completed')
+    const history = test.assistant('History')
+    test.send(history)
+    test.send({
+      type: 'system',
+      subtype: 'task_started',
+      uuid: randomUUID(),
+      session_id: test.sessionId,
+      task_id: 'child',
+      run_id: '001',
+      task_type: 'local_agent',
+      description: 'Child',
+      spawn_depth: 1
+    })
+    test.send({
+      type: 'stream_event',
+      uuid: randomUUID(),
+      session_id: test.sessionId,
+      parent_tool_use_id: null,
+      event: { type: 'message_start', message: { ...test.assistant('').message, content: [] } }
+    })
+    await expect.poll(() => test.view.snapshot.contextUsage?.status).toBe('confirmed')
+    const before = test.view.snapshot
+    expect(before.inputs.length).toBeGreaterThan(0)
+    expect(before.subagents).toHaveLength(1)
+    const boundary = {
+      type: 'system',
+      subtype: 'compact_boundary',
+      uuid: randomUUID(),
+      session_id: test.sessionId,
+      compact_metadata: { trigger: 'manual', pre_tokens: 1 }
+    } as SDKMessage
+    test.send(boundary)
+    await test.view.event((message) => 'uuid' in message && message.uuid === boundary.uuid)
+    const batch = test.view.batches.find((entry) =>
+      entry.native.some(({ message }) => 'uuid' in message && message.uuid === boundary.uuid)
+    )!
+    expect(batch.events.map((event) => event.type).slice(-3)).toEqual(['context.changed', 'gap', 'snapshot'])
+    expect(batch.events.at(-1)).toMatchObject({
+      type: 'snapshot',
+      messages: before.messages,
+      inputs: before.inputs,
+      subagents: before.subagents,
+      activity: before.activity,
+      contextUsage: { status: 'unknown', error: { code: 'compacted' } }
+    })
+    expect(test.view.snapshot.contextUsage).toMatchObject({ status: 'unknown', error: { code: 'compacted' } })
+  } finally {
+    await test.close()
+  }
+})
+
+it('delivers each charge and control with its own content when two turns overflow before close', async () => {
+  const feed = new ClaudeFeed((error) => {
+    throw error
+  })
+  let resume!: () => void
+  const gate = new Promise<void>((resolve) => {
+    resume = resolve
+  })
+  let current = ''
+  const received: string[] = []
+  const observation = feed.observe(async (batch) => {
+    for (const event of batch.events) {
+      const message =
+        event.type === 'snapshot' ? event.messages[0] : event.type === 'message.reconcile' ? event.message : undefined
+      if (message?.parts[0]?.type === 'text') current = message.parts[0].text
+      if (event.type === 'closed') received.push(`closed ${current}`)
+    }
+    for (const invocation of batch.invocations ?? []) received.push(`charge ${invocation.responseId} ${current}`)
+    for (const control of batch.controls ?? [])
+      if (control.type === 'response-start') received.push(`start ${control.responseId} ${current}`)
+    await gate
+  })
+  await Promise.resolve()
+  for (const turn of ['first', 'second', 'last']) {
+    for (let n = 0; n < 130; n++)
+      feed.publish([
+        {
+          type: 'message.reconcile',
+          message: { id: 'body', role: 'assistant', parts: [{ type: 'text', text: `${turn} ${n}` }] }
+        }
+      ])
+    if (turn !== 'last')
+      feed.publish([], [], undefined, [{ responseId: turn }], [{ type: 'response-start', responseId: turn }])
+  }
+  feed.close('shutdown')
+  resume()
+  await observation.drain()
+  expect(received).toEqual([
+    'charge first first 129',
+    'start first first 129',
+    'charge second second 129',
+    'start second second 129',
+    'closed last 129'
+  ])
+})
+
+it('closes only the observer that cannot deliver its pending controls', async () => {
+  const errors: unknown[] = []
+  const feed = new ClaudeFeed((error) => errors.push(error))
+  let resume!: () => void
+  const gate = new Promise<void>((resolve) => {
+    resume = resolve
+  })
+  const terminal: string[] = []
+  const slow = feed.observe(async (batch) => {
+    for (const event of batch.events) if (event.type === 'gap' || event.type === 'closed') terminal.push(event.reason)
+    await gate
+  })
+  let count = 0
+  const fast = feed.observe((batch) => {
+    count += batch.controls?.length ?? 0
+  })
+  for (let n = 0; n <= 1000; n++) {
+    feed.publish([], [], undefined, [], [{ type: 'response-start', responseId: String(n) }])
+    await fast.drain()
+  }
+  resume()
+  await slow.drain()
+  expect(terminal).toEqual(['overflow', 'source-lost'])
+  expect(errors).toHaveLength(1)
+  expect(count).toBe(1001)
+  await fast.stop()
+})
+
+it('shares retained native history across critical frames held for a stalled observer', async () => {
+  const feed = new ClaudeFeed((error) => {
+    throw error
+  })
+  const sessionId = randomUUID()
+  feed.publish(
+    [],
+    Array.from({ length: 2000 }, (_, index) => ({
+      source: 'live' as const,
+      message: assistantMessage(sessionId, [{ type: 'text', text: `saved ${index}`, citations: null }])
+    }))
+  )
+  let release!: () => void
+  const held = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  const batches: ClaudeObservation[] = []
+  const observation = feed.observe(async (batch) => {
+    batches.push(batch)
+    if (batches.length === 1) await held
+  })
+  const before = await retainedHeap()
+  for (let index = 0; index < 90; index++) feed.publish([], [], undefined, [], [{ type: 'session', sessionId }])
+  const retained = (await retainedHeap()) - before
+  release()
+  await observation.drain()
+  expect(retained).toBeLessThan(16 * 1024 * 1024)
+  expect(batches[0].native).toHaveLength(2000)
+  expect(batches.slice(1).map((batch) => batch.controls)).toEqual(
+    Array.from({ length: 90 }, () => [{ type: 'session', sessionId }])
+  )
   await observation.stop()
 })
