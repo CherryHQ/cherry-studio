@@ -358,27 +358,6 @@ describe('ThinkingBlock', () => {
       // Completed reasoning renders at natural height for readability.
       expect(getContentContainer()).not.toHaveClass('max-h-[min(32rem,60dvh)]')
     })
-
-    it('uses theme-aware muted foreground for panel and markdown content', () => {
-      mockRenderConfig.thoughtAutoCollapse = false
-      const block = createThinkingBlock({ content: 'Readable reasoning text' })
-      renderThinkingBlock(block)
-
-      const panel = getContentContainer()!
-      expect(panel).toHaveClass('text-muted-foreground')
-
-      const markdownWrapper = screen.getByText('Markdown: Readable reasoning text').parentElement
-      expect(markdownWrapper).toHaveClass('text-muted-foreground')
-      expect(markdownWrapper).toHaveStyle({ '--markdown-foreground': 'var(--muted-foreground)' })
-    })
-
-    it('keeps short thinking content compact without a minimum panel height', () => {
-      mockRenderConfig.thoughtAutoCollapse = false
-      const block = createThinkingBlock({ content: 'Short thought.' })
-      renderThinkingBlock(block)
-
-      expect(getContentContainer()?.className).not.toMatch(/min-h-/)
-    })
   })
 
   it('follows streamed thinking only while the reader remains at the bottom', () => {

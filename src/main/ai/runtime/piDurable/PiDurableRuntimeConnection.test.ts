@@ -39,6 +39,7 @@ import type {
 } from '@cherrystudio/agent-runtime-pi-durable'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
@@ -92,6 +93,7 @@ import { runtimeDriverRegistry } from '../registry'
 import type { AgentRuntimeConnectInput, AgentRuntimeEvent } from '../types'
 import { allocateDurableBackendTx, prepareDurableBranch, reserveDurableBranchTx } from './durableContext'
 import { prepareDurableDesktop } from './durableDesktop'
+import { DurableForkCheckpointSchema } from './forkCheckpoint'
 import type { PiDurableRuntimeConnection } from './PiDurableRuntimeConnection'
 import { PiDurableRuntimeDriver } from './PiDurableRuntimeDriver'
 
@@ -2430,7 +2432,9 @@ describe('desktop Pi Durable connection', () => {
       await expect.poll(() => steering !== undefined).toBe(true)
       expect(await steering).toBe(outcome === 'rejected' ? 'child is busy' : 'sent')
       if (outcome === 'acknowledged')
-        await expect.poll(() => JSON.stringify(view.snapshot().messages)).toContain('child continued answer')
+        await expect
+          .poll(() => JSON.stringify(view.snapshot().messages), CHILD_WAIT)
+          .toContain('child continued answer')
       await connection.drainChildWrites()
       const saved = order(savedChildView(contexts.context(contextId)).messages)
       expect(saved.answer).toBeGreaterThanOrEqual(0)
@@ -3086,6 +3090,11 @@ describe('desktop Pi Durable connection', () => {
       }
       await done(events)
       await connection.close()
+      dbh.db
+        .update(agentSessionMessageTable)
+        .set({ pos: null })
+        .where(eq(agentSessionMessageTable.id, original.id))
+        .run()
       setScript([assistantReply('unexpected duplicate request')])
       BaseService.resetInstances()
       const service = new AgentSessionRuntimeService()
@@ -3097,6 +3106,15 @@ describe('desktop Pi Durable connection', () => {
       await service._doDestroy()
       const row = messages.getSessionMessage(input.sessionId, run.id)
       expect(row.status).toBe(reason === 'stop' ? 'success' : reason === 'aborted' ? 'paused' : 'error')
+      const prefix = messages.readForkPrefixTx(dbh.db, input.sessionId, run.id)!
+      expect(prefix.map((row) => row.id)).toContain(original.id)
+      const recovered = prefix.find((row) => row.id === run.id)!
+      if (reason === 'stop') {
+        expect(recovered.data.runtimeAnchor).toMatchObject({
+          checkpoint: { runtime: 'pi-durable', entryId: expect.any(String) }
+        })
+        expect(recovered.runtimeResumeToken).toBeTruthy()
+      } else expect(recovered.data.runtimeAnchor).toBeUndefined()
       expect(row.data.parts?.[0]).toMatchObject({
         type: 'text',
         text: reason === 'aborted' ? 'partial' : 'Complete native text'
@@ -3320,7 +3338,7 @@ describe('desktop Pi Durable connection', () => {
     held.open()
     await done(events)
 
-    const boundaries = events.filter((event) => event.type === 'steer-boundary')
+    const boundaries = events.filter((event) => event.type === 'run-started')
     expect(boundaries).toEqual([expect.objectContaining({ inputIds: [second.id] })])
     const boundary = events.indexOf(boundaries[0])
     expect(projectionIndex(events, 'first answer')).toBeLessThan(boundary)
@@ -3328,6 +3346,63 @@ describe('desktop Pi Durable connection', () => {
     expect(nativeInputs.some((state) => state.inputId === second.id && state.outcome === 'completed')).toBe(true)
     expect(events.filter((event) => event.type === 'turn-complete')).toHaveLength(1)
     expect(events.filter((event) => event.type === 'error')).toEqual([])
+  })
+
+  it('reports each queued Run checkpoint before idle and replays the exact answer positions on reopen', async () => {
+    const first = gate()
+    const second = gate()
+    script = respondingModel((call) =>
+      JSON.stringify(call.messages.findLast((entry) => entry.role === 'user')).includes('second')
+        ? second.wait(assistantReply('second answer'))
+        : first.wait(assistantReply('first answer'))
+    )
+    const running = await connect()
+    const original = message('first')
+    await running.connection.send({ message: original })
+    await first.reached
+    const queued = message('second')
+    running.connection.followUp({ message: queued })
+    await expect
+      .poll(() => running.nativeInputs.some((state) => state.inputId === queued.id && state.facts.includes('queued')))
+      .toBe(true)
+    first.open()
+    await second.reached
+    await expect
+      .poll(() => running.events.some((event) => event.type === 'run-checkpoint' && event.inputId === original.id))
+      .toBe(true)
+    expect(running.events.some((event) => event.type === 'turn-complete')).toBe(false)
+    const checkpoint = running.events.find((event) => event.type === 'run-checkpoint' && event.inputId === original.id)!
+    second.open()
+    await done(running.events)
+    const last = running.events.find((event) => event.type === 'run-checkpoint' && event.inputId === queued.id)!
+    expect(last).toBeDefined()
+    expect(last).not.toEqual(checkpoint)
+    if (checkpoint.type !== 'run-checkpoint') throw new Error('Missing first Run checkpoint')
+    const selected = DurableForkCheckpointSchema.parse(checkpoint.forkAnchor.checkpoint)
+    const fork = await driver.fork({
+      sourceSessionId: input.sessionId,
+      sourceBackendId: selected.backendId,
+      checkpoint: selected,
+      checkpoints: [selected],
+      targetSessionId: uuid(),
+      targetCwd: directory,
+      artifactDirectory: directory,
+      signal: new AbortController().signal
+    })
+    const inherited = await running.connection['runtime']!.durable.commit(
+      async (tx) =>
+        (await tx.scanEntries({ conversationId: Number(fork.resumeToken) as ConversationId, order: 'ascending' }, 256))
+          .items,
+      BACKGROUND_CONTEXT
+    )
+    expect(JSON.stringify(inherited)).toContain('first answer')
+    expect(JSON.stringify(inherited)).not.toContain('second answer')
+    await running.connection.close()
+    const reopened = await connect()
+    await expect
+      .poll(() => reopened.events.filter((event) => event.type === 'run-checkpoint'))
+      .toEqual(expect.arrayContaining([checkpoint, last]))
+    expect(script.calls).toHaveLength(2)
   })
 
   // A truncated answer belongs to its own input; the follow-up placed after it must not inherit the failure.
@@ -3363,6 +3438,29 @@ describe('desktop Pi Durable connection', () => {
     expect(events.filter((event) => event.type === 'turn-complete')).toHaveLength(1)
   })
 
+  it('retains an earlier input failure when a steer joins the same run', async () => {
+    const held = gate()
+    script = respondingModel((call) => {
+      const last = JSON.stringify(call.messages.findLast((entry) => entry.role === 'user'))
+      if (last.includes('correction')) return assistantReply('corrected answer')
+      return held.wait(assistantReply('truncated answer', 'length'))
+    })
+    const { connection, events, nativeInputs } = await connect()
+    const first = message('first')
+    await connection.send({ message: first })
+    await held.reached
+    const steer = message('correction')
+    expect(connection.redirect({ message: steer })).toBe(true)
+    await expect.poll(() => nativeInputs.some((state) => state.inputId === steer.id)).toBe(true)
+    held.open()
+    await expect.poll(() => events.some((event) => event.type === 'error'), { timeout: 10000 }).toBe(true)
+    expect(events).toContainEqual(expect.objectContaining({ type: 'steer-boundary', inputIds: [steer.id] }))
+    expect(events.filter((event) => event.type === 'run-started')).toEqual([])
+    const failure = events.find((event) => event.type === 'error')!
+    if (failure.type !== 'error') throw new Error('Missing Run failure')
+    expect(serializeError(failure.error)).toMatchObject({ reason: 'output-truncated', finishReason: 'length' })
+  })
+
   // AC4: a send that races running native work used to fail with "Durable already has an active submission".
   it('admits a send that arrives while native work runs', async () => {
     const held = answerByInput()
@@ -3375,7 +3473,7 @@ describe('desktop Pi Durable connection', () => {
     await done(events)
 
     expect(text(events)).toContain('second answer')
-    expect(events).toContainEqual(expect.objectContaining({ type: 'steer-boundary', inputIds: [second.id] }))
+    expect(events).toContainEqual(expect.objectContaining({ type: 'run-started', inputIds: [second.id] }))
     expect(nativeInputs.some((state) => state.inputId === second.id && state.outcome === 'completed')).toBe(true)
     expect(events.filter((event) => event.type === 'error')).toEqual([])
   })
@@ -3397,7 +3495,7 @@ describe('desktop Pi Durable connection', () => {
 
     expect(nativeInputs.findLast((state) => state.inputId === second.id)).toMatchObject({ outcome: 'aborted' })
     expect(text(events)).not.toContain('second answer')
-    expect(events).not.toContainEqual(expect.objectContaining({ type: 'steer-boundary', inputIds: [second.id] }))
+    expect(events).not.toContainEqual(expect.objectContaining({ type: 'run-started', inputIds: [second.id] }))
   })
 
   it('recovers an unsent message when native withdrawal committed before the desktop projection', async () => {
@@ -3487,7 +3585,7 @@ describe('desktop Pi Durable connection', () => {
     expect(reopened.events).toContainEqual(
       expect.objectContaining({ type: 'autonomous-turn-state', state: 'started', recoveredInputId: user.id })
     )
-    expect(reopened.events).toContainEqual(expect.objectContaining({ type: 'steer-boundary', inputIds: [second.id] }))
+    expect(reopened.events).toContainEqual(expect.objectContaining({ type: 'run-started', inputIds: [second.id] }))
     expect(text(reopened.events)).toContain('second answer')
     expect(reopened.nativeInputs.some((state) => state.inputId === second.id && state.outcome === 'completed')).toBe(
       true

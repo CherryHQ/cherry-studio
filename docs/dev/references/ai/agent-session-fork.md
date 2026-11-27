@@ -28,7 +28,7 @@ history through the selected turn and a native runtime resume reference.
 It does not start or interrupt the source connection. The source can continue
 appending later turns, and deleting it does not invalidate a published child.
 
-The last copied message carries a `data-agent-session-fork` part containing only
+The selected assistant Run carries a `data-agent-session-fork` part containing only
 `sourceSessionId`. Its link opens the direct parent after checking it still exists;
 missing or trashed parents produce a frontend error. Forking again replaces inherited
 markers. The link stays at the copied boundary, with no backfill for existing forks.
@@ -37,6 +37,19 @@ The new name uses the next available suffix for the Agent, such as `Session (1)`
 Forking a numbered session advances that suffix instead of nesting it. Queued
 deliveries, live tasks, approval authority, and usage statistics are not inherited.
 Copied unfinished tool calls become terminal errors; they do not resume execution.
+Placed steer inputs belonging to the selected Run are included even when their rows follow
+the assistant row. Copied inputs reference the new Run ID; copied parts receive new IDs
+and retain their timeline positions. Only the final display segment offers the Run fork action.
+Runs are ordered by their first admitted input. Fork includes only complete Runs
+through its selected boundary, regardless of queued tree ancestry. Bound inputs
+without an admitted position are excluded; genuine positionless legacy history remains.
+Publication reconnects the retained rows into the child branch. The history resolver
+selects the prefix from metadata before loading its parts and archived tool results.
+An addressed nonactive branch uses its own history for action eligibility.
+An action page reuses each resolved branch across its rows. Prefix message reads
+are batched below the SQLite parameter limit and reassembled in resolver order.
+Confirmed native placement recovered after a missed live event remains admission
+evidence even when the recovered Run ends in error or pauses.
 
 User workspaces remain shared. System workspaces copy their **current** files into
 the child's workspace; selecting an earlier turn does not restore historical file
@@ -49,8 +62,9 @@ The operation journal records the intended native context before preparation. Th
 
 ## Edit and resend within a session
 
-**Edit and resend** replaces the selected input and removes its descendant subtree
-in one product transaction. It does not retain a new history version. The common
+**Edit and resend** replaces the selected Run's original input and its later descendants
+in one product transaction. The selected path is reconnected in Run order first, so
+queued tree ancestry cannot remove an earlier completed Run. It does not retain a new history version. The common
 prefix, existing sibling branches outside that subtree, and independent fork sessions remain unchanged.
 Desktop asks for confirmation when saving an edit, before changing displayed history or dispatching the replacement. Cancelling keeps the draft and original messages.
 Hiding or closing the originating view invalidates its pending confirmation, even if the same session is shown again before the dialog is answered.
@@ -60,8 +74,15 @@ that binding and do not overwrite the original prefix rows.
 
 For the first input, an empty prefix records a fresh intended native identity;
 Pi creates that context on dispatch. A nonempty prefix requires a valid native
-checkpoint immediately before the edited input. Editing is rejected while the session has unsettled work,
-including outgoing cross-session deliveries. Failed preparation or publication preserves the original tree.
+checkpoint from the preceding Run in execution order. In-Run steer inputs remain
+ineligible for editing. Editing is rejected while the session has unsettled work,
+including outgoing cross-session deliveries. Inputs accepted inside a Run cannot use its final
+checkpoint as their preceding edit boundary. Failed preparation or publication preserves the original tree.
+Eligibility and native preparation share the resolver's edit resolution. Steer and
+known unplaced inputs cannot produce an edit plan. Withdrawn inputs cannot supply
+the preceding checkpoint. Product replacement consumes the read phase's opaque,
+readonly edit plan with its captured history version; a changed version rejects
+publication before any parent links or messages change. Unchanged links are not written.
 Pi Durable noninitial edits publish the native fork's allocated product context identity and remapped checkpoints in the replacement input transaction. First-input edits reserve a fresh empty backend/context and create native storage only on dispatch. Native numeric IDs are local to a store, so publication and recovery check the exact context rather than matching an unrelated backend's token.
 Neither edit/resend nor branch selection restores workspace files.
 
@@ -98,7 +119,9 @@ be recovered.
 Message pages select IDs before loading payloads. With `deferToolOutputs`, each
 assistant message is projected as it is loaded, so raw oversized outputs do not
 accumulate across the page. Default reads retain the complete stored payload,
-and cursor ordering and the 50/200 default/maximum limits are unchanged.
+and cursor ordering is unchanged. The initial window uses the 50/200 default/maximum
+limits; a page expands through an older Run referenced by its inputs, with the cursor
+following that expanded boundary.
 
 ## Ownership and dependencies
 
@@ -136,8 +159,10 @@ coordinates runtime and filesystem operations in addition to SQLite writes.
 
 ## Checkpoints and the read/write path
 
-1. At turn completion, the adapter validates its native checkpoint and attaches
-   it to the `turn-complete` event. The host records queued message IDs to exclude.
+1. Adapters provide native checkpoints with `turn-complete` or an independently addressed
+   `run-checkpoint`. Pi Durable uses the successful submission's exact answer entry, so consecutive
+   queued Runs retain separate boundaries without waiting for the session to become idle.
+   Main resolves input ownership rather than assigning late evidence to the current Run.
 2. `AgentSessionMessageBackend` validates the common envelope and saves it in the
    existing message's private `data.runtimeAnchor`. If checkpoint validation or
    checkpoint persistence fails, the completed answer is still saved without it.

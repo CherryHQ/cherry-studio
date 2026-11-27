@@ -12,9 +12,6 @@ export function readHistoryActions(sessionId: string, messageIds: readonly strin
   return new Map(
     agentSessionForkService
       .readHistoryBoundaries(sessionId, messageIds)
-      .map((row) => [
-        row.id,
-        { fork: inspectForkBoundary(reader, row).reason, edit: getEditFailure(reader, row, row.parent) }
-      ])
+      .map((row) => [row.id, { fork: inspectForkBoundary(reader, row).reason, edit: getEditFailure(reader, row.edit) }])
   )
 }

@@ -48,15 +48,6 @@ export const translateText = async (
     if (signal && abortListener) signal.removeEventListener('abort', abortListener)
   }
 
-  if (signal) {
-    abortListener = () => {
-      void ipcApi.request('ai.stream.abort', { topicId: streamId }).catch(() => {
-        // Already aborted / stream gone — main drives the final reject via the stream error event.
-      })
-    }
-    signal.addEventListener('abort', abortListener, { once: true })
-  }
-
   return new Promise<string>((resolve, reject) => {
     // Subscribe **before** calling main. Main starts the stream synchronously
     // inside `translate.open`, so the first chunk can land between `open()`'s
@@ -100,6 +91,16 @@ export const translateText = async (
         reject(err)
       })
     )
+
+    if (signal) {
+      abortListener = () => {
+        // A paused stream can emit done. Settle locally before it can look like a completed translation.
+        cleanup()
+        reject(new DOMException('Translation aborted', 'AbortError'))
+        void ipcApi.request('ai.stream.abort', { topicId: streamId }).catch(() => undefined)
+      }
+      signal.addEventListener('abort', abortListener, { once: true })
+    }
 
     ipcApi.request('translate.open', { streamId, text, targetLangCode }).catch((openError: unknown) => {
       cleanup()

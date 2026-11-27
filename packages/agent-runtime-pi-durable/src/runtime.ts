@@ -144,8 +144,8 @@ export interface PiDurableArchive {
 }
 export interface PiDurableRuntime extends AgentRuntime {
   readonly lookupInput: LookupInput
-  /** Native transactions share this owner's mutation line; callers must retain their backend access. */
-  readonly durable: Pick<Harness, 'commit'>
+  /** Native transactions and commit observations share this owner's mutation line and require retained backend access. */
+  readonly durable: Pick<Harness, 'commit' | 'observeCommits'>
   create(options: PiDurableSessionOptions): Promise<OperationResult<PiDurableThreadHandle>>
   open(ref: Thread): Promise<OperationResult<PiDurableThreadHandle>>
   resume(): Promise<OperationResult<void>>
@@ -555,6 +555,7 @@ export async function createPiDurableRuntime(
               }
             }
             const states: InputState[] = []
+            const answers: { inputId: InputId; entryId: string }[] = []
             do {
               const page = await committed.scanSubmissions({ conversationId: conversation.id }, 256, cursor, context)
               for (const record of page.items) {
@@ -566,12 +567,15 @@ export async function createPiDurableRuntime(
                 rememberInput(record, logicalId)
                 const answer =
                   record.status === 'done' ? (await committed.entry(record.answer, context))?.entry : undefined
-                states.push(submissionState(refFor(conversation.id), record, answer, logicalId))
+                const state = submissionState(refFor(conversation.id), record, answer, logicalId)
+                states.push(state)
+                if (logicalId && state.outcome === 'completed' && record.status === 'done')
+                  answers.push({ inputId: logicalId, entryId: String(record.answer) })
               }
               cursor = page.next
             } while (cursor)
             publishFollowups(view)
-            projection.update(view, { type: 'snapshot', inputs: states }, fold.history)
+            projection.update(view, { type: 'snapshot', inputs: states, answers }, fold.history)
             let currentView = view
             let publishedView = view
             let pendingPreview: { from: typeof view; ops: Op[] } | undefined
@@ -609,6 +613,7 @@ export async function createPiDurableRuntime(
                   publishFollowups(after)
                 }
                 const changed: InputState[] = []
+                const answers: { inputId: InputId; entryId: string }[] = []
                 const records = publication.changes.flatMap((change) => (change.type === 'entry' ? [change.value] : []))
                 for (const change of publication.changes) {
                   if (change.type === 'entry' && change.value.conversationId === conversation.id) {
@@ -639,7 +644,10 @@ export async function createPiDurableRuntime(
                       ? (records.find((entry) => entry.id === record.answer) ??
                         after.entries.find((entry) => entry.id === record.answer))
                       : undefined
-                  changed.push(submissionState(refFor(conversation.id), record, answer, logicalId))
+                  const state = submissionState(refFor(conversation.id), record, answer, logicalId)
+                  changed.push(state)
+                  if (logicalId && state.outcome === 'completed' && record.status === 'done')
+                    answers.push({ inputId: logicalId, entryId: String(record.answer) })
                 }
                 const previous = publishedView
                 publishedView = after
@@ -665,7 +673,11 @@ export async function createPiDurableRuntime(
                   projection.commitToolResult(previous, after, records[0], publication.seq, toolSlot)
                 )
                   return
-                projection.update(after, { type: 'commit', revision: publication.seq, changes: changed }, fold.history)
+                projection.update(
+                  after,
+                  { type: 'commit', revision: publication.seq, changes: changed, answers },
+                  fold.history
+                )
               },
               end() {}
             }).detach
@@ -1201,19 +1213,26 @@ export async function createPiDurableRuntime(
       closing = true
       closingAccess.abort()
       shutdown ??= (async () => {
-        try {
-          await behavior?.close()
-          await Promise.allSettled([...pending])
-          await native.close(context)
-          stopRegistry?.()
-          await Promise.allSettled([...pending])
-          for (const entry of live.values()) entry.projection.close()
-          unsubscribe()
-          return { status: 'confirmed' as const, value: undefined }
-        } catch (cause) {
-          report(cause)
+        let failed: unknown
+        const runStep = async (step: () => unknown) => {
+          try {
+            await step()
+          } catch (cause) {
+            if (failed === undefined) failed = cause
+            report(cause)
+          }
+        }
+        await runStep(() => behavior?.close())
+        await Promise.allSettled([...pending])
+        await runStep(() => native.close(context))
+        await runStep(() => stopRegistry?.())
+        await Promise.allSettled([...pending])
+        for (const entry of live.values()) await runStep(() => entry.projection.close())
+        await runStep(() => unsubscribe())
+        if (failed !== undefined) {
           return { status: 'unknown' as const, error: error('shutdown', 'native-error') }
         }
+        return { status: 'confirmed' as const, value: undefined }
       })()
       return shutdown
     }

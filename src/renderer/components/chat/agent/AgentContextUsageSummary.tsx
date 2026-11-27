@@ -1,8 +1,14 @@
 import { startCase } from 'es-toolkit'
+import type { TFunction } from 'i18next'
 import { ChevronRight } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import type { ThreadContextUsage, ContextCategoryKey } from '@cherrystudio/agent-runtime'
+import type {
+  ContextCategoryKey,
+  ContextResource,
+  ContextTokenCount,
+  ThreadContextUsage
+} from '@cherrystudio/agent-runtime'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger, ScrollArea } from '@cherrystudio/ui'
 import { ContextUsageSummary } from '@renderer/components/chat/contextUsage'
 import { useMcpServers } from '@renderer/hooks/useMcpServer'
@@ -41,10 +47,19 @@ const CATEGORY_COLORS: Partial<Record<ContextCategoryKey, string>> = {
   'system-prompt': 'var(--chart-5)'
 }
 
-function resourceLabel(
-  resource: NonNullable<ThreadContextUsage['resources']>[number],
-  serverNames: ReadonlyMap<string, string>
-): string {
+interface UsageCategory extends ContextTokenCount {
+  id: string
+  label: string
+  kind: keyof typeof CATEGORY_KIND_ORDER
+  color: string
+}
+
+const categoryLabel = (t: TFunction, id: keyof typeof CATEGORY_KEYS) =>
+  t(`agent.right_pane.info.context_categories.${CATEGORY_KEYS[id]}`)
+const formatTokens = (tokens: number) =>
+  tokens.toLocaleString('en-US', { notation: 'compact', maximumFractionDigits: 1 })
+
+function resourceLabel(resource: ContextResource, serverNames: ReadonlyMap<string, string>): string {
   const name = resource.name.split(/[\\/]/).at(-1) ?? resource.name
   if (resource.category !== 'mcp-tools') return name
   const parsed = parseFunctionCallToolName(name)
@@ -75,21 +90,13 @@ export function AgentContextUsageSummary({
   modelName,
   showCategories = true
 }: AgentContextUsageSummaryProps) {
-  const { t, i18n } = useTranslation()
-  const { mcpServers } = useMcpServers(undefined, {
-    enabled: showCategories && Boolean(usage?.resources?.some((resource) => resource.category === 'mcp-tools'))
-  })
-  const serverNames = new Map(mcpServers.map((server) => [server.id, server.name]))
+  const { t } = useTranslation()
   const windowTokens = usage?.contextWindow ?? 0
-  const label = (id: keyof typeof CATEGORY_KEYS) => t(`agent.right_pane.info.context_categories.${CATEGORY_KEYS[id]}`)
-  const formatTokens = (tokens: number) =>
-    tokens.toLocaleString('en-US', { notation: 'compact', maximumFractionDigits: 1 })
-  const formatExact = (tokens: number) => tokens.toLocaleString(i18n.resolvedLanguage)
-  const categories = showCategories
+  const categories: UsageCategory[] = showCategories
     ? [
         ...(usage?.breakdown?.categories ?? []).map((category) => ({
           id: category.id,
-          label: `${category.key === 'other' ? (category.label ?? label('other')) : label(category.key)}${category.occupancy === 'deferred' ? ` (${t('agent.right_pane.info.context_details.deferred')})` : ''}`,
+          label: `${category.key === 'other' ? (category.label ?? categoryLabel(t, 'other')) : categoryLabel(t, category.key)}${category.occupancy === 'deferred' ? ` (${t('agent.right_pane.info.context_details.deferred')})` : ''}`,
           kind: category.occupancy === 'deferred' ? ('deferred' as const) : ('used' as const),
           tokens: category.tokens,
           precision: category.precision,
@@ -98,7 +105,9 @@ export function AgentContextUsageSummary({
         ...(['reserved', 'free'] as const).flatMap((key) => {
           const count = usage?.[key]
           const kind = key === 'reserved' ? ('buffer' as const) : ('free' as const)
-          return count ? [{ id: key, label: label(kind), kind, ...count, color: 'var(--border-strong)' }] : []
+          return count
+            ? [{ id: key, label: categoryLabel(t, kind), kind, ...count, color: 'var(--border-strong)' }]
+            : []
         })
       ]
         .filter((category) => category.tokens > 0)
@@ -115,23 +124,10 @@ export function AgentContextUsageSummary({
           segments: categories.filter((category) => category.kind === 'used' || category.kind === 'buffer')
         }
       : null
-  const groups = RESOURCE_GROUP_ORDER.map((id) => ({
-    id,
-    rows: (usage?.resources ?? [])
-      .filter((resource) => resource.category === id)
-      .map((resource) => ({
-        id: resource.id,
-        name: resourceLabel(resource, serverNames),
-        tokens: resource.count?.tokens,
-        precision: resource.count?.precision,
-        status: resource.state ? t(`agent.right_pane.info.context_details.${resource.state}`) : undefined
-      }))
-  }))
-
   return (
     <ContextUsageSummary
       title={t(showCategories ? 'agent.right_pane.info.context' : 'agent.right_pane.info.context_usage')}
-      emptyLabel={t('common.unknown')}
+      emptyLabel={t('agent.right_pane.info.context_details.unavailable')}
       data={data}
       className={className}
       summaryClassName={showCategories ? 'px-3' : undefined}
@@ -143,6 +139,30 @@ export function AgentContextUsageSummary({
         .filter(Boolean)
         .join(' · ')}
       isBusy={isCompacting}>
+      {showCategories && (
+        <AgentContextUsageDetails categories={categories} resources={usage?.resources} windowTokens={windowTokens} />
+      )}
+    </ContextUsageSummary>
+  )
+}
+
+function AgentContextUsageDetails({
+  categories,
+  resources,
+  windowTokens
+}: {
+  categories: UsageCategory[]
+  resources: ThreadContextUsage['resources']
+  windowTokens: number
+}) {
+  const { t, i18n } = useTranslation()
+  const formatExact = (tokens: number) => tokens.toLocaleString(i18n.resolvedLanguage)
+  const groups = Map.groupBy(resources ?? [], (resource) => resource.category)
+  const { mcpServers } = useMcpServers(undefined, { enabled: groups.has('mcp-tools') })
+  const serverNames = new Map(mcpServers.map((server) => [server.id, server.name]))
+
+  return (
+    <>
       {categories.length > 0 && (
         <div className="px-3">
           <table
@@ -180,54 +200,76 @@ export function AgentContextUsageSummary({
           </table>
         </div>
       )}
-      {showCategories && groups.some((group) => group.rows?.length) && (
+      {groups.size > 0 && (
         <Accordion type="multiple">
-          {groups
-            .filter((group) => group.rows?.length)
-            .map((group) => (
-              <AccordionItem key={group.id} value={group.id} className="border-0 first:border-t-0">
+          {RESOURCE_GROUP_ORDER.map((id) => {
+            const resources = groups.get(id)
+            if (!resources) return null
+            const label = categoryLabel(t, id)
+            return (
+              <AccordionItem key={id} value={id} className="border-0 first:border-t-0">
                 <AccordionTrigger className="group gap-2 px-3 py-2 text-xs font-normal text-muted-foreground [&>svg]:hidden">
                   <span className="flex min-w-0 flex-1 items-center gap-2">
                     <ChevronRight
                       aria-hidden
                       className="size-3 shrink-0 transition-transform duration-150 group-data-[state=open]:rotate-90 motion-reduce:transition-none"
                     />
-                    <span className="flex-1">{label(group.id)}</span>
-                    <span className="tabular-nums">{formatExact(group.rows?.length ?? 0)}</span>
+                    <span className="flex-1">{label}</span>
+                    <span className="tabular-nums">{formatExact(resources.length)}</span>
                   </span>
                 </AccordionTrigger>
                 <AccordionContent className="pt-0 pb-2 text-xs">
-                  <ScrollArea
-                    className="max-h-60"
-                    viewportProps={{ className: 'overflow-x-hidden', tabIndex: 0 }}
-                    contentProps={{ className: 'pl-8 pr-3', role: 'list', 'aria-label': label(group.id) }}>
-                    {group.rows?.map((row) => (
-                      <div
-                        key={row.id}
-                        role="listitem"
-                        className="flex min-w-0 items-center justify-between gap-3 py-1 text-muted-foreground">
-                        <span className="min-w-0 truncate" title={row.name}>
-                          {row.name}
-                        </span>
-                        <span
-                          className="shrink-0 text-muted-foreground tabular-nums"
-                          title={[
-                            row.tokens === undefined ? undefined : formatExact(row.tokens),
-                            row.precision === 'estimated' && t('chat.message.token_details.cost_estimated'),
-                            row.status
-                          ]
-                            .filter(Boolean)
-                            .join(' · ')}>
-                          {row.tokens === undefined ? '—' : formatTokens(row.tokens)}
-                        </span>
-                      </div>
-                    ))}
-                  </ScrollArea>
+                  <AgentContextResourceRows label={label} resources={resources} serverNames={serverNames} />
                 </AccordionContent>
               </AccordionItem>
-            ))}
+            )
+          })}
         </Accordion>
       )}
-    </ContextUsageSummary>
+    </>
+  )
+}
+
+function AgentContextResourceRows({
+  label,
+  resources,
+  serverNames
+}: {
+  label: string
+  resources: ContextResource[]
+  serverNames: ReadonlyMap<string, string>
+}) {
+  const { t, i18n } = useTranslation()
+  return (
+    <ScrollArea
+      className="max-h-60"
+      viewportProps={{ className: 'overflow-x-hidden', tabIndex: 0 }}
+      contentProps={{ className: 'pl-8 pr-3', role: 'list', 'aria-label': label }}>
+      {resources.map((resource) => {
+        const name = resourceLabel(resource, serverNames)
+        const tokens = resource.count?.tokens
+        return (
+          <div
+            key={resource.id}
+            role="listitem"
+            className="flex min-w-0 items-center justify-between gap-3 py-1 text-muted-foreground">
+            <span className="min-w-0 truncate" title={name}>
+              {name}
+            </span>
+            <span
+              className="shrink-0 text-muted-foreground tabular-nums"
+              title={[
+                tokens?.toLocaleString(i18n.resolvedLanguage),
+                resource.count?.precision === 'estimated' && t('chat.message.token_details.cost_estimated'),
+                resource.state && t(`agent.right_pane.info.context_details.${resource.state}`)
+              ]
+                .filter(Boolean)
+                .join(' · ')}>
+              {tokens === undefined ? '—' : formatTokens(tokens)}
+            </span>
+          </div>
+        )
+      })}
+    </ScrollArea>
   )
 }
