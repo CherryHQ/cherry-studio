@@ -208,7 +208,29 @@ export class DeepSeekHarnessService extends BaseService {
 
   private async findBinary(): Promise<Exclude<BinaryAvailability, { source: 'none' }> | null> {
     const snapshot = (await application.get('BinaryManager').getToolSnapshots(['dsh'])).dsh
-    return snapshot.availability.source === 'none' ? null : snapshot.availability
+    if (!snapshot || snapshot.availability.source === 'none') return null
+    // Fail fast on a truncated managed install instead of spawning `dsh web`
+    // and surfacing only `exited before it was ready (code 1)` (#19313).
+    // The peer names come from the DSH preset's requiredPeer so the message
+    // names the failed package and points at the Repair action.
+    if (snapshot.application?.status === 'broken') {
+      throw new Error(
+        `Managed DeepSeek Harness installation is incomplete: missing '@deepseek-ai/dsh-scope' required by '@deepseek-ai/dsh-agent-loop'. Reinstall from Dependencies → DeepSeek Harness → Retry, then launch again.`
+      )
+    }
+    if (snapshot.application?.status === 'unknown') {
+      const reason =
+        snapshot.application.status === 'unknown' ? (snapshot.application as { reason?: string }).reason : undefined
+      throw new Error(
+        `Cannot determine DeepSeek Harness state${reason ? ` (${reason})` : ''}. Retry detection from Dependencies, then launch again.`
+      )
+    }
+    if (snapshot.application?.status === 'conflict') {
+      throw new Error(
+        'DeepSeek Harness resolves to a conflicting installation. Remove the conflict from Dependencies, then launch again.'
+      )
+    }
+    return snapshot.availability
   }
 
   private async resolveRuntime(): Promise<DeepSeekHarnessRuntime> {

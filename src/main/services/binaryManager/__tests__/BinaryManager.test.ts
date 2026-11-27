@@ -2807,8 +2807,12 @@ describe('BinaryManager', () => {
         PATH: [NODE_RUNTIME_BIN, '/mock/mise/shims', '/usr/bin'].join(path.delimiter),
         MISE_PRERELEASES: '1',
         MISE_NPM_SHELL_OUT: '1',
-        MISE_NPM_PACKAGE_MANAGER: 'npm'
+        MISE_NPM_PACKAGE_MANAGER: 'npm',
+        NPM_CONFIG_LEGACY_PEER_DEPS: 'false'
       })
+      // DSH's 455-package graph needs ~12 min for resolution alone; the shared
+      // 15 min budget truncates downloads on Windows + AV (#19313).
+      expect(useCalls[1]?.[2].timeout).toBe(30 * 60_000)
       expect(mockExecFileAsync.mock.calls.map((call: any[]) => call[1])).not.toContainEqual([
         'install',
         '--force',
@@ -2855,7 +2859,52 @@ describe('BinaryManager', () => {
       await expect(service.installByName({ name: 'dsh' })).resolves.toBeUndefined()
 
       expect(reinstalled).toBe(true)
+      // A truncated tree still reports an active version, so a plain `mise use`
+      // would no-op. The repair must wipe the recipe first (#19313).
+      expect(miseArgs()).toContainEqual(['uninstall', '--all', 'npm:@deepseek-ai/dsh'])
       expect(miseArgs()).toContainEqual(['use', '-g', '--minimum-release-age', '0s', 'npm:@deepseek-ai/dsh@latest'])
+      const dshUseCall = mockExecFileAsync.mock.calls.find((call: any[]) =>
+        (call[1] as string[]).includes('npm:@deepseek-ai/dsh@latest')
+      )
+      expect(dshUseCall?.[2].timeout).toBe(30 * 60_000)
+      expect(dshUseCall?.[2].env).toMatchObject({
+        NPM_CONFIG_LEGACY_PEER_DEPS: 'false'
+      })
+    })
+
+    it('reports a helpful error when the reinstalled DeepSeek Harness is still incomplete', async () => {
+      const service = makeService()
+      ;(service as any).isolatedEnv = {
+        env: { PATH: ['/mock/mise/shims', '/usr/bin'].join(path.delimiter) },
+        usesDefaultChinaPipIndex: false
+      }
+      mockCreateRequire.mockImplementation(() => ({
+        resolve: (request: string) => {
+          if (request === '@deepseek-ai/dsh-agent-loop') return '/mock/dsh-agent-loop/lib/index.js'
+          throw Object.assign(new Error(`Cannot find package ${request}`), { code: 'MODULE_NOT_FOUND' })
+        }
+      }))
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] === 'latest') return { stdout: '22.23.2\n', stderr: '' }
+        if (args[0] === 'ls') {
+          return {
+            stdout: JSON.stringify({ 'npm:@deepseek-ai/dsh': [{ version: '0.1.1-rc.2', active: true }] }),
+            stderr: ''
+          }
+        }
+        if (args[0] === 'which' && args[1] === 'node') {
+          return { stdout: `${path.join(NODE_RUNTIME_BIN, 'node')}\n`, stderr: '' }
+        }
+        if (args[0] === 'which' && args[1] === 'npm') {
+          return { stdout: `${path.join(NODE_RUNTIME_BIN, 'npm')}\n`, stderr: '' }
+        }
+        if (args[0] === 'which') return { stdout: '/mock/dsh/lib/bin.js\n', stderr: '' }
+        return { stdout: '', stderr: '' }
+      })
+
+      await expect(service.installByName({ name: 'dsh' })).rejects.toThrow(
+        `missing '@deepseek-ai/dsh-scope' required by '@deepseek-ai/dsh-agent-loop'`
+      )
     })
   })
 
@@ -4177,7 +4226,8 @@ describe('BinaryManager', () => {
       expect(shellOutEnv).toMatchObject({
         MISE_DATA_DIR: '/isolated',
         MISE_NPM_SHELL_OUT: '1',
-        MISE_NPM_PACKAGE_MANAGER: 'npm'
+        MISE_NPM_PACKAGE_MANAGER: 'npm',
+        NPM_CONFIG_LEGACY_PEER_DEPS: 'false'
       })
       expect(shellOutEnv).not.toHaveProperty('MISE_PRERELEASES')
     })

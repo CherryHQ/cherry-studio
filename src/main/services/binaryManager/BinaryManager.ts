@@ -123,6 +123,11 @@ const MISE_REQUIRED_PEERS = new Map(
     preset.requiredPeer ? [[preset.miseTool, preset.requiredPeer] as const] : []
   )
 )
+const MISE_INSTALL_TIMEOUT_OVERRIDES = new Map(
+  CODE_CLI_TOOL_PRESETS.flatMap((preset) =>
+    preset.installTimeoutMs ? [[preset.miseTool, preset.installTimeoutMs] as const] : []
+  )
+)
 
 // Main-owned session state. Renderer windows receive operations only through
 // snapshots, so this belongs to CacheService's internal tier rather than its
@@ -244,9 +249,11 @@ type FixedToolDefinition = {
   pipDependencies?: readonly string[]
   /** Version prefix the latest-version query is scoped to (`<tool>@<prefix>`). */
   latestVersionPrefix?: string
+  /** Install timeout override in ms for large dependency trees (#19313). */
+  installTimeoutMs?: number
 }
 type InstallableToolDefinition = CustomToolDefinition &
-  Pick<FixedToolDefinition, 'npmAllowBuilds' | 'pipDependencies' | 'latestVersionPrefix'>
+  Pick<FixedToolDefinition, 'npmAllowBuilds' | 'pipDependencies' | 'latestVersionPrefix' | 'installTimeoutMs'>
 type MiseInstallEntry = { version?: string; active?: boolean; install_path?: string }
 
 // One build's env and the facts derived from it, so no caller can pair them
@@ -301,7 +308,8 @@ const FIXED_CATALOG: ReadonlyMap<string, FixedToolDefinition> = new Map<string, 
       name: preset.executable,
       tool: preset.miseTool,
       ...(preset.npmAllowBuilds?.length ? { npmAllowBuilds: preset.npmAllowBuilds } : {}),
-      ...(preset.latestVersionPrefix ? { latestVersionPrefix: preset.latestVersionPrefix } : {})
+      ...(preset.latestVersionPrefix ? { latestVersionPrefix: preset.latestVersionPrefix } : {}),
+      ...(preset.installTimeoutMs ? { installTimeoutMs: preset.installTimeoutMs } : {})
     }
   ])
 ])
@@ -1216,6 +1224,13 @@ export class BinaryManager extends BaseService {
       if (opts.shellOutNpm) {
         env['MISE_NPM_SHELL_OUT'] = '1'
         env['MISE_NPM_PACKAGE_MANAGER'] = 'npm'
+        // DSH's only transitive peer (dsh-scope) is silently skipped when npm
+        // resolves with legacy peer semantics. The isolated HOME already blocks
+        // user .npmrc, but an explicit opt-out makes the install deterministic
+        // even if mise forwards extra npm config in the future (#19313).
+        env['NPM_CONFIG_LEGACY_PEER_DEPS'] = 'false'
+        env['NPM_CONFIG_FUND'] = 'false'
+        env['NPM_CONFIG_AUDIT'] = 'false'
       }
       if (opts.prependPath) {
         const pathSeparator = isWin ? ';' : path.delimiter
@@ -1456,7 +1471,12 @@ export class BinaryManager extends BaseService {
     return runtimeBin
   }
 
-  private async installPipxTool(args: string[], pythonPath: string, includePrerelease: boolean): Promise<void> {
+  private async installPipxTool(
+    args: string[],
+    pythonPath: string,
+    includePrerelease: boolean,
+    timeoutMs: number = MISE_INSTALL_TIMEOUT_MS
+  ): Promise<void> {
     // mise's pipx backend shells out to uv, which honours UV_PYTHON — so mise
     // never needs a Python of its own, and none is passed to `mise use`.
     const pythonEnv = {
@@ -1469,7 +1489,7 @@ export class BinaryManager extends BaseService {
     // the user chose is used as-is, since retrying elsewhere would silently pull
     // packages from somewhere they did not ask for.
     const snapshot = await this.getIsolatedEnv()
-    const opts = { timeoutMs: MISE_INSTALL_TIMEOUT_MS, includePrerelease, snapshot }
+    const opts = { timeoutMs, includePrerelease, snapshot }
     if (!snapshot.usesDefaultChinaPipIndex) {
       await this.runMise(args, { ...opts, env: pythonEnv })
       return
@@ -1541,7 +1561,8 @@ export class BinaryManager extends BaseService {
   private async installWithMise(
     definition: InstallableToolDefinition,
     targetVersion: string | undefined,
-    definitions: CustomToolDefinition[]
+    definitions: CustomToolDefinition[],
+    opts?: { forceCleanReinstall?: boolean }
   ): Promise<string> {
     const requested = targetVersion ?? definition.requestedVersion ?? 'latest'
     const backend = definition.tool.split(':')[0]
@@ -1588,6 +1609,27 @@ export class BinaryManager extends BaseService {
     const includePrerelease = MISE_PRERELEASE_TOOLS.has(definition.tool)
     const shellOutNpm = MISE_NPM_SHELL_OUT_TOOLS.has(definition.tool)
     const releaseAgeArgs = includePrerelease ? ['--minimum-release-age', '0s'] : []
+    // DSH's 455-package graph needs ~12 min for resolution alone; the shared
+    // 15 min budget truncates downloads on Windows + AV and drops the
+    // transitive dsh-scope peer (#19313).
+    const installTimeoutMs =
+      definition.installTimeoutMs ?? MISE_INSTALL_TIMEOUT_OVERRIDES.get(definition.tool) ?? MISE_INSTALL_TIMEOUT_MS
+
+    // A truncated tree still reports an active version, so a plain `mise use`
+    // can no-op on the same version and leave the missing peer behind. Wipe
+    // the recipe first so the retry below performs a full reinstall (#19313).
+    if (opts?.forceCleanReinstall) {
+      try {
+        await this.runMise(['unuse', '-g', definition.tool], { timeoutMs: installTimeoutMs })
+      } catch (error) {
+        logger.warn('Failed to unuse incomplete tool before reinstall', {
+          name: definition.name,
+          error: this.errorMessage(error)
+        })
+      }
+      await this.runMise(['uninstall', '--all', definition.tool], { timeoutMs: installTimeoutMs })
+      await this.runMise(['reshim'])
+    }
 
     const runtimeBin = shellOutNpm && runtime ? await this.prepareNpmRuntime(runtime) : undefined
     // Cherry provisions Python itself, so the pipx runtime stays out of `mise
@@ -1605,14 +1647,14 @@ export class BinaryManager extends BaseService {
     ]
 
     if (pythonPath) {
-      await this.installPipxTool(useArgs, pythonPath, includePrerelease)
+      await this.installPipxTool(useArgs, pythonPath, includePrerelease, installTimeoutMs)
       await this.releaseMisePythonSelection()
       if (definition.pipDependencies?.length) {
         await this.enforcePipDependencies(definition, definition.pipDependencies)
       }
     } else {
       await this.runMise(useArgs, {
-        timeoutMs: MISE_INSTALL_TIMEOUT_MS,
+        timeoutMs: installTimeoutMs,
         includePrerelease,
         shellOutNpm,
         prependPath: runtimeBin
@@ -1796,7 +1838,8 @@ export class BinaryManager extends BaseService {
   private async applyDefinition(
     definition: InstallableToolDefinition,
     targetVersion: string | undefined,
-    definitions: CustomToolDefinition[]
+    definitions: CustomToolDefinition[],
+    opts?: { forceCleanReinstall?: boolean }
   ): Promise<void> {
     const isRuntime = isRuntimeDependency(definition.tool)
     // Adoption stays deliberately looser than the post-install gate: it only asks
@@ -1816,8 +1859,14 @@ export class BinaryManager extends BaseService {
 
     // installWithMise resolves the installed version as verification that mise
     // actually applied the request; the value itself is not consumed.
-    await this.installWithMise(definition, targetVersion, definitions)
+    await this.installWithMise(definition, targetVersion, definitions, opts)
     if (!(await this.isRecipeRunnable(definition.name, definition.tool))) {
+      const required = MISE_REQUIRED_PEERS.get(definition.tool)
+      if (required) {
+        throw new Error(
+          `Tool installed but incomplete: missing '${required.peer}' required by '${required.host}'. Retry the install; if it persists, remove the tool and install again`
+        )
+      }
       throw new Error(`Tool installed but not runnable: ${definition.name}`)
     }
 
@@ -1941,7 +1990,11 @@ export class BinaryManager extends BaseService {
           // Invalidate before invoking mise: a failed command may still have made a
           // partial backend change, which must also stale any in-flight latest batch.
           this.bumpMutationRevision()
-          await this.applyDefinition(definition, targetVersion, definitions)
+          // A broken required-peer install (e.g. DSH missing dsh-scope) still
+          // reports an active version, so a plain `mise use` would no-op.
+          // Force a clean reinstall so Retry actually repairs the tree (#19313).
+          const forceCleanReinstall = status === 'broken' && MISE_REQUIRED_PEERS.has(definition.tool)
+          await this.applyDefinition(definition, targetVersion, definitions, { forceCleanReinstall })
           return { kind: 'done' }
         } catch (err) {
           return { kind: 'failed', error: err instanceof Error ? err.message : String(err) }

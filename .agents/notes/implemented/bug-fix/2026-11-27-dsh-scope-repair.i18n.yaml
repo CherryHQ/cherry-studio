@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-27-dsh-scope-repair.md
+2026-11-27-dsh-scope-repair.md: 111760add71c71e1a1a1d027b147387c745829fc
+2026-11-27-dsh-scope-repair.zh.md: 2963224f56376b47822c586e1b73d03c95163c70

@@ -1,0 +1,30 @@
+# Agent Note: 修复缺失 dsh-scope 的截断托管 DeepSeek Harness 安装
+
+Status: implemented
+
+[English](2026-11-27-dsh-scope-repair.md) | 中文
+
+## 问题
+
+托管 `@deepseek-ai/dsh@0.1.1-rc.2` 在就绪前退出，报错 `ERR_MODULE_NOT_FOUND`，缺失被 `@deepseek-ai/dsh-agent-loop` 引入的 `@deepseek-ai/dsh-scope`。`dsh-scope` 只是传递性 peer 依赖，npm 可能在缺失时仍然报告成功。DSH 依赖图约 455 个包，仅解析就需要约 12 分钟，共享的 15 分钟安装预算在 Windows 加杀毒软件冷缓存下会被截断。 plain `mise use -g` 在版本已激活时直接 no-op，缺失的 peer 仍然存在。启动时仍会拉起已损坏的二进制，只报告 `exited before it was ready (code 1)`，没有缺失包名和修复入口。
+
+## 决策
+
+DSH 预设携带 `installTimeoutMs: 30 * 60_000`，经 `MISE_INSTALL_TIMEOUT_OVERRIDES` 与 `FIXED_CATALOG` 传入 `installWithMise` 与 `installPipxTool`。`runMise` 在 `shellOutNpm` 时设置 `NPM_CONFIG_LEGACY_PEER_DEPS=false` 以及 `FUND/AUDIT=false`；隔离 `HOME` 本来就屏蔽用户 `.npmrc`。缺失必需 peer 的损坏安装强制干净重装（`unuse -g` 尽力执行，然后 `uninstall --all`、`reshim`、重新 `use`），使 Retry 真正修复依赖树。安装后门禁在树仍不完整时直接报出缺失 peer。`DeepSeekHarnessService.findBinary` 在 `broken`/`unknown`/`conflict` 时直接失败，给出包含 `dsh-scope` 与 Dependencies → Retry 指引的可操作错误，不再拉起子进程。
+
+## 考虑过的替代方案
+
+- 全局提高 15 分钟超时会拖慢所有无关工具的失败反馈。
+- 不清理直接重试 `mise use -g` 会在同版本已激活时 no-op。
+- 启动时静默自动重装会掩盖故障，并与 Dependencies 操作竞态。
+- 仅依赖用户 `.npmrc` 卫生不足，因为隔离安装 `HOME` 已屏蔽它，而未来 mise 配置透传仍可能重新引入 legacy peer 语义。
+
+## 影响
+
+DSH 安装最多可持有安装锁 30 分钟，其他工具保持 15 分钟预算。损坏 DSH 的 Retry 会先清空其配方再重装，因此不能与另一个 DSH 变更并发执行（现有 mutation mutex 已串行化）。损坏的托管 DSH 不再拉起，只给出修复指引而非仅退出码 1。系统来源的 DSH 因无托管 application 事实而绕过 peer 门禁。
+
+## 验证
+
+- 回归 — `src/main/services/binaryManager/__tests__/BinaryManager.test.ts`：DSH 使用 30 分钟超时，shell-out 设置 legacy-peer-deps 为 false，损坏时触发 uninstall 加 use，仍不完整时抛出缺失 peer 错误。
+- 回归 — `src/main/services/deepSeekHarness/__tests__/DeepSeekHarnessService.test.ts`：损坏快照直接失败并给出 dsh-scope 与 Retry，且不拉起进程；未知状态同样直接失败。
+- 回归 — `src/shared/data/presets/__tests__/codeCliTools.test.ts`：预设形状与目录身份保持有效。
