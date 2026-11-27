@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
@@ -409,5 +410,54 @@ describe('attachment image downscaling', () => {
     const second = await materializeNativeFilePart({ ...part })
     expect(sharpCalls.count).toBe(decodes)
     expect(second).toEqual(first)
+  })
+})
+
+describe('bounded image replacements and APNG safety', () => {
+  const noisyImage = async (height: number) =>
+    sharp(randomBytes(8300 * height * 3), { raw: { width: 8300, height, channels: 3 } })
+      .png()
+      .toBuffer()
+  const partFor = (bytes: Buffer): FileUIPart =>
+    filePart({
+      url: `data:image/png;base64,${bytes.toString('base64')}`,
+      mediaType: 'image/png',
+      filename: 'animation.png'
+    })
+
+  it('uses an explicit failure reason instead of dropping APNG frames during resize', async () => {
+    const bytes = await fs.readFile(new URL('./fixtures/oversized-two-frame.png', import.meta.url))
+    expect(bytes.includes(Buffer.from('acTL'))).toBe(true)
+    const reason = vi.fn()
+    expect(await materializeNativeFilePart(partFor(bytes), reason)).toBeNull()
+    expect(reason).toHaveBeenCalledWith(expect.stringMatching(/animated PNG.*frames.*8192/))
+    const cached = vi.fn()
+    expect(await materializeNativeFilePart(partFor(bytes), cached)).toBeNull()
+    expect(cached).toHaveBeenCalledWith(expect.stringContaining('frames'))
+  })
+
+  it('does not retain an individual replacement larger than the byte ceiling', async () => {
+    const part = partFor(await noisyImage(40))
+    const first = await materializeNativeFilePart(part)
+    expect(Buffer.byteLength(first!.url)).toBeGreaterThan(1024 * 1024)
+    const count = sharpCalls.count
+    const second = await materializeNativeFilePart(part)
+    expect(sharpCalls.count).toBeGreaterThan(count)
+    expect(second).toEqual(first)
+  })
+
+  it('evicts older replacements when their combined bytes exceed the ceiling', async () => {
+    const parts: FileUIPart[] = []
+    let bytes = 0
+    for (let i = 0; i < 40; i++) {
+      const part = partFor(await noisyImage(15))
+      parts.push(part)
+      const output = await materializeNativeFilePart(part)
+      bytes += Buffer.byteLength(output!.url)
+    }
+    expect(bytes).toBeGreaterThan(16 * 1024 * 1024)
+    const count = sharpCalls.count
+    await materializeNativeFilePart(parts[0])
+    expect(sharpCalls.count).toBeGreaterThan(count)
   })
 })

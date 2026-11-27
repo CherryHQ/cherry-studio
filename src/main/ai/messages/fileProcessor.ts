@@ -35,6 +35,11 @@ const MIN_ATTACHMENT_IMAGE_EDGE = 15
 // Downscaling here keeps one oversized attachment from aborting the whole turn.
 const MAX_ATTACHMENT_IMAGE_EDGE = 8192
 const MAX_IMAGE_VALIDATIONS = 512
+// Replacement data URLs can be much larger than the digest-only decisions.
+// Bound both an individual retained payload and their combined UTF-8 bytes.
+const MAX_CACHED_IMAGE_BYTES = 16 * 1024 * 1024
+const MAX_CACHED_IMAGE_ENTRY_BYTES = 1024 * 1024
+let cachedImageBytes = 0
 /** Decisions by data URL digest: `null` rejects, `url` replaces the image with its padded form. */
 const imageValidations = new Map<string, { url?: string; failure?: string } | null>()
 const MAX_ATTACHMENT_IMAGE_PIXELS = 100_000_000
@@ -136,13 +141,38 @@ export async function materializeNativeFilePart(
   const validated = await validateImage(normalized, (reason) => {
     failure = reason
   })
-  imageValidations.set(
-    key,
+  const decision =
     validated === null ? (failure ? { failure } : null) : validated === normalized ? {} : { url: validated.url }
-  )
-  if (imageValidations.size > MAX_IMAGE_VALIDATIONS) imageValidations.delete(imageValidations.keys().next().value!)
+  const retainedBytes = decision && 'url' in decision && decision.url ? Buffer.byteLength(decision.url) : 0
+  if (retainedBytes <= MAX_CACHED_IMAGE_ENTRY_BYTES) {
+    // Another concurrent validation of the same digest may have populated it.
+    const previous = imageValidations.get(key)
+    if (previous?.url) cachedImageBytes -= Buffer.byteLength(previous.url)
+    imageValidations.delete(key)
+    imageValidations.set(key, decision)
+    cachedImageBytes += retainedBytes
+    while (imageValidations.size > MAX_IMAGE_VALIDATIONS || cachedImageBytes > MAX_CACHED_IMAGE_BYTES) {
+      const oldest = imageValidations.keys().next().value!
+      const removed = imageValidations.get(oldest)
+      if (removed?.url) cachedImageBytes -= Buffer.byteLength(removed.url)
+      imageValidations.delete(oldest)
+    }
+  }
   if (validated === null) onFailure?.(failure)
   return validated
+}
+
+// libvips/Sharp reads APNG as a single-frame PNG. Check the PNG chunk stream
+// before a transform so later frames never disappear silently during encoding.
+function isAnimatedPng(bytes: Buffer): boolean {
+  if (bytes.length < 8 || !bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))) return false
+  for (let offset = 8; offset + 12 <= bytes.length;) {
+    const length = bytes.readUInt32BE(offset)
+    if (length > bytes.length - offset - 12) return false
+    if (bytes.toString('ascii', offset + 4, offset + 8) === 'acTL') return true
+    offset += length + 12
+  }
+  return false
 }
 
 async function validateImage(
@@ -174,6 +204,18 @@ async function validateImage(
       const width = metadata.width
       const height = metadata.pageHeight ?? metadata.height
       if (!width || !height) throw new Error('Image dimensions are unavailable')
+      if (
+        isAnimatedPng(bytes) &&
+        (width > MAX_ATTACHMENT_IMAGE_EDGE ||
+          height > MAX_ATTACHMENT_IMAGE_EDGE ||
+          width < MIN_ATTACHMENT_IMAGE_EDGE ||
+          height < MIN_ATTACHMENT_IMAGE_EDGE)
+      ) {
+        onFailure?.(
+          `animated PNG cannot be transformed without losing frames; provider image edges must be ${MIN_ATTACHMENT_IMAGE_EDGE}-${MAX_ATTACHMENT_IMAGE_EDGE} px`
+        )
+        return null
+      }
       let workingBytes = bytes
       let workingWidth = width
       let workingHeight = height
