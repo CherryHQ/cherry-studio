@@ -34,21 +34,19 @@ const logger = loggerService.withContext('aiCore.utils.reasoningParamFallback')
 const REASONING_BODY_KEYS = ['reasoning_effort', 'reasoning'] as const
 
 /** Structured error fields naming the rejected parameter (OpenAI-style envelopes). */
-const STRUCTURED_PARAM_PATTERN = /^reasoning(_effort)?$/
+const STRUCTURED_PARAM_PATTERN = /^reasoning(?:_effort)?(?:\.[A-Za-z_]\w*|\[\d+\])*$/
 
-/** Rejection verbs accepted in message-only errors, on either side of the field name. */
-const REJECTION_WORD_PATTERN = /unrecognized|unknown|invalid|unsupported|not supported|unexpected|not permitted/i
-
-/** The reasoning field name as it appears in a free-text message, optionally quoted. */
-const REASONING_NAME_PATTERN = /"?reasoning(_effort)?"?\b/i
+/** Message-only rejection must bind the verb to a complete field, not a model id containing it. */
+const MESSAGE_REJECTION_PATTERN =
+  /(?:unrecognized|unknown|invalid|unsupported|unexpected|not supported|not permitted)\s+(?:(?:request\s+)?(?:argument|parameter|field)(?:\s+(?:supplied|named))?\s*:?\s*)?["'`]?reasoning(?:_effort)?["'`]?(?=\s|[.,:;]|$)|(?:^|[\s"'`])reasoning(?:_effort)?["'`]?\s+(?:is\s+)?(?:unrecognized|unknown|invalid|unsupported|unexpected|not supported|not permitted)\b/i
 
 /**
  * Classifies a 400 body as rejecting a reasoning parameter. Structured
  * envelopes win: when the provider names the rejected parameter (`error.param`
- * / `error.parameter`), only an exact reasoning-field match qualifies, so a
+ * / `error.parameter`), only a path rooted at a reasoning field qualifies, so a
  * 400 blaming `model` is preserved even when the model id itself contains the
- * word. Message-only envelopes qualify when the message names the field and
- * carries a rejection verb, in either order.
+ * word. Message-only envelopes qualify when rejection wording directly identifies
+ * the complete field as its subject.
  */
 function isReasoningRejection(errorText: string): boolean {
   let envelope: unknown
@@ -66,11 +64,11 @@ function isReasoningRejection(errorText: string): boolean {
     if (typeof param === 'string') return STRUCTURED_PARAM_PATTERN.test(param)
     const message = (detail as Record<string, unknown>).message
     if (typeof message === 'string') {
-      return REJECTION_WORD_PATTERN.test(message) && REASONING_NAME_PATTERN.test(message)
+      return MESSAGE_REJECTION_PATTERN.test(message)
     }
   }
 
-  return REJECTION_WORD_PATTERN.test(errorText) && REASONING_NAME_PATTERN.test(errorText)
+  return MESSAGE_REJECTION_PATTERN.test(errorText)
 }
 
 /**

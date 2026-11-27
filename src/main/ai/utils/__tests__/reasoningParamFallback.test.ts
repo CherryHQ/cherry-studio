@@ -183,6 +183,40 @@ describe('withReasoningParamFallback', () => {
     expect(baseFetch).toHaveBeenCalledTimes(1)
   })
 
+  it('retries a nested structured reasoning path without preserving the rejected field', async () => {
+    const ok = jsonResponse(200, {})
+    const baseFetch = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse(400, {
+          error: { param: 'reasoning.effort', message: 'Unsupported value' }
+        })
+      )
+      .mockResolvedValueOnce(ok)
+    const result = await withReasoningParamFallback(baseFetch)('https://api.example.com/v1/responses', {
+      method: 'POST',
+      body: JSON.stringify({ model: 'test-model', input: [], reasoning: { effort: 'high' } })
+    })
+    expect(result).toBe(ok)
+    expect(baseFetch).toHaveBeenCalledTimes(2)
+    expect(JSON.parse(baseFetch.mock.calls[1][1].body)).toEqual({ model: 'test-model', input: [] })
+  })
+
+  it.each(['Invalid model id: reasoning_effort-v2', 'Unknown model "reasoning"', 'Invalid reasoning_effort-v2'])(
+    'preserves message-only model diagnostics: %s',
+    async (message) => {
+      const original = jsonResponse(400, { error: { message } })
+      const baseFetch = vi.fn(async () => original)
+      const result = await withReasoningParamFallback(baseFetch)('https://api.example.com/v1/chat/completions', {
+        method: 'POST',
+        body: JSON.stringify({ model: 'reasoning_effort-v2', reasoning_effort: 'high' })
+      })
+      expect(baseFetch).toHaveBeenCalledTimes(1)
+      expect(result).toBe(original)
+      expect(await result.json()).toEqual({ error: { message } })
+    }
+  )
+
   it('does not parse the request body on a non-400 response', async () => {
     const parseSpy = vi.spyOn(JSON, 'parse')
     const baseFetch = vi.fn(async () => jsonResponse(200, { ok: true }))
