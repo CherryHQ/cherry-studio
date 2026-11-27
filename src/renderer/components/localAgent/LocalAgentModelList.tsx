@@ -170,7 +170,13 @@ export function LocalAgentModelList({
               setRefreshing(false)
             }
           }}>
-          <RefreshCw className={cn(styles.toolbarDesignIcon, refreshing && 'motion-safe:animate-spin')} />
+          <RefreshCw
+            className={cn(
+              styles.toolbarDesignIcon,
+              'lucide-custom text-muted-foreground',
+              refreshing && 'motion-safe:animate-spin'
+            )}
+          />
           {t('settings.models.toolbar.pull_short')}
         </Button>
       </div>

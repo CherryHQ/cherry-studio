@@ -499,9 +499,9 @@ export function LocalAgentLogin({
                 size="sm"
                 className="h-8 shrink-0 gap-1.5 rounded-lg border-border-subtle text-xs shadow-none"
                 disabled={disabled || busy}>
-                <CheckCircle2 className="size-3.5 text-muted-foreground" />
+                <CheckCircle2 className="lucide-custom size-3.5 text-muted-foreground" />
                 {t('local_agents.signed_in')}
-                <ChevronDown className="size-3.5 text-muted-foreground" />
+                <ChevronDown className="lucide-custom size-3.5 text-muted-foreground" />
               </Button>
             </DropdownMenuTrigger>
           </Tooltip>

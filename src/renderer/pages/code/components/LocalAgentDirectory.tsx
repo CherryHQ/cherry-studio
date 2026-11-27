@@ -1112,9 +1112,9 @@ export function LocalAgentDetails({
         </div>
         <ScrollArea
           className="min-h-0 flex-1"
-          contentProps={{ className: 'flex min-h-full flex-col' }}
-          viewportProps={{ ref: setScrollElement, className: modelSettingsDetailClasses.scrollViewport }}>
-          <div className={cn(modelSettingsDetailClasses.sectionStack, 'flex-1')}>
+          contentProps={{ className: 'flex min-h-full flex-col gap-2.5 px-6 pt-1.5 pb-2.5' }}
+          viewportProps={{ ref: setScrollElement }}>
+          <div className={cn(modelSettingsDetailClasses.sectionStack, 'min-h-0 shrink-0')}>
             <div className="flex flex-wrap items-center gap-2">
               {(sdk || initial.executableOverride || detectedPath || preset?.executable) && (
                 <InputGroup
@@ -1317,21 +1317,25 @@ export function LocalAgentDetails({
                 />
               )
             )}
-            <footer className="mt-auto flex shrink-0 flex-wrap items-center justify-between gap-2 rounded-lg border border-border-subtle bg-muted/30 px-3.5 py-2 text-xs text-muted-foreground">
-              <div className="flex min-w-0 items-center gap-2">
-                <Info className="lucide-custom size-3.5 shrink-0 text-muted-foreground" aria-hidden />
-                <span className="min-w-0">{t('local_agents.beta_banner')}</span>
-              </div>
-              <a
-                href={LOCAL_AGENTS_FEEDBACK_ISSUE_URL}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex shrink-0 items-center gap-1 font-normal text-link underline-offset-2 hover:underline focus-visible:underline">
-                {t('local_agents.beta_banner_link')}
-                <ExternalLink className="lucide-custom size-3" aria-hidden />
-              </a>
-            </footer>
           </div>
+          <footer
+            className={cn(
+              modelSettingsDetailClasses.contentMaxWidth,
+              'mt-auto flex shrink-0 flex-wrap items-center justify-between gap-2 rounded-lg border border-border-subtle bg-muted/30 px-3.5 py-2 text-xs text-muted-foreground'
+            )}>
+            <div className="flex min-w-0 items-center gap-2">
+              <Info className="lucide-custom size-3.5 shrink-0 text-muted-foreground" aria-hidden />
+              <span className="min-w-0">{t('local_agents.beta_banner')}</span>
+            </div>
+            <a
+              href={LOCAL_AGENTS_FEEDBACK_ISSUE_URL}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex shrink-0 items-center gap-1 font-normal text-link underline-offset-2 hover:underline focus-visible:underline">
+              {t('local_agents.beta_banner_link')}
+              <ExternalLink className="lucide-custom size-3" aria-hidden />
+            </a>
+          </footer>
         </ScrollArea>
       </div>
       {children}
