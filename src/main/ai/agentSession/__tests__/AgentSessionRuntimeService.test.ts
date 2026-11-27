@@ -26,6 +26,13 @@ import { AiStreamManager } from '@main/ai/streamManager/AiStreamManager'
 import { MessageRuntimeTimingCollector } from '@main/ai/streamManager/MessageRuntimeTimingCollector'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { AGENT_SESSION_API_RETRY_CACHE_KEY } from '@shared/ai/agentSessionApiRetry'
+import {
+  ACP_HOST_PERMISSION_MODE_ID,
+  getAcpHostPermissionModeSelection,
+  isAcpHostPermissionMode,
+  type AcpHostPermissionMode,
+  type LocalAgentSelection
+} from '@shared/ai/localAgent'
 
 import type { AgentRuntimeConnectInput, AgentRuntimeUserInput } from '../../runtime/types'
 import type * as ForkResourcesModule from '../fork/resources'
@@ -5049,6 +5056,77 @@ describe('AgentSessionRuntimeService', () => {
     expect(connect).not.toHaveBeenCalled()
     service.beginTurn({ ...baseTurnInput, agentType: 'local' })
     await expect(service.setLocalMode('session-1', 'codex-mode', 'workspace')).rejects.toThrow('busy')
+  })
+
+  it('stores a pre-connect ACP host permission choice for the selected agent only', async () => {
+    mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-1' })
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'local',
+      configuration: { localRuntime: { presetId: 'opencode', enabled: true, args: [], env: {} } }
+    })
+
+    const service = new AgentSessionRuntimeService()
+    await service.setLocalMode('session-1', ACP_HOST_PERMISSION_MODE_ID, 'bypassPermissions')
+    expect(service.getLocalSessionView('session-1').idleHostPermission?.currentValue).toBe('bypassPermissions')
+
+    mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-2' })
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-2',
+      type: 'local',
+      configuration: { localRuntime: { presetId: 'kimi', enabled: true, args: [], env: {} } }
+    })
+    expect(service.getLocalSessionView('session-1').idleHostPermission?.currentValue).toBe('default')
+  })
+
+  it('enters native OpenCode Plan and returns to Build through the shared permission menu', async () => {
+    mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-1', workspace: { path: '/workspace' } })
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'local',
+      model: baseTurnInput.modelId,
+      configuration: { localRuntime: { presetId: 'opencode', enabled: true, args: [], env: {} } }
+    })
+
+    const mode: LocalAgentSelection = {
+      id: 'mode',
+      application: 'session',
+      currentValue: 'build',
+      options: [
+        { value: 'build', name: 'Build', permissionMode: 'default' },
+        { value: 'plan', name: 'Plan', permissionMode: 'plan' }
+      ]
+    }
+    let permission: AcpHostPermissionMode | undefined
+    const connection = {
+      ...createAsyncQueue<AgentRuntimeEvent>(),
+      send: vi.fn(),
+      reconcile: vi.fn(async () => 'current' as const),
+      get localSessionInfo() {
+        return {
+          models: [],
+          resume: true,
+          images: true,
+          mode,
+          hostPermission: getAcpHostPermissionModeSelection(mode, permission)
+        }
+      },
+      async setMode(configId: string, value: string) {
+        if (configId === mode.id) mode.currentValue = value
+        else if (configId === ACP_HOST_PERMISSION_MODE_ID && isAcpHostPermissionMode(value)) permission = value
+        return this.localSessionInfo
+      }
+    }
+    runtimeDriverRegistry.register({ type: 'local', connect: vi.fn(async () => connection), validateSession: vi.fn() })
+
+    const service = new AgentSessionRuntimeService()
+    await service.listSessionCommands('session-1')
+    const planned = await service.setLocalMode('session-1', ACP_HOST_PERMISSION_MODE_ID, 'plan')
+    expect(planned.info?.hostPermission?.currentValue).toBe('plan')
+
+    const acting = await service.setLocalMode('session-1', ACP_HOST_PERMISSION_MODE_ID, 'acceptEdits')
+    expect(acting.info?.mode?.currentValue).toBe('build')
+    expect(acting.info?.hostPermission?.currentValue).toBe('acceptEdits')
   })
 
   it('persists local session mode and security overrides, replays them on reconnect, and supports pre-connect mode selection', async () => {

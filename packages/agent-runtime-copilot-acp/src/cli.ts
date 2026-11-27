@@ -7,8 +7,19 @@ export const copilotCli = {
   registryId: 'github-copilot-cli',
   minimumAcpVersion: '0.0.401',
   permissionMode: {
-    values: { agent: 'default', plan: 'plan', autopilot: 'bypassPermissions' },
+    values: {
+      agent: 'default',
+      plan: 'plan',
+      autopilot: 'bypassPermissions',
+      'https://agentclientprotocol.com/protocol/session-modes#agent': 'default',
+      'https://agentclientprotocol.com/protocol/session-modes#plan': 'plan',
+      'https://agentclientprotocol.com/protocol/session-modes#autopilot': 'bypassPermissions',
+      off: 'default',
+      auto: 'auto',
+      on: 'bypassPermissions'
+    },
     labels: { agent: 'default' },
+    approvalConfigId: 'allow_all',
     allowAll: 'allow_all'
   } satisfies AcpPermissionModes,
   terminalArgs: [],

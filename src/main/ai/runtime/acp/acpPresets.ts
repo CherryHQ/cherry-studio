@@ -1,6 +1,13 @@
+import { mkdtemp } from 'node:fs/promises'
+
 import { application } from '@application'
 import type { RuntimeAccountResult, SubscriptionUsageResult } from '@cherrystudio/agent-runtime'
-import type { AcpHostBinary, AcpLaunch, AcpModelSelection } from '@cherrystudio/agent-runtime-acp/profile'
+import type {
+  AcpGatewayModel,
+  AcpHostBinary,
+  AcpLaunch,
+  AcpModelSelection
+} from '@cherrystudio/agent-runtime-acp/profile'
 import {
   readNegotiatedAcpUsage,
   type AcpAccountReader,
@@ -21,6 +28,7 @@ import {
   readCopilotSubscriptionUsage
 } from '@cherrystudio/agent-runtime-copilot-acp'
 import { copilotCli } from '@cherrystudio/agent-runtime-copilot-acp/cli'
+import { deepAgentsPreset } from '@cherrystudio/agent-runtime-deepagents-acp'
 import { dshEnvironment, dshPreset, prepareDshChat } from '@cherrystudio/agent-runtime-deepseek-harness-acp'
 import {
   factoryGateway,
@@ -42,6 +50,8 @@ import {
 } from '@cherrystudio/agent-runtime-grok-acp'
 import { grokCli } from '@cherrystudio/agent-runtime-grok-acp/cli'
 import { hermesPreset } from '@cherrystudio/agent-runtime-hermes-acp'
+import { applyJunieGatewayModel } from '@cherrystudio/agent-runtime-junie-acp'
+import { junieCli } from '@cherrystudio/agent-runtime-junie-acp/cli'
 import { kimiGateway, kimiModelProfile, readKimiAccount } from '@cherrystudio/agent-runtime-kimi-acp'
 import { kimiCli } from '@cherrystudio/agent-runtime-kimi-acp/cli'
 import { minimaxPreset } from '@cherrystudio/agent-runtime-minimax-acp'
@@ -105,6 +115,7 @@ type DesktopAcpPreset = {
   hostBinary?: AcpHostBinary
   prepareCommand?: PrepareCliCommand
   prepareLoginCommand?: (command: AcpLaunch & { executable: string }) => AcpLaunch & { executable: string }
+  applyGatewayModel?(launch: AcpLaunch, gateway: AcpGatewayModel): void | Promise<{ dispose(): Promise<void> }>
   sessionMcp?: 'unsupported'
   acquireGateway?(
     overrides: Record<string, string>,
@@ -122,6 +133,15 @@ type DesktopAcpPreset = {
 } & CliModelBinding
 
 const presets: ReadonlyMap<string, DesktopAcpPreset> = new Map<string, DesktopAcpPreset>([
+  [deepAgentsPreset.id, deepAgentsPreset],
+  [
+    junieCli.id,
+    {
+      async applyGatewayModel(launch, gateway) {
+        return applyJunieGatewayModel(launch, gateway, await mkdtemp(application.getPath('app.temp', 'junie-acp-')))
+      }
+    }
+  ],
   [
     grokCli.id,
     {

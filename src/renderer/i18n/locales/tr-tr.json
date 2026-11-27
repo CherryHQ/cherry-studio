@@ -2719,6 +2719,7 @@
   "local_agents.follow_cli": "Varsayılan model",
   "local_agents.follow_native_model_config": "Yerel yapılandırmayı kullan",
   "local_agents.global_model_unavailable": "Bu agent için varsayılan model değiştirme henüz desteklenmiyor.",
+  "local_agents.host_permission.bypass_description": "Cherry bu oturumda izin verilen araç isteklerini, dosya yazma işlemlerini ve terminal komutlarını otomatik olarak onaylar. Yerel ajanın kendi kısıtlamaları geçerliliğini korur.",
   "local_agents.incompatible": "Yüklü CLI uyumsuz",
   "local_agents.install_error.failed": "Kurulum başarısız. Ağı ve izinleri kontrol edin.",
   "local_agents.install_error.managed_runtime": "{{manager}}, Cherry tarafından yönetilen ortamı kullanıyor. Önce sistem ortamını yapılandırın.",

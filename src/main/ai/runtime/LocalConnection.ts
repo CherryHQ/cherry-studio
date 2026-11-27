@@ -5,6 +5,7 @@ import type { DynamicToolUIPart, FinishReason } from 'ai'
 
 import { runtimeId, type ItemRef, type RuntimePartEdit } from '@cherrystudio/agent-runtime'
 import { agentService } from '@data/services/AgentService'
+import { agentSessionContextService } from '@data/services/AgentSessionContextService'
 import { toolApprovalRegistry, type DispatchDecision } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
 import {
@@ -104,6 +105,14 @@ export abstract class LocalConnection implements AgentRuntimeConnection {
     this.nativeThreadId = token
     if (this.context && !this.context.nativeThreadId) this.context = bindLocalContext(this.context.id, token)
     this.events.push({ type: 'resume-token', token })
+  }
+  protected attachLocalContext(nativeId: string): boolean {
+    if (this.context?.nativeThreadId === nativeId) return true
+    const context = agentSessionContextService.localRootForThread(this.sessionId, this.agentId, nativeId)
+    if (!context) return false
+    this.context = context
+    this.nativeThreadId = nativeId
+    return true
   }
   protected begin(inputId: string, resume = this.nativeThreadId) {
     if (this.closed || this.active) throw new Error('Local agent connection is unavailable')

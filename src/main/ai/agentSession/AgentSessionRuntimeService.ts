@@ -75,8 +75,12 @@ import { AGENT_SESSION_TURN_ORIGIN_CACHE_KEY, type AutonomousTurnOrigin } from '
 import { toExecutionFailure } from '@shared/ai/executionFailure'
 import { getProviderModelId, type ExecutionId } from '@shared/ai/executionIdentity'
 import {
+  ACP_HOST_PERMISSION_MODE_ID,
+  getAcpHostPermissionModeSelection,
+  getAcpNativePlanModes,
   getLocalAgentLaunchMode,
-  type LocalAgentSelection,
+  getLocalAgentProtocol,
+  isAcpHostPermissionMode,
   type LocalAgentSessionInfo,
   type LocalAgentSessionOverrides,
   type LocalAgentSessionView
@@ -4386,6 +4390,7 @@ export class AgentSessionRuntimeService extends BaseService {
     sessionId: string,
     patch: {
       mode?: { configId: string; value: string }
+      hostPermissionMode?: LocalAgentSessionOverrides['hostPermissionMode']
       thoughtLevel?: LocalAgentSessionOverrides['thoughtLevel']
       configOption?: { configId: string; value: string | boolean }
     }
@@ -4398,6 +4403,7 @@ export class AgentSessionRuntimeService extends BaseService {
       const nextEntry: LocalAgentSessionOverrides = {
         ...existing,
         ...(patch.mode ? { mode: patch.mode } : {}),
+        ...(patch.hostPermissionMode ? { hostPermissionMode: patch.hostPermissionMode } : {}),
         ...(patch.thoughtLevel ? { thoughtLevel: patch.thoughtLevel } : {}),
         ...(patch.configOption
           ? {
@@ -4426,6 +4432,14 @@ export class AgentSessionRuntimeService extends BaseService {
     attemptId: string,
     saved: LocalAgentSessionOverrides
   ): Promise<boolean> {
+    const hostPermission = saved.hostPermissionMode
+    if (hostPermission?.agentId === entry.agentId && connection.setMode) {
+      const config = agentService.getAgent(entry.agentId)?.configuration?.localRuntime
+      if (config && getLocalAgentProtocol(config.presetId) === 'acp') {
+        await connection.setMode(ACP_HOST_PERMISSION_MODE_ID, hostPermission.value)
+        if (!this.isCurrentGeneration(entry, attemptId) || this.currentConnection(entry) !== connection) return false
+      }
+    }
     const modeInfo = connection.localSessionInfo?.mode
     if (
       saved.mode &&
@@ -4526,15 +4540,24 @@ export class AgentSessionRuntimeService extends BaseService {
     return info
   }
 
-  private localIdleMode(sessionId: string, agentId?: string | null): LocalAgentSelection | undefined {
+  private localIdleView(sessionId: string, agentId?: string | null): LocalAgentSessionView {
     const agent = agentId ? agentService.getAgent(agentId) : undefined
     const config = agent?.type === 'local' ? agent.configuration?.localRuntime : undefined
-    const mode = config?.enabled ? getLocalAgentLaunchMode(config) : undefined
-    if (!mode) return
-    const saved = this.getLocalSessionOverrides(sessionId)?.mode
-    if (saved?.configId === mode.id && mode.options.some(({ value }) => value === saved.value))
-      return { ...mode, currentValue: saved.value }
-    return mode
+    if (!config?.enabled) return { info: null }
+    const saved = this.getLocalSessionOverrides(sessionId)
+    let idleMode = getLocalAgentLaunchMode(config)
+    const native = saved?.mode
+    if (idleMode && native?.configId === idleMode.id && idleMode.options.some(({ value }) => value === native.value)) {
+      idleMode = { ...idleMode, currentValue: native.value }
+    }
+    const idleHostPermission =
+      getLocalAgentProtocol(config.presetId) === 'acp'
+        ? getAcpHostPermissionModeSelection(
+            idleMode,
+            saved?.hostPermissionMode?.agentId === agentId ? saved?.hostPermissionMode?.value : undefined
+          )
+        : undefined
+    return { info: null, idleMode, idleHostPermission }
   }
 
   async setLocalMode(sessionId: string, configId: string, value: string): Promise<LocalAgentSessionView> {
@@ -4542,7 +4565,42 @@ export class AgentSessionRuntimeService extends BaseService {
     if (this.isSessionBusy(sessionId)) throw new Error('Local agent session is unavailable or busy')
     const connection = this.localOptionConnection(sessionId)
     const agentId = entry?.agentId ?? agentSessionService.getById(sessionId)?.agentId
-    const mode = connection ? connection.localSessionInfo?.mode : this.localIdleMode(sessionId, agentId)
+    const idle = connection ? undefined : this.localIdleView(sessionId, agentId)
+    const mode = connection ? connection.localSessionInfo?.mode : idle?.idleMode
+    if (configId === ACP_HOST_PERMISSION_MODE_ID) {
+      const selection = connection ? connection.localSessionInfo?.hostPermission : idle?.idleHostPermission
+      if (!agentId || !selection?.options.some((choice) => choice.value === value))
+        throw new Error('This session option is no longer available')
+      const nativePlan = getAcpNativePlanModes(mode)
+      if (value === 'plan' && nativePlan) {
+        const planned = await this.setLocalMode(sessionId, nativePlan.configId, nativePlan.plan)
+        if ((planned.info?.mode ?? planned.idleMode)?.currentValue !== nativePlan.plan)
+          throw new Error('This session option is no longer available')
+        return planned
+      }
+      if (!isAcpHostPermissionMode(value)) throw new Error('This session option is no longer available')
+      const hostPermissionMode = { agentId, value }
+      if (nativePlan && mode?.currentValue === nativePlan.plan) {
+        const restored = await this.setLocalMode(sessionId, nativePlan.configId, nativePlan.work)
+        if (
+          (restored.info?.mode ?? restored.idleMode)?.currentValue !== nativePlan.work ||
+          this.localOptionConnection(sessionId) !== connection
+        )
+          throw new Error('This session option is no longer available')
+      }
+      if (connection) {
+        if (!connection.setMode) throw new Error('This session option is no longer available')
+        const info = await connection.setMode(configId, value)
+        if (this.localOptionConnection(sessionId) !== connection)
+          throw new Error('This session option is no longer available')
+        this.saveLocalSessionOverride(sessionId, { hostPermissionMode })
+        return { info }
+      }
+      this.saveLocalSessionOverride(sessionId, { hostPermissionMode })
+      const view = this.localIdleView(sessionId, agentId)
+      application.get('IpcApiService').broadcast('ai.local_agents.session_updated', { sessionId, ...view })
+      return view
+    }
     if (!mode || mode.id !== configId || !mode.options.some((option) => option.value === value))
       throw new Error('This session option is no longer available')
 
@@ -4558,7 +4616,7 @@ export class AgentSessionRuntimeService extends BaseService {
 
     this.saveLocalSessionOverride(sessionId, { mode: { configId, value } })
     if (connection) await this.closeSession(sessionId)
-    const view: LocalAgentSessionView = { info: null, idleMode: { ...mode, currentValue: value } }
+    const view = this.localIdleView(sessionId, agentId)
     application.get('IpcApiService').broadcast('ai.local_agents.session_updated', { sessionId, ...view })
     return view
   }
@@ -4591,8 +4649,7 @@ export class AgentSessionRuntimeService extends BaseService {
     const info = this.localOptionConnection(sessionId)?.localSessionInfo
     if (info) return { info }
     const session = agentSessionService.getById(sessionId)
-    const idleMode = this.localIdleMode(sessionId, session?.agentId)
-    return { info: null, idleMode }
+    return this.localIdleView(sessionId, session?.agentId)
   }
 
   private publishLocalSessionInfo(
@@ -4605,10 +4662,9 @@ export class AgentSessionRuntimeService extends BaseService {
     if (prediction?.localModelId && prediction.localModelId !== info?.activeModel?.id) prediction.controller.abort()
     const view: LocalAgentSessionView = info
       ? { info }
-      : {
-          info: null,
-          idleMode: options?.restoreUnavailable ? undefined : this.localIdleMode(entry.sessionId, entry.agentId)
-        }
+      : options?.restoreUnavailable
+        ? { info: null }
+        : this.localIdleView(entry.sessionId, entry.agentId)
     application.get('IpcApiService').broadcast('ai.local_agents.session_updated', {
       sessionId: entry.sessionId,
       ...view,

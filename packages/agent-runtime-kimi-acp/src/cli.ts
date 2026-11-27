@@ -1,7 +1,12 @@
+import type { AcpPermissionModes } from '@cherrystudio/agent-runtime-acp/profile'
+
 export const kimiCli = {
   nativeCliInstall: true,
   modelConfig: { target: 'kimi-config', overrides: ['KIMI_CODE_HOME'] },
   id: 'kimi',
+  permissionMode: {
+    values: { default: 'default', plan: 'plan', auto: 'auto', yolo: 'bypassPermissions' }
+  } satisfies AcpPermissionModes,
   account: { canReadAccount: true },
   externalCredentialMethods: ['login'],
   windowsShell: { variable: 'KIMI_SHELL_PATH', allowSh: true },

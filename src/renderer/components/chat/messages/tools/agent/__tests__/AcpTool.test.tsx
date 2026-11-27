@@ -3,13 +3,14 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { LocalAcpToolSchema, type LocalAcpTool } from '@shared/ai/localAgent'
 
-import { AcpTool } from '../AcpTool'
+import { getAcpToolDisclosure } from '../AcpTool'
+import { AgentToolCallCard } from '../AgentToolCallCard'
 
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }))
 vi.mock('@cherrystudio/ui', () => vi.importActual('@cherrystudio/ui'))
 
 function Tool({ tool }: { tool: LocalAcpTool }) {
-  const item = AcpTool({ tool })
+  const item = getAcpToolDisclosure({ tool })
   return (
     <>
       {item.label}
@@ -19,6 +20,35 @@ function Tool({ tool }: { tool: LocalAcpTool }) {
 }
 
 describe('ACP tool details', () => {
+  it.each(['command', 'CommandLine', 'cmd'])(
+    'shows the command from %s and working directory before approval',
+    (key) => {
+      render(
+        <Tool
+          tool={{
+            title: 'Run workspace check',
+            kind: 'execute',
+            rawInput: { [key]: 'git status --short', cwd: '/work/project' }
+          }}
+        />
+      )
+      expect(screen.getByText('message.tools.sections.command').parentElement).toHaveTextContent('git status --short')
+      expect(screen.getByText('/work/project')).toBeInTheDocument()
+    }
+  )
+
+  it('keeps the tool card usable when an incremental update supplies its native operation details', () => {
+    const { rerender } = render(<AgentToolCallCard toolCallId="call-1" toolName="Tool" />)
+    rerender(
+      <AgentToolCallCard
+        toolCallId="call-1"
+        toolName="ACP: Read report"
+        input={{ localAcpTool: { title: 'Read report', kind: 'read' } }}
+      />
+    )
+    expect(screen.getByText('Read report')).toBeInTheDocument()
+  })
+
   it('reads saved native names and nullable locations while showing the readable title', () => {
     const tool = LocalAcpToolSchema.parse(
       JSON.parse(

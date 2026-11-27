@@ -24,8 +24,14 @@ import type {
   ObservationPayload,
   OperationResult,
   Thread,
-  ThreadHandle
+  ThreadHandle,
+  ThreadContextUsage
 } from '@cherrystudio/agent-runtime'
+
+import type { AcpSessionControls } from './configuration'
+import type { AcpHarnessSession } from './harness'
+import type { AcpModelSelection } from './profile'
+import type { AcpTurnUsage } from './usage'
 
 export interface AcpTransportLease {
   readonly stream: Stream
@@ -92,16 +98,35 @@ export interface AcpObservationFrame {
   readonly state?: AcpSessionState
 }
 
-export interface AcpThreadHandle extends ThreadHandle {
+export interface AcpPromptOutcome {
+  stopReason: PromptResponse['stopReason']
+  usage?: AcpTurnUsage
+  context?: ThreadContextUsage
+}
+
+interface AcpReplayAccess {
+  state(): AcpSessionState
+  observe(sink: (frame: AcpObservationFrame) => void | Promise<void>): Promise<OperationResult<Observation>>
+}
+
+interface AcpDesktopAccess extends Pick<AcpHarnessSession, 'legacyEffort' | 'predictPrompt' | 'steer'> {
+  runPrompt(draft: AcpInputDraft): Promise<AcpPromptOutcome>
+  selectInitialModel(selection: AcpModelSelection & { model: string }): Promise<OperationResult<void>>
+  readonly awaitingNativeTurn: boolean
+  drainNativeTurn(): void
+}
+
+export interface AcpThreadHandle<Desktop extends boolean = false> extends ThreadHandle {
   readonly input: Required<Pick<ThreadInput, 'submit'>>
   readonly acp: {
-    state(): AcpSessionState
     readonly submit: SubmitInput<AcpInputDraft>
-    observe(sink: (frame: AcpObservationFrame) => void | Promise<void>): Promise<OperationResult<Observation>>
+    readonly model: AcpSessionControls['model']
+    selectModel(modelId: string): Promise<OperationResult<void>>
     setMode(modeId: string): Promise<OperationResult<void>>
     setConfigOption(configId: string, value: string | boolean): Promise<OperationResult<void>>
-  }
+  } & (Desktop extends true ? AcpDesktopAccess : AcpReplayAccess)
 }
+
 export interface AcpRuntime extends AgentRuntime {
   initialize(): Promise<OperationResult<InitializeResponse>>
   authenticate(methodId: string): Promise<OperationResult<void>>

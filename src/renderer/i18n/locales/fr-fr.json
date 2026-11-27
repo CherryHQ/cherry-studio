@@ -2719,6 +2719,7 @@
   "local_agents.follow_cli": "Modèle par défaut",
   "local_agents.follow_native_model_config": "Utiliser la configuration native",
   "local_agents.global_model_unavailable": "Le changement de modèle par défaut n’est pas encore pris en charge pour cet agent.",
+  "local_agents.host_permission.bypass_description": "Cherry approuve automatiquement les demandes d’outils, les écritures de fichiers et les commandes de terminal admissibles pour cette session. Les restrictions de l’agent local restent en vigueur.",
   "local_agents.incompatible": "Le CLI installé est incompatible",
   "local_agents.install_error.failed": "Échec de l’installation. Vérifiez le réseau et les permissions.",
   "local_agents.install_error.managed_runtime": "{{manager}} utilise un environnement géré par Cherry. Configurez d’abord un environnement système.",

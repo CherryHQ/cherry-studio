@@ -1,5 +1,6 @@
 export const openClawCli = {
   id: 'openclaw',
+  gatewayProviderId: 'api-gateway',
   name: 'OpenClaw',
   placeholderTitle: /^(?:(?:agent:[^:]+:)?acp-bridge:|\[Working directory:)/i,
   protocol: 'acp',

@@ -55,7 +55,11 @@ function AcpSessionModelControl({
   const { t } = useTranslation()
   const [saving, setSaving] = useState(false)
   const config = agent.configuration?.localRuntime
-  const { refresh, refreshError, loading } = useLocalAgentModelCatalog(config?.presetId ?? agent.id, config, false)
+  const { freshCatalog, refresh, refreshError, loading } = useLocalAgentModelCatalog(
+    config?.presetId ?? agent.id,
+    config,
+    false
+  )
   const status = info?.modelSelection
   const models = (info?.models ?? []).map((model) => ({ ...model, source: 'native' as const }))
   const value = info?.activeModel?.id
@@ -79,7 +83,7 @@ function AcpSessionModelControl({
       presetId={config?.presetId}
       value={value}
       disabled={!!info && (disabled || saving || status !== 'selectable')}
-      loaded={!!info}
+      loaded={!!info || !!freshCatalog}
       loading={!info && loading}
       error={info ? undefined : refreshError}
       onLoad={() => refresh().catch(() => {})}
@@ -236,6 +240,7 @@ function ModelControlButton({
   disabled,
   side,
   iconOnly,
+  className,
   ...buttonProps
 }: ComponentProps<typeof Button> & {
   model?: ComponentProps<typeof LocalAgentModelAvatar>['model']
@@ -256,7 +261,8 @@ function ModelControlButton({
       aria-label={t('button.select_model')}
       className={cn(
         side === 'bottom' ? COMPOSER_BELOW_SELECTOR_BUTTON_CLASS : COMPOSER_SELECTOR_BUTTON_CLASS,
-        iconOnly && COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS
+        iconOnly && COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS,
+        className
       )}>
       {saving ? (
         <Loader2 className="size-4 animate-spin" />

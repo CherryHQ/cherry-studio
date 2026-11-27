@@ -2747,6 +2747,7 @@
   "local_agents.follow_cli": "Модель по умолчанию",
   "local_agents.follow_native_model_config": "Использовать родные настройки",
   "local_agents.global_model_unavailable": "Переключение модели по умолчанию для этого агента пока не поддерживается.",
+  "local_agents.host_permission.bypass_description": "В этом сеансе Cherry автоматически одобряет допустимые запросы инструментов, запись в файлы и команды терминала. Ограничения локального агента продолжают действовать.",
   "local_agents.incompatible": "Установленный CLI несовместим",
   "local_agents.install_error.failed": "Ошибка установки. Проверьте сеть и права доступа.",
   "local_agents.install_error.managed_runtime": "{{manager}} использует среду Cherry. Сначала настройте системную среду.",

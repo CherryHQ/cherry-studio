@@ -2722,6 +2722,7 @@
   "local_agents.follow_cli": "Výchozí model",
   "local_agents.follow_native_model_config": "Použít nativní konfiguraci",
   "local_agents.global_model_unavailable": "Přepínání výchozího modelu pro tohoto agenta zatím není podporováno.",
+  "local_agents.host_permission.bypass_description": "Cherry v této relaci automaticky schválí způsobilé požadavky nástrojů, zápisy do souborů a příkazy terminálu. Omezení místního agenta zůstávají v platnosti.",
   "local_agents.incompatible": "Nainstalované CLI je nekompatibilní",
   "local_agents.install_error.failed": "Instalace se nezdařila. Zkontrolujte síťové připojení a oprávnění k instalaci.",
   "local_agents.install_error.managed_runtime": "{{manager}} používá prostředí spravované aplikací Cherry Studio. Nejprve nastavte systémovou instalaci.",

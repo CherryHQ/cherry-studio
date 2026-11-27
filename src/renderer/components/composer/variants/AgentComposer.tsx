@@ -727,10 +727,17 @@ const AgentComposerInner = ({
   const localEffort = localInfo?.thoughtLevel
   const localExtraOptions = useMemo(() => {
     return localInfo?.configOptions?.filter(
-      (option) => option.category !== 'model_config' && option.id !== localMode?.id && option.id !== localEffort?.id
+      (option) =>
+        option.category !== 'model_config' &&
+        option.category !== 'mode' &&
+        option.role !== 'mode' &&
+        option.id !== localMode?.id &&
+        option.id !== localEffort?.id
     )
   }, [localInfo?.configOptions, localMode?.id, localEffort?.id])
-  const localPermissionSelection = isUnifiedLocalPermissionMode(localMode) ? localMode : undefined
+  const nativePermissionSelection = isUnifiedLocalPermissionMode(localMode) ? localMode : undefined
+  const localPermissionSelection =
+    localInfo?.hostPermission ?? localView?.idleHostPermission ?? nativePermissionSelection
   const localPlanOption = useMemo(() => findLocalPlanModeOption(localPermissionSelection), [localPermissionSelection])
   const lastNonPlanLocalModeRef = useRef<{ sessionId: string; value: string } | null>(null)
   const localPlanSwitchInFlightRef = useRef(false)
@@ -2007,7 +2014,6 @@ const AgentComposerInner = ({
             agentName={agent.name.trim() || undefined}
             presetId={localPresetId}
             options={localExtraOptions}
-            mode={localPermissionSelection ? undefined : localMode}
             disabled={isStreaming}
           />
         </>

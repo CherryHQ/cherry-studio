@@ -113,6 +113,7 @@ export const GATEWAY_CAPABLE_CLI_TOOLS: ReadonlySet<CodeCli> = new Set([
   CodeCli.OPENAI_CODEX,
   CodeCli.ANTIGRAVITY_CLI,
   CodeCli.OPEN_CODE,
+  CodeCli.OPENCLAW,
   CodeCli.QWEN_CODE,
   CodeCli.KIMI_CODE,
   CodeCli.PI,

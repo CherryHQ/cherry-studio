@@ -9,6 +9,7 @@ import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
 
 import { runtimeId, type InputDraft, type ObservationPayload, type ThreadSnapshot } from '@cherrystudio/agent-runtime'
 
+import { AcpSessionControls } from '../src/configuration'
 import { Projection } from '../src/projection'
 import type { AcpObservationFrame, AcpThreadHandle } from '../src/v1'
 import { configuration, confirmed, deferred, fixture, input } from './fixture'
@@ -416,6 +417,7 @@ describe('projection and observation', () => {
     const projection = new Projection(
       'session',
       { id: runtimeId('thread'), backendId: runtimeId('backend') },
+      new AcpSessionControls(),
       (error) => {
         throw error
       }
@@ -677,6 +679,48 @@ describe('projection and observation', () => {
       })
     }
   )
+
+  it('serializes model writes across accesses and preserves a newer native configuration', async () => {
+    const requested = deferred<void>()
+    const respond = deferred<void>()
+    const options = (currentValue: string): SessionConfigOption[] => [
+      {
+        id: 'native-model',
+        name: 'Model',
+        type: 'select',
+        category: 'model',
+        currentValue,
+        options: ['small', 'large', 'native-override'].map((value) => ({ value, name: value }))
+      }
+    ]
+    const { runtime, peer } = setup({
+      'session/new': () => ({ sessionId: 'config', configOptions: options('small') }),
+      'session/set_config_option': async () => {
+        requested.resolve()
+        await respond.promise
+        return { configOptions: options('large') }
+      }
+    })
+    const handle = confirmed(await runtime.create(configuration))
+    const second = confirmed(await runtime.open(handle.thread))
+    const selection = handle.acp.selectModel('large')
+    try {
+      await requested.promise
+      expect(await second.acp.selectModel('native-override')).toMatchObject({
+        status: 'rejected',
+        error: { code: 'control-busy' }
+      })
+      await peer.client.notify(methods.client.session.update, {
+        sessionId: handle.thread.id,
+        update: { sessionUpdate: 'config_option_update', configOptions: options('native-override') }
+      })
+      await expect.poll(() => second.acp.model.activeModel?.id).toBe('native-override')
+    } finally {
+      respond.resolve()
+    }
+    expect(await selection).toMatchObject({ status: 'rejected', error: { code: 'model-unconfirmed' } })
+    expect(handle.acp.model.activeModel?.id).toBe('native-override')
+  })
 
   it('reads context passively only with native model and capacity evidence', async () => {
     let prompts = 0

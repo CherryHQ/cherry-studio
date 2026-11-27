@@ -1,5 +1,5 @@
 export { colorizeShellOutput, shellColorPalettes, TERMINAL_SURFACE_CLASS } from '../shared/terminalOutputHelpers'
-export { AcpTool } from './AcpTool'
+export { getAcpToolDisclosure, readAcpTool } from './AcpTool'
 export { getAgentConfigToolKind } from './agentConfigTool'
 export { AgentExecutionTimeline } from './AgentExecutionTimeline'
 export { agentInlineResultPresentationRegistry } from './agentInlineResultPresentationRegistry'

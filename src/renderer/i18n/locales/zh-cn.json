@@ -2719,6 +2719,7 @@
   "local_agents.follow_cli": "默认模型",
   "local_agents.follow_native_model_config": "沿用原生配置",
   "local_agents.global_model_unavailable": "暂未适配此智能体的默认模型切换。",
+  "local_agents.host_permission.bypass_description": "在此会话中，Cherry 会自动批准符合条件的工具请求、文件写入和终端命令。本机 Agent 自身的限制仍然生效。",
   "local_agents.incompatible": "已安装的 CLI 版本不兼容",
   "local_agents.install_error.failed": "安装失败，请检查网络及安装目录权限。",
   "local_agents.install_error.managed_runtime": "{{manager}} 使用了 Cherry 托管环境，请先配置系统安装环境。",

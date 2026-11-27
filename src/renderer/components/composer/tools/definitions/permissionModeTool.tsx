@@ -20,6 +20,7 @@ import {
   resolveUnifiedLocalPermissionModes
 } from '@renderer/utils/agent/localAgentLabels'
 import { isAgentFullAccessMode } from '@shared/ai/agentPermissionMode'
+import { ACP_HOST_PERMISSION_MODE_ID } from '@shared/ai/localAgent'
 
 type PermissionModeContext = ToolRenderContext<readonly [], readonly []>
 
@@ -29,6 +30,7 @@ const usePermissionModeToolController = (context: PermissionModeContext) => {
   const sessionId = sessionContext?.sessionId
   const isLocal = sessionContext?.agentType === 'local'
   const localPermission = sessionContext?.localPermission
+  const localHost = localPermission?.mode?.id === ACP_HOST_PERMISSION_MODE_ID
   const { agent } = useAgent(agentId ?? '')
   const { updateAgent } = useUpdateAgent()
 
@@ -48,7 +50,17 @@ const usePermissionModeToolController = (context: PermissionModeContext) => {
     return unifiedLocalMode.options
       .map((option) => canonicalByMode.get(option.canonicalMode))
       .filter((card): card is PermissionModeCard => Boolean(card))
-  }, [agent?.type, isLocal, unifiedLocalMode])
+      .map((card) =>
+        localHost && card.mode === 'bypassPermissions'
+          ? {
+              ...card,
+              descriptionKey: 'local_agents.host_permission.bypass_description',
+              descriptionFallback: 'Automatically approves eligible tool requests for this session.',
+              warningKey: undefined
+            }
+          : card
+      )
+  }, [agent?.type, isLocal, localHost, unifiedLocalMode])
   const planCard = permissionModeCards.find((card) => card.mode === 'plan')
   const isDisabled = Boolean(isLocal && localPermission?.disabled)
   const localExitPlanMode = useMemo(() => {
@@ -100,7 +112,7 @@ const usePermissionModeToolController = (context: PermissionModeContext) => {
   // Any newer mode (local or incoming) wins; confirming must never apply a stale dialog over it.
   useEffect(() => {
     setFullAccessPending(false)
-  }, [agentId, currentMode, sessionId])
+  }, [agentId, currentMode, sessionId, unifiedLocalMode?.id])
 
   const modeCard = permissionModeCards.find((card) => card.mode === currentMode)
   const tooltipTitle = modeCard ? t(modeCard.titleKey, modeCard.titleFallback) : ''
@@ -110,7 +122,7 @@ const usePermissionModeToolController = (context: PermissionModeContext) => {
   const modeSubmenu = useMemo(
     () =>
       permissionModeCards
-        .filter((card) => isLocal || card.mode !== 'plan')
+        .filter((card) => card.mode !== 'plan')
         .map((card, index) => ({
           id: `permission-mode-${card.mode}`,
           kind: 'command' as const,
@@ -135,7 +147,7 @@ const usePermissionModeToolController = (context: PermissionModeContext) => {
           ...(isDisabled ? { disabled: true, disabledReason } : {}),
           action: () => handleSelectMode(card.mode)
         })),
-    [currentMode, disabledReason, handleSelectMode, isDisabled, isLocal, permissionModeCards, t]
+    [currentMode, disabledReason, handleSelectMode, isDisabled, permissionModeCards, t]
   )
 
   useEffect(() => {
@@ -200,13 +212,15 @@ const usePermissionModeToolController = (context: PermissionModeContext) => {
     fullAccessPending,
     setFullAccessPending,
     applyMode,
+    localHost,
     agentName: agent?.name.trim() || undefined
   }
 }
 
 const PermissionModeComposerRuntime = ({ context }: { context: PermissionModeContext }) => {
   const { t } = context
-  const { fullAccessPending, setFullAccessPending, applyMode, agentName } = usePermissionModeToolController(context)
+  const { fullAccessPending, setFullAccessPending, applyMode, agentName, localHost } =
+    usePermissionModeToolController(context)
 
   return (
     <FullAccessConfirmDialog
@@ -214,6 +228,7 @@ const PermissionModeComposerRuntime = ({ context }: { context: PermissionModeCon
       onOpenChange={setFullAccessPending}
       onConfirm={() => applyMode('bypassPermissions')}
       scopeName={agentName}
+      localHost={localHost}
       t={t}
     />
   )

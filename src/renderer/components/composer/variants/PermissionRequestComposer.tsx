@@ -8,9 +8,10 @@ import { ScrollArea } from '@cherrystudio/ui'
 import { Button, Kbd, Textarea } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import {
-  AcpTool,
+  getAcpToolDisclosure,
   getAgentConfigToolKind,
   isValidAgentToolsType,
+  readAcpTool,
   renderTool,
   TerminalOutput,
   UnknownToolRenderer
@@ -29,7 +30,7 @@ import type { AgentConfigToolKind } from '@shared/ai/agentConfigToolKind'
 import type { AgentConfigChangePreview as ConfigPreview } from '@shared/ai/agentConfigToolOutput'
 import {
   isLocalAllowDecision,
-  LocalAcpToolSchema,
+  type LocalAcpTool,
   type LocalPermissionOption,
   LocalPermissionOptionsSchema
 } from '@shared/ai/localAgent'
@@ -252,17 +253,36 @@ function stripLocalPermissionEnvelope(value: unknown) {
 function BuiltinPermissionPreview({ toolResponse }: { toolResponse: NormalToolResponse }) {
   const toolName = toolResponse.tool.name
   const rawInput = toolResponse.arguments as Record<string, unknown> | string | undefined
-  const acp = LocalAcpToolSchema.safeParse(rawInput && typeof rawInput === 'object' ? rawInput.localAcpTool : undefined)
+  const acp = readAcpTool(toolName, rawInput)
   const input = stripLocalPermissionEnvelope(rawInput) as Record<string, unknown> | string | undefined
-  const renderedItem = acp.success
-    ? AcpTool({ tool: acp.data })
+  return (
+    <BuiltinPermissionToolDisclosure
+      key={acp ? 'acp' : `tool:${toolName}`}
+      acp={acp}
+      input={input}
+      toolName={toolName}
+    />
+  )
+}
+
+function BuiltinPermissionToolDisclosure({
+  toolName,
+  input,
+  acp
+}: {
+  toolName: string
+  input: Record<string, unknown> | string | undefined
+  acp: LocalAcpTool | undefined
+}) {
+  const renderedItem = acp
+    ? getAcpToolDisclosure({ tool: acp })
     : isValidAgentToolsType(toolName)
       ? renderTool(toolName, input)
       : UnknownToolRenderer({ toolName, input })
 
   const item: ToolDisclosureItem = {
     ...renderedItem,
-    label: acp.success ? renderedItem.label : <PermissionPreviewHeader toolName={toolName} />,
+    label: acp ? renderedItem.label : <PermissionPreviewHeader toolName={toolName} />,
     children: renderBuiltinPreviewChildren(toolName, renderedItem.children),
     classNames: {
       ...renderedItem.classNames,
@@ -443,13 +463,19 @@ export default function PermissionRequestComposer({
     : []
   const primaryAllowOption = localOptions
     ? (localOptions.find((option) => option.decision === 'accept') ??
-      localOptions.find((option) => isLocalAllowDecision(option.decision)))
+      localOptions.find((option) => option.decision === 'acceptForSession'))
     : undefined
-  const primaryRejectOption = localOptions
-    ? (localOptions.find((option) => option.label === 'deny') ??
-      localOptions.find((option) => option.decision === 'decline') ??
-      localOptions.find((option) => !isLocalAllowDecision(option.decision)))
-    : undefined
+  const temporaryRejects = localOptions?.filter(
+    (option) =>
+      !isLocalAllowDecision(option.decision) &&
+      !option.persistent &&
+      option.label !== 'deny_always' &&
+      option.label !== 'deny_always_host'
+  )
+  const primaryRejectOption =
+    temporaryRejects?.find((option) => option.label === 'deny') ??
+    temporaryRejects?.find((option) => option.decision === 'decline') ??
+    temporaryRejects?.find((option) => option.label === 'cancel')
   const resolvedLocalOptions = localOptions?.map((option) => ({
     option,
     buttonLabel: resolveLocalPermissionLabel(option, t)
@@ -543,8 +569,8 @@ export default function PermissionRequestComposer({
   useHotkeys(
     'esc',
     () => {
-      if (localOptions && primaryRejectOption) {
-        if (!isSubmitting) {
+      if (localOptions) {
+        if (!isSubmitting && primaryRejectOption) {
           void respond(
             {
               match: request.match,

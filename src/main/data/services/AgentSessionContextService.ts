@@ -165,6 +165,19 @@ class AgentSessionContextService {
     return rows.length === 1 ? rows[0].context : undefined
   }
 
+  localRootForThread(sessionId: string, agentId: string, nativeThreadId: string) {
+    const backend = application
+      .get('DbService')
+      .getDb()
+      .select({ id: backends.id })
+      .from(backends)
+      .where(eq(backends.locator, { version: 1, kind: 'local', agentId }))
+      .get()
+    const row = backend && this.rootForThread(backend.id, nativeThreadId)
+    if (row?.sessionId !== sessionId) return
+    return { id: row.id, backendId: row.backendId, nativeThreadId }
+  }
+
   roots(backendId: string): AgentSessionContextRow[] {
     return application
       .get('DbService')

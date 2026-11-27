@@ -1778,7 +1778,7 @@ function AgentDetailsContent() {
   const actions = useAgentRightPaneActions()
   const details = useAgentSessionDetails()
   const status = useAgentRightPaneStatus()
-  const { usage, percentage, status: contextUsageStatus } = useAgentSessionContextUsage(sessionId, meta.model)
+  const { usage, percentage } = useAgentSessionContextUsage(sessionId, meta.model)
   const cost = useAgentSessionCost(sessionId)
   const compaction = useAgentSessionCompaction(sessionId)
   const desktopControls = use(DesktopControlsContext)
@@ -1801,14 +1801,15 @@ function AgentDetailsContent() {
         pendingDesktopControls={desktopControls?.pending}
         stopDesktopControl={desktopControls?.stopApp}
         contextUsage={
-          <AgentContextUsageSummary
-            cost={cost}
-            usage={usage}
-            percentage={percentage}
-            status={contextUsageStatus}
-            isCompacting={compaction.status === 'compacting'}
-            className="py-2"
-          />
+          usage?.used ? (
+            <AgentContextUsageSummary
+              cost={cost}
+              usage={usage}
+              percentage={percentage}
+              isCompacting={compaction.status === 'compacting'}
+              className="py-2"
+            />
+          ) : null
         }
         status={status}
         sessionId={meta.sessionId}

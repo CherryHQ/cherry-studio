@@ -11,7 +11,7 @@ import { toast } from '@renderer/services/toast'
 import { cliTabIcon } from '@renderer/utils/tabIcons'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import type { Provider } from '@shared/data/types/provider'
-import { CodeCli } from '@shared/types/codeCli'
+import { CodeCli, isApiGatewayProviderId } from '@shared/types/codeCli'
 
 import { useManagedToolStatus } from './useManagedToolStatus'
 
@@ -86,7 +86,8 @@ export function useOpenClawGatewayController({
       setLaunching(true)
       const syncResult = await ipcApi.request('openclaw.sync_config', {
         uniqueModelId: parsedModelId.uniqueModelId,
-        port: gatewayPort
+        port: gatewayPort,
+        ...(enabledProvider && isApiGatewayProviderId(enabledProvider.id) && { viaGateway: true })
       })
       if (!syncResult.success) {
         toast.error(syncResult.message)

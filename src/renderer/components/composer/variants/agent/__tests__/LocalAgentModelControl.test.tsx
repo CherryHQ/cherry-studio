@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
+import type { LocalAgentSessionInfo } from '@shared/ai/localAgent'
 import type { AgentEntity } from '@shared/data/types/agent'
 import type { Model } from '@shared/data/types/model'
 import { CLI_API_GATEWAY_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
@@ -20,6 +21,7 @@ vi.mock('@renderer/hooks/useProvider', () => ({
   useProviders: () => ({ providers: catalog.providers }),
   getProviderDisplayName: (provider: { name: string }) => provider.name
 }))
+
 vi.unmock('@cherrystudio/ui')
 vi.unmock('@data/hooks/useCache')
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: vi.fn() } }))
@@ -39,7 +41,9 @@ const agent: AgentEntity = {
     localRuntime: { presetId: 'opencode', enabled: true, args: [], env: {}, nativeModel: 'first' }
   }
 }
-const info = {
+const info: LocalAgentSessionInfo = {
+  modelSelection: 'selectable',
+  activeModel: { id: 'first' },
   images: false,
   resume: true,
   models: [
@@ -176,6 +180,37 @@ describe('local agent model persistence', () => {
     }
   })
 
+  it('switches a session model and keeps the Agent default preference', async () => {
+    const user = userEvent.setup()
+    const confirmed: LocalAgentSessionInfo = { ...info, activeModel: { id: 'second' } }
+    const request = vi.mocked(ipcApi.request)
+    request.mockRejectedValueOnce(new Error('The ACP session did not confirm the selected model'))
+    request.mockResolvedValueOnce(confirmed)
+    const props = {
+      agent: {
+        ...agent,
+        configuration: { localRuntime: { ...agent.configuration!.localRuntime!, presetId: 'auggie' } }
+      },
+      sessionId: 'session',
+      disabled: false,
+      side: 'bottom'
+    } as const
+    const { rerender } = render(<LocalAgentModelControl {...props} info={info} />)
+    const trigger = screen.getByRole('button', { name: '选择模型' })
+    await user.click(trigger)
+    await user.click(screen.getByRole('option', { name: 'Second' }))
+    expect(trigger).toHaveTextContent('First')
+    await user.click(screen.getByRole('option', { name: 'Second' }))
+    await waitFor(() => expect(screen.queryByRole('option', { name: 'Second' })).not.toBeInTheDocument())
+    expect(request).toHaveBeenLastCalledWith('ai.local_agents.select_session_model', {
+      sessionId: 'session',
+      modelId: 'second'
+    })
+    expect(updateNativeModel).not.toHaveBeenCalled()
+    rerender(<LocalAgentModelControl {...props} info={confirmed} />)
+    expect(trigger).toHaveTextContent('Second')
+  })
+
   it('respects the common model-editing permission for local agents', () => {
     const props = {
       agent,
@@ -195,62 +230,20 @@ describe('local agent model persistence', () => {
     expect(screen.getByRole('button', { name: '选择模型' })).toBeEnabled()
   })
 
-  it('explains model switching restrictions without changing configuration', async () => {
-    const presetId = 'auggie'
+  it('keeps a single offered model visible without allowing a switch', async () => {
     const user = userEvent.setup()
     render(
       <LocalAgentModelControl
-        agent={{
-          ...agent,
-          configuration: { localRuntime: { ...agent.configuration!.localRuntime!, presetId } }
-        }}
-        info={info}
+        agent={agent}
+        info={{ ...info, models: [info.models[0]], modelSelection: 'current-only' }}
+        sessionId="session"
         disabled={false}
         side="bottom"
       />
     )
     await user.click(screen.getByRole('button', { name: '选择模型' }))
-    const option = screen.getByRole('option', { name: 'Second' })
-    expect(option).toHaveAttribute('aria-disabled', 'true')
-    expect(option).toHaveAccessibleDescription('暂未适配此智能体的默认模型切换。')
-    await user.keyboard('{ArrowDown}{Enter}')
-    expect(updateNativeModel).not.toHaveBeenCalled()
-  })
-
-  it('makes registry capabilities available when the live session only reports model names', async () => {
-    const user = userEvent.setup()
-    vi.mocked(ipcApi.request).mockImplementation(async (route) => {
-      if (route !== 'ai.local_agents.models') throw new Error(`Unexpected route: ${route}`)
-      return {
-        models: [
-          info.models[0],
-          {
-            ...info.models[1],
-            effort: {
-              options: [
-                { value: 'low', name: 'Low' },
-                { value: 'high', name: 'High' }
-              ]
-            },
-            registryModel: { id: 'second', capabilities: ['image-recognition'] }
-          },
-          {
-            id: 'catalog-only',
-            name: 'Catalog only',
-            registryModel: { id: 'catalog-only', capabilities: ['image-recognition'] }
-          }
-        ]
-      } as never
-    })
-    render(<LocalAgentModelControl agent={agent} info={info} disabled={false} side="bottom" />)
-    await user.click(screen.getByRole('button', { name: '选择模型' }))
-    await user.click(await screen.findByText('视觉'))
-    const option = screen.getByRole('option', { name: 'Second' })
-    expect(option).toBeVisible()
-    expect(option).toHaveTextContent(/^Second$/)
-    expect(option).not.toHaveAccessibleDescription()
-    expect(screen.queryByRole('option', { name: 'First' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('option', { name: 'Catalog only' })).not.toBeInTheDocument()
+    expect(screen.getByText('当前会话仅提供正在使用的模型。')).toBeVisible()
+    expect(screen.getByRole('option', { name: 'First' })).toHaveAttribute('aria-disabled', 'true')
   })
 
   it('edits session model parameters in the model picker without changing the global model', async () => {

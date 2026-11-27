@@ -2719,6 +2719,7 @@
   "local_agents.follow_cli": "Modello predefinito",
   "local_agents.follow_native_model_config": "Usa la configurazione nativa",
   "local_agents.global_model_unavailable": "Il cambio del modello predefinito non è ancora supportato per questo agente.",
+  "local_agents.host_permission.bypass_description": "Cherry approva automaticamente le richieste degli strumenti, le scritture su file e i comandi del terminale consentiti per questa sessione. Le restrizioni dell’agente locale continuano ad applicarsi.",
   "local_agents.incompatible": "La CLI installata non è compatibile",
   "local_agents.install_error.failed": "Installazione non riuscita. Controlla la rete e i permessi di installazione.",
   "local_agents.install_error.managed_runtime": "{{manager}} usa un ambiente gestito da Cherry. Configura prima un’installazione di sistema.",

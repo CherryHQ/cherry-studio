@@ -2722,6 +2722,7 @@
   "local_agents.follow_cli": "Model implicit",
   "local_agents.follow_native_model_config": "Folosește configurația nativă",
   "local_agents.global_model_unavailable": "Schimbarea modelului implicit nu este încă disponibilă pentru acest agent.",
+  "local_agents.host_permission.bypass_description": "În această sesiune, Cherry aprobă automat solicitările eligibile ale instrumentelor, scrierile în fișiere și comenzile de terminal. Restricțiile agentului local rămân în vigoare.",
   "local_agents.incompatible": "CLI instalat este incompatibil",
   "local_agents.install_error.failed": "Instalare eșuată. Verifică rețeaua și permisiunile.",
   "local_agents.install_error.managed_runtime": "{{manager}} folosește un mediu gestionat de Cherry. Configurează mai întâi un mediu de sistem.",

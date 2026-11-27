@@ -25,7 +25,7 @@ export const CURSOR_PERMISSION_MODES = {
   currentValue: 'default',
   application: 'next-turn',
   options: [
-    { value: 'default', name: 'Default', permissionMode: 'default' },
+    { value: 'default', name: 'Auto-review', permissionMode: 'auto' },
     { value: 'plan', name: 'Plan', permissionMode: 'plan' }
   ]
 } as const

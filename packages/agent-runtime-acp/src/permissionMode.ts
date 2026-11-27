@@ -4,6 +4,9 @@ export interface AcpPermissionModes {
   values?: Readonly<Record<string, AgentPermissionMode>>
   labels?: Readonly<Record<string, AgentPermissionMode>>
   configIds?: readonly string[]
+  approvalConfigId?: string
+  workflowConfigId?: string
+  legacyPlan?: true
   allowAll?: string
 }
 
@@ -44,6 +47,8 @@ export function acpPermissionControl(
   if (key === 'allow_all' || key === 'sandbox') return key
   if (
     category === 'mode' ||
+    declared?.approvalConfigId === id ||
+    declared?.workflowConfigId === id ||
     declared?.configIds?.includes(id) ||
     permissionConfigIds.has(key) ||
     permissionConfigIds.has(name.trim().toLowerCase())
@@ -60,7 +65,7 @@ export function acpPermissionChoice<T extends { value: string; name: string }>(
   if (!control) return choice
   const value = choice.value.trim().toLowerCase()
   const label = choice.name.trim().toLowerCase()
-  if (control === 'allow_all') {
+  if (control === 'allow_all' && declared?.approvalConfigId !== 'allow_all') {
     if (value !== 'true' && value !== 'on') return choice
     return { ...choice, requiresConfirmation: true }
   }

@@ -1,6 +1,11 @@
+import { access, readFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+
 import { setupTestDatabase } from '@test-helpers/db'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { application } from '@application'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { LocalAgentConfigurationSchema, type LocalAgentConfiguration } from '@shared/ai/localAgent'
@@ -15,6 +20,12 @@ const mocks = vi.hoisted(() => ({ read: vi.fn(), create: vi.fn() }))
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   const services = {
+    BinaryManager: {
+      getToolSnapshots: async () => ({
+        'deepagents-acp': { name: 'deepagents-acp', availability: { source: 'system', path: process.execPath } },
+        junie: { name: 'junie', availability: { source: 'system', path: process.execPath } }
+      })
+    },
     CodeCliService: { readConfigFiles: mocks.read },
     ApiGatewayService: {
       getCurrentConfig: () => ({ host: '0.0.0.0', port: 23333, apiKey: 'public' }),
@@ -69,6 +80,55 @@ describe('connection-local gateway attribution', () => {
       sourceModelViaGateway: true
     })
 
+  it('launches DeepAgents against a session credential and the selected Cherry model', async () => {
+    const { launch, gateway, contextWindow } = await prepareAcpChatLaunch(
+      { ...config('deepagents'), nativeModel: undefined },
+      'deepagents-session',
+      new AbortController().signal
+    )
+
+    expect(launch.args).toContain('openai:provider:model')
+    expect(launch.env.OPENAI_BASE_URL).toBe('http://127.0.0.1:12345/v1')
+    expect(launch.env.OPENAI_API_KEY).toBe('deepagents-session')
+    expect(contextWindow).toBe(96_000)
+    expect(mocks.create.mock.calls.map(([scope]) => scope)).toEqual([
+      { path: '/v1/responses', model: 'provider:model', agentSessionId: 'deepagents-session' }
+    ])
+    await gateway?.dispose()
+  })
+
+  it('gives Junie an isolated model profile and removes it when the session ends', async () => {
+    const getPath = vi.spyOn(application, 'getPath')
+    const original = getPath.getMockImplementation()!
+    getPath.mockImplementation((key, filename) =>
+      key === 'app.temp' ? join(tmpdir(), filename ?? '') : original(key, filename)
+    )
+    try {
+      const { launch, gateway } = await prepareAcpChatLaunch(
+        { ...config('junie'), nativeModel: undefined },
+        'junie-session',
+        new AbortController().signal
+      )
+      const profileDir = launch.args
+        .find((arg) => arg.startsWith('--model-location='))!
+        .slice('--model-location='.length)
+      const selectedProfile = launch.args
+        .find((arg) => arg.startsWith('--model=custom:'))!
+        .slice('--model=custom:'.length)
+      const filename = join(profileDir, `${selectedProfile}.json`)
+      try {
+        const profile = JSON.parse(await readFile(filename, 'utf8'))
+        expect(profile).toMatchObject({ baseUrl: 'http://127.0.0.1:12345/v1/chat/completions', id: 'provider:model' })
+        expect(launch.env[profile.apiKey.slice(2, -1)]).toBe('junie-session')
+      } finally {
+        await gateway?.dispose()
+      }
+      await expect(access(filename)).rejects.toMatchObject({ code: 'ENOENT' })
+    } finally {
+      getPath.mockImplementation(original)
+    }
+  })
+
   async function bind(config: LocalAgentConfiguration, sessionId: string, env: Record<string, string>) {
     const files: { target: CliConfigTarget; content: string | null }[] = await mocks.read()
     const preset = acpPreset(config.presetId)
@@ -111,7 +171,7 @@ describe('connection-local gateway attribution', () => {
     expect(launch.env.POOLSIDE_STANDALONE_BASE_URL).toBe('http://127.0.0.1:12345/v1')
     expect(launch.env.POOLSIDE_API_KEY).toBe('session-poolside')
     expect(mocks.read).toHaveBeenCalledTimes(1)
-    gateway?.dispose()
+    await gateway?.dispose()
   })
 
   it.each([
@@ -129,7 +189,7 @@ describe('connection-local gateway attribution', () => {
         cherry: { options: { apiKey: 'session-1', baseURL: 'http://127.0.0.1:12345/v1' } }
       }
     })
-    expect(JSON.parse(second[key]!)).toMatchObject({ provider: { cherry: { options: { apiKey: 'session-2' } } } })
+    expect(JSON.parse(second[key])).toMatchObject({ provider: { cherry: { options: { apiKey: 'session-2' } } } })
     expect(mocks.create.mock.calls.map(([scope]) => scope)).toEqual(
       ['session-1', 'session-2'].map((agentSessionId) => ({
         path: '/v1/chat/completions',

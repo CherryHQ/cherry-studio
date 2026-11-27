@@ -553,6 +553,9 @@ importers:
       '@cherrystudio/agent-runtime-cursor':
         specifier: workspace:*
         version: link:packages/agent-runtime-cursor
+      '@cherrystudio/agent-runtime-deepagents-acp':
+        specifier: workspace:*
+        version: link:packages/agent-runtime-deepagents-acp
       '@cherrystudio/agent-runtime-deepseek-harness-acp':
         specifier: workspace:*
         version: link:packages/agent-runtime-deepseek-harness-acp
@@ -574,6 +577,9 @@ importers:
       '@cherrystudio/agent-runtime-hermes-acp':
         specifier: workspace:*
         version: link:packages/agent-runtime-hermes-acp
+      '@cherrystudio/agent-runtime-junie-acp':
+        specifier: workspace:*
+        version: link:packages/agent-runtime-junie-acp
       '@cherrystudio/agent-runtime-kimi-acp':
         specifier: workspace:*
         version: link:packages/agent-runtime-kimi-acp
@@ -2013,6 +2019,19 @@ importers:
         specifier: npm:@typescript/typescript6@6.0.2
         version: '@typescript/typescript6@6.0.2'
 
+  packages/agent-runtime-deepagents-acp:
+    dependencies:
+      '@cherrystudio/agent-runtime-acp':
+        specifier: workspace:*
+        version: link:../agent-runtime-acp
+    devDependencies:
+      tsdown:
+        specifier: ^0.22.14
+        version: 0.22.14(@typescript/typescript6@6.0.2)(oxc-resolver@11.21.2)(tsx@4.21.0)(unrun@0.2.27(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3))
+      typescript:
+        specifier: npm:@typescript/typescript6@6.0.2
+        version: '@typescript/typescript6@6.0.2'
+
   packages/agent-runtime-deepseek-harness-acp:
     dependencies:
       '@cherrystudio/agent-runtime-acp':
@@ -2125,6 +2144,22 @@ importers:
       '@cherrystudio/agent-runtime':
         specifier: workspace:*
         version: link:../agent-runtime
+      '@cherrystudio/agent-runtime-acp':
+        specifier: workspace:*
+        version: link:../agent-runtime-acp
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.4
+        version: 24.10.4
+      tsdown:
+        specifier: ^0.22.14
+        version: 0.22.14(@typescript/typescript6@6.0.2)(oxc-resolver@11.21.2)(tsx@4.21.0)(unrun@0.2.27(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3))
+      typescript:
+        specifier: npm:@typescript/typescript6@6.0.2
+        version: '@typescript/typescript6@6.0.2'
+
+  packages/agent-runtime-junie-acp:
+    dependencies:
       '@cherrystudio/agent-runtime-acp':
         specifier: workspace:*
         version: link:../agent-runtime-acp

@@ -39,16 +39,8 @@ beforeEach(() => {
 })
 
 describe('LocalAgentConfigControl', () => {
-  it('keeps native priority and grouped choices without duplicating promoted controls', async () => {
+  it('shows localized current values for grouped reasoning choices', async () => {
     const user = userEvent.setup()
-    const mode = {
-      id: 'native-mode',
-      currentValue: 'ask',
-      options: [
-        { value: 'ask', name: 'Always Ask' },
-        { value: 'plan', name: 'Plan' }
-      ]
-    }
     const thoughtLevel = {
       id: 'native-reasoning',
       currentValue: 'low',
@@ -61,7 +53,6 @@ describe('LocalAgentConfigControl', () => {
       <LocalAgentConfigControl
         sessionId="session"
         disabled={false}
-        mode={mode}
         options={[
           options[1],
           {
@@ -71,41 +62,36 @@ describe('LocalAgentConfigControl', () => {
             type: 'select',
             options: [{ group: 'levels', name: 'Thinking levels', options: thoughtLevel.options }]
           },
-          options[0],
-          { ...mode, name: 'Mode', category: 'mode', type: 'select' }
+          options[0]
         ]}
       />
     )
     await user.click(screen.getByRole('button', { name: '智能体配置' }))
-    expect(screen.getAllByRole('menuitem').map((item) => item.getAttribute('aria-label'))).toEqual([
-      '会话模式',
-      '通知',
-      '思考强度',
-      '回答详细程度'
-    ])
     fireEvent.keyDown(screen.getByRole('menuitem', { name: '思考强度' }), { key: 'ArrowRight' })
     expect(screen.getByRole('menuitemradio', { name: '低' })).toHaveAttribute('aria-checked', 'true')
   })
 
-  it('keeps the confirmed mode when a change is rejected', async () => {
+  it('keeps the confirmed setting when a change is rejected', async () => {
     const user = userEvent.setup()
     vi.mocked(ipcApi.request).mockRejectedValue(new Error('Cannot switch now'))
-    const selection = {
+    const selection: LocalAgentConfigOption = {
       id: 'native-config',
+      name: 'Output level',
+      type: 'select',
       currentValue: 'low',
       options: [
         { value: 'low', name: 'Low' },
         { value: 'high', name: 'High' }
       ]
     }
-    render(<LocalAgentConfigControl sessionId="session" mode={selection} disabled={false} />)
+    render(<LocalAgentConfigControl sessionId="session" options={[selection]} disabled={false} />)
     const trigger = screen.getByRole('button', { name: '智能体配置' })
-    expect(trigger).toHaveTextContent('会话模式：Low')
+    expect(trigger).toHaveTextContent('Output level：Low')
     await user.click(trigger)
     expect(screen.queryByRole('menuitem')).not.toBeInTheDocument()
     await user.click(screen.getByRole('menuitemradio', { name: 'High' }))
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Error: Cannot switch now'))
-    expect(ipcApi.request).toHaveBeenCalledWith('ai.local_agents.set_mode', {
+    expect(ipcApi.request).toHaveBeenCalledWith('ai.local_agents.set_config_option', {
       sessionId: 'session',
       configId: 'native-config',
       value: 'high'
@@ -115,32 +101,24 @@ describe('LocalAgentConfigControl', () => {
     expect(confirmed).not.toHaveAttribute('aria-disabled', 'true')
   })
 
-  it.each(['mode', 'thoughtLevel'] as const)('hides a fixed %s without a configurable choice', (kind) => {
-    render(
-      <LocalAgentConfigControl
-        sessionId="session"
-        disabled={false}
-        {...{
-          [kind]: { id: 'fixed', currentValue: 'only', options: [{ value: 'only', name: 'Only' }] }
-        }}
-      />
-    )
-    expect(screen.queryByRole('button', { name: '智能体配置' })).not.toBeInTheDocument()
-  })
-
   it('keeps high-risk permissions visible in the collapsed summary', () => {
     render(
       <LocalAgentConfigControl
         sessionId="session"
         disabled={false}
-        mode={{
-          id: 'mode',
-          currentValue: 'full',
-          options: [
-            { value: 'ask', name: 'Always Ask' },
-            { value: 'full', name: 'Full Access' }
-          ]
-        }}
+        options={[
+          {
+            id: 'mode',
+            name: 'Mode',
+            type: 'select',
+            role: 'mode',
+            currentValue: 'full',
+            options: [
+              { value: 'ask', name: 'Always Ask' },
+              { value: 'full', name: 'Full Access', permissionMode: 'bypassPermissions' }
+            ]
+          }
+        ]}
       />
     )
     expect(screen.getByRole('button', { name: '智能体配置' })).toHaveTextContent('完全访问（高风险）')
@@ -215,7 +193,7 @@ describe('LocalAgentConfigControl', () => {
     )
   })
 
-  it('requires confirmation before enabling high-risk modes or unsandboxed config options', async () => {
+  it('requires confirmation before switching a setting to the unsandboxed environment', async () => {
     const user = userEvent.setup()
     vi.mocked(ipcApi.request).mockResolvedValue(null)
     render(
@@ -224,14 +202,6 @@ describe('LocalAgentConfigControl', () => {
         agentName="Codex Local"
         presetId="codebuddy-code"
         disabled={false}
-        mode={{
-          id: 'mode',
-          currentValue: 'ask',
-          options: [
-            { value: 'ask', name: 'Always Ask' },
-            { value: 'autopilot', name: 'Autopilot', requiresConfirmation: true }
-          ]
-        }}
         options={[
           {
             id: 'sandbox',
@@ -248,8 +218,7 @@ describe('LocalAgentConfigControl', () => {
     )
 
     await user.click(screen.getByRole('button', { name: '智能体配置' }))
-    fireEvent.keyDown(screen.getByRole('menuitem', { name: '会话模式' }), { key: 'ArrowRight' })
-    await user.click(screen.getByRole('menuitemradio', { name: 'Autopilot' }))
+    await user.click(screen.getByRole('menuitemradio', { name: '本机环境' }))
 
     expect(ipcApi.request).not.toHaveBeenCalled()
     expect(await screen.findByRole('dialog')).toHaveTextContent('Codex Local')
@@ -257,7 +226,6 @@ describe('LocalAgentConfigControl', () => {
     expect(ipcApi.request).not.toHaveBeenCalled()
 
     await user.click(screen.getByRole('button', { name: '智能体配置' }))
-    fireEvent.keyDown(screen.getByRole('menuitem', { name: '沙箱' }), { key: 'ArrowRight' })
     await user.click(screen.getByRole('menuitemradio', { name: '本机环境' }))
 
     expect(ipcApi.request).not.toHaveBeenCalled()

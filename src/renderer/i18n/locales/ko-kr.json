@@ -2719,6 +2719,7 @@
   "local_agents.follow_cli": "기본 모델",
   "local_agents.follow_native_model_config": "기본 도구 설정 따르기",
   "local_agents.global_model_unavailable": "이 에이전트에서는 아직 기본 모델 전환이 지원되지 않습니다.",
+  "local_agents.host_permission.bypass_description": "이 세션에서 Cherry는 승인 가능한 도구 요청, 파일 쓰기 및 터미널 명령을 자동으로 승인합니다. 로컬 에이전트 자체의 제한은 계속 적용됩니다.",
   "local_agents.incompatible": "설치된 CLI가 호환되지 않습니다",
   "local_agents.install_error.failed": "설치에 실패했습니다. 네트워크 및 설치 권한을 확인하세요.",
   "local_agents.install_error.managed_runtime": "{{manager}}는 Cherry에서 관리하는 환경을 사용합니다. 먼저 시스템 설치를 구성하세요.",

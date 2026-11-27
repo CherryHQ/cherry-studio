@@ -8,7 +8,8 @@ export const hermesCli = {
   terminalArgs: [],
   permissionMode: {
     values: { ask: 'default', workspace_session: 'acceptEdits', session: 'auto' },
-    configIds: ['edit_approval_policy']
+    configIds: ['edit_approval_policy'],
+    approvalConfigId: 'edit_approval_policy'
   } satisfies AcpPermissionModes,
   name: 'Hermes',
   protocol: 'acp',

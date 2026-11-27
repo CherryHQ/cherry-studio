@@ -223,7 +223,7 @@ describe('permissionModeTool submenu', () => {
     ).toBe(false)
   })
 
-  it('exposes plan inside local submenu, maps canonical picks back to native values, and guards streaming/high-risk', async () => {
+  it('keeps local Plan in the root panel and maps permission choices to native values', async () => {
     const user = userEvent.setup()
     mocks.agent = { id: 'agent-local', name: 'ZCode Local' }
     const Runtime = permissionModeTool.composer!.runtime!
@@ -252,9 +252,9 @@ describe('permissionModeTool submenu', () => {
     const { rerender } = render(<Runtime context={context as any} />)
     const launchers = mocks.registerLaunchers.mock.calls.at(-1)?.[0] ?? []
     const permission = launchers.find((item) => item.id === 'permission-mode')
+    const plan = launchers.find((item) => item.id === 'plan-mode')
     const submenu = permission?.submenu ?? []
     expect(submenu.map((item) => item.id)).toEqual([
-      'permission-mode-plan',
       'permission-mode-default',
       'permission-mode-acceptEdits',
       'permission-mode-bypassPermissions'
@@ -269,7 +269,8 @@ describe('permissionModeTool submenu', () => {
     })
 
     mocks.ipcRequest.mockClear()
-    submenu.find((item) => item.id === 'permission-mode-plan')?.action?.({} as any)
+    expect(plan?.sources).toContain('root-panel')
+    plan?.action?.({} as any)
     expect(mocks.ipcRequest).toHaveBeenCalledWith('ai.local_agents.set_mode', {
       sessionId: 'session-zcode',
       configId: 'mode',

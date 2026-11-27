@@ -10,7 +10,7 @@ export type {
   McpServer as AcpMcpServer,
   PromptCapabilities as AcpPromptCapabilities
 } from '@agentclientprotocol/sdk'
-export { acpAuthMethods, acpEffortOption, acpModelCatalog, type AcpClient, type AcpSession } from './client'
+export { acpAuthMethods, acpEffortOption, acpModelCatalog, type AcpClient } from './client'
 export {
   acpHostError,
   connectAcpManagementStdio,
@@ -26,7 +26,7 @@ export type {
   AcpSubscriptionUsageReader,
   AcpNativeTurn
 } from './harness'
-export type { AcpLiveEvents, AcpLiveSession } from './live'
+export type { AcpDesktopEvents } from './desktopUpdates'
 export { acpPermissionChoice, acpPermissionControl } from './permissionMode'
 export { mapAcpPermissionOptions, type AcpPermissionOption, type AcpPermissionRequest } from './permissions'
 export { encodeAcpAttachment, type AcpAttachmentSource } from './prompt'

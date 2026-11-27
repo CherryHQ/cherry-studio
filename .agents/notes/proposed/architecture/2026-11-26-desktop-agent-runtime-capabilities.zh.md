@@ -34,7 +34,13 @@ Main 的本机连接检查、模型查询与会话打开共用一张表，派发
 
 CLI 启动准备从进程环境使用的同一份配置快照解析 Gateway 路由。能够注入会话凭据的 runtime 提供已解析路由和注入操作。Gateway 校验路由后签发限定范围的凭据。只使用公共密钥的请求保留 provider 用量，归属会话为空。
 
+ACP 适配器可以声明在启动时应用 Cherry 模型。Agent Services 把选中的 Cherry 模型保存在 Agent 中。Main 解析端点和模型地址，并向所属 runtime 提供限定范围的凭据。清除选项后恢复原生选模。多个会话共用进程的托管服务可以使用共用的 provider 配置。只有原生请求携带对应会话凭据时，用量才归该会话。
+
+未连接的 ACP 会话从已安装运行时的目录读取候选，并把选中的原生模型保存在该会话。打开下拉时，会话保持未连接。发送前，宿主创建或恢复实际的 ACP 会话并确认用户选择。没有会话级选择时，依次沿用恢复后的原生模型、Agent 启动偏好和 CLI 默认模型。模型被拒绝时保留草稿，供用户重试。
+
 Harness 适配器解释原生审批请求和选项。公共 ACP 包转换标准选项类型。Main 管理待处理审批、取消以及 Cherry 发放的会话授权。选中回执使用原生请求提供的选项 ID。
+
+Composer 权限菜单使用已验证的独立 ACP 审批控制或包含完全访问的原生权限目录。Harness 单独公布工作模式时，仅规划命令和 Shift+Tab 可在已验证的原生 Plan 与默认工作模式之间切换。新增原生支持时，已保存的 Cherry 宿主审批选择保留 CLI 报告的原生档位。其余 ACP 会话为 Cherry 的交互审批提供操作前询问、自动接受编辑和完全访问。Cherry 完全访问会选择原生请求提供的单次允许选项，并直接批准由宿主代跑的文件写入和终端操作。原生限制、只读模式、结构化提问和无人值守执行各自沿用原有策略。Cherry 按会话记住选择，生效时无需修改 CLI 配置。
 
 Runtime 分别报告原生接纳和实际放入的位置。只有明确未接纳才释放绑定，允许调度器重新排队。Composer 持有未提交草稿，由当前连接决定是否直接提交持久后续输入。主动压缩是空闲线程的独立操作，匹配的原生终态解除占用并刷新上下文读数。
 
@@ -73,9 +79,9 @@ Pi Durable、内建 Pi、Claude 和 Codex 的既有原生能力走同一组桌�
 - AC23 — 使用同一个网关模型的两个 CLI 会话分别取得自己的凭据，请求归到凭据对应的会话。只有公共密钥的请求不会归到任一会话。启动准备在绑定凭据时不重复读取配置文件。(verification: unit and Electron)
 - AC24 — 同一预设的检查、模型查询与会话打开选择同一个 Main 适配器。保存的配置包含预设 ID。自定义可执行文件选择 ACP。新增协议时必须为 Main 派发表提供三项操作。(verification: schema and typecheck)
 - AC25 — 读取冷会话控件不会打开原生会话。连接关闭时 Composer 撤下该连接的实时控件。切换模型后撤下旧模型档位，并拒绝写入旧模型。ACP 保留原生公布的档位，包括 Pi ACP 的旧版思考模式和 Grok 的旧版模型元数据。Cursor 从 SDK 模型目录读取档位，在下一次发送时应用所选值。(verification: unit and Electron)
-- AC26 — 模型选择器在首次发送前使用所选安装的模型目录。每个模型只携带原生端为它公布的 effort 档位。标准 ACP 探测将会话选项归属到原生端报告的当前模型，读完关闭探测会话。Grok 可直接列模型，扩展缺失时使用会话探测。(verification: unit and Electron)
+- AC26 — 设置页从所选安装读取目录，普通 ACP 原生模型作为 Agent 的启动偏好保存。Composer 使用当前 ACP 会话公布的候选并调用该会话绑定的操作。标准配置回包或通知确认当前模型和 effort，旧版选模使用原生回执。未登录、空目录、只有当前模型与写入方法不可用分别展示。标准目录探测在读完选项后关闭。Grok 在可用时直接读取模型目录。桌面连接和 ThreadHandle 复用原生控件实现。同一会话只允许一笔控件写入在途，迟到回包不能覆盖已收到的新配置通知。(verification: unit and Electron)
 - AC27 — 上下文读数使用原生端报告的占用量或最近一次模型请求。Cursor 把整轮累计 token 留在用量记录。窗口取自原生 runtime 或已绑定的 Cherry 目录模型。窗口未知时显示 token 数，省略百分比。(verification: unit and Electron)
-- AC28 — 原生插话的回执、归属和拒绝沿用同一 input ID。缺失或不明确的结果不会触发回退。原生后续轮和上一条 prompt 回包同批到达时，正文和终态仍归原生后续轮。(verification: unit and Electron)
+- AC28 — 原生插话的回执、归属和拒绝沿用同一 input ID。缺失或不明确的结果不会触发回退。原生后续轮和上一条 prompt 回包同批到达时，正文和终态仍归原生后续轮。桌面和原生回放共用同一个 ACP 会话 owner。恢复前绑定原生 ID，桌面接收启动元数据与已归属的新 turn，时间线继续增量写入。会话 owner 负责原生关闭及等待进程退出。 (verification: unit and Electron)
 - AC29 — 主动压缩占用线程直到原生操作结算或来源终止。只有匹配的完成证据才刷新上下文读数。(verification: unit and Electron)
 
 - AC30 — 安装代码无法导入会话适配器。登录提示和取消归发起窗口。启动失败或截止后，先关闭所属进程再返回。(verification: lint, unit and Electron)
@@ -85,6 +91,12 @@ Pi Durable、内建 Pi、Claude 和 Codex 的既有原生能力走同一组桌�
 
 - AC33 — 新建的默认 Amp 聊天使用官方 SDK，与登录和额度读取使用同一个 CLI 和账号。文本、图片及已支持的插话到达对应线程，SDK 会话按 Amp thread ID 恢复，取消后等待子进程退出。已有 ACP 会话及显式 ACP 命令仍可用。(verification: unit, Electron and packaged artifact)
 - AC34 — 目录项选择声明的发行版和地区。每个可用登录流程在同一 runtime 完成并刷新账号状态。仅需供应商凭据的配置不提供 harness 账号登录。需要认证的前置状态显示为登录操作。(verification: unit and Electron)
+
+- AC35 — 缺少已验证原生审批控制或完全访问模式的 ACP 会话，在首轮开始前或连接已建立后，都可以用与内置 Agent 相同的权限菜单调整 Cherry 的模式。独立的仅规划命令和 Shift+Tab 可在 OpenCode 的 Plan 与 Build 之间切换。已验证的独立审批控制可以单独切换原生审批。切换模式时保留 CLI 配置。Cherry 完全访问只发送原生提供的单次允许选项。切回操作前询问后恢复交互式审批，无人值守时继续拒绝请求。(verification: unit, renderer and Electron)
+- AC36 — Agent Services 可以为 DeepAgents、Antigravity 和 Command Code 保存和清除 Cherry 模型。已启用的适配器使用选中的模型和发起会话的限定凭据，向内部网关发送原生 ACP 对话轮次。(verification: unit, renderer and Electron)
+- AC37 — OpenClaw 可以通过托管配置使用 Cherry 网关模型。并发会话使用一致的模型路由，只有通过凭据验证的用量才会归到具体会话。(verification: unit and Electron)
+- AC38 — Junie、DimAgent、Muse Code、Auggie、TRAE CN、Qoder 和 Qoder CN 在验证原生 ACP 能用注入的凭据向选定本机端点发送对话轮次后，提供 Cherry 模型选项。(verification: native ACP and Electron)
+- AC39 — ACP 会话可以在连接前选择原生模型，并在重连后保留。运行时在接收下一条消息前确认选择。模型被拒绝时保留草稿。(verification: unit, renderer and Electron)
 
 ## Risks
 

@@ -2,11 +2,38 @@ import { describe, expect, it } from 'vitest'
 
 import { acpPermissionChoice, acpPermissionControl } from '@cherrystudio/agent-runtime-acp/v1'
 import { gooseCli } from '@cherrystudio/agent-runtime-goose-acp/cli'
+import { kimiCli } from '@cherrystudio/agent-runtime-kimi-acp/cli'
+import { openCodeCli } from '@cherrystudio/agent-runtime-opencode-acp/cli'
+import { qwenCli } from '@cherrystudio/agent-runtime-qwen-acp/cli'
 import { requiresPermissionConfirmation } from '@cherrystudio/agent-runtime/cli'
 
-import { getLocalAgentLaunchMode } from '../localAgent'
+import { getAcpHostPermissionModeSelection, getLocalAgentLaunchMode } from '../localAgent'
 
 describe('runtime permission declarations', () => {
+  it.each([kimiCli, qwenCli])(
+    'replaces saved Cherry-only approval with the advertised $name permission catalog',
+    ({ permissionMode }) => {
+      const options = Object.keys(permissionMode.values).map((value) =>
+        acpPermissionChoice({ value, name: value }, 'mode', permissionMode)
+      )
+      expect(
+        getAcpHostPermissionModeSelection({ id: 'mode', currentValue: 'default', options }, 'bypassPermissions')
+      ).toBeUndefined()
+      expect(requiresPermissionConfirmation(options.find(({ value }) => value === 'yolo'))).toBe(true)
+    }
+  )
+
+  it('shows OpenCode native Plan in the shared chooser and preserves the host choice when back in Build', () => {
+    const options = ['build', 'plan'].map((value) =>
+      acpPermissionChoice({ value, name: value }, 'mode', openCodeCli.permissionMode)
+    )
+    const mode = { id: 'mode', application: 'session' as const, options }
+    const duringPlan = getAcpHostPermissionModeSelection({ ...mode, currentValue: 'plan' }, 'acceptEdits')
+    const duringBuild = getAcpHostPermissionModeSelection({ ...mode, currentValue: 'build' }, 'acceptEdits')
+    expect(duringPlan?.currentValue).toBe('plan')
+    expect(duringBuild?.currentValue).toBe('acceptEdits')
+  })
+
   it('keeps Goose auto approval distinct from Claude auto review', () => {
     const raw = { value: 'auto', name: 'Auto' }
     const goose = acpPermissionChoice(raw, 'mode', gooseCli.permissionMode)

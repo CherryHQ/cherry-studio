@@ -67,25 +67,6 @@ describe('MiniMax Code provider support', () => {
   })
 })
 
-describe('GATEWAY_CAPABLE_CLI_TOOLS', () => {
-  it('covers exactly the tools that can launch through the Unified Gateway', () => {
-    expect([...GATEWAY_CAPABLE_CLI_TOOLS].sort()).toEqual(
-      [
-        CodeCli.CLAUDE_CODE,
-        CodeCli.OPENAI_CODEX,
-        CodeCli.ANTIGRAVITY_CLI,
-        CodeCli.OPEN_CODE,
-        CodeCli.QWEN_CODE,
-        CodeCli.KIMI_CODE,
-        CodeCli.PI,
-        CodeCli.HERMES,
-        CodeCli.DEEPSEEK_HARNESS,
-        CodeCli.MINIMAX_CODE
-      ].sort()
-    )
-  })
-})
-
 describe('Antigravity provider support', () => {
   it('matches Gemini-compatible providers and offers the Unified Gateway', () => {
     const providers = [

@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { extractLocalAcpRawInputPaths } from '@shared/ai/localAgent'
+import { extractLocalAcpRawInputCommand, extractLocalAcpRawInputPaths } from '@shared/ai/localAgent'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 
 import { acpPreset } from './acpPresets'
@@ -88,16 +88,7 @@ export function classifyAcpToolKind(tool: AcpPermissionToolLike): 'read' | 'muta
   ) {
     return 'mutation'
   }
-  if (tool.rawInput && typeof tool.rawInput === 'object' && !Array.isArray(tool.rawInput)) {
-    const input = tool.rawInput as Record<string, unknown>
-    if (
-      (typeof input.CommandLine === 'string' && input.CommandLine.trim()) ||
-      (typeof input.command === 'string' && input.command.trim()) ||
-      (typeof input.cmd === 'string' && input.cmd.trim())
-    ) {
-      return 'execute'
-    }
-  }
+  if (extractLocalAcpRawInputCommand(tool.rawInput)) return 'execute'
   return 'other'
 }
 

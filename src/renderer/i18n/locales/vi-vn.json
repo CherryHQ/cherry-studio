@@ -2719,6 +2719,7 @@
   "local_agents.follow_cli": "Mô hình mặc định",
   "local_agents.follow_native_model_config": "Dùng cấu hình gốc",
   "local_agents.global_model_unavailable": "Chưa hỗ trợ chuyển đổi mô hình mặc định cho tác nhân này.",
+  "local_agents.host_permission.bypass_description": "Cherry tự động phê duyệt các yêu cầu dùng công cụ, ghi tệp và lệnh thiết bị đầu cuối đủ điều kiện trong phiên này. Các giới hạn riêng của tác nhân cục bộ vẫn áp dụng.",
   "local_agents.incompatible": "CLI đã cài đặt không tương thích",
   "local_agents.install_error.failed": "Cài đặt thất bại. Kiểm tra mạng và quyền truy cập.",
   "local_agents.install_error.managed_runtime": "{{manager}} đang dùng môi trường do Cherry quản lý. Hãy thiết lập môi trường hệ thống trước.",

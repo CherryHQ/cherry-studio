@@ -47,33 +47,32 @@ export function useLocalAgentModelSelection(
   const gateway = useApiGatewayProvider()
   const storage = getLocalAgentModelStorage(config?.presetId)
   const native = storage?.type === 'cli' ? storage : undefined
+  const gatewayAtLaunch = storage?.type === 'agent' && !!storage.gatewayModelEndpoint && !config?.executableOverride
   const isCursor = config?.presetId === cursorPreset.id
   const isDeepSeekHarness = config?.presetId === CodeCli.DEEPSEEK_HARNESS
   const followCliLabel = isCursor
     ? undefined
     : t(native?.nativeSelection === 'agent' ? 'local_agents.follow_native_model_config' : 'local_agents.follow_cli')
   const managedDeepSeekHarness = isDeepSeekHarness && !config?.env.DSH_HOME
+  const supportsGateway = !!native || managedDeepSeekHarness || gatewayAtLaunch
   const [cliConfigs] = usePreference('feature.code_cli.configs')
   const dshState = managedDeepSeekHarness ? cliConfigs?.[CodeCli.DEEPSEEK_HARNESS] : undefined
   const dshModelId = dshState?.current ? dshState.providers[dshState.current]?.modelId : undefined
-  const sourceRestrictions: LocalAgentModelSourceRestrictions | undefined =
-    native || managedDeepSeekHarness
-      ? undefined
-      : {
-          native: storage?.type === 'agent' ? undefined : t('local_agents.global_model_unavailable'),
-          gateway: t('local_agents.model_sources.gateway_not_integrated')
-        }
-  const { models, isLoading: modelsLoading } = useModels(
-    { enabled: true },
-    { fetchEnabled: !!native || managedDeepSeekHarness }
-  )
+  const sourceRestrictions: LocalAgentModelSourceRestrictions | undefined = supportsGateway
+    ? undefined
+    : {
+        native: storage?.type === 'agent' ? undefined : t('local_agents.global_model_unavailable'),
+        gateway: t('local_agents.model_sources.gateway_not_integrated')
+      }
+  const { models, isLoading: modelsLoading } = useModels({ enabled: true }, { fetchEnabled: supportsGateway })
   const { providers, isLoading: providersLoading } = useProviders(undefined, {
-    enabled: !!native || managedDeepSeekHarness
+    enabled: supportsGateway
   })
   const providerById = new Map(providers.map((provider) => [provider.id, provider]))
   const gatewayProviders = getGatewayProviderIds(providers)
   const gatewayModels =
-    gateway && (managedDeepSeekHarness || (native && CLI_TOOL_PROVIDER_MAP[native.tool]([gateway.provider]).length))
+    gatewayAtLaunch ||
+    (gateway && (managedDeepSeekHarness || (native && CLI_TOOL_PROVIDER_MAP[native.tool]([gateway.provider]).length)))
       ? models.filter((model) => isCliGatewayModel(gatewayProviders, model))
       : []
   const gatewayModelId = isDeepSeekHarness
@@ -135,6 +134,9 @@ export function useLocalAgentModelSelection(
     if (managedDeepSeekHarness && model) {
       await ipcApi.request('deepseek_harness.select_gateway_model', { uniqueModelId: model.id })
       return config?.nativeModel ? updateNativeModel(agent.id) : agent
+    }
+    if (gatewayAtLaunch && model) {
+      return updateNativeModel(agent.id, undefined, { sourceModelId: model.id, sourceModelViaGateway: true })
     }
     if (isCursor && id === CURSOR_AUTO_MODEL_ID) return updateNativeModel(agent.id)
     if (

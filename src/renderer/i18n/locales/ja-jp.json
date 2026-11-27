@@ -2719,6 +2719,7 @@
   "local_agents.follow_cli": "デフォルトモデル",
   "local_agents.follow_native_model_config": "ネイティブ設定に従う",
   "local_agents.global_model_unavailable": "このエージェントのデフォルトモデル切り替えにはまだ対応していません。",
+  "local_agents.host_permission.bypass_description": "このセッションでは、対象となるツールのリクエスト、ファイルへの書き込み、ターミナルコマンドを Cherry が自動承認します。ローカルエージェント固有の制限は引き続き適用されます。",
   "local_agents.incompatible": "インストール済みの CLI に互換性がありません",
   "local_agents.install_error.failed": "インストールに失敗しました。ネットワークと権限を確認してください。",
   "local_agents.install_error.managed_runtime": "{{manager}} は Cherry 管理の環境を使用しています。先にシステム環境を設定してください。",

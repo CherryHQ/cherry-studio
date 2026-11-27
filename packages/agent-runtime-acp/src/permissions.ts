@@ -17,7 +17,7 @@ export function mapAcpPermissionOptions(
       return {
         ...base,
         decision: 'accept',
-        label: /^(?:yes,\s*)?allow\s+once$/i.test(trimmed)
+        label: /^(?:yes,\s*)?(?:allow|approve)\s+once$/i.test(trimmed)
           ? 'allow_once'
           : /^(?:yes,\s*)?allow$/i.test(trimmed)
             ? 'allow'
@@ -25,7 +25,8 @@ export function mapAcpPermissionOptions(
       } as const
     }
     if (kind === 'allow_always') {
-      const isSessionScoped = details?.scope === 'session' || /^(?:yes,\s*)?allow for (?:this )?session$/i.test(trimmed)
+      const isSessionScoped =
+        details?.scope === 'session' || /^(?:yes,\s*)?(?:allow|approve) for (?:this )?session$/i.test(trimmed)
       const isGenericAlways = /^(?:yes,\s*)?(?:always allow|allow always)(?:\s*\(risky\))?$/i.test(trimmed)
       return {
         ...base,
@@ -47,6 +48,7 @@ export function mapAcpPermissionOptions(
     return {
       ...base,
       decision: 'decline',
+      persistent: true,
       label: /^(?:no,\s*)?(?:always\s+(?:reject|deny)|(?:reject|deny)\s+always|never\s+allow)$/i.test(trimmed)
         ? 'deny_always'
         : undefined

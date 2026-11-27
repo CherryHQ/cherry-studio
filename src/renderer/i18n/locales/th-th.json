@@ -2719,6 +2719,7 @@
   "local_agents.follow_cli": "โมเดลเริ่มต้น",
   "local_agents.follow_native_model_config": "ใช้การกำหนดค่าของเครื่องมือ",
   "local_agents.global_model_unavailable": "ยังไม่รองรับการสลับโมเดลเริ่มต้นสำหรับเอเจนต์นี้",
+  "local_agents.host_permission.bypass_description": "ในเซสชันนี้ Cherry จะอนุมัติคำขอใช้เครื่องมือ การเขียนไฟล์ และคำสั่งเทอร์มินัลที่เข้าเกณฑ์โดยอัตโนมัติ ข้อจำกัดของเอเจนต์ในเครื่องยังคงมีผล",
   "local_agents.incompatible": "CLI ที่ติดตั้งไม่เข้ากัน",
   "local_agents.install_error.failed": "ติดตั้งไม่สำเร็จ ตรวจสอบเครือข่ายและสิทธิ์การติดตั้ง",
   "local_agents.install_error.managed_runtime": "{{manager}} ใช้สภาพแวดล้อมที่ Cherry จัดการ โปรดตั้งค่าการติดตั้งในระบบก่อน",

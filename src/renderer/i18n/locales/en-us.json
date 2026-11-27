@@ -2719,6 +2719,7 @@
   "local_agents.follow_cli": "Default model",
   "local_agents.follow_native_model_config": "Use native configuration",
   "local_agents.global_model_unavailable": "Default model switching is not yet supported for this agent.",
+  "local_agents.host_permission.bypass_description": "Cherry automatically approves eligible tool requests, file writes, and terminal commands for this session. The local agent’s own restrictions still apply.",
   "local_agents.incompatible": "The installed CLI is incompatible",
   "local_agents.install_error.failed": "Installation failed. Check your network and installation permissions.",
   "local_agents.install_error.managed_runtime": "{{manager}} uses a Cherry-managed environment. Configure a system installation first.",

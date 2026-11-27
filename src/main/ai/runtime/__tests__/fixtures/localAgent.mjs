@@ -53,6 +53,7 @@ const modeOptions = scenario.startsWith('acp-policy-')
   ? [
       { value: 'default', name: 'Default', description: 'Ask before changes' },
       { value: 'accept-edits', name: 'Accept Edits', description: 'Auto-approve workspace edits' },
+      ...(scenario === 'acp-policy-plan' ? [{ value: 'plan', name: 'Plan', description: 'Read only' }] : []),
       { value: 'auto', name: 'Auto', description: 'Model-managed permissions' },
       { value: 'yolo', name: 'Full Access', description: 'Bypass all permissions' }
     ]
@@ -112,6 +113,58 @@ const extraConfig = () => [
   { id: 'notifications', name: 'Notifications', type: 'boolean', currentValue: notifications }
 ]
 const secondaryValues = {}
+const copilotModes = () => [
+  {
+    id: 'mode',
+    name: 'Mode',
+    category: 'mode',
+    type: 'select',
+    currentValue: secondaryValues.mode ?? 'https://agentclientprotocol.com/protocol/session-modes#agent',
+    options: ['agent', 'plan', 'autopilot'].map((name) => ({
+      name,
+      value: `https://agentclientprotocol.com/protocol/session-modes#${name}`
+    }))
+  },
+  {
+    id: 'allow_all',
+    name: 'Permissions',
+    type: 'select',
+    currentValue: secondaryValues.allow_all ?? 'off',
+    options: ['off', 'auto', 'on'].map((value) => ({ value, name: value }))
+  }
+]
+const junieModes = () => [
+  {
+    id: 'mode',
+    name: 'Mode',
+    type: 'select',
+    currentValue: secondaryValues.mode ?? 'default',
+    options: ['default', 'plan'].map((value) => ({ value, name: value }))
+  },
+  {
+    id: 'brave_mode',
+    name: 'Brave Mode',
+    category: 'mode',
+    type: 'select',
+    currentValue: secondaryValues.brave_mode ?? 'brave-auto',
+    options: ['brave-auto', 'on', 'off'].map((value) => ({ value, name: value }))
+  }
+]
+const minimaxApprovals = () => [
+  {
+    id: 'permissionMode',
+    name: 'Permission mode',
+    category: '_permission',
+    type: 'select',
+    currentValue: secondaryValues.permissionMode ?? 'auto',
+    options: ['default', 'auto', 'bypassPermissions'].map((value) => ({ value, name: value }))
+  }
+]
+const nativePermissionOptions = {
+  'copilot-native-permissions': copilotModes,
+  'junie-native-permissions': junieModes,
+  'minimax-native-permissions': minimaxApprovals
+}
 const multipleConfig = () => {
   const model = {
     id: 'model',
@@ -408,6 +461,9 @@ createInterface({ input: process.stdin }).on('line', (line) => {
             }
           }
         : {}),
+      ...(scenario === 'minimax-native-permissions'
+        ? { modes: { currentModeId: 'default', availableModes: ['default', 'plan'].map((id) => ({ id, name: id })) } }
+        : {}),
       ...(scenario.startsWith('thought-legacy')
         ? {
             modes: {
@@ -424,7 +480,8 @@ createInterface({ input: process.stdin }).on('line', (line) => {
         ? { _meta: { piAcp: { startupInfo: piBanner } } }
         : {}),
       configOptions:
-        scenario === 'config-semantics'
+        nativePermissionOptions[scenario]?.() ??
+        (scenario === 'config-semantics'
           ? semanticConfig()
           : scenario === 'config-multiple'
             ? multipleConfig()
@@ -458,7 +515,7 @@ createInterface({ input: process.stdin }).on('line', (line) => {
                               : 'fixture-default',
                         options: [fixtureModelOption]
                       }
-                    ]
+                    ])
     })
   } else if (method === '_x.ai/models/list') {
     if (scenario !== 'grok-model-catalog') return emit({ id, error: { code: -32601, message: 'Method not found' } })
@@ -504,6 +561,13 @@ createInterface({ input: process.stdin }).on('line', (line) => {
       return emit({ id, error: { code: -32602, message: 'Unsupported model effort' } })
     reply(id, {})
   } else if (method === 'session/set_config_option') {
+    if (nativePermissionOptions[scenario]) {
+      if (scenario === 'junie-native-permissions' && message.params.value === 'on') {
+        update({ sessionUpdate: 'config_option_update', configOptions: junieModes() })
+      }
+      secondaryValues[message.params.configId] = message.params.value
+      return reply(id, { configOptions: nativePermissionOptions[scenario]() })
+    }
     if (scenario === 'model-setup-update') {
       update({ sessionUpdate: 'config_option_update', configOptions: [thought()] })
       update({ sessionUpdate: 'compaction_update', compactionId: 'replayed', status: 'in_progress' })
@@ -807,7 +871,7 @@ createInterface({ input: process.stdin }).on('line', (line) => {
       finish()
       return
     }
-    if (scenario === 'acp-policy-yolo') {
+    if (scenario === 'acp-policy-yolo' || scenario === 'acp-policy-plan') {
       void (async () => {
         const perm = await requestClient('session/request_permission', {
           sessionId: 'native-session',

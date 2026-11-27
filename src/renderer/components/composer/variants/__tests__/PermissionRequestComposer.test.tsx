@@ -839,6 +839,53 @@ describe('PermissionRequestComposer', () => {
     )
   })
 
+  it('previews host-delegated ACP terminal commands without disclosing environment values', () => {
+    const request = makeRequest()
+    request.toolResponse.tool.name = 'ACP: Terminal'
+    request.toolResponse.arguments = {
+      command: '/bin/bash',
+      args: ['-c', 'git status'],
+      cwd: '/workspace',
+      env: [{ name: 'GATEWAY_TOKEN', value: 'private-value' }]
+    }
+    render(<PermissionRequestComposer request={request} onRespond={vi.fn()} />)
+
+    const preview = screen.getByTestId('permission-preview')
+    expect(preview).toHaveTextContent('/bin/bash')
+    expect(preview).toHaveTextContent('git status')
+    expect(preview).toHaveTextContent('/workspace')
+    expect(preview).toHaveTextContent('GATEWAY_TOKEN')
+    expect(preview).not.toHaveTextContent('private-value')
+  })
+
+  it('requires explicit activation when ACP offers only persistent permission choices', async () => {
+    const onRespond = vi.fn().mockResolvedValue(undefined)
+    const request = makeRequest()
+    request.toolResponse.arguments = {
+      localPermissionOptions: [
+        { optionId: 'persistent-allow', decision: 'acceptAlways', name: 'Allow every workspace check' },
+        {
+          optionId: 'persistent-deny',
+          decision: 'decline',
+          persistent: true,
+          name: 'Reject every workspace check'
+        }
+      ]
+    }
+
+    render(<PermissionRequestComposer request={request} onRespond={onRespond} />)
+    fireEvent.keyDown(document, { key: 'Enter' })
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(onRespond).not.toHaveBeenCalled()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Reject every workspace check' }))
+    expect(onRespond).toHaveBeenCalledWith({
+      match: request.match,
+      approved: false,
+      updatedInput: { localPermissionOption: 'persistent-deny' }
+    })
+  })
+
   it('orders compact local permission options from deny to allow (matching built-in agents)', () => {
     const request = makeRequest()
     request.toolResponse.arguments = {

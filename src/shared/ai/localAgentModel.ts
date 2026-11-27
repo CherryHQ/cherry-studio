@@ -71,6 +71,6 @@ export function getLocalAgentModelStorage(presetId: string | undefined) {
     } as const
   }
   return preset?.protocol === 'cursor' || preset?.protocol === 'acp' || presetId === undefined
-    ? ({ type: 'agent' } as const)
+    ? ({ type: 'agent', gatewayModelEndpoint: preset?.gatewayModelEndpoint } as const)
     : undefined
 }

@@ -21,8 +21,10 @@ sources:
   - packages/agent-runtime-codebuddy-acp/src/cli.ts
   - packages/agent-runtime-codex/src
   - packages/agent-runtime-cursor/src
+  - packages/agent-runtime-deepagents-acp/src
   - packages/agent-runtime-deepseek-harness-acp/src
   - packages/agent-runtime-grok-acp/src
+  - packages/agent-runtime-junie-acp/src
   - packages/agent-runtime-kiro-acp/src
   - packages/agent-runtime-vibe-acp/src
   - src/main/ai/agentSession/AgentSessionRuntimeService.ts
@@ -156,12 +158,18 @@ Successful compaction refreshes context usage without creating a chat input.
 ### Models and configuration
 
 Agent Services offers native models and Cherry models through the unified gateway.
-For CLIs with writable defaults, selecting a model updates both the native file
-and the Agent record. A failed update restores the file or the selection as
+For ACP, a native selection in Agent Services saves the Agent's launch preference.
+Gateway selections that configure CLI files update the file and the Agent
+record together. A failed update restores the file or the selection as
 appropriate. Stale editor drafts fail before writing. Gateway selections keep
 the Cherry model ID separately from the native ID and inject only Cherry gateway
 credentials. Switching back removes Cherry-owned configuration while preserving
 user settings and credentials.
+
+DeepAgents and Junie save the Cherry model on the Agent and apply it when the
+ACP connection opens. These models use the internal gateway with a
+session-scoped credential. Junie reads a connection-local model profile that
+references the credential through the child environment.
 
 Claude Code and Codex native model selections are Cherry chat overrides.
 Use native configuration clears the override and lets the runtime resolve the
@@ -185,9 +193,10 @@ binding the next time the model configuration is applied.
 
 Without a Cherry chat override, new chats, terminal sessions and managed WebUIs use the native default. Model
 arguments, environment and project settings can override it. Open sessions keep
-their current model. Antigravity applies the saved ACP model when opening or
-resuming chat and retains a separate terminal default. Cline uses the active provider
-profile, including explicit overrides, for model selection.
+their current model. Newly opened ACP sessions apply the saved Agent preference
+when supported. On restore, an ordinary Agent preference leaves the native
+current model in effect when the runtime reports one. Explicit gateway bindings
+may apply their configured model.
 Presets without an applicable model control follow their CLI default.
 
 Presets with native files use the shared **CLI configuration files** editor,
@@ -207,7 +216,10 @@ the running service in a separate action. External services are open-only.
   process trees it owns. Explicit Gateway URLs and native state/config overrides
   bypass automatic management. Password sign-in uses OpenClaw's own page. Token
   sign-in can use a Dashboard bootstrap.
-- OpenClaw's Cherry gateway models require Cherry to be running. User-edited
+- OpenClaw uses the selected model from its managed configuration. The Cherry
+  gateway option routes requests through the API Gateway shared by the service.
+  Use this option while Cherry is running. Requests carry the gateway key for
+  the shared service and record provider usage. User-edited
   conversation names take precedence over bridge UUIDs and technical titles. Cherry
   prefers `session/load` because the bridge may lose UUID mappings across restarts.
   Native database failures surface `openclaw doctor --fix` guidance.
@@ -341,7 +353,13 @@ explicitly. For Qwen, MiniMax and Hermes, Cherry maps provider-configured defaul
 to advertised ACP IDs. CLIs with config-file-only model selection use the
 configured default.
 
-The settings and Composer model pickers share the installed runtime's catalog.
+The Settings picker reads the installed runtime's catalog. The ACP Composer
+uses models from the current native session and writes through that session's
+model control. Standard ACP configuration responses or updates confirm the new
+model and its effort. A successful legacy setter acknowledges the requested
+model. The Composer distinguishes missing authentication, an empty catalog,
+a single current model and an unavailable model operation.
+
 Codex uses paginated `model/list`, Claude reads SDK initialization, Cursor uses
 `Cursor.models.list()`, and Grok uses `_x.ai/models/list` when available. Ordinary
 ACP opens a dedicated probe session and reads the advertised model selector or
@@ -389,12 +407,26 @@ the same native aliases when identifying full-access choices.
   value.
 - The ACP adapter annotates the session's actual choices. The Composer uses
   those annotations for its permission menu, risk confirmation and Plan
-  shortcut. Unmapped options remain available in the native configuration
-  menu. A label can trigger a risk confirmation but cannot authorize a host
-  operation.
+  shortcut. Additional controls such as sandboxing appear in the Agent
+  configuration menu. A label can trigger a risk confirmation but cannot
+  authorize a host operation.
   Terminals are connection-owned and working directories provide no OS isolation.
   A command path with spaces runs directly when it resolves to an executable.
   A legacy command string without an argument array can run as approved shell input.
+- ACP sessions without a verified approval control or native Full Access choice use Cherry's shared
+  permission menu for Ask Before Acting, Auto-accept Edits, and Full Access. Cherry
+  remembers the choice per session. Auto-accept Edits covers writes within the
+  workspace. Full Access selects native single-use approvals when available and
+  skips Cherry's delegated file and terminal confirmations. Native restrictions,
+  read-only mode, structured questions and unattended execution keep their own policies.
+  When an ACP harness exposes a verified Plan and a default working mode,
+  Plan Only in the input quick panel and Shift+Tab switch between native Plan and the working mode.
+- Copilot exposes separate workflow and approval controls. The permission menu
+  changes `allow_all`, and Plan Only changes the workflow. Junie exposes
+  `brave_mode` and a separate workflow. MiniMax exposes a process-scoped
+  `permissionMode` control and a separate legacy Plan selector.
+  When a native approval catalog becomes available, a saved Cherry-only choice
+  leaves native approvals at their reported setting until the user selects a native mode.
 - ACP thoughts become reasoning parts and plan updates replace the current turn's plan.
   Native message IDs provide attribution and do not replace Cherry message UUIDs.
   ACP suppresses transcript replay during load because Cherry already stores it.

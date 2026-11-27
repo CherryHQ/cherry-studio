@@ -21,6 +21,11 @@ const platformMock = vi.hoisted(() => ({ isWin: false }))
 const broadcastMock = vi.hoisted(() => vi.fn())
 const cacheSetSharedMock = vi.hoisted(() => vi.fn())
 const preferenceGetMock = vi.hoisted(() => vi.fn<(key: string) => unknown>(() => 'en-US'))
+const apiGatewayMock = vi.hoisted(() => ({
+  isRunning: () => true,
+  getCurrentConfig: () => ({ host: '127.0.0.1', port: 33333 }),
+  ensureValidApiKey: async () => 'cherry-gateway-key'
+}))
 
 function createSpawnChild() {
   return Object.assign(new EventEmitter(), {
@@ -119,6 +124,7 @@ vi.mock('@application', () => ({
       if (name === 'IpcApiService') return { broadcast: broadcastMock }
       if (name === 'CacheService') return { setShared: cacheSetSharedMock }
       if (name === 'PreferenceService') return { get: preferenceGetMock }
+      if (name === 'ApiGatewayService') return apiGatewayMock
       throw new Error(`[MockApplication] Unknown service: ${name}`)
     }),
     getPath: vi.fn()
@@ -2605,6 +2611,27 @@ describe('OpenClawService gateway status state machine', () => {
 
     afterEach(() => {
       fs.rmSync(configDir, { recursive: true, force: true })
+    })
+
+    it('writes the gateway model and credential instead of the upstream endpoint and key', async () => {
+      const { modelService } = await import('@data/services/ModelService')
+      const { providerService } = await import('@data/services/ProviderService')
+      vi.mocked(providerService.getByProviderId).mockReturnValue(createProvider())
+      vi.mocked(providerService.getApiKeys).mockReturnValue([{ id: 'key-1', key: 'upstream-key', isEnabled: true }])
+      vi.mocked(modelService.getByKey).mockReturnValue(createModel())
+
+      await expect(service.syncConfig('openai::gpt-4o', undefined, true)).resolves.toEqual({ success: true })
+      const raw = fs.readFileSync(path.join(configDir, 'openclaw.json'), 'utf8')
+      const config = JSON.parse(raw)
+      const [providerKey, entry] = Object.entries(config.models.providers)[0]
+      expect(entry).toMatchObject({
+        baseUrl: 'http://127.0.0.1:33333/v1',
+        apiKey: 'cherry-gateway-key',
+        api: 'openai-completions',
+        models: [{ id: 'openai:gpt-4o' }]
+      })
+      expect(config.agents.defaults.model.primary).toBe(`${providerKey}/openai:gpt-4o`)
+      expect(raw).not.toContain('upstream-key')
     })
 
     it('aborts the sync when the existing config is not valid JSON', async () => {

@@ -2719,6 +2719,7 @@
   "local_agents.follow_cli": "Standardmodell",
   "local_agents.follow_native_model_config": "Native Konfiguration verwenden",
   "local_agents.global_model_unavailable": "Der Wechsel des Standardmodells wird für diesen Agenten noch nicht unterstützt.",
+  "local_agents.host_permission.bypass_description": "Cherry genehmigt in dieser Sitzung zulässige Werkzeuganfragen, Dateizugriffe mit Schreibberechtigung und Terminalbefehle automatisch. Die Einschränkungen des lokalen Agents gelten weiterhin.",
   "local_agents.incompatible": "Die installierte CLI ist nicht kompatibel",
   "local_agents.install_error.failed": "Installation fehlgeschlagen. Netzwerk und Zugriffsrechte prüfen.",
   "local_agents.install_error.managed_runtime": "{{manager}} verwendet eine von Cherry verwaltete Umgebung. Zuerst eine Systemumgebung einrichten.",

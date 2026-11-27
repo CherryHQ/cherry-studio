@@ -1,3 +1,4 @@
+import type { AcpPermissionModes } from '@cherrystudio/agent-runtime-acp/profile'
 import type { CliAccountProbe } from '@cherrystudio/agent-runtime/cli'
 
 export const openCodeCli = {
@@ -6,6 +7,7 @@ export const openCodeCli = {
     overrides: ['OPENCODE_CONFIG', 'OPENCODE_CONFIG_DIR', 'OPENCODE_CONFIG_CONTENT']
   },
   id: 'opencode',
+  permissionMode: { values: { build: 'default', plan: 'plan' } } satisfies AcpPermissionModes,
   cliLogin: [
     {
       id: 'opencode-console',

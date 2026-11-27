@@ -15,7 +15,16 @@ export const minimaxCli = {
     }
   ],
   permissionMode: {
-    values: { ask: 'default', auto: 'auto', full_access: 'bypassPermissions' },
+    values: {
+      ask: 'default',
+      default: 'default',
+      plan: 'plan',
+      auto: 'auto',
+      full_access: 'bypassPermissions',
+      bypasspermissions: 'bypassPermissions'
+    },
+    approvalConfigId: 'permissionMode',
+    legacyPlan: true,
     labels: { ask: 'default' }
   } satisfies AcpPermissionModes,
   name: 'MiniMax Code',

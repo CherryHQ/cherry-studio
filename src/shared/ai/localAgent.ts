@@ -1,7 +1,11 @@
 import * as z from 'zod'
 
 import type { RuntimeEffortControl, RuntimeModelOption } from '@cherrystudio/agent-runtime'
-import type { AcpLoginProfile, AcpPermissionModes } from '@cherrystudio/agent-runtime-acp/profile'
+import type {
+  AcpGatewayModelEndpoint,
+  AcpLoginProfile,
+  AcpPermissionModes
+} from '@cherrystudio/agent-runtime-acp/profile'
 import { ampCli } from '@cherrystudio/agent-runtime-amp-acp/cli'
 import { antigravityCli } from '@cherrystudio/agent-runtime-antigravity-acp/cli'
 import { claudeCli } from '@cherrystudio/agent-runtime-claude-code/cli'
@@ -10,6 +14,7 @@ import { codeBuddyCli } from '@cherrystudio/agent-runtime-codebuddy-acp/cli'
 import { codexCli } from '@cherrystudio/agent-runtime-codex/cli'
 import { copilotCli } from '@cherrystudio/agent-runtime-copilot-acp/cli'
 import { cursorPreset } from '@cherrystudio/agent-runtime-cursor/cli'
+import { deepAgentsCli } from '@cherrystudio/agent-runtime-deepagents-acp/cli'
 import { dshCli } from '@cherrystudio/agent-runtime-deepseek-harness-acp/cli'
 import { dimcodeCli } from '@cherrystudio/agent-runtime-dimcode-acp/cli'
 import { factoryCli } from '@cherrystudio/agent-runtime-factory-acp/cli'
@@ -17,6 +22,7 @@ import { glmCli } from '@cherrystudio/agent-runtime-glm-acp/cli'
 import { gooseCli } from '@cherrystudio/agent-runtime-goose-acp/cli'
 import { grokCli } from '@cherrystudio/agent-runtime-grok-acp/cli'
 import { hermesCli } from '@cherrystudio/agent-runtime-hermes-acp/cli'
+import { junieCli } from '@cherrystudio/agent-runtime-junie-acp/cli'
 import { kimiCli } from '@cherrystudio/agent-runtime-kimi-acp/cli'
 import { kiroCli } from '@cherrystudio/agent-runtime-kiro-acp/cli'
 import { minimaxCli } from '@cherrystudio/agent-runtime-minimax-acp/cli'
@@ -33,7 +39,9 @@ import { traeCli } from '@cherrystudio/agent-runtime-trae-acp/cli'
 import { vibeCli } from '@cherrystudio/agent-runtime-vibe-acp/cli'
 import { zcodeCli } from '@cherrystudio/agent-runtime-zcode-acp/cli'
 import {
+  hasPermissionModeChoices,
   parseBooleanLoginStatus,
+  selectedPermissionMode,
   type CliAccountProbe,
   type CliComponent,
   type CliLoginDeclaration,
@@ -51,6 +59,7 @@ export type LocalAgentProtocol = 'acp' | 'claude' | 'codex' | 'cursor'
 
 interface LocalAgentCliOptions extends CliComponent, CliLoginDeclaration {
   auth?: AcpLoginProfile
+  gatewayModelEndpoint?: AcpGatewayModelEndpoint
   minimumAcpVersion?: string
   registryId?: string
   placeholderTitle?: RegExp
@@ -115,6 +124,7 @@ export const LOCAL_AGENT_PRESETS: readonly LocalAgentPreset[] = [
   clineCli,
   {
     id: 'kilo',
+    permissionMode: { values: { code: 'default', plan: 'plan' } },
     terminalArgs: [],
     name: 'Kilo',
     protocol: 'acp',
@@ -139,30 +149,11 @@ export const LOCAL_AGENT_PRESETS: readonly LocalAgentPreset[] = [
     },
     helpUrl: 'https://www.augmentcode.com/'
   },
-  {
-    id: 'junie',
-    name: 'Junie',
-    protocol: 'acp',
-    executable: 'junie',
-    args: ['--acp=true'],
-    loginArgs: [],
-    credentialEnvironment: [
-      'JUNIE_API_KEY',
-      'JUNIE_LLM_PROVIDER',
-      'JUNIE_ANTHROPIC_API_KEY',
-      'JUNIE_OPENAI_API_KEY',
-      'JUNIE_GOOGLE_API_KEY',
-      'JUNIE_GROK_API_KEY',
-      'JUNIE_META_API_KEY',
-      'JUNIE_OPENROUTER_API_KEY',
-      'JUNIE_LITELLM_URL',
-      'JUNIE_LITELLM_API_KEY'
-    ],
-    helpUrl: 'https://junie.jetbrains.com'
-  },
+  junieCli,
   factoryCli,
   {
     id: 'devin',
+    permissionMode: { values: { 'accept-edits': 'default', smart: 'auto', plan: 'plan', bypass: 'bypassPermissions' } },
     terminalArgs: [],
     loginArgs: ['auth', 'login'],
     accountProbe: {
@@ -189,17 +180,7 @@ export const LOCAL_AGENT_PRESETS: readonly LocalAgentPreset[] = [
   ompCli,
   snowCli,
   zcodeCli,
-  {
-    id: 'deepagents',
-    credentialScope: 'provider',
-    modelDependencies: ['@langchain/anthropic', '@langchain/openai'],
-    name: 'DeepAgents',
-    protocol: 'acp',
-    executable: 'deepagents-acp',
-    npmPackage: 'deepagents-acp',
-    args: [],
-    helpUrl: 'https://docs.langchain.com/oss/javascript/deepagents/overview'
-  },
+  deepAgentsCli,
   { ...glmCli, retired: true },
   grokCli,
   {
@@ -224,6 +205,7 @@ export const LOCAL_AGENT_PRESETS: readonly LocalAgentPreset[] = [
   museCodeCli,
   {
     id: 'cortex-code',
+    permissionMode: { values: { standard: 'default', plan: 'plan', bypass: 'bypassPermissions' } },
     name: 'Cortex Code',
     protocol: 'acp',
     executable: 'cortex',
@@ -351,6 +333,50 @@ export interface LocalAgentSelection {
   options: Array<PermissionModeChoice & { description?: string }>
 }
 
+export const ACP_HOST_PERMISSION_MODE_ID = 'cherry:host-permissions'
+export const ACP_NATIVE_PLAN_VALUE = 'cherry:native-plan'
+const acpHostPermissionChoices = [
+  { value: 'default', name: 'Ask Before Acting', permissionMode: 'default' },
+  { value: 'acceptEdits', name: 'Auto-accept Edits', permissionMode: 'acceptEdits' },
+  { value: 'bypassPermissions', name: 'Full Access', permissionMode: 'bypassPermissions' }
+] as const
+export type AcpHostPermissionMode = (typeof acpHostPermissionChoices)[number]['value']
+
+export function getAcpNativePlanModes(mode?: LocalAgentSelection) {
+  if (mode?.application !== 'session') return undefined
+  const plan = mode.options.find((option) => option.permissionMode === 'plan' && !option.requiresConfirmation)
+  const work = mode.options.find((option) => option.permissionMode === 'default' && !option.requiresConfirmation)
+  return plan && work ? { configId: mode.id, plan: plan.value, work: work.value } : undefined
+}
+
+export function getAcpHostPermissionModeSelection(
+  nativeMode?: LocalAgentSelection,
+  selected?: AcpHostPermissionMode
+): LocalAgentSelection | undefined {
+  if (
+    hasPermissionModeChoices(nativeMode) &&
+    nativeMode?.options.some(({ permissionMode }) => permissionMode === 'bypassPermissions')
+  )
+    return undefined
+  const native = selectedPermissionMode(nativeMode)
+  const plan = getAcpNativePlanModes(nativeMode)
+  return {
+    id: ACP_HOST_PERMISSION_MODE_ID,
+    currentValue:
+      plan && native === 'plan'
+        ? 'plan'
+        : (selected ?? (native && isAcpHostPermissionMode(native) ? native : 'default')),
+    application: 'session',
+    options: plan
+      ? [...acpHostPermissionChoices, { value: 'plan', name: 'Plan', permissionMode: 'plan' }]
+      : [...acpHostPermissionChoices]
+  }
+}
+
+export function isAcpHostPermissionMode(value: string): value is AcpHostPermissionMode {
+  return acpHostPermissionChoices.some((choice) => choice.value === value)
+}
+
 export function getLocalAgentLaunchMode(
   config: Pick<LocalAgentConfiguration, 'presetId' | 'env'>
 ): LocalAgentSelection | undefined {
@@ -361,6 +387,7 @@ export function getLocalAgentLaunchMode(
 
 export interface LocalAgentSessionOverrides {
   mode?: { configId: string; value: string }
+  hostPermissionMode?: { agentId: string; value: AcpHostPermissionMode }
   thoughtLevel?: { configId: string; value: string; modelId?: string }
   configOptions?: Record<string, string | boolean>
   updatedAt: number
@@ -396,6 +423,7 @@ export interface LocalAgentSessionInfo extends LocalAgentModelCatalog {
   modelSelection?: 'selectable' | 'current-only' | 'empty' | 'unsupported' | 'sign-in-required'
   configOptions?: LocalAgentConfigOption[]
   mode?: LocalAgentSelection
+  hostPermission?: LocalAgentSelection
   thoughtLevel?: RuntimeEffortControl
   protocolInfo?: LocalAgentProtocolInfo
   images: boolean
@@ -404,8 +432,8 @@ export interface LocalAgentSessionInfo extends LocalAgentModelCatalog {
 }
 
 export type LocalAgentSessionView =
-  | { info: LocalAgentSessionInfo; idleMode?: never }
-  | { info: null; idleMode?: LocalAgentSelection }
+  | { info: LocalAgentSessionInfo; idleMode?: never; idleHostPermission?: never }
+  | { info: null; idleMode?: LocalAgentSelection; idleHostPermission?: LocalAgentSelection }
 
 export const LocalApprovalDecisionSchema = z.enum(['accept', 'acceptForSession', 'acceptAlways', 'decline', 'cancel'])
 export type LocalApprovalDecision = z.infer<typeof LocalApprovalDecisionSchema>
@@ -435,6 +463,7 @@ export const LocalPermissionOptionsSchema = z.object({
         .optional(),
       labelTarget: z.string().optional(),
       name: z.string(),
+      persistent: z.literal(true).optional(),
       warning: z.string().optional()
     })
   )
@@ -517,6 +546,17 @@ export const LocalAcpToolSchema = z.object({
 export type LocalAcpTool = z.infer<typeof LocalAcpToolSchema>
 
 const LOCAL_ACP_RAW_INPUT_PATH_KEYS = ['path', 'Path', 'file_path', 'filePath', 'TargetFile', 'target_file'] as const
+const LOCAL_ACP_RAW_INPUT_COMMAND_KEYS = ['CommandLine', 'command', 'cmd'] as const
+
+export function extractLocalAcpRawInputCommand(rawInput: unknown): { key: string; command: string } | undefined {
+  if (typeof rawInput !== 'object' || rawInput === null || Array.isArray(rawInput)) return undefined
+  const record = rawInput as Record<string, unknown>
+  for (const key of LOCAL_ACP_RAW_INPUT_COMMAND_KEYS) {
+    const command = record[key]
+    if (typeof command === 'string' && command.trim()) return { key, command }
+  }
+  return undefined
+}
 
 export function extractLocalAcpRawInputPaths(rawInput: unknown): string[] {
   if (typeof rawInput !== 'object' || rawInput === null || Array.isArray(rawInput)) return []

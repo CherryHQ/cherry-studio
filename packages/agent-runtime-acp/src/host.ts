@@ -2,9 +2,11 @@ import { Readable, Writable } from 'node:stream'
 
 import { ndJsonStream, RequestError } from '@agentclientprotocol/sdk'
 
+import type { BackendId } from '@cherrystudio/agent-runtime'
+
 import { acpAuthMethods, acpEffortOption, acpModelCatalog, connectAcpClient, type AcpClientOptions } from './client'
 import type { AcpModelCatalogReader } from './harness'
-import { AcpLiveUpdates, type AcpLiveEvents } from './live'
+import { buildAcpRuntime, type DesktopOptions } from './runtime'
 import type { AcpSessionConfiguration } from './types'
 
 function stdioStream(stdin: Writable, stdout: Readable) {
@@ -14,27 +16,28 @@ function stdioStream(stdin: Writable, stdout: Readable) {
 export function connectAcpStdio(
   stdin: Writable,
   stdout: Readable,
-  options: Omit<AcpClientOptions, 'sessionCapabilities' | 'update' | 'confirmLoginInBrowser'> & {
-    events: AcpLiveEvents
+  options: DesktopOptions & {
+    backendId: BackendId
+    closeAndJoin(): Promise<void>
+    report(error: unknown): void
   }
 ) {
-  const updates = new AcpLiveUpdates(options.events, options.harness)
-  const client = connectAcpClient(stdioStream(stdin, stdout), {
-    ...options,
-    denyMutation:
-      options.denyMutation ??
-      (options.harness?.hostMutations === 'disabled'
-        ? () => acpHostError.invalidRequest('Host writes and terminals are disabled')
-        : undefined),
-    update: (params) => updates.receive(params),
-    nativeTurn: (event) => updates.nativeTurn(event),
-    sessionCapabilities: { configOptions: { boolean: {} }, notices: {}, compaction: {} }
-  })
-  client.signal.addEventListener('abort', () => updates.close(), { once: true })
+  const runtime = buildAcpRuntime(
+    {
+      backendId: options.backendId,
+      connect: async () => ({ stream: stdioStream(stdin, stdout), closeAndJoin: options.closeAndJoin }),
+      report: options.report
+    },
+    options
+  )
   return {
-    signal: client.signal,
-    close: client.close,
-    initialize: async () => updates.agent(await client.initialize(), client.signal)
+    signal: runtime.signal,
+    close: runtime.disconnect,
+    initialize: runtime.initializeDesktop,
+    async shutdown() {
+      const result = await runtime.replay.shutdown()
+      if (result.status !== 'confirmed') throw new Error(result.error.message)
+    }
   }
 }
 

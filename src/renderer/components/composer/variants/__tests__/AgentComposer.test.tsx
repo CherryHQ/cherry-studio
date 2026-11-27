@@ -24,6 +24,7 @@ import { toast } from '@renderer/services/toast'
 import type { FileMetadata } from '@renderer/types/file'
 import { anyFileExt, excludeFileExt, isSupportedExtension } from '@renderer/utils/file'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
+import { getAcpHostPermissionModeSelection, type LocalAgentSelection } from '@shared/ai/localAgent'
 import type { AgentConfiguration } from '@shared/data/api/schemas/agents'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { FileUIPart } from '@shared/data/types/message'
@@ -1704,6 +1705,58 @@ describe('AgentComposer', () => {
     }
   })
 
+  it.each<{ name: string; mode: LocalAgentSelection }>([
+    {
+      name: 'OpenCode',
+      mode: {
+        id: 'mode',
+        application: 'session',
+        currentValue: 'build',
+        options: [
+          { value: 'build', name: 'Build', permissionMode: 'default' },
+          { value: 'plan', name: 'Plan', permissionMode: 'plan' }
+        ]
+      }
+    },
+    {
+      name: 'Antigravity',
+      mode: {
+        id: 'mode',
+        application: 'session',
+        currentValue: 'default',
+        options: [
+          { value: 'default', name: 'Default', permissionMode: 'default' },
+          { value: 'acceptEdits', name: 'Accept Edits' },
+          { value: 'auto', name: 'Auto' },
+          { value: 'plan', name: 'Plan', restrictHost: true }
+        ]
+      }
+    }
+  ])('shows the shared permission menu for $name without a separate session mode selector', async ({ mode }) => {
+    mocks.pinnedToolIds = ['permission-mode']
+    mocks.toolLaunchers = [
+      { id: 'permission-mode', kind: 'group', sources: ['popover'], label: 'Permission Mode', icon: null, submenu: [] }
+    ]
+    mocks.ipcApiRequest.mockResolvedValue({
+      info: { models: [], images: true, resume: true, mode, hostPermission: getAcpHostPermissionModeSelection(mode) }
+    })
+    render(
+      <AgentComposer
+        sessionId="session-1"
+        agentId="agent-1"
+        resolvedAgent={{ ...createControlledAgent(), type: 'local' }}
+        resolvedModel={undefined}
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+    expect(await screen.findByRole('button', { name: /agent\.settings\.permissionMode\.title/ })).toBeEnabled()
+    expect(
+      within(screen.getByTestId('composer-send-accessory')).queryByLabelText('local_agents.configuration')
+    ).toBeNull()
+  })
+
   it('displays runtime permission choices while hiding pinned Cherry resource controls', async () => {
     mocks.pinnedToolIds = ['permission-mode', 'knowledge-base', 'skills', 'mcp-status']
     mocks.toolLaunchers = [
@@ -1780,7 +1833,7 @@ describe('AgentComposer', () => {
     expect(thoughtBtn).toHaveTextContent('assistants.settings.reasoning_effort.medium')
   })
 
-  it('uses runtime-declared permission controls and keeps uncategorized reasoning in native settings', async () => {
+  it('uses runtime-declared permissions and omits the separate workflow selector', async () => {
     const permissionsOption = {
       id: 'permissions',
       application: 'session',
@@ -1806,7 +1859,7 @@ describe('AgentComposer', () => {
       ]
     }
     const executionMode = {
-      id: 'mode',
+      id: 'execution-environment',
       name: 'Native mode',
       type: 'select' as const,
       currentValue: 'local',
@@ -1815,13 +1868,24 @@ describe('AgentComposer', () => {
         { value: 'orb', name: 'Orb' }
       ]
     }
+    const workflow = {
+      id: 'mode',
+      name: 'Workflow',
+      role: 'mode',
+      type: 'select' as const,
+      currentValue: 'agent',
+      options: [
+        { value: 'agent', name: 'Agent' },
+        { value: 'autopilot', name: 'Autopilot' }
+      ]
+    }
     mocks.ipcApiRequest.mockResolvedValue({
       info: {
         models: [],
         images: true,
         resume: true,
         mode: permissionsOption,
-        configOptions: [executionMode, reasoningOption]
+        configOptions: [executionMode, workflow, reasoningOption]
       }
     })
     mocks.runtimeHostProps = undefined
@@ -1853,6 +1917,7 @@ describe('AgentComposer', () => {
     expect(getControls().getByRole('button', { name: 'local_agents.configuration' })).toBeInTheDocument()
     expect(getControls().getByRole('menuitemradio', { name: 'Local' })).toBeInTheDocument()
     expect(getControls().getByRole('menuitemradio', { name: 'Orb' })).toBeInTheDocument()
+    expect(getControls().queryByRole('menuitemradio', { name: 'Autopilot' })).not.toBeInTheDocument()
     expect(getControls().queryByRole('menuitemradio', { name: 'Bypass' })).not.toBeInTheDocument()
     expect(getControls().getByRole('menuitemradio', { name: 'High' })).toBeInTheDocument()
   })

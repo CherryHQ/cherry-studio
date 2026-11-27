@@ -6,6 +6,7 @@ import path from 'node:path'
 
 import type { FinishReason } from 'ai'
 
+import { runtimeId, type OperationResult } from '@cherrystudio/agent-runtime'
 import {
   acpEffortOption,
   acpHostError,
@@ -13,9 +14,9 @@ import {
   acpPermissionControl,
   connectAcpStdio,
   mapAcpPermissionOptions,
-  type AcpLiveSession,
+  type AcpThreadHandle,
   type AcpTurnUsage,
-  type AcpLiveEvents,
+  type AcpDesktopEvents,
   type AcpClientCallbacks,
   type AcpMcpServer,
   type AcpPromptCapabilities,
@@ -28,9 +29,15 @@ import { findExecutableInEnv } from '@main/utils/commandResolver'
 import { crossPlatformSpawn } from '@main/utils/processRunner'
 import { AgentSessionCostSnapshotSchema } from '@shared/ai/agentSessionCost'
 import {
+  ACP_HOST_PERMISSION_MODE_ID,
+  ACP_NATIVE_PLAN_VALUE,
+  getAcpHostPermissionModeSelection,
+  getAcpNativePlanModes,
+  isAcpHostPermissionMode,
   isLocalAgentPlaceholderTitle,
   isLocalAllowDecision,
   localCliPresetById,
+  type AcpHostPermissionMode,
   type LocalAcpTool,
   type LocalAgentConfigOption,
   type LocalAgentSelection,
@@ -69,6 +76,10 @@ import { acpPreset, bindAcpHarness } from './acpPresets'
 import { AcpProcess } from './AcpProcess'
 import { acpProtocolInfo } from './acpSessionInfo'
 import { buildStdioHttpMcpShimConfig } from './stdioHttpMcpShim'
+
+function requireAcpControl(result: OperationResult<void>): void {
+  if (result.status !== 'confirmed') throw new Error(result.error.message)
+}
 
 const logger = loggerService.withContext('AcpConnection')
 const HOST_ALLOW_SESSION_OPTION_ID = '__cherry_allow_session__'
@@ -119,7 +130,8 @@ export class AcpConnection extends LocalConnection {
   private readonly process = new AcpProcess()
   private promptCapabilities: AcpPromptCapabilities = {}
   private messageId?: string
-  private session?: AcpLiveSession
+  private session?: AcpThreadHandle<true>
+  private shutdownRuntime?: () => Promise<void>
   private readonly terminals = new Map<string, Terminal>()
   private readonly harness = bindAcpHarness(
     this.config.presetId,
@@ -127,8 +139,8 @@ export class AcpConnection extends LocalConnection {
       const turn = this.turnAbort.signal
       if (
         !this.active ||
-        target.sessionId !== this.session?.id ||
-        this.session.awaitingNativeTurn ||
+        target.sessionId !== this.session?.thread.id ||
+        this.session.acp.awaitingNativeTurn ||
         turn.aborted ||
         this.abort.signal.aborted ||
         requestSignal.aborted
@@ -150,6 +162,8 @@ export class AcpConnection extends LocalConnection {
     }
   )
   private configChange?: Promise<void>
+  private hostPermissionOverride?: AcpHostPermissionMode
+  private linkedNativePlan?: NonNullable<ReturnType<typeof getAcpNativePlanModes>> & { active: boolean }
   private launchMode?: LocalAgentSelection & { application: 'reconnect' }
   private legacyMode?: 'mode' | 'thoughtLevel'
   private planPart?: number
@@ -161,7 +175,7 @@ export class AcpConnection extends LocalConnection {
   private gatewayContextWindow?: number
 
   get threadInput(): AgentRuntimeInput | undefined {
-    const steer = this.session?.steer
+    const steer = this.session?.acp.steer
     if (!steer || this.headless || !this.active) return
     const turn = this.turnAbort.signal
     return {
@@ -186,11 +200,11 @@ export class AcpConnection extends LocalConnection {
   }
 
   get inspectContextUsage() {
-    return this.session?.inspectContextUsage
+    return this.session?.contextUsage
   }
 
   get predictPrompt() {
-    return this.session?.predictPrompt
+    return this.session?.acp.predictPrompt
   }
 
   private readonly preset = this.config.presetId ? localCliPresetById.get(this.config.presetId) : undefined
@@ -220,6 +234,7 @@ export class AcpConnection extends LocalConnection {
 
   private get hostPermissionMode() {
     const { mode, configOptions } = this.localSessionInfo
+    if (selectedPermissionMode(mode) === 'plan') return 'plan'
     if (mode?.options.some(({ value, restrictHost }) => value === mode.currentValue && restrictHost)) return 'plan'
     if (
       configOptions?.some(
@@ -231,7 +246,9 @@ export class AcpConnection extends LocalConnection {
       )
     )
       return 'plan'
-    return this.effectivePermissionMode
+    const nativeMode = this.effectivePermissionMode
+    const hostOverride = this.localSessionInfo.hostPermission && this.hostPermissionOverride
+    return nativeMode === 'plan' ? nativeMode : (hostOverride ?? nativeMode)
   }
 
   // Reaping a non-resumable process would lose access to its native session.
@@ -267,6 +284,9 @@ export class AcpConnection extends LocalConnection {
       (stdin, stdout, clientInfo) =>
         connectAcpStdio(stdin, stdout, {
           clientInfo,
+          backendId: runtimeId<'backend'>(this.agentId),
+          closeAndJoin: () => this.process.close(),
+          report: (error) => logger.warn('ACP runtime operation failed', { error }),
           denyMutation: this.headless
             ? (id) => {
                 this.requireSession(id)
@@ -282,6 +302,7 @@ export class AcpConnection extends LocalConnection {
         this.dispose()
       }
     )
+    this.shutdownRuntime = client.shutdown
     const agent = await client.initialize()
     const { response } = agent
     this.localSessionInfo.protocolInfo = acpProtocolInfo(response)
@@ -305,17 +326,17 @@ export class AcpConnection extends LocalConnection {
       })
     }
     const mcpServers = this.buildBrowserMcpServers(response.agentCapabilities?.mcpCapabilities?.http === true)
-    const configure = async (session: AcpLiveSession) => {
+    const configure = async (session: AcpThreadHandle<true>) => {
       const selection = acpModelSelection(this.config, launch)
-      if (!selection.model || (resume && !this.config.sourceModelId && session.model.activeModel)) return
+      if (!selection.model || (resume && !this.config.sourceModelId && session.acp.model.activeModel?.id)) return
       const model = this.config.sourceModelId
         ? resolveConfiguredAcpModel(
             this.config.presetId,
             selection.model,
-            session.model.models.map(({ id }) => id)
+            session.acp.model.models.map(({ id }) => id)
           )
         : selection.model
-      await session.selectInitialModel(model, selection)
+      requireAcpControl(await session.acp.selectInitialModel({ ...selection, model }))
     }
     if (resume && !agent.restore)
       throw new LocalAgentSessionRestoreError(
@@ -326,7 +347,7 @@ export class AcpConnection extends LocalConnection {
         ? await agent.restore({ cwd, sessionId: resume, mcpServers }, configure)
         : await agent.create({ cwd, mcpServers }, configure)
     this.localSessionInfo.protocolInfo.verified.push('session')
-    this.publishResumeToken(session.id)
+    this.publishResumeToken(session.thread.id)
     return this
   }
   private hostCallbacks(cwd: string, env: NodeJS.ProcessEnv): AcpClientCallbacks {
@@ -336,7 +357,7 @@ export class AcpConnection extends LocalConnection {
         if (
           !this.active ||
           !('sessionId' in params) ||
-          params.sessionId !== this.session?.id ||
+          params.sessionId !== this.session?.thread.id ||
           this.abort.signal.aborted
         )
           return { action: 'cancel' }
@@ -355,8 +376,8 @@ export class AcpConnection extends LocalConnection {
       permission: async (params, { signal: requestSignal }) => {
         if (
           !this.active ||
-          params.sessionId !== this.session?.id ||
-          this.session.awaitingNativeTurn ||
+          params.sessionId !== this.session?.thread.id ||
+          this.session.acp.awaitingNativeTurn ||
           this.abort.signal.aborted
         )
           return { outcome: { outcome: 'cancelled' } }
@@ -709,7 +730,7 @@ export class AcpConnection extends LocalConnection {
   async selectModel(modelId: string) {
     if (this.headless || !this.session || this.closed || this.active || this.configChange)
       throw new Error('ACP session is unavailable or busy')
-    this.configChange = this.session.selectModel(modelId)
+    this.configChange = this.session.acp.selectModel(modelId).then(requireAcpControl)
     try {
       await this.configChange
       return this.localSessionInfo
@@ -721,6 +742,16 @@ export class AcpConnection extends LocalConnection {
     return this.setSelection('config', configId, value)
   }
   async setMode(configId: string, value: string) {
+    if (configId === ACP_HOST_PERMISSION_MODE_ID) {
+      if (this.headless || !this.session || this.closed || this.active || this.configChange)
+        throw new Error('ACP session is unavailable or busy')
+      if (!isAcpHostPermissionMode(value)) throw new Error('This session option is no longer available')
+      if (!this.localSessionInfo.hostPermission) return this.localSessionInfo
+      this.hostPermissionOverride = value
+      this.localSessionInfo.hostPermission = getAcpHostPermissionModeSelection(this.localSessionInfo.mode, value)
+      this.publishSessionInfo()
+      return this.localSessionInfo
+    }
     if (this.localSessionInfo.mode?.application === 'reconnect')
       throw new Error('This session option applies when the agent starts')
     return this.setSelection('mode', configId, value)
@@ -747,22 +778,36 @@ export class AcpConnection extends LocalConnection {
             .some((option) => option.value === value))
     )
       throw new Error('This session option is no longer available')
-    const legacyEffort = category === 'thoughtLevel' ? this.session.legacyEffort : undefined
+    const legacyEffort = category === 'thoughtLevel' ? this.session.acp.legacyEffort : undefined
     if (legacyEffort && typeof value === 'string' && legacyEffort.read()?.id === configId) {
       this.configChange = legacyEffort.set(value).then(() => {
         if (this.localSessionInfo.thoughtLevel !== selection) return
         this.localSessionInfo.thoughtLevel = legacyEffort.read()
         this.publishSessionInfo()
       })
-    } else if (category === this.legacyMode && typeof value === 'string') {
-      this.configChange = this.session.setMode(value).then(() => {
-        if (selection && this.legacyMode === category && this.localSessionInfo[category] === selection) {
-          selection.currentValue = value
-          this.publishSessionInfo()
+    } else if (
+      category === 'mode' &&
+      this.linkedNativePlan &&
+      (value === ACP_NATIVE_PLAN_VALUE || this.linkedNativePlan.active)
+    ) {
+      const { configId: workflowId, plan, work } = this.linkedNativePlan
+      const native = this.session.acp
+      const setWorkflow = (mode: string) =>
+        workflowId === 'legacy-mode' ? native.setMode(mode) : native.setConfigOption(workflowId, mode)
+      this.configChange = (async () => {
+        if (value === ACP_NATIVE_PLAN_VALUE) {
+          requireAcpControl(await setWorkflow(plan))
+          if (!this.linkedNativePlan?.active) throw new Error('ACP rejected the switch to Plan')
+          return
         }
-      })
+        requireAcpControl(await setWorkflow(work))
+        if (this.linkedNativePlan?.active !== false) throw new Error('ACP rejected the switch out of Plan')
+        requireAcpControl(await native.setConfigOption(configId, value))
+      })()
+    } else if (category === this.legacyMode && typeof value === 'string') {
+      this.configChange = this.session.acp.setMode(value).then(requireAcpControl)
     } else {
-      this.configChange = this.session.setConfigOption(configId, value)
+      this.configChange = this.session.acp.setConfigOption(configId, value).then(requireAcpControl)
     }
     try {
       await this.configChange
@@ -776,14 +821,23 @@ export class AcpConnection extends LocalConnection {
     configOptions: options,
     modes
   }: Pick<AcpSessionConfiguration, 'configOptions' | 'modes'>) {
-    const mode = options?.find((option) => option.category === 'mode' && option.type === 'select')
+    const { approvalConfigId, workflowConfigId } = this.permissionModes ?? {}
+    const mode = options?.find(
+      (option) =>
+        option.type === 'select' &&
+        (workflowConfigId
+          ? option.id === workflowConfigId
+          : option.category === 'mode' && option.id !== approvalConfigId)
+    )
     const thought = acpEffortOption(options)
     const configOptions: LocalAgentConfigOption[] | undefined =
       options
-        ?.filter((option) => option.type === 'select' || option.type === 'boolean')
+        ?.filter(
+          (option) =>
+            option.id !== ACP_HOST_PERMISSION_MODE_ID && (option.type === 'select' || option.type === 'boolean')
+        )
         .map((option) => {
-          const { id, name, description } = option
-          const { category } = option
+          const { id, name, description, category } = option
           const role = option === mode ? ('mode' as const) : option === thought ? ('reasoning' as const) : undefined
           const control = acpPermissionControl(option, this.permissionModes)
           const base = {
@@ -819,7 +873,37 @@ export class AcpConnection extends LocalConnection {
 
     this.legacyMode = undefined
     const modeOption = configOptions?.find((option) => option.role === 'mode')
-    let permission = modeOption?.type === 'select' ? describeAcpSelection(modeOption) : undefined
+    let permission: LocalAgentSelection | undefined =
+      modeOption?.type === 'select' ? describeAcpSelection(modeOption) : undefined
+    const legacySelection = modes
+      ? {
+          id: 'legacy-mode',
+          application: 'session' as const,
+          currentValue: modes.currentModeId,
+          options: modes.availableModes.map(({ id, name, description }) =>
+            acpPermissionChoice(
+              { value: id, name, description: description ?? undefined },
+              'mode',
+              this.permissionModes
+            )
+          )
+        }
+      : undefined
+    const approvalOption = configOptions?.find((option) => option.id === approvalConfigId)
+    const approval = approvalOption?.type === 'select' ? describeAcpSelection(approvalOption) : undefined
+    this.linkedNativePlan = undefined
+    if (approval && hasPermissionModeChoices(approval)) {
+      const workflow = permission ?? (this.permissionModes?.legacyPlan ? legacySelection : undefined)
+      const plan = getAcpNativePlanModes(workflow)
+      this.linkedNativePlan = plan && { ...plan, active: workflow?.currentValue === plan.plan }
+      permission = this.linkedNativePlan
+        ? {
+            ...approval,
+            currentValue: this.linkedNativePlan.active ? ACP_NATIVE_PLAN_VALUE : approval.currentValue,
+            options: [...approval.options, { value: ACP_NATIVE_PLAN_VALUE, name: 'Plan', permissionMode: 'plan' }]
+          }
+        : approval
+    }
     if (!this.launchMode && !hasPermissionModeChoices(permission)) {
       for (const option of configOptions ?? []) {
         if (option.type !== 'select' || !option.application || option === modeOption) continue
@@ -829,33 +913,22 @@ export class AcpConnection extends LocalConnection {
         break
       }
     }
-    const legacy =
-      options == null && modes
-        ? {
-            id: 'legacy-mode',
-            application: 'session' as const,
-            currentValue: modes.currentModeId,
-            options: modes.availableModes.map(({ id, name, description }) => ({
-              value: id,
-              name,
-              description: description ?? undefined
-            }))
-          }
-        : undefined
+    const legacy = options == null ? legacySelection : undefined
     if (legacy) {
       if (this.preset?.legacyModes === 'effort') {
         this.legacyMode = 'thoughtLevel'
       } else if (!this.launchMode) {
         this.legacyMode = 'mode'
-        permission = {
-          ...legacy,
-          options: legacy.options.map((choice) => acpPermissionChoice(choice, 'mode', this.permissionModes))
-        }
+        permission = legacy
       }
     }
     this.localSessionInfo.mode = this.launchMode ?? permission
+    this.localSessionInfo.hostPermission =
+      this.headless || (approval && hasPermissionModeChoices(approval))
+        ? undefined
+        : getAcpHostPermissionModeSelection(this.localSessionInfo.mode, this.hostPermissionOverride)
     const thoughtOption = configOptions?.find((option) => option.role === 'reasoning')
-    const model = this.session?.model
+    const model = this.session?.acp.model
     this.localSessionInfo.activeModel = model?.activeModel
     this.localSessionInfo.models = enrichLocalAgentModels(model?.models ?? [], this.config.presetId)
     this.localSessionInfo.modelSelection = model?.status
@@ -869,7 +942,7 @@ export class AcpConnection extends LocalConnection {
       ? undefined
       : effort
         ? { ...effort, modelId: this.localSessionInfo.activeModel?.id }
-        : this.session?.legacyEffort?.read()
+        : this.session?.acp.legacyEffort?.read()
     this.localSessionInfo.configOptions = configOptions?.filter(
       (option) => option.id !== this.localSessionInfo.mode?.id && option.id !== effort?.id
     )
@@ -880,7 +953,7 @@ export class AcpConnection extends LocalConnection {
     this.events.push({ type: 'local-session-info', info: structuredClone(this.localSessionInfo) })
   }
   private requireSession(sessionId: string) {
-    if (sessionId !== this.session?.id || this.closed || this.abort.signal.aborted)
+    if (sessionId !== this.session?.thread.id || this.closed || this.abort.signal.aborted)
       throw acpHostError.invalidRequest('Inactive ACP session')
   }
   private terminal(id: string): Terminal {
@@ -888,14 +961,14 @@ export class AcpConnection extends LocalConnection {
     if (!terminal) throw new Error('Unknown session terminal')
     return terminal
   }
-  private readonly liveEvents: AcpLiveEvents = {
+  private readonly liveEvents: AcpDesktopEvents = {
     opened: (session, configuration) => {
       this.session = session
       this.readConfigOptions(configuration)
     },
     nativeTurn: (event) => {
       if (event.state === 'started') {
-        if (this.headless || this.active || !this.contextId || this.closed) return false
+        if (this.headless || this.active || this.closed || !this.attachLocalContext(event.sessionId)) return false
         this.planPart = undefined
         this.planId = undefined
         this.events.push({ type: 'autonomous-turn-state', state: 'started', origin: { kind: 'native-turn' } })
@@ -916,16 +989,10 @@ export class AcpConnection extends LocalConnection {
     },
     options: (configOptions, modes) => this.readConfigOptions({ configOptions, modes }),
     commands: (commands) => this.publishCommands(commands),
-    mode: (id) => {
-      const selection = this.legacyMode && this.localSessionInfo[this.legacyMode]
-      if (!selection?.options.some(({ value }) => value === id)) return
-      selection.currentValue = id
-      this.publishSessionInfo()
-    },
     usage: ({ used, size, cost }) => {
       if (cost && this.session) {
         const snapshot = AgentSessionCostSnapshotSchema.safeParse({
-          nativeSessionId: this.session.id,
+          nativeSessionId: this.session.thread.id,
           reportedAt: Date.now(),
           cost: { amount: cost.amount, currency: cost.currency }
         })
@@ -1091,7 +1158,10 @@ export class AcpConnection extends LocalConnection {
     try {
       if (!this.session) throw new Error('ACP session is not connected')
       const model = this.localSessionInfo.activeModel?.id ?? null
-      const { stopReason, usage, context } = await this.session.prompt(prompt, input.message.id)
+      const { stopReason, usage, context } = await this.session.acp.runPrompt({
+        inputId: runtimeId<'input'>(input.message.id),
+        content: prompt
+      })
       if (context) {
         this.hasContextUsageReading = true
         this.events.push({ type: 'context-usage', result: { status: 'confirmed', value: context } })
@@ -1109,7 +1179,7 @@ export class AcpConnection extends LocalConnection {
           }
         })
       }
-      if (usage) this.publishTurnUsage(usage, this.session.id, model)
+      if (usage) this.publishTurnUsage(usage, this.session.thread.id, model)
       if (!this.localSessionInfo.protocolInfo?.verified.includes('prompt'))
         this.localSessionInfo.protocolInfo?.verified.push('prompt')
       const truncated = stopReason === 'max_tokens' || stopReason === 'max_turn_requests'
@@ -1136,7 +1206,7 @@ export class AcpConnection extends LocalConnection {
     } catch (error) {
       this.finish(error)
     } finally {
-      this.session?.drainNativeTurn()
+      this.session?.acp.drainNativeTurn()
     }
   }
   private publishTurnUsage(usage: AcpTurnUsage, nativeSessionId: string, model: string | null): void {
@@ -1194,16 +1264,14 @@ export class AcpConnection extends LocalConnection {
     super.dispose()
   }
   protected async stop() {
-    if (this.active && this.session) {
-      await this.session.cancel().catch(() => {})
-      await this.waitForTurn()
-    }
     try {
       await Promise.all([
         ...[...this.terminals.values()].map((terminal) => stopLocalAgentProcess(terminal.child)),
-        this.process.close(this.session?.close)
+        this.shutdownRuntime?.() ?? this.process.close()
       ])
+      await this.waitForTurn()
     } finally {
+      await this.session?.release()
       this.terminals.clear()
     }
   }

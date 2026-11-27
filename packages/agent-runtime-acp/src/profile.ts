@@ -11,6 +11,14 @@ export type { AcpPermissionModes } from './permissionMode'
 export type AcpEnv = Record<string, string | undefined>
 export type AcpLaunch = { args: string[]; env: Record<string, string>; nativeModel?: string }
 
+export type AcpGatewayModelEndpoint = 'openai-responses' | 'openai-chat-completions' | 'anthropic-messages'
+
+export interface AcpGatewayModel {
+  baseUrl: string
+  apiKey: string
+  model: string
+}
+
 type AcpLoginMethod = { id: string; name: string } & (
   | { form: 'browser' | 'enterprise' }
   | { form: 'api-key'; apiKey: string }

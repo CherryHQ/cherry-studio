@@ -16,6 +16,18 @@ export const qoderCli = {
   aliases: ['qodercn'],
   npmPackage: '@qodercn-ai/qoderclicn',
   args: ['--acp'],
+  permissionMode: {
+    values: {
+      default: 'default',
+      accept_edits: 'acceptEdits',
+      acceptedits: 'acceptEdits',
+      auto: 'auto',
+      plan: 'plan',
+      bypass_permissions: 'bypassPermissions',
+      bypasspermissions: 'bypassPermissions',
+      yolo: 'bypassPermissions'
+    }
+  },
   helpUrl: 'https://docs.qoder.com/cli/acp'
 } as const
 

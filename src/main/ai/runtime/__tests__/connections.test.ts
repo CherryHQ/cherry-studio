@@ -13,6 +13,8 @@ import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry
 import { BaseService } from '@main/core/lifecycle'
 import type * as ShellEnv from '@main/utils/shellEnv'
 import {
+  ACP_HOST_PERMISSION_MODE_ID,
+  ACP_NATIVE_PLAN_VALUE,
   type LocalAgentConfiguration,
   LocalAgentModelCatalogSchema,
   LocalPermissionOptionsSchema
@@ -53,7 +55,9 @@ vi.mock(import('@cherrystudio/agent-runtime-cursor'), async (importOriginal) => 
 }))
 
 const fixture = fileURLToPath(new URL('./fixtures/localAgent.mjs', import.meta.url))
-const input = { message: { data: { parts: [{ type: 'text', text: 'hello' }] } } } as AgentRuntimeUserInput
+const input = {
+  message: { id: 'fixture-input', data: { parts: [{ type: 'text', text: 'hello' }] } }
+} as AgentRuntimeUserInput
 
 describe('local protocol processes', () => {
   let cwd: string
@@ -1924,6 +1928,55 @@ describe('local protocol processes', () => {
     ])
   })
 
+  it('switches Copilot native approval separately from workflow and keeps the linked Plan command', async () => {
+    const fixture = create('acp', 'copilot-native-permissions', undefined, 'copilot')
+    const connection = fixture.connection as AcpConnection
+    await connection.start(cwd)
+
+    await connection.setMode(ACP_HOST_PERMISSION_MODE_ID, 'bypassPermissions')
+    expect(connection.localSessionInfo.hostPermission).toBeUndefined()
+    expect(connection.localSessionInfo.mode).toMatchObject({ id: 'allow_all', currentValue: 'off' })
+    await connection.setMode('allow_all', 'on')
+    expect(connection.localSessionInfo.mode?.currentValue).toBe('on')
+    expect(connection.localSessionInfo.configOptions?.find(({ id }) => id === 'mode')?.currentValue).toBe(
+      'https://agentclientprotocol.com/protocol/session-modes#agent'
+    )
+    await connection.setMode('allow_all', ACP_NATIVE_PLAN_VALUE)
+    expect(connection.localSessionInfo.mode?.currentValue).toBe(ACP_NATIVE_PLAN_VALUE)
+    expect(connection.localSessionInfo.configOptions?.find(({ id }) => id === 'mode')?.currentValue).toBe(
+      'https://agentclientprotocol.com/protocol/session-modes#plan'
+    )
+    await connection.setMode('allow_all', 'off')
+    expect(connection.localSessionInfo.mode?.currentValue).toBe('off')
+    expect(connection.localSessionInfo.configOptions?.find(({ id }) => id === 'mode')?.currentValue).toBe(
+      'https://agentclientprotocol.com/protocol/session-modes#agent'
+    )
+  })
+
+  it('keeps MiniMax native approval and legacy Plan available together', async () => {
+    const { connection } = create('acp', 'minimax-native-permissions', undefined, 'minimax')
+    await connection.start(cwd)
+    await connection.setMode('permissionMode', 'bypassPermissions')
+    expect(connection.localSessionInfo.mode?.currentValue).toBe('bypassPermissions')
+    await connection.setMode('permissionMode', ACP_NATIVE_PLAN_VALUE)
+    expect(connection.localSessionInfo.mode?.currentValue).toBe(ACP_NATIVE_PLAN_VALUE)
+    await connection.setMode('permissionMode', 'default')
+    expect(connection.localSessionInfo.mode?.currentValue).toBe('default')
+  })
+
+  it('links Junie native approval to its workflow even when the workflow has no category', async () => {
+    const { connection } = create('acp', 'junie-native-permissions', undefined, 'junie')
+    await connection.start(cwd)
+    expect(connection.localSessionInfo.mode).toMatchObject({ id: 'brave_mode', currentValue: 'brave-auto' })
+    await connection.setMode('brave_mode', 'on')
+    expect(connection.localSessionInfo.mode?.currentValue).toBe('on')
+    await connection.setMode('brave_mode', ACP_NATIVE_PLAN_VALUE)
+    expect(connection.localSessionInfo.mode?.currentValue).toBe(ACP_NATIVE_PLAN_VALUE)
+    await connection.setMode('brave_mode', 'off')
+    expect(connection.localSessionInfo.mode?.currentValue).toBe('off')
+    expect(connection.localSessionInfo.configOptions?.find(({ id }) => id === 'mode')?.currentValue).toBe('default')
+  })
+
   it('keeps additional model, mode and reasoning selectors editable without changing primary selections', async () => {
     const { connection } = create('acp', 'config-multiple')
     await connection.start(cwd)
@@ -2395,9 +2448,59 @@ describe('local protocol processes', () => {
     await closeAndDrain()
   })
 
+  it('applies ACP host Full Access without changing native mode or granting lasting permissions', async () => {
+    const { connection, events, text } = create('acp', 'acp-policy-yolo')
+    await connection.start(cwd)
+    await connection.setMode(ACP_HOST_PERMISSION_MODE_ID, 'bypassPermissions')
+    await connection.send(input)
+    await vi.waitFor(() =>
+      expect(JSON.parse(text())).toEqual({
+        perm: { outcome: { outcome: 'selected', optionId: 'once' } },
+        wrote: true,
+        term: 'term-ok'
+      })
+    )
+    expect(await readFile(path.join(cwd, 'yolo.txt'), 'utf8')).toBe('yolo ok')
+    expect(events.some((event) => event.type === 'tool-approval-request')).toBe(false)
+    expect((await readWire()).some(({ method }) => method === 'session/set_config_option')).toBe(false)
+
+    await connection.setMode(ACP_HOST_PERMISSION_MODE_ID, 'default')
+    const sending = connection.send(input)
+    for (const index of [0, 1, 2]) {
+      const approval = await waitForApproval(events, index)
+      toolApprovalRegistry.dispatch(approval.request.approvalId, { approved: false })
+    }
+    await sending
+  })
+
+  it('honors native ACP read-only mode when the host is set to Full Access', async () => {
+    const { connection, events, text } = create('acp', 'acp-policy-plan')
+    await connection.start(cwd)
+    await connection.setMode(ACP_HOST_PERMISSION_MODE_ID, 'bypassPermissions')
+    await connection.setMode('agent-mode', 'plan')
+
+    const sending = connection.send(input)
+    for (const index of [0, 1, 2]) {
+      const approval = await waitForApproval(events, index)
+      toolApprovalRegistry.dispatch(approval.request.approvalId, { approved: false })
+    }
+    await sending
+    await vi.waitFor(() => expect(JSON.parse(text())).toMatchObject({ wrote: false, terminalDenied: true }))
+  })
+
+  it('auto-accepts an ACP edit inside the workspace in the host edit mode', async () => {
+    const { connection, events, text } = create('acp', 'acp-policy-auto')
+    await connection.start(cwd)
+    await connection.setMode(ACP_HOST_PERMISSION_MODE_ID, 'acceptEdits')
+    await connection.send(input)
+    await vi.waitFor(() => expect(JSON.parse(text())).toEqual({ outcome: { outcome: 'selected', optionId: 'once' } }))
+    expect(events.some((event) => event.type === 'tool-approval-request')).toBe(false)
+  })
+
   it('denies unattended ACP approvals, host writes and terminals without prompting', async () => {
     const { connection, events, text } = create('acp', 'acp-policy-yolo', undefined, 'opencode', undefined, true)
     await connection.start(cwd)
+    await expect(connection.setMode?.(ACP_HOST_PERMISSION_MODE_ID, 'bypassPermissions')).rejects.toThrow()
     await expect(connection.setMode?.('agent-mode', 'yolo')).rejects.toThrow(
       'Scheduled tasks use the agent configuration'
     )

@@ -138,6 +138,21 @@ it('rejects stale direct-provider selections without changing CLI files', async 
   expect([...disk]).toEqual([['pi-settings', '{"theme":"dark"}']])
 })
 
+it('saves and clears a launch-only gateway model without writing shared CLI files', async () => {
+  const config = { ...agent.configuration!.localRuntime!, presetId: 'deepagents' }
+  const { result, rerender } = renderHook((current) => useLocalAgentModelSelection(current, []), {
+    initialProps: config
+  })
+  const gatewayModel = result.current.models.find((entry) => entry.source === 'gateway')!
+  const selected = await result.current.select({ ...agent, configuration: { localRuntime: config } }, gatewayModel.id)
+  expect(selected?.configuration?.localRuntime).toMatchObject({ sourceModelId: model.id, sourceModelViaGateway: true })
+  rerender({ ...config, sourceModelId: model.id, sourceModelViaGateway: true })
+  expect(result.current.value).toBe(gatewayModel.id)
+  const cleared = await result.current.select(selected!)
+  expect(cleared?.configuration?.localRuntime?.sourceModelId).toBeUndefined()
+  expect([...disk]).toEqual([['pi-settings', '{"theme":"dark"}']])
+})
+
 it('preserves a previously configured direct model until the user selects another native model', async () => {
   const legacy = {
     ...agent,

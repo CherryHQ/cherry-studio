@@ -43,15 +43,26 @@ export async function selectLocalAgentModel(
     native.type === 'agent' ||
     (native.nativeSelection === 'agent' && !config.sourceModelId && !selection.sourceModelId)
   ) {
+    const gatewayAtLaunch =
+      native.type === 'agent' &&
+      native.gatewayModelEndpoint &&
+      !config.executableOverride &&
+      selection.sourceModelViaGateway
     if (
-      selection.sourceModelId ||
-      selection.sourceModelViaGateway ||
+      ((selection.sourceModelId || selection.sourceModelViaGateway) &&
+        (!gatewayAtLaunch || !selection.sourceModelId || nativeModel !== undefined)) ||
       selection.files?.length ||
       selection.expectedFiles?.length
     )
       throw new Error(t('code_cli.model.unsupported'))
     const updated = agentService.updateAgent(agentId, {
-      configuration: { localRuntime: { nativeModel, sourceModelId: undefined, sourceModelViaGateway: undefined } }
+      configuration: {
+        localRuntime: {
+          nativeModel,
+          sourceModelId: selection.sourceModelId,
+          sourceModelViaGateway: gatewayAtLaunch ? true : undefined
+        }
+      }
     })
     if (!updated) throw new Error(t('code_cli.model.agent_missing'))
     return updated

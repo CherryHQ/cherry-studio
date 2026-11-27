@@ -113,9 +113,10 @@ export function useManagedLocalAgentDetails(selectedCliTool: CodeCli.OPENCLAW | 
     .flatMap((provider) =>
       [...modelById.values()].filter(makeModelFilter(provider.id)).map((model) => {
         const sourceProvider = providerById.get(model.providerId)
+        const name = model.name || model.id
         return {
           id: JSON.stringify([provider.id, model.id]),
-          name: model.name || model.id,
+          name: !isDeepSeekHarnessTool && isApiGatewayProviderId(provider.id) ? `${name} · ${provider.name}` : name,
           providerId: model.providerId,
           apiModelId: model.apiModelId,
           group: getProviderDisplayName(sourceProvider) || getProviderDisplayNameById(model.providerId),
@@ -153,7 +154,7 @@ export function useManagedLocalAgentDetails(selectedCliTool: CodeCli.OPENCLAW | 
           }
           return await configPanel.selectModel(option.provider, option.model.id)
         } catch (error) {
-          logger.error('Failed to select DeepSeek Harness model', error as Error)
+          logger.error('Failed to select managed Agent model', error as Error)
           toast.error(t('code.apply_failed'))
           return false
         } finally {

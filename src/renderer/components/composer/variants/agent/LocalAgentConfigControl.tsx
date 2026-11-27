@@ -21,13 +21,12 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 import { FullAccessConfirmDialog } from '@renderer/components/PermissionModeOption'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
-import { localAgentConfigOptions, localAgentModeOptions } from '@renderer/utils/agent/localAgentLabels'
-import type { LocalAgentConfigOption, LocalAgentSelection } from '@shared/ai/localAgent'
+import { localAgentConfigOptions } from '@renderer/utils/agent/localAgentLabels'
+import type { LocalAgentConfigOption } from '@shared/ai/localAgent'
 
 const triggerClass = 'h-7 min-w-0 max-w-64 gap-1.5 rounded-lg px-2 text-xs text-muted-foreground'
 
 type PendingHighRiskSelection = {
-  kind: 'mode' | 'config'
   configId: string
   value: string | boolean
 }
@@ -37,7 +36,6 @@ export function LocalAgentConfigControl({
   agentName,
   presetId,
   options: nativeOptions = [],
-  mode,
   disabled,
   side = 'top'
 }: {
@@ -45,7 +43,6 @@ export function LocalAgentConfigControl({
   agentName?: string
   presetId?: string
   options?: LocalAgentConfigOption[]
-  mode?: LocalAgentSelection
   disabled: boolean
   side?: 'top' | 'bottom'
 }) {
@@ -54,27 +51,12 @@ export function LocalAgentConfigControl({
   const [saving, setSaving] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [pendingHighRisk, setPendingHighRisk] = useState<PendingHighRiskSelection | null>(null)
-  const currentValuesKey = [
-    mode?.currentValue ?? '',
-    ...nativeOptions.map((option) => `${option.id}:${String(option.currentValue)}`)
-  ].join('|')
+  const currentValuesKey = nativeOptions.map((option) => `${option.id}:${String(option.currentValue)}`).join('|')
   useEffect(() => {
     setPendingHighRisk(null)
   }, [currentValuesKey])
 
-  const modeOptions = mode ? localAgentModeOptions(mode, t, presetId) : []
-  const currentMode = modeOptions.find((option) => option.value === mode?.currentValue)
-  const rows: Array<{ kind: 'mode' | 'config'; option: LocalAgentConfigOption }> = []
-  if (mode && modeOptions.length > 1) {
-    rows.push({
-      kind: 'mode',
-      option: { ...mode, type: 'select', name: t('local_agents.mode'), options: modeOptions }
-    })
-  }
-  for (const option of options) {
-    if (option.id !== mode?.id) rows.push({ kind: 'config', option })
-  }
-  if (!rows.length) return null
+  if (!options.length) return null
 
   const requiresConfirmation = (option: LocalAgentConfigOption, value: string | boolean) => {
     if (option.type === 'boolean') return option.confirmationValue === value
@@ -84,10 +66,8 @@ export function LocalAgentConfigControl({
         .find((choice) => choice.value === value)
     )
   }
-  const riskyMode =
-    requiresPermissionConfirmation(currentMode) ||
-    rows.some(({ option }) => requiresConfirmation(option, option.currentValue))
-  const single = rows.length === 1
+  const riskyMode = options.some((option) => requiresConfirmation(option, option.currentValue))
+  const single = options.length === 1
   const selectedName = (option: LocalAgentConfigOption) =>
     option.type === 'boolean'
       ? t(option.currentValue ? 'common.enabled' : 'common.disabled')
@@ -95,33 +75,27 @@ export function LocalAgentConfigControl({
           .flatMap((choice) => ('group' in choice ? choice.options : [choice]))
           .find((choice) => choice.value === option.currentValue)?.name ?? option.currentValue)
   const triggerLabel = single
-    ? t('local_agents.config_summary', { name: rows[0].option.name, value: selectedName(rows[0].option) })
-    : (currentMode?.name ?? t('local_agents.configuration'))
-  const change = async (kind: 'mode' | 'config', configId: string, value: string | boolean) => {
+    ? t('local_agents.config_summary', { name: options[0].name, value: selectedName(options[0]) })
+    : t('local_agents.configuration')
+  const change = async (configId: string, value: string | boolean) => {
     if (disabled || saving) return
     setSaving(true)
     try {
-      if (kind === 'config') await ipcApi.request('ai.local_agents.set_config_option', { sessionId, configId, value })
-      else if (typeof value === 'string')
-        await ipcApi.request('ai.local_agents.set_mode', {
-          sessionId,
-          configId,
-          value
-        })
+      await ipcApi.request('ai.local_agents.set_config_option', { sessionId, configId, value })
     } catch (error) {
       toast.error(String(error))
     } finally {
       setSaving(false)
     }
   }
-  const handleSelectValue = (kind: 'mode' | 'config', option: LocalAgentConfigOption, nextValue: string | boolean) => {
+  const handleSelectValue = (option: LocalAgentConfigOption, nextValue: string | boolean) => {
     if (disabled || saving || nextValue === option.currentValue) return
     if (requiresConfirmation(option, nextValue)) {
       setMenuOpen(false)
-      setPendingHighRisk({ kind, configId: option.id, value: nextValue })
+      setPendingHighRisk({ configId: option.id, value: nextValue })
       return
     }
-    void change(kind, option.id, nextValue)
+    void change(option.id, nextValue)
   }
   const renderChoice = (option: { value: string; name: string; description?: string | null }) => (
     <DropdownMenuRadioItem
@@ -163,7 +137,7 @@ export function LocalAgentConfigControl({
           alignOffset={single || side === 'bottom' ? 0 : 288}
           className={cn('overflow-hidden p-1.5', single ? 'w-72' : 'w-64')}>
           <DropdownMenuLabel className="text-xs text-muted-foreground">
-            {single ? rows[0].option.name : t('local_agents.configuration')}
+            {single ? options[0].name : t('local_agents.configuration')}
           </DropdownMenuLabel>
           {disabled && (
             <p role="status" className="px-2 pb-1.5 text-xs text-muted-foreground">
@@ -171,7 +145,7 @@ export function LocalAgentConfigControl({
             </p>
           )}
           <ScrollArea className="max-h-[min(24rem,var(--radix-dropdown-menu-content-available-height))]">
-            {rows.map(({ kind, option }) => {
+            {options.map((option) => {
               const choices =
                 option.type === 'boolean'
                   ? [
@@ -188,7 +162,7 @@ export function LocalAgentConfigControl({
                   <DropdownMenuRadioGroup
                     value={currentValue}
                     onValueChange={(value) =>
-                      handleSelectValue(kind, option, option.type === 'boolean' ? value === 'true' : value)
+                      handleSelectValue(option, option.type === 'boolean' ? value === 'true' : value)
                     }>
                     {choices.map((choice) =>
                       'group' in choice ? (
@@ -203,9 +177,9 @@ export function LocalAgentConfigControl({
                   </DropdownMenuRadioGroup>
                 </>
               )
-              if (single) return <Fragment key={`${kind}:${option.id}`}>{content}</Fragment>
+              if (single) return <Fragment key={option.id}>{content}</Fragment>
               return (
-                <Fragment key={`${kind}:${option.id}`}>
+                <Fragment key={option.id}>
                   <DropdownMenuSub>
                     <DropdownMenuSubTrigger
                       aria-label={option.name}
@@ -239,7 +213,7 @@ export function LocalAgentConfigControl({
           if (!pendingHighRisk) return false
           const selected = pendingHighRisk
           setPendingHighRisk(null)
-          void change(selected.kind, selected.configId, selected.value)
+          void change(selected.configId, selected.value)
           return true
         }}
         scopeName={agentName}

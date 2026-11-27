@@ -2747,6 +2747,7 @@
   "local_agents.follow_cli": "Domyślny model",
   "local_agents.follow_native_model_config": "Użyj natywnej konfiguracji",
   "local_agents.global_model_unavailable": "Przełączanie modelu domyślnego nie jest jeszcze obsługiwane dla tego agenta.",
+  "local_agents.host_permission.bypass_description": "W tej sesji Cherry automatycznie zatwierdza dozwolone żądania narzędzi, zapisy do plików i polecenia terminala. Ograniczenia lokalnego agenta nadal obowiązują.",
   "local_agents.incompatible": "Zainstalowane CLI jest niezgodne",
   "local_agents.install_error.failed": "Instalacja nie powiodła się. Sprawdź połączenie sieciowe i uprawnienia do instalacji.",
   "local_agents.install_error.managed_runtime": "{{manager}} używa środowiska zarządzanego przez Cherry Studio. Najpierw skonfiguruj instalację systemową.",

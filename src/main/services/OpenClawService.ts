@@ -7,6 +7,7 @@ import path from 'node:path'
 import { Mutex } from 'async-mutex'
 
 import { application } from '@application'
+import { openClawCli } from '@cherrystudio/agent-runtime-openclaw-acp/cli'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
@@ -26,11 +27,13 @@ import {
 } from '@shared/data/types/model'
 import type { Provider as DataProvider } from '@shared/data/types/provider'
 import type { BinaryAvailability } from '@shared/types/binary'
-import { CodeCli } from '@shared/types/codeCli'
+import { CLI_API_GATEWAY_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
 import type { OperationResult } from '@shared/types/codeTools'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { formatApiHost, hasApiVersion, withoutTrailingSlash } from '@shared/utils/api'
-import { isNonChatModel } from '@shared/utils/model'
+import { formatGatewayModelId, gatewayClientOrigin } from '@shared/utils/apiGateway'
+import { isGatewayRoutableModel, isNonChatModel } from '@shared/utils/model'
+import { isAgentOnlyProvider } from '@shared/utils/provider'
 import { redactSecretText } from '@shared/utils/redaction'
 
 import type { Model, Provider, ProviderType, VertexProvider } from './openClawProviderTypes'
@@ -981,7 +984,11 @@ export class OpenClawService extends BaseService {
         const state = application.get('PreferenceService').get('feature.code_cli.configs')?.[CodeCli.OPENCLAW]
         const modelId = state?.current ? state.providers[state.current]?.modelId : undefined
         if (modelId) {
-          const synced = await this.syncConfig(modelId)
+          const synced = await this.syncSelectedConfig(
+            modelId,
+            undefined,
+            state?.current === CLI_API_GATEWAY_PROVIDER_ID
+          )
           if (!synced.success) throw new Error(synced.message)
         }
         const started = await this.startGateway()
@@ -1323,7 +1330,18 @@ export class OpenClawService extends BaseService {
   /**
    * Sync Cherry Studio Provider configuration to OpenClaw
    */
-  public async syncConfig(uniqueModelId: UniqueModelId, port?: number): Promise<OperationResult> {
+  public async syncConfig(uniqueModelId: UniqueModelId, port?: number, viaGateway = false): Promise<OperationResult> {
+    return this.gatewayLifecycleMutex.runExclusive(async () => {
+      if (this.gatewayLeases.size) return { success: false, message: t('code_cli.model.config_changed') }
+      return this.syncSelectedConfig(uniqueModelId, port, viaGateway)
+    })
+  }
+
+  private async syncSelectedConfig(
+    uniqueModelId: UniqueModelId,
+    port: number | undefined,
+    viaGateway: boolean
+  ): Promise<OperationResult> {
     try {
       // Apply the caller's gateway port before writing openclaw.json so the config's
       // gateway.port matches the port startGateway() will bind and health-check. Without
@@ -1332,7 +1350,7 @@ export class OpenClawService extends BaseService {
       if (port !== undefined) {
         this.gatewayPort = port
       }
-      const { provider, primaryModel } = await this.resolveSyncConfig(uniqueModelId)
+      const { provider, primaryModel } = await this.resolveSyncConfig(uniqueModelId, viaGateway)
       return await this.syncProviderConfig(provider, primaryModel)
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)
@@ -1342,7 +1360,8 @@ export class OpenClawService extends BaseService {
   }
 
   private async resolveSyncConfig(
-    uniqueModelId: unknown
+    uniqueModelId: unknown,
+    viaGateway: boolean
   ): Promise<{ provider: OpenClawSyncProvider; primaryModel: OpenClawSyncModel }> {
     const parsed = UniqueModelIdSchema.safeParse(uniqueModelId)
     if (!parsed.success) {
@@ -1352,6 +1371,36 @@ export class OpenClawService extends BaseService {
     const { providerId, modelId } = parseUniqueModelId(parsed.data)
     const provider = providerService.getByProviderId(providerId)
     const primaryModel = modelService.getByKey(providerId, modelId)
+    if (viaGateway) {
+      if (
+        !provider.isEnabled ||
+        !primaryModel.isEnabled ||
+        isAgentOnlyProvider(provider) ||
+        !isGatewayRoutableModel(primaryModel)
+      ) {
+        throw new Error(t('code_cli.model.model_config_missing'))
+      }
+      const gateway = application.get('ApiGatewayService')
+      if (!gateway.isRunning()) await gateway.start()
+      const { host, port } = gateway.getCurrentConfig()
+      const model = {
+        ...this.toOpenClawModel(primaryModel),
+        id: formatGatewayModelId(providerId, primaryModel.apiModelId ?? modelId),
+        provider: openClawCli.gatewayProviderId,
+        endpoint_type: 'openai' as const
+      }
+      return {
+        provider: {
+          id: openClawCli.gatewayProviderId,
+          type: 'openai',
+          name: 'Cherry Studio',
+          apiHost: gatewayClientOrigin(host, port),
+          apiKey: await gateway.ensureValidApiKey(),
+          models: [model]
+        },
+        primaryModel: model
+      }
+    }
     const models = modelService.list({ providerId, enabled: true })
     const apiKeys = providerService.getApiKeys(providerId, { enabled: true })
 

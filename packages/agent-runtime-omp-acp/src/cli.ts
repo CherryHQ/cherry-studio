@@ -1,3 +1,5 @@
+import type { AcpPermissionModes } from '@cherrystudio/agent-runtime-acp/profile'
+
 export const ompCli = {
   modelConfig: {
     tool: 'omp',
@@ -5,6 +7,7 @@ export const ompCli = {
     overrides: ['OMP_PROFILE', 'PI_PROFILE', 'PI_CONFIG_DIR', 'PI_CODING_AGENT_DIR']
   },
   id: 'omp',
+  permissionMode: { values: { default: 'default', plan: 'plan' } } satisfies AcpPermissionModes,
   credentialScope: 'provider',
   name: 'Oh My Pi',
   protocol: 'acp',

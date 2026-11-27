@@ -2719,6 +2719,7 @@
   "local_agents.follow_cli": "Προεπιλεγμένο μοντέλο",
   "local_agents.follow_native_model_config": "Χρήση εγγενούς διαμόρφωσης",
   "local_agents.global_model_unavailable": "Η αλλαγή προεπιλεγμένου μοντέλου δεν υποστηρίζεται ακόμη για αυτόν τον πράκτορα.",
+  "local_agents.host_permission.bypass_description": "Το Cherry εγκρίνει αυτόματα τα επιτρεπόμενα αιτήματα εργαλείων, τις εγγραφές σε αρχεία και τις εντολές τερματικού για αυτήν τη συνεδρία. Οι περιορισμοί του τοπικού agent εξακολουθούν να ισχύουν.",
   "local_agents.incompatible": "Το εγκατεστημένο CLI δεν είναι συμβατό",
   "local_agents.install_error.failed": "Η εγκατάσταση απέτυχε. Ελέγξτε δίκτυο και δικαιώματα.",
   "local_agents.install_error.managed_runtime": "Το {{manager}} χρησιμοποιεί περιβάλλον του Cherry. Ρυθμίστε πρώτα περιβάλλον συστήματος.",

@@ -175,7 +175,10 @@ export async function writeCliConfigDraft(args: {
   }
   if (args.cliTool === CodeCli.OPENCLAW) {
     if (!args.modelId) throw new Error('Cannot write CLI config without a model id')
-    const result = await ipcApi.request('openclaw.sync_config', { uniqueModelId: args.modelId })
+    const result = await ipcApi.request('openclaw.sync_config', {
+      uniqueModelId: args.modelId,
+      ...(args.gateway && { viaGateway: true })
+    })
     if (!result.success) throw new Error(result.message)
     return
   }
