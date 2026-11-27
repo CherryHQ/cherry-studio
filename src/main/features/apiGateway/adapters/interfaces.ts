@@ -89,6 +89,12 @@ export interface IStreamAdapter<TOutputEvent = unknown> {
   transformChunk(chunk: UIMessageChunk): TOutputEvent[]
 
   /**
+   * Push API: process one chunk while separating lazy opening scaffolding
+   * (`message_start` / initial assistant frame) from chunk-produced semantic events.
+   */
+  transformChunkWithOpening(chunk: UIMessageChunk): { opening: TOutputEvent[]; events: TOutputEvent[] }
+
+  /**
    * Push API: finalize the stream and return its closing events.
    */
   finalizeEvents(): TOutputEvent[]

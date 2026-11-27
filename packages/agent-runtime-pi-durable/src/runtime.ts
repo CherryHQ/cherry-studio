@@ -144,8 +144,8 @@ export interface PiDurableArchive {
 }
 export interface PiDurableRuntime extends AgentRuntime {
   readonly lookupInput: LookupInput
-  /** Native transactions share this owner's mutation line; callers must retain their backend access. */
-  readonly durable: Pick<Harness, 'commit'>
+  /** Native transactions and commit observations share this owner's mutation line and require retained backend access. */
+  readonly durable: Pick<Harness, 'commit' | 'observeCommits'>
   create(options: PiDurableSessionOptions): Promise<OperationResult<PiDurableThreadHandle>>
   open(ref: Thread): Promise<OperationResult<PiDurableThreadHandle>>
   resume(): Promise<OperationResult<void>>
@@ -1213,19 +1213,26 @@ export async function createPiDurableRuntime(
       closing = true
       closingAccess.abort()
       shutdown ??= (async () => {
-        try {
-          await behavior?.close()
-          await Promise.allSettled([...pending])
-          await native.close(context)
-          stopRegistry?.()
-          await Promise.allSettled([...pending])
-          for (const entry of live.values()) entry.projection.close()
-          unsubscribe()
-          return { status: 'confirmed' as const, value: undefined }
-        } catch (cause) {
-          report(cause)
+        let failed: unknown
+        const runStep = async (step: () => unknown) => {
+          try {
+            await step()
+          } catch (cause) {
+            if (failed === undefined) failed = cause
+            report(cause)
+          }
+        }
+        await runStep(() => behavior?.close())
+        await Promise.allSettled([...pending])
+        await runStep(() => native.close(context))
+        await runStep(() => stopRegistry?.())
+        await Promise.allSettled([...pending])
+        for (const entry of live.values()) await runStep(() => entry.projection.close())
+        await runStep(() => unsubscribe())
+        if (failed !== undefined) {
           return { status: 'unknown' as const, error: error('shutdown', 'native-error') }
         }
+        return { status: 'confirmed' as const, value: undefined }
       })()
       return shutdown
     }
