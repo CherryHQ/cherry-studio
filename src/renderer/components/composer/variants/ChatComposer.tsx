@@ -7,14 +7,11 @@ import { NormalTooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { ContextUsageMeter, ContextUsageSummary } from '@renderer/components/chat/contextUsage'
 import {
-  clearMessageEditSession,
   MessageEditingProvider,
-  readMessageEditSession,
   type SavedComposerDraft,
   type StoredMessageEditDraft,
   type StoredMessageEditSession,
-  useMessageEditing,
-  writeMessageEditSessionDraft
+  useMessageEditing
 } from '@renderer/components/chat/editing/MessageEditingContext'
 import { useChatLayoutMode } from '@renderer/components/chat/layout/ChatLayoutModeContext'
 import { replaceReasoningPartText } from '@renderer/components/chat/messages/blocks/reasoningEditing'
@@ -58,6 +55,7 @@ import { useProviders } from '@renderer/hooks/useProvider'
 import { useTopicMutations } from '@renderer/hooks/useTopic'
 import { useTopicAwaitingApproval, useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import { messageEditingSessionService } from '@renderer/services/MessageEditingSessionService'
 import { toast } from '@renderer/services/toast'
 import { type Topic, TopicType } from '@renderer/types/topic'
 import { removeFileExtension, removeSpecialCharactersForFileName } from '@renderer/utils/file'
@@ -302,7 +300,7 @@ const ChatComposerRoot = ({
     initialDraftRef.current = {
       scopeKey: draftCacheScopeKey,
       draft: readChatDraftCache(draftCacheScopeKey),
-      editSession: resolvedTopicId ? readMessageEditSession(resolvedTopicId) : undefined
+      editSession: resolvedTopicId ? messageEditingSessionService.getSession(resolvedTopicId) : undefined
     }
   }
   const initialDraft = initialDraftRef.current.draft
@@ -446,7 +444,7 @@ const ChatComposerInner = ({
   const [searching, setSearching] = useCache('chat.web_search.searching')
   const [isMultiSelectMode] = useCache('chat.multi_select_mode')
   const chatWrite = useChatWrite()
-  const { editingMessage, cancelEditing, stopEditing, syncTopic } = useMessageEditing()
+  const { editingMessage, isSavingEditing, cancelEditing, stopEditing, syncTopic } = useMessageEditing()
   const editingMessageForCurrentTopic = topicId && editingMessage?.message.topicId === topicId ? editingMessage : null
   const staleEditingMessage = editingMessage && !editingMessageForCurrentTopic
   const initialEditDraft = initialEditSession?.draft
@@ -558,10 +556,16 @@ const ChatComposerInner = ({
       setSelectedKnowledgeBases
     ]
   )
-  const { isInputHistoryActive, navigateHistory, resetHistoryIndex, takeDraftBeforeHistory, saveHistory } =
-    useInputHistory({
-      applyDraft: applyHistoryDraft
-    })
+  const {
+    isInputHistoryActive,
+    navigateHistory,
+    resetHistoryIndex,
+    getDraftBeforeHistory,
+    takeDraftBeforeHistory,
+    saveHistory
+  } = useInputHistory({
+    applyDraft: applyHistoryDraft
+  })
   const handleInputHistoryNavigate = useCallback(
     (direction: InputHistoryDirection) => navigateHistory(direction, actionsRef.current.getDraft()),
     [actionsRef, navigateHistory]
@@ -585,7 +589,9 @@ const ChatComposerInner = ({
   const restoredEditingSessionIdRef = useRef<number | null>(
     initialEditDraft ? (initialEditSession?.snapshot.editingSessionId ?? null) : null
   )
-  const isSavingEdit = savingEditingSessionId === editingMessageForCurrentTopic?.editingSessionId
+  const isSavingEdit =
+    Boolean(editingMessageForCurrentTopic) &&
+    (isSavingEditing || savingEditingSessionId === editingMessageForCurrentTopic?.editingSessionId)
   const { screenshotEnabled, startScreenshot } = useScreenshotChat({
     scopeKey: streamScopeKey,
     editingId: editingMessageForCurrentTopic?.editingSessionId,
@@ -1012,16 +1018,21 @@ const ChatComposerInner = ({
   ])
 
   const persistFinalDraft = useEffectEvent(() => {
-    if (isInputHistoryActive) return
     if (topicId && editingMessageForCurrentTopic) {
-      if (isKnowledgeBaseDraftHydrated) syncKnowledgeBaseIds()
-      const liveEditDraft = surfaceGetDraftRef.current()
-      writeMessageEditSessionDraft(topicId, editingMessageForCurrentTopic.editingSessionId, {
+      const preHistoryDraft = isInputHistoryActive ? getDraftBeforeHistory() : null
+      const preHistoryTools = isInputHistoryActive ? inputHistoryToolsRef.current : null
+      if (!isInputHistoryActive && isKnowledgeBaseDraftHydrated) syncKnowledgeBaseIds()
+      const liveEditDraft = preHistoryDraft ?? surfaceGetDraftRef.current()
+      const editKnowledgeBaseIds =
+        isInputHistoryActive && isKnowledgeBaseDraftHydrated && preHistoryTools
+          ? preHistoryTools.selectedKnowledgeBases.map((base) => base.id)
+          : knowledgeBaseIdsRef.current
+      messageEditingSessionService.updateDraft(topicId, editingMessageForCurrentTopic.editingSessionId, {
         draft: {
           text: liveEditDraft.text,
           draftTokens: [...liveEditDraft.tokens],
-          files: [...filesRef.current],
-          knowledgeBaseIds: [...knowledgeBaseIdsRef.current],
+          files: [...(preHistoryTools?.files ?? filesRef.current)],
+          knowledgeBaseIds: [...editKnowledgeBaseIds],
           reasoningDraft: reasoningDraftRef.current,
           originalFilePartsByTokenId: new Map(editingOriginalFilePartsByTokenIdRef.current)
         },
@@ -1029,6 +1040,7 @@ const ChatComposerInner = ({
       })
     }
     const savedDraft = savedDraftBeforeEditingRef.current
+    if (isInputHistoryActive && !savedDraft) return
     if (editingMessage && !savedDraft) return
     const draft = savedDraft ? { text: savedDraft.text, tokens: savedDraft.draftTokens } : surfaceGetDraftRef.current()
     writeChatDraftCache(draftCacheScopeKey, {
@@ -1126,13 +1138,16 @@ const ChatComposerInner = ({
       return
     }
     if (editingMessage?.message.topicId === topicId) return
-    if (staleEditingMessage || readMessageEditSession(topicId)) {
+    if (staleEditingMessage || messageEditingSessionService.getSession(topicId)) {
       syncTopic(topicId)
     }
   }, [editingMessage?.message.topicId, staleEditingMessage, syncTopic, topicId])
 
   useLayoutEffect(() => {
     if (!editingMessageForCurrentTopic) {
+      if (restoredEditingSessionIdRef.current !== null && savedDraftBeforeEditingRef.current) {
+        restoreSavedDraft()
+      }
       restoredEditingSessionIdRef.current = null
       editingOriginalFilePartsByTokenIdRef.current = new Map()
       return
@@ -1140,7 +1155,7 @@ const ChatComposerInner = ({
     if (restoredEditingSessionIdRef.current === editingMessageForCurrentTopic.editingSessionId) return
     restoredEditingSessionIdRef.current = editingMessageForCurrentTopic.editingSessionId
 
-    const storedSession = topicId ? readMessageEditSession(topicId) : undefined
+    const storedSession = topicId ? messageEditingSessionService.getSession(topicId) : undefined
     const storedDraft =
       storedSession?.snapshot.editingSessionId === editingMessageForCurrentTopic.editingSessionId
         ? storedSession.draft
@@ -1688,6 +1703,7 @@ const ChatComposerInner = ({
     async (draft: ComposerSerializedDraft, resend: boolean) => {
       if (!editingMessageForCurrentTopic) return
       const editingSessionId = editingMessageForCurrentTopic.editingSessionId
+      const editTopicId = editingMessageForCurrentTopic.message.topicId
       if (editSaveInFlightSessionIdRef.current === editingSessionId) return
 
       const isAssistantReply = editingMessageForCurrentTopic.message.role === 'assistant'
@@ -1701,6 +1717,7 @@ const ChatComposerInner = ({
         return
       }
 
+      if (editTopicId && !messageEditingSessionService.beginSave(editTopicId, editingSessionId)) return
       editSaveInFlightSessionIdRef.current = editingSessionId
       setSavingEditingSessionId(editingSessionId)
       try {
@@ -1745,17 +1762,19 @@ const ChatComposerInner = ({
           await chatWrite.forkAndResend(editingMessageForCurrentTopic.message.id, savedParts, editedTurnOptions)
         }
         if (reasoningChanged) toast.success(t('message.reasoning.saved'))
-        if (editingMessageForCurrentTopic.message.topicId) {
-          clearMessageEditSession(editingMessageForCurrentTopic.message.topicId, editingSessionId)
-        }
         if (editingMessageForCurrentTopicRef.current?.editingSessionId === editingSessionId) {
           restoreSavedDraft()
           stopEditing()
+        } else if (editTopicId) {
+          messageEditingSessionService.clearSession(editTopicId, editingSessionId)
         }
       } catch (error) {
         logger.warn('edited message save failed', { error, role: editingMessageForCurrentTopic.message.role })
         toast.error(t('message.error.operation_unavailable'))
       } finally {
+        if (editTopicId) {
+          messageEditingSessionService.finishSave(editTopicId, editingSessionId)
+        }
         if (editSaveInFlightSessionIdRef.current === editingSessionId) {
           editSaveInFlightSessionIdRef.current = null
           setSavingEditingSessionId((currentSessionId) =>

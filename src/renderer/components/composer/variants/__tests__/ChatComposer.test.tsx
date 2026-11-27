@@ -9,15 +9,12 @@ import type * as ReactI18nextModule from 'react-i18next'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { cacheService } from '@data/CacheService'
-import {
-  clearAllMessageEditSessions,
-  MessageEditingProvider,
-  useMessageEditing
-} from '@renderer/components/chat/editing/MessageEditingContext'
+import { MessageEditingProvider, useMessageEditing } from '@renderer/components/chat/editing/MessageEditingContext'
 import type * as ModelSpeedControlModule from '@renderer/components/ModelSpeedControl'
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
 import type { CherryCloudQuotaExhaustion } from '@renderer/hooks/useCherryCloudQuotaExhaustion'
 import type * as UseProviderModule from '@renderer/hooks/useProvider'
+import { messageEditingSessionService } from '@renderer/services/MessageEditingSessionService'
 import { toast } from '@renderer/services/toast'
 import { voiceTargetManager } from '@renderer/services/voice'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
@@ -716,7 +713,7 @@ const originalFetch = globalThis.fetch
 
 describe('ChatComposer', () => {
   beforeEach(() => {
-    clearAllMessageEditSessions()
+    messageEditingSessionService.clearAll()
     mocks.quotaExhaustion = null
     mocks.exhaustedTargets.clear()
     mocks.availabilityRevision = 1
@@ -4016,6 +4013,8 @@ describe('ChatComposer', () => {
 
     // Switch to another topic (mirrors Chat.tsx remounting <ChatContent key={activeTopic.id} />).
     firstView.unmount()
+    mocks.files = undefined
+    mocks.selectedKnowledgeBases = undefined
 
     expect(drafts.get('chat.composer_draft.topic-1')).toMatchObject({ text: 'regular draft 1' })
 
@@ -4248,6 +4247,233 @@ describe('ChatComposer', () => {
 
     await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe('message-1'))
     expect(mocks.surfaceProps?.text).toBe('Unsent edit draft 123')
+  })
+
+  it('preserves the pre-preview message edit draft and tool state when switching topics during input history preview', async () => {
+    seedInputHistory(['previous sent prompt'])
+    mocks.chatWrite = { pause: vi.fn(), editMessage: vi.fn(), resend: vi.fn(), forkAndResend: vi.fn() }
+    mocks.getDraft.mockImplementation((props?: ComposerSurfaceProps) => ({
+      text: props?.text ?? '',
+      tokens: props?.draftTokens ?? []
+    }))
+    const drafts = new Map<string, any>([
+      [
+        'chat.composer_draft.topic-1',
+        {
+          text: 'regular draft 1',
+          tokens: [],
+          files: [],
+          knowledgeBaseIds: [],
+          mentionedModelIds: [],
+          modelMultiSelectMode: false
+        }
+      ]
+    ])
+    vi.mocked(cacheService.get).mockImplementation((key: string) => drafts.get(key))
+    vi.mocked(cacheService.set).mockImplementation((key: string, value: any) => {
+      drafts.set(key, value)
+    })
+
+    const message = {
+      id: 'message-1',
+      role: 'user',
+      topicId: topic.id,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      status: 'success'
+    } as const
+    const filePart = {
+      type: 'file',
+      url: 'file:///stored/report.pdf',
+      mediaType: 'application/pdf',
+      filename: 'report.pdf',
+      providerMetadata: {
+        cherry: {
+          fileEntryId: 'entry-1',
+          fileTokenSourceId: 'source-1'
+        }
+      }
+    } as const
+
+    const firstView = render(
+      <MessageEditingProvider topicId={topic.id}>
+        <StartEditingOnMount message={message as any} parts={[{ type: 'text', text: 'Hello' }, filePart] as any} />
+        <ChatComposer topic={topic} onSend={vi.fn()} />
+      </MessageEditingProvider>
+    )
+
+    await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe('message-1'))
+
+    act(() => {
+      mocks.surfaceProps?.onTextChange('Unsent edit draft 123')
+    })
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe('Unsent edit draft 123'))
+    expect(mocks.surfaceProps?.filesCount).toBe(1)
+
+    // Preview previous input history item, then immediately switch topics.
+    act(() => {
+      mocks.surfaceProps?.onInputHistoryNavigate?.('up')
+    })
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe('previous sent prompt'))
+    expect(mocks.surfaceProps?.isInputHistoryActive).toBe(true)
+
+    firstView.unmount()
+    mocks.files = undefined
+    mocks.selectedKnowledgeBases = undefined
+
+    expect(drafts.get('chat.composer_draft.topic-1')).toMatchObject({ text: 'regular draft 1' })
+
+    render(
+      <MessageEditingProvider topicId={topic.id}>
+        <ChatComposer topic={topic} onSend={vi.fn()} />
+      </MessageEditingProvider>
+    )
+
+    await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe('message-1'))
+    expect(mocks.surfaceProps?.text).toBe('Unsent edit draft 123')
+    expect(mocks.surfaceProps?.filesCount).toBe(1)
+  })
+
+  it('keeps repeat edit submission disabled and exits edit mode on completion after remounting while a save is pending', async () => {
+    const deferredSave = createDeferred<void>()
+    const forkAndResend = vi.fn(() => deferredSave.promise)
+    mocks.chatWrite = { pause: vi.fn(), editMessage: vi.fn(), resend: vi.fn(), forkAndResend }
+    mocks.getDraft.mockImplementation((props?: ComposerSurfaceProps) => ({
+      text: props?.text ?? '',
+      tokens: props?.draftTokens ?? []
+    }))
+    const drafts = new Map<string, any>([
+      [
+        'chat.composer_draft.topic-1',
+        {
+          text: 'regular draft 1',
+          tokens: [],
+          files: [],
+          knowledgeBaseIds: [],
+          mentionedModelIds: [],
+          modelMultiSelectMode: false
+        }
+      ]
+    ])
+    vi.mocked(cacheService.get).mockImplementation((key: string) => drafts.get(key))
+    vi.mocked(cacheService.set).mockImplementation((key: string, value: any) => {
+      drafts.set(key, value)
+    })
+
+    const message = {
+      id: 'message-1',
+      role: 'user',
+      topicId: topic.id,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      status: 'success'
+    } as const
+
+    const firstView = render(
+      <MessageEditingProvider topicId={topic.id}>
+        <StartEditingOnMount message={message as any} parts={[{ type: 'text', text: 'Hello' }] as any} />
+        <ChatComposer topic={topic} onSend={vi.fn()} />
+      </MessageEditingProvider>
+    )
+
+    await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe('message-1'))
+
+    act(() => {
+      mocks.surfaceProps?.onTextChange('Edited while saving')
+    })
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe('Edited while saving'))
+
+    let firstSubmitPromise: void | Promise<void>
+    act(() => {
+      firstSubmitPromise = mocks.surfaceProps!.onSendDraft({ text: 'Edited while saving', tokens: [] })
+    })
+    await waitFor(() => expect(forkAndResend).toHaveBeenCalledTimes(1))
+
+    // Switch away and return while the first save is still pending.
+    firstView.unmount()
+
+    render(
+      <MessageEditingProvider topicId={topic.id}>
+        <ChatComposer topic={topic} onSend={vi.fn()} />
+      </MessageEditingProvider>
+    )
+
+    await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe('message-1'))
+    expect(mocks.surfaceProps?.sendDisabled).toBe(true)
+    expect(mocks.surfaceProps?.editable).toBe(false)
+
+    // Repeat submission while the original request is still in flight must be ignored.
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'Edited while saving', tokens: [] })
+    })
+    expect(forkAndResend).toHaveBeenCalledTimes(1)
+
+    // Completing the original request exits edit mode on the remounted composer and restores the saved draft.
+    await act(async () => {
+      deferredSave.resolve()
+      await firstSubmitPromise
+    })
+
+    await waitFor(() => expect(mocks.surfaceProps?.editingState).toBeUndefined())
+    expect(mocks.surfaceProps?.text).toBe('regular draft 1')
+  })
+
+  it('returns to normal compose mode when the edited message is deleted by clearing topic messages', async () => {
+    mocks.chatWrite = { pause: vi.fn(), editMessage: vi.fn(), resend: vi.fn(), forkAndResend: vi.fn() }
+    mocks.getDraft.mockImplementation((props?: ComposerSurfaceProps) => ({
+      text: props?.text ?? '',
+      tokens: props?.draftTokens ?? []
+    }))
+    const drafts = new Map<string, any>([
+      [
+        'chat.composer_draft.topic-1',
+        {
+          text: 'regular draft 1',
+          tokens: [],
+          files: [],
+          knowledgeBaseIds: [],
+          mentionedModelIds: [],
+          modelMultiSelectMode: false
+        }
+      ]
+    ])
+    vi.mocked(cacheService.get).mockImplementation((key: string) => drafts.get(key))
+    vi.mocked(cacheService.set).mockImplementation((key: string, value: any) => {
+      drafts.set(key, value)
+    })
+
+    const message = {
+      id: 'message-1',
+      role: 'user',
+      topicId: topic.id,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      status: 'success'
+    } as const
+
+    const firstView = render(
+      <MessageEditingProvider topicId={topic.id}>
+        <StartEditingOnMount message={message as any} parts={[{ type: 'text', text: 'Hello' }] as any} />
+        <ChatComposer topic={topic} onSend={vi.fn()} />
+      </MessageEditingProvider>
+    )
+
+    await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe('message-1'))
+
+    act(() => {
+      mocks.surfaceProps?.onTextChange('Unsent edit draft 123')
+    })
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe('Unsent edit draft 123'))
+
+    firstView.unmount()
+
+    messageEditingSessionService.invalidateMessages(['message-1'], topic.id)
+
+    render(
+      <MessageEditingProvider topicId={topic.id}>
+        <ChatComposer topic={topic} onSend={vi.fn()} />
+      </MessageEditingProvider>
+    )
+
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe('regular draft 1'))
+    expect(mocks.surfaceProps?.editingState).toBeUndefined()
   })
 
   it('preserves Cherry file metadata when resending an edited message with an existing attachment', async () => {

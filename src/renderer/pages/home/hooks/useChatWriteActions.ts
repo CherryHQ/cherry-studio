@@ -7,6 +7,7 @@ import { loggerService } from '@logger'
 import type { ChatWriteActions } from '@renderer/hooks/chat/ChatWriteContext'
 import { ipcApi } from '@renderer/ipc'
 import { getStreamBlockedMessage } from '@renderer/services/aiTransport'
+import { messageEditingSessionService } from '@renderer/services/MessageEditingSessionService'
 import { invalidateCachedMessageUiStates } from '@renderer/services/messageUiStateCache'
 import { toast } from '@renderer/services/toast'
 import type { Assistant } from '@renderer/types/assistant'
@@ -219,6 +220,7 @@ export function useChatWriteActions(params: Params): Result {
       try {
         await deleteMessageTrigger({ params: { id }, query: { cascade: false } })
         invalidateCachedMessageUiStates([id])
+        messageEditingSessionService.invalidateMessages([id])
       } catch (err: unknown) {
         await rollbackBranch()
         throw err
@@ -244,6 +246,7 @@ export function useChatWriteActions(params: Params): Result {
         const result = await deleteMessageGroupTrigger({ params: { id: uniqueMessageIds[0] } })
         await seedOptimisticBranch((prev) => branchWithoutIds(prev, new Set(result.deletedIds)))
         invalidateCachedMessageUiStates(result.deletedIds)
+        messageEditingSessionService.invalidateMessages(result.deletedIds)
         logger.info('Deleted message group', { count: result.deletedIds.length })
       } catch (err) {
         await rollbackBranch()

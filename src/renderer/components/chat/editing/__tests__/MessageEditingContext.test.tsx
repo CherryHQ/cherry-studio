@@ -1,14 +1,9 @@
 import { act, render, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it } from 'vitest'
 
-import {
-  clearAllMessageEditSessions,
-  clearMessageEditSession,
-  MessageEditingProvider,
-  readMessageEditSession,
-  useMessageEditing,
-  writeMessageEditSessionDraft
-} from '../MessageEditingContext'
+import { messageEditingSessionService } from '@renderer/services/MessageEditingSessionService'
+
+import { MessageEditingProvider, useMessageEditing } from '../MessageEditingContext'
 
 const createMessage = (id: string, topicId: string) =>
   ({
@@ -27,7 +22,7 @@ function ContextProbe({ onValue }: { onValue: (value: ReturnType<typeof useMessa
 
 describe('MessageEditingContext', () => {
   beforeEach(() => {
-    clearAllMessageEditSessions()
+    messageEditingSessionService.clearAll()
   })
 
   it('persists and restores active edit sessions per topic across provider remounts', () => {
@@ -44,7 +39,7 @@ describe('MessageEditingContext', () => {
     })
 
     const sessionId = ctx.editingMessage!.editingSessionId
-    writeMessageEditSessionDraft('topic-1', sessionId, {
+    messageEditingSessionService.updateDraft('topic-1', sessionId, {
       draft: {
         text: 'Unsent edit draft 123',
         draftTokens: [],
@@ -82,15 +77,15 @@ describe('MessageEditingContext', () => {
     )
     expect(ctx.editingMessageId).toBe('msg-1')
     expect(ctx.editingMessage?.editingSessionId).toBe(sessionId)
-    expect(readMessageEditSession('topic-1')?.draft?.text).toBe('Unsent edit draft 123')
+    expect(messageEditingSessionService.getSession('topic-1')?.draft?.text).toBe('Unsent edit draft 123')
 
     // Explicit cancel clears only topic 1, leaving topic 2 intact.
     act(() => {
       ctx.cancelEditing()
     })
     expect(ctx.editingMessage).toBeNull()
-    expect(readMessageEditSession('topic-1')).toBeUndefined()
-    expect(readMessageEditSession('topic-2')?.snapshot.message.id).toBe('msg-2')
+    expect(messageEditingSessionService.getSession('topic-1')).toBeUndefined()
+    expect(messageEditingSessionService.getSession('topic-2')?.snapshot.message.id).toBe('msg-2')
 
     returnedView.unmount()
   })
@@ -113,12 +108,87 @@ describe('MessageEditingContext', () => {
       ctx.syncTopic('topic-2')
     })
     await waitFor(() => expect(ctx.editingMessage).toBeNull())
-    expect(readMessageEditSession('topic-1')?.snapshot.message.id).toBe('msg-1')
+    expect(messageEditingSessionService.getSession('topic-1')?.snapshot.message.id).toBe('msg-1')
 
     act(() => {
       ctx.syncTopic('topic-1')
     })
     await waitFor(() => expect(ctx.editingMessageId).toBe('msg-1'))
+  })
+
+  it('propagates in-flight save state and completion across provider remounts', async () => {
+    let ctx!: ReturnType<typeof useMessageEditing>
+
+    const firstView = render(
+      <MessageEditingProvider topicId="topic-1">
+        <ContextProbe onValue={(value) => (ctx = value)} />
+      </MessageEditingProvider>
+    )
+
+    act(() => {
+      ctx.startEditing(createMessage('msg-1', 'topic-1'), [{ type: 'text', text: 'Hello' }] as any)
+    })
+    const sessionId = ctx.editingMessage!.editingSessionId
+
+    act(() => {
+      expect(messageEditingSessionService.beginSave('topic-1', sessionId)).toBe(true)
+      expect(messageEditingSessionService.beginSave('topic-1', sessionId)).toBe(false)
+    })
+    expect(ctx.isSavingEditing).toBe(true)
+
+    firstView.unmount()
+
+    render(
+      <MessageEditingProvider topicId="topic-1">
+        <ContextProbe onValue={(value) => (ctx = value)} />
+      </MessageEditingProvider>
+    )
+    expect(ctx.editingMessageId).toBe('msg-1')
+    expect(ctx.isSavingEditing).toBe(true)
+
+    act(() => {
+      messageEditingSessionService.clearSession('topic-1', sessionId)
+    })
+    await waitFor(() => expect(ctx.editingMessage).toBeNull())
+    expect(ctx.isSavingEditing).toBe(false)
+  })
+
+  it('invalidates cached edit sessions when the edited message is deleted', async () => {
+    let ctx!: ReturnType<typeof useMessageEditing>
+
+    const topic1View = render(
+      <MessageEditingProvider topicId="topic-1">
+        <ContextProbe onValue={(value) => (ctx = value)} />
+      </MessageEditingProvider>
+    )
+
+    act(() => {
+      ctx.startEditing(createMessage('msg-1', 'topic-1'), [{ type: 'text', text: 'Hello' }] as any)
+    })
+    topic1View.unmount()
+
+    const topic2View = render(
+      <MessageEditingProvider topicId="topic-2">
+        <ContextProbe onValue={(value) => (ctx = value)} />
+      </MessageEditingProvider>
+    )
+    act(() => {
+      ctx.startEditing(createMessage('msg-2', 'topic-2'), [{ type: 'text', text: 'World' }] as any)
+    })
+
+    act(() => {
+      messageEditingSessionService.invalidateMessages(['msg-1'], 'topic-1')
+    })
+    expect(messageEditingSessionService.getSession('topic-1')).toBeUndefined()
+    expect(ctx.editingMessageId).toBe('msg-2')
+    topic2View.unmount()
+
+    render(
+      <MessageEditingProvider topicId="topic-1">
+        <ContextProbe onValue={(value) => (ctx = value)} />
+      </MessageEditingProvider>
+    )
+    expect(ctx.editingMessage).toBeNull()
   })
 
   it('guards draft writes and clears against stale editingSessionId values', () => {
@@ -141,7 +211,7 @@ describe('MessageEditingContext', () => {
     const secondSessionId = ctx.editingMessage!.editingSessionId
 
     // Stale draft write for firstSessionId must be ignored.
-    writeMessageEditSessionDraft('topic-1', firstSessionId, {
+    messageEditingSessionService.updateDraft('topic-1', firstSessionId, {
       draft: {
         text: 'stale draft',
         draftTokens: [],
@@ -152,14 +222,14 @@ describe('MessageEditingContext', () => {
       },
       savedDraftBeforeEditing: null
     })
-    expect(readMessageEditSession('topic-1')?.draft).toBeUndefined()
+    expect(messageEditingSessionService.getSession('topic-1')?.draft).toBeUndefined()
 
     // Stale clear for firstSessionId must not clear secondSessionId.
-    clearMessageEditSession('topic-1', firstSessionId)
-    expect(readMessageEditSession('topic-1')?.snapshot.editingSessionId).toBe(secondSessionId)
+    messageEditingSessionService.clearSession('topic-1', firstSessionId)
+    expect(messageEditingSessionService.getSession('topic-1')?.snapshot.editingSessionId).toBe(secondSessionId)
 
     // Matching clear removes the session.
-    clearMessageEditSession('topic-1', secondSessionId)
-    expect(readMessageEditSession('topic-1')).toBeUndefined()
+    messageEditingSessionService.clearSession('topic-1', secondSessionId)
+    expect(messageEditingSessionService.getSession('topic-1')).toBeUndefined()
   })
 })

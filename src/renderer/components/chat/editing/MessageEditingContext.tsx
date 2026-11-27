@@ -1,98 +1,27 @@
 import type { ReactNode } from 'react'
-import { createContext, use, useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { createContext, use, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
-import type { ComposerSerializedToken } from '@renderer/components/composer/tokens'
 import { useLatest } from '@renderer/hooks/useLatest'
-import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
-import type { KnowledgeBase } from '@shared/data/types/knowledge'
+import {
+  type EditingMessageSnapshot as ServiceEditingMessageSnapshot,
+  messageEditingSessionService,
+  type SavedComposerDraft,
+  type StoredMessageEditDraft,
+  type StoredMessageEditSession as ServiceStoredMessageEditSession
+} from '@renderer/services/MessageEditingSessionService'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
 
 import type { MessageListItem } from '../messages/types'
 
-export interface EditingMessageSnapshot {
-  message: MessageListItem
-  parts: CherryMessagePart[]
-  lockedMentionedModels?: Model[]
-  editingSessionId: number
-}
-
-export interface SavedComposerDraft {
-  text: string
-  draftTokens: ComposerSerializedToken[]
-  files: ComposerAttachment[]
-  mentionedModels: Model[]
-  mentionedModelSelectorValue: Model[]
-  mentionedModelMultiSelectMode: boolean
-  mentionedModelSelectionWasPending: boolean
-  selectedKnowledgeBases: KnowledgeBase[]
-  knowledgeBaseIds: string[]
-}
-
-export interface StoredMessageEditDraft {
-  text: string
-  draftTokens: ComposerSerializedToken[]
-  files: ComposerAttachment[]
-  knowledgeBaseIds: string[]
-  reasoningDraft: string
-  originalFilePartsByTokenId: ReadonlyMap<string, Extract<CherryMessagePart, { type: 'file' }>>
-}
-
-export interface StoredMessageEditSession {
-  snapshot: EditingMessageSnapshot
-  draft?: StoredMessageEditDraft
-  savedDraftBeforeEditing?: SavedComposerDraft | null
-}
-
-const MAX_STORED_EDIT_SESSIONS = 50
-const storedEditSessions = new Map<string, StoredMessageEditSession>()
-let nextEditingSessionId = 0
-
-function setStoredEditSession(topicId: string, session: StoredMessageEditSession) {
-  storedEditSessions.delete(topicId)
-  storedEditSessions.set(topicId, session)
-  if (storedEditSessions.size > MAX_STORED_EDIT_SESSIONS) {
-    const oldestKey = storedEditSessions.keys().next().value
-    if (oldestKey !== undefined) storedEditSessions.delete(oldestKey)
-  }
-}
-
-export function readMessageEditSession(topicId: string): StoredMessageEditSession | undefined {
-  return storedEditSessions.get(topicId)
-}
-
-export function writeMessageEditSessionDraft(
-  topicId: string,
-  editingSessionId: number,
-  update: {
-    draft: StoredMessageEditDraft
-    savedDraftBeforeEditing: SavedComposerDraft | null
-  }
-) {
-  const existing = storedEditSessions.get(topicId)
-  if (!existing || existing.snapshot.editingSessionId !== editingSessionId) return
-  setStoredEditSession(topicId, {
-    ...existing,
-    draft: update.draft,
-    savedDraftBeforeEditing: update.savedDraftBeforeEditing
-  })
-}
-
-export function clearMessageEditSession(topicId: string, expectedSessionId?: number) {
-  if (expectedSessionId !== undefined) {
-    const existing = storedEditSessions.get(topicId)
-    if (!existing || existing.snapshot.editingSessionId !== expectedSessionId) return
-  }
-  storedEditSessions.delete(topicId)
-}
-
-export function clearAllMessageEditSessions() {
-  storedEditSessions.clear()
-}
+export type EditingMessageSnapshot = ServiceEditingMessageSnapshot<MessageListItem>
+export type StoredMessageEditSession = ServiceStoredMessageEditSession<MessageListItem>
+export type { SavedComposerDraft, StoredMessageEditDraft }
 
 interface MessageEditingContextType {
   editingMessageId: string | null
   editingMessage: EditingMessageSnapshot | null
+  isSavingEditing: boolean
   startEditing: (
     message: MessageListItem,
     parts: CherryMessagePart[],
@@ -108,18 +37,25 @@ const MessageEditingContext = createContext<MessageEditingContextType | null>(nu
 export function MessageEditingProvider({ topicId, children }: { topicId?: string; children: ReactNode }) {
   const parent = use(MessageEditingContext)
   const [editingMessage, setEditingMessage] = useState<EditingMessageSnapshot | null>(() =>
-    topicId ? (readMessageEditSession(topicId)?.snapshot ?? null) : null
+    topicId ? (messageEditingSessionService.getSession<MessageListItem>(topicId)?.snapshot ?? null) : null
+  )
+  const [isSavingEditing, setIsSavingEditing] = useState<boolean>(() =>
+    topicId ? (messageEditingSessionService.getSession<MessageListItem>(topicId)?.isSaving ?? false) : false
   )
   const editingMessageRef = useLatest(editingMessage)
   const prevTopicIdRef = useRef(topicId)
+  const activeTopicIdRef = useRef<string | undefined>(topicId)
 
   const syncTopic = useCallback((nextTopicId: string | undefined) => {
-    const nextSnapshot = nextTopicId ? (readMessageEditSession(nextTopicId)?.snapshot ?? null) : null
+    activeTopicIdRef.current = nextTopicId
+    const stored = nextTopicId ? messageEditingSessionService.getSession<MessageListItem>(nextTopicId) : undefined
+    const nextSnapshot = stored?.snapshot ?? null
     setEditingMessage((current) => {
       if (current === nextSnapshot) return current
       if (current?.editingSessionId === nextSnapshot?.editingSessionId) return current
       return nextSnapshot
     })
+    setIsSavingEditing(stored?.isSaving ?? false)
   }, [])
 
   useLayoutEffect(() => {
@@ -128,19 +64,28 @@ export function MessageEditingProvider({ topicId, children }: { topicId?: string
     syncTopic(topicId)
   }, [syncTopic, topicId])
 
+  useEffect(() => {
+    if (parent) return
+    return messageEditingSessionService.subscribe(() => {
+      const currentTopicId = activeTopicIdRef.current
+      if (!currentTopicId) return
+      const stored = messageEditingSessionService.getSession<MessageListItem>(currentTopicId)
+      const nextSnapshot = stored?.snapshot ?? null
+      setEditingMessage((current) => {
+        if (current === nextSnapshot) return current
+        if (current?.editingSessionId === nextSnapshot?.editingSessionId) return current
+        return nextSnapshot
+      })
+      setIsSavingEditing(stored?.isSaving ?? false)
+    })
+  }, [parent])
+
   const startEditing = useCallback(
     (message: MessageListItem, parts: CherryMessagePart[], options?: { lockedMentionedModels?: Model[] }) => {
-      nextEditingSessionId += 1
-      const snapshot: EditingMessageSnapshot = {
-        message,
-        parts,
-        lockedMentionedModels: options?.lockedMentionedModels,
-        editingSessionId: nextEditingSessionId
-      }
-      if (message.topicId) {
-        setStoredEditSession(message.topicId, { snapshot })
-      }
+      if (message.topicId) activeTopicIdRef.current = message.topicId
+      const snapshot = messageEditingSessionService.startSession(message, parts, options)
       setEditingMessage(snapshot)
+      setIsSavingEditing(false)
     },
     []
   )
@@ -148,21 +93,23 @@ export function MessageEditingProvider({ topicId, children }: { topicId?: string
   const stopEditing = useCallback(() => {
     const current = editingMessageRef.current
     if (current?.message.topicId) {
-      clearMessageEditSession(current.message.topicId, current.editingSessionId)
+      messageEditingSessionService.clearSession(current.message.topicId, current.editingSessionId)
     }
     setEditingMessage(null)
+    setIsSavingEditing(false)
   }, [editingMessageRef])
 
   const value = useMemo<MessageEditingContextType>(
     () => ({
       editingMessageId: editingMessage?.message.id ?? null,
       editingMessage,
+      isSavingEditing,
       startEditing,
       cancelEditing: stopEditing,
       stopEditing,
       syncTopic
     }),
-    [editingMessage, startEditing, stopEditing, syncTopic]
+    [editingMessage, isSavingEditing, startEditing, stopEditing, syncTopic]
   )
 
   if (parent) return <>{children}</>
