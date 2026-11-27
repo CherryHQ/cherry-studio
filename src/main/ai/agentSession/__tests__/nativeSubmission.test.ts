@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto'
 import { setupTestDatabase } from '@test-helpers/db'
 import { beforeEach, expect, it, vi } from 'vitest'
 
-import type { AgentRuntime } from '@cherrystudio/agent-runtime'
+import type { LookupInput } from '@cherrystudio/agent-runtime'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
@@ -49,18 +49,12 @@ it('preserves an interrupted input recovery target across same-anchor runtime ta
     anchorMessageId: null
   })
 
-  const open = vi.fn(async () => ({
-    status: 'confirmed' as const,
-    value: {
-      observe: async () => ({
-        status: 'confirmed' as const,
-        value: { drain: async () => undefined, stop: async () => undefined }
-      }),
-      release: async () => undefined
-    }
-  }))
-  const runtime = { open } as unknown as AgentRuntime
-  await lookupNativeInput(runtime, sessionId, binding!.contextId!, input.id)
+  const lookupInput: LookupInput = vi.fn(async (_thread, inputId) => ({ inputId, facts: [] }))
+  await lookupNativeInput(sessionId, binding!.contextId!, input.id, { backendId: original.backendId, lookupInput })
 
-  expect(open).toHaveBeenCalledWith({ backendId: original.backendId, id: original.nativeThreadId })
+  expect(lookupInput).toHaveBeenCalledWith(
+    { backendId: original.backendId, id: original.nativeThreadId },
+    input.id,
+    undefined
+  )
 })
