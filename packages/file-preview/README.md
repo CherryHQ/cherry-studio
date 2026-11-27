@@ -97,7 +97,8 @@ under the load-error message. Unsupported and too-large states do not show it.
 an open button. Its reason is `unsupported` for unrecognized formats or `too_large`
 for size-limit fallbacks; rendering or refreshing an unsupported source never opens
 another application automatically. DOCX/PPTX above 25 MiB, XLSX above 20 MiB,
-RTF above 10 MiB and images above 64 MiB show their limits. PDF has a 16 MiB
+RTF above 10 MiB and images above 64 MiB show their limits; a host `too_large` read below
+those caps shows size-policy copy without a limit. PDF has a 16 MiB
 assembled-range cap, without a whole-document size limit. These states offer an external-open button when the
 host supplies the callback.
 `resources.baseUrl` optionally overrides the bundled worker/font/CMap directory;

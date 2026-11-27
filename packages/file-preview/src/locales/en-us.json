@@ -26,6 +26,7 @@
   "file_preview.pptd.unsupported_element": "Unsupported element {{id}} ({{type}})",
   "file_preview.too_large.action": "Open with default app",
   "file_preview.too_large.description": "File size {{size}} exceeds the {{limit}} preview limit.",
+  "file_preview.too_large.generic_description": "This file exceeds the size allowed for preview.",
   "file_preview.too_large.title": "File too large to preview",
   "file_preview.unsupported.action": "Open with default app",
   "file_preview.unsupported.description": "This file type cannot be previewed yet.",

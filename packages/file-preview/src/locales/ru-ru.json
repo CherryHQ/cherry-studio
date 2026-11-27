@@ -26,6 +26,7 @@
   "file_preview.pptd.unsupported_element": "Неподдерживаемый элемент {{id}} ({{type}})",
   "file_preview.too_large.action": "Открыть с помощью приложения по умолчанию",
   "file_preview.too_large.description": "Размер файла {{size}} превышает ограничение предварительного просмотра {{limit}}.",
+  "file_preview.too_large.generic_description": "Этот файл превышает допустимый для предпросмотра размер.",
   "file_preview.too_large.title": "Файл слишком велик для предварительного просмотра",
   "file_preview.unsupported.action": "Открыть с помощью приложения по умолчанию",
   "file_preview.unsupported.description": "Этот тип файла пока нельзя просмотреть.",

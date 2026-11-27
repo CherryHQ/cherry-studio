@@ -26,6 +26,7 @@
   "file_preview.pptd.unsupported_element": "Phần tử không được hỗ trợ {{id}} ({{type}})",
   "file_preview.too_large.action": "Mở bằng ứng dụng mặc định",
   "file_preview.too_large.description": "Kích thước tệp {{size}} vượt quá giới hạn xem trước {{limit}}.",
+  "file_preview.too_large.generic_description": "Tệp này vượt quá kích thước cho phép để xem trước.",
   "file_preview.too_large.title": "Tệp quá lớn để xem trước",
   "file_preview.unsupported.action": "Mở bằng ứng dụng mặc định",
   "file_preview.unsupported.description": "Loại tệp này chưa thể xem trước được.",

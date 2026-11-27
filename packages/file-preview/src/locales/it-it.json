@@ -26,6 +26,7 @@
   "file_preview.pptd.unsupported_element": "Elemento non supportato {{id}} ({{type}})",
   "file_preview.too_large.action": "Apri con l'app predefinita",
   "file_preview.too_large.description": "La dimensione del file {{size}} supera il limite di {{limit}} per l'anteprima.",
+  "file_preview.too_large.generic_description": "Questo file supera la dimensione consentita per l'anteprima.",
   "file_preview.too_large.title": "File troppo grande per l'anteprima",
   "file_preview.unsupported.action": "Apri con l'app predefinita",
   "file_preview.unsupported.description": "L'anteprima di questo tipo di file non è ancora supportata.",

@@ -10,6 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
   EmptyState,
+  ScrollArea,
   Select,
   SelectContent,
   SelectItem,
@@ -249,7 +250,8 @@ export function SkillMarketplaceDialog({ open, onOpenChange }: Props) {
         </div>
 
         {installFailures.length > 0 ? (
-          <div className="flex shrink-0 flex-col gap-2 px-6 pt-3">
+          // Bounded so accumulated failures scroll instead of squeezing out the results list.
+          <ScrollArea className="max-h-32 shrink-0" contentProps={{ className: 'flex flex-col gap-2 px-6 pt-3' }}>
             {installFailures.map((failure) => (
               <ErrorNotice
                 key={failure.installSource}
@@ -273,7 +275,7 @@ export function SkillMarketplaceDialog({ open, onOpenChange }: Props) {
                 }
               />
             ))}
-          </div>
+          </ScrollArea>
         ) : null}
 
         <div className="flex min-h-0 flex-1 flex-col">

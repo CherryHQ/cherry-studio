@@ -132,6 +132,7 @@ vi.mock('@cherrystudio/ui', () => ({
     </div>
   ),
   Input: (props: ComponentProps<'input'>) => <input {...props} />,
+  ScrollArea: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
   // Radix Select stubbed as a native select: same combobox role and value semantics, no portal.
   Select: ({
     children,
