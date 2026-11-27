@@ -466,7 +466,7 @@ describe('DeepSeekHarnessService', () => {
       expect(first?.gateway?.patchPath).not.toBe(second?.gateway?.patchPath)
       expect(mocks.gatewayCreateScoped.mock.calls.map(([scope]) => scope)).toEqual(
         ['first', 'second'].map((agentSessionId) => ({
-          path: '/v1/chat/completions',
+          paths: ['/v1/chat/completions'],
           model: 'anthropic:claude-sonnet',
           agentSessionId
         }))

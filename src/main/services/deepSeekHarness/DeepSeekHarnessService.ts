@@ -183,7 +183,7 @@ export class DeepSeekHarnessService extends BaseService {
       })
     try {
       const lease = await application.get('ApiGatewayService').createScopedCredential({
-        path: '/v1/chat/completions',
+        paths: ['/v1/chat/completions'],
         model: projection.modelId,
         agentSessionId: sessionId
       })

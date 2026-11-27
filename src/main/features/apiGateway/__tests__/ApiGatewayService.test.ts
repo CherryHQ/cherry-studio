@@ -170,7 +170,7 @@ async function startInternalGateway(service: ApiGatewayService, sessionId?: stri
   return pending
 }
 
-const CHAT_SCOPE = { path: '/v1/chat/completions', model: 'openai:gpt-4o' }
+const CHAT_SCOPE = { paths: ['/v1/chat/completions'], model: 'openai:gpt-4o' }
 
 describe('internal request budget', () => {
   it('allows a small request alongside a large one and queues a second large request', async () => {

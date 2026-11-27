@@ -92,7 +92,7 @@ describe('connection-local gateway attribution', () => {
     expect(launch.env.OPENAI_API_KEY).toBe('deepagents-session')
     expect(contextWindow).toBe(96_000)
     expect(mocks.create.mock.calls.map(([scope]) => scope)).toEqual([
-      { path: '/v1/responses', model: 'provider:model', agentSessionId: 'deepagents-session' }
+      { paths: ['/v1/responses'], model: 'provider:model', agentSessionId: 'deepagents-session' }
     ])
     await gateway?.dispose()
   })
@@ -192,7 +192,7 @@ describe('connection-local gateway attribution', () => {
     expect(JSON.parse(second[key])).toMatchObject({ provider: { cherry: { options: { apiKey: 'session-2' } } } })
     expect(mocks.create.mock.calls.map(([scope]) => scope)).toEqual(
       ['session-1', 'session-2'].map((agentSessionId) => ({
-        path: '/v1/chat/completions',
+        paths: ['/v1/chat/completions'],
         model: 'provider:model',
         agentSessionId
       }))

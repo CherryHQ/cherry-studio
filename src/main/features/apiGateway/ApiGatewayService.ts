@@ -33,9 +33,9 @@ const INTERNAL_GATEWAY_HOST = '127.0.0.1'
 const REQUEST_UNIT_BYTES = 1024 * 1024
 const INTERNAL_REQUEST_BUDGET = 32
 
-/** What a scoped internal credential may call: one generation path, one model address. */
+/** What a scoped internal credential may call: its generation paths, one model address. */
 export type InternalCredentialScope = {
-  path: string
+  paths: readonly string[]
   model: string
   agentSessionId?: string
 }

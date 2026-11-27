@@ -53,7 +53,7 @@ export async function prepareAcpChatLaunch(
     }
     const address = formatGatewayModelId(providerId, model.apiModelId ?? modelId)
     const lease = await application.get('ApiGatewayService').createScopedCredential({
-      path: acpGatewayPath(endpoint),
+      paths: [acpGatewayPath(endpoint)],
       model: address,
       agentSessionId: sessionId
     })

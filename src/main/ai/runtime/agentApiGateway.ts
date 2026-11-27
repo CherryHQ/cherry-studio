@@ -41,7 +41,7 @@ export async function bindCliGatewayRoute(
     return undefined
 
   const lease = await gateway.createScopedCredential({
-    path: route.path,
+    paths: [route.path],
     model: route.model,
     agentSessionId: sessionId
   })
