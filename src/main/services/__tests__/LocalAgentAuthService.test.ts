@@ -2,21 +2,30 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
+import { setupTestDatabase } from '@test-helpers/db'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
 import type { RuntimeLoginHost } from '@cherrystudio/agent-runtime'
+import { cursorLoginMethod } from '@cherrystudio/agent-runtime-cursor/cli'
+import { agentService } from '@data/services/AgentService'
 import type { LocalAgentConfiguration } from '@shared/ai/localAgent'
 
 const mocks = vi.hoisted(() => ({
   send: vi.fn(),
   authenticateCursor: vi.fn(),
+  readCursorAccount: vi.fn(),
+  readCursorQuota: vi.fn(),
   openExternal: vi.fn().mockResolvedValue(undefined),
   resolveLocalAgentCli: vi.fn()
 }))
 
 vi.mock('@cherrystudio/agent-runtime-cursor', () => ({
-  bindCursorAccount: () => ({ authenticate: mocks.authenticateCursor })
+  bindCursorAccount: () => ({
+    authenticate: mocks.authenticateCursor,
+    readAccount: mocks.readCursorAccount,
+    readSubscriptionUsage: mocks.readCursorQuota
+  })
 }))
 
 vi.mock('electron', () => ({
@@ -37,6 +46,7 @@ vi.mock('../codeCli/localAgentCli', () => ({
 import { LocalAgentAuthService } from '../LocalAgentAuthService'
 
 describe('LocalAgentAuthService', () => {
+  setupTestDatabase()
   const service = new LocalAgentAuthService()
   let tmpDir: string
 
@@ -44,6 +54,8 @@ describe('LocalAgentAuthService', () => {
     tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'local-agent-auth-'))
     mocks.send.mockReset()
     mocks.authenticateCursor.mockReset()
+    mocks.readCursorAccount.mockReset().mockResolvedValue({ status: 'unknown' })
+    mocks.readCursorQuota.mockReset()
     mocks.openExternal.mockReset().mockResolvedValue(undefined)
     mocks.resolveLocalAgentCli.mockReset()
     vi.mocked(application.getPath).mockImplementation(() => tmpDir)
@@ -77,7 +89,7 @@ describe('LocalAgentAuthService', () => {
       expect(await host.confirmBrowser?.({ url, message: 'Approve the browser sign-in' }, signal)).toBe('accept')
     })
 
-    const authentication = service.authenticate('browser-login', config, 'cursor_browser', undefined, 'origin')
+    const authentication = service.authenticate('browser-login', config, cursorLoginMethod.id, undefined, 'origin')
     const promptId = await prompted
     service.respondToBrowserConsent('browser-login', promptId, 'decline', 'another-window')
     service.respondToBrowserConsent('browser-login', 'another-prompt', 'decline', 'origin')
@@ -88,11 +100,125 @@ describe('LocalAgentAuthService', () => {
     expect(mocks.openExternal).toHaveBeenCalledExactlyOnceWith(url)
   })
 
+  it('attaches the confirmed login and keeps a model change made during sign-in', async () => {
+    const config: LocalAgentConfiguration = { presetId: 'cursor', enabled: true, args: [], env: { PAGER: 'cat' } }
+    const agent = agentService.createAgentWithId('saved-cursor', {
+      name: 'Cursor',
+      type: 'local',
+      model: null,
+      localRuntime: { ...config, account: { methodId: cursorLoginMethod.id, accountId: 'previous' } }
+    })
+    mocks.readCursorAccount.mockResolvedValue({ status: 'signed-in', account: { id: 'personal' } })
+    const started = Promise.withResolvers<void>()
+    const finish = Promise.withResolvers<void>()
+    mocks.authenticateCursor.mockImplementationOnce(() => {
+      started.resolve()
+      return finish.promise
+    })
+
+    const signingIn = service.authenticate(
+      'browser-login',
+      { ...config, presetId: 'opencode', env: { PAGER: 'false' } },
+      cursorLoginMethod.id,
+      undefined,
+      'origin',
+      agent.id
+    )
+    await started.promise
+    agentService.updateAgent(agent.id, { localRuntime: { nativeModel: 'new-model' } })
+    finish.resolve()
+    await signingIn
+
+    expect(agentService.getAgent(agent.id)?.localRuntime).toMatchObject({
+      providerId: agent.localRuntime!.providerId,
+      presetId: 'cursor',
+      env: { PAGER: 'cat' },
+      nativeModel: 'new-model',
+      account: { methodId: cursorLoginMethod.id, accountId: 'personal' }
+    })
+  })
+
+  it('rejects the login write if the Agent now uses a different provider', async () => {
+    const config: LocalAgentConfiguration = { presetId: 'cursor', enabled: true, args: [], env: { PAGER: 'cat' } }
+    const agent = agentService.createAgentWithId('switching-cursor', {
+      name: 'Cursor',
+      type: 'local',
+      model: null,
+      localRuntime: config
+    })
+    const started = Promise.withResolvers<void>()
+    const finish = Promise.withResolvers<void>()
+    mocks.authenticateCursor.mockImplementationOnce(() => {
+      started.resolve()
+      return finish.promise
+    })
+    mocks.readCursorAccount.mockResolvedValue({ status: 'signed-in', account: { id: 'personal' } })
+
+    const signingIn = service.authenticate('switch-login', config, cursorLoginMethod.id, undefined, 'origin', agent.id)
+    await started.promise
+    const switched = agentService.updateAgent(agent.id, { localRuntime: { env: { PAGER: 'more' } } })
+    finish.resolve()
+
+    await expect(signingIn).rejects.toThrow('Local agent connection changed during sign-in')
+    expect(agentService.getAgent(agent.id)?.localRuntime).toEqual(switched?.localRuntime)
+  })
+
+  it.each([
+    { patch: { browserControl: 'readonly' as const }, expected: 'available' },
+    { patch: { nativeModel: 'new-model' }, expected: 'unavailable' }
+  ])('rechecks the quota route after saving $patch', async ({ patch, expected }) => {
+    const agent = agentService.createAgentWithId('quota-route', {
+      name: 'Cursor',
+      type: 'local',
+      model: null,
+      localRuntime: { presetId: 'cursor', enabled: true, nativeModel: 'original-model' }
+    })
+    const started = Promise.withResolvers<void>()
+    const finish = Promise.withResolvers<void>()
+    mocks.readCursorQuota.mockImplementationOnce(async () => {
+      started.resolve()
+      await finish.promise
+      return { status: 'available', readAt: 1, windows: [] }
+    })
+
+    const reading = service.readSubscriptionUsage(agent.id)
+    await started.promise
+    agentService.updateAgent(agent.id, { localRuntime: patch })
+    finish.resolve()
+
+    await expect(reading).resolves.toMatchObject({ status: expected })
+  })
+
+  it('discards subscription quota if the bound account changes while the request is in flight', async () => {
+    const agent = agentService.createAgentWithId('quota-cursor', {
+      name: 'Cursor',
+      type: 'local',
+      model: null,
+      localRuntime: {
+        presetId: 'cursor',
+        enabled: true,
+        args: [],
+        env: {},
+        account: { methodId: cursorLoginMethod.id, accountId: 'personal' }
+      }
+    })
+    mocks.readCursorAccount
+      .mockResolvedValueOnce({ status: 'signed-in', account: { id: 'personal' } })
+      .mockResolvedValueOnce({ status: 'signed-in', account: { id: 'work' } })
+    mocks.readCursorQuota.mockResolvedValue({ status: 'available', readAt: 1, windows: [] })
+
+    await expect(service.readSubscriptionUsage(agent.id)).resolves.toEqual({ status: 'unavailable' })
+  })
+
   it('executes CLI auth shims (.cmd on Windows, shell script on POSIX), routes prompts to the requesting window and supports cancellation', async () => {
     const helper = path.join(tmpDir, 'auth-helper.mjs')
     await fs.writeFile(
       helper,
       [
+        'if (process.argv[3] === "list") {',
+        '  console.log(JSON.stringify([{ id: "opencode", connections: [{ type: "credential" }] }]));',
+        '  process.exit(0);',
+        '}',
         'console.log("Enter code: ABCD-EFGH");',
         'console.log("https://example.invalid/device?user_code=ABCD-EFGH");',
         'if (process.argv.includes("--hang")) setInterval(() => {}, 10_000);'
@@ -143,15 +269,14 @@ describe('LocalAgentAuthService', () => {
       env: { ...process.env }
     })
 
+    const { promise: cancelPrompt, resolve: confirmedPrompt } = Promise.withResolvers<void>()
+    mocks.send.mockImplementation((windowId, event, payload) => {
+      if (windowId === 'origin' && event === 'ai.local_agents.auth_prompt' && payload.requestId === 'req-cancel')
+        confirmedPrompt()
+    })
     const authPromise = service.authenticate('req-cancel', config, 'opencode-console', undefined, 'origin')
     const rejection = expect(authPromise).rejects.toThrow('Authentication cancelled')
-    await vi.waitFor(() =>
-      expect(mocks.send).toHaveBeenCalledWith(
-        'origin',
-        'ai.local_agents.auth_prompt',
-        expect.objectContaining({ requestId: 'req-cancel' })
-      )
-    )
+    await cancelPrompt
     await service.cancel('req-cancel', 'other-window')
     await service.cancel('req-cancel', 'origin')
     await rejection

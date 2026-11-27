@@ -22,7 +22,7 @@ describe('DataApiDevtools', () => {
         args: ['private-argument'],
         credentials: 'private-credential'
       }
-      const payload = shape === 'direct' ? config : { configuration: { localRuntime: config } }
+      const payload = shape === 'direct' ? config : { localRuntime: config }
       DataApiDevtools.recordStart({
         requestId: 'local',
         method: 'PATCH',

@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { openCursorSession, sendCursorTurn, type Run, type SDKAgent } from '@cherrystudio/agent-runtime-cursor'
 
 import { acquireLocalAgentBrowserLease } from '../../../mcp/localAgentBrowserBridge'
+import { localLaunch } from '../../__tests__/fixtures/localLaunch'
 import type { AgentRuntimeEvent, AgentRuntimeUserInput } from '../../types'
 import { CursorConnection } from '../CursorConnection'
 
@@ -42,13 +43,14 @@ async function createCursorSession(nativeModel?: string) {
   } as unknown as SDKAgent
   vi.mocked(openCursorSession).mockResolvedValue({ agent, effort: undefined })
 
-  const connection = new CursorConnection('session-cursor', 'agent-cursor', {
+  const launch = localLaunch({
     presetId: 'cursor',
     enabled: true,
     args: [],
     env: {},
     nativeModel
   })
+  const connection = new CursorConnection('session-cursor', 'agent-cursor', launch.config, launch.target)
   const events: AgentRuntimeEvent[] = []
   const drained = (async () => {
     for await (const event of connection.events) events.push(event)

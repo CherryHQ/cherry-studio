@@ -378,6 +378,12 @@ export function buildPathRegistry() {
       : path.join(sysHome, '.local', 'share', 'acp', 'agents'),
     'external.acp.bin': path.join(sysHome, '.local', 'bin'),
     'external.codebuddy.web_ui_ports.file': path.join(sysHome, '.codebuddy', 'web-ui-port.json'),
+    'external.cursor.sdk_auth.file': path.join(sysHome, '.cursor', 'sdk', 'auth.json'),
+    'external.kiro.state.file': path.join(
+      isMac ? path.join(sysHome, 'Library', 'Application Support') : path.join(sysHome, '.local', 'share'),
+      'kiro-cli',
+      'data.sqlite3'
+    ),
     'external.antigravity.cli.file': isWin
       ? path.join(process.env.LOCALAPPDATA || path.join(sysHome, 'AppData', 'Local'), 'agy', 'bin', 'agy.exe')
       : path.join(sysHome, '.local', 'bin', 'agy'),

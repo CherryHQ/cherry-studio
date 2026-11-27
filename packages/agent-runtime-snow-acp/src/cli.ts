@@ -1,3 +1,5 @@
+import type { AcpCliPreset } from '@cherrystudio/agent-runtime-acp/profile'
+
 export const snowCli = {
   modelConfig: { tool: 'snow', target: 'snow-config', overrides: ['SNOW_CONFIG_DIR'] },
   id: 'snow',
@@ -8,4 +10,4 @@ export const snowCli = {
   terminalArgs: [],
   npmPackage: 'snow-ai',
   helpUrl: 'https://github.com/MayDay-wpf/snow-cli'
-} as const
+} as const satisfies AcpCliPreset<'snow-config'>

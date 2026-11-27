@@ -421,7 +421,13 @@ describe('AgentChat settings panel', () => {
       activeAgentMock.value = {
         id: 'agent-1',
         type: 'local',
-        configuration: { localRuntime: { executableOverride: '/custom/acp', enabled: true } }
+        localRuntime: {
+          providerId: 'custom-provider',
+          executableOverride: '/custom/acp',
+          enabled: true,
+          args: [],
+          env: {}
+        }
       }
       renderAgentChat({ onStartNewTaskConversation: openNew })
 

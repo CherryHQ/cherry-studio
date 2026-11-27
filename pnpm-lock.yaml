@@ -1858,6 +1858,9 @@ importers:
         specifier: workspace:*
         version: link:../agent-runtime
     devDependencies:
+      '@cherrystudio/agent-runtime-acp':
+        specifier: workspace:*
+        version: link:../agent-runtime-acp
       '@types/node':
         specifier: ^24.10.4
         version: 24.10.4
@@ -2050,6 +2053,9 @@ importers:
 
   packages/agent-runtime-dimcode-acp:
     devDependencies:
+      '@cherrystudio/agent-runtime-acp':
+        specifier: workspace:*
+        version: link:../agent-runtime-acp
       tsdown:
         specifier: ^0.22.14
         version: 0.22.14(@typescript/typescript6@6.0.2)(oxc-resolver@11.21.2)(tsx@4.21.0)(unrun@0.2.27(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3))
@@ -2198,6 +2204,9 @@ importers:
       '@cherrystudio/agent-runtime-acp':
         specifier: workspace:*
         version: link:../agent-runtime-acp
+      zod:
+        specifier: ^4.4.3
+        version: 4.6.6
     devDependencies:
       '@types/node':
         specifier: ^24.10.4
@@ -2211,9 +2220,15 @@ importers:
 
   packages/agent-runtime-minimax-acp:
     dependencies:
+      '@cherrystudio/agent-runtime':
+        specifier: workspace:*
+        version: link:../agent-runtime
       '@cherrystudio/agent-runtime-acp':
         specifier: workspace:*
         version: link:../agent-runtime-acp
+      zod:
+        specifier: ^4.4.3
+        version: 4.6.6
     devDependencies:
       '@types/node':
         specifier: ^24.10.4
@@ -2226,7 +2241,20 @@ importers:
         version: '@typescript/typescript6@6.0.2'
 
   packages/agent-runtime-muse-code-acp:
+    dependencies:
+      '@cherrystudio/agent-runtime':
+        specifier: workspace:*
+        version: link:../agent-runtime
+      zod:
+        specifier: ^4.4.3
+        version: 4.6.6
     devDependencies:
+      '@cherrystudio/agent-runtime-acp':
+        specifier: workspace:*
+        version: link:../agent-runtime-acp
+      '@types/node':
+        specifier: ^24.10.4
+        version: 24.10.4
       tsdown:
         specifier: ^0.22.14
         version: 0.22.14(@typescript/typescript6@6.0.2)(oxc-resolver@11.21.2)(tsx@4.21.0)(unrun@0.2.27(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3))
@@ -2424,6 +2452,9 @@ importers:
         specifier: 1.0.61
         version: 1.0.61(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(zod@4.6.6)
     devDependencies:
+      '@cherrystudio/agent-runtime-acp':
+        specifier: workspace:*
+        version: link:../agent-runtime-acp
       '@types/node':
         specifier: ^24.10.4
         version: 24.10.4
@@ -2468,6 +2499,9 @@ importers:
 
   packages/agent-runtime-trae-acp:
     devDependencies:
+      '@cherrystudio/agent-runtime-acp':
+        specifier: workspace:*
+        version: link:../agent-runtime-acp
       '@types/node':
         specifier: ^24.10.4
         version: 24.10.4

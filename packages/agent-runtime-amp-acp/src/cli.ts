@@ -1,4 +1,4 @@
-import type { CliAccountProbe } from '@cherrystudio/agent-runtime/cli'
+import type { AcpCliPreset } from '@cherrystudio/agent-runtime-acp/profile'
 
 export const ampCli = {
   id: 'amp-acp',
@@ -31,11 +31,11 @@ export const ampCli = {
       }
       return { status: 'signed-out' }
     }
-  } satisfies CliAccountProbe,
+  },
   name: 'Amp',
   protocol: 'acp',
   subscriptionUsage: true,
   executable: 'amp-acp',
   args: [],
   helpUrl: 'https://github.com/tao12345666333/amp-acp'
-} as const
+} as const satisfies AcpCliPreset

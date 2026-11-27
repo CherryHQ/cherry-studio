@@ -13,6 +13,7 @@ import { t } from '@main/i18n'
 import { parseDataUrl } from '@shared/utils/dataUrl'
 import { textExts } from '@shared/utils/file'
 
+import { withAgentContext } from '../agentUserContent'
 import { inlineFileContent, localFilePath, localPartContent } from '../localContent'
 import type { AgentRuntimeUserInput } from '../types'
 
@@ -21,7 +22,8 @@ export async function acpContent(
   capabilities: AcpPromptCapabilities
 ): Promise<AcpContentBlock[]> {
   const content: AcpContentBlock[] = []
-  for (const [index, part] of (input.message.data.parts ?? []).entries()) {
+  const message = withAgentContext(input.message, input.context)
+  for (const [index, part] of (message.data.parts ?? []).entries()) {
     if (part.type === 'data-knowledge-scope') continue
     if (part.type !== 'file') {
       content.push(await localPartContent(part, false))

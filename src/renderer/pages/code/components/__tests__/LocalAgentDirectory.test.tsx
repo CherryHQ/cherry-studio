@@ -30,7 +30,7 @@ function localAgent(
     orderKey: 'a0',
     createdAt: '',
     updatedAt: '',
-    configuration: { localRuntime: { enabled: true, args: [], env: {}, ...configuration } }
+    localRuntime: { providerId: `${id}-provider`, enabled: true, args: [], env: {}, ...configuration }
   }
 }
 
@@ -227,13 +227,18 @@ describe('local agent settings navigation', () => {
     let authenticated = false
     vi.mocked(ipcApi.request).mockImplementation(async (route) => {
       if (route === 'ai.local_agents.detect') return [{ presetId: 'antigravity-acp', path: '/test/agent' }] as never
-      if (route === 'ai.local_agents.authenticate') authenticated = true
+      if (route === 'ai.local_agents.authenticate') {
+        authenticated = true
+        return undefined
+      }
       if (route === 'ai.local_agents.models' && authenticated) throw new Error('catalog offline')
       if (route === 'ai.local_agents.models') throw new Error('Authentication required')
       return { protocolInfo: { authMethods: [{ id: 'oauth-personal', name: 'Google', type: 'agent' }] } } as never
     })
     render(<LocalAgentDirectory />)
     await userEvent.click(await screen.findByRole('button', { name: '登录' }))
+    const signInMethods = within(await screen.findByRole('dialog'))
+    await userEvent.click(await signInMethods.findByRole('button', { name: 'Google' }))
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     expect(await screen.findByText(/拉取模型失败/)).toBeVisible()
     expect(await screen.findByText('catalog offline')).toBeVisible()
@@ -241,7 +246,7 @@ describe('local agent settings navigation', () => {
     expect(toast.success).toHaveBeenCalledWith('已登录')
   })
 
-  it('saves sign-in credentials without overwriting the model or enablement from an earlier configuration', async () => {
+  it('signs into the selected saved Agent without issuing a separate credentials patch', async () => {
     navigation.search = { id: 'antigravity-acp' }
     const agent = localAgent('Google Antigravity', {
       presetId: 'antigravity-acp',
@@ -249,28 +254,32 @@ describe('local agent settings navigation', () => {
       env: { KEEP: 'value' }
     })
     publishAgent(agent)
-    const update = vi.fn().mockResolvedValue(agent)
-    MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/agents/:agentId', update)
     vi.mocked(ipcApi.request).mockImplementation(async (route) => {
       if (route === 'ai.local_agents.detect') return [{ presetId: 'antigravity-acp', path: '/test/agent' }] as never
       if (route === 'ai.local_agents.read_account') return { status: 'unsupported' }
       if (route === 'ai.local_agents.models') throw new Error('Authentication required')
+      if (route === 'ai.local_agents.authenticate') return { methodId: 'gemini-api-key' }
       return {
         protocolInfo: { authMethods: [{ id: 'gemini-api-key', name: 'Gemini API key', type: 'agent' }] }
       } as never
     })
     render(<LocalAgentDirectory />)
     await userEvent.click(await screen.findByRole('button', { name: '登录' }))
-    await userEvent.type(screen.getByLabelText('API 密钥'), 'new-test-key')
+    const signInChoices = within(await screen.findByRole('dialog'))
+    await userEvent.click(await signInChoices.findByRole('button', { name: 'Gemini API 密钥' }))
+    await userEvent.type(await screen.findByLabelText('API 密钥'), 'new-test-key')
     await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: '登录' }))
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
-    expect(update).toHaveBeenCalledWith({
-      params: { agentId: agent.id },
-      body: {
-        name: undefined,
-        configuration: { localRuntime: { env: { KEEP: 'value', GEMINI_API_KEY: 'new-test-key' } } }
-      }
-    })
+    expect(ipcApi.request).toHaveBeenCalledWith(
+      'ai.local_agents.authenticate',
+      expect.objectContaining({
+        agentId: agent.id,
+        methodId: 'gemini-api-key',
+        config: expect.objectContaining({ env: { KEEP: 'value', GEMINI_API_KEY: 'new-test-key' } })
+      })
+    )
+    expect(ipcApi.request).not.toHaveBeenCalledWith('ai.local_agents.update_settings', expect.anything())
+    expect(toast.success).toHaveBeenCalledWith('已登录')
   })
 
   it('keeps failed installation discovery quiet until the user explicitly retries', async () => {
@@ -864,7 +873,7 @@ describe('local agent settings navigation', () => {
     ['custom ACP', localAgent('My ACP', { executableOverride: '/test/custom-acp' }, 'my-acp')],
     [
       'legacy record with a built-in name',
-      { ...localAgent('DeepSeek Harness', {}, 'legacy-deepseek'), configuration: undefined }
+      { ...localAgent('DeepSeek Harness', {}, 'legacy-deepseek'), localRuntime: undefined }
     ]
   ])('archives a confirmed deletion for a %s and removes the record from the services list', async (_, agent) => {
     publishAgent(agent)
@@ -898,7 +907,7 @@ describe('local agent settings navigation', () => {
     rerender(<LocalAgentDirectory />)
     expect(screen.queryByRole('button', { name: `${agent.name} · 更多` })).not.toBeInTheDocument()
     expect(screen.queryAllByRole('button', { name: (name) => name.startsWith(`${agent.name} · `) })).toHaveLength(
-      agent.configuration ? 0 : 1
+      agent.localRuntime ? 0 : 1
     )
     expect(screen.getByRole('button', { name: /DeepSeek Harness ·/ })).toBeVisible()
     expect(screen.getByRole('heading', { name: 'Claude Code' })).toBeVisible()
@@ -1055,11 +1064,10 @@ describe('local agent settings navigation', () => {
     navigation.search = { id: 'custom-agent' }
     const agent = localAgent('Custom Agent', { executableOverride: '/test/custom-acp' }, 'custom-agent')
     publishAgent(agent)
-    const update = vi.fn().mockResolvedValue(agent)
-    MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/agents/:agentId', update)
     vi.mocked(ipcApi.request).mockImplementation(async (route) => {
       if (route === 'ai.local_agents.detect') return [] as never
       if (route === 'ai.local_agents.check') return { ok: true, status: 'ready' } as never
+      if (route === 'ai.local_agents.update_settings') return agent
       return { models: [] } as never
     })
 
@@ -1075,15 +1083,12 @@ describe('local agent settings navigation', () => {
     await user.click(saveButton)
 
     await waitFor(() =>
-      expect(update).toHaveBeenCalledWith(
+      expect(ipcApi.request).toHaveBeenCalledWith(
+        'ai.local_agents.update_settings',
         expect.objectContaining({
-          params: { agentId: agent.id },
-          body: expect.objectContaining({
-            configuration: {
-              localRuntime: expect.objectContaining({
-                browserControl: 'readonly'
-              })
-            }
+          agentId: agent.id,
+          settings: expect.objectContaining({
+            browserControl: 'readonly'
           })
         })
       )

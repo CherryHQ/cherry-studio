@@ -1,3 +1,5 @@
+import type { AcpCliPreset } from '@cherrystudio/agent-runtime-acp/profile'
+
 export const openClawCli = {
   id: 'openclaw',
   gatewayProviderId: 'api-gateway',
@@ -8,4 +10,4 @@ export const openClawCli = {
   args: ['acp'],
   npmPackage: 'openclaw',
   helpUrl: 'https://docs.openclaw.ai/cli/acp'
-} as const
+} as const satisfies AcpCliPreset

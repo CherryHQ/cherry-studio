@@ -3,16 +3,16 @@ import type { RuntimeAccountAccess } from '@cherrystudio/agent-runtime'
 import { readCodexAccount, readCodexSubscriptionUsage } from '@cherrystudio/agent-runtime-codex/launcher'
 import { withStartupSignal } from '@cherrystudio/agent-runtime/stdio'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
-import type { LocalAgentConfiguration } from '@shared/ai/localAgent'
+import type { LocalAgentConfiguration, LocalAgentRuntime } from '@shared/ai/localAgent'
 
-import type { AgentRuntimeConnectInput } from '../types'
+import type { LocalRuntimeConnectInput } from '../types'
 import { resolveCodexLaunch } from './codexLaunch'
 import { checkCodex, listCodexModels } from './codexManagement'
 import { codexProcessHost } from './processHost'
 
-export async function connect(input: AgentRuntimeConnectInput, config: LocalAgentConfiguration, cwd: string) {
+export async function connect(input: LocalRuntimeConnectInput, config: LocalAgentRuntime, cwd: string) {
   const { CodexSessionHost } = await import('./CodexSessionHost')
-  const host = new CodexSessionHost(input.sessionId, input.agentId, config, input.headless)
+  const host = new CodexSessionHost(input.sessionId, input.agentId, config, input.localTarget, input.headless)
   const restore = input.resumeToken
     ? {
         threadId: input.resumeToken,

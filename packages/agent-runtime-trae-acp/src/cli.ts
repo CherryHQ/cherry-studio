@@ -1,3 +1,5 @@
+import type { AcpCliPreset } from '@cherrystudio/agent-runtime-acp/profile'
+
 export const traeCli = {
   id: 'trae',
   account: { methods: [] },
@@ -16,7 +18,7 @@ export const traeCli = {
   executable: 'traecli',
   args: ['acp', 'serve'],
   helpUrl: 'https://docs.trae.cn/cli_agent-client-protocol'
-} as const
+} as const satisfies AcpCliPreset
 
 export function traeInstall(platform: string) {
   if (platform === 'win32')

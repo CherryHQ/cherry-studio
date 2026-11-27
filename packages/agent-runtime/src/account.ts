@@ -28,6 +28,7 @@ export type RuntimeAccountResult =
 export interface SubscriptionUsageWindow {
   id: string
   label: string
+  groupLabel?: string
   usedRatio: number
   durationMinutes?: number
   resetsAt?: number

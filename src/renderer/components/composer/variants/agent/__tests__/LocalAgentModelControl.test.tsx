@@ -37,8 +37,13 @@ const agent: AgentEntity = {
   id: 'local-agent',
   name: 'Local',
   type: 'local',
-  configuration: {
-    localRuntime: { presetId: 'opencode', enabled: true, args: [], env: {}, nativeModel: 'first' }
+  localRuntime: {
+    providerId: 'local-provider',
+    presetId: 'opencode',
+    enabled: true,
+    args: [],
+    env: {},
+    nativeModel: 'first'
   }
 }
 const info: LocalAgentSessionInfo = {
@@ -68,11 +73,39 @@ beforeEach(async () => {
 afterEach(() => vi.restoreAllMocks())
 
 describe('local agent model persistence', () => {
+  it('switches the original provider session model after the Agent selects another provider', async () => {
+    const latest = {
+      ...agent,
+      localRuntime: { ...agent.localRuntime!, providerId: 'cursor-provider', presetId: 'cursor', nativeModel: 'auto' }
+    } satisfies AgentEntity
+    render(
+      <LocalAgentModelControl
+        agent={latest}
+        providerId="local-provider"
+        presetId="opencode"
+        sessionId="existing-session"
+        info={info}
+        disabled={false}
+        side="top"
+      />
+    )
+
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: '选择模型' }))
+    await user.click(await screen.findByRole('option', { name: 'Second' }))
+    await waitFor(() => expect(screen.queryByRole('option', { name: 'Second' })).not.toBeInTheDocument())
+    expect(ipcApi.request).toHaveBeenCalledWith('ai.local_agents.select_session_model', {
+      sessionId: 'existing-session',
+      modelId: 'second'
+    })
+    expect(updateNativeModel).not.toHaveBeenCalled()
+  })
+
   it('uses the warming Antigravity session even when the model picker was already open', async () => {
     const user = userEvent.setup()
     const antigravity = {
       ...agent,
-      configuration: { localRuntime: { ...agent.configuration!.localRuntime!, presetId: 'antigravity-acp' } }
+      localRuntime: { ...agent.localRuntime!, presetId: 'antigravity-acp' }
     } satisfies AgentEntity
     const props = { agent: antigravity, sessionId: 'session', disabled: false, side: 'top' } as const
     const { rerender } = render(<LocalAgentModelControl {...props} />)
@@ -101,14 +134,12 @@ describe('local agent model persistence', () => {
       const user = userEvent.setup()
       const qwenAgent = {
         ...agent,
-        configuration: {
-          localRuntime: {
-            ...agent.configuration!.localRuntime!,
-            presetId: 'qwen',
-            nativeModel: 'first',
-            sourceModelId: 'test::first',
-            sourceModelViaGateway: true
-          }
+        localRuntime: {
+          ...agent.localRuntime!,
+          presetId: 'qwen',
+          nativeModel: undefined,
+          sourceModelId: 'test::first',
+          sourceModelViaGateway: true
         }
       } satisfies AgentEntity
       catalog.providers = [{ id: 'test', isEnabled: true }]
@@ -122,7 +153,7 @@ describe('local agent model persistence', () => {
         supportsStreaming: true,
         isHidden: false
       }))
-      const activeModel = { id: 'first(openai)', name: 'First' }
+      const activeModel = { id: 'test:first(openai)', name: 'First' }
       const nativeModel = { id: 'native', name: 'Native model' }
       vi.mocked(ipcApi.request).mockResolvedValue({
         models: [activeModel, nativeModel]
@@ -182,9 +213,9 @@ describe('local agent model persistence', () => {
         providers: { [CLI_API_GATEWAY_PROVIDER_ID]: { modelId } }
       }
     })
-    const config = { ...agent.configuration!.localRuntime!, presetId: CodeCli.DEEPSEEK_HARNESS, nativeModel: undefined }
+    const config = { ...agent.localRuntime!, presetId: CodeCli.DEEPSEEK_HARNESS, nativeModel: undefined }
     const props = {
-      agent: { ...agent, configuration: { localRuntime: config } },
+      agent: { ...agent, localRuntime: config },
       disabled: false,
       side: 'bottom'
     } as const
@@ -264,7 +295,7 @@ describe('local agent model persistence', () => {
     const props = {
       agent: {
         ...agent,
-        configuration: { localRuntime: { ...agent.configuration!.localRuntime!, presetId: 'auggie' } }
+        localRuntime: { ...agent.localRuntime!, presetId: 'auggie' }
       },
       sessionId: 'session',
       disabled: false,
@@ -300,26 +331,22 @@ describe('local agent model persistence', () => {
     }
     const gatewayAgent: AgentEntity = {
       ...agent,
-      configuration: {
-        localRuntime: {
-          ...agent.configuration!.localRuntime!,
-          nativeModel: undefined,
-          sourceModelId: gatewayModel.id,
-          sourceModelViaGateway: true
-        }
+      localRuntime: {
+        ...agent.localRuntime!,
+        nativeModel: undefined,
+        sourceModelId: gatewayModel.id,
+        sourceModelViaGateway: true
       }
     }
     catalog.providers = [{ id: 'test', isEnabled: true }]
     catalog.models = [gatewayModel]
     updateNativeModel.mockResolvedValueOnce({
       ...gatewayAgent,
-      configuration: {
-        localRuntime: {
-          ...gatewayAgent.configuration!.localRuntime!,
-          nativeModel: 'second',
-          sourceModelId: undefined,
-          sourceModelViaGateway: undefined
-        }
+      localRuntime: {
+        ...gatewayAgent.localRuntime!,
+        nativeModel: 'second',
+        sourceModelId: undefined,
+        sourceModelViaGateway: undefined
       }
     })
 
@@ -414,7 +441,7 @@ describe('local agent model persistence', () => {
     const user = userEvent.setup()
     const codexAgent = {
       ...agent,
-      configuration: { localRuntime: { ...agent.configuration!.localRuntime!, presetId: 'codex' } }
+      localRuntime: { ...agent.localRuntime!, presetId: 'codex' }
     }
     updateNativeModel.mockResolvedValueOnce(undefined).mockResolvedValueOnce(codexAgent)
     render(<LocalAgentModelControl agent={codexAgent} info={info} disabled={false} side="top" />)

@@ -5,7 +5,9 @@ import { beforeEach, expect, it, onTestFinished, vi } from 'vitest'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
+import { agentProviderService } from '@data/services/AgentProviderService'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
+import { localLaunch } from '@main/ai/runtime/__tests__/fixtures/localLaunch'
 import { LocalConnection } from '@main/ai/runtime/LocalConnection'
 import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
 import type { AgentRuntimeUserInput } from '@main/ai/runtime/types'
@@ -61,10 +63,12 @@ it.each(['success', 'error', 'live'] as const)(
       }
       protected async stop() {}
     }
+    const config = agentProviderService.setBindingTx(dbh.db, 'agent', { enabled: true, presetId: 'codex' })
+    const launch = localLaunch(config, config.providerId)
     runtimeDriverRegistry.register({
       type: 'local',
       validateSession: () => {},
-      connect: async () => new TestConnection('root', 'agent', { enabled: true, args: [], env: {} })
+      connect: async () => new TestConnection('root', 'agent', launch.config, launch.target)
     })
     const service = new AgentSessionRuntimeService()
     onTestFinished(async () => {

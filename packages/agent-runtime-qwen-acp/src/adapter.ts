@@ -8,13 +8,13 @@ function qwenModelId(model: string) {
 
 const qwenProfile = {
   format: 'json',
-  target: 'qwen-settings',
+  target: qwenCli.modelConfig.target,
   writeModel: (_doc, model) => [[['model', 'name'], model]],
   readModel(doc) {
     const model = acpConfigRecord(doc.model)?.name
     return typeof model === 'string' && model ? model : undefined
   }
-} satisfies AcpJsonModelProfile<'qwen-settings'>
+} satisfies AcpJsonModelProfile
 
 export const qwenPreset = {
   id: qwenCli.id,

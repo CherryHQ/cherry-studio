@@ -337,6 +337,7 @@
   "agent.right_pane.info.session_cost": "Celková cena relace",
   "agent.right_pane.info.shell_tasks": "Příkazy na pozadí",
   "agent.right_pane.info.subagents": "Podagenti",
+  "agent.right_pane.info.subscription_quota": "Limit předplatného",
   "agent.right_pane.info.workflows": "Pracovní postupy",
   "agent.right_pane.status.stop_run_task": "Zastavit úlohu",
   "agent.right_pane.status.stop_run_task_failed": "Úlohu se nepodařilo zastavit",

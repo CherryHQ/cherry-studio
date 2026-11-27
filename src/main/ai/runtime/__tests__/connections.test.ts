@@ -9,7 +9,7 @@ import { app } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
-import { agentService } from '@data/services/AgentService'
+import { agentProviderService } from '@data/services/AgentProviderService'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { BaseService } from '@main/core/lifecycle'
@@ -31,10 +31,12 @@ import { enrichLocalAgentModels } from '../localAgentModelMetadata'
 import { LocalAgentSessionRestoreError } from '../LocalAgentSessionRestoreError'
 import { checkLocalAgent, listLocalAgentModels } from '../LocalRuntimeDriver'
 import type { AgentRuntimeEvent, AgentRuntimeUserInput } from '../types'
+import { localLaunch } from './fixtures/localLaunch'
 import { observedParts } from './observedParts'
 
 vi.mock('../../agentSession/localContext', () => ({
   localContext: () => ({ id: 'local-context', backendId: 'local-backend' }),
+  localBindingMatches: () => true,
   bindLocalContext: (id: string, nativeThreadId: string) => ({ id, backendId: 'local-backend', nativeThreadId })
 }))
 
@@ -121,10 +123,11 @@ describe('local protocol processes', () => {
       nativeModel,
       sourceModelId
     }
+    const launch = localLaunch(config)
     const connection =
       protocol === 'acp'
-        ? new AcpConnection('session', 'agent', config, headless)
-        : new CodexSessionHost('session', 'agent', config, headless)
+        ? new AcpConnection('session', 'agent', launch.config, launch.target, headless)
+        : new CodexSessionHost('session', 'agent', launch.config, launch.target, headless)
     connections.push(connection)
     const events: AgentRuntimeEvent[] = []
     const drained = (async () => {
@@ -2407,7 +2410,8 @@ describe('local protocol processes', () => {
         DSH_PERMISSION_MODE: 'read-only'
       }
     }
-    const connection = new AcpConnection('dsh-session', 'dsh-agent', config)
+    const launch = localLaunch(config)
+    const connection = new AcpConnection('dsh-session', 'dsh-agent', launch.config, launch.target)
     connections.push(connection)
     const events: AgentRuntimeEvent[] = []
     const drained = (async () => {
@@ -2458,15 +2462,17 @@ describe('local protocol processes', () => {
       }
     }
 
-    const getAgentSpy = vi.spyOn(agentService, 'getAgent').mockImplementation((id: string) => {
-      if (id === 'dsh-agent') return { id, configuration: { localRuntime: dshConfig } } as any
-      if (id === 'other-agent') return { id, configuration: { localRuntime: otherConfig } } as any
+    const dshLaunch = localLaunch(dshConfig)
+    const otherLaunch = localLaunch(otherConfig)
+    const binding = vi.spyOn(agentProviderService, 'getBinding').mockImplementation((id) => {
+      if (id === 'dsh-agent') return { ...dshLaunch.config, encryptedEnv: null }
+      if (id === 'other-agent') return { ...otherLaunch.config, encryptedEnv: null }
       return undefined
     })
 
     try {
-      const dsh = new AcpConnection('dsh-session', 'dsh-agent', dshConfig)
-      const other = new AcpConnection('other-session', 'other-agent', otherConfig)
+      const dsh = new AcpConnection('dsh-session', 'dsh-agent', dshLaunch.config, dshLaunch.target)
+      const other = new AcpConnection('other-session', 'other-agent', otherLaunch.config, otherLaunch.target)
       connections.push(dsh, other)
 
       await dsh.start(cwd)
@@ -2485,7 +2491,7 @@ describe('local protocol processes', () => {
       expect(await dsh.reconcile()).toBe('rebuild')
       expect(await other.reconcile()).toBe('current')
     } finally {
-      getAgentSpy.mockRestore()
+      binding.mockRestore()
       MockMainPreferenceServiceUtils.resetMocks()
     }
   })
@@ -2500,13 +2506,14 @@ describe('local protocol processes', () => {
     }))
     MockApplicationUtils.setService('DeepSeekHarnessService', { prepareAgent })
 
-    const resumed = new AcpConnection('dsh-resume-session', 'dsh-agent', {
+    const launch = localLaunch({
       presetId: 'deepseek-harness',
       enabled: true,
       executableOverride: process.execPath,
       args: [fixture, 'acp', 'legacy-models'],
       env: { FIXTURE_LOG: path.join(cwd, 'wire.jsonl') }
     })
+    const resumed = new AcpConnection('dsh-resume-session', 'dsh-agent', launch.config, launch.target)
     connections.push(resumed)
 
     await resumed.start(cwd, 'native-session')

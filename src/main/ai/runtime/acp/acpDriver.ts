@@ -6,17 +6,17 @@ import {
   type AcpSubscriptionUsageReader
 } from '@cherrystudio/agent-runtime-acp/v1'
 import { withStartupSignal } from '@cherrystudio/agent-runtime/stdio'
-import { getLocalAgentPreset, type LocalAgentConfiguration } from '@shared/ai/localAgent'
+import { usesPresetAcpLaunch, type LocalAgentConfiguration, type LocalAgentRuntime } from '@shared/ai/localAgent'
 
 import { spawnLocalAgentStdio } from '../stdioProcess'
-import type { AgentRuntimeConnectInput } from '../types'
+import type { LocalRuntimeConnectInput } from '../types'
 import { resolveAcpLaunch } from './acpLaunch'
 import { AcpManagement, authenticateLocalAcp } from './AcpManagement'
 import { acpPreset } from './acpPresets'
 
-export async function connect(input: AgentRuntimeConnectInput, config: LocalAgentConfiguration, cwd: string) {
+export async function connect(input: LocalRuntimeConnectInput, config: LocalAgentRuntime, cwd: string) {
   const { AcpConnection } = await import('./AcpConnection')
-  const live = new AcpConnection(input.sessionId, input.agentId, config, input.headless)
+  const live = new AcpConnection(input.sessionId, input.agentId, config, input.localTarget, input.headless)
   return withStartupSignal(
     AbortSignal.timeout(30_000),
     () => live.start(cwd, input.resumeToken, !!input.localLaunchBypass && input.localLaunchBypass === config.presetId),
@@ -74,12 +74,7 @@ async function readAcpSubscriptionUsage(
 
 export function bindAccount(config: LocalAgentConfiguration): RuntimeAccountAccess {
   const cwd = application.getPath('cherry.bin')
-  const preset = getLocalAgentPreset(config.presetId)
-  const customLaunch =
-    config.executableOverride !== undefined ||
-    (config.args.length > 0 &&
-      (config.args.length !== preset?.args?.length || config.args.some((arg, i) => arg !== preset.args?.[i])))
-  const target = customLaunch ? undefined : acpPreset(config.presetId)
+  const target = usesPresetAcpLaunch(config) ? acpPreset(config.presetId) : undefined
   const usage = target?.subscriptionUsage
   const account = target?.account
   return {

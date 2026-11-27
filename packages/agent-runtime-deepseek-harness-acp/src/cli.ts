@@ -1,4 +1,4 @@
-import type { PermissionModeCatalog } from '@cherrystudio/agent-runtime-acp/profile'
+import type { PermissionModeCatalog, AcpCliPreset } from '@cherrystudio/agent-runtime-acp/profile'
 
 export const DSH_PERMISSION_MODES = {
   id: 'dsh-mode',
@@ -42,4 +42,4 @@ export const dshCli = {
   args: ['--profile', 'acp'],
   npmPackage: '@deepseek-ai/dsh',
   helpUrl: 'https://github.com/deepseek-ai/deepseek-harness'
-} as const
+} as const satisfies AcpCliPreset

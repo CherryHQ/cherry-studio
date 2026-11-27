@@ -115,18 +115,11 @@ type AgentTopBarControlsProps = Omit<AgentConversationControlsProps, 'iconOnly' 
 
 function AgentTopBarControls(props: AgentTopBarControlsProps) {
   const { iconOnly } = useConversationTopBarPortalLayout()
-  const view = useLocalAgentSessionInfo(
-    props.localSessionId ?? '',
-    props.agent?.type === 'local' && !!props.localSessionId
-  )
-
   const profilePane = useProfilePaneToggle()
 
   return (
     <AgentConversationControls
       {...props}
-      localInfo={view?.info ?? null}
-      localConnecting={view?.connecting}
       side="bottom"
       iconOnly={iconOnly}
       onAvatarClick={profilePane?.toggle}
@@ -174,6 +167,7 @@ interface AgentChatProps {
 
 interface AgentChatLayoutProps {
   activeAgent?: GetAgentResponse
+  subscriptionUsageRevision?: string
   /** Active model — the right pane needs it for the context-usage denominator. */
   model?: Model
   /** The same confirmed model switch as the top bar, for the profile pane. */
@@ -259,6 +253,21 @@ const AgentChat = ({
   const visibleWorkspaceId = sessionSnapshot?.workspaceId ?? null
   const visibleWorkspace = sessionSnapshot?.workspace ?? null
   const activeAgent = conversationBootstrap.resources.agent
+  const localRuntime = activeAgent?.localRuntime
+  const localView = useLocalAgentSessionInfo(
+    sessionSnapshot?.id ?? '',
+    activeAgent?.type === 'local' && activeAgent.id === visibleAgentId && !!sessionSnapshot,
+    activeAgent && JSON.stringify([activeAgent.id, activeAgent.updatedAt])
+  )
+  const localPresetId = localView?.providerId ? localView.presetId : localRuntime?.presetId
+  const subscriptionUsageRevision =
+    activeAgent?.type === 'local' &&
+    activeAgent.id === visibleAgentId &&
+    localRuntime?.enabled &&
+    localView?.subscriptionUsage &&
+    (localPresetId !== 'minimax' || !!localView.info?.activeModel?.id)
+      ? JSON.stringify([localView.providerId, activeAgent.updatedAt, localView.info?.activeModel?.id])
+      : undefined
   const isSupportAgent = activeAgent?.configuration?.builtin_role === BUILTIN_AGENT_ROLE.SUPPORT
   const isAssistantAgent = activeAgent?.configuration?.builtin_role === BUILTIN_AGENT_ROLE.ASSISTANT
   // Assistant now exposes prepare_diagnostic_report, so it needs the same review dialog as Support.
@@ -513,6 +522,7 @@ const AgentChat = ({
             <AgentTopBarControls
               agent={activeAgent}
               localSessionId={sessionSnapshot.id}
+              localView={localView}
               model={activeModel}
               workspace={sessionSnapshot.workspace}
               workspaceId={sessionSnapshot.workspace?.type === 'system' ? null : sessionSnapshot.workspaceId}
@@ -556,6 +566,7 @@ const AgentChat = ({
         agentId={composerAgentId}
         composerPending={isActiveAgentLoading || isActiveModelLoading}
         activeAgent={activeAgent}
+        localPresetId={localPresetId}
         activeModel={activeModel}
         workspaceWarning={workspaceWarning}
         isEmptyConversation={isEmptyConversation}
@@ -574,6 +585,7 @@ const AgentChat = ({
 
   const layoutProps: AgentChatLayoutProps = {
     activeAgent,
+    subscriptionUsageRevision,
     model: activeModel,
     onModelChange: handleAgentModelChange,
     center,
@@ -661,6 +673,7 @@ interface AgentChatSessionCenterProps {
   agentId?: string
   composerPending: boolean
   activeAgent: GetAgentResponse | undefined
+  localPresetId?: string
   activeModel?: Model
   workspaceWarning?: string
   isEmptyConversation: boolean
@@ -682,6 +695,7 @@ const AgentChatSessionCenter = ({
   agentId,
   composerPending,
   activeAgent,
+  localPresetId,
   activeModel,
   workspaceWarning,
   isEmptyConversation,
@@ -697,8 +711,8 @@ const AgentChatSessionCenter = ({
 }: AgentChatSessionCenterProps) => {
   const { t } = useTranslation()
   const [localRestoreUnavailable, setLocalRestoreUnavailable] = useState<boolean>()
-  const localRuntime = activeAgent?.type === 'local' ? activeAgent.configuration?.localRuntime : undefined
-  const protocol = localRuntime && getLocalAgentProtocol(localRuntime.presetId)
+  const localRuntime = activeAgent?.type === 'local' ? activeAgent.localRuntime : undefined
+  const protocol = localRuntime && getLocalAgentProtocol(localPresetId)
   const checkLocalRestore = !!onStartNewTaskConversation && (protocol === 'acp' || protocol === 'cursor')
   const historyOnly = checkLocalRestore && localRestoreUnavailable === true
   const checkingRestore = checkLocalRestore && localRestoreUnavailable === undefined
@@ -812,8 +826,8 @@ const AgentChatSessionCenter = ({
         <div className="pointer-events-none absolute inset-0 z-10">
           <ConversationGreeting
             avatarIcon={
-              activeAgent?.configuration?.localRuntime ? (
-                <LocalAgentIcon presetId={activeAgent.configuration.localRuntime.presetId} size={48} />
+              activeAgent?.localRuntime ? (
+                <LocalAgentIcon presetId={activeAgent.localRuntime.presetId} size={48} />
               ) : undefined
             }
             avatar={
@@ -834,6 +848,7 @@ const AgentChatSessionCenter = ({
 
 function AgentChatLayout({
   activeAgent,
+  subscriptionUsageRevision,
   model,
   onModelChange,
   center,
@@ -886,6 +901,7 @@ function AgentChatLayout({
       agentId={sessionSnapshot?.agentId ?? undefined}
       agentName={activeAgent?.name}
       runtimeType={activeAgent?.type}
+      subscriptionUsageRevision={subscriptionUsageRevision}
       agentAvatar={
         activeAgent ? getAgentAvatarFromConfiguration(activeAgent.configuration, activeAgent.avatarSrc) : undefined
       }

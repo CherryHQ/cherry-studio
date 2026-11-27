@@ -1,3 +1,5 @@
+import type { AcpCliPreset } from '@cherrystudio/agent-runtime-acp/profile'
+
 export const grokCli = {
   modelConfig: { tool: 'grok-build', target: 'grok-config', overrides: ['GROK_HOME'] },
   id: 'grok-build',
@@ -27,7 +29,7 @@ export const grokCli = {
   executable: 'grok',
   args: ['agent', 'stdio'],
   helpUrl: 'https://docs.x.ai/build/enterprise#authentication'
-} as const
+} as const satisfies AcpCliPreset<'grok-config'>
 
 /** Grok resolves these roles independently of its default model. Preserve user-pinned roles. */
 export function setGrokAuxiliaryModels(

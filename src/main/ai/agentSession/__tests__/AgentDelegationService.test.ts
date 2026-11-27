@@ -3,6 +3,7 @@ import { MockApplicationUtils } from '@test-mocks/main/application'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { agentTable } from '@data/db/schemas/agent'
+import { agentProviderService } from '@data/services/AgentProviderService'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
@@ -98,11 +99,11 @@ describe('delegation ownership and terminal results', () => {
           type: 'local',
           name: 'Codex',
           instructions: '',
-          orderKey: 'b',
-          configuration: { localRuntime: { enabled: true, presetId: 'codex', args: [], env: {} } }
+          orderKey: 'b'
         }
       ])
       .run()
+    agentProviderService.setBindingTx(dbh.db, 'target', { enabled: true, presetId: 'codex' })
     workspaceId = agentWorkspaceService.findOrCreateByPath('/tmp/delegation-control-test').id
     const workspace = { type: 'user' as const, workspaceId }
     owner = agentSessionService.create({ agentId: 'caller', name: 'Owner', workspace }).id
@@ -226,7 +227,7 @@ describe('delegation ownership and terminal results', () => {
     await service._doInit()
     try {
       agentService.updateAgent('target', {
-        configuration: { localRuntime: { enabled: false, presetId: 'codex', args: [], env: {} } }
+        localRuntime: { enabled: false }
       })
       await vi.waitFor(() => expect(service.read(owner, task.message.id).terminal).toBe(true))
       expect(stopped).toBe(true)

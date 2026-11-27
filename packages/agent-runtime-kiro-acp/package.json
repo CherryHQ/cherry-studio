@@ -21,7 +21,8 @@
   },
   "dependencies": {
     "@cherrystudio/agent-runtime": "workspace:*",
-    "@cherrystudio/agent-runtime-acp": "workspace:*"
+    "@cherrystudio/agent-runtime-acp": "workspace:*",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/node": "^24.10.4",

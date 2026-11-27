@@ -72,10 +72,11 @@ export async function readAntigravitySubscriptionUsage(
       const end = Date.parse(bucket.reset_time ?? '')
       return {
         id: groupIndex + ':' + (bucket.id ?? index),
-        label: group.name + ' · ' + bucket.name.replace(/\s+remaining$/i, ''),
+        label: bucket.name.replace(/\s+remaining$/i, ''),
+        groupLabel: group.name,
         usedRatio: 1 - bucket.remaining_fraction,
         durationMinutes: bucket.window === '5h' ? 300 : bucket.window === 'weekly' ? 7 * 1440 : undefined,
-        resetsAt: Number.isFinite(end) ? end : undefined
+        resetsAt: end > 0 ? end : undefined
       }
     })
   )

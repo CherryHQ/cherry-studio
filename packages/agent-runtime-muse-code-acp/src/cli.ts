@@ -1,7 +1,10 @@
+import type { AcpCliPreset } from '@cherrystudio/agent-runtime-acp/profile'
+
 export const museCodeCli = {
   id: 'muse-code',
   name: 'Muse Code',
   protocol: 'acp',
+  subscriptionUsage: true,
   permissionMode: {
     values: {
       allowall: 'bypassPermissions',
@@ -24,4 +27,4 @@ export const museCodeCli = {
   loginArgs: ['login'],
   credentialEnvironment: ['META_API_KEY'],
   helpUrl: 'https://dev.meta.ai/docs/muse-code'
-} as const
+} as const satisfies AcpCliPreset

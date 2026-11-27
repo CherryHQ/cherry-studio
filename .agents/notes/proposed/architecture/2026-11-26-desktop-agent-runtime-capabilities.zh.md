@@ -48,7 +48,27 @@ Runtime 分别报告原生接纳和实际放入的位置。只有明确未接纳
 
 Pi Durable、内建 Pi、Claude 和 Codex 的既有原生能力走同一组桌面输入和压缩入口。Codex Stop 可撤回尚未派发的输入。派发后缺少原生回声时，送达状态保持未知，保留原绑定。
 
-本机安装通过发行与组件声明解析目标，无需打开运行时。各 runtime 包拥有登录方法和凭据选择。Main 把原生登录提示交给发起窗口并负责取消。可选的订阅查询绑定到已保存运行设置实际使用的账号，使用短命管理连接。配置和登录代次仍匹配时才发布额度窗口。
+本机安装通过发行与组件声明解析目标，无需打开运行时。各 runtime 包拥有登录方法和凭据选择。Main 把原生登录提示交给发起窗口并负责取消。
+
+### Agent Provider 数据模型
+
+当前分支把可执行文件覆盖、账号环境、模型选择、启用状态和浏览器策略放在 `Agent.configuration.localRuntime`。[AgentService](../../../../src/main/data/services/AgentService.ts) 从通用配置更新中解析执行配置。本机执行配置改用独立的类型化存储。
+
+| 记录 | 字段与归属 |
+| --- | --- |
+| `agent_provider` | 一份已配置的连接，保存 UUID、类型化的预设或自定义 ACP 启动目标、覆盖项和可选的账号引用。预设声明协议和静态能力。替换启动目标或原生配置档案时创建新的 provider ID。登录更新原 provider 上的账号和凭据。 |
+| `agent_provider_binding` | 每个本机 Agent 一行，以 Agent ID 为主键，provider 外键带索引。保存启用状态、浏览器策略和模型选择。多个 Agent 可共用 provider 并独立选模。 |
+| `agent_runtime_backend` | 本机 backend 通过唯一且限制删除的外键关联 provider。[会话上下文](../../../../src/main/data/db/schemas/agentSessionContext.ts) 保存 backend 引用、原生线程 ID 和恢复需要的本机启动模型选择。 |
+
+模型选择用可辨识联合表示，分为 `native-default`、携带原生目录 ID 的 `native` 和携带 Cherry 模型引用的 `cherry`。写入时校验，启动时通过[模型绑定](2026-11-27-local-agent-launch-model-binding.md)应用。会话内切换模型使用原生会话控制。修改模型选择和 provider 只写 Cherry 自己的数据。
+
+Agent 服务在同一事务中保存 Agent 和绑定，提交后发布类型化变更。启用只检查连通性，无需创建原生会话。[本机驱动](../../../../src/main/ai/runtime/LocalRuntimeDriver.ts) 从已有上下文的 backend 查找接入，再选择适配器。新连接在启动前读取 Agent 绑定，在首条输入时以事务[绑定上下文](../../../../src/main/ai/agentSession/localContext.ts)。生效的账号、启动配置、模型或浏览器策略变化后，下一条输入使用新的连接。禁用的 Agent 无法接收输入。已保存的上下文通过原 provider 的当前凭据恢复。适配器确认线程无法恢复时，打开新的原生线程。下一条输入将它绑定到同一个 Cherry 会话，并附上所选分支的已有消息作为参考历史。
+
+登录后在 provider 上记录已确认的方式、服务、地区及原生配置档案或凭据引用。写入事务会核对 provider 和保存的凭据仍与本次登录目标匹配。密钥留在 CLI、SDK 或现有凭据存储中。[LocalAgentAuthService](../../../../src/main/services/LocalAgentAuthService.ts) 按凭据所有者使旧账号查询失效，覆盖共用同一原生配置档案的 providers。适配器无法验证身份时，账号查询可以返回未知。
+
+会话详情按当前会话实际使用的路由和账号查询额度。使用独立管理账号时，须明确关联该路由的凭据版本和已验证的账号或席位。适配器无法确认关联时，订阅额度不可用。发布结果前复核路由和账号。额度池由模型决定时，也复核当前模型。额度结果保存在内存中。
+
+通过增量迁移为 main 的数据库新增结构。尚未发布的本机 Agent 功能直接使用新契约，同步移除分支上原有的本机配置 JSON 读写。
 
 ## Alternatives considered
 
@@ -100,6 +120,12 @@ Pi Durable、内建 Pi、Claude 和 Codex 的既有原生能力走同一组桌�
 - AC38 — Junie、DimAgent、Muse Code、Auggie、TRAE CN、Qoder 和 Qoder CN 在验证原生 ACP 能用注入的凭据向选定本机端点发送对话轮次后，提供 Cherry 模型选项。(verification: native ACP and Electron)
 - AC39 — ACP 交互会话连接就绪后，模型下拉从该会话获取原生候选，也可以提供已配置的网关模型。连接就绪前打开下拉不会另起 ACP 进程。设置页和拥有独立原生目录的适配器保留各自的查询入口。(verification: renderer and Electron)
 - AC40 — 进入本机 ACP 普通聊天后，主进程使用所选工作区和工具在后台新建或恢复正式连接。只读历史无需激活运行时。并发发送加入同一次建立或恢复。切换权限需要正式连接，已经打开的权限菜单会在连接就绪后从连接状态更新为会话公布的档位。计划任务会话仍可在连接前选择权限。离开交互视图后，可恢复的空闲连接可以被回收。设置页启用本机 Agent 时检查连通性。(verification: unit, renderer and Electron)
+- AC41 — 会话详情沿用现有上下文用量展示。打开详情或刷新时读取受支持的本机 Agent 订阅额度，显示原生窗口和余额。查询结果只显示在对应 Agent 的会话详情里。Cursor 使用当前 SDK 凭据，按原生计划展示独立额度池，并以只读方式访问 SDK 凭据。(verification: renderer and Electron)
+- AC42 — Muse 使用支持额度查询的原生版本。Kiro 通过只读接口查询当前登录账号的 Credits。MiniMax 仅为当前会话中使用官方 API Key 路由的模型查询 Token Plan。读取额度保持本机凭据和会话历史原样。(verification: unit and Electron)
+- AC43 — 新建和编辑本机 Agent 时，启动配置和账号保存在 provider 上，启用状态、浏览器策略和模型选择保存在绑定上。共用一个 provider 的两个 Agent 可以分别选择模型。(verification: unit and renderer)
+- AC44 — Agent 从 provider A 切到 B 后，已有上下文继续使用 A，新上下文使用 B。在 A 上登录不同账号时沿用 provider ID，并用新的登录尝试恢复原线程。接收输入时检查实际启动配置。确认原生线程丢失或无法恢复时，可在同一个 Cherry 会话通过新线程继续，参考历史仅附一次。启动失败时保留已有分支。(verification: unit and Electron)
+- AC45 — 额度结果发布时，生效路由和账号或席位绑定必须匹配。变更凭据或账号会让在途结果失效。(verification: unit and Electron)
+- AC46 — 追加的结构迁移可在已有数据的 main 数据库执行。新建本机 Agent、配置账号和打开会话使用类型化记录作为存储契约。(verification: unit and Electron)
 
 ## Risks
 

@@ -571,7 +571,7 @@ export function AgentResourceList({
           icon: <SidebarShortcutIcon size={14} pinned={sidebarPinned} />,
           order: 22
         }),
-        ...(owner?.configuration?.localRuntime
+        ...(owner?.localRuntime
           ? []
           : [
               buildResolvedIconTypeMenuAction(

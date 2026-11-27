@@ -1,4 +1,4 @@
-import type { PermissionModeCatalog } from '@cherrystudio/agent-runtime/cli'
+import type { CliPreset, PermissionModeCatalog } from '@cherrystudio/agent-runtime/cli'
 
 export const CODEX_PERMISSION_MODES = {
   id: 'codex-mode',
@@ -42,4 +42,4 @@ export const codexCli = {
   args: ['app-server'],
   helpUrl: 'https://developers.openai.com/codex/cli',
   modelConfig: { target: 'codex-config', field: 'model', overrides: ['CODEX_HOME'], nativeSelection: 'agent' }
-} as const
+} as const satisfies CliPreset<'codex', 'codex-config'>

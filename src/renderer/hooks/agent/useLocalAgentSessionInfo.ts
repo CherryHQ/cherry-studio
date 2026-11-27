@@ -6,8 +6,8 @@ import type { LocalAgentSessionView } from '@shared/ai/localAgent'
 
 const logger = loggerService.withContext('useLocalAgentSessionInfo')
 
-export function useLocalAgentSessionInfo(sessionId: string, enabled: boolean) {
-  const scope = useMemo(() => ({ sessionId, enabled }), [sessionId, enabled])
+export function useLocalAgentSessionInfo(sessionId: string, enabled: boolean, bindingKey?: string) {
+  const scope = useMemo(() => ({ sessionId, enabled, bindingKey }), [sessionId, enabled, bindingKey])
   const [snapshot, setSnapshot] = useState<{ scope: typeof scope; view: LocalAgentSessionView }>()
   useEffect(() => {
     if (!scope.enabled) return

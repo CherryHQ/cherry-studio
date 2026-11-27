@@ -4,10 +4,29 @@ import { describe, expect, it } from 'vitest'
 import { parse as parseYaml } from 'yaml'
 
 import { application } from '@application'
+import { claudeModelProfile } from '@cherrystudio/agent-runtime-claude-code/cli'
 import { resolveConfiguredAcpModel } from '@main/ai/runtime/acp/acpLaunch'
+import { acpModelProfile } from '@main/ai/runtime/acp/acpPresets'
+import { readModelProfile, updateModelProfile } from '@main/ai/runtime/cli/cliModelProfile'
+import { codexCliBinding } from '@main/ai/runtime/codex/codexLaunch'
 import { LOCAL_AGENT_MODEL_CONFIG } from '@shared/ai/localAgentModel'
+import type { CliConfigTarget } from '@shared/utils/cliConfig'
 
-import { readNativeModelConfig, updateNativeModelConfig } from '../nativeModelConfig'
+function profileFor(target: CliConfigTarget) {
+  if (target === claudeModelProfile.target) return claudeModelProfile
+  if (target === codexCliBinding.profile.target) return codexCliBinding.profile
+  const profile = acpModelProfile(target)
+  if (!profile) throw new Error(`Missing model profile for ${target}`)
+  return profile
+}
+
+function updateNativeModelConfig(target: CliConfigTarget, content: string | null, model?: string) {
+  return updateModelProfile(profileFor(target), content, model)
+}
+
+function readNativeModelConfig(target: CliConfigTarget, content: string) {
+  return readModelProfile(profileFor(target), content)
+}
 
 describe('native model defaults', () => {
   it('persists Poolside native defaults without replacing the saved account or other agent servers', () => {

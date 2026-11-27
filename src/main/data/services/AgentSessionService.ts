@@ -19,6 +19,7 @@ import { pinTable } from '@data/db/schemas/pin'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
 import { agentChannelService } from '@data/services/AgentChannelService'
+import { agentProviderService } from '@data/services/AgentProviderService'
 import { agentWorkspaceService, rowToAgentWorkspace } from '@data/services/AgentWorkspaceService'
 import { getDataService } from '@data/services/dataServiceRegistry'
 import { modelService } from '@data/services/ModelService'
@@ -373,12 +374,8 @@ export class AgentSessionService {
     if (dto.model !== undefined && dto.model !== null && !isUniqueModelId(dto.model)) {
       throw DataApiErrorFactory.invalidOperation('create session', `unknown model: ${dto.model}`)
     }
-    const [owner] = tx
-      .select({ type: agentsTable.type, configuration: agentsTable.configuration })
-      .from(agentsTable)
-      .where(eq(agentsTable.id, dto.agentId))
-      .all()
-    if (owner?.type === 'local' && !(owner.configuration.localRuntime as { enabled?: boolean } | undefined)?.enabled)
+    const [owner] = tx.select({ type: agentsTable.type }).from(agentsTable).where(eq(agentsTable.id, dto.agentId)).all()
+    if (owner?.type === 'local' && !agentProviderService.isEnabledTx(tx, dto.agentId))
       throw DataApiErrorFactory.invalidOperation('create session', 'Local agent is disabled')
 
     let workspaceId: string
@@ -1099,7 +1096,7 @@ export class AgentSessionService {
     const reassigned = patch.agentId !== undefined && patch.agentId !== previousAgentId
     if (reassigned) {
       const owners = tx
-        .select({ id: agentsTable.id, type: agentsTable.type, configuration: agentsTable.configuration })
+        .select({ id: agentsTable.id, type: agentsTable.type })
         .from(agentsTable)
         .where(
           inArray(
@@ -1110,10 +1107,7 @@ export class AgentSessionService {
         .all()
       if (owners.some((owner) => owner.type === 'local')) this.assertSessionHasNoMessagesTx(tx, id)
       const target = owners.find((owner) => owner.id === patch.agentId)
-      if (
-        target?.type === 'local' &&
-        !(target.configuration.localRuntime as { enabled?: boolean } | undefined)?.enabled
-      ) {
+      if (target?.type === 'local' && !agentProviderService.isEnabledTx(tx, target.id)) {
         throw DataApiErrorFactory.invalidOperation('change agent', 'Local agent is disabled')
       }
       if (patch.model === undefined && current.model != null) {

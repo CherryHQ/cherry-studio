@@ -43,7 +43,7 @@ const agent: AgentEntity = {
   id: 'agent',
   type: 'local',
   name: 'Pi',
-  configuration: { localRuntime: { presetId: 'pi-acp', enabled: true, args: [], env: {} } }
+  localRuntime: { providerId: 'pi-provider', presetId: 'pi-acp', enabled: true, args: [], env: {} }
 }
 let disk: Map<CliConfigTarget, string>
 
@@ -80,13 +80,11 @@ beforeEach(() => {
       }
       return {
         ...agent,
-        configuration: {
-          localRuntime: {
-            ...agent.configuration!.localRuntime,
-            nativeModel: selection.nativeModel,
-            sourceModelId: selection.sourceModelId,
-            sourceModelViaGateway: selection.sourceModelViaGateway
-          }
+        localRuntime: {
+          ...agent.localRuntime,
+          nativeModel: selection.nativeModel,
+          sourceModelId: selection.sourceModelId,
+          sourceModelViaGateway: selection.sourceModelViaGateway
         }
       } as never
     }
@@ -96,7 +94,7 @@ beforeEach(() => {
 
 it('offers only native models and Cherry models through the gateway', () => {
   const { result } = renderHook(() =>
-    useLocalAgentModelSelection(agent.configuration!.localRuntime, [
+    useLocalAgentModelSelection(agent.localRuntime, [
       {
         id: 'anthropic/native',
         name: 'Native',
@@ -121,54 +119,54 @@ it.each([
   ['antigravity-acp', 'gemini'],
   ['cursor', 'composer']
 ] as const)('selects advertised %s models while keeping gateway models unavailable', async (presetId, id) => {
-  const config = { ...agent.configuration!.localRuntime!, presetId }
+  const config = { ...agent.localRuntime!, presetId }
   const { result } = renderHook(() => useLocalAgentModelSelection(config, [{ id, name: id }]))
   expect(result.current.sourceRestrictions?.native).toBeUndefined()
   expect(result.current.sourceRestrictions?.gateway).toBeTruthy()
   const selected = await result.current.select(agent, id)
-  expect(selected?.configuration?.localRuntime?.nativeModel).toBe(id)
+  expect(selected?.localRuntime?.nativeModel).toBe(id)
   await expect(result.current.select(agent, 'gateway-model:missing')).rejects.toThrow()
 })
 
 it('rejects stale direct-provider selections without changing CLI files', async () => {
-  const { result } = renderHook(() => useLocalAgentModelSelection(agent.configuration!.localRuntime, []))
+  const { result } = renderHook(() => useLocalAgentModelSelection(agent.localRuntime, []))
   await expect(result.current.select(agent, `cherry-model:${model.id}`)).rejects.toThrow()
   expect([...disk]).toEqual([['pi-settings', '{"theme":"dark"}']])
 })
 
 it('saves and clears a launch-only gateway model without writing shared CLI files', async () => {
-  const config = { ...agent.configuration!.localRuntime!, presetId: 'deepagents' }
+  const config = { ...agent.localRuntime!, presetId: 'deepagents' }
   const { result, rerender } = renderHook((current) => useLocalAgentModelSelection(current, []), {
     initialProps: config
   })
   const gatewayModel = result.current.models.find((entry) => entry.source === 'gateway')!
-  const selected = await result.current.select({ ...agent, configuration: { localRuntime: config } }, gatewayModel.id)
-  expect(selected?.configuration?.localRuntime).toMatchObject({ sourceModelId: model.id, sourceModelViaGateway: true })
+  const selected = await result.current.select({ ...agent, localRuntime: config }, gatewayModel.id)
+  expect(selected?.localRuntime).toMatchObject({ sourceModelId: model.id, sourceModelViaGateway: true })
   rerender({ ...config, sourceModelId: model.id, sourceModelViaGateway: true })
   expect(result.current.value).toBe(gatewayModel.id)
   const cleared = await result.current.select(selected!)
-  expect(cleared?.configuration?.localRuntime?.sourceModelId).toBeUndefined()
+  expect(cleared?.localRuntime?.sourceModelId).toBeUndefined()
   expect([...disk]).toEqual([['pi-settings', '{"theme":"dark"}']])
 })
 
 it('binds a Cherry model on the Agent alone, without starting the gateway or touching CLI files', async () => {
   const native = [{ id: 'anthropic/native', name: 'Native' }]
   const { result, rerender } = renderHook((config) => useLocalAgentModelSelection(config, native), {
-    initialProps: agent.configuration!.localRuntime
+    initialProps: agent.localRuntime
   })
   const selected = await result.current.select(agent, `gateway-model:${model.id}`)
-  expect(selected?.configuration?.localRuntime).toMatchObject({ sourceModelId: model.id, sourceModelViaGateway: true })
+  expect(selected?.localRuntime).toMatchObject({ sourceModelId: model.id, sourceModelViaGateway: true })
   expect(gatewayState.start).not.toHaveBeenCalled()
   expect([...disk]).toEqual([['pi-settings', '{"theme":"dark"}']])
-  rerender(selected!.configuration!.localRuntime)
+  rerender(selected!.localRuntime)
   expect(result.current.value).toBe(`gateway-model:${model.id}`)
   const restored = await result.current.select(selected!, 'anthropic/native')
-  expect(restored?.configuration?.localRuntime).toMatchObject({ nativeModel: 'anthropic/native' })
-  expect(restored?.configuration?.localRuntime?.sourceModelId).toBeUndefined()
+  expect(restored?.localRuntime).toMatchObject({ nativeModel: 'anthropic/native' })
+  expect(restored?.localRuntime?.sourceModelId).toBeUndefined()
 })
 
 it('offers no Cherry models to an agent Cherry cannot bind at launch', async () => {
-  const config = { ...agent.configuration!.localRuntime!, presetId: 'factory-droid' }
+  const config = { ...agent.localRuntime!, presetId: 'factory-droid' }
   const { result } = renderHook(() => useLocalAgentModelSelection(config, [{ id: 'native', name: 'native' }]))
   expect(result.current.models.some((option) => option.source === 'gateway')).toBe(false)
   await expect(result.current.select(agent, `gateway-model:${model.id}`)).rejects.toThrow()

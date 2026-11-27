@@ -9,7 +9,7 @@ import { agentSessionService } from '@data/services/AgentSessionService'
 
 export function prepareClaudeBranch(
   sessionId: string,
-  source: string | { agentId: string },
+  configDir: string,
   nativeId?: string,
   messageId?: string,
   opening = false
@@ -19,13 +19,7 @@ export function prepareClaudeBranch(
     const root = ensureAgentSessionRootTx(tx, sessionId)
     const anchor = messageId ?? getAgentSessionHead(tx, sessionId) ?? root
     const existing = contexts.branchTx(tx, sessionId, anchor)
-    const backend = contexts.ensureBackendTx(
-      tx,
-      typeof source === 'string'
-        ? { version: 1, kind: 'claude-code', configDir: source }
-        : { version: 1, kind: 'local', agentId: source.agentId },
-      'bound'
-    )
+    const backend = contexts.ensureBackendTx(tx, { version: 1, kind: 'claude-code', configDir }, 'bound')
     if (existing && (opening || !nativeId || existing.nativeThreadId === nativeId)) {
       if (existing.backendId !== backend.id) throw new Error('The selected branch belongs to another runtime backend')
       return existing

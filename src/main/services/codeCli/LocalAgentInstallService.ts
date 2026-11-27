@@ -7,9 +7,11 @@ import { valid, gt } from 'semver'
 
 import { application } from '@application'
 import type { CliInstallPlan } from '@cherrystudio/agent-runtime/cli'
+import { agentProviderService } from '@data/services/AgentProviderService'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
+import { resolveLocalContext } from '@main/ai/agentSession/localContext'
 import { inspectAgentInstallation, selectAvailableInstallation } from '@main/ai/runtime/cli/installedCli'
 import { readInstalledPackageVersion, resolveInstalledExecutable } from '@main/ai/runtime/cli/installedVersion'
 import { resolveRequiredRuntime } from '@main/ai/runtime/cli/runtimeDependency'
@@ -191,13 +193,22 @@ export class LocalAgentInstallService extends BaseService {
 
   private closeIdleAgentSessions(presetIds: readonly string[]): Promise<boolean> {
     const targets = new Set(presetIds)
+    const runtime = application.get('AgentSessionRuntimeService')
     const sessionIds = agentService
       .listAgents()
-      .agents.filter(
-        (agent) => agent.type === 'local' && targets.has(agent.configuration?.localRuntime?.presetId ?? '')
+      .agents.filter((agent) => agent.type === 'local')
+      .flatMap(({ id, localRuntime }) =>
+        agentSessionService.listIdsByAgent(id).filter((sessionId) => {
+          const connected = runtime.getConnectedLocalRuntime(sessionId)
+          if (connected) return targets.has(connected.presetId ?? '')
+          const context = resolveLocalContext(sessionId)
+          const presetId = context
+            ? agentProviderService.getProviderConfiguration(context.providerId)?.presetId
+            : localRuntime?.presetId
+          return targets.has(presetId ?? '')
+        })
       )
-      .flatMap((agent) => agentSessionService.listIdsByAgent(agent.id))
-    return application.get('AgentSessionRuntimeService').closeIdleSessions(sessionIds)
+    return runtime.closeIdleSessions(sessionIds)
   }
 
   async getVersion(presetId: string, latest: boolean) {

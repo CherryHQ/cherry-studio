@@ -124,11 +124,9 @@ describe('AgentProfilePane', () => {
 
   it('uses a fixed icon for a local Agent with a previously saved avatar', () => {
     agent = {
-      ...createAgent({
-        avatar: '🍉',
-        localRuntime: { presetId: 'codex', enabled: true, args: [], env: {} }
-      }),
-      type: 'local'
+      ...createAgent({ avatar: '🍉' }),
+      type: 'local',
+      localRuntime: { providerId: 'codex-provider', presetId: 'codex', enabled: true, args: [], env: {} }
     }
     serveAgentData()
     renderInRightPane(<AgentProfilePane agentId={agent.id} />)

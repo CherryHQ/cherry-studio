@@ -337,6 +337,7 @@
   "agent.right_pane.info.session_cost": "Coût total de la session",
   "agent.right_pane.info.shell_tasks": "Commandes en arrière-plan",
   "agent.right_pane.info.subagents": "Sous-agents",
+  "agent.right_pane.info.subscription_quota": "Quota d’abonnement",
   "agent.right_pane.info.workflows": "Flux de travail",
   "agent.right_pane.status.stop_run_task": "Arrêter la tâche",
   "agent.right_pane.status.stop_run_task_failed": "Impossible d'arrêter la tâche",

@@ -197,7 +197,7 @@ describe('AgentChat top-bar workspace identity', () => {
       orderKey: 'a1',
       createdAt: timestamp,
       updatedAt: timestamp,
-      configuration: { localRuntime: { presetId: 'claude', enabled: true, args: [], env: {} } }
+      localRuntime: { providerId: 'claude-provider', presetId: 'claude', enabled: true, args: [], env: {} }
     }
     mockUseQuery.mockImplementation((path, options) => {
       const result = defaultQuery(path, options)

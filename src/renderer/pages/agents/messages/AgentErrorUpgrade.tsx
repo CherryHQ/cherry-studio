@@ -24,7 +24,7 @@ const logger = loggerService.withContext('AgentErrorUpgrade')
 export function AgentErrorUpgrade({ agentId }: { agentId: string }) {
   const { t } = useTranslation()
   const { agent } = useAgent(agentId)
-  const config = agent?.configuration?.localRuntime
+  const config = agent?.localRuntime
   const presetId = config?.presetId === 'codex' && config.enabled && !config.executableOverride ? 'codex' : undefined
   const [path, setPath] = useState<string>()
   const [upgrading, setUpgrading] = useState(false)

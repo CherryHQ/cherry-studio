@@ -209,8 +209,8 @@ const agentProvider: SidebarShortcutProvider = {
       (agent) => agent.id,
       (agent) => ({
         label: agent.name,
-        renderIcon: agent.configuration?.localRuntime
-          ? renderLocalAgentShortcutIcon({ presetId: agent.configuration.localRuntime.presetId })
+        renderIcon: agent.localRuntime
+          ? renderLocalAgentShortcutIcon({ presetId: agent.localRuntime.presetId })
           : ({ slotSize }) =>
               renderAgentEntityIcon(iconType === 'none' ? 'emoji' : iconType, agent, defaultModelId, slotSize),
         supportsNewTab: true
@@ -454,7 +454,7 @@ const localAgentProvider: SidebarShortcutProvider = {
       (agent) => (agent.type === 'local' ? agent.id : ''),
       (agent) => ({
         label: agent.name,
-        renderIcon: renderLocalAgentShortcutIcon({ presetId: agent.configuration?.localRuntime?.presetId }),
+        renderIcon: renderLocalAgentShortcutIcon({ presetId: agent.localRuntime?.presetId }),
         supportsNewTab: false
       })
     )

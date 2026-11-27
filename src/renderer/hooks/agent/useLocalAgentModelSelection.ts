@@ -17,7 +17,6 @@ import type { AgentEntity } from '@shared/data/types/agent'
 import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
 import { CLI_API_GATEWAY_PROVIDER_ID, CodeCli, DEEPSEEK_HARNESS_GATEWAY_ROUTE } from '@shared/types/codeCli'
 import { formatGatewayModelId } from '@shared/utils/apiGateway'
-import { getCliConfigTargets } from '@shared/utils/cliConfig'
 
 export type LocalAgentModelOption = LocalAgentModelCatalog['models'][number] & {
   group?: string
@@ -146,17 +145,9 @@ export function useLocalAgentModelSelection(
     }
     if (isCursor && id === CURSOR_AUTO_MODEL_ID) return updateNativeModel(agent.id)
     if (model || id?.startsWith(GATEWAY_MODEL_PREFIX)) throw new Error(t('local_agents.models_unavailable'))
-    if (storage?.type === 'agent' || native?.nativeSelection === 'agent') {
-      if (id && !nativeModels.some((model) => model.id === id)) throw new Error(t('local_agents.models_unavailable'))
-      return updateNativeModel(agent.id, id)
-    }
-    if (!native) throw new Error(t('local_agents.global_model_unavailable'))
-    if (id?.startsWith('cherry-model:')) throw new Error(t('local_agents.models_unavailable'))
-    if (id && config?.sourceModelId && !gatewayModelId && id === config.nativeModel) return agent
-    const { files: expectedFiles } = await ipcApi.request('code_cli.read_config', {
-      targets: [...getCliConfigTargets(native.tool)]
-    })
-    return updateNativeModel(agent.id, id, { expectedFiles })
+    if (!storage) throw new Error(t('local_agents.global_model_unavailable'))
+    if (id && !nativeModels.some((model) => model.id === id)) throw new Error(t('local_agents.models_unavailable'))
+    return updateNativeModel(agent.id, id)
   }
   return {
     models: options,

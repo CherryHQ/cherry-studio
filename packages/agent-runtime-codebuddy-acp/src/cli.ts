@@ -1,4 +1,4 @@
-import { acpConfigRecord, type AcpPermissionModes } from '@cherrystudio/agent-runtime-acp/profile'
+import { acpConfigRecord, type AcpCliPreset } from '@cherrystudio/agent-runtime-acp/profile'
 
 const accountRequestId = 'cherry-account'
 
@@ -43,7 +43,7 @@ export const codeBuddyCli = {
       auto: 'auto',
       bypasspermissions: 'bypassPermissions'
     }
-  } satisfies AcpPermissionModes,
+  },
   modelEndpoints: ['openai-chat-completions', 'openai-responses'],
   terminalArgs: [],
   modelConfig: { tool: 'codebuddy-code', target: 'codebuddy-settings', overrides: ['CODEBUDDY_MODEL'] },
@@ -54,4 +54,4 @@ export const codeBuddyCli = {
   aliases: ['codebuddy-code', 'cbc'],
   args: ['--acp'],
   helpUrl: 'https://www.codebuddy.cn/cli/'
-} as const
+} as const satisfies AcpCliPreset<'codebuddy-settings'>

@@ -16,6 +16,7 @@
     "typecheck": "pnpm --workspace-root exec tsrs --noEmit -p packages/agent-runtime-dimcode-acp/tsconfig.json"
   },
   "devDependencies": {
+    "@cherrystudio/agent-runtime-acp": "workspace:*",
     "tsdown": "^0.22.14",
     "typescript": "npm:@typescript/typescript6@6.0.2"
   }

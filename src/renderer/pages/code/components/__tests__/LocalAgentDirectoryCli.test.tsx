@@ -46,7 +46,7 @@ it('keeps enabled Agents first and applies the saved order within each status', 
         orderKey: 'a0',
         createdAt: '',
         updatedAt: '',
-        configuration: { localRuntime: { presetId: 'kilo', enabled: true, args: [], env: {} } }
+        localRuntime: { providerId: 'kilo-provider', presetId: 'kilo', enabled: true, args: [], env: {} }
       }
     ],
     total: 1,

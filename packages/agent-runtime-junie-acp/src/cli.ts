@@ -1,4 +1,4 @@
-import type { AcpPermissionModes } from '@cherrystudio/agent-runtime-acp/profile'
+import type { AcpCliPreset } from '@cherrystudio/agent-runtime-acp/profile'
 
 export const junieCli = {
   id: 'junie',
@@ -11,7 +11,7 @@ export const junieCli = {
     approvalConfigId: 'brave_mode',
     workflowConfigId: 'mode',
     values: { default: 'default', plan: 'plan', off: 'default', 'brave-auto': 'auto', on: 'bypassPermissions' }
-  } satisfies AcpPermissionModes,
+  },
   loginArgs: [],
   credentialEnvironment: [
     'JUNIE_API_KEY',
@@ -26,4 +26,4 @@ export const junieCli = {
     'JUNIE_LITELLM_API_KEY'
   ],
   helpUrl: 'https://junie.jetbrains.com'
-} as const
+} as const satisfies AcpCliPreset

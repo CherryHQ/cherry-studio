@@ -1,12 +1,12 @@
 import { application } from '@application'
 import type { RuntimeAccountAccess } from '@cherrystudio/agent-runtime'
 import { withStartupSignal } from '@cherrystudio/agent-runtime/stdio'
-import type { LocalAgentConfiguration } from '@shared/ai/localAgent'
+import type { LocalAgentConfiguration, LocalAgentRuntime } from '@shared/ai/localAgent'
 
-import type { AgentRuntimeConnectInput } from '../types'
+import type { LocalRuntimeConnectInput } from '../types'
 import { loadLocalClaudeRuntime } from './loaders'
 
-export async function connect(input: AgentRuntimeConnectInput, config: LocalAgentConfiguration, cwd: string) {
+export async function connect(input: LocalRuntimeConnectInput, config: LocalAgentRuntime, cwd: string) {
   const { LocalClaudeConnection } = await loadLocalClaudeRuntime()
   const live = new LocalClaudeConnection(input, config)
   return withStartupSignal(

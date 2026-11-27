@@ -7,6 +7,7 @@ import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentTaskService } from '@data/services/AgentTaskService'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { protectLocalAgentEnvironment } from '@main/services/localAgentCredentials'
 import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
 import type { LocalAgentLaunchSettings } from '@shared/ai/localAgent'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
@@ -95,10 +96,11 @@ export class AgentLifecycleService extends BaseService {
             .filter((workspace) => workspace.deletedAt !== null && workspace.deletedAt === workspace.agentDeletedAt)
           const { agent, scheduleIds, restoredSessionIds } = await agentWorkspaceStorageService.restoreWorkspaces(
             workspaces,
-            () =>
-              application.get('DbService').withWriteTx((tx) => {
-                const { agent, restoredSessionIds } = agentService.restoreAgentTx(tx, agentId, launchSettings)
-                const enabled = agent.type !== 'local' || agent.configuration?.localRuntime?.enabled
+            () => {
+              const settings = launchSettings && protectLocalAgentEnvironment(launchSettings, agentId)
+              return application.get('DbService').withWriteTx((tx) => {
+                const { agent, restoredSessionIds } = agentService.restoreAgentTx(tx, agentId, settings)
+                const enabled = agent.type !== 'local' || agent.localRuntime?.enabled
                 return {
                   agent,
                   restoredSessionIds,
@@ -106,6 +108,7 @@ export class AgentLifecycleService extends BaseService {
                     .scheduleIds
                 }
               })
+            }
           )
           this.syncSchedules(scheduleIds)
           application.get('ChannelManager').reconcileAgent(agentId)

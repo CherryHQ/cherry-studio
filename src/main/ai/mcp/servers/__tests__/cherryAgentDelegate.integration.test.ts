@@ -1,11 +1,11 @@
 import { McpServer } from '@modelcontextprotocol/server'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockApplicationUtils } from '@test-mocks/main/application'
-import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { agentProviderService } from '@data/services/AgentProviderService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
@@ -57,19 +57,21 @@ describe('agent_delegate project and admission contract', () => {
           type: 'local',
           name: 'Codex',
           instructions: '',
-          orderKey: 'b',
-          configuration: { localRuntime: { presetId: 'codex', enabled: true, args: [], env: {} } }
+          orderKey: 'b'
         },
         {
           id: 'disabled',
           type: 'local',
           name: 'Disabled',
           instructions: '',
-          orderKey: 'c',
-          configuration: { localRuntime: { presetId: 'opencode', enabled: false, args: [], env: {} } }
+          orderKey: 'c'
         }
       ])
       .run()
+    dbh.db.transaction((tx) => {
+      agentProviderService.setBindingTx(tx, 'local-target', { presetId: 'codex', enabled: true })
+      agentProviderService.setBindingTx(tx, 'disabled', { presetId: 'opencode', enabled: false })
+    })
     const workspace = agentWorkspaceService.findOrCreateByPath('/tmp/delegate-caller-project')
     const session = agentSessionService.create({
       agentId: 'caller',
@@ -151,11 +153,7 @@ describe('agent_delegate project and admission contract', () => {
 
   it('rechecks enablement after discovery and refuses nonlocal targets', async () => {
     await callBuiltinTool(createServer, 'agent_list', {})
-    dbh.db
-      .update(agentTable)
-      .set({ configuration: { localRuntime: { presetId: 'codex', enabled: false, args: [], env: {} } } })
-      .where(eq(agentTable.id, 'local-target'))
-      .run()
+    dbh.db.transaction((tx) => agentProviderService.setBindingTx(tx, 'local-target', { enabled: false }))
     const before = dbh.db.select().from(agentSessionTable).all().length
     expect((await delegate()).isError).toBe(true)
     expect((await delegate({ target_agent_id: 'caller' })).isError).toBe(true)

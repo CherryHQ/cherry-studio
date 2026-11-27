@@ -10,13 +10,16 @@ import type {
   ClaudeThreadHandle
 } from '@cherrystudio/agent-runtime-claude-code'
 import { createClaudeCodeRuntime } from '@cherrystudio/agent-runtime-claude-code'
+import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
+import { agentProviderService } from '@data/services/AgentProviderService'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { LocalPermissionOptionsSchema, type LocalAgentConfiguration } from '@shared/ai/localAgent'
 
 import { acquireLocalAgentBrowserLease } from '../../../mcp/localAgentBrowserBridge'
 import type * as BrowserBridgeModule from '../../../mcp/localAgentBrowserBridge'
+import { localLaunch } from '../../__tests__/fixtures/localLaunch'
 import type { AgentRuntimeEvent } from '../../types'
 import { LocalClaudeConnection } from '../LocalClaudeConnection'
 import { resolveClaudeLaunch } from '../localClaudeLaunch'
@@ -125,7 +128,17 @@ async function startLocalClaude(nativeModel = 'cherryin:anthropic/claude-haiku-4
     env: {},
     nativeModel
   }
-  const connection = new LocalClaudeConnection({ sessionId, agentId: 'agent-claude', modelId: 'runtime:agent' }, config)
+  const agentId = randomUUID()
+  db.db
+    .insert(agentTable)
+    .values({ id: agentId, type: 'local', name: 'Claude', instructions: '', orderKey: 'a0' })
+    .run()
+  const runtime = agentProviderService.setBindingTx(db.db, agentId, config)
+  const launch = localLaunch(runtime, runtime.providerId)
+  const connection = new LocalClaudeConnection(
+    { sessionId, agentId, modelId: 'runtime:agent', localTarget: launch.target },
+    launch.config
+  )
   const events: AgentRuntimeEvent[] = []
   const drained = (async () => {
     for await (const event of connection.events) events.push(event)

@@ -98,24 +98,11 @@ const AgentSessionMessages = ({
   const { session } = useSession(sessionId)
   useEffect(() => {
     if (!onLocalRestoreChecked) return
-    let current = true
-    const unsubscribe = ipcApi.on('ai.local_agents.session_updated', (event) => {
+    onLocalRestoreChecked(false)
+    return ipcApi.on('ai.local_agents.session_updated', (event) => {
       if (event.sessionId !== sessionId || (!event.info && !event.restoreUnavailable)) return
-      current = false
-      onLocalRestoreChecked(event.restoreUnavailable === true || event.info?.resume === false)
+      onLocalRestoreChecked(event.restoreUnavailable === true)
     })
-    void ipcApi.request('ai.local_agents.session_info', { sessionId }).then(
-      (view) => {
-        if (current) onLocalRestoreChecked(view?.info?.resume === false)
-      },
-      () => {
-        if (current) onLocalRestoreChecked(false)
-      }
-    )
-    return () => {
-      current = false
-      unsubscribe()
-    }
   }, [sessionId, onLocalRestoreChecked])
 
   const sessionTopicId = useMemo(() => buildAgentSessionTopicId(sessionId), [sessionId])
@@ -135,8 +122,8 @@ const AgentSessionMessages = ({
         ? {
             id: activeAgent.id,
             name: activeAgent.name,
-            avatarIcon: activeAgent.configuration?.localRuntime ? (
-              <LocalAgentIcon presetId={activeAgent.configuration.localRuntime.presetId} size={30} />
+            avatarIcon: activeAgent.localRuntime ? (
+              <LocalAgentIcon presetId={activeAgent.localRuntime.presetId} size={30} />
             ) : undefined,
             avatar: getAgentAvatarFromConfiguration(activeAgent.configuration, activeAgent.avatarSrc)
           }
@@ -195,7 +182,7 @@ const AgentSessionMessages = ({
     supportsNativeFork: !!activeAgent && activeAgent.type !== 'local',
     providerErrorSettingsPath:
       activeAgent?.type === 'local'
-        ? `/settings/local-agents?id=${encodeURIComponent(activeAgent.configuration?.localRuntime?.presetId ?? activeAgent.id)}`
+        ? `/settings/local-agents?id=${encodeURIComponent(activeAgent.localRuntime?.presetId ?? activeAgent.id)}`
         : undefined,
     isLoading,
     hasOlder,

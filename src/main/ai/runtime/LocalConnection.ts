@@ -1,10 +1,12 @@
 import { randomUUID } from 'node:crypto'
+import { isDeepStrictEqual } from 'node:util'
 
 import type { SharedV3ProviderMetadata } from '@ai-sdk/provider'
 import type { DynamicToolUIPart, FinishReason } from 'ai'
 
 import { runtimeId, type ItemRef, type RuntimePartEdit } from '@cherrystudio/agent-runtime'
-import { agentService } from '@data/services/AgentService'
+import type { AgentSessionContextRow } from '@data/db/schemas/agentSessionContext'
+import { agentProviderService } from '@data/services/AgentProviderService'
 import { agentSessionContextService } from '@data/services/AgentSessionContextService'
 import { toolApprovalRegistry, type DispatchDecision } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
@@ -14,10 +16,16 @@ import {
   elicitationValidator,
   type ElicitationContent
 } from '@shared/ai/elicitation'
-import type { LocalAgentConfiguration, LocalAgentSessionInfo } from '@shared/ai/localAgent'
+import type { LocalAgentRuntime, LocalAgentSessionInfo } from '@shared/ai/localAgent'
 import { AsyncEventQueue } from '@shared/utils/async'
 
-import { bindLocalContext, localContext } from '../agentSession/localContext'
+import {
+  bindLocalContext,
+  localBindingMatches,
+  localContext,
+  type LocalLaunchTarget
+} from '../agentSession/localContext'
+import { bindNativeInput } from '../agentSession/nativeSubmission'
 import type {
   AgentRuntimeConnection,
   AgentRuntimeEvent,
@@ -31,6 +39,9 @@ export abstract class LocalConnection implements AgentRuntimeConnection {
   readonly sessionCostScope = 'native-session' as const
   readonly events = new AsyncEventQueue<AgentRuntimeEvent>()
   private info?: LocalAgentSessionInfo
+  get localRuntime(): LocalAgentRuntime {
+    return this.config
+  }
   get localSessionInfo(): LocalAgentSessionInfo {
     return (this.info ??= { models: [], images: false, resume: false })
   }
@@ -38,7 +49,7 @@ export abstract class LocalConnection implements AgentRuntimeConnection {
   protected readonly abort = new AbortController()
   protected turnAbort = new AbortController()
   private unattendedDenial?: string
-  private context?: ReturnType<typeof localContext>
+  private context?: AgentSessionContextRow
   private nativeThreadId?: string
   private activeSource?: LocalSource
   private contentPart?: { type: 'text' | 'reasoning'; part: number }
@@ -55,9 +66,12 @@ export abstract class LocalConnection implements AgentRuntimeConnection {
   constructor(
     protected readonly sessionId: string,
     protected readonly agentId: string,
-    protected readonly config: LocalAgentConfiguration,
+    protected readonly config: LocalAgentRuntime,
+    private target: LocalLaunchTarget,
     protected readonly headless = false
-  ) {}
+  ) {
+    if (target.kind === 'resume') this.context = target.context
+  }
 
   abstract send(input: AgentRuntimeUserInput): Promise<void>
   protected abstract stop(): Promise<void>
@@ -95,10 +109,10 @@ export abstract class LocalConnection implements AgentRuntimeConnection {
 
   async reconcile({ headless = false }: { headless?: boolean } = {}): Promise<AgentRuntimeReconcileResult> {
     if (headless !== this.headless) return 'rebuild'
-    const current = agentService.getAgent(this.agentId)?.configuration?.localRuntime
+    const current = agentProviderService.getBinding(this.agentId)
     if (!current?.enabled) return this.active ? 'rebuild' : 'invalid'
     if (this.closed) return 'rebuild'
-    return JSON.stringify(current) === JSON.stringify(this.config) ? 'current' : 'rebuild'
+    return localBindingMatches(this.target, current, this.config.browserControl) ? 'current' : 'rebuild'
   }
 
   protected publishResumeToken(token: string) {
@@ -108,18 +122,39 @@ export abstract class LocalConnection implements AgentRuntimeConnection {
   }
   protected attachLocalContext(nativeId: string): boolean {
     if (this.context?.nativeThreadId === nativeId) return true
-    const context = agentSessionContextService.localRootForThread(this.sessionId, this.agentId, nativeId)
+    const context = agentSessionContextService.localRootForThread(this.sessionId, this.config.providerId, nativeId)
     if (!context) return false
     this.context = context
     this.nativeThreadId = nativeId
+    this.target = { ...this.target, kind: 'resume', context }
     return true
   }
-  protected begin(inputId: string, resume = this.nativeThreadId) {
-    if (this.closed || this.active) throw new Error('Local agent connection is unavailable')
-    if (!this.context || (resume && this.context.nativeThreadId !== resume)) {
-      this.context = localContext(this.sessionId, this.agentId, inputId, resume)
-      if (resume && !this.context.nativeThreadId) this.context = bindLocalContext(this.context.id, resume)
+
+  claimLocalContext(inputId: string, resume = this.nativeThreadId): boolean {
+    if (
+      this.context &&
+      (!resume || this.context.nativeThreadId === resume) &&
+      isDeepStrictEqual(this.context.localModel, this.target.model)
+    ) {
+      return localBindingMatches(this.target, agentProviderService.getBinding(this.agentId), this.config.browserControl)
     }
+    const context = localContext(this.sessionId, this.agentId, inputId, this.target, this.config.browserControl, resume)
+    if (!context) return false
+    this.context = resume && !context.nativeThreadId ? bindLocalContext(context.id, resume) : context
+    this.target = { ...this.target, kind: 'resume', context: this.context }
+    return true
+  }
+
+  protected begin(input: string | AgentRuntimeUserInput, resume = this.nativeThreadId) {
+    const inputId = typeof input === 'string' ? input : input.message.id
+    if (this.closed || this.active) throw new Error('Local agent connection is unavailable')
+    if (
+      (!this.context || (resume && this.context.nativeThreadId !== resume)) &&
+      !this.claimLocalContext(inputId, resume)
+    )
+      throw new Error('Local agent binding changed before input was admitted')
+    if (typeof input !== 'string' && input.context?.length && this.context)
+      bindNativeInput(this.sessionId, this.context.id, input.message)
     this.activeSource = this.openSource()
     this.active = true
     this.unattendedDenial = undefined

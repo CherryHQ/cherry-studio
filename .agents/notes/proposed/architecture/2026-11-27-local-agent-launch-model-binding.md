@@ -12,7 +12,7 @@ Only OpenCode and Kilo replace the file's key with a session credential at launc
 
 ## Proposal
 
-The Agent record is the only owner of a Cherry model selection (`localRuntime.sourceModelId` with `sourceModelViaGateway`). Selecting, switching or clearing a Cherry model writes no CLI file and neither starts nor enables the user-facing gateway.
+The [Agent's provider binding](2026-11-26-desktop-agent-runtime-capabilities.md#agent-provider-data-model) owns the default Cherry model selection. Selecting, switching or clearing a Cherry model writes no CLI file and neither starts nor enables the user-facing gateway.
 
 Every process Cherry spawns for that Agent receives the selection at spawn: chat sessions, scheduled tasks and Cherry-launched terminals. Main resolves the Cherry model, selects an endpoint the CLI accepts and obtains a credential scoped to the launch and model from the internal loopback gateway. It then applies the preset's binding and releases the credential and any binding resources when the process ends. Model catalog, account and sign-in probes run without a binding.
 

@@ -7,6 +7,7 @@ import {
 } from '@cherrystudio/agent-runtime-codex'
 import { selectedPermissionMode } from '@cherrystudio/agent-runtime/cli'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
+import type { LocalAgentSessionInfo } from '@shared/ai/localAgent'
 import { LocalAgentTurnUsageSchema } from '@shared/ai/localAgentUsage'
 import { NativeQuestionReplySchema } from '@shared/ai/nativeInteraction'
 
@@ -33,7 +34,7 @@ export class CodexSessionHost extends LocalConnection {
   private browser?: LocalAgentBrowserLease
   private modelBinding?: { dispose(): Promise<void> }
 
-  override get localSessionInfo() {
+  override get localSessionInfo(): LocalAgentSessionInfo {
     return this.session?.info ?? super.localSessionInfo
   }
 
@@ -125,10 +126,13 @@ export class CodexSessionHost extends LocalConnection {
         return
       case 'thread-changed':
         return this.publishResumeToken(event.threadId)
-      case 'native-start':
+      case 'native-start': {
+        const anchor = this.branchHead ?? agentSessionMessageService.captureHead(this.sessionId)
+        if (!this.claimLocalContext(anchor, event.threadId)) return
         this.events.push({ type: 'autonomous-turn-state', state: 'started', origin: { kind: 'native-turn' } })
-        this.begin(this.branchHead ?? agentSessionMessageService.captureHead(this.sessionId), event.threadId)
+        this.begin(anchor, event.threadId)
         return
+      }
       case 'native-finish':
         this.events.push({ type: 'autonomous-turn-state', state: 'finished' })
         return
@@ -290,7 +294,7 @@ export class CodexSessionHost extends LocalConnection {
   async send(input: AgentRuntimeUserInput) {
     const session = this.connected
     const content = await localContent(input, session.info.images)
-    this.begin(input.message.id)
+    this.begin(input)
     this.branchHead = input.message.id
     try {
       await session.send(content, input.message.id)

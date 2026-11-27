@@ -1,3 +1,5 @@
+import type { AcpCliPreset } from '@cherrystudio/agent-runtime-acp/profile'
+
 export const poolsideEnvironmentKeys = {
   apiKey: 'POOLSIDE_API_KEY',
   baseUrl: 'POOLSIDE_STANDALONE_BASE_URL',
@@ -15,4 +17,4 @@ export const poolsideCli = {
   executable: 'pool',
   args: ['acp'],
   helpUrl: 'https://poolside.ai'
-} as const
+} as const satisfies AcpCliPreset<'poolside-settings'>

@@ -337,6 +337,7 @@
   "agent.right_pane.info.session_cost": "ค่าใช้จ่ายรวมของเซสชัน",
   "agent.right_pane.info.shell_tasks": "คำสั่งพื้นหลัง",
   "agent.right_pane.info.subagents": "เอเจนต์ย่อย",
+  "agent.right_pane.info.subscription_quota": "โควตาการสมัครสมาชิก",
   "agent.right_pane.info.workflows": "เวิร์กโฟลว์",
   "agent.right_pane.status.stop_run_task": "หยุดงาน",
   "agent.right_pane.status.stop_run_task_failed": "ไม่สามารถหยุดงานได้",

@@ -40,10 +40,12 @@ import { toast } from '@renderer/services/toast'
 import { classifyLocalAgentError } from '@renderer/utils/agent/localAgentError'
 import {
   getLocalAgentPreset,
+  type LocalAgentAccount,
   type LocalAgentAuthMethod,
   type LocalAgentConfiguration,
   type LocalAgentModelCatalog
 } from '@shared/ai/localAgent'
+import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { OutputFor } from '@shared/ipc/types'
 
 const loginIcons = { browser: CircleUserRound, enterprise: Building2, 'api-key': KeyRound, cloud: Cloud }
@@ -55,18 +57,23 @@ export function clearLocalAgentAuthStatusCache(): void {
   cachedAccounts.clear()
 }
 
-function accountSignature(config: LocalAgentConfiguration) {
-  return JSON.stringify({
-    presetId: config.presetId,
-    executableOverride: config.executableOverride,
-    args: config.args,
-    env: config.env,
-    enabled: true
-  })
+function accountSignature(config: LocalAgentConfiguration, agent?: Pick<AgentEntity, 'id' | 'localRuntime'>) {
+  return JSON.stringify([
+    agent?.localRuntime?.providerId,
+    {
+      agentId: agent?.id,
+      presetId: config.presetId,
+      executableOverride: config.executableOverride,
+      args: config.args,
+      env: config.env,
+      enabled: true
+    }
+  ])
 }
 
 export function LocalAgentLogin({
   config,
+  agent,
   authMethods,
   modelsLoading,
   freshCatalog,
@@ -80,6 +87,7 @@ export function LocalAgentLogin({
   onAuthenticated
 }: {
   config: LocalAgentConfiguration
+  agent?: Pick<AgentEntity, 'id' | 'localRuntime'>
   authMethods?: LocalAgentAuthMethod[]
   modelsLoading: boolean
   freshCatalog?: LocalAgentModelCatalog
@@ -90,13 +98,13 @@ export function LocalAgentLogin({
   helpUrl?: string
   onTerminalLogin?: (provider?: string) => Promise<void>
   onConfigureCredentials?: () => void
-  onAuthenticated: (config: LocalAgentConfiguration) => Promise<void>
+  onAuthenticated: (config: LocalAgentConfiguration, account?: LocalAgentAccount) => Promise<void>
 }) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [discovered, setDiscovered] = useState<{ signature: string; methods: LocalAgentAuthMethod[] }>()
-  const signature = accountSignature(config)
+  const signature = accountSignature(config, agent)
   const preset = getLocalAgentPreset(config.presetId)
   const account = preset?.account
   const methods: readonly LocalAgentAuthMethod[] | undefined =
@@ -173,7 +181,7 @@ export function LocalAgentLogin({
       }
       pending = true
       const result = await ipcApi
-        .request('ai.local_agents.read_account', JSON.parse(signature))
+        .request('ai.local_agents.read_account', JSON.parse(signature)[1])
         .catch(() => ({ status: 'unknown' as const }))
       pending = false
       if (!active) return
@@ -201,7 +209,7 @@ export function LocalAgentLogin({
     if (!available || modelsLoading || authMethods !== undefined) return
     let active = true
     void ipcApi
-      .request('ai.local_agents.check', JSON.parse(signature))
+      .request('ai.local_agents.check', JSON.parse(signature)[1])
       .then((result) => {
         if (active && result.protocolInfo) setDiscovered({ signature, methods: result.protocolInfo.authMethods ?? [] })
       })
@@ -363,21 +371,22 @@ export function LocalAgentLogin({
     setBusy(true)
     setError(undefined)
     try {
-      await ipcApi.request('ai.local_agents.authenticate', {
+      const account = await ipcApi.request('ai.local_agents.authenticate', {
         requestId,
         config: nextConfig,
         methodId,
+        ...(agent && { agentId: agent.id }),
         ...(secret ? { secret } : {}),
         ...(cliProvider ? { provider: cliProvider } : {})
       })
       if (generation.current !== current) return
       request.current = undefined
-      await onAuthenticated(nextConfig)
+      await onAuthenticated(nextConfig, account)
       if (generation.current !== current) return
       cachedAccounts.delete(signature)
       if (canReadAccount) setAccountRead(undefined)
       else {
-        const verifiedSignature = accountSignature(nextConfig)
+        const verifiedSignature = accountSignature(nextConfig, agent)
         const result = { status: 'signed-in' } as const
         cachedAccounts.set(verifiedSignature, result)
         setAccountRead({ signature: verifiedSignature, result })

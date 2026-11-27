@@ -12,6 +12,7 @@ import {
   acpHostError,
   acpPermissionChoice,
   acpPermissionControl,
+  advertisesAcpSubscriptionUsage,
   connectAcpStdio,
   mapAcpPermissionOptions,
   type AcpThreadHandle,
@@ -324,6 +325,7 @@ export class AcpConnection extends LocalConnection {
     this.shutdownRuntime = client.shutdown
     const agent = await client.initialize()
     const { response } = agent
+    this.localSessionInfo.subscriptionUsage = advertisesAcpSubscriptionUsage(response) ? true : undefined
     this.localSessionInfo.protocolInfo = acpProtocolInfo(response)
     logger.info('ACP handshake completed', {
       agentId: this.agentId,
@@ -359,11 +361,20 @@ export class AcpConnection extends LocalConnection {
       requireAcpControl(await session.acp.selectInitialModel({ ...selection, model }))
     }
     if (resume && !agent.restore)
-      throw new LocalAgentSessionRestoreError(
-        'This agent cannot restore the previous conversation; create a new session'
-      )
-    if (resume && agent.restore) await agent.restore({ cwd, sessionId: resume, mcpServers }, configure)
-    else await agent.create({ cwd, mcpServers }, configure)
+      throw new LocalAgentSessionRestoreError('This agent cannot restore the previous conversation')
+    if (resume && agent.restore) {
+      await agent.restore({ cwd, sessionId: resume, mcpServers }, configure).catch((error: unknown) => {
+        const failure = acpError(error)
+        if (
+          failure instanceof Error &&
+          'code' in failure &&
+          (failure.code === -32601 ||
+            (failure.code !== -32000 && /\b(?:session (?:was )?not found|unknown session)\b/i.test(failure.message)))
+        )
+          throw new LocalAgentSessionRestoreError(failure.message)
+        throw error
+      })
+    } else await agent.create({ cwd, mcpServers }, configure)
     if (this.launchBypass && selectedPermissionMode(this.localSessionInfo.mode) === 'plan') {
       const nativePlan = getAcpNativePlanModes(this.localSessionInfo.mode)
       if (!nativePlan) throw new Error('Could not exit Plan for the launch permission')
@@ -1240,7 +1251,7 @@ export class AcpConnection extends LocalConnection {
   async send(input: AgentRuntimeUserInput) {
     const prompt = await acpContent(input, this.promptCapabilities)
     await this.configChange?.catch(() => {})
-    this.begin(input.message.id)
+    this.begin(input)
     this.planPart = undefined
     this.planId = undefined
     try {

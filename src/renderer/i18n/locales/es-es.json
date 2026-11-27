@@ -337,6 +337,7 @@
   "agent.right_pane.info.session_cost": "Coste total de la sesión",
   "agent.right_pane.info.shell_tasks": "Comandos en segundo plano",
   "agent.right_pane.info.subagents": "Subagentes",
+  "agent.right_pane.info.subscription_quota": "Cuota de suscripción",
   "agent.right_pane.info.workflows": "Flujos de trabajo",
   "agent.right_pane.status.stop_run_task": "Detener tarea",
   "agent.right_pane.status.stop_run_task_failed": "Error al detener la tarea",

@@ -3,6 +3,8 @@ import { randomUUID } from 'node:crypto'
 import { dialog } from 'electron'
 
 import { application } from '@application'
+import { agentProviderService } from '@data/services/AgentProviderService'
+import { agentService } from '@data/services/AgentService'
 import { AgentSessionEditError } from '@data/services/AgentSessionEditError'
 import { AgentSessionForkSourceError } from '@data/services/AgentSessionForkService'
 import { agentSessionService } from '@data/services/AgentSessionService'
@@ -23,9 +25,11 @@ import { checkLocalAgent, listLocalAgentModels, readLocalAgentAccount } from '@m
 import { AiStreamAdmissionError, type MainDispatchRequest } from '@main/ai/streamManager'
 import { detectLocalAgents, openLocalAgentTerminal, selectLocalAgentModel } from '@main/services/codeCli'
 import { openRequestPath } from '@main/services/file'
+import { protectLocalAgentEnvironment, resolveLocalAgentCredentials } from '@main/services/localAgentCredentials'
 import { PathStaleVersionError } from '@main/utils/file'
 import { isAgentSessionForkFailureReason } from '@shared/ai/agentSessionFork'
 import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
+import type { LocalAgentAccount, LocalAgentConfiguration } from '@shared/ai/localAgent'
 import type { ProjectionNotification } from '@shared/ai/messageProjection'
 import { ErrorCode, isDataApiError, isDataApiResourceNotFoundError } from '@shared/data/api/errors'
 import { JOB_ERROR_CODES } from '@shared/data/api/schemas/jobs'
@@ -39,6 +43,26 @@ import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { exposeAiError } from './exposeAiError'
 
 const logger = loggerService.withContext('ipc/ai')
+
+function resolveLocalAgentRequest<T extends LocalAgentConfiguration>(
+  draft: T,
+  agentId?: string
+): T & { account?: LocalAgentAccount } {
+  if (!agentId) return draft
+  const saved = agentProviderService.getBinding(agentId)
+  if (
+    !saved ||
+    draft.presetId !== saved.presetId ||
+    draft.executableOverride !== saved.executableOverride ||
+    draft.args.length !== saved.args.length ||
+    draft.args.some((arg, index) => arg !== saved.args[index]) ||
+    Object.keys(draft.env).length !== Object.keys(saved.env).length ||
+    Object.entries(draft.env).some(([key, value]) => value !== saved.env[key])
+  )
+    return draft
+
+  return { ...draft, env: resolveLocalAgentCredentials(saved).env, account: saved.account }
+}
 
 async function exposeAiStreamAdmission<T>(op: () => Promise<T>): Promise<T> {
   try {
@@ -241,25 +265,37 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
       await application.get('AgentSessionRuntimeService').setLocalSessionInteractive(senderId, sessionId, active)
   },
   'ai.local_agents.detect': detectLocalAgents,
-  'ai.local_agents.web_start': (config) => application.get('LocalAgentWebUiService').start(config),
+  'ai.local_agents.web_start': ({ agentId, ...config }) =>
+    application.get('LocalAgentWebUiService').start(resolveLocalAgentRequest(config, agentId)),
   'ai.local_agents.web_stop': ({ presetId }) => application.get('LocalAgentWebUiService').stop(presetId),
   'ai.codebuddy_web.status': () => application.get('CodeBuddyWebUiService').getStatus(),
-  'ai.codebuddy_web.start': (config) => application.get('CodeBuddyWebUiService').start(config),
+  'ai.codebuddy_web.start': ({ agentId, ...config }) =>
+    application.get('CodeBuddyWebUiService').start(resolveLocalAgentRequest(config, agentId)),
   'ai.codebuddy_web.stop': () => application.get('CodeBuddyWebUiService').stop(),
-  'ai.local_agents.open_terminal': openLocalAgentTerminal,
-  'ai.local_agents.check': checkLocalAgent,
-  'ai.local_agents.models': listLocalAgentModels,
-  'ai.local_agents.subscription_usage': ({ agentId }) =>
-    application.get('LocalAgentAuthService').readSubscriptionUsage(agentId),
-  'ai.local_agents.read_account': readLocalAgentAccount,
-  'ai.local_agents.authenticate': ({ requestId, config, methodId, secret, provider }, { senderId }) =>
-    application.get('LocalAgentAuthService').authenticate(requestId, config, methodId, { secret, provider }, senderId),
+  'ai.local_agents.open_terminal': ({ agentId, ...config }) =>
+    openLocalAgentTerminal(resolveLocalAgentRequest(config, agentId)),
+  'ai.local_agents.check': ({ agentId, ...config }) => checkLocalAgent(resolveLocalAgentRequest(config, agentId)),
+  'ai.local_agents.models': ({ agentId, ...config }) => listLocalAgentModels(resolveLocalAgentRequest(config, agentId)),
+  'ai.local_agents.subscription_usage': ({ agentId, sessionId }) =>
+    application.get('LocalAgentAuthService').readSubscriptionUsage(agentId, sessionId),
+  'ai.local_agents.read_account': ({ agentId, ...config }) =>
+    readLocalAgentAccount(resolveLocalAgentRequest(config, agentId)),
+  'ai.local_agents.authenticate': ({ requestId, agentId, config, methodId, secret, provider }, { senderId }) =>
+    application
+      .get('LocalAgentAuthService')
+      .authenticate(requestId, config, methodId, { secret, provider }, senderId, agentId),
   'ai.local_agents.cancel_auth': ({ requestId }, { senderId }) =>
     application.get('LocalAgentAuthService').cancel(requestId, senderId),
   'ai.local_agents.respond_auth_consent': async ({ requestId, promptId, decision }, { senderId }) =>
     application.get('LocalAgentAuthService').respondToBrowserConsent(requestId, promptId, decision, senderId),
   'ai.local_agents.select_model': ({ agentId, nativeModel, ...selection }) =>
     selectLocalAgentModel(agentId, nativeModel, selection),
+  'ai.local_agents.update_settings': async ({ agentId, name, settings }) => {
+    const { encryptedEnv, ...localRuntime } = protectLocalAgentEnvironment(settings, agentId)
+    const agent = agentService.updateAgent(agentId, { name, localRuntime }, { encryptedLocalEnv: encryptedEnv })
+    if (!agent) throw new IpcError(aiErrorCodes.AI_AGENT_NOT_FOUND, 'Local Agent not found')
+    return agent
+  },
   'ai.local_agents.uninstall_components': ({ presetId, expectedPath }) =>
     application.get('LocalAgentInstallService').getUninstallComponents(presetId, expectedPath),
   'ai.local_agents.uninstall': ({ presetId, expectedPath, expectedComponents }) =>

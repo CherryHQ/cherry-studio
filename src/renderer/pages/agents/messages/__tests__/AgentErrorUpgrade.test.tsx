@@ -23,7 +23,7 @@ const agent: AgentEntity = {
   orderKey: 'a',
   createdAt: '2026-11-05T00:00:00Z',
   updatedAt: '2026-11-05T00:00:00Z',
-  configuration: { localRuntime: { presetId: 'codex', enabled: true, args: [], env: {} } }
+  localRuntime: { providerId: 'codex-provider', presetId: 'codex', enabled: true, args: [], env: {} }
 }
 let canUpgrade = true
 let finishInstall: (result: OutputFor<'ai.local_agents.install'>) => void
@@ -79,7 +79,7 @@ it('does not offer an upgrade when the installed version is current', async () =
 it('does not offer to upgrade the default install when the agent uses an executable override', async () => {
   MockUseDataApiUtils.mockQueryData('/agents/:agentId', {
     ...agent,
-    configuration: { localRuntime: { ...agent.configuration!.localRuntime!, executableOverride: '/custom/codex' } }
+    localRuntime: { ...agent.localRuntime!, executableOverride: '/custom/codex' }
   })
   render(<AgentErrorUpgrade agentId="codex" />)
   await act(async () => {})

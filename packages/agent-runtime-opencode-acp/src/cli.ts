@@ -1,5 +1,4 @@
-import type { AcpPermissionModes } from '@cherrystudio/agent-runtime-acp/profile'
-import type { CliAccountProbe } from '@cherrystudio/agent-runtime/cli'
+import type { AcpCliPreset } from '@cherrystudio/agent-runtime-acp/profile'
 
 export const openCodeCli = {
   modelConfig: {
@@ -7,7 +6,7 @@ export const openCodeCli = {
     overrides: ['OPENCODE_CONFIG', 'OPENCODE_CONFIG_DIR', 'OPENCODE_CONFIG_CONTENT']
   },
   id: 'opencode',
-  permissionMode: { values: { build: 'default', plan: 'plan' } } satisfies AcpPermissionModes,
+  permissionMode: { values: { build: 'default', plan: 'plan' } },
   cliLogin: [
     {
       id: 'opencode-console',
@@ -51,7 +50,7 @@ export const openCodeCli = {
         return { status: 'unknown' }
       }
     }
-  } satisfies CliAccountProbe,
+  },
   loginArgs: ['auth', 'login'],
   externalCredentialMethods: ['opencode-login'],
   terminalArgs: [],
@@ -61,4 +60,4 @@ export const openCodeCli = {
   executable: 'opencode',
   args: ['acp'],
   helpUrl: 'https://opencode.ai/docs/acp/'
-} as const
+} as const satisfies AcpCliPreset<'opencode-config'>

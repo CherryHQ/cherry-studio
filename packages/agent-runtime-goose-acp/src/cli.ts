@@ -1,4 +1,4 @@
-import type { AcpPermissionModes } from '@cherrystudio/agent-runtime-acp/profile'
+import type { AcpCliPreset } from '@cherrystudio/agent-runtime-acp/profile'
 
 export const gooseCli = {
   id: 'goose',
@@ -6,7 +6,7 @@ export const gooseCli = {
   permissionMode: {
     values: { auto: 'bypassPermissions', approve: 'default', smart_approve: 'auto' },
     labels: { auto: 'bypassPermissions' }
-  } satisfies AcpPermissionModes,
+  },
   modelEndpoints: ['anthropic-messages', 'openai-responses', 'openai-chat-completions'],
   terminalArgs: ['session'],
   modelConfig: {
@@ -19,4 +19,4 @@ export const gooseCli = {
   executable: 'goose',
   args: ['acp'],
   helpUrl: 'https://block.github.io/goose/'
-} as const
+} as const satisfies AcpCliPreset<'goose-config'>

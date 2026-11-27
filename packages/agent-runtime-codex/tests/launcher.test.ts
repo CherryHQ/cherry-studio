@@ -170,8 +170,8 @@ it.each([false, true])(
       await expect(probe).resolves.toMatchObject({
         status: 'available',
         windows: [
-          { id: 'codex:primary', usedRatio: 0, durationMinutes: 300, resetsAt: 1800000000000 },
-          { id: 'spark:secondary', usedRatio: 0.5 }
+          { id: 'codex:primary', groupLabel: 'Codex', usedRatio: 0, durationMinutes: 300, resetsAt: 1800000000000 },
+          { id: 'spark:secondary', groupLabel: undefined, usedRatio: 0.5 }
         ]
       })
     await f.reaped

@@ -1,6 +1,12 @@
 import type { Document } from 'yaml'
 
-import { cliConfigRecord as acpConfigRecord } from '@cherrystudio/agent-runtime/cli'
+import {
+  cliConfigRecord as acpConfigRecord,
+  type CliPreset,
+  type JsonModelProfile
+} from '@cherrystudio/agent-runtime/cli'
+
+import type { AcpPermissionModes } from './permissionMode'
 
 export { acpConfigRecord }
 export { tomlModelField, type TomlModelProfile } from '@cherrystudio/agent-runtime/cli'
@@ -30,22 +36,30 @@ export interface AcpLoginProfile {
   methods: readonly AcpLoginMethod[]
 }
 
+export interface AcpCliOptions {
+  accountArgs?: readonly string[]
+  auth?: AcpLoginProfile
+  gatewayModelEndpoint?: AcpGatewayModelEndpoint
+  gatewayProviderId?: string
+  modelEndpoints?: readonly (AcpGatewayModelEndpoint | 'google-generate-content')[]
+  minimumAcpVersion?: string
+  registryId?: string
+  permissionMode?: AcpPermissionModes
+  legacyModes?: 'effort'
+  /** ACP methods that rely on credentials configured outside the login flow. */
+  externalCredentialMethods?: readonly string[]
+}
+
+export type AcpCliPreset<Target extends string = string> = CliPreset<'acp', Target> & AcpCliOptions
+
 export interface AcpModelSelection {
   model?: string
   allowUnlisted?: true
   implicit?: string
 }
 
-export interface AcpJsonModelProfile<Target extends string = string> {
-  format: 'json'
-  target: Target
+export interface AcpJsonModelProfile<Target extends string = string> extends JsonModelProfile<Target> {
   relatedTarget?: Target
-  readModel(document: Record<string, unknown>): string | undefined
-  writeModel(
-    document: Record<string, unknown>,
-    model: string | undefined,
-    invalidModel: () => never
-  ): [string[], string | undefined][]
   matchesEnvironment?(get: (key: string) => string | undefined, shell: (key: string) => string | undefined): boolean
   launch?(
     document: Record<string, unknown>,

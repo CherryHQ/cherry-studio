@@ -1,12 +1,13 @@
+import { application } from '@application'
 import { withStartupSignal } from '@cherrystudio/agent-runtime/stdio'
 import { getShellEnv } from '@main/utils/shellEnv'
-import type { LocalAgentConfiguration } from '@shared/ai/localAgent'
+import type { LocalAgentAccount, LocalAgentConfiguration, LocalAgentRuntime } from '@shared/ai/localAgent'
 
-import type { AgentRuntimeConnectInput } from '../types'
+import type { LocalRuntimeConnectInput } from '../types'
 
-export async function connect(input: AgentRuntimeConnectInput, config: LocalAgentConfiguration, cwd: string) {
+export async function connect(input: LocalRuntimeConnectInput, config: LocalAgentRuntime, cwd: string) {
   const { CursorConnection } = await import('./CursorConnection')
-  const live = new CursorConnection(input.sessionId, input.agentId, config, input.headless)
+  const live = new CursorConnection(input.sessionId, input.agentId, config, input.localTarget, input.headless)
   return withStartupSignal(
     AbortSignal.timeout(30_000),
     () => live.start(cwd, input.resumeToken),
@@ -14,16 +15,35 @@ export async function connect(input: AgentRuntimeConnectInput, config: LocalAgen
   )
 }
 
-export async function listModels(config: LocalAgentConfiguration) {
+type CursorBoundConfiguration = LocalAgentConfiguration & { account?: LocalAgentAccount }
+
+export function cursorCredentialSelection(config: CursorBoundConfiguration) {
+  const methodId = config.account?.methodId
+  return methodId ? { methodId, sdkAuthPath: application.getPath('external.cursor.sdk_auth.file') } : undefined
+}
+
+export async function listModels(config: CursorBoundConfiguration) {
   const { listCursorModels } = await import('@cherrystudio/agent-runtime-cursor')
-  return { models: await listCursorModels(config.env, getShellEnv, AbortSignal.timeout(30_000)) }
+  return {
+    models: await listCursorModels(
+      config.env,
+      getShellEnv,
+      AbortSignal.timeout(30_000),
+      cursorCredentialSelection(config)
+    )
+  }
 }
 
-export async function bindAccount(config: LocalAgentConfiguration) {
+export async function bindAccount(config: CursorBoundConfiguration) {
   const { bindCursorAccount } = await import('@cherrystudio/agent-runtime-cursor')
-  return bindCursorAccount(config.env, getShellEnv)
+  return bindCursorAccount(
+    config.env,
+    getShellEnv,
+    application.getPath('external.cursor.sdk_auth.file'),
+    config.account?.methodId
+  )
 }
 
-export async function check(config: LocalAgentConfiguration): Promise<void> {
+export async function check(config: CursorBoundConfiguration): Promise<void> {
   await listModels(config)
 }

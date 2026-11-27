@@ -3,6 +3,7 @@ description: Local CLI agent configuration, native model ownership, protocol dri
 sources:
   - src/shared/ai/localAgentUsage.ts
   - src/shared/ai/localAgent.ts
+  - src/shared/data/presets/localAgents.ts
   - src/shared/ai/localAgentModel.ts
   - src/shared/ai/agentPermissionMode.ts
   - src/shared/ai/agentSessionCost.ts
@@ -29,8 +30,11 @@ sources:
   - packages/agent-runtime-kiro-acp/src
   - packages/agent-runtime-vibe-acp/src
   - src/main/ai/agentSession/AgentSessionRuntimeService.ts
+  - src/main/data/services/AgentProviderService.ts
+  - src/main/data/db/schemas/agentProvider.ts
   - src/main/services/codeCli
   - src/main/services/LocalAgentAuthService.ts
+  - src/main/services/localAgentCredentials.ts
   - src/main/ai/mcp/LocalAgentMcpBridgeService.ts
   - src/main/services/deepSeekHarness
   - src/main/services/OpenClawService.ts
@@ -71,11 +75,21 @@ are preserved.
 
 ## Ownership and routing
 
-- SQLite stores `configuration.localRuntime`. A preset stores its ID and the
-  catalog supplies its protocol. A custom command stores its executable and uses
-  ACP. Writes merge supplied fields in the transaction. Omitted fields retain
-  their latest values and explicit `undefined` clears an optional field.
-  Discovery, checks and session capability reads use IpcApi.
+- SQLite stores each configured connection in `agent_provider` and each local
+  Agent's enablement, browser policy and default model in `agent_provider_binding`.
+  The preset ID and user overrides are stored separately from the bundled catalog.
+  Presets supply the protocol and launch defaults. A custom executable uses ACP. The Agent read
+  model exposes the binding as `localRuntime`. Discovery, checks and session
+  capability reads use IpcApi.
+- The local settings and login commands encrypt credential environment values
+  before writing them. Agent DataApi reads expose ordinary overrides. Saving a
+  model or other binding policy uses the existing Agent DataApi.
+- A session context keeps the provider through its backend. A new context uses
+  the current Agent binding. Changing the launch target creates a new provider.
+  Signing in updates the existing provider. Resuming an existing context uses the
+  current credentials of its original provider. If the adapter confirms that the
+  native thread cannot be restored, the next message continues in a replacement
+  thread with reference history from the selected Cherry conversation branch.
 - `AgentSessionRuntimeService` owns scheduling, approvals, persistence and disposal.
   Session opening, connection checks and model discovery use the same adapter
   table in `LocalRuntimeDriver`. The table loads the ACP, Cursor, Claude Code or
@@ -170,9 +184,8 @@ opens. Native choices and switches use the active ACP session after it connects.
 Adapters that expose their native catalog separately can load it when the session
 only reports its current model.
 
-A Cherry model selection belongs to the Agent record alone
-(`sourceModelId` with `sourceModelViaGateway`). Selecting, switching or clearing
-it writes no CLI file and neither starts nor enables the user-facing API
+A Cherry model default belongs to the Agent's provider binding. Selecting,
+switching or clearing it writes no CLI file and neither starts nor enables the user-facing API
 Gateway. Agent Services offers Cherry models only for presets with an entry in
 the launch-binding table (`getLocalAgentLaunchBinding`) and for DeepAgents and
 Junie. Factory Droid, Poolside, Hermes and MiniMax Code offer none.
@@ -277,7 +290,7 @@ the running service in a separate action. External services are open-only.
 
 ## Installation and connection
 
-The [preset catalog](../../../../src/shared/ai/localAgent.ts) and
+The [preset catalog](../../../../src/shared/data/presets/localAgents.ts) and
 [installation recipes](../../../../src/main/services/codeCli/installRecipe.ts)
 own executable names, arguments and package sources.
 
@@ -367,11 +380,21 @@ recovery link.
 
 ### Subscription usage
 
-Agent Services can read subscription limits on demand using the saved Agent
-configuration. The settings account menu shows account identity and login actions.
+Agent Services shows account identity and login actions for the selected provider.
+Session Details reads quota when opened or refreshed if the session's effective
+provider and route support it. It displays the
+windows and balances supplied by the account adapter. When the adapter reports
+model groups, each group has one heading above its quota windows.
+Cursor reads the plan and current billing period using the Agent's effective SDK
+credential. Browser sign-in uses the SDK's existing saved login. The quota reader
+uses Cursor's production account service and discards results if the login changes.
 Amp reads its native balance command. Factory reads billing limits
 with a configured Factory key. OpenCode Go uses the installed CLI's active
 service account key when a Go model is selected.
+Muse Code reads its native usage command on supported versions. Kiro reads the
+active browser session's credits without opening a chat or refreshing credentials.
+MiniMax Code reads Token Plan quota with the official API key for the live model.
+Qwen Code's console quota commands require a separately authenticated console account.
 
 The probe checks the selected account without sending model input. Some CLI
 versions and account routes lack a supported quota source. Cherry gateway models

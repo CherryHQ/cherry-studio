@@ -7,13 +7,16 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
 import { applyRuntimePartEdit, partEdits, type RuntimeMessage } from '@cherrystudio/agent-runtime'
+import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
+import { agentProviderService } from '@data/services/AgentProviderService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
 import { AcpConnection } from '../acp/AcpConnection'
 import type { AgentRuntimeEvent } from '../types'
+import { localLaunch } from './fixtures/localLaunch'
 
 vi.mock('@main/utils/shellEnv', () => ({ getRawShellEnv: async () => ({ ...process.env }) }))
 
@@ -32,12 +35,18 @@ describe('ACP message identity', () => {
       .insert(agentSessionTable)
       .values({ id: 'session', workspaceId: 'workspace', name: 'Test', orderKey: 'a0' })
       .run()
-    const connection = new AcpConnection('session', 'agent', {
+    dbh.db
+      .insert(agentTable)
+      .values({ id: 'agent', type: 'local', name: 'Local', instructions: '', orderKey: 'a0' })
+      .run()
+    const config = agentProviderService.setBindingTx(dbh.db, 'agent', {
       enabled: true,
       executableOverride: process.execPath,
       args: [fileURLToPath(new URL('./fixtures/localAgent.mjs', import.meta.url)), 'acp', 'message-ids'],
       env: {}
     })
+    const launch = localLaunch(config, config.providerId)
+    const connection = new AcpConnection('session', 'agent', launch.config, launch.target)
     const events: AgentRuntimeEvent[] = []
     const drained = (async () => {
       for await (const event of connection.events) events.push(event)

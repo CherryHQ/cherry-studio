@@ -141,6 +141,7 @@ import {
   AgentSessionDetailsLayout
 } from './AgentSessionDetails'
 import { AgentRunTaskStopsProvider, AgentSessionDetailsSections, TaskStatusIcon } from './AgentSessionDetailsSections'
+import { AgentSubscriptionUsage } from './AgentSubscriptionUsage'
 import { AgentWorkspaceOpenShortcut } from './AgentWorkspaceOpenShortcut'
 import { useAgentPreviewUrl } from './useAgentPreviewUrl'
 import { useAgentSessionDetails } from './useAgentSessionDetails'
@@ -212,6 +213,7 @@ interface AgentFlowTab {
 
 interface AgentRightPaneMeta {
   runtimeType?: string
+  subscriptionUsageRevision?: string
   sessionId?: string
   sessionName?: string
   /** Container-level trace id for the session. When developer mode is on, the Trace tab renders this trace tree. */
@@ -615,6 +617,7 @@ function AgentRightPaneActionsProvider({
 
 function AgentRightPaneStateProvider({
   runtimeType,
+  subscriptionUsageRevision,
   children,
   workspaceId,
   workspacePath,
@@ -986,6 +989,7 @@ function AgentRightPaneStateProvider({
   const meta = useMemo<AgentRightPaneMeta>(
     () => ({
       runtimeType,
+      subscriptionUsageRevision,
       sessionId,
       sessionName,
       traceId,
@@ -1003,6 +1007,7 @@ function AgentRightPaneStateProvider({
     [
       agentAvatar,
       runtimeType,
+      subscriptionUsageRevision,
       agentId,
       agentName,
       conversationState,
@@ -1833,6 +1838,13 @@ function AgentDetailsContent() {
             : undefined
         }
       />
+      {sessionId && meta.agentId && meta.subscriptionUsageRevision && (
+        <AgentSubscriptionUsage
+          key={JSON.stringify([sessionId, meta.agentId, meta.subscriptionUsageRevision])}
+          agentId={meta.agentId}
+          sessionId={sessionId}
+        />
+      )}
     </div>
   )
 }

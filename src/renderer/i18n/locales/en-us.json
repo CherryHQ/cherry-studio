@@ -337,6 +337,7 @@
   "agent.right_pane.info.session_cost": "Session total cost",
   "agent.right_pane.info.shell_tasks": "Background commands",
   "agent.right_pane.info.subagents": "Sub-agents",
+  "agent.right_pane.info.subscription_quota": "Subscription quota",
   "agent.right_pane.info.workflows": "Workflows",
   "agent.right_pane.status.stop_run_task": "Stop task",
   "agent.right_pane.status.stop_run_task_failed": "Failed to stop task",

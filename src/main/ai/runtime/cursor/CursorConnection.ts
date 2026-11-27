@@ -15,6 +15,7 @@ import { LocalAgentSessionRestoreError } from '../LocalAgentSessionRestoreError'
 import { LocalConnection } from '../LocalConnection'
 import { localContent } from '../localContent'
 import type { AgentRuntimeInput, AgentRuntimeUserInput } from '../types'
+import { cursorCredentialSelection } from './cursorDriver'
 
 export class CursorConnection extends LocalConnection {
   private agent?: SDKAgent
@@ -70,13 +71,15 @@ export class CursorConnection extends LocalConnection {
       cwd,
       env: this.config.env,
       readShellEnv: getShellEnv,
+      credential: cursorCredentialSelection(this.config),
       model,
       agentId: resume,
       headless: this.headless,
       signal: this.abort.signal,
       browser: this.browser && { type: 'http', url: this.browser.url, headers: this.browser.headers }
     }).catch((error: unknown) => {
-      if (resume) throw new LocalAgentSessionRestoreError('Could not restore the Cursor SDK session', { cause: error })
+      if (resume && error instanceof Error && 'code' in error && error.code === 'agent_not_found')
+        throw new LocalAgentSessionRestoreError(error.message, { cause: error })
       throw error
     })
     if (this.closed || (resume && agent.agentId !== resume)) {
@@ -125,7 +128,7 @@ export class CursorConnection extends LocalConnection {
       text: parts.flatMap((p) => (p.type === 'text' ? [p.text] : [])).join('\n'),
       images: parts.flatMap((p) => (p.type === 'image' ? [{ data: p.data, mimeType: p.mimeType }] : []))
     }
-    this.begin(input.message.id)
+    this.begin(input)
     const signal = AbortSignal.any([this.abort.signal, this.turnAbort.signal])
     let lastModelCall: { id: string; inputTokens: number } | undefined
     try {

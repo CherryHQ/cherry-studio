@@ -157,7 +157,7 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
   }
 
   const config = agent.configuration ?? {}
-  if (agent.type === 'local' && !config.localRuntime?.enabled) {
+  if (agent.type === 'local' && !agent.localRuntime?.enabled) {
     return { kind: 'skipped', result: 'Skipped (disabled)' }
   }
 

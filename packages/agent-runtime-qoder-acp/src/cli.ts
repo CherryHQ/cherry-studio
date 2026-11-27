@@ -1,4 +1,5 @@
-import { parseBooleanLoginStatus, type CliAccountProbe } from '@cherrystudio/agent-runtime/cli'
+import type { AcpCliPreset } from '@cherrystudio/agent-runtime-acp/profile'
+import { parseBooleanLoginStatus } from '@cherrystudio/agent-runtime/cli'
 
 export const qoderCli = {
   id: 'qoder',
@@ -6,7 +7,7 @@ export const qoderCli = {
     signedOutExitCode: 1,
     args: ['status', '-o', 'json'],
     parse: (output) => parseBooleanLoginStatus(output, 'logged_in')
-  } satisfies CliAccountProbe,
+  },
   loginArgs: ['login'],
   terminalArgs: [],
   name: 'Qoder CN',
@@ -29,7 +30,7 @@ export const qoderCli = {
     }
   },
   helpUrl: 'https://docs.qoder.com/cli/acp'
-} as const
+} as const satisfies AcpCliPreset
 
 export const qoderGlobalCli = {
   ...qoderCli,
@@ -38,4 +39,4 @@ export const qoderGlobalCli = {
   executable: 'qodercli',
   aliases: ['qoder'],
   npmPackage: '@qoder-ai/qodercli'
-} as const
+} as const satisfies AcpCliPreset

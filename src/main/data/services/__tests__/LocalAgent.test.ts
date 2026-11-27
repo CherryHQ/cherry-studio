@@ -8,7 +8,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
+import { agentProviderTable } from '@data/db/schemas/agentProvider'
+import { agentRuntimeBackendTable } from '@data/db/schemas/agentRuntimeBackend'
 import { userModelTable } from '@data/db/schemas/userModel'
+import { agentProviderService } from '@data/services/AgentProviderService'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
@@ -20,6 +23,7 @@ import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
 import { AgentChatContextProvider } from '@main/ai/streamManager/context/AgentChatContextProvider'
 import { getProviderModelId } from '@shared/ai/executionIdentity'
 import type { LocalAgentConfiguration } from '@shared/ai/localAgent'
+import { CreateAgentCommandSchema } from '@shared/ipc/schemas/ai'
 
 const config: LocalAgentConfiguration = { presetId: 'codex', enabled: true, args: [], env: {} }
 
@@ -39,7 +43,7 @@ describe('local agents on migrated SQLite', () => {
     type: 'local' as const,
     name: 'Codex',
     model: null,
-    configuration: { localRuntime: { ...config } }
+    localRuntime: { ...config }
   })
 
   it('creates one preset identity under concurrent enables and retains it across disable/re-enable', async () => {
@@ -51,7 +55,7 @@ describe('local agents on migrated SQLite', () => {
       sessionId: session.id,
       message: { role: 'user', data: { parts: [{ type: 'text', text: 'retained history' }] } }
     })
-    agentService.updateAgent(a.id, { configuration: { localRuntime: { ...config, enabled: false } } })
+    agentService.updateAgent(a.id, { localRuntime: { enabled: false } })
     expect(() =>
       agentSessionService.create({ name: 'Test session', agentId: a.id, workspace: { type: 'system' } })
     ).toThrow('disabled')
@@ -78,10 +82,10 @@ describe('local agents on migrated SQLite', () => {
       agentId: agent.id,
       workspace: { type: 'system' }
     })
-    agentService.updateAgent(agent.id, { configuration: { localRuntime: { ...config, nativeModel: 'cli-model' } } })
-    expect(agentService.getAgent(agent.id)?.configuration?.localRuntime?.nativeModel).toBe('cli-model')
-    agentService.updateAgent(agent.id, { configuration: { localRuntime: { nativeModel: undefined } } })
-    expect(agentService.getAgent(agent.id)?.configuration?.localRuntime?.nativeModel).toBeUndefined()
+    agentService.updateAgent(agent.id, { localRuntime: { nativeModel: 'cli-model' } })
+    expect(agentService.getAgent(agent.id)?.localRuntime?.nativeModel).toBe('cli-model')
+    agentService.updateAgent(agent.id, { localRuntime: { nativeModel: undefined } })
+    expect(agentService.getAgent(agent.id)?.localRuntime?.nativeModel).toBeUndefined()
     expect(agentSessionService.getById(session.id).agentId).toBe(agent.id)
     expect(database.db.select().from(userModelTable).all()).toHaveLength(0)
   })
@@ -89,21 +93,121 @@ describe('local agents on migrated SQLite', () => {
   it('merges editor fields with the latest model and enable state inside the write transaction', async () => {
     const agent = await createAgent(request())
     agentService.updateAgent(agent.id, {
-      configuration: { localRuntime: { nativeModel: 'new-model', enabled: false } }
+      localRuntime: { nativeModel: 'new-model', enabled: false }
     })
     const updated = agentService.updateAgent(agent.id, {
-      configuration: {
-        localRuntime: { args: ['app-server', '--test'], env: { TEST: 'value' }, executableOverride: undefined }
-      }
+      localRuntime: { args: ['app-server', '--test'], env: { TEST: 'value' }, executableOverride: undefined }
     })
-    expect(updated?.configuration?.localRuntime).toEqual({
+    expect(updated?.localRuntime).toMatchObject({
       ...config,
       enabled: false,
       nativeModel: 'new-model',
       args: ['app-server', '--test'],
       env: { TEST: 'value' }
     })
-    expect(agentService.getAgent(agent.id)?.configuration?.localRuntime).toEqual(updated?.configuration?.localRuntime)
+    expect(agentService.getAgent(agent.id)?.localRuntime).toEqual(updated?.localRuntime)
+  })
+
+  it('shares a provider across Agents with independent defaults and retains backend ownership after a switch', async () => {
+    const original = await createAgent({
+      ...request(),
+      localRuntime: { ...config, args: ['--custom-profile'], env: { PROFILE: 'shared' } }
+    })
+    const originalProviderId = original.localRuntime!.providerId
+    const second = await createAgent(
+      CreateAgentCommandSchema.parse({
+        name: 'Shared Codex',
+        type: 'local',
+        model: null,
+        localRuntime: { providerId: originalProviderId, enabled: true, nativeModel: 'second' }
+      })
+    )
+    agentService.updateAgent(original.id, { localRuntime: { nativeModel: 'first' } })
+    expect(agentProviderService.getBinding(original.id)).toMatchObject({
+      providerId: originalProviderId,
+      nativeModel: 'first'
+    })
+    expect(agentProviderService.getBinding(second.id)).toMatchObject({
+      providerId: originalProviderId,
+      nativeModel: 'second',
+      args: ['--custom-profile'],
+      env: { PROFILE: 'shared' }
+    })
+    expect(database.db.select().from(agentProviderTable).all()).toHaveLength(1)
+    expect(
+      database.db
+        .select()
+        .from(agentTable)
+        .all()
+        .map((row) => row.configuration)
+    ).toEqual([{}, {}])
+
+    const backend = database.db
+      .insert(agentRuntimeBackendTable)
+      .values({
+        locator: { kind: 'local', version: 1 },
+        localProviderId: originalProviderId,
+        state: 'bound'
+      })
+      .returning()
+      .get()
+    agentService.updateAgent(original.id, { localRuntime: { executableOverride: '/another/codex' } })
+    expect(agentProviderService.getBinding(original.id)?.providerId).not.toBe(originalProviderId)
+    expect(database.db.select().from(agentRuntimeBackendTable).get()).toMatchObject({
+      id: backend.id,
+      localProviderId: originalProviderId
+    })
+    expect(agentProviderService.getProviderConfiguration(originalProviderId)?.executableOverride).toBeUndefined()
+    expect(agentProviderService.getBinding(second.id)?.providerId).toBe(originalProviderId)
+    expect(database.sqlite.pragma('foreign_key_check')).toEqual([])
+  })
+
+  it('inherits bundled launch defaults when a preset override is reset', async () => {
+    const agent = await createAgent({
+      type: 'local',
+      name: 'Auggie',
+      model: null,
+      localRuntime: {
+        presetId: 'auggie',
+        enabled: true,
+        args: ['--other'],
+        env: { AUGMENT_DISABLE_AUTO_UPDATE: '0' }
+      }
+    })
+
+    const restored = agentService.updateAgent(agent.id, {
+      localRuntime: { args: ['--acp'], env: { AUGMENT_DISABLE_AUTO_UPDATE: '1' } }
+    })!
+    expect(restored.localRuntime).toMatchObject({ presetId: 'auggie', args: [], env: {} })
+    expect(
+      database.db
+        .select()
+        .from(agentProviderTable)
+        .all()
+        .find((row) => row.id === restored.localRuntime?.providerId)
+    ).toMatchObject({ presetId: 'auggie', executable: null, args: null, env: null })
+  })
+
+  it('keeps the provider when replacing the confirmed login', async () => {
+    const browserAccount = { methodId: 'cursor_login', accountId: 'account-a' }
+    const agent = await createAgent({
+      type: 'local',
+      name: 'Cursor',
+      model: null,
+      localRuntime: { presetId: 'cursor', enabled: true, account: browserAccount }
+    })
+    const browserProvider = agent.localRuntime!.providerId
+    const refreshed = agentService.updateAgent(agent.id, {}, { localAccount: browserAccount })
+    expect(refreshed?.localRuntime?.providerId).toBe(browserProvider)
+
+    const apiKeyAccount = { methodId: 'cursor_api_key', accountId: 'account-b' }
+    const changed = agentService.updateAgent(agent.id, {}, { localAccount: apiKeyAccount })
+    expect(changed?.localRuntime?.account).toEqual(apiKeyAccount)
+    expect(changed?.localRuntime?.providerId).toBe(browserProvider)
+    expect(agentProviderService.getProviderConfiguration(browserProvider)?.account).toEqual(apiKeyAccount)
+
+    const edited = agentService.updateAgent(agent.id, { localRuntime: { env: { DEBUG: '1' } } })
+    expect(edited?.localRuntime?.account).toEqual({ methodId: 'cursor_api_key' })
   })
 
   it('routes and persists a native-model reply without a provider/model foreign key', async () => {
@@ -208,17 +312,13 @@ describe('local agents on migrated SQLite', () => {
     )
   })
 
-  it('keeps preset and session directory immutable and rejects Cherry model/resources', async () => {
+  it('keeps a used session directory immutable and rejects generic model resources', async () => {
     const agent = await createAgent(request())
     const session = agentSessionService.create({
       name: 'Test session',
       agentId: agent.id,
       workspace: { type: 'system' }
     })
-    expect(() =>
-      agentService.updateAgent(agent.id, { configuration: { localRuntime: { presetId: 'opencode' } } })
-    ).toThrow('Preset cannot change')
-    expect(() => agentService.updateAgent(agent.id, { configuration: { localRuntime: undefined } })).toThrow()
     expect(() => agentService.updateAgent(agent.id, { configuration: { heartbeat_enabled: true } })).toThrow(
       'own their model'
     )
@@ -228,6 +328,6 @@ describe('local agents on migrated SQLite', () => {
       message: { role: 'user', data: { parts: [{ type: 'text', text: 'lock directory' }] } }
     })
     expect(() => agentSessionService.setWorkspace(session.id, { type: 'system' })).toThrow('after messages')
-    expect(agentService.getAgent(agent.id)?.configuration?.localRuntime).toEqual(config)
+    expect(agentService.getAgent(agent.id)?.localRuntime).toMatchObject(config)
   })
 })

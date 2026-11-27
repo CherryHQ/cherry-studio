@@ -83,8 +83,11 @@ import {
   getAcpHostPermissionModeSelection,
   getAcpNativePlanModes,
   getLocalAgentLaunchMode,
+  getLocalAgentPreset,
   getLocalAgentProtocol,
   isAcpHostPermissionMode,
+  usesPresetAcpLaunch,
+  type LocalAgentRuntime,
   type LocalAgentSessionInfo,
   type LocalAgentSessionOverrides,
   type LocalAgentSessionView
@@ -165,6 +168,7 @@ import {
 import { AgentSessionUsageAttribution } from './AgentSessionUsageAttribution'
 import { childTimelines } from './childTimelines'
 import { validateEditedInput } from './editInput'
+import { resolveLocalContext, resolveLocalSessionBinding } from './localContext'
 import { bindNativeInput, markLocalInput, nativeOutcomeTerminal } from './nativeSubmission'
 import { AgentSessionMessageBackend } from './persistence/AgentSessionMessageBackend'
 import { relocateSystemWorkspaces } from './relocateSystemWorkspaces'
@@ -1273,8 +1277,7 @@ export class AgentSessionRuntimeService extends BaseService {
     }
     if (this.isShuttingDown || this.isWriteQuiesced) return
     const session = agentSessionService.getConversationById(sessionId, { excludeTaskSessions: true })
-    const agent = session.agentId ? agentService.getAgent(session.agentId) : undefined
-    const config = agent?.type === 'local' ? agent.configuration?.localRuntime : undefined
+    const config = this.localConfigForSession(sessionId, session.agentId)
     if (!session.workspace?.path || !config?.enabled || getLocalAgentProtocol(config.presetId) !== 'acp') return
 
     if (this.interactiveLocalSessions.get(windowId) !== sessionId) {
@@ -2651,7 +2654,21 @@ export class AgentSessionRuntimeService extends BaseService {
       if (this.isCurrentEntry(entry)) throw new AgentSessionEditError('busy')
       return false
     }
-    if (!this.isCurrentGeneration(entry, attemptId) || entry.closing || !this.connectionTargetEquals(entry, target)) {
+    let staleLocal = false
+    if (connection.localRuntime) {
+      try {
+        staleLocal = (await connection.reconcile(target)) !== 'current'
+      } catch (error) {
+        await this.closeRuntimeConnection(connection, entry, false, interrupt)
+        throw error
+      }
+    }
+    if (
+      staleLocal ||
+      !this.isCurrentGeneration(entry, attemptId) ||
+      entry.closing ||
+      !this.connectionTargetEquals(entry, target)
+    ) {
       await this.closeRuntimeConnection(connection, entry, false, interrupt)
       return false
     }
@@ -3835,6 +3852,17 @@ export class AgentSessionRuntimeService extends BaseService {
   private async admitTurn(entry: AgentSessionRuntimeEntry, turn: AgentSessionRun): Promise<void> {
     if (!this.isCurrentEntry(entry) || this.currentTurn(entry) !== turn || !this.isTurnLive(entry, turn)) return
     if (isAgentSessionRuntimeTurnAdmitted(entry.runtimeState, turn)) return
+    for (
+      let connection = this.currentConnection(entry);
+      connection?.claimLocalContext;
+      connection = this.currentConnection(entry)
+    ) {
+      if (connection.claimLocalContext(turn.userMessage.id)) break
+      this.closeConnectionAsync(entry)
+      if (!(await this.ensureConnection(entry))) return
+      if (!this.isCurrentEntry(entry) || this.currentTurn(entry) !== turn || !this.isTurnLive(entry, turn)) return
+      if (isAgentSessionRuntimeTurnAdmitted(entry.runtimeState, turn)) return
+    }
     this.applyRuntimeStateEvent(entry, { type: 'turn-admitted', turn })
     // A fresh request starts clean — drop status left over from the previous turn.
     this.clearApiRetry(entry)
@@ -4497,7 +4525,7 @@ export class AgentSessionRuntimeService extends BaseService {
   ): Promise<boolean> {
     const hostPermission = saved.hostPermissionMode
     if (hostPermission?.agentId === entry.agentId && connection.setMode) {
-      const config = agentService.getAgent(entry.agentId)?.configuration?.localRuntime
+      const config = connection.localRuntime ?? this.localConfigForSession(entry.sessionId, entry.agentId)
       if (config && getLocalAgentProtocol(config.presetId) === 'acp') {
         await connection.setMode(ACP_HOST_PERMISSION_MODE_ID, hostPermission.value)
         if (!this.isCurrentGeneration(entry, attemptId) || this.currentConnection(entry) !== connection) return false
@@ -4608,13 +4636,13 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   private localIdleView(sessionId: string, agentId?: string | null): LocalAgentSessionView {
-    const agent = agentId ? agentService.getAgent(agentId) : undefined
-    const config = agent?.type === 'local' ? agent.configuration?.localRuntime : undefined
+    const config = this.localConfigForSession(sessionId, agentId)
     if (!config?.enabled) return { info: null }
+    const metadata = this.localViewMetadata(config)
     const isAcp = getLocalAgentProtocol(config.presetId) === 'acp'
     const connecting = isAcp && this.entries.get(sessionId)?.runtimeState.connection.kind === 'connecting'
     if (isAcp && agentSessionService.isOrdinaryConversation(sessionId))
-      return { info: null, permissionUnavailable: true, ...(connecting && { connecting: true }) }
+      return { ...metadata, info: null, permissionUnavailable: true, ...(connecting && { connecting: true }) }
     const saved = this.getLocalSessionOverrides(sessionId)
     let idleMode = getLocalAgentLaunchMode(config)
     const native = saved?.mode
@@ -4634,7 +4662,38 @@ export class AgentSessionRuntimeService extends BaseService {
           launchBypass?.agentId === agentId && launchBypass?.presetId === config.presetId
         )
       : undefined
-    return { info: null, ...(connecting && { connecting: true }), idleMode, idleHostPermission, idleLaunchPermission }
+    return {
+      ...metadata,
+      info: null,
+      ...(connecting && { connecting: true }),
+      idleMode,
+      idleHostPermission,
+      idleLaunchPermission
+    }
+  }
+
+  private localConfigForSession(sessionId: string, agentId?: string | null) {
+    if (!agentId) return
+    const agent = agentService.getAgent(agentId)
+    if (agent?.type !== 'local' || !agent.localRuntime?.enabled) return
+    const branchHead = this.entries.get(sessionId)?.branchHead
+    return resolveLocalContext(sessionId, branchHead)
+      ? resolveLocalSessionBinding(sessionId, agentId, branchHead)
+      : agent.localRuntime
+  }
+
+  private localViewMetadata(config?: LocalAgentRuntime, info?: LocalAgentSessionInfo) {
+    if (!config) return {}
+    const subscriptionUsage =
+      !config.sourceModelViaGateway &&
+      (info?.subscriptionUsage ||
+        (getLocalAgentPreset(config.presetId)?.subscriptionUsage &&
+          (getLocalAgentProtocol(config.presetId) !== 'acp' || usesPresetAcpLaunch(config))))
+    return {
+      providerId: config.providerId,
+      presetId: config.presetId,
+      ...(subscriptionUsage && { subscriptionUsage: true as const })
+    }
   }
 
   async setLocalMode(sessionId: string, configId: string, value: string): Promise<LocalAgentSessionView> {
@@ -4647,7 +4706,7 @@ export class AgentSessionRuntimeService extends BaseService {
     const mode = connection ? connection.localSessionInfo?.mode : idle?.idleMode
     if (configId === ACP_LAUNCH_PERMISSION_ID) {
       const selection = connection?.localSessionInfo?.launchPermission ?? idle?.idleLaunchPermission
-      const config = agentId ? agentService.getAgent(agentId)?.configuration?.localRuntime : undefined
+      const config = connection?.localRuntime ?? this.localConfigForSession(sessionId, agentId)
       if (
         !agentId ||
         !config?.enabled ||
@@ -4780,10 +4839,15 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   getLocalSessionView(sessionId: string): LocalAgentSessionView {
-    const info = this.localOptionConnection(sessionId)?.localSessionInfo
-    if (info) return { info }
+    const connection = this.localOptionConnection(sessionId)
+    const info = connection?.localSessionInfo
+    if (info) return { ...this.localViewMetadata(connection.localRuntime, info), info }
     const session = agentSessionService.getById(sessionId)
     return this.localIdleView(sessionId, session?.agentId)
+  }
+
+  getConnectedLocalRuntime(sessionId: string): LocalAgentRuntime | undefined {
+    return this.localOptionConnection(sessionId)?.localRuntime
   }
 
   private publishLocalSessionInfo(
@@ -4794,7 +4858,9 @@ export class AgentSessionRuntimeService extends BaseService {
     if (this.isShuttingDown || entry.agentType !== 'local') return
     const prediction = entry.prediction
     if (prediction?.localModelId && prediction.localModelId !== info?.activeModel?.id) prediction.controller.abort()
-    const view = info ? { info } : this.localIdleView(entry.sessionId, entry.agentId)
+    const view = info
+      ? { ...this.localViewMetadata(this.currentConnection(entry)?.localRuntime, info), info }
+      : this.localIdleView(entry.sessionId, entry.agentId)
     application.get('IpcApiService').broadcast('ai.local_agents.session_updated', {
       sessionId: entry.sessionId,
       ...view,

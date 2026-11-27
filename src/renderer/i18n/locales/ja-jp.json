@@ -337,6 +337,7 @@
   "agent.right_pane.info.session_cost": "セッションの累計費用",
   "agent.right_pane.info.shell_tasks": "バックグラウンドコマンド",
   "agent.right_pane.info.subagents": "サブエージェント",
+  "agent.right_pane.info.subscription_quota": "サブスクリプションの利用枠",
   "agent.right_pane.info.workflows": "ワークフロー",
   "agent.right_pane.status.stop_run_task": "タスクを停止",
   "agent.right_pane.status.stop_run_task_failed": "タスクの停止に失敗しました",

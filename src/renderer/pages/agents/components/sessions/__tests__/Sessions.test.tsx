@@ -3826,11 +3826,11 @@ describe('Sessions', () => {
       id: 'opencode',
       type: 'local',
       name: 'OpenCode',
-      configuration: { localRuntime: { presetId: 'opencode', enabled: false, args: [], env: {} } }
+      localRuntime: { providerId: 'opencode-provider', presetId: 'opencode', enabled: false, args: [], env: {} }
     }
     dataApiMocks.agentRows = [
       openCode,
-      { ...openCode, id: 'agent-a', name: 'Regular Agent', type: 'pi', configuration: {} }
+      { ...openCode, id: 'agent-a', name: 'Regular Agent', type: 'pi', localRuntime: undefined }
     ]
     agentDataMocks.useAgents.mockImplementation(useAgents)
     const { rerender } = render(<SessionsForTest />)
@@ -3838,7 +3838,7 @@ describe('Sessions', () => {
     expect(screen.getByRole('button', { name: 'Regular Agent' })).toBeInTheDocument()
 
     dataApiMocks.agentRows = [
-      { ...openCode, configuration: { localRuntime: { ...openCode.configuration!.localRuntime!, enabled: true } } },
+      { ...openCode, localRuntime: { ...openCode.localRuntime!, enabled: true } },
       dataApiMocks.agentRows[1]
     ]
     rerender(<SessionsForTest key="enabled" />)
@@ -3856,7 +3856,7 @@ describe('Sessions', () => {
         {
           id: 'agent-a',
           name: 'Pi',
-          configuration: { localRuntime: { presetId: 'pi-acp', enabled: true, args: [], env: {} } }
+          localRuntime: { providerId: 'pi-provider', presetId: 'pi-acp', enabled: true, args: [], env: {} }
         }
       ],
       isLoading: false,

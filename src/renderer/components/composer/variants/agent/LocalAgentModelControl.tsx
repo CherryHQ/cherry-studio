@@ -12,8 +12,10 @@ import { ipcApi } from '@renderer/ipc'
 import { openRoute } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
-import { getLocalAgentProtocol, type LocalAgentSessionInfo } from '@shared/ai/localAgent'
+import { getLocalAgentProtocol, type LocalAgentSessionInfo, type LocalAgentSessionView } from '@shared/ai/localAgent'
 import type { AgentEntity } from '@shared/data/types/agent'
+import { parseUniqueModelId } from '@shared/data/types/model'
+import { formatGatewayModelId } from '@shared/utils/apiGateway'
 
 import {
   COMPOSER_BELOW_SELECTOR_BUTTON_CLASS,
@@ -30,11 +32,13 @@ type LocalAgentModelControlProps = {
   disabled: boolean
   side: 'top' | 'bottom'
   iconOnly?: boolean
-}
+} & Pick<LocalAgentSessionView, 'providerId' | 'presetId'>
 export function LocalAgentModelControl({
   agent,
   info,
   connecting,
+  providerId,
+  presetId: sessionPresetId,
   sessionId,
   disabled,
   side,
@@ -42,17 +46,20 @@ export function LocalAgentModelControl({
 }: LocalAgentModelControlProps) {
   const { t } = useTranslation()
   const [saving, setSaving] = useState(false)
-  const config = agent.configuration?.localRuntime
+  const separateProvider = !!providerId && providerId !== agent.localRuntime?.providerId
+  const config = separateProvider ? undefined : agent.localRuntime
+  const presetId = providerId ? sessionPresetId : config?.presetId
   const { catalog, freshCatalog, loading, refreshError, refresh } = useLocalAgentModelCatalog(
     config?.presetId ?? agent.id,
     config,
-    false
+    false,
+    agent
   )
-  const isQwen = config?.presetId === qwenPreset.id
+  const isQwen = presetId === qwenPreset.id
   const status = info?.modelSelection
-  const isAcp = getLocalAgentProtocol(config?.presetId) === 'acp'
-  const awaitingSession = isAcp && !!sessionId && !status
-  const sessionPicker = !!info && !!status && isAcp && !(isQwen && status === 'current-only')
+  const isAcp = getLocalAgentProtocol(presetId) === 'acp'
+  const awaitingSession = (isAcp || (separateProvider && !info)) && !!sessionId && !status
+  const sessionPicker = !!info && !!status && (separateProvider || (isAcp && !(isQwen && status === 'current-only')))
   const awaitingModelOptions = awaitingSession && (connecting === true || !!info)
   const catalogModels = (freshCatalog ?? catalog)?.models ?? []
   const liveModels = isQwen ? undefined : info?.models
@@ -64,21 +71,26 @@ export function LocalAgentModelControl({
       return entry ? { ...entry, ...model, registryModel: entry.registryModel ?? model.registryModel } : model
     })
   }
-  const gatewayAlias =
-    isQwen && config.sourceModelViaGateway && config.sourceModelId && config.nativeModel
-      ? qwenPreset.catalogId(config.nativeModel)
+  const selection = useLocalAgentModelSelection(config, nativeModels, sessionPicker ? info.activeModel?.id : undefined)
+  const sourceModel =
+    isQwen && config?.sourceModelViaGateway && config.sourceModelId
+      ? parseUniqueModelId(config.sourceModelId)
       : undefined
-  const selection = useLocalAgentModelSelection(
-    config,
-    gatewayAlias ? nativeModels.filter(({ id }) => id !== gatewayAlias) : nativeModels,
-    sessionPicker ? info.activeModel?.id : undefined
+  const gatewayOption = sourceModel && selection.models.find(({ id }) => id === selection.value)
+  const gatewayAlias =
+    sourceModel && !sourceModel.providerId.includes(':')
+      ? qwenPreset.catalogId(
+          formatGatewayModelId(sourceModel.providerId, gatewayOption?.apiModelId ?? sourceModel.modelId)
+        )
+      : undefined
+  const models = selection.models.filter(
+    ({ id, source }) => source === 'gateway' || (!awaitingSession && id !== gatewayAlias)
   )
-  const models = awaitingSession ? selection.models.filter(({ source }) => source === 'gateway') : selection.models
-  const activeModel = sessionPicker ? info.activeModel : undefined
+  const activeModel = sessionPicker || separateProvider ? info?.activeModel : undefined
   const activeGateway =
     config?.sourceModelViaGateway &&
     config.sourceModelId &&
-    (!activeModel || !config.nativeModel || activeModel.id === config.nativeModel || activeModel.id === gatewayAlias)
+    (!activeModel || !gatewayAlias || activeModel.id === gatewayAlias)
   const value = sessionPicker && !activeGateway && !selection.activeGatewayModel ? activeModel?.id : selection.value
   const followCliLabel = sessionPicker || awaitingSession ? undefined : selection.followCliLabel
   const selectedModel = models.find(({ id }) => id === value)
@@ -95,11 +107,13 @@ export function LocalAgentModelControl({
             : status === 'empty'
               ? t('local_agents.models_unavailable')
               : t('local_agents.session_model.unsupported')
-      : selection.sourceRestrictions?.native
+      : separateProvider
+        ? t('local_agents.session_model.current_only')
+        : selection.sourceRestrictions?.native
   const footer = nativeRestriction ?? (info?.resume === false ? t('local_agents.no_resume') : undefined)
 
   async function selectModel(modelId?: string) {
-    if (!config || disabled || saving) return false
+    if (disabled || saving) return false
     setSaving(true)
     try {
       if (sessionPicker && !activeGateway && models.find(({ id }) => id === modelId)?.source !== 'gateway') {
@@ -107,7 +121,7 @@ export function LocalAgentModelControl({
         await ipcApi.request('ai.local_agents.select_session_model', { sessionId, modelId })
         return true
       }
-      return !!(await selection.select(agent, modelId))
+      return !!config && !!(await selection.select(agent, modelId))
     } catch (error) {
       toast.error(String(error))
       return false
@@ -116,19 +130,25 @@ export function LocalAgentModelControl({
     }
   }
 
-  if (!config) return null
+  if (!agent.localRuntime) return null
   return (
     <LocalAgentModelSelector
       models={models}
-      presetId={config.presetId}
+      presetId={presetId}
       sourceRestrictions={{ ...selection.sourceRestrictions, native: nativeRestriction }}
       followCliLabel={followCliLabel}
       value={awaitingSession && !selectedModel ? undefined : value}
       disabled={disabled || saving}
       loading={awaitingSession ? awaitingModelOptions : !sessionPicker && loading}
-      loaded={awaitingSession || sessionPicker || !!freshCatalog || !!liveModels?.some((model) => model.registryModel)}
+      loaded={
+        separateProvider ||
+        awaitingSession ||
+        sessionPicker ||
+        !!freshCatalog ||
+        !!liveModels?.some((model) => model.registryModel)
+      }
       error={sessionPicker || awaitingSession ? undefined : refreshError}
-      onOpenSettings={() => openRoute('/settings/local-agents', { id: config.presetId ?? agent.id })}
+      onOpenSettings={() => openRoute('/settings/local-agents', { id: agent.localRuntime?.presetId ?? agent.id })}
       side={side}
       onLoad={() => refresh().catch(() => {})}
       onSelect={selectModel}
@@ -136,7 +156,7 @@ export function LocalAgentModelControl({
       trigger={
         <ModelControlButton
           model={selectedModel ?? (value ? { id: value, name: label } : undefined)}
-          presetId={config.presetId}
+          presetId={presetId}
           label={label}
           saving={saving}
           disabled={disabled || saving}

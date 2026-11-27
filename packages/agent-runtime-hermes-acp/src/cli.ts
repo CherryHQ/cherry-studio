@@ -1,5 +1,5 @@
+import type { AcpCliPreset } from '@cherrystudio/agent-runtime-acp/profile'
 import type { CliInstaller } from '@cherrystudio/agent-runtime/cli'
-import type { AcpPermissionModes } from '@cherrystudio/agent-runtime/cli'
 
 export const hermesCli = {
   modelConfig: { target: 'hermes-config', overrides: ['HERMES_HOME'] },
@@ -10,13 +10,13 @@ export const hermesCli = {
     values: { ask: 'default', workspace_session: 'acceptEdits', session: 'auto' },
     configIds: ['edit_approval_policy'],
     approvalConfigId: 'edit_approval_policy'
-  } satisfies AcpPermissionModes,
+  },
   name: 'Hermes',
   protocol: 'acp',
   executable: 'hermes',
   args: ['acp'],
   helpUrl: 'https://hermes-agent.nousresearch.com/docs/user-guide/features/acp/'
-} as const
+} as const satisfies AcpCliPreset<'hermes-config'>
 
 export const hermesInstaller = {
   executable: 'hermes',

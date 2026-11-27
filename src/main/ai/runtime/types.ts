@@ -22,7 +22,7 @@ import type { AgentSessionFollowup, AgentSessionFollowupChange } from '@shared/a
 import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
 import type { AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
 import type { ExecutionId } from '@shared/ai/executionIdentity'
-import type { LocalAgentNotice, LocalAgentSessionInfo } from '@shared/ai/localAgent'
+import type { LocalAgentNotice, LocalAgentRuntime, LocalAgentSessionInfo } from '@shared/ai/localAgent'
 import type { LocalAgentTurnUsage } from '@shared/ai/localAgentUsage'
 import type { ToolTerminalDelta } from '@shared/ai/messageProjection'
 import type { AgentEntity, AgentPermissionMode } from '@shared/data/api/schemas/agents'
@@ -40,6 +40,7 @@ import type { ServiceTierSelection } from '@shared/data/types/model'
 import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
+import type { LocalLaunchTarget } from '../agentSession/localContext'
 import type { RuntimeForkInput, RuntimeForkResult } from './fork'
 import type { RuntimeWorkspaceRelocation } from './workspaceRelocation'
 
@@ -117,8 +118,14 @@ export interface AgentRuntimeConnectInput {
   onSteerInjected?: (inputIds: readonly string[]) => void
 }
 
+export interface LocalRuntimeConnectInput extends AgentRuntimeConnectInput {
+  localTarget: LocalLaunchTarget
+}
+
 export interface AgentRuntimeUserInput {
   message: AgentSessionMessageEntity
+  /** Model-only context; the original product message remains unchanged. */
+  context?: CherryUIMessage['parts']
   /** True when this message arrived mid-turn (a steer) — the driver wraps it in a system-reminder
    *  so the model treats it as a redirect rather than a fresh prompt (invariant 7). */
   systemReminder?: boolean
@@ -127,10 +134,7 @@ export interface AgentRuntimeUserInput {
   messageSnapshot?: MessageSnapshot
 }
 
-export type AgentRuntimeCommand = Pick<AgentRuntimeUserInput, 'message' | 'systemReminder'> & {
-  /** Model-only context; the original product message remains unchanged. */
-  context?: CherryUIMessage['parts']
-}
+export type AgentRuntimeCommand = Pick<AgentRuntimeUserInput, 'message' | 'systemReminder' | 'context'>
 
 export type AgentRuntimeInput = ThreadInput<AgentRuntimeCommand & { readonly inputId: InputId }>
 
@@ -290,6 +294,9 @@ export interface AgentRuntimeConnection {
   /** Bound product context for controls that precede the first native message. */
   readonly contextId?: string
 
+  /** Pin an unclaimed Local Agent connection before the first admitted input. */
+  claimLocalContext?(anchorMessageId: string): boolean
+
   /** Reused connections can carry another Run's settings and need reconciliation before the next admission. */
   preparedFor?(request: AgentRuntimeConnectInput): boolean
   /** Install the registered owner's callbacks on a reusable connection. */
@@ -300,6 +307,7 @@ export interface AgentRuntimeConnection {
   /** Permission mode currently in effect on this connection, when the runtime can identify it. */
   readonly effectivePermissionMode?: AgentPermissionMode
   readonly sessionCostScope?: 'native-session'
+  readonly localRuntime?: LocalAgentRuntime
   readonly localSessionInfo?: LocalAgentSessionInfo
   selectModel?(modelId: string): Promise<LocalAgentSessionInfo>
   setConfigOption?(configId: string, value: string | boolean): Promise<LocalAgentSessionInfo>

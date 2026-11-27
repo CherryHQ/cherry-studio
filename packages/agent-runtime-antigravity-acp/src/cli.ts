@@ -1,5 +1,5 @@
+import type { AcpCliPreset } from '@cherrystudio/agent-runtime-acp/profile'
 import type { CliInstaller } from '@cherrystudio/agent-runtime/cli'
-import type { AcpLoginProfile, AcpPermissionModes } from '@cherrystudio/agent-runtime/cli'
 
 export const antigravityCli = {
   id: 'antigravity-acp',
@@ -24,7 +24,7 @@ export const antigravityCli = {
       yolo: 'bypassPermissions'
     },
     nativePermissionNames: true
-  } satisfies AcpPermissionModes,
+  },
   modelEndpoints: ['google-generate-content'],
   terminalArgs: [],
   loginArgs: ['acp', '--login'],
@@ -43,7 +43,7 @@ export const antigravityCli = {
         location: 'GOOGLE_CLOUD_LOCATION'
       }
     ]
-  } satisfies AcpLoginProfile,
+  },
   name: 'Google Antigravity',
   protocol: 'acp',
   subscriptionUsage: true,
@@ -53,7 +53,7 @@ export const antigravityCli = {
   minimumAcpVersion: '1.5.0',
   args: ['acp'],
   helpUrl: 'https://antigravity.google/docs/cli/acp/'
-} as const
+} as const satisfies AcpCliPreset
 
 export const antigravityInstaller = {
   executable: antigravityCli.executable,

@@ -17,6 +17,7 @@ import { CodeBuddyWebUiActions } from './CodeBuddyWebUiActions'
 
 interface Props {
   config: LocalAgentConfiguration
+  agentId?: string
   disabled: boolean
 }
 
@@ -41,7 +42,7 @@ function HermesWebUiActions({ config, disabled }: Props) {
   )
 }
 
-function ManagedWebUiActions({ config, disabled, id }: Props & { id: LocalAgentWebUiId }) {
+function ManagedWebUiActions({ config, agentId, disabled, id }: Props & { id: LocalAgentWebUiId }) {
   const { t } = useTranslation()
   const { openSmartMiniApp } = useMiniAppPopup()
   const statuses = useSharedCacheValue('feature.local_agent.web_ui.status')
@@ -59,7 +60,7 @@ function ManagedWebUiActions({ config, disabled, id }: Props & { id: LocalAgentW
     setPending(true)
     try {
       if (stop) await ipcApi.request('ai.local_agents.web_stop', { presetId: id })
-      else await ipcApi.request('ai.local_agents.web_start', config)
+      else await ipcApi.request('ai.local_agents.web_start', { ...config, ...(agentId && { agentId }) })
     } catch {
       toast.error(t(stop ? 'code.web_ui.stop_failed' : 'code.launch.error'))
     } finally {

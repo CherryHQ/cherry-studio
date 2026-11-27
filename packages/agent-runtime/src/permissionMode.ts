@@ -17,6 +17,7 @@ export interface PermissionModeCatalog {
   id: string
   currentValue: string
   application: PermissionModeApplication
+  nativePermissionNames?: true
   options: readonly (PermissionModeChoice & { permissionMode: AgentPermissionMode })[]
 }
 

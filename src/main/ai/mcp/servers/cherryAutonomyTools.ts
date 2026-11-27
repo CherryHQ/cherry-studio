@@ -427,7 +427,7 @@ function listSessions(ctx: AutonomyToolsContext, args: z.output<typeof SessionLi
 function listAgents(): CallToolResult {
   const agents = agentService
     .listAgents()
-    .agents.filter((agent) => agent.type !== 'local' || agent.configuration?.localRuntime?.enabled)
+    .agents.filter((agent) => agent.type !== 'local' || agent.localRuntime?.enabled)
     .map((agent) => ({
       id: agent.id,
       name: agent.name,
@@ -576,7 +576,7 @@ function resolveWorkspaceForNewSession(
 
 function delegateAgent(ctx: AutonomyToolsContext, args: z.output<typeof AgentDelegateInputSchema>): CallToolResult {
   const target = agentService.getAgent(args.target_agent_id)
-  if (!target || target.type !== 'local' || !target.configuration?.localRuntime?.enabled) {
+  if (!target || target.type !== 'local' || !target.localRuntime?.enabled) {
     throw new Error('Delegation requires an enabled local Agent from Agent Services')
   }
   if (!runtimeDriverRegistry.getAgentSessionDriver(target.type)) {

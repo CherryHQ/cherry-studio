@@ -4,6 +4,7 @@ import {
   type AgentOptions,
   type McpServerConfig,
   type ModelSelection,
+  type Run,
   type SDKAgent,
   type SDKModel,
   type SDKUserMessage,
@@ -18,6 +19,7 @@ import type {
   SubmitInput
 } from '@cherrystudio/agent-runtime'
 
+import { readCursorSdkLoginKey, readCursorSubscriptionUsage } from './accountUsage'
 import { cursorApiKeyMethod, cursorLoginMethod, type CursorPermissionMode } from './cli'
 
 export type { Run, SDKAgent, SDKUserMessage } from '@cursor/sdk'
@@ -25,10 +27,11 @@ export type { Run, SDKAgent, SDKUserMessage } from '@cursor/sdk'
 export async function listCursorModels(
   env: CursorEnvironment,
   readShellEnv: ReadShellEnvironment,
-  signal: AbortSignal
+  signal: AbortSignal,
+  credential?: CursorCredentialSelection
 ) {
   const models = await readCursorResult(signal, async () => {
-    const apiKey = await resolveCursorApiKey(env, readShellEnv, signal)
+    const apiKey = await requireSelectedCursorKey(env, readShellEnv, credential, signal)
     signal.throwIfAborted()
     return Cursor.models.list({ apiKey })
   })
@@ -124,6 +127,7 @@ async function readCursorAccount(apiKey?: string): Promise<RuntimeAccountResult>
 export async function openCursorSession(input: {
   env: CursorEnvironment
   readShellEnv: ReadShellEnvironment
+  credential?: CursorCredentialSelection
   cwd: string
   model: string
   agentId?: string
@@ -132,7 +136,7 @@ export async function openCursorSession(input: {
   signal?: AbortSignal
 }) {
   const options: AgentOptions = {
-    apiKey: await resolveCursorApiKey(input.env, input.readShellEnv, input.signal),
+    apiKey: await requireSelectedCursorKey(input.env, input.readShellEnv, input.credential, input.signal),
     model: { id: input.model },
     mcpServers: input.browser ? { automation: input.browser } : {},
     local: { cwd: input.cwd, autoReview: true }
@@ -247,12 +251,41 @@ export async function completeCursorCompaction(run: Run): ReturnType<CompactThre
 
 type CursorEnvironment = Readonly<Record<string, string | undefined>>
 type ReadShellEnvironment = (signal?: AbortSignal) => Promise<CursorEnvironment>
+type CursorCredentialSelection = { methodId: string; sdkAuthPath: string }
 
 async function resolveCursorApiKey(env: CursorEnvironment, readShellEnv: ReadShellEnvironment, signal?: AbortSignal) {
   return env[cursorApiKeyMethod.apiKey] ?? (await readShellEnv(signal))[cursorApiKeyMethod.apiKey]
 }
 
-export function bindCursorAccount(env: CursorEnvironment, readShellEnv: ReadShellEnvironment): RuntimeAccountAccess {
+function readSelectedCursorKey(
+  env: CursorEnvironment,
+  { methodId, sdkAuthPath }: CursorCredentialSelection,
+  signal: AbortSignal
+) {
+  if (methodId === cursorLoginMethod.id) return readCursorSdkLoginKey(sdkAuthPath, signal)
+  if (methodId === cursorApiKeyMethod.id) return Promise.resolve(env[cursorApiKeyMethod.apiKey])
+  throw new Error('Unknown Cursor authentication method')
+}
+
+async function requireSelectedCursorKey(
+  env: CursorEnvironment,
+  readShellEnv: ReadShellEnvironment,
+  credential?: CursorCredentialSelection,
+  signal?: AbortSignal
+) {
+  if (!credential) return resolveCursorApiKey(env, readShellEnv, signal)
+  const apiKey = await readSelectedCursorKey(env, credential, signal ?? AbortSignal.timeout(30_000))
+  if (!apiKey) throw new Error('Cursor authentication required')
+  return apiKey
+}
+
+export function bindCursorAccount(
+  env: CursorEnvironment,
+  readShellEnv: ReadShellEnvironment,
+  sdkAuthPath: string,
+  methodId?: string
+): RuntimeAccountAccess {
+  const credential = methodId ? { methodId, sdkAuthPath } : undefined
   return {
     async authenticate({ methodId }, host, signal) {
       signal.throwIfAborted()
@@ -267,12 +300,21 @@ export function bindCursorAccount(env: CursorEnvironment, readShellEnv: ReadShel
     },
     async readAccount(signal) {
       try {
-        return await readCursorResult(signal, async () =>
-          readCursorAccount(await resolveCursorApiKey(env, readShellEnv, signal))
-        )
+        return await readCursorResult(signal, async () => {
+          if (!credential) return readCursorAccount(await resolveCursorApiKey(env, readShellEnv, signal))
+          const key = await readSelectedCursorKey(env, credential, signal)
+          return key ? readCursorAccount(key) : { status: 'signed-out' }
+        })
       } catch {
         return { status: 'unknown' }
       }
+    },
+    readSubscriptionUsage(signal) {
+      return readCursorSubscriptionUsage(async () => {
+        if (credential) return readSelectedCursorKey(env, credential, signal)
+        const apiKey = (await resolveCursorApiKey(env, readShellEnv, signal)) ?? process.env.CURSOR_API_KEY
+        return apiKey ?? readCursorSdkLoginKey(sdkAuthPath, signal)
+      }, signal)
     }
   }
 }

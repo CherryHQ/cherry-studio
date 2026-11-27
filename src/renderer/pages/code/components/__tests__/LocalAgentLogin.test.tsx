@@ -46,7 +46,8 @@ const checked = {
 describe('Cursor sign-in', () => {
   it('keeps the key masked and saves it only after verification succeeds', async () => {
     statusRequest.mockResolvedValue({ status: 'signed-out' })
-    request.mockRejectedValueOnce(new Error('Invalid API key')).mockResolvedValueOnce(undefined)
+    const account = { methodId: 'cursor_api_key', accountId: 'validated-account' }
+    request.mockRejectedValueOnce(new Error('Invalid API key')).mockResolvedValueOnce(account)
     const saved = vi.fn().mockResolvedValue(undefined)
     render(
       <LocalAgentLogin
@@ -71,11 +72,10 @@ describe('Cursor sign-in', () => {
     await userEvent.type(screen.getByLabelText('API 密钥'), '  valid-key  ')
     await userEvent.click(screen.getByRole('button', { name: /^登录$/ }))
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
-    expect(saved).toHaveBeenCalledWith({
-      ...config,
-      presetId: 'cursor',
-      env: { KEEP: 'value', CURSOR_API_KEY: 'valid-key' }
-    })
+    expect(saved).toHaveBeenCalledWith(
+      { ...config, presetId: 'cursor', env: { KEEP: 'value', CURSOR_API_KEY: 'valid-key' } },
+      account
+    )
   })
 
   it('removes the saved key when switching to browser login', async () => {
@@ -94,7 +94,7 @@ describe('Cursor sign-in', () => {
     await userEvent.click(await screen.findByRole('button', { name: '登录' }))
     await userEvent.click(screen.getByRole('button', { name: 'Cursor · 登录' }))
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
-    expect(saved).toHaveBeenCalledWith({ ...config, presetId: 'cursor', env: { KEEP: 'value' } })
+    expect(saved).toHaveBeenCalledWith({ ...config, presetId: 'cursor', env: { KEEP: 'value' } }, undefined)
   })
 })
 
@@ -213,8 +213,8 @@ describe('ACP sign-in', () => {
     )
     await userEvent.click(await screen.findByRole('button', { name: '登录' }))
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
-    expect(screen.getByRole('button', { name: '登录' })).toBeVisible()
-    expect(refreshed).toHaveBeenCalledWith(config)
+    expect(screen.getByRole('button', { name: '已登录' })).toBeVisible()
+    expect(refreshed).toHaveBeenCalledWith(config, undefined)
   })
 
   it('shows region rejection without reporting success', async () => {
@@ -271,7 +271,8 @@ describe('ACP sign-in', () => {
     await userEvent.click(submit)
     await waitFor(() =>
       expect(saved).toHaveBeenCalledWith(
-        expect.objectContaining({ env: { KEEP: 'value', GEMINI_API_KEY: 'test-key-value' } })
+        expect.objectContaining({ env: { KEEP: 'value', GEMINI_API_KEY: 'test-key-value' } }),
+        undefined
       )
     )
     expect(ipcApi.request).toHaveBeenCalledWith(
@@ -310,7 +311,8 @@ describe('ACP sign-in', () => {
       expect(saved).toHaveBeenCalledWith(
         expect.objectContaining({
           env: { GOOGLE_API_KEY: '', GOOGLE_CLOUD_PROJECT: 'project-id', GOOGLE_CLOUD_LOCATION: 'us-central1' }
-        })
+        }),
+        undefined
       )
     )
   })
@@ -567,10 +569,11 @@ describe('external authentication', () => {
         {...props}
         config={{ ...config, presetId: 'cursor' }}
         onAuthenticated={onAuthenticated}
-        authMethods={[{ id: 'login', name: 'Login', type: 'agent' }]}
+        authMethods={[]}
       />
     )
     await userEvent.click(await screen.findByRole('button', { name: '登录' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Cursor · 登录' }))
     expect(await screen.findByRole('button', { name: '已登录' })).toBeVisible()
   })
 

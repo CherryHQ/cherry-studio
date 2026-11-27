@@ -1,4 +1,4 @@
-import type { AcpPermissionModes } from '@cherrystudio/agent-runtime-acp/profile'
+import type { AcpCliPreset } from '@cherrystudio/agent-runtime-acp/profile'
 
 export const kimiCli = {
   nativeCliInstall: true,
@@ -6,7 +6,7 @@ export const kimiCli = {
   id: 'kimi',
   permissionMode: {
     values: { default: 'default', plan: 'plan', auto: 'auto', yolo: 'bypassPermissions' }
-  } satisfies AcpPermissionModes,
+  },
   account: { canReadAccount: true },
   externalCredentialMethods: ['login'],
   windowsShell: { variable: 'KIMI_SHELL_PATH', allowSh: true },
@@ -36,4 +36,4 @@ export const kimiCli = {
   executable: 'kimi',
   args: ['acp'],
   helpUrl: 'https://moonshotai.github.io/kimi-code/'
-} as const
+} as const satisfies AcpCliPreset<'kimi-config'>

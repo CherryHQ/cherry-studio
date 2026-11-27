@@ -52,6 +52,7 @@ import { parseDataUrl } from '@shared/utils/dataUrl'
 import { imageExts } from '@shared/utils/file'
 import { isVisionModel } from '@shared/utils/model'
 
+import { LocalAgentSessionRestoreError } from '../LocalAgentSessionRestoreError'
 import type {
   AgentRuntimeConnectInput,
   AgentRuntimeConnection,
@@ -159,6 +160,10 @@ export abstract class ClaudeSdkConnection<
     return prepareClaudeBranch(this.input.sessionId, resolveClaudeConfigDirectory(env), nativeId, anchor, opening)
   }
 
+  protected bindNativeContext(context: NonNullable<typeof this.context>, nativeId: string) {
+    return contexts.bindContext(context.id, nativeId)
+  }
+
   protected async startSdk(
     options: Options,
     context: ReturnType<typeof prepareClaudeBranch>,
@@ -184,7 +189,11 @@ export abstract class ClaudeSdkConnection<
     const opened = resume
       ? await this.runtime.open({ backendId: runtimeId(this.context.backendId), id: runtimeId(resume) })
       : await this.runtime.create(config)
-    if (opened.status !== 'confirmed') throw new Error(opened.error.message)
+    if (opened.status !== 'confirmed') {
+      if (this.localAgentProtocol && resume && opened.error.code === 'native-storage-missing')
+        throw new LocalAgentSessionRestoreError(opened.error.message)
+      throw new Error(opened.error.message)
+    }
     this.handle = opened.value
     this.abortController.signal.throwIfAborted()
     this.bindApprovalEmitter()
@@ -448,6 +457,7 @@ export abstract class ClaudeSdkConnection<
             removed: readonly string[],
             refreshSources: boolean
           ) => {
+            if (contextId === this.context?.id && !this.contextId) return
             const live = batch.live ?? []
             for (const id of live) this.currentSources.add(id)
             const projected = sources.map((source) =>
@@ -478,10 +488,10 @@ export abstract class ClaudeSdkConnection<
             if (event.type === 'input.changed' && hasProductInputId(event.input))
               this.eventQueue.push({ type: 'input-state', contextId, input: event.input })
             if (event.type === 'context.changed') this.eventQueue.push({ type: 'context-usage', result: event.result })
-            if (event.type === 'subagent.upsert') this.discoverChild(event.subagent)
+            if (this.contextId && event.type === 'subagent.upsert') this.discoverChild(event.subagent)
             if (event.type === 'snapshot') {
               if (event.contextUsage) this.eventQueue.push({ type: 'context-usage', result: event.contextUsage })
-              for (const child of event.subagents ?? []) this.discoverChild(child)
+              if (this.contextId) for (const child of event.subagents ?? []) this.discoverChild(child)
             }
             if (event.type === 'closed' && event.reason !== 'shutdown' && !this.closing)
               terminal.push(this.unexpectedClose(batch, event.reason, metadata))
@@ -599,7 +609,7 @@ export abstract class ClaudeSdkConnection<
         this.handle = opened.value
         await this.observeRoot(this.handle)
       }
-      this.context = contexts.bindContext(this.context.id, control.sessionId)
+      this.context = this.bindNativeContext(this.context, control.sessionId)
       this.updateResumeToken(control.sessionId)
     } else if (control.type === 'diagnostic') {
       logger.warn(control.message, { detail: control.detail })

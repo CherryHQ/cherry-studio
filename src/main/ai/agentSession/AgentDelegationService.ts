@@ -24,7 +24,7 @@ export class AgentDelegationService extends BaseService {
     this.stopping = false
     this.registerDisposable(
       agentService.onAgentUpdated(({ agent }) => {
-        if (agent.type === 'local' && !agent.configuration?.localRuntime?.enabled) {
+        if (agent.type === 'local' && !agent.localRuntime?.enabled) {
           void this.cancelMatching(
             (message) => message.delivery?.receiver.agentId === agent.id,
             'TARGET_UNAVAILABLE'

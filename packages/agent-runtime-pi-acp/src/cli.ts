@@ -1,3 +1,5 @@
+import type { AcpCliPreset } from '@cherrystudio/agent-runtime-acp/profile'
+
 export const piCli = {
   modelConfig: { target: 'pi-settings', overrides: ['PI_CODING_AGENT_DIR'] },
   id: 'pi-acp',
@@ -17,4 +19,4 @@ export const piCli = {
   npmPackage: '@earendil-works/pi-coding-agent',
   args: [],
   helpUrl: 'https://github.com/svkozak/pi-acp'
-} as const
+} as const satisfies AcpCliPreset<'pi-settings'>

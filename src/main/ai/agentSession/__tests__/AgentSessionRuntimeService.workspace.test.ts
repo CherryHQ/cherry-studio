@@ -11,6 +11,7 @@ import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { jobScheduleTable } from '@data/db/schemas/job'
+import { agentProviderService } from '@data/services/AgentProviderService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { LocalRuntimeDriver } from '@main/ai/runtime/LocalRuntimeDriver'
@@ -22,6 +23,7 @@ import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
 import { ACP_HOST_PERMISSION_MODE_ID } from '@shared/ai/localAgent'
 
 import { AgentSessionRuntimeService } from '../AgentSessionRuntimeService'
+import { bindLocalContext, localContext, resolveLocalContext, resolveLocalLaunch } from '../localContext'
 
 vi.mock('@main/utils/shellEnv', async (importOriginal) => ({
   ...(await importOriginal<typeof ShellEnv>()),
@@ -59,7 +61,7 @@ afterEach(async () => {
   await rm(directory, { recursive: true, force: true })
 })
 
-function setup(protocol: 'acp' | 'codex', pauseFirst = false) {
+function setup(protocol: 'acp' | 'codex', pauseFirst = false, scenario = 'workspace') {
   dbh.db
     .insert(agentTable)
     .values({
@@ -67,18 +69,16 @@ function setup(protocol: 'acp' | 'codex', pauseFirst = false) {
       type: 'local',
       name: 'Local',
       instructions: '',
-      orderKey: 'a0',
-      configuration: {
-        localRuntime: {
-          enabled: true,
-          presetId: protocol === 'codex' ? 'codex' : undefined,
-          executableOverride: process.execPath,
-          args: [fixture, protocol, 'workspace'],
-          env: { FIXTURE_LOG: path.join(directory, 'wire.jsonl') }
-        }
-      }
+      orderKey: 'a0'
     })
     .run()
+  agentProviderService.setBindingTx(dbh.db, 'agent', {
+    enabled: true,
+    presetId: protocol === 'codex' ? 'codex' : undefined,
+    executableOverride: process.execPath,
+    args: [fixture, protocol, scenario],
+    env: { FIXTURE_LOG: path.join(directory, 'wire.jsonl') }
+  })
   dbh.db
     .insert(agentWorkspaceTable)
     .values(
@@ -150,8 +150,13 @@ async function assertFirstInputUsesB(protocol: 'acp' | 'codex') {
   expect(connections).toHaveLength(2)
 }
 
-async function readAcpRequests(): Promise<{ method: string; params: { cwd?: string; sessionId?: string } }[]> {
-  return (await readFile(path.join(directory, 'wire.jsonl'), 'utf8'))
+async function readAcpRequests(file = 'wire.jsonl'): Promise<
+  {
+    method: string
+    params: { cwd?: string; sessionId?: string; prompt?: { text?: string }[]; input?: { text?: string }[] }
+  }[]
+> {
+  return (await readFile(path.join(directory, file), 'utf8'))
     .trim()
     .split('\n')
     .map((line) => JSON.parse(line))
@@ -170,25 +175,28 @@ it('opens ACP only when the conversation becomes interactive and shares the conn
     name: 'New conversation',
     workspace: { type: 'user', workspaceId: 'B' }
   })
-  expect(service.getLocalSessionView(session.id)).toEqual({ info: null, permissionUnavailable: true })
+  expect(service.getLocalSessionView(session.id)).toMatchObject({ info: null, permissionUnavailable: true })
   await expect(service.setLocalMode(session.id, ACP_HOST_PERMISSION_MODE_ID, 'acceptEdits')).rejects.toThrow(
     'Local agent session is unavailable'
   )
   await expect(stat(path.join(directory, 'wire.jsonl'))).rejects.toHaveProperty('code', 'ENOENT')
 
   const activated = service.setLocalSessionInteractive('window', session.id, true)
-  await vi.waitFor(async () => {
-    const starts = (await readAcpRequests()).filter(
-      ({ method }) => method === 'session/new' || method === 'session/prompt'
-    )
-    expect(starts).toEqual([
-      expect.objectContaining({
-        method: 'session/new',
-        params: expect.objectContaining({ cwd: session.workspace.path })
-      })
-    ])
-  })
-  expect(service.getLocalSessionView(session.id)).toEqual({
+  await vi.waitFor(
+    async () => {
+      const starts = (await readAcpRequests()).filter(
+        ({ method }) => method === 'session/new' || method === 'session/prompt'
+      )
+      expect(starts).toEqual([
+        expect.objectContaining({
+          method: 'session/new',
+          params: expect.objectContaining({ cwd: session.workspace.path })
+        })
+      ])
+    },
+    { timeout: 5000 }
+  )
+  expect(service.getLocalSessionView(session.id)).toMatchObject({
     info: null,
     permissionUnavailable: true,
     connecting: true
@@ -255,17 +263,19 @@ it('keeps ordinary ACP permission choices unavailable after a failed connection'
   vi.mocked(driver.connect).mockRejectedValueOnce(new Error('ACP startup failed'))
 
   await expect(service.setLocalSessionInteractive('window', 'session', true)).rejects.toThrow('ACP startup failed')
-  expect(service.getLocalSessionView('session')).toEqual({ info: null, permissionUnavailable: true })
+  expect(service.getLocalSessionView('session')).toMatchObject({ info: null, permissionUnavailable: true })
 })
 
 it('reclaims an idle ACP connection after the last interactive view leaves and restores it on return', async () => {
   await service._doInit()
   setup('acp')
-  agentSessionMessageService.saveMessage({
+  const anchor = agentSessionMessageService.saveMessage({
     sessionId: 'session',
-    runtimeResumeToken: 'native-session',
     message: { role: 'assistant', status: 'success', data: { parts: [{ type: 'text', text: 'Existing history' }] } }
   })
+  const launch = resolveLocalLaunch('session', 'agent')!
+  const context = localContext('session', 'agent', anchor.id, launch.target, undefined)!
+  bindLocalContext(context.id, 'native-session')
   await Promise.all([
     service.setLocalSessionInteractive('first-window', 'session', true),
     service.setLocalSessionInteractive('second-window', 'session', true)
@@ -360,3 +370,191 @@ it.each(['acp', 'codex'] as const)(
     await assertFirstInputUsesB(protocol)
   }
 )
+
+it('reconnects a claimed ACP context to its original provider after its Agent switches providers', async () => {
+  setup('acp')
+  await service.listSessionCommands('session')
+  expect(resolveLocalContext('session')).toBeUndefined()
+  const message = agentSessionMessageService.saveMessage({
+    sessionId: 'session',
+    message: { role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'first' }] } }
+  })
+  await connections[0].send({ message })
+  const original = resolveLocalContext('session')!
+  expect(original.context.nativeThreadId).toBe('native-session')
+  await service.closeSession('session')
+
+  const next = agentProviderService.setBindingTx(dbh.db, 'agent', {
+    env: { FIXTURE_LOG: path.join(directory, 'new-provider.jsonl') }
+  })
+  await service.listSessionCommands('session')
+  expect(service.getLocalSessionView('session').providerId).toBe(original.providerId)
+  expect(
+    (await readAcpRequests()).filter(({ method }) => method === 'session/load').map(({ params }) => params.sessionId)
+  ).toEqual(['native-session'])
+  expect(resolveLocalContext('session')?.context.id).toBe(original.context.id)
+
+  const fresh = agentSessionService.create({
+    agentId: 'agent',
+    name: 'New',
+    workspace: { type: 'user', workspaceId: 'A' }
+  })
+  await service.listSessionCommands(fresh.id)
+  expect(service.getLocalSessionView(fresh.id).providerId).toBe(next.providerId)
+  expect((await readAcpRequests('new-provider.jsonl')).filter(({ method }) => method === 'session/new')).toHaveLength(1)
+  await service.closeSession(fresh.id)
+})
+
+it('replaces an unclaimed ACP warmup when the Agent provider changes during startup', async () => {
+  setup('acp', true)
+  const opening = service.listSessionCommands('session')
+  await vi.waitFor(() => expect(connections).toHaveLength(1))
+  const next = agentProviderService.setBindingTx(dbh.db, 'agent', {
+    env: { FIXTURE_LOG: path.join(directory, 'new-provider.jsonl') }
+  })
+  release!()
+  await opening
+  expect(resolveLocalContext('session')).toBeUndefined()
+  expect(service.getLocalSessionView('session').providerId).toBe(next.providerId)
+  const message = agentSessionMessageService.saveMessage({
+    sessionId: 'session',
+    message: { role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'first' }] } }
+  })
+  await connections.at(-1)!.send({ message })
+  expect((await readAcpRequests()).some(({ method }) => method === 'session/prompt')).toBe(false)
+  expect(
+    (await readAcpRequests('new-provider.jsonl')).filter(({ method }) => method === 'session/prompt')
+  ).toHaveLength(1)
+  expect(resolveLocalContext('session')?.providerId).toBe(next.providerId)
+})
+
+it('reopens the original native thread when the provider login changes', async () => {
+  setup('acp')
+  agentProviderService.setBindingTx(dbh.db, 'agent', { account: { methodId: 'oauth', accountId: 'first' } })
+  const message = agentSessionMessageService.saveMessage({
+    sessionId: 'session',
+    message: { role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'first' }] } }
+  })
+  const launch = resolveLocalLaunch('session', 'agent')!
+  localContext('session', 'agent', message.id, launch.target, undefined, 'native-session')
+  const original = resolveLocalContext('session')!
+  await service.listSessionCommands('session')
+
+  const updated = agentProviderService.setBindingTx(dbh.db, 'agent', {
+    account: { methodId: 'oauth', accountId: 'second' }
+  })
+  expect(updated.providerId).toBe(original.providerId)
+  await service.listSessionCommands('session')
+
+  const requests = await readAcpRequests()
+  expect(requests.filter(({ method }) => method === 'session/new')).toHaveLength(0)
+  expect(requests.filter(({ method }) => method === 'session/load').map(({ params }) => params.sessionId)).toEqual([
+    original.context.nativeThreadId,
+    original.context.nativeThreadId
+  ])
+  expect(resolveLocalContext('session')?.context.id).toBe(original.context.id)
+  expect(connections.at(-1)?.localRuntime?.account?.accountId).toBe('second')
+})
+
+it.each([
+  ['acp', 'resume-lost', 'session/prompt'],
+  ['codex', 'lost-rollout', 'turn/start']
+] as const)(
+  'rebuilds a missing %s thread with reference history on the first new prompt only',
+  async (protocol, scenario, promptMethod) => {
+    setup(protocol, false, scenario)
+    const remembered = agentSessionMessageService.saveMessage({
+      sessionId: 'session',
+      message: { role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'Keep the blue notebook' }] } }
+    })
+    const launch = resolveLocalLaunch('session', 'agent')!
+    const original = localContext('session', 'agent', remembered.id, launch.target, undefined, 'lost-thread')!
+    agentSessionMessageService.saveMessage({
+      sessionId: 'session',
+      runtimeResumeToken: 'lost-thread',
+      message: { role: 'assistant', status: 'success', data: { parts: [{ type: 'text', text: 'Notebook saved' }] } }
+    })
+    await service.listSessionCommands('session')
+    expect(resolveLocalContext('session')?.context.id).toBe(original.id)
+    expect((await readAcpRequests()).some(({ method }) => method === promptMethod)).toBe(false)
+
+    async function send(text: string) {
+      const userMessage = agentSessionMessageService.saveMessage({
+        sessionId: 'session',
+        message: { role: 'user', status: 'success', data: { parts: [{ type: 'text', text }] } }
+      })
+      const assistant = agentSessionMessageService.saveMessage({
+        sessionId: 'session',
+        message: { role: 'assistant', status: 'pending', data: { parts: [] } }
+      })
+      const turn = service.beginTurn({
+        sessionId: 'session',
+        topicId: buildAgentSessionTopicId('session'),
+        agentId: 'agent',
+        agentType: 'local',
+        modelId: 'runtime:agent',
+        assistantMessageId: assistant.id,
+        userMessage
+      })
+      const { stream } = service.openTurnStream({
+        sessionId: 'session',
+        turnId: turn.turnId,
+        signal: turn.abortController.signal
+      })
+      for await (const event of stream) {
+        if (event.type === 'error') throw event.error
+      }
+      service.markTurnTerminal('session', 'success', turn.turnId)
+      await service.closeSession('session')
+    }
+
+    await send('What did we save?')
+    expect(resolveLocalContext('session')?.context).toMatchObject({ nativeThreadId: 'native-session' })
+
+    await send('Next question')
+    const prompts = (await readAcpRequests())
+      .filter(({ method }) => method === promptMethod)
+      .map(({ params }) => (params.prompt ?? params.input)?.map(({ text }) => text))
+    expect(prompts).toHaveLength(2)
+    expect(prompts[0]?.[0]).toContain('Keep the blue notebook')
+    expect(prompts[0]?.[0]).toContain('Notebook saved')
+    expect(prompts[0]?.at(-1)).toBe('What did we save?')
+    expect(prompts[1]).toEqual(['Next question'])
+    expect(agentSessionMessageService.getSessionMessage('session', remembered.id).data.parts).toEqual([
+      { type: 'text', text: 'Keep the blue notebook' }
+    ])
+  }
+)
+
+it('keeps an unchanged ACP warmup and rejects changed model or credentials at first input', async () => {
+  setup('acp', true)
+  const account = { methodId: 'native', accountId: 'test-account' }
+  agentProviderService.setBindingTx(dbh.db, 'agent', { account })
+  const opening = service.listSessionCommands('session')
+  await vi.waitFor(() => expect(connections).toHaveLength(1))
+  const unchanged = agentProviderService.setBindingTx(dbh.db, 'agent', { enabled: true })
+  release!()
+  await opening
+  expect((await readAcpRequests()).filter(({ method }) => method === 'session/new')).toHaveLength(1)
+
+  const message = agentSessionMessageService.saveMessage({
+    sessionId: 'session',
+    message: { role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'first' }] } }
+  })
+
+  const rotated = agentProviderService.setBindingTx(dbh.db, 'agent', {
+    account,
+    encryptedEnv: 'different-sealed-credentials'
+  })
+  expect(rotated.providerId).toBe(unchanged.providerId)
+  expect(connections[0].claimLocalContext?.(message.id)).toBe(false)
+
+  const edited = agentProviderService.setBindingTx(dbh.db, 'agent', {
+    account,
+    encryptedEnv: null,
+    nativeModel: 'new-model'
+  })
+  expect(edited.providerId).toBe(unchanged.providerId)
+  expect(connections[0].claimLocalContext?.(message.id)).toBe(false)
+  expect(resolveLocalContext('session')).toBeUndefined()
+})

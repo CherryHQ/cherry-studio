@@ -1350,7 +1350,7 @@ const Sessions = ({
             <Tooltip title={t('common.more')} delay={500}>
               <AgentGroupMoreMenu
                 agentId={agentGroupId}
-                isLocalAgent={!!agentById.get(agentGroupId)?.configuration?.localRuntime}
+                isLocalAgent={!!agentById.get(agentGroupId)?.localRuntime}
                 assistantIconType={assistantIconType}
                 deleteAgentDisabled={deletingAgentId !== null}
                 deleteSessionsOnly={isProtectedBuiltinAgentRole(
@@ -1555,7 +1555,7 @@ const Sessions = ({
 
         const actionContext: AgentGroupActionContext = {
           agentId,
-          isLocalAgent: !!agentById.get(agentId)?.configuration?.localRuntime,
+          isLocalAgent: !!agentById.get(agentId)?.localRuntime,
           assistantIconType,
           deleteAgentDisabled: deletingAgentId !== null,
           deleteSessionsOnly: isProtectedBuiltinAgentRole(agentById.get(agentId)?.configuration?.builtin_role),

@@ -103,14 +103,12 @@ export function AgentSelector(props: AgentSelectorProps) {
   const items: AgentSelectorItem[] = useMemo(
     () => [
       ...(data?.items ?? [])
-        .filter((agent) => agent.type !== 'local' || agent.configuration?.localRuntime?.enabled)
+        .filter((agent) => agent.type !== 'local' || agent.localRuntime?.enabled)
         .map((agent) => ({
           id: agent.id,
           name: agent.name,
           description: getAgentDescriptionForDisplay(agent, t),
-          icon: agent.configuration?.localRuntime ? (
-            <LocalAgentIcon presetId={agent.configuration.localRuntime.presetId} size={20} />
-          ) : undefined,
+          icon: agent.localRuntime ? <LocalAgentIcon presetId={agent.localRuntime.presetId} size={20} /> : undefined,
           emoji: getAgentAvatarFromConfiguration(agent.configuration),
           avatarSrc: agent.avatarSrc
         })),

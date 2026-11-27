@@ -638,7 +638,7 @@ const AgentComposerInner = ({
   const agentModelFilter = useAgentModelFilter(agent?.type)
   const isModelUnavailable = Boolean(agent) && agent?.type !== 'local' && !model && !modelPending
   const missingModelMessage =
-    agent?.type === 'local' && !agent.configuration?.localRuntime?.enabled
+    agent?.type === 'local' && !agent.localRuntime?.enabled
       ? t('local_agents.disabled')
       : isModelUnavailable
         ? t('code.model_required')
@@ -650,9 +650,10 @@ const AgentComposerInner = ({
   )
   const currentTabId = useCurrentTabId()
   const isActiveTab = useIsActiveTab()
-  const localRuntime = agent?.type === 'local' ? agent.configuration?.localRuntime : undefined
+  const localRuntime = agent?.type === 'local' ? agent.localRuntime : undefined
   const localView = useLocalAgentSessionInfo(sessionId, agent?.type === 'local' && (!currentTabId || isActiveTab))
   const localInfo = localView?.info ?? null
+  const localPresetId = localView?.providerId ? localView.presetId : localRuntime?.presetId
   const configuredReasoningEffort = agent?.configuration?.reasoning_effort ?? 'default'
   const canonicalReasoningEffort = model
     ? (resolveReasoningEffortForModel(model, configuredReasoningEffort) ?? 'default')
@@ -847,7 +848,7 @@ const AgentComposerInner = ({
   })
 
   const fileCapabilities = useComposerFileCapabilities(model)
-  const localProtocol = localRuntime && getLocalAgentProtocol(localRuntime.presetId)
+  const localProtocol = localRuntime && getLocalAgentProtocol(localPresetId)
   const reportsLocalAudio = localProtocol === 'acp' || localProtocol === 'cursor'
   const canAddImageFile = agent?.type === 'local' ? localInfo?.images !== false : fileCapabilities.canAddImageFile
   const canAddAudioFile = !reportsLocalAudio || localInfo?.audio === true
@@ -1387,6 +1388,8 @@ const AgentComposerInner = ({
         ? {
             mode: localPermissionSelection,
             options: localExtraOptions,
+            providerId: localView?.providerId,
+            presetId: localPresetId,
             connecting: localView?.connecting,
             unavailable: localView?.permissionUnavailable,
             disabled: isStreaming || localView?.connecting === true
@@ -1398,8 +1401,10 @@ const AgentComposerInner = ({
       launchOptions?.editing,
       localExtraOptions,
       localPermissionSelection,
+      localPresetId,
       localView?.connecting,
-      localView?.permissionUnavailable
+      localView?.permissionUnavailable,
+      localView?.providerId
     ]
   )
   const toolsSession = useMemo(
@@ -1763,7 +1768,7 @@ const AgentComposerInner = ({
 
   const handleSendDraft = useCallback(
     async (draft: ComposerSerializedDraft, options?: { steer?: boolean }) => {
-      if (sendDisabled || (agent?.type === 'local' && !agent.configuration?.localRuntime?.enabled)) return
+      if (sendDisabled || (agent?.type === 'local' && !agent.localRuntime?.enabled)) return
       if (directSendInFlightRef.current) return
       if (!model && agent?.type !== 'local') {
         toast.error(t('code.model_required'))
@@ -1970,8 +1975,7 @@ const AgentComposerInner = ({
   )
 
   const controlSlots = renderControls({
-    localInfo,
-    localConnecting: localView?.connecting,
+    localView,
     localSessionId: sessionId,
     agent,
     model,

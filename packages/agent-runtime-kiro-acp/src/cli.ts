@@ -1,5 +1,5 @@
-import type { AcpPermissionModes } from '@cherrystudio/agent-runtime-acp/profile'
-import type { CliAccountProbe, CliInstaller } from '@cherrystudio/agent-runtime/cli'
+import type { AcpCliPreset } from '@cherrystudio/agent-runtime-acp/profile'
+import type { CliInstaller } from '@cherrystudio/agent-runtime/cli'
 
 export const kiroCli = {
   id: 'kiro',
@@ -10,8 +10,9 @@ export const kiroCli = {
     labels: { supervised: 'default', autopilot: 'auto' },
     nativeApprovalOnly: true,
     persistentConfigIds: ['contentCollection']
-  } satisfies AcpPermissionModes,
+  },
   account: { methods: [] },
+  subscriptionUsage: true,
   loginArgs: ['login'],
   accountProbe: {
     args: ['whoami', '--format', 'json'],
@@ -34,14 +35,14 @@ export const kiroCli = {
         return { status: 'unknown' }
       }
     }
-  } satisfies CliAccountProbe,
+  },
   terminalArgs: ['chat'],
   name: 'Kiro',
   protocol: 'acp',
   executable: 'kiro-cli',
   args: ['acp'],
   helpUrl: 'https://kiro.dev/docs/cli/acp/'
-} as const
+} as const satisfies AcpCliPreset
 
 export const kiroInstaller = {
   executable: kiroCli.executable,

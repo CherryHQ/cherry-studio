@@ -576,7 +576,7 @@ export class AgentJobsService extends BaseService {
   // validation, where the form must branch on the code.
   private assertAgentIsActive(agentId: string): void {
     const agent = agentService.getAgent(agentId)
-    if (agent?.type === 'local' && !agent.configuration?.localRuntime?.enabled) {
+    if (agent?.type === 'local' && !agent.localRuntime?.enabled) {
       throw new Error('Scheduled tasks require an enabled local agent')
     }
     // Trashed is refused with missing: the row would register and arm, then the

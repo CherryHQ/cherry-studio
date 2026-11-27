@@ -20,6 +20,7 @@ import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { jobTable } from '@data/db/schemas/job'
 import { agentChannelService } from '@data/services/AgentChannelService'
+import { agentProviderService } from '@data/services/AgentProviderService'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentTaskService } from '@data/services/AgentTaskService'
@@ -239,22 +240,27 @@ describe('AgentJobsService', () => {
         type: 'local',
         name: 'Local ACP',
         instructions: '',
-        orderKey: id,
-        configuration: { localRuntime: { executableOverride: '/custom/acp', enabled: true, args: [], env: {} } }
+        orderKey: id
       })
       .run()
+    application.get('DbService').withWriteTx((tx) =>
+      agentProviderService.setBindingTx(tx, id, {
+        executableOverride: '/custom/acp',
+        enabled: true
+      })
+    )
     const active = service.createTask(id, form)
     const paused = service.createTask(id, { ...form, name: 'paused task' })
     await service.pauseTask(id, paused.id)
 
-    agentService.updateAgent(id, { configuration: { localRuntime: { enabled: false } } })
+    agentService.updateAgent(id, { localRuntime: { enabled: false } })
     expect(agentTaskService.getTaskById(active.id)).toMatchObject({ status: 'paused', enabled: false })
     expect(scheduler.has(`schedule:${active.id}`)).toBe(false)
     await expect(service.runTask(id, active.id)).rejects.toThrow('Scheduled tasks require an enabled local agent')
     expect(() => service.resumeTask(id, active.id)).toThrow('Scheduled tasks require an enabled local agent')
     expect(jobService.list({ scheduleId: active.id })).toEqual([])
 
-    agentService.updateAgent(id, { configuration: { localRuntime: { enabled: true } } })
+    agentService.updateAgent(id, { localRuntime: { enabled: true } })
     expect(scheduler.has(`schedule:${active.id}`)).toBe(true)
     expect(scheduler.has(`schedule:${paused.id}`)).toBe(false)
   })
@@ -268,18 +274,18 @@ describe('AgentJobsService', () => {
         type: 'local',
         name: 'Custom ACP',
         instructions: '',
-        orderKey: id,
-        configuration: {
-          localRuntime: {
-            enabled: true,
-            executableOverride: '/old/acp',
-            args: ['old'],
-            env: {},
-            nativeModel: 'saved-model'
-          }
-        }
+        orderKey: id
       })
       .run()
+    application.get('DbService').withWriteTx((tx) =>
+      agentProviderService.setBindingTx(tx, id, {
+        enabled: true,
+        executableOverride: '/old/acp',
+        args: ['old'],
+        env: {},
+        nativeModel: 'saved-model'
+      })
+    )
     const task = service.createTask(id, form)
     const session = agentSessionService.create({ agentId: id, name: 'Owned', workspace: { type: 'system' } })
     await lifecycle.archiveAgent(id, { archiveSessions: true })
@@ -288,7 +294,7 @@ describe('AgentJobsService', () => {
     const restored = await lifecycle.restoreAgent(id, settings)
 
     expect(restored.id).toBe(id)
-    expect(restored.configuration?.localRuntime).toMatchObject({
+    expect(restored.localRuntime).toMatchObject({
       ...settings,
       nativeModel: 'saved-model',
       enabled: true
@@ -439,18 +445,16 @@ describe('AgentJobsService', () => {
           type: 'local',
           name: presetId ?? 'Custom ACP',
           instructions: '',
-          orderKey: OTHER_AGENT_ID,
-          configuration: {
-            localRuntime: {
-              presetId,
-              ...(presetId === undefined ? { executableOverride: '/custom/acp' } : {}),
-              enabled,
-              args: [],
-              env: {}
-            }
-          }
+          orderKey: OTHER_AGENT_ID
         })
         .run()
+      application.get('DbService').withWriteTx((tx) =>
+        agentProviderService.setBindingTx(tx, OTHER_AGENT_ID, {
+          presetId,
+          ...(presetId === undefined ? { executableOverride: '/custom/acp' } : {}),
+          enabled
+        })
+      )
 
       if (supported) {
         const task = service.createTask(OTHER_AGENT_ID, form)

@@ -16,7 +16,7 @@ import type { LocalAgentConfiguration } from '@shared/ai/localAgent'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { CodeCli } from '@shared/types/codeCli'
 
-import { selectLocalAgentModel, syncLocalAgentConfigModel } from '../selectModel'
+import { selectLocalAgentModel } from '../selectModel'
 
 const platform = vi.hoisted(() => ({ isWin: process.platform === 'win32' }))
 vi.mock('@main/core/platform', async (importOriginal) => ({
@@ -27,20 +27,17 @@ vi.mock('@main/core/platform', async (importOriginal) => ({
 }))
 vi.mock('@main/utils/shellEnv', () => ({ getRawShellEnv: vi.fn(async () => ({})) }))
 
-describe('global local agent model selection', () => {
+describe('local Agent model selection', () => {
   setupTestDatabase()
   let home: string
   const service = new CodeCliService()
-  const originalUpdate = application.get('CodeCliService').updateConfigFiles
   const originalWrite = application.get('CodeCliService').writeConfigFiles
   beforeAll(async () => {
     home = await mkdtemp(path.join(tmpdir(), 'cherry-global-model-'))
     vi.mocked(application.getPath).mockImplementation((_key, filename) => path.join(home, filename ?? ''))
-    application.get('CodeCliService').updateConfigFiles = service.updateConfigFiles.bind(service)
     application.get('CodeCliService').writeConfigFiles = service.writeConfigFiles.bind(service)
   })
   afterAll(async () => {
-    application.get('CodeCliService').updateConfigFiles = originalUpdate
     application.get('CodeCliService').writeConfigFiles = originalWrite
     await rm(home, { recursive: true, force: true })
   })
@@ -50,7 +47,7 @@ describe('global local agent model selection', () => {
       name,
       type: 'local',
       model: null,
-      configuration: { localRuntime: { enabled: true, args: [], env: {}, ...config } }
+      localRuntime: { enabled: true, args: [], env: {}, ...config }
     })
   }
 
@@ -61,14 +58,9 @@ describe('global local agent model selection', () => {
     const config = { presetId, enabled: true, args: [], env: {} }
     const agent = createLocalAgent(`local-${presetId}`, presetId, config)
     await selectLocalAgentModel(agent.id, model)
-    await expect(
-      selectLocalAgentModel(agent.id, undefined, {
-        expectedFiles: [{ target: 'pi-settings', content: '{}' }]
-      })
-    ).rejects.toThrow(t('code_cli.model.unsupported'))
-    expect(agentService.getAgent(agent.id)?.configuration?.localRuntime?.nativeModel).toBe(model)
+    expect(agentService.getAgent(agent.id)?.localRuntime?.nativeModel).toBe(model)
     await selectLocalAgentModel(agent.id)
-    expect(agentService.getAgent(agent.id)?.configuration?.localRuntime).toEqual(config)
+    expect(agentService.getAgent(agent.id)?.localRuntime).toMatchObject(config)
   })
 
   it.each([
@@ -84,41 +76,26 @@ describe('global local agent model selection', () => {
       const agent = createLocalAgent(`local-${presetId}`, presetId, config)
 
       await selectLocalAgentModel(agent.id, 'explicit')
-      expect(agentService.getAgent(agent.id)?.configuration?.localRuntime?.nativeModel).toBe('explicit')
+      expect(agentService.getAgent(agent.id)?.localRuntime?.nativeModel).toBe('explicit')
       expect(await readFile(filename, 'utf8')).toBe(original)
 
       await selectLocalAgentModel(agent.id)
-      expect(agentService.getAgent(agent.id)?.configuration?.localRuntime).toEqual(config)
+      expect(agentService.getAgent(agent.id)?.localRuntime).toMatchObject(config)
       expect(await readFile(filename, 'utf8')).toBe(original)
     }
   )
 
-  it('applies Code Mate provider changes to the existing chat Agent', () => {
-    const agent = createLocalAgent('provider-agent', 'Pi', {
-      presetId: 'pi-acp',
-      nativeModel: 'old/model'
-    })
-    syncLocalAgentConfigModel(CodeCli.PI, [
-      { target: 'pi-settings', content: '{"defaultProvider":"custom","defaultModel":"new"}' }
-    ])
-    expect(agentService.getAgent(agent.id)?.configuration?.localRuntime?.nativeModel).toBe('custom/new')
-  })
+  it('keeps individual Agent selections when editing their shared native config', async () => {
+    const first = createLocalAgent('pi-first', 'Pi', { presetId: 'pi-acp', nativeModel: 'one/model' })
+    const second = createLocalAgent('pi-second', 'Pi', { presetId: 'pi-acp', nativeModel: 'two/model' })
+    const nativeConfig = '{"defaultProvider":"custom","defaultModel":"new"}'
+    const [file] = await service.readConfigFiles(['pi-settings'])
 
-  it('does not project global config edits onto an Agent with a separate config root', () => {
-    const agent = createLocalAgent('independent-claude', 'Separate Claude', {
-      presetId: 'claude',
-      env: { CLAUDE_CONFIG_DIR: '/independent' },
-      nativeModel: 'private-model'
-    })
-    expect(
-      syncLocalAgentConfigModel(
-        CodeCli.CLAUDE_CODE,
-        [{ target: 'claude-settings', content: '{"model":"global-model","effortLevel":"high"}' }],
-        false,
-        {}
-      )
-    ).toBeUndefined()
-    expect(agentService.getAgent(agent.id)?.configuration?.localRuntime?.nativeModel).toBe('private-model')
+    await service.writeConfigFiles({ cliTool: CodeCli.PI, files: [{ target: 'pi-settings', content: nativeConfig }] })
+
+    expect(await readFile(file.path, 'utf8')).toBe(nativeConfig)
+    expect(agentService.getAgent(first.id)?.localRuntime?.nativeModel).toBe('one/model')
+    expect(agentService.getAgent(second.id)?.localRuntime?.nativeModel).toBe('two/model')
   })
 
   it('keeps the Poolside native model on the Agent and refuses a Cherry model it cannot bind', async () => {
@@ -134,7 +111,7 @@ describe('global local agent model selection', () => {
       })
     ).rejects.toThrow(t('code_cli.model.cherry_model_unsupported'))
     expect(await readFile(file.path, 'utf8')).toBe('model: user\n')
-    expect(agentService.getAgent(agent.id)?.configuration?.localRuntime?.nativeModel).toBe('poolside/laguna-xs-2.1')
+    expect(agentService.getAgent(agent.id)?.localRuntime?.nativeModel).toBe('poolside/laguna-xs-2.1')
   })
 
   it.each([
@@ -154,13 +131,13 @@ describe('global local agent model selection', () => {
       const sourceModelId = createUniqueModelId('provider', 'model')
 
       const selected = await selectLocalAgentModel(agent.id, undefined, { sourceModelId, sourceModelViaGateway: true })
-      expect(selected.configuration?.localRuntime).toMatchObject({ sourceModelId, sourceModelViaGateway: true })
-      expect(selected.configuration?.localRuntime?.nativeModel).toBeUndefined()
+      expect(selected.localRuntime).toMatchObject({ sourceModelId, sourceModelViaGateway: true })
+      expect(selected.localRuntime?.nativeModel).toBeUndefined()
       expect(await readFile(file.path, 'utf8')).toBe(content)
 
       const restored = await selectLocalAgentModel(agent.id)
-      expect(restored.configuration?.localRuntime?.sourceModelId).toBeUndefined()
-      expect(restored.configuration?.localRuntime?.sourceModelViaGateway).toBeUndefined()
+      expect(restored.localRuntime?.sourceModelId).toBeUndefined()
+      expect(restored.localRuntime?.sourceModelViaGateway).toBeUndefined()
     }
   )
 
@@ -175,40 +152,16 @@ describe('global local agent model selection', () => {
         ...selection
       })
     ).rejects.toThrow(t('code_cli.model.cherry_model_unsupported'))
-    expect(agentService.getAgent(agent.id)?.configuration?.localRuntime?.nativeModel).toBe('native')
+    expect(agentService.getAgent(agent.id)?.localRuntime?.nativeModel).toBe('native')
   })
 
-  it('does not change the saved model when native persistence is unsupported', async () => {
+  it('saves a model for a custom ACP session without a global preset', async () => {
     const agent = createLocalAgent('custom-local', 'Custom', {
       executableOverride: '/custom/acp',
       nativeModel: 'previous'
     })
-    await expect(selectLocalAgentModel(agent.id, 'next')).rejects.toThrow(t('code_cli.model.unsupported'))
-    expect(agentService.getAgent(agent.id)?.configuration?.localRuntime?.nativeModel).toBe('previous')
-  })
-  it('rejects stale drafts without overwriting disk or the saved selection', async () => {
-    const agent = createLocalAgent('stale-pi', 'Pi', { presetId: 'pi-acp' })
-    await selectLocalAgentModel(agent.id, 'anthropic/first')
-    await expect(
-      selectLocalAgentModel(agent.id, 'anthropic/second', {
-        expectedFiles: [{ target: 'pi-settings', content: null }]
-      })
-    ).rejects.toThrow('configuration changed')
-    expect(agentService.getAgent(agent.id)?.configuration?.localRuntime?.nativeModel).toBe('anthropic/first')
-    expect(JSON.parse(await readFile(path.join(home, '.pi/agent/settings.json'), 'utf8')).defaultModel).toBe('first')
-  })
-
-  it('edits the Poolside model with an unrelated CLI override and refuses an override of its own model', async () => {
-    const agent = createLocalAgent('poolside-model-env', 'Poolside', {
-      presetId: 'poolside',
-      env: { CODEX_HOME: '/other/codex' }
-    })
-    await selectLocalAgentModel(agent.id, 'selected')
-    agentService.updateAgent(agent.id, {
-      configuration: { localRuntime: { env: { POOLSIDE_STANDALONE_MODEL: 'external' } } }
-    })
-    await expect(selectLocalAgentModel(agent.id, 'replaced')).rejects.toThrow(t('code_cli.model.environment_mismatch'))
-    expect(agentService.getAgent(agent.id)?.configuration?.localRuntime?.nativeModel).toBe('selected')
+    await selectLocalAgentModel(agent.id, 'next')
+    expect(agentService.getAgent(agent.id)?.localRuntime?.nativeModel).toBe('next')
   })
 
   it('selects the Codex model when only the Cline data directory differs', async () => {
@@ -217,11 +170,11 @@ describe('global local agent model selection', () => {
       env: { CLINE_DATA_DIR: '/other/cline' }
     })
     const selected = await selectLocalAgentModel(agent.id, 'next')
-    expect(selected.configuration?.localRuntime?.nativeModel).toBe('next')
+    expect(selected.localRuntime?.nativeModel).toBe('next')
   })
 
   it('checks editor drafts inside the queue so concurrent writes cannot share a stale snapshot', async () => {
-    const agent = createLocalAgent('queued-pi', 'Pi', { presetId: 'pi-acp' })
+    const agent = createLocalAgent('queued-pi', 'Pi', { presetId: 'pi-acp', nativeModel: 'saved/selection' })
     const original = '{"defaultProvider":"native","defaultModel":"original"}'
     await service.writeConfigFiles({
       cliTool: CodeCli.PI,
@@ -242,7 +195,7 @@ describe('global local agent model selection', () => {
     expect(writes[0].status).toBe('fulfilled')
     expect(writes[1]).toMatchObject({ status: 'rejected', reason: new Error(t('code_cli.config_changed')) })
     expect(JSON.parse(await readFile(path.join(home, '.pi/agent/settings.json'), 'utf8')).defaultModel).toBe('first')
-    expect(agentService.getAgent(agent.id)?.configuration?.localRuntime?.nativeModel).toBe('native/first')
+    expect(agentService.getAgent(agent.id)?.localRuntime?.nativeModel).toBe('saved/selection')
   })
 
   it('keeps an Agent-owned Cherry model when the global CLI config changes', async () => {
@@ -256,7 +209,7 @@ describe('global local agent model selection', () => {
     await service.writeConfigFiles({ cliTool: CodeCli.CLAUDE_CODE, files: [{ target: 'claude-settings', content }] })
 
     expect(await readFile(path.join(home, '.claude/settings.json'), 'utf8')).toBe(content)
-    const runtime = agentService.getAgent(agent.id)?.configuration?.localRuntime
+    const runtime = agentService.getAgent(agent.id)?.localRuntime
     expect(runtime).toMatchObject({ sourceModelId, sourceModelViaGateway: true })
     expect(runtime?.nativeModel).toBeUndefined()
   })
@@ -265,29 +218,27 @@ describe('global local agent model selection', () => {
     const sourceModelId = createUniqueModelId('custom', 'example')
     const agent = createLocalAgent('editor-claude', 'Claude', {
       presetId: 'claude',
-      nativeModel: 'example',
-      sourceModelId
+      sourceModelId,
+      sourceModelViaGateway: true
     })
     const original = '{"env":{"ANTHROPIC_MODEL":"example"},"effortLevel":"medium"}'
     await service.writeConfigFiles({
       cliTool: CodeCli.CLAUDE_CODE,
-      files: [{ target: 'claude-settings', content: original }],
-      preserveModelSource: true
+      files: [{ target: 'claude-settings', content: original }]
     })
     const input = {
       cliTool: CodeCli.CLAUDE_CODE as const,
       files: [{ target: 'claude-settings' as const, content: original.replace('medium', 'high') }],
-      expectedFiles: [{ target: 'claude-settings' as const, content: original }],
-      preserveModelSource: true
+      expectedFiles: [{ target: 'claude-settings' as const, content: original }]
     }
     expect(await codeCliHandlers['code_cli.write_config'](input, { senderId: 'test' })).toEqual({ success: true })
-    expect(agentService.getAgent(agent.id)?.configuration?.localRuntime?.sourceModelId).toBe(sourceModelId)
+    expect(agentService.getAgent(agent.id)?.localRuntime?.sourceModelId).toBe(sourceModelId)
     const result = await codeCliHandlers['code_cli.write_config'](
       { ...input, files: [{ target: 'claude-settings', content: '{}' }] },
       { senderId: 'test' }
     )
     expect(result.success).toBe(false)
     expect(JSON.parse(await readFile(path.join(home, '.claude/settings.json'), 'utf8')).effortLevel).toBe('high')
-    expect(agentService.getAgent(agent.id)?.configuration?.localRuntime?.sourceModelId).toBe(sourceModelId)
+    expect(agentService.getAgent(agent.id)?.localRuntime?.sourceModelId).toBe(sourceModelId)
   })
 })

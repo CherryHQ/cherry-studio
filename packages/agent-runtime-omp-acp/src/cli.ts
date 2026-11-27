@@ -1,4 +1,4 @@
-import type { AcpPermissionModes } from '@cherrystudio/agent-runtime-acp/profile'
+import type { AcpCliPreset } from '@cherrystudio/agent-runtime-acp/profile'
 
 export const ompCli = {
   modelConfig: {
@@ -10,7 +10,7 @@ export const ompCli = {
   permissionMode: {
     bypassArgs: ['acp', '--yolo'],
     values: { default: 'default', plan: 'plan' }
-  } satisfies AcpPermissionModes,
+  },
   credentialScope: 'provider',
   name: 'Oh My Pi',
   protocol: 'acp',
@@ -20,4 +20,4 @@ export const ompCli = {
   npmPackage: '@oh-my-pi/pi-coding-agent',
   requiredRuntime: { executable: 'bun', minimumVersion: '1.4.4' },
   helpUrl: 'https://github.com/can1357/oh-my-pi'
-} as const
+} as const satisfies AcpCliPreset<'omp-settings'>

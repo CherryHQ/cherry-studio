@@ -23,6 +23,7 @@
     "@cherrystudio/agent-runtime": "workspace:*"
   },
   "devDependencies": {
+    "@cherrystudio/agent-runtime-acp": "workspace:*",
     "@types/node": "^24.10.4",
     "tsdown": "^0.22.14",
     "typescript": "npm:@typescript/typescript6@6.0.2"

@@ -198,7 +198,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
     }
 
     const uniqueModelId: ExecutionId = providerUniqueModelId ?? `runtime:${agent.id}`
-    const localRuntime = agent.configuration?.localRuntime
+    const localRuntime = agent.localRuntime
     const providerModel = providerUniqueModelId ? parseUniqueModelId(providerUniqueModelId) : undefined
     const modelName =
       providerUniqueModelId && providerModel

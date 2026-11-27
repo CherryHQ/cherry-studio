@@ -337,6 +337,7 @@
   "agent.right_pane.info.session_cost": "세션 누적 비용",
   "agent.right_pane.info.shell_tasks": "백그라운드 명령",
   "agent.right_pane.info.subagents": "하위 에이전트",
+  "agent.right_pane.info.subscription_quota": "구독 한도",
   "agent.right_pane.info.workflows": "워크플로",
   "agent.right_pane.status.stop_run_task": "작업 중지",
   "agent.right_pane.status.stop_run_task_failed": "작업을 중지하지 못했습니다",

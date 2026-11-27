@@ -337,6 +337,7 @@
   "agent.right_pane.info.session_cost": "Oturumun toplam maliyeti",
   "agent.right_pane.info.shell_tasks": "Arka plan komutları",
   "agent.right_pane.info.subagents": "Alt ajanlar",
+  "agent.right_pane.info.subscription_quota": "Abonelik kotası",
   "agent.right_pane.info.workflows": "İş akışları",
   "agent.right_pane.status.stop_run_task": "Görevi durdur",
   "agent.right_pane.status.stop_run_task_failed": "Görev durdurulamadı",

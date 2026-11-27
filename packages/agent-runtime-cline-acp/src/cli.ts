@@ -1,4 +1,4 @@
-import type { AcpPermissionModes } from '@cherrystudio/agent-runtime-acp/profile'
+import type { AcpCliPreset } from '@cherrystudio/agent-runtime-acp/profile'
 
 export const clineCli = {
   modelConfig: { tool: 'cline', target: 'cline-providers', overrides: ['CLINE_DATA_DIR', 'CLINE_DIR'] },
@@ -10,10 +10,10 @@ export const clineCli = {
     values: { act: 'default', plan: 'plan' },
     approvalConfigId: 'auto_approve',
     legacyPlan: true
-  } satisfies AcpPermissionModes,
+  },
   name: 'Cline',
   protocol: 'acp',
   executable: 'cline',
   args: ['--acp'],
   helpUrl: 'https://cline.bot/cli'
-} as const
+} as const satisfies AcpCliPreset<'cline-providers'>

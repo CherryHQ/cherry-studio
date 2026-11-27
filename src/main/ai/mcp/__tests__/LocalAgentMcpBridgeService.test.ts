@@ -10,6 +10,7 @@ import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
+import { agentProviderService } from '@data/services/AgentProviderService'
 import { BaseService, Emitter } from '@main/core/lifecycle'
 import type { AutomationAccess, AutomationOwner } from '@main/services/automation/contracts'
 
@@ -42,10 +43,10 @@ describe('LocalAgentMcpBridgeService', () => {
         type: 'local',
         name: 'Claude Local',
         instructions: '',
-        orderKey: 'a0',
-        configuration: { localRuntime: { presetId: 'claude', enabled: true, args: [], env: {} } }
+        orderKey: 'a0'
       })
       .run()
+    dbh.db.transaction((tx) => agentProviderService.setBindingTx(tx, 'agent-1', { presetId: 'claude', enabled: true }))
     dbh.db
       .insert(agentWorkspaceTable)
       .values({ id: 'ws-1', name: 'Workspace', path: '/test/workspace', orderKey: 'a0' })

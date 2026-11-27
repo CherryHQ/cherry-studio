@@ -795,7 +795,7 @@ describe('AgentRightPane', () => {
     await user.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.details' }))
 
     expect(ipcRequestMock).toHaveBeenCalledWith('ai.agent.session.refresh_context_usage', { sessionId: 'session-a' })
-    expect(screen.queryByRole('button', { name: 'agent.right_pane.info.context', exact: true })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'agent.right_pane.info.context' })).not.toBeInTheDocument()
   })
 
   it.each([{ tokens: 0, precision: 'reported' } as const, undefined])(
@@ -816,7 +816,7 @@ describe('AgentRightPane', () => {
 
       await user.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.details' }))
 
-      const context = screen.queryByRole('button', { name: 'agent.right_pane.info.context', exact: true })
+      const context = screen.queryByRole('button', { name: 'agent.right_pane.info.context' })
       if (used) expect(context).toHaveTextContent('0%')
       else expect(context).not.toBeInTheDocument()
     }

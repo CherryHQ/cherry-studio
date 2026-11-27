@@ -1,11 +1,11 @@
-import type { AcpPermissionModes } from '@cherrystudio/agent-runtime-acp/profile'
+import type { AcpCliPreset } from '@cherrystudio/agent-runtime-acp/profile'
 
 export const qwenCli = {
   modelConfig: { target: 'qwen-settings', overrides: [] },
   id: 'qwen',
   permissionMode: {
     values: { default: 'default', plan: 'plan', 'auto-edit': 'acceptEdits', auto: 'auto', yolo: 'bypassPermissions' }
-  } satisfies AcpPermissionModes,
+  },
   externalCredentialMethods: ['openai'],
   terminalArgs: [],
   loginArgs: [],
@@ -15,4 +15,4 @@ export const qwenCli = {
   executable: 'qwen',
   args: ['--acp'],
   helpUrl: 'https://qwenlm.github.io/qwen-code-docs/'
-} as const
+} as const satisfies AcpCliPreset<'qwen-settings'>

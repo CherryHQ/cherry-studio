@@ -4,6 +4,7 @@ import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
 import { loggerService } from '@logger'
 import { withCreatedImageEntry } from '@main/services/entityImageBinding'
+import { protectLocalAgentEnvironment } from '@main/services/localAgentCredentials'
 import type { CreateAgentCommand } from '@shared/ipc/schemas/ai'
 
 import { createAgentDataDirectory, removeAgentDataDirectory } from './agentDataDirectory'
@@ -12,14 +13,19 @@ const logger = loggerService.withContext('CreateAgent')
 
 export async function createAgent(request: CreateAgentCommand) {
   const { avatarImage, ...data } = request
-  const presetId = request.type === 'local' ? request.configuration?.localRuntime?.presetId : undefined
+  const presetId = request.type === 'local' ? request.localRuntime?.presetId : undefined
   const agentId = presetId ? uuidv5(`cherry-local-agent:${presetId}`, uuidv5.URL) : uuidv4()
   if (request.type === 'local') {
     if (presetId && agentService.getLifecycleState(agentId) === 'trashed') agentService.restoreAgent(agentId)
     const existing = presetId ? agentService.getAgent(agentId) : null
-    return existing
-      ? agentService.updateAgent(agentId, { name: request.name, configuration: request.configuration })!
-      : agentService.createAgentWithId(agentId, data)
+    const prepared = request.localRuntime && protectLocalAgentEnvironment(request.localRuntime, existing?.id)
+    if (!existing) return agentService.createAgentWithId(agentId, { ...data, localRuntime: prepared })
+    const { encryptedEnv, account, ...localRuntime } = prepared ?? {}
+    return agentService.updateAgent(
+      agentId,
+      { name: request.name, configuration: request.configuration, localRuntime },
+      { localAccount: account, encryptedLocalEnv: encryptedEnv }
+    )!
   }
   const agentsDataRoot = application.getPath('feature.agents.data')
   await createAgentDataDirectory(agentsDataRoot, agentId)

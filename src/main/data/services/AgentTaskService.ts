@@ -6,11 +6,12 @@
  * transaction primitives used by workspace deletion.
  */
 
-import { and, inArray, isNull } from 'drizzle-orm'
+import { and, eq, inArray, isNull } from 'drizzle-orm'
 
 import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { agentTable } from '@data/db/schemas/agent'
+import { agentProviderBindingTable } from '@data/db/schemas/agentProvider'
 import { jobTable } from '@data/db/schemas/job'
 import type { DbOrTx } from '@data/db/types'
 import { agentChannelService } from '@data/services/AgentChannelService'
@@ -296,9 +297,10 @@ export class AgentTaskService {
           id: agentTable.id,
           deletedAt: agentTable.deletedAt,
           type: agentTable.type,
-          configuration: agentTable.configuration
+          localEnabled: agentProviderBindingTable.enabled
         })
         .from(agentTable)
+        .leftJoin(agentProviderBindingTable, eq(agentTable.id, agentProviderBindingTable.agentId))
         .where(inArray(agentTable.id, ids))
         .all()
         .map((row) => [row.id, row])
@@ -309,8 +311,7 @@ export class AgentTaskService {
       const template = schedule.jobInputTemplate
       if (!isPlainRecord(template) || typeof template.agentId !== 'string') continue
       const owner = owners.get(template.agentId)
-      const runtime = owner?.configuration.localRuntime
-      const localDisabled = owner?.type === 'local' && (!isPlainRecord(runtime) || runtime.enabled !== true)
+      const localDisabled = owner?.type === 'local' && owner.localEnabled !== true
       const state = !owner ? 'missing' : owner.deletedAt !== null || localDisabled ? 'trashed' : 'active'
       if (this.transitionOwnerTx(tx, schedule, state, now)) changedIds.push(schedule.id)
       if (state === 'missing') orphanedSchedules.push(schedule)

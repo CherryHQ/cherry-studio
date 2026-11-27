@@ -337,6 +337,7 @@
   "agent.right_pane.info.session_cost": "工作階段累計費用",
   "agent.right_pane.info.shell_tasks": "背景指令",
   "agent.right_pane.info.subagents": "子智能體",
+  "agent.right_pane.info.subscription_quota": "訂閱額度",
   "agent.right_pane.info.workflows": "工作流程",
   "agent.right_pane.status.stop_run_task": "停止任務",
   "agent.right_pane.status.stop_run_task_failed": "無法停止任務",

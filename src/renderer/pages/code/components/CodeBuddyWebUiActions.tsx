@@ -12,7 +12,15 @@ import type { LocalAgentConfiguration } from '@shared/ai/localAgent'
 
 const logger = loggerService.withContext('CodeBuddyWebUiActions')
 
-export function CodeBuddyWebUiActions({ config, disabled }: { config: LocalAgentConfiguration; disabled: boolean }) {
+export function CodeBuddyWebUiActions({
+  config,
+  agentId,
+  disabled
+}: {
+  config: LocalAgentConfiguration
+  agentId?: string
+  disabled: boolean
+}) {
   const { t } = useTranslation()
   const { openSmartMiniApp } = useMiniAppPopup()
   const status = useSharedCacheValue('feature.codebuddy.web_ui.status')
@@ -37,7 +45,7 @@ export function CodeBuddyWebUiActions({ config, disabled }: { config: LocalAgent
     setPending(true)
     try {
       if (stop) await ipcApi.request('ai.codebuddy_web.stop')
-      else await ipcApi.request('ai.codebuddy_web.start', config)
+      else await ipcApi.request('ai.codebuddy_web.start', { ...config, ...(agentId && { agentId }) })
     } catch {
       toast.error(t(stop ? 'code.web_ui.stop_failed' : 'code.launch.error'))
     } finally {

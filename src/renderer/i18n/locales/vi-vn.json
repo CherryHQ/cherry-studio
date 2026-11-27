@@ -337,6 +337,7 @@
   "agent.right_pane.info.session_cost": "Tổng chi phí phiên",
   "agent.right_pane.info.shell_tasks": "Lệnh nền",
   "agent.right_pane.info.subagents": "Agent phụ",
+  "agent.right_pane.info.subscription_quota": "Hạn mức gói đăng ký",
   "agent.right_pane.info.workflows": "Quy trình làm việc",
   "agent.right_pane.status.stop_run_task": "Dừng tác vụ",
   "agent.right_pane.status.stop_run_task_failed": "Không thể dừng tác vụ",

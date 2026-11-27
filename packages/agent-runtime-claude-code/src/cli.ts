@@ -1,4 +1,4 @@
-import type { CliAccountProbe, PermissionModeCatalog } from '@cherrystudio/agent-runtime/cli'
+import type { CliPreset, JsonModelProfile, PermissionModeCatalog } from '@cherrystudio/agent-runtime/cli'
 
 export const CLAUDE_PERMISSION_MODES = {
   id: 'claude-mode',
@@ -58,7 +58,7 @@ export const claudeCli = {
         return { status: 'unknown' }
       }
     }
-  } satisfies CliAccountProbe,
+  },
   loginArgs: ['auth', 'login'],
   terminalArgs: [],
   name: 'Claude Code',
@@ -69,24 +69,24 @@ export const claudeCli = {
   npmPackage: '@anthropic-ai/claude-code',
   args: [],
   helpUrl: 'https://code.claude.com/docs/en/setup'
-} as const
+} as const satisfies CliPreset<'claude', 'claude-settings'>
 
 export const claudeModelProfile = {
-  format: 'json' as const,
-  target: 'claude-settings' as const,
-  readModel(doc: Record<string, unknown>) {
+  format: 'json',
+  target: claudeCli.modelConfig.target,
+  readModel(doc) {
     const env = doc.env
     const override = env && typeof env === 'object' && 'ANTHROPIC_MODEL' in env && env.ANTHROPIC_MODEL
     const model = override || doc.model
     return typeof model === 'string' && model ? model : undefined
   },
-  writeModel(_doc: Record<string, unknown>, model: string | undefined): [string[], string | undefined][] {
+  writeModel(_doc, model) {
     return [
       [['model'], model],
       [['env', 'ANTHROPIC_MODEL'], model]
     ]
   }
-}
+} satisfies JsonModelProfile
 
 const CLAUDE_CREDENTIAL_ENV_KEYS = ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'ANTHROPIC_CUSTOM_HEADERS'] as const
 const CLAUDE_PROVIDER_ENV_KEYS = ['ANTHROPIC_BASE_URL', ...CLAUDE_CREDENTIAL_ENV_KEYS, 'ANTHROPIC_MODEL'] as const

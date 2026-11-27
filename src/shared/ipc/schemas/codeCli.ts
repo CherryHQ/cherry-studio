@@ -78,7 +78,6 @@ export const codeCliRequestSchemas = {
       expectedFiles: z
         .array(z.object({ target: z.enum(CLI_CONFIG_TARGET_IDS), content: z.string().nullable() }))
         .optional(),
-      preserveModelSource: z.boolean().optional(),
       files: z
         .array(
           z.union([

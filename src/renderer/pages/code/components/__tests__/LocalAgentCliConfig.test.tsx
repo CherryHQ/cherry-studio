@@ -61,8 +61,7 @@ it('reads the actual file and saves parameter edits without replacing the select
   expect(ipcApi.request).toHaveBeenLastCalledWith('code_cli.write_config', {
     cliTool: CodeCli.CLAUDE_CODE,
     files: [{ target: 'claude-settings', content: next }],
-    expectedFiles: [{ target: 'claude-settings', path: '/test/settings.json', content }],
-    preserveModelSource: true
+    expectedFiles: [{ target: 'claude-settings', path: '/test/settings.json', content }]
   })
 })
 
@@ -95,8 +94,7 @@ it('edits CodeBuddy native settings without requiring a provider configuration',
   expect(ipcApi.request).toHaveBeenLastCalledWith('code_cli.write_config', {
     cliTool: 'codebuddy-code',
     files: [{ target: 'codebuddy-settings', content: next }],
-    expectedFiles: [{ target: 'codebuddy-settings', path: '/test/.codebuddy/settings.json', content: original }],
-    preserveModelSource: true
+    expectedFiles: [{ target: 'codebuddy-settings', path: '/test/.codebuddy/settings.json', content: original }]
   })
 })
 
@@ -126,8 +124,7 @@ it.each([
   expect(ipcApi.request).toHaveBeenLastCalledWith('code_cli.write_config', {
     cliTool: tool,
     files: [{ target, content: next }],
-    expectedFiles: [{ target, path: '/test/config', content: original }],
-    preserveModelSource: true
+    expectedFiles: [{ target, path: '/test/config', content: original }]
   })
 })
 

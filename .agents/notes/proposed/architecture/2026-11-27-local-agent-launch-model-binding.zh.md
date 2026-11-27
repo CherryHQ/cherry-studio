@@ -12,7 +12,7 @@ Status: proposed
 
 ## Proposal
 
-Agent 记录是 Cherry 模型选择的唯一所有者（`localRuntime.sourceModelId` 加 `sourceModelViaGateway`）。选择、切换或清除 Cherry 模型不写任何 CLI 文件，也不启动或开启面向用户的网关。
+[Agent 的 provider 绑定](2026-11-26-desktop-agent-runtime-capabilities.md#agent-provider-data-model)保存默认的 Cherry 模型选择。选择、切换或清除 Cherry 模型不写任何 CLI 文件，也不启动或开启面向用户的网关。
 
 Cherry 为该 Agent 启动的每个进程都在启动时获得这一选择：聊天会话、定时任务以及从 Cherry 打开的终端。Main 解析 Cherry 模型，选出 CLI 接受的端点，并从内部回环网关取得限定于这次启动和该模型的凭证。随后应用预设的绑定，并在进程结束时释放凭证和绑定占用的资源。模型目录、账号和登录探测不做绑定。
 

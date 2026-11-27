@@ -341,6 +341,7 @@
   "agent.right_pane.info.session_cost": "Общая стоимость сеанса",
   "agent.right_pane.info.shell_tasks": "Фоновые команды",
   "agent.right_pane.info.subagents": "Субагенты",
+  "agent.right_pane.info.subscription_quota": "Квота подписки",
   "agent.right_pane.info.workflows": "Рабочие процессы",
   "agent.right_pane.status.stop_run_task": "Остановить задачу",
   "agent.right_pane.status.stop_run_task_failed": "Не удалось остановить задачу",

@@ -1,11 +1,12 @@
 import type { RuntimeAccountResult, RuntimeLoginRequest } from './account'
+import type { PermissionModeCatalog } from './permissionMode'
 
 export interface RuntimeAccountDeclaration {
   readonly canReadAccount?: true
   readonly methods?: readonly RuntimeLoginMethod[]
 }
 
-type RuntimeLoginMethod = { id: string; type: 'agent'; name: string } & (
+export type RuntimeLoginMethod = { id: string; type: 'agent'; name: string } & (
   | { form: 'browser'; clearEnv?: readonly string[] }
   | { form: 'api-key'; apiKey: string }
 )
@@ -57,6 +58,50 @@ export interface CliComponent {
   readonly executable: string
   readonly npmPackage?: string
 }
+
+export interface CliPresetInfo {
+  id: string
+  name: string
+  helpUrl: string
+  account?: RuntimeAccountDeclaration
+  credentialScope?: 'provider'
+  retired?: true
+  subscriptionUsage?: true
+  defaultMode?: PermissionModeCatalog
+  modeForLaunch?: (env: Readonly<Record<string, string>>) => PermissionModeCatalog
+}
+
+export interface CliModelConfig<Target extends string = string> {
+  target: Target
+  overrides: readonly string[] | ((platform: string) => readonly string[])
+  tool?: string
+  field?: string
+  nativeSelection?: 'agent'
+}
+
+export interface CliPresetOptions<Target extends string = string> extends CliComponent, CliLoginDeclaration {
+  placeholderTitle?: RegExp
+  terminalArgs?: readonly string[]
+  aliases?: readonly string[]
+  managedPackage?: string
+  nativeCliInstall?: true
+  loginArgs?: readonly string[]
+  credentialEnvironment?: readonly string[]
+  accountProbe?: CliAccountProbe
+  terminalCli?: { executable: string; npmPackage?: string; requiredForChat?: true }
+  terminalUsesInstalledCli?: true
+  args: readonly string[]
+  env?: Readonly<Record<string, string>>
+  modelConfig?: CliModelConfig<Target>
+  modelDependencies?: readonly string[]
+  windowsShell?: { variable: string; allowSh: boolean }
+  requiredRuntime?: { executable: 'bun'; minimumVersion: string }
+}
+
+export type RuntimePreset<Protocol extends string> = CliPresetInfo & { protocol: Protocol }
+
+export type CliPreset<Protocol extends string, Target extends string = string> = RuntimePreset<Protocol> &
+  CliPresetOptions<Target>
 
 export interface CliAccountProbe {
   readonly args: readonly string[]
@@ -114,6 +159,17 @@ export {
   type PermissionModeCatalog,
   type PermissionModeChoice
 } from './permissionMode'
+
+export interface JsonModelProfile<Target extends string = string> {
+  format: 'json'
+  target: Target
+  readModel(document: Record<string, unknown>): string | undefined
+  writeModel(
+    document: Record<string, unknown>,
+    model: string | undefined,
+    invalidModel: () => never
+  ): [string[], string | undefined][]
+}
 
 export interface TomlModelProfile<Target extends string = string> {
   format: 'toml'

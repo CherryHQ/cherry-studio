@@ -11,11 +11,12 @@ import { AGENT_PERMISSION_MODES } from '@cherrystudio/agent-runtime/cli'
 import { MAX_HEARTBEAT_TIMEOUT_MINUTES } from '@shared/ai/agentHeartbeat'
 import { AgentPromptOverridesPatchSchema, AgentPromptOverridesSchema } from '@shared/ai/agentPromptSections'
 import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
-import { LocalAgentConfigurationSchema, StoredLocalAgentConfigurationSchema } from '@shared/ai/localAgent'
+import { LocalAgentAccountSchema, LocalAgentConfigurationSchema, LocalAgentRuntimeSchema } from '@shared/ai/localAgent'
 import { AgentLanguageSchema } from '@shared/data/types/agentLanguage'
 import { FileEntryIdSchema } from '@shared/data/types/file'
 import { ServiceTierSelectionSchema, UniqueModelIdSchema } from '@shared/data/types/model'
 import { ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
+import { isSensitiveKey } from '@shared/utils/redaction'
 
 import type { OffsetPaginationResponse } from '../types'
 import type { OrderEndpoints } from './_endpointHelpers'
@@ -50,9 +51,22 @@ export const AgentTypeSchema = z.enum(AGENT_TYPES)
 export type AgentType = z.infer<typeof AgentTypeSchema>
 export const AgentSchedulerTypeSchema = z.enum(['cron', 'interval', 'one-time'])
 
+const LocalAgentBindingInputSchema = LocalAgentConfigurationSchema.extend({
+  enabled: LocalAgentConfigurationSchema.shape.enabled.removeDefault().optional(),
+  args: LocalAgentConfigurationSchema.shape.args.removeDefault().optional(),
+  env: LocalAgentConfigurationSchema.shape.env.removeDefault().optional(),
+  providerId: z.string().optional()
+})
+export const CreateLocalAgentBindingSchema = LocalAgentBindingInputSchema.extend({
+  account: LocalAgentAccountSchema.optional()
+})
+export type CreateLocalAgentBindingDto = z.infer<typeof CreateLocalAgentBindingSchema>
+export const UpdateLocalAgentBindingSchema = LocalAgentBindingInputSchema.partial().extend({
+  clearEnvironment: z.array(z.string()).optional()
+})
+
 export const AgentConfigurationSchema = z
   .object({
-    localRuntime: StoredLocalAgentConfigurationSchema.optional(),
     avatar: z.string().optional(),
     slash_commands: z.array(z.string()).optional(),
     permission_mode: AgentPermissionModeSchema.optional(),
@@ -81,6 +95,7 @@ export const AgentConfigurationSchema = z
   // and may contain keys written by older or newer versions of the app. Unknown fields must
   // survive a round-trip through parse() so they are not silently dropped on the next save.
   .loose()
+  .extend({ localRuntime: z.never().optional() })
 export type AgentConfiguration = z.infer<typeof AgentConfigurationSchema>
 
 /**
@@ -156,6 +171,7 @@ export const AGENT_MUTABLE_FIELDS = {
 export const AgentEntitySchema = AgentBaseSchema.extend({
   id: z.string(),
   type: AgentTypeSchema,
+  localRuntime: LocalAgentRuntimeSchema.optional(),
   createdAt: z.string(),
   updatedAt: z.string(),
   /** Persistent ordering key. Read-only; modified only through order endpoints. */
@@ -231,8 +247,8 @@ export type TaskRunLogEntity = z.infer<typeof TaskRunLogEntitySchema>
  *
  * `configuration` is itself a partial: callers send only the first-level keys
  * they intend to change, and AgentService shallow-merges them onto the latest
- * persisted configuration inside the write transaction. `localRuntime` merges per field
- * and `prompt_overrides` per block. Other nested values such as `env_vars` replace as a whole.
+ * persisted configuration inside the write transaction. `prompt_overrides` merges per block.
+ * Other nested values such as `env_vars` replace as a whole.
  * An explicitly present `undefined` removes a key; omission preserves it.
  */
 export const UpdateAgentSchema = AgentEntitySchema.pick(AGENT_MUTABLE_FIELDS)
@@ -242,18 +258,14 @@ export const UpdateAgentSchema = AgentEntitySchema.pick(AGENT_MUTABLE_FIELDS)
     // runtime falls back to the main model (unset is the default state).
     planModel: UniqueModelIdSchema.nullable().optional(),
     smallModel: UniqueModelIdSchema.nullable().optional(),
+    localRuntime: UpdateLocalAgentBindingSchema.refine(
+      ({ env, clearEnvironment }) =>
+        !Object.keys(env ?? {}).some(isSensitiveKey) && !clearEnvironment?.some(isSensitiveKey),
+      { path: ['env'], error: 'Use the local Agent settings command for protected environment values' }
+    ).optional(),
     configuration: AgentConfigurationSchema.partial()
       .extend({
-        prompt_overrides: AgentPromptOverridesPatchSchema.optional(),
-        localRuntime: LocalAgentConfigurationSchema.partial()
-          // PATCH must not apply creation defaults to omitted fields.
-          .extend({
-            prompt_overrides: AgentPromptOverridesPatchSchema.optional(),
-            enabled: LocalAgentConfigurationSchema.shape.enabled.removeDefault().optional(),
-            args: LocalAgentConfigurationSchema.shape.args.removeDefault().optional(),
-            env: LocalAgentConfigurationSchema.shape.env.removeDefault().optional()
-          })
-          .optional()
+        prompt_overrides: AgentPromptOverridesPatchSchema.optional()
       })
       .optional(),
     /** Validation basis for `configuration.reasoning_effort` normalization: the model the caller is actually steering (a session-level override when set). Omitted falls back to the agent's (possibly patched) model (cherry-pr-review inv_98911732422a84bf). */

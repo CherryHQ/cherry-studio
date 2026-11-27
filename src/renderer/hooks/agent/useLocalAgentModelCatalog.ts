@@ -7,11 +7,14 @@ import type { LocalAgentConfiguration, LocalAgentModelCatalog } from '@shared/ai
 export function useLocalAgentModelCatalog(
   identity: string,
   config: LocalAgentConfiguration | undefined,
-  enabled: boolean
+  enabled: boolean,
+  agent?: { id: string; updatedAt: string }
 ) {
   const [catalogs, setCatalogs] = usePersistCache('local_agent.model_catalogs')
   const signature = JSON.stringify([
     identity,
+    agent?.id,
+    agent?.updatedAt,
     config?.presetId,
     config?.executableOverride,
     config?.args,
@@ -19,10 +22,11 @@ export function useLocalAgentModelCatalog(
   ])
   const [fingerprint, setFingerprint] = useState<{ signature: string; key: string }>()
   const key = fingerprint?.signature === signature ? fingerprint.key : undefined
-  const requestConfig = useMemo<LocalAgentConfiguration | undefined>(() => {
-    const [, presetId, executableOverride, args, env] = JSON.parse(signature)
+  const requestConfig = useMemo<(LocalAgentConfiguration & { agentId?: string }) | undefined>(() => {
+    const [, agentId, , presetId, executableOverride, args, env] = JSON.parse(signature)
     if (!args) return undefined
     return {
+      ...(agentId && { agentId }),
       presetId: presetId ?? undefined,
       executableOverride: executableOverride ?? undefined,
       args,

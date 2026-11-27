@@ -1,5 +1,7 @@
 import { mkdtemp } from 'node:fs/promises'
 
+import { parse as parseYaml } from 'yaml'
+
 import { application } from '@application'
 import type { RuntimeAccountResult, SubscriptionUsageResult } from '@cherrystudio/agent-runtime'
 import type {
@@ -51,7 +53,12 @@ import { applyJunieGatewayModel } from '@cherrystudio/agent-runtime-junie-acp'
 import { junieCli } from '@cherrystudio/agent-runtime-junie-acp/cli'
 import { kimiModelProfile, readKimiAccount } from '@cherrystudio/agent-runtime-kimi-acp'
 import { kimiCli } from '@cherrystudio/agent-runtime-kimi-acp/cli'
-import { minimaxPreset } from '@cherrystudio/agent-runtime-minimax-acp'
+import { readKiroSubscriptionUsage } from '@cherrystudio/agent-runtime-kiro-acp'
+import { kiroCli } from '@cherrystudio/agent-runtime-kiro-acp/cli'
+import { minimaxPreset, readMiniMaxSubscriptionUsage } from '@cherrystudio/agent-runtime-minimax-acp'
+import { minimaxCli } from '@cherrystudio/agent-runtime-minimax-acp/cli'
+import { readMuseSubscriptionUsage } from '@cherrystudio/agent-runtime-muse-code-acp'
+import { museCodeCli } from '@cherrystudio/agent-runtime-muse-code-acp/cli'
 import { ompModelProfile } from '@cherrystudio/agent-runtime-omp-acp'
 import { attachOpenClawGateway, openClawPreset, openClawEnvironment } from '@cherrystudio/agent-runtime-openclaw-acp'
 import {
@@ -77,6 +84,8 @@ import type { LocalAgentConfiguration, LocalAgentSelection } from '@shared/ai/lo
 import { NativeQuestionReplySchema } from '@shared/ai/nativeInteraction'
 import { CodeCli } from '@shared/types/codeCli'
 import type { CliConfigTarget } from '@shared/utils/cliConfig'
+
+import { readKiroQuotaIdentity } from './kiroQuotaIdentity'
 
 type RequestDecision = <T>(
   target: { sessionId: string; toolCallId: string },
@@ -287,7 +296,51 @@ const presets: ReadonlyMap<string, DesktopAcpPreset> = new Map<string, DesktopAc
   ],
   [qwenPreset.id, qwenPreset],
   [hermesPreset.id, hermesPreset],
-  [minimaxPreset.id, minimaxPreset],
+  [
+    kiroCli.id,
+    {
+      subscriptionUsage: {
+        transport: 'cli',
+        executable: kiroCli.executable,
+        read: (launch, _spawn, signal) => readKiroSubscriptionUsage(() => readKiroQuotaIdentity(launch.env), signal)
+      }
+    }
+  ],
+  [
+    museCodeCli.id,
+    {
+      subscriptionUsage: { transport: 'cli', executable: museCodeCli.executable, read: readMuseSubscriptionUsage }
+    }
+  ],
+  [
+    minimaxPreset.id,
+    {
+      ...minimaxPreset,
+      subscriptionUsage: {
+        transport: 'cli',
+        executable: minimaxCli.executable,
+        read: ({ model, env }, _spawn, signal) => {
+          if (
+            env.__MAVIS_RUNTIME_PROFILE ||
+            env.__MAVIS_RUNTIME_DATA_DIR ||
+            (!env.MINIMAX_DATA_DIR && !env.MAVIS_DATA_DIR && env.HOME !== application.getPath('sys.home')) ||
+            env.MINIMAX_API_KEY ||
+            env.MINIMAX_CN_API_KEY
+          )
+            return Promise.resolve({ status: 'unsupported' })
+          return readMiniMaxSubscriptionUsage(
+            model,
+            env.MAVIS_REGION,
+            async () => {
+              const [file] = await application.get('CodeCliService').readConfigFiles(['minimax-config'], { ...env })
+              return file?.content ? parseYaml(file.content) : undefined
+            },
+            signal
+          )
+        }
+      }
+    }
+  ],
   [zcodePreset.id, zcodePreset]
 ])
 

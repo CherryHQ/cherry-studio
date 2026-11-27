@@ -378,7 +378,10 @@ createInterface({ input: process.stdin }).on('line', (line) => {
     }
     reply(id, {})
   } else if (method === 'session/new' || method === 'session/load' || method === 'session/resume') {
-    if (method === 'session/resume' && scenario === 'resume-error') {
+    if (
+      method === 'session/resume' &&
+      (scenario === 'resume-error' || (scenario === 'resume-lost' && message.params.sessionId === 'lost-thread'))
+    ) {
       return emit({ id, error: { code: -32603, message: 'Native session was not found' } })
     }
     cwd = message.params.cwd
@@ -715,7 +718,10 @@ createInterface({ input: process.stdin }).on('line', (line) => {
   } else if (method === 'config/read') {
     reply(id, { config: { mcp_servers: { fixture: { enabled: true } } } })
   } else if (method === 'thread/start' || method === 'thread/resume') {
-    if (method === 'thread/resume' && scenario === 'no-rollout') {
+    if (
+      method === 'thread/resume' &&
+      (scenario === 'no-rollout' || (scenario === 'lost-rollout' && message.params.threadId === 'lost-thread'))
+    ) {
       return emit({ id, error: { code: -32600, message: `no rollout found for thread id ${message.params.threadId}` } })
     }
     cwd = message.params.cwd

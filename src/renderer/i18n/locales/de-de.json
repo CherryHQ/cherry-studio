@@ -337,6 +337,7 @@
   "agent.right_pane.info.session_cost": "Gesamtkosten der Sitzung",
   "agent.right_pane.info.shell_tasks": "Hintergrundbefehle",
   "agent.right_pane.info.subagents": "Unteragenten",
+  "agent.right_pane.info.subscription_quota": "Abonnementkontingent",
   "agent.right_pane.info.workflows": "Arbeitsabläufe",
   "agent.right_pane.status.stop_run_task": "Aufgabe beenden",
   "agent.right_pane.status.stop_run_task_failed": "Aufgabe konnte nicht gestoppt werden",

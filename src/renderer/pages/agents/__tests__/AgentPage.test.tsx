@@ -2828,9 +2828,7 @@ describe('AgentPage', () => {
         model: null,
         name: 'Claude Code',
         type: 'local',
-        configuration: {
-          localRuntime: { presetId: 'claude', enabled: true, args: [], env: {} }
-        }
+        localRuntime: { providerId: 'claude-provider', presetId: 'claude', enabled: true, args: [], env: {} }
       } as any
     ]
     agentPageMocks.dataApiGet.mockImplementation(async (path: string) => {

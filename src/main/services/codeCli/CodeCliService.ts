@@ -13,7 +13,6 @@ import { skillService } from '@main/ai/skills/SkillService'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isMac, isWin } from '@main/core/platform'
 import { t } from '@main/i18n'
-import { syncLocalAgentConfigModel } from '@main/services/codeCli/selectModel'
 import { toAsarUnpackedPath } from '@main/utils/asar'
 import { appendBundledGitPathTail, mergeBinaryExecutionEnv } from '@main/utils/binaryEnv'
 import { removeEnvProxy } from '@main/utils/processRunner'
@@ -40,7 +39,7 @@ import {
   type TerminalConfigWithCommand
 } from '@shared/types/codeCli'
 import type { OperationResult } from '@shared/types/codeTools'
-import type { CliConfigTarget, CliConfigWriteFile, FileConfiguredCli } from '@shared/utils/cliConfig'
+import type { CliConfigTarget } from '@shared/utils/cliConfig'
 import { REDACTED } from '@shared/utils/redaction'
 
 import { prepareAntigravityLaunch } from './antigravity'
@@ -509,19 +508,25 @@ export class CodeCliService extends BaseService {
     return []
   }
 
-  private configWriteQueue: Promise<unknown> = Promise.resolve()
+  private configWriteQueue: Promise<void> = Promise.resolve()
 
-  public async updateConfigFiles<T>(
-    cliTool: FileConfiguredCli,
-    targets: readonly CliConfigTarget[],
-    update: (files: CliConfigReadFile[]) => CliConfigWriteFile[],
-    commit: () => T
-  ): Promise<T> {
+  /** Reject stale CLI drafts inside the write queue. */
+  public async writeConfigFiles({ cliTool, files, expectedFiles }: InputFor<'code_cli.write_config'>): Promise<void> {
     const operation = this.configWriteQueue
       .catch(() => {})
       .then(async () => {
-        const apply = async () =>
-          (await writeCliConfigFiles(cliTool, update(await readCliConfigFiles(targets)), commit)) as T
+        const apply = async () => {
+          if (expectedFiles?.length) {
+            const current = await readCliConfigFiles(expectedFiles.map((file) => file.target))
+            if (
+              expectedFiles.some(
+                (file) => current.find((entry) => entry.target === file.target)?.content !== file.content
+              )
+            )
+              throw new Error(t('code_cli.config_changed'))
+          }
+          await writeCliConfigFiles(cliTool, files)
+        }
         if (cliTool === CodeCli.HERMES) return application.get('HermesDashboardService').writeConfigFiles(apply)
         if (cliTool === CodeCli.OPENCLAW) return application.get('OpenClawService').writeConfigFiles(apply)
         if (cliTool === CodeCli.DEEPSEEK_HARNESS)
@@ -529,27 +534,7 @@ export class CodeCliService extends BaseService {
         return apply()
       })
     this.configWriteQueue = operation
-    return operation
-  }
-
-  /** Apply a CLI draft and its Agent projection together, rejecting stale files inside the write queue. */
-  public async writeConfigFiles(input: InputFor<'code_cli.write_config'>): Promise<void> {
-    const shellEnv = await getRawShellEnv()
-    await this.updateConfigFiles(
-      input.cliTool,
-      input.expectedFiles?.map((file) => file.target) ?? [],
-      (current) => {
-        if (
-          input.expectedFiles?.some(
-            (file) => current.find((entry) => entry.target === file.target)?.content !== file.content
-          )
-        ) {
-          throw new Error(t('code_cli.config_changed'))
-        }
-        return input.files
-      },
-      () => syncLocalAgentConfigModel(input.cliTool, input.files, input.preserveModelSource, shellEnv)
-    )
+    await operation
   }
 
   /** Batch read of CLI config files (code_cli.read_config); content === null ⇔ file missing. */

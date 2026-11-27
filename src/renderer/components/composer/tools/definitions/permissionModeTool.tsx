@@ -40,6 +40,7 @@ const usePermissionModeToolController = (context: PermissionModeContext) => {
   const localHost = localPermission?.mode?.id === ACP_HOST_PERMISSION_MODE_ID
   const { agent } = useAgent(agentId ?? '')
   const { updateAgent } = useUpdateAgent()
+  const presetId = localPermission?.providerId ? localPermission.presetId : agent?.localRuntime?.presetId
 
   const unifiedLocalMode = useMemo(
     () => (isLocal ? resolveUnifiedLocalPermissionModes(localPermission?.mode) : undefined),
@@ -162,11 +163,7 @@ const usePermissionModeToolController = (context: PermissionModeContext) => {
   const configMenus = useMemo(() => {
     const security: ComposerToolLauncher[] = []
     const session: ComposerToolLauncher[] = []
-    for (const option of localAgentConfigOptions(
-      localPermission?.options ?? [],
-      agent?.configuration?.localRuntime?.presetId,
-      t
-    )) {
+    for (const option of localAgentConfigOptions(localPermission?.options ?? [], presetId, t)) {
       const choose = (value: string | boolean, confirm: boolean) => {
         if (value === option.currentValue || isDisabled) return
         const change = { id: option.id, currentValue: option.currentValue, value }
@@ -218,14 +215,7 @@ const usePermissionModeToolController = (context: PermissionModeContext) => {
       target.push(menu)
     }
     return { security, session }
-  }, [
-    agent?.configuration?.localRuntime?.presetId,
-    applyConfig,
-    disabledReason,
-    isDisabled,
-    localPermission?.options,
-    t
-  ])
+  }, [applyConfig, disabledReason, isDisabled, localPermission?.options, presetId, t])
   const modeSubmenu = useMemo(
     () =>
       permissionModeCards

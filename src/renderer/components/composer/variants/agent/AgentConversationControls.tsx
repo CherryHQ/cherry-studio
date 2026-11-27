@@ -15,7 +15,7 @@ import { useProviderDisplayName } from '@renderer/hooks/useProvider'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import { getProviderDisplayNameById } from '@renderer/utils/naming'
 import { cn } from '@renderer/utils/style'
-import type { LocalAgentSessionInfo } from '@shared/ai/localAgent'
+import type { LocalAgentSessionView } from '@shared/ai/localAgent'
 import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
 import type { AgentEntity } from '@shared/data/types/agent'
 import type { Model } from '@shared/data/types/model'
@@ -43,8 +43,7 @@ export type AgentConversationWorkspace = Pick<AgentWorkspaceEntity, 'type'> &
 export interface AgentConversationControlsProps {
   agent?: AgentEntity
   model?: Model
-  localInfo?: LocalAgentSessionInfo | null
-  localConnecting?: boolean
+  localView?: LocalAgentSessionView
   localSessionId?: string
   workspace?: AgentConversationWorkspace | null
   workspaceId?: string | null
@@ -113,8 +112,8 @@ function AgentControl({
         aria-pressed={avatarActive}
         onClick={onAvatarClick}
         className={COMPOSER_PROFILE_AVATAR_BUTTON_CLASS}>
-        {agent.configuration?.localRuntime ? (
-          <LocalAgentIcon presetId={agent.configuration.localRuntime.presetId} size={20} />
+        {agent.localRuntime ? (
+          <LocalAgentIcon presetId={agent.localRuntime.presetId} size={20} />
         ) : (
           <AssistantAvatarImage
             src={agent.avatarSrc}
@@ -415,8 +414,10 @@ export function AgentConversationControls(props: AgentConversationControlsProps)
         <LocalAgentModelControl
           key={props.agent.id}
           agent={props.agent}
-          info={props.localInfo}
-          connecting={props.localConnecting}
+          info={props.localView?.info}
+          connecting={props.localView?.connecting}
+          providerId={props.localView?.providerId}
+          presetId={props.localView?.presetId}
           sessionId={props.localSessionId}
           disabled={!props.canChangeModel}
           side={props.side}

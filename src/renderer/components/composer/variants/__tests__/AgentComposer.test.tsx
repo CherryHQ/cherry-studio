@@ -1815,7 +1815,7 @@ describe('AgentComposer', () => {
         resolvedAgent={{
           ...createControlledAgent(),
           type: 'local',
-          configuration: { localRuntime: { presetId: 'pi-acp' } } as any
+          localRuntime: { presetId: 'pi-acp' } as any
         }}
         resolvedModel={undefined}
         sendMessage={mocks.sendMessage}
@@ -1897,7 +1897,7 @@ describe('AgentComposer', () => {
         resolvedAgent={{
           ...createControlledAgent(),
           type: 'local',
-          configuration: { localRuntime: { presetId: 'amp-acp' } } as any
+          localRuntime: { presetId: 'amp-acp' } as any
         }}
         resolvedModel={undefined}
         sendMessage={mocks.sendMessage}
@@ -1953,7 +1953,7 @@ describe('AgentComposer', () => {
         resolvedAgent={{
           ...createControlledAgent(),
           type: 'local',
-          configuration: { localRuntime: { presetId: 'antigravity-acp' } } as any
+          localRuntime: { presetId: 'antigravity-acp' } as any
         }}
         resolvedModel={undefined}
         sendMessage={mocks.sendMessage}
@@ -1987,7 +1987,7 @@ describe('AgentComposer', () => {
         resolvedAgent={{
           ...createControlledAgent(),
           type: 'local',
-          configuration: { localRuntime: { presetId: 'pi-acp', enabled: true } } as any
+          localRuntime: { presetId: 'pi-acp', enabled: true } as any
         }}
         resolvedModel={undefined}
         sendMessage={mocks.sendMessage}
@@ -2022,7 +2022,7 @@ describe('AgentComposer', () => {
         resolvedAgent={{
           ...createControlledAgent(),
           type: 'local',
-          configuration: { localRuntime: { presetId: 'claude', enabled: true } } as any
+          localRuntime: { presetId: 'claude', enabled: true } as any
         }}
         resolvedModel={undefined}
         sendMessage={mocks.sendMessage}

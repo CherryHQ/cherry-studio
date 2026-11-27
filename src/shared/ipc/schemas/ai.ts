@@ -9,6 +9,7 @@ import { agentImportSnapshotSchema, type AgentImportSnapshot } from '@shared/ai/
 import type { AgentDelegationSnapshot } from '@shared/ai/agentSessionDelivery'
 import type { ClaudeCodeBinaryStatus } from '@shared/ai/claudeCodeBinary'
 import {
+  LocalAgentAccountSchema,
   LocalAgentConfigurationSchema,
   LocalAgentLaunchSettingsSchema,
   LocalAgentInstallResultSchema,
@@ -39,8 +40,11 @@ import {
   AgentBaseSchema,
   AgentEntitySchema,
   AgentSkillIdSetSchema,
+  CreateLocalAgentBindingSchema,
   ScheduledTaskEntitySchema,
-  TimeoutMinutesAtomSchema
+  TimeoutMinutesAtomSchema,
+  UpdateAgentSchema,
+  UpdateLocalAgentBindingSchema
 } from '@shared/data/api/schemas/agents'
 import {
   AgentSessionEntitySchema,
@@ -72,7 +76,6 @@ import {
 } from '@shared/types/managedTool'
 
 import { defineRoute } from '../define'
-import { codeCliRequestSchemas } from './codeCli'
 import { ImageBytesSchema } from './entityImage'
 
 /**
@@ -106,9 +109,12 @@ export type HeartbeatDocument = z.infer<typeof HeartbeatDocumentSchema>
 export const HeartbeatRunResultSchema = z.enum(['started', 'empty', 'disabled', 'busy', 'paused'])
 export type HeartbeatRunResult = z.infer<typeof HeartbeatRunResultSchema>
 
+const localAgentRequestConfigSchema = LocalAgentConfigurationSchema.extend({ agentId: z.string().min(1).optional() })
+
 export const CreateAgentCommandSchema = AgentBaseSchema.extend({
   model: UniqueModelIdSchema.nullable(),
   type: AgentEntitySchema.shape.type,
+  localRuntime: CreateLocalAgentBindingSchema.optional(),
   avatarImage: ImageBytesSchema.optional(),
   /**
    * Create-only: ids of pre-existing global skills to enable for the new
@@ -122,7 +128,7 @@ export const CreateAgentCommandSchema = AgentBaseSchema.extend({
   channels: z.array(AgentChannelDraftSchema).optional()
 }).refine(
   (value) =>
-    value.type === 'local' ? !!value.configuration?.localRuntime && value.model === null : value.model !== null,
+    value.type === 'local' ? !!value.localRuntime && value.model === null : !value.localRuntime && value.model !== null,
   { message: 'Local agents require localRuntime; provider agents require a model' }
 )
 export type CreateAgentCommand = z.infer<typeof CreateAgentCommandSchema>
@@ -507,7 +513,7 @@ export const aiRequestSchemas = {
   }),
   'ai.local_agents.detect': defineRoute({ input: z.object({}), output: z.custom<LocalAgentDetection[]>() }),
   'ai.local_agents.web_start': defineRoute({
-    input: LocalAgentConfigurationSchema,
+    input: localAgentRequestConfigSchema,
     output: z.custom<ManagedToolStatusState>()
   }),
   'ai.local_agents.web_stop': defineRoute({
@@ -516,7 +522,7 @@ export const aiRequestSchemas = {
   }),
   'ai.codebuddy_web.status': defineRoute({ input: z.void(), output: z.custom<CodeBuddyWebUiStatus>() }),
   'ai.codebuddy_web.start': defineRoute({
-    input: LocalAgentConfigurationSchema,
+    input: localAgentRequestConfigSchema,
     output: z.custom<CodeBuddyWebUiStatus>()
   }),
   'ai.codebuddy_web.stop': defineRoute({ input: z.void(), output: z.void() }),
@@ -545,7 +551,7 @@ export const aiRequestSchemas = {
     output: LocalAgentInstallResultSchema
   }),
   'ai.local_agents.subscription_usage': defineRoute({
-    input: z.strictObject({ agentId: z.string().min(1) }),
+    input: z.strictObject({ agentId: z.string().min(1), sessionId: z.string().min(1).optional() }),
     output: z.discriminatedUnion('status', [
       z.object({
         status: z.literal('available'),
@@ -564,6 +570,7 @@ export const aiRequestSchemas = {
           z.object({
             id: z.string(),
             label: z.string(),
+            groupLabel: z.string().optional(),
             usedRatio: z.number().nonnegative(),
             durationMinutes: z.number().positive().optional(),
             resetsAt: z.number().optional()
@@ -576,7 +583,7 @@ export const aiRequestSchemas = {
     ]) satisfies z.ZodType<SubscriptionUsageResult>
   }),
   'ai.local_agents.read_account': defineRoute({
-    input: LocalAgentConfigurationSchema,
+    input: localAgentRequestConfigSchema,
     output: z.discriminatedUnion('status', [
       z.object({
         status: z.literal('signed-in'),
@@ -595,6 +602,7 @@ export const aiRequestSchemas = {
   'ai.local_agents.authenticate': defineRoute({
     input: z.strictObject({
       requestId: z.uuid(),
+      agentId: z.string().min(1).optional(),
       config: LocalAgentConfigurationSchema,
       methodId: z.string().min(1),
       secret: z.string().min(1).optional(),
@@ -603,7 +611,7 @@ export const aiRequestSchemas = {
         .regex(/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/)
         .optional()
     }),
-    output: z.void()
+    output: LocalAgentAccountSchema.optional()
   }),
   'ai.local_agents.cancel_auth': defineRoute({ input: z.strictObject({ requestId: z.uuid() }), output: z.void() }),
   'ai.local_agents.respond_auth_consent': defineRoute({
@@ -615,14 +623,13 @@ export const aiRequestSchemas = {
       agentId: z.string().min(1),
       nativeModel: z.string().min(1).optional(),
       sourceModelId: LocalAgentConfigurationSchema.shape.sourceModelId,
-      sourceModelViaGateway: LocalAgentConfigurationSchema.shape.sourceModelViaGateway,
-      expectedFiles: codeCliRequestSchemas['code_cli.read_config'].output.shape.files.optional()
+      sourceModelViaGateway: LocalAgentConfigurationSchema.shape.sourceModelViaGateway
     }),
     output: AgentEntitySchema
   }),
-  'ai.local_agents.models': defineRoute({ input: LocalAgentConfigurationSchema, output: LocalAgentModelCatalogSchema }),
+  'ai.local_agents.models': defineRoute({ input: localAgentRequestConfigSchema, output: LocalAgentModelCatalogSchema }),
   'ai.local_agents.open_terminal': defineRoute({
-    input: LocalAgentConfigurationSchema.extend({
+    input: localAgentRequestConfigSchema.extend({
       login: z
         .union([z.boolean(), z.strictObject({ provider: z.string().regex(/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/) })])
         .optional(),
@@ -632,8 +639,16 @@ export const aiRequestSchemas = {
     output: z.object({ success: z.boolean(), message: z.string().optional() })
   }),
   'ai.local_agents.check': defineRoute({
-    input: LocalAgentConfigurationSchema,
+    input: localAgentRequestConfigSchema,
     output: LocalAgentCheckResultSchema
+  }),
+  'ai.local_agents.update_settings': defineRoute({
+    input: z.strictObject({
+      agentId: z.string().min(1),
+      name: UpdateAgentSchema.shape.name,
+      settings: UpdateLocalAgentBindingSchema
+    }),
+    output: AgentEntitySchema
   }),
   'ai.agent.create': defineRoute({
     input: CreateAgentCommandSchema,

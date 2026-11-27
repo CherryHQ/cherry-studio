@@ -10,20 +10,21 @@ import {
   type LocalAgentModelCatalog,
   type LocalAgentProtocol,
   type LocalAgentProtocolInfo,
-  StoredLocalAgentConfigurationSchema
+  type LocalAgentRuntime
 } from '@shared/ai/localAgent'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 
+import { resolveLocalLaunch, type LocalLaunchTarget } from '../agentSession/localContext'
 import { prepareAgentSessionWorkspaceDirectory } from './agentSessionWorkspace'
 import { enrichLocalAgentModels } from './localAgentModelMetadata'
 import { LocalAgentSessionRestoreError } from './LocalAgentSessionRestoreError'
-import type { AgentRuntimeConnectInput, AgentSessionRuntimeDriver } from './types'
+import type { AgentRuntimeConnectInput, AgentSessionRuntimeDriver, LocalRuntimeConnectInput } from './types'
 
 interface LocalRuntimeAdapter {
   connect(
-    input: AgentRuntimeConnectInput,
-    config: LocalAgentConfiguration,
+    input: LocalRuntimeConnectInput,
+    config: LocalAgentRuntime,
     cwd: string
   ): ReturnType<AgentSessionRuntimeDriver['connect']>
   listModels(config: LocalAgentConfiguration): Promise<LocalAgentModelCatalog>
@@ -40,29 +41,47 @@ const localRuntimeAdapters: Record<LocalAgentProtocol, () => Promise<LocalRuntim
 
 export class LocalRuntimeDriver implements AgentSessionRuntimeDriver {
   getExecutionId(agent: AgentEntity): `runtime:${string}` | undefined {
-    return agent.configuration?.localRuntime?.enabled ? `runtime:${agent.id}` : undefined
+    return agent.localRuntime?.enabled ? `runtime:${agent.id}` : undefined
   }
   readonly type = 'local'
   readonly capabilities = ['agent-session'] as const
   validateSession(session: AgentSessionEntity) {
     const agent = session.agentId ? agentService.getAgent(session.agentId) : undefined
-    if (!agent?.configuration?.localRuntime?.enabled) throw new Error('Local agent is disabled')
+    if (!agent?.localRuntime?.enabled) throw new Error('Local agent is disabled')
     if (!session.workspace?.path) throw new Error('Session has no working directory')
   }
   async connect(input: AgentRuntimeConnectInput) {
     const session = agentSessionService.getById(input.sessionId)
     this.validateSession(session)
-    if (!input.resumeToken && input.nativeSessionId) {
+    const launch = resolveLocalLaunch(input.sessionId, input.agentId, input.branchHead)
+    const context = launch?.target.kind === 'resume' ? launch.target.context : undefined
+    if (!launch || (!context && input.nativeSessionId) || (context && !context.nativeThreadId)) {
       throw new LocalAgentSessionRestoreError(
         'The native conversation cannot be restored; create a new session to continue'
       )
     }
     await prepareAgentSessionWorkspaceDirectory(session)
-    const config = StoredLocalAgentConfigurationSchema.parse(
-      agentService.getAgent(input.agentId)?.configuration?.localRuntime
-    )
+    const { config, target } = launch
     const adapter = await localRuntimeAdapters[getLocalAgentProtocol(config.presetId)]()
-    return adapter.connect(input, config, session.workspace.path)
+    const connect = (localTarget: LocalLaunchTarget) => {
+      const saved = localTarget.kind === 'resume' ? localTarget.context : undefined
+      return adapter.connect(
+        {
+          ...input,
+          localTarget,
+          resumeToken: saved?.bindingState === 'bound' ? (saved.nativeThreadId ?? undefined) : undefined,
+          nativeSessionId: saved?.nativeThreadId ?? undefined
+        },
+        config,
+        session.workspace.path
+      )
+    }
+    try {
+      return await connect(target)
+    } catch (error) {
+      if (target.kind !== 'resume' || !(error instanceof LocalAgentSessionRestoreError)) throw error
+      return connect({ ...target, kind: 'new', replaces: target.context })
+    }
   }
 }
 

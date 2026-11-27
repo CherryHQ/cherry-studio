@@ -337,6 +337,7 @@
   "agent.right_pane.info.session_cost": "Costul total al sesiunii",
   "agent.right_pane.info.shell_tasks": "Comenzi în fundal",
   "agent.right_pane.info.subagents": "Subagenți",
+  "agent.right_pane.info.subscription_quota": "Cotă de abonament",
   "agent.right_pane.info.workflows": "Fluxuri de lucru",
   "agent.right_pane.status.stop_run_task": "Opriți sarcina",
   "agent.right_pane.status.stop_run_task_failed": "Nu s-a putut opri sarcina",

@@ -145,10 +145,7 @@ function canAutoRenameAgentSessionName(
   const agentId = session.agentId
   return (
     !!agentId &&
-    isLocalAgentPlaceholderTitle(
-      session.name,
-      () => agentService.getAgent(agentId)?.configuration?.localRuntime?.presetId
-    )
+    isLocalAgentPlaceholderTitle(session.name, () => agentService.getAgent(agentId)?.localRuntime?.presetId)
   )
 }
 

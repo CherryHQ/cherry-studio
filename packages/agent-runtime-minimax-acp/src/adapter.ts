@@ -1,5 +1,7 @@
 import { minimaxCli } from './cli'
 
+export { readMiniMaxSubscriptionUsage } from './accountUsage'
+
 function minimaxModelId(model: string) {
   const slash = model.indexOf('/')
   return slash > 0

@@ -16,6 +16,7 @@ import { qwenCli } from '@cherrystudio/agent-runtime-qwen-acp/cli'
 import { snowCli } from '@cherrystudio/agent-runtime-snow-acp/cli'
 import { vibeCli } from '@cherrystudio/agent-runtime-vibe-acp/cli'
 import { zcodeCli } from '@cherrystudio/agent-runtime-zcode-acp/cli'
+import type { CliModelConfig } from '@cherrystudio/agent-runtime/cli'
 import { CodeCli } from '@shared/types/codeCli'
 import type { CliConfigTarget, ModelConfiguredCli } from '@shared/utils/cliConfig'
 
@@ -23,15 +24,7 @@ import { getLocalAgentPreset } from './localAgent'
 
 /** Native defaults shared by the interactive CLI and its protocol adapter. */
 export const LOCAL_AGENT_MODEL_CONFIG: Readonly<
-  Record<
-    string,
-    {
-      tool: ModelConfiguredCli
-      target: CliConfigTarget
-      overrides: readonly string[] | ((platform: string) => readonly string[])
-      nativeSelection?: 'agent'
-    }
-  >
+  Record<string, CliModelConfig<CliConfigTarget> & { tool: ModelConfiguredCli }>
 > = {
   [codeBuddyCli.id]: codeBuddyCli.modelConfig,
   [claudeCli.id]: { ...claudeCli.modelConfig, tool: CodeCli.CLAUDE_CODE },

@@ -201,12 +201,15 @@ export async function readCodexSubscriptionUsage(
       if (!buckets.length) buckets.push([rateLimits.limitId ?? 'codex', rateLimits])
       const windows: SubscriptionUsageWindow[] = []
       for (const [id, bucket] of buckets) {
+        const nativeLabel = bucket.limitName || id
+        const label = nativeLabel === 'codex' ? 'Codex' : nativeLabel
         for (const name of ['primary', 'secondary'] as const) {
           const window = bucket[name]
           if (!window) continue
           windows.push({
             id: id + ':' + name,
-            label: bucket.limitName || id,
+            label,
+            groupLabel: window.windowDurationMins ? label : undefined,
             usedRatio: window.usedPercent / 100,
             durationMinutes: window.windowDurationMins ?? undefined,
             resetsAt: window.resetsAt == null ? undefined : window.resetsAt * 1000

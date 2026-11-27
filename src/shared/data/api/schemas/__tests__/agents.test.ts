@@ -76,29 +76,24 @@ describe('AgentEntitySchema', () => {
 
   it('preserves only supplied local runtime fields in a patch, including explicit removals', () => {
     const patch = UpdateAgentSchema.parse({
-      configuration: { localRuntime: { args: ['--acp'], executableOverride: undefined } }
+      localRuntime: { args: ['--acp'], executableOverride: undefined }
     })
-    expect(patch.configuration?.localRuntime).toEqual({ args: ['--acp'], executableOverride: undefined })
-    expect(UpdateAgentSchema.safeParse({ configuration: { localRuntime: { args: [1] } } }).success).toBe(false)
+    expect(patch.localRuntime).toEqual({ args: ['--acp'], executableOverride: undefined })
+    expect(UpdateAgentSchema.safeParse({ localRuntime: { args: [1] } }).success).toBe(false)
   })
 
-  it('stores a known preset or a custom executable as the local runtime identity', () => {
-    const preset = { presetId: 'cursor', enabled: true }
-    const custom = { executableOverride: '/custom/acp', enabled: true }
-    expect(AgentConfigurationSchema.parse({ localRuntime: preset }).localRuntime).toEqual({
-      ...preset,
-      args: [],
-      env: {}
-    })
-    expect(AgentConfigurationSchema.parse({ localRuntime: custom }).localRuntime).toEqual({
-      ...custom,
-      args: [],
-      env: {}
-    })
-    expect(AgentConfigurationSchema.safeParse({ localRuntime: { ...custom, presetId: 'unknown' } }).success).toBe(false)
-    expect(AgentConfigurationSchema.safeParse({ localRuntime: { ...preset, protocol: 'acp' } }).success).toBe(false)
-    expect(AgentConfigurationSchema.safeParse({ localRuntime: { enabled: true } }).success).toBe(false)
-    expect(UpdateAgentSchema.safeParse({ configuration: { localRuntime: { protocol: 'acp' } } }).success).toBe(false)
+  it('rejects local execution through the generic Agent configuration', () => {
+    const configuration = { localRuntime: { presetId: 'cursor' } }
+    expect(AgentConfigurationSchema.safeParse(configuration).success).toBe(false)
+    expect(UpdateAgentSchema.safeParse({ configuration }).success).toBe(false)
+    expect(UpdateAgentSchema.safeParse({ localRuntime: { presetId: 'unknown' } }).success).toBe(false)
+    expect(UpdateAgentSchema.safeParse({ localRuntime: { protocol: 'acp' } }).success).toBe(false)
+  })
+
+  it('requires protected settings to go through the local Agent command', () => {
+    expect(UpdateAgentSchema.safeParse({ localRuntime: { env: { WORKSPACE: '/test' } } }).success).toBe(true)
+    expect(UpdateAgentSchema.safeParse({ localRuntime: { env: { CURSOR_API_KEY: 'local-key' } } }).success).toBe(false)
+    expect(UpdateAgentSchema.safeParse({ localRuntime: { clearEnvironment: ['CURSOR_API_KEY'] } }).success).toBe(false)
   })
 
   it('validates and deduplicates knowledgeBaseIds at the API parse boundary', () => {

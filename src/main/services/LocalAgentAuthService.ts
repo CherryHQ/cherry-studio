@@ -1,21 +1,58 @@
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 
 import { shell } from 'electron'
 
 import { application } from '@application'
-import type { RuntimeLoginHost, RuntimeLoginRequest, SubscriptionUsageResult } from '@cherrystudio/agent-runtime'
+import type {
+  RuntimeAccountResult,
+  RuntimeLoginHost,
+  RuntimeLoginRequest,
+  SubscriptionUsageResult
+} from '@cherrystudio/agent-runtime'
+import { minimaxCli } from '@cherrystudio/agent-runtime-minimax-acp/cli'
+import { agentProviderService } from '@data/services/AgentProviderService'
 import { agentService } from '@data/services/AgentService'
+import { agentSessionService } from '@data/services/AgentSessionService'
+import { resolveLocalSessionBinding } from '@main/ai/agentSession/localContext'
 import { resolveLocalRuntimeAccount } from '@main/ai/runtime/LocalRuntimeDriver'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { StoredLocalAgentConfigurationSchema, type LocalAgentConfiguration } from '@shared/ai/localAgent'
+import {
+  getLocalAgentPreset,
+  type LocalAgentAccount,
+  type LocalAgentConfiguration,
+  type LocalAgentRuntime
+} from '@shared/ai/localAgent'
 import type { WindowId } from '@shared/ipc/types'
 import { isSensitiveKey, redactLiteral } from '@shared/utils/redaction'
+
+import { protectLocalAgentEnvironment, resolveLocalAgentCredentials } from './localAgentCredentials'
 
 const AUTH_TIMEOUT_MS = 300_000
 type BrowserDecision = Awaited<ReturnType<NonNullable<RuntimeLoginHost['confirmBrowser']>>>
 type AuthAttempt = {
+  owner: string
   cancel(): Promise<void>
   consent?: { id: string; resolve(decision: BrowserDecision): void }
+}
+
+function credentialOwner(config: LocalAgentConfiguration) {
+  // Native presets can share a login store across multiple Agent providers.
+  return config.presetId ?? config.executableOverride ?? 'custom-acp'
+}
+
+function accountId(status: RuntimeAccountResult | undefined) {
+  return status?.status === 'signed-in' ? status.account?.id || status.account?.email || undefined : undefined
+}
+
+function subscriptionRouteKey(config: LocalAgentRuntime, activeModel?: string) {
+  const env = Object.keys(config.env)
+    .sort()
+    .map((key) => [key, config.env[key]])
+  return createHash('sha256')
+    .update(
+      JSON.stringify([config.providerId, config.account, config.sourceModelId, activeModel ?? config.nativeModel, env])
+    )
+    .digest('base64url')
 }
 
 function redactAuthMessage(message: string, config: LocalAgentConfiguration, secret?: string): string {
@@ -33,42 +70,102 @@ function redactAuthMessage(message: string, config: LocalAgentConfiguration, sec
 export class LocalAgentAuthService extends BaseService {
   private readonly shutdown = new AbortController()
   private readonly usageRequests = new Map<string, Promise<SubscriptionUsageResult>>()
-  private accountGeneration = 0
+  private readonly accountGenerations = new Map<string, number>()
   private readonly pending = new Map<string, AuthAttempt>()
 
   async authenticate(
     requestId: string,
-    config: LocalAgentConfiguration,
+    draft: LocalAgentConfiguration,
     methodId: string,
     options?: Omit<RuntimeLoginRequest, 'methodId'>,
-    senderId: WindowId | null = null
-  ): Promise<void> {
+    senderId: WindowId | null = null,
+    agentId?: string
+  ): Promise<LocalAgentAccount> {
     this.shutdown.signal.throwIfAborted()
+    const resolved = agentId ? agentProviderService.getBinding(agentId) : undefined
+    const saved = resolved && resolveLocalAgentCredentials(resolved)
+    if (agentId && (!saved || !agentService.agentExists(agentId))) throw new Error('Local agent is unavailable')
+    const preset = getLocalAgentPreset((saved ?? draft).presetId)
+    const declaredMethod = preset?.account?.methods?.find(({ id }) => id === methodId)
+    const method = declaredMethod ?? preset?.auth?.methods.find(({ id }) => id === methodId)
+    const clearEnvironment = declaredMethod?.form === 'browser' ? (declaredMethod.clearEnv ?? []) : []
+    const fields =
+      method?.form === 'api-key'
+        ? [method.apiKey]
+        : method?.form === 'cloud'
+          ? [method.apiKey, method.project, method.location]
+          : []
+    const env = { ...(saved ?? draft).env }
+    for (const field of fields) {
+      if (Object.hasOwn(draft.env, field)) env[field] = draft.env[field]
+    }
+    for (const field of clearEnvironment) delete env[field]
+    const config = { ...(saved ?? draft), env, account: { methodId } }
+    const owner = credentialOwner(config)
     const key = JSON.stringify([senderId, requestId])
-    if (this.pending.has(key)) throw new Error('Authentication is already in progress')
+    if (this.pending.has(key) || [...this.pending.values()].some((attempt) => attempt.owner === owner))
+      throw new Error('Authentication is already in progress')
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(new Error('Authentication timed out')), AUTH_TIMEOUT_MS)
-    this.accountGeneration++
+    this.bumpAccountGeneration(owner)
     const attempt: AuthAttempt = {
+      owner,
       async cancel() {
         controller.abort(new Error('Authentication cancelled'))
         await work.catch(() => {})
       }
     }
     this.pending.set(key, attempt)
-    const work = this.run(senderId, requestId, config, { methodId, ...options }, attempt, controller.signal)
+    const work = (async () => {
+      await this.run(senderId, requestId, config, { methodId, ...options }, attempt, controller.signal)
+      const account = await resolveLocalRuntimeAccount(config)
+      const status = await account
+        .readAccount?.(AbortSignal.any([controller.signal, AbortSignal.timeout(10_000)]))
+        .catch(() => undefined)
+      controller.signal.throwIfAborted()
+      if (status?.status === 'signed-out') throw new Error('Authentication did not establish a login')
+      const identity = accountId(status)
+      const region = method?.form === 'cloud' ? env[method.location] : undefined
+      const confirmation: LocalAgentAccount = {
+        methodId,
+        ...(options?.provider && preset?.providerLogin?.id === methodId && { service: options.provider }),
+        ...(region && { region }),
+        ...(identity && { accountId: identity })
+      }
+      if (agentId && resolved) {
+        const { encryptedEnv, ...localRuntime } = protectLocalAgentEnvironment(
+          { env, clearEnvironment: [...clearEnvironment] },
+          agentId
+        )
+        const updated = agentService.updateAgent(
+          agentId,
+          { localRuntime },
+          {
+            localAccount: confirmation,
+            encryptedLocalEnv: encryptedEnv,
+            expectedLocalProvider: { providerId: resolved.providerId, encryptedEnv: resolved.encryptedEnv }
+          }
+        )
+        if (!updated) throw new Error('Local agent is unavailable')
+      }
+      return confirmation
+    })()
     try {
-      await work
+      return await work
     } catch (error) {
       const cause = controller.signal.aborted ? controller.signal.reason : error
       throw new Error(
         redactAuthMessage(cause instanceof Error ? cause.message : String(cause), config, options?.secret)
       )
     } finally {
-      this.accountGeneration++
+      this.bumpAccountGeneration(owner)
       clearTimeout(timer)
       this.pending.delete(key)
     }
+  }
+
+  private bumpAccountGeneration(owner: string) {
+    this.accountGenerations.set(owner, (this.accountGenerations.get(owner) ?? 0) + 1)
   }
 
   private async run(
@@ -154,26 +251,58 @@ export class LocalAgentAuthService extends BaseService {
     if (consent?.id === promptId) consent.resolve(decision)
   }
 
-  async readSubscriptionUsage(agentId: string): Promise<SubscriptionUsageResult> {
-    const agent = agentService.getAgent(agentId)
-    const config = StoredLocalAgentConfigurationSchema.safeParse(agent?.configuration?.localRuntime)
-    if (!agent || agent.deletedAt || !config.success) return { status: 'unsupported' }
-    if (this.pending.size || this.shutdown.signal.aborted) return { status: 'unavailable' }
-    const generation = this.accountGeneration
-    const key = JSON.stringify([agentId, agent.updatedAt, generation])
+  async readSubscriptionUsage(agentId: string, sessionId?: string): Promise<SubscriptionUsageResult> {
+    const resolveBinding = () => {
+      if (!agentService.agentExists(agentId)) return undefined
+      if (!sessionId) {
+        const saved = agentProviderService.getBinding(agentId)
+        return saved && resolveLocalAgentCredentials(saved)
+      }
+      if (agentSessionService.getById(sessionId)?.agentId !== agentId) return undefined
+      const persisted = resolveLocalSessionBinding(sessionId, agentId)
+      if (!persisted) return undefined
+      const live = application.get('AgentSessionRuntimeService').getConnectedLocalRuntime(sessionId)
+      if (!live) return persisted
+      return live.providerId === persisted.providerId ? live : undefined
+    }
+    const config = resolveBinding()
+    if (!config || config.sourceModelViaGateway) return { status: 'unsupported' }
+    const sessionModel = () =>
+      sessionId
+        ? application.get('AgentSessionRuntimeService').getLocalSessionView(sessionId).info?.activeModel?.id
+        : undefined
+    const activeModel = sessionModel()
+    if (config.presetId === minimaxCli.id && !activeModel) return { status: 'unsupported' }
+    const runtime = activeModel ? { ...config, nativeModel: activeModel } : config
+    const owner = credentialOwner(runtime)
+    if ([...this.pending.values()].some((attempt) => attempt.owner === owner) || this.shutdown.signal.aborted)
+      return { status: 'unavailable' }
+    const generation = this.accountGenerations.get(owner)
+    const routeKey = subscriptionRouteKey(config, activeModel)
+    const key = JSON.stringify([routeKey, generation, sessionId])
     const existing = this.usageRequests.get(key)
     if (existing) return existing
 
     const signal = AbortSignal.any([this.shutdown.signal, AbortSignal.timeout(30_000)])
     const read = async (): Promise<SubscriptionUsageResult> => {
       try {
-        const account = await resolveLocalRuntimeAccount(config.data)
+        const account = await resolveLocalRuntimeAccount(runtime)
         if (!account.readSubscriptionUsage) return { status: 'unsupported' }
+        const expectedAccount = config.account?.accountId
+        const matchesAccount = async () =>
+          !expectedAccount || accountId(await account.readAccount?.(signal)) === expectedAccount
+        if (!(await matchesAccount())) return { status: 'unavailable' }
         const result = await account.readSubscriptionUsage(signal)
+        if (!(await matchesAccount())) return { status: 'unavailable' }
+        const current = resolveBinding()
+        const currentModel = sessionModel()
         if (
           signal.aborted ||
-          generation !== this.accountGeneration ||
-          agent.updatedAt !== agentService.getAgent(agentId)?.updatedAt
+          generation !== this.accountGenerations.get(owner) ||
+          !current ||
+          current.sourceModelViaGateway ||
+          (current.presetId === minimaxCli.id && !currentModel) ||
+          subscriptionRouteKey(current, currentModel) !== routeKey
         )
           return { status: 'unavailable' }
         return result

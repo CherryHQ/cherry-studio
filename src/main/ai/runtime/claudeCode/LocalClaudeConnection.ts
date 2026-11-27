@@ -1,7 +1,9 @@
 import { randomUUID } from 'node:crypto'
+import { isDeepStrictEqual } from 'node:util'
 
 import type { ModelInfo, Options } from '@anthropic-ai/claude-agent-sdk'
 
+import { application } from '@application'
 import {
   claudeEffortControl,
   localClaudeOptions,
@@ -12,12 +14,16 @@ import {
 } from '@cherrystudio/agent-runtime-claude-code'
 import { CLAUDE_PERMISSION_MODES } from '@cherrystudio/agent-runtime-claude-code/cli'
 import { selectedPermissionMode } from '@cherrystudio/agent-runtime/cli'
-import { agentService } from '@data/services/AgentService'
+import type { AgentSessionContextRow } from '@data/db/schemas/agentSessionContext'
+import { agentProviderService } from '@data/services/AgentProviderService'
+import { agentSessionContextService } from '@data/services/AgentSessionContextService'
+import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { toolApprovalRegistry, type DispatchDecision } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
-import type { LocalAgentConfiguration, LocalAgentSessionInfo } from '@shared/ai/localAgent'
+import type { LocalAgentConfiguration, LocalAgentRuntime, LocalAgentSessionInfo } from '@shared/ai/localAgent'
 import { LocalAgentTurnUsageSchema } from '@shared/ai/localAgentUsage'
 
+import { localBindingMatches, localContext, type LocalLaunchTarget } from '../../agentSession/localContext'
 import {
   acquireLocalAgentBrowserLease,
   isHostBrowserControlAllowed,
@@ -26,12 +32,11 @@ import {
 import type { LocalAgentBrowserLease } from '../../mcp/LocalAgentMcpBridgeService'
 import type {
   AgentRuntimeCommand,
-  AgentRuntimeConnectInput,
   AgentRuntimeEvent,
-  AgentRuntimeReconcileResult
+  AgentRuntimeReconcileResult,
+  LocalRuntimeConnectInput
 } from '../types'
 import { createClaudeCodeProcessDiagnostics, createSpawnClaudeCodeProcess } from './ClaudeCodeProcessManager'
-import { prepareClaudeBranch } from './claudeContext'
 import { ClaudeSdkConnection } from './ClaudeSdkConnection'
 import { resolveClaudeLaunch } from './localClaudeLaunch'
 
@@ -114,7 +119,7 @@ async function withLocalClaudeProbe<T>(
   }
 }
 
-export class LocalClaudeConnection extends ClaudeSdkConnection {
+export class LocalClaudeConnection extends ClaudeSdkConnection<LocalRuntimeConnectInput> {
   private effortModels: readonly ModelInfo[] = []
   readonly sessionCostScope = 'native-session' as const
   readonly localSessionInfo: LocalAgentSessionInfo = {
@@ -133,16 +138,91 @@ export class LocalClaudeConnection extends ClaudeSdkConnection {
   private readonly sessionAllowedTools = new Set<string>()
   private unattendedDenial = false
   private permissionModeSource?: 'native' | 'selection'
+  private target: LocalLaunchTarget = this.input.localTarget
+
+  get localRuntime(): LocalAgentRuntime {
+    return this.config
+  }
+
+  override get contextId() {
+    return this.target.kind === 'resume' ? super.contextId : undefined
+  }
 
   constructor(
-    input: AgentRuntimeConnectInput,
-    private readonly config: LocalAgentConfiguration
+    input: LocalRuntimeConnectInput,
+    private readonly config: LocalAgentRuntime
   ) {
     super(input, 'claude')
   }
 
-  protected override prepareContext(_env: Options['env'], nativeId?: string, anchor?: string) {
-    return prepareClaudeBranch(this.input.sessionId, { agentId: this.input.agentId }, nativeId, anchor)
+  protected override prepareContext(_env: Options['env'], nativeId?: string, anchor?: string): AgentSessionContextRow {
+    const { sessionId } = this.input
+    if (!this.context && this.target.kind === 'resume') return this.target.context
+    if (this.target.kind === 'new') {
+      if (this.context) return { ...this.context, nativeThreadId: nativeId ?? this.context.nativeThreadId }
+      const { id: backendId } = application
+        .get('DbService')
+        .withWriteTx((tx) => agentSessionContextService.ensureLocalBackendTx(tx, this.target.providerId))
+      return {
+        id: randomUUID(),
+        backendId,
+        sessionId,
+        nativeThreadId: nativeId ?? randomUUID(),
+        localModel: this.target.model,
+        bindingState: 'pending',
+        parentContextId: null,
+        spawnToolCallId: null,
+        anchorMessageId: null,
+        checkpointMapping: null,
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      }
+    }
+    const context = this.reserveContext(anchor ?? agentSessionMessageService.captureHead(sessionId), nativeId)
+    if (!context) throw new Error('Local agent binding changed before its native context was claimed')
+    return context
+  }
+
+  protected override bindNativeContext(context: AgentSessionContextRow, nativeId: string): AgentSessionContextRow {
+    return this.target.kind === 'new'
+      ? { ...context, nativeThreadId: nativeId, bindingState: 'bound' }
+      : super.bindNativeContext(context, nativeId)
+  }
+
+  private reserveContext(anchor: string, nativeId?: string) {
+    return localContext(
+      this.input.sessionId,
+      this.input.agentId,
+      anchor,
+      this.target,
+      this.config.browserControl,
+      nativeId,
+      this.target.kind === 'new' && this.context
+        ? { id: this.context.id, nativeConfirmed: this.context.bindingState === 'bound' }
+        : undefined
+    )
+  }
+
+  claimLocalContext(anchor: string): boolean {
+    if (
+      this.target.kind === 'resume' &&
+      this.context &&
+      isDeepStrictEqual(this.context.localModel, this.target.model)
+    ) {
+      return localBindingMatches(
+        this.target,
+        agentProviderService.getBinding(this.input.agentId),
+        this.config.browserControl
+      )
+    }
+    const nativeId = this.context?.nativeThreadId ?? undefined
+    const context = this.reserveContext(anchor, nativeId)
+    if (!context) return false
+    const binding = this.context?.bindingState
+    this.target = { ...this.target, kind: 'resume', context }
+    this.context =
+      nativeId && binding === 'bound' && !context.nativeThreadId ? this.bindNativeContext(context, nativeId) : context
+    return true
   }
 
   async start(cwd: string): Promise<this> {
@@ -263,6 +343,8 @@ export class LocalClaudeConnection extends ClaudeSdkConnection {
 
   override send(input: AgentRuntimeCommand) {
     this.unattendedDenial = false
+    if (this.target.kind === 'new' && !this.claimLocalContext(input.message.id))
+      throw new Error('Local agent binding changed before input was admitted')
     return super.send(input)
   }
 
@@ -431,9 +513,9 @@ export class LocalClaudeConnection extends ClaudeSdkConnection {
 
   async reconcile({ headless = false }: { headless?: boolean }): Promise<AgentRuntimeReconcileResult> {
     if (headless !== Boolean(this.input.headless) || this.closing) return 'rebuild'
-    const current = agentService.getAgent(this.input.agentId)?.configuration?.localRuntime
+    const current = agentProviderService.getBinding(this.input.agentId)
     if (!current?.enabled) return this.handle?.claude.state().active ? 'rebuild' : 'invalid'
-    return JSON.stringify(current) === JSON.stringify(this.config) ? 'current' : 'rebuild'
+    return localBindingMatches(this.target, current, this.config.browserControl) ? 'current' : 'rebuild'
   }
 
   cancelStartup() {

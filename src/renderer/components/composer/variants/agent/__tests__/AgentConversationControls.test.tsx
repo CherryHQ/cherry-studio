@@ -125,7 +125,7 @@ describe('locked conversation workspace', () => {
         orderKey: 'a0',
         createdAt: '2026-01-01T00:00:00.000Z',
         updatedAt: '2026-01-01T00:00:00.000Z',
-        configuration: { localRuntime: { presetId: 'codex', enabled: true, args: [], env: {} } }
+        localRuntime: { providerId: 'codex-provider', presetId: 'codex', enabled: true, args: [], env: {} }
       },
       openProfile
     )

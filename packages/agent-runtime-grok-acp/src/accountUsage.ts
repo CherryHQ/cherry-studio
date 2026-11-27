@@ -53,7 +53,14 @@ export const readGrokSubscriptionUsage: AcpSubscriptionUsageReader = async (agen
     const durationMinutes = config.currentPeriod?.type === 'USAGE_PERIOD_TYPE_WEEKLY' ? 7 * 1440 : undefined
     const windows: SubscriptionUsageWindow[] = []
     if (usedRatio !== undefined && usedRatio >= 0)
-      windows.push({ id: 'included', label: 'Grok', usedRatio, durationMinutes, resetsAt })
+      windows.push({
+        id: 'included',
+        label: 'Grok',
+        groupLabel: durationMinutes ? 'Grok' : undefined,
+        usedRatio,
+        durationMinutes,
+        resetsAt
+      })
     const cap = config.onDemandCap?.val
     const used = config.onDemandUsed?.val
     if (cap !== undefined && cap > 0 && used !== undefined && used >= 0)

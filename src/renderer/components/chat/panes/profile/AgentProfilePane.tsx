@@ -43,7 +43,7 @@ export function AgentProfilePane({
       <ProfilePaneHeader
         avatar={
           agent.type === 'local' ? (
-            <LocalAgentIcon presetId={agent.configuration?.localRuntime?.presetId} size={84} variant="card" />
+            <LocalAgentIcon presetId={agent.localRuntime?.presetId} size={84} variant="card" />
           ) : (
             <AgentAvatarPicker
               agentId={agent.id}

@@ -1,3 +1,5 @@
+import type { AcpCliPreset } from '@cherrystudio/agent-runtime-acp/profile'
+
 export const factoryCli = {
   id: 'factory-droid',
   account: { canReadAccount: true },
@@ -16,4 +18,4 @@ export const factoryCli = {
     FACTORY_DROID_AUTO_UPDATE_ENABLED: 'false'
   },
   helpUrl: 'https://factory.ai/product/cli'
-} as const
+} as const satisfies AcpCliPreset

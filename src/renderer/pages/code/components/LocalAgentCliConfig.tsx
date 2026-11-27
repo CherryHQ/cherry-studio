@@ -117,10 +117,7 @@ export function LocalAgentCliConfig({ tool }: { tool: string }) {
       const response = await ipcApi.request('code_cli.write_config', {
         cliTool: tool,
         files: changed.map(({ target, content }) => ({ target, content })),
-        expectedFiles,
-        preserveModelSource:
-          JSON.stringify(extractConnectionFromCliConfigDraft(tool, files)) ===
-          JSON.stringify(extractConnectionFromCliConfigDraft(tool, original))
+        expectedFiles
       })
       if (!response.success) throw new Error(response.message)
       setOpen(false)

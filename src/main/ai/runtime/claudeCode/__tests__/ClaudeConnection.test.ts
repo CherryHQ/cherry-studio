@@ -3,32 +3,53 @@ import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { query, type SDKResultSuccess, type SpawnOptions } from '@anthropic-ai/claude-agent-sdk'
+import type { Options, SDKResultSuccess, SpawnOptions } from '@anthropic-ai/claude-agent-sdk'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockApplicationUtils } from '@test-mocks/main/application'
 import { afterEach, expect, it, vi } from 'vitest'
 
+import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { agentSessionContextTable } from '@data/db/schemas/agentSessionContext'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
+import { agentProviderService } from '@data/services/AgentProviderService'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
+import { bindLocalContext, localContext, type LocalLaunchTarget } from '@main/ai/agentSession/localContext'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import type { LocalAgentConfiguration } from '@shared/ai/localAgent'
 
 import { assistantMessage, wireProcess } from '../../../../../../packages/agent-runtime-claude-code/tests/wireFixture'
 import { acquireLocalAgentBrowserLease } from '../../../mcp/localAgentBrowserBridge'
+import { localLaunch } from '../../__tests__/fixtures/localLaunch'
 import type { AgentRuntimeEvent } from '../../types'
 import { LocalClaudeConnection, probeLocalClaude } from '../LocalClaudeConnection'
 import { resolveClaudeLaunch } from '../localClaudeLaunch'
 import type { ClaudeCodeProcessDiagnostics } from '../processExitDiagnostics'
 
-vi.mock(import('@anthropic-ai/claude-agent-sdk'), async (load) => {
-  const sdk = await load()
-  return { ...sdk, query: vi.fn(sdk.query) }
+const runtimeLaunch = vi.hoisted(() => ({ options: undefined as Options | undefined }))
+vi.mock('@cherrystudio/agent-runtime-claude-code', async () => {
+  const impl = await import('../../../../../../packages/agent-runtime-claude-code/src')
+  return {
+    ...impl,
+    createClaudeCodeRuntime(options: Parameters<typeof impl.createClaudeCodeRuntime>[0]) {
+      const runtime = impl.createClaudeCodeRuntime({
+        ...options,
+        async load(root) {
+          const config = await options.load?.(root)
+          if (config) runtimeLaunch.options = { ...config, resume: root.id }
+          return config
+        }
+      })
+      return {
+        ...runtime,
+        create(config: Parameters<typeof runtime.create>[0]) {
+          runtimeLaunch.options = config
+          return runtime.create(config)
+        }
+      }
+    }
+  }
 })
-vi.mock(
-  '@cherrystudio/agent-runtime-claude-code',
-  () => import('../../../../../../packages/agent-runtime-claude-code/src')
-)
 vi.mock(import('../localClaudeLaunch'), async (load) => ({
   ...(await load()),
   resolveClaudeLaunch: vi.fn()
@@ -42,6 +63,7 @@ const db = setupTestDatabase()
 const cleanups: (() => Promise<void>)[] = []
 afterEach(async () => {
   for (const cleanup of cleanups.splice(0).reverse()) await cleanup()
+  runtimeLaunch.options = undefined
   MockApplicationUtils.resetServices()
   vi.resetAllMocks()
 })
@@ -77,7 +99,15 @@ async function session(headless = false, resumeToken?: string) {
     .insert(agentWorkspaceTable)
     .values({ id: workspaceId, name: 'Work', type: 'user', path: test.directory, orderKey: 'a0' })
     .run()
-  db.db.insert(agentSessionTable).values({ id: sessionId, workspaceId, name: 'Local', orderKey: 'a0' }).run()
+  const agentId = randomUUID()
+  db.db
+    .insert(agentTable)
+    .values({ id: agentId, type: 'local', name: 'Claude', instructions: '', orderKey: 'a0' })
+    .run()
+  db.db.insert(agentSessionTable).values({ id: sessionId, agentId, workspaceId, name: 'Local', orderKey: 'a0' }).run()
+  const runtime = agentProviderService.setBindingTx(db.db, agentId, config)
+  const launch = localLaunch(runtime, runtime.providerId)
+  let localTarget: LocalLaunchTarget = launch.target
   if (resumeToken) {
     const project = join(test.launch.env.CLAUDE_CONFIG_DIR, 'projects', test.directory.replace(/[^a-zA-Z0-9]/g, '-'))
     await mkdir(project, { recursive: true })
@@ -91,10 +121,12 @@ async function session(headless = false, resumeToken?: string) {
       message: { role: 'user', content: [{ type: 'text', text: 'Saved in local profile' }] }
     }
     await writeFile(join(project, `${resumeToken}.jsonl`), JSON.stringify(saved) + '\n')
+    const context = localContext(sessionId, agentId, messages.captureHead(sessionId), localTarget, undefined)!
+    localTarget = { ...localTarget, kind: 'resume', context: bindLocalContext(context.id, resumeToken) }
   }
   const connection = new LocalClaudeConnection(
-    { sessionId, agentId: 'agent', modelId: 'runtime:agent', headless, resumeToken },
-    config
+    { sessionId, agentId, modelId: 'runtime:agent', headless, resumeToken, localTarget },
+    launch.config
   )
   const events: AgentRuntimeEvent[] = []
   const drain = (async () => {
@@ -105,7 +137,7 @@ async function session(headless = false, resumeToken?: string) {
     await drain
   })
   await connection.start(test.directory)
-  const options = vi.mocked(query).mock.calls.at(-1)![0].options!
+  const options = runtimeLaunch.options!
   const input = (text: string) => ({
     message: messages.saveMessage({
       sessionId,
@@ -139,6 +171,7 @@ it('sends successive turns to the selected CLI in one SDK session with the local
     model: 'sonnet',
     settingSources: ['user', 'project', 'local']
   })
+  expect(db.db.select().from(agentSessionContextTable).all()).toEqual([])
   expect(spawn.mock.calls[0][0].env.CLAUDE_CONFIG_DIR).toBe(launch.env.CLAUDE_CONFIG_DIR)
   expect(spawn.mock.calls[0][0].args.at(-1)).toBe('--verbose')
   expect((await connection.getSupportedCommands())?.map((cmd) => cmd.name)).toContain('compact')
@@ -289,13 +322,11 @@ it('binds browser permissions to the session mode and releases its lease', async
 it('reads the initialization catalog without submitting a prompt or creating a transcript', async () => {
   const { wire, spawn, launch, directory } = await transport()
   const catalog = await probeLocalClaude(config, directory, new AbortController().signal)
-  expect(catalog.models).toEqual([{ id: 'sonnet', name: 'Sonnet' }])
+  expect(catalog.models).toMatchObject([{ id: 'sonnet', name: 'Sonnet' }])
   expect(wire.inputs).toHaveLength(0)
   expect(wire.process.exitCode).toBe(0)
-  expect(vi.mocked(query).mock.calls.at(-1)?.[0].options).toMatchObject({
-    pathToClaudeCodeExecutable: launch.installation.path,
-    tools: [],
-    persistSession: false
-  })
+  expect(spawn.mock.calls[0][0].command).toBe(launch.installation.path)
+  expect(spawn.mock.calls[0][0].args).toContain('--no-session-persistence')
+  expect(db.db.select().from(agentSessionContextTable).all()).toEqual([])
   expect(spawn.mock.calls[0][0].env.CLAUDE_CONFIG_DIR).toBe(launch.env.CLAUDE_CONFIG_DIR)
 })

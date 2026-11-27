@@ -1403,6 +1403,11 @@ admission. Forked sessions use the same resume rules as other
 sessions of their runtime. See
 [Agent Session Fork](./agent-session-fork.md) for publication and file-resource recovery.
 
+Local Agents can continue with [reference history](#first-submission-without-native-history)
+when the adapter confirms that the native thread cannot be restored. The replacement
+thread becomes the branch's active context when the next input is admitted. See
+[Local Agent Runtime](./local-agent-runtime.md#ownership-and-routing).
+
 ## Idle and shutdown
 
 After a turn reaches terminal state, the runtime entry becomes `idle`.

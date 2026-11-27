@@ -23,7 +23,6 @@ import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import { AGENTS_MAX_LIMIT } from '@shared/data/api/schemas/agents'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
-import type { CliConfigTarget } from '@shared/utils/cliConfig'
 
 type Result<T> = { success: true; data: T } | { success: false; error: Error }
 type UpdateAgentModelInput = {
@@ -86,7 +85,7 @@ export const useAgents = (options: { enabled?: boolean; includeDisabledLocal?: b
     () =>
       (data?.items ?? []).filter((a) => {
         if (options.includeDisabledLocal || a.type !== 'local') return true
-        const runtime = a.configuration?.localRuntime
+        const runtime = a.localRuntime
         return (
           runtime?.enabled &&
           (!runtime.presetId || LOCAL_AGENT_PRESETS.some((preset) => preset.id === runtime.presetId))
@@ -178,11 +177,6 @@ export const useUpdateAgent = () => {
     selection?: {
       sourceModelId?: UniqueModelId
       sourceModelViaGateway?: boolean
-      expectedFiles?: {
-        target: CliConfigTarget
-        path: string
-        content: string | null
-      }[]
     }
   ) => {
     try {

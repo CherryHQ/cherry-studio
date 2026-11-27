@@ -6,7 +6,7 @@
     "strict": true,
     "skipLibCheck": true,
     "lib": ["ES2024"],
-    "types": [],
+    "types": ["node"],
     "rootDir": "src",
     "outDir": "dist"
   },

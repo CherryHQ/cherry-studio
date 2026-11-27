@@ -5046,7 +5046,7 @@ describe('AgentSessionRuntimeService', () => {
       id: 'agent-1',
       type: 'local',
       model: baseTurnInput.modelId,
-      configuration: { localRuntime: { presetId: 'codex', enabled: true, args: [], env: {} } }
+      localRuntime: { providerId: 'provider-fixture', presetId: 'codex', enabled: true, args: [], env: {} }
     })
 
     const service = new AgentSessionRuntimeService()
@@ -5068,7 +5068,7 @@ describe('AgentSessionRuntimeService', () => {
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
       type: 'local',
-      configuration: { localRuntime: { presetId: 'opencode', enabled: true, args: [], env: {} } }
+      localRuntime: { providerId: 'provider-fixture', presetId: 'opencode', enabled: true, args: [], env: {} }
     })
 
     const service = new AgentSessionRuntimeService()
@@ -5079,7 +5079,7 @@ describe('AgentSessionRuntimeService', () => {
     mocks.getAgent.mockReturnValue({
       id: 'agent-2',
       type: 'local',
-      configuration: { localRuntime: { presetId: 'kimi', enabled: true, args: [], env: {} } }
+      localRuntime: { providerId: 'provider-fixture', presetId: 'kimi', enabled: true, args: [], env: {} }
     })
     expect(service.getLocalSessionView('session-1').idleHostPermission?.currentValue).toBe('default')
   })
@@ -5090,7 +5090,7 @@ describe('AgentSessionRuntimeService', () => {
       id: 'agent-1',
       type: 'local',
       model: baseTurnInput.modelId,
-      configuration: { localRuntime: { presetId: 'antigravity-acp', enabled: true, args: [], env: {} } }
+      localRuntime: { providerId: 'provider-fixture', presetId: 'antigravity-acp', enabled: true, args: [], env: {} }
     })
     const launches: Array<string | undefined> = []
     const closed: number[] = []
@@ -5161,7 +5161,7 @@ describe('AgentSessionRuntimeService', () => {
       id: 'agent-1',
       type: 'local',
       model: baseTurnInput.modelId,
-      configuration: { localRuntime: { presetId: 'opencode', enabled: true, args: [], env: {} } }
+      localRuntime: { providerId: 'provider-fixture', presetId: 'opencode', enabled: true, args: [], env: {} }
     })
 
     const mode: LocalAgentSelection = {
@@ -5211,7 +5211,7 @@ describe('AgentSessionRuntimeService', () => {
       id: 'agent-1',
       type: 'local',
       model: baseTurnInput.modelId,
-      configuration: { localRuntime: { presetId: 'claude', enabled: true, args: [], env: {} } }
+      localRuntime: { providerId: 'provider-fixture', presetId: 'claude', enabled: true, args: [], env: {} }
     })
 
     const service = new AgentSessionRuntimeService()
@@ -5298,7 +5298,7 @@ describe('AgentSessionRuntimeService', () => {
       id: 'agent-1',
       type: 'local',
       model: baseTurnInput.modelId,
-      configuration: { localRuntime: { enabled: true, args: [], env: {} } }
+      localRuntime: { providerId: 'provider-fixture', enabled: true, args: [], env: {} }
     })
 
     const service = new AgentSessionRuntimeService()
@@ -5395,7 +5395,7 @@ describe('AgentSessionRuntimeService', () => {
       id: 'agent-1',
       type: 'local',
       model: baseTurnInput.modelId,
-      configuration: { localRuntime: { presetId: 'claude', enabled: true, args: [], env: {} } }
+      localRuntime: { providerId: 'provider-fixture', presetId: 'claude', enabled: true, args: [], env: {} }
     })
 
     const service = new AgentSessionRuntimeService()
@@ -5471,9 +5471,7 @@ describe('AgentSessionRuntimeService', () => {
       id: 'agent-dsh',
       type: 'local',
       model: baseTurnInput.modelId,
-      configuration: {
-        localRuntime: { presetId: 'deepseek-harness', enabled: true, args: [], env: {} }
-      }
+      localRuntime: { providerId: 'provider-fixture', presetId: 'deepseek-harness', enabled: true, args: [], env: {} }
     })
     mocks.hasSessionMessages.mockReturnValue(true)
     mocks.getSessionById.mockReturnValue({ id: 'session-dsh', agentId: 'agent-dsh', workspace: { path: '/workspace' } })
@@ -5545,7 +5543,7 @@ describe('AgentSessionRuntimeService', () => {
       id: 'agent-qwen',
       type: 'local' as const,
       model,
-      configuration: { localRuntime: { presetId: 'qwen', enabled: true, args: [], env: {} } }
+      localRuntime: { providerId: 'provider-fixture', presetId: 'qwen', enabled: true, args: [], env: {} }
     })
     let currentAgent = makeAgent('local:qwen::model-a')
     mocks.getAgent.mockImplementation(() => currentAgent)
@@ -5664,9 +5662,7 @@ describe('AgentSessionRuntimeService', () => {
       id: 'agent-dsh',
       type: 'local',
       model: 'local:deepseek-harness::default',
-      configuration: {
-        localRuntime: { presetId: 'deepseek-harness', enabled: true, args: [], env: {} }
-      }
+      localRuntime: { providerId: 'provider-fixture', presetId: 'deepseek-harness', enabled: true, args: [], env: {} }
     })
     mocks.getSessionById.mockReturnValue({
       id: 'session-dsh',

@@ -43,7 +43,7 @@ import { AgentUpgradeControl } from '@renderer/components/localAgent/AgentUpgrad
 import { LocalAgentModelList } from '@renderer/components/localAgent/LocalAgentModelList'
 import { modelSettingsDetailClasses } from '@renderer/components/modelSettingsStyles'
 import { useDataChange, useInvalidateCache, useQuery } from '@renderer/data/hooks/useDataApi'
-import { useAgents, useUpdateAgent } from '@renderer/hooks/agent/useAgent'
+import { useAgents } from '@renderer/hooks/agent/useAgent'
 import { useLocalAgentModelCatalog } from '@renderer/hooks/agent/useLocalAgentModelCatalog'
 import { useLocalAgentModelSelection } from '@renderer/hooks/agent/useLocalAgentModelSelection'
 import { useLocalAgentVersion } from '@renderer/hooks/agent/useLocalAgentVersion'
@@ -63,7 +63,9 @@ import { getSidebarApp, tabBelongsToApp } from '@renderer/utils/sidebar'
 import {
   getLocalAgentProtocol,
   LOCAL_AGENT_PRESETS,
+  LocalAgentConfigurationSchema,
   LocalAgentLaunchSettingsSchema,
+  type LocalAgentAccount,
   type LocalAgentConfiguration,
   type LocalAgentCheckResult,
   type LocalAgentDetection,
@@ -239,23 +241,23 @@ export function LocalAgentDirectory({
   ].filter((a) => a.type === 'local')
   const installedIds = new Set(detections.filter((detection) => detection.path).map((detection) => detection.presetId))
   const getPriority = (entry: { id: string; agent?: AgentEntity; preset?: LocalAgentPreset }) =>
-    !entry.agent?.deletedAt && entry.agent?.configuration?.localRuntime?.enabled
+    !entry.agent?.deletedAt && entry.agent?.localRuntime?.enabled
       ? 2
       : Number(
           entry.preset?.protocol === 'cursor' ||
             installedIds.has(entry.id) ||
-            !!entry.agent?.configuration?.localRuntime?.executableOverride
+            !!entry.agent?.localRuntime?.executableOverride
         )
   const orderIndex = new Map(
     agentOrder.map((id, index) => [id === 'cli:deepseek-harness' || id === 'cli:openclaw' ? id.slice(4) : id, index])
   )
   const entries = [
     ...LOCAL_AGENT_PRESETS.filter((preset) => !preset.retired).map((preset) => {
-      const agent = localAgents.find((a) => a.configuration?.localRuntime?.presetId === preset.id)
+      const agent = localAgents.find((a) => a.localRuntime?.presetId === preset.id)
       return { id: preset.id, name: presetDisplayName(preset, agent?.name), preset, agent }
     }),
     ...localAgents
-      .filter((a) => !a.configuration?.localRuntime?.presetId)
+      .filter((a) => !a.localRuntime?.presetId)
       .map((agent) => ({ id: agent.id, name: agent.name, preset: undefined, agent }))
   ].sort(
     (a, b) =>
@@ -394,14 +396,14 @@ export function LocalAgentDirectory({
                 }}
                 onReorderError={() => toast.error(t('common.error'))}
                 renderItem={(e, _index, { dragging, dragHandleProps }) => {
-                  const enabled = !e.agent?.deletedAt && e.agent?.configuration?.localRuntime?.enabled
+                  const enabled = !e.agent?.deletedAt && e.agent?.localRuntime?.enabled
                   const detection = detections.find((d) => d.presetId === e.id)
-                  const executableOverride = e.agent?.configuration?.localRuntime?.executableOverride
+                  const executableOverride = e.agent?.localRuntime?.executableOverride
                   const sdk = e.preset?.protocol === 'cursor'
                   const unavailable =
                     !sdk &&
                     !!detection &&
-                    (!detection.path || !!missingChatExecutable(detection, e.agent?.configuration?.localRuntime)) &&
+                    (!detection.path || !!missingChatExecutable(detection, e.agent?.localRuntime)) &&
                     !executableOverride
                   const status = unavailable
                     ? t(detection.incompatiblePath ? 'local_agents.incompatible' : 'local_agents.not_installed')
@@ -601,15 +603,17 @@ export function LocalAgentDetails({
 }) {
   const { t } = useTranslation()
   const [scrollElement, setScrollElement] = useState<HTMLDivElement | null>(null)
-  const { updateAgent } = useUpdateAgent()
   const invalidate = useInvalidateCache()
   const closeConversationTabs = useCloseConversationTabs()
   const tabs = useOptionalTabsContext()
   const currentTabId = useCurrentTabId()
   const archived = !!agent?.deletedAt
   const displayName = preset ? presetDisplayName(preset, agent?.name) : (agent?.name ?? t('local_agents.custom'))
-  const initial: LocalAgentConfiguration = agent?.configuration?.localRuntime
-    ? { ...agent.configuration.localRuntime, enabled: !archived && agent.configuration.localRuntime.enabled }
+  const initial: LocalAgentConfiguration = agent?.localRuntime
+    ? {
+        ...LocalAgentConfigurationSchema.strip().parse(agent.localRuntime),
+        enabled: !archived && agent.localRuntime.enabled
+      }
     : { presetId: preset?.id, enabled: false, args: [], env: {} }
   const [busyAction, setBusyAction] = useState<
     'save' | 'check' | 'toggle' | 'uninstall' | 'confirm-uninstall' | 'model' | 'terminal'
@@ -626,7 +630,7 @@ export function LocalAgentDetails({
     loading: modelsLoading,
     refreshError: modelsRefreshError,
     refresh: refreshModels
-  } = useLocalAgentModelCatalog(preset?.id ?? agent?.id ?? 'custom-new', initial, !modelList && available)
+  } = useLocalAgentModelCatalog(preset?.id ?? agent?.id ?? 'custom-new', initial, !modelList && available, agent)
   const modelSelection = useLocalAgentModelSelection(initial, catalog?.models ?? [])
   const version = useLocalAgentVersion(sdk || initial.executableOverride ? undefined : preset?.id, detectedPath)
   const currentVersion = valid(version?.current)
@@ -694,6 +698,7 @@ export function LocalAgentDetails({
       const response = await ipcApi.request('ai.local_agents.open_terminal', {
         ...initial,
         ...options,
+        ...(agent && { agentId: agent.id }),
         directory: AbsoluteFilePathSchema.parse(options.directory)
       })
       if (!response.success) toast.error(response.message ?? t('common.error'))
@@ -734,15 +739,22 @@ export function LocalAgentDetails({
     clearResult()
     if (pendingSelection) onNavigate()
   }
-  const persistLocalRuntime = (localRuntime: Partial<LocalAgentConfiguration>, name?: string) =>
+  const persistLocalRuntime = (
+    localRuntime: Partial<LocalAgentConfiguration> & { account?: LocalAgentAccount },
+    name?: string
+  ) =>
     agent
-      ? updateAgent({ id: agent.id, name, configuration: { localRuntime } }, { showSuccessToast: false })
+      ? ipcApi.request('ai.local_agents.update_settings', {
+          agentId: agent.id,
+          name,
+          settings: localRuntime
+        })
       : createAgentAndRefresh(
           {
             type: 'local',
             name: name ?? preset?.name ?? '',
             model: null,
-            configuration: { localRuntime: { ...initial, ...localRuntime } }
+            localRuntime: { ...initial, ...localRuntime }
           },
           async () => {}
         )
@@ -895,7 +907,10 @@ export function LocalAgentDetails({
     setConnection(undefined)
     clearResult()
     try {
-      const response = await ipcApi.request('ai.local_agents.check', initial)
+      const response = await ipcApi.request('ai.local_agents.check', {
+        ...initial,
+        ...(agent && { agentId: agent.id })
+      })
       setConnection({ status: response.status, peerVersion: response.protocolInfo?.agent?.version })
       setResult({ ok: response.ok, message: response.ok ? undefined : checkError(response) })
     } catch (error) {
@@ -961,7 +976,10 @@ export function LocalAgentDetails({
         return true
       }
       if (configuration.enabled || (!preset && !agent)) {
-        const response = await ipcApi.request('ai.local_agents.check', configuration)
+        const response = await ipcApi.request('ai.local_agents.check', {
+          ...configuration,
+          ...(agent && { agentId: agent.id })
+        })
         if (!response.ok) {
           setConnection({ status: response.status })
           showError(checkError(response))
@@ -983,9 +1001,7 @@ export function LocalAgentDetails({
                 : {})
             })
           : undefined
-      const updated = restored?.configuration?.localRuntime?.enabled
-        ? restored
-        : await persistLocalRuntime(localRuntime, savedName)
+      const updated = restored?.localRuntime?.enabled ? restored : await persistLocalRuntime(localRuntime, savedName)
       if (updated) {
         await onSaved(updated.id)
         toast.success(t('common.saved'))
@@ -1222,6 +1238,7 @@ export function LocalAgentDetails({
                     {preset?.credentialScope !== 'provider' && (sdk || protocol === 'acp' || preset?.loginArgs) && (
                       <LocalAgentLogin
                         config={initial}
+                        agent={agent}
                         authMethods={protocol === 'acp' ? (freshCatalog?.authMethods ?? catalog?.authMethods) : []}
                         modelsLoading={modelsLoading}
                         freshCatalog={freshCatalog}
@@ -1236,17 +1253,21 @@ export function LocalAgentDetails({
                             ? async (provider) => {
                                 const response = await ipcApi.request('ai.local_agents.open_terminal', {
                                   ...initial,
+                                  ...(agent && { agentId: agent.id }),
                                   login: provider ? { provider } : true
                                 })
                                 if (!response.success) throw new Error(response.message ?? t('common.error'))
                               }
                             : undefined
                         }
-                        onAuthenticated={async (localRuntime) => {
+                        onAuthenticated={async (localRuntime, account) => {
                           setConnection(undefined)
                           clearResult()
-                          if (JSON.stringify(localRuntime.env) !== JSON.stringify(initial.env)) {
-                            const updated = await persistLocalRuntime({ env: localRuntime.env })
+                          if (agent) {
+                            await onSaved(agent.id)
+                            void loadModels()
+                          } else if (account || JSON.stringify(localRuntime.env) !== JSON.stringify(initial.env)) {
+                            const updated = await persistLocalRuntime({ env: localRuntime.env, account })
                             if (!updated) throw new Error(t('common.error'))
                             await onSaved(updated.id)
                           } else void loadModels()
@@ -1255,7 +1276,7 @@ export function LocalAgentDetails({
                       />
                     )}
                     {renderActions?.(initial, busy)}
-                    <LocalAgentWebUiActions config={initial} disabled={busy || !available} />
+                    <LocalAgentWebUiActions config={initial} agentId={agent?.id} disabled={busy || !available} />
                     {terminalButton}
                     <Tooltip content={chatDisabledReason} asChild>
                       <span className="inline-flex" tabIndex={chatDisabledReason ? 0 : undefined}>

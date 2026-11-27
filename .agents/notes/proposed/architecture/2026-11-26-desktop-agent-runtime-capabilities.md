@@ -48,7 +48,27 @@ The runtime reports native input admission independently of placement. Only a de
 
 Pi Durable, built-in Pi, Claude and Codex expose their existing native methods through the same desktop input and compaction entry points. Codex Stop can withdraw an input before dispatch. After dispatch, a missing native echo leaves delivery unknown and preserves its binding.
 
-Local installation resolves release and component declarations without opening a runtime. Runtime packages own login methods and credential selection. Main delivers native login prompts to the originating window and owns cancellation. Optional subscription reads bind to the account used by the saved runtime settings. They use a short-lived management connection and publish windows only while the saved configuration and sign-in generation still match.
+Local installation resolves release and component declarations without opening a runtime. Runtime packages own login methods and credential selection. Main delivers native login prompts to the originating window and owns cancellation.
+
+### Agent Provider data model
+
+The current branch puts executable overrides, account environment, model selection, enablement and browser policy in `Agent.configuration.localRuntime`. [AgentService](../../../../src/main/data/services/AgentService.ts) interprets a general configuration patch as an execution update. Give local execution its own typed storage.
+
+| Record | Fields and ownership |
+| --- | --- |
+| `agent_provider` | A configured connection with a UUID, a typed preset or custom ACP launch target, overrides and an optional account reference. The preset supplies protocol and static capabilities. Replacing the launch target or native profile creates a new provider ID. Signing in updates the account and credentials on the existing provider. |
+| `agent_provider_binding` | One row per local Agent, keyed by Agent ID with an indexed provider foreign key. Stores enablement, browser policy and a model selection. Multiple Agents can share the provider and choose different models. |
+| `agent_runtime_backend` | A local backend has a unique provider foreign key with restricted deletion. The [session context](../../../../src/main/data/db/schemas/agentSessionContext.ts) owns the backend reference, native thread ID and the local launch model selection needed for resume. |
+
+Model selection is a discriminated union of `native-default`, `native` with a native catalog ID, and `cherry` with a Cherry model reference. Validate the selection at the write boundary and apply it through the [launch binding](2026-11-27-local-agent-launch-model-binding.md). In-session model changes use native session controls. Selection and provider edits write only Cherry data.
+
+The Agent service saves the Agent and binding in one transaction and publishes the typed change after commit. Enabling checks connectivity without creating a native conversation. The [local driver](../../../../src/main/ai/runtime/LocalRuntimeDriver.ts) resolves an existing context through its backend before choosing an adapter. A fresh connection captures the Agent binding before launch. On first input, [context reservation](../../../../src/main/ai/agentSession/localContext.ts) binds to that provider transactionally. Changes to the effective account, launch settings, model or browser policy require a fresh connection before the next input. A disabled Agent cannot admit input. A saved context resumes through its provider using its current credentials. When the adapter confirms that the thread cannot be restored, open a new native thread. The next input binds it to the same Cherry conversation and includes the selected branch's existing messages as reference history.
+
+Login records the confirmed method, service, region and profile or credential reference on the provider. The write transaction checks that the provider and saved credential still match the sign-in target. The CLI, SDK or existing credential store holds the secret. [LocalAgentAuthService](../../../../src/main/services/LocalAgentAuthService.ts) invalidates account reads by credential owner, including when several providers share one native profile. An account read can report unknown when the adapter cannot verify the identity.
+
+Session Details resolves quota from the session's effective route and account. A separate management login requires an explicit association with the route's credential revision and verified account or seat. If the adapter cannot establish the association, the subscription is unavailable. Revalidate the route and account before publishing, including the live model when it determines the quota bucket. Keep quota results in memory.
+
+Add these records through an additive migration for databases from main. The unreleased local Agent feature starts with this storage contract. Remove its prior local JSON readers and writers in the same change.
 
 ## Alternatives considered
 
@@ -100,6 +120,12 @@ A provider-wide boolean cannot express read-only child access, a volatile queue 
 - AC38 — Junie, DimAgent, Muse Code, Auggie, TRAE CN, Qoder and Qoder CN offer Cherry models when their native ACP path has been verified to send a turn to the selected local endpoint using the injected credential. (verification: native ACP and Electron)
 - AC39 — In an interactive ACP conversation the picker reads native choices from that conversation when its connection is ready, and may offer configured gateway models. Opening the picker before the connection is ready does not start a second ACP process. Settings and adapters with a separate native catalog retain their catalog paths. (verification: renderer and Electron)
 - AC40 — Entering an ordinary local ACP conversation starts or restores its production connection in the background with the selected workspace and tools. Viewing history alone does not activate a runtime. Concurrent sends join the same opening or restore. Permission changes require the production connection, and an open menu replaces its connection status with the reported choices when ready. Scheduled-task conversations can still select permissions before opening a connection. Leaving the interactive view makes an idle, resumable connection eligible for reclamation. Enabling a Local Agent alone checks connectivity. (verification: unit, renderer and Electron)
+- AC41 — Session Details uses the existing context usage summary. It reads supported local subscription quotas when opened or refreshed, shows native windows and balances, and keeps results scoped to the selected Agent. Cursor uses the active SDK credential, retains separate native pools when applicable, and leaves SDK credentials untouched. (verification: renderer and Electron)
+- AC42 — Muse uses its versioned usage command. Kiro reads the active profile's included credits through a read-only quota request. MiniMax queries Token Plan only for a live model using the official API-key route. Quota reads leave local credentials and session history untouched. (verification: unit and Electron)
+- AC43 — Creating and editing a local Agent persists launch and account configuration on its provider, and enablement, browser policy and model selection on its binding. Two Agents that share a provider can select their models independently. (verification: unit and renderer)
+- AC44 — Switching an Agent from provider A to B keeps existing contexts on A and creates new contexts on B. Signing into a different account on A keeps its provider ID and attempts the original thread with the new login. Admission checks the effective launch settings. A confirmed missing or unsupported native thread can continue in the same Cherry conversation, with reference history supplied once to the replacement thread. Startup failures preserve the saved branch. (verification: unit and Electron)
+- AC45 — A quota result is published only while its effective route and account or seat binding match. Changing the credential or account invalidates an in-flight result. (verification: unit and Electron)
+- AC46 — The additive schema migration is valid for a populated database from main. New local Agent creation, account setup and session opening use the typed records as their storage contract. (verification: unit and Electron)
 
 ## Risks
 

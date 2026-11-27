@@ -1,4 +1,4 @@
-import type { AcpPermissionModes } from '@cherrystudio/agent-runtime-acp/profile'
+import type { AcpCliPreset } from '@cherrystudio/agent-runtime-acp/profile'
 
 export const copilotCli = {
   id: 'copilot',
@@ -21,7 +21,7 @@ export const copilotCli = {
     labels: { agent: 'default' },
     approvalConfigId: 'allow_all',
     allowAll: 'allow_all'
-  } satisfies AcpPermissionModes,
+  },
   terminalArgs: [],
   name: 'GitHub Copilot',
   protocol: 'acp',
@@ -29,4 +29,4 @@ export const copilotCli = {
   executable: 'copilot',
   args: ['--acp'],
   helpUrl: 'https://docs.github.com/en/copilot/reference/copilot-cli-reference/acp-server'
-} as const
+} as const satisfies AcpCliPreset

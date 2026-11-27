@@ -15,7 +15,7 @@ import { resolveAcpLaunch } from '@main/ai/runtime/acp/acpLaunch'
 import { resolveRequiredRuntime } from '@main/ai/runtime/cli/runtimeDependency'
 import { resolveCodexLaunch } from '@main/ai/runtime/codex/codexLaunch'
 import { BaseService } from '@main/core/lifecycle'
-import type { LocalAgentConfiguration } from '@shared/ai/localAgent'
+import type { LocalAgentConfiguration, LocalAgentRuntime } from '@shared/ai/localAgent'
 
 import { detectLocalAgents } from '../localAgentCli'
 import { LocalAgentInstallService } from '../LocalAgentInstallService'
@@ -33,6 +33,7 @@ const state = vi.hoisted(() => ({
   exit: '0',
   busy: false,
   openSessions: [] as string[],
+  liveSessions: {} as Record<string, LocalAgentRuntime>,
   removeBlocked: false,
   china: false,
   registry: 'https://registry.npmjs.org/',
@@ -68,6 +69,7 @@ vi.mock('@application', async () => {
         )
     },
     AgentSessionRuntimeService: {
+      getConnectedLocalRuntime: (sessionId: string) => state.liveSessions[sessionId],
       closeIdleSessions: async (sessionIds: readonly string[]) => {
         if (state.busy) return false
         state.openSessions = state.openSessions.filter((id) => !sessionIds.includes(id))
@@ -124,6 +126,7 @@ describe('local agent system installation', () => {
     state.exit = '0'
     state.busy = false
     state.openSessions = []
+    state.liveSessions = {}
     state.removeBlocked = false
     state.china = false
     state.registry = 'https://registry.npmjs.org/'
@@ -192,7 +195,7 @@ process.exit(Number(process.env.INSTALL_EXIT)); }
       name: agentId,
       type: 'local',
       model: null,
-      configuration: { localRuntime: { presetId, enabled: true, args: [], env: {} } }
+      localRuntime: { presetId, enabled: true, args: [], env: {} }
     })
     return agentSessionService.create({ agentId, name: agentId, workspace: { type: 'system' } }).id
   }
@@ -784,9 +787,12 @@ else process.exit(1);
     expect(state.openSessions).toHaveLength(1)
   })
 
-  it('closes only sessions belonging to the uninstalled local preset', async () => {
+  it('closes only sessions using the uninstalled preset, even if their Agent switched providers', async () => {
     const matching = createLocalSession('matching-kilo', 'kilo')
     const other = createLocalSession('other-agent', 'opencode')
+    state.liveSessions[matching] = agentService.getAgent('matching-kilo')!.localRuntime!
+    const providerId = agentService.getAgent('other-agent')!.localRuntime!.providerId
+    agentService.updateAgent('matching-kilo', { localRuntime: { providerId } })
     const additional = agentSessionService.create({
       agentId: 'matching-kilo',
       name: 'second Kilo session',
@@ -797,7 +803,7 @@ else process.exit(1);
     await writeFile(state.existing, 'managed')
 
     expect(await new LocalAgentInstallService().uninstall('kilo', state.existing)).toEqual({ ok: true })
-    expect(state.openSessions).toEqual([other])
+    expect(state.openSessions).toEqual([other, additional])
     expect(agentSessionService.listIdsByAgent('matching-kilo')).toHaveLength(2)
   })
 

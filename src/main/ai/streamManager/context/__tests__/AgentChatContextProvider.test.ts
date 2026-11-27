@@ -612,7 +612,7 @@ describe('AgentChatContextProvider', () => {
       id: 'agent-1',
       type: 'claude-code',
       model: 'anthropic::claude-sonnet',
-      configuration: { localRuntime: { presetId: 'openclaw' } }
+      localRuntime: { presetId: 'openclaw', providerId: 'provider-openclaw', enabled: true, args: [], env: {} }
     })
     const validated = await provider.validateDispatch(openReq())
     expect(validated.shouldAutoNameInitialTurn).toBe(!manual)

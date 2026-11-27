@@ -1,8 +1,8 @@
-import type { AcpPermissionModes } from '@cherrystudio/agent-runtime-acp/profile'
+import type { AcpCliPreset } from '@cherrystudio/agent-runtime-acp/profile'
 
 export const deepAgentsCli = {
   id: 'deepagents',
-  permissionMode: { values: { agent: 'default', plan: 'plan' } } satisfies AcpPermissionModes,
+  permissionMode: { values: { agent: 'default', plan: 'plan' } },
   credentialScope: 'provider',
   gatewayModelEndpoint: 'openai-responses',
   modelDependencies: ['@langchain/anthropic', '@langchain/openai'],
@@ -12,4 +12,4 @@ export const deepAgentsCli = {
   npmPackage: 'deepagents-acp',
   args: [],
   helpUrl: 'https://docs.langchain.com/oss/javascript/deepagents/overview'
-} as const
+} as const satisfies AcpCliPreset

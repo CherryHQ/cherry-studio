@@ -1,4 +1,4 @@
-import type { AcpPermissionModes } from '@cherrystudio/agent-runtime-acp/profile'
+import type { AcpCliPreset } from '@cherrystudio/agent-runtime-acp/profile'
 
 export const minimaxCli = {
   modelConfig: { target: 'minimax-config', overrides: [] },
@@ -19,12 +19,13 @@ export const minimaxCli = {
     persistentConfigIds: ['permissionMode'],
     legacyPlan: true,
     labels: { ask: 'default' }
-  } satisfies AcpPermissionModes,
+  },
   name: 'MiniMax Code',
   protocol: 'acp',
+  subscriptionUsage: true,
   executable: 'mcode',
   args: ['acp'],
   // The registry ships the code-acp launcher, whose global install does not expose mcode.
   npmPackage: '@minimax-ai/code',
   helpUrl: 'https://github.com/MiniMax-AI/minimax-code'
-} as const
+} as const satisfies AcpCliPreset<'minimax-config'>
