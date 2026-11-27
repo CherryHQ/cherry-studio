@@ -1,9 +1,9 @@
 import { randomUUID } from 'node:crypto'
 
-import { getExitStatusName } from '@shared/utils/claudeCodeExitStatus'
+import { getExitStatusName } from '@shared/ai/claudeCodeExitStatus'
 import { classifyErrorCategory, type ErrorCategory, extractHttpStatus } from '@shared/utils/errorCategory'
 
-export { getExitStatusName } from '@shared/utils/claudeCodeExitStatus'
+export { getExitStatusName } from '@shared/ai/claudeCodeExitStatus'
 
 export interface ClaudeCodeProcessDiagnostics {
   readonly reference: string

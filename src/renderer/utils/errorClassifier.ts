@@ -1,6 +1,6 @@
 import type { SerializedError } from '@renderer/types/error'
 import { isSerializedAiSdkRetryError, isSerializedAiSdkToolCallRepairError } from '@renderer/types/error'
-import { getExitStatusName } from '@shared/utils/claudeCodeExitStatus'
+import { getExitStatusName } from '@shared/ai/claudeCodeExitStatus'
 import { classifyErrorCategory, type ErrorCategory, isErrorCategory } from '@shared/utils/errorCategory'
 
 export type { ErrorCategory } from '@shared/utils/errorCategory'
