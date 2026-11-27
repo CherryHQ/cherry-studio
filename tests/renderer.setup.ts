@@ -91,6 +91,7 @@ vi.mock('@renderer/services/popup', async () => {
 // Reset the toast/popup spies (and restore the confirm-family default) before each
 // test so suites don't need to manage that shared mock state themselves.
 beforeEach(() => {
+  localStorage.clear()
   resetToastMocks()
   resetPopupMocks()
 })

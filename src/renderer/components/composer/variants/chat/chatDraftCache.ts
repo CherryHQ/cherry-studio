@@ -46,35 +46,139 @@ function normalizeDraftCache(cached: unknown): ChatComposerDraftCache | null {
   }
 }
 
-function readPersistedChatDraft(topicId: string): ChatComposerDraftCache | null {
+function reviveDraftBlob(_key: string, value: unknown): unknown {
+  if (!isRecord(value) || value.__chatDraftBlob !== true) return value
+  if (typeof value.data !== 'string' || typeof value.type !== 'string') throw new Error('Invalid draft image')
+  const binary = atob(value.data)
+  return new Blob([Uint8Array.from(binary, (char) => char.charCodeAt(0))], { type: value.type })
+}
+
+function isPersistedAttachment(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    typeof value.fileTokenSourceId === 'string' &&
+    typeof value.name === 'string' &&
+    typeof value.origin_name === 'string' &&
+    typeof value.ext === 'string' &&
+    typeof value.size === 'number' &&
+    Number.isFinite(value.size) &&
+    value.size >= 0 &&
+    typeof value.type === 'string' &&
+    (value.blob instanceof Blob || typeof value.path === 'string')
+  )
+}
+
+function isPersistedToken(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    typeof value.id === 'string' &&
+    typeof value.kind === 'string' &&
+    typeof value.label === 'string' &&
+    typeof value.index === 'number' &&
+    Number.isFinite(value.index) &&
+    typeof value.textOffset === 'number' &&
+    Number.isFinite(value.textOffset)
+  )
+}
+
+function readPersistedChatDraft(topicId: string): PersistedChatDraftEntry | null {
   const key = getChatDraftCacheKey(topicId)
   try {
     const raw = localStorage.getItem(key)
     if (!raw) return null
 
-    const parsed: unknown = JSON.parse(raw)
-    if (!isRecord(parsed) || typeof parsed.expiresAt !== 'number' || parsed.expiresAt <= Date.now()) {
+    const parsed: unknown = JSON.parse(raw, reviveDraftBlob)
+    if (
+      !isRecord(parsed) ||
+      typeof parsed.expiresAt !== 'number' ||
+      !Number.isFinite(parsed.expiresAt) ||
+      parsed.expiresAt <= Date.now()
+    ) {
       localStorage.removeItem(key)
       return null
     }
 
-    return normalizeDraftCache(parsed.value)
+    const stored = parsed.value
+    const value = normalizeDraftCache(stored)
+    if (
+      !value ||
+      !isRecord(stored) ||
+      !Array.isArray(stored.files) ||
+      !stored.files.every(isPersistedAttachment) ||
+      !Array.isArray(stored.tokens) ||
+      !stored.tokens.every(isPersistedToken)
+    ) {
+      localStorage.removeItem(key)
+      return null
+    }
+    return { expiresAt: parsed.expiresAt, value }
   } catch {
+    try {
+      localStorage.removeItem(key)
+    } catch {
+      // Storage may be unavailable entirely.
+    }
     return null
   }
 }
 
+const pendingDraftWrites = new Map<string, number>()
+
 function writePersistedChatDraft(topicId: string, draft: ChatComposerDraftCache) {
   const key = getChatDraftCacheKey(topicId)
-  try {
-    if (hasChatDraftContent(draft)) {
-      const entry: PersistedChatDraftEntry = { expiresAt: Date.now() + DRAFT_CACHE_TTL, value: draft }
-      localStorage.setItem(key, JSON.stringify(entry))
-    } else {
+  const revision = (pendingDraftWrites.get(key) ?? 0) + 1
+  pendingDraftWrites.set(key, revision)
+  const expiresAt = Date.now() + DRAFT_CACHE_TTL
+  const invalidate = () => {
+    if (pendingDraftWrites.get(key) !== revision) return
+    try {
       localStorage.removeItem(key)
+    } catch {
+      // Storage may be unavailable entirely; the live draft remains in memory.
     }
+  }
+  try {
+    if (!hasChatDraftContent(draft)) {
+      invalidate()
+      return
+    }
+    // Blob bytes need an asynchronous read. A renderer crash before completion still loses
+    // that latest edit; the synchronous API cannot guarantee a durable image write on unload.
+    const entry: PersistedChatDraftEntry = { expiresAt, value: draft }
+    const blobs = new Set<Blob>()
+    // Inspect both the attachment and token payload, which can share the same Blob.
+    JSON.stringify(entry, (_key, value: unknown) => {
+      if (value instanceof Blob) blobs.add(value)
+      return value
+    })
+    if (blobs.size === 0) {
+      localStorage.setItem(key, JSON.stringify(entry))
+      return
+    }
+    // Remove the older mirror while image bytes are being read. Never resurrect an older edit
+    // if a reload races the asynchronous image serialization or that serialization fails.
+    invalidate()
+    void Promise.all(
+      [...blobs].map(async (blob) => {
+        const bytes = new Uint8Array(await blob.arrayBuffer())
+        let binary = ''
+        for (let start = 0; start < bytes.length; start += 8192) {
+          binary += String.fromCharCode(...bytes.subarray(start, start + 8192))
+        }
+        return [blob, { __chatDraftBlob: true, type: blob.type, data: btoa(binary) }] as const
+      })
+    )
+      .then((encoded) => {
+        if (pendingDraftWrites.get(key) !== revision) return
+        const values = new Map(encoded)
+        localStorage.setItem(
+          key,
+          JSON.stringify(entry, (_key, value: unknown) => (value instanceof Blob ? values.get(value) : value))
+        )
+      })
+      .catch(invalidate)
   } catch {
-    // Quota or serialization failure: the memory tier still holds the draft for this session.
+    invalidate()
   }
 }
 
@@ -91,8 +195,17 @@ function pruneExpiredPersistedChatDrafts() {
       if (!key?.startsWith('chat.composer_draft.')) continue
       const raw = localStorage.getItem(key)
       if (!raw) continue
-      const parsed: unknown = JSON.parse(raw)
-      if (!isRecord(parsed) || typeof parsed.expiresAt !== 'number' || parsed.expiresAt <= now) {
+      try {
+        const parsed: unknown = JSON.parse(raw)
+        if (
+          !isRecord(parsed) ||
+          typeof parsed.expiresAt !== 'number' ||
+          !Number.isFinite(parsed.expiresAt) ||
+          parsed.expiresAt <= now
+        ) {
+          localStorage.removeItem(key)
+        }
+      } catch {
         localStorage.removeItem(key)
       }
     }
@@ -110,8 +223,8 @@ export function readChatDraftCache(topicId: string): ChatComposerDraftCache {
   // After a window reload the memory tier is empty; rehydrate it from the persisted mirror.
   const persisted = readPersistedChatDraft(topicId)
   if (persisted) {
-    cacheService.set(getChatDraftCacheKey(topicId), persisted, DRAFT_CACHE_TTL)
-    return persisted
+    cacheService.set(getChatDraftCacheKey(topicId), persisted.value, Math.max(0, persisted.expiresAt - Date.now()))
+    return persisted.value
   }
 
   return EMPTY_DRAFT_CACHE
