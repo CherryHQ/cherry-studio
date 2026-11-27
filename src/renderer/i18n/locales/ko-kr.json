@@ -1254,6 +1254,7 @@
   "code.add_provider_hint_anthropic_messages": "설정 → 모델 서비스에서 Anthropic Messages 엔드포인트 설정",
   "code.add_provider_hint_gemini": "설정 → 모델 서비스에서 Gemini 엔드포인트 설정",
   "code.add_provider_hint_openai_responses": "설정 → 모델 서비스에서 OpenAI Responses 엔드포인트 설정",
+  "code.adv.claude.auto_mode_classifier_hint": "자동 모드의 권한 분류자는 설정된 경우 Sonnet 모델을 따르고, 그렇지 않으면 기본 모델을 따릅니다. Haiku는 백그라운드 제목/요약 전용이며 자동 모드에 영향을 주지 않습니다(SDK 0.3.284+).",
   "code.adv.claude.disable_1m_context": "1M 컨텍스트 비활성화",
   "code.adv.claude.disable_attribution_header": "귀속 헤더 비활성화",
   "code.adv.claude.disable_auto_upgrade": "자동 업그레이드 비활성화",

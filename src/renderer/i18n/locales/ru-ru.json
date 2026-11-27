@@ -1272,6 +1272,7 @@
   "code.add_provider_hint_anthropic_messages": "Настройте конечную точку Anthropic Messages в Настройки → Сервис моделей",
   "code.add_provider_hint_gemini": "Настройте конечную точку Gemini в Настройки → Служба моделей",
   "code.add_provider_hint_openai_responses": "Настройте конечную точку OpenAI Responses в Настройки → Служба моделей",
+  "code.adv.claude.auto_mode_classifier_hint": "Классификатор разрешений авторежима следует модели Sonnet, если она задана, иначе основной модели. Haiku используется только для фоновых заголовков/резюме и не управляет авторежимом (SDK 0.3.284+).",
   "code.adv.claude.disable_1m_context": "Отключить контекст 1M",
   "code.adv.claude.disable_attribution_header": "Отключить заголовок атрибуции",
   "code.adv.claude.disable_auto_upgrade": "Отключить автоматическое обновление",

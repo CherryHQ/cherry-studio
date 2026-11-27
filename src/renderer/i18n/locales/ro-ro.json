@@ -1256,6 +1256,7 @@
   "code.add_provider_hint_anthropic_messages": "Configurează un endpoint Anthropic Messages în Setări → Serviciu de modele",
   "code.add_provider_hint_gemini": "Configurează un endpoint Gemini în Setări → Serviciu de modele",
   "code.add_provider_hint_openai_responses": "Configurează un endpoint OpenAI Responses în Setări → Serviciu de modele",
+  "code.adv.claude.auto_mode_classifier_hint": "Clasificatorul de permisiuni al modului automat urmează modelul Sonnet atunci când este setat, altfel modelul principal. Haiku servește doar pentru titluri/rezumate în fundal și nu direcționează modul automat (SDK 0.3.284+).",
   "code.adv.claude.disable_1m_context": "Dezactivează Contextul 1M",
   "code.adv.claude.disable_attribution_header": "Dezactivează antetul de atribuire",
   "code.adv.claude.disable_auto_upgrade": "Dezactivare actualizare automată",

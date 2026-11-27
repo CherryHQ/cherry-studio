@@ -932,6 +932,11 @@ function mergeRuntimeSettings(
             CLAUDE_STREAM_IDLE_TIMEOUT_MS: settings.env?.CLAUDE_STREAM_IDLE_TIMEOUT_MS ?? String(DEFAULT_TIMEOUT)
           }
         : {}),
+      // Auto-mode permission classifier (SDK 0.3.284+, see anthropics/claude-code#101083 and
+      // CherryHQ/cherry-studio#21325): the CLI resolves it from ANTHROPIC_DEFAULT_SONNET_MODEL when set
+      // (else the main model) and no longer consults ANTHROPIC_DEFAULT_HAIKU_MODEL, which only serves
+      // background titles/summaries. CLAUDE_CODE_AUTO_MODE_MODEL and
+      // CLAUDE_INTERNAL_FC_OVERRIDES.tengu_auto_mode_config are currently unread — re-measure on SDK upgrades.
       ANTHROPIC_MODEL: route.modelIds.primary,
       ANTHROPIC_DEFAULT_OPUS_MODEL: route.modelIds.opus,
       ANTHROPIC_DEFAULT_SONNET_MODEL: route.modelIds.sonnet,

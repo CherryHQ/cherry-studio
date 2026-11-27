@@ -322,6 +322,9 @@ export const ClaudeConfigFields: FC<ClaudeConfigFieldsProps> = ({
               </div>
             )
           })}
+          <p className="text-[11px] leading-4 text-muted-foreground">
+            {t('code.adv.claude.auto_mode_classifier_hint')}
+          </p>
         </div>
       )}
     </div>

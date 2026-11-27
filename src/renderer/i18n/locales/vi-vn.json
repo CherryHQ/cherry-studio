@@ -1254,6 +1254,7 @@
   "code.add_provider_hint_anthropic_messages": "Cấu hình điểm cuối Anthropic Messages trong Cài đặt → Dịch vụ Mô hình",
   "code.add_provider_hint_gemini": "Cấu hình điểm cuối Gemini trong Cài đặt → Dịch vụ Mô hình",
   "code.add_provider_hint_openai_responses": "Cấu hình điểm cuối OpenAI Responses trong Cài đặt → Dịch vụ mô hình",
+  "code.adv.claude.auto_mode_classifier_hint": "Bộ phân loại quyền của chế độ tự động tuân theo mô hình Sonnet khi được đặt, nếu không sẽ theo mô hình chính. Haiku chỉ phục vụ tiêu đề/tóm tắt nền và không điều khiển chế độ tự động (SDK 0.3.284+).",
   "code.adv.claude.disable_1m_context": "Tắt ngữ cảnh 1M",
   "code.adv.claude.disable_attribution_header": "Vô hiệu hóa Tiêu đề Thuộc tính",
   "code.adv.claude.disable_auto_upgrade": "Tắt Tự động Nâng cấp",

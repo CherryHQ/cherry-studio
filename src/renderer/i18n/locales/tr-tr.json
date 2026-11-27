@@ -1254,6 +1254,7 @@
   "code.add_provider_hint_anthropic_messages": "Ayarlar → Model Hizmeti bölümünde bir Anthropic Messages uç noktası yapılandırın",
   "code.add_provider_hint_gemini": "Ayarlar → Model Hizmeti bölümünde bir Gemini uç noktası yapılandırın",
   "code.add_provider_hint_openai_responses": "Ayarlar → Model Hizmeti bölümünde bir OpenAI Responses uç noktası yapılandırın",
+  "code.adv.claude.auto_mode_classifier_hint": "Otomatik modun izin sınıflandırıcısı, ayarlıysa Sonnet modelini, değilse ana modeli izler. Haiku yalnızca arka plan başlıkları/özetleri içindir ve otomatik modu yönlendirmez (SDK 0.3.284+).",
   "code.adv.claude.disable_1m_context": "1M Bağlamı Devre Dışı Bırak",
   "code.adv.claude.disable_attribution_header": "İlişkilendirme Üstbilgisini Devre Dışı Bırak",
   "code.adv.claude.disable_auto_upgrade": "Otomatik Yükseltmeyi Devre Dışı Bırak",

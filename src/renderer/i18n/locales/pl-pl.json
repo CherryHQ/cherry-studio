@@ -1272,6 +1272,7 @@
   "code.add_provider_hint_anthropic_messages": "Skonfiguruj punkt końcowy Anthropic Messages w Ustawienia → Usługi modeli",
   "code.add_provider_hint_gemini": "Skonfiguruj punkt końcowy Gemini w Ustawienia → Usługi modeli",
   "code.add_provider_hint_openai_responses": "Skonfiguruj punkt końcowy OpenAI Responses w Ustawienia → Usługi modeli",
+  "code.adv.claude.auto_mode_classifier_hint": "Klasyfikator uprawnień trybu auto podąża za modelem Sonnet, gdy jest ustawiony, w przeciwnym razie za modelem głównym. Haiku służy tylko do tytułów/podsumowań w tle i nie steruje trybem auto (SDK 0.3.284+).",
   "code.adv.claude.disable_1m_context": "Wyłącz kontekst 1M",
   "code.adv.claude.disable_attribution_header": "Wyłącz nagłówek atrybucji",
   "code.adv.claude.disable_auto_upgrade": "Wyłącz automatyczną aktualizację",

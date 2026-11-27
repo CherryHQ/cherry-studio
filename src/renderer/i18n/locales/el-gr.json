@@ -1254,6 +1254,7 @@
   "code.add_provider_hint_anthropic_messages": "Ρυθμίστε ένα endpoint Anthropic Messages στις Ρυθμίσεις → Υπηρεσία μοντέλων",
   "code.add_provider_hint_gemini": "Ρυθμίστε ένα endpoint Gemini στις Ρυθμίσεις → Υπηρεσία μοντέλων",
   "code.add_provider_hint_openai_responses": "Ρυθμίστε ένα endpoint OpenAI Responses στις Ρυθμίσεις → Υπηρεσία μοντέλων",
+  "code.adv.claude.auto_mode_classifier_hint": "Ο ταξινομητής αδειών της αυτόματης λειτουργίας ακολουθεί το μοντέλο Sonnet όταν έχει οριστεί, αλλιώς το κύριο μοντέλο. Το Haiku εξυπηρετεί μόνο τίτλους/περιλήψεις παρασκηνίου και δεν κατευθύνει την αυτόματη λειτουργία (SDK 0.3.284+).",
   "code.adv.claude.disable_1m_context": "Απενεργοποίηση Πλαισίου 1M",
   "code.adv.claude.disable_attribution_header": "Απενεργοποίηση Κεφαλίδας Απόδοσης",
   "code.adv.claude.disable_auto_upgrade": "Απενεργοποίηση Αυτόματης Αναβάθμισης",

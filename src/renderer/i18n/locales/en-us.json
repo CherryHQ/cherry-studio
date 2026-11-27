@@ -1254,6 +1254,7 @@
   "code.add_provider_hint_anthropic_messages": "Configure an Anthropic Messages endpoint in Settings → Model Service",
   "code.add_provider_hint_gemini": "Configure a Gemini endpoint in Settings → Model Service",
   "code.add_provider_hint_openai_responses": "Configure an OpenAI Responses endpoint in Settings → Model Service",
+  "code.adv.claude.auto_mode_classifier_hint": "Auto mode's permission classifier follows the Sonnet model when set, otherwise the main model. Haiku only serves background titles/summaries and does not steer auto mode on SDK 0.3.284+.",
   "code.adv.claude.disable_1m_context": "Disable 1M Context",
   "code.adv.claude.disable_attribution_header": "Disable Attribution Header",
   "code.adv.claude.disable_auto_upgrade": "Disable Auto Upgrade",

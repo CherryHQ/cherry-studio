@@ -301,4 +301,16 @@ describe('ClaudeConfigFields', () => {
       env: { CLAUDE_CODE_SUBAGENT_MODEL: 'claude-opus-4-1' }
     })
   })
+
+  it('explains that the auto-mode classifier follows Sonnet, not Haiku', () => {
+    renderFields({ section: 'advanced' })
+
+    expect(screen.getByText('code.adv.claude.auto_mode_classifier_hint')).toBeInTheDocument()
+  })
+
+  it('hides the auto-mode classifier hint with the basic section', () => {
+    renderFields({ section: 'basic' })
+
+    expect(screen.queryByText('code.adv.claude.auto_mode_classifier_hint')).not.toBeInTheDocument()
+  })
 })

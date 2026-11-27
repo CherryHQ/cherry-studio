@@ -1254,6 +1254,7 @@
   "code.add_provider_hint_anthropic_messages": "在 设置 → 模型服务 配置 Anthropic Messages 端点",
   "code.add_provider_hint_gemini": "在 设置 → 模型服务 配置 Gemini 端点",
   "code.add_provider_hint_openai_responses": "在 设置 → 模型服务 配置 OpenAI Responses 端点",
+  "code.adv.claude.auto_mode_classifier_hint": "自动模式的权限分类器跟随 Sonnet 模型（未设置时跟随主模型）。Haiku 仅用于后台标题/摘要等，不会影响自动模式（SDK 0.3.284+ 起）。",
   "code.adv.claude.disable_1m_context": "禁用 1M 上下文",
   "code.adv.claude.disable_attribution_header": "禁用署名请求头",
   "code.adv.claude.disable_auto_upgrade": "禁用自动更新",

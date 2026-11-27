@@ -1254,6 +1254,7 @@
   "code.add_provider_hint_anthropic_messages": "กำหนดค่าเอนด์พอยต์ Anthropic Messages ในการตั้งค่า → บริการโมเดล",
   "code.add_provider_hint_gemini": "กำหนดค่าเอนด์พอยต์ Gemini ในการตั้งค่า → บริการโมเดล",
   "code.add_provider_hint_openai_responses": "กำหนดค่าเอนด์พอยต์ OpenAI Responses ในการตั้งค่า → บริการโมเดล",
+  "code.adv.claude.auto_mode_classifier_hint": "ตัวจำแนกสิทธิ์ของโหมดอัตโนมัติจะตามโมเดล Sonnet เมื่อตั้งค่าไว้ มิฉะนั้นจะตามโมเดลหลัก Haiku ใช้สำหรับชื่อเรื่อง/สรุปเบื้องหลังเท่านั้น และไม่ควบคุมโหมดอัตโนมัติ (SDK 0.3.284+)",
   "code.adv.claude.disable_1m_context": "ปิดการใช้งาน 1M Context",
   "code.adv.claude.disable_attribution_header": "ปิดส่วนหัวแสดงที่มา",
   "code.adv.claude.disable_auto_upgrade": "ปิดอัปเกรดอัตโนมัติ",
