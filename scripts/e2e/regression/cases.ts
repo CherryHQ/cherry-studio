@@ -441,7 +441,13 @@ export const REGRESSION_CASES = [
     phase: 'chatCore',
     capabilities: ['desktopAutomation']
   },
-  { id: 'MP-11', title: 'Notes and export', tasks: ['notes'], phase: 'notes', capabilities: ['desktopAutomation'] },
+  {
+    id: 'MP-11',
+    title: 'Notes and export',
+    tasks: ['notes', 'notes-export'],
+    phase: 'notes',
+    capabilities: ['desktopAutomation']
+  },
   {
     id: 'MP-74',
     title: 'Markdown editing, autosave, and conflicts',
@@ -566,7 +572,7 @@ export const REGRESSION_CASES = [
   {
     id: 'MP-109',
     title: 'Customize shortcuts and detect conflicts',
-    tasks: ['settings'],
+    tasks: ['settings', 'customize-shortcuts'],
     phase: 'settings',
     capabilities: []
   },

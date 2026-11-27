@@ -25,7 +25,13 @@ import { obj, str } from '@earendil-works/pi-schema'
 import { describe, expect, it, onTestFinished } from 'vitest'
 
 import { callKeyOf, createScriptedHost } from '@cherrystudio/agent-behavior'
-import { runtimeId, ThreadFeed, type ObservationPayload, type OperationResult } from '@cherrystudio/agent-runtime'
+import {
+  isLivePartInput,
+  runtimeId,
+  ThreadFeed,
+  type ObservationPayload,
+  type OperationResult
+} from '@cherrystudio/agent-runtime'
 
 import {
   createPiDurableRuntime,
@@ -106,11 +112,37 @@ function current(events: ObservationPayload[]) {
       throw error
     }
   )
-  for (const event of events) feed.publish(event)
+  for (const event of events)
+    if (isLivePartInput(event)) feed.publishPart(event)
+    else feed.publish(event)
   return feed.snapshot
 }
 
 describe('Pi Durable runtime contract', () => {
+  it.each([
+    [new Error('Storage is read-only'), ' — Storage is read-only'],
+    [new Error('[SQLITE_BUSY] database is locked'), ' — [SQLITE_BUSY] database is locked'],
+    ['Storage is locked', ' — Storage is locked'],
+    [{ internal: 'opaque' }, '']
+  ])('keeps available storage failure text in the runtime initialization diagnosis (%s)', async (cause, detail) => {
+    const result = await createPiDurableRuntime({
+      backendId: runtimeId('test-durable'),
+      openStorage: async () => {
+        throw cause
+      },
+      harness: { models: createModels(), registry: createRegistry() }
+    })
+
+    expect(result).toEqual({
+      status: 'unknown',
+      error: {
+        operation: 'initialize',
+        code: 'native-error',
+        message: `Pi Durable initialize: native-error${detail}`
+      }
+    })
+  })
+
   it('initializes hidden reference context once across SQLite reopen without starting a model run', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'durable-reference-'))
     onTestFinished(() => rm(dir, { recursive: true, force: true }))
@@ -180,7 +212,10 @@ describe('Pi Durable runtime contract', () => {
     await expect
       .poll(() =>
         fast.some((batch) =>
-          batch.events.some((event) => event.type === 'snapshot' && event.activity.state === 'active')
+          batch.events.some(
+            (event) =>
+              (event.type === 'snapshot' || event.type === 'activity.changed') && event.activity.state === 'active'
+          )
         )
       )
       .toBe(true)
@@ -192,7 +227,12 @@ describe('Pi Durable runtime contract', () => {
     expect(final.completion).toMatchObject({
       inputs: [{ inputId: 'atomic', outcome: 'unanswered', error: { code: 'output-truncated' } }]
     })
-    const held = current(fast.slice(0, fast.indexOf(final) + 1).flatMap((batch) => batch.events))!
+    const held = current(
+      fast
+        .slice(0, fast.indexOf(final) + 1)
+        .map((batch) => batch.events)
+        .flat()
+    )!
     expect(held.inputs).toContainEqual(final.completion!.inputs[0])
     expect(held.messages.some((message) => message.id.startsWith(`entry:${final.completion!.entryId}:`))).toBe(true)
     expect(held.messages.flatMap((message) => message.parts)).toContainEqual(
@@ -226,10 +266,16 @@ describe('Pi Durable runtime contract', () => {
       )
       .toBe(true)
     expect(current(left)?.messages.map((item) => item.id)).toEqual(current(right)?.messages.map((item) => item.id))
-    // Streamed text reaches observers as message changes, not as repeated whole snapshots.
-    expect(
-      right.some((event) => event.type === 'message.upsert' && event.message.metadata?.completeness === 'partial')
-    ).toBe(true)
+    await expect.poll(() => right.some((event) => event.type === 'message.text-append')).toBe(true)
+    const preview = current(right)?.messages.find((message) => message.metadata?.completeness === 'partial')
+    const previewText = preview?.parts[0]
+    if (!preview || previewText?.type !== 'text') throw new Error('Missing the live text part')
+    const late = await observe(second)
+    await expect.poll(() => late[0]?.type).toBe('snapshot')
+    expect(current(late)?.messages.find((message) => message.id === preview.id)?.parts[0]).toMatchObject({
+      type: 'text',
+      text: expect.stringContaining(previewText.text)
+    })
     await first.release()
     const releasedCount = left.length
     await expect
@@ -253,12 +299,12 @@ describe('Pi Durable runtime contract', () => {
     const archive = confirmed(await second.archive())
     const committed = archive.messages.find((item) => item.id === response?.id)
     expect(committed).toEqual(response)
-    const preview = right
+    const initialPreview = right
       .flatMap((event) =>
-        event.type === 'snapshot' ? event.messages : event.type === 'message.upsert' ? [event.message] : []
+        event.type === 'snapshot' ? event.messages : event.type === 'message.reconcile' ? [event.message] : []
       )
       .find((item) => item.role === 'assistant' && item.metadata?.completeness === 'partial')!
-    expect(archive.aliases[committed!.id]).toBe(preview.id)
+    expect(archive.aliases[committed!.id]).toBe(initialPreview.id)
     expect(await first.input.submit(draft('released'))).toMatchObject({ status: 'rejected', error: { code: 'closed' } })
   })
 
@@ -296,6 +342,53 @@ describe('Pi Durable runtime contract', () => {
     expect(await access.archive()).toMatchObject({ status: 'rejected', error: { code: 'closed' } })
     const reopened = confirmed(await runtime.open(access.thread))
     expect(confirmed(await reopened.archive()).messages).toEqual(archive.messages)
+  })
+
+  it('shares sealed tool history across shutdown and releases each archive reader independently', async () => {
+    const { runtime } = await setup()
+    const first = confirmed(await runtime.create(sessionOptions))
+    const second = confirmed(await runtime.open(first.thread))
+    const conversation = Number(first.thread.id) as ConversationId
+    const text = 'x'.repeat(64 * 1024)
+    await runtime.durable.commit(async (tx) => {
+      await tx.appendEntry(conversation, {
+        kind: 'pi.assistant',
+        model: [fauxAssistantMessage(fauxToolCall('read', {}, { id: 'call' }), { responseId: 'native' })]
+      })
+      await tx.appendEntry(conversation, {
+        kind: 'pi.tool-result',
+        model: [
+          {
+            role: 'toolResult',
+            toolCallId: 'call',
+            toolName: 'read',
+            content: [{ type: 'text', text }],
+            isError: false,
+            timestamp: 0
+          }
+        ]
+      })
+    }, BACKGROUND_CONTEXT)
+    const [owner] = confirmed(await first.archive()).messages
+    await runtime.durable.commit(async (tx) => {
+      await tx.appendEntry(conversation, { kind: 'pi.user', model: [{ role: 'user', content: 'new', timestamp: 1 }] })
+    }, BACKGROUND_CONTEXT)
+    confirmed(await runtime.shutdown())
+
+    const archive = confirmed(await first.archive())
+    expect(archive.messages[0]).toBe(owner)
+    expect(archive.messages[0].parts[0]).toMatchObject({ output: { content: [{ text }] } })
+    expect(archive.messages[1].parts).toEqual([{ type: 'text', text: 'new', state: 'done' }])
+    expect(archive.responseIds?.native).toBe(owner.id)
+    expect(archive.legacy?.[`${owner.id}:call:call`]).toEqual({ messageId: owner.id, parts: [0] })
+    expect(() => {
+      owner.parts.length = 0
+    }).toThrow(TypeError)
+    await first.release()
+    expect(await first.archive()).toMatchObject({ status: 'rejected' })
+    expect(confirmed(await second.archive()).messages[0]).toBe(owner)
+    await second.release()
+    expect(await second.archive()).toMatchObject({ status: 'rejected' })
   })
 
   // Catches an archive that rescans committed history on every read, or folds newer entries incorrectly.
@@ -726,6 +819,7 @@ describe('Pi Durable runtime contract', () => {
     })
     const restoredAccess = confirmed(await restored.open(session.thread))
     expect(confirmed(await restoredAccess.archive())).toEqual({
+      through: archive.through,
       messages: archive.messages,
       responseIds: archive.responseIds,
       legacy: archive.legacy,
@@ -899,6 +993,95 @@ it('resolves a fresh model registry for each request with shared behavior enable
     .toBe(true)
   expect(first.state.callCount).toBe(1)
   expect(second.state.callCount).toBe(1)
+})
+
+it.each([0, 256])('delivers tool updates directly with %i older entries', async (count) => {
+  const { runtime, faux, registry, errors } = await setup()
+  const started = gate()
+  const progress = gate()
+  const append = gate()
+  const finish = gate()
+  const callId = 'bounded-call'
+  onTestFinished(() => {
+    progress.resolve()
+    append.resolve()
+    finish.resolve()
+  })
+  registry.install(
+    defineExtension({
+      name: 'bounded-output',
+      tools: [
+        defineTool({
+          name: 'bounded_output',
+          description: 'Publish progress and a final result.',
+          parameters: obj({}),
+          execute: async (_args, api) => {
+            started.resolve()
+            await progress.promise
+            api.output('first')
+            await append.promise
+            api.output(' more')
+            await finish.promise
+            return { output: [{ type: 'text', text: 'final' }] }
+          }
+        })
+      ]
+    })
+  )
+  faux.setResponses([
+    fauxAssistantMessage(fauxToolCall('bounded_output', {}, { id: callId }), { stopReason: 'toolUse' }),
+    fauxAssistantMessage('done')
+  ])
+  const handle = confirmed(
+    await runtime.create({
+      ...sessionOptions,
+      async init(tx, conversation) {
+        for (let index = 0; index < count; index++) {
+          await tx.appendEntry(conversation, {
+            kind: 'pi.user',
+            model: [{ role: 'user', content: 'Old input', timestamp: index }]
+          })
+        }
+      }
+    })
+  )
+  const events = await observe(handle)
+  await handle.input.submit(draft('run tool'))
+  await started.promise
+  const results = () => events.filter((event) => event.type === 'message.tool-output')
+  progress.resolve()
+  await expect
+    .poll(() => results().map(({ tool }) => tool))
+    .toMatchObject([{ state: 'output-available', preliminary: true, output: { content: [{ text: 'first' }] } }])
+  append.resolve()
+  await expect.poll(() => results().at(-1)?.tool).toMatchObject({ output: { content: [{ text: 'first more' }] } })
+  const reattached = await observe(handle)
+  await expect
+    .poll(() => reattached[0])
+    .toMatchObject({
+      type: 'snapshot',
+      messages: expect.arrayContaining([
+        expect.objectContaining({
+          id: results()[0].ref.id,
+          parts: expect.arrayContaining([
+            expect.objectContaining({
+              toolCallId: callId,
+              preliminary: true,
+              output: { content: [{ type: 'text', text: 'first more' }] }
+            })
+          ])
+        })
+      ])
+    })
+  finish.resolve()
+  await runtime.settled()
+  expect(results().map(({ tool }) => tool)).toMatchObject([
+    { preliminary: true, output: { content: [{ text: 'first' }] } },
+    { preliminary: true, output: { content: [{ text: 'first more' }] } },
+    { preliminary: false, output: { content: [{ text: 'final' }] } }
+  ])
+  expect(new Set(results().map(({ ref, part }) => `${ref.id}/${part}`)).size).toBe(1)
+  expect(errors).toEqual([])
 })
 
 it.each([false, true])('retains nested results after task retirement and SQLite reopen (%s)', async (fails) => {

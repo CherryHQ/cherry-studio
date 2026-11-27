@@ -40,7 +40,13 @@ const SidebarStatusTag: FC<{ status?: VersionStatus; isBusy?: boolean }> = ({ st
       </span>
     )
   }
-  if (!status) return null
+  if (!status || status.detectionStatus || status.applicationStatus === 'unknown') {
+    return (
+      <span className="shrink-0 whitespace-nowrap text-[11px] text-foreground-tertiary">
+        {t(!status || status.detectionStatus === 'loading' ? 'common.loading' : 'common.unknown')}
+      </span>
+    )
+  }
   if (!status.installed) {
     return (
       <span className="shrink-0 whitespace-nowrap text-[11px] text-foreground-tertiary">{t('code.not_installed')}</span>

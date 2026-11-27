@@ -17,6 +17,7 @@ import { isSerializedAiSdkApiCallError, isSerializedAiSdkRetryError } from '@ren
 import { getSafeProviderErrorMessage, serializeNestedProviderError } from '@shared/ai/providerError'
 import { aiErrorDetail, aiStreamAdmissionReason, isAgentSessionArchiveBusyError } from '@shared/ipc/errors/ai'
 import { readsInLanguage } from '@shared/utils/languageScript'
+import { getSafeLocalErrorMessage } from '@shared/utils/localError'
 import { safeSerialize } from '@shared/utils/serialize'
 
 import { formatErrorDetails } from './errorDetails'
@@ -367,6 +368,7 @@ function retryProviderText(error: SerializedError): string {
  *  whenever the body misses the SDK's error schema, so `responseBody` wins. */
 export function providerErrorText(error: SerializedError | undefined): string {
   if (!error) return ''
+  if (error.errorSource === 'local') return getSafeLocalErrorMessage(error.message)
   const payload = getSafeProviderErrorMessage({ responseBody: error.responseBody, data: error.data })
   return payload || retryProviderText(error) || getSafeProviderErrorMessage({ message: error.message })
 }

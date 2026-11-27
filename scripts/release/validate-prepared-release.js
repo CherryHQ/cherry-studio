@@ -6,6 +6,8 @@ const path = require('node:path')
 const { gt: semverGt, prerelease: semverPrerelease, valid: semverValid } = require('semver')
 const { parse: parseYaml } = require('yaml')
 
+const { parseBilingualReleaseNotes } = require('./hotfix-release-notes')
+
 function runGit(cwd, args) {
   return execFileSync('git', args, { cwd, encoding: 'utf8' })
 }
@@ -18,26 +20,6 @@ function changedPaths(cwd) {
   const tracked = runGit(cwd, ['diff', 'HEAD', '--name-only', '--no-renames', '-z']).split('\0').filter(Boolean)
   const untracked = runGit(cwd, ['ls-files', '--others', '--exclude-standard', '-z']).split('\0').filter(Boolean)
   return [...new Set([...tracked, ...untracked])].sort()
-}
-
-function validateReleaseNotes(releaseNotes) {
-  const normalizedReleaseNotes = releaseNotes.trim()
-  const markers = ['<!--LANG:en-->', '<!--LANG:zh-CN-->', '<!--LANG:END-->']
-  const indexes = markers.map((marker) => normalizedReleaseNotes.indexOf(marker))
-  if (
-    indexes.some((index) => index < 0) ||
-    markers.some((marker, markerIndex) => normalizedReleaseNotes.indexOf(marker, indexes[markerIndex] + 1) >= 0) ||
-    indexes[0] >= indexes[1] ||
-    indexes[1] >= indexes[2]
-  ) {
-    throw new Error('Release notes must contain one ordered set of bilingual markers')
-  }
-
-  const english = normalizedReleaseNotes.slice(indexes[0] + markers[0].length, indexes[1])
-  const chinese = normalizedReleaseNotes.slice(indexes[1] + markers[1].length, indexes[2])
-  if (!english.trim() || !chinese.trim()) {
-    throw new Error('Release notes must contain non-empty English and Chinese sections')
-  }
 }
 
 function validatePreparedRelease({ cwd, includeGeneratedManifest = false, targetVersion }) {
@@ -79,7 +61,7 @@ function validatePreparedRelease({ cwd, includeGeneratedManifest = false, target
   }
   preparedBuilder.releaseInfo.releaseNotes = baseReleaseNotes
   assert.deepStrictEqual(preparedBuilder, baseBuilder, 'electron-builder.yml may change only releaseInfo.releaseNotes')
-  validateReleaseNotes(preparedReleaseNotes)
+  parseBilingualReleaseNotes(preparedReleaseNotes)
 
   const baseHistory = JSON.parse(readBaseFile(cwd, 'resources/cherry-studio/release-history.json'))
   const preparedHistory = JSON.parse(
@@ -126,4 +108,4 @@ if (require.main === module) {
   }
 }
 
-module.exports = { changedPaths, validatePreparedRelease, validateReleaseNotes }
+module.exports = { changedPaths, validatePreparedRelease }

@@ -72,6 +72,8 @@ ipcApi.request('translate.open', {
 - The renderer subscribes to `ai.stream.chunk`, `ai.stream.done`, and
   `ai.stream.error` before it calls `translate.open`, because Main starts the
   stream synchronously.
+- On caller cancellation, the renderer unsubscribes and rejects with
+  `AbortError` before sending `ai.stream.abort` to stop the provider request.
 
 The route has no `messageId` or `sourceLangCode`. Main therefore has no message
 target and cannot persist chat data from this route.
@@ -95,8 +97,9 @@ Home chat owns the message projection through its existing chat write boundary:
 3. Each accumulated response replaces that part through
    `ChatWrite.editMessage`; updates are serialized so a slower write cannot
    overwrite a later chunk.
-4. Completion waits for pending writes. Failure or abort removes the loading
-   part when that controller still owns the translation.
+4. Completion, failure, and cancellation wait for pending writes. Cancellation
+   preserves nonempty text already persisted. Failure or cancellation without
+   persisted text removes the translation part while the controller still owns it.
 
 This keeps message persistence with the same owner as every other message edit.
 Callers without a message target keep their result locally. `translate.open`
@@ -126,7 +129,8 @@ consumer and a lifecycle that the existing caller-owned flow cannot satisfy.
 - `src/renderer/utils/translate/__tests__/translateText.test.ts` covers stream
   IDs, chunk accumulation, terminal events, errors, and abort.
 - `src/renderer/pages/home/messages/__tests__/homeMessageListAdapter.test.tsx`
-  covers keeping the translation active until its final write settles.
+  covers keeping the translation active until its final write settles and
+  cancelling before the message query refreshes.
 - `src/main/services/translate/__tests__/translateService.test.ts` covers
   model/prompt resolution, model-parameter gating, request validation, and
   stream dispatch.

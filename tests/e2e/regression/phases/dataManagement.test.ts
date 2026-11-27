@@ -19,7 +19,7 @@ import { chooseNativeFile, dismissNativeMessageBox } from '../../../../scripts/e
 import { startMockChatServer } from '../../../helpers/http/mockChatServer'
 import { test, expect } from '../fixture'
 import { sendChatMarker } from '../helpers/chat'
-import { selectSidebarApp } from '../helpers/navigation'
+import { selectSidebarApp, showConversationSidebar } from '../helpers/navigation'
 import { openSettingsSection } from '../helpers/settings'
 import { revealVirtualized } from '../helpers/virtualList'
 import { applicationDataMigration } from '../scenarios/applicationDataMigration'
@@ -323,6 +323,13 @@ test(...caseDefinition('MP-116'), async ({ app, mainWindow: page }, testInfo) =>
     expect(await page.evaluate(() => window.api.preference.get('topic.naming.enabled'))).toBe(true)
     await page.getByRole('button', { name: 'Restore from Local', exact: true }).click()
     const manager = page.getByRole('dialog', { name: 'Local Backup Manager', exact: true })
+    const dismissRestoreFailure = async () => {
+      const error = page.getByRole('dialog', { name: 'Restore failed', exact: true })
+      if (await error.isVisible()) {
+        await error.getByRole('button', { name: 'Confirm', exact: true }).click()
+        await expect(error).toBeHidden()
+      }
+    }
     const confirmRestore = async (fileName: string) => {
       await manager
         .getByRole('row')
@@ -347,6 +354,7 @@ test(...caseDefinition('MP-116'), async ({ app, mainWindow: page }, testInfo) =>
     ).toBeVisible()
     expect((await readTopic()).status).toBe(404)
     await attachScreenshot('MP-116 newer backup rejected')
+    await dismissRestoreFailure()
 
     await (await confirmRestore('MP-116-broken.zip')).getByRole('button', { name: 'Confirm', exact: true }).click()
     await attachScreenshot('MP-116 restore failure response')
@@ -357,6 +365,7 @@ test(...caseDefinition('MP-116'), async ({ app, mainWindow: page }, testInfo) =>
     ).toBeVisible()
     expect((await readTopic()).status).toBe(404)
     await attachScreenshot('MP-116 restore failure reason')
+    await dismissRestoreFailure()
 
     const confirmation = await confirmRestore('MP-116-valid.zip')
     await attachScreenshot('MP-116 overwrite confirmation')
@@ -434,7 +443,8 @@ test(...caseDefinition('MP-116'), async ({ app, mainWindow: page }, testInfo) =>
     expect(restored.status).toBe(200)
     expect(TopicSchema.parse(restored.data)).toMatchObject({ id: topicId, name: topicName, assistantId })
     expect(await page.evaluate(() => window.api.preference.get('topic.naming.enabled'))).toBe(false)
-    const header = page.locator('[data-ui~="chat.group-header"]').filter({ hasText: assistantName }).first()
+    const topics = await showConversationSidebar(page.locator('[data-ui~="chat.view"]:visible').first())
+    const header = topics.locator('[data-ui~="chat.group-header"]').filter({ hasText: assistantName }).first()
     await header.hover()
     const expand = header.getByRole('button', { name: 'Expand', exact: true })
     if (await expand.isVisible()) await expand.click()

@@ -43,6 +43,7 @@ function makeScope(overrides: {
     provider: { id: 'openai', settings: {}, ...overrides.provider } as Provider,
     capabilities: overrides.capabilities as never,
     webToolRoutes: overrides.webToolRoutes,
+    replayRouteId: 'fixture-route',
     sdkConfig: {
       providerId: 'openai',
       providerOptionsKey: 'openai',

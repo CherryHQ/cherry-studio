@@ -1,22 +1,20 @@
 import { type Span, SpanStatusCode } from '@opentelemetry/api'
-import { isToolUIPart, type UIMessageChunk } from 'ai'
+import { isToolUIPart } from 'ai'
 import { v7 as uuidv7 } from 'uuid'
 
 import { application } from '@application'
-import type { InputState } from '@cherrystudio/agent-runtime'
+import type { AgentSessionContextRow } from '@data/db/schemas/agentSessionContext'
 import type { DbOrTx } from '@data/db/types'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionContextService as childContexts } from '@data/services/AgentSessionContextService'
 import { AgentSessionEditError } from '@data/services/AgentSessionEditError'
-import { agentSessionForkService } from '@data/services/AgentSessionForkService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
-import { aiUsageRecordService, type SourceSnapshot } from '@data/services/AiUsageRecordService'
+import type { SourceSnapshot } from '@data/services/AiUsageRecordService'
 import { modelService } from '@data/services/ModelService'
 import { getRetiredAgentSessionMigration } from '@data/services/retiredAgentRuntimeMigration'
 import { loggerService } from '@logger'
-import { AgentSessionForkOperations, getEditFailure, resolveForkBoundary } from '@main/ai/agentSession/fork'
-import { ProjectionSubscriptions } from '@main/ai/messages/ProjectionSubscriptions'
+import { AgentSessionForkOperations, readHistoryActions } from '@main/ai/agentSession/fork'
 import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
 import type { RuntimeForkAnchor } from '@main/ai/runtime/fork'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
@@ -33,6 +31,7 @@ import {
   ServicePhase
 } from '@main/core/lifecycle'
 import { topicNamingService } from '@main/services/TopicNamingService'
+import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import { AGENT_SESSION_API_RETRY_CACHE_KEY, type AgentSessionApiRetryInfo } from '@shared/ai/agentSessionApiRetry'
 import {
   AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY,
@@ -53,14 +52,20 @@ import {
   type AgentSessionEditDraft,
   type AgentSessionEditTarget
 } from '@shared/ai/agentSessionEdit'
+import { AGENT_SESSION_FOLLOWUPS_CACHE_KEY, type AgentSessionFollowupChange } from '@shared/ai/agentSessionFollowups'
 import {
   AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY,
   type AgentSessionSlashCommand
 } from '@shared/ai/agentSessionSlashCommands'
-import { buildAgentSessionTopicId, extractAgentSessionId, isAgentSessionTopic } from '@shared/ai/agentSessionTopic'
+import { AGENT_SESSION_STREAM_TOPIC_CACHE_KEY } from '@shared/ai/agentSessionStreamTopic'
+import {
+  buildAgentSessionTopicId,
+  extractAgentContextId,
+  extractAgentSessionId,
+  isAgentSessionTopic
+} from '@shared/ai/agentSessionTopic'
 import { AGENT_SESSION_TURN_ORIGIN_CACHE_KEY, type AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
 import { toExecutionFailure } from '@shared/ai/executionFailure'
-import type { MessageProjectionUpdate, MessageProjectionView } from '@shared/ai/messageProjection'
 import type { AiToolApprovalRespondResponse } from '@shared/ai/transport'
 import type { AgentEntity, AgentPermissionMode, UpdateAgentDto } from '@shared/data/api/schemas/agents'
 import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
@@ -78,11 +83,14 @@ import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
 import { prepareAgentConfigApproval } from '../agents/agentConfigTool'
 import { applyTurnInputAttributes, deriveRootSpanId, startAiChildTurnSpan } from '../observability'
+import { recoverDurableReplies } from '../runtime/piDurable/recoverDurableReplies'
 import { normalizePromptSuggestion } from '../runtime/promptSuggestion'
 import { registerRuntimeDrivers } from '../runtime/registerDrivers'
 import { runtimeDriverRegistry } from '../runtime/registry'
 import type {
   AgentRuntimeCommand,
+  AgentRuntimeConnectInput,
+  AgentControlChunk,
   AgentRuntimeConnection,
   AgentRuntimeEvent,
   AgentRuntimeReconcileResult,
@@ -91,7 +99,7 @@ import type {
   AgentRuntimeUserInput,
   AgentSessionUsageCapture
 } from '../runtime/types'
-import type { AiStreamSource, MessageStreamEvent } from '../streamManager'
+import type { AgentMessageStreamSource, AgentPartChange, ExecutionPart, MessageStreamEvent } from '../streamManager'
 import {
   finalizeInterruptedParts,
   PersistenceListener,
@@ -130,23 +138,16 @@ import {
   willAgentSessionRuntimeContinue
 } from './agentSessionRuntimeState'
 import { AgentSessionUsageAttribution } from './AgentSessionUsageAttribution'
-import { savedChildView } from './ChildThreadProjection'
+import { childTimelines } from './childTimelines'
 import { validateEditedInput } from './editInput'
-import { nativeOutcomeTerminal } from './nativeSubmission'
+import { markLocalInput, nativeOutcomeTerminal, releaseNativeInputBinding } from './nativeSubmission'
 import { AgentSessionMessageBackend } from './persistence/AgentSessionMessageBackend'
-import { recoverSessionDeliveries } from './recoverSessionDeliveries'
 import { relocateSystemWorkspaces } from './relocateSystemWorkspaces'
 import { RootMessageProjection } from './RootMessageProjection'
 import { readSessionHistory } from './sessionHistory'
 
 const logger = loggerService.withContext('AgentSessionRuntimeService')
 const DEFAULT_IDLE_TTL_MS = 5 * 60 * 1000
-/**
- * Grace period before a session with no remaining warm-lease holders is actually torn down.
- * Absorbs <Activity> tab switches, where the session view releases on hide and re-acquires on
- * show within moments.
- */
-const WARM_LEASE_RELEASE_DELAY_MS = 10_000
 const CONTEXT_USAGE_REFRESH_THROTTLE_MS = 3_000
 /** Stream abort reasons that mean the user stopped the work, as opposed to teardown. */
 const USER_STOP_REASONS: ReadonlySet<unknown> = new Set(['user-requested', 'remote-cancel'])
@@ -231,13 +232,16 @@ export interface AgentSessionInteractionState {
   userResponse: 'unavailable' | 'stream' | 'message'
 }
 
-type AgentSessionTurn = {
+type AgentSessionRun = {
   taskIds: readonly string[]
+  inputOutcomes?: Map<string, NativeInputState>
   forkAnchor?: RuntimeForkAnchor
+  /** Stream attachment correlation, independent of durable execution ownership. */
   turnId: string
   /** True when the user message arrived as a steer — admission wraps it in a system-reminder. */
   systemReminder?: boolean
-  assistantMessageId: string
+  /** The existing assistant record ID; steer never changes this owner. */
+  runId: string
   userMessage: AgentSessionMessageEntity
   modelId: UniqueModelId
   /** Immutable author snapshot captured when this exact turn was submitted. */
@@ -249,8 +253,9 @@ type AgentSessionTurn = {
   knowledgeBaseIds: readonly string[]
   fastMode: boolean
   abortController: AbortController
-  controller?: Pick<ReadableStreamDefaultController<UIMessageChunk>, 'enqueue' | 'error' | 'close'> & {
-    message: (parts: CherryUIMessage['parts']) => void
+  controller?: Pick<ReadableStreamDefaultController<AgentControlChunk>, 'enqueue' | 'error' | 'close'> & {
+    message: (entries: readonly ExecutionPart[]) => void
+    part: (change: AgentPartChange) => void
   }
   activeToolIds: Set<string>
   projection?: RootMessageProjection
@@ -263,7 +268,7 @@ type AgentSessionTurn = {
   continuedInBackground?: boolean
 }
 
-type PendingAgentSessionTurn = {
+type QueuedAgentSessionInput = {
   message: AgentSessionMessageEntity
   reasoningEffort: ReasoningEffortOption
   serviceTier: ServiceTierSelection
@@ -290,8 +295,18 @@ type AgentSessionConnectionTarget = AgentSessionRuntimeConnectionTarget & {
   permissionModeOverride?: AgentPermissionMode
 }
 
-type RuntimeState = AgentSessionRuntimeState<AgentSessionTurn, PendingAgentSessionTurn>
-type RuntimeStateEvent = AgentSessionRuntimeStateEvent<AgentSessionTurn, PendingAgentSessionTurn>
+type PendingNativeInput = {
+  input: AgentRuntimeUserInput
+  generation?: string
+  contextId?: string
+  turnOptions?: Pick<
+    QueuedAgentSessionInput,
+    'reasoningEffort' | 'serviceTier' | 'fastMode' | 'permissionModeOverride' | 'trustedNotifyChannels'
+  >
+}
+
+type RuntimeState = AgentSessionRuntimeState<AgentSessionRun, QueuedAgentSessionInput>
+type RuntimeStateEvent = AgentSessionRuntimeStateEvent<AgentSessionRun, QueuedAgentSessionInput>
 
 type AgentSessionRuntimeEntry = {
   prediction?: {
@@ -304,22 +319,27 @@ type AgentSessionRuntimeEntry = {
   closing?: true
   /**
    * User Stop on a retained connection; `confirmed` runs on native confirmation, disconnect or close.
-   * `input` records the stopped input's native outcome, which may differ from the paused reply.
+   * `input` retains all admitted input outcomes so one completed input cannot settle a stopped Run.
    */
   stopping?: {
     connection: AgentRuntimeConnection
     confirmed: () => void
     settled: Promise<void>
-    input?: { id: string; replyId: string; outcome?: NativeInputState; terminal?: AgentSessionTurnTerminalEvent }
+    input?: {
+      ids: readonly string[]
+      replyId: string
+      outcomes: Map<string, NativeInputState>
+      terminal?: AgentSessionTurnTerminalEvent
+    }
   }
-  /** Native outcomes for unsettled replies outside any runtime turn, applied after the next projection. */
-  recoveredOutcomes?: Map<string, NativeInputState>
-  /** `inputId:outcome` pairs already resolved outside a live turn; Durable republishes them every revision. */
-  notedOutcomes?: Set<string>
   /** Follow-up placements waiting for the current reply to open; each starts its own reply, in order. */
   deferredPlacements?: (readonly string[])[]
-  /** Inputs whose reply a follow-up placement settled before Durable reported their outcome, mapped to that reply. */
-  followedReplies?: Map<string, string>
+  recoveryHeadless?: boolean
+  compactionAnchorId?: string
+  /** Native answers can arrive while their queued placement still awaits a reply. */
+  pendingRunCheckpoints?: Map<string, RuntimeForkAnchor>
+  /** Pending input outcomes share one aggregate per Run provisionally settled by a queued placement. */
+  followedReplies?: Map<string, { runId: string; pending: Set<string>; outcomes: NativeInputState[] }>
   interactionWindowId?: string
   sessionId: string
   topicId: string
@@ -336,18 +356,13 @@ type AgentSessionRuntimeEntry = {
   connectionLoop?: Promise<void>
   connectionGeneration?: string
   /** Pending product handoffs outlive the connection that attempted native admission. */
-  pendingInputs?: Map<
-    string,
-    {
-      input: AgentRuntimeUserInput
-      generation?: string
-      contextId?: string
-    }
-  >
+  pendingInputs?: Map<string, PendingNativeInput>
   lastResumeToken?: string
   branchHead?: string
+  secondaryContextId?: string
   usageAttribution?: AgentSessionUsageAttribution
   rootProjections?: Map<string, RootMessageProjection>
+  timeline?: { lastPos: number }
   idleTimer?: ReturnType<typeof setTimeout>
   /** Throttle stamp for {@link AgentSessionRuntimeService.refreshContextUsageOnDemand}. */
   lastContextUsageRefreshAt?: number
@@ -441,7 +456,7 @@ export class AgentSessionRuntimeService extends BaseService {
       this.isShuttingDown ||
       this.isWriteQuiesced ||
       this.closingSessions.has(sessionId) ||
-      this.connectionAttempts.has(sessionId) ||
+      (entry && this.connectionAttempts.has(entry)) ||
       [...this.forks.pending.values()].some((operation) => operation.sourceSessionId === sessionId) ||
       toolApprovalRegistry.hasSession(sessionId) ||
       [...this.pendingEditInputs.values()].some(({ counts }) => counts.has(sessionId)) ||
@@ -452,26 +467,12 @@ export class AgentSessionRuntimeService extends BaseService {
     }
   }
 
-  getHistoryActions(sessionId: string, messageIds: readonly string[]) {
-    const session = agentSessionService.getById(sessionId)
-    const agent = session.agentId ? agentService.getAgent(session.agentId) : undefined
-    const driver = agent ? runtimeDriverRegistry.getAgentSessionDriver(agent.type) : undefined
-    return new Map(
-      agentSessionForkService
-        .readHistoryBoundaries(sessionId, messageIds)
-        .map((row) => [
-          row.id,
-          { fork: resolveForkBoundary(driver, row).reason, edit: getEditFailure(driver, row, row.parent) }
-        ])
-    )
-  }
-
   async getEditTarget(sessionId: string, messageId: string): Promise<AgentSessionEditDraft> {
     this.assertSessionEditable(sessionId)
     const snapshot = application
       .get('DbService')
       .withWriteTx((tx) => agentSessionMessageService.readEditSnapshotTx(tx, sessionId, messageId))
-    const actions = this.getHistoryActions(sessionId, [messageId]).get(messageId)
+    const actions = readHistoryActions(sessionId, [messageId]).get(messageId)
     if (!actions || actions.edit) throw new AgentSessionEditError(actions?.edit ?? 'checkpoint_unsupported')
     const parts = snapshot.user.data.parts ?? []
     await validateEditedInput(parts)
@@ -481,7 +482,7 @@ export class AgentSessionRuntimeService extends BaseService {
   editSession<T>(
     sessionId: string,
     target: AgentSessionEditTarget,
-    persist: (tx: DbOrTx, nativeSessionId: string, nativeContextId?: string) => T
+    persist: (tx: DbOrTx, nativeSessionId: string, nativeContextId?: string, sourceBackendId?: string) => T
   ): Promise<T> {
     this.assertSessionEditable(sessionId)
     const editing = this.forks.edit(
@@ -490,8 +491,7 @@ export class AgentSessionRuntimeService extends BaseService {
       async () => {
         this.assertSessionEditable(sessionId, true)
         const entry = this.entries.get(sessionId)
-        const connection = entry && this.closeConnection(entry)
-        await this.closeRuntimeConnection(connection, sessionId, true)
+        if (entry) await this.closeRuntimeConnection(this.closeConnection(entry), entry, true)
         await this.closeSession(sessionId)
       },
       persist
@@ -533,44 +533,94 @@ export class AgentSessionRuntimeService extends BaseService {
    *  lifecycle pause — this never touches service state. See `pause()`. */
   private readonly pauseHolds = new Set<symbol>()
   /** In-flight launches registered synchronously by the state-machine schedule effect. */
-  private readonly inFlightTurnStarts = new Map<string, Promise<void>>()
+  private readonly inFlightTurnStarts = new Map<AgentSessionRuntimeEntry, Promise<void>>()
   /** Detached-flow finalizers can outlive their runtime entry but still write message parts. */
   private readonly inFlightChildWrites = new Map<Promise<void>, string>()
   /** Async connection resources live outside the pure state; attempt ids reject stale completions. */
   private readonly connectionAttempts = new Map<
-    string,
+    AgentSessionRuntimeEntry,
     { id: string; promise: Promise<boolean>; interrupt?: boolean }
   >()
   /** Promise resources for a rebuild-blocked connection; the state only owns the blocked phase. */
   private readonly backgroundWorkWaiters = new Map<
-    string,
+    AgentSessionRuntimeEntry,
     { connection: AgentRuntimeConnection; promise: Promise<void>; resolve: () => void }
   >()
   /** Shutdown wins over pause-release compensation (same posture as JobManager). */
   private isShuttingDown = false
-  /** Warm-lease holders by session: the window WebContents currently displaying it. The runtime
-   *  connection is shared per-session across windows, so its view-close teardown may only start
-   *  once this set is empty — a renderer-local count can neither see other windows nor survive
-   *  their crash. */
-  private readonly warmLeaseHolders = new Map<string, Set<Electron.WebContents>>()
-  /** One destroyed-listener per holder window, so a window that dies without releasing (crash,
-   *  forced close — renderer cleanup never runs) is reaped from every session it held. */
-  private readonly warmLeaseSenders = new Map<Electron.WebContents, { sessionIds: Set<string>; dispose: () => void }>()
-  /** Armed grace timers for sessions whose last holder released (see WARM_LEASE_RELEASE_DELAY_MS). */
-  private readonly pendingWarmTeardowns = new Map<string, NodeJS.Timeout>()
+  private blockedRecovery = new Set<string>()
+  private recovery?: Promise<void>
+  private readonly secondaryRoots = new Map<string, AgentSessionRuntimeEntry>()
+
+  private recoveryDue = false
+  private readonly startupRecovery = Promise.withResolvers<void>()
+  private readonly replyRecoveries = new Set<Promise<void>>()
+
+  protected override onAllReady(): Promise<void> {
+    this.recoveryDue = true
+    return this.resumeRecovery().finally(() => this.startupRecovery.resolve())
+  }
+
+  whenStartupRecoverySettles(): Promise<void> {
+    return this.startupRecovery.promise
+  }
+
+  private resumeRecovery(): Promise<void> {
+    if (this.recovery) return this.recovery
+    if (!this.recoveryDue || this.isWriteQuiesced || this.isShuttingDown) return Promise.resolve()
+    this.recoveryDue = false
+    this.recovery = this.recoverNativeWork().finally(() => {
+      this.recovery = undefined
+      if (this.recoveryDue) void this.resumeRecovery().catch((error) => logger.warn('Agent recovery failed', { error }))
+    })
+    return this.recovery
+  }
+
+  private async recoverNativeWork(): Promise<void> {
+    if (this.isShuttingDown || this.isWriteQuiesced) return
+    for (const driver of runtimeDriverRegistry.getAgentSessionDrivers()) await driver.recoverSessions?.()
+    await this.recoverPendingReplies()
+    for (const driver of runtimeDriverRegistry.getAgentSessionDrivers()) {
+      if (this.isShuttingDown) return
+      if (this.isWriteQuiesced) {
+        this.recoveryDue = true
+        return
+      }
+      await driver.recoverWork?.(this.blockedRecovery, () => !this.isShuttingDown && !this.isWriteQuiesced)
+      if (this.isWriteQuiesced) this.recoveryDue = true
+    }
+  }
+
+  recoverPendingReplies(scope?: { sessionId: string; runId: string; deliveryInputId?: string }): Promise<void> {
+    if (this.isShuttingDown || this.isWriteQuiesced) return Promise.resolve()
+    const work = recoverDurableReplies(
+      (event) => this._onTurnTerminal.fire(event),
+      (sessionId, runId) =>
+        !this.isShuttingDown &&
+        !this.isWriteQuiesced &&
+        !this.blockedRecovery.has(sessionId) &&
+        (!scope?.deliveryInputId ||
+          (!this.isSessionBusyForArchive(sessionId) &&
+            !application.get('AiStreamManager').hasUnsettledTopicWork(buildAgentSessionTopicId(sessionId)))) &&
+        !this.forks.edits.has(sessionId) &&
+        !this.entryForTurn(sessionId, (turn) => turn.runId === runId),
+      scope,
+      (sessionId) => this.liveTimeline(sessionId)
+    )
+    this.replyRecoveries.add(work)
+    return work.finally(() => this.replyRecoveries.delete(work))
+  }
 
   protected async onInit(): Promise<void> {
     // Populate the AI runtime driver registry at a controlled lifecycle point (WhenReady, before
     // any agent session runs) instead of relying on an import-time side effect.
     registerRuntimeDrivers()
-    const blockedSessions = await relocateSystemWorkspaces()
+    this.blockedRecovery = await relocateSystemWorkspaces()
     await this.forks.recover()
 
     // Pi execution dies with Main; terminalize its product placeholders while retaining native history.
     // Delivery recovery owns rows with a persisted delivery turn, and other native owners recover separately.
-    this.reconcileStalePendingMessages(blockedSessions)
-    recoverSessionDeliveries()
-    for (const driver of runtimeDriverRegistry.getAgentSessionDrivers()) await driver.recoverSessions?.()
+    this.reconcileStalePendingMessages(this.blockedRecovery)
 
     this.registerDisposable(
       agentService.onAgentUpdated(({ agentId, updates, agent }) => {
@@ -588,6 +638,9 @@ export class AgentSessionRuntimeService extends BaseService {
           )
         }
       })
+    )
+    this.registerDisposable(
+      agentSessionMessageService.onBranchSelected(({ sessionId, head }) => this.selectBranchStream(sessionId, head))
     )
     this.registerDisposable(toolApprovalRegistry.onAborted((aborted) => this.retireAbortedApprovalCard(aborted)))
   }
@@ -639,18 +692,18 @@ export class AgentSessionRuntimeService extends BaseService {
 
   getLiveAssistantMessageId(sessionId: string): string | undefined {
     const entry = this.entries.get(sessionId)
-    return entry ? this.liveTurn(entry)?.assistantMessageId : undefined
+    return entry ? this.liveTurn(entry)?.runId : undefined
   }
 
-  private currentTurn(entry: AgentSessionRuntimeEntry): AgentSessionTurn | undefined {
+  private currentTurn(entry: AgentSessionRuntimeEntry): AgentSessionRun | undefined {
     return getAgentSessionRuntimeCurrentTurn(entry.runtimeState)
   }
 
-  private liveTurn(entry: AgentSessionRuntimeEntry): AgentSessionTurn | undefined {
+  private liveTurn(entry: AgentSessionRuntimeEntry): AgentSessionRun | undefined {
     return getAgentSessionRuntimeLiveTurn(entry.runtimeState)
   }
 
-  private isTurnLive(entry: AgentSessionRuntimeEntry, turn: AgentSessionTurn): boolean {
+  private isTurnLive(entry: AgentSessionRuntimeEntry, turn: AgentSessionRun): boolean {
     return isAgentSessionRuntimeTurnLive(entry.runtimeState, turn)
   }
 
@@ -674,7 +727,7 @@ export class AgentSessionRuntimeService extends BaseService {
   private startPromptPrediction(entry: AgentSessionRuntimeEntry): void {
     const connection = this.currentConnection(entry)
     const turn = getAgentSessionRuntimeCurrentTurn(entry.runtimeState)
-    if (!turn || !connection?.predictPrompt || entry.prediction?.replyId === turn.assistantMessageId) return
+    if (!turn || !connection?.predictPrompt || entry.prediction?.replyId === turn.runId) return
     const modelId = entry.modelId
     const eligible = () =>
       entry.modelId === modelId &&
@@ -712,7 +765,7 @@ export class AgentSessionRuntimeService extends BaseService {
         return ''
       }
     })
-    entry.prediction = { replyId: turn.assistantMessageId, modelId: entry.modelId, controller, result }
+    entry.prediction = { replyId: turn.runId, modelId: entry.modelId, controller, result }
   }
 
   abortPromptPrediction(sessionId: string, requestId: string): void {
@@ -751,10 +804,10 @@ export class AgentSessionRuntimeService extends BaseService {
   private placementWaits(entry: AgentSessionRuntimeEntry): boolean {
     const execution = entry.runtimeState.execution
     return (
-      execution.kind === 'steer-transition' ||
-      (execution.kind === 'turn' &&
-        (execution.reservation !== undefined ||
-          !['open', 'awaiting-persistence'].includes(execution.reply.delivery.kind)))
+      execution.kind === 'run-handoff' ||
+      (execution.kind === 'autonomous-turn' &&
+        !['open', 'awaiting-persistence', 'settled'].includes(execution.reply.delivery.kind)) ||
+      (execution.kind === 'turn' && !['open', 'awaiting-persistence'].includes(execution.reply.delivery.kind))
     )
   }
 
@@ -773,7 +826,7 @@ export class AgentSessionRuntimeService extends BaseService {
 
   private applyRuntimeStateEffect(
     entry: AgentSessionRuntimeEntry,
-    effect: AgentSessionRuntimeStateEffect<AgentSessionTurn>
+    effect: AgentSessionRuntimeStateEffect<AgentSessionRun>
   ): void {
     switch (effect.type) {
       case 'suspend-turn':
@@ -786,10 +839,7 @@ export class AgentSessionRuntimeService extends BaseService {
           manager.broadcastTopicError(entry.topicId, effect.turn.modelId, error)
         } else {
           try {
-            agentSessionMessageService.markAssistantMessageTerminalError(
-              entry.sessionId,
-              effect.turn.assistantMessageId
-            )
+            agentSessionMessageService.markAssistantMessageTerminalError(entry.sessionId, effect.turn.runId)
           } catch (persistenceError) {
             logger.warn('Failed to mark unsubmitted reply as error', {
               sessionId: entry.sessionId,
@@ -804,7 +854,7 @@ export class AgentSessionRuntimeService extends BaseService {
         this.scheduleRuntimeLaunch(entry, effect.target)
         break
       case 'deliver-buffer':
-        for (const chunk of effect.chunks) this.enqueueTurnChunk(entry, effect.turn, chunk)
+        for (const chunk of effect.chunks) this.enqueueTurnChunk(effect.turn, chunk)
         break
       case 'settle-turn': {
         // Keep ownership until PersistenceListener completes and dispatches turn-terminal.
@@ -837,11 +887,30 @@ export class AgentSessionRuntimeService extends BaseService {
     return this.entries.get(sessionId)?.branchHead
   }
 
+  private selectBranchStream(sessionId: string, head: string): void {
+    const selected = this.entries.get(sessionId)
+    if (!this.secondaryRoots.size && !(selected && extractAgentContextId(selected.topicId))) {
+      this.setBranchStream(sessionId)
+      return
+    }
+    const context = childContexts.branchTx(application.get('DbService').getDb(), sessionId, head)
+    this.setBranchStream(sessionId, context && this.entryForContext(sessionId, context.id)?.topicId)
+  }
+
+  private setBranchStream(sessionId: string, topicId?: string): void {
+    const cache = application.get('CacheService')
+    const key = AGENT_SESSION_STREAM_TOPIC_CACHE_KEY(sessionId)
+    const scoped = topicId && extractAgentContextId(topicId) ? topicId : null
+    if ((cache.getShared(key) ?? null) !== scoped) cache.setShared(key, scoped)
+  }
+
   async prepareBranch(sessionId: string, messageId: string): Promise<void> {
     const entry = this.entries.get(sessionId)
-    if (!entry?.branchHead || agentSessionMessageService.sharesBranch(sessionId, entry.branchHead, messageId)) return
-    this.assertSessionEditable(sessionId)
-    await this.closeSession(sessionId)
+    if (entry?.branchHead && !agentSessionMessageService.sharesBranch(sessionId, entry.branchHead, messageId)) {
+      this.assertSessionEditable(sessionId)
+      await this.closeSession(sessionId)
+    }
+    this.selectRecoveredRoot(sessionId, messageId)
   }
 
   beginTurn(input: BeginAgentSessionTurnInput): AgentSessionRuntimeHandle {
@@ -849,11 +918,11 @@ export class AgentSessionRuntimeService extends BaseService {
     const userMessage = input.userMessage ?? createSyntheticUserMessage(input.sessionId)
     // oxlint-disable-next-line no-restricted-globals -- Capture per-turn model/settings metadata before asynchronous native dispatch.
     const messageSnapshot = input.messageSnapshot ? structuredClone(input.messageSnapshot) : undefined
-    const existing = this.entries.get(input.sessionId)
+    const existing = this.selectRecoveredRoot(input.sessionId, input.assistantMessageId)
     if (existing && this.runtimeStatus(existing) === 'active') throw new AgentSessionEditError('busy')
-    const turn = createSessionTurn({
+    const turn = createSessionRun({
       taskIds: input.userMessage ? [input.userMessage.id] : [],
-      assistantMessageId: input.assistantMessageId,
+      runId: input.assistantMessageId,
       userMessage,
       modelId: input.modelId,
       messageSnapshot,
@@ -878,6 +947,7 @@ export class AgentSessionRuntimeService extends BaseService {
     ) {
       this.clearIdleTimer(existing)
       existing.topicId = input.topicId
+      this.setBranchStream(input.sessionId, existing.topicId)
       existing.sessionTraceId = input.traceId ?? existing.sessionTraceId
       existing.agentId = input.agentId
       existing.agentType = input.agentType
@@ -886,7 +956,6 @@ export class AgentSessionRuntimeService extends BaseService {
       existing.messageSnapshot = messageSnapshot
       existing.branchHead = input.assistantMessageId
       this.applyRuntimeStateEvent(existing, { type: 'begin-turn', turn, clearQueue: true })
-      this.applyRuntimeStateEvent(existing, { type: 'clear-steer-reservation' })
 
       return {
         listeners: [
@@ -914,6 +983,7 @@ export class AgentSessionRuntimeService extends BaseService {
       pendingInputs: existing?.pendingInputs
     }
     this.entries.set(input.sessionId, entry)
+    this.setBranchStream(input.sessionId, entry.topicId)
     this.syncRuntimeActivity()
 
     return {
@@ -928,24 +998,21 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   /**
-   * Resolve the trusted gateway correlation into the reserved continuation or active turn.
+   * Resolve the trusted gateway correlation into the active Run.
    * The gateway calls this at provider-request ingress, before any later agent edit,
    * message roll, or deletion can affect usage persistence.
    */
   getActiveUsageContext(sessionId: string, responseId?: string): InProcessUsageContext | undefined {
     const entry = this.entries.get(sessionId)
     if (!entry) return undefined
-    const execution = entry.runtimeState.execution
-    const turn =
-      (execution.kind === 'turn' ? execution.reservation : undefined) ??
-      getAgentSessionRuntimeNativeTurn(entry.runtimeState)
+    const turn = getAgentSessionRuntimeNativeTurn(entry.runtimeState)
     const attribution = (entry.usageAttribution ??= new AgentSessionUsageAttribution())
     const correlation = responseId ?? turn?.turnId
     if (turn && correlation && !responseId) this.bindUsage(entry, correlation, turn)
     return {
       agentSessionId: sessionId,
       traceContext: this.sessionTraceContext(entry, turn?.modelId),
-      ...(turn ? { assistantMessageId: turn.assistantMessageId } : {}),
+      ...(turn ? { assistantMessageId: turn.runId } : {}),
       source:
         sourceSnapshotFromMessageSnapshot(turn?.messageSnapshot ?? entry.messageSnapshot) ??
         (entry.messageSnapshot ? null : this.captureUsageSource(entry.agentId)),
@@ -953,8 +1020,8 @@ export class AgentSessionRuntimeService extends BaseService {
     }
   }
 
-  private bindUsage(entry: AgentSessionRuntimeEntry, responseId: string, turn: AgentSessionTurn): void {
-    const { assistantMessageId } = turn
+  private bindUsage(entry: AgentSessionRuntimeEntry, responseId: string, turn: AgentSessionRun): void {
+    const { runId: assistantMessageId } = turn
     // Owners live as long as the session (Pi never idle-closes); a collected turn is no longer a reply.
     const turnRef = new WeakRef(turn)
     ;(entry.usageAttribution ??= new AgentSessionUsageAttribution()).bind(responseId, assistantMessageId, () => {
@@ -988,12 +1055,12 @@ export class AgentSessionRuntimeService extends BaseService {
     const deferred = execution.kind === 'autonomous-turn' ? execution.deferred?.turn : undefined
     if (deferred && ids.includes(deferred.userMessage.id)) {
       if (followUp) this.awaitFollowedOutcome(entry)
-      this.applyRuntimeStateEvent(entry, { type: 'steer-boundary', turn: deferred })
+      this.applyRuntimeStateEvent(entry, { type: 'run-placed', turn: deferred })
       return true
     }
     const owned = new Set(getAgentSessionRuntimeTurns(entry.runtimeState).flatMap((turn) => turn.taskIds))
     const placed = ids.filter((id) => !owned.has(id))
-    const inputs = this.pendingInputValues(entry, placed, true)
+    const inputs = this.pendingInputValues(entry, ids, true).filter((input) => !owned.has(input.message.id))
     if (connection?.followUp && connection.contextId)
       for (const id of placed) {
         if (inputs.some((input) => input.message.id === id)) continue
@@ -1003,10 +1070,18 @@ export class AgentSessionRuntimeService extends BaseService {
           systemReminder: true
         })
       }
-    if (!inputs.length) return false
-    const turn = this.reserveSteerContinuation(entry, inputs)
+    if (!inputs.length) return ids.some((id) => owned.has(id))
+    if (!followUp) {
+      const run = getAgentSessionRuntimeNativeTurn(entry.runtimeState)
+      if (run && this.isTurnLive(entry, run)) {
+        this.attachRunInputs(entry, run, inputs)
+        return true
+      }
+      return false
+    }
+    const turn = this.reservePlacedRun(entry, inputs)
     if (turn && followUp) this.awaitFollowedOutcome(entry)
-    if (turn) this.applyRuntimeStateEvent(entry, { type: 'steer-boundary', turn })
+    if (turn) this.applyRuntimeStateEvent(entry, { type: 'run-placed', turn })
     return turn !== undefined
   }
 
@@ -1016,30 +1091,42 @@ export class AgentSessionRuntimeService extends BaseService {
     if (execution.kind !== 'turn' && execution.kind !== 'autonomous-turn') return
     const { turn, delivery } = execution.reply
     if (delivery.kind !== 'open') return
-    for (const id of turn.taskIds) (entry.followedReplies ??= new Map()).set(id, turn.assistantMessageId)
+    const outcomes = turn.taskIds.flatMap((id) => turn.inputOutcomes?.get(id) ?? [])
+    const pending = new Set(turn.taskIds.filter((id) => !turn.inputOutcomes?.has(id)))
+    const followed = { runId: turn.runId, pending, outcomes }
+    for (const id of pending) (entry.followedReplies ??= new Map()).set(id, followed)
+    if (!pending.size) this.correctFollowedRun(entry, followed, this.currentConnection(entry)?.contextId)
   }
 
-  private reserveSteerContinuation(
+  private attachRunInputs(
+    entry: AgentSessionRuntimeEntry,
+    run: AgentSessionRun,
+    inputs: AgentRuntimeUserInput[]
+  ): void {
+    const taskIds = [...new Set([...run.taskIds, ...inputs.map(({ message }) => message.id)])]
+    agentSessionMessageService.linkReply(entry.sessionId, taskIds, run.runId)
+    run.taskIds = taskIds
+    this.attachPendingRunCheckpoints(entry, run)
+  }
+
+  private attachPendingRunCheckpoints(entry: AgentSessionRuntimeEntry, run: AgentSessionRun): void {
+    for (const id of run.taskIds) {
+      const anchor = entry.pendingRunCheckpoints?.get(id)
+      if (!anchor) continue
+      run.forkAnchor = anchor
+      entry.pendingRunCheckpoints!.delete(id)
+    }
+  }
+
+  private reservePlacedRun(
     entry: AgentSessionRuntimeEntry,
     inputs: AgentRuntimeUserInput[]
-  ): AgentSessionTurn | undefined {
+  ): AgentSessionRun | undefined {
     if (!this.isCurrentEntry(entry)) return undefined
-    const execution = entry.runtimeState.execution
-    const reserved =
-      execution.kind === 'turn'
-        ? execution.reservation
-        : execution.kind === 'steer-transition'
-          ? execution.reply.turn
-          : undefined
-    if (reserved) {
-      reserved.taskIds = [...new Set([...reserved.taskIds, ...inputs.map(({ message }) => message.id)])]
-      agentSessionMessageService.linkReply(entry.sessionId, reserved.taskIds, reserved.assistantMessageId)
-      return reserved
-    }
     const source = this.currentTurn(entry)
     const input = inputs[0]
     if (!source || !input) return undefined
-    const turn = createSessionTurn({
+    const turn = createSessionRun({
       taskIds: inputs.map(({ message }) => message.id),
       userMessage: input.message,
       parentId: input.message.id,
@@ -1052,7 +1139,6 @@ export class AgentSessionRuntimeService extends BaseService {
       headless: source.headless === true && inputs.every((item) => item.headless === true),
       trustedNotifyChannels: source.trustedNotifyChannels
     })
-    if (execution.kind === 'turn') this.applyRuntimeStateEvent(entry, { type: 'reserve-steer', reservation: turn })
     return turn
   }
 
@@ -1070,86 +1156,71 @@ export class AgentSessionRuntimeService extends BaseService {
     }
   }
 
-  /**
-   * Open the session's runtime connection ahead of the first turn (on session open) so the driver's
-   * slash-command catalog (`query.supportedCommands()`) is read into the shared cache before the user
-   * types — the SDK warm-query handle can't expose commands without a live connection. Best-effort and
-   * idempotent: an existing entry (idle-warm or mid-turn) is just kept connected; a freshly primed
-   * entry idles under the same TTL as a post-turn one, so it self-tears-down if never used.
-   *
-   * @returns whether the session has a connection or a turn that owns one.
-   */
-  async primeConnection(sessionId: string): Promise<boolean> {
-    if (this.forks.edits.has(sessionId)) return false
-    try {
-      const existing = this.entries.get(sessionId)
-      if (existing) {
-        // Re-prime of a live session (e.g. a second window opening it): re-read and republish the
-        // catalog so a consumer that mounts after the initial publish still gets it — `ensureConnection`
-        // alone skips the read when the connection already exists.
-        return await this.ensureConnection(existing)
-          .then((connected) => {
-            if (connected) this.refreshSupportedCommands(existing)
-            return connected
-          })
-          .catch((error) => {
-            logger.warn('Failed to re-prime agent session connection', { sessionId, error })
-            return false
-          })
-      }
+  async changeFollowups(topicId: string, change: AgentSessionFollowupChange): Promise<boolean> {
+    if (!isAgentSessionTopic(topicId) || this.isWriteQuiesced || this.isShuttingDown) return false
+    const sessionId = extractAgentSessionId(topicId)
+    this.assertSessionWritable(sessionId)
+    const entry = this.entryForContext(sessionId, extractAgentContextId(topicId))
+    if (!entry || entry.topicId !== topicId || entry.closing || entry.stopping) return false
+    return (await this.currentConnection(entry)?.changeFollowups?.(change)) ?? false
+  }
 
+  async listSessionCommands(sessionId: string): Promise<AgentSessionSlashCommand[]> {
+    const session = agentSessionService.getById(sessionId)
+    const agent = session.agentId ? agentService.getAgent(session.agentId) : undefined
+    if (!agent) return []
+    if (agent.type !== 'claude-code')
+      return AGENT_RUNTIME_CAPABILITIES[agent.type].slashCommands.map(({ command, description }) => ({
+        name: command.replace(/^\//, ''),
+        description: description ?? '',
+        argumentHint: ''
+      }))
+    const cache = application.get('CacheService')
+    const cached = cache.getShared(AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY(sessionId))
+    if (cached) return cached
+    if (application.get('ClaudeCodeBinaryService').getStatus().phase !== 'ready') return []
+    const connection = await this.commandConnection(sessionId)
+    const commands = await connection?.getSupportedCommands?.()
+    const entry = this.entries.get(sessionId)
+    if (commands && entry && this.currentConnection(entry) === connection)
+      cache.setShared(AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY(sessionId), commands)
+    return commands ?? []
+  }
+
+  private async commandConnection(
+    sessionId: string,
+    root?: AgentSessionContextRow
+  ): Promise<AgentRuntimeConnection | undefined> {
+    this.assertSessionWritable(sessionId)
+    if (this.isWriteQuiesced || this.isShuttingDown) throw new Error('Session writes are paused')
+    const selected = this.entries.get(sessionId)
+    const head = selected?.branchHead ?? agentSessionMessageService.captureHead(sessionId)
+    const offBranch =
+      root && head && childContexts.branchTx(application.get('DbService').getDb(), sessionId, head)?.id !== root.id
+    let entry = offBranch ? this.secondaryRoots.get(root.id) : this.selectRecoveredRoot(sessionId, head)
+    if (entry && root && this.currentConnection(entry)?.contextId === root.id) return this.currentConnection(entry)
+    if (!entry) {
       const session = agentSessionService.getById(sessionId)
-      if (!session?.agentId) return false
-      const agent = agentService.getAgent(session.agentId)
-      if (!agent) return false
-      // Prime on the effective model so a session override doesn't force a rebuild on first turn.
-      const effectiveModel = session.model ?? agent.model
-      if (!effectiveModel) return false
-      if (agent.type === 'claude-code' && application.get('ClaudeCodeBinaryService').getStatus().phase !== 'ready')
-        return false
-      if (!runtimeDriverRegistry.getAgentSessionDriver(agent.type)) return false
-
-      // Resolve the session's container trace id up front so the primed connection carries the same
-      // trace context the first turn will. The connection is reused across turns, so without this its
-      // subprocess would start without TRACEPARENT and its spans would never join the session trace
-      // tree. Idempotent with the dispatch path (`ensureTraceId` returns the same id).
-      const sessionTraceId = agentSessionService.ensureTraceId(sessionId)
-
-      // A real turn may have created the entry while we resolved the session — defer to it.
-      const raced = this.entries.get(sessionId)
-      if (raced) {
-        void this.ensureConnection(raced)
-        return true
-      }
-
-      const entry: AgentSessionRuntimeEntry = {
+      const agent = session.agentId ? agentService.getAgent(session.agentId) : undefined
+      const modelId = session.model ?? agent?.model
+      if (!agent || !modelId) return
+      entry = {
         sessionId,
-        branchHead: agentSessionMessageService.captureHead(sessionId),
-        topicId: buildAgentSessionTopicId(sessionId),
-        sessionTraceId,
-        agentId: session.agentId,
+        agentId: agent.id,
         agentType: agent.type,
-        modelId: effectiveModel,
-        runtimeState: createAgentSessionRuntimeState()
+        modelId,
+        runtimeState: createAgentSessionRuntimeState(),
+        topicId: buildAgentSessionTopicId(sessionId, offBranch ? root.id : undefined),
+        sessionTraceId: agentSessionService.ensureTraceId(sessionId),
+        secondaryContextId: offBranch ? root.id : undefined,
+        branchHead: offBranch ? (root.anchorMessageId ?? undefined) : head
       }
-      this.entries.set(sessionId, entry)
-
-      const connected = await this.ensureConnection(entry)
-      // A turn may have superseded/cleared this entry while connecting — leave its lifecycle to it.
-      if (this.entries.get(sessionId) !== entry) return true
-      if (!connected) {
-        void this.closeSession(sessionId)
-        return false
-      }
-      // Still idle (no turn took over): arm the TTL so an unused primed connection self-closes.
-      if (this.runtimeStatus(entry) === 'idle' && !this.liveTurn(entry)) {
-        this.refreshIdleTimer(entry)
-      }
-      return true
-    } catch (error) {
-      logger.warn('Failed to prime agent session connection', { sessionId, error })
-      return false
+      if (offBranch) this.secondaryRoots.set(root.id, entry)
+      else this.entries.set(sessionId, entry)
     }
+    if (!(await this.ensureConnection(entry))) return
+    if (this.runtimeStatus(entry) === 'idle') this.refreshIdleTimer(entry)
+    return this.currentConnection(entry)
   }
 
   /**
@@ -1215,7 +1286,17 @@ export class AgentSessionRuntimeService extends BaseService {
           this.liveTurn(entry) !== undefined ||
           isAgentSessionRuntimeTransitioning(entry.runtimeState) ||
           hasAgentSessionRuntimeBackgroundWork(entry.runtimeState)
-        if (!hasLiveTurn) this.closeConnectionAsync(entry)
+        if (!hasLiveTurn) {
+          this.closeConnectionAsync(entry)
+          if (entry.pendingInputs?.size && !entry.closing && !this.isShuttingDown) {
+            void this.ensureConnection(entry).catch((error) =>
+              logger.warn('Failed to reconnect for pending inputs after rebuild', {
+                sessionId: entry.sessionId,
+                error
+              })
+            )
+          }
+        }
         return
       }
       case 'invalid':
@@ -1256,25 +1337,26 @@ export class AgentSessionRuntimeService extends BaseService {
     void this.closeSession(entry.sessionId)
   }
 
-  openTurnStream(input: OpenAgentSessionTurnStreamInput): AiStreamSource {
-    const entry = this.entries.get(input.sessionId)
+  openTurnStream(input: OpenAgentSessionTurnStreamInput): AgentMessageStreamSource {
+    const entry = this.entryForTurn(input.sessionId, (turn) => turn.turnId === input.turnId)
     const turn = entry ? this.currentTurn(entry) : undefined
     if (!entry || entry.closing || !turn || turn.turnId !== input.turnId) {
       throw new Error(`No active agent runtime turn ${input.turnId} for session ${input.sessionId}`)
     }
     if (input.interactionWindowId) entry.interactionWindowId = input.interactionWindowId
 
-    const start = async (controller: NonNullable<AgentSessionTurn['controller']>) => {
+    const start = async (controller: NonNullable<AgentSessionRun['controller']>) => {
       try {
         this.clearIdleTimer(entry)
         turn.controller = controller
         this.applyRuntimeStateEvent(entry, { type: 'turn-stream-opened', turn })
-        if (turn.projection) this.publishTurnMessage(entry, turn, turn.projection.parts(turn.assistantMessageId) ?? [])
+        if (turn.projection) this.publishTurnMessage(entry, turn, turn.projection.replyEntries(turn.runId) ?? [])
 
         const onAbort = () => {
           // A native abort already ended the run; a retained connection has nothing to stop.
           if (input.signal.reason === 'agent-runtime-aborted' && this.currentConnection(entry)?.retainOnStop) return
-          void this.stopSession(entry.sessionId, input.signal.reason)
+          if (this.isTurnLive(entry, turn))
+            void this.stopSession(entry.sessionId, input.signal.reason, extractAgentContextId(entry.topicId))
         }
         if (input.signal.aborted) {
           onAbort()
@@ -1284,7 +1366,7 @@ export class AgentSessionRuntimeService extends BaseService {
         }
 
         controller.enqueue({ type: 'start' })
-        // A steer/autonomous transition owns any chunks that arrived before this controller. The
+        // A queued/autonomous handoff owns any chunks that arrived before this controller. The
         // state transition atomically transfers that buffer to this exact turn before admission.
         this.applyRuntimeStateEvent(entry, { type: 'flush-transition', turn })
         if (!this.isTurnLive(entry, turn)) return
@@ -1300,13 +1382,19 @@ export class AgentSessionRuntimeService extends BaseService {
       // rather than an out-of-band mutation the busy/live queries cannot see.
       this.applyRuntimeStateEvent(entry, { type: 'runtime-terminal', turn, outcome: { status: 'paused' } })
     }
+    const parts = new Emitter<AgentPartChange>()
+    const reconciled = new Emitter<readonly ExecutionPart[]>()
     return {
       kind: 'messages',
+      onPart: parts.event,
+      onMessageReconciled: reconciled.event,
+      readParts: () => turn.projection?.replyEntries(turn.runId) ?? [],
       stream: new ReadableStream<MessageStreamEvent>({
         start: (controller) =>
           start({
             enqueue: (chunk) => controller.enqueue({ type: 'control', chunk }),
-            message: (parts) => controller.enqueue({ type: 'message', parts }),
+            message: (entries) => reconciled.fire(entries),
+            part: (change) => parts.fire(change),
             close: () => controller.close(),
             error: (error) => {
               controller.enqueue({ type: 'error', error })
@@ -1382,7 +1470,17 @@ export class AgentSessionRuntimeService extends BaseService {
       }
       const pending = (entry.pendingInputs ??= new Map())
       if (pending.has(message.id)) return true
-      pending.set(message.id, { input, generation: entry.connectionGeneration })
+      pending.set(message.id, {
+        input,
+        generation: entry.connectionGeneration,
+        turnOptions: {
+          reasoningEffort,
+          serviceTier,
+          fastMode,
+          ...(opts.permissionModeOverride ? { permissionModeOverride: opts.permissionModeOverride } : {}),
+          ...(trustedNotifyChannels !== undefined ? { trustedNotifyChannels } : {})
+        }
+      })
       if (submit({ message: input.message, systemReminder: true })) return true
       pending.delete(message.id)
       return false
@@ -1419,7 +1517,9 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   markTurnTerminal(sessionId: string, status: AgentSessionRuntimeTerminalStatus, expectedTurnId?: string): void {
-    const entry = this.entries.get(sessionId)
+    const entry = expectedTurnId
+      ? this.entryForTurn(sessionId, (turn) => turn.turnId === expectedTurnId)
+      : this.entries.get(sessionId)
     if (!entry) {
       this._onRuntimeIdle.fire({ sessionId })
       return
@@ -1431,13 +1531,12 @@ export class AgentSessionRuntimeService extends BaseService {
     const reply = getAgentSessionRuntimeReply(entry.runtimeState, completedTurn)
     if (!reply || ['suspending', 'settled', 'failed'].includes(reply.delivery.kind)) return
     const isRowRoll =
-      entry.runtimeState.execution.kind === 'steer-transition' &&
-      entry.runtimeState.execution.source.turn === completedTurn
+      entry.runtimeState.execution.kind === 'run-handoff' && entry.runtimeState.execution.source.turn === completedTurn
     this.applyRuntimeStateEvent(entry, { type: 'turn-terminal', turn: completedTurn, status })
     if (status === 'success' && !isRowRoll) this.startPromptPrediction(entry)
     const terminal: AgentSessionTurnTerminalEvent = {
       sessionId,
-      assistantMessageId: completedTurn.assistantMessageId,
+      assistantMessageId: completedTurn.runId,
       status,
       boundary: isRowRoll ? 'row-roll' : 'turn'
     }
@@ -1453,12 +1552,15 @@ export class AgentSessionRuntimeService extends BaseService {
    * Ends a session's work after its stream aborts. User Stop on a `retainOnStop` connection only
    * interrupts and keeps the connection; other aborts close the session as before.
    */
-  stopSession(sessionId: string, reason: unknown): Promise<void> {
-    const entry = this.entries.get(sessionId)
+  stopSession(sessionId: string, reason: unknown, contextId?: string): Promise<void> {
+    const entry = this.entryForContext(sessionId, contextId)
+    if (contextId && entry?.topicId !== buildAgentSessionTopicId(sessionId, contextId)) return Promise.resolve()
+    const close = (interrupt: boolean) =>
+      entry?.secondaryContextId ? this.closeSecondary(entry, interrupt) : this.closeSession(sessionId, interrupt)
     const connection = entry && !entry.closing && !this.isShuttingDown ? this.currentConnection(entry) : undefined
     if (!entry || !connection?.retainOnStop || !connection.interrupt || !USER_STOP_REASONS.has(reason))
       // Durable shutdown preserves work; user Stop must record cancellation before closing.
-      return this.closeSession(sessionId, !this.isShuttingDown && reason !== 'app-shutdown')
+      return close(!this.isShuttingDown && reason !== 'app-shutdown')
     if (entry.stopping) return entry.stopping.settled
     const confirmation = Promise.withResolvers<void>()
     const turn = this.liveTurn(entry)
@@ -1467,7 +1569,7 @@ export class AgentSessionRuntimeService extends BaseService {
       confirmed: () => confirmation.resolve(),
       settled: Promise.resolve(),
       ...(turn &&
-        !turn.continuedInBackground && { input: { id: turn.userMessage.id, replyId: turn.assistantMessageId } })
+        !turn.continuedInBackground && { input: { ids: turn.taskIds, replyId: turn.runId, outcomes: new Map() } })
     }
     entry.stopping = stopping
     // Stop withdraws queued follow-ups; input arriving after Stop waits for the native confirmation.
@@ -1486,7 +1588,7 @@ export class AgentSessionRuntimeService extends BaseService {
         (error) => {
           logger.warn('Agent runtime stop failed; closing the session', { sessionId, error })
           // Closing waits for its interrupt, so a still-pending one would block the close as well.
-          return this.closeSession(sessionId, interruptSettled)
+          return close(interruptSettled)
         }
       )
       .finally(() => {
@@ -1505,13 +1607,18 @@ export class AgentSessionRuntimeService extends BaseService {
   ): Promise<void> {
     if (!stopped || !connection.contextId) return
     try {
-      let outcome = stopped.outcome
-      // An outcome observed before Stop registered was not captured; Durable's record still holds it.
-      if (!outcome && connection.lookupInput) {
-        const recorded = await connection.lookupInput(connection.contextId, stopped.id)
-        if (recorded.status === 'confirmed' && recorded.value.found) outcome = recorded.value.input
+      const outcomes: NativeInputState[] = []
+      for (const id of stopped.ids) {
+        let outcome = stopped.outcomes.get(id)
+        if (!outcome && connection.lookupInput) {
+          const recorded = await connection.lookupInput(connection.contextId, id)
+          if (recorded.status === 'confirmed' && recorded.value.found) outcome = recorded.value.input
+        }
+        if (!outcome?.outcome) return
+        outcomes.push(outcome)
       }
-      if (!outcome?.outcome || outcome.outcome === 'aborted') return
+      const outcome = runInputOutcome(outcomes)
+      if (!outcome || outcome.outcome === 'aborted') return
       await application.get('AiStreamManager').drainRuntimeReply(entry.topicId, stopped.replyId)
       if (!this.isCurrentEntry(entry)) return
       // The native settle reports its own terminal in place of the held paused one.
@@ -1523,10 +1630,10 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   closeSession(sessionId: string, interrupt = false): Promise<void> {
-    const attempt = this.connectionAttempts.get(sessionId)
+    const entry = this.entries.get(sessionId)
+    const attempt = entry && this.connectionAttempts.get(entry)
     if (interrupt && attempt) attempt.interrupt = true
     const priorClosing = this.closingSessions.get(sessionId)
-    const entry = this.entries.get(sessionId)
     entry?.prediction?.controller.abort()
     if (!entry) return priorClosing?.promise ?? Promise.resolve()
     if (priorClosing?.entry === entry) return priorClosing.promise
@@ -1550,15 +1657,16 @@ export class AgentSessionRuntimeService extends BaseService {
   async closeSessionForArchive(sessionId: string): Promise<void> {
     await this.closeSession(sessionId)
     await application.get('ClaudeCodeWarmQueryManager').close(sessionId)
-    const attempt = this.connectionAttempts.get(sessionId)?.promise
-    if (attempt) await attempt
+    for (const entry of this.secondaryRoots.values()) {
+      if (entry.sessionId === sessionId) await this.closeSecondary(entry)
+    }
     while (this.closingSessions.has(sessionId)) {
       await this.closingSessions.get(sessionId)!.promise
     }
     const failed = this.failedClosures.get(sessionId)
     if (this.entries.has(sessionId)) throw new AgentSessionEditError('close_failed')
     for (const connection of failed ?? []) await this.closeRuntimeConnection(connection, sessionId, true)
-    if (this.failedClosures.has(sessionId) || this.entries.has(sessionId) || this.connectionAttempts.has(sessionId)) {
+    if (this.failedClosures.has(sessionId) || this.entries.has(sessionId)) {
       throw new AgentSessionEditError('close_failed')
     }
   }
@@ -1598,125 +1706,9 @@ export class AgentSessionRuntimeService extends BaseService {
     }
   }
 
-  /**
-   * Release a connection opened by {@link primeConnection} (or left idle after a turn) when its
-   * session view closes — frees the subprocess and clears the cached catalog now instead of waiting
-   * out the idle TTL. No-op while a turn is in flight or background work still owns connection-local
-   * resources. Background keepalive is deliberately not "busy": a new user turn may still start.
-   */
-  releaseIdleConnection(sessionId: string): void {
-    const idleEntry = this.entries.get(sessionId)
-    if (idleEntry && this.currentConnection(idleEntry)?.retainWhileIdle) return
-    if (idleEntry && hasAgentSessionRuntimeBackgroundWork(idleEntry.runtimeState)) return
-    if (this.isSessionBusy(sessionId)) return
-    void this.closeSession(sessionId)
-  }
-
-  /**
-   * Acquire a warm-connection lease for a window displaying this session. The first holder primes
-   * the connection ({@link primeConnection}); later holders re-prime so the slash-command catalog
-   * is republished for windows that mount after the initial publish. An unmanaged sender (no
-   * WebContents) cannot be tracked as a holder — it still primes, and the idle TTL reaps the
-   * connection if nothing else holds it.
-   */
-  acquireWarmLease(sessionId: string, sender: Electron.WebContents | undefined): void {
-    const pendingTeardown = this.pendingWarmTeardowns.get(sessionId)
-    if (pendingTeardown) {
-      clearTimeout(pendingTeardown)
-      this.pendingWarmTeardowns.delete(sessionId)
-    }
-    if (sender && !sender.isDestroyed()) {
-      let holders = this.warmLeaseHolders.get(sessionId)
-      if (!holders) {
-        holders = new Set()
-        this.warmLeaseHolders.set(sessionId, holders)
-      }
-      holders.add(sender)
-      this.trackWarmLeaseSender(sessionId, sender)
-    }
-    // A canceled pending teardown means the backend is still warm and its catalog cache intact —
-    // skip the redundant re-prime.
-    if (!pendingTeardown) {
-      void this.primeConnection(sessionId)
-    }
-  }
-
-  /**
-   * Release one window's warm lease. The actual teardown (warm-query park + primed connection)
-   * starts only when no window holds the session anymore, and then only after
-   * {@link WARM_LEASE_RELEASE_DELAY_MS} with no re-acquire.
-   */
-  releaseWarmLease(sessionId: string, sender: Electron.WebContents | undefined): void {
-    if (sender) {
-      const record = this.warmLeaseSenders.get(sender)
-      if (record) {
-        record.sessionIds.delete(sessionId)
-        if (record.sessionIds.size === 0) {
-          this.warmLeaseSenders.delete(sender)
-          record.dispose()
-        }
-      }
-      this.dropWarmLeaseHolder(sessionId, sender)
-      return
-    }
-    // Unmanaged sender: it was never tracked as a holder, so only tear down when no managed
-    // window holds the session either.
-    if (!this.warmLeaseHolders.has(sessionId)) this.scheduleWarmTeardown(sessionId)
-  }
-
-  private trackWarmLeaseSender(sessionId: string, sender: Electron.WebContents): void {
-    let record = this.warmLeaseSenders.get(sender)
-    if (!record) {
-      const onDestroyed = () => this.releaseWarmLeasesForSender(sender)
-      sender.once('destroyed', onDestroyed)
-      record = { sessionIds: new Set(), dispose: () => sender.removeListener('destroyed', onDestroyed) }
-      this.warmLeaseSenders.set(sender, record)
-    }
-    record.sessionIds.add(sessionId)
-  }
-
-  private releaseWarmLeasesForSender(sender: Electron.WebContents): void {
-    const record = this.warmLeaseSenders.get(sender)
-    if (!record) return
-    this.warmLeaseSenders.delete(sender)
-    record.dispose()
-    for (const sessionId of record.sessionIds) {
-      this.dropWarmLeaseHolder(sessionId, sender)
-    }
-  }
-
-  private dropWarmLeaseHolder(sessionId: string, sender: Electron.WebContents): void {
-    const holders = this.warmLeaseHolders.get(sessionId)
-    // Unknown holder (double release, or release without acquire): leave teardown to the idle TTL
-    // rather than guessing another window's state.
-    if (!holders?.delete(sender)) return
-    if (holders.size > 0) return
-    this.warmLeaseHolders.delete(sessionId)
-    this.scheduleWarmTeardown(sessionId)
-  }
-
-  private scheduleWarmTeardown(sessionId: string): void {
-    const existing = this.pendingWarmTeardowns.get(sessionId)
-    if (existing) clearTimeout(existing)
-    const timer = setTimeout(() => {
-      this.pendingWarmTeardowns.delete(sessionId)
-      // Prewarm opens a real runtime connection, so releasing the warm-query park alone would
-      // leak the primed subprocess until the idle TTL.
-      application.get('ClaudeCodeWarmQueryManager').closeAgentSessionWarm(sessionId)
-      this.releaseIdleConnection(sessionId)
-    }, WARM_LEASE_RELEASE_DELAY_MS)
-    timer.unref()
-    this.pendingWarmTeardowns.set(sessionId, timer)
-  }
-
-  private disposeWarmLeases(): void {
+  private disposeEditInputs(): void {
     for (const record of this.pendingEditInputs.values()) record.dispose()
     this.pendingEditInputs.clear()
-    for (const timer of this.pendingWarmTeardowns.values()) clearTimeout(timer)
-    this.pendingWarmTeardowns.clear()
-    for (const record of this.warmLeaseSenders.values()) record.dispose()
-    this.warmLeaseSenders.clear()
-    this.warmLeaseHolders.clear()
   }
 
   /**
@@ -1735,8 +1727,16 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   isSessionBusyForArchive(sessionId: string): boolean {
-    const entry = this.entries.get(sessionId)
-    return this.isSessionBusy(sessionId) || Boolean(entry && hasAgentSessionRuntimeBackgroundWork(entry.runtimeState))
+    if (this.forks.edits.has(sessionId)) return true
+    return Iterator.from(this.allEntries()).some((entry) => entry.sessionId === sessionId && this.entryCanWrite(entry))
+  }
+
+  private entryCanWrite(entry: AgentSessionRuntimeEntry): boolean {
+    return (
+      !!entry.closing ||
+      isAgentSessionRuntimeBusy(entry.runtimeState) ||
+      hasAgentSessionRuntimeBackgroundWork(entry.runtimeState)
+    )
   }
 
   /** Turn-local notification authority. Undefined lets the resolver use the linked source channel. */
@@ -1751,16 +1751,15 @@ export class AgentSessionRuntimeService extends BaseService {
     if (this.forks.edits.size || this.failedClosures.size) return true
     if (this.closingSessions.size > 0) return true
     if (this.inFlightChildWrites.size > 0) return true
-    for (const sessionId of this.entries.keys()) {
-      if (this.isSessionBusyForArchive(sessionId)) return true
-    }
+    if (this.recovery || this.replyRecoveries.size) return true
+    for (const entry of this.allEntries()) if (this.entryCanWrite(entry)) return true
     return false
   }
 
   /** Connections without confirmed teardown still own their runtime transcripts. */
   listClaimedResumeTokens(): ReadonlySet<string> {
     const claimedResumeTokens = new Set<string>()
-    for (const entry of this.entries.values()) {
+    for (const entry of this.allEntries()) {
       if (entry.lastResumeToken) claimedResumeTokens.add(entry.lastResumeToken)
     }
     for (const closing of this.closingSessions.values()) {
@@ -1784,10 +1783,10 @@ export class AgentSessionRuntimeService extends BaseService {
    */
   willContinueTopic(topicId: string): boolean {
     if (!isAgentSessionTopic(topicId)) return false
-    const entry = this.entries.get(extractAgentSessionId(topicId))
-    if (!entry) return false
-    // A steer transition means A1a just closed and the continuation (A2) is coming — keep the
-    // stream alive so A2 carries the renderer listeners.
+    const contextId = extractAgentContextId(topicId)
+    const entry = this.entryForContext(extractAgentSessionId(topicId), contextId)
+    if (entry?.topicId !== topicId) return false
+    // A native run handoff keeps the stream alive until its successor carries the listeners.
     // `compacting`: a compaction is mid-flight between turns; keep the stream alive so its
     // compaction-anchor / completion chunks (and the resumed turn) still reach the renderer.
     return willAgentSessionRuntimeContinue(entry.runtimeState)
@@ -1801,7 +1800,7 @@ export class AgentSessionRuntimeService extends BaseService {
     return {
       sessionId: entry.sessionId,
       topicId: entry.topicId,
-      assistantMessageId: turn?.assistantMessageId,
+      assistantMessageId: turn?.runId,
       status: this.runtimeStatus(entry),
       pendingMessageCount: entry.runtimeState.queue.length,
       lastTerminalStatus: entry.runtimeState.lastTerminal,
@@ -1812,7 +1811,7 @@ export class AgentSessionRuntimeService extends BaseService {
 
   // ── Write quiesce (backup restore) ───────────────────────────────
   // Contract shared with JobManager / AiStreamManager / ChannelManager (issues
-  // #16849/#16850). Every queued, steer-continuation, receive-only and deferred launch
+  // #16849/#16850). Every queued, native Run handoff, receive-only and deferred launch
   // enters through the same state-machine gate before it can consume state or write a
   // placeholder. A pause therefore leaves work represented in memory and DB-consistent;
   // the last hold's disposal re-kicks the exact suppressed target.
@@ -1825,7 +1824,7 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   /**
-   * Pause autonomous launches: queued follow-ups, steer continuations, receive-only wakes
+   * Pause autonomous launches: queued follow-ups, native Run handoffs, receive-only wakes
    * and deferred turns are suppressed before their launch body while any hold is live.
    * In-flight launches keep running until drained. No resume() — dispose your own hold;
    * the last disposal re-kicks suppressed starts. A dropped hold fails closed.
@@ -1879,7 +1878,7 @@ export class AgentSessionRuntimeService extends BaseService {
         const remove = () => pending.delete(fork.promise)
         fork.promise.then(remove, remove)
       }
-      for (const [sessionId, launch] of this.inFlightTurnStarts) {
+      for (const [{ sessionId }, launch] of this.inFlightTurnStarts) {
         if (seen.has(launch)) continue
         seen.add(launch)
         pending.set(launch, sessionId)
@@ -1893,7 +1892,17 @@ export class AgentSessionRuntimeService extends BaseService {
         const remove = () => pending.delete(writing)
         writing.then(remove, remove)
       }
-      for (const [sessionId, entry] of this.entries) {
+      for (const work of [...this.replyRecoveries, ...(this.recovery ? [this.recovery] : [])]) {
+        if (seen.has(work)) continue
+        seen.add(work)
+        pending.set(work, 'durable-recovery')
+        work.then(
+          () => pending.delete(work),
+          () => pending.delete(work)
+        )
+      }
+      for (const entry of this.allEntries()) {
+        const { sessionId } = entry
         const connection = this.currentConnection(entry)
         if (!connection?.drainChildWrites || drainedConnections.has(connection)) continue
         drainedConnections.add(connection)
@@ -1956,8 +1965,9 @@ export class AgentSessionRuntimeService extends BaseService {
   listActiveWork(): Array<{ id: string; summary: string }> {
     const work: Array<{ id: string; summary: string }> = []
     const activeSessionIds = new Set<string>()
-    for (const [sessionId, entry] of this.entries) {
-      if (!this.isSessionBusyForArchive(sessionId)) continue
+    for (const entry of this.allEntries()) {
+      const { sessionId } = entry
+      if (!this.entryCanWrite(entry)) continue
       activeSessionIds.add(sessionId)
       const turn = this.liveTurn(entry) ? 'live' : '-'
       work.push({
@@ -1981,7 +1991,8 @@ export class AgentSessionRuntimeService extends BaseService {
    *  draining the map, so a newer hold (or shutdown) inherits the debt. */
   private runReleaseCompensation(): void {
     if (this.isShuttingDown || this.isWriteQuiesced) return
-    for (const entry of this.entries.values()) {
+    if (this.recoveryDue) void this.resumeRecovery().catch((error) => logger.warn('Agent recovery failed', { error }))
+    for (const entry of this.allEntries()) {
       if (entry.runtimeState.launch.kind !== 'suppressed') continue
       this.applyRuntimeStateEvent(entry, { type: 'launch-resumed' })
     }
@@ -2049,7 +2060,7 @@ export class AgentSessionRuntimeService extends BaseService {
     if (!dispatched) return { ok: false, reason: 'rejected' }
 
     if (dispatched.presentation === 'stream') {
-      const entry = this.entries.get(dispatched.sessionId)
+      const entry = this.entryForContext(dispatched.sessionId, dispatched.contextId)
       if (entry) {
         getAgentSessionRuntimeNativeTurn(entry.runtimeState)?.projection?.resolveToolApproval(
           dispatched.toolCallId,
@@ -2060,7 +2071,7 @@ export class AgentSessionRuntimeService extends BaseService {
       application
         .get('AiStreamManager')
         .resolveToolApproval(
-          buildAgentSessionTopicId(dispatched.sessionId),
+          entry?.topicId ?? buildAgentSessionTopicId(dispatched.sessionId, dispatched.contextId),
           dispatched.toolCallId,
           guardedDecision.approved
         )
@@ -2080,51 +2091,20 @@ export class AgentSessionRuntimeService extends BaseService {
     return await connection.stopTask(taskId)
   }
 
-  private readonly childSubscriptions = new ProjectionSubscriptions()
-
-  detachChild(sender: Electron.WebContents, id: string): void {
-    this.childSubscriptions.detach(sender, id)
-  }
-
-  attachChild(
-    sender: Electron.WebContents,
-    sessionId: string,
-    toolCallId: string,
-    id: string,
-    send: (update: MessageProjectionUpdate) => void
-  ): Promise<MessageProjectionView | null> {
-    return this.childSubscriptions.attach(
-      sender,
-      id,
-      async () => {
-        await this.primeConnection(sessionId)
-        const entry = this.entries.get(sessionId)
-        let connection: AgentRuntimeConnection | undefined
-        try {
-          if (entry && (await this.ensureConnection(entry))) connection = this.currentConnection(entry)
-        } catch (error) {
-          logger.warn('Failed to connect child subscriber', { sessionId, error })
-        }
-        if (entry && this.entries.get(sessionId) !== entry) return null
-        const child = await connection?.childProjection?.(toolCallId)
-        if (entry && (this.entries.get(sessionId) !== entry || this.currentConnection(entry) !== connection))
-          return null
-        if (child) return child
-        const context = childContexts.findChild(sessionId, toolCallId)
-        if (!context) return null
-        const view = savedChildView(context)
-        return { snapshot: () => view, subscribe: () => () => {} }
-      },
-      send
-    )
-  }
-
   async messageChild(sessionId: string, contextId: string, text: string): Promise<void> {
     if (this.isShuttingDown || this.isWriteQuiesced) throw new Error('Session writes are paused')
-    const entry = this.entries.get(sessionId)
-    const connection = entry && this.currentConnection(entry)
-    if (!connection?.messageChild) throw new Error('Child native owner is unavailable')
-    const writing = Promise.resolve().then(() => connection.messageChild!(contextId, text))
+    const child = childContexts.context(contextId)
+    if (!child.parentContextId || !child.nativeThreadId) throw new Error('Child native owner is unavailable')
+    let root = childContexts.context(child.parentContextId)
+    while (root.parentContextId) root = childContexts.context(root.parentContextId)
+    if (root.sessionId !== sessionId || childContexts.backend(root.backendId).locator.kind === 'claude-code')
+      throw new Error('Child native owner is unavailable')
+    const writing = (async () => {
+      const connection = await this.commandConnection(sessionId, root)
+      if (!connection?.messageChild || connection.contextId !== root.id)
+        throw new Error('Child native owner is unavailable')
+      await connection.messageChild(contextId, text)
+    })()
     this.inFlightChildWrites.set(writing, sessionId)
     this.syncRuntimeActivity()
     try {
@@ -2145,7 +2125,7 @@ export class AgentSessionRuntimeService extends BaseService {
       return false
     }
     const completedAt = Date.now()
-    return application.get('AiStreamManager').addCompletedRuntimeSpan(entry.topicId, turn.assistantMessageId, {
+    return application.get('AiStreamManager').addCompletedRuntimeSpan(entry.topicId, turn.runId, {
       id: `tool:${input.toolCallId}`,
       kind: 'tool-execution',
       toolCallId: input.toolCallId,
@@ -2155,9 +2135,10 @@ export class AgentSessionRuntimeService extends BaseService {
     })
   }
 
-  abortPendingTurn(sessionId: string, reason: string): boolean {
-    const entry = this.entries.get(sessionId)
-    const turn = entry ? this.liveTurn(entry) : undefined
+  abortPendingTurn(sessionId: string, reason: string, contextId?: string): boolean {
+    const entry = this.entryForContext(sessionId, contextId)
+    if (!entry || (contextId && entry.topicId !== buildAgentSessionTopicId(sessionId, contextId))) return false
+    const turn = this.liveTurn(entry)
     if (!turn || turn.abortController.signal.aborted) return false
     turn.abortController.abort(reason)
     return true
@@ -2165,25 +2146,29 @@ export class AgentSessionRuntimeService extends BaseService {
 
   protected async onStop(): Promise<void> {
     this.isShuttingDown = true
+    this.startupRecovery.resolve()
+    await Promise.allSettled([...this.replyRecoveries, this.recovery])
     await this.forks.cancel()
-    this.disposeWarmLeases()
+    this.disposeEditInputs()
     const streamManager = application.get('AiStreamManager')
-    for (const entry of this.entries.values()) {
+    for (const entry of this.allEntries()) {
       if (this.liveTurn(entry)) streamManager.abort(entry.topicId, 'agent-session-runtime-stop')
     }
+    await this.closeAll()
     try {
       toolApprovalRegistry.clear('agent-session-runtime-stop')
     } catch (error) {
       logger.warn('Failed to clear agent runtime approvals during stop', { error })
     }
-    await this.closeAll()
   }
 
   protected async onDestroy(): Promise<void> {
-    this.childSubscriptions.dispose()
+    this.isShuttingDown = true
+    await Promise.allSettled([...this.replyRecoveries, this.recovery])
+    childTimelines.subscriptions.dispose()
     await this.forks.cancel()
     this._onApprovalRequested.dispose()
-    this.disposeWarmLeases()
+    this.disposeEditInputs()
     await this.closeAll()
     try {
       toolApprovalRegistry.clear('agent-session-runtime-destroy')
@@ -2194,33 +2179,93 @@ export class AgentSessionRuntimeService extends BaseService {
     this._onRuntimeIdle.dispose()
   }
 
-  private isCurrentEntry(entry: AgentSessionRuntimeEntry): boolean {
-    return this.entries.get(entry.sessionId) === entry
+  private entryForContext(sessionId: string, contextId?: string) {
+    const selected = this.entries.get(sessionId)
+    if (!contextId || (selected && this.currentConnection(selected)?.contextId === contextId)) return selected
+    const owner = this.secondaryRoots.get(contextId)
+    return owner?.sessionId === sessionId ? owner : undefined
   }
 
-  /**
-   * Model the session's connection should serve right now. A live turn runs on the model captured
-   * when it was created — its assistant row, persistence and trace are already stamped with it, so
-   * a model edit landing between turn creation and its stream opening must NOT retarget the
-   * connection (the turn would execute on a different model than it records). A steer roll counts as
-   * live too: at a `steer-boundary` A1a is already terminal while the steer-transition stays active and the
-   * same SDK query keeps streaming the post-steer response on A1a's captured model — retargeting in
-   * that gap (e.g. a re-prime re-entering `ensureConnection`) would close the connection and drop the
-   * continuation. Mirrors the live-turn test in `applyAgentModelUpdate`. Without a live turn or roll
-   * the connection follows the agent's latest model and its configured reasoning effort — the same
-   * fallback a fresh turn takes (`AgentChatContextProvider`), so an idle reconcile finds no drift.
-   *
-   * The turn's Fast and knowledge selections are frozen for exactly the same reason and on the same schedule.
-   * Note the idle branch's `knowledgeBaseIds: []` means "no per-turn composer selection", NOT "no
-   * knowledge": it is fed through `resolveKnowledgeBaseScope` against the agent's binding below, so a
-   * statically bound agent still serves its full binding while idle. Idle deliberately converges on
-   * the agent's own configuration, so any turn that carried a composer selection (an unbound agent's
-   * whole scope, or a bound agent's narrowing) costs one rebuild once it goes idle. That is
-   * intentional: the next turn's *selection* is unknowable, and prewarm builds binding-only scope
-   * too, so pinning the last turn's selection would only move the rebuild onto the next turn that
-   * does not repeat it. A configured reasoning effort is not a selection — it is what the next turn
-   * uses absent an override — so reading it here is what keeps idle free of permanent drift.
-   */
+  private selectRecoveredRoot(sessionId: string, head?: string) {
+    const selected = this.entries.get(sessionId)
+    if (!head || !this.secondaryRoots.size) return selected
+    const context = childContexts.branchTx(application.get('DbService').getDb(), sessionId, head)
+    const owner = context && this.secondaryRoots.get(context.id)
+    if (!owner) return selected
+    if (owner.closing) throw new AgentSessionEditError('busy')
+    if (selected) {
+      this.assertSessionEditable(sessionId)
+      void this.closeSession(sessionId)
+    }
+    this.secondaryRoots.delete(context.id)
+    owner.secondaryContextId = undefined
+    if (this.runtimeStatus(owner) === 'idle') owner.branchHead = head
+    this.entries.set(sessionId, owner)
+    this.setBranchStream(sessionId, owner.topicId)
+    return owner
+  }
+
+  private *allEntries(): IterableIterator<AgentSessionRuntimeEntry> {
+    yield* this.entries.values()
+    yield* this.secondaryRoots.values()
+  }
+
+  private entryForTurn(sessionId: string, matches: (turn: AgentSessionRun) => boolean) {
+    const owns = (entry: AgentSessionRuntimeEntry) =>
+      entry.sessionId === sessionId && getAgentSessionRuntimeTurns(entry.runtimeState).some(matches)
+    const selected = this.entries.get(sessionId)
+    if (selected && owns(selected)) return selected
+    return [...this.secondaryRoots.values()].find(owns)
+  }
+
+  adoptDurableConnection(
+    input: AgentRuntimeConnectInput,
+    context: AgentSessionContextRow,
+    connection: AgentRuntimeConnection
+  ): void {
+    const secondary = this.secondaryRoots.get(context.id)
+    const selected = this.entries.get(input.sessionId)
+    const head = selected?.branchHead ?? agentSessionMessageService.captureHead(input.sessionId)
+    const foreground =
+      !secondary &&
+      ((selected && this.currentConnection(selected)?.contextId === context.id) ||
+        (head &&
+          childContexts.branchTx(application.get('DbService').getDb(), input.sessionId, head)?.id === context.id))
+    const owner = secondary ?? (foreground ? selected : undefined)
+    if (owner && (owner.closing || this.connectionAttempts.has(owner) || this.currentConnection(owner))) return
+    const entry: AgentSessionRuntimeEntry = owner ?? {
+      sessionId: input.sessionId,
+      agentId: input.agentId,
+      agentType: 'pi-durable',
+      modelId: input.modelId,
+      secondaryContextId: foreground ? undefined : context.id,
+      branchHead: foreground ? head : input.branchHead,
+      topicId: buildAgentSessionTopicId(input.sessionId, foreground ? undefined : context.id),
+      runtimeState: createAgentSessionRuntimeState()
+    }
+    if (foreground) this.entries.set(input.sessionId, entry)
+    else this.secondaryRoots.set(context.id, entry)
+    entry.recoveryHeadless = input.headless
+    const attemptId = uuidv7()
+    entry.connectionGeneration = attemptId
+    this.applyRuntimeStateEvent(entry, { type: 'connection-started', attemptId })
+    this.observeConnection(entry, connection, input.modelId, attemptId)
+    if (entry.pendingInputs?.size) {
+      void this.reconcilePendingInputs(entry, connection, attemptId).catch((error) =>
+        logger.warn('Failed to reconcile pending inputs on adopted connection', {
+          sessionId: entry.sessionId,
+          error
+        })
+      )
+    }
+  }
+
+  private isCurrentEntry(entry: AgentSessionRuntimeEntry): boolean {
+    if (this.entries.get(entry.sessionId) === entry) return true
+    return !!entry.secondaryContextId && this.secondaryRoots.get(entry.secondaryContextId) === entry
+  }
+
+  /** Resolve live work against its captured configuration; idle connections follow the agent's current settings. */
   private connectionTarget(
     entry: AgentSessionRuntimeEntry,
     // `agentService.getAgent` is four queries (the row, its MCPs, its knowledge bases, the model
@@ -2298,12 +2343,8 @@ export class AgentSessionRuntimeService extends BaseService {
       const target = this.connectionTarget(entry)
       const connection = this.currentConnection(entry)
       if (connection) {
-        // A connection carrying a live SDK stream is NEVER reconciled here: closing it would drop
-        // the stream. The execution admission phase is load-bearing — the steer continuation (A2)
-        // is pre-admitted and `flush-transition` moves it to a normal turn BEFORE openTurnStream reaches
-        // this point, so `admitted` alone protects the still-streaming roll. (This also closes
-        // #16796's steer-window edge case: the continuation always reuses the transition's connection.)
-        // A fresh, unadmitted turn DOES reconcile — it must run on the latest config.
+        // Reconciliation would close an admitted native execution, including its queued Run handoff.
+        // Fresh unadmitted work still reconciles to the current configuration.
         const turn = this.currentTurn(entry)
         if (
           isAgentSessionRuntimeAutonomous(entry.runtimeState) ||
@@ -2376,7 +2417,7 @@ export class AgentSessionRuntimeService extends BaseService {
       // can't each spin up a connection (the second would leak/clobber the first). Whatever that
       // connect produces, loop and re-check it — a stale attempt self-discards in `connect()` and a
       // fresh one passes the reconcile above.
-      const existingAttempt = this.connectionAttempts.get(entry.sessionId)
+      const existingAttempt = this.connectionAttempts.get(entry)
       if (existingAttempt) {
         await existingAttempt.promise.catch(() => false)
         continue
@@ -2386,8 +2427,8 @@ export class AgentSessionRuntimeService extends BaseService {
       entry.connectionGeneration = attemptId
       this.applyRuntimeStateEvent(entry, { type: 'connection-started', attemptId })
       const connecting = this.connect(entry, target, attemptId).finally(() => {
-        if (this.connectionAttempts.get(entry.sessionId)?.id === attemptId) {
-          this.connectionAttempts.delete(entry.sessionId)
+        if (this.connectionAttempts.get(entry)?.id === attemptId) {
+          this.connectionAttempts.delete(entry)
         }
         if (
           this.isCurrentEntry(entry) &&
@@ -2397,7 +2438,7 @@ export class AgentSessionRuntimeService extends BaseService {
           this.applyRuntimeStateEvent(entry, { type: 'connection-disconnected' })
         }
       })
-      this.connectionAttempts.set(entry.sessionId, { id: attemptId, promise: connecting })
+      this.connectionAttempts.set(entry, { id: attemptId, promise: connecting })
       const connected = await connecting
       if (connected) return true
     }
@@ -2416,7 +2457,7 @@ export class AgentSessionRuntimeService extends BaseService {
     this.hydrateResumeToken(entry)
     if (!this.isCurrentEntry(entry)) return false
 
-    const connection = await driver.connect({
+    const request: AgentRuntimeConnectInput = {
       sessionId: entry.sessionId,
       agentId: entry.agentId,
       modelId: target.modelId,
@@ -2430,53 +2471,147 @@ export class AgentSessionRuntimeService extends BaseService {
       trace: this.sessionTraceContext(entry, target.modelId),
       nativeSessionId: agentSessionMessageService.getNativeSessionId(entry.sessionId, entry.branchHead),
       branchHead: entry.branchHead,
+      ...this.inputCallbacks(entry, attemptId)
+    }
+    const connection = await driver.connect(request)
+    const attempt = this.connectionAttempts.get(entry)
+    const interrupt = attempt?.id === attemptId && attempt.interrupt
+    const owner = connection.contextId && this.entryForContext(entry.sessionId, connection.contextId)
+    if (owner && owner !== entry && this.currentConnection(owner) === connection) {
+      if (this.isCurrentEntry(entry)) throw new AgentSessionEditError('busy')
+      return false
+    }
+    if (!this.isCurrentGeneration(entry, attemptId) || entry.closing || !this.connectionTargetEquals(entry, target)) {
+      await this.closeRuntimeConnection(connection, entry, false, interrupt)
+      return false
+    }
+
+    if (!this.observeConnection(entry, connection, target.modelId, attemptId)) {
+      await this.closeRuntimeConnection(connection, entry, false, interrupt)
+      return false
+    }
+    await this.reconcilePendingInputs(entry, connection, attemptId)
+    return (
+      this.isCurrentGeneration(entry, attemptId) &&
+      this.currentConnection(entry) === connection &&
+      (connection.preparedFor?.(request) ?? true)
+    )
+  }
+
+  private inputCallbacks(
+    entry: AgentSessionRuntimeEntry,
+    attemptId: string
+  ): Pick<AgentRuntimeConnectInput, 'onSteerInjected' | 'onInputPrepared'> {
+    return {
       onSteerInjected: (inputIds) => {
-        if (this.isCurrentGeneration(entry, attemptId))
-          this.reserveSteerContinuation(entry, this.pendingInputValues(entry, inputIds))
+        const run = getAgentSessionRuntimeNativeTurn(entry.runtimeState)
+        if (run && this.isTurnLive(entry, run) && this.isCurrentGeneration(entry, attemptId))
+          this.attachRunInputs(entry, run, this.pendingInputValues(entry, inputIds))
       },
       onInputPrepared: (inputId, contextId) => {
         if (!this.isCurrentGeneration(entry, attemptId)) return
         const pending = entry.pendingInputs?.get(inputId)
         if (pending?.generation === attemptId) pending.contextId = contextId
       }
-    })
-    const attempt = this.connectionAttempts.get(entry.sessionId)
-    const interrupt = attempt?.id === attemptId && attempt.interrupt
-    if (!this.isCurrentEntry(entry) || entry.closing || !this.connectionTargetEquals(entry, target)) {
-      await this.closeRuntimeConnection(connection, entry.sessionId, false, interrupt)
-      return false
     }
+  }
 
+  private observeConnection(
+    entry: AgentSessionRuntimeEntry,
+    connection: AgentRuntimeConnection,
+    modelId: UniqueModelId,
+    attemptId: string
+  ): boolean {
+    if (this.currentConnection(entry) === connection) return this.isCurrentGeneration(entry, attemptId)
     this.applyRuntimeStateEvent(entry, { type: 'connection-connected', attemptId, connection })
-    if (this.currentConnection(entry) !== connection) {
-      await this.closeRuntimeConnection(connection, entry.sessionId, false, interrupt)
-      return false
-    }
-    entry.contextUsageModel = target.modelId
+    if (this.currentConnection(entry) !== connection) return false
+    connection.bindInputs?.(this.inputCallbacks(entry, attemptId))
+    entry.contextUsageModel = modelId
     entry.usageCapture = connection.usageCapture
     this.resetConnectionRuntimeState(entry, connection)
-    // Priming opens an idle connection only to populate connection-local metadata such as slash
-    // commands. Context usage is expensive (the SDK issues multiple token-count probes), so defer it
-    // until a real turn, a runtime event, or an explicit UI refresh needs a reading.
     if (this.runtimeStatus(entry) === 'active') this.refreshContextUsage(entry, connection)
-    this.refreshSupportedCommands(entry, connection)
     const connectionLoop = this.runConnectionLoop(entry, connection).finally(() => {
       if (this.isCurrentEntry(entry) && this.currentConnection(entry) === connection && !entry.closing) {
-        void this.closeRuntimeConnection(connection, entry.sessionId)
+        void this.closeRuntimeConnection(connection, entry)
         this.resetConnectionRuntimeState(entry, connection)
         this.applyRuntimeStateEvent(entry, { type: 'connection-disconnected', connection })
         entry.connectionGeneration = undefined
+        if (entry.secondaryContextId) this.secondaryRoots.delete(entry.secondaryContextId)
       }
       if (entry.stopping?.connection === connection) entry.stopping.confirmed()
       if (entry.connectionLoop === connectionLoop) entry.connectionLoop = undefined
     })
     entry.connectionLoop = connectionLoop
-    await this.reconcilePendingInputs(entry, connection, attemptId)
-    return this.isCurrentGeneration(entry, attemptId) && this.currentConnection(entry) === connection
+    return true
   }
 
   private isCurrentGeneration(entry: AgentSessionRuntimeEntry, generation: string): boolean {
     return this.isCurrentEntry(entry) && entry.connectionGeneration === generation
+  }
+
+  private queueUndeliveredInputs(entry: AgentSessionRuntimeEntry, inputIds: readonly string[]): void {
+    for (const id of inputIds) {
+      const pending = entry.pendingInputs?.get(id)
+      if (!pending) continue
+      this.recoverPendingInput(entry, id, pending)
+    }
+  }
+
+  private recoverPendingInput(
+    entry: AgentSessionRuntimeEntry,
+    inputId: string,
+    pending: PendingNativeInput,
+    reason?: string
+  ): void {
+    entry.pendingInputs?.delete(inputId)
+    if (pending.contextId) {
+      releaseNativeInputBinding(entry.sessionId, pending.contextId, inputId)
+      // A still-present binding means DB already recorded native placement or local handling — avoid duplicating it.
+      if (agentSessionMessageService.inputBinding(entry.sessionId, inputId)) {
+        logger.info('Skipping queue recovery for already-bound native input', {
+          sessionId: entry.sessionId,
+          inputId,
+          contextId: pending.contextId,
+          reason
+        })
+        return
+      }
+    }
+    if (!agentSessionMessageService.hasSessionMessage(entry.sessionId, inputId)) {
+      logger.warn('Dropping unrecoverable pending native input whose message no longer exists', {
+        sessionId: entry.sessionId,
+        inputId,
+        reason
+      })
+      return
+    }
+    if (reason) {
+      logger.warn('Recovering unresolved pending native input as queued steer', {
+        sessionId: entry.sessionId,
+        inputId,
+        contextId: pending.contextId,
+        reason
+      })
+    }
+    const turn = this.currentTurn(entry)
+    const options = pending.turnOptions
+    this.applyRuntimeStateEvent(entry, {
+      type: 'queue-turn',
+      turn: {
+        message: pending.input.message,
+        reasoningEffort: options?.reasoningEffort ?? turn?.reasoningEffort ?? 'default',
+        serviceTier: options?.serviceTier ?? turn?.serviceTier ?? 'standard',
+        knowledgeBaseIds: getKnowledgeBaseIdsFromParts(pending.input.message.data.parts ?? []) ?? [],
+        fastMode: options?.fastMode ?? turn?.fastMode ?? false,
+        steer: true,
+        ...(pending.input.headless ? { headless: true } : {}),
+        ...(options?.permissionModeOverride ? { permissionModeOverride: options.permissionModeOverride } : {}),
+        ...(options?.trustedNotifyChannels !== undefined
+          ? { trustedNotifyChannels: options.trustedNotifyChannels }
+          : {}),
+        ...(pending.input.messageSnapshot ? { messageSnapshot: pending.input.messageSnapshot } : {})
+      }
+    })
   }
 
   private pendingInputValues(
@@ -2494,11 +2629,9 @@ export class AgentSessionRuntimeService extends BaseService {
     return inputs
   }
 
-  private resolvePendingInput(entry: AgentSessionRuntimeEntry, contextId: string, input: InputState): void {
-    const inputId =
-      input.inputId ??
-      (input.nativeInput && agentSessionMessageService.inputMessageId(entry.sessionId, contextId, input.nativeInput.id))
-    const pending = inputId && entry.pendingInputs?.get(inputId)
+  private resolvePendingInput(entry: AgentSessionRuntimeEntry, contextId: string, input: NativeInputState): void {
+    const inputId = input.inputId
+    const pending = entry.pendingInputs?.get(inputId)
     if (!pending || pending.contextId !== contextId) return
     if (pending.generation === entry.connectionGeneration && input.facts.includes('placed')) return
     if (input.outcome || input.facts.includes('locally-handled')) {
@@ -2516,25 +2649,72 @@ export class AgentSessionRuntimeService extends BaseService {
     connection: AgentRuntimeConnection,
     generation: string
   ): Promise<void> {
-    if (!connection.lookupInput) return
-    for (const [inputId, pending] of entry.pendingInputs ?? []) {
-      if (pending.generation === generation || !pending.contextId) continue
+    for (const [inputId, pending] of [...(entry.pendingInputs ?? [])]) {
+      if (
+        !this.isCurrentGeneration(entry, generation) ||
+        this.currentConnection(entry) !== connection ||
+        entry.closing ||
+        this.isShuttingDown
+      )
+        return
+      if (pending.generation === generation) continue
+      if (entry.pendingInputs?.get(inputId) !== pending) continue
+      if (!pending.contextId || !connection.lookupInput) {
+        this.recoverPendingInput(entry, inputId, pending, !pending.contextId ? 'missing-context' : 'no-lookup')
+        continue
+      }
       let result: Awaited<ReturnType<NonNullable<AgentRuntimeConnection['lookupInput']>>>
       try {
         result = await connection.lookupInput(pending.contextId, inputId)
       } catch (error) {
         logger.warn('Pending native input lookup failed', { sessionId: entry.sessionId, inputId, error })
+        if (
+          !this.isCurrentGeneration(entry, generation) ||
+          this.currentConnection(entry) !== connection ||
+          entry.closing ||
+          this.isShuttingDown
+        )
+          return
+        if (entry.pendingInputs?.get(inputId) === pending) {
+          this.recoverPendingInput(entry, inputId, pending, 'lookup-failed')
+        }
         continue
       }
-      if (!this.isCurrentGeneration(entry, generation) || this.currentConnection(entry) !== connection) return
-      if (result.status === 'confirmed' && result.value.found)
-        this.resolvePendingInput(entry, pending.contextId, result.value.input)
-      else
-        logger.warn('Pending native input remains unresolved', {
-          sessionId: entry.sessionId,
-          inputId,
-          contextId: pending.contextId
-        })
+      if (
+        !this.isCurrentGeneration(entry, generation) ||
+        this.currentConnection(entry) !== connection ||
+        entry.closing ||
+        this.isShuttingDown
+      )
+        return
+      if (entry.pendingInputs?.get(inputId) !== pending) continue
+      if (result.status === 'confirmed' && result.value.found) {
+        const input = result.value.input
+        if (input.outcome || input.facts.includes('locally-handled')) {
+          this.resolvePendingInput(entry, pending.contextId, input)
+          continue
+        }
+        if (
+          entry.agentType === 'pi-durable' &&
+          connection.contextId === pending.contextId &&
+          (input.facts.includes('queued') || input.facts.includes('placed'))
+        ) {
+          pending.generation = generation
+          continue
+        }
+        if (input.facts.includes('placed')) {
+          entry.pendingInputs?.delete(inputId)
+          logger.warn('Clearing already-placed pending native input from prior generation', {
+            sessionId: entry.sessionId,
+            inputId,
+            contextId: pending.contextId
+          })
+          continue
+        }
+        this.recoverPendingInput(entry, inputId, pending, 'unplaced')
+        continue
+      }
+      this.recoverPendingInput(entry, inputId, pending, result.status === 'confirmed' ? 'not-found' : result.status)
     }
   }
 
@@ -2571,27 +2751,46 @@ export class AgentSessionRuntimeService extends BaseService {
     connection = this.currentConnection(entry)
   ): void {
     switch (event.type) {
-      case 'message-projection': {
-        const turn = getAgentSessionRuntimeNativeTurn(entry.runtimeState)
-        const projection = this.rootProjection(entry, event.projection.contextId)
-        if (turn) turn.projection = projection
-        const changed = projection.accept(event.projection, turn?.assistantMessageId)
-        for (const [id, parts] of changed) this.publishRootMessage(entry, projection, id, parts)
-        for (const [replyId, input] of entry.recoveredOutcomes ?? []) {
-          entry.recoveredOutcomes!.delete(replyId)
-          // A recovered reply is not this connection's work; its failure must not fail the session.
-          try {
-            this.settleFromNativeOutcome(entry, projection, replyId, input)
-          } catch (error) {
-            logger.warn('Failed to settle a recovered reply', { sessionId: entry.sessionId, replyId, error })
+      case 'message.text-open':
+      case 'message.text-append':
+      case 'message.text-finish':
+      case 'message.parts':
+      case 'message.tool-output': {
+        const projection = entry.rootProjections?.get(event.contextId)
+        if (!projection) break
+        for (const { messageId, patch, completed } of projection.changePart(event)) {
+          const turn = getAgentSessionRuntimeNativeTurn(entry.runtimeState)
+          if (turn?.runId === messageId && turn.controller && this.isTurnLive(entry, turn)) {
+            if (patch.type === 'part-put' || patch.type === 'part-add') this.clearApiRetry(entry)
+            if ((patch.type === 'part-put' || patch.type === 'part-add') && isToolUIPart(patch.part) && !completed)
+              turn.activeToolIds.add(patch.part.toolCallId)
+            turn.controller.part(patch)
+            if (completed) {
+              if ((patch.type === 'part-put' || patch.type === 'part-add') && isToolUIPart(patch.part))
+                turn.activeToolIds.delete(patch.part.toolCallId)
+              this.saveCompletedParts(entry, turn, completed)
+            }
+          } else if (
+            completed ||
+            (patch.type === 'part-put' && isToolUIPart(patch.part) && patch.part.state === 'input-available')
+          ) {
+            const entries = projection.replyEntries(messageId)
+            if (entries) this.publishRootMessage(entry, projection, messageId, entries)
           }
         }
         break
       }
+      case 'message-projection': {
+        const turn = getAgentSessionRuntimeNativeTurn(entry.runtimeState)
+        const projection = this.rootProjection(entry, event.projection.contextId)
+        if (turn) turn.projection = projection
+        const changed = projection.accept(event.projection, turn?.runId)
+        for (const [id, entries] of changed) this.publishRootMessage(entry, projection, id, entries)
+        break
+      }
       case 'response-start': {
         const turn = getAgentSessionRuntimeNativeTurn(entry.runtimeState)
-        if (turn && (!event.messageId || event.messageId === turn.assistantMessageId))
-          this.bindUsage(entry, event.responseId, turn)
+        if (turn && (!event.messageId || event.messageId === turn.runId)) this.bindUsage(entry, event.responseId, turn)
         else if (event.messageId)
           (entry.usageAttribution ??= new AgentSessionUsageAttribution()).bind(event.responseId, event.messageId)
         break
@@ -2600,13 +2799,12 @@ export class AgentSessionRuntimeService extends BaseService {
         entry.lastResumeToken = event.token
         if (this.runtimeStatus(entry) === 'active') this.refreshContextUsage(entry)
         break
-      case 'chunk': {
-        // Any content chunk means the retried request succeeded and the stream resumed — clear the
-        // ephemeral retry status (backoff windows produce no chunks, so this never fires mid-retry).
+      case 'message-metadata':
+      case 'tool-input-available':
+      case 'data-retry':
         this.clearApiRetry(entry)
-        this.deliverRuntimeChunk(entry, event.chunk)
+        this.deliverRuntimeChunk(entry, event)
         break
-      }
       case 'tool-approval-request':
         this.handleToolApprovalRequest(entry, event.request)
         break
@@ -2615,43 +2813,49 @@ export class AgentSessionRuntimeService extends BaseService {
         break
       case 'input-submission': {
         const pending = entry.pendingInputs?.get(event.result.inputId)
-        if (!pending || pending.generation !== entry.connectionGeneration || pending.contextId !== event.contextId)
-          break
+        if (!pending || pending.contextId !== event.contextId) break
+        if (pending.generation !== entry.connectionGeneration && connection !== this.currentConnection(entry)) break
         if (event.result.status === 'rejected' || event.result.status === 'unsupported')
-          this.handleRuntimeEvent(entry, { type: 'steer-undelivered', inputIds: [event.result.inputId] }, connection)
+          this.queueUndeliveredInputs(entry, [event.result.inputId])
         else if (event.result.status === 'acknowledged' && event.result.facts.includes('locally-handled'))
           entry.pendingInputs?.delete(event.result.inputId)
         break
       }
+      case 'followup-queue':
+        for (const { id, revision, parts } of event.queue) {
+          const pending = revision > 0 ? entry.pendingInputs?.get(id) : undefined
+          if (pending && pending.generation === entry.connectionGeneration) {
+            pending.input.message.data.parts = parts
+          }
+        }
+        application.get('CacheService').setShared(AGENT_SESSION_FOLLOWUPS_CACHE_KEY(entry.topicId), event.queue)
+        break
       case 'input-state':
+        if (event.input.facts.includes('locally-handled'))
+          markLocalInput(entry.sessionId, event.contextId, event.input.inputId)
+        if (event.input.facts.includes('placed')) {
+          const timeline = this.timelineFor(entry)
+          const pos = agentSessionMessageService.saveInputTimelinePosition(
+            entry.sessionId,
+            event.input.inputId,
+            event.contextId,
+            timeline.lastPos
+          )
+          if (pos !== undefined) timeline.lastPos = pos
+        }
         this.resolvePendingInput(entry, event.contextId, event.input)
         this.noteNativeOutcome(entry, event.contextId, event.input)
         break
       case 'steer-boundary':
-        // Each follow-up placement keeps its place behind earlier ones and gets its own reply.
-        if (event.followUp && (entry.deferredPlacements || this.placementWaits(entry)))
+        this.startPlacedInputs(entry, event.inputIds, connection)
+        break
+      case 'run-started':
+        if (entry.deferredPlacements || this.placementWaits(entry))
           (entry.deferredPlacements ??= []).push(event.inputIds)
-        else this.startPlacedInputs(entry, event.inputIds, connection, event.followUp)
+        else this.startPlacedInputs(entry, event.inputIds, connection, true)
         break
       case 'steer-undelivered':
-        // Steers stashed via redirect() that this turn ended before injecting → queue them as the
-        // next turn (with a steer system-reminder). The following `turn-complete` → markTurnTerminal
-        // drains the state-machine queue through the queued-turn launch.
-        for (const input of this.pendingInputValues(entry, event.inputIds, true)) {
-          this.applyRuntimeStateEvent(entry, {
-            type: 'queue-turn',
-            turn: {
-              message: input.message,
-              reasoningEffort: this.currentTurn(entry)?.reasoningEffort ?? 'default',
-              serviceTier: this.currentTurn(entry)?.serviceTier ?? 'standard',
-              knowledgeBaseIds: getKnowledgeBaseIdsFromParts(input.message.data.parts ?? []) ?? [],
-              fastMode: this.currentTurn(entry)?.fastMode ?? false,
-              steer: true,
-              ...(input.headless ? { headless: true } : {}),
-              ...(input.messageSnapshot ? { messageSnapshot: input.messageSnapshot } : {})
-            }
-          })
-        }
+        this.queueUndeliveredInputs(entry, event.inputIds)
         break
       case 'compaction-start':
         this.handleCompactionStart(entry, event.trigger)
@@ -2711,7 +2915,7 @@ export class AgentSessionRuntimeService extends BaseService {
         if (
           event.recoveredInputId &&
           !recoveredReply &&
-          this.startPlacedInputs(entry, [event.recoveredInputId], connection)
+          this.startPlacedInputs(entry, [event.recoveredInputId], connection, true)
         )
           break
         const assistantMessageId =
@@ -2720,8 +2924,8 @@ export class AgentSessionRuntimeService extends BaseService {
             ? sourceReply?.admission === 'pending' || !source
               ? ((owners.size === 1 ? owners.values().next().value : undefined) ??
                 projection?.lastMessageId ??
-                source?.assistantMessageId)
-              : source.assistantMessageId
+                source?.runId)
+              : source.runId
             : undefined)
         if (background) {
           if (!assistantMessageId) {
@@ -2731,7 +2935,7 @@ export class AgentSessionRuntimeService extends BaseService {
           const current = getAgentSessionRuntimeNativeTurn(entry.runtimeState)
           const reply = current && getAgentSessionRuntimeReply(entry.runtimeState, current)
           if (
-            current?.assistantMessageId === assistantMessageId &&
+            current?.runId === assistantMessageId &&
             reply &&
             ['open', 'attaching', 'unopened'].includes(reply.delivery.kind)
           ) {
@@ -2741,28 +2945,35 @@ export class AgentSessionRuntimeService extends BaseService {
           }
         }
         if (
-          entry.runtimeState.execution.kind === 'steer-transition' ||
+          entry.runtimeState.execution.kind === 'run-handoff' ||
           entry.runtimeState.execution.kind === 'autonomous-turn'
         )
           break
-        const headless = this.getInteractionState(entry.sessionId).userResponse === 'unavailable'
+        const recoveredInput = event.recoveredInputId
+        const headless =
+          !!entry.secondaryContextId ||
+          (recoveredInput
+            ? entry.recoveryHeadless !== false
+            : this.getInteractionState(entry.sessionId).userResponse === 'unavailable')
         const saved =
-          assistantMessageId && assistantMessageId !== source?.assistantMessageId
+          assistantMessageId && assistantMessageId !== source?.runId
             ? agentSessionMessageService.getSessionMessage(entry.sessionId, assistantMessageId)
             : undefined
         const modelId = saved?.modelId ? UniqueModelIdSchema.parse(saved.modelId) : (source?.modelId ?? entry.modelId)
-        const turn = createSessionTurn({
+        const turn = createSessionRun({
           ...this.connectionTarget(entry),
           modelId: background ? modelId : entry.modelId,
-          taskIds: [],
-          userMessage: createSyntheticUserMessage(entry.sessionId),
+          taskIds: recoveredInput ? [recoveredInput] : [],
+          userMessage: recoveredInput
+            ? agentSessionMessageService.getSessionMessage(entry.sessionId, recoveredInput)
+            : createSyntheticUserMessage(entry.sessionId),
           parentId: entry.branchHead,
           messageSnapshot: background
             ? (saved?.messageSnapshot ?? source?.messageSnapshot ?? entry.messageSnapshot)
             : entry.messageSnapshot,
           headless,
           origin: event.origin,
-          ...(background ? { assistantMessageId } : {})
+          ...(background ? { runId: assistantMessageId } : {})
         })
         if (background) turn.projection = projection
         this.clearIdleTimer(entry)
@@ -2776,10 +2987,26 @@ export class AgentSessionRuntimeService extends BaseService {
         })
         break
       }
+      case 'run-checkpoint': {
+        if (event.contextId !== connection?.contextId) break
+        const run = getAgentSessionRuntimeTurns(entry.runtimeState).find((run) => run.taskIds.includes(event.inputId))
+        const runId = run?.runId ?? agentSessionMessageService.replyTo(entry.sessionId, event.inputId)?.id
+        if (!runId) {
+          ;(entry.pendingRunCheckpoints ??= new Map()).set(event.inputId, event.forkAnchor)
+          break
+        }
+        if (run) run.forkAnchor = event.forkAnchor
+        try {
+          agentSessionMessageService.saveRunCheckpoint(entry.sessionId, runId, event.forkAnchor)
+        } catch (error) {
+          logger.warn('Could not persist Run checkpoint', { sessionId: entry.sessionId, runId, error })
+        }
+        break
+      }
       case 'turn-complete': {
         const turn = getAgentSessionRuntimeNativeTurn(entry.runtimeState)
         if (turn) {
-          turn.forkAnchor = event.forkAnchor
+          turn.forkAnchor ??= event.forkAnchor
             ? { ...event.forkAnchor, excludedMessageIds: entry.runtimeState.queue.map((item) => item.message.id) }
             : undefined
           // A native abort that Cherry did not start must still end the renderer stream as paused.
@@ -2791,8 +3018,6 @@ export class AgentSessionRuntimeService extends BaseService {
             outcome: { status: event.status ?? 'success' }
           })
         }
-        if (entry.runtimeState.execution.kind === 'turn')
-          this.applyRuntimeStateEvent(entry, { type: 'clear-steer-reservation' })
         this.clearApiRetry(entry)
         this.refreshContextUsage(entry)
         break
@@ -2809,6 +3034,8 @@ export class AgentSessionRuntimeService extends BaseService {
       case 'error':
         this.handleRuntimeError(entry, event.error)
         break
+      default:
+        event satisfies never
     }
   }
 
@@ -2817,6 +3044,12 @@ export class AgentSessionRuntimeService extends BaseService {
     trigger: AgentSessionCompactionTrigger | undefined
   ): void {
     this.invalidateContextUsage(entry)
+    entry.compactionAnchorId = crypto.randomUUID()
+    this.deliverRuntimeChunk(entry, {
+      type: 'data-compaction-anchor',
+      id: entry.compactionAnchorId,
+      data: { status: 'compacting', phase: 'agent-session', trigger, startedAt: new Date().toISOString() }
+    })
     this.applyRuntimeStateEvent(entry, { type: 'connection-occupancy', occupancy: 'compaction', active: true })
     application.get('CacheService').setShared(AGENT_SESSION_COMPACTION_CACHE_KEY(entry.sessionId), {
       status: 'compacting',
@@ -2836,25 +3069,13 @@ export class AgentSessionRuntimeService extends BaseService {
       invocation.messageAssociation === 'current-turn'
         ? getAgentSessionRuntimeNativeTurn(entry.runtimeState)
         : undefined
-    if (!invocation.responseId && invocation.messageAssociation === 'current-turn' && !turn) {
-      logger.warn('Agent SDK usage lost its active turn before persistence; recording stateless', {
-        sessionId: entry.sessionId,
-        requestId: invocation.requestId
-      })
-    }
-
     const normalizedModel = normalizeAgentSdkModelAlias(invocation.model)
     const frozenModel = capture.frozenModels.find((candidate) =>
       candidate.aliases.some((alias) => normalizeAgentSdkModelAlias(alias) === normalizedModel)
     )
     const modelId = frozenModel?.modelId ?? normalizedModel
     const apiModelId = frozenModel?.apiModelId ?? normalizedModel
-    const correlation = invocation.responseId ?? turn?.turnId
-    if (turn && correlation && !invocation.responseId) this.bindUsage(entry, correlation, turn)
-    const record = correlation
-      ? (entry.usageAttribution ??= new AgentSessionUsageAttribution()).capture(correlation)
-      : (input: Parameters<typeof aiUsageRecordService.recordInvocation>[0]) =>
-          aiUsageRecordService.recordInvocation(input)
+    const record = (entry.usageAttribution ??= new AgentSessionUsageAttribution()).capture(invocation.responseId)
     record({
       requestId: invocation.requestId,
       context: createAiUsageCaptureContext({
@@ -2862,13 +3083,9 @@ export class AgentSessionRuntimeService extends BaseService {
         providerName: capture.providerName,
         modelId,
         modelName: frozenModel?.modelName ?? invocation.model,
-        pricingSnapshot:
-          invocation.pricingSnapshot === undefined
-            ? (frozenModel?.pricingSnapshot ?? null)
-            : invocation.pricingSnapshot,
+        pricingSnapshot: frozenModel?.pricingSnapshot ?? null,
         credentialReceipt: capture.credentialReceipt,
-        source: sourceSnapshotFromMessageSnapshot(turn?.messageSnapshot) ?? capture.source,
-        messageRef: turn ? { kind: 'agent-session', id: turn.assistantMessageId } : null
+        source: sourceSnapshotFromMessageSnapshot(turn?.messageSnapshot) ?? capture.source
       }),
       modality: 'language',
       usage: invocation.usage,
@@ -2891,16 +3108,14 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   private handleCompactionComplete(entry: AgentSessionRuntimeEntry, anchor?: AgentSessionCompactionAnchorData): void {
-    this.applyRuntimeStateEvent(entry, { type: 'connection-occupancy', occupancy: 'compaction', active: false })
-
-    const turn = getAgentSessionRuntimeNativeTurn(entry.runtimeState)
-    if (anchor && turn && this.isTurnLive(entry, turn)) {
+    if (anchor || entry.compactionAnchorId)
       this.deliverRuntimeChunk(entry, {
         type: 'data-compaction-anchor',
-        id: crypto.randomUUID(),
-        data: anchor
+        id: entry.compactionAnchorId ?? crypto.randomUUID(),
+        data: anchor ?? { status: 'skipped', phase: 'agent-session' }
       })
-    }
+    delete entry.compactionAnchorId
+    this.applyRuntimeStateEvent(entry, { type: 'connection-occupancy', occupancy: 'compaction', active: false })
 
     // Completed-run metrics ride the `data-compaction-anchor` chunk above (the UI's source); the cache
     // state only tracks `status`. A no-anchor success (which can follow the boundary, or arrive on its
@@ -2929,6 +3144,13 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   private settleCompactionError(entry: AgentSessionRuntimeEntry, error?: string): void {
+    if (entry.compactionAnchorId)
+      this.deliverRuntimeChunk(entry, {
+        type: 'data-compaction-anchor',
+        id: entry.compactionAnchorId,
+        data: { status: 'skipped', phase: 'agent-session' }
+      })
+    delete entry.compactionAnchorId
     this.applyRuntimeStateEvent(entry, { type: 'connection-occupancy', occupancy: 'compaction', active: false })
     if (error) logger.warn('Agent session compaction failed', { sessionId: entry.sessionId, error })
     application
@@ -2997,23 +3219,6 @@ export class AgentSessionRuntimeService extends BaseService {
     this.refreshContextUsage(entry)
   }
 
-  // The initial slash command catalog read (`query.supportedCommands()`) once the connection is live.
-  // It only captures the catalog at init; mid-session changes arrive separately as `supported-commands`
-  // events (`commands_changed`) and are applied via the same {@link publishSupportedCommands} sink.
-  // The cached list feeds both the renderer composer and the channel `/help` listing.
-  private refreshSupportedCommands(entry: AgentSessionRuntimeEntry, connection = this.currentConnection(entry)): void {
-    if (!connection?.getSupportedCommands) return
-
-    void (async () => {
-      const commands = await connection.getSupportedCommands?.()
-      if (!commands) return
-      if (!this.isCurrentEntry(entry) || this.currentConnection(entry) !== connection) return
-      this.publishSupportedCommands(entry, commands)
-    })().catch((error) => {
-      logger.warn('Failed to refresh agent session slash commands', { sessionId: entry.sessionId, error })
-    })
-  }
-
   private publishSupportedCommands(entry: AgentSessionRuntimeEntry, commands: AgentSessionSlashCommand[]): void {
     if (!this.isCurrentEntry(entry)) return
     application.get('CacheService').setShared(AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY(entry.sessionId), commands)
@@ -3032,9 +3237,9 @@ export class AgentSessionRuntimeService extends BaseService {
     application.get('CacheService').setShared(AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY(entry.sessionId), tasks)
   }
 
-  private backgroundCallIds(entry: AgentSessionRuntimeEntry, turn: AgentSessionTurn): Set<string> {
+  private backgroundCallIds(entry: AgentSessionRuntimeEntry, turn: AgentSessionRun): Set<string> {
     const pending = getAgentSessionRuntimeReply(entry.runtimeState, turn)?.pendingResultToolCallIds ?? []
-    const parts = turn.projection?.parts(turn.assistantMessageId) ?? []
+    const parts = turn.projection?.parts(turn.runId) ?? []
     return new Set([...pending, ...parts.flatMap((part) => (isToolUIPart(part) ? [part.toolCallId] : []))])
   }
 
@@ -3094,22 +3299,22 @@ export class AgentSessionRuntimeService extends BaseService {
     ) {
       return Promise.resolve()
     }
-    const existing = this.backgroundWorkWaiters.get(entry.sessionId)
+    const existing = this.backgroundWorkWaiters.get(entry)
     if (existing?.connection === connection) return existing.promise
 
     let resolve!: () => void
     const promise = new Promise<void>((done) => {
       resolve = done
     })
-    this.backgroundWorkWaiters.set(entry.sessionId, { connection, promise, resolve })
+    this.backgroundWorkWaiters.set(entry, { connection, promise, resolve })
     this.applyRuntimeStateEvent(entry, { type: 'connection-rebuild-deferred', connection, target })
     return promise
   }
 
   private releaseBackgroundWorkWaiter(entry: AgentSessionRuntimeEntry, connection?: AgentRuntimeConnection): void {
-    const waiter = this.backgroundWorkWaiters.get(entry.sessionId)
+    const waiter = this.backgroundWorkWaiters.get(entry)
     if (!waiter || (connection && waiter.connection !== connection)) return
-    this.backgroundWorkWaiters.delete(entry.sessionId)
+    this.backgroundWorkWaiters.delete(entry)
     waiter.resolve()
   }
 
@@ -3164,11 +3369,10 @@ export class AgentSessionRuntimeService extends BaseService {
       }
     }
     for (const projection of projections) {
-      const update = projection.taskEvent(merged as unknown as AgentTaskEventPartData)
       const messageId =
-        update?.messageId ??
+        projection.taskEvent(merged as unknown as AgentTaskEventPartData) ??
         (projection === retired ? projection.toolCallMessageId(merged.toolUseId as string) : undefined)
-      if (messageId) this.publishRootMessage(entry, projection, messageId, projection.parts(messageId)!)
+      if (messageId) this.publishRootMessage(entry, projection, messageId, projection.replyEntries(messageId) ?? [])
     }
     if (isAgentSessionRuntimeAwaitingBackground(entry.runtimeState)) {
       this.deliverRuntimeChunk(entry, {
@@ -3207,7 +3411,7 @@ export class AgentSessionRuntimeService extends BaseService {
         const projection = turn.projection ?? (contextId ? this.rootProjection(entry, contextId) : undefined)
         if (projection) {
           turn.projection = projection
-          projection.control(turn.assistantMessageId, {
+          projection.control(turn.runId, {
             type: 'tool-input-available',
             toolCallId: request.toolCallId,
             toolName: request.toolName,
@@ -3218,7 +3422,7 @@ export class AgentSessionRuntimeService extends BaseService {
           })
         }
       }
-      const chunk: UIMessageChunk = {
+      const chunk: AgentControlChunk = {
         type: 'tool-approval-request',
         approvalId: request.approvalId,
         toolCallId: request.toolCallId
@@ -3292,13 +3496,13 @@ export class AgentSessionRuntimeService extends BaseService {
       this.applyRuntimeStateEvent(entry, { type: 'autonomous-turn-finished' })
     }
     const cache = application.get('CacheService')
+    if (connection.changeFollowups) cache.setShared(AGENT_SESSION_FOLLOWUPS_CACHE_KEY(entry.topicId), [])
     cache.setShared(AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY(entry.sessionId), [])
     cache.setShared(AGENT_SESSION_TASK_EVENTS_CACHE_KEY(entry.sessionId), {})
   }
 
   private handleRuntimeError(entry: AgentSessionRuntimeEntry, error: unknown): void {
     this.clearApiRetry(entry)
-    this.applyRuntimeStateEvent(entry, { type: 'clear-steer-reservation' })
     const compaction = application.get('CacheService').getShared(AGENT_SESSION_COMPACTION_CACHE_KEY(entry.sessionId))
     if (
       isAgentSessionRuntimeCompacting(entry.runtimeState) ||
@@ -3314,7 +3518,7 @@ export class AgentSessionRuntimeService extends BaseService {
     const execution = entry.runtimeState.execution
     if (
       turn &&
-      (execution.kind === 'steer-transition' ||
+      (execution.kind === 'run-handoff' ||
         execution.kind === 'autonomous-turn' ||
         (execution.kind === 'turn' && this.isTurnLive(entry, turn)))
     ) {
@@ -3333,7 +3537,7 @@ export class AgentSessionRuntimeService extends BaseService {
     }
   }
 
-  private async admitTurn(entry: AgentSessionRuntimeEntry, turn: AgentSessionTurn): Promise<void> {
+  private async admitTurn(entry: AgentSessionRuntimeEntry, turn: AgentSessionRun): Promise<void> {
     if (!this.isCurrentEntry(entry) || this.currentTurn(entry) !== turn || !this.isTurnLive(entry, turn)) return
     if (isAgentSessionRuntimeTurnAdmitted(entry.runtimeState, turn)) return
     this.applyRuntimeStateEvent(entry, { type: 'turn-admitted', turn })
@@ -3367,90 +3571,133 @@ export class AgentSessionRuntimeService extends BaseService {
     entry: AgentSessionRuntimeEntry,
     projection: RootMessageProjection,
     messageId: string,
-    parts: CherryUIMessage['parts']
+    entries: readonly ExecutionPart[]
   ): void {
-    const turn = getAgentSessionRuntimeTurns(entry.runtimeState).find(
-      (candidate) => candidate.assistantMessageId === messageId
-    )
+    const turn = getAgentSessionRuntimeTurns(entry.runtimeState).find((candidate) => candidate.runId === messageId)
     if (turn && !entry.persistedMessageIds?.has(messageId)) {
-      this.publishTurnMessage(entry, turn, parts)
+      this.publishTurnMessage(entry, turn, entries)
       return
     }
+    const positions = new Map(entries.flatMap(({ partId, pos }) => (pos === null ? [] : [[partId, pos]])))
     agentSessionMessageService.replaceMessageParts(
       entry.sessionId,
       messageId,
-      parts,
-      this.rootCheckpoint(entry, projection, messageId)
+      entries.map(({ payload }) => payload),
+      this.rootCheckpoint(entry, projection, messageId),
+      entries.map(({ partId }) => partId),
+      positions.size ? positions : undefined
     )
+    projection.committedReply(messageId)
   }
 
   private publishTurnMessage(
     entry: AgentSessionRuntimeEntry,
-    turn: AgentSessionTurn,
-    parts: CherryUIMessage['parts']
+    turn: AgentSessionRun,
+    entries: readonly ExecutionPart[]
   ): void {
     if (!turn.controller?.message || !this.isTurnLive(entry, turn)) return
     this.clearApiRetry(entry)
     turn.activeToolIds.clear()
-    for (const part of parts) {
+    for (const { payload: part } of entries) {
       if (!isToolUIPart(part)) continue
       if (part.state !== 'output-available' && part.state !== 'output-error' && part.state !== 'output-denied')
         turn.activeToolIds.add(part.toolCallId)
     }
-    turn.controller.message(parts)
+    turn.controller.message(entries)
+    this.saveCompletedParts(entry, turn, entries)
+  }
+
+  /** Persists parts that reached their own completion; deltas of unfinished parts write nothing. */
+  private saveCompletedParts(
+    entry: AgentSessionRuntimeEntry,
+    turn: AgentSessionRun,
+    changed: ExecutionPart | readonly ExecutionPart[]
+  ): void {
+    const projection = turn.projection
+    if (!projection) return
+    const completed =
+      'partId' in changed && changed.pos !== null
+        ? {
+            order: { partId: changed.partId, pos: changed.pos },
+            parts: new Map([[changed.partId, changed.payload]]),
+            positions: new Map([[changed.partId, changed.pos]])
+          }
+        : projection.completions('partId' in changed ? (projection.replyEntries(turn.runId) ?? []) : changed)
+    if (!completed.parts.size) return
+    try {
+      if (agentSessionMessageService.saveCompletedMessageParts(entry.sessionId, turn.runId, completed))
+        projection.committed(completed.parts)
+    } catch (error) {
+      // Reply completion saves the same parts again; a failed early save only narrows crash recovery.
+      logger.warn('Failed to save completed agent reply parts', {
+        sessionId: entry.sessionId,
+        messageId: turn.runId,
+        error
+      })
+    }
   }
 
   private rootCheckpoint(entry: AgentSessionRuntimeEntry, projection: RootMessageProjection, savingMessageId: string) {
     const pending = getAgentSessionRuntimeTurns(entry.runtimeState)
-      .filter(
-        (turn) =>
-          turn.assistantMessageId !== savingMessageId && !entry.persistedMessageIds?.has(turn.assistantMessageId)
-      )
-      .map((turn) => turn.assistantMessageId)
+      .filter((turn) => turn.runId !== savingMessageId && !entry.persistedMessageIds?.has(turn.runId))
+      .map((turn) => turn.runId)
     return projection.checkpoint(new Set(pending))
+  }
+
+  private timelineFor(entry: AgentSessionRuntimeEntry): { lastPos: number } {
+    return (entry.timeline ??= this.liveTimeline(entry.sessionId) ?? {
+      lastPos: agentSessionMessageService.lastTimelinePosition(entry.sessionId)
+    })
+  }
+
+  private liveTimeline(sessionId: string): { lastPos: number } | undefined {
+    for (const entry of this.allEntries()) if (entry.sessionId === sessionId && entry.timeline) return entry.timeline
+    return undefined
   }
 
   private rootProjection(entry: AgentSessionRuntimeEntry, contextId: string): RootMessageProjection {
     const projections = (entry.rootProjections ??= new Map())
     let projection = projections.get(contextId)
-    if (!projection)
-      projections.set(
+    if (!projection) {
+      projection = new RootMessageProjection(
         contextId,
-        (projection = new RootMessageProjection(
-          contextId,
-          // Durable's record decides a reply until it settles, so its native answers still belong to it.
-          entry.agentType === 'pi-durable' ? (inputId) => this.unsettledReply(entry, inputId) : undefined
-        ))
+        this.timelineFor(entry),
+        entry.agentType === 'pi-durable' ? (inputId) => this.unsettledReply(entry, inputId) : undefined
       )
+      projections.set(contextId, projection)
+    }
     return projection
   }
 
   private unsettledReply(entry: AgentSessionRuntimeEntry, inputId: string): string | undefined {
-    if (entry.stopping?.input?.id === inputId) return entry.stopping.input.replyId
+    if (entry.stopping?.input?.ids.includes(inputId)) return entry.stopping.input.replyId
     const reply = agentSessionMessageService.replyTo(entry.sessionId, inputId)
     return reply?.status === 'pending' ? reply.id : undefined
   }
 
   /** Records a native outcome for a reply that no runtime turn will settle. */
   private noteNativeOutcome(entry: AgentSessionRuntimeEntry, contextId: string, input: NativeInputState): void {
-    if (entry.agentType !== 'pi-durable' || !input.inputId || !input.outcome) return
-    if (entry.stopping?.input?.id === input.inputId) {
-      entry.stopping.input.outcome = input
+    if (entry.agentType !== 'pi-durable' || !input.outcome) return
+    if (entry.stopping?.input?.ids.includes(input.inputId)) {
+      entry.stopping.input.outcomes.set(input.inputId, input)
       return
     }
+    const run = getAgentSessionRuntimeTurns(entry.runtimeState).find((run) => run.taskIds.includes(input.inputId))
+    if (run) (run.inputOutcomes ??= new Map()).set(input.inputId, input)
     const followed = entry.followedReplies?.get(input.inputId)
     if (followed) {
       entry.followedReplies!.delete(input.inputId)
-      if (input.outcome !== 'completed') void this.correctFollowedReply(entry, contextId, followed, input)
+      followed.pending.delete(input.inputId)
+      followed.outcomes.push(input)
+      if (!followed.pending.size) this.correctFollowedRun(entry, followed, contextId)
       return
     }
-    const noted = `${input.inputId}:${input.outcome}`
-    if (entry.notedOutcomes?.has(noted)) return
     const replyId = this.unsettledReply(entry, input.inputId)
-    if (replyId && getAgentSessionRuntimeTurns(entry.runtimeState).some((turn) => turn.assistantMessageId === replyId))
-      return
-    ;(entry.notedOutcomes ??= new Set()).add(noted)
-    if (replyId) (entry.recoveredOutcomes ??= new Map()).set(replyId, input)
+    if (replyId && getAgentSessionRuntimeTurns(entry.runtimeState).some((turn) => turn.runId === replyId)) return
+    if (replyId)
+      void this.recoverPendingReplies({ sessionId: entry.sessionId, runId: replyId }).catch((error) =>
+        logger.warn('Could not recover terminal input', { replyId, error })
+      )
     // Stop withdraws input Durable had not placed yet, so no reply will ever follow it.
     else if (
       input.outcome === 'aborted' &&
@@ -3458,6 +3705,16 @@ export class AgentSessionRuntimeService extends BaseService {
       !agentSessionMessageService.replyTo(entry.sessionId, input.inputId)
     )
       agentSessionMessageService.markUserMessageUnsent(entry.sessionId, input.inputId)
+  }
+
+  private correctFollowedRun(
+    entry: AgentSessionRuntimeEntry,
+    followed: { runId: string; outcomes: NativeInputState[] },
+    contextId: string | undefined
+  ): void {
+    const outcome = runInputOutcome(followed.outcomes)
+    if (contextId && outcome && outcome.outcome !== 'completed')
+      void this.correctFollowedReply(entry, contextId, followed.runId, outcome)
   }
 
   private async correctFollowedReply(
@@ -3511,7 +3768,9 @@ export class AgentSessionRuntimeService extends BaseService {
       modelId: row.modelId ? UniqueModelIdSchema.parse(row.modelId) : undefined,
       runtimeResumeToken: () => entry.lastResumeToken,
       projection: () => this.rootCheckpoint(entry, projection, replyId),
+      partPlacement: (messageId) => projection.partPlacement(messageId),
       onPersisted: () => {
+        projection.committedReply(replyId)
         ;(entry.persistedMessageIds ??= new Set()).add(replyId)
         entry.usageAttribution?.flush(replyId)
       }
@@ -3519,39 +3778,43 @@ export class AgentSessionRuntimeService extends BaseService {
     this._onTurnTerminal.fire({ sessionId: entry.sessionId, assistantMessageId: replyId, status, boundary: 'turn' })
   }
 
-  private deliverRuntimeChunk(entry: AgentSessionRuntimeEntry, chunk: UIMessageChunk): boolean {
+  private deliverRuntimeChunk(
+    entry: AgentSessionRuntimeEntry,
+    chunk: Exclude<AgentControlChunk, { type: 'start' }>
+  ): boolean {
     const turn = getAgentSessionRuntimeNativeTurn(entry.runtimeState)
     if (!turn) return false
-    const contextId = this.currentConnection(entry)?.contextId
-    if (!turn.projection && contextId) turn.projection = this.rootProjection(entry, contextId)
-    turn.projection?.control(turn.assistantMessageId, chunk)
-    const parts = turn.projection?.parts(turn.assistantMessageId)
-    if (parts) this.publishTurnMessage(entry, turn, parts)
+    if (chunk.type !== 'message-metadata') {
+      const contextId = this.currentConnection(entry)?.contextId
+      if (!turn.projection && contextId) turn.projection = this.rootProjection(entry, contextId)
+      if (turn.projection) {
+        const change = turn.projection.control(turn.runId, chunk)
+        if (change === 'reconcile') {
+          const entries = turn.projection.replyEntries(turn.runId)
+          if (entries) this.publishTurnMessage(entry, turn, entries)
+        } else if (change && turn.controller && this.isTurnLive(entry, turn)) {
+          turn.controller.part(change.patch)
+          if (change.completed) this.saveCompletedParts(entry, turn, change.completed)
+        }
+      }
+    }
     if (!hasAgentSessionRuntimeOpenStream(entry.runtimeState, turn)) {
       this.applyRuntimeStateEvent(entry, { type: 'buffer-chunk', turn, chunk })
       return true
     }
-    this.enqueueTurnChunk(entry, turn, chunk)
+    this.enqueueTurnChunk(turn, chunk)
     return true
   }
 
-  private enqueueTurnChunk(_entry: AgentSessionRuntimeEntry, turn: AgentSessionTurn, chunk: UIMessageChunk): void {
-    if ((chunk.type === 'tool-input-start' || chunk.type === 'tool-input-available') && chunk.toolCallId)
-      turn.activeToolIds.add(chunk.toolCallId)
-    else if (
-      (chunk.type === 'tool-output-available' ||
-        chunk.type === 'tool-output-error' ||
-        chunk.type === 'tool-output-denied') &&
-      chunk.toolCallId
-    )
-      turn.activeToolIds.delete(chunk.toolCallId)
+  private enqueueTurnChunk(turn: AgentSessionRun, chunk: AgentControlChunk): void {
+    if (chunk.type === 'tool-input-available') turn.activeToolIds.add(chunk.toolCallId)
     turn.controller?.enqueue(chunk)
   }
 
   /** Pure resource release. Terminality itself lives in the machine (the `settle-turn` transition
-   *  is synchronous, so a trailing `chunk` event in the same connection loop already reads not-live
+   *  is synchronous, so a trailing event in the same connection loop already reads not-live
    *  and never touches the closed controller). */
-  private closeTurn(turn: AgentSessionTurn): void {
+  private closeTurn(turn: AgentSessionRun): void {
     try {
       turn.controller?.close()
     } catch {
@@ -3561,7 +3824,7 @@ export class AgentSessionRuntimeService extends BaseService {
     turn.activeToolIds.clear()
   }
 
-  private errorTurn(turn: AgentSessionTurn, error: unknown): void {
+  private errorTurn(turn: AgentSessionRun, error: unknown): void {
     try {
       turn.controller?.error(error)
     } catch {
@@ -3571,7 +3834,7 @@ export class AgentSessionRuntimeService extends BaseService {
     turn.activeToolIds.clear()
   }
 
-  private async refreshTurnTraceContext(entry: AgentSessionRuntimeEntry, turn: AgentSessionTurn): Promise<void> {
+  private async refreshTurnTraceContext(entry: AgentSessionRuntimeEntry, turn: AgentSessionRun): Promise<void> {
     if (!this.isCurrentEntry(entry) || this.currentTurn(entry) !== turn || !this.isTurnLive(entry, turn)) return
     const traceContext = this.sessionTraceContext(entry, turn.modelId)
     if (traceContext) await this.currentConnection(entry)?.refreshTraceContext?.(traceContext)
@@ -3579,7 +3842,7 @@ export class AgentSessionRuntimeService extends BaseService {
 
   private scheduleRuntimeLaunch(
     entry: AgentSessionRuntimeEntry,
-    target: AgentSessionRuntimeLaunchTarget<AgentSessionTurn>
+    target: AgentSessionRuntimeLaunchTarget<AgentSessionRun>
   ): void {
     if (
       !this.isCurrentEntry(entry) ||
@@ -3595,7 +3858,7 @@ export class AgentSessionRuntimeService extends BaseService {
         }
         if (this.isWriteQuiesced || entry.closing) {
           this.applyRuntimeStateEvent(entry, { type: 'launch-suppressed', target })
-          if (this.inFlightTurnStarts.get(entry.sessionId) === launch) this.inFlightTurnStarts.delete(entry.sessionId)
+          if (this.inFlightTurnStarts.get(entry) === launch) this.inFlightTurnStarts.delete(entry)
           resolve()
           return
         }
@@ -3606,13 +3869,13 @@ export class AgentSessionRuntimeService extends BaseService {
             logger.error('Failed to launch agent reply', { sessionId: entry.sessionId, error })
           })
           .finally(() => {
-            if (this.inFlightTurnStarts.get(entry.sessionId) === launch) this.inFlightTurnStarts.delete(entry.sessionId)
+            if (this.inFlightTurnStarts.get(entry) === launch) this.inFlightTurnStarts.delete(entry)
             this.applyRuntimeStateEvent(entry, { type: 'launch-finished', target })
             resolve()
           })
       })
     })
-    this.inFlightTurnStarts.set(entry.sessionId, launch)
+    this.inFlightTurnStarts.set(entry, launch)
   }
 
   private async startNextTurn(entry: AgentSessionRuntimeEntry): Promise<void> {
@@ -3632,7 +3895,7 @@ export class AgentSessionRuntimeService extends BaseService {
             .getNamesByUniqueIdsTx(application.get('DbService').getDb(), [sessionOverride])
             .get(sessionOverride) ?? parseUniqueModelId(sessionOverride).modelId)
         : liveAgent?.modelName
-    const turn = createSessionTurn({
+    const turn = createSessionRun({
       taskIds: [pending.message.id],
       userMessage: pending.message,
       parentId: pending.message.id,
@@ -3665,7 +3928,7 @@ export class AgentSessionRuntimeService extends BaseService {
     await this.prepareReply(entry, turn)
   }
 
-  private suspendTurn(entry: AgentSessionRuntimeEntry, turn: AgentSessionTurn): void {
+  private suspendTurn(entry: AgentSessionRuntimeEntry, turn: AgentSessionRun): void {
     const suspended = application.get('AiStreamManager').suspendUnadmittedRuntimeTurn(entry.topicId)
     this.closeTurn(turn)
     void suspended
@@ -3673,32 +3936,44 @@ export class AgentSessionRuntimeService extends BaseService {
       .finally(() => this.applyRuntimeStateEvent(entry, { type: 'turn-suspended', turn }))
   }
 
-  private saveReply(entry: AgentSessionRuntimeEntry, turn: AgentSessionTurn): void {
+  private saveReply(entry: AgentSessionRuntimeEntry, turn: AgentSessionRun): void {
     const background = turn.origin?.kind === 'background-work'
-    if (background) entry.persistedMessageIds?.delete(turn.assistantMessageId)
-    agentSessionMessageService.saveMessage({
-      sessionId: entry.sessionId,
-      parentId: turn.parentId ? agentSessionMessageService.branchTip(entry.sessionId, turn.parentId) : undefined,
-      message: {
-        id: turn.assistantMessageId,
-        role: 'assistant',
-        status: 'pending',
-        data: { parts: background ? (turn.projection?.parts(turn.assistantMessageId) ?? []) : [] },
-        modelId: turn.modelId,
-        messageSnapshot: turn.messageSnapshot
-      }
-    })
-    agentSessionMessageService.linkReply(entry.sessionId, turn.taskIds, turn.assistantMessageId)
-    if (!background) entry.branchHead = turn.assistantMessageId
+    if (background) entry.persistedMessageIds?.delete(turn.runId)
+    agentSessionMessageService.saveMessage(
+      {
+        sessionId: entry.sessionId,
+        ...turn.projection?.partPlacement(turn.runId),
+        parentId: turn.parentId
+          ? agentSessionMessageService.branchTip(
+              entry.sessionId,
+              turn.parentId,
+              undefined,
+              extractAgentContextId(entry.topicId)
+            )
+          : undefined,
+        message: {
+          id: turn.runId,
+          role: 'assistant',
+          status: 'pending',
+          data: { parts: turn.projection?.parts(turn.runId) ?? [] },
+          modelId: turn.modelId,
+          messageSnapshot: turn.messageSnapshot
+        }
+      },
+      { publishDataChange: true }
+    )
+    agentSessionMessageService.linkReply(entry.sessionId, turn.taskIds, turn.runId)
+    this.attachPendingRunCheckpoints(entry, turn)
+    if (!background) entry.branchHead = turn.runId
     if (turn.origin)
       application
         .get('CacheService')
-        .setShared(AGENT_SESSION_TURN_ORIGIN_CACHE_KEY(entry.sessionId, turn.assistantMessageId), turn.origin)
+        .setShared(AGENT_SESSION_TURN_ORIGIN_CACHE_KEY(entry.sessionId, turn.runId), turn.origin)
     this.applyRuntimeStateEvent(entry, { type: 'turn-prepared', turn })
-    entry.usageAttribution?.flush(turn.assistantMessageId)
+    entry.usageAttribution?.flush(turn.runId)
   }
 
-  private async prepareReply(entry: AgentSessionRuntimeEntry, turn: AgentSessionTurn): Promise<void> {
+  private async prepareReply(entry: AgentSessionRuntimeEntry, turn: AgentSessionRun): Promise<void> {
     if (!this.isCurrentEntry(entry) || entry.closing || this.currentTurn(entry) !== turn) return
     let rootSpan: Span | undefined
     try {
@@ -3716,7 +3991,7 @@ export class AgentSessionRuntimeService extends BaseService {
         rootSpan?.end()
         return
       }
-      const messages = createRuntimeSeedMessages(turn.userMessage, turn.assistantMessageId)
+      const messages = createRuntimeSeedMessages(turn.userMessage, turn.runId)
       if (rootSpan)
         applyTurnInputAttributes(rootSpan, {
           modelId: turn.modelId,
@@ -3731,9 +4006,9 @@ export class AgentSessionRuntimeService extends BaseService {
         modelId: turn.modelId,
         rootSpan,
         request: {
-          conversation: { id: extractAgentSessionId(entry.topicId), topicId: entry.topicId },
+          conversation: { id: entry.sessionId, topicId: entry.topicId },
           trigger: 'submit-message',
-          messageId: turn.assistantMessageId,
+          messageId: turn.runId,
           messages,
           reasoningEffort: turn.reasoningEffort,
           serviceTier: turn.serviceTier,
@@ -3763,14 +4038,15 @@ export class AgentSessionRuntimeService extends BaseService {
     return { windowId, topicId: entry.topicId, model: entry.modelId }
   }
 
-  getInteractionState(sessionId: string): AgentSessionInteractionState {
-    const entry = this.entries.get(sessionId)
-    if (!entry) return { currentTurn: 'none', userResponse: 'unavailable' }
+  getInteractionState(sessionId: string, contextId?: string): AgentSessionInteractionState {
+    const entry = this.entryForContext(sessionId, contextId)
+    if (!entry || (contextId && this.currentConnection(entry)?.contextId !== contextId))
+      return { currentTurn: 'none', userResponse: 'unavailable' }
 
     const turn = this.liveTurn(entry)
     const execution = entry.runtimeState.execution
     const currentTurn = turn ? (turn.headless === true ? 'headless' : 'interactive') : 'none'
-    if (execution.kind === 'steer-transition')
+    if (execution.kind === 'run-handoff')
       return { currentTurn, userResponse: execution.reply.turn.headless ? 'unavailable' : 'stream' }
     const backgroundResponder = getAgentSessionRuntimeOccupancy(entry.runtimeState)?.background?.responder
     if (backgroundResponder) {
@@ -3831,8 +4107,8 @@ export class AgentSessionRuntimeService extends BaseService {
     }
   }
 
-  private createPersistenceListener(entry: AgentSessionRuntimeEntry, currentTurn: AgentSessionTurn): StreamListener {
-    const { assistantMessageId, modelId } = currentTurn
+  private createPersistenceListener(entry: AgentSessionRuntimeEntry, currentTurn: AgentSessionRun): StreamListener {
+    const { runId: assistantMessageId, modelId } = currentTurn
     const userText = extractMessageText(currentTurn.userMessage)
     const afterPersist = currentTurn.shouldAutoName
       ? async (finalMessage: CherryUIMessage) => {
@@ -3850,10 +4126,10 @@ export class AgentSessionRuntimeService extends BaseService {
         runtimeResumeToken: () => entry.lastResumeToken,
         forkAnchor: () => currentTurn.forkAnchor,
         projection: () =>
-          currentTurn.projection
-            ? this.rootCheckpoint(entry, currentTurn.projection, currentTurn.assistantMessageId)
-            : undefined,
+          currentTurn.projection ? this.rootCheckpoint(entry, currentTurn.projection, currentTurn.runId) : undefined,
+        partPlacement: (messageId) => currentTurn.projection?.partPlacement(messageId),
         onPersisted: () => {
+          currentTurn.projection?.committedReply(assistantMessageId)
           ;(entry.persistedMessageIds ??= new Set()).add(assistantMessageId)
           entry.usageAttribution?.flush(assistantMessageId)
         },
@@ -3879,7 +4155,8 @@ export class AgentSessionRuntimeService extends BaseService {
         return
       }
       const { sessionId, agentType, lastResumeToken } = entry
-      void this.closeSession(sessionId)
+      if (entry.secondaryContextId) void this.closeSecondary(entry)
+      else void this.closeSession(sessionId)
       if (lastResumeToken) {
         runtimeDriverRegistry.getAgentSessionDriver(agentType)?.onSessionIdle?.(sessionId)
       }
@@ -3897,7 +4174,14 @@ export class AgentSessionRuntimeService extends BaseService {
   private closeAll(): Promise<void> {
     const sessionIds = new Set([...this.entries.keys(), ...this.closingSessions.keys()])
     const closings = [...sessionIds].map((sessionId) => this.closeSession(sessionId))
+    for (const entry of this.secondaryRoots.values()) closings.push(this.closeSecondary(entry))
     return Promise.allSettled(closings).then(() => undefined)
+  }
+
+  private async closeSecondary(entry: AgentSessionRuntimeEntry, interrupt = false): Promise<void> {
+    await this.closeEntry(entry, interrupt)
+    if (this.secondaryRoots.get(entry.secondaryContextId!) === entry)
+      this.secondaryRoots.delete(entry.secondaryContextId!)
   }
 
   private async closeEntry(entry: AgentSessionRuntimeEntry, interrupt = false): Promise<void> {
@@ -3905,13 +4189,13 @@ export class AgentSessionRuntimeService extends BaseService {
     entry.closing = true
     const turns = getAgentSessionRuntimeTurns(entry.runtimeState)
     const streamDrain = Promise.allSettled(
-      turns.map((turn) => application.get('AiStreamManager').drainRuntimeReply(entry.topicId, turn.assistantMessageId))
+      turns.map((turn) => application.get('AiStreamManager').drainRuntimeReply(entry.topicId, turn.runId))
     )
     for (const turn of turns) this.closeTurn(turn)
-    const connectionAttempt = this.connectionAttempts.get(entry.sessionId)?.promise
+    const connectionAttempt = this.connectionAttempts.get(entry)?.promise
     const connection = this.currentConnection(entry)
     const connectionLoop = entry.connectionLoop
-    await this.closeRuntimeConnection(connection, entry.sessionId, true, interrupt)
+    await this.closeRuntimeConnection(connection, entry, true, interrupt)
     if (connectionAttempt) await connectionAttempt.catch(() => undefined)
     if (connectionLoop) await connectionLoop
     await streamDrain
@@ -3931,25 +4215,27 @@ export class AgentSessionRuntimeService extends BaseService {
             ? reply.delivery.status
             : (reply?.terminal?.status ?? 'paused')
       const message: CherryUIMessage = {
-        id: turn.assistantMessageId,
+        id: turn.runId,
         role: 'assistant',
-        parts: turn.projection?.parts(turn.assistantMessageId) ?? []
+        parts: turn.projection?.parts(turn.runId) ?? []
       }
       new AgentSessionMessageBackend({
         sessionId: entry.sessionId,
-        assistantMessageId: turn.assistantMessageId,
+        assistantMessageId: turn.runId,
         modelId: turn.modelId,
         runtimeResumeToken: () => entry.lastResumeToken,
-        projection: () =>
-          turn.projection ? this.rootCheckpoint(entry, turn.projection, turn.assistantMessageId) : undefined,
+        forkAnchor: () => turn.forkAnchor,
+        projection: () => (turn.projection ? this.rootCheckpoint(entry, turn.projection, turn.runId) : undefined),
+        partPlacement: (messageId) => turn.projection?.partPlacement(messageId),
         onPersisted: () => {
-          ;(entry.persistedMessageIds ??= new Set()).add(turn.assistantMessageId)
-          entry.usageAttribution?.flush(turn.assistantMessageId)
+          turn.projection?.committedReply(turn.runId)
+          ;(entry.persistedMessageIds ??= new Set()).add(turn.runId)
+          entry.usageAttribution?.flush(turn.runId)
         }
       }).persistAssistant({ finalMessage: turn.projection?.prepare(message, status) ?? message, status })
       this.closeTurn(turn)
     }
-    if (this.isCurrentEntry(entry)) {
+    if (this.entries.get(entry.sessionId) === entry) {
       try {
         this.clearApiRetry(entry)
         const cache = application.get('CacheService')
@@ -3990,17 +4276,18 @@ export class AgentSessionRuntimeService extends BaseService {
 
   private closeConnectionAsync(entry: AgentSessionRuntimeEntry): void {
     const connection = this.closeConnection(entry)
-    void this.closeRuntimeConnection(connection, entry.sessionId)
+    void this.closeRuntimeConnection(connection, entry)
   }
 
   private async closeRuntimeConnection(
     connection: AgentRuntimeConnection | undefined,
-    sessionId: string,
+    owner: AgentSessionRuntimeEntry | string,
     strict = false,
     interrupt = false
   ): Promise<void> {
     if (!connection) return
-    const entry = this.entries.get(sessionId)
+    const entry = typeof owner === 'string' ? undefined : owner
+    const sessionId = typeof owner === 'string' ? owner : owner.sessionId
     entry?.prediction?.controller.abort()
     const priorClosing = this.closingSessions.get(sessionId)
     const resumeToken =
@@ -4030,8 +4317,12 @@ export class AgentSessionRuntimeService extends BaseService {
           const completedLate = failed?.delete(connection)
           this.failedClosureResumeTokens.delete(connection)
           if (failed?.size === 0) this.failedClosures.delete(sessionId)
-          if (completedLate && entry?.closing && this.isCurrentEntry(entry))
-            queueMicrotask(() => void this.closeSession(sessionId))
+          if (completedLate && entry?.closing)
+            queueMicrotask(() => {
+              if (!entry.closing || !this.isCurrentEntry(entry) || this.currentConnection(entry) !== connection) return
+              if (entry.secondaryContextId) void this.closeSecondary(entry)
+              else void this.closeSession(sessionId)
+            })
           this.syncRuntimeActivity()
         }),
         new Promise<never>((_, reject) => {
@@ -4132,16 +4423,25 @@ function extractMessageText(message: AgentSessionMessageEntity): string {
   )
 }
 
-function createSessionTurn(
+function runInputOutcome(inputs: readonly NativeInputState[]): NativeInputState | undefined {
+  if (!inputs.length || inputs.some((input) => !input.outcome)) return undefined
+  return (
+    inputs.find((input) => input.outcome === 'failed' || input.outcome === 'unanswered') ??
+    inputs.find((input) => input.outcome === 'aborted') ??
+    inputs[0]
+  )
+}
+
+function createSessionRun(
   input: Omit<
-    AgentSessionTurn,
-    'turnId' | 'assistantMessageId' | 'abortController' | 'activeToolIds' | 'controller' | 'projection'
-  > & { assistantMessageId?: string }
-): AgentSessionTurn {
+    AgentSessionRun,
+    'turnId' | 'runId' | 'abortController' | 'activeToolIds' | 'controller' | 'projection'
+  > & { runId?: string }
+): AgentSessionRun {
   return {
     ...input,
     turnId: crypto.randomUUID(),
-    assistantMessageId: input.assistantMessageId ?? uuidv7(),
+    runId: input.runId ?? uuidv7(),
     // oxlint-disable-next-line no-restricted-globals -- Detach per-turn model/settings metadata from the caller-owned turn input.
     messageSnapshot: input.messageSnapshot ? structuredClone(input.messageSnapshot) : undefined,
     abortController: new AbortController(),

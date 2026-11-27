@@ -1571,6 +1571,7 @@ export function Topics({
           groups: dragReady && isAssistantDisplayMode,
           items: dragReady && topicSort.by === 'orderKey',
           itemSameGroup: dragReady && topicSort.by === 'orderKey',
+          itemOwnGroupHeaderNoop: dragReady && topicSort.by === 'orderKey' && isAssistantDisplayMode,
           itemCrossGroup: dragReady && topicSort.by === 'orderKey' && isAssistantDisplayMode
         }}
         canDragGroup={canDragTopicGroup}

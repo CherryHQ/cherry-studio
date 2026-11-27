@@ -1,17 +1,23 @@
+import { isJSONArray, isJSONValue, type JSONArray, type JSONObject } from '@ai-sdk/provider'
 import type { SDKAssistantMessage, SDKUserMessage } from '@anthropic-ai/claude-agent-sdk'
 
-import type { RuntimeMessage } from '@cherrystudio/agent-runtime'
+import { immutable, type RuntimeMessage } from '@cherrystudio/agent-runtime'
 
 export type NativeBlock =
   | SDKAssistantMessage['message']['content'][number]
   | Exclude<SDKUserMessage['message']['content'], string>[number]
 type Part = RuntimeMessage['parts'][number]
 type Metadata = NonNullable<Extract<Part, { type: 'text' }>['providerMetadata']>
-export type ToolResult = { toolUseId: string; output: unknown; errorText?: string }
+type ToolPart = Extract<Part, { type: 'dynamic-tool' }>
+export type ToolResult =
+  | Pick<Extract<ToolPart, { state: 'output-available' }>, 'toolCallId' | 'state' | 'output'>
+  | Pick<Extract<ToolPart, { state: 'output-error' }>, 'toolCallId' | 'state' | 'errorText' | 'resultProviderMetadata'>
 export type ProjectedBlock = { type: NativeBlock['type']; part: Part } | { result: ToolResult }
 
-export function json(value: unknown): Metadata[string][string] {
-  return JSON.parse(JSON.stringify(value)) as Metadata[string][string]
+type NativeCitation = NonNullable<Extract<NativeBlock, { type: 'text' }>['citations']>[number]
+
+export function citationMetadata(citation: Readonly<NativeCitation>): JSONObject {
+  return immutable(citation)
 }
 
 function object(value: unknown): Record<string, unknown> | undefined {
@@ -20,12 +26,12 @@ function object(value: unknown): Record<string, unknown> | undefined {
     : undefined
 }
 
-function textPart(text: string, partial: boolean, citations?: unknown): Part {
+function textPart(text: string, partial: boolean, citations?: JSONArray): Part {
   return {
     type: 'text',
     text,
     state: partial ? 'streaming' : 'done',
-    ...(citations != null && { providerMetadata: { anthropic: { citations: json(citations) } } })
+    ...(citations && { providerMetadata: { anthropic: { citations } } })
   }
 }
 
@@ -51,12 +57,13 @@ function toolPart(
   }
 }
 
-function toolResult(toolUseId: string, output: unknown, isError = false): ToolResult {
+function toolResult(toolCallId: string, output: unknown, isError = false): ToolResult {
   const errorType = object(output)?.type
-  const failed = isError || (typeof errorType === 'string' && errorType.endsWith('_error'))
-  const errorText = !failed
-    ? undefined
-    : typeof output === 'string'
+  if (!isError && !(typeof errorType === 'string' && errorType.endsWith('_error'))) {
+    return { toolCallId, state: 'output-available', output }
+  }
+  const errorText =
+    typeof output === 'string'
       ? output
       : Array.isArray(output)
         ? output
@@ -64,7 +71,12 @@ function toolResult(toolUseId: string, output: unknown, isError = false): ToolRe
             .map((part: unknown) => object(part)?.text)
             .join('\n')
         : JSON.stringify(output)
-  return { toolUseId, output, errorText }
+  return {
+    toolCallId,
+    state: 'output-error',
+    errorText,
+    ...(isJSONValue(output) && { resultProviderMetadata: { anthropic: { result: immutable(output) } } })
+  }
 }
 
 function filePart(mediaType: string, url: string): Part {
@@ -75,7 +87,7 @@ export function projectBlock(block: NativeBlock, partial: boolean): ProjectedBlo
   const type = block.type
   switch (block.type) {
     case 'text':
-      return { type, part: textPart(block.text, partial, block.citations) }
+      return { type, part: textPart(block.text, partial, block.citations?.map(citationMetadata)) }
     case 'thinking':
       return { type, part: reasoningPart(block.thinking, partial, { signature: block.signature }) }
     case 'redacted_thinking':
@@ -166,7 +178,14 @@ export function decodeArchiveContent(
       switch (block.type) {
         case 'text':
           return typeof block.text === 'string'
-            ? { type: block.type, part: textPart(block.text, partial, block.citations) }
+            ? {
+                type: block.type,
+                part: textPart(
+                  block.text,
+                  partial,
+                  isJSONArray(block.citations) ? immutable(block.citations) : undefined
+                )
+              }
             : undefined
         case 'thinking':
           return typeof block.thinking === 'string'

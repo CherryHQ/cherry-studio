@@ -16,6 +16,7 @@ function makeScope(): RequestScope {
     provider: { id: 'p1' } as never,
     capabilities: undefined,
     sdkConfig: { providerId: 'p1' as never, providerOptionsKey: 'p1', providerSettings: {}, modelId: 'm1' },
+    replayRouteId: 'fixture-route',
     endpointType: undefined,
     aiSdkProviderId: 'openai-compatible',
     reasoningProfile: { format: 'none', wire: { disabled: true } },
