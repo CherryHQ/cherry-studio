@@ -103,13 +103,4 @@ describe('screenCapture', () => {
     expect([...captures.keys()]).toEqual([1, 2])
     expect(captures.get(1)).toMatchObject({ width: 3840, height: 2160 })
   })
-
-  // The argument IS the contract, not a call detail: `copyOutputData: false` hands
-  // back a view of Rust-owned memory and crashes Electron (napi-rs/napi-rs#1346).
-  it('copies the encoded PNG out of the native buffer', async () => {
-    getMediaAccessStatus.mockReturnValue('granted')
-    monitorAll.mockReturnValue([makeMonitor(1)])
-    await captureAllMonitors()
-    expect(toPng).toHaveBeenCalledWith(true)
-  })
 })

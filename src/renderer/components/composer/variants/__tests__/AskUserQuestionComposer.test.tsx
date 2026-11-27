@@ -1,5 +1,5 @@
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type * as ReactI18next from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -46,7 +46,9 @@ const questions = [
   }
 ]
 
-function makeRequest(requestQuestions = questions): AskUserQuestionComposerRequest {
+function makeRequest(
+  requestQuestions: AskUserQuestionComposerRequest['input']['questions'] = questions
+): AskUserQuestionComposerRequest {
   const part = {
     type: 'tool-AskUserQuestion',
     toolCallId: 'call-1',
@@ -78,50 +80,110 @@ describe('AskUserQuestionComposer', () => {
     MockCacheUtils.resetMocks()
   })
 
-  it('keeps the full question visible instead of clamping it to one line', () => {
-    render(<AskUserQuestionComposer request={makeRequest()} onRespond={vi.fn()} />)
-
-    const heading = screen.getByRole('heading', { name: 'Choose logger' })
-    // The wrapping classes are the layout contract for the reported long-question truncation.
-    expect(heading).toHaveClass('whitespace-pre-wrap', 'break-words')
-    expect(heading).not.toHaveClass('line-clamp-1')
-  })
-
-  it('caps a long multiline question with vertical scrolling so answer controls stay reachable', () => {
-    const longQuestion = [
-      'Which logging approach should the agent use for this multi-service workspace?',
-      'Please consider structured JSON output, rotation, and how traces should correlate across the renderer and main process.',
-      'The answer will be applied to every new session, so pick the option that stays readable when the composer dock is only 150px tall.'
-    ].join('\n')
-
+  it('preserves the full option description, including line breaks and a long unbroken token', () => {
+    const description = `Use the existing logger.\n${'x'.repeat(2000)}`
     render(
       <AskUserQuestionComposer
         request={makeRequest([
           {
-            question: longQuestion,
-            header: 'Logger',
-            options: [
-              { label: 'Winston', description: 'Mature ecosystem' },
-              { label: 'Pino', description: 'JSON native' }
-            ],
-            multiSelect: false
+            ...questions[0],
+            options: [{ label: 'Winston', description }, { label: 'Pino' }]
           }
         ])}
         onRespond={vi.fn()}
       />
     )
 
-    const heading = screen.getByRole('heading', { name: longQuestion })
-    expect(heading).toHaveClass('whitespace-pre-wrap', 'break-words', 'max-h-36', 'overflow-y-auto')
-    expect(heading).not.toHaveClass('line-clamp-1')
-    expect(screen.getByRole('button', { name: /Winston/ })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Close' })).toBeInTheDocument()
+    const winston = screen.getByRole('button', { name: /Winston/ })
+    expect(
+      within(winston).getByText((_, element) => element?.textContent === description && element.children.length === 0)
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Pino$/ })).toBeInTheDocument()
   })
 
-  it('marks the root panel as a composer viewport inset target', () => {
-    const { container } = render(<AskUserQuestionComposer request={makeRequest()} onRespond={vi.fn()} />)
+  it('keeps Space and Enter toggling a multi-select option without submitting', async () => {
+    const user = userEvent.setup()
+    const onRespond = vi.fn().mockResolvedValue(undefined)
+    render(
+      <AskUserQuestionComposer request={makeRequest([{ ...questions[0], multiSelect: true }])} onRespond={onRespond} />
+    )
 
-    expect(container.firstElementChild).toHaveAttribute('data-composer-viewport-inset-target', '')
+    const row = screen.getByRole('button', { name: /Winston/ })
+    row.focus()
+    expect(row).toHaveFocus()
+    expect(row).toHaveAttribute('aria-pressed', 'false')
+    await user.keyboard(' ')
+    expect(row).toHaveAttribute('aria-pressed', 'true')
+    expect(onRespond).not.toHaveBeenCalled()
+    await user.keyboard('{Enter}')
+    expect(row).toHaveAttribute('aria-pressed', 'false')
+    expect(onRespond).not.toHaveBeenCalled()
+
+    await user.keyboard(' ')
+    await user.click(screen.getByText('Submit'))
+    await waitFor(() => expect(onRespond).toHaveBeenCalledTimes(1))
+    expect(onRespond).toHaveBeenCalledWith(
+      expect.objectContaining({
+        approved: true,
+        updatedInput: expect.objectContaining({ answers: { 'Choose logger': 'Winston' } })
+      })
+    )
+  })
+
+  it('bounds the complete panel to the stage and lets only the option list shrink', () => {
+    const stage = document.createElement('div')
+    stage.setAttribute('data-composer-stage', '')
+    Object.defineProperty(stage, 'clientHeight', { value: 512, configurable: true })
+    document.body.appendChild(stage)
+    render(<AskUserQuestionComposer request={makeRequest()} onRespond={vi.fn()} />, { container: stage })
+
+    const headingRow = screen.getByRole('heading', { name: 'Choose logger' }).parentElement!
+    const card = headingRow.parentElement!
+    const list = screen.getByRole('button', { name: /Winston/ }).parentElement!
+    const answerRow = screen.getByRole('button', { name: 'Skip' }).parentElement!
+
+    // The complete-panel bound must leave the heading and growing answer outside the shrinking
+    // list; when those fixed regions exhaust the budget, the panel scrolls and the list keeps
+    // a readable floor instead of collapsing.
+    expect(card.style.maxHeight).toBe('512px')
+    expect(card).toHaveClass('flex', 'min-h-0', 'flex-col', 'overflow-y-auto', 'overscroll-contain')
+    expect(card).not.toHaveClass('overflow-hidden')
+    expect(list).toHaveClass('min-h-24', 'flex-auto', 'overflow-y-auto')
+    expect(list).not.toHaveClass('min-h-0')
+    expect(list).not.toHaveClass('max-h-[50vh]')
+    expect(headingRow).toHaveClass('shrink-0')
+    expect(answerRow).toHaveClass('shrink-0')
+  })
+
+  it('subtracts the root computed padding from the stage height budget', () => {
+    const resizeObserver = globalThis.ResizeObserver
+    vi.stubGlobal('ResizeObserver', undefined)
+    try {
+      const stage = document.createElement('div')
+      stage.setAttribute('data-composer-stage', '')
+      Object.defineProperty(stage, 'clientHeight', { value: 512, configurable: true })
+      document.body.appendChild(stage)
+      const { container } = render(<AskUserQuestionComposer request={makeRequest()} onRespond={vi.fn()} />, {
+        container: stage
+      })
+
+      const root = container.firstElementChild as HTMLElement
+      root.style.paddingBottom = '18px'
+      fireEvent.resize(window)
+
+      const card = screen.getByRole('heading', { name: 'Choose logger' }).parentElement!.parentElement!
+      // Root padding shares the stage budget with the card, keeping the heading inside the stage.
+      expect(card.style.maxHeight).toBe('494px')
+    } finally {
+      vi.stubGlobal('ResizeObserver', resizeObserver)
+    }
+  })
+
+  it('leaves the panel unbounded when there is no measurable stage', () => {
+    render(<AskUserQuestionComposer request={makeRequest()} onRespond={vi.fn()} />)
+
+    const card = screen.getByRole('heading', { name: 'Choose logger' }).parentElement!.parentElement!
+    expect(card.style.maxHeight).toBe('')
   })
 
   it('auto advances after option selection and submits a custom input as an answer option', async () => {
@@ -162,6 +224,22 @@ describe('AskUserQuestionComposer', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Previous' }))
     expect(screen.getByRole('button', { name: /Winston/ })).toHaveAttribute('aria-pressed', 'true')
     expect(onRespond).not.toHaveBeenCalled()
+  })
+
+  it.each([1, 2])('dismisses the request after skipping all %i questions', async (questionCount) => {
+    const user = userEvent.setup()
+    const request = makeRequest(questions.slice(0, questionCount))
+    const onRespond = vi.fn().mockResolvedValue(undefined)
+    render(<AskUserQuestionComposer request={request} onRespond={onRespond} />)
+
+    for (const question of request.input.questions) {
+      expect(screen.getByRole('heading', { name: question.question })).toBeInTheDocument()
+      expect(onRespond).not.toHaveBeenCalled()
+      await user.click(screen.getByRole('button', { name: 'Skip' }))
+    }
+
+    expect(onRespond).toHaveBeenCalledExactlyOnceWith({ match: request.match, approved: false })
+    expect(screen.getByRole('button', { name: 'Skip' })).toBeDisabled()
   })
 
   it('submits the final selected option when earlier questions were skipped', async () => {
@@ -357,5 +435,49 @@ describe('AskUserQuestionComposer', () => {
     expect(screen.getByRole('heading', { name: 'Choose logger' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Winston/ })).toHaveAttribute('aria-pressed', 'false')
     expect(onRespond).not.toHaveBeenCalled()
+  })
+
+  it('switches Skip to Next when multi-select options are selected on a non-final question and submits them', async () => {
+    const user = userEvent.setup()
+    const multiSelectQuestions = [{ ...questions[0], multiSelect: true }, questions[1]]
+    const request = makeRequest(multiSelectQuestions)
+    const onRespond = vi.fn().mockResolvedValue(undefined)
+    render(<AskUserQuestionComposer request={request} onRespond={onRespond} />)
+
+    expect(screen.getByRole('button', { name: 'Skip' })).toBeInTheDocument()
+    expect(screen.queryByText('Next')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /Winston/ }))
+    await user.click(screen.getByRole('button', { name: /Pino/ }))
+
+    // Matched by text: the header pagination control also carries a "Next" aria-label.
+    expect(screen.getByText('Next')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Skip' })).not.toBeInTheDocument()
+    expect(onRespond).not.toHaveBeenCalled()
+
+    await user.click(screen.getByRole('button', { name: /Winston/ }))
+    await user.click(screen.getByRole('button', { name: /Pino/ }))
+    expect(screen.getByRole('button', { name: 'Skip' })).toBeInTheDocument()
+    expect(screen.queryByText('Next')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /Winston/ }))
+    await user.click(screen.getByRole('button', { name: /Pino/ }))
+    await user.click(screen.getByText('Next'))
+
+    expect(screen.getByRole('heading', { name: 'Add context' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /Bunyan/ }))
+
+    await waitFor(() => expect(onRespond).toHaveBeenCalledTimes(1))
+    expect(onRespond).toHaveBeenCalledWith({
+      match: request.match,
+      approved: true,
+      updatedInput: {
+        questions: multiSelectQuestions,
+        answers: {
+          'Choose logger': 'Winston, Pino',
+          'Add context': 'Bunyan'
+        }
+      }
+    })
   })
 })

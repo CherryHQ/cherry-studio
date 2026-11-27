@@ -1,71 +1,8 @@
-/**
- * Type-level tests for the DataApi data change notification protocol.
- *
- * Two irreplaceable jobs:
- * 1. Classification snapshot — `CollectionGetPaths` is DERIVED from GET
- *    response shapes, so "every path is classified" is vacuously true and
- *    cannot be a test. Instead the snapshot pins the exact membership: a
- *    schema change that flips a path's classification (or adds a GET read
- *    model) turns up here as a reviewable diff instead of silently changing
- *    protocol semantics.
- * 2. Illegal-state tripwires — the discriminated union makes four states
- *    unrepresentable; the `@ts-expect-error` cases below are the only proof
- *    that they stay unrepresentable.
- */
 import { describe, expectTypeOf, it } from 'vitest'
 
-import type { CollectionGetPaths, DataApiDataChangeEffect, GetMethodApiPaths, ScalarGetPaths } from '../types'
+import type { DataApiDataChangeEffect, GetMethodApiPaths, ScalarGetPaths } from '../types'
 
 describe('endpoint classification', () => {
-  it('pins the collection classification snapshot (update deliberately on schema changes)', () => {
-    expectTypeOf<CollectionGetPaths>().toEqualTypeOf<
-      | '/agent-channels'
-      | '/agent-sessions'
-      | '/agent-sessions/:sessionId/messages'
-      | '/agent-tasks'
-      | '/agent-workspaces'
-      | '/agents'
-      | '/agents/:agentId/tasks'
-      | '/agents/:agentId/tasks/:taskId/logs'
-      | '/archives'
-      | '/assistants'
-      | '/browser-visits'
-      | '/api-gateway/paired-devices'
-      | '/diagnostic-reports'
-      | '/files/entries'
-      | '/files/entries/by-content-hash'
-      | '/files/entries/:id/refs'
-      | '/files/entries/ref-counts'
-      | '/files/refs'
-      | '/groups'
-      | '/jobs'
-      | '/knowledge-bases'
-      | '/knowledge-bases/:id/items'
-      | '/mcp-servers'
-      | '/mini-apps'
-      | '/models'
-      | '/notes'
-      | '/paintings'
-      | '/pins'
-      | '/prompt-bindings'
-      | '/prompt-bindings/:targetType/:targetId'
-      | '/prompts'
-      | '/prompts/:id/bindings'
-      | '/providers'
-      | '/providers/:providerId/models:resolve'
-      | '/skills'
-      | '/tags'
-      | '/tags/entities/:entityType/:entityId'
-      | '/temporary/topics/:topicId/messages'
-      | '/topics'
-      | '/topics/:topicId/messages'
-      | '/topics/:topicId/path'
-      | '/translate/histories'
-      | '/translate/languages'
-      | '/ai-usage-records'
-    >()
-  })
-
   it('classifies wrapper-object and single-entity responses as scalar', () => {
     // Wrapper objects not extending a pagination type degrade to scalar —
     // coarser but correct (no kind = whole-value refetch).

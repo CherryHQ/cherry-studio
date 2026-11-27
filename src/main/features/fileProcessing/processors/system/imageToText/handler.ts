@@ -4,7 +4,7 @@ import type * as SystemOcrModule from '@napi-rs/system-ocr'
 
 import { loggerService } from '@logger'
 import { isLinux, isWin } from '@main/core/platform'
-import { transcodeToPng } from '@main/utils/image'
+import { clampImageForModel, transcodeToPng } from '@main/utils/image'
 import type { FileProcessorMerged } from '@shared/data/presets/fileProcessing'
 import { FILE_TYPE, type FileInfo } from '@shared/types/file'
 
@@ -13,6 +13,9 @@ import type { PreparedSystemOcrContext } from '../types'
 import { SystemOcrOptionsSchema } from '../types'
 
 const logger = loggerService.withContext('FileProcessing:SystemImageToTextHandler')
+
+// Windows OCR rejects images beyond its MaxImageDimension (10000px) with 0x80070057.
+const SYSTEM_OCR_MAX_IMAGE_EDGE = 8000
 
 // Load the native OCR binding lazily so a missing or broken binding only fails this
 // feature when it's actually used, instead of throwing at module load and crashing the
@@ -48,9 +51,12 @@ export const systemImageToTextHandler: FileProcessingCapabilityHandler<'image_to
 
         // On Windows the binding only ever reaches a PNG decoder — path input hardcodes it and
         // buffer input sniffs nothing else (#18326) — so it has to be fed PNG bytes.
-        const image = isWin
-          ? await transcodeToPng(await fs.readFile(context.file.path, { signal: executionContext.signal }))
-          : context.file.path
+        let image: string | Uint8Array = context.file.path
+        if (isWin) {
+          const bytes = await fs.readFile(context.file.path, { signal: executionContext.signal })
+          const clamped = await clampImageForModel(bytes, SYSTEM_OCR_MAX_IMAGE_EDGE)
+          image = await transcodeToPng(clamped ?? bytes)
+        }
 
         const result = await recognize(
           image,

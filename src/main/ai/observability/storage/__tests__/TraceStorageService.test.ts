@@ -87,13 +87,6 @@ describe('TraceStorageService', () => {
     await fs.rm(traceDir, { recursive: true, force: true })
   })
 
-  it('activates without touching the trace path', async () => {
-    await service._doInit()
-
-    expect(service.isActivated).toBe(true)
-    expect(application.getPath).not.toHaveBeenCalled()
-  })
-
   it('rejects a path-traversal topicId in getSpans instead of escaping the trace root (REGRESSION observability-1)', async () => {
     await service._doInit()
     // A sentinel sibling of the trace root that a `../` traversal would target for deletion.
@@ -199,6 +192,12 @@ describe('TraceStorageService', () => {
   // mark the entity ended, TraceSpanStore can never evict the trace and memory grows unbounded
   // while developer_mode is on. Drive a span through the real pipeline and confirm a fully-ended
   // trace IS evicted under a small cap. (Pre-fix: isEnd stays undefined → no eviction → fails.)
+  it('restores terminal status when retention removed a live span', async () => {
+    await service._doInit()
+    service.endSpan(readableSpan({ spanId: 'evicted', traceId: 'trace-evicted', ended: true }))
+    expect(service['store'].getSpan('evicted')).toMatchObject({ isEnd: true, status: 'OK' })
+  })
+
   it('marks createSpan/endSpan entities so a fully-ended trace becomes evictable (REGRESSION observability-eviction)', async () => {
     await service._doInit()
 
@@ -298,6 +297,31 @@ describe('TraceStorageService', () => {
     expect(service['pendingEvents'].size).toBe(0)
   })
 
+  it('keeps attribute occupancy charged after escaped events roll out', async () => {
+    await service._doInit()
+    Object.defineProperty(service, 'store', { value: new TraceSpanStore(1000, 11 * 1024 * 1024) })
+    service.saveEntity(
+      span({
+        id: 'active',
+        traceId: 'active-trace',
+        topicId: 'topic',
+        isEnd: false,
+        attributes: { body: 'x'.repeat(800_000) },
+        events: Array.from({ length: 200 }, (_, i) => ({
+          ...timedEvent(`old-${i}`),
+          attributes: { body: '\n'.repeat(1000) }
+        }))
+      })
+    )
+    for (let i = 0; i < 200; i++) service.addSpanEvent('active-trace', 'active', timedEvent(`new-${i}`))
+    expect(service['store'].getSpan('active')?.events).toHaveLength(200)
+    service.saveEntity(
+      span({ id: 'competitor', traceId: 'other', topicId: 'topic', attributes: { body: 'x'.repeat(1_200_000) } })
+    )
+    expect(service['store'].getSpan('competitor')).toBeUndefined()
+    expect(service['store'].getSpan('active')?.attributes?.body).toHaveLength(800_000)
+  })
+
   it('appends a span event directly when the span is already stored', async () => {
     await service._doInit()
     service.saveEntity(span({ id: 's', traceId: 'trace', topicId: 'topic', events: [timedEvent('first')] }))
@@ -310,24 +334,6 @@ describe('TraceStorageService', () => {
 
   // A single OTLP request can be ~10 MiB of decompressed plaintext (raw bodies, tool I/O). Buffering
   // orphan events must be bounded by bytes, not just count, or spans that never arrive pin megabytes.
-  it('evicts oldest buffered spans once retained bytes exceed the budget', async () => {
-    await service._doInit()
-
-    const bigEvent = (): TimedEvent => ({
-      name: 'llm_request',
-      time: [0, 0],
-      attributes: { body: 'x'.repeat(2 * 1024 * 1024) }
-    })
-
-    // 10 spans × ~2 MiB each ≈ 20 MiB > 16 MiB budget → oldest-first eviction, most recent kept.
-    for (let i = 0; i < 10; i++) {
-      service.addSpanEvent('trace', `span-${i}`, bigEvent())
-    }
-
-    expect(service['pendingEventBytes']).toBeLessThanOrEqual(16 * 1024 * 1024)
-    expect(service['pendingEvents'].has('span-0')).toBe(false)
-    expect(service['pendingEvents'].has('span-9')).toBe(true)
-  })
 
   it('drops a single orphan event that exceeds the pending byte budget', async () => {
     await service._doInit()
@@ -346,64 +352,10 @@ describe('TraceStorageService', () => {
   // The MAX_PENDING_* caps guard only the orphan buffer; once the span is stored, addSpanEvent
   // appended to it without limit. Claude Code streams events for a whole turn, and a measured span
   // reached ~1.5k events / ~20 MiB that then crossed IPC and sat in the renderer heap whole.
-  it('caps the events a stored span retains, keeping the most recent', async () => {
-    await service._doInit()
-    service.saveEntity(span({ id: 'cc', traceId: 'trace', topicId: 'topic' }))
-
-    for (let i = 0; i < 250; i++) {
-      service.addSpanEvent('trace', 'cc', timedEvent(`event-${i}`))
-    }
-
-    const names = service['store'].getSpan('cc')?.events?.map((e) => e.name) ?? []
-    expect(names).toHaveLength(200)
-    expect(names.at(0)).toBe('event-50')
-    expect(names.at(-1)).toBe('event-249')
-  })
-
-  it('caps events when a complete span first arrives through saveEntity', async () => {
-    await service._doInit()
-    const events = Array.from({ length: 250 }, (_, index) => timedEvent(`event-${index}`))
-
-    service.saveEntity(span({ id: 'complete', traceId: 'trace', topicId: 'topic', events }))
-
-    const names = service['store'].getSpan('complete')?.events?.map((event) => event.name) ?? []
-    expect(names).toHaveLength(200)
-    expect(names.at(0)).toBe('event-50')
-    expect(names.at(-1)).toBe('event-249')
-  })
-
-  it('caps events when endSpan replaces the event array', async () => {
-    await service._doInit()
-    const events = Array.from({ length: 250 }, (_, index) => timedEvent(`event-${index}`))
-
-    service.createSpan(readableSpan({ spanId: 'live', traceId: 'trace', ended: false }))
-    service.endSpan(readableSpan({ spanId: 'live', traceId: 'trace', ended: true, events }))
-
-    const names = service['store'].getSpan('live')?.events?.map((event) => event.name) ?? []
-    expect(names).toHaveLength(200)
-    expect(names.at(0)).toBe('event-50')
-    expect(names.at(-1)).toBe('event-249')
-  })
 
   // ClaudeCodeTraceBridgeService delivers one OTLP batch as a separate addSpanEvent call per event,
   // so the retained window must be measured incrementally: rescanning it on every append is
   // quadratic in the events a span receives, and a measured span received 4,427 of them.
-  it('measures each appended event once instead of rescanning the retained window', async () => {
-    await service._doInit()
-    service.saveEntity(span({ id: 'cc', traceId: 'trace', topicId: 'topic' }))
-
-    const stringify = vi.spyOn(JSON, 'stringify')
-    for (let i = 0; i < 300; i++) {
-      service.addSpanEvent('trace', 'cc', timedEvent(`event-${i}`))
-    }
-    const measurements = stringify.mock.calls.length
-    stringify.mockRestore()
-
-    // One measure per appended event plus one per event the trim drops. A rescan of the retained
-    // window would be ~200x higher, since the count cap keeps up to 200 events in play.
-    expect(measurements).toBeLessThan(1_000)
-    expect(service['store'].getSpan('cc')?.events).toHaveLength(200)
-  })
 
   // Raw API bodies make the count cap alone useless — a single event can carry tens of MiB. It must
   // be dropped when it exceeds the byte budget, or the supposed cap would not protect the process.

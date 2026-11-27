@@ -18,7 +18,7 @@ Use `.github/workflows/e2e-regression-test.yml` as the entry point. It:
 2. Initializes an isolated directory under the GitHub runner temporary folder.
 3. Installs the application and the code tools under test.
 4. Launches one owned Electron process with CDP enabled.
-5. Runs the ten files in `tests/e2e/regression/` from simple to complex.
+5. Runs `tests/e2e/regression/phases/*.test.ts` in the manifest's phase order.
 6. Continues after a failed phase so later results are still collected.
 7. Produces English platform and aggregate reports, then enforces the verdict.
 8. Stops only the Electron process recorded in the isolated run directory.
@@ -27,30 +27,6 @@ Do not add an LLM tool loop, MCP control server, turn limit, or a second
 Electron launch for each test. A restart is allowed only where the case contract
 explicitly verifies persistence or switches from the clean startup profile to
 the authenticated shared profile.
-
-## Configuration
-
-The workflow reads these repository variables and secrets:
-
-- `CHERRY_TEST_CUSTOM_PROVIDER_BASE_URL`
-- `CHERRY_TEST_CUSTOM_PROVIDER_ANTHROPIC_BASE_URL`
-- `CHERRY_TEST_CUSTOM_PROVIDER_API_KEY`
-- `CHERRY_TEST_CUSTOM_PROVIDER_CHAT_MODEL`
-- `CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_BASE_URL`
-- `CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_API_KEY`
-- `CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_MODEL`
-- `CHERRY_TEST_CHERRYIN_CHAT_MODEL`
-- `CHERRY_TEST_CHERRYIN_IMAGE_MODEL`
-- `CHERRY_TEST_CHERRYIN_ACCOUNT`
-- `CHERRY_TEST_CHERRYIN_PASSWORD`
-
-The custom chat provider requires both URLs: `CHERRY_TEST_CUSTOM_PROVIDER_BASE_URL`
-fills OpenAI, and `CHERRY_TEST_CUSTOM_PROVIDER_ANTHROPIC_BASE_URL` fills Anthropic.
-Both endpoints share `CHERRY_TEST_CUSTOM_PROVIDER_API_KEY`.
-
-Chat and embedding providers are independent. Never print literal credentials,
-write them to fixtures, attach them to Playwright artifacts, or pass them to an
-unrelated action.
 
 ## Test organization
 
@@ -83,7 +59,7 @@ With an initialized run directory and its owned Electron process running:
 
 ```bash
 pnpm exec tsx scripts/e2e/regression/cli.ts run-phase \
-  --run-dir /absolute/run-directory --phase 02-basic-features
+  --run-dir /absolute/run-directory --phase basicFeatures
 ```
 
 The task selected when initializing the run determines which cases execute.

@@ -1,6 +1,6 @@
 ---
 name: code-mate-opencode
-description: Runs OpenCode non-interactively for repository analysis and coding tasks. Use when the user asks to delegate work to OpenCode or compare OpenCode with another coding agent.
+description: Run OpenCode non-interactively for coding tasks. Use when the user asks to delegate work to OpenCode.
 ---
 
 # OpenCode

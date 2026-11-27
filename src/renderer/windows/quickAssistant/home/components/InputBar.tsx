@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Button, Input } from '@cherrystudio/ui'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
+import { useDictationEnabled } from '@renderer/hooks/useDictationEnabled'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
@@ -69,6 +70,7 @@ const InputBar = ({
 }: InputBarProps & { ref?: React.RefObject<HTMLDivElement | null> }) => {
   const localInputRef = useRef<HTMLInputElement>(null)
   const resolvedInputRef = inputRef ?? localInputRef
+  const enabled = useDictationEnabled()
   const { t } = useTranslation()
   const { setTimeoutTimer } = useTimer()
   const dictation = useSyncExternalStore(dictationService.subscribe, dictationService.getSnapshot)
@@ -116,19 +118,20 @@ const InputBar = ({
         value={text}
         placeholder={placeholder}
         autoFocus
+        data-voice-target-id={dictationTargetId}
         onFocus={markDictationTarget}
         onPointerDown={markDictationTarget}
         onKeyDown={handleKeyDown}
         onChange={handleChange}
-        className="h-auto rounded-none border-0 bg-transparent px-0 py-0 text-lg shadow-none [-webkit-app-region:no-drag] placeholder:text-muted-foreground focus-visible:border-transparent focus-visible:ring-0 dark:bg-transparent"
+        className="placeholder:text-muted-foreground h-auto rounded-none border-0 bg-transparent px-0 py-0 text-lg shadow-none [-webkit-app-region:no-drag] focus-visible:border-transparent focus-visible:ring-0 dark:bg-transparent"
       />
-      {dictationStatus && (
-        <span role="status" className="text-xs text-muted-foreground">
+      {enabled && dictationStatus && (
+        <span role="status" className="text-muted-foreground text-xs">
           {dictationStatus}
           {dictationError && `: ${dictationError}`}
         </span>
       )}
-      {dictation.phase === 'idle' && dictationTargetId && (
+      {enabled && dictation.phase === 'idle' && dictationTargetId && (
         <Button
           type="button"
           variant="ghost"
@@ -139,7 +142,7 @@ const InputBar = ({
           <Mic className="size-4" />
         </Button>
       )}
-      {dictation.phase === 'recording' && (
+      {enabled && dictation.phase === 'recording' && (
         <>
           <Button
             type="button"
@@ -159,9 +162,9 @@ const InputBar = ({
           </Button>
         </>
       )}
-      {['starting', 'stopping', 'transcribing'].includes(dictation.phase) && (
+      {enabled && ['starting', 'stopping', 'transcribing'].includes(dictation.phase) && (
         <>
-          <LoaderCircle aria-hidden className="size-4 animate-spin text-muted-foreground" />
+          <LoaderCircle aria-hidden className="text-muted-foreground size-4 animate-spin" />
           <Button
             type="button"
             variant="ghost"
@@ -172,7 +175,7 @@ const InputBar = ({
           </Button>
         </>
       )}
-      {(dictation.phase === 'failed' || dictation.phase === 'recorded') && (
+      {enabled && (dictation.phase === 'failed' || dictation.phase === 'recorded') && (
         <>
           {dictation.phase === 'recorded' && (
             <Button type="button" variant="ghost" size="sm" onClick={() => void dictationService.transcribeRecording()}>
@@ -204,7 +207,7 @@ const InputBar = ({
           )}
         </>
       )}
-      {dictation.phase === 'recovery' && (
+      {enabled && dictation.phase === 'recovery' && (
         <>
           <Button
             type="button"

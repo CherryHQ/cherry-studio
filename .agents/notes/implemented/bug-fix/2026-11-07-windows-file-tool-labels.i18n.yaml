@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-07-windows-file-tool-labels.md
+2026-11-07-windows-file-tool-labels.md: c9653f8abcd4a76e998420ea86a68efc0c5fdb9e
+2026-11-07-windows-file-tool-labels.zh.md: 809408395253c4dc78f574bfd3c43201cdaf0e56

@@ -30,7 +30,8 @@ const EChartsPreview = ({
         chartRef.current = echarts.init(container, theme === 'dark' ? 'dark' : undefined, { renderer: 'svg' })
       }
 
-      chartRef.current.setOption(option, true)
+      // The dark theme paints its own background; let the chart sit on the surface behind it instead.
+      chartRef.current.setOption({ backgroundColor: 'transparent', ...option }, true)
     },
     [theme]
   )

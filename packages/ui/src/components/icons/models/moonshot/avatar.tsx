@@ -10,7 +10,7 @@ export function MoonshotAvatar({ size = 32, shape = 'circle', className }: Omit<
     <Avatar
       className={cn('overflow-hidden', shape === 'circle' ? 'rounded-full' : 'rounded-[20%]', className)}
       style={{ width: size, height: size }}>
-      <AvatarFallback className="text-foreground bg-background">
+      <AvatarFallback className="text-foreground">
         <MoonshotLight className="dark:hidden" style={{ width: size, height: size }} />
         <MoonshotDark className="hidden dark:block" style={{ width: size, height: size }} />
       </AvatarFallback>

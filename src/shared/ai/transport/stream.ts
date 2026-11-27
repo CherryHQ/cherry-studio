@@ -31,6 +31,8 @@ export interface AiChatRequestBody extends AssistantTurnOptions {
   userMessageParts?: CherryMessagePart[]
   /** Uploaded file metadata. */
   files?: Array<{ id: string; name: string; type: string; size: number; url: string }>
+  /** Agent sessions: a busy session answers this input after its current work instead of steering it. */
+  followUp?: boolean
 }
 
 // ── Push payloads (Main → Renderer) ─────────────────────────────────
@@ -42,6 +44,10 @@ export interface StreamChunkPayload {
   executionId?: UniqueModelId
   /** Unique runtime attempt. Distinguishes repeated runs of the same model against the same row. */
   attemptId?: number
+  /** Last source chunk covered by this payload, monotonic within a managed execution attempt. */
+  sequence?: number
+  /** First source chunk in a coalesced live or replay payload, including a partially retained split delta. */
+  firstSequence?: number
   /** Assistant row this execution writes to. Disambiguates same-model chained turns. */
   anchorMessageId?: string
   chunk: UIMessageChunk
@@ -210,6 +216,8 @@ export type AiStreamOpenRequest = {
       serviceTier?: ServiceTierSelection
       /** Whether to request Fast processing for this turn. */
       fastMode?: boolean
+      /** Agent sessions: a busy session answers this input after its current work instead of steering it. */
+      followUp?: boolean
     }
   | ({
       /** Re-run the assistant under an existing user msg. */
@@ -245,9 +253,9 @@ export interface AiToolApprovalRespondRequest extends ApprovalDecision {
   anchorId?: string
 }
 
-export interface AiToolApprovalRespondResponse {
-  ok: boolean
-}
+export type AiToolApprovalRespondResponse =
+  | { ok: true; approved?: false }
+  | { ok: false; reason: 'undelivered' | 'rejected' }
 
 /** Subscribe to a topic's stream state. */
 export interface AiStreamAttachRequest {
@@ -264,24 +272,25 @@ export interface AiStreamAbortRequest {
   topicId: string
 }
 
-/** Resolve a tool output that was deferred at the boundary. See `transport/deferredToolResult`. */
-export interface AiToolResultRequest {
+/** Read the latest accepted tool result for an explicit consumer. */
+export type AiToolResultReadOptions =
+  | { purpose: 'preview' }
+  | { purpose: 'text-range'; cursor?: number }
+  | { purpose: 'full' }
+
+export type AiToolResultRequest = {
   topicId: string
   messageId: string
   toolCallId: string
-}
+  partId?: string
+} & AiToolResultReadOptions
 
-export type AiToolResultResponse = { found: true; output: unknown } | { found: false }
-
-/** Prewarm the next Claude Agent SDK query for an agent session. */
-export interface AiAgentSessionWarmRequest {
-  sessionId: string
-}
-
-/** Close any unused warm query for an agent session. */
-export interface AiAgentSessionWarmCloseRequest {
-  sessionId: string
-}
+export type AiToolResultResponse =
+  | { status: 'ready'; purpose: 'preview'; output: unknown; truncated: boolean }
+  | { status: 'ready'; purpose: 'text-range'; text: string; nextCursor?: number }
+  | { status: 'ready'; purpose: 'full'; output: unknown }
+  | { status: 'pending' }
+  | { status: 'unavailable' }
 
 /** Result of an attach attempt.
  *
@@ -297,7 +306,12 @@ export interface AiStreamAttachTerminal {
 }
 export type AiStreamAttachResponse =
   | { status: 'not-found' }
-  | { status: 'attached'; bufferedChunks: StreamChunkPayload[] }
+  | {
+      status: 'attached'
+      bufferedChunks: StreamChunkPayload[]
+      replayThrough: Record<number, number>
+      replayFrom?: Record<number, number>
+    }
   | ({ status: 'done' } & AiStreamAttachTerminal)
   | ({ status: 'paused' } & AiStreamAttachTerminal)
   | { status: 'error'; error?: SerializedError }

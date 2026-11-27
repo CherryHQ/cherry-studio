@@ -12,6 +12,7 @@ import {
   Switch,
   Tooltip
 } from '@cherrystudio/ui'
+import { DiscardChangesDialog } from '@renderer/components/DiscardChangesDialog'
 import { BracesVariableIcon } from '@renderer/components/icons/BracesVariableIcon'
 import PromptEditorField, { type PromptEditorFieldHandles } from '@renderer/components/PromptEditorField'
 import { PromptPolishActions } from '@renderer/components/resourceCatalog/dialogs/components/PromptPolishActions'
@@ -64,6 +65,8 @@ const PromptEditDialog: FC<PromptEditDialogProps> = ({
   const [formData, setFormData] = useState<FormData>({ title: '', content: '', visibility: defaultVisibility })
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [resetPreviewKey, setResetPreviewKey] = useState(0)
+  const [polishing, setPolishing] = useState(false)
+  const [confirmDiscard, setConfirmDiscard] = useState(false)
   const promptEditorRef = useRef<PromptEditorFieldHandles | null>(null)
   const visibilitySwitchId = useId()
   const variablePlaceholder = t('settings.prompts.variablePlaceholder')
@@ -76,6 +79,11 @@ const PromptEditDialog: FC<PromptEditDialogProps> = ({
     formData.content.length > 0 &&
     formData.content.length <= PROMPT_CONTENT_MAX
   const isSaving = saving || isSubmitting
+  const hasDraft =
+    formData.title !== (prompt?.title ?? '') ||
+    formData.content !== (prompt?.content ?? '') ||
+    formData.visibility !== (prompt?.visibility ?? defaultVisibility) ||
+    polishing
 
   useEffect(() => {
     if (open) {
@@ -86,6 +94,7 @@ const PromptEditDialog: FC<PromptEditDialogProps> = ({
       })
     } else {
       setIsSubmitting(false)
+      setConfirmDiscard(false)
     }
   }, [defaultVisibility, open, prompt])
 
@@ -109,14 +118,11 @@ const PromptEditDialog: FC<PromptEditDialogProps> = ({
     await submit()
   }, [canSave, submit])
 
-  const handleOpenChange = useCallback(
-    (nextOpen: boolean) => {
-      if (!nextOpen) {
-        onCancel()
-      }
-    },
-    [onCancel]
-  )
+  const requestClose = () => {
+    if (isSaving) return
+    if (hasDraft) setConfirmDiscard(true)
+    else onCancel()
+  }
 
   const handlePromptActionChange = useCallback((content: string) => {
     setFormData((current) => ({ ...current, content }))
@@ -150,6 +156,7 @@ const PromptEditDialog: FC<PromptEditDialogProps> = ({
         emptyValueSystemPrompt={QUICK_PHRASE_GENERATION_SYSTEM_PROMPT}
         existingValueSystemPrompt={QUICK_PHRASE_POLISH_SYSTEM_PROMPT}
         onChange={handlePromptActionChange}
+        onRunningChange={setPolishing}
         disabled={isSaving}
       />
       <Tooltip content={t('library.config.prompt.insert_variable')}>
@@ -158,7 +165,7 @@ const PromptEditDialog: FC<PromptEditDialogProps> = ({
           variant="ghost"
           aria-label={t('library.config.prompt.insert_variable')}
           onClick={handleInsertVariable}
-          disabled={isSaving}
+          disabled={isSaving || polishing}
           className="flex size-6 min-h-0 items-center justify-center rounded-md border border-border-subtle p-0 text-muted-foreground! shadow-none transition-colors hover:bg-accent/50 hover:text-foreground! focus-visible:bg-accent/50 focus-visible:text-foreground! focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-40">
           <BracesVariableIcon className="size-3" />
         </Button>
@@ -167,8 +174,8 @@ const PromptEditDialog: FC<PromptEditDialogProps> = ({
   )
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent closeOnOverlayClick={false} className="sm:max-w-[600px]">
+    <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && requestClose()}>
+      <DialogContent guardDismiss={isSaving || hasDraft} closeOnOverlayClick={false} className="sm:max-w-[600px]">
         <DialogHeader>
           <DialogTitle>{isEdit ? t('settings.prompts.edit') : t('settings.prompts.add')}</DialogTitle>
         </DialogHeader>
@@ -192,6 +199,7 @@ const PromptEditDialog: FC<PromptEditDialogProps> = ({
             placeholder={t('settings.prompts.contentPlaceholder')}
             actions={promptActions}
             resetPreviewKey={resetPreviewKey}
+            disabled={polishing}
           />
 
           <div className="flex items-center gap-2">
@@ -211,13 +219,14 @@ const PromptEditDialog: FC<PromptEditDialogProps> = ({
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={onCancel} disabled={isSaving}>
+          <Button variant="outline" onClick={requestClose} disabled={isSaving}>
             {t('common.cancel')}
           </Button>
           <Button onClick={() => void handleOk()} loading={isSaving} disabled={!canSave || isSaving}>
             {t('common.confirm')}
           </Button>
         </DialogFooter>
+        {confirmDiscard && <DiscardChangesDialog onCancel={() => setConfirmDiscard(false)} onDiscard={onCancel} />}
       </DialogContent>
     </Dialog>
   )

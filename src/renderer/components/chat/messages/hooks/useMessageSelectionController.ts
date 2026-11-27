@@ -19,7 +19,7 @@ import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { ExportMessages, MessageExportTarget } from '@renderer/types/messageExport'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import type { CherryMessagePart } from '@shared/data/types/message'
+import type { MessagePartRows } from '@renderer/utils/message/messagePartRows'
 
 const logger = loggerService.withContext('useMessageSelectionController')
 
@@ -27,8 +27,9 @@ interface UseMessageSelectionControllerParams {
   topicId: string
   exportMessages?: ExportMessages
   messages: MessageListItem[]
-  partsByMessageId: Record<string, CherryMessagePart[]>
+  partsByMessageId: MessagePartRows
   deleteMessage?: MessageListActions['deleteMessage']
+  canDeleteMessage?: MessageListActions['canDeleteMessage']
   saveTextFile?: MessageListActions['saveTextFile']
   copyRichContent?: MessageListActions['copyRichContent']
   /**
@@ -58,6 +59,7 @@ export function useMessageSelectionController({
   messages,
   partsByMessageId,
   deleteMessage,
+  canDeleteMessage,
   saveTextFile,
   copyRichContent,
   selectAllPagination
@@ -71,6 +73,20 @@ export function useMessageSelectionController({
   const [selectedMessageIds, setSelectedMessageIds] = useCache('chat.selected_message_ids')
   const latestExportDataRef = useRef({ messages, partsByMessageId, copyRichContent })
   latestExportDataRef.current = { messages, partsByMessageId, copyRichContent }
+
+  const latestDeleteDataRef = useRef({ messages, canDeleteMessage })
+  latestDeleteDataRef.current = { messages, canDeleteMessage }
+
+  const isDeletePlanAllowed = useCallback((ids: readonly string[]) => {
+    const { messages, canDeleteMessage } = latestDeleteDataRef.current
+    return (
+      !canDeleteMessage ||
+      ids.every((id) => {
+        const message = messages.find((message) => message.id === id)
+        return !!message && canDeleteMessage(message)
+      })
+    )
+  }, [])
 
   const selectedIds = useMemo(() => selectedMessageIds ?? [], [selectedMessageIds])
   const exportSelectionEpochRef = useRef(0)
@@ -138,6 +154,8 @@ export function useMessageSelectionController({
           (message) =>
             // Mirrors MessageFrame's isContextBoundary early return — no checkbox is rendered there.
             !message.isContextBoundary &&
+            message.presentation !== 'marker' &&
+            message.presentation !== 'interrupted' &&
             // Hidden fold-layout siblings of multi-model groups; remove if multi-select ever unhides them (PRD D6).
             !(message.role === 'assistant' && message.siblingsGroupId != null && message.isActiveBranch === false)
         )
@@ -326,13 +344,16 @@ export function useMessageSelectionController({
 
   const deleteSelectedMessages = useCallback(
     async (messageIds?: readonly string[]) => {
-      const ids = ensureSelection(messageIds)
-      if (!ids) return
+      const requestedIds = ensureSelection(messageIds)
+      if (!requestedIds) return
+      const ids = [...requestedIds]
 
       if (!deleteMessage) {
         toast.error(t('message.delete.failed'))
         return
       }
+
+      if (!isDeletePlanAllowed(ids)) return
 
       const confirmed = await popup.confirm({
         title: t('message.delete.confirm.title'),
@@ -340,7 +361,7 @@ export function useMessageSelectionController({
         okButtonProps: { danger: true },
         centered: true
       })
-      if (!confirmed) return
+      if (!confirmed || !isDeletePlanAllowed(ids)) return
 
       try {
         for (const messageId of ids) {
@@ -354,7 +375,7 @@ export function useMessageSelectionController({
         toggleMultiSelectMode(false)
       }
     },
-    [deleteMessage, ensureSelection, t, toggleMultiSelectMode]
+    [deleteMessage, ensureSelection, isDeletePlanAllowed, t, toggleMultiSelectMode]
   )
 
   const selection = useMemo<MessageListSelectionState>(
@@ -369,6 +390,8 @@ export function useMessageSelectionController({
     [isMultiSelectMode, isSelectAllLoading, selectAllDisabled, selectAllState, selectedIds]
   )
 
+  const canDeleteSelection = isDeletePlanAllowed(selectedIds)
+
   const actions = useMemo<MessageSelectionController['actions']>(
     () => ({
       selectMessage,
@@ -377,9 +400,10 @@ export function useMessageSelectionController({
       copySelectedMessages,
       saveSelectedMessages: saveTextFile ? saveSelectedMessages : undefined,
       exportSelectedMessages: exportMessages ? exportSelectedMessages : undefined,
-      deleteSelectedMessages: deleteMessage ? deleteSelectedMessages : undefined
+      deleteSelectedMessages: deleteMessage && canDeleteSelection ? deleteSelectedMessages : undefined
     }),
     [
+      canDeleteSelection,
       copySelectedMessages,
       deleteMessage,
       deleteSelectedMessages,

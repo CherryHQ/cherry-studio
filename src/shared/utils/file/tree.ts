@@ -1,7 +1,7 @@
 /**
  * Directory-tree primitive — wire types + shared class hierarchy.
  *
- * SoT: `docs/references/file/directory-tree.md`.
+ * SoT: `docs/dev/references/file/directory-tree.md`.
  *
  * Lives in shared because both the main-process `DirectoryTreeBuilder`
  * (`src/main/services/file/tree/`) and the renderer-side `useDirectoryTree`
@@ -97,6 +97,7 @@ export type DirectoryTreeOptions = z.infer<typeof DirectoryTreeOptionsSchema>
  * don't double-apply.
  */
 export type TreeMutationEvent =
+  | { readonly type: 'status'; readonly coverage: 'stale' | 'unavailable' }
   | {
       readonly type: 'added'
       readonly path: string
@@ -400,7 +401,9 @@ export class TreeDir extends TreeNode {
   }
 
   protected serialize(): SerializedTreeNode {
-    const children: Record<string, SerializedTreeNode> = {}
+    // A plain `{}` would route a child named `__proto__` through the prototype
+    // setter, so the node would vanish from the snapshot.
+    const children: Record<string, SerializedTreeNode> = Object.create(null)
     for (const [name, child] of Object.entries(this._children)) {
       children[name] = child.toJSON()
     }

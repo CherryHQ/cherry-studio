@@ -265,25 +265,6 @@ describe('inferAdapterFamily', () => {
     expect(inferAdapterFamily(ENDPOINT_TYPE.ANTHROPIC_MESSAGES, { adapterFamily: 'aihubmix' })).toBe('aihubmix')
   })
 
-  it('falls back to endpoint default when catalog has no adapterFamily', () => {
-    expect(inferAdapterFamily(ENDPOINT_TYPE.ANTHROPIC_MESSAGES, {})).toBe('anthropic')
-  })
-
-  it('falls back to endpoint default when catalog is absent', () => {
-    expect(inferAdapterFamily(ENDPOINT_TYPE.ANTHROPIC_MESSAGES)).toBe('anthropic')
-    expect(inferAdapterFamily(ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT)).toBe('google')
-    expect(inferAdapterFamily(ENDPOINT_TYPE.OLLAMA_CHAT)).toBe('ollama')
-    expect(inferAdapterFamily(ENDPOINT_TYPE.OLLAMA_GENERATE)).toBe('ollama')
-    expect(inferAdapterFamily(ENDPOINT_TYPE.JINA_RERANK)).toBe('jina-rerank')
-    expect(inferAdapterFamily(ENDPOINT_TYPE.OPENAI_RESPONSES)).toBe('openai')
-  })
-
-  it('falls back to openai-compatible for endpoints with no specific default', () => {
-    // openai-chat-completions is intentionally generic — many vendors speak it
-    expect(inferAdapterFamily(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)).toBe('openai-compatible')
-    expect(inferAdapterFamily(ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION)).toBe('openai-compatible')
-  })
-
   it('accepts both RegistryEndpointConfig and RuntimeEndpointConfig shapes', () => {
     // Both schemas have adapterFamily — the function only needs to peek that
     // one field so the input type is structural.

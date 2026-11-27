@@ -1,5 +1,3 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-
 /**
  * Unit tests for imageGenerationJobHandler.
  *
@@ -13,8 +11,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
  * means a job never outlives its process, so `patchMetadata` is asserted absent
  * rather than exercised.
  */
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { splitParamValues } from '@main/ai/utils/imageOptions'
 import type { JobContext } from '@main/core/job/types'
 
+import { createDashScopeTransport } from '../../dashscope/dashscopeTransport'
 import type { ImageGenerationJobPayload } from '../jobTypes'
 
 const {
@@ -131,30 +133,6 @@ beforeEach(() => {
   createInternalEntryMock.mockImplementation(async () => ({ id: 'file-1' }))
 })
 
-describe('imageGenerationJobHandler contract', () => {
-  it('declares the remote-poll job contract', () => {
-    // `abandon`, not `retry`: the job's only consumer is the in-process awaiter,
-    // so a resumed run would re-pay the vendor and deliver into a dead promise.
-    expect(imageGenerationJobHandler.recovery).toBe('abandon')
-    expect(
-      imageGenerationJobHandler.defaultQueue?.({
-        uniqueModelId: 'ppio::qwen-image',
-        n: 1,
-        providerParams: {},
-        cleanupPolicy: 'delete_when_unreferenced'
-      })
-    ).toBe('image-generation.ppio')
-    expect(imageGenerationJobHandler.defaultConcurrency).toBe(2)
-    expect(imageGenerationJobHandler.defaultRetryPolicy).toEqual({
-      maxAttempts: 1,
-      backoff: 'none',
-      baseDelayMs: 0,
-      maxDelayMs: 0
-    })
-    expect(imageGenerationJobHandler.defaultTimeoutMs).toBe(30 * 60_000)
-  })
-})
-
 describe('imageGenerationJobHandler.execute', () => {
   it('async: submit(taskId) → poll → download/persist, recording usage', async () => {
     const credentialReceipt = {
@@ -229,6 +207,117 @@ describe('imageGenerationJobHandler.execute', () => {
 
     const submitArg = submitMock.mock.calls[0][0]
     expect(submitArg.modelDescriptor).toBeUndefined()
+  })
+
+  it('passes the payload request timeout through to transport.submit', async () => {
+    submitMock.mockResolvedValue({ imageUrls: ['https://cdn.example.com/timed.png'] })
+
+    const ctx = createCtx({
+      input: {
+        uniqueModelId: 'ppio::qwen-image',
+        prompt: 'a cat',
+        n: 1,
+        cleanupPolicy: 'delete_when_unreferenced',
+        providerParams: {},
+        requestTimeoutMs: 15_000
+      }
+    })
+    await imageGenerationJobHandler.execute(ctx)
+
+    expect(submitMock.mock.calls[0][0]).toMatchObject({ requestTimeoutMs: 15_000 })
+  })
+
+  it.each([
+    ['dashscope', '1664*928', '1664x928'],
+    ['dashscope', '1664X928', '1664x928'],
+    ['dashscope', '1664x928', '1664x928'],
+    ['dashscope', '1536×1024', '1536x1024'],
+    ['dashscope', ' 1536 × 1024 ', '1536x1024'],
+    ['dashscope', '0x1024', undefined],
+    ['dashscope', 'auto', undefined],
+    ['dashscope', 'invalid', undefined],
+    ['qwencloud', '1664*928', '1664x928'],
+    ['qwencloud', '1536×1024', '1536x1024']
+  ])('normalizes %s job size %s to %s before submission', async (providerId, size, expectedSize) => {
+    resolveProviderAiSdkConfigMock.mockResolvedValue({ config: { providerId, providerSettings: { apiKey: 'k' } } })
+    submitMock.mockResolvedValue({ imageUrls: ['https://cdn.example.com/sized.png'] })
+    const ctx = createCtx()
+    ctx.input.size = size
+
+    await imageGenerationJobHandler.execute(ctx)
+
+    expect(submitMock.mock.calls[0][0].size).toBe(expectedSize)
+  })
+
+  it('delivers 1536×1024 to DashScope wire parameters.size as 1536*1024 through job execution and splitParamValues', async () => {
+    const fetchSpy = vi.fn<typeof fetch>(
+      async () =>
+        new Response(
+          JSON.stringify({
+            output: { choices: [{ message: { content: [{ image: 'https://cdn.example.com/z.png' }] } }] }
+          }),
+          { status: 200 }
+        )
+    )
+    const transport = createDashScopeTransport({ apiKey: 'ds-key', fetch: fetchSpy })
+    resolveImageTransportMock.mockReturnValue(transport)
+    getByProviderIdMock.mockReturnValue({
+      id: 'dashscope',
+      name: 'DashScope',
+      settings: {},
+      reportsActualCost: false
+    })
+    getByKeyMock.mockReturnValue({
+      id: 'dashscope::z-image-turbo',
+      apiModelId: 'z-image-turbo',
+      pricing: {}
+    })
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: { providerId: 'dashscope', providerSettings: { apiKey: 'ds-key' } }
+    })
+
+    const descriptor = {
+      id: 'z-image-turbo',
+      endpoint: '/api/v1/services/aigc/multimodal-generation/generation',
+      isSync: true,
+      mode: 'generate' as const
+    }
+
+    // Case A: raw `1536×1024` in job payload (bypassing splitParamValues)
+    const directCtx = createCtx({
+      input: {
+        uniqueModelId: 'dashscope::z-image-turbo',
+        prompt: 'a sunlit valley',
+        n: 1,
+        size: '1536×1024',
+        modelDescriptor: descriptor,
+        providerParams: {},
+        cleanupPolicy: 'delete_when_unreferenced'
+      }
+    })
+    await imageGenerationJobHandler.execute(directCtx)
+    const directBody = JSON.parse((fetchSpy.mock.calls[0][1] as RequestInit).body as string)
+    expect(directBody.model).toBe('z-image-turbo')
+    expect(directBody.parameters.size).toBe('1536*1024')
+
+    // Case B: main painting-to-wire flow via splitParamValues
+    const { structured, vendorBag } = splitParamValues({ size: '1536×1024', seed: 123 })
+    const splitCtx = createCtx({
+      input: {
+        uniqueModelId: 'dashscope::z-image-turbo',
+        prompt: 'a sunlit valley',
+        n: structured.n ?? 1,
+        size: structured.size,
+        seed: structured.seed,
+        modelDescriptor: descriptor,
+        providerParams: vendorBag,
+        cleanupPolicy: 'delete_when_unreferenced'
+      }
+    })
+    await imageGenerationJobHandler.execute(splitCtx)
+    const splitBody = JSON.parse((fetchSpy.mock.calls[1][1] as RequestInit).body as string)
+    expect(splitBody.model).toBe('z-image-turbo')
+    expect(splitBody.parameters).toEqual({ size: '1536*1024', seed: 123 })
   })
 
   it('sync: submit(imageUrls) → no poll, and no metadata is persisted', async () => {

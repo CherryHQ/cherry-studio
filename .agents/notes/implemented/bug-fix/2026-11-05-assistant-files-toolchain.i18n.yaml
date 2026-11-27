@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-05-assistant-files-toolchain.md
+2026-11-05-assistant-files-toolchain.md: f1df707a429e5f99ce005159205fdfe58e501625
+2026-11-05-assistant-files-toolchain.zh.md: 1bb7d887a7c7e2381bf59c92e59c52d642b8e40a

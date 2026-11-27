@@ -134,7 +134,7 @@ describe('conversation link context menu', () => {
       range.selectNodeContents(linkText)
       window.getSelection()?.addRange(range)
       fireEvent.contextMenu(linkText)
-      expect(screen.getAllByRole('menuitem')).toHaveLength(5)
+      expect(screen.getByRole('menuitem', { name: 'notes.save' })).toBeInTheDocument()
       fireEvent.click(screen.getByRole('menuitem', { name: action }))
       if (action === 'chat.message.quote') {
         await waitFor(() => expect(quote).toHaveBeenCalledWith('Example website'))

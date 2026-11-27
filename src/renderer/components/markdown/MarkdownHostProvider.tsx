@@ -8,6 +8,7 @@ interface MarkdownHostProviderProps extends MarkdownHost {
 
 export function MarkdownHostProvider({
   children,
+  resolveImageSrc,
   openFilePath,
   openExternalUrl,
   copyRichContent,
@@ -16,8 +17,16 @@ export function MarkdownHostProvider({
   notifyError
 }: MarkdownHostProviderProps) {
   const value = useMemo(
-    () => ({ openFilePath, openExternalUrl, copyRichContent, exportTableAsExcel, notifySuccess, notifyError }),
-    [openFilePath, openExternalUrl, copyRichContent, exportTableAsExcel, notifySuccess, notifyError]
+    () => ({
+      resolveImageSrc,
+      openFilePath,
+      openExternalUrl,
+      copyRichContent,
+      exportTableAsExcel,
+      notifySuccess,
+      notifyError
+    }),
+    [resolveImageSrc, openFilePath, openExternalUrl, copyRichContent, exportTableAsExcel, notifySuccess, notifyError]
   )
   return <MarkdownHostContext value={value}>{children}</MarkdownHostContext>
 }

@@ -79,17 +79,33 @@ describe('host preview options', () => {
     expect(screen.getByTestId('docx-preview-zoom-value')).toHaveTextContent('100%')
   })
 
+  it('scales the page up to fill a pane wider than the paper', async () => {
+    render(<Preview source={createSource()} options={{ docx: { initialZoom: 'fit-width' } }} />)
+    await screen.findByText('Landscape page')
+    expect(screen.getByTestId('docx-preview-zoom-value')).toHaveTextContent('38%')
+
+    resize(1200)
+    expect(screen.getByTestId('docx-preview-zoom-value')).toHaveTextContent('120%')
+
+    resize(4000)
+    expect(screen.getByTestId('docx-preview-zoom-value')).toHaveTextContent('200%')
+  })
+
   it('moves the inset from the outer viewport to the unscaled document scroll region only when requested', async () => {
     const source = createSource()
     const view = render(<Preview source={source} />)
     await screen.findByText('Landscape page')
     const region = screen.getByRole('region', { name: 'layout.docx' })
     // Inset ownership is the layout contract: outer padding creates the reported fixed strip.
-    expect(screen.getByTestId('file-preview-content')).toHaveClass('pb-[var(--file-preview-bottom-inset,0px)]')
+    expect(screen.getByTestId('file-preview-content').firstElementChild).toHaveClass(
+      'pb-[var(--file-preview-bottom-inset,0px)]'
+    )
     expect(region.style.paddingBottom).toBe('')
 
     view.rerender(<Preview source={source} options={{ bottomInset: 'content' }} />)
-    expect(screen.getByTestId('file-preview-content')).not.toHaveClass('pb-[var(--file-preview-bottom-inset,0px)]')
+    expect(screen.getByTestId('file-preview-content').firstElementChild).not.toHaveClass(
+      'pb-[var(--file-preview-bottom-inset,0px)]'
+    )
     expect(region.style.paddingBottom).toBe('var(--file-preview-bottom-inset, 0px)')
     expect(screen.getByTestId('docx-preview-content').style.paddingBottom).toBe('')
     expect(source.open).toHaveBeenCalledTimes(1)

@@ -3,19 +3,21 @@ import { application } from '@application'
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
-import type { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import type { JobContext, JobHandler } from '@main/core/job/types'
 import { removeDir } from '@main/utils/file'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { KnowledgeItem } from '@shared/data/types/knowledge'
+import type { KeyedMutex } from '@shared/utils/async'
 
 import type { KnowledgeItemScheduler } from '../ingestion/KnowledgeIngestionService'
 import { markUnscheduledKnowledgeItemsFailed } from '../ingestion/statusCleanup'
 import { purgeKnowledgeSubtreeWithinLock } from '../ingestion/subtreePurge'
+import { isIndexableKnowledgeItem } from '../items'
 import { getKnowledgeBaseFilePath } from '../pathStorage'
+import { expandDirectoryOwnerToTree } from '../pipeline/sources/directory'
 import { knowledgeQueueName, reportKnowledgeProgress, toKnowledgeBaseId, toKnowledgeItemId } from '../types'
 import type { KnowledgePrepareRootPayload } from './jobTypes'
-import { prepareKnowledgeItem } from './prepareItem'
+import { createExpandedDirectoryChildren, pinDirectoryPathPrefix } from './prepareItem'
 import { directoryCopyProgressCacheKey } from './utils/directoryCopyProgress'
 import { resolveLiveKnowledgeItem } from './utils/liveItem'
 import { markKnowledgeItemFailedOnSettled } from './utils/settled'
@@ -62,7 +64,7 @@ export function createPrepareRootJobHandler(
       let lastCopyPercent: number | null = null
 
       try {
-        // Source expansion creates child items, so it runs under the base mutation lock.
+        // Expansion takes the base mutation lock only to pin the prefix and to create child items.
         const leafItems = await scanRootItem(ctx, knowledgeLockManager, (percent) => {
           if (percent === lastCopyPercent) return
           lastCopyPercent = percent
@@ -143,34 +145,70 @@ async function deletePreviousLeafExpansion(
 async function scanRootItem(
   ctx: JobContext<KnowledgePrepareRootPayload>,
   knowledgeLockManager: KeyedMutex,
-  onDirectoryCopyProgress: Parameters<typeof prepareKnowledgeItem>[0]['onDirectoryCopyProgress']
+  onDirectoryCopyProgress: (percent: number) => void
 ): Promise<KnowledgeItem[]> {
   const { baseId, itemId } = ctx.input
 
+  // Only the prefix pin and the child-row writes take the base lock; the scan and the copy of
+  // every file in between run off it, so a large folder never stalls the rest of the base.
+  const pinned = await knowledgeLockManager.runExclusive(baseId, async () => {
+    const item = resolveLiveRootOrReportSkip(ctx, 'before expansion')
+    if (!item) {
+      return null
+    }
+    if (isIndexableKnowledgeItem(item)) {
+      knowledgeItemService.updateStatus(itemId, 'processing')
+      return { kind: 'leaf' as const, item }
+    }
+    return { kind: 'directory' as const, item, pathPrefix: pinDirectoryPathPrefix(baseId, item) }
+  })
+  if (!pinned) {
+    return []
+  }
+  if (pinned.kind === 'leaf') {
+    return [pinned.item]
+  }
+
+  const children = await expandDirectoryOwnerToTree(
+    pinned.item,
+    baseId,
+    pinned.pathPrefix,
+    ctx.signal,
+    onDirectoryCopyProgress
+  )
+  ctx.signal.throwIfAborted()
+
   return await knowledgeLockManager.runExclusive(baseId, async () => {
-    const result = resolveLiveKnowledgeItem(itemId)
-    if ('skip' in result) {
-      if (result.skip === 'deleting') {
-        logger.info('Skipping prepare-root for deleting item before expansion', { baseId, itemId, jobId: ctx.jobId })
-        reportKnowledgeProgress(ctx, 100, { stage: 'deleting' })
-      } else {
-        logger.info('Skipping prepare-root for missing item before expansion', { baseId, itemId, jobId: ctx.jobId })
-        reportKnowledgeProgress(ctx, 100, { stage: 'item-gone' })
-      }
+    // A delete may have landed while the files were copying; its cleanup removes the pinned shell.
+    const item = resolveLiveRootOrReportSkip(ctx, 'after copying')
+    if (!item || item.type !== 'directory') {
       return []
     }
-
-    const leaves = await prepareKnowledgeItem({
-      baseId,
-      item: result.item,
-      signal: ctx.signal,
-      onDirectoryCopyProgress
-    })
+    const leaves = await createExpandedDirectoryChildren(baseId, item, children, ctx.signal)
     if (leaves.length > 0) {
       knowledgeItemService.updateStatus(itemId, 'processing')
     }
     return leaves
   })
+}
+
+function resolveLiveRootOrReportSkip(
+  ctx: JobContext<KnowledgePrepareRootPayload>,
+  phase: string
+): KnowledgeItem | null {
+  const { baseId, itemId } = ctx.input
+  const result = resolveLiveKnowledgeItem(itemId)
+  if (!('skip' in result)) {
+    return result.item
+  }
+  if (result.skip === 'deleting') {
+    logger.info(`Skipping prepare-root for deleting item ${phase}`, { baseId, itemId, jobId: ctx.jobId })
+    reportKnowledgeProgress(ctx, 100, { stage: 'deleting' })
+  } else {
+    logger.info(`Skipping prepare-root for missing item ${phase}`, { baseId, itemId, jobId: ctx.jobId })
+    reportKnowledgeProgress(ctx, 100, { stage: 'item-gone' })
+  }
+  return null
 }
 
 async function enqueueLeafItems(

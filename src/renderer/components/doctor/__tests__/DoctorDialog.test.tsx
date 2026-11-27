@@ -58,7 +58,8 @@ function createController(overrides: ControllerOverrides = {}) {
       downloadProgress: 0,
       available: false,
       ignore: false,
-      manualCheck: false
+      manualCheck: false,
+      lastErrorKey: null
     },
     cancel: vi.fn<DoctorController['cancel']>(),
     canChangePanel: true,

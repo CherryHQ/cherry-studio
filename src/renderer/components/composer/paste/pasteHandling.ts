@@ -1,8 +1,11 @@
 import { loggerService } from '@logger'
+import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { COMPOSER_FILE_KIND, type PastedTextFileMetadata } from '@renderer/types/file'
-import { getFileExtension, isSupportedExtension, isSupportedFile, removeFileExtension } from '@renderer/utils/file'
+import { getFileExtension, isSupportedExtension, isSupportedFile } from '@renderer/utils/file'
 import { type ComposerAttachment, toComposerAttachment } from '@renderer/utils/message/composerAttachment'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
+import { createFilePathHandle } from '@shared/utils/file'
 
 import { LONG_TEXT_PASTE_THRESHOLD, PASTED_TEXT_FILE_EXTENSION } from '../composerPaste'
 
@@ -22,13 +25,21 @@ export function shouldHandleClipboardFiles(
   })
 }
 
+type ClipboardPathEntry = { kind: 'file'; attachment: ComposerAttachment } | { kind: 'directory'; path: string }
+
 async function readPathBackedClipboardEntry(
   filePath: string,
   extensionSet: Set<string>
-): Promise<ComposerAttachment | null> {
+): Promise<ClipboardPathEntry | null> {
+  const metadata = await ipcApi.request(
+    'file.get_metadata',
+    createFilePathHandle(AbsoluteFilePathSchema.parse(filePath))
+  )
+  if (!metadata) return null
+  if (metadata.kind === 'directory') return { kind: 'directory', path: filePath }
   if (!(await isSupportedFile(filePath, extensionSet))) return null
   const selectedFile = await window.api.file.get(filePath)
-  return selectedFile ? toComposerAttachment(selectedFile) : null
+  return selectedFile ? { kind: 'file', attachment: toComposerAttachment(selectedFile) } : null
 }
 
 // Track last focused component
@@ -58,7 +69,8 @@ export const handlePaste = async (
   pasteLongTextAsFile?: boolean,
   pasteLongTextThreshold?: number,
   resizeTextArea?: () => void,
-  t?: (key: string) => string
+  t?: (key: string) => string,
+  onFolderPathPasted?: (path: string) => void
 ): Promise<boolean> => {
   try {
     const clipboardFiles = Array.from(event.clipboardData?.files ?? [])
@@ -117,8 +129,10 @@ export const handlePaste = async (
             if (result.status === 'rejected') {
               hasFileError = true
               logger.error('onPaste:', result.reason as Error)
-            } else if (result.value) {
-              attachments.push(result.value)
+            } else if (result.value?.kind === 'file') {
+              attachments.push(result.value.attachment)
+            } else if (result.value?.kind === 'directory' && onFolderPathPasted) {
+              onFolderPathPasted(result.value.path)
             } else if (t) {
               toast.info(t('chat.input.file_not_supported'))
             }
@@ -148,7 +162,7 @@ export const handlePaste = async (
                     ...prevFiles,
                     toComposerAttachment({
                       ...selectedFile,
-                      origin_name: removeFileExtension(file.name)
+                      origin_name: file.name
                     })
                   ])
                 } else if (t) {
@@ -163,8 +177,14 @@ export const handlePaste = async (
             }
 
             const result = await readPathBackedClipboardEntry(filePath, extensionSet)
-            if (result) {
-              setFiles((prevFiles) => [...prevFiles, result])
+            if (result?.kind === 'directory') {
+              if (onFolderPathPasted) {
+                onFolderPathPasted(result.path)
+              } else if (t) {
+                toast.info(t('chat.input.file_not_supported'))
+              }
+            } else if (result?.kind === 'file') {
+              setFiles((prevFiles) => [...prevFiles, result.attachment])
             } else if (t && !hasPathlessClipboardFile) {
               toast.info(t('chat.input.file_not_supported'))
             }

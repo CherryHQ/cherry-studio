@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest'
 import {
   applyPlaybackCommand,
   applyPlaybackReport,
+  beginPlaybackSynthesis,
+  readyPlaybackOutput,
   completePlaybackSynthesis,
   createPlaybackSnapshot,
   createPlaybackState
@@ -11,6 +13,25 @@ import {
 const sessionId = '00000000-0000-4000-8000-000000000001'
 
 describe('playback command and observation contract', () => {
+  it.each(['playing', 'paused'] as const)(
+    'keeps %s and its attempt identity when the streaming producer finishes',
+    (phase) => {
+      const generating = beginPlaybackSynthesis(createPlaybackState())
+      expect(generating.attemptId).toBeGreaterThan(0)
+      expect(beginPlaybackSynthesis(generating).attemptId).toBe(generating.attemptId)
+      let ready = readyPlaybackOutput(generating)
+      if (phase === 'paused') ready = applyPlaybackCommand(ready, 'pause', false)
+      const observed = applyPlaybackReport(ready, { sessionId, ...ready, phase })
+      const complete = completePlaybackSynthesis(observed)
+      expect(complete).toMatchObject({
+        attemptId: generating.attemptId,
+        synthesis: 'completed',
+        desired: phase,
+        observed: phase,
+        pendingCommand: null
+      })
+    }
+  )
   it('recovers a paused audio failure with a fresh playing attempt', () => {
     const ready = completePlaybackSynthesis(createPlaybackState())
     const paused = applyPlaybackCommand(ready, 'pause', true)

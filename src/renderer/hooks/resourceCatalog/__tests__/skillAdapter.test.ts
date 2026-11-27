@@ -34,6 +34,20 @@ function renderHook<T>(callback: () => T) {
 }
 
 describe('skillAdapter mutations', () => {
+  it('returns native mirror mutation data and preserves IPC errors without unwrapping', async () => {
+    const updated = { id: 'skill-1', mirrorEnabled: false }
+    skillMocks.request.mockResolvedValueOnce(updated)
+    const { result } = renderHook(() => useSkillMutationsById('skill-1'))
+    await act(async () => {
+      await expect(result.current.setMirrorEnabled(false)).resolves.toEqual(updated)
+    })
+    const error = Object.assign(new Error('export denied'), { code: 'PERMISSION_DENIED' })
+    skillMocks.request.mockRejectedValueOnce(error)
+    await act(async () => {
+      await expect(result.current.setMirrorEnabled(true)).rejects.toBe(error)
+    })
+  })
+
   beforeEach(() => {
     vi.clearAllMocks()
     invalidateMock.mockResolvedValue(undefined)

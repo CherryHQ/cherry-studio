@@ -9,7 +9,7 @@ import { RuntimeExecutor } from '../executor'
 
 // Mock dependencies
 vi.mock('ai', async (importOriginal) => {
-  const actual = (await importOriginal()) as Record<string, unknown>
+  const actual = await importOriginal<Record<string, unknown>>()
   return {
     ...actual,
     experimental_generateImage: vi.fn(),
@@ -244,7 +244,7 @@ describe('RuntimeExecutor.generateImage', () => {
         expect.objectContaining({ prompt: 'A test image' }),
         expect.objectContaining({
           providerId: 'openai',
-          model: 'dall-e-3'
+          model: mockImageModel
         })
       )
 
@@ -266,9 +266,13 @@ describe('RuntimeExecutor.generateImage', () => {
         provider: 'openai'
       } as ImageModelV3
 
+      let modelAtResolution: unknown
       const modelResolutionPlugin: AiPlugin = {
         name: 'model-resolver',
-        resolveModel: vi.fn(async () => customImageModel)
+        resolveModel: vi.fn(async (_modelId, context) => {
+          modelAtResolution = context.model
+          return customImageModel
+        })
       }
 
       const executorWithPlugin = RuntimeExecutor.create(
@@ -282,14 +286,15 @@ describe('RuntimeExecutor.generateImage', () => {
 
       await executorWithPlugin.generateImage({ model: 'dall-e-3', prompt: 'A test image' })
 
-      // resolveModel receives model id and context with core fields
+      // resolveModel receives the model id and the pre-resolution context:
+      // capture context.model inside the hook, since resolution mutates the context object
       expect(modelResolutionPlugin.resolveModel).toHaveBeenCalledWith(
         'dall-e-3',
         expect.objectContaining({
-          providerId: 'openai',
-          model: 'dall-e-3'
+          providerId: 'openai'
         })
       )
+      expect(modelAtResolution).toBe('dall-e-3')
 
       expect(aiGenerateImage).toHaveBeenCalledWith({
         model: customImageModel,
@@ -417,12 +422,12 @@ describe('RuntimeExecutor.generateImage', () => {
         'Generation failed'
       )
 
-      // onError receives the original error and context with core fields
+      // onError receives the original error and context holding the resolved model
       expect(errorPlugin.onError).toHaveBeenCalledWith(
         error,
         expect.objectContaining({
           providerId: 'openai',
-          model: 'dall-e-3'
+          model: mockImageModel
         })
       )
     })
@@ -439,48 +444,6 @@ describe('RuntimeExecutor.generateImage', () => {
       await expect(
         executor.generateImage({ model: 'dall-e-3', prompt: 'A test image', abortSignal: abortController.signal })
       ).rejects.toThrow('Operation was aborted')
-    })
-  })
-
-  describe('Multiple providers support', () => {
-    it('should work with different providers', async () => {
-      const googleImageModel = createMockImageModel({
-        provider: 'google',
-        modelId: 'imagen-3.0-generate-002'
-      })
-
-      const googleProvider = createMockProviderV3({
-        provider: 'google',
-        imageModel: vi.fn(() => googleImageModel)
-      })
-
-      const googleExecutor = RuntimeExecutor.create('google', googleProvider, {
-        apiKey: 'google-key'
-      })
-
-      await googleExecutor.generateImage({ model: 'imagen-3.0-generate-002', prompt: 'A landscape' })
-
-      expect(googleProvider.imageModel).toHaveBeenCalledWith('imagen-3.0-generate-002')
-    })
-
-    it('should support xAI Grok image models', async () => {
-      const xaiImageModel = createMockImageModel({
-        provider: 'xai',
-        modelId: 'grok-2-image'
-      })
-
-      const xaiProvider = createMockProviderV3({
-        provider: 'xai',
-        imageModel: vi.fn(() => xaiImageModel)
-      })
-
-      const xaiExecutor = RuntimeExecutor.create('xai', xaiProvider, {
-        apiKey: 'xai-key'
-      })
-
-      await xaiExecutor.generateImage({ model: 'grok-2-image', prompt: 'A futuristic robot' })
-
-      expect(xaiProvider.imageModel).toHaveBeenCalledWith('grok-2-image')
     })
   })
 

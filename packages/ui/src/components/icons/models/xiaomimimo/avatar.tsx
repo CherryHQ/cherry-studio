@@ -10,7 +10,7 @@ export function XiaomimimoAvatar({ size = 32, shape = 'circle', className }: Omi
     <Avatar
       className={cn('overflow-hidden', shape === 'circle' ? 'rounded-full' : 'rounded-[20%]', className)}
       style={{ width: size, height: size }}>
-      <AvatarFallback className="text-foreground bg-background">
+      <AvatarFallback className="text-foreground">
         <XiaomimimoLight className="dark:hidden" style={{ width: size, height: size }} />
         <XiaomimimoDark className="hidden dark:block" style={{ width: size, height: size }} />
       </AvatarFallback>

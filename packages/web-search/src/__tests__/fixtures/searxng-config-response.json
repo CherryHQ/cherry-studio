@@ -1,0 +1,14 @@
+{
+  "engines": [
+    {
+      "categories": ["general", "web"],
+      "enabled": true,
+      "name": "duckduckgo"
+    },
+    {
+      "categories": ["images"],
+      "enabled": true,
+      "name": "images"
+    }
+  ]
+}

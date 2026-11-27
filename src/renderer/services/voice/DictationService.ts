@@ -1,8 +1,12 @@
+import { loggerService } from '@logger'
 import { preferenceService } from '@renderer/data/PreferenceService'
+import { isVoiceRecognitionOff } from '@renderer/utils/voiceRecognitionPreference'
+import type { TranscriptRevision, SpeechPcmChunk } from '@shared/ai/voice'
 import { voiceErrorCodes, type VoiceErrorReason } from '@shared/ipc/errors/voice'
 
 import { createAudioSpectrum, type AudioSpectrum } from './audioSpectrum'
 import { microphoneErrorReason } from './microphoneDevices'
+import { PcmCapture } from './PcmCapture'
 import {
   voiceService,
   type CreateRecordingInput,
@@ -10,7 +14,8 @@ import {
   type StartRecordingInput,
   type TranscriptionInput,
   type VoiceCommandEvent,
-  type VoiceOperation
+  type VoiceOperation,
+  type StreamingTranscription
 } from './VoiceService'
 import { voiceTargetManager, type CapturedVoiceTarget, type VoiceTargetInsertResult } from './VoiceTargetManager'
 
@@ -37,10 +42,12 @@ export interface DictationSnapshot {
   readonly retryAvailable?: true
   readonly error?: DictationErrorCategory
   readonly analyser?: AnalyserNode
+  readonly transcript?: TranscriptRevision
 }
 
 export interface DictationRun {
   readonly result: Promise<void>
+  stop(): Promise<void>
   cancel(): Promise<void>
 }
 
@@ -54,14 +61,18 @@ interface TranscriptionResult {
 
 interface DictationVoiceService {
   initialize(): Promise<void>
-  readTranscriptionPreferenceInput(): Promise<ResolvedTranscriptionPreferences>
+  readTranscriptionPreferenceInput(): Promise<ResolvedTranscriptionPreferences | null>
   resolveTranscriptionPreferences(
-    captured?: ResolvedTranscriptionPreferences
-  ): Promise<ResolvedTranscriptionPreferences>
+    captured?: ResolvedTranscriptionPreferences | null
+  ): Promise<ResolvedTranscriptionPreferences | null>
   subscribeCommands(listener: (event: VoiceCommandEvent) => void): () => void
   subscribeInterruptions(listener: () => void): () => void
   startRecording(input: StartRecordingInput): VoiceOperation<unknown>
   createRecording(input: CreateRecordingInput): Promise<RecordingEntry>
+  startStreamingTranscription(
+    input: Parameters<typeof voiceService.startStreamingTranscription>[0],
+    onRevision: (update: TranscriptRevision) => void
+  ): StreamingTranscription
   transcribe(input: TranscriptionInput): VoiceOperation<TranscriptionResult>
   retryTranscription(input: TranscriptionInput): VoiceOperation<TranscriptionResult>
   abortTranscription(operation: Pick<VoiceOperation<unknown>, 'sessionId' | 'requestId'>): Promise<void>
@@ -94,6 +105,11 @@ interface DictationServiceOptions {
   voice?: DictationVoiceService
   targets?: DictationTargetManager
   mediaDevices?: DictationMediaDevices
+  createPcmCapture?: (
+    write: (chunk: SpeechPcmChunk) => Promise<void>,
+    onError: (error: unknown) => void,
+    onLimit: () => void
+  ) => Pick<PcmCapture, 'start' | 'stop' | 'cancel'> & { readonly analyser?: AnalyserNode }
   createMediaRecorder?: (stream: MediaStream, options: MediaRecorderOptions) => DictationMediaRecorder
   clipboard?: DictationClipboard
   readMicrophoneDeviceId?: () => Promise<string | null>
@@ -107,6 +123,9 @@ interface ActiveDictation {
   readonly target: CapturedVoiceTarget | null
   preferences: ResolvedTranscriptionPreferences
   readonly chunks: Blob[]
+  pcm?: Pick<PcmCapture, 'start' | 'stop' | 'cancel'> & { readonly analyser?: AnalyserNode }
+  streaming?: StreamingTranscription
+  transcript?: TranscriptRevision
   capture?: Promise<MediaStream>
   stream?: MediaStream
   spectrum?: AudioSpectrum
@@ -140,6 +159,7 @@ export class DictationService {
   private readonly targets: DictationTargetManager
   private readonly mediaDevices: DictationMediaDevices
   private readonly createMediaRecorder: (stream: MediaStream, options: MediaRecorderOptions) => DictationMediaRecorder
+  private readonly createPcmCapture: NonNullable<DictationServiceOptions['createPcmCapture']>
   private readonly clipboard: DictationClipboard
   private readonly readMicrophoneDeviceId: () => Promise<string | null>
   private readonly now: () => number
@@ -151,6 +171,7 @@ export class DictationService {
   private maximumTimer?: ReturnType<typeof setTimeout>
   private timerOwner?: ActiveDictation
   private initialization?: { generation: number; promise: Promise<void> }
+  private unsubscribePreference?: () => void
   private unsubscribeCommands?: () => void
   private unsubscribeInterruptions?: () => void
   private lifecycleGeneration = 0
@@ -160,6 +181,8 @@ export class DictationService {
 
   constructor(options: DictationServiceOptions = {}) {
     this.voice = options.voice ?? voiceService
+    this.createPcmCapture =
+      options.createPcmCapture ?? ((write, onError, onLimit) => new PcmCapture(write, onError, onLimit))
     this.readMicrophoneDeviceId =
       options.readMicrophoneDeviceId ?? (() => preferenceService.get('feature.voice.input.device_id'))
     this.targets = options.targets ?? voiceTargetManager
@@ -186,19 +209,14 @@ export class DictationService {
     if (this.initialization) return this.initialization.promise
     const generation = this.lifecycleGeneration
     try {
-      this.unsubscribeCommands = this.voice.subscribeCommands((event) => this.handleCommand(generation, event))
-      this.unsubscribeInterruptions = this.voice.subscribeInterruptions(() => {
-        if (generation === this.lifecycleGeneration && this.pendingStart) {
-          void this.cancelRun(this.pendingStart)
-        }
-      })
+      this.attachCommands()
     } catch (error) {
       return Promise.reject(error)
     }
     const promise = this.voice.initialize().catch((error: unknown) => {
       if (this.initialization?.generation === generation) {
-        this.detachCommands()
         this.initialization = undefined
+        if (!this.pendingStart && !this.active) this.detachCommands()
       }
       throw error
     })
@@ -221,6 +239,12 @@ export class DictationService {
       result: this.startRun(runToken, generation, target).finally(() => {
         if (this.pendingStart === runToken) this.pendingStart = undefined
       }),
+      stop: () =>
+        this.currentRunToken !== runToken
+          ? Promise.resolve()
+          : this.active?.runToken === runToken && (this.active.recorder || this.active.streaming)
+            ? this.stop()
+            : this.cancelRun(runToken, { abandonPendingCapture: false }),
       cancel: () => this.cancelRun(runToken)
     }
   }
@@ -228,9 +252,26 @@ export class DictationService {
   private async startRun(runToken: symbol, generation: number, target: CapturedVoiceTarget | null): Promise<void> {
     if (await this.cleanupActive()) return
     if (!this.isRunCurrent(runToken, generation)) return
-    this.publish('starting')
-
+    let preferences: ResolvedTranscriptionPreferences | null
     try {
+      this.attachCommands()
+      if (!this.isRunCurrent(runToken, generation)) return
+      const snapshot = await preferenceService.ensureFreshSubscription('feature.voice.recognition.model_id')
+      if (!this.isRunCurrent(runToken, generation)) return
+      if (!snapshot.ok || isVoiceRecognitionOff(snapshot.value)) {
+        await this.cancelRun(runToken)
+        return
+      }
+      preferences = await this.voice.readTranscriptionPreferenceInput()
+      if (!this.isRunCurrent(runToken, generation)) return
+      if (
+        preferences === null ||
+        isVoiceRecognitionOff(preferenceService.getCachedValue('feature.voice.recognition.model_id'))
+      ) {
+        await this.cancelRun(runToken)
+        return
+      }
+      this.publish('starting')
       await this.initialize()
     } catch (error) {
       if (this.isRunCurrent(runToken, generation)) {
@@ -243,7 +284,6 @@ export class DictationService {
     let deviceId: string | null = null
     let active: ActiveDictation | undefined
     try {
-      const preferences = await this.voice.readTranscriptionPreferenceInput()
       deviceId = await this.readMicrophoneDeviceId()
       if (!this.isRunCurrent(runToken, generation)) return
       const admission = this.voice.startRecording({
@@ -274,13 +314,24 @@ export class DictationService {
     }
 
     try {
-      active.preferences = await this.voice.resolveTranscriptionPreferences(active.preferences)
+      const resolved = await this.voice.resolveTranscriptionPreferences(active.preferences)
+      if (!this.isCurrent(active)) return
+      if (resolved === null) {
+        await this.cancelRun(runToken)
+        return
+      }
+      active.preferences = resolved
     } catch (error) {
       await this.failUnready(active, error)
       return
     }
     if (this.active !== active || !this.isCurrent(active)) {
       if (this.active === active) await this.cleanupSession(active)
+      return
+    }
+
+    if (active.preferences.streaming) {
+      await this.startStreaming(active, deviceId)
       return
     }
 
@@ -343,7 +394,11 @@ export class DictationService {
   stop(): Promise<void> {
     const active = this.active
     if (!active) return Promise.resolve()
-    if (!active.recorder) return this.cancel()
+    if (active.streaming) {
+      if (!active.stopTask) active.stopTask = this.finishStreaming(active)
+      return active.stopTask
+    }
+    if (!active.recorder) return this.cancelRun(active.runToken, { abandonPendingCapture: false })
     if (!active.stopTask) active.stopTask = this.finishRecording(active)
     return active.stopTask
   }
@@ -406,6 +461,74 @@ export class DictationService {
     this.listeners.clear()
   }
 
+  private async startStreaming(active: ActiveDictation, deviceId: string | null): Promise<void> {
+    try {
+      const { modelId, language } = active.preferences
+      if (!modelId) throw new Error('Missing transcription model')
+      const operation = this.voice.startStreamingTranscription(
+        { sessionId: active.sessionId, modelId, language, format: { sampleRate: 16000, channels: 1 } },
+        (update) => {
+          if (!this.isCurrent(active) || update.revision <= (active.transcript?.revision ?? -1)) return
+          active.transcript = update
+          this.publish(this.snapshot.phase, this.elapsed(active))
+        }
+      )
+      active.streaming = operation
+      active.transcription = operation
+      void operation.result.catch((error: unknown) => {
+        if (this.isCurrent(active)) void this.failStreaming(active, error)
+      })
+      await operation.ready
+      if (!this.isCurrent(active)) return
+      const capture = this.createPcmCapture(
+        (chunk) => operation.write(chunk),
+        (error) => {
+          if (this.isCurrent(active)) void this.failStreaming(active, error)
+        },
+        () => {
+          if (this.isCurrent(active)) void this.stop()
+        }
+      )
+      active.pcm = capture
+      await capture.start(this.mediaDevices, deviceId)
+      if (!this.isCurrent(active)) {
+        await capture.cancel()
+        return
+      }
+      active.startedAt = this.now()
+      this.startTimers(active)
+      this.publish('recording')
+    } catch (error) {
+      if (this.isCurrent(active)) await this.failStreaming(active, error)
+    }
+  }
+
+  private async finishStreaming(active: ActiveDictation): Promise<void> {
+    if (!active.pcm || !active.streaming || this.snapshot.phase !== 'recording') return this.cancel()
+    this.clearTimers(active)
+    this.publish('stopping', this.elapsed(active))
+    try {
+      const frames = await active.pcm.stop()
+      if (!this.isCurrent(active)) return
+      this.publish('transcribing', this.elapsed(active))
+      await active.streaming.finish(frames)
+      const result = await active.streaming.result
+      if (!this.isCurrent(active)) return
+      active.transcription = undefined
+      await this.complete(active, result.text)
+    } catch (error) {
+      if (this.isCurrent(active)) await this.failStreaming(active, error)
+    }
+  }
+
+  private async failStreaming(active: ActiveDictation, error: unknown): Promise<void> {
+    if (!this.isCurrent(active)) return
+    const reason = errorCategory(error, microphoneErrorReason(error))
+    ++this.generation
+    const cleanupError = await this.cleanupSession(active)
+    if (this.currentRunToken === active.runToken) this.publish('failed', 0, false, cleanupError ?? reason)
+  }
+
   private async finishRecording(active: ActiveDictation): Promise<void> {
     const elapsedMs = this.elapsed(active)
     this.publish('stopping', elapsedMs)
@@ -435,10 +558,15 @@ export class DictationService {
     try {
       const preferences = retry ? await this.voice.resolveTranscriptionPreferences() : active.preferences
       if (!this.isCurrent(active)) return
+      if (preferences === null) {
+        await this.cancelRun(active.runToken)
+        return
+      }
       const input: TranscriptionInput = {
         sessionId: active.sessionId,
         fileEntryId: active.fileEntryId,
-        ...preferences
+        modelId: preferences.modelId,
+        language: preferences.language
       }
       const transcription = retry ? this.voice.retryTranscription(input) : this.voice.transcribe(input)
       active.transcription = transcription
@@ -484,11 +612,16 @@ export class DictationService {
     }
   }
 
-  private async cancelRun(runToken: symbol): Promise<void> {
+  private async cancelRun(
+    runToken: symbol,
+    { abandonPendingCapture = true }: { abandonPendingCapture?: boolean } = {}
+  ): Promise<void> {
     if (this.currentRunToken !== runToken) return
     this.generation += 1
     this.recovery = undefined
-    const cleanupError = await this.cleanupActive()
+    const cleanupError = this.active
+      ? await this.cleanupSession(this.active, true, { abandonPendingCapture })
+      : await this.cleanupActive()
     if (this.currentRunToken !== runToken) return
     if (!cleanupError) {
       this.currentRunToken = undefined
@@ -525,21 +658,31 @@ export class DictationService {
 
   private async cleanupSession(
     active: ActiveDictation,
-    publishFailure = true
+    publishFailure = true,
+    { abandonPendingCapture = false }: { abandonPendingCapture?: boolean } = {}
   ): Promise<DictationErrorCategory | undefined> {
     this.clearTimers(active)
     this.stopRecorder(active)
     this.stopActiveTracks(active)
+    const pcmCleanup = active.pcm?.cancel()
+    active.pcm = undefined
     this.clearRecordingData(active)
     if (active.capture) {
-      await active.capture.catch(() => undefined)
-      active.capture = undefined
+      const capture = active.capture
+      if (abandonPendingCapture) {
+        active.capture = undefined
+        void capture.catch(() => undefined)
+      } else {
+        await capture.catch(() => undefined)
+        active.capture = undefined
+      }
     }
     if (active.transcription) {
       await this.voice.abortTranscription(active.transcription).catch(() => undefined)
       active.transcription = undefined
     }
     try {
+      await pcmCleanup
       await this.discardSession(active)
     } catch (error) {
       const category = errorCategory(error, 'operation_failed')
@@ -604,7 +747,11 @@ export class DictationService {
   }
 
   private stopActiveTracks(active: ActiveDictation): void {
-    active.spectrum?.dispose()
+    void active.spectrum
+      ?.dispose()
+      .catch((error) =>
+        loggerService.withContext('DictationService').warn('Could not close dictation spectrum', { error })
+      )
     active.spectrum = undefined
     if (!active.stream) return
     this.stopTracks(active.stream)
@@ -631,13 +778,44 @@ export class DictationService {
     if (event.command === 'stop') {
       void this.cancelRun(active.runToken)
     } else if (event.command === 'interrupt') {
+      if (active.streaming) {
+        void this.cancelRun(active.runToken)
+        return
+      }
       active.interrupted = true
       if (active.fileEntryId || active.transcription) return
       void this.stop()
     }
   }
 
+  private attachCommands(): void {
+    if (this.unsubscribeCommands) return
+    const generation = this.lifecycleGeneration
+    const cancelIfOff = () => {
+      if (
+        generation === this.lifecycleGeneration &&
+        isVoiceRecognitionOff(preferenceService.getCachedValue('feature.voice.recognition.model_id')) &&
+        (this.pendingStart ||
+          this.active ||
+          this.recovery ||
+          (this.currentRunToken && this.snapshot.phase === 'failed'))
+      ) {
+        void this.cancel()
+      }
+    }
+    this.unsubscribePreference = preferenceService.subscribeChange('feature.voice.recognition.model_id')(cancelIfOff)
+    cancelIfOff()
+    this.unsubscribeCommands = this.voice.subscribeCommands((event) => this.handleCommand(generation, event))
+    this.unsubscribeInterruptions = this.voice.subscribeInterruptions(() => {
+      if (generation === this.lifecycleGeneration && this.pendingStart) {
+        void this.cancelRun(this.pendingStart)
+      }
+    })
+  }
+
   private detachCommands(): void {
+    this.unsubscribePreference?.()
+    this.unsubscribePreference = undefined
     this.unsubscribeCommands?.()
     this.unsubscribeCommands = undefined
     this.unsubscribeInterruptions?.()
@@ -663,7 +841,12 @@ export class DictationService {
       phase,
       elapsedMs,
       recoveryAvailable,
-      ...(phase === 'recording' && this.active?.spectrum && { analyser: this.active.spectrum.analyser }),
+      ...(phase === 'recording' &&
+        (this.active?.pcm || this.active?.spectrum) && {
+          analyser: this.active.pcm?.analyser ?? this.active.spectrum?.analyser
+        }),
+      ...(['recording', 'stopping', 'transcribing'].includes(phase) &&
+        this.active?.transcript && { transcript: this.active.transcript }),
       ...(retryAvailable && { retryAvailable }),
       ...(error && { error })
     })

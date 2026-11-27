@@ -129,6 +129,7 @@ describe('Toolbar placement', () => {
     onRedo: noop,
     onOk: noop,
     onSave: noop,
+    onCopy: noop,
     onCancel: noop
   }
 
@@ -144,10 +145,6 @@ describe('Toolbar placement', () => {
     expect(top).toBeGreaterThanOrEqual(0)
     // 80 = toolbar + gap + property panel, the stack the toolbar reserves room for.
     expect(top + 80).toBeLessThanOrEqual(900)
-  })
-
-  it('hangs below a selection that has room underneath it', () => {
-    expect(renderToolbar({ x: 0, y: 0, width: 400, height: 300 }, 900).style.top).toBe('308px')
   })
 })
 

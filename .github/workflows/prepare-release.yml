@@ -20,6 +20,7 @@ permissions:
 concurrency:
   group: release-state
   cancel-in-progress: false
+  queue: max
 
 jobs:
   prepare:
@@ -193,6 +194,9 @@ jobs:
           if [ -s "$RELEASE_PATCH" ]; then
             git apply "$RELEASE_PATCH"
           fi
+
+      - name: Format prepared release metadata
+        run: pnpm exec oxfmt --write package.json electron-builder.yml
 
       - name: Sync release history from prepared release notes
         shell: bash

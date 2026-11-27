@@ -9,7 +9,7 @@ const Felo = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const FeloIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Felo, {
   Avatar: FeloAvatar,
-  colorPrimary: '#000000'
+  colorPrimary: '#2697f9'
 })
 
 export default FeloIcon

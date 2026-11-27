@@ -1,13 +1,24 @@
 import { FileQuestion, FileWarning, FileX2, FolderOpen, LoaderCircle } from 'lucide-react'
-import { lazy, type ReactNode, Suspense, useEffect, useMemo, useState } from 'react'
+import {
+  type ComponentType,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState
+} from 'react'
 import { ErrorBoundary } from 'react-error-boundary'
 import { useTranslation } from 'react-i18next'
 
 import { FilePreviewLayout } from '@cherrystudio/file-preview/react'
 import { EmptyState } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { useFileObservation } from '@renderer/hooks/useFileObservation'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
+import type { FileLocation } from '@renderer/types/fileLocation'
 import { safeOpen } from '@renderer/utils/file/safeOpen'
 import { getFilePreviewFileName, normalizeFilePreviewPath } from '@renderer/utils/filePreview'
 import type { AbsoluteFilePath } from '@shared/types/file'
@@ -15,7 +26,13 @@ import { createFilePathHandle } from '@shared/utils/file'
 
 import { filePreviewRegistry, resolveExtensionPlugin } from './filePreviewRegistry'
 import { textFilePreviewPlugin } from './plugins/text/textFilePreviewPlugin'
-import type { FilePreviewFileMetadata, FilePreviewPlugin, FilePreviewPluginProps, FilePreviewType } from './types'
+import type {
+  FilePreviewFileMetadata,
+  FilePreviewMetadataRequest,
+  FilePreviewPlugin,
+  FilePreviewPluginProps,
+  FilePreviewType
+} from './types'
 
 const logger = loggerService.withContext('FilePreview')
 const TEXT_CONTENT_PLUGIN_IDS = new Set(['html', 'markdown', 'text'])
@@ -106,11 +123,14 @@ function PluginErrorFallback() {
 }
 
 interface FilePreviewPluginRendererProps {
+  location?: FileLocation
   fileName: string
   filePath: AbsoluteFilePath
   metadata: FilePreviewFileMetadata
+  metadataRequest?: FilePreviewMetadataRequest
   onSelectionReference?: FilePreviewPluginProps['onSelectionReference']
-  plugin: PreloadedFilePreviewPlugin
+  onLineComment?: FilePreviewPluginProps['onLineComment']
+  plugin: { descriptor: FilePreviewPlugin; component: ComponentType<FilePreviewPluginProps> }
   refreshKey: number
   type: FilePreviewType
 }
@@ -122,7 +142,7 @@ interface PreloadedFilePreviewPlugin {
 
 function preloadFilePreviewPlugin(descriptor: FilePreviewPlugin): PreloadedFilePreviewPlugin {
   const modulePromise = Promise.resolve().then(() => descriptor.load())
-  // React.lazy observes the original rejection only when metadata accepts this candidate.
+  // Metadata may reject the candidate before its module settles.
   void modulePromise.catch(() => {})
   return { descriptor, modulePromise }
 }
@@ -131,39 +151,53 @@ function FilePreviewPluginRenderer({
   fileName,
   filePath,
   metadata,
+  metadataRequest,
   onSelectionReference,
+  onLineComment,
+  location,
   plugin,
   refreshKey,
   type
 }: FilePreviewPluginRendererProps) {
-  const PluginPreview = useMemo(() => lazy(() => plugin.modulePromise), [plugin])
+  const PluginPreview = plugin.component
 
   return (
     <ErrorBoundary
-      key={`${plugin.descriptor.id}:${filePath}:${refreshKey}`}
+      key={`${plugin.descriptor.id}:${filePath}`}
+      resetKeys={[refreshKey]}
       FallbackComponent={PluginErrorFallback}
-      onError={(error) => logger.error(`Failed to render file preview plugin: ${plugin.descriptor.id}`, error)}>
-      <Suspense fallback={<FilePreviewLoading />}>
-        <PluginPreview
-          filePath={filePath}
-          fileName={fileName}
-          metadata={metadata}
-          onSelectionReference={onSelectionReference}
-          refreshKey={refreshKey}
-          type={type}
-        />
-      </Suspense>
+      onError={(error, info) =>
+        logger.error(`Failed to render file preview plugin: ${plugin.descriptor.id}`, error, {
+          componentStack: info.componentStack,
+          operation: 'react.render',
+          failure: { source: 'application', kind: 'defect', reason: 'render_failed', outcome: 'failed' }
+        })
+      }>
+      <PluginPreview
+        filePath={filePath}
+        fileName={fileName}
+        metadata={metadata}
+        metadataRequest={metadataRequest}
+        onSelectionReference={onSelectionReference}
+        onLineComment={onLineComment}
+        location={location}
+        refreshKey={refreshKey}
+        type={type}
+      />
     </ErrorBoundary>
   )
 }
 
 export interface FilePreviewProps {
+  onLoadStateChange?: (state: { refreshKey: number; status: 'loading' | 'ready' | 'error' }) => void
+  location?: FileLocation
   filePath: AbsoluteFilePath
   header?: ReactNode
   refreshKey?: number
   type?: FilePreviewType
-  /** See {@link FilePreviewPluginProps.onSelectionReference}; forwarded to the active plugin as-is. */
+  /** See {@link FilePreviewPluginProps.onSelectionReference}; callbacks from obsolete metadata are ignored. */
   onSelectionReference?: FilePreviewPluginProps['onSelectionReference']
+  onLineComment?: FilePreviewPluginProps['onLineComment']
 }
 
 interface NormalizedFilePreviewTarget {
@@ -175,10 +209,12 @@ type FilePreviewResolution =
   | { requestKey: string; status: 'directory' }
   | { requestKey: string; status: 'loading' }
   | { requestKey: string; status: 'unavailable' }
+  | { requestKey: string; status: 'load_error' }
   | {
       file: NormalizedFilePreviewTarget
       metadata: FilePreviewFileMetadata
-      plugin: PreloadedFilePreviewPlugin | null
+      metadataPromise: ReturnType<FilePreviewMetadataRequest>
+      plugin: FilePreviewPluginRendererProps['plugin'] | null
       requestKey: string
       status: 'ready'
     }
@@ -188,7 +224,10 @@ export function FilePreview({
   header,
   refreshKey = 0,
   type = 'file',
-  onSelectionReference
+  onSelectionReference,
+  onLineComment,
+  onLoadStateChange,
+  location
 }: FilePreviewProps) {
   const file = useMemo(() => {
     try {
@@ -198,18 +237,83 @@ export function FilePreview({
       return null
     }
   }, [filePath])
-  const requestKey = file ? `${file.filePath}\0${refreshKey}` : ''
+  const observation = useFileObservation(file?.filePath)
+  const { t } = useTranslation()
+  const waitForObservation = observation.whenReady
+  const sourceRevision = `${refreshKey}:${observation.version}`
+  const pluginGeneration = useRef({ sourceRevision, value: refreshKey })
+  if (pluginGeneration.current.sourceRevision !== sourceRevision) {
+    pluginGeneration.current = { sourceRevision, value: pluginGeneration.current.value + 1 }
+  }
+  const metadataRequest = useMemo(() => {
+    if (!file) return null
+    let promise: ReturnType<FilePreviewMetadataRequest> | undefined
+    let current: symbol | undefined
+    return {
+      key: `${file.filePath}\0${sourceRevision}`,
+      start() {
+        const generation = Symbol()
+        current = generation
+        promise = waitForObservation()
+          .catch(() => {})
+          .then(() => {
+            if (current !== generation) throw new Error('Preview metadata request superseded')
+            return ipcApi.request('file.get_metadata', createFilePathHandle(file.filePath))
+          })
+        // The host and retained source attach in passive effects, after this layout effect.
+        void promise.catch(() => {})
+        return promise
+      },
+      stop() {
+        current = undefined
+      },
+      read() {
+        if (!promise) throw new Error('Preview metadata request has not started')
+        return promise
+      }
+    }
+  }, [file, sourceRevision, waitForObservation])
+  const requestKey = metadataRequest?.key ?? ''
   const [resolution, setResolution] = useState<FilePreviewResolution>({ requestKey: '', status: 'loading' })
+  useEffect(() => {
+    onLoadStateChange?.({
+      refreshKey,
+      status: !file
+        ? 'error'
+        : resolution.requestKey !== requestKey || resolution.status === 'loading'
+          ? 'loading'
+          : resolution.status === 'unavailable' || resolution.status === 'load_error'
+            ? 'error'
+            : 'ready'
+    })
+  }, [file, onLoadStateChange, refreshKey, requestKey, resolution])
+  const selectionRequestRef = useRef<ReturnType<FilePreviewMetadataRequest> | null>(null)
+  useLayoutEffect(() => {
+    selectionRequestRef.current = metadataRequest?.start() ?? null
+    return () => {
+      selectionRequestRef.current = null
+      metadataRequest?.stop()
+    }
+  }, [metadataRequest])
+  const reportSelection = useCallback<NonNullable<FilePreviewPluginProps['onSelectionReference']>>(
+    (reference) => {
+      // A retained plugin can finish an old selection while new metadata is pending.
+      // Only the resolution belonging to the current request may publish results.
+      if (resolution.status === 'ready' && selectionRequestRef.current === resolution.metadataPromise) {
+        onSelectionReference?.(reference)
+      }
+    },
+    [onSelectionReference, resolution]
+  )
 
   useEffect(() => {
-    if (!file) return
+    if (!file || !metadataRequest) return
 
     let cancelled = false
-    setResolution({ requestKey, status: 'loading' })
 
     void (async () => {
       try {
-        const metadataPromise = ipcApi.request('file.get_metadata', createFilePathHandle(file.filePath))
+        const metadataPromise = metadataRequest.read()
         const candidateDescriptor = resolveExtensionPlugin(file.filePath, filePreviewRegistry)
         const candidatePlugin = candidateDescriptor ? preloadFilePreviewPlugin(candidateDescriptor) : null
         const metadata = await metadataPromise
@@ -236,7 +340,28 @@ export function FilePreview({
           }
         }
 
-        setResolution({ file, metadata, plugin, requestKey, status: 'ready' })
+        const module = plugin
+          ? await plugin.modulePromise.catch((error: unknown) => {
+              logger.error(
+                `Failed to load file preview plugin: ${plugin.descriptor.id}`,
+                error instanceof Error ? error : new Error(String(error))
+              )
+              return null
+            })
+          : null
+        if (cancelled) return
+        if (plugin && !module) {
+          setResolution({ requestKey, status: 'load_error' })
+          return
+        }
+        setResolution({
+          file,
+          metadata,
+          metadataPromise,
+          requestKey,
+          status: 'ready',
+          plugin: plugin && module ? { descriptor: plugin.descriptor, component: module.default } : null
+        })
       } catch {
         if (!cancelled) setResolution({ requestKey, status: 'unavailable' })
       }
@@ -245,26 +370,35 @@ export function FilePreview({
     return () => {
       cancelled = true
     }
-  }, [file, requestKey])
+  }, [file, metadataRequest, requestKey])
 
   let preview: ReactNode
 
   if (!file) {
     preview = <FilePreviewState kind="invalid_path" />
-  } else if (resolution.requestKey !== requestKey || resolution.status === 'loading') {
+  } else if (
+    resolution.status === 'loading' ||
+    (resolution.requestKey !== requestKey &&
+      !(resolution.status === 'ready' && resolution.file.filePath === file.filePath))
+  ) {
     preview = <FilePreviewLoading />
   } else if (resolution.status === 'directory') {
     preview = <FilePreviewState kind="directory" />
   } else if (resolution.status === 'unavailable') {
     preview = <FilePreviewState kind="unavailable" />
+  } else if (resolution.status === 'load_error') {
+    preview = <FilePreviewState kind="load_error" />
   } else if (resolution.plugin) {
     preview = (
       <FilePreviewPluginRenderer
         {...resolution.file}
         metadata={resolution.metadata}
-        onSelectionReference={onSelectionReference}
+        metadataRequest={metadataRequest?.read}
+        onSelectionReference={onSelectionReference ? reportSelection : undefined}
+        onLineComment={onLineComment}
+        location={location}
         plugin={resolution.plugin}
-        refreshKey={refreshKey}
+        refreshKey={pluginGeneration.current.value}
         type={type}
       />
     )
@@ -272,5 +406,16 @@ export function FilePreview({
     preview = <FilePreviewState kind="unsupported" filePath={resolution.file.filePath} />
   }
 
-  return <FilePreviewLayout.Shell header={header}>{preview}</FilePreviewLayout.Shell>
+  return (
+    <FilePreviewLayout.Shell header={header}>
+      {observation.coverage === 'unavailable' && (
+        <div
+          role="status"
+          className="shrink-0 border-b border-warning-border bg-warning-subtle px-3 py-2 text-xs text-warning-subtle-foreground">
+          {t('file_preview.observation_unavailable')}
+        </div>
+      )}
+      {preview}
+    </FilePreviewLayout.Shell>
+  )
 }

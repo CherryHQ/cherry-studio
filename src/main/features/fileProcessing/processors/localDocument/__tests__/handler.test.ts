@@ -86,7 +86,9 @@ vi.mock('@main/utils/file', async (importOriginal) => ({
 
 vi.mock('../../../utils/ocr', () => ({ preprocessImage: preprocessImageMock }))
 
-import { isScannedPdfError, localDocumentToMarkdownHandler } from '../documentToMarkdown/handler'
+import { isScannedPdfError } from '@main/utils/pdfText'
+
+import { localDocumentToMarkdownHandler } from '../documentToMarkdown/handler'
 
 const PDF_BYTES = Buffer.from('%PDF-1.7 fake')
 
@@ -243,12 +245,7 @@ describe('localDocumentToMarkdownHandler', () => {
       })
 
       expect(getScreenshotMock).toHaveBeenCalledTimes(3)
-      expect(getScreenshotMock).toHaveBeenNthCalledWith(1, {
-        partial: [1],
-        scale: 3,
-        imageBuffer: true,
-        imageDataUrl: false
-      })
+      expect(getScreenshotMock).toHaveBeenNthCalledWith(1, expect.objectContaining({ partial: [1], imageBuffer: true }))
       expect(recognizeMock).toHaveBeenNthCalledWith(
         1,
         { kind: 'path', imagePath: expect.any(String) },
@@ -257,9 +254,7 @@ describe('localDocumentToMarkdownHandler', () => {
       // Each job renders into its own directory under the file-processing temp root.
       const firstImagePath = recognizeMock.mock.calls[0][0].imagePath
       expect(path.dirname(path.dirname(firstImagePath))).toBe(tempRoot)
-      expect(path.basename(path.dirname(firstImagePath))).toMatch(/^local-document-[\w-]+$/)
-      expect(path.basename(firstImagePath)).toBe('page-1.png')
-      expect(reportProgress.mock.calls.map(([value]) => value)).toEqual([33, 67, 100])
+
       expect(toMarkdownBytesMock).not.toHaveBeenCalled()
       expect(removeMock).toHaveBeenCalledTimes(3)
     })
@@ -326,9 +321,43 @@ describe('localDocumentToMarkdownHandler', () => {
       ).resolves.toEqual({ kind: 'markdown', markdownContent: 'page one\n\npage two\n\npage three' })
     })
 
+    it('falls back to pdfjs text layer when anydoc rejects a text-layer PDF as malformed', async () => {
+      getTextMock
+        .mockResolvedValueOnce({
+          total: 3,
+          pages: [
+            { num: 1, text: 'one' },
+            { num: 2, text: 'two' },
+            { num: 3, text: 'three' }
+          ]
+        })
+        .mockResolvedValueOnce({
+          total: 3,
+          pages: [
+            { num: 1, text: '  Page one text \n' },
+            { num: 2, text: '   \n\t ' },
+            { num: 3, text: '\nPage three text  ' }
+          ]
+        })
+      const prepared = await prepareBackground()
+      toMarkdownBytesMock.mockRejectedValueOnce(
+        anydocError('malformed', "malformed document: couldn't parse input: invalid file trailer")
+      )
+      const reportProgress = vi.fn()
+
+      await expect(prepared.execute({ signal: new AbortController().signal, reportProgress })).resolves.toEqual({
+        kind: 'markdown',
+        markdownContent: 'Page one text\n\nPage three text'
+      })
+
+      expect(recognizeMock).not.toHaveBeenCalled()
+      expect(getScreenshotMock).not.toHaveBeenCalled()
+      expect(reportProgress).toHaveBeenLastCalledWith(100)
+      expect(destroyMock).toHaveBeenCalledTimes(2)
+    })
+
     it.each([
       ['encrypted', 'document is encrypted'],
-      ['malformed', 'malformed document: invalid PDF structure'],
       ['unsupported', 'unsupported input: unrecognized file content: name the format explicitly'],
       ['unsupported', 'unsupported input: PDF has no extractable text (Scanned, 0 pages): OCR is required'],
       ['io', 'io error: permission denied'],

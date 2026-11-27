@@ -1,9 +1,12 @@
 import type { MessageCreateParams } from '@anthropic-ai/sdk/resources/messages'
 import { asSchema } from 'ai'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
+
+import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 
 import { appendInternalAgentContinuation } from '../../utils/agentContinuation'
-import { AnthropicMessageConverter, type ReasoningCache } from '../converters/AnthropicMessageConverter'
+import { AnthropicMessageConverter } from '../converters/AnthropicMessageConverter'
 
 const converter = new AnthropicMessageConverter()
 
@@ -21,17 +24,23 @@ describe('AnthropicMessageConverter.toUIMessages', () => {
     expect(msgs[1]).toMatchObject({ role: 'user', parts: [{ type: 'text', text: 'hi' }] })
   })
 
-  it('joins a structured (text-block) system prompt', () => {
+  it('retains separate system blocks and their cache boundaries', () => {
     const msgs = converter.toUIMessages(
       params({
         system: [
-          { type: 'text', text: 'A' },
+          { type: 'text', text: 'A', cache_control: { type: 'ephemeral', ttl: '1h' } },
           { type: 'text', text: 'B' }
         ] as MessageCreateParams['system'],
         messages: [{ role: 'user', content: 'hi' }]
       })
     )
-    expect(msgs[0]).toMatchObject({ role: 'system', parts: [{ type: 'text', text: 'A\nB' }] })
+    expect(msgs[0]).toMatchObject({
+      role: 'system',
+      parts: [
+        { type: 'text', text: 'A', providerMetadata: { anthropic: { cacheControl: { type: 'ephemeral', ttl: '1h' } } } }
+      ]
+    })
+    expect(msgs[1]).toMatchObject({ role: 'system', parts: [{ type: 'text', text: 'B' }] })
   })
 
   // The Claude Agent SDK ships its harness context (agent/skill catalogs, deferred-tool
@@ -291,7 +300,7 @@ describe('AnthropicMessageConverter.toUIMessages', () => {
   it.each(['gemini:models/gemini-flash-latest', 'cherryin:gemini-flash-latest', 'gemini:gemini-3-pro-preview'])(
     'restores the cached thought signature for %s',
     (model) => {
-      const googleReasoningCache: ReasoningCache = { get: vi.fn(() => 'sig-abc'), set: vi.fn() }
+      const googleReasoningCache = new Map([['google-c4', 'sig-abc']])
       const c = new AnthropicMessageConverter({ googleReasoningCache })
       const msgs = c.toUIMessages(
         params({
@@ -301,7 +310,6 @@ describe('AnthropicMessageConverter.toUIMessages', () => {
           ] as MessageCreateParams['messages']
         })
       )
-      expect(googleReasoningCache.get).toHaveBeenCalledWith('google-c4')
       expect((msgs[0].parts[0] as { callProviderMetadata?: unknown }).callProviderMetadata).toMatchObject({
         google: { thoughtSignature: 'sig-abc' }
       })
@@ -309,7 +317,7 @@ describe('AnthropicMessageConverter.toUIMessages', () => {
   )
 
   it('leaves the google thought signature off a non-Gemini target', () => {
-    const googleReasoningCache: ReasoningCache = { get: vi.fn(() => 'sig-abc'), set: vi.fn() }
+    const googleReasoningCache = new Map([['google-c5', 'sig-abc']])
     const c = new AnthropicMessageConverter({ googleReasoningCache })
     const msgs = c.toUIMessages(
       params({
@@ -324,7 +332,7 @@ describe('AnthropicMessageConverter.toUIMessages', () => {
 
   it('reconstructs OpenRouter reasoning_details onto the tool call from the cache', () => {
     const details = [{ type: 'reasoning.text', text: 'because' }]
-    const openRouterReasoningCache: ReasoningCache = { get: vi.fn(() => details), set: vi.fn() }
+    const openRouterReasoningCache = new Map([['openrouter-c3', details]])
     const c = new AnthropicMessageConverter({ openRouterReasoningCache })
     const msgs = c.toUIMessages(
       params({
@@ -333,7 +341,6 @@ describe('AnthropicMessageConverter.toUIMessages', () => {
         ] as MessageCreateParams['messages']
       })
     )
-    expect(openRouterReasoningCache.get).toHaveBeenCalledWith('openrouter-c3')
     expect((msgs[0].parts[0] as { callProviderMetadata?: unknown }).callProviderMetadata).toMatchObject({
       openrouter: { reasoning_details: details }
     })
@@ -341,6 +348,40 @@ describe('AnthropicMessageConverter.toUIMessages', () => {
 })
 
 describe('AnthropicMessageConverter.toAiSdkTools', () => {
+  it('omits strict when the target endpoint is unknown', () => {
+    const input_schema = {
+      type: 'object' as const,
+      properties: { query: { type: 'string' } },
+      required: ['query']
+    }
+    const request = params({ tools: [{ name: 'lookup', description: 'Look up a value', input_schema }] })
+
+    for (const tools of [converter.toAiSdkTools(request), converter.toAiSdkTools(request, undefined)]) {
+      expect(tools).toBeDefined()
+      expect(Object.keys(tools!)).toEqual(['lookup'])
+      expect(tools!.lookup).not.toHaveProperty('strict')
+      expect(tools!.lookup.description).toBe('Look up a value')
+      expect(asSchema(tools!.lookup.inputSchema).jsonSchema).toMatchObject(input_schema)
+    }
+  })
+
+  it.each(
+    [
+      ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+      ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
+    ].map((endpoint) => ({ endpoint }))
+  )('does not inject strict for $endpoint', ({ endpoint }) => {
+    const tools = converter.toAiSdkTools(
+      params({ tools: [{ name: 'lookup', input_schema: { type: 'object', properties: {} } }] }),
+      endpoint
+    )
+
+    expect(tools).toBeDefined()
+    expect(Object.keys(tools!)).toEqual(['lookup'])
+    expect(tools!.lookup).not.toHaveProperty('strict')
+  })
+
   it('builds a ToolSet keyed by name and skips bash tools', () => {
     const tools = converter.toAiSdkTools(
       params({
@@ -394,20 +435,19 @@ describe('AnthropicMessageConverter.toAiSdkTools', () => {
         {
           name: clientToolName,
           description: 'List calendar events',
-          input_schema: { type: 'object', properties: {}, required: null }
+          input_schema: { type: 'object', properties: {} }
         }
       ] as MessageCreateParams['tools']
     })
 
     const messages = converter.toUIMessages(request)
     const providerToolName = (messages[0].parts[0] as { toolName: string }).toolName
-    const tools = converter.toAiSdkTools(request)
+    const tools = converter.toAiSdkTools(request, ENDPOINT_TYPE.OPENAI_RESPONSES)
     const forwardedTool = tools?.[providerToolName]
 
     expect(providerToolName).not.toBe(clientToolName)
     expect(providerToolName).toMatch(/^[A-Za-z0-9_-]{1,64}$/)
     expect(forwardedTool?.strict).toBe(false)
-    expect((asSchema(forwardedTool!.inputSchema).jsonSchema as { required?: unknown }).required).not.toBeNull()
     expect(converter.toClientToolName(providerToolName)).toBe(clientToolName)
   })
 })
@@ -426,6 +466,32 @@ describe('AnthropicMessageConverter tool_result media', () => {
     const part = msgs.flatMap((m) => m.parts).find((x) => x.type === 'dynamic-tool') as { output?: unknown }
     return part.output
   }
+
+  it('carries Claude Code ToolSearch matches using the same names as the upstream tool schemas', () => {
+    const name = 'mcp__calendar__events.list'
+    const search = { name: 'ToolSearch', input_schema: { type: 'object' as const } }
+    const first = params({ tools: [search] })
+    expect(Object.keys(converter.toAiSdkTools(first) ?? {})).toEqual(['ToolSearch'])
+
+    const next = params({
+      tools: [search, { name, input_schema: { type: 'object' }, defer_loading: true }],
+      messages: [
+        { role: 'assistant', content: [{ type: 'tool_use', id: 'search', name: 'ToolSearch', input: {} }] },
+        {
+          role: 'user',
+          content: [
+            { type: 'tool_result', tool_use_id: 'search', content: [{ type: 'tool_reference', tool_name: name }] }
+          ]
+        }
+      ]
+    })
+    const output = toolPartOutput(next)
+    const names = Object.keys(converter.toAiSdkTools(next) ?? {})
+    const upstreamName = names.find((candidate) => candidate !== 'ToolSearch')
+    expect(upstreamName).toMatch(/^[A-Za-z0-9_-]{1,64}$/)
+    expect(output).toBe(`Tool available: ${upstreamName}`)
+    expect(converter.toClientToolName(upstreamName!)).toBe(name)
+  })
 
   // A nested tool_result image never rides inside the tool output — it is relocated into
   // the carrying user message as a `file` part (covered by the relocation tests above),
@@ -463,4 +529,20 @@ describe('AnthropicMessageConverter.extractStreamOptions', () => {
       )
     ).toEqual({ maxOutputTokens: 256, temperature: 0.5, topP: 0.9, topK: 40, stopSequences: ['x'] })
   })
+})
+
+it('preserves cache and parallel-tool policy when trusted reasoning overrides the caller', () => {
+  const cacheControl = { type: 'ephemeral', ttl: '1h' } as const
+  const options = converter.extractProviderOptions(
+    {} as Provider,
+    { endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES] } as Model,
+    params({
+      thinking: { type: 'enabled', budget_tokens: 2048 },
+      cache_control: cacheControl,
+      tool_choice: { type: 'auto', disable_parallel_tool_use: true }
+    }),
+    4096,
+    true
+  )
+  expect(options).toEqual({ anthropic: { cacheControl, disableParallelToolUse: true } })
 })

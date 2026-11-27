@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-13-cherryin-sonnet-45-tool-streaming.md
+2026-11-13-cherryin-sonnet-45-tool-streaming.md: 9e636e3139693e1027a6b4c554aa562c70ac61c0
+2026-11-13-cherryin-sonnet-45-tool-streaming.zh.md: a2b2c53282024c155b7116a8860adc18d8fe6a08

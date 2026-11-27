@@ -4,11 +4,8 @@
 
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 
-import { loggerService } from '@logger'
 import { useSharedCache, useSharedCacheValue } from '@renderer/data/hooks/useCache'
 import { type ActiveExecution, classifyTurn, type TopicStreamStatus } from '@shared/ai/transport'
-
-const logger = loggerService.withContext('useTopicStreamStatus')
 
 interface TopicStreamStatusView {
   status: TopicStreamStatus | undefined
@@ -20,6 +17,7 @@ interface TopicStreamStatusView {
    */
   awaitingApprovalAnchors: ActiveExecution[]
   isPending: boolean
+  lastCompletedAt: number | null
   /**
    * `done` AND this window's `lastSeenCompletion` does not match the
    * authoritative `lastCompletedAt`. Read-receipt model: per-completion
@@ -54,7 +52,7 @@ export function useTopicStreamStatus(topicId: string): TopicStreamStatusView {
     }
   }, [lastCompletedAt, lastSeenCompletion, setLastSeenCompletion])
 
-  return { status, activeExecutions, awaitingApprovalAnchors, isPending, isFulfilled, markSeen }
+  return { status, activeExecutions, awaitingApprovalAnchors, isPending, lastCompletedAt, isFulfilled, markSeen }
 }
 
 export function useTopicAwaitingApproval(topicId: string): boolean {
@@ -62,9 +60,8 @@ export function useTopicAwaitingApproval(topicId: string): boolean {
   return classifyTurn(entry?.status).isAwaitingApproval
 }
 
-// Fire `refresh` once when a live turn pauses for approval. The final
-// done/error/aborted handoff is owned by the page-level overlay handoff so it
-// can refresh before dropping live overlay parts.
+// Fire `refresh` once when a live turn pauses for approval.
+// useHistoryReplies handles settled attempts once history can display them.
 export function useTopicDbRefreshOnAwaitingApproval(topicId: string, refresh: () => Promise<unknown>): void {
   const entry = useSharedCacheValue(`topic.stream.statuses.${topicId}` as const)
   const status = entry?.status
@@ -78,41 +75,6 @@ export function useTopicDbRefreshOnAwaitingApproval(topicId: string, refresh: ()
     if (classifyTurn(prev).isStreamLive && classifyTurn(status).isAwaitingApproval) {
       void refreshRef.current().catch(() => {
         // Caller logs; the invalidation signal must not throw out of the effect.
-      })
-    }
-  }, [status, topicId])
-}
-
-/**
- * Deterministic overlay→DB handoff at terminal. On the live→terminal edge the
- * live chunk overlay must yield to the DB row (which persistence already
- * finalized — e.g. an interrupted tool becomes `output-error`). The overlay's
- * own `onFinish` is suppressed when an execution leaves `activeExecutions`, so
- * disposal can't ride it; this fires `onHandoff` (refresh-then-dispose) off the
- * status edge instead.
- *
- * Excludes `awaiting-approval` (which is `isTerminal` but must KEEP the live
- * card — a continue stream will resume it). That distinction lives only here in
- * `classifyTurn`, not inside the status-agnostic overlay hook — hence the
- * handoff is decided at the consumer layer, separate from
- * `useTopicDbRefreshOnAwaitingApproval` (whose refresh-on-awaiting-approval is wanted).
- */
-export function useTopicOverlayHandoffOnTerminal(topicId: string, onHandoff: () => Promise<void> | void): void {
-  const entry = useSharedCacheValue(`topic.stream.statuses.${topicId}` as const)
-  const status = entry?.status
-  const onHandoffRef = useRef(onHandoff)
-  onHandoffRef.current = onHandoff
-  const prevRef = useRef<{ status: typeof status; topicId: string } | undefined>(undefined)
-  useEffect(() => {
-    const previous = prevRef.current
-    const prev = previous?.topicId === topicId ? previous.status : undefined
-    prevRef.current = { status, topicId }
-    const next = classifyTurn(status)
-    if (classifyTurn(prev).isStreamLive && next.isTerminal && !next.isAwaitingApproval) {
-      void (async () => {
-        await onHandoffRef.current()
-      })().catch((error) => {
-        logger.warn('Topic overlay handoff failed', error as Error, { topicId })
       })
     }
   }, [status, topicId])

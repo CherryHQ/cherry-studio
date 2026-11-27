@@ -19,7 +19,11 @@ function PageHeader({ title, titleClassName, action, bordered, className, ...pro
         className
       )}
       {...props}>
-      <h2 className={cn('min-w-0 flex-1 truncate text-sm leading-4 font-medium text-foreground', titleClassName)}>
+      <h2
+        className={cn(
+          'min-w-0 flex-1 truncate text-sm/(--line-height-body-sm) font-medium text-foreground',
+          titleClassName
+        )}>
         {title}
       </h2>
       {action}

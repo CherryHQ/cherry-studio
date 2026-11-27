@@ -1,3 +1,5 @@
+import { caseFold } from 'unicode-case-folding'
+
 import { toPinyinForms } from '@renderer/utils/pinyin'
 
 import type { SettingsSearchResult, SettingsSearchSection } from './types'
@@ -20,8 +22,19 @@ type Tier = (typeof TIER)[keyof typeof TIER]
 type MatchLevel = keyof Tier
 type Translate = (key: string) => string
 
-/** Canonical match form: NFC fold (composed ≡ decomposed accents) + case fold */
-const normalizeText = (text: string): string => text.normalize('NFC').toLowerCase()
+// W3C String Searching §§2.2.2–2.2.6: fold case and width without erasing
+// unrelated compatibility distinctions (for example circled numbers).
+const normalizeText = (text: string): string =>
+  caseFold(text.replace(/[\uFF00-\uFFEF]+/gu, (widthForms) => widthForms.normalize('NFKC')))
+    .replace(/(\p{Unified_Ideograph})[\u{E0100}-\u{E01EF}]/gu, '$1')
+    .normalize('NFC')
+
+const diacriticMark = /(?=\p{M})\p{Diacritic}/u
+const withoutDiacritics = (text: string): string =>
+  text
+    .normalize('NFD')
+    .replace(/(?=\p{M})\p{Diacritic}/gu, '')
+    .normalize('NFC')
 
 function compareLevels(haystack: string, needle: string): MatchLevel | undefined {
   if (haystack === needle) return 'exact'
@@ -31,11 +44,18 @@ function compareLevels(haystack: string, needle: string): MatchLevel | undefined
 }
 
 function matchLevel(haystack: string, needle: string): MatchLevel | undefined {
-  const level = compareLevels(normalizeText(haystack), normalizeText(needle))
+  let normalizedHaystack = normalizeText(haystack)
+  const normalizedNeedle = normalizeText(needle)
+  if (!normalizedNeedle) return undefined
+  // Explicit accents constrain results; omitted accents tolerate marked text.
+  if (!diacriticMark.test(normalizedNeedle.normalize('NFD'))) {
+    normalizedHaystack = withoutDiacritics(normalizedHaystack)
+  }
+  const level = compareLevels(normalizedHaystack, normalizedNeedle)
   if (level) return level
   // Whitespace-insensitive pass: CJK/latin spacing is stylistic ("API 网关" ≡ "API网关")
-  const hSqueezed = normalizeText(haystack).replace(/\s+/g, '')
-  const nSqueezed = normalizeText(needle).replace(/\s+/g, '')
+  const hSqueezed = normalizedHaystack.replace(/\s+/g, '')
+  const nSqueezed = normalizedNeedle.replace(/\s+/g, '')
   if (!nSqueezed) return undefined
   return compareLevels(hSqueezed, nSqueezed)
 }

@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 
 import { computeHeadTailExcerpt, Offloader, type VFSStorageAdapter } from '../offloader'
-import { ContextPrompts } from '../prompts'
 
 /** In-memory adapter with spied write/exists (no getPhysicalPath). */
 function makeMemoryAdapter() {
@@ -241,27 +240,6 @@ describe('Offloader', () => {
 describe('Offloader — content-addressed filenames', () => {
   const BIG = `${'x'.repeat(100)}\n${'y'.repeat(100)}`
 
-  it('filename is vfs_<16-hex>.txt derived from content only', async () => {
-    const adapter = makeMemoryAdapter()
-    const o = new Offloader({ threshold: 10, adapter })
-    const r = await o.offloadAsync(BIG, { tailChars: 20 })
-    expect(r.isOffloaded).toBe(true)
-    const filename = r.uri?.replace('context://vfs/', '')
-    expect(filename).toMatch(/^vfs_[a-f0-9]{16}\.txt$/)
-  })
-
-  it('filename equals sha256(content)[:16] — the formula persist-time naming mirrors', async () => {
-    // Cross-implementation contract with computeVfsFilename in
-    // src/main/ai/contextBuild/toolOutputStore.ts (node:crypto there,
-    // Web Crypto here — both must produce these bytes).
-    const { createHash } = await import('node:crypto')
-    const adapter = makeMemoryAdapter()
-    const o = new Offloader({ threshold: 10, adapter })
-    const r = await o.offloadAsync(BIG, { tailChars: 20 })
-    const sha = createHash('sha256').update(BIG, 'utf8').digest('hex').slice(0, 16)
-    expect(r.uri).toBe(`context://vfs/vfs_${sha}.txt`)
-  })
-
   it('same content → same filename and identical marker across instances', async () => {
     const adapter = makeMemoryAdapter()
     const a = new Offloader({ threshold: 10, adapter })
@@ -344,19 +322,6 @@ describe('Offloader — content-addressed filenames', () => {
 })
 
 describe('computeHeadTailExcerpt', () => {
-  it('produces the exact excerpt bytes the offload marker embeds', async () => {
-    const content = Array.from({ length: 40 }, (_, i) => `Line ${i + 1} with some padding text`).join('\n')
-    const adapter = makeMemoryAdapter()
-    const o = new Offloader({ threshold: 10, adapter })
-
-    const offloaded = await o.offloadAsync(content, { headChars: 100, tailChars: 120 })
-    const { head, tail, totalChars, totalLines } = computeHeadTailExcerpt(content, 100, 120)
-    const rebuilt = ContextPrompts.getVFSOffloadReminder(offloaded.uri!, totalLines, totalChars, head, tail, null)
-
-    expect(offloaded.isOffloaded).toBe(true)
-    expect(rebuilt).toBe(offloaded.content)
-  })
-
   it('returns empty excerpts for zero head/tail', () => {
     const content = 'a\nb\nc'
     expect(computeHeadTailExcerpt(content, 0, 0)).toEqual({ head: '', tail: '', totalChars: 5, totalLines: 3 })

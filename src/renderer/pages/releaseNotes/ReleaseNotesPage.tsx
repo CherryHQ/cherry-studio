@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger, PageHeader, Scrollbar } from '@cherrystudio/ui'
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger, PageHeader, ScrollArea } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { ReleaseNotes } from '@renderer/components/ReleaseNotes'
 import { ipcApi } from '@renderer/ipc'
@@ -45,11 +45,11 @@ export default function ReleaseNotesPage() {
     <div className="flex h-full min-h-0 flex-col bg-background">
       <PageHeader
         bordered
-        className="mb-0"
+        className="my-0 h-10.5"
         title={t('settings.about.releases.title')}
         action={<span className="text-foreground-tertiary text-xs">v{releases[0].version}</span>}
       />
-      <Scrollbar className="min-h-0 flex-1 overflow-x-hidden">
+      <ScrollArea viewportProps={{ className: 'overflow-x-hidden' }} className="min-h-0 flex-1">
         <main className="mx-auto w-full min-w-0 max-w-3xl px-6 py-6">
           <Accordion type="multiple" value={expandedVersions} onValueChange={setExpandedVersions} className="min-w-0">
             {releases.map(({ releaseNotes, version }) => (
@@ -67,7 +67,7 @@ export default function ReleaseNotesPage() {
             ))}
           </Accordion>
         </main>
-      </Scrollbar>
+      </ScrollArea>
     </div>
   )
 }

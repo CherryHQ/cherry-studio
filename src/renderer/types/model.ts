@@ -47,11 +47,3 @@ export type Model = {
   supported_endpoint_types?: EndpointType[]
   supported_text_delta?: boolean
 }
-
-export type ApiClient = {
-  model: string
-  provider: string
-  apiKey: string
-  apiVersion?: string
-  baseURL: string
-}

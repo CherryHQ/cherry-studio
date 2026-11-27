@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-09-codex-context-window.md
+2026-11-09-codex-context-window.md: f930d6b92a5ab2ffda07a0f9ba29068e40d9940f
+2026-11-09-codex-context-window.zh.md: dc839823eb6ab90d90debb0187831c14ffe0b5f0

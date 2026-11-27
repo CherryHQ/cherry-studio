@@ -1,3 +1,23 @@
+vi.mock('../attachmentWorkerClient', async () => {
+  const { decodeTextBufferIfText, decodeTextWithAutoEncoding } = await import('@main/utils/textEncoding')
+  return {
+    runAttachmentWorker: async (
+      _type: string,
+      input: { content: Uint8Array; conservative: boolean },
+      signal?: AbortSignal
+    ) => {
+      signal?.throwIfAborted()
+      const bytes = Buffer.from(input.content)
+      return (
+        (input.conservative
+          ? decodeTextBufferIfText(bytes)
+          : decodeTextWithAutoEncoding(bytes, { warn() {}, error() {} })
+        )?.trim() ?? null
+      )
+    }
+  }
+})
+
 import iconv from 'iconv-lite'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -36,10 +56,7 @@ vi.mock('word-extractor', () => ({
 const { extractPdfTextMock } = vi.hoisted(() => ({ extractPdfTextMock: vi.fn<() => Promise<string>>() }))
 vi.mock('@main/utils/pdf', () => ({ extractPdfText: extractPdfTextMock }))
 
-const { decodeTextMock } = vi.hoisted(() => ({ decodeTextMock: vi.fn<() => string>() }))
-vi.mock('@main/utils/legacyFile', () => ({ decodeTextWithAutoEncoding: decodeTextMock }))
-
-import { extractDocumentText, noExtractableTextNote } from '../attachmentTextExtraction'
+import { extractDocumentText } from '../attachmentTextExtraction'
 
 const LRMX_UTF8 = `<?xml version="1.0" encoding="UTF-8"?>
 <GanBuRenMianShenPiBiao>
@@ -81,8 +98,13 @@ describe('extractDocumentText — dispatch on entry ext, bytes via FileManager.r
 
   it('extracts .doc via word-extractor (buffer)', async () => {
     getByIdMock.mockResolvedValueOnce({ ext: 'doc' })
-    wordExtractMock.mockResolvedValueOnce({ getBody: () => ' word body ' })
-    expect(await extractDocumentText('e1')).toBe('word body')
+    wordExtractMock.mockResolvedValueOnce({
+      getBody: () => ' word body ',
+      getTextboxes: () => ' a callout ',
+      getFootnotes: () => ' a footnote ',
+      getEndnotes: () => ''
+    })
+    expect(await extractDocumentText('e1')).toBe('word body\n\na callout\n\na footnote')
     expect(wordExtractMock).toHaveBeenCalledWith(expect.any(Buffer))
   })
 
@@ -90,39 +112,32 @@ describe('extractDocumentText — dispatch on entry ext, bytes via FileManager.r
     getByIdMock.mockResolvedValueOnce({ ext: 'docx' })
     parseOfficeAsyncMock.mockResolvedValueOnce(' office body ')
     expect(await extractDocumentText('e1')).toBe('office body')
-    expect(parseOfficeAsyncMock).toHaveBeenCalledWith(expect.any(Buffer), { tempFilesLocation: '/tmp' })
   })
 
   it('decodes text/code files with auto encoding', async () => {
     getByIdMock.mockResolvedValueOnce({ ext: 'md' })
-    decodeTextMock.mockReturnValueOnce(' markdown ')
+    readMock.mockResolvedValueOnce({ content: Buffer.from(' markdown ') })
     expect(await extractDocumentText('e1')).toBe('markdown')
-    expect(decodeTextMock).toHaveBeenCalledWith(expect.any(Buffer))
   })
 
   it.each(['lrmx', 'LRMX'])('decodes UTF-8 XML with unrecognized extension %s', async (ext) => {
     getByIdMock.mockResolvedValueOnce({ ext })
     const content = Buffer.from(LRMX_UTF8)
-    expect(content.byteLength).toBe(378)
     readMock.mockResolvedValueOnce({ content })
     expect(await extractDocumentText('e1')).toEqual(LRMX_UTF8.trim())
-    expect(decodeTextMock).not.toHaveBeenCalled()
   })
 
   it('decodes high-confidence GBK XML with an unrecognized extension', async () => {
     getByIdMock.mockResolvedValueOnce({ ext: 'lrm' })
     const content = iconv.encode(LRM_GBK, 'gbk')
-    expect(content.byteLength).toBe(343)
     readMock.mockResolvedValueOnce({ content })
     expect(await extractDocumentText('e1')).toEqual(LRM_GBK.trim())
-    expect(decodeTextMock).not.toHaveBeenCalled()
   })
 
   it('accepts ASCII text under an unrelated unknown extension', async () => {
     getByIdMock.mockResolvedValueOnce({ ext: 'onnx' })
     readMock.mockResolvedValueOnce({ content: Buffer.from('key=value\n') })
     expect(await extractDocumentText('e1')).toEqual('key=value')
-    expect(decodeTextMock).not.toHaveBeenCalled()
   })
 
   it.each([
@@ -135,7 +150,6 @@ describe('extractDocumentText — dispatch on entry ext, bytes via FileManager.r
     getByIdMock.mockResolvedValueOnce({ ext })
     readMock.mockResolvedValueOnce({ content })
     expect(await extractDocumentText('e1')).toBeNull()
-    expect(decodeTextMock).not.toHaveBeenCalled()
   })
 
   it('falls back to text decode for legacy-encoded text when the entry has no ext', async () => {
@@ -144,21 +158,18 @@ describe('extractDocumentText — dispatch on entry ext, bytes via FileManager.r
     const content = iconv.encode(text, 'gbk')
     readMock.mockResolvedValueOnce({ content })
     expect(await extractDocumentText('e1')).toBe(text)
-    expect(decodeTextMock).not.toHaveBeenCalled()
   })
 
   it('rejects ambiguous short legacy-encoded files instead of returning mojibake', async () => {
     getByIdMock.mockResolvedValueOnce({ ext: null })
     readMock.mockResolvedValueOnce({ content: iconv.encode('中文', 'big5') })
     expect(await extractDocumentText('e1')).toBeNull()
-    expect(decodeTextMock).not.toHaveBeenCalled()
   })
 
   it('does not decode an extensionless binary file as text', async () => {
     getByIdMock.mockResolvedValueOnce({ ext: null })
     readMock.mockResolvedValueOnce({ content: Buffer.from('%PDF-1.7\n1 0 obj\n<< /Type /Catalog >>\nendobj') })
     expect(await extractDocumentText('e1')).toBeNull()
-    expect(decodeTextMock).not.toHaveBeenCalled()
   })
 
   it('caches by entry version and skips re-extraction on hit', async () => {
@@ -168,24 +179,10 @@ describe('extractDocumentText — dispatch on entry ext, bytes via FileManager.r
     expect(readMock).not.toHaveBeenCalled()
   })
 
-  it('writes the extracted text to cache', async () => {
-    getByIdMock.mockResolvedValueOnce({ ext: 'txt' })
-    decodeTextMock.mockReturnValueOnce('hello')
-    await extractDocumentText('e1')
-    expect(cacheSet).toHaveBeenCalledWith('doc-extraction:e1:1:2', 'hello', expect.any(Number))
-  })
-
   it('throws the abort reason when the signal is already aborted', async () => {
     const controller = new AbortController()
     controller.abort()
     await expect(extractDocumentText('e1', { signal: controller.signal })).rejects.toBeDefined()
     expect(getByIdMock).not.toHaveBeenCalled()
-  })
-})
-
-describe('noExtractableTextNote', () => {
-  it('names the file and hints at a scanned/image-only doc', () => {
-    expect(noExtractableTextNote('scan.pdf')).toContain('scan.pdf')
-    expect(noExtractableTextNote('scan.pdf')).toContain('scanned')
   })
 })

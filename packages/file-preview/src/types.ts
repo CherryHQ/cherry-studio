@@ -16,6 +16,12 @@ export interface PreviewResources {
   /** Creates the module worker for a format; takes precedence over `baseUrl` for workers. */
   createWorker?: (kind: 'pdf' | 'xlsx') => Worker
   readPdfResource?: (kind: 'cmap' | 'standard_font', name: string) => Promise<Uint8Array>
+  /**
+   * Reads a file inside the previewed file's project directory, for multi-file
+   * formats such as PPTD. The host resolves `relativePath` against the
+   * previewed file's directory and must reject paths escaping it.
+   */
+  readProjectFile?: (relativePath: string, signal?: AbortSignal) => Promise<Uint8Array>
 }
 
 /** Optional host policies. Omitted options preserve the desktop preview's layout and rendering. */

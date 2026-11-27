@@ -26,12 +26,15 @@ import {
 import type { Pluggable } from 'unified'
 
 import { MarkdownBlockContext } from './context'
+import { FootnoteLink, FootnoteSection } from './footnotes'
 import { rehypeHeadingIds, rehypePrefixSvgReferences, rehypePreserveAnchorTargets } from './plugins'
+import { rehypeFootnotes } from './plugins/rehype-footnotes'
 import {
   FILE_LINK_MARKER_PROPERTY,
   rehypePrepareFileLinks,
   rehypeRestoreFileLinks
 } from './plugins/rehype-preserve-file-links'
+import { createRelativeImagePreservation } from './plugins/rehype-preserve-relative-images'
 import rehypeScalableSvg from './plugins/rehype-scalable-svg'
 import {
   createMarkdownSanitizeSchema,
@@ -39,6 +42,7 @@ import {
   type MarkdownSanitizeSchema,
   SVG_ELEMENT_REGEX
 } from './utils'
+import { rehypeNormalizeLinkScheme } from './utils/normalize-link-scheme'
 
 const STREAMDOWN_DEFAULT_REMARK_PLUGINS = Object.entries(defaultRemarkPlugins).map(([name, plugin]) => {
   if (name !== 'gfm' || !Array.isArray(plugin)) return plugin
@@ -133,6 +137,8 @@ export interface MarkdownCoreProps {
   footnoteLabel?: string
   /** Preserve local file hrefs for a custom anchor while retaining URL hardening for every link and image. */
   preserveFileLinkHrefs?: boolean
+  additionalLinkProtocols?: readonly string[]
+  preserveRelativeImageSrcs?: boolean
 }
 
 export function MarkdownCore({
@@ -149,10 +155,17 @@ export function MarkdownCore({
   className,
   disallowedElements = DISALLOWED_ELEMENTS,
   footnoteLabel = 'Footnotes',
-  preserveFileLinkHrefs = false
+  preserveFileLinkHrefs = false,
+  additionalLinkProtocols,
+  preserveRelativeImageSrcs = false
 }: MarkdownCoreProps): ReactElement {
   const hasSvgElement = useMemo(() => SVG_ELEMENT_REGEX.test(children), [children])
   const stableComponents = useStableReference(components, isSameComponents)
+  const footnotePrefix = `footnote-${id}-`
+  const renderedComponents = useMemo(
+    () => ({ ...stableComponents, 'footnote-link': FootnoteLink, 'footnote-section': FootnoteSection }),
+    [stableComponents]
+  )
   const stableExtraRehypePlugins = useStableReference(extraRehypePlugins, isSamePluggableList)
   const stableExtraRemarkPlugins = useStableReference(extraRemarkPlugins, isSamePluggableList)
 
@@ -169,7 +182,8 @@ export function MarkdownCore({
 
   const rehypePlugins = useMemo(() => {
     const { raw, sanitizeFn, sanitizeSchema, hardenFn, hardenOptions } = resolveDefaultRehypePlugins()
-    const extendedSchema = createMarkdownSanitizeSchema(sanitizeSchema)
+    const relativeImages = createRelativeImagePreservation()
+    const extendedSchema = createMarkdownSanitizeSchema(sanitizeSchema, additionalLinkProtocols)
     const effectiveSchema = preserveFileLinkHrefs
       ? {
           ...extendedSchema,
@@ -185,19 +199,36 @@ export function MarkdownCore({
       : extendedSchema
     const result: Pluggable[] = [raw, ...(preserveFileLinkHrefs ? ([rehypePrepareFileLinks] as Pluggable[]) : [])]
     result.push(
+      // Sanitize compares protocols case-sensitively, but URI schemes are case-insensitive.
+      // Normalize schemes instead of expanding the allow-list.
+      rehypeNormalizeLinkScheme,
       [sanitizeFn, effectiveSchema] as Pluggable,
       rehypePreserveAnchorTargets as Pluggable,
       ...(hasSvgElement ? ([rehypeScalableSvg] as Pluggable[]) : []),
       [rehypePrefixSvgReferences, (effectiveSchema as { clobberPrefix?: string }).clobberPrefix] as Pluggable,
+      ...(preserveRelativeImageSrcs ? ([relativeImages.prepare] as Pluggable[]) : []),
       // Harden runs after sanitize, so every URL it rejects was already stripped or vetted there.
       // Keep the author's text/alt instead of defacing it with harden's "[blocked]" placeholders.
       [hardenFn, { ...hardenOptions, linkBlockPolicy: 'text-only', imageBlockPolicy: 'text-only' }] as Pluggable,
+      ...(preserveRelativeImageSrcs ? ([relativeImages.restore] as Pluggable[]) : []),
       ...(preserveFileLinkHrefs ? ([rehypeRestoreFileLinks] as Pluggable[]) : []),
-      [rehypeHeadingIds, { prefix: `heading-${id}` }] as Pluggable
+      [rehypeHeadingIds, { prefix: `heading-${id}` }] as Pluggable,
+      [
+        rehypeFootnotes,
+        { prefix: footnotePrefix, clobberPrefix: effectiveSchema.clobberPrefix ?? 'user-content-' }
+      ] as Pluggable
     )
     if (stableExtraRehypePlugins?.length) result.push(...stableExtraRehypePlugins)
     return result
-  }, [hasSvgElement, id, stableExtraRehypePlugins, preserveFileLinkHrefs])
+  }, [
+    hasSvgElement,
+    id,
+    footnotePrefix,
+    stableExtraRehypePlugins,
+    preserveFileLinkHrefs,
+    preserveRelativeImageSrcs,
+    additionalLinkProtocols
+  ])
 
   const urlTransform = useCallback((value: string, key: string, node: Parameters<typeof defaultUrlTransform>[2]) => {
     if (key === 'src' && /^data:image\/(?:png|jpeg);/i.test(value)) return value
@@ -207,11 +238,12 @@ export function MarkdownCore({
   const remarkRehypeOptions = useMemo(
     () => ({
       footnoteLabel,
+      clobberPrefix: footnotePrefix,
       footnoteLabelTagName: 'h4' as const,
-      footnoteBackContent: ' ',
+      footnoteBackContent: '↩',
       handlers: defListHastHandlers
     }),
-    [footnoteLabel]
+    [footnoteLabel, footnotePrefix]
   )
 
   const markdownCtx = useMemo(() => ({ content: children }), [children])
@@ -225,7 +257,7 @@ export function MarkdownCore({
           plugins={plugins}
           rehypePlugins={rehypePlugins}
           remarkPlugins={remarkPlugins}
-          components={stableComponents}
+          components={renderedComponents}
           disallowedElements={disallowedElements}
           urlTransform={urlTransform}
           parseIncompleteMarkdown={parseIncompleteMarkdown}

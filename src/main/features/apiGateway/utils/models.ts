@@ -5,7 +5,7 @@ import { isManagedCherryAiDefaultModel } from '@shared/data/presets/cherryai'
 import { type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { formatGatewayModelId } from '@shared/utils/apiGateway'
-import { isGatewayRoutableModel, isPublicGatewayRoutableModel } from '@shared/utils/model'
+import { isGatewayRoutableModel, isPublicGatewayRoutableModel, stripClaudeContextMarker } from '@shared/utils/model'
 import { isAgentOnlyProvider, isExternalCliProvider } from '@shared/utils/provider'
 
 const logger = loggerService.withContext('ApiGatewayModels')
@@ -91,7 +91,7 @@ function transformModelToOpenAi(model: Model, provider?: Provider): ApiModel {
   }
 }
 
-/** Resolve a `providerId:apiModelId`; Cherry Cloud models are served only to internal requests. */
+/** Resolve an enabled gateway model by its `providerId:apiModelId` address. */
 export async function resolveGatewayModelAddress(
   modelAddress: string,
   internal = false
@@ -118,16 +118,24 @@ export async function resolveGatewayModelAddress(
   }
 
   const isRoutableModel = internal ? isGatewayRoutableModel : isPublicGatewayRoutableModel
-  const model = modelService.list({ providerId, enabled: true }).find((candidate) => {
-    if (!isRoutableModel(candidate)) return false
-    const candidateApiModelId = candidate.apiModelId ?? parseUniqueModelId(candidate.id).modelId
-    return candidateApiModelId === apiModelId
-  })
-  if (!model) {
+  const candidates = modelService
+    .list({ providerId, enabled: true })
+    .filter((candidate) => isRoutableModel(candidate))
+    .map((candidate) => ({ candidate, id: candidate.apiModelId ?? parseUniqueModelId(candidate.id).modelId }))
+  // Exact ids win, so catalog models whose id itself ends in `[1m]` stay addressable. Otherwise fall
+  // back to the id without a Claude Code context marker / trailing whitespace (e.g. `model [1M]`, or
+  // `model ` after Claude Code strips the bracket token from a spaced marker).
+  const normalizedApiModelId = stripClaudeContextMarker(apiModelId)
+  const match =
+    candidates.find(({ id }) => id === apiModelId) ??
+    (normalizedApiModelId && normalizedApiModelId !== apiModelId
+      ? candidates.find(({ id }) => id === normalizedApiModelId)
+      : undefined)
+  if (!match) {
     throw gatewayModelError(`Model "${modelAddress}" is not available through the API gateway`, 400)
   }
 
-  return { providerId, apiModelId, uniqueModelId: model.id, provider, model }
+  return { providerId, apiModelId: match.id, uniqueModelId: match.candidate.id, provider, model: match.candidate }
 }
 
 /**

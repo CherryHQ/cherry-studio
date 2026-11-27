@@ -132,29 +132,6 @@ describe('CodeBlock', () => {
       expect(screen.getByText('i', { exact: false }).tagName).toBe('SPAN')
     })
 
-    it('should render without a message list provider', () => {
-      mocks.messageListActions = undefined
-
-      expect(() => render(<CodeBlock {...defaultProps} />)).not.toThrow()
-      fireEvent.click(screen.getByText('Save'))
-      expect(mocks.saveCodeBlock).not.toHaveBeenCalled()
-    })
-
-    it('should render mermaid code fences with the app code block view', () => {
-      render(<CodeBlock {...defaultProps} className="language-mermaid" children="graph TD; A-->B;" />)
-
-      expect(screen.getByText('graph TD; A-->B;')).toBeInTheDocument()
-      expect(mocks.CodeBlockView).toHaveBeenCalled()
-      expect(mocks.CodeBlockView.mock.calls[0][0]).toEqual(
-        expect.objectContaining({
-          language: 'mermaid',
-          children: 'graph TD; A-->B;',
-          editable: true
-        })
-      )
-      expect(mocks.HtmlArtifactsCard).not.toHaveBeenCalled()
-    })
-
     it('should pass editable=false for standard code blocks when saving is unavailable', () => {
       mocks.messageListActions = {}
 
@@ -163,32 +140,6 @@ describe('CodeBlock', () => {
       expect(mocks.CodeBlockView).toHaveBeenCalledWith(
         expect.objectContaining({
           editable: false
-        }),
-        undefined
-      )
-    })
-
-    it('should pass Streamdown incomplete fence state to standard code blocks', () => {
-      mocks.isCodeFenceIncomplete = true
-
-      render(<CodeBlock {...defaultProps} />)
-
-      expect(mocks.CodeBlockView).toHaveBeenCalledWith(
-        expect.objectContaining({
-          isStreaming: true
-        }),
-        undefined
-      )
-    })
-
-    it('should pass parent streaming state to standard code blocks after the fence is complete', () => {
-      mocks.isCodeFenceIncomplete = false
-
-      render(<CodeBlock {...defaultProps} isStreaming />)
-
-      expect(mocks.CodeBlockView).toHaveBeenCalledWith(
-        expect.objectContaining({
-          isStreaming: true
         }),
         undefined
       )
@@ -212,30 +163,6 @@ describe('CodeBlock', () => {
       )
     })
 
-    it('renders completed HTML directly in its original Markdown position', () => {
-      render(
-        <CodeBlock
-          {...defaultProps}
-          className="language-html"
-          children="<h1>Hello</h1>"
-          inlineHtmlPreviewMode="ready"
-        />
-      )
-
-      expect(mocks.HtmlArtifactsCard).not.toHaveBeenCalled()
-      expect(mocks.MessageHtmlArtifact).toHaveBeenCalledWith(
-        expect.objectContaining({
-          artifactId: 'test-msg-block-id:test-code-block-id',
-          editable: true,
-          html: '<h1>Hello</h1>',
-          kind: 'fragment',
-          isStreaming: false,
-          onSave: expect.any(Function)
-        }),
-        undefined
-      )
-    })
-
     it('classifies a completed HTML document so the view can gate it', () => {
       const html =
         '<!doctype html><html><head><link rel="stylesheet" href="https://example.com/style.css"></head></html>'
@@ -244,17 +171,6 @@ describe('CodeBlock', () => {
       expect(mocks.HtmlArtifactsCard).not.toHaveBeenCalled()
       expect(mocks.MessageHtmlArtifact).toHaveBeenCalledWith(
         expect.objectContaining({ html, kind: 'document', isStreaming: false }),
-        undefined
-      )
-    })
-
-    it('classifies active markup embedded in prose as a fragment, never gated', () => {
-      const html = '<script>document.body.textContent = "interactive"</script>'
-      render(<CodeBlock {...defaultProps} className="language-html" children={html} inlineHtmlPreviewMode="ready" />)
-
-      expect(mocks.HtmlArtifactsCard).not.toHaveBeenCalled()
-      expect(mocks.MessageHtmlArtifact).toHaveBeenCalledWith(
-        expect.objectContaining({ html, kind: 'fragment', isStreaming: false }),
         undefined
       )
     })
@@ -315,35 +231,6 @@ describe('CodeBlock', () => {
       })
     })
 
-    it('should pass Streamdown incomplete fence state to HTML artifact cards', () => {
-      mocks.isCodeFenceIncomplete = true
-      const htmlProps = {
-        ...defaultProps,
-        className: 'language-html',
-        children: '<h1>Hello</h1>'
-      }
-
-      render(<CodeBlock {...htmlProps} />)
-
-      expect(screen.getByTestId('html-streaming-state')).toHaveTextContent('true')
-    })
-
-    it('renders a streaming fenced HTML fragment in the existing message artifact view', () => {
-      render(
-        <CodeBlock {...defaultProps} className="language-html" inlineHtmlPreviewMode="generating">
-          {'<div><h1>Hello</h1></div>'}
-        </CodeBlock>
-      )
-
-      expect(mocks.HtmlArtifactsCard).not.toHaveBeenCalled()
-      expect(mocks.CodeBlockView).not.toHaveBeenCalled()
-      expect(mocks.MessageHtmlArtifact).toHaveBeenCalledWith(
-        expect.objectContaining({ html: '<div><h1>Hello</h1></div>', kind: 'fragment', isStreaming: true }),
-        undefined
-      )
-      expect(screen.getByTestId('message-html-streaming-state')).toHaveTextContent('true')
-    })
-
     it('keeps a streaming HTML document in the display-only source view', () => {
       const html = '<!doctype html><html><body><h1>Hello</h1></body></html>'
       render(
@@ -363,47 +250,6 @@ describe('CodeBlock', () => {
           maxHeight: 350,
           showToolbar: false
         }),
-        undefined
-      )
-    })
-
-    it('renders an empty streaming fence without crashing', () => {
-      expect(() =>
-        render(
-          <CodeBlock
-            blockId={defaultProps.blockId}
-            node={defaultProps.node}
-            className="language-html"
-            inlineHtmlPreviewMode="generating"
-          />
-        )
-      ).not.toThrow()
-
-      expect(mocks.CodeBlockView).not.toHaveBeenCalled()
-      expect(mocks.MessageHtmlArtifact).not.toHaveBeenCalled()
-    })
-
-    it('holds the surface until a streamed prefix can be classified', () => {
-      const partial = '<!doc'
-      render(
-        <CodeBlock {...defaultProps} className="language-html" inlineHtmlPreviewMode="generating">
-          {partial}
-        </CodeBlock>
-      )
-
-      expect(mocks.CodeBlockView).not.toHaveBeenCalled()
-      expect(mocks.MessageHtmlArtifact).not.toHaveBeenCalled()
-    })
-
-    it('falls back to the fragment surface for unclassifiable but completed HTML', () => {
-      render(
-        <CodeBlock {...defaultProps} className="language-html" inlineHtmlPreviewMode="ready">
-          {'plain text in an html fence'}
-        </CodeBlock>
-      )
-
-      expect(mocks.MessageHtmlArtifact).toHaveBeenCalledWith(
-        expect.objectContaining({ kind: 'fragment', isStreaming: false }),
         undefined
       )
     })

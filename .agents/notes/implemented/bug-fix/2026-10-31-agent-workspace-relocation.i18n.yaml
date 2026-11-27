@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-10-31-agent-workspace-relocation.md
+2026-10-31-agent-workspace-relocation.md: c69356d281acaed637b1d1e1e2e6fd0780eae7a0
+2026-10-31-agent-workspace-relocation.zh.md: 5df5ad137c5a5011d07b6d14723434c190d3cadc

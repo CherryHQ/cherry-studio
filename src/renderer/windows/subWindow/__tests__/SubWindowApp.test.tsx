@@ -18,6 +18,8 @@ vi.mock('@renderer/components/layout/TabsProvider', () => ({
   TabsProvider: ({ children }: PropsWithChildren) => children
 }))
 vi.mock('@renderer/components/ConversationNotificationRuntime', () => ({ ConversationNotificationRuntime: () => null }))
+// Recovery has its own integration tests; the MCP harness uses a context-free tab shell.
+vi.mock('@renderer/windows/WindowFileEditRecovery', () => ({ WindowFileEditRecovery: () => null }))
 
 vi.mock('@renderer/components/ThemeProvider', () => ({
   ThemeProvider: ({ children }: PropsWithChildren) => {

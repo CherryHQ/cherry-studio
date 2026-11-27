@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-09-agent-background-reply-continuity.md
+2026-11-09-agent-background-reply-continuity.md: 37f3f99946431234e261f6b79f4f236e4bd8d0dc
+2026-11-09-agent-background-reply-continuity.zh.md: 49dec2276898a8b7436ffc309e37e046d6aad75f

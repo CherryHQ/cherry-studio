@@ -18,17 +18,33 @@ import {
   WEB_SEARCH_TOOL_NAME,
   webSearchOutputSchema
 } from '@shared/ai/builtinTools'
+import type { LivePartPatch, NonTextPartWrite, PartPlacement } from '@shared/ai/messageProjection'
 import {
   type DeferredToolOutput,
   type DeferredToolResultRef,
   envelopeDisplayExcerpt,
   isDeferredToolOutput,
-  isPersistedToolOutput
+  isPersistedToolOutput,
+  toolResultValue
 } from '@shared/ai/transport'
 import type { CherryMessagePart } from '@shared/data/types/message'
+import { hasMcpAppResult } from '@shared/types/mcpApp'
 
 /** Serialized UTF-8 size at or below which a result travels inline. */
 export const DEFER_TOOL_OUTPUT_BYTES = 32 * 1024
+
+type ToolResultPatch<P extends PartPlacement = PartPlacement> = Extract<
+  LivePartPatch<P>,
+  { type: 'part-add' | 'part-put' }
+>
+const rendererToolResult = Symbol('rendererToolResult')
+type ToolResult = Extract<ToolResultPatch['part'], { type: 'dynamic-tool'; state: 'output-available' | 'output-error' }>
+export type PublishedPartPatch<P extends PartPlacement = PartPlacement> =
+  | Exclude<LivePartPatch<P>, { type: 'part-put' | 'part-add' }>
+  | (NonTextPartWrite<P> & { partId: string } & (
+        | { readonly part: Exclude<ToolResultPatch['part'], ToolResult> }
+        | { readonly part: ToolResult; readonly [rendererToolResult]: true }
+      ))
 
 const CHERRY_TOOLS_MCP_SERVER = 'cherry-tools'
 const CITABLE_TOOL_NAMES: ReadonlySet<string> = new Set([
@@ -77,15 +93,21 @@ function toCitationGrepMatches(matches: KbGrepMatch[]): KbGrepMatch[] {
 
 /** Keep only the schema-valid fields and bounded snippets needed to render citations. */
 function toCitationPayloadSkeleton(output: unknown): unknown | undefined {
-  const web = webSearchOutputSchema.safeParse(output)
-  if (web.success) {
-    return web.data.map((item) => ({ ...item, content: toCitationSnippet(item.content) }))
+  if (Array.isArray(output)) {
+    const web = webSearchOutputSchema.safeParse(output)
+    if (web.success) {
+      return web.data.map((item) => ({ ...item, content: toCitationSnippet(item.content) }))
+    }
+
+    const knowledgeSearch = kbSearchOutputSchema.safeParse(output)
+    if (knowledgeSearch.success) {
+      return knowledgeSearch.data.map((item) => ({ ...item, content: toCitationSnippet(item.content) }))
+    }
+
+    return undefined
   }
 
-  const knowledgeSearch = kbSearchOutputSchema.safeParse(output)
-  if (knowledgeSearch.success) {
-    return knowledgeSearch.data.map((item) => ({ ...item, content: toCitationSnippet(item.content) }))
-  }
+  if (!isRecord(output) || typeof output.conceptId !== 'string') return undefined
 
   const knowledgeRead = kbReadOutputSchema.safeParse(output)
   if (knowledgeRead.success) {
@@ -134,23 +156,64 @@ function toCitationSkeleton(output: unknown): unknown | undefined {
   }
 }
 
-/** Whether a serialized payload exceeds the renderer transport budget. */
-function exceedsToolOutputTransportLimit(output: unknown): boolean {
-  if (output === undefined || output === null) return false
+/**
+ * Whether the strings and kept keys alone exceed `limit` characters; JSON spends at least one UTF-8 byte on each.
+ * Undefined when a cycle or `toJSON` leaves the answer to serialization.
+ */
+function textExceeds(value: unknown, limit: number): boolean | undefined {
+  let remaining = limit
+  const path = new Set<object>()
+  const visit = (node: unknown): boolean | undefined => {
+    if (typeof node === 'string') return (remaining -= node.length) < 0
+    if (node === null || typeof node !== 'object') return false
+    if (path.has(node) || typeof (node as { toJSON?: unknown }).toJSON === 'function') return undefined
+    path.add(node)
+    try {
+      if (Array.isArray(node)) {
+        for (const item of node) {
+          const exceeds = visit(item)
+          if (exceeds !== false) return exceeds
+        }
+        return false
+      }
+      for (const [key, child] of Object.entries(node)) {
+        if (child === undefined || typeof child === 'function' || typeof child === 'symbol') continue
+        if ((remaining -= key.length) < 0) return true
+        const exceeds = visit(child)
+        if (exceeds !== false) return exceeds
+      }
+      return false
+    } finally {
+      path.delete(node)
+    }
+  }
+  return visit(value)
+}
+
+/** Serialize an oversized payload for reuse in transport checks and revision hashing. */
+function serializeOversizedToolOutput(output: unknown): string | undefined {
+  if (output === undefined || output === null) return undefined
   try {
     const serialized = JSON.stringify(output)
-    if (serialized === undefined) return false
+    if (serialized === undefined) return undefined
     // UTF-16 code units are a lower bound on UTF-8 bytes, so this short-circuits without encoding.
-    if (serialized.length > DEFER_TOOL_OUTPUT_BYTES) return true
-    return new TextEncoder().encode(serialized).length > DEFER_TOOL_OUTPUT_BYTES
+    if (serialized.length > DEFER_TOOL_OUTPUT_BYTES) return serialized
+    return new TextEncoder().encode(serialized).length > DEFER_TOOL_OUTPUT_BYTES ? serialized : undefined
   } catch {
-    return false
+    return undefined
   }
 }
 
-export function shouldDeferToolOutput(output: unknown): boolean {
-  if (output === undefined || output === null || isDeferredToolOutput(output)) return false
-  return exceedsToolOutputTransportLimit(output)
+/** Whether a payload exceeds the renderer transport budget. */
+function exceedsToolOutputTransportLimit(output: unknown): boolean {
+  try {
+    // Decides large payloads without serializing them; only small ones are measured exactly.
+    if (textExceeds(output, DEFER_TOOL_OUTPUT_BYTES)) return true
+  } catch {
+    // Nesting too deep to walk is too deep to serialize, so the output stays inline.
+    return false
+  }
+  return serializeOversizedToolOutput(output) !== undefined
 }
 
 function withCitationSkeleton(deferred: DeferredToolOutput, output: unknown): DeferredToolOutput {
@@ -168,57 +231,150 @@ function withCitationSkeleton(deferred: DeferredToolOutput, output: unknown): De
   if (!entities || entities.length <= 1) return deferred
 
   // Citation order defines display numbering, so retain the longest prefix that fits.
-  for (let end = entities.length - 1; end > 0; end -= 1) {
+  let low = 1
+  let high = entities.length - 1
+  let best: DeferredToolOutput | undefined
+  while (low <= high) {
+    const mid = Math.floor((low + high) / 2)
     const trimmedSkeleton = Array.isArray(skeleton)
-      ? entities.slice(0, end)
-      : { ...skeleton, content: entities.slice(0, end) }
-    const trimmed = { ...deferred, skeleton: trimmedSkeleton } satisfies DeferredToolOutput
-    if (!exceedsToolOutputTransportLimit(trimmed)) return trimmed
+      ? entities.slice(0, mid)
+      : { ...skeleton, content: entities.slice(0, mid) }
+    const candidate = { ...deferred, skeleton: trimmedSkeleton } satisfies DeferredToolOutput
+    if (!exceedsToolOutputTransportLimit(candidate)) {
+      best = candidate
+      low = mid + 1
+    } else {
+      high = mid - 1
+    }
   }
 
-  return deferred
+  return best ?? deferred
 }
 
-function projectToolOutputForRenderer(output: unknown, ref: DeferredToolResultRef): unknown {
+function projectToolOutputForRenderer(
+  output: unknown,
+  ref: DeferredToolResultRef,
+  acceptedSerialized?: string
+): unknown {
+  if (isDeferredToolOutput(output)) {
+    const stored = output.$deferredToolResult
+    return ref.partId &&
+      (stored.topicId !== ref.topicId ||
+        stored.messageId !== ref.messageId ||
+        stored.partId !== ref.partId ||
+        stored.toolCallId !== ref.toolCallId)
+      ? { ...output, $deferredToolResult: ref }
+      : output
+  }
   if (isPersistedToolOutput(output)) {
     const persisted = output.$persistedToolOutput
     const deferred = {
       $deferredToolResult: ref,
+      ...(hasMcpAppResult(output) && { hasMcpApp: true }),
       excerpt: envelopeDisplayExcerpt(persisted)
     } satisfies DeferredToolOutput
     return persisted.shape === 'entities' ? withCitationSkeleton(deferred, persisted.skeleton) : deferred
   }
 
-  if (!shouldDeferToolOutput(output)) return output
-  return withCitationSkeleton({ $deferredToolResult: ref }, output)
+  const oversized =
+    acceptedSerialized === undefined
+      ? exceedsToolOutputTransportLimit(output)
+      : Buffer.byteLength(acceptedSerialized) > DEFER_TOOL_OUTPUT_BYTES
+  if (!oversized) return output
+  return withCitationSkeleton({ $deferredToolResult: ref, ...(hasMcpAppResult(output) && { hasMcpApp: true }) }, output)
+}
+
+export function isAgentToolResult(part: CherryMessagePart): part is ToolResult {
+  return part.type === 'dynamic-tool' && (part.state === 'output-available' || part.state === 'output-error')
+}
+
+export function projectAgentNonTextPart<P extends PartPlacement>(
+  topicId: string,
+  change: NonTextPartWrite<P> & { partId: string; archiveMessageId: string; part: ToolResultPatch['part'] }
+): { patch: PublishedPartPatch<P>; ref?: DeferredToolResultRef } {
+  const { partId, part, archiveMessageId } = change
+  const operation: NonTextPartWrite<P> =
+    change.type === 'part-add' ? { type: 'part-add', placement: change.placement } : { type: 'part-put' }
+  if (!isAgentToolResult(part)) return { patch: { ...operation, partId, part } }
+  const ref = { topicId, messageId: archiveMessageId, partId, toolCallId: part.toolCallId }
+  return { patch: { ...operation, partId, part: projectResult(part, ref), [rendererToolResult]: true }, ref }
+}
+
+function projectResult<T extends Extract<CherryMessagePart, { state: 'output-error' | 'output-available' }>>(
+  part: T,
+  ref: DeferredToolResultRef,
+  serialized?: string
+): T {
+  if (part.state === 'output-available') {
+    const output = projectToolOutputForRenderer(part.output, ref, serialized)
+    if (
+      part.resultProviderMetadata &&
+      ref.topicId.startsWith('agent-session:') &&
+      exceedsToolOutputTransportLimit({ output, resultProviderMetadata: part.resultProviderMetadata })
+    ) {
+      return {
+        ...part,
+        resultProviderMetadata: undefined,
+        output: {
+          ...(isDeferredToolOutput(output) ? output : withCitationSkeleton({ $deferredToolResult: ref }, output)),
+          archivedProviderMetadata: true
+        }
+      }
+    }
+    return output === part.output ? part : { ...part, output }
+  }
+  const body = toolResultValue(part)
+  if (
+    !isDeferredToolOutput(body) &&
+    !(serialized === undefined
+      ? exceedsToolOutputTransportLimit(body)
+      : Buffer.byteLength(serialized) > DEFER_TOOL_OUTPUT_BYTES)
+  )
+    return part
+  if (
+    isDeferredToolOutput(body) &&
+    body.$deferredToolResult.messageId === ref.messageId &&
+    body.$deferredToolResult.topicId === ref.topicId &&
+    body.$deferredToolResult.partId === ref.partId &&
+    body.$deferredToolResult.toolCallId === ref.toolCallId
+  )
+    return part
+  const summary =
+    part.errorText.length > 512 ? part.errorText.slice(0, 511).replace(/[\uD800-\uDBFF]$/, '') + '…' : part.errorText
+  return {
+    ...part,
+    errorText: summary,
+    resultProviderMetadata: { cherry: { deferredToolOutput: { $deferredToolResult: { ...ref } } } }
+  }
 }
 
 /** Projects a stored or finalized message part. Returns the same object when nothing changed. */
 export function projectMessagePartForRenderer(
   part: CherryMessagePart,
   topicId: string,
-  messageId: string
+  messageId: string,
+  acceptedSerialized?: string,
+  partId?: string
 ): CherryMessagePart {
-  if (!isToolUIPart(part) || part.state !== 'output-available') return part
-
-  const output = projectToolOutputForRenderer(part.output, {
-    topicId,
-    messageId,
-    toolCallId: part.toolCallId
-  })
-  if (output === part.output) return part
-  return { ...part, output }
+  if (!isToolUIPart(part) || (part.state !== 'output-available' && part.state !== 'output-error')) return part
+  if (part.state === 'output-error' && !topicId.startsWith('agent-session:')) return part
+  return projectResult(
+    part,
+    { topicId, messageId, toolCallId: part.toolCallId, ...(partId && { partId }) },
+    acceptedSerialized
+  )
 }
 
 /** Projects every part of a message. Returns the same array when nothing changed. */
 export function projectMessagePartsForRenderer(
   parts: CherryMessagePart[],
   topicId: string,
-  messageId: string
+  messageId: string,
+  partIds?: readonly string[]
 ): CherryMessagePart[] {
   let projected: CherryMessagePart[] | undefined
   for (let index = 0; index < parts.length; index += 1) {
-    const part = projectMessagePartForRenderer(parts[index], topicId, messageId)
+    const part = projectMessagePartForRenderer(parts[index], topicId, messageId, undefined, partIds?.[index])
     if (part === parts[index]) continue
     projected ??= [...parts]
     projected[index] = part

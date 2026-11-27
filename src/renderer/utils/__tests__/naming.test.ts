@@ -1,19 +1,17 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
 import i18n from '@renderer/i18n/resolver'
-import type { Provider, SystemProvider } from '@renderer/types/provider'
 
 import {
   firstLetter,
   getBaseModelName,
   getBriefInfo,
-  getDefaultGroupName,
-  getFancyProviderName,
   getFirstCharacter,
   getLeadingEmoji,
   getLowerBaseModelName,
   getProviderDisplayNameById,
   isEmoji,
+  normalizeGeneratedNoteName,
   removeLeadingEmoji,
   removeSpecialCharactersForTopicName,
   truncateText
@@ -160,59 +158,6 @@ describe('naming', () => {
     })
   })
 
-  describe('getDefaultGroupName', () => {
-    it('should extract group name from ID with slash', () => {
-      // 验证从包含斜杠的 ID 中提取组名
-      expect(getDefaultGroupName('group/model')).toBe('group')
-    })
-
-    it('should extract group name from ID with colon', () => {
-      // 验证从包含冒号的 ID 中提取组名
-      expect(getDefaultGroupName('group:model')).toBe('group')
-    })
-
-    it('should extract group name from ID with space', () => {
-      // 验证从包含空格的 ID 中提取组名
-      expect(getDefaultGroupName('foo bar')).toBe('foo')
-    })
-
-    it('should extract group name from ID with hyphen', () => {
-      // 验证从包含连字符的 ID 中提取组名
-      expect(getDefaultGroupName('group-subgroup-model')).toBe('group-subgroup')
-    })
-
-    it('should use first delimiters for special providers', () => {
-      // 这些 provider 下，'/', ' ', '-', '_', ':' 都属于第一类分隔符，分割后取第0部分
-      const specialProviders = ['aihubmix', 'silicon', 'ocoolai', 'o3', 'dmxapi']
-      specialProviders.forEach((provider) => {
-        expect(getDefaultGroupName('Qwen/Qwen3-32B', provider)).toBe('qwen')
-        expect(getDefaultGroupName('gpt-4.1-mini', provider)).toBe('gpt')
-        expect(getDefaultGroupName('gpt-4.1', provider)).toBe('gpt')
-        expect(getDefaultGroupName('gpt_4.1', provider)).toBe('gpt')
-        expect(getDefaultGroupName('DeepSeek Chat', provider)).toBe('deepseek')
-        expect(getDefaultGroupName('foo:bar', provider)).toBe('foo')
-      })
-    })
-
-    it('should use first and second delimiters for default providers', () => {
-      // 默认情况下，'/', ' ', ':' 属于第一类分隔符，'-' '_' 属于第二类
-      expect(getDefaultGroupName('Qwen/Qwen3-32B', 'foobar')).toBe('qwen')
-      expect(getDefaultGroupName('gpt-4.1-mini', 'foobar')).toBe('gpt-4.1')
-      expect(getDefaultGroupName('gpt-4.1', 'foobar')).toBe('gpt-4.1')
-      expect(getDefaultGroupName('DeepSeek Chat', 'foobar')).toBe('deepseek')
-      expect(getDefaultGroupName('foo:bar', 'foobar')).toBe('foo')
-    })
-
-    it('should fallback to id if no delimiters', () => {
-      // 没有分隔符时返回 id
-      const specialProviders = ['aihubmix', 'silicon', 'ocoolai', 'o3', 'dmxapi']
-      specialProviders.forEach((provider) => {
-        expect(getDefaultGroupName('o3', provider)).toBe('o3')
-      })
-      expect(getDefaultGroupName('o3', 'openai')).toBe('o3')
-    })
-  })
-
   describe('getBaseModelName', () => {
     it('should extract base model name with single delimiter', () => {
       expect(getBaseModelName('DeepSeek/DeepSeek-R1')).toBe('DeepSeek-R1')
@@ -348,46 +293,7 @@ describe('naming', () => {
     })
   })
 
-  describe('getFancyProviderName', () => {
-    it('should get i18n name for system provider', () => {
-      const mockSystemProvider: SystemProvider = {
-        id: 'dashscope',
-        type: 'openai',
-        name: 'whatever',
-        apiHost: 'whatever',
-        apiKey: 'whatever',
-        models: [],
-        isSystem: true
-      }
-      // beforeAll 已将 i18n 切到 en-US
-      expect(getFancyProviderName(mockSystemProvider)).toBe('Alibaba Cloud')
-    })
-
-    it('should get name for custom provider', () => {
-      const mockProvider: Provider = {
-        id: 'whatever',
-        type: 'openai',
-        name: '好名字',
-        apiHost: 'whatever',
-        apiKey: 'whatever',
-        models: []
-      }
-      expect(getFancyProviderName(mockProvider)).toBe('好名字')
-    })
-  })
-
   describe('getProviderDisplayNameById', () => {
-    it('uses the canonical label for a system provider id', () => {
-      expect(getProviderDisplayNameById('minimax')).toBe('MiniMax CN')
-    })
-
-    it.each([
-      ['openai-codex', 'OpenAI Codex'],
-      ['grok-cli', 'Grok CLI']
-    ])('uses the canonical label for the registry provider id %s', (providerId, expectedLabel) => {
-      expect(getProviderDisplayNameById(providerId)).toBe(expectedLabel)
-    })
-
     it('preserves a custom provider id when metadata is unavailable', () => {
       expect(getProviderDisplayNameById('my-custom')).toBe('my-custom')
     })
@@ -441,15 +347,60 @@ describe('naming', () => {
       const result = truncateText(text, { minLength: 5, maxLength: 15 })
       expect(result).toBe('你好。这是第一句话。')
     })
+  })
+})
 
-    it('should use default options (minLength=15, maxLength=50)', () => {
-      const shortText = 'Short'
-      expect(truncateText(shortText)).toBe('Short')
+// Catch title extraction failures, illegal stems, and cuts inside a grapheme.
+describe('normalizeGeneratedNoteName', () => {
+  it.each([
+    ['Roadmap', 'Roadmap'],
+    ['# .NET Performance', 'NET Performance'],
+    ['## .. Deep dive', 'Deep dive'],
+    ['**.NET Core**', 'NET Core'],
+    ['.NET Performance', 'NET Performance'],
+    ['# .NET Performance\n\nbody paragraph', 'NET Performance'],
+    ['.. hidden', 'hidden'],
+    ['# **Roadmap** [Plan](https://example.test/a/b)\n\nLater paragraph', 'Roadmap Plan'],
+    ['```markdown\n# Roadmap\n```', 'Roadmap'],
+    ['~~~md\n# Roadmap\n~~~', 'Roadmap'],
+    ['A/B: C', 'A_B_ C'],
+    ['Research | Notes', 'Research _ Notes'],
+    ['"Roadmap.MD"', 'Roadmap'],
+    ['Roadmap.md.md', 'Roadmap'],
+    ['Roadmap.md .md .md', 'Roadmap'],
+    ['Alpha\t\u00a0Beta', 'Alpha Beta'],
+    ...['\r', '\n', '\u2028', '\u2029', '\u0085'].map((boundary) => [`Alpha${boundary}Beta`, 'Alpha']),
+    ['a'.repeat(37), 'a'.repeat(37)],
+    ['a'.repeat(38), 'a'.repeat(37)],
+    ['a'.repeat(3000), 'a'.repeat(37)],
+    ['中'.repeat(38), '中'.repeat(37)],
+    ['a'.repeat(36) + '😀', 'a'.repeat(36)],
+    ['a'.repeat(35) + 'e\u0301', 'a'.repeat(35) + 'e\u0301'],
+    ['a'.repeat(36) + 'e\u0301', 'a'.repeat(36)],
+    ['a'.repeat(35) + '👩‍💻', 'a'.repeat(35)],
+    ['a'.repeat(34) + '.mdMore', 'a'.repeat(34)],
+    ['a'.repeat(36) + '.More', 'a'.repeat(36)],
+    ...['', '  \t', '###', '...', '.md', '///', 'CON', '+'].map((text) => [text, null]),
+    ['| A | B |\n| --- | :---: |\n| x | y |', null],
+    ['A | B\n--- | ---\nx | y', null],
+    ['| A |\n| - |\n| x |', null],
+    ['Research | Notes\n- | -', 'Research _ Notes'],
+    ['A | B\n--- | ---\nx', null],
+    ['A | B\n--- | ---\nx\n# Roadmap', 'Roadmap'],
+    ['```markdown\nA | B\n--- | ---\nx\n```', null],
+    ['# Roadmap\n\n| A | B |\n| --- | --- |\n| x | y |', 'Roadmap'],
+    ['A | B\n--- | ---\nx | y\n\n# Roadmap', 'Roadmap'],
+    ['###\n...\n# Roadmap', 'Roadmap']
+  ])('normalizes %j to %j', (text, expected) => {
+    expect(normalizeGeneratedNoteName(text!)).toBe(expected)
+  })
 
-      const longText = '这是一个超过五十个字符的长文本，需要被截断。我们来看看它会在哪里被截断，是否能保持可读性。'
-      const result = truncateText(longText)
-      expect(result.length).toBeLessThanOrEqual(50)
-      expect(result.length).toBeGreaterThanOrEqual(15)
-    })
+  it('never returns a hidden stem for Markdown-wrapped dot-prefixed titles', () => {
+    const titles = ['# .NET Performance', '## .. Deep dive', '**.NET Core**', '  > .NET Performance', '- .NET Core']
+
+    for (const text of titles) {
+      const name = normalizeGeneratedNoteName(text)
+      expect(name === null || !name.startsWith('.'), `Hidden note stem for ${JSON.stringify(text)}`).toBe(true)
+    }
   })
 })

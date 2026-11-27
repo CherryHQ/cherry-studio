@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-11-model-selector-name-overflow.md
+2026-11-11-model-selector-name-overflow.md: e92a6bbf8e5d0573492da18cd2c46d2a19c24fe9
+2026-11-11-model-selector-name-overflow.zh.md: 8a157954eb447f6b7a6efeb567de254041fc6001

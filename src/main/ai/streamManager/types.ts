@@ -2,9 +2,13 @@ import type { Span } from '@opentelemetry/api'
 import type { UIMessageChunk } from 'ai'
 
 import type { ExecutionFailure } from '@cherrystudio/remote-protocol/failure'
+import type { AcceptedToolResults } from '@main/ai/messages/AcceptedToolResults'
+import type { AgentControlChunk } from '@main/ai/runtime/types'
+import type { Event } from '@main/core/lifecycle'
 import type { CompactionAnchorData } from '@shared/ai/compaction'
+import type { LivePartPatch, TimelinePlacement } from '@shared/ai/messageProjection'
 import type { StreamChunkPayload, TopicStreamStatus } from '@shared/ai/transport'
-import type { CherryUIMessage, MessageRuntimeTiming } from '@shared/data/types/message'
+import type { CherryMessagePart, CherryUIMessage, MessageRuntimeTiming } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
 
@@ -60,6 +64,8 @@ export interface StreamDoneResult extends TerminalOutcome {
 }
 
 export interface StreamPausedResult extends TerminalOutcome {
+  /** Main-process abort provenance; absent reasons are interruptions, not confirmed user cancellation. */
+  reason?: string
   finalMessage?: CherryUIMessage
   status: 'paused'
   modelId?: UniqueModelId
@@ -88,17 +94,55 @@ export interface StreamErrorResult extends TerminalOutcome {
 
 // ── StreamListener ──────────────────────────────────────────────────
 
+export type ExecutionPart = {
+  readonly partId: string
+  readonly pos: number | null
+  readonly payload: CherryMessagePart
+}
+
+export type MessageStreamEvent = { type: 'error'; error: unknown } | { type: 'control'; chunk: AgentControlChunk }
+
+export type AgentPartChange =
+  | Exclude<LivePartPatch<TimelinePlacement>, { type: 'part-put' | 'part-add' }>
+  | (Extract<LivePartPatch<TimelinePlacement>, { type: 'part-add' | 'part-put' }> & {
+      readonly archiveMessageId: string
+    })
+
+export interface AgentMessageStreamSource {
+  kind: 'messages'
+  stream: ReadableStream<MessageStreamEvent>
+  onPart: Event<AgentPartChange>
+  onMessageReconciled: Event<readonly ExecutionPart[]>
+  readParts(): readonly ExecutionPart[]
+}
+
+/** One content producer per execution: either SDK chunks or an Agent owner. */
+export type AiStreamSource = { kind: 'chunks'; stream: ReadableStream<UIMessageChunk> } | AgentMessageStreamSource
+
 export interface StreamListener {
+  /** A durable caller (scheduled job) publishes its own final result. */
+  readonly ownsTaskResult?: boolean
   readonly windowId?: string
   /** Stable id used for dedup, detach-by-match, and logging. */
   readonly id: string
   /** Orders terminal persistence before notifications and cleanup work after them. */
   readonly terminalPhase?: 'persistence' | 'cleanup'
 
-  onChunk(chunk: UIMessageChunk, sourceModelId?: UniqueModelId, anchorMessageId?: string, attemptId?: number): void
+  onChunk(
+    chunk: UIMessageChunk,
+    sourceModelId?: UniqueModelId,
+    anchorMessageId?: string,
+    attemptId?: number,
+    sequence?: number
+  ): void
+  readonly content?: {
+    readonly snapshot: (message: CherryUIMessage, source: AiStreamSource['kind']) => void
+    readonly part: (change: AgentPartChange) => void
+  }
   onDone(result: StreamDoneResult): void | Promise<void>
   onPaused(result: StreamPausedResult): void | Promise<void>
-  onError(result: StreamErrorResult): void | Promise<void>
+  /** The original exception is available only to in-process prompt listeners. */
+  onError(result: StreamErrorResult, originalError?: unknown): void | Promise<void>
   /** Returning `false` removes the listener immediately. */
   isAlive(): boolean
 }
@@ -111,6 +155,9 @@ export interface StreamListener {
  * running independently against the same listeners and siblingsGroupId.
  */
 export interface StreamExecution {
+  readMessage?: () => CherryUIMessage
+  /** Stable user-task identity across retries and tool-approval continuations. */
+  taskIds?: readonly string[]
   /** Agent input identity survives a queued turn receiving a new execution attempt. */
   userMessageId?: string
   /** Format: "providerId::modelId". */
@@ -126,9 +173,12 @@ export interface StreamExecution {
   status: 'streaming' | 'done' | 'error' | 'aborted'
   /** Per-execution history ring; delta entries are capped by `maxDeltaBytes`. Ordinary overflow drops oldest and bumps `droppedChunks`; eviction pauses while an approval is pending. */
   buffer: StreamChunkPayload[]
+  sequence: number
   droppedChunks: number
-  /** Latest accumulated snapshot from `readUIMessageStream`. Undefined until the first snapshot lands. */
+  /** Latest authoritative message view. Undefined until the first snapshot lands. */
+  sourceKind?: AiStreamSource['kind']
   finalMessage?: CherryUIMessage
+  persistence?: TerminalOutcome['persistence']
   /**
    * Compaction anchors emitted during this turn, newest last.
    *
@@ -141,9 +191,11 @@ export interface StreamExecution {
   compactionAnchors?: Array<{ id: string; data: CompactionAnchorData }>
   /** Tool outputs too large to send, by toolCallId. Serves `ai.tool.get_result` until persisted. */
   deferredOutputs?: Map<string, unknown>
+  acceptedToolResults?: AcceptedToolResults
   /** Tool-call ids still awaiting human approval, keyed so a sibling tool's output clears only its
    *  own. Non-empty ⇒ the topic surfaces `awaiting-approval`; drives the `topic.stream.statuses` cache. */
   pendingApprovalToolCallIds?: Set<string>
+  resolvedToolApprovals?: Map<string, boolean>
   /** Approval ids already published during this execution. */
   publishedApprovalIds?: Set<string>
   error?: SerializedError
@@ -158,7 +210,18 @@ export interface StreamExecution {
 
 // ── ActiveStream ────────────────────────────────────────────────────
 
+export interface ConversationUnsuccessfulEvent {
+  topicId: string
+  resultId: string
+  messageId?: string
+  status: 'failed' | 'interrupted' | 'cancelled'
+  finishedAt: number
+  durationMs: number
+  errorSummary?: string
+}
+
 export interface ConversationCompletedEvent {
+  completedTaskCount?: number
   responseText?: string
   topicId: string
   turnId: string
@@ -173,6 +236,10 @@ export interface ConversationCompletedEvent {
  *   → all done → 'done' | any error (none streaming) → 'error' | all aborted → 'aborted'
  */
 export interface ActiveStream {
+  hasTaskResultOwner?: boolean
+  completedTaskCount?: number
+  completionFailed?: boolean
+  terminalLifecyclePending?: boolean
   topicId: string
   /** Unique per stream lifecycle for renderer-side unread/seen tracking. */
   turnId: string
@@ -207,8 +274,6 @@ export interface AiStreamManagerConfig {
    * observes the same ceiling.
    */
   readonly maxDeltaBytes: number
-  /** Cap on retained oversized tool outputs. Small because each entry is large. */
-  readonly maxDeferredOutputs: number
   /**
    * Idle bound while a tool is awaiting human approval. The normal idle timeout is far too short for
    * a human, so on `tool-approval-request` the watchdog re-arms to this generous value instead of the

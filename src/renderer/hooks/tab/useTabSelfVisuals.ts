@@ -46,7 +46,8 @@ export function useTabSelfVisuals({
     )
       return
     const icon = imageIcon ?? emojiTabIcon(emoji)
-    if (currentTab.title === title && currentTab.icon === icon) return
-    updateTab(currentTabId, { title, icon })
+    const iconFallback = imageIcon ? emojiTabIcon(emoji) : undefined
+    if (currentTab.title === title && currentTab.icon === icon && currentTab.iconFallback === iconFallback) return
+    updateTab(currentTabId, { title, icon, iconFallback })
   }, [currentTabId, currentTab, updateTab, title, emoji, imageIcon, routePrefix, preserveVisuals])
 }

@@ -367,21 +367,48 @@ describe('GeminiMessageConverter.extractStreamOptions', () => {
       )
     ).toEqual({ temperature: 0.5, topP: 0.9, topK: 40, maxOutputTokens: 128, stopSequences: ['x'] })
   })
+})
 
-  it('returns undefined fields when generationConfig is absent', () => {
-    expect(converter.extractStreamOptions(request({}))).toEqual({
-      temperature: undefined,
-      topP: undefined,
-      topK: undefined,
-      maxOutputTokens: undefined,
-      stopSequences: undefined
+describe('Gemini structured output', () => {
+  it.each([
+    { responseMimeType: 'application/json' },
+    {
+      responseMimeType: 'application/json',
+      responseSchema: { type: 'OBJECT', properties: { answer: { type: 'STRING' } } }
+    },
+    { responseJsonSchema: { type: 'object' as const, properties: { answer: { type: 'string' as const } } } }
+  ])('projects JSON output through the SDK output contract: %j', async (generationConfig) => {
+    const { output } = converter.extractStreamOptions(request({ generationConfig }))
+    expect(await output?.responseFormat).toMatchObject({
+      type: 'json',
+      ...('responseSchema' in generationConfig || 'responseJsonSchema' in generationConfig
+        ? { schema: { type: 'object', properties: { answer: { type: 'string' } } } }
+        : {})
     })
   })
 })
 
 describe('GeminiMessageConverter.extractProviderOptions', () => {
-  it('returns undefined when there is no thinkingConfig', () => {
-    expect(converter.extractProviderOptions(provider(), model, request({}))).toBeUndefined()
+  it('keeps safety and cache configuration when trusted context overrides reasoning', () => {
+    const options = converter.extractProviderOptions(
+      provider(),
+      model,
+      request({
+        safetySettings: [{ category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_ONLY_HIGH' }],
+        cachedContent: 'cachedContents/context',
+        toolConfig: { functionCallingConfig: { streamFunctionCallArguments: true } },
+        generationConfig: { thinkingConfig: { thinkingBudget: 123 } }
+      }),
+      1000,
+      true
+    )
+    expect(options).toEqual({
+      google: {
+        safetySettings: [{ category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_ONLY_HIGH' }],
+        cachedContent: 'cachedContents/context',
+        streamFunctionCallArguments: true
+      }
+    })
   })
 
   it('maps an enabled thinkingConfig via the shared thinking mapper', () => {

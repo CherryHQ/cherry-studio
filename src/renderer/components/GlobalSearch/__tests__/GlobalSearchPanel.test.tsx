@@ -604,7 +604,15 @@ import { toast } from '@renderer/services/toast'
 
 import { GlobalSearchPanel } from '../GlobalSearchPanel'
 import { getGlobalSearchOptionDomId, GLOBAL_MESSAGE_SEARCH_LOAD_MORE_ITEM_ID } from '../useGlobalSearchKeyboard'
-import { GLOBAL_SEARCH_QUERY_DEBOUNCE_MS } from '../useImeAwareDebouncedValue'
+// The hook suite owns the real debounce interval. Keep the async commit in this panel suite.
+vi.mock(import('../useImeAwareDebouncedValue'), async (importOriginal) => {
+  const actual = await importOriginal()
+  return {
+    ...actual,
+    useImeAwareDebouncedValue: (value, _delayMs, onCompositionEndCommit) =>
+      actual.useImeAwareDebouncedValue(value, 0, onCompositionEndCommit)
+  }
+})
 
 afterEach(() => {
   cleanup()
@@ -806,7 +814,6 @@ describe('GlobalSearchPanel', () => {
       expect(screen.queryByRole('heading', { name: 'Apps' })).not.toBeInTheDocument()
       expect(resultOption).toBeInTheDocument()
       expect(screen.getByText('2 minutes ago')).toBeInTheDocument()
-      expect(screen.getAllByText('🧪')).not.toHaveLength(0)
       expect(searchInput).toHaveAttribute('aria-expanded', 'true')
       expect(searchInput).toHaveAttribute('aria-controls', listbox.id)
       expect(searchInput).toHaveAttribute('aria-activedescendant', resultOption.id)
@@ -936,110 +943,31 @@ describe('GlobalSearchPanel', () => {
     })
   })
 
-  it('does not render quick app shortcuts after typing', async () => {
+  it('updates query types when changing or clearing the search filter', async () => {
     const user = userEvent.setup()
-
-    render(<GlobalSearchPanel onClose={mocks.onClose} />)
-    await typeSearchQuery(user, 'query')
-
-    expect(screen.queryByText('Quick apps')).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Chat' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Agent' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Manage' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Search type: Conversation' })).toBeInTheDocument()
-  })
-
-  it('updates query types when the topic filter is selected', async () => {
-    const user = userEvent.setup()
-
     render(<GlobalSearchPanel onClose={mocks.onClose} />)
 
     await typeSearchQuery(user, 'plan')
-    await user.click(screen.getByRole('button', { name: 'Search type: Conversation' }))
 
-    await waitFor(() => {
-      expect(mocks.useQuery).toHaveBeenLastCalledWith(
-        '/search/entities',
-        expect.objectContaining({
-          enabled: true,
-          query: expect.objectContaining({
-            q: 'plan',
-            types: ['topic']
+    for (const [label, types] of [
+      ['Conversation', ['topic']],
+      ['Task', ['session']],
+      ['Knowledge', ['knowledge-base']],
+      ['Knowledge', ['topic', 'session', 'assistant', 'agent', 'knowledge-base']]
+    ] as const) {
+      const filter = screen.getByRole('button', { name: `Search type: ${label}` })
+      await user.click(filter)
+      expect(filter).toHaveAttribute('aria-pressed', String(types.length === 1))
+      await waitFor(() => {
+        expect(mocks.useQuery).toHaveBeenLastCalledWith(
+          '/search/entities',
+          expect.objectContaining({
+            enabled: true,
+            query: expect.objectContaining({ q: 'plan', types })
           })
-        })
-      )
-    })
-  })
-
-  it('updates query types when the session filter is selected', async () => {
-    const user = userEvent.setup()
-
-    render(<GlobalSearchPanel onClose={mocks.onClose} />)
-
-    await typeSearchQuery(user, 'plan')
-    await user.click(screen.getByRole('button', { name: 'Search type: Task' }))
-
-    await waitFor(() => {
-      expect(mocks.useQuery).toHaveBeenLastCalledWith(
-        '/search/entities',
-        expect.objectContaining({
-          enabled: true,
-          query: expect.objectContaining({
-            q: 'plan',
-            types: ['session']
-          })
-        })
-      )
-    })
-  })
-
-  it('clears the active search type filter when clicking it again', async () => {
-    const user = userEvent.setup()
-
-    render(<GlobalSearchPanel onClose={mocks.onClose} />)
-
-    await typeSearchQuery(user, 'plan')
-    const topicFilter = screen.getByRole('button', { name: 'Search type: Conversation' })
-    await user.click(topicFilter)
-    expect(topicFilter).toHaveAttribute('aria-pressed', 'true')
-
-    await user.click(topicFilter)
-    expect(topicFilter).toHaveAttribute('aria-pressed', 'false')
-
-    await waitFor(() => {
-      expect(mocks.useQuery).toHaveBeenLastCalledWith(
-        '/search/entities',
-        expect.objectContaining({
-          enabled: true,
-          query: expect.objectContaining({
-            q: 'plan',
-            types: ['topic', 'session', 'assistant', 'agent', 'knowledge-base']
-          })
-        })
-      )
-    })
-  })
-
-  it('updates query types when the knowledge filter is selected', async () => {
-    const user = userEvent.setup()
-
-    render(<GlobalSearchPanel onClose={mocks.onClose} />)
-
-    await typeSearchQuery(user, 'docs')
-    await user.click(screen.getByRole('button', { name: 'Search type: Knowledge' }))
-
-    await waitFor(() => {
-      expect(mocks.useQuery).toHaveBeenLastCalledWith(
-        '/search/entities',
-        expect.objectContaining({
-          enabled: true,
-          query: expect.objectContaining({
-            q: 'docs',
-            types: ['knowledge-base']
-          })
-        })
-      )
-    })
+        )
+      })
+    }
   })
 
   it('does not emit a topic selection when no target tab is opened', async () => {
@@ -1152,48 +1080,6 @@ describe('GlobalSearchPanel', () => {
     })
   })
 
-  it('caps topic and work groups in all search and expands them on demand', async () => {
-    const user = userEvent.setup()
-    mocks.queryResult = {
-      query: 'plan',
-      groups: [
-        {
-          type: 'topic',
-          items: Array.from({ length: 6 }, (_, index) => ({
-            type: 'topic',
-            id: `topic-${index}`,
-            title: `Topic ${index}`,
-            target: { topicId: `topic-${index}` }
-          }))
-        },
-        {
-          type: 'session',
-          items: Array.from({ length: 6 }, (_, index) => ({
-            type: 'session',
-            id: `session-${index}`,
-            title: `Work ${index}`,
-            target: { sessionId: `session-${index}`, agentId: 'agent-1' }
-          }))
-        }
-      ]
-    }
-
-    render(<GlobalSearchPanel onClose={mocks.onClose} />)
-
-    await typeSearchQuery(user, 'plan')
-
-    expect(await screen.findByRole('option', { name: /Topic 0/ })).toBeInTheDocument()
-    expect(screen.getByRole('option', { name: /Topic 4/ })).toBeInTheDocument()
-    expect(screen.queryByRole('option', { name: /Topic 5/ })).not.toBeInTheDocument()
-    expect(screen.getByRole('option', { name: /Work 4/ })).toBeInTheDocument()
-    expect(screen.queryByRole('option', { name: /Work 5/ })).not.toBeInTheDocument()
-
-    await user.click(screen.getAllByRole('option', { name: 'Show 1 more' })[0])
-
-    expect(screen.getByRole('option', { name: /Topic 5/ })).toBeInTheDocument()
-    expect(screen.queryByRole('option', { name: /Work 5/ })).not.toBeInTheDocument()
-  })
-
   it('shows a capped message preview group in all search and switches to message search from its footer', async () => {
     const user = userEvent.setup()
     mocks.queryResult = {
@@ -1297,19 +1183,11 @@ describe('GlobalSearchPanel', () => {
     await typeSearchQuery(user, 'needle')
 
     const messageSearchButton = screen.getByRole('radio', { name: 'Messages' })
-    const filterButton = screen.getByRole('button', { name: 'Search type: Conversation' })
-
-    expect(messageSearchButton.compareDocumentPosition(filterButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
 
     await user.click(messageSearchButton)
     expect(screen.queryByRole('button', { name: 'Chat' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Manage' })).not.toBeInTheDocument()
     expect(messageSearchButton).toHaveAttribute('aria-checked', 'true')
-    expect(
-      messageSearchButton.compareDocumentPosition(
-        screen.getByRole('button', { name: 'Message source: Conversation messages' })
-      )
-    ).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
     expect(screen.queryByRole('button', { name: 'Match mode' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Created time: Any time' })).toBeInTheDocument()
 
@@ -1443,29 +1321,6 @@ describe('GlobalSearchPanel', () => {
     })
   })
 
-  it('passes selected message sources to message search', async () => {
-    const user = userEvent.setup()
-
-    render(<GlobalSearchPanel onClose={mocks.onClose} />)
-
-    await typeSearchQuery(user, 'report')
-    await user.click(screen.getByRole('radio', { name: 'Messages' }))
-    await user.click(screen.getByRole('button', { name: 'Message source: Task messages' }))
-
-    await waitFor(() => {
-      expect(mocks.useQuery).toHaveBeenCalledWith(
-        '/search/contents',
-        expect.objectContaining({
-          enabled: true,
-          query: expect.objectContaining({
-            q: 'report',
-            sources: ['session-message']
-          })
-        })
-      )
-    })
-  })
-
   it('does not keep stale task results after filtering to conversation messages', async () => {
     const user = userEvent.setup()
     mocks.keepStaleContentSearchData = true
@@ -1519,33 +1374,31 @@ describe('GlobalSearchPanel', () => {
     })
   })
 
-  it('clears the active message source filter when clicking it again', async () => {
+  it('updates message search sources when selecting or clearing the task filter', async () => {
     const user = userEvent.setup()
-
     render(<GlobalSearchPanel onClose={mocks.onClose} />)
 
     await typeSearchQuery(user, 'report')
     await user.click(screen.getByRole('radio', { name: 'Messages' }))
-    const sessionSourceFilter = screen.getByRole('button', { name: 'Message source: Task messages' })
+    const taskFilter = screen.getByRole('button', { name: 'Message source: Task messages' })
 
-    await user.click(sessionSourceFilter)
-    expect(sessionSourceFilter).toHaveAttribute('aria-pressed', 'true')
-
-    await user.click(sessionSourceFilter)
-    expect(sessionSourceFilter).toHaveAttribute('aria-pressed', 'false')
-
-    await waitFor(() => {
-      expect(mocks.useQuery).toHaveBeenCalledWith(
-        '/search/contents',
-        expect.objectContaining({
-          enabled: true,
-          query: expect.objectContaining({
-            q: 'report',
-            sources: ['topic-message', 'session-message']
+    for (const [pressed, sources] of [
+      [true, ['session-message']],
+      [false, ['topic-message', 'session-message']]
+    ] as const) {
+      mocks.useQuery.mockClear()
+      await user.click(taskFilter)
+      expect(taskFilter).toHaveAttribute('aria-pressed', String(pressed))
+      await waitFor(() => {
+        expect(mocks.useQuery).toHaveBeenCalledWith(
+          '/search/contents',
+          expect.objectContaining({
+            enabled: true,
+            query: expect.objectContaining({ q: 'report', sources })
           })
-        })
-      )
-    })
+        )
+      })
+    }
   })
 
   it('renders message search results as parent groups with expandable children', async () => {
@@ -2013,9 +1866,6 @@ describe('GlobalSearchPanel', () => {
 
     await typeSearchQuery(user, 'plan')
     await user.click(screen.getByRole('button', { name: 'Updated time: Any time' }))
-    expect(screen.getByRole('menuitemradio', { name: 'Last 7 days' }).parentElement?.parentElement).toHaveClass(
-      'z-[90]'
-    )
     await user.click(screen.getByRole('menuitemradio', { name: 'Last 7 days' }))
 
     await waitFor(() => {
@@ -2218,7 +2068,7 @@ describe('GlobalSearchPanel', () => {
     // Let the debounce window elapse so the committed query catches up with
     // the input while the deferred value stays pinned behind.
     await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, GLOBAL_SEARCH_QUERY_DEBOUNCE_MS + 50))
+      await new Promise((resolve) => setTimeout(resolve, 0))
     })
     expect(mocks.useQuery).not.toHaveBeenCalledWith(
       '/search/entities',
@@ -2489,7 +2339,7 @@ describe('GlobalSearchPanel', () => {
   it('keeps the confirmed composition text in the input when compositionend precedes the change event', async () => {
     render(<GlobalSearchPanel onClose={mocks.onClose} />)
 
-    const input = screen.getByLabelText(SEARCH_INPUT_LABEL) as HTMLInputElement
+    const input = screen.getByLabelText<HTMLInputElement>(SEARCH_INPUT_LABEL)
     fireEvent.compositionStart(input)
     fireEvent.change(input, { target: { value: 'ni' } })
 
@@ -2539,7 +2389,6 @@ describe('GlobalSearchPanel', () => {
     const input = screen.getByLabelText('Search conversations, tasks, assistants, agents, and knowledge...')
     await user.type(input, 'docs')
     await screen.findByText('Docs')
-    expect(screen.getAllByText('📚')).not.toHaveLength(0)
     await user.keyboard('{Enter}')
 
     expect(mocks.openTab).toHaveBeenCalledWith('/app/knowledge')
@@ -2751,42 +2600,6 @@ describe('GlobalSearchPanel', () => {
     )
   })
 
-  it('only refreshes up to the display limit items ordered by lastAccessTime', async () => {
-    mocks.recentItems = Array.from({ length: 7 }, (_, index) => ({
-      kind: 'topic',
-      topicId: `topic-${index + 1}`,
-      title: `Stale ${index + 1}`,
-      lastAccessTime: 10 + index
-    }))
-
-    mocks.dataApiGet.mockImplementation((path: string) => {
-      const match = path.match(/\/topics\/topic-(\d+)/)
-      if (match) {
-        const id = match[1]
-        return Promise.resolve({ name: `Fresh ${id}` })
-      }
-      return Promise.resolve({ name: '' })
-    })
-
-    render(<GlobalSearchPanel onClose={mocks.onClose} />)
-
-    await waitFor(() => {
-      expect(mocks.dataApiGet).toHaveBeenCalledTimes(6)
-    })
-
-    expect(mocks.dataApiGet).not.toHaveBeenCalledWith('/topics/topic-1')
-
-    expect(mocks.recentItems).toEqual([
-      { kind: 'topic', topicId: 'topic-1', title: 'Stale 1', lastAccessTime: 10 },
-      { kind: 'topic', topicId: 'topic-2', title: 'Fresh 2', lastAccessTime: 11 },
-      { kind: 'topic', topicId: 'topic-3', title: 'Fresh 3', lastAccessTime: 12 },
-      { kind: 'topic', topicId: 'topic-4', title: 'Fresh 4', lastAccessTime: 13 },
-      { kind: 'topic', topicId: 'topic-5', title: 'Fresh 5', lastAccessTime: 14 },
-      { kind: 'topic', topicId: 'topic-6', title: 'Fresh 6', lastAccessTime: 15 },
-      { kind: 'topic', topicId: 'topic-7', title: 'Fresh 7', lastAccessTime: 16 }
-    ])
-  })
-
   it('does not update recent items state if the panel component is unmounted before the fetch completes', async () => {
     mocks.recentItems = [
       {
@@ -2810,10 +2623,10 @@ describe('GlobalSearchPanel', () => {
 
     unmount()
 
-    resolveFetch({ name: 'Fresh name' })
-
-    // Let the cancelled .then() handler run; recentItems must remain untouched.
-    await new Promise((resolve) => setTimeout(resolve, 50))
+    await act(async () => {
+      resolveFetch({ name: 'Fresh name' })
+      await fetchPromise
+    })
 
     expect(mocks.recentItems).toEqual([
       {

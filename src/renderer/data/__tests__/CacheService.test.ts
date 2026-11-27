@@ -98,6 +98,70 @@ describe('renderer CacheService equality semantics', () => {
   })
 
   describe('setPersist', () => {
+    it('rehydrates remembered browser pages after a renderer reload', async () => {
+      const persisted = localStorage.getItem('cs_cache_persist')
+      const service = await createService()
+      const urls = { 'standalone:persist:agent-browser': 'https://remembered.test/path?q=1#section' }
+      try {
+        service.setPersist('ui.browser.last_urls', urls)
+        service.cleanup()
+        const reloaded = await createService()
+        try {
+          expect(reloaded.getPersist('ui.browser.last_urls')).toEqual(urls)
+        } finally {
+          reloaded.cleanup()
+        }
+      } finally {
+        if (persisted === null) localStorage.removeItem('cs_cache_persist')
+        else localStorage.setItem('cs_cache_persist', persisted)
+      }
+    })
+
+    it('retains identity and skips notifications for equal persist ingress', async () => {
+      const persisted = localStorage.getItem('cs_cache_persist')
+      const service = await createService()
+      const key = 'ui.tab.pinned_tabs'
+      try {
+        service.setPersist(key, [])
+        const original = service.getPersist(key)
+        const subscriber = vi.fn()
+        service.subscribe(key, subscriber)
+        const receive = onSync.mock.calls.at(-1)![0]
+        broadcastSync.mockClear()
+        receive({ type: 'persist', key, value: [] })
+        expect(service.getPersist(key)).toBe(original)
+        expect(subscriber).not.toHaveBeenCalled()
+        expect(broadcastSync).not.toHaveBeenCalled()
+        receive({ type: 'persist', key, value: [{ id: 'remote' }] })
+        expect(service.getPersist(key)).toEqual([{ id: 'remote' }])
+        expect(subscriber).toHaveBeenCalledTimes(1)
+      } finally {
+        service.cleanup()
+        if (persisted === null) localStorage.removeItem('cs_cache_persist')
+        else localStorage.setItem('cs_cache_persist', persisted)
+      }
+    })
+
+    it('does not broadcast a stale outer value after a convergent subscriber write', async () => {
+      const persisted = localStorage.getItem('cs_cache_persist')
+      const service = await createService()
+      const key = 'ui.sidebar.width'
+      const unsubscribe = service.subscribe(key, () => {
+        if (service.getPersist(key) === 101) service.setPersist(key, 202)
+      })
+      try {
+        broadcastSync.mockClear()
+        service.setPersist(key, 101)
+        expect(service.getPersist(key)).toBe(202)
+        expect(broadcastSync.mock.calls.map(([message]) => message.value)).toEqual([202])
+      } finally {
+        unsubscribe()
+        service.cleanup()
+        if (persisted === null) localStorage.removeItem('cs_cache_persist')
+        else localStorage.setItem('cs_cache_persist', persisted)
+      }
+    })
+
     it('skips persist save when array value has same content (new reference)', async () => {
       const service = await createService()
       const key = 'ui.tab.pinned_tabs'

@@ -5,6 +5,7 @@ import type { CommandContextMenuExtraItem } from '@renderer/components/command'
 export interface SidebarIconPresentation {
   slotSize: number
   glyphSize: number
+  active?: boolean
 }
 
 /**
@@ -31,5 +32,6 @@ export type SidebarVisibleLayout = Exclude<SidebarLayout, 'hidden'>
 export interface SidebarUser {
   name: string
   avatar?: string
+  indicator?: ReactNode
   onClick?: () => void
 }

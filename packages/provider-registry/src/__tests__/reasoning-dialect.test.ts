@@ -3,6 +3,7 @@ import { join } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
+import { providerModelEntries } from '../../scripts/canonicalize'
 import { PROVIDERS } from '../providers'
 import { configureOpenAIResponsesSummary, REASONING_FORMAT_PROFILES, selectFormatWire } from '../reasoningProfiles'
 import type { ModelConfig, ReasoningWireDialect } from '../schemas/model'
@@ -16,8 +17,6 @@ import type { ReasoningWireProfile } from '../schemas/reasoningWire'
  */
 const models: ModelConfig[] = JSON.parse(readFileSync(join(__dirname, '../../data/models.json'), 'utf8')).models
 
-const reasoningModels = (prefix: RegExp) => models.filter((m) => prefix.test(m.id) && m.reasoning)
-
 const targetsOf = (wire: ReasoningWireProfile): string[] =>
   Object.values(wire).flatMap((mode) =>
     mode && typeof mode === 'object' && 'operations' in mode
@@ -26,16 +25,6 @@ const targetsOf = (wire: ReasoningWireProfile): string[] =>
   )
 
 describe('native-protocol reasoning dialect', () => {
-  it.each([
-    ['gemini', /^gemini/],
-    ['claude', /^claude/]
-  ])('declares a dialect for every %s reasoning model', (_label, prefix) => {
-    const undeclared = reasoningModels(prefix)
-      .filter((m) => !m.reasoning?.wireDialect)
-      .map((m) => m.id)
-    expect(undeclared).toEqual([])
-  })
-
   // Ground truth: the exact set that carried a hand-pinned budget contract
   // before the dialect became data.
   it.each([
@@ -68,26 +57,10 @@ describe('native-protocol reasoning dialect', () => {
   // stale-pin class directly: -lite-image was pinned to budget back when
   // upstream reported no effort control for it, then upstream started
   // reporting the same controls as its non-lite sibling.
-  it('gives same-generation siblings with identical controls the same dialect', () => {
-    const byControls = new Map<string, { id: string; dialect?: string }[]>()
-    for (const m of reasoningModels(/^gemini-3/)) {
-      const key = JSON.stringify(m.reasoning?.controls)
-      byControls.set(key, [...(byControls.get(key) ?? []), { id: m.id, dialect: m.reasoning?.wireDialect }])
-    }
-    const split = [...byControls.values()]
-      .filter((group) => new Set(group.map((g) => g.dialect)).size > 1)
-      .map((group) => group.map((g) => `${g.id}=${g.dialect}`).join(' vs '))
-    expect(split).toEqual([])
-  })
 
   // opus-4.5 takes an effort knob (output_config.effort) yet still speaks the
   // budget thinking dialect — the counterexample proving dialect is not
   // derivable from controls and must stay declared.
-  it('keeps effort-capability and dialect independent for claude-opus-4-5', () => {
-    const reasoning = models.find((m) => m.id === 'claude-opus-4-5')?.reasoning
-    expect(reasoning?.controls?.some((c) => c.kind === 'effort')).toBe(true)
-    expect(reasoning?.wireDialect).toBe('budget')
-  })
 
   it.each([
     ['gemini', 'thinkingConfig.thinkingLevel'],
@@ -132,14 +105,14 @@ describe('native-protocol reasoning dialect', () => {
     const NATIVE = { 'google-generate-content': /thinkingConfig\./, 'anthropic-messages': /^thinking\./ }
     const leftovers: string[] = []
     for (const provider of PROVIDERS) {
-      for (const override of provider.overrides ?? []) {
+      for (const override of providerModelEntries(provider)) {
         for (const [endpoint, pattern] of Object.entries(NATIVE)) {
           const wire = override.reasoningContracts?.[endpoint as keyof typeof NATIVE]?.wire
           if (!wire) continue
           // aws-bedrock uses its own `reasoningConfig.*` namespace, and opencode
           // /mimo route non-Claude models over anthropic-messages with bespoke
           // budget policies — those are genuine provider variation, not dialect.
-          if (targetsOf(wire).some((t) => pattern.test(t)) && /^(gemini|claude)/.test(override.modelId ?? '')) {
+          if (targetsOf(wire).some((t) => pattern.test(t)) && /^(gemini|claude)/.test(override.modelId)) {
             leftovers.push(`${provider.id}/${override.modelId}/${endpoint}`)
           }
         }

@@ -19,6 +19,35 @@ const TRANSPARENT_IMAGE_PLACEHOLDER = 'data:image/gif;base64,R0lGODlhAQABAIAAAAA
  */
 export const IMAGE_CAPTURE_ATTRIBUTE = 'data-image-capturing'
 
+/** Virtualized content registers a preparation promise and its restoration at capture time. */
+export class ImageCaptureEvent extends Event {
+  static readonly type = 'prepare-image-capture'
+  readonly preparations: Promise<() => void | Promise<void>>[] = []
+
+  constructor() {
+    super(ImageCaptureEvent.type)
+  }
+}
+
+async function prepareCaptureContents(root: HTMLElement): Promise<() => Promise<void>> {
+  const event = new ImageCaptureEvent()
+  for (const element of [root, ...root.querySelectorAll('[data-image-capture-content]')]) {
+    element.dispatchEvent(event)
+  }
+  const results = await Promise.allSettled(event.preparations)
+  const restore = async () => {
+    for (const result of results.toReversed()) {
+      if (result.status === 'fulfilled') await result.value()
+    }
+  }
+  const failed = results.find((result) => result.status === 'rejected')
+  if (failed) {
+    await restore()
+    throw failed.reason
+  }
+  return restore
+}
+
 /** Marks interactive HTML artifact subtrees; both export paths omit them (shared policy selector). */
 const HTML_ARTIFACT_ATTRIBUTE = 'data-html-artifact'
 
@@ -237,22 +266,26 @@ export function checkEntityImageSize(file: File): string | null {
     : null
 }
 
+/** A square region of the source image, in its pixels, that the user framed. */
+export type ImageCropArea = { x: number; y: number; width: number; height: number }
+
 /**
  * Normalize an entity image (avatar / logo) to a 128×128 cover-cropped WebP in the
  * renderer via the native canvas — the same shape main-side sharp produces (short
- * edge scaled to 128, centered square crop), so the two paths agree. Output is a few
+ * edge scaled to 128, centered square crop), so the two paths agree. `area` replaces the centered
+ * square with the one the user framed. Output is a few
  * KB, so this (not the raw upload) is what crosses IPC. Throws on any decode/encode
  * failure — the caller surfaces it so the user can retry; the raw bytes are never
  * sent to main, which could not decode them either.
  */
-export async function prepareEntityImageBytes(file: File): Promise<Uint8Array<ArrayBuffer>> {
+export async function prepareEntityImageBytes(file: File, area?: ImageCropArea): Promise<Uint8Array<ArrayBuffer>> {
   try {
     const bitmap = await createImageBitmap(file)
     try {
-      // Cover crop: sample the largest centered square, scale it to 128×128.
-      const side = Math.min(bitmap.width, bitmap.height)
-      const sx = (bitmap.width - side) / 2
-      const sy = (bitmap.height - side) / 2
+      // Cover crop: sample the framed square, or the largest centered one, and scale it to 128×128.
+      const side = area?.width ?? Math.min(bitmap.width, bitmap.height)
+      const sx = area?.x ?? (bitmap.width - side) / 2
+      const sy = area?.y ?? (bitmap.height - side) / 2
       const canvas = document.createElement('canvas')
       canvas.width = ENTITY_IMAGE_DIMENSION
       canvas.height = ENTITY_IMAGE_DIMENSION
@@ -278,14 +311,18 @@ export async function prepareEntityImageBytes(file: File): Promise<Uint8Array<Ar
  */
 export async function captureElement(elRef: React.RefObject<HTMLElement>) {
   if (elRef.current) {
+    let restoreContents: (() => Promise<void>) | undefined
     try {
       const htmlToImage = await loadHtmlToImage()
+      restoreContents = await prepareCaptureContents(elRef.current)
       const canvas = await htmlToImage.toCanvas(elRef.current)
       const imageData = canvas.toDataURL('image/png')
       return imageData
     } catch (error) {
       logger.error('Error capturing element:', error as Error)
       return Promise.reject()
+    } finally {
+      await restoreContents?.()
     }
   }
   return Promise.resolve(undefined)
@@ -297,11 +334,12 @@ export async function captureElement(elRef: React.RefObject<HTMLElement>) {
  * @param el 目标元素
  * @returns Promise<HTMLCanvasElement | undefined> 捕获的画布对象，如果失败则返回 undefined
  */
-async function captureScrollableElement(el: HTMLElement | null) {
+async function captureScrollableElement(el: HTMLElement | null, backdropVariable = '--background') {
   if (el) {
     const htmlToImage = await loadHtmlToImage()
     let restoreLocalImageSources: (() => void) | undefined
     let restoreRemoteImages: (() => void) | undefined
+    let restoreContents: (() => Promise<void>) | undefined
     const captureMarker = el.getAttribute(IMAGE_CAPTURE_ATTRIBUTE)
 
     try {
@@ -309,6 +347,7 @@ async function captureScrollableElement(el: HTMLElement | null) {
       // attribute (e.g. unclipped table viewports) can change the scroll size,
       // and html-to-image freezes computed styles at clone time.
       el.setAttribute(IMAGE_CAPTURE_ATTRIBUTE, '')
+      restoreContents = await prepareCaptureContents(el)
 
       // Wait for webfonts before cloning. The clone pins every element's
       // computed width/height, so text re-laid-out with fallback font metrics
@@ -353,7 +392,7 @@ async function captureScrollableElement(el: HTMLElement | null) {
       const fontEmbedCSS = await buildFontEmbedCSS()
       const captureOptions = {
         filter: filterHiddenElements,
-        backgroundColor: getComputedStyle(el).getPropertyValue('--background'),
+        backgroundColor: getComputedStyle(el).getPropertyValue(backdropVariable),
         cacheBust: true,
         fontEmbedCSS,
         imagePlaceholder: TRANSPARENT_IMAGE_PLACEHOLDER,
@@ -390,13 +429,15 @@ async function captureScrollableElement(el: HTMLElement | null) {
       }
       restoreLocalImageSources?.()
       restoreRemoteImages?.()
+      await restoreContents?.()
     }
   }
 
   return Promise.resolve(undefined)
 }
 
-export const captureScrollable = (elRef: React.RefObject<HTMLElement | null>) => captureScrollableElement(elRef.current)
+export const captureScrollable = (elRef: React.RefObject<HTMLElement | null>, backdropVariable?: string) =>
+  captureScrollableElement(elRef.current, backdropVariable)
 
 let fontEmbedCSSCache: string | undefined
 
@@ -501,13 +542,14 @@ async function buildFontEmbedCSS(): Promise<string> {
  * @returns Promise<string | undefined> PNG data URL，失败返回 undefined
  */
 export const captureScrollableImage = async (
-  elRef: React.RefObject<HTMLElement | null>
+  elRef: React.RefObject<HTMLElement | null>,
+  backdropVariable?: string
 ): Promise<string | undefined> => {
   const el = elRef.current
   if (!el) return undefined
 
   await waitForCaptureAssets(el)
-  const canvas = await captureScrollableElement(el)
+  const canvas = await captureScrollableElement(el, backdropVariable)
   return canvas?.toDataURL('image/png')
 }
 
@@ -516,8 +558,11 @@ export const captureScrollableImage = async (
  * @param elRef 可滚动元素的引用
  * @returns Promise<string | undefined> 图像数据 URL，如果失败则返回 undefined
  */
-export const captureScrollableAsDataUrl = async (elRef: React.RefObject<HTMLElement | null>) => {
-  return captureScrollableImage(elRef)
+export const captureScrollableAsDataUrl = async (
+  elRef: React.RefObject<HTMLElement | null>,
+  backdropVariable?: string
+) => {
+  return captureScrollableImage(elRef, backdropVariable)
 }
 
 /**
@@ -545,8 +590,12 @@ export function dataUrlToBlob(dataUrl: string): Blob {
  * @param func Blob 回调函数
  * @returns Promise<void> 处理结果
  */
-export const captureScrollableAsBlob = async (elRef: React.RefObject<HTMLElement | null>, func: BlobCallback) => {
-  const dataUrl = await captureScrollableImage(elRef)
+export const captureScrollableAsBlob = async (
+  elRef: React.RefObject<HTMLElement | null>,
+  func: BlobCallback,
+  backdropVariable?: string
+) => {
+  const dataUrl = await captureScrollableImage(elRef, backdropVariable)
   if (dataUrl) {
     func(dataUrlToBlob(dataUrl))
   }
@@ -930,9 +979,26 @@ const hasPositiveIntrinsicSvgLength = (value: string | null): boolean => {
  * Percentage/missing dimensions give that standalone image the browser's small
  * default intrinsic size, so the viewer's fit and zoom geometry starts from the
  * wrong box. Give only the preview clone an intrinsic vector size.
+ *
+ * The inline diagram is typically stretched to the chat width (e.g. a `200x80`
+ * viewBox shown at `~600px`), while the preview viewer never enlarges past the
+ * natural size (`fitScale <= 1`) and zooms via a rasterized CSS transform. A `1x`
+ * viewBox restore therefore looks shrunken and blurs on zoom/retina. Scale the
+ * restored size up (matching the `3x` PNG export) with a long-edge target so
+ * small diagrams fill the fullscreen dialog, capped for memory safety.
  */
+const PREVIEW_UPSCALE = 3
+const PREVIEW_TARGET_LONG_EDGE = 2400
+const PREVIEW_MAX_LONG_EDGE = 4096
+
 const createStandaloneSvgPreview = (svgElement: SVGElement): SVGElement => {
   const clone = svgElement.cloneNode(true) as SVGElement
+  // Responsive inline styles would constrain the standalone `<img>`; the
+  // width/height attributes below govern the preview instead.
+  clone.style.removeProperty('max-width')
+  clone.style.removeProperty('max-height')
+  clone.style.removeProperty('width')
+  clone.style.removeProperty('height')
   if (
     hasPositiveIntrinsicSvgLength(clone.getAttribute('width')) ||
     hasPositiveIntrinsicSvgLength(clone.getAttribute('height'))
@@ -946,8 +1012,19 @@ const createStandaloneSvgPreview = (svgElement: SVGElement): SVGElement => {
     .split(/[\s,]+/)
     .map(Number)
   if (viewBox?.length === 4 && viewBox.every(Number.isFinite) && viewBox[2] > 0 && viewBox[3] > 0) {
-    clone.setAttribute('width', String(viewBox[2]))
-    clone.setAttribute('height', String(viewBox[3]))
+    const viewWidth = viewBox[2]
+    const viewHeight = viewBox[3]
+    const scale = Math.max(PREVIEW_UPSCALE, PREVIEW_TARGET_LONG_EDGE / Math.max(viewWidth, viewHeight))
+    let width = Math.round(viewWidth * scale)
+    let height = Math.round(viewHeight * scale)
+    const longest = Math.max(width, height)
+    if (longest > PREVIEW_MAX_LONG_EDGE) {
+      const downscale = PREVIEW_MAX_LONG_EDGE / longest
+      width = Math.round(width * downscale)
+      height = Math.round(height * downscale)
+    }
+    clone.setAttribute('width', String(width))
+    clone.setAttribute('height', String(height))
   }
 
   return clone
@@ -1262,11 +1339,8 @@ function assertImageBlob(blob: Blob, src: string): Blob {
 }
 
 export async function copyImageToClipboard(src: string): Promise<void> {
-  const blob = await getImageBlobFromSource(src)
-  const pngBlob = await convertImageToPng(blob)
-  const item = new ClipboardItem({
-    'image/png': pngBlob
-  })
-
-  await navigator.clipboard.write([item])
+  // Start the write while the document still has focus from the copy action.
+  const png = getImageBlobFromSource(src).then(convertImageToPng)
+  const item = new ClipboardItem({ 'image/png': png })
+  await Promise.all([png, navigator.clipboard.write([item])])
 }

@@ -87,6 +87,9 @@ export const mcpLaunchCommands = defineDoctorCheck({
           signal,
           resolutionCache
         })
+        if (launch.resolution === 'unresolved' && 'lookupError' in launch) {
+          throw launch.lookupError
+        }
         if (launch.resolution === 'unresolved') {
           failed.push(server)
           unresolved.push({ serverId: server.id, command: launch.command })

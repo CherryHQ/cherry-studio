@@ -1,12 +1,15 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 import { createMemoryHistory, createRootRoute, createRoute, createRouter, RouterProvider } from '@tanstack/react-router'
+import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
+import { mockPreferenceService, mockPreferenceState } from '@test-mocks/renderer/PreferenceService'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { WebviewTag } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { TabIdProvider } from '@renderer/components/layout/TabIdProvider'
 import { Route as BrowserRoute } from '@renderer/routes/app/browser'
+import { getDefaultValue } from '@shared/data/preference/preferenceUtils'
 
 import { BrowserPage } from '../BrowserPage'
 
@@ -18,7 +21,13 @@ const tabs = vi.hoisted(() => ({
 }))
 vi.mock('@renderer/hooks/tab/useTabsContext', () => ({ useOptionalTabsContext: () => tabs }))
 
-beforeEach(() => vi.clearAllMocks())
+beforeEach(() => {
+  vi.clearAllMocks()
+  mockPreferenceService._resetMockState()
+  mockPreferenceState.set('app.browser.start_page.mode', getDefaultValue('app.browser.start_page.mode'))
+  mockPreferenceState.set('app.browser.start_page.custom_url', getDefaultValue('app.browser.start_page.custom_url'))
+  MockCacheUtils.resetMocks()
+})
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: vi.fn().mockResolvedValue(undefined) }, useIpcOn: vi.fn() }))
 
 function openBrowser(href: string) {
@@ -41,6 +50,56 @@ function openBrowser(href: string) {
 }
 
 describe('Browser tab restoration', () => {
+  it.each([
+    ['/app/browser', 'https://custom.test/start?q=1#section'],
+    ['/app/browser?url=', 'https://custom.test/start?q=1#section'],
+    ['/app/browser?url=%20%20', 'https://custom.test/start?q=1#section'],
+    ['/app/browser?url=123', 'https://custom.test/start?q=1#section'],
+    ['/app/browser?url=about%3Ablank', 'about:blank'],
+    ['/app/browser?url=https%3A%2F%2Frestored.test%2Fsaved', 'https://restored.test/saved']
+  ])('applies the configured custom start only when %s has no explicit destination', async (href, expected) => {
+    mockPreferenceState.set('app.browser.start_page.mode', 'custom')
+    mockPreferenceState.set('app.browser.start_page.custom_url', 'https://custom.test/start?q=1#section')
+    openBrowser(href)
+    expect(await screen.findByTestId('webview-browser-guest')).toHaveAttribute('src', expected)
+  })
+
+  it('rejects an invalid explicit destination instead of treating it as a start-page request', () => {
+    const validate = BrowserRoute.options.validateSearch as (search: Record<string, unknown>) => { url?: string }
+    expect(() => validate({ url: 'javascript:alert(1)' })).toThrow('Unsupported browser URL')
+  })
+
+  it('preserves the local HTML guest when fragment navigation is synchronized to the route', async () => {
+    const first = 'file:///tmp/report.html?view=all'
+    const view = openBrowser(`/app/browser?url=${encodeURIComponent(first)}`)
+    const guest = (await screen.findByTestId('webview-browser-guest')) as unknown as WebviewTag
+    let currentUrl = first
+    Object.assign(guest, {
+      getURL: () => currentUrl,
+      getTitle: () => 'Local report',
+      getWebContentsId: () => 42,
+      isLoading: () => false,
+      canGoBack: () => false,
+      canGoForward: () => false,
+      stopFindInPage: vi.fn()
+    })
+    act(() => {
+      guest.dispatchEvent(new Event('dom-ready'))
+    })
+    const setAttribute = vi.spyOn(guest, 'setAttribute')
+
+    for (const hash of ['#section', '#other-section', '']) {
+      currentUrl = `${first}${hash}`
+      act(() => {
+        guest.dispatchEvent(Object.assign(new Event('did-navigate-in-page'), { url: currentUrl, isMainFrame: true }))
+      })
+      await waitFor(() => expect(view.router.state.location.search).toEqual({ url: currentUrl }))
+      // Replacing the native guest would discard the document's input, JS state and history.
+      expect(screen.getByTestId('webview-browser-guest')).toBe(guest)
+    }
+    expect(setAttribute.mock.calls.filter(([name]) => name === 'src')).toEqual([])
+  })
+
   it.each(['/app/browser', '/app/browser?url=', '/app/browser?url=%20%20', '/app/browser?url=about%3Ablank'])(
     'opens an empty browser page for %s',
     async (href) => {

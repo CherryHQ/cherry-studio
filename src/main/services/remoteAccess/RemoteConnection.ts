@@ -35,6 +35,7 @@ export class RemoteConnection {
   private exported?: { exportId: string; bytes: Buffer; expiresAt: number }
   private writes: Promise<void> = Promise.resolve()
   private readonly subscriptions: AgentSubscriptions
+  private readonly disposeAgentMethods: () => void
 
   constructor(
     readonly channel: SecureChannel,
@@ -46,7 +47,7 @@ export class RemoteConnection {
   ) {
     this.subscriptions = new AgentSubscriptions(hub, (notification) => this.send(notification))
     // The reply is queued on the write chain in a microtask; setImmediate runs after it, keeping events behind the response.
-    registerAgentMethods(
+    this.disposeAgentMethods = registerAgentMethods(
       this.rpc,
       {
         requireAgent: () => ({ ...this.requireCapability('agent'), peerIdentity: this.channel.remoteIdentity }),
@@ -66,6 +67,7 @@ export class RemoteConnection {
       return {
         protocolVersion: channel.protocolVersion,
         agentFailureVersion: 1,
+        agentMessageSummariesVersion: 1,
         agentUploadsVersion: 1,
         agentUploadChecksum: 'sha256' as const,
         agentAttachmentSelections: true,
@@ -234,11 +236,17 @@ export class RemoteConnection {
       this.checkAuthorization(false)
       return this.channel.write(value)
     })
-    this.writes = write
+    // Keep the chain resolved: a rejected link would make every later send skip
+    // `channel.write` and silently drop the rest of the connection's traffic.
+    this.writes = write.then(
+      () => undefined,
+      () => undefined
+    )
     void write.catch(() => {})
     return write
   }
   dispose(): void {
+    this.disposeAgentMethods()
     this.subscriptions.dispose()
     this.exported = undefined
     this.authentication = undefined

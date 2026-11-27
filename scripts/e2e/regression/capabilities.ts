@@ -1,5 +1,6 @@
 import { execFileSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
+import { networkInterfaces } from 'node:os'
 import { join } from 'node:path'
 
 import type { RunPaths } from './paths'
@@ -37,11 +38,19 @@ function probeDesktopAutomation(platform: Platform): CapabilityResult {
       }
     }
 
-    execFileSync(
-      'powershell.exe',
-      ['-NoProfile', '-NonInteractive', '-Command', '$null = New-Object -ComObject WScript.Shell'],
-      { stdio: 'ignore', timeout: 10_000 }
-    )
+    const args = [
+      '-NoProfile',
+      '-NonInteractive',
+      '-Command',
+      '$null = New-Object -ComObject WScript.Shell -ErrorAction Stop'
+    ]
+    const options = { stdio: 'ignore', timeout: 10_000 } as const
+    try {
+      execFileSync('powershell.exe', args, options)
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ETIMEDOUT') throw error
+      execFileSync('powershell.exe', args, options)
+    }
     return { available: true, detail: 'Windows desktop input automation is available' }
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error)
@@ -79,6 +88,18 @@ function probeScreenCapture(platform: Platform, paths: RunPaths): CapabilityResu
   }
 }
 
+function probeLanInterface(): CapabilityResult {
+  const address = Object.values(networkInterfaces())
+    .flat()
+    .find((entry) => entry?.family === 'IPv4' && !entry.internal)?.address
+  return {
+    available: address !== undefined,
+    detail: address
+      ? `Non-loopback IPv4 address available for local routing checks: ${address}`
+      : 'No non-loopback IPv4 interface for proxy bypass routing checks'
+  }
+}
+
 export function probeCapabilities(platform: Platform, paths: RunPaths): Record<string, CapabilityResult> {
   const desktopAutomation = probeDesktopAutomation(platform)
   const screenCapture = probeScreenCapture(platform, paths)
@@ -102,6 +123,7 @@ export function probeCapabilities(platform: Platform, paths: RunPaths): Record<s
         : desktopAutomation.detail
     },
     directCdp,
+    lanInterface: probeLanInterface(),
     npx: probeNpx(platform),
     screenCapture,
     systemFilePicker: {

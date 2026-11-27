@@ -24,18 +24,14 @@ async function executeBackgroundJob(ctx: JobContext<FileProcessingJobPayload>): 
 }
 
 /**
- * Recovery: 'retry'. After restart, non-terminal jobs of this type are reset
- * to pending and re-dispatched. We pick retry (over abandon) because several
- * background-mode capabilities are paid remote APIs (mistral image_to_text,
- * mistral document_to_markdown) where the quota has already been consumed on
- * the prior attempt — re-running has a non-zero refund cost but is preferable
- * to silently dropping the request.
+ * Recovery: 'abandon'. No task survives a restart: nothing reads the result of
+ * a job re-run after one, and re-running a paid remote API (mistral
+ * image_to_text, mistral document_to_markdown) would only bill it again.
  *
  * Auto capabilities may prepare a remote job and resume it from metadata.
- * Single-call background capabilities restart from progress 0.
  */
 const backgroundJobDefaults = {
-  recovery: 'retry',
+  recovery: 'abandon',
   defaultRetryPolicy: { maxAttempts: 1, backoff: 'none', baseDelayMs: 0, maxDelayMs: 0 },
   defaultTimeoutMs: 15 * 60_000,
   execute: executeBackgroundJob

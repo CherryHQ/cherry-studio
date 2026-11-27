@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { BaseService } from '@main/core/lifecycle'
+import type { AdvertisedRemoteEndpoint } from '@shared/data/preference/preferenceTypes'
 
 /**
  * Exercises `ApiGatewayService`'s reconcile-after-settle convergence: a toggle that
@@ -29,11 +30,13 @@ const {
   mockPreferenceSet: vi.fn<(key: string, value: boolean | string) => Promise<void>>(),
   mockPreferenceSetMultiple: vi.fn<(updates: Record<string, unknown>) => Promise<void>>(),
   captured: {
+    gatewayService: undefined as ApiGatewayService | undefined,
     prefHandler: undefined as ((enabled: boolean) => void) | undefined,
     enabledPreference: false,
     hostPreference: '127.0.0.1',
     portPreference: 23333,
     ipv6Addresses: [] as string[],
+    advertisedEndpoint: null as AdvertisedRemoteEndpoint | null,
     ipv6Listening: true
   }
 }))
@@ -81,7 +84,11 @@ vi.mock('@application', async () => {
         captured.prefHandler = cb
         return () => {}
       }),
-      get: vi.fn((key: string) => (key.endsWith('api_key') ? 'existing-key' : false)),
+      get: vi.fn((key: string) => {
+        if (key === 'app.language') return 'en-US'
+        if (key.endsWith('advertised_endpoint')) return captured.advertisedEndpoint
+        return key.endsWith('api_key') ? 'existing-key' : false
+      }),
       getMultiple: vi.fn(() => ({
         enabled: captured.enabledPreference,
         host: captured.hostPreference,
@@ -92,6 +99,7 @@ vi.mock('@application', async () => {
       setMultiple: mockPreferenceSetMultiple
     },
     CacheService: { setShared: mockSetShared },
+    ApiGatewayService: { isInternalRequest: (headers: Headers) => captured.gatewayService?.isInternalRequest(headers) },
     AgentSessionRuntimeService: { getActiveUsageContext: mockGetActiveUsageContext },
     RemoteAccessService: {
       updateDirectEndpoint: vi.fn(),
@@ -108,6 +116,7 @@ vi.mock('@application', async () => {
 })
 
 import { ApiGatewayService } from '../ApiGatewayService'
+import { authorizeApiRequest } from '../middleware/auth'
 import { ApiGateway } from '../server'
 
 let startResolvers: Array<() => void>
@@ -115,11 +124,13 @@ let rejectStart: boolean
 
 beforeEach(() => {
   BaseService.resetInstances()
+  captured.gatewayService = undefined
   captured.prefHandler = undefined
   captured.enabledPreference = false
   captured.hostPreference = '127.0.0.1'
   captured.portPreference = 23333
   captured.ipv6Addresses = []
+  captured.advertisedEndpoint = null
   captured.ipv6Listening = true
   mockPreferenceSet.mockReset()
   mockPreferenceSet.mockImplementation(async (key, value) => {
@@ -152,8 +163,8 @@ beforeEach(() => {
   mockStop.mockResolvedValue(undefined)
 })
 
-async function startInternalGateway(service: ApiGatewayService) {
-  const pending = service.ensureInternalGateway()
+async function startInternalGateway(service: ApiGatewayService, sessionId?: string) {
+  const pending = service.ensureInternalGateway(sessionId)
   await vi.waitFor(() => expect(startResolvers.length).toBeGreaterThan(0))
   startResolvers.at(-1)!()
   return pending
@@ -161,7 +172,145 @@ async function startInternalGateway(service: ApiGatewayService) {
 
 const CHAT_SCOPE = { path: '/v1/chat/completions', model: 'openai:gpt-4o' }
 
+describe('internal request budget', () => {
+  it('allows a small request alongside a large one and queues a second large request', async () => {
+    const service = new ApiGatewayService()
+    const signal = new AbortController().signal
+    const large = new Headers({ 'content-length': String(20 * 1024 * 1024) })
+    const first = await service.acquireInternalRequestBudget(large, signal)
+    const small = await service.acquireInternalRequestBudget(new Headers({ 'content-length': '1024' }), signal)
+    small()
+
+    let admitted = false
+    const second = service.acquireInternalRequestBudget(large, signal).then((release) => {
+      admitted = true
+      return release
+    })
+    await new Promise<void>((resolve) => setImmediate(resolve))
+    expect(admitted).toBe(false)
+    first()
+    const release = await second
+    release()
+  })
+
+  it('admits the next small request when the blocking waiter is cancelled', async () => {
+    const service = new ApiGatewayService()
+    const active = new AbortController().signal
+    const waiting = new AbortController()
+    const large = new Headers({ 'content-length': String(20 * 1024 * 1024) })
+    const small = new Headers({ 'content-length': '1024' })
+    const first = await service.acquireInternalRequestBudget(large, active)
+    const cancelled = service.acquireInternalRequestBudget(large, waiting.signal)
+    let releaseNext: (() => void) | undefined
+    const next = service.acquireInternalRequestBudget(small, active).then((release) => {
+      releaseNext = release
+      return release
+    })
+
+    try {
+      await new Promise<void>((resolve) => setImmediate(resolve))
+      expect(releaseNext).toBeUndefined()
+      waiting.abort()
+      await expect(cancelled).rejects.toMatchObject({ name: 'AbortError' })
+      await new Promise<void>((resolve) => setImmediate(resolve))
+      expect(releaseNext).toBeTypeOf('function')
+    } finally {
+      first()
+      const release = await next
+      release()
+    }
+  })
+
+  it('rejects all pending requests when the service stops', async () => {
+    const service = new ApiGatewayService()
+    await service._doInit()
+    const signal = new AbortController().signal
+    const large = new Headers({ 'content-length': String(20 * 1024 * 1024) })
+    const small = new Headers({ 'content-length': '1024' })
+    const release = await service.acquireInternalRequestBudget(large, signal)
+    const pending = Promise.allSettled([
+      service.acquireInternalRequestBudget(large, signal),
+      service.acquireInternalRequestBudget(small, signal)
+    ])
+
+    try {
+      await service._doStop()
+      expect((await pending).map(({ status }) => status)).toEqual(['rejected', 'rejected'])
+    } finally {
+      release()
+    }
+  })
+})
+
 describe('ApiGatewayService internal gateway', () => {
+  it('shares bounded permission retries across consumers and returns usable credentials after recovery', async () => {
+    const service = new ApiGatewayService()
+    const original = Object.assign(new Error('denied'), { code: 'EACCES', syscall: 'listen' })
+    mockStart.mockRejectedValueOnce(original).mockRejectedValueOnce(original).mockResolvedValueOnce(undefined)
+    const config = service.getCurrentConfig()
+    const [internal, scoped] = await Promise.all([
+      service.ensureInternalGateway(),
+      service.createScopedCredential(CHAT_SCOPE)
+    ])
+
+    expect(mockStart).toHaveBeenCalledTimes(3)
+    expect(vi.mocked(ApiGateway).mock.calls).toEqual(
+      Array.from({ length: 3 }, () => [{ host: '127.0.0.1', port: 0 }, 'internal'])
+    )
+    expect(scoped.baseUrl).toBe(internal.baseUrl)
+    expect(service.getInternalGatewayOrigin()).toBe(internal.baseUrl)
+    expect(service.isInternalRequest(new Headers({ 'x-api-key': internal.apiKey }))).toBe(true)
+    expect(service.getCredentialScope(new Headers({ 'x-api-key': scoped.apiKey }))).toEqual(CHAT_SCOPE)
+    expect(service.getCurrentConfig()).toEqual(config)
+    expect(service.isActivated).toBe(false)
+  })
+
+  it.each([
+    { code: 'EADDRINUSE', syscall: 'listen' },
+    { code: 'EACCES', syscall: 'open' },
+    { code: 'EAFNOSUPPORT', syscall: 'listen' }
+  ])('does not automatically retry unrelated failures: $code / $syscall', async (fields) => {
+    const service = new ApiGatewayService()
+    const original = Object.assign(new Error('failed'), fields)
+    mockStart.mockRejectedValue(original)
+
+    await expect(service.ensureInternalGateway()).rejects.toBe(original)
+    expect(mockStart).toHaveBeenCalledTimes(1)
+    expect(service.getInternalGatewayOrigin()).toBeUndefined()
+  })
+
+  it('reports internal permission recovery to concurrent consumers and allows a later retry without public changes', async () => {
+    const service = new ApiGatewayService()
+    const original = Object.assign(new Error('denied'), {
+      code: 'EACCES',
+      syscall: 'listen',
+      address: '::1',
+      port: 49152
+    })
+    mockStart.mockRejectedValueOnce(original).mockRejectedValueOnce(original).mockRejectedValueOnce(original)
+    const config = service.getCurrentConfig()
+    const results = await Promise.allSettled([
+      service.ensureInternalGateway(),
+      service.createScopedCredential(CHAT_SCOPE)
+    ])
+    for (const result of results) {
+      expect(result.status).toBe('rejected')
+      if (result.status === 'rejected') {
+        expect(result.reason.message).toContain('internal API Gateway')
+        expect(result.reason.message).toContain('::1, requested TCP port 49152')
+        expect(result.reason.message).toContain('Retry the request')
+        expect(result.reason.cause).toBe(original)
+      }
+    }
+    expect(mockStart).toHaveBeenCalledTimes(3)
+    expect(service.getInternalGatewayOrigin()).toBeUndefined()
+    expect(service.getCurrentConfig()).toEqual(config)
+    expect(mockSetShared).not.toHaveBeenCalled()
+    expect(mockPreferenceSet).not.toHaveBeenCalled()
+    await expect(startInternalGateway(service)).resolves.toMatchObject({ baseUrl: expect.any(String) })
+    expect(service.getInternalGatewayOrigin()).toBeDefined()
+  })
+
   it('serves internal consumers from one loopback listener without enabling the user-facing gateway', async () => {
     const service = new ApiGatewayService()
     await service._doInit()
@@ -217,23 +366,109 @@ describe('ApiGatewayService internal gateway', () => {
     expect(service.isInternalRequest(headers(second.apiKey))).toBe(true)
   })
 
-  it('attributes usage to an Agent session only for the unrestricted internal key', async () => {
+  // A delayed summary request must retain its initiator when the active turn changes.
+  it('freezes auxiliary ownership and rejects released or cross-session captures', async () => {
     const service = new ApiGatewayService()
-    const internal = await startInternalGateway(service)
+    const internal = await startInternalGateway(service, 'session-1')
+    const childInternal = await service.ensureInternalGateway('child-session')
+    const original = {
+      agentSessionId: 'session-1',
+      assistantMessageId: 'original-message',
+      source: { type: 'agent', id: 'agent-1', name: 'Original', icon: null }
+    }
+    mockGetActiveUsageContext.mockReturnValue(original)
+    const root = service.captureAgentSessionUsage('session-1')
+    const child = service.captureAgentSessionUsage('session-1', 'child-session')
+    mockGetActiveUsageContext.mockReturnValue({ ...original, assistantMessageId: 'next-message' })
+    const headers = (capture: typeof root, apiKey = internal.apiKey) =>
+      new Headers({ ...capture.headers, 'x-api-key': apiKey })
+    expect(service.resolveAgentSessionUsage(headers(root), 'late-response')).toEqual(original)
+    expect(service.resolveAgentSessionUsage(headers(child, childInternal.apiKey), 'child-summary')).toEqual({
+      agentSessionId: 'child-session',
+      source: original.source
+    })
+    const crossed = headers(root, childInternal.apiKey)
+    crossed.set('x-cherry-agent-session-id', 'child-session')
+    expect(service.resolveAgentSessionUsage(crossed)).toBeUndefined()
+    expect(service.resolveAgentSessionUsage(headers(root, 'existing-key'))).toBeUndefined()
+    root.release()
+    child.release()
+    expect(service.resolveAgentSessionUsage(headers(root))).toBeUndefined()
+    expect(service.resolveAgentSessionUsage(headers(child, childInternal.apiKey))).toBeUndefined()
+  })
+
+  it('freezes the native phase parent without changing billing ownership', async () => {
+    const service = new ApiGatewayService()
+    const internal = await startInternalGateway(service, 'session-1')
+    const current = { agentSessionId: 'session-1', assistantMessageId: 'answer', source: null }
+    mockGetActiveUsageContext.mockReturnValue(current)
+    const parent = {
+      sessionId: 'session-1',
+      turnId: 'turn',
+      topicId: 'agent-session:session-1',
+      traceId: '11111111111111111111111111111111',
+      rootSpanId: '2222222222222222'
+    }
+    const captured = service.captureAgentSessionUsage('session-1', undefined, parent)
+    mockGetActiveUsageContext.mockReturnValue({ ...current, assistantMessageId: 'later' })
+    const headers = new Headers({ ...captured.headers, 'x-api-key': internal.apiKey })
+    expect(service.resolveAgentSessionUsage(headers)).toEqual({ ...current, traceContext: parent })
+    expect(Object.keys(captured.headers)).not.toContain('traceparent')
+    captured.release()
+    expect(service.resolveAgentSessionUsage(headers)).toBeUndefined()
+  })
+
+  it('verifies the Agent session against the issued credential before attributing usage or accessing replay', async () => {
+    const service = new ApiGatewayService()
+    captured.gatewayService = service
+    const internal = await startInternalGateway(service, 'session-1')
+    const unrestricted = await service.ensureInternalGateway()
     const scoped = await service.createScopedCredential(CHAT_SCOPE)
     const sessionHeaders = service.getAgentSessionUsageHeaders('session-1')
+    const own = new Headers({ ...sessionHeaders, 'x-api-key': internal.apiKey })
+    const forged = new Headers({ ...service.getAgentSessionUsageHeaders('session-2'), 'x-api-key': internal.apiKey })
 
-    expect(service.resolveAgentSessionUsage(new Headers({ ...sessionHeaders, 'x-api-key': internal.apiKey }))).toEqual({
+    expect(authorizeApiRequest(internal.apiKey, undefined, undefined, own, 'internal')).toBeUndefined()
+    expect(service.getAgentSessionId(own)).toBe('session-1')
+    expect(authorizeApiRequest(internal.apiKey, undefined, undefined, forged, 'internal')?.status).toBe(403)
+    expect(service.getAgentSessionId(forged)).toBeUndefined()
+    expect(
+      service.getAgentSessionId(new Headers({ ...sessionHeaders, 'x-api-key': unrestricted.apiKey }))
+    ).toBeUndefined()
+    expect(service.resolveAgentSessionUsage(own, 'native-response')).toEqual({
       agentSessionId: 'session-1',
       source: { type: 'agent', id: 'agent-1', name: 'Original Agent', icon: '🧠' }
     })
-    expect(mockGetActiveUsageContext).toHaveBeenCalledWith('session-1')
+    expect(mockGetActiveUsageContext).toHaveBeenCalledWith('session-1', 'native-response')
     expect(service.getAgentSessionId(new Headers({ ...sessionHeaders, 'x-api-key': scoped.apiKey }))).toBeUndefined()
     expect(service.getAgentSessionId(new Headers({ ...sessionHeaders, 'x-api-key': 'existing-key' }))).toBeUndefined()
   })
 })
 
 describe('ApiGatewayService reconcile', () => {
+  it('keeps a denied public start stopped without spinning and uses the edited port on explicit retry', async () => {
+    const service = new ApiGatewayService()
+    await service._doInit()
+    const original = Object.assign(new Error('denied'), { code: 'EACCES', syscall: 'listen' })
+    mockStart.mockRejectedValueOnce(original)
+    await expect(service.start()).rejects.toMatchObject({
+      message: expect.stringContaining('different Port'),
+      cause: original
+    })
+    expect(service.isActivated).toBe(false)
+    expect(service.isRunning()).toBe(false)
+    expect(captured.enabledPreference).toBe(true)
+    expect(mockSetShared).toHaveBeenCalledWith('feature.api_gateway.running', false)
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(mockStart).toHaveBeenCalledTimes(1)
+    captured.portPreference = 24444
+    mockStart.mockResolvedValueOnce(undefined)
+    await service.start()
+    expect(ApiGateway).toHaveBeenLastCalledWith({ host: '127.0.0.1', port: 24444 })
+    expect(service.isActivated).toBe(true)
+    expect(service.isRunning()).toBe(true)
+  })
+
   // Regression for #18521: boot used to start the gateway whenever any agent existed, overriding a
   // user who had turned it off — and nothing else may override it either.
   it('stays stopped at boot when the preference is disabled', async () => {
@@ -422,6 +657,46 @@ describe('ApiGatewayService LAN shutdown', () => {
     expect(invitation.addresses[0]).toBe('192.168.1.8')
     expect(invitation.addressOptions).toHaveLength(41)
     expect(invitation.addressOptions[0]).toEqual({ address: '192.168.1.8', interfaceName: 'en0' })
+  })
+
+  it('advertises an external endpoint and restores the actual bound port without rebinding', async () => {
+    const service = new ApiGatewayService()
+    await service._doInit()
+    captured.advertisedEndpoint = { host: 'Desktop.example.com', port: 443, security: 'wss' }
+    captured.portPreference = 24444
+    expect(await service.createRemoteInvitation()).toMatchObject({
+      port: 23333,
+      endpoints: [{ host: 'desktop.example.com', port: 443, security: 'wss' }],
+      desktopIdentity: '12D3KooWDesktop',
+      invitationId: 'invitation'
+    })
+    captured.advertisedEndpoint = null
+    expect(await service.getRemoteEndpoint()).toMatchObject({
+      advertisedEndpoint: null,
+      endpoints: [{ host: '192.168.1.8', port: 23333, security: 'ws' }]
+    })
+  })
+
+  it('keeps the saved input URL out of invitation transport endpoints', async () => {
+    const service = new ApiGatewayService()
+    await service._doInit()
+    captured.advertisedEndpoint = {
+      host: 'desktop.example.com',
+      port: 443,
+      security: 'wss',
+      inputUrl: 'https://Desktop.example.com'
+    }
+    const invitation = await service.createRemoteInvitation()
+    const endpoint = { host: 'desktop.example.com', port: 443, security: 'wss' }
+    expect(invitation.advertisedEndpoint).toEqual(endpoint)
+    expect(invitation.endpoints).toEqual([endpoint])
+  })
+
+  it('rejects invalid persisted destinations instead of issuing an unusable invitation', async () => {
+    const service = new ApiGatewayService()
+    await service._doInit()
+    captured.advertisedEndpoint = { host: '127.0.0.1', port: 443, security: 'wss' }
+    await expect(service.createRemoteInvitation()).rejects.toThrow('Invalid remote destination')
   })
 
   it('offers routable IPv6 candidates only while IPv6 is actually listening', async () => {

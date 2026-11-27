@@ -1,6 +1,6 @@
 ---
 name: code-mate-claude-code
-description: Runs Claude Code non-interactively for code analysis and implementation tasks. Use when the user asks to delegate repository work to Claude Code or compare its result with another coding agent.
+description: Run Claude Code non-interactively for coding tasks. Use when the user asks to delegate work to Claude Code.
 ---
 
 # Claude Code
