@@ -5389,7 +5389,7 @@
   "settings.mcp.url": "URL",
   "settings.memory.backup_full": "Không đủ dung lượng cho bản sao khôi phục. Chưa lưu thay đổi mới nào.",
   "settings.memory.clear": "Xóa bộ nhớ toàn cục",
-  "settings.memory.clear_confirm": "Xóa tất cả tệp bộ nhớ cục bộ?",
+  "settings.memory.clear_confirm": "Thao tác này chỉ xóa bộ nhớ dùng chung trên toàn ứng dụng do Cherry Studio quản lý. Các bản sao lưu dùng để khôi phục vẫn có thể chứa nội dung ban đầu.",
   "settings.memory.clear_success": "Đã xóa thành công",
   "settings.memory.failed": "Không thể hoàn tất thao tác. Hãy kiểm tra các mục còn lại và thử lại.",
   "settings.memory.global": "Bộ nhớ toàn cục",

@@ -5389,7 +5389,7 @@
   "settings.mcp.url": "URL",
   "settings.memory.backup_full": "Espace insuffisant pour une copie de récupération. Aucune nouvelle modification n’a été enregistrée.",
   "settings.memory.clear": "Effacer la mémoire globale",
-  "settings.memory.clear_confirm": "Effacer tous les fichiers de mémoire locaux ?",
+  "settings.memory.clear_confirm": "Seule la mémoire partagée globale gérée par Cherry Studio sera effacée. Les sauvegardes de restauration peuvent conserver le contenu d’origine.",
   "settings.memory.clear_success": "Effacement réussi",
   "settings.memory.failed": "L’opération n’a pas pu être terminée. Vérifiez les éléments restants et réessayez.",
   "settings.memory.global": "Mémoire globale",

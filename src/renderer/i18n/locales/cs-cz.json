@@ -5393,7 +5393,7 @@
   "settings.mcp.url": "URL",
   "settings.memory.backup_full": "Na zálohu pro obnovení není dost místa. Nové změny nebyly uloženy.",
   "settings.memory.clear": "Vymazat globální paměť",
-  "settings.memory.clear_confirm": "Vymazat všechny místní soubory paměti?",
+  "settings.memory.clear_confirm": "Vymaže se pouze globální sdílená paměť spravovaná aplikací Cherry Studio. Zálohy pro obnovení mohou stále obsahovat původní obsah.",
   "settings.memory.clear_success": "Paměť byla vymazána",
   "settings.memory.failed": "Operaci se nepodařilo dokončit. Zkontrolujte zbývající položky a zkuste to znovu.",
   "settings.memory.global": "Globální paměť",
