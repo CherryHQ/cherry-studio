@@ -99,6 +99,28 @@ it('retries a newer release whose download failed instead of confirming it with 
   expect(mocks.request).toHaveBeenCalledWith('app.updater.check_for_update')
 })
 
+it('rechecks instead of confirming a download main revoked during a failed scheduled check', async () => {
+  const showDialog = vi.fn().mockResolvedValue(undefined)
+  const { result } = renderHook(() => {
+    useAppUpdateHandler()
+    return useAppUpdateState()
+  })
+  appUpdateCheckService.registerUpdateDialog(async () => ({ show: showDialog }))
+  emit('app.updater.check_started', { manual: true })
+  emit('app.updater.downloaded', releaseInfo)
+
+  // Main withholds the newer release's availability because its download failed first.
+  emit('app.updater.check_started', { manual: false })
+  emit('app.updater.download_revoked', undefined)
+  emit('app.updater.error', new Error('ZIP file not provided'))
+  await act(() =>
+    appUpdateCheckService.runAppUpdateCheck(result.current.appUpdateState, result.current.updateAppUpdateState)
+  )
+
+  expect(showDialog).not.toHaveBeenCalled()
+  expect(mocks.request).toHaveBeenCalledWith('app.updater.check_for_update')
+})
+
 describe('a click queued behind a slow scheduled check', () => {
   const newer = { ...releaseInfo, version: '2.2.0' }
 

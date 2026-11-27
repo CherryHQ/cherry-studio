@@ -66,6 +66,12 @@ export function useAppUpdateHandler() {
     })
   })
 
+  // A check that fails after announcing another release never sends `available` to clear readiness.
+  useIpcOn('app.updater.download_revoked', () => {
+    appUpdateCheckService.noteDownloadRevoked()
+    updateAppUpdateState({ downloaded: false })
+  })
+
   useIpcOn('app.updater.not_available', (payload) => {
     if (!appUpdateCheckService.isActiveUpdateSession() || otherCheck()) return
     const wasManual = manual()
