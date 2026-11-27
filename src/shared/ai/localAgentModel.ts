@@ -97,7 +97,6 @@ const LOCAL_AGENT_LAUNCH_BINDINGS: Readonly<Record<string, LocalAgentLaunchBindi
   [kimiCli.id]: { kind: 'overlay-home', variable: 'KIMI_CODE_HOME' },
   [piCli.id]: { kind: 'overlay-home', variable: 'PI_CODING_AGENT_DIR' },
   [ompCli.id]: { kind: 'overlay-home', variable: 'PI_CODING_AGENT_DIR' },
-  [hermesCli.id]: { kind: 'overlay-home', variable: 'HERMES_HOME' },
   [qwenCli.id]: { kind: 'overlay-home', variable: 'QWEN_HOME' },
   [minimaxCli.id]: { kind: 'overlay-home', variable: 'MINIMAX_DATA_DIR' },
   [codeBuddyCli.id]: { kind: 'overlay-home', variable: 'CODEBUDDY_CONFIG_DIR' },
