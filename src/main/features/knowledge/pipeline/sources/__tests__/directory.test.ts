@@ -37,6 +37,7 @@ vi.mock('../../../pathStorage', async () => {
   }
 })
 
+const { getProcessedMarkdownRelativePath } = await import('../../../pathStorage')
 const { chooseDirectoryPathPrefix, expandDirectoryOwnerToTree } = await import('../directory')
 const realFs = await vi.importActual<typeof NodeFs>('node:fs')
 const realOs = await vi.importActual<typeof NodeOs>('node:os')
@@ -131,6 +132,36 @@ describe('expandDirectoryOwnerToTree', () => {
       realFs.rmSync(tempRoot, { recursive: true, force: true })
       tempRoot = undefined
     }
+  })
+
+  it('allocates distinct source and artifact slots before scheduling sibling leaves', async () => {
+    tempRoot = createTempRoot()
+    const rootDir = path.join(tempRoot, 'images')
+    realFs.mkdirSync(rootDir)
+    for (const name of ['Photo.jpg', 'photo.png', 'photo.webp', 'photo.md', 'z.txt']) {
+      realFs.writeFileSync(path.join(rootDir, name), 'stored bytes')
+    }
+    const result = await expandDirectoryOwnerToTree(
+      createDirectoryOwner(rootDir),
+      'kb-1',
+      'images',
+      createSignal(),
+      ignoreCopyProgress
+    )
+    const leaves = result.filter((node) => node.type === 'file')
+    expect(leaves).toHaveLength(5)
+    const occupied = new Set<string>()
+    for (const leaf of leaves) {
+      if (leaf.type !== 'file') continue
+      const paths = [leaf.data.relativePath]
+      if (/\.(jpg|png|webp)$/i.test(leaf.data.relativePath))
+        paths.push(getProcessedMarkdownRelativePath(leaf.data.relativePath))
+      for (const name of paths) {
+        expect(occupied.has(name.toLowerCase())).toBe(false)
+        occupied.add(name.toLowerCase())
+      }
+    }
+    expect(leaves.some((leaf) => leaf.data.source.endsWith('z.txt'))).toBe(true)
   })
 
   it('imports all supported image formats from directories', async () => {

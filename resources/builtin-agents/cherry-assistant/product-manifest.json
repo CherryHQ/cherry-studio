@@ -1336,7 +1336,13 @@
         ".ods",
         ".rtf",
         ".epub",
-        ".draftsexport"
+        ".draftsexport",
+        ".jpg",
+        ".jpeg",
+        ".png",
+        ".bmp",
+        ".gif",
+        ".webp"
       ],
       "fileProcessingExtensions": [
         ".pdf"

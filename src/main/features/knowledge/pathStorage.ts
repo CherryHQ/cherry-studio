@@ -154,11 +154,12 @@ export function reserveImportedFileRelativePath(
   reserveProcessedArtifact: boolean,
   reservedPaths: Set<string>
 ): PosixRelativeFilePath {
+  const occupied = new Set(Array.from(reservedPaths, (name) => name.toLowerCase()))
   const chosen = nextFreeKnowledgeRelativePath(sourceRelativePath, (candidate) => {
-    if (reservedPaths.has(candidate)) {
+    if (occupied.has(candidate.toLowerCase())) {
       return false
     }
-    return !reserveProcessedArtifact || !reservedPaths.has(getProcessedMarkdownRelativePath(candidate))
+    return !reserveProcessedArtifact || !occupied.has(getProcessedMarkdownRelativePath(candidate).toLowerCase())
   })
 
   // `nextFreeKnowledgeRelativePath` derives the suffixed name itself, so the
@@ -267,6 +268,7 @@ export function collectKnowledgeReservedRelativePaths(
     if (typeof data.relativePath === 'string') {
       reserved.add(data.relativePath)
       if (
+        Object.hasOwn(options, 'fileProcessorId') &&
         item.type === 'file' &&
         typeof data.indexedRelativePath !== 'string' &&
         needsProcessedArtifactReservation(options.fileProcessorId, data.relativePath)

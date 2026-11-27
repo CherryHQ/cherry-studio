@@ -296,7 +296,8 @@ async function ensureSnapshot(
     }
     // A deleting row's pending cleanup still unlinks its paths, so the snapshot must not claim them.
     const reservedPaths = collectKnowledgeReservedRelativePaths(
-      knowledgeItemService.getItemsByBaseId(ctx.input.baseId, { includeDeleting: true })
+      knowledgeItemService.getItemsByBaseId(ctx.input.baseId, { includeDeleting: true }),
+      { fileProcessorId: knowledgeBaseService.getById(ctx.input.baseId).fileProcessorId }
     )
     const relativePath = await spec.capture(snapshot, reservedPaths)
     const updated = knowledgeItemService.updateSnapshotRelativePath(ctx.input.itemId, spec.type, relativePath)

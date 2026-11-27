@@ -87,7 +87,7 @@ Registered job types:
 
 - `knowledge.check-file-processing-result`: read the settled FileProcessing task (`getTask`), record the converted markdown's location on the item (via `updateIndexedRelativePath`) on success, then schedule indexing.
 
-`knowledge_base.fileProcessorId` controls source planning for supported file items. When a source needs conversion, the workflow starts FileProcessing, schedules `knowledge.check-file-processing-result` once that task settles, records the converted markdown's location on the item via `updateIndexedRelativePath` (the `indexedRelativePath` leaf field, not a separate file-ref artifact row), then indexes that markdown.
+`knowledge_base.fileProcessorId` controls document conversion for supported non-image file items. Images always use the global image-to-text OCR processor (with its platform fallback), even when the base has no document processor. OCR artifacts are read as literal text so Markdown-like recognized content is preserved. When a source needs conversion, the workflow starts FileProcessing, schedules `knowledge.check-file-processing-result` once that task settles, records the converted markdown's location on the item via `updateIndexedRelativePath` (the `indexedRelativePath` leaf field, not a separate file-ref artifact row), then indexes that markdown.
 
 Nothing polls while the file is processed. `scheduleItem` starts the conversion with
 `FileProcessingService.startTask`, waits on the task's `done`, and enqueues one
