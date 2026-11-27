@@ -22,6 +22,7 @@ import {
 import { collectFileAttachments } from '@main/ai/messages/attachmentRouting'
 import { collectPersistedOutputPaths } from '@main/ai/messages/persistedOutputRendering'
 import { collectRetainedContext, type RetainedContext } from '@main/ai/messages/retainedContext'
+import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { compactionAnchorChunkId, type CompactionAnchorData, type CompactionSink } from '@shared/ai/compaction'
@@ -37,16 +38,21 @@ import {
 import type { Model } from '@shared/data/types/model'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { getKnowledgeBaseIdsFromParts, hasClearContextPart } from '@shared/data/types/uiParts'
-import { applyMaxMessagesWindow } from '@shared/utils/contextSettings'
+import { applyMaxMessagesWindow, resolveMaxMessages } from '@shared/utils/contextSettings'
 
 import { resolveMinContextWindow } from '../../contextBuild/resolveContextWindow'
 import { resolveInputRoom } from '../../contextBuild/resolveInputRoom'
 import { resolveOutputReservation } from '../../contextBuild/resolveOutputReservation'
-import { resolveRequestContextSettings } from '../../contextBuild/resolveRequestContextSettings'
+import {
+  resolveGlobalContextSettings,
+  resolveRequestContextSettings
+} from '../../contextBuild/resolveRequestContextSettings'
 import { toModelMessages } from '../../messages/messageRules'
 import { applyTurnInputAttributes, startAiChildTurnSpan } from '../../observability'
 import { wrapSteerReminder } from '../../steerReminder'
 import { resolveModelTokenDialect, type TokenDialect } from '../../tokens/dialect'
+import { estimateModelMessagesSync } from '../../tokens/footprint'
+import { tokenxTokenizer } from '../../tokens/textTokenizer'
 import type { AiStreamRequest } from '../../types'
 import { AiStreamAdmissionError } from '../admission'
 import { PersistenceListener } from '../listeners/PersistenceListener'
@@ -54,14 +60,7 @@ import { TraceFlushListener } from '../listeners/TraceFlushListener'
 import { MessageServiceBackend } from '../persistence/backends/MessageServiceBackend'
 import type { CherryUIMessage, StreamListener } from '../types'
 import type { ChatContextProvider, DispatchContext, PreparedDispatch } from './ChatContextProvider'
-import {
-  applyDeepestMarker,
-  type CompactionRow,
-  estimateRowTokens,
-  findDeepestMarker,
-  planKeepBoundary,
-  summaryRow
-} from './compaction'
+import { applyDeepestMarker, type CompactionRow, findDeepestMarker, planKeepBoundary, summaryRow } from './compaction'
 import type { MainContinueConversationRequest, MainDispatchRequest, MainSteerContinuationRequest } from './dispatch'
 import { resolveAssistantModelId, resolveModels, resolvePersistentSiblingsGroupId } from './modelResolution'
 
@@ -850,14 +849,69 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     }
   }
 
+  async estimateContextPreview(
+    topicId: string,
+    anchorId: string,
+    modelId: UniqueModelId,
+    fillsAnchor: boolean
+  ): Promise<number | null> {
+    if (messageService.getById(anchorId).topicId !== topicId) return null
+    const topic = topicService.getById(topicId)
+    const assistant = topic.assistantId ? assistantDataService.getById(topic.assistantId) : undefined
+    const ref = parseUniqueModelId(modelId)
+    const model = modelService.getByKey(ref.providerId, ref.modelId)
+    const { rows, effective } = this.selectHistory(messageService.getPathToNode(anchorId))
+    const maxMessages = resolveMaxMessages(
+      assistant?.settings.contextSettings,
+      resolveGlobalContextSettings().maxMessages
+    )
+    const previewRows =
+      maxMessages === null
+        ? effective
+        : fillsAnchor
+          ? applyMaxMessagesWindow(rows, maxMessages)
+          : applyMaxMessagesWindow([...rows, { id: '', role: 'user', parts: [] }], maxMessages).slice(0, -1)
+    const historyTokens = await this.estimateTotal(previewRows, resolveRowDialect(model))
+    return historyTokens + tokenxTokenizer.count(assistant?.prompt ?? '')
+  }
+
+  private selectHistory(messagePath: SharedMessage[]) {
+    const lastClearIndex = messagePath.findLastIndex((message) => hasClearContextPart(message.data.parts))
+    const rawMsgs = messagePath.slice(lastClearIndex + 1)
+    // Capability state from the RAW path: compaction folds file parts and tool
+    // outputs out of the served view, so scanning served messages downstream
+    // would silently drop read_file for folded attachments (finding #2) and
+    // fs_read for folded persisted outputs. `rawUI` is mapped ONCE and sliced
+    // for the manifest prefixes below — handle dedup is a left-to-right fold,
+    // so a slice's handles match the full pass only when both share this array.
+    const rawUI = rawMsgs.map((m) => ({ parts: m.data.parts ?? [] }) as UIMessage)
+    const rows = rawMsgs.map((m) => this.toRow(m))
+    // Manifest handles cover ONLY the rows folded behind the boundary: live
+    // attachments still ride served messages as file parts, and scoping the
+    // manifest to the folded prefix makes the summary-row bytes a pure
+    // function of the boundary — attaching a file later never rewrites them
+    // (provider prefix caches hold).
+    const d = findDeepestMarker(rows)
+    const manifestHandles = (endIdx: number) => collectFileAttachments(rawUI.slice(0, endIdx + 1)).map((a) => a.handle)
+    // A folded marker's blob stays allow-listed, so the summary must name its
+    // path or the model holds fs_read with no legal argument.
+    const manifestPaths = (endIdx: number) => [...collectPersistedOutputPaths(rawUI.slice(0, endIdx + 1))]
+    const effective = applyDeepestMarker(
+      rows,
+      d >= 0 ? manifestHandles(d) : undefined,
+      d >= 0 ? manifestPaths(d) : undefined
+    )
+
+    return { rawMsgs, rawUI, rows, d, effective, manifestHandles, manifestPaths }
+  }
+
   private toRow(m: SharedMessage): CompactionRow {
     return {
       id: m.id,
       role: m.role,
       parts: m.data?.parts ?? [],
       modelId: m.role === 'assistant' && m.status === 'success' ? (m.modelId ?? undefined) : undefined,
-      compactionSummary: m.compactionSummary ?? undefined,
-      contextTokens: m.stats?.contextTokens ?? undefined
+      compactionSummary: m.compactionSummary ?? undefined
     }
   }
 
@@ -872,28 +926,9 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     } as CherryUIMessage
   }
 
-  private estimateTotal(rows: CompactionRow[], dialect: TokenDialect): number {
-    return rows.reduce((s, r) => s + estimateRowTokens(r, dialect), 0)
-  }
-
-  /**
-   * Trigger estimate for the served history. Anchors on the most recent assistant
-   * row in the served view that carries a real contextTokens (prior turn's last-step
-   * totalTokens), adding a tokenx estimate of only the rows after it. Falls back to a
-   * full tokenx estimate when no anchor exists or it was folded out by the marker.
-   */
-  private estimateContext(effective: CompactionRow[], dialect: TokenDialect): number {
-    let anchorIdx = -1
-    for (let i = effective.length - 1; i >= 0; i--) {
-      if (effective[i].role === 'assistant' && typeof effective[i].contextTokens === 'number') {
-        anchorIdx = i
-        break
-      }
-    }
-    if (anchorIdx < 0) return this.estimateTotal(effective, dialect)
-    const base = effective[anchorIdx].contextTokens as number
-    const tail = effective.slice(anchorIdx + 1).reduce((s, r) => s + estimateRowTokens(r, dialect), 0)
-    return base + tail
+  private async estimateTotal(rows: CompactionRow[], dialect: TokenDialect): Promise<number> {
+    const messages = await toModelMessages(rows.map((row) => this.toServed(row)))
+    return estimateModelMessagesSync(messages, { dialect, tokenizer: tokenxTokenizer })
   }
 
   /**
@@ -919,32 +954,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     // Raw path from root → anchor, preserving all Message fields (including compactionSummary).
     // getPathToNode is synchronous (better-sqlite3, main #16626) — no await.
     const messagePath = messageService.getPathToNode(anchorMessageId)
-    const lastClearIndex = messagePath.findLastIndex((message) => hasClearContextPart(message.data.parts))
-    const rawMsgs = messagePath.slice(lastClearIndex + 1)
-    // Capability state from the RAW path: compaction folds file parts and tool
-    // outputs out of the served view, so scanning served messages downstream
-    // would silently drop read_file for folded attachments (finding #2) and
-    // fs_read for folded persisted outputs. `rawUI` is mapped ONCE and sliced
-    // for the manifest prefixes below — handle dedup is a left-to-right fold,
-    // so a slice's handles match the full pass only when both share this array.
-    const rawUI = rawMsgs.map((m) => ({ parts: m.data.parts ?? [] }) as UIMessage)
+    const { rawMsgs, rawUI, rows, d, effective, manifestHandles, manifestPaths } = this.selectHistory(messagePath)
     const retainedContext = collectRetainedContext(rawUI)
-    const rows = rawMsgs.map((m) => this.toRow(m))
-    // Manifest handles cover ONLY the rows folded behind the boundary: live
-    // attachments still ride served messages as file parts, and scoping the
-    // manifest to the folded prefix makes the summary-row bytes a pure
-    // function of the boundary — attaching a file later never rewrites them
-    // (provider prefix caches hold).
-    const d = findDeepestMarker(rows)
-    const manifestHandles = (endIdx: number) => collectFileAttachments(rawUI.slice(0, endIdx + 1)).map((a) => a.handle)
-    // A folded marker's blob stays allow-listed, so the summary must name its
-    // path or the model holds fs_read with no legal argument.
-    const manifestPaths = (endIdx: number) => [...collectPersistedOutputPaths(rawUI.slice(0, endIdx + 1))]
-    const effective = applyDeepestMarker(
-      rows,
-      d >= 0 ? manifestHandles(d) : undefined,
-      d >= 0 ? manifestPaths(d) : undefined
-    )
 
     // A user-drawn window, unlike a space-saving fold, must also revoke
     // read_file / fs_read access to whatever slid out of it.
@@ -988,7 +999,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     // in-loop hook so the two triggers cannot disagree on the same history.
     const dialect = resolveRowDialect(models[0])
     const trigger = Math.floor((inputRoom * contextSettings.compress.thresholdPercent) / 100)
-    if (this.estimateContext(effective, dialect) <= trigger) {
+    const preTokens = await this.estimateTotal(effective, dialect)
+    if (preTokens <= trigger) {
       return serve(effective)
     }
 
@@ -1008,7 +1020,6 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     // this summarize call runs BEFORE the model stream, so without an explicit
     // clear a failed fold would leave "compacting…" pinned on a live turn.
     const startedAt = new Date().toISOString()
-    const preTokens = this.estimateContext(effective, dialect)
     // One id per fold: a turn can compact several times, and a shared id would
     // make each later fold overwrite the previous one's anchor.
     const anchorId = compactionAnchorChunkId()
@@ -1070,13 +1081,14 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         skip()
         return serve(effective)
       }
-      messageService.setCompactionSummary(boundary.id, summary)
       // Boundary index in rawUI: recent = rows.slice(d + 1), boundary = recent[keepIdx - 1].
       const served = [
         summaryRow(boundary.id, summary, manifestHandles(d + keepIdx), manifestPaths(d + keepIdx)),
         ...recent.slice(keepIdx)
       ]
-      settle({ postTokens: this.estimateContext(served, dialect), foldedCount: keepIdx })
+      const postTokens = await this.estimateTotal(served, dialect)
+      messageService.setCompactionSummary(boundary.id, summary)
+      settle({ postTokens, foldedCount: keepIdx })
       return serve(served)
     } catch (error) {
       logger.warn('durable compaction failed; serving marker-applied history', { topicId, error })

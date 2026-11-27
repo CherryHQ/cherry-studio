@@ -1,6 +1,7 @@
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import useSWR from 'swr'
 
 import { MessageEditingProvider } from '@renderer/components/chat/editing/MessageEditingContext'
 import type { TopicMessageFlowLiveState } from '@renderer/components/chat/flow'
@@ -18,11 +19,12 @@ import { usePreference } from '@renderer/data/hooks/usePreference'
 import { ChatWriteProvider } from '@renderer/hooks/chat/ChatWriteContext'
 import { SiblingsProvider } from '@renderer/hooks/SiblingsContext'
 import { useTopicMessages } from '@renderer/hooks/useTopicMessages'
+import { ipcApi } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Topic } from '@renderer/types/topic'
 import { endsWithProviderQuotaError } from '@renderer/utils/message/providerQuotaError'
 import type { CherryUIMessage } from '@shared/data/types/message'
-import { isUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import type { UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { hasClearContextPart } from '@shared/data/types/uiParts'
 import { normalizeMaxMessages, resolveMaxMessages } from '@shared/utils/contextSettings'
@@ -240,17 +242,33 @@ const ChatContentInner: FC<InnerProps> = ({
       : { afterMessages: divider }
   }, [boundary, maxMessages, pageEdgeHasEarlierHistory, pageEdgeMessageId])
   const siblingsContextValue = useMemo(() => ({ siblingsMap, activeNodeId }), [siblingsMap, activeNodeId])
-  const contextUsage = useMemo<ChatContextUsageSource | null>(() => {
-    if (isHistoryStale) return null
-
-    const activeMessage = uiMessages.find((message) => message.id === activeNodeId)
-    const contextTokens = activeMessage?.metadata?.stats?.contextTokens
-    const modelId = activeMessage?.metadata?.modelId
-    if (activeMessage?.role !== 'assistant' || typeof contextTokens !== 'number' || !isUniqueModelId(modelId)) {
-      return null
-    }
-    return { contextTokens, modelId }
-  }, [activeNodeId, isHistoryStale, uiMessages])
+  const contextRevision = useMemo(
+    () => pathMessages?.map((message) => [message.id, message.updatedAt, message.compactionSummary]),
+    [pathMessages]
+  )
+  const { parentAnchorId } = runtime.composerChatTarget
+  const { data: estimatedContextTokens } = useSWR(
+    canPreviewContextWindow && parentAnchorId && composerModelId
+      ? ([
+          'ai.topic.estimate_context',
+          {
+            topicId: topic.id,
+            anchorId: parentAnchorId,
+            modelId: composerModelId,
+            fillsAnchor: nextTurnFillsActiveNode
+          },
+          maxMessages,
+          assistant?.updatedAt,
+          contextRevision
+        ] as const)
+      : null,
+    ([route, input]) => ipcApi.request(route, input),
+    { shouldRetryOnError: false, keepPreviousData: false }
+  )
+  const contextUsage: ChatContextUsageSource | null =
+    canPreviewContextWindow && composerModelId && typeof estimatedContextTokens === 'number'
+      ? { contextTokens: estimatedContextTokens, modelId: composerModelId }
+      : null
   const providerQuotaExhausted = useMemo(
     () => !isHistoryStale && endsWithProviderQuotaError(uiMessages, activeNodeId),
     [activeNodeId, isHistoryStale, uiMessages]

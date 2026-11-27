@@ -36,6 +36,9 @@ import { resolveContextWindow } from '@main/ai/contextBuild/resolveContextWindow
 import { resolveInputRoom } from '@main/ai/contextBuild/resolveInputRoom'
 import { resolveRequestedMaxOutputTokens } from '@main/ai/contextBuild/resolveOutputReservation'
 import { omitCompactedAnthropicThinking, usesAnthropicMessagesSdk } from '@main/ai/messages/anthropicThinking'
+import { resolveModelTokenDialect } from '@main/ai/tokens/dialect'
+import { estimateModelMessagesSync } from '@main/ai/tokens/footprint'
+import { tokenxTokenizer } from '@main/ai/tokens/textTokenizer'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 
 import type { RequestFeature } from '../feature'
@@ -142,6 +145,9 @@ export function buildContextOptions(scope: RequestScope): ContextMiddlewareOptio
   // comparison against it was silently false).
   if (settings.compress.enabled && !scope.compressionModel && contextWindow !== null) {
     logger.debug('compress enabled but no model resolved — sliding-window fallback only')
+    const dialect = resolveModelTokenDialect(scope.provider, scope.model)
+    options.estimateHistoryTokens = (history) =>
+      estimateModelMessagesSync(toAISDK(history), { dialect, tokenizer: tokenxTokenizer })
     options.onBeforeCompress = (history, tokenInfo) => {
       const kept = dropOldestUntilUnderBudget(history, tokenInfo)
       return kept !== history && usesAnthropicMessagesSdk(scope.aiSdkProviderId, scope)

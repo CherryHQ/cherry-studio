@@ -78,6 +78,7 @@ function makeScope(overrides: ScopeOverrides = {}): RequestScope {
   return {
     registry: { getAll: () => overrides.entries ?? [] },
     model: { id: 'test-model', contextWindow: 200_000, ...overrides.model },
+    provider: { id: 'test-provider', defaultChatEndpoint: 'openai-chat-completions' },
     request: { ...overrides.request },
     requestContext: { requestId: 'anchor-1', persistedOutputPaths: new Set<string>(), ...overrides.requestContext },
     contextSettings: overrides.contextSettings ?? DEFAULT_CONTEXT_SETTINGS,

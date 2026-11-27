@@ -185,7 +185,9 @@ vi.mock('@renderer/components/composer/variants/ChatComposer', () => ({
             onClick={() => onDraftAssistantChange?.('assistant-2')}>
             home composer
           </button>
-          {contextUsage ? <span role="meter" aria-label="context usage" /> : null}
+          {contextUsage ? (
+            <span role="meter" aria-label="context usage" aria-valuenow={contextUsage.contextTokens} />
+          ) : null}
         </>
       )
     }
@@ -204,7 +206,9 @@ vi.mock('@renderer/components/composer/variants/ChatComposer', () => ({
           }>
           send
         </button>
-        {contextUsage ? <span role="meter" aria-label="context usage" /> : null}
+        {contextUsage ? (
+          <span role="meter" aria-label="context usage" aria-valuenow={contextUsage.contextTokens} />
+        ) : null}
       </>
     )
   }
@@ -414,7 +418,7 @@ describe('ChatContent', () => {
     expect(sendMessage).not.toHaveBeenCalled()
   })
 
-  it('hides context usage while topic history is stale', () => {
+  it('refreshes the estimate for the selected model and hides it while history is stale', async () => {
     const activeAssistant = {
       ...createUiMessage('history-assistant', 'assistant'),
       metadata: {
@@ -437,12 +441,25 @@ describe('ChatContent', () => {
     }
     mockUseTopicMessages.mockReturnValue(topicMessagesResult)
 
-    const view = render(<ChatContent topic={topic} />)
+    ipcMock.request = (route, input) =>
+      Promise.resolve(
+        route === 'ai.topic.estimate_context'
+          ? (input as { modelId: string }).modelId === 'provider::model-a'
+            ? 15
+            : 35
+          : undefined
+      )
+    const unlinkedTopic = { ...topic, assistantId: null }
+    const view = render(<ChatContent topic={unlinkedTopic} composerModelId="provider::model-a" />)
 
-    expect(screen.getByRole('meter', { name: 'context usage' })).toBeInTheDocument()
+    expect(await screen.findByRole('meter', { name: 'context usage' })).toHaveAttribute('aria-valuenow', '15')
+
+    view.rerender(<ChatContent topic={unlinkedTopic} composerModelId="provider::model-b" />)
+    expect(screen.queryByRole('meter', { name: 'context usage' })).not.toBeInTheDocument()
+    expect(await screen.findByRole('meter', { name: 'context usage' })).toHaveAttribute('aria-valuenow', '35')
 
     mockUseTopicMessages.mockReturnValue({ ...topicMessagesResult, isLoading: true, isStale: true })
-    view.rerender(<ChatContent topic={topic} />)
+    view.rerender(<ChatContent topic={unlinkedTopic} composerModelId="provider::model-b" />)
 
     expect(screen.queryByRole('meter', { name: 'context usage' })).not.toBeInTheDocument()
   })

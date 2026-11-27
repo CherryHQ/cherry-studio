@@ -22,7 +22,7 @@ import { readToolResult } from '@main/ai/messages/toolResultRead'
 import { generateProfileStarters } from '@main/ai/profileStarters'
 import { AgentSessionForkError } from '@main/ai/runtime/fork'
 import { checkLocalAgent, listLocalAgentModels, readLocalAgentAccount } from '@main/ai/runtime/LocalRuntimeDriver'
-import { AiStreamAdmissionError, type MainDispatchRequest } from '@main/ai/streamManager'
+import { AiStreamAdmissionError, type MainDispatchRequest, persistentChatContextProvider } from '@main/ai/streamManager'
 import { detectLocalAgents, openLocalAgentTerminal, selectLocalAgentModel } from '@main/services/codeCli'
 import { openRequestPath } from '@main/services/file'
 import { protectLocalAgentEnvironment, resolveLocalAgentCredentials } from '@main/services/localAgentCredentials'
@@ -149,6 +149,15 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   'ai.agent.delegation.respond': async ({ originSessionId, requestId, approvalId, ...decision }, { senderId }) => {
     if (!senderId) return false
     return application.get('AgentDelegationService').respond(originSessionId, requestId, approvalId, decision)
+  },
+  'ai.topic.estimate_context': async ({ topicId, anchorId, modelId, fillsAnchor }) => {
+    if (temporaryChatService.hasTopic(topicId)) return null
+    try {
+      return await persistentChatContextProvider.estimateContextPreview(topicId, anchorId, modelId, fillsAnchor)
+    } catch (error) {
+      if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) return null
+      throw error
+    }
   },
   'ai.agent.session.predict_prompt': (input) => application.get('AgentSessionRuntimeService').predictPrompt(input),
   'ai.agent.session.abort_prediction': async ({ sessionId, requestId }) =>

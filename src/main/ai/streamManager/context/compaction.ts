@@ -17,8 +17,6 @@ export interface CompactionRow {
   modelId?: string
   /** Durable summary covering the conversation up to AND INCLUDING this row. */
   compactionSummary?: string
-  /** Real end-of-turn context size persisted on this row (last-step totalTokens), if any. */
-  contextTokens?: number
 }
 
 /** Synthetic id for an injected summary message — never collides with a real UUID. */
