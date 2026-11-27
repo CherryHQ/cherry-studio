@@ -1096,7 +1096,9 @@ to run, ask or block. No new approval table is required.
 Pi and Pi Durable child threads use the root's live permission mode, interaction
 state and tool restrictions. Delegation does not grant Full Access. A child call
 that needs approval waits for the root session's responder, or is blocked when
-nobody can respond. Command approvals refresh the effective tool input and policy evidence even when a native
+nobody can respond. Stream approvals include the tool input when the call has no
+part in the root reply, so its approval remains visible in the composer. Command
+approvals refresh the effective tool input and policy evidence even when a native
 part already exists in the root reply, so the composer shows the operation awaiting consent.
 
 Runtime baselines use whole native SDK messages. Pi and Claude decode deltas once at
