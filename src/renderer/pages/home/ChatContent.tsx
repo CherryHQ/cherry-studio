@@ -14,7 +14,7 @@ import type {
   ChatConversationControlsChangeHandler
 } from '@renderer/components/composer/variants/ChatComposer'
 import { ResourceEditDialogEventHost } from '@renderer/components/resourceCatalog/dialogs/ResourceEditDialogEventHost'
-import { useQuery } from '@renderer/data/hooks/useDataApi'
+import { useDataChange, useQuery } from '@renderer/data/hooks/useDataApi'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { ChatWriteProvider } from '@renderer/hooks/chat/ChatWriteContext'
 import { SiblingsProvider } from '@renderer/hooks/SiblingsContext'
@@ -247,7 +247,7 @@ const ChatContentInner: FC<InnerProps> = ({
     [pathMessages]
   )
   const { parentAnchorId } = runtime.composerChatTarget
-  const { data: estimatedContextTokens } = useSWR(
+  const { data: estimatedContextTokens, mutate: mutateContextEstimate } = useSWR(
     canPreviewContextWindow && parentAnchorId && composerModelId
       ? ([
           'ai.topic.estimate_context',
@@ -264,6 +264,15 @@ const ChatContentInner: FC<InnerProps> = ({
       : null,
     ([route, input]) => ipcApi.request(route, input),
     { shouldRetryOnError: false, keepPreviousData: false }
+  )
+  useDataChange(
+    '/topics/:topicId/messages',
+    () => {
+      if (canPreviewContextWindow && parentAnchorId && composerModelId) {
+        void mutateContextEstimate(undefined, { revalidate: true }).catch(() => undefined)
+      }
+    },
+    { routeParams: { topicId: topic.id } }
   )
   const contextUsage: ChatContextUsageSource | null =
     canPreviewContextWindow && composerModelId && typeof estimatedContextTokens === 'number'

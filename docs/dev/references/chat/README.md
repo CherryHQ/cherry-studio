@@ -177,6 +177,9 @@ in-loop hook additionally sees the call override. Neither compaction path passes
 parameter.
 
 Turn-start compaction estimates the history selected for replay, including the effective summary.
+The estimate includes locally extracted attachment text within its inline cap and shapes cached
+MCP results for the selected model and endpoint. If an image requires OCR, the estimate is
+unavailable before dispatch and compaction can still run in the request loop.
 In-loop compaction estimates the candidate prompt and includes assembled system instructions and
 the available active tool definitions. The composer meter estimates the selected path and assistant
 prompt before dispatch. It can omit draft content and request-time tool or system additions.
@@ -194,7 +197,8 @@ empty, or summarization throws, the turn-start durable-compaction stage serves t
 history unchanged. In the unresolved-model case, with context building and compression enabled and
 a known request-model window, request construction still installs the sliding-window fallback
 (`contextBuild.ts`); over-budget history may therefore lose its oldest turns before reaching
-the provider. This fallback estimates the current history after tool-output truncation. An in-loop
+the provider. This fallback estimates the current history after tool-output truncation and deducts
+requested output, the system prompt, and active tool definitions from the window. An in-loop
 summarization failure stops further in-loop compaction for that request and
 lets it continue. A finite `max_messages` also short-circuits turn-start durable compaction: the window
 is computed over raw rows without applying existing compaction summaries, so the two settings do not

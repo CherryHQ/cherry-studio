@@ -20,6 +20,9 @@ import { createUniqueModelId, type UniqueModelId } from '@shared/data/types/mode
 
 import { makeProvider } from '../../../__tests__/fixtures'
 import type * as RequestContextSettingsModule from '../../../contextBuild/resolveRequestContextSettings'
+import type * as AttachmentTextExtractionModule from '../../../messages/attachmentTextExtraction'
+import type * as AttachmentWorkerClientModule from '../../../messages/attachmentWorkerClient'
+import type * as ProviderEndpointModule from '../../../provider/endpoint'
 import type { RequestScope } from '../../../runtime/aiSdk/params/scope'
 import { ToolRegistry } from '../../../tools/adapters/aiSdk/registry'
 
@@ -63,9 +66,25 @@ vi.mock('@data/services/AssistantService', () => ({
 vi.mock('@main/data/services/ProviderService', () => ({
   providerService: { getByProviderId: mockGetProviderById }
 }))
-vi.mock('@main/ai/provider/endpoint', () => ({
+vi.mock('@main/ai/provider/endpoint', async (importOriginal) => ({
+  ...(await importOriginal<typeof ProviderEndpointModule>()),
   resolveEffectiveEndpoint: mockResolveEffectiveEndpoint
 }))
+
+vi.mock('../../../messages/attachmentTextExtraction', async (importOriginal) => ({
+  ...(await importOriginal<typeof AttachmentTextExtractionModule>()),
+  extractDocumentText: (entryId: string) => (entryId === 'long-text' ? 'replayed attachment words '.repeat(850) : null)
+}))
+
+vi.mock('../../../messages/attachmentWorkerClient', async (importOriginal) => {
+  const { allocateInlineCaps } = await import('../../../messages/attachmentInlineBudget')
+  const actual = await importOriginal<typeof AttachmentWorkerClientModule>()
+  return {
+    ...actual,
+    runAttachmentWorker: (type: string, input: { bodies: string[]; tokens: number }) =>
+      type === 'allocate' ? Promise.resolve(allocateInlineCaps(input.bodies, input.tokens)) : undefined
+  }
+})
 
 vi.mock('@data/services/FileEntryService', () => ({
   fileEntryService: { findById: mockFindFileEntryById }
@@ -116,7 +135,7 @@ vi.mock('@application', async () => {
       return { broadcastTopicError: vi.fn() }
     }
     if (name === 'FileManager') {
-      return { getPhysicalPath: (id: string) => `/blobs/${id}.txt` }
+      return { getPhysicalPath: (id: string) => `/blobs/${id}.txt`, getById: () => ({ ext: 'txt' }) }
     }
     return originalGet(name)
   })
@@ -319,6 +338,31 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
     expect(ids).toContain('u1')
     expect(ids).toContain('a1')
     expect(ids).toContain('u2')
+  })
+
+  it('counts inlined attachment text when deciding whether to fold the older history', async () => {
+    const attached = fakeMsg('u1', 'user', 'read the notes')
+    ;(attached.data as { parts: unknown[] }).parts.push({
+      type: 'file',
+      mediaType: 'text/plain',
+      url: 'file:///tmp/notes.txt',
+      filename: 'notes.txt',
+      providerMetadata: { cherry: { fileEntryId: 'long-text' } }
+    })
+    const text = 'word '.repeat(700)
+    mockGetPathToNode.mockReturnValue([
+      attached,
+      fakeMsg('a1', 'assistant', text),
+      fakeMsg('u2', 'user', text),
+      fakeMsg('a2', 'assistant', text),
+      fakeMsg('u3', 'user', 'continue')
+    ])
+    compressionOn(undefined, 60)
+
+    const { messages } = await makeHistory('u3')
+
+    expect(messages[0].id).toMatch(/^compaction:/)
+    expect(messages.at(-1)?.id).toBe('u3')
   })
 
   it('1b. maxMessages set → serves the last-N window and skips turn-start folding even over budget', async () => {

@@ -1,5 +1,5 @@
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
-import { mockUseInvalidateCache, mockUseMutation } from '@test-mocks/renderer/useDataApi'
+import { mockUseDataChange, mockUseInvalidateCache, mockUseMutation } from '@test-mocks/renderer/useDataApi'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { act, type ReactNode } from 'react'
@@ -441,12 +441,13 @@ describe('ChatContent', () => {
     }
     mockUseTopicMessages.mockReturnValue(topicMessagesResult)
 
+    let editedHistoryTokens = 35
     ipcMock.request = (route, input) =>
       Promise.resolve(
         route === 'ai.topic.estimate_context'
           ? (input as { modelId: string }).modelId === 'provider::model-a'
             ? 15
-            : 35
+            : editedHistoryTokens
           : undefined
       )
     const unlinkedTopic = { ...topic, assistantId: null }
@@ -457,6 +458,14 @@ describe('ChatContent', () => {
     view.rerender(<ChatContent topic={unlinkedTopic} composerModelId="provider::model-b" />)
     expect(screen.queryByRole('meter', { name: 'context usage' })).not.toBeInTheDocument()
     expect(await screen.findByRole('meter', { name: 'context usage' })).toHaveAttribute('aria-valuenow', '35')
+
+    const listener = mockUseDataChange.mock.calls.at(-1)?.[1]
+    expect(listener).toBeDefined()
+    editedHistoryTokens = 80
+    act(() => {
+      listener?.([{ endpoint: '/topics/:topicId/messages', kind: 'projection', entityIds: ['unloaded-ancestor'] }])
+    })
+    expect(await screen.findByRole('meter', { name: 'context usage' })).toHaveAttribute('aria-valuenow', '80')
 
     mockUseTopicMessages.mockReturnValue({ ...topicMessagesResult, isLoading: true, isStale: true })
     view.rerender(<ChatContent topic={unlinkedTopic} composerModelId="provider::model-b" />)

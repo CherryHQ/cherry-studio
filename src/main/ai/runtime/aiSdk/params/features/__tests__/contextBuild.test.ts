@@ -343,6 +343,22 @@ describe('buildContextOptions — compression wiring', () => {
   // returns goes to the provider as-is. Dropping a single message could cut
   // between `assistant(tool_call)` and its `tool` results and leave an orphan,
   // which strict providers reject.
+  it('leaves room for output, system instructions and active tools in the fallback', () => {
+    const scope = {
+      ...makeScope({
+        model: { contextWindow: 16_000 },
+        request: { callOverrides: { maxOutputTokens: 2_000 } }
+      }),
+      system: 'word '.repeat(4_000)
+    }
+    const withoutFixedInput = buildContextOptions({ ...scope, system: undefined })!
+    const withSystem = buildContextOptions(scope)!
+    const withTools = buildContextOptions(scope, 1_000)!
+    expect(withoutFixedInput.contextWindow).toBe(14_000)
+    expect(withSystem.contextWindow).toBeLessThan(11_000)
+    expect(withTools.contextWindow).toBe(withSystem.contextWindow! - 1_000)
+  })
+
   describe('sliding-window fallback is turn-atomic', () => {
     const fallback = () => {
       const scope = makeScope({ contextSettings: DEFAULT_CONTEXT_SETTINGS, compressionModel: null })

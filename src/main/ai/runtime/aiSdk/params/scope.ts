@@ -34,6 +34,7 @@ export interface RequestScope extends ToolApplyScope {
   readonly request: AiChatRequest & Pick<AiStreamRequest, 'messages'>
   readonly system?: string
   readonly tools?: ToolSet
+  readonly requestedMaxOutputTokens?: number
   readonly signal: AbortSignal | undefined
   readonly registry: ToolRegistry
   readonly model: Model

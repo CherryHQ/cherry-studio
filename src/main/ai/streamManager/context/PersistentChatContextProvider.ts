@@ -19,14 +19,20 @@ import {
   COMPACTION_MIN_INPUT_BUDGET,
   CONTEXT_COMPACT_KEEP_BUDGET_OF_TRIGGER
 } from '@main/ai/constants'
-import { collectFileAttachments } from '@main/ai/messages/attachmentRouting'
+import { resolveAttachmentBudget } from '@main/ai/messages/attachmentBudget'
+import { collectFileAttachments, prepareChatMessagesForEstimate } from '@main/ai/messages/attachmentRouting'
+import { resolveMediaCapabilities, resolveToolResultMediaCapabilities } from '@main/ai/messages/messageCapabilities'
+import { resolveNativeFileSupport } from '@main/ai/messages/nativeFileSupport'
 import { collectPersistedOutputPaths } from '@main/ai/messages/persistedOutputRendering'
 import { collectRetainedContext, type RetainedContext } from '@main/ai/messages/retainedContext'
+import { resolveAiSdkProviderId, resolveEffectiveEndpoint } from '@main/ai/provider/endpoint'
+import { resolveCachedMcpTools } from '@main/ai/tools/adapters/aiSdk/mcp/mcpTools'
 import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { compactionAnchorChunkId, type CompactionAnchorData, type CompactionSink } from '@shared/ai/compaction'
 import { aiStreamAdmissionReasons, applyApprovalDecisions } from '@shared/ai/transport'
+import type { Assistant } from '@shared/data/types/assistant'
 import type { ContextSettingsOverride } from '@shared/data/types/contextSettings'
 import {
   type AssistantTurnOptions,
@@ -39,10 +45,11 @@ import type { Model } from '@shared/data/types/model'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { getKnowledgeBaseIdsFromParts, hasClearContextPart } from '@shared/data/types/uiParts'
 import { applyMaxMessagesWindow, resolveMaxMessages } from '@shared/utils/contextSettings'
+import { isFunctionCallingModel } from '@shared/utils/model'
 
 import { resolveMinContextWindow } from '../../contextBuild/resolveContextWindow'
 import { resolveInputRoom } from '../../contextBuild/resolveInputRoom'
-import { resolveOutputReservation } from '../../contextBuild/resolveOutputReservation'
+import { resolveOutputReservation, resolveRequestedMaxOutputTokens } from '../../contextBuild/resolveOutputReservation'
 import {
   resolveGlobalContextSettings,
   resolveRequestContextSettings
@@ -871,8 +878,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         : fillsAnchor
           ? applyMaxMessagesWindow(rows, maxMessages)
           : applyMaxMessagesWindow([...rows, { id: '', role: 'user', parts: [] }], maxMessages).slice(0, -1)
-    const historyTokens = await this.estimateTotal(previewRows, resolveRowDialect(model))
-    return historyTokens + tokenxTokenizer.count(assistant?.prompt ?? '')
+    const replay = await this.estimateReplay(previewRows, model, assistant)
+    return replay ? replay.tokens + tokenxTokenizer.count(assistant?.prompt ?? '') : null
   }
 
   private selectHistory(messagePath: SharedMessage[]) {
@@ -926,9 +933,46 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     } as CherryUIMessage
   }
 
-  private async estimateTotal(rows: CompactionRow[], dialect: TokenDialect): Promise<number> {
-    const messages = await toModelMessages(rows.map((row) => this.toServed(row)))
-    return estimateModelMessagesSync(messages, { dialect, tokenizer: tokenxTokenizer })
+  private async estimateReplay(rows: CompactionRow[], model: Model, assistant?: Assistant) {
+    const history = rows.map((row) => this.toServed(row))
+    const dialect = resolveRowDialect(model)
+    const capabilities = resolveMediaCapabilities(model)
+    const isToolCapable = isFunctionCallingModel(model)
+    const tools = assistant && isToolCapable ? resolveCachedMcpTools(assistant) : undefined
+    const attachments = collectFileAttachments(history)
+    let replay = history
+    if (attachments.length) {
+      const provider = providerService.getByProviderId(model.providerId)
+      const { endpointType } = resolveEffectiveEndpoint(provider, model)
+      const aiSdkProviderId = resolveAiSdkProviderId(provider, endpointType)
+      const nativeSupport = resolveNativeFileSupport(provider, model, {
+        endpointType,
+        aiSdkProviderId,
+        runtimeProviderId: aiSdkProviderId
+      })
+      const budget = await resolveAttachmentBudget({
+        provider,
+        model,
+        system: assistant?.prompt,
+        tools,
+        messages: history,
+        mediaCapabilities: capabilities,
+        maxOutputTokens: resolveRequestedMaxOutputTokens(undefined, undefined, assistant, model, endpointType)
+      })
+      const prepared = await prepareChatMessagesForEstimate(history, {
+        attachments,
+        nativeSupport,
+        isToolCapable,
+        budget: budget ?? undefined
+      })
+      if (!prepared) return null
+      replay = prepared
+    }
+    const toolResultCapabilities = resolveToolResultMediaCapabilities(capabilities, dialect)
+    const toModel = (input: CherryUIMessage[]) => toModelMessages(input, capabilities, tools, toolResultCapabilities)
+    const estimate = async (input: CherryUIMessage[]) =>
+      estimateModelMessagesSync(await toModel(input), { dialect, tokenizer: tokenxTokenizer })
+    return { replay, toModel, estimate, tokens: await estimate(replay) }
   }
 
   /**
@@ -995,26 +1039,19 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     // Against the room the PROMPT actually has: whatever this request declares
     // as max_tokens is billed alongside the input, so it is not history's to use.
     const inputRoom = resolveInputRoom(minContextWindow, resolveOutputReservation(assistantId, models))
-    // Selects the media cost tables only; text stays on tokenx, matching the
-    // in-loop hook so the two triggers cannot disagree on the same history.
-    const dialect = resolveRowDialect(models[0])
     const trigger = Math.floor((inputRoom * contextSettings.compress.thresholdPercent) / 100)
-    const preTokens = await this.estimateTotal(effective, dialect)
-    if (preTokens <= trigger) {
+    const assistant = assistantId ? assistantDataService.getById(assistantId) : undefined
+    const before = await this.estimateReplay(effective, models[0], assistant).catch((error) => {
+      logger.warn('could not price durable compaction replay', { topicId, error })
+      return null
+    })
+    if (!before || before.tokens <= trigger) {
       return serve(effective)
     }
 
-    const recent = rows.slice(d + 1) // real rows after the marker (summary row is synthetic)
-    const keepIdx = planKeepBoundary(recent, Math.floor(trigger * CONTEXT_COMPACT_KEEP_BUDGET_OF_TRIGGER), dialect)
-    // Over-budget-without-compacting edge: when everything in `recent` fits the keep
-    // budget yet `effective` still exceeds the trigger (a large prior `oldSummary`),
-    // there is no boundary to snap, so we serve the marker-applied history as-is. Not a
-    // missed compaction — the in-loop `prepareStep` hook owns this case as the second
-    // safety net (see inLoopCompaction; the no-double-compact test pins the interaction).
-    if (keepIdx === null) return serve(effective)
-
-    const boundary = recent[keepIdx - 1] // real row before the kept user row
-
+    const preTokens = before.tokens
+    const recent = rows.slice(d + 1)
+    const replayTail = before.replay.slice(d < 0 ? 0 : 1)
     const oldSummary = d >= 0 ? rows[d].compactionSummary : undefined
     // Declared before the try so the catch can settle the anchor it opened:
     // this summarize call runs BEFORE the model stream, so without an explicit
@@ -1024,10 +1061,15 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     // make each later fold overwrite the previous one's anchor.
     const anchorId = compactionAnchorChunkId()
     try {
-      // Fold = the older slice of `recent` (before the keep boundary). Convert those rows
-      // to served UIMessages, then to ModelMessages via the shared pipeline. (messageConverter
-      // + its prepareModelMessages were removed in main #16257; toModelMessages is the successor.)
-      const realModelMessages = await toModelMessages(recent.slice(0, keepIdx).map((r) => this.toServed(r)))
+      const keepIdx = await planKeepBoundary(
+        recent,
+        Math.floor(trigger * CONTEXT_COMPACT_KEEP_BUDGET_OF_TRIGGER),
+        (i) => before.estimate([replayTail[i]])
+      )
+      // With no earlier prefix to fold, the in-loop hook can still compact the final prompt.
+      if (keepIdx === null) return serve(effective)
+      const boundary = recent[keepIdx - 1]
+      const realModelMessages = await before.toModel(replayTail.slice(0, keepIdx))
       const modelMessages: ModelMessage[] = [
         ...(oldSummary
           ? [{ role: 'user' as const, content: ContextPrompts.getCompactSummaryWrapper(oldSummary) }]
@@ -1086,9 +1128,13 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         summaryRow(boundary.id, summary, manifestHandles(d + keepIdx), manifestPaths(d + keepIdx)),
         ...recent.slice(keepIdx)
       ]
-      const postTokens = await this.estimateTotal(served, dialect)
+      const after = await this.estimateReplay(served, models[0], assistant)
+      if (!after) {
+        skip()
+        return serve(effective)
+      }
       messageService.setCompactionSummary(boundary.id, summary)
-      settle({ postTokens, foldedCount: keepIdx })
+      settle({ postTokens: after.tokens, foldedCount: keepIdx })
       return serve(served)
     } catch (error) {
       logger.warn('durable compaction failed; serving marker-applied history', { topicId, error })
