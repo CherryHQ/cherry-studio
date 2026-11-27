@@ -1,6 +1,6 @@
 ---
 name: code-mate-deepseek-harness
-description: Runs DeepSeek Harness headlessly for bounded repository tasks. Use when the user asks to delegate analysis or implementation to DeepSeek Harness.
+description: Run DeepSeek Harness non-interactively for coding tasks. Use when the user asks to delegate work to it.
 ---
 
 # DeepSeek Harness

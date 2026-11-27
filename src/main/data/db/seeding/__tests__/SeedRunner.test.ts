@@ -7,11 +7,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { application } from '@application'
 import { appStateTable } from '@data/db/schemas/appState'
 import { assistantTable } from '@data/db/schemas/assistant'
+import { preferenceTable } from '@data/db/schemas/preference'
 import { seeders } from '@data/db/seeding/seederRegistry'
 import { SeedRunner } from '@data/db/seeding/SeedRunner'
 import type { ISeeder } from '@data/db/types'
 
 const BOOTSTRAP_MARKER_KEY = 'seedRunner:bootstrapCompleted'
+const EXTERNAL_SKILL_EXPORT_KEY = 'agent.skills.external_export.enabled'
 
 function createSeeder(overrides: Partial<ISeeder> = {}): ISeeder {
   return {
@@ -186,5 +188,48 @@ describe('SeedRunner', () => {
 
     const assistants = await dbh.db.select().from(assistantTable)
     expect(assistants).toHaveLength(1)
+  })
+
+  it('seeds a fresh database before DbService is available', () => {
+    const get = vi.mocked(application.get).getMockImplementation()!
+    vi.mocked(application.get).withImplementation(
+      (name) => {
+        if (name === 'DbService') throw new Error('DbService is not available during seeding')
+        return get(name)
+      },
+      () => {
+        expect(() => new SeedRunner(dbh.db).runAll(seeders)).not.toThrow()
+      }
+    )
+
+    const preference = dbh.db
+      .select()
+      .from(preferenceTable)
+      .where(eq(preferenceTable.key, EXTERNAL_SKILL_EXPORT_KEY))
+      .get()
+    expect(preference?.value).toBe(false)
+  })
+
+  it.each([
+    { saved: undefined, expected: false },
+    { saved: false, expected: false },
+    { saved: true, expected: true }
+  ])('uses $expected when upgrading an installation with export preference $saved', ({ saved, expected }) => {
+    dbh.db
+      .insert(appStateTable)
+      .values({ key: BOOTSTRAP_MARKER_KEY, value: { completedAt: 1 } })
+      .run()
+    dbh.db.insert(preferenceTable).values({ scope: 'default', key: 'app.language', value: 'en-US' }).run()
+    if (saved !== undefined) {
+      dbh.db.insert(preferenceTable).values({ scope: 'default', key: EXTERNAL_SKILL_EXPORT_KEY, value: saved }).run()
+    }
+
+    const readExportPreference = () =>
+      dbh.db.select().from(preferenceTable).where(eq(preferenceTable.key, EXTERNAL_SKILL_EXPORT_KEY)).get()?.value
+
+    new SeedRunner(dbh.db).runAll(seeders)
+    expect(readExportPreference()).toBe(expected)
+    new SeedRunner(dbh.db).runAll(seeders)
+    expect(readExportPreference()).toBe(expected)
   })
 })

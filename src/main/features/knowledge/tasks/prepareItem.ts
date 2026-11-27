@@ -1,64 +1,37 @@
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
-import {
-  type CreateKnowledgeItemDto,
-  type KnowledgeItem,
-  type KnowledgeItemOf,
-  type KnowledgeItemType
-} from '@shared/data/types/knowledge'
+import { type CreateKnowledgeItemDto, type KnowledgeItemOf, type KnowledgeItemType } from '@shared/data/types/knowledge'
 
-import { type IndexableKnowledgeItem, isIndexableKnowledgeItem } from '../items'
+import type { IndexableKnowledgeItem } from '../items'
 import { collectKnowledgeReservedRelativePaths } from '../pathStorage'
-import {
-  chooseDirectoryPathPrefix,
-  expandDirectoryOwnerToTree,
-  type ExpandedDirectoryNode
-} from '../pipeline/sources/directory'
+import { chooseDirectoryPathPrefix, type ExpandedDirectoryNode } from '../pipeline/sources/directory'
 
 const logger = loggerService.withContext('KnowledgePrepare')
 const EMPTY_DIRECTORY_ERROR = 'Directory contains no indexable files'
 
-export interface PrepareKnowledgeItemOptions {
-  baseId: string
-  item: KnowledgeItem
-  signal: AbortSignal
-  onDirectoryCopyProgress: (percent: number) => void
-}
-
-export async function prepareKnowledgeItem({
-  baseId,
-  item,
-  signal,
-  onDirectoryCopyProgress
-}: PrepareKnowledgeItemOptions): Promise<IndexableKnowledgeItem[]> {
-  signal.throwIfAborted()
-
-  if (isIndexableKnowledgeItem(item)) {
-    return [item]
-  }
-
-  return await prepareDirectoryForRuntime(baseId, item, signal, onDirectoryCopyProgress)
-}
-
-async function prepareDirectoryForRuntime(
-  baseId: string,
-  item: KnowledgeItemOf<'directory'>,
-  signal: AbortSignal,
-  onDirectoryCopyProgress: (percent: number) => void
-): Promise<IndexableKnowledgeItem[]> {
+/**
+ * Claim the container's deduped `raw/` prefix BEFORE any byte is copied, under the base mutation
+ * lock. Expansion then copies under `raw/<pathPrefix>/...` off the lock; if a crash/kill/abort lands
+ * mid-copy, the pinned `relativePath` lets the next attempt's `deletePreviousLeafExpansion` reclaim
+ * the whole shell (orphan bytes are always a subset of `raw/<pathPrefix>`). The UI also shows the
+ * on-disk name (e.g. `docs_2`) and delete removes the shell by it.
+ */
+export function pinDirectoryPathPrefix(baseId: string, item: KnowledgeItemOf<'directory'>): string {
   // Exclude this container itself: on reindex it already owns its `relativePath`
   // prefix, and counting it as reserved would self-collide it to `_1` every time.
   const reservedTopLevelNames = collectReservedTopLevelNames(baseId, item.id)
   const pathPrefix = chooseDirectoryPathPrefix(item, reservedTopLevelNames)
-
-  // Pin the deduped `raw/` prefix onto the container BEFORE any byte is copied. Expansion
-  // durably writes files under `raw/<pathPrefix>/...`; if a crash/kill/abort lands mid-copy,
-  // the pinned `relativePath` lets the next attempt's `deletePreviousLeafExpansion` reclaim
-  // the whole shell (orphan bytes are always a subset of `raw/<pathPrefix>`). The UI also
-  // shows the on-disk name (e.g. `docs_2`) and delete removes the shell by it.
   knowledgeItemService.updateDirectoryRelativePath(item.id, pathPrefix)
+  return pathPrefix
+}
 
-  const children = await expandDirectoryOwnerToTree(item, baseId, pathPrefix, signal, onDirectoryCopyProgress)
+/** Create the rows for an expanded tree under the base mutation lock, or fail a container that expanded to nothing. */
+export async function createExpandedDirectoryChildren(
+  baseId: string,
+  item: KnowledgeItemOf<'directory'>,
+  children: ExpandedDirectoryNode[],
+  signal: AbortSignal
+): Promise<IndexableKnowledgeItem[]> {
   signal.throwIfAborted()
 
   if (children.length === 0) {
@@ -82,7 +55,8 @@ async function prepareDirectoryForRuntime(
  * lock, so the read-then-dedupe-then-write is free of concurrent expansions.
  */
 function collectReservedTopLevelNames(baseId: string, excludeItemId?: string): Set<string> {
-  const items = knowledgeItemService.getItemsByBaseId(baseId)
+  // A deleting directory's pending cleanup still removes its whole prefix, so it stays reserved.
+  const items = knowledgeItemService.getItemsByBaseId(baseId, { includeDeleting: true })
   const names = new Set<string>()
   for (const relativePath of collectKnowledgeReservedRelativePaths(items, { excludeItemId })) {
     const topSegment = relativePath.split('/')[0]

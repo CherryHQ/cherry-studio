@@ -6,6 +6,7 @@ import {
   Suspense,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState
@@ -94,15 +95,21 @@ function PreviewSession({
   const [root, setRoot] = useState<HTMLDivElement | null>(null)
   const [session, setSession] = useState<{
     source: PreviewSource
-    refreshKey: number
+    requestId: number
     document: PreviewDocument
+    plugin: ReturnType<typeof resolvePreviewPlugin>
   } | null>(null)
   const [failure, setFailure] = useState<{ source: PreviewSource; refreshKey: number } | null>(null)
+  // Plugin-requested reload: re-opens the source so the plugin receives a new
+  // document (fresh size/revision), which re-reading the retained one cannot do.
+  const [reloadNonce, setReloadNonce] = useState(0)
   const closeRef = useRef<(() => void) | undefined>(undefined)
+  const plugin = useMemo(() => resolvePreviewPlugin(source.name, source.mediaType), [source.name, source.mediaType])
+  const Plugin = useMemo(() => (plugin ? lazy(plugin.load) : null), [plugin])
   const hasFailedRef = useRef(false)
   const callbacks = useRef({ onSelection, onDiagnostic, onError, onRequestOpen })
   callbacks.current = { onSelection, onDiagnostic, onError, onRequestOpen }
-  const failDocument = useCallback((error: unknown) => {
+  const reportFailure = useCallback((error: unknown) => {
     if (hasFailedRef.current) return
     hasFailedRef.current = true
     closeRef.current?.()
@@ -117,9 +124,28 @@ function PreviewSession({
     })
     callbacks.current.onError?.(normalized)
   }, [])
+  // Invalidate retained documents before child callbacks can run, including
+  // Activity reconnections with unchanged props. Opening belongs to this request.
+  const requestIdRef = useRef(0)
+  useLayoutEffect(() => {
+    requestIdRef.current += 1
+    return () => {
+      requestIdRef.current += 1
+    }
+  }, [source, refreshKey, plugin, reloadNonce])
+  const isCurrentSession = useCallback(() => session?.requestId === requestIdRef.current, [session])
+  const requestReload = useCallback(() => setReloadNonce((nonce) => nonce + 1), [])
+  const failDocument = useCallback(
+    (error: unknown) => {
+      if (isCurrentSession()) reportFailure(error)
+    },
+    [isCurrentSession, reportFailure]
+  )
   const reportSelection = useCallback(
-    (selection: PreviewSelection | null) => callbacks.current.onSelection?.(selection),
-    []
+    (selection: PreviewSelection | null) => {
+      if (isCurrentSession()) callbacks.current.onSelection?.(selection)
+    },
+    [isCurrentSession]
   )
   const reportDiagnostic = useCallback(
     (diagnostic: PreviewDiagnostic) => callbacks.current.onDiagnostic?.(diagnostic),
@@ -137,18 +163,27 @@ function PreviewSession({
       options,
       onDiagnostic: reportDiagnostic,
       onRequestOpen: hasOpenAction ? requestOpen : undefined,
-      failDocument
+      failDocument,
+      isCurrentDocument: isCurrentSession,
+      onRequestReload: requestReload
     }),
-    [root, resources, options, reportDiagnostic, requestOpen, hasOpenAction, failDocument]
+    [
+      root,
+      resources,
+      options,
+      reportDiagnostic,
+      requestOpen,
+      hasOpenAction,
+      failDocument,
+      isCurrentSession,
+      requestReload
+    ]
   )
-  const plugin = useMemo(() => resolvePreviewPlugin(source.name, source.mediaType), [source.name, source.mediaType])
-  const Plugin = useMemo(() => (plugin ? lazy(plugin.load) : null), [plugin])
-
   useEffect(() => {
-    setSession(null)
     setFailure(null)
     hasFailedRef.current = false
     if (!plugin) return
+    const requestId = requestIdRef.current
     const controller = new AbortController()
     let opened: PreviewDocument | null = null
     let closed = false
@@ -173,12 +208,12 @@ function PreviewSession({
           return
         }
         assertPreviewRange(opened.size, 0, opened.size)
-        setSession({ source, refreshKey, document: opened })
+        setSession({ source, requestId, document: opened, plugin })
       } catch (error) {
         close()
         if (controller.signal.aborted) return
         setFailure({ source, refreshKey })
-        failDocument(error)
+        reportFailure(error)
       }
     })()
     return () => {
@@ -186,9 +221,9 @@ function PreviewSession({
       close()
       if (closeRef.current === close) closeRef.current = undefined
     }
-  }, [source, refreshKey, plugin, failDocument])
+  }, [source, refreshKey, plugin, reloadNonce, reportFailure])
 
-  const ready = session?.source === source && session.refreshKey === refreshKey ? session : null
+  const ready = session?.source.id === source.id && session.plugin === plugin ? session : null
   const failed = failure?.source === source && failure.refreshKey === refreshKey
   const content = !Plugin ? (
     <PreviewState kind="unsupported" />
@@ -198,16 +233,15 @@ function PreviewSession({
     <PreviewState kind="loading" />
   ) : (
     <ErrorBoundary
-      key={`${source.id}:${refreshKey}:${ready.document.revision}`}
+      key={`${source.id}:${plugin?.id}`}
       resetKeys={[ready.document]}
       fallback={<PreviewState kind="error" />}
       onError={failDocument}>
       <Suspense fallback={<PreviewState kind="loading" />}>
         <Plugin
-          key={`${source.id}:${refreshKey}:${ready.document.revision}`}
-          sourceId={source.id}
-          fileName={source.name}
-          mediaType={source.mediaType}
+          sourceId={ready.source.id}
+          fileName={ready.source.name}
+          mediaType={ready.source.mediaType}
           document={ready.document}
           onSelection={onSelection ? reportSelection : undefined}
         />

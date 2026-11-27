@@ -18,6 +18,9 @@
 
 import { createContext, type ReactNode, type RefObject, use, useCallback, useMemo } from 'react'
 
+import { ScrollViewportOwnershipProvider } from '@renderer/components/ScrollViewportOwnershipProvider'
+import { useIsScrollViewportOwned } from '@renderer/hooks/useScrollViewportOwnership'
+
 interface ScrollOwnership {
   scrollContainerRef: RefObject<HTMLElement | null>
   requestReadingControl: (anchor: HTMLElement | null) => void
@@ -57,7 +60,13 @@ export const ScrollOwnershipProvider = ({
     () => ({ notifyWheelIntent, requestReadingControl, scrollByWheel, scrollContainerRef, scrollToElement }),
     [notifyWheelIntent, requestReadingControl, scrollByWheel, scrollContainerRef, scrollToElement]
   )
-  return <ScrollOwnershipContext value={value}>{children}</ScrollOwnershipContext>
+  return (
+    <ScrollOwnershipContext value={value}>
+      <ScrollViewportOwnershipProvider scrollContainerRef={scrollContainerRef}>
+        {children}
+      </ScrollViewportOwnershipProvider>
+    </ScrollOwnershipContext>
+  )
 }
 
 /** Whether an element establishes a real vertical scrolling coordinate space. */
@@ -149,13 +158,7 @@ export function useScrollRuntimeBoundary(): ScrollRuntimeBoundary {
 }
 
 /** Returns whether the runtime owns a specific DOM scroll container. */
-export function useIsScrollRuntimeManaged(): (scrollContainer: HTMLElement | null) => boolean {
-  const ownership = use(ScrollOwnershipContext)
-  return useCallback(
-    (scrollContainer) => scrollContainer !== null && scrollContainer === ownership?.scrollContainerRef.current,
-    [ownership]
-  )
-}
+export const useIsScrollRuntimeManaged = useIsScrollViewportOwned
 
 /** Ask the owning runtime to preserve a disclosure as the reading anchor. */
 export function useRequestScrollReadingControl(anchorRef: RefObject<HTMLElement | null>): () => void {

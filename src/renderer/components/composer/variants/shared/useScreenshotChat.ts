@@ -8,9 +8,9 @@ import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useIsActiveTab } from '@renderer/hooks/tab'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
-import { FILE_TYPE } from '@renderer/types/file'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { createComposerFileTokenSourceId } from '@renderer/utils/message/composerFileTokenSource'
+import { FILE_TYPE } from '@shared/types/file'
 
 import type { ProviderActionHandlers } from './composerProviderActions'
 

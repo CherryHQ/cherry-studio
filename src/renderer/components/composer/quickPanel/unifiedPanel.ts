@@ -1,13 +1,14 @@
 import * as tinyPinyin from 'tiny-pinyin'
 
-import type {
-  QuickPanelContextType,
-  QuickPanelFilterFn,
-  QuickPanelInputAdapter,
-  QuickPanelListItem,
-  QuickPanelOpenOptions,
-  QuickPanelSortFn,
-  QuickPanelTriggerInfo
+import {
+  calculateMatchScore,
+  type QuickPanelContextType,
+  type QuickPanelFilterFn,
+  type QuickPanelInputAdapter,
+  type QuickPanelListItem,
+  type QuickPanelOpenOptions,
+  type QuickPanelSortFn,
+  type QuickPanelTriggerInfo
 } from '@renderer/components/QuickPanel'
 
 import type { ComposerToolLauncher, ComposerToolLauncherSource } from '../toolLauncher'
@@ -107,7 +108,14 @@ function createQuickPanelWithParent(
 }
 
 function getLauncherSearchText(launcher: ComposerToolLauncher) {
-  return [launcher.label, launcher.description, launcher.tooltip, launcher.disabledReason, launcher.suffix]
+  return [
+    launcher.label,
+    launcher.shortcut,
+    launcher.description,
+    launcher.tooltip,
+    launcher.disabledReason,
+    launcher.suffix
+  ]
     .map((value) => (typeof value === 'string' ? value : ''))
     .join(' ')
 }
@@ -168,9 +176,12 @@ const sortUnifiedQuickPanelItems: QuickPanelSortFn = (items, searchText) => {
     .map((item, index) => ({
       item,
       index,
+      score: calculateMatchScore(item, searchText),
       metadata: getUnifiedPanelSortMetadata(item)
     }))
     .sort((a, b) => {
+      if (a.score !== b.score) return b.score - a.score
+
       const layerDiff = getUnifiedPanelSortLayer(a.metadata?.section) - getUnifiedPanelSortLayer(b.metadata?.section)
       if (layerDiff !== 0) return layerDiff
 
@@ -289,6 +300,7 @@ function createUnifiedPanelListItem(
   return {
     id: launcher.id,
     label: launcher.label,
+    shortcut: launcher.shortcut,
     description: getLauncherDescription(launcher),
     tooltip: launcher.tooltip,
     tooltipAnchor: launcher.tooltipAnchor,

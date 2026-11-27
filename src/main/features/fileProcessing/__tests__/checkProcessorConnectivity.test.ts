@@ -18,7 +18,11 @@ vi.mock('@logger', () => ({
 
 vi.mock('@main/core/lifecycle', async (importOriginal) => {
   const actual = await importOriginal<typeof LifecycleModule>()
-  class MockBaseService {}
+  class MockBaseService {
+    protected registerDisposable<T>(disposable: T): T {
+      return disposable
+    }
+  }
   return { ...actual, BaseService: MockBaseService }
 })
 

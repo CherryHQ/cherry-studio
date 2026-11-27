@@ -1,11 +1,13 @@
 import type { Editor, Range } from '@tiptap/core'
 import { Extension } from '@tiptap/core'
-import { PluginKey } from '@tiptap/pm/state'
-import { Suggestion, type SuggestionKeyDownProps, type SuggestionProps } from '@tiptap/suggestion'
+import { type EditorState, PluginKey } from '@tiptap/pm/state'
+import { exitSuggestion, Suggestion, type SuggestionKeyDownProps, type SuggestionProps } from '@tiptap/suggestion'
 import { t } from 'i18next'
 import type { ReactNode } from 'react'
 
 import { loggerService } from '@logger'
+
+import { isMarkdownFencedCodePosition } from '../markdownLivePreview/livePreviewPlugin'
 
 const logger = loggerService.withContext('ComposerSuggestionExtension')
 const suggestionItemsGeneration = new WeakMap<readonly ComposerSuggestionItem[], number>()
@@ -49,24 +51,38 @@ export interface ComposerSuggestionActiveChangeOptions {
   query: string
   text: string
   items: ComposerSuggestionItem[]
+  exit: () => void
 }
 
 interface ComposerSuggestionPluginState {
   active: boolean
+  decorationId?: string | null
   range: Range
   query: string | null
   text: string | null
 }
 
 function createActiveChangeOptions(
-  props: SuggestionProps<ComposerSuggestionItem, ComposerSuggestionItem>
+  props: SuggestionProps<ComposerSuggestionItem, ComposerSuggestionItem>,
+  pluginKey: PluginKey<ComposerSuggestionPluginState>
 ): ComposerSuggestionActiveChangeOptions {
+  const sessionId = pluginKey.getState(props.editor.state)?.decorationId
+  const sessionStart = props.range.from
+
   return {
     editor: props.editor,
     range: props.range,
     query: props.query,
     text: props.text,
-    items: props.items
+    items: props.items,
+    exit: () => {
+      if (props.editor.isDestroyed) return
+      const current = pluginKey.getState(props.editor.state)
+      // Result freshness follows the query; dismissal follows the trigger's active session.
+      if (sessionId && current?.active && current.decorationId === sessionId && current.range.from === sessionStart) {
+        exitSuggestion(props.editor.view, pluginKey)
+      }
+    }
   }
 }
 
@@ -98,7 +114,7 @@ function createSuggestionRender(
     if (itemsGeneration !== getLatestItemsGeneration() || itemsGeneration === lastNotifiedItemsGeneration) return
     if (!isCurrentActiveSuggestion(props, pluginKey)) return
     lastNotifiedItemsGeneration = itemsGeneration
-    source.onActiveChange?.(createActiveChangeOptions(props))
+    source.onActiveChange?.(createActiveChangeOptions(props, pluginKey))
   }
 
   return {
@@ -107,16 +123,16 @@ function createSuggestionRender(
     onExit: (props: SuggestionProps<ComposerSuggestionItem, ComposerSuggestionItem>) => {
       const current = pluginKey.getState(props.editor.state)
       if (current?.active && !isCurrentActiveSuggestion(props, pluginKey)) return
-      source.onExit?.(createActiveChangeOptions(props))
+      source.onExit?.(createActiveChangeOptions(props, pluginKey))
     },
     onKeyDown: (props: SuggestionKeyDownProps) => source.onKeyDown?.(props) ?? false
   }
 }
 
-function hasTriggerBoundary(editor: Editor, range: Range) {
-  const from = Math.max(0, Math.min(range.from, editor.state.doc.content.size))
+function hasTriggerBoundary(state: EditorState, range: Range) {
+  const from = Math.max(0, Math.min(range.from, state.doc.content.size))
   if (from <= 1) return true
-  const before = editor.state.doc.textBetween(Math.max(0, from - 1), from, '\n', '')
+  const before = state.doc.textBetween(Math.max(0, from - 1), from, '\n', '')
   return before.length === 0 || /\s/.test(before)
 }
 
@@ -141,7 +157,8 @@ export function createComposerSuggestionExtension(sources: readonly ComposerSugg
           allowSpaces: source.allowSpaces,
           allowedPrefixes: source.allowedPrefixes,
           startOfLine: source.startOfLine,
-          allow: ({ editor, range }) => hasTriggerBoundary(editor, range),
+          allow: ({ state, range }) =>
+            !isMarkdownFencedCodePosition(state, range.from) && hasTriggerBoundary(state, range),
           shouldShow: ({ transaction }) => !transaction.getMeta(COMPOSER_SUPPRESS_SUGGESTION_META),
           items: async ({ editor, query }) => {
             const itemsGeneration = ++latestItemsGeneration

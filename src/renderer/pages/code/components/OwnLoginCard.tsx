@@ -59,7 +59,7 @@ export const OwnLoginCard: FC<OwnLoginCardProps> = ({
           </div>
         </div>
 
-        <div className="pointer-events-auto flex shrink-0 items-center gap-1.5 opacity-0 transition-opacity group-hover:opacity-100 group-has-[:focus-visible]:opacity-100">
+        <div className="pointer-events-none flex shrink-0 items-center gap-1.5 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-has-[:focus-visible]:pointer-events-auto group-has-[:focus-visible]:opacity-100 no-hover:pointer-events-auto no-hover:opacity-100">
           {onMoveToTop && (
             <NormalTooltip content={t('code.move_provider_to_top')} side="top" sideOffset={4} delayDuration={300}>
               <Button

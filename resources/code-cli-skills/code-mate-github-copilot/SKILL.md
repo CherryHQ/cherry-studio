@@ -1,6 +1,6 @@
 ---
 name: code-mate-github-copilot
-description: Runs GitHub Copilot CLI programmatically for repository analysis and coding tasks. Use when the user asks to delegate work to Copilot CLI or obtain a Copilot coding-agent result.
+description: Run GitHub Copilot CLI non-interactively for coding tasks. Use when the user asks to delegate work to Copilot.
 ---
 
 # GitHub Copilot CLI

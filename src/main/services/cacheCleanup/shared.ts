@@ -3,6 +3,7 @@ import path from 'node:path'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { isOutsidePath, isSameOrInside } from '@main/utils/file'
 import type { CacheCleanupGroup, CacheCleanupSizeAccuracy } from '@shared/types/cacheCleanup'
 import type { CacheCleanupGroupResult, CacheCleanupSizeSnapshot } from '@shared/types/cacheCleanupIpc'
 
@@ -38,20 +39,12 @@ export function isNodeError(error: unknown, code: string): boolean {
   return error instanceof Error && 'code' in error && (error as NodeJS.ErrnoException).code === code
 }
 
-export function isPathWithin(targetPath: string, rootPath: string): boolean {
-  const relativePath = path.relative(path.resolve(rootPath), path.resolve(targetPath))
-  return (
-    relativePath === '' ||
-    (!path.isAbsolute(relativePath) && relativePath !== '..' && !relativePath.startsWith(`..${path.sep}`))
-  )
-}
-
 async function pathContainsActiveUserData(targetPath: string): Promise<boolean> {
   const activeUserData = application.getPath('app.userdata')
-  if (isPathWithin(activeUserData, targetPath)) return true
+  if (isSameOrInside(activeUserData, targetPath)) return true
 
   const [realTarget, realActiveUserData] = await Promise.all([fs.realpath(targetPath), fs.realpath(activeUserData)])
-  return isPathWithin(realActiveUserData, realTarget)
+  return isSameOrInside(realActiveUserData, realTarget)
 }
 
 async function pathHasSymlinkedOwnedSegment(targetPath: string): Promise<boolean> {
@@ -61,7 +54,7 @@ async function pathHasSymlinkedOwnedSegment(targetPath: string): Promise<boolean
     application.getPath('cherry.home'),
     application.getPath('app.logs')
   ]
-    .filter((rootPath) => isPathWithin(targetPath, rootPath))
+    .filter((rootPath) => !isOutsidePath(path.relative(rootPath, targetPath)))
     .sort((left, right) => right.length - left.length)
   const trustedRoot = trustedRoots[0]
   if (!trustedRoot) return true

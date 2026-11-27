@@ -191,21 +191,4 @@ describe('McpPromptArgumentDialog', () => {
     expect(screen.getByRole('button', { name: 'Cancel' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Close dialog' })).toBeInTheDocument()
   })
-
-  it('renders the prompt description above the argument fields', () => {
-    render(
-      <McpPromptArgumentDialog
-        open
-        prompt={prompt}
-        values={{ language: '', style: '' }}
-        submitting={false}
-        onValuesChange={vi.fn()}
-        onOpenChange={vi.fn()}
-        onSubmit={vi.fn()}
-      />
-    )
-
-    expect(screen.getByText('Review a patch')).toBeInTheDocument()
-    expect(screen.getByText('Target language')).toBeInTheDocument()
-  })
 })

@@ -3,14 +3,14 @@ import { AgentSessionDeliveryRoutingError, agentSessionMessageService } from '@d
 import { loggerService } from '@logger'
 import { isAgentSessionWorkspaceError } from '@main/ai/runtime/agentSessionWorkspace'
 import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 
 import { agentChatContextProvider, finalizeInterruptedParts, type StreamListener } from '../streamManager'
-import { recoverSessionDeliveries } from './recoverSessionDeliveries'
-import { buildAgentSessionTopicId } from './topic'
+import { durableDeliveryTarget, recoverSessionDeliveries } from './recoverSessionDeliveries'
 
 const logger = loggerService.withContext('AgentSessionDeliveryService')
 // Filesystem availability has no app event (for example, an external workspace volume remount).
@@ -73,7 +73,12 @@ export class AgentSessionDeliveryService extends BaseService {
       })
     )
     this.registerDisposable(runtime.onRuntimeIdle(({ sessionId }) => this.kick(sessionId)))
-    this.recoverDeliveries()
+    for (const sessionId of recoverSessionDeliveries()) this.suppressedSessionIds.add(sessionId)
+  }
+
+  protected override async onAllReady(): Promise<void> {
+    await application.get('AgentSessionRuntimeService').whenStartupRecoverySettles()
+    if (this.isShuttingDown) return
     this.registerInterval(() => this.kick(), DELIVERY_RETRY_SWEEP_MS)
     this.kick()
   }
@@ -85,7 +90,10 @@ export class AgentSessionDeliveryService extends BaseService {
 
   accept(input: AcceptSessionDeliveryInput): AgentSessionMessageEntity {
     this.assertWritesAvailable()
-    const message = agentSessionMessageService.acceptSessionDelivery(input)
+    const message = agentSessionMessageService.acceptSessionDelivery({
+      ...input,
+      senderMessageId: application.get('AgentSessionRuntimeService').getExecutionHead(input.senderSessionId)
+    })
     this.kick(message.sessionId)
     return message
   }
@@ -95,7 +103,10 @@ export class AgentSessionDeliveryService extends BaseService {
     message: AgentSessionMessageEntity
   } {
     this.assertWritesAvailable()
-    const created = agentSessionMessageService.createSessionWithDelivery(input)
+    const created = agentSessionMessageService.createSessionWithDelivery({
+      ...input,
+      senderMessageId: application.get('AgentSessionRuntimeService').getExecutionHead(input.senderSessionId)
+    })
     this.kick(created.message.sessionId)
     return created
   }
@@ -211,7 +222,7 @@ export class AgentSessionDeliveryService extends BaseService {
   private async runSessionQueue(sessionId: string): Promise<void> {
     let revalidatedRequestId: string | undefined
     while (!this.isShuttingDown && !this.isWriteQuiesced) {
-      if (this.reconcileCompletedDelivery(sessionId)) return
+      if (await this.reconcileCompletedDelivery(sessionId)) return
       const next = agentSessionMessageService.listAcceptedSessionDeliveries(sessionId)[0]
       if (!next) return
       const outcome = await this.dispatchOne(next)
@@ -297,13 +308,34 @@ export class AgentSessionDeliveryService extends BaseService {
         return
       }
 
+      try {
+        await runtime.prepareBranch(current.sessionId, current.id)
+      } catch (error) {
+        if (runtime.isSessionBusy(message.sessionId)) {
+          outcome = 'blocked'
+          return
+        }
+        this.failBeforeStart(current, error)
+        outcome = 'settled'
+        return
+      }
+      if (this.isShuttingDown || this.isWriteQuiesced || manager.isWriteQuiesced) {
+        this.suppressedSessionIds.add(message.sessionId)
+        outcome = 'blocked'
+        return
+      }
+      if (manager.hasLiveStream(topicId) || runtime.isSessionBusy(message.sessionId)) {
+        outcome = 'blocked'
+        return
+      }
+
       let persisted
       try {
         persisted = application.get('DbService').withWriteTx((tx) => {
           const prepared = agentChatContextProvider.persistDispatchTx(tx, validated, {
             id: validated.agentId,
             updatedAt: validated.agentUpdatedAt,
-            model: validated.uniqueModelId,
+            model: validated.agentDefaultModel,
             type: validated.agentType
           })
           const claimed = agentSessionMessageService.claimSessionDeliveryTx(
@@ -423,7 +455,7 @@ export class AgentSessionDeliveryService extends BaseService {
     if (result) this.kick(result.sessionId)
   }
 
-  private reconcileCompletedDelivery(sessionId: string): boolean {
+  private async reconcileCompletedDelivery(sessionId: string): Promise<boolean> {
     const delivering = agentSessionMessageService
       .listRecoverableSessionDeliveries(sessionId)
       .find((message) => message.delivery?.status === 'delivering')
@@ -453,9 +485,15 @@ export class AgentSessionDeliveryService extends BaseService {
       ) {
         return true
       }
-      // Runtime and stream persistence are idle, so no writer can still complete this placeholder.
-      // A transient repair failure is retried by the next idle/sweep kick.
-      agentSessionMessageService.markAssistantMessageTerminalError(sessionId, assistant.id)
+      const target = durableDeliveryTarget(delivering)
+      if (target) {
+        if (!target.threadId) return true
+        await application
+          .get('AgentSessionRuntimeService')
+          .recoverPendingReplies({ sessionId, runId: assistant.id, deliveryInputId: delivering.id })
+      } else {
+        agentSessionMessageService.markAssistantMessageTerminalError(sessionId, assistant.id)
+      }
       assistant = agentSessionMessageService.getSessionMessage(sessionId, assistant.id)
       if (assistant.status === 'pending') return true
     }
@@ -468,9 +506,5 @@ export class AgentSessionDeliveryService extends BaseService {
     })
     if (result) this.kick(result.sessionId)
     return false
-  }
-
-  private recoverDeliveries(): void {
-    for (const sessionId of recoverSessionDeliveries()) this.suppressedSessionIds.add(sessionId)
   }
 }

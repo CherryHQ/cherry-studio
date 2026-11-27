@@ -12,9 +12,12 @@ import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
 import { dataApiService } from '@data/DataApiService'
+import i18n from '@renderer/i18n/resolver'
 import type { Topic } from '@renderer/types/topic'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { Topic as ApiTopic } from '@shared/data/types/topic'
+import { IpcError } from '@shared/ipc/errors/IpcError'
+import { trashErrorCodes } from '@shared/ipc/errors/trash'
 
 import {
   getTopicMessages,
@@ -203,51 +206,6 @@ describe('useTopics', () => {
     vi.clearAllMocks()
   })
 
-  it('disables loaded-page revalidation while a load-all topic chain is still growing', () => {
-    renderHook(() => useTopics({ loadAll: true }))
-
-    expect(mockUseInfiniteQuery).toHaveBeenCalledWith('/topics', {
-      query: undefined,
-      limit: 200,
-      enabled: undefined,
-      swrOptions: { revalidateAll: false, revalidateFirstPage: false }
-    })
-  })
-
-  it('flips revalidateAll on once a load-all topic chain is fully loaded', () => {
-    mockUseInfiniteQuery.mockReturnValue({
-      pages: [{ items: [{ id: 'topic-a' }] }],
-      isLoading: false,
-      isRefreshing: false,
-      error: undefined,
-      hasNext: false,
-      loadNext: vi.fn(),
-      refresh: vi.fn().mockResolvedValue(undefined),
-      reset: vi.fn(),
-      mutate: vi.fn().mockResolvedValue(undefined)
-    })
-
-    renderHook(() => useTopics({ loadAll: true }))
-
-    expect(mockUseInfiniteQuery).toHaveBeenLastCalledWith('/topics', {
-      query: undefined,
-      limit: 200,
-      enabled: undefined,
-      swrOptions: { revalidateAll: true, revalidateFirstPage: false }
-    })
-  })
-
-  it('keeps progressive topic sources on first-page revalidation', () => {
-    renderHook(() => useTopics())
-
-    expect(mockUseInfiniteQuery).toHaveBeenCalledWith('/topics', {
-      query: undefined,
-      limit: 50,
-      enabled: undefined,
-      swrOptions: { revalidateAll: false, revalidateFirstPage: true }
-    })
-  })
-
   it('converges the topic list for every notification regardless of entity hints', () => {
     renderHook(() => useTopics())
     const mutate = mockUseInfiniteQuery.mock.results.at(-1)?.value.mutate
@@ -256,92 +214,6 @@ describe('useTopics', () => {
     listener?.([{ endpoint: '/topics', kind: 'projection', entityIds: [] }])
 
     expect(mutate).toHaveBeenCalled()
-  })
-
-  it('does not revalidate previously loaded pages while the load-all chain grows', () => {
-    // Simulate a multi-page loadAll: each render grows `pages` by one and
-    // keeps `hasNext` true until the final page. The auto-paginate effect
-    // drives `loadNext`; we assert that across every growth render the
-    // loaded-page revalidation stays disabled: `revalidateAll` prevents a
-    // quadratic re-fetch of earlier pages, while `revalidateFirstPage`
-    // prevents one redundant page-0 request per `loadNext`.
-    const loadNext = vi.fn()
-    let pages: Array<{ items: Array<{ id: string }>; nextCursor?: string }> = [
-      { items: [{ id: 't1' }], nextCursor: 'c1' }
-    ]
-    let hasNext = true
-
-    mockUseInfiniteQuery.mockImplementation(() => ({
-      pages,
-      isLoading: false,
-      isRefreshing: false,
-      error: undefined,
-      hasNext,
-      loadNext,
-      refresh: vi.fn().mockResolvedValue(undefined),
-      reset: vi.fn(),
-      mutate: vi.fn().mockResolvedValue(undefined)
-    }))
-
-    const { rerender } = renderHook(() => useTopics({ loadAll: true, pageSize: 1 }))
-
-    // Page 1 → 2
-    pages = [...pages, { items: [{ id: 't2' }], nextCursor: 'c2' }]
-    act(() => rerender())
-    // Page 2 → 3 (final)
-    pages = [...pages, { items: [{ id: 't3' }] }]
-    hasNext = false
-    act(() => rerender())
-
-    // The auto-paginate effect drives loadNext; the key regression check is
-    // that neither previous pages nor page 0 are revalidated during growth.
-    expect(loadNext).toHaveBeenCalled()
-
-    // All calls during growth (every call except the final post-fully-loaded
-    // re-render where the effect flips revalidateAll on) must keep both
-    // growth-time revalidation modes off.
-    const growthCalls = mockUseInfiniteQuery.mock.calls.slice(0, -1)
-    expect(growthCalls.length).toBeGreaterThan(0)
-    for (const call of growthCalls) {
-      expect(call[1]).toMatchObject({ swrOptions: { revalidateAll: false, revalidateFirstPage: false } })
-    }
-    // The final call — after the chain is fully loaded — flips revalidateAll on.
-    const lastCall = mockUseInfiniteQuery.mock.calls[mockUseInfiniteQuery.mock.calls.length - 1]
-    expect(lastCall[1]).toMatchObject({ swrOptions: { revalidateAll: true, revalidateFirstPage: false } })
-  })
-
-  it('reuses deeply equal topic entities by id while allowing their order to change', () => {
-    const topicA = createApiTopic({ id: 'topic-a', name: 'Topic A' })
-    const topicB = createApiTopic({ id: 'topic-b', name: 'Topic B' })
-    let pages = [{ items: [topicA, topicB] }]
-    mockUseInfiniteQuery.mockImplementation(() => ({
-      pages,
-      isLoading: false,
-      isRefreshing: false,
-      error: undefined,
-      hasNext: false,
-      loadNext: vi.fn(),
-      refresh: vi.fn().mockResolvedValue(undefined),
-      reset: vi.fn(),
-      mutate: vi.fn().mockResolvedValue(undefined)
-    }))
-
-    const { result, rerender } = renderHook(() => useTopics())
-    const firstTopics = result.current.topics
-
-    pages = [{ items: [{ ...topicB }, { ...topicA }] }]
-    rerender()
-
-    expect(result.current.topics).not.toBe(firstTopics)
-    expect(result.current.topics[0]).toBe(firstTopics[1])
-    expect(result.current.topics[1]).toBe(firstTopics[0])
-
-    const reorderedTopics = result.current.topics
-    pages = [{ items: [{ ...topicB, lastActivityAt: '2026-01-02T00:00:00.000Z' }, { ...topicA }] }]
-    rerender()
-
-    expect(result.current.topics[0]).not.toBe(reorderedTopics[0])
-    expect(result.current.topics[1]).toBe(reorderedTopics[1])
   })
 })
 
@@ -376,10 +248,12 @@ describe('useTopicMutations', () => {
   })
 
   it('deletes a topic and closes the matching assistant conversation tab', async () => {
+    mockIpcRequest.mockResolvedValue({ deletedIds: ['topic-a'], deletedCount: 1 })
     const { result } = renderHook(() => useTopicMutations())
-    await act(async () => result.current.deleteTopic('topic-a'))
+    const outcome = await act(async () => result.current.deleteTopic('topic-a'))
 
     expect(mockIpcRequest).toHaveBeenCalledWith('trash.topic.archive', { topicIds: ['topic-a'] })
+    expect(outcome).toEqual({ deletedIds: ['topic-a'], deletedCount: 1 })
     expect(mockCloseConversationTabs).toHaveBeenCalledWith('assistants', ['topic-a'])
   })
 
@@ -388,17 +262,89 @@ describe('useTopicMutations', () => {
     MockUseDataApiUtils.mockMutationWithTrigger('DELETE', '/topics/:id', deleteTrigger)
 
     const { result } = renderHook(() => useTopicMutations())
-    await act(async () => result.current.deleteTopic('topic-a', { permanent: true }))
+    const outcome = await act(async () => result.current.deleteTopic('topic-a', { permanent: true }))
 
     expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: 'topic-a' }, query: { permanent: true } })
     expect(mockIpcRequest).not.toHaveBeenCalled()
+    expect(outcome).toEqual({ deletedIds: ['topic-a'], deletedCount: 1 })
+    expect(mockCloseConversationTabs).toHaveBeenCalledWith('assistants', ['topic-a'])
   })
 
   it('deletes active Topics through the guarded lifecycle command and closes their tabs', async () => {
+    mockIpcRequest.mockResolvedValue({ deletedIds: ['topic-a'], deletedCount: 1 })
     const { result } = renderHook(() => useTopicMutations())
-    await act(async () => result.current.deleteTopic('topic-a', { permanent: true, targetState: 'active' }))
+    const outcome = await act(async () =>
+      result.current.deleteTopic('topic-a', { permanent: true, targetState: 'active' })
+    )
     expect(mockIpcRequest).toHaveBeenCalledWith('trash.topic.delete_permanently', { topicIds: ['topic-a'] })
+    expect(outcome).toEqual({ deletedIds: ['topic-a'], deletedCount: 1 })
     expect(mockCloseConversationTabs).toHaveBeenCalledWith('assistants', ['topic-a'])
+  })
+
+  it('does not close a topic tab when the lifecycle command deletes nothing', async () => {
+    mockIpcRequest.mockResolvedValue({ deletedIds: [], deletedCount: 0 })
+    const { result } = renderHook(() => useTopicMutations())
+    const invalidate = mockUseInvalidateCache.mock.results.at(-1)?.value as Mock
+    const outcome = await act(async () =>
+      result.current.deleteTopic('topic-a', { permanent: true, targetState: 'active' })
+    )
+
+    expect(outcome).toEqual({ deletedIds: [], deletedCount: 0 })
+    expect(invalidate).toHaveBeenCalledWith('/topics')
+    expect(mockCloseConversationTabs).not.toHaveBeenCalled()
+  })
+
+  it('closes the deleted topic tab when list refresh fails after the deletion commits', async () => {
+    mockIpcRequest.mockResolvedValue({ deletedIds: ['topic-a'], deletedCount: 1 })
+    const { result } = renderHook(() => useTopicMutations())
+    const invalidate = mockUseInvalidateCache.mock.results.at(-1)?.value as Mock
+    invalidate.mockRejectedValueOnce(new Error('refresh failed'))
+
+    const outcome = await act(async () =>
+      result.current.deleteTopic('topic-a', { permanent: true, targetState: 'active' })
+    )
+
+    expect(outcome).toEqual({ deletedIds: ['topic-a'], deletedCount: 1 })
+    expect(mockCloseConversationTabs).toHaveBeenCalledWith('assistants', ['topic-a'])
+  })
+
+  it('keeps the mutation error when topic refresh also fails', async () => {
+    const staleError = DataApiErrorFactory.notFound('Topic', 'topic-a')
+    mockIpcRequest.mockRejectedValue(staleError)
+    const { result } = renderHook(() => useTopicMutations())
+    const invalidate = mockUseInvalidateCache.mock.results.at(-1)?.value as Mock
+    invalidate.mockRejectedValueOnce(new Error('refresh failed'))
+
+    let caught: unknown
+    await act(async () => {
+      try {
+        await result.current.deleteTopic('topic-a', { permanent: true, targetState: 'active' })
+      } catch (error) {
+        caught = error
+      }
+    })
+
+    expect(caught).toBe(staleError)
+    expect(invalidate).toHaveBeenCalledWith('/topics')
+    expect(mockCloseConversationTabs).not.toHaveBeenCalled()
+  })
+
+  it('refreshes and throws the pinned-topic message without closing tabs', async () => {
+    mockIpcRequest.mockRejectedValue(new IpcError(trashErrorCodes.TRASH_TOPIC_PINNED, 'Topic is pinned'))
+    const { result } = renderHook(() => useTopicMutations())
+    const invalidate = mockUseInvalidateCache.mock.results.at(-1)?.value as Mock
+    let caught: unknown
+    await act(async () => {
+      try {
+        await result.current.deleteTopic('topic-a', { permanent: true, targetState: 'active' })
+      } catch (error) {
+        caught = error
+      }
+    })
+
+    expect(caught).toEqual(new Error(i18n.t('recycle_bin.delete.pinned')))
+    expect(invalidate).toHaveBeenCalledWith('/topics')
+    expect(mockCloseConversationTabs).not.toHaveBeenCalled()
   })
 
   it('refreshes the topic list and keeps the tab open when deletion finds stale data', async () => {

@@ -79,7 +79,7 @@ index d5d3afde4a7758973d29ca99e41540b878b8858a..4afa7c530fa43c60fe2238da81d66a43
 -export { type OllamaCompletionProviderOptions, type OllamaEmbeddingProviderOptions, type OllamaProvider, type OllamaProviderSettings, createOllama, ollama };
 +export { type OllamaCompletionProviderOptions, type OllamaEmbeddingProviderOptions, type OllamaProvider, type OllamaProviderOptions, type OllamaProviderSettings, createOllama, ollama };
 diff --git a/dist/index.js b/dist/index.js
-index 17f75d626a15bdc7fab0c8b2f7f8cc1ea9dc4002..3cc1049da43d8ff0e8290ce338ecd2ae01101574 100644
+index 17f75d626a15bdc7fab0c8b2f7f8cc1ea9dc4002..741dbf3e113b7775b0aed2d33826828811e01d67 100644
 --- a/dist/index.js
 +++ b/dist/index.js
 @@ -21,7 +21,9 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
@@ -111,6 +111,16 @@ index 17f75d626a15bdc7fab0c8b2f7f8cc1ea9dc4002..3cc1049da43d8ff0e8290ce338ecd2ae
            images: images.length > 0 ? images : void 0
          });
          break;
+@@ -748,8 +750,8 @@ function convertToOllamaChatMessages({
+               toolCalls.push({
+                 id: part.toolCallId,
+                 type: "function",
+                 function: {
+                   name: part.toolName,
+-                  arguments: part.input
++                  arguments: typeof part.input === "string" ? JSON.parse(part.input) : part.input
+                 }
+               });
 @@ -814,7 +816,7 @@ var ollamaProviderOptions = import_v45.z.object({
     *
     * Only supported by certain models like DeepSeek R1 and Qwen 3.
@@ -154,7 +164,7 @@ index 17f75d626a15bdc7fab0c8b2f7f8cc1ea9dc4002..3cc1049da43d8ff0e8290ce338ecd2ae
 -    if ((delta == null ? void 0 : delta.content) != null) {
 +    if ((delta == null ? void 0 : delta.content)) {
 diff --git a/dist/index.mjs b/dist/index.mjs
-index 118d0642681c71c82e90d0cda2d9b79b694445e3..2bde8143d0fae9378bd2c61be4bf5d0aee143964 100644
+index 118d0642681c71c82e90d0cda2d9b79b694445e3..8820da0ffa741819988d4d33407cc42adfecfb2e 100644
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
 @@ -213,7 +213,7 @@ var ollamaFailedResponseHandler = createJsonErrorResponseHandler({
@@ -175,6 +185,16 @@ index 118d0642681c71c82e90d0cda2d9b79b694445e3..2bde8143d0fae9378bd2c61be4bf5d0a
            images: images.length > 0 ? images : void 0
          });
          break;
+@@ -744,8 +744,8 @@ function convertToOllamaChatMessages({
+               toolCalls.push({
+                 id: part.toolCallId,
+                 type: "function",
+                 function: {
+                   name: part.toolName,
+-                  arguments: part.input
++                  arguments: typeof part.input === "string" ? JSON.parse(part.input) : part.input
+                 }
+               });
 @@ -810,7 +810,7 @@ var ollamaProviderOptions = z5.object({
     *
     * Only supported by certain models like DeepSeek R1 and Qwen 3.

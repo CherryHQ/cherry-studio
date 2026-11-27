@@ -2,9 +2,17 @@ import { Loader2 } from 'lucide-react'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { useProjectionPartValue } from '@renderer/hooks/agent/useProjectionPart'
 import type { CompactionAnchorData } from '@shared/ai/compaction'
+import type { CherryMessagePart } from '@shared/data/types/message'
+
+import MessageTimelineMarker from './MessageTimelineMarker'
+
+const compactionData = (part: CherryMessagePart | undefined) =>
+  part?.type === 'data-compaction-anchor' ? part.data : undefined
 
 interface Props {
+  partId?: string
   /** Absent for anchors persisted before the part carried a payload. */
   data?: CompactionAnchorData
 }
@@ -21,7 +29,8 @@ interface Props {
  * A payload-less part (older messages, or the agent-session anchor before it
  * carried status) renders the settled rule — the historical behaviour.
  */
-const CompactionAnchorBlock: React.FC<Props> = ({ data }) => {
+const CompactionAnchorBlock: React.FC<Props> = ({ data: fallback, partId }) => {
+  const data = useProjectionPartValue(partId, undefined, compactionData) ?? fallback
   const { t } = useTranslation()
 
   // A fold that changed nothing settles as `skipped`: clear the spinner, but draw no
@@ -60,30 +69,19 @@ const CompactionAnchorBlock: React.FC<Props> = ({ data }) => {
     )
   }
 
-  if (data?.status === 'compacting') {
-    return (
-      <div
-        className="my-3 flex w-full items-center gap-2 text-xs text-muted-foreground"
-        role="status"
-        aria-live="polite">
-        <span className="h-px min-w-6 flex-1 border-t border-dashed border-border-subtle" aria-hidden />
-        <Loader2 className="size-3 shrink-0 animate-spin" aria-hidden />
-        <span className="shrink-0">{t('chat.compaction.compacting')}</span>
-        <span className="h-px min-w-6 flex-1 border-t border-dashed border-border-subtle" aria-hidden />
-      </div>
-    )
-  }
-
   return (
-    <div className="my-3 flex w-full items-center gap-3 text-muted-foreground" role="separator">
-      <span className="h-px min-w-6 flex-1 border-t border-dashed border-border-subtle" aria-hidden />
-      {saved === undefined ? (
+    <MessageTimelineMarker busy={data?.status === 'compacting'}>
+      {data?.status === 'compacting' ? (
+        <>
+          <Loader2 className="size-3 shrink-0 animate-spin" aria-hidden />
+          <span className="shrink-0">{t('chat.compaction.compacting')}</span>
+        </>
+      ) : saved === undefined ? (
         <span className="size-1.5 shrink-0 rounded-full bg-border" aria-hidden />
       ) : (
-        <span className="shrink-0 text-xs">{t('chat.compaction.compacted', { count: saved })}</span>
+        <span className="shrink-0">{t('chat.compaction.compacted', { count: saved })}</span>
       )}
-      <span className="h-px min-w-6 flex-1 border-t border-dashed border-border-subtle" aria-hidden />
-    </div>
+    </MessageTimelineMarker>
   )
 }
 

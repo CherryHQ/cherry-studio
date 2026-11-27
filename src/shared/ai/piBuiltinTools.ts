@@ -10,6 +10,7 @@ export type PiBuiltinToolDescriptor = {
    *  The authoritative per-turn gate is the pi approval extension. */
   approval: 'auto' | 'prompt'
   permissionClass: PiToolPermissionClass
+  platform?: 'win32'
 }
 
 export const PI_TOOL_SEARCH_TOOL_NAME = 'tool_search'
@@ -20,6 +21,7 @@ export const PI_TOOL_RECALL_TOOL_NAME = 'vcc_recall'
 export const PI_NATIVE_BUILTIN_TOOLS = [
   { name: 'read', category: 'file', approval: 'auto', permissionClass: 'read' },
   { name: 'bash', category: 'shell', approval: 'prompt', permissionClass: 'shell' },
+  { name: 'powershell', category: 'shell', approval: 'prompt', permissionClass: 'shell', platform: 'win32' },
   { name: 'edit', category: 'file', approval: 'prompt', permissionClass: 'edit' },
   { name: 'write', category: 'file', approval: 'prompt', permissionClass: 'edit' }
 ] as const satisfies readonly PiBuiltinToolDescriptor[]
@@ -37,9 +39,3 @@ export function normalizePiDisabledToolId(name: string): string {
   if (name === 'tool_exec') return PI_TOOL_EXEC_TOOL_NAME
   return PI_NATIVE_BUILTIN_TOOLS.find((tool) => tool.name === name.toLowerCase())?.name ?? name
 }
-
-export const PI_BUILTIN_TOOL_CATEGORIES = [
-  'file',
-  'shell',
-  'search'
-] as const satisfies readonly PiBuiltinToolCategory[]

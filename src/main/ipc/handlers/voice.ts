@@ -18,6 +18,16 @@ async function callVoice<T>(
 }
 
 export const voiceHandlers: IpcHandlersFor<typeof voiceRequestSchemas> = {
+  'ai.voice.transcription.start': (input, { senderId }) =>
+    callVoice(senderId, (service, owner) => service.startStreamingTranscription(owner, input)),
+  'ai.voice.input.write': (input, { senderId }) =>
+    callVoice(senderId, (service, owner) => service.writeInput(owner, input)),
+  'ai.voice.input.finish': (input, { senderId }) =>
+    callVoice(senderId, (service, owner) => service.finishInput(owner, input)),
+  'ai.voice.stream.attach': (input, { senderId }) =>
+    callVoice(senderId, (service, owner) => service.attachStream(owner, input)),
+  'ai.voice.stream.acknowledge': (input, { senderId }) =>
+    callVoice(senderId, (service, owner) => service.acknowledgeStream(owner, input)),
   'ai.voice.resources.open_settings': (_input, { senderId }) =>
     callVoice(senderId, (service, owner) => service.openSystemVoiceSettings(owner)),
   'ai.voice.transcription.resolve': (input, { senderId }) =>
@@ -27,6 +37,10 @@ export const voiceHandlers: IpcHandlersFor<typeof voiceRequestSchemas> = {
   'file.voice_recording.create': (input, { senderId }) =>
     callVoice(senderId, (service, owner) => service.createRecording(owner, input)),
   'ai.speech.generate': (input, { senderId }) => callVoice(senderId, (service, owner) => service.speech(owner, input)),
+  'ai.voice.text.write': (input, { senderId }) =>
+    callVoice(senderId, (service, owner) => service.writeText(owner, input)),
+  'ai.voice.text.finish': (input, { senderId }) =>
+    callVoice(senderId, (service, owner) => service.finishText(owner, input)),
   'ai.speech.abort': (input, { senderId }) =>
     callVoice(senderId, (service, owner) => service.abort(owner, input, 'speech')),
   'ai.transcription.generate': (input, { senderId }) =>

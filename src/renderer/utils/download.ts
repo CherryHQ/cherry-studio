@@ -39,6 +39,10 @@ export const download = (url: string, filename?: string) => {
   // 处理普通 URL
   return fetch(url)
     .then((response) => {
+      // Without this, a 404 or 500 body is saved as if it were the file.
+      if (!response.ok) {
+        throw new Error(`Download failed: HTTP ${response.status} for ${url}`)
+      }
       let finalFilename = filename || 'download'
 
       if (!filename) {
@@ -56,14 +60,20 @@ export const download = (url: string, filename?: string) => {
         }
 
         // 如果URL中有文件名，使用URL中的文件名
-        const urlFilename = url.split('/').pop()
+        // Use the pathname: splitting the raw URL keeps a query string in the name.
+        let urlFilename: string | undefined
+        try {
+          urlFilename = decodeURIComponent(new URL(url, window.location.href).pathname.split('/').pop() ?? '')
+        } catch {
+          urlFilename = url.split('/').pop()?.split('?')[0]
+        }
         if (urlFilename && urlFilename.includes('.')) {
           finalFilename = urlFilename
         }
 
         // 如果文件名没有后缀，根据Content-Type添加后缀
         if (!finalFilename.includes('.')) {
-          const contentType = response.headers.get('Content-Type')
+          const contentType = response.headers.get('Content-Type')?.split(';')[0]?.trim() ?? null
           const extension = getExtensionFromMimeType(contentType)
           finalFilename += extension
         }

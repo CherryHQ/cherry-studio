@@ -1,3 +1,7 @@
+import { mcpServerService } from '@data/services/McpServerService'
+import { resolveMcpSourceSkillAccess } from '@shared/ai/tools/mcpSourcePolicy'
+import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
+
 import {
   BUILTIN_TOOL_POLICY_ENTRIES,
   type BuiltinToolApproval,
@@ -5,6 +9,7 @@ import {
   type BuiltinToolPolicyEntry,
   MOUNTED_TOOL_POLICY_PROVIDERS
 } from './builtinToolPolicyRegistry'
+import type { ToolGuardInteractionState } from './toolGuards'
 
 export type {
   BuiltinToolApproval,
@@ -12,6 +17,15 @@ export type {
   BuiltinToolPolicyEntry
 } from './builtinToolPolicyRegistry'
 export { CHERRY_MCP_SERVER } from './builtinToolPolicyRegistry'
+
+/** Auto-approval never authorizes another unattended delegation hop. */
+export function resolveDelegationApproval(
+  mode: AgentPermissionMode | undefined,
+  interaction: ToolGuardInteractionState
+): 'allow' | 'ask' | 'deny' {
+  if (interaction.currentTurn === 'headless' || interaction.userResponse === 'unavailable') return 'deny'
+  return mode === 'auto' || mode === 'bypassPermissions' ? 'allow' : 'ask'
+}
 
 const BUILTIN_TOOL_POLICY_BY_RUNTIME_NAME = new Map(
   BUILTIN_TOOL_POLICY_ENTRIES.map((entry) => [toMcpRuntimeName(entry), entry])
@@ -41,10 +55,14 @@ export function listBuiltinToolPolicies(query: BuiltinToolPolicyQuery = {}): Bui
 /** Resolve a Claude-style MCP runtime name against the servers this session actually mounted. */
 export function findBuiltinToolPolicy(
   runtimeName: string,
-  mountedServers: ReadonlySet<string>
+  mountedServers: ReadonlySet<string>,
+  input?: Readonly<Record<string, unknown>>
 ): BuiltinToolPolicyEntry | undefined {
   const entry = BUILTIN_TOOL_POLICY_BY_RUNTIME_NAME.get(runtimeName)
-  if (entry && mountedServers.has(entry.serverName)) return entry
+  if (entry && mountedServers.has(entry.serverName)) {
+    const access = input && resolveMcpSkillToolAccess(runtimeName, input)
+    return access ? { ...entry, approval: access.approval === 'auto' ? 'auto' : 'required' } : entry
+  }
   for (const server of mountedServers) {
     const policy = MOUNTED_TOOL_POLICY_PROVIDERS.get(server)?.().find(
       (candidate) => toMcpRuntimeName(candidate) === runtimeName
@@ -52,6 +70,21 @@ export function findBuiltinToolPolicy(
     if (policy) return policy
   }
   return undefined
+}
+
+export function resolveMcpSkillToolAccess(runtimeName: string, input: Readonly<Record<string, unknown>>) {
+  const entry = BUILTIN_TOOL_POLICY_BY_RUNTIME_NAME.get(runtimeName)
+  if (
+    entry?.serverName !== 'skills' ||
+    (entry.toolName !== 'load_mcp_skill' && entry.toolName !== 'read_mcp_skill_file') ||
+    typeof input.server_id !== 'string' ||
+    typeof input.skill_uri !== 'string'
+  )
+    return undefined
+  const server = mcpServerService.findByIdOrName(input.server_id)
+  return server?.id === input.server_id && server.isActive
+    ? resolveMcpSourceSkillAccess(server, input.skill_uri)
+    : { enabled: false, approval: 'prompt' as const }
 }
 
 /** Standard MCP runtime name used by Claude Code and legacy bridged identities. */

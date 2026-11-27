@@ -124,7 +124,10 @@ loader.invalidate()
 
 The Node loader reads lazily, shares the portable lookup indexes, and releases cached
 data after its idle timeout. `readModelRegistry`, `readProviderRegistry`, and
-`readProviderModelRegistry` remain available for one-shot reads.
+`readProviderModelRegistry` remain available for one-shot reads. When the loader
+receives in-memory `fallbacks`, it retries a failed file on the first access after
+`idleTtlMs`. The optional `onFallback` and `onDiskLoad` hooks report fallback
+attempts and successful reads from disk, respectively.
 
 ## Compatibility and platform boundaries
 
@@ -144,6 +147,15 @@ data after its idle timeout. `readModelRegistry`, `readProviderRegistry`, and
 The three `data/*.json` files are generated. Edit `src/creators/` or `src/providers/`
 and run the generator; never hand-edit catalog data. Contributor instructions and
 architecture documentation live in this package's source repository.
+
+For provider connection or server-tool selector changes, `--providers-only` rebuilds
+provider configuration and tool eligibility from the committed model catalog and
+provider-owned standalone models, without fetching upstream catalogs:
+
+```bash
+pnpm --filter @cherrystudio/provider-registry exec tsx scripts/generate-catalog.ts --write --providers-only
+pnpm exec oxfmt --write packages/provider-registry/data/providers.json packages/provider-registry/src/patterns/server-tool-models.gen.ts
+```
 
 To refresh one canonical model and its provider offers while retaining unrelated
 catalog rows, use `--model` (repeat it for multiple models). This also regenerates

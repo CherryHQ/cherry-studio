@@ -12,12 +12,11 @@ export enum WindowType {
   SubWindow = 'subWindow',
   SelectionToolbar = 'selectionToolbar',
   SelectionAction = 'selectionAction',
+  SelectionAgent = 'selectionAgent',
+  SelectionCapsule = 'selectionCapsule',
   McpBrowser = 'mcpBrowser',
   Screenshot = 'screenshot'
 }
-
-/** Valid WindowType values for runtime validation */
-export const VALID_WINDOW_TYPES = new Set<string>(Object.values(WindowType))
 
 /** Window lifecycle mode — determines how WindowManager handles creation, reuse, and destruction */
 export type WindowLifecycleMode = 'default' | 'singleton' | 'pooled'
@@ -50,7 +49,7 @@ export type WarmupMode = 'eager' | 'lazy'
  * temporarily have `managed = in-use + standbySize` windows during bursts
  * where in-use exceeds `recycleMaxSize`; close paths converge back over time.
  *
- * See `docs/references/window-manager/window-manager-warmup-mechanics.md` for the
+ * See `docs/dev/references/window-manager/window-manager-warmup-mechanics.md` for the
  * full behavior matrix and scenario walk-throughs.
  */
 export interface PoolConfig {
@@ -388,7 +387,7 @@ export interface WindowInfo {
 /**
  * Arguments for `WindowManager.open()` / `create()`.
  *
- * Both fields are optional — callers can pass any combination:
+ * Fields are optional — callers can pass any combination:
  *   wm.open(type)
  *   wm.open(type, { initData })
  *   wm.open(type, { options })
@@ -409,6 +408,8 @@ export interface OpenWindowArgs<T = unknown> {
   initData?: T
   /** Optional BrowserWindow configuration overrides. */
   options?: Partial<WindowOptions>
+  /** Mutate merged options after saved bounds are restored, before fresh construction; skipped on reuse. */
+  configureOptions?: (options: WindowOptions) => void
 }
 
 /**

@@ -18,6 +18,12 @@ import type { VoiceAudioInput, VoiceAudioResult } from './voiceAudioProcess'
 
 const SAMPLE_RATE = 16_000
 const MAX_SAMPLES = 300 * SAMPLE_RATE
+// A timer-driven stop can only fire late, so a recording that runs to the
+// five-minute contract always carries a few hundred milliseconds of clock and
+// final-packet slop past MAX_SAMPLES. Keep trimming those recordings to the
+// contract instead of failing them; anything beyond this much slop is still a
+// limit violation.
+const MAX_SAMPLE_SLOP = 8_000
 const MAX_INPUT_BYTES = 32 * 1024 * 1024
 const INVALID = 'VOICE_AUDIO_INVALID'
 const UNSUPPORTED = 'VOICE_AUDIO_UNSUPPORTED'
@@ -104,6 +110,7 @@ export async function decodeWebm(input: VoiceAudioInput, signal?: AbortSignal): 
     decoderReady = true
     const chunks: Uint8Array[] = []
     let totalSamples = 0
+    let rawSamples = 0
     let packetsRead = 0
     for await (const packet of new EncodedPacketSink(track).packets()) {
       signal?.throwIfAborted()
@@ -115,16 +122,20 @@ export async function decodeWebm(input: VoiceAudioInput, signal?: AbortSignal): 
       let count = decoded.samplesDecoded
       if (packetsRead === metadata.packetCount) count -= Math.round((metadata.padding * SAMPLE_RATE) / 1e9)
       if (count < 0) throw audioError(INVALID)
-      totalSamples += count
-      if (totalSamples > MAX_SAMPLES) throw audioError(LIMIT)
-      const chunk = new Uint8Array(count * 2)
-      const view = new DataView(chunk.buffer)
-      for (let index = 0; index < count; index++) {
-        const sample = decoded.channelData.reduce((sum, channel) => sum + channel[index], 0) / channels
-        const clipped = Math.max(-1, Math.min(1, sample))
-        view.setInt16(index * 2, Math.round(clipped * (clipped < 0 ? 32768 : 32767)), true)
+      rawSamples += count
+      if (rawSamples > MAX_SAMPLES + MAX_SAMPLE_SLOP) throw audioError(LIMIT)
+      const kept = Math.min(count, Math.max(0, MAX_SAMPLES - totalSamples))
+      totalSamples += kept
+      if (kept > 0) {
+        const chunk = new Uint8Array(kept * 2)
+        const view = new DataView(chunk.buffer)
+        for (let index = 0; index < kept; index++) {
+          const sample = decoded.channelData.reduce((sum, channel) => sum + channel[index], 0) / channels
+          const clipped = Math.max(-1, Math.min(1, sample))
+          view.setInt16(index * 2, Math.round(clipped * (clipped < 0 ? 32768 : 32767)), true)
+        }
+        chunks.push(chunk)
       }
-      chunks.push(chunk)
       if (packetsRead % 32 === 0) await setImmediate()
     }
     signal?.throwIfAborted()

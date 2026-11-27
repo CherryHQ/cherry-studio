@@ -14,15 +14,7 @@ export const DeleteToolSchema = z.object({
 
 // Tool definition with detailed description
 export const deleteToolDefinition = {
-  description: `Deletes a file or directory from the filesystem.
-
-CAUTION: This operation cannot be undone!
-
-- For files: simply provide the path
-- For empty directories: provide the path
-- For non-empty directories: set recursive=true
-- The path must resolve within the configured workspace root
-- Always verify the path before deleting to avoid data loss`,
+  description: `Delete a file or directory. Cannot be undone; verify the path, and set recursive for non-empty directories.`,
   inputSchema: DeleteToolSchema
 }
 

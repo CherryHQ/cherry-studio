@@ -41,7 +41,6 @@ import {
   oauthWithAihubmix,
   oauthWithAiOnly,
   oauthWithPPIO,
-  oauthWithSiliconFlow,
   providerBills,
   providerCharge
 } from '../oauth'
@@ -96,53 +95,59 @@ describe('popup message OAuth flows', () => {
     vi.useRealTimers()
   })
 
-  it('accepts only the expected Silicon popup and origin, then removes the listener', async () => {
+  it('accepts only the expected AiOnly popup and origin, then removes the listener', async () => {
     const setKey = vi.fn()
-    await oauthWithSiliconFlow(setKey)
+    await oauthWithAiOnly(setKey)
     const popup = openedPopups[0]
     const otherPopup = createPopup()
-    const payload = [{ secretKey: 'silicon-key' }]
+    const payload = [{ secretKey: 'aionly-key' }]
 
     dispatchPopupMessage(popup, 'https://attacker.example', payload)
-    dispatchPopupMessage(otherPopup, 'https://account.siliconflow.cn', payload)
+    dispatchPopupMessage(otherPopup, 'https://maas.aiionly.com', payload)
     expect(setKey).not.toHaveBeenCalled()
 
-    dispatchPopupMessage(popup, 'https://account.siliconflow.cn', payload)
-    await vi.waitFor(() => expect(setKey).toHaveBeenCalledWith('silicon-key'))
+    dispatchPopupMessage(popup, 'https://maas.aiionly.com', payload)
+    await vi.waitFor(() => expect(setKey).toHaveBeenCalledWith('aionly-key'))
 
     expect(setKey).toHaveBeenCalledOnce()
     expect(popup.close).toHaveBeenCalledOnce()
 
-    dispatchPopupMessage(popup, 'https://account.siliconflow.cn', payload)
+    dispatchPopupMessage(popup, 'https://maas.aiionly.com', payload)
     expect(setKey).toHaveBeenCalledOnce()
   })
 
   it('retires the previous handler when another flow reuses the oauth popup name', async () => {
-    const setSiliconKey = vi.fn()
+    const setAihubmixKey = vi.fn()
     const set302Key = vi.fn()
-    await oauthWithSiliconFlow(setSiliconKey)
-    const siliconPopup = openedPopups[0]
+    await oauthWithAihubmix(setAihubmixKey)
+    const aihubmixPopup = openedPopups[0]
 
     await oauthWith302AI(set302Key)
     const popup302 = openedPopups[1]
 
-    dispatchPopupMessage(siliconPopup, 'https://account.siliconflow.cn', [{ secretKey: 'stale-key' }])
+    dispatchPopupMessage(aihubmixPopup, 'https://console.inferera.com', {
+      key: 'cherry_studio_oauth_callback',
+      data: { iv: 'iv', encryptedData: 'ciphertext' }
+    })
     dispatchPopupMessage(popup302, 'https://dash.302.ai', { data: { apikey: '302-key' } })
     await vi.waitFor(() => expect(set302Key).toHaveBeenCalledWith('302-key'))
 
-    expect(setSiliconKey).not.toHaveBeenCalled()
+    expect(setAihubmixKey).not.toHaveBeenCalled()
   })
 
   it('keeps the previous flow active when its replacement popup is blocked', async () => {
-    const setSiliconKey = vi.fn()
-    await oauthWithSiliconFlow(setSiliconKey)
-    const siliconPopup = openedPopups[0]
+    const setAihubmixKey = vi.fn()
+    await oauthWithAihubmix(setAihubmixKey)
+    const aihubmixPopup = openedPopups[0]
 
     vi.mocked(window.open).mockReturnValueOnce(null)
     await oauthWith302AI(vi.fn())
 
-    dispatchPopupMessage(siliconPopup, 'https://account.siliconflow.cn', [{ secretKey: 'silicon-key' }])
-    await vi.waitFor(() => expect(setSiliconKey).toHaveBeenCalledWith('silicon-key'))
+    dispatchPopupMessage(aihubmixPopup, 'https://console.inferera.com', {
+      key: 'cherry_studio_oauth_callback',
+      data: { iv: 'iv', encryptedData: 'ciphertext' }
+    })
+    await vi.waitFor(() => expect(setAihubmixKey).toHaveBeenCalledWith('aihubmix-key'))
   })
 
   it.each([
@@ -150,11 +155,11 @@ describe('popup message OAuth flows', () => {
     ['bills', providerBills]
   ] as const)('preserves the OAuth handler when %s opens in the system browser', async (_label, openPage) => {
     const setKey = vi.fn()
-    await oauthWithSiliconFlow(setKey)
+    await oauthWithAiOnly(setKey)
     const oauthPopup = openedPopups[0]
 
     await openPage('silicon')
-    dispatchPopupMessage(oauthPopup, 'https://account.siliconflow.cn', [{ secretKey: 'stale-key' }])
+    dispatchPopupMessage(oauthPopup, 'https://maas.aiionly.com', [{ secretKey: 'stale-key' }])
 
     await vi.waitFor(() => expect(setKey).toHaveBeenCalledWith('stale-key'))
   })
@@ -180,6 +185,14 @@ describe('popup message OAuth flows', () => {
     dispatchPopupMessage(popup, 'https://dash.302.ai', { data: { apikey: 'late-key' } })
 
     expect(setKey).not.toHaveBeenCalled()
+  })
+
+  it('opens Aihubmix without the client_id that stalls its key page', async () => {
+    await oauthWithAihubmix(vi.fn())
+    const url = new URL(String(vi.mocked(window.open).mock.calls[0][0]))
+    expect(url.searchParams.has('client_id')).toBe(false)
+    expect(url.searchParams.get('lang')).toBe('en-US')
+    expect(url.searchParams.get('aff')).toBe('SJyh')
   })
 
   it('cleans up a recognized malformed Aihubmix callback', async () => {
@@ -265,11 +278,13 @@ describe('provider websites', () => {
 
   it.each([
     ['charge', providerCharge, 'https://tokendance.space/credits'],
-    ['bills', providerBills, 'https://tokendance.space/activity/requests']
+    ['bills', providerBills, 'https://tokendance.space/activity/requests'],
+    ['charge', providerCharge, 'https://cloud.siliconflow.cn/expensebill'],
+    ['bills', providerBills, 'https://cloud.siliconflow.cn/bills']
   ] as const)(
     'opens provider %s externally instead of losing the existing browser session',
     async (_name, open, url) => {
-      await open('tokendance')
+      await open(url.includes('siliconflow') ? 'silicon' : 'tokendance')
       expect(ipcApi.request).toHaveBeenCalledWith('system.shell.open_external_website', url)
     }
   )

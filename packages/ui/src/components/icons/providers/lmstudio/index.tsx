@@ -9,7 +9,7 @@ const Lmstudio = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const LmstudioIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Lmstudio, {
   Avatar: LmstudioAvatar,
-  colorPrimary: '#000000'
+  colorPrimary: '#6664e6'
 })
 
 export default LmstudioIcon

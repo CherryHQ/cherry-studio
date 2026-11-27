@@ -5,11 +5,23 @@ import React, { useCallback, useEffect, useEffectEvent, useRef, useState } from 
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
-import { Alert, Button, Flex, Form, SegmentedControl, Switch, Tabs, TabsContent } from '@cherrystudio/ui'
+import { Alert, Button, Flex, Form, ScrollArea, SegmentedControl, Switch, Tabs, TabsContent } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import DeleteIcon from '@renderer/components/icons/DeleteIcon'
-import Scrollbar from '@renderer/components/Scrollbar'
+import {
+  buildMcpSchema,
+  McpEndpointField,
+  McpFormGrid,
+  type McpFormValues,
+  McpIdentityFields,
+  McpRuntimeFields,
+  McpTransportFields,
+  resolveMcpConfigInstallSource,
+  toMcpFormDefaultValues,
+  toMcpServerFields,
+  useMcpRegistryState
+} from '@renderer/components/mcp/McpServerFields'
 import { SettingContainer, SettingDivider, SettingTitle } from '@renderer/components/SettingsPrimitives'
 import { useSharedCacheValue } from '@renderer/data/hooks/useCache'
 import { useMcpRuntimeStatus } from '@renderer/hooks/useMcpRuntimeStatus'
@@ -33,28 +45,15 @@ import McpLogsTab from './McpLogsTab'
 import McpPromptsSection from './McpPrompt'
 import McpResourcesSection from './McpResource'
 import McpResourceTemplateView from './McpResourceTemplate'
-import {
-  buildMcpSchema,
-  McpEndpointField,
-  McpFormGrid,
-  type McpFormValues,
-  McpIdentityFields,
-  McpRuntimeFields,
-  McpTransportFields,
-  resolveMcpConfigInstallSource,
-  toMcpFormDefaultValues,
-  toMcpServerFields,
-  useMcpRegistryState
-} from './McpServerFields'
+import McpSkillsSection from './McpSkill'
 import McpToolsSection from './McpTool'
-import { isQVerisApiKeyMissing, QVerisApiKeyGuide } from './QVerisApiKeyGuide'
 import { useMcpServerTrust } from './useMcpServerTrust'
 import { toUpdateMcpServerDto } from './utils'
 
 const logger = loggerService.withContext('McpSettings')
 const mcpSettingsRouteApi = getRouteApi('/settings/mcp/settings/$serverId')
 
-type TabKey = 'settings' | 'description' | 'logs' | 'tools' | 'prompts' | 'resources' | 'instructions'
+type TabKey = 'settings' | 'description' | 'logs' | 'tools' | 'prompts' | 'resources' | 'instructions' | 'skills'
 type McpTabItem = {
   key: TabKey
   label: React.ReactNode
@@ -224,7 +223,6 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
       unsubscribe()
       void ipcApi.request('mcp.request.cancel', { requestId }).catch(() => undefined)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- Effect events read current values without resubscribing.
   }, [serverId, server.isActive])
 
   useEffect(() => {
@@ -327,15 +325,6 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
       return
     }
 
-    if (active && isQVerisApiKeyMissing(server)) {
-      void popup.error({
-        title: t('settings.mcp.startError'),
-        content: <QVerisApiKeyGuide />,
-        centered: true
-      })
-      return
-    }
-
     const isValid = await form.trigger()
     if (!isValid) {
       return
@@ -419,7 +408,6 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
     })
 
     autoEnableProtocolServer()
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads the latest server and toggle handler without resubscribing.
   }, [navigate, search.autoEnable, server])
 
   // Handle toggling a tool on/off
@@ -527,14 +515,6 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
 
   if (server.isActive) {
     tabs.push({
-      key: 'instructions',
-      label: t('settings.mcp.instructions.title'),
-      children:
-        activeTab === 'instructions' ? (
-          <McpInstructions key={server.id} serverId={server.id} connectionState={runtimeStatus.state} />
-        ) : null
-    })
-    tabs.push({
       key: 'tools',
       label: t('settings.mcp.tabs.tools') + (tools.length > 0 ? ` (${tools.length})` : ''),
       children: (
@@ -559,6 +539,12 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
       )
     })
 
+    tabs.push({
+      key: 'skills',
+      label: t('plugins.skills'),
+      children: activeTab === 'skills' ? <McpSkillsSection server={server} updateMcpServer={updateMcpServer} /> : null
+    })
+
     tabs.push(
       {
         key: 'prompts',
@@ -581,6 +567,15 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
         )
       }
     )
+
+    tabs.push({
+      key: 'instructions',
+      label: t('settings.mcp.instructions.title'),
+      children:
+        activeTab === 'instructions' ? (
+          <McpInstructions key={server.id} serverId={server.id} connectionState={runtimeStatus.state} />
+        ) : null
+    })
   }
 
   tabs.push({
@@ -602,8 +597,8 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
           onValueChange={(value) => setActiveTab(value as TabKey)}
           variant="line"
           className="flex min-h-0 flex-1 flex-col bg-transparent">
-          <div className="shrink-0 px-6 pt-2">
-            <div className="mx-auto w-full max-w-3xl">
+          <div className="shrink-0 px-6 pt-4">
+            <div className="mx-auto w-full max-w-5xl">
               <SettingTitle className="min-w-0 flex-wrap gap-2">
                 <Flex className="min-w-0 flex-1 flex-wrap items-center gap-2">
                   <Button
@@ -681,18 +676,21 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
               </div>
             </div>
           </div>
-          <Scrollbar className="min-h-0 flex-1 px-6 pt-2 pb-6">
-            <div className="mx-auto w-full max-w-3xl">
+          <ScrollArea
+            contentProps={{ className: 'px-6 pt-2 pb-6' }}
+
+            className="min-h-0 flex-1">
+            <div className="mx-auto w-full max-w-5xl">
               {tabs.map((tab) => (
                 <TabsContent key={tab.key} value={tab.key} className="mt-0 min-h-0">
                   {tab.children}
                 </TabsContent>
               ))}
             </div>
-          </Scrollbar>
+          </ScrollArea>
           {activeTabValue === 'settings' && (
             <div className="flex min-h-14 shrink-0 items-center border-border-subtle border-t px-6">
-              <div className="mx-auto flex w-full max-w-3xl items-center justify-between gap-3">
+              <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-3">
                 <Button
                   size="sm"
                   variant="ghost"

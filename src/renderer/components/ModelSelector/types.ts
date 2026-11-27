@@ -28,12 +28,14 @@ interface ModelSelectorCommonProps {
   sideOffset?: number
   contentClassName?: string
   portalContainer?: HTMLElement | null
+  allowPresentationSwitch?: boolean
   mountStrategy?: ModelSelectorMountStrategy
   multiSelectMode?: boolean
   defaultMultiSelectMode?: boolean
   onMultiSelectModeChange?: (enabled: boolean) => void
   onSettingsNavigate?: (navigate: () => void) => void
   shortcut?: CommandId
+  composition?: ModelSelectorComposition
 }
 
 export interface ModelSelectorSingleModelProps extends ModelSelectorCommonProps {
@@ -78,10 +80,11 @@ export type ModelSelectorProps =
 export interface ModelSelectorGroupItem {
   key: string
   type: 'group'
-  title: string
   groupKind: 'pinned' | 'provider'
   provider?: Provider
   canNavigateToSettings?: boolean
+  titleAction?: ReactNode
+  trailing?: ReactNode
 }
 
 export interface ModelSelectorModelItem {
@@ -96,7 +99,47 @@ export interface ModelSelectorModelItem {
   showIdentifier: boolean
 }
 
-export type FlatListItem = ModelSelectorGroupItem | ModelSelectorModelItem
+export interface ModelSelectorActionItem {
+  key: string
+  type: 'action'
+  groupId?: string
+  providerId: string
+  label: string
+  searchId: string
+  tags: readonly ModelSelectorTag[]
+  leading?: ReactNode
+  trailing?: ReactNode
+  detail?: ReactNode
+  /** Same rank as `ModelSelectorPresentation.priority`: higher sorts later in its group. */
+  priority?: number
+  onAction: () => void
+}
+
+export interface ModelSelectorPresentation {
+  tags: readonly ModelSelectorTag[]
+  /** Rendered ahead of the tags, e.g. what the user must do before the model works. */
+  badge?: ReactNode
+  description?: ReactNode
+  disabled?: boolean
+  priority?: number
+  /** Runs instead of selecting the row, as an action row does, e.g. to sign in first. */
+  onAction?: () => void
+}
+
+export interface ModelSelectorComposition {
+  providerGroups?: readonly {
+    id: string
+    providerIds: readonly string[]
+    titleAction?: ReactNode
+    trailing?: ReactNode
+  }[]
+  actions?: readonly ModelSelectorActionItem[]
+  getModelPresentation?: (model: Model, provider: Provider) => ModelSelectorPresentation
+  emptyContent?: ReactNode
+}
+
+export type ModelSelectorNavigableItem = ModelSelectorModelItem | ModelSelectorActionItem
+export type FlatListItem = ModelSelectorGroupItem | ModelSelectorNavigableItem
 
 export interface UseModelSelectorDataOptions {
   enabled?: boolean
@@ -110,16 +153,20 @@ export interface UseModelSelectorDataOptions {
   showTagFilter?: boolean
   showPinnedModels?: boolean
   prioritizedProviderIds?: readonly string[]
+  composition?: ModelSelectorComposition
+  actionVisibilityFilter?: (action: ModelSelectorActionItem) => boolean
 }
 
 export interface UseModelSelectorDataResult {
   availableTags: ModelSelectorTag[]
-  getModelDescription: (model: Model) => string | undefined
-  isModelUnavailable: (model: Model) => boolean
+  getModelPresentation: (model: Model, provider: Provider) => ModelSelectorPresentation
   isLoading: boolean
+  modelsError?: Error
+  providersError?: Error
   isPinActionDisabled: boolean
   listItems: FlatListItem[]
   modelItems: ModelSelectorModelItem[]
+  navigableItems: ModelSelectorNavigableItem[]
   pinnedIds: readonly UniqueModelId[]
   refetchModels: () => Promise<unknown>
   refetchPinnedModels: () => Promise<unknown>

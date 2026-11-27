@@ -19,11 +19,15 @@ export type LocalModelStatus = (typeof LOCAL_MODEL_STATUSES)[number]
 export const LOCAL_MODEL_ERROR_CODES = ['download_failed', 'incomplete_cache'] as const
 export type LocalModelErrorCode = (typeof LOCAL_MODEL_ERROR_CODES)[number]
 
+export const LOCAL_MODEL_STATUS_HINT_CODES = ['missing_shared_runtime'] as const
+export type LocalModelStatusHintCode = (typeof LOCAL_MODEL_STATUS_HINT_CODES)[number]
+
 /** Main-owned status projected to every renderer window through Shared Cache. */
 export interface LocalModelStatusSnapshot {
   status: LocalModelStatus
   percent: number
   errorCode?: LocalModelErrorCode
+  hintCode?: LocalModelStatusHintCode
 }
 
 /** Terminal result returned to every caller awaiting the shared download. */
@@ -49,6 +53,7 @@ export const LOCAL_MODEL_BUNDLE_IDS = [
   'qwen3-embedding-0.6b',
   'pp-ocrv6-medium',
   'funasr-nano-int8',
+  'qwen3-asr-1.7b-8bit',
   'qwen3-tts-0.6b-customvoice-8bit',
   'kokoro-multi-lang-v1.1'
 ] as const

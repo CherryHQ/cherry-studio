@@ -64,7 +64,6 @@ module.exports = { OfflineRecognizer, Vad, LinearResampler, readWave }
 `
 
 const SAMPLE_RATE = 16_000
-const MAX_SEGMENT_SAMPLES = 25 * SAMPLE_RATE
 const WINDOW = 512
 const MODEL_DIR = '/models/funasr-nano'
 const MODEL_PATHS = {
@@ -98,7 +97,7 @@ function audio(...parts: Float32Array[]): Float32Array {
 }
 
 const transcribe = (samples: Float32Array, sampleRate = SAMPLE_RATE) =>
-  asr.transcribe({ modelPaths: MODEL_PATHS, source: { kind: 'samples', samples, sampleRate } })
+  asr.transcribe({ engine: 'sherpa', modelPaths: MODEL_PATHS, source: { kind: 'samples', samples, sampleRate } })
 
 beforeAll(async () => {
   appRoot = await mkdtemp(path.join(tmpdir(), 'cherry-asr-inference-'))
@@ -131,15 +130,19 @@ describe('ASR entry transcribe', () => {
     expect(result.text).toBe('decoded 16384@16000\ndecoded 8192@16000')
   })
 
-  it('breaks speech into chunks no longer than 25 seconds', async () => {
+  it('breaks long speech into chunks that fit the FunASR Nano KV budget', async () => {
     const windows = 830
     const result = await transcribe(audio(speech(windows), silence(1)))
 
+    // The stubbed model paths do not exist on disk, so the documented artifact
+    // fallbacks apply: max_total_len=512 leaves 224 audio tokens, which is
+    // 215,040 samples (13.44s) per chunk — not the raw 25s a fixed cap would
+    // allow, leaving room in the KV window for the generated transcript.
     expect(result.segments.map((segment) => segment.text)).toEqual([
-      `decoded ${MAX_SEGMENT_SAMPLES}@16000`,
-      `decoded ${windows * WINDOW - MAX_SEGMENT_SAMPLES}@16000`
+      'decoded 215040@16000',
+      `decoded ${windows * WINDOW - 215_040}@16000`
     ])
-    expect(result.segments[1].start).toBe(25)
+    expect(result.segments[1].start).toBe(13.44)
   })
 
   it('resamples audio to 16kHz', async () => {
@@ -151,7 +154,11 @@ describe('ASR entry transcribe', () => {
     const wavPath = path.join(appRoot, 'recording.wav')
     await writeFile(wavPath, Buffer.from(audio(speech(6), silence(1)).buffer))
 
-    const result = await asr.transcribe({ modelPaths: MODEL_PATHS, source: { kind: 'wav', filePath: wavPath } })
+    const result = await asr.transcribe({
+      engine: 'sherpa',
+      modelPaths: MODEL_PATHS,
+      source: { kind: 'wav', filePath: wavPath }
+    })
     expect(result.segments[0].text).toBe('decoded 3072@16000')
   })
 
@@ -164,7 +171,7 @@ describe('ASR entry transcribe', () => {
   it('returns silence without loading the recognizer and still loads it for speech', async () => {
     const modelPaths = { ...MODEL_PATHS, encoder: '/models/unloadable-encoder.onnx' }
     const request = (samples: Float32Array) =>
-      asr.transcribe({ modelPaths, source: { kind: 'samples', samples, sampleRate: SAMPLE_RATE } })
+      asr.transcribe({ engine: 'sherpa', modelPaths, source: { kind: 'samples', samples, sampleRate: SAMPLE_RATE } })
 
     await expect(request(silence(16))).resolves.toEqual({ text: '', segments: [] })
     await expect(request(speech(8))).rejects.toMatchObject({ code: 'ASR_MODEL_LOAD_FAILED' })
@@ -192,7 +199,11 @@ describe('ASR entry transcribe', () => {
     const wavPath = path.join(appRoot, `${canary}.wav`)
     await writeFile(wavPath, Buffer.from(audio(speech(2), silence(1)).buffer))
 
-    const result = await asr.transcribe({ modelPaths: MODEL_PATHS, source: { kind: 'wav', filePath: wavPath } })
+    const result = await asr.transcribe({
+      engine: 'sherpa',
+      modelPaths: MODEL_PATHS,
+      source: { kind: 'wav', filePath: wavPath }
+    })
     expect(result.text).toBeTruthy()
     expect(logs.join('\n')).not.toContain(canary)
     expect(logs.join('\n')).not.toContain(wavPath)

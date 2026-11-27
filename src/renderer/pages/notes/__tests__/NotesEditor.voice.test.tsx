@@ -73,7 +73,7 @@ vi.mock('@renderer/components/Selector', () => ({
     </select>
   )
 }))
-vi.mock('@renderer/hooks/useCodeStyle', () => ({ useCmTheme: () => 'light' }))
+vi.mock('@renderer/hooks/useCodeStyle', () => ({ useCodeStyle: () => ({ isCodeThemeDark: false }) }))
 vi.mock('@renderer/hooks/useNotesSettings', () => ({
   useNotesSettings: () => ({
     settings: {

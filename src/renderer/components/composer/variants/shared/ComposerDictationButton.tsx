@@ -5,11 +5,13 @@ import { useTranslation } from 'react-i18next'
 import { BarVisualizer, Button, Tooltip } from '@cherrystudio/ui'
 import { useComposerToolLauncherController } from '@renderer/components/composer/ComposerToolRuntime'
 import type { QuickPanelInputAdapter } from '@renderer/components/QuickPanel'
+import { useDictationEnabled } from '@renderer/hooks/useDictationEnabled'
 import { dictationService } from '@renderer/services/voice'
 
 import { COMPOSER_SEND_ACCESSORY_BUTTON_CLASS } from './ComposerControlScaffolding'
 
 export function ComposerDictationButton({ inputAdapter }: { inputAdapter?: QuickPanelInputAdapter }) {
+  const enabled = useDictationEnabled()
   const { t } = useTranslation()
   const { getLaunchers, dispatchLauncher } = useComposerToolLauncherController()
   const launcher = getLaunchers('root-panel').find((item) => item.id === 'dictation')
@@ -21,6 +23,8 @@ export function ComposerDictationButton({ inputAdapter }: { inputAdapter?: Quick
       ? launcher?.submenu?.find((item) => item.id === 'dictation:discard')
       : undefined
 
+  if (!enabled) return null
+
   return (
     <div
       className={
@@ -28,6 +32,14 @@ export function ComposerDictationButton({ inputAdapter }: { inputAdapter?: Quick
           ? 'flex shrink-0 items-center gap-1.5 rounded-full border border-border bg-popover py-0.5 pr-0.5 pl-3'
           : 'flex shrink-0 items-center gap-1.5'
       }>
+      {snapshot.transcript && (
+        <span role="status" className="max-w-64 truncate text-sm" title={snapshot.transcript.text}>
+          {snapshot.transcript.text.slice(0, snapshot.transcript.provisionalStart)}
+          <span className="text-muted-foreground">
+            {snapshot.transcript.text.slice(snapshot.transcript.provisionalStart)}
+          </span>
+        </span>
+      )}
       {capturing && (
         <BarVisualizer
           aria-hidden

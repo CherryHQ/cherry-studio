@@ -15,6 +15,9 @@ export interface RemoteSocket {
   removeEventListener(type: 'close' | 'error', listener: () => void): void
 }
 
+const drainPollMs = 50
+const lowWaterBytes = uploadTransferLimits.queuedBytes / 2
+
 export class RemoteSocketStream extends AbstractMessageStream {
   constructor(
     private readonly socket: RemoteSocket,
@@ -43,7 +46,10 @@ export class RemoteSocketStream extends AbstractMessageStream {
     this.onData(new Uint8Array(event.data))
   }
 
+  private drainTimer: ReturnType<typeof setInterval> | undefined
+
   private readonly closed = () => {
+    this.stopDrainWatch()
     this.socket.removeEventListener('message', this.receive)
     this.socket.removeEventListener('close', this.closed)
     this.socket.removeEventListener('error', this.failed)
@@ -55,10 +61,35 @@ export class RemoteSocketStream extends AbstractMessageStream {
   }
 
   sendData(data: Parameters<AbstractMessageStream['sendData']>[0]) {
-    if (this.socket.readyState !== 1 || this.socket.bufferedAmount + data.byteLength > uploadTransferLimits.queuedBytes)
-      throw new Error('Remote socket unavailable or congested')
+    if (this.socket.readyState !== 1) throw new Error('Remote socket unavailable')
+    if (this.socket.bufferedAmount + data.byteLength > uploadTransferLimits.queuedBytes) {
+      this.watchDrain()
+      return { sentBytes: 0, canSendMore: false }
+    }
     this.socket.send(data.subarray())
     return { sentBytes: data.byteLength, canSendMore: true }
+  }
+
+  private watchDrain() {
+    if (this.drainTimer) return
+    const stalledAt = Date.now() + remoteLimits.idleMs
+    this.drainTimer = setInterval(() => {
+      if (this.socket.readyState !== 1) {
+        this.stopDrainWatch()
+        this.abort(new Error('Remote socket unavailable'))
+      } else if (this.socket.bufferedAmount <= lowWaterBytes) {
+        this.stopDrainWatch()
+        this.onMuxerDrain()
+      } else if (Date.now() >= stalledAt) {
+        this.stopDrainWatch()
+        this.abort(new Error('Remote socket congested'))
+      }
+    }, drainPollMs)
+  }
+
+  private stopDrainWatch() {
+    clearInterval(this.drainTimer)
+    this.drainTimer = undefined
   }
 
   sendReset() {

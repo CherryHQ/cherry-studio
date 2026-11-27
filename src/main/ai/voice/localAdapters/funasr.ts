@@ -16,18 +16,18 @@ import { LOCAL_MODEL_STATUS_CACHE_KEY } from '@shared/data/presets/localModel'
 import type { TranscriptionModelDefinition } from '../voiceModelTypes'
 import type { LocalVoiceStatus } from '../voiceModelTypes'
 import type { VoiceEnvironment } from '../voicePlatform'
-import { VoiceRuntimeError } from '../VoiceRuntimeError'
+import { checkAbort, VoiceRuntimeError } from '../VoiceRuntimeError'
 import { inspectCanonicalWav } from './inspectCanonicalWav'
-import { withScratch } from './nativeSupport'
-import { voiceAudioProcess } from './voiceAudioProcess'
+import { decodeVoiceRecording } from './recordingDecoder'
+import { withScratch } from './scratch'
+import { completeTranscriptionOperation } from './sdkOperations'
 
-const AUDIO_DECODE_TIMEOUT_MS = 30_000
 const ASR_INFERENCE_TIMEOUT_MS = 120_000
+// Deadline ceiling for recordings longer than the fixed floor: twice the audio
+// duration, so a slow machine still finishes instead of failing with a retry
+// that can never succeed.
+const ASR_INFERENCE_REALTIME_FACTOR = 2
 const logger = loggerService.withContext('FunAsrAdapter')
-
-function checkAbort(signal?: AbortSignal): void {
-  if (signal?.aborted) throw new VoiceRuntimeError('aborted')
-}
 
 function normalizeFailure(error: unknown, signal?: AbortSignal): VoiceRuntimeError {
   if (signal?.aborted) return new VoiceRuntimeError('aborted')
@@ -99,23 +99,20 @@ export function createFunAsrTranscriptionModel(options: TranscriptionOptions): T
             wavBytes = audio
             durationSeconds = wavMetadata.durationSeconds
           } else {
-            const timeout = AbortSignal.timeout(AUDIO_DECODE_TIMEOUT_MS)
-            const signal = input.abortSignal ? AbortSignal.any([input.abortSignal, timeout]) : timeout
-            const decoded = await application
-              .get('UtilityProcessManager')
-              .client(voiceAudioProcess)
-              .request('decode', { audio, mimeType: 'audio/webm;codecs=opus' }, { signal })
-              .catch((error: unknown) => {
-                if (timeout.aborted && !input.abortSignal?.aborted) throw new VoiceRuntimeError('timeout')
-                throw error
-              })
+            const decoded = await decodeVoiceRecording(audio, input.abortSignal)
             wavBytes = decoded.wav
             durationSeconds = decoded.durationSeconds
           }
           checkAbort(input.abortSignal)
           const inputPath = join(directory, 'input.wav')
           await writeFile(inputPath, wavBytes, { mode: 0o600 })
-          const inferenceTimeout = AbortSignal.timeout(ASR_INFERENCE_TIMEOUT_MS)
+          // Inference is chunked CPU work whose cost scales with the recording;
+          // the fixed floor only covers short clips, so longer recordings get
+          // realtime-factor headroom instead of a deadline they cannot meet.
+          // AbortSignal.timeout rejects fractional milliseconds.
+          const inferenceTimeout = AbortSignal.timeout(
+            Math.max(ASR_INFERENCE_TIMEOUT_MS, Math.ceil(durationSeconds * 1_000 * ASR_INFERENCE_REALTIME_FACTOR))
+          )
           const inferenceSignal = input.abortSignal
             ? AbortSignal.any([input.abortSignal, inferenceTimeout])
             : inferenceTimeout
@@ -174,7 +171,7 @@ export const funAsrTranscriptionDefinition: TranscriptionModelDefinition = {
   }),
   status: (_options, signal) => getFunAsrStatus(signal),
   locales: async () => ({ supported: [], installed: [] }),
-  createModel: createFunAsrTranscriptionModel,
+  transcriptionOperations: [completeTranscriptionOperation(createFunAsrTranscriptionModel)],
   download: () =>
     application
       .get('LocalModelService')

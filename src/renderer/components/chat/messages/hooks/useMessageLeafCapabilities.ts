@@ -12,12 +12,15 @@ import type {
 } from '@renderer/components/chat/messages/types'
 import { ipcApi } from '@renderer/ipc'
 import { popup } from '@renderer/services/popup'
-import { FILE_TYPE, type FileMetadata } from '@renderer/types/file'
+import { openExternalWebsite } from '@renderer/services/website'
+import { type FileMetadata } from '@renderer/types/file'
 import type { McpTool } from '@renderer/types/tool'
 import { safeOpen } from '@renderer/utils/file/safeOpen'
+import { type MessagePartRows, messagePartsAt, messagePartEntries } from '@renderer/utils/message/messagePartRows'
 import type { FileHandle } from '@shared/data/types/file'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import type { AbsoluteFilePath } from '@shared/types/file'
+import { type AbsoluteFilePath, FILE_TYPE } from '@shared/types/file'
+import { resolveSafeExternalUrl } from '@shared/utils/externalUrlSafety'
 import { getFileTypeByExt, isFilePathHandle } from '@shared/utils/file'
 
 import { useAttachment } from './useAttachment'
@@ -33,7 +36,7 @@ type MessageLeafActions = Pick<
 type MessageLeafState = Pick<MessageListState, 'getFileView' | 'isToolAutoApproved'>
 
 interface MessageLeafCapabilitiesParams {
-  partsByMessageId: Record<string, CherryMessagePart[]>
+  partsByMessageId: MessagePartRows
   streamingLayers?: MessageStreamingLayers
 }
 
@@ -108,21 +111,16 @@ export function useMessageLeafCapabilities({
   const { t } = useTranslation()
   const { preview } = useAttachment()
   const platformActions = useMessagePlatformActions()
-  const historyPartsByMessageId = streamingLayers?.historyPartsByMessageId
-  const historyHasMcpToolParts = useMemo(
-    () =>
-      historyPartsByMessageId
-        ? Object.values(historyPartsByMessageId).some((parts) => parts.some(isMcpToolPart))
-        : false,
-    [historyPartsByMessageId]
-  )
-  const hasMcpToolParts = useMemo(() => {
-    if (!streamingLayers) {
-      return Object.values(partsByMessageId).some((parts) => parts.some(isMcpToolPart))
+  const historyPartsByMessageId = streamingLayers?.historyPartsByMessageId ?? partsByMessageId
+  const historyHasMcpToolParts = useMemo(() => {
+    for (const [, parts] of messagePartEntries(historyPartsByMessageId)) {
+      if (parts.some(isMcpToolPart)) return true
     }
-    if (historyHasMcpToolParts) return true
-    return streamingLayers.liveMessageIds.some((messageId) => partsByMessageId[messageId]?.some(isMcpToolPart))
-  }, [historyHasMcpToolParts, partsByMessageId, streamingLayers])
+    return false
+  }, [historyPartsByMessageId])
+  const hasMcpToolParts =
+    historyHasMcpToolParts ||
+    streamingLayers?.liveMessageIds.some((id) => messagePartsAt(partsByMessageId, id)?.some(isMcpToolPart)) === true
   const { data: mcpServersData } = useQuery('/mcp-servers', { enabled: hasMcpToolParts })
   const mcpServers = useMemo(() => mcpServersData?.items ?? [], [mcpServersData])
 
@@ -169,6 +167,10 @@ export function useMessageLeafCapabilities({
   )
 
   const openExternalUrl = useCallback<NonNullable<MessageListActions['openExternalUrl']>>((url) => {
+    if (resolveSafeExternalUrl(url)?.requiresConfirmation) {
+      void openExternalWebsite(url)
+      return
+    }
     window.open(url, '_blank', 'noopener,noreferrer')
   }, [])
 

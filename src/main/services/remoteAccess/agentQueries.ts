@@ -9,6 +9,7 @@ import type {
   AgentInteraction,
   AgentParams,
   AgentMessage,
+  AgentMessageListItem,
   AgentPart,
   AgentSession,
   ContentRef
@@ -18,6 +19,7 @@ import type { DbOrTx } from '@data/db/types'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import { agentTaskService } from '@data/services/AgentTaskService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { toExecutionFailure } from '@shared/ai/executionFailure'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
@@ -29,11 +31,11 @@ import { UniqueModelIdSchema, parseUniqueModelId } from '@shared/data/types/mode
 import { readCherryMeta } from '@shared/data/types/uiParts'
 import type { SerializedError } from '@shared/types/error'
 
+import { DEFAULT_PAGE, pageOf, queryPage } from './agentPagination'
 import { toMessageUsage } from './agentUsage'
 
 /** Text above this many UTF-16 units travels as a content reference so records stay under the wire budget. */
 export const INLINE_TEXT_LIMIT = 4096
-const DEFAULT_PAGE = 20
 
 export const sha256 = (bytes: Uint8Array): string => createHash('sha256').update(bytes).digest('hex')
 export const utf8 = (text: string): Uint8Array => new TextEncoder().encode(text)
@@ -78,17 +80,6 @@ export function sliceContent(
   }
 }
 
-export function pageOf<T>(
-  items: readonly T[],
-  cursor: string | undefined,
-  limit: number | undefined
-): { items: T[]; nextCursor: string | null } {
-  const start = cursor === undefined ? 0 : Number(cursor)
-  if (!Number.isSafeInteger(start) || start < 0) throw new RemoteRpcError('NOT_FOUND', 'Invalid page cursor')
-  const end = start + (limit ?? DEFAULT_PAGE)
-  return { items: items.slice(start, end), nextCursor: end < items.length ? String(end) : null }
-}
-
 export function toSessionSummary(session: AgentSessionEntity, activeExecutionId?: string): AgentSession | undefined {
   if (!session.agentId) return undefined
   const historyRevision = revisionOf(session.updatedAt)
@@ -117,83 +108,98 @@ function dataPart(partId: string, revision: string, name: string, value: unknown
 
 /** Persisted parts get index-based IDs; live parts use stream IDs and are tombstoned once history commits. */
 export function projectPersistedParts(message: AgentSessionMessageEntity): ProjectedPart[] {
-  const revision = revisionOf(message.updatedAt)
+  return projectMessageParts(
+    { id: message.id, parts: message.data.parts ?? [], modelId: message.modelId },
+    revisionOf(message.updatedAt)
+  )
+}
+
+export function projectMessageParts(
+  message: { id: string; parts: CherryMessagePart[]; modelId?: string | null },
+  revision: string
+): ProjectedPart[] {
+  return message.parts.flatMap((part, index) =>
+    projectMessagePart(part, `${message.id}:${index}`, revision, message.modelId)
+  )
+}
+
+export function projectMessagePart(
+  part: CherryMessagePart,
+  partId: string,
+  revision: string,
+  modelId?: string | null
+): ProjectedPart[] {
   const projected: ProjectedPart[] = []
-  ;(message.data.parts ?? []).forEach((part: CherryMessagePart, index) => {
-    const partId = `${message.id}:${index}`
-    if (part.type === 'text' || part.type === 'reasoning') {
+  if (part.type === 'text' || part.type === 'reasoning') {
+    projected.push({
+      part: {
+        partId,
+        revision,
+        kind: part.type,
+        content: contentOf(partId, revision, part.text),
+        state: 'completed'
+      },
+      text: part.text
+    })
+  } else if (isToolUIPart(part)) {
+    const input = JSON.stringify(part.input ?? null)
+    projected.push({
+      part: {
+        partId: `${partId}:in`,
+        revision,
+        kind: 'tool-input',
+        toolName: getToolName(part),
+        toolCallId: part.toolCallId,
+        content: contentOf(`${partId}:in`, revision, input),
+        state: 'completed'
+      },
+      text: input
+    })
+    if (part.state === 'output-available' || part.state === 'output-error') {
+      const output = JSON.stringify(part.state === 'output-error' ? part.errorText : (part.output ?? null))
       projected.push({
+        part: {
+          partId: `${partId}:out`,
+          revision,
+          kind: 'tool-output',
+          toolName: getToolName(part),
+          toolCallId: part.toolCallId,
+          content: contentOf(`${partId}:out`, revision, output),
+          state: part.state === 'output-error' ? 'failed' : 'completed'
+        },
+        text: output
+      })
+    }
+  } else if (part.type === 'data-error') {
+    const failure = toExecutionFailure(part.data as SerializedError, modelId ?? undefined)
+    projected.push(
+      dataPart(partId, revision, 'data-error', { data: { message: failure.message, executionFailure: failure } })
+    )
+  } else if (part.type === 'file') {
+    const metadata = readCherryMeta(part)?.remoteAttachment
+    if (metadata && readCherryMeta(part)?.fileEntryId) {
+      projected.push({
+        text: '',
         part: {
           partId,
           revision,
-          kind: part.type,
-          content: contentOf(partId, revision, part.text),
-          state: 'completed'
-        },
-        text: part.text
-      })
-    } else if (isToolUIPart(part)) {
-      const input = JSON.stringify(part.input ?? null)
-      projected.push({
-        part: {
-          partId: `${partId}:in`,
-          revision,
-          kind: 'tool-input',
-          toolName: getToolName(part),
-          toolCallId: part.toolCallId,
-          content: contentOf(`${partId}:in`, revision, input),
-          state: 'completed'
-        },
-        text: input
-      })
-      if (part.state === 'output-available' || part.state === 'output-error') {
-        const output = JSON.stringify(part.state === 'output-error' ? part.errorText : (part.output ?? null))
-        projected.push({
-          part: {
-            partId: `${partId}:out`,
+          kind: 'file',
+          name: part.filename || 'file',
+          ref: {
+            contentId: partId,
             revision,
-            kind: 'tool-output',
-            toolName: getToolName(part),
-            toolCallId: part.toolCallId,
-            content: contentOf(`${partId}:out`, revision, output),
-            state: part.state === 'output-error' ? 'failed' : 'completed'
-          },
-          text: output
-        })
-      }
-    } else if (part.type === 'data-error') {
-      const failure = toExecutionFailure(part.data as SerializedError, message.modelId ?? undefined)
-      projected.push(
-        dataPart(partId, revision, 'data-error', { data: { message: failure.message, executionFailure: failure } })
-      )
-    } else if (part.type === 'file') {
-      const metadata = readCherryMeta(part)?.remoteAttachment
-      if (metadata && readCherryMeta(part)?.fileEntryId) {
-        projected.push({
-          text: '',
-          part: {
-            partId,
-            revision,
-            kind: 'file',
-            name: part.filename || 'file',
-            ref: {
-              contentId: partId,
-              revision,
-              byteLength: String(metadata.byteLength),
-              mediaType: part.mediaType,
-              sha256: metadata.sha256
-            }
+            byteLength: String(metadata.byteLength),
+            mediaType: part.mediaType,
+            sha256: metadata.sha256
           }
-        })
-      } else
-        projected.push(
-          dataPart(partId, revision, 'file', { mediaType: part.mediaType, filename: part.filename ?? null })
-        )
-    } else if (part.type !== 'step-start') {
-      const { type, ...rest } = part as { type: string }
-      projected.push(dataPart(partId, revision, type, rest))
-    }
-  })
+        }
+      })
+    } else
+      projected.push(dataPart(partId, revision, 'file', { mediaType: part.mediaType, filename: part.filename ?? null }))
+  } else if (part.type !== 'step-start') {
+    const { type, ...rest } = part as { type: string }
+    projected.push(dataPart(partId, revision, type, rest))
+  }
   return projected
 }
 
@@ -217,7 +223,7 @@ export function toMessageModel(
   return result.success ? result.data : undefined
 }
 
-export function toMessage(message: AgentSessionMessageEntity): AgentMessage {
+function toMessageMetadata(message: AgentSessionMessageEntity) {
   const usage = toMessageUsage(message.stats)
   const model = toMessageModel(message)
   const error = message.data.parts?.find((part) => part.type === 'data-error')
@@ -227,7 +233,6 @@ export function toMessage(message: AgentSessionMessageEntity): AgentMessage {
     ...(model ? { model } : {}),
     revision: revisionOf(message.updatedAt),
     role: message.role,
-    partIds: projectPersistedParts(message).map(({ part }) => part.partId),
     status: message.status,
     ...(message.status === 'error'
       ? {
@@ -240,19 +245,31 @@ export function toMessage(message: AgentSessionMessageEntity): AgentMessage {
   }
 }
 
+export function toMessage(message: AgentSessionMessageEntity): AgentMessage {
+  return { ...toMessageMetadata(message), partIds: projectPersistedParts(message).map(({ part }) => part.partId) }
+}
+
 export function listMessages(
   sessionId: string,
   historyRevision: string,
   cursor?: string,
-  limit?: number
-): { items: AgentMessage[]; nextCursor: string | null } {
+  limit?: number,
+  partsMode?: 'paged'
+): { items: AgentMessageListItem[]; nextCursor: string | null } {
   const session = getSession(sessionId)
   if (revisionOf(session.updatedAt) !== historyRevision)
     throw new RemoteRpcError('REVISION_EXPIRED', 'History revision expired')
-  const page = notFound(() =>
-    agentSessionMessageService.listSessionMessages(sessionId, { cursor, limit: limit ?? DEFAULT_PAGE })
-  )
-  return { items: page.items.map(toMessage), nextCursor: page.nextCursor ?? null }
+  return queryPage((attemptLimit) => {
+    const page = notFound(() =>
+      agentSessionMessageService.listSessionMessages(sessionId, { cursor, limit: attemptLimit })
+    )
+    return {
+      items: page.items.map((message) =>
+        partsMode === 'paged' ? { ...toMessageMetadata(message), partsMode } : toMessage(message)
+      ),
+      nextCursor: page.nextCursor ?? null
+    }
+  }, limit)
 }
 
 export function listParts(
@@ -354,17 +371,20 @@ export function listWorkspaces(agentId: string, cursor?: string, limit?: number)
   }
 }
 
-export function listSessions(query: { agentId?: string; workspaceId?: string; cursor?: string; limit?: number }): {
+export function listSessions(query: AgentParams<'agent.sessions.list'>): {
   items: AgentSessionEntity[]
   nextCursor: string | null
 } {
+  const options = {
+    agentId: query.agentId,
+    workspaceId: query.workspaceId,
+    cursor: query.cursor,
+    limit: query.limit ?? DEFAULT_PAGE
+  }
   const page = notFound(() =>
-    agentSessionService.listByCursor({
-      agentId: query.agentId,
-      workspaceId: query.workspaceId,
-      cursor: query.cursor,
-      limit: query.limit ?? DEFAULT_PAGE
-    })
+    query.taskId
+      ? agentTaskService.listTaskSessions(query.taskId, options)
+      : agentSessionService.listByCursor({ ...options, scope: 'all-conversations' })
   )
   return {
     items: page.items,

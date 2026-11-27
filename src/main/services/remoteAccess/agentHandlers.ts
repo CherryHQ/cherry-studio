@@ -10,6 +10,7 @@ import {
   type AgentParams,
   type AgentResult,
   type CommandReceipt,
+  type TaskMethod,
   questionInputSchema,
   encodeAgentCommand
 } from '@cherrystudio/remote-protocol/agent'
@@ -18,21 +19,23 @@ import { AgentSessionDeliveryRoutingError } from '@data/services/AgentSessionMes
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { remoteCommandService, type RemoteCommandOutcome } from '@data/services/RemoteCommandService'
 import { loggerService } from '@logger'
-import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
+import { previewAgentConfigChange } from '@main/ai/agents/agentConfigTool'
 import { serializeError } from '@main/ai/utils/serializeError'
+import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
 import { toExecutionFailure } from '@shared/ai/executionFailure'
 
 import type { RemoteAgentHub } from './agentJournal'
+import { pageOf, queryPage } from './agentPagination'
 import {
   createSessionTx,
   getSession,
+  inputDigest,
   listAgents,
   listMessages,
   listParts,
   listPersistedInteractions,
   listSessions,
   listWorkspaces,
-  pageOf,
   readPersistedContent,
   readPersistedFileContent,
   sha256,
@@ -40,9 +43,18 @@ import {
   toSessionSummary
 } from './agentQueries'
 import type { AgentSubscriptions } from './agentSubscriptions'
+import { getTask, getTaskRun, listTasks, listTaskRuns, readTaskContent } from './agentTaskQueries'
 import type { UploadOwner } from './RemoteUploads'
 
 const logger = loggerService.withContext('RemoteAgentHandlers')
+
+function withConfigPreview(interaction: AgentInteraction): AgentInteraction {
+  if (interaction.status !== 'pending') return interaction
+  const preview = previewAgentConfigChange(interaction.interactionId)
+  return preview.ok
+    ? { ...interaction, configPreview: preview, inputDigest: inputDigest([interaction.inputDigest, preview]) }
+    : interaction
+}
 
 export interface AgentAccess {
   requireAgent(): UploadOwner
@@ -57,7 +69,7 @@ export function registerAgentMethods(
   access: AgentAccess,
   hub: RemoteAgentHub,
   subscriptions: AgentSubscriptions
-): void {
+): () => void {
   const on = <M extends AgentMethod>(
     name: M,
     handler: (params: AgentParams<M>, auth: Auth) => AgentResult<M> | Promise<AgentResult<M>>
@@ -65,6 +77,16 @@ export function registerAgentMethods(
     rpc.addMethod<AgentParams<M>, AgentResult<M>>(name, agentMethods[name] as never, (params) =>
       Promise.resolve().then(() => handler(params, access.requireAgent()))
     )
+
+  const taskHandlers: { [M in TaskMethod]: (params: AgentParams<M>) => AgentResult<M> } = {
+    'agent.tasks.list': listTasks,
+    'agent.tasks.get': ({ taskId }) => ({ task: getTask(taskId) }),
+    'agent.tasks.runs.list': listTaskRuns,
+    'agent.tasks.runs.get': ({ taskId, runId }) => ({ run: getTaskRun(taskId, runId) }),
+    'agent.tasks.content.read': readTaskContent
+  }
+  const registerTask = <M extends TaskMethod>(name: M) => on(name, taskHandlers[name])
+  for (const name of Object.keys(taskHandlers) as TaskMethod[]) registerTask(name)
 
   const summaryOf = (sessionId: string) => {
     const summary = toSessionSummary(getSession(sessionId), hub.activeExecutionId(sessionId))
@@ -132,13 +154,15 @@ export function registerAgentMethods(
 
   on('agent.agents.list', ({ cursor, limit }) => listAgents(cursor, limit))
   on('agent.workspaces.list', ({ agentId, cursor, limit }) => listWorkspaces(agentId, cursor, limit))
-  on('agent.sessions.list', (params) => {
-    const page = listSessions(params)
-    return {
-      items: page.items.flatMap((session) => toSessionSummary(session, hub.activeExecutionId(session.id)) ?? []),
-      nextCursor: page.nextCursor
-    }
-  })
+  on('agent.sessions.list', (params) =>
+    queryPage((attemptLimit) => {
+      const page = listSessions({ ...params, limit: attemptLimit })
+      return {
+        items: page.items.flatMap((session) => toSessionSummary(session, hub.activeExecutionId(session.id)) ?? []),
+        nextCursor: page.nextCursor
+      }
+    }, params.limit)
+  )
   on('agent.sessions.get', ({ sessionId }) => ({ session: summaryOf(sessionId) }))
   on('agent.sessions.create', (params, auth) => {
     const method = 'agent.sessions.create'
@@ -169,8 +193,8 @@ export function registerAgentMethods(
       agentSessionService.notifyReadModelChange([admission.receipt.sessionId], 'membership')
     return admission.receipt
   })
-  on('agent.messages.list', ({ sessionId, historyRevision, cursor, limit }) =>
-    listMessages(sessionId, historyRevision, cursor, limit)
+  on('agent.messages.list', ({ sessionId, historyRevision, cursor, limit, partsMode }) =>
+    listMessages(sessionId, historyRevision, cursor, limit, partsMode)
   )
   on('agent.parts.list', ({ sessionId, messageId, messageRevision, cursor, limit }) =>
     listParts(sessionId, messageId, messageRevision, cursor, limit)
@@ -264,24 +288,25 @@ export function registerAgentMethods(
     getSession(sessionId)
     const interaction = interactionsOf(sessionId).find((item) => item.interactionId === interactionId)
     if (!interaction) throw new RemoteRpcError('NOT_FOUND', 'Interaction not found')
-    return { interaction }
+    return { interaction: withConfigPreview(interaction) }
   })
   on('agent.interactions.respond', (params, auth) => {
     getSession(params.sessionId)
     return command(auth, 'agent.interactions.respond', params, params.sessionId, async () => {
       const journal = hub.journal(params.sessionId)
       const interaction = interactionsOf(params.sessionId).find((item) => item.interactionId === params.interactionId)
+      const response = 'response' in params ? params.response : { kind: params.decision }
       if (
         !interaction ||
         interaction.status !== 'pending' ||
         interaction.revision !== params.expectedRevision ||
         interaction.executionId !== params.expectedExecutionId ||
-        interaction.inputDigest !== params.inputDigest
+        (withConfigPreview(interaction).inputDigest !== params.inputDigest &&
+          (response.kind !== 'deny' || interaction.inputDigest !== params.inputDigest))
       ) {
         return { status: 'rejected', error: { reason: 'CONFLICT', message: 'Interaction changed since it was read' } }
       }
       const anchorId = journal.liveInteraction(params.interactionId)?.messageId ?? interaction.executionId
-      const response = 'response' in params ? params.response : { kind: params.decision }
       const approved = response.kind !== 'deny'
       let updatedInput: Record<string, unknown> | undefined
       if (response.kind === 'answer') {
@@ -317,16 +342,18 @@ export function registerAgentMethods(
         ...(updatedInput ? { updatedInput } : {}),
         ...('reason' in response ? { reason: response.reason } : {})
       }
-      if (
-        !application.get('AgentSessionRuntimeService').respondToolApproval(params.interactionId, decision, anchorId)
-      ) {
+      const settled = application
+        .get('AgentSessionRuntimeService')
+        .respondToolApproval(params.interactionId, decision, anchorId)
+      if (!settled.ok) {
         return { status: 'rejected', error: { reason: 'NOT_FOUND', message: 'Interaction is no longer pending' } }
       }
-      journal.markInteraction(params.interactionId, approved ? 'approved' : 'denied')
+      const appliedApproval = approved && settled.approved !== false
+      journal.markInteraction(params.interactionId, appliedApproval ? 'approved' : 'denied')
       return {
         status: 'applied',
         executionId: interaction.executionId,
-        result: { interactionId: params.interactionId, decision: approved ? 'approve' : 'deny' }
+        result: { interactionId: params.interactionId, decision: appliedApproval ? 'approve' : 'deny' }
       }
     })
   })
@@ -350,4 +377,5 @@ export function registerAgentMethods(
     subscriptions.close(subscriptionId)
     return { closed: true as const }
   })
+  return () => presence.disconnect(generation)
 }

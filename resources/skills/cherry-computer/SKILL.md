@@ -1,6 +1,6 @@
 ---
 name: cherry-computer
-description: Operate native desktop applications through Cherry Studio Computer Use. Use for opening an application, reading its accessibility state, typing, clicking, or capturing its window. Requires enabled Computer Use and OS permissions; never bypass user stop or application ownership.
+description: 'Drive native apps via Computer Use: open, inspect, type, click, screenshot. Needs OS permissions; respect user stop.'
 version: 1.0.1
 ---
 

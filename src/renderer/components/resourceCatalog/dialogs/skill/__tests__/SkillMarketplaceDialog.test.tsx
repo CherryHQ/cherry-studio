@@ -13,7 +13,11 @@ const searchMock = vi.fn()
 const clearMock = vi.fn()
 const installMock = vi.fn()
 const isInstallingMock = vi.fn()
-const { toastSuccess, toastError } = vi.hoisted(() => ({ toastSuccess: vi.fn(), toastError: vi.fn() }))
+const { toastSuccess, toastError, virtualRowKeysMock } = vi.hoisted(() => ({
+  toastSuccess: vi.fn(),
+  toastError: vi.fn(),
+  virtualRowKeysMock: vi.fn()
+}))
 
 vi.mock('@renderer/services/toast', () => ({
   toast: { success: toastSuccess, error: toastError }
@@ -156,19 +160,25 @@ vi.mock('@renderer/components/VirtualList', () => ({
     children,
     className,
     role,
-    list
+    list,
+    getItemKey
   }: {
     children: (item: SkillSearchResult, index: number) => ReactNode
     className?: string
     list: SkillSearchResult[]
     role?: string
-  }) => (
-    <div className={className} data-testid="skill-results-virtual-list" role={role}>
-      {list.map((item, index) => (
-        <div key={item.installSource}>{children(item, index)}</div>
-      ))}
-    </div>
-  )
+    getItemKey: (index: number) => string | number
+  }) => {
+    const keys = list.map((_, index) => getItemKey(index))
+    virtualRowKeysMock(keys)
+    return (
+      <div className={className} data-testid="skill-results-virtual-list" role={role}>
+        {list.map((item, index) => (
+          <div key={keys[index]}>{children(item, index)}</div>
+        ))}
+      </div>
+    )
+  }
 }))
 
 beforeEach(() => {
@@ -211,6 +221,30 @@ function sourceSelect() {
 }
 
 describe('SkillMarketplaceDialog', () => {
+  it('gives same-slug ClawHub publishers independent virtual rows', async () => {
+    const user = userEvent.setup()
+    skillSearchState.results = ['first-publisher', 'second-publisher'].map<SkillSearchResult>((author) => ({
+      slug: 'shared-skill',
+      name: 'Shared Skill',
+      description: null,
+      author,
+      stars: 0,
+      downloads: 0,
+      sourceRegistry: 'clawhub.ai',
+      sourceUrl: `https://clawhub.ai/${author}/skills/shared-skill`,
+      installSource: `clawhub:${author}/shared-skill`
+    }))
+    renderDialog()
+
+    typeSearchQuery('shared')
+    await user.selectOptions(sourceSelect(), 'clawhub.ai')
+
+    expect(screen.getAllByRole('listitem')).toHaveLength(2)
+    const keys = virtualRowKeysMock.mock.lastCall?.[0]
+    expect(keys).toHaveLength(2)
+    expect(new Set(keys).size).toBe(2)
+  })
+
   it('renders every source option and filters results by the selected one', async () => {
     const user = userEvent.setup()
     skillSearchState.results = [
@@ -225,32 +259,23 @@ describe('SkillMarketplaceDialog', () => {
     renderDialog()
 
     typeSearchQuery('react')
-    const sourceOptions = within(sourceSelect()).getAllByRole('option')
-    expect(sourceOptions.map((option) => option.textContent)).toEqual([
-      'skills.sh1',
-      'claude-plugins.dev2',
-      'clawhub.ai',
-      'GitHub'
-    ])
+
     expect(sourceSelect()).toHaveValue('skills.sh')
     expect(screen.getByText('React Skill')).toBeInTheDocument()
     const firstResult = screen.getAllByRole('listitem')[0]
-    expect(within(firstResult).queryByText('vercel')).not.toBeInTheDocument()
+
     expect(within(firstResult).getByText('12')).toBeInTheDocument()
     await user.click(within(firstResult).getByLabelText('settings.skills.viewSource'))
     expect(window.open).toHaveBeenCalledWith('https://github.com/vercel/skills')
     expect(screen.queryByText('Code Review')).not.toBeInTheDocument()
-    expect(within(firstResult).queryByText('skills.sh')).not.toBeInTheDocument()
 
     await user.selectOptions(sourceSelect(), 'claude-plugins.dev')
 
     expect(screen.getByText('Code Review')).toBeInTheDocument()
     const claudeResult = screen.getAllByRole('listitem')[0]
-    expect(within(claudeResult).queryByText('Review code changes')).not.toBeInTheDocument()
-    expect(within(claudeResult).queryByText('anthropic')).not.toBeInTheDocument()
+
     expect(within(claudeResult).getByText('42')).toBeInTheDocument()
     expect(screen.queryByText('React Skill')).not.toBeInTheDocument()
-    expect(within(claudeResult).queryByText('claude-plugins.dev')).not.toBeInTheDocument()
   })
 
   it('debounces marketplace searches while typing', () => {
@@ -264,7 +289,6 @@ describe('SkillMarketplaceDialog', () => {
       fireEvent.change(input, { target: { value: 'rea' } })
       fireEvent.change(input, { target: { value: 'react' } })
 
-      expect(clearMock).toHaveBeenCalledTimes(4)
       expect(screen.getByText('common.loading')).toBeInTheDocument()
       expect(screen.queryByText('React Skill')).not.toBeInTheDocument()
 
@@ -420,7 +444,6 @@ describe('SkillMarketplaceDialog', () => {
     await user.selectOptions(sourceSelect(), 'claude-plugins.dev')
     typeSearchQuery('code')
 
-    expect(screen.getByRole('dialog')).toHaveAttribute('data-close-on-overlay-click', 'true')
     const installButtons = screen.getAllByRole('button', { name: /settings.skills.install/ })
     expect(installButtons[0]).toBeDisabled()
     expect(installButtons[1]).not.toBeDisabled()

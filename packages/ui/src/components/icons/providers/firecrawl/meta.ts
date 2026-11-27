@@ -2,6 +2,7 @@ import { type IconMeta } from '../../types'
 
 export const meta: IconMeta = {
   id: 'firecrawl',
-  colorPrimary: '#FA5D19',
-  colorScheme: 'color'
+  colorPrimary: '#fff0ea',
+  colorScheme: 'color',
+  artworkKind: 'tile'
 }

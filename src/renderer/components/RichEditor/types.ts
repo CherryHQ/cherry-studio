@@ -1,3 +1,5 @@
+import type { Editor } from '@tiptap/core'
+import type { LucideIcon } from 'lucide-react'
 export interface RichEditorProps {
   /** Initial markdown content for the editor */
   initialContent?: string
@@ -103,7 +105,7 @@ export interface RichEditorRef {
   getSelection: () => { from: number; to: number; text: string } | null
   /** Replace a document range with literal text; return false when editing is unavailable or the range is invalid. */
   replaceRange: (range: { from: number; to: number }, text: string) => boolean
-  /** Set editor Markdown content */
+  /** Load or synchronize Markdown content without firing content-change callbacks. */
   setMarkdown: (markdown: string) => void
   /** Focus the editor */
   focus: () => void
@@ -250,8 +252,6 @@ export interface ToolbarProps {
 }
 
 // Command System Types for Slash Commands
-import type { Editor } from '@tiptap/core'
-import type { LucideIcon } from 'lucide-react'
 
 export enum CommandCategory {
   TEXT = 'text',

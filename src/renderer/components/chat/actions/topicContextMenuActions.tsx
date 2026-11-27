@@ -14,6 +14,7 @@ import {
   PinIcon,
   PinOffIcon,
   Sparkles,
+  Trash2,
   UploadIcon
 } from 'lucide-react'
 import type { ReactNode } from 'react'
@@ -61,6 +62,10 @@ export interface TopicActionContext {
   onCopyMarkdown: TopicMenuHandler
   onCopyPlainText: TopicMenuHandler
   onDelete: TopicDeleteHandler
+  /** Irreversible delete. Absent means the menu has no permanent-delete entry. */
+  onDeletePermanently?: TopicDeleteHandler
+  /** Configured `resource.delete_permanently` label. Empty omits the hint. */
+  permanentDeleteShortcut?: string
   onExportImage: TopicMenuHandler
   onExportJoplin: TopicMenuHandler
   onExportMarkdown: TopicMenuHandler
@@ -266,6 +271,11 @@ topicActionRegistry.registerCommand({
 topicActionRegistry.registerCommand({
   id: 'topic.delete',
   run: ({ onDelete, topic }) => onDelete(topic)
+})
+
+topicActionRegistry.registerCommand({
+  id: 'topic.delete-permanently',
+  run: ({ onDeletePermanently, topic }) => onDeletePermanently?.(topic)
 })
 
 topicActionRegistry.registerAction({
@@ -534,6 +544,24 @@ topicActionRegistry.registerAction({
   // otherwise clears the active topic. Pinned topics must be unpinned before they can be deleted.
   availability: ({ isArchiveBlocked, t, topic }) => ({
     visible: !topic.pinned,
+    enabled: !isArchiveBlocked,
+    reason: isArchiveBlocked ? t('recycle_bin.move.blocked_generation') : undefined
+  })
+})
+
+topicActionRegistry.registerAction({
+  id: 'topic.delete-permanently',
+  commandId: 'topic.delete-permanently',
+  label: ({ t }) => t('common.delete_permanently'),
+  icon: () => <Trash2 size={14} />,
+  group: 'danger',
+  order: 100,
+  surface: 'menu',
+  danger: true,
+  shortcut: ({ permanentDeleteShortcut }) => permanentDeleteShortcut ?? '',
+  // Same pin/busy gate as Archive. Callers mark an in-flight delete with isArchiveBlocked.
+  availability: ({ isArchiveBlocked, onDeletePermanently, t, topic }) => ({
+    visible: Boolean(onDeletePermanently) && !topic.pinned,
     enabled: !isArchiveBlocked,
     reason: isArchiveBlocked ? t('recycle_bin.move.blocked_generation') : undefined
   })

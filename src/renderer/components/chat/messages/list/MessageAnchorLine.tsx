@@ -1,6 +1,7 @@
 import {
   type FC,
   memo,
+  type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
   type UIEvent as ReactUIEvent,
   useCallback,
@@ -12,6 +13,7 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { type MessagePartRows, messagePartsAt } from '@renderer/utils/message/messagePartRows'
 import { classNames } from '@renderer/utils/style'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
@@ -24,7 +26,7 @@ interface MessageLineProps {
   messages: readonly AnchorMessage[]
   /** Message under the viewport-top reading line; highlights its turn's tick. */
   activeMessageId?: string | null
-  /** 0–1 fade driven by the content's rail gutter — the rail eases in/out with width. */
+  /** 0–1 gutter ratio controlling only the hit strip's width (8–32px). */
   railOpacity?: number
   /** Older turns exist beyond the loaded pages — fade the strip's top as a
    * "more above" hint. The mount-time value also fixes the strip's alignment
@@ -34,10 +36,12 @@ interface MessageLineProps {
   /** Parts for every message outside the mutable streaming tail. Passing this
    * snapshot instead of reading PartsContext here keeps the rail out of the
    * streaming render path — only the live preview leaf subscribes to chunks. */
-  historyPartsByMessageId: Record<string, CherryMessagePart[]>
+  historyPartsByMessageId: MessagePartRows
   /** Messages that must read their current parts from PartsContext. */
   liveMessageIds: readonly string[]
   scrollToMessageId?: (messageId: string) => void
+  /** Space at the bottom covered by the composer overlay; the rail stops above it. */
+  bottomInset?: number
 }
 
 /** One conversation turn: a user question plus the replies that follow it. */
@@ -70,8 +74,6 @@ const RAIL_MIN_EDGE_MARGIN_PX = 24
 const RAIL_TICK_PITCH_PX = 10
 /** Length of the fade applied to whichever end still has ticks scrolled past it. */
 const RAIL_FADE_PX = 44
-/** With fewer turns there is nothing worth anchoring — the rail stays hidden. */
-const RAIL_MIN_TURNS = 5
 const EMPTY_MESSAGE_PARTS: CherryMessagePart[] = []
 
 const tickTransitionClassName =
@@ -84,31 +86,48 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
   hasOlder = false,
   historyPartsByMessageId,
   liveMessageIds,
-  scrollToMessageId
+  scrollToMessageId,
+  bottomInset = 0
 }: MessageLineProps) {
   const { t } = useTranslation()
   const liveMessageIdSet = useMemo(() => new Set(liveMessageIds), [liveMessageIds])
 
   const wrapperRef = useRef<HTMLDivElement>(null)
   const railScrollRef = useRef<HTMLDivElement>(null)
+  /** Scroll anchoring state: first-turn identity and count spot prepends and
+   * appends; `pinned` says the user left the strip on the newest ticks, so
+   * inset/viewport changes re-pin it (a manual scroll clears the pin). */
+  const scrollAnchorRef = useRef<{ firstId: string | null; count: number; entered: boolean; pinned: boolean }>({
+    firstId: null,
+    count: 0,
+    entered: false,
+    pinned: true
+  })
   const latestClientYRef = useRef<number | null>(null)
   const animationFrameRef = useRef<number | null>(null)
 
-  /** Rail height in px; drives every tick position so they never depend on DOM reads. */
-  const [railHeight, setRailHeight] = useState(0)
+  /** Rail height in px; drives every tick position so they never depend on DOM
+   * reads. Null until the first layout measurement, so a rail genuinely
+   * collapsed to zero height (a composer inset taller than the message area) is
+   * told apart from an unmeasured one — only the measured kind may hide it. */
+  const [railHeight, setRailHeight] = useState<number | null>(null)
   /** The rail's own scroll offset (only moves when the user wheels the rail itself). */
   const [scrollTop, setScrollTop] = useState(0)
   /** Cursor Y relative to the rail's top; null when not hovering. */
   const [mouseY, setMouseY] = useState<number | null>(null)
-  /** Once the composer inset leaves too little height, the rail is cramped — hide it. */
-  const tooShort = railHeight > 0 && railHeight < RAIL_MIN_HEIGHT_PX
-  const visible = railOpacity > 0.02 && !tooShort
-  // The hit strip is clickable whenever it is visible, but it only ever
-  // occupies space the content has already yielded: the content's right
-  // padding is 24px base + gutter, the strip is inset 16px (right-4), and
-  // railOpacity × 24 is the integer gutter — so the strip's width grows with
-  // the fade and everything left of it still belongs to the messages. At full
-  // opacity this is exactly the 32px strip.
+  /** Anchor id of the tick holding keyboard focus; shows the same preview card
+   * as hover. Stored by identity, not array position: a prepended history page
+   * shifts every index while React keeps the focused button by key, so an
+   * index would silently point at the wrong turn (and blur would fail to
+   * clear the preview, comparing the stale index against the shifted one). */
+  const [keyboardAnchorId, setKeyboardAnchorId] = useState<string | null>(null)
+  /** Hide the rail once its measured wrapper height is too short to be usable —
+   * zero included: an inset-collapsed rail must not keep focusable ticks. */
+  const tooShort = railHeight !== null && railHeight < RAIL_MIN_HEIGHT_PX
+  const visible = !tooShort
+  const railHeightPx = railHeight ?? 0
+  // The 8px base fits the existing right padding; extra width tracks the gutter
+  // so the hit strip stays outside the message content even in narrow columns.
   const hitStripWidth = 8 + Math.round(railOpacity * 24)
 
   const turns = useMemo<AnchorTurn[]>(() => {
@@ -146,6 +165,15 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
     return result
   }, [messages])
 
+  // The focused tick's current position, re-derived on every prepend/append so
+  // the preview and blur cleanup follow the turn, not a stale slot. A focused
+  // anchor that left the list (branch switch) yields no keyboard focus.
+  const keyboardIndex = useMemo(() => {
+    if (keyboardAnchorId === null) return null
+    const index = turns.findIndex((turn) => turn.anchorId === keyboardAnchorId)
+    return index >= 0 ? index : null
+  }, [keyboardAnchorId, turns])
+
   const turnIndexByMessageId = useMemo(() => {
     const map = new Map<string, number>()
     turns.forEach((turn, index) => turn.memberIds.forEach((id) => map.set(id, index)))
@@ -161,37 +189,28 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
   // • ticks overflow → the strip scrolls inside the fixed margins.
   // The margins live OUTSIDE the scroll area, so they never move while scrolling,
   // and every query (nearest tick, wave, card) is arithmetic against `scrollTop`.
-  // The alignment is latched at mount and never changes for this rail's
-  // lifetime (the list remounts per topic): a conversation that entered with
-  // unloaded history stays bottom-anchored even after the last page lands —
-  // flipping to centred at that moment would shift every visible tick.
-  const alignToBottomRef = useRef(hasOlder)
-
   const geometry = useMemo(() => {
     const count = turns.length
-    const viewport = Math.max(0, railHeight - RAIL_MIN_EDGE_MARGIN_PX * 2)
+    const viewport = Math.max(0, railHeightPx - RAIL_MIN_EDGE_MARGIN_PX * 2)
     const content = count * RAIL_TICK_PITCH_PX
     const free = Math.max(0, viewport - content)
-    // Conversations that mounted fully loaded centre the cluster. Ones that
-    // mounted with history still above anchor it to the bottom (the newest
-    // turns, where the user enters), so older turns streaming in later grow
-    // upward without moving a single visible tick.
-    const padTop = alignToBottomRef.current ? free : free / 2
+    const padTop = free / 2
     const padBottom = free - padTop
     // Center of tick `index` in rail coordinates: fixed margin + top pad +
     // its slot, projected into the viewport by the strip's own scroll offset.
     const centerOf = (index: number) =>
       RAIL_MIN_EDGE_MARGIN_PX + padTop + index * RAIL_TICK_PITCH_PX + RAIL_TICK_PITCH_PX / 2 - scrollTop
     return { padTop, padBottom, centerOf }
-  }, [turns.length, railHeight, scrollTop])
+  }, [turns.length, railHeightPx, scrollTop])
 
   // Nearest tick to the cursor, only when the cursor is genuinely near one.
-  const focusedIndex = useMemo(() => {
-    if (mouseY === null || turns.length === 0 || railHeight === 0) return null
+  const pointerFocusedIndex = useMemo(() => {
+    if (mouseY === null || turns.length === 0 || railHeightPx === 0) return null
     const raw = Math.round((mouseY - geometry.centerOf(0)) / RAIL_TICK_PITCH_PX)
     const index = Math.min(Math.max(raw, 0), turns.length - 1)
     return Math.abs(mouseY - geometry.centerOf(index)) <= FOCUS_MAX_DISTANCE ? index : null
-  }, [mouseY, turns.length, railHeight, geometry])
+  }, [mouseY, turns.length, railHeightPx, geometry])
+  const focusedIndex = pointerFocusedIndex ?? keyboardIndex
 
   const flushMouseMove = useCallback(() => {
     animationFrameRef.current = null
@@ -225,10 +244,35 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
   // The rail scrolls independently of the conversation and never auto-follows
   // reading, so a tick's on-screen position is stable until the user scrolls
   // the rail itself. Mirror that offset into state so the card and wave track it.
-  const handleScroll = (event: ReactUIEvent<HTMLDivElement>) => setScrollTop(event.currentTarget.scrollTop)
+  const handleKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    const ticks = Array.from(event.currentTarget.querySelectorAll<HTMLElement>('[data-message-anchor-tick]'))
+    const current = ticks.indexOf(document.activeElement as HTMLElement)
+    if (current < 0) return
+    const next =
+      event.key === 'ArrowUp'
+        ? current - 1
+        : event.key === 'ArrowDown'
+          ? current + 1
+          : event.key === 'Home'
+            ? 0
+            : event.key === 'End'
+              ? ticks.length - 1
+              : null
+    if (next === null) return
+    event.preventDefault()
+    ticks[Math.min(Math.max(next, 0), ticks.length - 1)]?.focus()
+  }
 
-  // Fading out mid-hover would otherwise freeze the wave and card behind the
-  // fade.
+  const handleScroll = (event: ReactUIEvent<HTMLDivElement>) => {
+    const el = event.currentTarget
+    // Recompute the pin on every scroll: a resize re-pin below only fires while
+    // the strip is on the newest ticks, so deliberate positions survive.
+    const maxScroll = Math.max(0, el.scrollHeight - el.clientHeight)
+    scrollAnchorRef.current.pinned = maxScroll - el.scrollTop <= 1
+    setScrollTop(el.scrollTop)
+  }
+
+  // Height-based hiding must clear the wave and preview before the rail returns.
   useEffect(() => {
     if (!visible) clearPointerState()
   }, [clearPointerState, visible])
@@ -240,41 +284,51 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
     []
   )
 
-  // Few messages don't need anchoring. Only the rail is gated — the content's
-  // gutter (MessageList) follows width alone, so when the turn count crosses
-  // this threshold the rail fades into space that already exists, with no jump.
-  const hasRail = turns.length >= RAIL_MIN_TURNS
+  const turnCount = turns.length
+  const firstTurnId = turns[0]?.anchorId ?? null
+  const hasRail = turnCount > 0
 
-  // Keep the strip's reading anchor stable across async page loads:
+  // Keep the strip's reading anchor stable across async page loads and
+  // viewport changes:
   // • on entry, start at the bottom — the user enters at the newest turn;
   // • when older turns prepend, offset the scroll so visible ticks stay put
   //   (the browser clamp lands exactly right when the strip just overflowed);
-  // • when new turns append while pinned to the bottom, stay pinned.
-  const scrollAnchorRef = useRef<{ firstId: string | null; count: number; entered: boolean }>({
-    firstId: null,
-    count: 0,
-    entered: false
-  })
+  // • when new turns append while pinned to the bottom, stay pinned;
+  // • when the rail itself resizes (composer inset growth, window resize), the
+  //   same pin keeps a bottom-pinned strip on the newest ticks — otherwise the
+  //   shrinking viewport clips them until a manual scroll — while a deliberate
+  //   user scroll position (pin cleared by handleScroll) is left alone.
+  // bottomInset is a dependency in its own right (not just via railHeight):
+  // the inset commit must re-pin synchronously, because the pin's own
+  // programmatic scroll event is delivered asynchronously — once the viewport
+  // has already shrunk, that stale event would otherwise read as a user scroll
+  // away from the bottom and clear the pin.
   useLayoutEffect(() => {
     const el = railScrollRef.current
     const anchor = scrollAnchorRef.current
-    const firstId = turns[0]?.anchorId ?? null
     if (el) {
       const maxScroll = Math.max(0, el.scrollHeight - el.clientHeight)
-      const added = turns.length - anchor.count
+      const currentScrollTop = el.scrollTop
+      let target = currentScrollTop
+      const added = turnCount - anchor.count
       if (!anchor.entered) {
-        el.scrollTop = maxScroll
         anchor.entered = true
-      } else if (added > 0 && firstId !== anchor.firstId) {
-        el.scrollTop += added * RAIL_TICK_PITCH_PX
-      } else if (added > 0 && maxScroll - el.scrollTop <= added * RAIL_TICK_PITCH_PX + 1) {
-        el.scrollTop = maxScroll
+        anchor.pinned = true
+      } else if (added > 0 && firstTurnId !== anchor.firstId) {
+        target += added * RAIL_TICK_PITCH_PX
+      } else if (added > 0 && maxScroll - currentScrollTop <= added * RAIL_TICK_PITCH_PX + 1) {
+        anchor.pinned = true
       }
-      setScrollTop(el.scrollTop)
+      if (anchor.pinned) target = maxScroll
+      if (target !== currentScrollTop) {
+        el.scrollTop = target
+        target = el.scrollTop
+      }
+      setScrollTop(target)
     }
-    anchor.firstId = firstId
-    anchor.count = turns.length
-  }, [turns, railHeight])
+    anchor.firstId = firstTurnId
+    anchor.count = turnCount
+  }, [firstTurnId, turnCount, railHeight, bottomInset])
 
   // Track the rail height so tick geometry stays exact across window/composer
   // resizes, and hide the rail once it is too short to be usable. Layout effect
@@ -300,7 +354,7 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
     focusedIndex !== null
       ? Math.min(
           Math.max(geometry.centerOf(focusedIndex), PREVIEW_EDGE_INSET),
-          Math.max(railHeight - PREVIEW_EDGE_INSET, PREVIEW_EDGE_INSET)
+          Math.max(railHeightPx - PREVIEW_EDGE_INSET, PREVIEW_EDGE_INSET)
         )
       : 0
 
@@ -312,7 +366,7 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
 
   // Fade whichever end still has ticks scrolled past it, signalling "there's
   // more" like Codex. Derived from the model — no DOM reads.
-  const railViewport = Math.max(0, railHeight - RAIL_MIN_EDGE_MARGIN_PX * 2)
+  const railViewport = Math.max(0, railHeightPx - RAIL_MIN_EDGE_MARGIN_PX * 2)
   const maxScroll = Math.max(0, turns.length * RAIL_TICK_PITCH_PX - railViewport)
   // hasOlder keeps the top fade on as a "more above" hint even at rest.
   const fadeTop = scrollTop > 1 || hasOlder
@@ -326,31 +380,22 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
     <div
       ref={wrapperRef}
       className={classNames(
-        // right-4 keeps the ticks clear of the scrollbar gutter (~15px) so the
-        // thumb never overlaps them while scrolling. The gutter is 15px because
-        // the Scrollbar composite's inline scrollbar-color opts Chromium out of
-        // the global 6px ::-webkit-scrollbar styling into the standard CSS
-        // scrollbar; scrollbar-gutter:stable only keeps it reserved while hidden.
-        // top-2.5 sits just below the header; bottom-8 keeps the last tick clear
-        // of the very bottom edge. The composer is inset to the left of this
-        // gutter, so the ticks clear it. The fade opacity lives on the tick
-        // strip below — NOT here — so the hover preview card stays fully
-        // opaque and readable even while the ticks are still fading in. The
-        // strip's width (hitStripWidth) grows with the gutter so it never
-        // covers message content mid-fade — the visible ticks are clickable at
-        // any fade stage, and clicks left of the strip reach the messages.
+        // Keep the tick hit strip clear of the shared overlay scrollbar.
         'group absolute top-2.5 right-4 bottom-8 z-20 select-none',
         !visible && 'pointer-events-none'
       )}
       // inert keeps the hidden rail out of the Tab order and the accessibility
       // tree — an invisible layer must not take keyboard focus.
       inert={!visible}
-      style={{ width: hitStripWidth }}
+      role="navigation"
+      aria-label={t('chat.navigation.anchor.label')}
+      style={{ width: hitStripWidth, bottom: bottomInset > 0 ? `calc(2rem + ${bottomInset}px)` : undefined }}
       onMouseMove={handleMouseMove}
       onMouseLeave={clearPointerState}>
       <div
         ref={railScrollRef}
         onScroll={handleScroll}
+        onKeyDown={handleKeyDown}
         className={classNames(
           // The scroll viewport is inset by the fixed edge margins (top/bottom),
           // so those margins sit OUTSIDE the scroll and never move while the strip
@@ -361,10 +406,8 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
         style={{
           top: RAIL_MIN_EDGE_MARGIN_PX,
           bottom: RAIL_MIN_EDGE_MARGIN_PX,
-          // The width-driven fade (railOpacity needs no transition — it already
-          // ramps continuously) combines with the resting 70% dim that hover
-          // lifts (the transition-opacity above eases that lift).
-          opacity: (visible ? railOpacity : 0) * (isHovering ? 1 : 0.7),
+          // Resting ticks stay visible at every width; hover lifts the dimming.
+          opacity: visible ? (isHovering ? 1 : 0.7) : 0,
           maskImage: railMask,
           WebkitMaskImage: railMask
         }}>
@@ -394,6 +437,8 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
                 // the layout classes alone keep the visuals unchanged.
                 className="flex w-full shrink-0 cursor-pointer items-center justify-end rounded-sm outline-none focus-visible:ring-1 focus-visible:ring-ring"
                 style={{ height: RAIL_TICK_PITCH_PX }}
+                onFocus={() => setKeyboardAnchorId(turn.anchorId)}
+                onBlur={() => setKeyboardAnchorId((current) => (current === turn.anchorId ? null : current))}
                 onClick={() => scrollToMessageId?.(turn.anchorId)}>
                 <div
                   className={classNames(
@@ -422,7 +467,7 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
 })
 
 interface AnchorPreviewProps {
-  historyPartsByMessageId: Record<string, CherryMessagePart[]>
+  historyPartsByMessageId: MessagePartRows
   liveMessageIdSet: ReadonlySet<string>
 }
 
@@ -461,7 +506,12 @@ const AnchorPreviewLine: FC<AnchorPreviewLineProps> = ({
 }) => {
   if (!messageId) return null
   if (liveMessageIdSet.has(messageId)) return <LiveMessagePreview messageId={messageId} className={className} />
-  return <MessagePreview parts={historyPartsByMessageId[messageId] ?? EMPTY_MESSAGE_PARTS} className={className} />
+  return (
+    <MessagePreview
+      parts={messagePartsAt(historyPartsByMessageId, messageId) ?? EMPTY_MESSAGE_PARTS}
+      className={className}
+    />
+  )
 }
 
 const LiveMessagePreview: FC<{ messageId: string; className: string }> = ({ messageId, className }) => {

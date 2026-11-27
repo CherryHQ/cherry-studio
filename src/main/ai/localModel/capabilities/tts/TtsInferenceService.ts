@@ -28,6 +28,31 @@ export class TtsInferenceService extends InferenceServiceBase<TtsInferenceContra
     super(ttsInferenceProcess, 'tts')
   }
 
+  stream(
+    modelId: LocalModelBundleId,
+    input: Omit<TtsSynthesizeInput, 'outputPath' | 'text'> & { text?: string },
+    signal?: AbortSignal
+  ) {
+    return this.openStream(
+      modelId,
+      'synthesize',
+      () => {
+        const bundle = getModelBundle(modelId)
+        if (bundle.capability !== 'tts' || bundle.runtime?.architecture !== 'qwen3-tts')
+          throw new Error('Unsupported streaming speech model')
+        const modelDir = localModelStorageService.resolveInstalledDir(bundle)
+        if (!modelDir || !bundle.requires.every((id) => localModelStorageService.isArtifactReady(id)))
+          throw new Error('The selected speech model is not fully downloaded')
+        return { ...input, modelDir }
+      },
+      {
+        signal,
+        input: { maxFrameBytes: 32768, maxBufferedBytes: 32768, maxBufferedFrames: 1, maxPendingWrites: 1 },
+        output: { maxFrameBytes: 65536, maxBufferedBytes: 131072, maxBufferedFrames: 4, maxPendingWrites: 1 }
+      }
+    )
+  }
+
   async synthesize(modelId: LocalModelBundleId, input: TtsSynthesizeInput, signal?: AbortSignal): Promise<void> {
     signal?.throwIfAborted()
     await this.run(

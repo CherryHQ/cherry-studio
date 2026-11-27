@@ -22,7 +22,7 @@
  * `application.get('FileManager')`. The `internal/*` tree is a private
  * implementation area and is not re-exported via `src/main/services/file/index.ts`.
  *
- * See `docs/references/file/file-manager-architecture.md §1.6` for the full
+ * See `docs/dev/references/file/file-manager-architecture.md §1.6` for the full
  * implementation-layout decision.
  *
  * ## FileHandle dispatch at the IPC boundary
@@ -55,7 +55,7 @@
  * and each handler in `src/main/ipc/handlers/file.ts`; the public API surface
  * and `internal/*` pure-function structure both stay stable.
  *
- * See `docs/references/file/file-manager-architecture.md §1.6.5` for the
+ * See `docs/dev/references/file/file-manager-architecture.md §1.6.5` for the
  * full dispatch convention.
  *
  * ## External entries — best-effort reference semantics
@@ -68,8 +68,8 @@
  * Which callers use internal vs external is a business-layer decision —
  * FileManager makes no assumption. For module boundaries and dangling-state
  * tracking, see:
- * - [file-manager-architecture.md](../../../docs/references/file/file-manager-architecture.md)
- * - [architecture.md](../../../docs/references/file/architecture.md)
+ * - [file-manager-architecture.md](../../../docs/dev/references/file/file-manager-architecture.md)
+ * - [architecture.md](../../../docs/dev/references/file/architecture.md)
  *
  * Cherry **allows** user-initiated modification of external files:
  * - `write` / `writeIfUnchanged` → atomic write to `externalPath`
@@ -119,6 +119,7 @@
  * design. The asymmetry above is the actual contract.
  */
 import { createReadStream as nodeCreateReadStream } from 'node:fs'
+import { realpath } from 'node:fs/promises'
 import type { Readable, Writable } from 'node:stream'
 import { finished } from 'node:stream/promises'
 import { pathToFileURL } from 'node:url'
@@ -131,10 +132,14 @@ import { fileEntryService } from '@data/services/FileEntryService'
 import { fileRefService } from '@data/services/FileRefService'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { logFailure } from '@main/core/logger/logFailure'
 import { stat as fsStat } from '@main/utils/file'
 import type { ContentHash, DanglingState, FileEntry, FileEntryId } from '@shared/data/types/file'
 import { CleanupPolicySchema, FileEntryIdSchema } from '@shared/data/types/file'
+import { fileErrorCodes } from '@shared/ipc/errors/file'
+import { IpcError } from '@shared/ipc/errors/IpcError'
 import { type CreateInternalEntryInput, createInternalEntryInputSchema } from '@shared/ipc/schemas/file'
+import type { FileEditRead } from '@shared/ipc/schemas/fileEdit'
 import { IpcChannel } from '@shared/IpcChannel'
 import type {
   AbsoluteFilePath,
@@ -149,6 +154,7 @@ import { KeyedMutex } from '@shared/utils/async'
 import { canonicalizeFilePath } from '@shared/utils/file'
 
 import { danglingCache } from './danglingCache'
+import { classifyFileFailure } from './failureFacts'
 import { hash as internalHash } from './internal/content/hash'
 import { read as internalRead, readChunk as internalReadChunk } from './internal/content/read'
 import {
@@ -168,6 +174,7 @@ import {
   batchRestore as internalBatchRestore,
   batchTrash as internalBatchTrash,
   deleteInternalTemporaryEntry as internalDeleteInternalTemporaryEntry,
+  deleteUnreferencedInternalEntry as internalDeleteUnreferencedInternalEntry,
   permanentDelete as internalPermanentDelete,
   restore as internalRestore,
   trash as internalTrash
@@ -189,9 +196,11 @@ import {
 } from './internal/orphanSweep'
 import { showInFolder as internalShellShowInFolder } from './internal/system/shell'
 import { withTempCopy as internalWithTempCopy } from './internal/system/tempCopy'
-import { safeOpen } from './system'
+import { runPathMutationExclusive } from './pathMutationLock'
+import { copyFileToClipboard, type DefaultOpenContext, safeOpen } from './system'
 import { createContentHashBackfillJobHandler } from './tasks/contentHashBackfillJobHandler'
 import { ensureContentMetadataGeneration } from './tasks/contentMetadataGeneration'
+import { readEditSnapshot as readEditingSnapshot } from './utils/editSnapshot'
 import { buildPhysicalFileMetadata } from './utils/metadata'
 import { resolvePhysicalPath } from './utils/pathResolver'
 import { createVersionCacheImpl, type VersionCache } from './versionCache'
@@ -552,7 +561,8 @@ export interface IFileManager {
     id: FileEntryId,
     data: string | Uint8Array,
     expectedVersion: FileVersion,
-    expectedContentHash?: ContentHash
+    expectedContentHash?: ContentHash,
+    expectedPath?: AbsoluteFilePath
   ): Promise<FileVersion>
 
   /** Stream write with atomic commit (tmp + rename during `.end()`). Works for both origins. */
@@ -608,6 +618,9 @@ export interface IFileManager {
    * "both gone".
    */
   permanentDelete(id: FileEntryId): Promise<void>
+
+  /** Delete an internal entry only when no persistent refs hold it, checked atomically with row deletion. */
+  deleteUnreferencedInternalEntry(id: FileEntryId): Promise<boolean>
 
   /** Batch internal-only — external ids in the batch will fail with the same error as `trash`. */
   batchTrash(ids: FileEntryId[]): Promise<BatchMutationResult>
@@ -691,10 +704,13 @@ export interface IFileManager {
   // ─── System ───
 
   /** Open with the system default application. Unsafe executable/script types are blocked. */
-  open(id: FileEntryId): Promise<void>
+  open(id: FileEntryId, context?: DefaultOpenContext): Promise<void>
 
   /** Reveal in the system file manager. */
   showInFolder(id: FileEntryId): Promise<void>
+
+  /** Copy the entry's physical file while retaining its storage origin for failure reporting. */
+  copyToClipboard(id: FileEntryId): Promise<void>
 }
 
 // ─── Runtime ───
@@ -1096,6 +1112,16 @@ export class FileManager extends BaseService implements IFileManager {
     return internalRead(this.deps, id, options as { encoding?: 'text' })
   }
 
+  async readEditSnapshot(id: FileEntryId, expectedPath: AbsoluteFilePath): Promise<FileEditRead> {
+    return this.deps.contentWriteLock.runExclusive(id, () =>
+      runPathMutationExclusive(async () => {
+        const path = AbsoluteFilePathSchema.parse(await realpath(this.getPhysicalPath(id)))
+        if (path !== expectedPath) throw new IpcError(fileErrorCodes.EDIT_TARGET_CHANGED, 'Editing target changed')
+        return readEditingSnapshot(path)
+      })
+    )
+  }
+
   async readChunk(id: FileEntryId, offset: number, length: number): Promise<ReadResult<Uint8Array>> {
     return internalReadChunk(this.deps, id, offset, length)
   }
@@ -1110,9 +1136,21 @@ export class FileManager extends BaseService implements IFileManager {
    */
   async getMetadata(id: FileEntryId): Promise<PhysicalFileMetadata> {
     const entry = this.deps.fileEntryService.getById(id)
-    const physicalPath = resolvePhysicalPath(entry)
-    const s = await observeExternalAccess(this.deps, entry, physicalPath, () => fsStat(physicalPath))
-    return buildPhysicalFileMetadata(physicalPath, s)
+    try {
+      const physicalPath = resolvePhysicalPath(entry)
+      const s = await observeExternalAccess(this.deps, entry, physicalPath, () => fsStat(physicalPath))
+      return buildPhysicalFileMetadata(physicalPath, s)
+    } catch (error) {
+      logFailure(
+        fileManagerLogger,
+        'File metadata unavailable',
+        error,
+        'file.get_metadata',
+        classifyFileFailure(error, entry.origin === 'external'),
+        'warn'
+      )
+      throw error
+    }
   }
 
   async getVersion(id: FileEntryId): Promise<FileVersion> {
@@ -1218,9 +1256,10 @@ export class FileManager extends BaseService implements IFileManager {
     id: FileEntryId,
     data: string | Uint8Array,
     expectedVersion: FileVersion,
-    expectedContentHash?: ContentHash
+    expectedContentHash?: ContentHash,
+    expectedPath?: AbsoluteFilePath
   ): Promise<FileVersion> {
-    return internalWriteIfUnchanged(this.deps, id, data, expectedVersion, expectedContentHash)
+    return internalWriteIfUnchanged(this.deps, id, data, expectedVersion, expectedContentHash, expectedPath)
   }
 
   async createWriteStream(id: FileEntryId): Promise<AtomicWriteStream> {
@@ -1251,6 +1290,12 @@ export class FileManager extends BaseService implements IFileManager {
   async permanentDelete(id: FileEntryId): Promise<void> {
     await internalPermanentDelete(this.deps, id)
     this.notifyReadModelChange([id])
+  }
+
+  async deleteUnreferencedInternalEntry(id: FileEntryId): Promise<boolean> {
+    const removed = await internalDeleteUnreferencedInternalEntry(this.deps, id)
+    if (removed) this.notifyReadModelChange([id])
+    return removed
   }
 
   async batchTrash(ids: FileEntryId[]): Promise<BatchMutationResult> {
@@ -1298,14 +1343,19 @@ export class FileManager extends BaseService implements IFileManager {
     return internalWithTempCopy(this.deps, id, fn)
   }
 
-  async open(id: FileEntryId): Promise<void> {
+  async open(id: FileEntryId, context?: DefaultOpenContext): Promise<void> {
     const entry = this.deps.fileEntryService.getById(id)
-    return safeOpen(resolvePhysicalPath(entry))
+    return safeOpen(resolvePhysicalPath(entry), context)
   }
 
   async showInFolder(id: FileEntryId): Promise<void> {
     const entry = this.deps.fileEntryService.getById(id)
     return internalShellShowInFolder(resolvePhysicalPath(entry))
+  }
+
+  async copyToClipboard(id: FileEntryId): Promise<void> {
+    const entry = this.deps.fileEntryService.getById(id)
+    return copyFileToClipboard(resolvePhysicalPath(entry), entry.origin === 'external')
   }
 
   // ─── Dangling state ───

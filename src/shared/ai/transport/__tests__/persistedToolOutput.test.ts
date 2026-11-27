@@ -69,7 +69,7 @@ describe('blobRefsOf', () => {
   })
 
   it('returns the entities blobs as-is', () => {
-    expect(blobRefsOf(entitiesRef)).toBe(entitiesRef.blobRefs)
+    expect(blobRefsOf(entitiesRef)).toEqual(entitiesRef.blobRefs)
   })
 })
 

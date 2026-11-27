@@ -2,7 +2,7 @@
 
 Application is the top-level orchestrator that ties together the lifecycle system and the Electron app.
 
-> **Full documentation** has moved to [docs/references/lifecycle/](../../../../docs/references/lifecycle/README.md).
+> **Full documentation** has moved to [docs/dev/references/lifecycle/](../../../../docs/dev/references/lifecycle/README.md).
 > This file is a quick-reference pointer.
 
 ## Import
@@ -25,10 +25,10 @@ The alias is configured in `tsconfig.node.json` (`compilerOptions.paths`) and `e
 
 | Topic | Reference Doc |
 |-------|--------------|
-| Application architecture & bootstrap flow | [Application Overview](../../../../docs/references/lifecycle/application-overview.md) |
-| Lifecycle internals (phases, hooks, states) | [Lifecycle Overview](../../../../docs/references/lifecycle/lifecycle-overview.md) |
-| Full usage guide | [Usage Guide](../../../../docs/references/lifecycle/lifecycle-usage.md) |
-| Migrating old services | [Migration Guide](../../../../docs/references/lifecycle/lifecycle-migration-guide.md) |
+| Application architecture & bootstrap flow | [Application Overview](../../../../docs/dev/references/lifecycle/application-overview.md) |
+| Lifecycle internals (phases, hooks, states) | [Lifecycle Overview](../../../../docs/dev/references/lifecycle/lifecycle-overview.md) |
+| Full usage guide | [Usage Guide](../../../../docs/dev/references/lifecycle/lifecycle-usage.md) |
+| Migrating old services | [Migration Guide](../../../../docs/dev/references/lifecycle/lifecycle-migration-guide.md) |
 
 ## File Structure
 
@@ -38,4 +38,4 @@ application/
 └── serviceRegistry.ts  # Central service registry (add services here); imported directly, not via a barrel
 ```
 
-No `index.ts` barrel: the two files are independent (the locator vs the bootstrap manifest), so each is imported directly by its consumers rather than bundled behind a door (per [Naming §6.4](../../../../docs/references/architecture/naming-conventions.md)).
+No `index.ts` barrel: the two files are independent (the locator vs the bootstrap manifest), so each is imported directly by its consumers rather than bundled behind a door (per [Naming §6.4](../../../../docs/dev/references/architecture/naming-conventions.md)).

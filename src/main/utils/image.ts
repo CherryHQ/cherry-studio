@@ -46,15 +46,16 @@ export async function transcodeToPng(bytes: Uint8Array): Promise<Uint8Array> {
  * header is read to decide, so in-bounds input is never decoded or re-encoded.
  * @returns resized bytes, or `null` when the image already fits. Throws on undecodable input.
  */
-export async function clampImageForModel(bytes: Uint8Array): Promise<Uint8Array | null> {
+export async function clampImageForModel(
+  bytes: Uint8Array,
+  maxEdge: number = MODEL_IMAGE_MAX_EDGE
+): Promise<Uint8Array | null> {
   const sharp = (await import('sharp')).default
   const image = sharp(bytes, { failOn: 'none' })
   const { width, height } = await image.metadata()
   if (!width || !height) throw new Error('could not read image dimensions')
-  if (width <= MODEL_IMAGE_MAX_EDGE && height <= MODEL_IMAGE_MAX_EDGE) return null
-  return image
-    .resize(MODEL_IMAGE_MAX_EDGE, MODEL_IMAGE_MAX_EDGE, { fit: 'inside', withoutEnlargement: true })
-    .toBuffer()
+  if (width <= maxEdge && height <= maxEdge) return null
+  return image.resize(maxEdge, maxEdge, { fit: 'inside', withoutEnlargement: true }).toBuffer()
 }
 
 /**

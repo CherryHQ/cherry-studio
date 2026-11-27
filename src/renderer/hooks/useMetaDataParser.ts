@@ -99,7 +99,13 @@ export function useMetaDataParser<T extends string>(
       }
       setError(err instanceof Error ? err : new Error('Failed to fetch HTML'))
     } finally {
-      setIsLoading(false)
+      // Only the current request may update the loading state: a superseded
+      // request's finally would otherwise reset `isLoading` while its
+      // replacement is still in flight, which flashes the fallback card and
+      // blocks any retry for the rest of the component's lifetime.
+      if (abortControllerRef.current === controller) {
+        setIsLoading(false)
+      }
     }
   }, [isLoading, link, properties, timeout])
 

@@ -24,18 +24,21 @@ import {
   type MessageMenuBarButtonId,
   STREAMING_DISABLED_BUTTON_IDS
 } from '@renderer/components/chat/messages/frame/messageMenuBarConfig'
+import { CHAT_CAPTURE_BACKDROP_VARIABLE } from '@renderer/components/chat/messages/types'
 import { getMessageDeleteUnavailableText } from '@renderer/components/chat/messages/utils/messageDeleteAvailability'
 import CopyIcon from '@renderer/components/icons/CopyIcon'
 import DeleteIcon from '@renderer/components/icons/DeleteIcon'
 import EditIcon from '@renderer/components/icons/EditIcon'
 import RefreshIcon from '@renderer/components/icons/RefreshIcon'
+import { messageProjectionService } from '@renderer/services/aiTransport'
 import { readMessageAloud } from '@renderer/services/voice'
 import type { MessageExportView } from '@renderer/types/messageExport'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
 import { removeTrailingDoubleSpaces } from '@renderer/utils/markdownLight'
 import { createComposerRichClipboardContentFromParts } from '@renderer/utils/message/composerClipboard'
-import { getTranslationFromParts, hasTextParts } from '@renderer/utils/message/partsHelpers'
+import { getComposerTextFromParts } from '@renderer/utils/message/composerTokens'
+import { getTranslationFromParts, hasTextParts, hasTranslationParts } from '@renderer/utils/message/partsHelpers'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { TranslateLanguage } from '@shared/data/types/translate'
 
@@ -194,7 +197,44 @@ async function withMessageCaptureLease<T>(context: MessageMenuBarActionContext, 
   }
 }
 
-registerCommand('message.copy', async ({ actions, mainTextContent, messageParts, setCopied, t }) => {
+function readLiveParts(parts: CherryMessagePart[]): CherryMessagePart[] {
+  if (messageProjectionService.ownsRowParts(parts)) {
+    return messageProjectionService.readParts(parts)
+  }
+  let resolved: CherryMessagePart[] | undefined
+  for (let index = 0; index < parts.length; index++) {
+    const part = parts[index]
+    const live = messageProjectionService.getPart(part)
+    if (live && live !== part) {
+      resolved ??= [...parts]
+      resolved[index] = live
+    }
+  }
+  return resolved ?? parts
+}
+
+function withLiveMessageParts(context: MessageMenuBarActionContext): MessageMenuBarActionContext {
+  const liveParts = readLiveParts(context.messageParts)
+  const liveExportParts =
+    context.messageForExport.parts === context.messageParts ? liveParts : readLiveParts(context.messageForExport.parts)
+  if (liveParts === context.messageParts && liveExportParts === context.messageForExport.parts) {
+    return context
+  }
+  return {
+    ...context,
+    messageParts: liveParts,
+    messageForExport:
+      liveExportParts === context.messageForExport.parts
+        ? context.messageForExport
+        : { ...context.messageForExport, parts: liveExportParts },
+    ...(liveParts !== context.messageParts && {
+      mainTextContent: getComposerTextFromParts(liveParts),
+      hasTranslationBlocks: hasTranslationParts(liveParts)
+    })
+  }
+}
+
+registerCommand('message.copy', async ({ actions, messageParts, setCopied, t }) => {
   const richContent = actions.copyRichContent ? createComposerRichClipboardContentFromParts(messageParts) : null
   if (richContent) {
     // Match the plain copy path's text/plain normalization; the private fragment
@@ -207,7 +247,7 @@ registerCommand('message.copy', async ({ actions, mainTextContent, messageParts,
       }
     )
   } else {
-    await actions.copyText?.(removeTrailingDoubleSpaces(mainTextContent.trimStart()), {
+    await actions.copyText?.(removeTrailingDoubleSpaces(getComposerTextFromParts(messageParts).trimStart()), {
       successMessage: t('message.copied')
     })
   }
@@ -288,18 +328,25 @@ registerCommand('message.copyImage', async (context) => {
   await withMessageCaptureLease(context, async () => {
     const { exportService } = await import('@renderer/services/ExportService')
     const messageContainerRef = getMessageCaptureRef(context)
-    await exportService.captureScrollableAsBlob(messageContainerRef, async (blob) => {
-      if (blob) {
-        await context.actions.copyImage?.(blob)
-      }
-    })
+    await exportService.captureScrollableAsBlob(
+      messageContainerRef,
+      async (blob) => {
+        if (blob) {
+          await context.actions.copyImage?.(blob)
+        }
+      },
+      CHAT_CAPTURE_BACKDROP_VARIABLE
+    )
   })
 })
 
 registerCommand('message.exportImage', async (context) => {
   await withMessageCaptureLease(context, async () => {
     const { exportService, getMessageTitle } = await import('@renderer/services/ExportService')
-    const imageData = await exportService.captureScrollableAsDataUrl(getMessageCaptureRef(context))
+    const imageData = await exportService.captureScrollableAsDataUrl(
+      getMessageCaptureRef(context),
+      CHAT_CAPTURE_BACKDROP_VARIABLE
+    )
     const title = await getMessageTitle(context.messageForExport)
     if (!title || !imageData || !context.actions.saveImage) {
       context.actions.notifyError?.(context.t('message.error.unknown'))
@@ -377,9 +424,10 @@ registerToolbarAction({
   id: 'read-aloud',
   commandId: 'message.readAloud',
   label: ({ t }) => t('chat.message.read_aloud.label'),
-  icon: <Volume2 className="size-4.5" />,
+  icon: <Volume2 className="size-4.5" strokeWidth={1.75} />,
   availability: ({ isAssistantMessage, isProcessing, message, messageParts }) => {
-    const visible = isAssistantMessage && message.status === 'success' && !isProcessing && hasTextParts(messageParts)
+    const visible =
+      isAssistantMessage && message.status === 'success' && !isProcessing && hasTextParts(readLiveParts(messageParts))
     return { visible, enabled: visible }
   }
 })
@@ -391,7 +439,8 @@ registerToolbarAction({
   icon: <RefreshIcon size={15} />,
   availability: toolbarAvailability(
     'assistant-regenerate',
-    ({ actions, isAssistantMessage }) => isAssistantMessage && !!actions.regenerateMessage
+    ({ actions, isAssistantMessage, isUserMessage }) =>
+      (isAssistantMessage || isUserMessage) && !!actions.regenerateMessage
   )
 })
 
@@ -632,18 +681,19 @@ registerAction({
 export function resolveMessageMenuBarTranslationItems(
   context: MessageMenuBarActionContext
 ): MessageMenuBarTranslationItem[] {
+  const resolvedContext = withLiveMessageParts(context)
   const { actions, getTranslationLanguageLabel, hasTranslationBlocks, mainTextContent, message, messageParts, t } =
-    context
+    resolvedContext
 
   const items: MessageMenuBarTranslationItem[] = actions.translateMessage
-    ? context.translateLanguages.map((language) => ({
+    ? resolvedContext.translateLanguages.map((language) => ({
         label: getTranslationLanguageLabel?.(language) ?? language.langCode,
         key: language.langCode,
         onSelect: async () => {
           try {
             await actions.translateMessage?.(message.id, language, mainTextContent)
           } catch (error) {
-            notifyCommandError('message.translate', context, error)
+            notifyCommandError('message.translate', resolvedContext, error)
           }
         }
       }))
@@ -651,7 +701,7 @@ export function resolveMessageMenuBarTranslationItems(
 
   if (items.length === 0 && actions.translateMessage && actions.requestTranslationLanguages) {
     const retryTranslationLanguages = actions.retryTranslationLanguages
-    if (context.translationLanguagesStatus === 'error' && retryTranslationLanguages) {
+    if (resolvedContext.translationLanguagesStatus === 'error' && retryTranslationLanguages) {
       items.push({
         key: 'translate-retry',
         label: t('common.retry'),
@@ -740,7 +790,7 @@ export async function executeMessageMenuBarAction(
   context: MessageMenuBarActionContext
 ): Promise<boolean> {
   try {
-    return await messageMenuBarActionRegistry.execute(actionId, context)
+    return await messageMenuBarActionRegistry.execute(actionId, withLiveMessageParts(context))
   } catch (error) {
     notifyCommandError(actionId, context, error)
     return false

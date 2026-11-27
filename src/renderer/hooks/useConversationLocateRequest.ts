@@ -1,13 +1,26 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
+
+import { cacheService } from '@data/CacheService'
 
 type LocateRequest = {
   conversationId: string
-  messageId: string
+  messageId: string | null
+}
+
+const navigationLocateKey = (tabId: string) => `navigation.conversation.locate.${tabId}`
+
+export function requestConversationLocate(tabId: string, conversationId: string, messageId: string | null): void {
+  cacheService.setCasual<LocateRequest>(navigationLocateKey(tabId), { conversationId, messageId })
+}
+
+export function clearConversationLocate(tabId: string): void {
+  cacheService.deleteCasual(navigationLocateKey(tabId))
 }
 
 interface UseConversationLocateRequestOptions {
   activeConversationId: string | null | undefined
   visibleConversationId: string | null | undefined
+  navigationTabId?: string
 }
 
 /**
@@ -24,9 +37,15 @@ interface UseConversationLocateRequestOptions {
  */
 export function useConversationLocateRequest({
   activeConversationId,
-  visibleConversationId
+  visibleConversationId,
+  navigationTabId
 }: UseConversationLocateRequestOptions) {
   const [request, setRequest] = useState<LocateRequest>()
+  const key = navigationTabId ? navigationLocateKey(navigationTabId) : undefined
+  const navigationRequest = useSyncExternalStore(
+    useCallback((listener) => (key ? cacheService.subscribe(key, listener) : () => {}), [key]),
+    useCallback(() => (key ? cacheService.getCasual<LocateRequest>(key) : undefined), [key])
+  )
 
   useEffect(() => {
     if (request && request.conversationId !== activeConversationId) {
@@ -34,14 +53,23 @@ export function useConversationLocateRequest({
     }
   }, [activeConversationId, request])
 
-  const requestLocate = useCallback((conversationId: string, messageId: string) => {
+  useEffect(() => {
+    if (key && navigationRequest && navigationRequest.conversationId === activeConversationId) {
+      setRequest(navigationRequest)
+      cacheService.deleteCasual(key)
+    }
+  }, [activeConversationId, key, navigationRequest])
+
+  const requestLocate = useCallback((conversationId: string, messageId: string | null) => {
     setRequest({ conversationId, messageId })
   }, [])
   const clearLocate = useCallback(() => setRequest(undefined), [])
-  const locateMessageId =
-    request && request.conversationId === activeConversationId && request.conversationId === visibleConversationId
-      ? request.messageId
+  const visibleRequest =
+    request?.conversationId === activeConversationId && request?.conversationId === visibleConversationId
+      ? request
       : undefined
+  const locateMessageId = visibleRequest?.messageId ?? undefined
+  const locateToEnd = visibleRequest?.messageId === null
 
-  return { locateMessageId, requestLocate, clearLocate }
+  return { locateMessageId, locateToEnd, requestLocate, clearLocate }
 }

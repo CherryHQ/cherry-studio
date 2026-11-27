@@ -1,4 +1,4 @@
-import type { KnowledgeSearchScoreKind } from '@shared/data/types/knowledge'
+import type { KnowledgeItemType, KnowledgeSearchScoreKind } from '@shared/data/types/knowledge'
 
 export interface RecallHistoryItem {
   id: string
@@ -7,6 +7,7 @@ export interface RecallHistoryItem {
 
 export interface RecallResultItem {
   id: string
+  sourceType: KnowledgeItemType
   sourceName: string
   chunkIndex: number
   tokenCount: number

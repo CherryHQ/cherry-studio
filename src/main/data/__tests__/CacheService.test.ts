@@ -1,6 +1,3 @@
-import type { IpcMainEvent } from 'electron'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
 /**
  * Tests for CacheService subscription APIs and value-equality semantics.
  *
@@ -12,6 +9,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
  *  - Re-entrance, error isolation, Set-iteration safety
  *  - Lifecycle cleanup on onStop
  */
+import { pathToFileURL } from 'node:url'
+
+import type { IpcMainEvent } from 'electron'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { IpcChannel } from '@shared/IpcChannel'
 
 // Undo the global mock from main.setup.ts — we want the REAL CacheService
@@ -48,20 +50,6 @@ vi.mock('@main/core/lifecycle', () => ({
   Phase: { BeforeReady: 'BeforeReady', WhenReady: 'WhenReady' }
 }))
 
-// Override electron BrowserWindow with a test-controllable mock.
-// The global electron mock already makes BrowserWindow a vi.fn — we just need
-// getAllWindows/fromWebContents as static helpers.
-vi.mock('electron', async () => {
-  const actual = await vi.importActual<any>('electron')
-  const fakeBrowserWindow: any = vi.fn()
-  fakeBrowserWindow.getAllWindows = vi.fn(() => [] as any[])
-  fakeBrowserWindow.fromWebContents = vi.fn(() => null)
-  return {
-    ...actual,
-    BrowserWindow: fakeBrowserWindow
-  }
-})
-
 const SHARED_EXACT = 'web_search.provider.last_used_key.google' as const
 const SHARED_OTHER = 'web_search.provider.last_used_key.openrouter' as const
 const SHARED_TEMPLATE = 'web_search.provider.last_used_key.${providerId}' as const
@@ -70,11 +58,11 @@ const SHARED_TEMPLATE = 'web_search.provider.last_used_key.${providerId}' as con
 // global application mock resolves getPath('app.root') to '/mock/app.root'.
 const trustedEvent = {
   sender: { getType: () => 'window' },
-  senderFrame: { url: 'file:///mock/app.root/index.html', parent: null }
+  senderFrame: { url: pathToFileURL('/mock/app.root/index.html').href, parent: null }
 } as unknown as IpcMainEvent
 const untrustedEvent = {
   sender: { getType: () => 'webview' },
-  senderFrame: { url: 'file:///mock/app.root/index.html', parent: null }
+  senderFrame: { url: pathToFileURL('/mock/app.root/index.html').href, parent: null }
 } as unknown as IpcMainEvent
 
 describe('CacheService subscription', () => {
@@ -84,6 +72,10 @@ describe('CacheService subscription', () => {
     vi.clearAllMocks()
     ipcListeners.clear()
     ipcHandlers.clear()
+
+    const { BrowserWindow } = (await import('electron')) as any
+    BrowserWindow.getAllWindows = vi.fn(() => [])
+    BrowserWindow.fromWebContents = vi.fn(() => null)
 
     const { CacheService } = await import('../CacheService')
     service = new CacheService()

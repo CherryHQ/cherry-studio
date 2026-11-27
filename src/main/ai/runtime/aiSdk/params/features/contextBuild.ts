@@ -23,7 +23,7 @@
  * happens before cache markers are placed (see internalFeatures.ts).
  */
 import type { ContextMiddlewareOptions, TruncateOptions, VFSStorageAdapter } from '@cherrystudio/ai-core'
-import { createContextMiddleware, definePlugin, groupIntoTurns } from '@cherrystudio/ai-core'
+import { createContextMiddleware, definePlugin, fromAISDK, groupIntoTurns, toAISDK } from '@cherrystudio/ai-core'
 import { messageService } from '@data/services/MessageService'
 import { loggerService } from '@logger'
 import {
@@ -34,6 +34,7 @@ import {
 import { createFileManagerStorageAdapter } from '@main/ai/contextBuild/persistedOutputAdapter'
 import { resolveContextWindow } from '@main/ai/contextBuild/resolveContextWindow'
 import { resolveInputRoom } from '@main/ai/contextBuild/resolveInputRoom'
+import { omitCompactedAnthropicThinking, usesAnthropicMessagesSdk } from '@main/ai/messages/anthropicThinking'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 
 import type { RequestFeature } from '../feature'
@@ -134,7 +135,12 @@ export function buildContextOptions(scope: RequestScope): ContextMiddlewareOptio
   // comparison against it was silently false).
   if (settings.compress.enabled && !scope.compressionModel && contextWindow !== null) {
     logger.debug('compress enabled but no model resolved — sliding-window fallback only')
-    options.onBeforeCompress = (history, tokenInfo) => dropOldestUntilUnderBudget(history, tokenInfo)
+    options.onBeforeCompress = (history, tokenInfo) => {
+      const kept = dropOldestUntilUnderBudget(history, tokenInfo)
+      return kept !== history && usesAnthropicMessagesSdk(scope.aiSdkProviderId, scope)
+        ? fromAISDK(omitCompactedAnthropicThinking(toAISDK(kept)))
+        : kept
+    }
   }
 
   return options

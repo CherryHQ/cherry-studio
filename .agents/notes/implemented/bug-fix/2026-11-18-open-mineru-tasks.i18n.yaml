@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-18-open-mineru-tasks.md
+2026-11-18-open-mineru-tasks.md: 8523299d87e7644a92468bcefcd70087af5ff7c0
+2026-11-18-open-mineru-tasks.zh.md: 5301ede005472ae9ff7ccfed13adc8f55b620c4d

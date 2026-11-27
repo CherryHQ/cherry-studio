@@ -18,7 +18,19 @@ import { AgentSessionDeliveryRoutingError, agentSessionMessageService } from '@d
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentTaskService as taskService } from '@data/services/AgentTaskService'
 import { loggerService } from '@logger'
-import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
+import {
+  CREATE_AGENT_TOOL_DESCRIPTION,
+  CREATE_ASSISTANT_TOOL_DESCRIPTION,
+  createAgentFromTool,
+  createAssistantFromTool,
+  toolOutput,
+  updateAgentFromTool
+} from '@main/ai/agents/agentConfigTool'
+import {
+  CreateAgentToolInputSchema,
+  CreateAssistantToolInputSchema,
+  SelfUpdateToolInputSchema
+} from '@main/ai/agents/agentConfigToolSchemas'
 import {
   createAgentChannel,
   createAgentChannelAndWaitForQr,
@@ -36,6 +48,7 @@ import { findPersistedToolOutput } from '@main/ai/messages/persistedToolOutput'
 import { readConversation, type ReadConversationInput } from '@main/ai/messages/readConversation'
 import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
 import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
+import { AgentConfigToolOutputSchema, AssistantCreateToolOutputSchema } from '@shared/ai/agentConfigToolOutput'
 import { isHeartbeatEnabled } from '@shared/ai/agentHeartbeat'
 import {
   AgentSessionDeliveryStatusSchema,
@@ -43,12 +56,21 @@ import {
   SESSION_DELIVERIES_TOOL_NAME,
   SESSION_LIST_TOOL_NAME,
   SESSION_READ_TOOL_NAME,
+  SESSION_RENAME_TOOL_NAME,
   SESSION_SEARCH_TOOL_NAME,
   SESSION_SEND_TOOL_NAME
 } from '@shared/ai/agentSessionDelivery'
-import { CONFIG_TOOL_NAME, CRON_TOOL_NAME, NOTIFY_TOOL_NAME } from '@shared/ai/builtinTools'
-import { TimeoutMinutesAtomSchema } from '@shared/data/api/schemas/agents'
-import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
+import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
+import { isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
+import {
+  AGENT_CREATE_TOOL_NAME,
+  ASSISTANT_CREATE_TOOL_NAME,
+  CONFIG_TOOL_NAME,
+  CONFIG_UPDATE_TOOL_NAME,
+  CRON_TOOL_NAME,
+  NOTIFY_TOOL_NAME
+} from '@shared/ai/builtinTools'
+import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import { JOB_ERROR_CODES, type Trigger } from '@shared/data/api/schemas/jobs'
 import { ChannelConfigSchema } from '@shared/data/types/channel'
 
@@ -67,30 +89,32 @@ export interface AutonomyToolsContext {
   trustedNotifyChannels: readonly NotifyChannel[]
   /** Source-channel turns may explicitly select another live channel owned by this Agent. */
   allowAnyOwnedNotifyChannel: boolean
+  /** Offer `agent_create` and `assistant_create`; see the `createResources` Agent capability. */
+  resourceCreateEnabled?: boolean
+  /** Offer `config_update`; built-in Agents cannot change these settings. */
+  selfConfigEnabled?: boolean
 }
 
-/**
- * Parse a human-friendly duration string (e.g. '30m', '2h', '1h30m') into minutes.
- */
-function parseDurationToMinutes(duration: string): number {
-  let totalMinutes = 0
-  const hourMatch = duration.match(/(\d+)\s*h/i)
-  const minMatch = duration.match(/(\d+)\s*m/i)
+const DURATION_UNIT_MS = { s: 1_000, m: 60_000, h: 3_600_000, d: 86_400_000 } as const
+const MIN_INTERVAL_MS = 60_000
 
-  if (hourMatch) totalMinutes += parseInt(hourMatch[1], 10) * 60
-  if (minMatch) totalMinutes += parseInt(minMatch[1], 10)
-
-  if (totalMinutes === 0) {
-    const raw = parseInt(duration, 10)
-    if (!isNaN(raw) && raw > 0) return raw
-    throw new Error(`Invalid duration: "${duration}". Use formats like '30m', '2h', '1h30m'.`)
+function parseDurationToMs(duration: string): number {
+  if (!/^\s*(?:\d+(?:\.\d+)?\s*[smhd]\s*)+$/i.test(duration)) {
+    throw new Error(`Invalid duration: "${duration}". Use formats like '30m', '2h', '1d', '1h30m'.`)
   }
 
-  return totalMinutes
+  let totalMs = 0
+  for (const [, amount, unit] of duration.matchAll(/(\d+(?:\.\d+)?)\s*([smhd])/gi)) {
+    totalMs += Number(amount) * DURATION_UNIT_MS[unit.toLowerCase() as keyof typeof DURATION_UNIT_MS]
+  }
+  totalMs = Math.round(totalMs)
+
+  if (totalMs < MIN_INTERVAL_MS) throw new Error(`Invalid duration: "${duration}". The minimum interval is 1 minute.`)
+  return totalMs
 }
 
 const CRON_DESCRIPTION =
-  "Manage scheduled tasks. Use action 'add' to create a recurring or one-time job, 'update' with an id to change only the supplied fields, 'list' to see this Agent's jobs, or 'remove' to delete a job. Edit existing jobs with 'update' instead of removing and re-creating them. For one-time jobs, use the 'at' field with an RFC3339 timestamp."
+  "Manage your scheduled jobs: add, update, list, remove. Use it whenever the user asks for a scheduled, recurring or timed task (定时任务); it runs as you, so it needs no new Agent. Prefer update over recreating; one-time jobs use an RFC3339 'at'."
 
 const CronInputSchema = z.object({
   action: z.enum(['add', 'update', 'list', 'remove']).describe('The action to perform'),
@@ -105,7 +129,11 @@ const CronInputSchema = z.object({
     .min(1)
     .optional()
     .describe("Cron expression, e.g. '0 9 * * 1-5' for weekdays at 9am (use cron OR every, not both)"),
-  every: z.string().min(1).optional().describe("Duration, e.g. '30m', '2h', '24h' (use every OR cron, not both)"),
+  every: z
+    .string()
+    .min(1)
+    .optional()
+    .describe("Duration of at least 1 minute, e.g. '30m', '2h', '1d', '1h30m' (use every OR cron, not both)"),
   at: z
     .string()
     .min(1)
@@ -119,8 +147,20 @@ const CronInputSchema = z.object({
     .describe(
       'Channel IDs to send task results to. On add, omit to use this turn’s configured notification recipients; on update, omit to keep existing recipients; use an empty array [] to skip channel delivery. Explicit IDs must be configured recipients, except a source-channel session may select another live channel owned by this Agent.'
     ),
-  timeout_minutes: TimeoutMinutesAtomSchema.describe(
-    'Timeout in minutes before the task is aborted. Default is 2 on add; omit on update to keep the current timeout. Use null for no timeout.'
+  // Gemini's function-declaration schema rejects a nullable union (`anyOf: [number, null]`)
+  // with "didn't specify the schema type field". Agent runtimes consume this schema straight
+  // from MCP tools/list, without the provider middleware that rewrites such unions, so
+  // advertise a plain number. 0 already means "no timeout" in AgentJobsService; preprocess
+  // keeps older callers that send null working.
+  timeout_minutes: z.preprocess(
+    (value) => (value === null ? 0 : value),
+    z
+      .number()
+      .min(0)
+      .optional()
+      .describe(
+        'Timeout in minutes before the task is aborted. Default is 2 on add; omit on update to keep the current timeout. Use 0 for no timeout.'
+      )
   ),
   reuse_session: z
     .boolean()
@@ -133,7 +173,7 @@ const CronInputSchema = z.object({
 type CronInput = z.output<typeof CronInputSchema>
 
 const NOTIFY_DESCRIPTION =
-  'Deliver a message, a workspace file, or both to this turn’s configured notification recipients. Files are first-class deliverables: use file_path for final workspace artifacts. Telegram/Feishu/WeChat forward any file, and WeChat sends video as native video media; DingTalk forwards non-empty files up to 20 MiB with a platform-supported filename extension; Discord/Slack/QQ do not support files yet. Omit channel_id to deliver to all configured recipients; provide channel_id only to select one configured recipient. In a source-channel session, channel_id may also select another live channel owned by this Agent.'
+  'Send a message or workspace file to configured IM recipients. Omit channel_id to reach all; files need file_path.'
 
 // ponytail: no root union — some providers (xAI) reject union root schemas; the handler
 // enforces "message or file_path" on the trimmed values anyway.
@@ -170,7 +210,7 @@ const CHANNEL_CONFIG_SCHEMAS: Record<string, { required: string[]; optional: str
   },
   feishu: {
     required: ['app_id', 'app_secret', 'encrypt_key', 'verification_token', 'domain'],
-    optional: ['allowed_chat_ids'],
+    optional: ['allowed_chat_ids', 'mention_only'],
     description:
       'Feishu/Lark bot. Set auth_mode to "qr" to register interactively without config. For credential setup, provide all required fields and set domain to "feishu" or "lark".'
   },
@@ -217,7 +257,7 @@ const CHANNEL_CONFIG_SCHEMAS: Record<string, { required: string[]; optional: str
 }
 
 const CONFIG_DESCRIPTION =
-  "Inspect and manage your own agent configuration. Use 'status' to see current channels, model, and supported adapter types. Use 'rename' to change your display name. Use 'add_channel', 'update_channel', 'remove_channel', or 'reconnect_channel' to manage IM channel connections. Use 'reconnect_channel' when a WeChat or Feishu channel needs to re-scan a QR code (e.g. session expired or initial setup failed). Use 'complete_bootstrap' when onboarding is finished or the user declines it (e.g. 'no thanks', 'skip', or an equivalent phrase in their language); this disables onboarding for this agent in future sessions without requiring identity files. Use 'reset_bootstrap' only when the user explicitly asks to re-run onboarding in the next session."
+  'Inspect or change your agent config: status, rename, add/update/remove/reconnect channels, complete or reset bootstrap.'
 
 const ConfigInputSchema = z.object({
   action: z
@@ -287,6 +327,16 @@ const SessionDeliveriesInputSchema = z.object({
   request_id: z.string().optional().describe('Optional request id; correlated results are included.'),
   status: AgentSessionDeliveryStatusSchema.optional(),
   limit: z.number().optional().describe('Maximum deliveries to return (default 20, max 100).')
+})
+
+const SessionRenameInputSchema = z.strictObject({
+  title: z.string().trim().min(1).max(255).describe('New Session title (1–255 characters).'),
+  session_id: z
+    .string()
+    .trim()
+    .min(1)
+    .optional()
+    .describe('Target Agent Session id, including another Agent’s Session. Omit to rename the current Session.')
 })
 
 const SessionCreateInputSchema = z.object({
@@ -362,7 +412,11 @@ function listAgents(): CallToolResult {
   const agents = agentService.listAgents().agents.map((agent) => ({
     id: agent.id,
     name: agent.name,
+    emoji: agent.configuration?.avatar ?? '',
     description: agent.description ?? '',
+    model: agent.model,
+    // Built-in Agents cannot be changed from a conversation.
+    readOnly: isProtectedBuiltinAgentRole(agent.configuration?.builtin_role),
     runtime: {
       type: agent.type,
       available: runtimeDriverRegistry.getAgentSessionDriver(agent.type) !== undefined
@@ -370,6 +424,14 @@ function listAgents(): CallToolResult {
     modelConfigured: agent.model !== null
   }))
   return { content: [{ type: 'text', text: JSON.stringify({ agents }) }] }
+}
+
+function renameSession(ctx: AutonomyToolsContext, args: z.output<typeof SessionRenameInputSchema>): CallToolResult {
+  const sessionId = args.session_id ?? ctx.sessionId
+  const updated = agentSessionService.update(sessionId, { name: args.title })
+  return {
+    content: [{ type: 'text', text: JSON.stringify({ sessionId: updated.id, sessionName: updated.name }) }]
+  }
 }
 
 function searchSessions(ctx: AutonomyToolsContext, args: z.output<typeof SessionSearchInputSchema>): CallToolResult {
@@ -481,6 +543,19 @@ function listSessionDeliveries(
   return { content: [{ type: 'text', text: JSON.stringify({ deliveries }) }] }
 }
 
+function resolveWorkspaceForNewSession(
+  ctx: AutonomyToolsContext,
+  targetAgentId: string | undefined
+): AgentSessionWorkspaceSource {
+  if (!targetAgentId || targetAgentId === ctx.agentId) return ctx.workspaceSource
+  // Match a human opening the target Agent: continue that Agent's own last workspace.
+  const latest = agentSessionService.getLatestActive({ agentId: targetAgentId })
+  if (!latest) return ctx.workspaceSource
+  return latest.workspace.type === AGENT_WORKSPACE_TYPE.USER
+    ? { type: AGENT_WORKSPACE_TYPE.USER, workspaceId: latest.workspaceId }
+    : { type: AGENT_WORKSPACE_TYPE.SYSTEM }
+}
+
 function createSession(ctx: AutonomyToolsContext, args: z.output<typeof SessionCreateInputSchema>): CallToolResult {
   const content = args.message.trim()
   const title = args.title?.trim() ?? ''
@@ -499,7 +574,7 @@ function createSession(ctx: AutonomyToolsContext, args: z.output<typeof SessionC
     senderAgentId: ctx.agentId,
     senderSessionId: ctx.sessionId,
     sessionName: title,
-    workspace: ctx.workspaceSource,
+    workspace: resolveWorkspaceForNewSession(ctx, targetAgentId),
     content,
     ...(targetAgentId ? { targetAgentId } : {})
   })
@@ -590,8 +665,7 @@ function saveJob(ctx: AutonomyToolsContext, args: CronInput, action: 'add' | 'up
   if (cronExpr) {
     trigger = { kind: 'cron', expr: cronExpr }
   } else if (every) {
-    const minutes = parseDurationToMinutes(every)
-    trigger = { kind: 'interval', ms: minutes * 60_000 }
+    trigger = { kind: 'interval', ms: parseDurationToMs(every) }
   } else if (at) {
     const date = new Date(at)
     if (isNaN(date.getTime())) throw new Error(`Invalid timestamp: "${at}"`)
@@ -1084,7 +1158,17 @@ function configSetBootstrap(ctx: AutonomyToolsContext, completed: boolean): Call
   return { content: [{ type: 'text', text }] }
 }
 
+function assertConfigMutationAuthorized(ctx: AutonomyToolsContext): void {
+  const interaction = application.get('AgentSessionRuntimeService').getInteractionState(ctx.sessionId)
+  if (interaction.currentTurn === 'headless') {
+    throw new Error(
+      'Headless channel or scheduled turns cannot mutate agent configuration. Ask the user to make this change in Cherry Studio.'
+    )
+  }
+}
+
 async function runConfig(ctx: AutonomyToolsContext, args: ConfigInput): Promise<CallToolResult> {
+  if (args.action !== 'status') assertConfigMutationAuthorized(ctx)
   switch (args.action) {
     case 'status':
       return configStatus(ctx)
@@ -1118,9 +1202,58 @@ export function registerAutonomyTools(server: McpServer, ctx: AutonomyToolsConte
       (args) => sendNotification(ctx, args)
     )
   }
-  server.registerTool(CONFIG_TOOL_NAME, { description: CONFIG_DESCRIPTION, inputSchema: ConfigInputSchema }, (args) =>
-    runConfig(ctx, args)
+  server.registerTool(
+    CONFIG_TOOL_NAME,
+    {
+      description: ctx.selfConfigEnabled
+        ? `${CONFIG_DESCRIPTION} Use ${CONFIG_UPDATE_TOOL_NAME} for other settings.`
+        : CONFIG_DESCRIPTION,
+      inputSchema: ConfigInputSchema
+    },
+    (args) => runConfig(ctx, args)
   )
+  if (ctx.selfConfigEnabled) {
+    server.registerTool(
+      CONFIG_UPDATE_TOOL_NAME,
+      {
+        description:
+          'Change your own settings: avatar, description, instructions, model, permission mode, skills, knowledge bases, MCP servers, built-in tools, reply language, heartbeat. Pass only the fields to change; the user approves every call.',
+        inputSchema: SelfUpdateToolInputSchema,
+        outputSchema: AgentConfigToolOutputSchema
+      },
+      (args) => {
+        assertConfigMutationAuthorized(ctx)
+        return toolOutput(updateAgentFromTool(ctx.agentId, args, { self: true }))
+      }
+    )
+  }
+  if (ctx.resourceCreateEnabled) {
+    const fallbackModel = () => agentService.getAgent(ctx.agentId)?.model ?? undefined
+    server.registerTool(
+      AGENT_CREATE_TOOL_NAME,
+      {
+        description: CREATE_AGENT_TOOL_DESCRIPTION,
+        inputSchema: CreateAgentToolInputSchema,
+        outputSchema: AgentConfigToolOutputSchema
+      },
+      async (args) => {
+        assertConfigMutationAuthorized(ctx)
+        return toolOutput(await createAgentFromTool(args, { fallbackModel: fallbackModel() }))
+      }
+    )
+    server.registerTool(
+      ASSISTANT_CREATE_TOOL_NAME,
+      {
+        description: CREATE_ASSISTANT_TOOL_DESCRIPTION,
+        inputSchema: CreateAssistantToolInputSchema,
+        outputSchema: AssistantCreateToolOutputSchema
+      },
+      (args) => {
+        assertConfigMutationAuthorized(ctx)
+        return toolOutput(createAssistantFromTool(args, { fallbackModel: fallbackModel() }))
+      }
+    )
+  }
   server.registerTool(
     SESSION_LIST_TOOL_NAME,
     {
@@ -1150,16 +1283,25 @@ export function registerAutonomyTools(server: McpServer, ctx: AutonomyToolsConte
     SESSION_READ_TOOL_NAME,
     {
       description:
-        'Read messages from a Cherry Chat topic, Agent Session, or temporary conversation. The session type is detected from session_id. Use message_id for one exact message and tool_call_id with it to restore a persisted tool result. Attachments are descriptive only: their addresses and contents are omitted.',
+        'Read messages from a Chat topic, Agent Session, or temp chat. Use message_id for one message; attachments are omitted.',
       inputSchema: SessionReadInputSchema
     },
     (args) => runSessionTool(ctx, () => readSession(args))
   )
   server.registerTool(
+    SESSION_RENAME_TOOL_NAME,
+    {
+      description:
+        'Rename the current Agent Session, or another Agent Session by id. The title is protected from automatic renaming.',
+      inputSchema: SessionRenameInputSchema
+    },
+    (args) => runSessionTool(ctx, () => renameSession(ctx, args))
+  )
+  server.registerTool(
     SESSION_CREATE_TOOL_NAME,
     {
       description:
-        'Create a new Session and send its first durable message. Omit target_agent_id to use the current Agent; provide it to create the Session for another Agent. The new Session inherits the current workspace policy and uses the target Agent model.',
+        "Create a Session and send its first message. Omit target_agent_id for this Agent; it inherits the current workspace. With target_agent_id, the Session uses that Agent's own most recent workspace, falling back to the current workspace when the Agent has no Session.",
       inputSchema: SessionCreateInputSchema
     },
     (args) => runSessionTool(ctx, () => createSession(ctx, args))
@@ -1176,7 +1318,7 @@ export function registerAutonomyTools(server: McpServer, ctx: AutonomyToolsConte
     SESSION_SEND_TOOL_NAME,
     {
       description:
-        'Send a durable message to another Cherry Agent Session. Sender agentId/sessionId are injected by the trusted runtime and cannot be supplied by the caller.',
+        'Send a durable message to another Agent Session. Sender identity is injected by the runtime and cannot be set.',
       inputSchema: SessionSendInputSchema
     },
     (args) => runSessionTool(ctx, () => sendSessionMessage(ctx, args))

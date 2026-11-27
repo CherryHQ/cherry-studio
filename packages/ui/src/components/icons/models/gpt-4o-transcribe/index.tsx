@@ -9,7 +9,7 @@ const Gpt4oTranscribe = ({ variant, className, ...props }: CompoundIconProps) =>
 
 export const Gpt4oTranscribeIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Gpt4oTranscribe, {
   Avatar: Gpt4oTranscribeAvatar,
-  colorPrimary: '#000000'
+  colorPrimary: '#0497c9'
 })
 
 export default Gpt4oTranscribeIcon

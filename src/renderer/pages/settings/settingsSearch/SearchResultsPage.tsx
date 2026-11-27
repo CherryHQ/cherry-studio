@@ -66,7 +66,9 @@ const SearchResultsPage = () => {
   if (!results.length) {
     return (
       <SettingsContentColumn>
-        <p className="mt-16 text-center text-muted-foreground text-sm">{t('settings.search.noResults')}</p>
+        <p className="mt-16 text-center text-muted-foreground text-sm">
+          {t(!query.trim() ? 'settings.search.placeholder' : 'settings.search.noResults')}
+        </p>
       </SettingsContentColumn>
     )
   }

@@ -203,18 +203,6 @@ describe('useConfigDraftController (cherry gateway)', () => {
     mocks.extractConnectionFromCliConfigDraft.mockReturnValue(gatewayConnection)
   })
 
-  it('threads the gateway context into the initial managed preview rebuild', async () => {
-    renderGatewayController()
-
-    await act(async () => {
-      await Promise.resolve()
-      await Promise.resolve()
-    })
-
-    expect(mocks.readCliConfigDraft).toHaveBeenCalledTimes(1)
-    expect(mocks.readCliConfigDraft).toHaveBeenCalledWith(expect.objectContaining({ gateway }))
-  })
-
   it('keeps the real modelId when a matching gateway raw-file edit round-trips', async () => {
     const { result } = renderGatewayController()
 

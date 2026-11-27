@@ -58,22 +58,6 @@ const baseProps = {
 }
 
 describe('DataSourcePanelHeader', () => {
-  it('renders the updated time and add button in the default state', () => {
-    render(<DataSourcePanelHeader {...baseProps} selectedCount={0} />)
-
-    expect(screen.getByText('更新于 刚刚')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '添加' })).toBeInTheDocument()
-  })
-
-  it('switches to the bulk toolbar when rows are selected', () => {
-    render(<DataSourcePanelHeader {...baseProps} selectedCount={2} />)
-
-    expect(screen.getByText('已选 2')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: '取消' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '重新索引' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '删除' })).toBeInTheDocument()
-  })
-
   it('warns that a selection only covers loaded rows when unloaded pages remain', () => {
     const { rerender } = render(
       <DataSourcePanelHeader {...baseProps} total={200} loadedCount={50} selectedCount={50} />

@@ -23,7 +23,7 @@ describe('saveAttachmentToWorkspace', () => {
   let sourcePath: string
   const withTempCopy = vi.fn()
 
-  it('accepts only an attachment handle and a new workspace output path', () => {
+  it('accepts an attachment reference and a new workspace output path', () => {
     expect(saveAttachmentInputSchema.parse({ filename: 'file_abcd', output_path: 'inputs/sales.csv' })).toEqual({
       filename: 'file_abcd',
       output_path: 'inputs/sales.csv'
@@ -78,6 +78,43 @@ describe('saveAttachmentToWorkspace', () => {
     expect(await readFile(path.join(workspacePath, 'sales.csv'))).toEqual(sourceBytes)
     expect(result).toEqual({ path: 'sales.csv' })
     expect(JSON.stringify(result)).not.toContain('entry-secret')
+  })
+
+  it('accepts the visible display name when it is unique', async () => {
+    const result = await saveAttachmentToWorkspace(
+      workspacePath,
+      { filename: attachment.displayName, output_path: 'sales.csv' },
+      [attachment],
+      signal
+    )
+
+    expect(withTempCopy).toHaveBeenCalledWith('entry-secret', expect.any(Function))
+    expect(result).toEqual({ path: 'sales.csv' })
+  })
+
+  it('asks for a handle when the display name is ambiguous', async () => {
+    const duplicate: FileAttachmentRef = {
+      fileEntryId: 'entry-other',
+      handle: createAssistantFileAttachmentHandle('entry-other'),
+      displayName: attachment.displayName
+    }
+
+    let error: Error | undefined
+    try {
+      await saveAttachmentToWorkspace(
+        workspacePath,
+        { filename: attachment.displayName, output_path: 'sales.csv' },
+        [attachment, duplicate],
+        signal
+      )
+    } catch (caught) {
+      error = caught as Error
+    }
+
+    expect(error?.message).toContain(`Multiple attached files are named "${attachment.displayName}"`)
+    expect(error?.message).toContain(attachment.handle)
+    expect(error?.message).toContain(duplicate.handle)
+    expect(withTempCopy).not.toHaveBeenCalled()
   })
 
   it('saves into an existing workspace subdirectory', async () => {
@@ -159,7 +196,7 @@ describe('saveAttachmentToWorkspace', () => {
 
   it('rejects an output directory symlink that escapes the workspace', async () => {
     const outsideDirectory = path.dirname(sourcePath)
-    await symlink(outsideDirectory, path.join(workspacePath, 'escaped'))
+    await symlink(outsideDirectory, path.join(workspacePath, 'escaped'), 'junction')
 
     let error: Error | undefined
     try {
@@ -186,7 +223,7 @@ describe('saveAttachmentToWorkspace', () => {
     await mkdir(outputDirectory)
     withTempCopy.mockImplementationOnce(async (_id: string, fn: (tempPath: string) => Promise<unknown>) => {
       await rm(outputDirectory, { recursive: true, force: true })
-      await symlink(outsideDirectory, outputDirectory)
+      await symlink(outsideDirectory, outputDirectory, 'junction')
       return fn(sourcePath)
     })
 

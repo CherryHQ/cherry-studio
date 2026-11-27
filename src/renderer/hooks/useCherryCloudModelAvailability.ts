@@ -2,19 +2,18 @@ import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import useSWR from 'swr'
 
-import { ipcApi, useIpcOn } from '@renderer/ipc'
-import { isManagedCherryCloudModel } from '@shared/data/presets/cherryai'
-import type { Model } from '@shared/data/types/model'
-import type { CherryCloudModelSyncResult } from '@shared/ipc/schemas/cherryCloud'
+import { ipcApi } from '@renderer/ipc'
+import {
+  CHERRY_CLOUD_PROVIDER_ID,
+  isManagedCherryAiProviderId,
+  isManagedCherryCloudModel
+} from '@shared/data/presets/cherryai'
+import { createUniqueModelId, type Model } from '@shared/data/types/model'
 
-const CHERRY_CLOUD_AVAILABILITY_KEY = 'cherry-cloud/model-availability'
+import { useCherryCloudReceipt } from './useCherryCloudReceipt'
+
+export const CHERRY_CLOUD_AVAILABILITY_KEY = 'cherry-cloud/model-availability'
 const CHERRY_CLOUD_AVAILABILITY_REFRESH_INTERVAL_MS = 60_000
-const EMPTY_CHERRY_CLOUD_AVAILABILITY: CherryCloudModelSyncResult = {
-  entitledModelIds: [],
-  freeModelIds: [],
-  availableModelIds: { agent: [], general: [] },
-  quotaExhaustedModelIds: []
-}
 
 /**
  * Cherry Cloud's server-declared model availability, expressed in model-selector terms so no other
@@ -23,8 +22,10 @@ const EMPTY_CHERRY_CLOUD_AVAILABILITY: CherryCloudModelSyncResult = {
  */
 export function useCherryCloudModelAvailability(enabled = true) {
   const { t } = useTranslation()
-  const { data: cloudAvailability, mutate } = useSWR(
-    enabled ? CHERRY_CLOUD_AVAILABILITY_KEY : null,
+  const { receipt, error: receiptError } = useCherryCloudReceipt(enabled)
+  const scopeId = receipt?.status.scopeId
+  useSWR(
+    enabled && scopeId ? [CHERRY_CLOUD_AVAILABILITY_KEY, scopeId] : null,
     () => ipcApi.request('cherry_cloud.models.sync'),
     {
       dedupingInterval: 5_000,
@@ -33,29 +34,61 @@ export function useCherryCloudModelAvailability(enabled = true) {
       shouldRetryOnError: false
     }
   )
-
-  useIpcOn('cherry_cloud.status_changed', () => {
-    if (!enabled) return
-    void mutate(EMPTY_CHERRY_CLOUD_AVAILABILITY, { revalidate: true }).catch(() => undefined)
-  })
+  const fact = receipt?.models
+  const cloudAvailability = fact && fact.freshness !== 'unknown' ? fact.value : undefined
+  const availabilityFreshness = fact?.freshness ?? 'unknown'
+  const availabilityError = useMemo(
+    () => (fact && fact.freshness !== 'fresh' && fact.error ? new Error(fact.error) : receiptError),
+    [fact, receiptError]
+  )
 
   return useMemo(() => {
     const freeModelIds = new Set(cloudAvailability?.freeModelIds)
     const quotaExhaustedModelIds = new Set(cloudAvailability?.quotaExhaustedModelIds)
     const agentModelIds = new Set(cloudAvailability?.availableModelIds.agent)
     const generalModelIds = new Set(cloudAvailability?.availableModelIds.general)
+    const settled = availabilityFreshness === 'fresh'
+    const amdActivationRequiredModels = cloudAvailability?.amdActivationRequiredModels ?? []
+    const signInRequiredModels = cloudAvailability?.signInRequiredModels ?? []
+    const catalogModelIds = cloudAvailability?.catalogModelIds ? new Set(cloudAvailability.catalogModelIds) : null
+    const amdActivationRequiredIds = new Set(
+      amdActivationRequiredModels.map((model) => createUniqueModelId(CHERRY_CLOUD_PROVIDER_ID, model.id))
+    )
 
     return {
+      /** False until a server snapshot arrives, including after a status reset. */
+      isAvailabilityReady: settled,
+      availabilityError,
+      availabilityFreshness,
+      scopeId,
+      revision: receipt?.status.revision,
+      /** AMD models the account must authorize with AMD before use; offered as locked rows, not stored models. */
+      amdActivationRequiredModels,
+      /** Standalone models a signed-out user can unlock by signing in. */
+      signInRequiredModels,
+      isAmdActivationRequired: (model: Pick<Model, 'id' | 'providerId'>) =>
+        settled && amdActivationRequiredIds.has(model.id),
+      /** A Cloud model the server no longer lists at all, so no sign-in or plan can bring it back. */
+      isModelDelisted: (model: Pick<Model, 'id' | 'providerId'>) =>
+        settled && isManagedCherryCloudModel(model.providerId) && !!catalogModelIds && !catalogModelIds.has(model.id),
       /** Hidden until the first snapshot arrives, then hidden wherever the server does not enable it. */
-      isModelHidden: (model: Model, includeAgentOnlyModels: boolean) =>
+      isModelHidden: (model: Pick<Model, 'id' | 'providerId'>, includeAgentOnlyModels: boolean) =>
         isManagedCherryCloudModel(model.providerId) &&
         !(includeAgentOnlyModels ? agentModelIds : generalModelIds).has(model.id),
-      isModelUnavailable: (model: Model) =>
-        isManagedCherryCloudModel(model.providerId) && quotaExhaustedModelIds.has(model.id),
-      getModelDescription: (model: Model): string | undefined => {
+      /** Unusable here per a settled snapshot: signed out, not entitled, or not enabled for this module. */
+      isModelLocked: (model: Pick<Model, 'id' | 'providerId'>, includeAgentOnlyModels: boolean) =>
+        settled &&
+        isManagedCherryCloudModel(model.providerId) &&
+        !(includeAgentOnlyModels ? agentModelIds : generalModelIds).has(model.id),
+      /** The built-in CherryAI models and Cloud models granted only by a free plan. */
+      isModelFree: (model: Pick<Model, 'id' | 'providerId'>) =>
+        isManagedCherryAiProviderId(model.providerId) || freeModelIds.has(model.id),
+      isModelUnavailable: (model: Pick<Model, 'id' | 'providerId'>) =>
+        settled && isManagedCherryCloudModel(model.providerId) && quotaExhaustedModelIds.has(model.id),
+      getModelDescription: (model: Pick<Model, 'id' | 'providerId'>): string | undefined => {
         if (!isManagedCherryCloudModel(model.providerId)) return undefined
         const isFree = freeModelIds.has(model.id)
-        if (quotaExhaustedModelIds.has(model.id)) {
+        if (settled && quotaExhaustedModelIds.has(model.id)) {
           return t(isFree ? 'models.detail.free_quota_exhausted' : 'models.detail.quota_exhausted')
         }
         if (!isFree) return undefined
@@ -66,5 +99,5 @@ export function useCherryCloudModelAvailability(enabled = true) {
         )
       }
     }
-  }, [cloudAvailability, t])
+  }, [cloudAvailability, availabilityError, availabilityFreshness, receipt?.status.revision, scopeId, t])
 }

@@ -9,6 +9,15 @@ export interface PreviewHost {
   onDiagnostic?: (diagnostic: PreviewDiagnostic) => void
   onRequestOpen?: (reason: 'unsupported' | 'too_large') => void
   failDocument?: (error: unknown) => void
+  /** Retained presentation may outlive the document operations that produced it. */
+  isCurrentDocument?: () => boolean
+  /**
+   * Ask the host to re-open the source and hand down a FRESH document (new
+   * metadata and revision). Plugins with their own refresh action call this
+   * instead of re-reading the retained document, which can only yield fresh
+   * bytes — never fresh metadata — and cannot clear a stale `source_changed`.
+   */
+  onRequestReload?: () => void
 }
 
 export const PreviewHostContext = createContext<PreviewHost>({})
