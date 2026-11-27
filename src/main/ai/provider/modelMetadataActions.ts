@@ -23,14 +23,21 @@ export async function refreshCustomModelMetadata(providerId: string, modelId: st
   // Listing uses the provider default; never persist another endpoint's declaration.
   // Chat Completions and Responses configured at one base URL resolve the same
   // `GET /models` catalog, so only the refusal for a genuinely different route remains.
+  const fallbackCatalog = getBaseUrl(provider)
+  const sameUndeclaredCatalog =
+    endpoint.endpointType === undefined &&
+    provider.defaultChatEndpoint === undefined &&
+    endpoint.baseUrl !== '' &&
+    endpoint.baseUrl === fallbackCatalog
   const sameCatalog =
-    endpoint.endpointType !== undefined &&
-    provider.defaultChatEndpoint !== undefined &&
-    (endpoint.endpointType === provider.defaultChatEndpoint ||
-      (OPENAI_CATALOG_ENDPOINTS.has(endpoint.endpointType) &&
-        OPENAI_CATALOG_ENDPOINTS.has(provider.defaultChatEndpoint) &&
-        endpoint.baseUrl !== '' &&
-        endpoint.baseUrl === getBaseUrl(provider, provider.defaultChatEndpoint)))
+    sameUndeclaredCatalog ||
+    (endpoint.endpointType !== undefined &&
+      provider.defaultChatEndpoint !== undefined &&
+      (endpoint.endpointType === provider.defaultChatEndpoint ||
+        (OPENAI_CATALOG_ENDPOINTS.has(endpoint.endpointType) &&
+          OPENAI_CATALOG_ENDPOINTS.has(provider.defaultChatEndpoint) &&
+          endpoint.baseUrl !== '' &&
+          endpoint.baseUrl === getBaseUrl(provider, provider.defaultChatEndpoint))))
   if (!sameCatalog) {
     throw DataApiErrorFactory.invalidOperation(
       'refresh model metadata',

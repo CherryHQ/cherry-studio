@@ -7,10 +7,12 @@ vi.mock('@data/services/ModelService', () => ({
   modelService: { getByKey: mocks.get, applyProviderMetadata: mocks.apply }
 }))
 
+import { CreateProviderSchema } from '@shared/data/api/schemas/providers'
+
 import { refreshCustomModelMetadata, resetCustomModelMetadata } from '../modelMetadataActions'
 
 beforeEach(() => {
-  vi.clearAllMocks()
+  vi.resetAllMocks()
   mocks.get.mockReturnValue({ endpointTypes: ['openai-chat-completions'] })
   mocks.provider.mockReturnValue({
     id: 'provider',
@@ -65,6 +67,30 @@ describe('explicit custom model metadata actions', () => {
     })
     await refreshCustomModelMetadata('provider', 'wanted')
     expect(mocks.apply).toHaveBeenCalledWith('provider', 'wanted', { contextWindow: 8000 })
+  })
+
+  it('refreshes an imported model when an accepted custom provider uses the undeclared fallback catalog', async () => {
+    const provider = CreateProviderSchema.parse({
+      providerId: 'custom',
+      name: 'Custom',
+      endpointConfigs: { 'openai-chat-completions': { baseUrl: 'https://custom.example/v1' } }
+    })
+    mocks.provider.mockReturnValueOnce({ ...provider, id: provider.providerId })
+    mocks.get.mockReturnValueOnce({ endpointTypes: undefined })
+    mocks.list.mockResolvedValueOnce({
+      models: [{ apiModelId: 'imported', providerMetadata: { contextWindow: 16000 } }]
+    })
+    await refreshCustomModelMetadata('custom', 'imported')
+    expect(mocks.list).toHaveBeenCalledWith({ providerId: 'custom', throwOnError: true })
+    expect(mocks.apply).toHaveBeenCalledWith('custom', 'imported', { contextWindow: 16000 })
+  })
+
+  it('declines an undeclared endpoint when no nonempty fallback catalog exists', async () => {
+    mocks.provider.mockReturnValueOnce({ id: 'custom', endpointConfigs: {} })
+    mocks.get.mockReturnValueOnce({ endpointTypes: undefined })
+    await expect(refreshCustomModelMetadata('custom', 'imported')).rejects.toThrow('non-default endpoint')
+    expect(mocks.list).not.toHaveBeenCalled()
+    expect(mocks.apply).not.toHaveBeenCalled()
   })
 
   it('does not write on failed, missing or unsupported provider results', async () => {
