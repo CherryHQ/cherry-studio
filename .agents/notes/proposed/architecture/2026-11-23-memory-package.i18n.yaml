@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/architecture/2026-11-23-memory-package.md
+2026-11-23-memory-package.md: 605909a150065f737ff177cc9a3bb8c201fd003d
+2026-11-23-memory-package.zh.md: c1eaba86c3498eb9a4037a1b34a5e33fd895d0bf
