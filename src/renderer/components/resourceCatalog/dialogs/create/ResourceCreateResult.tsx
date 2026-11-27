@@ -13,11 +13,10 @@ import { useMcpServers } from '@renderer/hooks/useMcpServer'
 import { useModelById } from '@renderer/hooks/useModel'
 import { useInstalledSkills } from '@renderer/hooks/useSkills'
 import { permissionModeCards } from '@renderer/utils/agent'
-import { platform } from '@renderer/utils/platform'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
-import { CLAUDE_KNOWLEDGE_TOOL_NAMES } from '@shared/ai/claudecode/toolRegistry'
 import { isQrLoginChannel } from '@shared/data/api/schemas/agentChannels'
 
+import { getAgentBuiltinTools } from '../components/builtinTools'
 import type { ResourceCreateWizardFormValues, ResourceCreateWizardKind, ResourceCreateWizardValues } from './types'
 
 export type CreatedResource = {
@@ -306,10 +305,7 @@ export function ResourceCreateResultView({
       : t('library.config.dialogs.create.result.prompt_filled')
   const permissionCard = permissionModeCards.find((card) => card.mode === values.permissionMode)
   const caps = AGENT_RUNTIME_CAPABILITIES[values.agentType]
-  // Matches the edit dialog: knowledge tools only count once a knowledge base is bound.
-  const builtinTools = caps
-    .builtinTools(platform)
-    .filter((tool) => values.knowledgeBaseIds.length > 0 || !CLAUDE_KNOWLEDGE_TOOL_NAMES.has(tool.id))
+  const builtinTools = getAgentBuiltinTools(values.agentType, values.knowledgeBaseIds.length > 0)
   const disabledTools = new Set(values.disabledTools)
   const settings = values.agentSettings
   // Builtin skills are always enabled for a new Agent, whatever was picked.

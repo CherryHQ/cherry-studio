@@ -191,7 +191,7 @@ Gateway 路径继续以 `provider-calls` 为唯一采集所有者。`AgentSessio
 | 原生契约 | `packages/agent-runtime-pi/tests/runtime.test.ts`、`startupObservation.test.ts`、`runtimeLifecycle.test.ts`；`packages/agent-runtime-pi-durable/tests/runtime.test.ts`、`pendingObservation.test.ts`、`recoveryConfiguration.test.ts`；`packages/agent-runtime-claude-code/tests/runtime.test.ts`、`observation.test.ts`、`projection.test.ts` |
 | 桌面桥接 | `src/main/ai/runtime/pi/PiRuntimeConnection.test.ts`；`src/main/ai/runtime/piDurable/PiDurableRuntimeConnection.test.ts`；`src/main/ai/runtime/claudeCode/__tests__/ClaudeCodeRuntimeDriver.test.ts`、`desktopRuntime.integration.test.ts`、`ClaudeMessageMetadata.test.ts`、`ClaudeRuntimeState.test.ts` |
 | 输入、写入屏障与持久化 | `src/main/ai/agentSession/__tests__/AgentSessionRuntimeService.test.ts`、`agentSessionRuntimeState.test.ts`、`AgentSessionRuntimeService.child.test.ts`、`AgentSessionRuntimeService.handoff.test.ts`、`ChildThreadProjection.test.ts`、`AgentSessionArchivePersistence.integration.test.ts`、`AgentSessionUsageAttribution.test.ts` |
-| 可观察的产品结果 | `src/renderer/services/aiTransport/__tests__/ExecutionStreamOverlayService.test.ts`、`MessageProjectionService.test.ts`；受影响 runtime 对脚本化本地端点执行的原生契约探针 |
+| 可观察的产品结果 | `src/renderer/hooks/__tests__/useHistoryReplies.test.ts`、`MessageProjectionService.test.ts`；受影响 runtime 对脚本化本地端点执行的原生契约探针 |
 
 每个代码阶段运行 `pnpm change:scope --base <verified-base>`，查看 `pnpm check --plan --base <verified-base>`，并检查 `pnpm docs:affected --base <verified-base>`。使用明确文件过滤的 package／Main／renderer 测试包装命令、变更文件格式化／lint，以及受影响 package build／typecheck。全项目测试和平台打包留给 CI。上表标出受影响消费者，并非要求每阶段重跑所有文件。
 

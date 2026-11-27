@@ -26,6 +26,7 @@ describe('generateIndex', () => {
   it('lists every doc under its domain with title from H1 and description from frontmatter', () => {
     const root = makeRepo({
       'docs/dev/contrib/dev.md': '---\ndescription: Set up the environment\n---\n\n# Development Setup\n',
+      'docs/dev/contrib/faq.md': '---\ndescription: Search by URL | title\n---\n\n# FAQ | Troubleshooting\n',
       'docs/dev/i18n/README.md':
         '---\ndescription: Documentation translation rules\n---\n\n# Bilingual Documentation\n',
       'docs/dev/references/ai/README.md':
@@ -38,6 +39,7 @@ describe('generateIndex', () => {
     expect(index).toContain('[Contributing](../../CONTRIBUTING.md)')
     expect(index).not.toContain('Public user guide')
     expect(index).toContain('| [Development Setup](./contrib/dev.md) | Set up the environment |')
+    expect(index).toContain('| [FAQ \\| Troubleshooting](./contrib/faq.md) | Search by URL \\| title |')
     expect(index).toContain('## Documentation Governance')
     expect(index).toContain('| [Bilingual Documentation](./i18n/README.md) | Documentation translation rules |')
     expect(index).toContain('### AI')

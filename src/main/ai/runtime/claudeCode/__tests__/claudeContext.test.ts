@@ -121,3 +121,35 @@ it('resolves a resume token only from the bound destination Claude branch', () =
   expect(resolveClaudeBranchResumeToken(sessionId, '/test/claude')).toBe(context.nativeThreadId)
   expect(resolveClaudeBranchResumeToken(sessionId, '/test/other-claude')).toBeUndefined()
 })
+
+// The first reply owns the native binding and is removed atomically when the user resends an edit.
+it('reuses the original backend after replacing the first reply', () => {
+  const original = messages.saveMessage({
+    sessionId,
+    message: { role: 'user', data: { parts: [{ type: 'text', text: 'First request' }] } }
+  })
+  const reply = messages.saveMessage({
+    sessionId,
+    message: { role: 'assistant', status: 'success', data: { parts: [{ type: 'text', text: 'First answer' }] } }
+  })
+  const root = prepareClaudeBranch(sessionId, '/test/claude', undefined, reply.id)
+  const nativeId = randomUUID()
+
+  const edited = application.get('DbService').withWriteTx((tx) => {
+    const target = messages.readEditSnapshotTx(tx, sessionId, original.id)
+    const sourceBackendId = contexts.branchTx(tx, sessionId, reply.id)?.backendId
+    messages.replaceEditBranchTx(tx, sessionId, target.plan)
+    const edited = messages.saveMessage(
+      { sessionId, message: { role: 'user', data: { parts: [{ type: 'text', text: 'Edited request' }] } } },
+      { db: tx }
+    )
+    reserveClaudeBranchTx(tx, sessionId, edited.id, nativeId, sourceBackendId)
+    return edited
+  })
+
+  expect(prepareClaudeBranch(sessionId, '/test/claude', nativeId, edited.id)).toMatchObject({
+    backendId: root.backendId,
+    nativeThreadId: nativeId,
+    anchorMessageId: edited.id
+  })
+})

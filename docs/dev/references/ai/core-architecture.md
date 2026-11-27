@@ -65,9 +65,9 @@ Model requests: existing provider registry / gateway / AI SDK paths remain uncha
    owns tool execution and continuation; SDK message rules, provider adapters,
    middleware, tracing, and usage capture remain shared.
 8. The returned `AiStreamSource` selects one consumer. `chunks` uses `pipeStreamLoop`
-   and `readUIMessageStream`; `messages` uses `pipeMessageStream` to forward authoritative
-   bodies already composed with host display state. Listeners receive `onMessage` snapshots, and
-   persistence uses that same final view. Pi, Pi Durable, and Claude select
+   and `readUIMessageStream`; `messages` uses `pipeMessageStream` to relay changes accepted
+   by the Agent owner. Message readers and terminal persistence can materialize a view of its
+   current parts. Pi, Pi Durable, and Claude select
    `messages`; Chat retains its chunk source.
 9. On terminal (`done` / `error` / `aborted` / `awaiting-approval`):
    - `PersistenceListener` writes the final assistant message.

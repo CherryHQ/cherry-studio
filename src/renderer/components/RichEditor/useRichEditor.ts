@@ -10,6 +10,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { loggerService } from '@logger'
 import type { FormattingState } from '@renderer/components/RichEditor/types'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
+import { toFileUrl } from '@shared/utils/file'
 
 import { createRichEditorExtensions } from './createExtensions'
 import { blobToArrayBuffer, compressImage, shouldCompressImage } from './helpers/imageUtils'
@@ -479,7 +480,8 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
 
         // Insert image into editor using local file path
         if (editor && !editor.isDestroyed) {
-          const imageUrl = `file://${physicalPath}`
+          // The editor writes image destinations inside Markdown parentheses.
+          const imageUrl = toFileUrl(physicalPath).replaceAll('(', '%28').replaceAll(')', '%29')
           const alt = `${entry.name}${entry.ext ? `.${entry.ext}` : ''}`
           editor.chain().focus().setImage({ src: imageUrl, alt }).run()
         }

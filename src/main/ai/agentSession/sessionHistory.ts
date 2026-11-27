@@ -94,10 +94,13 @@ export async function readSessionHistory(
     if (row.role === 'user') locallyHandled = row.data.locallyHandled === true
     return !locallyHandled
   })
-  if (contextId) {
-    if (prefix.some((row) => hasNativeMetadata(row) && isDestinationOwnedNativeMetadata(row, contextId, sessionId)))
-      return
-  } else if (prefix.some(hasNativeMetadata)) return
+  const referenceHistory = contextId && contexts.context(contextId).checkpointMapping?.referenceHistory
+  if (!referenceHistory) {
+    if (contextId) {
+      if (prefix.some((row) => hasNativeMetadata(row) && isDestinationOwnedNativeMetadata(row, contextId, sessionId)))
+        return
+    } else if (prefix.some(hasNativeMetadata)) return
+  }
   const history: string[] = []
   const files: CherryMessagePart[] = []
   for (const row of prefix) {
