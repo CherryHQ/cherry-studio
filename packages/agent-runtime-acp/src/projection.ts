@@ -3,6 +3,10 @@ import { randomUUID } from 'node:crypto'
 import type { ContentBlock, PromptResponse, SessionUpdate, ToolCallUpdate, UsageUpdate } from '@agentclientprotocol/sdk'
 
 import {
+  applyMessageParts,
+  isLivePartInput,
+  messageObservation,
+  runtimeId,
   RuntimeMessageStream,
   ThreadFeed,
   type Completeness,
@@ -10,6 +14,8 @@ import {
   type ObservationPayload,
   type OperationResult,
   type RuntimeMessage,
+  type RuntimePartEdit,
+  type Thread,
   type ThreadContextUsage
 } from '@cherrystudio/agent-runtime'
 
@@ -17,6 +23,10 @@ import { unavailable } from './result'
 import type { AcpNativeMessage, AcpSessionState } from './types'
 
 type Chunk = Parameters<RuntimeMessageStream['append']>[0][number]
+type ContentSource = {
+  native: Omit<AcpNativeMessage, 'chunks'> & { chunks: AcpNativeMessage['chunks'][number][] }
+  partCount: number
+}
 
 export class Projection {
   readonly feed: ThreadFeed
@@ -26,20 +36,17 @@ export class Projection {
   private readonly epoch = randomUUID()
   private sequence = 0
   private current?: { kind: string; id: string }
-  private readonly messages = new Map<string, AcpNativeMessage>()
+  private readonly messages = new Map<string, ContentSource>()
   private readonly tools = new Map<string, ToolCallUpdate>()
   private readonly metadata = new Map<SessionUpdate['sessionUpdate'], SessionUpdate>()
-  private readonly streams = new Map<
-    string,
-    { stream: RuntimeMessageStream; part?: { kind: 'text' | 'reasoning'; id: string }; sequence: number }
-  >()
-  private readonly users = new Map<string, RuntimeMessage>()
+  private readonly streams = new Map<string, RuntimeMessageStream>()
   private activeMessages = new Set<string>()
   private usage?: UsageUpdate
   private turns: { inputId: InputId; response: PromptResponse }[] = []
 
   constructor(
     readonly sessionId: string,
+    private readonly thread: Thread,
     report: (error: unknown) => void
   ) {
     this.feed = new ThreadFeed({ type: 'snapshot', messages: [], inputs: [], activity: { state: 'unknown' } }, report)
@@ -50,7 +57,7 @@ export class Projection {
     return structuredClone({
       configuration: this.configuration,
       turns: this.turns,
-      messages: [...this.messages.values()],
+      messages: Array.from(this.messages.values(), (source) => source.native),
       tools: [...this.tools.values()],
       metadata: [...this.metadata.values()]
     })
@@ -90,7 +97,16 @@ export class Projection {
 
   publish(event: ObservationPayload): void {
     this.revision++
-    this.feed.publish(event)
+    if (isLivePartInput(event)) this.feed.publishPart(event)
+    else this.feed.publish(event)
+  }
+
+  private observeMessage(message: RuntimeMessage): ObservationPayload {
+    return messageObservation(
+      { session: this.thread, id: runtimeId(message.id) },
+      this.feed.message(message.id),
+      message
+    )
   }
 
   rememberPrompt(inputId: InputId, response: PromptResponse): void {
@@ -104,17 +120,18 @@ export class Projection {
 
   async finish(completeness: Completeness): Promise<void> {
     for (const id of this.activeMessages) {
-      const value = this.streams.get(id)
-      if (value) {
-        const end: Chunk[] = value.part ? [{ type: `${value.part.kind}-end`, id: value.part.id }] : []
-        this.publish({ type: 'message.upsert', message: await value.stream.append(end, completeness) })
-        value.part = undefined
+      const stream = this.streams.get(id)
+      if (stream) {
+        this.publish(this.observeMessage(await stream.append([], completeness)))
+        continue
       }
-      const user = this.users.get(id)
-      if (user) {
-        user.metadata = { completeness }
-        this.publish({ type: 'message.upsert', message: user })
-      }
+      const message = this.feed.message(id)!
+      const last = message.parts.at(-1)
+      const finished =
+        (last?.type === 'text' || last?.type === 'reasoning') && last.state === 'streaming'
+          ? applyMessageParts(message, [{ type: 'finish', part: message.parts.length - 1 }])!
+          : message
+      this.publish({ type: 'message.reconcile', message: { ...finished, metadata: { completeness } } })
     }
     this.activeMessages.clear()
     this.boundary()
@@ -136,41 +153,14 @@ export class Projection {
             ? this.current.id
             : `${this.epoch}:${++this.sequence}`
       this.current = { kind, id }
-      const previous = this.messages.get(id)
-      this.messages.set(id, { id, kind, nativeId, chunks: [...(previous?.chunks ?? []), update] })
-      this.activeMessages.add(id)
-      if (kind === 'user_message_chunk') {
-        const message = this.users.get(id) ?? { id, role: 'user', parts: [], metadata: { completeness: 'partial' } }
-        const content = update.content
-        if (content.type === 'text') {
-          const last = message.parts.at(-1)
-          if (last?.type === 'text') last.text += content.text
-          else message.parts.push({ type: 'text', text: content.text })
-        } else {
-          const file = filePart(content)
-          if (file) message.parts.push(file)
-        }
-        this.users.set(id, message)
-        event = { type: 'message.upsert', message }
-      } else {
-        const value = this.stream(id)
-        const content = update.content
-        const chunks: Chunk[] = []
-        if (content.type === 'text') {
-          const type = kind === 'agent_thought_chunk' ? 'reasoning' : 'text'
-          if (value.part?.kind !== type) {
-            value.part = { kind: type, id: String(++value.sequence) }
-            chunks.push({ type: `${type}-start`, id: value.part.id })
-          }
-          chunks.push({ type: `${type}-delta`, id: value.part.id, delta: content.text })
-        } else {
-          if (value.part) chunks.push({ type: `${value.part.kind}-end`, id: value.part.id })
-          const file = filePart(content)
-          if (file) chunks.push(file)
-          value.part = undefined
-        }
-        event = { type: 'message.upsert', message: await value.stream.append(chunks, 'partial') }
+      let source = this.messages.get(id)
+      if (!source) {
+        source = { native: { id, kind, nativeId, chunks: [] }, partCount: 0 }
+        this.messages.set(id, source)
       }
+      source.native.chunks.push(update)
+      event = this.contentEvent(source, update.content)
+      this.activeMessages.add(id)
     } else if (update.sessionUpdate === 'tool_call' || update.sessionUpdate === 'tool_call_update') {
       const tool = { ...this.tools.get(update.toolCallId), ...update }
       this.tools.set(update.toolCallId, tool)
@@ -203,7 +193,9 @@ export class Projection {
               : JSON.stringify(tool.rawOutput ?? tool.content ?? tool.title ?? 'Tool failed'),
           dynamic: true
         })
-      event = { type: 'message.upsert', message: await this.stream(id).stream.append(chunks, 'partial') }
+      let stream = this.streams.get(id)
+      if (!stream) this.streams.set(id, (stream = new RuntimeMessageStream(id)))
+      event = this.observeMessage(await stream.append(chunks, 'partial'))
     } else {
       this.metadata.set(update.sessionUpdate, update)
       if (update.sessionUpdate === 'config_option_update')
@@ -223,17 +215,37 @@ export class Projection {
     }
   }
 
-  async close(): Promise<void> {
-    await Promise.all([...this.streams.values()].map(({ stream }) => stream.close()))
+  private contentEvent(source: ContentSource, content: ContentBlock): ObservationPayload {
+    const { id, kind } = source.native
+    const user = kind === 'user_message_chunk'
+    const type = kind === 'agent_thought_chunk' ? 'reasoning' : 'text'
+    const lastIndex = source.partCount - 1
+    const last = this.feed.part(id, lastIndex)
+    const changes: RuntimePartEdit[] = []
+    if (content.type === 'text') {
+      const continuing = last?.type === type && (user || last.state === 'streaming')
+      const part = continuing ? lastIndex : source.partCount++
+      if (!continuing) changes.push({ type: 'open', kind: type, part })
+      if (user) changes.push({ type: 'correct', kind: type, part, text: (continuing ? last.text : '') + content.text })
+      else if (content.text) changes.push({ type: 'append', part, text: content.text })
+    } else {
+      if (!user && last?.type === type && last.state === 'streaming') changes.push({ type: 'finish', part: lastIndex })
+      const file = filePart(content)
+      if (file) changes.push({ type: 'put', part: source.partCount++, value: file })
+    }
+    if (this.activeMessages.has(id))
+      return { type: 'message.parts', ref: { session: this.thread, id: runtimeId(id) }, changes }
+
+    const before = this.feed.message(id) ?? { id, role: user ? 'user' : 'assistant', parts: [] }
+    const message = applyMessageParts(before, changes)!
+    return {
+      type: 'message.reconcile',
+      message: { ...message, metadata: user && before.metadata ? before.metadata : { completeness: 'partial' } }
+    }
   }
 
-  private stream(id: string) {
-    let value = this.streams.get(id)
-    if (!value) {
-      value = { stream: new RuntimeMessageStream(id), sequence: 0 }
-      this.streams.set(id, value)
-    }
-    return value
+  async close(): Promise<void> {
+    await Promise.all(Array.from(this.streams.values(), (stream) => stream.close()))
   }
 }
 

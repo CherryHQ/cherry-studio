@@ -1,11 +1,11 @@
 import path from 'node:path'
 
-import { and, count, desc, eq, inArray, isNotNull, isNull, like, type SQL, sql } from 'drizzle-orm'
+import { and, count, desc, eq, inArray, isNotNull, isNull, like, or, type SQL, sql } from 'drizzle-orm'
 
 import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
-import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
+import { agentSessionMessagePartTable, agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { appStateTable } from '@data/db/schemas/appState'
 import { artifactTable } from '@data/db/schemas/artifact'
@@ -102,9 +102,6 @@ function successfulToolCalls(data: unknown, isTool: (name: string) => boolean): 
     return typeof name === 'string' && isTool(name)
   })
 }
-
-const isReportArtifactsTool = (name: string) =>
-  name === REPORT_ARTIFACTS_TOOL_NAME || name.endsWith(`__${REPORT_ARTIFACTS_TOOL_NAME}`)
 
 export class ArtifactService {
   private get db() {
@@ -299,48 +296,51 @@ export class ArtifactService {
         .all()
         .map(({ key, value }) => [key.slice(RELOCATED_PATH_PREFIX.length), asPathList(value)])
     )
-    const messages = this.db
+    const part = agentSessionMessagePartTable
+    const toolName = sql`CASE WHEN ${part.type} = 'dynamic-tool' THEN ${part.payload} ->> '$.toolName'
+      WHEN ${part.type} GLOB 'tool-*' THEN substr(${part.type}, 6) END`
+    const calls = this.db
       .select({
         sessionId: agentSessionTable.id,
         workspaceId: agentWorkspaceTable.id,
         workspacePath: agentWorkspaceTable.path,
-        data: agentSessionMessageTable.data,
+        input: sql`${part.payload} -> '$.input'`.mapWith((value: string): unknown => JSON.parse(value)),
         createdAt: agentSessionMessageTable.createdAt
       })
-      .from(agentSessionMessageTable)
+      .from(part)
+      .innerJoin(agentSessionMessageTable, eq(agentSessionMessageTable.id, part.messageId))
       .innerJoin(agentSessionTable, eq(agentSessionTable.id, agentSessionMessageTable.sessionId))
       .innerJoin(agentWorkspaceTable, eq(agentWorkspaceTable.id, agentSessionTable.workspaceId))
       .where(
         and(
           isNotNull(agentSessionTable.agentId),
-          sql`${agentSessionMessageTable.data} LIKE ${`%${REPORT_ARTIFACTS_TOOL_NAME}%`}`
+          or(eq(toolName, REPORT_ARTIFACTS_TOOL_NAME), sql`${toolName} GLOB ${`*__${REPORT_ARTIFACTS_TOOL_NAME}`}`),
+          sql`${part.payload} ->> '$.state' = 'output-available'`
         )
       )
       .all()
 
     const reports = new Map<string, PastAgentReport>()
-    for (const message of messages) {
-      for (const call of successfulToolCalls(message.data, isReportArtifactsTool)) {
-        const input = reportArtifactsInputSchema.safeParse(call.input)
-        if (!input.success) continue
-        for (const artifact of input.data.artifacts) {
-          const relativePath =
-            workspaceRelativePath(message.workspacePath, artifact.path) ??
-            relocated
-              .get(message.workspaceId)
-              ?.map((root) => workspaceRelativePath(root, artifact.path))
-              .find(Boolean)
-          if (!relativePath) continue
-          const key = `${message.sessionId}\n${relativePath}`
-          if ((reports.get(key)?.reportedAt ?? -1) > message.createdAt) continue
-          reports.set(key, {
-            sessionId: message.sessionId,
-            path: relativePath,
-            title: artifact.description ?? path.posix.basename(relativePath),
-            size: null,
-            reportedAt: message.createdAt
-          })
-        }
+    for (const call of calls) {
+      const input = reportArtifactsInputSchema.safeParse(call.input)
+      if (!input.success) continue
+      for (const artifact of input.data.artifacts) {
+        const relativePath =
+          workspaceRelativePath(call.workspacePath, artifact.path) ??
+          relocated
+            .get(call.workspaceId)
+            ?.map((root) => workspaceRelativePath(root, artifact.path))
+            .find(Boolean)
+        if (!relativePath) continue
+        const key = `${call.sessionId}\n${relativePath}`
+        if ((reports.get(key)?.reportedAt ?? -1) > call.createdAt) continue
+        reports.set(key, {
+          sessionId: call.sessionId,
+          path: relativePath,
+          title: artifact.description ?? path.posix.basename(relativePath),
+          size: null,
+          reportedAt: call.createdAt
+        })
       }
     }
     return [...reports.values()]

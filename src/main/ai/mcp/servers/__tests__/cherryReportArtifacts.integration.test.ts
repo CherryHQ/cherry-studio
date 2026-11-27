@@ -6,7 +6,7 @@ import { seedSessionRoot, setupTestDatabase } from '@test-helpers/db'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { agentTable } from '@data/db/schemas/agent'
-import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
+import { agentSessionMessagePartTable, agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { artifactService } from '@data/services/ArtifactService'
@@ -113,25 +113,33 @@ describe('report_artifacts indexes the Agent outputs', () => {
 
   describe('past reports', () => {
     function pastReport(artifacts: { path: string; description?: string }[]) {
-      dbh.db
+      const { id: messageId } = dbh.db
         .insert(agentSessionMessageTable)
         .values({
           sessionId,
           parentId: seedSessionRoot(dbh.db, sessionId),
           role: 'assistant',
           status: 'success',
-          data: {
-            parts: [
-              {
-                type: 'dynamic-tool',
-                toolName: 'mcp__cherry-tools__report_artifacts',
-                toolCallId: 'call-1',
-                state: 'output-available',
-                input: { artifacts },
-                output: { content: 'Recorded' }
-              }
-            ]
-          } as never
+          data: {}
+        })
+        .returning({ id: agentSessionMessageTable.id })
+        .get()
+
+      dbh.db
+        .insert(agentSessionMessagePartTable)
+        .values({
+          sessionId,
+          messageId,
+          seq: 0,
+          type: 'dynamic-tool',
+          payload: {
+            type: 'dynamic-tool',
+            toolName: 'mcp__cherry-tools__report_artifacts',
+            toolCallId: 'call-1',
+            state: 'output-available',
+            input: { artifacts },
+            output: { content: 'Recorded' }
+          }
         })
         .run()
     }

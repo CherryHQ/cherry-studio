@@ -33,7 +33,8 @@ it does not claim that file-level affected tests cover runtime dependencies.
 
 `--group repository|lint|types|i18n|main|renderer|packages|platform|checks|tests` restricts an
 existing plan. `--shard=N/M` forwards Vitest's built-in sharding option. `--plan --json`
-prints a machine-readable plan. Test commands are one Vitest invocation with explicit
+prints a machine-readable plan. `--no-tests` removes Linux and native platform tests
+from the plan. Test commands are one Vitest invocation with explicit
 projects; compilers run serially. Local Vitest defaults to two workers, overridable
 through the direct Vitest command or project wrappers' `--maxWorkers` option.
 
@@ -51,13 +52,23 @@ cancelled, missing, or unexpectedly skipped jobs selected by the plan.
 ## CI
 
 PRs compare the checked-out merge commit with its first parent, so earlier commits
-remain covered. Pushes compare the event's before/after range. A daily schedule and
-manual dispatch run the full plan. Concurrency groups are isolated by event and
-PR number or full ref. New PR runs replace earlier runs for that PR; new manual
-runs replace earlier manual runs for the same ref. Pushes are not cancelled,
-because a later push's affected plan does not cover the earlier push's range.
+remain covered. Pushes to `main` compare the event's before/after range. PRs and
+`main` pushes run the planned static checks and repository guards. Every push to
+`release/v*` runs the full plan as part of the exact-commit release gate. Nightly CI
+runs the full plan at 02:17 Beijing time. Manual dispatch also runs the full plan.
+Concurrency groups are isolated by event and PR number or full ref. New PR runs
+replace earlier runs for that PR. New manual runs replace earlier manual runs for
+the same ref. Pushes run independently so each pushed range is checked.
 Scheduled full validation remains independent. Pull requests targeting a parent
 stack branch also run CI.
+
+[Nightly CI Repair](../../.github/workflows/nightly-ci-repair.yml) runs after a failed
+scheduled CI run on upstream `main`. Claude Agent SDK gets the failed attempt's logs
+and a read-only repository token. A separate job opens a signed repair PR when
+Claude reports a passing focused check and produces a patch while `main` still
+matches the failed commit. Repairs to `.github/` require manual review and submission.
+Repeated failures on the same commit use the same repair branch. The repair workflow
+uses the repository's existing Anthropic configuration and publishing token.
 
 `Cancel closed PR CI` requests cancellation of unfinished PR and feature-branch
 manual CI after a PR closes. It reads current PR state and runs only trusted
@@ -91,6 +102,7 @@ records platform selection separately from its Linux projects; the scope hash an
 required gates use that selection.
 
 The required `basic-checks`, `general-test`, and `render-test` names remain stable.
+On PRs and `main` pushes, the latter two verify planning even when every test job is skipped.
 Their verifier requires classification to succeed, checks every planned job, and
 accepts a skipped dependency only when the plan explicitly excludes it. The basic
 gate also checks all four group outcomes in the same job, rejecting missing or

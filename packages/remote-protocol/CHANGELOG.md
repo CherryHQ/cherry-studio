@@ -6,6 +6,12 @@
 
 - Declare the MIT license and include a package-local license file.
 
+## 0.9.0
+
+### Minor Changes
+
+- [#25406](https://github.com/CherryHQ/cherry-studio/pull/25406) [`aece413`](https://github.com/CherryHQ/cherry-studio/commit/aece413cdc83edabba7e9bbbf5c9e159970a3441) Thanks [@DeJeune](https://github.com/DeJeune)! - Export `createAgentJournalWriter` to apply streaming updates by part ID while maintaining the agent journal.
+
 ## 0.8.0
 
 ### Minor Changes

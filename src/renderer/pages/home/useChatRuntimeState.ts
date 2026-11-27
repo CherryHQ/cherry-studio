@@ -7,10 +7,6 @@ import {
   buildTopicMessageFlowLiveState,
   type TopicMessageFlowLiveState
 } from '@renderer/components/chat/flow/topicMessageFlowLiveTree'
-import {
-  createOverlayRefreshHandoff,
-  useMessageStreamingLayers
-} from '@renderer/components/chat/messages/stream/useMessageStreamingLayers'
 import type { MessageListRuntime } from '@renderer/components/chat/messages/types'
 import { dispatchLocateMessage } from '@renderer/components/chat/messages/utils/dispatchLocateMessage'
 import type { ComposerContextValue } from '@renderer/components/composer/ComposerContext'
@@ -18,29 +14,28 @@ import { useToolApprovalComposerOverrides } from '@renderer/components/composer/
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useChatWithHistory } from '@renderer/hooks/useChatWithHistory'
 import { useConversationErrorToasts } from '@renderer/hooks/useConversationErrorToasts'
-import {
-  type ConversationHistoryAdapter,
-  type ReservedMessageSeedOptions,
-  useConversationTurnController
-} from '@renderer/hooks/useConversationTurnController'
-import { type ExecutionFinishEvent, useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
-import {
-  useTopicAwaitingApproval,
-  useTopicOverlayHandoffOnTerminal,
-  useTopicStreamStatus
-} from '@renderer/hooks/useTopicStreamStatus'
+import { useConversationTurnController } from '@renderer/hooks/useConversationTurnController'
+import { useHistoryReplies } from '@renderer/hooks/useHistoryReplies'
+import type { ReplyHistory } from '@renderer/hooks/useHistoryRowUpdates'
+import { useStableStringArray } from '@renderer/hooks/useStableStringArray'
+import { useTopicCompletion } from '@renderer/hooks/useTopicCompletion'
+import { useTopicSpeech } from '@renderer/hooks/useTopicSpeech'
+import { useTopicAwaitingApproval, useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { autoReadService } from '@renderer/services/voice'
 import type { Assistant } from '@renderer/types/assistant'
+import type { ExecutionFinishEvent } from '@renderer/types/message'
 import type { Topic } from '@renderer/types/topic'
-import { mergeMessagesById } from '@renderer/utils/message/mergeMessagesById'
+import { createPartsByMessageId } from '@renderer/utils/message/exportView'
+import { mergeLiveReplies, mergeMessagesById } from '@renderer/utils/message/mergeMessagesById'
+import { activeReplyIds, replyParts } from '@renderer/utils/message/messagePartRows'
 import { isRenderableConversationMessage } from '@renderer/utils/message/messageProjection'
 import type { ActiveExecution, ComposerChatTarget } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { ServiceTierSelection, UniqueModelId } from '@shared/data/types/model'
-import { hasClearContextPart, isBlankUserTurn } from '@shared/data/types/uiParts'
+import { hasClearContextPart } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
-import { useChatWriteActions } from './hooks/useChatWriteActions'
+import { type ReservedMessageSeedOptions, useChatWriteActions } from './hooks/useChatWriteActions'
 import { useToolApprovalBridge } from './hooks/useToolApprovalBridge'
 import { useTopicMessagesCache, type UseTopicMessagesCacheParams } from './hooks/useTopicMessagesCache'
 
@@ -61,9 +56,10 @@ export interface ChatTurnInput {
 interface UseChatRuntimeStateParams {
   topic: Topic
   isHistoryLoading: boolean
-  initialMessages: CherryUIMessage[]
+  replyHistory: ReplyHistory
+  displayIndex(id: string): number | undefined
   uiMessages: CherryUIMessage[]
-  refresh: () => Promise<CherryUIMessage[]>
+  refresh: () => Promise<void>
   activeNodeId: string | null
   messagesCacheMutate: UseTopicMessagesCacheParams['mutate']
   assistant?: Assistant
@@ -110,7 +106,8 @@ function executionAttemptKey(execution: ActiveExecution): number {
 export function useChatRuntimeState({
   topic,
   isHistoryLoading,
-  initialMessages,
+  replyHistory,
+  displayIndex,
   uiMessages,
   refresh,
   activeNodeId,
@@ -121,8 +118,8 @@ export function useChatRuntimeState({
 }: UseChatRuntimeStateParams) {
   const [scrollToBottomOnSend] = usePreference('chat.message.scroll_to_bottom_on_send')
   const [autoReadEnabled] = usePreference('feature.voice.auto_read.enabled')
-  const { regenerate, stop, setMessages, activeExecutions } = useChatWithHistory(topic.id, initialMessages, refresh)
-  const { isPending: isTopicStreamPending } = useTopicStreamStatus(topic.id)
+  const { regenerate, stop, activeExecutions, projection } = useChatWithHistory(topic.id, refresh)
+  const { status: streamStatus, isPending: isTopicStreamPending } = useTopicStreamStatus(topic.id)
   const isTopicAwaitingApproval = useTopicAwaitingApproval(topic.id)
   const messages = uiMessages
   const invalidateCache = useInvalidateCache()
@@ -143,13 +140,6 @@ export function useChatRuntimeState({
     if (messageId === null) messageListRuntimeRef.current?.scrollToBottom()
     else dispatchLocateMessage(messageListRuntimeRef.current, messageId, highlight)
   }, [])
-
-  // PR 3: the effect that pushed `uiMessages` into `useChat.setMessages` after
-  // every terminal render was the user's banned anti-pattern (effect-driven
-  // mutation of SWR-read data into another store). The only consumer that
-  // needs `useChat.state.messages` hydrated is `regenerate({ messageId })` for
-  // anchor resolution — that snapshot now happens synchronously at the call
-  // site inside `chatWriteActions.regenerateWithCapabilities`.
 
   const [branchLiveMessages, setBranchLiveMessages] = useState<CherryUIMessage[]>([])
   const [branchLiveExecutions, setBranchLiveExecutions] = useState<ActiveExecution[]>([])
@@ -193,51 +183,35 @@ export function useChatRuntimeState({
   }, [branchActiveExecutions])
 
   const finishRef = useRef<((executionId: string, event: ExecutionFinishEvent) => void) | undefined>(undefined)
-  const {
-    overlay,
-    liveAssistants,
-    disposeOverlay,
-    reset: resetOverlay
-  } = useExecutionOverlay(topic.id, branchActiveExecutions, {
-    onUpdate: (_executionId, event) =>
-      autoReadService.update({
-        ...event,
-        enabled: autoReadEnabled,
-        scope: topic.id,
-        eligible: event.message.id === branchFlowActiveNodeIdRef.current
-      }),
-    onLeave: () => autoReadService.cancelScope(topic.id),
-    onFinish: (executionId, event) => {
-      errorToastsRef.current?.onFinish(executionId, event)
-      finishRef.current?.(executionId, event)
-    }
-  })
-
-  // Deterministic overlay→DB handoff at terminal (see hook docs); branch
-  // bookkeeping stays in `handleExecutionFinish`.
-  useTopicOverlayHandoffOnTerminal(topic.id, createOverlayRefreshHandoff(refresh, resetOverlay), liveAssistants)
-
-  const { partsByMessageId, liveMessageIds, streamingLayers } = useMessageStreamingLayers({
-    messages,
-    overlay,
-    executions: branchActiveExecutions,
-    liveAssistants
-  })
-  const activeAwaitingInputMessageId = useMemo(
-    () =>
-      activeNodeId
-        ? (messages.find(
-            (message) =>
-              message.id === activeNodeId &&
-              isBlankUserTurn({
-                role: message.role,
-                status: message.metadata?.status,
-                parts: message.parts
-              })
-          )?.id ?? null)
-        : null,
-    [activeNodeId, messages]
+  const liveAssistants = useHistoryReplies(projection, branchActiveExecutions, replyHistory, streamStatus)
+  useTopicSpeech(topic.id, branchActiveExecutions, autoReadEnabled, (_executionId, event) =>
+    autoReadService.update({
+      ...event,
+      enabled: autoReadEnabled,
+      scope: topic.id,
+      eligible: (event.type === 'snapshot' ? event.message.id : event.messageId) === branchFlowActiveNodeIdRef.current
+    })
   )
+  useTopicCompletion(topic.id, branchActiveExecutions, (executionId, event) => {
+    errorToastsRef.current?.onFinish(executionId, event)
+    finishRef.current?.(executionId, event)
+  })
+
+  const persistedPartsByMessageId = useMemo(() => createPartsByMessageId(messages), [messages])
+  const partsByMessageId = useMemo(
+    () => replyParts(persistedPartsByMessageId, liveAssistants),
+    [persistedPartsByMessageId, liveAssistants]
+  )
+  const liveMessageIds = useStableStringArray(activeReplyIds(branchActiveExecutions, liveAssistants))
+  const streamingLayers = useMemo(
+    () => ({ historyPartsByMessageId: persistedPartsByMessageId, liveMessageIds }),
+    [persistedPartsByMessageId, liveMessageIds]
+  )
+  const activeAwaitingInputMessageId = useMemo(() => {
+    const index = activeNodeId ? displayIndex(activeNodeId) : undefined
+    const active = index === undefined ? undefined : messages[index]
+    return active && !isRenderableConversationMessage(active) ? active.id : null
+  }, [activeNodeId, displayIndex, messages])
   const composerChatTarget = useMemo<ComposerChatTarget>(
     () => ({
       parentAnchorId: activeNodeId,
@@ -245,9 +219,15 @@ export function useChatRuntimeState({
     }),
     [activeAwaitingInputMessageId, activeNodeId]
   )
+  const visibleHistory = useMemo(() => {
+    if (messages.every(isRenderableConversationMessage)) return { messages, displayIndex }
+    const visible = messages.filter(isRenderableConversationMessage)
+    const positions = new Map(visible.map((message, index) => [message.id, index]))
+    return { messages: visible, displayIndex: (id: string) => positions.get(id) }
+  }, [messages, displayIndex])
   const displayMessages = useMemo(
-    () => mergeMessagesById(messages.filter(isRenderableConversationMessage), liveAssistants),
-    [messages, liveAssistants]
+    () => mergeLiveReplies(visibleHistory.messages, liveAssistants, visibleHistory.displayIndex, 'append'),
+    [visibleHistory, liveAssistants]
   )
 
   // Tool-approval card surface. Awaiting-approval tools render `null` inline
@@ -257,10 +237,6 @@ export function useChatRuntimeState({
   // comes from refreshed DB state, then Main starts the continuation after
   // every approval settles.
   const respondToolApproval = useToolApprovalBridge(topic.id)
-  const persistedPartsByMessageId = useMemo(
-    () => Object.fromEntries(uiMessages.map((message) => [message.id, message.parts])),
-    [uiMessages]
-  )
   const toolApprovalComposerOverrides = useToolApprovalComposerOverrides({
     topicId: topic.id,
     partsByMessageId,
@@ -298,14 +274,6 @@ export function useChatRuntimeState({
       await seedMessagesCache(reservedMessages, { preserveActiveNode })
     },
     [activeNodeId, seedMessagesCache]
-  )
-  const historyAdapter = useMemo<ConversationHistoryAdapter>(
-    () => ({
-      seedReservedMessages,
-      refresh,
-      rollback: cache.rollbackBranch
-    }),
-    [cache.rollbackBranch, refresh, seedReservedMessages]
   )
   const ensureConversation = useCallback(
     async ({ options }: ChatTurnInput) => {
@@ -347,11 +315,17 @@ export function useChatRuntimeState({
     { topicId: string; parentAnchorId: string | null }
   >({
     scopeKey: topic.id,
-    historyAdapter,
+    onRollback: cache.rollbackBranch,
     ensureConversation,
     buildStreamRequest,
     refreshMetadata,
-    onAccepted: (ack) => errorToastsRef.current?.track(ack.activeExecutions, ack.reservedMessages),
+    onAccepted: (ack) => {
+      if (!ack.reservedMessages?.length) {
+        errorToastsRef.current?.track(ack.activeExecutions, ack.reservedMessages)
+        return
+      }
+      return seedReservedMessages(ack.reservedMessages, ack)
+    },
     onError: (error, input) =>
       errorToastsRef.current?.report(
         error,
@@ -363,8 +337,12 @@ export function useChatRuntimeState({
 
   const activeStreamingMessageIds = useMemo(() => new Set(liveMessageIds), [liveMessageIds])
   const activeAnchorMessages = useMemo(
-    () => messages.filter((message) => activeStreamingMessageIds.has(message.id)),
-    [activeStreamingMessageIds, messages]
+    () =>
+      liveMessageIds
+        .flatMap((id) => displayIndex(id) ?? [])
+        .sort((a, b) => a - b)
+        .map((index) => messages[index]),
+    [displayIndex, liveMessageIds, messages]
   )
   const branchFlowLiveMessages = useMemo(
     () => projectBranchFlowMessages(branchLiveMessages, activeAnchorMessages, liveAssistants),
@@ -433,9 +411,6 @@ export function useChatRuntimeState({
       const treeCachePath = `/topics/${topic.id}/tree`
       void (async () => {
         try {
-          if (isError || !message.parts?.length) {
-            await cache.rollbackBranch()
-          }
           await invalidateCache(treeCachePath)
         } catch (err) {
           logger.warn('failed to reconcile topic branch flow after execution finish', err as Error)
@@ -455,14 +430,6 @@ export function useChatRuntimeState({
               (execution) => !finishedBranchExecutionKeysRef.current.has(executionAttemptKey(execution))
             )
             if (hasRemainingExecutions) {
-              if (!isError && message.parts?.length) {
-                try {
-                  await refresh()
-                } catch (err) {
-                  logger.warn('failed to refresh messages after branch execution finish', err as Error)
-                }
-              }
-              disposeOverlay(message.id)
               setBranchLiveMessages((current) => current.filter((item) => item.id !== message.id))
             } else {
               setBranchLiveMessages([])
@@ -474,7 +441,7 @@ export function useChatRuntimeState({
         }
       })()
     },
-    [autoReadEnabled, cache, disposeOverlay, invalidateCache, onBranchLiveStateChange, refresh, topic.id]
+    [autoReadEnabled, invalidateCache, onBranchLiveStateChange, topic.id]
   )
   finishRef.current = handleExecutionFinish
 
@@ -487,7 +454,6 @@ export function useChatRuntimeState({
     uiMessages: messages,
     activeNodeId,
     regenerate,
-    setMessages,
     stop,
     refresh,
     cache,

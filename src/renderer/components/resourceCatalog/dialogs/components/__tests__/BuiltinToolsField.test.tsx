@@ -15,8 +15,11 @@ vi.mock('react-i18next', () => ({
 vi.mock('@renderer/services/mainWindowNavigation', () => ({ openSettingsTab: vi.fn() }))
 
 const INACTIVE = 'library.config.tools.inactive_badge'
+const SEARCH = 'agent.tools.builtin.CherryKbSearch.label'
+const MANAGE = 'agent.tools.builtin.CherryKbManage.label'
+const SEARCH_ID = 'mcp__cherry-tools__kb_search'
 
-function Harness({ initial = [] }: { initial?: string[] }) {
+function Harness({ initial = [], hasKnowledgeScope = false }: { initial?: string[]; hasKnowledgeScope?: boolean }) {
   const [disabledTools, setDisabledTools] = useState(initial)
   return (
     <>
@@ -24,7 +27,7 @@ function Harness({ initial = [] }: { initial?: string[] }) {
         agentType="pi-durable"
         disabledTools={disabledTools}
         onDisabledToolsChange={setDisabledTools}
-        hasKnowledgeScope={false}
+        hasKnowledgeScope={hasKnowledgeScope}
       />
       <output data-testid="disabled-tools">{disabledTools.join(',')}</output>
     </>
@@ -51,6 +54,35 @@ describe('BuiltinToolsField', () => {
 
     await user.click(read)
     expect(screen.getByTestId('disabled-tools').textContent).toBe('')
+  })
+
+  it('persists only the Search switch id when a Pi Durable agent has a knowledge binding', async () => {
+    const user = userEvent.setup()
+    render(<Harness hasKnowledgeScope />)
+
+    const search = screen.getByRole('switch', { name: SEARCH })
+    const manage = screen.getByRole('switch', { name: MANAGE })
+    expect(search).toBeChecked()
+    expect(manage).toBeChecked()
+
+    await user.click(search)
+    expect(screen.getByTestId('disabled-tools').textContent).toBe(SEARCH_ID)
+    expect(search).not.toBeChecked()
+    expect(manage).toBeChecked()
+
+    await user.click(search)
+    expect(screen.getByTestId('disabled-tools')).toBeEmptyDOMElement()
+    expect(search).toBeChecked()
+  })
+
+  it('shows a saved Search restriction only while a knowledge base is bound', () => {
+    const { rerender } = render(<Harness hasKnowledgeScope initial={[SEARCH_ID]} />)
+    expect(screen.getByRole('switch', { name: SEARCH })).not.toBeChecked()
+    expect(screen.getByRole('switch', { name: MANAGE })).toBeChecked()
+
+    rerender(<Harness initial={[SEARCH_ID]} />)
+    expect(screen.queryByRole('switch', { name: SEARCH })).not.toBeInTheDocument()
+    expect(screen.queryByRole('switch', { name: MANAGE })).not.toBeInTheDocument()
   })
 
   it('opts browser control out of an Agent through disabledTools while the feature is on globally', async () => {

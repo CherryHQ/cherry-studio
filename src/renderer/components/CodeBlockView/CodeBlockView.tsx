@@ -42,7 +42,12 @@ import { getExtensionByLanguage } from '@renderer/utils/codeLanguage'
 import { extractHtmlTitle, getFileNameFromHtmlTitle } from '@renderer/utils/formats'
 import { cn } from '@renderer/utils/style'
 
-import { MAX_COLLAPSED_CODE_HEIGHT, SPECIAL_VIEW_COMPONENTS, SPECIAL_VIEWS } from './constants'
+import {
+  MAX_COLLAPSED_CODE_HEIGHT,
+  SPECIAL_VIEW_COMPONENTS,
+  SPECIAL_VIEWS,
+  type SpecialViewDefinition
+} from './constants'
 import StatusBar from './StatusBar'
 import type { ViewMode } from './types'
 import { useCodeBlockWrapLines } from './wrapLinesContext'
@@ -127,9 +132,11 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
 
   const canEdit = codeEditor.enabled && editable && !isStreaming
   const hasSpecialView = SPECIAL_VIEWS.includes(language)
-  const specialViewDefinition = hasSpecialView
+  const specialViewDefinition: SpecialViewDefinition | undefined = hasSpecialView
     ? SPECIAL_VIEW_COMPONENTS[language as keyof typeof SPECIAL_VIEW_COMPONENTS]
     : undefined
+  const defaultViewMode: ViewMode =
+    language === 'mermaid' && !mermaidAutoRender ? 'source' : (specialViewDefinition?.defaultViewMode ?? 'special')
 
   const [viewState, setViewState] = useState<{
     mode: ViewMode
@@ -137,11 +144,11 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
     language: string
     explicit: boolean
   }>(() => {
-    const initialMode: ViewMode = language === 'mermaid' && !mermaidAutoRender ? 'source' : 'special'
+    const initialMode = defaultViewMode
     return { mode: initialMode, previousMode: initialMode, language, explicit: false }
   })
   if (viewState.language !== language) {
-    const mode: ViewMode = language === 'mermaid' && !mermaidAutoRender ? 'source' : 'special'
+    const mode = defaultViewMode
     setViewState({
       ...viewState,
       language,

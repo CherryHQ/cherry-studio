@@ -22,8 +22,9 @@ Update Desktop if prompted. Sleep, a closed desktop app, network isolation, or r
 
 1. Choose a desktop agent and open an existing conversation or create one.
 2. When creating a conversation, select a workspace offered by the computer. **Default PC workspace** appears only when supported by Desktop.
-3. Give a clear task, such as “Read this workspace's project notes and list action items. Do not edit files yet.”
-4. Follow replies, tool results, and status. Respond to approvals and questions when needed.
+3. If the composer shows a model button, tap it to search models available on this computer by name or provider. The conversation follows the agent default unless you choose a model. Your selection applies from the first message.
+4. Give a clear task, such as “Read this workspace's project notes and list action items. Do not edit files yet.”
+5. Follow replies, tool results, and status. Respond to approvals and questions when needed.
 
 Agents, models, tools, and workspaces are configured on the computer. Switching back to **This device** uses mobile's own agents and data. Mobile folder workspaces are described in [File library and shared workspaces](file-library.md); they are not the same directories as desktop workspaces.
 
