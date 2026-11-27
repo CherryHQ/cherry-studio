@@ -1,5 +1,5 @@
-import { getAdapter } from './adapters'
-import type { CliConfigConnection, CliConfigFileDraft } from './types'
+import { getAdapter } from '@shared/utils/cliConfig'
+import type { CliConfigConnection, CliConfigFileDraft } from '@shared/utils/cliConfig'
 
 export function extractConnectionFromCliConfigDraft(
   cliTool: string,

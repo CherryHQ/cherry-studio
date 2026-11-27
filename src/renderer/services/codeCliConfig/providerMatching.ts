@@ -1,8 +1,7 @@
 import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
-
-import { getAdapter } from './adapters'
-import type { CliConfigConnection } from './types'
-import { normalizeUrl } from './values'
+import { getAdapter } from '@shared/utils/cliConfig'
+import type { CliConfigConnection } from '@shared/utils/cliConfig'
+import { normalizeUrl } from '@shared/utils/cliConfig'
 
 function providerBaseUrls(provider: Provider, cliTool: string): string[] {
   const adapter = getAdapter(cliTool)

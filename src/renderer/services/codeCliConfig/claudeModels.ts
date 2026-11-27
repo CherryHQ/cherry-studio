@@ -1,7 +1,7 @@
 import type { Model, UniqueModelId } from '@shared/data/types/model'
+import { safeCreateUniqueModelId, stringValue } from '@shared/utils/cliConfig'
 
 import { gatewayModelIdFromAddress } from './gatewayModel'
-import { safeCreateUniqueModelId, stringValue } from './values'
 
 export const CLAUDE_DETAILED_MODEL_ROLES = [
   {

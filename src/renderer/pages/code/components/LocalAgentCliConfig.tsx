@@ -18,12 +18,11 @@ import {
   isModelConfiguredCli,
   extractConfigFromCliConfigDraft,
   extractConnectionFromCliConfigDraft,
-  type CliConfigFileDraft,
-  updateCliConfigDraftConfig,
-  validateCliConfigDraftForWrite
+  updateCliConfigDraftConfig
 } from '@renderer/services/codeCliConfig'
 import { toast } from '@renderer/services/toast'
 import { CLI_OWN_LOGIN_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
+import { type CliConfigFileDraft, validateCliConfigDraftForWrite } from '@shared/utils/cliConfig'
 import { CLI_CONFIG_FILE_SPECS, getCliConfigTargets, isFileConfiguredCli } from '@shared/utils/cliConfig'
 
 import { CliConfigEditor } from './configEditPanel/CliConfigEditor'

@@ -1,10 +1,18 @@
 import { afterEach, expect, it, vi } from 'vitest'
 import { parse, stringify } from 'yaml'
 
-import { ipcApi } from '@renderer/ipc'
 import type { Provider } from '@shared/data/types/provider'
 
+import type { CliConfigFileReader } from '../file'
 import { poolsideAdapter } from '../poolside'
+import type { CliConfigTarget } from '../targets'
+
+type DiskFile = { target: CliConfigTarget; path: string; content: string | null }
+let disk: DiskFile[] = []
+const setDisk = ({ files }: { files: DiskFile[] }) => {
+  disk = files
+}
+const reader: CliConfigFileReader = async () => new Map(disk.map((file) => [file.target, file]))
 
 afterEach(() => vi.restoreAllMocks())
 
@@ -27,7 +35,7 @@ it('switches Poolside gateway profiles without replacing native credentials, def
     configBlob: {}
   }
   const args = { cliTool: 'poolside', modelId: 'provider::test-model' as const, files }
-  const draft = await poolsideAdapter.buildDraft(args, context)
+  const draft = await poolsideAdapter.buildDraft(args, context, reader)
   expect(poolsideAdapter.extractConnection(draft)).toEqual({
     baseUrl: 'http://127.0.0.1:1234/v1',
     apiKey: 'gateway-key',
@@ -46,10 +54,10 @@ it('switches Poolside gateway profiles without replacing native credentials, def
       }
     ])
   ).toBeNull()
-  vi.spyOn(ipcApi, 'request').mockResolvedValue({
+  setDisk({
     files: [{ target: 'poolside-settings', path: '/test/settings.yaml', content: draft[0].content }]
   })
-  const cleared = await poolsideAdapter.buildClearFiles()
+  const cleared = await poolsideAdapter.buildClearFiles(reader)
   const native = parse(cleared[0].content!)
   expect(native.pool).toEqual({ api_url: 'https://native.test/v1' })
   expect(native.agent_servers.Poolside).toEqual(saved.agent_servers.Poolside)

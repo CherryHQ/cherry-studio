@@ -1,10 +1,18 @@
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
-import { ipcApi } from '@renderer/ipc'
 import type { Provider } from '@shared/data/types/provider'
 
 import { codebuddyAdapter } from '../codebuddy'
+import type { CliConfigFileReader } from '../file'
+import type { CliConfigTarget } from '../targets'
 import type { CliConfigFileDraft, ResolvedCliConfigContext } from '../types'
+
+type DiskFile = { target: CliConfigTarget; path: string; content: string | null }
+let disk: DiskFile[] = []
+const setDisk = ({ files }: { files: DiskFile[] }) => {
+  disk = files
+}
+const reader: CliConfigFileReader = async () => new Map(disk.map((file) => [file.target, file]))
 
 const files = (models: unknown[] = []): CliConfigFileDraft[] => [
   {
@@ -38,7 +46,8 @@ describe('CodeBuddy model configuration', () => {
     const user = { id: 'user-model', url: 'https://user.example/v1/chat/completions' }
     const draft = await codebuddyAdapter.buildDraft(
       { cliTool: 'codebuddy-code', modelId: 'test::model', files: files([user]) },
-      context
+      context,
+      reader
     )
     const settings = JSON.parse(draft.find((f) => f.target === 'codebuddy-settings')!.content)
     const models = JSON.parse(draft.find((f) => f.target === 'codebuddy-models')!.content)
@@ -55,7 +64,8 @@ describe('CodeBuddy model configuration', () => {
     ])
     const updated = await codebuddyAdapter.buildDraft(
       { cliTool: 'codebuddy-code', modelId: 'test::other', files: draft },
-      { ...context, model: 'other-model' }
+      { ...context, model: 'other-model' },
+      reader
     )
     expect(JSON.parse(updated[0].content).models.map((m: { id: string }) => m.id)).toEqual([
       'user-model',
@@ -65,7 +75,7 @@ describe('CodeBuddy model configuration', () => {
 
   it('clears only Cherry-created models when returning to a native model', async () => {
     const user = { id: 'user-model', apiKey: 'user-key' }
-    const request = vi.spyOn(ipcApi, 'request').mockResolvedValue({
+    setDisk({
       files: [
         { target: 'codebuddy-settings', path: '/test/settings.json', content: '{"theme":"dark"}' },
         {
@@ -76,11 +86,11 @@ describe('CodeBuddy model configuration', () => {
       ]
     })
     try {
-      const cleared = await codebuddyAdapter.buildClearFiles()
+      const cleared = await codebuddyAdapter.buildClearFiles(reader)
       expect(cleared).toHaveLength(1)
       expect(JSON.parse(cleared[0].content!)).toEqual({ other: true, models: [user] })
     } finally {
-      request.mockRestore()
+      disk = []
     }
   })
 
@@ -88,7 +98,8 @@ describe('CodeBuddy model configuration', () => {
     await expect(
       codebuddyAdapter.buildDraft(
         { cliTool: 'codebuddy-code', modelId: 'test::model', files: files([{ id: 'test-model' }]) },
-        context
+        context,
+        reader
       )
     ).rejects.toThrow('already has a custom model')
   })
@@ -102,7 +113,8 @@ describe('CodeBuddy model configuration', () => {
           ...context.provider,
           endpointConfigs: { 'openai-responses': { baseUrl: 'https://example.com/v1' } }
         }
-      }
+      },
+      reader
     )
     expect(JSON.parse(draft[0].content).models[0]).toMatchObject({
       api: 'openai-responses',

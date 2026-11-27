@@ -4,8 +4,8 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 
 import { ipcApi } from '@renderer/ipc'
-import type { CliConfigFileDraft } from '@renderer/services/codeCliConfig'
 import { CodeCli } from '@shared/types/codeCli'
+import type { CliConfigFileDraft } from '@shared/utils/cliConfig'
 
 import { LocalAgentCliConfig } from '../LocalAgentCliConfig'
 

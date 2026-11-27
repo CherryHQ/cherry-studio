@@ -1,5 +1,4 @@
 import { omit, pick } from 'es-toolkit'
-import { t } from 'i18next'
 import { stringify as stringifyToml } from 'smol-toml'
 import { type Document, stringify as stringifyYaml } from 'yaml'
 
@@ -14,7 +13,6 @@ import type { EndpointType } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { formatApiHost, withoutTrailingApiVersion, withoutTrailingSlash } from '@shared/utils/api'
 import { GROK_SESSION_SUMMARY_PATH } from '@shared/utils/apiGateway'
-import { type CliConfigTarget, type CliConfigWriteFile, getCliConfigTargets } from '@shared/utils/cliConfig'
 
 import type { CliConfigAdapter } from './adapters'
 import { CHERRY_PROVIDER_PREFIX, PI_ENDPOINTS } from './constants'
@@ -31,13 +29,14 @@ import {
   parseTomlOrThrow,
   parseYamlDocumentOrThrow,
   parseYamlOrThrow,
-  readConfigFiles,
+  CliConfigError,
   readValidatedJsonOrNull,
   readValidatedTomlOrNull,
   renderJsonFile,
   requireReadFile
 } from './file'
 import { resolveClaudeBaseUrl, resolvePiProviderInfo, resolveSupportedEndpointType } from './resolvers'
+import { type CliConfigTarget, type CliConfigWriteFile, getCliConfigTargets } from './targets'
 import type { CliConfigFileDraft } from './types'
 import { asRecord, cliProviderKeyName, findCherryProviderKey, omitKeysByPrefix, stringValue } from './values'
 
@@ -92,7 +91,7 @@ export const grokBuildAdapter: CliConfigAdapter = {
       return url ? [formatApiHost(url)] : []
     }),
   sanitize: () => ({}),
-  async buildDraft(args, { provider, apiKey, model, modelLabel, modelRecord }) {
+  async buildDraft(args, { provider, apiKey, model, modelLabel, modelRecord }, reader) {
     const endpoint = resolveSupportedEndpointType(
       provider,
       modelRecord?.endpointTypes,
@@ -101,7 +100,7 @@ export const grokBuildAdapter: CliConfigAdapter = {
     )
     const baseUrl = formatApiHost(provider.endpointConfigs?.[endpoint]?.baseUrl)
     const providerKey = `${CHERRY_PROVIDER_PREFIX}${cliProviderKeyName(provider)}`
-    const read = await readConfigFilesForDraft(this.targets, args.files)
+    const read = await readConfigFilesForDraft(reader, this.targets, args.files)
     const existing = readAndParseDraftFile('grok-config', parseTomlOrThrow, args.files, read)
     const models: Record<string, unknown> = { ...asRecord(existing.models), default: providerKey }
     const summaryKey = args.gateway ? `${providerKey}-session-summary` : providerKey
@@ -129,12 +128,12 @@ export const grokBuildAdapter: CliConfigAdapter = {
   },
   assertCredentials(context) {
     if (!context.apiKey || !this.providerBaseUrls(context.provider).length) {
-      throw new Error(t('code.cli_config.missing_credentials', { tool: 'Grok Build' }))
+      throw new CliConfigError('code.cli_config.missing_credentials', { tool: 'Grok Build' })
     }
   },
   updateDraftConfig: (files) => files,
-  async buildClearFiles() {
-    const read = await readConfigFiles(this.targets)
+  async buildClearFiles(reader) {
+    const read = await reader(this.targets)
     const existing = readValidatedTomlOrNull('grok-config', read, 'Grok config')
     if (!existing) return []
     const next = { ...existing }
@@ -186,10 +185,10 @@ export const ompAdapter: CliConfigAdapter = {
       ]
     }),
   sanitize: () => ({}),
-  async buildDraft(args, { provider, apiKey, model, modelLabel, modelRecord }) {
+  async buildDraft(args, { provider, apiKey, model, modelLabel, modelRecord }, reader) {
     const providerKey = `${CHERRY_PROVIDER_PREFIX}${cliProviderKeyName(provider)}`
     const piInfo = resolvePiProviderInfo(provider, modelRecord?.endpointTypes)
-    const read = await readConfigFilesForDraft(this.targets, args.files)
+    const read = await readConfigFilesForDraft(reader, this.targets, args.files)
     const settingsDoc = readAndParseDraftFile('omp-settings', parseYamlDocumentOrThrow, args.files, read)
     settingsDoc.setIn(['defaultProvider'], providerKey)
     settingsDoc.setIn(['defaultModel'], model)
@@ -217,12 +216,12 @@ export const ompAdapter: CliConfigAdapter = {
   },
   assertCredentials(context) {
     if (!context.apiKey || !this.providerBaseUrls(context.provider).length) {
-      throw new Error(t('code.cli_config.missing_credentials', { tool: 'Oh My Pi' }))
+      throw new CliConfigError('code.cli_config.missing_credentials', { tool: 'Oh My Pi' })
     }
   },
   updateDraftConfig: (files) => files,
-  async buildClearFiles() {
-    const read = await readConfigFiles(this.targets)
+  async buildClearFiles(reader) {
+    const read = await reader(this.targets)
     const files: CliConfigWriteFile[] = []
     const models = readYamlMappingOrNull('omp-models', read)
     if (models) {
@@ -268,7 +267,7 @@ export const gooseAdapter: CliConfigAdapter = {
       provider.endpointConfigs?.[type]?.baseUrl ? [resolveGooseBaseUrl(provider, type)] : []
     ),
   sanitize: () => ({}),
-  async buildDraft(args, { provider, apiKey, model, modelRecord }) {
+  async buildDraft(args, { provider, apiKey, model, modelRecord }, reader) {
     const endpoint = resolveSupportedEndpointType(
       provider,
       modelRecord?.endpointTypes,
@@ -276,19 +275,19 @@ export const gooseAdapter: CliConfigAdapter = {
       'anthropic-messages'
     )
     const baseUrl = resolveGooseBaseUrl(provider, endpoint)
-    const read = await readConfigFilesForDraft(this.targets, args.files)
+    const read = await readConfigFilesForDraft(reader, this.targets, args.files)
     const doc = readAndParseDraftFile('goose-config', parseYamlDocumentOrThrow, args.files, read)
     writeGooseConnection(doc, endpoint === 'anthropic-messages' ? 'anthropic' : 'openai', baseUrl, apiKey, model)
     return [makeDraftFile('goose-config', doc.toString(), read)]
   },
   assertCredentials(context) {
     if (!context.apiKey || !this.providerBaseUrls(context.provider).length) {
-      throw new Error(t('code.cli_config.missing_credentials', { tool: 'goose' }))
+      throw new CliConfigError('code.cli_config.missing_credentials', { tool: 'goose' })
     }
   },
   updateDraftConfig: (files) => files,
-  async buildClearFiles() {
-    const read = await readConfigFiles(this.targets)
+  async buildClearFiles(reader) {
+    const read = await reader(this.targets)
     const doc = readYamlDocumentOrNull('goose-config', read)
     if (!doc || !clearGooseConnection(doc)) return []
     return [{ target: 'goose-config', content: doc.toString() }]
@@ -344,10 +343,10 @@ export const clineAdapter: CliConfigAdapter = {
     return url ? [formatApiHost(url)] : []
   },
   sanitize: () => ({}),
-  async buildDraft(args, { provider, apiKey, model }) {
+  async buildDraft(args, { provider, apiKey, model }, reader) {
     const endpoint = resolveSupportedEndpointType(provider, undefined, OPENAI_CHAT_ENDPOINTS, 'openai-chat-completions')
     const baseUrl = formatApiHost(provider.endpointConfigs?.[endpoint]?.baseUrl)
-    const read = await readConfigFilesForDraft(this.targets, args.files)
+    const read = await readConfigFilesForDraft(reader, this.targets, args.files)
     const registry = stripLegacyCherryJsonFields(
       readAndParseDraftFile('cline-providers', parseJsonOrThrow, args.files, read)
     )
@@ -396,12 +395,12 @@ export const clineAdapter: CliConfigAdapter = {
   },
   assertCredentials(context) {
     if (!context.apiKey || !this.providerBaseUrls(context.provider).length) {
-      throw new Error(t('code.cli_config.missing_credentials', { tool: 'Cline' }))
+      throw new CliConfigError('code.cli_config.missing_credentials', { tool: 'Cline' })
     }
   },
   updateDraftConfig: (files) => files,
-  async buildClearFiles() {
-    const read = await readConfigFiles(this.targets)
+  async buildClearFiles(reader) {
+    const read = await reader(this.targets)
     const files: CliConfigWriteFile[] = []
     const registry = readValidatedJsonOrNull('cline-providers', read, 'Cline providers')
     if (registry) {
@@ -458,7 +457,7 @@ export const zcodeAdapter: CliConfigAdapter = {
       return url ? [resolveAnthropicOrOpenAiBaseUrl(provider, type)] : []
     }),
   sanitize: () => ({}),
-  async buildDraft(args, { provider, apiKey, model, modelLabel, modelRecord }) {
+  async buildDraft(args, { provider, apiKey, model, modelLabel, modelRecord }, reader) {
     const endpoint = resolveSupportedEndpointType(
       provider,
       modelRecord?.endpointTypes,
@@ -467,7 +466,7 @@ export const zcodeAdapter: CliConfigAdapter = {
     )
     const baseURL = resolveAnthropicOrOpenAiBaseUrl(provider, endpoint)
     const providerKey = `${CHERRY_PROVIDER_PREFIX}${cliProviderKeyName(provider)}`
-    const read = await readConfigFilesForDraft(this.targets, args.files)
+    const read = await readConfigFilesForDraft(reader, this.targets, args.files)
     const primary = stripLegacyCherryJsonFields(
       readAndParseDraftFile('zcode-config', parseJsonOrThrow, args.files, read)
     )
@@ -502,12 +501,12 @@ export const zcodeAdapter: CliConfigAdapter = {
   },
   assertCredentials(context) {
     if (!context.apiKey || !this.providerBaseUrls(context.provider).length) {
-      throw new Error(t('code.cli_config.missing_credentials', { tool: 'ZCode' }))
+      throw new CliConfigError('code.cli_config.missing_credentials', { tool: 'ZCode' })
     }
   },
   updateDraftConfig: (files) => files,
-  async buildClearFiles() {
-    const read = await readConfigFiles(this.targets)
+  async buildClearFiles(reader) {
+    const read = await reader(this.targets)
     const files: CliConfigWriteFile[] = []
     const config = readValidatedJsonOrNull('zcode-config', read, 'ZCode config')
     if (config) {
@@ -557,7 +556,7 @@ export const snowAdapter: CliConfigAdapter = {
       return url ? [resolveSnowBaseUrl(provider, type)] : []
     }),
   sanitize: () => ({}),
-  async buildDraft(args, { provider, apiKey, model, modelRecord }) {
+  async buildDraft(args, { provider, apiKey, model, modelRecord }, reader) {
     const endpoint = resolveSupportedEndpointType(
       provider,
       modelRecord?.endpointTypes,
@@ -567,7 +566,7 @@ export const snowAdapter: CliConfigAdapter = {
     const baseUrl = resolveSnowBaseUrl(provider, endpoint)
     const requestMethod =
       endpoint === 'anthropic-messages' ? 'anthropic' : endpoint === 'openai-responses' ? 'responses' : 'chat'
-    const read = await readConfigFilesForDraft(this.targets, args.files)
+    const read = await readConfigFilesForDraft(reader, this.targets, args.files)
     const primary = stripLegacyCherryJsonFields(
       readAndParseDraftFile('snow-config', parseJsonOrThrow, args.files, read)
     )
@@ -588,12 +587,12 @@ export const snowAdapter: CliConfigAdapter = {
   },
   assertCredentials(context) {
     if (!context.apiKey || !this.providerBaseUrls(context.provider).length) {
-      throw new Error(t('code.cli_config.missing_credentials', { tool: 'Snow' }))
+      throw new CliConfigError('code.cli_config.missing_credentials', { tool: 'Snow' })
     }
   },
   updateDraftConfig: (files) => files,
-  async buildClearFiles() {
-    const read = await readConfigFiles(this.targets)
+  async buildClearFiles(reader) {
+    const read = await reader(this.targets)
     const config = readValidatedJsonOrNull('snow-config', read, 'Snow')
     if (!config) return []
     const next = stripLegacyCherryJsonFields(config)
@@ -633,10 +632,10 @@ export const glmAcpAgentAdapter: CliConfigAdapter = {
     return url ? [formatApiHost(url)] : []
   },
   sanitize: () => ({}),
-  async buildDraft(args, { provider, apiKey, model, modelLabel }) {
+  async buildDraft(args, { provider, apiKey, model, modelLabel }, reader) {
     const endpoint = resolveSupportedEndpointType(provider, undefined, OPENAI_CHAT_ENDPOINTS, 'openai-chat-completions')
     const baseUrl = formatApiHost(provider.endpointConfigs?.[endpoint]?.baseUrl)
-    const read = await readConfigFilesForDraft(this.targets, args.files)
+    const read = await readConfigFilesForDraft(reader, this.targets, args.files)
     const primary = stripLegacyCherryJsonFields(
       readAndParseDraftFile('glm-credentials', parseJsonOrThrow, args.files, read)
     )
@@ -659,12 +658,12 @@ export const glmAcpAgentAdapter: CliConfigAdapter = {
   },
   assertCredentials(context) {
     if (!context.apiKey || !this.providerBaseUrls(context.provider).length) {
-      throw new Error(t('code.cli_config.missing_credentials', { tool: 'GLM ACP Agent' }))
+      throw new CliConfigError('code.cli_config.missing_credentials', { tool: 'GLM ACP Agent' })
     }
   },
   updateDraftConfig: (files) => files,
-  async buildClearFiles() {
-    const read = await readConfigFiles(this.targets)
+  async buildClearFiles(reader) {
+    const read = await reader(this.targets)
     const config = readValidatedJsonOrNull('glm-credentials', read, 'GLM ACP Agent')
     if (!config) return []
     const cleaned = stripLegacyCherryJsonFields(config)

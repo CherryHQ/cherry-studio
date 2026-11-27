@@ -4,10 +4,8 @@ import { useTranslation } from 'react-i18next'
 import type { ApiGatewayProviderBundle } from '@renderer/hooks/useApiGatewayProvider'
 import {
   clearCliConfig,
-  type CliConfigGatewayContext,
   parseConfiguredModelId,
   resolveCliConfigApplyContext,
-  sanitizeCliConfigBlob,
   writeCliConfigDraft
 } from '@renderer/services/codeCliConfig'
 import { isModelConfiguredCli } from '@renderer/services/codeCliConfig'
@@ -17,6 +15,7 @@ import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { CodeCli, isApiGatewayProviderId } from '@shared/types/codeCli'
+import { type CliConfigGatewayContext, sanitizeCliConfigBlob } from '@shared/utils/cliConfig'
 
 import type { ConfigEditPanelProps, ConfigEditPanelSubmitValues } from '../components/configEditPanel/types'
 

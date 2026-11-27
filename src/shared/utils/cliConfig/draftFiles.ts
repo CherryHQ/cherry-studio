@@ -1,15 +1,14 @@
-import { CLI_CONFIG_FILE_SPECS } from '@shared/utils/cliConfig'
-
 import { parseDotenv } from './dotenv'
 import {
+  type CliConfigFileReader,
   type CliConfigReadFiles,
   type CliConfigReadFile,
   parseJsonOrThrow,
   parseTomlOrThrow,
   parseYamlOrThrow,
-  readConfigFiles,
   requireReadFile
 } from './file'
+import { CLI_CONFIG_FILE_SPECS } from './targets'
 import type { CliConfigFileDraft, CliConfigTarget } from './types'
 
 export function getDraftFile(
@@ -25,10 +24,12 @@ export function getDraftFile(
  * has everything for); only uncovered targets cross to `code_cli.read_config`.
  */
 export async function readConfigFilesForDraft(
+  reader: CliConfigFileReader,
   targets: readonly CliConfigTarget[],
   files: CliConfigFileDraft[] | undefined
 ): Promise<CliConfigReadFiles> {
-  const read = await readConfigFiles(targets.filter((target) => !getDraftFile(files, target)))
+  const uncovered = targets.filter((target) => !getDraftFile(files, target))
+  const read = uncovered.length ? await reader(uncovered) : new Map<CliConfigTarget, CliConfigReadFile>()
   for (const target of targets) {
     const draft = getDraftFile(files, target)
     if (draft && !read.has(target)) read.set(target, { path: draft.path, content: draft.content })

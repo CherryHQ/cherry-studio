@@ -5,12 +5,12 @@ import {
 } from '@cherrystudio/agent-runtime-codebuddy-acp'
 import { codeBuddyCli } from '@cherrystudio/agent-runtime-codebuddy-acp/cli'
 import { formatApiHost } from '@shared/utils/api'
-import { getCliConfigTargets } from '@shared/utils/cliConfig'
 
 import type { CliConfigAdapter } from './adapters'
 import { getDraftFile, makeDraftFile, readAndParseDraftFile, readConfigFilesForDraft } from './draftFiles'
-import { parseJsonOrThrow, readConfigFiles, readValidatedJsonOrNull, renderJsonFile } from './file'
+import { parseJsonOrThrow, readValidatedJsonOrNull, renderJsonFile } from './file'
 import { resolveSupportedEndpointType } from './resolvers'
+import { getCliConfigTargets } from './targets'
 import { stringValue } from './values'
 
 const ENDPOINTS = codeBuddyCli.modelEndpoints
@@ -22,10 +22,10 @@ export const codebuddyAdapter: CliConfigAdapter = {
       return url ? [formatApiHost(url)] : []
     }),
   sanitize: () => ({}),
-  async buildDraft(args, { provider, apiKey, model, modelLabel, modelRecord }) {
+  async buildDraft(args, { provider, apiKey, model, modelLabel, modelRecord }, reader) {
     const endpoint = resolveSupportedEndpointType(provider, modelRecord?.endpointTypes, ENDPOINTS, ENDPOINTS[0])
     const baseUrl = formatApiHost(provider.endpointConfigs?.[endpoint]?.baseUrl)
-    const read = await readConfigFilesForDraft(this.targets, args.files)
+    const read = await readConfigFilesForDraft(reader, this.targets, args.files)
     const models = readAndParseDraftFile('codebuddy-models', parseJsonOrThrow, args.files, read)
     const settings = readAndParseDraftFile('codebuddy-settings', parseJsonOrThrow, args.files, read)
     const updated = writeCodeBuddyModel(models, {
@@ -52,8 +52,8 @@ export const codebuddyAdapter: CliConfigAdapter = {
     }
   },
   updateDraftConfig: (files) => files,
-  async buildClearFiles() {
-    const read = await readConfigFiles(this.targets)
+  async buildClearFiles(reader) {
+    const read = await reader(this.targets)
     const models = readValidatedJsonOrNull('codebuddy-models', read, 'CodeBuddy models config')
     if (!models) return []
     return [

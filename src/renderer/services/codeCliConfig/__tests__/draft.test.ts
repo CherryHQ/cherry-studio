@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { CodeCli } from '@shared/types/codeCli'
+import type { CliConfigFileDraft } from '@shared/utils/cliConfig'
 
-import type { CliConfigFileDraft } from '../index'
 import { writeCliConfigDraft } from '../index'
 
 const mocks = vi.hoisted(() => ({ request: vi.fn() }))

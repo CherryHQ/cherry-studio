@@ -2,25 +2,31 @@ import { parse as parseJsonc, type ParseError } from 'jsonc-parser'
 import { parse as parseToml } from 'smol-toml'
 import { type Document, isMap, isScalar, parse as parseYaml, parseDocument } from 'yaml'
 
-import { ipcApi } from '@renderer/ipc'
-import type { OutputFor } from '@shared/ipc/types'
-import type { CliConfigTarget } from '@shared/utils/cliConfig'
 import { redactSecretText } from '@shared/utils/redaction'
 
-/** One CLI config file as read through `code_cli.read_config`: content === null ⇔ the file does not exist. */
-export type CliConfigReadFile = Pick<OutputFor<'code_cli.read_config'>['files'][number], 'path' | 'content'>
+import type { CliConfigTarget } from './targets'
+
+/** One CLI config file from a batch read: content === null ⇔ the file does not exist. */
+export interface CliConfigReadFile {
+  path: string
+  content: string | null
+}
 
 /** On-disk view of a batch read, keyed by target. */
 export type CliConfigReadFiles = Map<CliConfigTarget, CliConfigReadFile>
 
-/**
- * Batch-read CLI config files through the target-enum IPC route (one round trip
- * per batch; main resolves each target's absolute path).
- */
-export async function readConfigFiles(targets: readonly CliConfigTarget[]): Promise<CliConfigReadFiles> {
-  if (!targets.length) return new Map()
-  const { files } = await ipcApi.request('code_cli.read_config', { targets: [...targets] })
-  return new Map(files.map((file) => [file.target, file]))
+/** Batch-reads config targets; each process supplies its own transport (renderer IPC, Main disk). */
+export type CliConfigFileReader = (targets: readonly CliConfigTarget[]) => Promise<CliConfigReadFiles>
+
+/** A user-facing failure carrying an i18n key, localized by the process that displays it. */
+export class CliConfigError extends Error {
+  constructor(
+    readonly key: string,
+    readonly params: Record<string, string>
+  ) {
+    super(key)
+    this.name = 'CliConfigError'
+  }
 }
 
 /** The read entry for `target`; a missing entry is a caller bug (readConfigFiles returns every requested target). */

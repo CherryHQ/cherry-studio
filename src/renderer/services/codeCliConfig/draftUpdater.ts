@@ -1,10 +1,11 @@
 import { applyEdits, format } from 'jsonc-parser'
 
-import { getAdapter, resolveCliConfigOptionChanges, sanitizeCliConfigBlob } from './adapters'
-import { parseJsonOrThrow } from './file'
+import { getAdapter, resolveCliConfigOptionChanges, sanitizeCliConfigBlob } from '@shared/utils/cliConfig'
+import { parseJsonOrThrow } from '@shared/utils/cliConfig'
+import type { CliConfigFileDraft } from '@shared/utils/cliConfig'
+import { asRecord } from '@shared/utils/cliConfig'
+
 import { extractConnectionFromCliConfigDraft } from './parser'
-import type { CliConfigFileDraft } from './types'
-import { asRecord } from './values'
 
 export function formatCliConfigDraftFile(file: CliConfigFileDraft): CliConfigFileDraft {
   if (file.language !== 'json') return file

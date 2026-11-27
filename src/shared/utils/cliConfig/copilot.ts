@@ -1,15 +1,13 @@
-import { t } from 'i18next'
-
 import { MODEL_CAPABILITY, type EndpointType } from '@shared/data/types/model'
 import { CodeCli } from '@shared/types/codeCli'
 import { formatApiHost } from '@shared/utils/api'
-import { type CliConfigWriteFile, getCliConfigTargets } from '@shared/utils/cliConfig'
 
 import type { CliConfigAdapter } from './adapters'
 import { CHERRY_PROVIDER_PREFIX } from './constants'
 import { getDraftFile, makeDraftFile, readAndParseDraftFile, readConfigFilesForDraft } from './draftFiles'
-import { parseJsonOrThrow, readConfigFiles, readValidatedJsonOrNull, renderJsonFile } from './file'
+import { parseJsonOrThrow, CliConfigError, readValidatedJsonOrNull, renderJsonFile } from './file'
 import { resolveClaudeBaseUrl, resolveSupportedEndpointType } from './resolvers'
+import { type CliConfigWriteFile, getCliConfigTargets } from './targets'
 import { cliProviderKeyName, stringValue } from './values'
 
 const ENDPOINTS: EndpointType[] = ['anthropic-messages', 'openai-responses', 'openai-chat-completions']
@@ -17,7 +15,7 @@ const ENDPOINTS: EndpointType[] = ['anthropic-messages', 'openai-responses', 'op
 function entries(config: Record<string, any>, key: 'providers' | 'models'): Record<string, any>[] {
   if (config[key] === undefined) return []
   if (!Array.isArray(config[key]))
-    throw new Error(t('code.cli_config.invalid_model_list', { tool: 'Copilot', field: key }))
+    throw new CliConfigError('code.cli_config.invalid_model_list', { tool: 'Copilot', field: key })
   return config[key]
 }
 
@@ -33,14 +31,14 @@ export const copilotAdapter: CliConfigAdapter = {
       return url ? [type === 'anthropic-messages' ? resolveClaudeBaseUrl(provider) : formatApiHost(url)] : []
     }),
   sanitize: () => ({}),
-  async buildDraft(args, { provider, apiKey, model, modelLabel, modelRecord }) {
+  async buildDraft(args, { provider, apiKey, model, modelLabel, modelRecord }, reader) {
     const endpoint = resolveSupportedEndpointType(provider, modelRecord?.endpointTypes, ENDPOINTS, ENDPOINTS[0])
     const name = `${CHERRY_PROVIDER_PREFIX}${cliProviderKeyName(provider)}`
     const baseUrl =
       endpoint === 'anthropic-messages'
         ? resolveClaudeBaseUrl(provider)
         : formatApiHost(provider.endpointConfigs?.[endpoint]?.baseUrl)
-    const read = await readConfigFilesForDraft(['copilot-settings', 'copilot-providers'], args.files)
+    const read = await readConfigFilesForDraft(reader, ['copilot-settings', 'copilot-providers'], args.files)
     const registry = readAndParseDraftFile('copilot-providers', parseJsonOrThrow, args.files, read)
     const settings = readAndParseDraftFile('copilot-settings', parseJsonOrThrow, args.files, read)
     return [
@@ -90,12 +88,12 @@ export const copilotAdapter: CliConfigAdapter = {
   },
   assertCredentials(context) {
     if (!context.apiKey || !this.providerBaseUrls(context.provider).length) {
-      throw new Error(t('code.cli_config.missing_credentials', { tool: 'Copilot' }))
+      throw new CliConfigError('code.cli_config.missing_credentials', { tool: 'Copilot' })
     }
   },
   updateDraftConfig: (files) => files,
-  async buildClearFiles() {
-    const read = await readConfigFiles(['copilot-settings', 'copilot-providers'])
+  async buildClearFiles(reader) {
+    const read = await reader(['copilot-settings', 'copilot-providers'])
     const registry = readValidatedJsonOrNull('copilot-providers', read, 'Copilot providers')
     const settings = readValidatedJsonOrNull('copilot-settings', read, 'Copilot settings')
     const files: CliConfigWriteFile[] = []

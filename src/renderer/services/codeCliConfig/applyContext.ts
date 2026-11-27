@@ -1,7 +1,7 @@
 import { type Model, parseUniqueModelId, type UniqueModelId, UniqueModelIdSchema } from '@shared/data/types/model'
 import { CodeCli } from '@shared/types/codeCli'
+import { sanitizeCliConfigBlob } from '@shared/utils/cliConfig'
 
-import { sanitizeCliConfigBlob } from './adapters'
 import { getClaudeContextModelId, hasClaudeDetailedModels } from './claudeModels'
 
 export function parseConfiguredModelId(

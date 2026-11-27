@@ -1,9 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
-import type { CliConfigTarget } from '@shared/utils/cliConfig'
-
 import { readAndParseDraftFile, validateCliConfigDraftForWrite } from '../draftFiles'
 import { type CliConfigReadFiles, parseTomlOrThrow, parseYamlOrThrow } from '../file'
+import type { CliConfigTarget } from '../targets'
 import type { CliConfigFileDraft } from '../types'
 
 function readWith(target: CliConfigTarget, content: string | null): CliConfigReadFiles {

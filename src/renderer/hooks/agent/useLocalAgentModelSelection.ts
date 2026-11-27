@@ -13,7 +13,6 @@ import {
   getGatewayProviderIds,
   isCliGatewayModel,
   extractConfigFromCliConfigDraft,
-  createCliConfigDraftFiles,
   prepareCliConfigClear,
   stripClaudeDetailedModels,
   prepareCliModelConfig
@@ -26,6 +25,7 @@ import type { AgentEntity } from '@shared/data/types/agent'
 import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
 import { CLI_API_GATEWAY_PROVIDER_ID, CodeCli, DEEPSEEK_HARNESS_GATEWAY_ROUTE } from '@shared/types/codeCli'
 import { formatGatewayModelId } from '@shared/utils/apiGateway'
+import { createCliConfigDraftFiles } from '@shared/utils/cliConfig'
 import { getCliConfigTargets } from '@shared/utils/cliConfig'
 
 export type LocalAgentModelOption = LocalAgentModelCatalog['models'][number] & {

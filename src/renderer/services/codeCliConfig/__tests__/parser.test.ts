@@ -4,8 +4,8 @@ import { dataApiService } from '@data/DataApiService'
 import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
 import { CodeCli } from '@shared/types/codeCli'
 import { CLI_CONFIG_FILE_SPECS } from '@shared/utils/cliConfig'
+import type { CliConfigFileDraft, CliConfigTarget } from '@shared/utils/cliConfig'
 
-import type { CliConfigFileDraft, CliConfigTarget } from '../index'
 import { extractConfigFromCliConfigDraft, extractConnectionFromCliConfigDraft, readCliConfigDraft } from '../index'
 
 const mocks = vi.hoisted(() => ({ request: vi.fn() }))

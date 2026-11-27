@@ -1,5 +1,3 @@
-import { t } from 'i18next'
-
 import {
   clearPoolsideGateway,
   readPoolsideGateway,
@@ -7,11 +5,11 @@ import {
 } from '@cherrystudio/agent-runtime-poolside-acp'
 import { poolsideCli } from '@cherrystudio/agent-runtime-poolside-acp/cli'
 import { formatApiHost } from '@shared/utils/api'
-import { getCliConfigTargets } from '@shared/utils/cliConfig'
 
 import type { CliConfigAdapter } from './adapters'
 import { getDraftFile, makeDraftFile, readAndParseDraftFile, readConfigFilesForDraft } from './draftFiles'
-import { parseYamlDocumentOrThrow, parseYamlOrThrow, readConfigFiles, requireReadFile } from './file'
+import { parseYamlDocumentOrThrow, parseYamlOrThrow, CliConfigError, requireReadFile } from './file'
+import { getCliConfigTargets } from './targets'
 import { stringValue } from './values'
 
 export const poolsideAdapter: CliConfigAdapter = {
@@ -21,20 +19,20 @@ export const poolsideAdapter: CliConfigAdapter = {
     return url ? [formatApiHost(url)] : []
   },
   sanitize: () => ({}),
-  async buildDraft(args, context) {
+  async buildDraft(args, context, reader) {
     this.assertCredentials(context)
-    const read = await readConfigFilesForDraft(this.targets, args.files)
+    const read = await readConfigFilesForDraft(reader, this.targets, args.files)
     const document = readAndParseDraftFile('poolside-settings', parseYamlDocumentOrThrow, args.files, read)
     writePoolsideGateway(document, context.apiKey, this.providerBaseUrls(context.provider)[0], context.model)
     return [makeDraftFile('poolside-settings', document.toString(), read)]
   },
   assertCredentials(context) {
     if (!context.apiKey || !this.providerBaseUrls(context.provider).length)
-      throw new Error(t('code.cli_config.missing_credentials', { tool: 'Poolside' }))
+      throw new CliConfigError('code.cli_config.missing_credentials', { tool: 'Poolside' })
   },
   updateDraftConfig: (files) => files,
-  async buildClearFiles() {
-    const file = requireReadFile('poolside-settings', await readConfigFiles(this.targets))
+  async buildClearFiles(reader) {
+    const file = requireReadFile('poolside-settings', await reader(this.targets))
     if (file.content === null) return []
     const document = parseYamlDocumentOrThrow(file.content)
     if (!clearPoolsideGateway(document)) return []

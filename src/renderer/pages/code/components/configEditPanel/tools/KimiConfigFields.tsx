@@ -2,7 +2,7 @@ import type { FC } from 'react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { KIMI_PERMISSION_MODES } from '@renderer/services/codeCliConfig'
+import { KIMI_PERMISSION_MODES } from '@shared/utils/cliConfig'
 
 import { TogglePill } from '../TogglePill'
 import { ConfigSelectField } from './ConfigFieldPrimitives'

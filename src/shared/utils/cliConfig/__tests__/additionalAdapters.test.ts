@@ -1,16 +1,24 @@
 import { parse as parseToml } from 'smol-toml'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { ipcApi } from '@renderer/ipc'
 import { MODEL_CAPABILITY, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { CodeCli } from '@shared/types/codeCli'
-import { CLI_CONFIG_FILE_SPECS, type ModelConfiguredCli } from '@shared/utils/cliConfig'
 
 import { getAdapter } from '../adapters'
 import { parseDotenv } from '../dotenv'
 import { createCliConfigDraftFiles } from '../draftFiles'
+import type { CliConfigFileReader } from '../file'
+import { CLI_CONFIG_FILE_SPECS, type ModelConfiguredCli } from '../targets'
+import type { CliConfigTarget } from '../targets'
 import type { CliConfigFileDraft, ResolvedCliConfigContext } from '../types'
+
+type DiskFile = { target: CliConfigTarget; path: string; content: string | null }
+let disk: DiskFile[] = []
+const setDisk = ({ files }: { files: DiskFile[] }) => {
+  disk = files
+}
+const reader: CliConfigFileReader = async () => new Map(disk.map((file) => [file.target, file]))
 
 const tools: ModelConfiguredCli[] = ['kilo', 'factory-droid', 'mistral-vibe', CodeCli.GITHUB_COPILOT_CLI]
 const context: ResolvedCliConfigContext = {
@@ -64,13 +72,13 @@ describe.each(tools)('%s persistent model configuration', (tool) => {
   it('writes the gateway wire model and preserves user configuration across selections', async () => {
     const adapter = getAdapter(tool)!
     const args = { cliTool: tool, modelId: 'test::model' as const }
-    const draft = await adapter.buildDraft({ ...args, files: initialFiles(tool) }, context)
+    const draft = await adapter.buildDraft({ ...args, files: initialFiles(tool) }, context, reader)
     expect(adapter.extractConnection(draft)).toEqual({
       model: context.model,
       apiKey: 'gateway-key',
       baseUrl: 'https://example.test/v1'
     })
-    const next = await adapter.buildDraft({ ...args, files: draft }, { ...context, model: 'provider:next' })
+    const next = await adapter.buildDraft({ ...args, files: draft }, { ...context, model: 'provider:next' }, reader)
     expect(adapter.extractConnection(next)?.model).toBe('provider:next')
     const text = next.map((file) => file.content).join('\n')
     expect(text).toContain('user-key')
@@ -116,16 +124,17 @@ describe.each(tools)('%s persistent model configuration', (tool) => {
     const adapter = getAdapter(tool)!
     const draft = await adapter.buildDraft(
       { cliTool: tool, modelId: 'test::model', files: initialFiles(tool) },
-      context
+      context,
+      reader
     )
-    vi.spyOn(ipcApi, 'request').mockResolvedValue({
+    setDisk({
       files: adapter.targets.map((target) => ({
         target,
         path: `/test/${target}`,
         content: draft.find((f) => f.target === target)?.content ?? null
       }))
     })
-    const cleared = await adapter.buildClearFiles()
+    const cleared = await adapter.buildClearFiles(reader)
     const text = cleared.map((file) => file.content).join('\n')
     expect(text).not.toContain('gateway-key')
     expect(text).not.toContain('provider:org/test-model')
@@ -152,7 +161,8 @@ describe.each(tools)('%s persistent model configuration', (tool) => {
         ...context,
         provider: { ...context.provider, endpointConfigs: { [endpoint]: { baseUrl: 'https://example.test/v1' } } },
         modelRecord: { ...context.modelRecord!, endpointTypes: [endpoint] }
-      }
+      },
+      reader
     )
     expect(adapter.extractConnection(draft)?.baseUrl).toBe(
       endpoint === 'anthropic-messages' && tool !== 'kilo' ? 'https://example.test' : 'https://example.test/v1'
@@ -184,9 +194,10 @@ it('does not overwrite a Droid user model with the same API ID', async () => {
   await expect(
     getAdapter('factory-droid')!.buildDraft(
       { cliTool: 'factory-droid', modelId: 'test::model', files },
-      { ...context, model: 'user-model' }
+      { ...context, model: 'user-model' },
+      reader
     )
-  ).rejects.toThrow(/相同 ID|custom model/)
+  ).rejects.toMatchObject({ name: 'CliConfigError', key: 'code.cli_config.model_conflict' })
 })
 
 it.each([
@@ -198,7 +209,7 @@ it.each([
   async (tool, target, content) => {
     const files = initialFiles(tool).map((file) => (file.target === target ? { ...file, content } : file))
     await expect(
-      getAdapter(tool)!.buildDraft({ cliTool: tool, modelId: 'test::model', files }, context)
+      getAdapter(tool)!.buildDraft({ cliTool: tool, modelId: 'test::model', files }, context, reader)
     ).rejects.toThrow()
   }
 )
@@ -232,7 +243,7 @@ describe('extra custom-endpoint local agent adapters', () => {
   it.each(extraTools)('%s builds, extracts, preserves user keys, and clears cleanly', async (tool) => {
     const adapter = getAdapter(tool)!
     const files = makeInitialFiles(tool)
-    const draft = await adapter.buildDraft({ cliTool: tool, modelId: 'test::model', files }, context)
+    const draft = await adapter.buildDraft({ cliTool: tool, modelId: 'test::model', files }, context, reader)
     const committed = new Map<string, string | null>(files.map((file) => [file.target, file.content]))
     for (const file of draft) committed.set(file.target, file.content)
 
@@ -242,14 +253,14 @@ describe('extra custom-endpoint local agent adapters', () => {
       model: 'provider:org/test-model'
     })
 
-    vi.spyOn(ipcApi, 'request').mockResolvedValue({
+    setDisk({
       files: adapter.targets.map((target) => ({
         target,
         path: `/test/${target}`,
         content: committed.get(target) ?? null
       }))
     })
-    for (const file of await adapter.buildClearFiles()) committed.set(file.target, file.content ?? null)
+    for (const file of await adapter.buildClearFiles(reader)) committed.set(file.target, file.content ?? null)
     const clearedDraft = createCliConfigDraftFiles(
       adapter.targets.map((target) => ({
         target,
@@ -297,12 +308,13 @@ describe('extra custom-endpoint local agent adapters', () => {
       for (const model of ['first', 'second']) {
         const draft = await adapter.buildDraft(
           { cliTool: tool, modelId: `test::${model}`, files },
-          { ...context, model }
+          { ...context, model },
+          reader
         )
         files = files.map((file) => draft.find((next) => next.target === file.target) ?? file)
       }
-      vi.spyOn(ipcApi, 'request').mockResolvedValue({ files })
-      const cleared = (await adapter.buildClearFiles()).find((file) => file.target === target)
+      setDisk({ files })
+      const cleared = (await adapter.buildClearFiles(reader)).find((file) => file.target === target)
       const restored = JSON.parse(cleared!.content!)
       if (tool === 'cline') expect(restored).toMatchObject(original)
       else expect(restored).toEqual(original)
@@ -313,7 +325,8 @@ describe('extra custom-endpoint local agent adapters', () => {
   it('writes CLI-native schemas for glm-acp-agent, snow, zcode, and cline', async () => {
     const glmDraft = await getAdapter('glm-acp-agent')!.buildDraft(
       { cliTool: 'glm-acp-agent', modelId: 'test::model', files: makeInitialFiles('glm-acp-agent') },
-      context
+      context,
+      reader
     )
     expect(json(glmDraft, 'glm-credentials')).toMatchObject({
       theme: 'dark',
@@ -325,7 +338,8 @@ describe('extra custom-endpoint local agent adapters', () => {
 
     const snowDraft = await getAdapter('snow')!.buildDraft(
       { cliTool: 'snow', modelId: 'test::model', files: makeInitialFiles('snow') },
-      context
+      context,
+      reader
     )
     expect(json(snowDraft, 'snow-config')).toMatchObject({
       cherryManaged: true,
@@ -353,7 +367,8 @@ describe('extra custom-endpoint local agent adapters', () => {
         provider: anthropicGatewayProvider,
         model: 'anthropic/claude-sonnet',
         modelRecord: { ...context.modelRecord!, endpointTypes: ['anthropic-messages'] }
-      }
+      },
+      reader
     )
     expect(json(snowAnthropicDraft, 'snow-config')).toMatchObject({
       cherryManaged: true,
@@ -366,7 +381,8 @@ describe('extra custom-endpoint local agent adapters', () => {
 
     const zcodeDraft = await getAdapter('zcode')!.buildDraft(
       { cliTool: 'zcode', modelId: 'test::model', files: makeInitialFiles('zcode') },
-      context
+      context,
+      reader
     )
     expect(json(zcodeDraft, 'zcode-config')).toMatchObject({
       theme: 'dark',
@@ -384,7 +400,8 @@ describe('extra custom-endpoint local agent adapters', () => {
 
     const clineDraft = await getAdapter('cline')!.buildDraft(
       { cliTool: 'cline', modelId: 'test::model', files: makeInitialFiles('cline') },
-      context
+      context,
+      reader
     )
     expect(json(clineDraft, 'cline-providers')).toMatchObject({
       version: 1,
@@ -427,7 +444,11 @@ describe('extra custom-endpoint local agent adapters', () => {
     const adapter = getAdapter('grok-build')!
     const files = makeInitialFiles('grok-build')
     const build = (content: string) =>
-      adapter.buildDraft({ cliTool: 'grok-build', modelId: 'test::model', files: [{ ...files[0], content }] }, context)
+      adapter.buildDraft(
+        { cliTool: 'grok-build', modelId: 'test::model', files: [{ ...files[0], content }] },
+        context,
+        reader
+      )
     const [fresh] = await build(files[0].content)
     const { models } = parseToml(fresh.content)
     expect(models).toMatchObject({
@@ -441,8 +462,8 @@ describe('extra custom-endpoint local agent adapters', () => {
       session_summary: 'cherry-Test',
       prompt_suggestion: 'personal'
     })
-    vi.spyOn(ipcApi, 'request').mockResolvedValue({ files: [changed] })
-    const [cleared] = await adapter.buildClearFiles()
+    setDisk({ files: [changed] })
+    const [cleared] = await adapter.buildClearFiles(reader)
     expect(parseToml(cleared.content!).models).toEqual({ prompt_suggestion: 'personal' })
   })
 
@@ -460,7 +481,8 @@ describe('extra custom-endpoint local agent adapters', () => {
         files: makeInitialFiles('grok-build'),
         gateway: { provider, apiKey: context.apiKey }
       },
-      { ...context, provider, modelRecord: { ...context.modelRecord!, endpointTypes: ['openai-responses'] } }
+      { ...context, provider, modelRecord: { ...context.modelRecord!, endpointTypes: ['openai-responses'] } },
+      reader
     )
     expect(parseToml(draft.content)).toMatchObject({
       models: {
@@ -491,7 +513,8 @@ describe('extra custom-endpoint local agent adapters', () => {
           endpointConfigs: { 'openai-responses': { baseUrl: 'https://example.test/v1' } }
         },
         modelRecord: { ...context.modelRecord!, endpointTypes: ['openai-responses'] }
-      }
+      },
+      reader
     )
     expect(responsesDraft[0].content).toContain('api_backend = "responses"')
 
@@ -504,7 +527,8 @@ describe('extra custom-endpoint local agent adapters', () => {
           endpointConfigs: { 'openai-chat-completions': { baseUrl: 'https://example.test/v1' } }
         },
         modelRecord: { ...context.modelRecord!, endpointTypes: ['openai-chat-completions'] }
-      }
+      },
+      reader
     )
     expect(chatDraft[0].content).not.toContain('api_backend')
   })
@@ -524,7 +548,8 @@ describe('extra custom-endpoint local agent adapters', () => {
           ...context,
           provider,
           modelRecord: { ...context.modelRecord!, endpointTypes: [endpoint] }
-        }
+        },
+        reader
       )
       expect(adapter.extractConnection(draft)).toEqual({
         baseUrl: 'https://example.test',

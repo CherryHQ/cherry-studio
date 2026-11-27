@@ -1,13 +1,11 @@
-import { t } from 'i18next'
-
 import type { EndpointType } from '@shared/data/types/model'
 import { formatApiHost } from '@shared/utils/api'
-import { getCliConfigTargets } from '@shared/utils/cliConfig'
 
 import type { CliConfigAdapter } from './adapters'
 import { getDraftFile, makeDraftFile, readAndParseDraftFile, readConfigFilesForDraft } from './draftFiles'
-import { parseJsonOrThrow, readConfigFiles, readValidatedJsonOrNull, renderJsonFile } from './file'
+import { parseJsonOrThrow, CliConfigError, readValidatedJsonOrNull, renderJsonFile } from './file'
 import { resolveClaudeBaseUrl, resolveSupportedEndpointType } from './resolvers'
+import { getCliConfigTargets } from './targets'
 import { asRecord, stringValue } from './values'
 
 const ENDPOINTS: EndpointType[] = ['anthropic-messages', 'openai-responses', 'openai-chat-completions']
@@ -16,7 +14,7 @@ const LABEL_PREFIX = '[Cherry Studio] '
 function modelEntries(config: Record<string, any>): Record<string, any>[] {
   if (config.customModels === undefined) return []
   if (!Array.isArray(config.customModels))
-    throw new Error(t('code.cli_config.invalid_model_list', { tool: 'Droid', field: 'customModels' }))
+    throw new CliConfigError('code.cli_config.invalid_model_list', { tool: 'Droid', field: 'customModels' })
   return config.customModels
 }
 
@@ -32,17 +30,17 @@ export const factoryAdapter: CliConfigAdapter = {
       return url ? [type === 'anthropic-messages' ? resolveClaudeBaseUrl(provider) : formatApiHost(url)] : []
     }),
   sanitize: () => ({}),
-  async buildDraft(args, { provider, apiKey, model, modelLabel, modelRecord }) {
+  async buildDraft(args, { provider, apiKey, model, modelLabel, modelRecord }, reader) {
     const endpoint = resolveSupportedEndpointType(provider, modelRecord?.endpointTypes, ENDPOINTS, ENDPOINTS[0])
     const baseUrl =
       endpoint === 'anthropic-messages'
         ? resolveClaudeBaseUrl(provider)
         : formatApiHost(provider.endpointConfigs?.[endpoint]?.baseUrl)
-    const read = await readConfigFilesForDraft(this.targets, args.files)
+    const read = await readConfigFilesForDraft(reader, this.targets, args.files)
     const settings = readAndParseDraftFile('factory-settings', parseJsonOrThrow, args.files, read)
     const retained = modelEntries(settings).filter((entry) => !managed(entry))
     if (retained.some((entry) => entry.model === model)) {
-      throw new Error(t('code.cli_config.model_conflict', { tool: 'Droid' }))
+      throw new CliConfigError('code.cli_config.model_conflict', { tool: 'Droid' })
     }
     const entry = {
       model,
@@ -72,12 +70,12 @@ export const factoryAdapter: CliConfigAdapter = {
   },
   assertCredentials(context) {
     if (!context.apiKey || !this.providerBaseUrls(context.provider).length) {
-      throw new Error(t('code.cli_config.missing_credentials', { tool: 'Droid' }))
+      throw new CliConfigError('code.cli_config.missing_credentials', { tool: 'Droid' })
     }
   },
   updateDraftConfig: (files) => files,
-  async buildClearFiles() {
-    const read = await readConfigFiles(this.targets)
+  async buildClearFiles(reader) {
+    const read = await reader(this.targets)
     const settings = readValidatedJsonOrNull('factory-settings', read, 'Droid settings')
     if (!settings) return []
     const entries = modelEntries(settings)

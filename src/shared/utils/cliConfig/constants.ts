@@ -4,7 +4,7 @@ export const CODEX_RESPONSES_ENDPOINT = 'openai-responses'
 export const CODEX_CHAT_ENDPOINT = 'openai-chat-completions'
 
 export const OPENCODE_SCHEMA = 'https://opencode.ai/config.json'
-export { CHERRY_PROVIDER_PREFIX } from '@shared/utils/cliConfig'
+export { CHERRY_PROVIDER_PREFIX } from './targets'
 
 export const OPEN_CODE_ENDPOINTS: readonly EndpointType[] = [
   'google-generate-content',

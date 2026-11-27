@@ -1,7 +1,8 @@
 import { ipcApi } from '@renderer/ipc'
 import { isFileConfiguredCli } from '@shared/utils/cliConfig'
+import { getAdapter } from '@shared/utils/cliConfig'
 
-import { getAdapter } from './adapters'
+import { readConfigFiles } from './reader'
 
 export interface ClearCliConfigArgs {
   /** CLI tool whose config file should be scrubbed. */
@@ -22,9 +23,9 @@ export async function clearCliConfig(args: ClearCliConfigArgs): Promise<void> {
 
 export async function prepareCliConfigClear(cliTool: string, configBlob?: Record<string, unknown>) {
   const adapter = getAdapter(cliTool)
-  const files = (await adapter?.buildClearFiles()) ?? []
+  const files = (await adapter?.buildClearFiles(readConfigFiles)) ?? []
   if (configBlob && adapter?.buildOwnLoginDraft) {
-    for (const { target, content } of await adapter.buildOwnLoginDraft(configBlob)) {
+    for (const { target, content } of await adapter.buildOwnLoginDraft(configBlob, readConfigFiles)) {
       const index = files.findIndex((file) => file.target === target)
       if (index < 0) files.push({ target, content })
       else files[index] = { target, content }

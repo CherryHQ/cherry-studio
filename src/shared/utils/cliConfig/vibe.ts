@@ -1,9 +1,7 @@
-import { t } from 'i18next'
 import { stringify } from 'smol-toml'
 
 import type { EndpointType } from '@shared/data/types/model'
 import { formatApiHost } from '@shared/utils/api'
-import { type CliConfigWriteFile, getCliConfigTargets } from '@shared/utils/cliConfig'
 
 import type { CliConfigAdapter } from './adapters'
 import { CHERRY_PROVIDER_PREFIX } from './constants'
@@ -15,8 +13,9 @@ import {
   readConfigFilesForDraft,
   readDraftFileText
 } from './draftFiles'
-import { parseTomlOrThrow, readConfigFiles, readValidatedTomlOrNull, requireReadFile } from './file'
+import { parseTomlOrThrow, CliConfigError, readValidatedTomlOrNull, requireReadFile } from './file'
 import { resolveClaudeBaseUrl, resolveSupportedEndpointType } from './resolvers'
+import { type CliConfigWriteFile, getCliConfigTargets } from './targets'
 import { cliProviderKeyName, stringValue } from './values'
 
 const ENDPOINTS: EndpointType[] = ['anthropic-messages', 'openai-responses', 'openai-chat-completions']
@@ -25,7 +24,7 @@ const API_KEY_ENV = 'CHERRY_VIBE_API_KEY'
 function entries(config: Record<string, any>, key: 'providers' | 'models'): Record<string, any>[] {
   if (config[key] === undefined) return []
   if (!Array.isArray(config[key]))
-    throw new Error(t('code.cli_config.invalid_model_list', { tool: 'Vibe', field: key }))
+    throw new CliConfigError('code.cli_config.invalid_model_list', { tool: 'Vibe', field: key })
   return config[key]
 }
 
@@ -41,10 +40,10 @@ export const vibeAdapter: CliConfigAdapter = {
       return url ? [type === 'anthropic-messages' ? resolveClaudeBaseUrl(provider) : formatApiHost(url)] : []
     }),
   sanitize: () => ({}),
-  async buildDraft(args, { provider, apiKey, model, modelLabel, modelRecord }) {
+  async buildDraft(args, { provider, apiKey, model, modelLabel, modelRecord }, reader) {
     const endpoint = resolveSupportedEndpointType(provider, modelRecord?.endpointTypes, ENDPOINTS, ENDPOINTS[0])
     const name = `${CHERRY_PROVIDER_PREFIX}${cliProviderKeyName(provider)}`
-    const read = await readConfigFilesForDraft(this.targets, args.files)
+    const read = await readConfigFilesForDraft(reader, this.targets, args.files)
     const config = readAndParseDraftFile('vibe-config', parseTomlOrThrow, args.files, read)
     const envText = readDraftFileText('vibe-env', args.files, read)
     const env = parseDotenv(envText)
@@ -94,12 +93,12 @@ export const vibeAdapter: CliConfigAdapter = {
   },
   assertCredentials(context) {
     if (!context.apiKey || !this.providerBaseUrls(context.provider).length) {
-      throw new Error(t('code.cli_config.missing_credentials', { tool: 'Vibe' }))
+      throw new CliConfigError('code.cli_config.missing_credentials', { tool: 'Vibe' })
     }
   },
   updateDraftConfig: (files) => files,
-  async buildClearFiles() {
-    const read = await readConfigFiles(this.targets)
+  async buildClearFiles(reader) {
+    const read = await reader(this.targets)
     const config = readValidatedTomlOrNull('vibe-config', read, 'Vibe config')
     const files: CliConfigWriteFile[] = []
     if (config) {

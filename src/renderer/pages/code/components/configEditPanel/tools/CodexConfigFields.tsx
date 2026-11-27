@@ -2,7 +2,7 @@ import type { FC } from 'react'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { CODEX_PERMISSION_MODES, CODEX_REASONING_EFFORTS } from '@renderer/services/codeCliConfig'
+import { CODEX_PERMISSION_MODES, CODEX_REASONING_EFFORTS } from '@shared/utils/cliConfig'
 
 import { TogglePill } from '../TogglePill'
 import { ConfigSelectField } from './ConfigFieldPrimitives'

@@ -6,20 +6,20 @@ import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
 import { CodeCli, normalizeDeepSeekHarnessSettings } from '@shared/types/codeCli'
 import { formatGatewayModelId } from '@shared/utils/apiGateway'
 import { getCliConfigTargets, isFileConfiguredCli } from '@shared/utils/cliConfig'
-import { isOllamaProvider, OLLAMA_PLACEHOLDER_AUTH_TOKEN } from '@shared/utils/provider'
-
-import { getAdapter, resolveCliConfigOptionChanges, sanitizeCliConfigBlob } from './adapters'
-import { makeDraftFile, readDraftFileText, validateCliConfigDraftForWrite } from './draftFiles'
-import { readConfigFiles } from './file'
-import { isModelConfiguredCli } from './modelSupport'
+import { getAdapter, resolveCliConfigOptionChanges, sanitizeCliConfigBlob } from '@shared/utils/cliConfig'
+import { makeDraftFile, readDraftFileText, validateCliConfigDraftForWrite } from '@shared/utils/cliConfig'
 import type {
   CliConfigDraftBuildArgs,
   CliConfigFileDraft,
   CliConfigGatewayContext,
   CliConfigWriteArgs,
   ResolvedCliConfigContext
-} from './types'
-import { firstApiKey } from './values'
+} from '@shared/utils/cliConfig'
+import { firstApiKey } from '@shared/utils/cliConfig'
+import { isOllamaProvider, OLLAMA_PLACEHOLDER_AUTH_TOKEN } from '@shared/utils/provider'
+
+import { isModelConfiguredCli } from './modelSupport'
+import { readConfigFiles } from './reader'
 
 const logger = loggerService.withContext('writeCliConfigDraft')
 
@@ -142,7 +142,7 @@ async function buildCliConfigDraftFiles(
   args: CliConfigDraftBuildArgs,
   context: ResolvedCliConfigContext
 ): Promise<CliConfigFileDraft[]> {
-  return (await getAdapter(args.cliTool)?.buildDraft(args, context)) ?? []
+  return (await getAdapter(args.cliTool)?.buildDraft(args, context, readConfigFiles)) ?? []
 }
 
 /**

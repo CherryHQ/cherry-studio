@@ -32,11 +32,11 @@ vi.mock('@renderer/services/codeCliConfig/applyContext', () => ({
   resolveCliConfigApplyContext: mocks.resolveCliConfigApplyContext
 }))
 // `sanitizeCliConfigBlob` now lives in the adapter registry (re-exported via the barrel).
-// Keep the real registry so any transitive importer of `adapters` (getAdapter/CLI_CONFIG_ADAPTERS)
+// Keep the real registry so any transitive importer of the shared CLI config barrel
 // still resolves; override only the sanitizer this test asserts on.
-vi.mock('@renderer/services/codeCliConfig/adapters', async (importOriginal) => ({
+vi.mock('@shared/utils/cliConfig', async (importOriginal) => ({
   // oxlint-disable-next-line consistent-type-imports
-  ...(await importOriginal<typeof import('@renderer/services/codeCliConfig/adapters')>()),
+  ...(await importOriginal<typeof import('@shared/utils/cliConfig')>()),
   sanitizeCliConfigBlob: mocks.sanitizeCliConfigBlob
 }))
 

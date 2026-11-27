@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { dataApiService } from '@data/DataApiService'
-import type { CliConfigFileDraft } from '@renderer/services/codeCliConfig'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { CLI_API_GATEWAY_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
+import type { CliConfigFileDraft } from '@shared/utils/cliConfig'
 
 import type { ConfigDraft } from '../types'
 

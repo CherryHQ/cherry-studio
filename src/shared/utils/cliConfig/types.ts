@@ -1,6 +1,7 @@
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import type { CliConfigLanguage, CliConfigTarget } from '@shared/utils/cliConfig'
+
+import type { CliConfigLanguage, CliConfigTarget } from './targets'
 
 export type { CliConfigLanguage, CliConfigTarget }
 

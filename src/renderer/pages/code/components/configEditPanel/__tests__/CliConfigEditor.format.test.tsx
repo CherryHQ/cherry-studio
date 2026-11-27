@@ -5,7 +5,7 @@ import { useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
 import { CodeStyleProvider } from '@renderer/components/CodeStyleProvider'
-import type { CliConfigFileDraft } from '@renderer/services/codeCliConfig'
+import type { CliConfigFileDraft } from '@shared/utils/cliConfig'
 
 import { CliConfigEditor } from '../CliConfigEditor'
 
