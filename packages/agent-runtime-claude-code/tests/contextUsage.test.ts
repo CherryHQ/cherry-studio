@@ -257,3 +257,67 @@ it('resolves the context window from result modelUsage when the [1m] suffix diff
     await test.close()
   }
 })
+
+it('does not let a [1m] modelUsage entry overwrite the exact bare-model context window', async () => {
+  const test = await wireFixture({
+    contextUsage: async () => ({ ...native, model: 'claude-sonnet-4-5-20250929' })
+  })
+  try {
+    const uuid = randomUUID()
+    test.send({
+      type: 'result',
+      subtype: 'success',
+      uuid,
+      session_id: test.sessionId,
+      duration_ms: 1,
+      duration_api_ms: 1,
+      is_error: false,
+      num_turns: 1,
+      result: '',
+      stop_reason: 'end_turn',
+      total_cost_usd: 0,
+      usage: {
+        input_tokens: 1,
+        output_tokens: 1,
+        cache_creation_input_tokens: 0,
+        cache_read_input_tokens: 0,
+        cache_creation: { ephemeral_1h_input_tokens: 0, ephemeral_5m_input_tokens: 0 },
+        iterations: [],
+        server_tool_use: { web_search_requests: 0, web_fetch_requests: 0 },
+        service_tier: 'standard',
+        inference_geo: 'us',
+        speed: 'standard'
+      },
+      modelUsage: {
+        'claude-sonnet-4-5-20250929': {
+          inputTokens: 1,
+          outputTokens: 1,
+          cacheReadInputTokens: 0,
+          cacheCreationInputTokens: 0,
+          webSearchRequests: 0,
+          costUSD: 0,
+          contextWindow: 200_000,
+          maxOutputTokens: 64_000
+        },
+        'claude-sonnet-4-5-20250929[1m]': {
+          inputTokens: 1,
+          outputTokens: 1,
+          cacheReadInputTokens: 0,
+          cacheCreationInputTokens: 0,
+          webSearchRequests: 0,
+          costUSD: 0,
+          contextWindow: 1_000_000,
+          maxOutputTokens: 64_000
+        }
+      },
+      permission_denials: []
+    } as never)
+    await test.view.event((message) => 'uuid' in message && message.uuid === uuid)
+    expect(await test.root.contextUsage()).toMatchObject({
+      status: 'confirmed',
+      value: { contextWindow: 200_000, used: { tokens: 34087 } }
+    })
+  } finally {
+    await test.close()
+  }
+})

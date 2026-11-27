@@ -208,7 +208,12 @@ export class ClaudeOwner {
     const declared = this.runtime.contextWindow
     const normalize = (id: string) => id.replace(/\[1m\]$/i, '')
     if (declared && normalize(declared.model) === normalize(model)) return declared.tokens
-    return this.contextWindows.get(normalize(model))
+    const normalized = normalize(model)
+    const matchingWindows = new Set<number>()
+    for (const [key, tokens] of this.contextWindows) {
+      if (normalize(key) === normalized) matchingWindows.add(tokens)
+    }
+    return matchingWindows.size === 1 ? [...matchingWindows][0] : undefined
   }
 
   async contextUsage(projection: ClaudeProjection): Promise<OperationResult<ThreadContextUsage>> {
@@ -643,10 +648,7 @@ export class ClaudeOwner {
     }
     if (message.type === 'result' && 'modelUsage' in message)
       for (const [model, usage] of Object.entries(message.modelUsage))
-        if (usage.contextWindow > 0) {
-          this.contextWindows.set(model, usage.contextWindow)
-          this.contextWindows.set(model.replace(/\[1m\]$/i, ''), usage.contextWindow)
-        }
+        if (usage.contextWindow > 0) this.contextWindows.set(model, usage.contextWindow)
     if (!agentId && message.type === 'stream_event') {
       const event = message.event
       const usage =

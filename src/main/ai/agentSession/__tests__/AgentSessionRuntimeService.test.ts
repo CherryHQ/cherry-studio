@@ -4903,7 +4903,8 @@ describe('AgentSessionRuntimeService', () => {
     await vi.waitFor(() =>
       expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.context_usage.session-1', {
         modelId: baseTurnInput.modelId,
-        result: usage
+        result: usage,
+        measuredAt: expect.any(Number)
       })
     )
 
@@ -4975,7 +4976,8 @@ describe('AgentSessionRuntimeService', () => {
       await vi.waitFor(() =>
         expect(mocks.cacheSetShared).toHaveBeenLastCalledWith('agent.session.context_usage.session-1', {
           modelId: baseTurnInput.modelId,
-          result: latestUsage
+          result: latestUsage,
+          measuredAt: expect.any(Number)
         })
       )
       expect(getContextUsage).toHaveBeenCalledTimes(3)
@@ -5078,7 +5080,8 @@ describe('AgentSessionRuntimeService', () => {
       await vi.waitFor(() =>
         expect(cache.get('agent.session.context_usage.session-1')).toEqual({
           modelId: baseTurnInput.modelId,
-          result: confirmed
+          result: confirmed,
+          measuredAt: expect.any(Number)
         })
       )
 
@@ -5100,8 +5103,129 @@ describe('AgentSessionRuntimeService', () => {
       expect(cache.get('agent.session.context_usage.session-1')).toMatchObject({
         modelId: baseTurnInput.modelId,
         result: confirmed,
-        stale: true
+        stale: true,
+        measuredAt: expect.any(Number)
       })
+    })
+
+    it('preserves original measuredAt across idle close and subsequent failed refresh, and clears cache on idle editSession', async () => {
+      vi.useFakeTimers()
+      try {
+        const confirmed = reading(42)
+        const transientFailure = {
+          status: 'unknown' as const,
+          error: { operation: 'contextUsage', code: 'native-error', message: 'Subprocess exited' }
+        }
+        const cache = new Map<string, any>()
+        mocks.cacheSetShared.mockImplementation((key: string, value: any) => {
+          cache.set(key, value)
+        })
+        mocks.cacheGetShared.mockImplementation((key: string) => cache.get(key))
+        mocks.cacheDeleteShared.mockImplementation((key: string) => {
+          cache.delete(key)
+        })
+
+        const service = new AgentSessionRuntimeService()
+        const eventsA = createAsyncQueue<any>()
+        const eventsB = createAsyncQueue<any>()
+        const connA = {
+          events: eventsA.iterable,
+          send: vi.fn(),
+          close: vi.fn(async () => {
+            eventsA.end()
+          }),
+          getContextUsage: vi.fn().mockResolvedValue(confirmed)
+        }
+        const connB = {
+          events: eventsB.iterable,
+          send: vi.fn(),
+          close: vi.fn(async () => {
+            eventsB.end()
+          }),
+          getContextUsage: vi.fn().mockResolvedValue(transientFailure)
+        }
+        runtimeDriverRegistry.register({
+          type: 'test-runtime',
+          connect: vi.fn().mockResolvedValueOnce(connA).mockResolvedValueOnce(connB),
+          validateSession: vi.fn()
+        })
+
+        vi.setSystemTime(1_700_000_000_000)
+        const hA = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-a') })
+        const rA = openChunkStream(service, {
+          sessionId: 'session-1',
+          turnId: hA.turnId,
+          signal: new AbortController().signal
+        }).getReader()
+        await expect(rA.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+        eventsA.push({ type: 'turn-complete' })
+        await expect(rA.read()).resolves.toMatchObject({ done: true })
+        await vi.waitFor(() =>
+          expect(cache.get('agent.session.context_usage.session-1')).toMatchObject({
+            result: confirmed,
+            measuredAt: 1_700_000_000_000
+          })
+        )
+
+        // Idle disconnect happens 5 minutes later via resetConnectionRuntimeState.
+        vi.setSystemTime(1_700_000_300_000)
+        ;(service as any).resetConnectionRuntimeState(getEntry(service), connA)
+        eventsA.end()
+        await vi.waitFor(() => expect(getEntry(service).connectionLoop).toBeUndefined())
+        ;(service as any).entries.delete('session-1')
+        expect(cache.get('agent.session.context_usage.session-1')).toMatchObject({
+          result: confirmed,
+          stale: true,
+          measuredAt: 1_700_000_000_000
+        })
+
+        // Reopening and failing refresh 10s later must retain the original 1_700_000_000_000 timestamp.
+        vi.setSystemTime(1_700_000_310_000)
+        const hB = service.beginTurn({
+          ...baseTurnInput,
+          assistantMessageId: 'assistant-2',
+          userMessage: userMessage('user-b')
+        })
+        const rB = openChunkStream(service, {
+          sessionId: 'session-1',
+          turnId: hB.turnId,
+          signal: new AbortController().signal
+        }).getReader()
+        await expect(rB.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+        await vi.waitFor(() => expect(connB.getContextUsage).toHaveBeenCalledTimes(1))
+        expect(cache.get('agent.session.context_usage.session-1')).toMatchObject({
+          result: confirmed,
+          stale: true,
+          measuredAt: 1_700_000_000_000
+        })
+        eventsB.push({ type: 'turn-complete' })
+        await expect(rB.read()).resolves.toMatchObject({ done: true })
+
+        // Simulating idle removal then editing history must clear the cached context usage.
+        ;(service as any).entries.delete('session-1')
+        const runEdit = vi
+          .spyOn(service['forks'] as any, 'runEdit')
+          .mockImplementation(
+            async (
+              _sid: unknown,
+              _target: unknown,
+              _opId: unknown,
+              _sig: unknown,
+              closeSource: () => Promise<void>
+            ) => {
+              await closeSource()
+              return 'ok'
+            }
+          )
+        try {
+          await service.editSession('session-1', { messageId: 'user-a', version: 0 }, () => 'ok')
+        } finally {
+          runEdit.mockRestore()
+        }
+        expect(cache.has('agent.session.context_usage.session-1')).toBe(false)
+      } finally {
+        vi.useRealTimers()
+      }
     })
   })
 
@@ -5789,7 +5913,8 @@ describe('AgentSessionRuntimeService', () => {
 
     expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.context_usage.session-1', {
       modelId: baseTurnInput.modelId,
-      result: usage
+      result: usage,
+      measuredAt: expect.any(Number)
     })
   })
 
@@ -5875,7 +6000,8 @@ describe('AgentSessionRuntimeService', () => {
     await vi.waitFor(() =>
       expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.context_usage.session-1', {
         modelId: baseTurnInput.modelId,
-        result: usage
+        result: usage,
+        measuredAt: expect.any(Number)
       })
     )
 

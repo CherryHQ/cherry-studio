@@ -407,7 +407,6 @@ type AgentSessionRuntimeEntry = {
   persistedMessageIds?: Set<string>
   contextUsageEpoch?: number
   contextUsageModel?: ExecutionId
-  lastConfirmedContextUsageAt?: number
 }
 
 class AgentSessionRuntimeTerminalListener implements StreamListener {
@@ -533,6 +532,8 @@ export class AgentSessionRuntimeService extends BaseService {
         if (entry) {
           this.invalidateContextUsage(entry)
           await this.closeRuntimeConnection(this.closeConnection(entry), entry, true)
+        } else {
+          application.get('CacheService').deleteShared(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(sessionId))
         }
         await this.closeSession(sessionId)
       },
@@ -3538,7 +3539,6 @@ export class AgentSessionRuntimeService extends BaseService {
   private invalidateContextUsage(entry: AgentSessionRuntimeEntry): void {
     entry.prediction?.controller.abort()
     entry.contextUsageEpoch = (entry.contextUsageEpoch ?? 0) + 1
-    delete entry.lastConfirmedContextUsageAt
     application.get('CacheService').deleteShared(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(entry.sessionId))
   }
 
@@ -3558,9 +3558,12 @@ export class AgentSessionRuntimeService extends BaseService {
     const cache = application.get('CacheService')
     const key = AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(entry.sessionId)
     if (result.status === 'confirmed') {
-      if (result.value.used) entry.lastConfirmedContextUsageAt = Date.now()
-      else delete entry.lastConfirmedContextUsageAt
-      cache.setShared(key, { modelId: entry.modelId, result })
+      const measuredAt = result.value.used ? Date.now() : undefined
+      cache.setShared(key, {
+        modelId: entry.modelId,
+        result,
+        ...(measuredAt !== undefined ? { measuredAt } : {})
+      })
       return
     }
     const invalidatesPrior =
@@ -3576,13 +3579,11 @@ export class AgentSessionRuntimeService extends BaseService {
             modelId: entry.modelId,
             result: existing.result,
             stale: true,
-            measuredAt: existing.measuredAt ?? entry.lastConfirmedContextUsageAt ?? Date.now()
+            measuredAt: existing.measuredAt ?? Date.now()
           })
         }
         return
       }
-    } else {
-      delete entry.lastConfirmedContextUsageAt
     }
     cache.setShared(key, { modelId: entry.modelId, result })
   }
@@ -3883,8 +3884,13 @@ export class AgentSessionRuntimeService extends BaseService {
     const usageKey = AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(entry.sessionId)
     const cachedUsage = cache.getShared(usageKey)
     if (cachedUsage?.modelId && cachedUsage.modelId !== entry.modelId) {
-      delete entry.lastConfirmedContextUsageAt
       cache.deleteShared(usageKey)
+    } else if (cachedUsage?.result.status === 'confirmed' && cachedUsage.result.value.used && !cachedUsage.stale) {
+      cache.setShared(usageKey, {
+        ...cachedUsage,
+        stale: true,
+        measuredAt: cachedUsage.measuredAt ?? Date.now()
+      })
     }
     this.applyRuntimeStateEvent(entry, { type: 'connection-occupancy', occupancy: 'background', active: false })
     if (entry.runtimeState.execution.kind === 'autonomous-turn') {
