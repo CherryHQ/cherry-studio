@@ -47,7 +47,7 @@ export function prepareClaudeBranch(
       const owner = contexts.backendTx(tx, existing.backendId)
       const sameRuntime = owner.locator.kind === 'claude-code' && owner.locator.configDir === configDir
       if (sameRuntime && (opening || !nativeId || existing.nativeThreadId === nativeId)) return existing
-      foreignBranch = true
+      foreignBranch = !sameRuntime
       // The resolved binding was captured under a previous runtime backend; the
       // claude branch takes over from this anchor instead of rejecting the turn.
       if (existing.anchorMessageId === anchor) {
