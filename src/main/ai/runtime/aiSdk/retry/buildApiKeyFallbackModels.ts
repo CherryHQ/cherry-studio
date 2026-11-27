@@ -1,3 +1,5 @@
+import type { FetchFunction } from '@ai-sdk/provider-utils'
+
 import { type AiPlugin, resolveLanguageModel } from '@cherrystudio/ai-core'
 import type { ServingCredentialReceipt } from '@main/ai/provider/credential'
 import { providerService } from '@main/data/services/ProviderService'
@@ -18,6 +20,7 @@ export interface BuildApiKeyFallbackModelsArgs {
   model: Model
   assistant: Assistant | undefined
   signal: AbortSignal | undefined
+  wrapFetch?: (fetch: FetchFunction) => FetchFunction
   extraFeatures: readonly RequestFeature[]
   primaryCredentialReceipt: ServingCredentialReceipt
   createUsagePlugin: (credentialReceipt: ServingCredentialReceipt) => AiPlugin
@@ -39,6 +42,7 @@ export function buildApiKeyFallbackModels(args: BuildApiKeyFallbackModelsArgs): 
       model: args.model,
       assistant: args.assistant,
       extraFeatures: args.extraFeatures,
+      wrapFetch: args.wrapFetch,
       getRepairUsagePlugins: () => repairUsagePlugins.current ?? [],
       compactionSink: args.request.compactionSink
     })

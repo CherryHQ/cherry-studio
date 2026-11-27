@@ -600,6 +600,15 @@ signal. The SDK output reader is **not** cancelled directly, because that can
 race its internal `controller.close()` and produce an `ERR_INVALID_STATE`
 unhandled rejection. `broadcastCompletedAt` is recorded before accumulator drain.
 
+After the pipe settles, the manager awaits chunk-source cleanup before terminal
+persistence and notifications. Producer settlement and transport teardown each
+have a 10-second deadline (`STREAM_CLEANUP_TIMEOUT_MS`). The transport aborts
+outstanding requests and attempts body cancellation. On timeout it attempts to
+release any remaining reader locks and reports the timeout and any observed
+failures. When cleanup fails, the manager records `cleanupOutcome: 'unconfirmed'`
+and logs the causes in `Stream cleanup failed` with the topic, model, and attempt
+IDs. It proceeds with the classified turn outcome and keeps any provider failure primary.
+
 Provider `error` chunks are captured by broadcast and omitted from the
 accumulator input: the SDK also calls `onError` for those chunks, even though
 they do not interrupt accumulation. SDK parsing failures are recorded separately
@@ -754,12 +763,11 @@ is still streaming:
    head of the queue, carrying the prior turn's renderer listeners forward. The
    FIFO drains one continuation per completed turn.
 
-**Drop-on-abort:** a steer chains only after a clean `done`. If the turn is
-aborted (Stop) or errors, the queue is dropped and its persisted user rows stay
-in history as dangling messages the user can resend (`onExecutionPaused` /
-`onExecutionError` clear `pendingSteers`; a late steer landing after a non-clean
-terminal is dropped by `enqueuePendingSteer`). A steer queued while a turn ends
-`awaiting-approval` does **not** chain until the approval's `continue-conversation`
+**Drop-on-abort:** a steer chains only after a clean `done`. A `done` topic with
+an aborted sibling also drops its steer queue. When a turn stops or errors, its
+persisted steer rows stay in history for the user to resend. A steer arriving
+after one of these terminal outcomes is also dropped. A steer queued while a turn
+ends `awaiting-approval` does **not** chain until the approval's `continue-conversation`
 turn completes — chaining earlier would let the approval response be swallowed by
 the inject branch. If the continuation itself fails to launch, the topic is driven
 to a terminal `error` rather than sticking at `streaming`.

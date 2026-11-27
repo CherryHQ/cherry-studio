@@ -1,4 +1,4 @@
-import type { ProviderOptions } from '@ai-sdk/provider-utils'
+import type { FetchFunction, ProviderOptions } from '@ai-sdk/provider-utils'
 import { stepCountIs, type StopCondition, type ToolSet, type UIMessage } from 'ai'
 
 import { application } from '@application'
@@ -100,6 +100,7 @@ const NO_WEB_TOOL_ROUTES: WebToolRoutes = { webSearch: 'none', webFetch: 'none' 
 
 export interface BuildAgentParamsInput {
   traceContext?: AgentRuntimeTraceContext
+  wrapFetch?: (fetch: FetchFunction) => FetchFunction
   request: AiChatRequest & {
     system?: string
     messageId?: string
@@ -147,6 +148,8 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     request.apiKeyOverride
   )
   const replayRouteId = getReplayRouteId(provider.id, resolvedEndpoint.endpointType, sdkConfig)
+  if (input.wrapFetch)
+    sdkConfig.providerSettings.fetch = input.wrapFetch(sdkConfig.providerSettings.fetch ?? globalThis.fetch)
   applyHttpTrace(sdkConfig.providerSettings, {
     topicId: input.traceContext?.topicId ?? request.conversation.topicId,
     modelName: model.name ?? model.id
