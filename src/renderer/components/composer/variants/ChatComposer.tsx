@@ -92,7 +92,12 @@ import {
   renderChatInputControls,
   renderChatToolbarControls
 } from './chat/chatComposerControls'
-import { type ChatComposerDraftCache, readChatDraftCache, writeChatDraftCache } from './chat/chatDraftCache'
+import {
+  type ChatComposerDraftCache,
+  clearSubmittedChatDraftCache,
+  readChatDraftCache,
+  writeChatDraftCache
+} from './chat/chatDraftCache'
 import {
   createEditableMessageDraft,
   getEditableKnowledgeBases,
@@ -1768,7 +1773,10 @@ const ChatComposerInner = ({
         }
 
         const sent = await sendQueuedPayload(payload)
-        if (sent) clearCurrentDraft()
+        if (sent) {
+          clearSubmittedChatDraftCache(draftCacheScopeKey, draft)
+          clearCurrentDraft()
+        }
       } finally {
         directSendInFlightRef.current = false
         setIsDirectSending(false)
@@ -1779,6 +1787,7 @@ const ChatComposerInner = ({
       canSteer,
       clearCurrentDraft,
       commitEditedMessage,
+      draftCacheScopeKey,
       editingMessageForCurrentTopic,
       enqueueFollowup,
       handleModelSelect,
