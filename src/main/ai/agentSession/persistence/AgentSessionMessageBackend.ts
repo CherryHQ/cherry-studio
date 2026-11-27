@@ -7,18 +7,53 @@
  * single `persistAssistant` handles success / paused / error uniformly.
  */
 
+import { v7 as uuidv7 } from 'uuid'
+
 import type { RootProjectionCheckpoint } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
 import { RuntimeForkAnchorSchema, type RuntimeForkAnchor } from '@main/ai/runtime/fork'
 import { preparePiBranch } from '@main/ai/runtime/pi/piContext'
-import type { CherryUIMessage } from '@shared/data/types/message'
+import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
+import { createClearContextPart, hasClearContextPart } from '@shared/data/types/uiParts'
 
 import type { PersistAssistantInput, PersistedAssistant, PersistenceBackend } from '../../streamManager'
 
 const logger = loggerService.withContext('AgentSessionMessageBackend')
+
+// Keep in sync with HIDDEN_PART_TYPES in src/renderer/components/chat/messages/blocks/messagePartPresentation.ts.
+const HIDDEN_PART_TYPES: ReadonlySet<string> = new Set([
+  'step-start',
+  'source-url',
+  'source-document',
+  'data-citation',
+  'data-agent-task-event',
+  'data-knowledge-scope',
+  'data-clear'
+])
+
+/**
+ * Mark an empty successful reply to a locally handled command (e.g. `/clear`)
+ * as a context boundary so the renderer shows a divider rather than a no-response error.
+ */
+export function withLocalCommandBoundaryPart(
+  sessionId: string,
+  messageId: string,
+  status: PersistAssistantInput['status'],
+  parts: CherryMessagePart[]
+): CherryMessagePart[] {
+  if (
+    status !== 'success' ||
+    hasClearContextPart(parts) ||
+    parts.some((part) => !HIDDEN_PART_TYPES.has(part.type)) ||
+    !agentSessionMessageService.isLocallyHandledReply(sessionId, messageId)
+  ) {
+    return parts
+  }
+  return [...parts, createClearContextPart()]
+}
 
 export interface AgentSessionMessageBackendOptions {
   /** Cherry Studio agent-session id. */
@@ -64,9 +99,32 @@ export class AgentSessionMessageBackend implements PersistenceBackend<'agents-db
       }
     }
     const projection = this.opts.projection?.()
-    const parts = finalMessage?.parts ?? []
+    const rawParts = finalMessage?.parts ?? []
     const messageId = finalMessage?.id ?? this.opts.assistantMessageId
-    const placement = this.opts.partPlacement?.(messageId)
+    const parts = withLocalCommandBoundaryPart(this.opts.sessionId, messageId, status, rawParts)
+    const rawPlacement = this.opts.partPlacement?.(messageId)
+    const boundaryActive = parts !== rawParts || hasClearContextPart(parts)
+    const parallelMessagePartIds =
+      finalMessage?.partIds &&
+      finalMessage.partIds.length === parts.length &&
+      new Set(finalMessage.partIds).size === parts.length
+        ? finalMessage.partIds
+        : undefined
+    const placement = rawPlacement
+      ? boundaryActive && parts.length === rawPlacement.partIds.length + 1
+        ? {
+            ...rawPlacement,
+            partIds: [
+              ...rawPlacement.partIds,
+              parallelMessagePartIds && !rawPlacement.partIds.includes(parallelMessagePartIds.at(-1)!)
+                ? parallelMessagePartIds.at(-1)!
+                : uuidv7()
+            ]
+          }
+        : rawPlacement
+      : boundaryActive && parallelMessagePartIds
+        ? { partIds: parallelMessagePartIds }
+        : undefined
     const save = (runtimeAnchor?: RuntimeForkAnchor) => {
       const nativeContext =
         runtimeResumeToken && runtimeAnchor?.checkpoint.runtime === 'pi'

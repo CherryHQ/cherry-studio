@@ -1635,3 +1635,147 @@ it('persists a terminal compaction marker when closing and reopening during comp
     })
   )
 })
+
+it('marks a locally handled empty completion as a context boundary across live and persisted replies', async () => {
+  const f = await fixture(undefined, false, 'claude-code')
+  prepareNativeSubmission('root', f.user.id, f.context.id, 'follow-up')
+  await f.emit({
+    type: 'input-state',
+    contextId: f.context.id,
+    input: { inputId: runtimeId(f.user.id), facts: ['locally-handled'], outcome: 'completed' }
+  })
+  await f.emit({ type: 'turn-complete' })
+  const result: StreamDoneResult = { status: 'success', finalMessage: (await f.done).finalMessage }
+  for (const listener of f.handle.listeners) await listener.onDone(result)
+
+  expect(result.finalMessage).toMatchObject({
+    id: f.reply.id,
+    parts: [{ type: 'data-clear', data: {} }]
+  })
+  expect(messages.getSessionMessage('root', f.reply.id)).toMatchObject({
+    status: 'success',
+    data: { parts: [{ type: 'data-clear', data: {} }] }
+  })
+})
+
+it('applies the boundary without extra normalization when a locally handled turn has no projection', async () => {
+  dbh.db.insert(userProviderTable).values({ providerId: 'test', name: 'Test', orderKey: 'a0' }).run()
+  dbh.db
+    .insert(userModelTable)
+    .values({
+      id: 'test::model',
+      providerId: 'test',
+      modelId: 'model',
+      name: 'Model',
+      capabilities: [],
+      supportsStreaming: true,
+      orderKey: 'a0'
+    })
+    .run()
+  dbh.db
+    .insert(agentTable)
+    .values({ id: 'agent', type: 'claude-code', name: 'Agent', instructions: '', model: 'test::model', orderKey: 'a0' })
+    .run()
+  dbh.db
+    .insert(agentWorkspaceTable)
+    .values({ id: 'workspace', name: 'Workspace', path: '/test', type: 'user', orderKey: 'a0' })
+    .run()
+  dbh.db
+    .insert(agentSessionTable)
+    .values({ id: 'root', agentId: 'agent', workspaceId: 'workspace', name: 'Root', orderKey: 'a0' })
+    .run()
+  const context = prepareClaudeBranch('root', '/test/claude')
+  const user = messages.saveMessage({
+    sessionId: 'root',
+    message: { role: 'user', status: 'success', data: { parts: [{ type: 'text', text: '/clear' }] } }
+  })
+  const replyRow = messages.saveMessage({
+    sessionId: 'root',
+    parentId: user.id,
+    message: { role: 'assistant', status: 'pending', data: { parts: [] } }
+  })
+  const service = new AgentSessionRuntimeService()
+  onTestFinished(async () => {
+    await service.closeSession('root')
+  })
+  const handle = service.beginTurn({
+    sessionId: 'root',
+    topicId: 'agent-session:root',
+    agentId: 'agent',
+    agentType: 'claude-code',
+    modelId: 'test::model',
+    assistantMessageId: replyRow.id,
+    userMessage: user
+  })
+  prepareNativeSubmission('root', user.id, context.id, 'follow-up')
+  application.get('DbService').withWriteTx((tx) => messages.markInputLocallyHandledTx(tx, 'root', user.id, context.id))
+
+  const result: StreamDoneResult = {
+    status: 'success',
+    finalMessage: { id: replyRow.id, role: 'assistant', parts: [], partIds: [] }
+  }
+  for (const listener of handle.listeners) await listener.onDone(result)
+
+  expect(result.finalMessage?.parts).toEqual([{ type: 'data-clear', data: {} }])
+  expect(result.finalMessage?.partIds).toHaveLength(1)
+  expect(storedParts(replyRow.id).map((part) => part.id)).toEqual(result.finalMessage?.partIds)
+  expect(messages.getSessionMessage('root', replyRow.id)).toMatchObject({
+    status: 'success',
+    data: { parts: [{ type: 'data-clear', data: {} }] }
+  })
+
+  // Non-locally-handled empty message without projection keeps prepareMessage's raw/undefined behavior.
+  const normalUser = messages.saveMessage({
+    sessionId: 'root',
+    message: { role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'Hello' }] } }
+  })
+  const normalReply = messages.saveMessage({
+    sessionId: 'root',
+    parentId: normalUser.id,
+    message: { role: 'assistant', status: 'pending', data: { parts: [] } }
+  })
+  const normalHandle = service.beginTurn({
+    sessionId: 'root',
+    topicId: 'agent-session:root',
+    agentId: 'agent',
+    agentType: 'claude-code',
+    modelId: 'test::model',
+    assistantMessageId: normalReply.id,
+    userMessage: normalUser
+  })
+  const rawFinal: CherryUIMessage = { id: normalReply.id, role: 'assistant', parts: [] }
+  const normalResult: StreamDoneResult = { status: 'success', finalMessage: rawFinal }
+  for (const listener of normalHandle.listeners) await listener.onDone(normalResult)
+  expect(normalResult.finalMessage).toEqual(rawFinal)
+})
+
+it('drops stale partIds instead of shipping mismatched lengths when projection.prepare dropped parts', async () => {
+  const f = await fixture(undefined, false, 'claude-code')
+  prepareNativeSubmission('root', f.user.id, f.context.id, 'follow-up')
+  await f.emit({
+    type: 'input-state',
+    contextId: f.context.id,
+    input: { inputId: runtimeId(f.user.id), facts: ['locally-handled'], outcome: 'completed' }
+  })
+  await f.project([reply([{ type: 'text', text: '   ', state: 'done' }])])
+  await f.emit({ type: 'turn-complete' })
+  await f.done
+
+  const result: StreamDoneResult = {
+    status: 'success',
+    finalMessage: {
+      id: f.reply.id,
+      role: 'assistant',
+      parts: [{ type: 'text', text: '   ', state: 'done' }],
+      partIds: ['stale-empty-part-id']
+    }
+  }
+  for (const listener of f.handle.listeners) await listener.onDone(result)
+
+  expect(result.finalMessage?.parts).toEqual([{ type: 'data-clear', data: {} }])
+  expect(result.finalMessage?.partIds).toBeUndefined()
+  expect(messages.getSessionMessage('root', f.reply.id)).toMatchObject({
+    status: 'success',
+    data: { parts: [{ type: 'data-clear', data: {} }] }
+  })
+})

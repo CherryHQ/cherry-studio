@@ -812,6 +812,81 @@ export class AgentSessionMessageService {
       .run()
   }
 
+  /** Whether every user input attributable to this reply was handled locally without a model turn. */
+  isLocallyHandledReply(sessionId: string, replyId: string): boolean {
+    const db = application.get('DbService').getDb()
+    const locallyHandled = sql<number>`coalesce(json_extract(${sessionMessagesTable.data}, '$.locallyHandled'), 0)`
+    const linked = db
+      .select({ locallyHandled })
+      .from(sessionMessagesTable)
+      .where(
+        and(
+          eq(sessionMessagesTable.sessionId, sessionId),
+          eq(sessionMessagesTable.role, 'user'),
+          eq(sessionMessagesTable.replyId, replyId)
+        )
+      )
+      .all()
+
+    const reply = db
+      .select({ parentId: sessionMessagesTable.parentId })
+      .from(sessionMessagesTable)
+      .where(
+        and(
+          eq(sessionMessagesTable.sessionId, sessionId),
+          eq(sessionMessagesTable.id, replyId),
+          eq(sessionMessagesTable.role, 'assistant')
+        )
+      )
+      .get()
+    const unlinkedParent = reply?.parentId
+      ? db
+          .select({ locallyHandled })
+          .from(sessionMessagesTable)
+          .where(
+            and(
+              eq(sessionMessagesTable.sessionId, sessionId),
+              eq(sessionMessagesTable.id, reply.parentId),
+              eq(sessionMessagesTable.role, 'user'),
+              isNull(sessionMessagesTable.replyId)
+            )
+          )
+          .get()
+      : undefined
+
+    if (unlinkedParent) {
+      if (unlinkedParent.locallyHandled !== 1) return false
+      const claimed = db
+        .select({ id: sessionMessagesTable.replyId })
+        .from(sessionMessagesTable)
+        .where(
+          and(
+            eq(sessionMessagesTable.sessionId, sessionId),
+            eq(sessionMessagesTable.role, 'user'),
+            isNotNull(sessionMessagesTable.replyId)
+          )
+        )
+      const sibling = db
+        .select({ id: sessionMessagesTable.id })
+        .from(sessionMessagesTable)
+        .where(
+          and(
+            eq(sessionMessagesTable.sessionId, sessionId),
+            eq(sessionMessagesTable.parentId, reply!.parentId!),
+            eq(sessionMessagesTable.role, 'assistant'),
+            ne(sessionMessagesTable.id, replyId),
+            notInArray(sessionMessagesTable.id, claimed)
+          )
+        )
+        .limit(1)
+        .get()
+      if (sibling) return false
+    }
+
+    const attributableCount = linked.length + (unlinkedParent ? 1 : 0)
+    return attributableCount > 0 && linked.every((row) => row.locallyHandled === 1)
+  }
+
   inputBinding(sessionId: string, messageId: string) {
     return application
       .get('DbService')

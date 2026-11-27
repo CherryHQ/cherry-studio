@@ -141,7 +141,7 @@ import { AgentSessionUsageAttribution } from './AgentSessionUsageAttribution'
 import { childTimelines } from './childTimelines'
 import { validateEditedInput } from './editInput'
 import { markLocalInput, nativeOutcomeTerminal, releaseNativeInputBinding } from './nativeSubmission'
-import { AgentSessionMessageBackend } from './persistence/AgentSessionMessageBackend'
+import { AgentSessionMessageBackend, withLocalCommandBoundaryPart } from './persistence/AgentSessionMessageBackend'
 import { relocateSystemWorkspaces } from './relocateSystemWorkspaces'
 import { RootMessageProjection } from './RootMessageProjection'
 import { readSessionHistory } from './sessionHistory'
@@ -4118,7 +4118,18 @@ export class AgentSessionRuntimeService extends BaseService {
     return new PersistenceListener({
       topicId: entry.topicId,
       modelId,
-      prepareMessage: (message, status) => currentTurn.projection?.prepare(message, status),
+      prepareMessage: (message, status) => {
+        const prepared = currentTurn.projection?.prepare(message, status)
+        const base = prepared ?? message
+        const parts = withLocalCommandBoundaryPart(entry.sessionId, base.id, status, base.parts)
+        if (parts === base.parts) return prepared
+        const { partIds, ...rest } = base
+        return {
+          ...rest,
+          parts,
+          ...(partIds && partIds.length === base.parts.length ? { partIds: [...partIds, uuidv7()] } : {})
+        }
+      },
       backend: new AgentSessionMessageBackend({
         sessionId: entry.sessionId,
         assistantMessageId,

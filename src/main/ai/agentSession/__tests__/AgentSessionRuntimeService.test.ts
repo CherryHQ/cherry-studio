@@ -144,6 +144,7 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
     captureHead: () => 'branch-head',
     branchTip: (_sessionId: string, messageId: string) => messageId,
     inputBinding: vi.fn(),
+    isLocallyHandledReply: () => false,
     releaseInputBindingTx: vi.fn(),
     linkReply: vi.fn(),
     sharesBranch: mocks.sharesBranch,
