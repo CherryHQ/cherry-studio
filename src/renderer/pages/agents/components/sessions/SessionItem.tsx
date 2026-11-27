@@ -20,10 +20,12 @@ import {
   useResourceListRowState
 } from '@renderer/components/chat/resourceList/base'
 import { SessionHoverPreview } from '@renderer/components/chat/resourceList/SessionHoverPreview'
+import { useAgentSessionStreamTopic } from '@renderer/hooks/agent/useAgentSessionStreamTopic'
 import { useTopicRenameState } from '@renderer/hooks/chat/useTopicRenameState'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
-import { buildAgentSessionTopicId, getChannelTypeIcon } from '@renderer/utils/agentSession'
+import { getChannelTypeIcon } from '@renderer/utils/agentSession'
 import { cn } from '@renderer/utils/style'
+import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
 import { classifyTurn } from '@shared/ai/transport'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { TopicTabPosition } from '@shared/data/preference/preferenceTypes'
@@ -105,7 +107,7 @@ const SessionItem = ({
     isFulfilled: isStreamFulfilled,
     isPending: isStreamPending,
     markSeen
-  } = useTopicStreamStatus(topicId)
+  } = useTopicStreamStatus(useAgentSessionStreamTopic(session.id))
   const channelIcon = getChannelTypeIcon(channelType)
   const isActive = rowState.selected
   const sessionName = !session.isNameManuallyEdited && !session.name.trim() ? t('agent.session.new') : session.name

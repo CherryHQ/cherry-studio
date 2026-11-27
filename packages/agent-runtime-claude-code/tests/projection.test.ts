@@ -1,15 +1,31 @@
 import { randomUUID } from 'node:crypto'
 
 import type { SDKAssistantMessage, SDKPartialAssistantMessage, SessionMessage } from '@anthropic-ai/claude-agent-sdk'
-import { expect, it } from 'vitest'
+import { expect, it, vi } from 'vitest'
 
-import { runtimeId, type ObservationPayload } from '@cherrystudio/agent-runtime'
+import { runtimeId, ThreadFeed, type ObservationPayload } from '@cherrystudio/agent-runtime'
 
 import { claudeThread, type ClaudeObservation } from '../src'
 import { ClaudeProjection } from '../src/projection'
 import { assistantMessage } from './wireFixture'
 
 type NativeBlock = SDKAssistantMessage['message']['content'][number]
+
+it('retains an omitted background prompt through compaction until its native message is retracted', () => {
+  const thread = claudeThread(runtimeId('backend'), randomUUID(), 'child')
+  const projection = new ClaudeProjection(thread, (error) => {
+    throw error
+  })
+  projection.publish(projection.startBackgroundTask('spawn', 'Check the logs'))
+  const opening = { type: 'user', uuid: randomUUID(), childOpening: true } as const
+
+  projection.restore([], [opening])
+  expect(projection.committed().content).toMatchObject([{ role: 'user', parts: [{ text: 'Check the logs' }] }])
+
+  projection.restore([], [opening, { type: 'assistant', retracted_message_uuids: [opening.uuid] }])
+  expect(projection.feed.snapshot.messages).toEqual([])
+  expect(projection.committed().content).toEqual([])
+})
 
 it('publishes legacy bindings only when changed and retains an isolated complete late-observer baseline', async () => {
   const sessionId = randomUUID()
@@ -123,14 +139,15 @@ it('retains streaming metadata for a late observer before a complete message', a
     )
   }
   const initialCitation = {
-    type: 'char_location',
+    type: 'char_location' as const,
     cited_text: 'quote',
     document_index: 0,
     document_title: 'doc',
     start_char_index: 0,
     end_char_index: 5,
     file_id: null
-  } as const
+  }
+  const sdkCitation = { ...initialCitation }
   const citation = { ...initialCitation, cited_text: 'second quote', start_char_index: 6, end_char_index: 18 }
   await partial({ type: 'message_start', message: assistantMessage(sessionId, []).message })
   await partial({
@@ -148,8 +165,9 @@ it('retains streaming metadata for a late observer before a complete message', a
   await partial({
     type: 'content_block_start',
     index: 2,
-    content_block: { type: 'text', text: 'Answer', citations: [initialCitation] }
+    content_block: { type: 'text', text: 'Answer', citations: [sdkCitation] }
   })
+  sdkCitation.cited_text = 'Changed after the block was published'
   await partial({ type: 'content_block_delta', index: 2, delta: { type: 'citations_delta', citation } })
   await partial({ type: 'content_block_stop', index: 2 })
   await partial({
@@ -325,4 +343,68 @@ it.each([true, false, 'true', 1, undefined, 'other-uuid'])(
     ])
     await observation.stop()
   }
+)
+
+it.each([
+  [20, 20],
+  [20_000, 20],
+  [20, 20_000]
+])(
+  'routes one SDK suffix with %i historical messages and %i settled blocks',
+  async (history, siblings) => {
+    const sessionId = randomUUID()
+    const projection = new ClaudeProjection(claudeThread(runtimeId('bench'), sessionId), (error) => {
+      throw error
+    })
+    const partial = async (event: SDKPartialAssistantMessage['event']) => {
+      const message = {
+        type: 'stream_event',
+        event,
+        uuid: randomUUID(),
+        session_id: sessionId,
+        parent_tool_use_id: null
+      } as const
+      projection.publish(await projection.partial(message), { source: 'live', message })
+    }
+    const messages = Array.from({ length: history }, () => {
+      const source = assistantMessage(sessionId, [{ type: 'text', text: 'archived', citations: [] }])
+      const [event] = projection.message(source)
+      if (event.type !== 'message.reconcile') throw new Error('Missing historical source')
+      return event.message
+    })
+    projection.publish([{ type: 'snapshot', activity: { state: 'active' }, inputs: [], messages }])
+    await partial({ type: 'message_start', message: assistantMessage(sessionId, []).message })
+    for (let index = 0; index <= siblings; index++) {
+      await partial({ type: 'content_block_start', index, content_block: { type: 'text', text: 'a', citations: [] } })
+      if (index < siblings) await partial({ type: 'content_block_stop', index })
+    }
+    const seen: ClaudeObservation[] = []
+    const subscription = projection.feed.observe((batch) => {
+      seen.push(batch)
+    })
+    await subscription.drain()
+    const initial = seen[0].events[0]
+    expect(initial.type === 'snapshot' && initial.messages.length).toBe(history + 1)
+    seen.length = 0
+    const reads = vi.spyOn(ThreadFeed.prototype, 'part')
+    const whole = vi.spyOn(ThreadFeed.prototype, 'message')
+    const snapshots = vi.spyOn(ThreadFeed.prototype, 'snapshot', 'get')
+    try {
+      await partial({ type: 'content_block_delta', index: siblings, delta: { type: 'text_delta', text: 'b' } })
+      await subscription.drain()
+      expect(seen.flatMap((batch) => batch.events)).toMatchObject([
+        { type: 'message.text-append', part: siblings, text: 'b' }
+      ])
+      expect(reads.mock.calls.map(([, index]) => index)).toEqual([siblings])
+      expect(whole).not.toHaveBeenCalled()
+      expect(snapshots).not.toHaveBeenCalled()
+    } finally {
+      reads.mockRestore()
+      whole.mockRestore()
+      snapshots.mockRestore()
+      await subscription.stop()
+      await projection.close()
+    }
+  },
+  30_000
 )

@@ -51,7 +51,7 @@ describe('resolveApiGatewayRuntime', () => {
       apiKey: 'agent-key',
       usageHeaders: { 'x-cherry-agent-session-id': 'session-1' }
     })
-    expect(mocks.ensureInternalGateway).toHaveBeenCalledOnce()
+    expect(mocks.ensureInternalGateway).toHaveBeenCalledExactlyOnceWith('session-1')
     expect(mocks.getCurrentConfig).not.toHaveBeenCalled()
   })
 })

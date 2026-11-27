@@ -22,9 +22,10 @@ behavior rules: a live run receives a queued message; a finished child continues
 in the same native session. An unsupported policy is rejected before native dispatch.
 
 Constructs native Pi coding-agent sessions. The caller supplies Pi's `ModelRuntime` and `Model`;
-Pi owns the execution loop, tools, context accounting and compaction. Content deltas use the common AI SDK message reader before observer fanout; the package
-imports no Cherry application code. Native tool results and progress update their calling message,
-without reordering its text, reasoning and tool parts. Completed results preserve native
+Pi owns the execution loop, tools, context accounting and compaction. The native callback captures the
+source ID, content index and changed block before delivery. Text and thinking deltas update that index.
+A shortened authoritative ending corrects the same block. A tool call ID identifies the source and
+block for input, progress and final output. Completed results preserve native
 `structuredContent` in live and historical projections, including error-result metadata;
 MCP clients can recover the original result and its execution context without relying on
 model-facing content annotations.
@@ -149,8 +150,9 @@ Pi's low-level `open` also
 accepts a missing path as a new session; hosts loading an existing association must check its
 existence and verify the native session ID instead of silently replacing it.
 
-`onEvent` observes copied native entries (`session-append`), compaction start/end, and completed
-turns. These events are for observation; storage works without a listener. A slow listener should
+`onEvent` reports the ID and type of each appended entry (`session-append`), plus the role of a message entry.
+Read a full entry from `SessionManager.getEntry(id)` when its contents are needed. The listener also observes
+compaction start/end and completed turns. Storage works without a listener. A slow listener should
 hand off its work because callbacks run inline. `dispose()` flushes the final observations.
 
 ## Context usage

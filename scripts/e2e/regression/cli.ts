@@ -7,6 +7,13 @@ import { getSensitiveConfigValues, loadTestConfig } from './config'
 import { cleanupExternalResources } from './externalResources'
 import { createFixtures } from './fixtureFiles'
 import { prepareRelease } from './installation'
+import {
+  assertArtifactIdentity,
+  inspectArtifactIdentity,
+  installationEvidencePath,
+  InstallationEvidenceError,
+  writeSourceCheckoutInstallation
+} from './installationEvidence'
 import { launchApp, stopOwnedApp } from './lifecycle'
 import { prepareMacRuntime } from './macRuntime'
 import { assertMockRequests, startMockProvider, stopMockProvider, verifyMockProvider } from './mockProvider'
@@ -25,7 +32,7 @@ import {
   updateRunMetadata,
   writeRun
 } from './state'
-import { PLATFORMS, RUN_MODES } from './types'
+import { PLATFORMS, type Platform, RUN_MODES } from './types'
 import { cleanupWindowsNotificationShortcut } from './windowsNotificationShortcut'
 
 function argument(name: string, required = true): string | undefined {
@@ -156,6 +163,14 @@ async function launchCommand(): Promise<void> {
     argument('run-key', false) ??
       `${process.env.GITHUB_RUN_ID ?? Date.now()}-${process.env.GITHUB_RUN_ATTEMPT ?? 1}-${run.metadata.platform}`
   )
+  if (run.metadata.mode === 'branch') {
+    // Recorded before the launch so a run that never reaches the application still states which
+    // commit it exercised; the archive check later reads this file, not the launch log.
+    writeSourceCheckoutInstallation(paths, run.metadata, {
+      targetRoot: resolve(targetRoot),
+      command: process.execPath
+    })
+  }
   await launchApp(paths, {
     mode: run.metadata.mode,
     platform: run.metadata.platform,
@@ -214,6 +229,38 @@ async function aggregateGateCommand(): Promise<void> {
     process.stderr.write(`Cherry aggregate regression failed: ${report.verdict}\n`)
     process.exitCode = 1
   }
+}
+
+async function verifyEvidenceCommand(): Promise<void> {
+  const runDirectoryArgument = argument('run-dir', false)
+  const aggregateRootArgument = argument('aggregate-root', false)
+  if (Boolean(runDirectoryArgument) === Boolean(aggregateRootArgument)) {
+    throw new Error('verify-evidence requires exactly one of --run-dir or --aggregate-root')
+  }
+  if (runDirectoryArgument) {
+    const paths = getRunPaths(runDirectoryArgument)
+    if (!existsSync(paths.runState)) throw new Error(`No regression run state at ${paths.runState}`)
+    const { platform } = readRun(paths.runState).metadata
+    assertArtifactIdentity(paths.installation, platform)
+    process.stdout.write(`Artifact identity verified: ${paths.installation}\n`)
+    return
+  }
+  const root = resolve(aggregateRootArgument ?? '')
+  const resultsPath = join(root, 'combined-results.json')
+  const report = JSON.parse(readFileSync(resultsPath, 'utf8')) as {
+    runs: Array<{ metadata: { platform: Platform } }>
+  }
+  const platforms = [...new Set(report.runs.map((run) => run.metadata.platform))]
+  if (platforms.length === 0) throw new InstallationEvidenceError([`${resultsPath} lists no platform runs to verify`])
+  const problems = platforms.flatMap((platform) =>
+    inspectArtifactIdentity(join(root, 'evidence', platform, 'release', 'installation.json'), platform).map(
+      (problem) => `${installationEvidencePath(platform)}: ${problem}`
+    )
+  )
+  if (problems.length > 0) {
+    throw new InstallationEvidenceError(['Aggregate evidence is incomplete:', ...problems.map((line) => `  - ${line}`)])
+  }
+  process.stdout.write(`Artifact identity verified for ${platforms.join(', ')}\n`)
 }
 
 async function cleanupCommand(): Promise<void> {
@@ -278,6 +325,9 @@ async function main(): Promise<void> {
       break
     case 'aggregate-gate':
       await aggregateGateCommand()
+      break
+    case 'verify-evidence':
+      await verifyEvidenceCommand()
       break
     case 'cleanup':
       await cleanupCommand()

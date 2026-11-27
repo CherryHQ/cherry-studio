@@ -124,6 +124,7 @@ export function repairPinnedTabs(raw: unknown, normalTabs: readonly Tab[]): Pinn
     if ('isDormant' in tab && typeof tab.isDormant !== 'boolean') tab.isDormant = true
     if (typeof tab.lastAccessTime !== 'number' || !Number.isFinite(tab.lastAccessTime)) delete tab.lastAccessTime
     if (typeof tab.icon !== 'string') delete tab.icon
+    if (typeof tab.iconFallback !== 'string') delete tab.iconFallback
     if ('metadata' in tab && !isPlainObject(tab.metadata)) delete tab.metadata
     if ('savedState' in tab) {
       if (tab.savedState === undefined || !isPlainObject(tab.savedState)) delete tab.savedState

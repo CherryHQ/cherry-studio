@@ -8,6 +8,7 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import type * as RendererIpc from '@renderer/ipc'
+import { addNote } from '@renderer/services/NotesService'
 import {
   parsePersistedLangCode,
   type SelectionActionItem,
@@ -35,6 +36,7 @@ const state = vi.hoisted(() => {
     detectLanguage: vi.fn(),
     translate: vi.fn(),
     readAloud: vi.fn(async () => undefined),
+    addNote: vi.fn(async () => ({ path: '/notes/saved.md', name: 'saved' })),
     scrollToBottom: vi.fn()
   }
 })
@@ -61,6 +63,7 @@ vi.mock('@renderer/ipc', async (importOriginal) => ({
 }))
 
 vi.mock('@renderer/services/voice', () => ({ readTextAloud: state.readAloud }))
+vi.mock('@renderer/services/NotesService', () => ({ addNote: state.addNote }))
 
 const i18nMock = vi.hoisted(() => ({
   t: vi.fn((key: string, fallback?: string) => fallback ?? key)
@@ -201,6 +204,7 @@ describe('ActionTranslate', () => {
         })[language.langCode] ?? 'translated text'
     )
     state.readAloud.mockClear()
+    state.addNote.mockClear()
   })
 
   it('keeps the active result when detection callbacks refresh without changed inputs', async () => {
@@ -495,5 +499,38 @@ describe('ActionTranslate', () => {
 
     await waitFor(() => expect(settingsContent).toHaveFocus())
     expect(document.querySelectorAll('[data-slot="popover-content"]')).toHaveLength(1)
+  })
+
+  it('offers Save to Notes only after translation finishes and saves both original text and translation', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.notes.path', '/synthetic-notes')
+    state.detectLanguage.mockResolvedValue('en-us')
+    let resolveTranslate: (value: string) => void = () => {}
+    state.translate.mockReturnValue(
+      new Promise<string>((resolve) => {
+        resolveTranslate = resolve
+      })
+    )
+
+    render(
+      <ActionTranslate
+        action={createAction({ selectedText: 'ORIGINAL_SENTENCE' })}
+        sourceEntityId="opaque-session"
+        scrollToBottom={state.scrollToBottom}
+      />
+    )
+
+    await waitFor(() => expect(state.translate).toHaveBeenCalled())
+    expect(screen.queryByRole('button', { name: 'notes.save' })).not.toBeInTheDocument()
+
+    await act(async () => resolveTranslate('TRANSLATED_SENTENCE'))
+    fireEvent.click(await screen.findByRole('button', { name: 'notes.save' }))
+
+    await waitFor(() =>
+      expect(addNote).toHaveBeenCalledWith(
+        'ORIGINAL_SENTENCE',
+        '> ORIGINAL_SENTENCE\n\nTRANSLATED_SENTENCE',
+        '/synthetic-notes'
+      )
+    )
   })
 })

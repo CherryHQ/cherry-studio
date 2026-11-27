@@ -14,14 +14,10 @@ const persistedChannelSessions = vi.hoisted(() => ({
   sessions: new Map<string, Record<string, unknown>>()
 }))
 
-vi.mock('@main/ai/runtime/agentSessionWorkspace', () => {
-  class MockAgentSessionWorkspaceError extends Error {}
-  return {
-    AgentSessionWorkspaceError: MockAgentSessionWorkspaceError,
-    isAgentSessionWorkspaceError: (error: unknown) => error instanceof MockAgentSessionWorkspaceError,
-    prepareAgentSessionWorkspaceDirectory: vi.fn()
-  }
-})
+vi.mock(import('@main/ai/runtime/agentSessionWorkspace'), async (importOriginal) => ({
+  ...(await importOriginal()),
+  prepareAgentSessionWorkspaceDirectory: vi.fn()
+}))
 
 vi.mock('@logger', () => ({
   loggerService: {
@@ -81,9 +77,14 @@ vi.mock('@main/ai/streamManager/api/startAgentSessionRun', () => ({
 
 vi.mock('@data/services/AgentChannelService', () => ({
   agentChannelService: {
-    getChannel: vi
-      .fn()
-      .mockReturnValue({ id: 'channel-1', sessionId: null, permissionMode: null, workspace: { type: 'system' } }),
+    getChannel: vi.fn().mockReturnValue({
+      id: 'channel-1',
+      agentId: 'agent-1',
+      isActive: true,
+      sessionId: null,
+      permissionMode: null,
+      workspace: { type: 'system' }
+    }),
     updateChannel: vi.fn().mockResolvedValue(null),
     findBySessionId: vi.fn().mockResolvedValue(null),
     getActiveSessionId: vi.fn((channelId: string, conversationId: string) =>
