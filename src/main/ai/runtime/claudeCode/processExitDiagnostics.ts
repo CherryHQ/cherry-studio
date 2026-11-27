@@ -33,9 +33,13 @@ const NTSTATUS_NAMES: ReadonlyMap<number, string> = new Map([
   [0xc0000409, 'STATUS_STACK_BUFFER_OVERRUN']
 ])
 
+export function getExitStatusName(code: number): string | undefined {
+  return NTSTATUS_NAMES.get(code >>> 0)
+}
+
 /** Windows reports NTSTATUS exits as unsigned (3221225501) or signed (-1073741795); `>>> 0` normalizes both. */
 export function formatExitCode(code: number): string {
-  const name = NTSTATUS_NAMES.get(code >>> 0)
+  const name = getExitStatusName(code)
   return name ? `${code} (${name})` : String(code)
 }
 

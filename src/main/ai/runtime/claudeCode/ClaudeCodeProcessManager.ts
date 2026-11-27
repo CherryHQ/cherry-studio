@@ -13,6 +13,7 @@ import { killProcessTree } from '@main/utils/processRunner'
 import {
   type ClaudeCodeProcessDiagnostics,
   createClaudeCodeProcessDiagnostics,
+  getExitStatusName,
   recordClaudeCodeProcessExit,
   recordClaudeCodeSpawnError,
   resetClaudeCodeProcessDiagnostics
@@ -58,6 +59,7 @@ function logClaudeCodeProcessFailure(diagnostics: ClaudeCodeProcessDiagnostics):
     reference: diagnostics.reference,
     category: diagnostics.category,
     exitCode: diagnostics.exitCode,
+    exitStatusName: diagnostics.exitCode !== undefined ? getExitStatusName(diagnostics.exitCode) : undefined,
     exitSignal: diagnostics.exitSignal,
     spawnFailed: diagnostics.spawnFailed
   })
