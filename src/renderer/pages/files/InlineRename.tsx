@@ -16,6 +16,7 @@ export function InlineRename({
 }) {
   const [text, setText] = useState(value)
   const ref = useRef<HTMLInputElement>(null)
+  const finishedRef = useRef(false)
   const { setTimeoutTimer } = useTimer()
 
   useEffect(() => {
@@ -32,6 +33,13 @@ export function InlineRename({
       0
     )
   }, [setTimeoutTimer, value])
+  const finishRename = (name: string) => {
+    if (finishedRef.current) return
+    finishedRef.current = true
+    if (name) onConfirm(name)
+    else onCancel()
+  }
+
   return (
     <Input
       ref={ref}
@@ -41,13 +49,10 @@ export function InlineRename({
         // Browsers that do not set isComposing report an IME keydown as keyCode 229.
         // oxlint-disable-next-line no-deprecated
         if (e.nativeEvent.isComposing || e.keyCode === 229) return
-        if (e.key === 'Enter' && text.trim()) onConfirm(text.trim())
-        if (e.key === 'Escape') onCancel()
+        if (e.key === 'Enter' && text.trim()) finishRename(text.trim())
+        if (e.key === 'Escape') finishRename('')
       }}
-      onBlur={() => {
-        if (text.trim()) onConfirm(text.trim())
-        else onCancel()
-      }}
+      onBlur={() => finishRename(text.trim())}
       className={`h-auto rounded-md border border-border bg-background py-0.5 text-xs text-foreground shadow-sm focus-visible:border-ring ${className ?? ''}`}
       onClick={(e) => e.stopPropagation()}
     />
