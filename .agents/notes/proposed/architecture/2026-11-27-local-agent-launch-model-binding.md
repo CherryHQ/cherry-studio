@@ -25,13 +25,15 @@ Each preset that offers Cherry models has exactly one entry in the shared launch
 | Strategy | Presets | Redirect |
 |---|---|---|
 | Process | Claude Code, Codex, OpenCode, Kilo, goose, GLM, DeepAgents | flag settings, `-c`, `*_CONFIG_CONTENT`, environment, arguments |
-| Overlay home | Kimi, Pi, OMP, Hermes, Qwen, MiniMax, CodeBuddy, Copilot, Vibe, Grok Build, Cline, ZCode, Snow | `KIMI_CODE_HOME`, `PI_CODING_AGENT_DIR`, `HERMES_HOME`, `QWEN_HOME`, `MINIMAX_DATA_DIR`, `CODEBUDDY_CONFIG_DIR`, `COPILOT_HOME`, `VIBE_HOME`, `GROK_HOME`, `CLINE_DIR`, `ZCODE_HOME`, `SNOW_CONFIG_DIR` |
+| Overlay home | Kimi, Pi, OMP, Qwen, MiniMax, CodeBuddy, Copilot, Vibe, Grok Build, Cline, ZCode, Snow | `KIMI_CODE_HOME`, `PI_CODING_AGENT_DIR`, `QWEN_HOME`, `MINIMAX_DATA_DIR`, `CODEBUDDY_CONFIG_DIR`, `COPILOT_HOME`, `VIBE_HOME`, `GROK_HOME`, `CLINE_DIR`, `ZCODE_HOME`, `SNOW_CONFIG_DIR` |
 | Private file | Junie | connection-local profile |
-| None | Factory Droid, Poolside and native-only presets | no Cherry models offered |
+| None | Factory Droid, Poolside, Hermes and native-only presets | no Cherry models offered |
+
+Hermes offers no Cherry models. Each Hermes client starts a detached gateway daemon for its home that outlives the launch, and Hermes records absolute paths of the home it ran in. An overlay home therefore leaks a running daemon and stale paths into the user's home, and later launches fail. Hermes has no launch-time setting that outranks its configuration file.
 
 The per-CLI configuration adapters move from the renderer to `@shared/utils/cliConfig`. Main renders overlay files with the code the raw configuration editor already uses, so each CLI's file format has one owner. The raw **CLI configuration files** editor remains an explicit editor of the user's own files.
 
-Managed shared services follow the same ownership. When Cherry starts the OpenClaw Gateway, DeepSeek Harness or the Hermes dashboard for a Cherry model, the service gets an overlay home and a service-scoped credential. External services that Cherry only reuses keep their configuration untouched.
+Managed shared services follow the same ownership for API Gateway models. When Cherry starts the OpenClaw Gateway or DeepSeek Harness for a model served through the API Gateway, the service reads a configuration Cherry generates outside the user's home, with a service-scoped credential that Cherry releases when the service stops. Direct provider selections keep writing the service's native configuration. External services that Cherry only reuses keep their configuration untouched.
 
 Remove the file-writing gateway selection, the re-reading of gateway routes from user files, `bindCliGatewayRoute`, and the Agents' dependency on the user-facing gateway.
 
@@ -53,8 +55,8 @@ This note partially supersedes the gateway-route paragraph of [Desktop agent run
 - AC5 — After an abnormal exit, the next start reconciles every leftover overlay by the AC4 rules and deletes it. (verification: unit)
 - AC6 — A preset whose home variable would leave a generated file outside the overlay fails the launch with an explicit error and writes nothing to the user's home. (verification: unit)
 - AC7 — Scheduled tasks and Cherry-launched terminals of an Agent with a Cherry model use the selected model through the same binding. (verification: unit)
-- AC8 — Agent Services offers Cherry models only for presets that declare a binding, and Factory Droid and Poolside offer none. (verification: renderer)
-- AC9 — OpenClaw, DeepSeek Harness and Hermes services started by Cherry for a Cherry model use an overlay home and a service-scoped credential, and external services keep their configuration untouched. (verification: unit)
+- AC8 — Agent Services offers Cherry models only for presets that declare a binding, and Factory Droid, Poolside and Hermes offer none. (verification: renderer)
+- AC9 — The OpenClaw Gateway and DeepSeek Harness started by Cherry for an API Gateway model read a Cherry-generated configuration and a service-scoped credential, leave the user's native configuration unchanged, and release the credential when the service stops. Direct provider selections and external services keep their current configuration. (verification: unit)
 - AC10 — The local Agent runtime reference describes launch-scoped binding and no longer documents file-written gateway selections. (verification: docs gate)
 
 ## Risks

@@ -25,13 +25,15 @@ Cherry 为该 Agent 启动的每个进程都在启动时获得这一选择：聊
 | 策略 | 预设 | 重定向方式 |
 |---|---|---|
 | 进程级 | Claude Code、Codex、OpenCode、Kilo、goose、GLM、DeepAgents | flag settings、`-c`、`*_CONFIG_CONTENT`、环境变量、参数 |
-| Overlay 主目录 | Kimi、Pi、OMP、Hermes、Qwen、MiniMax、CodeBuddy、Copilot、Vibe、Grok Build、Cline、ZCode、Snow | `KIMI_CODE_HOME`、`PI_CODING_AGENT_DIR`、`HERMES_HOME`、`QWEN_HOME`、`MINIMAX_DATA_DIR`、`CODEBUDDY_CONFIG_DIR`、`COPILOT_HOME`、`VIBE_HOME`、`GROK_HOME`、`CLINE_DIR`、`ZCODE_HOME`、`SNOW_CONFIG_DIR` |
+| Overlay 主目录 | Kimi、Pi、OMP、Qwen、MiniMax、CodeBuddy、Copilot、Vibe、Grok Build、Cline、ZCode、Snow | `KIMI_CODE_HOME`、`PI_CODING_AGENT_DIR`、`QWEN_HOME`、`MINIMAX_DATA_DIR`、`CODEBUDDY_CONFIG_DIR`、`COPILOT_HOME`、`VIBE_HOME`、`GROK_HOME`、`CLINE_DIR`、`ZCODE_HOME`、`SNOW_CONFIG_DIR` |
 | 私有文件 | Junie | 连接级 profile |
-| 无 | Factory Droid、Poolside 与仅支持原生模型的预设 | 不提供 Cherry 模型 |
+| 无 | Factory Droid、Poolside、Hermes 与仅支持原生模型的预设 | 不提供 Cherry 模型 |
+
+Hermes 不提供 Cherry 模型。每个 Hermes 客户端都会为自己的主目录启动一个脱离父进程的 gateway 守护进程，它比启动本身活得更久；Hermes 还会记录运行时主目录的绝对路径。因此 overlay 主目录会把运行中的守护进程和过期路径带进用户主目录，后续启动随之失败。Hermes 也没有优先级高于配置文件的启动期设置。
 
 各 CLI 的配置适配器从 renderer 移到 `@shared/utils/cliConfig`。Main 用原始配置编辑器已在使用的同一份代码渲染 overlay 文件，每种 CLI 文件格式只有一个所有者。原始 **CLI 配置文件** 编辑器仍是用户显式编辑自己文件的入口。
 
-托管共享服务遵循同样的所有权。Cherry 为 Cherry 模型启动 OpenClaw Gateway、DeepSeek Harness 或 Hermes dashboard 时，服务获得 overlay 主目录和服务级凭证。Cherry 仅复用的外部服务，其配置保持不动。
+对 API Gateway 模型，托管共享服务遵循同样的所有权。Cherry 为经由 API Gateway 提供的模型启动 OpenClaw Gateway 或 DeepSeek Harness 时，服务读取 Cherry 在用户主目录之外生成的配置，并使用服务级凭证，Cherry 在服务停止时释放该凭证。直连服务商的选择仍写入服务的原生配置。Cherry 仅复用的外部服务，其配置保持不动。
 
 移除写文件的网关选择、从用户文件重新读取网关路由的逻辑、`bindCliGatewayRoute`，以及 Agent 对面向用户网关的依赖。
 
@@ -53,8 +55,8 @@ Cherry 为该 Agent 启动的每个进程都在启动时获得这一选择：聊
 - AC5 — 异常退出后，下次启动按 AC4 规则处理每个遗留 overlay 并将其删除。（verification: unit）
 - AC6 — 若预设的主目录变量会让某个生成文件落在 overlay 之外，启动以明确错误失败，且不向用户主目录写入任何内容。（verification: unit）
 - AC7 — 设置了 Cherry 模型的 Agent，其定时任务和从 Cherry 打开的终端通过同一绑定使用所选模型。（verification: unit）
-- AC8 — Agent Services 只为声明了绑定的预设提供 Cherry 模型，Factory Droid 和 Poolside 不提供。（verification: renderer）
-- AC9 — Cherry 为 Cherry 模型启动的 OpenClaw、DeepSeek Harness 和 Hermes 服务使用 overlay 主目录和服务级凭证，外部服务的配置保持不动。（verification: unit）
+- AC8 — Agent Services 只为声明了绑定的预设提供 Cherry 模型，Factory Droid、Poolside 和 Hermes 不提供。（verification: renderer）
+- AC9 — Cherry 为 API Gateway 模型启动的 OpenClaw Gateway 和 DeepSeek Harness 读取 Cherry 生成的配置和服务级凭证，不改动用户的原生配置，并在服务停止时释放凭证。直连服务商的选择和外部服务保持现有配置。（verification: unit）
 - AC10 — 本地 Agent 运行时参考文档描述启动级绑定，不再记载写文件的网关选择。（verification: docs gate）
 
 ## Risks
