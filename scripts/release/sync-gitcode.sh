@@ -65,9 +65,14 @@ case "$STATUS" in
   404) METHOD=POST; URL="$RELEASE_URL" ;;
   *) echo "Cannot query GitCode release (HTTP $STATUS)" >&2; exit 1 ;;
 esac
-curl --fail-with-body -sS --connect-timeout 30 --max-time 60 -X "$METHOD" \
+if ! curl --fail-with-body -sS --connect-timeout 30 --max-time 60 -X "$METHOD" \
   -H "Authorization: Bearer $GITCODE_TOKEN" -H 'Content-Type: application/json; charset=utf-8' \
-  --data-binary "@$TEMP_DIR/payload.json" "$URL" > "$TEMP_DIR/release.json"
+  --data-binary "@$TEMP_DIR/payload.json" "$URL" > "$TEMP_DIR/release.json"; then
+  details=$(jq -c 'if type == "object" then {code, message, error_message, error} else null end' \
+    "$TEMP_DIR/release.json" 2>/dev/null | cut -c1-1000 || true)
+  echo "GitCode release $METHOD failed${details:+, response $details}" >&2
+  exit 1
+fi
 
 upload_file() (
   local file="$1" filename encoded_filename info upload_url attempt

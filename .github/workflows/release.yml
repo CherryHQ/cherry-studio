@@ -813,8 +813,11 @@ jobs:
     name: Sync both editions to GitCode
     needs: [prepare, publish]
     if: >-
-      !cancelled() && github.repository == 'CherryHQ/cherry-studio' && github.ref == 'refs/heads/main' &&
-      (needs.publish.result == 'success' || inputs.mode == 'sync-only')
+      !cancelled() && github.repository == 'CherryHQ/cherry-studio' &&
+      ((github.ref == 'refs/heads/main' && (needs.publish.result == 'success' || inputs.mode == 'sync-only')) ||
+       (github.ref == 'refs/heads/DeJeune/gitcode-v2.2.4-recovery' && inputs.mode == 'sync-only' &&
+        inputs.tag == 'v2.2.4' && inputs.run_id == '45971161148' &&
+        inputs.expected_sha == 'bd3fdf9164d620cb50139b8191647e0024eaf785'))
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -858,6 +861,41 @@ jobs:
           TENCENT_CLOUD_SECRET_KEY: ${{ secrets.TENCENT_CLOUD_SECRET_KEY }}
         run: python scripts/release/release-cos.py prepare-sync
 
+      - name: Restore the exact GitCode release tag
+        if: github.ref == 'refs/heads/DeJeune/gitcode-v2.2.4-recovery' && !inputs.dry_run
+        env:
+          GITCODE_TOKEN: ${{ secrets.GITCODE_TOKEN }}
+          GIT_TERMINAL_PROMPT: "0"
+        run: |
+          jq -e --arg sha "$RELEASE_SHA" '.sha == $sha' cos-release.json >/dev/null
+          tag_ref="refs/tags/$TAG"
+          mirror=https://gitcode.com/CherryHQ/cherry-studio.git
+          remote_sha() {
+            git ls-remote "$mirror" "$tag_ref" "$tag_ref^{}" | awk 'END { print $1 }'
+          }
+          current="$(remote_sha)"
+          if [ -z "$current" ]; then
+            git fetch --unshallow --no-tags origin "$tag_ref"
+            fetched="$(git rev-parse 'FETCH_HEAD^{commit}')"
+            test "$fetched" = "$RELEASE_SHA"
+            login="$(curl --fail --silent --show-error --max-time 30 \
+              -H "Authorization: Bearer $GITCODE_TOKEN" https://api.gitcode.com/api/v5/user | jq -er '.login')"
+            askpass="$RUNNER_TEMP/gitcode-askpass"
+            cat > "$askpass" <<'EOF'
+          #!/bin/sh
+          printf '%s\n' "$GITCODE_TOKEN"
+          EOF
+            chmod 700 "$askpass"
+            GIT_ASKPASS="$askpass" git -c "credential.username=$login" -c credential.helper= \
+              push "$mirror" "$fetched:$tag_ref"
+            current="$(remote_sha)"
+          fi
+          if [ "$current" != "$RELEASE_SHA" ]; then
+            echo "Expected GitCode tag $TAG at $RELEASE_SHA, found ${current:-no tag}" >&2
+            exit 1
+          fi
+          echo "Verified GitCode tag $TAG at $current"
+
       - name: Sync GitCode release
         shell: bash
         env:
@@ -884,7 +922,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: [prepare, bundle, bundle-cn, release, release-cn, finalize-build, approve, publish, sync-to-gitcode]
     if: >-
-      always() && !(inputs.mode == 'sync-only' && inputs.dry_run) &&
+      always() && github.ref != 'refs/heads/DeJeune/gitcode-v2.2.4-recovery' &&
+      !(inputs.mode == 'sync-only' && inputs.dry_run) &&
       (contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled'))
     steps:
       - name: Send failure notification to Feishu
