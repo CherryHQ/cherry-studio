@@ -6,6 +6,7 @@ const {
   appEditionState,
   loggerErrorMock,
   netFetchMock,
+  platformState,
   releaseNotesCheckMock,
   releaseNotesUpdaterInstances,
   trackAppUpdateMock
@@ -13,6 +14,7 @@ const {
   appEditionState: { current: 'global', bridge: false },
   loggerErrorMock: vi.fn(),
   netFetchMock: vi.fn(),
+  platformState: { mac: false },
   releaseNotesCheckMock: vi.fn(),
   releaseNotesUpdaterInstances: [] as Array<Record<string, unknown>>,
   trackAppUpdateMock: vi.fn()
@@ -58,7 +60,10 @@ vi.mock('@main/core/lifecycle', () => {
 })
 
 vi.mock('@main/core/platform', () => ({
-  isWin: false
+  isWin: false,
+  get isMac() {
+    return platformState.mac
+  }
 }))
 
 vi.mock('@main/utils/appEdition', () => ({
@@ -78,14 +83,18 @@ vi.mock('@main/utils/systemInfo', () => ({
   getClientId: vi.fn(() => 'test-client-id')
 }))
 
-vi.mock('electron', () => ({
-  app: {
-    isPackaged: true,
-    getVersion: vi.fn(() => '1.0.0'),
-    getLocale: vi.fn(() => 'en-US')
-  },
-  net: { fetch: netFetchMock }
-}))
+vi.mock('electron', async () => {
+  const { EventEmitter } = await import('node:events')
+  return {
+    app: {
+      isPackaged: true,
+      getVersion: vi.fn(() => '1.0.0'),
+      getLocale: vi.fn(() => 'en-US')
+    },
+    autoUpdater: new EventEmitter(),
+    net: { fetch: netFetchMock }
+  }
+})
 
 vi.mock('electron-updater', () => {
   class MockAppUpdater {
@@ -130,7 +139,7 @@ vi.mock('electron-updater', () => {
 })
 
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
-import { app, net } from 'electron'
+import { app, autoUpdater as nativeUpdater, net } from 'electron'
 import { autoUpdater } from 'electron-updater'
 
 import { application } from '@application'
@@ -154,6 +163,11 @@ describe('AppUpdaterService', () => {
     vi.mocked(regionService.getCountry).mockResolvedValue('US')
     vi.mocked(autoUpdater.checkForUpdates).mockResolvedValue(null)
     autoUpdater.autoDownload = false
+    // Like BaseUpdater, a successful install hands off to the quit on the next turn.
+    vi.mocked(autoUpdater.quitAndInstall).mockImplementation(() => {
+      setImmediate(() => nativeUpdater.emit('before-quit-for-update'))
+    })
+    platformState.mac = false
     netFetchMock.mockReset()
     appEditionState.current = 'global'
     releaseNotesCheckMock.mockReset().mockResolvedValue(null)
@@ -880,6 +894,25 @@ describe('AppUpdaterService', () => {
         expect(autoUpdater.quitAndInstall).toHaveBeenCalledOnce()
       })
 
+      it('tells windows the downloaded release is gone when a check announcing another one fails', async () => {
+        const ipc = application.get('IpcApiService')
+        vi.mocked(ipc.broadcastToType).mockClear()
+        // A macOS manifest without a ZIP fails the auto download before checkForUpdates resolves.
+        vi.mocked(autoUpdater.checkForUpdates).mockImplementationOnce(async () => {
+          listeners.get('update-available')?.(release('1.3.1'))
+          listeners.get('error')?.(new Error('ZIP file not provided'))
+          return checked('1.3.1') as never
+        })
+        await (
+          appUpdater as unknown as { performUpdateCheck: (manual: boolean) => Promise<unknown> }
+        ).performUpdateCheck(false)
+
+        const events = vi.mocked(ipc.broadcastToType).mock.calls.map(([, event]) => event)
+        expect(events).not.toContain('app.updater.available')
+        expect(events).toContain('app.updater.download_revoked')
+        await expect(appUpdater.quitAndInstall('1.3.0')).rejects.toMatchObject({ code: 'VALIDATION_FAILED' })
+      })
+
       it('fails only the install attempt when the native installer fails during a pending lookup', async () => {
         const ipc = application.get('IpcApiService')
         let finishLookup: (value: unknown) => void = () => undefined
@@ -915,6 +948,51 @@ describe('AppUpdaterService', () => {
         await expect(appUpdater.quitAndInstall('1.3.0')).rejects.toMatchObject({ code: 'VALIDATION_FAILED' })
         await appUpdater.quitAndInstall('1.3.1')
         expect(autoUpdater.quitAndInstall).toHaveBeenCalledTimes(2)
+      })
+
+      it('fails the install attempt when Squirrel.Mac reports an error after quitAndInstall returns', async () => {
+        platformState.mac = true
+        const ipc = application.get('IpcApiService')
+        let finishLookup: (value: unknown) => void = () => undefined
+        vi.mocked(autoUpdater.checkForUpdates).mockImplementationOnce(
+          () =>
+            new Promise((resolve) => {
+              finishLookup = resolve
+            }) as never
+        )
+        const lookup = (
+          appUpdater as unknown as { performUpdateCheck: (manual: boolean) => Promise<unknown> }
+        ).performUpdateCheck(false)
+        await vi.waitFor(() => expect(autoUpdater.checkForUpdates).toHaveBeenCalledTimes(2))
+        // Squirrel.Mac fetches the staged ZIP after quitAndInstall returns and fails later.
+        vi.mocked(autoUpdater.quitAndInstall).mockImplementationOnce(() => undefined)
+        vi.mocked(ipc.broadcastToType).mockClear()
+
+        const install = appUpdater.quitAndInstall('1.3.0')
+        const outcome = install.then(
+          () => 'resolved',
+          (error: { code?: string }) => error.code
+        )
+        await vi.waitFor(() => expect(autoUpdater.quitAndInstall).toHaveBeenCalledOnce())
+        await new Promise((resolve) => setImmediate(resolve))
+        listeners.get('error')?.(new Error('Code signature did not pass validation'))
+
+        await expect(outcome).resolves.toBe('INTERNAL')
+        expect(ipc.broadcastToType).not.toHaveBeenCalledWith('main', 'app.updater.error', expect.anything())
+
+        listeners.get('update-available')?.(release('1.3.1'))
+        finishLookup(checked('1.3.1'))
+        await lookup
+        expect(ipc.broadcastToType).toHaveBeenCalledWith(
+          'main',
+          'app.updater.available',
+          expect.objectContaining({ version: '1.3.1' })
+        )
+
+        // MacUpdater keeps the failed attempt claimed, so a retry must fail instead of waiting forever.
+        listeners.get('update-downloaded')?.(release('1.3.1'))
+        await expect(appUpdater.quitAndInstall('1.3.1')).rejects.toMatchObject({ code: 'INTERNAL' })
+        expect(autoUpdater.quitAndInstall).toHaveBeenCalledOnce()
       })
     })
 
