@@ -25,11 +25,13 @@ Each preset that offers Cherry models has exactly one entry in the shared launch
 | Strategy | Presets | Redirect |
 |---|---|---|
 | Process | Claude Code, Codex, OpenCode, Kilo, goose, GLM, DeepAgents | flag settings, `-c`, `*_CONFIG_CONTENT`, environment, arguments |
-| Overlay home | Kimi, Pi, OMP, Qwen, MiniMax, CodeBuddy, Copilot, Vibe, Grok Build, Cline, ZCode, Snow | `KIMI_CODE_HOME`, `PI_CODING_AGENT_DIR`, `QWEN_HOME`, `MINIMAX_DATA_DIR`, `CODEBUDDY_CONFIG_DIR`, `COPILOT_HOME`, `VIBE_HOME`, `GROK_HOME`, `CLINE_DIR`, `ZCODE_HOME`, `SNOW_CONFIG_DIR` |
+| Overlay home | Kimi, Pi, OMP, Qwen, CodeBuddy, Copilot, Vibe, Grok Build, Cline, ZCode, Snow | `KIMI_CODE_HOME`, `PI_CODING_AGENT_DIR`, `QWEN_HOME`, `CODEBUDDY_CONFIG_DIR`, `COPILOT_HOME`, `VIBE_HOME`, `GROK_HOME`, `CLINE_DIR`, `ZCODE_HOME`, `SNOW_CONFIG_DIR` |
 | Private file | Junie | connection-local profile |
-| None | Factory Droid, Poolside, Hermes and native-only presets | no Cherry models offered |
+| None | Factory Droid, Poolside, Hermes, MiniMax Code and native-only presets | no Cherry models offered |
 
 Hermes offers no Cherry models. Each Hermes client starts a detached gateway daemon for its home that outlives the launch, and Hermes records absolute paths of the home it ran in. An overlay home therefore leaks a running daemon and stale paths into the user's home, and later launches fail. Hermes has no launch-time setting that outranks its configuration file.
+
+MiniMax Code offers no Cherry models. `mcode` rejects symlinks inside `MINIMAX_DATA_DIR` (including `v2`, `v2/sqlite`, and profile storage) and provides no launch-time setting or override that takes precedence over `MINIMAX_DATA_DIR/config.yaml`.
 
 The per-CLI configuration adapters move from the renderer to `@shared/utils/cliConfig`. Main renders overlay files with the code the raw configuration editor already uses, so each CLI's file format has one owner. The raw **CLI configuration files** editor remains an explicit editor of the user's own files.
 

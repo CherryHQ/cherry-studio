@@ -98,7 +98,6 @@ const LOCAL_AGENT_LAUNCH_BINDINGS: Readonly<Record<string, LocalAgentLaunchBindi
   [piCli.id]: { kind: 'overlay-home', variable: 'PI_CODING_AGENT_DIR' },
   [ompCli.id]: { kind: 'overlay-home', variable: 'PI_CODING_AGENT_DIR' },
   [qwenCli.id]: { kind: 'overlay-home', variable: 'QWEN_HOME' },
-  [minimaxCli.id]: { kind: 'overlay-home', variable: 'MINIMAX_DATA_DIR' },
   [codeBuddyCli.id]: { kind: 'overlay-home', variable: 'CODEBUDDY_CONFIG_DIR' },
   copilot: { kind: 'overlay-home', variable: 'COPILOT_HOME' },
   [vibeCli.id]: { kind: 'overlay-home', variable: 'VIBE_HOME' },

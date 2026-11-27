@@ -175,7 +175,7 @@ A Cherry model selection belongs to the Agent record alone
 it writes no CLI file and neither starts nor enables the user-facing API
 Gateway. Agent Services offers Cherry models only for presets with an entry in
 the launch-binding table (`getLocalAgentLaunchBinding`) and for DeepAgents and
-Junie. Factory Droid, Poolside and Hermes offer none.
+Junie. Factory Droid, Poolside, Hermes and MiniMax Code offer none.
 
 Every process Cherry spawns for that Agent binds the model at spawn: chat
 sessions, scheduled tasks and Cherry-launched terminals. Catalog, account and

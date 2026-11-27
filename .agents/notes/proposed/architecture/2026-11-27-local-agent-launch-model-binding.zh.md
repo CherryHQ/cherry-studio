@@ -25,11 +25,13 @@ Cherry 为该 Agent 启动的每个进程都在启动时获得这一选择：聊
 | 策略 | 预设 | 重定向方式 |
 |---|---|---|
 | 进程级 | Claude Code、Codex、OpenCode、Kilo、goose、GLM、DeepAgents | flag settings、`-c`、`*_CONFIG_CONTENT`、环境变量、参数 |
-| Overlay 主目录 | Kimi、Pi、OMP、Qwen、MiniMax、CodeBuddy、Copilot、Vibe、Grok Build、Cline、ZCode、Snow | `KIMI_CODE_HOME`、`PI_CODING_AGENT_DIR`、`QWEN_HOME`、`MINIMAX_DATA_DIR`、`CODEBUDDY_CONFIG_DIR`、`COPILOT_HOME`、`VIBE_HOME`、`GROK_HOME`、`CLINE_DIR`、`ZCODE_HOME`、`SNOW_CONFIG_DIR` |
+| Overlay 主目录 | Kimi、Pi、OMP、Qwen、CodeBuddy、Copilot、Vibe、Grok Build、Cline、ZCode、Snow | `KIMI_CODE_HOME`、`PI_CODING_AGENT_DIR`、`QWEN_HOME`、`CODEBUDDY_CONFIG_DIR`、`COPILOT_HOME`、`VIBE_HOME`、`GROK_HOME`、`CLINE_DIR`、`ZCODE_HOME`、`SNOW_CONFIG_DIR` |
 | 私有文件 | Junie | 连接级 profile |
-| 无 | Factory Droid、Poolside、Hermes 与仅支持原生模型的预设 | 不提供 Cherry 模型 |
+| 无 | Factory Droid、Poolside、Hermes、MiniMax Code 与仅支持原生模型的预设 | 不提供 Cherry 模型 |
 
 Hermes 不提供 Cherry 模型。每个 Hermes 客户端都会为自己的主目录启动一个脱离父进程的 gateway 守护进程，它比启动本身活得更久；Hermes 还会记录运行时主目录的绝对路径。因此 overlay 主目录会把运行中的守护进程和过期路径带进用户主目录，后续启动随之失败。Hermes 也没有优先级高于配置文件的启动期设置。
+
+MiniMax Code 不提供 Cherry 模型。`mcode` 会拒绝 `MINIMAX_DATA_DIR` 内的符号链接（包括 `v2`、`v2/sqlite` 及 profile 存储），也没有优先级高于 `MINIMAX_DATA_DIR/config.yaml` 的启动期参数或配置覆写项。
 
 各 CLI 的配置适配器从 renderer 移到 `@shared/utils/cliConfig`。Main 用原始配置编辑器已在使用的同一份代码渲染 overlay 文件，每种 CLI 文件格式只有一个所有者。原始 **CLI 配置文件** 编辑器仍是用户显式编辑自己文件的入口。
 

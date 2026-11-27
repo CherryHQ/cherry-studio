@@ -270,6 +270,7 @@ describe('launch model binding', () => {
   it.each([
     ['factory-droid', {}],
     ['hermes', {}],
+    ['minimax', {}],
     ['codex', { executableOverride: '/custom/codex' }]
   ] as const)('refuses a Cherry model for %s before creating a credential', async (presetId, extra) => {
     await expect(bindLaunchModel(config(presetId, extra), {}, { terminal: false })).rejects.toThrow(
