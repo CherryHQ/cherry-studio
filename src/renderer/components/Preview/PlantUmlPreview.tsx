@@ -1,17 +1,21 @@
+import { ExternalLink } from 'lucide-react'
 import pako from 'pako'
-import React, { memo, useCallback, useEffect } from 'react'
+import React, { memo, useCallback, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
+import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 
 import { useDebouncedRender } from './hooks/useDebouncedRender'
 import ImagePreviewLayout from './ImagePreviewLayout'
-import { ShadowWhiteContainer } from './styles'
+import { PreviewContainer, ShadowWhiteContainer } from './styles'
 import type { BasicPreviewHandles, BasicPreviewProps } from './types'
 import { renderSvgInShadowHost } from './utils'
 
 const logger = loggerService.withContext('PlantUmlPreview')
 
-const PlantUMLServer = 'https://www.plantuml.com/plantuml'
+export const PLANTUML_HOST = 'www.plantuml.com'
+const PlantUMLServer = `https://${PLANTUML_HOST}/plantuml`
 function encode64(data: Uint8Array) {
   let r = ''
   for (let i = 0; i < data.length; i += 3) {
@@ -86,6 +90,9 @@ const PlantUmlPreview = ({
   enableToolbar = false,
   ref
 }: BasicPreviewProps & { ref?: React.RefObject<BasicPreviewHandles | null> }) => {
+  const { t } = useTranslation()
+  const [isRemoteRenderConfirmed, setIsRemoteRenderConfirmed] = useState(false)
+
   // 定义渲染函数
   const renderPlantUml = useCallback(async (content: string, container: HTMLDivElement) => {
     const url = getPlantUMLImageUrl('svg', content, false)
@@ -108,10 +115,16 @@ const PlantUmlPreview = ({
     renderSvgInShadowHost(text, container)
   }, [])
 
-  // 使用预览渲染器 hook
-  const { containerRef, error, isLoading } = useDebouncedRender(children, renderPlantUml, {
-    debounceDelay: 300
-  })
+  // 使用预览渲染器 hook（仅在用户明确确认发送到远端服务后再触发）
+  const shouldRender = useCallback(() => isRemoteRenderConfirmed, [isRemoteRenderConfirmed])
+  const { containerRef, error, isLoading } = useDebouncedRender(
+    isRemoteRenderConfirmed ? children : '',
+    renderPlantUml,
+    {
+      debounceDelay: 300,
+      shouldRender
+    }
+  )
 
   // 记录网络错误
   useEffect(() => {
@@ -121,6 +134,22 @@ const PlantUmlPreview = ({
       logger.warn(error)
     }
   }, [error])
+
+  if (!isRemoteRenderConfirmed) {
+    return (
+      <PreviewContainer
+        role="region"
+        className="plantuml-remote-consent flex-col items-center justify-center gap-3 p-6 text-center">
+        <p className="max-w-md text-xs text-muted-foreground">
+          {t('code_block.preview.plantuml_remote_notice', { host: PLANTUML_HOST })}
+        </p>
+        <Button type="button" variant="outline" size="sm" onClick={() => setIsRemoteRenderConfirmed(true)}>
+          <ExternalLink className="mr-1.5 size-3.5" aria-hidden="true" />
+          {t('code_block.preview.plantuml_remote_render')}
+        </Button>
+      </PreviewContainer>
+    )
+  }
 
   return (
     <ImagePreviewLayout

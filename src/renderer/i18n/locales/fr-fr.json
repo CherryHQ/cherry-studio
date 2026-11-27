@@ -1421,6 +1421,8 @@
   "code_block.expand": "Développer",
   "code_block.more": "Plus",
   "code_block.preview.invalid_json": "Configuration JSON invalide",
+  "code_block.preview.plantuml_remote_notice": "Le rendu des diagrammes PlantUML envoie le code source du diagramme à {{host}}.",
+  "code_block.preview.plantuml_remote_render": "Rendre via PlantUML",
   "code_block.run": "Exécuter le code",
   "code_block.split.label": "Fractionner la vue",
   "code_block.split.restore": "Annuler la vue fractionnée",

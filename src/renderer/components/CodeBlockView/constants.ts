@@ -2,7 +2,15 @@ import { type ComponentType, lazy, type RefObject } from 'react'
 
 import type { BasicPreviewHandles, BasicPreviewProps } from '@renderer/components/Preview/types'
 
+import type { ViewMode } from './types'
+
 type SpecialViewProps = BasicPreviewProps & { ref?: RefObject<BasicPreviewHandles | null> }
+
+export interface SpecialViewDefinition {
+  component: ComponentType<SpecialViewProps>
+  supportsImageActions: boolean
+  defaultViewMode?: ViewMode
+}
 
 /**
  * 特殊视图组件映射表
@@ -18,7 +26,8 @@ export const SPECIAL_VIEW_COMPONENTS = {
   },
   plantuml: {
     component: lazy<ComponentType<SpecialViewProps>>(() => import('@renderer/components/Preview/PlantUmlPreview')),
-    supportsImageActions: true
+    supportsImageActions: true,
+    defaultViewMode: 'source'
   },
   svg: {
     component: lazy<ComponentType<SpecialViewProps>>(() => import('@renderer/components/Preview/SvgPreview')),
@@ -36,7 +45,7 @@ export const SPECIAL_VIEW_COMPONENTS = {
     component: lazy<ComponentType<SpecialViewProps>>(() => import('@renderer/components/Preview/EChartsPreview')),
     supportsImageActions: true
   }
-} as const
+} satisfies Record<string, SpecialViewDefinition>
 
 export const SPECIAL_VIEWS = Object.keys(SPECIAL_VIEW_COMPONENTS)
 

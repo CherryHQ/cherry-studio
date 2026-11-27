@@ -234,4 +234,46 @@ describe('CodeBlockView', () => {
     expect(screen.getByRole('button', { name: 'code_block.copy.source' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'code_block.run' })).not.toBeInTheDocument()
   })
+
+  it('defaults plantuml code blocks to source view and gates remote preview behind explicit confirmation', async () => {
+    const user = userEvent.setup()
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+    try {
+      render(
+        <CodeBlockView language="plantuml" editable>
+          {'@startuml\nAlice -> Bob\n@enduml'}
+        </CodeBlockView>
+      )
+
+      expect(screen.getByLabelText('Code viewer')).toHaveTextContent('@startuml')
+      expect(screen.getByRole('button', { name: 'preview.label' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'code_block.edit.label' })).toBeInTheDocument()
+      expect(fetchMock).not.toHaveBeenCalled()
+
+      await user.click(screen.getByRole('button', { name: 'preview.label' }))
+
+      expect(await screen.findByText('code_block.preview.plantuml_remote_notice')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'code_block.preview.plantuml_remote_render' })).toBeInTheDocument()
+      expect(fetchMock).not.toHaveBeenCalled()
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('stays in source view when a streamed block transitions to plantuml', () => {
+    const { rerender } = render(
+      <CodeBlockView language="plaintext" editable isStreaming>
+        {'@startuml'}
+      </CodeBlockView>
+    )
+
+    rerender(
+      <CodeBlockView language="plantuml" editable isStreaming>
+        {'@startuml\nAlice -> Bob\n@enduml'}
+      </CodeBlockView>
+    )
+
+    expect(screen.getByLabelText('Code viewer')).toHaveTextContent('Alice -> Bob')
+  })
 })
