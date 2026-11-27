@@ -1245,6 +1245,46 @@ describe('ModelService — manual reasoning capability projects effort controls'
     expect(reasoner?.reasoning?.selectableEfforts).toEqual(MANUAL_REASONING_EFFORTS)
     expect(plain?.reasoning).toBeUndefined()
   })
+
+  it('preserves and reprojects persisted intrinsic controls on uncataloged custom models', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('acme', 'Acme'))
+    const budgetControls = [{ kind: 'toggle' as const }, { kind: 'budget' as const, min: 1024, max: 32000 }]
+    const ultraControls = [{ kind: 'effort' as const, values: ['low', 'medium', 'high', 'ultra'] as const }]
+
+    await dbh.db.insert(userModelTable).values([
+      modelRow('acme', 'kimi-k2.6-preview', {
+        name: 'Kimi K2.6 Preview',
+        capabilities: [MODEL_CAPABILITY.REASONING],
+        reasoning: { controls: budgetControls, defaultEffort: 'high' }
+      }),
+      modelRow('acme', 'port-wire-model', {
+        name: 'Port Wire Model',
+        capabilities: [MODEL_CAPABILITY.REASONING],
+        reasoning: { controls: ultraControls }
+      })
+    ])
+
+    resolveReasoningProfileMock.mockImplementation((_context, _model, endpointType) =>
+      endpointType === 'google-generate-content'
+        ? { format: 'openai-chat', wire: { disabled: true } }
+        : OPENAI_CHAT_REASONING_PROFILE
+    )
+
+    const budgetModel = modelService.getByKey('acme', 'kimi-k2.6-preview')
+    expect(budgetModel.reasoning?.controls).toEqual(budgetControls)
+    expect(budgetModel.reasoning?.selectableEfforts).toEqual(['none', 'low', 'medium', 'high'])
+    expect(budgetModel.reasoning?.defaultEffort).toBe('high')
+
+    const ultraModel = modelService.getByKey('acme', 'port-wire-model')
+    expect(ultraModel.reasoning?.controls).toEqual(ultraControls)
+    expect(ultraModel.reasoning?.selectableEfforts).toEqual(['low', 'medium', 'high', 'ultra'])
+
+    const reprojected = modelService.update('acme', 'port-wire-model', {
+      endpointTypes: ['google-generate-content']
+    })
+    expect(reprojected.reasoning?.controls).toEqual(ultraControls)
+    expect(reprojected.reasoning?.selectableEfforts).toEqual([])
+  })
 })
 
 // ─────────────────────────────────────────────────────────────────────────────

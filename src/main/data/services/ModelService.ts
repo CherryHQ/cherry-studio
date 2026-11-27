@@ -631,24 +631,19 @@ class ModelService {
       return presetDeltaToNewUserModel(dto, presetModel.id, deltaFields)
     }
 
-    // Infer or synthesize reasoning controls from the effective endpoint profile (#16598, #24161).
+    // Infer reasoning controls from model-id heuristics (#16598) and keep Ollama's
+    // persisted fallback controls; generic user-declared reasoning models stay
+    // projected at read time so endpoint changes and intrinsic controls aren't shadowed.
     if (dtoValues.reasoning == null) {
       const declaredReasoning = (dtoValues.capabilities ?? []).includes(MODEL_CAPABILITY.REASONING)
-      let inferred: RuntimeReasoning | undefined
-      if (providerContext) {
-        const manualProfile = manualReasoningProfileFor(providerContext, dtoValues.endpointTypes, dtoValues.modelId)
-        inferred =
-          inferCustomModelReasoning(dto.modelId, manualProfile.wire, { declaredReasoning }) ??
-          manualDeclaredReasoning(manualProfile.format, manualProfile.wire, declaredReasoning)
-      } else if (registryData?.reasoningProfile) {
-        inferred =
-          inferCustomModelReasoning(dto.modelId, registryData.reasoningProfile.wire, { declaredReasoning }) ??
-          manualDeclaredReasoning(
-            registryData.reasoningProfile.format,
-            registryData.reasoningProfile.wire,
-            declaredReasoning
-          )
-      }
+      const profile = providerContext
+        ? manualReasoningProfileFor(providerContext, dtoValues.endpointTypes, dtoValues.modelId)
+        : registryData?.reasoningProfile
+      const inferred =
+        inferCustomModelReasoning(dto.modelId, profile?.wire, { declaredReasoning }) ??
+        (profile?.format === 'ollama'
+          ? manualDeclaredReasoning(profile.format, profile.wire, declaredReasoning)
+          : undefined)
       if (inferred) dtoValues.reasoning = inferred
     }
 
@@ -951,11 +946,13 @@ class ModelService {
         if (ownedBy) updates.ownedBy = ownedBy
         let reasoning: RuntimeReasoning | undefined
         const declaredReasoning = model.capabilities.includes(MODEL_CAPABILITY.REASONING)
+        const manualProfile = manualReasoningProfileFor(providerContext, model.endpointTypes, modelId)
         if (registryModel) {
           reasoning = registryModel.reasoning
+        } else if (model.reasoning?.controls?.length) {
+          // Reproject persisted intrinsic controls through the active wire without replacing them.
+          reasoning = projectRuntimeReasoning(model.reasoning, manualProfile.wire)
         } else {
-          // Regenerate from the active endpoint so endpoint switches or capability edits apply immediately.
-          const manualProfile = manualReasoningProfileFor(providerContext, model.endpointTypes, modelId)
           reasoning =
             inferCustomModelReasoning(modelId, manualProfile.wire, { declaredReasoning }) ??
             manualDeclaredReasoning(manualProfile.format, manualProfile.wire, declaredReasoning)
