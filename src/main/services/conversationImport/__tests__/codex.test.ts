@@ -341,6 +341,13 @@ describe('Codex raw rollout contract', () => {
     const result = await codexAdapter.read({ path: p }, signal())
     expect(result.title).toBe('Read the handoff')
     expect(result.messages.slice(0, 3).map((message) => message.role)).toEqual(['system', 'system', 'system'])
+    expect(result.messages.map((message) => message.provenance.isSetup)).toEqual([
+      true,
+      true,
+      true,
+      undefined,
+      undefined
+    ])
     expect(result.messages[2].data.parts).toEqual([
       { type: 'text', text: expect.stringContaining('[Historical environment]') }
     ])

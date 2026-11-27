@@ -264,7 +264,11 @@ export const workbuddyAdapter: HistorySourceAdapter = {
           : typeof provider.requestModelName === 'string'
             ? 'WorkBuddy · ' + provider.requestModelName
             : model
-      const append = (role: 'user' | 'assistant' | 'system', parts: NonNullable<MessageData['parts']>) => {
+      const append = (
+        role: 'user' | 'assistant' | 'system',
+        parts: NonNullable<MessageData['parts']>,
+        isSetup?: true
+      ) => {
         result.messages.push({
           role,
           data: { parts },
@@ -273,6 +277,7 @@ export const workbuddyAdapter: HistorySourceAdapter = {
           provenance: {
             source: 'workbuddy',
             originalMessageId: record.id,
+            isSetup,
             sourceOrder: result.messages.length,
             originalTimestamp: new Date(record.timestamp).toISOString(),
             inferredTimestamp: false
@@ -308,7 +313,7 @@ export const workbuddyAdapter: HistorySourceAdapter = {
           }
           if (record.role === 'user') {
             const envelope = userEnvelope(parsedText.data.text, provider.startsNewUserRequest === true)
-            if (envelope.context) append('system', [{ type: 'text', text: envelope.context }])
+            if (envelope.context) append('system', [{ type: 'text', text: envelope.context }], true)
             parts.push({ type: 'text', text: envelope.text })
             if (!result.title && envelope.text.trim()) result.title = envelope.text.trim().slice(0, 255)
           } else parts.push({ type: record.type === 'reasoning' ? 'reasoning' : 'text', text: parsedText.data.text })
