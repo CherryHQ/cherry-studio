@@ -22,6 +22,7 @@ import type { TranslateLanguage } from '@shared/data/types/translate'
 
 import { getSelectionActionErrorMessage } from '../errorMessage'
 import { ResultReadAloudButton } from './ResultReadAloudButton'
+import { ResultSaveToNotesButton } from './ResultSaveToNotesButton'
 import WindowFooter from './WindowFooter'
 
 // Lazy boundary (S6b): keeps the heavy message-content chain out of the action
@@ -449,7 +450,10 @@ const ActionTranslate: FC<Props> = ({ action, sourceEntityId, scrollToBottom }) 
       <div className="min-h-3" />
       <WindowFooter loading={isStreaming} onPause={handlePause} onRegenerate={handleRegenerate} content={content}>
         {!isStreaming && !error && content.trim() && (
-          <ResultReadAloudButton text={content} sourceEntityId={sourceEntityId} />
+          <>
+            <ResultReadAloudButton text={content} sourceEntityId={sourceEntityId} />
+            <ResultSaveToNotesButton selectedText={selectedText} resultText={content} />
+          </>
         )}
       </WindowFooter>
     </>
