@@ -7,7 +7,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { getPiTraceContext } from '@main/ai/observability'
 import { resolveGatewayModelAddress } from '@main/features/apiGateway/utils/models'
-import { isPiCompatibleModel, mapEndpointToPiApi } from '@shared/ai/piModelCompatibility'
+import { isPiCompatibleModel, mapEndpointToPiApi, type PiApi } from '@shared/ai/piModelCompatibility'
 import { ENDPOINT_TYPE, MODALITY, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { RetryPartData } from '@shared/data/types/uiParts'
@@ -28,6 +28,32 @@ import {
 } from './replayHistory'
 
 const OBJECT_TRANSPORT_API_KEY = 'cherry-object-transport'
+
+function omitImplicitOpenAiOutputLimit(
+  streamSimple: Awaited<ReturnType<typeof loadPiApiStreamSimple>>,
+  api: PiApi
+): Awaited<ReturnType<typeof loadPiApiStreamSimple>> {
+  if (api !== 'openai-completions' && api !== 'openai-responses') {
+    return streamSimple
+  }
+
+  return (model, context, options) =>
+    streamSimple(model, context, {
+      ...options,
+      onPayload: async (payload, payloadModel) => {
+        let nextPayload = payload
+        const hasExplicitOutputLimit = options?.maxTokens !== undefined
+        if (!hasExplicitOutputLimit && typeof payload === 'object' && payload !== null) {
+          const payloadWithoutImplicitLimit = { ...(payload as Record<string, unknown>) }
+          delete payloadWithoutImplicitLimit.max_tokens
+          delete payloadWithoutImplicitLimit.max_completion_tokens
+          delete payloadWithoutImplicitLimit.max_output_tokens
+          nextPayload = payloadWithoutImplicitLimit
+        }
+        return (await options?.onPayload?.(nextPayload, payloadModel)) ?? nextPayload
+      }
+    })
+}
 
 /** Native Pi protocols target Cherry's internal gateway; Cherry retains provider credentials and billing. */
 export async function createPiGatewayModelBinding(
@@ -63,8 +89,9 @@ export async function createPiGatewayModelBinding(
   ) {
     modalities.push('image')
   }
-  const [{ InMemoryCredentialStore, createAssistantMessageEventStream }, { ModelRuntime }, streamSimple] =
+  const [{ InMemoryCredentialStore, createAssistantMessageEventStream }, { ModelRuntime }, rawStreamSimple] =
     await Promise.all([loadPiAi(), loadPiSdk(), loadPiApiStreamSimple(api)])
+  const streamSimple = omitImplicitOpenAiOutputLimit(rawStreamSimple, api)
   const modelRuntime =
     sharedModels ??
     (await ModelRuntime.create({

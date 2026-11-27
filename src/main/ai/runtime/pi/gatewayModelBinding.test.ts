@@ -3,6 +3,12 @@ import { resolve } from 'node:path'
 
 import { normalizeContext } from '@earendil-works/pi-ai'
 import type { Message } from '@earendil-works/pi-ai'
+import {
+  createAgentSession,
+  DefaultResourceLoader,
+  SessionManager,
+  SettingsManager
+} from '@earendil-works/pi-coding-agent'
 import { setupTestDatabase } from '@test-helpers/db'
 import { afterEach, beforeEach, expect, it, onTestFinished, vi } from 'vitest'
 
@@ -678,3 +684,106 @@ it.each([false, true])('replays CherryIN thinking only when present (empty signa
     { type: 'tool_use', id: 'call_read', name: 'read', input: { path: 'facts.txt' } }
   ])
 })
+
+it.each([
+  {
+    name: 'OpenAI Chat',
+    endpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+    adapter: 'deepseek',
+    api: 'openai-completions'
+  },
+  {
+    name: 'OpenAI Responses',
+    endpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+    adapter: 'openai',
+    api: 'openai-responses'
+  },
+  {
+    name: 'Azure Responses',
+    endpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+    adapter: 'azure-responses',
+    api: 'openai-completions'
+  }
+] as const)(
+  'omits the $name AgentSession catalog limit while preserving an equal explicit limit',
+  async ({ endpoint, adapter, api }) => {
+    const provider = ProviderSchema.parse({
+      isEnabled: true,
+      apiKeys: [],
+      authType: 'api-key',
+      settings: {},
+      id: `output-limit-${adapter}`,
+      name: 'Output limit fixture',
+      reportsActualCost: false,
+      defaultChatEndpoint: endpoint,
+      endpointConfigs: {
+        [endpoint]: { adapterFamily: adapter, baseUrl: 'https://gateway.example.com' }
+      }
+    })
+    const model = ModelSchema.parse({
+      isEnabled: true,
+      isHidden: false,
+      supportsStreaming: true,
+      id: `${provider.id}::test-model`,
+      providerId: provider.id,
+      name: 'Output limit fixture model',
+      apiModelId: 'test-model',
+      endpointTypes: [endpoint],
+      capabilities: [],
+      contextWindow: 1_000_000,
+      maxOutputTokens: 393_216
+    })
+    registerGatewayModels(provider, [model])
+    const binding = await createPiGatewayModelBinding({ sessionId: 'session-output-limit' }, provider, model)
+    expect(binding.model.api).toBe(api)
+    expect(binding.model.maxTokens).toBe(393_216)
+
+    const cwd = process.cwd()
+    const settingsManager = SettingsManager.inMemory({
+      retry: { enabled: false },
+      compaction: { enabled: true, reserveTokens: 491_520, keepRecentTokens: 1 }
+    })
+    const resourceLoader = new DefaultResourceLoader({
+      cwd,
+      agentDir: cwd,
+      settingsManager,
+      noExtensions: true,
+      noSkills: true,
+      noPromptTemplates: true,
+      noThemes: true,
+      noContextFiles: true
+    })
+    await resourceLoader.reload()
+    const { session } = await createAgentSession({
+      cwd,
+      model: binding.model,
+      modelRuntime: binding.modelRuntime,
+      settingsManager,
+      resourceLoader,
+      sessionManager: SessionManager.inMemory(cwd),
+      tools: []
+    })
+
+    try {
+      await session.prompt('hello')
+      await session.prompt('hello again')
+    } finally {
+      session.dispose()
+    }
+
+    const context = normalizeContext({ messages: [{ role: 'user', content: 'explicit cap', timestamp: 1 }] })
+    await binding.modelRuntime.completeSimple(binding.model, context, { maxTokens: 393_216 })
+    await binding.modelRuntime.completeSimple(binding.model, context, { maxTokens: 12_345 })
+
+    expect(gateway.requests).toHaveLength(4)
+    const bodies = gateway.requests.map((entry) => entry.body as Record<string, unknown>)
+    expect(bodies[0]).not.toHaveProperty('max_tokens')
+    expect(bodies[0]).not.toHaveProperty('max_completion_tokens')
+    expect(bodies[0]).not.toHaveProperty('max_output_tokens')
+    expect(bodies[1]).not.toHaveProperty('max_tokens')
+    expect(bodies[1]).not.toHaveProperty('max_completion_tokens')
+    expect(bodies[1]).not.toHaveProperty('max_output_tokens')
+    expect(bodies[2].max_tokens ?? bodies[2].max_completion_tokens ?? bodies[2].max_output_tokens).toBe(393_216)
+    expect(bodies[3].max_tokens ?? bodies[3].max_completion_tokens ?? bodies[3].max_output_tokens).toBe(12_345)
+  }
+)

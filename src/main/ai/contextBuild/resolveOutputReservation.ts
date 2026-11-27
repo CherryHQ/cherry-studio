@@ -16,6 +16,7 @@ import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
 
 import { resolveEffectiveEndpoint } from '../provider/endpoint'
+import { getCustomParameters } from '../utils/reasoning'
 
 const logger = loggerService.withContext('ai:outputReservation')
 
@@ -23,7 +24,8 @@ const logger = loggerService.withContext('ai:outputReservation')
  * The `max_tokens` this request will put on the wire, or `undefined` when it
  * will send none. Precedence: explicit call override → custom parameter →
  * the assistant's own limit when enabled → the model's ceiling, but only on the
- * Anthropic endpoint, whose API requires the field.
+ * Anthropic endpoint, whose API requires the field. Any requested value is then
+ * bounded by a trustworthy selected-model ceiling before it reaches the wire.
  */
 export function resolveRequestedMaxOutputTokens(
   requestMaxOutputTokens: number | undefined,
@@ -32,13 +34,26 @@ export function resolveRequestedMaxOutputTokens(
   model: Model,
   endpointType: EndpointType | undefined
 ): number | undefined {
-  if (requestMaxOutputTokens !== undefined) return requestMaxOutputTokens
-  if (typeof customMaxOutputTokens === 'number') return customMaxOutputTokens
+  let requested: number | undefined
+  if (requestMaxOutputTokens !== undefined) requested = requestMaxOutputTokens
+  else if (typeof customMaxOutputTokens === 'number') requested = customMaxOutputTokens
+  else {
+    const enableMaxTokens = assistant?.settings.enableMaxTokens ?? DEFAULT_ASSISTANT_SETTINGS.enableMaxTokens
+    if (enableMaxTokens) requested = assistant?.settings.maxTokens ?? DEFAULT_ASSISTANT_SETTINGS.maxTokens
+    else if (endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES) requested = model.maxOutputTokens
+  }
 
-  const enableMaxTokens = assistant?.settings.enableMaxTokens ?? DEFAULT_ASSISTANT_SETTINGS.enableMaxTokens
-  if (enableMaxTokens) return assistant?.settings.maxTokens ?? DEFAULT_ASSISTANT_SETTINGS.maxTokens
+  const ceiling = model.maxOutputTokens
+  if (requested === undefined || ceiling === undefined || !Number.isFinite(ceiling) || ceiling <= 0) return requested
 
-  return endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES ? model.maxOutputTokens : undefined
+  if (requested > ceiling) {
+    logger.info('Clamping requested max output tokens to the selected model limit', {
+      modelId: model.id,
+      requested,
+      ceiling
+    })
+  }
+  return Math.min(requested, ceiling)
 }
 
 /**
@@ -57,9 +72,16 @@ export function resolveOutputReservation(
   models: readonly Model[]
 ): number | undefined {
   const assistant = loadAssistant(assistantId)
+  const customMaxOutputTokens = assistant ? getCustomParameters(assistant).maxOutputTokens : undefined
   let largest: number | undefined
   for (const model of models) {
-    const reservation = resolveRequestedMaxOutputTokens(undefined, undefined, assistant, model, endpointTypeOf(model))
+    const reservation = resolveRequestedMaxOutputTokens(
+      undefined,
+      customMaxOutputTokens,
+      assistant,
+      model,
+      endpointTypeOf(model)
+    )
     if (reservation !== undefined && (largest === undefined || reservation > largest)) largest = reservation
   }
   return largest
