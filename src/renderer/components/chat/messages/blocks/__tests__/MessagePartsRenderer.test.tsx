@@ -3303,10 +3303,24 @@ describe('MessagePartsRenderer', () => {
       expect(failedTool).toHaveAttribute('data-status', 'error')
     })
 
-    it('keeps an unrecovered tool failure in the collapsed completed summary', () => {
-      renderParts([toolPart('failed', 'output-error')] as unknown as CherryMessagePart[])
+    it('shows an imported OpenCode tool failure in the collapsed summary and expanded tool row', () => {
+      renderParts([
+        {
+          type: 'dynamic-tool',
+          toolCallId: 'history:message:0',
+          toolName: 'historical_tool',
+          state: 'output-error',
+          input: { filePath: 'notes.md' },
+          errorText: 'File not found',
+          callProviderMetadata: {
+            cherry: { tool: { type: 'mcp', name: 'read', serverId: 'history-import', serverName: 'opencode' } }
+          }
+        }
+      ])
 
-      expect(screen.getByRole('button', { name: 'Error' })).toBeInTheDocument()
+      fireEvent.click(screen.getByRole('button', { name: 'Error' }))
+      expandCollapsedChildToolGroups()
+      expect(screen.getByTestId('mock-message-tools')).toHaveAttribute('data-status', 'error')
     })
 
     it('keeps terminal reasoning alongside the process error', () => {
