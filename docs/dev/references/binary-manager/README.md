@@ -113,6 +113,13 @@ Runtime dependencies have one extra rule. If an existing `node` or `python` shim
 
 Removing a runtime is guarded symmetrically. Under the mutation lock, removal of a `node` runtime is rejected while any installed `npm:` tool remains, and a `python` runtime while any installed `pipx:` tool remains — those package tools depend on the runtime's interpreter, so pulling it would strand them. The rejection names the blocking tools; the check reuses the install-side backend→runtime map (npm→node, pipx→python) rather than a dependency graph. The `pipx` half of that guard now covers only tools an earlier Cherry version installed: their virtual environments were built against mise's Python and still bind to it, while a tool installed since gets the Cherry-provisioned interpreter below and does not.
 
+### Download cache cleanup
+
+Settings → Data → Clear Cache includes mise's dedicated cache, the isolated npm content cache and
+aube's package metadata cache under App cache. When a tool mutation is active, cleanup skips those
+directories and reports a partial result. Installed tools, aube's shared dependencies and uv caches
+stay available to their consumers.
+
 ### Python for the pipx backend
 
 On macOS, isolated install/management subprocesses set `UV_CACHE_DIR` to the registered `feature.binary.data.uv_cache` only when `XDG_CACHE_HOME` contains whitespace and the registered candidate does not. The candidate is `CHERRY_HOME/cache/uv/<sha256(resolve(userData))>`, separating profiles without copying spaced profile names into the cache leaf. This install-only exception keeps uv's sdist build directories out of a spaced cache path; installed-tool execution receives no injected override. If the candidate also contains whitespace, the existing environment stays unchanged without a fallback, so space-containing homes or development roots remain a limitation.

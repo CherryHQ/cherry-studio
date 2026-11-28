@@ -23,6 +23,7 @@ import { isGatewayRoutableModel } from '@shared/utils/model'
 import type * as ImageTransportRegistryModule from '../provider/custom/imageTransportRegistry'
 import type * as ListModelsModule from '../provider/listModels'
 import type { createRetryableWrap } from '../runtime/aiSdk/retry/createRetryableWrap'
+import type { readRetryPolicy } from '../runtime/aiSdk/retry/retryPolicy'
 import type { AiStreamRequest } from '../types/requests'
 import type * as CustomFetchModule from '../utils/customFetch'
 import { makeModel } from './fixtures/model'
@@ -60,7 +61,7 @@ const mockBuildApiKeyFallbackModels = vi.fn((options?: unknown) => {
   void options
   return [] as unknown[]
 })
-const mockReadRetryPolicy = vi.fn(() => ({
+const mockReadRetryPolicy = vi.fn<typeof readRetryPolicy>(() => ({
   enabled: true,
   maxAttempts: 3,
   backoffEnabled: true,
@@ -250,7 +251,8 @@ vi.mock('../runtime/aiSdk/retry/buildApiKeyFallbackModels', () => ({
   buildApiKeyFallbackModels: (options: unknown) => mockBuildApiKeyFallbackModels(options)
 }))
 
-vi.mock('../runtime/aiSdk/retry/retryPolicy', () => ({
+vi.mock(import('../runtime/aiSdk/retry/retryPolicy'), async (importOriginal) => ({
+  ...(await importOriginal()),
   readImageMaxRetries: () => mockReadImageMaxRetries(),
   readRetryPolicy: () => mockReadRetryPolicy()
 }))

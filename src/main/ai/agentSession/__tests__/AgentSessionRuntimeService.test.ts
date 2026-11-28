@@ -815,9 +815,9 @@ describe('AgentSessionRuntimeService', () => {
     const pending = service.predictPrompt(input)
     await Promise.resolve()
     info.activeModel = { id: 'native-b' }
-    service['handleRuntimeEvent'](entry, { type: 'local-session-info', info })
+    await service['handleRuntimeEvent'](entry, { type: 'local-session-info', info })
     info.activeModel = { id: 'native-a' }
-    service['handleRuntimeEvent'](entry, { type: 'local-session-info', info })
+    await service['handleRuntimeEvent'](entry, { type: 'local-session-info', info })
     finish('stale suggestion')
     expect(await pending).toEqual({ supported: true, text: '' })
     expect(await service.predictPrompt({ ...input, localModelId: 'native-b' })).toEqual({ supported: true, text: '' })

@@ -83,6 +83,7 @@ import {
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { resolveReasoningEffortForModel } from '@renderer/utils/model'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
+import type { AgentSessionFollowup } from '@shared/ai/agentSessionFollowups'
 import { AGENT_SESSION_RUNTIME_CONTROLS_CACHE_KEY } from '@shared/ai/agentSessionRuntimeControls'
 import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
 import { getLocalAgentProtocol, getLocalSessionPermission } from '@shared/ai/localAgent'
@@ -197,6 +198,7 @@ export interface AgentComposerSendBody {
   serviceTier?: ServiceTierSelection
   fastMode?: boolean
   followUp?: boolean
+  resendUnsentMessageId?: string
 }
 
 export type AgentComposerSendOptions = { body?: AgentComposerSendBody }
@@ -232,6 +234,7 @@ type Props = {
   compactWhenSingleLine?: boolean
   previewInputFile?: ComposerInputFilePreviewAction
   launchOptions?: AgentComposerLaunchOptions
+  onEditQueuedFollowup?: (topicId: string, item: AgentSessionFollowup) => void
   /** Sends during a running turn steer it instead of queueing, for windows that cannot keep a queue alive. */
   steerWhileBusy?: boolean
   /** The latest reply failed because a provider other than Cherry Cloud ran out of quota. */
@@ -267,6 +270,7 @@ const AgentComposerRoot = ({
   compactWhenSingleLine = false,
   previewInputFile,
   launchOptions,
+  onEditQueuedFollowup,
   steerWhileBusy = false,
   providerQuotaExhausted = false,
   renderControls,
@@ -448,6 +452,7 @@ const AgentComposerRoot = ({
         compactWhenSingleLine={compactWhenSingleLine}
         previewInputFile={previewInputFile}
         launchOptions={launchOptions}
+        onEditQueuedFollowup={onEditQueuedFollowup}
         steerWhileBusy={steerWhileBusy}
         providerQuotaExhausted={providerQuotaExhausted}
         renderControls={renderControls}
@@ -494,6 +499,7 @@ interface InnerProps {
   compactWhenSingleLine: boolean
   previewInputFile?: ComposerInputFilePreviewAction
   launchOptions?: AgentComposerLaunchOptions
+  onEditQueuedFollowup?: (topicId: string, item: AgentSessionFollowup) => void
   steerWhileBusy: boolean
   providerQuotaExhausted: boolean
   renderControls: AgentComposerControlsRenderer
@@ -586,6 +592,7 @@ const AgentComposerInner = ({
   compactWhenSingleLine,
   previewInputFile,
   launchOptions,
+  onEditQueuedFollowup,
   steerWhileBusy,
   providerQuotaExhausted,
   renderControls,
@@ -1513,7 +1520,7 @@ const AgentComposerInner = ({
   )
 
   const sendQueuedPayload = useCallback(
-    async (payload: ComposerQueuedMessagePayload, followUp = false) => {
+    async (payload: ComposerQueuedMessagePayload, followUp = false, resendUnsentMessageId?: string) => {
       if (sendDisabled) return false
       try {
         const attachments = (payload.attachments as ComposerAttachment[] | undefined) ?? []
@@ -1543,7 +1550,8 @@ const AgentComposerInner = ({
               reasoningEffort: payload.reasoningEffort,
               serviceTier: payload.serviceTier,
               ...(payload.fastMode ? { fastMode: true } : {}),
-              ...(followUp ? { followUp: true } : {})
+              ...(followUp ? { followUp: true } : {}),
+              ...(resendUnsentMessageId ? { resendUnsentMessageId } : {})
             }
           }
         )
@@ -1692,7 +1700,11 @@ const AgentComposerInner = ({
       const data = payload as { topicId?: string; messageId?: string; parts?: CherryMessagePart[]; send?: boolean }
       if (!data?.messageId || !data.parts?.length || data.topicId !== sessionTopicId) return
       if (data.send) {
-        void sendQueuedPayload({ text: getComposerHistoryText(data.parts), userMessageParts: data.parts }, isStreaming)
+        void sendQueuedPayload(
+          { text: getComposerHistoryText(data.parts), userMessageParts: data.parts },
+          isStreaming,
+          data.messageId
+        )
         return
       }
       if (actionsRef.current.getDraft().text.trim() || filesRef.current.length > 0) {
@@ -2049,8 +2061,13 @@ const AgentComposerInner = ({
                   description={compaction.error}
                 />
               )}
-              {hasDurableFollowUp && !launchOptions?.editing ? (
-                <NativeQueuedFollowups key={runtimeTopicId} topicId={runtimeTopicId} />
+              {hasDurableFollowUp && onEditQueuedFollowup ? (
+                <NativeQueuedFollowups
+                  key={runtimeTopicId}
+                  topicId={runtimeTopicId}
+                  canSteer={isStreaming}
+                  onEdit={launchOptions?.editing ? undefined : onEditQueuedFollowup}
+                />
               ) : null}
               {queuedFollowups.length > 0 ? (
                 <QueuedFollowupsDock

@@ -48,6 +48,7 @@ export function connectCodexAppServer(
   handlers: CodexClientHandlers = {}
 ) {
   const lines = createInterface({ input: stdout, crlfDelay: Infinity })
+  const pendingReplies = new Set<Promise<void>>()
   let closed: Error | undefined
 
   function write(frame: object): Promise<void> {
@@ -100,7 +101,12 @@ export function connectCodexAppServer(
     if (message && typeof message === 'object' && 'method' in message) {
       const { method, id, params = {} } = incomingCall.parse(message)
       if (id === undefined) handlers.onNotification?.({ method, params })
-      else void handleRequest(id, { method, params }).catch(disconnected)
+      else {
+        const reply = handleRequest(id, { method, params })
+          .catch(disconnected)
+          .finally(() => pendingReplies.delete(reply))
+        pendingReplies.add(reply)
+      }
     } else {
       const reply = incomingReply.parse(message)
       const bound = bindings.get(reply.id)
@@ -195,7 +201,14 @@ export function connectCodexAppServer(
       if (closed) throw closed
       const version = /\/(\d+)\.(\d+)\.\d+/.exec(userAgent)
       const atLeast = (minor: number) => !!version && (Number(version[1]) > 0 || Number(version[2]) >= minor)
-      return { request, listModels, atLeast }
+      return {
+        request,
+        listModels,
+        atLeast,
+        async flushServerReplies() {
+          await Promise.all(pendingReplies)
+        }
+      }
     } catch (error) {
       disconnected(error)
       throw error

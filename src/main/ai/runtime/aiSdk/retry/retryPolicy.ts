@@ -2,7 +2,8 @@ import { application } from '@application'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import type { RetryFallbackModelId } from '@shared/data/preference/preferenceTypes'
 
-import type { RecoverableModelTransportFailure } from '../failureFacts'
+import { type RecoverableModelTransportFailure, recoverableModelTransportFailure } from '../failureFacts'
+import { MAX_OUTPUT_TOKEN_RETRIES } from './outputTokenRetry'
 
 export const MIN_RETRY_ATTEMPTS = 1
 export const MAX_RETRY_ATTEMPTS = 10
@@ -55,4 +56,38 @@ export function readImageMaxRetries(): number {
   const finiteAttempts = Number.isFinite(configured) ? configured : DEFAULT_IMAGE_MAX_RETRIES
 
   return Math.min(MAX_RETRY_ATTEMPTS, Math.max(MIN_IMAGE_RETRY_ATTEMPTS, Math.trunc(finiteAttempts)))
+}
+
+type ModelRetryPolicyInput =
+  | { owner: 'chat'; maxRetries?: number; hasApiKeyFallbacks?: boolean }
+  | { owner: 'caller'; maxRetries?: number; recoverOutputTokens?: boolean; handlesTransportRetry?: boolean }
+
+export function resolveModelRetryPolicy(configured: RetryPolicy, input: ModelRetryPolicyInput) {
+  const { maxRetries } = input
+  if (input.owner === 'caller') {
+    const enabled = maxRetries !== undefined && maxRetries > 0
+    const maxAttempts = enabled ? Math.max(1, Math.trunc(maxRetries)) : MAX_OUTPUT_TOKEN_RETRIES
+    return {
+      retryPolicy: { ...configured, enabled, maxAttempts, fallbackModelIds: [] },
+      outputTokenRetries: enabled || input.recoverOutputTokens ? Math.min(maxAttempts, MAX_OUTPUT_TOKEN_RETRIES) : 0,
+      shouldRetryError: input.handlesTransportRetry
+        ? (error: unknown) => recoverableModelTransportFailure(error) === undefined
+        : undefined
+    }
+  }
+
+  const retryPolicy =
+    maxRetries === 0
+      ? { ...configured, enabled: false }
+      : !configured.enabled && input.hasApiKeyFallbacks && maxRetries !== undefined && maxRetries > 0
+        ? { ...configured, enabled: true, maxAttempts: Math.max(1, Math.trunc(maxRetries)), fallbackModelIds: [] }
+        : configured
+  return {
+    retryPolicy,
+    outputTokenRetries: Math.min(
+      MAX_OUTPUT_TOKEN_RETRIES,
+      retryPolicy.enabled ? retryPolicy.maxAttempts : MAX_OUTPUT_TOKEN_RETRIES,
+      maxRetries === undefined ? MAX_OUTPUT_TOKEN_RETRIES : Math.max(0, Math.trunc(maxRetries))
+    )
+  }
 }
