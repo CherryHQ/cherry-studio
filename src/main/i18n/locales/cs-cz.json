@@ -226,6 +226,8 @@
   "dialog.legacy_upgrade.prerequisite": "Nainstalujte a otevřete v{{version}}. V nabídce Nastavení → O aplikaci vyhledejte aktualizace a postupujte podle pokynů.",
   "dialog.legacy_upgrade.prerequisite_portable": "Vložte přenosný soubor EXE v{{prerequisite}} do stejné složky jako původní soubor EXE Cherry Studio. Jednou ho spusťte a potom ukončete. Do stejné složky vložte přenosný soubor EXE v{{version}}, spusťte ho a podle pokynů převeďte data. Zachovejte stávající složku data. Po převodu spusťte verzi, na kterou jste původně chtěli přejít.",
   "dialog.legacy_upgrade.quit": "Ukončit",
+  "dialog.legacy_upgrade.recovery_detail": "Datový adresář {{path}} již obsahuje data Cherry Studio v2, ale jejich migrace nebyla nikdy dokončena a nezůstala žádná starší data k převodu. Data zůstala beze změny. Než zkusíte cokoli jiného, tento adresář zálohujte, a pokud máte zálohu, obnovte ji.",
+  "dialog.legacy_upgrade.recovery_title": "Nedokončená migrace dat",
   "dialog.legacy_upgrade.retry": "Zkusit znovu",
   "dialog.legacy_upgrade.title": "Upgrade vyžaduje migraci dat",
   "dialog.mini_app_export": "Exportovat z {{name}}",

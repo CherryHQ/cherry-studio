@@ -226,6 +226,8 @@
   "dialog.legacy_upgrade.prerequisite": "Installa e apri v{{version}}. In Impostazioni → Informazioni, controlla la disponibilità di aggiornamenti e segui le istruzioni.",
   "dialog.legacy_upgrade.prerequisite_portable": "Metti il file EXE portatile della v{{prerequisite}} nella stessa cartella del file EXE originale di Cherry Studio. Avvialo una volta, poi chiudi l’app. Metti il file EXE portatile della v{{version}} nella stessa cartella, avvialo e segui le istruzioni per migrare i dati. Conserva la cartella data esistente. Dopo la migrazione, apri la versione a cui volevi aggiornare in origine.",
   "dialog.legacy_upgrade.quit": "Esci",
+  "dialog.legacy_upgrade.recovery_detail": "La directory dei dati {{path}} contiene già dati di Cherry Studio v2, ma la loro migrazione non è mai stata completata e non restano dati precedenti da convertire. I dati non sono stati modificati. Esegui il backup di questa directory prima di provare qualsiasi altra operazione e ripristina un backup, se disponibile.",
+  "dialog.legacy_upgrade.recovery_title": "Migrazione dei dati incompleta",
   "dialog.legacy_upgrade.retry": "Riprova",
   "dialog.legacy_upgrade.title": "La versione richiede la migrazione dei dati",
   "dialog.mini_app_export": "Esporta da {{name}}",

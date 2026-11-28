@@ -226,6 +226,8 @@
   "dialog.legacy_upgrade.prerequisite": "Cài đặt và mở v{{version}}. Vào Cài đặt → Giới thiệu, chọn kiểm tra bản cập nhật và làm theo hướng dẫn.",
   "dialog.legacy_upgrade.prerequisite_portable": "Đặt tệp EXE bản di động v{{prerequisite}} vào cùng thư mục với tệp EXE Cherry Studio ban đầu. Mở một lần rồi thoát. Đặt tệp EXE bản di động v{{version}} vào cùng thư mục đó, mở tệp rồi làm theo hướng dẫn để chuyển dữ liệu. Giữ nguyên thư mục data hiện có. Sau khi chuyển xong, mở phiên bản mà ban đầu bạn định nâng cấp lên.",
   "dialog.legacy_upgrade.quit": "Thoát",
+  "dialog.legacy_upgrade.recovery_detail": "Thư mục dữ liệu {{path}} đã chứa dữ liệu Cherry Studio v2, nhưng quá trình chuyển đổi dữ liệu chưa bao giờ hoàn tất và không còn dữ liệu cũ để chuyển đổi. Dữ liệu vẫn được giữ nguyên. Hãy sao lưu thư mục này trước khi thử bất kỳ thao tác nào khác và khôi phục bản sao lưu nếu bạn có.",
+  "dialog.legacy_upgrade.recovery_title": "Chuyển đổi dữ liệu chưa hoàn tất",
   "dialog.legacy_upgrade.retry": "Thử lại",
   "dialog.legacy_upgrade.title": "Cần chuyển đổi dữ liệu trước khi nâng cấp",
   "dialog.mini_app_export": "Xuất từ {{name}}",

@@ -2,6 +2,8 @@ import { dialog } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
+import type * as LegacyBridgeInstallerModule from '@data/migration/legacyBridgeInstaller'
+import { getLegacyBridgeEligibility } from '@data/migration/legacyBridgeInstaller'
 import type * as LegacyUpgradeModule from '@data/migration/legacyUpgrade'
 import { findLegacyUpgradeProfile } from '@data/migration/legacyUpgrade'
 import { showLegacyUpgradeWindow } from '@data/migration/legacyUpgradeWindow'
@@ -14,6 +16,16 @@ vi.mock('@data/migration/legacyUpgrade', async (importOriginal) => ({
   ...(await importOriginal<typeof LegacyUpgradeModule>()),
   findLegacyUpgradeProfile: vi.fn()
 }))
+
+vi.mock('@data/migration/legacyBridgeInstaller', async (importOriginal) => {
+  const actual = await importOriginal<typeof LegacyBridgeInstallerModule>()
+  return {
+    ...actual,
+    getLegacyBridgeEligibility: vi.fn((...args: Parameters<typeof actual.getLegacyBridgeEligibility>) =>
+      actual.getLegacyBridgeEligibility(...args)
+    )
+  }
+})
 
 vi.mock('@main/utils/appEdition', () => ({ getAppEdition: () => 'global' }))
 
@@ -32,6 +44,7 @@ describe('legacy upgrade gate', () => {
     vi.clearAllMocks()
     vi.mocked(findLegacyUpgradeProfile).mockReturnValue({ kind: 'legacy', path: '/legacy/profile' })
     vi.mocked(showLegacyUpgradeWindow).mockResolvedValue(undefined)
+    vi.mocked(dialog.showMessageBox).mockResolvedValue({ response: 0, checkboxChecked: false })
     vi.mocked(bootConfigService.get).mockReturnValue(null)
     vi.mocked(bootConfigService.persist).mockImplementation(() => {})
   })
@@ -103,6 +116,31 @@ describe('legacy upgrade gate', () => {
     expect(application.relaunch).not.toHaveBeenCalled()
     expect(application.quit).toHaveBeenCalledOnce()
     expect(showLegacyUpgradeWindow).not.toHaveBeenCalled()
+  })
+
+  it('shows a non-destructive recovery dialog and quits without bridge checks when recovery is required', async () => {
+    vi.mocked(findLegacyUpgradeProfile).mockReturnValue({ kind: 'recovery', path: '/incomplete/profile' })
+    expect(await runLegacyUpgradeGate()).toBe('handled')
+    expect(dialog.showMessageBox).toHaveBeenCalledOnce()
+    expect(dialog.showMessageBox).toHaveBeenCalledWith({
+      type: 'warning',
+      title: 'Incomplete data migration',
+      message: 'Incomplete data migration',
+      detail: expect.stringContaining('/incomplete/profile'),
+      buttons: ['Quit'],
+      defaultId: 0,
+      cancelId: 0
+    })
+    const [{ detail }] = vi.mocked(dialog.showMessageBox).mock.calls[0]
+    expect(detail).toContain('Cherry Studio v2')
+    expect(detail).toContain('left untouched')
+    expect(detail).toContain('Back up this directory')
+    expect(getLegacyBridgeEligibility).not.toHaveBeenCalled()
+    expect(showLegacyUpgradeWindow).not.toHaveBeenCalled()
+    expect(bootConfigService.set).not.toHaveBeenCalled()
+    expect(bootConfigService.persist).not.toHaveBeenCalled()
+    expect(application.relaunch).not.toHaveBeenCalled()
+    expect(application.quit).toHaveBeenCalledOnce()
   })
 
   it('fails closed on inspection errors', async () => {

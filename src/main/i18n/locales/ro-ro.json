@@ -226,6 +226,8 @@
   "dialog.legacy_upgrade.prerequisite": "Instalați și deschideți v{{version}}. În Setări → Despre, verificați dacă există actualizări și urmați instrucțiunile.",
   "dialog.legacy_upgrade.prerequisite_portable": "Puneți fișierul EXE portabil v{{prerequisite}} în același dosar cu fișierul EXE original Cherry Studio. Deschideți-l o dată, apoi închideți aplicația. Puneți fișierul EXE portabil v{{version}} în același dosar, deschideți-l și urmați instrucțiunile de migrare. Păstrați dosarul data existent. După migrare, deschideți versiunea la care ați dorit inițial să actualizați aplicația.",
   "dialog.legacy_upgrade.quit": "Ieșire",
+  "dialog.legacy_upgrade.recovery_detail": "Directorul de date {{path}} conține deja date Cherry Studio v2, dar migrarea acestora nu s-a finalizat niciodată și nu au mai rămas date vechi de convertit. Datele au rămas neatinse. Faceți o copie de rezervă a acestui director înainte de a încerca altceva și restaurați o copie de rezervă dacă aveți una.",
+  "dialog.legacy_upgrade.recovery_title": "Migrare incompletă a datelor",
   "dialog.legacy_upgrade.retry": "Reîncearcă",
   "dialog.legacy_upgrade.title": "Actualizarea necesită migrarea datelor",
   "dialog.mini_app_export": "Exportă din {{name}}",

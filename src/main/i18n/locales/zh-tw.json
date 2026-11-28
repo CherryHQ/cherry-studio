@@ -226,6 +226,8 @@
   "dialog.legacy_upgrade.prerequisite": "請安裝並開啟 v{{version}}，在「設定 → 關於」中點選「檢查更新」，依照提示完成升級。",
   "dialog.legacy_upgrade.prerequisite_portable": "請將下載的 v{{prerequisite}} 可攜版 EXE 放到原 Cherry Studio EXE 所在的資料夾，執行一次後結束。再將 v{{version}} 可攜版 EXE 放到同一資料夾，執行並依照提示完成資料移轉。請保留原有的 data 資料夾。移轉完成後，開啟你原本要升級到的版本。",
   "dialog.legacy_upgrade.quit": "結束",
+  "dialog.legacy_upgrade.recovery_detail": "資料目錄 {{path}} 中已包含 Cherry Studio v2 資料，但遷移從未完成，且已沒有可供轉換的舊版資料。現有資料未被更動。請先備份此目錄再嘗試其他操作，如有備份請從備份還原。",
+  "dialog.legacy_upgrade.recovery_title": "資料遷移未完成",
   "dialog.legacy_upgrade.retry": "重試",
   "dialog.legacy_upgrade.title": "升級前需要遷移資料",
   "dialog.mini_app_export": "從 {{name}} 匯出",

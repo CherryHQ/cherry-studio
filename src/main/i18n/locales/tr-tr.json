@@ -226,6 +226,8 @@
   "dialog.legacy_upgrade.prerequisite": "v{{version}} sürümünü kurup açın. Ayarlar → Hakkında bölümünden güncellemeleri kontrol edin ve yönergeleri izleyin.",
   "dialog.legacy_upgrade.prerequisite_portable": "v{{prerequisite}} taşınabilir EXE dosyasını özgün Cherry Studio EXE dosyasıyla aynı klasöre koyun. Bir kez çalıştırıp kapatın. Ardından v{{version}} taşınabilir EXE dosyasını aynı klasöre koyun, çalıştırın ve verilerinizi taşımak için yönergeleri izleyin. Mevcut data klasörünü koruyun. Taşıma tamamlandığında başta yükseltmek istediğiniz sürümü açın.",
   "dialog.legacy_upgrade.quit": "Çıkış",
+  "dialog.legacy_upgrade.recovery_detail": "{{path}} veri dizini zaten Cherry Studio v2 verilerini içeriyor, ancak veri geçişi hiçbir zaman tamamlanmadı ve dönüştürülecek eski veri kalmadı. Verilere dokunulmadı. Başka bir işlem denemeden önce bu dizini yedekleyin ve varsa bir yedeği geri yükleyin.",
+  "dialog.legacy_upgrade.recovery_title": "Tamamlanmamış veri geçişi",
   "dialog.legacy_upgrade.retry": "Yeniden dene",
   "dialog.legacy_upgrade.title": "Yükseltme için veri geçişi gerekiyor",
   "dialog.mini_app_export": "{{name}} üzerinden dışa aktar",

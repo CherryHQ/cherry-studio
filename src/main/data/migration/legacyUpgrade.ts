@@ -77,19 +77,21 @@ function statIfPresent(file: string) {
 }
 
 /** Read-only: classification must never initialize or migrate the user's database. */
-export function inspectLegacyProfile(userData: string): 'fresh' | 'ready' | 'legacy' {
+export function inspectLegacyProfile(userData: string): 'fresh' | 'ready' | 'legacy' | 'recovery' {
   const paths = getLegacyProfilePaths(userData)
   if (statIfPresent(paths.database)?.size) {
     const db = new Database(paths.database, { readonly: true, fileMustExist: true })
     try {
       const value = db.prepare('SELECT value FROM app_state WHERE key = ?').pluck().get(MIGRATION_V2_STATUS)
-      if (value !== undefined) {
-        const status = migrationStatusSchema.parse(JSON.parse(z.string().parse(value)))
-        return status.status === 'completed' ? 'ready' : 'legacy'
-      }
+      const status =
+        value !== undefined ? migrationStatusSchema.parse(JSON.parse(z.string().parse(value))).status : undefined
+      if (status === 'completed') return 'ready'
       // The retired converter created schemas before recording progress, but never ran seeders.
-      const seeded = db.prepare('SELECT key FROM app_state WHERE key LIKE ? LIMIT 1').get(`${SEED_KEY_PREFIX}%`)
-      if (seeded) return 'ready'
+      if (status === undefined) {
+        const seeded = db.prepare('SELECT key FROM app_state WHERE key LIKE ? LIMIT 1').get(`${SEED_KEY_PREFIX}%`)
+        if (seeded) return 'ready'
+      }
+      return 'recovery'
     } finally {
       db.close()
     }
@@ -165,7 +167,16 @@ function isPortableExecutable(executable: string) {
   return executable.replaceAll('\\', '/').split('/').at(-1)?.toLowerCase() === 'cherry-studio-portable.exe'
 }
 
-export type LegacyUpgradeProfile = { kind: 'legacy' | 'recover'; path: string }
+function hasConvertibleLegacySource(userData: string): boolean {
+  const paths = getLegacyProfilePaths(userData)
+  return Boolean(statIfPresent(paths.indexedDb)?.isDirectory() && statIfPresent(paths.localStorage)?.isDirectory())
+}
+
+function classifyRecoveryProfile(profilePath: string): LegacyUpgradeProfile {
+  return { kind: hasConvertibleLegacySource(profilePath) ? 'legacy' : 'recovery', path: profilePath }
+}
+
+export type LegacyUpgradeProfile = { kind: 'legacy' | 'recover' | 'recovery'; path: string }
 
 /** Classifies a selected profile without redirecting or writing it. */
 export function findLegacyUpgradeProfile(): LegacyUpgradeProfile | undefined {
@@ -176,6 +187,7 @@ export function findLegacyUpgradeProfile(): LegacyUpgradeProfile | undefined {
   const state = inspectLegacyProfile(current)
   if (state === 'ready') return undefined
   if (state === 'legacy') return { kind: 'legacy', path: current }
+  if (state === 'recovery') return classifyRecoveryProfile(current)
   if (!app.isPackaged || configured) return undefined
 
   const configFile = application.getPath('v1.home_config_file')
@@ -195,7 +207,9 @@ export function findLegacyUpgradeProfile(): LegacyUpgradeProfile | undefined {
       throw new Error(`Data directory unavailable: ${entry.dataPath}`)
     }
     const candidate = inspectLegacyProfile(entry.dataPath)
-    if (candidate !== 'fresh') return { kind: candidate === 'ready' ? 'recover' : 'legacy', path: entry.dataPath }
+    if (candidate === 'ready') return { kind: 'recover', path: entry.dataPath }
+    if (candidate === 'legacy') return { kind: 'legacy', path: entry.dataPath }
+    if (candidate === 'recovery') return classifyRecoveryProfile(entry.dataPath)
   }
   return undefined
 }

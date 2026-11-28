@@ -8,11 +8,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
 import { appStateTable } from '@data/db/schemas/appState'
+import { assistantTable } from '@data/db/schemas/assistant'
+import { messageTable } from '@data/db/schemas/message'
+import { topicTable } from '@data/db/schemas/topic'
+import { userProviderTable } from '@data/db/schemas/userProvider'
 import { LegacyFileCleanupPolicySeeder } from '@data/db/seeding/seeders/legacyFileCleanupPolicySeeder'
 import { SeedRunner } from '@data/db/seeding/SeedRunner'
 import { getNormalizedExecutablePath } from '@main/core/preboot/userDataLocation'
 import type * as UserDataLocationModule from '@main/core/preboot/userDataLocation'
 import { bootConfigService } from '@main/data/bootConfig'
+import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 
 import {
   findLegacyUpgradeProfile,
@@ -55,6 +60,58 @@ describe('legacy profile detection', () => {
     if (value !== undefined) dbh.db.insert(appStateTable).values({ key: MIGRATION_V2_STATUS, value }).run()
     fs.mkdirSync(path.join(profile, 'Data'))
     await dbh.sqlite.backup(path.join(profile, 'Data/cherrystudio.sqlite'))
+  }
+
+  function seedPopulatedV2UserData() {
+    dbh.db
+      .insert(assistantTable)
+      .values({ name: 'Existing Assistant', emoji: '🌟', orderKey: 'a0', settings: DEFAULT_ASSISTANT_SETTINGS })
+      .run()
+    const [topic] = dbh.db
+      .insert(topicTable)
+      .values({ name: 'Existing Conversation', orderKey: 'a0' })
+      .returning()
+      .all()
+    const [rootMsg] = dbh.db
+      .insert(messageTable)
+      .values({ topicId: topic.id, parentId: null, role: 'root', status: 'success', data: { parts: [] } })
+      .returning()
+      .all()
+    dbh.db
+      .insert(messageTable)
+      .values({
+        topicId: topic.id,
+        parentId: rootMsg.id,
+        role: 'user',
+        status: 'success',
+        data: { parts: [{ type: 'text', text: 'hello' }] }
+      })
+      .run()
+    dbh.db
+      .insert(userProviderTable)
+      .values({ providerId: 'openai', name: 'OpenAI', isEnabled: true, orderKey: 'a0' })
+      .run()
+  }
+
+  function createChromiumStorage(dir = profile) {
+    fs.mkdirSync(path.join(dir, 'IndexedDB'))
+    fs.mkdirSync(path.join(dir, 'Local Storage'))
+  }
+
+  function snapshotProfileState(dir = profile) {
+    const dbFile = path.join(dir, 'Data/cherrystudio.sqlite')
+    return {
+      dbFile,
+      dbBytes: fs.readFileSync(dbFile),
+      profileEntries: fs.readdirSync(dir).sort(),
+      dataEntries: fs.readdirSync(path.join(dir, 'Data')).sort()
+    }
+  }
+
+  function expectProfileUnchanged(snapshot: ReturnType<typeof snapshotProfileState>, dir = profile) {
+    expect(fs.readFileSync(snapshot.dbFile)).toEqual(snapshot.dbBytes)
+    expect(fs.readdirSync(dir).sort()).toEqual(snapshot.profileEntries)
+    expect(fs.readdirSync(path.join(dir, 'Data')).sort()).toEqual(snapshot.dataEntries)
   }
 
   it.each([true, undefined])('restores an interrupted tray-on-close preference (%s)', (trayOnClose) => {
@@ -127,16 +184,19 @@ describe('legacy profile detection', () => {
   it('blocks a converter crash after schema creation but before the first status record', async () => {
     await copyDatabase()
     fs.writeFileSync(path.join(profile, 'version.log'), '1.9.12')
-    expect(findLegacyUpgradeProfile()).toEqual({ kind: 'legacy', path: profile })
+    const snapshot = snapshotProfileState()
+    expect(inspectLegacyProfile(profile)).toBe('recovery')
+    expect(findLegacyUpgradeProfile()).toEqual({ kind: 'recovery', path: profile })
+    expectProfileUnchanged(snapshot)
     expect(dbh.db.select().from(appStateTable).all()).toEqual([])
   })
 
   it.each(['failed', 'in_progress'])('blocks %s conversion without changing persisted data', async (status) => {
     await copyDatabase({ status })
-    const file = path.join(profile, 'Data/cherrystudio.sqlite')
-    const before = fs.readFileSync(file)
-    expect(findLegacyUpgradeProfile()).toEqual({ kind: 'legacy', path: profile })
-    expect(fs.readFileSync(file)).toEqual(before)
+    const snapshot = snapshotProfileState()
+    expect(inspectLegacyProfile(profile)).toBe('recovery')
+    expect(findLegacyUpgradeProfile()).toEqual({ kind: 'recovery', path: profile })
+    expectProfileUnchanged(snapshot)
     expect(isMigratedFromV1()).toBe(false)
   })
 
@@ -154,6 +214,113 @@ describe('legacy profile detection', () => {
   })
 
   it('fails closed on malformed migration status', async () => {
+    await copyDatabase({ status: 'unknown' })
+    expect(() => findLegacyUpgradeProfile()).toThrow()
+  })
+
+  it.each(['failed', 'in_progress'] as const)(
+    'routes %s conversion with committed rows to legacy bridge when Chromium storage exists',
+    async (status) => {
+      seedPopulatedV2UserData()
+      await copyDatabase({ status })
+      createChromiumStorage()
+      const snapshot = snapshotProfileState()
+
+      expect(inspectLegacyProfile(profile)).toBe('recovery')
+      expect(findLegacyUpgradeProfile()).toEqual({ kind: 'legacy', path: profile })
+      expectProfileUnchanged(snapshot)
+    }
+  )
+
+  it.each(['failed', 'in_progress'] as const)(
+    'routes %s conversion with committed rows to non-destructive recovery when Chromium storage is absent',
+    async (status) => {
+      seedPopulatedV2UserData()
+      await copyDatabase({ status })
+      fs.writeFileSync(path.join(profile, 'version.log'), '2.2.2')
+      fs.writeFileSync(path.join(profile, 'config.json'), '{"theme":"dark"}')
+      const snapshot = snapshotProfileState()
+
+      expect(inspectLegacyProfile(profile)).toBe('recovery')
+      expect(findLegacyUpgradeProfile()).toEqual({ kind: 'recovery', path: profile })
+      expectProfileUnchanged(snapshot)
+    }
+  )
+
+  it.each(['IndexedDB', 'Local Storage'] as const)(
+    'requires both Chromium directories to offer the legacy bridge for recovery profiles (only %s present)',
+    async (presentDir) => {
+      seedPopulatedV2UserData()
+      await copyDatabase({ status: 'failed' })
+      fs.mkdirSync(path.join(profile, presentDir))
+      const snapshot = snapshotProfileState()
+
+      expect(inspectLegacyProfile(profile)).toBe('recovery')
+      expect(findLegacyUpgradeProfile()).toEqual({ kind: 'recovery', path: profile })
+      expectProfileUnchanged(snapshot)
+    }
+  )
+
+  it('routes a markerless database with committed rows and no seed journal to recovery when Chromium storage is absent', async () => {
+    seedPopulatedV2UserData()
+    await copyDatabase()
+    fs.writeFileSync(path.join(profile, 'version.log'), '2.2.2')
+    fs.writeFileSync(path.join(profile, 'config.json'), '{"theme":"dark"}')
+    const snapshot = snapshotProfileState()
+
+    expect(inspectLegacyProfile(profile)).toBe('recovery')
+    expect(findLegacyUpgradeProfile()).toEqual({ kind: 'recovery', path: profile })
+    expectProfileUnchanged(snapshot)
+  })
+
+  it('routes a markerless database with committed rows and no seed journal to legacy bridge when Chromium storage exists', async () => {
+    seedPopulatedV2UserData()
+    await copyDatabase()
+    createChromiumStorage()
+    const snapshot = snapshotProfileState()
+
+    expect(inspectLegacyProfile(profile)).toBe('recovery')
+    expect(findLegacyUpgradeProfile()).toEqual({ kind: 'legacy', path: profile })
+    expectProfileUnchanged(snapshot)
+  })
+
+  it('recognizes a seeded post-retirement v2 database with committed user data as ready', async () => {
+    new SeedRunner(dbh.db).runAll([new LegacyFileCleanupPolicySeeder()])
+    seedPopulatedV2UserData()
+    await copyDatabase()
+    fs.writeFileSync(path.join(profile, 'version.log'), '2.2.3')
+    fs.writeFileSync(path.join(profile, 'config.json'), '{"theme":"dark"}')
+    const snapshot = snapshotProfileState()
+
+    expect(inspectLegacyProfile(profile)).toBe('ready')
+    expect(findLegacyUpgradeProfile()).toBeUndefined()
+    expectProfileUnchanged(snapshot)
+  })
+
+  it.each([true, false])(
+    'classifies an interrupted custom profile (convertible source=%s) without modifying files',
+    async (hasConvertibleSource) => {
+      seedPopulatedV2UserData()
+      await copyDatabase({ status: 'failed' })
+      const custom = path.join(root, 'custom')
+      fs.renameSync(profile, custom)
+      fs.mkdirSync(profile)
+      if (hasConvertibleSource) createChromiumStorage(custom)
+      else fs.writeFileSync(path.join(custom, 'config.json'), '{"theme":"dark"}')
+      fs.writeFileSync(configFile, JSON.stringify({ appDataPath: custom }))
+      const snapshot = snapshotProfileState(custom)
+
+      expect(findLegacyUpgradeProfile()).toEqual({
+        kind: hasConvertibleSource ? 'legacy' : 'recovery',
+        path: custom
+      })
+      expectProfileUnchanged(snapshot, custom)
+      expect(fs.readdirSync(profile)).toEqual([])
+    }
+  )
+
+  it('still fails closed on malformed migration status even when v2 user data exists', async () => {
+    dbh.db.insert(topicTable).values({ name: 'Existing Conversation', orderKey: 'a0' }).run()
     await copyDatabase({ status: 'unknown' })
     expect(() => findLegacyUpgradeProfile()).toThrow()
   })
