@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 import { normalizeProviderError } from '@main/ai/runtime/aiSdk/params/features/providerErrorBoundary'
 import { createLocalError } from '@shared/utils/localError'
 
+import { PiRetiredHistoryValidationError } from '../../runtime/pi/retiredSessionHistory'
 import { serializeError } from '../serializeError'
 
 describe('serializeError', () => {
@@ -381,6 +382,18 @@ describe('serializeError', () => {
 
       expect(result.toolName).toBe('missing_tool')
       expect(result.availableTools).toEqual(['alpha', 'beta'])
+    })
+
+    it('carries retired-history validation recovery copy through the localized error path', () => {
+      const result = serializeError(new PiRetiredHistoryValidationError('session-abc'))
+
+      expect(result).toMatchObject({
+        name: 'PiRetiredHistoryValidationError',
+        i18nKey: 'pi_retired_history_validation_failed',
+        detailI18nKey: 'pi_retired_history_validation_failed_detail',
+        detailI18nValues: { sessionId: 'session-abc' },
+        sessionId: 'session-abc'
+      })
     })
   })
 })

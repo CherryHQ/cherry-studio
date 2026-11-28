@@ -19,6 +19,29 @@ import { loadPiSdk } from './piSdk'
 const logger = loggerService.withContext('retiredSessionHistory')
 const pending = new Map<string, Promise<void>>()
 
+/**
+ * Retired-history validation failure with localized recovery copy.
+ * The composer preflight surfaces `i18nKey`/`detailI18nKey` instead of the
+ * English fallback so non-English UIs get a translated retry instruction
+ * with the session identity preserved for diagnostics.
+ */
+export class PiRetiredHistoryValidationError extends Error {
+  override name = 'PiRetiredHistoryValidationError'
+  readonly i18nKey = 'pi_retired_history_validation_failed'
+  readonly detailI18nKey = 'pi_retired_history_validation_failed_detail'
+  readonly detailI18nValues: Record<string, string>
+  readonly sessionId: string
+
+  constructor(sessionId: string) {
+    super(
+      `Pi runtime retired-session migration failed validation for session ${sessionId}; ` +
+        `the migrated history was not saved. Retry opening the session — migration will be attempted again automatically.`
+    )
+    this.sessionId = sessionId
+    this.detailI18nValues = { sessionId }
+  }
+}
+
 export async function migrateRetiredSessionHistories(): Promise<void> {
   const db = application.get('DbService').getDb()
   for (const migration of listRetiredAgentSessionMigrations(db)) {
@@ -147,7 +170,7 @@ async function importHistory(sessionId: string): Promise<void> {
       reopened.getSessionId() !== migration.resumeToken ||
       reopened.getEntries().length !== manager.getEntries().length
     ) {
-      throw new Error('Retired session history validation failed')
+      throw new PiRetiredHistoryValidationError(sessionId)
     }
     await rename(temporary, file)
     application

@@ -67,3 +67,23 @@ it('keeps Cloud rate limits retryable even when their text mentions quota', asyn
   await shown.action!.onClick()
   expect(retry).toHaveBeenCalledOnce()
 })
+
+describe('app-owned localized toasts', () => {
+  it('renders retired-history validation with translated headline and session detail', () => {
+    const key = toast.errorFromException({
+      name: 'PiRetiredHistoryValidationError',
+      message:
+        'Pi runtime retired-session migration failed validation for session session-abc; the migrated history was not saved. Retry opening the session — migration will be attempted again automatically.',
+      i18nKey: 'pi_retired_history_validation_failed',
+      detailI18nKey: 'pi_retired_history_validation_failed_detail',
+      detailI18nValues: { sessionId: 'session-abc' },
+      sessionId: 'session-abc'
+    })
+
+    const shown = toast.getToastQueue().toasts.find((item) => item.key === key)!
+    expect(shown.title).toBe(enUS['error.pi_retired_history_validation_failed'])
+    // Mocked t returns the catalog template (with {{sessionId}}); the key point
+    // is the toast prefers the localized detail over the English fallback.
+    expect(shown.details).toBe(enUS['error.pi_retired_history_validation_failed_detail'])
+  })
+})

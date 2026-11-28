@@ -90,6 +90,7 @@ import { subagentCall, gate, toolCallPart } from '../../../../../packages/agent-
 import type * as AgentMcpServers from '../agentMcpServers'
 import type * as GatewayBinding from '../pi/gatewayModelBinding'
 import type { PiConnectionSnapshot } from '../pi/piConnectionSignature'
+import { isPiObservationError } from '../pi/piObservationError'
 import { runtimeDriverRegistry } from '../registry'
 import type { AgentRuntimeConnectInput, AgentRuntimeEvent } from '../types'
 import { allocateDurableBackendTx, prepareDurableBranch, reserveDurableBranchTx } from './durableContext'
@@ -3853,6 +3854,29 @@ describe('desktop Pi Durable connection', () => {
       expect(script.calls).toHaveLength(0)
     }
   )
+
+  // #21901 (DSH bridge successor): a mid-turn durable observation loss must name
+  // the durable runtime, stay retryable, and force a rebuild on reconcile.
+  it.each([
+    ['gap', { events: [{ type: 'gap', reason: 'disconnected' }] }],
+    ['closed', { events: [{ type: 'closed', reason: 'source-lost' }] }]
+  ] as const)('reports a durable %s observation loss as a retryable error that rebuilds', async (_kind, partial) => {
+    const { connection, events } = await connect()
+    await (connection as unknown as { onObservation: (batch: unknown) => Promise<void> }).onObservation({
+      aliases: {},
+      live: [],
+      backgroundResults: { status: 'confirmed', value: { active: false, pending: [], notification: [] } },
+      ...partial
+    })
+    await expect.poll(() => events.some((event) => event.type === 'error')).toBe(true)
+    const failure = events.find((event) => event.type === 'error')
+    expect(failure?.type).toBe('error')
+    if (failure?.type !== 'error') throw new Error('Missing error event')
+    expect(isPiObservationError(failure.error)).toBe(true)
+    expect(String((failure.error as Error).message)).toContain('Pi durable runtime')
+    expect((failure.error as { isRetryable?: unknown }).isRetryable).toBe(true)
+    expect(await connection.reconcile({ modelId: input.modelId })).toBe('rebuild')
+  })
 
   // Catches a finished child kept loaded because its run end arrives as an activity change, not a snapshot.
   it('releases a background child after its run ends and keeps its final answer', async () => {
