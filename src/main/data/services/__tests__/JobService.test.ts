@@ -204,7 +204,7 @@ describe('JobService.getRunStatesByScheduleIds', () => {
     )
   })
 
-  it('projects the selected terminal run output for task-specific outcomes', () => {
+  it('projects the compact selected terminal run outcome for task-specific outcomes', () => {
     const schedule = createSchedule('guard-skipped-output')
     const now = Date.now()
     jobService.create(
@@ -220,7 +220,7 @@ describe('JobService.getRunStatesByScheduleIds', () => {
       kind: 'terminal',
       status: 'completed',
       finishedAt: now,
-      output: { kind: 'skipped', reason: 'guard failed' }
+      outputKind: 'skipped'
     })
   })
 

@@ -349,30 +349,27 @@ describe('AgentTaskService (read side)', () => {
       expect(result.tasks.find((task) => task.id === unfinished.id)?.runSummary).toEqual({ status: 'queued' })
     })
 
-    it.each([{ kind: 'skipped' }, { skipped: true }])(
-      'distinguishes skipped completed output %j from a succeeded agent run',
-      (output) => {
-        const task = makeSnapshot()
-        vi.mocked(jobScheduleService.listAll).mockReturnValue([task])
-        vi.mocked(jobService.getRunStatesByScheduleIds).mockReturnValue(
-          new Map([
-            [
-              task.id,
-              {
-                kind: 'terminal',
-                status: 'completed',
-                finishedAt: Date.parse('2026-05-20T00:00:05.000Z'),
-                output
-              }
-            ]
-          ])
-        )
-        expect(agentTaskService.listAllTasks().tasks[0].runSummary).toEqual({
-          status: 'skipped',
-          finishedAt: '2026-05-20T00:00:05.000Z'
-        })
-      }
-    )
+    it('distinguishes the compact skipped outcome from a succeeded agent run', () => {
+      const task = makeSnapshot()
+      vi.mocked(jobScheduleService.listAll).mockReturnValue([task])
+      vi.mocked(jobService.getRunStatesByScheduleIds).mockReturnValue(
+        new Map([
+          [
+            task.id,
+            {
+              kind: 'terminal',
+              status: 'completed',
+              finishedAt: Date.parse('2026-05-20T00:00:05.000Z'),
+              outputKind: 'skipped'
+            }
+          ]
+        ])
+      )
+      expect(agentTaskService.listAllTasks().tasks[0].runSummary).toEqual({
+        status: 'skipped',
+        finishedAt: '2026-05-20T00:00:05.000Z'
+      })
+    })
 
     it('projects the newest terminal run and leaves tasks without jobs empty', () => {
       const withJobs = makeSnapshot({ id: 'terminal-task', name: 'terminal-task' })
