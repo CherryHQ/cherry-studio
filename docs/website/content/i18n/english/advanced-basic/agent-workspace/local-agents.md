@@ -14,12 +14,16 @@ Open **Settings** → **Agent services** to connect a local agent such as Codex,
 ### 1. Find or Install Codex
 
 Select **Codex** in **Agent services**. If it's already installed, check that **Program** shows the version you want to use. If you see **Not installed**, click **Install**. Follow the on-screen instructions for other agents. Cursor, for example, lets you sign in without installing a separate CLI.
+
+<figure><img src="../../../../assets/local-agent-codex-settings-en.webp" alt="Codex selected in Agent services, showing the Installed status, Check connection icon, Sign in button, and enable switch"><figcaption></figcaption></figure>
 {% endstep %}
 
 {% step %}
 ### 2. Sign In and Check the Connection
 
 If Cherry Studio detects an existing Codex sign-in, click **Check connection**. If you need to sign in, click **Sign in** and select **ChatGPT Account** to authorize in your browser or **OpenAI API Key** to enter a key in the app. Return to Cherry Studio and check the connection.
+
+<figure><img src="../../../../assets/local-agent-codex-sign-in-en.webp" alt="Codex sign-in dialog showing the ChatGPT Account and OpenAI API Key options"><figcaption></figcaption></figure>
 {% endstep %}
 
 {% step %}

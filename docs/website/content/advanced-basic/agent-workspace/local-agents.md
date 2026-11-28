@@ -14,12 +14,16 @@ icon: terminal
 ### 1. 找到或安装 Codex
 
 在【智能体服务】列表中选择 **Codex**。如果已经安装，确认【程序】显示的是你要使用的版本；如果显示【未安装】，点击【安装】。其他智能体的安装方式以页面提示为准，例如 Cursor 可以直接登录，无需单独安装 CLI。
+
+<figure><img src="../../assets/local-agent-codex-settings-zh.webp" alt="设置中的智能体服务页面选中了 Codex，右侧显示已安装状态、检查连接图标、登录按钮和启用开关"><figcaption></figcaption></figure>
 {% endstep %}
 
 {% step %}
 ### 2. 登录并检查连接
 
 如果检测到了已有的 Codex 登录状态，直接点击【检查连接】。需要登录时，点击【登录】，选择【ChatGPT 账号】在浏览器完成授权，或选择【OpenAI API 密钥】在应用内输入密钥。授权后回到 Cherry Studio 检查连接。
+
+<figure><img src="../../assets/local-agent-codex-sign-in-zh.webp" alt="Codex 登录窗口中的 ChatGPT 账号和 OpenAI API 密钥选项"><figcaption></figcaption></figure>
 {% endstep %}
 
 {% step %}
