@@ -1,5 +1,5 @@
 diff --git a/dist/core/agent-session.d.ts b/dist/core/agent-session.d.ts
-index 8b6a58430eea2cbb463e2b51773a8bc6e4914505..c4703d2a40555b2b4b2e8120f32b7b3652e7c691 100644
+index f61225f..dd915b7 100644
 --- a/dist/core/agent-session.d.ts
 +++ b/dist/core/agent-session.d.ts
 @@ -1,3 +1,4 @@
@@ -85,7 +85,7 @@ index 8b6a58430eea2cbb463e2b51773a8bc6e4914505..c4703d2a40555b2b4b2e8120f32b7b36
      /** Messages queued to be included with the next user prompt as context ("asides"). */
      private _pendingNextTurnMessages;
      /** Context-only custom messages queued during a run, flushed once the current turn's tool results are in. */
-@@ -378,6 +403,8 @@ export declare class AgentSession {
+@@ -381,6 +406,8 @@ export declare class AgentSession {
      /** Internal handler for agent events - shared by subscribe and reconnect */
      private _handleAgentEvent;
      private _willRetryAfterAgentEnd;
@@ -94,7 +94,7 @@ index 8b6a58430eea2cbb463e2b51773a8bc6e4914505..c4703d2a40555b2b4b2e8120f32b7b36
      private _findPersistedMessageEntryId;
      /**
       * Persistently omit a failed attempt and its tool results from model context. Results are
-@@ -440,6 +467,11 @@ export declare class AgentSession {
+@@ -443,6 +470,11 @@ export declare class AgentSession {
       */
      getAllTools(): ToolInfo[];
      getToolDefinition(name: string): ToolDefinition | undefined;
@@ -106,7 +106,7 @@ index 8b6a58430eea2cbb463e2b51773a8bc6e4914505..c4703d2a40555b2b4b2e8120f32b7b36
      /**
       * Set active tools by name.
       * Only tools in the registry can be enabled. Unknown and hidden tool names are ignored.
-@@ -577,6 +609,11 @@ export declare class AgentSession {
+@@ -580,6 +612,11 @@ export declare class AgentSession {
       * Try to execute an extension command. Returns true if command was found and executed.
       */
      private _tryExecuteExtensionCommand;
@@ -118,7 +118,7 @@ index 8b6a58430eea2cbb463e2b51773a8bc6e4914505..c4703d2a40555b2b4b2e8120f32b7b36
      /**
       * Expand skill commands (/skill:name args) to their full content.
       * Returns the expanded text, or the original text if not a skill command or skill not found.
-@@ -593,9 +630,7 @@ export declare class AgentSession {
+@@ -596,9 +633,7 @@ export declare class AgentSession {
       * @param options Input source; defaults to interactive
       * @throws Error if text is an extension command
       */
@@ -129,7 +129,7 @@ index 8b6a58430eea2cbb463e2b51773a8bc6e4914505..c4703d2a40555b2b4b2e8120f32b7b36
      /**
       * Queue a follow-up message to be processed after the agent finishes.
       * Delivered only when agent has no more tool calls or steering messages.
-@@ -604,9 +639,7 @@ export declare class AgentSession {
+@@ -607,9 +642,7 @@ export declare class AgentSession {
       * @param options Input source; defaults to interactive
       * @throws Error if text is an extension command
       */
@@ -140,7 +140,7 @@ index 8b6a58430eea2cbb463e2b51773a8bc6e4914505..c4703d2a40555b2b4b2e8120f32b7b36
      /**
       * Internal: Queue a steering message (already expanded, no extension command check).
       */
-@@ -617,6 +650,7 @@ export declare class AgentSession {
+@@ -620,6 +653,7 @@ export declare class AgentSession {
      private _queueFollowUp;
      /** Replace a queued user message's images in place with normalized ones, appending hints to its text. */
      private _normalizeQueuedMessageImages;
@@ -148,7 +148,7 @@ index 8b6a58430eea2cbb463e2b51773a8bc6e4914505..c4703d2a40555b2b4b2e8120f32b7b36
      /**
       * Throw an error if the text is an extension command.
       */
-@@ -633,10 +667,12 @@ export declare class AgentSession {
+@@ -636,10 +670,12 @@ export declare class AgentSession {
       * @param message Custom message with customType, content, display, details
       * @param options.triggerTurn If true and not streaming, triggers a new LLM turn
       * @param options.deliverAs Delivery mode: "steer", "followUp", or "nextTurn"
@@ -162,7 +162,7 @@ index 8b6a58430eea2cbb463e2b51773a8bc6e4914505..c4703d2a40555b2b4b2e8120f32b7b36
      private _appendCustomMessage;
      /**
 diff --git a/dist/core/agent-session.js b/dist/core/agent-session.js
-index d67feeb70a00ff60a93583bf4ffb79a3d780fa9b..1c5427152936eb9c6917578865a71df2c7a9c83a 100644
+index fc41fb4..94815fc 100644
 --- a/dist/core/agent-session.js
 +++ b/dist/core/agent-session.js
 @@ -1,3 +1,4 @@
@@ -193,7 +193,7 @@ index d67feeb70a00ff60a93583bf4ffb79a3d780fa9b..1c5427152936eb9c6917578865a71df2
      /** Queued user messages whose images are normalized when they are delivered. */
      _queuedMessagesWithImages = new WeakSet();
      /** Messages queued to be included with the next user prompt as context ("asides"). */
-@@ -456,7 +464,11 @@ export class AgentSession {
+@@ -460,7 +468,11 @@ export class AgentSession {
                      tools: this._getCallableTools(),
                      assistantMessage,
                      context: { messages: this.agent.state.messages, tools: this.agent.state.tools },
@@ -206,7 +206,7 @@ index d67feeb70a00ff60a93583bf4ffb79a3d780fa9b..1c5427152936eb9c6917578865a71df2
                      afterToolCall: (context) => this._afterToolCall(context, parentId),
                      signal,
                      onUpdate,
-@@ -488,6 +500,7 @@ export class AgentSession {
+@@ -492,6 +504,7 @@ export class AgentSession {
      _installAgentRequestProjection() {
          const previousPrepareRequest = this.agent.prepareRequest;
          this.agent.prepareRequest = async (request, signal) => {
@@ -214,7 +214,7 @@ index d67feeb70a00ff60a93583bf4ffb79a3d780fa9b..1c5427152936eb9c6917578865a71df2
              const failed = this._failedResponse;
              this._failedResponse = undefined;
              const prepare = async () => {
-@@ -583,6 +596,9 @@ export class AgentSession {
+@@ -587,6 +600,9 @@ export class AgentSession {
                  return previousDecision;
              if (extensionContinue || previousDecision?.action === "continue")
                  return { action: "continue" };
@@ -224,7 +224,7 @@ index d67feeb70a00ff60a93583bf4ffb79a3d780fa9b..1c5427152936eb9c6917578865a71df2
              return undefined;
          };
      }
-@@ -709,8 +725,8 @@ export class AgentSession {
+@@ -713,8 +729,8 @@ export class AgentSession {
      _emitQueueUpdate() {
          this._emit({
              type: "queue_update",
@@ -235,7 +235,7 @@ index d67feeb70a00ff60a93583bf4ffb79a3d780fa9b..1c5427152936eb9c6917578865a71df2
          });
      }
      async _emitSessionCompactFailed(event) {
-@@ -741,6 +757,7 @@ export class AgentSession {
+@@ -745,6 +761,7 @@ export class AgentSession {
          this._isEmittingAgentSettled = true;
          try {
              const aborted = this._agentRunAbortRequested;
@@ -243,7 +243,7 @@ index d67feeb70a00ff60a93583bf4ffb79a3d780fa9b..1c5427152936eb9c6917578865a71df2
              await this._extensionRunner.emit({ type: "agent_settled", aborted });
              this._emit({ type: "agent_settled", aborted });
          }
-@@ -785,16 +802,15 @@ export class AgentSession {
+@@ -789,16 +806,15 @@ export class AgentSession {
          // This ensures the UI sees the updated queue state
          if (event.type === "message_start" && event.message.role === "user") {
              this._overflowRecoveryAttempted = false;
@@ -262,7 +262,7 @@ index d67feeb70a00ff60a93583bf4ffb79a3d780fa9b..1c5427152936eb9c6917578865a71df2
                  if (followUpIndex !== -1) {
                      this._followUpMessages.splice(followUpIndex, 1);
                      this._emitQueueUpdate();
-@@ -825,11 +841,15 @@ export class AgentSession {
+@@ -829,11 +845,15 @@ export class AgentSession {
                  // Regular LLM message - persist as SessionMessageEntry
                  entryId = this.sessionManager.appendMessage(event.message);
              }
@@ -279,7 +279,7 @@ index d67feeb70a00ff60a93583bf4ffb79a3d780fa9b..1c5427152936eb9c6917578865a71df2
                  this._lastAssistantMessage = assistantMsg;
                  if (assistantMsg.stopReason !== "error" && assistantMsg.stopReason !== "length") {
                      this._overflowRecoveryAttempted = false;
-@@ -870,6 +890,9 @@ export class AgentSession {
+@@ -874,6 +894,9 @@ export class AgentSession {
          }
          return false;
      }
@@ -289,7 +289,7 @@ index d67feeb70a00ff60a93583bf4ffb79a3d780fa9b..1c5427152936eb9c6917578865a71df2
      _findPersistedMessageEntryId(message) {
          const mapped = this._entryIdsByMessage.get(message);
          if (mapped)
-@@ -1107,6 +1130,15 @@ export class AgentSession {
+@@ -1111,6 +1134,15 @@ export class AgentSession {
          this.settingsManager.setCacheWarmingMode(mode);
          this._cacheWarmer?.onModeChanged();
      }
@@ -305,7 +305,7 @@ index d67feeb70a00ff60a93583bf4ffb79a3d780fa9b..1c5427152936eb9c6917578865a71df2
      /** Current model (may be undefined if not yet selected) */
      get model() {
          return this.agent.state.model;
-@@ -1155,6 +1187,7 @@ export class AgentSession {
+@@ -1159,6 +1191,7 @@ export class AgentSession {
       */
      getAllTools() {
          return Array.from(this._toolDefinitions.values()).map(({ definition, sourceInfo }) => ({
@@ -313,7 +313,7 @@ index d67feeb70a00ff60a93583bf4ffb79a3d780fa9b..1c5427152936eb9c6917578865a71df2
              name: definition.name,
              description: definition.description,
              parameters: definition.parameters,
-@@ -1175,6 +1208,10 @@ export class AgentSession {
+@@ -1179,6 +1212,10 @@ export class AgentSession {
       * Also rebuilds the system prompt to reflect the new tool set.
       * Changes take effect on the next agent turn.
       */
@@ -324,7 +324,7 @@ index d67feeb70a00ff60a93583bf4ffb79a3d780fa9b..1c5427152936eb9c6917578865a71df2
      setActiveToolsByName(toolNames) {
          const previous = this.getActiveToolNames();
          this._setActiveTools(toolNames);
-@@ -1239,7 +1276,9 @@ export class AgentSession {
+@@ -1246,7 +1283,9 @@ export class AgentSession {
          const kept = this.getActiveToolNames().filter((name) => requested.has(name));
          const tools = [...new Set([...kept, ...requested])].flatMap((name) => {
              const tool = this._toolRegistry.get(name);
@@ -335,7 +335,7 @@ index d67feeb70a00ff60a93583bf4ffb79a3d780fa9b..1c5427152936eb9c6917578865a71df2
          });
          const hooks = tools.flatMap((tool) => {
              const entry = this._toolDefinitions.get(tool.name);
-@@ -1388,8 +1427,12 @@ export class AgentSession {
+@@ -1395,8 +1434,12 @@ export class AgentSession {
          options.selectedTools = this._applyToolLoadout(options.selectedTools).map((tool) => tool.name);
          // The tool list and rules must match the declarations the request carries.
          options.hiddenTools = [...this._hiddenDeclarations];
@@ -350,7 +350,7 @@ index d67feeb70a00ff60a93583bf4ffb79a3d780fa9b..1c5427152936eb9c6917578865a71df2
      }
      /**
       * Send a forced prompt as the provider's leading system prompt without recording it.
-@@ -1484,12 +1527,12 @@ export class AgentSession {
+@@ -1493,12 +1536,12 @@ export class AgentSession {
       * starting another, and an abort requested meanwhile aborts the run as soon as it exists.
       * @param onStarted Called once the run's messages are prepared, before the first request.
       */
@@ -365,7 +365,7 @@ index d67feeb70a00ff60a93583bf4ffb79a3d780fa9b..1c5427152936eb9c6917578865a71df2
          }
          catch (error) {
              this._isAgentRunActive = false;
-@@ -1515,6 +1558,7 @@ export class AgentSession {
+@@ -1524,6 +1567,7 @@ export class AgentSession {
                  if (await this._handlePostAgentRun()) {
                      if (this._agentRunAbortRequested)
                          break;
@@ -373,7 +373,7 @@ index d67feeb70a00ff60a93583bf4ffb79a3d780fa9b..1c5427152936eb9c6917578865a71df2
                      await this.agent.continue();
                      continue;
                  }
-@@ -1522,6 +1566,7 @@ export class AgentSession {
+@@ -1531,6 +1575,7 @@ export class AgentSession {
                      break;
                  if (this._agentRunAbortRequested)
                      break;
@@ -381,7 +381,7 @@ index d67feeb70a00ff60a93583bf4ffb79a3d780fa9b..1c5427152936eb9c6917578865a71df2
                  await this.agent.continue();
              }
          }
-@@ -1541,7 +1586,7 @@ export class AgentSession {
+@@ -1550,7 +1595,7 @@ export class AgentSession {
       * message followed by pending nextTurn messages (consumed here) and handler messages, with a
       * system patch first when the prompt changed.
       */
@@ -390,7 +390,7 @@ index d67feeb70a00ff60a93583bf4ffb79a3d780fa9b..1c5427152936eb9c6917578865a71df2
          // Check if we need to compact before sending (catches aborted responses).
          // The starting message is sent below, so do not call agent.continue() here.
          const lastAssistant = this._findLastAssistantMessage();
-@@ -1566,11 +1611,7 @@ export class AgentSession {
+@@ -1575,11 +1620,7 @@ export class AgentSession {
              // determines the resize profile used for the request and history.
              const normalized = await this._normalizePromptImages(trigger.images);
              const text = normalized.hints.length > 0 ? `${trigger.prompt}\n\n${normalized.hints.join("\n")}` : trigger.prompt;
@@ -403,7 +403,7 @@ index d67feeb70a00ff60a93583bf4ffb79a3d780fa9b..1c5427152936eb9c6917578865a71df2
          }
          // Inject any pending "nextTurn" messages as context alongside the starting message
          messages.push(...this._pendingNextTurnMessages);
-@@ -1702,7 +1743,7 @@ export class AgentSession {
+@@ -1711,7 +1752,7 @@ export class AgentSession {
          // Handle extension commands first (execute immediately, even during streaming)
          // Extension commands manage their own LLM interaction via pi.sendMessage()
          if (expandPromptTemplates && text.startsWith("/")) {
@@ -412,7 +412,7 @@ index d67feeb70a00ff60a93583bf4ffb79a3d780fa9b..1c5427152936eb9c6917578865a71df2
              if (handled) {
                  // Extension command executed, no prompt to send
                  preflightResult?.("handled");
-@@ -1723,7 +1764,7 @@ export class AgentSession {
+@@ -1732,7 +1773,7 @@ export class AgentSession {
              this._promptPreflightCount--;
          }
          if (trigger)
@@ -421,7 +421,7 @@ index d67feeb70a00ff60a93583bf4ffb79a3d780fa9b..1c5427152936eb9c6917578865a71df2
      }
      /**
       * Run input hooks, expand templates, queue while streaming, and validate model and auth.
-@@ -1735,6 +1776,7 @@ export class AgentSession {
+@@ -1744,6 +1785,7 @@ export class AgentSession {
          // Emit input event for extension interception (before skill/template expansion)
          const processedInput = await this._runInputHandlers(text, options?.images, options?.source ?? "interactive", this.isStreaming ? options?.streamingBehavior : undefined);
          if (!processedInput) {
@@ -429,7 +429,7 @@ index d67feeb70a00ff60a93583bf4ffb79a3d780fa9b..1c5427152936eb9c6917578865a71df2
              preflightResult?.("handled");
              return undefined;
          }
-@@ -1751,10 +1793,10 @@ export class AgentSession {
+@@ -1760,10 +1802,10 @@ export class AgentSession {
                  throw new Error("Agent is already processing. Specify streamingBehavior ('steer' or 'followUp') to queue the message.");
              }
              if (options.streamingBehavior === "followUp") {
@@ -442,7 +442,7 @@ index d67feeb70a00ff60a93583bf4ffb79a3d780fa9b..1c5427152936eb9c6917578865a71df2
              }
              preflightResult?.("queued");
              return undefined;
-@@ -1779,7 +1821,7 @@ export class AgentSession {
+@@ -1788,7 +1830,7 @@ export class AgentSession {
      /**
       * Try to execute an extension command. Returns true if command was found and executed.
       */
@@ -451,7 +451,7 @@ index d67feeb70a00ff60a93583bf4ffb79a3d780fa9b..1c5427152936eb9c6917578865a71df2
          // Parse command name and args
          const spaceIndex = text.indexOf(" ");
          const commandName = spaceIndex === -1 ? text.slice(1) : text.slice(1, spaceIndex);
-@@ -1791,17 +1833,56 @@ export class AgentSession {
+@@ -1800,17 +1842,56 @@ export class AgentSession {
          const ctx = this._extensionRunner.createCommandContext();
          try {
              await command.handler(args, ctx);
@@ -510,7 +510,7 @@ index d67feeb70a00ff60a93583bf4ffb79a3d780fa9b..1c5427152936eb9c6917578865a71df2
      }
      /**
       * Expand skill commands (/skill:name args) to their full content.
-@@ -1833,20 +1914,22 @@ export class AgentSession {
+@@ -1842,20 +1923,22 @@ export class AgentSession {
              return text; // Return original on error
          }
      }
@@ -537,7 +537,7 @@ index d67feeb70a00ff60a93583bf4ffb79a3d780fa9b..1c5427152936eb9c6917578865a71df2
          }
          return "queued";
      }
-@@ -1860,7 +1943,7 @@ export class AgentSession {
+@@ -1869,7 +1952,7 @@ export class AgentSession {
       * @throws Error if text is an extension command
       */
      async steer(text, images, options) {
@@ -546,7 +546,7 @@ index d67feeb70a00ff60a93583bf4ffb79a3d780fa9b..1c5427152936eb9c6917578865a71df2
      }
      /**
       * Queue a follow-up message to be processed after the agent finishes.
-@@ -1871,37 +1954,39 @@ export class AgentSession {
+@@ -1880,37 +1963,39 @@ export class AgentSession {
       * @throws Error if text is an extension command
       */
      async followUp(text, images, options) {
@@ -603,7 +603,7 @@ index d67feeb70a00ff60a93583bf4ffb79a3d780fa9b..1c5427152936eb9c6917578865a71df2
      }
      /** Replace a queued user message's images in place with normalized ones, appending hints to its text. */
      async _normalizeQueuedMessageImages(message) {
-@@ -1942,6 +2027,7 @@ export class AgentSession {
+@@ -1951,6 +2036,7 @@ export class AgentSession {
       * @param message Custom message with customType, content, display, details
       * @param options.triggerTurn If true and not streaming, triggers a new LLM turn
       * @param options.deliverAs Delivery mode: "steer", "followUp", or "nextTurn"
@@ -611,7 +611,7 @@ index d67feeb70a00ff60a93583bf4ffb79a3d780fa9b..1c5427152936eb9c6917578865a71df2
       */
      async sendCustomMessage(message, options) {
          const appMessage = {
-@@ -1953,6 +2039,8 @@ export class AgentSession {
+@@ -1962,6 +2048,8 @@ export class AgentSession {
              details: message.details,
              timestamp: Date.now(),
          };
@@ -620,7 +620,7 @@ index d67feeb70a00ff60a93583bf4ffb79a3d780fa9b..1c5427152936eb9c6917578865a71df2
          if (options?.deliverAs === "nextTurn") {
              this._pendingNextTurnMessages.push(appMessage);
          }
-@@ -1983,10 +2071,12 @@ export class AgentSession {
+@@ -1992,10 +2080,12 @@ export class AgentSession {
          }
      }
      _appendCustomMessage(appMessage) {
@@ -634,7 +634,7 @@ index d67feeb70a00ff60a93583bf4ffb79a3d780fa9b..1c5427152936eb9c6917578865a71df2
      }
      /**
       * Append custom messages queued while the agent was running.
-@@ -2044,8 +2134,8 @@ export class AgentSession {
+@@ -2053,8 +2143,8 @@ export class AgentSession {
       * @returns Object with steering and followUp arrays
       */
      clearQueue() {
@@ -645,7 +645,7 @@ index d67feeb70a00ff60a93583bf4ffb79a3d780fa9b..1c5427152936eb9c6917578865a71df2
          this._steeringMessages = [];
          this._followUpMessages = [];
          this.agent.clearAllQueues();
-@@ -2058,11 +2148,11 @@ export class AgentSession {
+@@ -2067,11 +2157,11 @@ export class AgentSession {
      }
      /** Get pending steering messages (read-only) */
      getSteeringMessages() {
@@ -659,7 +659,7 @@ index d67feeb70a00ff60a93583bf4ffb79a3d780fa9b..1c5427152936eb9c6917578865a71df2
      }
      get resourceLoader() {
          return this._resourceLoader;
-@@ -2094,12 +2184,14 @@ export class AgentSession {
+@@ -2103,12 +2193,14 @@ export class AgentSession {
      async _emitModelSelect(nextModel, previousModel, source) {
          if (modelsAreEqual(previousModel, nextModel))
              return;
@@ -677,16 +677,26 @@ index d67feeb70a00ff60a93583bf4ffb79a3d780fa9b..1c5427152936eb9c6917578865a71df2
      /**
       * Set model directly.
 diff --git a/dist/core/compaction/compaction.d.ts b/dist/core/compaction/compaction.d.ts
-index 4c2a2703b8573db5ea1975276fef5bdea5a4990a..4c3fc171ade2532df362601a8fe67d8d951775bf 100644
+index 4c2a270..bc21463 100644
 --- a/dist/core/compaction/compaction.d.ts
 +++ b/dist/core/compaction/compaction.d.ts
-@@ -143,3 +143,4 @@ export declare function prepareCompaction(pathEntries: SessionEntry[], settings:
+@@ -142,4 +142,11 @@ export declare function prepareCompaction(pathEntries: SessionEntry[], settings:
+  * @param sessionId - Optional routing session ID forwarded without enabling prompt caching
   */
  export declare function compact(preparation: CompactionPreparation, model: Model<any>, apiKey: string | undefined, headers?: Record<string, string>, customInstructions?: string, signal?: AbortSignal, thinkingLevel?: ThinkingLevel, streamFn?: StreamFn, env?: Record<string, string>, retry?: RetryPolicy, callbacks?: RetryCallbacks, sessionId?: string): Promise<CompactionResult>;
- //# sourceMappingURL=compaction.d.ts.map
+-//# sourceMappingURL=compaction.d.ts.map
+\ No newline at end of file
++//# sourceMappingURL=compaction.d.ts.map
 +export declare function estimateSystemCharacters(promptCharacters: number, toolCharacters: number): number;
++export declare function estimateSystemCharacters(promptCharacters: number, toolCharacters: number): number;
++export declare function estimateSystemCharacters(promptCharacters: number, toolCharacters: number): number;
++export declare function estimateSystemCharacters(promptCharacters: number, toolCharacters: number): number;
++export declare function estimateSystemCharacters(promptCharacters: number, toolCharacters: number): number;
++export declare function estimateSystemCharacters(promptCharacters: number, toolCharacters: number): number;
++export declare function estimateSystemCharacters(promptCharacters: number, toolCharacters: number): number;
+\ No newline at end of file
 diff --git a/dist/core/compaction/compaction.js b/dist/core/compaction/compaction.js
-index 9b1a409d96b39413d8598c79f14fee72f4cd533c..5d7c4aea8565028007ff9d7aa0993dd8a9e88b70 100644
+index 495f1ad..7fb29a2 100644
 --- a/dist/core/compaction/compaction.js
 +++ b/dist/core/compaction/compaction.js
 @@ -198,6 +198,9 @@ function estimateTextAndImageContentChars(content) {
@@ -708,7 +718,7 @@ index 9b1a409d96b39413d8598c79f14fee72f4cd533c..5d7c4aea8565028007ff9d7aa0993dd8
          }
          case "user": {
              chars = estimateTextAndImageContentChars(message.content);
-@@ -538,6 +541,9 @@ _reserveTokens, apiKey, headers, signal, customInstructions, previousSummary, th
+@@ -541,6 +544,9 @@ _reserveTokens, apiKey, headers, signal, customInstructions, previousSummary, th
          throw new Error("Summarization attempted to call a tool");
      }
      const textContent = contentText(response.content);
@@ -718,7 +728,7 @@ index 9b1a409d96b39413d8598c79f14fee72f4cd533c..5d7c4aea8565028007ff9d7aa0993dd8
      return { text: textContent, usage: response.usage };
  }
  function isProjectedTurnStart(entry) {
-@@ -741,8 +747,12 @@ async function generateTurnPrefixSummary(messages, model, apiKey, headers, env,
+@@ -744,8 +750,12 @@ async function generateTurnPrefixSummary(messages, model, apiKey, headers, env,
      if (response.content.some((block) => block.type === "toolCall")) {
          throw new Error("Turn prefix summarization attempted to call a tool");
      }
@@ -733,10 +743,10 @@ index 9b1a409d96b39413d8598c79f14fee72f4cd533c..5d7c4aea8565028007ff9d7aa0993dd8
      };
  }
 diff --git a/dist/core/extensions/types.d.ts b/dist/core/extensions/types.d.ts
-index f527dee4c02869611b6fbf1871bc82841b14125b..0a2a7f8fb0c4aa2d94b13918eca4c6cb8ea87884 100644
+index 7ef5e92..2ebcbae 100644
 --- a/dist/core/extensions/types.d.ts
 +++ b/dist/core/extensions/types.d.ts
-@@ -350,6 +350,7 @@ export interface ReplacedSessionContext extends ExtensionCommandContext {
+@@ -355,6 +355,7 @@ export interface ReplacedSessionContext extends ExtensionCommandContext {
      sendMessage<T = unknown>(message: Pick<CustomMessage<T>, "customType" | "content" | "display" | "details">, options?: {
          triggerTurn?: boolean;
          deliverAs?: "steer" | "followUp" | "nextTurn";
@@ -744,7 +754,7 @@ index f527dee4c02869611b6fbf1871bc82841b14125b..0a2a7f8fb0c4aa2d94b13918eca4c6cb
      }): Promise<void>;
      sendUserMessage(content: string | (TextContent | ImageContent)[], options?: {
          deliverAs?: "steer" | "followUp";
-@@ -499,6 +500,7 @@ export interface ToolDefinition<TParams extends TSchema = TSchema, TDetails = un
+@@ -504,6 +505,7 @@ export interface ToolDefinition<TParams extends TSchema = TSchema, TDetails = un
       */
      exposure?: ToolExposure;
      /** Group the tool belongs to, for example its MCP server. */
@@ -752,7 +762,7 @@ index f527dee4c02869611b6fbf1871bc82841b14125b..0a2a7f8fb0c4aa2d94b13918eca4c6cb
      namespace?: ToolNamespace;
      /**
       * For tools that reach other tools (such as `codemode`, which calls them, and `tool_search`, which
-@@ -1299,10 +1301,11 @@ export interface ExtensionAPI {
+@@ -1307,10 +1309,11 @@ export interface ExtensionAPI {
      registerEntryRenderer<T = unknown>(customType: string, renderer: EntryRenderer<T>): void;
      /** Choose how tool calls are drawn. Resolvers run in extension load order. */
      registerToolRenderer(resolver: ToolRendererResolver): void;
@@ -765,7 +775,7 @@ index f527dee4c02869611b6fbf1871bc82841b14125b..0a2a7f8fb0c4aa2d94b13918eca4c6cb
      }): void;
      /**
       * Send a user message to the agent. Always triggers a turn.
-@@ -1609,6 +1612,7 @@ type HandlerFn = (...args: unknown[]) => Promise<unknown>;
+@@ -1617,6 +1620,7 @@ type HandlerFn = (...args: unknown[]) => Promise<unknown>;
  export type SendMessageHandler = <T = unknown>(message: Pick<CustomMessage<T>, "customType" | "content" | "display" | "details">, options?: {
      triggerTurn?: boolean;
      deliverAs?: "steer" | "followUp" | "nextTurn";
@@ -773,7 +783,7 @@ index f527dee4c02869611b6fbf1871bc82841b14125b..0a2a7f8fb0c4aa2d94b13918eca4c6cb
  }) => void;
  export type SendUserMessageHandler = (content: string | (TextContent | ImageContent)[], options?: {
      deliverAs?: "steer" | "followUp";
-@@ -1621,6 +1625,7 @@ export type GetActiveToolsHandler = () => string[];
+@@ -1629,6 +1633,7 @@ export type GetActiveToolsHandler = () => string[];
  /** Tool info with name, description, parameter schema, prompt guidelines, and source metadata. */
  export type ToolInfo = Pick<ToolDefinition, "name" | "description" | "parameters" | "promptGuidelines" | "reachesTools"> & {
      exposure: ToolExposure;
@@ -782,7 +792,7 @@ index f527dee4c02869611b6fbf1871bc82841b14125b..0a2a7f8fb0c4aa2d94b13918eca4c6cb
      annotations?: ToolAnnotations;
      sourceInfo: SourceInfo;
 diff --git a/dist/core/nested-tool-calls.d.ts b/dist/core/nested-tool-calls.d.ts
-index 1d3adb1b412c5ecc81e2f9f68368cdfbc3234ab3..6edfd2519e8b692d8827fd0c57b78e72cf092d4c 100644
+index 1d3adb1..6325639 100644
 --- a/dist/core/nested-tool-calls.d.ts
 +++ b/dist/core/nested-tool-calls.d.ts
 @@ -39,8 +39,8 @@ export declare class NestedCallRecorder {
@@ -805,7 +815,7 @@ index 1d3adb1b412c5ecc81e2f9f68368cdfbc3234ab3..6edfd2519e8b692d8827fd0c57b78e72
      isError: boolean;
      durationMs?: number;
 diff --git a/dist/core/nested-tool-calls.js b/dist/core/nested-tool-calls.js
-index be4a571d0f5ab07f482d8d634f937e0448787c1d..9ee07223113a3bff53a280b9d397b368358a7332 100644
+index be4a571..bebc35c 100644
 --- a/dist/core/nested-tool-calls.js
 +++ b/dist/core/nested-tool-calls.js
 @@ -1,3 +1,4 @@
@@ -892,7 +902,7 @@ index be4a571d0f5ab07f482d8d634f937e0448787c1d..9ee07223113a3bff53a280b9d397b368
              isError: outcome.isError,
              ...(outcome.durationMs === undefined ? {} : { durationMs: outcome.durationMs }),
 diff --git a/dist/core/session-manager.d.ts b/dist/core/session-manager.d.ts
-index c042aaf3f7aff9aa8dca36a83a6d96cdbbfc949e..521423dcb047c572c87bad250737edc1d90ded84 100644
+index c042aaf..a95cd52 100644
 --- a/dist/core/session-manager.d.ts
 +++ b/dist/core/session-manager.d.ts
 @@ -260,6 +260,8 @@ export declare class SessionManager {
@@ -914,7 +924,7 @@ index c042aaf3f7aff9aa8dca36a83a6d96cdbbfc949e..521423dcb047c572c87bad250737edc1
      /**
       * Continue the most recent session, or create new if none.
 diff --git a/dist/core/session-manager.js b/dist/core/session-manager.js
-index 7ee05014e13c6434040bfdd7b39b455a6731a7d6..02a1c5d134ef538f3893155467f2a1a6c1dee9e6 100644
+index 129679c..4361877 100644
 --- a/dist/core/session-manager.js
 +++ b/dist/core/session-manager.js
 @@ -1,6 +1,6 @@
@@ -925,7 +935,7 @@ index 7ee05014e13c6434040bfdd7b39b455a6731a7d6..02a1c5d134ef538f3893155467f2a1a6
  import { readdir, stat } from "fs/promises";
  import { basename, join, resolve } from "path";
  import { createInterface } from "readline";
-@@ -798,21 +798,27 @@ export class SessionManager {
+@@ -811,21 +811,27 @@ export class SessionManager {
          if (!this.flushed) {
              if (!this._hasConversation())
                  return;
@@ -963,7 +973,7 @@ index 7ee05014e13c6434040bfdd7b39b455a6731a7d6..02a1c5d134ef538f3893155467f2a1a6
      _appendEntry(entry) {
          const previousLeafId = this.leafId;
          this.fileEntries.push(entry);
-@@ -1335,6 +1341,23 @@ export class SessionManager {
+@@ -1348,6 +1354,23 @@ export class SessionManager {
       * @param sessionDir Optional session directory for /new or /branch. If omitted, derives from file's parent.
       * @param cwdOverride Optional cwd override instead of the session header cwd.
       */
@@ -988,16 +998,26 @@ index 7ee05014e13c6434040bfdd7b39b455a6731a7d6..02a1c5d134ef538f3893155467f2a1a6
          const resolvedPath = resolvePath(path);
          let header = null;
 diff --git a/dist/core/skills.d.ts b/dist/core/skills.d.ts
-index 4d13be8f001f2376baa6a9dfc5476406a1cd86ca..91226214c574010ce9ade51bbfe72626477e0e88 100644
+index 4d13be8..a412743 100644
 --- a/dist/core/skills.d.ts
 +++ b/dist/core/skills.d.ts
-@@ -61,3 +61,4 @@ export interface LoadSkillsOptions {
+@@ -60,4 +60,11 @@ export interface LoadSkillsOptions {
+  * Returns skills and any validation diagnostics.
   */
  export declare function loadSkills(options: LoadSkillsOptions): LoadSkillsResult;
- //# sourceMappingURL=skills.d.ts.map
+-//# sourceMappingURL=skills.d.ts.map
+\ No newline at end of file
++//# sourceMappingURL=skills.d.ts.map
 +export declare function skillPromptResources(skills: Skill[]): { id: string; name: string; source: string; characters: number }[];
++export declare function skillPromptResources(skills: Skill[]): { id: string; name: string; source: string; characters: number }[];
++export declare function skillPromptResources(skills: Skill[]): { id: string; name: string; source: string; characters: number }[];
++export declare function skillPromptResources(skills: Skill[]): { id: string; name: string; source: string; characters: number }[];
++export declare function skillPromptResources(skills: Skill[]): { id: string; name: string; source: string; characters: number }[];
++export declare function skillPromptResources(skills: Skill[]): { id: string; name: string; source: string; characters: number }[];
++export declare function skillPromptResources(skills: Skill[]): { id: string; name: string; source: string; characters: number }[];
+\ No newline at end of file
 diff --git a/dist/core/skills.js b/dist/core/skills.js
-index b1600f5ba0484df4309db9ca0345e1e888469537..291b349e8d59be937b8c06766a84697c3ac4ea3f 100644
+index b1600f5..46f7c1e 100644
 --- a/dist/core/skills.js
 +++ b/dist/core/skills.js
 @@ -292,11 +292,7 @@ export function formatSkillsForPrompt(skills, fileReadTool = "read") {
@@ -1013,10 +1033,13 @@ index b1600f5ba0484df4309db9ca0345e1e888469537..291b349e8d59be937b8c06766a84697c
      }
      lines.push("</available_skills>");
      return lines.join("\n");
-@@ -402,3 +398,12 @@ export function loadSkills(options) {
+@@ -401,4 +397,13 @@ export function loadSkills(options) {
+         diagnostics: [...allDiagnostics, ...collisionDiagnostics],
      };
  }
- //# sourceMappingURL=skills.js.map
+-//# sourceMappingURL=skills.js.map
+\ No newline at end of file
++//# sourceMappingURL=skills.js.map
 +function formatSkillEntry(skill) {
 +    return ["  <skill>", `    <name>${escapeXml(skill.name)}</name>`,
 +        `    <description>${escapeXml(skill.description)}</description>`,
@@ -1026,8 +1049,9 @@ index b1600f5ba0484df4309db9ca0345e1e888469537..291b349e8d59be937b8c06766a84697c
 +    return skills.filter(skill => !skill.disableModelInvocation).map(skill => ({ id: skill.filePath,
 +        name: skill.name, source: skill.filePath, characters: formatSkillEntry(skill).length }));
 +}
+\ No newline at end of file
 diff --git a/dist/core/system-prompt.d.ts b/dist/core/system-prompt.d.ts
-index 4af86187b69e25f58d4f1959df02629da2c53621..386ea11326b6a950e764a6e36848da8e30b61ab3 100644
+index 4af8618..fff58eb 100644
 --- a/dist/core/system-prompt.d.ts
 +++ b/dist/core/system-prompt.d.ts
 @@ -1,6 +1,7 @@
@@ -1047,7 +1071,7 @@ index 4af86187b69e25f58d4f1959df02629da2c53621..386ea11326b6a950e764a6e36848da8e
      cwd: string;
      /** Pre-loaded context files. */
 diff --git a/dist/core/system-prompt.js b/dist/core/system-prompt.js
-index 94c320ec7175265d067891d044d5b37407bdbbb4..123042ef063d0ebdfc0f3d1a0467276d531695aa 100644
+index 94c320e..1f4f61e 100644
 --- a/dist/core/system-prompt.js
 +++ b/dist/core/system-prompt.js
 @@ -3,7 +3,7 @@
@@ -1080,10 +1104,13 @@ index 94c320ec7175265d067891d044d5b37407bdbbb4..123042ef063d0ebdfc0f3d1a0467276d
      ].join("\n\n");
  }
  function buildRules(selectedTools, toolGuidelines, promptGuidelines) {
-@@ -149,3 +153,16 @@ export function diffSystemPromptSections(previous, current) {
+@@ -148,4 +152,17 @@ export function diffSystemPromptSections(previous, current) {
+     }
      return Object.keys(patch).length > 0 ? patch : undefined;
  }
- //# sourceMappingURL=system-prompt.js.map
+-//# sourceMappingURL=system-prompt.js.map
+\ No newline at end of file
++//# sourceMappingURL=system-prompt.js.map
 +export function buildSystemContextSources(input, sections, tools) {
 +    const sources = {};
 +    for (const key of Object.keys(sections)) {
@@ -1097,11 +1124,12 @@ index 94c320ec7175265d067891d044d5b37407bdbbb4..123042ef063d0ebdfc0f3d1a0467276d
 +    return { sections: sources, tools: Object.fromEntries(tools.map(tool => [tool.name,
 +        tool.contextSource ?? { kind: "system-tools", source: tool.sourceInfo?.path }])) };
 +}
+\ No newline at end of file
 diff --git a/dist/extensions/mcp/tools.js b/dist/extensions/mcp/tools.js
-index 67aa2b865615914fa39c3c8edbace40ee1bed325..ad6bc3453ce9a15ee8643871973efe7ddbf9ba3e 100644
+index f506a04..3e189f8 100644
 --- a/dist/extensions/mcp/tools.js
 +++ b/dist/extensions/mcp/tools.js
-@@ -198,6 +198,7 @@ export function createMcpToolDefinition(options) {
+@@ -82,6 +82,7 @@ export function createMcpToolDefinition(options) {
          outputSchema: createMcpResultSchema(tool.outputSchema),
          exposure: toToolExposure(options.exposure),
          namespace: options.namespace,
@@ -1110,7 +1138,7 @@ index 67aa2b865615914fa39c3c8edbace40ee1bed325..ad6bc3453ce9a15ee8643871973efe7d
          ...createMcpToolRenderers(label),
          async execute(_toolCallId, params, signal, onUpdate) {
 diff --git a/dist/index.d.ts b/dist/index.d.ts
-index bb8acdb1b034f89e8fcb86a5933fa513d49a8ef3..9e20739fa56b61901e724182c10c9d05785f8096 100644
+index bb8acdb..65ceb44 100644
 --- a/dist/index.d.ts
 +++ b/dist/index.d.ts
 @@ -3,7 +3,7 @@ export { CONFIG_DIR_NAME, getAgentDir, getDocsPath, getExamplesPath, getPackageD
@@ -1132,7 +1160,7 @@ index bb8acdb1b034f89e8fcb86a5933fa513d49a8ef3..9e20739fa56b61901e724182c10c9d05
  export { type EditDiffResult, generateDiffString, generateUnifiedPatch } from "./core/tools/edit-diff.ts";
  export { type BashOperations, type BashSpawnContext, type BashSpawnHook, type BashToolDetails, type BashToolInput, type BashToolOptions, createBashToolDefinition, createEditToolDefinition, createFindToolDefinition, createGrepToolDefinition, createLocalBashOperations, createLocalPowerShellOperations, createLsToolDefinition, createPowerShellToolDefinition, createReadToolDefinition, createWriteToolDefinition, DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, type EditOperations, type EditToolDetails, type EditToolInput, type EditToolOptions, type FindOperations, type FindToolDetails, type FindToolInput, type FindToolOptions, formatSize, type GrepOperations, type GrepToolDetails, type GrepToolInput, type GrepToolOptions, type LsOperations, type LsToolDetails, type LsToolInput, type LsToolOptions, type PowerShellOperations, type PowerShellSpawnContext, type PowerShellSpawnHook, type PowerShellToolDetails, type PowerShellToolInput, type PowerShellToolOptions, type ReadOperations, type ReadToolDetails, type ReadToolInput, type ReadToolOptions, type ToolsOptions, type TruncationOptions, type TruncationResult, truncateHead, truncateLine, truncateTail, type WriteOperations, type WriteToolInput, type WriteToolOptions, withFileMutationQueue, } from "./core/tools/index.ts";
 diff --git a/dist/index.js b/dist/index.js
-index ab5cfccc3a90939e533b9118122189507a7af326..05e7c326b4027c4243ad47c1bbe0c615d2fa423e 100644
+index ab5cfcc..4db4024 100644
 --- a/dist/index.js
 +++ b/dist/index.js
 @@ -5,7 +5,7 @@ export { CONFIG_DIR_NAME, getAgentDir, getDocsPath, getExamplesPath, getPackageD
@@ -1155,10 +1183,249 @@ index ab5cfccc3a90939e533b9118122189507a7af326..05e7c326b4027c4243ad47c1bbe0c615
  // Tools
 diff --git a/examples/extensions/custom-provider-anthropic/package-lock.json b/examples/extensions/custom-provider-anthropic/package-lock.json
 deleted file mode 100644
-index 5546fd2f2b682858931503b065db44293f6ae97e..0000000000000000000000000000000000000000
+index 5546fd2..0000000
+--- a/examples/extensions/custom-provider-anthropic/package-lock.json
++++ /dev/null
+@@ -1,24 +0,0 @@
+-{
+-  "name": "pi-extension-custom-provider",
+-  "version": "1.5.2",
+-  "lockfileVersion": 3,
+-  "requires": true,
+-  "packages": {
+-    "": {
+-      "name": "pi-extension-custom-provider",
+-      "version": "1.5.2",
+-      "dependencies": {
+-        "@anthropic-ai/sdk": "^0.52.0"
+-      }
+-    },
+-    "node_modules/@anthropic-ai/sdk": {
+-      "version": "0.52.0",
+-      "resolved": "https://registry.npmjs.org/@anthropic-ai/sdk/-/sdk-0.52.0.tgz",
+-      "integrity": "sha512-d4c+fg+xy9e46c8+YnrrgIQR45CZlAi7PwdzIfDXDM6ACxEZli1/fxhURsq30ZpMZy6LvSkr41jGq5aF5TD7rQ==",
+-      "license": "MIT",
+-      "bin": {
+-        "anthropic-ai-sdk": "bin/cli"
+-      }
+-    }
+-  }
+-}
 diff --git a/examples/extensions/gondolin/package-lock.json b/examples/extensions/gondolin/package-lock.json
 deleted file mode 100644
-index 77f48bd1a82ad5b3108f6fcbe18367af0e9d34bd..0000000000000000000000000000000000000000
+index 77f48bd..0000000
+--- a/examples/extensions/gondolin/package-lock.json
++++ /dev/null
+@@ -1,175 +0,0 @@
+-{
+-	"name": "pi-extension-gondolin",
+-	"version": "1.5.2",
+-	"lockfileVersion": 3,
+-	"requires": true,
+-	"packages": {
+-		"": {
+-			"name": "pi-extension-gondolin",
+-			"version": "1.5.2",
+-			"dependencies": {
+-				"@earendil-works/gondolin": "0.14.0"
+-			}
+-		},
+-		"node_modules/@cto.af/wtf8": {
+-			"version": "0.0.5",
+-			"resolved": "https://registry.npmjs.org/@cto.af/wtf8/-/wtf8-0.0.5.tgz",
+-			"integrity": "sha512-LfUFi+Vv4eDzj+XAtR89e3wwjXA/NZjUSwU5NhwbBrLecxPaBYFy3exCuc1j+D4UZeOVdqlsl8G7LmOt18V0tg==",
+-			"license": "MIT",
+-			"engines": {
+-				"node": ">=20"
+-			}
+-		},
+-		"node_modules/@earendil-works/gondolin": {
+-			"version": "0.14.0",
+-			"resolved": "https://registry.npmjs.org/@earendil-works/gondolin/-/gondolin-0.14.0.tgz",
+-			"integrity": "sha512-MSw+EGcqFJeyKHdXEfm+nMRr74ytT4x8DGIohav0oPCHeVQAB9AajquM94cv2xqvIU3VDAaZZVC07IXsOY6OVQ==",
+-			"license": "Apache-2.0",
+-			"dependencies": {
+-				"cbor2": "^2.3.0",
+-				"ssh2": "^1.17.0",
+-				"undici": "^6.29.0"
+-			},
+-			"bin": {
+-				"gondolin": "dist/bin/gondolin.js"
+-			},
+-			"engines": {
+-				"node": ">=22.19.0"
+-			},
+-			"optionalDependencies": {
+-				"@earendil-works/gondolin-krun-runner-darwin-arm64": "0.14.0",
+-				"@earendil-works/gondolin-krun-runner-linux-x64": "0.14.0"
+-			}
+-		},
+-		"node_modules/@earendil-works/gondolin-krun-runner-darwin-arm64": {
+-			"version": "0.14.0",
+-			"resolved": "https://registry.npmjs.org/@earendil-works/gondolin-krun-runner-darwin-arm64/-/gondolin-krun-runner-darwin-arm64-0.14.0.tgz",
+-			"integrity": "sha512-fvuhz1CZPaEbmXC0luZoXd1obAb0bjaaGJz33Jo63bhMlosYunAahItakh7cU0dnTlNFzufOSnpGOPqtuYjnpQ==",
+-			"cpu": [
+-				"arm64"
+-			],
+-			"license": "Apache-2.0",
+-			"optional": true,
+-			"os": [
+-				"darwin"
+-			],
+-			"bin": {
+-				"gondolin-krun-runner": "bin/gondolin-krun-runner"
+-			}
+-		},
+-		"node_modules/@earendil-works/gondolin-krun-runner-linux-x64": {
+-			"version": "0.14.0",
+-			"resolved": "https://registry.npmjs.org/@earendil-works/gondolin-krun-runner-linux-x64/-/gondolin-krun-runner-linux-x64-0.14.0.tgz",
+-			"integrity": "sha512-91iw4smoOH/yOoAuQS6N2UZOxqSFwRhtk8rTyrokXBoWiWcveAzg4kHvnLcm40ZlNrWwzIDFrere4bkZeGDQcA==",
+-			"cpu": [
+-				"x64"
+-			],
+-			"license": "Apache-2.0",
+-			"optional": true,
+-			"os": [
+-				"linux"
+-			],
+-			"bin": {
+-				"gondolin-krun-runner": "bin/gondolin-krun-runner"
+-			}
+-		},
+-		"node_modules/asn1": {
+-			"version": "0.2.6",
+-			"resolved": "https://registry.npmjs.org/asn1/-/asn1-0.2.6.tgz",
+-			"integrity": "sha512-ix/FxPn0MDjeyJ7i/yoHGFt/EX6LyNbxSEhPPXODPL+KB0VPk86UYfL0lMdy+KCnv+fmvIzySwaK5COwqVbWTQ==",
+-			"license": "MIT",
+-			"dependencies": {
+-				"safer-buffer": "~2.1.0"
+-			}
+-		},
+-		"node_modules/bcrypt-pbkdf": {
+-			"version": "1.0.2",
+-			"resolved": "https://registry.npmjs.org/bcrypt-pbkdf/-/bcrypt-pbkdf-1.0.2.tgz",
+-			"integrity": "sha512-qeFIXtP4MSoi6NLqO12WfqARWWuCKi2Rn/9hJLEmtB5yTNr9DqFWkJRCf2qShWzPeAMRnOgCrq0sg/KLv5ES9w==",
+-			"license": "BSD-3-Clause",
+-			"dependencies": {
+-				"tweetnacl": "^0.14.3"
+-			}
+-		},
+-		"node_modules/buildcheck": {
+-			"version": "0.0.7",
+-			"resolved": "https://registry.npmjs.org/buildcheck/-/buildcheck-0.0.7.tgz",
+-			"integrity": "sha512-lHblz4ahamxpTmnsk+MNTRWsjYKv965MwOrSJyeD588rR3Jcu7swE+0wN5F+PbL5cjgu/9ObkhfzEPuofEMwLA==",
+-			"optional": true,
+-			"engines": {
+-				"node": ">=10.0.0"
+-			}
+-		},
+-		"node_modules/cbor2": {
+-			"version": "2.3.0",
+-			"resolved": "https://registry.npmjs.org/cbor2/-/cbor2-2.3.0.tgz",
+-			"integrity": "sha512-76WB3hq8BoaGkMkBVJ27fW5LJU+qqDLEpgRNCG/SYKhODWXpVPOTD4UcUto3IEzYLA52nsvbhb0wabhHDn3qXg==",
+-			"license": "MIT",
+-			"dependencies": {
+-				"@cto.af/wtf8": "0.0.5"
+-			},
+-			"engines": {
+-				"node": ">=20"
+-			}
+-		},
+-		"node_modules/cpu-features": {
+-			"version": "0.0.10",
+-			"resolved": "https://registry.npmjs.org/cpu-features/-/cpu-features-0.0.10.tgz",
+-			"integrity": "sha512-9IkYqtX3YHPCzoVg1Py+o9057a3i0fp7S530UWokCSaFVTc7CwXPRiOjRjBQQ18ZCNafx78YfnG+HALxtVmOGA==",
+-			"hasInstallScript": true,
+-			"optional": true,
+-			"dependencies": {
+-				"buildcheck": "~0.0.6",
+-				"nan": "^2.19.0"
+-			},
+-			"engines": {
+-				"node": ">=10.0.0"
+-			}
+-		},
+-		"node_modules/nan": {
+-			"version": "2.27.0",
+-			"resolved": "https://registry.npmjs.org/nan/-/nan-2.27.0.tgz",
+-			"integrity": "sha512-hC+0LidcL3XE4rp1C4H54KujgXKzbfyTngZTwBByQxsOxCEKZT0MPQ4hOKUH2jU1OYstqdDH4onyHPDzcV0XdQ==",
+-			"license": "MIT",
+-			"optional": true
+-		},
+-		"node_modules/safer-buffer": {
+-			"version": "2.1.2",
+-			"resolved": "https://registry.npmjs.org/safer-buffer/-/safer-buffer-2.1.2.tgz",
+-			"integrity": "sha512-YZo3K82SD7Riyi0E1EQPojLz7kpepnSQI9IyPbHHg1XXXevb5dJI7tpyN2ADxGcQbHG7vcyRHk0cbwqcQriUtg==",
+-			"license": "MIT"
+-		},
+-		"node_modules/ssh2": {
+-			"version": "1.17.0",
+-			"resolved": "https://registry.npmjs.org/ssh2/-/ssh2-1.17.0.tgz",
+-			"integrity": "sha512-wPldCk3asibAjQ/kziWQQt1Wh3PgDFpC0XpwclzKcdT1vql6KeYxf5LIt4nlFkUeR8WuphYMKqUA56X4rjbfgQ==",
+-			"hasInstallScript": true,
+-			"dependencies": {
+-				"asn1": "^0.2.6",
+-				"bcrypt-pbkdf": "^1.0.2"
+-			},
+-			"engines": {
+-				"node": ">=10.16.0"
+-			},
+-			"optionalDependencies": {
+-				"cpu-features": "~0.0.10",
+-				"nan": "^2.23.0"
+-			}
+-		},
+-		"node_modules/tweetnacl": {
+-			"version": "0.14.5",
+-			"resolved": "https://registry.npmjs.org/tweetnacl/-/tweetnacl-0.14.5.tgz",
+-			"integrity": "sha512-KXXFFdAbFXY4geFIwoyNK+f5Z1b7swfXABfL7HXCmoIWMKU3dmS26672A4EeQtDzLKy7SXmfBu51JolvEKwtGA==",
+-			"license": "Unlicense"
+-		},
+-		"node_modules/undici": {
+-			"version": "6.29.1",
+-			"resolved": "https://registry.npmjs.org/undici/-/undici-6.29.1.tgz",
+-			"integrity": "sha512-EvRlUt/QqAEvXdQeRMYUfwOQsfzpDztykrG2owGEE/rBOBoYv9uF39ZzsNDh4lTFHhTr2XOZjKkYgueD12ZmGA==",
+-			"license": "MIT",
+-			"engines": {
+-				"node": ">=18.17"
+-			}
+-		}
+-	}
+-}
 diff --git a/examples/extensions/with-deps/package-lock.json b/examples/extensions/with-deps/package-lock.json
 deleted file mode 100644
-index 5efeb4e916389bd788141fbb8165ab10f71e11d0..0000000000000000000000000000000000000000
+index 5efeb4e..0000000
+--- a/examples/extensions/with-deps/package-lock.json
++++ /dev/null
+@@ -1,31 +0,0 @@
+-{
+-  "name": "pi-extension-with-deps",
+-  "version": "1.5.2",
+-  "lockfileVersion": 3,
+-  "requires": true,
+-  "packages": {
+-    "": {
+-      "name": "pi-extension-with-deps",
+-      "version": "1.5.2",
+-      "dependencies": {
+-        "ms": "^2.1.3"
+-      },
+-      "devDependencies": {
+-        "@types/ms": "^2.1.0"
+-      }
+-    },
+-    "node_modules/@types/ms": {
+-      "version": "2.1.0",
+-      "resolved": "https://registry.npmjs.org/@types/ms/-/ms-2.1.0.tgz",
+-      "integrity": "sha512-GsCCIZDE/p3i96vtEqx+7dBUGXrc7zeSK3wwPHIaRThS+9OhWIXRqzs4d6k1SVU8g91DrNRWxWUGhp5KXQb2VA==",
+-      "dev": true,
+-      "license": "MIT"
+-    },
+-    "node_modules/ms": {
+-      "version": "2.1.3",
+-      "resolved": "https://registry.npmjs.org/ms/-/ms-2.1.3.tgz",
+-      "integrity": "sha512-6FlzubTLZG3J2a/NVCAleEhjzq5oxgHyaCU9yYXvcLsvoVaHJq/s5xXI6/XXP6tz7R9xAOtHnSO/tXtF3WRTlA==",
+-      "license": "MIT"
+-    }
+-  }
+-}

@@ -51,7 +51,10 @@ function executionApi(onOutput: (text: string) => void) {
     },
     retainedOutput: () => ({ text: output, truncated: false }),
     diagnostic: () => {},
-    outputWindow: undefined
+    outputWindow: undefined,
+    wake: undefined,
+    checkpoint: undefined,
+    readSignal: unused
   }
   return { api, env }
 }

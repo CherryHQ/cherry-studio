@@ -1,6 +1,6 @@
 # Pi Durable agent runtime
 
-`createPiDurableRuntime` adapts Pi Durable 1.5.2 to the
+`createPiDurableRuntime` adapts Pi Durable 1.7.0 to the
 [agent runtime contracts](../agent-runtime/README.md). It owns one native `Harness`,
 its storage, conversation views, and commit observation. It does not implement
 another scheduler, submission queue, or agent loop. The
@@ -12,7 +12,8 @@ storage bindings, gateway models and host services.
 The factory takes a stable `backendId`, an `openStorage()` factory, native typed
 `HarnessOptions` (models, registry, settings, environment), and optional `onError`.
 Storage must belong exclusively to this runtime. The host supplies its path and
-ensures only one writer uses that namespace. Native `harness.onReport` remains
+ensures only one writer uses that namespace. The runtime mirrors host extensions into
+its own registry so built-in tasks share the scheduler's SDK instance. Native `harness.onReport` remains
 available for native diagnostics; `onError` receives adapter/observer failures.
 
 `create(options)` takes native `ConversationCreateOptions`. `open(ref)` only opens
@@ -89,7 +90,7 @@ include undelivered reports and unfinished notification generation, including th
 An unknown origin is reported as unknown, never as confirmed drainage. The Pi Durable dependency patch retains atomic observer attachment with storage reads,
 and complete active-context views instead of the default bounded
 transcript window. Durable receipts use native `observeCommits`; synchronous view observations supply the
-matching content, while the public coalesced watch is not used for completion. Native 1.5 publishes
+matching content, while the public coalesced watch is not used for completion. The harness publishes
 the view before the commit observer microtask and publishes successive stored commits separately.
 Preview delivery follows that receipt microtask and cannot establish completion.
 Deferred in-memory progress is a preview without a durable revision; only stored commits can
