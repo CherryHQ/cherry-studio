@@ -22,6 +22,7 @@ import {
 } from '@cherrystudio/agent-runtime'
 
 import { createPiRuntime, type AgentRuntimeEvent, type PiRuntimeOptions } from '../src'
+import { observationReplay } from './observationReplay'
 import { createTestBehavior } from './sessionSupport'
 
 function gate() {
@@ -38,10 +39,9 @@ function confirmed<T>(result: OperationResult<T>): T {
   return result.value
 }
 
-const input = (text: string, whenBusy: 'reject' | 'steer' | 'follow-up' = 'reject') => ({
+const input = (text: string) => ({
   inputId: runtimeId<'input'>(text),
-  text,
-  whenBusy
+  text
 })
 
 async function setup(load?: PiRuntimeOptions['load']) {
@@ -85,14 +85,14 @@ it('shares streamed item identities across handles while releasing only one obse
   const second = confirmed(await runtime.open(first.thread))
   const left = await observe(first)
   const right = await observe(second)
-  expect(await first.input.submit(input('question'))).toMatchObject({
+  expect(await first.input.submit!(input('question'))).toMatchObject({
     status: 'acknowledged',
     facts: ['dispatch-started']
   })
   const messages = (events: ObservationPayload[]) =>
     events.filter(
-      (event): event is Extract<ObservationPayload, { type: 'message.upsert' }> =>
-        event.type === 'message.upsert' && event.message.role === 'assistant'
+      (event): event is Extract<ObservationPayload, { type: 'message.reconcile' }> =>
+        event.type === 'message.reconcile' && event.message.role === 'assistant'
     )
   await expect.poll(() => messages(right).length).toBeGreaterThan(0)
   expect(messages(left).map((event) => event.message.id)).toEqual(messages(right).map((event) => event.message.id))
@@ -105,7 +105,7 @@ it('shares streamed item identities across handles while releasing only one obse
       parts: [{ type: 'text', text: 'native output for both handles' }]
     })
   expect(left).toHaveLength(count)
-  expect(await first.input.submit(input('released'))).toMatchObject({ status: 'rejected', error: { code: 'closed' } })
+  expect(await first.input.submit!(input('released'))).toMatchObject({ status: 'rejected', error: { code: 'closed' } })
 })
 
 it('keeps native command preflight, rejects busy prompts and acknowledges queued follow-ups', async () => {
@@ -141,21 +141,21 @@ it('keeps native command preflight, rejects busy prompts and acknowledges queued
     })
   )
   const events = await observe(handle)
-  await handle.input.submit(input('start'))
+  await handle.input.submit!(input('start'))
   await reached
-  expect(await handle.input.submit(input('/local'))).toMatchObject({
+  expect(await handle.input.submit!(input('/local'))).toMatchObject({
     status: 'acknowledged',
     facts: ['locally-handled']
   })
   expect(commands).toBe(1)
-  expect(await handle.input.submit(input('handled'))).toMatchObject({
+  expect(await handle.input.submit!(input('handled'))).toMatchObject({
     status: 'acknowledged',
     facts: ['locally-handled']
   })
-  expect(await handle.pi.compact()).toMatchObject({ status: 'rejected', error: { code: 'busy' } })
-  expect(await handle.input.submit(input('rejected'))).toMatchObject({ status: 'rejected', error: { code: 'busy' } })
+  expect(await handle.compact!()).toMatchObject({ status: 'rejected', error: { code: 'busy' } })
+  expect(await handle.input.submit!(input('rejected'))).toMatchObject({ status: 'rejected', error: { code: 'busy' } })
   expect(manager.buildSessionContext().messages.filter((message) => message.role === 'user')).toHaveLength(1)
-  expect(await handle.input.submit(input('later', 'follow-up'))).toMatchObject({
+  expect(await handle.input.followUp!.submit(input('later'))).toMatchObject({
     status: 'acknowledged',
     facts: ['queued']
   })
@@ -214,7 +214,7 @@ it('does not dispatch a root input whose preflight resumes during shutdown', asy
       ]
     })
   )
-  const submission = handle.input.submit(input('work'))
+  const submission = handle.input.submit!(input('work'))
   await entered.promise
   const closing = runtime.shutdown()
   release.resolve()
@@ -253,13 +253,15 @@ it('correlates identical transformed inputs and shares one response across batch
     })
   )
   const events = await observe(handle)
-  await handle.input.submit(input('root'))
+  await handle.input.submit!(input('root'))
   await started.promise
-  await handle.input.submit(input('steer-1', 'steer'))
-  await handle.input.submit(input('steer-2', 'steer'))
-  await handle.input.submit(input('follow', 'follow-up'))
+  await handle.input.steer.submit(input('steer-1'))
+  await handle.input.steer.submit(input('steer-2'))
+  await handle.input.followUp!.submit(input('follow'))
   finish.resolve()
-  await expect.poll(() => events.at(-1)).toMatchObject({ type: 'activity.changed', activity: { state: 'idle' } })
+  await expect
+    .poll(() => events.findLast((event) => event.type === 'activity.changed')?.activity.state, { timeout: 10_000 })
+    .toBe('idle')
 
   const after = await observe(confirmed(await runtime.open(handle.thread)))
   await expect.poll(() => after[0]?.type).toBe('snapshot')
@@ -320,8 +322,8 @@ it('keeps a locally handled command failure after its later admission acknowledg
       ]
     })
   )
-  expect(await handle.input.submit(input('/fail'))).toMatchObject({ status: 'acknowledged' })
-  expect(await handle.input.submit(input('handled by hook'))).toMatchObject({ status: 'acknowledged' })
+  expect(await handle.input.submit!(input('/fail'))).toMatchObject({ status: 'acknowledged' })
+  expect(await handle.input.submit!(input('handled by hook'))).toMatchObject({ status: 'acknowledged' })
   const events = await observe(handle)
   await expect.poll(() => events[0]?.type).toBe('snapshot')
   if (events[0].type !== 'snapshot') throw new Error('Missing snapshot')
@@ -365,9 +367,9 @@ it('attributes a final answer to the original input and steering delivered after
     })
   )
   const events = await observe(handle)
-  await handle.input.submit(input('root'))
+  await handle.input.submit!(input('root'))
   await executing.promise
-  await handle.input.submit(input('steering', 'steer'))
+  await handle.input.steer.submit(input('steering'))
   expect(events.filter((event) => event.type === 'input.changed').some((event) => event.input.outcome)).toBe(false)
   finish.resolve()
   await expect.poll(() => events.at(-1)).toMatchObject({ type: 'activity.changed', activity: { state: 'idle' } })
@@ -397,9 +399,9 @@ it('does not change an answered input when a queued follow-up fails', async () =
   ])
   const handle = confirmed(await runtime.create({ ...options, settings: { retry: { enabled: false } } }))
   const events = await observe(handle)
-  await handle.input.submit(input('root'))
+  await handle.input.submit!(input('root'))
   await started.promise
-  await handle.input.submit(input('follow', 'follow-up'))
+  await handle.input.followUp!.submit(input('follow'))
   finish.resolve()
   await expect.poll(() => events.at(-1)).toMatchObject({ type: 'activity.changed', activity: { state: 'idle' } })
   const states = events.filter((event) => event.type === 'input.changed')
@@ -445,7 +447,7 @@ it.each(['stop', 'error'] as const)(
       })
     )
     const events = await observe(handle)
-    await handle.input.submit(input('work'))
+    await handle.input.submit!(input('work'))
     await boundary.promise
     expect(events.filter((event) => event.type === 'input.changed').some((event) => event.input.outcome)).toBe(false)
     resume.resolve()
@@ -460,7 +462,7 @@ it.each(['stop', 'error'] as const)(
     })
     if (terminal[0].type !== 'input.changed') throw new Error('Missing input outcome')
     expect(
-      events.findLast((event) => event.type === 'message.upsert' && event.message.role === 'assistant')
+      events.findLast((event) => event.type === 'message.reconcile' && event.message.role === 'assistant')
     ).toMatchObject({
       message: { parts: [{ type: 'text', text: 'final response' }] }
     })
@@ -480,7 +482,7 @@ it.each(['error', 'length', 'toolUse'] as const)(
       })
     )
     const events = await observe(handle)
-    await handle.input.submit(input('work'))
+    await handle.input.submit!(input('work'))
     await expect.poll(() => events.at(-1)).toMatchObject({ type: 'activity.changed', activity: { state: 'idle' } })
     const states = events.filter((event) => event.type === 'input.changed').map((event) => event.input)
     expect(states.at(-1)).toMatchObject({
@@ -495,7 +497,7 @@ it.each(['error', 'length', 'toolUse'] as const)(
     expect(events).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          type: 'message.upsert',
+          type: 'message.reconcile',
           message: expect.objectContaining({
             role: 'assistant',
             parts: [expect.objectContaining({ type: 'text', text: 'partial output' })]
@@ -514,7 +516,7 @@ it('reports provider failure without a native retry and accepts a new input afte
   ])
   const handle = confirmed(await runtime.create({ ...options, settings: { retry: { enabled: true } } }))
   const events = await observe(handle)
-  await handle.input.submit(input('first'))
+  await handle.input.submit!(input('first'))
   await handle.pi.settled()
   expect(faux.state.callCount).toBe(1)
   await expect
@@ -524,7 +526,7 @@ it('reports provider failure without a native retry and accepts a new input afte
       outcome: 'failed',
       error: { code: 'model-error' }
     })
-  await handle.input.submit(input('next'))
+  await handle.input.submit!(input('next'))
   await handle.pi.settled()
   expect(faux.state.callCount).toBe(2)
   await expect
@@ -541,7 +543,7 @@ it('reopens native files after shutdown without requiring the Cherry model bridg
   faux.setResponses([fauxAssistantMessage('saved answer')])
   const handle = confirmed(await runtime.create({ ...options, sessionManager: manager }))
   const events = await observe(handle)
-  await handle.input.submit(input('save this'))
+  await handle.input.submit!(input('save this'))
   await expect.poll(() => events.at(-1)).toMatchObject({ type: 'activity.changed', activity: { state: 'idle' } })
   confirmed(await runtime.shutdown())
   const reopened = confirmed(
@@ -566,7 +568,7 @@ it('reopens native files after shutdown without requiring the Cherry model bridg
       })
     ])
   )
-  expect(await handle.input.submit(input('closed'))).toMatchObject({ status: 'rejected', error: { code: 'closed' } })
+  expect(await handle.input.submit!(input('closed'))).toMatchObject({ status: 'rejected', error: { code: 'closed' } })
 })
 
 it('continues an observed child through its owner, keeps one relationship, and reports the new run once', async () => {
@@ -586,8 +588,12 @@ it('continues an observed child through its owner, keeps one relationship, and r
     })
   )
   const parentEvents = await observe(parent)
-  await parent.input.submit(input('delegate'))
-  await expect.poll(() => parentEvents.at(-1)).toMatchObject({ type: 'activity.changed', activity: { state: 'idle' } })
+  await parent.input.submit!(input('delegate'))
+  await expect
+    .poll(() => parentEvents.findLast((event) => event.type === 'activity.changed')?.activity.state, {
+      timeout: 10_000
+    })
+    .toBe('idle')
   const relation = parentEvents.find((event) => event.type === 'subagent.upsert')
   if (relation?.type !== 'subagent.upsert' || !relation.subagent.child) throw new Error('Missing child')
   const child = confirmed(await runtime.open(relation.subagent.child))
@@ -616,16 +622,17 @@ it('continues an observed child through its owner, keeps one relationship, and r
     },
     fauxAssistantMessage('parent received the result')
   ])
-  expect(await child.input.submit(input('continue', 'follow-up'))).toMatchObject({ status: 'unsupported' })
-  expect(await child.input.submit(input('continue', 'steer'))).toMatchObject({
+  expect(child.input.followUp).toBeUndefined()
+  expect(child.input.submit).toBeUndefined()
+  expect(await child.input.steer.submit(input('continue'))).toMatchObject({
     status: 'acknowledged',
     facts: ['dispatch-started']
   })
   await started.promise
-  const steering = second.input.submit(input('add detail', 'steer'))
+  const steering = second.input.steer.submit(input('add detail'))
   await parent.release()
   await child.release()
-  expect(await child.input.submit(input('released', 'steer'))).toMatchObject({
+  expect(await child.input.steer.submit(input('released'))).toMatchObject({
     status: 'rejected',
     error: { code: 'closed' }
   })
@@ -635,7 +642,7 @@ it('continues an observed child through its owner, keeps one relationship, and r
     .poll(() =>
       childEvents.some(
         (event) =>
-          event.type === 'message.upsert' &&
+          event.type === 'message.reconcile' &&
           event.message.metadata?.completeness === 'complete' &&
           event.message.parts.find((part) => part.type === 'text')?.text === 'continued child answer'
       )
@@ -648,7 +655,7 @@ it('continues an observed child through its owner, keeps one relationship, and r
       () =>
         after.some(
           (event) =>
-            event.type === 'message.upsert' &&
+            event.type === 'message.reconcile' &&
             event.message.parts.find((part) => part.type === 'text')?.text === 'parent received the result' &&
             event.message.metadata?.completeness === 'complete'
         ) ||
@@ -728,11 +735,10 @@ it('streams interleaved content and preliminary tool output in the same native m
     })
   )
   const events = await observe(handle)
-  await handle.input.submit(input('stream content'))
+  await handle.input.submit!(input('stream content'))
   const latest = () =>
     events
-      .filter((event) => event.type === 'message.upsert')
-      .map((event) => event.message)
+      .flatMap(observationReplay())
       .findLast((message) => message.parts.some((part) => part.type === 'dynamic-tool'))!
   await expect
     .poll(() => latest()?.parts[2])
@@ -768,10 +774,10 @@ it('reads native context without submitting work and rejects released access', a
   expect(before.contextWindow).toBe(options.model.contextWindow)
   expect(before.used?.precision).toBe('estimated')
   expect(before.breakdown?.categories.map((row) => row.key)).toContain('messages')
-  const messages = events.filter((event) => event.type === 'message.upsert')
+  const messages = events.filter((event) => event.type === 'message.reconcile')
   expect(confirmed(await handle.contextUsage())).toEqual(before)
   await Promise.resolve()
-  expect(events.filter((event) => event.type === 'message.upsert')).toEqual(messages)
+  expect(events.filter((event) => event.type === 'message.reconcile')).toEqual(messages)
   expect(events.filter((event) => event.type === 'activity.changed' && event.activity.state === 'active')).toEqual([])
   await handle.release()
   expect(await handle.contextUsage()).toMatchObject({ status: 'rejected', error: { code: 'released' } })
@@ -817,7 +823,7 @@ it.each(['deferred', 'codemode'] as const)(
       })
     )
     const events = await observe(handle)
-    await handle.input.submit(input('prepare resource context'))
+    await handle.input.submit!(input('prepare resource context'))
     await expect
       .poll(() => events.some((event) => event.type === 'activity.changed' && event.activity.state === 'idle'))
       .toBe(true)
@@ -898,7 +904,7 @@ it('publishes a local extension model switch to existing and newly attached obse
       type: 'snapshot',
       contextUsage: { status: 'confirmed', value: { model: 'wide', contextWindow: 128_000 } }
     })
-  expect(await handle.input.submit(input('/smaller'))).toMatchObject({
+  expect(await handle.input.submit!(input('/smaller'))).toMatchObject({
     status: 'acknowledged',
     facts: ['locally-handled']
   })
@@ -965,7 +971,7 @@ it.each([false, true])('retains nested results across outer failure and reopen (
   ])
   const handle = confirmed(await runtime.create({ ...options, tools, sessionManager: manager }))
   const events = await observe(handle)
-  await handle.input.submit(input('nested'))
+  await handle.input.submit!(input('nested'))
   await handle.pi.settled()
   const parts = handle.pi
     .archive()
@@ -981,17 +987,17 @@ it.each([false, true])('retains nested results across outer failure and reopen (
       callProviderMetadata: { pi: { parentToolCallId: 'script' } }
     })
   expect(
-    events.some(
-      (event) =>
-        event.type === 'message.upsert' &&
-        event.message.parts.some(
+    events
+      .flatMap(observationReplay())
+      .some((message) =>
+        message.parts.some(
           (part) =>
             part.type === 'dynamic-tool' &&
             part.toolName === 'leaf' &&
             part.state === 'output-available' &&
             part.preliminary
         )
-    )
+      )
   ).toBe(true)
   await runtime.shutdown()
   const reopenedRuntime = confirmed(await createPiRuntime({ backendId: runtimeId('reopened') }))
@@ -1055,7 +1061,7 @@ it.each([false, true])('retains recursive failures and cancellation (cancel=%s)'
     fauxAssistantMessage('done')
   ])
   const handle = confirmed(await runtime.create({ ...options, tools }))
-  await handle.input.submit(input('recursive'))
+  await handle.input.submit!(input('recursive'))
   await reached.promise
   if (cancel) confirmed(await handle.interrupt!())
   await handle.pi.settled()
@@ -1100,7 +1106,7 @@ it.each([false, true])(
     ]
     const handle = confirmed(await runtime.create({ ...options, tools, sessionManager: manager }))
     const events = await observe(handle)
-    await handle.input.submit(input('declare a file'))
+    await handle.input.submit!(input('declare a file'))
     await handle.pi.settled()
     const partOf = (messages: readonly RuntimeMessage[]) =>
       messages
@@ -1114,7 +1120,7 @@ it.each([false, true])(
           ? part.resultProviderMetadata?.pi?.result
           : undefined
     }
-    const live = partOf(events.flatMap((event) => (event.type === 'message.upsert' ? [event.message] : [])).reverse())
+    const live = partOf(events.flatMap(observationReplay()).reverse())
     expect(resultOf(live)).toMatchObject({
       nestedCalls: { complete: true, calls: [{ name: 'declare', status: 'ok', arguments: declaration }] }
     })

@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as AppRouteImport } from './routes/app'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as AppAgentsRouteImport } from './routes/app/agents'
+import { Route as AppApiGatewayRouteImport } from './routes/app/api-gateway'
 import { Route as AppBrowserRouteImport } from './routes/app/browser'
 import { Route as AppChatRouteImport } from './routes/app/chat'
 import { Route as AppCodeRouteImport } from './routes/app/code'
@@ -38,6 +39,7 @@ import { Route as SettingsDependenciesRouteImport } from './routes/settings/depe
 import { Route as SettingsDeviceConnectionsRouteImport } from './routes/settings/device-connections'
 import { Route as SettingsFileProcessingRouteImport } from './routes/settings/file-processing'
 import { Route as SettingsGeneralRouteImport } from './routes/settings/general'
+import { Route as SettingsLocalAgentsRouteImport } from './routes/settings/local-agents'
 import { Route as SettingsLocalModelsRouteImport } from './routes/settings/local-models'
 import { Route as SettingsMcpRouteImport } from './routes/settings/mcp'
 import { Route as SettingsModelRouteImport } from './routes/settings/model'
@@ -89,6 +91,11 @@ const SettingsRoute = SettingsRouteImport.update({
 const AppAgentsRoute = AppAgentsRouteImport.update({
   id: '/agents',
   path: '/agents',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppApiGatewayRoute = AppApiGatewayRouteImport.update({
+  id: '/api-gateway',
+  path: '/api-gateway',
   getParentRoute: () => AppRoute,
 } as any)
 const AppBrowserRoute = AppBrowserRouteImport.update({
@@ -220,6 +227,11 @@ const SettingsFileProcessingRoute = SettingsFileProcessingRouteImport.update({
 const SettingsGeneralRoute = SettingsGeneralRouteImport.update({
   id: '/general',
   path: '/general',
+  getParentRoute: () => SettingsRoute,
+} as any)
+const SettingsLocalAgentsRoute = SettingsLocalAgentsRouteImport.update({
+  id: '/local-agents',
+  path: '/local-agents',
   getParentRoute: () => SettingsRoute,
 } as any)
 const SettingsLocalModelsRoute = SettingsLocalModelsRouteImport.update({
@@ -416,6 +428,7 @@ export interface FileRoutesByFullPath {
   '/app': typeof AppRouteWithChildren
   '/settings': typeof SettingsRouteWithChildren
   '/app/agents': typeof AppAgentsRoute
+  '/app/api-gateway': typeof AppApiGatewayRoute
   '/app/browser': typeof AppBrowserRoute
   '/app/chat': typeof AppChatRoute
   '/app/code': typeof AppCodeRoute
@@ -441,6 +454,7 @@ export interface FileRoutesByFullPath {
   '/settings/device-connections': typeof SettingsDeviceConnectionsRoute
   '/settings/file-processing': typeof SettingsFileProcessingRoute
   '/settings/general': typeof SettingsGeneralRoute
+  '/settings/local-agents': typeof SettingsLocalAgentsRoute
   '/settings/local-models': typeof SettingsLocalModelsRoute
   '/settings/mcp': typeof SettingsMcpRouteWithChildren
   '/settings/model': typeof SettingsModelRoute
@@ -483,6 +497,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/app': typeof AppRouteWithChildren
   '/app/agents': typeof AppAgentsRoute
+  '/app/api-gateway': typeof AppApiGatewayRoute
   '/app/browser': typeof AppBrowserRoute
   '/app/chat': typeof AppChatRoute
   '/app/code': typeof AppCodeRoute
@@ -508,6 +523,7 @@ export interface FileRoutesByTo {
   '/settings/device-connections': typeof SettingsDeviceConnectionsRoute
   '/settings/file-processing': typeof SettingsFileProcessingRoute
   '/settings/general': typeof SettingsGeneralRoute
+  '/settings/local-agents': typeof SettingsLocalAgentsRoute
   '/settings/local-models': typeof SettingsLocalModelsRoute
   '/settings/model': typeof SettingsModelRoute
   '/settings/notifications': typeof SettingsNotificationsRoute
@@ -549,6 +565,7 @@ export interface FileRoutesById {
   '/app': typeof AppRouteWithChildren
   '/settings': typeof SettingsRouteWithChildren
   '/app/agents': typeof AppAgentsRoute
+  '/app/api-gateway': typeof AppApiGatewayRoute
   '/app/browser': typeof AppBrowserRoute
   '/app/chat': typeof AppChatRoute
   '/app/code': typeof AppCodeRoute
@@ -574,6 +591,7 @@ export interface FileRoutesById {
   '/settings/device-connections': typeof SettingsDeviceConnectionsRoute
   '/settings/file-processing': typeof SettingsFileProcessingRoute
   '/settings/general': typeof SettingsGeneralRoute
+  '/settings/local-agents': typeof SettingsLocalAgentsRoute
   '/settings/local-models': typeof SettingsLocalModelsRoute
   '/settings/mcp': typeof SettingsMcpRouteWithChildren
   '/settings/model': typeof SettingsModelRoute
@@ -619,6 +637,7 @@ export interface FileRouteTypes {
     | '/app'
     | '/settings'
     | '/app/agents'
+    | '/app/api-gateway'
     | '/app/browser'
     | '/app/chat'
     | '/app/code'
@@ -644,6 +663,7 @@ export interface FileRouteTypes {
     | '/settings/device-connections'
     | '/settings/file-processing'
     | '/settings/general'
+    | '/settings/local-agents'
     | '/settings/local-models'
     | '/settings/mcp'
     | '/settings/model'
@@ -686,6 +706,7 @@ export interface FileRouteTypes {
   to:
     | '/app'
     | '/app/agents'
+    | '/app/api-gateway'
     | '/app/browser'
     | '/app/chat'
     | '/app/code'
@@ -711,6 +732,7 @@ export interface FileRouteTypes {
     | '/settings/device-connections'
     | '/settings/file-processing'
     | '/settings/general'
+    | '/settings/local-agents'
     | '/settings/local-models'
     | '/settings/model'
     | '/settings/notifications'
@@ -751,6 +773,7 @@ export interface FileRouteTypes {
     | '/app'
     | '/settings'
     | '/app/agents'
+    | '/app/api-gateway'
     | '/app/browser'
     | '/app/chat'
     | '/app/code'
@@ -776,6 +799,7 @@ export interface FileRouteTypes {
     | '/settings/device-connections'
     | '/settings/file-processing'
     | '/settings/general'
+    | '/settings/local-agents'
     | '/settings/local-models'
     | '/settings/mcp'
     | '/settings/model'
@@ -842,6 +866,13 @@ declare module '@tanstack/react-router' {
       path: '/agents'
       fullPath: '/app/agents'
       preLoaderRoute: typeof AppAgentsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/api-gateway': {
+      id: '/app/api-gateway'
+      path: '/api-gateway'
+      fullPath: '/app/api-gateway'
+      preLoaderRoute: typeof AppApiGatewayRouteImport
       parentRoute: typeof AppRoute
     }
     '/app/browser': {
@@ -1024,6 +1055,13 @@ declare module '@tanstack/react-router' {
       path: '/general'
       fullPath: '/settings/general'
       preLoaderRoute: typeof SettingsGeneralRouteImport
+      parentRoute: typeof SettingsRoute
+    }
+    '/settings/local-agents': {
+      id: '/settings/local-agents'
+      path: '/local-agents'
+      fullPath: '/settings/local-agents'
+      preLoaderRoute: typeof SettingsLocalAgentsRouteImport
       parentRoute: typeof SettingsRoute
     }
     '/settings/local-models': {
@@ -1290,6 +1328,7 @@ declare module '@tanstack/react-router' {
 
 interface AppRouteChildren {
   AppAgentsRoute: typeof AppAgentsRoute
+  AppApiGatewayRoute: typeof AppApiGatewayRoute
   AppBrowserRoute: typeof AppBrowserRoute
   AppChatRoute: typeof AppChatRoute
   AppCodeRoute: typeof AppCodeRoute
@@ -1310,6 +1349,7 @@ interface AppRouteChildren {
 
 const AppRouteChildren: AppRouteChildren = {
   AppAgentsRoute: AppAgentsRoute,
+  AppApiGatewayRoute: AppApiGatewayRoute,
   AppBrowserRoute: AppBrowserRoute,
   AppChatRoute: AppChatRoute,
   AppCodeRoute: AppCodeRoute,
@@ -1400,6 +1440,7 @@ interface SettingsRouteChildren {
   SettingsDeviceConnectionsRoute: typeof SettingsDeviceConnectionsRoute
   SettingsFileProcessingRoute: typeof SettingsFileProcessingRoute
   SettingsGeneralRoute: typeof SettingsGeneralRoute
+  SettingsLocalAgentsRoute: typeof SettingsLocalAgentsRoute
   SettingsLocalModelsRoute: typeof SettingsLocalModelsRoute
   SettingsMcpRoute: typeof SettingsMcpRouteWithChildren
   SettingsModelRoute: typeof SettingsModelRoute
@@ -1438,6 +1479,7 @@ const SettingsRouteChildren: SettingsRouteChildren = {
   SettingsDeviceConnectionsRoute: SettingsDeviceConnectionsRoute,
   SettingsFileProcessingRoute: SettingsFileProcessingRoute,
   SettingsGeneralRoute: SettingsGeneralRoute,
+  SettingsLocalAgentsRoute: SettingsLocalAgentsRoute,
   SettingsLocalModelsRoute: SettingsLocalModelsRoute,
   SettingsMcpRoute: SettingsMcpRouteWithChildren,
   SettingsModelRoute: SettingsModelRoute,

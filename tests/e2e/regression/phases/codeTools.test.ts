@@ -1,26 +1,35 @@
 import { once } from 'node:events'
 import { mkdirSync, realpathSync } from 'node:fs'
+import { readdir, readFile } from 'node:fs/promises'
 import { createServer, type AddressInfo } from 'node:net'
 import { join } from 'node:path'
 
 import type { Locator, Page } from '@playwright/test'
 
+import { createUniqueModelId } from '@shared/data/types/model'
 import type { IpcResult } from '@shared/ipc/errors/IpcError'
 import type { OutputFor } from '@shared/ipc/types'
+import { redactSecretText } from '@shared/utils/redaction'
 
 import { caseDefinition } from '../../../../scripts/e2e/regression/cases'
+import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
 import { observeExternalResource, registerExternalResource } from '../../../../scripts/e2e/regression/externalResources'
+import { createRedactor } from '../../../../scripts/e2e/regression/redaction'
 import { chooseNativeFile } from '../../../../scripts/e2e/regression/systemAutomation'
 import { expect, test } from '../fixture'
 import { CUSTOM_CHAT_PROVIDER, ensureCustomChatProvider } from '../helpers/models'
-import { openLaunchpadApp } from '../helpers/navigation'
+import { openLaunchpad } from '../helpers/navigation'
 import { closeSettings } from '../helpers/settings'
 import type { RegressionApp } from '../RegressionApp'
 
 async function openCodeTool(page: Page, name: string): Promise<void> {
-  await openLaunchpadApp(page, 'Code Mate')
+  await openLaunchpad(page)
   await page
-    .locator('[data-ui~="code.view"]:visible')
+    .getByRole('button', { name: /^(Code|Code Mate)$/ })
+    .last()
+    .click()
+  await page
+    .locator('[data-ui~="code.navigation"]:visible')
     .getByRole('button', { name: new RegExp(`^${name}(?:\\s|$)`) })
     .first()
     .click()
@@ -52,13 +61,14 @@ async function configureTool(page: Page, model: string, provider: string): Promi
   if (await disable.isVisible()) await disable.click()
   const enable = providerCard.getByRole('button', { name: 'Enable', exact: true }).first()
   await enable.click()
+  await expect(disable).toBeAttached()
 }
 
-async function launchWithWorkspace(app: RegressionApp, page: Page): Promise<void> {
+async function launchWithWorkspace(app: RegressionApp, page: Page, openTerminal: Locator): Promise<void> {
   const workspace =
     app.record.platform === 'windows' ? join(app.paths.workspace, 'code tools {literal}') : app.paths.workspace
   mkdirSync(workspace, { recursive: true })
-  await page.getByRole('button', { name: 'Launch', exact: true }).click()
+  await openTerminal.click()
   const dialog = page.getByRole('dialog')
   await expect(dialog).toBeVisible()
   await dialog.getByRole('button', { name: 'Select Folder', exact: true }).click()
@@ -82,20 +92,30 @@ test(...caseDefinition('CODE-01'), async ({ app, mainWindow: page }) => {
   await closeSettings(page)
   await openCodeTool(page, 'Claude Code')
   const codeView = page.locator('[data-ui~="code.view"]:visible').first()
-  const install = codeView.getByRole('button', { name: 'Install', exact: true })
-  const launch = codeView.getByRole('button', { name: 'Launch', exact: true })
-  await expect(install.or(launch)).toBeVisible()
-  if (await install.isVisible()) {
-    await install.click()
-    await expect(launch).toBeVisible({ timeout: 5 * 60_000 })
+  // Installation discovery can still be running when Agent Services opens.
+  const terminal = codeView.getByRole('button', { name: 'Open CLI in terminal', exact: true })
+  const legacyLaunch = codeView.getByRole('button', { name: 'Launch', exact: true })
+  await expect(terminal.or(legacyLaunch)).toBeVisible({ timeout: 30_000 })
+  if (await terminal.isVisible()) {
+    await expect(terminal).toBeEnabled({ timeout: 30_000 })
+    const models = codeView.getByRole('region', { name: 'Models', exact: true })
+    await models.getByRole('tab', { name: 'Unified Gateway', exact: true }).click()
+    const model = models.getByRole('button').filter({ hasText: app.config.customProvider.chatModel }).last()
+    await model.click()
+    await expect(model).toHaveAttribute('aria-pressed', 'true')
+    await launchWithWorkspace(app, page, terminal)
+  } else {
+    await configureTool(page, app.config.customProvider.chatModel, 'Unified Gateway')
+    await launchWithWorkspace(app, page, legacyLaunch)
   }
-  await configureTool(page, app.config.customProvider.chatModel, 'Unified Gateway')
-  await launchWithWorkspace(app, page)
 })
 
-test(...caseDefinition('CODE-03'), async ({ app, mainWindow: page }) => {
+test(...caseDefinition('CODE-03'), async ({ app, mainWindow: page }, testInfo) => {
   test.setTimeout(3 * 60_000)
-  const previousPort = await page.evaluate(() => window.api.preference.get('feature.openclaw.gateway_port'))
+  const previous = await page.evaluate(async () => ({
+    port: await window.api.preference.get('feature.openclaw.gateway_port'),
+    configs: await window.api.preference.get('feature.code_cli.configs')
+  }))
   const reservation = createServer().listen(0, '127.0.0.1')
   await once(reservation, 'listening')
   const port = (reservation.address() as AddressInfo).port
@@ -109,16 +129,61 @@ test(...caseDefinition('CODE-03'), async ({ app, mainWindow: page }) => {
       if (!result.ok) throw new Error(result.error.message)
       return result.data.status
     })
+  const launchAlert = page.getByRole('region', { name: 'notifications', exact: true }).getByRole('alert').last()
+  const redact = createRedactor(getSensitiveConfigValues())
+  let lastAlert: string | undefined
   try {
     await page.evaluate((port) => window.api.preference.set('feature.openclaw.gateway_port', port), port)
-    await ensureCustomChatProvider(app, page)
+    const providerId = await ensureCustomChatProvider(app, page)
     await closeSettings(page)
     await openCodeTool(page, 'OpenClaw')
-    await configureTool(page, app.config.customProvider.chatModel, CUSTOM_CHAT_PROVIDER)
     const codeView = page.locator('[data-ui~="code.view"]:visible').first()
-    await codeView.getByRole('button', { name: 'Launch', exact: true }).click()
-    // The CLI also spawns config probes; only the running gateway and opened dashboard complete launch.
-    await expect.poll(gatewayStatus, { timeout: 2 * 60_000 }).toBe('running')
+    const startService = codeView.getByRole('button', { name: 'Start service', exact: true })
+    const legacyLaunch = codeView.getByRole('button', { name: 'Launch', exact: true })
+    await expect(startService.or(legacyLaunch)).toBeVisible()
+    const usesAgentServices = await startService.isVisible()
+    if (usesAgentServices) {
+      // OpenClaw start reads the persisted provider selection. Seed it before testing service controls.
+      const uniqueModelId = createUniqueModelId(providerId, app.config.customProvider.chatModel)
+      await page.evaluate(
+        async ({ providerId, uniqueModelId, port }) => {
+          const result = (await window.api.ipcApi.request('openclaw.sync_config', {
+            uniqueModelId,
+            port
+          })) as IpcResult<OutputFor<'openclaw.sync_config'>>
+          if (!result.ok || !result.data.success) throw new Error('OpenClaw config fixture was not applied')
+          const configs = await window.api.preference.get('feature.code_cli.configs')
+          await window.api.preference.set('feature.code_cli.configs', {
+            ...configs,
+            openclaw: {
+              ...configs.openclaw,
+              current: providerId,
+              providers: { ...configs.openclaw?.providers, [providerId]: { modelId: uniqueModelId } }
+            }
+          })
+        },
+        { providerId, uniqueModelId, port }
+      )
+      const enable = codeView.getByRole('switch', { name: 'Enable this agent', exact: true })
+      if (!(await enable.isChecked())) await enable.click()
+      await expect(enable).toBeChecked()
+    } else {
+      await configureTool(page, app.config.customProvider.chatModel, CUSTOM_CHAT_PROVIDER)
+    }
+    await expect(launchAlert).toBeHidden()
+    await (usesAgentServices ? startService : legacyLaunch).click()
+    await expect
+      .poll(
+        async () => {
+          lastAlert = (await launchAlert.allTextContents())[0] ?? lastAlert
+          return gatewayStatus()
+        },
+        { timeout: 2 * 60_000 }
+      )
+      .toBe('running')
+    if (usesAgentServices) {
+      await codeView.getByRole('button', { name: 'Open WebUI', exact: true }).click()
+    }
     await expect(dashboardTab).toHaveAttribute('data-active', 'true')
     const guest = page.locator('webview[data-mini-app-id="openclaw-dashboard"]:visible')
     await expect(guest).toBeVisible()
@@ -133,8 +198,28 @@ test(...caseDefinition('CODE-03'), async ({ app, mainWindow: page }) => {
     await dashboardTab.getByRole('button', { name: 'Close Tab', exact: true }).click()
     await expect(dashboardTab).toHaveCount(0)
     await openCodeTool(page, 'OpenClaw')
-    await codeView.getByRole('button', { name: 'Stop', exact: true }).click()
+    await codeView.getByRole('button', { name: usesAgentServices ? 'Stop service' : 'Stop', exact: true }).click()
     await expect.poll(gatewayStatus).toBe('stopped')
+  } catch (error) {
+    if (app.record.mode === 'branch') {
+      const directory = join(app.paths.profiles, app.record.profile, 'logs')
+      const names = await readdir(directory).catch(() => [])
+      const logs = await Promise.all(
+        names
+          .filter((name) => /^app\.\d{4}-\d{2}-\d{2}\.log(?:\.\d+)?$/.test(name))
+          .map((name) => readFile(join(directory, name), 'utf8').catch(() => ''))
+      )
+      const lines = logs
+        .flatMap((log) => log.split('\n'))
+        .filter((line) => /"module":"(?:OpenClawService|useOpenClawGatewayController|resolveLaunchModelId)"/.test(line))
+        .slice(-24)
+      await testInfo.attach('OpenClaw application log', {
+        body: redact(redactSecretText(lines.join('\n'))),
+        contentType: 'text/plain'
+      })
+    }
+    if (lastAlert) throw new Error(`OpenClaw launch alert: ${redact(redactSecretText(lastAlert))}`, { cause: error })
+    throw error
   } finally {
     try {
       const stopped = (await page.evaluate(() => window.api.ipcApi.request('openclaw.stop_gateway'))) as IpcResult<
@@ -144,7 +229,14 @@ test(...caseDefinition('CODE-03'), async ({ app, mainWindow: page }) => {
       if (await dashboardTab.isVisible())
         await dashboardTab.getByRole('button', { name: 'Close Tab', exact: true }).click()
     } finally {
-      await page.evaluate((port) => window.api.preference.set('feature.openclaw.gateway_port', port), previousPort)
+      await page.evaluate(
+        ({ port, configs }) =>
+          window.api.preference.setMultiple({
+            'feature.openclaw.gateway_port': port,
+            'feature.code_cli.configs': configs
+          }),
+        previous
+      )
     }
   }
 })

@@ -80,7 +80,9 @@ export async function feishuChannelSettings(app: RegressionApp, initialPage: Pag
   const reopen = async (channel: AgentChannelEntity) => {
     await closeDialog()
     await row(channel.name).getByRole('button', { name: '编辑', exact: true }).click()
-    await expect(dialog().getByRole('heading', { name: channel.name, exact: true })).toBeVisible()
+    // The dialog heading is the channel type ([飞书] / [QQ]); the channel name lives in its first
+    // text field, so assert that instead of a heading that never carries the name.
+    await expect(dialog().getByRole('textbox').first()).toHaveValue(channel.name)
   }
   const readConfig = async (channel: AgentChannelEntity) => {
     const saved = (await listChannels()).find(({ id }) => id === channel.id)

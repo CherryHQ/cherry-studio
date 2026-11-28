@@ -9,6 +9,7 @@ describe('context overflow classification', () => {
     { message: "This model's maximum context length is 1048576 tokens. However, you requested 1065651 tokens." },
     { message: "This model's maximum context length is 1048576 tokens" },
     { message: 'Input exceeds the context limit (1048568 tokens)' },
+    { message: 'request (518 tokens) exceeds the available context size (512 tokens), try increasing it' },
     { message: "The input is longer than the model's context length" },
     { message: 'input token count exceeds the maximum' }
   ])('recognizes context overflow from a provider error', ({ message, data }) => {
@@ -27,5 +28,11 @@ describe('context overflow classification', () => {
     expect(isContextOverflowError(new APICallError({ message, statusCode, url: 'test', requestBodyValues: {} }))).toBe(
       false
     )
+  })
+
+  it('requires upstream evidence for a plain stream error', () => {
+    const payload = { message: 'The request cannot be processed', providerErrorCategory: 'context_length' }
+    expect(isContextOverflowError(payload)).toBe(false)
+    expect(isContextOverflowError({ ...payload, error: { code: 'context_length_exceeded' } })).toBe(true)
   })
 })

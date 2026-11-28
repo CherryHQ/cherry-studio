@@ -130,7 +130,7 @@ describe('InputBar', () => {
       />
     )
 
-    const input = screen.getByPlaceholderText('Ask a model') as HTMLInputElement
+    const input = screen.getByPlaceholderText<HTMLInputElement>('Ask a model')
     input.setSelectionRange(1, 4)
 
     expect(inputRef.current).toBe(input)
@@ -262,7 +262,7 @@ describe('InputBar', () => {
       )
     }
     render(<InputHarness />)
-    const input = screen.getByRole('textbox') as HTMLInputElement
+    const input = screen.getByRole<HTMLInputElement>('textbox')
     await user.click(input)
     input.setSelectionRange(7, 7)
     const unbind = bind()

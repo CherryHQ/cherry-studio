@@ -12,7 +12,11 @@ import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import type { DbOrTx } from '@data/db/types'
 import { agentService } from '@data/services/AgentService'
 import { AgentSessionEditError } from '@data/services/AgentSessionEditError'
-import { AgentSessionDeliveryRoutingError, agentSessionMessageService } from '@data/services/AgentSessionMessageService'
+import {
+  AgentSessionDeliveryRoutingError,
+  agentSessionMessageService,
+  type ExpectedAgent
+} from '@data/services/AgentSessionMessageService'
 import { getAgentSessionHead } from '@data/services/agentSessionMessageTree'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { modelService } from '@data/services/ModelService'
@@ -21,14 +25,18 @@ import { reserveClaudeBranchTx } from '@main/ai/runtime/claudeCode'
 import { reservePiBranchTx } from '@main/ai/runtime/pi/piContext'
 import { reserveDurableBranchTx } from '@main/ai/runtime/piDurable/durableContext'
 import { topicNamingService } from '@main/services/TopicNamingService'
+import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
+import { extractAgentSessionId, isAgentSessionTopic } from '@shared/ai/agentSessionTopic'
+import { type ExecutionId, getProviderModelId } from '@shared/ai/executionIdentity'
+import { getLocalAgentProtocol, isLocalAgentPlaceholderTitle } from '@shared/ai/localAgent'
 import { DataApiErrorFactory, ErrorCode, isDataApiError } from '@shared/data/api/errors'
+import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { CherryMessagePart, CherryUIMessage, MessageSnapshot } from '@shared/data/types/message'
 import { parseUniqueModelId, type ServiceTierSelection, type UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
 import { validateEditedInput } from '../../agentSession/editInput'
-import { extractAgentSessionId, isAgentSessionTopic } from '../../agentSession/topic'
 import { applyTurnInputAttributes, startAiChildTurnSpan } from '../../observability'
 import { runtimeDriverRegistry } from '../../runtime/registry'
 import type { StreamListener } from '../types'
@@ -62,11 +70,12 @@ export type ValidatedAgentDispatch = {
   agentName: string
   /** Parent agent default model — used for optimistic concurrency, not turn routing. */
   agentDefaultModel: UniqueModelId | null
-  uniqueModelId: UniqueModelId
+  uniqueModelId: ExecutionId
   reasoningEffort: ReasoningEffortOption
   serviceTier: ServiceTierSelection
   fastMode?: boolean
   headless: boolean
+  permissionModeOverride?: AgentPermissionMode
   /** Undefined resolves the linked source channel; [] intentionally grants no notification recipients. */
   trustedNotifyChannels?: readonly NotifyChannel[]
   messageSnapshot: MessageSnapshot
@@ -85,6 +94,7 @@ export type PersistedAgentDispatch = {
 }
 
 export interface AgentSessionTurnAuthority {
+  permissionModeOverride?: AgentPermissionMode
   /** Undefined resolves the linked source channel; [] intentionally grants no notification recipients. */
   trustedNotifyChannels?: readonly NotifyChannel[]
 }
@@ -129,19 +139,29 @@ export class AgentChatContextProvider implements ChatContextProvider {
     }
 
     const isHeadless = req.headless === true
+    const permissionModeOverride = isHeadless ? authority.permissionModeOverride : undefined
+    if (
+      permissionModeOverride &&
+      !AGENT_RUNTIME_CAPABILITIES[agent.type].permissionModes.some((mode) => mode === permissionModeOverride)
+    ) {
+      throw DataApiErrorFactory.invalidOperation(
+        'run channel turn',
+        'permission mode is not supported by the agent runtime'
+      )
+    }
     // Interactive turns prefer the per-session override; headless runs keep the
     // agent default so background tasks stay independent of sibling sessions.
-    const candidate = !isHeadless && session.model ? session.model : agent.model
-    let uniqueModelId: UniqueModelId | null = null
+    const candidate = agent.type === 'local' ? null : !isHeadless && session.model ? session.model : agent.model
+    let providerUniqueModelId: UniqueModelId | null = null
     if (candidate) {
       try {
         parseUniqueModelId(candidate)
-        uniqueModelId = candidate
+        providerUniqueModelId = candidate
       } catch {
-        uniqueModelId = null
+        providerUniqueModelId = null
       }
     }
-    if (!uniqueModelId) {
+    if (!providerUniqueModelId && agent.type !== 'local') {
       throw new AgentSessionDeliveryRoutingError(
         'TARGET_UNAVAILABLE',
         isHeadless && session.model
@@ -165,16 +185,34 @@ export class AgentChatContextProvider implements ChatContextProvider {
       throw new Error('Invalid durable agent delivery message')
     }
 
-    const { providerId, modelId: rawModelId } = parseUniqueModelId(uniqueModelId)
+    const userMessageParts = deliveryMessage?.data.parts ?? req.userMessageParts ?? []
+    if (
+      !deliveryMessage &&
+      !AGENT_RUNTIME_CAPABILITIES[agent.type].knowledgeBases &&
+      userMessageParts.some((part) => part.type === 'data-knowledge-scope')
+    ) {
+      throw DataApiErrorFactory.invalidOperation(
+        'dispatch agent turn',
+        'knowledge bases are not supported by the agent runtime'
+      )
+    }
+
+    const uniqueModelId: ExecutionId = providerUniqueModelId ?? `runtime:${agent.id}`
+    const localRuntime = agent.localRuntime
+    const providerModel = providerUniqueModelId ? parseUniqueModelId(providerUniqueModelId) : undefined
     const modelName =
-      uniqueModelId === agent.model
-        ? (agent.modelName ?? rawModelId)
-        : (modelService
-            .getNamesByUniqueIdsTx(application.get('DbService').getDb(), [uniqueModelId])
-            .get(uniqueModelId) ?? rawModelId)
-    const shouldAutoNameInitialTurn = deliveryMessage
-      ? !agentSessionMessageService.hasSessionMessages(sessionId, deliveryMessage.id)
-      : !agentSessionMessageService.hasSessionMessages(sessionId)
+      providerUniqueModelId && providerModel
+        ? providerUniqueModelId === agent.model
+          ? (agent.modelName ?? providerModel.modelId)
+          : (modelService
+              .getNamesByUniqueIdsTx(application.get('DbService').getDb(), [providerUniqueModelId])
+              .get(providerUniqueModelId) ?? providerModel.modelId)
+        : undefined
+    const shouldAutoNameInitialTurn =
+      (deliveryMessage
+        ? !agentSessionMessageService.hasSessionMessages(sessionId, deliveryMessage.id)
+        : !agentSessionMessageService.hasSessionMessages(sessionId)) ||
+      (!session.isNameManuallyEdited && isLocalAgentPlaceholderTitle(session.name, () => localRuntime?.presetId))
     return {
       sessionId,
       parentMessageId,
@@ -189,6 +227,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
       serviceTier: req.serviceTier ?? agent.configuration?.service_tier ?? 'standard',
       fastMode: req.fastMode,
       headless: isHeadless,
+      ...(permissionModeOverride ? { permissionModeOverride } : {}),
       ...(authority.trustedNotifyChannels !== undefined
         ? { trustedNotifyChannels: authority.trustedNotifyChannels }
         : {}),
@@ -198,10 +237,18 @@ export class AgentChatContextProvider implements ChatContextProvider {
         // Normalized effective avatar (mirrors renderer `getAgentAvatar`).
         emoji: agent.configuration?.avatar?.trim() || '🤖',
         ...(agent.avatarFileId ? { avatarFileId: agent.avatarFileId } : {}),
-        model: { id: rawModelId, name: modelName, provider: providerId }
+        ...(providerModel
+          ? {
+              model: {
+                id: providerModel.modelId,
+                name: modelName ?? providerModel.modelId,
+                provider: providerModel.providerId
+              }
+            }
+          : { nativeModel: { runtime: localRuntime ? getLocalAgentProtocol(localRuntime.presetId) : 'local' } })
       },
       userMessageId: deliveryMessage?.id ?? uuidv7(),
-      userMessageParts: deliveryMessage?.data.parts ?? req.userMessageParts ?? [],
+      userMessageParts,
       ...(deliveryMessage ? { deliveryMessage } : {}),
       shouldAutoNameInitialTurn
     }
@@ -210,7 +257,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
   persistDispatchTx(
     tx: DbOrTx,
     validated: ValidatedAgentDispatch,
-    expectedAgent?: string | { id: string; updatedAt: string; model: string | null; type: string },
+    expectedAgent?: ExpectedAgent,
     intent: 'append' | 'edit' = 'append'
   ): PersistedAgentDispatch {
     if (intent === 'append') this.assertAppendable(validated, tx)
@@ -232,7 +279,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
             role: 'assistant',
             status: 'pending',
             data: { parts: [] },
-            modelId: validated.uniqueModelId,
+            modelId: getProviderModelId(validated.uniqueModelId),
             messageSnapshot: validated.messageSnapshot
           }
         ]
@@ -276,7 +323,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
           'cs.session_id': validated.sessionId
         }
       },
-      { topicId: validated.topicId, modelName: parseUniqueModelId(validated.uniqueModelId).modelId },
+      { topicId: validated.topicId, modelName: validated.messageSnapshot.model?.name ?? validated.agentName },
       traceId
     )
 
@@ -302,6 +349,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
         assistantMessageId,
         userMessage,
         headless: validated.headless,
+        ...(validated.permissionModeOverride ? { permissionModeOverride: validated.permissionModeOverride } : {}),
         trustedNotifyChannels: validated.trustedNotifyChannels,
         traceId,
         messageSnapshot: validated.messageSnapshot,
@@ -321,7 +369,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
             conversation: { id: validated.topicId, topicId: validated.topicId },
             trigger: 'submit-message',
             assistantId: validated.agentId,
-            uniqueModelId: validated.uniqueModelId,
+            uniqueModelId: getProviderModelId(validated.uniqueModelId),
             messages: [
               { id: validated.userMessageId, role: 'user', parts: validated.userMessageParts },
               { id: assistantMessageId, role: 'assistant', parts: [] }
@@ -367,7 +415,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
       const persisted = await runtime.editSession(
         validated.sessionId,
         req.editTarget,
-        (tx, nativeSessionId, nativeContextId) => {
+        (tx, nativeSessionId, nativeContextId, sourceBackendId) => {
           validated.parentMessageId = getAgentSessionHead(tx, validated.sessionId)!
           const result = this.persistDispatchTx(
             tx,
@@ -383,7 +431,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
           if (validated.agentType === 'pi')
             reservePiBranchTx(tx, validated.sessionId, validated.userMessageId, nativeSessionId)
           else if (validated.agentType === 'claude-code')
-            reserveClaudeBranchTx(tx, validated.sessionId, validated.userMessageId, nativeSessionId)
+            reserveClaudeBranchTx(tx, validated.sessionId, validated.userMessageId, nativeSessionId, sourceBackendId)
           else if (validated.agentType === 'pi-durable')
             reserveDurableBranchTx(tx, validated.sessionId, validated.userMessageId, nativeSessionId, nativeContextId)
           if (validated.agentType !== 'pi-durable' || nativeContextId)
@@ -396,13 +444,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
           return result
         }
       )
-      notifyDataApiDataChange([
-        {
-          endpoint: '/agent-sessions/:sessionId/messages',
-          kind: 'projection',
-          routeParams: { sessionId: validated.sessionId }
-        }
-      ])
+      this.notifyReservedMessages(persisted)
       return this.activateDispatch(persisted, subscriber)
     }
 
@@ -415,30 +457,38 @@ export class AgentChatContextProvider implements ChatContextProvider {
         throw DataApiErrorFactory.resourceLocked('Agent session', validated.sessionId, 'an active turn')
       }
       this.assertAppendable(validated)
-      const savedUserMessage = agentSessionMessageService.saveMessage({
-        sessionId: validated.sessionId,
-        parentId: validated.parentMessageId,
-        message: {
-          id: validated.userMessageId,
-          role: 'user',
-          status: 'success',
-          data: { parts: validated.userMessageParts }
-        }
-      })
+      const followUp = req.trigger === 'submit-message' ? req.followUp : undefined
+      const stageFollowup = validated.agentType === 'pi-durable' && followUp === true
+      const savedUserMessage = agentSessionMessageService.saveMessage(
+        {
+          sessionId: validated.sessionId,
+          parentId: validated.parentMessageId,
+          ...(stageFollowup && { stageFollowup: true }),
+          message: {
+            id: validated.userMessageId,
+            role: 'user',
+            status: 'success',
+            data: { parts: validated.userMessageParts }
+          }
+        },
+        { publishDataChange: true }
+      )
 
       application.get('AgentSessionRuntimeService').enqueueUserMessage(validated.sessionId, savedUserMessage, {
         headless: validated.headless,
+        ...(validated.permissionModeOverride ? { permissionModeOverride: validated.permissionModeOverride } : {}),
         trustedNotifyChannels: validated.trustedNotifyChannels,
         messageSnapshot: validated.messageSnapshot,
         reasoningEffort: validated.reasoningEffort,
         serviceTier: validated.serviceTier,
-        fastMode: validated.fastMode
+        fastMode: validated.fastMode,
+        followUp
       })
 
       return {
         topicId: validated.topicId,
         models: [],
-        reservedMessages: [toReservedAgentUIMessage(savedUserMessage)],
+        reservedMessages: stageFollowup ? [] : [toReservedAgentUIMessage(savedUserMessage)],
         listeners: [subscriber]
       }
     }
@@ -449,7 +499,19 @@ export class AgentChatContextProvider implements ChatContextProvider {
       onPersist?.(tx, { assistantMessageId: reserved.assistantMessageId, userMessageId: reserved.userMessage.id })
       return reserved
     })
+    this.notifyReservedMessages(persisted)
     return this.activateDispatch(persisted, subscriber)
+  }
+
+  private notifyReservedMessages({ validated, savedMessages }: PersistedAgentDispatch): void {
+    notifyDataApiDataChange([
+      {
+        endpoint: '/agent-sessions/:sessionId/messages',
+        kind: 'membership',
+        routeParams: { sessionId: validated.sessionId },
+        entityIds: savedMessages.map(({ id }) => id)
+      }
+    ])
   }
 }
 

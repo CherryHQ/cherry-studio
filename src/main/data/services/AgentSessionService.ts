@@ -14,10 +14,12 @@ import {
 } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { type AgentWorkspaceRow, agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
+import { artifactTable } from '@data/db/schemas/artifact'
 import { pinTable } from '@data/db/schemas/pin'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
 import { agentChannelService } from '@data/services/AgentChannelService'
+import { agentProviderService } from '@data/services/AgentProviderService'
 import { agentWorkspaceService, rowToAgentWorkspace } from '@data/services/AgentWorkspaceService'
 import { getDataService } from '@data/services/dataServiceRegistry'
 import { modelService } from '@data/services/ModelService'
@@ -26,6 +28,8 @@ import { providerService } from '@data/services/ProviderService'
 import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
 import { Emitter, type Event } from '@main/core/lifecycle'
+import { getAppLanguage } from '@main/i18n'
+import { parseJsonSortKey, selectNamePage } from '@main/utils/listOrdering'
 import { buildSearchSnippet } from '@main/utils/searchSnippet'
 import { isPiCompatibleModel } from '@shared/ai/piModelCompatibility'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
@@ -45,9 +49,19 @@ import type {
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import type { CursorPaginationResponse, DataApiDataChangeEffect } from '@shared/data/api/types'
+import type { AgentSessionImportMetadata } from '@shared/data/types/conversationImport'
 import { isUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import { sanitizeConversationTitle } from '@shared/utils/conversationTitle'
+import { createNameComparator } from '@shared/utils/nameOrdering'
 
 import { ensureAgentSessionRootTx } from './agentSessionMessageTree'
+import {
+  deleteImportedHistoryTx,
+  findImportedSessionTx,
+  importedMetadataSql,
+  setImportedMetadataTx
+} from './importedSessionHistory'
+import { decodeListCursor, keysetOrdering } from './utils/keysetCursor'
 import { applyMoves, insertWithOrderKey } from './utils/orderKey'
 import {
   decodePinnedListCursor,
@@ -89,6 +103,7 @@ function publishTaskReadModelChanges(taskIds: readonly string[]): void {
 
 type JoinedSessionRow = {
   session: SessionRow
+  importMetadata?: AgentSessionImportMetadata | null
   workspace: AgentWorkspaceRow
 }
 
@@ -119,6 +134,7 @@ function rowToSession(row: JoinedSessionRow): AgentSessionEntity {
     workspaceId: clean.workspaceId,
     workspace: rowToAgentWorkspace(row.workspace),
     traceId: clean.traceId,
+    ...(row.importMetadata ? { importMetadata: row.importMetadata } : {}),
     orderKey: clean.orderKey,
     lastActivityAt: timestampToISO(row.session.lastActivityAt),
     createdAt: timestampToISO(row.session.createdAt),
@@ -208,10 +224,21 @@ export class AgentSessionService {
   private readonly sessionUpdated = new Emitter<{ sessionId: string }>()
   readonly onSessionUpdated: Event<{ sessionId: string }> = this.sessionUpdated.event
 
-  notifyReadModelChange(sessionIds: readonly string[], kind: 'membership' | 'projection'): void {
+  notifyReadModelChange(
+    sessionIds: readonly string[],
+    kind: 'membership' | 'projection',
+    restoredAgentId?: string | null
+  ): void {
     const effects = agentSessionReadModelEffects(sessionIds, kind)
     if (effects.length === 0) return
     if (kind === 'membership') effects.push({ endpoint: '/agent-workspaces', kind: 'membership' })
+    if (restoredAgentId) {
+      effects.push({
+        endpoint: '/agents/:agentId/artifacts',
+        kind: 'membership',
+        routeParams: { agentId: restoredAgentId }
+      })
+    }
     notifyDataApiDataChange(effects)
   }
 
@@ -220,7 +247,12 @@ export class AgentSessionService {
     this.notifyReadModelChange(sessionIds, 'membership')
     notifyDataApiDataChange([
       { endpoint: '/agent-sessions/:sessionId/messages', kind: 'membership' },
-      { endpoint: '/agent-sessions/:sessionId/messages/:messageId' }
+      { endpoint: '/agent-sessions/:sessionId/messages/:messageId' },
+      { endpoint: '/ai-usage-records/local', kind: 'membership' },
+      ...sessionIds.map((sessionId) => ({
+        endpoint: '/agent-sessions/:sessionId/cost' as const,
+        routeParams: { sessionId }
+      }))
     ])
   }
 
@@ -351,6 +383,9 @@ export class AgentSessionService {
     if (dto.model !== undefined && dto.model !== null && !isUniqueModelId(dto.model)) {
       throw DataApiErrorFactory.invalidOperation('create session', `unknown model: ${dto.model}`)
     }
+    const [owner] = tx.select({ type: agentsTable.type }).from(agentsTable).where(eq(agentsTable.id, dto.agentId)).all()
+    if (owner?.type === 'local' && !agentProviderService.isEnabledTx(tx, dto.agentId))
+      throw DataApiErrorFactory.invalidOperation('create session', 'Local agent is disabled')
 
     let workspaceId: string
     switch (dto.workspace.type) {
@@ -393,6 +428,22 @@ export class AgentSessionService {
     ensureAgentSessionRootTx(tx, id)
   }
 
+  findImportedTx(tx: DbOrTx, source: string, originalSessionId: string) {
+    return findImportedSessionTx(tx, source, originalSessionId)
+  }
+
+  setImportMetadataTx(tx: DbOrTx, id: string, metadata: AgentSessionImportMetadata, lastActivityAt: number): void {
+    setImportedMetadataTx(tx, id, metadata)
+    tx.update(sessionsTable).set({ lastActivityAt, updatedAt: lastActivityAt }).where(eq(sessionsTable.id, id)).run()
+  }
+
+  finishHistoryImportTx(tx: DbOrTx, sessionId: string, updatedAt: number): void {
+    tx.update(sessionsTable)
+      .set({ isNameManuallyEdited: true, updatedAt, lastActivityAt: updatedAt })
+      .where(eq(sessionsTable.id, sessionId))
+      .run()
+  }
+
   /** Bump metadata modification time from a foreign service's transaction. */
   touchUpdatedAtTx(tx: DbOrTx, sessionId: string, timestampMs: number): void {
     tx.update(sessionsTable).set({ updatedAt: timestampMs }).where(eq(sessionsTable.id, sessionId)).run()
@@ -429,21 +480,56 @@ export class AgentSessionService {
     )
   }
 
-  getById(id: string): AgentSessionEntity {
-    return this.readById(id)
+  getById(id: string, options?: { includeTaskReuse: boolean }) {
+    return this.readById(id, undefined, options?.includeTaskReuse)
   }
 
-  private readById(id: string, scope?: SQL): AgentSessionEntity {
+  isOrdinaryConversation(id: string): boolean {
+    return Boolean(
+      application
+        .get('DbService')
+        .getDb()
+        .select({ id: sessionsTable.id })
+        .from(sessionsTable)
+        .where(
+          and(eq(sessionsTable.id, id), conversationFilter, ordinaryConversationFilter, isNull(sessionsTable.deletedAt))
+        )
+        .get()
+    )
+  }
+
+  isOneOffTaskSession(id: string): boolean {
+    return Boolean(
+      application
+        .get('DbService')
+        .getDb()
+        .select({ id: sessionsTable.id })
+        .from(sessionsTable)
+        .where(
+          and(eq(sessionsTable.id, id), isNotNull(sessionsTable.taskId), eq(sessionsTable.isTaskReuseTarget, false))
+        )
+        .get()
+    )
+  }
+
+  private readById(id: string, scope?: SQL, includeTaskReuse = false) {
     const db = application.get('DbService').getDb()
     const [row] = db
-      .select({ session: sessionsTable, workspace: agentWorkspaceTable })
+      .select({
+        session: sessionsTable,
+        importMetadata: importedMetadataSql(sessionsTable.id),
+        workspace: agentWorkspaceTable
+      })
       .from(sessionsTable)
       .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
       .where(and(eq(sessionsTable.id, id), scope, isNull(sessionsTable.deletedAt)))
       .limit(1)
       .all()
     if (!row) throw DataApiErrorFactory.notFound('Session', id)
-    return rowToSession(row)
+    return {
+      ...rowToSession(row),
+      ...(includeTaskReuse && row.session.isTaskReuseTarget && { isTaskReuseTarget: true })
+    }
   }
 
   /** Read all task-owned sessions, including non-reusing runs whose jobs were collected. */
@@ -464,7 +550,11 @@ export class AgentSessionService {
 
   getByTaskScheduleIdTx(tx: DbOrTx, taskScheduleId: string): AgentSessionEntity | null {
     const [row] = tx
-      .select({ session: sessionsTable, workspace: agentWorkspaceTable })
+      .select({
+        session: sessionsTable,
+        importMetadata: importedMetadataSql(sessionsTable.id),
+        workspace: agentWorkspaceTable
+      })
       .from(sessionsTable)
       .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
       .innerJoin(agentsTable, and(eq(sessionsTable.agentId, agentsTable.id), isNull(agentsTable.deletedAt)))
@@ -640,7 +730,11 @@ export class AgentSessionService {
           ? eq(agentsTable.id, query.agentId)
           : undefined
     const [row] = db
-      .select({ session: sessionsTable, workspace: agentWorkspaceTable })
+      .select({
+        session: sessionsTable,
+        importMetadata: importedMetadataSql(sessionsTable.id),
+        workspace: agentWorkspaceTable
+      })
       .from(sessionsTable)
       .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
       .leftJoin(agentsTable, and(eq(sessionsTable.agentId, agentsTable.id), isNull(agentsTable.deletedAt)))
@@ -678,7 +772,11 @@ export class AgentSessionService {
           })()
 
           const reusableRows = tx
-            .select({ session: sessionsTable, workspace: agentWorkspaceTable })
+            .select({
+              session: sessionsTable,
+              importMetadata: importedMetadataSql(sessionsTable.id),
+              workspace: agentWorkspaceTable
+            })
             .from(sessionsTable)
             .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
             .where(
@@ -706,7 +804,11 @@ export class AgentSessionService {
             const now = Date.now()
             this.advanceLastActivityAtTx(tx, reusable.session.id, now)
             const updatedSession = tx
-              .select({ session: sessionsTable, workspace: agentWorkspaceTable })
+              .select({
+                session: sessionsTable,
+                importMetadata: importedMetadataSql(sessionsTable.id),
+                workspace: agentWorkspaceTable
+              })
               .from(sessionsTable)
               .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
               .where(eq(sessionsTable.id, reusable.session.id))
@@ -732,7 +834,11 @@ export class AgentSessionService {
             workspace: dto.workspace
           })
           const [created] = tx
-            .select({ session: sessionsTable, workspace: agentWorkspaceTable })
+            .select({
+              session: sessionsTable,
+              importMetadata: importedMetadataSql(sessionsTable.id),
+              workspace: agentWorkspaceTable
+            })
             .from(sessionsTable)
             .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
             .where(eq(sessionsTable.id, reservedId))
@@ -792,11 +898,10 @@ export class AgentSessionService {
   /**
    * Two-section page mirroring `TopicService.listByCursor`: pinned sessions
    * first (via the shared `pin` table, ordered by `pin.orderKey`) then unpinned
-   * by `session.orderKey ASC, id ASC` (manual/creation drag order). A partial
+   * by the selected sort key and `id ASC` (default: manual `orderKey ASC`). A partial
    * pin page spills into the unpinned section to fill `limit`. Pins float a
    * session to the top independent of its own `orderKey`, so both rails share
-   * one pagination contract; recency ordering for the time-grouped view is
-   * applied by the renderer over the loaded list.
+   * one pagination contract; sorting is applied before reading each page.
    */
   listByCursor(
     query: ListAgentSessionsQuery & { scope: 'ordinary' | 'all-conversations'; taskId?: string }
@@ -804,6 +909,19 @@ export class AgentSessionService {
     const db = application.get('DbService').getDb()
     const limit = Math.min(query.limit ?? DEFAULT_LIMIT, MAX_LIMIT)
     const cursor = decodePinnedListCursor(query.cursor, 'agent-session')
+    const sortBy = query.sortBy ?? 'orderKey'
+    const direction = query.sortOrder ?? (sortBy === 'orderKey' ? 'asc' : 'desc')
+    const ordering = keysetOrdering(sessionsTable[sortBy], sessionsTable.id, { major: direction, tie: 'asc' })
+    const boundary =
+      cursor.section === 'entity' && cursor.orderKey !== null
+        ? sortBy === 'orderKey'
+          ? { key: cursor.orderKey, id: cursor.id }
+          : decodeListCursor(
+              `${cursor.orderKey}:${cursor.id}`,
+              (key) => parseJsonSortKey(key, sortBy === 'name' ? 'string' : 'number'),
+              'agent-session'
+            )
+        : null
     const agentFilter = query.agentId ? eq(sessionsTable.agentId, query.agentId) : undefined
     const workspaceFilter = query.workspaceId ? eq(sessionsTable.workspaceId, query.workspaceId) : undefined
     const idFilter = query.ids ? inArray(sessionsTable.id, query.ids) : undefined
@@ -823,7 +941,12 @@ export class AgentSessionService {
           )
         : undefined
       const pinRows = db
-        .select({ session: sessionsTable, workspace: agentWorkspaceTable, pinOrderKey: pinTable.orderKey })
+        .select({
+          session: sessionsTable,
+          importMetadata: importedMetadataSql(sessionsTable.id),
+          workspace: agentWorkspaceTable,
+          pinOrderKey: pinTable.orderKey
+        })
         .from(sessionsTable)
         .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
         .leftJoin(agentsTable, and(eq(sessionsTable.agentId, agentsTable.id), isNull(agentsTable.deletedAt)))
@@ -870,41 +993,64 @@ export class AgentSessionService {
       }
     }
 
-    // Tuple cursor `(orderKey, id)` over `ORDER BY orderKey ASC, id ASC`: the id
-    // tiebreaker prevents dedup/skip across pages when two rows share an orderKey.
+    // The id tiebreak keeps equal sort keys distinct across pages.
     const remaining = limit - items.length
     const pinnedSubquery = db.select({ id: pinTable.entityId }).from(pinTable).where(eq(pinTable.entityType, 'session'))
 
-    let sessionAfter: SQL | undefined
-    if (cursor.section === 'entity' && cursor.orderKey !== null) {
-      sessionAfter = or(
-        gt(sessionsTable.orderKey, cursor.orderKey),
-        and(eq(sessionsTable.orderKey, cursor.orderKey), gt(sessionsTable.id, cursor.id))
-      )
-    }
-
+    const sessionFilter = and(
+      conversationFilter,
+      taskFilter,
+      taskIdFilter,
+      agentFilter,
+      workspaceFilter,
+      idFilter,
+      activeAgentFilter,
+      inTrash ? isNotNull(sessionsTable.deletedAt) : isNull(sessionsTable.deletedAt),
+      notInArray(sessionsTable.id, pinnedSubquery)
+    )
+    const compareNames =
+      sortBy === 'name' ? createNameComparator(query.sortLocale ?? getAppLanguage(), direction) : undefined
+    const namePage = compareNames
+      ? selectNamePage({
+          names: db
+            .select({ id: sessionsTable.id, name: sessionsTable.name })
+            .from(sessionsTable)
+            .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
+            .leftJoin(agentsTable, and(eq(sessionsTable.agentId, agentsTable.id), isNull(agentsTable.deletedAt)))
+            .where(sessionFilter)
+            .all(),
+          after: boundary && typeof boundary.key === 'string' ? { name: boundary.key, id: boundary.id } : undefined,
+          compare: compareNames,
+          limit: remaining + 1
+        })
+      : undefined
     const sessionRows = db
-      .select({ session: sessionsTable, workspace: agentWorkspaceTable })
+      .select({
+        session: sessionsTable,
+        importMetadata: importedMetadataSql(sessionsTable.id),
+        workspace: agentWorkspaceTable
+      })
       .from(sessionsTable)
       .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
       .leftJoin(agentsTable, and(eq(sessionsTable.agentId, agentsTable.id), isNull(agentsTable.deletedAt)))
       .where(
         and(
-          conversationFilter,
-          taskFilter,
-          taskIdFilter,
-          agentFilter,
-          workspaceFilter,
-          idFilter,
-          activeAgentFilter,
-          inTrash ? isNotNull(sessionsTable.deletedAt) : isNull(sessionsTable.deletedAt),
-          notInArray(sessionsTable.id, pinnedSubquery),
-          sessionAfter
+          sessionFilter,
+          namePage
+            ? inArray(
+                sessionsTable.id,
+                namePage.map((row) => row.id)
+              )
+            : boundary
+              ? ordering.where(boundary)
+              : undefined
         )
       )
-      .orderBy(asc(sessionsTable.orderKey), asc(sessionsTable.id))
+      .orderBy(...ordering.orderBy)
       .limit(remaining + 1)
       .all()
+
+    if (compareNames) sessionRows.sort((a, b) => compareNames(a.session, b.session))
 
     const hasMoreInSession = sessionRows.length > remaining
     for (const row of sessionRows.slice(0, remaining)) {
@@ -914,10 +1060,37 @@ export class AgentSessionService {
     let nextCursor: string | undefined
     if (hasMoreInSession) {
       const last = sessionRows[remaining - 1]
-      nextCursor = encodeEntityCursor(last.session.orderKey, last.session.id)
+      nextCursor = encodeEntityCursor(
+        sortBy === 'orderKey' ? last.session.orderKey : encodeURIComponent(JSON.stringify(last.session[sortBy])),
+        last.session.id
+      )
     }
 
     return { items: items.map((i) => i.session), nextCursor }
+  }
+
+  updateGeneratedName(id: string, title: string): boolean {
+    const name = sanitizeConversationTitle(title)
+    if (!name) return false
+    const result = application
+      .get('DbService')
+      .getDb()
+      .update(sessionsTable)
+      .set({ name, updatedAt: Date.now() })
+      .where(
+        and(
+          eq(sessionsTable.id, id),
+          isNull(sessionsTable.deletedAt),
+          eq(sessionsTable.isNameManuallyEdited, false),
+          sql`${sessionsTable.name} != ${name}`
+        )
+      )
+      .run()
+    if (!result.changes) return false
+    this.notifyReadModelChange([id], 'projection')
+    notifyDataApiDataChange([{ endpoint: '/ai-usage-records/local', kind: 'projection' }])
+    this.sessionUpdated.fire({ sessionId: id })
+    return true
   }
 
   update(id: string, dto: UpdateAgentSessionDto): AgentSessionEntity {
@@ -941,7 +1114,10 @@ export class AgentSessionService {
     )
     if (!result.row) throw DataApiErrorFactory.notFound('Session', id)
     publishTaskReadModelChanges(result.clearedTaskScheduleIds)
-    this.notifyReadModelChange([id], 'projection')
+    const effects = agentSessionReadModelEffects([id], 'projection')
+    if (result.artifactOwnershipChanged) effects.push({ endpoint: '/agents/:agentId/artifacts', kind: 'membership' })
+    if (dto.name !== undefined) effects.push({ endpoint: '/ai-usage-records/local', kind: 'projection' })
+    notifyDataApiDataChange(effects)
     this.sessionUpdated.fire({ sessionId: id })
     return this.getById(id)
   }
@@ -950,7 +1126,7 @@ export class AgentSessionService {
     tx: DbOrTx,
     id: string,
     patch: UpdateAgentSessionDto
-  ): { row: SessionRow | undefined; clearedTaskScheduleIds: string[] } {
+  ): { row: SessionRow | undefined; clearedTaskScheduleIds: string[]; artifactOwnershipChanged: boolean } {
     const [current] = tx
       .select({
         agentId: sessionsTable.agentId,
@@ -961,7 +1137,7 @@ export class AgentSessionService {
       .where(and(eq(sessionsTable.id, id), isNull(sessionsTable.deletedAt)))
       .limit(1)
       .all()
-    if (!current) return { row: undefined, clearedTaskScheduleIds: [] }
+    if (!current) return { row: undefined, clearedTaskScheduleIds: [], artifactOwnershipChanged: false }
     if (patch.agentId !== undefined) this.assertAgentExistsTx(tx, patch.agentId)
     if (patch.model !== undefined && patch.model !== null && !isUniqueModelId(patch.model)) {
       throw DataApiErrorFactory.invalidOperation('update session', `unknown model: ${patch.model}`)
@@ -969,31 +1145,38 @@ export class AgentSessionService {
 
     const previousAgentId = current.agentId
     const reassigned = patch.agentId !== undefined && patch.agentId !== previousAgentId
-    if (reassigned && patch.model === undefined && current.model != null) {
-      // A cross-runtime reassignment may make the override unservable, so clear it atomically;
-      // same-runtime reassignment keeps the override.
-      const agentTypes = tx
+    if (reassigned) {
+      const owners = tx
         .select({ id: agentsTable.id, type: agentsTable.type })
         .from(agentsTable)
         .where(
           inArray(
             agentsTable.id,
-            previousAgentId != null ? [previousAgentId, patch.agentId as string] : [patch.agentId as string]
+            [previousAgentId, patch.agentId].filter((value): value is string => typeof value === 'string')
           )
         )
         .all()
-      const typeOf = new Map(agentTypes.map((row) => [row.id, row.type]))
-      if (previousAgentId != null) {
-        if (typeOf.get(previousAgentId) !== typeOf.get(patch.agentId as string)) {
+      if (owners.some((owner) => owner.type === 'local')) this.assertSessionHasNoMessagesTx(tx, id)
+      const target = owners.find((owner) => owner.id === patch.agentId)
+      if (target?.type === 'local' && !agentProviderService.isEnabledTx(tx, target.id)) {
+        throw DataApiErrorFactory.invalidOperation('change agent', 'Local agent is disabled')
+      }
+      if (patch.model === undefined && current.model != null) {
+        // A cross-runtime reassignment may make the override unservable, so clear it atomically;
+        // same-runtime reassignment keeps the override.
+        const typeOf = new Map(owners.map((row) => [row.id, row.type]))
+        if (previousAgentId != null) {
+          if (typeOf.get(previousAgentId) !== typeOf.get(patch.agentId as string)) {
+            patch.model = null
+          }
+        } else if (
+          ['pi', 'pi-durable'].includes(typeOf.get(patch.agentId as string) ?? '') &&
+          !isPiServableUniqueModel(current.model)
+        ) {
+          // A deleted parent leaves no runtime type to compare; discard an override the new Pi agent
+          // cannot serve so the session can use its default.
           patch.model = null
         }
-      } else if (
-        ['pi', 'pi-durable'].includes(typeOf.get(patch.agentId as string) ?? '') &&
-        !isPiServableUniqueModel(current.model)
-      ) {
-        // A deleted parent leaves no runtime type to compare; discard an override the new Pi agent
-        // cannot serve so the session can use its default.
-        patch.model = null
       }
     }
     const clearedTaskScheduleIds = reassigned && current.taskScheduleId ? [current.taskScheduleId] : []
@@ -1006,10 +1189,25 @@ export class AgentSessionService {
       .where(and(eq(sessionsTable.id, id), isNull(sessionsTable.deletedAt)))
       .returning()
       .all()
+    let artifactOwnershipChanged = false
     if (reassigned) {
       tx.update(sessionsTable).set({ agentId: patch.agentId }).where(eq(sessionsTable.ownerSessionId, id)).run()
+      const result = tx
+        .update(artifactTable)
+        .set({ agentId: patch.agentId })
+        .where(
+          inArray(
+            artifactTable.sessionId,
+            tx
+              .select({ id: sessionsTable.id })
+              .from(sessionsTable)
+              .where(or(eq(sessionsTable.id, id), eq(sessionsTable.ownerSessionId, id)))
+          )
+        )
+        .run()
+      artifactOwnershipChanged = result.changes > 0
     }
-    return { row, clearedTaskScheduleIds }
+    return { row, clearedTaskScheduleIds, artifactOwnershipChanged }
   }
 
   /**
@@ -1058,7 +1256,11 @@ export class AgentSessionService {
 
   private getJoinedSessionRowTx(tx: DbOrTx, id: string): JoinedSessionRow {
     const [row] = tx
-      .select({ session: sessionsTable, workspace: agentWorkspaceTable })
+      .select({
+        session: sessionsTable,
+        importMetadata: importedMetadataSql(sessionsTable.id),
+        workspace: agentWorkspaceTable
+      })
       .from(sessionsTable)
       .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
       .where(and(eq(sessionsTable.id, id), isNull(sessionsTable.deletedAt)))
@@ -1128,7 +1330,11 @@ export class AgentSessionService {
 
     const result = application.get('DbService').withWriteTx((tx) => {
       const [row] = tx
-        .select({ session: sessionsTable, workspace: agentWorkspaceTable })
+        .select({
+          session: sessionsTable,
+          importMetadata: importedMetadataSql(sessionsTable.id),
+          workspace: agentWorkspaceTable
+        })
         .from(sessionsTable)
         .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
         .where(and(eq(sessionsTable.id, id), isNotNull(sessionsTable.deletedAt)))
@@ -1146,7 +1352,11 @@ export class AgentSessionService {
 
   deleteTx(tx: DbOrTx, id: string): string[] {
     const [row] = tx
-      .select({ session: sessionsTable, workspace: agentWorkspaceTable })
+      .select({
+        session: sessionsTable,
+        importMetadata: importedMetadataSql(sessionsTable.id),
+        workspace: agentWorkspaceTable
+      })
       .from(sessionsTable)
       .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
       .where(eq(sessionsTable.id, id))
@@ -1179,7 +1389,11 @@ export class AgentSessionService {
 
       const rows = chunk(uniqueIds, SQLITE_INARRAY_CHUNK).flatMap((idChunk) =>
         tx
-          .select({ session: sessionsTable, workspace: agentWorkspaceTable })
+          .select({
+            session: sessionsTable,
+            importMetadata: importedMetadataSql(sessionsTable.id),
+            workspace: agentWorkspaceTable
+          })
           .from(sessionsTable)
           .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
           .where(
@@ -1321,11 +1535,11 @@ export class AgentSessionService {
       .where(
         and(or(eq(sessionsTable.id, id), eq(sessionsTable.ownerSessionId, id)), isNotNull(sessionsTable.deletedAt))
       )
-      .returning({ id: sessionsTable.id })
+      .returning({ id: sessionsTable.id, agentId: sessionsTable.agentId })
       .all()
     if (!row) throw DataApiErrorFactory.notFound('Session', id)
 
-    this.notifyReadModelChange([id], 'membership')
+    this.notifyReadModelChange([id], 'membership', row.agentId)
     logger.info('Restored session', { id })
     return this.getById(id)
   }
@@ -1363,7 +1577,11 @@ export class AgentSessionService {
 
     const rows = chunk(uniqueIds, SQLITE_INARRAY_CHUNK).flatMap((idChunk) =>
       tx
-        .select({ session: sessionsTable, workspace: agentWorkspaceTable })
+        .select({
+          session: sessionsTable,
+          importMetadata: importedMetadataSql(sessionsTable.id),
+          workspace: agentWorkspaceTable
+        })
         .from(sessionsTable)
         .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
         .where(
@@ -1384,6 +1602,7 @@ export class AgentSessionService {
     for (const idChunk of chunk(purgedIds, SQLITE_INARRAY_CHUNK)) {
       tx.delete(sessionsTable).where(inArray(sessionsTable.id, idChunk)).run()
     }
+    deleteImportedHistoryTx(tx, purgedIds)
     pinService.purgeForEntitiesTx(tx, 'session', purgedIds)
     for (const workspaceId of systemWorkspaceIds) agentWorkspaceService.deleteByIdTx(tx, workspaceId)
     return purgedIds
@@ -1435,6 +1654,7 @@ export class AgentSessionService {
       .returning({ id: sessionsTable.id })
       .all()
     const sessionIds = deletedSessions.map((session) => session.id)
+    deleteImportedHistoryTx(tx, sessionIds)
     pinService.purgeForEntitiesTx(tx, 'session', sessionIds)
     return sessionIds
   }
@@ -1491,7 +1711,11 @@ export class AgentSessionService {
     }
 
     const rows = tx
-      .select({ session: sessionsTable, workspace: agentWorkspaceTable })
+      .select({
+        session: sessionsTable,
+        importMetadata: importedMetadataSql(sessionsTable.id),
+        workspace: agentWorkspaceTable
+      })
       .from(sessionsTable)
       .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
       .where(eq(sessionsTable.agentId, agentId))
@@ -1645,6 +1869,7 @@ export class AgentSessionService {
         .all()
         .map((row) => row.id)
     )
+    deleteImportedHistoryTx(tx, deletedIds)
 
     pinService.purgeForEntitiesTx(tx, 'session', deletedIds)
     return deletedIds

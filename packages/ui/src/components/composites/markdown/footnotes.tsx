@@ -23,7 +23,7 @@ export function FootnoteLink({
   return (
     <a
       {...props}
-      className="rounded-sm text-primary underline focus-visible:outline-2 focus-visible:outline-ring"
+      className="rounded-sm text-primary underline"
       onClick={(event) => {
         event.preventDefault()
         const href = event.currentTarget.getAttribute('href')

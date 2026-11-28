@@ -80,6 +80,22 @@ function renderPreview(
 }
 
 describe('MarkdownFilePreview', () => {
+  it('opens a located artifact as source instead of rendering it', async () => {
+    mocks.readText.mockResolvedValue('# Source')
+    render(
+      <MarkdownFilePreview
+        filePath={filePath}
+        fileName="source.markdown"
+        metadata={{ size: 128, modifiedAt: 1 }}
+        refreshKey={0}
+        type="artifact"
+        location={{ line: 1 }}
+      />
+    )
+    expect(await screen.findByTestId('code-viewer')).toHaveTextContent('# Source')
+    expect(screen.queryByRole('heading', { name: 'Source' })).not.toBeInTheDocument()
+  })
+
   it('ignores an obsolete read failure while replacement metadata is pending', async () => {
     const obsoleteRead = Promise.withResolvers<string>()
     const metadata = {

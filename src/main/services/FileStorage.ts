@@ -1,12 +1,3 @@
-import * as fs from 'fs'
-import { writeFileSync } from 'fs'
-import { readFile } from 'fs/promises'
-import * as path from 'path'
-
-import type { OpenDialogOptions, OpenDialogReturnValue, SaveDialogOptions, SaveDialogReturnValue } from 'electron'
-import { BrowserWindow, dialog, shell } from 'electron'
-import { v4 as uuidv4 } from 'uuid'
-
 /**
  * @deprecated LEGACY v1 CODE — being migrated to `FileManager`
  * (`src/main/services/file/FileManager.ts`). This file will be DELETED once
@@ -22,6 +13,15 @@ import { v4 as uuidv4 } from 'uuid'
  * `AbsoluteFilePathSchema.parse()` would add new throw sites to a module that is
  * already `@deprecated` and slated for deletion, changing v1 behavior instead of
  * migrating it. The casts only feed `getFileType` (extension reads). */
+import * as fs from 'fs'
+import { writeFileSync } from 'fs'
+import { readFile } from 'fs/promises'
+import * as path from 'path'
+
+import type { OpenDialogOptions, OpenDialogReturnValue, SaveDialogOptions, SaveDialogReturnValue } from 'electron'
+import { BrowserWindow, dialog, shell } from 'electron'
+import { v4 as uuidv4 } from 'uuid'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { t } from '@main/i18n'
@@ -96,6 +96,8 @@ class FileStorage {
     return application.getPath('app.temp')
   }
 
+  private lastSelectedDir: string | undefined
+
   public selectFile = async (
     _: Electron.IpcMainInvokeEvent,
     options?: OpenDialogOptions
@@ -105,12 +107,17 @@ class FileStorage {
     }
 
     const dialogOptions = { ...defaultOptions, ...options }
+    if (!dialogOptions.defaultPath && this.lastSelectedDir) {
+      dialogOptions.defaultPath = this.lastSelectedDir
+    }
 
     const result = await dialog.showOpenDialog(dialogOptions)
 
     if (result.canceled || result.filePaths.length === 0) {
       return null
     }
+
+    this.lastSelectedDir = path.dirname(result.filePaths[0])
 
     const fileMetadataPromises = result.filePaths.map(async (filePath) => {
       const stats = fs.statSync(filePath)
@@ -314,9 +321,7 @@ class FileStorage {
 
         // Delayed loading: officeparser (and the pdf stack it drags in) stays out of the boot path.
         const { default: officeParser } = await import('officeparser')
-        const data = await officeParser.parseOfficeAsync(filePath, {
-          tempFilesLocation: this.tempDir
-        })
+        const data = await officeParser.parseOfficeAsync(filePath)
         return data
       } catch (error) {
         logger.error('Failed to read document file:', error as Error)

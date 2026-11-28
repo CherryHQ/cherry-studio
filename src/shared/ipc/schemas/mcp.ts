@@ -10,6 +10,8 @@ import {
   McpResourceTemplateSchema,
   McpServerInstructionsSchema
 } from '@shared/types/mcp'
+import { McpAppMessageReferenceSchema } from '@shared/types/mcpApp'
+import { McpSkillEntrySchema } from '@shared/types/mcpSkills'
 
 import { defineRoute } from '../define'
 
@@ -32,6 +34,11 @@ const protocolInstallRequestId = z.object({ requestId: z.uuid() })
 const interactionDecision = z.enum(['accept', 'decline', 'cancel'])
 
 export const mcpRequestSchemas = {
+  'mcp.app.open': defineRoute({
+    input: McpAppMessageReferenceSchema.extend({ requestId: z.uuid() }),
+    output: z.object({ id: z.uuid(), src: z.string(), partition: z.string(), origins: z.array(z.string()) })
+  }),
+  'mcp.app.close': defineRoute({ input: z.object({ id: z.uuid() }), output: z.void() }),
   'mcp.catalog.observe': defineRoute({ input: serverIdNonEmpty.extend({ requestId: z.uuid() }), output: z.void() }),
   'mcp.resource.observe': defineRoute({
     input: serverIdNonEmpty.extend({ requestId: z.uuid(), uri: z.string().min(1).max(8192) }),
@@ -43,6 +50,10 @@ export const mcpRequestSchemas = {
   'mcp.server.stop': defineRoute({ input: serverId, output: z.void() }),
   'mcp.server.cancel_authorization': defineRoute({ input: serverId, output: z.void() }),
   'mcp.server.refresh_tools': defineRoute({ input: serverId, output: z.void() }),
+  'mcp.server.list_skills': defineRoute({
+    input: serverIdNonEmpty.extend({ requestId: z.uuid(), includeDisabled: z.boolean().optional() }),
+    output: McpSkillEntrySchema.array()
+  }),
   'mcp.server.list_prompts': defineRoute({ input: serverIdNonEmpty, output: McpPromptSchema.array() }),
   'mcp.server.list_resources': defineRoute({ input: serverIdNonEmpty, output: McpResourceSchema.array() }),
   'mcp.server.list_resource_templates': defineRoute({
@@ -119,6 +130,7 @@ export const mcpRequestSchemas = {
 }
 
 export type McpEventSchemas = {
+  'mcp.app.state_changed': { id: string; state: 'ready' | 'size' | 'closed' | 'error'; height?: number }
   'mcp.catalog.changed': { serverId: string; kind: 'prompts' | 'resources' }
   'mcp.resource.changed': {
     requestId: string

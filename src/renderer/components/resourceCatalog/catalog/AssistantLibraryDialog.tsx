@@ -247,7 +247,6 @@ export function AssistantLibraryDialog({
               <AssistantLibraryPresetListSkeleton />
             ) : visiblePresets.length === 0 ? (
               <EmptyState
-                preset={search ? 'no-result' : 'no-resource'}
                 title={
                   search ? t('library.assistant_catalog.no_match_title') : t('library.assistant_catalog.empty_title')
                 }

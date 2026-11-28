@@ -28,6 +28,18 @@ Run `pnpm test:scripts scripts/lint/__tests__/structured-clone.test.ts` to check
 the actual repository configuration against rejected accesses, single-line
 exceptions and unrelated local identifiers.
 
+`copy/no-json-roundtrip` rejects direct `JSON.parse(JSON.stringify(value))`
+calls in application, package and tooling code. Share immutable data, construct
+the fields the caller owns, or encode once at the wire boundary. The rule has
+no autofix. JSON normalization can drop fields and invoke `toJSON`.
+
+The rule recognizes the global JSON methods, including static bracket and
+qualified global access. A replacer or reviver can intentionally transform the
+data. Standalone encoding and decoding, wire tests and the generated provider
+compatibility validators remain valid. Aliases and calls split across
+statements are outside this syntactic check. Existing boundaries that need the
+round trip document the reason with a single-call suppression.
+
 ## UI rules
 
 `scroll-area.mjs` is the Oxlint JavaScript plugin for the shared ScrollArea padding contract.
@@ -62,3 +74,19 @@ padding rule remains an error. Re-enabling shadcn warnings will block CI under
 `.oxlintrc.json` cover existing global CSS and DOM hooks; they do not allow arbitrary
 Tailwind utilities. `outline-dot` and `outline-text` are descendant selector hooks,
 not raw outline colors. Undefined color utilities must use the semantic tokens in DESIGN.md.
+
+## Import layout
+
+Oxlint's `import/first` keeps imports before exports and other statements.
+Test files (`*.test.*`, `*.spec.*`, and `__tests__/**`) are exempt so mock setup
+can remain next to the tested import.
+
+`import-layout/no-block-comments-between-imports` rejects block comments between
+adjacent import declarations, including type imports. It also applies to tests.
+Keep file documentation before the import group and API documentation on its
+actual declaration. Line comments and comments inside import specifiers remain
+allowed. The rule deliberately has no automatic fix: moving documentation or
+lint directives requires checking their intended scope.
+
+Run `pnpm test:scripts scripts/lint/__tests__/import-layout.test.ts` for rule and
+repository configuration coverage.

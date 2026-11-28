@@ -1,19 +1,23 @@
 import type { CallToolResult } from '@modelcontextprotocol/client'
-import { type JSONSchema7, type Tool } from 'ai'
+import { type JSONSchema7, type Tool, type ToolSet } from 'ai'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
 import type { McpInteractionContext } from '@main/ai/mcp/connections/McpConnection'
 import { registerMcpToolResources } from '@main/ai/messages/mcpToolResources'
 import { mcpServerService } from '@main/data/services/McpServerService'
-import { isMcpToolForcePromptBySource } from '@shared/ai/tools/mcpSourcePolicy'
+import { isMcpToolDisabledBySource, isMcpToolForcePromptBySource } from '@shared/ai/tools/mcpSourcePolicy'
+import type { Assistant } from '@shared/data/types/assistant'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import type { McpTool } from '@shared/types/mcp'
+import type { McpAppReference } from '@shared/types/mcpApp'
+import { getEffectiveMcpMode } from '@shared/utils/mcp'
 
 import { getRequestContext } from '../context'
 import { createMcpInputSchema } from '../mcpSchema'
 import { registry, type ToolRegistry } from '../registry'
 import type { ToolEntry } from '../types'
+import { resolveServersForAssistant } from './resolveAssistantMcpTools'
 import { mcpResultToModelOutput, mcpResultToTextSummary } from './utils'
 
 const logger = loggerService.withContext('mcpTools')
@@ -64,10 +68,15 @@ function createMcpTool(mcpTool: McpTool, forcePrompt: boolean): Tool {
       if (!server) {
         throw new Error(`MCP server ${mcpTool.serverId} is not active or no longer registered`)
       }
+      let appReference: McpAppReference | undefined
       const result: CallToolResult = await application.get('McpRuntimeService').callTool({
         serverId: server.id,
         name: mcpTool.name,
         args,
+        audience: 'model',
+        onAppResult: (reference) => {
+          appReference = reference
+        },
         callId: toolCallId,
         // Isolation scope for abort-by-id: provider call ids (e.g. "call_0") can collide
         // across topics, and the renderer's abort presents the same topicId.
@@ -87,7 +96,7 @@ function createMcpTool(mcpTool: McpTool, forcePrompt: boolean): Tool {
       // parts intact); `toModelOutput` below produces the model's view.
       return {
         ...result,
-        metadata
+        metadata: appReference ? { ...metadata, app: appReference, appInput: args } : metadata
       }
     },
     toModelOutput({ output }) {
@@ -112,6 +121,22 @@ function toEntry(mcpTool: McpTool, server: McpServer): ToolEntry {
     tool: createMcpTool(mcpTool, forcePrompt),
     applies: (scope) => scope.mcpToolIds.has(mcpTool.id)
   }
+}
+
+/** Read the cached model-facing tool converters without warming an MCP connection. */
+export function resolveCachedMcpTools(assistant: Assistant): ToolSet {
+  const mode = getEffectiveMcpMode(assistant)
+  if (mode === 'disabled') return {}
+  const servers = resolveServersForAssistant(assistant, mode)
+  return Object.fromEntries(
+    servers.flatMap((server) =>
+      application
+        .get('McpCatalogService')
+        .listTools(server.id, { audience: 'model' })
+        .filter((tool) => !isMcpToolDisabledBySource(server, tool))
+        .map((tool) => [tool.id, toEntry(tool, server).tool])
+    )
+  )
 }
 
 export interface SyncMcpToolsToRegistryOptions {
@@ -157,7 +182,7 @@ export async function syncMcpToolsToRegistry(
     if (selectedToolIds && freshNames.size === selectedToolIds.size) break
     const namespace = namespaceForServer(server.id)
     try {
-      const enabledTools = application.get('McpCatalogService').listTools(server.id, { includeDisabled: false })
+      const enabledTools = application.get('McpCatalogService').listTools(server.id, { audience: 'model' })
       const scopedTools = selectedToolIds ? enabledTools.filter((tool) => selectedToolIds.has(tool.id)) : enabledTools
       if (!selectedToolIds || scopedTools.length > 0) targetNamespaces.add(namespace)
       const freshEntries: ToolEntry[] = []

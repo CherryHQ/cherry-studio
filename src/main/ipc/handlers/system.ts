@@ -70,7 +70,7 @@ export const systemHandlers: IpcHandlersFor<typeof systemRequestSchemas> = {
     openScreenCaptureSettings()
   },
   'system.shell.open_path': async (path) => {
-    await openRequestPath(path)
+    await openRequestPath(path, undefined, { channel: 'system.shell.open_path' })
   },
   'system.shell.open_external_website': async (input) => {
     const { url, options } = typeof input === 'string' ? { url: input, options: undefined } : input

@@ -137,6 +137,18 @@ const miniAppThemeAssetPlugin = (): Plugin => ({
   }
 })
 
+const commandParserAssetsPlugin = (): Plugin => ({
+  name: 'cherry-command-parser-assets',
+  apply: 'build',
+  buildStart() {
+    const require = createRequire(import.meta.url)
+    for (const filename of ['tree-sitter.wasm', 'tree-sitter-bash.wasm', 'tree-sitter-powershell.wasm']) {
+      const source = readFileSync(require.resolve(`@vscode/tree-sitter-wasm/wasm/${filename}`))
+      this.emitFile({ type: 'asset', fileName: `assets/command-parsers/${filename}`, source })
+    }
+  }
+})
+
 /** Shared with the utility-process entries build, which must resolve identically. */
 export const mainResolveAlias = {
   '@main': resolve('src/main'),
@@ -148,6 +160,7 @@ export const mainResolveAlias = {
   '@cherrystudio/ai-core/built-in/plugins': resolve('packages/aiCore/src/core/plugins/built-in'),
   '@cherrystudio/ai-core': resolve('packages/aiCore/src'),
   '@cherrystudio/ai-sdk-provider': resolve('packages/ai-sdk-provider/src'),
+  '@cherrystudio/provider-registry/data': resolve('packages/provider-registry/src/bundled-catalog'),
   '@cherrystudio/provider-registry/node': resolve('packages/provider-registry/src/registry-loader'),
   '@cherrystudio/provider-registry': resolve('packages/provider-registry/src'),
   '@cherrystudio/web-search/catalog': resolve('packages/web-search/src/catalog.ts'),
@@ -201,6 +214,7 @@ export default defineConfig({
       },
       chunkExportGuardPlugin(),
       miniAppThemeAssetPlugin(),
+      commandParserAssetsPlugin(),
       ...visualizerPlugin('main'),
       ...sentrySourceMapPlugins('main')
     ],
@@ -259,7 +273,8 @@ export default defineConfig({
           preload: resolve(__dirname, 'src/preload/preload.ts'),
           simplest: resolve(__dirname, 'src/preload/simplest.ts'), // Minimal preload
           webview: resolve(__dirname, 'src/preload/webview.ts'), // Site `<webview>` guests
-          miniAppBridge: resolve(__dirname, 'src/preload/miniAppBridge.ts') // Local mini app guests (`window.cherry`)
+          miniAppBridge: resolve(__dirname, 'src/preload/miniAppBridge.ts'), // Local mini app guests (`window.cherry`)
+          mcpAppGuest: resolve(__dirname, 'src/preload/mcpAppGuest.ts')
         },
         external: ['electron'],
         output: {
@@ -301,6 +316,7 @@ export default defineConfig({
         '@cherrystudio/ai-core': resolve('packages/aiCore/src'),
         '@cherrystudio/extension-table-plus': resolve('packages/extension-table-plus/src'),
         '@cherrystudio/ai-sdk-provider': resolve('packages/ai-sdk-provider/src'),
+        '@cherrystudio/provider-registry/data': resolve('packages/provider-registry/src/bundled-catalog'),
         '@cherrystudio/provider-registry/node': resolve('packages/provider-registry/src/registry-loader'),
         '@cherrystudio/provider-registry': resolve('packages/provider-registry/src'),
         '@cherrystudio/web-search/catalog': resolve('packages/web-search/src/catalog.ts'),
@@ -335,7 +351,7 @@ export default defineConfig({
     },
     optimizeDeps: {
       exclude: ['pyodide'],
-      include: ['pdfjs-dist/build/pdf.worker.mjs'],
+      include: ['@plantuml/mcp-js/engine.js', 'pdfjs-dist/build/pdf.worker.mjs'],
       rolldownOptions: {
         transform: {
           target: 'esnext' // for dev

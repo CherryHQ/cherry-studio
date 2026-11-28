@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "package": {
     "name": "CherryStudio",
-    "version": "2.2.2",
+    "version": "2.2.4",
     "description": "A powerful AI assistant for producer.",
     "homepage": "https://github.com/CherryHQ/cherry-studio"
   },
@@ -46,17 +46,22 @@
       },
       {
         "id": "code_tools",
-        "path": "/app/code"
+        "path": "/settings/local-agents"
       },
       {
         "id": "notes",
         "path": "/app/notes"
+      },
+      {
+        "id": "api_gateway",
+        "path": "/app/api-gateway"
       }
     ],
     "all": [
       "/app",
       "/settings",
       "/app/agents",
+      "/app/api-gateway",
       "/app/browser",
       "/app/chat",
       "/app/code",
@@ -82,6 +87,7 @@
       "/settings/device-connections",
       "/settings/file-processing",
       "/settings/general",
+      "/settings/local-agents",
       "/settings/local-models",
       "/settings/mcp",
       "/settings/model",
@@ -432,6 +438,20 @@
           "Shift",
           "C"
         ]
+      }
+    },
+    {
+      "id": "chat.message.quote_selection",
+      "titleKey": "chat.message.quote",
+      "categoryKey": "settings.shortcuts.chat",
+      "scope": "renderer",
+      "keybinding": {
+        "defaultBinding": [
+          "CommandOrControl",
+          "Shift",
+          "Y"
+        ],
+        "when": "!input.focused && !webview.focused"
       }
     },
     {
@@ -878,7 +898,7 @@
     }
   ],
   "providers": {
-    "version": "a6291a3a00ded246",
+    "version": "5179a16fddc562d9",
     "count": 68,
     "entries": [
       {
@@ -1187,6 +1207,11 @@
       "label": "日本語"
     },
     {
+      "value": "ko-KR",
+      "flag": "🇰🇷",
+      "label": "한국어"
+    },
+    {
       "value": "ru-RU",
       "flag": "🇷🇺",
       "label": "Русский"
@@ -1259,14 +1284,13 @@
       "once"
     ],
     "codeCli": {
-      "route": "/app/code",
+      "route": "/settings/local-agents",
       "tools": [
         "claude-code",
         "openai-codex",
         "opencode",
         "openclaw",
         "deepseek-harness",
-        "gemini-cli",
         "antigravity-cli",
         "qwen-code",
         "kimi-code",

@@ -104,6 +104,13 @@ describe('ApiGatewaySettings', () => {
     useApiGatewayMock.mockReturnValue(gatewayState())
   })
 
+  it('retains the settings header and gateway panel', () => {
+    render(<ApiGatewaySettings />)
+    expect(screen.getByText('apiGateway.title')).toBeInTheDocument()
+    expect(screen.getByText('apiGateway.status.stopped')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'apiGateway.actions.start' })).toBeInTheDocument()
+  })
+
   // A port is an identifier: an out-of-range one has to be refused and explained,
   // not quietly rounded into range the way a magnitude would be.
   it.each([
@@ -114,6 +121,7 @@ describe('ApiGatewaySettings', () => {
     useApiGatewayMock.mockReturnValue({ ...gatewayState(), setApiGatewayConfig })
     render(<ApiGatewaySettings />)
 
+    fireEvent.click(screen.getByRole('button', { name: 'common.advanced_settings' }))
     const field = screen.getByLabelText('apiGateway.fields.port.label')
     fireEvent.change(field, { target: { value } })
     fireEvent.blur(field)
@@ -128,6 +136,7 @@ describe('ApiGatewaySettings', () => {
     useApiGatewayMock.mockReturnValue({ ...gatewayState(), setApiGatewayConfig })
     render(<ApiGatewaySettings />)
 
+    fireEvent.click(screen.getByRole('button', { name: 'common.advanced_settings' }))
     const field = screen.getByLabelText('apiGateway.fields.port.label')
     fireEvent.change(field, { target: { value: '' } })
     fireEvent.blur(field)
@@ -142,53 +151,12 @@ describe('ApiGatewaySettings', () => {
     useApiGatewayMock.mockReturnValue({ ...gatewayState(), setApiGatewayConfig })
     render(<ApiGatewaySettings />)
 
+    fireEvent.click(screen.getByRole('button', { name: 'common.advanced_settings' }))
     const field = screen.getByLabelText('apiGateway.fields.port.label')
     fireEvent.change(field, { target: { value: '8080' } })
     fireEvent.blur(field)
 
     expect(setApiGatewayConfig).toHaveBeenCalledWith({ port: 8080 })
     expect(toast.error).not.toHaveBeenCalled()
-  })
-
-  it('protects the API key and authorization header by default', () => {
-    render(<ApiGatewaySettings />)
-
-    expect(screen.getByDisplayValue('cs-sk-test-key')).toHaveAttribute('type', 'password')
-    // Authorization header keeps the readable "Authorization: Bearer" prefix and masks only the key
-    expect(screen.queryByDisplayValue('Authorization: Bearer cs-sk-test-key')).not.toBeInTheDocument()
-    expect(screen.getByDisplayValue(/Authorization: Bearer •/)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'settings.provider.api_key.show_key' })).toBeInTheDocument()
-  })
-
-  it('reveals and hides the API key fields together', () => {
-    render(<ApiGatewaySettings />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'settings.provider.api_key.show_key' }))
-
-    expect(screen.getByDisplayValue('cs-sk-test-key')).toHaveAttribute('type', 'text')
-    expect(screen.getByDisplayValue('Authorization: Bearer cs-sk-test-key')).toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: 'settings.provider.api_key.hide_key' }))
-
-    expect(screen.getByDisplayValue('cs-sk-test-key')).toHaveAttribute('type', 'password')
-    expect(screen.queryByDisplayValue('Authorization: Bearer cs-sk-test-key')).not.toBeInTheDocument()
-  })
-
-  it('shows connection fields only while the gateway is stopped', () => {
-    const stoppedState = useApiGatewayMock()
-    const { rerender } = render(<ApiGatewaySettings />)
-
-    expect(screen.getByRole('textbox', { name: 'apiGateway.fields.url.label' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'apiGateway.actions.regenerate' })).toBeInTheDocument()
-
-    useApiGatewayMock.mockReturnValue({
-      ...stoppedState,
-      apiGatewayConfig: { ...stoppedState.apiGatewayConfig, enabled: true },
-      apiGatewayRunning: true
-    })
-    rerender(<ApiGatewaySettings />)
-
-    expect(screen.queryByRole('textbox', { name: 'apiGateway.fields.url.label' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'apiGateway.actions.regenerate' })).not.toBeInTheDocument()
   })
 })

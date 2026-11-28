@@ -29,7 +29,7 @@
     "smoke:windows:tts": "node scripts/smoke-windows.cjs --tts",
     "test": "vitest run",
     "test:native": "swift test --package-path native",
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "typecheck": "pnpm --workspace-root exec tsrs --noEmit -p native/system-speech/tsconfig.json"
   },
   "dependencies": {
     "zod": "^4.1.5"

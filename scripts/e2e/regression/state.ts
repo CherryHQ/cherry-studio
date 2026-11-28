@@ -161,6 +161,29 @@ export function writeRun(filePath: string, run: RegressionRun): void {
   }
 }
 
+/**
+ * Record the case ids one Playwright execution actually collected for a phase (TOOL-20261117-01).
+ *
+ * The reporter calls this when execution starts, so the ids come from the same run that produced
+ * the per-case statuses. A `--grep` rerun is then judged against this list instead of a separate
+ * `--list` collected before/after it, which could see a different registration set.
+ */
+export function recordSelection(
+  run: RegressionRun,
+  phaseId: string,
+  caseIds: string[],
+  recordedAt = new Date().toISOString()
+): RegressionRun {
+  const phase = run.phases[phaseId]
+  if (!phase) throw new Error(`Unknown or unselected regression phase: ${phaseId}`)
+  if (caseIds.length === 0) throw new Error(`Phase ${phaseId} execution collected no cases`)
+  if (new Set(caseIds).size !== caseIds.length) throw new Error(`Phase ${phaseId} execution collected duplicate cases`)
+  return {
+    ...run,
+    selections: { ...run.selections, [phaseId]: { ids: [...caseIds], recordedAt } }
+  }
+}
+
 export function updatePhase(
   run: RegressionRun,
   phaseId: string,

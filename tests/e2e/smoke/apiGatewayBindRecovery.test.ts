@@ -4,7 +4,7 @@ import { createServer, type AddressInfo } from 'node:net'
 import { expect, test } from './fixtures/electron.fixture'
 import { openSettings } from './utils/navigation'
 
-test('API Gateway recovers from an occupied port through Settings', async ({ mainWindow: page }, testInfo) => {
+test('Unified Gateway recovers from an occupied port through Settings', async ({ mainWindow: page }, testInfo) => {
   test.setTimeout(300_000)
   const languageSelect = page.locator('[data-onboarding-language-select]')
   await expect(page.locator('[data-ui="app.content"]').first().or(languageSelect).first()).toBeVisible({
@@ -33,7 +33,7 @@ test('API Gateway recovers from an occupied port through Settings', async ({ mai
   await expect(page.locator('[data-ui="settings.view"]')).toBeVisible({ timeout: 60_000 })
   await page
     .locator('[data-ui="settings.navigation"] [data-slot="menu-item"]')
-    .filter({ hasText: 'API Gateway' })
+    .filter({ hasText: 'Unified Gateway' })
     .click({ timeout: 60_000 })
 
   const port = page.getByLabel('Port', { exact: true })
@@ -73,7 +73,7 @@ test('API Gateway recovers from an occupied port through Settings', async ({ mai
       timeout: 60_000
     })
     await page.getByRole('button', { name: 'Start', exact: true }).click({ timeout: 60_000 })
-    await expect(notifications).toContainText('API Gateway started successfully', { timeout: 60_000 })
+    await expect(notifications).toContainText('Unified Gateway started successfully', { timeout: 60_000 })
     await expect(running).toBeVisible({ timeout: 60_000 })
     await page.screenshot({ path: testInfo.outputPath('recovered-port.png') })
   } finally {

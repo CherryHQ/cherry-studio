@@ -69,6 +69,8 @@ const dialogContentSizeClass: Record<DialogContentSize, string> = {
 type DialogContentProps = React.ComponentProps<typeof DialogPrimitive.Content> & {
   closeLabel?: string
   closeOnOverlayClick?: boolean
+  /** Ignore implicit dismissal and protect the window's host-close shortcut. */
+  guardDismiss?: boolean
   motion?: DialogContentMotion
   overlayClassName?: string
   showCloseButton?: boolean
@@ -89,11 +91,14 @@ function DialogContent({
   children,
   closeLabel = 'Close',
   closeOnOverlayClick = true,
+  guardDismiss = false,
   showCloseButton = true,
   motion = 'directional',
   overlayClassName,
   onPointerDown,
   onCloseAutoFocus,
+  onEscapeKeyDown,
+  onPointerDownOutside,
   size = 'default',
   style,
   ref,
@@ -127,7 +132,7 @@ function DialogContent({
         <DialogOverlay
           className={overlayClassName}
           onClick={(event) => {
-            if (!closeOnOverlayClick) event.preventDefault()
+            if (guardDismiss || !closeOnOverlayClick) event.preventDefault()
           }}
         />
       </DialogPrimitive.Close>
@@ -153,7 +158,7 @@ function DialogContent({
         className={cn(
           // no-drag punches the dialog's area out of any titlebar drag region it overlaps,
           // so the close button stays clickable when the dialog reaches max height (Electron).
-          'fixed top-[50%] left-[50%] z-[80] grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-3xl border-0 bg-card p-6 text-card-foreground shadow-xl [-webkit-app-region:no-drag]',
+          'fixed top-[50%] left-[50%] z-[80] grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-3xl border-0 bg-card p-6 text-card-foreground shadow-xl outline-none [-webkit-app-region:no-drag]',
           'data-[state=open]:animate-in data-[state=open]:ease-[cubic-bezier(0.16,1,0.3,1)] data-[state=open]:animation-duration-[260ms] data-[state=open]:fade-in-0',
           'data-[state=closed]:animate-out data-[state=closed]:ease-[cubic-bezier(0.4,0,1,1)] data-[state=closed]:animation-duration-[200ms] data-[state=closed]:fade-out-0',
           motion === 'directional' &&
@@ -165,11 +170,20 @@ function DialogContent({
         onPointerDown={composeEventHandlers(onPointerDown, (event) => event.stopPropagation(), {
           checkForDefaultPrevented: false
         })}
+        onEscapeKeyDown={(event) => {
+          onEscapeKeyDown?.(event)
+          if (guardDismiss) event.preventDefault()
+        }}
+        onPointerDownOutside={(event) => {
+          onPointerDownOutside?.(event)
+          if (guardDismiss) event.preventDefault()
+        }}
         style={style}
         {...props}>
         <KeyboardLayer
           releaseAfterFocusRestore={layer.releaseAfterFocusRestore}
           active={layer.active}
+          guardHostClose={guardDismiss}
           element={contentElement}>
           <PortalContainerProvider
             container={contentElement}
@@ -179,7 +193,7 @@ function DialogContent({
             {showCloseButton && (
               <DialogPrimitive.Close
                 data-slot="dialog-close"
-                className="absolute top-4 right-4 rounded-md opacity-70 transition-opacity hover:opacity-100 focus:outline-hidden focus-visible:bg-accent focus-visible:opacity-100 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4">
+                className="absolute top-4 right-4 rounded-md opacity-70 transition-opacity hover:opacity-100 focus-visible:bg-accent focus-visible:opacity-100 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4">
                 <XIcon />
                 <span className="sr-only">{closeLabel}</span>
               </DialogPrimitive.Close>

@@ -17,6 +17,7 @@ import { createToolInspectTool } from '@main/ai/tools/adapters/aiSdk/meta/toolIn
 import { createToolInvokeTool } from '@main/ai/tools/adapters/aiSdk/meta/toolInvoke'
 import { createToolSearchTool } from '@main/ai/tools/adapters/aiSdk/meta/toolSearch'
 import { ToolRegistry } from '@main/ai/tools/adapters/aiSdk/registry'
+import { isPortableSchemaPattern, stripIncompatibleSchemaPatterns } from '@main/ai/utils/toolSchema'
 import { readFileInputSchema } from '@shared/ai/builtinTools'
 import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
 
@@ -200,6 +201,48 @@ const CHAT_MAP_PARAMETERS = {
 
 describe('toolSchemaCompatibilityFeature', () => {
   describe.each(CHAT_PROVIDER_CASES)('Gemini chat completions via $provider', ({ provider, createModel }) => {
+    it('normalizes mixed enum values in the outgoing declaration and preserves MCP validation', async () => {
+      const original: JSONSchema7 = {
+        type: 'object',
+        properties: {
+          mode: { type: 'string', enum: ['auto', 1] },
+          level: { enum: ['auto', 1] },
+          count: { type: 'integer', enum: [1, 2] }
+        },
+        required: ['mode', 'level', 'count']
+      }
+      const before = JSON.parse(JSON.stringify(original))
+      const inputSchema = createMcpInputSchema(original)
+      const { requests, captureFetch } = captureChatRequest()
+      const model = wrapLanguageModel({
+        model: createModel(captureFetch),
+        middleware: await getMiddleware({
+          runtimeProviderId: provider,
+          endpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+          model: GEMINI_MODEL
+        })
+      })
+
+      await generateText({ model, prompt: 'Use lookup', tools: { lookup: tool({ inputSchema }) }, maxRetries: 0 })
+
+      expect(requests[0].body.tools[0].function.parameters).toEqual({
+        ...before,
+        properties: {
+          mode: { type: 'string', enum: ['auto'] },
+          level: {
+            anyOf: [
+              { type: 'string', enum: ['auto'] },
+              { type: 'number', description: 'Allowed values (JSON): [1].' }
+            ]
+          },
+          count: { type: 'integer', enum: [1, 2] }
+        }
+      })
+      expect(original).toEqual(before)
+      expect(await inputSchema.validate!({ mode: 'auto', level: 1, count: 1 })).toMatchObject({ success: true })
+      expect(await inputSchema.validate!({ mode: 'auto', level: 2, count: 1 })).toMatchObject({ success: false })
+    })
+
     it.each([
       { variant: 'plain', key: z.string(), expectedKey: { type: 'string' } },
       { variant: 'regex', key: z.string().regex(/^[a-z]+$/), expectedKey: { type: 'string', pattern: '^[a-z]+$' } }
@@ -1058,8 +1101,7 @@ describe('toolSchemaCompatibilityFeature', () => {
               },
               level: { type: 'integer', enum: [1, 2, 3] },
               ratio: { enum: [0.5, 1.5] },
-              flag: { type: 'boolean', const: true },
-              tagged: { enum: ['a', 1] }
+              flag: { type: 'boolean', const: true }
             }
           }
         }
@@ -1079,8 +1121,7 @@ describe('toolSchemaCompatibilityFeature', () => {
       clickCount: { default: 1, anyOf: [{ type: 'number' }, { type: 'number' }] },
       level: { type: 'integer' },
       ratio: { type: 'number' },
-      flag: { type: 'boolean' },
-      tagged: { enum: ['a', 1] }
+      flag: { type: 'boolean' }
     })
 
     const untouched = (
@@ -1090,6 +1131,90 @@ describe('toolSchemaCompatibilityFeature', () => {
       })
     ).tools?.[0]
     expect(untouched).toBe(params.tools?.[0])
+  })
+
+  it('sends mixed MCP enums through CherryIN Gemini while preserving the original input contract', async () => {
+    const original: JSONSchema7 = {
+      type: 'object',
+      properties: {
+        mode: { type: 'string', enum: ['auto', 1] },
+        level: { type: ['string', 'integer', 'null'], enum: ['auto', 1, null] },
+        detail: { enum: ['auto', true] },
+        config: { type: 'object', enum: [{ enabled: true }], description: 'Configuration.' },
+        status: { type: 'string', enum: ['ready', 'busy'] }
+      },
+      required: ['mode', 'level', 'detail', 'config', 'status']
+    }
+    const before = JSON.parse(JSON.stringify(original))
+    const schema = createMcpInputSchema(original)
+    const valid = createMcpInputSchema({ type: 'object', properties: { value: { type: 'string', enum: ['ok'] } } })
+    const requests: Array<{
+      tools: Array<{ functionDeclarations: Array<{ name: string; parameters: JSONSchema7 }> }>
+    }> = []
+    const args = { mode: 'auto', level: 1, detail: true, config: { enabled: true }, status: 'ready' }
+    const fetch: typeof globalThis.fetch = async (_input, init) => {
+      requests.push(JSON.parse(String(init?.body)))
+      return Response.json({
+        candidates: [
+          { content: { role: 'model', parts: [{ functionCall: { name: 'lookup', args } }] }, finishReason: 'STOP' }
+        ]
+      })
+    }
+    const modelId = 'google/gemini-4-argon'
+    const model = wrapLanguageModel({
+      model: createCherryIn({ apiKey: 'test-key', endpointType: 'gemini', fetch })(modelId),
+      middleware: await getMiddleware({
+        endpointType: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+        runtimeProviderId: 'cherryin',
+        model: { ...GEMINI_MODEL, id: `cherryin::${modelId}`, providerId: 'cherryin', apiModelId: modelId }
+      })
+    })
+
+    const result = await generateText({
+      model,
+      prompt: 'Use a tool',
+      tools: {
+        lookup: tool({ inputSchema: schema, execute: async (input) => input }),
+        check: tool({ inputSchema: valid })
+      }
+    })
+    expect(result.toolResults).toMatchObject([{ toolName: 'lookup', output: args }])
+
+    expect(requests).toHaveLength(1)
+    const [lookup, check] = requests[0].tools[0].functionDeclarations
+    expect(lookup.name).toBe('lookup')
+    expect(lookup.parameters.properties).toEqual({
+      mode: { type: 'string', enum: ['auto'] },
+      level: {
+        nullable: true,
+        anyOf: [
+          { type: 'string', enum: ['auto'] },
+          { type: 'integer', description: 'Allowed values (JSON): [1].' }
+        ]
+      },
+      detail: {
+        anyOf: [
+          { type: 'string', enum: ['auto'] },
+          { type: 'boolean', description: 'Allowed values (JSON): [true].' }
+        ]
+      },
+      config: { type: 'object', description: 'Configuration. Original enum values (JSON): [{"enabled":true}].' },
+      status: { type: 'string', enum: ['ready', 'busy'] }
+    })
+    expect(check.parameters).toEqual(await valid.jsonSchema)
+    expect(original).toEqual(before)
+    expect(await schema.jsonSchema).toEqual(before)
+    expect(await schema.validate!(args)).toMatchObject({ success: true })
+    expect(await schema.validate!({ ...args, level: null })).toMatchObject({ success: true })
+    expect(await schema.validate!({ ...args, level: '1' })).toMatchObject({ success: false })
+    expect(await schema.validate!({ ...args, mode: 1 })).toMatchObject({ success: false })
+    expect(await schema.validate!({ ...args, config: { enabled: false } })).toMatchObject({ success: false })
+
+    const openAI = await transform(
+      { prompt: [], tools: [{ type: 'function', name: 'lookup', strict: true, inputSchema: original }] },
+      { endpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS }
+    )
+    expect(openAI.tools?.[0]).toMatchObject({ inputSchema: before })
   })
 
   it('keeps numeric literal unions out of the wire enum field in Google function declarations', async () => {
@@ -1133,6 +1258,71 @@ describe('toolSchemaCompatibilityFeature', () => {
     // `z.union([z.literal(1), z.literal(2)])` used to reach Gemini as
     // `anyOf: [{ enum: [1] }, { enum: [2] }]` and 400 the whole request.
     expect(declaration.parameters.properties.clickCount).toEqual({ anyOf: [{ type: 'number' }, { type: 'number' }] })
+  })
+
+  it('sends tools whose const or enum the Google adapter would reject, keeping the values in the description', async () => {
+    const requests: Array<{
+      tools: Array<{
+        functionDeclarations: Array<{ name: string; parameters: { properties: Record<string, unknown> } }>
+      }>
+    }> = []
+    const captureFetch: typeof globalThis.fetch = async (_input, init) => {
+      requests.push(JSON.parse(String(init?.body)))
+      return Response.json({ error: { message: 'captured' } }, { status: 400 })
+    }
+    const model = wrapLanguageModel({
+      model: createGoogleGenerativeAI({ apiKey: 'test-key', fetch: captureFetch })('gemini-3.5-flash'),
+      middleware: await getMiddleware({
+        aiSdkProviderId: 'google',
+        endpointType: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
+      })
+    })
+
+    await expect(
+      generateText({
+        model,
+        prompt: 'hello',
+        maxRetries: 0,
+        tools: {
+          search: tool({
+            inputSchema: jsonSchema({
+              type: 'object',
+              properties: {
+                mode: { type: 'number', const: 'auto' },
+                cursor: { type: 'string', const: null },
+                scope: { type: ['string', 'null'], const: null },
+                filter: { const: { kind: 'all' }, description: 'Filter.' },
+                tags: { const: ['a'] },
+                empty: { enum: [] },
+                status: { type: 'string', enum: ['ready', 'busy'] },
+                level: { enum: [1, 2, null] },
+                flag: { enum: [true, null] },
+                optional: {
+                  anyOf: [
+                    { type: 'string', enum: ['a'] },
+                    { type: 'null', enum: [null] }
+                  ]
+                }
+              }
+            })
+          })
+        }
+      })
+    ).rejects.toMatchObject({ name: 'AI_APICallError' })
+
+    expect(requests).toHaveLength(1)
+    expect(requests[0].tools[0].functionDeclarations[0].parameters.properties).toEqual({
+      mode: { type: 'number', description: 'Required value (JSON): "auto".' },
+      cursor: { type: 'string', description: 'Required value (JSON): null.' },
+      scope: { type: 'string', description: 'Required value (JSON): null.', nullable: true },
+      filter: { type: 'object', description: 'Filter. Required value (JSON): {"kind":"all"}.' },
+      tags: { type: 'string', description: 'Required value (JSON): ["a"].' },
+      empty: { type: 'string', description: 'Original enum values (JSON): [].' },
+      status: { type: 'string', enum: ['ready', 'busy'] },
+      level: { type: 'integer', nullable: true },
+      flag: { type: 'boolean', nullable: true },
+      optional: { type: 'string', enum: ['a'], nullable: true }
+    })
   })
 
   // Gemini's function-declaration proto has no `propertyNames` /
@@ -1423,5 +1613,72 @@ describe('toolSchemaCompatibilityFeature', () => {
     ).tools[0].functionDeclarations[0]
     expect(declaration.name).toBe('cron')
     expect(declaration.parameters.properties.timeout_minutes).toMatchObject({ type: 'number', nullable: true })
+  })
+
+  it('strips non-portable regex pattern keywords while keeping portable patterns and properties named pattern (#24524)', async () => {
+    const rawMcpSchema: JSONSchema7 = {
+      type: 'object',
+      properties: {
+        fridaEscaped: { type: 'string', pattern: '^[^\\uD800-\\uDFFF]*$', description: 'Frida script' },
+        fridaSurrogate: { type: 'string', pattern: '^[^\uD800-\uDFFF]*$' },
+        unicodeEscape: { type: 'string', pattern: '^\\u4e00+$' },
+        surrogateHex: { type: 'string', pattern: '^\\x{D800}$' },
+        brokenRegex: { type: 'string', pattern: '[unclosed' },
+        escapedBackslashThenU: { type: 'string', pattern: '^\\\\u1234$' },
+        portable: { type: 'string', pattern: '^[a-zA-Z0-9_-]+$' },
+        pattern: { type: 'string', description: 'Glob pattern parameter' }
+      },
+      $defs: {
+        Nested: {
+          type: 'array',
+          items: { type: 'string', pattern: '^[^\\uD800-\\uDFFF]*$' }
+        }
+      }
+    }
+
+    const params: LanguageModelV3CallOptions = {
+      prompt: [],
+      tools: [{ type: 'function', name: 'mcp__frida__load_frida_script', inputSchema: rawMcpSchema }]
+    }
+
+    const result = await transform(params)
+    const transformed = result.tools?.[0]
+    expect(transformed?.type).toBe('function')
+    if (transformed?.type !== 'function') throw new Error('Expected function tool')
+
+    expect(transformed.inputSchema).toEqual({
+      type: 'object',
+      properties: {
+        fridaEscaped: { type: 'string', description: 'Frida script' },
+        fridaSurrogate: { type: 'string' },
+        unicodeEscape: { type: 'string' },
+        surrogateHex: { type: 'string' },
+        brokenRegex: { type: 'string' },
+        escapedBackslashThenU: { type: 'string', pattern: '^\\\\u1234$' },
+        portable: { type: 'string', pattern: '^[a-zA-Z0-9_-]+$' },
+        pattern: { type: 'string', description: 'Glob pattern parameter' }
+      },
+      $defs: {
+        Nested: {
+          type: 'array',
+          items: { type: 'string' }
+        }
+      }
+    })
+    // Never mutate the caller's cached schema object.
+    expect((rawMcpSchema.properties?.fridaEscaped as JSONSchema7 | undefined)?.pattern).toBe('^[^\\uD800-\\uDFFF]*$')
+
+    // Portable schemas (including valid UTF-16 surrogate pairs like emoji) stay untouched by reference.
+    const portableSchema: JSONSchema7 = {
+      type: 'object',
+      properties: {
+        emoji: { type: 'string', pattern: '^😀+$' },
+        date: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' }
+      }
+    }
+    expect(stripIncompatibleSchemaPatterns(portableSchema)).toBe(portableSchema)
+    expect(isPortableSchemaPattern(123)).toBe(false)
+    expect(isPortableSchemaPattern('trailing\\')).toBe(false)
+    expect(isPortableSchemaPattern('^\\\\\\uD800$')).toBe(false)
   })
 })
