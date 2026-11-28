@@ -44,7 +44,12 @@ import type {
   ResolvedMenuItem,
   SupportedPlatform
 } from '@shared/types/command'
-import { type CommandId, findKeybindingRule, resolveMenuPresentationMode } from '@shared/utils/command'
+import {
+  type CommandId,
+  findKeybindingRule,
+  hasStaticMenuContributions,
+  resolveMenuPresentationMode
+} from '@shared/utils/command'
 
 type CommandIconRenderer = (iconKey: string | undefined) => React.ReactNode
 
@@ -362,17 +367,7 @@ export function CommandMenuItems({
   )
 }
 
-export function CommandContextMenu({
-  location,
-  children,
-  contentClassName,
-  disabled,
-  onOpenChange,
-  renderIcon,
-  extraItems = EMPTY_EXTRA_ITEMS,
-  pendingExtraItems,
-  getExtraItems
-}: {
+type CommandContextMenuProps = {
   location: MenuLocation
   children: React.ReactNode
   contentClassName?: string
@@ -382,18 +377,11 @@ export function CommandContextMenu({
   extraItems?: readonly CommandContextMenuExtraItem[]
   pendingExtraItems?: readonly CommandContextMenuExtraItem[]
   getExtraItems?: CommandContextMenuExtraItemsResolver
-}): React.ReactNode {
-  const preferredMode = useCommandMenuPresentationMode()
+}
+
+function useResolveExtraItemShortcutLabels() {
   const context = useCommandContextReader()
   const shortcutPreferences = useCommandShortcutPreferences()
-  const [resolvedExtraItems, setResolvedExtraItems] = useState<readonly CommandContextMenuExtraItem[] | null>(null)
-  const extraItemsRequestIdRef = useRef(0)
-  const runtime = useCommandRuntime()
-  const beginNativeRequest = useNativeMenuRequest()
-  const model = useResolvedCommandMenu(location)
-  const mode = resolveMenuPresentationMode(location, preferredMode ?? 'cherry')
-  const commandItems = useMemo(() => removeEmptySeparators(model.items), [model.items])
-  const pendingItems = pendingExtraItems ?? extraItems
   const resolveShortcutLabel = useCallback(
     (command: CommandId) => {
       const rule = findKeybindingRule(command)
@@ -407,7 +395,8 @@ export function CommandContextMenu({
     },
     [context, shortcutPreferences]
   )
-  const resolveExtraItemShortcutLabels = useCallback(
+
+  return useCallback(
     (items: readonly CommandContextMenuExtraItem[]): readonly CommandContextMenuExtraItem[] => {
       if (!hasShortcutCommands(items)) return items
       const resolve = (source: readonly CommandContextMenuExtraItem[]): CommandContextMenuExtraItem[] =>
@@ -433,6 +422,170 @@ export function CommandContextMenu({
     },
     [resolveShortcutLabel]
   )
+}
+
+function CherryDynamicContextMenuContent({
+  items,
+  contentClassName,
+  onSelectItem
+}: {
+  items: readonly CommandContextMenuExtraItem[]
+  contentClassName?: string
+  onSelectItem: (action: () => void) => void
+}) {
+  const resolveShortcutLabels = useResolveExtraItemShortcutLabels()
+  const displayedItems = useMemo(
+    () => removeEmptySeparators(resolveShortcutLabels(items)),
+    [items, resolveShortcutLabels]
+  )
+
+  return (
+    <ContextMenuContent
+      className={contentClassName}
+      onPointerDown={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
+      onCloseAutoFocus={(e) => {
+        // 菜单卸载时 Radix 会把焦点还原到打开前的元素（右键聚焦的行），
+        // 打掉刚挂载的 rename 输入框。仅当关闭瞬间焦点已被菜单外元素持有时拦截。
+        const active = document.activeElement
+        if (active && active !== document.body && !(e.target as HTMLElement).contains(active)) {
+          e.preventDefault()
+        }
+      }}>
+      {displayedItems.map((item, index) => (
+        <CommandContextMenuExtraItemView
+          key={item.type === 'separator' ? `separator-${index}` : `extra-${item.id}`}
+          item={item}
+          onSelectItem={onSelectItem}
+        />
+      ))}
+    </ContextMenuContent>
+  )
+}
+
+function CherryDynamicContextMenu({
+  children,
+  contentClassName,
+  disabled,
+  onOpenChange,
+  extraItems = EMPTY_EXTRA_ITEMS,
+  pendingExtraItems,
+  getExtraItems
+}: CommandContextMenuProps) {
+  const [resolvedExtraItems, setResolvedExtraItems] = useState<readonly CommandContextMenuExtraItem[] | null>(null)
+  const extraItemsRequestIdRef = useRef(0)
+  const pendingItems = pendingExtraItems ?? extraItems
+  const rawItems = getExtraItems ? (resolvedExtraItems ?? pendingItems) : extraItems
+  const hasLazyExtraItems = Boolean(getExtraItems)
+
+  const handleCherryContextMenu = useCallback(
+    (event: React.MouseEvent) => {
+      event.stopPropagation()
+
+      if (!getExtraItems) {
+        return
+      }
+
+      const requestId = extraItemsRequestIdRef.current + 1
+      extraItemsRequestIdRef.current = requestId
+
+      let resolved: MaybePromise<readonly CommandContextMenuExtraItem[]>
+      try {
+        resolved = getExtraItems(event)
+      } catch (error) {
+        logger.warn('Failed to resolve command menu extra items', error as Error)
+        setResolvedExtraItems(EMPTY_EXTRA_ITEMS)
+        return
+      }
+
+      // Apply sync results immediately so the menu opens with items in the same tick
+      // (otherwise tests that fire contextMenu + assert synchronously would miss them).
+      if (!(resolved instanceof Promise) && typeof (resolved as PromiseLike<unknown>)?.then !== 'function') {
+        setResolvedExtraItems(resolved as readonly CommandContextMenuExtraItem[])
+        return
+      }
+
+      setResolvedExtraItems(pendingItems)
+      void Promise.resolve(resolved)
+        .then((items) => {
+          if (extraItemsRequestIdRef.current === requestId) {
+            setResolvedExtraItems(items)
+          }
+        })
+        .catch((error) => {
+          logger.warn('Failed to resolve command menu extra items', error as Error)
+          if (extraItemsRequestIdRef.current === requestId) {
+            setResolvedExtraItems(EMPTY_EXTRA_ITEMS)
+          }
+        })
+    },
+    [getExtraItems, pendingItems]
+  )
+
+  const handleCherryOpenChange = useCallback(
+    (open: boolean) => {
+      onOpenChange?.(open)
+      if (!open && getExtraItems) {
+        extraItemsRequestIdRef.current += 1
+        setResolvedExtraItems(null)
+      }
+    },
+    [getExtraItems, onOpenChange]
+  )
+
+  const handleCherrySelectItem = useCloseBeforeAction(handleCherryOpenChange)
+
+  if (disabled || (!rawItems.length && !hasLazyExtraItems)) {
+    return <>{children}</>
+  }
+
+  return (
+    <ContextMenu onOpenChange={handleCherryOpenChange}>
+      <ContextMenuTrigger asChild onContextMenu={handleCherryContextMenu}>
+        {children}
+      </ContextMenuTrigger>
+      {rawItems.length > 0 && (
+        <CherryDynamicContextMenuContent
+          items={rawItems}
+          contentClassName={contentClassName}
+          onSelectItem={handleCherrySelectItem}
+        />
+      )}
+    </ContextMenu>
+  )
+}
+
+export function CommandContextMenu(props: CommandContextMenuProps): React.ReactNode {
+  const preferredMode = useCommandMenuPresentationMode()
+  const mode = resolveMenuPresentationMode(props.location, preferredMode ?? 'cherry')
+
+  if (!hasStaticMenuContributions(props.location) && mode === 'cherry') {
+    return <CherryDynamicContextMenu {...props} />
+  }
+
+  return <FullCommandContextMenu {...props} mode={mode} />
+}
+
+function FullCommandContextMenu({
+  location,
+  mode,
+  children,
+  contentClassName,
+  disabled,
+  onOpenChange,
+  renderIcon,
+  extraItems = EMPTY_EXTRA_ITEMS,
+  pendingExtraItems,
+  getExtraItems
+}: CommandContextMenuProps & { mode: MenuPresentationMode }): React.ReactNode {
+  const [resolvedExtraItems, setResolvedExtraItems] = useState<readonly CommandContextMenuExtraItem[] | null>(null)
+  const extraItemsRequestIdRef = useRef(0)
+  const runtime = useCommandRuntime()
+  const beginNativeRequest = useNativeMenuRequest()
+  const model = useResolvedCommandMenu(location)
+  const commandItems = useMemo(() => removeEmptySeparators(model.items), [model.items])
+  const pendingItems = pendingExtraItems ?? extraItems
+  const resolveExtraItemShortcutLabels = useResolveExtraItemShortcutLabels()
   const displayedExtraItems = useMemo(
     () => resolveExtraItemShortcutLabels(getExtraItems ? (resolvedExtraItems ?? pendingItems) : extraItems),
     [extraItems, getExtraItems, pendingItems, resolveExtraItemShortcutLabels, resolvedExtraItems]
@@ -761,22 +914,7 @@ function CommandDropdownExtraItemView({
  * to native) anchors a native OS popup at the trigger's bounding rect. Use this
  * for "more" buttons so they share the same menu pipeline as right-click.
  */
-export function CommandPopupMenu({
-  location,
-  children,
-  align,
-  side,
-  sideOffset,
-  contentClassName,
-  open,
-  defaultOpen,
-  onOpenChange,
-  disabled,
-  renderIcon,
-  extraItems = EMPTY_EXTRA_ITEMS,
-  presentationMode,
-  deferActionsUntilClosed = false
-}: {
+type CommandPopupMenuProps = {
   location: MenuLocation
   children: React.ReactNode
   align?: 'start' | 'center' | 'end'
@@ -789,80 +927,83 @@ export function CommandPopupMenu({
   disabled?: boolean
   renderIcon?: CommandIconRenderer
   extraItems?: readonly CommandContextMenuExtraItem[]
+  getExtraItems?: () => readonly CommandContextMenuExtraItem[]
   presentationMode?: MenuPresentationMode
   deferActionsUntilClosed?: boolean
-}): React.ReactNode {
-  const preferredMode = useCommandMenuPresentationMode()
-  const context = useCommandContextReader()
-  const shortcutPreferences = useCommandShortcutPreferences()
-  const runtime = useCommandRuntime()
-  const beginNativeRequest = useNativeMenuRequest()
-  const model = useResolvedCommandMenu(location)
-  const mode = resolveMenuPresentationMode(location, presentationMode ?? preferredMode ?? 'cherry')
+}
+
+function CherryDynamicPopupMenuContent({
+  align,
+  side,
+  sideOffset,
+  contentClassName,
+  items,
+  deferActionsUntilClosed,
+  handleCherryCloseAutoFocus,
+  handleCherrySelectItem,
+  handleCherrySelectImmediate
+}: {
+  align?: 'start' | 'center' | 'end'
+  side?: 'top' | 'right' | 'bottom' | 'left'
+  sideOffset?: number
+  contentClassName?: string
+  items: readonly CommandContextMenuExtraItem[]
+  deferActionsUntilClosed: boolean
+  handleCherryCloseAutoFocus: (event: Event) => void
+  handleCherrySelectItem: (action: () => void) => void
+  handleCherrySelectImmediate: (action: () => void) => void
+}) {
+  const resolveShortcutLabels = useResolveExtraItemShortcutLabels()
+  const displayedItems = useMemo(
+    () => removeEmptySeparators(resolveShortcutLabels(items)),
+    [items, resolveShortcutLabels]
+  )
+
+  return (
+    <DropdownMenuContent
+      align={align}
+      side={side}
+      sideOffset={sideOffset}
+      className={contentClassName}
+      onCloseAutoFocus={
+        deferActionsUntilClosed ||
+        displayedItems.some((item) => item.type === 'item' && 'executeImmediately' in item && item.executeImmediately)
+          ? handleCherryCloseAutoFocus
+          : undefined
+      }>
+      {displayedItems.map((item, index) => (
+        <CommandDropdownExtraItemView
+          key={item.type === 'separator' ? `separator-${index}` : `extra-${item.id}`}
+          item={item}
+          onSelectItem={handleCherrySelectItem}
+          onSelectImmediate={handleCherrySelectImmediate}
+        />
+      ))}
+    </DropdownMenuContent>
+  )
+}
+
+function CherryDynamicPopupMenu({
+  children,
+  align,
+  side,
+  sideOffset,
+  contentClassName,
+  open,
+  defaultOpen,
+  onOpenChange,
+  disabled,
+  extraItems = EMPTY_EXTRA_ITEMS,
+  getExtraItems,
+  deferActionsUntilClosed = false
+}: CommandPopupMenuProps) {
   const [internalOpen, setInternalOpen] = useState(defaultOpen ?? false)
   const pendingCherryActionRef = useRef<(() => void) | null>(null)
   const suppressCloseAutoFocusRef = useRef(false)
   const currentOpen = open ?? internalOpen
-  const commandItems = useMemo(() => removeEmptySeparators(model.items), [model.items])
-  const resolveShortcutLabel = useCallback(
-    (command: CommandId) => {
-      const rule = findKeybindingRule(command)
-      const preference = rule ? shortcutPreferences[command] : undefined
-      return getCommandShortcutLabel(command, preference, {
-        context,
-        isMac,
-        platform: platform as SupportedPlatform
-      })
-    },
-    [context, shortcutPreferences]
-  )
-  const decoratedExtraItems = useMemo<readonly CommandContextMenuExtraItem[]>(() => {
-    if (!hasShortcutCommands(extraItems)) return extraItems
-    const decorate = (source: readonly CommandContextMenuExtraItem[]): CommandContextMenuExtraItem[] =>
-      source.map((item) => {
-        if (item.type === 'submenu') {
-          return { ...item, children: decorate(item.children) }
-        }
-        if (item.type !== 'item' || !item.shortcutCommand) {
-          return item
-        }
-        return {
-          ...item,
-          shortcutLabel: item.shortcutLabel || resolveShortcutLabel(item.shortcutCommand) || undefined
-        }
-      })
-    return decorate(extraItems)
-  }, [extraItems, resolveShortcutLabel])
-  const combinedItems = useMemo<readonly CommandContextMenuItem[]>(
-    () => combineContextMenuItems(commandItems, decoratedExtraItems),
-    [commandItems, decoratedExtraItems]
-  )
-
-  const handleNativeClick = useCallback(
-    async (event: React.MouseEvent) => {
-      if (mode !== 'native') return
-      const rect = (event.currentTarget as HTMLElement).getBoundingClientRect()
-      const anchor = { x: Math.round(rect.left), y: Math.round(rect.bottom) }
-      const nativeItems = combinedItems.map(toNativePopupMenuItem)
-      if (!nativeItems.length) return
-      const model: NativePopupMenuModel<CommandId> = { location, items: nativeItems }
-      const request = beginNativeRequest(event.target)
-      onOpenChange?.(true)
-      try {
-        const result = await window.api.command.showNativePopupMenu(model, anchor)
-        if (!request.isCurrent()) return
-        if (result?.type === 'command') {
-          request.origin.execute(result.command)
-        } else if (result?.type === 'custom') {
-          getExtraItemActions(decoratedExtraItems).get(result.id)?.()
-        }
-      } catch (error) {
-        logger.error('Failed to show native command popup menu', error as Error)
-      } finally {
-        if (request.close()) onOpenChange?.(false)
-      }
-    },
-    [beginNativeRequest, combinedItems, decoratedExtraItems, location, mode, onOpenChange]
+  const rawItems = useMemo<readonly CommandContextMenuExtraItem[]>(
+    () => (getExtraItems ? (currentOpen ? getExtraItems() : EMPTY_EXTRA_ITEMS) : extraItems),
+    [currentOpen, extraItems, getExtraItems]
   )
 
   const handleCherryOpenChange = useCallback(
@@ -909,7 +1050,166 @@ export function CommandPopupMenu({
     ? handleCherrySelectItemAfterClose
     : handleCherrySelectItemAfterFrame
 
-  if (disabled || combinedItems.length === 0) {
+  if (disabled || (rawItems.length === 0 && !(getExtraItems && !currentOpen))) {
+    return <>{children}</>
+  }
+
+  return (
+    <DropdownMenu open={currentOpen} onOpenChange={handleCherryOpenChange}>
+      <DropdownMenuTrigger asChild>{children}</DropdownMenuTrigger>
+      {(currentOpen || !getExtraItems) && (
+        <CherryDynamicPopupMenuContent
+          align={align}
+          side={side}
+          sideOffset={sideOffset}
+          contentClassName={contentClassName}
+          items={rawItems}
+          deferActionsUntilClosed={deferActionsUntilClosed}
+          handleCherryCloseAutoFocus={handleCherryCloseAutoFocus}
+          handleCherrySelectItem={handleCherrySelectItem}
+          handleCherrySelectImmediate={handleCherrySelectImmediate}
+        />
+      )}
+    </DropdownMenu>
+  )
+}
+
+export function CommandPopupMenu(props: CommandPopupMenuProps): React.ReactNode {
+  const preferredMode = useCommandMenuPresentationMode()
+  const mode = resolveMenuPresentationMode(props.location, props.presentationMode ?? preferredMode ?? 'cherry')
+
+  if (!hasStaticMenuContributions(props.location) && mode === 'cherry') {
+    return <CherryDynamicPopupMenu {...props} />
+  }
+
+  return <FullCommandPopupMenu {...props} mode={mode} />
+}
+
+function FullCommandPopupMenu({
+  location,
+  mode,
+  children,
+  align,
+  side,
+  sideOffset,
+  contentClassName,
+  open,
+  defaultOpen,
+  onOpenChange,
+  disabled,
+  renderIcon,
+  extraItems = EMPTY_EXTRA_ITEMS,
+  getExtraItems,
+  deferActionsUntilClosed = false
+}: CommandPopupMenuProps & { mode: MenuPresentationMode }): React.ReactNode {
+  const runtime = useCommandRuntime()
+  const beginNativeRequest = useNativeMenuRequest()
+  const model = useResolvedCommandMenu(location)
+  const [internalOpen, setInternalOpen] = useState(defaultOpen ?? false)
+  const pendingCherryActionRef = useRef<(() => void) | null>(null)
+  const suppressCloseAutoFocusRef = useRef(false)
+  const currentOpen = open ?? internalOpen
+  const commandItems = useMemo(() => removeEmptySeparators(model.items), [model.items])
+  const resolvedExtraItems = useMemo<readonly CommandContextMenuExtraItem[]>(
+    () => (getExtraItems ? (mode === 'cherry' && currentOpen ? getExtraItems() : EMPTY_EXTRA_ITEMS) : extraItems),
+    [currentOpen, extraItems, getExtraItems, mode]
+  )
+  const decorateExtraItems = useResolveExtraItemShortcutLabels()
+  const decoratedExtraItems = useMemo<readonly CommandContextMenuExtraItem[]>(
+    () => decorateExtraItems(resolvedExtraItems),
+    [decorateExtraItems, resolvedExtraItems]
+  )
+  const combinedItems = useMemo<readonly CommandContextMenuItem[]>(
+    () => combineContextMenuItems(commandItems, decoratedExtraItems),
+    [commandItems, decoratedExtraItems]
+  )
+
+  const handleNativeClick = useCallback(
+    async (event: React.MouseEvent) => {
+      if (mode !== 'native') return
+      const activeExtraItems = getExtraItems ? decorateExtraItems(getExtraItems()) : decoratedExtraItems
+      const activeCombinedItems = getExtraItems
+        ? combineContextMenuItems(commandItems, activeExtraItems)
+        : combinedItems
+      const rect = (event.currentTarget as HTMLElement).getBoundingClientRect()
+      const anchor = { x: Math.round(rect.left), y: Math.round(rect.bottom) }
+      const nativeItems = activeCombinedItems.map(toNativePopupMenuItem)
+      if (!nativeItems.length) return
+      const model: NativePopupMenuModel<CommandId> = { location, items: nativeItems }
+      const request = beginNativeRequest(event.target)
+      onOpenChange?.(true)
+      try {
+        const result = await window.api.command.showNativePopupMenu(model, anchor)
+        if (!request.isCurrent()) return
+        if (result?.type === 'command') {
+          request.origin.execute(result.command)
+        } else if (result?.type === 'custom') {
+          getExtraItemActions(activeExtraItems).get(result.id)?.()
+        }
+      } catch (error) {
+        logger.error('Failed to show native command popup menu', error as Error)
+      } finally {
+        if (request.close()) onOpenChange?.(false)
+      }
+    },
+    [
+      beginNativeRequest,
+      combinedItems,
+      commandItems,
+      decorateExtraItems,
+      decoratedExtraItems,
+      getExtraItems,
+      location,
+      mode,
+      onOpenChange
+    ]
+  )
+
+  const handleCherryOpenChange = useCallback(
+    (nextOpen: boolean) => {
+      if (open === undefined) {
+        setInternalOpen(nextOpen)
+      }
+      onOpenChange?.(nextOpen)
+    },
+    [onOpenChange, open]
+  )
+
+  const handleCherrySelectItemAfterFrame = useCloseBeforeAction(handleCherryOpenChange)
+  const handleCherrySelectItemAfterClose = useCallback(
+    (action: () => void) => {
+      pendingCherryActionRef.current = action
+      handleCherryOpenChange(false)
+    },
+    [handleCherryOpenChange]
+  )
+  const handleCherrySelectImmediate = useCallback(
+    (action: () => void) => {
+      suppressCloseAutoFocusRef.current = true
+      action()
+      handleCherryOpenChange(false)
+    },
+    [handleCherryOpenChange]
+  )
+  const handleCherryCloseAutoFocus = useCallback((event: Event) => {
+    if (suppressCloseAutoFocusRef.current) {
+      suppressCloseAutoFocusRef.current = false
+      event.preventDefault()
+      return
+    }
+    // Radix fires this after the popup's exit animation and focus cleanup.
+    // Heavy actions (such as image capture) must not block that final frame.
+    const action = pendingCherryActionRef.current
+    pendingCherryActionRef.current = null
+    if (action) {
+      window.requestAnimationFrame(action)
+    }
+  }, [])
+  const handleCherrySelectItem = deferActionsUntilClosed
+    ? handleCherrySelectItemAfterClose
+    : handleCherrySelectItemAfterFrame
+
+  if (disabled || (combinedItems.length === 0 && !(getExtraItems && (mode === 'native' || !currentOpen)))) {
     return <>{children}</>
   }
 

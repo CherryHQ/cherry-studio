@@ -91,10 +91,12 @@ export interface MessageMenuBarToolbarRenderContext {
   action: MessageMenuBarResolvedAction
   actionContext: MessageMenuBarActionContext
   executeAction: (action: MessageMenuBarResolvedAction) => void | Promise<void>
-  menuActions: MessageMenuBarResolvedAction[]
+  hasMenuActions: boolean
+  getMenuActions: () => MessageMenuBarResolvedAction[]
   onMenuOpenChange?: (open: boolean) => void
   softHoverBg: boolean
-  translationItems: MessageMenuBarTranslationItem[]
+  hasTranslationItems: boolean
+  getTranslationItems: () => MessageMenuBarTranslationItem[]
 }
 
 export type MessageMenuBarToolbarRenderer = (context: MessageMenuBarToolbarRenderContext) => ReactNode
@@ -768,6 +770,50 @@ export function resolveMessageMenuBarTranslationItems(
     ...(items.length > 0 ? [{ type: 'divider' as const, key: 'translate-divider' }] : []),
     ...trailingItems
   ]
+}
+
+function matchesMenuSurface(descriptor: ActionDescriptor<MessageMenuBarActionContext>): boolean {
+  if (!descriptor.surface) return true
+  return Array.isArray(descriptor.surface) ? descriptor.surface.includes('menu') : descriptor.surface === 'menu'
+}
+
+function isDescriptorAvailabilityVisible(
+  availability: ActionDescriptor<MessageMenuBarActionContext>['availability'],
+  context: MessageMenuBarActionContext
+): boolean {
+  if (!availability) return true
+  const resolved = typeof availability === 'function' ? availability(context) : availability
+  if (resolved === false) return false
+  if (resolved === true || resolved === undefined) return true
+  return resolved.visible ?? true
+}
+
+function isMenuDescriptorVisible(
+  descriptor: ActionDescriptor<MessageMenuBarActionContext>,
+  context: MessageMenuBarActionContext
+): boolean {
+  if (!matchesMenuSurface(descriptor) || !isDescriptorAvailabilityVisible(descriptor.availability, context)) {
+    return false
+  }
+  if (descriptor.commandId) return true
+  const children =
+    typeof descriptor.children === 'function' ? descriptor.children(context) : (descriptor.children ?? [])
+  return children.some((child) => isMenuDescriptorVisible(child, context))
+}
+
+export function hasMessageMenuBarMenuActions(context: MessageMenuBarActionContext): boolean {
+  return messageMenuBarActionRegistry.listActions().some((descriptor) => isMenuDescriptorVisible(descriptor, context))
+}
+
+export function hasMessageMenuBarTranslationItems(context: MessageMenuBarActionContext): boolean {
+  if (
+    context.actions.translateMessage &&
+    (context.translateLanguages.length > 0 || Boolean(context.actions.requestTranslationLanguages))
+  ) {
+    return true
+  }
+  const hasTranslation = context.hasTranslationBlocks || hasTranslationParts(readLiveParts(context.messageParts))
+  return hasTranslation && Boolean(context.actions.copyText || context.actions.removeMessageTranslation)
 }
 
 export function resolveMessageMenuBarToolbarActions(

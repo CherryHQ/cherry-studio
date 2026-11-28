@@ -60,13 +60,16 @@ vi.mock('@renderer/components/command', async () => {
     CommandPopupMenu: ({
       children,
       extraItems = [],
+      getExtraItems,
       onOpenChange
     }: {
       children: ReactNode
       extraItems?: Array<{ id: string; label: ReactNode; onSelect?: () => void }>
+      getExtraItems?: () => Array<{ id: string; label: ReactNode; onSelect?: () => void }>
       onOpenChange?: (open: boolean) => void
     }) => {
       const [open, setOpen] = React.useState(false)
+      const resolvedItems = open ? (getExtraItems ? getExtraItems() : extraItems) : []
       const child = React.isValidElement<{ onClick?: (event: MouseEvent) => void }>(children) ? children : null
       const trigger = child
         ? // eslint-disable-next-line @eslint-react/no-clone-element -- Mirrors CommandPopupMenu's asChild trigger path.
@@ -92,7 +95,7 @@ vi.mock('@renderer/components/command', async () => {
                   onOpenChange?.(false)
                 }}
               />
-              {extraItems.map((item) => (
+              {resolvedItems.map((item) => (
                 <button
                   key={item.id}
                   type="button"
@@ -261,9 +264,11 @@ describe('messageMenuBarActions', () => {
         action: deleteAction!,
         actionContext: context,
         executeAction: vi.fn(),
-        menuActions: [],
+        hasMenuActions: false,
+        getMenuActions: () => [],
         softHoverBg: false,
-        translationItems: []
+        hasTranslationItems: false,
+        getTranslationItems: () => []
       })
     )
 
@@ -399,9 +404,11 @@ describe('messageMenuBarActions', () => {
           action: action!,
           actionContext: context,
           executeAction: vi.fn(),
-          menuActions: [],
+          hasMenuActions: false,
+          getMenuActions: () => [],
           softHoverBg: false,
-          translationItems: []
+          hasTranslationItems: false,
+          getTranslationItems: () => []
         })}
       </div>
     )
@@ -429,7 +436,8 @@ describe('messageMenuBarActions', () => {
         action: action!,
         actionContext: context,
         executeAction,
-        menuActions: [
+        hasMenuActions: true,
+        getMenuActions: () => [
           {
             id: 'copy',
             label: 'Copy',
@@ -440,7 +448,8 @@ describe('messageMenuBarActions', () => {
           }
         ],
         softHoverBg: false,
-        translationItems: []
+        hasTranslationItems: false,
+        getTranslationItems: () => []
       })
     )
 
@@ -477,9 +486,11 @@ describe('messageMenuBarActions', () => {
         action: action!,
         actionContext: context,
         executeAction: vi.fn(),
-        menuActions: [],
+        hasMenuActions: false,
+        getMenuActions: () => [],
         softHoverBg: false,
-        translationItems: [{ key: 'fr', label: 'French', onSelect }]
+        hasTranslationItems: true,
+        getTranslationItems: () => [{ key: 'fr', label: 'French', onSelect }]
       })
     )
 
@@ -518,9 +529,11 @@ describe('messageMenuBarActions', () => {
         action: action!,
         actionContext: context,
         executeAction: vi.fn(),
-        menuActions: [],
+        hasMenuActions: false,
+        getMenuActions: () => [],
         softHoverBg: false,
-        translationItems
+        hasTranslationItems: true,
+        getTranslationItems: () => translationItems
       })
     )
 

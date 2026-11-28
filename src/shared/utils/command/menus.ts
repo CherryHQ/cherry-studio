@@ -123,6 +123,35 @@ export class MenuRegistry {
 const REGISTERED_MENU_CONTRIBUTIONS: readonly RegisteredMenuContribution<CommandId>[] =
   MENU_CONTRIBUTIONS.map(registerMenuContribution)
 
+const STATIC_CONTRIBUTIONS_BY_LOCATION = new Map<MenuLocation, RegisteredMenuContribution<CommandId>[]>()
+for (const contribution of REGISTERED_MENU_CONTRIBUTIONS) {
+  const bucket = STATIC_CONTRIBUTIONS_BY_LOCATION.get(contribution.location)
+  if (bucket) {
+    bucket.push(contribution)
+  } else {
+    STATIC_CONTRIBUTIONS_BY_LOCATION.set(contribution.location, [contribution])
+  }
+}
+
+const EMPTY_RESOLVED_MENU_MODELS = new Map<MenuLocation, ResolvedMenuModel<CommandId>>()
+
+function getEmptyResolvedMenuModel(location: MenuLocation): ResolvedMenuModel<CommandId> {
+  let cached = EMPTY_RESOLVED_MENU_MODELS.get(location)
+  if (!cached) {
+    cached = { location, items: [] }
+    EMPTY_RESOLVED_MENU_MODELS.set(location, cached)
+  }
+  return cached
+}
+
+export const hasStaticMenuContributions = (location: MenuLocation): boolean =>
+  STATIC_CONTRIBUTIONS_BY_LOCATION.has(location)
+
 /** Resolve the built-in menu model for a location — pure, no exported instance (Invariant 1.2). */
-export const resolveMenu = (options: ResolveMenuOptions): ResolvedMenuModel<CommandId> =>
-  resolveContributions(REGISTERED_MENU_CONTRIBUTIONS, options)
+export const resolveMenu = (options: ResolveMenuOptions): ResolvedMenuModel<CommandId> => {
+  const contributions = STATIC_CONTRIBUTIONS_BY_LOCATION.get(options.location)
+  if (!contributions) {
+    return getEmptyResolvedMenuModel(options.location)
+  }
+  return resolveContributions(contributions, options)
+}

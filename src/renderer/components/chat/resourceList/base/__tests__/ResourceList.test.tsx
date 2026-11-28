@@ -1641,6 +1641,36 @@ describe('ResourceList', () => {
     await waitFor(() => expect(onAction).toHaveBeenCalledWith('topic'))
   })
 
+  it('defers getGroupHeaderContextMenu evaluation until a group header is right-clicked', () => {
+    const getGroupHeaderContextMenu = vi.fn(() => [
+      { type: 'item' as const, id: 'lazy-group-menu', label: 'Lazy Group Menu', onSelect: () => {} }
+    ])
+    const Provider = ResourceList.Provider<TestItem>
+
+    render(
+      <Provider
+        items={ITEMS}
+        groupBy={(item) => ({ id: item.kind, label: item.kind })}
+        getGroupHeaderContextMenu={getGroupHeaderContextMenu}>
+        <ResourceList.Frame>
+          <ResourceList.VirtualItems<TestItem>
+            renderItem={(item) => (
+              <ResourceList.Item item={item}>
+                <span>{item.name}</span>
+              </ResourceList.Item>
+            )}
+          />
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    expect(getGroupHeaderContextMenu).not.toHaveBeenCalled()
+
+    fireEvent.contextMenu(screen.getByRole('button', { name: 'session' }))
+    expect(getGroupHeaderContextMenu).toHaveBeenCalledWith(expect.objectContaining({ id: 'session' }))
+    expect(screen.getByText('Lazy Group Menu')).toBeInTheDocument()
+  })
+
   it('loads each group in configured increments and collapses it to the default count', () => {
     const Provider = ResourceList.Provider<TestItem>
     const items = Array.from({ length: 12 }, (_, index) => ({

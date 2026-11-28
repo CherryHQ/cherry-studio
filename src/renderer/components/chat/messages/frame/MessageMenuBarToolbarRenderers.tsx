@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { useMemo, useRef, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { ConfirmDialog, Tooltip } from '@cherrystudio/ui'
@@ -162,30 +162,30 @@ const DeleteToolbarAction = ({
 }
 
 const MessageActionMenuPopover = ({
-  actions,
+  getMenuActions,
   align = 'end',
   children,
   onAction,
   onOpenChange
 }: {
-  actions: MessageMenuBarResolvedAction[]
+  getMenuActions: () => MessageMenuBarResolvedAction[]
   align?: 'start' | 'center' | 'end'
   children: ReactNode
   onAction: (action: MessageMenuBarResolvedAction) => void | Promise<void>
   onOpenChange?: (open: boolean) => void
 }) => {
-  const extraItems = useMemo(
+  const getExtraItems = useCallback(
     () =>
-      actionsToCommandMenuExtraItems(actions, (action) => {
+      actionsToCommandMenuExtraItems(getMenuActions(), (action) => {
         void onAction(action)
       }).map((item) => (item.type === 'item' && item.id === 'edit' ? { ...item, executeImmediately: true } : item)),
-    [actions, onAction]
+    [getMenuActions, onAction]
   )
 
   return (
     <CommandPopupMenu
       location="webcontents.context"
-      extraItems={extraItems}
+      getExtraItems={getExtraItems}
       align={align}
       side="top"
       onOpenChange={onOpenChange}
@@ -198,18 +198,18 @@ const MessageActionMenuPopover = ({
 
 const TranslateMenuPopover = ({
   children,
-  items,
+  getTranslationItems,
   align = 'end',
   onOpenChange
 }: {
   children: ReactNode
-  items: MessageMenuBarTranslationItem[]
+  getTranslationItems: () => MessageMenuBarTranslationItem[]
   align?: 'start' | 'center' | 'end'
   onOpenChange?: (open: boolean) => void
 }) => {
-  const extraItems = useMemo<readonly CommandContextMenuExtraItem[]>(
+  const getExtraItems = useCallback<() => readonly CommandContextMenuExtraItem[]>(
     () =>
-      items.map((item) =>
+      getTranslationItems().map((item) =>
         isMessageMenuBarTranslationDivider(item)
           ? { type: 'separator' as const }
           : {
@@ -222,13 +222,13 @@ const TranslateMenuPopover = ({
               }
             }
       ),
-    [items]
+    [getTranslationItems]
   )
 
   return (
     <CommandPopupMenu
       location="webcontents.context"
-      extraItems={extraItems}
+      getExtraItems={getExtraItems}
       align={align}
       side="top"
       onOpenChange={onOpenChange}
@@ -307,7 +307,8 @@ export function renderTranslateToolbarAction({
   actionContext,
   executeAction,
   softHoverBg,
-  translationItems,
+  hasTranslationItems,
+  getTranslationItems,
   onMenuOpenChange
 }: MessageMenuBarToolbarRenderContext) {
   if (actionContext.isTranslating) {
@@ -328,7 +329,7 @@ export function renderTranslateToolbarAction({
     )
   }
 
-  if (translationItems.length === 0) return null
+  if (!hasTranslationItems) return null
 
   const handleMenuOpenChange = (open: boolean) => {
     if (open) {
@@ -340,7 +341,7 @@ export function renderTranslateToolbarAction({
   return (
     <TranslateToolbarAction
       action={action}
-      translationItems={translationItems}
+      getTranslationItems={getTranslationItems}
       softHoverBg={softHoverBg}
       onMenuOpenChange={handleMenuOpenChange}
     />
@@ -349,12 +350,12 @@ export function renderTranslateToolbarAction({
 
 const TranslateToolbarAction = ({
   action,
-  translationItems,
+  getTranslationItems,
   softHoverBg,
   onMenuOpenChange
 }: {
   action: MessageMenuBarResolvedAction
-  translationItems: MessageMenuBarTranslationItem[]
+  getTranslationItems: () => MessageMenuBarTranslationItem[]
   softHoverBg: boolean
   onMenuOpenChange?: (open: boolean) => void
 }) => {
@@ -364,7 +365,10 @@ const TranslateToolbarAction = ({
 
   return (
     <Tooltip content={action.label} delay={1200} isOpen={tooltipOpen} onOpenChange={handleTooltipOpenChange}>
-      <TranslateMenuPopover items={translationItems} align="center" onOpenChange={handleMenuOpenChange}>
+      <TranslateMenuPopover
+        getTranslationItems={getTranslationItems}
+        align="center"
+        onOpenChange={handleMenuOpenChange}>
         <MessageActionButton
           className="message-action-button"
           aria-label={label}
@@ -381,17 +385,18 @@ const TranslateToolbarAction = ({
 export function renderMoreMenuToolbarAction({
   action,
   executeAction,
-  menuActions,
+  hasMenuActions,
+  getMenuActions,
   softHoverBg,
   onMenuOpenChange
 }: MessageMenuBarToolbarRenderContext) {
-  if (menuActions.length === 0) return null
+  if (!hasMenuActions) return null
 
   return (
     <MoreMenuToolbarAction
       action={action}
       executeAction={executeAction}
-      menuActions={menuActions}
+      getMenuActions={getMenuActions}
       softHoverBg={softHoverBg}
       onMenuOpenChange={onMenuOpenChange}
     />
@@ -401,13 +406,13 @@ export function renderMoreMenuToolbarAction({
 const MoreMenuToolbarAction = ({
   action,
   executeAction,
-  menuActions,
+  getMenuActions,
   softHoverBg,
   onMenuOpenChange
 }: {
   action: MessageMenuBarResolvedAction
   executeAction: (action: MessageMenuBarResolvedAction) => void | Promise<void>
-  menuActions: MessageMenuBarResolvedAction[]
+  getMenuActions: () => MessageMenuBarResolvedAction[]
   softHoverBg: boolean
   onMenuOpenChange?: (open: boolean) => void
 }) => {
@@ -418,7 +423,7 @@ const MoreMenuToolbarAction = ({
   return (
     <Tooltip content={action.label} delay={800} isOpen={tooltipOpen} onOpenChange={handleTooltipOpenChange}>
       <MessageActionMenuPopover
-        actions={menuActions}
+        getMenuActions={getMenuActions}
         align="end"
         onAction={executeAction}
         onOpenChange={handleMenuOpenChange}>

@@ -11,30 +11,36 @@ interface MessageMenuBarToolbarActionProps {
   action: MessageMenuBarResolvedToolbarAction
   actionContext: MessageMenuBarActionContext
   executeAction: (action: MessageMenuBarResolvedAction) => void | Promise<void>
-  menuActions: MessageMenuBarResolvedAction[]
+  hasMenuActions: boolean
+  getMenuActions: () => MessageMenuBarResolvedAction[]
   onMenuOpenChange?: (open: boolean) => void
   softHoverBg: boolean
-  translationItems: MessageMenuBarTranslationItem[]
+  hasTranslationItems: boolean
+  getTranslationItems: () => MessageMenuBarTranslationItem[]
 }
 
 export function MessageMenuBarToolbarAction({
   action,
   actionContext,
   executeAction,
-  menuActions,
+  hasMenuActions,
+  getMenuActions,
   onMenuOpenChange,
   softHoverBg,
-  translationItems
+  hasTranslationItems,
+  getTranslationItems
 }: MessageMenuBarToolbarActionProps) {
   const renderToolbar = action.renderToolbar ?? renderDefaultToolbarAction
   const renderContext: MessageMenuBarToolbarRenderContext = {
     action,
     actionContext,
     executeAction,
-    menuActions,
+    hasMenuActions,
+    getMenuActions,
     onMenuOpenChange,
     softHoverBg,
-    translationItems
+    hasTranslationItems,
+    getTranslationItems
   }
 
   return renderToolbar(renderContext)
