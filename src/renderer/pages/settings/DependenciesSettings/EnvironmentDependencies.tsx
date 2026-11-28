@@ -1031,7 +1031,16 @@ function AddToolDialog({
       reset()
       onOpenChange(false)
     } catch (error) {
-      if (session === sessionRef.current) setAddError({ cause: error, name })
+      if (session === sessionRef.current) {
+        setAddError({ cause: error, name })
+      } else {
+        // Cancel does not abort the write; the dialog is gone, so the page-level toast reports it.
+        toast.error({
+          title: t('settings.dependencies.addFailed'),
+          cause: error,
+          data: { source: 'settings.dependencies', operation: 'binary.add_custom_tool', recordId: name }
+        })
+      }
     } finally {
       if (session === sessionRef.current) setAdding(false)
     }
