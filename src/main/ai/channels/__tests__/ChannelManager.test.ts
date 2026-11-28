@@ -42,6 +42,12 @@ class TestFileManager {
 @Injectable('PowerService')
 class TestPowerService {}
 
+@Injectable('VoiceSessionService')
+class TestVoiceSessionService {}
+
+@Injectable('AsrInferenceService')
+class TestAsrInferenceService {}
+
 vi.mock('@logger', () => ({
   loggerService: {
     withContext: () => ({ info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn(), silly: vi.fn() })
@@ -151,6 +157,8 @@ describe('ChannelManager', () => {
     container.register(TestWindowManager)
     container.register(TestFileManager)
     container.register(TestPowerService)
+    container.register(TestVoiceSessionService)
+    container.register(TestAsrInferenceService)
     container.register(ChannelManager)
     manager = container.get(ChannelManager)
   })

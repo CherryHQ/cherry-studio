@@ -17,12 +17,16 @@ registers it. Apple, FunASR, Qwen3-ASR, and Windows ASR pass canonical WAV bytes
 combined owner/caller/timeout AbortSignal. The process
 uses terminate cancellation, so the caller cannot release its operation lease before
 the old generation exits.
+Decode now dispatches by normalized MIME to `decodeWebm` / `decodeOgg`; channel
+(Telegram) uses an independent instance, while desktop keeps the shared client.
 
 `decodeWebm` uses Mediabunny for WebM packet demux and WAV mux, ts-ebml for metadata
 that Mediabunny does not expose, and opus-decoder's libopus WASM for 16 kHz decode.
 It averages mono/stereo channels into PCM16. It does not open files, write scratch
 audio, resolve physical paths, download resources or access the network. Adapters
 own their derived WAV files and delete them in their lifecycle cleanup.
+Decode now dispatches by normalized MIME to `decodeWebm` / `decodeOgg`; channel
+(Telegram) uses an independent instance, while desktop keeps the shared client.
 
 The accepted recording subset is one WebM Opus audio track, OpusHead version 1,
 mapping family 0, mono/stereo, zero output gain, and unlaced blocks. Opus pre-skip
