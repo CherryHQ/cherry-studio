@@ -11,7 +11,12 @@ import type { InputFilePreview } from '@renderer/types/inputFilePreview'
 import type { FileHandle } from '@shared/data/types/file'
 import { isFileEntryHandle } from '@shared/utils/file'
 
-import { useOptionalMessageListActions, useOptionalMessageListUi } from '../MessageListProvider'
+import {
+  useOptionalMessageListActions,
+  useOptionalMessageListTopicId,
+  useOptionalMessageListUi
+} from '../MessageListProvider'
+import MiniAppArtifactActions from './MiniAppArtifactActions'
 
 interface Props {
   /** Addresses the file for open / preview. Main resolves it; never a path this component built. */
@@ -27,6 +32,7 @@ const MessageAttachments: FC<Props> = ({ handle, inputFilePreview, name, ext, cr
   const { t } = useTranslation()
   const actions = useOptionalMessageListActions()
   const messageUi = useOptionalMessageListUi()
+  const topicId = useOptionalMessageListTopicId()
   const entryId = handle && isFileEntryHandle(handle) ? handle.entryId : undefined
   const { data: entry } = useQuery('/files/entries/:id', {
     params: { id: entryId ?? '' },
@@ -128,6 +134,12 @@ const MessageAttachments: FC<Props> = ({ handle, inputFilePreview, name, ext, cr
           </Button>
         ) : null}
       </div>
+      {/* A `.miniapp` attachment is a session artifact (issue #21646 stage 3):
+          its actions need the owning session and a real handle, never a
+          renderer-built path. */}
+      {handle && topicId && displayExt.toLowerCase() === '.miniapp' && (
+        <MiniAppArtifactActions handle={handle} topicId={topicId} />
+      )}
     </div>
   )
 }

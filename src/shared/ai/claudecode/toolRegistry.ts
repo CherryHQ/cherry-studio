@@ -367,6 +367,27 @@ const CLAUDE_TOOL_REGISTRY = {
     description: 'Generates an image from a text prompt using your configured painting model',
     mcpServer: 'cherry-tools'
   },
+  // Mini App authoring (#21646): validate/preview/status/close agent-authored Mini Apps.
+  // Preview runs are isolated by construction (own runtime id, partition and temporary tree),
+  // and install/pin are deliberately absent from the tool — consent stays with the renderer's
+  // consent cards, so no per-call approval is needed here.
+  CherryMiniApp: {
+    name: 'mcp__cherry-tools__mini_app',
+    category: 'orchestration',
+    exposure: 'user',
+    description: 'Validates, previews, inspects and closes agent-authored Mini Apps',
+    mcpServer: 'cherry-tools'
+  },
+  // Drives the one preview page mini_app opened — useless without it, so it follows the
+  // visible "Mini App" toggle (dependsOn mini_app), mirroring the kb_read pattern.
+  CherryMiniappBrowser: {
+    name: 'mcp__cherry-tools__miniapp-browser',
+    category: 'orchestration',
+    exposure: 'internal',
+    description: 'Operates the bound Mini App preview page (snapshot, click, type, wait, logs, screenshots)',
+    dependsOn: ['mcp__cherry-tools__mini_app'],
+    mcpServer: 'cherry-tools'
+  },
   // agent-memory (cross-session memory)
   AgentMemory: {
     name: 'mcp__agent-memory__memory',
@@ -459,7 +480,9 @@ const MCP_TOOL_LABELS: Record<string, string> = {
   'mcp__cherry-tools__cron': 'Scheduler',
   'mcp__cherry-tools__notify': 'Notify',
   'mcp__cherry-tools__config': 'Configuration',
-  'mcp__cherry-tools__generate_image': 'Generate Image'
+  'mcp__cherry-tools__generate_image': 'Generate Image',
+  'mcp__cherry-tools__mini_app': 'Mini App',
+  'mcp__cherry-tools__miniapp-browser': 'Mini App Browser'
 }
 
 /**

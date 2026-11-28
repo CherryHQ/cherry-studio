@@ -15,6 +15,7 @@ import { generateText as aiCoreGenerateText, resolveLanguageModel, streamText } 
 import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
 import { FS_READ_TOOL_NAME } from '@shared/ai/builtinTools'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import {
   createUniqueModelId,
   ENDPOINT_TYPE,
@@ -38,14 +39,21 @@ import type { AgentOptions } from '../../loop/types'
 import { buildFallbackModels } from '../../retry/buildFallbackModels'
 import { createRetryableWrap } from '../../retry/createRetryableWrap'
 
-const { preferenceGetMock, resolveProviderAiSdkConfigMock, listMcpServers, listMcpTools, getMcpInstructions } =
-  vi.hoisted(() => ({
-    preferenceGetMock: vi.fn(),
-    resolveProviderAiSdkConfigMock: vi.fn(),
-    listMcpServers: vi.fn(),
-    listMcpTools: vi.fn(),
-    getMcpInstructions: vi.fn()
-  }))
+const {
+  preferenceGetMock,
+  resolveProviderAiSdkConfigMock,
+  listMcpServers,
+  listMcpTools,
+  getMcpInstructions,
+  agentSessionGetByIdMock
+} = vi.hoisted(() => ({
+  preferenceGetMock: vi.fn(),
+  resolveProviderAiSdkConfigMock: vi.fn(),
+  listMcpServers: vi.fn(),
+  listMcpTools: vi.fn(),
+  getMcpInstructions: vi.fn(),
+  agentSessionGetByIdMock: vi.fn()
+}))
 
 vi.mock('../../../../provider/config', () => ({
   resolveProviderAiSdkConfig: resolveProviderAiSdkConfigMock
@@ -72,6 +80,11 @@ vi.mock('@main/data/services/McpServerService', () => ({
   mcpServerService: { list: listMcpServers }
 }))
 
+// The session record behind workspace-root resolution is a pure lookup here.
+vi.mock('@data/services/AgentSessionService', () => ({
+  agentSessionService: { getById: agentSessionGetByIdMock }
+}))
+
 const { applyCallOverrides, applyResponsesInstructions, buildAgentParams, resolveToolCallLimit, resolveTools } =
   await import('../buildAgentParams')
 
@@ -79,6 +92,9 @@ beforeEach(() => {
   preferenceGetMock.mockReturnValue(null)
   listMcpServers.mockReturnValue({ items: [] })
   getMcpInstructions.mockReturnValue(undefined)
+  agentSessionGetByIdMock.mockImplementation((id: string) => {
+    throw DataApiErrorFactory.notFound('AgentSession', id)
+  })
 })
 
 describe('buildAgentParams provider resolution', () => {
@@ -2750,6 +2766,45 @@ describe('buildAgentParams knowledge-scope enforcement', () => {
 
   it('resolves to an empty scope when neither source selects a base', async () => {
     await expect(effectiveScopeFor(undefined, undefined)).resolves.toEqual([])
+  })
+})
+
+describe('buildAgentParams session workspace roots', () => {
+  const rootsFor = async (conversation: { id: string; topicId?: string }) => {
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: { providerId: 'anthropic', providerSettings: {} },
+      credentialReceipt: { attribution: 'unknown' }
+    })
+    const result = await buildAgentParams({
+      request: { conversation },
+      signal: undefined,
+      provider: makeProvider({
+        id: 'custom-claude',
+        defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+        endpointConfigs: { [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { adapterFamily: 'anthropic' } }
+      }),
+      model: makeModel({ capabilities: [MODEL_CAPABILITY.FUNCTION_CALL] }),
+      assistant: makeAssistant()
+    })
+    return (result.options as { context?: { roots?: unknown } }).context?.roots
+  }
+
+  it('resolves roots from the raw session id behind an agent-session topic', async () => {
+    agentSessionGetByIdMock.mockImplementation((id: string) => {
+      if (id === 'session-1') return { workspace: { path: '/ws/session-1' } }
+      throw DataApiErrorFactory.notFound('AgentSession', id)
+    })
+    // The AI-SDK request for an agent session carries `agent-session:<id>` as its topicId;
+    // the session row is keyed by the raw id, so the builder must strip the prefix or the
+    // lookup always misses and the mini_app tool loses its workspace authorization.
+    await expect(rootsFor({ id: 'c1', topicId: 'agent-session:session-1' })).resolves.toEqual([
+      { uri: '/ws/session-1', name: 'session-workspace' }
+    ])
+    expect(agentSessionGetByIdMock).toHaveBeenCalledWith('session-1')
+  })
+
+  it('authorizes nothing for an ordinary chat topic', async () => {
+    await expect(rootsFor({ id: 'c1', topicId: 'topic-1' })).resolves.toBeUndefined()
   })
 })
 
