@@ -24,8 +24,12 @@ const webFetchTool = tool({
   description: WEB_FETCH_DESCRIPTION,
   inputSchema: webFetchInputSchema,
   outputSchema: webFetchResultSchema,
-  execute: async ({ urls }, options) =>
-    markTrustedLocalToolTerminalFailure(await fetchWeb(urls, getToolCallContext(options).request.abortSignal)),
+  execute: async ({ urls }, options) => {
+    const { request } = getToolCallContext(options)
+    return markTrustedLocalToolTerminalFailure(
+      await fetchWeb(urls, request.abortSignal, request.assistant?.settings.fetchUrlsProviderId ?? undefined)
+    )
+  },
   toModelOutput: ({ output }) => webLookupModelOutput(output)
 })
 
