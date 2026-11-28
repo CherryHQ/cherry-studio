@@ -151,6 +151,34 @@ describe('writeCliConfigDraft', () => {
     )
   })
 
+  it('exports the input modalities of a synced Ace vision model to Pi', async () => {
+    const saved = {
+      id: 'my-ace::vision-fixture' as const,
+      apiModelId: 'vision-fixture',
+      name: 'Vision fixture',
+      inputModalities: ['text', 'image'],
+      endpointTypes: ['openai-chat-completions']
+    }
+    mockGet({
+      '/providers/my-ace': () => ({
+        ...openaiCompatProvider,
+        id: 'my-ace',
+        name: 'Ace',
+        presetProviderId: 'acedatacloud',
+        endpointConfigs: { 'openai-chat-completions': { baseUrl: 'https://api.acedata.cloud/v1' } }
+      }),
+      '/providers/my-ace/api-keys': () => ({ keys: [enabledKey] }),
+      '/models/': () => saved
+    })
+
+    await writeCliConfigDraft({ cliTool: CodeCli.PI, modelId: saved.id })
+    const config = JSON.parse(writes.find((entry) => entry.path.endsWith('models.json'))!.content)
+    expect(config.providers['cherry-Ace'].models[0]).toMatchObject({
+      id: 'vision-fixture',
+      input: ['text', 'image']
+    })
+  })
+
   it('writes Hermes custom-runtime metadata separately from the API key', async () => {
     mockGet({
       '/providers/deepseek': () => openaiCompatProvider,
