@@ -2085,7 +2085,7 @@ const AgentComposerInner = ({
                 />
               )}
               {hasDurableFollowUp && !launchOptions?.editing ? (
-                <NativeQueuedFollowups key={runtimeTopicId} topicId={runtimeTopicId} />
+                <NativeQueuedFollowups key={runtimeTopicId} topicId={runtimeTopicId} canSteer={isStreaming} />
               ) : null}
               {queuedFollowups.length > 0 ? (
                 <QueuedFollowupsDock

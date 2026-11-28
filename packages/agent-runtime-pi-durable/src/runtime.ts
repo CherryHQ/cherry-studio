@@ -68,6 +68,7 @@ import { readContextUsage } from './contextUsage'
 import {
   changeFollowups,
   followupEdit,
+  followupSteerPlacement,
   readFollowups,
   type DurableFollowup,
   type DurableFollowupChange
@@ -75,7 +76,7 @@ import {
 import { productInputId, readDurableInput, submissionState } from './inputLookup'
 import { previewContentIndices, previewTextAppends } from './previewTextAppends'
 import { DurableProjection, type DurableObservation } from './projection'
-import { readDurableWork, recoveryIndex, type DurableRecoveryWork } from './recovery'
+import { readDurableWork, registerFollowupProjection, type DurableRecoveryWork } from './recovery'
 import { toolPreviewIndices, toolResultSlot } from './toolOutputOps'
 
 function queuedInputId(view: ConversationView, record: SubmissionRecord): InputId | undefined {
@@ -92,7 +93,7 @@ export interface PiDurableRuntimeOptions {
   readonly harness: HarnessOptions
   readonly behavior?: PiDurableRuntimeBehavior
   /** Synchronous placement notification before the scheduler can issue the next model request. */
-  readonly onInputPlaced?: (inputId: InputId | undefined, thread: ThreadId) => void
+  readonly onInputPlaced?: (inputId: InputId | undefined, thread: ThreadId, promotion?: { replyId?: string }) => void
   readonly onFollowupsChanged?: (thread: ThreadId, queue: readonly DurableFollowup[]) => void
   readonly onFollowupEdit?: (thread: ThreadId, inputId: InputId, textPart: string) => void
   readonly onError?: (error: unknown) => void
@@ -420,7 +421,11 @@ export async function createPiDurableRuntime(
             const placed = publication.changes.find((item) => item.type === 'entry' && item.value.id === record.entry)
             if (placed?.type === 'entry') {
               try {
-                options.onInputPlaced?.(productInputId(placed.value.data), refFor(record.conversationId).id)
+                options.onInputPlaced?.(
+                  productInputId(placed.value.data),
+                  refFor(record.conversationId).id,
+                  followupSteerPlacement(placed.value.data, record.runId)
+                )
               } catch (cause) {
                 report(cause)
               }
@@ -883,12 +888,7 @@ export async function createPiDurableRuntime(
           const submission = project
             ? await native.commit(async (tx) => {
                 const id = await entry.conversation.submit(tx, draft)
-                const index = await tx.doc(recoveryIndex)
-                index.followupProjections ??= {}
-                index.followupProjections[entry.ref.id] = {
-                  ...index.followupProjections[entry.ref.id],
-                  [input.inputId]: true
-                }
+                await registerFollowupProjection(tx, { threadId: entry.ref.id, inputId: input.inputId })
                 return id
               }, context)
             : await entry.conversation.submit(draft, context)
