@@ -1,4 +1,12 @@
-import { AISDKError, APICallError, EmptyResponseBodyError, JSONParseError, RetryError, TypeValidationError } from 'ai'
+import {
+  AISDKError,
+  APICallError,
+  EmptyResponseBodyError,
+  InvalidToolInputError,
+  JSONParseError,
+  RetryError,
+  TypeValidationError
+} from 'ai'
 
 import type { SerializedError } from '../types/error'
 import type { Serializable } from '../types/serializable'
@@ -12,6 +20,9 @@ const MAX_NESTED_PROVIDER_ERROR_DEPTH = 5
 const NON_ACTIONABLE_PROVIDER_TEXT = new Set(['null', 'undefined', '[object object]', '{}', '[]'])
 const HTML_DOCUMENT_PATTERN = /(?:<!doctype\s+html\b|<html(?:\s|>))/i
 const JSON_CONTAINER_PATTERN = /\{\s*(?:["'{[]|\}|[^\s{}[\],:]+\s*:)|\[(?!\s*\d+(?:\s*,\s*\d+)*\s*\])[^\]]*(?:\]|$)/i
+const TOOL_INPUT_DIAGNOSTIC_PATTERN =
+  /^Invalid input for tool ([^\r\n]+?):\s*(JSON parsing failed|Type validation failed)\b/i
+const SAFE_TOOL_NAME_PATTERN = /^[A-Za-z0-9_.-]{1,128}$/
 
 const EMPTY_RESPONSE_MESSAGE = 'Invalid response: empty response body. Retry or switch model.'
 const INVALID_JSON_MESSAGE = 'Invalid JSON data. Retry or check the provider endpoint and model.'
@@ -60,8 +71,30 @@ function containsEncodedContainer(text: string): boolean {
   return JSON_CONTAINER_PATTERN.test(candidate) || HTML_DOCUMENT_PATTERN.test(candidate)
 }
 
+function safeToolIdentifier(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined
+  const trimmed = value.trim()
+  if (!SAFE_TOOL_NAME_PATTERN.test(trimmed)) return undefined
+  const safe = actionableText(trimmed)
+  return safe && SAFE_TOOL_NAME_PATTERN.test(safe) ? safe : undefined
+}
+
+// AI SDK tool-input errors embed the raw JSON/Markdown payload; keep only the safe header.
+function toolInputDiagnostic(text: string): string | undefined {
+  const match = TOOL_INPUT_DIAGNOSTIC_PATTERN.exec(text.trimStart().slice(0, 512))
+  if (!match) return undefined
+  const isJsonParse = match[2].toLowerCase() === 'json parsing failed'
+  const safeToolName = safeToolIdentifier(match[1])
+  if (!safeToolName) return isJsonParse ? INVALID_JSON_MESSAGE : INVALID_STRUCTURE_MESSAGE
+  const reason = isJsonParse ? 'JSON parsing failed' : 'Type validation failed'
+  return `Invalid input for tool ${safeToolName}: ${reason}.`
+}
+
 function providerPayloadText(value: unknown): string {
-  if (typeof value !== 'string' || value.length > MAX_PROVIDER_ERROR_INPUT_LENGTH) return ''
+  if (typeof value !== 'string') return ''
+  const toolDiagnostic = toolInputDiagnostic(value)
+  if (toolDiagnostic) return toolDiagnostic
+  if (value.length > MAX_PROVIDER_ERROR_INPUT_LENGTH) return ''
   let parsed: unknown = value
   for (let depth = 0; depth < MAX_PROVIDER_ERROR_DECODE_DEPTH && typeof parsed === 'string'; depth += 1) {
     const text = parsed
@@ -69,6 +102,8 @@ function providerPayloadText(value: unknown): string {
     try {
       parsed = JSON.parse(text)
     } catch {
+      const nestedToolDiagnostic = toolInputDiagnostic(text)
+      if (nestedToolDiagnostic) return nestedToolDiagnostic
       if (containsEncodedContainer(text)) return ''
       return actionableText(value)
     }
@@ -179,6 +214,12 @@ export function getSafeAiSdkErrorDiscriminants(source: Record<string, unknown>):
 
 function sdkResponseDiagnostic(error: unknown): string | undefined {
   if (EmptyResponseBodyError.isInstance(error)) return EMPTY_RESPONSE_MESSAGE
+  if (InvalidToolInputError.isInstance(error)) {
+    const diagnostic = toolInputDiagnostic(error.message)
+    if (diagnostic) return diagnostic
+    const safeToolName = safeToolIdentifier(error.toolName)
+    return safeToolName ? `Invalid input for tool ${safeToolName}.` : INVALID_STRUCTURE_MESSAGE
+  }
   if (JSONParseError.isInstance(error)) return INVALID_JSON_MESSAGE
   if (TypeValidationError.isInstance(error)) return INVALID_STRUCTURE_MESSAGE
   return undefined
