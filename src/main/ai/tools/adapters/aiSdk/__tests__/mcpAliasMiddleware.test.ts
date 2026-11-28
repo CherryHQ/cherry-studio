@@ -1,5 +1,5 @@
 import type { LanguageModelV3StreamPart } from '@ai-sdk/provider'
-import { jsonSchema, type LanguageModelMiddleware, type ToolSet } from 'ai'
+import { jsonSchema, type LanguageModelMiddleware, type ToolSet, type UIMessage } from 'ai'
 import { describe, expect, it, vi } from 'vitest'
 
 import { createMcpAliasMiddleware } from '../mcpAliasMiddleware'
@@ -12,7 +12,13 @@ const entry = {
 const tools: ToolSet = { [wire]: entry, tool_invoke: { inputSchema: jsonSchema({ type: 'object' }) } }
 
 async function stream(middleware: LanguageModelMiddleware, parts: LanguageModelV3StreamPart[]) {
+  const { MockLanguageModelV3 } = await import('ai/test')
   const wrapped = await middleware.wrapStream!({
+    model: new MockLanguageModelV3(),
+    params: { prompt: [] },
+    doGenerate: async () => {
+      throw new Error('not used in stream probe')
+    },
     doStream: async () => ({
       stream: new ReadableStream({
         start(controller) {
@@ -21,7 +27,7 @@ async function stream(middleware: LanguageModelMiddleware, parts: LanguageModelV
         }
       })
     })
-  } as Parameters<NonNullable<LanguageModelMiddleware['wrapStream']>>[0])
+  })
   const result: LanguageModelV3StreamPart[] = []
   for await (const part of wrapped.stream) result.push(part)
   return result
@@ -88,7 +94,7 @@ it.each([false, true])('persists canonical SDK identity for follow-up and approv
     }),
     middleware: createMcpAliasMiddleware(callable, callable)
   })
-  let saved: import('ai').UIMessage | undefined
+  let saved: UIMessage | undefined
   for await (const message of readUIMessageStream({
     stream: streamText({ model, tools: callable, prompt: 'lookup', maxRetries: 0 }).toUIMessageStream()
   }))
@@ -187,7 +193,7 @@ it('overwrites streamed tool_invoke input with the canonical identity before per
     }),
     middleware: createMcpAliasMiddleware({ tool_invoke: tools.tool_invoke }, tools)
   })
-  let saved: import('ai').UIMessage | undefined
+  let saved: UIMessage | undefined
   const callable: ToolSet = { tool_invoke: { ...tools.tool_invoke, execute: async () => 'ok' } }
   for await (const message of readUIMessageStream({
     stream: streamText({ model, tools: callable, prompt: 'lookup', maxRetries: 0 }).toUIMessageStream()
