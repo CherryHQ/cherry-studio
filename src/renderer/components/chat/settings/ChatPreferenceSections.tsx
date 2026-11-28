@@ -90,6 +90,7 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
   const [multiModelMessageStyle, setMultiModelMessageStyle] = usePreference('chat.message.multi_model.style')
   const [mathEnableSingleDollar, setMathEnableSingleDollar] = usePreference('chat.message.math.single_dollar')
   const [showInputEstimatedTokens, setShowInputEstimatedTokens] = usePreference('chat.input.show_estimated_tokens')
+  const [showSessionMetrics, setShowSessionMetrics] = usePreference('agent.session.show_metrics_bar')
   const [pasteLongTextAsFile, setPasteLongTextAsFile] = usePreference('chat.input.paste_long_text_as_file')
   const [pasteLongTextThreshold, setPasteLongTextThreshold] = usePreference('chat.input.paste_long_text_threshold')
   const [renderInputMessageAsMarkdown, setRenderInputMessageAsMarkdown] = usePreference(
@@ -293,6 +294,14 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
               checked={showInputEstimatedTokens}
               onCheckedChange={setShowInputEstimatedTokens}
               label={t('settings.messages.input.show_estimated_tokens')}
+            />
+          </SettingRow>
+          <SettingDivider />
+          <SettingRow id="setting-appearance-show-session-metrics" className="scroll-mt-6">
+            <SettingSwitch
+              checked={showSessionMetrics}
+              onCheckedChange={setShowSessionMetrics}
+              label={t('settings.messages.show_session_metrics')}
             />
           </SettingRow>
           <SettingDivider />

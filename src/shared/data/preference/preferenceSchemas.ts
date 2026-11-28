@@ -53,6 +53,8 @@ export interface PreferenceSchemas {
     // target-key-definitions/complex/complex
     'agent.session.position': PreferenceTypes.TopicTabPosition
     // target-key-definitions/complex/complex
+    'agent.session.show_metrics_bar': boolean
+    // target-key-definitions/complex/complex
     'agent.session.sort': PreferenceTypes.ConversationListSort
     // target-key-definitions/complex/complex
     'agent.skills.external_export.enabled': boolean
@@ -750,6 +752,7 @@ export const DefaultPreferences: PreferenceSchemas = {
     'agent.language': null,
     'agent.session.display_mode': 'agent',
     'agent.session.position': 'left',
+    'agent.session.show_metrics_bar': true,
     'agent.session.sort': { by: 'lastActivityAt', direction: 'desc' },
     'agent.skills.external_export.enabled': false,
     'app.browser.agent_control.enabled': true,

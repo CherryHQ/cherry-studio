@@ -94,6 +94,11 @@ export const entries: SettingsSearchEntry[] = [
     groupKey: inputGroup
   },
   {
+    anchorId: 'show-session-metrics',
+    titleKey: 'settings.messages.show_session_metrics',
+    groupKey: inputGroup
+  },
+  {
     anchorId: 'markdown-rendering-input-message',
     titleKey: 'settings.messages.markdown_rendering_input_message',
     groupKey: inputGroup

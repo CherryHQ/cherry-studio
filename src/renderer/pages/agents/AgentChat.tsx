@@ -67,6 +67,7 @@ import {
   AgentTaskProgressCapsule,
   useAgentRightPaneActions
 } from './components/AgentRightPane'
+import { AgentSessionMetricsBar } from './components/AgentSessionMetricsBar'
 import { locateAgentMessageInList, scrollAgentMessageListToEnd } from './messages/agentMessageListAdapter'
 import type { CreateAgentSessionDefaults } from './types'
 import { type AgentChatRuntimeState, useAgentChatRuntimeState } from './useAgentChatRuntimeState'
@@ -746,6 +747,37 @@ const AgentChatSessionCenter = ({
   const composer = (
     <div className="flex w-full flex-col">
       {!isMultiSelectMode && <AgentTaskProgressCapsule />}
+      {!isMultiSelectMode && (
+        <AgentSessionMetricsBar
+          messages={runtime.uiMessages}
+          partsByMessageId={runtime.partsByMessageId}
+          partial={runtime.hasOlder}
+        />
+      )}
+      <AgentComposerSlot
+        editBusy={runtime.editBusy}
+        agentId={agentId}
+        activeAgent={activeAgent}
+        activeModel={activeModel}
+        workspaceWarning={workspaceWarning}
+        isMultiSelectMode={isMultiSelectMode}
+        session={session}
+        sessionId={runtime.sessionId}
+        sendMessage={runtime.sendMessage}
+        stop={runtime.stop}
+        isStreaming={runtime.isPending}
+        messages={runtime.uiMessages}
+        sendDisabled={composerPending}
+        onAgentChange={onAgentChange}
+        agentChanging={agentChanging}
+        onCreateEmptySession={onCreateEmptySession}
+        composerContext={runtime.composerContext}
+        composerLaunchOptions={composerLaunchOptions}
+        editing={runtime.editing}
+        cancelEditing={runtime.cancelEditing}
+        resendEditedMessage={runtime.resendEditedMessage}
+        providerQuotaExhausted={runtime.providerQuotaExhausted}
+      />
       {checkingRestore ? (
         <p className="px-4 py-3 text-center text-sm text-muted-foreground" role="status">
           {t('common.loading')}
