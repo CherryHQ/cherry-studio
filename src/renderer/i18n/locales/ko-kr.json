@@ -6580,6 +6580,7 @@
   "settings.tool.websearch.model_tools_preferred.description": "채팅의 웹 검색에는 모델 내장 웹 검색 및 URL 가져오기를 우선하고, 사용할 수 없으면 위 서비스로 자동 전환합니다. 에이전트 대화는 항상 위 서비스를 사용합니다.",
   "settings.tool.websearch.model_tools_preferred.label": "모델 내장 웹 도구 우선",
   "settings.tool.websearch.provider_description.bocha": "실시간 웹 및 구조화된 결과를 제공하는 중국어 AI 검색 API입니다.",
+  "settings.tool.websearch.provider_description.bowmark": "Bowmark 검색 API: AI 에이전트가 호출할 수 있는 실시간 웹 데이터용 타입 지정 함수입니다.",
   "settings.tool.websearch.provider_description.crawl4ai": "API 키로 Crawl4AI Cloud를 사용하거나, 자체 호스팅 Crawl4AI 주소와 선택적 토큰을 입력하세요.",
   "settings.tool.websearch.provider_description.deepseek": "순위가 매겨진 웹 결과와 Markdown 페이지 콘텐츠를 반환하는 DeepSeek 공식 Search 및 Fetch API입니다.",
   "settings.tool.websearch.provider_description.desearch": "제목, 링크 및 요약을 반환하는 AI 앱용 Desearch 웹 검색 API입니다.",

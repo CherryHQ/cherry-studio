@@ -2,6 +2,7 @@ import type { WebSearchProvider } from '@shared/data/preference/preferenceTypes'
 
 import type { ApiKeyRotationState } from '../utils/provider'
 import { BochaProvider } from './api/BochaProvider'
+import { BowmarkProvider } from './api/BowmarkProvider'
 import { Crawl4AIProvider } from './api/Crawl4AIProvider'
 import { DeepSeekProvider } from './api/DeepSeekProvider'
 import { DesearchProvider } from './api/DesearchProvider'
@@ -48,5 +49,6 @@ export const WEB_SEARCH_PROVIDER_REGISTRY = {
   desearch: DesearchProvider,
   searchapi: SearchApiProvider,
   serpkite: SerpKiteProvider,
+  bowmark: BowmarkProvider,
   duckduckgo: DuckduckgoProvider
 } as const satisfies Record<WebSearchProvider['id'], WebSearchProviderConstructor>

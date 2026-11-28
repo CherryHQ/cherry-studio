@@ -6580,6 +6580,7 @@
   "settings.tool.websearch.model_tools_preferred.description": "Προτιμά την εγγενή αναζήτηση ιστού και ανάκτηση URL του μοντέλου για την αναζήτηση ιστού στη συνομιλία και μεταβαίνει αυτόματα στις παραπάνω υπηρεσίες όταν αυτές οι δυνατότητες δεν είναι διαθέσιμες. Οι συνομιλίες με πράκτορες χρησιμοποιούν πάντα τις παραπάνω υπηρεσίες.",
   "settings.tool.websearch.model_tools_preferred.label": "Προτίμηση εγγενών εργαλείων ιστού του μοντέλου",
   "settings.tool.websearch.provider_description.bocha": "Κινέζικο API αναζήτησης τεχνητής νοημοσύνης με πραγματικές δυνατότητες στον ιστό και δομημένα αποτελέσματα.",
+  "settings.tool.websearch.provider_description.bowmark": "API αναζήτησης Bowmark: τυποποιημένες συναρτήσεις για δεδομένα ιστού σε πραγματικό χρόνο που μπορεί να καλέσει ένας πράκτορας AI.",
   "settings.tool.websearch.provider_description.crawl4ai": "Χρησιμοποιήστε το Crawl4AI Cloud με ένα κλειδί API ή εισαγάγετε τη διεύθυνση μιας αυτοφιλοξενούμενης εγκατάστασης Crawl4AI με προαιρετικό διακριτικό πρόσβασης.",
   "settings.tool.websearch.provider_description.deepseek": "Επίσημα API αναζήτησης και ανάκτησης της DeepSeek, με καταταγμένα αποτελέσματα και περιεχόμενο σελίδων σε Markdown.",
   "settings.tool.websearch.provider_description.desearch": "API αναζήτησης ιστού Desearch για εφαρμογές AI, που επιστρέφει τίτλους, συνδέσμους και αποσπάσματα.",

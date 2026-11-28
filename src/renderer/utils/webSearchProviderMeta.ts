@@ -98,6 +98,11 @@ const WEB_SEARCH_PROVIDER_DISPLAY_META: Record<WebSearchProviderId, WebSearchPro
     officialWebsite: 'https://www.searchapi.io',
     apiKeyWebsite: 'https://www.searchapi.io/api_tokens'
   },
+  bowmark: {
+    descriptionKey: 'settings.tool.websearch.provider_description.bowmark',
+    officialWebsite: 'https://bowmark.ai',
+    apiKeyWebsite: 'https://bowmark.ai/dashboard'
+  },
   searxng: {
     descriptionKey: 'settings.tool.websearch.provider_description.searxng',
     iconRef: providerIconRef('searxng'),

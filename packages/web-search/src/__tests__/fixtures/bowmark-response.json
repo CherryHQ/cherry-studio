@@ -1,0 +1,35 @@
+{
+  "ok": true,
+  "result": {
+    "query": "cherry studio AI chat app",
+    "engine": "web",
+    "results": [
+      {
+        "url": "https://cherryai.com/",
+        "rank": 1,
+        "title": "Cherry Studio - The All-in-One AI Workstation",
+        "source": "web",
+        "snippet": "Cherry Studio is an open-source, free, and powerful AI desktop client. It includes AI agents, AI chat, AI image generation, knowledge …",
+        "published": null
+      },
+      {
+        "url": "https://cherryai.com/download",
+        "rank": 2,
+        "title": null,
+        "source": "web",
+        "snippet": null,
+        "published": null
+      },
+      {
+        "url": "https://play.google.com/store/apps/details?id=com.cherryai.cherrystudio_app&hl=en-US",
+        "rank": 3,
+        "title": "Cherry Studio - AI Anywhere - Apps on Google Play",
+        "source": "web",
+        "snippet": "Connect your AI models for chats, custom agents, image creation, and tools.",
+        "published": null
+      }
+    ],
+    "warnings": []
+  },
+  "error": null
+}

@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 
 import { createWebSearchClient } from '../createWebSearchClient'
 import { bocha } from '../providers/bocha'
+import { bowmark } from '../providers/bowmark'
 import { crawl4ai } from '../providers/crawl4ai'
 import { deepseek } from '../providers/deepseek'
 import { desearch } from '../providers/desearch'
@@ -150,6 +151,40 @@ describe('portable provider contracts', () => {
         sourceInput: 'a&b/c'
       }
     ])
+  })
+
+  it('posts Bowmark run scripts with a JSON-safe query and keeps only the requested results', async () => {
+    const { client, requests } = setup(bowmark, fixture('bowmark-response.json'))
+    const result = await client.execute({
+      ...search('bowmark'),
+      capability: 'searchKeywords',
+      input: 'a&b',
+      config: { apiHost: 'https://service.example/proxy', maxResults: 2 }
+    })
+    expect(requests[0].url).toBe('https://service.example/proxy/v1/run')
+    expect(requests[0].method).toBe('POST')
+    expect(JSON.parse(requests[0].body!)).toEqual({
+      script: 'return await bowmark.search.web({"query":"a&b","limit":2})'
+    })
+    expect(new Headers(requests[0].headers).get('authorization')).toBe('Bearer test-key')
+    expect(result.results).toEqual([
+      {
+        title: 'Cherry Studio - The All-in-One AI Workstation',
+        content:
+          'Cherry Studio is an open-source, free, and powerful AI desktop client. It includes AI agents, AI chat, AI image generation, knowledge …',
+        url: 'https://cherryai.com/',
+        sourceInput: 'a&b'
+      },
+      { title: '', content: '', url: 'https://cherryai.com/download', sourceInput: 'a&b' }
+    ])
+  })
+
+  it('throws a provider error when Bowmark reports ok: false', async () => {
+    const { client } = setup(bowmark, JSON.stringify({ ok: false, error: 'invalid api key' }))
+    await expect(client.execute(search('bowmark'))).rejects.toMatchObject({
+      kind: 'provider',
+      message: 'invalid api key'
+    })
   })
 
   it('posts DeepSeek search calls and prefers the model-facing summary', async () => {

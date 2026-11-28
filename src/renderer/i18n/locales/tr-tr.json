@@ -6580,6 +6580,7 @@
   "settings.tool.websearch.model_tools_preferred.description": "Sohbette web araması için modelin yerleşik web araması ve URL getirme özelliklerini tercih eder; bu özellikler kullanılamadığında otomatik olarak yukarıdaki hizmetlere başvurur. Ajan sohbetleri her zaman yukarıdaki hizmetleri kullanır.",
   "settings.tool.websearch.model_tools_preferred.label": "Modelin yerleşik web araçlarını tercih et",
   "settings.tool.websearch.provider_description.bocha": "Gerçek zamanlı web ve yapılandırılmış sonuçlar sunan Çin merkezli yapay zekâ arama API'si.",
+  "settings.tool.websearch.provider_description.bowmark": "Bowmark arama API'si: bir yapay zekâ ajanının çağırabileceği, canlı web verileri için tiplendirilmiş fonksiyonlar.",
   "settings.tool.websearch.provider_description.crawl4ai": "Crawl4AI Cloud’u bir API anahtarıyla kullanın veya kendi sunucunuzda barındırdığınız Crawl4AI adresini girin; bu durumda token isteğe bağlıdır.",
   "settings.tool.websearch.provider_description.deepseek": "DeepSeek'in resmî Arama ve Getirme API'leri; sıralı web sonuçları ve Markdown sayfa içeriği sağlar.",
   "settings.tool.websearch.provider_description.desearch": "Yapay zeka uygulamaları için başlıklar, bağlantılar ve özetler döndüren Desearch web arama API'si.",

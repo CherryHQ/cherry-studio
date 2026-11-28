@@ -319,6 +319,21 @@
       },
       "default": "./dist/providers/serpkite.mjs"
     },
+    "./providers/bowmark": {
+      "react-native": {
+        "types": "./dist/providers/bowmark.d.mts",
+        "default": "./dist/providers/bowmark.mjs"
+      },
+      "import": {
+        "types": "./dist/providers/bowmark.d.mts",
+        "default": "./dist/providers/bowmark.mjs"
+      },
+      "require": {
+        "types": "./dist/providers/bowmark.d.cts",
+        "default": "./dist/providers/bowmark.cjs"
+      },
+      "default": "./dist/providers/bowmark.mjs"
+    },
     "./tools/config": {
       "react-native": {
         "types": "./dist/tools/config.d.mts",
