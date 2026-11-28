@@ -126,7 +126,9 @@ are preserved.
   access, routes approval decisions and publishes incremental updates to the Cherry run.
 - Local Claude Code and built-in Claude Code share the Claude Agent SDK session reader,
   incremental message projection and native history. Local sessions use the selected CLI,
-  workspace and account configuration. The Claude runtime package derives SDK
+  workspace and account configuration. When discovery finds no Claude CLI, Agent Services
+  and Code CLI can use the verified executable already downloaded for the built-in
+  Claude Agent SDK. The Claude runtime package derives SDK
   spawn options from that installation for both chat and Settings. Permission mode
   and effort apply to the current query. Settings reads the initialization catalog
   without sending a message or creating a transcript.
