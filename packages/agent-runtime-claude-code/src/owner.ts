@@ -51,6 +51,8 @@ interface Input {
   uuid: string
   steer: boolean
   boundary?: boolean
+  started?: boolean
+  boundaryAfter?: string
   projection: ClaudeProjection
   state: ProductInputState
 }
@@ -93,6 +95,7 @@ export class ClaudeOwner {
       'input_tokens' | 'cache_read_input_tokens' | 'cache_creation_input_tokens'
     >
   > = {}
+  private topLevelInvocationId?: string
   private sdk?: Query
   private pump?: Promise<void>
   private exited = false
@@ -253,7 +256,7 @@ export class ClaudeOwner {
             sessionId: this.fresh ? this.activeSession : undefined,
             resume: this.fresh ? undefined : this.activeSession,
             persistSession: true,
-            includePartialMessages: true,
+            includePartialMessages: this.config.includePartialMessages !== false,
             forwardSubagentText: true,
             spawnClaudeCodeProcess: (options) => {
               const child = nativeSpawn
@@ -570,6 +573,8 @@ export class ClaudeOwner {
             this.inputFacts(input, ['accepted', 'queued'])
             break
           case 'started':
+            input.started = true
+            input.boundaryAfter = this.topLevelInvocationId
             this.inputFacts(input, ['accepted'])
             break
           case 'completed':
@@ -770,7 +775,18 @@ export class ClaudeOwner {
           : 'user_message_uuid' in message && typeof message.user_message_uuid === 'string'
             ? [message.user_message_uuid]
             : []
-      for (const uuid of uuids) {
+      // Without partial events the SDK may omit request membership on complete
+      // assistant frames. Native command-start confirms admission; defer its
+      // boundary until a different provider invocation, never the old frame tail.
+      const membership =
+        !agentId && this.config.includePartialMessages === false && message.type === 'assistant' && !uuids.length
+          ? [...this.inputs.values()]
+              .filter(
+                (input) => input.steer && input.started && !input.boundary && input.boundaryAfter !== message.message.id
+              )
+              .map((input) => input.uuid)
+          : uuids
+      for (const uuid of membership) {
         if (typeof uuid !== 'string') continue
         const input = this.inputs.get(uuid)
         if (!input) continue
@@ -796,11 +812,11 @@ export class ClaudeOwner {
         }
       }
     }
-    projection.publish(
-      events,
-      { source: 'live', message },
-      steers.length ? [{ type: 'input-boundary', inputIds: steers }] : []
-    )
+    if (!agentId && message.type === 'assistant') this.topLevelInvocationId = message.message.id
+    if (!agentId && message.type === 'stream_event' && message.event.type === 'message_start')
+      this.topLevelInvocationId = message.event.message.id
+    if (steers.length) projection.publish([], undefined, [{ type: 'input-boundary', inputIds: steers }])
+    projection.publish(events, { source: 'live', message })
   }
 
   async interrupt(projection: ClaudeProjection) {

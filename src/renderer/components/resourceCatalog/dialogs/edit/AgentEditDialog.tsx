@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useForm, type UseFormReturn, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
-import { Button, FormField, FormItem, Textarea } from '@cherrystudio/ui'
+import { Button, FormField, FormItem, Switch, Textarea } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
 import { AgentChannels } from '@renderer/components/channel/AgentChannels'
@@ -87,6 +87,7 @@ type AgentEditFormValues = {
   skillIds: string[]
   disabledTools: string[]
   permissionMode: string
+  streamOutput: boolean
   envVarsText: string
   heartbeatEnabled: boolean
   heartbeatInterval: number
@@ -132,6 +133,7 @@ function defaultValuesForAgent(resource: AgentDetail): AgentEditFormValues {
     disabledTools: [...form.disabledTools],
     permissionMode: form.permissionMode,
     envVarsText: form.envVarsText,
+    streamOutput: form.streamOutput,
     heartbeatEnabled: form.heartbeatEnabled,
     heartbeatInterval: form.heartbeatInterval,
     heartbeatTimeoutMinutes: form.heartbeatTimeoutMinutes,
@@ -167,6 +169,7 @@ function buildAgentFormState(baseline: AgentFormState, values: AgentEditFormValu
     disabledTools: [...values.disabledTools],
     permissionMode: values.permissionMode,
     envVarsText: values.envVarsText,
+    streamOutput: values.streamOutput,
     heartbeatEnabled: values.heartbeatEnabled,
     heartbeatInterval: values.heartbeatInterval,
     heartbeatTimeoutMinutes: values.heartbeatTimeoutMinutes,
@@ -204,6 +207,7 @@ function advanceAgentFormBaseline(
   if (configuration) {
     if (hasOwn(configuration, 'avatar')) next.avatar = submitted.avatar
     if (hasOwn(configuration, 'permission_mode')) next.permissionMode = submitted.permissionMode
+    if (hasOwn(configuration, 'stream_output')) next.streamOutput = submitted.streamOutput
     if (hasOwn(configuration, 'env_vars')) next.envVarsText = submitted.envVarsText
     if (hasOwn(configuration, 'heartbeat_enabled')) next.heartbeatEnabled = submitted.heartbeatEnabled
     if (hasOwn(configuration, 'heartbeat_interval')) next.heartbeatInterval = submitted.heartbeatInterval
@@ -229,6 +233,7 @@ function syncAgentFormState(form: UseFormReturn<AgentEditFormValues>, next: Agen
   form.setValue('knowledgeBaseIds', next.knowledgeBaseIds, { shouldDirty: true })
   form.setValue('skillIds', next.skillIds, { shouldDirty: true })
   form.setValue('disabledTools', next.disabledTools, { shouldDirty: true })
+  form.setValue('streamOutput', next.streamOutput, { shouldDirty: true })
   form.setValue('permissionMode', next.permissionMode, { shouldDirty: true })
   form.setValue('heartbeatEnabled', next.heartbeatEnabled, { shouldDirty: true })
   form.setValue('heartbeatInterval', next.heartbeatInterval, { shouldDirty: true })
@@ -851,6 +856,22 @@ function AgentSettingsCards({
           permissionModeCards={getPermissionModeCards(agent.type)}
         />
         <ReplyLanguageRow form={form} portalContainer={portalContainer} patchAgentForm={patchAgentForm} />
+        <SettingsRow label={t('library.config.basic.stream_output')}>
+          <FormField
+            control={form.control}
+            name="streamOutput"
+            render={({ field }) => (
+              <FormItem>
+                <Switch
+                  size="sm"
+                  checked={field.value}
+                  onCheckedChange={(checked) => patchAgentForm({ streamOutput: checked })}
+                  aria-label={t('library.config.basic.stream_output')}
+                />
+              </FormItem>
+            )}
+          />
+        </SettingsRow>
       </SettingsSection>
 
       {caps.heartbeat ? (
