@@ -1,6 +1,5 @@
 import { memo, useEffect, useMemo } from 'react'
 
-import { loggerService } from '@logger'
 import MessageList from '@renderer/components/chat/messages/MessageList'
 import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
 import { AskUserQuestionOptimisticInputProvider } from '@renderer/components/chat/messages/tools/agent'
@@ -10,22 +9,25 @@ import type {
   MessageListSelectAllPagination,
   MessageStreamingLayers
 } from '@renderer/components/chat/messages/types'
+import { LocalAgentIcon } from '@renderer/components/icons/LocalAgentIcon'
 import { usePreference } from '@renderer/data/hooks/usePreference'
+import { ProjectionReaderProvider } from '@renderer/hooks/agent/ProjectionReaderProvider'
+import { useAgentSessionStreamTopic } from '@renderer/hooks/agent/useAgentSessionStreamTopic'
 import { useSession } from '@renderer/hooks/agent/useSession'
 import { useStableStringArray } from '@renderer/hooks/useStableStringArray'
 import { ipcApi } from '@renderer/ipc'
+import { messageProjectionService } from '@renderer/services/aiTransport'
 import type { GetAgentResponse } from '@renderer/types/agent'
 import { type Topic, TopicType } from '@renderer/types/topic'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
-import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
+import { type MessagePartRows, messagePartsAt } from '@renderer/utils/message/messagePartRows'
+import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
 import type { AgentSessionHistoryActions } from '@shared/data/api/schemas/agentSessionMessages'
-import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import type { CherryUIMessage } from '@shared/data/types/message'
 
 import { type NavigateToForkSource, useAgentMessageListProviderValue } from '../messages/agentMessageListAdapter'
 import { AgentPendingAttachments } from '../messages/AgentPendingAttachments'
 import AgentSessionBackgroundTasks from '../messages/AgentSessionBackgroundTasks'
-
-const logger = loggerService.withContext('AgentSessionMessages')
 
 type Props = {
   agentId?: string
@@ -34,7 +36,7 @@ type Props = {
   messages: CherryUIMessage[]
   historyActions?: Readonly<Record<string, AgentSessionHistoryActions | undefined>>
   activeAgent?: GetAgentResponse
-  partsByMessageId: Record<string, CherryMessagePart[]>
+  partsByMessageId: MessagePartRows
   streamingLayers?: MessageStreamingLayers
   optimisticAskUserQuestionInputsByToolCallId?: Record<string, unknown>
   isLoading: boolean
@@ -59,6 +61,7 @@ type Props = {
   editBusy?: boolean
   respondToolApproval?: MessageListActions['respondToolApproval']
   navigateToForkSource?: NavigateToForkSource
+  onLocalRestoreChecked?: (unavailable: boolean) => void
 }
 
 const AgentSessionMessages = ({
@@ -89,10 +92,23 @@ const AgentSessionMessages = ({
   startEditing,
   editBusy,
   respondToolApproval,
-  navigateToForkSource
+  navigateToForkSource,
+  onLocalRestoreChecked
 }: Props) => {
   const { session } = useSession(sessionId)
+  useEffect(() => {
+    if (!onLocalRestoreChecked) return
+    onLocalRestoreChecked(false)
+    return ipcApi.on('ai.local_agents.session_updated', (event) => {
+      if (event.sessionId !== sessionId || (!event.info && !event.restoreUnavailable)) return
+      onLocalRestoreChecked(event.restoreUnavailable === true)
+    })
+  }, [sessionId, onLocalRestoreChecked])
+
   const sessionTopicId = useMemo(() => buildAgentSessionTopicId(sessionId), [sessionId])
+  const streamTopicId = useAgentSessionStreamTopic(sessionId)
+  const target = useMemo(() => ({ kind: 'topic' as const, topicId: streamTopicId }), [streamTopicId])
+  const partReader = useMemo(() => messageProjectionService.partsFor(target), [target])
   const [messageNavigation] = usePreference('chat.message.navigation_mode')
 
   const sessionAssistantId = session?.agentId ?? agentId
@@ -104,7 +120,11 @@ const AgentSessionMessages = ({
     () =>
       activeAgent
         ? {
+            id: activeAgent.id,
             name: activeAgent.name,
+            avatarIcon: activeAgent.localRuntime ? (
+              <LocalAgentIcon presetId={activeAgent.localRuntime.presetId} size={30} />
+            ) : undefined,
             avatar: getAgentAvatarFromConfiguration(activeAgent.configuration, activeAgent.avatarSrc)
           }
         : undefined,
@@ -114,8 +134,8 @@ const AgentSessionMessages = ({
     for (let index = messages.length - 1; index >= 0; index -= 1) {
       const message = messages[index]
       if (message?.role !== 'assistant') continue
-      const parts = partsByMessageId[message.id] ?? message.parts ?? []
-      if (parts.length > 0) return message.id
+      const parts = messagePartsAt(partsByMessageId, message.id) ?? message.parts ?? []
+      if (parts.length > 0 || message.metadata?.status === 'pending') return message.id
     }
     return undefined
   }, [messages, partsByMessageId])
@@ -152,12 +172,18 @@ const AgentSessionMessages = ({
   )
   const messageList = useAgentMessageListProviderValue({
     topic: derivedTopic,
+    projectionTarget: target,
     messages,
     historyActions,
     partsByMessageId,
     streamingLayers,
     assistantProfile,
     assistantId: agentId,
+    supportsNativeFork: !!activeAgent && activeAgent.type !== 'local',
+    providerErrorSettingsPath:
+      activeAgent?.type === 'local'
+        ? `/settings/local-agents?id=${encodeURIComponent(activeAgent.localRuntime?.presetId ?? activeAgent.id)}`
+        : undefined,
     isLoading,
     hasOlder,
     loadOlder,
@@ -185,25 +211,13 @@ const AgentSessionMessages = ({
     afterMessages
   })
 
-  // Main owns the warm lease per (session × window) and debounces the real teardown, so the
-  // <Activity> hide/show of a tab switch costs two cheap IPC messages, not a connection cycle —
-  // and a lease held by another window keeps the shared connection alive.
-  useEffect(() => {
-    void ipcApi.request('ai.agent.session.prewarm', { sessionId }).catch((error) => {
-      logger.warn('Failed to acquire agent session warm lease', error as Error)
-    })
-    return () => {
-      void ipcApi.request('ai.agent.session.close_warm', { sessionId }).catch((error) => {
-        logger.warn('Failed to release agent session warm lease', error as Error)
-      })
-    }
-  }, [sessionId])
-
   return (
     <AskUserQuestionOptimisticInputProvider value={optimisticAskUserQuestionInputsByToolCallId}>
-      <MessageListProvider value={messageList}>
-        <MessageList enableSearch />
-      </MessageListProvider>
+      <ProjectionReaderProvider reader={partReader}>
+        <MessageListProvider value={messageList} taskRows={partsByMessageId} taskTarget={target}>
+          <MessageList enableSearch />
+        </MessageListProvider>
+      </ProjectionReaderProvider>
     </AskUserQuestionOptimisticInputProvider>
   )
 }

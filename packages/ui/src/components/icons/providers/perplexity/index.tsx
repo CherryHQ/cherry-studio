@@ -9,7 +9,7 @@ const Perplexity = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const PerplexityIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Perplexity, {
   Avatar: PerplexityAvatar,
-  colorPrimary: '#20808D'
+  colorPrimary: '#1D747A'
 })
 
 export default PerplexityIcon

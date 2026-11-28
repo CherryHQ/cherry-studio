@@ -1,121 +1,174 @@
-import { basename, resolve } from 'node:path'
+import { mkdirSync, mkdtempSync, rmSync, unlinkSync, writeFileSync } from 'node:fs'
+import os from 'node:os'
+import { resolve } from 'node:path'
 
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-// The override is used only when its manifest and both remote-safe data files
-// exist and this app falls inside the manifest compatibility range.
-const { existsSyncMock, readFileSyncMock } = vi.hoisted(() => ({
-  existsSyncMock: vi.fn(),
-  readFileSyncMock: vi.fn()
-}))
-vi.mock('node:fs', () => ({ existsSync: existsSyncMock, readFileSync: readFileSyncMock }))
 vi.mock('electron', () => ({ app: { getVersion: () => '2.0.0' } }))
 
-// Unified application mock: getPath returns `/mock/${key}/${filename}`.
+// Unified application mock: override getPath per test to point at temp fixtures.
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory()
 })
 
+import { application } from '@application'
 import { REGISTRY_SCHEMA_VERSION } from '@cherrystudio/provider-registry/node'
 
-import { resolveRegistryPaths } from '../registryDataPaths'
-
-const OVERRIDE = '/mock/feature.provider_registry.override'
-const BUNDLED = '/mock/feature.provider_registry.data'
-const MANIFEST = resolve(OVERRIDE, 'manifest.json')
-
-const activePaths = {
-  models: resolve(OVERRIDE, 'models.json'),
-  providers: resolve(BUNDLED, 'providers.json'),
-  providerModels: resolve(OVERRIDE, 'provider-models.json')
-}
-const bundledPaths = {
-  models: resolve(BUNDLED, 'models.json'),
-  providers: resolve(BUNDLED, 'providers.json'),
-  providerModels: resolve(BUNDLED, 'provider-models.json')
-}
+import { probeOverrideSnapshot, readActiveOverrideManifest, resolveRegistryPaths } from '../registryDataPaths'
 
 const FILES = { 'models.json': 'a', 'provider-models.json': 'c' }
-// Track the live wire schema: a snapshot is only accepted on the current version.
-const VALID_MANIFEST = JSON.stringify({
+const MANIFEST_DATA = {
   minAppVersion: '1.0.0',
   sourceAppVersion: '2.0.0',
   revision: 1,
   schemaVersion: REGISTRY_SCHEMA_VERSION,
   files: FILES
+}
+
+let fixtureRoot: string
+let overrideRoot: string
+let bundledRoot: string
+
+function activePaths() {
+  return {
+    models: resolve(overrideRoot, 'models.json'),
+    providers: resolve(bundledRoot, 'providers.json'),
+    providerModels: resolve(overrideRoot, 'provider-models.json')
+  }
+}
+
+function bundledPaths() {
+  return {
+    models: resolve(bundledRoot, 'models.json'),
+    providers: resolve(bundledRoot, 'providers.json'),
+    providerModels: resolve(bundledRoot, 'provider-models.json')
+  }
+}
+
+function writeManifest(override: Record<string, unknown> = {}) {
+  writeFileSync(resolve(overrideRoot, 'manifest.json'), JSON.stringify({ ...MANIFEST_DATA, ...override }))
+}
+
+function writeCompleteOverride() {
+  writeManifest()
+  writeFileSync(resolve(overrideRoot, 'models.json'), JSON.stringify({ version: 'a', models: [] }))
+  writeFileSync(resolve(overrideRoot, 'provider-models.json'), JSON.stringify({ version: 'c', overrides: [] }))
+}
+
+beforeEach(() => {
+  fixtureRoot = mkdtempSync(resolve(os.tmpdir(), 'registry-data-paths-'))
+  overrideRoot = resolve(fixtureRoot, 'override')
+  bundledRoot = resolve(fixtureRoot, 'bundled')
+  mkdirSync(overrideRoot, { recursive: true })
+  mkdirSync(bundledRoot, { recursive: true })
+  vi.spyOn(application, 'getPath').mockImplementation((key, filename = '') =>
+    resolve(key === 'feature.provider_registry.override' ? overrideRoot : bundledRoot, filename)
+  )
 })
 
-function completeOverride(pathname: string): boolean {
-  return [MANIFEST, resolve(OVERRIDE, 'models.json'), resolve(OVERRIDE, 'provider-models.json')].includes(pathname)
-}
-
-function readCompleteOverride(pathname: string): string {
-  if (pathname === MANIFEST) return VALID_MANIFEST
-  if (basename(pathname) === 'models.json') return JSON.stringify({ version: 'a', models: [] })
-  if (basename(pathname) === 'provider-models.json') return JSON.stringify({ version: 'c', overrides: [] })
-  throw new Error(`unexpected read: ${pathname}`)
-}
+afterEach(() => {
+  vi.restoreAllMocks()
+  rmSync(fixtureRoot, { recursive: true, force: true })
+})
 
 describe('registryDataPaths.resolveRegistryPaths', () => {
-  beforeEach(() => {
-    existsSyncMock.mockReset()
-    readFileSyncMock.mockReset()
-  })
-
   it('overrides model metadata while keeping security-sensitive provider routing bundled', () => {
-    existsSyncMock.mockImplementation(completeOverride)
-    readFileSyncMock.mockImplementation(readCompleteOverride)
-    expect(resolveRegistryPaths()).toEqual(activePaths)
+    writeCompleteOverride()
+    expect(resolveRegistryPaths()).toEqual(activePaths())
   })
 
   it('resolves all three files to bundled data when no override manifest exists', () => {
-    existsSyncMock.mockReturnValue(false)
-    expect(resolveRegistryPaths()).toEqual(bundledPaths)
+    expect(resolveRegistryPaths()).toEqual(bundledPaths())
   })
 
   it('ignores an override written for a newer schema (app downgrade) — falls back to bundled', () => {
-    existsSyncMock.mockImplementation(completeOverride)
-    readFileSyncMock.mockReturnValue(
-      JSON.stringify({
-        ...JSON.parse(VALID_MANIFEST),
-        schemaVersion: REGISTRY_SCHEMA_VERSION + 1,
-        sourceAppVersion: '2.5.0'
-      })
-    )
-    expect(resolveRegistryPaths()).toEqual(bundledPaths)
+    writeCompleteOverride()
+    writeManifest({ schemaVersion: REGISTRY_SCHEMA_VERSION + 1, sourceAppVersion: '2.5.0' })
+    expect(resolveRegistryPaths()).toEqual(bundledPaths())
   })
 
   it('ignores data that requires a newer application', () => {
-    existsSyncMock.mockImplementation(completeOverride)
-    readFileSyncMock.mockReturnValue(JSON.stringify({ ...JSON.parse(VALID_MANIFEST), minAppVersion: '2.1.0' }))
-    expect(resolveRegistryPaths()).toEqual(bundledPaths)
+    writeCompleteOverride()
+    writeManifest({ minAppVersion: '2.1.0' })
+    expect(resolveRegistryPaths()).toEqual(bundledPaths())
   })
 
   it('ignores a stale snapshot after an application upgrade', () => {
-    existsSyncMock.mockImplementation(completeOverride)
-    readFileSyncMock.mockReturnValue(JSON.stringify({ ...JSON.parse(VALID_MANIFEST), sourceAppVersion: '1.9.0' }))
-    expect(resolveRegistryPaths()).toEqual(bundledPaths)
+    writeCompleteOverride()
+    writeManifest({ sourceAppVersion: '1.9.0' })
+    expect(resolveRegistryPaths()).toEqual(bundledPaths())
   })
 
   it('ignores a half-written override (data present, manifest absent) — all-or-nothing', () => {
-    existsSyncMock.mockImplementation((p: string) => p === resolve(OVERRIDE, 'models.json'))
-    expect(resolveRegistryPaths()).toEqual(bundledPaths)
+    writeFileSync(resolve(overrideRoot, 'models.json'), JSON.stringify({ version: 'a', models: [] }))
+    expect(resolveRegistryPaths()).toEqual(bundledPaths())
   })
 
   it('ignores a manifest whose model snapshot is incomplete', () => {
-    existsSyncMock.mockImplementation((p: string) => p !== resolve(OVERRIDE, 'provider-models.json'))
-    readFileSyncMock.mockReturnValue(VALID_MANIFEST)
-    expect(resolveRegistryPaths()).toEqual(bundledPaths)
+    writeCompleteOverride()
+    unlinkSync(resolve(overrideRoot, 'provider-models.json'))
+    expect(resolveRegistryPaths()).toEqual(bundledPaths())
   })
 
   it('ignores model data whose content version does not match the manifest', () => {
-    existsSyncMock.mockImplementation(completeOverride)
-    readFileSyncMock.mockImplementation((pathname: string) =>
-      basename(pathname) === 'models.json'
-        ? JSON.stringify({ version: 'wrong', models: [] })
-        : readCompleteOverride(pathname)
-    )
-    expect(resolveRegistryPaths()).toEqual(bundledPaths)
+    writeCompleteOverride()
+    writeFileSync(resolve(overrideRoot, 'models.json'), JSON.stringify({ version: 'wrong', models: [] }))
+    expect(resolveRegistryPaths()).toEqual(bundledPaths())
+  })
+})
+
+describe('registryDataPaths.probeOverrideSnapshot', () => {
+  it('returns null when no override manifest exists, including half-written snapshots', () => {
+    expect(probeOverrideSnapshot()).toBeNull()
+
+    writeFileSync(resolve(overrideRoot, 'models.json'), JSON.stringify({ version: 'a', models: [] }))
+    expect(probeOverrideSnapshot()).toBeNull()
+  })
+
+  it('returns null and resolves to override when the snapshot is complete and compatible', () => {
+    writeCompleteOverride()
+    expect(probeOverrideSnapshot()).toBeNull()
+    expect(readActiveOverrideManifest()).toEqual(MANIFEST_DATA)
+    expect(resolveRegistryPaths()).toEqual(activePaths())
+  })
+
+  it('reports manifest-unparsable when manifest.json is malformed or fails schema validation', () => {
+    writeCompleteOverride()
+    writeFileSync(resolve(overrideRoot, 'manifest.json'), '{')
+    expect(probeOverrideSnapshot()).toEqual({ file: 'manifest.json', cause: 'manifest-unparsable' })
+    expect(readActiveOverrideManifest()).toBeNull()
+
+    writeFileSync(resolve(overrideRoot, 'manifest.json'), JSON.stringify({ ...MANIFEST_DATA, revision: -1 }))
+    expect(probeOverrideSnapshot()).toEqual({ file: 'manifest.json', cause: 'manifest-unparsable' })
+  })
+
+  it('reports incompatible when the manifest falls outside app compatibility', () => {
+    writeCompleteOverride()
+    writeManifest({ minAppVersion: '2.1.0' })
+    expect(probeOverrideSnapshot()).toEqual({ file: 'manifest.json', cause: 'incompatible' })
+    expect(readActiveOverrideManifest()).toBeNull()
+  })
+
+  it('reports missing when the manifest is complete but provider-models.json is absent', () => {
+    writeCompleteOverride()
+    unlinkSync(resolve(overrideRoot, 'provider-models.json'))
+    expect(probeOverrideSnapshot()).toEqual({ file: 'provider-models.json', cause: 'missing' })
+    expect(readActiveOverrideManifest()).toBeNull()
+    expect(resolveRegistryPaths()).toEqual(bundledPaths())
+  })
+
+  it('reports unparsable when an override data file contains invalid JSON', () => {
+    writeCompleteOverride()
+    writeFileSync(resolve(overrideRoot, 'provider-models.json'), '{')
+    expect(probeOverrideSnapshot()).toEqual({ file: 'provider-models.json', cause: 'unparsable' })
+    expect(readActiveOverrideManifest()).toBeNull()
+  })
+
+  it('reports version-mismatch when a file version disagrees with the manifest', () => {
+    writeCompleteOverride()
+    writeFileSync(resolve(overrideRoot, 'provider-models.json'), JSON.stringify({ version: 'wrong', overrides: [] }))
+    expect(probeOverrideSnapshot()).toEqual({ file: 'provider-models.json', cause: 'version-mismatch' })
+    expect(readActiveOverrideManifest()).toBeNull()
   })
 })

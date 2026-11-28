@@ -29,7 +29,7 @@ vi.mock('@main/ai/toolApproval/userDataSqliteGuard', () => ({
   evaluateUserDataSqliteGuard: mocks.evaluateUserDataSqliteGuard
 }))
 
-import { CLAUDE_TOOL_GUARD_RULES } from '../guardRules'
+import { CLAUDE_TOOL_GUARD_RULES, GLOBAL_INSTALL_PLAN_DENIAL, GLOBAL_INSTALL_UNATTENDED_DENIAL } from '../guardRules'
 
 const INTERACTIVE = { currentTurn: 'interactive', userResponse: 'stream' } as const
 const HEADLESS = { currentTurn: 'headless', userResponse: 'unavailable' } as const
@@ -68,6 +68,16 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
   it('is structurally valid', () => {
     expect(validateToolGuardRules(CLAUDE_TOOL_GUARD_RULES)).toEqual([])
   })
+
+  it.each(['Edit', 'MultiEdit', 'NotebookEdit', 'Write'])(
+    'denies %s in Plan Only before approval',
+    async (toolName) => {
+      expect(await evaluate(makeCtx({ permissionMode: 'plan', toolName }))).toMatchObject({
+        effect: 'deny',
+        ruleId: 'file-write-plan'
+      })
+    }
+  )
 
   describe('disabled-tool', () => {
     it.each(['default', 'acceptEdits', 'bypassPermissions'] as const)(
@@ -138,13 +148,19 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
             input: { command: 'rm -rf /tmp/data' }
           })
         )
-        expect(decision?.ruleId).toBe('builtin-destructive')
+        expect(decision).toMatchObject({
+          effect: 'deny',
+          reason: expect.stringContaining('mcp__assistant-files__move_to_trash')
+        })
       }
     })
 
     it('denies permanent-deletion MCP tools for protected built-in agents', async () => {
       const decision = await evaluate(makeCtx({ builtinRole: 'support', toolName: 'mcp__files__delete_file' }))
-      expect(decision?.ruleId).toBe('builtin-destructive')
+      expect(decision).toMatchObject({
+        effect: 'deny',
+        reason: expect.stringContaining('mcp__assistant-files__move_to_trash')
+      })
     })
 
     it('does not gate ordinary agents', async () => {
@@ -158,32 +174,118 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
           input: { command: 'rm -rf build' }
         })
       )
-      expect(decision?.ruleId).toBe('builtin-destructive')
+      expect(decision).toMatchObject({
+        effect: 'deny',
+        reason: expect.stringContaining('mcp__assistant-files__move_to_trash')
+      })
     })
   })
 
   describe('global-install', () => {
-    it('denies a global install in every mode, bypass included', async () => {
-      for (const mode of ['default', 'bypassPermissions'] as const) {
-        const decision = await evaluate(
-          makeCtx({ permissionMode: mode, input: { command: 'npm install -g left-pad' } })
-        )
-        expect(decision?.ruleId).toBe('global-install')
-      }
+    it.each(['default', 'acceptEdits', 'auto'] as const)('asks for a global install in %s', async (permissionMode) => {
+      await expect(
+        evaluate(makeCtx({ permissionMode, input: { command: 'npm install -g left-pad' } }))
+      ).resolves.toEqual({
+        effect: 'ask',
+        ruleId: 'global-install',
+        reason: 'Global package installation requires user approval: global JS package install (-g/--global).'
+      })
     })
+
+    it('allows Full Access and denies plan mode', async () => {
+      const input = { command: 'npm install -g left-pad' }
+      await expect(evaluate(makeCtx({ permissionMode: 'bypassPermissions', input }))).resolves.toBeUndefined()
+      await expect(evaluate(makeCtx({ permissionMode: 'plan', input }))).resolves.toEqual({
+        effect: 'deny',
+        ruleId: 'global-install-plan',
+        reason: GLOBAL_INSTALL_PLAN_DENIAL
+      })
+    })
+
+    it('requires a responder outside Full Access', async () => {
+      const ctx = { input: { command: 'npm install -g left-pad' }, interaction: HEADLESS }
+      await expect(evaluate(makeCtx(ctx))).resolves.toEqual({
+        effect: 'deny',
+        ruleId: 'global-install',
+        reason: GLOBAL_INSTALL_UNATTENDED_DENIAL
+      })
+      await expect(evaluate(makeCtx({ ...ctx, permissionMode: 'bypassPermissions' }))).resolves.toBeUndefined()
+    })
+
+    it.each(['default', 'acceptEdits', 'auto', 'plan', 'bypassPermissions'] as const)(
+      'hard-denies mise in %s',
+      async (permissionMode) => {
+        for (const command of ['mise use -g fd', 'npm i -g x && mise use -g fd', 'mise use -g fd && npm i -g x']) {
+          await expect(evaluate(makeCtx({ permissionMode, input: { command } }))).resolves.toEqual({
+            effect: 'deny',
+            ruleId: 'mise-mutation',
+            reason: 'Blocked: direct mise mutation (use cli_search / cli_install).'
+          })
+        }
+      }
+    )
 
     it('ignores project-local installs', async () => {
       await expect(evaluate(makeCtx({ input: { command: 'npm install left-pad' } }))).resolves.toBeUndefined()
     })
 
-    it('wins the fold when a feedback command also matches (assistant role)', async () => {
+    it('deterministically selects the first ask when feedback also matches (assistant role)', async () => {
       const decision = await evaluate(
         makeCtx({
           builtinRole: 'assistant',
           input: { command: 'gh issue create --title x && npm install -g left-pad' }
         })
       )
-      expect(decision?.ruleId).toBe('global-install')
+      expect(decision).toMatchObject({ effect: 'ask', ruleId: 'global-install' })
+    })
+
+    it('folds a mise denial over a feedback ask', async () => {
+      await expect(
+        evaluate(
+          makeCtx({ builtinRole: 'assistant', input: { command: 'gh issue create --title x && mise use -g fd' } })
+        )
+      ).resolves.toMatchObject({
+        effect: 'deny',
+        ruleId: 'mise-mutation'
+      })
+    })
+
+    it('enforces global-install, plan denial, and mise-mutation on PowerShell tool calls too', async () => {
+      const globalInput = { command: 'npm install -g left-pad' }
+      await expect(evaluate(makeCtx({ toolName: 'PowerShell', input: globalInput }))).resolves.toMatchObject({
+        effect: 'ask',
+        ruleId: 'global-install'
+      })
+      await expect(
+        evaluate(makeCtx({ toolName: 'PowerShell', permissionMode: 'plan', input: globalInput }))
+      ).resolves.toEqual({
+        effect: 'deny',
+        ruleId: 'global-install-plan',
+        reason: GLOBAL_INSTALL_PLAN_DENIAL
+      })
+      await expect(
+        evaluate(makeCtx({ toolName: 'PowerShell', interaction: HEADLESS, input: globalInput }))
+      ).resolves.toEqual({
+        effect: 'deny',
+        ruleId: 'global-install',
+        reason: GLOBAL_INSTALL_UNATTENDED_DENIAL
+      })
+      await expect(
+        evaluate(makeCtx({ toolName: 'PowerShell', permissionMode: 'bypassPermissions', input: globalInput }))
+      ).resolves.toBeUndefined()
+      await expect(
+        evaluate(
+          makeCtx({
+            toolName: 'PowerShell',
+            permissionMode: 'bypassPermissions',
+            input: { command: 'mise use -g fd' }
+          })
+        )
+      ).resolves.toEqual({
+        effect: 'deny',
+        ruleId: 'mise-mutation',
+        reason: 'Blocked: direct mise mutation (use cli_search / cli_install).'
+      })
     })
   })
 
@@ -243,8 +345,26 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
       ).resolves.toBeUndefined()
     })
 
+    it('denies a stuck PowerShell loop at the hard threshold in every mode, bypass included', async () => {
+      for (const mode of ['default', 'bypassPermissions'] as const) {
+        const decision = await evaluate(makeCtx({ ...loopingCtx(5), toolName: 'PowerShell', permissionMode: mode }))
+        expect(decision?.ruleId).toBe('bash-repeat-no-progress')
+        expect(decision?.effect).toBe('deny')
+        expect(decision?.reason).toContain('PowerShell')
+        expect(decision?.reason).toContain('5 times')
+      }
+    })
+
     it('does not gate non-Bash tools or calls without a command', async () => {
-      await expect(evaluate(makeCtx({ toolName: 'Read', bashNoProgressRun: () => 5 }))).resolves.toBeUndefined()
+      await expect(
+        evaluate(
+          makeCtx({
+            toolName: 'Read',
+            input: { command: 'curl -s http://localhost/health' },
+            bashNoProgressRun: () => 5
+          })
+        )
+      ).resolves.toBeUndefined()
       await expect(evaluate(makeCtx({ bashNoProgressRun: () => 5 }))).resolves.toBeUndefined()
     })
   })
@@ -281,6 +401,11 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
       const decision = await evaluate(makeCtx({ builtinRole: 'assistant', input: feedback }))
       expect(decision?.ruleId).toBe('assistant-feedback')
       expect(decision?.effect).toBe('ask')
+    })
+
+    it('asks when the submission runs through the PowerShell tool', async () => {
+      const decision = await evaluate(makeCtx({ builtinRole: 'assistant', toolName: 'PowerShell', input: feedback }))
+      expect(decision).toMatchObject({ effect: 'ask', ruleId: 'assistant-feedback' })
     })
 
     it('is lifted by bypassPermissions (net behavior matches the pierced ask it replaces)', async () => {
@@ -322,6 +447,20 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
         effect: 'ask',
         ruleId: 'support-bash'
       })
+    })
+
+    it('asks for PowerShell tool calls too', async () => {
+      const decision = await evaluate(
+        makeCtx({ ...supportCtx, toolName: 'PowerShell', input: { command: 'Get-ChildItem' } })
+      )
+      expect(decision).toMatchObject({ effect: 'ask', ruleId: 'support-bash' })
+    })
+
+    it('denies headless PowerShell use', async () => {
+      const decision = await evaluate(
+        makeCtx({ ...supportCtx, toolName: 'PowerShell', input: { command: 'Get-ChildItem' }, interaction: HEADLESS })
+      )
+      expect(decision).toMatchObject({ effect: 'deny', ruleId: 'support-bash' })
     })
 
     it('is lifted by bypassPermissions', async () => {
@@ -496,17 +635,22 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
     })
 
     it('asks (soft) for a file-tool path outside the allowed roots', async () => {
-      const decision = await evaluate(
-        makeCtx({ toolName: 'Read', cwd, agentDataPath, input: { file_path: path.join(root, 'outside.txt') } })
-      )
-      expect(decision?.ruleId).toBe('workspace-escape')
-      expect(decision?.effect).toBe('ask')
-      expect(decision?.reason).toContain(cwd)
+      for (const toolName of ['Read', 'Edit', 'MultiEdit', 'Write'] as const) {
+        const decision = await evaluate(
+          makeCtx({ toolName, cwd, agentDataPath, input: { file_path: path.join(root, 'outside.txt') } })
+        )
+        expect(decision?.ruleId).toBe('workspace-escape')
+        expect(decision?.effect).toBe('ask')
+        expect(decision?.reason).toContain(cwd)
+      }
     })
 
     it('stays silent for paths inside the workspace or agent data directory', async () => {
       await expect(
         evaluate(makeCtx({ toolName: 'Read', cwd, agentDataPath, input: { file_path: path.join(cwd, 'a.txt') } }))
+      ).resolves.toBeUndefined()
+      await expect(
+        evaluate(makeCtx({ toolName: 'MultiEdit', cwd, agentDataPath, input: { file_path: path.join(cwd, 'a.txt') } }))
       ).resolves.toBeUndefined()
       await expect(
         evaluate(

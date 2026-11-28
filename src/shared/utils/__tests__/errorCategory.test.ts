@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { classifyErrorCategory, isProxyErrorMessage } from '../errorCategory'
+import { classifyErrorCategory, isProxyErrorMessage, isQuotaErrorMessage } from '../errorCategory'
 
 describe('classifyErrorCategory unusable API responses', () => {
   const text =
@@ -33,9 +33,29 @@ describe('classifyErrorCategory HTTP 400', () => {
   it.each([
     ['insufficient balance', 'quota'],
     ['content_filter triggered', 'content'],
-    ['prompt is too long', 'context_length']
+    ['prompt is too long', 'context_length'],
+    ['Input exceeds the context limit (1048568 tokens)', 'context_length']
   ] as const)('preserves the specific diagnosis for %s', (text, category) => {
     expect(classifyErrorCategory({ status: 400, text })).toBe(category)
+  })
+
+  it.each([
+    'Invalid context window parameter',
+    'The maximum context length parameter is invalid',
+    'Input is too long for field name'
+  ])('does not classify a context configuration error as overflow: %s', (text) => {
+    expect(classifyErrorCategory({ status: 400, text })).toBe('bad_request')
+  })
+
+  it.each([
+    'model_context_window_exceeded',
+    "This model's maximum context length is 1048576 tokens",
+    "This model's maximum context length is 1,048,576 tokens",
+    'The context window was exceeded',
+    'input token count exceeds the maximum',
+    "The input is longer than the model's context length"
+  ])('recognizes explicit context overflow: %s', (text) => {
+    expect(classifyErrorCategory({ status: 400, text })).toBe('context_length')
   })
 
   // An upstream that rejects the REQUEST body ("Failed to parse request body" — #22164)
@@ -48,6 +68,32 @@ describe('classifyErrorCategory HTTP 400', () => {
     'request failed to parse'
   ])('classifies a request-body rejection as a request failure: %s', (text) => {
     expect(classifyErrorCategory({ status: 400, text })).toBe('bad_request')
+  })
+
+  // #24238: the provider's validation error type identifies a rejected request when no
+  // structured status came with it.
+  it('classifies a status-less invalid_request_error as a request failure', () => {
+    const text =
+      '400 {"message":"Unexpected role \\"tool\\". Allowed roles are \\"user\\", \\"assistant\\" or \\"system\\"","type":"invalid_request_error","code":"bad_request"}'
+
+    expect(classifyErrorCategory({ text })).toBe('bad_request')
+  })
+
+  it.each([
+    ['prompt is too long', 'context_length'],
+    ['Overloaded', 'server'],
+    ['rate_limit exceeded', 'rate_limit'],
+    ['Request timed out', 'network'],
+    ['invalid_api_key', 'auth'],
+    ['model_not_found', 'model']
+  ] as const)('keeps the specific diagnosis for a status-less invalid_request_error: %s', (message, category) => {
+    expect(classifyErrorCategory({ text: `{"type":"invalid_request_error","message":"${message}"}` })).toBe(category)
+  })
+
+  it('leaves a structured non-400 status with an invalid_request_error body unclassified', () => {
+    expect(classifyErrorCategory({ status: 409, text: '{"type":"invalid_request_error","message":"Conflict"}' })).toBe(
+      'unknown'
+    )
   })
 })
 
@@ -100,6 +146,38 @@ describe('classifyErrorCategory model deprecation', () => {
         text: 'This model has been deprecated, please upgrade'
       })
     ).toBe('content')
+  })
+})
+
+describe('classifyErrorCategory oMLX prefill memory rejection', () => {
+  const rejection =
+    'API Error: 400 oMLX prefill memory guard rejected this prompt: Prefill would require ~31.59 GB peak ' +
+    '(current 26.34 GB + KV+SDPA 5.25 GB) but the prefill limit is 30.56 GB ' +
+    '(dynamic ceiling 33.22 GB - safety margin 2.66 GB)'
+
+  it.each([400, undefined])('recognizes the prefill rejection with status %s', (status) => {
+    expect(classifyErrorCategory({ text: rejection, status })).toBe('prefill_memory')
+  })
+
+  it.each([
+    'The model declined the request\ninvalid_request_error\nprefill_memory_exceeded',
+    '400: {"error":{"message":"The model declined the request","omlx_code":"prefill_memory_exceeded"}}'
+  ])('recognizes the provider code in normalized or serialized errors: %s', (text) => {
+    expect(classifyErrorCategory({ text, status: 400 })).toBe('prefill_memory')
+  })
+
+  it('preserves structured server failure status', () => {
+    expect(classifyErrorCategory({ text: rejection, status: 503 })).toBe('server')
+  })
+
+  it('keeps a validation error that mentions the code in prose', () => {
+    expect(classifyErrorCategory({ text: 'Unknown field prefill_memory_exceeded in the request', status: 400 })).toBe(
+      'bad_request'
+    )
+  })
+
+  it('preserves a structured content-filter signal', () => {
+    expect(classifyErrorCategory({ text: rejection, status: 400, finishReason: 'content-filter' })).toBe('content')
   })
 })
 
@@ -468,5 +546,55 @@ describe('classifyErrorCategory invalid inline image', () => {
 
   it('keeps rate_limit for a real HTTP 429', () => {
     expect(classifyErrorCategory({ text, status: 429 })).toBe('rate_limit')
+  })
+})
+
+describe('credit-balance rejection classification', () => {
+  it.each([
+    'Request rejected (429) · Your credit balance is running low for account <organization id>, please recharge immediately to avoid service disruption',
+    '余额不足，请充值'
+  ])('prioritizes balance guidance over HTTP 429: %s', (text) => {
+    expect(classifyErrorCategory({ text, status: 429 })).toBe('quota')
+    expect(isQuotaErrorMessage(text)).toBe(true)
+  })
+
+  it('keeps an ordinary rate limit mentioning an account balance as rate limiting', () => {
+    const text = 'Too many requests to the credit balance endpoint; retry later'
+    expect(classifyErrorCategory({ text, status: 429 })).toBe('rate_limit')
+    expect(isQuotaErrorMessage(text)).toBe(false)
+  })
+})
+
+describe('request payload size rejection', () => {
+  it.each([undefined, 400, 413])('recognizes the reported wording with status %s', (status) => {
+    expect(classifyErrorCategory({ text: 'Request payload is too large', status })).toBe('payload')
+  })
+
+  it.each([
+    'Response is too large',
+    'Response payload is too large',
+    'Response payload too large',
+    'Response body payload is too large',
+    'Response body payload too large',
+    'Response  payload is too large'
+  ])('does not treat a large response as an oversized request: %s', (text) => {
+    expect(classifyErrorCategory({ text })).toBe('unknown')
+    expect(classifyErrorCategory({ text, status: 400 })).toBe('bad_request')
+    expect(classifyErrorCategory({ text, status: 413 })).toBe('payload')
+  })
+})
+
+describe('request body buffer limit', () => {
+  it.each([undefined, 400, 413])('recognizes the proxy rejection with status %s', (status) => {
+    expect(
+      classifyErrorCategory({ text: '413 Failed to buffer the request body: length limit exceeded', status })
+    ).toBe('payload')
+  })
+
+  it.each([
+    'Failed to buffer the response body: length limit exceeded',
+    'Failed to buffer the request body: connection closed'
+  ])('does not infer a request size rejection from %s', (text) => {
+    expect(classifyErrorCategory({ text })).not.toBe('payload')
   })
 })

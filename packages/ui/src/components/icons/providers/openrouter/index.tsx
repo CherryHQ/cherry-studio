@@ -17,7 +17,7 @@ const Openrouter = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const OpenrouterIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Openrouter, {
   Avatar: OpenrouterAvatar,
-  colorPrimary: '#000000'
+  colorPrimary: '#F1ECFF'
 })
 
 export default OpenrouterIcon

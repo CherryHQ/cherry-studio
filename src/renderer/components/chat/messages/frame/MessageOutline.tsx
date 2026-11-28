@@ -11,6 +11,7 @@ import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceT
 
 import { useMessageParts } from '../blocks/MessagePartsContext'
 import type { MessageListItem } from '../types'
+import { getMessageListPartId } from '../utils/messageListItem'
 
 interface MessageOutlineProps {
   getMessageElement(messageId: string): HTMLElement | null
@@ -44,7 +45,7 @@ const MessageOutline: FC<MessageOutlineProps> = ({
       if (part.type === 'text' && 'text' in part) {
         const text = part.text.trim()
         if (text.length > 0) {
-          textEntries.push({ id: `${message.id}-part-${idx}`, content: text })
+          textEntries.push({ id: getMessageListPartId(message, idx), content: text })
         }
       }
       idx++
@@ -79,7 +80,7 @@ const MessageOutline: FC<MessageOutlineProps> = ({
     }
 
     return result
-  }, [message.id, messageParts])
+  }, [message, messageParts])
 
   const miniLevel = useMemo(() => {
     return headings.length ? Math.min(...headings.map((heading) => heading.level)) : 1

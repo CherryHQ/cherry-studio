@@ -16,8 +16,8 @@ const PROVENANCE_TOOL: Partial<Record<CodeCli, RuntimeProvenanceTool>> = {
  * Loads the runtime provenance for tools whose local runtime reads a Cherry-owned
  * config home. `revision` re-reads it when the binary state changes.
  */
-export function useRuntimeProvenance(tool: CodeCli, revision: string): RuntimeProvenance | undefined {
-  const provenanceTool = PROVENANCE_TOOL[tool]
+export function useRuntimeProvenance(tool: CodeCli | undefined, revision: string): RuntimeProvenance | undefined {
+  const provenanceTool = tool ? PROVENANCE_TOOL[tool] : undefined
   const [provenance, setProvenance] = useState<RuntimeProvenance | undefined>(undefined)
 
   useEffect(() => {

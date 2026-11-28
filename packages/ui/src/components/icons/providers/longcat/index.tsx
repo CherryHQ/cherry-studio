@@ -17,7 +17,7 @@ const Longcat = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const LongcatIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Longcat, {
   Avatar: LongcatAvatar,
-  colorPrimary: '#29E154'
+  colorPrimary: '#ecfcf0'
 })
 
 export default LongcatIcon

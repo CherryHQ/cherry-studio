@@ -2,9 +2,17 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { CHERRY_FAST_MODE_HEADER, CHERRY_REASONING_EFFORT_HEADER, CHERRY_SERVICE_TIER_HEADER } from '@main/ai/constants'
 import { resolveEffectiveEndpoint } from '@main/ai/provider/endpoint'
-import { ENDPOINT_TYPE, ServiceTierSelectionSchema } from '@shared/data/types/model'
+import type { RecoverableModelTransportFailure } from '@main/ai/runtime/aiSdk'
+import type { InProcessUsageContext } from '@main/ai/types'
+import {
+  ENDPOINT_TYPE,
+  type EndpointType,
+  type ServiceTierSelection,
+  ServiceTierSelectionSchema
+} from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
+import type { RetryPartData } from '@shared/data/types/uiParts'
+import { type ReasoningEffortOption, ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
 
 import type { InputFormat, InputParamsMap, OutputFormat } from './adapters'
 import { resolveGatewayModelAddress } from './utils/models'
@@ -14,12 +22,27 @@ const logger = loggerService.withContext('GatewayRequest')
 /** Union of all supported input params. */
 type InputParams = InputParamsMap[InputFormat]
 
+/** Trusted object-call state; HTTP routes never populate this field. */
+export interface AgentGatewayContext {
+  agentSessionId: string
+  replayRouteId?: string
+  omitGeminiSignaturesFor?: ReadonlySet<number>
+  reasoningEffort: ReasoningEffortOption
+  serviceTier?: ServiceTierSelection
+  fastMode: boolean
+  onRetryEvent?: (event: RetryPartData) => void
+  onModelTransportFailure?: (failure: RecoverableModelTransportFailure) => void
+  resolveUsage(responseId: string): InProcessUsageContext | undefined
+}
+
 /**
  * Configuration for a gateway message request (streaming or non-streaming).
  * Routes pass `{ params, inputFormat, outputFormat, signal }`.
  */
 export interface MessageConfig {
   provider?: Provider
+  /** Route-owned default when the caller did not supply internal reasoning options. */
+  defaultReasoningEffort?: ReasoningEffortOption
   modelId?: string
   /** Internal Agent-session hint carried by the Claude Code SDK gateway route. */
   fastMode?: boolean
@@ -48,12 +71,13 @@ export interface MessageConfig {
   signal?: AbortSignal
   /** Raw request headers used only to validate Cherry-internal usage correlation. */
   requestHeaders?: Headers
+  agentContext?: AgentGatewayContext
   onError?: (error: unknown) => void
   onComplete?: () => void
 }
 
-/** Resolve the trusted routing envelope without converting the caller payload. */
-export async function resolveGatewayRequest(config: MessageConfig) {
+/** Read the authenticated request envelope before admitting an upstream model. */
+export function readGatewayRequest(config: MessageConfig) {
   const { inputFormat = 'anthropic', outputFormat = 'anthropic' } = config
   // Trust boundary: narrow the loosely-validated body to the format's SDK type once.
   const params = config.params as InputParams
@@ -75,12 +99,20 @@ export async function resolveGatewayRequest(config: MessageConfig) {
   if (!modelString || typeof modelString !== 'string') {
     throw asClientError(new Error('Request is missing a "model" field'))
   }
-  const isInternalRequest = config.requestHeaders
-    ? application.get('ApiGatewayService').isInternalRequest(config.requestHeaders)
-    : false
-  const reasoningHeader = isInternalRequest ? config.requestHeaders?.get(CHERRY_REASONING_EFFORT_HEADER) : null
-  const tierHeader = isInternalRequest ? config.requestHeaders?.get(CHERRY_SERVICE_TIER_HEADER) : null
-  const reasoning = ReasoningEffortOptionSchema.safeParse(reasoningHeader ?? undefined)
+  const isInternalRequest =
+    config.agentContext !== undefined ||
+    (config.requestHeaders ? application.get('ApiGatewayService').isInternalRequest(config.requestHeaders) : false)
+  const reasoningHeader = config.agentContext
+    ? config.agentContext.reasoningEffort
+    : isInternalRequest
+      ? config.requestHeaders?.get(CHERRY_REASONING_EFFORT_HEADER)
+      : null
+  const tierHeader = config.agentContext
+    ? config.agentContext.serviceTier
+    : isInternalRequest
+      ? config.requestHeaders?.get(CHERRY_SERVICE_TIER_HEADER)
+      : null
+  const reasoning = ReasoningEffortOptionSchema.safeParse(reasoningHeader ?? config.defaultReasoningEffort)
   const tier = ServiceTierSelectionSchema.safeParse(tierHeader ?? undefined)
   if ((reasoningHeader && !reasoning.success) || (tierHeader && !tier.success))
     throw asClientError(new Error('Invalid internal Agent request options'))
@@ -88,17 +120,41 @@ export async function resolveGatewayRequest(config: MessageConfig) {
     ...(reasoning.success ? { reasoningEffort: reasoning.data } : {}),
     ...(tier.success ? { serviceTier: tier.data } : {}),
     fastMode:
-      config.fastMode === true || (isInternalRequest && config.requestHeaders?.get(CHERRY_FAST_MODE_HEADER) === 'true')
+      config.agentContext?.fastMode ??
+      (config.fastMode === true ||
+        (isInternalRequest && config.requestHeaders?.get(CHERRY_FAST_MODE_HEADER) === 'true'))
   }
-  const resolvedAddress = await resolveGatewayModelAddress(modelString, isInternalRequest)
-  const { providerId, apiModelId: modelId, uniqueModelId, provider: resolvedProvider } = resolvedAddress
-  const agentSessionId = config.requestHeaders
-    ? application.get('ApiGatewayService').getAgentSessionId(config.requestHeaders)
-    : undefined
-  // agentSessionId lets System Doctor attribute this upstream hop to the Agent session that made it.
-  const logContext = { providerId, modelId, ...(agentSessionId ? { agentSessionId } : {}) }
-
+  const agentSessionId =
+    config.agentContext?.agentSessionId ??
+    (config.requestHeaders ? application.get('ApiGatewayService').getAgentSessionId(config.requestHeaders) : undefined)
+  const isInternalAnthropicAgentRequest = inputFormat === 'anthropic' && isInternalRequest
   const isStreaming = config.streaming ?? ('stream' in params && (params as { stream?: boolean }).stream === true)
+  return {
+    inputFormat,
+    outputFormat,
+    params,
+    modelString,
+    isInternalRequest,
+    isInternalAnthropicAgentRequest,
+    isStreaming,
+    agentSessionId,
+    turnOptions,
+    reasoning,
+    asClientError
+  }
+}
+
+export async function resolveGatewayRequest(
+  config: MessageConfig,
+  incoming: ReturnType<typeof readGatewayRequest>,
+  continuation?: { source: { modelAddress: string; endpointType?: EndpointType }; routeId: string }
+) {
+  const { inputFormat, outputFormat, isInternalRequest, isInternalAnthropicAgentRequest, isStreaming, agentSessionId } =
+    incoming
+  const modelAddress = continuation?.source.modelAddress ?? incoming.modelString
+  const resolvedAddress = await resolveGatewayModelAddress(modelAddress, isInternalRequest)
+  const { providerId, apiModelId: modelId, uniqueModelId, provider: resolvedProvider } = resolvedAddress
+  const logContext = { providerId, modelId, ...(agentSessionId ? { agentSessionId } : {}) }
 
   logger.info(`Starting ${isStreaming ? 'streaming' : 'non-streaming'} message`, {
     ...logContext,
@@ -107,33 +163,26 @@ export async function resolveGatewayRequest(config: MessageConfig) {
   })
 
   const provider: Provider = config.provider ?? resolvedProvider
-  const isInternalAnthropicAgentRequest = inputFormat === 'anthropic' && isInternalRequest
   const endpoint = resolveEffectiveEndpoint(
     provider,
     resolvedAddress.model,
-    isInternalAnthropicAgentRequest ? ENDPOINT_TYPE.ANTHROPIC_MESSAGES : undefined
+    continuation?.source.endpointType ??
+      (isInternalAnthropicAgentRequest ? ENDPOINT_TYPE.ANTHROPIC_MESSAGES : undefined)
   )
   const model =
     endpoint.endpointType && endpoint.endpointType !== resolvedAddress.model.endpointTypes?.[0]
       ? { ...resolvedAddress.model, endpointTypes: [endpoint.endpointType] }
       : resolvedAddress.model
-  const resolvedModel = { provider, model }
+  const resolvedModel = { provider, model, replayRouteId: continuation?.routeId ?? config.agentContext?.replayRouteId }
   return {
-    inputFormat,
-    outputFormat,
-    params,
+    ...incoming,
     provider,
     model,
     resolvedModel,
     endpoint,
-    isInternalAnthropicAgentRequest,
-    isStreaming,
-    agentSessionId,
-    turnOptions,
-    reasoning,
     uniqueModelId,
     modelId,
-    logContext,
-    asClientError
+    modelAddress,
+    logContext
   }
 }

@@ -19,7 +19,11 @@ export type WebSearchProviderFeatureSection = {
   entries: WebSearchProviderMenuEntry[]
 }
 
-const WEB_SEARCH_CAPABILITY_ORDER: readonly WebSearchCapability[] = ['searchKeywords', 'fetchUrls'] as const
+const WEB_SEARCH_CAPABILITY_ORDER: readonly WebSearchCapability[] = [
+  'searchKeywords',
+  'fetchUrls',
+  'searchImages'
+] as const
 
 type WebSearchProviderDisplayMeta = {
   descriptionKey: string
@@ -99,6 +103,12 @@ const WEB_SEARCH_PROVIDER_DISPLAY_META: Record<WebSearchProviderId, WebSearchPro
     iconRef: providerIconRef('searxng'),
     officialWebsite: 'https://docs.searxng.org'
   },
+  serpkite: {
+    descriptionKey: 'settings.tool.websearch.provider_description.serpkite',
+    iconRef: providerIconRef('serpkite'),
+    officialWebsite: 'https://serpkite.com',
+    apiKeyWebsite: 'https://app.serpkite.com/keys'
+  },
   serply: {
     descriptionKey: 'settings.tool.websearch.provider_description.serply',
     iconRef: providerIconRef('serply'),
@@ -153,9 +163,9 @@ export function getWebSearchProviderApiKeyWebsite(providerId: WebSearchProviderI
 }
 
 export function getWebSearchCapabilityTitleKey(capability: WebSearchCapability): string {
-  return capability === 'fetchUrls'
-    ? 'settings.tool.websearch.fetch_urls_provider'
-    : 'settings.tool.websearch.search_provider'
+  if (capability === 'fetchUrls') return 'settings.tool.websearch.fetch_urls_provider'
+  if (capability === 'searchImages') return 'settings.tool.websearch.search_images_provider'
+  return 'settings.tool.websearch.search_provider'
 }
 
 export function createWebSearchMenuEntry(

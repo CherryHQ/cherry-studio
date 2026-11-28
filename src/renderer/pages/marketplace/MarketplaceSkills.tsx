@@ -15,11 +15,13 @@ import type { useMarketplace } from './useMarketplace'
 export function MarketplaceSkills({
   market,
   query,
+  category = '',
   preview = false,
   active
 }: {
   market: ReturnType<typeof useMarketplace>
   query: string
+  category?: string
   preview?: boolean
   active: boolean
 }) {
@@ -40,14 +42,16 @@ export function MarketplaceSkills({
   const filtered = useMemo(() => {
     const search = query.trim().toLocaleLowerCase()
     return (catalog.data ?? [])
-      .filter((skill) =>
-        [skill.name.en, skill.name.zh, skill.description.en, skill.description.zh, skill.author, ...skill.tags]
-          .join(' ')
-          .toLocaleLowerCase()
-          .includes(search)
+      .filter(
+        (skill) =>
+          (preview || !category || skill.domain === category) &&
+          [skill.name.en, skill.name.zh, skill.description.en, skill.description.zh, skill.author, ...skill.tags]
+            .join(' ')
+            .toLocaleLowerCase()
+            .includes(search)
       )
       .sort((a, b) => (b.downloads ?? 0) - (a.downloads ?? 0))
-  }, [catalog.data, query])
+  }, [catalog.data, query, category, preview])
   const groups = useMemo<[string, MarketplaceSkill[]][]>(() => {
     if (preview) return [['', filtered.slice(0, 6)]]
     const grouped = new Map<string, MarketplaceSkill[]>()
@@ -73,7 +77,7 @@ export function MarketplaceSkills({
         <MarketplaceLoadState error={installed.error} empty={false} retry={() => installed.refresh().catch(() => {})} />
       ) : null}
       {skipped > 0 ? (
-        <p role="status" className="mb-3 text-xs text-muted-foreground">
+        <p role="status" className="text-muted-foreground mb-3 text-xs">
           {t('marketplace.subscription.skipped', { count: skipped })}
         </p>
       ) : null}
@@ -134,7 +138,7 @@ export function MarketplaceSkills({
                     </>
                   }>
                   {count > 0 && !complete ? (
-                    <span className="text-xs text-foreground-tertiary">
+                    <span className="text-foreground-tertiary text-xs">
                       {t('marketplace.partial_install', {
                         installed: count,
                         total: skill.membersKnown ? skill.members.length : '—'
@@ -181,7 +185,7 @@ export function MarketplaceSkills({
                 </div>
               ) : null}
               {(failures[uninstallTarget.id] ?? []).map((failure) => (
-                <p key={failure.path} role="alert" className="break-words text-error">
+                <p key={failure.path} role="alert" className="text-error break-words">
                   {failure.name}: {failure.error}
                 </p>
               ))}

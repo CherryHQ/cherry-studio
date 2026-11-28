@@ -145,6 +145,14 @@ describe('question and workspace command contracts', () => {
     )
     expect(schema.parse({ ...target, decision: 'approve' })).toEqual({ ...target, decision: 'approve' })
   })
+  it('binds creation retries to the selected provider as well as the model', () => {
+    const create = { commandId: 'c', agentId: 'a', workspaceId: 'w' }
+    const encode = (providerId: string) =>
+      encodeAgentCommand('agent.sessions.create', { ...create, model: { providerId, modelId: 'same-name' } })
+    expect(encode('first')).not.toEqual(encode('second'))
+    expect(encode('first')).not.toEqual(encodeAgentCommand('agent.sessions.create', create))
+  })
+
   it('separates registered and system creation without accepting paths or ambiguous destinations', () => {
     const schema = agentMethods['agent.sessions.create'].params
     const base = { commandId: 'c', agentId: 'a' }

@@ -440,7 +440,7 @@ function Item<T extends ResourceListItemBase>({
       data-dragging={rowState.dragging || undefined}
       tabIndex={tabIndex ?? -1}
       className={cn(
-        'group relative flex w-full cursor-pointer items-center gap-1.5 px-2.5 text-foreground outline-none transition-all duration-150 has-[[data-resource-list-leading-slot=true]]:px-1.5',
+        'group relative flex w-full cursor-pointer items-center gap-1.5 px-2.5 text-foreground outline-none transition-[color] duration-150 has-[[data-resource-list-leading-slot=true]]:px-1.5',
         RESOURCE_LIST_LABEL_CLASS,
         RESOURCE_LIST_VISUAL_ROW_CLASS,
         RESOURCE_LIST_INTERACTIVE_ROW_CLASS,
@@ -703,7 +703,7 @@ function Body<T extends ResourceListItemBase>({
 type EmptyStateProps = ComponentProps<typeof UiEmptyState>
 
 function EmptyState(props: EmptyStateProps) {
-  return <UiEmptyState compact preset="no-resource" {...props} />
+  return <UiEmptyState compact {...props} />
 }
 
 type LoadingStateProps = ComponentProps<'div'> & {

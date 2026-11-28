@@ -13,9 +13,9 @@ import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/compon
 import { toAgentSessionUIMessage } from '@renderer/hooks/useAgentSessionParts'
 import { useConversationHistoryQuery } from '@renderer/hooks/useConversationHistoryQuery'
 import { type Topic, TopicType } from '@renderer/types/topic'
-import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { sharedMessageToUIMessage, uiMessagesToPartsMap } from '@renderer/utils/message/messageProjection'
 import { cn } from '@renderer/utils/style'
+import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { buildKeywordRegexes, splitKeywordsToTerms } from '@shared/utils/keywordSearch'
 
@@ -212,7 +212,7 @@ function PreviewMessageRow({ message, highlightRegex, isActive, roleLabel, onOpe
           onOpen(message.id)
         }}
         className={cn(
-          '-mx-3 w-[calc(100%+1.5rem)] cursor-pointer rounded-xl border border-transparent px-3 py-2 text-left transition-colors hover:bg-muted/35 focus-visible:bg-muted/35 focus-visible:outline-none',
+          '-mx-3 w-[calc(100%+1.5rem)] cursor-pointer rounded-xl border border-transparent px-3 py-2 text-left transition-[color] hover:bg-muted/35 focus-visible:bg-muted/35 focus-visible:outline-none',
           isActive && 'border-border-selected bg-accent/55'
         )}>
         <div className="mb-1 font-medium text-muted-foreground text-xs">{roleLabel}</div>
@@ -434,7 +434,8 @@ export function GlobalSearchMessagePreviewPanel({
             rangeExtractor={extractPreviewRange}
             scrollElementRef={scrollContainerRef}
             onScroll={handleScroll}
-            className="min-h-0 flex-1 overflow-y-auto px-6 pt-5 pb-20"
+            className="min-h-0 flex-1 overflow-y-auto"
+            contentProps={{ className: 'px-6 pt-5 pb-20' }}
             header={
               <>
                 {error && (

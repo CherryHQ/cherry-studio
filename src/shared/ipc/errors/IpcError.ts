@@ -8,6 +8,7 @@ export interface SerializedIpcError {
   code: string
   message: string
   data?: unknown
+  reportingHandled?: true
 }
 
 /**
@@ -53,6 +54,7 @@ export type IpcResult<T> = { ok: true; data: T } | { ok: false; error: Serialize
  * Electron's `invoke` reject keeps only `message` and drops `code`/`data`.
  */
 export class IpcError extends Error {
+  reportingHandled?: true
   readonly code: string
   readonly data?: unknown
 
@@ -64,13 +66,17 @@ export class IpcError extends Error {
   }
 
   toJSON(): SerializedIpcError {
-    return this.data === undefined
-      ? { code: this.code, message: this.message }
-      : { code: this.code, message: this.message, data: this.data }
+    const result =
+      this.data === undefined
+        ? { code: this.code, message: this.message }
+        : { code: this.code, message: this.message, data: this.data }
+    return this.reportingHandled ? { ...result, reportingHandled: true } : result
   }
 
   static fromJSON(json: SerializedIpcError): IpcError {
-    return new IpcError(json.code, json.message, json.data)
+    const error = new IpcError(json.code, json.message, json.data)
+    if (json.reportingHandled) error.reportingHandled = true
+    return error
   }
 
   /** Normalize any thrown value into an IpcError (INTERNAL for unknown causes). */

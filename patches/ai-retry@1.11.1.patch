@@ -1,0 +1,28 @@
+diff --git a/dist/create-retryable-model-BIMStLIF.mjs b/dist/create-retryable-model-BIMStLIF.mjs
+index 4980fa6e7e08e05a0939e86726ebf7cf76b225a0..99672854180ad13758b1c50476758d61bf03a501 100644
+--- a/dist/create-retryable-model-BIMStLIF.mjs
++++ b/dist/create-retryable-model-BIMStLIF.mjs
+@@ -419,10 +419,7 @@ var RetryableLanguageModel = class extends BaseRetryableModel {
+ 							* through unchanged.
+ 							*/
+ 							if (value.type === "finish" && !isStreaming) {
+-								const finishCallOptions = mergeLanguageModelCallOptions({
+-									callOptions,
+-									currentRetry
+-								});
++								const finishCallOptions = finalCallOptions;
+ 								const synthetic = {
+ 									content: [],
+ 									finishReason: value.finishReason,
+@@ -526,10 +523,7 @@ var RetryableLanguageModel = class extends BaseRetryableModel {
+ 						/**
+ 						* Get the retry call options for the failed attempt
+ 						*/
+-						const retryCallOptions = mergeLanguageModelCallOptions({
+-							callOptions,
+-							currentRetry
+-						});
++						const retryCallOptions = finalCallOptions;
+ 						/**
+ 						* Check if the error from the stream can be retried.
+ 						*/

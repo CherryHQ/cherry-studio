@@ -48,7 +48,7 @@ Click **Drag or click to upload image/document** to select a PDF. If the page in
 {% step %}
 #### 2. Select Translation Model and Target Language
 
-PDF translation requires the current model to be callable via the local API gateway. If the model is unavailable, first return to **Settings** → **Model Provider** to check the connection; do not repeatedly install BabelDOC.
+PDF translation requires the current model to be callable via the local Unified Gateway. If the model is unavailable, first return to **Settings** → **Model Provider** to check the connection; do not repeatedly install BabelDOC.
 {% endstep %}
 
 {% step %}

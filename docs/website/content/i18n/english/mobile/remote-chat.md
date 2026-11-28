@@ -4,7 +4,7 @@ icon: monitor-smartphone
 
 # Use desktop agents from your phone
 
-After pairing a compatible Cherry Studio Desktop, use your phone to read desktop agent conversations, send tasks, answer questions, and handle tool approvals. **The computer executes the task; the phone provides access.** This guide describes Mobile **0.3.0**; available capabilities also depend on the desktop version.
+After pairing a compatible Cherry Studio Desktop, use your phone to read desktop agent conversations, send tasks, answer questions, and handle tool approvals. **The computer executes the task; the phone provides access.** Available capabilities depend on the paired desktop version.
 
 This differs from [importing model configuration](desktop-sync.md). Imported configuration lets the phone call models itself. Remote conversations use the computer's agents, models, tools, and workspaces. Desktop history is not merged into local mobile conversations.
 
@@ -22,8 +22,9 @@ Update Desktop if prompted. Sleep, a closed desktop app, network isolation, or r
 
 1. Choose a desktop agent and open an existing conversation or create one.
 2. When creating a conversation, select a workspace offered by the computer. **Default PC workspace** appears only when supported by Desktop.
-3. Give a clear task, such as “Read this workspace's project notes and list action items. Do not edit files yet.”
-4. Follow replies, tool results, and status. Respond to approvals and questions when needed.
+3. If the composer shows a model button, tap it to search models available on this computer by name or provider. The conversation follows the agent default unless you choose a model. Your selection applies from the first message.
+4. Give a clear task, such as “Read this workspace's project notes and list action items. Do not edit files yet.”
+5. Follow replies, tool results, and status. Respond to approvals and questions when needed.
 
 Agents, models, tools, and workspaces are configured on the computer. Switching back to **This device** uses mobile's own agents and data. Mobile folder workspaces are described in [File library and shared workspaces](file-library.md); they are not the same directories as desktop workspaces.
 
@@ -31,12 +32,22 @@ Agents, models, tools, and workspaces are configured on the computer. Switching 
 
 In a remote conversation that supports attachments, use **＋** beside the composer to add images or files, then describe your task. A file-only message is also supported.
 
-* Remote transfer currently allows up to 8 files per message, 1 GB per file, and 2 GB combined.
+* Remote transfer currently allows up to 8 files per message, 1 GiB per file, and 2 GiB combined (1 GiB is 1024 MiB).
 * Follow preparation, upload, and completion states. Cancel uploads, retry failures, or resume after reconnection. Eligible uploads can recover after reopening the app.
 * Upload completion does not prove the model understood the file. Desktop model capabilities, document parsing, and workspace permissions still apply.
 * If no attachment action appears, check Desktop's version and advertised capabilities.
 
 These are remote-transfer limits. Local chat limits for images, text, and documents are in [Chat and files](chat-and-files.md).
+
+## Read desktop scheduled-task results
+
+Select a computer, open **Scheduled tasks** from its remote sidebar, expand a task, and choose a result conversation. This is read-only: it does not create/edit/run tasks or send follow-ups into their result transcripts.
+
+Requires desktop **2.2.1 or later** with task-query support. Creation and management stay on desktop. Results are separate from ordinary recent conversations, so their absence there does not establish that a task never ran.
+
+## View the computer screen
+
+Use the separate [UU Remote desktop](remote-desktop.md) workflow for screen control rather than text-agent tasks. Cherry pairing does not complete UU account/device association or control authorization.
 
 ## Disconnects, backgrounding, and failed sends
 

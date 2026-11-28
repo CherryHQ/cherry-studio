@@ -2,6 +2,7 @@ import { use, useEffect, useRef } from 'react'
 
 import { usePreference } from '@data/hooks/usePreference'
 import { CommandSharedPreferencesContext, useCommandContextSnapshot } from '@renderer/hooks/command'
+import { useDictationEnabled } from '@renderer/hooks/useDictationEnabled'
 import { dictationService, voiceTargetManager } from '@renderer/services/voice'
 import {
   dictationShortcutMatches,
@@ -17,6 +18,7 @@ import type { SupportedPlatform } from '@shared/types/command'
 const HOLD_DELAY_MS = 300
 
 export function useDictationShortcuts(): void {
+  const enabled = useDictationEnabled()
   const [hold] = usePreference('feature.voice.dictation.hold_shortcut')
   const [toggle] = usePreference('feature.voice.dictation.toggle_shortcut')
   const preferences = use(CommandSharedPreferencesContext)?.shortcutPreferences
@@ -26,7 +28,7 @@ export function useDictationShortcuts(): void {
   commandState.current = { preferences, context, platform }
 
   useEffect(() => {
-    if (dictationShortcutsConflict(hold, toggle)) return
+    if (!enabled || dictationShortcutsConflict(hold, toggle)) return
     const pressed = new Map<string, string>()
     const consumed = new Set<string>()
     const clearNonModifiers = () => {
@@ -166,5 +168,5 @@ export function useDictationShortcuts(): void {
       window.removeEventListener('focusout', focusout)
       document.removeEventListener('visibilitychange', visibility)
     }
-  }, [hold, toggle])
+  }, [enabled, hold, toggle])
 }

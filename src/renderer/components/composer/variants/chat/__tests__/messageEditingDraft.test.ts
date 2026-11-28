@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
-import { FILE_TYPE } from '@renderer/types/file'
 import type { CherryMessagePart } from '@shared/data/types/message'
+import { FILE_TYPE } from '@shared/types/file'
 
 import { createComposerDraftContent, serializeComposerDocument } from '../../../composerDraft'
 import type { ComposerSerializedToken } from '../../../tokens'
@@ -68,6 +68,21 @@ const editedDraft = (value: string, anchors: Array<{ partIndex: number; textOffs
 })
 
 describe('createEditableMessageDraft', () => {
+  it('restores one editable attachment per stored file when composer metadata is incomplete', () => {
+    const draft = createEditableMessageDraft(
+      parts(
+        imageParts[0],
+        { type: 'file', mediaType: 'text/plain', url: 'file:///tmp/notes.txt', filename: 'notes.txt' },
+        imageParts[1]
+      ),
+      MESSAGE_ID
+    )
+
+    const labels = draft.draftTokens.filter((token) => token.kind === 'file').map((token) => token.label)
+    expect(labels.sort()).toEqual(['notes.txt', 'shot.png'])
+    expect(draft.files.map((file) => file.previewUrl)).toEqual(['file:///tmp/notes.txt', 'file:///tmp/shot.png'])
+  })
+
   // The stored part has no filesystem path, so without the URL the edit composer has no image to preview.
   it('carries the stored file URL as the attachment preview source', () => {
     const draft = createEditableMessageDraft(imageParts, MESSAGE_ID)

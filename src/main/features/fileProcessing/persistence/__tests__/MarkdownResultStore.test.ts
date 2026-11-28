@@ -182,13 +182,13 @@ describe('MarkdownResultStore', () => {
     expect(atomicWriteFileMock).toHaveBeenCalledOnce()
   })
 
-  it('allows remote zip downloads from a trusted local apiHost', async () => {
+  it('accepts a parameterized ZIP content type from a trusted local apiHost', async () => {
     fetchMock.mockResolvedValueOnce(
       new Response('zip-binary', {
         status: 200,
         statusText: 'OK',
         headers: {
-          'content-type': 'application/zip'
+          'content-type': 'Application/ZIP; charset=binary'
         }
       })
     )

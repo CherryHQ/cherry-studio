@@ -75,7 +75,7 @@ export function AskUserQuestionCard({ toolResponse }: { toolResponse: NormalTool
   // Parse from available sources. Completed Claude Code AskUserQuestion
   // parts can keep the original questions in `input` and put user answers
   // in tool `output`, so read both sides.
-  const { questions, answers } = useMemo(() => {
+  const { questions, answers, interviewAction } = useMemo(() => {
     const parsedInput = parseAskUserQuestionToolInput(toolResponse.arguments)
     const parsedOutput = parseAskUserQuestionToolInput(toolResponse.response)
     const parsedOptimisticInput = parseAskUserQuestionToolInput(optimisticInput)
@@ -93,7 +93,7 @@ export function AskUserQuestionCard({ toolResponse }: { toolResponse: NormalTool
         hasResponse: !!toolResponse.response
       })
     }
-    return { questions, answers }
+    return { questions, answers, interviewAction: parsedOutput?.interviewAction }
   }, [optimisticInput, toolResponse.arguments, toolResponse.response, toolResponse.status])
 
   const [currentIndex, setCurrentIndex] = useState(0)
@@ -111,7 +111,7 @@ export function AskUserQuestionCard({ toolResponse }: { toolResponse: NormalTool
 
   const content = (
     <div className="flex flex-col gap-3">
-      <CompletedContent question={currentQuestion} answer={answers[currentQuestion.question]} />
+      <CompletedContent question={currentQuestion} answer={answers[currentQuestion.id ?? currentQuestion.question]} />
 
       {totalQuestions > 1 && (
         <Navigation
@@ -137,7 +137,13 @@ export function AskUserQuestionCard({ toolResponse }: { toolResponse: NormalTool
           </div>
         }
         trailing={
-          answeredCount > 0 ? (
+          interviewAction ? (
+            <span>
+              {interviewAction === 'discuss'
+                ? t('agent.askUserQuestion.discuss')
+                : t('agent.askUserQuestion.skipInterview')}
+            </span>
+          ) : answeredCount > 0 ? (
             <span className="rounded-full bg-muted px-1.5 py-0.5 text-xs leading-4 text-foreground-tertiary">
               {answeredCount} {t('agent.askUserQuestion.answered')}
             </span>

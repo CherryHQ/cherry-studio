@@ -482,6 +482,36 @@ describe('onBeforeCompress flow', () => {
     expect(result.prompt).toEqual(longPrompt)
   })
 
+  it('uses outgoing history size when provider usage is cumulative', async () => {
+    const middleware = createContextMiddleware({
+      contextWindow: 100,
+      estimateHistoryTokens: (history) => history.length * 2,
+      onBeforeCompress: () => [{ role: 'user', content: 'compressed' }]
+    })
+    const model = createMockModel({ inputTokens: 640_208 })
+    const prompt = makeConversation(10)
+    const params = { prompt }
+    const result = await assertDefined(
+      middleware.wrapGenerate,
+      'wrapGenerate'
+    )({
+      doGenerate: () => model.doGenerate(params),
+      doStream: () => model.doStream(params),
+      params,
+      model
+    })
+    expect(result.usage.inputTokens.total).toBe(640_208)
+    const next = await assertDefined(
+      middleware.transformParams,
+      'transformParams'
+    )({
+      params,
+      type: 'generate',
+      model
+    })
+    expect(next.prompt).toEqual(prompt)
+  })
+
   it.each(['generate', 'stream'] as const)('uses the original prompt size after %s continuation', async (type) => {
     const middleware = createContextMiddleware({
       contextWindow: 1_000_000,

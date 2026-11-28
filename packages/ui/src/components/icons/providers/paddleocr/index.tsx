@@ -9,7 +9,7 @@ const Paddleocr = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const PaddleocrIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Paddleocr, {
   Avatar: PaddleocrAvatar,
-  colorPrimary: '#363FE5'
+  colorPrimary: '#363fe5'
 })
 
 export default PaddleocrIcon

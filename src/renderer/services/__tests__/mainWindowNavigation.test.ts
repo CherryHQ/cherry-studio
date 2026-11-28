@@ -66,6 +66,12 @@ describe('openRoute', () => {
 })
 
 describe('openSettingsTab', () => {
+  it('opens personal information by default', () => {
+    openSettingsTab()
+
+    expect(ipcRequestMock).toHaveBeenCalledWith('navigation.open_route_in_main', { path: '/settings/profile' })
+  })
+
   it('delegates the normalized settings path to the main-route event with query preserved', () => {
     const handler = vi.fn((event: Event) => event.preventDefault())
     window.addEventListener(OPEN_MAIN_ROUTE_EVENT, handler)
