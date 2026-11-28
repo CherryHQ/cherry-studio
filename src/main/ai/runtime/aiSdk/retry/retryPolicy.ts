@@ -45,6 +45,26 @@ export function readRetryPolicy(): RetryPolicy {
   }
 }
 
+/** Same fallback list `buildFallbackModels` would use for attachment budgeting. */
+export function resolveEffectiveFallbackModelIds(
+  requestMaxRetries: number | undefined,
+  retryDisabledForRequest: boolean,
+  hasApiKeyFallbacks: boolean
+): readonly RetryFallbackModelId[] {
+  if (retryDisabledForRequest) return []
+  const configured = readRetryPolicy()
+  const retryPolicy =
+    configured.enabled || !hasApiKeyFallbacks || requestMaxRetries === undefined || requestMaxRetries <= 0
+      ? configured
+      : {
+          ...configured,
+          enabled: true,
+          maxAttempts: Math.max(MIN_RETRY_ATTEMPTS, Math.trunc(requestMaxRetries)),
+          fallbackModelIds: [] as const
+        }
+  return retryPolicy.enabled ? retryPolicy.fallbackModelIds : []
+}
+
 type ModelRetryPolicyInput =
   | { owner: 'chat'; maxRetries?: number; hasApiKeyFallbacks?: boolean }
   | { owner: 'caller'; maxRetries?: number; recoverOutputTokens?: boolean; handlesTransportRetry?: boolean }

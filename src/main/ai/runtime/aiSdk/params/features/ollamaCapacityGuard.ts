@@ -1,0 +1,63 @@
+/**
+ * Final-call capacity guard for Ollama requests whose `num_ctx` was capped below the
+ * model's window to fit memory (#19864).
+ *
+ * Compaction and attachment truncation budget against the capped window but cannot
+ * shrink a sole latest turn, and Ollama truncates an over-long prompt without an
+ * error. This is the innermost middleware (contributed last, `enforce: 'post'`), so it
+ * prices the prompt the provider will actually receive, AFTER context-build
+ * truncation/compaction and the other prompt rewriters have run. Because every
+ * `buildAgentParams` caller (primary, API-key fallbacks, model fallbacks; streaming and
+ * non-streaming) gets its own copy, a later call served by a cached key or fallback
+ * model is checked too. The error is an ordinary attempt error: retry and fallback
+ * policy are unchanged.
+ */
+
+import { definePlugin } from '@cherrystudio/ai-core'
+import { assertPrimaryOllamaCallWithinWindow } from '@main/ai/messages/attachmentBudget'
+import { readOllamaWireNumCtx, usesOllamaWirePath, writeOllamaWireNumCtx } from '@main/ai/utils/ollamaRequestNumCtx'
+
+import type { RequestFeature } from '../feature'
+import type { RequestScope } from '../scope'
+
+function createOllamaCapacityGuardPlugin(scope: RequestScope) {
+  return definePlugin({
+    name: 'ollama-capacity-guard',
+    enforce: 'post',
+    configureContext: (context) => {
+      const snapshot = scope.requestContext?.ollamaNumCtx
+      if (!snapshot) return
+      context.middlewares = context.middlewares || []
+      context.middlewares.push({
+        specificationVersion: 'v3',
+        transformParams: async ({ params }) => {
+          // Retry can restore the primary call options while retaining this fallback model.
+          // Reapply its frozen cap on every dispatch, preserving any smaller wire choice.
+          const wireNumCtx = Math.min(
+            readOllamaWireNumCtx(params.providerOptions ?? {}) ?? snapshot.numCtx,
+            snapshot.numCtx
+          )
+          const cappedParams = {
+            ...params,
+            providerOptions: writeOllamaWireNumCtx(params.providerOptions ?? {}, wireNumCtx)
+          }
+          await assertPrimaryOllamaCallWithinWindow({
+            call: cappedParams,
+            provider: scope.provider,
+            model: scope.model,
+            ollamaNumCtx: { ...snapshot, numCtx: wireNumCtx }
+          })
+          return cappedParams
+        }
+      })
+    }
+  })
+}
+
+export const ollamaCapacityGuardFeature: RequestFeature = {
+  name: 'ollama-capacity-guard',
+  applies: (scope) =>
+    scope.requestContext?.ollamaNumCtx != null &&
+    usesOllamaWirePath(scope.provider, scope.endpointType, scope.sdkConfig?.providerId),
+  contributeModelAdapters: (scope) => [createOllamaCapacityGuardPlugin(scope)]
+}

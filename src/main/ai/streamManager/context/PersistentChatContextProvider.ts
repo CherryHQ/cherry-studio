@@ -9,16 +9,13 @@ import { type Span, SpanStatusCode } from '@opentelemetry/api'
 import type { ModelMessage, UIMessage } from 'ai'
 
 import { application } from '@application'
-import { ContextPrompts, resolveCompressionOutputTokens, summarizeModelMessages } from '@cherrystudio/ai-core'
+import { ContextPrompts, summarizeModelMessages } from '@cherrystudio/ai-core'
 import { assistantDataService } from '@data/services/AssistantService'
 import { messageService } from '@data/services/MessageService'
 import { topicService } from '@data/services/TopicService'
 import { loggerService } from '@logger'
-import {
-  COMPACTION_INPUT_SAFETY_RATIO,
-  COMPACTION_MIN_INPUT_BUDGET,
-  CONTEXT_COMPACT_KEEP_BUDGET_OF_TRIGGER
-} from '@main/ai/constants'
+import { CONTEXT_COMPACT_KEEP_BUDGET_OF_TRIGGER } from '@main/ai/constants'
+import { resolveCompressionBudget } from '@main/ai/contextBuild/resolveCompressionBudget'
 import { resolveAttachmentBudget } from '@main/ai/messages/attachmentBudget'
 import { collectFileAttachments, prepareChatMessagesForEstimate } from '@main/ai/messages/attachmentRouting'
 import { resolveMediaCapabilities, resolveToolResultMediaCapabilities } from '@main/ai/messages/messageCapabilities'
@@ -32,6 +29,7 @@ import { providerService } from '@main/data/services/ProviderService'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { compactionAnchorChunkId, type CompactionAnchorData, type CompactionSink } from '@shared/ai/compaction'
 import { aiStreamAdmissionReasons, applyApprovalDecisions } from '@shared/ai/transport'
+import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { ContextSettingsOverride } from '@shared/data/types/contextSettings'
 import {
@@ -61,6 +59,7 @@ import { resolveModelTokenDialect, type TokenDialect } from '../../tokens/dialec
 import { estimateModelMessagesSync } from '../../tokens/footprint'
 import { tokenxTokenizer } from '../../tokens/textTokenizer'
 import type { AiStreamRequest } from '../../types'
+import { resolveModelRequestContextWindow } from '../../utils/ollamaRequestNumCtx'
 import { AiStreamAdmissionError } from '../admission'
 import { PersistenceListener } from '../listeners/PersistenceListener'
 import { TraceFlushListener } from '../listeners/TraceFlushListener'
@@ -1031,7 +1030,22 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     // and an `as number` cast here made every derived budget `NaN`, which
     // silently disabled compaction instead of triggering it. Serve as-is; the
     // persist lane still bounds tool outputs by the character setting.
-    const minContextWindow = resolveMinContextWindow(models.map((m) => m.contextWindow))
+    const minContextWindow = resolveMinContextWindow(
+      models.map((m) => {
+        try {
+          const provider = providerService.getByProviderId(m.providerId)
+          if (!provider) return m.contextWindow
+          const { endpointType } = resolveEffectiveEndpoint(provider, m)
+          const runtimeProviderId = resolveAiSdkProviderId(provider, endpointType)
+          return resolveModelRequestContextWindow(m, provider, endpointType, runtimeProviderId)
+        } catch (error) {
+          // Provider removal while the compressor resolves must not strand every
+          // reserved sibling. Dispatch owns each model's missing-provider error.
+          if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) return m.contextWindow
+          throw error
+        }
+      })
+    )
     if (minContextWindow === null) {
       logger.warn('no model declares a contextWindow — skipping durable compaction for this request', { topicId })
       return serve(effective)
@@ -1084,14 +1098,11 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       // model's: an explicitly picked 8k compressor on a 128k chat would
       // otherwise be handed a 128k-derived budget and overflow immediately.
       const compressionWindow = compressionModel.contextWindow ?? minContextWindow
-      const maxOutputTokens = resolveCompressionOutputTokens(compressionWindow)
+      const { maxOutputTokens, maxInputTokens } = resolveCompressionBudget(compressionWindow)
       compactionSink?.(anchorId, { status: 'compacting', phase: 'turn-start', startedAt })
       const summary = await summarizeModelMessages(modelMessages, compressionModel.languageModel, {
         maxOutputTokens,
-        maxInputTokens: Math.max(
-          COMPACTION_MIN_INPUT_BUDGET,
-          Math.floor((compressionWindow - maxOutputTokens) * COMPACTION_INPUT_SAFETY_RATIO)
-        )
+        maxInputTokens
       })
       // Every exit below clears the spinner — a fold that produced nothing and a
       // fold that threw both continue with un-compacted history, so leaving

@@ -9,7 +9,19 @@ export type { AgentLoopHooks } from './loop/types'
 export { mergeUsage, ZERO_USAGE } from './observers/usage'
 export { buildAgentParams } from './params/buildAgentParams'
 export type { RequestFeature } from './params/feature'
-export { buildApiKeyFallbackModels } from './retry/buildApiKeyFallbackModels'
+export {
+  supportsNativePdf,
+  resolveNativeFileSupport,
+  resolveFallbackNativeFileSupport,
+  type NativeFileSupport
+} from '../../messages/nativeFileSupport'
+export { buildApiKeyFallbackModels, hasApiKeyFallbackCandidates } from './retry/buildApiKeyFallbackModels'
 export { buildFallbackModels } from './retry/buildFallbackModels'
 export { createRetryableWrap } from './retry/createRetryableWrap'
-export { planModelTransportRetry, readRetryPolicy, resolveModelRetryPolicy } from './retry/retryPolicy'
+export { MAX_OUTPUT_TOKEN_RETRIES } from './retry/outputTokenRetry'
+export {
+  planModelTransportRetry,
+  readRetryPolicy,
+  resolveEffectiveFallbackModelIds,
+  resolveModelRetryPolicy
+} from './retry/retryPolicy'

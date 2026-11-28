@@ -135,6 +135,18 @@ function withResolvedApprovals(message: CherryUIMessage, exec: StreamExecution):
 }
 
 const logger = loggerService.withContext('AiStreamManager')
+
+/** Error-chunk text keeps its `StreamError` identity while gaining request-scoped serialization context. */
+function streamChunkError(errorText: string): Error {
+  const error = new Error(errorText)
+  error.name = 'StreamError'
+  return error
+}
+
+function serializeStreamError(error: unknown, exec: StreamExecution, request: ManagedAiStreamRequest) {
+  return serializeError(error, exec.streamErrorSerialization ?? request.streamErrorSerialization)
+}
+
 type ManagedAiStreamRequest = AiStreamRequest & {
   requestOptions?: AsInProcess<AiStreamRequest>['requestOptions']
   taskIds?: readonly string[]
@@ -291,8 +303,15 @@ function toActiveExecution(exec: StreamExecution): ActiveExecution {
   }
 }
 
-function errorFromStreamChunk(errorText: string): SerializedError {
+function errorFromStreamChunk(
+  errorText: string,
+  exec: StreamExecution,
+  request: ManagedAiStreamRequest
+): SerializedError {
+  const serialized = serializeStreamError(streamChunkError(errorText), exec, request)
+  if (serialized.cause == null) delete serialized.cause
   return {
+    ...serialized,
     name: 'StreamError',
     message: getSafeProviderErrorMessage({ message: errorText }),
     stack: null,
@@ -2287,7 +2306,7 @@ export class AiStreamManager extends BaseService {
     exec.loopPromise = launchLoop()
       .catch((err) => {
         // Defensive funnel for sync throws (e.g. `streamText` rejects before returning a stream).
-        return this.onExecutionError(topicId, modelId, serializeError(err), exec, err)
+        return this.onExecutionError(topicId, modelId, serializeStreamError(err, exec, request), exec, err)
       })
       .finally(() => activity.dispose())
 
@@ -2302,6 +2321,9 @@ export class AiStreamManager extends BaseService {
   ): Promise<void> {
     const aiService = application.get('AiService')
     const signal = exec.abortController.signal
+    const streamErrorSerialization = request.streamErrorSerialization ?? {}
+    request.streamErrorSerialization = streamErrorSerialization
+    exec.streamErrorSerialization = streamErrorSerialization
     const notifyContent = (active: ActiveStream, deliver: (sink: NonNullable<StreamListener['content']>) => void) => {
       for (const [id, listener] of active.listeners) {
         if (!listener.isAlive()) {
@@ -2338,6 +2360,7 @@ export class AiStreamManager extends BaseService {
       // `signal` is injected here because it's not IPC-serialisable.
       source = await aiService.streamText({
         ...request,
+        streamErrorSerialization,
         requestOptions: { ...request.requestOptions, signal },
         runtimeTimingSink: exec.runtimeTiming.sink,
         // Compaction runs deep inside param-build / the tool loop, where the
@@ -2373,7 +2396,7 @@ export class AiStreamManager extends BaseService {
           { topicId, modelId, err: chatErrorContext(err) }
         )
       }
-      await this.onExecutionError(topicId, modelId, serializeError(err), exec, err)
+      await this.onExecutionError(topicId, modelId, serializeStreamError(err, exec, request), exec, err)
       return
     }
 
@@ -2487,14 +2510,14 @@ export class AiStreamManager extends BaseService {
           }
         )
       }
-      const fromThrow = serializeError(result.threw.error)
+      const fromThrow = serializeStreamError(result.threw.error, exec, request)
       const serialized =
         result.streamErrorText !== undefined &&
         !signal.aborted &&
         !hasHttpMetadata(fromThrow) &&
         !fromThrow.providerErrorCategory &&
         !fromThrow.i18nKey
-          ? errorFromStreamChunk(result.streamErrorText)
+          ? errorFromStreamChunk(result.streamErrorText, exec, request)
           : fromThrow
       if (fromThrow.reportingHandled === true) serialized.reportingHandled = true
       if (!abortShaped) serialized.streamStage = 'response-stream'
@@ -2518,9 +2541,9 @@ export class AiStreamManager extends BaseService {
         origin: 'error-chunk',
         cause: chatErrorContext({ name: 'StreamError', message: result.streamErrorText })
       })
-      await this.onExecutionError(topicId, modelId, errorFromStreamChunk(result.streamErrorText), exec)
+      await this.onExecutionError(topicId, modelId, errorFromStreamChunk(result.streamErrorText, exec, request), exec)
     } else if (result.accumulationError !== undefined) {
-      const error = serializeError(result.accumulationError.error)
+      const error = serializeError(result.accumulationError.error, exec.streamErrorSerialization)
       error.executionFailure = toExecutionFailure(error, modelId, 'host')
       await this.onExecutionError(topicId, modelId, error, exec)
     } else {

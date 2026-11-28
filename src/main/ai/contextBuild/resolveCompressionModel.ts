@@ -8,14 +8,21 @@
  * null as "compression off" so a misconfigured model never breaks the chat.
  */
 import type { LanguageModelV3 } from '@ai-sdk/provider'
-import { defaultSettingsMiddleware, wrapLanguageModel } from 'ai'
+import { APICallError, defaultSettingsMiddleware, wrapLanguageModel } from 'ai'
 
 import { createExecutor } from '@cherrystudio/ai-core'
 import { loggerService } from '@logger'
+import { isFallbackCallWithinWindow } from '@main/ai/messages/attachmentBudget'
 import { resolveEffectiveEndpoint } from '@main/ai/provider/endpoint'
 import { resolveSdkConfig } from '@main/ai/provider/sdkConfig'
+import {
+  resolveOllamaRequestNumCtx,
+  usesOllamaWirePath,
+  writeOllamaWireNumCtx
+} from '@main/ai/utils/ollamaRequestNumCtx'
 import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
+import type { OllamaNumCtxRequestSnapshot } from '@shared/ai/ollamaNumCtx'
 import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
 
 import type { ConversationRef } from '../types'
@@ -66,13 +73,51 @@ export async function resolveCompressionModel(
   }
 
   try {
-    const { sdkConfig } = await resolveSdkConfig(provider, model, resolveEffectiveEndpoint(provider, model))
+    const endpoint = resolveEffectiveEndpoint(provider, model)
+    const { sdkConfig } = await resolveSdkConfig(provider, model, endpoint)
+    const resolution = usesOllamaWirePath(provider, endpoint.endpointType, sdkConfig.providerId)
+      ? resolveOllamaRequestNumCtx(model, provider, endpoint.endpointType)
+      : undefined
+    const ollamaNumCtx: OllamaNumCtxRequestSnapshot | undefined = resolution
+      ? { uniqueModelId: model.id, trainedContextWindow: resolution.trainedContextWindow, numCtx: resolution.numCtx }
+      : undefined
     // App provider extensions are registered beyond the executor's built-in type union.
     const executor = await createExecutor(
       sdkConfig.providerId as Parameters<typeof createExecutor>[0],
       sdkConfig.providerSettings as Parameters<typeof createExecutor>[1]
     )
-    const languageModel = await executor.languageModel(sdkConfig.modelId)
+    const resolvedModel = await executor.languageModel(sdkConfig.modelId)
+    // Both compaction consumers share this model. Freeze its OWN window and
+    // validate the final summary prompt before any incomplete result can replace
+    // the folded history. Do not re-sample memory between budgeting and dispatch.
+    const languageModel = ollamaNumCtx
+      ? wrapLanguageModel({
+          model: resolvedModel,
+          middleware: {
+            specificationVersion: 'v3',
+            transformParams: async ({ params }) => {
+              if (
+                !(await isFallbackCallWithinWindow({
+                  call: params,
+                  fallbackProvider: provider,
+                  fallbackModel: model,
+                  fallbackEndpointType: endpoint.endpointType,
+                  fallbackRuntimeProviderId: sdkConfig.providerId,
+                  fallbackOllamaNumCtx: ollamaNumCtx,
+                  // An accepted summary replaces history durably; reject chunks the heuristic may under-count.
+                  digitAware: true
+                }))
+              ) {
+                throw compressionWindowOverflowError()
+              }
+              return {
+                ...params,
+                providerOptions: writeOllamaWireNumCtx(params.providerOptions ?? {}, ollamaNumCtx.numCtx)
+              }
+            }
+          }
+        })
+      : resolvedModel
     return {
       languageModel: sdkConfig.conversationHeader
         ? wrapLanguageModel({
@@ -82,7 +127,7 @@ export async function resolveCompressionModel(
             })
           })
         : languageModel,
-      contextWindow: resolveContextWindow(model.contextWindow)
+      contextWindow: resolveContextWindow(ollamaNumCtx?.numCtx ?? model.contextWindow)
     }
   } catch (error) {
     logger.warn('compression model resolution failed', {
@@ -92,4 +137,19 @@ export async function resolveCompressionModel(
     })
     return null
   }
+}
+
+/**
+ * Local rejection of an over-window summary prompt. Shaped as a context-overflow so the chunk planner
+ * splits the input into smaller chunks instead of abandoning the whole fold.
+ */
+export function compressionWindowOverflowError(): APICallError {
+  return new APICallError({
+    message:
+      'The summary prompt and output reservation exceed the Ollama compression context window. History was not folded.',
+    statusCode: 400,
+    url: 'cherry://compression-window-guard',
+    requestBodyValues: {},
+    isRetryable: false
+  })
 }

@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
+import { userProviderTable } from '@data/db/schemas/userProvider'
 import { messageService } from '@data/services/MessageService'
 import { DEFAULT_CONTEXT_SETTINGS } from '@shared/data/types/contextSettings'
 import { createUniqueModelId, type Model } from '@shared/data/types/model'
@@ -20,6 +21,7 @@ describe('persistent compaction overflow', () => {
   const dbh = setupTestDatabase()
 
   it('keeps the stored history and boundary when the summarizer cannot fit its input', async () => {
+    await dbh.db.insert(userProviderTable).values({ providerId: 'test', name: 'Test', orderKey: 'a0' })
     await dbh.db.insert(topicTable).values({ id: 'topic', activeNodeId: 'u2', orderKey: 'a0' })
     await dbh.db.insert(messageTable).values(
       withRoot('topic', [

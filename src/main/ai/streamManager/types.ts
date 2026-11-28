@@ -4,6 +4,7 @@ import type { UIMessageChunk } from 'ai'
 import type { ExecutionFailure } from '@cherrystudio/remote-protocol/failure'
 import type { AcceptedToolResults } from '@main/ai/messages/AcceptedToolResults'
 import type { AgentControlChunk } from '@main/ai/runtime/types'
+import type { SerializeErrorContext } from '@main/ai/utils/serializeError'
 import type { Event } from '@main/core/lifecycle'
 import type { CompactionAnchorData } from '@shared/ai/compaction'
 import type { ExecutionId } from '@shared/ai/executionIdentity'
@@ -208,6 +209,12 @@ export interface StreamExecution {
   runtimeTiming: MessageRuntimeTimingCollector
   /** OTel root span set as active context around `runExecutionLoop`. */
   rootSpan?: Span
+  /**
+   * Mutable per-execution error-serialization context (Ollama `num_ctx` snapshot).
+   * Owned here so fallback retries can update it without relying on the shallow
+   * copy passed into `AiService.streamText`.
+   */
+  streamErrorSerialization?: SerializeErrorContext
 }
 
 // ── ActiveStream ────────────────────────────────────────────────────

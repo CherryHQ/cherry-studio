@@ -27,10 +27,12 @@ import {
 import { and, createRetryableModel, error, not } from 'ai-retry/language-model'
 
 import { loggerService } from '@logger'
+import type { SerializeErrorContext } from '@main/ai/utils/serializeError'
 import type { RetryPartData } from '@shared/data/types/uiParts'
 
 import { getPendingReplayRoute, ToolContinuationRouteError } from '../../../provider/replayRoute'
 import { getTerminalModelError } from '../../../utils/retryError'
+import type { AgentLoopHooks } from '../loop/types'
 import { chatTokenFieldRetry } from './chatTokenFieldRetry'
 import { outputTokenRetry } from './outputTokenRetry'
 import { createModelRetryEvents } from './retryEvents'
@@ -52,6 +54,16 @@ export interface RetryFallback {
   replayRouteId?: string
   options?: FallbackCallOptions
   repairToolCall?: ToolCallRepairFunction<ToolSet>
+  /** Checked on every actual retry dispatch, even when resolution was cached. */
+  canDispatch?: (options: LanguageModelV3CallOptions) => Promise<boolean>
+  /**
+   * Cross-model fallback: replaces the request's stream error-serialization
+   * context while this fallback is active (`null` clears provider context, e.g.
+   * a non-Ollama fallback). Absent leaves the primary's context untouched.
+   */
+  streamErrorSerialization?: SerializeErrorContext | null
+  /** Applied while this fallback is active so compaction uses its effective window. */
+  prepareStep?: AgentLoopHooks['prepareStep']
 }
 
 /**
@@ -79,7 +91,7 @@ export interface CreateRetryableWrapOptions {
   /** Invoked when retry starts or settles (e.g. to reconcile a live UI status part). */
   onRetryEvent?: (event: RetryPartData) => void
   shouldRetryError?: (error: unknown) => boolean
-  /** Switches request-scoped helpers to the credential/model selected by a fallback. */
+  /** Switches request-scoped helpers immediately before a fallback is actually dispatched. */
   onFallbackActivated?: (fallback: RetryFallback) => void
   /** Restores request-scoped helpers when a new operation starts from the primary model. */
   onPrimaryActivated?: () => void
@@ -171,6 +183,22 @@ export function createRetryableWrap(options: CreateRetryableWrapOptions): WrapLa
         if (!(await canSwitchModel.evaluate(context))) return
         const fallback = await resolve()
         if (!fallback) return
+        // ai-retry merges each fallback against the operation's original call,
+        // not the previous fallback's overrides. The first attempt retains that
+        // exact prompt/reservation for this operation (including later tool turns).
+        const operationOptions = context.attempts[0]?.options ?? context.current.options
+        if (
+          fallback.canDispatch &&
+          !(await fallback.canDispatch({
+            ...operationOptions,
+            prompt: fallback.options?.prompt ?? operationOptions.prompt,
+            maxOutputTokens: fallback.options?.maxOutputTokens ?? operationOptions.maxOutputTokens
+          }))
+        ) {
+          return undefined
+        }
+        // Resolution is only a candidate: ai-retry may reject a runtime identity
+        // it already attempted. Helpers activate only when the accepted model runs.
         const model = withActivation(fallback.model, () => options.onFallbackActivated?.(fallback))
         return { model, options: fallback.options }
       })
@@ -234,6 +262,9 @@ export function createRetryableWrap(options: CreateRetryableWrapOptions): WrapLa
         const model = withActivation(candidate.fallback.model, () => {
           selectedCredential = candidate
           activeCredential = candidate
+          // A cached credential still serves the primary model. Restore its
+          // request context before applying optional credential overrides.
+          options.onPrimaryActivated?.()
           options.onFallbackActivated?.(candidate.fallback)
         })
         return sameModelRetries.length ? createRetryableModel({ model, retries: sameModelRetries, onRetry }) : model
