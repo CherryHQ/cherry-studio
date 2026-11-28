@@ -1095,7 +1095,7 @@ export class AiStreamManager extends BaseService {
      */
     allowEmptySuccess?: boolean
     replayProviderState?: boolean
-
+    retryOutputTokenLimit?: boolean
     /** Explicit reasoning selection; 'none' disables thinking when the model's wire profile supports off. */
     reasoningEffort?: ReasoningEffortOption
     serviceTier?: ServiceTierSelection
@@ -1132,7 +1132,7 @@ export class AiStreamManager extends BaseService {
       contextOwner: input.contextOwner,
       allowEmptySuccess: input.allowEmptySuccess,
       replayProviderState: input.replayProviderState,
-
+      retryOutputTokenLimit: input.retryOutputTokenLimit,
       reasoningEffort: input.reasoningEffort,
       serviceTier: input.serviceTier,
       fastMode: input.fastMode,

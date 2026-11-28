@@ -189,6 +189,7 @@ export function gatewayPromptOptions(
     // external clients even when Cherry's renderer has no card for them.
     allowEmptySuccess: true,
     ...(request.adapterOptions.captureReplay && { replayProviderState: true }),
+    ...(request.internal && request.agentSessionId && { retryOutputTokenLimit: true }),
     ...(usageContext ? { usageContext } : {}),
     ...(request.agentSessionId ? { tokenUsageSource: 'agent' as const } : {}),
     idleTimeoutMs,
