@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 import { render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ButtonHTMLAttributes, HTMLAttributes, ReactNode, TableHTMLAttributes, TdHTMLAttributes } from 'react'
 import { beforeAll, describe, expect, it, vi } from 'vitest'
 
@@ -244,5 +245,56 @@ describe('UsageEntriesTable', () => {
 
     expect(screen.getByText('MiniMax M3')).toBeInTheDocument()
     expect(screen.getByRole('table').parentElement).toHaveAttribute('aria-busy', 'true')
+  })
+
+  it('shows an error alert instead of empty state when loading entries fails', () => {
+    render(
+      <UsageEntriesTable
+        entries={[]}
+        entryTotal={0}
+        isLoading={false}
+        isRefreshing={false}
+        error={new Error('Entries unavailable')}
+        hasNextPage={false}
+        sortBy="createdAt"
+        sortOrder="desc"
+        onSort={vi.fn()}
+        onLoadNext={vi.fn()}
+        getProviderInfo={() => ({ id: 'minimax', name: 'MiniMax' })}
+        dateFormatter={formatter('Jul 28, 2026')}
+        timeFormatter={formatter('16:23')}
+      />
+    )
+
+    expect(screen.getByRole('alert')).toBeInTheDocument()
+    expect(screen.queryByText('暂无记录')).not.toBeInTheDocument()
+  })
+
+  it('displays the active chart filter and clears it on button click', async () => {
+    const user = userEvent.setup()
+    const onClearFilter = vi.fn()
+
+    render(
+      <UsageEntriesTable
+        entries={[]}
+        entryTotal={0}
+        isLoading={false}
+        isRefreshing={false}
+        hasNextPage={false}
+        sortBy="createdAt"
+        sortOrder="desc"
+        onSort={vi.fn()}
+        onLoadNext={vi.fn()}
+        getProviderInfo={() => ({ id: 'minimax', name: 'MiniMax' })}
+        dateFormatter={formatter('Jul 28, 2026')}
+        timeFormatter={formatter('16:23')}
+        activeFilterLabel="2026年7月28日 · MiniMax M3"
+        onClearFilter={onClearFilter}
+      />
+    )
+
+    expect(screen.getByText('2026年7月28日 · MiniMax M3')).toBeVisible()
+    await user.click(screen.getByRole('button', { name: '清除' }))
+    expect(onClearFilter).toHaveBeenCalledTimes(1)
   })
 })

@@ -523,6 +523,8 @@ const CodeViewer = ({
     overscan: 20,
     scrollMargin,
     enabled: !expanded || scrollParent !== null,
+    // Let code blocks sharing the message viewport commit in the same batch.
+    useFlushSync: !isViewportOwned(scrollParent),
     observeElementOffset: (instance, callback) => {
       const element = instance.scrollElement
       const onOffset = observeCodeViewportOffset(instance, callback)
@@ -904,7 +906,7 @@ const VirtualizedRow = memo(
 
     return (
       <div
-        className="line flex min-h-[var(--line-height)] w-full items-start leading-[var(--line-height)]"
+        className="line flex min-h-(--line-height) w-full items-start leading-[var(--line-height)]"
         style={{
           contain: wrapped ? 'content' : 'none',
           willChange: !wrapped && !expanded ? 'transform' : 'auto'

@@ -38,7 +38,7 @@ background subtrees are not. These effects are not application-wide cancellation
 
 ## Input and output
 
-Every Durable access provides `input.submit(input)`. Before command routing or input submission,
+A root handle exposes `input.submit`, `input.steer.submit` and a durable `input.followUp.submit`. A behavior-managed child exposes `input.steer.submit`. Before command routing or input submission,
 the desktop may call `durable.initializeContext(text)` to admit initial model-only reference
 history as a passive native write. The native request ID makes repeated initialization
 idempotent across reopening. It starts no model run and is excluded from product projections
@@ -52,8 +52,8 @@ the input is queued and after reopening. For a child command, the parent decisio
 the target child and the native request key in its transaction. That decision proves dispatch.
 The child submission proves admission. A lookup starts no execution.
 
-`whenBusy: 'steer'` delivers input at the next native input boundary. If the current
-run finishes normally before taking it, the input starts a subsequent run. `follow-up`
+`input.steer.submit` delivers input at the next native input boundary. If the current
+run finishes normally before taking it, the input starts a subsequent run. `input.followUp.submit`
 waits for the final boundary. Both policies start a run when the conversation is idle;
 normal completion does not discard accepted input. Explicit interruption still follows
 the native cancellation scope. Read captured input facts to distinguish
@@ -220,7 +220,7 @@ identity files, skill catalog entries and tool schemas expose individual estimat
 from tool registration, including codemode-only tools listed as deferred. Reads never rerender sections
 or reload files. These partial estimates are separate from native billable usage records.
 
-The runtime `durable.commit` facet shares the existing native mutation line; desktop fork operations retain the backend while using it. The thread `durable` facet exposes native configuration, compaction, behavior facts,
+The runtime `durable.commit` and `durable.observeCommits` facets share the existing native mutation line; desktop fork operations and deferred retired-desktop reclamation retain the backend while using them. The thread `durable` facet exposes native configuration, compaction, behavior facts,
 provider session identity and tool-call resolution for the desktop adapter. These stay
 outside the harness-neutral Runtime contract. `onInputPlaced(inputId, thread)` runs synchronously at
 native placement so the host reserves input attribution before the next model request; native-only

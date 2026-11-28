@@ -239,14 +239,14 @@ describe('retired DSH session migration', () => {
       const runtime = new AgentSessionRuntimeService()
       runtimeDriverRegistry.register(new PiRuntimeDriver())
       try {
-        await expect(runtime['commandConnection']('conversation')).rejects.toThrow()
+        await expect(runtime['ensureSessionConnection']('conversation')).rejects.toThrow()
         expect(getRetiredAgentSessionMigration(dbh.db, 'conversation')).toEqual(migration)
         expect(contexts).toEqual([])
 
         rmSync(sessions)
         mkdirSync(sessions)
         if (retry === 'dispatch') await ensureRetiredSessionHistory('conversation')
-        await runtime['commandConnection']('conversation')
+        await runtime['ensureSessionConnection']('conversation')
         await vi.waitFor(() => expect(contexts[0]).toContain('cherry-pi-928'))
         expect(runtime.inspect('conversation')?.resumeToken).toBe(migration.resumeToken)
         expect(getRetiredAgentSessionMigration(dbh.db, 'conversation')).toBeUndefined()

@@ -6,6 +6,7 @@ import { loggerService } from '@logger'
 import { isMcpCancellation } from '@main/ai/mcp/mcpAbort'
 import { chatErrorContext } from '@main/ai/utils/chatErrorContext'
 import { redactToShape } from '@main/ai/utils/redactToShape'
+import { stripIncompatibleSchemaPatterns } from '@main/ai/utils/toolSchema'
 import type { McpServer as McpServerEntity } from '@shared/data/types/mcpServer'
 import type { McpResource, McpTool } from '@shared/types/mcp'
 
@@ -42,6 +43,9 @@ function toSdkTool(tool: McpTool): Tool {
   // schema; advertising it to a v1 client would trigger its incompatible validator.
   const sdkTool: Tool = stripCatalogFields(tool)
   delete sdkTool.outputSchema
+  if (sdkTool.inputSchema && typeof sdkTool.inputSchema === 'object') {
+    sdkTool.inputSchema = stripIncompatibleSchemaPatterns(sdkTool.inputSchema)
+  }
   return sdkTool
 }
 

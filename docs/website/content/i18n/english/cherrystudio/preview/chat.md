@@ -192,7 +192,7 @@ Choose the syntax highlighting theme for code blocks (Dracula, GitHub, etc.).
 
 #### <mark style="color:blue;">**`Auto-collapse Thinking Content`**</mark>
 
-For models that support reasoning (like o1, Claude with extended thinking), automatically collapse the thinking process after completion to focus on the final answer.
+When a model starts reasoning, keep the full reasoning collapsed by default and show completed segments one at a time in the header. Click the header to expand the full reasoning.
 
 #### <mark style="color:blue;">**`Math Formula Engine`**</mark>
 

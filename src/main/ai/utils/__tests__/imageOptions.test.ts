@@ -42,4 +42,12 @@ describe('splitParamValues', () => {
     expect(splitParamValues({ aspectRatio: '1:1' }).structured).toEqual({ aspectRatio: '1:1' })
     expect(splitParamValues({ aspectRatio: 'weird' }).structured).toEqual({})
   })
+
+  it('normalizes pixel size separators to canonical WxH while preserving auto and resolution tiers', () => {
+    for (const raw of ['1536×1024', '1536*1024', '1536X1024', ' 1536 × 1024 ']) {
+      expect(splitParamValues({ size: raw }).structured.size).toBe('1536x1024')
+    }
+    expect(splitParamValues({ size: 'auto' }).structured.size).toBe('auto')
+    expect(splitParamValues({ size: '2K' }).structured.size).toBe('2K')
+  })
 })
