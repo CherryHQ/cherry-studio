@@ -23,7 +23,7 @@ export function prepareRpc(packageRoot, python = false) {
   const guest = python ? 'rpcGuest.py' : 'rpcGuest.mjs'
   cpSync(join(packageRoot, 'examples', guest), join(root, 'examples', guest))
   if (!python) {
-    cpSync(join(packageRoot, 'dist/src/rpc'), join(root, 'dist/src/rpc'), { recursive: true })
+    cpSync(join(packageRoot, 'dist'), join(root, 'dist'), { recursive: true })
     cpSync(join(packageRoot, 'package.json'), join(root, 'package.json'))
     mkdirSync(join(root, 'node_modules'))
     cpSync(realpathSync(join(packageRoot, 'node_modules/vscode-jsonrpc')), join(root, 'node_modules/vscode-jsonrpc'), {

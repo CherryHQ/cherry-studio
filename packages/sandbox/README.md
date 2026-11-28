@@ -21,6 +21,8 @@ Requires the repository's Node 24.21+ (24.x) and macOS 15+ or Windows 11.
 MXC officially supports Windows 11 24H2+; the local 23H2 test host is experimental
 and is identified as such in the probe. The npm SDK includes its native library; normal
 package builds do not require Rust or a self-written native supervisor.
+The tsdown build emits ESM library/CLI entries and declarations, plus a standalone
+CommonJS diagnostic guest with its dependencies bundled.
 
 ```sh
 pnpm install
@@ -163,7 +165,7 @@ pnpm --filter @cherrystudio/sandbox lab run -- $node -e 'process.stdout.write("h
 CLI `probe` returns the effective policy and limitations. `run` forwards streams
 through the same public instance, reports completion on stderr, and returns the
 command exit code. Limits return 124; unavailable/setup/I/O failures return 125;
-interruption returns 128+signal. Use `node packages/sandbox/dist/src/cli/lab.js`
+interruption returns 128+signal. Use `node packages/sandbox/dist/cli/lab.mjs`
 from the repository root to observe exact codes without pnpm's error wrapper.
 
 ## Host API and RPC

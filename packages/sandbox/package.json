@@ -9,27 +9,27 @@
   },
   "exports": {
     ".": {
-      "types": "./dist/src/host/SandboxManager.d.ts",
-      "default": "./dist/src/host/SandboxManager.js"
+      "types": "./dist/host/SandboxManager.d.mts",
+      "default": "./dist/host/SandboxManager.mjs"
     },
     "./types": {
-      "types": "./dist/src/types.d.ts",
-      "default": "./dist/src/types.js"
+      "types": "./dist/types.d.mts",
+      "default": "./dist/types.mjs"
     },
     "./rpc": {
-      "types": "./dist/src/rpc/peer.d.ts",
-      "default": "./dist/src/rpc/peer.js"
+      "types": "./dist/rpc/peer.d.mts",
+      "default": "./dist/rpc/peer.mjs"
     },
     "./diagnostics": {
-      "types": "./dist/src/diagnostics/run.d.ts",
-      "default": "./dist/src/diagnostics/run.js"
+      "types": "./dist/diagnostics/run.d.mts",
+      "default": "./dist/diagnostics/run.mjs"
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json && node scripts/buildGuest.mjs",
+    "build": "tsdown",
     "demo": "node examples/host.mjs",
     "demo:rpc": "node examples/rpcHost.mjs",
-    "lab": "node dist/src/cli/lab.js",
+    "lab": "node dist/cli/lab.mjs",
     "setup:windows": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepareWindows.ps1",
     "test": "pnpm build && vitest run --config vitest.config.ts",
     "test:acceptance": "pnpm build && vitest run --config vitest.acceptance.config.ts",
@@ -45,7 +45,7 @@
   },
   "devDependencies": {
     "@types/node": "24.10.4",
-    "esbuild": "^0.25.0",
+    "tsdown": "^0.22.14",
     "typescript": "5.9.3",
     "vitest": "^5.0.1"
   }

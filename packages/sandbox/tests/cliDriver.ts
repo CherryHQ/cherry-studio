@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 
-const cliPath = fileURLToPath(new URL('../dist/src/cli/lab.js', import.meta.url))
+const cliPath = fileURLToPath(new URL('../dist/cli/lab.mjs', import.meta.url))
 const exitTimeoutMs = 10000
 const drainTimeoutMs = 500
 const maxOutputBytes = 2 * 1024 * 1024

@@ -3,9 +3,9 @@ import { isAbsolute, parse } from 'node:path'
 import { pipeline } from 'node:stream/promises'
 import { parseArgs } from 'node:util'
 
-import { SandboxManager } from '@cherrystudio/sandbox'
 import type { SandboxSpec } from '@cherrystudio/sandbox/types'
 
+import { SandboxManager } from '../host/SandboxManager.js'
 import { completionExitCode } from './completionExitCode.js'
 
 const help = `Sandbox CLI — uses the package's public SandboxManager API.

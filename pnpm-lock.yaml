@@ -2855,9 +2855,9 @@ importers:
       '@types/node':
         specifier: 24.10.4
         version: 24.10.4
-      esbuild:
-        specifier: ^0.25.0
-        version: 0.25.12
+      tsdown:
+        specifier: ^0.22.14
+        version: 0.22.14(oxc-resolver@11.21.2)(tsx@4.21.0)(typescript@5.9.3)(unrun@0.2.27(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2))
       typescript:
         specifier: 5.9.3
         version: 5.9.3
