@@ -10,6 +10,7 @@ import type {
   MessageExportTarget,
   MessageExportView
 } from '@renderer/types/messageExport'
+import type { SaveImageOptions } from '@shared/types/file'
 
 type MessageExportActions = Pick<
   MessageListActions,
@@ -58,8 +59,8 @@ export function useMessageExportActions({
     return window.api.file.save(fileName, content)
   }, [])
 
-  const saveImage = useCallback((fileName: string, dataUrl: string) => {
-    return window.api.file.saveImage(fileName, dataUrl)
+  const saveImage = useCallback((fileName: string, dataUrl: string, options?: SaveImageOptions) => {
+    return window.api.file.saveImage(fileName, dataUrl, options)
   }, [])
 
   const exportToWord = useCallback(async (markdown: string, title: string) => {

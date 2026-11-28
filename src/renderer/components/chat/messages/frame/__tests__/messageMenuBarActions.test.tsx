@@ -11,6 +11,9 @@ import { COMPOSER_CLIPBOARD_FRAGMENT_MIME } from '@renderer/utils/message/compos
 
 const tooltipOpenValues = vi.hoisted(() => [] as Array<boolean | undefined>)
 const readMessageAloud = vi.hoisted(() => vi.fn())
+const captureMessageShareImage = vi.hoisted(() => vi.fn())
+
+vi.mock('../captureMessageShareImage', () => ({ captureMessageShareImage }))
 
 vi.mock('@cherrystudio/ui', async () => {
   return {
@@ -816,6 +819,66 @@ describe('messageMenuBarActions', () => {
 
     expect(saveImage).toHaveBeenCalledWith('__bold__ start_ a_b_', 'data:image/png;base64,AAAA')
     expect(releaseLease).toHaveBeenCalledTimes(1)
+  })
+
+  it('exports the completed assistant text with its math setting and a generic filename', async () => {
+    const saveImage = vi.fn(async () => true)
+    captureMessageShareImage.mockResolvedValueOnce('data:image/png;base64,AAAA')
+    const context = createActionContext({
+      actions: { saveImage },
+      mainTextContent: 'Share **this reply**.',
+      singleDollarMath: false,
+      menuConfig: {
+        ...defaultMessageMenuConfig,
+        exportMenuOptions: { ...defaultMessageMenuConfig.exportMenuOptions, image: true }
+      }
+    })
+
+    await expect(executeMessageMenuBarAction('export.share-image', context)).resolves.toBe(true)
+    expect(captureMessageShareImage).toHaveBeenLastCalledWith('Share **this reply**.', false, context.messageForExport)
+    expect(saveImage).toHaveBeenCalledWith('share-image', 'data:image/png;base64,AAAA', { rejectOnFailure: true })
+    expect(context.actions.notifySuccess).toHaveBeenCalledWith('chat.topics.export.image_saved')
+  })
+
+  it('reports a failed image write and stays silent when the user cancels', async () => {
+    const saveImage = vi.fn().mockRejectedValueOnce(new Error('Failed to save image')).mockResolvedValueOnce(false)
+    captureMessageShareImage.mockResolvedValueOnce('data:image/png;base64,AAAA')
+    const context = createActionContext({
+      actions: { saveImage },
+      menuConfig: {
+        ...defaultMessageMenuConfig,
+        exportMenuOptions: { ...defaultMessageMenuConfig.exportMenuOptions, image: true }
+      }
+    })
+
+    await executeMessageMenuBarAction('export.share-image', context)
+    expect(context.actions.notifyError).toHaveBeenCalledExactlyOnceWith('common.save_failed')
+    expect(context.actions.notifySuccess).not.toHaveBeenCalled()
+
+    vi.mocked(context.actions.notifyError!).mockClear()
+    captureMessageShareImage.mockResolvedValueOnce('data:image/png;base64,AAAA')
+    await executeMessageMenuBarAction('export.share-image', context)
+    expect(context.actions.notifyError).not.toHaveBeenCalled()
+    expect(context.actions.notifySuccess).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    { role: 'user', status: 'success', text: 'A question' },
+    { role: 'assistant', status: 'pending', text: 'Partial response' },
+    { role: 'assistant', status: 'success', text: '  ' }
+  ] as const)('filters share export for $role / $status / "$text"', async ({ role, status, text }) => {
+    const saveImage = vi.fn(async () => true)
+    const context = createActionContext()
+    context.actions.saveImage = saveImage
+    context.message = { ...context.message, role, status }
+    context.mainTextContent = text
+    context.menuConfig = {
+      ...defaultMessageMenuConfig,
+      exportMenuOptions: { ...defaultMessageMenuConfig.exportMenuOptions, image: true }
+    }
+
+    await expect(executeMessageMenuBarAction('export.share-image', context)).resolves.toBe(false)
+    expect(saveImage).not.toHaveBeenCalled()
   })
 
   it('copies user composer tokens through rich clipboard when available', async () => {

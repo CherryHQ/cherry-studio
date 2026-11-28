@@ -257,6 +257,24 @@ describe('FileStorage', () => {
       vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: true, filePath: undefined } as never)
 
       await expect(fileStorage.saveImage(event, 'pic', 'data:image/png;base64,AAAA')).resolves.toBe(false)
+      await expect(
+        fileStorage.saveImage(event, 'pic', 'data:image/png;base64,AAAA', { rejectOnFailure: true })
+      ).resolves.toBe(false)
+    })
+
+    it('can surface a filesystem write failure separately from cancellation', async () => {
+      const tmpDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'failed-image-'))
+      const filePath = path.join(tmpDir, 'missing', 'pic.png')
+      vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: false, filePath })
+
+      try {
+        await expect(
+          fileStorage.saveImage(event, 'pic', 'data:image/png;base64,AAAA', { rejectOnFailure: true })
+        ).rejects.toThrow(/^Failed to save image$/)
+        await expect(fileStorage.saveImage(event, 'pic', 'data:image/png;base64,AAAA')).resolves.toBe(false)
+      } finally {
+        await fs.promises.rmdir(tmpDir)
+      }
     })
 
     it('decodes the base64 payload to disk and returns true on confirm', async () => {

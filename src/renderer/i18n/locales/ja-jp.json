@@ -1232,6 +1232,7 @@
   "chat.topics.export.obsidian_title_required": "タイトルは空白にできません",
   "chat.topics.export.obsidian_vault": "保管庫",
   "chat.topics.export.obsidian_vault_placeholder": "保管庫名を選択してください",
+  "chat.topics.export.share_image": "共有用画像をエクスポート",
   "chat.topics.export.siyuan": "思源笔记にエクスポート",
   "chat.topics.export.title": "エクスポート",
   "chat.topics.export.title_naming_failed": "タイトルの生成に失敗しました。デフォルトのタイトルを使用します",

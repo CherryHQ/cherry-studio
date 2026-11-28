@@ -31,7 +31,7 @@ import { getFileType } from '@main/utils/file'
 import { extractLegacyDocText } from '@main/utils/legacyDoc'
 import { checkName, getName, readTextFileWithAutoEncoding, sanitizeFilename } from '@main/utils/legacyFile'
 import type { FileMetadata } from '@shared/data/types/legacyFile'
-import type { AbsoluteFilePath } from '@shared/types/file'
+import type { AbsoluteFilePath, SaveImageOptions } from '@shared/types/file'
 import { parseDataUrl } from '@shared/utils/dataUrl'
 import { documentExts } from '@shared/utils/file'
 
@@ -493,7 +493,12 @@ class FileStorage {
     }
   }
 
-  public saveImage = async (event: Electron.IpcMainInvokeEvent, name: string, data: string): Promise<boolean> => {
+  public saveImage = async (
+    event: Electron.IpcMainInvokeEvent,
+    name: string,
+    data: string,
+    options?: SaveImageOptions
+  ): Promise<boolean> => {
     try {
       const dialogOptions: SaveDialogOptions = {
         defaultPath: `${name}.png`,
@@ -512,6 +517,9 @@ class FileStorage {
       }
     } catch (error) {
       logger.error('[IPC - Error] An error occurred saving the image:', error as Error)
+      if (options?.rejectOnFailure === true) {
+        throw new Error('Failed to save image')
+      }
     }
     return false
   }

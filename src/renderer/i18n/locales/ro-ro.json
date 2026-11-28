@@ -1234,6 +1234,7 @@
   "chat.topics.export.obsidian_title_required": "Titlul nu poate fi gol",
   "chat.topics.export.obsidian_vault": "Seif",
   "chat.topics.export.obsidian_vault_placeholder": "Te rugăm să selectezi numele seifului",
+  "chat.topics.export.share_image": "Exportă imaginea pentru distribuire",
   "chat.topics.export.siyuan": "Exportă în Siyuan Note",
   "chat.topics.export.title": "Exportă",
   "chat.topics.export.title_naming_failed": "Nu s-a putut genera titlul, se folosește titlul implicit",

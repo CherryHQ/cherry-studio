@@ -64,6 +64,7 @@ export interface MessageMenuBarActionContext {
   acquireMessageCaptureLease?: (messageId: string) => () => void
   getRenderedMessageElement?: (messageId: string) => HTMLElement | null
   mainTextContent: string
+  singleDollarMath?: boolean
   selection?: MessageListSelectionState
   menuConfig: MessageMenuConfig
   copied: boolean
@@ -365,6 +366,25 @@ registerCommand('message.exportImage', async (context) => {
   })
 })
 
+registerCommand(
+  'message.exportShareImage',
+  async ({ actions, mainTextContent, singleDollarMath, messageForExport, t }) => {
+    const { captureMessageShareImage } = await import('./captureMessageShareImage')
+    const imageData = await captureMessageShareImage(mainTextContent, singleDollarMath ?? true, messageForExport)
+    if (!imageData) {
+      actions.notifyError?.(t('message.error.unknown'))
+      return
+    }
+    try {
+      if (await actions.saveImage?.('share-image', imageData, { rejectOnFailure: true })) {
+        actions.notifySuccess?.(t('chat.topics.export.image_saved'))
+      }
+    } catch {
+      actions.notifyError?.(t('common.save_failed'))
+    }
+  }
+)
+
 registerCommand('message.exportMarkdown', async ({ actions, messageForExport }) => {
   await actions.exportMessageAsMarkdown?.(messageForExport)
 })
@@ -649,6 +669,19 @@ registerAction({
       group: 'file',
       order: 10,
       availability: ({ actions, menuConfig }) => menuConfig.exportMenuOptions.image && !!actions.saveImage
+    },
+    {
+      id: 'export.share-image',
+      commandId: 'message.exportShareImage',
+      label: ({ t }) => t('chat.topics.export.share_image'),
+      group: 'file',
+      order: 15,
+      availability: ({ actions, menuConfig, message, mainTextContent }) =>
+        menuConfig.exportMenuOptions.image &&
+        !!actions.saveImage &&
+        message.role === 'assistant' &&
+        message.status === 'success' &&
+        !!mainTextContent.trim()
     },
     ...messageExportTargets.map(({ target, commandId, labelKey, group, option, action }, index) => ({
       id: `export.${target}`,

@@ -91,6 +91,20 @@ describe('citation', () => {
       expect(result).toContain('1</sup>](https://example.com)')
     })
 
+    it('keeps legacy citation tooltips for URLs with backticks and preserves literal code', () => {
+      const url = 'https://example.test/a`b`c'
+      const marker = `[<sup>1</sup>](${url})`
+      const code = ['```md', marker, '```'].join('\n')
+
+      const result = withCitationTags(
+        `Claim ${marker}\n\n${code}`,
+        [{ number: 1, url, title: 'Example' }],
+        WEB_SEARCH_SOURCE.OPENAI
+      )
+
+      expect(result).toBe(`Claim [<sup data-citation='1'>1</sup>](${url})\n\n${code}`)
+    })
+
     it('should process citations with Gemini source type', () => {
       const content = 'Test content from Gemini'
       const metadata: GroundingSupport[] = [

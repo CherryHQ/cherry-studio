@@ -1232,6 +1232,7 @@
   "chat.topics.export.obsidian_title_required": "Titel darf nicht leer sein",
   "chat.topics.export.obsidian_vault": "Tresor",
   "chat.topics.export.obsidian_vault_placeholder": "Bitte Tresorname auswählen",
+  "chat.topics.export.share_image": "Bild zum Teilen exportieren",
   "chat.topics.export.siyuan": "Nach SiYuan-Notizen exportieren",
   "chat.topics.export.title": "Exportieren",
   "chat.topics.export.title_naming_failed": "Titelgenerierung fehlgeschlagen, verwende Standardtitel",

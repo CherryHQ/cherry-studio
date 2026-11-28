@@ -1250,6 +1250,7 @@
   "chat.topics.export.obsidian_title_required": "Заголовок не может быть пустым",
   "chat.topics.export.obsidian_vault": "Хранилище",
   "chat.topics.export.obsidian_vault_placeholder": "Выберите имя хранилища",
+  "chat.topics.export.share_image": "Экспортировать изображение для публикации",
   "chat.topics.export.siyuan": "Экспорт в Siyuan Note",
   "chat.topics.export.title": "Экспорт",
   "chat.topics.export.title_naming_failed": "Не удалось создать заголовок, используется заголовок по умолчанию",

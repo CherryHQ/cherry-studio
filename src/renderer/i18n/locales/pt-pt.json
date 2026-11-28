@@ -1232,6 +1232,7 @@
   "chat.topics.export.obsidian_title_required": "O título não pode estar vazio",
   "chat.topics.export.obsidian_vault": "Cofre",
   "chat.topics.export.obsidian_vault_placeholder": "Selecione o nome do cofre",
+  "chat.topics.export.share_image": "Exportar imagem para partilhar",
   "chat.topics.export.siyuan": "Exportar para a nota Siyuan",
   "chat.topics.export.title": "Exportar",
   "chat.topics.export.title_naming_failed": "Falha ao gerar título; será utilizado o título predefinido",

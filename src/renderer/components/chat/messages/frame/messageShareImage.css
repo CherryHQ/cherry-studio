@@ -1,0 +1,43 @@
+/* The exported paper uses the same palette in either app theme. */
+.message-share-image {
+  color-scheme: light;
+  --message-share-background: var(--cs-slate-100);
+  --background: var(--cs-white);
+  --foreground: var(--cs-slate-900);
+  --foreground-tertiary: var(--cs-slate-600);
+  --muted: var(--cs-neutral-100);
+  --muted-foreground: var(--cs-slate-600);
+  --border: var(--cs-slate-200);
+  --border-subtle: var(--cs-slate-200);
+  --link: var(--cs-blue-700);
+  --code-block: var(--cs-neutral-100);
+  --inline-code: var(--cs-neutral-100);
+  --inline-code-foreground: var(--cs-slate-800);
+  background: var(--message-share-background);
+  color: var(--foreground);
+}
+
+.message-share-image .markdown {
+  --markdown-content-background: var(--muted);
+  font-size: 0.9375rem;
+  line-height: 1.75;
+  overflow-wrap: anywhere;
+}
+
+.message-share-image .markdown h2:first-child {
+  margin-top: 0;
+}
+
+.message-share-image .markdown pre,
+.message-share-image .markdown pre span {
+  white-space: pre-wrap;
+}
+
+.message-share-image .table-scroll-viewport,
+.message-share-image .katex-display {
+  overflow: visible;
+}
+
+.message-share-image button {
+  display: none;
+}

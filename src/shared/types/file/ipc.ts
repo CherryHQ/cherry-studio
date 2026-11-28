@@ -68,6 +68,10 @@ export interface ReadResult<T> {
   version: FileVersion
 }
 
+export interface SaveImageOptions {
+  rejectOnFailure?: boolean
+}
+
 // ─── IPC Params ───
 
 /**

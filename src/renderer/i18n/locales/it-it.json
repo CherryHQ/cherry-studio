@@ -1232,6 +1232,7 @@
   "chat.topics.export.obsidian_title_required": "Il titolo non può essere vuoto",
   "chat.topics.export.obsidian_vault": "Archivio",
   "chat.topics.export.obsidian_vault_placeholder": "Seleziona il nome dell'archivio",
+  "chat.topics.export.share_image": "Esporta immagine da condividere",
   "chat.topics.export.siyuan": "Esporta in Siyuan Note",
   "chat.topics.export.title": "Esporta",
   "chat.topics.export.title_naming_failed": "Impossibile generare il titolo. Verrà usato quello predefinito",

@@ -27,7 +27,8 @@ export {
   type FileFilter,
   type FileIpcApi,
   type GetPhysicalPathIpcParams,
-  type ReadResult
+  type ReadResult,
+  type SaveImageOptions
 } from './ipc'
 export { type EntryCleanupSummary, type OrphanReport, type OrphanReportCounts } from './sweep'
 

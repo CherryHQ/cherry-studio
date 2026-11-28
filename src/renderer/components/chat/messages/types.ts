@@ -33,7 +33,7 @@ import type {
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { TranslateLanguage } from '@shared/data/types/translate'
 import type { OutputFor } from '@shared/ipc/types'
-import type { FileUrlString } from '@shared/types/file'
+import type { FileUrlString, SaveImageOptions } from '@shared/types/file'
 
 import type { ActionAvailabilityInput } from '../actions/actionTypes'
 
@@ -417,7 +417,7 @@ export interface MessageListActions {
   startNewContext?: () => void
   saveCodeBlock?: (data: { msgBlockId: string; originalContent: string; newContent: string }) => void | Promise<void>
   saveTextFile?: (fileName: string, content: string) => string | null | void | Promise<string | null | void>
-  saveImage?: (fileName: string, dataUrl: string) => boolean | Promise<boolean>
+  saveImage?: (fileName: string, dataUrl: string, options?: SaveImageOptions) => boolean | Promise<boolean>
   saveToKnowledge?: (message: MessageExportView) => void | Promise<void>
   exportMessageAsMarkdown?: (message: MessageExportView, includeReasoning?: boolean) => void | Promise<void>
   exportToNotes?: (message: MessageExportView) => void | Promise<void>
