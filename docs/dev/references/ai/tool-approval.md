@@ -205,8 +205,12 @@ sandbox; today only Cherry Support declares one, and it is empty. Before each su
 built, `checkClaudeCodeSandboxAvailability` runs the bundled CLI's `claude sandbox status` with a
 throwaway config directory and treats the sandbox as available only for `statusVersion` 3,
 `supported` and `enabled` true and a null `unavailableReason`; native Windows is never asked.
+On Linux it then runs `bwrap --unshare-user … unshare --user --map-root-user true`, because the
+CLI's seccomp helper nests a user namespace that `status` does not try and that Ubuntu's stock
+`bwrap-userns-restrict` AppArmor profile forbids (anthropics/claude-code#43454).
 `resolveSandboxPolicy` merges the overlay into the base policy only when the sandbox is available,
-so a machine without one (Linux without bubblewrap or socat, native Windows) keeps the per-call
+so a machine without one (Linux without bubblewrap or socat, Ubuntu with that profile loaded,
+native Windows) keeps the per-call
 shell approval and the reason is logged. The Claude Code adapter turns the policy into the SDK `sandbox`
 option: writes stay in the workspace, Agent data and temp directories, the network allowlist is
 strict and empty, and sandboxed Bash runs without a card.

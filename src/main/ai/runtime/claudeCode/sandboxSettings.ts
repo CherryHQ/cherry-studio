@@ -9,7 +9,7 @@ import { application } from '@application'
 import type { OperationResult } from '@cherrystudio/agent-runtime'
 import type { ClaudeLoadedSettings } from '@cherrystudio/agent-runtime-claude-code'
 import type { SandboxPolicy } from '@main/ai/toolApproval/sandboxPolicy'
-import { isWin } from '@main/core/platform'
+import { isLinux, isWin } from '@main/core/platform'
 import { t } from '@main/i18n'
 
 const execFileAsync = promisify(execFile)
@@ -40,7 +40,8 @@ export function toClaudeCodeSandboxSettings(policy: SandboxPolicy): SandboxSetti
 
 /**
  * Asks the Claude Code CLI whether its sandbox can run on this machine, through `claude sandbox status`
- * with a throwaway config directory. Native Windows is not enabled yet, so it is never asked.
+ * with a throwaway config directory, and on Linux also tries the nested user namespace the CLI needs.
+ * Native Windows is not enabled yet, so it is never asked.
  */
 export async function checkClaudeCodeSandboxAvailability(
   cliPath: string,
@@ -54,11 +55,36 @@ export async function checkClaudeCodeSandboxAvailability(
       env: { ...env, CLAUDE_CONFIG_DIR: configDir },
       timeout: SANDBOX_STATUS_TIMEOUT_MS
     })
-    return parseSandboxStatus(stdout)
+    const availability = parseSandboxStatus(stdout)
+    if (!availability.available || !isLinux) return availability
   } catch (error) {
     return { available: false, reason: `claude sandbox status failed: ${(error as Error).message}` }
   } finally {
     await rm(configDir, { recursive: true, force: true })
+  }
+  return checkNestedUserNamespace(env)
+}
+
+// The CLI's seccomp helper nests a user namespace inside bubblewrap, which `status` does not try;
+// Ubuntu's stock `bwrap-userns-restrict` AppArmor profile forbids it (anthropics/claude-code#43454).
+async function checkNestedUserNamespace(
+  env: Record<string, string | undefined>
+): Promise<ClaudeCodeSandboxAvailability> {
+  try {
+    await execFileAsync(
+      'bwrap',
+      ['--unshare-user', '--dev-bind', '/', '/', 'unshare', '--user', '--map-root-user', 'true'],
+      {
+        env,
+        timeout: SANDBOX_STATUS_TIMEOUT_MS
+      }
+    )
+    return { available: true }
+  } catch (error) {
+    return {
+      available: false,
+      reason: `bubblewrap cannot nest the user namespace the CLI's seccomp helper needs (anthropics/claude-code#43454): ${(error as Error).message}`
+    }
   }
 }
 

@@ -15,11 +15,14 @@ import {
   toClaudeCodeSandboxSettings
 } from '../sandboxSettings'
 
-const mocks = vi.hoisted(() => ({ isWin: false }))
+const mocks = vi.hoisted(() => ({ isWin: false, isLinux: false }))
 
 vi.mock('@main/core/platform', () => ({
   get isWin() {
     return mocks.isWin
+  },
+  get isLinux() {
+    return mocks.isLinux
   }
 }))
 
@@ -27,6 +30,7 @@ const home = '/Users/probe'
 
 beforeEach(() => {
   mocks.isWin = false
+  mocks.isLinux = false
 })
 
 function settingsFor(overlay: SandboxOverlay) {
@@ -49,6 +53,7 @@ describe('checkClaudeCodeSandboxAvailability', () => {
   let root: string
   let cli: string
   let record: string
+  let bwrapRecord: string
   const status = (fields: Record<string, unknown> = {}) =>
     JSON.stringify({ statusVersion: 3, supported: true, enabled: true, unavailableReason: null, ...fields })
 
@@ -70,6 +75,20 @@ describe('checkClaudeCodeSandboxAvailability', () => {
       ].join('\n')
     )
     await chmod(cli, 0o755)
+    bwrapRecord = path.join(root, 'bwrap-record.json')
+    await mkdir(path.join(root, 'bin'))
+    await writeFile(
+      path.join(root, 'bin', 'bwrap'),
+      [
+        '#!/usr/bin/env node',
+        "require('fs').writeFileSync(process.env.FAKE_BWRAP_RECORD, JSON.stringify(process.argv.slice(2)))",
+        "if (process.env.FAKE_BWRAP === 'deny') {",
+        "  process.stderr.write('unshare: write failed /proc/self/uid_map: Operation not permitted\\n')",
+        '  process.exit(1)',
+        '}'
+      ].join('\n')
+    )
+    await chmod(path.join(root, 'bin', 'bwrap'), 0o755)
     vi.mocked(application.getPath).mockImplementation((key: string, filename?: string) =>
       key === 'feature.agents.claude.sandbox_status.temp' ? path.join(root, 'status', filename ?? '') : `/mock/${key}`
     )
@@ -77,6 +96,7 @@ describe('checkClaudeCodeSandboxAvailability', () => {
 
   beforeEach(async () => {
     await rm(record, { force: true })
+    await rm(bwrapRecord, { force: true })
   })
 
   afterAll(async () => {
@@ -84,7 +104,12 @@ describe('checkClaudeCodeSandboxAvailability', () => {
   })
 
   const run = (env: Record<string, string>) =>
-    checkClaudeCodeSandboxAvailability(cli, { PATH: process.env.PATH, FAKE_RECORD: record, ...env })
+    checkClaudeCodeSandboxAvailability(cli, {
+      PATH: `${path.join(root, 'bin')}${path.delimiter}${process.env.PATH}`,
+      FAKE_RECORD: record,
+      FAKE_BWRAP_RECORD: bwrapRecord,
+      ...env
+    })
 
   it('reports the sandbox available only from a throwaway config directory that enables it (AC7)', async () => {
     const userConfig = path.join(root, 'user-config')
@@ -122,6 +147,42 @@ describe('checkClaudeCodeSandboxAvailability', () => {
 
     await expect(run({ FAKE_MODE: 'hang' })).resolves.toMatchObject({ available: false })
     expect(Date.now() - started).toBeLessThan(10_000)
+  })
+
+  it('on Linux, reports the sandbox available only when bubblewrap can nest a user namespace (AC8)', async () => {
+    mocks.isLinux = true
+
+    await expect(run({ FAKE_OUTPUT: status() })).resolves.toEqual({ available: true })
+    expect(JSON.parse(await readFile(bwrapRecord, 'utf8'))).toEqual([
+      '--unshare-user',
+      '--dev-bind',
+      '/',
+      '/',
+      'unshare',
+      '--user',
+      '--map-root-user',
+      'true'
+    ])
+  })
+
+  it('on Linux, reports the sandbox unavailable when the nested user namespace is refused (AC8)', async () => {
+    mocks.isLinux = true
+
+    const result = await run({ FAKE_OUTPUT: status(), FAKE_BWRAP: 'deny' })
+
+    expect(result.available).toBe(false)
+    expect(result.available === false && result.reason).toContain('anthropics/claude-code#43454')
+    expect(result.available === false && result.reason).toContain('uid_map: Operation not permitted')
+  })
+
+  it('skips the nested user namespace trial when the CLI already reports the sandbox unavailable', async () => {
+    mocks.isLinux = true
+
+    await expect(run({ FAKE_OUTPUT: status({ unavailableReason: 'socat not installed' }) })).resolves.toEqual({
+      available: false,
+      reason: 'socat not installed'
+    })
+    await expect(readFile(bwrapRecord)).rejects.toThrow()
   })
 
   it('never asks the CLI on native Windows (AC5)', async () => {
