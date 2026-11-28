@@ -1,0 +1,52 @@
+{
+  "name": "@cherrystudio/sandbox",
+  "version": "0.0.1",
+  "private": true,
+  "description": "MXC-backed process sandbox and bidirectional RPC for Cherry Studio",
+  "type": "module",
+  "imports": {
+    "#diagnostic-guest": "./dist/diagnosticGuest.cjs"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/host/SandboxManager.d.mts",
+      "default": "./dist/host/SandboxManager.mjs"
+    },
+    "./types": {
+      "types": "./dist/types.d.mts",
+      "default": "./dist/types.mjs"
+    },
+    "./rpc": {
+      "types": "./dist/rpc/peer.d.mts",
+      "default": "./dist/rpc/peer.mjs"
+    },
+    "./diagnostics": {
+      "types": "./dist/diagnostics/run.d.mts",
+      "default": "./dist/diagnostics/run.mjs"
+    }
+  },
+  "scripts": {
+    "build": "tsdown",
+    "demo": "node examples/host.mjs",
+    "demo:rpc": "node examples/rpcHost.mjs",
+    "lab": "node dist/cli/lab.mjs",
+    "setup:windows": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepareWindows.ps1",
+    "test": "pnpm build && vitest run --config vitest.config.ts",
+    "test:acceptance": "pnpm build && vitest run --config vitest.acceptance.config.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@microsoft/mxc-sdk": "1.1.0",
+    "http-proxy-agent": "^7.0.2",
+    "https-proxy-agent": "^7.0.6",
+    "ipaddr.js": "^2.5.0",
+    "proxy-chain": "^3.0.1",
+    "vscode-jsonrpc": "9.0.3"
+  },
+  "devDependencies": {
+    "@types/node": "24.10.4",
+    "tsdown": "^0.22.14",
+    "typescript": "5.9.3",
+    "vitest": "^5.0.1"
+  }
+}

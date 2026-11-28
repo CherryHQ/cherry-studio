@@ -286,7 +286,7 @@ describe('Pi reasoning selection SDK contract', () => {
   })
 
   it.each(['max', undefined] as const)(
-    'resumes high history with explicit %s precedence while preserving historical bookkeeping',
+    'persists explicit %s precedence across resumes without overwriting high history',
     async (selection) => {
       const directory = await mkdtemp(path.join(tmpdir(), 'cherry-pi-thinking-resume-'))
       directories.push(directory)
@@ -304,10 +304,19 @@ describe('Pi reasoning selection SDK contract', () => {
         expect(resumed.session.thinkingLevel).toBe(selection ?? 'high')
         expect(resumed.efforts).toEqual([selection ?? 'high'])
         expect(resumed.manager.getBranch().slice(0, originalHistory.length)).toEqual(originalHistory)
-        const reopened = SessionManager.open(manager.getSessionFile()!, directory, directory)
-        expect(reopened.buildSessionContext().thinkingLevel).toBe(selection ?? 'high')
       } finally {
         resumed.session.dispose()
+      }
+      const reopened = await createThinkingSession(
+        undefined,
+        SessionManager.open(manager.getSessionFile()!, directory, directory)
+      )
+      try {
+        expect(reopened.session.thinkingLevel).toBe(selection ?? 'high')
+        await reopened.session.prompt('continue after reopening')
+        expect(reopened.efforts).toEqual([selection ?? 'high'])
+      } finally {
+        reopened.session.dispose()
       }
     }
   )

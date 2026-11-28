@@ -247,7 +247,7 @@ overrides:
   '@ai-sdk/anthropic': 3.0.125
   ai: 6.0.185
 
-packageExtensionsChecksum: sha256-Id50b6itL1DWUnePZswSWeCJo6dI4ZPzS98UcLvreOc=
+packageExtensionsChecksum: sha256-82np64YRAhWMC98xk6Dadcn+NXabVge2AHaHXcu84J4=
 
 patchedDependencies:
   '@ai-sdk/amazon-bedrock@4.0.96': 7f2fa5c38067d9e6a9f575a279b30ca54ee5bfc4984d97ad2f13a7c2662d85ee
@@ -320,6 +320,9 @@ importers:
       '@cherrystudio/mlx-tts':
         specifier: github:CherryHQ/mlx-node#f4c21043f557965345b527bc04179ad26d08378f&path:distribution/tts
         version: https://codeload.github.com/CherryHQ/mlx-node/tar.gz/f4c21043f557965345b527bc04179ad26d08378f#path:distribution/tts
+      '@cherrystudio/sandbox':
+        specifier: workspace:*
+        version: link:packages/sandbox
       '@cursor/sdk':
         specifier: 1.5.0
         version: 1.5.0(zod@4.6.6)
@@ -2828,6 +2831,40 @@ importers:
         specifier: ^8.18.3
         version: 8.21.3
 
+  packages/sandbox:
+    dependencies:
+      '@microsoft/mxc-sdk':
+        specifier: 1.1.0
+        version: 1.1.0
+      http-proxy-agent:
+        specifier: ^7.0.2
+        version: 7.0.2(supports-color@10.2.2)
+      https-proxy-agent:
+        specifier: ^7.0.6
+        version: 7.0.6(supports-color@10.2.2)
+      ipaddr.js:
+        specifier: ^2.5.0
+        version: 2.5.0
+      proxy-chain:
+        specifier: ^3.0.1
+        version: 3.0.3(supports-color@10.2.2)
+      vscode-jsonrpc:
+        specifier: 9.0.3
+        version: 9.0.3
+    devDependencies:
+      '@types/node':
+        specifier: 24.10.4
+        version: 24.10.4
+      tsdown:
+        specifier: ^0.22.14
+        version: 0.22.14(oxc-resolver@11.21.2)(tsx@4.21.0)(typescript@5.9.3)(unrun@0.2.27(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2))
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^5.0.1
+        version: 5.0.1(@opentelemetry/api@1.9.1)(@types/node@24.10.4)(@vitest/coverage-v8@5.0.1)(@vitest/ui@5.0.1)(jsdom@26.1.0(supports-color@10.2.2))(msw@2.12.7(@types/node@24.10.4)(typescript@5.9.3))(vite@8.2.2(@types/node@24.10.4)(esbuild@0.25.12)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.8.2))
+
   packages/ui:
     dependencies:
       '@codemirror/commands':
@@ -5164,6 +5201,106 @@ packages:
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
 
+  '@koromix/koffi-android-arm64@3.3.8':
+    resolution: {integrity: sha512-Y0lt2JexRGXlg1PxFuegfi5p6bIcLMj7Mig0WapZRKEM3Yv2L9J3Ej4XHPYMsB0TRNttBRHiliaJOH6EedEIXg==}
+    cpu: [arm64]
+    os: [android]
+
+  '@koromix/koffi-android-x64@3.3.8':
+    resolution: {integrity: sha512-ZOwUZJoQ7Xd0rRF85Qc5XyIBjZPKGNLNgoTFakWdxn55AoZ6zdGEYvOXQMIN8JLjQ6qYUiQMtlFlusddZr+pjA==}
+    cpu: [x64]
+    os: [android]
+
+  '@koromix/koffi-darwin-arm64@3.3.8':
+    resolution: {integrity: sha512-7tzlnYSePCQW66iEIi+wgN9HgTiF431KL9wIDhH9b+32KOYZXBdA+JyDgRVi2E5AIyJ1hdkQFNg7YCAOft2mKw==}
+    cpu: [arm64]
+    os: [darwin]
+
+  '@koromix/koffi-darwin-x64@3.3.8':
+    resolution: {integrity: sha512-Pw1EsCT9Yov4Szo4joLhABbQfqNgYhwfkhWZiIbEZ2b3sGyv9Yj2N0p00jOpdTfQ+u9QFFi8XhNivJbBTqMTPA==}
+    cpu: [x64]
+    os: [darwin]
+
+  '@koromix/koffi-freebsd-arm64@3.3.8':
+    resolution: {integrity: sha512-bpkvHfxUn5EqaHQO9k42lqO8+5t9aF8McgJyOsXx+vd/xicA0Zc0vP2kz0MjQu760ZdsR3WI4VFiNh2xHRP6Lw==}
+    cpu: [arm64]
+    os: [freebsd]
+
+  '@koromix/koffi-freebsd-ia32@3.3.8':
+    resolution: {integrity: sha512-h2WI3Ofb+TioTqWDTMXPgtZ2LAghY2CPwZwMM3mZeGAzKygo9RxZ4PRGq8bvrdvinR4VN9ZK+H48m9GV3/u3mQ==}
+    cpu: [ia32]
+    os: [freebsd]
+
+  '@koromix/koffi-freebsd-x64@3.3.8':
+    resolution: {integrity: sha512-Z1VAr2CfWaHYfqJ1UlbZBH2IcPqZHilBSCgSqDmVhmyN/tSz5kSjaRfxcBGloJted3CCvsNFg8lOJiKkPiAUNQ==}
+    cpu: [x64]
+    os: [freebsd]
+
+  '@koromix/koffi-linux-arm64@3.3.8':
+    resolution: {integrity: sha512-7yknlwsy7X76+Qy7leuI+RTQfYHX1W8Uv+CFpyiMsdLnpaSCpNJDIpCr6/qnQzpLx93mRncB+VBBD2PB/IMX8g==}
+    cpu: [arm64]
+    os: [linux]
+
+  '@koromix/koffi-linux-arm@3.3.8':
+    resolution: {integrity: sha512-9c9IfIz5sFpzbuwV2HomSBWOakpbd9tJ3FChmE556KdPzw9iXrJoMT5JyzPnUe10Soag2NK6SMKrDafOsR6J2A==}
+    cpu: [arm]
+    os: [linux]
+
+  '@koromix/koffi-linux-ia32@3.3.8':
+    resolution: {integrity: sha512-/AqDOcvQzeSDnwDsdqfJP2LjBgCX6CJZwSuYJc+YZCFFtUvsIDq9sRfSvyDy6xTC3HTkJKaT1SrrlE6Ji1aZCA==}
+    cpu: [ia32]
+    os: [linux]
+
+  '@koromix/koffi-linux-loong64@3.3.8':
+    resolution: {integrity: sha512-XgqxynMlKdcPZ5Hu0EyhFqfvEMcqm1RzLj8vbhRTtwV/GhrAMoToExzcF5uHXqiVL/EsWE1V/BmdrCfjlUsqtA==}
+    cpu: [loong64]
+    os: [linux]
+
+  '@koromix/koffi-linux-ppc64@3.3.8':
+    resolution: {integrity: sha512-nzoG1pIu00cdwbMmQ+U4Tr1Xaej1L/XP39wG0nQMviDf/7tlZeM8i/yD1ggNHeSYao/CHcaJr0eW5IjmkfO10Q==}
+    cpu: [ppc64]
+    os: [linux]
+
+  '@koromix/koffi-linux-riscv64@3.3.8':
+    resolution: {integrity: sha512-i6CtjaydMXmhvUPz5gCCodgCBCQOA27Cs0mCTcodHzaJCmICqlmGr0y7ManHIeqTxzrDNIJERa0BFNBpoPpe4A==}
+    cpu: [riscv64]
+    os: [linux]
+
+  '@koromix/koffi-linux-x64@3.3.8':
+    resolution: {integrity: sha512-0KyTCxjxzjdwCxTA8HdEFCLeJLZPQdOqpJQVvf2KJA8izmnDlM/g2NZd6jNJ4lwvuU8+R6fN7zW0OrwSM6pHzA==}
+    cpu: [x64]
+    os: [linux]
+
+  '@koromix/koffi-openbsd-arm64@3.3.8':
+    resolution: {integrity: sha512-HY1pfpsHrHL248y3TRg0FAa8MlSLuVMABkkieiKINqNvIWWvuMekZO/zQM+BtmgFQHXO+t/Hd0W55fzH/U2EYA==}
+    cpu: [arm64]
+    os: [openbsd]
+
+  '@koromix/koffi-openbsd-ia32@3.3.8':
+    resolution: {integrity: sha512-745gBEJnFhO9N7mnRVRkd2NQnQGbBUKkEUsJcm2Di5KBkkTyfjf2BQSvzegJE+ab6gLnQ57ZEA0UwBBdS0MlrA==}
+    cpu: [ia32]
+    os: [openbsd]
+
+  '@koromix/koffi-openbsd-x64@3.3.8':
+    resolution: {integrity: sha512-bwcuk5PquAQGgR1DYAVrZwInSEeKuq0RXFylejAs5kQCJCBoyUOipkAJj4q4HYdOtCCxwqdrMm/+XwXrwtf3ZQ==}
+    cpu: [x64]
+    os: [openbsd]
+
+  '@koromix/koffi-win32-arm64@3.3.8':
+    resolution: {integrity: sha512-f43sCr9lxFIvkOEE0Br+Qr5+KH2XqRm/EAQgAflYprIsjCz4eBTPVwEjbuymyN/6iDEKyO7EDz/7xQgNiyvIyA==}
+    cpu: [arm64]
+    os: [win32]
+
+  '@koromix/koffi-win32-ia32@3.3.8':
+    resolution: {integrity: sha512-aBozU1HP1mWzanVAoo2fkJBLJsEVVs2b3/FbtqbotrgDFsBt8r71LNX+mKX7d4YASXMIAsUPG3iXBpNtk7+Y8Q==}
+    cpu: [ia32]
+    os: [win32]
+
+  '@koromix/koffi-win32-x64@3.3.8':
+    resolution: {integrity: sha512-Ef9XpIn/AfnZWMI1lvA6IOjCsTVRlako+BXosp4cRaLZZXkgjwiBVqYXXhqZix1G8e+27UAv97XBTmDEyfS7jA==}
+    cpu: [x64]
+    os: [win32]
+
   '@larksuiteoapi/node-sdk@1.73.0':
     resolution: {integrity: sha512-gs4EiupJ6RdYAEJGtuYrCVsB7wSMBwtUDK+ilpmOHD6RTvbtciW6AWciQO9coOQVuBZfh7hvAi25dPfCsny/nA==}
 
@@ -5280,6 +5417,15 @@ packages:
 
   '@mermanjs/web-render@0.9.2':
     resolution: {integrity: sha512-pE8Q+SaLRKmhsHgGddmJ7BrJ06MwkcmiOMQtO6qdVCzFqqBAaDJDAw+E3U8S/U8vk35QtU96cheEJ7ToyBVTJA==}
+
+  '@microsoft/mxc-sdk@1.1.0':
+    resolution: {integrity: sha512-tSOPZ14ddCiXHc4hVNQp5Yi22HSQEfXh58Z4O/tLzERi+23rfRmMrJoxVK5jZYhlll68u4eF/UlQSaXWyUMj4w==}
+    engines: {node: '>=24.0.0'}
+    peerDependencies:
+      '@microsoft/mxc-sdk-nvx-runtime-win32-x64': 1.1.0
+    peerDependenciesMeta:
+      '@microsoft/mxc-sdk-nvx-runtime-win32-x64':
+        optional: true
 
   '@mistralai/mistralai@1.11.0':
     resolution: {integrity: sha512-6/BVj2mcaggYbpMzNSxtqtM2Tv/Jb5845XFd2CMYFO+O5VBkX70iLjtkBBTI4JFhh1l9vTCIMYXBVOjLoBVHGQ==}
@@ -12800,6 +12946,10 @@ packages:
     resolution: {integrity: sha512-Zv/pA+ciVFbCSBBjGfaKUya/CcGmUHzTydLMaTwrUUEM2DIEO3iZvueGxmacvmN50fGpGVKeTXpb2LcYQxeVdg==}
     engines: {node: '>= 10'}
 
+  ipaddr.js@2.5.0:
+    resolution: {integrity: sha512-aq+t5NAc+cS6rZQQVWC2x98CPqGtKKTMDd4Gaodv0wShnItdKg/51djkGJ1hqH+Oy0ivDftCbSLCQob8zso01w==}
+    engines: {node: '>= 10'}
+
   is-alphabetical@1.0.4:
     resolution: {integrity: sha512-DwzsA04LQ10FHTZuL0/grVDk4rFoVH1pjAToYwBrHSxcrBIGQuXrQMtD5U1b0U2XVgKZCTLLP8u2Qxqhy3l2Vg==}
 
@@ -13128,6 +13278,9 @@ packages:
   kind-of@6.0.3:
     resolution: {integrity: sha512-dcS1ul+9tmeD95T+x28/ehLgd9mENa3LsvDTtzm3vyBEO7RPptvAD+t44WVXaUjTBRcrpFeFlC8WCruUR456hw==}
     engines: {node: '>=0.10.0'}
+
+  koffi@3.3.8:
+    resolution: {integrity: sha512-CTDlV3BDh8LFyCgv9vamD+5eu49HQ5wBetAJ9wxERAoAy6rfodahgo28tqhz010l2OGcZvrnBC6MOTyQUt4EIQ==}
 
   kuler@2.0.0:
     resolution: {integrity: sha512-Xq9nH7KlWZmXAtodXDDRE7vs6DU1gTU8zYDHDiWLSip45Egwq3plLHzPn27NgvzL2r1LMPC1vdqh98sQxtqj4A==}
@@ -14096,6 +14249,9 @@ packages:
     resolution: {integrity: sha512-zR8SVCaN3WqV1xwWd04XVAdzm3UTdjbxciLrZtB0Cc7F2Kd34AJfhPD4hm1HU0YH3oGUZO4X9OBLY5ijSTHsGw==}
     os: [darwin]
 
+  node-pty@1.1.0:
+    resolution: {integrity: sha512-20JqtutY6JPXTUnL0ij1uad7Qe1baT46lyolh2sSENDd4sTzKZ4nmAFkeAARDKwmlLjPx6XKRlwRUxwjOy+lUg==}
+
   node-releases@2.0.51:
     resolution: {integrity: sha512-wRNIrw4DmVLKQlbgOMdkMx27Wrpzes2hh5Jtbi2bjPd+4wJstWIqP5A+lscnqbm0xxmT5Bpg8Lec5ItEBwx6BQ==}
     engines: {node: '>=18'}
@@ -14796,6 +14952,10 @@ packages:
     peerDependenciesMeta:
       kerberos:
         optional: true
+
+  proxy-chain@3.0.3:
+    resolution: {integrity: sha512-okxE6QDZKsagndl1iUY86+1xPqfZUd8JLQn5JRa/1PpzCVwwprFK/Uc3++78UIBvBOdbeXbdBZLqd3IqpE7ypA==}
+    engines: {node: '>=20.11'}
 
   proxy-from-env@1.1.0:
     resolution: {integrity: sha512-D+zkORCbA9f1tdWRK0RaCR3GPv50cMxcrz4X8k5LTSUD1Dkw47mKJEZQNunItRTkWwgtaUSo1RVFRIG9ZXiFYg==}
@@ -15561,9 +15721,17 @@ packages:
   snake-case@3.0.4:
     resolution: {integrity: sha512-LAOh4z89bGQvl9pFfNF8V146i7o7/CqFPbqzYgP+yYzDIDeS9HaNFtXABamRW+AQzEVODcvE79ljJ+8a9YSdMg==}
 
+  socks-proxy-agent@10.1.0:
+    resolution: {integrity: sha512-WlMj/67cEJ6MDI1OcsnjuYKDNDoyPCCYZ249kuuXPiMDw9F8PXkVaQ7YWu3siTydfQ/4BEZcvGzu+aYvz7dDCQ==}
+    engines: {node: '>= 20'}
+
   socks-proxy-agent@8.0.5:
     resolution: {integrity: sha512-HehCEsotFqbPW9sJ8WVYB6UbmIMv7kUUORIF2Nncq4VQvBfNBLibW9YZR5dlYCSUhwcD628pRllm7n+E+YTzJw==}
     engines: {node: '>= 14'}
+
+  socks@2.8.11:
+    resolution: {integrity: sha512-2H/uQ7+SNP0hK16RorTak0mWrFoqo4AnAVGSUl2dT07obgWdWt9grml+VDl1LklgUOPWM4Abo0u86Cvp8vFjYw==}
+    engines: {node: '>= 10.0.0', npm: '>= 3.0.0'}
 
   socks@2.8.7:
     resolution: {integrity: sha512-HLpt+uLy/pxB+bum/9DzAgiKS8CX1EvbWxI4zlmgGCExImLdiad2iCwXT5Z4c9c3Eq8rP2318mPW2c+QbtjK8A==}
@@ -16571,6 +16739,10 @@ packages:
 
   vscode-jsonrpc@8.2.0:
     resolution: {integrity: sha512-C+r0eKJUIfiDIfwJhria30+TYWPtuHJXHtI7J0YlOmKAo7ogxP20T0zxB7HZQIFhIyvoBPwWskjxrvAtfjyZfA==}
+    engines: {node: '>=14.0.0'}
+
+  vscode-jsonrpc@9.0.3:
+    resolution: {integrity: sha512-qETYf9PCl1lVfwR+oBmMfc4vP2nqLNA35ABxorw3j06+xlKRgDVxbLgKm4Y/xPL0YWdeDjLoI4ImICIT3nB0zQ==}
     engines: {node: '>=14.0.0'}
 
   vscode-languageserver-protocol@3.17.5:
@@ -19749,6 +19921,66 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
 
+  '@koromix/koffi-android-arm64@3.3.8':
+    optional: true
+
+  '@koromix/koffi-android-x64@3.3.8':
+    optional: true
+
+  '@koromix/koffi-darwin-arm64@3.3.8':
+    optional: true
+
+  '@koromix/koffi-darwin-x64@3.3.8':
+    optional: true
+
+  '@koromix/koffi-freebsd-arm64@3.3.8':
+    optional: true
+
+  '@koromix/koffi-freebsd-ia32@3.3.8':
+    optional: true
+
+  '@koromix/koffi-freebsd-x64@3.3.8':
+    optional: true
+
+  '@koromix/koffi-linux-arm64@3.3.8':
+    optional: true
+
+  '@koromix/koffi-linux-arm@3.3.8':
+    optional: true
+
+  '@koromix/koffi-linux-ia32@3.3.8':
+    optional: true
+
+  '@koromix/koffi-linux-loong64@3.3.8':
+    optional: true
+
+  '@koromix/koffi-linux-ppc64@3.3.8':
+    optional: true
+
+  '@koromix/koffi-linux-riscv64@3.3.8':
+    optional: true
+
+  '@koromix/koffi-linux-x64@3.3.8':
+    optional: true
+
+  '@koromix/koffi-openbsd-arm64@3.3.8':
+    optional: true
+
+  '@koromix/koffi-openbsd-ia32@3.3.8':
+    optional: true
+
+  '@koromix/koffi-openbsd-x64@3.3.8':
+    optional: true
+
+  '@koromix/koffi-win32-arm64@3.3.8':
+    optional: true
+
+  '@koromix/koffi-win32-ia32@3.3.8':
+    optional: true
+
+  '@koromix/koffi-win32-x64@3.3.8':
+    optional: true
+
   '@larksuiteoapi/node-sdk@1.73.0(patch_hash=dacfb70d41f69a0d7b682b9270395fb5782898872666519f2d5181bea275bfec)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)':
     dependencies:
       axios: 1.20.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
@@ -19998,6 +20230,12 @@ snapshots:
       langium: 4.2.1
 
   '@mermanjs/web-render@0.9.2': {}
+
+  '@microsoft/mxc-sdk@1.1.0':
+    dependencies:
+      koffi: 3.3.8
+      node-pty: 1.1.0
+      semver: 7.8.5
 
   '@mistralai/mistralai@1.11.0':
     dependencies:
@@ -26774,6 +27012,11 @@ snapshots:
 
   exponential-backoff@3.1.3: {}
 
+  express-rate-limit@8.2.2(express@5.2.1(supports-color@10.2.2)):
+    dependencies:
+      express: 5.2.1(supports-color@10.2.2)
+      ip-address: 10.3.1
+
   express-rate-limit@8.2.2(express@5.2.1(supports-color@8.1.1)):
     dependencies:
       express: 5.2.1(supports-color@8.1.1)
@@ -27671,7 +27914,6 @@ snapshots:
       debug: 4.4.3(supports-color@10.2.2)
     transitivePeerDependencies:
       - supports-color
-    optional: true
 
   http-proxy-agent@7.0.2(supports-color@8.1.1):
     dependencies:
@@ -27880,6 +28122,8 @@ snapshots:
   ipaddr.js@1.9.1: {}
 
   ipaddr.js@2.3.0: {}
+
+  ipaddr.js@2.5.0: {}
 
   is-alphabetical@1.0.4: {}
 
@@ -28214,12 +28458,36 @@ snapshots:
 
   kind-of@6.0.3: {}
 
+  koffi@3.3.8:
+    optionalDependencies:
+      '@koromix/koffi-android-arm64': 3.3.8
+      '@koromix/koffi-android-x64': 3.3.8
+      '@koromix/koffi-darwin-arm64': 3.3.8
+      '@koromix/koffi-darwin-x64': 3.3.8
+      '@koromix/koffi-freebsd-arm64': 3.3.8
+      '@koromix/koffi-freebsd-ia32': 3.3.8
+      '@koromix/koffi-freebsd-x64': 3.3.8
+      '@koromix/koffi-linux-arm': 3.3.8
+      '@koromix/koffi-linux-arm64': 3.3.8
+      '@koromix/koffi-linux-ia32': 3.3.8
+      '@koromix/koffi-linux-loong64': 3.3.8
+      '@koromix/koffi-linux-ppc64': 3.3.8
+      '@koromix/koffi-linux-riscv64': 3.3.8
+      '@koromix/koffi-linux-x64': 3.3.8
+      '@koromix/koffi-openbsd-arm64': 3.3.8
+      '@koromix/koffi-openbsd-ia32': 3.3.8
+      '@koromix/koffi-openbsd-x64': 3.3.8
+      '@koromix/koffi-win32-arm64': 3.3.8
+      '@koromix/koffi-win32-ia32': 3.3.8
+      '@koromix/koffi-win32-x64': 3.3.8
+
   kuler@2.0.0: {}
 
   langium@4.2.1:
     dependencies:
       chevrotain: 11.1.2
       chevrotain-allstar: 0.3.1(chevrotain@11.1.2)
+      vscode-jsonrpc: 8.2.0
       vscode-languageserver: 9.0.1
       vscode-languageserver-textdocument: 1.0.12
       vscode-uri: 3.1.0
@@ -29414,8 +29682,7 @@ snapshots:
 
   node-addon-api@3.2.1: {}
 
-  node-addon-api@7.1.1:
-    optional: true
+  node-addon-api@7.1.1: {}
 
   node-addon-api@8.5.0: {}
 
@@ -29463,6 +29730,10 @@ snapshots:
       bindings: 1.5.0
       node-addon-api: 7.1.1
     optional: true
+
+  node-pty@1.1.0:
+    dependencies:
+      node-addon-api: 7.1.1
 
   node-releases@2.0.51: {}
 
@@ -30289,6 +30560,14 @@ snapshots:
       ipaddr.js: 1.9.1
 
   proxy-agent-negotiate@1.1.0: {}
+
+  proxy-chain@3.0.3(supports-color@10.2.2):
+    dependencies:
+      socks: 2.8.11
+      socks-proxy-agent: 10.1.0(supports-color@10.2.2)
+      tslib: 2.8.1
+    transitivePeerDependencies:
+      - supports-color
 
   proxy-from-env@1.1.0: {}
 
@@ -31247,6 +31526,14 @@ snapshots:
       dot-case: 3.0.4
       tslib: 2.8.1
 
+  socks-proxy-agent@10.1.0(supports-color@10.2.2):
+    dependencies:
+      agent-base: 9.0.0
+      debug: 4.4.3(supports-color@10.2.2)
+      socks: 2.8.7
+    transitivePeerDependencies:
+      - supports-color
+
   socks-proxy-agent@8.0.5(supports-color@8.1.1):
     dependencies:
       agent-base: 7.1.4
@@ -31254,6 +31541,11 @@ snapshots:
       socks: 2.8.7
     transitivePeerDependencies:
       - supports-color
+
+  socks@2.8.11:
+    dependencies:
+      ip-address: 10.3.1
+      smart-buffer: 4.2.0
 
   socks@2.8.7:
     dependencies:
@@ -32352,6 +32644,31 @@ snapshots:
     transitivePeerDependencies:
       - msw
 
+  vitest@5.0.1(@opentelemetry/api@1.9.1)(@types/node@24.10.4)(@vitest/coverage-v8@5.0.1)(@vitest/ui@5.0.1)(jsdom@26.1.0(supports-color@10.2.2))(msw@2.12.7(@types/node@24.10.4)(typescript@5.9.3))(vite@8.2.2(@types/node@24.10.4)(esbuild@0.25.12)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.8.2)):
+    dependencies:
+      '@types/chai': 5.2.3
+      '@vitest/mocker': 5.0.1(msw@2.12.7(@types/node@24.10.4)(typescript@5.9.3))(vite@8.2.2(@types/node@24.10.4)(esbuild@0.25.12)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.8.2))
+      chai: 6.2.2
+      es-module-lexer: 2.3.2
+      expect-type: 1.4.0
+      magic-string: 1.2.3
+      obug: 2.1.4
+      picomatch: 4.0.4
+      std-env: 4.2.0
+      tinybench: 6.1.4
+      tinyexec: 1.3.0
+      tinyglobby: 0.2.17
+      vite: 8.2.2(@types/node@24.10.4)(esbuild@0.25.12)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.8.2)
+      why-is-node-running: 2.3.0
+    optionalDependencies:
+      '@opentelemetry/api': 1.9.1
+      '@types/node': 24.10.4
+      '@vitest/coverage-v8': 5.0.1(@vitest/browser@5.0.1)(vitest@5.0.1)
+      '@vitest/ui': 5.0.1(vitest@5.0.1)
+      jsdom: 26.1.0(supports-color@10.2.2)
+    transitivePeerDependencies:
+      - msw
+
   vitest@5.0.1(@opentelemetry/api@1.9.1)(@types/node@24.10.4)(@vitest/coverage-v8@5.0.1)(@vitest/ui@5.0.1)(jsdom@26.1.0(supports-color@8.1.1))(msw@2.12.7(@types/node@24.10.4)(@typescript/typescript6@6.0.2))(vite@8.2.2(@types/node@24.10.4)(esbuild@0.25.12)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.8.2)):
     dependencies:
       '@types/chai': 5.2.3
@@ -32412,6 +32729,8 @@ snapshots:
       zod: 4.6.6
 
   vscode-jsonrpc@8.2.0: {}
+
+  vscode-jsonrpc@9.0.3: {}
 
   vscode-languageserver-protocol@3.17.5:
     dependencies:

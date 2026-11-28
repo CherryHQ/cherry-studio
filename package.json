@@ -126,6 +126,7 @@
     "test:remote-protocol": "vitest run --project remote-protocol",
     "test:remote-transport": "vitest run --project remote-transport",
     "test:renderer": "vitest run --project renderer",
+    "test:sandbox": "pnpm --filter @cherrystudio/sandbox test",
     "test:scripts": "vitest run --project scripts",
     "test:shared": "vitest run --project shared",
     "test:system-speech": "vitest run --project system-speech",
@@ -152,6 +153,7 @@
     "@cherrystudio/agent-runtime-pi-durable": "workspace:*",
     "@cherrystudio/mlx-asr": "github:CherryHQ/mlx-node#ad3bf3ec3a141ec06fb8f73933685b1420ed09ac&path:distribution/asr",
     "@cherrystudio/mlx-tts": "github:CherryHQ/mlx-node#f4c21043f557965345b527bc04179ad26d08378f&path:distribution/tts",
+    "@cherrystudio/sandbox": "workspace:*",
     "@cursor/sdk": "1.5.0",
     "@earendil-works/chord": "1.5.2",
     "@earendil-works/pi-ai": "1.5.2",
@@ -639,7 +641,7 @@
     "node-screenshots-win32-x64-msvc": "0.2.8"
   },
   "engines": {
-    "node": ">=24.12.0"
+    "node": ">=24.21.0 <25"
   },
   "packageManager": "pnpm@12.6.0+sha512.3ef68f951cb111ac204b4a5a16f0b2ddf0da56a96e0413e81d855d9f0b55ef926714709028e1cd00c405c2c5fb7b9e8ec4dc46777c805d0373c2f2ff00fd20ec",
   "desktopName": "CherryStudio.desktop"
