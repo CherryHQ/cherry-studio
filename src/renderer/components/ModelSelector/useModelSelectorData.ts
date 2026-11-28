@@ -268,7 +268,7 @@ export function useModelSelectorData({
       )
     }
     // `searchFilter(provider)` runs fuzzy scoring + sort per provider; cache the tag-filtered
-    // result so display-group duplicate-name detection and the list below share one pass.
+    // result so global duplicate-name detection and the list below share one pass.
     const tagFilteredModelsByProvider = new Map<string, Model[]>(
       sortedProviders.map((provider) => [
         provider.id,
@@ -317,9 +317,13 @@ export function useModelSelectorData({
       displayGroupsById.get(groupId)?.actions.push(action)
     }
     const displayGroups = [...displayGroupsById.values()]
-    const duplicateModelNamesByDisplayGroup = new Map(
-      displayGroups.map((group) => [group.id, getDuplicateModelNames(group.models.map(({ model }) => model))])
-    )
+    // Names duplicated anywhere in the visible list need disambiguation,
+    // not just within one display group: the same model is often offered by
+    // several providers (e.g. `gemini-2.5-flash-image` via Gemini and via an
+    // aggregator), which otherwise produces visually identical rows.
+    // Per-group duplicates are a subset of this set, so one global set covers
+    // both the merged-group and the default one-group-per-provider cases.
+    const duplicateModelNames = getDuplicateModelNames([...tagFilteredModelsByProvider.values()].flat())
 
     if (searchText.length === 0 && showPinnedModels && pinnedIdSet.size > 0) {
       const pinnedItems = pinnedIds.flatMap((modelId) => {
@@ -329,15 +333,7 @@ export function useModelSelectorData({
           return []
         }
 
-        return [
-          createModelItem(
-            model,
-            provider,
-            'pinned',
-            true,
-            duplicateModelNamesByDisplayGroup.get(getDisplayGroupId(provider.id))?.has(model.name) ?? false
-          )
-        ]
+        return [createModelItem(model, provider, 'pinned', true, duplicateModelNames.has(model.name))]
       })
 
       if (pinnedItems.length > 0) {
@@ -360,7 +356,7 @@ export function useModelSelectorData({
           provider,
           'provider',
           showPinnedModels && pinnedIdSet.has(model.id),
-          duplicateModelNamesByDisplayGroup.get(group.id)?.has(model.name) ?? false
+          duplicateModelNames.has(model.name)
         )
       )
       const rows: ModelSelectorNavigableItem[] = [...modelRows, ...group.actions]

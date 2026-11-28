@@ -228,10 +228,11 @@ function ModelRow({
   const icon = useIcon(getModelLogoRef(item.model, item.provider.id))
   const [nameRef, isNameOverflowing] = useTextOverflow<HTMLSpanElement>()
   const providerName = getProviderDisplayName(item.provider)
+  // Cross-provider duplicates can share both name and identifier (the same
+  // apiModelId served by two vendors), so the provider is always part of the
+  // disambiguation label once showIdentifier is set.
   const disambiguationLabel = item.showIdentifier
-    ? item.groupKind === 'pinned'
-      ? `${providerName} · ${item.modelIdentifier}`
-      : item.modelIdentifier
+    ? `${providerName} · ${item.modelIdentifier}`
     : item.groupKind === 'pinned'
       ? providerName
       : undefined

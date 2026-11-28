@@ -2,6 +2,7 @@ import { useCallback } from 'react'
 
 import { loggerService } from '@logger'
 import { useModels } from '@renderer/hooks/useModel'
+import type { Model } from '@shared/data/types/model'
 import { isEditImageModel } from '@shared/utils/model'
 
 import { presentPaintingGenerateError } from '../errors/paintingGenerateError'
@@ -21,13 +22,26 @@ interface UsePaintingModelSwitchInput {
 
 export type PaintingModelSelection = { providerId: string; modelId: string }
 
+function resolveTargetModel(
+  catalog: ModelOption[],
+  models: readonly Model[],
+  providerId: string,
+  modelId: string
+): Model | undefined {
+  const raw = catalog.find((option) => option.value === modelId)?.raw
+  if (raw && typeof raw === 'object' && 'capabilities' in raw) {
+    return raw as Model
+  }
+  return models.find((model) => model.providerId === providerId && model.apiModelId === modelId)
+}
+
 export function usePaintingModelSwitch({
   painting,
   onPaintingChange,
   ensureProviderCatalog
 }: UsePaintingModelSwitchInput) {
   const currentProviderId = painting.providerId
-  const { models } = useModels(currentProviderId ? { providerId: currentProviderId } : undefined)
+  const { models } = useModels()
 
   return useCallback(
     async ({ providerId, modelId }: PaintingModelSelection) => {
@@ -39,7 +53,8 @@ export function usePaintingModelSwitch({
         // Returns `{}` when either model is unknown to the registry, so
         // custom-id paintings stay untouched.
         const resetPatch = await computeModelFieldReset({
-          providerId: currentProviderId,
+          oldProviderId: currentProviderId,
+          newProviderId: currentProviderId,
           oldModelId: painting.model,
           newModelId: modelId,
           mode: tabToImageGenerationMode(painting.mode),
@@ -50,7 +65,7 @@ export function usePaintingModelSwitch({
         // attachment left over from an edit model would otherwise still be
         // sent to a generate-only model. `onPaintingChange` merges, so the
         // clear must be explicit.
-        const nextModel = models.find((model) => model.apiModelId === modelId)
+        const nextModel = models.find((model) => model.providerId === currentProviderId && model.apiModelId === modelId)
         const keepInputFiles = nextModel ? isEditImageModel(nextModel) : false
         onPaintingChange({
           params: { ...painting.params, ...resetPatch },
@@ -60,8 +75,9 @@ export function usePaintingModelSwitch({
         return
       }
 
+      let targetCatalog: ModelOption[]
       try {
-        await ensureProviderCatalog(providerId)
+        targetCatalog = await ensureProviderCatalog(providerId)
       } catch (error) {
         // Cold-cache + DB/IPC failure must not silently revert the dropdown —
         // surface it like the generate path instead of swallowing the switch.
@@ -69,6 +85,35 @@ export function usePaintingModelSwitch({
         presentPaintingGenerateError(error)
         return
       }
+
+      // Same apiModelId served by a different provider: the user changed
+      // where the model runs, not the model itself. Preserve compatible
+      // params (diffed across both providers' registry blocks), keep the
+      // current mode, and keep input files unless the target model
+      // positively can't accept them.
+      if (painting.model !== undefined && painting.model === modelId) {
+        const resetPatch = await computeModelFieldReset({
+          oldProviderId: currentProviderId,
+          newProviderId: providerId,
+          oldModelId: painting.model,
+          newModelId: modelId,
+          mode: tabToImageGenerationMode(painting.mode),
+          currentValues: painting.params ?? {}
+        })
+        const targetModel = resolveTargetModel(targetCatalog, models, providerId, modelId)
+        // Unknown target model: preserve attachments rather than wipe them —
+        // the ids match, so the target almost certainly accepts what the
+        // source accepted. Only clear on positive non-edit evidence.
+        const keepInputFiles = targetModel ? isEditImageModel(targetModel) : true
+        onPaintingChange({
+          params: { ...painting.params, ...resetPatch },
+          providerId,
+          model: modelId,
+          ...(keepInputFiles ? {} : { inputFiles: [] })
+        })
+        return
+      }
+
       const targetPainting = createDefaultPainting({ providerId })
 
       onPaintingChange({
