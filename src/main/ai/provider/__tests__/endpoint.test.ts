@@ -4,6 +4,7 @@ import { appProviderIds } from '@main/ai/types'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
+import { bundledCatalog } from '../../../../../packages/provider-registry/src/bundled-catalog'
 import { makeModel, makeProvider } from '../../__tests__/fixtures'
 import {
   resolveAiSdkProviderId,
@@ -358,6 +359,225 @@ describe('resolveEffectiveEndpoint', () => {
     expect(baseUrl).toBe('https://api.minimax.io/anthropic')
   })
 
+  it.each(['kimi-k3', 'deepseek-v4-pro', 'deepseek-v4-flash', 'deepseek-v4.1-flash', 'glm-5.2'])(
+    'honors the configured chat default for stock Qwen Cloud %s',
+    (apiModelId) => {
+      const preset = bundledCatalog.providers.providers.find((provider) => provider.id === 'qwencloud')!
+      const offer = bundledCatalog.providerModels.overrides.find(
+        (model) => model.providerId === preset.id && (model.apiModelId ?? model.modelId) === apiModelId
+      )!
+      const provider = makeProvider({
+        id: preset.id,
+        presetProviderId: preset.id,
+        defaultChatEndpoint: preset.defaultChatEndpoint ?? undefined,
+        endpointConfigs: preset.endpointConfigs
+      })
+      const model = makeModel({ apiModelId, endpointTypes: offer.endpointTypes })
+      expect(resolveEffectiveEndpoint(provider, model).endpointType).toBe(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
+    }
+  )
+
+  it('honors the existing OpenAI default when both openai and gemini are listed (#21443)', () => {
+    const provider = makeProvider({
+      id: 'aionly',
+      presetProviderId: 'aionly',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          baseUrl: 'https://api.aiionly.com/v1',
+          adapterFamily: 'newapi'
+        },
+        [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { adapterFamily: 'newapi' }
+      }
+    })
+    const model = makeModel({
+      apiModelId: 'gemini-3.8-flash',
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]
+    })
+
+    expect(resolveEffectiveEndpoint(provider, model).endpointType).toBe(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
+  })
+
+  it.each([undefined, ENDPOINT_TYPE.OPENAI_RESPONSES])(
+    'auto-selects native New API chat when default %s is absent or unsupported',
+    (defaultChatEndpoint) => {
+      const provider = makeProvider({
+        id: 'aionly',
+        presetProviderId: 'aionly',
+        defaultChatEndpoint,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://relay.example/v1', adapterFamily: 'newapi' },
+          [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { adapterFamily: 'newapi' }
+        }
+      })
+      const model = makeModel({
+        apiModelId: 'gemini-3.8-flash',
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]
+      })
+      expect(resolveEffectiveEndpoint(provider, model).endpointType).toBe(ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT)
+    }
+  )
+
+  it.each([
+    [ENDPOINT_TYPE.JINA_RERANK, 'rerank'],
+    [ENDPOINT_TYPE.OPENAI_EMBEDDINGS, 'embedding']
+  ] as const)('preserves dedicated %s transport instead of the configured chat host', (endpointType, intent) => {
+    const provider = makeProvider({
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [endpointType]: { baseUrl: 'https://ranking.example/v1' },
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://chat.example/v1' }
+      }
+    })
+    const model = makeModel({ endpointTypes: [endpointType, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] })
+    expect(resolveEffectiveEndpoint(provider, model, undefined, intent)).toMatchObject({
+      endpointType,
+      baseUrl: 'https://ranking.example/v1'
+    })
+    expect(resolveEffectiveEndpoint(provider, model).endpointType).toBe(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
+  })
+
+  it('does not promote chat-first New API embedding rows to the Gemini host', () => {
+    const provider = makeProvider({
+      id: 'aionly',
+      presetProviderId: 'aionly',
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://relay.example/v1', adapterFamily: 'newapi' },
+        [ENDPOINT_TYPE.OPENAI_EMBEDDINGS]: { baseUrl: 'https://relay.example/v1', adapterFamily: 'newapi' },
+        [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { baseUrl: 'https://native.example', adapterFamily: 'newapi' }
+      }
+    })
+    const model = makeModel({
+      apiModelId: 'gemini-embedding-001',
+      endpointTypes: [
+        ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        ENDPOINT_TYPE.OPENAI_EMBEDDINGS,
+        ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
+      ]
+    })
+    expect(resolveEffectiveEndpoint(provider, model, undefined, 'embedding')).toMatchObject({
+      endpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      baseUrl: 'https://relay.example/v1'
+    })
+  })
+
+  it('ignores an unconfigured chat default but retains forced SDK and image priority', () => {
+    const provider = makeProvider({
+      id: 'aionly',
+      presetProviderId: 'aionly',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://relay.example/v1', adapterFamily: 'newapi' },
+        [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { baseUrl: 'https://relay.example/v1beta', adapterFamily: 'newapi' }
+      }
+    })
+    const model = makeModel({
+      apiModelId: 'gemini-3.8-flash',
+      endpointTypes: [
+        ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+        ENDPOINT_TYPE.OPENAI_RESPONSES
+      ]
+    })
+    expect(resolveEffectiveEndpoint(provider, model).endpointType).toBe(ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT)
+    const openaiDefault = { ...provider, defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS }
+    expect(resolveEffectiveEndpoint(openaiDefault, model).endpointType).toBe(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
+    expect(resolveEffectiveEndpoint(openaiDefault, model, ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT).endpointType).toBe(
+      ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
+    )
+    expect(resolveEffectiveEndpoint(openaiDefault, model, undefined, 'image').endpointType).toBe(
+      ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+    )
+  })
+
+  it('keeps the image-generation primary endpoint for New API Gemini image models (#21443)', () => {
+    const provider = makeProvider({
+      id: 'aionly',
+      presetProviderId: 'aionly',
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]: {
+          baseUrl: 'https://api.aiionly.com/v1',
+          adapterFamily: 'newapi'
+        },
+        [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { adapterFamily: 'newapi' }
+      }
+    })
+    const model = makeModel({
+      apiModelId: 'gemini-2.5-flash-image',
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION, ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]
+    })
+
+    expect(resolveEffectiveEndpoint(provider, model).endpointType).toBe(ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION)
+  })
+
+  it('keeps the configured chat route when image-generation is listed but not configured on the provider (#21443)', () => {
+    const provider = makeProvider({
+      id: 'relay',
+      presetProviderId: 'new-api',
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          baseUrl: 'https://relay.example.com/v1',
+          adapterFamily: 'newapi'
+        }
+      }
+    })
+    const model = makeModel({
+      apiModelId: 'gpt-image-1',
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]
+    })
+
+    expect(resolveEffectiveEndpoint(provider, model, undefined, 'image').endpointType).toBe(
+      ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+    )
+  })
+
+  it('keeps the configured chat route when image-generation lacks the newapi adapter family (#21443)', () => {
+    const provider = makeProvider({
+      id: 'relay',
+      presetProviderId: 'new-api',
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          baseUrl: 'https://relay.example.com',
+          adapterFamily: 'newapi'
+        },
+        [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]: {
+          baseUrl: 'https://relay.example.com'
+        }
+      }
+    })
+    const model = makeModel({
+      apiModelId: 'gpt-image-1',
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]
+    })
+
+    expect(resolveEffectiveEndpoint(provider, model, undefined, 'image').endpointType).toBe(
+      ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+    )
+  })
+
+  it('keeps the OpenAI image route for chat-primary New API Gemini image models when resolving for image (#21443)', () => {
+    const provider = makeProvider({
+      id: 'aionly',
+      presetProviderId: 'aionly',
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          baseUrl: 'https://api.aiionly.com/v1',
+          adapterFamily: 'newapi'
+        },
+        [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { adapterFamily: 'newapi' }
+      }
+    })
+    const model = makeModel({
+      apiModelId: 'gemini-2.5-flash-image',
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]
+    })
+
+    expect(resolveEffectiveEndpoint(provider, model).endpointType).toBe(ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT)
+    expect(resolveEffectiveEndpoint(provider, model, undefined, 'image').endpointType).toBe(
+      ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+    )
+  })
+
   it('falls back to provider.defaultChatEndpoint when model has no endpointTypes hint', () => {
     const provider = makeProvider({
       id: 'minimax',
@@ -405,7 +625,7 @@ describe('resolveEffectiveEndpoint', () => {
         endpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
         baseUrl: 'https://api.deepseek.com/anthropic'
       })
-      expect(resolveEffectiveEndpoint(deepseek, flash).endpointType).toBe(ENDPOINT_TYPE.OPENAI_RESPONSES)
+      expect(resolveEffectiveEndpoint(deepseek, flash).endpointType).toBe(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
     })
 
     it('is declined when the model does not declare it', () => {
@@ -437,6 +657,32 @@ describe('resolveEffectiveEndpoint', () => {
       expect(resolveEffectiveEndpoint(deepseek, model, ENDPOINT_TYPE.ANTHROPIC_MESSAGES).endpointType).toBe(
         ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
       )
+    })
+  })
+
+  it.each(['aihubmix', 'dmxapi'])('keeps mixed %s Gemini metadata aligned with native dispatch', (id) => {
+    const provider = makeProvider({
+      id,
+      presetProviderId: id,
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          baseUrl: 'https://gateway.example/v1',
+          adapterFamily: id
+        },
+        [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: {
+          baseUrl: 'https://gateway.example/gemini',
+          adapterFamily: id
+        }
+      }
+    })
+    const model = makeModel({
+      apiModelId: 'gemini-3.8-flash',
+      endpointTypes: [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+    })
+    expect(resolveEffectiveEndpoint(provider, model)).toMatchObject({
+      endpointType: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+      providerOptionsKey: 'google'
     })
   })
 

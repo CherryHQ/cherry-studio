@@ -22,6 +22,7 @@ import { BaseService } from '@main/core/lifecycle'
 import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
 
 import { processMessage } from '../proxyStream'
+import { estimateAnthropicRequestTokens } from '../tokens/estimateAnthropicRequestTokens'
 
 const mocks = vi.hoisted(() => ({
   internal: true,
@@ -191,6 +192,46 @@ describe('internal Anthropic agent through the production gateway and SDK', () =
       .run()
   })
   afterEach(() => vi.restoreAllMocks())
+
+  it.each([false, true])(
+    'keeps Messages-first mixed rows on the forced generation and counting wire (stream=%s)',
+    async (stream) => {
+      dbh.db
+        .update(userModelTable)
+        .set({ endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] })
+        .where(eq(userModelTable.id, 'wire::wire-model'))
+        .run()
+      const sent: Array<{ url: string; body: Record<string, unknown> }> = []
+      mocks.transport.mockImplementation(async (url, init) => {
+        sent.push({ url: String(url), body: JSON.parse(String(init?.body)) })
+        return String(url).includes('count_tokens') ? Response.json({ input_tokens: 1234 }) : anthropicResponse(false)
+      })
+      const marker = { type: 'ephemeral' } as const
+      await request([{ role: 'user', content: [{ type: 'text', text: 'Hello', cache_control: marker }] }], stream)
+      expect(sent[0].url).toContain('https://anthropic.test/v1/messages')
+      expect(sent[0].body.messages).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            content: expect.arrayContaining([
+              expect.objectContaining({ type: 'text', text: 'Hello', cache_control: marker })
+            ])
+          })
+        ])
+      )
+      expect(
+        await estimateAnthropicRequestTokens(
+          { model: 'wire:wire-model', messages: [{ role: 'user', content: 'Hello' }] } as never,
+          undefined,
+          true
+        )
+      ).toBe(1234)
+      expect(sent.at(-1)?.url).toContain('https://anthropic.test/v1/messages/count_tokens')
+      expect(modelService.getByKey('wire', 'wire-model').endpointTypes).toEqual([
+        ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+        ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+      ])
+    }
+  )
 
   function addModel(modelId: string, endpointType: (typeof ENDPOINT_TYPE)[keyof typeof ENDPOINT_TYPE]) {
     dbh.db

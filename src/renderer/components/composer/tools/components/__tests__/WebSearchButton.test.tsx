@@ -11,6 +11,7 @@ import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 
+import { bundledCatalog } from '../../../../../../../packages/provider-registry/src/bundled-catalog'
 import WebSearchButton from '../WebSearchButton'
 
 const mocks = vi.hoisted(() => ({
@@ -245,6 +246,26 @@ describe('WebSearchButton', () => {
     expect(button).not.toHaveFocus()
   })
 
+  it.each([null, 'exa-mcp'])('offers stock Qwen native search with client provider %s', async (client) => {
+    const preset = bundledCatalog.providers.providers.find((p) => p.id === 'qwencloud')!
+    mocks.provider = preset
+    mocks.model = {
+      ...mocks.model!,
+      id: 'qwencloud::deepseek-v4-pro',
+      providerId: 'qwencloud',
+      apiModelId: 'deepseek-v4-pro',
+      capabilities: [MODEL_CAPABILITY.FUNCTION_CALL],
+      endpointTypes: ['openai-responses', 'openai-chat-completions']
+    }
+    MockUsePreferenceUtils.setPreferenceValue('chat.web_search.model_tools_preferred', true)
+    MockUsePreferenceUtils.setPreferenceValue('chat.web_search.default_search_keywords_provider', client)
+    render(<WebSearchButton assistantId="assistant-1" launcher={launcherApi} />)
+    expect(screen.getByTestId('tooltip')).toHaveAttribute('data-content', 'chat.input.web_search.route.builtin')
+    fireEvent.click(screen.getByRole('button', { name: 'chat.input.web_search.label' }))
+    await waitFor(() => expect(mocks.updateAssistant).toHaveBeenCalledWith({ settings: { enableWebSearch: true } }))
+    expect(popup.confirm).not.toHaveBeenCalled()
+  })
+
   it('enables model-native search when configured services are preferred but unavailable', async () => {
     mocks.provider = {
       id: 'anthropic',
@@ -355,6 +376,45 @@ describe('WebSearchButton', () => {
       'data-content',
       'Zhipu is unavailable, so the query is sent to ExaMCP.'
     )
+  })
+
+  describe('DeepSeek native search follows the effective chat endpoint', () => {
+    const deepseekProvider = (defaultChatEndpoint: string) => ({
+      id: 'deepseek',
+      presetProviderId: 'deepseek',
+      defaultChatEndpoint,
+      endpointConfigs: {
+        'openai-chat-completions': { baseUrl: 'https://api.deepseek.com' },
+        'openai-responses': { baseUrl: 'https://api.deepseek.com' }
+      },
+      serverTools: [{ id: 'web-search', modelScope: 'model-dependent', endpointTypes: ['openai-responses'] }]
+    })
+
+    beforeEach(() => {
+      MockUsePreferenceUtils.setPreferenceValue('chat.web_search.model_tools_preferred', true)
+      mocks.model = {
+        ...mocks.model!,
+        id: 'deepseek::deepseek-v4-pro',
+        providerId: 'deepseek',
+        apiModelId: 'deepseek-v4-pro',
+        capabilities: [MODEL_CAPABILITY.FUNCTION_CALL],
+        endpointTypes: ['openai-responses', 'openai-chat-completions']
+      }
+    })
+
+    it('does not claim the built-in tool when the preset default routes through Chat Completions', () => {
+      mocks.provider = deepseekProvider('openai-chat-completions')
+      render(<WebSearchButton assistantId="assistant-1" launcher={launcherApi} />)
+
+      expect(screen.getByTestId('tooltip')).not.toHaveAttribute('data-content', 'chat.input.web_search.route.builtin')
+    })
+
+    it('claims the built-in tool when Responses is the effective chat endpoint', () => {
+      mocks.provider = deepseekProvider('openai-responses')
+      render(<WebSearchButton assistantId="assistant-1" launcher={launcherApi} />)
+
+      expect(screen.getByTestId('tooltip')).toHaveAttribute('data-content', 'chat.input.web_search.route.builtin')
+    })
   })
 
   it('discloses the automatic ExaMCP fallback while the selected provider is ready', () => {

@@ -32,7 +32,7 @@ import { resolveImageTransport } from '../custom/imageTransportRegistry'
 import { createNewApi, type NewApiProviderSettings } from '../custom/newapiProvider'
 import { buildVendorProviderOptions } from '../custom/wire/buildImageRequest'
 import { WIRE_REGISTRY } from '../custom/wire/wireProfile'
-import { resolveEffectiveEndpoint, resolveWireModelId } from '../endpoint'
+import { resolveWireModelId } from '../endpoint'
 import { resolveSdkConfig } from '../sdkConfig'
 
 // Key-backed builders resolve their serving API key lazily; Vertex/Bedrock read
@@ -75,6 +75,7 @@ vi.mock('@main/services/CopilotService', () => ({
 // Import the SUT after the mock is declared.
 const { providerToAiSdkConfig, resolveProviderAiSdkConfig } = await import('../config')
 const { ModelUnavailableError } = await import('../cherryCloud')
+const { resolveEffectiveEndpoint } = await import('../endpoint')
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -2584,6 +2585,138 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
 
       expect(config.providerId).toBe('newapi')
       expect((config.providerSettings as Record<string, unknown>).baseURL).toBe(expected)
+    })
+
+    it.each([
+      ['generate', 'separate'],
+      ['edit', 'separate'],
+      ['generate', 'blank'],
+      ['edit', 'blank'],
+      ['generate', 'single'],
+      ['edit', 'single']
+    ] as const)('sends New API %s to its own destination with %s image URLs', async (mode, hosts) => {
+      const endpointType = mode === 'edit' ? ENDPOINT_TYPE.OPENAI_IMAGE_EDIT : ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION
+      const provider = makeProvider({
+        id: 'relay',
+        presetProviderId: 'new-api',
+        defaultChatEndpoint:
+          hosts === 'single' ? ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS : ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://primary.example/v1', adapterFamily: 'newapi' },
+          [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: {
+            baseUrl: hosts === 'single' ? undefined : 'https://gemini.example/v1beta',
+            adapterFamily: 'newapi'
+          },
+          [ENDPOINT_TYPE.OPENAI_IMAGE_EDIT]: {
+            baseUrl: hosts === 'separate' ? 'https://edit.example/v1' : '',
+            adapterFamily: 'newapi'
+          },
+          [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]: {
+            baseUrl: hosts === 'separate' ? 'https://generation.example/v1' : '',
+            adapterFamily: 'newapi'
+          }
+        }
+      })
+      const model = makeModel({
+        apiModelId: 'gpt-image-1',
+        endpointTypes: [
+          ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+          ENDPOINT_TYPE.OPENAI_IMAGE_EDIT,
+          ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION
+        ]
+      })
+      const resolvedEndpoint = resolveEffectiveEndpoint(
+        provider,
+        model,
+        undefined,
+        mode === 'edit' ? 'image-edit' : 'image'
+      )
+      const { config } = await resolveProviderAiSdkConfig(provider, model, { resolvedEndpoint })
+      vi.mocked(net.fetch).mockResolvedValue(
+        new Response(JSON.stringify({ data: [{ b64_json: 'QUJD' }] }), {
+          headers: { 'content-type': 'application/json' }
+        })
+      )
+      await createNewApi(config.providerSettings as NewApiProviderSettings)
+        .imageModel('gpt-image-1')
+        .doGenerate({
+          prompt: 'a red circle',
+          n: 1,
+          size: undefined,
+          aspectRatio: undefined,
+          seed: undefined,
+          files:
+            mode === 'edit'
+              ? [{ type: 'file', data: new Uint8Array([137, 80, 78, 71]), mediaType: 'image/png' }]
+              : undefined,
+          mask: undefined,
+          providerOptions: {}
+        })
+      expect(resolvedEndpoint.endpointType).toBe(endpointType)
+      const host = hosts === 'separate' ? (mode === 'edit' ? 'edit' : 'generation') : 'primary'
+      expect(String(vi.mocked(net.fetch).mock.calls[0][0])).toBe(
+        `https://${host}.example/v1/images/${mode === 'edit' ? 'edits' : 'generations'}`
+      )
+    })
+
+    it('routes image generation through the configured New API chat endpoint when image-generation is undeclared (#21443)', async () => {
+      const provider = makeProvider({
+        id: 'relay',
+        presetProviderId: 'new-api',
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+            baseUrl: 'https://relay.example.com/v1',
+            adapterFamily: 'newapi'
+          }
+        }
+      })
+      const model = makeModel({
+        apiModelId: 'gpt-image-1',
+        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]
+      })
+      const resolvedEndpoint = resolveEffectiveEndpoint(provider, model, undefined, 'image')
+
+      const { config } = await resolveProviderAiSdkConfig(provider, model, { resolvedEndpoint })
+
+      expect(resolvedEndpoint.endpointType).toBe(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
+      expect(config.providerId).toBe('newapi')
+      expect((config.providerSettings as Record<string, unknown>).baseURL).toBe('https://relay.example.com/v1')
+    })
+
+    it('routes image generation through the New API chat endpoint when image-generation is configured without newapi (#21443)', async () => {
+      vi.mocked(net.fetch).mockResolvedValue(new Response('{}'))
+      const provider = makeProvider({
+        id: 'relay',
+        presetProviderId: 'new-api',
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+            baseUrl: 'https://relay.example.com',
+            adapterFamily: 'newapi'
+          },
+          [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]: {
+            baseUrl: 'https://relay.example.com'
+          }
+        }
+      })
+      const model = makeModel({
+        apiModelId: 'gpt-image-1',
+        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]
+      })
+      const resolvedEndpoint = resolveEffectiveEndpoint(provider, model, undefined, 'image')
+
+      const { config } = await resolveProviderAiSdkConfig(provider, model, { resolvedEndpoint })
+      const settings = config.providerSettings as { baseURL: string; fetch: typeof fetch }
+
+      expect(resolvedEndpoint.endpointType).toBe(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
+      expect(config.providerId).toBe('newapi')
+      expect(settings.baseURL).toBe('https://relay.example.com/v1')
+      await settings.fetch(`${settings.baseURL}/images/generations`, { method: 'POST' })
+      expect(net.fetch).toHaveBeenCalledWith(
+        'https://relay.example.com/v1/images/generations',
+        expect.objectContaining({ method: 'POST' })
+      )
     })
   })
 })

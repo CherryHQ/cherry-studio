@@ -1647,6 +1647,22 @@ describe('AiService', () => {
       return fileEntry
     }
 
+    it.each([false, true])('selects the concrete image operation when edit inputs are %s', async (editing) => {
+      const service = createService()
+      stubDirectImage(service)
+      await service.generateImage({
+        uniqueModelId: 'test-provider::test-model',
+        prompt: 'draw a cat',
+        cleanupPolicy: 'delete_when_unreferenced',
+        paramValues: {},
+        ...(editing ? { inputImages: ['data:image/png;base64,QUJD'] } : {})
+      })
+      expect((service as unknown as AiServicePrivate).resolveTransportFor).toHaveBeenCalledWith(
+        expect.anything(),
+        editing ? 'image-edit' : 'image'
+      )
+    })
+
     it('records the provider output count with modality "image"', async () => {
       const service = createService()
       stubDirectImage(service)
@@ -2283,6 +2299,11 @@ describe('AiService tool approval', () => {
       ]
     })
 
+    expect((service as unknown as AiServicePrivate).resolveTransportFor).toHaveBeenCalledWith(
+      expect.any(Object),
+      'rerank'
+    )
+
     expect(mockRerank).toHaveBeenCalledWith(
       'test-provider',
       {},
@@ -2323,6 +2344,10 @@ describe('AiService tool approval', () => {
     mockEmbedMany.mockResolvedValue({ embeddings: [[0.1]], usage: { tokens: 4 } })
 
     await service.embedMany({ uniqueModelId: 'test-provider::test-embed', values: ['a', 'b'] })
+    expect((service as unknown as AiServicePrivate).resolveTransportFor).toHaveBeenCalledWith(
+      expect.any(Object),
+      'embedding'
+    )
 
     expect(mockEmbedMany).toHaveBeenCalledWith(
       'test-provider',
@@ -2911,6 +2936,36 @@ describe('AiService tool approval', () => {
         files: [{ type: 'file', mediaType: 'image/png', data: expect.any(String) }]
       })
     )
+  })
+
+  it('uses the image endpoint consistently for DashScope probes despite a saved Responses default', async () => {
+    const service = createService()
+    mockProviderGetByProviderId.mockReturnValueOnce(
+      makeProvider({
+        id: 'dashscope',
+        presetProviderId: 'dashscope',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]: { baseUrl: 'https://dashscope.aliyuncs.com' },
+          [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl: 'https://responses.example/v1' }
+        }
+      })
+    )
+    mockModelGetByKey.mockReturnValue(
+      makeModel({
+        id: 'dashscope::qwen-image-3.0',
+        providerId: 'dashscope',
+        apiModelId: 'qwen-image-3.0',
+        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION, ENDPOINT_TYPE.OPENAI_RESPONSES]
+      })
+    )
+    const submit = vi.fn().mockResolvedValue({ imageUrls: ['https://example.test/image.png'] })
+    mockResolveImageTransport.mockReturnValueOnce({ submit })
+    await service.checkModel({ uniqueModelId: 'dashscope::qwen-image-3.0', apiKeyOverride: 'sk-selected' })
+    expect(mockResolveImageTransport).toHaveBeenCalledWith('dashscope', 'qwen-image-3.0', expect.anything())
+    expect(mockProviderResolveApiKey).toHaveBeenCalledWith('dashscope', 'sk-selected')
+    expect(submit).toHaveBeenCalledTimes(1)
   })
 
   it('cancels the job an image probe queued', async () => {

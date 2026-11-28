@@ -23,6 +23,7 @@ import {
   SERVER_TOOL
 } from '@shared/data/types/model'
 
+import { bundledCatalog } from '../../../../../../../packages/provider-registry/src/bundled-catalog'
 import { makeAssistant, makeModel, makeProvider } from '../../../../__tests__/fixtures'
 import { createDashScopeProvider } from '../../../../provider/custom/dashscope/dashscopeProvider'
 
@@ -82,6 +83,70 @@ beforeEach(() => {
 })
 
 describe('buildAgentParams provider resolution', () => {
+  it.each([false, true])('uses the stock Qwen route at request construction (native search: %s)', async (search) => {
+    const preset = bundledCatalog.providers.providers.find((p) => p.id === 'qwencloud')!
+    const offer = bundledCatalog.providerModels.overrides.find(
+      (m) => m.providerId === preset.id && m.modelId === 'deepseek-v4-pro'
+    )!
+    const provider = makeProvider({ ...preset, defaultChatEndpoint: preset.defaultChatEndpoint ?? undefined })
+    const model = makeModel({
+      apiModelId: 'deepseek-v4-pro',
+      endpointTypes: offer.endpointTypes,
+      capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
+    })
+    preferenceGetMock.mockImplementation((key) => (key === 'chat.web_search.model_tools_preferred' ? true : null))
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: { providerId: search ? 'openai' : 'openai-compatible', providerSettings: {} },
+      credentialReceipt: { attribution: 'unknown' }
+    })
+    await buildAgentParams({
+      request: { conversation: CONVERSATION },
+      signal: undefined,
+      provider,
+      model,
+      assistant: makeAssistant({ settings: { enableWebSearch: search } })
+    })
+    expect(resolveProviderAiSdkConfigMock).toHaveBeenLastCalledWith(
+      provider,
+      model,
+      expect.objectContaining({
+        resolvedEndpoint: expect.objectContaining({
+          endpointType: search ? ENDPOINT_TYPE.OPENAI_RESPONSES : ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+        })
+      })
+    )
+  })
+
+  it.each([ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, undefined])(
+    'uses the existing New API default in the production request builder (%s)',
+    async (defaultChatEndpoint) => {
+      resolveProviderAiSdkConfigMock.mockResolvedValue({
+        config: { providerId: 'newapi', providerSettings: {} },
+        credentialReceipt: { attribution: 'unknown' }
+      })
+      const provider = makeProvider({
+        id: 'aionly',
+        presetProviderId: 'aionly',
+        defaultChatEndpoint,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://relay.example/v1', adapterFamily: 'newapi' },
+          [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { baseUrl: 'https://relay.example/v1beta', adapterFamily: 'newapi' }
+        }
+      })
+      const model = makeModel({
+        apiModelId: 'gemini-3.8-flash',
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]
+      })
+      await buildAgentParams({ request: { conversation: CONVERSATION }, signal: undefined, provider, model })
+      expect(resolveProviderAiSdkConfigMock).toHaveBeenLastCalledWith(provider, model, {
+        apiKeyOverride: undefined,
+        resolvedEndpoint: expect.objectContaining({
+          endpointType: defaultChatEndpoint ?? ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
+        })
+      })
+    }
+  )
+
   it('keeps the resolved replay route across credential and fetch changes and changes it for a new endpoint URL', async () => {
     const provider = makeProvider({ id: 'openai', defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS })
     const model = makeModel({ providerId: 'openai', apiModelId: 'gpt-4o' })
@@ -1801,7 +1866,7 @@ describe('buildAgentParams assistant-less reasoning', () => {
     })
     const provider = makeProvider({
       id: 'dashscope',
-      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
       endpointConfigs: {
         [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { adapterFamily: 'openai-compatible' },
         [ENDPOINT_TYPE.OPENAI_RESPONSES]: { adapterFamily: 'openai' }

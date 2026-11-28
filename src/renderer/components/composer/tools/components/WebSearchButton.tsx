@@ -18,6 +18,7 @@ import { useWebSearchProviders } from '@renderer/hooks/useWebSearch'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { getWebSearchProviderIconRef } from '@renderer/utils/webSearchProviderMeta'
+import { resolveSearchEndpointType } from '@shared/utils/endpointResolution'
 import { getEffectiveMcpMode } from '@shared/utils/mcp'
 import { resolveWebToolRoutes, type WebToolUnavailableReason } from '@shared/utils/provider'
 import { getWebSearchFallbackProviderIds, resolveReadyWebSearchProvider } from '@shared/utils/webSearch'
@@ -97,7 +98,7 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
           clientSearchAvailable,
           clientFetchAvailable,
           modelToolsPreferred,
-          endpointType: model.endpointTypes?.[0] ?? modelProvider?.defaultChatEndpoint ?? undefined,
+          endpointType: modelProvider ? resolveSearchEndpointType(modelProvider, model) : undefined,
           hasFunctionToolSignals: getEffectiveMcpMode(assistant) !== 'disabled',
           reasoningEffort: assistant.settings.reasoning_effort
         })
