@@ -44,6 +44,7 @@
   "agent.config_tool.value.none": "без",
   "agent.config_tool.value.uploaded_image": "Загруженное изображение",
   "agent.import.missing_file": "Вложение отсутствует в экспорте: {{name}}",
+  "agent.import.skipped_file": "[{{name}}] (file not imported in chat-area v1)",
   "agent.session.claude.runtime_unavailable": "Claude Agent ещё не готов. Дождитесь завершения загрузки или повторите попытку.",
   "agent.session.fork.execution_not_inherited": "Выполнение не было перенесено в эту ветку сеанса.",
   "agent.session.new": "Новая задача",

@@ -84,7 +84,24 @@ export const HeartbeatDocumentSchema = z.strictObject({
 export type HeartbeatDocument = z.infer<typeof HeartbeatDocumentSchema>
 export const HeartbeatRunResultSchema = z.enum(['started', 'empty', 'disabled', 'busy', 'paused'])
 export type HeartbeatRunResult = z.infer<typeof HeartbeatRunResultSchema>
+// ── DeepSeek chat-area import payload (built by trusted main; opaque on the wire) ──
+export interface DeepseekChatImportMessage {
+  sourceId: string
+  parentSourceId: string | null
+  role: 'user' | 'assistant' | 'system'
+  parts: unknown[]
+  model?: { id: string; name: string; provider: string; group?: string }
+}
 
+export interface DeepseekChatImportConversation {
+  name: string
+  createdAt: number
+  updatedAt: number
+  activeSourceId: string | null
+  messages: DeepseekChatImportMessage[]
+}
+
+export type DeepseekChatImportPayload = DeepseekChatImportConversation[]
 export const CreateAgentCommandSchema = AgentBaseSchema.extend({
   type: AgentEntitySchema.shape.type,
   avatarImage: ImageBytesSchema.optional(),
@@ -242,6 +259,10 @@ export const aiRequestSchemas = {
   }),
   'ai.agent.import.start': defineRoute({ input: z.strictObject({ id: z.uuid() }), output: agentImportSnapshotSchema }),
   'ai.agent.import.cancel': defineRoute({ input: z.strictObject({ id: z.uuid() }), output: z.void() }),
+  'ai.agent.import.parse_for_chat': defineRoute({
+    input: z.strictObject({}),
+    output: z.custom<DeepseekChatImportPayload>()
+  }),
   'ai.projection.attach': defineRoute({
     input: z.strictObject({ target: projectionTargetSchema, subscriptionId: z.uuid() }),
     output: z.custom<MessageProjectionView | null>()

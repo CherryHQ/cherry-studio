@@ -44,6 +44,7 @@
   "agent.config_tool.value.none": "Žádné",
   "agent.config_tool.value.uploaded_image": "Nahraný obrázek",
   "agent.import.missing_file": "Příloha v exportu není dostupná: {{name}}",
+  "agent.import.skipped_file": "[{{name}}] (file not imported in chat-area v1)",
   "agent.session.claude.runtime_unavailable": "Claude Agent ještě není připraven. Počkejte na dokončení stahování nebo to zkuste znovu.",
   "agent.session.fork.execution_not_inherited": "Tato větev relace nezdědila původní provádění.",
   "agent.session.new": "Nová úloha",

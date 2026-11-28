@@ -44,6 +44,7 @@
   "agent.config_tool.value.none": "Yok",
   "agent.config_tool.value.uploaded_image": "Yüklenen görsel",
   "agent.import.missing_file": "Dışa aktarımda ek bulunamadı: {{name}}",
+  "agent.import.skipped_file": "[{{name}}] (file not imported in chat-area v1)",
   "agent.session.claude.runtime_unavailable": "Claude Agent henüz hazır değil. İndirmenin bitmesini bekleyin veya tekrar deneyin.",
   "agent.session.fork.execution_not_inherited": "Yürütme durumu bu oturum dalına aktarılmadı.",
   "agent.session.new": "Yeni görev",

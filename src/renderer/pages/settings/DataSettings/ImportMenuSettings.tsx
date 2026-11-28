@@ -41,6 +41,15 @@ const ImportMenuOptions: FC = () => {
         </RowFlex>
       </SettingRow>
       <SettingDivider />
+      <SettingRow id="setting-data-import-deepseek-chat" className="scroll-mt-6">
+        <SettingRowTitle>{t('settings.data.import_settings.deepseek')}</SettingRowTitle>
+        <RowFlex className="justify-between gap-1.25">
+          <Button onClick={() => ImportPopup.show({ source: 'deepseek' })} variant="outline">
+            {t('settings.data.import_settings.button')}
+          </Button>
+        </RowFlex>
+      </SettingRow>
+      <SettingDivider />
       <SettingRow id="setting-data-import-chatgpt" className="scroll-mt-6">
         <SettingRowTitle>{t('settings.data.import_settings.chatgpt')}</SettingRowTitle>
         <RowFlex className="justify-between gap-1.25">

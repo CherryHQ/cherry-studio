@@ -23,6 +23,12 @@ export interface ImportContext {
   signal: AbortSignal
   files: Record<string, string>
   saveFile(sourceId: string, entryId: string): void
+  /**
+   * 'files' (default): FILE fragments are persisted as managed file entries.
+   * 'placeholder': FILE fragments become placeholder text only, without reading
+   * or storing binaries (chat-area import v1).
+   */
+  attachments?: 'files' | 'placeholder'
 }
 
 export interface ImportArchive {

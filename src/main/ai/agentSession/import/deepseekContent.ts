@@ -14,11 +14,22 @@ export interface ImportedContent {
   parts: CherryMessagePart[]
 }
 
+export interface DeepseekContentOptions {
+  /**
+   * 'files' (default): FILE fragments are read from the archive and persisted
+   * as managed file entries (agent-session import).
+   * 'placeholder': FILE fragments become placeholder text only; no binary is
+   * read or stored (chat-area import v1).
+   */
+  attachments?: 'files' | 'placeholder'
+}
+
 export async function deepseekContent(
   source: DeepseekMessage,
   read: (name: string) => Promise<Buffer>,
   files: Record<string, string>,
-  saveFile: (sourceId: string, entryId: string) => void
+  saveFile: (sourceId: string, entryId: string) => void,
+  options?: DeepseekContentOptions
 ): Promise<ImportedContent> {
   const parts: CherryMessagePart[] = []
   const text = (value: string) => {
@@ -67,6 +78,10 @@ export async function deepseekContent(
         for (const file of part.files) {
           if (file.export_path === null) {
             text(t('agent.import.missing_file', { name: file.file_name }))
+            continue
+          }
+          if (options?.attachments === 'placeholder') {
+            text(t('agent.import.skipped_file', { name: file.file_name }))
             continue
           }
           const bytes = await read(file.export_path)
