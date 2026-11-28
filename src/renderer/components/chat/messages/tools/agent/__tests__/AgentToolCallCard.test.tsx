@@ -6,6 +6,7 @@ const actions = vi.hoisted(() => ({
   isAgentToolFlowActive: vi.fn(() => false)
 }))
 const detailMocks = vi.hoisted(() => ({ open: vi.fn() }))
+const ipcRequest = vi.hoisted(() => vi.fn())
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
@@ -13,6 +14,9 @@ vi.mock('react-i18next', () => ({
 vi.mock('../../../MessageListProvider', () => ({
   useOptionalMessageListActions: () => actions,
   useOptionalMessageListTopicId: () => undefined
+}))
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: (...args: unknown[]) => ipcRequest(...args), on: () => () => {} }
 }))
 vi.mock('@renderer/services/appErrorDetailOpen', () => ({
   openLoadedErrorDetail: (request: unknown) => detailMocks.open(request),
@@ -25,6 +29,7 @@ describe('AgentToolCallCard failure details', () => {
   beforeEach(() => {
     detailMocks.open.mockReset()
     actions.openAgentToolFlow.mockReset()
+    ipcRequest.mockReset()
   })
 
   it('adds a sibling detail for a tool failure and omits it on success', async () => {
@@ -69,5 +74,32 @@ describe('AgentToolCallCard failure details', () => {
     expect(detailMocks.open.mock.calls.at(-1)?.[0]).toMatchObject({
       context: { recordId: 'call-9', message: 'tool broke' }
     })
+  })
+
+  it('opens details with the original cause of a failure Main deferred for size', async () => {
+    ipcRequest.mockResolvedValue({
+      status: 'ready',
+      purpose: 'preview',
+      output: { isError: true, content: [{ type: 'text', text: 'EACCES: permission denied' }] },
+      truncated: false
+    })
+    const resultRef = { topicId: 'agent-session:s1', messageId: 'm1', toolCallId: 'call-big' }
+    render(
+      <AgentToolCallCard
+        toolCallId="call-big"
+        toolName="Mystery"
+        output={{ $deferredToolResult: resultRef }}
+        hasError
+      />
+    )
+
+    await waitFor(() => {
+      fireEvent.click(screen.getByRole('button', { name: 'common.detail' }))
+      expect(detailMocks.open.mock.calls.at(-1)?.[0]).toMatchObject({
+        context: { recordId: 'call-big', message: 'EACCES: permission denied' }
+      })
+    })
+    // A bounded read: Details must not pull the full oversized output.
+    expect(ipcRequest).toHaveBeenCalledWith('ai.tool.get_result', { ...resultRef, purpose: 'preview' })
   })
 })

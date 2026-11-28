@@ -17,6 +17,7 @@ import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentTaskService, HEARTBEAT_PROMPT_SENTINEL } from '@data/services/AgentTaskService'
 import { aiUsageRecordService } from '@data/services/AiUsageRecordService'
+import type { BuiltinAgentDefaults } from '@data/services/builtinAgentDefaults'
 import { getDataService } from '@data/services/dataServiceRegistry'
 import { modelService } from '@data/services/ModelService'
 import { pinService } from '@data/services/PinService'
@@ -78,13 +79,9 @@ type AgentCreateInput = AgentBase & {
   channels?: AgentChannelDraft[]
 }
 
-interface EnsureBuiltinAgentInput {
+interface EnsureBuiltinAgentInput extends BuiltinAgentDefaults {
   builtinRole: BuiltinAgentRole
-  configuration: AgentConfiguration
-  name: string
   preferredModelId: UniqueModelId | null
-  type: AgentType
-  disabledTools?: readonly string[]
 }
 
 export interface EnsureBuiltinAgentResult {
@@ -533,6 +530,28 @@ export class AgentService {
     return agent ?? null
   }
 
+  createBuiltinAgentTx(
+    tx: DbOrTx,
+    input: BuiltinAgentDefaults & { builtinRole: BuiltinAgentRole },
+    model: AgentRow['model']
+  ): { agent: AgentRow; modelName: string | null } {
+    const agentId = input.builtinRole === BUILTIN_AGENT_ROLE.SUPPORT ? CHERRY_SUPPORT_AGENT_ID : uuidv4()
+    const created = this.createAgentTx(tx, agentId, {
+      id: agentId,
+      type: input.type,
+      name: input.name.trim() || 'Built-in Agent',
+      description: '',
+      instructions: '',
+      model,
+      disabledTools: input.disabledTools && [...input.disabledTools],
+      configuration: { ...input.configuration, builtin_role: input.builtinRole }
+    })
+    if (!created) {
+      throw DataApiErrorFactory.invalidOperation('create built-in Agent', 'insert succeeded but select returned no row')
+    }
+    return created
+  }
+
   /** Remove legacy Support markers from non-system IDs without changing other Agent data. */
   clearUntrustedBuiltinSupportRolesTx(tx: DbOrTx): void {
     const rows = tx
@@ -624,27 +643,7 @@ export class AgentService {
 
     const preferredModel = input.preferredModelId ? modelService.findByIdTx(tx, input.preferredModelId) : null
     const model = preferredModel && isGatewayRoutableModel(preferredModel) ? input.preferredModelId : null
-    const agentId = input.builtinRole === BUILTIN_AGENT_ROLE.SUPPORT ? CHERRY_SUPPORT_AGENT_ID : uuidv4()
-    const created = this.createAgentTx(tx, agentId, {
-      id: agentId,
-      type: input.type,
-      name: input.name.trim() || 'Built-in Agent',
-      description: '',
-      instructions: '',
-      model,
-      disabledTools: [...(input.disabledTools ?? [])],
-      configuration: {
-        ...input.configuration,
-        builtin_role: input.builtinRole
-      }
-    })
-
-    if (!created) {
-      throw DataApiErrorFactory.invalidOperation(
-        'restore built-in Agent',
-        'insert succeeded but select returned no row'
-      )
-    }
+    const created = this.createBuiltinAgentTx(tx, input, model)
 
     return {
       agent: rowToAgent(created.agent, created.modelName, [], []),

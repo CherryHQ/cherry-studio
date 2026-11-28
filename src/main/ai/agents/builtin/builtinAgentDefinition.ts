@@ -2,10 +2,10 @@ import fs from 'fs'
 import path from 'path'
 
 import { application } from '@application'
+import { type BuiltinAgentDefaults, parseBuiltinAgentDefaults } from '@data/services/builtinAgentDefaults'
 import { loggerService } from '@logger'
 import { getAppLanguage } from '@main/i18n'
 import { BUILTIN_AGENT_ROLE, type BuiltinAgentRole } from '@shared/ai/builtinAgent'
-import { type AgentConfiguration, sanitizeAgentConfiguration } from '@shared/data/api/schemas/agents'
 
 const logger = loggerService.withContext('BuiltinAgentDefinition')
 
@@ -29,16 +29,11 @@ const PLUGIN_TEMPLATE_NAME_BY_ROLE: Record<string, string> = {
 // drift-prone second source of truth.
 export interface BuiltinAgentDefinition {
   name?: string
+  type?: unknown
   instructions?: string
   configuration?: Record<string, unknown>
   skills?: string[]
   /** Core tools the bundle opts out of; narrowing only, so it may live in the data file. */
-  disabledTools?: string[]
-}
-
-export interface BuiltinAgentDefaults {
-  name: string
-  configuration: AgentConfiguration
   disabledTools?: string[]
 }
 
@@ -97,6 +92,7 @@ export function loadBuiltinAgentDefinition(
     }
     return {
       name: resolveLocalizedField(agentConfig.name, language),
+      type: agentConfig.type,
       instructions: resolveLocalizedField(agentConfig.instructions, language),
       configuration: agentConfig.configuration,
       skills: agentConfig.skills,
@@ -118,16 +114,5 @@ export function loadBuiltinAgentDefaults(builtinRole: BuiltinAgentRole, language
     throw new Error(`Builtin Agent package definition is unavailable: ${builtinRole}`)
   }
 
-  const { data: configuration, invalidKeys } = sanitizeAgentConfiguration(definition.configuration)
-  if (!configuration || invalidKeys.length > 0) {
-    throw new Error(
-      `Builtin Agent package configuration is invalid for ${builtinRole}: ${invalidKeys.join(', ') || '<root>'}`
-    )
-  }
-
-  return {
-    name: definition.name?.trim() || 'Built-in Agent',
-    configuration: { ...configuration, builtin_role: builtinRole },
-    ...(definition.disabledTools ? { disabledTools: definition.disabledTools } : {})
-  }
+  return parseBuiltinAgentDefaults(builtinRole, definition)
 }

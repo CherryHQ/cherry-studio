@@ -161,5 +161,6 @@ file persistence or permissions.
 
 ### Special Previews
 
-The special-language map lazy-loads Mermaid, PlantUML, SVG, and Graphviz previews. Preview selection and split mode are
-user-driven and do not depend on streaming completion.
+The special-language map lazy-loads Mermaid, PlantUML, SVG, and Graphviz previews. PlantUML shows source while the
+block streams, then opens the local preview by default. The view controls let users switch between source, preview,
+and split mode.
