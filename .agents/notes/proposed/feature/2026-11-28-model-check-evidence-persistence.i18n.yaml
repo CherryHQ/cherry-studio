@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-11-28-model-check-evidence-persistence.md
+2026-11-28-model-check-evidence-persistence.md: f9ee1af45a2b89ae8790bbf5f1739388bba84bbd
+2026-11-28-model-check-evidence-persistence.zh.md: 84faa70c1de94b58c956ae99f0003a703fe1eea7
