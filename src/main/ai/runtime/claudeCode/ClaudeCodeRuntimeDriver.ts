@@ -263,6 +263,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       configDir: resolveClaudeConfigDirectory(options.env),
       contextWindow: request.contextWindow,
       load: async () => config,
+      onArchiveDeferred: (summary) => logger.warn('Claude Code child archives deferred', summary),
       onError: (error) => {
         this.nativeError = error
       }
@@ -910,7 +911,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
               messages: archive.value.content,
               legacy: archive.value.legacy,
               removed: archive.value.retracted,
-              aliases: Object.assign(aliases, archive.value.aliases)
+              aliases: Object.assign(aliases, archive.value.aliases),
+              diagnostic: archive.value.deferred ? 'archive-deferred' : undefined
             }
           },
           metadata.decorate,

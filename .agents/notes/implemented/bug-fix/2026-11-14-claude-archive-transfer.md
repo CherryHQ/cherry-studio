@@ -22,7 +22,9 @@ Claude archive and observation copies duplicate the object and array containers,
 
 ## Consequences
 
-A normalized record larger than 16 MiB serialized fails the native restore through the existing error path, with a transfer-limit diagnostic. Native files stay intact and no partial archive is published. The chunk limit bounds transient handoff buffers. SDK reads and retained history still require memory proportional to the transcript, and total RSS depends on the history and allocator.
+For the root transcript, a normalized record larger than 16 MiB serialized fails the native restore through the existing error path with a transfer-limit diagnostic. Native files stay intact and no partial root archive is published. The chunk limit bounds transient handoff buffers. SDK reads and retained root history still require memory proportional to the root transcript, and total RSS depends on the history and allocator.
+
+This note records worker transfer and copy behavior. Child-loading budgets and the handling of a child that exceeds its budget or record limit are documented separately. Root restore continues when a child is deferred. [Child archive deferral note](2026-11-26-claude-child-archive-deferral.md)
 
 ## Verification
 

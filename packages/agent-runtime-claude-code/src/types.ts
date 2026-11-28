@@ -49,6 +49,13 @@ export interface ClaudeCodeRuntimeOptions {
   /** Resolve the configuration of this exact saved root, without starting execution. */
   readonly load?: (root: Thread) => Promise<ClaudeSessionOptions | undefined>
   readonly onError?: (error: unknown) => void
+  readonly onArchiveDeferred?: (summary: {
+    readonly sessionId: string
+    readonly children: number
+    readonly deferred: number
+    readonly deferredBytes: number
+    readonly budget: number
+  }) => void
 }
 
 /** Native SDK stream event omitted from the pinned SDKMessage declaration. */
@@ -107,6 +114,8 @@ export type ClaudeObservationSink = (batch: ClaudeObservation) => void | Promise
 
 export interface ClaudeArchive {
   readonly content: readonly RuntimeMessage[]
+  /** Native history was deferred. Content may still include sources observed in memory. */
+  readonly deferred?: true
   /** Native message UUID to its earlier live source when their identities differ. */
   readonly aliases?: Readonly<Record<string, string>>
   readonly legacy: Readonly<Record<string, { messageId: string; parts: number[] }>>
@@ -137,7 +146,7 @@ export interface ClaudeThreadHandle extends ThreadHandle {
       sink: ClaudeObservationSink,
       needsRecovery?: (batch: ClaudeObservation) => boolean
     ): Promise<OperationResult<Observation>>
-    /** Without refresh, reads already observed committed sources without producing new observation events. */
+    /** A child refresh reads only that transcript. Without refresh, reads committed sources in memory. */
     archive(options?: { readonly refresh: boolean }): Promise<OperationResult<ClaudeArchive>>
     stopTask(taskId: string): Promise<OperationResult<void>>
   }

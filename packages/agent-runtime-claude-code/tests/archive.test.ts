@@ -1,16 +1,24 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { once } from 'node:events'
-import { appendFile, mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises'
+import { appendFile, mkdir, mkdtemp, realpath, rm, truncate, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
+import { serialize } from 'node:v8'
 import { Worker } from 'node:worker_threads'
 
 import { afterEach, expect, it } from 'vitest'
 
 import { runtimeId } from '@cherrystudio/agent-runtime'
 
-import { createClaudeCodeRuntime } from '../src'
-import { ARCHIVE_CHUNK_BYTES, readArchive } from '../src/archive'
+import { claudeThread, createClaudeCodeRuntime } from '../src'
+import {
+  ARCHIVE_CHILD_BYTES,
+  ARCHIVE_CHILD_OPEN_BYTES,
+  ARCHIVE_CHILD_SESSION_BYTES,
+  ARCHIVE_CHUNK_BYTES,
+  readArchive
+} from '../src/archive'
+import type { ClaudeCodeRuntimeOptions } from '../src/types'
 import { confirmed } from './nativeFixture'
 
 const cleanups: (() => Promise<unknown>)[] = []
@@ -42,6 +50,35 @@ function message(sessionId: string, parentUuid: string | null, text: string) {
     timestamp: new Date(0).toISOString(),
     message: { role: 'user', content: [{ type: 'text', text }] }
   }
+}
+
+async function childTranscript(rootFile: string, id: string, agentId: string, imageSizes: number[]) {
+  const directory = path.join(rootFile.slice(0, -'.jsonl'.length), 'subagents')
+  await mkdir(directory, { recursive: true })
+  const file = path.join(directory, `agent-${agentId}`)
+  const ids: string[] = []
+  let bytes = 0
+  for (const size of imageSizes) {
+    const row = message(id, ids.at(-1) ?? null, 'Read image')
+    const line =
+      JSON.stringify({
+        ...row,
+        agentId,
+        isSidechain: true,
+        message: {
+          role: 'user',
+          content: [
+            ...row.message.content,
+            { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'A'.repeat(size) } }
+          ]
+        }
+      }) + '\n'
+    ids.push(row.uuid)
+    bytes += Buffer.byteLength(line)
+    await appendFile(file + '.jsonl', line)
+  }
+  await writeFile(file + '.meta.json', JSON.stringify({ parentAgentId: null, toolUseId: `toolu_${agentId}` }))
+  return { agentId, ids, bytes }
 }
 
 it('reads only observed messages until native history is explicitly restored', async () => {
@@ -153,6 +190,137 @@ it('keeps at most one byte-bounded chunk in flight until the receiver acknowledg
   worker.postMessage('ack')
   expect(await next).toMatchObject({ kind: 'done' })
 })
+
+it('bounds eager child history and loads a deferred transcript by itself', async () => {
+  const { cwd, configDir, id, file } = await transcript()
+  const root = message(id, null, 'Root history')
+  await appendFile(file, JSON.stringify(root) + '\n')
+  const size = Math.floor(ARCHIVE_CHILD_SESSION_BYTES / 3)
+  const children = []
+  for (const agentId of ['a1111111111111111', 'a2222222222222222', 'a3333333333333333']) {
+    children.push(await childTranscript(file, id, agentId, [size]))
+  }
+  const large = await childTranscript(file, id, 'a4444444444444444', Array(3).fill(ARCHIVE_CHILD_BYTES / 3))
+  const archive = await readArchive(configDir, cwd, id)
+  expect(archive?.messages.map((message) => message.uuid)).toEqual([root.uuid])
+  expect(archive?.children.map((child) => child.agentId).sort()).toEqual([
+    ...children.map((child) => child.agentId),
+    large.agentId
+  ])
+  const deferred = archive!.children.filter((child) => child.deferredBytes !== undefined)
+  expect(deferred).toHaveLength(2)
+  expect(deferred).toContainEqual({
+    agentId: large.agentId,
+    messages: [],
+    deferredBytes: large.bytes,
+    parentAgentId: null,
+    toolCallId: `toolu_${large.agentId}`
+  })
+  const returnedBytes = archive!.children
+    .flatMap((child) => child.messages)
+    .reduce((total, message) => total + serialize(message).byteLength, 0)
+  expect(returnedBytes).toBeGreaterThan(size)
+  expect(returnedBytes).toBeLessThanOrEqual(ARCHIVE_CHILD_SESSION_BYTES)
+
+  const selected = await readArchive(configDir, cwd, id, large.agentId)
+  expect(selected?.messages).toEqual([])
+  expect(selected?.children.map((child) => [child.agentId, child.messages.map((message) => message.uuid)])).toEqual([
+    [large.agentId, large.ids]
+  ])
+
+  const deferredWarnings: Parameters<NonNullable<ClaudeCodeRuntimeOptions['onArchiveDeferred']>>[0][] = []
+  const backendId = runtimeId<'backend'>(randomUUID())
+  const runtime = createClaudeCodeRuntime({
+    backendId,
+    configDir,
+    load: async () => ({ cwd }),
+    onArchiveDeferred: (summary) => deferredWarnings.push(summary)
+  })
+  cleanups.push(() => runtime.shutdown())
+  const handle = confirmed(await runtime.open(claudeThread(backendId, id)))
+  cleanups.push(() => handle.release())
+  const child = confirmed(await runtime.open(claudeThread(backendId, id, large.agentId)))
+  cleanups.push(() => child.release())
+  expect(child.claude.relation()).toMatchObject({ parent: handle.thread, child: child.thread })
+  expect(confirmed(await child.claude.archive({ refresh: false }))).toMatchObject({ content: [], deferred: true })
+  const restored = confirmed(await child.claude.archive())
+  expect(restored.deferred).toBeUndefined()
+  expect(restored.content.map((message) => message.id)).toEqual(large.ids)
+  expect(restored.aliases).toEqual({ [large.ids[0]]: child.thread.id })
+  expect(restored.content[0].parts[1]).toMatchObject({
+    type: 'file',
+    url: expect.stringMatching(/^data:image\/png;base64,/)
+  })
+
+  expect(confirmed(await handle.claude.archive()).content.map((message) => message.id)).toEqual([root.uuid])
+  const cached = confirmed(await child.claude.archive({ refresh: false }))
+  expect(cached.deferred).toBeUndefined()
+  expect(cached.content.map((message) => message.id)).toEqual(large.ids)
+  expect(deferredWarnings).toEqual([
+    {
+      sessionId: id,
+      children: 4,
+      deferred: 2,
+      deferredBytes: deferred.reduce((total, child) => total + child.deferredBytes!, 0),
+      budget: ARCHIVE_CHILD_SESSION_BYTES
+    }
+  ])
+}, 30000)
+
+it('defers a child atomically when one record exceeds the transfer limit', async () => {
+  const { cwd, configDir, id, file } = await transcript()
+  const root = message(id, null, 'Root history')
+  await appendFile(file, JSON.stringify(root) + '\n')
+  const sibling = await childTranscript(file, id, 'a2222222222222222', [16])
+  const warnings: Parameters<NonNullable<ClaudeCodeRuntimeOptions['onArchiveDeferred']>>[0][] = []
+  const backendId = runtimeId<'backend'>(randomUUID())
+  const runtime = createClaudeCodeRuntime({
+    backendId,
+    configDir,
+    load: async () => ({ cwd }),
+    onArchiveDeferred: (summary) => warnings.push(summary)
+  })
+  cleanups.push(() => runtime.shutdown())
+  const handle = confirmed(await runtime.open(claudeThread(backendId, id)))
+  cleanups.push(() => handle.release())
+  const cached = confirmed(await runtime.open(claudeThread(backendId, id, sibling.agentId)))
+  cleanups.push(() => cached.release())
+  expect(confirmed(await cached.claude.archive()).content.map((item) => item.id)).toEqual(sibling.ids)
+
+  const oversized = await childTranscript(file, id, 'a1111111111111111', [16, ARCHIVE_CHUNK_BYTES])
+  expect(oversized.bytes).toBeLessThan(ARCHIVE_CHILD_BYTES)
+
+  const archive = await readArchive(configDir, cwd, id)
+  expect(archive?.messages.map((message) => message.uuid)).toEqual([root.uuid])
+  expect(archive?.children.find((child) => child.agentId === oversized.agentId)).toMatchObject({
+    messages: [],
+    deferredBytes: oversized.bytes
+  })
+  expect(
+    archive?.children.find((child) => child.agentId === sibling.agentId)?.messages.map((message) => message.uuid)
+  ).toEqual(sibling.ids)
+  expect(archive?.entries.map((entries) => entries.subpath)).not.toContain(`subagents/agent-${oversized.agentId}`)
+  expect(await readArchive(configDir, cwd, id, oversized.agentId)).toMatchObject({
+    children: [{ messages: [], deferredBytes: oversized.bytes }]
+  })
+
+  await truncate(
+    path.join(file.slice(0, -'.jsonl'.length), 'subagents', `agent-${sibling.agentId}.jsonl`),
+    ARCHIVE_CHILD_BYTES + 1
+  )
+  expect(confirmed(await handle.claude.archive()).content.map((item) => item.id)).toEqual([root.uuid])
+  expect(confirmed(await cached.claude.archive({ refresh: false }))).toMatchObject({
+    content: [{ id: sibling.ids[0] }]
+  })
+  const child = confirmed(await runtime.open(claudeThread(backendId, id, oversized.agentId)))
+  cleanups.push(() => child.release())
+  expect(confirmed(await child.claude.archive())).toMatchObject({ content: [], deferred: true })
+  expect(confirmed(await child.claude.archive())).toMatchObject({ content: [], deferred: true })
+  expect(warnings).toEqual([
+    { sessionId: id, children: 2, deferred: 1, deferredBytes: oversized.bytes, budget: ARCHIVE_CHILD_SESSION_BYTES },
+    { sessionId: id, children: 2, deferred: 1, deferredBytes: oversized.bytes, budget: ARCHIVE_CHILD_OPEN_BYTES }
+  ])
+}, 30000)
 
 it('rejects an oversized record without publishing a partial archive and can retry', async () => {
   const { cwd, configDir, id, file } = await transcript()

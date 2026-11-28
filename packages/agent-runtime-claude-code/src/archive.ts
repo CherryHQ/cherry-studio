@@ -12,23 +12,47 @@ export type NativeArchiveEntry = Pick<SessionStoreEntry, 'type' | 'uuid'> & { ch
 
 export interface NativeArchive {
   messages: SessionMessage[]
-  children: { agentId: string; messages: SessionMessage[] }[]
+  children: {
+    agentId: string
+    messages: SessionMessage[]
+    deferredBytes?: number
+    parentAgentId?: string | null
+    toolCallId?: string
+  }[]
   entries: { subpath?: string; entries: NativeArchiveEntry[] }[]
 }
 
 export const ARCHIVE_CHUNK_BYTES = 16 * 1024 * 1024
+/** Eager recovery keeps small histories available without loading large transcripts at startup. */
+export const ARCHIVE_CHILD_BYTES = 24 * 1024 * 1024
+/** Total eager child history for a root read, charged at the larger of disk and transfer size. */
+export const ARCHIVE_CHILD_SESSION_BYTES = 32 * 1024 * 1024
+/** A targeted refresh can recover larger transcripts while bounding a single child read. */
+export const ARCHIVE_CHILD_OPEN_BYTES = 64 * 1024 * 1024
 
 type ArchiveFrame =
   | { kind: 'entries'; subpath?: string; buffers: ArrayBuffer[] }
-  | { kind: 'child'; agentId: string }
+  | { kind: 'child'; child: Omit<NativeArchive['children'][number], 'messages'> }
   | { kind: 'child-messages'; agentId: string; buffers: ArrayBuffer[] }
   | { kind: 'messages'; buffers: ArrayBuffer[] }
   | { kind: 'done' | 'missing' }
 
-export function readArchive(configDir: string, cwd: string, sessionId: string): Promise<NativeArchive | null> {
+export function readArchive(
+  configDir: string,
+  cwd: string,
+  sessionId: string,
+  agentId?: string
+): Promise<NativeArchive | null> {
   return new Promise((resolve, reject) => {
     const worker = new Worker(new URL('./archiveWorker.mjs', import.meta.url), {
-      workerData: { sessionId, cwd, chunkBytes: ARCHIVE_CHUNK_BYTES },
+      workerData: {
+        sessionId,
+        cwd,
+        agentId,
+        chunkBytes: ARCHIVE_CHUNK_BYTES,
+        childBytes: agentId === undefined ? ARCHIVE_CHILD_BYTES : ARCHIVE_CHILD_OPEN_BYTES,
+        sessionBytes: ARCHIVE_CHILD_SESSION_BYTES
+      },
       env: { ...process.env, CLAUDE_CONFIG_DIR: configDir }
     })
     const archive: NativeArchive = { messages: [], children: [], entries: [] }
@@ -46,7 +70,7 @@ export function readArchive(configDir: string, cwd: string, sessionId: string): 
             resolve(frame.kind === 'done' ? archive : null)
             return
           case 'child':
-            archive.children.push({ agentId: frame.agentId, messages: [] })
+            archive.children.push({ ...frame.child, messages: [] })
             break
           case 'child-messages': {
             const child = archive.children.at(-1)
