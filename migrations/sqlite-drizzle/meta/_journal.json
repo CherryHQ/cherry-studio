@@ -312,8 +312,15 @@
     {
       "idx": 44,
       "version": "6",
+      "when": 1795780867972,
+      "tag": "0044_agent_provider_storage",
+      "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "6",
       "when": 1795856788384,
-      "tag": "0044_agent_session_workspace_event",
+      "tag": "0045_agent_session_workspace_event",
       "breakpoints": true
     }
   ],

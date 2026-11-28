@@ -1406,6 +1406,32 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       }
     )
 
+    it.each(['signed-out', 'authorizing'] as const)(
+      'serves a utility task with the built-in free model while %s',
+      async (phase) => {
+        signInPhase(phase)
+        resolveApiKeyMock.mockReturnValue({ value: '', apiKeySelection: { attribution: 'unknown' } })
+        generateSignatureMock.mockReturnValue({
+          'X-Client-ID': 'cherry-studio',
+          'X-Timestamp': '1700000000',
+          'X-Signature': 'signed'
+        })
+        vi.mocked(net.fetch).mockResolvedValue(new Response('{}'))
+        const model = makeModel({ id: CHERRYAI_DEFAULT_UNIQUE_MODEL_ID, providerId: CHERRYAI_PROVIDER_ID })
+
+        const config = await providerToAiSdkConfig(cherryAiProvider(), model, { utilityTask: true })
+        await (config.providerSettings as { fetch: typeof fetch }).fetch(`${CHERRYAI_API_BASE_URL}/chat/completions`, {
+          method: 'POST',
+          body: JSON.stringify({ model: CHERRYAI_DEFAULT_MODEL_ID })
+        })
+
+        expect(net.fetch).toHaveBeenCalledWith(
+          `${CHERRYAI_API_BASE_URL}/chat/completions`,
+          expect.objectContaining({ headers: expect.objectContaining({ 'X-Signature': 'signed' }) })
+        )
+      }
+    )
+
     it('uses custom fetch to sign chat completions requests', async () => {
       resolveApiKeyMock.mockReturnValue({ value: '', apiKeySelection: { attribution: 'unknown' } })
       generateSignatureMock.mockReturnValue({

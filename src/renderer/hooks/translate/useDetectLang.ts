@@ -64,6 +64,7 @@ export const detectLanguageByLLM = async (
 
   const { text: result } = await ipcApi.request('ai.text.generate', {
     uniqueModelId: model.id,
+    utilityTask: true,
     reasoningEffort: 'none',
     system: systemPrompt,
     prompt: 'follow system prompt'

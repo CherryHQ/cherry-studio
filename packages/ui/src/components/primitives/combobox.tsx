@@ -46,7 +46,7 @@ const comboboxTriggerVariants = cva(
 )
 
 const comboboxItemVariants = cva(
-  'relative flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors outline-none select-none',
+  'relative flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-[color] outline-none select-none',
   {
     variants: {
       state: {

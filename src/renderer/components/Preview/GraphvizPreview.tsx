@@ -1,3 +1,4 @@
+import { dot } from '@viz-js/lang-dot'
 import React, { memo, useCallback } from 'react'
 
 import { resolveMermaidTheme } from '@cherrystudio/ui/mermaid'
@@ -9,6 +10,8 @@ import ImagePreviewLayout from './ImagePreviewLayout'
 import { ShadowTransparentContainer } from './styles'
 import type { BasicPreviewHandles, BasicPreviewProps } from './types'
 import { renderSvgInShadowHost } from './utils'
+
+const dotParser = dot().language.parser
 
 // 管理 viz 实例
 const vizInitializer = new AsyncInitializer(async () => {
@@ -34,14 +37,16 @@ const GraphvizPreview = ({
       const viz = await vizInitializer.get()
       const { roles } = resolveMermaidTheme(container)
       // Viz ignores its node/edge default options, so prepend defaults to the body; Helvetica has Graphviz metrics.
-      // ponytail: assumes the first `{` opens the body; a `{` in a quoted graph name before it would break this.
       const font = 'fontname="Helvetica,Arial,sans-serif"'
       const defaults = [
         `graph [bgcolor="transparent" color="${roles.border}" fontcolor="${roles.text}" ${font}];`,
         `node [color="${roles.border}" fontcolor="${roles.text}" ${font}];`,
         `edge [color="${roles.line}" fontcolor="${roles.text}" ${font}];`
       ].join(' ')
-      const svg = viz.renderString(content.replace('{', `{ ${defaults}`), { format: 'svg' })
+      const bodyStart = dotParser.parse(content).topNode.getChild('Body')?.getChild('{')?.to
+      const themed =
+        bodyStart === undefined ? content : `${content.slice(0, bodyStart)} ${defaults}${content.slice(bodyStart)}`
+      const svg = viz.renderString(themed, { format: 'svg' })
       renderSvgInShadowHost(svg, container)
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps

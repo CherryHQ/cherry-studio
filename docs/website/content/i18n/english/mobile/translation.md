@@ -4,7 +4,7 @@ icon: languages
 
 # Reply and skill-document translation
 
-Mobile **0.3.0** can translate completed local-agent replies and skill documents. Translations help reading and sharing; they do not replace original messages or rewrite skill instructions.
+Mobile can translate completed local-agent replies and skill documents. Translations help reading and sharing; they do not replace original messages or rewrite skill instructions.
 
 ## Choose a translation model
 
@@ -31,7 +31,7 @@ Only complete, successful answer text and its code content are translated. Think
 
 Expand the translation and select its language before opening **the original message's share action**. Select that original message in the sharing flow. Image, HTML, and Markdown exports include the translation that was expanded when sharing began.
 
-Collapsed translations are omitted even if saved. The thinking-content switch does not control translation inclusion. See [Sharing and export](sharing-and-export.md).
+Collapsed translations are omitted even if cached. Sharing no longer offers Include thinking; reasoning/tool activity is excluded. See [Sharing and export](sharing-and-export.md).
 
 ## Translate a skill document
 
@@ -48,7 +48,7 @@ Reopening starts on the original, with the cached translation available without 
 | No translation button | Check that this is a completed local-agent text reply; remote or unfinished replies do not offer it |
 | Model unavailable | Check the translation model, provider enablement, API key, or signed-in account |
 | No result saved after leaving | Incomplete, cancelled, truncated, or failed translations are not saved as successful results |
-| A retried reply lost its translation | Changed source content needs a new translation |
+| No translation after changing answer versions or editing text | Translations match their source; another answer or edited text needs its own translation |
 | A long translation stops early | Check the model's output capacity or divide material into sections; a truncated result is not complete |
 
 Check important names, numbers, code, and specialist terminology against the original.

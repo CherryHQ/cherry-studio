@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Button, Skeleton } from '@cherrystudio/ui'
 import { CherryCloudQuotaUsage } from '@renderer/components/CherryCloudQuotaUsage'
+import { SettingGroup } from '@renderer/components/SettingsPrimitives'
 import { useCherryCloudPlans } from '@renderer/hooks/useCherryCloudPlans'
 import { openCherryCloudAccountPortal, openCherryCloudFaq } from '@renderer/services/cherryCloudAccountPortal'
 import { startCherryCloudSubscription } from '@renderer/services/cherryCloudSubscription'
@@ -57,7 +58,7 @@ export function SubscriptionSettings() {
     return (
       <div className="space-y-6">
         {header}
-        <div className="rounded-xl border border-border bg-card p-4">
+        <SettingGroup className="mt-0">
           <div className="flex items-center justify-between gap-4">
             {statusPending ? (
               <>
@@ -90,16 +91,16 @@ export function SubscriptionSettings() {
               </>
             )}
           </div>
-        </div>
+        </SettingGroup>
         <div>
           <h3 className="mb-2 text-sm font-medium">{t('settings.subscription.usage')}</h3>
-          <div className="rounded-xl border border-border bg-card p-4">
+          <SettingGroup className="mt-0">
             <div className="flex items-center justify-center py-6">
               <div className="flex h-5 items-center text-sm text-muted-foreground">
                 {statusPending ? <Skeleton className="h-3 w-36" /> : t('settings.subscription.sign_in_usage')}
               </div>
             </div>
-          </div>
+          </SettingGroup>
         </div>
       </div>
     )
@@ -110,7 +111,7 @@ export function SubscriptionSettings() {
       {header}
       {/* Last-known paid plans remain manageable; only fresh facts can offer a subscription. */}
       {plans && (isPlansReady || paidPlan) && (
-        <div className="rounded-xl border border-border bg-card p-4">
+        <SettingGroup className="mt-0">
           <div className="flex items-center justify-between gap-4">
             <div className="min-w-0">
               <p className="text-sm font-medium">
@@ -137,11 +138,11 @@ export function SubscriptionSettings() {
               <ExternalLink />
             </Button>
           </div>
-        </div>
+        </SettingGroup>
       )}
       <div>
         <h3 className="mb-2 text-sm font-medium">{t('settings.subscription.usage')}</h3>
-        <div className="rounded-xl border border-border bg-card p-4">
+        <SettingGroup className="mt-0">
           {loading ? (
             <p className="py-6 text-center text-sm text-muted-foreground">{t('settings.subscription.loading')}</p>
           ) : failed ? (
@@ -159,7 +160,7 @@ export function SubscriptionSettings() {
               {paidPlan ? t('settings.subscription.no_quota') : t('settings.subscription.subscribe_hint')}
             </p>
           )}
-        </div>
+        </SettingGroup>
       </div>
     </div>
   )
