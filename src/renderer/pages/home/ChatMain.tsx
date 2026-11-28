@@ -5,11 +5,13 @@ import { MessageListProvider } from '@renderer/components/chat/messages/MessageL
 import type {
   MessageListActions,
   MessageListSelectAllPagination,
+  MessageListState,
   MessageStreamingLayers
 } from '@renderer/components/chat/messages/types'
 import type { Assistant } from '@renderer/types/assistant'
 import type { Topic } from '@renderer/types/topic'
-import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import type { MessagePartRows } from '@renderer/utils/message/messagePartRows'
+import type { CherryUIMessage } from '@shared/data/types/message'
 
 import { useHomeMessageListProviderValue } from './messages/homeMessageListAdapter'
 
@@ -17,7 +19,7 @@ interface ChatMainProps {
   topic: Topic
   assistant?: Assistant
   messages: CherryUIMessage[]
-  partsByMessageId: Record<string, CherryMessagePart[]>
+  partsByMessageId: MessagePartRows
   streamingLayers: MessageStreamingLayers
   onBindRuntime: NonNullable<MessageListActions['bindRuntime']>
   isInitialLoading?: boolean
@@ -28,6 +30,8 @@ interface ChatMainProps {
   openCitationsPanel?: MessageListActions['openCitationsPanel']
   addGeneratedImageToComposer?: MessageListActions['addGeneratedImageToComposer']
   onStartBranchDraft?: MessageListActions['startMessageBranch']
+  messageHead?: MessageListState['messageHead']
+  afterMessages?: MessageListState['afterMessages']
 }
 
 const ChatMain: FC<ChatMainProps> = ({
@@ -44,7 +48,9 @@ const ChatMain: FC<ChatMainProps> = ({
   selectAllPagination,
   openCitationsPanel,
   addGeneratedImageToComposer,
-  onStartBranchDraft
+  onStartBranchDraft,
+  messageHead,
+  afterMessages
 }) => {
   const value = useHomeMessageListProviderValue({
     topic,
@@ -60,7 +66,9 @@ const ChatMain: FC<ChatMainProps> = ({
     selectAllPagination,
     openCitationsPanel,
     addGeneratedImageToComposer,
-    onStartBranchDraft
+    onStartBranchDraft,
+    messageHead,
+    afterMessages
   })
   return (
     <MessageListProvider value={value}>

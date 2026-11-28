@@ -1,4 +1,4 @@
-import { createContext, lazy, type ReactNode, Suspense, use, useCallback, useMemo, useState } from 'react'
+import { createContext, type ReactNode, use, useCallback, useMemo, useState } from 'react'
 
 import type { HtmlArtifactKind } from '@renderer/components/chat/messages/markdown/plugins/remarkHtmlArtifact'
 
@@ -25,10 +25,6 @@ export interface HtmlArtifactPopupContextValue {
 
 const HtmlArtifactPopupContext = createContext<HtmlArtifactPopupContextValue | null>(null)
 
-const HtmlArtifactPopupOutlet = lazy(() =>
-  import('./HtmlArtifactView').then((module) => ({ default: module.HtmlArtifactPopupOutlet }))
-)
-
 export function useOptionalHtmlArtifactPopupContext(): HtmlArtifactPopupContextValue | null {
   return use(HtmlArtifactPopupContext)
 }
@@ -41,7 +37,7 @@ export function useHtmlArtifactPopupContext(): HtmlArtifactPopupContextValue {
   return popupContext
 }
 
-export function HtmlArtifactPopupHost({ children }: { children: ReactNode }) {
+export function HtmlArtifactPopupProvider({ children }: { children: ReactNode }) {
   const [approvedInteractiveHtmlById, setApprovedInteractiveHtmlById] = useState<Record<string, string>>({})
   const [popupSession, setPopupSession] = useState<HtmlArtifactPopupSession | null>(null)
   const approveInteractiveHtml = useCallback((artifactId: string, html: string) => {
@@ -82,14 +78,5 @@ export function HtmlArtifactPopupHost({ children }: { children: ReactNode }) {
     [approvedInteractiveHtmlById, approveInteractiveHtml, closePopup, openPopup, popupSession, syncPopup]
   )
 
-  return (
-    <HtmlArtifactPopupContext value={contextValue}>
-      {children}
-      {popupSession ? (
-        <Suspense fallback={null}>
-          <HtmlArtifactPopupOutlet />
-        </Suspense>
-      ) : null}
-    </HtmlArtifactPopupContext>
-  )
+  return <HtmlArtifactPopupContext value={contextValue}>{children}</HtmlArtifactPopupContext>
 }

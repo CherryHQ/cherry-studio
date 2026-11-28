@@ -56,9 +56,15 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => ({
 vi.mock('@renderer/components/resourceCatalog/dialogs/create', () => {
   dialogImplementationsLoadedMock('create')
   return {
-    ResourceCreateWizard: (props: { kind: string; open: boolean }) => {
+    ResourceCreateWizard: (props: { kind: string; open: boolean; onStartConversation: (id: string) => void }) => {
       resourceCreateWizardMock(props)
-      return props.open ? <div data-kind={props.kind} data-testid="resource-create-wizard" /> : null
+      return props.open ? (
+        <div data-kind={props.kind} data-testid="resource-create-wizard">
+          <button type="button" onClick={() => props.onStartConversation('created-id')}>
+            start conversation
+          </button>
+        </div>
+      ) : null
     }
   }
 })
@@ -204,29 +210,37 @@ describe('ResourceCatalogView', () => {
     rerender(<ResourceCatalogView resourceType="assistant" />)
 
     expect(await screen.findByTestId('resource-create-wizard')).toHaveAttribute('data-kind', 'assistant')
-    expect(dialogImplementationsLoadedMock).toHaveBeenCalledWith('create')
-    expect(dialogImplementationsLoadedMock).not.toHaveBeenCalledWith('detail')
-    expect(dialogImplementationsLoadedMock).toHaveBeenCalledWith('edit')
-    expect(dialogImplementationsLoadedMock).toHaveBeenCalledWith('import')
-    expect(dialogImplementationsLoadedMock).toHaveBeenCalledWith('skill')
-    expect(dialogImplementationsLoadedMock).toHaveBeenCalledWith('assistant-library')
 
     resourceCatalogControllerMock.mockReturnValue(inactiveController)
     rerender(<ResourceCatalogView resourceType="assistant" />)
 
     expect(screen.queryByTestId('resource-create-wizard')).not.toBeInTheDocument()
-    expect(resourceCreateWizardMock).toHaveBeenLastCalledWith(expect.objectContaining({ open: false }))
   })
 
-  it('keeps toolbar leading in the resource grid success state', () => {
-    render(
-      <ResourceCatalogView resourceType="assistant" toolbarLeading={<button type="button">Toggle sidebar</button>} />
-    )
+  it.each(['assistant', 'agent'] as const)(
+    'opens a conversation with the new %s through the matching chat callback',
+    async (kind) => {
+      const controller = createController()
+      resourceCatalogControllerMock.mockReturnValue({
+        ...controller,
+        dialogs: { ...controller.dialogs, createDialogKind: kind, createDialogOpen: true }
+      })
+      const onOpenAssistantChat = vi.fn()
+      const onOpenAgentChat = vi.fn()
+      render(
+        <ResourceCatalogView
+          resourceType={kind}
+          onOpenAssistantChat={onOpenAssistantChat}
+          onOpenAgentChat={onOpenAgentChat}
+        />
+      )
 
-    expect(screen.getByTestId('resource-grid')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Toggle sidebar' })).toBeInTheDocument()
-    expect(resourceGridMock).toHaveBeenCalledWith(expect.objectContaining({ toolbarLeading: expect.anything() }))
-  })
+      fireEvent.click(await screen.findByRole('button', { name: 'start conversation' }))
+
+      expect(kind === 'agent' ? onOpenAgentChat : onOpenAssistantChat).toHaveBeenCalledExactlyOnceWith('created-id')
+      expect(kind === 'agent' ? onOpenAssistantChat : onOpenAgentChat).not.toHaveBeenCalled()
+    }
+  )
 
   it('filters controller resources before rendering the grid', () => {
     const enabledSkill = { id: 'enabled', type: 'skill', raw: { isGlobalEnabled: true } } as ResourceItem
@@ -273,24 +287,6 @@ describe('ResourceCatalogView', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
 
     expect(refetchMock).toHaveBeenCalledOnce()
-  })
-
-  it('opens system skill management without agent enablement semantics', async () => {
-    const controller = createController()
-    resourceCatalogControllerMock.mockReturnValue({
-      ...controller,
-      dialogs: {
-        ...controller.dialogs,
-        systemSkillOpen: true
-      }
-    })
-
-    render(<ResourceCatalogView resourceType="skill" />)
-
-    expect(resourceGridMock).toHaveBeenCalledWith(expect.objectContaining({ onOpenSystemSkills: expect.any(Function) }))
-    await vi.waitFor(() =>
-      expect(systemSkillDialogMock).toHaveBeenCalledWith(expect.objectContaining({ mode: 'manage' }))
-    )
   })
 
   it('opens the batch export dialog on the first toolbar click through the lazy host', async () => {

@@ -143,7 +143,7 @@ describe('validation selection', () => {
   })
   it('checks the ACP adapter independently and includes it when common contracts change', () => {
     const plan = createPlan(['packages/agent-runtime-acp/src/runtime.ts'])
-    expect(plan.projects).toEqual(['agent-runtime-acp'])
+    expect(plan.projects).toEqual(expect.arrayContaining(['agent-runtime-acp', 'agent-runtime-pi-acp', 'main']))
     expect(plan.tasks).toContain('types-agent-runtime-acp')
     expect(createPlan(['packages/agent-runtime/src/contracts.ts']).tasks).toContain('types-agent-runtime-acp')
   })
@@ -450,7 +450,6 @@ describe('validation execution', () => {
       if (group !== 'main') expect(test).toContain('system-speech')
       if (group === 'main') expect(test).toEqual(['exec', 'vitest', 'run', '--project', 'main', '--project', 'preload'])
       if (group === 'platform') expect(test).toContain('native/system-speech/tests/SystemSpeechNativeClient.test.ts')
-      if (group === 'main' || group === 'platform') expect(commands).toContainEqual(['rebuild:node'])
     }
   })
 

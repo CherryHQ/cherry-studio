@@ -722,6 +722,7 @@
     {
       "authOptional": true,
       "availableInEditions": ["global", "cn"],
+      "defaultChatEndpoint": "ollama-chat",
       "description": "Ollama - AI model provider",
       "endpointConfigs": {
         "anthropic-messages": {
@@ -1130,6 +1131,37 @@
         }
       },
       "name": "oMLX"
+    },
+    {
+      "authOptional": true,
+      "availableInEditions": ["global", "cn"],
+      "defaultChatEndpoint": "openai-chat-completions",
+      "description": "Rapid-MLX - AI model provider",
+      "endpointConfigs": {
+        "anthropic-messages": {
+          "adapterFamily": "anthropic",
+          "baseUrl": "http://localhost:8000"
+        },
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "http://localhost:8000",
+          "reasoningFormat": {
+            "type": "openai-chat"
+          }
+        },
+        "openai-responses": {
+          "adapterFamily": "open-responses",
+          "baseUrl": "http://localhost:8000"
+        }
+      },
+      "id": "rapid-mlx",
+      "metadata": {
+        "website": {
+          "docs": "https://github.com/raullenchai/Rapid-MLX",
+          "official": "https://rapidmlx.com"
+        }
+      },
+      "name": "Rapid-MLX"
     },
     {
       "availableInEditions": ["global"],
@@ -2937,5 +2969,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "7b17f7706c07b778"
+  "version": "5179a16fddc562d9"
 }

@@ -4,8 +4,9 @@ import { getFilePreviewFileName } from '@renderer/utils/filePreview'
 
 import { AgentToolsType, type WriteToolInput, type WriteToolOutput } from '../shared/agentToolTypes'
 import { ClickableFilePath } from '../shared/ClickableFilePath'
-import { SkeletonValue, ToolHeader } from '../shared/GenericTools'
+import { SkeletonValue } from '../shared/GenericTools'
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
+import ToolHeader from '../ToolHeader'
 
 export function WriteTool({
   input,

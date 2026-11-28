@@ -11,6 +11,8 @@ import {
 import { Upload } from '@aws-sdk/lib-storage'
 
 import { loggerService } from '@logger'
+import { logFailure } from '@main/core/logger/logFailure'
+import { classifyStorageFailure } from '@main/services/remoteStorage/failureFacts'
 import type { S3Config } from '@shared/types/backup'
 
 const logger = loggerService.withContext('S3Storage')
@@ -86,8 +88,7 @@ export default class S3Storage {
    * 内部辅助方法，用来拼接带 root 的对象 key
    */
   private buildKey(key: string): string {
-    if (!this.root) return key
-    return key.startsWith(`${this.root}/`) ? key : `${this.root}/${key}`
+    return this.root ? `${this.root}/${key}` : key
   }
 
   async putFileContents(
@@ -120,7 +121,7 @@ export default class S3Storage {
       })
       return await upload.done()
     } catch (error) {
-      logger.error('[S3Storage] Error putting object:', error as Error)
+      logFailure(logger, '[S3Storage] Error putting object:', error, 'storage.s3storage', classifyStorageFailure(error))
       throw error
     } finally {
       options.signal?.removeEventListener('abort', forwardAbort)
@@ -136,7 +137,7 @@ export default class S3Storage {
       }
       return res.Body
     } catch (error) {
-      logger.error('[S3Storage] Error getting object:', error as Error)
+      logFailure(logger, '[S3Storage] Error getting object:', error, 'storage.s3storage', classifyStorageFailure(error))
       throw error
     }
   }
@@ -148,7 +149,13 @@ export default class S3Storage {
         abortSignal: signal
       })
     } catch (error) {
-      logger.error('[S3Storage] Error deleting object:', error as Error)
+      logFailure(
+        logger,
+        '[S3Storage] Error deleting object:',
+        error,
+        'storage.s3storage',
+        classifyStorageFailure(error)
+      )
       throw error
     }
   }
@@ -190,7 +197,13 @@ export default class S3Storage {
 
       return files
     } catch (error) {
-      logger.error('[S3Storage] Error listing objects:', error as Error)
+      logFailure(
+        logger,
+        '[S3Storage] Error listing objects:',
+        error,
+        'storage.s3storage',
+        classifyStorageFailure(error)
+      )
       throw error
     }
   }
@@ -203,7 +216,13 @@ export default class S3Storage {
       await this.client.send(new HeadBucketCommand({ Bucket: this.bucket }))
       return true
     } catch (error) {
-      logger.error('[S3Storage] Error checking connection:', error as Error)
+      logFailure(
+        logger,
+        '[S3Storage] Error checking connection:',
+        error,
+        'storage.s3storage',
+        classifyStorageFailure(error)
+      )
       throw error
     }
   }

@@ -1,6 +1,6 @@
 // Registers MessageService in the data-service registry (topic purge resolves it).
 import '@data/services/MessageService'
-import { rootRow, setupTestDatabase } from '@test-helpers/db'
+import { insertAgentSessionMessages, rootRow, setupTestDatabase, seedSessionRoot } from '@test-helpers/db'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { eq } from 'drizzle-orm'
@@ -19,6 +19,7 @@ import { paintingTable } from '@data/db/schemas/painting'
 import { topicTable } from '@data/db/schemas/topic'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import { jobService } from '@data/services/JobService'
 import type { JobContext } from '@main/core/job/types'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 
@@ -77,9 +78,17 @@ const OLD = Date.now() - 40 * DAY
 /** Trashed, but still inside the retention window. */
 const RECENT = Date.now() - 1 * DAY
 
-function makeCtx(input: { emptyAll?: boolean } = {}): JobContext<{ emptyAll?: boolean }> {
+function makeCtx(input: { emptyAll?: boolean } = {}, createdAt = Date.now()): JobContext<{ emptyAll?: boolean }> {
+  const job = jobService.create({
+    type: 'trash.purge',
+    queue: 'trash.purge',
+    status: 'running',
+    input,
+    createdAt,
+    scheduledAt: createdAt
+  })
   return {
-    jobId: 'job-trash-test',
+    jobId: job.id,
     input,
     attempt: 1,
     parentId: null,
@@ -209,7 +218,8 @@ describe('trashPurgeJobHandler', () => {
         deletedAt: RECENT
       }
     ])
-    await dbh.db.insert(agentSessionMessageTable).values({
+    insertAgentSessionMessages(dbh.db, {
+      parentId: seedSessionRoot(dbh.db, 'session-expired'),
       id: 'asm-expired',
       sessionId: 'session-expired',
       role: 'user',
@@ -359,10 +369,14 @@ describe('trashPurgeJobHandler', () => {
       { endpoint: '/topics/:topicId/tree' },
       { endpoint: '/messages/:id' }
     ])
-    expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
-      { endpoint: '/agent-sessions/:sessionId/messages', kind: 'membership' },
-      { endpoint: '/agent-sessions/:sessionId/messages/:messageId' }
-    ])
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        { endpoint: '/agent-sessions/:sessionId/messages', kind: 'membership' },
+        { endpoint: '/agent-sessions/:sessionId/messages/:messageId' },
+        { endpoint: '/ai-usage-records/local', kind: 'membership' },
+        { endpoint: '/agent-sessions/:sessionId/cost', routeParams: { sessionId: 'session-expired' } }
+      ])
+    )
   })
 
   it('purges domains in RFC §6 order: topic → session → agent → assistant → painting → file entry', async () => {
@@ -565,7 +579,7 @@ describe('trashPurgeJobHandler', () => {
     expect(agentJobsServiceMock.reconcileAgentSchedules).toHaveBeenCalledTimes(1)
   })
 
-  it('emptyAll purges every trashed row regardless of retention, sparing active rows', async () => {
+  it('emptyAll purges previously trashed rows regardless of retention, sparing active rows', async () => {
     // retention 0 would normally disable the purge — emptyAll must override it.
     MockMainPreferenceServiceUtils.setPreferenceValue('data.trash.retention_days', 0)
     await dbh.db.insert(topicTable).values([
@@ -583,6 +597,8 @@ describe('trashPurgeJobHandler', () => {
   it('emptyAll keeps referenced trashed files and reports how many remain', async () => {
     const held = '019606a0-0000-7000-8000-00000000dd01'
     const free = '019606a0-0000-7000-8000-00000000dd02'
+    const later = '019606a0-0000-7000-8000-00000000dd03'
+    const now = Date.now()
     await dbh.db.insert(topicTable).values({ id: 'topic-file-holder', name: 'holder', orderKey: 'a0' })
     await dbh.db.insert(messageTable).values([
       rootRow('topic-file-holder'),
@@ -597,6 +613,7 @@ describe('trashPurgeJobHandler', () => {
     ])
     await seedFileEntry(held, OLD)
     await seedFileEntry(free, OLD)
+    await seedFileEntry(later, now)
     await dbh.db.insert(chatMessageFileRefTable).values({
       id: 'cmfr-trash-held',
       fileEntryId: held,
@@ -604,13 +621,13 @@ describe('trashPurgeJobHandler', () => {
       role: 'attachment'
     })
 
-    const result = await trashPurgeJobHandler.execute(makeCtx({ emptyAll: true }))
+    const result = await trashPurgeJobHandler.execute(makeCtx({ emptyAll: true }, now))
 
     expect(result).toMatchObject({
       purged: expect.objectContaining({ fileEntry: 1 }),
       retainedReferencedFileCount: 1
     })
-    expect(allIds(dbh.db.select({ id: fileEntryTable.id }).from(fileEntryTable).all())).toEqual([held])
+    expect(allIds(dbh.db.select({ id: fileEntryTable.id }).from(fileEntryTable).all()).sort()).toEqual([held, later])
   })
 
   it('does not report reclamation complete when entry cleanup still has pending work', async () => {

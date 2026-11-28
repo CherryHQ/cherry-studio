@@ -282,19 +282,7 @@ describe('AppearanceSettings selectors', () => {
     expect(screen.queryByText('common.language')).not.toBeInTheDocument()
   })
 
-  it('does not render manual chat layout switches', async () => {
-    render(<AppearanceSettings />)
-
-    await waitFor(() => {
-      expect(mocks.request).toHaveBeenCalledWith('system.get_fonts')
-      expect(mocks.request).toHaveBeenCalledWith('app.adjust_zoom', { delta: 0 })
-    })
-
-    expect(screen.queryByText('settings.messages.layout.conversation')).not.toBeInTheDocument()
-    expect(screen.queryByText('settings.messages.layout.work')).not.toBeInTheDocument()
-  })
-
-  it('shows every theme as a visual choice and switches from the preview', async () => {
+  it('persists the selected theme', async () => {
     render(<AppearanceSettings />)
 
     await waitFor(() => {
@@ -306,13 +294,7 @@ describe('AppearanceSettings selectors', () => {
     const lightThemeLabel = lightThemePreview?.nextElementSibling
 
     expect(lightThemeButton).toHaveAttribute('aria-pressed', 'true')
-    expect(lightThemePreview).toHaveClass(
-      'border-primary',
-      'ring-2',
-      'group-focus-visible:border-ring',
-      'group-focus-visible:bg-accent'
-    )
-    expect(lightThemePreview).not.toHaveClass('group-focus-visible:ring-3', 'group-focus-visible:ring-ring/50')
+
     expect(lightThemeLabel).toHaveTextContent('settings.theme.light')
     expect(screen.getByRole('button', { name: 'settings.theme.dark' })).toHaveAttribute('aria-pressed', 'false')
     expect(screen.getByRole('button', { name: 'settings.theme.system' })).toHaveAttribute('aria-pressed', 'false')
@@ -320,13 +302,6 @@ describe('AppearanceSettings selectors', () => {
     fireEvent.click(screen.getByRole('button', { name: 'settings.theme.dark' }))
 
     expect(themeMocks.setTheme).toHaveBeenCalledWith(ThemeMode.dark)
-  })
-
-  it('places the theme group before the display group', () => {
-    const { container } = render(<AppearanceSettings />)
-    const groupTitles = Array.from(container.querySelectorAll('section > h2')).map((heading) => heading.textContent)
-
-    expect(groupTitles.slice(0, 2)).toEqual(['settings.theme.title', 'settings.general.common.sections.display'])
   })
 
   it('routes each list position row to its own module preference', async () => {

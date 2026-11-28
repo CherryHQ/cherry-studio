@@ -5,7 +5,10 @@ import type { MessageListItem, MessageUiState } from '../types'
 const WIDE_MULTI_MODEL_LAYOUTS = new Set<MultiModelMessageStyle>(['horizontal', 'grid'])
 
 export function isAssistantMultiModelGroup(messages: MessageListItem[]): boolean {
-  return messages.length > 1 && messages.every((message) => message.role === 'assistant')
+  return (
+    messages.length > 1 &&
+    messages.every((message) => message.role === 'assistant' && !message.historicalProcessGroupId)
+  )
 }
 
 export function getEffectiveMultiModelMessageStyle(
@@ -13,6 +16,7 @@ export function getEffectiveMultiModelMessageStyle(
   getMessageUiState: (messageId: string) => MessageUiState,
   defaultStyle: MultiModelMessageStyle
 ): MultiModelMessageStyle {
+  if (messages[0]?.historicalProcessGroupId) return 'vertical'
   if (messages.length < 2) return 'fold'
 
   return (getMessageUiState(messages[0]?.id).multiModelMessageStyle as MultiModelMessageStyle) || defaultStyle

@@ -13,6 +13,12 @@ icon: refresh-cw
 | Your computer's existing setup | Choose **Sync from desktop** | Selected provider configuration and missing enabled models |
 | New app features and fixes | Update through the official installation channel | The app itself |
 
+## How do managed account catalogs differ?
+
+The manual synchronization below concerns your own ordinary providers. Confirmed service entitlements decide CherryAI model access, while organizations deliver their own catalogs. Revoked/withdrawn models may be disabled or hidden while history retains their identities; do not treat them as ordinary unreturned models that require manual deletion.
+
+A failed account read does not establish zero quota or no authorization. Retry as offered. Your own model overrides and provider settings still follow the separate rules below.
+
 ## When does model information update?
 
 On first use, the app downloads model information in the background. Model selection, creation, and editing may show loading or retry states until it finishes. Check the network and retry after a failed first download.

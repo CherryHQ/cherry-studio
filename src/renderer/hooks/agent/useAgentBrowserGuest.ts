@@ -12,12 +12,13 @@ export function useAgentBrowserGuest(
   sessionId: string | undefined,
   guest: WebviewTag | null,
   revision: number,
-  scope?: 'agent' | 'topic'
+  scope?: 'agent' | 'topic',
+  pageId = sessionId
 ): string | undefined {
   const [binding, setBinding] = useState<{ guest: WebviewTag; sessionId: string; tabId: string }>()
   const operations = useRef(new Sequencer())
   useEffect(() => {
-    if (!sessionId || !guest) return
+    if (!sessionId || !guest || !pageId) return
     const queue = operations.current
     let cancelled = false
     let attaching = false
@@ -65,6 +66,7 @@ export function useAgentBrowserGuest(
           const result = await ipcApi.request('browser.pane.attach', {
             sessionId,
             webviewId,
+            pageId,
             ...(scope ? { scope } : {})
           })
           if (cancelled) await detach(result.tabId)
@@ -92,6 +94,6 @@ export function useAgentBrowserGuest(
           .catch((error) => logger.debug('Browser guest already detached', { error }))
       }
     }
-  }, [sessionId, guest, revision, scope])
+  }, [sessionId, guest, revision, scope, pageId])
   return binding?.guest === guest && binding?.sessionId === sessionId ? binding?.tabId : undefined
 }

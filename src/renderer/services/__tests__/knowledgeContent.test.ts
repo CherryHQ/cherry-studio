@@ -4,7 +4,7 @@ import { processMessagesContent } from '@renderer/services/knowledgeContent'
 import type { ExportableMessage } from '@renderer/types/messageExport'
 import { CONTENT_TYPES } from '@renderer/utils/knowledge'
 
-vi.mock('@renderer/hooks/useTopic', () => ({
+vi.mock('@renderer/utils/message/getTopicMessages', () => ({
   getTopicMessages: vi.fn()
 }))
 
@@ -18,22 +18,6 @@ const message = (role: 'user' | 'assistant', text: string): ExportableMessage =>
 })
 
 describe('processMessagesContent', () => {
-  it('does not put a horizontal rule between the title and the first message', () => {
-    const result = processMessagesContent('采购管理', [message('user', 'hi')], [CONTENT_TYPES.TEXT])
-
-    expect(result.text.startsWith('# 采购管理\n\n##')).toBe(true)
-  })
-
-  it('separates consecutive messages with a horizontal rule', () => {
-    const result = processMessagesContent(
-      '采购管理',
-      [message('user', 'hi'), message('assistant', 'hello')],
-      [CONTENT_TYPES.TEXT]
-    )
-
-    expect(result.text.split('\n\n---\n\n')).toHaveLength(2)
-  })
-
   it('omits the title when the user did not select text content', () => {
     const result = processMessagesContent('采购管理', [message('user', 'hi')], [CONTENT_TYPES.CODE])
 

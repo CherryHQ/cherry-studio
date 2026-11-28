@@ -15,6 +15,14 @@ vi.mock('@main/ai/messages/attachmentWorker?nodeWorker', () => ({
   })
 }))
 
+vi.mock('@main/services/file/watcherWorker?nodeWorker', async () => {
+  const { Worker } = await import('node:worker_threads')
+  return {
+    default: (options: ConstructorParameters<typeof Worker>[1]) =>
+      new Worker("require('tsx/cjs'); require('./src/main/services/file/watcherWorker.ts')", { ...options, eval: true })
+  }
+})
+
 // Mock LoggerService globally for main process tests
 vi.mock('@logger', async () => {
   const { MockMainLoggerService, mockMainLoggerService } = await import('./__mocks__/MainLoggerService')
@@ -86,7 +94,10 @@ vi.mock('electron', async () => {
             return '/mock/unknown'
         }
       }),
+      getAppPath: vi.fn(() => '/mock/app'),
       getVersion: vi.fn(() => '1.0.0'),
+      whenReady: vi.fn().mockResolvedValue(undefined),
+      runningUnderARM64Translation: false,
       getLocale: vi.fn(() => 'en-US'),
       getPreferredSystemLanguages: vi.fn(() => ['en-US']),
       // Explicit false (matching the previous `undefined` semantics) so the
@@ -111,6 +122,11 @@ vi.mock('electron', async () => {
       on: vi.fn(),
       removeListener: vi.fn()
     },
+    autoUpdater: Object.assign(new EventEmitter(), {
+      checkForUpdates: vi.fn(),
+      quitAndInstall: vi.fn(),
+      setFeedURL: vi.fn()
+    }),
     BrowserWindow: vi.fn(),
     dialog: {
       showErrorBox: vi.fn(),
@@ -141,6 +157,7 @@ vi.mock('electron', async () => {
         const created = Object.assign(new EventEmitter(), {
           fetch: vi.fn(),
           clearCache: vi.fn(),
+          clearData: vi.fn(),
           clearStorageData: vi.fn(),
           clearCodeCaches: vi.fn(),
           setProxy: vi.fn(async () => {}),
@@ -179,7 +196,8 @@ vi.mock('electron', async () => {
     },
     Notification: vi.fn(),
     net: {
-      fetch: vi.fn()
+      fetch: vi.fn(),
+      request: vi.fn()
     }
   }
 
@@ -219,22 +237,6 @@ vi.mock('winston-daily-rotate-file', () => {
       log: vi.fn()
     }
   })
-})
-
-// Mock electron-store to avoid file system operations
-vi.mock('electron-store', () => {
-  return {
-    default: vi.fn().mockImplementation(function ElectronStoreMock() {
-      return {
-        get: vi.fn((key: string, defaultValue?: unknown) => defaultValue),
-        set: vi.fn(),
-        delete: vi.fn(),
-        clear: vi.fn(),
-        has: vi.fn(() => false),
-        store: {}
-      }
-    })
-  }
 })
 
 // Mock Node.js modules

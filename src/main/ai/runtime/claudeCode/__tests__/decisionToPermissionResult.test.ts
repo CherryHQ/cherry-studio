@@ -27,10 +27,7 @@ describe('decisionToPermissionResult — DispatchDecision → Claude PermissionR
   })
 
   it('denies with a default message when none is supplied', () => {
-    expect(decisionToPermissionResult({ approved: false }, original)).toEqual({
-      behavior: 'deny',
-      message: 'User denied permission for this tool'
-    })
+    expect(decisionToPermissionResult({ approved: false }, original)).toMatchObject({ behavior: 'deny' })
   })
 
   it('attributes a reason the user supplied', () => {

@@ -82,7 +82,7 @@ resetOrder(tx, mcpServerTable, orderedRows, { pkColumn: mcpServerTable.id })
 //   scope: eq(userModelTable.providerId, providerId)
 ```
 
-Migrators (Redux/Dexie → SQLite) use the pure-function counterparts `assignOrderKeysInSequence` / `assignOrderKeysByScope` from `src/main/data/migration/v2/utils/orderKey.ts` — see [v2 Migration Guide — Order-Key Stamping in Migrators](./v2-migration-guide.md#order-key-stamping-in-migrators).
+V1 imports run in the [intermediate upgrade release](./v2-migration-guide.md); current writes use the runtime ordering API.
 
 ### 4. Renderer — `useReorder` hook
 

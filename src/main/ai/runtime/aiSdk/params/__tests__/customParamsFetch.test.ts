@@ -27,12 +27,6 @@ describe('selectCustomBodyParameters', () => {
 })
 
 describe('createCustomParamsFetch', () => {
-  it('returns the inner fetch unchanged when there are no custom parameters', () => {
-    const innerFetch = createInnerFetch()
-
-    expect(createCustomParamsFetch(innerFetch, {})).toBe(innerFetch)
-  })
-
   it('passes non-POST requests through unchanged', async () => {
     const innerFetch = createInnerFetch()
     const init: RequestInit = { method: 'GET' }
@@ -92,13 +86,23 @@ describe('createCustomParamsFetch', () => {
     })
   })
 
-  it('reuses wrappers for the same inner fetch and serialized custom parameters', () => {
+  it.each([
+    { custom: { max_tokens: 4096 }, sdk: { max_completion_tokens: 8192 } },
+    { custom: { max_completion_tokens: 8192 }, sdk: { max_tokens: 4096 } },
+    { custom: {}, sdk: { max_tokens: 4096, max_completion_tokens: 8192 } }
+  ])('keeps one completion budget in the final Chat body for $custom and $sdk', async ({ custom, sdk }) => {
     const innerFetch = createInnerFetch()
-    const first = createCustomParamsFetch(innerFetch, { enable_search: true })
-    const second = createCustomParamsFetch(innerFetch, { enable_search: true })
-
-    expect(second).toBe(first)
-    expect(createCustomParamsFetch(innerFetch, { enable_search: false })).not.toBe(first)
-    expect(createCustomParamsFetch(createInnerFetch(), { enable_search: true })).not.toBe(first)
+    await createCustomParamsFetch(
+      innerFetch,
+      custom,
+      true
+    )('https://example.com/v1/chat/completions', {
+      method: 'POST',
+      body: JSON.stringify({ model: 'gpt-4o', ...sdk })
+    })
+    expect(JSON.parse(String(innerFetch.mock.calls[0][1]?.body))).toEqual({
+      model: 'gpt-4o',
+      max_completion_tokens: 8192
+    })
   })
 })

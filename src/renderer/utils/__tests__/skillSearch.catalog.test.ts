@@ -4,7 +4,7 @@ import { searchSkillMarketplaces } from '@shared/utils/skillMarketplace'
 
 import { loadClaudePluginsSkills } from '../skillSearch'
 
-// Shape verified against GET /api/skills?q=pdf&limit=2&offset=0 on 2026-11-06.
+// Shape verified against the official registry API on 2026-11-14.
 const pdf = {
   id: '63d64579-47a6-4a5a-9457-ae16e08b7d1d',
   name: 'pdf',
@@ -18,7 +18,7 @@ describe('claude-plugins.dev independent skills', () => {
     const page = await loadClaudePluginsSkills(
       2,
       async (url) => {
-        expect(url).toBe('https://claude-plugins.dev/api/skills?limit=2&offset=2')
+        expect(url).toBe('https://api.claude-plugins.dev/api/skills/search?limit=2&offset=2')
         return { skills: [{ ...pdf, metadata: null }, pdf], offset: 2, limit: 2, total: 5 }
       },
       2
@@ -38,7 +38,7 @@ describe('claude-plugins.dev independent skills', () => {
     const results = await searchSkillMarketplaces(
       'pdf',
       async (url) => {
-        expect(url).toBe('https://claude-plugins.dev/api/skills?q=pdf&limit=20')
+        expect(url).toBe('https://api.claude-plugins.dev/api/skills/search?q=pdf&limit=20')
         return response
       },
       undefined,

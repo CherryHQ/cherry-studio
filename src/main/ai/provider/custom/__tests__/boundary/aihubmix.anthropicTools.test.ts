@@ -124,6 +124,7 @@ describe('AiHubMix → Anthropic tool examples boundary', () => {
     'omits $examples input examples and their beta in $method without mutating inputs',
     async ({ method, inputExamples }) => {
       const eagerStreaming = method === 'doStream' ? { eager_input_streaming: true } : {}
+      // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
       const originalExamples = structuredClone(inputExamples)
       const inputSchema = {
         type: 'object' as const,
@@ -135,6 +136,7 @@ describe('AiHubMix → Anthropic tool examples boundary', () => {
         required: ['query'],
         additionalProperties: false
       }
+      // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
       const originalSchema = structuredClone(inputSchema)
       const providerOptions = { anthropic: { cacheControl: { type: 'ephemeral', ttl: '5m' } } }
       const tool = {

@@ -21,6 +21,7 @@ function captureRequest() {
       function?: { name: string; strict?: boolean }
       input_schema?: unknown
       input_examples?: unknown
+      eager_input_streaming?: boolean
       functionDeclarations?: unknown
     }[]
   }
@@ -78,6 +79,39 @@ function callOptions(tool = exampleTool()): LanguageModelV3CallOptions {
 }
 
 const advancedBeta = 'advanced-tool-use-2025-11-20'
+
+describe('CherryIN Anthropic tool streaming', () => {
+  it.each(['anthropic/claude-sonnet-4.5', 'claude-sonnet-4-5-20250929'])(
+    'omits default and explicitly enabled eager streaming for %s',
+    async (modelId) => {
+      const { requests, fetch } = captureRequest()
+      const model = createCherryIn({ apiKey: 'test-key', endpointType: 'anthropic', fetch })(modelId)
+      const tool = exampleTool()
+      const optedIn = { ...tool, name: 'opted_in', providerOptions: { anthropic: { eagerInputStreaming: true } } }
+      const options = {
+        ...callOptions(),
+        tools: [tool, optedIn],
+        providerOptions: { anthropic: { toolStreaming: true }, cherryin: { toolStreaming: true } }
+      }
+      await expect(model.doStream(options)).rejects.toThrow()
+      await expect(model.doGenerate(options)).rejects.toThrow()
+
+      expect(requests.map(({ body }) => body.tools.map(({ eager_input_streaming }) => eager_input_streaming))).toEqual([
+        [undefined, undefined],
+        [undefined, undefined]
+      ])
+      expect(requests[0].body.tools[1].input_schema).toMatchObject(tool.inputSchema)
+      expect(optedIn.providerOptions.anthropic.eagerInputStreaming).toBe(true)
+    }
+  )
+
+  it('preserves eager streaming for another Sonnet version', async () => {
+    const { requests, fetch } = captureRequest()
+    const model = createCherryIn({ apiKey: 'test-key', fetch })('anthropic/claude-sonnet-4.6')
+    await expect(model.doStream(callOptions())).rejects.toThrow()
+    expect(requests[0].body.tools[0].eager_input_streaming).toBe(true)
+  })
+})
 
 describe('CherryIN Anthropic tool input examples', () => {
   it('omits unsupported Anthropic tool fields while preserving schema and metadata', async () => {
@@ -181,6 +215,7 @@ describe('CherryIN Anthropic tool input examples', () => {
     const options = callOptions(tool)
     options.tools!.push(clean)
     options.providerOptions = { anthropic: { thinking: { type: 'disabled' } } }
+    // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
     const before = structuredClone(options)
     const tools = options.tools
     const spy = vi.spyOn(AnthropicMessagesLanguageModel.prototype, 'doGenerate')
@@ -225,6 +260,7 @@ describe('CherryIN Anthropic tool input examples', () => {
   it('keeps shared examples available for a subsequent official Anthropic call', async () => {
     const { requests, fetch } = captureRequest()
     const options = callOptions()
+    // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
     const before = structuredClone(options)
     await expect(
       createCherryIn({ apiKey: 'test-key', endpointType: 'anthropic', fetch })('claude-haiku-5.5').doGenerate(options)
@@ -249,6 +285,7 @@ describe('CherryIN Anthropic tool input examples', () => {
     } as const
     const options = callOptions()
     options.tools!.push(providerTool)
+    // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
     const before = structuredClone(options)
     const spy = vi.spyOn(AnthropicMessagesLanguageModel.prototype, 'doGenerate')
     try {
@@ -421,6 +458,7 @@ describe('CherryIN Anthropic strict tools', () => {
     delete tool.inputExamples
     tool.strict = true
     const options = callOptions(tool)
+    // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
     const before = structuredClone(options)
     await expect(
       createCherryIn({ apiKey: 'test-key', endpointType: 'anthropic', fetch })('claude-fable-5').doGenerate(options)

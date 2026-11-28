@@ -9,7 +9,7 @@ const Morph = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const MorphIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Morph, {
   Avatar: MorphAvatar,
-  colorPrimary: '#99D52A'
+  colorPrimary: '#f6fbec'
 })
 
 export default MorphIcon

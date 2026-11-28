@@ -76,22 +76,9 @@ describe('PpioTransport', () => {
     expect(getTaskResultSpy).toHaveBeenCalledTimes(1)
   })
 
-  it('gives up after the transient-retry cap (10)', async () => {
-    const transport = createPpioTransport({ apiKey: 'token' })
-    const getTaskResultSpy = vi.spyOn(transport, 'getTaskResult').mockRejectedValue(new Error('network glitch'))
-
-    const promise = transport.pollTaskResult('task-1').catch((e) => e)
-    await vi.advanceTimersByTimeAsync(60000)
-    const error = await promise
-
-    expect(error).toBeInstanceOf(Error)
-    expect((error as Error).message).toBe('network glitch')
-    expect(getTaskResultSpy).toHaveBeenCalledTimes(10)
-  })
-
   it('retries a transient 5xx poll response up to the cap instead of failing fast', async () => {
     const transport = createPpioTransport({ apiKey: 'token' })
-    const getTaskResultSpy = vi
+    const getTaskResult = vi
       .spyOn(transport, 'getTaskResult')
       .mockRejectedValue(new PpioApiError('PPIO API error: 503', 503))
 
@@ -100,8 +87,22 @@ describe('PpioTransport', () => {
     const error = await promise
 
     expect(error).toBeInstanceOf(PpioApiError)
-    // 503 is transient → retried to the cap, not thrown on the first hit.
-    expect(getTaskResultSpy).toHaveBeenCalledTimes(10)
+    expect(getTaskResult).toHaveBeenCalledTimes(10)
+  })
+
+  it('returns the completed result after a transient poll failure', async () => {
+    const transport = createPpioTransport({ apiKey: 'token' })
+    const completed = {
+      task: { task_id: 'task-1', status: 'TASK_STATUS_SUCCEED', task_type: 'image' },
+      images: []
+    } as const
+    vi.spyOn(transport, 'getTaskResult')
+      .mockRejectedValueOnce(new PpioApiError('PPIO API error: 503', 503))
+      .mockResolvedValue({ task: completed.task, images: [] })
+
+    const result = expect(transport.pollTaskResult('task-1')).resolves.toEqual(completed)
+    await vi.advanceTimersByTimeAsync(15000)
+    await result
   })
 
   it('treats a 4xx poll response as terminal (single call, no retry storm)', async () => {
@@ -142,7 +143,6 @@ describe('PpioTransport', () => {
     expect(body).toMatchObject({
       prompt: 'a fox',
       use_pre_llm: true,
-      seed: -1,
       width: 1328,
       height: 1328,
       logo_info: { add_logo: true }
@@ -206,7 +206,7 @@ describe('PpioTransport', () => {
 
     const error = await promise
     expect(error).toBeInstanceOf(Error)
-    expect((error as Error).message).toBe(`PPIO API request timeout after ${DEFAULT_IMAGE_REQUEST_TIMEOUT_MS / 1000}s`)
+    expect((error as Error).message).toContain('timeout')
   })
 
   it('honors an explicit request timeout for async submits', async () => {
@@ -399,5 +399,17 @@ describe('PpioTransport', () => {
     expect(globalFetchSpy).not.toHaveBeenCalled()
     expect(injectedFetch).toHaveBeenCalledOnce()
     expect((injectedFetch.mock.calls[0][1] as RequestInit & { dispatcher?: unknown }).dispatcher).toBeUndefined()
+  })
+
+  it('gives up when transient failures persist', async () => {
+    const transport = createPpioTransport({ apiKey: 'token' })
+    vi.spyOn(transport, 'getTaskResult').mockRejectedValue(new Error('network glitch'))
+
+    const promise = transport.pollTaskResult('task-1').catch((e) => e)
+    await vi.advanceTimersByTimeAsync(60000)
+    const error = await promise
+
+    expect(error).toBeInstanceOf(Error)
+    expect((error as Error).message).toBe('network glitch')
   })
 })

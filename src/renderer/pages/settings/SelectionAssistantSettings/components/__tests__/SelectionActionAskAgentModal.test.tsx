@@ -15,7 +15,10 @@ vi.mock('@renderer/components/resourceCatalog/selectors', () => ({
         select agent 2
       </button>
     </div>
-  ),
+  )
+}))
+
+vi.mock('@renderer/components/resourceCatalog/WorkspaceSelector', () => ({
   WorkspaceSelector: ({ onChange, trigger }: { onChange: (id: string | null) => void; trigger: ReactNode }) => (
     <div>
       {trigger}

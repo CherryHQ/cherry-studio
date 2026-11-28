@@ -175,14 +175,11 @@ describe('useMessageSelectionController', () => {
         }),
       { initialProps }
     )
-    const initialActions = result.current.actions
 
     rerender({
       messages: [message('b')],
       partsByMessageId: { b: [{ type: 'text', text: 'latest' }] as CherryMessagePart[] }
     })
-
-    expect(result.current.actions).toBe(initialActions)
 
     await act(async () => {
       await result.current.actions.copySelectedMessages?.(['b'])
@@ -485,6 +482,8 @@ describe('useMessageSelectionController', () => {
       const messages: MessageListItem[] = [
         message('u1'),
         { ...message('divider'), isContextBoundary: true },
+        { ...message('compact'), presentation: 'marker' },
+        { ...message('interrupted'), presentation: 'interrupted' },
         { ...message('a-active'), role: 'assistant' as const, siblingsGroupId: 1, isActiveBranch: true },
         { ...message('a-hidden'), role: 'assistant' as const, siblingsGroupId: 1, isActiveBranch: false },
         message('u2')

@@ -8,9 +8,9 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
 import { useSharedCacheValue } from '@renderer/data/hooks/useCache'
 import KnowledgeRowActionsMenu from '@renderer/pages/knowledge/components/KnowledgeRowActionsMenu'
-import { getKnowledgeItemFailureReason } from '@renderer/pages/knowledge/utils/error'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import { getKnowledgeItemFailureReason } from '@renderer/utils/knowledgeError'
 import { formatRelativeTime } from '@renderer/utils/time'
 import type { KnowledgeItem } from '@shared/data/types/knowledge'
 
@@ -130,8 +130,6 @@ const KnowledgeItemRow = ({
   } = useTranslation()
   const { icon, status, title } = toKnowledgeItemRowViewModel(item, language)
   const Icon = icon.icon
-  // `failed` carries a reason code in `error` (e.g. a migrated folder whose vectors could not
-  // be migrated); surface it as the badge tooltip.
   const failureReason = item.status === 'failed' ? getKnowledgeItemFailureReason(item, t) : null
   const canReindex = canReindexKnowledgeItem(item)
   const canViewChunks = item.status === 'completed'
@@ -229,7 +227,7 @@ const KnowledgeItemRow = ({
         onKeyDown={canActivate ? handleRowKeyDown : undefined}
         className={cn(
           KNOWLEDGE_ITEM_ROW_GRID,
-          'group/row rounded-md px-2.5 py-1.5 transition-colors',
+          'group/row rounded-md px-2.5 py-1.5 transition-[color]',
           canActivate && 'cursor-pointer focus-visible:bg-muted focus-visible:outline-none',
           // Match the navigator base rows: hover highlight for any row, solid selected background
           // for the checked one.
@@ -252,9 +250,14 @@ const KnowledgeItemRow = ({
           <span className="flex size-6 shrink-0 items-center justify-center rounded bg-background-subtle">
             <Icon className={cn('size-3.5', icon.iconClassName)} />
           </span>
-          <span className="min-w-0 flex-1 truncate text-sm text-foreground" title={fullTitle}>
-            {title}
-          </span>
+          <div className="flex min-w-0 flex-1 flex-col">
+            <span className="truncate text-sm text-foreground" title={fullTitle}>
+              {title}
+            </span>
+            {item.status === 'failed' ? (
+              <span className="line-clamp-1 text-xs text-muted-foreground">{failureReason}</span>
+            ) : null}
+          </div>
         </div>
         <div role="gridcell" className="truncate text-xs text-muted-foreground">
           {typeLabel}

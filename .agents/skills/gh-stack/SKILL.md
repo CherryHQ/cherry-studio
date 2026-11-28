@@ -8,7 +8,7 @@ metadata:
 
 # GitHub Stack
 
-Use `gh stack` for branch topology and synchronization. Use the repository's `gh-create-pr` skill for Cherry-specific PR bodies, Spec approval, AC coverage, verification, and Agent Note lifecycle.
+Use `gh stack` for branch topology and synchronization. Use the repository's `gh-create-pr` skill for Cherry-specific PR bodies, Spec review, AC coverage, verification, and Agent Note lifecycle.
 
 ## Availability and prerequisites
 
@@ -105,4 +105,4 @@ After `gh stack sync`, inspect its output and run `gh stack view --json`; a succ
 
 ## Lifecycle boundary
 
-Follow `.agents/skills/agent-notes/SKILL.md` for Spec approval and lifecycle transitions. Intermediate implementation layers keep the note proposed. Only the final layer whose cumulative, actually-run evidence covers every approved AC may move the bilingual note triplet to `implemented/`.
+Follow `.agents/skills/agent-notes/SKILL.md` for Spec review and lifecycle transitions. Intermediate implementation layers keep the note proposed. Only the final layer whose cumulative, actually-run evidence covers every AC in the current Spec may move the bilingual note triplet to `implemented/`.

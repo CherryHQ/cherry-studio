@@ -276,6 +276,14 @@ const RUNTIME_PACKAGES = [
   'agent-runtime-claude-code'
 ]
 const RUNTIME_SOURCE_DIRS = RUNTIME_PACKAGES.map((name) => path.join(RENDERER_DIRNAME, 'packages', name, 'src'))
+const RUNTIME_PACKAGE_ENTRIES = new Set(
+  RUNTIME_PACKAGES.flatMap((name) => {
+    const manifest = JSON.parse(fs.readFileSync(path.join(RENDERER_DIRNAME, 'packages', name, 'package.json'), 'utf8'))
+    return Object.keys(manifest.exports ?? {})
+      .filter((entry) => entry.startsWith('./') && !entry.includes('*'))
+      .map((entry) => `@cherrystudio/${name}/${entry.slice(2)}`)
+  })
+)
 const BARREL_DIRS = new Set()
 for (const idx of [SRC_DIR, ...RUNTIME_SOURCE_DIRS].flatMap((dir) => collectIndexTs(dir))) {
   try {
@@ -446,6 +454,7 @@ const barrelPlugin = {
       create(ctx) {
         const f = barrelFilename(ctx)
         const check = (node, spec) => {
+          if (RUNTIME_PACKAGE_ENTRIES.has(spec)) return
           const tgt = resolveBarrelSpec(spec, f)
           if (!tgt) return
           const d = outermostCrossedBarrelDir(tgt, f)
@@ -1381,6 +1390,16 @@ export default defineConfig([
       )
     }
   },
+  {
+    files: ['src/renderer/**/*.{ts,tsx,js,jsx}'],
+    ignores: RENDERER_IGNORES,
+    plugins: { 'import-x': importX },
+    settings: { ...boundarySettings, 'import-x/extensions': ['.js', '.jsx', '.ts', '.tsx'] },
+    rules: {
+      'import-x/no-cycle': ['error', { ignoreExternal: true }],
+      'import-x/no-self-import': 'error'
+    }
+  },
   // Renderer boundary block L: layer edges into shared buckets — Zone A (shared→pages/windows) + Zone C (utils impurity).
   // Scoped to shared-bucket files so it never collides with block P on a pages file. Flips to error once A+C clear.
   {
@@ -1398,6 +1417,12 @@ export default defineConfig([
               target: ['src/renderer/components', 'src/renderer/hooks', 'src/renderer/services', 'src/renderer/utils'],
               from: ['src/renderer/pages', 'src/renderer/windows'],
               message: 'Shared buckets must not import pages/windows (reverse layer edge). architecture/renderer.md §7.'
+            },
+            {
+              target: ['src/renderer/hooks', 'src/renderer/services'],
+              from: 'src/renderer/components',
+              message:
+                'hooks/ and services/ sit below components/ and must not import them (reverse layer edge); move the module into components/ or push the shared piece down. architecture/renderer.md §3.'
             },
             {
               target: 'src/renderer/utils',

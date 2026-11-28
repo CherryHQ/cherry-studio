@@ -9,7 +9,7 @@ const Canva = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const CanvaIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Canva, {
   Avatar: CanvaAvatar,
-  colorPrimary: '#000000'
+  colorPrimary: '#02c0cc'
 })
 
 export default CanvaIcon

@@ -9,7 +9,7 @@ const Higress = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const HigressIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Higress, {
   Avatar: HigressAvatar,
-  colorPrimary: '#000000'
+  colorPrimary: '#605bfb'
 })
 
 export default HigressIcon

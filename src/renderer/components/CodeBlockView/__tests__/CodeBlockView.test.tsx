@@ -109,17 +109,6 @@ describe('CodeBlockView', () => {
     expect(screen.getByLabelText('Code viewer')).toHaveTextContent('const value = 1')
   })
 
-  it('uses the viewer for read-only code', () => {
-    render(
-      <CodeBlockView language="javascript" editable={false}>
-        const value = 1
-      </CodeBlockView>
-    )
-
-    expect(screen.getByLabelText('Code viewer')).toHaveTextContent('const value = 1')
-    expect(screen.queryByRole('textbox', { name: 'Code editor' })).not.toBeInTheDocument()
-  })
-
   it('renders display-only code without a toolbar', () => {
     render(
       <CodeBlockView language="html" editable={false} isStreaming maxHeight={350} showToolbar={false}>
@@ -244,5 +233,42 @@ describe('CodeBlockView', () => {
 
     expect(screen.getByRole('button', { name: 'code_block.copy.source' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'code_block.run' })).not.toBeInTheDocument()
+  })
+
+  it('exposes PlantUML source and switches back to the default preview when requested', async () => {
+    const user = userEvent.setup()
+    render(
+      <CodeBlockView language="plantuml" editable={false}>
+        {'@startuml\nAlice -> Bob\n@enduml'}
+      </CodeBlockView>
+    )
+
+    await user.click(screen.getByRole('button', { name: 'preview.source' }))
+    expect(screen.getByLabelText('Code viewer')).toHaveTextContent('Alice -> Bob')
+    await user.click(screen.getByRole('button', { name: 'preview.label' }))
+    expect(screen.queryByLabelText('Code viewer')).not.toBeInTheDocument()
+  })
+
+  it('shows PlantUML source during streaming and opens preview when it finishes', () => {
+    const { rerender } = render(
+      <CodeBlockView language="plaintext" editable isStreaming>
+        {'@startuml'}
+      </CodeBlockView>
+    )
+
+    rerender(
+      <CodeBlockView language="plantuml" editable isStreaming>
+        {'@startuml\nAlice -> Bob\n@enduml'}
+      </CodeBlockView>
+    )
+
+    expect(screen.getByLabelText('Code viewer')).toHaveTextContent('Alice -> Bob')
+
+    rerender(
+      <CodeBlockView language="plantuml" editable>
+        {'@startuml\nAlice -> Bob\n@enduml'}
+      </CodeBlockView>
+    )
+    expect(screen.queryByLabelText('Code viewer')).not.toBeInTheDocument()
   })
 })

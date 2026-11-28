@@ -1,7 +1,6 @@
 // Load the sibling so it self-registers in the data-service registry (prod loads it via its DataApi handler).
 import '@data/services/TopicService'
 import { rootRow, setupTestDatabase, withRoot } from '@test-helpers/db'
-import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -443,9 +442,16 @@ describe('MessageService', () => {
       expect(topicService.getById('topic-activity').lastActivityAt).toBe('1970-01-01T00:00:02.000Z')
 
       now.mockReturnValue(3_000)
+      notifyDataApiDataChangeMock.mockClear()
       messageService.finalizeAssistantMessage(assistant.id, {
         data: mainText('projection rewrite'),
         status: 'success'
+      })
+      expect(notifyDataApiDataChangeMock.mock.calls.flatMap(([effects]) => effects)).toContainEqual({
+        endpoint: '/topics/:topicId/messages',
+        kind: 'projection',
+        routeParams: { topicId: 'topic-activity' },
+        entityIds: [assistant.id]
       })
       topicService.update('topic-activity', { name: 'Renamed' })
 
@@ -806,6 +812,13 @@ describe('MessageService', () => {
         '1970-01-01T00:00:00.200Z',
         '1970-01-01T00:00:00.100Z'
       ])
+      const scopedPage = messageService.listLiveCreatedInRangeMetadataPage({
+        fromMs: 100,
+        toMs: 300,
+        topicId: 'topic-range-a',
+        limit: 10
+      })
+      expect(scopedPage.items.map((message) => message.id)).toEqual(['range-tie-a', 'range-start'])
       for (const metadata of [...firstPage.items, ...secondPage.items]) {
         const entity = messageService.getById(metadata.id)
         expect(metadata).not.toHaveProperty('data')
@@ -2314,7 +2327,6 @@ describe('MessageService', () => {
         ])
       )
       const virtualRootId = 'vroot-topic-root-sibling'
-      const beforeWriteTx = MockMainDbServiceUtils.getMockCallCounts().withWriteTx
 
       const sibling = messageService.createSibling('u-root', mainText('edited root prompt'))
 
@@ -2333,7 +2345,6 @@ describe('MessageService', () => {
 
       const [topic] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, 'topic-root-sibling')).limit(1)
       expect(topic.activeNodeId).toBe(sibling.id)
-      expect(MockMainDbServiceUtils.getMockCallCounts().withWriteTx).toBe(beforeWriteTx + 1)
 
       const branch = messageService.getBranchMessages('topic-root-sibling', { includeSiblings: true })
       expect(branch.items).toHaveLength(1)
@@ -2448,14 +2459,11 @@ describe('MessageService', () => {
         ])
       )
 
-      const beforeWriteTx = MockMainDbServiceUtils.getMockCallCounts().withWriteTx
-
       const sibling = messageService.createSibling('u-follow', mainText('edited follow up'))
 
       expect(sibling.role).toBe('user')
       expect(sibling.parentId).toBe('a-root')
       expect(sibling.status).toBe('success')
-      expect(MockMainDbServiceUtils.getMockCallCounts().withWriteTx).toBe(beforeWriteTx + 1)
 
       const [topic] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, 'topic-sibling-status')).limit(1)
       expect(topic.activeNodeId).toBe(sibling.id)
@@ -2476,6 +2484,13 @@ describe('MessageService', () => {
       expect(path[1].siblingsGroupId).toBe(1)
       expect(path[1].modelId).toBe(createUniqueModelId('provider-b', 'model-B'))
       expect(path[2].parentId).toBe('m-a2')
+    })
+
+    it('returns only the last messages of the path when asked for a tail', async () => {
+      await seedMultiModelTree()
+
+      expect(messageService.getPathToNode('m-follow', { last: 2 }).map((m) => m.id)).toEqual(['m-a2', 'm-follow'])
+      expect(messageService.getPathToNode('m-follow', { last: 0 })).toEqual([])
     })
 
     it('loads a path longer than the SQLite bound-variable limit', async () => {

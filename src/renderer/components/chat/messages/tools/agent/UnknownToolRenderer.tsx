@@ -2,15 +2,26 @@ import { CallToolResultSchema } from '@modelcontextprotocol/core'
 import { useTranslation } from 'react-i18next'
 
 import { ToolArgsTable } from '../shared/ArgsTable'
-import { ToolHeader } from '../shared/GenericTools'
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
 import { ToolResultLinkList } from '../shared/ToolResultLinkList'
 import { getToolResultLinks, type ToolResultLinkData } from '../shared/toolResultLinks'
+import ToolHeader from '../ToolHeader'
 
 interface UnknownToolProps {
   toolName: string
   input?: unknown
   output?: unknown
+}
+
+function extractStructuredLinks(output: unknown): ToolResultLinkData[] {
+  if (Array.isArray(output)) return output.flatMap(extractStructuredLinks)
+  if (!output || typeof output !== 'object') return []
+  const links =
+    'url' in output && typeof output.url === 'string'
+      ? (getToolResultLinks({ type: 'text', text: output.url }) ?? [])
+      : []
+  const name = 'title' in output && typeof output.title === 'string' ? output.title.trim() || undefined : undefined
+  return [...links.map((link) => ({ ...link, name })), ...Object.values(output).flatMap(extractStructuredLinks)]
 }
 
 const getToolDisplayName = (name: string) => {
@@ -32,6 +43,7 @@ const getToolDisplayName = (name: string) => {
 function extractMcpContent(
   output: unknown
 ): { text: string | null; images: Array<{ data: string; mimeType: string }>; links: ToolResultLinkData[] } | null {
+  if (!output || typeof output !== 'object' || !('content' in output)) return null
   const result = CallToolResultSchema.safeParse(output)
   if (!result.success) return null
 
@@ -84,16 +96,17 @@ export function UnknownToolRenderer({ toolName, input, output }: UnknownToolProp
   // Try MCP CallToolResult format first — text into the output table, image blocks rendered inline.
   const mcpContent = extractMcpContent(output)
   const mcpImages = mcpContent?.images ?? []
-  const links =
+  const resultLinks =
     mcpContent?.links ??
     (typeof output === 'string' || Array.isArray(output)
       ? getToolResultLinks({ type: 'text', text: typeof output === 'string' ? output : JSON.stringify(output) })
       : null)
+  const links = resultLinks ?? extractStructuredLinks(output)
   const normalizedOutput = mcpContent
     ? mcpContent.text !== null
       ? { value: mcpContent.text }
       : null
-    : links
+    : resultLinks
       ? null
       : normalizeArgs(output)
   const displayLabel = isMcpTool ? `${getToolDescription(toolName)} ${displayName}` : undefined

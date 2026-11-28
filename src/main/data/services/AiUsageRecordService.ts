@@ -26,6 +26,12 @@ import { messageTable } from '@data/db/schemas/message'
 import type { DbOrTx } from '@data/db/types'
 import { loggerService } from '@logger'
 import { Emitter } from '@main/core/lifecycle'
+import { AgentSessionCostSnapshotSchema } from '@shared/ai/agentSessionCost'
+import {
+  LocalAgentTurnUsageSchema,
+  type LocalAgentUsageQuery,
+  type LocalAgentUsageResponse
+} from '@shared/ai/localAgentUsage'
 import type {
   AiUsageRecordGroupBy,
   AiUsageRecordGroupIdentity,
@@ -200,14 +206,18 @@ function getTokensPerSecond(row: AiUsageRecordRow): number | null {
   return row.outputTokens / (generationMs / 1000)
 }
 
-function getListSortValue(row: AiUsageRecordRow, sortBy: AiUsageRecordListSortBy): number | null {
+function getListSortValue(
+  row: AiUsageRecordRow,
+  sortBy: AiUsageRecordListSortBy,
+  costCurrency?: Currency
+): number | null {
   switch (sortBy) {
     case 'createdAt':
       return row.createdAt
     case 'totalTokens':
       return getAiUsageRecordTotalTokens(row)
     case 'cost':
-      return row.cost
+      return costCurrency && row.costCurrency !== costCurrency ? null : row.cost
     case 'timeFirstTokenMs':
       return row.timeFirstTokenMs
     case 'tokensPerSecond':
@@ -425,7 +435,11 @@ function toStatsGroupIdentity(row: GroupIdentityRow, groupBy: AiUsageRecordGroup
 }
 
 function rangeConditions(query: { from: number; to: number }): SQL[] {
-  return [gte(aiUsageRecordTable.createdAt, query.from), lte(aiUsageRecordTable.createdAt, query.to)]
+  return [
+    sql`(${aiUsageRecordTable.providerId} IS NULL OR ${aiUsageRecordTable.providerId} NOT LIKE 'local-agent:%')`,
+    gte(aiUsageRecordTable.createdAt, query.from),
+    lte(aiUsageRecordTable.createdAt, query.to)
+  ]
 }
 
 function scopedCostSum(currency: Currency | undefined): SQL<number> {
@@ -523,13 +537,84 @@ function aggregateOrder(metric: AiUsageRecordMetric, currency: Currency | undefi
   }
 }
 
+/** Read bounded native observations without turning turn summaries into provider invocations. */
+function listLocalAgentUsage(query: LocalAgentUsageQuery): LocalAgentUsageResponse {
+  const db = application.get('DbService').getDb()
+  const field = query.scope === 'turn' ? 'localTurnUsage' : 'localSessionCost'
+  const cursor = decodeListCursor(query.cursor, asNumericKey, 'local-agent-usage')
+  const ordering = keysetOrdering(sql`reportedAt`, sql`scope || ':' || id`, { major: 'desc', tie: 'desc' })
+  const rows = db.all<{
+    id: string
+    sessionId: string | null
+    sessionName: string | null
+    agentName: string | null
+    model: string | null
+    reportedAt: number
+    payload: string
+    scope: 'turn' | 'legacy-turn' | 'session-cost'
+  }>(sql`
+    WITH native AS (
+      SELECT m.id, m.session_id AS sessionId, s.name AS sessionName, json_extract(m.message_snapshot, '$.name') AS agentName,
+        json_extract(m.data, ${`$.${field}.model`}) AS model,
+        json_extract(m.data, ${`$.${field}.reportedAt`}) AS reportedAt,
+        json_extract(m.data, ${`$.${field}`}) AS payload,
+        ${query.scope} AS scope,
+        row_number() OVER (
+          PARTITION BY COALESCE(s.agent_id, s.id), json_extract(m.data, ${`$.${field}.nativeSessionId`}),
+            CASE WHEN ${query.scope} = 'turn' THEN m.id ELSE '' END
+          ORDER BY json_extract(m.data, ${`$.${field}.reportedAt`}) DESC, m.id DESC
+        ) AS rank
+      FROM agent_session_message m JOIN agent_session s ON s.id = m.session_id
+      WHERE json_extract(m.data, ${`$.${field}.reportedAt`}) BETWEEN ${query.from} AND ${query.to}
+        AND (${query.scope} = 'session-cost' OR m.role = 'assistant') AND json_type(m.data, ${`$.${field}`}) = 'object'
+    ), observations AS (
+      SELECT id, sessionId, sessionName, agentName, model, reportedAt, payload, scope FROM native WHERE rank = 1
+      UNION ALL
+      SELECT id, NULL, NULL, source_name, model_name, created_at,
+        json_object('inputTokens', input_tokens, 'outputTokens', output_tokens, 'totalTokens', total_tokens),
+        'legacy-turn'
+      FROM ai_usage_record WHERE ${query.scope} = 'turn'
+        AND provider_id LIKE 'local-agent:%' AND created_at BETWEEN ${query.from} AND ${query.to}
+    )
+    SELECT * FROM observations WHERE ${cursor ? ordering.where(cursor) : sql`1 = 1`}
+    ORDER BY ${sql.join(ordering.orderBy, sql`, `)} LIMIT ${query.limit + 1}
+  `)
+  return {
+    nextCursor:
+      rows.length > query.limit
+        ? encodeCursor(rows[query.limit - 1].reportedAt, `${rows[query.limit - 1].scope}:${rows[query.limit - 1].id}`)
+        : undefined,
+    items: rows.slice(0, query.limit).map(({ payload, ...row }) => {
+      const value: unknown = JSON.parse(payload)
+      const summary = LocalAgentTurnUsageSchema.safeParse(value)
+      const cost = AgentSessionCostSnapshotSchema.safeParse(value)
+      if (row.scope === 'legacy-turn') {
+        const legacy = value as Record<string, unknown>
+        return {
+          ...row,
+          summary: null,
+          cost: null,
+          legacyTokens: typeof legacy.totalTokens === 'number' ? legacy.totalTokens : null
+        }
+      }
+      return { ...row, summary: summary.success ? summary.data : null, cost: cost.success ? cost.data.cost : null }
+    })
+  }
+}
+
+function nullableIdentity(column: AnySQLiteColumn, value: string | null): SQL {
+  return value === null ? isNull(column) : eq(column, value)
+}
+
 function listAiUsageRecords(query: AiUsageRecordListServiceQuery): AiUsageRecordListResponse {
   const db = application.get('DbService').getDb()
   const { limit } = query
   const sortBy = query.sortBy ?? 'createdAt'
   const sortOrder = query.sortOrder ?? 'desc'
 
-  const filterConditions: SQL[] = []
+  const filterConditions: SQL[] = [
+    sql`(${aiUsageRecordTable.providerId} IS NULL OR ${aiUsageRecordTable.providerId} NOT LIKE 'local-agent:%')`
+  ]
   if (query.from !== undefined) filterConditions.push(gte(aiUsageRecordTable.createdAt, query.from))
   if (query.to !== undefined) filterConditions.push(lte(aiUsageRecordTable.createdAt, query.to))
   if (query.messageKind !== undefined && query.messageId !== undefined) {
@@ -538,8 +623,26 @@ function listAiUsageRecords(query: AiUsageRecordListServiceQuery): AiUsageRecord
       eq(aiUsageRecordTable.messageId, query.messageId)
     )
   }
-  if (sortBy === 'cost' && query.costCurrency) {
-    filterConditions.push(eq(aiUsageRecordTable.costCurrency, query.costCurrency))
+  if (query.providerId !== undefined) {
+    filterConditions.push(nullableIdentity(aiUsageRecordTable.providerId, query.providerId))
+  }
+  if (query.modelId !== undefined) {
+    filterConditions.push(nullableIdentity(aiUsageRecordTable.modelId, query.modelId))
+  }
+  if (query.sourceType !== undefined) {
+    filterConditions.push(nullableIdentity(aiUsageRecordTable.sourceType, query.sourceType))
+  }
+  if (query.sourceId !== undefined) {
+    filterConditions.push(nullableIdentity(aiUsageRecordTable.sourceId, query.sourceId))
+  }
+  if (query.apiKeyId !== undefined) {
+    filterConditions.push(nullableIdentity(aiUsageRecordTable.apiKeyId, query.apiKeyId))
+  }
+  if (query.apiKeyAttribution !== undefined) {
+    filterConditions.push(eq(aiUsageRecordTable.apiKeyAttribution, query.apiKeyAttribution))
+  }
+  if (query.authMethod !== undefined) {
+    filterConditions.push(nullableIdentity(aiUsageRecordTable.authMethod, query.authMethod))
   }
   const filterWhere = filterConditions.length > 0 ? and(...filterConditions) : undefined
   const tokensPerSecond = sql<number>`CASE
@@ -558,11 +661,17 @@ function listAiUsageRecords(query: AiUsageRecordListServiceQuery): AiUsageRecord
     )
   END`
   const totalTokens = totalTokensValue()
+  // Sort non-matching currencies and unpriced rows as NULL so they sort after the selected currency instead of disappearing.
+  const scopedCost = query.costCurrency
+    ? sql<
+        number | null
+      >`CASE WHEN ${aiUsageRecordTable.costCurrency} = ${query.costCurrency} THEN ${aiUsageRecordTable.cost} ELSE NULL END`
+    : aiUsageRecordTable.cost
   const sortExpression =
     sortBy === 'totalTokens'
       ? totalTokens
       : sortBy === 'cost'
-        ? aiUsageRecordTable.cost
+        ? scopedCost
         : sortBy === 'timeFirstTokenMs'
           ? aiUsageRecordTable.timeFirstTokenMs
           : sortBy === 'tokensPerSecond'
@@ -611,7 +720,7 @@ function listAiUsageRecords(query: AiUsageRecordListServiceQuery): AiUsageRecord
         ? sortsByCreatedAt
           ? encodeCursor(tail.createdAt, tail.id)
           : encodeMetricCursor({
-              value: getListSortValue(tail, sortBy),
+              value: getListSortValue(tail, sortBy, query.costCurrency),
               createdAt: tail.createdAt,
               id: tail.id
             })
@@ -647,10 +756,6 @@ function getAiUsageRecordStats(query: AiUsageRecordStatsQuery): AiUsageRecordSta
     totals,
     other: subtractMetrics(totals, buckets)
   }
-}
-
-function nullableIdentity(column: AnySQLiteColumn, value: string | null): SQL {
-  return value === null ? isNull(column) : eq(column, value)
 }
 
 function topGroupCondition(groupBy: AiUsageRecordGroupBy, buckets: AiUsageRecordStatsBucket[]): SQL | undefined {
@@ -1146,7 +1251,7 @@ function validatedBreakdown(breakdown: AiUsageCostBreakdown | undefined, field: 
   for (const [bucket, value] of Object.entries(breakdown)) {
     requiredAmount(value, `${field}.${bucket}`)
   }
-  return structuredClone(breakdown)
+  return { ...breakdown }
 }
 
 function computedCost(
@@ -1187,7 +1292,7 @@ function completeProviderBreakdown(
   const values = Object.values(breakdown)
   if (values.length === 0 || values.some((value) => !Number.isFinite(value) || value < 0)) return null
   const sum = values.reduce((total, value) => total + value, 0)
-  return Math.abs(sum - amount) <= Math.max(1e-9, Math.abs(amount) * 1e-9) ? structuredClone(breakdown) : null
+  return Math.abs(sum - amount) <= Math.max(1e-9, Math.abs(amount) * 1e-9) ? { ...breakdown } : null
 }
 
 function invocationToRow(input: RecordAiInvocationInput): InsertAiUsageRecordRow {
@@ -1254,6 +1359,7 @@ function legacyToRow(input: LegacyAggregateInput): InsertAiUsageRecordRow {
         currency: input.cost.currency,
         source: input.cost.source,
         breakdown: validatedBreakdown(input.cost.breakdown, 'cost.breakdown'),
+        // oxlint-disable-next-line no-restricted-globals -- Persist one invocation pricing snapshot independently of caller-owned pricing tiers.
         pricingSnapshot: input.cost.pricingSnapshot ? structuredClone(input.cost.pricingSnapshot) : null
       }
     : null
@@ -1378,6 +1484,7 @@ function messageReadModelEffects(refs: readonly MessageReadModelTarget[]): DataA
 }
 
 export class AiUsageRecordService {
+  readonly listLocalUsage = listLocalAgentUsage
   private readonly invocationsRecorded = new Emitter<void>()
   readonly onInvocationsRecorded = this.invocationsRecorded.event
 
@@ -1432,10 +1539,10 @@ export class AiUsageRecordService {
     return getMessageUsageProjectionTx(application.get('DbService').getDb(), ref)
   }
 
-  refreshMessageProjection(ref: MessageRef): void {
+  refreshMessageProjection(ref: MessageRef, { publishDataChange = true } = {}): void {
     try {
       const rebuilt = application.get('DbService').withWriteTx((tx) => rebuildMessageUsageProjectionTx(tx, ref))
-      if (rebuilt?.changed) notifyDataApiDataChange(messageReadModelEffects([rebuilt.target]))
+      if (publishDataChange && rebuilt?.changed) notifyDataApiDataChange(messageReadModelEffects([rebuilt.target]))
     } catch (err) {
       logger.error('refreshMessageProjection failed', err as Error, ref)
     }
@@ -1451,6 +1558,21 @@ export class AiUsageRecordService {
 
   stats(query: AiUsageRecordStatsQuery): AiUsageRecordStatsResponse {
     return getAiUsageRecordStats(query)
+  }
+
+  /** Tokens used in `range`, optionally only those attributed to one Assistant / Agent / mini app. */
+  totalTokens(range: { from: number; to: number }, source?: { type: AiUsageRecordSourceType; id: string }): number {
+    const sourceConditions = source
+      ? [eq(aiUsageRecordTable.sourceType, source.type), eq(aiUsageRecordTable.sourceId, source.id)]
+      : []
+    const [row] = application
+      .get('DbService')
+      .getDb()
+      .select({ totalTokens: totalTokensSum() })
+      .from(aiUsageRecordTable)
+      .where(and(...sourceConditions, ...rangeConditions(range)))
+      .all()
+    return row.totalTokens
   }
 
   timeline(query: AiUsageRecordTimelineQuery): AiUsageRecordTimelineResponse {

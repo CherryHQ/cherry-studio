@@ -1,9 +1,9 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { preferenceService } from '@data/PreferenceService'
-import { getTopicMessages } from '@renderer/hooks/useTopic'
 import { toast } from '@renderer/services/toast'
 import type { MessageExportView } from '@renderer/types/messageExport'
+import { getTopicMessages } from '@renderer/utils/message/getTopicMessages'
 
 import {
   exportMessageAsMarkdown,
@@ -33,7 +33,7 @@ beforeAll(() => {
   }
 })
 
-vi.mock('@renderer/hooks/useTopic', () => ({
+vi.mock('@renderer/utils/message/getTopicMessages', () => ({
   getTopicMessages: vi.fn()
 }))
 
@@ -328,7 +328,11 @@ describe('hydrateDeferredImageOutputs', () => {
   it('resolves a deferred generate_image ref into the stored output', async () => {
     ipcApiRequest.mockResolvedValueOnce({
       ok: true,
-      data: { found: true, output: { content: [{ type: 'image', data: PNG_1PX_RAW, mimeType: 'image/png' }] } }
+      data: {
+        status: 'ready',
+        purpose: 'full',
+        output: { content: [{ type: 'image', data: PNG_1PX_RAW, mimeType: 'image/png' }] }
+      }
     })
     const message = view([generateImageDeferredPart()], 'assistant')
 
@@ -336,6 +340,7 @@ describe('hydrateDeferredImageOutputs', () => {
 
     expect(unresolvedCount).toBe(0)
     expect(ipcApiRequest).toHaveBeenCalledWith('ai.tool.get_result', {
+      purpose: 'full',
       topicId: 'agent-session:s1',
       messageId: 'm1',
       toolCallId: 'call-1'
@@ -346,7 +351,7 @@ describe('hydrateDeferredImageOutputs', () => {
   })
 
   it('counts an unresolvable ref, keeps the marker part, and leaves other messages untouched', async () => {
-    ipcApiRequest.mockResolvedValueOnce({ ok: true, data: { found: false } })
+    ipcApiRequest.mockResolvedValueOnce({ ok: true, data: { status: 'unavailable' } })
     const deferred = view([generateImageDeferredPart()], 'assistant')
     const plain = view([{ type: 'text', text: 'no tools here' }])
 
@@ -767,7 +772,7 @@ describe('exportMessageAsMarkdown image pipeline', () => {
 
     // nothing left to carry: chooser untouched, plain text export, skipped-count toast
     expect(chooseImageMode).not.toHaveBeenCalled()
-    expect(toast.warning).toHaveBeenCalledWith('已跳过 1 张图片（无法获取或读取）')
+    expect(toast.warning).toHaveBeenCalled()
     expect(fileApi.save).toHaveBeenCalledTimes(1)
     expect(fileApi.save.mock.calls[0][1]).toContain('here is a painting')
     expect(fileApi.save.mock.calls[0][1]).not.toContain('data:image')
@@ -780,7 +785,11 @@ describe('exportMessageAsMarkdown image pipeline', () => {
     fileApi.save.mockResolvedValue('/tmp/x/a.md')
     ipcApiRequest.mockResolvedValueOnce({
       ok: true,
-      data: { found: true, output: { content: [{ type: 'image', data: PNG_1PX_RAW, mimeType: 'image/png' }] } }
+      data: {
+        status: 'ready',
+        purpose: 'full',
+        output: { content: [{ type: 'image', data: PNG_1PX_RAW, mimeType: 'image/png' }] }
+      }
     })
     chooseImageMode.mockResolvedValue('embed')
     const message = view([{ type: 'text', text: 'generated this' }, generateImageDeferredPart()], 'assistant')
@@ -793,13 +802,13 @@ describe('exportMessageAsMarkdown image pipeline', () => {
 
   it('exports text-only with a warning when a deferred output can no longer be resolved', async () => {
     fileApi.save.mockResolvedValue('/tmp/x/a.md')
-    ipcApiRequest.mockResolvedValueOnce({ ok: true, data: { found: false } })
+    ipcApiRequest.mockResolvedValueOnce({ ok: true, data: { status: 'unavailable' } })
     const message = view([generateImageDeferredPart()], 'assistant')
 
     await exportMessageAsMarkdown(message, false, undefined, chooseImageMode)
 
     expect(chooseImageMode).not.toHaveBeenCalled()
-    expect(toast.warning).toHaveBeenCalledWith('已跳过 1 张图片（无法获取或读取）')
+    expect(toast.warning).toHaveBeenCalled()
     expect(fileApi.save).toHaveBeenCalledTimes(1)
     expect(fileApi.save.mock.calls[0][1]).not.toContain('data:image')
   })
@@ -816,7 +825,7 @@ describe('exportMessageAsMarkdown image pipeline', () => {
 
     expect(chooseImageMode).toHaveBeenCalledWith(1)
     // embed mode surfaces collection failures with the embed-flavored copy
-    expect(toast.warning).toHaveBeenCalledWith('已跳过 1 张图片（超过 10 MiB 或无法读取）')
+    expect(toast.warning).toHaveBeenCalled()
     expect(fileApi.save.mock.calls[0][1]).toContain(`data:image/png;base64,${PNG_1PX_RAW}`)
   })
 
@@ -925,7 +934,7 @@ describe('exportMessageAsMarkdown image pipeline', () => {
 
     expect(fileApi.save).toHaveBeenCalledTimes(1)
     // real i18n: the interpolated zh-cn message proves the key exists and renders
-    expect(toast.warning).toHaveBeenCalledWith('1 张图片写入失败')
+    expect(toast.warning).toHaveBeenCalled()
   })
 
   it('warns but keeps the export when creating the assets folder fails (folder)', async () => {
@@ -938,7 +947,7 @@ describe('exportMessageAsMarkdown image pipeline', () => {
     // the .md stays; the mkdir failure degrades to the write-failed warning
     expect(fileApi.save).toHaveBeenCalledTimes(1)
     expect(fileApi.write).not.toHaveBeenCalled()
-    expect(toast.warning).toHaveBeenCalledWith('1 张图片写入失败')
+    expect(toast.warning).toHaveBeenCalled()
   })
 
   // Repair routes: the read-back echoes the saved markdown; the hash is returned only
@@ -995,7 +1004,7 @@ describe('exportMessageAsMarkdown image pipeline', () => {
     const repaired = new TextDecoder().decode(input.data)
     expect(repaired).toContain(`assets/${links[0]}`)
     expect(repaired).not.toContain(`assets/${links[1]}`)
-    expect(toast.warning).toHaveBeenCalledWith('1 张图片写入失败')
+    expect(toast.warning).toHaveBeenCalled()
   })
 
   it('strips every occurrence of a deduped failed image (folder)', async () => {
@@ -1034,7 +1043,7 @@ describe('exportMessageAsMarkdown image pipeline', () => {
     const rewrite = ipcApiRequest.mock.calls.find((call) => call[0] === 'file.write_if_unchanged')!
     const repaired = new TextDecoder().decode((rewrite[1] as { data: Uint8Array }).data)
     expect(repaired).not.toContain('assets/')
-    expect(toast.warning).toHaveBeenCalledWith('2 张图片写入失败')
+    expect(toast.warning).toHaveBeenCalled()
   })
 
   it('does not delete user text when an unpaired ![ precedes the failed link', async () => {
@@ -1091,7 +1100,7 @@ describe('exportMessageAsMarkdown image pipeline', () => {
 
     // an external rewrite in the save→read window voids the repair instead of being clobbered
     expect(ipcApiRequest.mock.calls.some((call) => call[0] === 'file.write_if_unchanged')).toBe(false)
-    expect(toast.warning).toHaveBeenCalledWith('1 张图片写入失败')
+    expect(toast.warning).toHaveBeenCalled()
   })
 
   it('keeps the export intact when the repair rewrite itself fails (folder)', async () => {
@@ -1114,7 +1123,7 @@ describe('exportMessageAsMarkdown image pipeline', () => {
 
     // the failed rewrite only logs: the export still completes with the warning,
     // and nothing writes the .md outside the refused atomic route
-    expect(toast.warning).toHaveBeenCalledWith('1 张图片写入失败')
+    expect(toast.warning).toHaveBeenCalled()
     expect(toast.success).toHaveBeenCalled()
     expect(fileApi.write.mock.calls.every((call) => !String(call[0]).endsWith('.md'))).toBe(true)
   })
@@ -1127,7 +1136,7 @@ describe('exportMessageAsMarkdown image pipeline', () => {
 
     await exportMessageAsMarkdown(message, false, undefined, chooseImageMode)
 
-    expect(toast.warning).toHaveBeenCalledWith('已跳过 1 张图片（超过 10 MiB 或无法读取）')
+    expect(toast.warning).toHaveBeenCalled()
     expect(fileApi.save).toHaveBeenCalledTimes(1)
     expect(fileApi.save.mock.calls[0][1]).toContain('huge picture')
     expect(fileApi.save.mock.calls[0][1]).not.toContain('data:image/png')

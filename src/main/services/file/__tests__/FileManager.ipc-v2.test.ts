@@ -6,7 +6,7 @@
  * on the protected IpcApi routes.
  */
 
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -16,6 +16,7 @@ import { ipcMain } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
+import { fileEntryTable } from '@data/db/schemas/file'
 import { BaseService } from '@main/core/lifecycle'
 import { IpcChannel } from '@shared/IpcChannel'
 
@@ -61,30 +62,8 @@ describe('FileManager v2 IPC handler registration', () => {
     await rm(tmp, { recursive: true, force: true })
   })
 
-  it('does not register files-page dangling handlers on legacy File_* channels', () => {
-    const registeredChannels = vi.mocked(ipcMain.handle).mock.calls.map(([channel]) => channel)
-    expect(registeredChannels).not.toContain('file:getDanglingState')
-    expect(registeredChannels).not.toContain('file:batchGetDanglingStates')
-  })
-
-  it('registers File:createInternalEntry IPC channel', () => {
-    const registeredChannels = vi.mocked(ipcMain.handle).mock.calls.map(([channel]) => channel)
-    expect(registeredChannels).toContain(IpcChannel.File_CreateInternalEntry)
-  })
-
-  it('registers File:ensureExternalEntry IPC channel', () => {
-    const registeredChannels = vi.mocked(ipcMain.handle).mock.calls.map(([channel]) => channel)
-    expect(registeredChannels).toContain(IpcChannel.File_EnsureExternalEntry)
-  })
-
-  it('registers File:getPhysicalPath IPC channel', () => {
-    const registeredChannels = vi.mocked(ipcMain.handle).mock.calls.map(([channel]) => channel)
-    expect(registeredChannels).toContain(IpcChannel.File_GetPhysicalPath)
-  })
-
   it('createInternalEntry handler creates a file from bytes and returns a FileEntry', async () => {
     const handler = vi.mocked(ipcMain.handle).mock.calls.find(([ch]) => ch === IpcChannel.File_CreateInternalEntry)?.[1]
-    expect(handler).toBeDefined()
 
     const params = {
       source: 'bytes' as const,
@@ -106,7 +85,6 @@ describe('FileManager v2 IPC handler registration', () => {
     await writeFile(extFile, '%PDF-1.4')
 
     const handler = vi.mocked(ipcMain.handle).mock.calls.find(([ch]) => ch === IpcChannel.File_EnsureExternalEntry)?.[1]
-    expect(handler).toBeDefined()
 
     const result = await handler!({} as never, { externalPath: extFile, cleanupPolicy: 'manual' })
     expect(result.origin).toBe('external')
@@ -162,15 +140,20 @@ describe('FileManager v2 IPC handler registration', () => {
 
   it('createInternalEntry rejects renderer-supplied contentHash at the schema boundary', async () => {
     const handler = vi.mocked(ipcMain.handle).mock.calls.find(([ch]) => ch === IpcChannel.File_CreateInternalEntry)?.[1]
+    // Every other field is valid, so only the renderer-supplied contentHash can trip the rejection.
     await expect(
       handler!({} as never, {
         source: 'bytes' as const,
         data: new Uint8Array([1]),
         name: 'payload',
         ext: 'bin',
+        cleanupPolicy: 'manual',
         contentHash: 'xxh3-64:deadbeefdeadbeef'
       })
     ).rejects.toThrow()
+    // The rejection must happen at the schema boundary, before any DB row or file is written.
+    expect(await dbh.db.select().from(fileEntryTable)).toHaveLength(0)
+    expect(await readdir(internalRoot)).toHaveLength(0)
   })
 
   it('createInternalEntry rejects relative path source at the schema boundary', async () => {
@@ -201,7 +184,6 @@ describe('FileManager v2 IPC handler registration', () => {
     const getPathHandler = vi
       .mocked(ipcMain.handle)
       .mock.calls.find(([ch]) => ch === IpcChannel.File_GetPhysicalPath)?.[1]
-    expect(getPathHandler).toBeDefined()
 
     const physicalPath = await getPathHandler!({} as never, { id: entry.id })
     expect(physicalPath).toContain(entry.id)

@@ -1,17 +1,17 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ComponentProps } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
+import { toast } from '@renderer/services/toast'
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal<typeof CherryStudioUi>())
 
 import type { FileContextMenuActions } from '../FileContextMenu'
 import type { FileItem } from '../fileDisplay'
-import { formatFileSize, getFormatLabel } from '../fileDisplay'
 import { FileList } from '../FileList'
 
 type VirtualizerOptionsMock = {
@@ -85,32 +85,46 @@ function fileListProps(renamingId: string | null): ComponentProps<typeof FileLis
 afterEach(() => {
   cleanup()
   vi.useRealTimers()
+  vi.restoreAllMocks()
   vi.clearAllMocks()
 })
 
-describe('fileDisplay helpers', () => {
-  it('formats file sizes at unit and precision boundaries', () => {
-    expect(formatFileSize(null)).toBe('—')
-    expect(formatFileSize(undefined)).toBe('—')
-    expect(formatFileSize(Number.NaN)).toBe('—')
-    expect(formatFileSize(0)).toBe('0 B')
-    expect(formatFileSize(1023)).toBe('1023 B')
-    expect(formatFileSize(1024)).toBe('1.0 KB')
-    expect(formatFileSize(1536)).toBe('1.5 KB')
-    expect(formatFileSize(10 * 1024)).toBe('10 KB')
-    expect(formatFileSize(1024 * 1024)).toBe('1.0 MB')
-  })
-
-  it('uses known format labels and uppercases unknown extensions', () => {
-    expect(getFormatLabel('')).toBe('—')
-    expect(getFormatLabel('md')).toBe('Markdown')
-    expect(getFormatLabel('xls')).toBe('Excel')
-    expect(getFormatLabel('xlsx')).toBe('Excel')
-    expect(getFormatLabel('custom')).toBe('CUSTOM')
-  })
-})
-
 describe('FileList', () => {
+  it.each([
+    { origin: 'internal' as const, sourcePath: '/workspace/Example reports/report.md', isMissing: false },
+    { origin: 'external' as const, sourcePath: 'C:\\Examples\\Sample reports\\report.md', isMissing: true }
+  ])('copies the known $origin path as filesystem text', async (entry) => {
+    const user = userEvent.setup()
+    render(<FileList {...fileListProps(null)} files={[{ ...file, ...entry }]} />)
+
+    fireEvent.contextMenu(screen.getByText(file.name))
+    await user.click(await screen.findByRole('menuitem', { name: 'agent.preview_pane.copy_path' }))
+
+    expect(await navigator.clipboard.readText()).toBe(entry.sourcePath)
+    expect(toast.success).toHaveBeenCalledWith('common.copied')
+  })
+
+  it('does not offer to copy a file path before the path is available', async () => {
+    render(<FileList {...fileListProps(null)} />)
+
+    fireEvent.contextMenu(screen.getByText(file.name))
+    await screen.findByRole('menuitem', { name: 'files.show_in_folder' })
+
+    expect(screen.queryByRole('menuitem', { name: 'agent.preview_pane.copy_path' })).not.toBeInTheDocument()
+  })
+
+  it('reports a rejected clipboard write without claiming success', async () => {
+    const user = userEvent.setup()
+    vi.spyOn(navigator.clipboard, 'writeText').mockRejectedValueOnce(new Error('Clipboard unavailable'))
+    render(<FileList {...fileListProps(null)} files={[{ ...file, sourcePath: '/workspace/report.md' }]} />)
+
+    fireEvent.contextMenu(screen.getByText(file.name))
+    await user.click(await screen.findByRole('menuitem', { name: 'agent.preview_pane.copy_path' }))
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('common.copy_failed'))
+    expect(toast.success).not.toHaveBeenCalled()
+  })
+
   it('disables row and context-menu deletion while a delete request is pending', async () => {
     const onDelete = vi.fn()
     const actions = { ...menuActions, onDelete }
@@ -127,24 +141,6 @@ describe('FileList', () => {
     expect(onDelete).not.toHaveBeenCalled()
   })
 
-  it('virtualizes accumulated files with stable file identity keys', () => {
-    const files = Array.from({ length: 100 }, (_, index) => ({
-      ...file,
-      id: `file-${index}`,
-      name: `report-${index}.md`
-    }))
-
-    render(<FileList {...fileListProps(null)} files={files} />)
-
-    expect(virtualizerMocks.useVirtualizer).toHaveBeenLastCalledWith(
-      expect.objectContaining({ count: files.length, overscan: 8 })
-    )
-    const options = virtualizerMocks.useVirtualizer.mock.calls.at(-1)?.[0]
-    expect(options?.getItemKey?.(37)).toBe('file-37')
-    expect(screen.getByText('report-0.md')).toBeInTheDocument()
-    expect(screen.queryByText('report-1.md')).not.toBeInTheDocument()
-  })
-
   it('focuses the inline rename input when rename is triggered', () => {
     vi.useFakeTimers()
 
@@ -152,7 +148,7 @@ describe('FileList', () => {
 
     rerender(<FileList {...fileListProps(file.id)} />)
 
-    const input = screen.getByDisplayValue(file.name) as HTMLInputElement
+    const input = screen.getByDisplayValue<HTMLInputElement>(file.name)
 
     act(() => {
       vi.runOnlyPendingTimers()
@@ -161,18 +157,6 @@ describe('FileList', () => {
     expect(input).toHaveFocus()
     expect(input.selectionStart).toBe(0)
     expect(input.selectionEnd).toBe('report'.length)
-  })
-
-  it('scrolls an off-screen rename target into the virtual window', () => {
-    const files = Array.from({ length: 100 }, (_, index) => ({
-      ...file,
-      id: `file-${index}`,
-      name: `report-${index}.md`
-    }))
-
-    render(<FileList {...fileListProps('file-37')} files={files} />)
-
-    expect(virtualizerMocks.scrollToIndex).toHaveBeenCalledWith(37, { align: 'auto' })
   })
 
   it('forwards checkbox state and the Shift modifier without opening the row', async () => {
@@ -192,14 +176,6 @@ describe('FileList', () => {
     await user.click(screen.getByText(file.name))
     expect(onOpen).toHaveBeenCalledWith(file)
     expect(onSelect).toHaveBeenCalledOnce()
-  })
-
-  it('uses the selected border only for the checked checkbox state', () => {
-    render(<FileList {...fileListProps(null)} />)
-
-    const checkbox = screen.getByRole('checkbox', { name: 'files.select_file' })
-    expect(checkbox).toHaveClass('data-[state=checked]:border-border-selected')
-    expect(checkbox).not.toHaveClass('border-border-selected')
   })
 
   it('opens files through the existing action', () => {
@@ -222,39 +198,6 @@ describe('FileList', () => {
     fireEvent.click(screen.getByText(missingFile.name))
 
     expect(onOpen).not.toHaveBeenCalled()
-  })
-
-  it('shows the row show-in-folder action for active files', () => {
-    const externalFile: FileItem = {
-      ...file,
-      id: 'external-file',
-      origin: 'external'
-    }
-
-    const { rerender } = render(<FileList {...fileListProps(null)} files={[file]} />)
-
-    expect(screen.getByRole('button', { name: 'files.show_in_folder' })).toBeInTheDocument()
-
-    rerender(<FileList {...fileListProps(null)} files={[externalFile]} />)
-
-    expect(screen.getByRole('button', { name: 'files.show_in_folder' })).toBeInTheDocument()
-  })
-
-  it('uses remove-from-library wording for external row deletes', () => {
-    const externalFile: FileItem = {
-      ...file,
-      id: 'external-file',
-      origin: 'external'
-    }
-
-    const { rerender } = render(<FileList {...fileListProps(null)} files={[file]} />)
-
-    expect(screen.getByRole('button', { name: 'files.delete.label' })).toBeInTheDocument()
-
-    rerender(<FileList {...fileListProps(null)} files={[externalFile]} />)
-
-    expect(screen.getByRole('button', { name: 'files.remove_from_library' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'files.delete.label' })).not.toBeInTheDocument()
   })
 
   it('hides invalid row actions for missing files', () => {

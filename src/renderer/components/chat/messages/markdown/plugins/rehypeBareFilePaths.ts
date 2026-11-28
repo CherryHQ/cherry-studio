@@ -78,7 +78,8 @@ function isLikelySentenceBoundary(
 ): boolean {
   const character = value[index]
   if (!character || !SENTENCE_PUNCTUATION.has(character)) return false
-  if (platform === 'windows' && character === ':') return false
+  if (character === ':' && (platform === 'windows' || /^:\d+(?::\d+)?(?=$|[\s.,;!?)\]])/.test(value.slice(index))))
+    return false
 
   // A punctuation mark in the middle of a filename (for example
   // `/tmp/report,final.txt`) is part of the path. Once a complete filename
@@ -315,8 +316,8 @@ function hasClearFileExtension(value: string): boolean {
   return /^[^.].*\.[\p{L}\p{N}][\p{L}\p{N}_+-]*$/u.test(finalSegment)
 }
 
-function hasFilenameLikeLeaf(value: string, platform?: BareFilePathPlatform): boolean {
-  const normalizedValue = platform === 'windows' ? value.replace(/(?::\d+){1,2}$/u, '') : value
+function hasFilenameLikeLeaf(value: string): boolean {
+  const normalizedValue = value.replace(/(?::\d+){1,2}$|#L\d+(?:-L\d+)?$/u, '')
   const finalSegment = normalizedValue.split(/[\\/]/).at(-1) ?? ''
   if (hasClearFileExtension(normalizedValue)) return true
 
@@ -361,6 +362,14 @@ export function findBareFilePathMatches(value: string, platform: BareFilePathPla
       !isUnquotedTerminator(value[end]) &&
       !isLikelySentenceBoundary(value, end, platform, hasClearFileExtensionFromState(filenameState))
     ) {
+      const locationSuffix =
+        value[end] === ':' && hasClearFileExtensionFromState(filenameState)
+          ? value.slice(end).match(/^:\d+(?::\d+)?(?=$|[\s.,;!?)\]])/)?.[0]
+          : undefined
+      if (locationSuffix) {
+        end += locationSuffix.length
+        break
+      }
       appendFilenameCharacter(filenameState, value, end)
       end += 1
     }
@@ -368,7 +377,7 @@ export function findBareFilePathMatches(value: string, platform: BareFilePathPla
     let continuedAcrossWhitespace = false
     while (
       (platform === 'posix' || platform === 'windows') &&
-      !hasFilenameLikeLeaf(candidate, platform) &&
+      !hasFilenameLikeLeaf(candidate) &&
       (platform === 'posix'
         ? looksLikeUnquotedPathContinuation(value, end)
         : looksLikeUnquotedWindowsPathContinuation(value, end))
@@ -398,7 +407,7 @@ export function findBareFilePathMatches(value: string, platform: BareFilePathPla
     }
     const hasAmbiguousWhitespaceBoundary =
       (platform === 'posix' || platform === 'windows') &&
-      !hasFilenameLikeLeaf(candidate, platform) &&
+      !hasFilenameLikeLeaf(candidate) &&
       !isKnownNavigationPath(candidate) &&
       !continuedAcrossWhitespace &&
       scannedEnd === index + candidate.length &&
@@ -409,7 +418,7 @@ export function findBareFilePathMatches(value: string, platform: BareFilePathPla
       platform === 'posix' &&
       candidate.startsWith('/') &&
       !candidate.slice(1).includes('/') &&
-      !hasFilenameLikeLeaf(candidate, platform)
+      !hasFilenameLikeLeaf(candidate)
     if (
       looksLikeProseSlash ||
       hasAmbiguousWhitespaceBoundary ||
@@ -437,7 +446,10 @@ function createMarker(path: string): Element {
 
 function isSkippedElement(node: Element): boolean {
   if (SKIPPED_ELEMENTS.has(node.tagName)) return true
-  return (node.properties.className ?? []).some((value) => value.startsWith('katex'))
+  // hast types className as Array<string>, but parsed trees carry any runtime shape; narrow from unknown.
+  const className: unknown = node.properties?.className
+  const classes = Array.isArray(className) ? className : typeof className === 'string' ? className.split(/\s+/) : []
+  return classes.some((value) => typeof value === 'string' && value.startsWith('katex'))
 }
 
 function splitTextNode(node: Text, platform: BareFilePathPlatform): RootContent[] {

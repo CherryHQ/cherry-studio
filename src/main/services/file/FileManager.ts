@@ -85,7 +85,8 @@
  *   `@main/utils/file/fs` (reached through a `FilePathHandle`), which is an
  *   explicit user-facing operation not tied to any entry id.
  * - User-facing removal goes through `batchRemoveFromLibrary`, which also
- *   verifies external origin and persistent-reference absence in the delete tx.
+ *   verifies external origin and protects persistent refs in the delete tx,
+ *   except optional source refs to missing translation originals.
  *
  * **External entries cannot be trashed.** Their lifecycle is monotonic:
  * created by `ensureExternalEntry` (pure upsert keyed by path — see below),
@@ -132,6 +133,7 @@ import { fileEntryService } from '@data/services/FileEntryService'
 import { fileRefService } from '@data/services/FileRefService'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { logFailure } from '@main/core/logger/logFailure'
 import { stat as fsStat } from '@main/utils/file'
 import type { ContentHash, DanglingState, FileEntry, FileEntryId } from '@shared/data/types/file'
 import { CleanupPolicySchema, FileEntryIdSchema } from '@shared/data/types/file'
@@ -153,6 +155,7 @@ import { KeyedMutex } from '@shared/utils/async'
 import { canonicalizeFilePath } from '@shared/utils/file'
 
 import { danglingCache } from './danglingCache'
+import { classifyFileFailure } from './failureFacts'
 import { hash as internalHash } from './internal/content/hash'
 import { read as internalRead, readChunk as internalReadChunk } from './internal/content/read'
 import {
@@ -195,7 +198,7 @@ import {
 import { showInFolder as internalShellShowInFolder } from './internal/system/shell'
 import { withTempCopy as internalWithTempCopy } from './internal/system/tempCopy'
 import { runPathMutationExclusive } from './pathMutationLock'
-import { safeOpen } from './system'
+import { copyFileToClipboard, type DefaultOpenContext, safeOpen } from './system'
 import { createContentHashBackfillJobHandler } from './tasks/contentHashBackfillJobHandler'
 import { ensureContentMetadataGeneration } from './tasks/contentMetadataGeneration'
 import { readEditSnapshot as readEditingSnapshot } from './utils/editSnapshot'
@@ -626,7 +629,7 @@ export interface IFileManager {
   batchRestore(ids: FileEntryId[]): Promise<BatchMutationResult>
   /** Permanently delete unreferenced internal entries that are currently in Trash. */
   batchPermanentDeleteFromTrash(ids: FileEntryId[]): Promise<BatchMutationResult>
-  /** Remove unreferenced external entries from the library without modifying user files. */
+  /** Remove external entries with no protected refs from the library without modifying user files. */
   batchRemoveFromLibrary(ids: FileEntryId[]): Promise<BatchMutationResult>
 
   // ─── Stream ───
@@ -702,10 +705,13 @@ export interface IFileManager {
   // ─── System ───
 
   /** Open with the system default application. Unsafe executable/script types are blocked. */
-  open(id: FileEntryId): Promise<void>
+  open(id: FileEntryId, context?: DefaultOpenContext): Promise<void>
 
   /** Reveal in the system file manager. */
   showInFolder(id: FileEntryId): Promise<void>
+
+  /** Copy the entry's physical file while retaining its storage origin for failure reporting. */
+  copyToClipboard(id: FileEntryId): Promise<void>
 }
 
 // ─── Runtime ───
@@ -1131,9 +1137,21 @@ export class FileManager extends BaseService implements IFileManager {
    */
   async getMetadata(id: FileEntryId): Promise<PhysicalFileMetadata> {
     const entry = this.deps.fileEntryService.getById(id)
-    const physicalPath = resolvePhysicalPath(entry)
-    const s = await observeExternalAccess(this.deps, entry, physicalPath, () => fsStat(physicalPath))
-    return buildPhysicalFileMetadata(physicalPath, s)
+    try {
+      const physicalPath = resolvePhysicalPath(entry)
+      const s = await observeExternalAccess(this.deps, entry, physicalPath, () => fsStat(physicalPath))
+      return buildPhysicalFileMetadata(physicalPath, s)
+    } catch (error) {
+      logFailure(
+        fileManagerLogger,
+        'File metadata unavailable',
+        error,
+        'file.get_metadata',
+        classifyFileFailure(error, entry.origin === 'external'),
+        'warn'
+      )
+      throw error
+    }
   }
 
   async getVersion(id: FileEntryId): Promise<FileVersion> {
@@ -1326,14 +1344,19 @@ export class FileManager extends BaseService implements IFileManager {
     return internalWithTempCopy(this.deps, id, fn)
   }
 
-  async open(id: FileEntryId): Promise<void> {
+  async open(id: FileEntryId, context?: DefaultOpenContext): Promise<void> {
     const entry = this.deps.fileEntryService.getById(id)
-    return safeOpen(resolvePhysicalPath(entry))
+    return safeOpen(resolvePhysicalPath(entry), context)
   }
 
   async showInFolder(id: FileEntryId): Promise<void> {
     const entry = this.deps.fileEntryService.getById(id)
     return internalShellShowInFolder(resolvePhysicalPath(entry))
+  }
+
+  async copyToClipboard(id: FileEntryId): Promise<void> {
+    const entry = this.deps.fileEntryService.getById(id)
+    return copyFileToClipboard(resolvePhysicalPath(entry), entry.origin === 'external')
   }
 
   // ─── Dangling state ───

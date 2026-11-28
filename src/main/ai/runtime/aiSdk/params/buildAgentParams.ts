@@ -2,7 +2,7 @@ import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import { stepCountIs, type StopCondition, type ToolSet, type UIMessage } from 'ai'
 
 import { application } from '@application'
-import type { AiPlugin } from '@cherrystudio/ai-core'
+import { type AiPlugin, definePlugin } from '@cherrystudio/ai-core'
 import { assistantDataService } from '@data/services/AssistantService'
 import { projectRuntimeReasoning, providerRegistryService } from '@data/services/ProviderRegistryService'
 import { topicService } from '@data/services/TopicService'
@@ -42,10 +42,12 @@ import { getWebSearchFallbackProviderIds, resolveReadyWebSearchProvider } from '
 
 import { resolveRequestContextSettings } from '../../../contextBuild/resolveRequestContextSettings'
 import type { FileAttachmentRef } from '../../../messages/attachmentTypes'
+import { type NativeFileSupport, resolveNativeFileSupport } from '../../../messages/nativeFileSupport'
 import { collectRetainedContext, type RetainedContext } from '../../../messages/retainedContext'
 import { applyHttpTrace, type AgentRuntimeTraceContext } from '../../../observability'
 import type { ServingCredentialReceipt } from '../../../provider/credential'
 import { resolveAiSdkProviderId, resolveEffectiveEndpoint } from '../../../provider/endpoint'
+import { getReplayRouteId } from '../../../provider/replayRoute'
 import { resolveSdkConfig } from '../../../provider/sdkConfig'
 import type { RequestContext } from '../../../tools/adapters/aiSdk/context'
 import { applyDeferExposition } from '../../../tools/adapters/aiSdk/exposition/applyDeferExposition'
@@ -77,15 +79,16 @@ import { getCustomParameters } from '../../../utils/reasoning'
 import { normalizeRequestedSelection, resolveReasoningInvocation } from '../../../utils/reasoningSerializers'
 import { createToolCallLimitStopCondition } from '../loop/toolLoopTermination'
 import type { AgentLoopHooks, AgentOptions } from '../loop/types'
+import { observeChatBudgetPlugin } from '../retry/chatTokenFieldRetry'
 import { assembleSystemPrompt } from './assembleSystemPrompt'
 import { buildTelemetry } from './buildTelemetry'
 import { resolveCapabilities } from './capabilities'
-import { collectFromFeatures } from './collectFromFeatures'
+import { collectFromFeatures, type FeatureContributions } from './collectFromFeatures'
 import { createCustomParamsFetch, selectCustomBodyParameters } from './customParamsFetch'
 import type { RequestFeature } from './feature'
 import { hasAnchorRow } from './features/contextBuild'
 import { INTERNAL_FEATURES } from './features/internalFeatures'
-import { type NativeFileSupport, resolveNativeFileSupport } from './nativeFileSupport'
+import { providerErrorBoundaryPlugin } from './features/providerErrorBoundary'
 import type { RequestScope, SdkConfig } from './scope'
 
 const logger = loggerService.withContext('buildAgentParams')
@@ -120,6 +123,8 @@ export interface BuildAgentParamsInput {
 
 export interface BuiltAgentParams {
   sdkConfig: SdkConfig
+  replayRouteId: string
+  endpointType: EndpointType | undefined
   /** Non-secret receipt for the credential path selected for this request. */
   credentialReceipt: ServingCredentialReceipt
   tools: ToolSet | undefined
@@ -141,8 +146,10 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     provider,
     model,
     resolvedEndpoint,
-    request.apiKeyOverride
+    request.apiKeyOverride,
+    request.utilityTask
   )
+  const replayRouteId = getReplayRouteId(provider.id, resolvedEndpoint.endpointType, sdkConfig)
   applyHttpTrace(sdkConfig.providerSettings, {
     topicId: input.traceContext?.topicId ?? request.conversation.topicId,
     modelName: model.name ?? model.id
@@ -160,7 +167,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   const { contextSettings, compressionModel } = await resolveRequestContextSettings(
     model,
     request.conversation,
-    assistant?.settings.contextSettings
+    request.contextOwner === 'caller' ? { enabled: false } : assistant?.settings.contextSettings
   )
   const hasPersistedOutputs = retained.persistedOutputPaths.size > 0
   // A marker minted on the last permitted tool step can never be read back —
@@ -282,6 +289,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
                 throw new Error('Conversation owner changed')
               const settings = assistantDataService.getById(assistant.id).settings
               return {
+                computerApproval: { bypass: false, windowId: request.interactionWindowId },
                 browser:
                   toolSignals?.browserEnabled === true &&
                   settings.enableBrowser !== false &&
@@ -317,7 +325,26 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     toolOutputCharCap: contextSettings.truncateThreshold
   }
 
+  const mcpInstructions = request.contextOwner === 'caller' ? '' : buildMcpInstructionsContext(mcpServerIds)
+  const system =
+    request.contextOwner === 'caller'
+      ? request.system
+      : request.system !== undefined
+        ? [request.system, mcpInstructions].filter(Boolean).join('\n\n')
+        : await assembleSystemPrompt({
+            assistant,
+            model,
+            tools,
+            deferredEntries,
+            hasCitableTools,
+            webSearchEnabled: finalWebToolRoutes.webSearch !== 'none',
+            mcpInstructions
+          })
+
   const scope: RequestScope = {
+    system,
+    tools,
+    requestedMaxOutputTokens,
     request,
     signal,
     registry,
@@ -326,6 +353,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     provider,
     capabilities,
     sdkConfig,
+    replayRouteId,
     endpointType,
     aiSdkProviderId,
     reasoningProfile,
@@ -348,24 +376,9 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   const features = extraFeatures?.length ? [...INTERNAL_FEATURES, ...extraFeatures] : INTERNAL_FEATURES
   const contributions = collectFromFeatures(scope, features)
 
-  const mcpInstructions = request.contextOwner === 'caller' ? '' : buildMcpInstructionsContext(mcpServerIds)
-  const system =
-    request.contextOwner === 'caller'
-      ? request.system
-      : request.system !== undefined
-        ? [request.system, mcpInstructions].filter(Boolean).join('\n\n')
-        : await assembleSystemPrompt({
-            assistant,
-            model,
-            tools,
-            deferredEntries,
-            hasCitableTools,
-            webSearchEnabled: finalWebToolRoutes.webSearch !== 'none',
-            mcpInstructions
-          })
   const options = buildAgentOptions(
     scope,
-    contributions.stopConditions,
+    contributions,
     customParameters,
     requestedMaxOutputTokens,
     input.getRepairUsagePlugins
@@ -394,9 +407,16 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
 
   return {
     sdkConfig,
+    replayRouteId,
+    endpointType,
     credentialReceipt,
     tools,
-    plugins: contributions.modelAdapters,
+    // The innermost adapter classifies failures before recovery or retry can observe them.
+    plugins: [
+      ...contributions.modelAdapters,
+      ...(endpointType === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS ? [observeChatBudgetPlugin] : []),
+      providerErrorBoundaryPlugin
+    ],
     system,
     options,
     hookParts,
@@ -648,7 +668,7 @@ function resolveHasAnyKnowledgeBase(): boolean {
  */
 function buildAgentOptions(
   scope: RequestScope,
-  featureStopConditions: StopCondition<ToolSet>[],
+  contributions: FeatureContributions,
   customParameters: ReturnType<typeof extractAiSdkStandardParams>,
   requestedMaxOutputTokens: number | undefined,
   getRepairUsagePlugins?: () => AiPlugin[]
@@ -700,14 +720,45 @@ function buildAgentOptions(
       ...(topP !== undefined && { topP })
     }
 
-    if (Object.keys(customParameters.providerParams).length > 0) {
-      bodyParams = selectCustomBodyParameters(customParameters.providerParams, providerOptions, provider.id)
+    let { providerParams } = customParameters
+    if (Object.keys(providerParams).length > 0) {
+      bodyParams = selectCustomBodyParameters(providerParams, providerOptions, provider.id)
+      const customChoice = bodyParams.tool_choice
+      if (
+        endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES &&
+        (customChoice === 'auto' || customChoice === 'none' || customChoice === 'any' || customChoice === 'required')
+      ) {
+        delete bodyParams.tool_choice
+        providerParams = { ...providerParams }
+        delete providerParams.tool_choice
+        const type = customChoice === 'any' ? 'required' : customChoice
+        contributions.modelAdapters.push(
+          definePlugin({
+            name: 'anthropic-custom-tool-choice',
+            enforce: 'post',
+            configureContext: (context) => {
+              context.middlewares ??= []
+              context.middlewares.push({
+                specificationVersion: 'v3',
+                transformParams: async ({ params }) =>
+                  params.tools?.length && params.toolChoice === undefined ? { ...params, toolChoice: { type } } : params
+              })
+            }
+          })
+        )
+      }
       providerOptions = mergeCustomProviderParameters(
         providerOptions,
-        customParameters.providerParams,
+        providerParams,
         provider.id,
         sdkConfig.providerId === 'google-vertex-maas' ? 'openai-compatible' : aiSdkProviderId
       )
+      if (endpointType === ENDPOINT_TYPE.OPENAI_RESPONSES && typeof bodyParams.reasoning_effort === 'string') {
+        const { reasoning_effort, ...remainingBodyParams } = bodyParams
+        bodyParams = remainingBodyParams
+        const key = sdkConfig.providerOptionsKey
+        providerOptions[key] = { ...providerOptions[key], reasoningEffort: reasoning_effort }
+      }
     }
   }
 
@@ -766,11 +817,13 @@ function buildAgentOptions(
     { standardParams, providerOptions: effectiveProviderOptions, bodyParams },
     model
   )
+  const chatCompletions = endpointType === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
   // Capture only filtered body parameters; a fetch closure cannot be sanitized later.
-  if (Object.keys(sanitized.bodyParams).length > 0) {
+  if (chatCompletions || Object.keys(sanitized.bodyParams).length > 0) {
     sdkConfig.providerSettings.fetch = createCustomParamsFetch(
       sdkConfig.providerSettings.fetch ?? globalThis.fetch,
-      sanitized.bodyParams
+      sanitized.bodyParams,
+      chatCompletions
     )
   }
   const hasProviderOptions = Object.values(sanitized.providerOptions).some((ns) => Object.keys(ns ?? {}).length > 0)
@@ -782,7 +835,8 @@ function buildAgentOptions(
     : callerHeaders
   const toolCallLimit = resolveToolCallLimit(assistant)
   const baseStopWhen = createToolCallLimitStopCondition(toolCallLimit)
-  const stopWhen = request.contextOwner === 'caller' ? undefined : composeStopWhen(baseStopWhen, featureStopConditions)
+  const stopWhen =
+    request.contextOwner === 'caller' ? undefined : composeStopWhen(baseStopWhen, contributions.stopConditions)
   const telemetry = buildTelemetry(scope)
 
   return {
@@ -790,6 +844,8 @@ function buildAgentOptions(
     ...(stopWhen && { stopWhen }),
     ...(headers && { headers }),
     ...(callOverrides?.toolChoice && { toolChoice: callOverrides.toolChoice }),
+    ...(callOverrides?.activeTools && { activeTools: callOverrides.activeTools }),
+    ...(callOverrides?.output && { output: callOverrides.output }),
     ...(hasProviderOptions && { providerOptions: sanitized.providerOptions }),
     ...(telemetry && { telemetry }),
     ...sanitized.standardParams,
@@ -802,6 +858,8 @@ function buildAgentOptions(
             providerSettings: sdkConfig.providerSettings,
             modelId: sdkConfig.modelId,
             headers,
+            signal: scope.signal,
+            retryInvalidOutput: maxRetries !== 0,
             getUsagePlugins: getRepairUsagePlugins
           })
   }
@@ -841,6 +899,9 @@ export function applyCallOverrides(
   if (callOverrides.topP !== undefined) sampling.topP = callOverrides.topP
   if (callOverrides.topK !== undefined) sampling.topK = callOverrides.topK
   if (callOverrides.stopSequences !== undefined) sampling.stopSequences = callOverrides.stopSequences
+  if (callOverrides.presencePenalty !== undefined) sampling.presencePenalty = callOverrides.presencePenalty
+  if (callOverrides.frequencyPenalty !== undefined) sampling.frequencyPenalty = callOverrides.frequencyPenalty
+  if (callOverrides.seed !== undefined) sampling.seed = callOverrides.seed
   const standardParams = { ...base.standardParams, ...filterStandardParams(sampling, model) }
 
   let providerOptions = base.providerOptions

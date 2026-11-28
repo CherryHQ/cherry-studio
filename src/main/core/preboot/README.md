@@ -58,7 +58,7 @@ without good reason.
 - **preboot** — the phase this directory owns: setup code that must run
   before `application.bootstrap()` is called. Typically synchronous, but
   may be async when the operation cannot be expressed synchronously
-  (e.g. a v1→v2 migration gate that awaits a DB probe). Preboot modules
+  (e.g. a legacy upgrade gate that awaits a native dialog). Preboot modules
   must not depend on any lifecycle-managed service — that is the real
   constraint, not whether the code awaits. This is what an OS or Linux
   developer would call "early boot" or "init phase 0". It is *not* a
@@ -106,7 +106,7 @@ preboot/
 │                        userData suffixes use isolated locks.
 ├── userDataLocation.ts  resolves userData (dev profile root, suffix, or
 │                        BootConfig) and exports the shared isUsableDataDir(p) validator
-│                        used by v1→v2 migration
+│                        used by legacy profile detection
 ├── chromiumFlags.ts     Chromium startup flags that must run before
 │                        app.whenReady()
 ├── crashTelemetry.ts    crashReporter + process-level error hooks +
@@ -117,22 +117,17 @@ preboot/
 │                        backup-restore gate; promotes a staged restored DB
 │                        (if any) at the top of startApp(), after the
 │                        single-instance lock and the frozen path registry,
-│                        before v2MigrationGate reads the DB. Thin shell that
+│                        before legacyUpgradeGate reads the DB. Thin shell that
 │                        synchronously isolates sessionData before Sentry or
 │                        asynchronous startup can open the live profile. An
 │                        isolated restore launch relaunches before bootstrap;
 │                        the next normal launch cleans up the temporary session.
 │                        Stranded DBs and unresolved isolated journals fail fast. The
 │                        promotion logic lives in src/main/data/db/restore/
-│                        (same layering as v2MigrationGate → MigrationEngine).
-├── v2MigrationGate.ts   v1→v2 migration decision gate; runs before
-│                        bootstrap. Calls resolveMigrationPaths() to
-│                        detect v1 legacy userData before engine init.
-│                        Temporary — scoped for deletion once all
-│                        users have migrated off v1. Its fat
-│                        orchestrating-gate shape is tolerated only
-│                        because it is throwaway — do not copy it for
-│                        permanent capabilities.
+│                        (same layering as legacyUpgradeGate → legacyUpgrade).
+├── legacyUpgradeGate.ts blocks unmigrated profiles before bootstrap and
+│                        offers a platform-specific intermediate-version download.
+│                        Detection lives in data/migration/legacyUpgrade.ts.
 └── __tests__/           unit tests for each sibling module
 ```
 

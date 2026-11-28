@@ -1,27 +1,15 @@
-import { Icon } from '@iconify/react'
 import { Check, Code2, Compass, DownloadIcon, Eye, Maximize2, ShieldAlert, ZoomIn, ZoomOut } from 'lucide-react'
-import {
-  lazy,
-  memo,
-  type RefObject,
-  Suspense,
-  useEffect,
-  useId,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState
-} from 'react'
+import { memo, type RefObject, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
 import {
-  HtmlArtifactPopupHost,
   useHtmlArtifactPopupContext,
   useOptionalHtmlArtifactPopupContext
 } from '@renderer/components/chat/HtmlArtifactPopupContext'
+import { HtmlArtifactPopupHost } from '@renderer/components/chat/HtmlArtifactPopupHost'
 import {
   canConsumeVerticalWheel,
   findVerticalWheelConsumer,
@@ -31,7 +19,6 @@ import type { HtmlArtifactKind } from '@renderer/components/chat/messages/markdo
 import {
   getMaxPreviewHeight,
   htmlArtifactPreviewRequiresInteractive,
-  HtmlArtifactPreviewSurface,
   InteractiveHtmlPreview,
   routeWheelScroll,
   SCROLL_ACTIVATION_DELAY_MS
@@ -39,14 +26,13 @@ import {
 import HtmlPreviewFrame, { HTML_PREVIEW_RESTRICTED_CSP } from '@renderer/components/CodeBlockView/HtmlPreviewFrame'
 import CodeViewer from '@renderer/components/CodeViewer'
 import CopyIcon from '@renderer/components/icons/CopyIcon'
+import { FileIcon } from '@renderer/components/icons/FileIcon'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { getFileNameFromHtmlTitle } from '@renderer/utils/formats'
 import { stripMetaRefresh } from '@renderer/utils/htmlArtifact'
-
-const HtmlArtifactsPopup = lazy(() => import('@renderer/components/CodeBlockView/HtmlArtifactsPopup'))
 
 const logger = loggerService.withContext('HtmlArtifactView')
 
@@ -113,8 +99,9 @@ function getIframeContentHeight(
     const frameWindow = iframe.contentWindow
     if (!frameDocument || !body || !documentElement || !frameWindow) return { height: null, memory: null }
 
+    const bodyScrollHeight = body.scrollHeight
     const documentScrollHeight = Math.max(
-      body.scrollHeight,
+      bodyScrollHeight,
       documentElement.scrollHeight,
       frameDocument.scrollingElement?.scrollHeight ?? 0
     )
@@ -130,7 +117,14 @@ function getIframeContentHeight(
     }
 
     const scrollTop = frameWindow.scrollY || documentElement.scrollTop || body.scrollTop
-    let renderedContentBottom = 0
+    // Body overflow includes generated CSS boxes missed by the DOM sweep.
+    const hasBodyOverflow =
+      body !== frameDocument.scrollingElement &&
+      bodyScrollHeight > body.clientHeight &&
+      bodyScrollHeight <= iframe.clientHeight
+    let renderedContentBottom = hasBodyOverflow
+      ? body.getBoundingClientRect().top + scrollTop + body.clientTop + bodyScrollHeight
+      : 0
 
     for (const element of body.querySelectorAll('*')) {
       const bounds = element.getBoundingClientRect()
@@ -419,7 +413,7 @@ const HtmlArtifactConsentCard = memo(function HtmlArtifactConsentCard({
         onClick={onAccept}>
         <span className="flex min-h-12 min-w-0 flex-1 items-center gap-2.5 px-2.5 py-2">
           <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-background">
-            <Icon icon="material-icon-theme:html" className="text-[20px]" />
+            <FileIcon path="artifact.html" className="text-[20px]" />
           </span>
           <span className="truncate text-[13px] leading-5 font-medium text-foreground">{title}</span>
           <span className="shrink-0 rounded-sm bg-background px-1.5 py-0.5 text-[10px] leading-4 font-medium text-muted-foreground">
@@ -437,51 +431,6 @@ const HtmlArtifactConsentCard = memo(function HtmlArtifactConsentCard({
     </Tooltip>
   )
 })
-
-export function HtmlArtifactPopupOutlet() {
-  const popupContext = useHtmlArtifactPopupContext()
-  const popupSession = popupContext.popupSession
-  if (!popupSession) return null
-
-  // Opening the full-screen popup is the explicit viewing action, so it never renders a
-  // consent surface — active content (fragment or document) goes straight to the webview.
-  const requiresInteractivePreview = htmlArtifactPreviewRequiresInteractive(popupSession.html)
-  // Only a whole document may be promoted in the INLINE view after viewing, so the
-  // approve-on-close memory stays kind-gated (fragments remain script-less inline).
-  const approvesInlineInteractive = requiresInteractivePreview && popupSession.kind === 'document'
-
-  return (
-    <Suspense fallback={null}>
-      <HtmlArtifactsPopup
-        key={popupSession.artifactId}
-        open
-        title={popupSession.title}
-        html={popupSession.html}
-        onSave={popupSession.onSave}
-        editable={popupSession.editable}
-        // Maximize opens the interactive tier directly (upstream for documents, this
-        // PR's extension for active fragments); the card path defers to View webpage.
-        canCapturePreview={!requiresInteractivePreview}
-        renderPreview={(iframeRef) => (
-          <HtmlArtifactPreviewSurface
-            html={popupSession.html}
-            title={popupSession.title}
-            authorized
-            zoom={popupSession.zoom}
-            iframeRef={iframeRef}
-            forwardBoundaryWheel={false}
-          />
-        )}
-        onClose={() => {
-          if (approvesInlineInteractive) {
-            popupContext.approveInteractiveHtml(popupSession.artifactId, popupSession.html)
-          }
-          popupContext.closePopup()
-        }}
-      />
-    </Suspense>
-  )
-}
 
 const HtmlArtifactViewContent = memo(function HtmlArtifactViewContent({
   artifactId,

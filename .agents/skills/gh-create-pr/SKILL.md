@@ -32,10 +32,10 @@ Stop if authentication, installation, or the final verification fails. Do not in
 3. Read `.agents/notes/README.md` and classify the change:
    - Fill `Agent Note` with the repository path, or `N/A — <reason>` for a local/mechanical change.
    - For a Spec PR, fill `Spec PR: This PR` and list every AC.
-   - For an implementation layer, link the Spec PR and list only the AC IDs covered by this layer. Verify an `APPROVED` review whose `commit_id` equals the current Spec head; a stale approval does not authorize implementation.
+   - For an implementation layer, link the Spec PR and list only the AC IDs covered by this layer. Implementation may start and be published for review without waiting for Spec Approval or merge.
    - For a direct bug fix with durable rationale, link its implemented `bug-fix` note and use `Spec PR: N/A`.
    - Automation-authored PRs (repository workflows and Dependabot) are exempt from these metadata fields. Do not make their bodies imitate a human-authored PR.
-4. For an implementation PR, complete the stack tooling preflight, then run `gh stack view --json`. If it exits 2, follow the `gh-stack` skill's remote-discovery procedure; missing local metadata does not prove the PR is standalone. Inspect every downstack implementation PR and aggregate only ACs backed by actual verification. Keep the note proposed on intermediate layers. If the current PR is the final layer and cumulative evidence covers the complete approved Spec, move the bilingual triplet to `implemented/` and run `pnpm agent-notes:check-transition --base <verified-spec-ref>` before publishing.
+4. For an implementation PR, complete the stack tooling preflight, then run `gh stack view --json`. If it exits 2, follow the `gh-stack` skill's remote-discovery procedure; missing local metadata does not prove the PR is standalone. Inspect every downstack implementation PR and aggregate only ACs backed by actual verification. Keep the note proposed on intermediate layers. If the current PR is the final layer and cumulative evidence covers the complete current Spec, move the bilingual triplet to `implemented/` and run `pnpm agent-notes:check-transition --base <verified-spec-ref>` before publishing.
 5. Fill `Verification` with commands and scenarios actually run. Never present a planned, pending, skipped, or CI-only check as passed.
 6. Check if the current branch has been pushed to remote. If not, push it first:
    - Default remote is `origin`, but ask the user if they want to use a different remote.
@@ -95,7 +95,7 @@ Stop if authentication, installation, or the final verification fails. Do not in
 - Never use a `hotfix` title or label for an ordinary bug fix. It opts the PR into an automatic backport PR after merge when one matching draft release is active.
 - A release hotfix may use `NONE` when it has no user-facing release note. Never provide a partial, single-language, or otherwise malformed bilingual note; the backport workflow fails closed on malformed content.
 - Never default a `release/v<version>` head to `main`; a release branch is not a pull request source branch.
-- Never publish an implementation PR as ready when its current Spec head lacks an exact-head Approval. A Spec may remain unmerged and serve as the stack base.
+- A Spec may remain unapproved and unmerged while implementation PRs stack above it. Existing PR review and merge requirements still apply.
 - Every human-authored PR fills `Agent Note`, `Spec PR`, and `Acceptance criteria`; `N/A` requires a concise reason. Automation-authored PRs (repository workflows and Dependabot) are exempt from this metadata requirement.
 - **Release note & Documentation checkbox** — both are driven by whether the change is **user-facing**. Use the table below:
 

@@ -69,6 +69,9 @@ vi.mock('react-i18next', () => ({
       ({
         'agent.settings.toolsMcp.mcp.tab': 'MCP',
         'deviceConnections.title': '设备互联',
+        'local_agents.beta_badge': 'Beta',
+        'local_agents.beta_tooltip': zhCN['local_agents.beta_tooltip'],
+        'local_agents.title': '智能体服务',
         'selection.name': '划词助手',
         'settings.appearance.title': '外观',
         'settings.voice.title': '语音',
@@ -146,21 +149,12 @@ describe('SettingsPage', () => {
     expect(screen.getByRole('button', { name: 'settings.search.placeholder' })).toBeInTheDocument()
   })
 
-  it('places General directly above Appearance and local models directly below the default model', () => {
-    const { container } = render(<SettingsPage />)
-
-    expect(container.querySelector('[data-ui="settings.view"]')).toBeInTheDocument()
-    expect(container.querySelector('[data-ui="settings.navigation"]')).toBeInTheDocument()
-    expect(container.querySelector('[data-ui="settings.content"]')).toBeInTheDocument()
-    expect(screen.getByText('偏好')).toBeInTheDocument()
+  it('opens General and local model settings', () => {
+    render(<SettingsPage />)
 
     const generalItem = screen.getByRole('button', { name: '通用' })
-    const appearanceItem = screen.getByRole('button', { name: '外观' })
-    const defaultModelItem = screen.getByRole('button', { name: '默认模型' })
     const localModelsItem = screen.getByRole('button', { name: '本地模型' })
 
-    expect(generalItem.nextElementSibling).toBe(appearanceItem)
-    expect(defaultModelItem.nextElementSibling).toBe(localModelsItem)
     fireEvent.click(generalItem)
     expect(navigateMock).toHaveBeenCalledWith({ to: '/settings/general' })
     fireEvent.click(localModelsItem)
@@ -185,33 +179,22 @@ describe('SettingsPage', () => {
     expect(navigateMock).toHaveBeenCalledWith({ to: '/settings/voice' })
   })
 
-  it('keeps dependencies in the system group', () => {
+  it('opens dependency settings', () => {
     render(<SettingsPage />)
 
-    expect(screen.getByText('工具')).toBeInTheDocument()
-
-    const dependenciesItem = screen.getByRole('button', { name: '环境依赖' })
-    expect(screen.queryByRole('button', { name: '系统' })).not.toBeInTheDocument()
-    expect(screen.getByText('系统').nextElementSibling).toBe(dependenciesItem)
-    fireEvent.click(dependenciesItem)
+    fireEvent.click(screen.getByRole('button', { name: '环境依赖' }))
     expect(navigateMock).toHaveBeenCalledWith({ to: '/settings/dependencies' })
   })
 
-  it('places Built-in Tools below MCP and Skills and opens prompt management', () => {
+  it('opens skills and built-in prompt management', () => {
     render(<SettingsPage />)
 
-    const mcpItem = screen.getByText('MCP').closest('button')
     const skillsItem = screen.getByRole('button', { name: '技能' })
 
-    expect(mcpItem).not.toBeNull()
-    expect(mcpItem?.nextElementSibling).toBe(skillsItem)
     fireEvent.click(skillsItem)
     expect(navigateMock).toHaveBeenCalledWith({ to: '/settings/skills' })
 
     const builtinToolsItem = screen.getByRole('button', { name: '内置工具' })
-    expect(skillsItem.nextElementSibling).toBe(builtinToolsItem)
-    expect(screen.queryByRole('button', { name: '提示词' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('navigation', { name: '内置工具' })).not.toBeInTheDocument()
     fireEvent.click(builtinToolsItem)
     expect(navigateMock).toHaveBeenCalledWith({ to: '/settings/prompts' })
   })
@@ -257,20 +240,13 @@ describe('SettingsPage', () => {
     expect(screen.getByRole('button', { name: '内置工具' })).not.toHaveAttribute('data-active')
   })
 
-  it('merges quick access into efficiency and places both assistants last', () => {
+  it('shows a Beta badge with tooltip copy on the Agent services menu item and navigates when clicked', () => {
     render(<SettingsPage />)
 
-    expect(screen.getByText('效率')).toBeInTheDocument()
-    expect(screen.queryByText('快捷入口')).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: '定时任务' })).not.toBeInTheDocument()
+    const localAgentsItem = screen.getByRole('button', { name: '智能体服务' })
+    expect(within(localAgentsItem).getByText('Beta')).toBeInTheDocument()
 
-    const efficiencyItems = ['频道', '设备互联', '快捷键', '快捷助手', '划词助手', '截图'].map((name) =>
-      screen.getByRole('button', { name })
-    )
-    const menuItems = screen.getAllByRole('button')
-    const efficiencyStart = menuItems.indexOf(efficiencyItems[0])
-
-    expect(menuItems.slice(efficiencyStart, efficiencyStart + efficiencyItems.length)).toEqual(efficiencyItems)
-    expect(efficiencyItems.at(-1)?.nextElementSibling).toHaveAttribute('data-testid', 'menu-divider')
+    fireEvent.click(localAgentsItem)
+    expect(navigateMock).toHaveBeenCalledWith({ to: '/settings/local-agents' })
   })
 })

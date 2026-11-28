@@ -25,9 +25,9 @@ import { useOptionalMessageListActions } from '../../MessageListProvider'
 import type { ScheduledTaskResult } from './scheduledTaskResult'
 
 // Loaded on first edit: the editor pulls in selectors and lists that most cards never open.
-const TaskFormDialog = lazy(async () => {
-  const module = await import('@renderer/components/ScheduledTask/TaskFormDialog')
-  return { default: module.TaskFormDialog }
+const SelectableTaskFormDialog = lazy(async () => {
+  const module = await import('@renderer/components/ScheduledTask/SelectableTaskFormDialog')
+  return { default: module.SelectableTaskFormDialog }
 })
 
 function formatNextRun(value: string) {
@@ -159,12 +159,14 @@ function ScheduledTaskCard({ task }: { task: ScheduledTaskListItem }) {
                 {task.status === 'active' ? t('agent.tasks.pause') : t('agent.tasks.resume')}
               </DropdownMenuItem>
             ) : null}
-            <DropdownMenuItem
-              disabled={isRunning}
-              onSelect={() => void runExclusive(() => runTask(task.agentId, task.id))}>
-              <Play aria-hidden="true" />
-              {t('agent.tasks.run')}
-            </DropdownMenuItem>
+            {!isCompleted ? (
+              <DropdownMenuItem
+                disabled={isRunning}
+                onSelect={() => void runExclusive(() => runTask(task.agentId, task.id))}>
+                <Play aria-hidden="true" />
+                {t('agent.tasks.run')}
+              </DropdownMenuItem>
+            ) : null}
             <DropdownMenuSeparator />
             <DropdownMenuItem variant="destructive" onSelect={() => setDeleteConfirmOpen(true)}>
               <Trash2 aria-hidden="true" />
@@ -207,7 +209,7 @@ function ScheduledTaskCard({ task }: { task: ScheduledTaskListItem }) {
 
       {editorRequested ? (
         <Suspense fallback={null}>
-          <TaskFormDialog
+          <SelectableTaskFormDialog
             open={editOpen}
             task={task}
             agents={agents}

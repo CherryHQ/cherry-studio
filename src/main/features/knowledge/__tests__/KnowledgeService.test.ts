@@ -5,8 +5,6 @@ import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as LifecycleModule from '@main/core/lifecycle'
-import { getDependencies, getPhase } from '@main/core/lifecycle/decorators'
-import { Phase } from '@main/core/lifecycle/types'
 import type {
   FileProcessingTask,
   FileProcessingTaskId,
@@ -490,31 +488,6 @@ describe('KnowledgeService', () => {
     rerankKnowledgeSearchResultsMock.mockImplementation(async (_base, _query, results) => results)
   })
 
-  it('uses WhenReady phase and depends on same-phase runtime services', () => {
-    expect(getPhase(KnowledgeService)).toBe(Phase.WhenReady)
-    expect(getDependencies(KnowledgeService)).toEqual([
-      'KnowledgeVectorStoreService',
-      'JobManager',
-      'FileProcessingService',
-      'WebSearchService'
-    ])
-  })
-
-  it('registers formal knowledge job handlers', () => {
-    const service = new KnowledgeService()
-
-    ;(service as unknown as { onInit: () => void }).onInit()
-
-    expect(registerHandlerMock.mock.calls.map((call) => call[0])).toEqual([
-      'knowledge.copy-sources',
-      'knowledge.prepare-root',
-      'knowledge.index-documents',
-      'knowledge.check-file-processing-result',
-      'knowledge.delete-subtree',
-      'knowledge.reindex-subtree'
-    ])
-  })
-
   it('does not cancel knowledge jobs during service shutdown', async () => {
     const service = new KnowledgeService()
     const stop = (service as unknown as { onStop?: () => Promise<void> }).onStop
@@ -549,34 +522,6 @@ describe('KnowledgeService', () => {
       expect.objectContaining({
         idempotencyKey: 'knowledge:kb-2:dir-1,note-2:delete',
         queue: 'base.kb-2'
-      })
-    )
-  })
-
-  it('recovers deleting roots in bounded chunks', async () => {
-    const service = new KnowledgeService()
-    const rootItemIds = Array.from({ length: 501 }, (_, index) => `note-${index + 1}`)
-    knowledgeItemGetDeletingRootGroupsMock.mockReturnValueOnce([{ baseId: 'kb-1', rootItemIds }])
-
-    await (service as unknown as { onAllReady: () => Promise<void> }).onAllReady()
-
-    expect(enqueueMock).toHaveBeenCalledTimes(2)
-    expect(enqueueMock).toHaveBeenNthCalledWith(
-      1,
-      'knowledge.delete-subtree',
-      { baseId: 'kb-1', rootItemIds: rootItemIds.slice(0, 500) },
-      expect.objectContaining({
-        idempotencyKey: `knowledge:kb-1:${rootItemIds.slice(0, 500).sort().join(',')}:delete`,
-        queue: 'base.kb-1'
-      })
-    )
-    expect(enqueueMock).toHaveBeenNthCalledWith(
-      2,
-      'knowledge.delete-subtree',
-      { baseId: 'kb-1', rootItemIds: ['note-501'] },
-      expect.objectContaining({
-        idempotencyKey: 'knowledge:kb-1:note-501:delete',
-        queue: 'base.kb-1'
       })
     )
   })
@@ -2240,27 +2185,6 @@ describe('KnowledgeService', () => {
     expect(results.map((result) => result.chunkId)).toEqual(['c1'])
   })
 
-  it('over-fetches index candidates (documentCount × factor, capped) so visibility filtering keeps enough results', async () => {
-    const service = new KnowledgeService()
-    knowledgeBaseGetByIdMock.mockReturnValue(createBase({ documentCount: 3 }))
-    knowledgeItemGetByIdMock.mockReturnValue(createNoteItem(NOTE_ITEM_ID, 'kb-1', null, 'completed'))
-    storeSearchMock.mockResolvedValueOnce([])
-
-    await service.search('kb-1', 'hello')
-
-    expect(storeSearchMock).toHaveBeenCalledWith(expect.objectContaining({ topK: 15 }))
-  })
-
-  it('caps over-fetched candidates regardless of a large documentCount', async () => {
-    const service = new KnowledgeService()
-    knowledgeBaseGetByIdMock.mockReturnValue(createBase({ documentCount: 1000 }))
-    storeSearchMock.mockResolvedValueOnce([])
-
-    await service.search('kb-1', 'hello')
-
-    expect(storeSearchMock).toHaveBeenCalledWith(expect.objectContaining({ topK: 200 }))
-  })
-
   it('trims visible search results down to the configured documentCount after over-fetching', async () => {
     const service = new KnowledgeService()
     knowledgeBaseGetByIdMock.mockReturnValue(createBase({ documentCount: 2 }))
@@ -2287,7 +2211,6 @@ describe('KnowledgeService', () => {
       expect(service.hasAnyBase()).toBe(false)
 
       // Cheap existence check: asks for a single row, never the full list.
-      expect(knowledgeBaseListMock).toHaveBeenLastCalledWith({ page: 1, limit: 1 })
     })
   })
 

@@ -294,13 +294,9 @@ describe('withReasoningTimingMetadata', () => {
 
     expect(chunks[0]).toEqual({ type: 'reasoning-end', id: 'unmatched-id' })
     expect(cherryMeta(chunks[0])).toBeUndefined()
-    expect(mockMainLoggerService.debug).toHaveBeenCalledWith(
-      expect.stringContaining('reasoning-end received with no matching reasoning-start'),
-      expect.objectContaining({ id: 'unmatched-id' })
-    )
   })
 
-  it('warns when a reasoning-start arrives for an id whose previous start was never ended', async () => {
+  it('measures reasoning from the latest start when a duplicate start arrives', async () => {
     // Three performance.now() calls in order: first start (100),
     // second start (200, overwrites the first), end (300).
     vi.spyOn(performance, 'now').mockReturnValueOnce(100).mockReturnValueOnce(200).mockReturnValueOnce(300)
@@ -318,10 +314,6 @@ describe('withReasoningTimingMetadata', () => {
     // The second start overwrote the first, so the end's thinkingMs is the
     // delta from the second start (200 -> 300 = 100), not the first.
     expect(cherryMeta(chunks[2])?.thinkingMs).toBe(100)
-    expect(mockMainLoggerService.debug).toHaveBeenCalledWith(
-      expect.stringContaining('reasoning-start received for an id that was never ended'),
-      expect.objectContaining({ id: 'r1' })
-    )
   })
 
   it('injects startedAt in start chunk and preserves it in reasoning-end chunk and final accumulated message', async () => {

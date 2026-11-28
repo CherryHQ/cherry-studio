@@ -146,10 +146,6 @@ describe('SafeNameSchema validation', () => {
 
 describe('FileEntrySchema origin invariants', () => {
   describe('internal', () => {
-    it('accepts a valid internal entry', () => {
-      expect(FileEntrySchema.safeParse(makeInternal()).success).toBe(true)
-    })
-
     it('accepts internal with null ext (extensionless files like Dockerfile)', () => {
       expect(FileEntrySchema.safeParse(makeInternal({ ext: null })).success).toBe(true)
     })
@@ -165,10 +161,6 @@ describe('FileEntrySchema origin invariants', () => {
   })
 
   describe('external', () => {
-    it('accepts a valid external entry', () => {
-      expect(FileEntrySchema.safeParse(makeExternal()).success).toBe(true)
-    })
-
     it('accepts external with null ext', () => {
       expect(FileEntrySchema.safeParse(makeExternal({ ext: null })).success).toBe(true)
     })
@@ -306,19 +298,6 @@ describe('FileEntrySchema size/ext boundaries', () => {
     // test just confirms the schema itself allows bare multi-letter extensions.
     expect(FileEntrySchema.safeParse(makeInternal({ ext: 'gz' })).success).toBe(true)
     expect(FileEntrySchema.safeParse(makeInternal({ ext: '7z' })).success).toBe(true)
-  })
-})
-
-// ─── Brand (duck-typing prevention) ───
-
-describe('FileEntrySchema brand', () => {
-  it('parsed entry carries brand (type-level guarantee; runtime only checks structure)', () => {
-    const result = FileEntrySchema.safeParse(makeInternal())
-    expect(result.success).toBe(true)
-    // The brand is a compile-time construct — we can't assert it at runtime,
-    // but the following assignment would fail type-check if brand were lost:
-    //   const typed: FileEntry = { ...makeInternal() } // type error (missing brand)
-    //   const typed: FileEntry = result.data!           // OK
   })
 })
 

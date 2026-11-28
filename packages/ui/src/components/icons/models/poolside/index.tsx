@@ -9,7 +9,7 @@ const Poolside = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const PoolsideIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Poolside, {
   Avatar: PoolsideAvatar,
-  colorPrimary: '#4137FF'
+  colorPrimary: '#eeedff'
 })
 
 export default PoolsideIcon

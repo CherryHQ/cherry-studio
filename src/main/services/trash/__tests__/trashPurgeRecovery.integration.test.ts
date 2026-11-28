@@ -43,10 +43,13 @@ describe('trash purge startup recovery', () => {
       ])
       .returning()
       .all()
-    const topicId = 'recent-trashed-topic'
+    const laterTopicId = 'trashed-after-empty-request'
     dbh.db
       .insert(topicTable)
-      .values({ id: topicId, name: 'recent', orderKey: 'a0', deletedAt: now - 1000 })
+      .values([
+        { id: 'trashed-before-empty-request', name: 'before', orderKey: 'a0', deletedAt: now - 3000 },
+        { id: laterTopicId, name: 'after', orderKey: 'a1', deletedAt: now - 1000 }
+      ])
       .run()
 
     const recoveryHandler: JobHandler = {
@@ -81,6 +84,6 @@ describe('trash purge startup recovery', () => {
       manualStatus: jobService.getById(manual.id)?.status,
       scheduledStatus: jobService.getById(scheduled.id)?.status
     }
-    expect(remainingTopicIds, JSON.stringify(recoveryState)).toEqual([])
+    expect(remainingTopicIds, JSON.stringify(recoveryState)).toEqual([laterTopicId])
   })
 })

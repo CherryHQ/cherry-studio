@@ -1,4 +1,3 @@
-import { getTopicMessages } from '@renderer/hooks/useTopic'
 import i18n from '@renderer/i18n/resolver'
 import type { FileMetadata } from '@renderer/types/file'
 import type { ExportableMessage } from '@renderer/types/messageExport'
@@ -11,6 +10,7 @@ import {
   type TopicContentStats,
   type TopicPreprocessResult
 } from '@renderer/utils/knowledge'
+import { getTopicMessages } from '@renderer/utils/message/getTopicMessages'
 
 /**
  * 分析话题内容，统计各类型内容数量

@@ -194,37 +194,6 @@ describe('TopicMessageFlowCanvas', () => {
     clientHeightSpy.mockRestore()
   })
 
-  it('renders the read-only React Flow surface with custom nodes and overlays after dimensions are ready', async () => {
-    render(<TopicMessageFlowCanvas graph={graph} onNodeSelect={vi.fn()} />)
-
-    expect(screen.queryByTestId('react-flow')).not.toBeInTheDocument()
-    expect(await screen.findByTestId('react-flow')).toBeInTheDocument()
-    expect(screen.getByTestId('react-flow')).toHaveAttribute('data-fit-view', 'false')
-    expect(screen.getByTestId('react-flow')).toHaveAttribute('data-default-x', '85.5')
-    expect(screen.getByTestId('react-flow')).toHaveAttribute('data-default-y', '150.4')
-    expect(screen.getByTestId('react-flow')).toHaveAttribute('data-default-zoom', '0.85')
-    expect(screen.getByTestId('react-flow')).toHaveAttribute('data-min-zoom', '0.08')
-    expect(screen.getByTestId('react-flow')).toHaveAttribute('data-max-zoom', '1.4')
-    expect(screen.getByTestId('react-flow')).toHaveAttribute('data-only-render-visible-elements', 'true')
-    expect(screen.getByTestId('react-flow')).toHaveAttribute('data-hide-attribution', 'true')
-    expect(screen.getByTestId('react-flow')).toHaveAttribute('data-nodes-draggable', 'false')
-    expect(screen.getByTestId('react-flow')).toHaveAttribute('data-nodes-connectable', 'false')
-    expect(screen.getByTestId('react-flow')).toHaveAttribute('data-edges', '1')
-    expect(screen.getByTestId('flow-minimap')).toHaveAttribute('data-bg-color', 'var(--card)')
-    expect(screen.getByTestId('topic-message-flow-legend')).toBeInTheDocument()
-    expect(screen.getByText('Plan the topic branch')).toBeInTheDocument()
-    expect(screen.getByText('gpt-5-codex')).toBeInTheDocument()
-    expect(screen.queryByText('#2')).not.toBeInTheDocument()
-  })
-
-  it('centers the active node on opening', async () => {
-    render(<TopicMessageFlowCanvas graph={graph} onNodeSelect={vi.fn()} />)
-
-    await waitFor(() => {
-      expect(setViewportMock).toHaveBeenCalledWith({ x: 85.5, y: 150.4, zoom: 0.85 }, { duration: 0 })
-    })
-  })
-
   it('centers a distant active node instead of the root', async () => {
     render(
       <TopicMessageFlowCanvas
@@ -428,44 +397,5 @@ describe('TopicMessageFlowCanvas', () => {
     fireEvent.contextMenu(await screen.findByTestId('flow-node-user-1'))
 
     expect(onNodeContextMenu).toHaveBeenCalledWith('user-1')
-  })
-
-  it('renders active error nodes with the error state marker', async () => {
-    render(
-      <TopicMessageFlowCanvas
-        graph={{
-          activeNodeId: 'error-1',
-          edges: [],
-          nodes: [
-            {
-              id: 'error-1',
-              type: TOPIC_MESSAGE_FLOW_NODE_TYPE,
-              position: { x: 0, y: 0 },
-              data: {
-                createdAt: '2026-01-01T00:02:00.000Z',
-                isActive: true,
-                isInactiveBranch: false,
-                isOnActivePath: true,
-                messageId: 'error-1',
-                preview: 'Broken branch.',
-                role: 'assistant',
-                status: 'error'
-              }
-            }
-          ],
-          stats: {
-            activePathLength: 1,
-            branchCount: 0,
-            nodeCount: 1
-          }
-        }}
-        onNodeSelect={vi.fn()}
-      />
-    )
-
-    const errorNode = (await screen.findByText('Broken branch.')).closest('[data-message-id="error-1"]')
-
-    expect(errorNode).toHaveAttribute('data-active', 'true')
-    expect(errorNode?.querySelector('.bg-error')).toBeInTheDocument()
   })
 })

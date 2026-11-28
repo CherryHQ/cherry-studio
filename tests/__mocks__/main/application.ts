@@ -1,9 +1,11 @@
-import { resolve } from 'node:path'
+import { createRequire } from 'node:module'
+import { dirname, resolve } from 'node:path'
 
 import { vi } from 'vitest'
 
 import type { NotificationRecord, TaskResultNotificationInput } from '@shared/data/types/notification'
 import type { NotificationSource } from '@shared/types/notification'
+import type { CliConfigTarget } from '@shared/utils/cliConfig'
 
 import { mockAttachmentPresenceService } from './AttachmentPresenceService'
 import { MockMainCacheServiceExport } from './CacheService'
@@ -66,7 +68,9 @@ const mockWindowManager = {
   onWindowCreated: vi.fn(() => ({ dispose: vi.fn() })),
   onWindowDestroyed: vi.fn(() => ({ dispose: vi.fn() })),
   onWindowCreatedByType: vi.fn(() => ({ dispose: vi.fn() })),
-  onWindowDestroyedByType: vi.fn(() => ({ dispose: vi.fn() }))
+  onWindowDestroyedByType: vi.fn(() => ({ dispose: vi.fn() })),
+  onWindowReleasedToPool: vi.fn(() => ({ dispose: vi.fn() })),
+  onWindowReleasedToPoolByType: vi.fn(() => ({ dispose: vi.fn() }))
 }
 
 /**
@@ -120,6 +124,21 @@ export const defaultServiceInstances = {
   IpcApiService: mockIpcApiService,
   NotificationService: mockNotificationService,
   JobManager: mockJobManager,
+  CodeCliService: {
+    openTerminal: vi.fn(async () => ({ success: true })),
+    readConfigFiles: vi.fn(async (targets: readonly CliConfigTarget[]) =>
+      targets.map((target) => ({ target, path: resolve('/mock', 'cli-config', target), content: null }))
+    )
+  },
+  LocalAgentInstallService: { isUninstalling: vi.fn(() => false) },
+  AgentDelegationService: { cancelOwnedBy: vi.fn(async () => {}) },
+  AgentSessionRuntimeService: { closeIdleSessions: vi.fn(async () => true) },
+  BinaryManager: { getToolSnapshots: vi.fn(async () => ({})) },
+  AgentImportService: {
+    pause: vi.fn(() => ({ dispose: vi.fn() })),
+    drainInFlight: vi.fn(async () => ({ stragglerIds: [] })),
+    listActiveWork: vi.fn(() => [])
+  },
   PowerService: {
     preventSleep: vi.fn(() => ({ dispose: vi.fn() })),
     onResume: vi.fn(() => ({ dispose: vi.fn() }))
@@ -180,7 +199,11 @@ export function createMockApplication(overrides: ServiceOverrides = {}) {
     getContainer: vi.fn(() => container),
     // Keep registry paths absolute on every host, including a drive on Windows.
     // Override per-test with vi.spyOn when a fixture needs a specific location.
-    getPath: vi.fn((key: string, filename?: string) => resolve('/mock', key, filename ?? '')),
+    getPath: vi.fn((key: string, filename?: string) =>
+      key === 'feature.agents.command_parser_assets'
+        ? resolve(dirname(createRequire(import.meta.url).resolve('@vscode/tree-sitter-wasm')), filename ?? '')
+        : resolve('/mock', key, filename ?? '')
+    ),
     registerAll: vi.fn(),
     initPathRegistry: vi.fn(),
     bootstrap: vi.fn().mockResolvedValue(undefined),
@@ -190,6 +213,7 @@ export function createMockApplication(overrides: ServiceOverrides = {}) {
     forceExit: vi.fn(),
     // Graceful quit entry point (real Application.quit()). Tests can assert it was called.
     quit: vi.fn(),
+    markQuitting: vi.fn(),
     // Tests can mutate `application.isQuitting = true` to exercise quit-aware code paths.
     isQuitting: false
   }

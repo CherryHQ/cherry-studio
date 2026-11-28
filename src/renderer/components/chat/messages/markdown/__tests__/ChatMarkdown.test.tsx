@@ -1,5 +1,6 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
@@ -13,13 +14,16 @@ const mocks = vi.hoisted(() => ({
     | {
         openArtifactFile?: (path: string) => void | Promise<void>
         openPath?: (path: string) => void | Promise<void>
+        resolvePath?: (path: string) => any
         isDirectory?: (path: string) => Promise<boolean>
+        notifyError?: (message: string) => void
+        openExternalUrl?: (url: string) => void | Promise<void>
       }
 }))
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal<typeof CherryStudioUi>())
 vi.mock('../../MessageListProvider', () => ({
-  useMessageRenderConfig: () => ({ mathEnableSingleDollar: false }),
+  useOptionalMessageRenderConfig: () => ({ mathEnableSingleDollar: false }),
   useOptionalMessageListActions: () => mocks.actions
 }))
 vi.mock('react-i18next', () => {
@@ -30,6 +34,18 @@ vi.mock('react-i18next', () => {
 describe('ChatMarkdown adapter', () => {
   beforeEach(() => {
     mocks.actions = undefined
+  })
+
+  it.each(['success', 'streaming'] as const)('passes line ranges from %s Markdown to the preview', async (status) => {
+    const opened: Array<{ path: string; line?: number; endLine?: number }> = []
+    mocks.actions = {
+      openArtifactFile: (path: string, location?: { line: number; endLine?: number }) => {
+        opened.push({ path, ...location })
+      }
+    }
+    render(<ChatMarkdown block={{ id: 'located', content: '[Source](src/main.ts#L42-L48)', status }} />)
+    await userEvent.click(await screen.findByRole('link', { name: 'Source' }))
+    expect(opened).toEqual([{ path: 'src/main.ts', line: 42, endLine: 48 }])
   })
 
   it('keeps the paused message placeholder in the chat adapter', () => {
@@ -62,4 +78,95 @@ describe('ChatMarkdown adapter', () => {
     expect(openPath).toHaveBeenCalledWith('./docs')
     expect(openArtifactFile).not.toHaveBeenCalled()
   })
+
+  it.each([
+    ['success', '/home/user/notes.md', '/home/user/notes.md'],
+    ['streaming', '/home/user/notes.md', '/home/user/notes.md'],
+    ['success', 'C:/Users/Alice/notes.md', 'C:/Users/Alice/notes.md'],
+    ['success', './Docs%20Notes.md#section', './Docs Notes.md']
+  ] as const)('routes %s file link %s through openPath without a preview', async (status, href, path) => {
+    const user = userEvent.setup()
+    const openPath = vi.fn()
+    mocks.actions = { openPath }
+    render(<ChatMarkdown block={{ id: 'part', content: `[Notes](${href})`, status }} />)
+    await user.click(screen.getByRole('link', { name: 'Notes' }))
+    expect(openPath).toHaveBeenCalledExactlyOnceWith(path)
+  })
+
+  it('reports a rejected file open to the host instead of silently navigating', async () => {
+    const user = userEvent.setup()
+    function Host() {
+      const [error, setError] = useState<string>()
+      mocks.actions = {
+        openPath: async () => {
+          throw new Error('Refusing to open an unusable path')
+        },
+        notifyError: setError
+      }
+      return (
+        <>
+          <ChatMarkdown block={{ id: 'part', content: '[Notes](./notes.md)', status: 'success' }} />
+          {error && <div role="alert">{error}</div>}
+        </>
+      )
+    }
+    render(<Host />)
+    await user.click(screen.getByRole('link', { name: 'Notes' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('chat.input.tools.open_file_error')
+  })
+
+  it.each(['success', 'streaming'] as const)(
+    'opens local file links while keeping remote file hosts and unsafe schemes blocked (%s)',
+    async (status) => {
+      const user = userEvent.setup()
+      const openPath = vi.fn()
+      const openExternalUrl = vi.fn()
+      mocks.actions = { openPath, openExternalUrl }
+      const { container } = render(
+        <ChatMarkdown
+          block={{
+            id: 'part',
+            content:
+              '[Local](file:///tmp/notes.md)\n\n[Remote](file://attacker.example/notes.md)\n\n[BareFile](file:///)\n\n[Unsafe](javascript:alert)',
+            status
+          }}
+        />
+      )
+      expect(container.querySelector('a[href="file:///tmp/notes.md"]')).not.toBeNull()
+      expect(container.querySelector('a[href*="attacker.example"]')).toBeNull()
+      expect(container.querySelector('a[href="file:///"]')).toBeNull()
+      expect(container.querySelector('a[href^="javascript:"]')).toBeNull()
+
+      await user.click(screen.getByText('Local'))
+      expect(openPath).toHaveBeenCalledTimes(1)
+      expect(openPath).toHaveBeenCalledWith('/tmp/notes.md')
+
+      await user.click(screen.getByText('Remote'))
+      await user.click(screen.getByText('BareFile'))
+      await user.click(screen.getByText('Unsafe'))
+      expect(openPath).toHaveBeenCalledTimes(1)
+      expect(openExternalUrl).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each(['success', 'streaming'] as const)(
+    'resolves safe workspace-relative images and blocks traversal escapes (%s)',
+    (status) => {
+      mocks.actions = {
+        resolvePath: (path: string) => `/workspace/${path.replace(/^\.\//, '')}`
+      }
+      const { container } = render(
+        <ChatMarkdown
+          block={{
+            id: 'images',
+            content: '![chart](./chart.png)\n\n![escape](../outside.png)',
+            status
+          }}
+        />
+      )
+      const chartImg = container.querySelector('img[alt="chart"]')
+      expect(chartImg?.getAttribute('src')).toBe('file:///workspace/chart.png')
+      expect(container.querySelector('img[alt="escape"]')).toBeNull()
+    }
+  )
 })

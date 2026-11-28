@@ -13,6 +13,7 @@ import {
   type GateHandlers
 } from '@cherrystudio/agent-behavior'
 import type { JsonValue } from '@cherrystudio/agent-runtime'
+import { checkCommand } from '@main/ai/toolApproval/commandPolicy'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 
 import type { AgentRuntimeEvent } from '../types'
@@ -41,7 +42,9 @@ let skillRoot: string
 let userData: string
 let databaseFile: string
 
-beforeAll(() => {
+beforeAll(async () => {
+  // Load the grammars before tests redirect application paths.
+  await checkCommand({ command: 'true', dialect: 'bash', permissionMode: 'default' })
   testRoot = mkdtempSync(join(tmpdir(), 'pi-approval-paths-'))
   workspace = join(testRoot, 'workspace')
   agentData = join(testRoot, 'agent-data')
@@ -78,6 +81,7 @@ function buildGate(
     approvalRequiredTools: ReadonlySet<string>
     nonBypassableApprovalTools: ReadonlySet<string>
     delegationTools: ReadonlySet<string>
+    builtinRole: string
   }> = {}
 ) {
   const emitted: Extract<AgentRuntimeEvent, { type: 'tool-approval-request' }>[] = []
@@ -109,10 +113,10 @@ function buildGate(
         offloadThreshold: 20000
       }
     })
-    const interactions = await createPiInteractionPorts({
+    const interactions = createPiInteractionPorts({
       input: { sessionId: 's1', agentId: 'agent', modelId: 'test::model' },
       approval: context,
-      toolCallId: async (call) => calls.get(call.key)!,
+      toolCallIdentity: async (call) => ({ toolCallId: calls.get(call.key)! }),
       emit: (event) => {
         if (event.type === 'tool-approval-request') emitted.push(event)
       }
@@ -186,6 +190,57 @@ beforeEach(() => {
 })
 
 describe('desktop facts and approvals through the shared behavior gate', () => {
+  // Catch session-wide shell grants bypassing each invocation or role constraints on a child.
+  it('asks again for each risky call despite a saved shell grant', async () => {
+    const { handler, emitted } = buildGate({ getPermissionMode: () => 'auto', autoApprovedTools: new Set(['bash']) })
+    await expect(handler(toolEvent('bash', { command: 'git status' }), extCtx)).resolves.toBeUndefined()
+    for (let index = 0; index < 2; index++) {
+      const pending = handler(toolEvent('bash', { command: 'git reset --hard' }), extCtx)
+      await flush()
+      expect(emitted[index].request.providerMetadata).toMatchObject({
+        cherry: {
+          commandPolicy: {
+            cwd: workspace,
+            rules: [{ ruleId: 'git-discard-worktree', evidence: 'git reset --hard' }]
+          }
+        }
+      })
+      toolApprovalRegistry.dispatch(emitted[index].request.approvalId, { approved: true })
+      await expect(pending).resolves.toBeUndefined()
+    }
+    expect(emitted).toHaveLength(2)
+  })
+
+  it.each(['default', 'auto', 'acceptEdits', 'plan', 'bypassPermissions'] as const)(
+    'denies a protected child in %s without offering approval',
+    async (mode) => {
+      const { handler, emitted } = buildGate({ builtinRole: 'assistant', getPermissionMode: () => mode })
+      const event = { ...toolEvent('bash', { command: 'echo marker > file; rm data' }), parentToolCallId: 'parent' }
+      await expect(handler(event, extCtx)).resolves.toMatchObject({ block: true })
+      expect(emitted).toHaveLength(0)
+    }
+  )
+
+  it('rejects an approval whose root mode changed while waiting', async () => {
+    let mode: AgentPermissionMode = 'auto'
+    const { handler, emitted } = buildGate({ getPermissionMode: () => mode })
+    const pending = handler(toolEvent('bash', { command: 'rm data' }), extCtx)
+    await flush()
+    mode = 'bypassPermissions'
+    toolApprovalRegistry.dispatch(emitted[0].request.approvalId, { approved: true })
+    await expect(pending).resolves.toMatchObject({ block: true, reason: expect.stringContaining('changed') })
+  })
+
+  it('rejects an input mutated after its approval card was emitted', async () => {
+    const { handler, emitted } = buildGate({ getPermissionMode: () => 'auto' })
+    const event = toolEvent('bash', { command: 'rm data' })
+    const pending = handler(event, extCtx)
+    await flush()
+    event.input.command = 'rm other-data'
+    toolApprovalRegistry.dispatch(emitted[0].request.approvalId, { approved: true })
+    await expect(pending).resolves.toMatchObject({ block: true })
+  })
+
   it('asks before PowerShell deletion in auto mode', async () => {
     const { handler, emitted } = buildGate({ getPermissionMode: () => 'auto' })
     const command = 'Remove-Item -Recurse -Force ./build'
@@ -197,15 +252,20 @@ describe('desktop facts and approvals through the shared behavior gate', () => {
     await expect(pending).resolves.toBeUndefined()
   })
 
-  it.each(['auto', 'bypassPermissions'] as const)('blocks global installs through PowerShell in %s', async (mode) => {
-    const { handler, emitted } = buildGate({ getPermissionMode: () => mode })
-    await expect(handler(toolEvent('powershell', { command: 'npm install -g cowsay' }), extCtx)).resolves.toMatchObject(
-      {
-        block: true,
-        reason: expect.stringContaining('dependency pollution')
-      }
-    )
-    expect(emitted).toHaveLength(0)
+  it.each([true, false])('waits for PowerShell install approval (approved=%s)', async (approved) => {
+    const { handler, emitted } = buildGate({ getPermissionMode: () => 'auto' })
+    const event = toolEvent('powershell', { command: 'npm install -g cowsay' })
+    let settled = false
+    const pending = handler(event, extCtx)
+    void pending.then(() => (settled = true))
+    await flush()
+    expect(settled).toBe(false)
+    expect(emitted[0].request.input).toEqual(event.input)
+    toolApprovalRegistry.dispatch(emitted[0].request.approvalId, { approved })
+    if (approved) await expect(pending).resolves.toBeUndefined()
+    else await expect(pending).resolves.toMatchObject({ block: true, reason: expect.stringContaining('rejected') })
+    expect(event.input).toEqual({ command: 'npm install -g cowsay' })
+    expect(mocks.rtkRewrite).not.toHaveBeenCalled()
   })
 
   it('blocks PowerShell access to protected SQLite before bypass handling', async () => {
@@ -216,19 +276,13 @@ describe('desktop facts and approvals through the shared behavior gate', () => {
   })
 
   it('preserves PowerShell arguments instead of applying the bash rewrite', async () => {
-    mocks.rtkRewrite.mockResolvedValue('rtk Get-Location')
+    mocks.rtkRewrite.mockResolvedValue({ command: 'rtk Get-Location', approvalRequired: false })
     const { handler, emitted } = buildGate()
     const pending = handler(toolEvent('powershell', { command: 'Get-Location' }), extCtx)
     await flush()
     expect(emitted[0].request).toMatchObject({ toolName: 'powershell', input: { command: 'Get-Location' } })
     toolApprovalRegistry.dispatch(emitted[0].request.approvalId, { approved: true })
     await expect(pending).resolves.toBeUndefined()
-  })
-
-  it('auto-allows read-only tools in default mode with no approval request', async () => {
-    const { handler, emitted } = buildGate()
-    await expect(handler(toolEvent('read', { path: 'inside.txt' }), extCtx)).resolves.toBeUndefined()
-    expect(emitted).toHaveLength(0)
   })
 
   it('auto-allows code mode dispatch without treating its arguments as a file path', async () => {
@@ -366,14 +420,17 @@ describe('desktop facts and approvals through the shared behavior gate', () => {
     expect(emitted).toHaveLength(0)
   })
 
-  it('still blocks a global install under bypassPermissions — it protects the shared cross-agent environment', async () => {
-    const { handler, emitted } = buildGate({ getPermissionMode: () => 'bypassPermissions' })
-    await expect(handler(toolEvent('bash', { command: 'npm install -g cowsay' }), extCtx)).resolves.toMatchObject({
-      block: true,
-      reason: expect.stringContaining('dependency pollution')
-    })
-    expect(emitted).toHaveLength(0)
-  })
+  it.each(['bash', 'powershell'])(
+    'allows global installs through %s in root Full Access without rewriting',
+    async (tool) => {
+      const { handler, emitted } = buildGate({ getPermissionMode: () => 'bypassPermissions' })
+      const event = toolEvent(tool, { command: 'npm install -g cowsay' })
+      await expect(handler(event, extCtx)).resolves.toBeUndefined()
+      expect(event.input).toEqual({ command: 'npm install -g cowsay' })
+      expect(emitted).toHaveLength(0)
+      expect(mocks.rtkRewrite).not.toHaveBeenCalled()
+    }
+  )
 
   it('runs an always-prompt tool with no approval under bypassPermissions', async () => {
     const toolName = 'mcp__cherry-tools__kb_manage'
@@ -471,9 +528,8 @@ describe('desktop facts and approvals through the shared behavior gate', () => {
       approvalRequiredTools: new Set([toolName])
     })
 
-    await expect(handler(toolEvent(toolName, {}), extCtx)).resolves.toEqual({
-      block: true,
-      reason: 'This tool always requires user approval and cannot run unattended. Retry interactively.'
+    await expect(handler(toolEvent(toolName, {}), extCtx)).resolves.toMatchObject({
+      block: true
     })
     expect(emitted).toHaveLength(0)
     expect(toolApprovalRegistry.size()).toBe(0)
@@ -533,7 +589,7 @@ describe('desktop facts and approvals through the shared behavior gate', () => {
     })
 
     it('asks before running a destructive command that rtk rewrote', async () => {
-      mocks.rtkRewrite.mockResolvedValueOnce('rtk git push --force')
+      mocks.rtkRewrite.mockResolvedValueOnce({ command: 'rtk git push --force', approvalRequired: false })
       const { handler, emitted } = buildAutoGate()
       void handler(toolEvent('bash', { command: 'git push --force' }), extCtx)
       await flush()
@@ -571,13 +627,20 @@ describe('desktop facts and approvals through the shared behavior gate', () => {
       expect(emitted).toHaveLength(1)
     })
 
-    it('still hard-blocks a global install', async () => {
+    it.each([true, false])('waits for global install approval in auto mode (approved=%s)', async (approved) => {
       const { handler, emitted } = buildAutoGate()
-      await expect(handler(toolEvent('bash', { command: 'npm install -g cowsay' }), extCtx)).resolves.toMatchObject({
-        block: true,
-        reason: expect.stringContaining('pollution')
-      })
-      expect(emitted).toHaveLength(0)
+      const event = toolEvent('bash', { command: 'npm install -g cowsay' })
+      let settled = false
+      const pending = handler(event, extCtx)
+      void pending.then(() => (settled = true))
+      await flush()
+      expect(settled).toBe(false)
+      expect(emitted[0].request.input).toEqual({ command: 'npm install -g cowsay' })
+      toolApprovalRegistry.dispatch(emitted[0].request.approvalId, { approved })
+      if (approved) await expect(pending).resolves.toBeUndefined()
+      else await expect(pending).resolves.toMatchObject({ block: true, reason: expect.stringContaining('rejected') })
+      expect(event.input).toEqual({ command: 'npm install -g cowsay' })
+      expect(mocks.rtkRewrite).not.toHaveBeenCalled()
     })
   })
 
@@ -590,17 +653,41 @@ describe('desktop facts and approvals through the shared behavior gate', () => {
     expect(mocks.rtkRewrite).not.toHaveBeenCalled()
   })
 
-  it('blocks a global install without prompting or rewriting', async () => {
+  it.each([true, false])('waits for an ordinary install without rewriting (approved=%s)', async (approved) => {
     const { handler, emitted } = buildGate()
-    const result = await handler(toolEvent('bash', { command: 'npm i -g cowsay' }), extCtx)
-    expect(result?.block).toBe(true)
-    expect(result?.reason).toContain('pollution')
-    expect(emitted).toHaveLength(0)
+    const event = toolEvent('bash', { command: 'npm i -g cowsay' })
+    let settled = false
+    const pending = handler(event, extCtx)
+    void pending.then(() => (settled = true))
+    await flush()
+    expect(settled).toBe(false)
+    expect(emitted[0].request.input).toEqual({ command: 'npm i -g cowsay' })
+    toolApprovalRegistry.dispatch(emitted[0].request.approvalId, { approved })
+    if (approved) await expect(pending).resolves.toBeUndefined()
+    else await expect(pending).resolves.toMatchObject({ block: true, reason: expect.stringContaining('rejected') })
+    expect(event.input).toEqual({ command: 'npm i -g cowsay' })
     expect(mocks.rtkRewrite).not.toHaveBeenCalled()
   })
 
+  it.each(['default', 'acceptEdits', 'auto', 'plan', 'bypassPermissions'] as const)(
+    'hard-blocks mise without rewriting in %s',
+    async (mode) => {
+      const { handler, emitted } = buildGate({ getPermissionMode: () => mode })
+      for (const tool of ['bash', 'powershell']) {
+        for (const command of ['mise use -g fd', 'npm i -g x && mise use -g fd', 'mise use -g fd && npm i -g x']) {
+          await expect(handler(toolEvent(tool, { command }), extCtx)).resolves.toEqual({
+            block: true,
+            reason: 'Blocked: direct mise mutation (use cli_search / cli_install).'
+          })
+        }
+      }
+      expect(emitted).toHaveLength(0)
+      expect(mocks.rtkRewrite).not.toHaveBeenCalled()
+    }
+  )
+
   it('rtk-rewrites the bash command in place before gating', async () => {
-    mocks.rtkRewrite.mockResolvedValueOnce('rtk-rewritten')
+    mocks.rtkRewrite.mockResolvedValueOnce({ command: 'rtk-rewritten', approvalRequired: false })
     const { handler, emitted } = buildGate()
     const event = toolEvent('bash', { command: 'ls' })
     const pending = handler(event, extCtx)
@@ -610,6 +697,52 @@ describe('desktop facts and approvals through the shared behavior gate', () => {
     await pending
     expect(event.input.command).toBe('rtk-rewritten')
   })
+
+  it.each([
+    { mode: 'acceptEdits', command: 'git status', approved: true },
+    { mode: 'acceptEdits', command: 'rtk git status', approved: true },
+    { mode: 'auto', command: 'git status', approved: true },
+    { mode: 'auto', command: 'rtk git status', approved: false },
+    { mode: 'bypassPermissions', command: 'git status', approved: true },
+    { mode: 'bypassPermissions', command: 'rtk git status', approved: true }
+  ] as const)(
+    'waits for RTK Ask rewrite approval in $mode (command=$command, approved=$approved)',
+    async ({ mode, command, approved }) => {
+      mocks.rtkRewrite.mockResolvedValue({ command: 'rtk git status', approvalRequired: true })
+      const { handler, emitted } = buildGate({ getPermissionMode: () => mode, autoApprovedTools: new Set(['bash']) })
+      const event = toolEvent('bash', { command })
+      const pending = handler(event, extCtx)
+
+      await flush()
+      expect(event.input.command).toBe(command)
+      expect(emitted[0].request.input).toEqual({ command: 'rtk git status' })
+      toolApprovalRegistry.dispatch(emitted[0].request.approvalId, { approved })
+      if (approved) {
+        await expect(pending).resolves.toBeUndefined()
+        expect(event.input.command).toBe('rtk git status')
+      } else {
+        await expect(pending).resolves.toMatchObject({ block: true })
+        expect(event.input.command).toBe(command)
+      }
+    }
+  )
+
+  it.each(['acceptEdits', 'auto', 'bypassPermissions'] as const)(
+    'blocks an unchanged RTK Ask command when unattended in %s',
+    async (mode) => {
+      mocks.rtkRewrite.mockResolvedValueOnce({ command: 'rtk git status', approvalRequired: true })
+      const { handler, emitted } = buildGate({
+        getPermissionMode: () => mode,
+        getInteractionState: () => ({ currentTurn: 'headless', userResponse: 'unavailable' }),
+        autoApprovedTools: new Set(['bash'])
+      })
+      const event = toolEvent('bash', { command: 'rtk git status' })
+
+      await expect(handler(event, extCtx)).resolves.toMatchObject({ block: true })
+      expect(emitted).toHaveLength(0)
+      expect(event.input.command).toBe('rtk git status')
+    }
+  )
 
   it('blocks without emitting an approval card when the signal is already aborted', async () => {
     const controller = new AbortController()

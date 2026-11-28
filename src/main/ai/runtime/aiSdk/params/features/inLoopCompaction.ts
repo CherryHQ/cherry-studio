@@ -1,6 +1,3 @@
-import type { SharedV3ProviderMetadata } from '@ai-sdk/provider'
-import type { LanguageModelUsage, ModelMessage } from 'ai'
-
 /**
  * In-loop compaction feature: a `prepareStep` hook that rewrites the
  * about-to-send prompt in place when it crosses `compress.thresholdPercent` of
@@ -23,9 +20,19 @@ import type { LanguageModelUsage, ModelMessage } from 'ai'
  * replaces. Having both this hook and the old budget-stop active would
  * double-compact, so budgetStop is removed in the same change.
  */
-import { compactModelMessages, getContextTokens, resolveCompressionOutputTokens } from '@cherrystudio/ai-core'
+import type { ModelMessage } from 'ai'
+
+import {
+  compactHistory,
+  compactModelMessages,
+  createCompressionAdapter,
+  definePlugin,
+  fromAISDK,
+  groupIntoTurns,
+  resolveCompressionOutputTokens,
+  toAISDK
+} from '@cherrystudio/ai-core'
 import { loggerService } from '@logger'
-import { isAgentSessionTopic } from '@main/ai/agentSession/topic'
 import {
   COMPACTION_INPUT_SAFETY_RATIO,
   COMPACTION_MIN_INPUT_BUDGET,
@@ -34,14 +41,18 @@ import {
 import { resolveContextWindow } from '@main/ai/contextBuild/resolveContextWindow'
 import { resolveInputRoom } from '@main/ai/contextBuild/resolveInputRoom'
 import { resolveRequestedMaxOutputTokens } from '@main/ai/contextBuild/resolveOutputReservation'
+import { omitCompactedAnthropicThinking, usesAnthropicMessagesSdk } from '@main/ai/messages/anthropicThinking'
+import { countToolSetTokens } from '@main/ai/messages/attachmentBudget'
 import { resolveModelTokenDialect, type TokenDialect } from '@main/ai/tokens/dialect'
 import { estimateModelMessagesSync } from '@main/ai/tokens/footprint'
 import { tokenxTokenizer } from '@main/ai/tokens/textTokenizer'
 import { temporaryChatService } from '@main/data/services/TemporaryChatService'
 import { isAbortError } from '@main/utils/error'
+import { isAgentSessionTopic } from '@shared/ai/agentSessionTopic'
 import { compactionAnchorChunkId } from '@shared/ai/compaction'
 
 import type { RequestFeature } from '../feature'
+import { createOverflowRecoveryMiddleware } from './contextOverflowRecovery'
 
 const logger = loggerService.withContext('inLoopCompaction')
 
@@ -55,9 +66,6 @@ const logger = loggerService.withContext('inLoopCompaction')
  * file part fed 18 M base64 characters to tokenx and scored a 13 MB MP3 at 3.7 M tokens
  * against the provider's real 20 k, firing compaction on a first turn with nothing to fold.
  *
- * Precision is not needed here: from step 1 onward `estimatePromptTokens` anchors on the
- * provider's real `usage.totalTokens` and only estimates the trailing delta.
- *
  * `tokenxTokenizer` rather than `getTextTokenizer(dialect)` — the latter lazy-loads a ~2.2 MB
  * BPE for the openai dialect and is async, which this path cannot await.
  */
@@ -67,39 +75,6 @@ function estimateModelMessages(messages: ModelMessage[], dialect: TokenDialect):
 
 function estimateMessageTokens(message: ModelMessage, dialect: TokenDialect): number {
   return estimateModelMessages([message], dialect)
-}
-
-/**
- * Token estimate for the about-to-send prompt — usage-first, tokenx fallback.
- *
- * `prepareStep` fires BEFORE the current step's provider call, so the freshest
- * real number is the LAST completed step's `usage.totalTokens` (= that step's
- * input prompt + its output). It covers everything up to and including that
- * step's assistant message; the only thing in the current prompt it does NOT
- * cover is what was appended afterwards — the tool results from that step. So we
- * anchor on the real total and tokenx-estimate just that trailing delta, mirroring
- * the turn-start trigger. When no trustworthy usage exists — step 0 (no prior
- * step), or a provider that omits `inputTokens` / reports output-only totals —
- * fall back to a full tokenx pass over the prompt.
- */
-function estimatePromptTokens(
-  messages: ModelMessage[],
-  steps: ReadonlyArray<{ usage: LanguageModelUsage; providerMetadata?: SharedV3ProviderMetadata }> | undefined,
-  dialect: TokenDialect
-): number {
-  const step = steps?.at(-1)
-  const anchor = step ? getContextTokens(step.usage, step.providerMetadata) : undefined
-  if (anchor === undefined) return estimateModelMessages(messages, dialect)
-  // Delta = messages appended after the last assistant output (this step's tool results).
-  let lastAssistant = -1
-  for (let i = messages.length - 1; i >= 0; i--) {
-    if (messages[i].role === 'assistant') {
-      lastAssistant = i
-      break
-    }
-  }
-  if (lastAssistant === -1) return estimateModelMessages(messages, dialect)
-  return anchor + estimateModelMessages(messages.slice(lastAssistant + 1), dialect)
 }
 
 /**
@@ -142,6 +117,80 @@ export const inLoopCompactionFeature: RequestFeature = {
     if (temporaryChatService.hasTopic(topicId)) return false
     return Boolean(scope.contextSettings.enabled && scope.contextSettings.compress.enabled && scope.compressionModel)
   },
+  contributeModelAdapters: (scope) => {
+    const compressor = scope.compressionModel
+    const window =
+      resolveContextWindow(compressor?.contextWindow ?? undefined) ?? resolveContextWindow(scope.model.contextWindow)
+    if (!compressor || !window) return []
+    const maxOutputTokens = resolveCompressionOutputTokens(window)
+    const middleware = createOverflowRecoveryMiddleware(async (prompt, signal) => {
+      const history = fromAISDK(prompt)
+      const conversation = history.filter((message) => message.role !== 'system')
+      const lastUser = conversation.findLastIndex((message) => message.role === 'user')
+      const turns = groupIntoTurns(conversation)
+      const keepRecentTurns = Math.max(1, turns.filter((turn) => turn.startIndex >= lastUser).length)
+      const startedAt = new Date().toISOString()
+      const anchorId = compactionAnchorChunkId()
+      let completed = false
+      scope.compactionSink?.(anchorId, { status: 'compacting', phase: 'in-loop', startedAt })
+      try {
+        const compacted = await compactHistory(
+          history,
+          createCompressionAdapter(compressor.languageModel, maxOutputTokens, signal ?? scope.signal),
+          {
+            keepRecentTurns,
+            maxInputTokens: Math.max(
+              COMPACTION_MIN_INPUT_BUDGET,
+              Math.floor((window - maxOutputTokens) * COMPACTION_INPUT_SAFETY_RATIO)
+            )
+          }
+        )
+        const size = (items: typeof history) =>
+          items.reduce(
+            (sum, message) => sum + message.content.length + JSON.stringify(message.tool_calls ?? []).length,
+            0
+          )
+        if (compacted === history || size(compacted) >= size(history)) return undefined
+        const completedAt = new Date().toISOString()
+        completed = true
+        scope.compactionSink?.(anchorId, {
+          status: 'done',
+          phase: 'in-loop',
+          startedAt,
+          completedAt,
+          durationMs: Date.parse(completedAt) - Date.parse(startedAt),
+          foldedCount: Math.max(0, history.length - compacted.length)
+        })
+        const replay = toAISDK(compacted)
+        return usesAnthropicMessagesSdk(scope.aiSdkProviderId, scope) ? omitCompactedAnthropicThinking(replay) : replay
+      } catch (error) {
+        if (!(signal ?? scope.signal)?.aborted) {
+          logger.warn('overflow recovery compaction failed', {
+            error: error instanceof Error ? error.message : String(error)
+          })
+        }
+        throw error
+      } finally {
+        if (!completed) {
+          scope.compactionSink?.(anchorId, {
+            status: 'skipped',
+            phase: 'in-loop',
+            startedAt,
+            completedAt: new Date().toISOString()
+          })
+        }
+      }
+    })
+    return [
+      definePlugin({
+        name: 'context-overflow-recovery',
+        configureContext: (context) => {
+          context.middlewares ??= []
+          context.middlewares.push(middleware)
+        }
+      })
+    ]
+  },
   contributeHooks: (scope) => {
     const compressor = scope.compressionModel
     // `applies()` already guards compressionModel; this narrows the type.
@@ -182,6 +231,18 @@ export const inLoopCompactionFeature: RequestFeature = {
     // Resolved once per request: it only selects the per-modality cost table (image/audio/
     // video constants), so it can't change between steps of the same request.
     const dialect = resolveModelTokenDialect(scope.provider, scope.model)
+    const systemTokens = tokenxTokenizer.count(scope.system ?? '')
+    let toolTokens: Promise<number> | undefined
+    const messageTokens = new WeakMap<ModelMessage, number>()
+    const estimateMessages = (messages: ModelMessage[]) =>
+      messages.reduce((total, message) => {
+        let tokens = messageTokens.get(message)
+        if (tokens === undefined) {
+          tokens = estimateMessageTokens(message, dialect)
+          messageTokens.set(message, tokens)
+        }
+        return total + tokens
+      }, 0)
     // Per-request incremental-fold cache. The loop rebuilds `messages` each
     // step as [...initialMessages, ...responseMessages] — append-only, with
     // settled entries never changing — so "the first N messages" is a stable
@@ -200,23 +261,25 @@ export const inLoopCompactionFeature: RequestFeature = {
     // must not re-fail on every step; one failure disables it for this request.
     let compactionDisabled = false
     return {
-      prepareStep: async ({ messages, steps }) => {
+      prepareStep: async ({ messages }) => {
         const candidate = foldCache
           ? [...foldCache.compactedPrefix, ...messages.slice(foldCache.consumedCount)]
           : messages
         if (compactionDisabled) return foldCache ? { messages: candidate } : undefined
         // Compact only when strictly over the trigger (`<=` is a no-op), matching the
         // turn-start comparison so the two paths never disagree at estimate === trigger.
-        // Once a fold is active the usage anchor covers the ORIGINAL prompt and would
-        // overstate the compacted candidate, so estimate the candidate directly then.
-        const estimate = foldCache
-          ? foldCache.prefixTokens + estimateModelMessages(messages.slice(foldCache.consumedCount), dialect)
-          : estimatePromptTokens(messages, steps, dialect)
+        toolTokens ??= countToolSetTokens(scope.tools, tokenxTokenizer, scope.request.callOverrides?.activeTools)
+        const fixedTokens = systemTokens + (await toolTokens)
+        const estimate =
+          fixedTokens +
+          (foldCache
+            ? foldCache.prefixTokens + estimateMessages(messages.slice(foldCache.consumedCount))
+            : estimateMessages(messages))
         if (estimate <= trigger) {
           // A previously folded view that still fits is served as-is — zero LLM calls.
           return foldCache ? { messages: candidate } : undefined
         }
-        const keepRecentTurns = computeKeepRecentTurns(candidate, keepBudget, dialect)
+        const keepRecentTurns = computeKeepRecentTurns(candidate, Math.max(0, keepBudget - fixedTokens), dialect)
         // Same budgeting as the turn-start path: the summarize call is itself a
         // window-bound request, so cap its input and size its output from the
         // window instead of a fixed constant.
@@ -276,8 +339,11 @@ export const inLoopCompactionFeature: RequestFeature = {
           })
           return foldCache ? { messages: candidate } : undefined
         }
+        if (usesAnthropicMessagesSdk(scope.aiSdkProviderId, scope)) {
+          compacted = omitCompactedAnthropicThinking(compacted)
+        }
         const completedAt = new Date().toISOString()
-        const postTokens = estimateModelMessages(compacted, dialect)
+        const prefixTokens = estimateMessages(compacted)
         scope.compactionSink?.(anchorId, {
           status: 'done',
           phase: 'in-loop',
@@ -285,10 +351,10 @@ export const inLoopCompactionFeature: RequestFeature = {
           completedAt,
           durationMs: Date.parse(completedAt) - Date.parse(startedAt),
           preTokens: estimate,
-          postTokens,
+          postTokens: fixedTokens + prefixTokens,
           foldedCount: Math.max(0, candidate.length - compacted.length)
         })
-        foldCache = { consumedCount: messages.length, compactedPrefix: compacted, prefixTokens: postTokens }
+        foldCache = { consumedCount: messages.length, compactedPrefix: compacted, prefixTokens }
         return { messages: compacted }
       }
     }

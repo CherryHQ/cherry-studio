@@ -44,13 +44,16 @@ describe('Open MinerU legacy client', () => {
     await fs.rm(tempDir, { recursive: true, force: true })
   })
 
-  it.each(['pdf', 'docx'])('submits %s files using standards-compliant multipart form data', async (ext) => {
+  it.each([
+    ['pdf', 'application/zip'],
+    ['docx', 'Application/ZIP; charset=binary']
+  ])('submits a %s file as multipart form data and accepts a %s response', async (ext, contentType) => {
     fetchMock.mockResolvedValueOnce(
       new Response(new Uint8Array([1, 2, 3]), {
         status: 200,
         statusText: 'OK',
         headers: {
-          'content-type': 'application/zip'
+          'content-type': contentType
         }
       })
     )

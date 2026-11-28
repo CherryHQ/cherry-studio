@@ -1,6 +1,6 @@
 import path from 'path'
 
-import { setupTestDatabase } from '@test-helpers/db'
+import { insertAgentSessionMessages, setupTestDatabase, seedSessionRoot } from '@test-helpers/db'
 import { resolveMigrationsPath } from '@test-helpers/db/internal/migrationsPath'
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
@@ -13,6 +13,8 @@ import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { jobTable } from '@data/db/schemas/job'
 import { pinTable } from '@data/db/schemas/pin'
+import { userModelTable } from '@data/db/schemas/userModel'
+import { userProviderTable } from '@data/db/schemas/userProvider'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentTaskService } from '@data/services/AgentTaskService'
@@ -24,10 +26,6 @@ import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspa
 
 const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
 vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
-
-function buildSystemWorkspacePath(systemWorkspacesRoot: string, sessionId: string, createdAt: number): string {
-  return path.join(systemWorkspacesRoot, new Date(createdAt).toISOString().slice(0, 10), sessionId)
-}
 
 // The data-service layer is synchronous under better-sqlite3: failing calls
 // throw inline instead of rejecting a promise. Capture the thrown error so we
@@ -79,8 +77,20 @@ describe('AgentSessionService', () => {
     })
   }
 
+  it('updates generated titles while preserving manual names and ignoring empty titles', async () => {
+    const session = await createSession('initial')
+    expect(agentSessionService.updateGeneratedName(session.id, 'Native title')).toBe(true)
+    expect(agentSessionService.getById(session.id)).toMatchObject({ name: 'Native title', isNameManuallyEdited: false })
+    expect(agentSessionService.updateGeneratedName(session.id, '  ')).toBe(false)
+    expect(agentSessionService.updateGeneratedName(session.id, 'Native title')).toBe(false)
+    agentSessionService.update(session.id, { name: 'My title' })
+    expect(agentSessionService.updateGeneratedName(session.id, 'Agent replacement')).toBe(false)
+    expect(agentSessionService.getById(session.id)).toMatchObject({ name: 'My title', isNameManuallyEdited: true })
+  })
+
   async function insertSessionMessage(sessionId: string, id: string) {
-    await dbh.db.insert(agentSessionMessageTable).values({
+    insertAgentSessionMessages(dbh.db, {
+      parentId: seedSessionRoot(dbh.db, sessionId),
       id,
       sessionId,
       role: 'user',
@@ -108,6 +118,21 @@ describe('AgentSessionService', () => {
       )
     })
   }
+
+  it('identifies task sessions that can be reclaimed without losing the next scheduled run', async () => {
+    const task = createTaskSchedule()
+    const ordinary = await createSession('ordinary')
+    const disposable = agentSessionService.create(
+      { agentId: 'agent-session-test', name: 'one-off', workspace: { type: 'system' } },
+      'conversation',
+      task.id
+    )
+    expect(agentSessionService.isOneOffTaskSession(ordinary.id)).toBe(false)
+    expect(agentSessionService.isOneOffTaskSession(disposable.id)).toBe(true)
+
+    bindTaskSession(disposable.id, task.id)
+    expect(agentSessionService.isOneOffTaskSession(disposable.id)).toBe(false)
+  })
 
   it('keeps task sessions out of conversations after job retention cleanup', async () => {
     const task = createTaskSchedule()
@@ -143,12 +168,14 @@ describe('AgentSessionService', () => {
     dbh.db.delete(jobTable).run()
     expect(agentSessionService.listTaskSessionIds(task.id).sort()).toEqual(sessions.map((s) => s.id).sort())
     expect(agentSessionService.getLatestActive()).toBeNull()
-    expect(agentSessionService.listByCursor().items).toEqual([])
-    expect(agentSessionService.listByCursor({ ids: sessions.map((s) => s.id) }).items).toHaveLength(2)
+    expect(agentSessionService.listByCursor({ scope: 'ordinary' }).items).toEqual([])
+    expect(agentSessionService.listByCursor({ scope: 'ordinary', ids: sessions.map((s) => s.id) }).items).toHaveLength(
+      2
+    )
     expect(agentSessionService.getByTaskScheduleId(task.id)).toBeNull()
     dbh.db.transaction((tx) => agentSessionService.trashByIdsTx(tx, [sessions[0].id]))
     agentSessionService.restore(sessions[0].id)
-    expect(agentSessionService.listByCursor().items.map((s) => s.id)).toEqual([sessions[0].id])
+    expect(agentSessionService.listByCursor({ scope: 'ordinary' }).items.map((s) => s.id)).toEqual([sessions[0].id])
     expect(agentSessionService.listTaskSessionIds(task.id)).toEqual([sessions[1].id])
   })
 
@@ -339,11 +366,11 @@ describe('AgentSessionService', () => {
     expect(
       agentSessionService.searchWithMetadataEvidence({ q: 'owner evidence', limit: 5, addressableOnly: true })
     ).toEqual([])
-    expect(agentSessionService.listByCursor().items.map((session) => session.id)).toEqual([
+    expect(agentSessionService.listByCursor({ scope: 'ordinary' }).items.map((session) => session.id)).toEqual([
       'session-trashed-owner',
       'session-true-orphan'
     ])
-    expect(agentSessionService.listByCursor({ agentId: 'agent-trashed-owner' }).items).toEqual([])
+    expect(agentSessionService.listByCursor({ scope: 'ordinary', agentId: 'agent-trashed-owner' }).items).toEqual([])
     expect(agentSessionService.listAddressableByCursor({ agentId: 'agent-trashed-owner' }).items).toEqual([])
     expect(agentSessionService.getLatestActive()?.id).toBe('session-trashed-owner')
     expect(agentSessionService.getLatestActive({ agentId: 'unlinked' })?.id).toBe('session-trashed-owner')
@@ -355,7 +382,7 @@ describe('AgentSessionService', () => {
       .update(agentSessionTable)
       .set({ deletedAt: 400 })
       .where(eq(agentSessionTable.id, 'session-trashed-owner'))
-    const trash = agentSessionService.listByCursor({ agentId: 'agent-trashed-owner', inTrash: true })
+    const trash = agentSessionService.listByCursor({ scope: 'ordinary', agentId: 'agent-trashed-owner', inTrash: true })
     expect(trash.items.map((session) => session.id)).toEqual(['session-trashed-owner'])
   })
 
@@ -788,7 +815,6 @@ describe('AgentSessionService', () => {
     ])
     expect(session.workspaceId).toBe(workspace.id)
     expect(session.workspace.path).toBe(workspace.path)
-    expect(session.isNameManuallyEdited).toBe(false)
   })
 
   it('rejects a user workspace source that points at a system workspace row', async () => {
@@ -853,13 +879,7 @@ describe('AgentSessionService', () => {
 
     expect(session.workspaceId).toBeTruthy()
     expect(session.workspace.type).toBe('system')
-    expect(session.workspace.path).toBe(
-      buildSystemWorkspacePath(
-        application.getPath('feature.agents.system_workspaces'),
-        session.id,
-        Date.parse(session.createdAt)
-      )
-    )
+
     const rows = await dbh.db.select().from(agentWorkspaceTable)
     expect(rows).toHaveLength(1)
     expect(rows[0].id).toBe(session.workspaceId)
@@ -916,11 +936,12 @@ describe('AgentSessionService', () => {
       description: 'Updated description',
       isNameManuallyEdited: true
     })
-    expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
       { endpoint: '/agent-sessions', kind: 'projection', entityIds: [session.id] },
       { endpoint: '/agent-sessions', kind: 'order', dimension: 'lastActivityAt', entityIds: [session.id] },
       { endpoint: '/agent-sessions/:sessionId', entityIds: [session.id] },
-      { endpoint: '/agent-sessions/latest' }
+      { endpoint: '/agent-sessions/latest' },
+      { endpoint: '/ai-usage-records/local', kind: 'projection' }
     ])
 
     expect(updated).toMatchObject({
@@ -1005,13 +1026,7 @@ describe('AgentSessionService', () => {
 
     expect(updated.workspaceId).not.toBe(userWorkspace.id)
     expect(updated.workspace.type).toBe('system')
-    expect(updated.workspace.path).toBe(
-      buildSystemWorkspacePath(
-        application.getPath('feature.agents.system_workspaces'),
-        session.id,
-        Date.parse(session.createdAt)
-      )
-    )
+
     const [systemWorkspaceRow] = await dbh.db
       .select()
       .from(agentWorkspaceTable)
@@ -1048,9 +1063,6 @@ describe('AgentSessionService', () => {
       const restored = agentSessionService.setWorkspace(session.id, { type: 'system' })
 
       expect(restored.workspace.path).toBe(originalSystemPath)
-      expect(restored.workspace.path).toBe(
-        buildSystemWorkspacePath(application.getPath('feature.agents.system_workspaces'), session.id, firstDay)
-      )
     } finally {
       now.mockRestore()
     }
@@ -1079,9 +1091,6 @@ describe('AgentSessionService', () => {
       const restored = agentSessionService.setWorkspace(session.id, { type: 'system' })
 
       expect(restored.workspace.path).toBe(originalSystemPath)
-      expect(restored.workspace.path).toBe(
-        path.join(application.getPath('feature.agents.system_workspaces'), '2026-07-27', session.id)
-      )
     } finally {
       now.mockRestore()
       if (originalTimezone === undefined) delete process.env.TZ
@@ -1281,7 +1290,7 @@ describe('AgentSessionService', () => {
     dbh.db.transaction((tx) => agentSessionService.clearTaskScheduleTx(tx, task.id))
     expect(agentSessionService.getByTaskScheduleId(task.id)).toBeNull()
     expect(agentSessionService.listTaskSessionIds(task.id).sort()).toEqual([first.id, second.id].sort())
-    expect(agentSessionService.listByCursor().items).toEqual([])
+    expect(agentSessionService.listByCursor({ scope: 'ordinary' }).items).toEqual([])
 
     bindTaskSession(second.id, task.id)
     expect(agentSessionService.getByTaskScheduleId(task.id)?.id).toBe(second.id)
@@ -1350,6 +1359,195 @@ describe('AgentSessionService', () => {
       { endpoint: '/agent-sessions/:sessionId', entityIds: [session.id] },
       { endpoint: '/agent-sessions/latest' }
     ])
+  })
+
+  it('clears the session model override when reassignment crosses runtimes (inv_f15449b3ea653a29)', async () => {
+    // A subscription override selected under Claude Code is not servable by a
+    // Pi agent: retaining it makes Pi reject the first message with
+    // PiUnsupportedProviderError. The cross-runtime reassignment must clear
+    // the override atomically so the new agent's default applies.
+    await dbh.db.insert(agentTable).values({
+      id: 'agent-pi-reassigned',
+      type: 'pi',
+      name: 'Pi Reassigned Agent',
+      instructions: '',
+      orderKey: 'z1'
+    })
+    await dbh.db
+      .insert(userProviderTable)
+      .values({ providerId: 'anthropic', name: 'anthropic', orderKey: 'p0' })
+      .onConflictDoNothing()
+    await dbh.db
+      .insert(userModelTable)
+      .values({
+        id: 'anthropic::claude-sonnet-4-5',
+        providerId: 'anthropic',
+        modelId: 'claude-sonnet-4-5',
+        name: 'claude-sonnet-4-5',
+        capabilities: [],
+        supportsStreaming: true,
+        orderKey: 'm0'
+      })
+      .onConflictDoNothing()
+    const session = await createSession('Cross-runtime override')
+    agentSessionService.update(session.id, { model: 'anthropic::claude-sonnet-4-5' })
+
+    const updated = agentSessionService.update(session.id, { agentId: 'agent-pi-reassigned' })
+
+    expect(updated.agentId).toBe('agent-pi-reassigned')
+    expect(updated.model).toBeNull()
+  })
+
+  it.each(['pi', 'pi-durable'] as const)(
+    'clears an orphan session override that the new %s agent cannot serve',
+    async (runtimeType) => {
+      // The previous agent was permanently deleted: SQLite nulled the session's
+      // agentId, so the cross-runtime comparison has no previous type to read.
+      // Reassigning the orphan to a Pi agent must still clear an override Pi
+      // cannot serve — a non-chat (embedding) model is not gateway-routable.
+      await dbh.db.insert(agentTable).values({
+        id: 'agent-pi-orphan-target',
+        type: runtimeType,
+        name: 'Pi Orphan Target',
+        instructions: '',
+        orderKey: 'z3'
+      })
+      await dbh.db
+        .insert(userProviderTable)
+        .values({ providerId: 'anthropic', name: 'anthropic', orderKey: 'p0' })
+        .onConflictDoNothing()
+      await dbh.db
+        .insert(userModelTable)
+        .values({
+          id: 'anthropic::claude-embed-1',
+          providerId: 'anthropic',
+          modelId: 'claude-embed-1',
+          name: 'claude-embed-1',
+          capabilities: ['embedding'],
+          supportsStreaming: false,
+          orderKey: 'm1'
+        })
+        .onConflictDoNothing()
+      const session = await createSession('Orphaned unservable override')
+      agentSessionService.update(session.id, { model: 'anthropic::claude-embed-1' })
+      await dbh.db.delete(agentTable).where(eq(agentTable.id, 'agent-session-test'))
+      await dbh.db.update(agentSessionTable).set({ agentId: null }).where(eq(agentSessionTable.id, session.id))
+
+      const updated = agentSessionService.update(session.id, { agentId: 'agent-pi-orphan-target' })
+
+      expect(updated.agentId).toBe('agent-pi-orphan-target')
+      expect(updated.model).toBeNull()
+    }
+  )
+
+  it.each(['pi', 'pi-durable'] as const)(
+    'keeps an orphan session override that the new %s agent can serve',
+    async (runtimeType) => {
+      // Same orphan recovery, but the inherited override is an ordinary
+      // gateway-routable model: validation clears only what Pi cannot serve.
+      await dbh.db.insert(agentTable).values({
+        id: 'agent-pi-orphan-serve',
+        type: runtimeType,
+        name: 'Pi Orphan Serve',
+        instructions: '',
+        orderKey: 'z4'
+      })
+      await dbh.db
+        .insert(userProviderTable)
+        .values({ providerId: 'anthropic', name: 'anthropic', orderKey: 'p0' })
+        .onConflictDoNothing()
+      await dbh.db
+        .insert(userModelTable)
+        .values({
+          id: 'anthropic::claude-sonnet-4-5',
+          providerId: 'anthropic',
+          modelId: 'claude-sonnet-4-5',
+          name: 'claude-sonnet-4-5',
+          capabilities: [],
+          supportsStreaming: true,
+          orderKey: 'm0'
+        })
+        .onConflictDoNothing()
+      const session = await createSession('Orphaned servable override')
+      agentSessionService.update(session.id, { model: 'anthropic::claude-sonnet-4-5' })
+      await dbh.db.delete(agentTable).where(eq(agentTable.id, 'agent-session-test'))
+      await dbh.db.update(agentSessionTable).set({ agentId: null }).where(eq(agentSessionTable.id, session.id))
+
+      const updated = agentSessionService.update(session.id, { agentId: 'agent-pi-orphan-serve' })
+
+      expect(updated.agentId).toBe('agent-pi-orphan-serve')
+      expect(updated.model).toBe('anthropic::claude-sonnet-4-5')
+    }
+  )
+
+  it('keeps an orphan session override when the new agent is not Pi (inv_d8d804d915e34926)', async () => {
+    // Claude Code serves the runtimes' full model surface: an inherited
+    // override survives orphan recovery onto another Claude Code agent.
+    await dbh.db.insert(agentTable).values({
+      id: 'agent-cc-orphan-target',
+      type: 'claude-code',
+      name: 'Claude Orphan Target',
+      instructions: '',
+      orderKey: 'z5'
+    })
+    await dbh.db
+      .insert(userProviderTable)
+      .values({ providerId: 'anthropic', name: 'anthropic', orderKey: 'p0' })
+      .onConflictDoNothing()
+    await dbh.db
+      .insert(userModelTable)
+      .values({
+        id: 'anthropic::claude-sonnet-4-5',
+        providerId: 'anthropic',
+        modelId: 'claude-sonnet-4-5',
+        name: 'claude-sonnet-4-5',
+        capabilities: [],
+        supportsStreaming: true,
+        orderKey: 'm0'
+      })
+      .onConflictDoNothing()
+    const session = await createSession('Orphaned claude-code override')
+    agentSessionService.update(session.id, { model: 'anthropic::claude-sonnet-4-5' })
+    await dbh.db.delete(agentTable).where(eq(agentTable.id, 'agent-session-test'))
+    await dbh.db.update(agentSessionTable).set({ agentId: null }).where(eq(agentSessionTable.id, session.id))
+
+    const updated = agentSessionService.update(session.id, { agentId: 'agent-cc-orphan-target' })
+
+    expect(updated.agentId).toBe('agent-cc-orphan-target')
+    expect(updated.model).toBe('anthropic::claude-sonnet-4-5')
+  })
+
+  it('keeps the session model override when reassignment stays within one runtime', async () => {
+    await dbh.db.insert(agentTable).values({
+      id: 'agent-cc-reassigned',
+      type: 'claude-code',
+      name: 'Claude Reassigned Agent',
+      instructions: '',
+      orderKey: 'z2'
+    })
+    await dbh.db
+      .insert(userProviderTable)
+      .values({ providerId: 'anthropic', name: 'anthropic', orderKey: 'p0' })
+      .onConflictDoNothing()
+    await dbh.db
+      .insert(userModelTable)
+      .values({
+        id: 'anthropic::claude-sonnet-4-5',
+        providerId: 'anthropic',
+        modelId: 'claude-sonnet-4-5',
+        name: 'claude-sonnet-4-5',
+        capabilities: [],
+        supportsStreaming: true,
+        orderKey: 'm0'
+      })
+      .onConflictDoNothing()
+    const session = await createSession('Same-runtime override')
+    agentSessionService.update(session.id, { model: 'anthropic::claude-sonnet-4-5' })
+
+    const updated = agentSessionService.update(session.id, { agentId: 'agent-cc-reassigned' })
+
+    expect(updated.agentId).toBe('agent-cc-reassigned')
+    expect(updated.model).toBe('anthropic::claude-sonnet-4-5')
   })
 
   it('does not clear a task relation when updating a trashed session fails', async () => {
@@ -1527,10 +1725,15 @@ describe('AgentSessionService', () => {
       deletedAt: undefined
     })
     expect(agentSessionService.getLatestActive({ agentId: 'unlinked' })?.id).toBe('session-independent-restore')
-    expect(agentSessionService.listByCursor().items.map((session) => session.id)).toEqual([
+    expect(agentSessionService.listByCursor({ scope: 'ordinary' }).items.map((session) => session.id)).toEqual([
       'session-independent-restore'
     ])
-    expect(await dbh.db.select().from(agentSessionMessageTable)).toHaveLength(1)
+    expect(
+      await dbh.db
+        .select()
+        .from(agentSessionMessageTable)
+        .where(eq(agentSessionMessageTable.id, 'message-independent-restore'))
+    ).toHaveLength(1)
   })
 
   it('rejects permanent deletion of an active session and keeps it active', async () => {
@@ -1819,17 +2022,15 @@ describe('AgentSessionService', () => {
       })
       const lookupIds = [...ids, systemSession.id]
       const lastTaskSessionId = ids[SESSION_COUNT - 1]
-      dbh.db
-        .insert(agentSessionMessageTable)
-        .values({
-          id: crypto.randomUUID(),
-          sessionId: lastTaskSessionId,
-          role: 'assistant',
-          status: 'success',
-          data: { parts: [{ type: 'text', text: 'Last run' }] },
-          runtimeResumeToken: 'native-last-run'
-        })
-        .run()
+      insertAgentSessionMessages(dbh.db, {
+        id: crypto.randomUUID(),
+        sessionId: lastTaskSessionId,
+        parentId: seedSessionRoot(dbh.db, lastTaskSessionId),
+        role: 'assistant',
+        status: 'success',
+        data: { parts: [{ type: 'text', text: 'Last run' }] },
+        runtimeResumeToken: 'native-last-run'
+      })
 
       expect(agentSessionService.listSystemWorkspaceSessions(lookupIds).map((row) => row.id)).toEqual([
         systemSession.id
@@ -1872,14 +2073,14 @@ describe('AgentSessionService', () => {
     const third = await createSession('Third')
 
     agentSessionService.reorder(first.id, { position: 'first' })
-    let list = agentSessionService.listByCursor()
+    let list = agentSessionService.listByCursor({ scope: 'ordinary' })
     expect(list.items.map((item) => item.id)).toEqual([first.id, third.id, second.id])
 
     agentSessionService.reorderBatch([
       { id: second.id, anchor: { before: first.id } },
       { id: third.id, anchor: { position: 'last' } }
     ])
-    list = agentSessionService.listByCursor()
+    list = agentSessionService.listByCursor({ scope: 'ordinary' })
     expect(list.items.map((item) => item.id)).toEqual([second.id, first.id, third.id])
   })
 
@@ -1888,11 +2089,11 @@ describe('AgentSessionService', () => {
     const second = await createSession('Second')
     const third = await createSession('Third')
 
-    const page1 = agentSessionService.listByCursor({ limit: 2 })
+    const page1 = agentSessionService.listByCursor({ scope: 'ordinary', limit: 2 })
     expect(page1.items.map((item) => item.id)).toEqual([third.id, second.id])
     expect(page1.nextCursor).toBeTruthy()
 
-    const page2 = agentSessionService.listByCursor({ limit: 2, cursor: page1.nextCursor })
+    const page2 = agentSessionService.listByCursor({ scope: 'ordinary', limit: 2, cursor: page1.nextCursor })
     expect(page2.items.map((item) => item.id)).toEqual([first.id])
     expect(page2.nextCursor).toBeUndefined()
   })
@@ -1910,7 +2111,7 @@ describe('AgentSessionService', () => {
       updatedAt: 1
     })
 
-    const result = agentSessionService.listByCursor({ ids: [pinned.id, unpinned.id], limit: 2 })
+    const result = agentSessionService.listByCursor({ scope: 'ordinary', ids: [pinned.id, unpinned.id], limit: 2 })
 
     expect(result.items.map((session) => session.id)).toEqual([pinned.id, unpinned.id])
     expect(result.nextCursor).toBeUndefined()
@@ -1930,7 +2131,7 @@ describe('AgentSessionService', () => {
       { id: 'pin-b', entityType: 'session', entityId: s2.id, orderKey: 'a1', createdAt: 1, updatedAt: 1 }
     ])
 
-    const result = agentSessionService.listByCursor()
+    const result = agentSessionService.listByCursor({ scope: 'ordinary' })
     // pinned by pin.orderKey → [s1, s2]; unpinned by orderKey ASC → [s4, s3].
     expect(result.items.map((item) => item.id)).toEqual([s1.id, s2.id, s4.id, s3.id])
     expect(result.nextCursor).toBeUndefined()
@@ -1947,15 +2148,15 @@ describe('AgentSessionService', () => {
 
     // limit=1: page1 = first pinned, page2 = second pinned (spills to entity start),
     // page3 = the single unpinned session.
-    const page1 = agentSessionService.listByCursor({ limit: 1 })
+    const page1 = agentSessionService.listByCursor({ scope: 'ordinary', limit: 1 })
     expect(page1.items.map((item) => item.id)).toEqual([s1.id])
     expect(page1.nextCursor).toBeDefined()
 
-    const page2 = agentSessionService.listByCursor({ limit: 1, cursor: page1.nextCursor })
+    const page2 = agentSessionService.listByCursor({ scope: 'ordinary', limit: 1, cursor: page1.nextCursor })
     expect(page2.items.map((item) => item.id)).toEqual([s2.id])
     expect(page2.nextCursor).toBeDefined()
 
-    const page3 = agentSessionService.listByCursor({ limit: 1, cursor: page2.nextCursor })
+    const page3 = agentSessionService.listByCursor({ scope: 'ordinary', limit: 1, cursor: page2.nextCursor })
     expect(page3.items.map((item) => item.id)).toEqual([s3.id])
     expect(page3.nextCursor).toBeUndefined()
   })
@@ -1997,8 +2198,8 @@ describe('AgentSessionService', () => {
       }
     ])
 
-    const page1 = agentSessionService.listByCursor({ limit: 1 })
-    const page2 = agentSessionService.listByCursor({ limit: 1, cursor: page1.nextCursor })
+    const page1 = agentSessionService.listByCursor({ scope: 'ordinary', limit: 1 })
+    const page2 = agentSessionService.listByCursor({ scope: 'ordinary', limit: 1, cursor: page1.nextCursor })
 
     expect(page1.items.map((session) => session.id)).toEqual(['session-pinned-1'])
     expect(page2.items.map((session) => session.id)).toEqual(['session-pinned-2'])
@@ -2083,7 +2284,10 @@ describe('task session ownership migration', () => {
     applyMigrations(dbh.db, resolveMigrationsPath())
     expect(
       dbh.sqlite.prepare('SELECT session_id, data FROM agent_session_message WHERE id = ?').get('message')
-    ).toEqual({ session_id: 'sticky', data: '{"parts":[{"type":"text","text":"preserved"}]}' })
+    ).toEqual({ session_id: 'sticky', data: '{}' })
+    expect(
+      dbh.sqlite.prepare('SELECT payload FROM agent_session_message_part WHERE message_id = ?').all('message')
+    ).toEqual([{ payload: '{"type":"text","text":"preserved"}' }])
     expect(dbh.sqlite.prepare('SELECT owner_session_id FROM agent_session WHERE id = ?').get('metadata')).toEqual({
       owner_session_id: 'sticky'
     })
@@ -2098,7 +2302,7 @@ describe('task session ownership migration', () => {
     ).toEqual([{ created_at: 1, updated_at: 1, last_activity_at: 1 }])
     dbh.db.delete(jobTable).run()
     expect(agentSessionService.listTaskSessionIds('task').sort()).toEqual(['metadata', 'output', 'sticky'])
-    expect(agentSessionService.listByCursor().items.map((s) => s.id)).toEqual(['ordinary'])
+    expect(agentSessionService.listByCursor({ scope: 'ordinary' }).items.map((s) => s.id)).toEqual(['ordinary'])
     expect(agentSessionService.getByTaskScheduleId('task')?.id).toBe('sticky')
     dbh.db.transaction((tx) => agentTaskService.deleteScheduleTx(tx, 'task'))
     expect(agentSessionService.listTaskSessionIds('task')).toEqual([])

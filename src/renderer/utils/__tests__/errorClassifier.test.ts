@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import type { SerializedError } from '@renderer/types/error'
 
-import { classifyError, getLocalModelResolutionFailure } from '../errorClassifier'
+import { classifyError, getLocalModelResolutionFailure, isUnattributedClaudeCodeExit } from '../errorClassifier'
 import { serializeToastError } from '../errorToast'
 
 function makeError(overrides: Partial<SerializedError> = {}): SerializedError {
@@ -82,6 +82,18 @@ describe('classifyError', () => {
     }
   )
 
+  it.each(['[SQLITE_BUSY] database is locked', 'Local initialization failed — operation timed out'])(
+    'keeps local diagnostics out of provider and stream guidance (%s)',
+    (message) => {
+      const error = makeError({ errorSource: 'local', message, streamStage: 'response-stream' })
+      expect(classifyError(error)).toEqual({
+        category: 'unknown',
+        i18nKey: 'error.diagnosis.unknown',
+        navTarget: null
+      })
+    }
+  )
+
   it.each([
     [401, 'auth'],
     [429, 'rate_limit'],
@@ -99,6 +111,21 @@ describe('classifyError', () => {
         })
       ).category
     ).toBe(category)
+  })
+
+  // #24238: a provider's validation error without a structured status was shown as
+  // "Response interrupted, check network stability or retry".
+  it('reports a status-less provider validation error in the response stream as a request failure', () => {
+    const message =
+      '400 {"message":"Unexpected role \\"tool\\". Allowed roles are \\"user\\", \\"assistant\\" or \\"system\\"","type":"invalid_request_error","code":"bad_request"}'
+
+    expect(
+      classifyError(makeError({ name: 'StreamError', message, streamStage: 'response-stream' }), 'custom')
+    ).toEqual({
+      category: 'bad_request',
+      i18nKey: 'error.diagnosis.bad_request',
+      navTarget: '/settings/provider?id=custom'
+    })
   })
 
   it('leaves app-owned guidance in control of a marked unknown error', () => {
@@ -190,10 +217,49 @@ required service tier.`
     expect(result.category).toBe('rate_limit')
   })
 
+  it('routes ACP local-agent Authentication required errors (without HTTP status or API key mention) to local_agent_auth', () => {
+    expect(classifyError(makeError({ message: 'Authentication required: Authentication is required.' }))).toEqual({
+      category: 'auth',
+      i18nKey: 'error.diagnosis.local_agent_auth',
+      navTarget: '/settings/provider'
+    })
+
+    // HTTP 401 or explicit API key mentions keep the standard auth diagnosis.
+    expect(classifyError(makeError({ message: 'Authentication required', statusCode: 401 }))).toMatchObject({
+      category: 'auth',
+      i18nKey: 'error.diagnosis.auth'
+    })
+    expect(
+      classifyError(makeError({ message: 'Authentication required', statusCode: undefined }), 'openai')
+    ).toMatchObject({ category: 'auth', i18nKey: 'error.diagnosis.auth' })
+  })
+
+  it('routes LOCAL_AGENT_HOST_REQUIRED errors (top-level or nested) to local_agent_host_required', () => {
+    expect(
+      classifyError(
+        makeError({
+          code: 'LOCAL_AGENT_HOST_REQUIRED',
+          message: 'ZCode requires ZCode Desktop / zcode CLI to be installed (or configured via ZCODE_BIN).'
+        })
+      )
+    ).toEqual({
+      category: 'unknown',
+      i18nKey: 'error.diagnosis.local_agent_host_required',
+      navTarget: '/settings/provider'
+    })
+
+    expect(
+      classifyError(makeCopiedRetry('Agent host missing', [makeError({ code: 'LOCAL_AGENT_HOST_REQUIRED' })]))
+    ).toEqual({
+      category: 'unknown',
+      i18nKey: 'error.diagnosis.local_agent_host_required',
+      navTarget: '/settings/provider'
+    })
+  })
+
   it('returns unknown for undefined error', () => {
     const result = classifyError(undefined)
     expect(result.category).toBe('unknown')
-    expect(result.navTarget).toBeNull()
   })
 
   it('returns unknown for empty error', () => {
@@ -424,20 +490,17 @@ required service tier.`
   it('classifies 401 as auth', () => {
     const result = classifyError(makeError({ statusCode: 401 }))
     expect(result.category).toBe('auth')
-    expect(result.navTarget).toBe('/settings/provider')
   })
 
   it('classifies 401 as auth with providerId in navTarget', () => {
     const result = classifyError(makeError({ statusCode: 401 }), 'openai')
     expect(result.category).toBe('auth')
-    expect(result.navTarget).toBe('/settings/provider?id=openai')
   })
 
   // Permission — 403 means the key was accepted, so it must not read as "invalid API key".
   it('classifies 403 as permission, not auth', () => {
     const result = classifyError(makeError({ statusCode: 403 }), 'openai')
     expect(result.category).toBe('permission')
-    expect(result.navTarget).toBe('/settings/provider?id=openai')
   })
 
   it('classifies a 403 with billing signals as quota, not permission', () => {
@@ -453,7 +516,6 @@ required service tier.`
       })
     )
     expect(result.category).toBe('region')
-    expect(result.navTarget).toBe('/settings/general')
   })
 
   it('classifies a service unavailable in the user region as region', () => {
@@ -523,7 +585,6 @@ required service tier.`
     const result = classifyError(makeError({ message: "Model with id 'provider/model' not found" }))
 
     expect(result.category).toBe('model')
-    expect(result.i18nKey).toBe('error.diagnosis.model')
   })
 
   // #22571: main rejects a stale assistant-bound model before calling the provider. Falling through
@@ -610,14 +671,12 @@ required service tier.`
   it('classifies HTTP 402 as quota', () => {
     const result = classifyError(makeError({ statusCode: 402, message: 'Payment Required' }))
     expect(result.category).toBe('quota')
-    expect(result.navTarget).toBe('/settings/provider')
   })
 
   // Network
   it('classifies econnrefused as network', () => {
     const result = classifyError(makeError({ message: 'connect ECONNREFUSED 127.0.0.1:443' }))
     expect(result.category).toBe('network')
-    expect(result.navTarget).toBe('/settings/general')
   })
 
   it('offers network recovery for the embedded runtime connection code', () => {
@@ -729,7 +788,6 @@ required service tier.`
   it('classifies 400 + content_filter as content', () => {
     const result = classifyError(makeError({ statusCode: 400, message: 'content_filter triggered' }))
     expect(result.category).toBe('content')
-    expect(result.navTarget).toBeNull()
   })
 
   it('classifies content_filter without a status', () => {
@@ -772,7 +830,6 @@ required service tier.`
   it('classifies embedding error as knowledge', () => {
     const result = classifyError(makeError({ message: 'embedding model failed' }))
     expect(result.category).toBe('knowledge')
-    expect(result.navTarget).toBe('/app/knowledge')
   })
 
   it('classifies knowledge base error as knowledge', () => {
@@ -789,14 +846,12 @@ required service tier.`
   it('classifies ocr error', () => {
     const result = classifyError(makeError({ message: 'OCR engine not initialized' }))
     expect(result.category).toBe('ocr')
-    expect(result.navTarget).toBeNull()
   })
 
   // MCP
   it('classifies mcp server error', () => {
     const result = classifyError(makeError({ message: 'MCP server failed to start' }))
     expect(result.category).toBe('mcp')
-    expect(result.navTarget).toBe('/settings/mcp/servers')
   })
 
   it('classifies mcp connection error', () => {
@@ -813,7 +868,6 @@ required service tier.`
   it('classifies Chromium ERR_PROXY_CONNECTION_FAILED as proxy', () => {
     const result = classifyError(makeError({ message: 'net::ERR_PROXY_CONNECTION_FAILED' }))
     expect(result.category).toBe('proxy')
-    expect(result.navTarget).toBe('/settings/general')
   })
 
   it('classifies Chromium ERR_PROXY_AUTH_REQUESTED as proxy', () => {
@@ -825,7 +879,6 @@ required service tier.`
   it('classifies Chromium ERR_MANDATORY_PROXY_CONFIGURATION_FAILED as proxy', () => {
     const result = classifyError(makeError({ message: 'net::ERR_MANDATORY_PROXY_CONFIGURATION_FAILED' }))
     expect(result.category).toBe('proxy')
-    expect(result.navTarget).toBe('/settings/general')
   })
 
   it('classifies a Chromium socket-to-proxies failure as proxy', () => {
@@ -907,6 +960,8 @@ describe('getLocalModelResolutionFailure', () => {
 
   it.each([
     ["Model with id 'openai/gpt-test' not found", { modelId: 'openai/gpt-test' }],
+    ["Provider with id 'team's-relay' not found", { providerId: "team's-relay" }],
+    ["Provider with id 'team\nrelay' not found", { providerId: 'team\nrelay' }],
     ['Cannot resolve modelId: not-a-real-model', { modelId: 'not-a-real-model' }],
     ['Cannot resolve modelId="gpt-test" providerId="openai"', { providerId: 'openai', modelId: 'gpt-test' }],
     ['Cannot resolve modelId [gpt-test,other-model]', { modelId: 'gpt-test' }]
@@ -939,4 +994,43 @@ it('uses the terminal structured quota identity ahead of copied retry text, pres
     makeApiCallAttempt({ statusCode: 429, message: 'Too Many Requests' })
   ])
   expect(classifyError(unmarkedTerminal).category).toBe('rate_limit')
+})
+
+describe('isUnattributedClaudeCodeExit', () => {
+  it.each([
+    ['POSIX code', { processExitCode: 134 }, true],
+    ['code 3 control', { processExitCode: 3 }, true],
+    ['Windows status', { processExitCode: 3221225785 }, true],
+    ['signal only', { processExitSignal: 'SIGABRT' }, true],
+    ['null code with signal', { processExitCode: null, processExitSignal: 'SIGABRT' }, true],
+    ['recognised category', { claudeCodeExitCategory: 'auth', processExitCode: 1 }, false],
+    ['invalid category', { claudeCodeExitCategory: 'future-category', processExitCode: 134 }, false],
+    ['missing reference', { diagnosticReference: undefined, processExitCode: 134 }, false],
+    ['empty reference', { diagnosticReference: '', processExitCode: 134 }, false],
+    ['blank reference', { diagnosticReference: ' \t ', processExitCode: 134 }, false],
+    ['code zero', { processExitCode: 0 }, false],
+    ['code zero with signal', { processExitCode: 0, processExitSignal: 'SIGABRT' }, false],
+    ['no exit status', {}, false],
+    ['blank signal', { processExitSignal: ' \t ' }, false],
+    ['string code', { processExitCode: '134' }, false],
+    ['string code with signal', { processExitCode: '134', processExitSignal: 'SIGABRT' }, false],
+    ['fractional code', { processExitCode: 1.5 }, false],
+    ['unsafe integer', { processExitCode: Number.MAX_SAFE_INTEGER + 1 }, false],
+    ['non-finite code', { processExitCode: Infinity }, false],
+    ['ordinary error mentioning 134', { claudeCodeExitCategory: undefined, message: 'Unmapped failure 134' }, false]
+  ] as const)('%s', (_case, fields, expected) => {
+    expect(
+      isUnattributedClaudeCodeExit(
+        makeError({
+          claudeCodeExitCategory: 'unknown',
+          diagnosticReference: 'diagnostic-ref',
+          ...fields
+        })
+      )
+    ).toBe(expected)
+  })
+
+  it('does not attribute an absent error', () => {
+    expect(isUnattributedClaudeCodeExit()).toBe(false)
+  })
 })

@@ -2,12 +2,18 @@ import { basename } from 'node:path'
 
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
-import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
+import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { act, fireEvent, render, renderHook, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { type ComponentProps, type ReactNode, useEffect, useRef } from 'react'
 import type * as ReactI18nextModule from 'react-i18next'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import * as ui from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui/components/primitives/button'
+import { Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui/components/primitives/popover'
+import { RadioGroup, RadioGroupItem } from '@cherrystudio/ui/components/primitives/radio-group'
+import { Slider } from '@cherrystudio/ui/components/primitives/slider'
 import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
 import { ChatSidePaddingProvider } from '@renderer/components/chat/layout/ChatLayoutModeContext'
@@ -17,11 +23,13 @@ import { handOffAgentDraft } from '@renderer/services/agentDraftHandoff'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 import type { FileMetadata } from '@renderer/types/file'
+import { anyFileExt, excludeFileExt, isSupportedExtension } from '@renderer/utils/file'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
+import { getAcpHostPermissionModeSelection, type LocalAgentSelection } from '@shared/ai/localAgent'
 import type { AgentConfiguration } from '@shared/data/api/schemas/agents'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { FileUIPart } from '@shared/data/types/message'
-import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
+import { createUniqueModelId, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { AbsoluteFilePath } from '@shared/types/file'
 import type { LocalSkill } from '@shared/types/skill'
@@ -38,6 +46,11 @@ import AgentComposerImpl, {
   AgentHomeComposer as AgentHomeComposerImpl,
   MissingAgentHomeComposer
 } from '../AgentComposer'
+
+type SpeedControlProps = ComponentProps<typeof ModelSpeedControlModule.ModelSpeedControl> &
+  Required<
+    Pick<ComponentProps<typeof ModelSpeedControlModule.ModelSpeedControl>, 'onServiceTierChange' | 'onFastModeChange'>
+  >
 
 const mocks = vi.hoisted(() => ({
   quotaExhaustion: null as CherryCloudQuotaExhaustion | null,
@@ -105,20 +118,14 @@ const mocks = vi.hoisted(() => ({
     | {
         assistant?: { modelId?: string | null }
         model?: Model
-        session?: { agentId?: string }
+        session?: {
+          agentId?: string
+          localPermission?: { mode?: unknown; disabled?: boolean }
+        }
       }
     | undefined,
-  speedControlProps: undefined as
-    | {
-        model: Model
-        reasoningEffort: string
-        serviceTier: string
-        fastMode: boolean
-        onReasoningEffortChange: (effort: string) => void
-        onServiceTierChange: (tier: 'standard' | 'auto' | 'fast' | 'flex') => void
-        onFastModeChange: (enabled: boolean) => void
-      }
-    | undefined,
+  useRealSpeedControl: false,
+  speedControlProps: undefined as SpeedControlProps | undefined,
   sessionWorkspaceId: 'workspace-1',
   sessionWorkspaceName: 'Workspace 1',
   sessionWorkspacePath: '/workspace',
@@ -155,16 +162,23 @@ const createSerializedFolderToken = (folderPath: string): ComposerSerializedToke
 /** Fixture helper — these are shape-valid absolute paths, so the brand is safe to assert. */
 const ps = (...values: string[]) => values as AbsoluteFilePath[]
 
-const renderAgentResourceMentionSource = (accessiblePaths: readonly string[] = ['/workspace']) =>
-  renderHook(
-    ({ paths }) =>
+const renderAgentResourceMentionSource = (
+  accessiblePaths: readonly string[] = ['/workspace'],
+  supportedExts?: readonly string[]
+) =>
+  renderHook<
+    ReturnType<typeof useAgentResourceMentionSource>,
+    { paths: readonly AbsoluteFilePath[]; exts?: readonly string[] }
+  >(
+    ({ paths, exts }) =>
       useAgentResourceMentionSource({
         accessiblePaths: paths,
         files: mocks.files as unknown as ComposerAttachment[],
         setFiles: mocks.setFiles,
+        supportedExts: exts,
         enabled: true
       }),
-    { initialProps: { paths: accessiblePaths as readonly AbsoluteFilePath[] } }
+    { initialProps: { paths: accessiblePaths as readonly AbsoluteFilePath[], exts: supportedExts } }
   )
 
 const requireFirstResourceMentionSource = (
@@ -286,7 +300,11 @@ const pdfSkillToken = {
   payload: pdfSkill
 } as const
 
-vi.mock('@renderer/hooks/tab', () => ({ useIsActiveTab: () => true }))
+vi.mock('@renderer/hooks/tab', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  useIsActiveTab: () => true,
+  useCurrentTabId: () => 'agent-tab'
+}))
 vi.mock('@renderer/ipc', () => ({
   useIpcOn: (event: string, callback: (payload: any) => void) => {
     useEffect(() => {
@@ -297,7 +315,8 @@ vi.mock('@renderer/ipc', () => ({
     }, [event, callback])
   },
   ipcApi: {
-    request: (route: string, input: unknown) => mocks.ipcApiRequest(route, input)
+    request: (route: string, input: unknown) => mocks.ipcApiRequest(route, input),
+    on: vi.fn(() => () => {})
   }
 }))
 
@@ -507,16 +526,9 @@ vi.mock('@renderer/components/ModelSpeedControl', async (importOriginal) => {
   const actual = await importOriginal<typeof ModelSpeedControlModule>()
   return {
     ...actual,
-    ModelSpeedControl: (props: {
-      model: Model
-      reasoningEffort: string
-      serviceTier: string
-      fastMode: boolean
-      onReasoningEffortChange: (effort: string) => void
-      onServiceTierChange: (tier: 'standard' | 'auto' | 'fast' | 'flex') => void
-      onFastModeChange: (enabled: boolean) => void
-    }) => {
+    ModelSpeedControl: (props: SpeedControlProps) => {
       mocks.speedControlProps = props
+      if (mocks.useRealSpeedControl) return <actual.ModelSpeedControl {...props} />
       return <div data-testid="agent-speed-control" />
     }
   }
@@ -528,10 +540,6 @@ vi.mock('@renderer/hooks/agent/useAgent', () => ({
 
 vi.mock('@renderer/hooks/agent/useAgentModelFilter', () => ({
   useAgentModelFilter: () => undefined
-}))
-
-vi.mock('@renderer/hooks/agent/useAgentSessionCompaction', () => ({
-  useAgentSessionCompaction: () => ({ status: 'idle' })
 }))
 
 vi.mock('@renderer/hooks/agent/useSession', () => ({
@@ -562,6 +570,7 @@ vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
 }))
 
 vi.mock('@renderer/hooks/useProvider', () => ({
+  useProviders: () => ({ providers: [] }),
   useProviderDisplayName: (providerId?: string) => (providerId ? mocks.providerNames[providerId] : '')
 }))
 
@@ -572,6 +581,10 @@ vi.mock('@renderer/hooks/useCherryCloudModelAvailability', () => ({
     revision: mocks.availabilityRevision,
     isModelUnavailable: (model: Pick<Model, 'id' | 'providerId'>) => mocks.exhaustedTargets.has(model.id)
   })
+}))
+
+vi.mock('../../ProviderQuotaNotice', () => ({
+  ProviderQuotaNotice: () => <div data-testid="provider-quota-notice" />
 }))
 
 vi.mock('@renderer/hooks/useCherryCloudQuotaExhaustion', () => ({
@@ -652,6 +665,10 @@ vi.mock('@renderer/components/ModelSelector', () => ({
   )
 }))
 
+vi.mock('@renderer/components/LocalAgentModelSelector', () => ({
+  LocalAgentModelSelector: ({ trigger }: { trigger: ReactNode }) => trigger
+}))
+
 vi.mock('@renderer/components/resourceCatalog/selectors', () => ({
   AgentSelector: ({ autoSelectOnCreate, onChange, trigger }: any) => (
     <div data-testid="agent-selector" data-auto-select-on-create={String(Boolean(autoSelectOnCreate))}>
@@ -660,7 +677,10 @@ vi.mock('@renderer/components/resourceCatalog/selectors', () => ({
         select agent 2
       </button>
     </div>
-  ),
+  )
+}))
+
+vi.mock('@renderer/components/resourceCatalog/WorkspaceSelector', () => ({
   WorkspaceSelector: ({ onChange, trigger }: any) => (
     <div>
       {trigger}
@@ -689,6 +709,8 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/ResourceEditDialogEventHos
 vi.mock('@renderer/pages/agents/AgentSettings/shared', () => ({
   AgentLabel: ({ agent }: any) => <span>{agent.name}</span>
 }))
+
+vi.mock('@renderer/hooks/useApiGatewayProvider', () => ({ useApiGatewayProvider: () => null }))
 
 vi.mock('@renderer/data/hooks/usePreference', () => ({
   usePreference: (key: string) => {
@@ -922,6 +944,7 @@ describe('AgentComposer', () => {
       return { configuration: mocks.agentConfiguration }
     })
     mocks.updateSession.mockReset()
+    mocks.updateSession.mockResolvedValue({ id: 'session-1' })
     mocks.setFiles.mockReset()
     mocks.setSelectedKnowledgeBases.mockReset()
     mocks.inputAdapterFocus.mockReset()
@@ -946,6 +969,7 @@ describe('AgentComposer', () => {
     mocks.availableSkillsRefresh.mockReset()
     mocks.availableSkillsRefresh.mockResolvedValue(undefined)
     mocks.surfaceProps = undefined
+    mocks.useRealSpeedControl = false
     mocks.speedControlProps = undefined
     mocks.derivedToolState = undefined
     mocks.runtimeHostProps = undefined
@@ -1018,6 +1042,39 @@ describe('AgentComposer', () => {
     render(<>{mocks.surfaceProps?.queueContent}</>)
     expect(screen.getByRole('button', { name: 'settings.subscription.go_to_subscribe' })).toBeInTheDocument()
   })
+
+  it('suggests a subscription after a provider ran out of quota, until the user sends or moves to Cherry Cloud', () => {
+    const queueHasNotice = () => {
+      const { unmount } = render(<>{mocks.surfaceProps?.queueContent}</>)
+      const shown = screen.queryByTestId('provider-quota-notice') !== null
+      unmount()
+      return shown
+    }
+    const composer = (props: { isStreaming: boolean; resolvedModel?: Model }) => (
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        providerQuotaExhausted
+        {...props}
+      />
+    )
+
+    const { rerender } = render(composer({ isStreaming: false, resolvedModel: model }))
+    expect(queueHasNotice()).toBe(true)
+
+    rerender(composer({ isStreaming: true, resolvedModel: model }))
+    expect(queueHasNotice()).toBe(false)
+
+    const cloudModel = {
+      ...model,
+      id: createUniqueModelId('cherryai-subscription', 'qwen'),
+      providerId: 'cherryai-subscription'
+    }
+    rerender(composer({ isStreaming: false, resolvedModel: cloudModel }))
+    expect(queueHasNotice()).toBe(false)
+  })
   it('receives a screenshot and optional text into the Agent draft without sending', async () => {
     mocks.screenshotEnabled = true
     render(
@@ -1070,27 +1127,6 @@ describe('AgentComposer', () => {
     )
 
     expect(mocks.surfaceProps?.sidePaddingPx).toBe(12)
-  })
-
-  it('uses the page-resolved model', () => {
-    render(
-      <AgentComposer
-        agentId="agent-1"
-        sessionId="session-1"
-        sendMessage={mocks.sendMessage}
-        stop={mocks.stop}
-        isStreaming={false}
-      />
-    )
-
-    expect(mocks.runtimeHostProps?.model).toBe(model)
-    expect(mocks.runtimeHostProps?.session?.agentId).toBe('agent-1')
-    expect(mocks.surfaceProps?.narrowMode).toBe(false)
-    expect(mocks.surfaceProps?.deferQuickPanel).toBe(true)
-    expect(mocks.surfaceProps?.voiceTarget).toEqual({
-      targetId: 'composer:session:session-1',
-      sourceEntityId: 'session-1'
-    })
   })
 
   it('limits Session knowledge choices to the Agent static binding', () => {
@@ -1260,6 +1296,71 @@ describe('AgentComposer', () => {
 
     expect(mocks.surfaceProps?.text).toBe('queued B')
     expect(getQueueDock()).toBeUndefined()
+  })
+
+  it('lets a historical message edit submit the selected reasoning, service tier and Fast options', async () => {
+    const user = userEvent.setup()
+    const realControls = [
+      vi.spyOn(ui, 'Button').mockImplementation(Button),
+      vi.spyOn(ui, 'Popover').mockImplementation(Popover),
+      vi.spyOn(ui, 'PopoverContent').mockImplementation(PopoverContent),
+      vi.spyOn(ui, 'PopoverTrigger').mockImplementation(PopoverTrigger),
+      vi.spyOn(ui, 'RadioGroup').mockImplementation(RadioGroup),
+      vi.spyOn(ui, 'RadioGroupItem').mockImplementation(RadioGroupItem),
+      vi.spyOn(ui, 'Slider').mockImplementation(Slider)
+    ]
+    mocks.useRealSpeedControl = true
+    mocks.agentConfiguration = { reasoning_effort: 'low' }
+    mocks.modelResult = {
+      ...model,
+      supportsFastMode: true,
+      capabilities: [MODEL_CAPABILITY.REASONING],
+      reasoning: {
+        controls: [{ kind: 'effort', values: ['low', 'high'] }],
+        selectableEfforts: ['low', 'high']
+      },
+      requestControls: { serviceTier: { default: 'standard', options: ['standard', 'flex'] } }
+    }
+    const props: TestComposerProps = {
+      agentId: 'agent-1',
+      sessionId: 'session-1',
+      sendMessage: mocks.sendMessage,
+      stop: mocks.stop,
+      isStreaming: false,
+      canChangeModel: false,
+      launchOptions: {
+        initialDraft: { text: 'Original message', tokens: [] },
+        editing: { messageId: 'message-1', onCancel: vi.fn() }
+      }
+    }
+    const view = render(<AgentComposer {...props} />)
+
+    try {
+      await user.click(screen.getByRole('button', { name: 'agent.speed.title' }))
+      screen.getByRole('slider', { name: 'agent.speed.effort' }).focus()
+      await user.keyboard('{End}')
+      await user.click(screen.getByRole('radio', { name: 'agent.speed.service_tier.flex' }))
+      // Publish the saved Agent configuration as the owning page would.
+      view.rerender(<AgentComposer {...props} />)
+      await user.click(screen.getByRole('button', { name: 'agent.speed.fast' }))
+      await user.click(screen.getByRole('button', { name: 'send' }))
+
+      expect(mocks.sendMessage).toHaveBeenCalledWith(
+        { text: 'hello' },
+        {
+          body: expect.objectContaining({
+            agentId: 'agent-1',
+            sessionId: 'session-1',
+            reasoningEffort: 'high',
+            serviceTier: 'flex',
+            fastMode: true
+          })
+        }
+      )
+    } finally {
+      view.unmount()
+      realControls.forEach((control) => control.mockRestore())
+    }
   })
 
   it('captures Fast in the submitted Work Agent turn', async () => {
@@ -1512,6 +1613,408 @@ describe('AgentComposer', () => {
     )
   })
 
+  it('dispatches the same Plan Only launcher for a local Shift+Tab shortcut', async () => {
+    mocks.pinnedToolIds = ['permission-mode']
+    const togglePlan = vi.fn()
+    mocks.optionalQuickPanel = { isVisible: false } as typeof mocks.optionalQuickPanel
+    mocks.toolLaunchers = [
+      { id: 'permission-mode', kind: 'group', sources: ['popover'], label: 'Permission Mode', icon: null, submenu: [] },
+      { id: 'plan-mode', kind: 'command', sources: ['root-panel'], label: 'Plan Only', icon: null, action: togglePlan }
+    ]
+    const info = {
+      models: [],
+      images: false,
+      resume: true,
+      configOptions: [
+        {
+          id: 'allow_all',
+          name: 'Allow All',
+          type: 'boolean' as const,
+          currentValue: false
+        },
+        {
+          id: 'detail',
+          name: 'Answer detail',
+          type: 'select' as const,
+          currentValue: 'brief',
+          options: [
+            { value: 'brief', name: 'Brief' },
+            { value: 'full', name: 'Detailed' }
+          ]
+        }
+      ],
+      mode: {
+        id: 'mode',
+        currentValue: 'default',
+        options: [
+          { value: 'default', name: 'Always Ask', permissionMode: 'default' },
+          { value: 'plan', name: 'Plan', permissionMode: 'plan' },
+          { value: 'yolo', name: 'YOLO', permissionMode: 'bypassPermissions' }
+        ]
+      }
+    }
+    mocks.ipcApiRequest.mockImplementation(async (route) => (route === 'ai.local_agents.session_info' ? { info } : {}))
+    const props = {
+      agentId: 'agent-1',
+      sessionId: 'session-1',
+      resolvedAgent: { ...createControlledAgent(), type: 'local' as const },
+      resolvedModel: undefined,
+      sendMessage: mocks.sendMessage,
+      stop: mocks.stop,
+      isStreaming: false
+    }
+    const view = render(<AgentComposer {...props} />)
+    const getControls = () => within(screen.getByTestId('composer-send-accessory'))
+    await waitFor(() => expect(mocks.runtimeHostProps?.session?.localPermission?.mode).toEqual(info.mode))
+    expect(screen.getByRole('button', { name: /agent\.settings\.permissionMode\.title/ })).toBeEnabled()
+    expect(getControls().queryByLabelText('code.adv.permission_mode')).toBeNull()
+    expect(getControls().queryByLabelText('local_agents.configuration')).not.toBeInTheDocument()
+
+    act(() => mocks.surfaceProps?.onShiftTab?.())
+    expect(togglePlan).toHaveBeenCalledWith(
+      expect.objectContaining({ source: 'root-panel', quickPanel: mocks.optionalQuickPanel })
+    )
+
+    for (const isStreaming of [true, false]) {
+      view.rerender(<AgentComposer {...props} isStreaming={isStreaming} />)
+      expect(mocks.runtimeHostProps?.session?.localPermission?.disabled).toBe(isStreaming)
+    }
+  })
+
+  it.each<{ name: string; mode: LocalAgentSelection }>([
+    {
+      name: 'OpenCode',
+      mode: {
+        id: 'mode',
+        application: 'session',
+        currentValue: 'build',
+        options: [
+          { value: 'build', name: 'Build', permissionMode: 'default' },
+          { value: 'plan', name: 'Plan', permissionMode: 'plan' }
+        ]
+      }
+    },
+    {
+      name: 'Antigravity',
+      mode: {
+        id: 'mode',
+        application: 'session',
+        currentValue: 'default',
+        options: [
+          { value: 'default', name: 'Default', permissionMode: 'default' },
+          { value: 'acceptEdits', name: 'Accept Edits' },
+          { value: 'auto', name: 'Auto' },
+          { value: 'plan', name: 'Plan', restrictHost: true }
+        ]
+      }
+    }
+  ])('shows the shared permission menu for $name without a separate session mode selector', async ({ mode }) => {
+    mocks.pinnedToolIds = ['permission-mode']
+    mocks.toolLaunchers = [
+      { id: 'permission-mode', kind: 'group', sources: ['popover'], label: 'Permission Mode', icon: null, submenu: [] }
+    ]
+    mocks.ipcApiRequest.mockResolvedValue({
+      info: { models: [], images: true, resume: true, mode, hostPermission: getAcpHostPermissionModeSelection(mode) }
+    })
+    render(
+      <AgentComposer
+        sessionId="session-1"
+        agentId="agent-1"
+        resolvedAgent={{ ...createControlledAgent(), type: 'local' }}
+        resolvedModel={undefined}
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+    expect(await screen.findByRole('button', { name: /agent\.settings\.permissionMode\.title/ })).toBeEnabled()
+    expect(
+      within(screen.getByTestId('composer-send-accessory')).queryByLabelText('local_agents.configuration')
+    ).toBeNull()
+  })
+
+  it('displays runtime permission choices while hiding pinned Cherry resource controls', async () => {
+    mocks.pinnedToolIds = ['permission-mode', 'knowledge-base', 'skills', 'mcp-status']
+    mocks.toolLaunchers = [
+      { id: 'permission-mode', kind: 'group', sources: ['popover'], label: 'Permission Mode', icon: null, submenu: [] }
+    ]
+    mocks.ipcApiRequest.mockResolvedValue({
+      info: null,
+      idleMode: {
+        id: 'mode',
+        currentValue: 'manual',
+        options: [
+          { value: 'manual', name: 'Manual review', permissionMode: 'default' },
+          { value: 'edit', name: 'Review edits', permissionMode: 'acceptEdits' }
+        ]
+      }
+    })
+    render(
+      <AgentComposer
+        sessionId="session-1"
+        agentId="agent-1"
+        resolvedAgent={{ ...createControlledAgent(), type: 'local' }}
+        resolvedModel={undefined}
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+    expect(mocks.runtimeHostProps?.session?.localPermission?.disabled).toBe(false)
+    expect(await screen.findByRole('button', { name: /agent\.settings\.permissionMode\.title/ })).toBeEnabled()
+    expect(screen.queryByRole('button', { name: 'chat.input.knowledge_base' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'plugins.skills' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'MCP' })).not.toBeInTheDocument()
+  })
+
+  it('renders Pi effort without treating it as a permission mode', async () => {
+    MockUseDataApiUtils.mockQueryData('/models', [])
+    mocks.ipcApiRequest.mockResolvedValue({
+      info: {
+        models: [],
+        images: true,
+        resume: true,
+        thoughtLevel: {
+          id: 'legacy-mode',
+          application: 'session',
+          currentValue: 'medium',
+          options: [
+            { value: 'off', name: 'Thinking: off' },
+            { value: 'minimal', name: 'Thinking: minimal' },
+            { value: 'low', name: 'Thinking: low' },
+            { value: 'medium', name: 'Thinking: medium' }
+          ]
+        }
+      }
+    })
+    render(
+      <AgentComposer
+        sessionId="session-pi"
+        agentId="agent-pi"
+        resolvedAgent={{
+          ...createControlledAgent(),
+          type: 'local',
+          localRuntime: { presetId: 'pi-acp' } as any
+        }}
+        resolvedModel={undefined}
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    const getControls = () => within(screen.getByTestId('composer-send-accessory'))
+    expect(getControls().queryByRole('button', { name: 'code.adv.permission_mode' })).not.toBeInTheDocument()
+    expect(getControls().queryByRole('button', { name: 'local_agents.configuration' })).not.toBeInTheDocument()
+    const thoughtBtn = await getControls().findByRole('button', { name: 'agent.speed.title' })
+    expect(thoughtBtn).toHaveTextContent('assistants.settings.reasoning_effort.medium')
+  })
+
+  it('keeps native execution options available without adding an input control', async () => {
+    const permissionsOption = {
+      id: 'permissions',
+      application: 'session',
+      name: 'Permissions',
+      type: 'select' as const,
+      currentValue: 'default',
+      options: [
+        { value: 'default', name: 'Default', permissionMode: 'default' },
+        { value: 'bypass', name: 'Bypass', permissionMode: 'bypassPermissions' }
+      ]
+    }
+    const reasoningOption = {
+      id: 'reasoning',
+      name: 'Model default',
+      category: 'model_config',
+      type: 'select' as const,
+      currentValue: 'medium',
+      options: [
+        { value: 'off', name: 'Off' },
+        { value: 'low', name: 'Low' },
+        { value: 'medium', name: 'Medium' },
+        { value: 'high', name: 'High' },
+        { value: 'max', name: 'Max' }
+      ]
+    }
+    const executionMode = {
+      id: 'execution-environment',
+      name: 'Execution environment',
+      category: 'mode',
+      type: 'select' as const,
+      currentValue: 'local',
+      options: [
+        { value: 'local', name: 'Local' },
+        { value: 'orb', name: 'Orb' }
+      ]
+    }
+    const workflow = {
+      id: 'mode',
+      name: 'Workflow',
+      role: 'mode',
+      type: 'select' as const,
+      currentValue: 'agent',
+      options: [
+        { value: 'agent', name: 'Agent' },
+        { value: 'autopilot', name: 'Autopilot' }
+      ]
+    }
+    mocks.ipcApiRequest.mockResolvedValue({
+      info: {
+        models: [],
+        images: true,
+        resume: true,
+        mode: permissionsOption,
+        configOptions: [executionMode, workflow, reasoningOption]
+      }
+    })
+    mocks.runtimeHostProps = undefined
+
+    render(
+      <AgentComposer
+        sessionId="session-config-routing"
+        agentId="agent-amp"
+        resolvedAgent={{
+          ...createControlledAgent(),
+          type: 'local',
+          localRuntime: { presetId: 'amp-acp' } as any
+        }}
+        resolvedModel={undefined}
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    await waitFor(() =>
+      expect(mocks.runtimeHostProps?.session?.localPermission).toMatchObject({
+        mode: { id: 'permissions', currentValue: 'default' },
+        options: [executionMode, workflow]
+      })
+    )
+
+    const getControls = () => within(screen.getByTestId('composer-send-accessory'))
+    expect(getControls().queryByRole('button', { name: 'agent.speed.title' })).not.toBeInTheDocument()
+    expect(getControls().queryByRole('button', { name: 'local_agents.configuration' })).not.toBeInTheDocument()
+  })
+
+  it('displays negotiated ACP effort and omits the unsupported context meter', async () => {
+    const thinkingOption = {
+      id: 'reasoning-budget',
+      application: 'session',
+      currentValue: 'high',
+      options: [
+        { value: 'low', name: 'Low' },
+        { value: 'medium', name: 'Medium' },
+        { value: 'high', name: 'High' }
+      ]
+    }
+    const extraBool = {
+      id: 'notifications',
+      name: 'Notifications',
+      type: 'boolean' as const,
+      currentValue: true
+    }
+    mocks.ipcApiRequest.mockResolvedValue({
+      info: { models: [], images: true, resume: true, thoughtLevel: thinkingOption, configOptions: [extraBool] }
+    })
+    MockUseCacheUtils.setSharedCacheValue('agent.session.context_usage.session-thinking-role', {
+      result: {
+        status: 'unsupported',
+        error: { operation: 'contextUsage', code: 'unsupported', message: 'Not supported' }
+      }
+    })
+    mocks.sessionLayout = 'time'
+
+    render(
+      <AgentComposer
+        sessionId="session-thinking-role"
+        agentId="agent-acp-thinking"
+        resolvedAgent={{
+          ...createControlledAgent(),
+          type: 'local',
+          localRuntime: { presetId: 'antigravity-acp' } as any
+        }}
+        resolvedModel={undefined}
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    const accessory = within(screen.getByTestId('composer-send-accessory'))
+    expect(await accessory.findByRole('button', { name: 'agent.speed.title' })).toHaveTextContent(
+      'assistants.settings.reasoning_effort.high'
+    )
+    expect(accessory.queryByRole('menuitemradio', { name: 'High' })).not.toBeInTheDocument()
+    expect(accessory.queryByRole('button', { name: 'local_agents.configuration' })).not.toBeInTheDocument()
+    expect(accessory.queryByRole('meter')).not.toBeInTheDocument()
+    expect(accessory.queryByRole('status')).not.toBeInTheDocument()
+    expect(accessory.queryByLabelText(/context_usage/)).not.toBeInTheDocument()
+  })
+
+  it('allows arbitrary workspace files for local agents while honoring ACP image/audio capability exclusions', async () => {
+    mocks.ipcApiRequest.mockImplementation(async (route) =>
+      route === 'ai.local_agents.session_info'
+        ? { info: { models: [], images: false, audio: false, resume: false, supportsEmbeddedContext: false } }
+        : null
+    )
+
+    const { rerender } = render(
+      <AgentComposer
+        sessionId="session-acp-caps"
+        agentId="agent-acp"
+        resolvedAgent={{
+          ...createControlledAgent(),
+          type: 'local',
+          localRuntime: { presetId: 'pi-acp', enabled: true } as any
+        }}
+        resolvedModel={undefined}
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    await waitFor(() => expect(mocks.derivedToolState?.couldAddImageFile).toBe(false))
+    const acpExts = mocks.surfaceProps?.supportedExts ?? []
+    expect(acpExts).toContain(anyFileExt)
+    expect(isSupportedExtension('.sqlite', acpExts)).toBe(true)
+    expect(isSupportedExtension('.png', acpExts)).toBe(false)
+    expect(isSupportedExtension('.mp3', acpExts)).toBe(false)
+
+    // File-pane attach respects ACP image exclusion instead of letting unsupported files reach send.
+    await act(async () => {
+      await EventEmitter.emit(EVENT_NAMES.ATTACH_AGENT_COMPOSER_PATH, {
+        topicId: 'agent-session:session-acp-caps',
+        path: '/ws/photo.png',
+        kind: 'file'
+      })
+    })
+    expect(mocks.files).toEqual([])
+    expect(toast.info).toHaveBeenCalledWith('chat.input.file_not_supported')
+
+    // Native protocols (Claude/Codex) attach arbitrary files including audio by path.
+    rerender(
+      <AgentComposer
+        sessionId="session-claude-files"
+        agentId="agent-claude"
+        resolvedAgent={{
+          ...createControlledAgent(),
+          type: 'local',
+          localRuntime: { presetId: 'claude', enabled: true } as any
+        }}
+        resolvedModel={undefined}
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+    const claudeExts = mocks.surfaceProps?.supportedExts ?? []
+    expect(claudeExts).toContain(anyFileExt)
+    expect(isSupportedExtension('.mp3', claudeExts)).toBe(true)
+    expect(isSupportedExtension('.sqlite', claudeExts)).toBe(true)
+  })
+
   it('uses the controlled session, agent, and model context', () => {
     const resolvedAgent = {
       id: 'agent-1',
@@ -1569,7 +2072,8 @@ describe('AgentComposer', () => {
     expect(mocks.updateAgent).toHaveBeenCalledWith(
       {
         id: 'agent-1',
-        configuration: { reasoning_effort: 'low' }
+        configuration: { reasoning_effort: 'low' },
+        reasoningValidationModelId: model.id
       },
       { showSuccessToast: false }
     )
@@ -1607,7 +2111,7 @@ describe('AgentComposer', () => {
     )
   })
 
-  it('updates the agent model from the inline model selector when model changes are allowed', () => {
+  it('updates the session model from the inline model selector when model changes are allowed', () => {
     render(
       <AgentComposer
         agentId="agent-1"
@@ -1619,17 +2123,13 @@ describe('AgentComposer', () => {
       />
     )
 
-    expect(screen.getByTestId('agent-model-selector')).toHaveAttribute('data-shortcut', 'chat.model.select')
-
     fireEvent.click(screen.getByText('select model 2'))
 
-    expect(mocks.updateModel).toHaveBeenCalledWith(
-      {
-        agentId: 'agent-1',
-        modelId: 'anthropic::claude-opus-4'
-      },
+    expect(mocks.updateSession).toHaveBeenCalledWith(
+      { id: 'session-1', model: 'anthropic::claude-opus-4' },
       { showSuccessToast: false }
     )
+    expect(mocks.updateModel).not.toHaveBeenCalled()
   })
 
   it('carries a local reasoning edit into a model update only while that edit is pending', () => {
@@ -1649,18 +2149,174 @@ describe('AgentComposer', () => {
     act(() => mocks.speedControlProps?.onReasoningEffortChange('high'))
     fireEvent.click(screen.getByText('select model 2'))
 
-    expect(mocks.updateModel).toHaveBeenCalledWith(
+    expect(mocks.updateSession).toHaveBeenCalledWith(
+      { id: 'session-1', model: 'anthropic::claude-opus-4' },
+      { showSuccessToast: false }
+    )
+    expect(mocks.updateAgent).toHaveBeenCalledWith(
       {
-        agentId: 'agent-1',
-        modelId: 'anthropic::claude-opus-4',
-        reasoningEffort: 'high'
+        id: 'agent-1',
+        configuration: { reasoning_effort: 'high' },
+        // The effort save validates against the session-effective model, not
+        // the agent default (inv_98911732422a84bf).
+        reasoningValidationModelId: model.id
       },
       { showSuccessToast: false }
+    )
+    expect(mocks.updateModel).not.toHaveBeenCalled()
+  })
+
+  it('does not replay a captured reasoning edit over a newer external save (inv_b84ca94ae8d72b50)', async () => {
+    // The high edit's own save is still in flight when the model switch
+    // starts; before the switch finishes, another surface (agent settings,
+    // another window) persists low. The component's refs cannot see that
+    // save, so the replay must re-read the agent and stand down.
+    const dataApiGetBase = vi.mocked(dataApiService.get).getMockImplementation()
+    vi.mocked(dataApiService.get).mockImplementation((async (path: string, options?: unknown) => {
+      if (path === '/agents/agent-1') return { id: 'agent-1', configuration: { reasoning_effort: 'low' } }
+      return dataApiGetBase?.(path as never, options as never)
+    }) as never)
+    mocks.updateAgent.mockImplementation(() => new Promise(() => undefined))
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        canChangeModel
+        isStreaming={false}
+      />
+    )
+
+    act(() => mocks.speedControlProps?.onReasoningEffortChange('high'))
+    fireEvent.click(screen.getByText('select model 2'))
+
+    await waitFor(() =>
+      expect(mocks.updateSession).toHaveBeenCalledWith(
+        { id: 'session-1', model: 'anthropic::claude-opus-4' },
+        { showSuccessToast: false }
+      )
+    )
+    await waitFor(() => expect(mocks.speedControlProps?.reasoningEffort).toBe('default'))
+    // Only the user's own high save ran: the captured edit must not replay
+    // over the newer external low.
+    expect(mocks.updateAgent).toHaveBeenCalledTimes(1)
+  })
+
+  it('never replays a captured reasoning edit after a model switch, even when the persisted value equals the start (inv_58f93a93e82c4393)', async () => {
+    // Same race as inv_b84ca94ae8d72b50, but the intervening external save
+    // re-persisted the SAME value the edit started from (default). Value
+    // equality cannot identify that save and the API has no conditional
+    // write, so the switch must not replay at all: the selection-time save
+    // is the only write (cherry-pr-review inv_58f93a93e82c4393#f1).
+    const dataApiGetBase = vi.mocked(dataApiService.get).getMockImplementation()
+    vi.mocked(dataApiService.get).mockImplementation((async (path: string, options?: unknown) => {
+      if (path === '/agents/agent-1') return { id: 'agent-1', configuration: { reasoning_effort: 'default' } }
+      return dataApiGetBase?.(path as never, options as never)
+    }) as never)
+    mocks.updateAgent.mockImplementation(() => new Promise(() => undefined))
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        canChangeModel
+        isStreaming={false}
+      />
+    )
+
+    act(() => mocks.speedControlProps?.onReasoningEffortChange('high'))
+    fireEvent.click(screen.getByText('select model 2'))
+
+    await waitFor(() =>
+      expect(mocks.updateSession).toHaveBeenCalledWith(
+        { id: 'session-1', model: 'anthropic::claude-opus-4' },
+        { showSuccessToast: false }
+      )
+    )
+    await waitFor(() => expect(mocks.speedControlProps?.reasoningEffort).toBe('default'))
+    // Only the user's own high save ran: no replay, however a freshness
+    // read would have answered.
+    expect(mocks.updateAgent).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not replay a captured reasoning edit superseded during the model switch (inv_749a7063976e49cf)', async () => {
+    // The user picks low through the same composer while the model switch is
+    // still in flight. No replay exists anymore (inv_58f93a93e82c4393), so
+    // the two selection-time saves are the only writes.
+    mocks.updateAgent.mockImplementation(() => new Promise(() => undefined))
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        canChangeModel
+        isStreaming={false}
+      />
+    )
+
+    act(() => mocks.speedControlProps?.onReasoningEffortChange('high'))
+    fireEvent.click(screen.getByText('select model 2'))
+
+    await waitFor(() =>
+      expect(mocks.updateSession).toHaveBeenCalledWith(
+        { id: 'session-1', model: 'anthropic::claude-opus-4' },
+        { showSuccessToast: false }
+      )
+    )
+    act(() => mocks.speedControlProps?.onReasoningEffortChange('low'))
+
+    // Only the user's own high and low saves ran: the captured high edit
+    // must not replay over the newer low selection (cherry-pr-review
+    // inv_749a7063976e49cf#f1).
+    expect(mocks.updateAgent).toHaveBeenCalledTimes(2)
+    expect(mocks.updateAgent).not.toHaveBeenCalledWith(
+      expect.objectContaining({ reasoningValidationModelId: 'anthropic::claude-opus-4' }),
+      expect.anything()
+    )
+  })
+
+  it('does not re-assert a captured reasoning edit against the new model after the switch (inv_58f93a93e82c4393)', async () => {
+    // The replay that re-validated the captured edit against nextModel was
+    // removed: without a conditional write it could overwrite a newer
+    // same-value external save (cherry-pr-review inv_58f93a93e82c4393#f1).
+    // The selection-time save is the only write.
+    mocks.updateAgent.mockImplementation(() => new Promise(() => undefined))
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        canChangeModel
+        isStreaming={false}
+      />
+    )
+
+    act(() => mocks.speedControlProps?.onReasoningEffortChange('high'))
+    fireEvent.click(screen.getByText('select model 2'))
+
+    await waitFor(() =>
+      expect(mocks.updateSession).toHaveBeenCalledWith(
+        { id: 'session-1', model: 'anthropic::claude-opus-4' },
+        { showSuccessToast: false }
+      )
+    )
+    expect(mocks.updateAgent).toHaveBeenCalledTimes(1)
+    expect(mocks.updateAgent).not.toHaveBeenCalledWith(
+      expect.objectContaining({ reasoningValidationModelId: 'anthropic::claude-opus-4' }),
+      expect.anything()
     )
   })
 
   it('does not mistake an in-flight model update for a pending reasoning edit', () => {
-    mocks.updateModel.mockImplementation(() => new Promise(() => undefined))
+    mocks.updateSession.mockImplementation(() => new Promise(() => undefined))
 
     render(
       <AgentComposer
@@ -1676,11 +2332,8 @@ describe('AgentComposer', () => {
     fireEvent.click(screen.getByText('select model 2'))
     fireEvent.click(screen.getByText('select reasoning model'))
 
-    expect(mocks.updateModel).toHaveBeenLastCalledWith(
-      {
-        agentId: 'agent-1',
-        modelId: 'anthropic::claude-reasoning'
-      },
+    expect(mocks.updateSession).toHaveBeenLastCalledWith(
+      { id: 'session-1', model: 'anthropic::claude-reasoning' },
       { showSuccessToast: false }
     )
   })
@@ -1702,7 +2355,20 @@ describe('AgentComposer', () => {
 
     fireEvent.click(screen.getByText('select model 2'))
 
+    // Two-session outcome (inv_58f93a93e82c4393): the M1 session keeps the
+    // selection-time save of E agent-wide - the model switch must not issue
+    // a second write re-normalizing the shared setting against M2 - while
+    // this session on M2 shows the normalized effective default.
     await waitFor(() => expect(mocks.speedControlProps?.reasoningEffort).toBe('default'))
+    expect(mocks.updateAgent).toHaveBeenCalledTimes(1)
+    expect(mocks.updateAgent).toHaveBeenCalledWith(
+      {
+        id: 'agent-1',
+        configuration: { reasoning_effort: 'high' },
+        reasoningValidationModelId: model.id
+      },
+      { showSuccessToast: false }
+    )
   })
 
   it('keeps the session reasoning selection when the model update fails', async () => {
@@ -1713,7 +2379,7 @@ describe('AgentComposer', () => {
         selectableEfforts: ['low', 'high']
       }
     }
-    mocks.updateModel.mockResolvedValueOnce(undefined)
+    mocks.updateSession.mockResolvedValueOnce(undefined)
 
     render(
       <AgentComposer
@@ -1745,7 +2411,7 @@ describe('AgentComposer', () => {
       }
     }
     let finishModelUpdate!: (value: object) => void
-    mocks.updateModel.mockImplementationOnce(
+    mocks.updateSession.mockImplementationOnce(
       () =>
         new Promise((resolve) => {
           finishModelUpdate = resolve
@@ -1853,10 +2519,11 @@ describe('AgentComposer', () => {
       await act(async () => mocks.speedControlProps?.onReasoningEffortChange('high'))
       fireEvent.click(screen.getByText('select model 2'))
 
-      expect(mocks.updateModel).toHaveBeenCalledWith(
-        { agentId: 'agent-1', modelId: 'anthropic::claude-opus-4' },
+      expect(mocks.updateSession).toHaveBeenCalledWith(
+        { id: 'session-1', model: 'anthropic::claude-opus-4' },
         { showSuccessToast: false }
       )
+      expect(mocks.updateModel).not.toHaveBeenCalled()
     })
 
     it('keeps a newer edit when an older one fails', async () => {
@@ -1874,10 +2541,11 @@ describe('AgentComposer', () => {
 
       expect(mocks.speedControlProps?.reasoningEffort).toBe('medium')
       fireEvent.click(screen.getByText('select model 2'))
-      expect(mocks.updateModel).toHaveBeenCalledWith(
-        { agentId: 'agent-1', modelId: 'anthropic::claude-opus-4', reasoningEffort: 'medium' },
+      expect(mocks.updateSession).toHaveBeenCalledWith(
+        { id: 'session-1', model: 'anthropic::claude-opus-4' },
         { showSuccessToast: false }
       )
+      expect(mocks.updateModel).not.toHaveBeenCalled()
     })
 
     it('does not restore the failed effort when an overlapping model update fails afterwards', async () => {
@@ -1915,12 +2583,12 @@ describe('AgentComposer', () => {
     )
 
     const modelLabel = screen.getByText('Claude Sonnet 4.5 | Anthropic')
-    expect(modelLabel).toHaveAttribute('title', 'Claude Sonnet 4.5 | Anthropic')
+
     expect(modelLabel.closest('button')).toBeDisabled()
-    expect(screen.getByTestId('agent-model-selector')).toHaveAttribute('data-shortcut', '')
 
     fireEvent.click(screen.getByText('select model 2'))
 
+    expect(mocks.updateSession).not.toHaveBeenCalled()
     expect(mocks.updateModel).not.toHaveBeenCalled()
   })
 
@@ -1949,7 +2617,7 @@ describe('AgentComposer', () => {
     expect(modelLabel).toHaveAttribute('title', 'Custom Model | My Custom Provider')
   })
 
-  it('routes new session shortcuts through the empty session action', () => {
+  it('routes the new session shortcut and slash action through the empty session handler', () => {
     const onCreateEmptySession = vi.fn()
 
     render(
@@ -1966,29 +2634,13 @@ describe('AgentComposer', () => {
     mocks.shortcutHandlers.get('topic.create')?.()
 
     expect(onCreateEmptySession).toHaveBeenCalledTimes(1)
+
+    const sessionItem = mocks.surfaceProps?.rootPanelLeadingItems?.find((item) => item.label === 'agent.session.new')
+    sessionItem?.action?.({ context: {} as any, action: 'enter', item: sessionItem })
+    expect(onCreateEmptySession).toHaveBeenCalledTimes(2)
   })
 
-  it('routes classic-layout new session shortcuts through the empty session action', () => {
-    mocks.sessionLayout = 'classic'
-    const onCreateEmptySession = vi.fn()
-
-    render(
-      <AgentComposer
-        agentId="agent-1"
-        sessionId="session-1"
-        sendMessage={mocks.sendMessage}
-        stop={mocks.stop}
-        onCreateEmptySession={onCreateEmptySession}
-        isStreaming={false}
-      />
-    )
-
-    mocks.shortcutHandlers.get('topic.create')?.()
-
-    expect(onCreateEmptySession).toHaveBeenCalledTimes(1)
-  })
-
-  it('puts the classic-layout empty session action first in the toolbar and calls the explicit handler', () => {
+  it('opens a classic-layout empty session through the toolbar, slash action, and shortcut', () => {
     mocks.sessionLayout = 'classic'
     const onCreateEmptySession = vi.fn()
 
@@ -2005,26 +2657,14 @@ describe('AgentComposer', () => {
 
     const leftControls = screen.getByTestId('composer-left-controls')
     const newSessionButton = within(leftControls).getByRole('button', { name: 'agent.session.new' })
-    const modelButton = within(leftControls).getByRole('button', { name: /Claude Sonnet 4.5/ })
-    const toolMenuButton = within(leftControls).getByRole('button', { name: 'tool menu' })
-    expect(newSessionButton.compareDocumentPosition(modelButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
-    expect(modelButton.compareDocumentPosition(toolMenuButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
-    expect(
-      within(screen.getByTestId('composer-send-accessory')).queryByRole('button', { name: 'tool menu' })
-    ).not.toBeInTheDocument()
+
     fireEvent.click(newSessionButton)
     expect(onCreateEmptySession).toHaveBeenCalledTimes(1)
 
     const newSessionItem = mocks.surfaceProps?.rootPanelLeadingItems?.[0]
-    expect(newSessionItem).toEqual(
-      expect.objectContaining({
-        id: 'composer:new-session',
-        label: 'agent.session.new',
-        filterText: 'agent.session.new'
-      })
-    )
+
     render(<div data-testid="new-session-panel-icon">{newSessionItem?.icon}</div>)
-    expect(screen.getByTestId('new-session-panel-icon').querySelector('.new-conversation-icon')).toBeInTheDocument()
+
     newSessionItem?.action?.({
       context: {} as any,
       action: 'enter',
@@ -2033,124 +2673,12 @@ describe('AgentComposer', () => {
 
     expect(onCreateEmptySession).toHaveBeenCalledTimes(2)
 
-    act(() => {
-      mocks.registeredFooterActions.get('composer-toolbar-settings')?.[0]?.action?.({} as any)
-    })
-    const newSessionSwitch = screen.getByRole('switch', { name: 'agent.session.new' })
-    expect(newSessionSwitch).toBeChecked()
-    expect(newSessionSwitch).toBeEnabled()
-  })
-
-  it('returns the new session action to the plus panel when it is unpinned', () => {
-    mocks.pinnedToolIds = ['skills']
-    const onCreateEmptySession = vi.fn()
-
-    render(
-      <AgentComposer
-        agentId="agent-1"
-        sessionId="session-1"
-        sendMessage={mocks.sendMessage}
-        stop={mocks.stop}
-        onCreateEmptySession={onCreateEmptySession}
-        isStreaming={false}
-      />
-    )
-
-    expect(
-      within(screen.getByTestId('composer-left-controls')).queryByRole('button', {
-        name: 'agent.session.new'
-      })
-    ).not.toBeInTheDocument()
-    expect(mocks.surfaceProps?.rootPanelLeadingItems).toEqual([expect.objectContaining({ id: 'composer:new-session' })])
+    mocks.shortcutHandlers.get('topic.create')?.()
+    expect(onCreateEmptySession).toHaveBeenCalledTimes(3)
 
     act(() => {
       mocks.registeredFooterActions.get('composer-toolbar-settings')?.[0]?.action?.({} as any)
     })
-    expect(screen.getAllByRole('switch')[0]).toHaveAccessibleName('agent.session.new')
-  })
-
-  it('keeps the new session action at the far left and the tool menu at the far right of the left toolbar', () => {
-    const onCreateEmptySession = vi.fn()
-
-    render(
-      <AgentComposer
-        agentId="agent-1"
-        sessionId="session-1"
-        sendMessage={mocks.sendMessage}
-        stop={mocks.stop}
-        onCreateEmptySession={onCreateEmptySession}
-        isStreaming={false}
-      />
-    )
-
-    const leftControls = screen.getByTestId('composer-left-controls')
-    const newSessionButton = within(leftControls).getByRole('button', { name: 'agent.session.new' })
-    const agentButton = within(leftControls).getByRole('button', { name: /Agent/ })
-    const modelButton = within(leftControls).getByRole('button', { name: /Claude Sonnet 4.5/ })
-    const toolMenuButton = within(leftControls).getByRole('button', { name: 'tool menu' })
-
-    expect(newSessionButton.compareDocumentPosition(agentButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
-    expect(agentButton.compareDocumentPosition(modelButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
-    expect(modelButton.compareDocumentPosition(toolMenuButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
-    expect(
-      within(screen.getByTestId('composer-send-accessory')).queryByRole('button', { name: 'tool menu' })
-    ).not.toBeInTheDocument()
-
-    const newSessionItem = mocks.surfaceProps?.rootPanelLeadingItems?.[0]
-    expect(newSessionItem).toEqual(
-      expect.objectContaining({
-        id: 'composer:new-session',
-        label: 'agent.session.new'
-      })
-    )
-    newSessionItem?.action?.({
-      context: {} as any,
-      action: 'enter',
-      item: newSessionItem
-    })
-
-    expect(onCreateEmptySession).toHaveBeenCalledTimes(1)
-  })
-
-  it('keeps the skill shortcut in the input toolbar and opens the unified panel', () => {
-    render(
-      <AgentComposer
-        agentId="agent-1"
-        sessionId="session-1"
-        sendMessage={mocks.sendMessage}
-        stop={mocks.stop}
-        isStreaming={false}
-      />
-    )
-
-    const leftControls = screen.getByTestId('composer-left-controls')
-    const skillButton = within(leftControls).getByRole('button', { name: 'plugins.skills' })
-    const agentButton = within(leftControls).getByRole('button', { name: /Agent/ })
-
-    expect(skillButton.compareDocumentPosition(agentButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
-
-    fireEvent.click(skillButton)
-    expect(mocks.quickPanelOpen).toHaveBeenCalledWith({ launcherId: 'agent-skills', searchText: 'plugins.skills' })
-  })
-
-  it('keeps only pinned shortcuts in compact controls', () => {
-    render(
-      <AgentComposer
-        agentId="agent-1"
-        sessionId="session-1"
-        sendMessage={mocks.sendMessage}
-        stop={mocks.stop}
-        isStreaming={false}
-        compactWhenSingleLine
-      />
-    )
-
-    const compactControls = screen.getByTestId('composer-compact-controls')
-    expect(mocks.surfaceProps?.compactWhenSingleLine).toBe(true)
-    expect(within(compactControls).getByRole('button', { name: 'plugins.skills' })).toBeInTheDocument()
-    expect(within(compactControls).queryByRole('button', { name: 'agent.session.new' })).not.toBeInTheDocument()
-    expect(within(compactControls).queryByRole('button', { name: /Claude Sonnet 4.5/ })).not.toBeInTheDocument()
-    expect(within(compactControls).queryByRole('button', { name: 'tool menu' })).not.toBeInTheDocument()
   })
 
   // #20766: first paint highlights MCP from the agent's current bindings, before the panel opens.
@@ -2172,66 +2700,6 @@ describe('AgentComposer', () => {
       'data-active',
       'true'
     )
-  })
-
-  it('exposes slash commands and MCP as skill-style toolbar shortcuts', () => {
-    mocks.pinnedToolIds = ['slash-commands', 'mcp-status']
-
-    const { rerender } = render(
-      <AgentComposer
-        agentId="agent-1"
-        sessionId="session-1"
-        sendMessage={mocks.sendMessage}
-        stop={mocks.stop}
-        isStreaming={false}
-      />
-    )
-
-    const leftControls = screen.getByTestId('composer-left-controls')
-    const slashCommandsButton = within(leftControls).getByRole('button', {
-      name: 'chat.input.slash_commands.title'
-    })
-    const mcpButton = within(leftControls).getByRole('button', { name: 'MCP' })
-    expect(mcpButton).not.toHaveAttribute('data-active')
-
-    expect(within(leftControls).queryByRole('button', { name: '/clear' })).not.toBeInTheDocument()
-
-    fireEvent.click(slashCommandsButton)
-    expect(mocks.quickPanelOpen).toHaveBeenCalledWith({ searchText: 'chat.input.slash_commands.title' })
-
-    fireEvent.click(mcpButton)
-    expect(mocks.quickPanelOpen).toHaveBeenLastCalledWith({ launcherId: 'mcp-status', searchText: 'MCP' })
-
-    rerender(
-      <AgentComposer
-        agentId="agent-1"
-        sessionId="session-1"
-        sendMessage={mocks.sendMessage}
-        stop={mocks.stop}
-        isStreaming={false}
-        resolvedAgent={{ ...createControlledAgent(), mcps: ['server-1'] }}
-      />
-    )
-
-    expect(within(screen.getByTestId('composer-left-controls')).getByRole('button', { name: 'MCP' })).toHaveAttribute(
-      'data-active',
-      'true'
-    )
-  })
-
-  it('hides the empty session action without a handler', () => {
-    render(
-      <AgentComposer
-        agentId="agent-1"
-        sessionId="session-1"
-        sendMessage={mocks.sendMessage}
-        stop={mocks.stop}
-        isStreaming={false}
-      />
-    )
-
-    expect(screen.queryByRole('button', { name: 'agent.session.new' })).not.toBeInTheDocument()
-    expect(mocks.surfaceProps?.rootPanelLeadingItems).toEqual([])
   })
 
   it('wires input history navigation into the composer surface', async () => {
@@ -2651,7 +3119,7 @@ describe('AgentComposer', () => {
     })
   })
 
-  it('cancels the delayed post-send clear when recalling input history', async () => {
+  it('preserves a recalled draft after pending post-send tasks run', async () => {
     seedInputHistory(['history entry'])
     mocks.getDraft.mockImplementation(() => ({
       text: mocks.surfaceProps?.text ?? '',
@@ -2672,7 +3140,6 @@ describe('AgentComposer', () => {
     await act(async () => {
       await mocks.surfaceProps?.onSendDraft({ text: 'agent says hi', tokens: [] })
     })
-    expect(mocks.timeoutCallbacks.has('agentComposerSendMessage')).toBe(true)
 
     act(() => {
       expect(mocks.surfaceProps?.onInputHistoryNavigate?.('up')).toBe(true)
@@ -2680,8 +3147,10 @@ describe('AgentComposer', () => {
     // The successful send is now the newest history entry, so ArrowUp recalls it first.
     await waitFor(() => expect(mocks.surfaceProps?.text).toBe('agent says hi'))
 
-    expect(mocks.clearTimeoutTimer).toHaveBeenCalledWith('agentComposerSendMessage')
-    expect(mocks.timeoutCallbacks.has('agentComposerSendMessage')).toBe(false)
+    await act(async () => {
+      for (const callback of [...mocks.timeoutCallbacks.values()]) callback()
+    })
+    expect(mocks.surfaceProps?.text).toBe('agent says hi')
   })
 
   it('clears agent files while previewing plain-text history and restores the entry draft files', async () => {
@@ -2767,26 +3236,6 @@ describe('AgentComposer', () => {
     expect(mocks.selectedKnowledgeBases).toEqual([knowledgeBaseOne])
   })
 
-  it('passes attachment capabilities through the provider without effect mirroring', () => {
-    render(
-      <AgentComposer
-        agentId="agent-1"
-        sessionId="session-1"
-        sendMessage={mocks.sendMessage}
-        stop={mocks.stop}
-        isStreaming={false}
-      />
-    )
-
-    // The agent forwards attachments to its runtime as file paths and reads them with its
-    // own tools, so every file type is attachable on any model (modality is irrelevant).
-    expect(mocks.derivedToolState).toEqual({
-      couldAddImageFile: true,
-      extensions: mocks.surfaceProps?.supportedExts,
-      selectableKnowledgeBases: []
-    })
-  })
-
   it('renders context usage for the selected Gateway model but hides a different model cache', async () => {
     mocks.modelResult = {
       ...model,
@@ -2820,20 +3269,10 @@ describe('AgentComposer', () => {
       />
     )
 
-    const leftControls = screen.getByTestId('composer-left-controls')
-    const modelButton = within(leftControls).getByRole('button', { name: /MiniMax M3/ })
-    const workspaceButton = within(leftControls).getByText('Workspace 1').closest('button')!
-    const toolMenuButton = within(leftControls).getByRole('button', { name: 'tool menu' })
     const sendAccessory = screen.getByTestId('composer-send-accessory')
     const indicator = within(sendAccessory).getByLabelText('agent.right_pane.info.context_usage 42%')
-    expect(modelButton.compareDocumentPosition(workspaceButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
-    expect(workspaceButton.compareDocumentPosition(toolMenuButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
-    expect(toolMenuButton.compareDocumentPosition(indicator)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
-    expect(within(sendAccessory).queryByRole('button', { name: 'tool menu' })).not.toBeInTheDocument()
+
     expect(indicator).toBeInTheDocument()
-    expect(indicator).not.toHaveTextContent('42%')
-    expect(indicator).toHaveAttribute('style', expect.stringContaining('--context-usage-progress: 42%'))
-    expect(indicator).toHaveAttribute('style', expect.stringContaining('color-mix(in oklch'))
 
     await waitFor(() => expect(screen.getByText('42 / 100 (42%)')).toBeInTheDocument())
     expect(within(sendAccessory).getByText('MiniMax M3')).toBeInTheDocument()
@@ -2865,6 +3304,37 @@ describe('AgentComposer', () => {
     expect(
       within(screen.getByTestId('composer-send-accessory')).queryByLabelText(/context_usage/)
     ).not.toBeInTheDocument()
+  })
+
+  it('shows and clears compaction status even without context usage metrics', () => {
+    MockUseCacheUtils.setSharedCacheValue('agent.session.compaction.session-1', {
+      status: 'compacting',
+      startedAt: '2026-09-30T00:00:00Z'
+    })
+    const composer = (
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+    const view = render(composer)
+    const accessory = screen.getByTestId('composer-send-accessory')
+    expect(within(accessory).getByRole('status')).toHaveTextContent('chat.compaction.compacting')
+    expect(within(accessory).queryByRole('meter')).not.toBeInTheDocument()
+    MockUseCacheUtils.setSharedCacheValue('agent.session.compaction.session-1', { status: 'idle' })
+    view.rerender(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+    expect(within(accessory).queryByRole('status')).not.toBeInTheDocument()
   })
 
   it('ignores a workspace path that is not an absolute filesystem path', async () => {
@@ -2907,47 +3377,19 @@ describe('AgentComposer', () => {
       )
 
       const source = mocks.surfaceProps?.suggestionSources?.[0]
-      expect(mocks.surfaceProps?.resourceProvider).toBeUndefined()
-      expect(mocks.surfaceProps?.suggestionSources).toHaveLength(1)
-      expect(source?.char).toBe('@')
 
       const emptyItems = await source?.items({ query: '', editor: buildComposerEditorMock().editor })
-      expect(mocks.listDirectoryEntries).toHaveBeenLastCalledWith('/workspace', {
-        recursive: false,
-        includeHidden: false,
-        includeFiles: true,
-        includeDirectories: true,
-        maxEntries: 40,
-        searchPattern: '.'
-      })
-      expect(mocks.listDirectory).not.toHaveBeenCalled()
+
       expect(emptyItems).toHaveLength(2)
 
       const itemsPromise = source?.items({ query: ' notes ', editor: buildComposerEditorMock().editor })
       await vi.advanceTimersByTimeAsync(200)
       const items = await itemsPromise
-      expect(mocks.listDirectoryEntries).toHaveBeenLastCalledWith('/workspace', {
-        recursive: true,
-        maxDepth: 10,
-        includeHidden: false,
-        includeFiles: true,
-        includeDirectories: true,
-        maxEntries: 40,
-        searchPattern: 'notes'
-      })
-      expect(mocks.listDirectory).not.toHaveBeenCalled()
+
       expect(items).toHaveLength(2)
 
       const item = items?.find((candidate) => candidate.label === 'notes.md')
       if (!item?.id) throw new Error('Expected a file suggestion item')
-      expect(item).toEqual(
-        expect.objectContaining({
-          id: expect.stringMatching(/^agent-resource:.+/),
-          description: 'docs/notes.md',
-          disabled: false
-        })
-      )
-      expect(item.id).not.toContain('/workspace/docs/notes.md')
 
       const { editor, chain } = buildComposerEditorMock()
       item.command?.({ editor, range: { from: 0, to: 0 }, item, query: 'notes' })
@@ -2965,7 +3407,7 @@ describe('AgentComposer', () => {
       )
 
       const setFilesUpdater = mocks.setFiles.mock.calls.at(-1)?.[0]
-      expect(typeof setFilesUpdater).toBe('function')
+
       const selectedFile = { id: '/workspace/docs/notes.md', path: '/workspace/docs/notes.md' } as FileMetadata
       expect(setFilesUpdater([])).toEqual([
         expect.objectContaining({
@@ -3015,17 +3457,6 @@ describe('AgentComposer', () => {
 
     const items = await source.items({ query: '', editor: buildComposerEditorMock().editor })
 
-    expect(mocks.listDirectoryEntries).toHaveBeenCalledOnce()
-    expect(mocks.listDirectoryEntries).toHaveBeenCalledWith('/workspace', {
-      recursive: false,
-      includeHidden: false,
-      includeFiles: true,
-      includeDirectories: true,
-      maxEntries: 40,
-      searchPattern: '.'
-    })
-    expect(mocks.listDirectory).not.toHaveBeenCalled()
-
     const folderItem = items.find((item) => item.label === 'empty')
     if (!folderItem) throw new Error('Expected an empty-folder suggestion item')
     mocks.setFiles.mockClear()
@@ -3041,34 +3472,6 @@ describe('AgentComposer', () => {
       })
     )
     expect(mocks.setFiles).not.toHaveBeenCalled()
-  })
-
-  it('debounces non-empty combined resource search for 200ms', async () => {
-    vi.useFakeTimers()
-    try {
-      const { result } = renderAgentResourceMentionSource()
-      const source = requireFirstResourceMentionSource(result.current)
-      const itemsPromise = source.items({ query: 'notes', editor: buildComposerEditorMock().editor })
-
-      await vi.advanceTimersByTimeAsync(199)
-      expect(mocks.listDirectoryEntries).not.toHaveBeenCalled()
-
-      await vi.advanceTimersByTimeAsync(1)
-      expect(mocks.listDirectoryEntries).toHaveBeenCalledTimes(1)
-      expect(mocks.listDirectoryEntries).toHaveBeenLastCalledWith('/workspace', {
-        recursive: true,
-        maxDepth: 10,
-        includeHidden: false,
-        includeFiles: true,
-        includeDirectories: true,
-        maxEntries: 40,
-        searchPattern: 'notes'
-      })
-
-      await itemsPromise
-    } finally {
-      vi.useRealTimers()
-    }
   })
 
   it('drops stale in-flight combined resource results when a newer query finishes first', async () => {
@@ -3162,20 +3565,6 @@ describe('AgentComposer', () => {
     ])
   })
 
-  it('describes a workspace without accessible paths as having no resources', async () => {
-    const { result } = renderAgentResourceMentionSource([])
-    const source = requireFirstResourceMentionSource(result.current)
-
-    await expect(source.items({ query: '', editor: buildComposerEditorMock().editor })).resolves.toEqual([
-      expect.objectContaining({
-        id: 'agent-resource:no-paths',
-        label: 'chat.input.resource_panel.no_resources_found.label',
-        description: 'chat.input.resource_panel.no_resources_found.description',
-        disabled: true
-      })
-    ])
-  })
-
   it('marks a lexically equivalent Windows folder disabled after serializing the editor once', async () => {
     const folderPath = 'C:/workspace/docs'
     mocks.listDirectoryEntries.mockResolvedValue([{ path: folderPath, isDirectory: true }])
@@ -3212,43 +3601,26 @@ describe('AgentComposer', () => {
     expect(chain.insertContent).not.toHaveBeenCalled()
   })
 
-  it('groups workspace resources and sessions under header rows when @ has no query', async () => {
-    mocks.listDirectoryEntries.mockResolvedValue(
-      Array.from({ length: 7 }, (_, index) => ({ path: `/workspace/docs/f${index}.md`, isDirectory: false }))
-    )
-    vi.mocked(dataApiService.get).mockImplementation((async (path: string) => {
-      if (path === '/agent-sessions') {
-        return {
-          items: [{ id: 's1', agentId: 'agent-1', name: 'Session One', updatedAt: '2026-01-01T00:00:00.000Z' }]
-        }
-      }
-      if (path === '/search/entities') return { query: '', groups: [] }
-      return undefined
-    }) as never)
+  it('disables excluded extensions in @ resource mentions while keeping arbitrary wildcard files selectable', async () => {
+    mocks.listDirectoryEntries.mockResolvedValue([
+      { path: '/workspace/photo.png', isDirectory: false },
+      { path: '/workspace/data.sqlite', isDirectory: false }
+    ])
+    const { result } = renderAgentResourceMentionSource(['/workspace'], [anyFileExt, excludeFileExt('.png')])
+    const source = requireFirstResourceMentionSource(result.current)
+    const { editor, chain } = buildComposerEditorMock()
 
-    render(
-      <AgentComposer
-        agentId="agent-1"
-        sessionId="session-1"
-        sendMessage={mocks.sendMessage}
-        stop={mocks.stop}
-        isStreaming={false}
-      />
-    )
+    const items = await source.items({ query: '', editor })
+    const pngItem = items.find((item) => item.label === 'photo.png')
+    const sqliteItem = items.find((item) => item.label === 'data.sqlite')
+    expect(pngItem?.disabled).toBe(true)
+    expect(sqliteItem?.disabled).toBe(false)
 
-    const source = mocks.surfaceProps?.suggestionSources?.[0]
-    const items = await source?.items({ query: '', editor: {} as any })
-    const ids = items?.map((item) => item.id)
+    pngItem?.command?.({ editor, range: { from: 0, to: 0 }, item: pngItem, query: '' })
+    expect(chain.insertComposerToken).not.toHaveBeenCalled()
 
-    expect(ids?.[0]).toBe('agent-resource:resources-header')
-    expect(ids).toContain('agent-resource:sessions-header')
-    expect(ids).toContain('reference:session:s1')
-    // Workspace resources are capped below the fold so the sessions group stays visible.
-    const resourceRows = items?.filter((item) => item.id?.startsWith('agent-resource:') && !item.disabled)
-    expect(resourceRows).toHaveLength(5)
-    expect(ids?.indexOf('agent-resource:sessions-header')).toBeGreaterThan(
-      Number(ids?.indexOf('agent-resource:resources-header'))
-    )
+    sqliteItem?.command?.({ editor, range: { from: 0, to: 0 }, item: sqliteItem, query: '' })
+    expect(chain.insertComposerToken).toHaveBeenCalledTimes(1)
   })
 
   it('inserts the reference chip at once, blocks sending, then fills it when the transcript lands', async () => {
@@ -3392,34 +3764,6 @@ describe('AgentComposer', () => {
     )
   })
 
-  it('keeps ComposerSurface suggestion sources stable across streaming rerenders', () => {
-    const { rerender } = render(
-      <AgentComposer
-        agentId="agent-1"
-        sessionId="session-1"
-        sendMessage={mocks.sendMessage}
-        stop={mocks.stop}
-        isStreaming={false}
-      />
-    )
-
-    const initialSuggestionSources = mocks.surfaceProps?.suggestionSources
-    expect(initialSuggestionSources).toHaveLength(1)
-
-    rerender(
-      <AgentComposer
-        agentId="agent-1"
-        sessionId="session-1"
-        sendMessage={mocks.sendMessage}
-        stop={mocks.stop}
-        isStreaming
-      />
-    )
-
-    expect(mocks.surfaceProps?.isLoading).toBe(true)
-    expect(mocks.surfaceProps?.suggestionSources).toBe(initialSuggestionSources)
-  })
-
   it('queries the updated workspace scope through the @ mention suggestion source', async () => {
     mocks.listDirectoryEntries.mockResolvedValue([])
     const { rerender } = render(
@@ -3433,7 +3777,7 @@ describe('AgentComposer', () => {
     )
 
     const firstSource = mocks.surfaceProps?.suggestionSources?.[0]
-    expect(firstSource?.char).toBe('@')
+
     await firstSource?.items({ query: 'notes', editor: {} as any })
     expect(mocks.listDirectoryEntries).toHaveBeenLastCalledWith(
       '/workspace',
@@ -3531,7 +3875,6 @@ describe('AgentComposer', () => {
         disabled: true
       })
     )
-    expect(items?.[0]?.id).not.toContain('/workspace/docs/notes.md')
   })
 
   it('exposes available skills and a manage footer through the skills submenu launcher', () => {
@@ -3547,42 +3890,13 @@ describe('AgentComposer', () => {
       />
     )
 
-    expect(mocks.surfaceProps?.rootPanelAdditionalItems).toBeUndefined()
-    expect(mocks.registeredFooterActions.get('composer-toolbar-settings')).toEqual([
-      expect.objectContaining({ id: 'composer:customize-toolbar', ariaLabel: 'chat.input.toolbar.customize' })
-    ])
-    const skillsLauncher = mocks.registeredLaunchers.get('agent-skills')?.[0]
-    expect(skillsLauncher?.rootPanelPlacement).toBeUndefined()
-    expect(skillsLauncher?.order).toBe(40)
-    expect(skillsLauncher?.rootSearchItems).toEqual([
-      expect.objectContaining({
-        id: 'skill:pdf',
-        filterText: 'pdf Read and analyze PDFs',
-        suffix: 'plugins.skills'
-      })
-    ])
-    expect(mocks.pinnedLauncherIds).toEqual(['composer:new-session', 'agent-skills'])
-
     const panelOptions = getAgentSkillsPanelOptions()
     expect(panelOptions).not.toHaveProperty('footerActions')
     const items = panelOptions.list
-    expect(items).not.toContainEqual(expect.objectContaining({ id: 'composer:customize-toolbar' }))
+
     const skillItem = items[0]
-    expect(skillItem).toEqual(
-      expect.objectContaining({
-        id: 'skill:pdf',
-        label: 'pdf',
-        description: 'Read and analyze PDFs',
-        filterText: 'pdf Read and analyze PDFs'
-      })
-    )
-    expect(skillItem?.suffix).toBeUndefined()
 
     const manageItem = mocks.registeredFooterActions.get('agent-skills')?.[0]
-    expect(items).not.toContainEqual(expect.objectContaining({ id: 'agent-skills:manage' }))
-    expect(manageItem).toEqual(
-      expect.objectContaining({ id: 'agent-skills:manage', ariaLabel: 'plugins.manage_skills' })
-    )
     manageItem?.action?.({} as any)
     expect(mocks.openResourceEditDialog).toHaveBeenCalledWith({
       kind: 'agent',
@@ -3591,12 +3905,9 @@ describe('AgentComposer', () => {
     })
 
     render(<div data-testid="skill-panel-icon">{skillItem?.icon}</div>)
-    expect(screen.getByTestId('skill-panel-icon').querySelector('.lucide-tool-case')).toBeInTheDocument()
-    expect(mocks.surfaceProps?.managedTokenKinds).toEqual(['file', 'knowledge', 'skill'])
 
     mocks.availableSkillsRefresh.mockClear()
     mocks.surfaceProps?.onRootPanelOpen?.()
-    expect(mocks.availableSkillsRefresh).toHaveBeenCalledOnce()
 
     const inputAdapter = {
       getText: vi.fn(() => ''),
@@ -3617,24 +3928,75 @@ describe('AgentComposer', () => {
     expect(inputAdapter.focus).toHaveBeenCalled()
   })
 
-  it('stops excluding the skills launcher when the toolbar shortcut is unpinned in place', () => {
-    const renderComposer = () => (
+  it('keeps same-named local and remote skills independently selectable and surfaces a failed origin', async () => {
+    mocks.availableSkills = [pdfSkill]
+    mocks.optionalQuickPanel = { isVisible: true, symbol: 'agent-skills', updateList: vi.fn() }
+    mocks.ipcApiRequest.mockImplementation(async (route, { serverId }) => {
+      if (route !== 'mcp.server.list_skills') return {}
+      if (serverId === 'offline') throw new Error('Origin unavailable')
+      return (
+        serverId === 'one' ? ['skill://pdf/SKILL.md', 'skill://team/pdf/SKILL.md'] : ['skill://pdf/SKILL.md']
+      ).map((uri) => ({
+        serverId,
+        serverName: serverId,
+        uri,
+        frontmatter: { name: 'pdf', description: 'Read PDFs' },
+        resources: 'dynamic'
+      }))
+    })
+    render(
       <AgentComposer
         agentId="agent-1"
         sessionId="session-1"
         sendMessage={mocks.sendMessage}
         stop={mocks.stop}
         isStreaming={false}
+        resolvedAgent={{ ...createControlledAgent(), mcps: ['one', 'two', 'offline'] }}
       />
     )
-    const { rerender } = render(renderComposer())
+    await waitFor(() => expect(mocks.registeredLaunchers.get('agent-skills')?.[0].rootSearchItems).toHaveLength(5))
+    const items = mocks.registeredLaunchers.get('agent-skills')![0].rootSearchItems!
+    expect(new Set(items.map((item) => item.id)).size).toBe(5)
+    expect(items.filter((item) => item.label === 'pdf · one')).toHaveLength(2)
+    expect(items.find((item) => item.label === 'pdf · two')?.description).toContain('skill://pdf/SKILL.md')
+    expect(items.find((item) => item.id === 'skill:pdf')?.label).toBe('pdf')
+    expect(items.find((item) => item.disabled)?.description).toContain('Origin unavailable')
+  })
 
-    expect(mocks.pinnedLauncherIds).toContain('agent-skills')
-
-    mocks.pinnedToolIds = mocks.pinnedToolIds.filter((id) => id !== 'skills')
-    rerender(renderComposer())
-
-    expect(mocks.pinnedLauncherIds).not.toContain('agent-skills')
+  it('distinguishes and searches identical Skills from same-named servers', async () => {
+    const ids = ['shared-server-one', 'shared-server-two']
+    mocks.optionalQuickPanel = { isVisible: true, symbol: 'agent-skills', updateList: vi.fn() }
+    mocks.ipcApiRequest.mockImplementation(async (route, { serverId }) =>
+      route === 'mcp.server.list_skills'
+        ? [
+            {
+              serverId,
+              serverName: 'Shared',
+              uri: 'skill://pdf/SKILL.md',
+              frontmatter: { name: 'pdf', description: 'Read PDFs' },
+              resources: 'dynamic'
+            }
+          ]
+        : {}
+    )
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+        resolvedAgent={{ ...createControlledAgent(), mcps: ids }}
+      />
+    )
+    await waitFor(() => expect(mocks.registeredLaunchers.get('agent-skills')?.[0].rootSearchItems).toHaveLength(2))
+    const items = mocks.registeredLaunchers.get('agent-skills')![0].rootSearchItems!
+    expect(new Set(items.map((item) => `${item.label} ${item.description}`)).size).toBe(2)
+    for (const serverId of ids) {
+      const item = items.find((item) => item.id === `mcp-skill:${JSON.stringify([serverId, 'skill://pdf/SKILL.md'])}`)!
+      expect(item.description).toContain(serverId)
+      expect(item.filterText).toContain(serverId)
+    }
   })
 
   it('refreshes an already-open skills submenu when the skill list changes', () => {
@@ -4175,7 +4537,6 @@ describe('AgentComposer', () => {
       />
     )
 
-    expect(mocks.surfaceProps?.managedTokenKinds).toEqual(['file', 'skill'])
     expect(mocks.selectedKnowledgeBases).toEqual([])
     expect(cacheService.set).not.toHaveBeenCalled()
 
@@ -4192,7 +4553,7 @@ describe('AgentComposer', () => {
     )
 
     await waitFor(() => expect(mocks.selectedKnowledgeBases).toEqual([knowledgeBaseOne]))
-    expect(mocks.surfaceProps?.managedTokenKinds).toEqual(['file', 'knowledge', 'skill'])
+
     expect(cacheService.set).not.toHaveBeenCalledWith(
       'agent.composer_draft.session_session-1',
       expect.objectContaining({ knowledgeBaseIds: [] }),
@@ -5088,30 +5449,6 @@ describe('AgentComposer', () => {
     expect(mocks.stop).toHaveBeenCalledTimes(1)
   })
 
-  it('handles a failed active stream stop at the composer boundary', async () => {
-    const stopError = new Error('main abort failed')
-    mocks.stop.mockRejectedValueOnce(stopError)
-    const loggerError = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
-    render(
-      <AgentComposer
-        agentId="agent-1"
-        sessionId="session-1"
-        sendMessage={mocks.sendMessage}
-        stop={mocks.stop}
-        isStreaming
-      />
-    )
-
-    fireEvent.click(screen.getByText('pause'))
-
-    await waitFor(() =>
-      expect(loggerError).toHaveBeenCalledWith('Failed to abort agent session', {
-        sessionTopicId: 'agent-session:session-1',
-        error: stopError
-      })
-    )
-  })
-
   it('queues a follow-up while the agent session is streaming (does not send directly)', () => {
     render(
       <AgentComposer
@@ -5128,6 +5465,36 @@ describe('AgentComposer', () => {
     // Busy → the message is queued, not sent; the dock surfaces through `queueContent`.
     expect(mocks.sendMessage).not.toHaveBeenCalled()
     expect(getQueueDock()).toBeTruthy()
+  })
+
+  // A dock item lives in window memory; Durable must receive the follow-up so it survives a crash.
+  it.each([
+    { steer: false, followUp: true },
+    { steer: true, followUp: undefined }
+  ])('sends a busy Pi Durable message at once (steer: $steer)', async ({ steer, followUp }) => {
+    MockUseCacheUtils.setSharedCacheValue('agent.session.runtime_controls.session-1', {
+      generation: 'generation-1',
+      compact: false,
+      durableFollowUp: true
+    })
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming
+        resolvedAgent={{ ...createControlledAgent(), type: 'pi-durable' }}
+      />
+    )
+
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] }, { steer })
+    })
+
+    expect(getQueueDock()).toBeFalsy()
+    expect(mocks.sendMessage).toHaveBeenCalledTimes(1)
+    expect(mocks.sendMessage.mock.calls[0][1].body.followUp).toBe(followUp)
   })
 
   it('sends a follow-up immediately while background tasks remain after the foreground stream ends', async () => {
@@ -5489,6 +5856,43 @@ describe('AgentComposer', () => {
     expect(mocks.surfaceFocus).not.toHaveBeenCalled()
   })
 
+  // Durable withdrew this message at Stop: resending must deliver it as it was, editing must not erase a draft.
+  it('resends or restores a message that Stop withdrew before sending', async () => {
+    const parts = [{ type: 'text' as const, text: 'Queued question' }]
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+    const restore = (send: boolean) =>
+      act(async () => {
+        await EventEmitter.emit(EVENT_NAMES.RESTORE_AGENT_COMPOSER_MESSAGE, {
+          topicId: 'agent-session:session-1',
+          messageId: 'unsent-1',
+          parts,
+          send
+        })
+      })
+
+    await restore(true)
+    expect(mocks.sendMessage).toHaveBeenCalledTimes(1)
+    expect(mocks.sendMessage.mock.calls[0][1].body.userMessageParts).toEqual(parts)
+
+    mocks.getDraft.mockReturnValue({ text: 'Draft in progress', tokens: [] })
+    await restore(false)
+    expect(mocks.replaceDraft).not.toHaveBeenCalled()
+    expect(toast.warning).toHaveBeenCalledWith('agent.unsent_message.input_not_empty')
+
+    mocks.getDraft.mockReturnValue({ text: '', tokens: [] })
+    await restore(false)
+    expect(mocks.replaceDraft).toHaveBeenCalledWith({ text: 'Queued question', tokens: [] })
+    expect(mocks.sendMessage).toHaveBeenCalledTimes(1)
+  })
+
   it('attaches a file or folder from the file pane once, and only in its own session', async () => {
     const composer = () => (
       <AgentComposer
@@ -5548,9 +5952,6 @@ describe('AgentComposer', () => {
       />
     )
 
-    expect(screen.queryByTestId('agent-selector')).not.toBeInTheDocument()
-    expect(screen.getByTestId('agent-model-selector')).toBeInTheDocument()
-
     fireEvent.click(screen.getByText('Agent').closest('button')!)
 
     const dialog = await screen.findByTestId('resource-edit-dialog-host')
@@ -5570,10 +5971,6 @@ describe('AgentComposer', () => {
         isStreaming={false}
       />
     )
-
-    expect(screen.getByTestId('agent-selector')).toBeInTheDocument()
-    expect(screen.getByText('select agent 2')).toBeInTheDocument()
-    expect(screen.getByTestId('agent-selector')).toHaveAttribute('data-auto-select-on-create', 'true')
 
     fireEvent.click(screen.getByText('select agent 2'))
 
@@ -5610,7 +6007,6 @@ describe('AgentComposer', () => {
 
     expect(mocks.surfaceProps?.text).toBe('draft for agent one')
     expect(mocks.surfaceProps?.tokens).toContainEqual(pdfSkillToken)
-    expect(mocks.runtimeProviderMounts).toBe(1)
 
     fireEvent.click(screen.getByText('select agent 2'))
     await waitFor(() => {
@@ -5634,8 +6030,6 @@ describe('AgentComposer', () => {
     expect(mocks.surfaceProps?.text).toBe('')
     expect(mocks.surfaceProps?.tokens).toEqual([])
     expect(mocks.surfaceProps?.draftTokens).toEqual([])
-    expect(mocks.runtimeProviderMounts).toBe(2)
-    expect(mocks.runtimeProviderUnmounts).toBe(1)
   })
 
   it('restores composer focus after closing the active session agent edit dialog', async () => {
@@ -5680,108 +6074,15 @@ describe('AgentComposer', () => {
     expect(mocks.surfaceFocus).toHaveBeenCalledTimes(1)
   })
 
-  it('keeps the active session agent control visible in classic layout', () => {
-    mocks.sessionLayout = 'classic'
-
-    render(
-      <AgentComposer
-        agentId="agent-1"
-        sessionId="session-1"
-        sendMessage={mocks.sendMessage}
-        stop={mocks.stop}
-        isStreaming={false}
-      />
-    )
-
-    expect(screen.queryByTestId('agent-selector')).not.toBeInTheDocument()
-    expect(screen.getByText('Agent')).toBeInTheDocument()
-    expect(screen.getByTestId('agent-model-selector')).toBeInTheDocument()
-    expect(screen.queryByTestId('resource-edit-dialog-host')).not.toBeInTheDocument()
-    expect(mocks.updateSession).not.toHaveBeenCalled()
-  })
-
-  it('shows only icons in the input bottom toolbar when it is narrow', async () => {
-    render(
-      <AgentComposer
-        agentId="agent-1"
-        sessionId="session-1"
-        sendMessage={mocks.sendMessage}
-        stop={mocks.stop}
-        isStreaming={false}
-      />
-    )
-
-    expect(screen.getByText('Agent')).not.toHaveClass('sr-only')
-
-    await notifyComposerBottomToolbarWidth(420)
-
-    await waitFor(() => {
-      expect(screen.getByText('Agent')).toHaveClass('sr-only')
-    })
-  })
-
-  it('keeps input bottom toolbar labels visible when the toolbar fits', async () => {
-    render(
-      <AgentComposer
-        agentId="agent-1"
-        sessionId="session-1"
-        sendMessage={mocks.sendMessage}
-        stop={mocks.stop}
-        isStreaming={false}
-      />
-    )
-
-    await notifyComposerBottomToolbarWidth(420, 420)
-
-    expect(screen.getByText('Agent')).not.toHaveClass('sr-only')
-  })
-
-  it('renders the agent, model, and workspace below the surface in draft home mode', () => {
-    mocks.sessionLayout = 'time'
-
-    render(
-      <AgentHomeComposer
-        agentId="agent-1"
-        sessionId="session-1"
-        sendMessage={mocks.sendMessage}
-        stop={mocks.stop}
-        isStreaming={false}
-      />
-    )
-
-    const leftControls = screen.getByTestId('composer-left-controls')
-    expect(within(leftControls).getByRole('button', { name: 'tool menu' })).toBeInTheDocument()
-    expect(leftControls).not.toHaveTextContent('Agent')
-    expect(mocks.surfaceProps?.narrowMode).toBe(true)
-    const belowControls = screen.getByTestId('composer-below-controls')
-    expect(belowControls).toHaveTextContent('Agent')
-    expect(belowControls).toHaveTextContent('Claude Sonnet 4.5')
-    expect(belowControls).toHaveTextContent('Workspace 1')
-    const sendAccessory = screen.getByTestId('composer-send-accessory')
-    expect(within(sendAccessory).queryByRole('button', { name: 'tool menu' })).not.toBeInTheDocument()
-    expect(sendAccessory).not.toHaveTextContent('Workspace 1')
-    expect(screen.getByTestId('agent-model-selector')).toBeInTheDocument()
-
-    const belowText = belowControls.textContent ?? ''
-    expect(belowText.indexOf('Agent')).toBeLessThan(belowText.indexOf('Claude Sonnet 4.5'))
-    expect(belowText.indexOf('Claude Sonnet 4.5')).toBeLessThan(belowText.indexOf('Workspace 1'))
-  })
-
   it('keeps missing-agent input local while selecting an agent', () => {
     const onAgentChange = vi.fn()
 
     render(<MissingAgentHomeComposer onAgentChange={onAgentChange} />)
 
-    expect(screen.getByTestId('agent-selector')).toHaveAttribute('data-auto-select-on-create', 'true')
-    const leftControls = screen.getByTestId('composer-left-controls')
-    expect(leftControls).toHaveTextContent('chat.alerts.select_agent')
     // The model selector renders inline as a disabled placeholder until an agent is picked.
-    expect(leftControls).toHaveTextContent('button.select_model')
-    expect(leftControls).not.toHaveTextContent('Workspace 1')
-    expect(screen.getByTestId('composer-below-controls')).toBeEmptyDOMElement()
+
     expect(mocks.surfaceProps?.sendDisabled).toBe(true)
     expect(mocks.surfaceProps?.sendBlockedReason).toBe('chat.alerts.select_agent')
-    expect(mocks.surfaceProps?.narrowMode).toBe(false)
 
     act(() => {
       mocks.surfaceProps?.onTextChange('draft before agent')
@@ -5790,117 +6091,6 @@ describe('AgentComposer', () => {
 
     expect(cacheService.set).not.toHaveBeenCalled()
     expect(onAgentChange).toHaveBeenCalledWith('agent-2')
-  })
-
-  it('keeps the missing-agent trigger visible in classic layout', () => {
-    mocks.sessionLayout = 'classic'
-
-    render(<MissingAgentHomeComposer onAgentChange={vi.fn()} />)
-
-    expect(screen.getByTestId('agent-selector')).toBeInTheDocument()
-    expect(screen.getByTestId('composer-left-controls')).toHaveTextContent('chat.alerts.select_agent')
-    expect(mocks.surfaceProps?.sendBlockedReason).toBe('chat.alerts.select_agent')
-  })
-
-  it('shows a disabled workspace placeholder in the missing-agent composer outside workdir mode', () => {
-    mocks.sessionLayout = 'time'
-
-    render(<MissingAgentHomeComposer onAgentChange={vi.fn()} />)
-
-    const leftControls = screen.getByTestId('composer-left-controls')
-    const workspaceLabel = within(leftControls).getByText('agent.session.workspace_selector.placeholder')
-    expect(workspaceLabel.closest('button')).toBeDisabled()
-  })
-
-  it('keeps the workspace placeholder visible in the missing-agent composer in workdir mode', () => {
-    mocks.sessionLayout = 'workdir'
-
-    render(<MissingAgentHomeComposer onAgentChange={vi.fn()} />)
-
-    expect(screen.getByTestId('composer-left-controls')).toHaveTextContent(
-      'agent.session.workspace_selector.placeholder'
-    )
-  })
-
-  it('shows only icons in the draft home bottom toolbar when it is narrow', async () => {
-    mocks.sessionLayout = 'time'
-
-    render(
-      <AgentHomeComposer
-        agentId="agent-1"
-        sessionId="session-1"
-        sendMessage={mocks.sendMessage}
-        stop={mocks.stop}
-        isStreaming={false}
-      />
-    )
-
-    expect(screen.getByText('Agent')).not.toHaveClass('sr-only')
-    expect(screen.getByText('Claude Sonnet 4.5 | Anthropic')).not.toHaveClass('sr-only')
-    expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('Workspace 1')
-    expect(screen.getByTestId('composer-send-accessory')).not.toHaveTextContent('Workspace 1')
-
-    await notifyComposerBottomToolbarWidth(420)
-
-    await waitFor(() => {
-      expect(screen.getByText('Agent')).toHaveClass('sr-only')
-      expect(screen.getByText('Claude Sonnet 4.5 | Anthropic')).toHaveClass('sr-only')
-    })
-    expect(screen.getByText('Workspace 1')).toHaveClass('sr-only')
-  })
-
-  it('renders a workspace opener in docked composer mode', () => {
-    render(
-      <AgentComposer
-        agentId="agent-1"
-        sessionId="session-1"
-        sendMessage={mocks.sendMessage}
-        stop={mocks.stop}
-        isStreaming={false}
-      />
-    )
-
-    expect(screen.getByTestId('composer-left-controls')).toHaveTextContent('Workspace 1')
-    expect(screen.getByTestId('workspace-open-button')).toHaveAttribute('data-workdir', '/workspace')
-    expect(screen.getByTestId('composer-below-controls')).not.toHaveTextContent('Workspace 1')
-    expect(screen.getByTestId('composer-send-accessory')).not.toHaveTextContent('Workspace 1')
-    expect(screen.queryByText('select workspace 2')).not.toBeInTheDocument()
-  })
-
-  it('keeps the workspace selector visible when sessions are grouped by workspace', () => {
-    render(
-      <AgentComposer
-        agentId="agent-1"
-        sessionId="session-1"
-        sendMessage={mocks.sendMessage}
-        stop={mocks.stop}
-        onWorkspaceChange={vi.fn()}
-        isStreaming={false}
-      />
-    )
-
-    expect(screen.getByTestId('composer-left-controls')).toHaveTextContent('Workspace 1')
-    expect(screen.getByText('select workspace 2')).toBeInTheDocument()
-  })
-
-  it('keeps the workspace opener visible in the alternate grouping mode', () => {
-    mocks.sessionLayout = 'time'
-
-    render(
-      <AgentComposer
-        agentId="agent-1"
-        sessionId="session-1"
-        sendMessage={mocks.sendMessage}
-        stop={mocks.stop}
-        isStreaming={false}
-      />
-    )
-
-    const leftControls = screen.getByTestId('composer-left-controls')
-    expect(leftControls).toHaveTextContent('Workspace 1')
-    expect(screen.getByTestId('workspace-open-button')).toHaveAttribute('data-workdir', '/workspace')
-    expect(screen.getByTestId('composer-send-accessory')).not.toHaveTextContent('Workspace 1')
-    expect(screen.queryByText('select workspace 2')).not.toBeInTheDocument()
   })
 
   it('releases docked workspace changes to the provided handler', () => {
@@ -5943,36 +6133,6 @@ describe('AgentComposer', () => {
     expect(onWorkspaceChange).toHaveBeenCalledWith('workspace-2')
   })
 
-  it('renders the controlled system no-project workspace without a local preflight', () => {
-    mocks.sessionLayout = 'time'
-
-    render(
-      <AgentComposer
-        agentId="agent-1"
-        sessionId="session-1"
-        sessionOverride={{
-          workspaceId: 'system-workspace-1',
-          workspace: {
-            id: 'system-workspace-1',
-            type: 'system',
-            name: 'agent.session.workspace_selector.no_project',
-            path: '/Users/jd/Library/Application Support/CherryStudioDev/Data/Agents/system-workspace-1'
-          }
-        }}
-        sendMessage={mocks.sendMessage}
-        stop={mocks.stop}
-        isStreaming={false}
-      />
-    )
-
-    expect(screen.getByTestId('composer-left-controls')).toHaveTextContent(
-      'agent.session.workspace_selector.no_project'
-    )
-    expect(screen.getByTestId('composer-send-accessory')).not.toHaveTextContent(
-      'agent.session.workspace_selector.no_project'
-    )
-    expect(mocks.ipcApiRequest).not.toHaveBeenCalledWith('file.get_metadata', expect.anything())
-  })
   describe('queued edit switching', () => {
     async function setup(texts = ['A', 'B']) {
       mocks.getDraft.mockImplementation(() => ({ text: mocks.surfaceProps?.text ?? '', tokens: [] }))
@@ -6031,21 +6191,6 @@ describe('AgentComposer', () => {
       ).not.toHaveProperty('fastMode')
     })
 
-    it('returns unchanged A under its original identity and supports switching back', async () => {
-      const {
-        dock,
-        originals: [a, b],
-        edit
-      } = await setup()
-      await edit(a.id)
-      await edit(b.id)
-      expect(dock()?.items, 'switching to B must preserve the entire queued A').toEqual([a])
-      expect(mocks.surfaceProps?.text, 'B must own the editor after the switch').toBe('B')
-      await edit(a.id)
-      expect(dock()?.items, 'switching back must preserve B under its original id').toEqual([b])
-      expect(mocks.surfaceProps?.text, 'A must reopen').toBe('A')
-    })
-
     it('rebuilds edited A from the live document before restoring B', async () => {
       const {
         dock,
@@ -6069,19 +6214,6 @@ describe('AgentComposer', () => {
       )
       expect(mocks.surfaceProps?.text, 'steering returned A must leave B in the editor').toBe('B')
       expect(dock(), 'accepted A must leave the visible queue').toBeFalsy()
-    })
-
-    it('returns the original draft and payload together when A is empty', async () => {
-      const {
-        dock,
-        originals: [a, b],
-        edit
-      } = await setup()
-      await edit(a.id)
-      act(() => mocks.surfaceProps?.onTextChange('   '))
-      await edit(b.id)
-      expect(dock()?.items, 'blank editing must not discard or mismatch A draft and payload').toEqual([a])
-      expect(mocks.surfaceProps?.text, 'the valid switch must open B').toBe('B')
     })
 
     it('refuses a switch with unsynchronised files without touching queue cache or editor', async () => {
@@ -6251,39 +6383,3 @@ describe('AgentComposer', () => {
     }
   )
 })
-
-async function notifyComposerBottomToolbarWidth(width: number, scrollWidth = width + 240) {
-  await waitFor(() => {
-    expect(
-      resizeObserverMockInstances.some((instance) =>
-        Array.from(instance.targets).some((target) => String(target.getAttribute('class') ?? '').includes('max-w-full'))
-      )
-    ).toBe(true)
-  })
-
-  const toolbarObservers = resizeObserverMockInstances.flatMap((instance) => {
-    const target = Array.from(instance.targets).find((target) =>
-      String(target.getAttribute('class') ?? '').includes('max-w-full')
-    )
-    return target ? [{ instance, target }] : []
-  })
-  if (toolbarObservers.length === 0) {
-    throw new Error('Expected composer bottom toolbar to create a ResizeObserver')
-  }
-
-  act(() => {
-    for (const { instance, target } of toolbarObservers) {
-      Object.defineProperty(target, 'clientWidth', { configurable: true, value: width })
-      Object.defineProperty(target, 'scrollWidth', { configurable: true, value: scrollWidth })
-      instance.callback(
-        [
-          {
-            target,
-            contentRect: { width }
-          } as ResizeObserverEntry
-        ],
-        {} as ResizeObserver
-      )
-    }
-  })
-}

@@ -75,7 +75,30 @@ describe('useOpenFilePreviewTab', () => {
       title: 'report.md'
     })
     expect(mocks.updateTab).toHaveBeenCalledWith('file-preview-tab', {
-      metadata: { filePreviewRefreshKey: 3, retained: true }
+      metadata: { filePreviewRefreshKey: 3, filePreviewSourceLocation: undefined, retained: true }
+    })
+  })
+
+  it('reuses the file tab across line targets and clears the target on a normal open', () => {
+    mocks.tabs.push({
+      id: 'file-preview-tab',
+      metadata: { filePreviewRefreshKey: 2, filePreviewSourceLocation: { line: 7 } },
+      type: 'route',
+      url: '/app/file-preview?path=%2Ftmp%2Freport.md'
+    })
+    const { result } = renderHook(() => useOpenFilePreviewTab())
+    act(() => {
+      result.current('/tmp/report.md' as AbsoluteFilePath, undefined, { line: 42 })
+    })
+    expect(mocks.openTab).toHaveBeenLastCalledWith('/app/file-preview?path=%2Ftmp%2Freport.md', { title: 'report.md' })
+    expect(mocks.updateTab).toHaveBeenLastCalledWith('file-preview-tab', {
+      metadata: { filePreviewRefreshKey: 3, filePreviewSourceLocation: { line: 42 } }
+    })
+    act(() => {
+      result.current('/tmp/report.md' as AbsoluteFilePath)
+    })
+    expect(mocks.updateTab).toHaveBeenLastCalledWith('file-preview-tab', {
+      metadata: { filePreviewRefreshKey: 3, filePreviewSourceLocation: undefined }
     })
   })
 
