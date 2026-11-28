@@ -121,15 +121,13 @@ const ROOT_QUICK_PANEL_TRIGGER_SOURCES = [
 ] as const
 const EMPTY_SUGGESTION_SOURCES: readonly ComposerSuggestionSource[] = []
 const COMMAND_COMPLETION_PANEL = 'agent-command-completion'
-const SLASH_COMPLETION_DESCRIPTION_KEYS: Record<string, string> = {
-  '/goal': 'chat.input.slash_commands.commands.goal',
+const SLASH_SUBCOMMAND_DESCRIPTION_KEYS: Record<string, string> = {
   '/goal budget': 'chat.input.slash_commands.subcommands.goal_budget',
   '/goal clear': 'chat.input.slash_commands.subcommands.goal_clear',
   '/goal edit': 'chat.input.slash_commands.subcommands.goal_edit',
   '/goal pause': 'chat.input.slash_commands.subcommands.goal_pause',
   '/goal resume': 'chat.input.slash_commands.subcommands.goal_resume',
   '/goal rounds': 'chat.input.slash_commands.subcommands.goal_rounds',
-  '/plan': 'chat.input.slash_commands.commands.plan',
   '/plan off': 'chat.input.slash_commands.subcommands.plan_off'
 }
 type SlashCompletionCommand = SlashCommand & Pick<AgentSessionSlashCommand, 'aliases' | 'builtin'>
@@ -149,7 +147,7 @@ function getSlashCompletion(commands: readonly SlashCompletionCommand[], query: 
           ? subcommands
               .filter((value) => value.startsWith(partial))
               .map((label) => {
-                const key = exact.builtin !== false && SLASH_COMPLETION_DESCRIPTION_KEYS[`${exact.command} ${label}`]
+                const key = exact.builtin === true && SLASH_SUBCOMMAND_DESCRIPTION_KEYS[`${exact.command} ${label}`]
                 return { label, description: key ? t(key) : undefined }
               })
           : []
@@ -161,10 +159,7 @@ function getSlashCompletion(commands: readonly SlashCompletionCommand[], query: 
     .filter(
       ({ command, aliases }) => command.startsWith(commandName) || aliases?.some((alias) => alias.startsWith(name))
     )
-    .map(({ command: label, builtin, description }) => {
-      const key = builtin !== false && SLASH_COMPLETION_DESCRIPTION_KEYS[label]
-      return { label, description: key ? t(key) : description }
-    })
+    .map(({ command: label, description }) => ({ label, description }))
   return items.length ? { offset: 0, items } : undefined
 }
 

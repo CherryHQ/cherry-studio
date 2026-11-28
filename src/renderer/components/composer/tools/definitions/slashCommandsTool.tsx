@@ -80,12 +80,10 @@ const slashCommandsTool = defineTool({
 
         // Goal is a mode entry; other slash commands remain trailing root suggestions.
         const commandLaunchers: ComposerToolLauncher[] = slashCommands.map((cmd, index) => {
-          const isGoal = cmd.command === '/goal' && cmd.builtin !== false
-          const descriptionKey = liveCommands
-            ? cmd.builtin === true
-              ? SLASH_COMMAND_DESCRIPTION_KEYS[cmd.command]
-              : undefined
-            : SLASH_COMMAND_DESCRIPTION_KEYS[cmd.command]
+          const isBuiltin = !liveCommands || cmd.builtin === true
+          const isGoal = cmd.command === '/goal' && isBuiltin
+          const descriptionKey =
+            isBuiltin && session?.agentType !== 'local' ? SLASH_COMMAND_DESCRIPTION_KEYS[cmd.command] : undefined
 
           return {
             id: `slash-command:${cmd.command}`,

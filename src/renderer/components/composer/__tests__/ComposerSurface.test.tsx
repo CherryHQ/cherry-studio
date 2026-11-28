@@ -1980,27 +1980,25 @@ describe('ComposerSurface', () => {
     expect(mocks.quickPanelDispatchKeyDown).toHaveBeenCalledWith(event)
   })
 
-  it('completes a command at the caret while keeping the rest of the draft', async () => {
+  it.each([
+    { command: '/plan', description: 'Create an implementation plan for the current project' },
+    { command: '/goal', description: 'Draft the weekly goals summary' }
+  ])('completes $command with its catalog description and keeps the rest of the draft', async (command) => {
     const onSend = vi.fn()
-    render(
-      <ComposerSurface
-        {...baseProps}
-        onSendDraft={onSend}
-        quickPanelEnabled
-        agentSlashCommands={[{ command: '/goal' }]}
-      />
-    )
+    render(<ComposerSurface {...baseProps} onSendDraft={onSend} quickPanelEnabled agentSlashCommands={[command]} />)
     const { createComposerEditorPreset } = await vi.importActual<typeof ComposerPreset>('../composerPreset')
     const editor = new Editor({ extensions: createComposerEditorPreset(mocks.editorPresetOptions) })
     try {
       await act(async () => {
-        editor.commands.insertContent('/gob existing objective')
+        editor.commands.insertContent(`${command.command.slice(0, 3)}b existing objective`)
         editor.commands.setTextSelection(4)
       })
       const panel = mocks.quickPanelOpen.mock.lastCall?.[0]
-      expect(panel?.list.map((item: QuickPanelListItem) => item.label)).toEqual(['/goal'])
+      expect(panel?.list).toEqual([
+        expect.objectContaining({ label: command.command, description: command.description })
+      ])
       await act(async () => panel.list[0].action())
-      expect(editor.getText()).toBe('/goal existing objective')
+      expect(editor.getText()).toBe(`${command.command} existing objective`)
       expect(onSend).not.toHaveBeenCalled()
     } finally {
       editor.destroy()

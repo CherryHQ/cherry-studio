@@ -120,11 +120,12 @@ it('executes the exported clear alias and publishes the new thread identity', as
 it('invokes a skill before opening the menu and refreshes the observed catalog while idle', async () => {
   const { peer, session, events, complete } = await openSession()
   const skill = { name: 'design', path: '/workspace/design/SKILL.md' }
+  const description = 'Review a design against the project guidelines'
   try {
     const sent = session.send([{ type: 'text', text: '/design review this' }])
     const discovery = await peer.read()
     expect(discovery).toMatchObject({ method: 'skills/list', params: { cwds: ['/workspace'] } })
-    peer.send({ id: discovery.id, result: { data: [{ skills: [skill] }] } })
+    peer.send({ id: discovery.id, result: { data: [{ skills: [{ ...skill, description, shortDescription: ' ' }] }] } })
     const turn = await peer.read()
     expect(turn).toMatchObject({
       method: 'turn/start',
@@ -138,7 +139,9 @@ it('invokes a skill before opening the menu and refreshes the observed catalog w
     peer.send({ id: turn.id, result: { turn: { id: 'one' } } })
     await sent
     complete('one')
-    expect(await session.listCommands()).toContainEqual(expect.objectContaining({ name: 'design', builtin: false }))
+    expect(await session.listCommands()).toContainEqual(
+      expect.objectContaining({ name: 'design', description, builtin: false })
+    )
 
     peer.send({ method: 'skills/changed' })
     const refresh = await peer.read()

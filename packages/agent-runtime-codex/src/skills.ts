@@ -25,7 +25,7 @@ export class CodexSkills {
                 skills.set(skill.name, {
                   name: skill.name,
                   path: skill.path,
-                  description: (skill.shortDescription || skill.description || '').trim()
+                  description: skill.shortDescription?.trim() || skill.description?.trim() || ''
                 })
             }
           }

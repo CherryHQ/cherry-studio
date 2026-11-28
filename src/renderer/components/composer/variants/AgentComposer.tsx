@@ -374,9 +374,17 @@ const AgentComposerRoot = ({
   const compact = useSharedCacheValue(AGENT_SESSION_RUNTIME_CONTROLS_CACHE_KEY(sessionId ?? '__none__'))?.compact
   const { t } = useTranslation()
   const sessionSlashCommands = useMemo(() => {
-    if (!compact || commands?.some(({ command }) => command === '/compact')) return commands
+    const catalog =
+      commands ??
+      (agent &&
+        AGENT_RUNTIME_CAPABILITIES[agent.type].slashCommands.map((command) => ({
+          ...command,
+          builtin: true,
+          description: command.command === '/goal' ? t('chat.input.slash_commands.commands.goal') : command.description
+        })))
+    if (!compact || catalog?.some(({ command }) => command === '/compact')) return catalog
     return [
-      ...(commands ?? (agent ? AGENT_RUNTIME_CAPABILITIES[agent.type].slashCommands : [])),
+      ...(catalog ?? []),
       {
         command: '/compact',
         description: t('chat.input.slash_commands.commands.compact'),
@@ -431,6 +439,7 @@ const AgentComposerRoot = ({
         draftPersistenceEnabled={draftPersistenceEnabled}
         workspaceKey={workspaceKey}
         sessionData={sessionData}
+        agentSlashCommands={sessionSlashCommands}
         workspace={session?.workspace ?? null}
         workspaceId={resolvedWorkspaceId}
         actionsRef={actionsRef}
@@ -477,6 +486,7 @@ interface InnerProps {
   draftPersistenceEnabled: boolean
   workspaceKey: string
   sessionData?: ToolContext['session']
+  agentSlashCommands?: ComposerSurfaceProps['agentSlashCommands']
   workspace?: AgentConversationWorkspace | null
   workspaceId?: string | null
   actionsRef: React.MutableRefObject<ProviderActionHandlers>
@@ -569,6 +579,7 @@ const AgentComposerInner = ({
   draftPersistenceEnabled,
   workspaceKey,
   sessionData,
+  agentSlashCommands,
   workspace,
   workspaceId,
   actionsRef,
@@ -2097,7 +2108,7 @@ const AgentComposerInner = ({
           getToolLaunchers={() => getLaunchers()}
           toolLaunchersVersion={toolLaunchersVersion}
           suggestionSources={resourceMentionSources}
-          agentSlashCommands={sessionData?.slashCommands ?? capabilities?.slashCommands}
+          agentSlashCommands={agentSlashCommands}
           rootPanelLeadingItems={rootPanelNewSessionItems}
           onRootPanelOpen={handleRootPanelOpen}
           onToolLauncherSelect={(launcher, options) => dispatchLauncher(launcher, options)}

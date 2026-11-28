@@ -109,15 +109,18 @@ describe('slashCommandsTool', () => {
     expect(inputAdapter.insertText).toHaveBeenCalledWith('/security-review ')
   })
 
-  it('preserves live custom descriptions and never gives them builtin search aliases', () => {
+  it('preserves native and custom command descriptions from a local harness', () => {
     const t = vi.fn((key: string, fallback?: string) => fallback || key)
     const launchers = slashCommandsTool.composer?.menuItems?.createItems({
       actions: { onTextChange: vi.fn() },
       session: {
+        agentType: 'local',
         slashCommands: [
           { command: '/clear', description: 'Plugin clear', builtin: false },
           { command: '/clear', description: 'User clear' },
-          { command: '/deploy', description: 'Deploy the app' }
+          { command: '/deploy', description: 'Deploy the app' },
+          { command: '/goal', description: 'Draft the weekly goals summary' },
+          { command: '/usage', description: 'Show session token usage', builtin: true }
         ]
       },
       t
@@ -134,7 +137,13 @@ describe('slashCommandsTool', () => {
         description: 'User clear',
         searchAliases: ['chat.input.slash_commands.title']
       }),
-      expect.objectContaining({ label: '/deploy', description: 'Deploy the app' })
+      expect.objectContaining({ label: '/deploy', description: 'Deploy the app' }),
+      expect.objectContaining({
+        label: '/goal',
+        description: 'Draft the weekly goals summary',
+        sources: ['root-panel']
+      }),
+      expect.objectContaining({ label: '/usage', description: 'Show session token usage' })
     ])
     expect(t.mock.calls.some(([key]) => key === 'chat.input.slash_commands.commands.clear')).toBe(false)
   })
