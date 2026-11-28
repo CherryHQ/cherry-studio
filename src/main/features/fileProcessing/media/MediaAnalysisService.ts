@@ -140,7 +140,8 @@ export class MediaAnalysisService extends BaseService {
     const execution = localOnly
       ? { ...resolved, vision: null, ocr: resolved.ocr?.processor.type === 'builtin' ? resolved.ocr : null }
       : resolved
-    const fileKey = fileKeyOf(file, fileInfo)
+    // A picked file can be replaced with the same size and mtime, so its result follows its bytes.
+    const fileKey = file.kind === 'path' ? `${fileKeyOf(file, fileInfo)}:${contentKey}` : fileKeyOf(file, fileInfo)
     const cacheKey = ['media-analysis', fileKey, hashMediaExecutionConfig(execution)].join(':')
     // Re-check after the awaits above so a cache hit cannot mask a cancellation.
     signal?.throwIfAborted()

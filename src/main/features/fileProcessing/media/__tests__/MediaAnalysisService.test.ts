@@ -1501,6 +1501,21 @@ describe('MediaAnalysisService local stages', () => {
       expect(await copyTranscript()).not.toContain('replacement speech')
     })
 
+    it('analyzes the replacement instead of returning the previous file analysis', async () => {
+      const original = {
+        text: 'original speech',
+        segments: [{ text: 'original speech', startSecond: 0, endSecond: 1 }]
+      }
+      runtime.transcribe.mockResolvedValueOnce(original).mockResolvedValueOnce(speech)
+
+      const first = await service.analyze(file)
+      await writeFile(picked, Buffer.alloc(1024, 2))
+      const second = await service.analyze(file)
+
+      expect(first.audio?.segments.map((segment) => segment.text)).toEqual(['original speech'])
+      expect(second.audio?.segments.map((segment) => segment.text)).toEqual(['replacement speech'])
+    })
+
     it('drops a pass whose file is replaced while it runs', async () => {
       runtime.transcribe
         .mockImplementationOnce(async () => {
