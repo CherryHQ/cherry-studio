@@ -89,7 +89,7 @@
     "i18n:sync": "dotenv -e .env -- tsx scripts/i18n-sync.ts",
     "i18n:unused": "tsx scripts/i18n-check-unused.ts",
     "i18n:unused:check": "tsx scripts/i18n-check-unused.ts --fail-on-unused",
-    "lint": "oxlint --deny-warnings && eslint . --ext .js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --cache && pnpm check:case-collisions",
+    "lint": "oxlint --deny-warnings && eslint . --ext .js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --cache --concurrency 2 && pnpm check:case-collisions",
     "lint:fix": "oxlint --fix && eslint . --ext .js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix --cache",
     "packages:build": "pnpm --filter @cherrystudio/provider-registry build && pnpm --filter @cherrystudio/ai-sdk-provider build && pnpm --filter @cherrystudio/ai-core build && pnpm --filter @cherrystudio/extension-table-plus build && pnpm --filter @cherrystudio/remote-protocol build && pnpm --filter @cherrystudio/remote-transport build && pnpm --filter @cherrystudio/file-preview build && pnpm --filter @cherrystudio/system-speech build && pnpm --filter @cherrystudio/web-search build",
     "packages:release": "pnpm packages:build && changeset publish",
