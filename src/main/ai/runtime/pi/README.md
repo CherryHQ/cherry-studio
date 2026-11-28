@@ -12,6 +12,14 @@ dependencies outside the bundled CommonJS Main entry; a static import fails duri
 
 ## Model requests
 
+The gateway binding records the serving route on successful native replies.
+Before Pi converts a later request, the binding remaps matching history to the
+current runtime registration so signed blocks can survive reopening. Foreign
+history uses Pi's native conversion to remove replay state while preserving
+ordinary text and client tool pairs. An active tool result that needs its source
+route continues on the original route when available. The trusted object
+transport checks that the resolved SDK route still matches before sending.
+
 ```text
 Pi session → native Pi provider → protocol objects → Cherry gateway → AI SDK execution
 ```
@@ -19,6 +27,11 @@ Pi session → native Pi provider → protocol objects → Cherry gateway → AI
 Pi owns context, streaming, reasoning replay, tools and compaction. Cherry's gateway owns provider
 selection, upstream credentials and billing. Pi's native transcript remains the replay source;
 product messages are a display projection. Tools advertised to the gateway have no executor there.
+
+The desktop driver reopens the original transcript when it can verify its identity,
+including through a persisted resume token if the branch binding is missing.
+It uses the [Session reference history](../../../../../docs/dev/references/ai/agent-session-runtime.md#first-submission-without-native-history)
+to continue in a fresh native session when the original transcript cannot be located.
 
 Pi and Pi Durable use one gateway compatibility predicate for model selection, child catalogs and
 native binding. The desktop binding injects native protocol object transports; upstream API keys,
@@ -45,6 +58,8 @@ is not replayed. Cancellation stops pending backoff; exhaustion reports the last
 The explicit request count enables retries independently of the chat retry toggle and count;
 backoff follows `chat.retry.backoff_enabled` and honors `Retry-After`. API-key and model fallback
 remain disabled. HTTP gateway requests retain their existing no-retry policy.
+The shared binding also lets [Pi Durable](../piDurable/README.md) handle recognized transport
+failures in its native generation checkpoint.
 Caller retry events travel through a typed gateway callback, outside native protocol events.
 The binding identifies the native call owner so root and child replies reuse the chat
 `data-retry` status independently. Settlement or cancellation clears the status; child

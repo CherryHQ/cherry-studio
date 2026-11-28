@@ -4,6 +4,9 @@ inputs:
   save-cache:
     description: Allow this job to populate the cache
     default: "false"
+  build-workspace:
+    description: Build local workspace exports during installation
+    default: "true"
 outputs:
   cache-state:
     description: Exact pnpm store hit, or unknown for misses and fallback restores
@@ -37,6 +40,10 @@ runs:
           ${{ runner.os }}-pnpm-
     - name: Install dependencies
       shell: bash
+      env:
+        VALIDATION_SKIP_WORKSPACE_BUILD: ${{ inputs.build-workspace == 'false' }}
       run: |
         pnpm install --frozen-lockfile
-        echo "VALIDATION_WORKSPACE_PREPARED=true" >> "$GITHUB_ENV"
+        if [[ "$VALIDATION_SKIP_WORKSPACE_BUILD" != true ]]; then
+          echo "VALIDATION_WORKSPACE_PREPARED=true" >> "$GITHUB_ENV"
+        fi

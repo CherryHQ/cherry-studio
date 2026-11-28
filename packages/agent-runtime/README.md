@@ -4,9 +4,30 @@ Harness-neutral contracts for accessing a thread, submitting native input, obser
 facts, interrupting foreground work, and releasing access/resources. This package has no Pi,
 Claude SDK, Electron, or application dependency and does not schedule agent execution.
 
+The `/cli` entry describes executable components, resolved installations, install plans and
+native account probes. A resolved installation can be shared by discovery, post-install
+verification and launch.
+The `/stdio` entry describes the host capability to spawn a resolved command and join its shutdown.
+A runtime adapter owns any process it requests through this capability. Thread access remains a
+separate lifetime.
+Native CLI login uses the same stdio capability, forwards parsed login prompts and joins the
+child on cancellation.
+
+`RuntimeAccountAccess` binds optional sign-in, account identity and subscription reads to an account
+target. `readAccount` returns one status with any identity and workspace fields reported by the
+runtime. An adapter can expose any supported operation without opening a thread. Subscription
+results preserve native time windows and distinguish a signed-out account, an unsupported
+route, and a failed read. Per-turn usage stays in execution observations.
+
+Runtime permission mode declarations carry the native choice value, its supported Agent permission
+semantics and when a selection applies. A selection can take effect on the current session, the
+next turn or across a reconnect. A catalog describes available choices. A live connection confirms
+the policy it has applied.
+
 `Thread` is the stable native context identity within a backend. `ThreadHandle` is a live access
-with observation and release operations. Its optional `input` exposes `submit`; observation-only
-access omits it. Concrete adapters validate `whenBusy` before dispatch. Releasing an access does not delete the thread
+with observation and release operations. A writable handle exposes its supported operations under
+`input`. `submit` rejects busy work, `steer.submit` declares what happens when idle, and
+`followUp.submit` declares the queue's persistence. An observation-only handle omits `input`. Releasing an access does not delete the thread
 or abort its work. The host stores product-session relationships separately from native context storage.
 
 Every handle exposes passive `contextUsage()`. Confirmed readings distinguish full context

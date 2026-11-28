@@ -15,6 +15,7 @@
  * @see https://docs.anthropic.com/en/api/messages-streaming
  */
 
+import type { SharedV3ProviderMetadata } from '@ai-sdk/provider'
 import type {
   ContentBlock,
   InputJSONDelta,
@@ -75,12 +76,14 @@ type AnthropicStreamEvent =
  */
 export class AiSdkToAnthropicSse extends BaseStreamAdapter<AnthropicStreamEvent> {
   private readonly toClientToolName?: (toolName: string) => string
+  private readonly captureReplay?: StreamAdapterOptions['captureReplay']
   /** Split cache writes from the cache-inclusive input total for Anthropic usage. */
   private cacheWriteTokens?: number
 
   constructor(options: StreamAdapterOptions) {
     super(options)
     this.toClientToolName = options.toClientToolName
+    this.captureReplay = options.captureReplay
   }
 
   /**
@@ -133,13 +136,16 @@ export class AiSdkToAnthropicSse extends BaseStreamAdapter<AnthropicStreamEvent>
       // === Text Events ===
       case 'text-start':
         this.startTextBlock()
+        this.captureReplayMetadata(this.state.textBlockIndex, chunk.providerMetadata)
         break
 
       case 'text-delta':
         this.emitTextDelta(chunk.delta || '')
+        this.captureReplayMetadata(this.state.textBlockIndex, chunk.providerMetadata)
         break
 
       case 'text-end':
+        this.captureReplayMetadata(this.state.textBlockIndex, chunk.providerMetadata)
         this.stopTextBlock()
         break
 
@@ -147,6 +153,7 @@ export class AiSdkToAnthropicSse extends BaseStreamAdapter<AnthropicStreamEvent>
       case 'reasoning-start': {
         const redactedData = chunk.providerMetadata?.anthropic?.redactedData
         this.startThinkingBlock(chunk.id, typeof redactedData === 'string' ? redactedData : undefined)
+        this.captureReplayMetadata(this.state.thinkingBlocks.get(chunk.id), chunk.providerMetadata)
         break
       }
 
@@ -154,10 +161,12 @@ export class AiSdkToAnthropicSse extends BaseStreamAdapter<AnthropicStreamEvent>
         // @ai-sdk/anthropic delivers the signature on an empty-delta chunk's metadata.
         this.captureThinkingSignature(chunk.id, chunk.providerMetadata)
         this.emitThinkingDelta(chunk.delta || '', chunk.id)
+        this.captureReplayMetadata(this.state.thinkingBlocks.get(chunk.id), chunk.providerMetadata)
         break
 
       case 'reasoning-end':
         this.captureThinkingSignature(chunk.id, chunk.providerMetadata)
+        this.captureReplayMetadata(this.state.thinkingBlocks.get(chunk.id), chunk.providerMetadata)
         this.stopThinkingBlock(chunk.id)
         break
 
@@ -169,11 +178,11 @@ export class AiSdkToAnthropicSse extends BaseStreamAdapter<AnthropicStreamEvent>
         const toolName = this.toClientToolName?.(chunk.toolName) ?? chunk.toolName
         const meta = chunk.providerMetadata
         const thoughtSignature = meta?.google?.thoughtSignature
-        if (typeof thoughtSignature === 'string') {
+        if (!this.captureReplay && typeof thoughtSignature === 'string') {
           googleReasoningCache.set(`google-${chunk.toolCallId}`, thoughtSignature)
         }
         const reasoningDetails = meta?.openrouter?.reasoning_details
-        if (Array.isArray(reasoningDetails)) {
+        if (!this.captureReplay && Array.isArray(reasoningDetails)) {
           openRouterReasoningCache.set(`openrouter-${chunk.toolCallId}`, reasoningDetails)
         }
         this.handleToolCall({
@@ -181,6 +190,7 @@ export class AiSdkToAnthropicSse extends BaseStreamAdapter<AnthropicStreamEvent>
           toolName,
           args: chunk.input
         })
+        this.captureReplayMetadata(this.state.toolBlocks.get(chunk.toolCallId), chunk.providerMetadata)
         break
       }
 
@@ -189,6 +199,12 @@ export class AiSdkToAnthropicSse extends BaseStreamAdapter<AnthropicStreamEvent>
         break
 
       case 'finish':
+        if (this.captureReplay) {
+          const blocks = this.buildNonStreamingResponse().content
+          this.captureReplay(
+            blocks.map((block, index) => ({ block, metadata: this.state.blocks.get(index)?.providerMetadata }))
+          )
+        }
         this.handleFinish(chunk)
         break
 
@@ -203,6 +219,16 @@ export class AiSdkToAnthropicSse extends BaseStreamAdapter<AnthropicStreamEvent>
         // start / start-step / finish-step / tool-input-start / tool-input-delta /
         // source-url / file / abort — no Anthropic SSE equivalent, ignore safely.
         break
+    }
+  }
+
+  private captureReplayMetadata(index: number | null | undefined, metadata: SharedV3ProviderMetadata | undefined) {
+    if (!this.captureReplay || index == null || !metadata) return
+    const block = this.state.blocks.get(index)
+    if (!block) return
+    block.providerMetadata ??= {}
+    for (const [key, options] of Object.entries(metadata)) {
+      block.providerMetadata[key] = { ...block.providerMetadata[key], ...options }
     }
   }
 

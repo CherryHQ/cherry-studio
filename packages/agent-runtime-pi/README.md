@@ -16,10 +16,10 @@ generation starts. Lifecycle and ledger callbacks publish them through the same 
 Its first baseline is historical; overflow recovery retains unseen terminal facts
 after their body. Hosts do not parse child tool receipts or read mutable aliases at delivery time.
 
-Each Pi handle exposes `input.submit`. Root contexts support `reject`,
-`steer`, and `follow-up`. Managed children support only `steer`, through their parent's subagent
-behavior rules: a live run receives a queued message; a finished child continues in the background
-in the same native session. An unsupported policy is rejected before native dispatch.
+A root handle can reject busy submissions with `input.submit`, steer with `input.steer.submit`,
+or queue a volatile follow-up with `input.followUp.submit`. Managed children expose only
+`input.steer.submit`. Their parent's behavior queues the message for a live child, or continues a
+finished child in the background in the same native session.
 
 Constructs native Pi coding-agent sessions. The caller supplies Pi's `ModelRuntime` and `Model`;
 Pi owns the execution loop, tools, context accounting and compaction. The native callback captures the
@@ -48,7 +48,7 @@ as required by the behavior adapter's request accounting.
 - Root `input.submit` preserves native commands, input hooks, busy policies and input correlation.
   `/goal` is handled locally through the behavior entry; it never becomes a model prompt.
   Local handling flushes native state before acknowledgement, including a fresh plan-held goal.
-- Child `input.submit` supports `steer` through `entries.messageSubagent`, using the same admission,
+- Child `input.steer.submit` delivers input through `entries.messageSubagent`, using the same admission,
   continuation and reporting rules as the model's `message_subagent` tool. Its native custom input
   carries the caller's `inputId`, including when a background report job starts the continuation.
   A refused continuation returns `rejected`; no raw child prompt bypasses that decision.
@@ -208,7 +208,7 @@ for host persistence; billing retains its native response identity independently
 
 `compaction: { reserveTokens, keepRecentTokens, enabled? }` controls native thresholds. Pi generates the
 summary itself; each native model request is metered and its reported usage is attributed to the captured goal
-and child run. Empty or failed summaries cancel compaction. `pi.compact()` also works when automatic compaction
+and child run. Empty or failed summaries cancel compaction. `compact()` also works when automatic compaction
 is disabled.
 
 [`agent-behavior`](../agent-behavior/README.md) owns AskUserQuestion, Todo, goals, output offload,

@@ -58,4 +58,11 @@ describe('GraphvizPreview', () => {
     expect(svg).toContain('<ellipse fill="none" stroke="red"')
     expect(svg).toContain('<path fill="none" stroke="green"')
   })
+
+  it.each(['digraph "a{b"', '/* { */ digraph example'])('themes the body after the DOT header %s', async (header) => {
+    const svg = await renderDot(`${header} { a -> b }`)
+
+    expect(svg).toContain('<ellipse fill="none" stroke="#111111"')
+    expect(svg).toContain('<path fill="none" stroke="#333333"')
+  })
 })

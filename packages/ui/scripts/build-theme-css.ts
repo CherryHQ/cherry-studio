@@ -164,7 +164,11 @@ ${sections.filter(Boolean).join('\n\n')}
 
 @layer base {
   * {
-    @apply border-border outline-ring/50;
+    @apply border-border outline-ring/40;
+  }
+
+  :focus-visible {
+    @apply outline-3 outline-offset-0;
   }
 
   body {

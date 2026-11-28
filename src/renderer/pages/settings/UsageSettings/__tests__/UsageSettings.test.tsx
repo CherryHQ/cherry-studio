@@ -1,5 +1,5 @@
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -8,8 +8,20 @@ import i18n from '@renderer/i18n/resolver'
 
 import { EMPTY_STATS_METRICS } from '../usageAnalytics'
 import UsageSettings from '../UsageSettings'
+import { useUsageData } from '../useUsageData'
 
 const usageDataOverride = vi.hoisted(() => ({ current: {} as Record<string, unknown> }))
+const useUsageEntriesDataMock = vi.hoisted(() =>
+  vi.fn(() => ({
+    entries: [],
+    total: 0,
+    isLoading: false,
+    isRefreshing: false,
+    error: undefined,
+    hasNext: false,
+    loadNext: vi.fn()
+  }))
+)
 
 vi.unmock('@data/hooks/useCache')
 
@@ -20,11 +32,34 @@ vi.mock('@renderer/hooks/useProvider', () => ({
 }))
 
 vi.mock('@renderer/components/Chart', () => ({
-  Chart: () => null
+  Chart: ({
+    onDataPointClick
+  }: {
+    onDataPointClick?: (params: { seriesIndex?: number; dataIndex: number }) => void
+  }) =>
+    onDataPointClick ? (
+      <button type="button" onClick={() => onDataPointClick({ seriesIndex: 0, dataIndex: 0 })}>
+        MockChartPoint
+      </button>
+    ) : null
 }))
 
 vi.mock('../UsageEntriesTable', () => ({
-  UsageEntriesTable: () => null
+  UsageEntriesTable: ({
+    activeFilterLabel,
+    onClearFilter
+  }: {
+    activeFilterLabel?: string
+    onClearFilter?: () => void
+  }) =>
+    activeFilterLabel ? (
+      <div>
+        <span>{activeFilterLabel}</span>
+        <button type="button" onClick={onClearFilter}>
+          ClearFilter
+        </button>
+      </div>
+    ) : null
 }))
 
 vi.mock('../useUsageData', () => {
@@ -44,7 +79,7 @@ vi.mock('../useUsageData', () => {
   }
 
   return {
-    useUsageData: () => ({
+    useUsageData: vi.fn(() => ({
       costTotals: [],
       costCurrency: undefined,
       timelineBuckets: [],
@@ -60,15 +95,8 @@ vi.mock('../useUsageData', () => {
       exploreStatsLoading: false,
       exploreTimelineLoading: false,
       ...usageDataOverride.current
-    }),
-    useUsageEntriesData: () => ({
-      entries: [],
-      total: 0,
-      isLoading: false,
-      isRefreshing: false,
-      hasNext: false,
-      loadNext: vi.fn()
-    })
+    })),
+    useUsageEntriesData: useUsageEntriesDataMock
   }
 })
 
@@ -84,6 +112,32 @@ describe('UsageSettings', () => {
   beforeEach(() => {
     MockCacheUtils.resetMocks()
     usageDataOverride.current = {}
+    useUsageEntriesDataMock.mockClear()
+  })
+
+  it('includes the new day when the open page regains focus after midnight', () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    try {
+      vi.setSystemTime(new Date(2026, 0, 31, 23, 59))
+      render(<UsageSettings />)
+      vi.setSystemTime(new Date(2026, 1, 1, 0, 1))
+      fireEvent.focus(window)
+
+      expect(useUsageData).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          windowRange: {
+            from: new Date(2026, 0, 3).getTime(),
+            to: new Date(2026, 1, 1, 23, 59, 59, 999).getTime()
+          },
+          previousWindowRange: {
+            from: new Date(2025, 11, 4).getTime(),
+            to: new Date(2026, 0, 2, 23, 59, 59, 999).getTime()
+          }
+        })
+      )
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('discloses that totals may include local estimates even for an empty selection', () => {
@@ -206,5 +260,88 @@ describe('UsageSettings', () => {
     render(<UsageSettings />)
     expect(screen.getByRole('heading', { name: '概览' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '头像' })).not.toBeInTheDocument()
+  })
+
+  it('filters entries by the clicked line chart point and clears on repeat click or clear action', async () => {
+    const user = userEvent.setup()
+    const today = new Date()
+    const yyyy = today.getFullYear()
+    const mm = String(today.getMonth() + 1).padStart(2, '0')
+    const dd = String(today.getDate()).padStart(2, '0')
+    const todayKey = `${yyyy}-${mm}-${dd}`
+    const startOf30d = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 29)
+    const startKey = `${startOf30d.getFullYear()}-${String(startOf30d.getMonth() + 1).padStart(2, '0')}-${String(startOf30d.getDate()).padStart(2, '0')}`
+
+    MockCacheUtils.setInitialState({
+      persist: [
+        ['settings.usage.chart_type', 'line'],
+        ['settings.usage.group_by', 'model'],
+        ['settings.usage.rollup', 'daily']
+      ]
+    })
+    usageDataOverride.current = {
+      overviewTotals: { ...EMPTY_STATS_METRICS, totalTokens: 100, requestCount: 1 },
+      timelineBuckets: [
+        {
+          date: todayKey,
+          costCurrency: null,
+          totalTokens: 100,
+          totalNoCacheTokens: 100,
+          totalCacheReadTokens: 0,
+          totalCacheWriteTokens: 0,
+          totalCost: 0,
+          recordCount: 1,
+          requestCount: 1,
+          estimatedRequestCount: 0,
+          unpricedRequestCount: 1
+        }
+      ],
+      exploreTimelineRows: [
+        {
+          date: startKey,
+          providerId: 'openai',
+          providerName: 'OpenAI',
+          modelId: 'openai::gpt-4o',
+          costCurrency: null,
+          totalTokens: 100,
+          totalNoCacheTokens: 100,
+          totalCacheReadTokens: 0,
+          totalCacheWriteTokens: 0,
+          totalCost: 0,
+          recordCount: 1,
+          requestCount: 1,
+          estimatedRequestCount: 0,
+          unpricedRequestCount: 1
+        }
+      ]
+    }
+
+    render(<UsageSettings />)
+
+    await user.click(await screen.findByRole('button', { name: 'MockChartPoint' }))
+
+    expect(useUsageEntriesDataMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        windowRange: {
+          from: new Date(startOf30d.getFullYear(), startOf30d.getMonth(), startOf30d.getDate(), 0, 0, 0, 0).getTime(),
+          to: new Date(startOf30d.getFullYear(), startOf30d.getMonth(), startOf30d.getDate(), 23, 59, 59, 999).getTime()
+        },
+        groupFilter: { providerId: 'openai', modelId: 'openai::gpt-4o' }
+      })
+    )
+    expect(screen.getByText(/gpt-4o/)).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'MockChartPoint' }))
+    expect(screen.queryByRole('button', { name: 'ClearFilter' })).not.toBeInTheDocument()
+    expect(useUsageEntriesDataMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        groupFilter: undefined
+      })
+    )
+
+    await user.click(screen.getByRole('button', { name: 'MockChartPoint' }))
+    expect(screen.getByRole('button', { name: 'ClearFilter' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'ClearFilter' }))
+    expect(screen.queryByRole('button', { name: 'ClearFilter' })).not.toBeInTheDocument()
   })
 })

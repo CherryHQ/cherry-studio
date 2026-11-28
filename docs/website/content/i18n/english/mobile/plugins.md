@@ -6,7 +6,7 @@ icon: plug
 
 Plugins let an agent access other services within your authorization, such as reading Feishu documents, organizing Notion pages, or finding routes with Amap.
 
-The model interprets the task; the plugin accesses the service. Select a text model supporting tool calling first.
+The model interprets the task; the plugin accesses the service. Use Standard mode and select a text model supporting tool calling first.
 
 ## Connect and use a plugin
 
@@ -18,7 +18,7 @@ The model interprets the task; the plugin accesses the service. Select a text mo
 
 For example: “Use Feishu to summarize three conclusions from this document: [link].” The inserted name appears in the composer and sent message.
 
-Connected plugins work across agents without separate authorization for each. Composer selection makes the intended service explicit. The **＋ → Plugins** option in the chat composer is hidden when no usable plugin is connected.
+Connected plugins work across agents without separate authorization for each. Composer selection makes the intended service explicit. **＋ → Plugins** remains visible without a usable connection and offers a connection entry; only available connected items can be inserted.
 
 <div data-mobile-gallery="single">
 <figure data-mobile-shot="phone"><a href="../../../assets/mobile/en/plugins.webp"><img src="../../../assets/mobile/en/plugins.webp" alt="Plugins: app connections, custom MCP, and built-in tools"></a><figcaption><p><strong>iPhone</strong> · Plugins: app connections, custom MCP, and built-in tools</p></figcaption></figure>
@@ -101,17 +101,21 @@ Plugin credentials stay on this device and are not transferred by desktop config
 
 ## Add a custom MCP service
 
-**MCP** is a protocol for connecting external tools and services. In Mobile 0.3.0, add a remote server through **Sidebar → Plugins → MCP group → Custom**.
+**MCP** is a protocol for connecting external tools and services. Add a remote server through **Sidebar → Plugins → MCP group → Custom**. [SSH connections](ssh.md) have a separate group; an SSH command is not an MCP endpoint.
 
 1. Enter a name and the remote address supplied by the service, preferably `https://`.
 2. Choose header authentication or **OAuth**, which signs in and grants access at the service.
 3. For headers, use one `Name=Value` per line, such as `Authorization=Bearer your-token`. For OAuth, follow the save and browser-authorization flow, then return to the app and check its result.
 4. Inspect the connected tool list and disable unwanted tools.
-5. Enable the server in a Standard-mode agent's tool section and send a new task. Existing servers can also be selected during agent creation.
+5. In the Standard agent editor, choose **Add MCP** and select the globally enabled server, then send a new task. Removing a binding does not delete its configuration.
 
 OAuth services must support mobile callbacks. Some require a public client ID or client-metadata URL from the service. Do not add a conflicting Authorization header when using OAuth. Retry authorization according to the error; closing the browser does not confirm completion.
 
-The address field cannot run desktop commands such as `npx` or `uvx`. The 0.3.0 iOS client accepts user-configured HTTP services, with a warning for plaintext connections; OAuth endpoints must still meet their security requirements.
+The address field cannot run desktop commands such as `npx` or `uvx`. The current iOS client accepts user-configured HTTP services, with a warning for plaintext connections; OAuth endpoints must still meet their security requirements.
+
+For a name conflict, edit the connection alias and save rather than repeatedly creating duplicates.
+
+You may explicitly ask the agent to save/update user-supplied remote HTTP/HTTPS MCP configuration. Without an explicit enabled choice it saves disabled; saving does not test connectivity, complete OAuth, or bind an agent. Confirm connection/authorization on Plugins and add it in the editor.
 
 Connection, global tool enablement, agent binding, and Standard mode are separate requirements. Automatic approval bypasses none of them.
 

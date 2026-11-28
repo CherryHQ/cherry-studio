@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest'
 import {
   applyDeepestMarker,
   type CompactionRow,
-  estimateRowTokens,
   findDeepestMarker,
   planKeepBoundary,
   summaryMessageId,
@@ -21,44 +20,6 @@ const a = (id: string, text: string, compactionSummary?: string): CompactionRow 
   role: 'assistant',
   parts: [{ type: 'text', text }],
   compactionSummary
-})
-
-describe('estimateRowTokens', () => {
-  // #17837 in this lane: a media part used to be JSON.stringify'd into the
-  // tokenizer, so its base64 payload scored as prose — a 13 MB MP3 came out at
-  // 3.7 M tokens against the provider's real 20 k, tripping the turn-start
-  // trigger on a conversation with nothing to fold.
-  it.each([
-    ['audio/mpeg', 'audio'],
-    ['image/png', 'image'],
-    ['video/mp4', 'video']
-  ])('prices a %s part by its dialect table, not by its payload', (mediaType) => {
-    const payload = 'A'.repeat(400_000)
-    const row: CompactionRow = {
-      id: 'm1',
-      role: 'user',
-      parts: [{ type: 'file', mediaType, url: `data:${mediaType};base64,${payload}` }]
-    }
-
-    const tokens = estimateRowTokens(row, 'openai')
-
-    expect(tokens).toBeGreaterThan(0)
-    expect(tokens).toBeLessThan(10_000)
-  })
-
-  it('still counts text parts', () => {
-    const row: CompactionRow = { id: 'm1', role: 'user', parts: [{ type: 'text', text: 'hello '.repeat(100) }] }
-
-    expect(estimateRowTokens(row, 'openai')).toBeGreaterThan(50)
-  })
-
-  // A tool part carries no mediaType, so it keeps the stringify path — the
-  // payload really is what the model reads.
-  it('falls back to stringifying a part that declares no media type', () => {
-    const row: CompactionRow = { id: 'm1', role: 'assistant', parts: [{ type: 'tool-x', output: 'y'.repeat(4_000) }] }
-
-    expect(estimateRowTokens(row, 'openai')).toBeGreaterThan(100)
-  })
 })
 
 describe('findDeepestMarker', () => {
@@ -109,23 +70,22 @@ describe('applyDeepestMarker', () => {
 
 describe('planKeepBoundary', () => {
   const rows = [u('a', '12345'), a('b', '12345'), u('c', '12345'), a('d', '12345')]
-  it('everything fits → null (keep all)', () => {
-    expect(planKeepBoundary(rows, 1_000_000, 'openai')).toBeNull()
+  const estimateAt = async () => 1
+  it('everything fits → null (keep all)', async () => {
+    expect(await planKeepBoundary(rows, 4, estimateAt)).toBeNull()
   })
-  it('snaps the keep-start to a user row', () => {
-    // each '12345' row ≈ 1 token (tokenx). suffix [c,d] = 2 ≤ 3 (fits);
-    // suffix [a,b,c,d] = 4 > 3 (doesn't) → earliest fitting user row is 'c' at index 2.
-    expect(planKeepBoundary(rows, 3, 'openai')).toBe(2)
+  it('snaps the keep-start to a user row', async () => {
+    expect(await planKeepBoundary(rows, 3, estimateAt)).toBe(2)
   })
-  it('budget 0 → floor keeps the last user row', () => {
-    expect(planKeepBoundary(rows, 0, 'openai')).toBe(2)
+  it('budget 0 → floor keeps the last user row', async () => {
+    expect(await planKeepBoundary(rows, 0, estimateAt)).toBe(2)
   })
-  it('single user row, big budget → null (keepStart 0)', () => {
-    expect(planKeepBoundary([u('a', 'x')], 1_000_000, 'openai')).toBeNull()
+  it('single user row, big budget → null (keepStart 0)', async () => {
+    expect(await planKeepBoundary([u('a', 'x')], 2, estimateAt)).toBeNull()
   })
-  it('empty rows → -1 / unchanged / null', () => {
+  it('empty rows → -1 / unchanged / null', async () => {
     expect(findDeepestMarker([])).toBe(-1)
     expect(applyDeepestMarker([])).toEqual([])
-    expect(planKeepBoundary([], 100, 'openai')).toBeNull()
+    expect(await planKeepBoundary([], 100, estimateAt)).toBeNull()
   })
 })
