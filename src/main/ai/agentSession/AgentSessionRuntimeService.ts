@@ -1249,7 +1249,16 @@ export class AgentSessionRuntimeService extends BaseService {
     this.assertSessionWritable(sessionId)
     const entry = this.entryForContext(sessionId, extractAgentContextId(topicId))
     if (!entry || entry.topicId !== topicId || entry.closing || entry.stopping) return false
-    return (await this.currentConnection(entry)?.changeFollowups?.(change)) ?? false
+    const connection = this.currentConnection(entry)
+    if (change.type === 'steer') {
+      const execution = entry.runtimeState.execution
+      if (execution.kind !== 'turn' || execution.reply.delivery.kind !== 'open') return false
+      const turn = execution.reply.turn
+      const inputId = turn.taskIds[0]
+      if (!inputId || turn.headless || !this.isTurnLive(entry, turn)) return false
+      return (await connection?.changeFollowups?.(change, { inputId, replyId: turn.runId })) ?? false
+    }
+    return (await connection?.changeFollowups?.(change)) ?? false
   }
 
   async listSessionCommands(sessionId: string): Promise<AgentSessionSlashCommand[]> {
@@ -3048,6 +3057,10 @@ export class AgentSessionRuntimeService extends BaseService {
           }
         }
         application.get('CacheService').setShared(AGENT_SESSION_FOLLOWUPS_CACHE_KEY(entry.topicId), event.queue)
+        for (const inputId of event.steerIds ?? []) {
+          this.publishInputDelivery(entry, inputId, 'queued', true)
+          agentSessionMessageService.publishStagedFollowup(entry.sessionId, inputId)
+        }
         break
       case 'input-state':
         if (
@@ -3072,6 +3085,7 @@ export class AgentSessionRuntimeService extends BaseService {
             entry.agentType === 'pi-durable'
               ? {
                   modelId: current?.modelId ?? entry.modelId,
+                  promotion: event.promotion,
                   messageSnapshot:
                     entry.pendingInputs?.get(event.input.inputId)?.input.messageSnapshot ?? entry.messageSnapshot
                 }
@@ -3393,7 +3407,8 @@ export class AgentSessionRuntimeService extends BaseService {
   private publishInputDelivery(
     entry: AgentSessionRuntimeEntry,
     inputId: string,
-    status?: NonNullable<AgentSessionRuntimeControls['delivery']>['status']
+    status?: NonNullable<AgentSessionRuntimeControls['delivery']>['status'],
+    promoted = false
   ): void {
     if (entry.secondaryContextId) return
     const key = AGENT_SESSION_RUNTIME_CONTROLS_CACHE_KEY(entry.sessionId)
@@ -3405,7 +3420,7 @@ export class AgentSessionRuntimeService extends BaseService {
       status &&
       status !== 'unknown' &&
       entry.agentType === 'pi-durable' &&
-      entry.pendingInputs?.get(inputId)?.nextTurn.steer
+      (promoted || entry.pendingInputs?.get(inputId)?.nextTurn.steer)
     ) {
       if (!pendingSteerIds.includes(inputId))
         cache.setShared(key, { ...view, pendingSteerIds: [...pendingSteerIds, inputId] })

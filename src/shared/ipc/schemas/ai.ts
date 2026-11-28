@@ -724,7 +724,8 @@ export const aiRequestSchemas = {
           text: z.string()
         }),
         z.strictObject({ type: z.literal('reorder'), before: z.array(z.uuid()), after: z.array(z.uuid()) }),
-        z.strictObject({ type: z.literal('withdraw'), inputId: z.uuid() })
+        z.strictObject({ type: z.literal('withdraw'), inputId: z.uuid() }),
+        z.strictObject({ type: z.literal('steer'), inputId: z.uuid() })
       ])
     }),
     output: z.boolean()

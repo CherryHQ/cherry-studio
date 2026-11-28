@@ -13,6 +13,7 @@ export type AgentSessionFollowupChange =
   | { type: 'edit'; inputId: string; revision: number; text: string }
   | { type: 'reorder'; before: string[]; after: string[] }
   | { type: 'withdraw'; inputId: string }
+  | { type: 'steer'; inputId: string }
 
 type TextPart = Extract<CherryMessagePart, { type: 'text' }>
 

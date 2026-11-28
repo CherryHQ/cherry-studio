@@ -121,6 +121,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
   private readonly turnUsage = new PiTurnUsage()
   private reconcileChain: Promise<unknown> = Promise.resolve()
   private readonly steers = new Set<string>()
+  private readonly followupPromotions = new Map<string, { replyId?: string }>()
   /** Inputs submitted while native work ran; their placement is announced even with an outcome. */
   private readonly stagedFollowups = new Set<string>()
   private readonly queued = new Set<string>()
@@ -177,8 +178,14 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
       },
       retry: (event, sessionId) => this.onModelRetry(event, sessionId),
       followups: (queue) => this.publishFollowups(queue),
-      placed: (inputId) => {
-        if (inputId && this.steers.has(inputId)) this.input.onSteerInjected?.([inputId])
+      placed: (inputId, promotion) => {
+        if (!inputId) return
+        if (promotion) {
+          this.followupPromotions.set(inputId, promotion)
+          if (promotion.replyId) this.steers.add(inputId)
+          return
+        }
+        if (this.steers.has(inputId)) this.input.onSteerInjected?.([inputId])
       }
     }
     const opened = await this.runtime.open({
@@ -406,10 +413,13 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
   private publishFollowups(queue: readonly DurableFollowup[], restored?: true): void {
     if (queue === this.publishedFollowups || (!queue.length && !this.publishedFollowups?.length)) return
     this.publishedFollowups = queue
+    const steerIds = queue.flatMap(({ inputId, steering }) => (steering ? [inputId] : []))
     this.events.push({
       type: 'followup-queue',
       ...(restored && { restored }),
-      queue: queue.flatMap(({ inputId, revision }) => {
+      ...(steerIds.length && { steerIds }),
+      queue: queue.flatMap(({ inputId, revision, steering }) => {
+        if (steering) return []
         if (messages.inputBinding(this.input.sessionId, inputId)?.contextId !== this.context?.id) return []
         const message = messages.getSessionMessage(this.input.sessionId, inputId)
         return message.delivery ? [] : [{ id: inputId, revision, parts: message.data.parts ?? [] }]
@@ -417,7 +427,10 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     })
   }
 
-  async changeFollowups(change: AgentSessionFollowupChange): Promise<boolean> {
+  async changeFollowups(
+    change: AgentSessionFollowupChange,
+    activeRun?: { inputId: string; replyId: string }
+  ): Promise<boolean> {
     if (this.closing || !this.handle || !this.context) return false
     if (change.type === 'reorder') return this.handle.durable.changeFollowups(change)
     const context = this.context
@@ -425,6 +438,14 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     const message = messages.getSessionMessage(this.input.sessionId, change.inputId)
     if (message.delivery || message.role !== 'user') return false
     if (change.type === 'withdraw') return this.handle.durable.changeFollowups(change)
+    if (change.type === 'steer') {
+      if (!activeRun || !this.active || this.compacting) return false
+      return this.handle.durable.changeFollowups({
+        ...change,
+        activeInputId: activeRun.inputId,
+        replyId: activeRun.replyId
+      })
+    }
 
     const parts = message.data.parts ?? []
     const index = parts.findIndex((part) => part.type === 'text')
@@ -593,9 +614,13 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
 
   private captureInput(input: InputState, placements?: string[]) {
     if (!hasProductInputId(input)) return
-    this.events.push({ type: 'input-state', contextId: this.context!.id, input })
     const messageId = input.inputId
-    if (input.facts.includes('placed')) this.announcePlacement(messageId, input, placements)
+    const promotion = this.followupPromotions.get(messageId)
+    this.events.push({ type: 'input-state', contextId: this.context!.id, input, ...(promotion && { promotion }) })
+    if (input.facts.includes('placed')) {
+      this.followupPromotions.delete(messageId)
+      this.announcePlacement(messageId, input, placements)
+    }
     // Durable never places an input again once it has an outcome.
     if (input.outcome) {
       this.queued.delete(messageId)
@@ -605,6 +630,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
 
   private announcePlacement(messageId: string, input: InputState, placements?: string[]) {
     if (this.steers.delete(messageId)) {
+      this.queued.delete(messageId)
       this.placed.add(messageId)
       this.runInputs.add(messageId)
       this.events.push({ type: 'steer-boundary', inputIds: [messageId] })

@@ -166,5 +166,28 @@ it.each([false, true])(
       })
     ).toBe(true)
     expect(observed.at(-1)).toEqual([{ inputId: 'Next', revision: 1 }])
+    const original = driver.durable.followups()[0]
+    const steer = {
+      type: 'steer',
+      inputId: 'Next',
+      activeInputId: 'Active',
+      replyId: 'active-reply'
+    } as const
+    expect(await driver.durable.changeFollowups({ ...steer, activeInputId: 'stale' })).toBe(false)
+    expect(await driver.durable.changeFollowups(steer)).toBe(true)
+    expect(await driver.durable.changeFollowups(steer)).toBe(false)
+    expect(driver.durable.followups()).toEqual([{ ...original, steering: true }])
+    await runtime.shutdown()
+    const reopened = confirmed(
+      await createPiDurableRuntime({
+        backendId: driver.thread.backendId,
+        openStorage: () => openNodeSqliteStorage(join(directory, 'session.sqlite')),
+        harness: { models, registry: createRegistry() }
+      })
+    )
+    onTestFinished(async () => {
+      await reopened.shutdown()
+    })
+    expect(confirmed(await reopened.open(driver.thread)).durable.followups()).toEqual([{ ...original, steering: true }])
   }
 )
