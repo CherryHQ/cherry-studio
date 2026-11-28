@@ -249,6 +249,7 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, imageCover, outputMo
   const [viewerContainer, setViewerContainer] = useState<{ width: number; height: number } | null>(null)
   const [displayedNaturalSize, setDisplayedNaturalSize] = useState<{ width: number; height: number } | null>(null)
   const [promptBarHeight, setPromptBarHeight] = useState(0)
+  const [indicatorHeight, setIndicatorHeight] = useState(0)
   const imageDragRef = useRef<ImageDragState | null>(null)
   const imageDragMovedRef = useRef(false)
   const awaitingRevealRef = useRef(false)
@@ -257,6 +258,7 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, imageCover, outputMo
   const viewerResizeObserverRef = useRef<ResizeObserver | null>(null)
   const [viewerElement, setViewerElement] = useState<HTMLDivElement | null>(null)
   const promptBarResizeObserverRef = useRef<ResizeObserver | null>(null)
+  const indicatorResizeObserverRef = useRef<ResizeObserver | null>(null)
   const displayedImageIndex = painting.files.length > 0 ? Math.min(currentImageIndex, painting.files.length - 1) : 0
   const currentFile = painting.files[displayedImageIndex]
   const { sizeLabel } = usePaintingSizeInfo(painting)
@@ -412,6 +414,23 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, imageCover, outputMo
     promptBarResizeObserverRef.current = observer
   }, [])
 
+  // The page counter is a static footer below the image (not an absolute
+  // overlay) so it never covers the bottom strip of a generation (#20647).
+  // Its height is reserved from the contain-fit budget like the prompt bar.
+  const setIndicatorRef = useCallback((el: HTMLDivElement | null) => {
+    indicatorResizeObserverRef.current?.disconnect()
+    indicatorResizeObserverRef.current = null
+    if (!el) {
+      setIndicatorHeight(0)
+      return
+    }
+    const measure = () => setIndicatorHeight(el.clientHeight)
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(el)
+    indicatorResizeObserverRef.current = observer
+  }, [])
+
   useEffect(() => {
     setDisplayedNaturalSize(null)
   }, [currentFile?.id])
@@ -420,7 +439,8 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, imageCover, outputMo
     if (!displayedNaturalSize || !viewerContainer || viewerContainer.width <= 0) {
       return null
     }
-    const availableHeight = Math.max(0, viewerContainer.height - promptBarHeight)
+    const indicatorReserve = painting.files.length > 0 && currentImageUrl ? indicatorHeight : 0
+    const availableHeight = Math.max(0, viewerContainer.height - promptBarHeight - indicatorReserve)
     if (availableHeight <= 0) {
       return null
     }
@@ -565,49 +585,62 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, imageCover, outputMo
           <div
             ref={setViewerContainerRef}
             data-testid="artboard-viewer"
-            className="relative flex min-h-0 w-full flex-1 items-center justify-center overflow-hidden">
+            className="relative flex min-h-0 w-full flex-1 flex-col items-center justify-center overflow-hidden">
             {/* The prompt bar is a flex-col sibling of the transformed image so it stays
                 fixed while the image pans, zooms, or rotates. The layout wrapper is
                 sized explicitly (displayedImageBoxSize, which already
-                reserves the bar's own measured height — see setPromptBarRef) rather than
+                reserves the bar's own measured height — see setPromptBarRef — and the
+                page-counter footer's height — see setIndicatorRef) rather than
                 via CSS auto-sizing — ImageViewer nests the `<img>` behind a context-menu
                 wrapper that breaks intrinsic-size propagation, so an auto-sized flex-col
                 here ends up wider than the rendered photo, letterboxing the bar past its
                 real edges. */}
-            <div
-              data-testid="artboard-image-layout"
-              className="flex max-h-full max-w-full flex-col items-stretch"
-              style={{
-                ...(displayedImageBoxSize ? { width: displayedImageBoxSize.width } : undefined)
-              }}>
-              {promptBar && (
-                <div ref={setPromptBarRef} data-testid="artboard-prompt-bar-measure">
-                  {promptBar}
-                </div>
-              )}
-              <ImageViewer
-                alt=""
-                data-testid="artboard-image-transform"
-                className={`max-h-full min-h-0 max-w-full rounded-md object-contain select-none ${
-                  isDraggingImage
-                    ? 'cursor-grabbing transition-none will-change-transform'
-                    : 'cursor-grab transition-transform duration-150'
-                }`}
-                draggable={false}
-                onClick={onImageClick}
-                onLoad={onDisplayedImageLoad}
-                onPointerCancel={stopImageDrag}
-                onPointerDown={onImagePointerDown}
-                onPointerMove={onImagePointerMove}
-                onPointerUp={stopImageDrag}
-                contextMenuTransform={{ rotation: imageRotation }}
-                src={currentImageUrl}
+            <div className="flex min-h-0 w-full flex-1 items-center justify-center overflow-hidden">
+              <div
+                data-testid="artboard-image-layout"
+                className="flex max-h-full max-w-full flex-col items-stretch"
                 style={{
-                  touchAction: 'none',
-                  transform: `translate(${imageOffset.x}px, ${imageOffset.y}px) scale(${imageScale}) rotate(${imageRotation}deg)`,
-                  ...(displayedImageBoxSize ? { height: displayedImageBoxSize.height } : undefined)
-                }}
-              />
+                  ...(displayedImageBoxSize ? { width: displayedImageBoxSize.width } : undefined)
+                }}>
+                {promptBar && (
+                  <div ref={setPromptBarRef} data-testid="artboard-prompt-bar-measure">
+                    {promptBar}
+                  </div>
+                )}
+                <ImageViewer
+                  alt=""
+                  data-testid="artboard-image-transform"
+                  className={`max-h-full min-h-0 max-w-full rounded-md object-contain select-none ${
+                    isDraggingImage
+                      ? 'cursor-grabbing transition-none will-change-transform'
+                      : 'cursor-grab transition-transform duration-150'
+                  }`}
+                  draggable={false}
+                  onClick={onImageClick}
+                  onLoad={onDisplayedImageLoad}
+                  onPointerCancel={stopImageDrag}
+                  onPointerDown={onImagePointerDown}
+                  onPointerMove={onImagePointerMove}
+                  onPointerUp={stopImageDrag}
+                  contextMenuTransform={{ rotation: imageRotation }}
+                  src={currentImageUrl}
+                  style={{
+                    touchAction: 'none',
+                    transform: `translate(${imageOffset.x}px, ${imageOffset.y}px) scale(${imageScale}) rotate(${imageRotation}deg)`,
+                    ...(displayedImageBoxSize ? { height: displayedImageBoxSize.height } : undefined)
+                  }}
+                />
+              </div>
+            </div>
+            {/* Static footer (not an absolute overlay) so the counter never covers
+                the bottom strip of a generation nor hides behind the prompt dock (#20647). */}
+            <div
+              ref={setIndicatorRef}
+              data-testid="artboard-page-indicator"
+              className="flex shrink-0 justify-center pt-2">
+              <span className="rounded-full bg-foreground/60 px-2 py-1 text-xs text-background">
+                {displayedImageIndex + 1} / {painting.files.length}
+              </span>
             </div>
             <div
               className={`${paintingClasses.toolbarWrap} ${paintingClasses.toolbarRail}`}
@@ -645,9 +678,6 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, imageCover, outputMo
               <ArtboardToolButton label={t('preview.reset')} onClick={resetImageTransform}>
                 <RefreshCcw className="size-4" />
               </ArtboardToolButton>
-            </div>
-            <div className="absolute bottom-2.5 left-1/2 -translate-x-1/2 rounded-full bg-foreground/60 px-2 py-1 text-xs text-background">
-              {displayedImageIndex + 1} / {painting.files.length}
             </div>
           </div>
         ) : imageCover ? (
