@@ -188,6 +188,58 @@ describe('server-tool model eligibility', () => {
     expect(isBuiltinWebSearchAvailable(custom, { id: 'custom', serverTools: [] })).toBe(false)
   })
 
+  it('honors a user-enabled web-search capability on unrecognized models and hosts', () => {
+    const custom = model('private-model', { capabilities: [MODEL_CAPABILITY.WEB_SEARCH] })
+
+    expect(isBuiltinWebSearchAvailable(custom, provider('model-dependent'))).toBe(true)
+    expect(isBuiltinWebFetchAvailable(custom, { id: 'custom', serverTools: [] })).toBe(false)
+  })
+
+  it('waives only model eligibility for a user-enabled capability, never the native search path', () => {
+    const custom = model('private-model', { capabilities: [MODEL_CAPABILITY.WEB_SEARCH] })
+    const declaring = {
+      id: 'custom',
+      serverTools: [{ id: SERVER_TOOL.WEB_SEARCH, modelScope: 'all-chat-models' }]
+    } as Provider
+
+    // No declaration = no factory to serve a 'server' route, so the override stays off.
+    expect(isBuiltinWebSearchAvailable(custom, { id: 'custom', serverTools: [] })).toBe(false)
+    expect(isBuiltinWebSearchAvailable(custom, { id: 'custom' })).toBe(false)
+    // A declaration for another endpoint is not a deliverable path on this one.
+    expect(
+      isBuiltinWebSearchAvailable(
+        custom,
+        {
+          id: 'custom',
+          serverTools: [
+            {
+              id: SERVER_TOOL.WEB_SEARCH,
+              modelScope: 'all-chat-models',
+              endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES]
+            }
+          ]
+        },
+        ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+      )
+    ).toBe(false)
+    expect(isBuiltinWebSearchAvailable(custom, declaring)).toBe(true)
+  })
+
+  it('keeps the configured client search route when a capability toggle has no native path', () => {
+    const custom = model('private-model', {
+      capabilities: [MODEL_CAPABILITY.WEB_SEARCH, MODEL_CAPABILITY.FUNCTION_CALL]
+    })
+
+    expect(
+      resolveWebToolRoutes(custom, { id: 'custom', serverTools: [] } as unknown as Provider, {
+        webSearchEnabled: true,
+        clientSearchAvailable: true,
+        clientFetchAvailable: true,
+        modelToolsPreferred: true
+      })
+    ).toEqual({ webSearch: 'client', webFetch: 'client' })
+  })
+
   it('does not bypass endpoint restrictions for all-chat tools', () => {
     const host = {
       id: 'custom',
@@ -753,4 +805,33 @@ describe('DashScope hosted search endpoint contract', () => {
       }
     }
   )
+})
+
+describe('AiHubMix vendor restriction', () => {
+  const aihubmix = () => bundledProviders.providers.find((p) => p.id === 'aihubmix')! as unknown as Provider
+
+  // The declaration gates native search to anthropic/gemini/openai vendors; a passthrough model
+  // (deepseek, grok, qwen) resolves to `aihubmix.chat`, which owns no search factory, so a
+  // user-enabled capability must not flip its route to 'server' and silently drop client search.
+  it('keeps a user-enabled web-search capability off the vendor-gated passthrough line', () => {
+    const deepseek = model('deepseek-chat', {
+      capabilities: [MODEL_CAPABILITY.WEB_SEARCH, MODEL_CAPABILITY.FUNCTION_CALL]
+    })
+
+    expect(isBuiltinWebSearchAvailable(deepseek, aihubmix())).toBe(false)
+    expect(
+      resolveWebToolRoutes(deepseek, aihubmix(), {
+        webSearchEnabled: true,
+        clientSearchAvailable: true,
+        clientFetchAvailable: false,
+        modelToolsPreferred: true
+      })
+    ).toMatchObject({ webSearch: 'client' })
+  })
+
+  it('still honors the capability for a declared vendor model', () => {
+    const gemini = model('gemini-3-pro-preview', { capabilities: [MODEL_CAPABILITY.WEB_SEARCH] })
+
+    expect(isBuiltinWebSearchAvailable(gemini, aihubmix())).toBe(true)
+  })
 })

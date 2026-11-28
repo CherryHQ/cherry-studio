@@ -51,7 +51,8 @@ export const MODEL_CAPABILITY = {
   FILE_INPUT: 'file-input',
   CODE_EXECUTION: 'code-execution',
   FILE_SEARCH: 'file-search',
-  COMPUTER_USE: 'computer-use'
+  COMPUTER_USE: 'computer-use',
+  WEB_SEARCH: 'web-search'
 } as const
 export type ModelCapability = (typeof MODEL_CAPABILITY)[keyof typeof MODEL_CAPABILITY]
 
