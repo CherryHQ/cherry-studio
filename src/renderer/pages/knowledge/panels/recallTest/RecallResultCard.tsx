@@ -65,7 +65,7 @@ const RecallResultCard = ({ item, index }: RecallResultCardProps) => {
           type="button"
           variant="ghost"
           aria-label={t('knowledge.recall.copy')}
-          className={`size-5 min-h-5 shrink-0 rounded p-0 shadow-none transition-all group-hover/chunk:opacity-100 hover:bg-accent hover:text-foreground ${copied ? 'text-success opacity-100' : 'text-muted-foreground opacity-0'}`}
+          className={`size-5 min-h-5 shrink-0 rounded p-0 shadow-none transition-all group-hover/chunk:opacity-100 hover:bg-accent hover:text-foreground focus-visible:opacity-100 ${copied ? 'text-success opacity-100' : 'text-muted-foreground opacity-0'}`}
           onClick={() => void copyContent()}>
           {copied ? <Check className="size-3" /> : <Copy className="size-3" />}
         </Button>

@@ -53,7 +53,7 @@ const RecallSearchBar = () => {
             }
           }}
           placeholder={t('knowledge.recall.placeholder')}
-          className="h-auto flex-1 border-0 bg-transparent px-0 py-0 text-sm leading-5 text-foreground shadow-none placeholder:text-sm placeholder:text-muted-foreground focus-visible:border-0 focus-visible:ring-0"
+          className="h-auto flex-1 border-0 bg-transparent px-0 py-0 text-sm leading-5 text-foreground shadow-none placeholder:text-sm placeholder:text-muted-foreground focus-visible:border-0 focus-visible:ring-0 focus-visible:outline-none"
         />
         {hasHistory ? (
           <Button
