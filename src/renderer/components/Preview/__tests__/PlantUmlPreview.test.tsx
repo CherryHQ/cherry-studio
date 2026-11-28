@@ -66,7 +66,7 @@ describe('PlantUmlPreview', () => {
     const { container } = render(<PlantUmlPreview>{source}</PlantUmlPreview>)
     await advance()
     await reply({
-      svg: svg('<text fill="#FFF">Alice to Bob</text>').replace('<svg ', '<svg style="background:#000000;" ')
+      svgs: [svg('<text fill="#FFF">Alice to Bob</text>').replace('<svg ', '<svg style="background:#000000;" ')]
     })
 
     const diagram = getHost(container).shadowRoot?.querySelector('svg')
