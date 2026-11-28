@@ -296,6 +296,7 @@ export interface MessageRenderConfig {
   /** Open running (live) nested tool groups by default; Agent keeps them visible while the turn runs. */
   expandLiveToolSteps: boolean
   keepIntermediateAssistantText: boolean
+  showCitationMarkers: boolean
   mathEnableSingleDollar: boolean
   showMessageOutline: boolean
   showEstimatedTokens: boolean
@@ -319,6 +320,7 @@ export const defaultMessageRenderConfig: MessageRenderConfig = {
   expandToolSteps: false,
   expandLiveToolSteps: false,
   keepIntermediateAssistantText: false,
+  showCitationMarkers: true,
   mathEnableSingleDollar: false,
   showMessageOutline: false,
   showEstimatedTokens: false,

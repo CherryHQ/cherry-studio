@@ -203,7 +203,7 @@ function parseKbReadCitation(
 function documentKey(item: { baseId?: string; conceptId?: string }): string | undefined {
   if (!item.conceptId) return undefined
   // NUL separator: neither id can contain one, so the join is unambiguous.
-  return `${item.baseId ?? ''}\u0000${item.conceptId}`
+  return `${item.baseId ?? ''}\uE000${item.conceptId}`
 }
 
 /** Numeric value a lookup-result id can answer a bare `[N]` marker with. */
@@ -616,7 +616,15 @@ function hasUnresolvedMarker({ content, byMarker }: ResolvedCitationMarkers): bo
  * without inventing a second, conflicting sequence.
  */
 export function stripCitationMarkers(content: string): string {
-  return mapMarkdownOutsideCode(canonicalizeMarkers(content), (text) => text.replace(CITATION_MARKER_PATTERN, ''))
+  // A wrapper emptied by the removal (`**[cite:id]**`) would otherwise leave `****`, a thematic break. Only a
+  // wrapper standing alone is dropped, so `**a**[cite:id]**b**` keeps its two emphasized words apart.
+  const wrapped = new RegExp(
+    `(?<![^\\s(])(\\*{1,3}|_{1,3})[ \\t]*(?:${CITATION_MARKER_PATTERN.source})[ \\t]*\\1(?![^\\s).,;:!?])`,
+    'g'
+  )
+  return mapMarkdownOutsideCode(canonicalizeMarkers(content), (text) =>
+    text.replace(wrapped, '').replace(CITATION_MARKER_PATTERN, '')
+  )
 }
 
 /**

@@ -248,6 +248,8 @@ export interface PreferenceSchemas {
     'chat.message.render_as_markdown': boolean
     // target-key-definitions/complex/complex
     'chat.message.scroll_to_bottom_on_send': boolean
+    // target-key-definitions/complex/complex
+    'chat.message.show_citation_markers': boolean
     // redux/settings/showMessageDivider
     'chat.message.show_divider': boolean
     // redux/settings/showMessageOutline
@@ -848,6 +850,7 @@ export const DefaultPreferences: PreferenceSchemas = {
     'chat.message.navigation_mode': 'anchor',
     'chat.message.render_as_markdown': false,
     'chat.message.scroll_to_bottom_on_send': true,
+    'chat.message.show_citation_markers': true,
     'chat.message.show_divider': true,
     'chat.message.show_outline': false,
     'chat.message.style': 'bubble',
