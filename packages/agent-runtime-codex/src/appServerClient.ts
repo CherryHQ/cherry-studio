@@ -13,6 +13,9 @@ import * as z from 'zod'
 import type { ClientInfo, CodexRequestParams, CodexServerReplies } from './protocol'
 import { responses } from './responses'
 
+type CodexResponse<M extends keyof typeof responses> = z.output<(typeof responses)[M]>
+const responseSchemas: { [M in keyof typeof responses]: z.ZodType<CodexResponse<M>> } = responses
+
 export type { CodexRequestParams } from './protocol'
 export { JSONRPCErrorException as CodexRequestError } from 'json-rpc-2.0'
 
@@ -141,11 +144,12 @@ export function connectCodexAppServer(
   async function request<M extends Exclude<keyof CodexRequestParams, 'initialize'>>(
     method: M,
     params: CodexRequestParams[M],
-    onReply?: (result: z.output<(typeof responses)[M]>) => void
-  ): Promise<z.output<(typeof responses)[M]>> {
+    onReply?: (result: CodexResponse<M>) => void
+  ): Promise<CodexResponse<M>> {
     if (closed) throw closed
+    const schema = responseSchemas[method]
     let boundId: string | number | undefined
-    let parsed: z.output<(typeof responses)[M]> | undefined
+    let parsed: CodexResponse<M> | undefined
     try {
       const value: unknown = await requests.request(
         method,
@@ -154,23 +158,23 @@ export function connectCodexAppServer(
           ((id) => {
             boundId = id
             bindings.set(id, (raw) => {
-              const response = z.parse(responses[method], raw)
+              const response = schema.parse(raw)
               parsed = response
               onReply(response)
             })
           })
       )
-      return parsed ?? z.parse(responses[method], value)
+      return parsed ?? schema.parse(value)
     } finally {
       if (boundId !== undefined) bindings.delete(boundId)
     }
   }
 
   async function listModels() {
-    const models: z.output<(typeof responses)['model/list']>['data'] = []
+    const models: CodexResponse<'model/list'>['data'] = []
     let cursor: string | null = null
     do {
-      const page = await request('model/list', { cursor })
+      const page: CodexResponse<'model/list'> = await request('model/list', { cursor })
       models.push(...page.data)
       cursor = page.nextCursor ?? null
     } while (cursor)

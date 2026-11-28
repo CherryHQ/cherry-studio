@@ -388,6 +388,16 @@ export const aiRequestSchemas = {
 
   // ── Streaming chat (AiStreamManager) ──
   // Requests are R→M; the produced chunk/done/error events ride the AiEventSchemas block below.
+  'ai.topic.estimate_context': defineRoute({
+    input: z.strictObject({
+      topicId: z.string().min(1),
+      anchorId: z.string().min(1),
+      modelId: UniqueModelIdSchema,
+      fillsAnchor: z.boolean()
+    }),
+    output: z.number().int().nonnegative().nullable()
+  }),
+
   'ai.stream.open': defineRoute({
     // Variant union mirrors AiStreamOpenRequest. `userMessageParts` is opaque pass-through
     // (main persists it), so its items are `z.custom<CherryMessagePart>()`.

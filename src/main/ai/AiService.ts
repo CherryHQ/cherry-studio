@@ -73,6 +73,7 @@ import { createAiUsagePlugin } from './hooks/billingHook'
 import { resolveAttachmentBudget } from './messages/attachmentBudget'
 import { prepareChatMessages } from './messages/attachmentRouting'
 import { resolveMediaCapabilities, resolveToolResultMediaCapabilities } from './messages/messageCapabilities'
+import type { NativeFileSupport } from './messages/nativeFileSupport'
 import { applyHttpTrace } from './observability'
 import { resolveProviderAiSdkConfig } from './provider/config'
 import { hasImageTransport, resolveImageTransport } from './provider/custom/imageTransportRegistry'
@@ -84,7 +85,7 @@ import { resolveEffectiveEndpoint, resolveWireModelId } from './provider/endpoin
 import { listModels as listModelsFromProvider, probeOllamaModel } from './provider/listModels'
 import { ToolContinuationRouteError } from './provider/replayRoute'
 import { resolveSdkConfig } from './provider/sdkConfig'
-import type { AgentLoopHooks, NativeFileSupport, RequestFeature } from './runtime/aiSdk'
+import type { AgentLoopHooks, RequestFeature } from './runtime/aiSdk'
 import {
   Agent,
   buildAgentParams,
