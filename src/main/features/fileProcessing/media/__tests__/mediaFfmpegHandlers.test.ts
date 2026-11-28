@@ -2079,6 +2079,22 @@ describe('mediaFfmpegHandlers scene scan records', () => {
     expect(probes.length).toBeGreaterThan(0)
     expect(probes.some(({ args }) => args.includes('-count_packets'))).toBe(false)
   })
+
+  it('keeps a scene record that a progress update would otherwise prefix', async () => {
+    // FFmpeg prints progress unless -nostats; each update ends in a bare CR before the next log line.
+    const progress = 'frame=   12 fps=0.0 q=-0.0 size=N/A time=00:00:01.00 bitrate=N/A speed=2.1x\r'
+    completedScan('{"format":{"start_time":"0.000000"}}', (args) =>
+      [
+        `${args.includes('-nostats') ? '' : progress}[Parsed_metadata_4 @ 0x1] frame:0 pts:3 pts_time:3`,
+        '[Parsed_metadata_4 @ 0x1] lavfi.scene_score=0.8',
+        ''
+      ].join('\n')
+    )
+
+    const detected = await mediaFfmpegHandlers.detectSceneChanges(sceneInput, context())
+
+    expect(detected.changes).toEqual([{ timestampMs: 3_000, score: 0.8 }])
+  })
 })
 
 async function waitForFile(filePath: string): Promise<void> {

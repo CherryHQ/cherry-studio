@@ -605,7 +605,7 @@ export const mediaFfmpegHandlers: UtilityProcessHandlers<MediaFfmpegContract> = 
     try {
       await runCommand(
         ffmpegPath,
-        ['-y', '-copyts', '-i', filePath, '-map', '0:V:0', '-an', '-vf', filter, '-f', 'null', '-'],
+        ['-y', '-nostats', '-copyts', '-i', filePath, '-map', '0:V:0', '-an', '-vf', filter, '-f', 'null', '-'],
         signal,
         logger,
         {
