@@ -21,15 +21,16 @@ import {
   type MessageListRuntime,
   type MessageListSelectAllPagination,
   type MessageListState,
-  type MessageUserProfile,
   type MessageRuntime,
-  type MessageStreamingLayers
+  type MessageStreamingLayers,
+  type MessageUserProfile
 } from '@renderer/components/chat/messages/types'
 import { dispatchLocateMessage } from '@renderer/components/chat/messages/utils/dispatchLocateMessage'
 import { bindCaptureMessageImageRuntime } from '@renderer/components/chat/messages/utils/messageImageRuntimeActions'
 import { getMessageListItemModel, toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
 import { useProfilePaneToggle } from '@renderer/components/chat/panes/profile'
 import type { DiagnosticReportConfig } from '@renderer/components/ErrorDetailModal'
+import { useSharedCacheValue } from '@renderer/data/hooks/useCache'
 import { ipcApi } from '@renderer/ipc'
 import { messageProjectionService } from '@renderer/services/aiTransport'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
@@ -39,6 +40,7 @@ import type { Topic } from '@renderer/types/topic'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { normalizeInlineFilePath, resolveInlineFilePath } from '@renderer/utils/filePath'
 import { PartOverrides, type MessagePartRows, messagePartsAt } from '@renderer/utils/message/messagePartRows'
+import { AGENT_SESSION_RUNTIME_CONTROLS_CACHE_KEY } from '@shared/ai/agentSessionRuntimeControls'
 import { extractAgentSessionId } from '@shared/ai/agentSessionTopic'
 import type { ProjectionTarget } from '@shared/ai/messageProjection'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
@@ -49,6 +51,7 @@ import type { DoctorSubjectRef } from '@shared/types/doctor'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { createFilePathHandle } from '@shared/utils/file'
 
+import { AgentErrorUpgrade } from './AgentErrorUpgrade'
 import AgentSessionApiRetryStatus from './AgentSessionApiRetryStatus'
 import { agentSessionForkAvailability, agentSessionForkReasonLabel } from './agentSessionFork'
 import {
@@ -64,7 +67,16 @@ const exportToObsidian: ExportMessagesToObsidian = async (title, messages) => {
   return popup.show({ title, messages, processingMethod: '1' })
 }
 
+// WorkBuddy stores generated mode and clock reminders separately from the user's query.
+const workBuddyReminder =
+  /^(?:\s*(?:<system-reminder data-role="user-context">\s*<craft_mode>[^<]*<\/craft_mode>|<system-reminder data-role="additional-data">\s*<current_time>[^<]*<\/current_time>)\s*<\/system-reminder>)+\s*$/
+
 const canDeleteMessage = (message: MessageListItem): boolean => message.role !== 'assistant'
+
+const legacySetupHeaders = new Map([
+  ['claude-code', /^\[Historical local command(?: output)?\]\r?\n/],
+  ['codex', /^\[Historical (?:project instructions|environment|plugin context|app context)\]\r?\n/]
+])
 
 const agentMessageListRuntimes = new Map<string, MessageListRuntime>()
 
@@ -87,6 +99,7 @@ function withTerminalErrorFallback(
       ? messageProjectionService.readParts(parts)
       : parts
     const hasVisiblePart = resolvedParts.some((part) => !isHiddenPart(part))
+    if (message.metadata?.provenance && hasVisiblePart) continue
     if (message.metadata?.importedHistory) {
       if (status === 'error' || !hasVisiblePart) {
         replacements.set(message.id, [
@@ -128,8 +141,9 @@ interface AgentMessageListParams {
   historyActions?: Readonly<Record<string, AgentSessionHistoryActions | undefined>>
   partsByMessageId: MessagePartRows
   streamingLayers?: MessageStreamingLayers
-  assistantProfile?: MessageUserProfile & { id?: string }
+  assistantProfile?: MessageUserProfile
   assistantId?: string
+  providerErrorSettingsPath?: string
   isLoading: boolean
   hasOlder?: boolean
   loadOlder?: () => void
@@ -147,6 +161,7 @@ interface AgentMessageListParams {
   setActiveBranch?: MessageListActions['setActiveBranch']
   deleteMessage?: MessageListActions['deleteMessage']
   startEditing?: (messageId: string) => Promise<void>
+  supportsNativeFork?: boolean
   editBusy?: boolean
   respondToolApproval?: MessageListActions['respondToolApproval']
   navigateToForkSource?: NavigateToForkSource
@@ -201,6 +216,7 @@ export function useAgentMessageListProviderValue({
   streamingLayers,
   assistantProfile,
   assistantId,
+  providerErrorSettingsPath,
   isLoading,
   hasOlder = false,
   loadOlder,
@@ -232,6 +248,8 @@ export function useAgentMessageListProviderValue({
   const { t } = useTranslation()
   const normalInteractionsEnabled = imageActionConsumer !== 'capture'
   const sessionId = useMemo(() => extractAgentSessionId(topic.id), [topic.id])
+  const runtimeControls = useSharedCacheValue(AGENT_SESSION_RUNTIME_CONTROLS_CACHE_KEY(sessionId))
+  const pendingSteerIds = normalInteractionsEnabled ? runtimeControls?.pendingSteerIds : undefined
   const resolvedAgentId = assistantId ?? topic.assistantId
   const messageItemCacheRef = useRef(
     new WeakMap<
@@ -247,7 +265,25 @@ export function useAgentMessageListProviderValue({
     () => withTerminalErrorFallback(messages, partsByMessageId, t('error.no_response')),
     [messages, partsByMessageId, t]
   )
-  const timeline = useAgentTimeline(messages, displayPartsByMessageId, projectionTarget)
+  const visibleMessages = useMemo(() => {
+    if (hasOlder) return messages
+    const firstImportedTask = messages.findIndex(
+      ({ role, metadata }) => role === 'user' && metadata?.provenance && !metadata.provenance.isSetup
+    )
+    if (firstImportedTask <= 0) return messages
+    return messages.filter((message, index) => {
+      const provenance = message.metadata?.provenance
+      if (index >= firstImportedTask || !provenance) return true
+      if (provenance.isSetup) return false
+      if (message.role !== 'system') return true
+      // Older imports stored formatted setup text without a provenance marker.
+      const header = legacySetupHeaders.get(provenance.source)
+      if (!header) return true
+      const parts = messagePartsAt(partsByMessageId, message.id) ?? message.parts
+      return !parts?.length || !parts.every((part) => part.type === 'text' && header.test(part.text))
+    })
+  }, [hasOlder, messages, partsByMessageId])
+  const timeline = useAgentTimeline(visibleMessages, displayPartsByMessageId, projectionTarget)
   const sourceIds = useMemo(
     () => new Map(timeline.rows.map((row) => [row.id, row.sourceMessageId ?? row.id])),
     [timeline.rows]
@@ -269,29 +305,48 @@ export function useAgentMessageListProviderValue({
     }
   }, [streamingLayers, timeline])
   const visibleRows = useMemo(
-    () => timeline.rows.filter(({ parts }) => !parts.length || parts.some((part) => !hasPartParentToolCallId(part))),
+    () =>
+      timeline.rows.filter(({ message, parts }) => {
+        if (!parts.length) return true
+        if (
+          message.role === 'system' &&
+          message.metadata?.provenance?.source === 'workbuddy' &&
+          parts.every((part) => part.type === 'text' && workBuddyReminder.test(part.text))
+        )
+          return false
+        return parts.some((part) => !hasPartParentToolCallId(part))
+      }),
     [timeline.rows]
   )
   const messageItems = useMemo(
     () =>
       visibleRows.map((row) => {
+        const waitingForModel = row.message.role === 'user' && pendingSteerIds?.includes(row.id)
         const cached = messageItemCacheRef.current.get(row)
-        if (cached && cached.assistantId === resolvedAgentId && cached.topicId === topic.id) return cached.item
+        if (
+          cached &&
+          cached.assistantId === resolvedAgentId &&
+          cached.topicId === topic.id &&
+          cached.item.waitingForModel === waitingForModel
+        )
+          return cached.item
         const item: MessageListItem = {
           ...toMessageListItem(row.message, { assistantId: resolvedAgentId, topicId: topic.id }),
           id: row.id,
           partIds: row.partIds,
           presentation: row.kind,
           showHeader: row.showHeader,
+          waitingForModel,
           ...(row.sourceMessageId && { parentId: null }),
           sourceMessageId: row.sourceMessageId,
           isRunBoundary: row.isRunBoundary,
           ...(row.isRunBoundary === false && { stats: undefined })
         }
+        if (row.message.role === 'assistant' && row.message.metadata?.provenance) item.messageSnapshot = undefined
         messageItemCacheRef.current.set(row, { assistantId: resolvedAgentId, item, topicId: topic.id })
         return item
       }),
-    [resolvedAgentId, visibleRows, topic.id]
+    [resolvedAgentId, visibleRows, topic.id, pendingSteerIds]
   )
 
   const getDoctorSubject = useCallback(
@@ -329,6 +384,14 @@ export function useAgentMessageListProviderValue({
     getDoctorSubject,
     selectAllPagination
   })
+  const { navigateErrorTarget: navigateToErrorTarget } = errorActions
+  const navigateErrorTarget = useCallback<NonNullable<MessageListActions['navigateErrorTarget']>>(
+    (target) =>
+      navigateToErrorTarget?.(
+        providerErrorSettingsPath && target === '/settings/provider' ? providerErrorSettingsPath : target
+      ),
+    [navigateToErrorTarget, providerErrorSettingsPath]
+  )
   // The conversation's current Assistant / Agent, not the snapshot each message header shows.
   const toggleAuthorProfile = useProfilePaneToggle()?.toggle
 
@@ -589,6 +652,11 @@ export function useAgentMessageListProviderValue({
       canDeleteMessage,
       ...exportActions,
       ...errorActions,
+      renderLocalAgentUpgrade:
+        normalInteractionsEnabled && resolvedAgentId
+          ? () => <AgentErrorUpgrade agentId={resolvedAgentId} />
+          : undefined,
+      navigateErrorTarget: providerErrorSettingsPath ? navigateErrorTarget : errorActions.navigateErrorTarget,
       ...pickMessageLeafActions(leafCapabilities),
       openBrowserUrl,
       openExternalUrl: openExternalUrl ?? leafCapabilities.openExternalUrl,
@@ -634,6 +702,9 @@ export function useAgentMessageListProviderValue({
       bindMessageRuntime,
       deleteMessage,
       errorActions,
+      navigateErrorTarget,
+      providerErrorSettingsPath,
+      resolvedAgentId,
       exportActions,
       headerCapabilities,
       toggleAuthorProfile,

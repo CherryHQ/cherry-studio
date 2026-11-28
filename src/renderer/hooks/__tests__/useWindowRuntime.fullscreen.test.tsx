@@ -16,13 +16,14 @@ const mocks = vi.hoisted(() => ({
 }))
 vi.mock('@renderer/ipc', () => ({
   ipcApi: { request: mocks.request },
-  useIpcOn: (_event: string, listener: (value: boolean) => void) => {
+  useIpcOn: (event: string, listener: (value: boolean) => void) => {
     useEffect(() => {
+      if (event !== 'window.fullscreen_changed') return
       mocks.listener = listener
       return () => {
         mocks.listener = null
       }
-    }, [listener])
+    }, [event, listener])
   }
 }))
 vi.mock('@data/hooks/usePreference', () => ({

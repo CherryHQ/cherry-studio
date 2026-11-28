@@ -43,6 +43,8 @@ interface AgentChatMainProps {
   startEditing: (messageId: string) => Promise<void>
   editBusy: boolean
   respondToolApproval: (input: MessageToolApprovalInput) => Promise<void>
+  readOnly?: boolean
+  onLocalRestoreChecked?: (unavailable: boolean) => void
 }
 
 export default function AgentChatMain({
@@ -68,7 +70,9 @@ export default function AgentChatMain({
   setActiveBranch,
   startEditing,
   editBusy,
-  respondToolApproval
+  respondToolApproval,
+  readOnly,
+  onLocalRestoreChecked
 }: AgentChatMainProps) {
   const navigate = useNavigate()
   const navigateToForkSource = useCallback<NavigateToForkSource>(
@@ -102,11 +106,12 @@ export default function AgentChatMain({
           openDiagnosticReport={openDiagnosticReport}
           getMessageSiblings={getMessageSiblings}
           setActiveBranch={setActiveBranch}
-          deleteMessage={agentId ? deleteMessage : undefined}
-          startEditing={agentId ? startEditing : undefined}
+          deleteMessage={agentId && !readOnly ? deleteMessage : undefined}
+          startEditing={agentId && !readOnly ? startEditing : undefined}
           editBusy={editBusy}
           respondToolApproval={agentId ? respondToolApproval : undefined}
           navigateToForkSource={navigateToForkSource}
+          onLocalRestoreChecked={onLocalRestoreChecked}
         />
       </div>
     </div>
