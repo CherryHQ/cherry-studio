@@ -205,7 +205,7 @@ export abstract class ClaudeSdkConnection<
           createConfig: config,
           createRuntime: createClaudeCodeRuntime,
           probeRuntimeOptions: (previousCwd) => ({
-            backendId: runtimeId(this.context.backendId),
+            backendId: runtimeId(this.context!.backendId),
             configDir: resolveClaudeConfigDirectory(options.env),
             contextWindow,
             load: async () => ({ ...config, cwd: previousCwd }),
