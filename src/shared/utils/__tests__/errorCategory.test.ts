@@ -2,6 +2,26 @@ import { describe, expect, it } from 'vitest'
 
 import { classifyErrorCategory, isProxyErrorMessage, isQuotaErrorMessage } from '../errorCategory'
 
+describe('missing Work sessions', () => {
+  it.each([
+    [undefined, 'session'],
+    [404, 'session'],
+    [401, 'auth'],
+    [429, 'rate_limit'],
+    [503, 'server']
+  ] as const)('recognizes the missing conversation without overriding HTTP %s', (status, category) => {
+    expect(classifyErrorCategory({ text: 'No conversation found with session ID: missing-session', status })).toBe(
+      category
+    )
+  })
+
+  it('does not mistake a different identifier failure for a missing Work session', () => {
+    expect(classifyErrorCategory({ text: 'No conversation found with session identifiers matching this filter' })).toBe(
+      'unknown'
+    )
+  })
+})
+
 describe('classifyErrorCategory unusable API responses', () => {
   const text =
     'API Error: API returned an empty or malformed response (HTTP 200) — check for a proxy or gateway intercepting the request'

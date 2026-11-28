@@ -20,6 +20,7 @@ describe('Claude Code process exit diagnostics', () => {
 
   it.each([
     ['Authentication failed', 'auth'],
+    ['No conversation found with session ID: missing-session', 'session'],
     ['model claude-sonnet-4 was not found', 'model'],
     ['HTTP 402 billing quota exhausted', 'quota'],
     ['HTTP 403 forbidden', 'permission'],
