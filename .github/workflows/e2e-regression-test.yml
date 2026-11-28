@@ -28,6 +28,9 @@ on:
         required: true
         default: "all"
         type: string
+      smoke_specs:
+        description: "Comma-separated smoke spec names without .test.ts (blank = all)"
+        type: string
 permissions:
   contents: read
 
@@ -743,13 +746,23 @@ jobs:
         shell: bash
         working-directory: target-app
         env:
+          SMOKE_SPECS: ${{ inputs.smoke_specs }}
           PLAYWRIGHT_HTML_OUTPUT_DIR: ${{ runner.temp }}/cherry-regression/report/smoke
           PLAYWRIGHT_JSON_OUTPUT_FILE: ${{ runner.temp }}/cherry-regression/report/smoke-results.json
           PLAYWRIGHT_HTML_OPEN: never
         run: |
           export E2E_RIPGREP_BIN="$(node -e 'process.stdout.write(require("node:path").resolve("resources/binaries", `${process.platform}-${process.arch}`, process.platform === "win32" ? "rg.exe" : "rg"))')"
+          filters=()
+          if [[ -n "$SMOKE_SPECS" ]]; then
+            [[ "$SMOKE_SPECS" =~ ^[a-zA-Z0-9-]+(,[a-zA-Z0-9-]+)*$ ]] || { echo "Invalid smoke spec list"; exit 1; }
+            IFS=, read -ra specs <<< "$SMOKE_SPECS"
+            for spec in "${specs[@]}"; do
+              [[ -f "$GITHUB_WORKSPACE/tests/e2e/smoke/$spec.test.ts" ]] || { echo "Unknown smoke spec: $spec"; exit 1; }
+              filters+=('(^|[/\\])'"$spec"'[.]test[.]ts$')
+            done
+          fi
           node "$GITHUB_WORKSPACE/node_modules/@playwright/test/cli.js" test --config "$GITHUB_WORKSPACE/playwright.config.ts" \
-            --output "$RUN_DIR/evidence/smoke" --reporter=html,json --retries=0
+            --output "$RUN_DIR/evidence/smoke" --reporter=html,json --retries=0 "${filters[@]}"
 
       - name: Upload standalone smoke report and evidence
         if: always() && (steps.smoke.outcome == 'success' || steps.smoke.outcome == 'failure')

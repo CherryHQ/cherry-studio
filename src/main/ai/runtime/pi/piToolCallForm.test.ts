@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
+import { buildPiMcpToolName, isPiToolDisabled } from './piMcpExtension'
 import { resolvePiToolCallForm } from './piToolCallForm'
 
 const call = (disabled: string[], toolSearchLoadsMcp: boolean) => {
@@ -36,6 +37,29 @@ describe('resolvePiToolCallForm', () => {
       expect(form?.referenceTool('cherry-tools', 'report_artifacts')).toContain('report_artifacts')
     }
   )
+
+  it.each(['kb_search', 'kb_list', 'kb_read'])('follows the Search switch for Cherry %s only', (name) => {
+    const searchOff = new Set(['mcp__cherry-tools__kb_search'])
+    const cherryName = buildPiMcpToolName('cherry-tools', name)
+    const cherryTool = { serverName: 'cherry-tools', serverId: 'cherry-tools', name }
+    expect(isPiToolDisabled(searchOff, cherryName, cherryTool)).toBe(true)
+    expect(
+      isPiToolDisabled(searchOff, buildPiMcpToolName('another-server', name), {
+        ...cherryTool,
+        serverId: 'another-server'
+      })
+    ).toBe(false)
+    expect(isPiToolDisabled(new Set(['mcp__cherry-tools__kb_manage']), cherryName, cherryTool)).toBe(false)
+    expect(isPiToolDisabled(new Set(), cherryName, cherryTool)).toBe(false)
+  })
+
+  it('keeps Manage Knowledge controlled by its own switch', () => {
+    const name = 'kb_manage'
+    const tool = { serverName: 'cherry-tools', name }
+    const runtimeName = buildPiMcpToolName(tool.serverName, name)
+    expect(isPiToolDisabled(new Set(['mcp__cherry-tools__kb_search']), runtimeName, tool)).toBe(false)
+    expect(isPiToolDisabled(new Set(['mcp__cherry-tools__kb_manage']), runtimeName, tool)).toBe(true)
+  })
 
   it.each([
     ['Pi without codemode, whose tool_search cannot load MCP tools', ['codemode'], false],

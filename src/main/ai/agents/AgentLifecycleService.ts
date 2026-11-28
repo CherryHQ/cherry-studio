@@ -7,7 +7,9 @@ import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentTaskService } from '@data/services/AgentTaskService'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { protectLocalAgentEnvironment } from '@main/services/localAgentCredentials'
 import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
+import type { LocalAgentLaunchSettings } from '@shared/ai/localAgent'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type {
   ReusableAgentSessionPlaceholdersResponse,
@@ -42,6 +44,7 @@ export class AgentSessionArchiveBusyError extends Error {
   'AgentJobsService',
   'AgentImportService',
   'AgentSessionDeliveryService',
+  'AgentDelegationService',
   'AgentSessionRuntimeService',
   'AiStreamManager',
   'ChannelManager'
@@ -84,7 +87,7 @@ export class AgentLifecycleService extends BaseService {
     )
   }
 
-  restoreAgent(agentId: string) {
+  restoreAgent(agentId: string, launchSettings?: LocalAgentLaunchSettings) {
     return this.runOperation('restore-agent:' + agentId, () =>
       this.agentLocks.runExclusive(agentId, () =>
         this.withOperationLocks(agentSessionService.listIdsByAgent(agentId), async () => {
@@ -93,15 +96,19 @@ export class AgentLifecycleService extends BaseService {
             .filter((workspace) => workspace.deletedAt !== null && workspace.deletedAt === workspace.agentDeletedAt)
           const { agent, scheduleIds, restoredSessionIds } = await agentWorkspaceStorageService.restoreWorkspaces(
             workspaces,
-            () =>
-              application.get('DbService').withWriteTx((tx) => {
-                const { agent, restoredSessionIds } = agentService.restoreAgentTx(tx, agentId)
+            () => {
+              const settings = launchSettings && protectLocalAgentEnvironment(launchSettings, agentId)
+              return application.get('DbService').withWriteTx((tx) => {
+                const { agent, restoredSessionIds } = agentService.restoreAgentTx(tx, agentId, settings)
+                const enabled = agent.type !== 'local' || agent.localRuntime?.enabled
                 return {
                   agent,
                   restoredSessionIds,
-                  scheduleIds: agentTaskService.setOwnerStateTx(tx, agentId, 'active', Date.now()).scheduleIds
+                  scheduleIds: agentTaskService.setOwnerStateTx(tx, agentId, enabled ? 'active' : 'trashed', Date.now())
+                    .scheduleIds
                 }
               })
+            }
           )
           this.syncSchedules(scheduleIds)
           application.get('ChannelManager').reconcileAgent(agentId)
@@ -399,6 +406,7 @@ export class AgentLifecycleService extends BaseService {
     targetState: 'active' | 'trashed' = 'trashed'
   ): Promise<{ deletedIds: string[] }> {
     const deleteSessions = async () => {
+      await application.get('AgentDelegationService').cancelOwnedBy(ids)
       const workspaces = agentSessionService.listSystemWorkspaceSessions(ids)
       const tokensBySession = permanent
         ? agentSessionMessageService.listRuntimeResumeTokensBySession(ids)
@@ -450,6 +458,7 @@ export class AgentLifecycleService extends BaseService {
   ): Promise<{ deleted: boolean; deletedSessionIds?: string[] }> {
     if (permanent && agentService.getLifecycleState(agentId) !== targetState) return { deleted: false }
     const deleteAgent = async () => {
+      await application.get('AgentDelegationService').cancelOwnedBy(agentSessionService.listIdsByAgent(agentId))
       const workspaces = agentSessionService.listSystemWorkspaceSessions(agentSessionService.listIdsByAgent(agentId))
       const tokensBySession =
         permanent && targetState === 'active' && deleteSessions
@@ -526,6 +535,9 @@ export class AgentLifecycleService extends BaseService {
       () => agentSessionService.listActiveIdsByAgent(agentId, { sessionTypes: ['conversation'] }),
       async () => {
         // Recycle Bin moves: the only caller is the "clear this agent's sessions" command, which is undoable.
+        await application
+          .get('AgentDelegationService')
+          .cancelOwnedBy(agentSessionService.listActiveIdsByAgent(agentId, { sessionTypes: ['conversation'] }))
         const result = agentSessionService.deleteByAgentIdWithImpact(agentId, {
           permanent: false,
           sessionTypes: ['conversation']
@@ -541,6 +553,9 @@ export class AgentLifecycleService extends BaseService {
     return this.withStableSessions(
       () => agentSessionService.listIdsByWorkspace(workspaceId),
       async () => {
+        await application
+          .get('AgentDelegationService')
+          .cancelOwnedBy(agentSessionService.listIdsByWorkspace(workspaceId))
         const result = agentSessionService.deleteWorkspaceCascadeWithImpact(workspaceId)
         await this.finishDeletion(result.deletedIds, result.deliveryResults)
         return { deletedIds: result.deletedIds }

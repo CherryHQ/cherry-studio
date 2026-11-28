@@ -55,12 +55,25 @@ persists, and resumes the stream.
 A card whose request is gone is never left answerable. When a connection or
 stream ends with an approval still pending, `ToolApprovalRegistry.onAborted`
 retires the persisted card to `output-error`, so the composer stops offering a
-question nothing can receive.
+question nothing can receive. When Pi Durable resumes an interactive turn on startup,
+a still-pending tool approval or Ask User Question registers a fresh interaction.
+Turns recorded without a desktop responder keep their headless behavior.
+
+Claude Code Plan Only omits built-in file mutation tools from the model's tool list.
+Switching into or out of Plan Only refreshes that list for the next turn. A switch
+into Plan Only during a turn also blocks file mutation calls immediately.
 
 MCP skill loading and file reads follow each Skill’s server-owned reading permission
 through ordinary tool approval. Unconfigured entries ask each time; Full Access skips
 prompts, and explicit disablement remains effective. Reading a skill adds no session
 activation or additional approval rules for later tools; see [MCP Skills Client](./mcp-skills-client.md).
+
+The composer identifies the requesting Agent or subagent. Child requests carry the
+spawning tool-call ID in provider metadata; the card uses that identity to show the
+matching task name and background status, with a link to the task in Agent sessions.
+Shell commands are shown in full in a scrollable, copyable preview. The optional
+rejection reason expands on demand. Opening task details or expanding the reason
+with Enter never submits an approval decision.
 
 The composer identifies the requesting Agent or subagent. Child requests carry the
 spawning tool-call ID in provider metadata; the card uses that identity to show the
@@ -132,11 +145,18 @@ An applicable `deny` blocks every mode, including Full Access, and exposes no ap
 The built-in Assistant, Support and Doctor retain their destructive-operation denial; role
 scope is independent of a rule's effect. Children use their root's mode and protected role.
 
+A Bash rewrite proposed by RTK with exit code `3` (`Ask`) carries the rewritten command and
+requires per-call approval across modes, including `auto` and Full Access (`bypassPermissions`),
+showing the rewritten command before execution.
+
 Runtimes reach the policy only through the `commandPolicy` barrel's `checkCommand`. It takes
 the command, its dialect (from the tool name), cwd, built-in role and the root's permission
 mode, and returns `deny`, `ask` (only in `auto`) or `allow`, the localized policy reason, card
 evidence and a `context` fingerprint. A runtime compares the fingerprint after a grant instead
-of re-deriving the policy inputs. The parser, semantic adapters, JSON document and the
+of re-deriving the policy inputs. The built-in Assistant's feedback-submission guard also uses
+the barrel's `resolveInvocationCommands`, which returns every command an invocation runs
+(wrapped, substituted and nested-shell commands included) and whether any part stayed
+unresolved; it makes no policy decision of its own. The parser, semantic adapters, JSON document and the
 built-in role's destructive-operation detector are private to the directory; lint rejects
 deep imports. Decisions are cached per command, dialect and role, because one call is
 checked by a hook, a permission callback and again after approval.

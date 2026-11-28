@@ -52,7 +52,7 @@ Migration does not delete original V1 data. New V2 data is not synced back to V1
 
 <summary>What are the changes to API and external integrations?</summary>
 
-* The model identifier in API Gateway has changed from `provider::model` to `provider:model`.
+* The model identifier in Unified Gateway has changed from `provider::model` to `provider:model`.
 * Knowledge API returned entries use V2 fields.
 * MCP-over-HTTP endpoints have been removed; this does not affect in-app MCP.
 * SSE startup failures may directly return standard HTTP errors; clients must handle both HTTP and SSE error paths.

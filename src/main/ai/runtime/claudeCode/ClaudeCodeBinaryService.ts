@@ -71,9 +71,14 @@ export class ClaudeCodeBinaryService extends BaseService {
     }
   }
 
+  getInstalledExecutable(): string | undefined {
+    return this.isInstalled() ? this.executable : undefined
+  }
+
   requireExecutable(): string {
-    if (!this.isInstalled()) throw new Error(t('agent.session.claude.runtime_unavailable'))
-    return this.executable
+    const executable = this.getInstalledExecutable()
+    if (!executable) throw new Error(t('agent.session.claude.runtime_unavailable'))
+    return executable
   }
 
   async ensureExecutable(): Promise<string> {
