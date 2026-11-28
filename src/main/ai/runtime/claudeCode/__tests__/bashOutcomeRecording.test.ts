@@ -581,4 +581,44 @@ describe('bashOutcomeHook', () => {
 
     expect(svc.getBashNoProgressRun(SESSION, 'npx tsc --noEmit', 'agent-1')).toBeUndefined()
   })
+
+  it('records PowerShell outcomes and warns once at the soft threshold without rtk rewriting', async () => {
+    vi.mocked(rtkRewrite).mockClear()
+    for (let i = 0; i < BASH_NO_PROGRESS_THRESHOLD; i++) {
+      await fire({
+        hook_event_name: 'PostToolUse',
+        tool_name: 'PowerShell',
+        tool_input: { command: 'Get-Content status.txt' },
+        tool_response: { stdout: 'pending', interrupted: false },
+        tool_use_id: `tu-ps-${i}`
+      })
+    }
+
+    expect(svc.getBashNoProgressRun(SESSION, 'Get-Content status.txt')).toBe(BASH_NO_PROGRESS_THRESHOLD)
+
+    const warning = (await toolGuardHook(
+      {
+        hook_event_name: 'PreToolUse',
+        tool_name: 'PowerShell',
+        tool_input: { command: 'Get-Content status.txt' },
+        tool_use_id: 'tu-ps-warn'
+      } as never,
+      undefined,
+      {} as never
+    )) as { hookSpecificOutput?: { additionalContext?: string } }
+    expect(warning.hookSpecificOutput?.additionalContext).toContain('PowerShell')
+    expect(warning.hookSpecificOutput?.additionalContext).toContain('3 times')
+
+    await rtkRewriteHook(
+      {
+        hook_event_name: 'PreToolUse',
+        tool_name: 'PowerShell',
+        tool_input: { command: 'Get-Content status.txt' },
+        tool_use_id: 'tu-ps-rtk'
+      } as never,
+      undefined,
+      {} as never
+    )
+    expect(vi.mocked(rtkRewrite)).not.toHaveBeenCalled()
+  })
 })

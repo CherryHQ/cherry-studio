@@ -30,7 +30,7 @@ const TOOL_BINDINGS = {
       MultiEdit: 'file_path',
       NotebookEdit: 'notebook_path'
     },
-    shellFields: { Bash: 'command' }
+    shellFields: { Bash: 'command', PowerShell: 'command' }
   },
   pi: PI_TOOL_BINDING,
   'pi-durable': PI_TOOL_BINDING
