@@ -42,6 +42,10 @@ const RequestSchema = z.object({
 })
 
 function installedVersionOf(appId: string): string {
+  // A live preview reports the version of the manifest it validated, not the
+  // 0.0.0 of a missing installation row.
+  const preview = application.getExisting('MiniAppPreviewService')?.getPreviewByRuntimeId(appId)
+  if (preview) return preview.version
   return (
     application
       .get('DbService')
@@ -72,7 +76,10 @@ type Handler = (
  */
 const ROUTES: Record<MiniAppMethod, Handler> = {
   'app.getInfo': (appId) => ({
-    appId,
+    // The MANIFEST's id, not the runtime id: a preview runs as `preview-<uuid>`, and
+    // handing that back as the app's identity breaks anything the app builds on its
+    // own id (deep links, logs, self-checks) and leaks host internals to the guest.
+    appId: application.getExisting('MiniAppPreviewService')?.getPreviewByRuntimeId(appId)?.appId ?? appId,
     /** The mini app's own version, from its installation record. */
     version: installedVersionOf(appId),
     /** Cherry's version. `application` has NO getVersion(); it comes from electron. */
@@ -85,6 +92,14 @@ const ROUTES: Record<MiniAppMethod, Handler> = {
   // Gated `none` on purpose: it reports the CALLER'S OWN grant state, so there is nothing
   // to protect — gating it would only leave an app blind to what it may call.
   'app.getPermissions': (appId) => {
+    // A live preview grants its declared set minus the preview-withheld privileged
+    // capabilities (in memory, no consent UI) — read it from the preview record, not
+    // the DB. Report the DECLARED set: a withheld leaf is denied (`false`), not absent.
+    const preview = application.getExisting('MiniAppPreviewService')?.getPreviewByRuntimeId(appId)
+    if (preview) {
+      const effective = new Set(preview.grants)
+      return Object.fromEntries(preview.declaredGrants.map((k) => [k, effective.has(k)]))
+    }
     const manifest = MiniAppManifestSchema.parse(installationOf(appId).manifestJson)
     const granted = new Set(listGrants(appId))
     return Object.fromEntries(declaredGrantKeys(manifest).map((k) => [k, granted.has(k)]))

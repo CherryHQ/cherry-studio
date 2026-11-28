@@ -143,7 +143,12 @@ export const networkCapability = {
     const { url, method, headers, body } = FetchParams.parse(params)
     // The MANIFEST, not the grant table: hosts are the scope of `network.fetch`, not
     // grants of their own. The revocable half is the capability, checked at the bridge.
-    const hosts = MiniAppManifestSchema.parse(installationOf(appId).manifestJson).network
+    // A live preview's allowlist comes from its validated manifest (held in
+    // memory), not from an installation row it does not have.
+    const preview = application.getExisting('MiniAppPreviewService')?.getPreviewByRuntimeId(appId)
+    const hosts = preview
+      ? preview.networkHosts
+      : MiniAppManifestSchema.parse(installationOf(appId).manifestJson).network
     if (!isAllowedUrl(url, hosts)) {
       throw new PermissionDeniedError(
         appId,

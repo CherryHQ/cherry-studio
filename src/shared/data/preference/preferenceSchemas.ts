@@ -464,6 +464,8 @@ export interface PreferenceSchemas {
     'feature.local_model.hardware_acceleration.enabled': boolean
     // target-key-definitions/complex/complex
     'feature.mini_app.check_updates_on_open': boolean
+    // target-key-definitions/complex/complex
+    'feature.mini_app.launchpad_prompt_dismissed': string[]
     // redux/settings/maxKeepAliveMinapps
     'feature.mini_app.max_keep_alive': number
     // redux/settings/minappsOpenLinkExternal
@@ -956,6 +958,7 @@ export const DefaultPreferences: PreferenceSchemas = {
     'feature.file_processing.overrides': {},
     'feature.local_model.hardware_acceleration.enabled': true,
     'feature.mini_app.check_updates_on_open': true,
+    'feature.mini_app.launchpad_prompt_dismissed': [],
     'feature.mini_app.max_keep_alive': 3,
     'feature.mini_app.open_link_external': false,
     'feature.mini_app.region': 'auto',
@@ -1100,7 +1103,7 @@ export const DefaultPreferences: PreferenceSchemas = {
 
 /**
  * 生成统计:
- * - 总配置项: 350
+ * - 总配置项: 351
  * - electronStore项: 2
  * - redux项: 173
  * - localStorage项: 0

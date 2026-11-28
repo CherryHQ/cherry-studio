@@ -1,4 +1,4 @@
-import { ExternalLink, Globe, Package, Upload } from 'lucide-react'
+import { Bot, ExternalLink, Globe, Package, Upload } from 'lucide-react'
 import type { ChangeEvent, FC } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -29,6 +29,7 @@ import { uuid } from '@renderer/utils/uuid'
 import { MiniAppUrlSchema } from '@shared/data/api/schemas/miniApps'
 import type { MiniApp } from '@shared/data/types/miniApp'
 
+import CreateWithAgentTab from './CreateWithAgentTab'
 import { InstallMiniAppPicker } from './InstallMiniAppPanel'
 
 interface Props {
@@ -37,7 +38,7 @@ interface Props {
   onClose: () => void
 }
 
-type AddTab = 'site' | 'app'
+type AddTab = 'site' | 'app' | 'agent'
 
 const logger = loggerService.withContext('NewMiniAppPanel')
 const MINI_APP_DEVELOPER_DOCS_URL = 'https://github.com/CherryHQ/cherry-studio-miniapps'
@@ -272,6 +273,10 @@ const NewMiniAppPanel: FC<Props> = ({ open, app, onClose }) => {
                 <Package className="size-4" />
                 {t('miniApp.add.tab_app')}
               </TabsTrigger>
+              <TabsTrigger value="agent" className="flex-1">
+                <Bot className="size-4" />
+                {t('miniApp.add.tab_agent')}
+              </TabsTrigger>
             </TabsList>
             <TabsContent value="site">{siteForm}</TabsContent>
             {/* Mounted only while chosen: its unmount releases any pending consent token. */}
@@ -291,6 +296,12 @@ const NewMiniAppPanel: FC<Props> = ({ open, app, onClose }) => {
                   </Button>
                 </div>
                 <InstallMiniAppPicker open={open} onClose={handleClose} />
+              </TabsContent>
+            )}
+            {/* Mounted only while chosen: a left tab abandons its draft. */}
+            {tab === 'agent' && (
+              <TabsContent value="agent">
+                <CreateWithAgentTab onClose={handleClose} />
               </TabsContent>
             )}
           </Tabs>

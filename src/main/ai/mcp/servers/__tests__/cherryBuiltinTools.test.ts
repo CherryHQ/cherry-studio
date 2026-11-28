@@ -77,6 +77,8 @@ const agentContext = {
   sessionId: 'session-1',
   workspaceSource: { type: 'system' as const },
   workspacePath: '/tmp/workspace',
+  ownerSessionId: 'agent-session:session-1',
+  roots: [{ uri: 'file:///tmp/agent-workspace', name: 'workspace' }],
   trustedNotifyChannels: [{ id: 'channel-1', type: 'telegram' as const }],
   allowAnyOwnedNotifyChannel: false
 }

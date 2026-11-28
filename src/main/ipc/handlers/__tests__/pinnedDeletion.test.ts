@@ -6,7 +6,7 @@ import { IpcError, IpcErrorCode } from '@shared/ipc/errors/IpcError'
 import { isTrashTopicPinnedError, trashErrorCodes } from '@shared/ipc/errors/trash'
 
 const { appGetMock } = vi.hoisted(() => ({ appGetMock: vi.fn() }))
-vi.mock('@application', () => ({ application: { get: appGetMock } }))
+vi.mock('@application', () => ({ application: { get: appGetMock, getExisting: () => undefined } }))
 vi.mock('@data/services/AgentSessionMessageService', () => ({ agentSessionMessageService: {} }))
 vi.mock('@data/services/AgentSessionService', () => ({ agentSessionService: {} }))
 vi.mock('@data/services/FileEntryService', () => ({ fileEntryService: {} }))

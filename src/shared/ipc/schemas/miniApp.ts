@@ -1,5 +1,6 @@
 import * as z from 'zod'
 
+import { FileHandleSchema } from '@shared/data/types/file'
 import { LocalMiniAppSchema } from '@shared/data/types/miniApp'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { MiniAppActivityListingSchema } from '@shared/types/miniAppActivity'
@@ -48,6 +49,18 @@ const UpdateStatusSchema = z.discriminatedUnion('status', [
   }),
   ...UpdateOfferSchema.options
 ])
+
+/** One live agent-authored preview, mirrored from `MiniAppPreviewSummary` in main. */
+const MiniAppPreviewSummarySchema = z.object({
+  previewId: z.string(),
+  runtimeId: z.string(),
+  sessionId: z.string(),
+  appId: z.string(),
+  version: z.string(),
+  entry: z.string(),
+  packageSha256: z.string(),
+  openedAt: z.number()
+})
 
 const MiniAppSourceSchema = z.enum(['file', 'url', 'builtin'])
 const InstalledAppSummarySchema = z.object({ version: z.string(), source: MiniAppSourceSchema })
@@ -238,7 +251,58 @@ export const miniAppRequestSchemas = {
   }),
   'mini_app.activity.clear': defineRoute({ input: AppIdInputSchema, output: z.void() }),
   /** Opens the app's log folder in the system file manager. */
-  'mini_app.activity.open_folder': defineRoute({ input: AppIdInputSchema, output: z.void() })
+  'mini_app.activity.open_folder': defineRoute({ input: AppIdInputSchema, output: z.void() }),
+
+  // Agent-authored previews (stage 2, issue #21646): the preview pane lists, and
+  // the user closes; opening itself goes through the `mini_app` tool, which is the
+  // only path that can prove an artifact token.
+  'mini_app.authoring.list': defineRoute({
+    input: z.object({ sessionId: z.string().min(1) }),
+    output: z.array(MiniAppPreviewSummarySchema)
+  }),
+  'mini_app.authoring.close': defineRoute({
+    input: z.object({ sessionId: z.string().min(1), previewId: z.string().min(1) }),
+    output: z.void()
+  }),
+  'mini_app.authoring.close_session': defineRoute({
+    input: z.object({ sessionId: z.string().min(1) }),
+    output: z.object({ closed: z.number(), tokensRevoked: z.number() })
+  }),
+
+  // Stage 3 (issue #21646): the artifact card's consent actions. They name a
+  // FILE (the message attachment's handle), never a token — main finds the
+  // session's own token for it, re-checks the digest against it, refuses a
+  // repair-capped artifact (AC9), and only then acts. The CLICK is the preview
+  // consent; installation consent stays with the card these routes feed
+  // (`request_install` returns exactly what `install.preview_file` returns).
+  'mini_app.authoring.request_preview': defineRoute({
+    input: z.object({ sessionId: z.string().min(1), handle: FileHandleSchema }),
+    output: MiniAppPreviewSummarySchema
+  }),
+  'mini_app.authoring.request_install': defineRoute({
+    input: z.object({ sessionId: z.string().min(1), handle: FileHandleSchema }),
+    output: InstallPreviewSummarySchema
+  }),
+  /**
+   * The Launchpad decision after an authored install (AC8): `pin` sets the app's
+   * status (the Launchpad is `pinned` rows); `dismiss` persists "Not now" so the
+   * prompt reads back as answered. Two separate routes would pretend these are
+   * the same kind of fact — one writes a row, the other a preference.
+   */
+  'mini_app.authoring.set_launchpad': defineRoute({
+    input: z.object({ appId: MiniAppIdSchema, action: z.enum(['pin', 'dismiss']) }),
+    output: z.void()
+  }),
+  /**
+   * The post-install read-back for that prompt: pinned OR dismissed means answered.
+   * The status half matters on reinstall and upgrade — pinning sets the status, not
+   * the dismissed list, so checking only the list re-asks a question the user
+   * already answered with "Add to Launchpad".
+   */
+  'mini_app.authoring.launchpad_answered': defineRoute({
+    input: z.object({ appId: MiniAppIdSchema }),
+    output: z.boolean()
+  })
 }
 
 export type MiniAppEventSchemas = {
