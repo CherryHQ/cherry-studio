@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "ef25c314-c610-46d8-9d7a-c52e3e1fae8d",
+  "id": "0045-agent-session-workspace-event",
   "prevId": "f60834a2-ff4a-49c4-9be0-c2647b1da2f7",
   "tables": {
     "agent": {
