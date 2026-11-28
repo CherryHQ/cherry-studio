@@ -16,6 +16,7 @@ const mockGetPathForFile = vi.fn()
 const mockReadExternal = vi.fn()
 const mockUseDirectoryTree = vi.fn()
 const mockProjectNotesTree = vi.fn()
+const preflightControl = { autoContinue: true }
 
 const createNoteNode = (name: string, externalPath: string) => ({
   id: externalPath,
@@ -37,6 +38,25 @@ vi.mock('../../KnowledgePageProvider', () => ({
   useKnowledgePage: () => mockUseKnowledgePage()
 }))
 
+vi.mock('../addKnowledgeItemDialog/KnowledgeFilePreflightDialog', async () => {
+  const { useEffect } = await import('react')
+  return {
+    KnowledgeFilePreflightDialog: ({ results, onContinue }: { results: unknown; onContinue: () => void }) => {
+      useEffect(() => {
+        if (results && preflightControl.autoContinue) onContinue()
+      }, [results, onContinue])
+      return results && !preflightControl.autoContinue ? (
+        <div data-testid="manual-preflight">
+          <pre>{JSON.stringify(results)}</pre>
+          <button type="button" onClick={onContinue}>
+            Continue preflight
+          </button>
+        </div>
+      ) : null
+    }
+  }
+})
+
 vi.mock('@renderer/hooks/useKnowledgeItems', () => ({
   useAddKnowledgeItems: (...args: unknown[]) => mockUseAddKnowledgeItems(...args)
 }))
@@ -44,6 +64,13 @@ vi.mock('@renderer/hooks/useKnowledgeItems', () => ({
 vi.mock('@renderer/ipc', () => ({
   ipcApi: {
     request: vi.fn(async (route: string, handle?: { path?: string }) => {
+      if (route === 'knowledge.preflight_files') {
+        return (handle as unknown as { paths: string[] }).paths.map((path) => ({
+          path,
+          processor: 'pdf',
+          reason: /\.(png|exe)$/i.test(path) ? 'unsupported_format' : 'ok'
+        }))
+      }
       if (route !== 'file.get_metadata') {
         return undefined
       }
@@ -315,6 +342,7 @@ vi.mock('react-i18next', () => {
 describe('AddKnowledgeItemDialog', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    preflightControl.autoContinue = true
     mockUseKnowledgePage.mockReturnValue({ selectedBaseId: 'base-1', pendingAddSource: 'file' })
     mockUseAddKnowledgeItems.mockReturnValue({
       submit: mockSubmitKnowledgeItems,
@@ -401,7 +429,7 @@ describe('AddKnowledgeItemDialog', () => {
       expect(mockSubmitKnowledgeItems).not.toHaveBeenCalled()
     })
 
-    it('drops unsupported picks and warns about the skipped count', async () => {
+    it('omits files rejected by main-process preflight', async () => {
       mockFileSelect.mockResolvedValueOnce([createSelectedFile('alpha.pdf'), createSelectedFile('photo.png')])
       render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
 
@@ -411,7 +439,6 @@ describe('AddKnowledgeItemDialog', () => {
           'detect'
         )
       })
-      expect(toast.warning).toHaveBeenCalledWith('已跳过 1 个不支持的文件')
     })
 
     it('submits remaining files when one picked file is missing', async () => {
@@ -461,7 +488,6 @@ describe('AddKnowledgeItemDialog', () => {
         )
       })
       expect(mockFileSelect).not.toHaveBeenCalled()
-      expect(toast.warning).toHaveBeenCalledWith('已跳过 1 个不支持的文件')
     })
 
     it('submits remaining pending files when one local file is missing', async () => {
@@ -569,6 +595,74 @@ describe('AddKnowledgeItemDialog', () => {
       expect(toast.success).not.toHaveBeenCalled()
     })
 
+    it('imports a ready folder when the only loose file is unsupported', async () => {
+      mockUseKnowledgePage.mockReturnValue({
+        selectedBaseId: 'base-1',
+        pendingAddSource: 'file',
+        pendingAddFiles: [createMockFile('photo.png', 10)],
+        pendingAddDirectoryPaths: ['/host/FolderDropFixture']
+      })
+      render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
+      await waitFor(() =>
+        expect(mockSubmitKnowledgeItems).toHaveBeenCalledWith(
+          [{ type: 'directory', data: { source: '/host/FolderDropFixture' } }],
+          'detect'
+        )
+      )
+      expect(ipcApi.request).toHaveBeenCalledWith('knowledge.preflight_files', {
+        baseId: 'base-1',
+        paths: ['/external/photo.png', '/host/FolderDropFixture']
+      })
+    })
+    it('releases a pending picker guard when the selected base changes', async () => {
+      const first = Promise.withResolvers<unknown>()
+      const request = vi.mocked(ipcApi.request)
+      const original = request.getMockImplementation()!
+      request.mockImplementationOnce(async () => first.promise as never)
+      mockUseKnowledgePage.mockReturnValue({ selectedBaseId: 'base-1', pendingAddSource: 'file' })
+      mockFileSelect.mockResolvedValue([createSelectedFile('fresh.md')])
+      const { rerender } = render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
+      await waitFor(() => expect(request).toHaveBeenCalled())
+      request.mockImplementation(original)
+      mockUseKnowledgePage.mockReturnValue({ selectedBaseId: 'base-2', pendingAddSource: 'file' })
+      rerender(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
+      await waitFor(() => expect(mockSubmitKnowledgeItems).toHaveBeenCalled())
+      await act(async () => first.resolve(undefined))
+    })
+    it('a slower drop finishing after a base switch cannot overwrite the newer review', async () => {
+      const slow = Promise.withResolvers<unknown>()
+      const request = vi.mocked(ipcApi.request)
+      const original = request.getMockImplementation()!
+      preflightControl.autoContinue = false
+      // Drop A: its file metadata hangs.
+      request.mockImplementationOnce(() => slow.promise as never)
+      mockUseKnowledgePage.mockReturnValue({
+        selectedBaseId: 'base-1',
+        pendingAddSource: 'file',
+        pendingAddFiles: [createMockFile('slow.md', 10)]
+      })
+      const { rerender } = render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
+      await waitFor(() => expect(request).toHaveBeenCalledWith('file.get_metadata', expect.anything()))
+      // Base switch opens drop B's session; keep its review awaiting Continue.
+      request.mockImplementation(original)
+      mockUseKnowledgePage.mockReturnValue({
+        selectedBaseId: 'base-2',
+        pendingAddSource: 'file',
+        pendingAddFiles: [createMockFile('fresh.md', 10)]
+      })
+      rerender(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
+      await waitFor(() => expect(screen.getByTestId('manual-preflight')).toHaveTextContent('/external/fresh.md'))
+      expect(mockSubmitKnowledgeItems).not.toHaveBeenCalled()
+      await act(async () => slow.resolve({ kind: 'file', size: 10, createdAt: 0, modifiedAt: 0 }))
+      expect(screen.getByTestId('manual-preflight')).toHaveTextContent('/external/fresh.md')
+      expect(screen.getByTestId('manual-preflight')).not.toHaveTextContent('/external/slow.md')
+      expect(mockSubmitKnowledgeItems).not.toHaveBeenCalled()
+      await userEvent.setup().click(screen.getByRole('button', { name: 'Continue preflight' }))
+      await waitFor(() => expect(mockSubmitKnowledgeItems).toHaveBeenCalledTimes(1))
+      expect(mockSubmitKnowledgeItems.mock.calls[0][0]).toEqual([
+        { type: 'file', data: expect.objectContaining({ source: '/external/fresh.md' }) }
+      ])
+    })
     it.each([
       { label: '全部保留', strategy: 'rename' },
       { label: '替换', strategy: 'replace' }
@@ -605,11 +699,6 @@ describe('AddKnowledgeItemDialog', () => {
         ])
         expect(mockFileSelect).not.toHaveBeenCalled()
         expect(mockSelectFolder).not.toHaveBeenCalled()
-        expect(mockGetPathForFile.mock.calls).toEqual([[plain]])
-        expect(vi.mocked(ipcApi.request).mock.calls).toEqual([
-          ['file.get_metadata', { kind: 'path', path: '/external/plain.md' }]
-        ])
-        expect(vi.mocked(toast.warning).mock.calls).toEqual([['已跳过 1 个不支持的文件']])
         expect(toast.error).not.toHaveBeenCalled()
         expect(toast.success).not.toHaveBeenCalled()
       }
@@ -749,6 +838,32 @@ describe('AddKnowledgeItemDialog', () => {
 
   describe('note source — create mode', () => {
     const switchToCreateMode = () => fireEvent.click(screen.getByRole('radio', { name: '新建笔记' }))
+
+    it('can submit a note after switching away from an unfinished file inspection', async () => {
+      const pending = Promise.withResolvers<unknown>()
+      const request = vi.mocked(ipcApi.request)
+      const original = request.getMockImplementation()!
+      request.mockImplementation((route, ...args) =>
+        route === 'knowledge.preflight_files' ? (pending.promise as never) : original(route, ...args)
+      )
+      mockUseKnowledgePage.mockReturnValue({
+        selectedBaseId: 'base-1',
+        pendingAddSource: 'file',
+        pendingAddFiles: [createMockFile('pending.md', 10)]
+      })
+      const { rerender } = render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
+      await waitFor(() => expect(request).toHaveBeenCalledWith('knowledge.preflight_files', expect.anything()))
+      setPendingAddSource('note')
+      rerender(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
+      switchToCreateMode()
+      fireEvent.change(screen.getByPlaceholderText('为这篇笔记取个名字'), { target: { value: 'Ideas' } })
+      fireEvent.change(screen.getByPlaceholderText('在此输入笔记内容…'), { target: { value: 'body' } })
+      await act(async () => pending.resolve([]))
+      request.mockImplementation(original)
+      expect(screen.getByRole('button', { name: '添加' })).toBeEnabled()
+      await userEvent.setup().click(screen.getByRole('button', { name: '添加' }))
+      await waitFor(() => expect(mockSubmitKnowledgeItems).toHaveBeenCalledTimes(1))
+    })
 
     it('starts on the import list and swaps to the draft form on demand', () => {
       setPendingAddSource('note')
@@ -1219,6 +1334,26 @@ describe('AddKnowledgeItemDialog', () => {
       await waitFor(() => {
         expect(onOpenChange).toHaveBeenCalledWith(false)
       })
+    })
+
+    it('ignores a late file conflict from the previous knowledge base', async () => {
+      let resolve!: (value: unknown) => void
+      mockFileSelect.mockResolvedValueOnce([createSelectedFile('alpha.pdf')]).mockResolvedValueOnce(null)
+      mockSubmitKnowledgeItems.mockImplementationOnce(
+        () =>
+          new Promise((done) => {
+            resolve = done
+          })
+      )
+      const onOpenChange = vi.fn()
+      const { rerender } = render(<AddKnowledgeItemDialog open onOpenChange={onOpenChange} />)
+      await waitFor(() => expect(mockSubmitKnowledgeItems).toHaveBeenCalledOnce())
+      const previous = mockUseKnowledgePage.getMockImplementation()!
+      mockUseKnowledgePage.mockImplementation(() => ({ ...previous(), selectedBaseId: 'base-b' }))
+      rerender(<AddKnowledgeItemDialog open onOpenChange={onOpenChange} />)
+      await act(async () => resolve({ status: 'conflicts', conflicts: [{ type: 'file', title: 'alpha.pdf' }] }))
+      expect(screen.queryByRole('button', { name: '替换' })).not.toBeInTheDocument()
+      expect(mockSubmitKnowledgeItems).toHaveBeenCalledOnce()
     })
 
     it('resolves the conflict dialog with replace', async () => {

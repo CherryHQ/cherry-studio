@@ -17,6 +17,8 @@ import { isHttpUrl } from '@shared/utils/url'
  * route's `z.void()` output (see selection.ts hide_toolbar).
  */
 export const knowledgeHandlers: IpcHandlersFor<typeof knowledgeRequestSchemas> = {
+  'knowledge.preflight_files': async ({ baseId, paths }) =>
+    application.get('KnowledgeService').preflightFiles(baseId, paths),
   'knowledge.create_base': async ({ base }) => application.get('KnowledgeService').createBase(base),
   'knowledge.restore_base': async (dto) => application.get('KnowledgeService').restoreBase(dto),
   'knowledge.delete_base': async ({ baseId }) => {

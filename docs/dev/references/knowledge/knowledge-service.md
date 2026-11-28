@@ -384,3 +384,9 @@ Similarity search scans the `embedding` rows directly and sorts by the engine's 
 This means retrieval cost scales roughly linearly with the number of vector rows in a single knowledge base.
 This is an exact implementation boundary, not an indexed-ANN scaling
 guarantee. No second vector index exists in the current contract.
+
+## File preflight admission
+
+`knowledge.preflight_files` delegates to `KnowledgeService.preflightFiles` and returns the shared per-file result codes, selected reader and effective processor caps. Inspection uses real stat and PDF text-page data locally; it never starts a processor or sends a network request. Blank or mixed PDFs need a configured document processor. Local readers impose no new global size or page cap.
+
+`addItems` repeats file and directory inspection before conflict cancellation, replacement deletion, copying, row creation or enqueueing. A failed batch leaves existing roots unchanged. Restored files carrying a processed artifact keep it without requiring the original processor. Direct file selection may omit rejected files after review; a directory with a supported but blocked file must be fixed before import. Unsupported directory entries retain the existing skip policy. Preflight checks configuration, not remote availability or parser layout quality.

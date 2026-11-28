@@ -150,7 +150,7 @@ function validateRemoteState(value: unknown, apiHost: string) {
   return result.data
 }
 
-function resolveApiHost(config: FileProcessorMerged): string {
+export function resolveApiHost(config: FileProcessorMerged): string {
   const capability = getRequiredCapability(config, 'document_to_markdown', 'open-mineru')
   try {
     const url = new URL(getRequiredApiHost(capability))

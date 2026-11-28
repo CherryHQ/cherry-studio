@@ -54,6 +54,7 @@ import {
   toKnowledgeItemIds
 } from '../types'
 import { resolveKnowledgeAddConflicts } from './addConflicts'
+import { preflightKnowledgePaths } from './filePreflight'
 import type { FileProcessingWaitManager } from './FileProcessingWaitManager'
 import { markUnscheduledKnowledgeItemsFailed } from './statusCleanup'
 import { purgeKnowledgeSubtreeWithinLock } from './subtreePurge'
@@ -104,6 +105,25 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
 
     if (inputs.length === 0) {
       return { status: 'added' }
+    }
+
+    for (const input of inputs) {
+      if (input.type !== 'file' && input.type !== 'directory') continue
+      // Only Main's internal restore performs inline copies of already-saved roots.
+      if (options.copyInline) continue
+      const results = await preflightKnowledgePaths(
+        [input.type === 'file' ? input.data.path : input.data.source],
+        base.fileProcessorId
+      )
+      const failed = results.filter(
+        (result) => result.reason !== 'ok' && !(input.type === 'directory' && result.reason === 'unsupported_format')
+      )
+      if (failed.length) {
+        throw DataApiErrorFactory.validation(
+          { files: failed.map((result) => `${result.reason}: ${result.path}`) },
+          `Knowledge file preflight failed: ${failed.map((result) => `${result.reason}: ${result.path}`).join('; ')}`
+        )
+      }
     }
 
     // rename (the default, and every internal caller — restore/migrator): keep all,

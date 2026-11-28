@@ -8,6 +8,7 @@ import { ListAvailableFileProcessorsResultSchema } from '@shared/data/types/file
 
 import { getFileProcessorConfigById, resolveProcessorConfigByFeature } from './config/resolveProcessorConfig'
 import { ocrImageToText } from './ocrImageToText'
+import { resolveApiHost as resolveOpenMineruApiHost } from './processors/openMineru/documentToMarkdown/handler'
 import { probeOpenMineru } from './processors/openMineru/protocol'
 import { processorRegistry } from './processors/registry'
 import { backgroundJobHandler, localBackgroundJobHandler } from './tasks/backgroundJobHandler'
@@ -62,6 +63,21 @@ export class FileProcessingService extends BaseService {
 
   protected onDestroy(): void {
     this._onDidChangeTask.dispose()
+  }
+
+  /** Read configuration and local prerequisites without preparing or submitting a job. */
+  getDocumentPreflightConfig(processorId: FileProcessorId) {
+    const config = resolveProcessorConfigByFeature('document_to_markdown', processorId)
+    const capability = config.capabilities.find((item) => item.feature === 'document_to_markdown')
+    if (!capability) throw new Error('Document processing capability is unavailable')
+    if (config.type === 'api' && processorId !== 'open-mineru' && !config.apiKeys?.some((key) => key.trim())) {
+      throw new Error('API key is required')
+    }
+    if (!capability.apiHost?.trim() && config.type === 'api') {
+      throw new Error('API host is required')
+    }
+    if (processorId === 'open-mineru') resolveOpenMineruApiHost(config)
+    return { processorId, ...capability }
   }
 
   /**

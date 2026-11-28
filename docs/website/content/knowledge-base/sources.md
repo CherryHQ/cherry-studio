@@ -134,3 +134,11 @@ icon: box-archive
 ## 继续阅读
 
 <table data-view="cards"><thead><tr><th></th><th></th><th data-hidden data-card-target data-type="content-ref"></th></tr></thead><tbody><tr><td><strong>文档解析与 OCR</strong></td><td>处理正文缺失、乱码和扫描内容。</td><td><a href="document-preprocessing.md">document-preprocessing.md</a></td></tr><tr><td><strong>检查资料与召回</strong></td><td>用固定问题验收检索质量。</td><td><a href="recall-test.md">recall-test.md</a></td></tr><tr><td><strong>数据、隐私与维护</strong></td><td>了解备份、删除和服务边界。</td><td><a href="data.md">data.md</a></td></tr></tbody></table>
+
+## 导入前检查
+
+选择文件或文件夹后，先逐文件确认所选读取器或文档处理器、有效大小与页数限制及阻止原因。取消不写入文件。点击**配置文档处理器**修复凭据、下载本地模型或选择支持 OCR 的文档处理器。空白和混合 PDF 不能仅使用本地 PDF 文本读取器。检查不上传文件，也不保证远程连通性。
+
+可展开的**支持的格式**表与选择器和主进程检查使用同一目录。文本、Markdown、HTML、CSV、Drafts 导出使用本地读取器；DOC、DOCX、PPT/PPTX、XLS/XLSX、OpenDocument、RTF、EPUB 使用本地 anydoc，DOC/DOCX/EPUB 保留回退。只有 PDF 使用知识库文档处理器，未选处理器时使用本地文本读取器。本地读取器不新增大小或页数限制，现有处理器限制逐文件显示。
+
+Windows ARM64 缺少 anydoc 的 PPT/PPTX、XLS/XLSX、OpenDocument、RTF 会被阻止。支持格式不代表保证复杂排版质量。文件夹中有受支持但被阻止的文件时，需要先修复；不支持的条目继续跳过。损坏、加密或检查耗时过长的 PDF 可能在摄取前失败。解析质量问题属于 [#12854](https://github.com/CherryHQ/cherry-studio/issues/12854) 等格式专项后续，不是支持表的质量承诺。

@@ -222,7 +222,7 @@ export const FILE_PROCESSOR_PRESET_MAP = {
   },
   'local-document': {
     type: 'builtin',
-    capabilities: [{ feature: 'document_to_markdown', inputs: ['document'], output: 'markdown' }]
+    capabilities: [{ feature: 'document_to_markdown', inputs: ['document'], output: 'markdown', maxInputPages: 300 }]
   },
   ovocr: {
     type: 'builtin',

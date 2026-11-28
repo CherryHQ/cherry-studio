@@ -15,7 +15,7 @@ The completion standard is not "the file appears in the list," but rather that t
 
 | Entry Point | Suitable For | Relationship After Import | Key Considerations |
 | -- | ----------------------- | ----------- | ------------------ |
-| File | PDF, Office, Markdown, text, etc. | Saves a managed copy | Select up to 20 items per batch |
+| File | PDF, Office, Markdown, text, etc. | Saves a managed copy | Review the whole selection before importing |
 | Note | Content already organized in Cherry Studio | Imports a snapshot of the content at that time | Subsequent edits to the original note do not sync automatically |
 | Folder | A batch of local files under the same topic | Creates source entries based on directory contents | Do not import unrelated directories in bulk |
 | URL | A single publicly accessible web page | Saves a snapshot of the web page at the time of fetching | Login pages, script-rendered content, or restricted pages may be incomplete |
@@ -133,3 +133,11 @@ It does not delete the original file or note, but it removes the managed copy an
 ## Continue Reading
 
 <table data-view="cards"><thead><tr><th></th><th></th><th data-hidden data-card-target data-type="content-ref"></th></tr></thead><tbody><tr><td><strong>Document Parsing and OCR </strong></td><td>Handle missing content, garbled text, and scanned content. </td><td><a href="document-preprocessing.md">document-preprocessing.md </a></td></tr><tr><td><strong>Checking Sources and Retrieval </strong></td><td>Validate retrieval quality using fixed questions. </td><td><a href="recall-test.md">recall-test.md </a></td></tr><tr><td><strong>Data, Privacy, and Maintenance </strong></td><td>Understand backups, deletion, and service boundaries. </td><td><a href="data.md">data.md </a></td></tr></tbody></table>
+
+## File preflight before import
+
+After selecting files or a folder, review each file before importing. The review shows the selected local reader or document processor, existing processor byte/page limits and any blocked reason. Cancel writes nothing. Use **Configure document processor** to fix credentials, download the required local model or choose an OCR-capable document processor. Blank and mixed PDFs cannot use the local PDF text reader alone. No file is uploaded by preflight; remote availability is not verified.
+
+The expandable **Supported formats** table is generated from the same catalog used by the picker and admission checks. Text/Markdown, HTML, CSV and Drafts exports have local readers. DOC, DOCX, PPT/PPTX, XLS/XLSX, OpenDocument, RTF and EPUB use local anydoc (with DOC/DOCX/EPUB fallbacks). PDF uses the configured document processor, or the local text reader when no document processor is selected. Only PDF is routed through the knowledge base document processor. Local readers have no new application-defined byte/page cap. Effective processor limits appear per selected file.
+
+On Windows ARM64, PPT/PPTX, XLS/XLSX, OpenDocument and RTF need an unavailable anydoc runtime and are blocked. Format acceptance does not promise complex layout quality. For a folder with a supported but blocked file, fix the reported files before importing the folder; unsupported entries are skipped. Corrupt, encrypted or slow-to-inspect PDFs can fail inspection before ingestion. Parser-quality findings belong to format-specific follow-ups such as [#12854](https://github.com/CherryHQ/cherry-studio/issues/12854), rather than changing the support table into a parser-quality guarantee.
