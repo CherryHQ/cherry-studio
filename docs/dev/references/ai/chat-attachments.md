@@ -52,16 +52,23 @@ Decided per file part in `prepareChatMessages`
   also normalizes the `mediaType` to the on-disk MIME. The provider gets the real
   file as a user-message part. (The function is named for the boundary: provider
   File-API upload for large files would slot in behind the same signature.)
-  Locally decoded PNG, JPEG, WebP, and GIF images with a short edge below the
-  15 px attachment compatibility target are padded with opaque white before
-  the request bytes leave the main process; stored FileEntry and persisted message
-  part bytes remain unchanged. Compliant images and inputs outside the strict
-  decoder, including remote URLs and AVIF/HEIC, pass through unchanged; images
-  that cannot be padded are also sent unchanged. Each decision (valid, rejected or
-  padded) is cached by a SHA-256 digest of the data URL in a bounded 512-entry
-  LRU, so a history image repeated across model calls is decoded only once. This prevents providers such as
-  Volcengine Ark from rejecting the whole request and aborting the turn when an
-  image edge is below their minimum.
+  Locally decoded PNG, JPEG, WebP, and GIF images above the 8,192 px edge
+  compatibility cap are downscaled. Short edges below 15 px are padded with
+  opaque white; stored FileEntry and persisted message bytes stay unchanged.
+  These fixed compatibility bounds do not replace provider-specific limits,
+  including limits that depend on image count.
+  Compliant images and inputs outside the strict decoder, including remote
+  URLs and AVIF/HEIC, pass through unchanged. If oversized input cannot be
+  transformed within both edge and pixel limits, including padding failure
+  after downscale, the model receives the named file failure note, not the
+  original oversized image. Padding-only failures retain the original image.
+  Multiframe APNGs retain original bytes for padding-only input; oversized
+  multiframe APNGs use the failure note to avoid dropping frames. An APNG
+  whose sole frame is its default image can resize normally.
+  Decisions use a SHA-256 data-URL key in a 512-entry LRU with a 16 MiB total
+  replacement-URL budget. Replacements above 1 MiB are not retained, so repeated
+  history images can be decoded again. Other decisions can also be evicted.
+
 - Unknown extensions undergo a conservative content sniff (binary detection +
   encoding confidence). Binary bytes or ambiguous legacy encodings get a short
   unsupported note instead of being decoded into mojibake.

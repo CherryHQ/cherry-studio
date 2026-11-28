@@ -61,6 +61,41 @@ describe('normal chat corrupt image handling', () => {
     }
   )
 
+  it.each(['data', 'entry'] as const)(
+    'names the provider edge limit in the note when an oversized image cannot be resized (%s routing)',
+    async (kind) => {
+      const bytes = await sharp({ create: { width: 9000, height: 20, channels: 3, background: '#0f1e2d' } })
+        .png()
+        .toBuffer()
+      files.set('wide-entry', bytes)
+      const part = {
+        type: 'file' as const,
+        filename: 'wide.png',
+        mediaType: 'image/png',
+        url: `data:image/png;base64,${bytes.toString('base64')}`,
+        ...(kind === 'entry' ? { providerMetadata: { cherry: { fileEntryId: 'wide-entry' } } } : {})
+      }
+      const resize = vi.spyOn(sharp.prototype, 'resize').mockImplementationOnce(() => {
+        throw new Error('encoder failed')
+      })
+      try {
+        const message = { id: 'm', role: 'user' as const, parts: [part] }
+        const out = await prepareChatMessages([message], context)
+        expect(out[0].parts).toEqual([
+          {
+            type: 'text',
+            text: 'Attached file "wide.png": [could not read this file: image exceeds the 8192 px provider limit and could not be resized].'
+          }
+        ])
+        // The cached failure emits the same named note on later turns.
+        const again = await prepareChatMessages([{ ...message, id: 'm2' }], context)
+        expect(again[0].parts).toEqual(out[0].parts)
+      } finally {
+        resize.mockRestore()
+      }
+    }
+  )
+
   it.each(['png', 'jpeg', 'webp', 'gif'] as const)('keeps valid %s byte-for-byte', async (format) => {
     const bytes = await sharp(valid).toFormat(format).toBuffer()
     const part = {

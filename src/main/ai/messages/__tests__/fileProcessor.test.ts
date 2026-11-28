@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
@@ -221,6 +222,22 @@ describe('attachment image padding', () => {
     }
   })
 
+  it('uses the named failure note when all-frame metadata rejects an oversized animation', async () => {
+    const bytes = await input(23, 17)
+    const part = filePart({ url: `data:image/gif;base64,${bytes.toString('base64')}`, mediaType: 'image/gif' })
+    const metadata = vi
+      .spyOn(sharp.prototype, 'metadata')
+      .mockRejectedValueOnce(new Error('Input image exceeds pixel limit'))
+      .mockResolvedValueOnce({ format: 'gif', width: 8400, height: 20, pageHeight: 20, pages: 600 })
+    const reason = vi.fn()
+    try {
+      expect(await materializeNativeFilePart(part, reason)).toBeNull()
+      expect(reason).toHaveBeenCalledWith(expect.stringContaining('8192'))
+    } finally {
+      metadata.mockRestore()
+    }
+  })
+
   it('retains the original when the planned animation exceeds the pixel budget', async () => {
     const part = partFor(await input(4, 4))
     const metadata = vi.spyOn(sharp.prototype, 'metadata').mockResolvedValueOnce({
@@ -233,6 +250,55 @@ describe('attachment image padding', () => {
     try {
       expect(await materializeNativeFilePart(part)).toEqual(part)
     } finally {
+      metadata.mockRestore()
+    }
+  })
+
+  // Distinct background colors keep each fixture's bytes unique so the
+  // per-image decision cache cannot replay another test's outcome.
+  const uniqueInput = async (red: number) =>
+    sharp({ create: { width: 4, height: 4, channels: 4, background: { r: red, g: 34, b: 56, alpha: 0.5 } } })
+      .png()
+      .toBuffer()
+
+  it('emits the failure note when a thin many-frame animation cannot be padded within the pixel budget after downscale', async () => {
+    const part = partFor(await uniqueInput(201))
+    // 8400x8 with 820 frames: the 8192x7 downscale fits the pixel budget, but
+    // padding to 8192x15 would exceed it, and 8192x7 violates the minimum
+    // edge, so neither bound can be met and the named failure note must win
+    // over returning the oversized original.
+    const metadata = vi.spyOn(sharp.prototype, 'metadata').mockResolvedValueOnce({
+      format: 'png',
+      width: 8400,
+      height: 8,
+      pageHeight: 8,
+      pages: 820
+    })
+    try {
+      expect(await materializeNativeFilePart(part)).toBeNull()
+    } finally {
+      metadata.mockRestore()
+    }
+  })
+
+  it('emits the failure note when encoding fails after a downscale that left a sub-minimum edge', async () => {
+    const part = partFor(await uniqueInput(202))
+    const metadata = vi.spyOn(sharp.prototype, 'metadata').mockResolvedValueOnce({
+      format: 'png',
+      width: 9000,
+      height: 10,
+      pageHeight: 10,
+      pages: 1
+    })
+    const extend = vi.spyOn(sharp.prototype, 'extend').mockImplementationOnce(() => {
+      throw new Error('encoder failed')
+    })
+    try {
+      // The 8192x9 downscale violates the minimum edge; the original violates
+      // the maximum, so the named failure note wins over both fallbacks.
+      expect(await materializeNativeFilePart(part)).toBeNull()
+    } finally {
+      extend.mockRestore()
       metadata.mockRestore()
     }
   })
@@ -297,5 +363,151 @@ describe('materializeNativeFilePart — repeated history images', () => {
     })
     expect(first[1]).toEqual(parts[1])
     expect(first[2]).toBeNull()
+  })
+})
+
+describe('attachment image downscaling', () => {
+  const input = async (width: number, height: number) =>
+    sharp({ create: { width, height, channels: 4, background: { r: 12, g: 34, b: 56, alpha: 0.5 } } })
+      .png()
+      .toBuffer()
+  const partFor = (bytes: Buffer): FileUIPart =>
+    filePart({
+      url: `data:image/png;base64,${bytes.toString('base64')}`,
+      mediaType: 'image/png',
+      filename: 'panorama.png'
+    })
+
+  it.each([
+    [8300, 20, 8192, 19],
+    [20, 8300, 19, 8192]
+  ])('downscales %i×%i so no edge exceeds the provider limit', async (width, height, outWidth, outHeight) => {
+    const part = partFor(await input(width, height))
+    // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
+    const snapshot = structuredClone(part)
+    const result = await materializeNativeFilePart(part)
+    const output = Buffer.from(result!.url.split(',')[1], 'base64')
+    expect(await sharp(output).metadata()).toMatchObject({ width: outWidth, height: outHeight })
+    expect(part).toEqual(snapshot)
+    expect(result?.filename).toBe('panorama.png')
+    expect(result?.mediaType).toBe('image/png')
+  })
+
+  it.each([
+    [8300, 15, 8192, 15],
+    [15, 8300, 15, 8192],
+    [9000, 10, 8192, 15]
+  ])(
+    'downscales %i×%i without dropping the short edge below the minimum',
+    async (width, height, outWidth, outHeight) => {
+      const part = partFor(await input(width, height))
+      const result = await materializeNativeFilePart(part)
+      const output = Buffer.from(result!.url.split(',')[1], 'base64')
+      expect(await sharp(output).metadata()).toMatchObject({ width: outWidth, height: outHeight })
+    }
+  )
+
+  it('drops the attachment through the failure-note path when downscaling fails', async () => {
+    const part = partFor(await input(8400, 20))
+    const resize = vi.spyOn(sharp.prototype, 'resize').mockImplementationOnce(() => {
+      throw new Error('encoder failed')
+    })
+    try {
+      expect(await materializeNativeFilePart(part)).toBeNull()
+    } finally {
+      resize.mockRestore()
+    }
+  })
+
+  it('caches the downscaled result so history images are not re-encoded', async () => {
+    const part = partFor(await input(8500, 20))
+    const first = await materializeNativeFilePart(part)
+    const decodes = sharpCalls.count
+    const second = await materializeNativeFilePart({ ...part })
+    expect(sharpCalls.count).toBe(decodes)
+    expect(second).toEqual(first)
+  })
+})
+
+describe('bounded image replacements and APNG safety', () => {
+  const noisyImage = async (height: number) =>
+    sharp(randomBytes(8300 * height * 3), { raw: { width: 8300, height, channels: 3 } })
+      .png()
+      .toBuffer()
+  const partFor = (bytes: Buffer): FileUIPart =>
+    filePart({
+      url: `data:image/png;base64,${bytes.toString('base64')}`,
+      mediaType: 'image/png',
+      filename: 'animation.png'
+    })
+
+  it('uses an explicit failure reason instead of dropping APNG frames during resize', async () => {
+    const bytes = await fs.readFile(new URL('./fixtures/oversized-two-frame.png', import.meta.url))
+    expect(bytes.includes(Buffer.from('acTL'))).toBe(true)
+    const reason = vi.fn()
+    expect(await materializeNativeFilePart(partFor(bytes), reason)).toBeNull()
+    expect(reason).toHaveBeenCalledWith(expect.stringMatching(/animated PNG.*frames.*8192/))
+    const cached = vi.fn()
+    expect(await materializeNativeFilePart(partFor(bytes), cached)).toBeNull()
+    expect(cached).toHaveBeenCalledWith(expect.stringContaining('frames'))
+  })
+
+  it('delivers original APNG bytes to local agents even after provider rejection is cached', async () => {
+    const bytes = await fs.readFile(new URL('./fixtures/oversized-two-frame.png', import.meta.url))
+    const part = partFor(bytes)
+    expect(await materializeNativeFilePart(part)).toBeNull()
+    expect(await materializeNativeFilePart(part, undefined, { enforceProviderImageEdges: false })).toEqual(part)
+    const { localPartContent } = await import('../../runtime/localContent')
+    expect(await localPartContent(part, true)).toEqual({
+      type: 'image',
+      mimeType: 'image/png',
+      data: bytes.toString('base64')
+    })
+    const { acpContent } = await import('../../runtime/acp/acpContent')
+    const input = { message: { id: 'apng-local', data: { parts: [part] } } } as Parameters<typeof acpContent>[0]
+    expect(await acpContent(input, { image: true, audio: false, embeddedContext: false })).toEqual([
+      { type: 'image', mimeType: 'image/png', data: bytes.toString('base64') }
+    ])
+    expect(await materializeNativeFilePart(part)).toBeNull()
+  })
+
+  it('resizes an APNG whose only frame is its default image', async () => {
+    const bytes = await fs.readFile(new URL('./fixtures/oversized-one-frame.png', import.meta.url))
+    const output = await materializeNativeFilePart(partFor(bytes))
+    expect(output).not.toBeNull()
+    expect(output!.url).not.toBe(partFor(bytes).url)
+    const metadata = await sharp(Buffer.from(output!.url.split(',')[1], 'base64')).metadata()
+    expect(metadata.width).toBe(8192)
+  })
+
+  it('retains original animated bytes for padding-only APNG input', async () => {
+    const bytes = await fs.readFile(new URL('./fixtures/small-two-frame.png', import.meta.url))
+    const part = partFor(bytes)
+    expect(await materializeNativeFilePart(part)).toEqual(part)
+  })
+
+  it('does not retain an individual replacement larger than the byte ceiling', async () => {
+    const part = partFor(await noisyImage(40))
+    const first = await materializeNativeFilePart(part)
+    expect(Buffer.byteLength(first!.url)).toBeGreaterThan(1024 * 1024)
+    const count = sharpCalls.count
+    const second = await materializeNativeFilePart(part)
+    expect(sharpCalls.count).toBeGreaterThan(count)
+    expect(second).toEqual(first)
+  })
+
+  it('evicts older replacements when their combined bytes exceed the ceiling', async () => {
+    const parts: FileUIPart[] = []
+    let bytes = 0
+    for (let i = 0; i < 40; i++) {
+      const part = partFor(await noisyImage(15))
+      parts.push(part)
+      const output = await materializeNativeFilePart(part)
+      bytes += Buffer.byteLength(output!.url)
+    }
+    expect(bytes).toBeGreaterThan(16 * 1024 * 1024)
+    const count = sharpCalls.count
+    await materializeNativeFilePart(parts[0])
+    expect(sharpCalls.count).toBeGreaterThan(count)
   })
 })

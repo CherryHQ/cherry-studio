@@ -52,7 +52,9 @@ export async function acpContent(
           },
           async embedded() {
             try {
-              const materialized = await materializeNativeFilePart(part)
+              const materialized = await materializeNativeFilePart(part, undefined, {
+                enforceProviderImageEdges: false
+              })
               const parsed = materialized?.url ? parseDataUrl(materialized.url) : null
               if (!parsed || !materialized) throw unavailable()
               const mimeType = materialized.mediaType

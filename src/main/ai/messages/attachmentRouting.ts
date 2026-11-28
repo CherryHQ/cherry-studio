@@ -205,6 +205,13 @@ function noteOf(handle: string): { type: 'text'; text: string } {
   return { type: 'text', text: `Attached file "${handle}": [could not read this file].` }
 }
 
+// A named failure (e.g. an unresizable oversize image) tells the model the name
+// and the limit together instead of the generic unreadable note.
+function noteWithReasonOf(handle: string, reason: string | null): { type: 'text'; text: string } {
+  if (!reason) return noteOf(handle)
+  return { type: 'text', text: `Attached file "${handle}": [could not read this file: ${reason}].` }
+}
+
 function rejectedMediaKind(mediaType: string, ns: NativeFileSupport): 'image' | 'audio' | 'video' | undefined {
   if (!ns.image && mediaType.startsWith('image/')) return 'image'
   if (!ns.audio && mediaType.startsWith('audio/')) return 'audio'
@@ -221,15 +228,13 @@ async function prepareChatMessage<T extends UIMessage>(
 
   const kept: UIMessage['parts'] = []
   const composerFileTokenIds = collectComposerFileTokenIds(message)
-  const inlineNative = async (part: FileUIPart): Promise<boolean> => {
-    if (ctx.estimateOnly) {
-      kept.push(part)
-      return true
-    }
-    const inlined = await materializeNativeFilePart(part)
-    if (!inlined) return false
-    kept.push(inlined)
-    return true
+  const inlineNative = async (part: FileUIPart): Promise<{ inlined: FileUIPart | null; failure: string | null }> => {
+    if (ctx.estimateOnly) return { inlined: part, failure: null }
+    let failure: string | null = null
+    const inlined = await materializeNativeFilePart(part, (reason) => {
+      failure = reason
+    })
+    return { inlined, failure }
   }
 
   for (const part of message.parts) {
@@ -243,10 +248,10 @@ async function prepareChatMessage<T extends UIMessage>(
       // Legacy / gateway part — eager materialization, but do not let media
       // bypass the native-support gate applied to first-party attachments.
       const name = part.filename ?? 'file'
-      const inlined = ctx.estimateOnly ? part : await materializeNativeFilePart(part)
+      const { inlined, failure } = await inlineNative(part)
       if (!inlined) {
         logger.warn('Dropped unresolved legacy file part; degrading to note', { messageId: message.id })
-        kept.push(noteOf(name))
+        kept.push(noteWithReasonOf(name, failure))
       } else {
         const rejectedKind = rejectedMediaKind(inlined.mediaType, ctx.nativeSupport)
         if (rejectedKind) {
@@ -283,9 +288,12 @@ async function prepareChatMessage<T extends UIMessage>(
       const fileType = getFileTypeByExt(bareExt)
 
       if (isNative(bareExt, fileType, ctx.nativeSupport)) {
-        if (!(await inlineNative(part))) {
+        const nativeResult = await inlineNative(part)
+        if (!nativeResult.inlined) {
           logger.warn('Native file materialization failed; degrading to note', { messageId: message.id, displayName })
-          kept.push(noteOf(handle))
+          kept.push(noteWithReasonOf(handle, nativeResult.failure))
+        } else {
+          kept.push(nativeResult.inlined)
         }
         continue
       }

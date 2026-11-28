@@ -35,7 +35,7 @@ export async function localPartContent(part: CherryMessagePart, images: boolean)
 }
 
 export async function inlineFileContent(part: FileUIPart) {
-  const materialized = await materializeNativeFilePart(part)
+  const materialized = await materializeNativeFilePart(part, undefined, { enforceProviderImageEdges: false })
   const parsed = materialized?.url ? parseDataUrl(materialized.url) : null
   if (!parsed?.isBase64 || !parsed.data)
     throw new Error(t('agent.session.attachment.unavailable', { name: part.filename ?? part.mediaType }))
