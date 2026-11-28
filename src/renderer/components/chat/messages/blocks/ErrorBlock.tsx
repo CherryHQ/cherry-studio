@@ -44,8 +44,11 @@ const ErrorBlock: React.FC<Props> = ({ partId, error, message }) => {
 function getClaudeCodeExitMessage(error: Props['error'], t: TFunction): string | undefined {
   const exit = getClaudeCodeExitInfo(error)
   if (!exit) return undefined
-  const { reference, exitCode, exitSignal } = exit
-  if (exitCode !== undefined) return t('error.claude_code_exit.code', { code: exitCode, reference })
+  const { reference, exitCode, exitSignal, exitStatusName } = exit
+  if (exitCode !== undefined) {
+    const code = exitStatusName ? `${exitCode} (${exitStatusName})` : exitCode
+    return t('error.claude_code_exit.code', { code, reference })
+  }
   if (exitSignal !== undefined) return t('error.claude_code_exit.signal', { signal: exitSignal, reference })
   return t('error.claude_code_exit.start', { reference })
 }

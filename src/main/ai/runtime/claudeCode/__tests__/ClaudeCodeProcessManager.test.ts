@@ -317,6 +317,28 @@ describe('ClaudeCodeProcessManager', () => {
     expect(JSON.stringify(logged)).not.toContain('/Users/alice/private')
   })
 
+  it.each([3221225501, -1073741795])('logs a safe NTSTATUS name for exit %i without stderr', async (code) => {
+    const child = createFakeChild()
+    const manager = new TestProcessManager(vi.fn(() => child.process))
+    const onExit = vi.fn()
+    manager.spawn(spawnOptions, createClaudeCodeProcessDiagnostics('ntstatus-ref')).once('exit', onExit)
+
+    child.stderr.end('private-stderr-data')
+    child.emitExit(code)
+    await vi.waitFor(() => expect(onExit).toHaveBeenCalled())
+
+    const logged = mockMainLoggerService.warn.mock.calls.findLast(
+      ([message]) => message === 'Claude Code process failed'
+    )?.[1]
+    expect(logged).toMatchObject({
+      reference: 'ntstatus-ref',
+      exitCode: code,
+      exitStatusName: 'STATUS_ILLEGAL_INSTRUCTION'
+    })
+    expect(JSON.stringify(logged)).not.toContain('private-stderr-data')
+    expect(logged).not.toHaveProperty('terminalReason')
+  })
+
   it('leaves a clean exit unlogged', async () => {
     const child = createFakeChild()
     const manager = new TestProcessManager(vi.fn(() => child.process))

@@ -1,6 +1,9 @@
 import { randomUUID } from 'node:crypto'
 
+import { getExitStatusName } from '@shared/ai/claudeCodeExitStatus'
 import { classifyErrorCategory, type ErrorCategory, extractHttpStatus } from '@shared/utils/errorCategory'
+
+export { getExitStatusName } from '@shared/ai/claudeCodeExitStatus'
 
 export interface ClaudeCodeProcessDiagnostics {
   readonly reference: string
@@ -24,6 +27,12 @@ export function resetClaudeCodeProcessDiagnostics(diagnostics: ClaudeCodeProcess
   delete diagnostics.spawnFailed
 }
 
+/** Windows reports NTSTATUS exits as unsigned (3221225501) or signed (-1073741795); `>>> 0` normalizes both. */
+export function formatExitCode(code: number): string {
+  const name = getExitStatusName(code)
+  return name ? `${code} (${name})` : String(code)
+}
+
 /** CLI stderr carries no structured status, so the status is recovered from the text itself. */
 export function classifyClaudeCodeTerminalReason(reason: string): ErrorCategory {
   return classifyErrorCategory({ text: reason, status: extractHttpStatus(reason) })
@@ -36,7 +45,7 @@ export function recordClaudeCodeProcessExit(
   stderrTail: string
 ): void {
   const stderr = stderrTail.trim()
-  const status = code !== null ? `exited with code ${code}` : `terminated by signal ${String(signal)}`
+  const status = code !== null ? `exited with code ${formatExitCode(code)}` : `terminated by signal ${String(signal)}`
   diagnostics.terminalReason = `Claude Code process ${status}${stderr ? `. stderr: ${stderr}` : ''}`
   diagnostics.category = classifyClaudeCodeTerminalReason(stderr)
   if (code !== null) diagnostics.exitCode = code
@@ -65,7 +74,7 @@ export function createClaudeCodeProcessExitError(
 ): Error {
   const status =
     diagnostics.exitCode !== undefined
-      ? `exited with code ${diagnostics.exitCode}`
+      ? `exited with code ${formatExitCode(diagnostics.exitCode)}`
       : diagnostics.exitSignal
         ? `terminated by signal ${diagnostics.exitSignal}`
         : 'failed to start'
