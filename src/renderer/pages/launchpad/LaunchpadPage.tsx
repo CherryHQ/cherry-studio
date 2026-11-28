@@ -202,7 +202,7 @@ export default function LaunchpadPage() {
           {
             id: favorite,
             iconSrc: APP_ICON_SOURCES[favorite],
-            text: t(getSidebarIconLabelKey(favorite)),
+            text: t(favorite === 'api_gateway' ? 'launchpad.api_gateway' : getSidebarIconLabelKey(favorite)),
             menuItems: getAppContextMenuItems(favorite)
           }
         ]
@@ -265,7 +265,7 @@ export default function LaunchpadPage() {
             </span>
           </span>
         </span>
-        <span className="w-full wrap-anywhere text-[12px] text-foreground">{item.text}</span>
+        <span className="w-full truncate text-[12px] text-foreground">{item.text}</span>
       </button>
     </CommandContextMenu>
   )

@@ -11,12 +11,10 @@ import { expect, test } from './fixtures/electron.fixture'
 import { openSettings } from './utils/navigation'
 import { uiLocator } from './utils/uiLocator'
 
-// Scope to main content because sidebar entries in the full layout use the same
-// row-control attribute and label as the launchpad tile.
 const gatewayTile = (page: Page) =>
   uiLocator(page, 'app.content')
     .locator('button[data-dnd-row-control]')
-    .filter({ hasText: uiLocale['code.api_gateway.title'] })
+    .filter({ hasText: uiLocale['launchpad.api_gateway'] })
 
 const sidebarGatewayEntry = (page: Page) =>
   uiLocator(page, 'app.sidebar').getByLabel(uiLocale['code.api_gateway.title'], { exact: true })
@@ -186,20 +184,22 @@ test('gateway starts and stops and stays usable in a narrow dark window', async 
   await testInfo.attach('dark', { path: screenshot, contentType: 'image/png' })
 })
 
-test('Spanish gateway tile shows its full label', async ({ mainWindow: page }) => {
+test('Spanish gateway tile fits its label on one line', async ({ mainWindow: page }) => {
   await prepare(page)
   await page.evaluate(() => window.api.preference.set('app.language', 'es-ES'))
   await page.reload()
   await waitForShell(page)
   await page.evaluate(() => window.api.ipcApi.request('navigation.open_route_in_main', { path: '/app/launchpad' }))
-  const tile = page.locator('button[data-dnd-row-control]').filter({ hasText: esLocale['code.api_gateway.title'] })
+  const tile = page.locator('button[data-dnd-row-control]').filter({ hasText: esLocale['launchpad.api_gateway'] })
   await expect(tile).toBeVisible()
-  const label = tile.getByText(esLocale['code.api_gateway.title'], { exact: true })
+  const label = tile.getByText(esLocale['launchpad.api_gateway'], { exact: true })
   await expect
     .poll(() =>
-      label.evaluate(
-        (element) => element.scrollWidth <= element.clientWidth && element.scrollHeight <= element.clientHeight
-      )
+      label.evaluate((element) => {
+        const range = document.createRange()
+        range.selectNodeContents(element)
+        return range.getClientRects().length === 1 && element.scrollWidth <= element.clientWidth
+      })
     )
     .toBe(true)
 })
