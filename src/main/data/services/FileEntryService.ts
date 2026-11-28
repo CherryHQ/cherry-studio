@@ -29,6 +29,7 @@ import {
   isNull,
   lt,
   notInArray,
+  not,
   or,
   type SQL,
   sql,
@@ -297,6 +298,9 @@ export interface FileEntryService {
 
   /** Hard-delete trashed entries older than the retention cutoff. */
   purgeExpiredTx(tx: DbOrTx, cutoffMs: number, limit: number): FileEntryId[]
+
+  /** Count reference-protected trash within the confirmed purge scope. */
+  countReferencedTrashBefore(cutoffMs: number): number
 
   /** Tx-scoped variant of `delete` for composing write flows. */
   deleteTx(tx: DbOrTx, id: FileEntryId): void
@@ -724,6 +728,22 @@ class FileEntryServiceImpl implements FileEntryService {
       trashTotal: trashTotalRows[0]?.count ?? 0,
       extCounts: extRows.map((row) => ({ ext: row.ext, count: row.count }))
     }
+  }
+
+  countReferencedTrashBefore(cutoffMs: number): number {
+    return (
+      this.getDb()
+        .select({ value: count() })
+        .from(fileEntryTable)
+        .where(
+          and(
+            isNotNull(fileEntryTable.deletedAt),
+            lt(fileEntryTable.deletedAt, cutoffMs),
+            not(and(...persistentRefAbsenceConditions()))
+          )
+        )
+        .get()?.value ?? 0
+    )
   }
 
   findManualUnreferenced(query: { origin?: FileEntryOrigin } = {}): FileEntry[] {

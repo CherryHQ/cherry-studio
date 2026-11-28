@@ -167,7 +167,7 @@ export const trashPurgeJobHandler: JobHandlerFor<'trash.purge'> = {
       purged[domain.name] = purgedIds.length
       ctx.reportProgress(Math.round(((index + 1) / totalSteps) * 100))
     }
-    const retainedReferencedFileCount = emptyAll ? fileEntryService.getStats().trashTotal : 0
+    const retainedReferencedFileCount = emptyAll ? fileEntryService.countReferencedTrashBefore(cutoffMs) : 0
 
     // Schedule reconciliation strictly AFTER all transactions committed. It runs even
     // when retention is disabled so an interrupted event cleanup heals on the next pass.

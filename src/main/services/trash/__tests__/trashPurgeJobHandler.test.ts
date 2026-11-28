@@ -641,6 +641,37 @@ describe('trashPurgeJobHandler', () => {
     expect(allIds(dbh.db.select({ id: fileEntryTable.id }).from(fileEntryTable).all())).toEqual([held])
   })
 
+  it('counts only reference-protected files inside the confirmed purge scope', async () => {
+    const cutoffMs = Date.now()
+    const held = '019606a0-0000-7000-8000-00000000de01'
+    const newer = '019606a0-0000-7000-8000-00000000de02'
+    await dbh.db.insert(topicTable).values({ id: 'holder-topic', name: 'holder', orderKey: 'a0' })
+    await dbh.db
+      .insert(messageTable)
+      .values([
+        rootRow('holder-topic'),
+        {
+          id: 'holder-message',
+          parentId: 'vroot-holder-topic',
+          topicId: 'holder-topic',
+          role: 'user',
+          data: { parts: [] },
+          status: 'success'
+        }
+      ])
+    await seedFileEntry(held, cutoffMs - 1)
+    await seedFileEntry(newer, cutoffMs + 1)
+    await dbh.db.insert(chatMessageFileRefTable).values({
+      id: 'confirmed-file-ref',
+      fileEntryId: held,
+      sourceId: 'holder-message',
+      role: 'attachment'
+    })
+    const result = await trashPurgeJobHandler.execute(makeCtx({ emptyAll: true, cutoffMs }))
+    expect(result).toMatchObject({ retainedReferencedFileCount: 1 })
+    expect(allIds(dbh.db.select({ id: fileEntryTable.id }).from(fileEntryTable).all()).sort()).toEqual([held, newer])
+  })
+
   it('does not report reclamation complete when entry cleanup still has pending work', async () => {
     fileManagerMock.runSweep.mockImplementationOnce(async () => ({
       outcome: 'completed',
