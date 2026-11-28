@@ -1294,6 +1294,35 @@ describe('OpenClawService gateway status state machine', () => {
       expect(stopSpy).toHaveBeenCalledTimes(1)
     })
 
+    it('keeps a manually started gateway running after an ACP lease closes', async () => {
+      const child = Object.assign(createSpawnChild(), { exitCode: null, signalCode: null })
+      let listening = false
+      startAndWaitSpy.mockRestore()
+      crossPlatformSpawnMock.mockImplementation(() => {
+        listening = true
+        return child
+      })
+      terminateProcessTreeMock.mockImplementation(async () => {
+        listening = false
+        child.emit('exit', 0)
+      })
+      checkPortOpenSpy.mockImplementation(async () => listening)
+      checkHealthSpy.mockResolvedValue({ status: 'healthy', gatewayPort: 18790 })
+      vi.spyOn(service as any, 'checkGatewayHealthWithError').mockResolvedValue({ status: 'healthy' })
+      vi.useFakeTimers()
+
+      const started = service.startGateway()
+      await vi.advanceTimersByTimeAsync(1000)
+      await expect(started).resolves.toEqual({ success: true })
+
+      const lease = await service.acquireGateway(new AbortController().signal)
+      await lease.dispose()
+
+      expect(listening).toBe(true)
+      await expect(service.stopGateway()).resolves.toEqual({ success: true })
+      expect(listening).toBe(false)
+    })
+
     it('rejects an invalid formal config before checking or stopping the gateway port', async () => {
       checkPortOpenSpy.mockResolvedValue(true)
       checkHealthSpy.mockResolvedValue({ status: 'healthy', gatewayPort: 18790 })

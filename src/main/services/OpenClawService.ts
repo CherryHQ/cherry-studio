@@ -476,7 +476,7 @@ export class OpenClawService extends BaseService {
   private gatewayPort: number = DEFAULT_GATEWAY_PORT
   private gatewayAuthToken: string = ''
   /** `launch` is the private config and credential of a gateway model; absent when it runs on the user's config. */
-  private gatewayProcess?: { child: ChildProcess; port: number; launch?: GatewayLaunch }
+  private gatewayProcess?: { child: ChildProcess; port: number; launch?: GatewayLaunch; retained?: boolean }
   /** The last selection synced this session; undefined falls back to the saved preference. */
   private gatewaySelection: UniqueModelId | null | undefined
   /** Serializes config writes with the gateway lifecycle so neither observes a half-written file. */
@@ -484,7 +484,7 @@ export class OpenClawService extends BaseService {
   /** Serializes gateway lease acquisition, release, and shutdown transitions. */
   private readonly gatewayLifecycleMutex = new Mutex()
   private startingGateway = false
-  /** Sessions holding the gateway open; the web UI and an idle release leave it running. */
+  /** Sessions holding the gateway open. */
   private readonly gatewayLeases = new Set<symbol>()
   // Bumped by every setGatewayStatus; probes discard results from an older generation.
   private gatewayTransitionId = 0
@@ -1043,7 +1043,7 @@ export class OpenClawService extends BaseService {
     signal.throwIfAborted()
     return this.gatewayLifecycleMutex.runExclusive(async () => {
       signal.throwIfAborted()
-      if (this.gatewayLeases.size === 0) {
+      if (this.gatewayLeases.size === 0 && !this.gatewayProcess?.retained) {
         const state = application.get('PreferenceService').get('feature.code_cli.configs')?.[CodeCli.OPENCLAW]
         const modelId = state?.current ? state.providers[state.current]?.modelId : undefined
         if (modelId) {
@@ -1054,12 +1054,12 @@ export class OpenClawService extends BaseService {
           )
           if (!synced.success) throw new Error(synced.message)
         }
-        const started = await this.startGateway()
+        const started = await this.startGateway(undefined, { retain: false })
         if (!started.success) throw new Error(started.message)
         try {
           signal.throwIfAborted()
         } catch (error) {
-          await this.stopGateway()
+          if (!this.gatewayProcess?.retained) await this.stopGateway()
           throw error
         }
       }
@@ -1071,7 +1071,7 @@ export class OpenClawService extends BaseService {
         token: this.gatewayAuthToken,
         dispose: async () => {
           await this.gatewayLifecycleMutex.runExclusive(async () => {
-            if (!this.gatewayLeases.delete(lease) || this.gatewayLeases.size) return
+            if (!this.gatewayLeases.delete(lease) || this.gatewayLeases.size || this.gatewayProcess?.retained) return
             const stopped = await this.stopGateway()
             if (!stopped.success) throw new Error(stopped.message)
           })
@@ -1083,7 +1083,7 @@ export class OpenClawService extends BaseService {
   /**
    * Start the OpenClaw Gateway
    */
-  public async startGateway(port?: number): Promise<OperationResult> {
+  public async startGateway(port?: number, { retain = true } = {}): Promise<OperationResult> {
     // Guard before touching the port so a concurrent-start rejection cannot repoint
     // it, and an omitted port keeps the preference-synced value instead of the default.
     if (this.startingGateway || this.gatewayStatus === 'starting') {
@@ -1112,6 +1112,7 @@ export class OpenClawService extends BaseService {
       if (isPortOpen) {
         const { status } = await this.checkGatewayHealth()
         if (status === 'healthy') {
+          if (retain && this.gatewayProcess?.port === this.gatewayPort) this.gatewayProcess.retained = true
           this.setGatewayStatus('running')
           return { success: true }
         }
@@ -1125,6 +1126,7 @@ export class OpenClawService extends BaseService {
 
       const launch = selection ? await this.prepareGatewayLaunch(runtime, selection) : undefined
       await this.startAndWaitForGateway(runtime.path, runtime.env, launch)
+      if (retain && this.gatewayProcess?.port === this.gatewayPort) this.gatewayProcess.retained = true
       this.setGatewayStatus('running')
       logger.info(`Gateway started on port ${this.gatewayPort}`)
       return { success: true }

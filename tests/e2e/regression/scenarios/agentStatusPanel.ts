@@ -55,9 +55,6 @@ export async function agentStatusPanel(app: RegressionApp, page: Page, testInfo:
     const panel = page
       .getByRole('complementary', { name: 'Session details', exact: true })
       .or(page.getByRole('dialog', { name: 'Session details', exact: true }))
-    await openAgentPane(page, 'Session details')
-    const context = panel.getByRole('region', { name: 'Context', exact: true })
-    await expect(context.getByRole('button', { name: 'Context', exact: true })).toBeVisible()
 
     const progressSamples: { completed: number; total: number; time: number }[] = []
     const progress = view.getByTestId('agent-task-progress-capsule').getByRole('progressbar')
@@ -92,6 +89,7 @@ export async function agentStatusPanel(app: RegressionApp, page: Page, testInfo:
         ).toBe(true)
       })
       .toPass({ timeout: 90_000, intervals: [200] })
+    await openAgentPane(page, 'Session details')
     await screenshot('MP-55 status during multi-step task')
 
     const response = view
@@ -121,7 +119,9 @@ export async function agentStatusPanel(app: RegressionApp, page: Page, testInfo:
       await expect.soft(messageCards.getByText(file.name, { exact: true }).first()).toBeVisible({ timeout: 10_000 })
     }
     await openAgentPane(page, 'Session details')
-    await context.getByRole('button', { name: 'Context', exact: true }).click()
+    const context = panel.getByRole('region', { name: 'Context', exact: true })
+    const contextToggle = context.getByRole('button', { name: 'Context', exact: true })
+    if ((await contextToggle.getAttribute('aria-expanded')) !== 'true') await contextToggle.click()
     const usage = context.getByRole('meter', { name: 'Context', exact: true })
     await expect.soft(usage).toBeVisible({ timeout: 15_000 })
     expect.soft(Number(await usage.getAttribute('aria-valuenow'))).toBeGreaterThan(0)
