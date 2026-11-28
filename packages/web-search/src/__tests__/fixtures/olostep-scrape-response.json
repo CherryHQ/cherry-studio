@@ -1,0 +1,15 @@
+{
+  "id": "scrape_olostep_fixture",
+  "object": "scrape",
+  "created": 1794489258,
+  "url": "https://example.com",
+  "credits_consumed": 1,
+  "result": {
+    "markdown_content": "Example Domain\n\nThis domain is for use in documentation examples.",
+    "html_content": null,
+    "page_metadata": {
+      "status_code": 200
+    },
+    "size_exceeded": false
+  }
+}
