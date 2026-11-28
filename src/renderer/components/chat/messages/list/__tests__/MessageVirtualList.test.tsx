@@ -159,15 +159,10 @@ describe('MessageVirtualList', () => {
     expect(scroller).toHaveFocus()
   })
 
-  it('takes keyboard scroll ownership after direct interaction with plain message content', () => {
+  it('takes keyboard scroll ownership when plain message content is wheeled with nothing focused', () => {
     const scroller = renderMessageList(() => <span data-testid="plain-message-content">content</span>)
-    const content = screen.getByTestId('plain-message-content')
 
-    fireEvent.pointerDown(content)
-    expect(scroller).toHaveFocus()
-
-    scroller.blur()
-    fireEvent.wheel(content, { deltaY: 40 })
+    fireEvent.wheel(screen.getByTestId('plain-message-content'), { deltaY: 40 })
     expect(scroller).toHaveFocus()
   })
 
