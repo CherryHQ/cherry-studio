@@ -138,7 +138,14 @@ const openChatMcpStatusPanel = ({
 
 export type ChatComposerResolvedContext = Pick<
   ReturnType<typeof useAssistant>,
-  'assistant' | 'isLoading' | 'model' | 'isModelPending' | 'isModelMissing' | 'setModel' | 'updateAssistantSettings'
+  | 'assistant'
+  | 'isLoading'
+  | 'model'
+  | 'isModelPending'
+  | 'isModelMissing'
+  | 'setModel'
+  | 'previewModelSwitch'
+  | 'updateAssistantSettings'
 >
 
 export interface ChatConversationControlsSnapshot {
@@ -411,6 +418,7 @@ const ChatComposerInner = ({
     isModelPending,
     isModelMissing,
     setModel,
+    previewModelSwitch,
     updateAssistantSettings
   } = resolvedContext ?? loadedContext
   const { updateTopic } = useTopicMutations()
@@ -617,7 +625,10 @@ const ChatComposerInner = ({
       if (!nextModel) return
       if (!assistant) return
 
-      const nextReasoningEffort = resolveReasoningEffortForModel(nextModel, reasoningEffort)
+      // The effort the switch will actually write: the target's remembered choice,
+      // reconciled, not the outgoing model's. A send during the pending PATCH uses it.
+      const nextReasoningEffort =
+        previewModelSwitch(nextModel)?.reasoning_effort ?? resolveReasoningEffortForModel(nextModel, reasoningEffort)
       const version = ++reasoningMutationVersionRef.current
       setReasoningOverride({
         assistantId: assistant.id,
@@ -643,7 +654,7 @@ const ChatComposerInner = ({
           throw error
         })
     },
-    [assistant, reasoningEffort, reasoningOverride, setModel]
+    [assistant, previewModelSwitch, reasoningEffort, reasoningOverride, setModel]
   )
 
   const {
@@ -811,13 +822,16 @@ const ChatComposerInner = ({
   }, [speedControlModel?.supportsFastMode])
 
   const handleReasoningEffortChange = useCallback(
-    (option: ReasoningEffortOption) => {
+    // `owner` names the model whose preference this edit belongs to when the caller has just changed the
+    // selection and this render's `effectiveSubmittedModel` is still the previous one (queued-draft restore).
+    (option: ReasoningEffortOption, owner?: { model?: Model }) => {
       if (!selectedAssistantId) return
+      const ownerModel = owner ? owner.model : effectiveSubmittedModel
       if (
         option === 'minimal' &&
-        effectiveSubmittedModel &&
-        isOpenAIWebSearchModel(effectiveSubmittedModel) &&
-        isGPT5SeriesReasoningModel(effectiveSubmittedModel) &&
+        ownerModel &&
+        isOpenAIWebSearchModel(ownerModel) &&
+        isGPT5SeriesReasoningModel(ownerModel) &&
         assistant?.settings.enableWebSearch
       ) {
         toast.warning(t('chat.web_search.warning.openai'))
@@ -829,7 +843,9 @@ const ChatComposerInner = ({
         value: option,
         version
       })
-      void updateAssistantSettings({ reasoning_effort: option })
+      // A recalled multi-model draft has no single preference owner. Keep its effort local.
+      if (owner && !ownerModel) return
+      void updateAssistantSettings({ reasoning_effort: option }, ownerModel?.id)
         .then(() => {
           setReasoningOverride((current) => (current?.version === version ? null : current))
         })
@@ -1554,7 +1570,10 @@ const ChatComposerInner = ({
       } else {
         restoreMentionedModelSelector()
       }
-      handleReasoningEffortChange(item.payload.reasoningEffort ?? 'default')
+      // The selection just changed above; this render still holds the previous model, so name the owner.
+      handleReasoningEffortChange(item.payload.reasoningEffort ?? 'default', {
+        model: queuedModels.length === 1 ? queuedModels[0] : undefined
+      })
       handleServiceTierChange(item.payload.serviceTier ?? 'standard')
       setFastMode(item.payload.fastMode === true)
     },
@@ -1869,7 +1888,7 @@ const ChatComposerInner = ({
           reasoningSummary={assistant?.settings.reasoning_summary}
           serviceTier={serviceTier}
           fastMode={fastMode}
-          onReasoningEffortChange={handleReasoningEffortChange}
+          onReasoningEffortChange={(option) => handleReasoningEffortChange(option)}
           onReasoningSummaryChange={handleReasoningSummaryChange}
           onServiceTierChange={handleServiceTierChange}
           onFastModeChange={setFastMode}

@@ -22,6 +22,8 @@ import { AGENT_INSTRUCTIONS_SLOT } from '@shared/ai/agentPromptSections'
 import type { Assistant } from '@shared/data/types/assistant'
 import { BuiltinMcpServerNames } from '@shared/utils/mcp'
 
+import { mockPreferenceState } from '../../../../../../../tests/__mocks__/renderer/PreferenceService'
+
 vi.mock('@renderer/utils/image', () => ({ checkEntityImageSize: vi.fn(() => null), prepareEntityImageBytes: vi.fn() }))
 // An upload now opens the crop dialog; the test confirms it with a fixed frame.
 const FRAMED = { x: 10, y: 20, width: 64, height: 64 }
@@ -46,6 +48,8 @@ const {
   ipcRequestMock,
   knowledgeBasesState,
   mcpStatusState,
+  modelsLoadingState,
+  providersListState,
   openSettingsTabMock,
   promptProcessorMock,
   settingsNavigateMock,
@@ -84,6 +88,8 @@ const {
     ]
   },
   mcpStatusState: { current: {} },
+  modelsLoadingState: { current: false },
+  providersListState: { current: [{ id: 'provider', name: 'Provider' }] as unknown[] },
   openSettingsTabMock: vi.fn(),
   promptProcessorMock: vi.fn(({ prompt }: { prompt: string }) => prompt),
   settingsNavigateMock: vi.fn(),
@@ -663,8 +669,23 @@ beforeEach(() => {
   mcpStatusState.current = {
     'mcp-1': { state: 'connected', lastCheckedAt: 1 }
   }
+  modelsLoadingState.current = false
+  providersListState.current = [{ id: 'provider', name: 'Provider' }]
   useQueryMock.mockImplementation((path: string) => {
+    if (path === '/models') {
+      return {
+        data: [MODEL, { ...MODEL, id: 'provider::old-model', name: 'Old Model' }],
+        isLoading: false,
+        refetch: vi.fn()
+      }
+    }
+    if (path === '/providers') {
+      return { data: providersListState.current, isLoading: false, refetch: vi.fn() }
+    }
     if (path.startsWith('/models/')) {
+      if (modelsLoadingState.current) {
+        return { data: undefined, isLoading: true }
+      }
       const id = path.slice('/models/'.length)
       return {
         data: {
@@ -684,7 +705,8 @@ beforeEach(() => {
     if (path === '/knowledge-bases') {
       return {
         data: {
-          items: knowledgeBasesState.current
+          items: knowledgeBasesState.current,
+          total: knowledgeBasesState.current.length
         },
         isLoading: false
       }
@@ -1203,6 +1225,108 @@ describe('edit dialogs', () => {
     await act(async () => pendingAvatar.resolve(undefined))
     expect(screen.getByRole('button', { name: 'Remove image' })).toBeVisible()
     expect(updateAssistantMock).not.toHaveBeenCalled()
+  })
+
+  it('merges the restored target-model settings into the same atomic PATCH when the model changes', async () => {
+    mockPreferenceState.set('chat.model_settings', { [MODEL.id]: { enableWebSearch: true } })
+    providersListState.current = [
+      {
+        id: 'provider',
+        name: 'Provider',
+        serverTools: [{ id: 'web-search', modelScope: 'all-chat-models' }]
+      }
+    ]
+    try {
+      render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
+
+      fireEvent.click(screen.getByRole('button', { name: 'Model' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Pick model' }))
+
+      // ASSISTANT has web search off; the picked model's remembered choice
+      // restores it in the same PATCH that carries the modelId.
+      await waitFor(() =>
+        expect(updateAssistantMock).toHaveBeenCalledWith({
+          body: expect.objectContaining({
+            modelId: MODEL.id,
+            settings: expect.objectContaining({ enableWebSearch: true })
+          })
+        })
+      )
+    } finally {
+      mockPreferenceState.delete('chat.model_settings')
+    }
+  })
+
+  it('drops restored Gemini search with scoped KB tools and MCP disabled without overwriting memory', async () => {
+    const previousModel = { ...MODEL }
+    Object.assign(MODEL, { providerId: 'gemini', apiModelId: 'gemini-2.5-pro', capabilities: ['function-call'] })
+    const remembered = { [MODEL.id]: { enableWebSearch: true } }
+    mockPreferenceState.set('chat.model_settings', remembered)
+    providersListState.current = [
+      { id: 'gemini', serverTools: [{ id: 'web-search', modelScope: 'model-dependent', vendors: ['gemini'] }] }
+    ]
+    try {
+      render(
+        <AssistantEditDialog
+          open
+          resource={{
+            ...ASSISTANT,
+            knowledgeBaseIds: ['kb-1'],
+            settings: { ...ASSISTANT.settings, mcpMode: 'disabled' }
+          }}
+          onOpenChange={vi.fn()}
+        />
+      )
+      fireEvent.click(screen.getByRole('button', { name: 'Model' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Pick model' }))
+      await waitFor(() =>
+        expect(updateAssistantMock).toHaveBeenCalledWith({
+          body: expect.objectContaining({
+            modelId: MODEL.id,
+            settings: expect.objectContaining({ enableWebSearch: false })
+          })
+        })
+      )
+      expect(mockPreferenceState.get('chat.model_settings')).toEqual(remembered)
+    } finally {
+      Object.assign(MODEL, previousModel)
+      delete (MODEL as Record<string, unknown>).apiModelId
+      mockPreferenceState.delete('chat.model_settings')
+    }
+  })
+
+  it('restores remembered settings even while the per-model query is still loading', async () => {
+    // The switch target resolves from the cached model catalog, so a slow
+    // per-model record query no longer drops the restoration: an autosave or
+    // close in that window still merges the remembered settings into the same
+    // atomic PATCH instead of committing the bare modelId with the previous
+    // model's settings (and advancing the baseline past any retry).
+    modelsLoadingState.current = true
+    mockPreferenceState.set('chat.model_settings', { [MODEL.id]: { enableWebSearch: true } })
+    providersListState.current = [
+      {
+        id: 'provider',
+        name: 'Provider',
+        serverTools: [{ id: 'web-search', modelScope: 'all-chat-models' }]
+      }
+    ]
+    try {
+      render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
+
+      fireEvent.click(screen.getByRole('button', { name: 'Model' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Pick model' }))
+
+      await waitFor(() =>
+        expect(updateAssistantMock).toHaveBeenCalledWith({
+          body: expect.objectContaining({
+            modelId: MODEL.id,
+            settings: expect.objectContaining({ enableWebSearch: true })
+          })
+        })
+      )
+    } finally {
+      mockPreferenceState.delete('chat.model_settings')
+    }
   })
 
   it('shows the clear model affordance beside the chevron and clears the selected model', async () => {

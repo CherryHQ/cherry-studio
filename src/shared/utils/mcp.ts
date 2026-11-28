@@ -56,3 +56,22 @@ export const isBrowserMcpServer = (server: Pick<McpServer, 'type' | 'name'>): bo
 export const isMcpContentBlock = (value: unknown): value is ContentBlock => {
   return ContentBlockSchema.safeParse(value).success
 }
+
+/**
+ * Whether the assistant can contribute MCP function tools to a request. Main resolves Manual mode with
+ * no linked servers to an empty set, so it is not a tool signal (same as disabled). Main also only
+ * serves active, non-browser servers, so pass `activeServers` (all active servers) once loaded to
+ * match it: Auto with none, or Manual with none of its links active, is no signal. Omit it while
+ * loading to stay conservative (assume tools).
+ */
+export function hasMcpToolSignals(
+  assistant: Pick<Assistant, 'settings' | 'mcpServerIds'>,
+  activeServers?: ReadonlyArray<Pick<McpServer, 'id' | 'type' | 'name'>>
+): boolean {
+  const mode = assistant.settings?.mcpMode ?? DEFAULT_MCP_MODE
+  if (mode === 'disabled') return false
+  const linked = mode === 'manual' ? new Set(assistant.mcpServerIds ?? []) : null
+  if (linked && linked.size === 0) return false
+  if (!activeServers) return true
+  return activeServers.some((server) => !isBrowserMcpServer(server) && (!linked || linked.has(server.id)))
+}

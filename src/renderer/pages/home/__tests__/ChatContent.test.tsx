@@ -117,7 +117,8 @@ vi.mock('@renderer/hooks/useAssistant', () => ({
       settings: { enableWebSearch: false }
     },
     model: undefined,
-    setModel: vi.fn()
+    setModel: vi.fn(),
+    previewModelSwitch: vi.fn()
   }),
   useAssistantApiById: () => ({ assistant: { id: 'assistant-1', emoji: '😀' } })
 }))

@@ -6,6 +6,7 @@ import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agent
 import type { BootConfigPreferenceKeys } from '@shared/data/bootConfig/bootConfigTypes'
 import type { AgentLanguage } from '@shared/data/types/agentLanguage'
 import type { UniqueModelId } from '@shared/data/types/model'
+import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { CodeCli } from '@shared/types/codeCli'
 import type { ShortcutBinding } from '@shared/utils/shortcut'
 
@@ -427,6 +428,15 @@ export interface CodeCliWorkspace {
   directory?: string
   directoryHistory?: string[]
 }
+
+/** Last-used web search and reasoning effort choices for one model. */
+export type ChatModelSetting = {
+  enableWebSearch?: boolean
+  reasoning_effort?: ReasoningEffortOption
+}
+
+/** Preference value for `chat.model_settings`, keyed by unique model id. */
+export type ChatModelSettings = Record<string, ChatModelSetting>
 
 // ============================================================================
 // WebSearch Compression Types (v2 - Flattened)

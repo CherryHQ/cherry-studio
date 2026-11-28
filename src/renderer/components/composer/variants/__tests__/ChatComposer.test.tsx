@@ -36,6 +36,7 @@ const mocks = vi.hoisted(() => ({
   createTopic: vi.fn(),
   updateTopic: vi.fn(),
   setModel: vi.fn(),
+  previewModelSwitch: vi.fn(),
   setDefaultModel: vi.fn(),
   setFiles: vi.fn(),
   setMentionedModels: vi.fn(),
@@ -528,6 +529,7 @@ vi.mock('@renderer/hooks/useAssistant', () => ({
       isModelPending: mocks.modelPending,
       isModelMissing: mocks.modelMissing ?? (!mocks.assistantLoading && !mocks.modelPending && !mocks.model),
       setModel: mocks.setModel,
+      previewModelSwitch: mocks.previewModelSwitch,
       updateAssistant: mocks.updateAssistant,
       updateAssistantSettings: mocks.updateAssistantSettings
     }
@@ -753,6 +755,8 @@ describe('ChatComposer', () => {
     mocks.createTopic.mockReset()
     mocks.updateTopic.mockReset()
     mocks.setModel.mockReset()
+    mocks.previewModelSwitch.mockReset()
+    mocks.previewModelSwitch.mockReturnValue(undefined)
     mocks.setModel.mockResolvedValue(undefined)
     mocks.setDefaultModel.mockReset()
     mocks.setFiles.mockReset()
@@ -1178,7 +1182,7 @@ describe('ChatComposer', () => {
       await mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] })
     })
 
-    expect(mocks.updateAssistantSettings).toHaveBeenCalledWith({ reasoning_effort: 'high' })
+    expect(mocks.updateAssistantSettings).toHaveBeenCalledWith({ reasoning_effort: 'high' }, model.id)
     expect(onSend).toHaveBeenCalledWith('hello', expect.objectContaining({ reasoningEffort: 'high' }))
 
     await act(async () => finishPatch?.())
@@ -1537,6 +1541,41 @@ describe('ChatComposer', () => {
     fireEvent.click(screen.getByText('select model 2'))
 
     expect(mocks.setModel).toHaveBeenCalledWith(modelB, {})
+  })
+
+  it('submits the target model restored effort while the switch PATCH is still pending', async () => {
+    mocks.model = {
+      ...model,
+      capabilities: [MODEL_CAPABILITY.REASONING],
+      reasoning: {
+        controls: [{ kind: 'effort' as const, values: ['low' as const, 'high' as const] }],
+        selectableEfforts: ['low' as const, 'high' as const]
+      }
+    }
+    mocks.assistant = { ...mocks.assistant, settings: { ...mocks.assistant?.settings, reasoning_effort: 'high' } }
+    mocks.previewModelSwitch.mockReturnValue({ reasoning_effort: 'low' })
+    mocks.setModel.mockReturnValue(new Promise(() => undefined))
+    const onSend = vi.fn()
+
+    render(<ChatComposer topic={topic} onSend={onSend} />)
+
+    fireEvent.click(screen.getByText('select model 2'))
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] })
+    })
+
+    expect(mocks.previewModelSwitch).toHaveBeenCalledWith(modelB)
+    expect(onSend).toHaveBeenCalledWith('hello', expect.objectContaining({ reasoningEffort: 'low' }))
+  })
+
+  it('attributes a reasoning change to the single selected multi-select model, not the assistant model', () => {
+    render(<ChatComposer topic={topic} onSend={vi.fn()} useMentionedModelSelector />)
+
+    fireEvent.click(screen.getByText('toggle model multi select'))
+    fireEvent.click(screen.getByText('select model 2'))
+    act(() => mocks.speedControlProps?.onReasoningEffortChange('high'))
+
+    expect(mocks.updateAssistantSettings).toHaveBeenCalledWith({ reasoning_effort: 'high' }, modelB.id)
   })
 
   it('filters reranker models from the composer model selector', () => {
@@ -1985,6 +2024,30 @@ describe('ChatComposer', () => {
     expect(mocks.setMentionedModels).toHaveBeenLastCalledWith([
       expect.objectContaining({ id: model.id, supportsFastMode: true })
     ])
+    // The restored effort belongs to the queued item's model, not the model selected when Edit was clicked.
+    const effortCalls = mocks.updateAssistantSettings.mock.calls.filter(([settings]) => 'reasoning_effort' in settings)
+    expect(effortCalls.at(-1)).toEqual([{ reasoning_effort: 'high' }, model.id])
+  })
+
+  it('keeps recalled multi-model effort on the draft without writing another model preference', async () => {
+    mocks.topicPending = true
+    mocks.mentionedModels = [model, modelB]
+    mocks.updateAssistantSettings.mockReturnValue(new Promise(() => undefined))
+    render(<ChatHomeComposer topic={topic} onSend={vi.fn()} />)
+    act(() => mocks.speedControlProps?.onReasoningEffortChange('low'))
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'multi-model queued', tokens: [] })
+    })
+    const dock = (mocks.surfaceProps!.queueContent as any).props
+    expect(dock.items[0].payload.mentionedModels).toHaveLength(2)
+    dock.items[0].payload.reasoningEffort = 'low'
+    mocks.updateAssistantSettings.mockClear()
+    await act(async () => dock.onEdit(dock.items[0].id))
+    expect(mocks.updateAssistantSettings.mock.calls.filter(([settings]) => 'reasoning_effort' in settings)).toEqual([])
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'restored', tokens: [] })
+    })
+    expect((mocks.surfaceProps!.queueContent as any).props.items[0].payload.reasoningEffort).toBe('low')
   })
 
   it('consumes queued items without swapping the edited message into the queue', async () => {

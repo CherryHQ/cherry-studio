@@ -122,6 +122,7 @@ vi.mock('@renderer/hooks/useAssistant', () => ({
     isModelPending: assistantContextMock.isModelPending,
     isModelMissing: false,
     setModel: vi.fn(),
+    previewModelSwitch: vi.fn(),
     updateAssistantSettings: vi.fn()
   })
 }))

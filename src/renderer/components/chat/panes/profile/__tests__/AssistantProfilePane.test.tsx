@@ -165,7 +165,12 @@ describe('AssistantProfilePane', () => {
       fireEvent.click(within(settingsRegion()).getByRole('button', { name: 'Pick GPT-5.2' }))
 
       await waitFor(() =>
-        expect(patches).toEqual([{ modelId: 'openai::gpt-5.2', settings: { enableWebSearch: false } }])
+        expect(patches).toEqual([
+          {
+            modelId: 'openai::gpt-5.2',
+            settings: { ...assistant.settings, enableWebSearch: false, reasoning_effort: undefined }
+          }
+        ])
       )
     })
 
