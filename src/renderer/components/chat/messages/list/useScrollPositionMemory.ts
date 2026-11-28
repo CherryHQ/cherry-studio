@@ -27,6 +27,8 @@ import type { VListHandle } from 'virtua'
 import { cacheService } from '@data/CacheService'
 import type { ChatScrollAnchor } from '@shared/data/cache/cacheValueTypes'
 
+import { getRealBottom } from './scrollGeometry'
+
 export type { ChatScrollAnchor }
 
 /**
@@ -42,6 +44,8 @@ export interface RestoreTarget {
 interface ComputeScrollAnchorArgs {
   /** Whether the list is currently following the live edge. */
   following: boolean
+  /** Whether the reading viewport is resting at the real bottom edge. */
+  atBottom?: boolean
   /** Current scrollTop of the scroller. */
   scrollOffset: number
   /** Wrapped index of the top-most visible item (`handle.findItemIndex`). */
@@ -54,17 +58,18 @@ interface ComputeScrollAnchorArgs {
 
 /**
  * Derive the anchor to persist from the current scroll state. Returns `null`
- * (= "follow the latest message") in following mode or when the top-most
- * visible item is not a real message.
+ * (= "follow the latest message") in following mode, when resting at the real
+ * bottom, or when the top-most visible item is not a real message.
  */
 export function computeScrollAnchor({
   following,
+  atBottom = false,
   scrollOffset,
   topIndex,
   getKeyAtIndex,
   getOffsetAtIndex
 }: ComputeScrollAnchorArgs): ChatScrollAnchor | null {
-  if (following) return null
+  if (following || atBottom) return null
   const key = getKeyAtIndex(topIndex)
   if (!key) return null
   const offset = Math.max(0, scrollOffset - getOffsetAtIndex(topIndex))
@@ -111,6 +116,8 @@ export interface ScrollPositionMemoryInputs {
   settleReadingRestore: () => void
   /** Whether a smooth-scroll animation is in flight (don't save mid-animation). */
   isAnimating: () => boolean
+  /** Trailing freeze spacer height excluded from the real scrollable bottom. */
+  getBottomInset?: () => number
 }
 
 export interface ScrollPositionMemory {
@@ -128,6 +135,7 @@ export interface ScrollPositionMemory {
 
 const cacheKeyFor = (topicId: string) => `chat.scroll_anchor.${topicId}` as const
 const SAVE_THROTTLE_MS = 200
+const AT_BOTTOM_TOLERANCE_PX = 2
 
 export function useScrollPositionMemory(inputs: ScrollPositionMemoryInputs): ScrollPositionMemory {
   // Keep the latest inputs addressable from the stable callbacks/effect.
@@ -148,8 +156,11 @@ export function useScrollPositionMemory(inputs: ScrollPositionMemoryInputs): Scr
     const now = Date.now()
     if (!immediate && now - lastSaveAtRef.current < SAVE_THROTTLE_MS) return
     lastSaveAtRef.current = now
+    const realBottom = getRealBottom(el, i.getBottomInset?.() ?? 0)
+    const atBottom = el.clientHeight > 0 && Math.abs(realBottom - el.scrollTop) <= AT_BOTTOM_TOLERANCE_PX
     const anchor = computeScrollAnchor({
       following: i.isFollowing(),
+      atBottom,
       scrollOffset: el.scrollTop,
       topIndex: handle.findItemIndex(el.scrollTop),
       getKeyAtIndex: i.getDataKeyAtIndex,
