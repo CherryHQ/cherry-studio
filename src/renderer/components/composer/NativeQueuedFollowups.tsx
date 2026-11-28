@@ -69,9 +69,9 @@ export const NativeQueuedFollowups = memo(function NativeQueuedFollowups({ topic
       />
       {edit ? (
         <Dialog open onOpenChange={(open) => !open && !saving && setEdit(undefined)}>
-          <DialogContent size="sm">
+          <DialogContent size="sm" className="max-h-[calc(100dvh-2rem)] grid-rows-[minmax(0,1fr)]">
             <form
-              className="flex flex-col gap-4"
+              className="flex min-h-0 flex-col gap-4"
               onSubmit={async (event) => {
                 event.preventDefault()
                 if (saving) return
@@ -85,17 +85,18 @@ export const NativeQueuedFollowups = memo(function NativeQueuedFollowups({ topic
                 if (applied) setEdit(undefined)
                 setSaving(false)
               }}>
-              <DialogHeader>
+              <DialogHeader className="shrink-0">
                 <DialogTitle>{t('chat.input.followup_queue.edit')}</DialogTitle>
               </DialogHeader>
               <Textarea.Input
                 aria-label={t('chat.input.followup_queue.edit')}
                 rows={4}
+                className="field-sizing-fixed min-h-0 resize-none overflow-y-auto"
                 disabled={saving}
                 value={edit.text}
                 onValueChange={(text) => setEdit({ ...edit, text })}
               />
-              <DialogFooter>
+              <DialogFooter className="shrink-0">
                 <Button type="button" variant="outline" disabled={saving} onClick={() => setEdit(undefined)}>
                   {t('common.cancel')}
                 </Button>
