@@ -81,7 +81,8 @@ vi.mock('@renderer/components/GlobalSearch/GlobalSearchPopup', () => ({
   default: {
     show: mocks.showSearchPopup,
     hide: mocks.hideSearchPopup
-  }
+  },
+  preloadGlobalSearchPanel: vi.fn()
 }))
 
 vi.mock('../../../hooks/tab', async () => {

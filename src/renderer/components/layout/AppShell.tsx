@@ -18,7 +18,7 @@ import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/utils/window
 
 import Sidebar from '../app/Sidebar'
 import { createRecentRouteEntryFromTab, recordGlobalSearchRecentEntry } from '../GlobalSearch/globalSearchGroups'
-import GlobalSearchPopup from '../GlobalSearch/GlobalSearchPopup'
+import GlobalSearchPopup, { preloadGlobalSearchPanel } from '../GlobalSearch/GlobalSearchPopup'
 import MiniAppTabsPool from '../MiniApp/MiniAppTabsPool'
 import { NotificationCenterProvider } from '../NotificationCenter'
 import { ResourceViewSourceProvider } from '../ResourceViewSourceProvider'
@@ -178,6 +178,15 @@ const AppShellContent = () => {
       GlobalSearchPopup.hide()
     }
   }, [isSettingsTabActive])
+
+  useEffect(() => {
+    if (typeof window.requestIdleCallback === 'function') {
+      const idleId = window.requestIdleCallback(() => preloadGlobalSearchPanel?.(), { timeout: 3000 })
+      return () => window.cancelIdleCallback(idleId)
+    }
+    const timerId = window.setTimeout(() => preloadGlobalSearchPanel?.(), 2000)
+    return () => window.clearTimeout(timerId)
+  }, [])
 
   // The compact minimum tracks the active tab's route here, at window level.
   // It must not live in the pages themselves: they sit inside <Activity>, whose
