@@ -49,6 +49,7 @@ const AUTO_COMPACT_ESTIMATE_MARGIN = 0.02
 // so re-measure them on SDK upgrades.
 const MAX_REQUESTED_OUTPUT_TOKENS = 128_000
 const DEFAULT_REQUESTED_OUTPUT_TOKENS = 32_000
+
 /**
  * Percentage of the auto-compact window at which compaction triggers, passed
  * through `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` (integer 1-100, not a 0-1 fraction).

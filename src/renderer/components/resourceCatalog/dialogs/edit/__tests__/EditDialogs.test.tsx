@@ -1517,6 +1517,18 @@ describe('edit dialogs', () => {
     )
   })
 
+  it('shows the inherited auto compact setting only for Claude agents', () => {
+    const props = { open: true, onOpenChange: vi.fn() }
+    const { rerender } = render(<AgentEditDialog {...props} resource={{ ...AGENT, type: 'claude-code' }} />)
+    expect(screen.getByRole('spinbutton', { name: 'library.config.agent.field.auto_compact_pct.label' })).toHaveValue(
+      ''
+    )
+    rerender(<AgentEditDialog {...props} resource={{ ...AGENT, type: 'pi' }} />)
+    expect(
+      screen.queryByRole('spinbutton', { name: 'library.config.agent.field.auto_compact_pct.label' })
+    ).not.toBeInTheDocument()
+  })
+
   it.each([
     ['No constraint', null],
     ['English', 'English']

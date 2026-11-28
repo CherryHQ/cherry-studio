@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useForm, type UseFormReturn, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
-import { Button, FormField, FormItem, Textarea } from '@cherrystudio/ui'
+import { Button, FormField, FormItem, InputNumber, Textarea } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
 import { AgentChannels } from '@renderer/components/channel/AgentChannels'
@@ -23,6 +23,11 @@ import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
 import { getPermissionModeCards } from '@renderer/utils/agent'
+import {
+  DEFAULT_AUTO_COMPACT_TRIGGER_PCT,
+  MIN_AUTO_COMPACT_TRIGGER_PCT,
+  normalizeAutoCompactTriggerPct
+} from '@shared/ai/agentAutoCompact'
 import {
   type AgentFormState,
   type AgentLanguageMode,
@@ -87,6 +92,7 @@ type AgentEditFormValues = {
   skillIds: string[]
   disabledTools: string[]
   permissionMode: string
+  autoCompactPct: number | null
   envVarsText: string
   heartbeatEnabled: boolean
   heartbeatInterval: number
@@ -132,6 +138,7 @@ function defaultValuesForAgent(resource: AgentDetail): AgentEditFormValues {
     disabledTools: [...form.disabledTools],
     permissionMode: form.permissionMode,
     envVarsText: form.envVarsText,
+    autoCompactPct: form.autoCompactPct,
     heartbeatEnabled: form.heartbeatEnabled,
     heartbeatInterval: form.heartbeatInterval,
     heartbeatTimeoutMinutes: form.heartbeatTimeoutMinutes,
@@ -167,6 +174,7 @@ function buildAgentFormState(baseline: AgentFormState, values: AgentEditFormValu
     disabledTools: [...values.disabledTools],
     permissionMode: values.permissionMode,
     envVarsText: values.envVarsText,
+    autoCompactPct: values.autoCompactPct,
     heartbeatEnabled: values.heartbeatEnabled,
     heartbeatInterval: values.heartbeatInterval,
     heartbeatTimeoutMinutes: values.heartbeatTimeoutMinutes,
@@ -204,6 +212,7 @@ function advanceAgentFormBaseline(
   if (configuration) {
     if (hasOwn(configuration, 'avatar')) next.avatar = submitted.avatar
     if (hasOwn(configuration, 'permission_mode')) next.permissionMode = submitted.permissionMode
+    if (hasOwn(configuration, 'auto_compact_pct')) next.autoCompactPct = submitted.autoCompactPct
     if (hasOwn(configuration, 'env_vars')) next.envVarsText = submitted.envVarsText
     if (hasOwn(configuration, 'heartbeat_enabled')) next.heartbeatEnabled = submitted.heartbeatEnabled
     if (hasOwn(configuration, 'heartbeat_interval')) next.heartbeatInterval = submitted.heartbeatInterval
@@ -229,6 +238,7 @@ function syncAgentFormState(form: UseFormReturn<AgentEditFormValues>, next: Agen
   form.setValue('knowledgeBaseIds', next.knowledgeBaseIds, { shouldDirty: true })
   form.setValue('skillIds', next.skillIds, { shouldDirty: true })
   form.setValue('disabledTools', next.disabledTools, { shouldDirty: true })
+  form.setValue('autoCompactPct', next.autoCompactPct, { shouldDirty: true })
   form.setValue('permissionMode', next.permissionMode, { shouldDirty: true })
   form.setValue('heartbeatEnabled', next.heartbeatEnabled, { shouldDirty: true })
   form.setValue('heartbeatInterval', next.heartbeatInterval, { shouldDirty: true })
@@ -879,6 +889,28 @@ function AgentSettingsCards({
         <SettingsRow label={memoryLabel}>
           <SettingsLinkButton label={memoryLabel} onClick={() => onOpen('memory')} />
         </SettingsRow>
+        {agent.type === 'claude-code' ? (
+          <SettingsRow
+            label={t('library.config.agent.field.auto_compact_pct.label')}
+            hint={t('library.config.agent.field.auto_compact_pct.help')}>
+            <FormField
+              control={form.control}
+              name="autoCompactPct"
+              render={({ field }) => (
+                <FormItem>
+                  <InputNumber
+                    min={MIN_AUTO_COMPACT_TRIGGER_PCT}
+                    max={DEFAULT_AUTO_COMPACT_TRIGGER_PCT}
+                    step={5}
+                    value={field.value}
+                    aria-label={t('library.config.agent.field.auto_compact_pct.label')}
+                    onBlur={(value) => field.onChange(value === null ? null : normalizeAutoCompactTriggerPct(value))}
+                  />
+                </FormItem>
+              )}
+            />
+          </SettingsRow>
+        ) : null}
         <EnvVarsRow form={form} />
       </SettingsSection>
     </div>
