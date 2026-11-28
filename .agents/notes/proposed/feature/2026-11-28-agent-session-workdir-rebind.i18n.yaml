@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/dev/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-11-28-agent-session-workdir-rebind.md
-2026-11-28-agent-session-workdir-rebind.md: 2491ab93f5a8475726a41119f806adc0cf280f59
-2026-11-28-agent-session-workdir-rebind.zh.md: 70fd60463916c70cd75a49d25c4fa3612357389c
+2026-11-28-agent-session-workdir-rebind.md: 0da5dd19275a07280b2f488fa0d024ab6ff4d8d6
+2026-11-28-agent-session-workdir-rebind.zh.md: c049b5c2b636c8bbcad328b13b92751cf37b174b
