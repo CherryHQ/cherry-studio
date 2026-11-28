@@ -13,6 +13,7 @@ import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { cn } from '@renderer/utils/style'
 
 const historyTableClassName = 'rounded-none border-0 bg-card shadow-none'
+const historyTableContentClassName = 'w-full min-w-[784px] px-3 pt-3 pb-2'
 export const historyTableGridClassName =
   'grid min-w-[760px] grid-cols-[44px_minmax(180px,1fr)_minmax(280px,2.5fr)_100px_84px]'
 const historyHeaderClassName =
@@ -20,12 +21,11 @@ const historyHeaderClassName =
 const historyHeaderCellClassName = 'flex h-8 min-w-0 items-center px-3 py-1.5 font-semibold'
 // The row itself paints no hover/selection fill: each cell paints its own `muted` layer instead. This keeps
 // the fixed action column's fill from stacking on top of a row-level fill (which, with alpha `muted`, read
-// darker), and lets every cell — action column included — animate the same transitionable `background-color`
-// in lockstep. The `group` marker drives the per-cell `group-hover` / `group-data-[state=selected]` variants.
+// darker) and keeps the sticky action column in step with the rest of the row.
 export const historyBodyRowClassName =
   'group border-border-subtle border-b bg-card text-muted-foreground text-sm leading-5'
 export const historyBodyCellClassName =
-  'flex min-w-0 items-center px-3 py-1.5 transition-colors group-hover:bg-muted group-data-[state=selected]:bg-muted'
+  'flex min-w-0 items-center px-3 py-1.5 group-hover:bg-muted group-data-[state=selected]:bg-muted'
 // Opaque `bg-card` base keeps horizontally-scrolled cells from bleeding through the pinned column; the shared
 // body-cell class above supplies the matching `muted` hover/selection fill.
 export const historyFixedActionCellClassName =
@@ -87,7 +87,7 @@ export function HistoryVirtualTable<TItem>({
           <DynamicVirtualList
             autoHideScrollbar
             className="min-h-0 flex-1"
-            contentProps={{ className: 'px-3 pt-3 pb-2', style: { minWidth: 784 } }}
+            contentProps={{ className: historyTableContentClassName }}
             estimateSize={estimateSize}
             header={header}
             list={items}
@@ -100,7 +100,7 @@ export function HistoryVirtualTable<TItem>({
           </DynamicVirtualList>
         ) : (
           <div ref={scrollerRef} className="min-h-0 flex-1 overflow-auto" onScroll={updateFixedActionShadow}>
-            <div className="min-w-[784px] px-3 pt-3 pb-2">
+            <div className={historyTableContentClassName}>
               {header}
               {emptyContent}
             </div>

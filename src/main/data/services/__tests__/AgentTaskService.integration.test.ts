@@ -126,6 +126,54 @@ describe('AgentTaskService active-Agent read contract', () => {
     expect(() => agentTaskService.getTaskRun(taskId, 'a')).toThrow()
   })
 
+  it('shows a skipped run as skipped in the desktop summary and history', () => {
+    seedAgent('owner')
+    const taskId = seedTask('task', 'owner')
+    jobService.create({
+      type: 'agent.task',
+      scheduleId: taskId,
+      queue: 'agent:owner',
+      status: 'completed',
+      scheduledAt: 1000,
+      input: {},
+      finishedAt: 2000,
+      output: { kind: 'skipped', result: 'Skipped (session busy)' }
+    })
+
+    expect(agentTaskService.getTaskDetail(taskId)?.runSummary).toMatchObject({ status: 'skipped' })
+    expect(agentTaskService.getTaskLogs(taskId).logs[0]).toMatchObject({
+      status: 'skipped',
+      result: 'Skipped (session busy)'
+    })
+  })
+
+  it.each(['skipped', 'executed', 'legacy'] as const)(
+    'restores the status of a missed one-shot after a %s catch-up',
+    (outcome) => {
+      seedAgent('owner')
+      const taskId = seedTask('task', 'owner')
+      const job = jobService.create({
+        type: 'agent.task',
+        scheduleId: taskId,
+        queue: 'agent:owner',
+        status: 'completed',
+        scheduledAt: 1000,
+        input: {},
+        finishedAt: 2000,
+        output: outcome === 'legacy' ? { result: 'Done' } : { kind: outcome }
+      })
+      jobScheduleService.update(taskId, {
+        trigger: { kind: 'once', at: 1000 },
+        enabled: false,
+        metadata: { missed: { reason: 'agent_archived', at: 1000, jobId: job.id } }
+      })
+
+      dbh.db.transaction((tx) => agentTaskService.reconcileOwnerStatesTx(tx, 3000))
+
+      expect(agentTaskService.getTaskDetail(taskId)?.status).toBe(outcome === 'skipped' ? 'missed' : 'completed')
+    }
+  )
+
   it('validates the public status query and returns only the requested group', async () => {
     seedAgent('owner')
     seedTask('active', 'owner')
@@ -172,6 +220,29 @@ describe('AgentTaskService active-Agent read contract', () => {
     ).rejects.toThrow()
   })
 
+  it('paginates one Agent’s tasks and counts the full active list', async () => {
+    seedAgent('owner')
+    for (let index = 0; index < 51; index++) seedTask(`task-${index}`, 'owner')
+    jobScheduleService.setEnabled(seedTask('paused-task', 'owner'), false)
+
+    const first = await agentHandlers['/agents/:agentId/tasks'].GET({
+      params: { agentId: 'owner' },
+      query: { page: 1, limit: 50 }
+    })
+    const second = await agentHandlers['/agents/:agentId/tasks'].GET({
+      params: { agentId: 'owner' },
+      query: { page: 2, limit: 50 }
+    })
+
+    expect(first).toMatchObject({ total: 52, activeTotal: 51 })
+    expect(second).toMatchObject({ total: 52, activeTotal: 51 })
+    expect(first).toHaveProperty('items.length', 50)
+    expect(second).toHaveProperty('items.length', 2)
+    expect(
+      'items' in first && 'items' in second && new Set([...first.items, ...second.items].map((task) => task.id)).size
+    ).toBe(52)
+  })
+
   it('hides tasks owned by trashed or missing Agents from every normal read and shows them after restore', () => {
     seedAgent('agent-active')
     seedAgent('agent-trashed', Date.now())
@@ -180,8 +251,8 @@ describe('AgentTaskService active-Agent read contract', () => {
     const missingTaskId = seedTask('task-missing', 'agent-missing')
 
     expect(agentTaskService.listAllTasks().tasks.map((task) => task.id)).toEqual([activeTaskId])
-    expect(agentTaskService.listTasks('agent-trashed')).toEqual({ tasks: [], total: 0 })
-    expect(agentTaskService.listTasks('agent-missing')).toEqual({ tasks: [], total: 0 })
+    expect(agentTaskService.listTasks('agent-trashed')).toEqual({ tasks: [], total: 0, activeTotal: 0 })
+    expect(agentTaskService.listTasks('agent-missing')).toEqual({ tasks: [], total: 0, activeTotal: 0 })
     expect(agentTaskService.getTaskById(trashedTaskId)).toBeNull()
     expect(agentTaskService.getTaskDetail(trashedTaskId)).toBeNull()
     expect(agentTaskService.getTask('agent-trashed', trashedTaskId)).toBeNull()

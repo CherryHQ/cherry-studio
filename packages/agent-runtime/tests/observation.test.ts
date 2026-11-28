@@ -2,9 +2,22 @@ import { setImmediate as nextTurn } from 'node:timers/promises'
 import { setFlagsFromString } from 'node:v8'
 import { runInNewContext } from 'node:vm'
 
-import { describe, expect, it } from 'vitest'
+import { describe, expect, expectTypeOf, it } from 'vitest'
 
-import { runtimeId, ThreadFeed, type RuntimeMessage, type ObservationPayload, type ThreadSnapshot } from '../src'
+import {
+  messageObservation,
+  type LivePartInput,
+  runtimeId,
+  ThreadFeed,
+  type RuntimeMessage,
+  type ObservationPayload,
+  type RuntimePartEdit,
+  type NativePartUpdate,
+  type ThreadSnapshot
+} from '../src'
+
+expectTypeOf<Extract<Parameters<ThreadFeed['publish']>[0], LivePartInput>>().toBeNever()
+expectTypeOf<Parameters<ThreadFeed['publishPart']>[0]>().toEqualTypeOf<LivePartInput>()
 
 const ref = { backendId: runtimeId<'backend'>('backend'), id: runtimeId<'thread'>('session') }
 const item = (id: string, text = id): RuntimeMessage => ({
@@ -74,11 +87,115 @@ it('shares immutable image strings across isolated observer containers', async (
 })
 
 describe('normalized observation delivery', () => {
+  it.each([20, 20_000])('delivers ordered mixed edits without publishing %i settled siblings', async (count) => {
+    const tool = {
+      type: 'dynamic-tool',
+      toolCallId: 'call',
+      toolName: 'search',
+      state: 'input-available',
+      input: {}
+    } as const
+    const source = { session: ref, id: runtimeId<'item'>('reply') }
+    const feed = new ThreadFeed(
+      {
+        ...snapshot(),
+        messages: [
+          {
+            ...item('reply'),
+            parts: [
+              ...Array.from({ length: count }, () => ({ type: 'text', text: 'old', state: 'done' }) as const),
+              { type: 'text', text: 'a', state: 'streaming' },
+              tool
+            ]
+          }
+        ]
+      },
+      () => {}
+    )
+    const events: ObservationPayload[] = []
+    const observation = feed.observeProjection(
+      ({ events: batch }) => {
+        events.push(...batch)
+      },
+      () => ({ value: {} })
+    )
+    await observation.drain()
+    events.length = 0
+    const changes: RuntimePartEdit[] = [
+      { type: 'append', part: count, text: 'b' },
+      { type: 'put', part: count + 1, value: { ...tool, state: 'output-available', output: 'found' } },
+      { type: 'append', part: count, text: 'b' }
+    ]
+    feed.publishPart({ type: 'message.parts', ref: source, changes: [...changes, { type: 'finish', part: count + 3 }] })
+    feed.publishPart({ type: 'message.parts', ref: source, changes })
+    await observation.drain()
+    expect(events.map((event) => event.type)).toEqual(['message.parts'])
+    expect(events[0]).toEqual({ type: 'message.parts', ref: source, changes })
+    const replay: ObservationPayload[] = []
+    const late = feed.observeProjection(
+      ({ events }) => {
+        replay.push(...events)
+      },
+      () => ({ value: {} })
+    )
+    await late.drain()
+    const baseline = replay[0]
+    expect(baseline.type === 'snapshot' && baseline.messages[0].parts.slice(-2)).toEqual([
+      { type: 'text', state: 'streaming', text: 'abb' },
+      { ...tool, state: 'output-available', output: 'found' }
+    ])
+    await observation.stop()
+    await late.stop()
+  })
+
+  it('only lets an adapter capture metadata alongside feed-owned projection events', () => {
+    const feed = new ThreadFeed(snapshot(), () => {})
+    expectTypeOf<ThreadSnapshot>().not.toExtend<Parameters<typeof feed.publishPart>[0]>()
+    type Capture = Parameters<typeof feed.observeProjection<{ live: string[] }>>[1]
+    expectTypeOf<{ value: { live: string[]; events: ThreadSnapshot[] } }>().not.toExtend<ReturnType<Capture>>()
+    expectTypeOf<{
+      type: 'append'
+      part: number
+      text: string
+      value: RuntimeMessage
+    }>().not.toExtend<RuntimePartEdit>()
+    type Append = Pick<Extract<NativePartUpdate, { type: 'message.text-append' }>, 'type' | 'ref' | 'part' | 'text'>
+    expectTypeOf<Append & { message: RuntimeMessage }>().not.toExtend<NativePartUpdate>()
+  })
+
+  it('discards every edit in a sparse batch when a later edit skips a part', async () => {
+    const feed = new ThreadFeed(
+      { ...snapshot(), messages: [{ ...item('reply'), parts: [{ type: 'text', text: 'A', state: 'streaming' }] }] },
+      () => {}
+    )
+    const events: ObservationPayload[] = []
+    const observation = feed.observe((event) => {
+      events.push(event)
+    })
+    const source = { session: ref, id: runtimeId<'item'>('reply') }
+    feed.publishPart({ type: 'message.parts', ref: source, changes: [{ type: 'append', part: 0, text: 'B' }] })
+    expect(
+      feed.publishPart({
+        type: 'message.parts',
+        ref: source,
+        changes: [
+          { type: 'append', part: 0, text: 'lost' },
+          { type: 'open', kind: 'reasoning', part: 2 }
+        ]
+      })
+    ).toBeUndefined()
+    feed.publishPart({ type: 'message.parts', ref: source, changes: [{ type: 'finish', part: 0 }] })
+    await observation.drain()
+    expect(events.map((event) => event.type)).toEqual(['snapshot', 'message.parts', 'message.parts'])
+    expect(feed.message('reply')?.parts).toEqual([{ type: 'text', text: 'AB', state: 'done' }])
+    await observation.stop()
+  })
+
   it('reads state and individual message bindings without exposing the stored message graph', () => {
     const feed = new ThreadFeed(snapshot(), () => {})
     const message = item('answer')
     message.metadata = { completeness: 'complete', inputId: runtimeId('input') }
-    feed.publish({ type: 'message.upsert', message })
+    feed.publish({ type: 'message.reconcile', message })
     expect(feed.messageInputId('answer')).toBe('input')
     expect(feed.messageInputId('missing')).toBeUndefined()
     const state = feed.state
@@ -153,7 +270,7 @@ describe('normalized observation delivery', () => {
     for (let turn = 1; turn <= 2; turn++) {
       for (let index = 0; index < 120; index++) {
         native.revision++
-        feed.publish({ type: 'message.upsert', message: item(`turn-${turn}`, `body-${native.revision}`) })
+        feed.publish({ type: 'message.reconcile', message: item(`turn-${turn}`, `body-${native.revision}`) })
       }
       terminal = true
       feed.publish({ type: 'activity.changed', activity: { state: 'idle' } })
@@ -190,7 +307,7 @@ describe('normalized observation delivery', () => {
     })
     await tick()
     for (let index = 0; index < 110; index++)
-      feed.publish({ type: 'message.upsert', message: item('final', String(index)) })
+      feed.publish({ type: 'message.reconcile', message: item('final', String(index)) })
     feed.close('shutdown')
     let drained = false
     const barrier = observation.drain().then(() => {
@@ -202,7 +319,7 @@ describe('normalized observation delivery', () => {
     release()
     await barrier
     expect(events.at(-1)).toEqual({ type: 'closed', reason: 'shutdown' })
-    expect(events.at(-2)).toMatchObject({ type: 'message.upsert', message: { parts: [{ text: '109' }] } })
+    expect(events.at(-2)).toMatchObject({ type: 'message.reconcile', message: { parts: [{ text: '109' }] } })
     expect(events.some((event) => event.type === 'gap')).toBe(true)
     expect(() => feed.observe(() => {})).toThrow('closed')
   })
@@ -238,13 +355,13 @@ describe('normalized observation delivery', () => {
       if (slow.length === 1) await held
     })
     feed.observe((event) => {
-      if (event.type !== 'message.upsert') return
+      if (event.type !== 'message.reconcile') return
       const part = event.message.parts[0]
       if (part.type !== 'text') return
       fast.push(part.text)
     })
     for (let i = 0; i < 110; i++) {
-      feed.publish({ type: 'message.upsert', message: item('answer', String(i)) })
+      feed.publish({ type: 'message.reconcile', message: item('answer', String(i)) })
       await tick()
     }
     expect(fast.at(-1)).toBe('109')
@@ -272,7 +389,7 @@ describe('normalized observation delivery', () => {
       })
     })
     await tick()
-    feed.publish({ type: 'message.upsert', message: item('queued') })
+    feed.publish({ type: 'message.reconcile', message: item('queued') })
     const discarded = expect(subscription.drain()).rejects.toThrow('stopped before delivery drained')
     await subscription.stop()
     await discarded
@@ -283,7 +400,7 @@ describe('normalized observation delivery', () => {
       throw new Error('consumer failed')
     })
     await tick()
-    feed.publish({ type: 'message.upsert', message: item('survives') })
+    feed.publish({ type: 'message.reconcile', message: item('survives') })
     expect(failures).toHaveLength(1)
     expect(feed.snapshot.messages.at(-1)?.id).toBe('survives')
   })
@@ -292,17 +409,17 @@ describe('normalized observation delivery', () => {
     const feed = new ThreadFeed(snapshot(), () => {})
     const events: ObservationPayload[] = []
     feed.observe((event) => {
-      if (event.type === 'message.upsert' && event.message.id === 'first')
-        feed.publish({ type: 'message.upsert', message: item('second') })
+      if (event.type === 'message.reconcile' && event.message.id === 'first')
+        feed.publish({ type: 'message.reconcile', message: item('second') })
     })
     feed.observe((event) => {
       events.push(event)
     })
     await tick()
-    feed.publish({ type: 'message.upsert', message: item('first') })
+    feed.publish({ type: 'message.reconcile', message: item('first') })
     expect(events).toHaveLength(1)
     await tick()
-    expect(events.flatMap((event) => (event.type === 'message.upsert' ? [event.message.id] : []))).toEqual([
+    expect(events.flatMap((event) => (event.type === 'message.reconcile' ? [event.message.id] : []))).toEqual([
       'first',
       'second'
     ])
@@ -314,7 +431,7 @@ describe('normalized observation delivery', () => {
     feed.observe((event) => {
       events.push(event)
     })
-    for (let i = 0; i < 110; i++) feed.publish({ type: 'message.upsert', message: item('answer', String(i)) })
+    for (let i = 0; i < 110; i++) feed.publish({ type: 'message.reconcile', message: item('answer', String(i)) })
     await tick()
     expect(events[0].type).toBe('snapshot')
     expect(events[1]).toEqual({ type: 'gap', reason: 'overflow' })
@@ -324,10 +441,10 @@ describe('normalized observation delivery', () => {
   it('keeps replacement order and prevents consumers mutating shared facts', async () => {
     const initial = snapshot()
     const feed = new ThreadFeed(initial, () => {})
-    feed.publish({ type: 'message.upsert', message: item('live') })
-    feed.publish({ type: 'message.upsert', message: item('next') })
+    feed.publish({ type: 'message.reconcile', message: item('live') })
+    feed.publish({ type: 'message.reconcile', message: item('next') })
     feed.publish({
-      type: 'message.upsert',
+      type: 'message.reconcile',
       message: item('persisted'),
       replaces: [{ session: ref, id: runtimeId('live') }]
     })
@@ -351,7 +468,7 @@ describe('normalized observation delivery', () => {
     const feed = new ThreadFeed(snapshot(), (error) => failures.push(error))
     const source = item('answer', 'published')
     const mutating = feed.observe((event) => {
-      if (event.type === 'message.upsert') event.message.parts[0] = { type: 'text', text: 'observer edit' }
+      if (event.type === 'message.reconcile') event.message.parts[0] = { type: 'text', text: 'observer edit' }
     })
     const received: ObservationPayload[] = []
     const observing = feed.observe((event) => {
@@ -359,20 +476,83 @@ describe('normalized observation delivery', () => {
     })
     await Promise.all([mutating.drain(), observing.drain()])
 
-    feed.publish({ type: 'message.upsert', message: source })
+    feed.publish({ type: 'message.reconcile', message: source })
     source.parts[0] = { type: 'text', text: 'publisher edit' }
     await observing.drain()
     await expect(mutating.drain()).rejects.toThrow('stopped before delivery drained')
     expect(failures).toEqual([expect.any(TypeError)])
 
     const expected = [{ type: 'text', text: 'published' }]
-    expect(received[1]).toMatchObject({ type: 'message.upsert', message: { parts: expected } })
+    expect(received[1]).toMatchObject({ type: 'message.reconcile', message: { parts: expected } })
     expect(feed.snapshot.messages[0].parts).toEqual(expected)
     const exposed = feed.snapshot
     expect(() => {
       exposed.messages[0].parts[0] = { type: 'text', text: 'snapshot edit' }
     }).toThrow(TypeError)
     expect(feed.snapshot.messages[0].parts).toEqual(expected)
+  })
+
+  it('captures result changes once while text updates reuse an isolated immutable result', async () => {
+    const feed = new ThreadFeed(snapshot(), () => {})
+    const received: ObservationPayload[] = []
+    const observing = feed.observe((event) => {
+      received.push(event)
+    })
+    const output = { text: 'accepted A' }
+    const source: RuntimeMessage = {
+      id: 'answer',
+      role: 'assistant',
+      parts: [
+        { type: 'dynamic-tool', toolName: 'Read', toolCallId: 'call', state: 'output-available', input: {}, output },
+        { type: 'text', text: 'before', state: 'streaming' }
+      ]
+    }
+    feed.publish({ type: 'message.reconcile', message: source })
+    await observing.drain()
+    const first = received.at(-1)
+    if (
+      first?.type !== 'message.reconcile' ||
+      first.message.parts[0].type !== 'dynamic-tool' ||
+      first.message.parts[0].state !== 'output-available'
+    )
+      throw new Error('Missing tool result')
+    const accepted = first.message.parts[0].output
+    if (typeof accepted !== 'object' || accepted === null) throw new Error('Missing result body')
+    Object.defineProperty(output, 'text', {
+      configurable: true,
+      get: () => {
+        throw new Error('Text update read a settled result')
+      }
+    })
+    const address = { session: ref, id: runtimeId<'item'>(source.id) }
+    source.parts[1] = { type: 'text', text: 'before after', state: 'streaming' }
+    {
+      const update = messageObservation(address, feed.message(source.id), source, undefined, [1])
+      if (update.type !== 'message.parts') throw new Error('Expected addressed edits')
+      feed.publishPart(update)
+    }
+    await observing.drain()
+    const next = received.at(-1)
+    expect(next).toEqual({
+      type: 'message.parts',
+      ref: address,
+      changes: [{ type: 'append', part: 1, text: ' after' }]
+    })
+    expect(feed.message(source.id)?.parts[0]).toBe(first.message.parts[0])
+    expect(() => Object.assign(accepted, { text: 'observer mutation' })).toThrow()
+    Object.defineProperty(output, 'text', { configurable: true, enumerable: true, value: 'accepted B' })
+    {
+      const update = messageObservation(address, feed.message(source.id), source, undefined, [0])
+      if (update.type !== 'message.parts') throw new Error('Expected addressed edits')
+      feed.publishPart(update)
+    }
+    await observing.drain()
+    expect(received.at(-1)).toMatchObject({
+      type: 'message.parts',
+      changes: [{ type: 'put', part: 0, value: { output: { text: 'accepted B' } } }]
+    })
+    expect(feed.message(source.id)?.parts[1]).toMatchObject({ text: 'before after' })
+    expect(accepted).toEqual({ text: 'accepted A' })
   })
 })
 

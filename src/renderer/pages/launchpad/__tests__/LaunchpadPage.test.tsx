@@ -1,7 +1,7 @@
 import { MockCherrystudioUI } from '@test-mocks/renderer/CherrystudioUI'
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -16,6 +16,7 @@ import type { SiteMiniApp } from '@shared/data/types/miniApp'
 
 const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
+  openSettingsTab: vi.fn(),
   pinnedMiniApps: [] as any[],
   openedMiniApps: [] as any[],
   reorderMiniAppsByStatus: vi.fn(() => Promise.resolve()),
@@ -28,6 +29,7 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
+  Button: MockCherrystudioUI.Button,
   ScrollArea: MockCherrystudioUI.ScrollArea,
   Sortable: ({ items, itemKey, renderItem, ...props }: any) => {
     mocks.sortableCalls.push({ items, itemKey, renderItem, ...props })
@@ -117,6 +119,8 @@ vi.mock('@renderer/hooks/useSidebarShortcuts', () => ({
   })
 }))
 
+vi.mock('@renderer/services/mainWindowNavigation', () => ({ openSettingsTab: mocks.openSettingsTab }))
+
 vi.mock('@renderer/services/toast', () => ({
   toast: {
     error: mocks.toastError
@@ -140,6 +144,7 @@ vi.mock('react-i18next', () => ({
           'settings.scheduledTasks.title': 'Scheduled Tasks',
           'assistants.presets.title': 'Library',
           'code.title': 'Code',
+          'code.api_gateway.title': 'Unified Gateway',
           'files.title': 'Files',
           'knowledge.title': 'Knowledge',
           'launchpad.apps': 'Apps',
@@ -198,6 +203,12 @@ describe('LaunchpadPage', () => {
     mocks.setSidebarFavorites.mockResolvedValue(undefined)
     mocks.setAppOrder.mockResolvedValue(undefined)
     mocks.reorderMiniAppsByStatus.mockResolvedValue(undefined)
+  })
+
+  it('opens the unified gateway from its launchpad tile', async () => {
+    render(<LaunchpadPage />)
+    await userEvent.click(screen.getByRole('button', { name: 'Unified Gateway' }))
+    expect(mocks.navigate).toHaveBeenCalledWith({ to: '/app/api-gateway' })
   })
 
   it('opens the marketplace from its launchpad tile', async () => {
@@ -260,6 +271,16 @@ describe('LaunchpadPage', () => {
     expect(mocks.setSidebarFavorites).not.toHaveBeenCalled()
   })
 
+  it('opens Agent Services settings from CodeMate without replacing the launchpad tab', async () => {
+    const user = userEvent.setup()
+    render(<LaunchpadPage />)
+
+    await user.click(screen.getByRole('button', { name: 'Code' }))
+
+    expect(mocks.openSettingsTab).toHaveBeenCalledExactlyOnceWith('/settings/local-agents')
+    expect(mocks.navigate).not.toHaveBeenCalled()
+  })
+
   it.each([
     { label: 'Knowledge', path: '/app/knowledge' },
     { label: 'Scheduled Tasks', path: '/app/scheduled-tasks' }
@@ -298,6 +319,18 @@ describe('LaunchpadPage', () => {
 
     expect(mocks.navigate).toHaveBeenCalledWith({ to: '/app/chat' })
     expect(mocks.navigate).toHaveBeenCalledWith({ to: '/app/agents' })
+  })
+
+  it('opens the mini apps list from its section heading', async () => {
+    const user = userEvent.setup()
+    mocks.pinnedMiniApps = [createMiniApp('calculator')]
+
+    render(<LaunchpadPage />)
+
+    const heading = screen.getByRole('heading', { name: 'Mini Apps' })
+    await user.click(within(heading).getByRole('button', { name: 'Mini Apps' }))
+
+    expect(mocks.navigate).toHaveBeenCalledWith({ to: '/app/mini-app' })
   })
 
   it('navigates concrete mini apps inside the current launchpad tab', async () => {

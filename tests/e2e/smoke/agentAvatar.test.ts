@@ -1,12 +1,6 @@
 import { rm, writeFile } from 'node:fs/promises'
 
-import {
-  _electron as electron,
-  type ElectronApplication,
-  type Locator,
-  type Page,
-  type TestInfo
-} from '@playwright/test'
+import { type ElectronApplication, type Locator, type Page, type TestInfo } from '@playwright/test'
 import sharp from 'sharp'
 
 import { AgentEntitySchema } from '../../../src/shared/data/api/schemas/agents'
@@ -15,8 +9,8 @@ import { AgentSessionEntitySchema } from '../../../src/shared/data/api/schemas/a
 import { createUniqueModelId } from '../../../src/shared/data/types/model'
 import { LATEST_PRIVACY_POLICY_VERSION } from '../../../src/shared/utils/constants'
 import { type MockChatServer, startMockChatServer } from '../../helpers/http/mockChatServer'
-import { selectSidebarApp } from '../regression/helpers/navigation'
-import { expect, test as base } from './fixtures/electron.fixture'
+import { openConversationListOptions, selectSidebarApp } from '../regression/helpers/navigation'
+import { expect, launchSmokeElectron, test as base } from './fixtures/electron.fixture'
 import { stickyWindow } from './utils/stickySmoke'
 
 type AvatarRuntime = { app?: ElectronApplication; pageErrors: string[]; consoleErrors: string[] }
@@ -24,7 +18,7 @@ type AvatarRuntime = { app?: ElectronApplication; pageErrors: string[]; consoleE
 async function launchProfile(profile: string, runtime: AvatarRuntime) {
   const env = { ...process.env, NODE_ENV: 'development', CS_DEV_PROFILE_ROOT: profile }
   Reflect.deleteProperty(env, 'ELECTRON_RENDERER_URL')
-  const app = await electron.launch({ args: ['.'], env, timeout: 60_000 })
+  const app = await launchSmokeElectron({ args: ['.'], env, timeout: 60_000 })
   runtime.app = app
   const watch = (page: Page) => {
     page.on('pageerror', (error) => runtime.pageErrors.push(error.stack ?? error.message))
@@ -125,8 +119,8 @@ async function readAgent(page: Page, id: string) {
 
 async function catalog(page: Page, name: string) {
   const view = page.locator('[data-ui~="agent.view"]').filter({ visible: true }).first()
-  await view.getByRole('button', { name: 'Display mode', exact: true }).click()
-  await page.getByText('Manage Agents', { exact: true }).click()
+  await openConversationListOptions(view)
+  await page.getByRole('menuitem', { name: 'Manage Agents', exact: true }).click()
   const card = view
     .locator('[data-ui~="resource-catalog.card.button"]')
     .and(view.getByRole('button', { name, exact: true }))
@@ -285,8 +279,12 @@ test('persists an uploaded agent avatar and updates past message avatars after r
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128"><rect width="128" height="128" fill="#ff2d9b"/><circle cx="64" cy="64" r="52" fill="none" stroke="white" stroke-width="8"/><text x="64" y="87" text-anchor="middle" font-family="sans-serif" font-size="64" fill="white">A</text></svg>`
   await sharp(Buffer.from(svg)).png().toFile(fixture)
   await testInfo.attach('avatar-fixture', { path: fixture, contentType: 'image/png' })
-  const input = page.getByLabel('Image Upload', { exact: true })
+  const input = dialog.locator('input[type="file"]').and(page.getByLabel('Upload image', { exact: true }))
   await input.setInputFiles(fixture)
+  await page
+    .getByRole('dialog', { name: 'Crop avatar', exact: true })
+    .getByRole('button', { name: 'Confirm', exact: true })
+    .click()
   await expectDecodedImage(picker.locator('img'))
   const uploaded = await readAgent(page, agent.id)
   expect(uploaded.avatarFileId).toBeTruthy()
@@ -299,9 +297,10 @@ test('persists an uploaded agent avatar and updates past message avatars after r
   await screenshot(page, testInfo, 'agent-avatar-catalog')
   let view = await openSession(page, agent.name, 'Avatar session')
   const label = view.locator('[data-ui~="agent.composer.label"]').filter({ visible: true }).first()
-  await expectDecodedImage(label.locator('img'))
-  await expect(label.locator('img')).toHaveAttribute('src', uploaded.avatarSrc!)
-  await screenshot(page, testInfo, 'agent-avatar-label')
+  const profileAvatar = view.getByRole('button', { name: `View ${agent.name}'s profile`, exact: true }).locator('img')
+  await expectDecodedImage(profileAvatar)
+  await expect(profileAvatar).toHaveAttribute('src', uploaded.avatarSrc!)
+  await screenshot(page, testInfo, 'agent-avatar-profile')
   await label.click()
   const option = page.locator(`[data-option-row="${agent.id}"]`)
   await expectDecodedImage(option.locator('img'))
@@ -325,7 +324,7 @@ test('persists an uploaded agent avatar and updates past message avatars after r
   await card.click()
   dialog = page.getByRole('dialog', { name: 'Edit Agent', exact: true })
   await dialog.getByRole('button', { name: 'Choose avatar', exact: true }).first().click()
-  await page.getByRole('button', { name: 'Reset avatar', exact: true }).click()
+  await page.getByRole('button', { name: 'Remove image', exact: true }).click()
   await expect.poll(async () => (await readAgent(page, agent.id)).avatarFileId).toBeUndefined()
   expect((await readAgent(page, agent.id)).configuration?.avatar?.trim() || '🤖').toBe(emoji)
   await closeAgentDialog(page)
@@ -410,13 +409,20 @@ test('applies an image selected after the avatar menu is dismissed', async ({ ma
   await sharp(Buffer.from(svg)).png().toFile(fixture)
   await testInfo.attach('avatar-fixture', { path: fixture, contentType: 'image/png' })
   await picker.click()
-  const upload = page.getByRole('button', { name: 'Image Upload', exact: true })
+  const upload = page.getByRole('button', { name: 'Upload image', exact: true })
   await expect(upload).toBeVisible()
-  await dialog.getByRole('textbox', { name: 'Avatar and name', exact: true }).click()
+  await dialog.getByRole('textbox', { name: 'Name', exact: true }).click()
   await expect(upload).toBeHidden()
   // Before the fix, closing the popover removed its file input, silently dropping a late selection.
   // Re-resolving the locator after dismissal would fail because the input was gone.
-  await page.getByLabel('Image Upload', { exact: true }).setInputFiles(fixture)
+  await dialog
+    .locator('input[type="file"]')
+    .and(page.getByLabel('Upload image', { exact: true }))
+    .setInputFiles(fixture)
+  await page
+    .getByRole('dialog', { name: 'Crop avatar', exact: true })
+    .getByRole('button', { name: 'Confirm', exact: true })
+    .click()
   await expect
     .poll(
       async () => {

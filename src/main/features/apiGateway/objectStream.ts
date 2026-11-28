@@ -2,18 +2,18 @@ import { randomUUID } from 'node:crypto'
 
 import { UnsupportedFunctionalityError } from '@ai-sdk/provider'
 import type { ObjectTransportResponse, ObjectTransports } from '@earendil-works/pi-ai'
-import type { UIMessageChunk } from 'ai'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
 import type { StreamListener } from '@main/ai/streamManager'
 import { serializeError } from '@main/ai/utils/serializeError'
+import { RetryPartDataSchema } from '@shared/data/types/uiParts'
 
 import { type IStreamAdapter, StreamAdapterFactory, type StreamAdapterOptions } from './adapters'
 import { objectGatewayError } from './errors'
 import type { AgentGatewayContext, MessageConfig } from './gatewayRequest'
 import { gatewayPromptOptions, prepareGatewayMessage } from './prepareGatewayMessage'
-import { isStartupCommitChunk, streamInterruptedError } from './streamLifecycle'
+import { isStartupCommitChunk, requiresSemanticFrames, streamInterruptedError } from './streamLifecycle'
 
 const logger = loggerService.withContext('GatewayObjectStream')
 
@@ -200,6 +200,12 @@ async function openObjectMessage<T>(
   let controller!: ReadableStreamDefaultController<ObjectItem<T>>
   let closed = false
   let started = false
+  let retryActive = false
+  const settleRetry = () => {
+    if (!retryActive) return
+    retryActive = false
+    config.agentContext?.onRetryEvent?.({ state: 'settled' })
+  }
   let resolveStart!: () => void
   let rejectStart!: (error: unknown) => void
   const startup = new Promise<void>((resolve, reject) => {
@@ -215,6 +221,7 @@ async function openObjectMessage<T>(
   const close = () => {
     if (closed) return
     closed = true
+    settleRetry()
     config.signal?.removeEventListener('abort', abort)
     controller.close()
   }
@@ -237,6 +244,7 @@ async function openObjectMessage<T>(
   const cancel = (closeStream: boolean) => {
     if (closed) return
     closed = true
+    settleRetry()
     config.signal?.removeEventListener('abort', abort)
     if (closeStream) controller.close()
     manager.abort(streamId, 'object model consumer closed')
@@ -249,11 +257,24 @@ async function openObjectMessage<T>(
   })
   const listener: StreamListener = {
     id: streamId,
-    onChunk: (chunk: UIMessageChunk) => {
+    onChunk: (chunk) => {
       if (closed) return
       try {
-        write(adapter.transformChunk(chunk))
-        if (isStartupCommitChunk(chunk)) commit()
+        if (chunk.type === 'data-retry') {
+          const event = RetryPartDataSchema.parse(chunk.data)
+          retryActive = event.state === 'retrying'
+          config.agentContext?.onRetryEvent?.(event)
+          return
+        }
+        if (!started && requiresSemanticFrames(chunk)) {
+          const { opening, events } = adapter.transformChunkWithOpening(chunk)
+          write(opening)
+          write(events)
+          if (events.length > 0) commit()
+        } else {
+          write(adapter.transformChunk(chunk))
+          if (isStartupCommitChunk(chunk)) commit()
+        }
       } catch (error) {
         fail(error)
         manager.abort(streamId, 'object model adapter failed')
@@ -277,6 +298,8 @@ async function openObjectMessage<T>(
   try {
     manager.streamPrompt({
       ...gatewayPromptOptions(request, usageContext, config.timeoutMs),
+      maxRetries: 3,
+      onModelTransportFailure: config.agentContext?.onModelTransportFailure,
       streamId,
       listener
     })

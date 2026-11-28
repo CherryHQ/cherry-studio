@@ -4,9 +4,30 @@ Harness-neutral contracts for accessing a thread, submitting native input, obser
 facts, interrupting foreground work, and releasing access/resources. This package has no Pi,
 Claude SDK, Electron, or application dependency and does not schedule agent execution.
 
+The `/cli` entry describes executable components, resolved installations, install plans and
+native account probes. A resolved installation can be shared by discovery, post-install
+verification and launch.
+The `/stdio` entry describes the host capability to spawn a resolved command and join its shutdown.
+A runtime adapter owns any process it requests through this capability. Thread access remains a
+separate lifetime.
+Native CLI login uses the same stdio capability, forwards parsed login prompts and joins the
+child on cancellation.
+
+`RuntimeAccountAccess` binds optional sign-in, account identity and subscription reads to an account
+target. `readAccount` returns one status with any identity and workspace fields reported by the
+runtime. An adapter can expose any supported operation without opening a thread. Subscription
+results preserve native time windows and distinguish a signed-out account, an unsupported
+route, and a failed read. Per-turn usage stays in execution observations.
+
+Runtime permission mode declarations carry the native choice value, its supported Agent permission
+semantics and when a selection applies. A selection can take effect on the current session, the
+next turn or across a reconnect. A catalog describes available choices. A live connection confirms
+the policy it has applied.
+
 `Thread` is the stable native context identity within a backend. `ThreadHandle` is a live access
-with observation and release operations. Its optional `input` exposes `submit`; observation-only
-access omits it. Concrete adapters validate `whenBusy` before dispatch. Releasing an access does not delete the thread
+with observation and release operations. A writable handle exposes its supported operations under
+`input`. `submit` rejects busy work, `steer.submit` declares what happens when idle, and
+`followUp.submit` declares the queue's persistence. An observation-only handle omits `input`. Releasing an access does not delete the thread
 or abort its work. The host stores product-session relationships separately from native context storage.
 
 Every handle exposes passive `contextUsage()`. Confirmed readings distinguish full context
@@ -30,14 +51,29 @@ recovery; product reply identity and billing do not come from a common response 
 Interrupt, resume and shutdown return `OperationResult<void>`; success confirms the operation's
 native contract, not application-wide cancellation.
 
-`RuntimeMessage` specializes AI SDK `UIMessage` with native completeness and optional placed-input metadata.
-`ThreadSnapshot.messages`, `message.upsert`, and `message.remove` expose whole native messages.
-Ordered parts retain text, reasoning, files, and tools; results and preliminary output update the
-originating tool part. Activity, input outcomes, and child relationships remain separate facts.
+`RuntimeMessage` specializes AI SDK `UIMessage` with native completeness, optional placed-input metadata and
+message-local model-response errors in `metadata.error`.
+`ThreadSnapshot.messages` installs the thread baseline. `message.reconcile` installs or corrects one
+native source, including metadata changes and explicit aliases in `replaces`. `message.remove` removes
+one source by reference. Activity, input outcomes, and child relationships remain separate facts.
+
+`message.parts` carries ordered edits at known native part positions. Text and reasoning use `open`,
+`append`, and `finish`. A `correct` edit replaces the text and state of one known block when the native source revises it.
+`put` carries a changed file or tool part, including replacement of preliminary
+tool output. Adapters can publish proven individual text mutations and output-only updates through the
+dedicated native part events. A new baseline includes the accepted text and tool updates.
+Accepted JSON tool parts and their payloads are deeply frozen and shared across isolated delivery
+containers. Text updates reuse settled payloads without copying or comparing their bodies.
 
 `RuntimeMessageStream` uses the pinned `ai@6.0.185` reader once per streaming native message,
-before observer fanout. Adapters with authoritative snapshots publish message values directly.
+before observer fanout. Adapters receiving cumulative messages extract edits for the affected source.
 The reader is not seeded from a partial snapshot: SDK parser state must come from native deltas.
+
+`ProductInputState` carries the ID from the submitted draft. A raw `InputState` can also
+describe autonomous work with only a native reference. A driver forwards a product input
+change when its source identifies the product ID. Input lookup takes the original thread
+and product ID. Pi and Claude can answer while their owner retains evidence. Pi Durable
+also supports lookup against its stored submissions.
 
 `ThreadFeed` is a protocol utility: one normalized snapshot, ordered per-observer delivery,
 bounded pending frames, explicit overflow gaps, and observer error isolation. It owns no native
@@ -57,6 +93,12 @@ An unrecoverable control backlog closes the observation with a gap instead of in
 `Observation.drain()` joins delivery and callbacks through the facts already published when it is called.
 Seal native production before the final drain and archive flush. `stop()` discards queued delivery; it is not
 a write barrier. Detach and release only after the final flush, and keep backup pauses write-free until resume.
+
+Pi projection facets use `observeProjection`. The feed owns event selection and the facet
+supplies metadata for that revision. Text-only edits can be delivered as individual native operations.
+Mixed edits stay in their original order in one `message.parts` event. The feed validates the addressed
+positions together before notifying observers. A rejected batch leaves the source and its revision intact.
+Explicit snapshot and reconciliation reads materialize the accepted source when needed.
 
 Pi-specific APIs previously in this package live in `@cherrystudio/agent-runtime-pi`. Pi Durable
 has a separate adapter in `@cherrystudio/agent-runtime-pi-durable`; both are wired into the desktop.

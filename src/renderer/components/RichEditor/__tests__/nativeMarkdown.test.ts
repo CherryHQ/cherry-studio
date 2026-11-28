@@ -182,6 +182,24 @@ describe('native markdown round-trip matrix', () => {
     expect(out).toContain('| 1 | 2 |')
   })
 
+  it.each([
+    [
+      'colspan',
+      '<tr><th colspan="2">Quarter</th><th>Total</th></tr><tr><td>Q1</td><td>Sales</td><td><strong>125</strong></td></tr>'
+    ],
+    [
+      'rowspan',
+      '<tr><th>Quarter</th><th>Total</th></tr><tr><td rowspan="2">Q1</td><td>125</td></tr><tr><td>5</td></tr>'
+    ]
+  ])('preserves %s and cell contents when saving and reopening a note', (span, rows) => {
+    const initial = make(`<table>${rows}</table>\n\nAfter the table`)
+    expect(initial.view.dom.querySelector(`[${span}="2"]`)).not.toBeNull()
+    expect(initial.state.doc.firstChild?.textContent).toContain('125')
+    const original = initial.getJSON()
+
+    expect(make(initial.getMarkdown()).getJSON()).toEqual(original)
+  })
+
   it('parses and round-trips YAML front matter', () => {
     const src = '---\ntitle: Hi\n---\n\nBody text'
     const top = parse(src)[0]

@@ -128,7 +128,7 @@ vi.mock('@main/ai/agents/builtin/BuiltinAgentProvisioner', () => ({
   provisionBuiltinAgent: vi.fn()
 }))
 
-vi.mock('@main/ai/agents/prompt', () => ({
+vi.mock('@main/ai/agents/prompt/promptContext', () => ({
   PromptBuilder: vi.fn(function () {
     return {
       buildPromptParts: mocks.buildPrompt,
@@ -678,17 +678,18 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.env).toMatchObject({ CLAUDE_CODE_MAX_OUTPUT_TOKENS: '128000' })
   })
 
-  it('defaults the compaction trigger percentage and lets an agent env override win', async () => {
+  it('applies the task compaction percentage and lets an agent env override win', async () => {
     // No context window declared — the percentage still applies.
-    await buildClaudeCodeSessionSettings(
+    const settings = await buildClaudeCodeSessionSettings(
       {
         id: 'session-1',
         agentId: 'agent-1',
         workspace: { type: 'user', path: '/workspace/project' }
       } as never,
       {} as never,
-      {}
+      { compactionPercent: 55 }
     )
+    expect(settings.env?.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE).toBe('55')
 
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
@@ -1535,6 +1536,62 @@ describe('buildClaudeCodeSessionSettings', () => {
     }
   })
 
+  it.each(['auto', 'prompt', 'disabled'] as const)(
+    'uses the selected MCP Skill permission %s in canUseTool',
+    async (permission) => {
+      let mode = 'default'
+      mocks.findByIdOrName.mockImplementation((id) =>
+        id === 'origin'
+          ? {
+              id: 'origin',
+              name: 'Origin',
+              isActive: true,
+              skillPermissions: { 'skill://reports/SKILL.md': permission }
+            }
+          : undefined
+      )
+      mocks.createToolPolicySnapshot.mockResolvedValue({
+        resolve: () => ({ approval: 'auto' }),
+        isDisabled: () => false,
+        getPermissionMode: () => mode,
+        update: vi.fn(),
+        setPermissionMode: vi.fn()
+      })
+      const settings = await buildClaudeCodeSessionSettings(
+        {
+          id: 'session-1',
+          agentId: 'agent-1',
+          workspace: { type: 'user', path: '/workspace/project' }
+        } as never,
+        {} as never
+      )
+      settings.approvalEmitter!.emit = vi.fn()
+      for (mode of ['default', 'auto', 'bypassPermissions']) {
+        for (const name of ['mcp__skills__load_mcp_skill', 'mcp__skills__read_mcp_skill_file']) {
+          expect(settings.allowedTools).not.toContain(name)
+          mocks.approvalRegister.mockClear()
+          const input = { server_id: 'origin', skill_uri: 'skill://reports/SKILL.md' }
+          const pending = settings.canUseTool!(name, input, {
+            signal: new AbortController().signal,
+            toolUseID: 'skill-read',
+            requestId: 'skill-read'
+          })
+          if (permission === 'disabled') await expect(pending).resolves.toMatchObject({ behavior: 'deny' })
+          else if (permission === 'auto' || mode === 'bypassPermissions') {
+            await expect(pending).resolves.toEqual({ behavior: 'allow', updatedInput: input })
+          } else {
+            await vi.waitFor(() => expect(mocks.approvalRegister.mock.calls).toHaveLength(1))
+            mocks.approvalRegister.mock.lastCall![0].resolve({ approved: false })
+            await expect(pending).resolves.toMatchObject({ behavior: 'deny' })
+          }
+          expect(mocks.approvalRegister.mock.calls).toHaveLength(
+            permission === 'prompt' && mode !== 'bypassPermissions' ? 1 : 0
+          )
+        }
+      }
+    }
+  )
+
   describe('global install approvals without SDK matchedAskRule', () => {
     async function installSettings(
       permissionMode: string,
@@ -1738,6 +1795,28 @@ describe('buildClaudeCodeSessionSettings', () => {
         }
       }
     })
+  })
+
+  it('hides file mutation tools from Claude in Plan Only and keeps read-only tools available', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'claude-code',
+      model: 'anthropic::claude-sonnet',
+      mcps: [],
+      disabledTools: ['WebSearch'],
+      configuration: { permission_mode: 'plan' }
+    })
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+
+    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+    const disallowedTools = settings.disallowedTools ?? []
+
+    expect(disallowedTools).toEqual(expect.arrayContaining(['Edit', 'MultiEdit', 'NotebookEdit', 'Write', 'WebSearch']))
+    expect(disallowedTools.filter((name) => ['Read', 'Glob', 'Grep'].includes(name))).toEqual([])
   })
 
   it('passes agent disabledTools through to SDK disallowedTools', async () => {
@@ -2585,7 +2664,7 @@ describe('buildClaudeCodeSessionSettings', () => {
   })
 
   it('keeps RTK as the only Bash text rewrite', async () => {
-    mocks.rtkRewrite.mockResolvedValue('rtk eslint .')
+    mocks.rtkRewrite.mockResolvedValue({ command: 'rtk eslint .', approvalRequired: false })
     const session = {
       id: 'session-1',
       agentId: 'agent-1',
@@ -2607,6 +2686,100 @@ describe('buildClaudeCodeSessionSettings', () => {
       }
     })
   })
+
+  it.each([
+    { mode: 'acceptEdits', command: 'git status', rewritten: 'rtk git status', approved: true },
+    { mode: 'acceptEdits', command: 'rtk git status', rewritten: 'rtk git status', approved: true },
+    { mode: 'auto', command: 'git status', rewritten: 'rtk git status', approved: true },
+    { mode: 'auto', command: 'rtk git status', rewritten: 'rtk git status', approved: false },
+    { mode: 'bypassPermissions', command: 'git status', rewritten: 'rtk git status', approved: false },
+    { mode: 'bypassPermissions', command: 'rtk git status', rewritten: 'rtk git status', approved: true }
+  ] as const)(
+    'gates an RTK Ask rewrite in $mode (command=$command, approved=$approved)',
+    async ({ mode, command, rewritten, approved }) => {
+      mocks.rtkRewrite.mockResolvedValueOnce({ command: rewritten, approvalRequired: true })
+      mocks.createToolPolicySnapshot.mockResolvedValue({
+        resolve: () => ({ approval: 'auto' }),
+        isDisabled: () => false,
+        getPermissionMode: () => mode
+      })
+      const settings = await buildClaudeCodeSessionSettings(
+        { id: 'session-1', agentId: 'agent-1', workspace: { type: 'user', path: '/workspace/project' } } as never,
+        {} as never
+      )
+      const hook = settings.hooks!.PreToolUse![0].hooks.find((callback) => callback.name === 'rtkRewriteHook')!
+      const signal = new AbortController().signal
+      const toolUseID = 'rtk-ask'
+      const originalInput = { command }
+      const rewrittenInput = { command: rewritten }
+      const output = await hook(
+        {
+          hook_event_name: 'PreToolUse',
+          tool_name: 'Bash',
+          tool_input: originalInput,
+          tool_use_id: toolUseID
+        } as never,
+        toolUseID,
+        { signal }
+      )
+      expect(output).toMatchObject({
+        hookSpecificOutput: {
+          hookEventName: 'PreToolUse',
+          permissionDecision: 'ask',
+          updatedInput: rewrittenInput
+        }
+      })
+
+      const emit = vi.fn()
+      settings.approvalEmitter!.emit = emit
+      const pending = settings.canUseTool!('Bash', rewrittenInput, { signal, toolUseID, requestId: 'rtk-ask-request' })
+      await vi.waitFor(() => expect(emit).toHaveBeenCalledWith(expect.objectContaining({ input: rewrittenInput })))
+      mocks.approvalRegister.mock.lastCall![0].resolve({ approved })
+      await expect(pending).resolves.toMatchObject(
+        approved ? { behavior: 'allow', updatedInput: rewrittenInput } : { behavior: 'deny' }
+      )
+    }
+  )
+
+  it.each(['acceptEdits', 'auto', 'bypassPermissions'] as const)(
+    'denies an unchanged RTK Ask command when unattended in %s',
+    async (mode) => {
+      mocks.rtkRewrite.mockResolvedValueOnce({ command: 'rtk git status', approvalRequired: true })
+      mocks.createToolPolicySnapshot.mockResolvedValue({
+        resolve: () => ({ approval: 'auto' }),
+        isDisabled: () => false,
+        getPermissionMode: () => mode
+      })
+      const originalGet = mocks.applicationGet.getMockImplementation()!
+      mocks.applicationGet.mockImplementation((name: string) =>
+        name === 'AgentSessionRuntimeService'
+          ? { getInteractionState: () => ({ currentTurn: 'headless', userResponse: 'unavailable' }) }
+          : originalGet(name)
+      )
+      const settings = await buildClaudeCodeSessionSettings(
+        { id: 'session-1', agentId: 'agent-1', workspace: { type: 'user', path: '/workspace/project' } } as never,
+        {} as never
+      )
+      const hook = settings.hooks!.PreToolUse![0].hooks.find((callback) => callback.name === 'rtkRewriteHook')!
+      const signal = new AbortController().signal
+      const toolUseID = 'rtk-ask-headless'
+      const commandInput = { command: 'rtk git status' }
+      await hook(
+        {
+          hook_event_name: 'PreToolUse',
+          tool_name: 'Bash',
+          tool_input: commandInput,
+          tool_use_id: toolUseID
+        } as never,
+        toolUseID,
+        { signal }
+      )
+
+      await expect(
+        settings.canUseTool!('Bash', commandInput, { signal, toolUseID, requestId: 'rtk-ask-headless-request' })
+      ).resolves.toMatchObject({ behavior: 'deny' })
+    }
+  )
 
   it('does not inject an environment snapshot into the built-in Assistant prompt', async () => {
     const preferenceGet = vi.fn((key: string) => {

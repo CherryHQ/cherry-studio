@@ -1,21 +1,24 @@
+import { createHmac, randomBytes } from 'node:crypto'
 import { hostname, networkInterfaces } from 'node:os'
 
 import type { ProviderHeaders } from '@earendil-works/pi-ai'
-import { Mutex } from 'async-mutex'
+import { E_CANCELED, Mutex } from 'async-mutex'
 import { retry } from 'es-toolkit'
 import { v4 as uuidv4 } from 'uuid'
 
 import { application } from '@application'
 import { advertisedEndpointSchema } from '@cherrystudio/remote-protocol'
 import { loggerService } from '@logger'
+import type { RecoverableModelTransportFailure } from '@main/ai/runtime/aiSdk'
 import type { InProcessUsageContext } from '@main/ai/types'
 import { createLatestReconciler, type LatestReconciler } from '@main/core/concurrency/latestReconciler'
 import { type Activatable, BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { ServiceTierSelection } from '@shared/data/types/model'
+import type { RetryPartData } from '@shared/data/types/uiParts'
 import type { OutputFor } from '@shared/ipc/types'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import type { ApiGatewayConfig, ApiGatewayStopOutcome } from '@shared/types/apiGateway'
-import { gatewayClientOrigin } from '@shared/utils/apiGateway'
+import { gatewayClientOrigin, INTERNAL_CREDENTIAL_PREFIX } from '@shared/utils/apiGateway'
 import { REDACTED } from '@shared/utils/redaction'
 
 import { isGatewayBindPermissionError, mapGatewayBindError } from './bindError'
@@ -28,9 +31,15 @@ const logger = loggerService.withContext('ApiGatewayService')
 const AGENT_SESSION_ID_HEADER = 'x-cherry-agent-session-id'
 const AGENT_USAGE_CAPTURE_HEADER = 'x-cherry-agent-usage-capture'
 const INTERNAL_GATEWAY_HOST = '127.0.0.1'
+const REQUEST_UNIT_BYTES = 1024 * 1024
+const INTERNAL_REQUEST_BUDGET = 32
 
-/** What a scoped internal credential may call: one generation path, one model address. */
-export type InternalCredentialScope = { path: string; model: string }
+/** What a scoped internal credential may call: its generation paths, one model address. */
+export type InternalCredentialScope = {
+  paths: readonly string[]
+  model: string
+  agentSessionId?: string
+}
 
 function presentedToken(headers: Headers): string | undefined {
   return (
@@ -49,8 +58,15 @@ function presentedToken(headers: Headers): string | undefined {
 export class ApiGatewayService extends BaseService implements Activatable {
   private apiGateway: ApiGateway | null = null
   private readonly lanMutex = new Mutex()
+  private availableInternalRequestUnits = INTERNAL_REQUEST_BUDGET
+  private readonly pendingInternalRequests = new Set<{
+    units: number
+    grant: (release: () => void) => void
+    cancel: (reason: unknown) => void
+  }>()
   /** Never persisted or shown to the user; unrestricted on the internal listener. */
-  private readonly internalApiKey = `cs-internal-${uuidv4()}`
+  private readonly internalApiKey = `${INTERNAL_CREDENTIAL_PREFIX}${uuidv4()}`
+  private readonly agentCredentialSecret = randomBytes(32)
   /** Live scoped credentials; each authorizes only its own scope until disposed. */
   private readonly scopedCredentials = new Map<string, InternalCredentialScope>()
   private readonly usageCaptures = new Map<string, InProcessUsageContext>()
@@ -81,7 +97,10 @@ export class ApiGatewayService extends BaseService implements Activatable {
     apply: async ({ desired, actual }) => {
       if (!desired) await this.deactivate()
       else if (!actual) await this.activate()
-      else {
+      else if (!this.isRunning()) {
+        await this.deactivate()
+        await this.activate()
+      } else {
         await this.lanMutex.runExclusive(async () => {
           const host = this.listeningHost()
           if (host === '127.0.0.1') application.get('RemoteAccessService').closeIngress()
@@ -155,6 +174,8 @@ export class ApiGatewayService extends BaseService implements Activatable {
   }
 
   protected async onStop(): Promise<void> {
+    for (const request of this.pendingInternalRequests) request.cancel(E_CANCELED)
+    this.pendingInternalRequests.clear()
     const internalGateway = this.internalGateway
     this.internalGateway = null
     this.internalOrigin = undefined
@@ -181,6 +202,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
       .updateDirectEndpoint(remoteReady ? { port: endpoint.port, ipv6: endpoint.hosts.includes('::') } : undefined)
     try {
       const cache = application.get('CacheService')
+      cache.setShared('feature.api_gateway.endpoint', host && endpoint ? { host, port: endpoint.port } : null)
       cache.setShared('feature.api_gateway.running', running)
       cache.setShared('feature.api_gateway.lan_running', remoteReady)
     } catch (error) {
@@ -190,7 +212,11 @@ export class ApiGatewayService extends BaseService implements Activatable {
 
   private listeningHost(): string {
     const config = this.getCurrentConfig()
-    return config.enabled && config.host === '0.0.0.0' ? '0.0.0.0' : '127.0.0.1'
+    return config.enabled && (config.host === '0.0.0.0' || this.isLanHttpEnabled()) ? '0.0.0.0' : '127.0.0.1'
+  }
+
+  private isLanHttpEnabled(): boolean {
+    return application.get('PreferenceService').get('feature.api_gateway.lan_http_enabled') === true
   }
 
   /**
@@ -227,7 +253,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
   async start(): Promise<void> {
     await this.applyIntent(true)
     if (!this.isActivated || !this.isRunning()) {
-      const error = this.failureError('Failed to start API Gateway')
+      const error = this.failureError('Failed to start Unified Gateway')
       logger.error('Failed to start API Gateway:', error)
       throw error
     }
@@ -237,7 +263,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
   async stop(): Promise<ApiGatewayStopOutcome> {
     await this.applyIntent(false)
     if (this.isActivated) {
-      const error = this.failureError('Failed to stop API Gateway')
+      const error = this.failureError('Failed to stop Unified Gateway')
       logger.error('Failed to stop API Gateway:', error)
       throw error
     }
@@ -252,13 +278,13 @@ export class ApiGatewayService extends BaseService implements Activatable {
     // Re-read the intent before re-activating: another window may have persisted a stop while this
     // restart was queued behind it, and a re-bind must never resurrect a gateway the user disabled.
     if (!this.getCurrentConfig().enabled) {
-      const error = new Error('API Gateway was disabled while restarting')
+      const error = new Error('Unified Gateway was disabled while restarting')
       logger.warn('Aborting API Gateway restart: the gateway was disabled meanwhile')
       throw error
     }
     await this.converge(true)
     if (!this.isActivated || !this.isRunning()) {
-      const error = this.failureError('Failed to restart API Gateway')
+      const error = this.failureError('Failed to restart Unified Gateway')
       logger.error('Failed to restart API Gateway:', error)
       throw error
     }
@@ -284,18 +310,18 @@ export class ApiGatewayService extends BaseService implements Activatable {
         return
       }
       if (!this.getCurrentConfig().enabled || !this.isRunning()) {
-        throw new Error('Start the API Gateway in its settings before enabling LAN access')
+        throw new Error('Start the Unified Gateway in its settings before enabling LAN access')
       }
       await preferences.set('feature.api_gateway.host', '0.0.0.0')
       if (!this.getCurrentConfig().enabled || !this.isRunning()) {
         await preferences.set('feature.api_gateway.host', '127.0.0.1')
         await this.closeRemoteAccess()
-        throw new Error('API Gateway was stopped')
+        throw new Error('Unified Gateway was stopped')
       }
     })
     this.reconciler.request()
     await this.reconciler.flush()
-    const target = enabled ? '0.0.0.0' : '127.0.0.1'
+    const target = this.listeningHost()
     if (
       (enabled && !this.getCurrentConfig().enabled) ||
       (this.isActivated ? this.apiGateway?.getHost() !== target : enabled)
@@ -311,6 +337,44 @@ export class ApiGatewayService extends BaseService implements Activatable {
       }
       throw error
     }
+    this.publishRunningState(this.isRunning())
+  }
+
+  async setLanHttpEnabled(enabled: boolean): Promise<void> {
+    const preferences = application.get('PreferenceService')
+    await this.lanMutex.runExclusive(async () => {
+      if (enabled) {
+        if (!this.getCurrentConfig().enabled || !this.isRunning()) {
+          throw new Error('Unified Gateway is not running')
+        }
+        await this.ensureValidApiKey()
+        if (!this.getCurrentConfig().enabled) throw new Error('Unified Gateway was stopped')
+      }
+      await preferences.set('feature.api_gateway.lan_http_enabled', enabled)
+    })
+    this.reconciler.request()
+    await this.reconciler.flush()
+    if (this.isLanHttpEnabled() !== enabled) return
+    if (this.getCurrentConfig().enabled && (!this.isRunning() || this.apiGateway?.getHost() !== this.listeningHost())) {
+      const error = this.failureError('Failed to change network access')
+      if (enabled) {
+        await this.lanMutex.runExclusive(async () => {
+          await preferences.set('feature.api_gateway.lan_http_enabled', false)
+        })
+        this.reconciler.request()
+        await this.reconciler.flush()
+      }
+      throw error
+    }
+  }
+
+  async getLanHttpAddresses(): Promise<string[]> {
+    const metadata = await getInterfaceMetadata()
+    if (!this.isLanHttpEnabled() || !this.apiGateway?.isRunning() || this.apiGateway.getHost() !== '0.0.0.0') return []
+    const port = this.apiGateway.getPort()
+    return getRemoteAddressOptions(networkInterfaces(), metadata, this.apiGateway.getHosts().includes('::')).map(
+      ({ address }) => gatewayClientOrigin(address, port)
+    )
   }
 
   private async closeRemoteAccess(): Promise<void> {
@@ -328,7 +392,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
   async getRemoteEndpoint() {
     const metadata = await getInterfaceMetadata()
     const configured = application.get('PreferenceService').get('feature.remote_access.advertised_endpoint')
-    if (!this.isRunning()) throw new Error('API Gateway is not running')
+    if (!this.isRunning()) throw new Error('Unified Gateway is not running')
     if (
       !this.getCurrentConfig().enabled ||
       this.getCurrentConfig().host !== '0.0.0.0' ||
@@ -362,11 +426,18 @@ export class ApiGatewayService extends BaseService implements Activatable {
   }
 
   /**
-   * Base URL and unrestricted credential for Cherry-launched consumers. Served by a dedicated loopback
+   * Base URL and credential for Cherry-launched consumers. Served by a dedicated loopback
    * listener so internal traffic never depends on, or turns on, the user-facing gateway.
    */
-  async ensureInternalGateway(): Promise<{ baseUrl: string; apiKey: string }> {
-    return { baseUrl: await this.ensureInternalListener(), apiKey: this.internalApiKey }
+  async ensureInternalGateway(sessionId?: string): Promise<{ baseUrl: string; apiKey: string }> {
+    return {
+      baseUrl: await this.ensureInternalListener(),
+      apiKey: sessionId === undefined ? this.internalApiKey : this.agentApiKey(sessionId)
+    }
+  }
+
+  private agentApiKey(sessionId: string): string {
+    return `cs-agent-${createHmac('sha256', this.agentCredentialSecret).update(sessionId).digest('base64url')}`
   }
 
   /** A credential for one consumer run that authorizes only `scope`, revoked by `dispose`. */
@@ -374,7 +445,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
     scope: InternalCredentialScope
   ): Promise<{ baseUrl: string; apiKey: string; dispose: () => void }> {
     const baseUrl = await this.ensureInternalListener()
-    const apiKey = `cs-internal-${uuidv4()}`
+    const apiKey = `${INTERNAL_CREDENTIAL_PREFIX}${uuidv4()}`
     this.scopedCredentials.set(apiKey, scope)
     return { baseUrl, apiKey, dispose: () => this.scopedCredentials.delete(apiKey) }
   }
@@ -416,7 +487,63 @@ export class ApiGatewayService extends BaseService implements Activatable {
   /** Whether the request presents an internal credential; external callers never hold one. */
   isInternalRequest(headers: Headers): boolean {
     const token = presentedToken(headers)
-    return !!token && (isValidToken(token, this.internalApiKey) || this.scopedCredentials.has(token))
+    return (
+      !!token &&
+      (isValidToken(token, this.internalApiKey) ||
+        this.scopedCredentials.has(token) ||
+        !!this.getAgentSessionId(headers))
+    )
+  }
+
+  /** Limit overlapping internal HTTP payloads before image preparation and SDK encoding. */
+  async acquireInternalRequestBudget(headers: Headers, signal: AbortSignal): Promise<() => void> {
+    signal.throwIfAborted()
+    const length = Number(headers.get('content-length'))
+    const units =
+      Number.isSafeInteger(length) && length > 0
+        ? Math.min(INTERNAL_REQUEST_BUDGET, Math.ceil(length / REQUEST_UNIT_BYTES))
+        : INTERNAL_REQUEST_BUDGET
+    const release = await new Promise<() => void>((resolve, reject) => {
+      const request = {
+        units,
+        grant: (release: () => void) => {
+          signal.removeEventListener('abort', abort)
+          resolve(release)
+        },
+        cancel: (reason: unknown) => {
+          signal.removeEventListener('abort', abort)
+          reject(reason)
+        }
+      }
+      const abort = () => {
+        this.pendingInternalRequests.delete(request)
+        request.cancel(signal.reason)
+        this.grantInternalRequestBudget()
+      }
+      signal.addEventListener('abort', abort, { once: true })
+      this.pendingInternalRequests.add(request)
+      this.grantInternalRequestBudget()
+    })
+    if (signal.aborted) {
+      release()
+      signal.throwIfAborted()
+    }
+    return release
+  }
+
+  private grantInternalRequestBudget(): void {
+    for (const request of this.pendingInternalRequests) {
+      if (request.units > this.availableInternalRequestUnits) break
+      this.pendingInternalRequests.delete(request)
+      this.availableInternalRequestUnits -= request.units
+      let released = false
+      request.grant(() => {
+        if (released) return
+        released = true
+        this.availableInternalRequestUnits += request.units
+        this.grantInternalRequestBudget()
+      })
+    }
   }
 
   /** The scope of a live scoped credential; undefined for every other request. */
@@ -454,11 +581,15 @@ export class ApiGatewayService extends BaseService implements Activatable {
 
   createAgentObjectTransports(input: {
     sessionId: string
+    replayRouteId?: string
+    omitGeminiSignaturesFor?: ReadonlySet<number>
     headers?: ProviderHeaders
     reasoningEffort?: ReasoningEffortOption
     serviceTier?: ServiceTierSelection
     fastMode?: boolean
     traceContext?: InProcessUsageContext['traceContext']
+    onRetryEvent?: (event: RetryPartData) => void
+    onModelTransportFailure?: (failure: RecoverableModelTransportFailure) => void
   }) {
     const headers = new Headers()
     for (const [name, value] of Object.entries(input.headers ?? {})) {
@@ -471,6 +602,10 @@ export class ApiGatewayService extends BaseService implements Activatable {
       requestHeaders: headers,
       agentContext: {
         agentSessionId: sessionId,
+        replayRouteId: input.replayRouteId,
+        omitGeminiSignaturesFor: input.omitGeminiSignaturesFor,
+        onRetryEvent: input.onRetryEvent,
+        onModelTransportFailure: input.onModelTransportFailure,
         reasoningEffort: input.reasoningEffort ?? 'default',
         serviceTier: input.serviceTier,
         fastMode: input.fastMode === true,
@@ -510,11 +645,15 @@ export class ApiGatewayService extends BaseService implements Activatable {
     }
   }
 
-  /** Agent session id of an unrestricted internal request; undefined for every other caller. */
+  /** The session named by the request and verified against its issued credential. */
   getAgentSessionId(headers: Headers): string | undefined {
     const token = presentedToken(headers)
-    if (!token || !isValidToken(token, this.internalApiKey)) return undefined
-    return headers.get(AGENT_SESSION_ID_HEADER)?.trim() || undefined
+    const scope = token && this.scopedCredentials.get(token)
+    if (scope) return scope.agentSessionId
+    const sessionId = headers.get(AGENT_SESSION_ID_HEADER)?.trim()
+    return sessionId && token?.startsWith('cs-agent-') && isValidToken(token, this.agentApiKey(sessionId))
+      ? sessionId
+      : undefined
   }
 
   /** Capture the reserved continuation or active turn of the requesting Agent session. */
@@ -526,6 +665,8 @@ export class ApiGatewayService extends BaseService implements Activatable {
       const usage = this.usageCaptures.get(capture)
       return usage?.agentSessionId === sessionId ? usage : undefined
     }
-    return application.get('AgentSessionRuntimeService').getActiveUsageContext(sessionId, responseId)
+    return application
+      .get('AgentSessionRuntimeService')
+      .getActiveUsageContext(sessionId, this.getCredentialScope(headers) ? undefined : responseId)
   }
 }

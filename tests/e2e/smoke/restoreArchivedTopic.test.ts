@@ -1,11 +1,11 @@
 import { mkdir, rm } from 'node:fs/promises'
 
-import { _electron as electron, type ElectronApplication, type Page } from '@playwright/test'
+import { type ElectronApplication, type Page } from '@playwright/test'
 
 import type { CreateMessageDto } from '../../../src/shared/data/api/schemas/messages'
 import type { Message } from '../../../src/shared/data/types/message'
 import { LATEST_PRIVACY_POLICY_VERSION } from '../../../src/shared/utils/constants'
-import { closeElectronApp, expect, test as base } from './fixtures/electron.fixture'
+import { closeElectronApp, expect, launchSmokeElectron, test as base } from './fixtures/electron.fixture'
 
 const ASSISTANT = 'Restore E2E assistant'
 const TOPIC = 'Restore E2E topic'
@@ -17,7 +17,7 @@ const test = base.extend({
     await mkdir(profile, { recursive: true })
     let app: ElectronApplication | undefined
     try {
-      app = await electron.launch({
+      app = await launchSmokeElectron({
         args: ['.'],
         env: Object.fromEntries(
           Object.entries({ ...process.env, NODE_ENV: 'development', CS_DEV_PROFILE_ROOT: profile }).filter(
@@ -106,12 +106,13 @@ test('restores an archived conversation and its messages without reloading', asy
   await assistant.click()
   await page.keyboard.press('Escape')
   await row.click()
-  await page.waitForTimeout(2000)
   await expect(row).toHaveAttribute('data-selected', 'true')
   for (const message of MESSAGES) await expect(chat.getByText(message, { exact: true })).toBeVisible()
 
-  await row.hover()
-  await row.getByRole('button', { name: 'Archive', exact: true }).click()
+  // Conversation rows no longer expose a one-click Archive action (#23237). Archive now lives in
+  // the topic context menu, so open the row menu and pick Archive there.
+  await row.click({ button: 'right' })
+  await page.getByRole('menuitem', { name: 'Archive', exact: true }).click()
   for (const message of MESSAGES) await expect(chat.getByText(message, { exact: true })).toBeHidden()
 
   await page.getByRole('button', { name: 'User', exact: true }).first().click()
@@ -135,7 +136,6 @@ test('restores an archived conversation and its messages without reloading', asy
   await assistant.click()
   await page.keyboard.press('Escape')
   await row.click()
-  await page.waitForTimeout(2000)
   await expect(row).toHaveAttribute('data-selected', 'true')
   for (const message of MESSAGES) await expect(chat.getByText(message, { exact: true })).toBeVisible()
 })

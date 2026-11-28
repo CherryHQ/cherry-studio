@@ -218,7 +218,12 @@ export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S
       toast.success(t('settings.data.s3.restore.success'))
       onClose() // 关闭模态框
     } catch (error) {
-      toast.error(getLocalizedBackupErrorMessage(error, 'message.restore.failed'))
+      void popup.error({
+        title: t('message.restore.failed'),
+        content: getLocalizedBackupErrorMessage(error, 'message.restore.failed'),
+        centered: true,
+        maskClosable: false
+      })
     } finally {
       setRestoring(false)
     }

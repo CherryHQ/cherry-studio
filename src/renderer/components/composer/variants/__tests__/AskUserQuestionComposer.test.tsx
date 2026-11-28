@@ -18,9 +18,11 @@ vi.mock('react-i18next', async (importOriginal) => ({
         {
           'agent.askUserQuestion.close': 'Close',
           'agent.askUserQuestion.customPlaceholder': 'Enter your answer...',
+          'agent.askUserQuestion.discuss': 'Discuss first',
           'agent.askUserQuestion.next': 'Next',
           'agent.askUserQuestion.previous': 'Previous',
           'agent.askUserQuestion.skip': 'Skip',
+          'agent.askUserQuestion.skipInterview': 'Skip interview and plan',
           'agent.askUserQuestion.submit': 'Submit'
         }[key] ?? key
       )
@@ -46,7 +48,9 @@ const questions = [
   }
 ]
 
-function makeRequest(requestQuestions = questions): AskUserQuestionComposerRequest {
+function makeRequest(
+  requestQuestions: AskUserQuestionComposerRequest['input']['questions'] = questions
+): AskUserQuestionComposerRequest {
   const part = {
     type: 'tool-AskUserQuestion',
     toolCallId: 'call-1',
@@ -72,137 +76,157 @@ function makeRequest(requestQuestions = questions): AskUserQuestionComposerReque
 }
 
 describe('AskUserQuestionComposer', () => {
+  it.each([
+    ['Discuss first', 'discuss'],
+    ['Skip interview and plan', 'skip-interview']
+  ] as const)(
+    'allows %s after the final single choice and keeps unsent note text out of the reply',
+    async (label, action) => {
+      const onRespond = vi.fn()
+      const request = makeRequest()
+      request.input.responseMode = 'native-request'
+      request.input.interviewActions = ['discuss', 'skip-interview']
+      render(<AskUserQuestionComposer request={request} onRespond={onRespond} />)
+      fireEvent.change(screen.getByPlaceholderText('Enter your answer...'), { target: { value: 'draft for me' } })
+      fireEvent.click(screen.getByText('Next'))
+      fireEvent.click(screen.getByRole('button', { name: /Bunyan/ }))
+      expect(onRespond).not.toHaveBeenCalled()
+      fireEvent.change(screen.getByPlaceholderText('Enter your answer...'), { target: { value: 'more draft text' } })
+      fireEvent.click(screen.getByRole('button', { name: label }))
+      await waitFor(() =>
+        expect(onRespond).toHaveBeenCalledWith({
+          approved: true,
+          match: request.match,
+          updatedInput: {
+            ...request.input,
+            action,
+            selections: [{ selected: [], freeform: true }, { selected: ['Bunyan'] }]
+          }
+        })
+      )
+    }
+  )
+
+  it('keeps option labels intact when a native request needs each selection', async () => {
+    const onRespond = vi.fn()
+    const request = makeRequest([
+      { question: 'Choose', header: 'Choose', options: [{ label: 'A, B' }, { label: 'C' }], multiSelect: true }
+    ])
+    request.input.responseMode = 'native-request'
+    render(<AskUserQuestionComposer request={request} onRespond={onRespond} />)
+    expect(screen.queryByRole('button', { name: 'Skip interview and plan' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /A, B/ }))
+    fireEvent.click(screen.getByText('C'))
+    fireEvent.change(screen.getByPlaceholderText('Enter your answer...'), { target: { value: 'Keep both' } })
+    fireEvent.click(screen.getByText('Submit'))
+    await waitFor(() =>
+      expect(onRespond).toHaveBeenCalledWith(
+        expect.objectContaining({
+          approved: true,
+          updatedInput: expect.objectContaining({
+            answers: { Choose: 'A, B, C' },
+            selections: [{ selected: ['A, B', 'C'], notes: 'Keep both' }]
+          })
+        })
+      )
+    )
+  })
+
+  it('reviews ACP defaults without auto-submitting, then sends typed edited values', async () => {
+    const user = userEvent.setup()
+    const onRespond = vi.fn()
+    const request = makeRequest([
+      {
+        id: 'enabled',
+        question: 'Enabled',
+        header: 'Enabled',
+        options: [
+          { id: 'true', label: 'true' },
+          { id: 'false', label: 'false' }
+        ],
+        multiSelect: false
+      },
+      { id: 'count', question: 'Count', header: 'Count', options: [], multiSelect: false }
+    ])
+    request.input.elicitation = {
+      agentName: 'Pi',
+      message: 'Configure task',
+      schema: {
+        type: 'object',
+        properties: {
+          enabled: { type: 'boolean', default: false },
+          count: { type: 'integer', minimum: 1, maximum: 5, default: 2 }
+        },
+        required: ['enabled', 'count']
+      }
+    }
+    render(<AskUserQuestionComposer request={request} onRespond={onRespond} />)
+    expect(screen.getByText('Configure task')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /local_agents.elicitation_yes/ }))
+    expect(onRespond).not.toHaveBeenCalled()
+    expect(screen.getByText('Enabled *')).toBeInTheDocument()
+    await user.click(screen.getAllByRole('button', { name: 'Next' })[0])
+    const entry = screen.getByRole('textbox')
+    expect(entry).toHaveValue('2')
+    await user.clear(entry)
+    await user.type(entry, '6')
+    await user.click(screen.getAllByRole('button', { name: 'Submit' }).at(-1)!)
+    expect(onRespond).not.toHaveBeenCalled()
+    expect(screen.getByRole('alert')).toBeInTheDocument()
+    await user.clear(entry)
+    await user.type(entry, '3')
+    await user.click(screen.getAllByRole('button', { name: 'Submit' }).at(-1)!)
+    expect(onRespond).toHaveBeenCalledWith(
+      expect.objectContaining({
+        approved: true,
+        updatedInput: expect.objectContaining({ elicitationContent: { enabled: true, count: 3 } })
+      })
+    )
+  })
+
+  it.each(['decline', 'cancel'])('keeps ACP %s distinct from an empty submission', async (action) => {
+    const user = userEvent.setup()
+    const onRespond = vi.fn()
+    const request = makeRequest()
+    request.input.elicitation = {
+      agentName: 'Pi',
+      message: 'Configure task',
+      schema: { type: 'object', properties: {} }
+    }
+    render(<AskUserQuestionComposer request={request} onRespond={onRespond} />)
+    await user.click(
+      screen.getByRole('button', { name: action === 'cancel' ? 'Close' : 'agent.toolPermission.button.deny' })
+    )
+    expect(onRespond).toHaveBeenCalledWith(
+      expect.objectContaining({ approved: false, updatedInput: { elicitationAction: action } })
+    )
+  })
+
   // Unsubmitted answers are cached per approval id, so the harness must not leak
   // one test's draft into the next one.
   beforeEach(() => {
     MockCacheUtils.resetMocks()
   })
 
-  it('keeps a 2000-character option description complete with wrapping and bounded scrolling', () => {
-    const marker = 'END-OF-DESCRIPTION-22984'
-    const description = `${'Consider structured logging across every service. '.repeat(50).slice(0, 2000 - marker.length)}${marker}`
+  it('preserves the full option description, including line breaks and a long unbroken token', () => {
+    const description = `Use the existing logger.\n${'x'.repeat(2000)}`
     render(
       <AskUserQuestionComposer
         request={makeRequest([
           {
             ...questions[0],
-            options: [
-              { label: 'Winston', description },
-              { label: 'Pino', description: 'JSON native' }
-            ]
+            options: [{ label: 'Winston', description }, { label: 'Pino' }]
           }
         ])}
         onRespond={vi.fn()}
       />
     )
 
-    const row = screen.getByRole('button', { name: /Winston/ })
-    const span = within(row).getByText(description)
-    // The list shrinks inside the bounded panel so every option remains reachable.
-    expect.soft(row.parentElement).toHaveClass('min-h-24', 'flex-auto', 'overflow-y-auto')
-    expect.soft(row.parentElement).not.toHaveClass('min-h-0')
-    expect(row.parentElement).not.toHaveClass('max-h-[50vh]')
-    expect(span).toHaveClass(
-      'block',
-      'whitespace-pre-wrap',
-      'break-words',
-      'font-medium',
-      'text-muted-foreground',
-      'text-xs',
-      'leading-4'
-    )
-    expect(span).not.toHaveClass('truncate')
-    expect.soft(span).not.toHaveClass('max-h-36')
-    expect.soft(span).not.toHaveClass('overflow-y-auto')
-    expect(span.textContent).toBe(description)
-    expect(span.textContent).toHaveLength(2000)
-    expect(span.textContent).toMatch(/END-OF-DESCRIPTION-22984$/)
-  })
-
-  it('bounds four twelve-line multi-select options in one scrollable list while retaining every control', () => {
-    const options = Array.from({ length: 4 }, (_, optionIndex) => ({
-      label: `Option ${optionIndex + 1}`,
-      description: Array.from({ length: 12 }, (_, lineIndex) => `Option ${optionIndex + 1} line ${lineIndex + 1}`).join(
-        '\n'
-      )
-    }))
-    render(
-      <AskUserQuestionComposer
-        request={makeRequest([{ ...questions[0], options, multiSelect: true }, questions[1]])}
-        onRespond={vi.fn()}
-      />
-    )
-
-    const firstOption = screen.getByRole('button', { name: /Option 1/ })
-    // The list shrinks inside the bounded panel; each description stays fully expanded.
-    expect.soft(firstOption.parentElement).toHaveClass('min-h-24', 'flex-auto', 'overflow-y-auto')
-    expect.soft(firstOption.parentElement).not.toHaveClass('min-h-0')
-    expect(firstOption.parentElement).not.toHaveClass('max-h-[50vh]')
-    for (const option of options) {
-      const row = screen.getByRole('button', { name: new RegExp(option.label) })
-      const span = within(row).getByText(
-        (_, element) => element?.tagName === 'SPAN' && element.textContent === option.description
-      )
-      expect(row).toBeInTheDocument()
-      expect(span.textContent).toBe(option.description)
-      expect(span).not.toHaveClass('truncate')
-      expect.soft(span).not.toHaveClass('max-h-36')
-      expect.soft(span).not.toHaveClass('overflow-y-auto')
-    }
-    expect(screen.getByRole('heading', { name: 'Choose logger' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Previous' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Next' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Close' })).toBeInTheDocument()
-    expect(screen.getByRole('textbox', { name: 'Enter your answer...' })).toBeInTheDocument()
-  })
-
-  it('preserves all twelve authored lines in an option description', () => {
-    const description = Array.from({ length: 12 }, (_, index) => `Logging consideration ${index + 1}`).join('\n')
-    render(
-      <AskUserQuestionComposer
-        request={makeRequest([
-          {
-            ...questions[0],
-            options: [
-              { label: 'Winston', description },
-              { label: 'Pino', description: 'JSON native' }
-            ]
-          }
-        ])}
-        onRespond={vi.fn()}
-      />
-    )
-
-    const row = screen.getByRole('button', { name: /Winston/ })
-    const span = within(row).getByText(
-      (_, element) => element?.tagName === 'SPAN' && element.textContent === description
-    )
-    expect(span.textContent).toBe(description)
-    expect(span).toHaveClass('whitespace-pre-wrap')
-    expect(span).not.toHaveClass('truncate')
-  })
-
-  it('allows a 256-character unbroken description token to wrap', () => {
-    const description = 'x'.repeat(256)
-    render(
-      <AskUserQuestionComposer
-        request={makeRequest([
-          {
-            ...questions[0],
-            options: [
-              { label: 'Winston', description },
-              { label: 'Pino', description: 'JSON native' }
-            ]
-          }
-        ])}
-        onRespond={vi.fn()}
-      />
-    )
-
-    const span = within(screen.getByRole('button', { name: /Winston/ })).getByText(description)
-    expect(span.textContent).toBe(description)
-    expect(span).not.toHaveClass('truncate')
-    expect(span).toHaveClass('break-words')
+    const winston = screen.getByRole('button', { name: /Winston/ })
+    expect(
+      within(winston).getByText((_, element) => element?.textContent === description && element.children.length === 0)
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Pino$/ })).toBeInTheDocument()
   })
 
   it('keeps Space and Enter toggling a multi-select option without submitting', async () => {
@@ -232,45 +256,6 @@ describe('AskUserQuestionComposer', () => {
         updatedInput: expect.objectContaining({ answers: { 'Choose logger': 'Winston' } })
       })
     )
-  })
-
-  it('omits absent descriptions and retains the layout contract for a short single-line description', () => {
-    const input = {
-      questions: [
-        {
-          ...questions[0],
-          options: [{ label: 'Winston', description: 'Mature ecosystem' }, { label: 'Pino' }]
-        }
-      ]
-    }
-    const baseRequest = makeRequest()
-    const request: AskUserQuestionComposerRequest = {
-      ...baseRequest,
-      input,
-      match: {
-        ...baseRequest.match,
-        input,
-        part: { ...baseRequest.match.part, input } as CherryMessagePart
-      }
-    }
-    render(<AskUserQuestionComposer request={request} onRespond={vi.fn()} />)
-
-    const bareRow = screen.getByRole('button', { name: /Pino/ })
-    expect(within(bareRow).getByText('Pino').nextElementSibling).toBeNull()
-    const span = within(screen.getByRole('button', { name: /Winston/ })).getByText('Mature ecosystem')
-    expect(span.textContent).toBe('Mature ecosystem')
-    expect(span).toHaveClass(
-      'block',
-      'whitespace-pre-wrap',
-      'break-words',
-      'font-medium',
-      'text-muted-foreground',
-      'text-xs',
-      'leading-4'
-    )
-    expect(span).not.toHaveClass('max-h-36')
-    expect(span).not.toHaveClass('overflow-y-auto')
-    expect(span).not.toHaveClass('truncate')
   })
 
   it('bounds the complete panel to the stage and lets only the option list shrink', () => {
@@ -578,5 +563,122 @@ describe('AskUserQuestionComposer', () => {
     expect(screen.getByRole('heading', { name: 'Choose logger' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Winston/ })).toHaveAttribute('aria-pressed', 'false')
     expect(onRespond).not.toHaveBeenCalled()
+  })
+
+  it('switches Skip to Next when multi-select options are selected on a non-final question and submits them', async () => {
+    const user = userEvent.setup()
+    const multiSelectQuestions = [{ ...questions[0], multiSelect: true }, questions[1]]
+    const request = makeRequest(multiSelectQuestions)
+    const onRespond = vi.fn().mockResolvedValue(undefined)
+    render(<AskUserQuestionComposer request={request} onRespond={onRespond} />)
+
+    expect(screen.getByRole('button', { name: 'Skip' })).toBeInTheDocument()
+    expect(screen.queryByText('Next')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /Winston/ }))
+    await user.click(screen.getByRole('button', { name: /Pino/ }))
+
+    // Matched by text: the header pagination control also carries a "Next" aria-label.
+    expect(screen.getByText('Next')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Skip' })).not.toBeInTheDocument()
+    expect(onRespond).not.toHaveBeenCalled()
+
+    await user.click(screen.getByRole('button', { name: /Winston/ }))
+    await user.click(screen.getByRole('button', { name: /Pino/ }))
+    expect(screen.getByRole('button', { name: 'Skip' })).toBeInTheDocument()
+    expect(screen.queryByText('Next')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /Winston/ }))
+    await user.click(screen.getByRole('button', { name: /Pino/ }))
+    await user.click(screen.getByText('Next'))
+
+    expect(screen.getByRole('heading', { name: 'Add context' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /Bunyan/ }))
+
+    await waitFor(() => expect(onRespond).toHaveBeenCalledTimes(1))
+    expect(onRespond).toHaveBeenCalledWith({
+      match: request.match,
+      approved: true,
+      updatedInput: {
+        questions: multiSelectQuestions,
+        answers: {
+          'Choose logger': 'Winston, Pino',
+          'Add context': 'Bunyan'
+        }
+      }
+    })
+  })
+
+  it('groups Deny next to Submit on the right for elicitation forms and omits empty option lists', () => {
+    const request = makeRequest([
+      {
+        question: 'Confirm environment override',
+        header: 'Override',
+        options: [],
+        multiSelect: false
+      }
+    ])
+    request.input.elicitation = {
+      agentName: 'Pi',
+      message: 'Confirm environment override',
+      schema: {
+        type: 'object',
+        properties: {
+          env: { type: 'string', title: 'Environment' }
+        }
+      }
+    }
+
+    const { container } = render(<AskUserQuestionComposer request={request} onRespond={vi.fn()} />)
+
+    expect(container.querySelector('.min-h-24')).not.toBeInTheDocument()
+    expect(screen.getByPlaceholderText('Enter your answer...')).toBeInTheDocument()
+
+    const denyButton = screen.getByRole('button', { name: 'agent.toolPermission.button.deny' })
+    const submitButton = screen.getByText('Submit')
+    expect(denyButton.parentElement).toBe(submitButton.parentElement)
+    expect(denyButton.parentElement).toHaveClass('ml-auto')
+    expect(denyButton.compareDocumentPosition(submitButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(denyButton).toHaveAttribute('variant', 'outline')
+  })
+
+  it('right-aligns Grok interviewActions, keeps long option labels unwrapped cleanly, and avoids solid emphasis when Submit is disabled', () => {
+    const longOptionLabel =
+      'Use full workspace sandbox isolation with strict domain allowlisting and explicit confirmation prompts'
+    const request = makeRequest([
+      {
+        question: 'Select execution policy',
+        header: 'Policy',
+        options: [
+          { label: longOptionLabel, description: 'Long policy option description' },
+          { label: 'Ask before running', description: 'Prompt for every command' }
+        ],
+        multiSelect: false
+      }
+    ])
+    request.input.responseMode = 'native-request'
+    request.input.interviewActions = ['discuss', 'skip-interview']
+
+    render(<AskUserQuestionComposer request={request} onRespond={vi.fn()} />)
+
+    const optionLabel = screen.getByText(longOptionLabel)
+    expect(optionLabel).toHaveClass('whitespace-pre-wrap')
+    expect(optionLabel).not.toHaveClass('truncate')
+
+    const submitButton = screen.getByText('Submit')
+    expect(submitButton).toBeDisabled()
+    expect(submitButton).toHaveAttribute('variant', 'ghost')
+    expect(submitButton).not.toHaveAttribute('variant', 'emphasis')
+
+    const interviewBar = screen.getByTestId('ask-user-question-interview-actions')
+    expect(interviewBar).toHaveClass('justify-end')
+    const interviewButtons = within(interviewBar).getAllByRole('button')
+    expect(interviewButtons.map((button) => button.textContent?.trim())).toEqual([
+      'Discuss first',
+      'Skip interview and plan'
+    ])
+    for (const button of interviewButtons) {
+      expect(button).toHaveAttribute('variant', 'outline')
+    }
   })
 })

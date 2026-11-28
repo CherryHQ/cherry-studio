@@ -8,6 +8,8 @@ Usually you only need to fetch a provider's list and add the models you use. Man
 
 Open **Settings → Model service → Your provider → Models**.
 
+Managed CherryAI/organization catalogs are service-owned; the ordinary editing/deletion steps below apply to your own providers where allowed. Follow the screen's available fields.
+
 ## Add a model manually
 
 1. Tap the add button on the Models tab.
@@ -59,6 +61,8 @@ A **token** is a unit models use to measure content, not a character or word cou
 Raising a number does not bypass the provider's limits and can cause rejected requests. Change these values only when the platform gives you different limits. Use positive integers and resolve any conflicting-limit warnings.
 
 Clear a limit override and save to restore catalog or app defaults. If a long conversation still exceeds limits, reduce attachments, shorten the material, or start a new conversation.
+
+The composer's current-branch context meter can help interpret occupancy. An ≈ value is estimated, not cumulative billing. See [models and branches](conversation-branches.md).
 
 ## Pricing and cost estimates
 

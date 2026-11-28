@@ -4,11 +4,13 @@ import type React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { usePlaceholderElapsedMs } from '@renderer/components/chat/messages/blocks/PlaceholderBlock'
+import { addNote } from '@renderer/services/NotesService'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { CustomSelectionAction, SelectionAction } from '@shared/types/selection'
 
 const state = vi.hoisted(() => ({
   readAloud: vi.fn(async () => undefined),
+  addNote: vi.fn(async () => ({ path: '/notes/saved.md', name: 'saved' })),
   assistant: undefined as { id: string } | undefined,
   fallbackAssistant: undefined as { id: string } | undefined,
   quickAssistantId: '' as string,
@@ -24,6 +26,7 @@ const state = vi.hoisted(() => ({
 }))
 
 vi.mock('@renderer/services/voice', () => ({ readTextAloud: state.readAloud }))
+vi.mock('@renderer/services/NotesService', () => ({ addNote: state.addNote }))
 
 import ActionGeneral from '../ActionGeneral'
 
@@ -42,10 +45,14 @@ vi.mock('../ActionResultContent', () => {
 })
 
 vi.mock('@renderer/hooks/useStreamCommands', () => ({
-  useStreamCommands: (id: string, _initial: unknown, onError?: (error: Error) => void) => {
+  useStreamCommands: (id: string, onError?: (error: Error) => void) => {
     state.useChatIds.push(id)
     state.onError = onError
     return {
+      projection: {
+        messages: state.liveAssistants,
+        executions: state.liveAssistants.map((row) => ({ messageId: row.id, executionId: 'model', attemptId: 1 }))
+      },
       sendMessage: state.sendMessage,
       stop: state.stopChat
     }
@@ -78,10 +85,6 @@ vi.mock('@renderer/hooks/useTemporaryTopic', () => ({
 
 vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
   useTopicStreamStatus: () => ({ activeExecutions: [], isPending: state.isPending })
-}))
-
-vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
-  useExecutionOverlay: () => ({ liveAssistants: state.liveAssistants })
 }))
 
 vi.mock('@renderer/components/chat/messages/hooks/useMessageListRenderConfig', () => ({
@@ -166,6 +169,7 @@ describe('ActionGeneral', () => {
     state.liveAssistants = []
     state.isPending = false
     state.readAloud.mockClear()
+    state.addNote.mockClear()
   })
 
   afterEach(() => {
@@ -381,6 +385,27 @@ describe('ActionGeneral', () => {
         sourceLabel: 'preview',
         sourceEntityId: 'opaque-session'
       })
+    )
+  })
+
+  it('offers Save to Notes only after completion and saves both original selection and result', async () => {
+    const view = render(
+      <ActionGeneral action={createBuiltinAction('ORIGINAL_EXCERPT')} sourceEntityId="opaque-session" />
+    )
+    expect(screen.queryByRole('button', { name: /notes\.save/ })).not.toBeInTheDocument()
+
+    state.isPending = true
+    state.liveAssistants = [{ id: 'result', role: 'assistant', parts: [{ type: 'text', text: 'PARTIAL_RESULT' }] }]
+    view.rerender(<ActionGeneral action={createBuiltinAction('ORIGINAL_EXCERPT')} sourceEntityId="opaque-session" />)
+    expect(screen.queryByRole('button', { name: /notes\.save/ })).not.toBeInTheDocument()
+
+    state.isPending = false
+    state.liveAssistants = [{ id: 'result', role: 'assistant', parts: [{ type: 'text', text: 'EXPLAIN_RESULT' }] }]
+    view.rerender(<ActionGeneral action={createBuiltinAction('ORIGINAL_EXCERPT')} sourceEntityId="opaque-session" />)
+
+    fireEvent.click(await screen.findByRole('button', { name: /notes\.save/ }))
+    await waitFor(() =>
+      expect(addNote).toHaveBeenCalledWith('ORIGINAL_EXCERPT', '> ORIGINAL_EXCERPT\n\nEXPLAIN_RESULT', 'en-US')
     )
   })
 })
