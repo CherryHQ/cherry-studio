@@ -2,7 +2,7 @@ import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
 import { vertexAiService } from '@main/services/VertexAiService'
 import type { Provider } from '@shared/data/types/provider'
-import { isBareVertexApiHost, withoutTrailingSlash } from '@shared/utils/api'
+import { formatApiHost, isBareVertexApiHost } from '@shared/utils/api'
 
 import { getBaseUrl, getProviderAppHeaders } from '../../utils/provider'
 import { normalizeVertexCredentials } from '../vertex'
@@ -25,7 +25,7 @@ export type VertexModelListRequest = {
 }
 
 function getVertexServiceEndpoint(provider: Provider, location: string): string {
-  const apiHost = withoutTrailingSlash(getBaseUrl(provider))
+  const apiHost = formatApiHost(getBaseUrl(provider), false)
   const defaultHost =
     location === 'global' ? 'https://aiplatform.googleapis.com' : `https://${location}-aiplatform.googleapis.com`
 
