@@ -105,11 +105,25 @@ const GATEWAY_MODEL_ROUTERS: Partial<Record<string, (modelId: string) => Gateway
   [SystemProviderIds.dmxapi]: resolveDmxapiChatRoute
 }
 
+export interface GatewayRouteProvider {
+  id: string
+  presetProviderId?: string | null
+  endpointConfigs?: Provider['endpointConfigs']
+}
+
 /** Resolve a gateway's per-model wire route from data available in both main and renderer. */
 export function resolveGatewayChatRoute(provider: Provider, model: Model): GatewayModelRoute | undefined {
+  return resolveGatewayChatRouteForModelId(provider, model.apiModelId ?? model.id)
+}
+
+/** Resolve a gateway's per-model wire route from a provider context and raw model ID. */
+export function resolveGatewayChatRouteForModelId(
+  provider: GatewayRouteProvider,
+  modelId: string
+): GatewayModelRoute | undefined {
   const router =
     GATEWAY_MODEL_ROUTERS[provider.id] ??
     (provider.presetProviderId ? GATEWAY_MODEL_ROUTERS[provider.presetProviderId] : undefined)
-  const route = router?.(model.apiModelId ?? model.id)
+  const route = router?.(modelId)
   return route && provider.endpointConfigs?.[route.endpointType] ? route : undefined
 }

@@ -198,6 +198,27 @@ describe('automatic effort against a model that does not declare it', () => {
 
     expect(encodeReasoningInvocation(invocation)).toEqual({ reasoningEffort: 'max' })
   })
+
+  // Gateway-routed Gemini models only declare low/medium/high; stale OpenAI tiers must project.
+  it('projects a stale openai tier onto the nearest declared Gemini tier', () => {
+    const geminiModel = makeModel({
+      reasoning: {
+        controls: [{ kind: 'toggle' }, { kind: 'effort', values: ['low', 'medium', 'high'] }],
+        selectableEfforts: ['none', 'low', 'medium', 'high']
+      }
+    })
+
+    for (const stale of ['xhigh', 'max'] as const) {
+      const invocation = resolveReasoningInvocation({
+        selection: stale,
+        model: geminiModel,
+        profile: REASONING_FORMAT_PROFILES.gemini.wire
+      })
+      expect(encodeReasoningInvocation(invocation)).toEqual({
+        thinkingConfig: { includeThoughts: true, thinkingLevel: 'high' }
+      })
+    }
+  })
 })
 
 describe('OpenAI Responses reasoning summary', () => {

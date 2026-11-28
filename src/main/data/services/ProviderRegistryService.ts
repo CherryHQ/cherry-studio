@@ -1086,10 +1086,17 @@ class ProviderRegistryService {
     }
   }
 
-  /** Resolve the main-only wire profile for one already materialized request model. */
+  /** Resolve the main-only wire profile for one model or structural model identity. */
   resolveReasoningProfile(
     provider: ReasoningProviderContext,
-    model: Model,
+    model: {
+      id: string
+      apiModelId?: string
+      presetModelId?: string | null
+      endpointTypes?: EndpointType[]
+      reasoning?: RuntimeReasoning
+      userDefaultReasoningEffort?: Model['userDefaultReasoningEffort']
+    },
     endpointType?: EndpointType
   ): ResolvedReasoningProfile {
     const profileProvider = this.findProfileProvider(provider)
