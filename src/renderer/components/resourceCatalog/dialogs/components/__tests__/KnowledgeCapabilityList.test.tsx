@@ -12,7 +12,13 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 vi.mock('@renderer/hooks/useKnowledgeBase', () => ({
-  useKnowledgeBases: () => ({ bases: [{ id: 'kb-docs', name: 'Docs', itemCount: 3 }], isLoading: false }),
+  useKnowledgeBases: () => ({
+    bases: [
+      { id: 'kb-docs', name: 'Docs', itemCount: 3, createdAt: '2024-01-01' },
+      { id: 'kb-alpha', name: 'Alpha', itemCount: 1, createdAt: '2025-01-01' }
+    ],
+    isLoading: false
+  }),
   useCreateKnowledgeBase: () => ({ createBase: vi.fn(), isCreating: false })
 }))
 vi.mock('@renderer/hooks/useGroups', () => ({ useGroups: () => ({ groups: [] }) }))
@@ -49,6 +55,23 @@ function Harness() {
 }
 
 describe('KnowledgeCapabilityList', () => {
+  it('keeps linked order and supports name and newest sorting in the replacement capability list', async () => {
+    const user = userEvent.setup()
+    render(<Harness />)
+    const order = () =>
+      screen
+        .getAllByRole('switch')
+        .map((item) => item.getAttribute('aria-label'))
+        .filter((name) => name === 'Docs' || name === 'Alpha')
+    expect(order()).toEqual(['Docs', 'Alpha'])
+    await user.click(screen.getByRole('combobox', { name: 'library.config.knowledge.sort' }))
+    await user.click(screen.getByRole('option', { name: 'library.config.knowledge.sort_name' }))
+    expect(order()).toEqual(['Alpha', 'Docs'])
+    await user.click(screen.getByRole('combobox', { name: 'library.config.knowledge.sort' }))
+    await user.click(screen.getByRole('option', { name: 'library.config.knowledge.sort_created' }))
+    expect(order()).toEqual(['Alpha', 'Docs'])
+  })
+
   it('only offers creating a knowledge base, and links the one created from here', async () => {
     const user = userEvent.setup()
     render(<Harness />)
