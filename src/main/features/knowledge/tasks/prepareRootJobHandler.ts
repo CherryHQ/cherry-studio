@@ -174,7 +174,8 @@ async function scanRootItem(
     baseId,
     pinned.pathPrefix,
     ctx.signal,
-    onDirectoryCopyProgress
+    onDirectoryCopyProgress,
+    knowledgeBaseService.getById(baseId).fileProcessorId
   )
   ctx.signal.throwIfAborted()
 

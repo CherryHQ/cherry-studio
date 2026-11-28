@@ -1,8 +1,10 @@
 import { Document, FileReader as VectorStoreFileReader } from '@vectorstores/core'
 
+import { read } from '@main/utils/file'
 import { getFileExt } from '@main/utils/legacyFile'
 import type { KnowledgeItemOf, KnowledgeSourceMetadata } from '@shared/data/types/knowledge'
 import type { AbsoluteFilePath } from '@shared/types/file'
+import { imageExts } from '@shared/utils/file'
 
 import { toMaterialRelativePath } from '../../items'
 import { getKnowledgeBaseFilePath } from '../../pathStorage'
@@ -112,5 +114,9 @@ export async function loadDocumentsFromKnowledgeBaseFile(
 }
 
 export async function loadFileDocuments(item: KnowledgeItemOf<'file'>): Promise<Document[]> {
+  if (item.data.indexedRelativePath && imageExts.includes(getFileExt(item.data.relativePath).toLowerCase())) {
+    const text = await read(getKnowledgeBaseFilePath(item.baseId, item.data.indexedRelativePath))
+    return [new Document({ text, metadata: { source: item.data.source } })]
+  }
   return loadDocumentsFromKnowledgeBaseFile(item.baseId, toMaterialRelativePath(item), item.data.source)
 }

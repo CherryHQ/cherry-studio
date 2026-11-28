@@ -200,6 +200,19 @@ describe('loadKnowledgeItemDocuments', () => {
     toMarkdownBytesMock.mockRejectedValue(new Error('anydoc conversion failed'))
   })
 
+  it.each(['[manual](https://example.com/reference)', '![[INVOICE-2026]]'])(
+    'preserves literal OCR text: %s',
+    async (text) => {
+      const item = createFileItem('.png')
+      item.data.indexedRelativePath = 'sample.md' as PosixRelativeFilePath
+      readFileMock.mockResolvedValueOnce(text)
+      const docs = await loadKnowledgeItemDocuments(item)
+      expect(docs[0].text).toBe(text)
+      expect(readerSpies.markdown).not.toHaveBeenCalled()
+      expect(readFileMock).toHaveBeenCalledWith(resolvePath('/mock/feature.knowledgebase.data/base-1/raw/sample.md'))
+    }
+  )
+
   it('can read a processed artifact path while preserving source metadata', async () => {
     const item = {
       ...createFileItem('.pdf', resolvePath('/tmp/source.pdf')),

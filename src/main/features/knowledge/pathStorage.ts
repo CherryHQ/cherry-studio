@@ -19,6 +19,7 @@ import { getFileExt } from '@main/utils/legacyFile'
 import { KnowledgeRelativePathSchema } from '@shared/data/types/knowledge'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import {
+  imageExts,
   knowledgeFileProcessingExts,
   type PosixRelativeFilePath,
   resolvePosixRelativeSegments
@@ -26,11 +27,10 @@ import {
 
 const logger = loggerService.withContext('Knowledge:PathStorage')
 
-// A processed `.md` artifact is emitted iff the source actually runs through the file
-// processor, so reservation keys off the same processing-ext source of truth that
-// `needsFileProcessing` (sourcePlanning) uses. Sharing it keeps import-time name
-// selection and scheduling in agreement — were they to diverge, a name chosen at
-// import could collide with the artifact a later processing job writes.
+// Reserve future document-processor outputs even while processing is disabled.
+// Otherwise enabling a processor later can collide with a sibling image's OCR
+// output after leaf reindex has already removed the document's previous index.
+const KNOWLEDGE_IMAGE_EXT_SET = new Set<string>(imageExts)
 const KNOWLEDGE_FILE_PROCESSING_EXT_SET = new Set<string>(knowledgeFileProcessingExts)
 
 /**
@@ -128,12 +128,12 @@ export function getKnowledgeSourceRelativePath(sourcePath: string): PosixRelativ
 
 export function getProcessedMarkdownRelativePath(relativePath: string): PosixRelativeFilePath {
   assertSafeKnowledgeRelativePath(relativePath)
-  const parsed = path.parse(relativePath)
+  const parsed = path.posix.parse(relativePath)
   // Re-asserted rather than inheriting the input's brand: swapping the extension
   // builds a NEW string, and `path.parse` on a dotfile (`.env` → name `.env`,
   // ext '') can turn one into `.env.md` — a different path that has to clear the
   // guard on its own.
-  const processed = normalizeRelativePath(path.join(parsed.dir, `${parsed.name}.md`))
+  const processed = path.posix.join(parsed.dir, `${parsed.name}.md`)
   assertSafeKnowledgeRelativePath(processed)
   return processed
 }
@@ -150,13 +150,14 @@ export function getProcessedMarkdownRelativePath(relativePath: string): PosixRel
 export function reserveImportedFileRelativePath(
   sourceRelativePath: string,
   reserveProcessedArtifact: boolean,
-  reservedPaths: Set<string>
+  reservedPaths: Set<string>,
+  occupied = new Set(Array.from(reservedPaths, (name) => name.toLowerCase()))
 ): PosixRelativeFilePath {
   const chosen = nextFreeKnowledgeRelativePath(sourceRelativePath, (candidate) => {
-    if (reservedPaths.has(candidate)) {
+    if (occupied.has(candidate.toLowerCase())) {
       return false
     }
-    return !reserveProcessedArtifact || !reservedPaths.has(getProcessedMarkdownRelativePath(candidate))
+    return !reserveProcessedArtifact || !occupied.has(getProcessedMarkdownRelativePath(candidate).toLowerCase())
   })
 
   // `nextFreeKnowledgeRelativePath` derives the suffixed name itself, so the
@@ -164,8 +165,11 @@ export function reserveImportedFileRelativePath(
   // handing it out as a branded value.
   assertSafeKnowledgeRelativePath(chosen)
   reservedPaths.add(chosen)
+  occupied.add(chosen.toLowerCase())
   if (reserveProcessedArtifact) {
-    reservedPaths.add(getProcessedMarkdownRelativePath(chosen))
+    const artifact = getProcessedMarkdownRelativePath(chosen)
+    reservedPaths.add(artifact)
+    occupied.add(artifact.toLowerCase())
   }
   return chosen
 }
@@ -226,17 +230,15 @@ export async function writeFileIntoKnowledgeBaseAt(
 }
 
 /**
- * Whether a source file, given the base's processor, will produce a processed
- * markdown artifact whose `.md` sibling slot must be reserved alongside it.
+ * Whether a source can produce processed Markdown now or after a processor
+ * setting change. Reserve its sibling slot for the full lifetime of the source.
  */
 export function needsProcessedArtifactReservation(
-  fileProcessorId: string | null | undefined,
+  _fileProcessorId: string | null | undefined,
   relativePath: string
 ): boolean {
-  if (!fileProcessorId) {
-    return false
-  }
-  return KNOWLEDGE_FILE_PROCESSING_EXT_SET.has(getFileExt(relativePath).toLowerCase())
+  const ext = getFileExt(relativePath).toLowerCase()
+  return KNOWLEDGE_IMAGE_EXT_SET.has(ext) || KNOWLEDGE_FILE_PROCESSING_EXT_SET.has(ext)
 }
 
 /**
@@ -267,6 +269,7 @@ export function collectKnowledgeReservedRelativePaths(
     if (typeof data.relativePath === 'string') {
       reserved.add(data.relativePath)
       if (
+        Object.hasOwn(options, 'fileProcessorId') &&
         item.type === 'file' &&
         typeof data.indexedRelativePath !== 'string' &&
         needsProcessedArtifactReservation(options.fileProcessorId, data.relativePath)
@@ -406,20 +409,6 @@ export function assertSafeKnowledgeRelativePath(relativePath: string): asserts r
   if (segments[0] === CHERRY_META_DIR) {
     throw new Error(`Knowledge relative path is reserved: ${relativePath}`)
   }
-}
-
-/**
- * Producer-side POSIX spelling for a path this module builds with `path.join`,
- * which emits `\` on Windows while material paths are stored `/`-separated.
- *
- * The fold is unconditional and therefore lossy on POSIX, where `\` is an
- * ordinary filename character: a source truly named `a\b.xls` yields `a/b.md`
- * here, one segment too deep. Tracked in #17429 — fixing it means teaching this
- * function the platform distinction that `pathSpec` now draws, which is out of
- * scope for the type work that removed its other caller.
- */
-function normalizeRelativePath(relativePath: string): string {
-  return path.normalize(relativePath).replace(/\\/g, '/')
 }
 
 async function assertTargetAvailable(destPath: AbsoluteFilePath): Promise<void> {

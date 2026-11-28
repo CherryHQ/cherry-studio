@@ -1132,6 +1132,66 @@ describe('KnowledgeService', () => {
     expect(knowledgeItemSetSubtreeStatusTxMock).toHaveBeenCalledWith(expect.anything(), 'kb-1', ['note-1'], 'deleting')
   })
 
+  it('schedules mixed-case same-stem image leaves and unrelated text without collisions', async () => {
+    const { reserveImportedFileRelativePath, needsProcessedArtifactReservation } = await import('../pathStorage')
+    const reserved = new Set<string>()
+    const leaves = ['Photo.jpg', 'photo.png', 'photo.webp', 'photo.md', 'z.txt'].map((name, index) => {
+      const item = createFileItem(`leaf-${index}`, 'kb-1', resolvePath(`/docs/${name}`), 'processing')
+      item.data.relativePath = reserveImportedFileRelativePath(
+        `images/${name}`,
+        needsProcessedArtifactReservation(null, name),
+        reserved
+      )
+      return item
+    })
+    knowledgeBaseGetByIdMock.mockReturnValue(createBase({ fileProcessorId: null }))
+    knowledgeItemGetItemsByBaseIdMock.mockReturnValue(leaves)
+    fileProcessingStartTaskMock.mockImplementation(async () => startedTask(new Promise(() => {})))
+    const service = new KnowledgeService()
+    for (const leaf of leaves) {
+      knowledgeItemGetByIdMock.mockReturnValue(leaf)
+      await ingestionOf(service).scheduleItem('kb-1', leaf.id)
+    }
+    const outputs = fileProcessingStartTaskMock.mock.calls.map(([input]) => input.output)
+    expect(outputs).toHaveLength(3)
+    expect(new Set(outputs.map((output) => JSON.stringify(output).toLowerCase())).size).toBe(3)
+    expect(enqueueMock).toHaveBeenCalledWith(
+      'knowledge.index-documents',
+      expect.objectContaining({ itemId: 'leaf-4' }),
+      expect.anything()
+    )
+  })
+
+  it.each([null, 'mineru', 'doc2x'])(
+    'schedules images with the global OCR default, not base processor %s',
+    async (processor) => {
+      const service = new KnowledgeService()
+      knowledgeBaseGetByIdMock.mockReturnValue(createBase({ fileProcessorId: processor }))
+      knowledgeItemGetByIdMock.mockReturnValueOnce(
+        createFileItem('file-1', 'kb-1', resolvePath('/docs/source.png'), 'processing')
+      )
+      const done = createDeferred<SettledFileProcessingTask>()
+      fileProcessingStartTaskMock.mockResolvedValueOnce(startedTask(done.promise))
+
+      await ingestionOf(service).scheduleItem('kb-1', 'file-1')
+
+      expect(fileProcessingStartTaskMock).toHaveBeenCalledWith({
+        feature: 'image_to_text',
+        file: { kind: 'path', path: knowledgeDataPath('kb-1', 'raw', 'source.png') },
+        output: { kind: 'path', path: knowledgeDataPath('kb-1', 'raw', 'source.md') },
+        context: { dataId: 'file-1' }
+      })
+      expect(enqueueMock).not.toHaveBeenCalled()
+      done.resolve(completedTask())
+      await flushMicrotasks()
+      expect(enqueueMock).toHaveBeenCalledWith(
+        'knowledge.check-file-processing-result',
+        expect.objectContaining({ processedRelativePath: 'source.md' }),
+        expect.anything()
+      )
+    }
+  )
+
   it("checks a copied document's file-processing result once its task settles, without polling", async () => {
     const service = new KnowledgeService()
     const processingFile = createFileItem('file-1', 'kb-1', resolvePath('/docs/source.pdf'), 'processing')

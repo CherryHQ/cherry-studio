@@ -2109,6 +2109,7 @@
   "knowledge.data_source.filters.file": "ファイル",
   "knowledge.data_source.filters.note": "メモ",
   "knowledge.data_source.filters.url": "URL",
+  "knowledge.data_source.image_ocr_hint": "対応画像：{{formats}}。画像は OCR で認識してインデックスに登録されます。",
   "knowledge.data_source.list.end_reached": "これ以上のアイテムはありません",
   "knowledge.data_source.list.loading_more": "さらに読み込んでいます…",
   "knowledge.data_source.preview.failed": "ソースのプレビューに失敗しました",

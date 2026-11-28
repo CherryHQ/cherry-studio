@@ -176,8 +176,19 @@ describe('pathStorage relative-path safety', () => {
   })
 
   describe('needsProcessedArtifactReservation', () => {
-    it('returns false without a file processor regardless of extension', () => {
-      expect(needsProcessedArtifactReservation(null, 'report.pdf')).toBe(false)
+    it.each(['jpg', 'jpeg', 'png', 'bmp', 'gif', 'webp', 'PNG'])(
+      'reserves an OCR Markdown sibling for .%s even without a document processor',
+      (ext) => {
+        const reserve = needsProcessedArtifactReservation(null, `image.${ext}`)
+        expect(reserve).toBe(true)
+        const reserved = new Set(['image.md'])
+        expect(reserveImportedFileRelativePath(`image.${ext}`, reserve, reserved)).toBe(`image_1.${ext}`)
+        expect(reserved.has('image_1.md')).toBe(true)
+      }
+    )
+
+    it('reserves future PDF conversion without a file processor', () => {
+      expect(needsProcessedArtifactReservation(null, 'report.pdf')).toBe(true)
       expect(needsProcessedArtifactReservation(undefined, 'report.xls')).toBe(false)
     })
 
@@ -598,5 +609,42 @@ describe('deleteKnowledgeItemFilesBestEffort', () => {
     ).resolves.toBeUndefined()
     expect(removeMock).not.toHaveBeenCalled()
     expect(errorMock).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('OCR artifact ownership and case-folded reservations', () => {
+  it('deletes only the failed image, not its prospective sibling artifact', async () => {
+    removeMock.mockClear()
+    await deleteKnowledgeItemFiles(BASE_ID, [
+      { type: 'file', data: { relativePath: 'photo.png' as PosixRelativeFilePath } }
+    ])
+    expect(removeMock).toHaveBeenCalledTimes(1)
+    expect(removeMock).toHaveBeenCalledWith(getKnowledgeBaseFilePath(BASE_ID, 'photo.png'))
+    expect(removeMock).not.toHaveBeenCalledWith(getKnowledgeBaseFilePath(BASE_ID, 'photo.md'))
+  })
+
+  it('reserves an unprocessed image artifact for scheduling but not for deletion', () => {
+    const items = [{ type: 'file', data: { relativePath: 'photo.png' as PosixRelativeFilePath } }]
+    expect(collectKnowledgeReservedRelativePaths(items)).toEqual(new Set(['photo.png']))
+    expect(collectKnowledgeReservedRelativePaths(items, { fileProcessorId: null })).toEqual(
+      new Set(['photo.png', 'photo.md'])
+    )
+  })
+
+  it('keeps mixed-case same-stem image artifact names distinct', () => {
+    const reserved = new Set<string>()
+    expect(reserveImportedFileRelativePath('Photo.jpg', true, reserved)).toBe('Photo.jpg')
+    expect(reserveImportedFileRelativePath('photo.png', true, reserved)).toBe('photo_1.png')
+  })
+})
+
+describe('stored POSIX artifact names', () => {
+  it.each([String.raw`\report.pdf`, String.raw`folder/a\b.pdf`])('preserves literal backslashes in %s', (source) => {
+    expect(getProcessedMarkdownRelativePath(source)).toBe(source.slice(0, -4) + '.md')
+    expect(
+      collectKnowledgeReservedRelativePaths([{ type: 'file', data: { relativePath: source } }], {
+        fileProcessorId: null
+      })
+    ).toContain(source.slice(0, -4) + '.md')
   })
 })

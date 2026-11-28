@@ -7,6 +7,7 @@ import {
   readFile,
   rm,
   stat as fsStatPromise,
+  symlink,
   utimes,
   writeFile
 } from 'node:fs/promises'
@@ -448,6 +449,19 @@ describe('atomicWriteFile', () => {
     await atomicWriteFile(target, data)
     const buf = await readFile(target)
     expect(Buffer.from(buf).equals(Buffer.from(data))).toBe(true)
+  })
+
+  it('preserves symlink-parent traversal when choosing the short staging path', async () => {
+    if (process.platform === 'win32') return
+    await mkdir(path.join(tmp, 'real', 'inner'), { recursive: true })
+    await mkdir(path.join(tmp, 'real', 'docs'))
+    await symlink(path.join(tmp, 'real', 'inner'), path.join(tmp, 'shortcut'))
+    const spelledTarget = `${tmp}/shortcut/../docs/note.txt` as AbsoluteFilePath
+    const realTarget = path.join(tmp, 'real', 'docs', 'note.txt')
+    await writeFile(realTarget, 'original')
+    await atomicWriteFile(spelledTarget, 'replacement')
+    expect(await readFile(realTarget, 'utf-8')).toBe('replacement')
+    expect(await readdir(path.dirname(realTarget))).toEqual(['note.txt'])
   })
 
   it('overwrites an existing target atomically', async () => {

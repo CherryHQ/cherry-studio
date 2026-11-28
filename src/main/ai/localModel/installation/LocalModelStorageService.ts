@@ -186,7 +186,12 @@ export class LocalModelStorageService {
         throw error
       }
       for (const entry of entries) {
-        if (entry.startsWith(prefix)) await fs.promises.rm(path.join(dir, entry), { force: true })
+        if (
+          entry.startsWith(prefix) ||
+          /^\.tmp-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(entry)
+        ) {
+          await fs.promises.rm(path.join(dir, entry), { force: true })
+        }
       }
     }
     for (const id of new Set(bundle.requires)) {

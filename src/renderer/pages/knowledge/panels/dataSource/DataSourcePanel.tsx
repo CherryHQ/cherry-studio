@@ -16,6 +16,7 @@ import type { KnowledgeItem, KnowledgeItemOf, KnowledgeItemType } from '@shared/
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 
 import { KNOWLEDGE_DATA_SOURCE_TYPES } from '../../components/addKnowledgeItemDialog/constants'
+import { KnowledgeImageOcrHint } from '../../components/KnowledgeImageOcrHint'
 import KnowledgePanelShell from '../../components/KnowledgePanelShell'
 import { usePreviewKnowledgeSource } from '../../hooks/usePreviewKnowledgeSource'
 import type { KnowledgeFilePreviewTarget } from '../../types'
@@ -98,12 +99,12 @@ const LocalEmbeddingStatus = ({ status, percent }: LocalEmbeddingState) => {
         <h3
           className={
             downloading
-              ? 'mt-5 font-semibold text-base text-foreground leading-6'
-              : 'font-semibold text-base text-foreground leading-6'
+              ? 'mt-5 text-base leading-6 font-semibold text-foreground'
+              : 'text-base leading-6 font-semibold text-foreground'
           }>
           {t('settings.dependencies.localModels.embedding.name')}
         </h3>
-        <p className="mt-1 text-foreground-tertiary text-sm leading-5">{getLocalEmbeddingStatusLabel(status, t)}</p>
+        <p className="mt-1 text-sm leading-5 text-foreground-tertiary">{getLocalEmbeddingStatusLabel(status, t)}</p>
       </div>
       {canOpenSettings ? (
         <Button type="button" variant="outline" size="sm" className="mt-5" onClick={openLocalModelSettings}>
@@ -121,10 +122,13 @@ const DataSourceEmptyState = ({ onAddSource }: { onAddSource: (source: Knowledge
   return (
     <div className="flex min-h-0 flex-1 items-center justify-center px-6 py-12 text-center">
       <div className="flex max-w-4xl flex-col items-center">
-        <h3 className="font-semibold text-foreground text-lg leading-7">
+        <h3 className="text-lg leading-7 font-semibold text-foreground">
           {t('knowledge.data_source.empty_description')}
         </h3>
-        <p className="mt-2 text-foreground-tertiary text-sm leading-5">{t('knowledge.data_source.empty.title')}</p>
+        <p className="mt-2 text-sm leading-5 text-foreground-tertiary">{t('knowledge.data_source.empty.title')}</p>
+        <div className="mt-4">
+          <KnowledgeImageOcrHint />
+        </div>
         <div className="mt-7 flex flex-wrap justify-center gap-2.5">
           {KNOWLEDGE_DATA_SOURCE_TYPES.map((source) => {
             const Icon = dataSourceTypeDisplayConfig[source.value].icon.icon
@@ -350,7 +354,7 @@ const DataSourcePanelContent = ({
     <KnowledgePanelShell
       headerClassName="shrink-0 px-3"
       header={
-        <div className="flex h-11 items-center border-border border-b">
+        <div className="flex h-11 items-center border-b border-border">
           <DataSourcePanelHeader
             total={total}
             loadedCount={items.length}
@@ -373,8 +377,9 @@ const DataSourcePanelContent = ({
         {isDragging && canAddSource ? (
           <div
             aria-hidden="true"
-            className="pointer-events-none absolute inset-3 z-10 flex items-center justify-center rounded-lg border border-primary border-dashed bg-background/90 text-foreground shadow-sm">
-            <span className="font-medium text-sm">{t('files.drag_upload')}</span>
+            className="pointer-events-none absolute inset-3 z-10 flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-primary bg-background/90 px-4 text-foreground shadow-sm">
+            <span className="text-sm font-medium">{t('files.drag_upload')}</span>
+            <KnowledgeImageOcrHint />
           </div>
         ) : null}
         {currentDirectory && onNavigateUp && (
@@ -386,11 +391,11 @@ const DataSourcePanelContent = ({
               type="button"
               variant="ghost"
               onClick={handleNavigateUp}
-              className="h-auto min-h-0 gap-1 px-2.5 py-0 text-foreground text-sm opacity-70 shadow-none transition-opacity hover:bg-transparent hover:text-foreground hover:opacity-100">
+              className="h-auto min-h-0 gap-1 px-2.5 py-0 text-sm text-foreground opacity-70 shadow-none transition-opacity hover:bg-transparent hover:text-foreground hover:opacity-100">
               <ChevronLeft className="size-4" />
               {t('knowledge.data_source.back_to_parent')}
             </Button>
-            <span className="min-w-0 truncate text-muted-foreground text-sm" title={getItemTitle(currentDirectory)}>
+            <span className="min-w-0 truncate text-sm text-muted-foreground" title={getItemTitle(currentDirectory)}>
               {getItemTitle(currentDirectory)}
             </span>
           </div>
@@ -399,7 +404,7 @@ const DataSourcePanelContent = ({
           <LocalEmbeddingStatus {...localEmbeddingState} />
         ) : !isLoading && items.length === 0 ? (
           currentDirectory ? (
-            <div className="flex min-h-0 flex-1 items-center justify-center px-6 py-12 text-center text-foreground-tertiary text-sm">
+            <div className="flex min-h-0 flex-1 items-center justify-center px-6 py-12 text-center text-sm text-foreground-tertiary">
               {t('knowledge.data_source.empty_folder')}
             </div>
           ) : (

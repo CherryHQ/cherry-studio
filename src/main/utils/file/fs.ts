@@ -175,7 +175,8 @@ export async function write(target: AbsoluteFilePath, data: string | Uint8Array)
 }
 
 function tmpNameFor(target: string): string {
-  return `${target}.tmp-${randomUUID()}`
+  // Concatenation preserves symlink/.. resolution in the parent spelling.
+  return `${path.dirname(target)}${path.sep}.tmp-${randomUUID()}`
 }
 
 /**
@@ -277,7 +278,7 @@ async function bestEffortUnlinkTmp(tmp: string): Promise<void> {
  *
  * Follows the POSIX atomic flow documented in
  * `docs/dev/references/file/file-manager-architecture.md §5.1`:
- * 1. open `{target}.tmp-{uuid}` in the same directory
+ * 1. open `.tmp-{uuid}` in the target directory
  * 2. write data, fsync the tmp fd
  * 3. rename(tmp, target) — atomic replacement on POSIX
  * 4. fsync(dir fd) — flush rename metadata; ignored on Windows

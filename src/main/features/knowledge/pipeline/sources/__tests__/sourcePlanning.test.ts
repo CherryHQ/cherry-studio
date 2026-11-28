@@ -42,6 +42,26 @@ function createFileItem(source: string): KnowledgeItemOf<'file'> {
 }
 
 describe('planKnowledgeItemSource', () => {
+  it.each(['jpg', 'jpeg', 'png', 'bmp', 'gif', 'webp', 'PNG'])(
+    'routes .%s through OCR independently of the base document processor',
+    (ext) => {
+      for (const processor of [null, 'mineru', 'doc2x']) {
+        expect(planKnowledgeItemSource(createBase(processor), createFileItem(`/docs/source.${ext}`))).toEqual({
+          kind: 'needsFileProcessing'
+        })
+      }
+    }
+  )
+
+  it('indexes only the pinned image artifact and regenerates it on reindex', () => {
+    const item = createFileItem('/docs/source.png')
+    item.data.indexedRelativePath = 'source.md' as PosixRelativeFilePath
+    expect(planKnowledgeItemSource(createBase(null), item)).toEqual({ kind: 'index-documents' })
+    expect(planKnowledgeItemSource(createBase(null), item, { forceFileReprocess: true })).toEqual({
+      kind: 'needsFileProcessing'
+    })
+  })
+
   it('routes PDFs to file processing when a processor is configured', () => {
     expect(planKnowledgeItemSource(createBase(), createFileItem('/docs/source.pdf'))).toEqual({
       kind: 'needsFileProcessing'

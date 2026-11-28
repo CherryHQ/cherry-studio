@@ -6,6 +6,7 @@ import path from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { KnowledgeItem } from '@shared/data/types/knowledge'
+import type { AbsoluteFilePath } from '@shared/types/file'
 
 import type * as PathStorage from '../../../pathStorage'
 
@@ -37,12 +38,14 @@ vi.mock('../../../pathStorage', async () => {
   }
 })
 
+const { getProcessedMarkdownRelativePath } = await import('../../../pathStorage')
 const { chooseDirectoryPathPrefix, expandDirectoryOwnerToTree } = await import('../directory')
 const realFs = await vi.importActual<typeof NodeFs>('node:fs')
 const realOs = await vi.importActual<typeof NodeOs>('node:os')
 const realPath = await vi.importActual<typeof NodePath>('node:path')
 
 afterEach(() => {
+  copyFileIntoKnowledgeBaseAtMock.mockReset().mockImplementation(async (_base, _source, relative) => relative)
   vi.mocked(path.resolve).mockImplementation(realPath.resolve)
   vi.mocked(path.basename).mockImplementation(realPath.basename)
   vi.mocked(path.parse).mockImplementation(realPath.parse)
@@ -130,6 +133,150 @@ describe('expandDirectoryOwnerToTree', () => {
     if (tempRoot) {
       realFs.rmSync(tempRoot, { recursive: true, force: true })
       tempRoot = undefined
+    }
+  })
+
+  it('allocates distinct source and artifact slots before scheduling sibling leaves', async () => {
+    tempRoot = createTempRoot()
+    const rootDir = path.join(tempRoot, 'images')
+    realFs.mkdirSync(rootDir)
+    for (const name of ['Photo.jpg', 'photo.png', 'photo.webp', 'photo.md', 'z.txt']) {
+      realFs.writeFileSync(path.join(rootDir, name), 'stored bytes')
+    }
+    const result = await expandDirectoryOwnerToTree(
+      createDirectoryOwner(rootDir),
+      'kb-1',
+      'images',
+      createSignal(),
+      ignoreCopyProgress
+    )
+    const leaves = result.filter((node) => node.type === 'file')
+    expect(leaves).toHaveLength(5)
+    const occupied = new Set<string>()
+    for (const leaf of leaves) {
+      if (leaf.type !== 'file') continue
+      const paths = [leaf.data.relativePath]
+      if (/\.(jpg|png|webp)$/i.test(leaf.data.relativePath))
+        paths.push(getProcessedMarkdownRelativePath(leaf.data.relativePath))
+      for (const name of paths) {
+        expect(occupied.has(name.toLowerCase())).toBe(false)
+        occupied.add(name.toLowerCase())
+      }
+    }
+    expect(leaves.some((leaf) => leaf.data.source.endsWith('z.txt'))).toBe(true)
+  })
+
+  it.each([undefined, 'processor'])(
+    'reserves directory paths before source and artifact allocation (%s)',
+    async (processor) => {
+      tempRoot = createTempRoot()
+      const rootDir = path.join(tempRoot, 'reports')
+      realFs.mkdirSync(rootDir)
+      for (const name of ['report.pdf', 'report.md']) realFs.writeFileSync(path.join(rootDir, name), 'source')
+      for (const name of ['report_1.pdf', 'report_1.md']) {
+        realFs.mkdirSync(path.join(rootDir, name))
+        realFs.writeFileSync(path.join(rootDir, name, 'child.txt'), 'child')
+      }
+      const result = await expandDirectoryOwnerToTree(
+        createDirectoryOwner(rootDir),
+        'kb-1',
+        'reports',
+        createSignal(),
+        ignoreCopyProgress,
+        processor
+      )
+      const leaves: string[] = []
+      const collect = (nodes: typeof result) => {
+        for (const node of nodes) {
+          if (node.type === 'file') leaves.push(node.data.relativePath)
+          else collect(node.children)
+        }
+      }
+      collect(result)
+      expect(leaves).toHaveLength(4)
+      expect(leaves).toContain('reports/report_1.pdf/child.txt')
+      expect(leaves).toContain('reports/report_1.md/child.txt')
+      expect(leaves).not.toContain('reports/report_1.pdf')
+      expect(leaves).not.toContain('reports/report_1.md')
+      const pdf = leaves.find((name) => name.endsWith('.pdf'))!
+      expect(leaves).not.toContain(getProcessedMarkdownRelativePath(pdf))
+    }
+  )
+
+  it('keeps a PDF future output separate from image OCR when a processor is enabled later', async () => {
+    tempRoot = createTempRoot()
+    const rootDir = path.join(tempRoot, 'photos')
+    realFs.mkdirSync(rootDir)
+    realFs.writeFileSync(path.join(rootDir, 'photo.pdf'), 'pdf')
+    realFs.writeFileSync(path.join(rootDir, 'photo.png'), 'image')
+    const result = await expandDirectoryOwnerToTree(
+      createDirectoryOwner(rootDir),
+      'kb-1',
+      'photos',
+      createSignal(),
+      ignoreCopyProgress,
+      null
+    )
+    const files = result.filter((node) => node.type === 'file')
+    const pdf = files.find((node) => node.data.source.endsWith('.pdf'))!
+    const image = files.find((node) => node.data.source.endsWith('.png'))!
+    const pdfOutput = getProcessedMarkdownRelativePath(pdf.data.relativePath)
+    const imageOutput = getProcessedMarkdownRelativePath(image.data.relativePath)
+    expect(pdfOutput).not.toBe(imageOutput)
+    const { collectKnowledgeReservedRelativePaths } = await import('../../../pathStorage')
+    const imageItem = { id: 'image', type: 'file', data: { ...image.data, indexedRelativePath: imageOutput } }
+    const reserved = collectKnowledgeReservedRelativePaths([imageItem], {
+      fileProcessorId: 'new-processor',
+      excludeItemId: 'pdf'
+    })
+    expect(reserved.has(pdfOutput)).toBe(false)
+  })
+
+  it('copies long same-stem PDF and Markdown leaves through real atomic copies', async () => {
+    tempRoot = createTempRoot()
+    const rootDir = path.join(tempRoot, 'input')
+    const output = path.join(tempRoot, 'output')
+    realFs.mkdirSync(rootDir)
+    realFs.mkdirSync(output)
+    const stem = 'a'.repeat(210)
+    for (const name of [stem + '.pdf', stem + '.md', 'normal.txt']) realFs.writeFileSync(path.join(rootDir, name), name)
+    const { copy } = await import('@main/utils/file/fs')
+    for (let index = 0; index < 3; index++) {
+      copyFileIntoKnowledgeBaseAtMock.mockImplementationOnce(async (_base, source, relative) => {
+        const target = path.join(output, path.basename(relative))
+        await copy(source as AbsoluteFilePath, target as AbsoluteFilePath)
+        return relative
+      })
+    }
+    const result = await expandDirectoryOwnerToTree(
+      createDirectoryOwner(rootDir),
+      'kb-1',
+      'input',
+      createSignal(),
+      ignoreCopyProgress,
+      null
+    )
+    const leaves = result.filter((node) => node.type === 'file')
+    expect(leaves).toHaveLength(3)
+    for (const leaf of leaves)
+      expect(realFs.readFileSync(path.join(output, path.basename(leaf.data.relativePath)), 'utf8')).toBe(
+        path.basename(leaf.data.source)
+      )
+    expect(realFs.readdirSync(output)).toHaveLength(3)
+  })
+
+  it('imports all supported image formats from directories', async () => {
+    tempRoot = createTempRoot()
+    const rootDir = path.join(tempRoot, 'images')
+    realFs.mkdirSync(rootDir)
+    for (const ext of ['jpg', 'jpeg', 'png', 'bmp', 'gif', 'webp']) {
+      realFs.writeFileSync(path.join(rootDir, `photo.${ext}`), 'fake image bytes')
+    }
+    const owner = createDirectoryOwner(rootDir)
+    const result = await expandDirectoryOwnerToTree(owner, 'kb-1', 'images', createSignal(), ignoreCopyProgress)
+    expect(JSON.stringify(result)).toContain('photo.png')
+    for (const ext of ['jpg', 'jpeg', 'png', 'bmp', 'gif', 'webp']) {
+      expect(JSON.stringify(result)).toContain(`photo.${ext}`)
     }
   })
 
