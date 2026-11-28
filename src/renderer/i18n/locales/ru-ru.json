@@ -462,6 +462,7 @@
   "agent.session_delivery.status.consumed": "Обработано",
   "agent.session_delivery.status.delivering": "Доставляется",
   "agent.session_delivery.status.failed": "Ошибка",
+  "agent.session_delivery.waiting_for_model": "Ожидание передачи сообщения модели…",
   "agent.session_turn_origin.goal_round": "Раунд цели {{round}}",
   "agent.settings.permissionMode.title": "Режим разрешений",
   "agent.settings.tooling.mcp.toggle": "Переключить {{name}}",

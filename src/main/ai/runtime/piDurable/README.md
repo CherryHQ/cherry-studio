@@ -135,9 +135,11 @@ summary marker to the current reply.
   with a terminal status is not rebuilt. At startup Main reads terminal native evidence by the original input and
   commits the recovered body to the corresponding product Run. The driver owns one scheduler per
   physical store with unfinished work. It installs the affected roots and child writers before
-  resuming and keeps unresolved stores eligible for another recovery. Startup also restores the unsent
-  status of inputs withdrawn before placement by matching the submission request ID to the user
-  message bound to the native root. This works for stores with no remaining work.
+  resuming and keeps unresolved stores eligible for another recovery. Interactive follow-up admission
+  records a pending conversation update in the native transaction. Startup reads those request IDs
+  even when the store has no execution work, publishes placed inputs, and restores withdrawals as
+  unsent. The desktop retires the ID after the product transaction succeeds. A cold session open
+  checks any saved input left before native admission against its original binding.
 - Closing a child panel only detaches its projection subscription.
 
 Background continuation keeps one child identity. Independent continuation of an ended

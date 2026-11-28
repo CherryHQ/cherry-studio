@@ -302,7 +302,11 @@ Stop is now the only abort source). `enqueueUserMessage()`:
    persistence, the Composer sends Enter with `followUp: true` while busy. Other runtimes keep
    the draft in the dock until idle. Pi Durable persists those submissions in its native queue.
    The dock shows the native waiting order and supports editing, reordering and withdrawing queued
-   inputs. When Durable places the input, the driver emits `run-started` after the preceding
+   inputs. Main saves the complete product input before native submission and keeps it off the
+   conversation branch while it waits. Placement publishes the input and reserves its reply
+   in the same transaction. Admission records the original request ID for recovery in Durable.
+   Startup reconciles those IDs with their committed submissions. Opening the session also checks
+   inputs saved before admission. When Durable places the input, the driver emits `run-started` after the preceding
    answer. Main gives it a distinct Run and holds the handoff until the source reply has an open
    stream and any earlier handoff settles. Steers keep the existing Run and reply. The preceding reply settles as answered at the boundary; Durable reports its
    input's outcome when the run ends, and the host then replaces a reply whose input did not

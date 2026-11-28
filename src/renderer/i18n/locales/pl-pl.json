@@ -462,6 +462,7 @@
   "agent.session_delivery.status.consumed": "Wykorzystano",
   "agent.session_delivery.status.delivering": "Dostarczanie",
   "agent.session_delivery.status.failed": "Niepowodzenie",
+  "agent.session_delivery.waiting_for_model": "Oczekiwanie na przekazanie wiadomości do modelu…",
   "agent.session_turn_origin.goal_round": "Runda celu {{round}}",
   "agent.settings.permissionMode.title": "Tryb uprawnień",
   "agent.settings.tooling.mcp.toggle": "Przełącz {{name}}",

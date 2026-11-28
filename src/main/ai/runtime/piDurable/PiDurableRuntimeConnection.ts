@@ -122,6 +122,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
   private reconcileChain: Promise<unknown> = Promise.resolve()
   private readonly steers = new Set<string>()
   /** Inputs submitted while native work ran; their placement is announced even with an outcome. */
+  private readonly stagedFollowups = new Set<string>()
   private readonly queued = new Set<string>()
   /** Product inputs whose placement was announced; each placement starts its own reply once. */
   private readonly placed = new Set<string>()
@@ -189,7 +190,9 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     if (opened.status !== 'confirmed') throw new Error(opened.error.message)
     this.handle = opened.value
     this.context = contexts.bindContext(this.context.id, this.handle.thread.id)
-    this.publishFollowups(this.handle.durable.followups())
+    const restored = this.handle.durable.followups()
+    for (const { inputId } of restored) this.stagedFollowups.add(inputId)
+    this.publishFollowups(restored, true)
     await saveDurableRequest(this.runtime, this.handle.thread.id, this.input)
     await this.handle.durable.configure(root.agent)
     this.providerSessionId = await this.handle.durable.providerSessionId()
@@ -332,7 +335,10 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
           }
         const inputs = kind === 'steer' ? this.steers : this.queued
         inputs.add(inputId)
-        const submission = native({ inputId, text: wrapSteerReminder(text) })
+        const draft = { inputId, text: wrapSteerReminder(text) }
+        const staged = kind === 'follow-up' && messages.isStagedFollowup(this.input.sessionId, inputId)
+        if (staged) this.stagedFollowups.add(inputId)
+        const submission = staged ? handle.durable.submitStagedFollowup(draft) : native(draft)
         this.admission = submission.catch(() => undefined)
         const result = await submission.catch((error: unknown) => ({
           status: 'unknown' as const,
@@ -343,7 +349,10 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
             message: error instanceof Error ? error.message : String(error)
           }
         }))
-        if (result.status === 'rejected' || result.status === 'unsupported') inputs.delete(inputId)
+        if (result.status === 'rejected' || result.status === 'unsupported') {
+          inputs.delete(inputId)
+          this.stagedFollowups.delete(inputId)
+        }
         return result
       }
     return {
@@ -352,6 +361,25 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
         followUp: { persistence: 'durable', submit: submit('follow-up') }
       })
     }
+  }
+
+  acknowledgeFollowupProjection(contextId: string, inputId: string): void {
+    const runtime = this.runtime
+    const threadId = this.handle?.thread.id
+    if (
+      !runtime ||
+      !threadId ||
+      this.context?.id !== contextId ||
+      !this.stagedFollowups.has(inputId) ||
+      messages.isStagedFollowup(this.input.sessionId, inputId)
+    )
+      return
+    this.stagedFollowups.delete(inputId)
+    void Promise.all([import('@cherrystudio/agent-runtime-pi-durable'), import('@earendil-works/chord/context')])
+      .then(([{ acknowledgeFollowupProjections }, { BACKGROUND_CONTEXT }]) =>
+        runtime.durable.commit((tx) => acknowledgeFollowupProjections(tx, [{ threadId, inputId }]), BACKGROUND_CONTEXT)
+      )
+      .catch((error: unknown) => logger.warn('Durable follow-up projection acknowledgement failed', { inputId, error }))
   }
 
   readonly compactWithInstructions = true as const
@@ -375,11 +403,12 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     }
   }
 
-  private publishFollowups(queue: readonly DurableFollowup[]): void {
+  private publishFollowups(queue: readonly DurableFollowup[], restored?: true): void {
     if (queue === this.publishedFollowups || (!queue.length && !this.publishedFollowups?.length)) return
     this.publishedFollowups = queue
     this.events.push({
       type: 'followup-queue',
+      ...(restored && { restored }),
       queue: queue.flatMap(({ inputId, revision }) => {
         if (messages.inputBinding(this.input.sessionId, inputId)?.contextId !== this.context?.id) return []
         const message = messages.getSessionMessage(this.input.sessionId, inputId)
