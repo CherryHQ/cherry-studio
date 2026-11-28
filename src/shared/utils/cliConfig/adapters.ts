@@ -79,7 +79,7 @@ import {
   type HermesApiMode,
   type MinimaxApi,
   modelSupportsReasoningEffort,
-  openCodeNpmInfoFromNpmPackage,
+  openCodeNpmInfoFromPackage,
   resolveClaudeBaseUrl,
   resolveCodexBaseUrl,
   resolveHermesProviderInfo,
@@ -510,6 +510,16 @@ const codexAdapter: CliConfigAdapter = {
   }
 }
 
+/**
+ * The OpenCode connection map, merging the legacy V1 `provider` key with the native V2
+ * `providers` key. A mixed file can carry the Cherry connection under either, and
+ * `providers ?? provider` would hide a legacy Cherry entry behind an unrelated native one;
+ * native entries win on key collisions.
+ */
+function openCodeConnectionProviders(config: Record<string, any>): Record<string, any> {
+  return { ...asRecord(config.provider), ...asRecord(config.providers) }
+}
+
 function createOpenCodeAdapter(tool: CodeCli.OPEN_CODE | 'kilo'): CliConfigAdapter {
   const target: CliConfigTarget = tool === 'kilo' ? 'kilo-config' : 'opencode-config'
   return {
@@ -562,10 +572,12 @@ function createOpenCodeAdapter(tool: CodeCli.OPEN_CODE | 'kilo'): CliConfigAdapt
     },
     updateDraftConfig(files, connection, configBlob) {
       const existing = parseJsonOrThrow(getDraftFile(files, target)?.content ?? '')
-      const providers = asRecord(existing.provider)
+      // V1-written files keep the map under `provider`, request options under `options`, and the
+      // bare AI SDK package under `npm`; accept both shapes (the removal path already does).
+      const providers = asRecord(openCodeConnectionProviders(existing))
       const providerKey = cherryProviderKeyFrom(providers)
       const provider = asRecord(providers[providerKey])
-      const providerOptions = asRecord(provider.options)
+      const providerOptions = asRecord(provider.settings ?? provider.options)
       const existingModel = asRecord(asRecord(provider.models)[connection.model ?? ''])
       const existingLimit = asRecord(existingModel.limit)
       const providerName = providerNameFromKey(providerKey, 'OpenCode provider')
@@ -574,7 +586,9 @@ function createOpenCodeAdapter(tool: CodeCli.OPEN_CODE | 'kilo'): CliConfigAdapt
       const nextConfig = buildOpenCodeConfig(
         existing,
         { id: providerName, name: providerName },
-        openCodeNpmInfoFromNpmPackage(requireDraftValue(stringValue(provider.npm), 'OpenCode provider npm package')),
+        openCodeNpmInfoFromPackage(
+          requireDraftValue(stringValue(provider.package) ?? stringValue(provider.npm), 'OpenCode provider package')
+        ),
         {
           apiKey: requireDraftValue(connection.apiKey, 'OpenCode API key'),
           baseUrl: requireDraftValue(connection.baseUrl, 'OpenCode base URL'),
@@ -607,14 +621,16 @@ function createOpenCodeAdapter(tool: CodeCli.OPEN_CODE | 'kilo'): CliConfigAdapt
       if (typeof next.model === 'string' && next.model.startsWith(CHERRY_PROVIDER_PREFIX)) {
         delete next.model
       }
-      if (next.provider && typeof next.provider === 'object') {
-        next.provider = omitKeysByPrefix(next.provider as Record<string, any>, CHERRY_PROVIDER_PREFIX)
+      for (const key of ['providers', 'provider']) {
+        if (next[key] && typeof next[key] === 'object') {
+          next[key] = omitKeysByPrefix(next[key] as Record<string, any>, CHERRY_PROVIDER_PREFIX)
+        }
       }
       return [{ target: target, content: renderJsonFile(next) }]
     },
     extractConnection(files) {
       const config = parseJsonOrThrow(getDraftFile(files, target)?.content ?? '')
-      const providers = asRecord(config.provider)
+      const providers = asRecord(openCodeConnectionProviders(config))
       const providerKey = findCherryProviderKey(providers)
       const provider = asRecord(providerKey ? providers[providerKey] : undefined)
       const models = asRecord(provider.models)
@@ -622,8 +638,8 @@ function createOpenCodeAdapter(tool: CodeCli.OPEN_CODE | 'kilo'): CliConfigAdapt
       // `name` is only the display label and may differ from it.
       const model = Object.keys(models)[0]
       return {
-        baseUrl: stringValue(asRecord(provider.options).baseURL),
-        apiKey: stringValue(asRecord(provider.options).apiKey),
+        baseUrl: stringValue(asRecord(provider.settings ?? provider.options).baseURL),
+        apiKey: stringValue(asRecord(provider.settings ?? provider.options).apiKey),
         model
       }
     },
@@ -632,11 +648,21 @@ function createOpenCodeAdapter(tool: CodeCli.OPEN_CODE | 'kilo'): CliConfigAdapt
       const out: Record<string, any> = {}
       if (typeof asRecord(config.compaction).auto === 'boolean') out.autoCompact = asRecord(config.compaction).auto
       if (isOpenCodePermissionMode(config.permission)) out.permissionMode = config.permission
-      const providers = asRecord(config.provider)
+      const providers = asRecord(openCodeConnectionProviders(config))
       const providerKey = findCherryProviderKey(providers)
       const provider = asRecord(providerKey ? providers[providerKey] : undefined)
       const model = asRecord(Object.entries(asRecord(provider.models))[0]?.[1])
-      if (model.reasoning === true) out.env = { OPENCODE_REASONING: 'true' }
+      // V1 files carried a boolean `reasoning`; native V2 carries the reasoning controls
+      // as provider package options under `settings` instead.
+      const modelSettings = asRecord(model.settings)
+      if (
+        model.reasoning === true ||
+        modelSettings.thinking !== undefined ||
+        modelSettings.thinkingConfig !== undefined ||
+        modelSettings.reasoningEffort !== undefined
+      ) {
+        out.env = { OPENCODE_REASONING: 'true' }
+      }
       return out
     }
   }
