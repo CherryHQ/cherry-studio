@@ -28,7 +28,7 @@ export const apiGatewayRequestSchemas = {
   'api_gateway.lan_http.addresses': defineRoute({ input: z.void(), output: z.array(z.string()) }),
   'api_gateway.models': defineRoute({
     input: z.void(),
-    output: z.array(z.object({ id: z.string(), owned_by: z.string() }))
+    output: z.array(z.object({ id: z.string(), owned_by: z.string(), name: z.string() }))
   }),
   'api_gateway.remote.create_invitation': defineRoute({
     input: z.void(),

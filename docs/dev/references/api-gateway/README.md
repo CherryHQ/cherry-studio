@@ -104,7 +104,7 @@ to enable it. It is disabled by default.
 3. Click **Start** and wait for **Running**.
 4. Under **Connect on this computer**, copy the Base URL (`/v1`) or the full
    request URL for Chat Completions, Responses, or Anthropic Messages.
-5. Open **Models** and copy the model ID into your client. The copied ID
+5. Find the model in the **Models** list below the URLs and copy its ID into your client. The copied ID
    includes the provider prefix required by the gateway, such as
    `anthropic:claude-sonnet-4-6`.
 
@@ -501,7 +501,7 @@ cache and config lives in the Preference subsystem.
 | `api_gateway.lan.set_enabled` | `void`; failures use the standard IpcApi error channel | `ApiGatewayService.setLanEnabled(enabled)` |
 | `api_gateway.lan_http.set_enabled` | open or close LAN model API sharing | `ApiGatewayService.setLanHttpEnabled(enabled)` |
 | `api_gateway.lan_http.addresses` | reachable-interface URLs for the currently bound port | `ApiGatewayService.getLanHttpAddresses()` |
-| `api_gateway.models` | model IDs and ownership from the public model catalog | `getModels()` |
+| `api_gateway.models` | configured display names, model IDs, and ownership for the gateway catalog | `getGatewayModelCatalog()` |
 | `api_gateway.remote.create_invitation` | active LAN endpoint + one-time invitation and desktop identity; failures use the standard IpcApi error channel | `ApiGatewayService.createRemoteInvitation()` |
 | `api_gateway.remote.list_claims` / `api_gateway.remote.decide_pairing` | pending pairing claims and the local approve/reject decision with granted capabilities | `RemoteAccessService` |
 

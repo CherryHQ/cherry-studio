@@ -1,18 +1,14 @@
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { SWRConfig } from 'swr'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import en from '@renderer/i18n/locales/en-us.json'
 
 import ApiGatewayPanel from '../ApiGatewayPanel'
 
 const useApiGatewayMock = vi.fn()
-
-vi.mock(import('@cherrystudio/ui'), async (importOriginal) => ({
-  ...(await importOriginal()),
-  ...(await import('@cherrystudio/ui/components/primitives/popover'))
-}))
 
 vi.mock('@renderer/hooks/useApiGateway', () => ({
   useApiGateway: () => useApiGatewayMock()
@@ -44,6 +40,8 @@ describe('ApiGatewayPanel', () => {
     useApiGatewayMock.mockReturnValue(gatewayState())
   })
 
+  afterEach(() => vi.restoreAllMocks())
+
   it('copies all four client URLs using the bound port', async () => {
     const user = userEvent.setup()
     const config = gatewayState()
@@ -69,21 +67,27 @@ describe('ApiGatewayPanel', () => {
     }
   })
 
-  it('finds models by name and copies the exact provider-qualified ID', async () => {
+  it('shows the model list inline, filters it, and copies the exact provider-qualified ID', async () => {
+    vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(192)
     const id = '12345678-df3f-484c-8ecf-6a65b31900a4:claude-sonnet'
     vi.mocked(window.api.ipcApi.request).mockResolvedValueOnce({
       ok: true,
       data: [
-        { id, owned_by: 'Work provider' },
-        { id: 'openai:gpt-5', owned_by: 'OpenAI' }
+        { id, name: 'Work Chat', owned_by: 'Work provider' },
+        { id: 'openai:gpt-5', name: 'GPT 5', owned_by: 'OpenAI' }
       ]
     })
     const user = userEvent.setup()
-    render(<ApiGatewayPanel />)
-    await user.click(screen.getByRole('button', { name: 'Models' }))
-    const models = within(await screen.findByRole('dialog', { name: 'Models' }))
-    await user.type(await models.findByRole('searchbox'), 'sonnet')
-    expect(models.queryByText('gpt-5')).not.toBeInTheDocument()
+    render(
+      <SWRConfig value={{ provider: () => new Map() }}>
+        <ApiGatewayPanel />
+      </SWRConfig>
+    )
+    const models = within(screen.getByRole('region', { name: 'Models' }))
+    expect(await models.findByText('GPT 5')).toBeVisible()
+    expect(models.getByText('Work Chat')).toBeVisible()
+    await user.type(models.getByRole('searchbox'), 'work chat')
+    expect(models.queryByText('GPT 5')).not.toBeInTheDocument()
     await user.click(models.getByRole('button', { name: `Copy · ${id}` }))
     expect(await navigator.clipboard.readText()).toBe(id)
   })

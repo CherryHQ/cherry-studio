@@ -1,16 +1,5 @@
-import {
-  ChevronDown,
-  ExternalLink,
-  Eye,
-  EyeOff,
-  Laptop,
-  Network,
-  Play,
-  RotateCcw,
-  Square,
-  Terminal
-} from 'lucide-react'
-import { type ReactNode, useState } from 'react'
+import { ExternalLink, Eye, EyeOff, Laptop, Network, Play, RotateCcw, Search, Square, Terminal } from 'lucide-react'
+import { type ReactNode, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import useSWR from 'swr'
 import { v4 as uuidv4 } from 'uuid'
@@ -22,15 +11,11 @@ import {
   AccordionTrigger,
   Button,
   IndicatorLight,
-  Input,
   InputGroup,
   InputGroupAddon,
   InputGroupButton,
   InputGroupInput,
   InputNumber,
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
   Select,
   SelectContent,
   SelectItem,
@@ -42,6 +27,8 @@ import {
 import { usePreference } from '@data/hooks/usePreference'
 import CopyButton from '@renderer/components/CopyButton'
 import { GatewayIcon } from '@renderer/components/icons/GatewayIcon'
+import ModelListRow from '@renderer/components/ModelListRow'
+import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
 import { useApiGateway } from '@renderer/hooks/useApiGateway'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
@@ -51,6 +38,8 @@ import { gatewayClientOrigin } from '@shared/utils/apiGateway'
 
 const PORT_MIN = 1000
 const PORT_MAX = 65535
+const MODEL_ROW_HEIGHT = 48
+const MODEL_LIST_HEIGHT = MODEL_ROW_HEIGHT * 4
 const connectionRow = 'grid min-w-0 items-center gap-x-4 gap-y-1.5 py-1 @min-[29rem]:grid-cols-[9rem_minmax(0,1fr)]'
 const gatewayNode = 'absolute grid size-7 place-items-center rounded-md border bg-card text-success [&>svg]:size-3.5'
 
@@ -127,54 +116,80 @@ function GatewayEndpoints({ origin }: { origin: string }) {
 function GatewayModels() {
   const { t } = useTranslation()
   const [search, setSearch] = useState('')
+  const listRef = useRef<DynamicVirtualListRef>(null)
   const { data, error, isLoading } = useSWR('api_gateway.models', () => ipcApi.request('api_gateway.models'))
-  if (isLoading)
-    return (
-      <p role="status" className="text-sm text-muted-foreground">
-        {t('common.loading')}
-      </p>
-    )
-  if (error)
-    return (
-      <p role="alert" className="text-sm text-destructive">
-        {t('apiGateway.connections.models_failed')}
-      </p>
-    )
-  if (!data?.length) return <p className="text-sm text-muted-foreground">{t('models.no_matches')}</p>
-
   const query = search.trim().toLowerCase()
-  const models = data.filter(({ id, owned_by }) => `${id} ${owned_by}`.toLowerCase().includes(query))
+  const models =
+    data?.filter(({ id, name, owned_by }) => `${name} ${id} ${owned_by}`.toLowerCase().includes(query)) ?? []
 
   return (
-    <>
-      <Input
-        type="search"
-        value={search}
-        onChange={(event) => setSearch(event.target.value)}
-        aria-label={t('models.search.placeholder')}
-        placeholder={t('models.search.placeholder')}
-        className="mb-2 h-8"
-      />
-      {models.length ? (
-        <ul className="max-h-64 overflow-y-auto">
-          {models.map(({ id, owned_by }) => (
-            <li key={id} className="flex min-w-0 items-center gap-2 py-1">
-              <div className="min-w-0 flex-1">
-                <code className="block font-mono text-xs wrap-anywhere">{id.slice(id.indexOf(':') + 1)}</code>
-                <span className="block text-xs text-muted-foreground wrap-anywhere">{owned_by}</span>
-              </div>
-              <Tooltip asChild content={id} placement="top-end" className="font-mono wrap-anywhere">
-                <Button variant="ghost" size="icon-sm" className="shrink-0" asChild>
-                  <CopyButton textToCopy={id} aria-label={`${t('common.copy')} · ${id}`} successFeedback="icon" />
-                </Button>
-              </Tooltip>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p className="py-2 text-sm text-muted-foreground">{t('common.no_results')}</p>
-      )}
-    </>
+    <section aria-label={t('common.models')} className="flex min-w-0 flex-col gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-sm font-semibold">{t('common.models')}</h2>
+        <InputGroup
+          size="sm"
+          className="w-52 max-w-full bg-background-subtle has-[[data-slot=input-group-control]:focus-visible]:border-border-strong">
+          <InputGroupAddon>
+            <Search className="size-3.5" aria-hidden="true" />
+          </InputGroupAddon>
+          <InputGroupInput
+            type="search"
+            value={search}
+            onChange={(event) => {
+              listRef.current?.scrollToOffset(0)
+              setSearch(event.target.value)
+            }}
+            aria-label={t('models.search.placeholder')}
+            placeholder={t('models.search.placeholder')}
+          />
+        </InputGroup>
+      </div>
+      <div style={{ height: MODEL_LIST_HEIGHT }}>
+        {error ? (
+          <p role="alert" className="py-3 text-sm text-destructive">
+            {t('apiGateway.connections.models_failed')}
+          </p>
+        ) : models.length ? (
+          <DynamicVirtualList
+            ref={listRef}
+            list={models}
+            role="list"
+            className="overscroll-contain"
+            estimateSize={() => MODEL_ROW_HEIGHT}
+            itemContainerStyle={{ height: MODEL_ROW_HEIGHT }}
+            getItemKey={(index) => models[index].id}
+            scrollerProps={{ tabIndex: 0, 'aria-label': t('common.models') }}>
+            {({ id, name, owned_by }, index) => {
+              const separator = id.indexOf(':')
+              const model = { id, name, providerId: id.slice(0, separator), apiModelId: id.slice(separator + 1) }
+              return (
+                <div role="listitem" aria-posinset={index + 1} aria-setsize={models.length} className="h-full">
+                  <ModelListRow
+                    model={model}
+                    detail={owned_by}
+                    className="h-full rounded-md px-2.5 hover:bg-accent/50 focus-within:bg-accent/50">
+                    <Tooltip asChild content={id} placement="top-end" className="max-w-xs font-mono wrap-anywhere">
+                      <Button variant="ghost" size="sm" asChild>
+                        <CopyButton
+                          textToCopy={id}
+                          label={t('common.copy')}
+                          aria-label={`${t('common.copy')} · ${id}`}
+                          successFeedback="icon"
+                        />
+                      </Button>
+                    </Tooltip>
+                  </ModelListRow>
+                </div>
+              )
+            }}
+          </DynamicVirtualList>
+        ) : (
+          <p role="status" className="py-3 text-sm text-muted-foreground">
+            {t(isLoading ? 'common.loading' : data?.length ? 'common.no_results' : 'models.no_matches')}
+          </p>
+        )}
+      </div>
+    </section>
   )
 }
 
@@ -331,25 +346,11 @@ export default function ApiGatewayPanel({ renderHeader }: { renderHeader?: (cont
       </div>
 
       <section aria-label={t('apiGateway.connections.local')} className="min-w-0">
-        <div className="mb-1 flex items-center justify-between gap-2">
-          <h2 className="text-sm font-semibold">{t('apiGateway.connections.local')}</h2>
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline" size="sm" className="group">
-                {t('common.models')}
-                <ChevronDown className="size-3.5 group-data-[state=open]:rotate-180" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent
-              align="end"
-              aria-label={t('common.models')}
-              className="w-80 max-w-[var(--radix-popover-content-available-width)] p-2.5">
-              <GatewayModels />
-            </PopoverContent>
-          </Popover>
-        </div>
+        <h2 className="mb-1 text-sm font-semibold">{t('apiGateway.connections.local')}</h2>
         <GatewayEndpoints origin={localOrigin} />
       </section>
+
+      <GatewayModels />
 
       <section aria-label={t('apiGateway.connections.lan')} className="flex min-w-0 flex-col">
         <div className="flex min-h-14 items-center justify-between gap-4">
