@@ -349,8 +349,8 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
     }
   },
   'ai.agent.skill_session.create': async ({ skillId }) => ({ sessionId: createBuiltinSkillSession(skillId).id }),
-  'ai.agent.session.commands': async ({ sessionId }) => {
-    await application.get('AgentSessionRuntimeService').listSessionCommands(sessionId)
+  'ai.agent.session.commands': async ({ sessionId, refresh }) => {
+    await application.get('AgentSessionRuntimeService').listSessionCommands(sessionId, refresh)
   },
   'ai.agent.session.delete': ({ sessionIds, permanent }) =>
     exposeAgentSessionArchiveError(() =>

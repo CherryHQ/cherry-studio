@@ -6,6 +6,7 @@ import type * as ReactI18next from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as ChatPrimitives from '@renderer/components/chat/primitives'
+import type * as TabHooks from '@renderer/hooks/tab'
 
 import AgentChat from '../AgentChat'
 
@@ -51,19 +52,28 @@ const conversationShellPropsMock = vi.hoisted(() => ({
   last: undefined as any
 }))
 const toolApprovalRespondMock = vi.hoisted(() => vi.fn())
+const refreshCommandCatalogMock = vi.hoisted(() => vi.fn())
+const currentTab = vi.hoisted(() => ({ id: undefined as string | undefined, active: true }))
 const agentSessionRefreshMock = vi.hoisted(() => vi.fn())
 const citationsPanelModuleLoads = vi.hoisted(() => ({ value: 0 }))
 
 // Tool-approval responses now go through ipcApi.request('ai.tool.respond_approval', …).
 vi.mock('@renderer/ipc', () => ({
   ipcApi: {
-    request: (route: string, input: unknown) =>
-      route === 'ai.tool.respond_approval'
-        ? toolApprovalRespondMock(input)
-        : Promise.resolve(route === 'ai.agent.attachment_selections.list' ? [] : undefined),
+    request: (route: string, input: unknown) => {
+      if (route === 'ai.tool.respond_approval') return toolApprovalRespondMock(input)
+      if (route === 'ai.agent.session.commands') return refreshCommandCatalogMock(input)
+      return Promise.resolve(route === 'ai.agent.attachment_selections.list' ? [] : undefined)
+    },
     on: () => () => {}
   },
   useIpcOn: vi.fn()
+}))
+
+vi.mock('@renderer/hooks/tab', async (importOriginal) => ({
+  ...(await importOriginal<typeof TabHooks>()),
+  useCurrentTabId: () => currentTab.id,
+  useIsActiveTab: () => currentTab.active
 }))
 
 vi.mock('@renderer/components/chat/shell/ConversationCenterState', () => ({
@@ -406,12 +416,51 @@ describe('AgentChat settings panel', () => {
     agentRightPanePropsMock.openArtifactFile.mockReset()
     toolApprovalRespondMock.mockReset()
     toolApprovalRespondMock.mockResolvedValue({ ok: true })
+    refreshCommandCatalogMock.mockReset().mockResolvedValue(undefined)
+    currentTab.id = undefined
+    currentTab.active = true
     agentSessionRefreshMock.mockReset()
     Object.defineProperty(window, 'api', {
       configurable: true,
       value: {}
     })
   })
+
+  it.each(['claude-code', 'claude', 'codex'] as const)(
+    'refreshes the %s command catalog when a writable conversation becomes active',
+    (runtime) => {
+      activeAgentMock.value = {
+        id: 'agent-1',
+        type: runtime === 'claude-code' ? 'claude-code' : 'local',
+        model: runtime === 'claude-code' ? 'provider::model-1' : null,
+        ...(runtime !== 'claude-code' && {
+          localRuntime: { providerId: 'local-provider', presetId: runtime, enabled: true, args: [], env: {} }
+        })
+      }
+      const conversationBootstrap = createConversationBootstrap({
+        ...defaultSession,
+        workspace: { id: 'workspace', type: 'user', path: '/workspace' }
+      })
+      currentTab.id = 'agent-tab'
+      currentTab.active = false
+      const view = renderAgentChat({ conversationBootstrap })
+      expect(refreshCommandCatalogMock).not.toHaveBeenCalled()
+
+      currentTab.active = true
+      view.rerender(<AgentChat conversationBootstrap={conversationBootstrap} />)
+      expect(refreshCommandCatalogMock).toHaveBeenCalledWith({ sessionId: 'session-1', refresh: true })
+
+      currentTab.active = false
+      view.rerender(<AgentChat conversationBootstrap={conversationBootstrap} />)
+      expect(refreshCommandCatalogMock).toHaveBeenCalledTimes(1)
+      currentTab.active = true
+      view.rerender(<AgentChat conversationBootstrap={conversationBootstrap} />)
+      expect(refreshCommandCatalogMock).toHaveBeenCalledTimes(2)
+
+      view.rerender(<AgentChat conversationBootstrap={conversationBootstrap} onStartNewTaskConversation={vi.fn()} />)
+      expect(refreshCommandCatalogMock).toHaveBeenCalledTimes(2)
+    }
+  )
 
   it.each([true, false])(
     'keeps ACP task history visible while checking whether it can be continued (%s)',

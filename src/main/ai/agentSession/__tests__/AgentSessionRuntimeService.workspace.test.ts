@@ -370,6 +370,23 @@ it('keeps retired ACP command results out of the replacement connection catalog'
   expect(MockMainCacheServiceUtils.getSharedCacheValue(key)).toEqual([review])
 })
 
+it('refreshes the Codex Skill catalog over the existing session connection', async () => {
+  setup('codex')
+  await service.listSessionCommands('session')
+  const commands = await service.listSessionCommands('session', true)
+
+  expect(commands).toContainEqual(
+    expect.objectContaining({ name: 'repo-skill', description: 'Repository skill from Codex' })
+  )
+  const requests = await readAcpRequests()
+  expect(requests.filter(({ method }) => method === 'skills/list').map(({ params }) => params)).toEqual([
+    { cwds: [path.join(directory, 'A')] },
+    { cwds: [path.join(directory, 'A')], forceReload: true }
+  ])
+  expect(requests.filter(({ method }) => method === 'thread/start')).toHaveLength(1)
+  expect(requests.some(({ method }) => method === 'turn/start')).toBe(false)
+})
+
 it('rechecks the directory if it changes while reconciliation is awaiting', async () => {
   setup('acp')
   await service.listSessionCommands('session')

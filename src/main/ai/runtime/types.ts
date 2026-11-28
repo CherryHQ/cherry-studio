@@ -360,9 +360,9 @@ export interface AgentRuntimeConnection {
    * Read this session's available slash command catalog (`query.supportedCommands()`), including
    * any custom project/user commands the SDK discovered. Returns null when the runtime can't report
    * it (no query yet, or a driver that doesn't support it). Optional ⇒ the host falls back to the
-   * static builtin list.
+   * static builtin list. A refresh requests a new native catalog when supported.
    */
-  getSupportedCommands?(): Promise<AgentSessionSlashCommand[] | null>
+  getSupportedCommands?(refresh?: boolean): Promise<AgentSessionSlashCommand[] | null>
   runSlashCommand?(name: string, args: string, requestId: string, branchHead: string): Promise<LocalAgentNotice | void>
   stopTask?(taskId: string): Promise<boolean>
   messageChild?(contextId: string, text: string): Promise<void>

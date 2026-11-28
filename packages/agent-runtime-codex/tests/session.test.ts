@@ -170,6 +170,31 @@ it('invokes a skill before opening the menu and refreshes the observed catalog w
   }
 })
 
+it('refreshes Skill descriptions from the native catalog while keeping the same thread', async () => {
+  const { peer, session } = await openSession()
+  const skill = { name: 'design', path: '/workspace/design/SKILL.md' }
+  try {
+    const initial = session.listCommands()
+    const first = await peer.read()
+    expect(first).toMatchObject({ method: 'skills/list', params: { cwds: ['/workspace'] } })
+    peer.send({ id: first.id, result: { data: [{ skills: [{ ...skill, description: 'Previous guidelines' }] }] } })
+    expect(await initial).toContainEqual(
+      expect.objectContaining({ name: 'design', description: 'Previous guidelines' })
+    )
+
+    const lookups = [session.listCommands(true), session.listCommands(true)]
+    const refresh = await peer.read()
+    expect(refresh).toMatchObject({ method: 'skills/list', params: { cwds: ['/workspace'], forceReload: true } })
+    peer.send({ id: refresh.id, result: { data: [{ skills: [{ ...skill, description: 'Current guidelines' }] }] } })
+    for (const commands of await Promise.all(lookups)) {
+      expect(commands).toContainEqual(expect.objectContaining({ name: 'design', description: 'Current guidelines' }))
+    }
+    expect(session.id).toBe('thread')
+  } finally {
+    peer.close()
+  }
+})
+
 it('owns a resumed turn when the response and its notifications share one stdout write', async () => {
   const peer = createPeer()
   const events: CodexSessionEvent[] = []

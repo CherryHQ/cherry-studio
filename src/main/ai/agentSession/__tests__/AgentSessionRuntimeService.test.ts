@@ -5560,6 +5560,13 @@ describe('AgentSessionRuntimeService', () => {
       await vi.waitFor(() =>
         expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.slash_commands.session-1', commands)
       )
+      const updated = [{ name: 'clear', description: 'Start a fresh conversation' }]
+      mocks.cacheGetShared.mockReturnValueOnce(commands)
+      connection.getSupportedCommands.mockResolvedValue(updated)
+      await expect(service.listSessionCommands('session-1', true)).resolves.toEqual(updated)
+      expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.slash_commands.session-1', updated)
+      expect(connect).toHaveBeenCalledTimes(1)
+
       // No turn was admitted — the entry sits idle and the stream manager was never asked to start one.
       expect(service.inspect('session-1')?.status).toBe('idle')
       expect(mocks.startRuntimeTurn).not.toHaveBeenCalled()

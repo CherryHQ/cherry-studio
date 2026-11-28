@@ -1257,7 +1257,7 @@ export class AgentSessionRuntimeService extends BaseService {
     return (await this.currentConnection(entry)?.changeFollowups?.(change)) ?? false
   }
 
-  async listSessionCommands(sessionId: string): Promise<AgentSessionSlashCommand[]> {
+  async listSessionCommands(sessionId: string, refresh = false): Promise<AgentSessionSlashCommand[]> {
     const session = agentSessionService.getById(sessionId)
     const agent = session.agentId ? agentService.getAgent(session.agentId) : undefined
     if (!agent) return []
@@ -1270,11 +1270,11 @@ export class AgentSessionRuntimeService extends BaseService {
       }))
     const cache = application.get('CacheService')
     const cached = cache.getShared(AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY(sessionId))
-    if (cached && agent.type !== 'local') return cached
+    if (cached && agent.type !== 'local' && !refresh) return cached
     if (agent.type === 'claude-code' && application.get('ClaudeCodeBinaryService').getStatus().phase !== 'ready')
       return []
     const connection = await this.ensureSessionConnection(sessionId)
-    const commands = await connection?.getSupportedCommands?.()
+    const commands = await connection?.getSupportedCommands?.(refresh)
     const entry = this.entries.get(sessionId)
     if (!entry || !connection || this.currentConnection(entry) !== connection || entry.closing) return []
     if (commands) this.publishSupportedCommands(entry, commands)

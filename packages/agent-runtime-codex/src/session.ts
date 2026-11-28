@@ -200,15 +200,15 @@ export class CodexSession {
     this.host.emit({ type: 'options-changed' })
   }
 
-  async listCommands(): Promise<CodexCommand[]> {
+  async listCommands(refresh?: boolean): Promise<CodexCommand[]> {
     if (this.options.headless) return []
     this.commandsObserved = true
     await this.loadControls()
-    return [...CodexSession.listBuiltinCommands(this), ...(await this.listSkillCommands())]
+    return [...CodexSession.listBuiltinCommands(this), ...(await this.listSkillCommands(refresh))]
   }
 
-  private async listSkillCommands(): Promise<CodexCommand[]> {
-    const skills = await this.skills.list()
+  private async listSkillCommands(refresh?: boolean): Promise<CodexCommand[]> {
+    const skills = await this.skills.list(refresh)
     const commands: CodexCommand[] = []
     for (const { name, description } of skills.values()) {
       if (!this.command(name)) commands.push({ name, description, argumentHint: '', builtin: false })

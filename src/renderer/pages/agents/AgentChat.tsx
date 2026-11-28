@@ -720,28 +720,39 @@ const AgentChatSessionCenter = ({
   const isActiveTab = useIsActiveTab()
   const sessionId = session.id
   const workspacePath = session.workspace?.path
+  const interactiveRuntime =
+    activeAgent?.type === 'claude-code'
+      ? 'claude-code'
+      : localRuntime?.enabled === true && (protocol === 'acp' || protocol === 'claude' || protocol === 'codex')
+        ? protocol
+        : undefined
   const canActivateRuntime =
     (!tabId || isActiveTab) &&
     !onStartNewTaskConversation &&
     !session.deletedAt &&
     !!workspacePath &&
     activeAgent?.id === session.agentId &&
-    localRuntime?.enabled === true &&
-    protocol === 'acp'
+    !!interactiveRuntime
 
   useEffect(() => {
     if (!canActivateRuntime || !agentId || !workspacePath) return
     let active = true
-    void ipcApi.request('ai.local_agents.set_session_interactive', { sessionId, active: true }).catch((error) => {
-      if (active) logger.warn('Failed to prepare active ACP session', { sessionId, error })
+    const activate =
+      interactiveRuntime === 'acp'
+        ? ipcApi.request('ai.local_agents.set_session_interactive', { sessionId, active: true })
+        : ipcApi.request('ai.agent.session.commands', { sessionId, refresh: true })
+    void activate.catch((error) => {
+      if (active) logger.warn('Failed to prepare active agent session', { sessionId, interactiveRuntime, error })
     })
     return () => {
       active = false
-      void ipcApi.request('ai.local_agents.set_session_interactive', { sessionId, active: false }).catch((error) => {
-        logger.warn('Failed to leave active ACP session', { sessionId, error })
-      })
+      if (interactiveRuntime === 'acp') {
+        void ipcApi.request('ai.local_agents.set_session_interactive', { sessionId, active: false }).catch((error) => {
+          logger.warn('Failed to leave active ACP session', { sessionId, error })
+        })
+      }
     }
-  }, [agentId, canActivateRuntime, sessionId, workspacePath])
+  }, [agentId, canActivateRuntime, interactiveRuntime, sessionId, workspacePath])
 
   const composer = (
     <div className="flex w-full flex-col">

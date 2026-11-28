@@ -102,6 +102,8 @@ are preserved.
   until the formal connection reports its choices. A send or command request joins
   the same opening or restore. Activation reads the command catalog from that
   connection, and retiring the connection drops its cached command descriptions.
+  The active view also refreshes Claude and Codex command catalogs through the
+  session connection. Codex re-reads Skill metadata when the view becomes active.
   After the last interactive view leaves, a resumable idle connection is eligible for
   the normal idle timeout. Active execution retains its connection.
 - CLI-backed adapters share executable and environment resolution in `runtime/cli`.

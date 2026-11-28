@@ -699,7 +699,7 @@ export const aiRequestSchemas = {
     output: z.strictObject({ sessionId: z.string().min(1) })
   }),
   'ai.agent.session.commands': defineRoute({
-    input: z.strictObject({ sessionId: z.string().min(1) }),
+    input: z.strictObject({ sessionId: z.string().min(1), refresh: z.boolean().optional() }),
     output: z.void()
   }),
   'ai.agent.session.fork': defineRoute({

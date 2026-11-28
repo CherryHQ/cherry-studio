@@ -292,8 +292,8 @@ export class CodexSessionHost extends LocalConnection {
     return this.session
   }
 
-  override async getSupportedCommands() {
-    return this.session?.listCommands() ?? null
+  override async getSupportedCommands(refresh?: boolean) {
+    return this.session?.listCommands(refresh) ?? null
   }
 
   async setMode(configId: string, value: string) {
