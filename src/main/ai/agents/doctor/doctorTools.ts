@@ -13,7 +13,7 @@ import { application } from '@application'
 import { isBlockedSourceFile } from '@main/ai/mcp/servers/assistant'
 import { isSameOrInside } from '@main/utils/file'
 import type { DoctorAgentWrite } from '@shared/types/doctorAgent'
-import { isDoctorFixRequest } from '@shared/utils/doctor'
+import { isDoctorFixRequest, isOperationIncident } from '@shared/utils/doctor'
 
 import { incidentLogs, incidentMessages, incidentOverview, incidentRequest, incidentTranscript } from './doctorIncident'
 import {
@@ -272,6 +272,9 @@ const SESSION_TOOL: DoctorTool = {
     const incident = application.get('DoctorAgentService').incidentForSession(ctx.sessionId)
     if (!incident) {
       throw new ToolError('This analysis was not opened from a failed message', ToolErrorCode.InvalidParams)
+    }
+    if (isOperationIncident(incident)) {
+      throw new ToolError('This analysis is about an operation, not a conversation', ToolErrorCode.InvalidParams)
     }
     const action = requireString(args, 'action')
     if (action === 'overview') return json(incidentOverview(incident))

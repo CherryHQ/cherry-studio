@@ -26,6 +26,8 @@ import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { DiagnosticRange } from '@shared/ipc/schemas/diagnostics'
 import type { InputFor, OutputFor, WindowId } from '@shared/ipc/types'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
+import { appErrorContextSchema, projectAppErrorContext } from '@shared/utils/appError'
+import { selectDiagnosticAiAttachment } from '@shared/utils/diagnosticAi'
 import { diagnosticReportUrl, normalizeDiagnosticDescription } from '@shared/utils/diagnostics'
 
 import {
@@ -560,7 +562,8 @@ export class DiagnosticBundleService {
         selectedFiles: selection.selectedFiles,
         sizeOmittedFiles: selection.omittedFiles,
         tempRoot,
-        uploadedAutomatically: false
+        uploadedAutomatically: false,
+        contextView: 'export'
       })
     } finally {
       await removeDir(tempRoot).catch((error) => {
@@ -611,7 +614,8 @@ export class DiagnosticBundleService {
           selectedFiles: selection.selectedFiles,
           sizeOmittedFiles: selection.omittedFiles,
           tempRoot,
-          uploadedAutomatically: true
+          uploadedAutomatically: true,
+          contextView: 'upload'
         })
       } catch {
         throw new IpcError(diagnosticsErrorCodes.BUNDLE_BUILD_FAILED, 'Failed to build diagnostic bundle')
@@ -800,7 +804,8 @@ export class DiagnosticBundleService {
     selectedFiles,
     sizeOmittedFiles,
     tempRoot,
-    uploadedAutomatically
+    uploadedAutomatically,
+    contextView
   }: {
     allChatStats: ChatRecordStats
     bundleId: string
@@ -815,6 +820,7 @@ export class DiagnosticBundleService {
     sizeOmittedFiles: SourceCandidate[]
     tempRoot: AbsoluteFilePath
     uploadedAutomatically: boolean
+    contextView: 'export' | 'upload'
   }): Promise<SavedBundle> {
     const staged: StagedSource[] = []
     const failedCandidates: SourceCandidate[] = []
@@ -939,9 +945,22 @@ export class DiagnosticBundleService {
       warnings
     }
 
+    const parsedContext = appErrorContextSchema.safeParse(input.errorContext)
+    const attachable = selectDiagnosticAiAttachment(input.aiDiagnosis, input.errorContext)
+    // A failed-message analysis may quote the conversation, so it needs the same opt-in as chat records.
+    const aiDiagnosis = attachable?.topicId === undefined || input.includeChatRecords ? attachable : undefined
     const entries = [
       { name: 'diagnostics.json', content: `${JSON.stringify(manifest, null, 2)}\n` },
-      ...(scanReportJson !== undefined ? [{ name: SCAN_REPORT_ARCHIVE_NAME, content: scanReportJson }] : [])
+      ...(scanReportJson !== undefined ? [{ name: SCAN_REPORT_ARCHIVE_NAME, content: scanReportJson }] : []),
+      ...(parsedContext.success
+        ? [
+            {
+              name: 'error-context.json',
+              content: `${JSON.stringify(projectAppErrorContext(parsedContext.data, contextView), null, 2)}\n`
+            }
+          ]
+        : []),
+      ...(aiDiagnosis ? [{ name: 'ai-diagnosis.json', content: `${JSON.stringify(aiDiagnosis, null, 2)}\n` }] : [])
     ]
     await writeBundleZip(destination, destinationIdentity, entries, staged)
 

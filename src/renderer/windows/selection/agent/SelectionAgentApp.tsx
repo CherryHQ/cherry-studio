@@ -2,6 +2,7 @@ import type { FC } from 'react'
 import { useMemo } from 'react'
 
 import { usePreference } from '@data/hooks/usePreference'
+import { AppErrorRuntime } from '@renderer/components/AppErrorRuntime'
 import { CodeStyleProvider } from '@renderer/components/CodeStyleProvider'
 import { CommandContextKeyProvider, CommandProvider } from '@renderer/components/command'
 import { DictationShortcutHost } from '@renderer/components/DictationShortcutHost'
@@ -66,6 +67,7 @@ const SelectionAgentApp: FC = () => {
                   <SelectionAgentWindow />
                 </ErrorBoundary>
                 <McpInteractionHost />
+                <AppErrorRuntime mode="local" />
                 <PopupHost />
                 <ToastHost />
                 <DictationShortcutHost />

@@ -31,7 +31,7 @@ export function useMessageErrorActions(options: MessageErrorActionOptions): Mess
     async (input) => {
       const { showErrorDetailPopup } = await import('@renderer/components/ErrorDetailModal')
       const model = getMessageListItemModel(input.message)
-      showErrorDetailPopup({
+      void showErrorDetailPopup({
         error: input.error,
         subject: getDoctorSubject(input.message),
         incident: { topicId: input.message.topicId, messageId: input.message.sourceMessageId ?? input.message.id },
