@@ -13,6 +13,7 @@ The previous Markdown PlantUML preview sent diagram source to `www.plantuml.com`
 - PlantUML code blocks render locally by default when streaming ends. The source and preview controls remain available.
 - A Web Worker loads the PlantUML TeaVM headless engine on demand and uses Viz.js for Graphviz-based layouts. Preview changes cancel obsolete work, and a render that exceeds 10 seconds releases the worker.
 - Preprocessing runs offline and supports inline macros. External URLs, local files and unbundled standard-library includes report a render error. The sanitized SVG uses the existing zoom, copy and download controls.
+- When the SVG text block supplies no background, the pinned TeaVM engine uses the parsed diagram background before applying its default.
 
 ## Alternatives considered
 
@@ -30,3 +31,4 @@ The previous Markdown PlantUML preview sent diagram source to `www.plantuml.com`
 - AC1 — The macOS Electron chat rendered a Chinese sequence diagram and a Graphviz-backed class diagram with external requests blocked and switched between source and preview.
 - AC2 — The macOS Electron chat displayed syntax and external-include errors without external requests. `PlantUmlPreview.test.tsx` verifies removal of SVG image and stylesheet elements.
 - AC3 — `PlantUmlPreview.test.tsx` verifies discarded results on source change, clear and close, plus timeout recovery.
+- Regression — Worker tests cover default, legacy skin parameter, and stylesheet backgrounds. The preview test checks that sanitizing and mounting the SVG preserves its rendered background.
