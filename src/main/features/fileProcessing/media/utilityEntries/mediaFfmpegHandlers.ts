@@ -34,6 +34,7 @@ type Logger = { warn: (message: string) => void }
 const MAX_STDIO_CHARS = 8_000
 const COMMAND_TIMEOUT_MS = 120_000
 const KILL_GRACE_MS = 5_000
+const KILL_UNCONFIRMED_MESSAGE = 'Media process did not exit after it was stopped'
 const WAV_HEADER_BUDGET_BYTES = 4_096
 const LOCAL_PROTOCOL_WHITELIST = 'file,pipe,crypto'
 
@@ -191,8 +192,12 @@ async function runCommand(
       if (killReason !== undefined || settled) return
       killReason = reason
       killProcessTree(child, logger)
-      // Keep the pid registered so main can still kill a child that never reports exit.
-      killGraceTimer = setTimeout(() => finish(reason, false), KILL_GRACE_MS)
+      // Keep the pid registered so main can still kill a child that never reports exit, and do not
+      // report it as a plain timeout: callers that tolerate timeouts would then skip main's cleanup.
+      killGraceTimer = setTimeout(
+        () => finish(signal.aborted ? reason : new Error(KILL_UNCONFIRMED_MESSAGE, { cause: reason }), false),
+        KILL_GRACE_MS
+      )
     }
     const onAbort = () => requestKill(signal.reason ?? new Error('Aborted'))
     const timer = setTimeout(() => requestKill(new Error('Media processing timed out')), COMMAND_TIMEOUT_MS)

@@ -914,7 +914,7 @@ describe('mediaFfmpegHandlers Windows kill failure', () => {
     spawnControl.calls = 0
   })
 
-  it('settles a timed-out command when taskkill cannot start', async () => {
+  it('reports a timed-out child that never exits as unconfirmed when taskkill cannot start', async () => {
     const outputDir = mkdtempSync(join(tmpdir(), 'cherry-media-taskkill-'))
     const pidRegistryPath = join(outputDir, 'active-child.pid')
     applyMediaFfmpegInitData({ ffmpegPath: '/usr/bin/false', ffprobePath: '/usr/bin/false' })
@@ -937,11 +937,46 @@ describe('mediaFfmpegHandlers Windows kill failure', () => {
           { filePath: '/video.mp4', outputDir, timestampsMs: [0], maxEdgePx: 120, jpegQuality: 70, pidRegistryPath },
           context()
         )
-      ).rejects.toThrow('Media processing timed out')
+      ).rejects.toThrow('Media process did not exit after it was stopped')
       await vi.advanceTimersByTimeAsync(120_000 + 5_000)
       await result
       // The child may still be alive, so main must still find its pid to kill it.
       expect(readFileSync(pidRegistryPath, 'utf8').trim()).toBe('424242')
+    } finally {
+      rmSync(outputDir, { recursive: true, force: true })
+    }
+  })
+
+  it('reports a timeout when the killed child confirms its exit', async () => {
+    const outputDir = mkdtempSync(join(tmpdir(), 'cherry-media-kill-close-'))
+    const pidRegistryPath = join(outputDir, 'active-child.pid')
+    applyMediaFfmpegInitData({ ffmpegPath: '/usr/bin/false', ffprobePath: '/usr/bin/false' })
+    const stuckChild = Object.assign(new EventEmitter(), {
+      pid: 424242,
+      kill: vi.fn(),
+      stdout: Object.assign(new EventEmitter(), { setEncoding: () => {} }),
+      stderr: Object.assign(new EventEmitter(), { setEncoding: () => {} })
+    })
+    spawnControl.replacement = (binary) => {
+      if (binary !== 'taskkill') return stuckChild
+      const killer = new EventEmitter()
+      queueMicrotask(() => {
+        killer.emit('close', 0)
+        stuckChild.emit('close', null)
+      })
+      return killer
+    }
+
+    try {
+      const result = expect(
+        mediaFfmpegHandlers.extractFrames(
+          { filePath: '/video.mp4', outputDir, timestampsMs: [0], maxEdgePx: 120, jpegQuality: 70, pidRegistryPath },
+          context()
+        )
+      ).rejects.toThrow('Media processing timed out')
+      await vi.advanceTimersByTimeAsync(120_000 + 5_000)
+      await result
+      expect(existsSync(pidRegistryPath)).toBe(false)
     } finally {
       rmSync(outputDir, { recursive: true, force: true })
     }
