@@ -1,11 +1,12 @@
 import type { UpdateInfo } from 'builder-util-runtime'
 import { CancellationError, HttpError } from 'builder-util-runtime'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 
 const {
   appEditionState,
   loggerErrorMock,
   netFetchMock,
+  platformState,
   releaseNotesCheckMock,
   releaseNotesUpdaterInstances,
   trackAppUpdateMock
@@ -13,6 +14,7 @@ const {
   appEditionState: { current: 'global', bridge: false },
   loggerErrorMock: vi.fn(),
   netFetchMock: vi.fn(),
+  platformState: { mac: false },
   releaseNotesCheckMock: vi.fn(),
   releaseNotesUpdaterInstances: [] as Array<Record<string, unknown>>,
   trackAppUpdateMock: vi.fn()
@@ -58,7 +60,10 @@ vi.mock('@main/core/lifecycle', () => {
 })
 
 vi.mock('@main/core/platform', () => ({
-  isWin: false
+  isWin: false,
+  get isMac() {
+    return platformState.mac
+  }
 }))
 
 vi.mock('@main/utils/appEdition', () => ({
@@ -78,14 +83,18 @@ vi.mock('@main/utils/systemInfo', () => ({
   getClientId: vi.fn(() => 'test-client-id')
 }))
 
-vi.mock('electron', () => ({
-  app: {
-    isPackaged: true,
-    getVersion: vi.fn(() => '1.0.0'),
-    getLocale: vi.fn(() => 'en-US')
-  },
-  net: { fetch: netFetchMock }
-}))
+vi.mock('electron', async () => {
+  const { EventEmitter } = await import('node:events')
+  return {
+    app: {
+      isPackaged: true,
+      getVersion: vi.fn(() => '1.0.0'),
+      getLocale: vi.fn(() => 'en-US')
+    },
+    autoUpdater: new EventEmitter(),
+    net: { fetch: netFetchMock }
+  }
+})
 
 vi.mock('electron-updater', () => {
   class MockAppUpdater {
@@ -130,7 +139,7 @@ vi.mock('electron-updater', () => {
 })
 
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
-import { app, net } from 'electron'
+import { app, autoUpdater as nativeUpdater, net } from 'electron'
 import { autoUpdater } from 'electron-updater'
 
 import { application } from '@application'
@@ -153,6 +162,12 @@ describe('AppUpdaterService', () => {
     vi.mocked(app.getLocale).mockReset().mockReturnValue('en-US')
     vi.mocked(regionService.getCountry).mockResolvedValue('US')
     vi.mocked(autoUpdater.checkForUpdates).mockResolvedValue(null)
+    autoUpdater.autoDownload = false
+    // Like BaseUpdater, a successful install hands off to the quit on the next turn.
+    vi.mocked(autoUpdater.quitAndInstall).mockImplementation(() => {
+      setImmediate(() => nativeUpdater.emit('before-quit-for-update'))
+    })
+    platformState.mac = false
     netFetchMock.mockReset()
     appEditionState.current = 'global'
     releaseNotesCheckMock.mockReset().mockResolvedValue(null)
@@ -222,6 +237,40 @@ describe('AppUpdaterService', () => {
       expect(autoUpdater.checkForUpdates).not.toHaveBeenCalled()
       expect(autoUpdater.downloadUpdate).not.toHaveBeenCalled()
       expect(trackAppUpdateMock).not.toHaveBeenCalled()
+    })
+
+    it('does not add a feed request while a scheduled check or its download is still running', async () => {
+      let finishLookup: (value: unknown) => void = () => undefined
+      let finishDownload: () => void = () => undefined
+      vi.mocked(autoUpdater.checkForUpdates).mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finishLookup = resolve
+          }) as never
+      )
+      const lookup = (
+        appUpdater as unknown as { performUpdateCheck: (manual: boolean) => Promise<unknown> }
+      ).performUpdateCheck(false)
+      await vi.waitFor(() => expect(autoUpdater.checkForUpdates).toHaveBeenCalledOnce())
+
+      await expect(appUpdater.queryAvailabilityUnlessBusy()).resolves.toEqual({ status: 'busy' })
+      finishLookup({
+        isUpdateAvailable: true,
+        updateInfo: { version: '2.0.0' },
+        cancellationToken: { cancel: vi.fn() },
+        downloadPromise: new Promise<void>((resolve) => {
+          finishDownload = resolve
+        })
+      })
+      await lookup
+      await expect(appUpdater.queryAvailabilityUnlessBusy()).resolves.toEqual({ status: 'busy' })
+      expect(releaseNotesCheckMock).not.toHaveBeenCalled()
+
+      finishDownload()
+      await vi.waitFor(async () => {
+        releaseNotesCheckMock.mockResolvedValue({ isUpdateAvailable: false, updateInfo: { version: '1.0.0' } })
+        await expect(appUpdater.queryAvailabilityUnlessBusy()).resolves.toMatchObject({ status: 'current' })
+      })
     })
 
     it('does not turn a failed or unsupported updater query into an up-to-date result', async () => {
@@ -358,6 +407,634 @@ describe('AppUpdaterService', () => {
       await appUpdater.checkForUpdates()
 
       expect(autoUpdater.checkForUpdates).toHaveBeenCalledOnce()
+    })
+
+    it('keeps the feed release and drops a delayed download from the previous check', async () => {
+      const listeners = new Map<string, (...args: unknown[]) => void>()
+      vi.mocked(autoUpdater.on).mockImplementation(((event: string, handler: (...args: unknown[]) => void) => {
+        listeners.set(event, handler)
+        return autoUpdater
+      }) as typeof autoUpdater.on)
+      const updater = appUpdater as unknown as {
+        registerDisposable: () => void
+        registerAutoUpdaterListeners: () => void
+      }
+      updater.registerDisposable = () => undefined
+      updater.registerAutoUpdaterListeners()
+      const ipc = application.get('IpcApiService')
+      const release = (version: string) => ({
+        version,
+        files: [],
+        path: 'app.zip',
+        sha512: 'x',
+        releaseDate: '2026-01-01'
+      })
+      const emit = (event: string, payload?: unknown) => listeners.get(event)?.(payload)
+      const checked = (version: string) => ({
+        isUpdateAvailable: true,
+        updateInfo: release(version),
+        cancellationToken: { cancel: vi.fn() }
+      })
+      MockMainPreferenceServiceUtils.setPreferenceValue('app.dist.test_plan.enabled', true)
+      MockMainPreferenceServiceUtils.setPreferenceValue('app.dist.test_plan.channel', UpgradeChannel.BETA)
+      vi.mocked(autoUpdater.checkForUpdates).mockResolvedValueOnce(checked('1.2.4') as never)
+
+      await appUpdater.checkForUpdates()
+
+      expect(autoUpdater.channel).toBe(UpgradeChannel.BETA)
+      expect(ipc.broadcastToType).toHaveBeenCalledWith(
+        'main',
+        'app.updater.available',
+        expect.objectContaining({ version: '1.2.4' })
+      )
+      vi.mocked(ipc.broadcastToType).mockClear()
+      emit('update-downloaded', release('1.2.3-beta.1'))
+      expect(ipc.broadcastToType).not.toHaveBeenCalled()
+      emit('download-progress', { percent: 10 })
+      emit('update-downloaded', release('1.2.4'))
+      expect(ipc.broadcastToType).toHaveBeenCalledWith('main', 'app.updater.download_progress', { percent: 10 })
+      expect(ipc.broadcastToType).toHaveBeenCalledWith(
+        'main',
+        'app.updater.downloaded',
+        expect.objectContaining({ version: '1.2.4' })
+      )
+
+      vi.mocked(ipc.broadcastToType).mockClear()
+      appUpdater.cancelDownload()
+      emit('update-downloaded', release('1.2.4'))
+      expect(ipc.broadcastToType).toHaveBeenCalledExactlyOnceWith('main', 'app.updater.channel_retired', undefined)
+
+      vi.mocked(autoUpdater.checkForUpdates).mockImplementationOnce(async () => {
+        emit('update-downloaded', release('1.2.4'))
+        return checked('1.3.0') as never
+      })
+      await appUpdater.checkForUpdates()
+      expect(ipc.broadcastToType).not.toHaveBeenCalledWith(
+        'main',
+        'app.updater.downloaded',
+        expect.objectContaining({ version: '1.2.4' })
+      )
+      expect(ipc.broadcastToType).toHaveBeenCalledWith(
+        'main',
+        'app.updater.available',
+        expect.objectContaining({ version: '1.3.0' })
+      )
+      emit('update-downloaded', release('1.3.0'))
+      expect(ipc.broadcastToType).toHaveBeenCalledWith(
+        'main',
+        'app.updater.downloaded',
+        expect.objectContaining({ version: '1.3.0' })
+      )
+    })
+
+    it('waits out the updater in-flight promise before accepting the next channel', async () => {
+      const listeners = new Map<string, (...args: unknown[]) => void>()
+      vi.mocked(autoUpdater.on).mockImplementation(((event: string, handler: (...args: unknown[]) => void) => {
+        listeners.set(event, handler)
+        return autoUpdater
+      }) as typeof autoUpdater.on)
+      const updater = appUpdater as unknown as {
+        registerDisposable: () => void
+        registerAutoUpdaterListeners: () => void
+      }
+      updater.registerDisposable = () => undefined
+      updater.registerAutoUpdaterListeners()
+      const ipc = application.get('IpcApiService')
+      const release = (version: string) => ({
+        version,
+        files: [],
+        path: 'app.zip',
+        sha512: 'x',
+        releaseDate: '2026-01-01'
+      })
+      const emit = (event: string, payload?: unknown) => listeners.get(event)?.(payload)
+      const checked = (version: string) => ({
+        isUpdateAvailable: true,
+        updateInfo: release(version),
+        cancellationToken: { cancel: vi.fn() }
+      })
+      let inflight: Promise<unknown> | null = null
+      let releaseFirst: (value: unknown) => void = () => undefined
+      const firstResult = new Promise((resolve) => {
+        releaseFirst = resolve
+      })
+      let started = 0
+      vi.mocked(autoUpdater.checkForUpdates).mockImplementation(() => {
+        if (inflight) return inflight as never
+        started += 1
+        if (started === 1) {
+          inflight = firstResult.finally(() => {
+            inflight = null
+          })
+          return inflight as never
+        }
+        return Promise.resolve(checked('1.3.0')) as never
+      })
+      MockMainPreferenceServiceUtils.setPreferenceValue('app.dist.test_plan.enabled', true)
+      MockMainPreferenceServiceUtils.setPreferenceValue('app.dist.test_plan.channel', UpgradeChannel.BETA)
+
+      const firstCheck = appUpdater.checkForUpdates()
+      await vi.waitFor(() => expect(autoUpdater.checkForUpdates).toHaveBeenCalledTimes(1))
+      vi.mocked(ipc.broadcastToType).mockClear()
+      appUpdater.cancelDownload()
+      MockMainPreferenceServiceUtils.setPreferenceValue('app.dist.test_plan.enabled', false)
+      MockMainPreferenceServiceUtils.setPreferenceValue('app.dist.test_plan.channel', UpgradeChannel.LATEST)
+      const secondCheck = appUpdater.checkForUpdates()
+      expect(autoUpdater.checkForUpdates).toHaveBeenCalledTimes(1)
+
+      emit('error', new Error('old channel'))
+      emit('update-not-available')
+      expect(ipc.broadcastToType).toHaveBeenCalledExactlyOnceWith('main', 'app.updater.channel_retired', undefined)
+
+      releaseFirst(checked('1.2.3-beta.1'))
+      await expect(firstCheck).resolves.toMatchObject({ updateInfo: null })
+      await expect(secondCheck).resolves.toMatchObject({ updateInfo: { version: '1.3.0' } })
+      expect(autoUpdater.checkForUpdates).toHaveBeenCalledTimes(2)
+      expect(autoUpdater.channel).toBe(UpgradeChannel.LATEST)
+      expect(ipc.broadcastToType).not.toHaveBeenCalledWith(
+        'main',
+        'app.updater.available',
+        expect.objectContaining({ version: '1.2.3-beta.1' })
+      )
+      expect(ipc.broadcastToType).not.toHaveBeenCalledWith('main', 'app.updater.error', expect.anything())
+      expect(ipc.broadcastToType).not.toHaveBeenCalledWith('main', 'app.updater.not_available', undefined)
+      expect(ipc.broadcastToType).toHaveBeenCalledWith(
+        'main',
+        'app.updater.available',
+        expect.objectContaining({ version: '1.3.0' })
+      )
+    })
+
+    it('settles a canceled download before the next channel starts its own', async () => {
+      const listeners = new Map<string, (...args: unknown[]) => void>()
+      vi.mocked(autoUpdater.on).mockImplementation(((event: string, handler: (...args: unknown[]) => void) => {
+        listeners.set(event, handler)
+        return autoUpdater
+      }) as typeof autoUpdater.on)
+      const updater = appUpdater as unknown as {
+        registerDisposable: () => void
+        registerAutoUpdaterListeners: () => void
+      }
+      updater.registerDisposable = () => undefined
+      updater.registerAutoUpdaterListeners()
+      const ipc = application.get('IpcApiService')
+      const release = (version: string) => ({
+        version,
+        files: [],
+        path: 'app.zip',
+        sha512: 'x',
+        releaseDate: '2026-01-01'
+      })
+      const emit = (event: string, payload?: unknown) => listeners.get(event)?.(payload)
+      const checked = (version: string) => ({
+        isUpdateAvailable: true,
+        updateInfo: release(version),
+        cancellationToken: { cancel: vi.fn() }
+      })
+      autoUpdater.autoDownload = true
+      let libraryDownload: Promise<unknown> | null = null
+      const downloads: { reject: (error: unknown) => void }[] = []
+      vi.mocked(autoUpdater.downloadUpdate).mockImplementation(() => {
+        if (libraryDownload) return libraryDownload as never
+        let rejectDownload: (error: unknown) => void = () => undefined
+        const created = new Promise((resolve, reject) => {
+          rejectDownload = reject
+          void resolve
+        })
+        const tracked = created.finally(() => {
+          libraryDownload = null
+        })
+        libraryDownload = tracked
+        downloads.push({ reject: rejectDownload })
+        return tracked as never
+      })
+      let checks = 0
+      vi.mocked(autoUpdater.checkForUpdates).mockImplementation(async () => {
+        checks += 1
+        const result = checked(checks === 1 ? '1.2.3-beta.1' : '1.3.0')
+        return { ...result, downloadPromise: autoUpdater.downloadUpdate() } as never
+      })
+      MockMainPreferenceServiceUtils.setPreferenceValue('app.dist.test_plan.enabled', true)
+      MockMainPreferenceServiceUtils.setPreferenceValue('app.dist.test_plan.channel', UpgradeChannel.BETA)
+
+      await expect(appUpdater.checkForUpdates()).resolves.toMatchObject({ updateInfo: { version: '1.2.3-beta.1' } })
+      expect(autoUpdater.downloadUpdate).toHaveBeenCalledTimes(1)
+      appUpdater.cancelDownload()
+      vi.mocked(ipc.broadcastToType).mockClear()
+      MockMainPreferenceServiceUtils.setPreferenceValue('app.dist.test_plan.enabled', false)
+      MockMainPreferenceServiceUtils.setPreferenceValue('app.dist.test_plan.channel', UpgradeChannel.LATEST)
+
+      const secondCheck = appUpdater.checkForUpdates()
+      for (let step = 0; step < 10; step += 1) await Promise.resolve()
+      expect(autoUpdater.checkForUpdates).toHaveBeenCalledTimes(1)
+      expect(autoUpdater.downloadUpdate).toHaveBeenCalledTimes(1)
+      emit('error', new Error('old channel'))
+      emit('update-not-available')
+      expect(ipc.broadcastToType).not.toHaveBeenCalled()
+
+      downloads[0]?.reject(new Error('cancelled'))
+      await expect(secondCheck).resolves.toMatchObject({ updateInfo: { version: '1.3.0' } })
+      expect(autoUpdater.checkForUpdates).toHaveBeenCalledTimes(2)
+      expect(autoUpdater.downloadUpdate).toHaveBeenCalledTimes(2)
+      expect(autoUpdater.channel).toBe(UpgradeChannel.LATEST)
+      emit('error', new Error('disk full'))
+      expect(ipc.broadcastToType).toHaveBeenCalledWith(
+        'main',
+        'app.updater.error',
+        expect.objectContaining({ message: 'disk full' })
+      )
+      expect(ipc.broadcastToType).not.toHaveBeenCalledWith(
+        'main',
+        'app.updater.error',
+        expect.objectContaining({ message: 'old channel' })
+      )
+      expect(ipc.broadcastToType).not.toHaveBeenCalledWith(
+        'main',
+        'app.updater.error',
+        expect.objectContaining({ message: 'cancelled' })
+      )
+    })
+
+    it('cancels the auto download a retired check returns after the channel changed', async () => {
+      const listeners = new Map<string, (...args: unknown[]) => void>()
+      vi.mocked(autoUpdater.on).mockImplementation(((event: string, handler: (...args: unknown[]) => void) => {
+        listeners.set(event, handler)
+        return autoUpdater
+      }) as typeof autoUpdater.on)
+      const updater = appUpdater as unknown as {
+        registerDisposable: () => void
+        registerAutoUpdaterListeners: () => void
+      }
+      updater.registerDisposable = () => undefined
+      updater.registerAutoUpdaterListeners()
+      const ipc = application.get('IpcApiService')
+      const release = (version: string) => ({
+        version,
+        files: [],
+        path: 'app.zip',
+        sha512: 'x',
+        releaseDate: '2026-01-01'
+      })
+      autoUpdater.autoDownload = true
+      let releaseOld: (value: unknown) => void = () => undefined
+      const oldCheck = new Promise((resolve) => {
+        releaseOld = resolve
+      })
+      let rejectOldDownload: (error: unknown) => void = () => undefined
+      const oldDownload = new Promise((resolve, reject) => {
+        rejectOldDownload = reject
+        void resolve
+      })
+      const oldToken = {
+        cancel: vi.fn(() => {
+          rejectOldDownload(new Error('cancelled'))
+        })
+      }
+      let checks = 0
+      vi.mocked(autoUpdater.checkForUpdates).mockImplementation(() => {
+        checks += 1
+        if (checks === 1) return oldCheck as never
+        return Promise.resolve({
+          isUpdateAvailable: true,
+          updateInfo: release('1.3.0'),
+          cancellationToken: { cancel: vi.fn() },
+          downloadPromise: Promise.resolve(['/tmp/new.zip'])
+        }) as never
+      })
+      MockMainPreferenceServiceUtils.setPreferenceValue('app.dist.test_plan.enabled', true)
+      MockMainPreferenceServiceUtils.setPreferenceValue('app.dist.test_plan.channel', UpgradeChannel.BETA)
+
+      const firstCheck = appUpdater.checkForUpdates()
+      await vi.waitFor(() => expect(autoUpdater.checkForUpdates).toHaveBeenCalledTimes(1))
+      appUpdater.cancelDownload()
+      MockMainPreferenceServiceUtils.setPreferenceValue('app.dist.test_plan.enabled', false)
+      MockMainPreferenceServiceUtils.setPreferenceValue('app.dist.test_plan.channel', UpgradeChannel.LATEST)
+      const secondCheck = appUpdater.checkForUpdates()
+      expect(autoUpdater.checkForUpdates).toHaveBeenCalledTimes(1)
+
+      releaseOld({
+        isUpdateAvailable: true,
+        updateInfo: release('1.2.3-beta.1'),
+        cancellationToken: oldToken,
+        downloadPromise: oldDownload
+      })
+      await expect(firstCheck).resolves.toMatchObject({ updateInfo: null })
+      expect(oldToken.cancel).toHaveBeenCalledOnce()
+      await expect(secondCheck).resolves.toMatchObject({ updateInfo: { version: '1.3.0' } })
+      expect(autoUpdater.channel).toBe(UpgradeChannel.LATEST)
+      expect(ipc.broadcastToType).not.toHaveBeenCalledWith(
+        'main',
+        'app.updater.available',
+        expect.objectContaining({ version: '1.2.3-beta.1' })
+      )
+      expect(ipc.broadcastToType).toHaveBeenCalledWith(
+        'main',
+        'app.updater.available',
+        expect.objectContaining({ version: '1.3.0' })
+      )
+    })
+
+    it('keeps an auto-download failure terminal when it fires before the check returns', async () => {
+      const listeners = new Map<string, (...args: unknown[]) => void>()
+      vi.mocked(autoUpdater.on).mockImplementation(((event: string, handler: (...args: unknown[]) => void) => {
+        listeners.set(event, handler)
+        return autoUpdater
+      }) as typeof autoUpdater.on)
+      const updater = appUpdater as unknown as {
+        registerDisposable: () => void
+        registerAutoUpdaterListeners: () => void
+      }
+      updater.registerDisposable = () => undefined
+      updater.registerAutoUpdaterListeners()
+      const ipc = application.get('IpcApiService')
+      const release = { version: '1.3.0', files: [], path: 'app.dmg', sha512: 'x', releaseDate: '2026-01-01' }
+      autoUpdater.autoDownload = true
+      // A macOS manifest without a ZIP rejects the auto download before checkForUpdates resolves.
+      vi.mocked(autoUpdater.checkForUpdates).mockImplementationOnce(async () => {
+        listeners.get('update-available')?.(release)
+        listeners.get('error')?.(new Error('ZIP file not provided'))
+        return {
+          isUpdateAvailable: true,
+          updateInfo: release,
+          cancellationToken: { cancel: vi.fn() },
+          downloadPromise: Promise.reject(new Error('ZIP file not provided'))
+        } as never
+      })
+
+      await appUpdater.checkForUpdates()
+
+      const events = vi.mocked(ipc.broadcastToType).mock.calls.map(([, event]) => event)
+      expect(events).toContain('app.updater.error')
+      expect(events.slice(events.indexOf('app.updater.error'))).not.toContain('app.updater.available')
+    })
+
+    it('drops a click queued behind a lookup when the channel changes before the click starts', async () => {
+      let releaseFirst: (value: unknown) => void = () => undefined
+      vi.mocked(autoUpdater.checkForUpdates)
+        .mockImplementationOnce(
+          () =>
+            new Promise((resolve) => {
+              releaseFirst = resolve
+            }) as never
+        )
+        .mockResolvedValue({
+          isUpdateAvailable: true,
+          updateInfo: { version: '1.3.0', files: [], path: 'app.zip', sha512: 'x', releaseDate: '2026-01-01' },
+          cancellationToken: { cancel: vi.fn() }
+        } as never)
+      vi.mocked(autoUpdater.downloadUpdate).mockResolvedValue([])
+      MockMainPreferenceServiceUtils.setPreferenceValue('app.dist.test_plan.enabled', true)
+      MockMainPreferenceServiceUtils.setPreferenceValue('app.dist.test_plan.channel', UpgradeChannel.BETA)
+
+      const slowLookup = appUpdater.checkForUpdates()
+      await vi.waitFor(() => expect(autoUpdater.checkForUpdates).toHaveBeenCalledTimes(1))
+      const queuedClick = appUpdater.checkForUpdates()
+      appUpdater.cancelDownload()
+      MockMainPreferenceServiceUtils.setPreferenceValue('app.dist.test_plan.channel', UpgradeChannel.RC)
+      releaseFirst({ isUpdateAvailable: false, updateInfo: { version: '1.0.0' } })
+
+      await slowLookup
+      await expect(queuedClick).resolves.toMatchObject({ updateInfo: null })
+      expect(autoUpdater.checkForUpdates).toHaveBeenCalledTimes(1)
+      expect(autoUpdater.downloadUpdate).not.toHaveBeenCalled()
+    })
+
+    it('installs only the artifact the dialog confirmed, not one a later channel downloaded', async () => {
+      const listeners = new Map<string, (...args: unknown[]) => void>()
+      vi.mocked(autoUpdater.on).mockImplementation(((event: string, handler: (...args: unknown[]) => void) => {
+        listeners.set(event, handler)
+        return autoUpdater
+      }) as typeof autoUpdater.on)
+      const updater = appUpdater as unknown as {
+        registerDisposable: () => void
+        registerAutoUpdaterListeners: () => void
+      }
+      updater.registerDisposable = () => undefined
+      updater.registerAutoUpdaterListeners()
+      const release = (version: string) => ({
+        version,
+        files: [],
+        path: 'app.zip',
+        sha512: 'x',
+        releaseDate: '2026-01-01'
+      })
+      const checked = (version: string) => ({
+        isUpdateAvailable: true,
+        updateInfo: release(version),
+        cancellationToken: { cancel: vi.fn() }
+      })
+      vi.mocked(autoUpdater.downloadUpdate).mockResolvedValue([])
+      MockMainPreferenceServiceUtils.setPreferenceValue('app.dist.test_plan.enabled', true)
+      MockMainPreferenceServiceUtils.setPreferenceValue('app.dist.test_plan.channel', UpgradeChannel.BETA)
+      vi.mocked(autoUpdater.checkForUpdates).mockResolvedValueOnce(checked('1.3.0-beta.1') as never)
+      await appUpdater.checkForUpdates()
+      listeners.get('update-downloaded')?.(release('1.3.0-beta.1'))
+
+      appUpdater.cancelDownload()
+      await expect(appUpdater.quitAndInstall('1.3.0-beta.1')).rejects.toMatchObject({ code: 'VALIDATION_FAILED' })
+
+      MockMainPreferenceServiceUtils.setPreferenceValue('app.dist.test_plan.channel', UpgradeChannel.RC)
+      vi.mocked(autoUpdater.checkForUpdates).mockResolvedValueOnce(checked('1.3.0-rc.1') as never)
+      await appUpdater.checkForUpdates()
+      listeners.get('update-downloaded')?.(release('1.3.0-rc.1'))
+
+      await expect(appUpdater.quitAndInstall('1.3.0-beta.1')).rejects.toMatchObject({ code: 'VALIDATION_FAILED' })
+      expect(application.markQuitting).not.toHaveBeenCalled()
+
+      await appUpdater.quitAndInstall('1.3.0-rc.1')
+      expect(autoUpdater.quitAndInstall).toHaveBeenCalledOnce()
+    })
+
+    describe('a confirmed installation while the updater moves on', () => {
+      const release = (version: string) => ({
+        version,
+        files: [],
+        path: 'app.exe',
+        sha512: 'x',
+        releaseDate: '2026-01-01'
+      })
+      const checked = (version: string) => ({
+        isUpdateAvailable: true,
+        updateInfo: release(version),
+        cancellationToken: { cancel: vi.fn() }
+      })
+      let listeners: Map<string, (...args: unknown[]) => void>
+
+      beforeEach(async () => {
+        listeners = new Map()
+        vi.mocked(autoUpdater.on).mockImplementation(((event: string, handler: (...args: unknown[]) => void) => {
+          listeners.set(event, handler)
+          return autoUpdater
+        }) as typeof autoUpdater.on)
+        const updater = appUpdater as unknown as {
+          registerDisposable: () => void
+          registerAutoUpdaterListeners: () => void
+        }
+        updater.registerDisposable = () => undefined
+        updater.registerAutoUpdaterListeners()
+        vi.mocked(autoUpdater.downloadUpdate).mockResolvedValue([])
+        vi.mocked(autoUpdater.checkForUpdates).mockResolvedValueOnce(checked('1.3.0') as never)
+        await appUpdater.checkForUpdates()
+        listeners.get('update-downloaded')?.(release('1.3.0'))
+      })
+
+      it('rejects the confirmed release once a same-channel download of another one starts', async () => {
+        // electron-updater points its installer at the new file before it emits update-downloaded.
+        vi.mocked(autoUpdater.checkForUpdates).mockImplementationOnce(async () => {
+          listeners.get('update-available')?.(release('1.3.1'))
+          return checked('1.3.1') as never
+        })
+        await appUpdater.checkForUpdates()
+
+        await expect(appUpdater.quitAndInstall('1.3.0')).rejects.toMatchObject({ code: 'VALIDATION_FAILED' })
+        expect(autoUpdater.quitAndInstall).not.toHaveBeenCalled()
+
+        listeners.get('update-downloaded')?.(release('1.3.1'))
+        await appUpdater.quitAndInstall('1.3.1')
+        expect(autoUpdater.quitAndInstall).toHaveBeenCalledOnce()
+      })
+
+      it('tells windows the downloaded release is gone when a check announcing another one fails', async () => {
+        const ipc = application.get('IpcApiService')
+        vi.mocked(ipc.broadcastToType).mockClear()
+        // A macOS manifest without a ZIP fails the auto download before checkForUpdates resolves.
+        vi.mocked(autoUpdater.checkForUpdates).mockImplementationOnce(async () => {
+          listeners.get('update-available')?.(release('1.3.1'))
+          listeners.get('error')?.(new Error('ZIP file not provided'))
+          return checked('1.3.1') as never
+        })
+        await (
+          appUpdater as unknown as { performUpdateCheck: (manual: boolean) => Promise<unknown> }
+        ).performUpdateCheck(false)
+
+        const events = vi.mocked(ipc.broadcastToType).mock.calls.map(([, event]) => event)
+        expect(events).not.toContain('app.updater.available')
+        expect(events).toContain('app.updater.download_revoked')
+        await expect(appUpdater.quitAndInstall('1.3.0')).rejects.toMatchObject({ code: 'VALIDATION_FAILED' })
+      })
+
+      it('fails only the install attempt when the native installer fails during a pending lookup', async () => {
+        const ipc = application.get('IpcApiService')
+        let finishLookup: (value: unknown) => void = () => undefined
+        vi.mocked(autoUpdater.checkForUpdates).mockImplementationOnce(
+          () =>
+            new Promise((resolve) => {
+              finishLookup = resolve
+            }) as never
+        )
+        const lookup = (
+          appUpdater as unknown as { performUpdateCheck: (manual: boolean) => Promise<unknown> }
+        ).performUpdateCheck(false)
+        await vi.waitFor(() => expect(autoUpdater.checkForUpdates).toHaveBeenCalledTimes(2))
+        // The Debian installer and its recovery command both fail synchronously inside quitAndInstall.
+        vi.mocked(autoUpdater.quitAndInstall).mockImplementationOnce(() => {
+          listeners.get('error')?.(new Error('dpkg failed'))
+        })
+        vi.mocked(ipc.broadcastToType).mockClear()
+
+        await expect(appUpdater.quitAndInstall('1.3.0')).rejects.toBeTruthy()
+        expect(ipc.broadcastToType).not.toHaveBeenCalledWith('main', 'app.updater.error', expect.anything())
+
+        listeners.get('update-available')?.(release('1.3.1'))
+        finishLookup(checked('1.3.1'))
+        await lookup
+        listeners.get('update-downloaded')?.(release('1.3.1'))
+
+        expect(ipc.broadcastToType).toHaveBeenCalledWith(
+          'main',
+          'app.updater.downloaded',
+          expect.objectContaining({ version: '1.3.1' })
+        )
+        await expect(appUpdater.quitAndInstall('1.3.0')).rejects.toMatchObject({ code: 'VALIDATION_FAILED' })
+        await appUpdater.quitAndInstall('1.3.1')
+        expect(autoUpdater.quitAndInstall).toHaveBeenCalledTimes(2)
+      })
+
+      it('fails the install attempt when Squirrel.Mac reports an error after quitAndInstall returns', async () => {
+        platformState.mac = true
+        const ipc = application.get('IpcApiService')
+        let finishLookup: (value: unknown) => void = () => undefined
+        vi.mocked(autoUpdater.checkForUpdates).mockImplementationOnce(
+          () =>
+            new Promise((resolve) => {
+              finishLookup = resolve
+            }) as never
+        )
+        const lookup = (
+          appUpdater as unknown as { performUpdateCheck: (manual: boolean) => Promise<unknown> }
+        ).performUpdateCheck(false)
+        await vi.waitFor(() => expect(autoUpdater.checkForUpdates).toHaveBeenCalledTimes(2))
+        // Squirrel.Mac fetches the staged ZIP after quitAndInstall returns and fails later.
+        vi.mocked(autoUpdater.quitAndInstall).mockImplementationOnce(() => undefined)
+        // Like MacUpdater's constructor, re-emit Squirrel's native error on the updater's error stream.
+        const reemit = (error: Error) => listeners.get('error')?.(error)
+        nativeUpdater.on('error', reemit)
+        onTestFinished(() => {
+          nativeUpdater.removeListener('error', reemit)
+        })
+        vi.mocked(ipc.broadcastToType).mockClear()
+
+        const install = appUpdater.quitAndInstall('1.3.0')
+        const outcome = install.then(
+          () => 'resolved',
+          (error: { code?: string }) => error.code
+        )
+        await vi.waitFor(() => expect(autoUpdater.quitAndInstall).toHaveBeenCalledOnce())
+        await new Promise((resolve) => setImmediate(resolve))
+        nativeUpdater.emit('error', new Error('Code signature did not pass validation'))
+
+        await expect(outcome).resolves.toBe('INTERNAL')
+        expect(ipc.broadcastToType).not.toHaveBeenCalledWith('main', 'app.updater.error', expect.anything())
+
+        listeners.get('update-available')?.(release('1.3.1'))
+        finishLookup(checked('1.3.1'))
+        await lookup
+        expect(ipc.broadcastToType).toHaveBeenCalledWith(
+          'main',
+          'app.updater.available',
+          expect.objectContaining({ version: '1.3.1' })
+        )
+
+        // MacUpdater keeps the failed attempt claimed, so a retry must fail instead of waiting forever.
+        listeners.get('update-downloaded')?.(release('1.3.1'))
+        await expect(appUpdater.quitAndInstall('1.3.1')).rejects.toMatchObject({ code: 'INTERNAL' })
+        expect(autoUpdater.quitAndInstall).toHaveBeenCalledOnce()
+      })
+
+      it('leaves a scheduled lookup failure with the lookup while Squirrel.Mac is still handing off', async () => {
+        platformState.mac = true
+        const ipc = application.get('IpcApiService')
+        let failLookup: (error: Error) => void = () => undefined
+        vi.mocked(autoUpdater.checkForUpdates).mockImplementationOnce(
+          () =>
+            new Promise((_resolve, reject) => {
+              failLookup = reject
+            }) as never
+        )
+        const lookup = (
+          appUpdater as unknown as { performUpdateCheck: (manual: boolean) => Promise<unknown> }
+        ).performUpdateCheck(false)
+        await vi.waitFor(() => expect(autoUpdater.checkForUpdates).toHaveBeenCalledTimes(2))
+        // Squirrel.Mac fetches the staged ZIP after quitAndInstall returns and hands off later.
+        vi.mocked(autoUpdater.quitAndInstall).mockImplementationOnce(() => undefined)
+        vi.mocked(ipc.broadcastToType).mockClear()
+
+        const install = appUpdater.quitAndInstall('1.3.0')
+        const outcome = install.then(
+          () => 'resolved',
+          (error: { code?: string }) => error.code
+        )
+        await vi.waitFor(() => expect(autoUpdater.quitAndInstall).toHaveBeenCalledOnce())
+        // AppUpdater dispatches a lookup failure on the shared error stream before rejecting the check.
+        const lookupError = new Error('net::ERR_INTERNET_DISCONNECTED')
+        listeners.get('error')?.(lookupError)
+        failLookup(lookupError)
+        await expect(lookup).rejects.toBe(lookupError)
+
+        expect(ipc.broadcastToType).toHaveBeenCalledWith('main', 'app.updater.error', lookupError)
+        nativeUpdater.emit('before-quit-for-update')
+        await expect(outcome).resolves.toBe('resolved')
+      })
     })
 
     it('fetches and validates release history through the managed release service', async () => {
