@@ -224,7 +224,7 @@ itself prove that no window is in effect.
 ### Recovering from a context-length rejection
 
 When context building and compression are enabled for a persistent Chat, a recognized context-length
-HTTP 400 before a model step produces output triggers one in-loop compaction and retries that model
+provider error before a model step produces output triggers one in-loop compaction and retries that model
 request. Completed tool calls are not replayed. If the request has no foldable history, compaction
 fails, or the retried request also fails, the error is returned instead of retrying indefinitely.
 The original conversation remains intact; this recovery's compacted view lasts for the current request.
@@ -240,8 +240,10 @@ The shared matcher in `packages/aiCore/src/contextOverflow.ts` recognizes provid
 `context_length_exceeded`, `too many tokens`, `maximum context length`,
 `context window`, `prompt is too long`, `input is too long`, and llama.cpp's
 `exceeds the available context size`. Both overflow recovery and
-`src/shared/utils/errorCategory.ts` use it; recovery also requires an AI SDK HTTP 400 error and excludes
-authentication, quota, and rate-limit failures.
+`src/shared/utils/errorCategory.ts` use it. Recovery accepts HTTP 400 and statusless
+provider errors, including a stream error whose structured code identifies the overflow.
+The provider adapter classifies these errors before compaction and model retry.
+Authentication, quota, and rate-limit failures do not trigger compaction.
 The error toast offers one action for that category: `trimContext`, wired in
 `src/renderer/utils/errorToast.ts` and handled in `useChatRuntimeState.ts`.
 

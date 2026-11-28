@@ -3,7 +3,7 @@ import { APICallError, JSONParseError, RetryError, TypeValidationError } from 'a
 import { getSafeProviderErrorMessage, serializeNestedProviderError } from '@shared/ai/providerError'
 import type { SerializedError } from '@shared/types/error'
 import type { Serializable } from '@shared/types/serializable'
-import { classifyErrorCategory, isErrorCategory } from '@shared/utils/errorCategory'
+import { isErrorCategory } from '@shared/utils/errorCategory'
 import { hasReportingOwner } from '@shared/utils/errorReporting'
 
 /** Lenient JSON serialization with circular-reference safety.
@@ -110,29 +110,10 @@ export function serializeError(error: unknown): SerializedError {
     return serialized
   }
   const safeMessage = getSafeProviderErrorMessage({ data: error })
-  const plain =
-    typeof error === 'object' && error !== null && !Array.isArray(error)
-      ? (error as { status?: unknown; statusCode?: unknown; code?: unknown; error?: { code?: unknown } })
-      : undefined
-  const rawStatus = typeof plain?.statusCode === 'number' ? plain.statusCode : plain?.status
-  const statusCode =
-    typeof rawStatus === 'number' && Number.isInteger(rawStatus) && rawStatus >= 400 && rawStatus <= 599
-      ? rawStatus
-      : undefined
-  const codeText = [
-    typeof plain?.error?.code === 'string' ? plain.error.code : undefined,
-    typeof plain?.code === 'string' ? plain.code : undefined
-  ]
-    .filter(Boolean)
-    .join('\n')
-  const overflowCategory =
-    codeText && classifyErrorCategory({ text: codeText }) === 'context_length' ? 'context_length' : undefined
   return {
     name: null,
     message: safeMessage || (typeof error === 'object' && error !== null ? null : String(error)),
     stack: null,
-    ...(statusCode !== undefined ? { statusCode } : {}),
-    ...(overflowCategory ? { providerErrorCategory: overflowCategory } : {}),
     ...ownership
   }
 }

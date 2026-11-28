@@ -12,6 +12,7 @@ import { APICallError, generateText, streamText, type UIMessageChunk } from 'ai'
 import { Elysia } from 'elysia'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
+import { normalizeProviderError } from '@main/ai/runtime/aiSdk/params/features/providerErrorBoundary'
 import { SseListener } from '@main/ai/streamManager/listeners/SseListener'
 import { pipeStreamLoop } from '@main/ai/streamManager/pipeStreamLoop'
 import { serializeError } from '@main/ai/utils/serializeError'
@@ -1024,13 +1025,13 @@ describe('statusless context-overflow classification (#24258)', () => {
 
   it.each([
     {
-      id: 'raw-error',
-      input: () => Object.assign(new Error(overflowText), markers),
+      id: 'provider-error-text',
+      input: () => serializeError(normalizeProviderError(overflowText)),
       expectedMessage: `context_length_exceeded: ${overflowText}`
     },
     {
       id: 'serialized-error',
-      input: () => serializeError(new Error(overflowText)),
+      input: () => serializeError(normalizeProviderError({ message: overflowText })),
       expectedMessage: `context_length_exceeded: ${overflowText}`
     },
     {
@@ -1048,37 +1049,49 @@ describe('statusless context-overflow classification (#24258)', () => {
     {
       id: 'code-only-overflow',
       input: () =>
-        serializeError({
-          type: 'error',
-          error: { code: 'context_length_exceeded', message: 'The request cannot be processed.' },
-          ...markers
-        }),
+        serializeError(
+          normalizeProviderError({
+            ...markers,
+            type: 'error',
+            error: { code: 'context_length_exceeded', message: 'The request cannot be processed.' }
+          })
+        ),
       expectedMessage: 'context_length_exceeded: The request cannot be processed.'
     },
     {
       id: 'code-only-responses-400-overflow',
       input: () =>
-        serializeError({
-          status: 400,
-          code: 'context_length_exceeded',
-          message: 'The request cannot be processed.',
-          ...markers
-        }),
+        serializeError(
+          normalizeProviderError({
+            ...markers,
+            status: 400,
+            code: 'context_length_exceeded',
+            message: 'The request cannot be processed.'
+          })
+        ),
       expectedMessage: 'context_length_exceeded: The request cannot be processed.'
     },
     {
       id: 'redacts-secret-in-overflow',
-      input: () => new Error(`${overflowText} Authorization: Bearer sk-private-fixture`),
+      input: () => serializeError(normalizeProviderError(`${overflowText} Authorization: Bearer sk-private-fixture`)),
       expectedMessage: `context_length_exceeded: ${overflowText} Authorization: "<redacted>"`
     },
     {
       id: 'redacts-bare-token-in-overflow',
-      input: () => new Error(`${overflowText} sk-ant-api03-fixture0123456789abcdef012345`),
+      input: () => serializeError(normalizeProviderError(`${overflowText} sk-ant-api03-fixture0123456789abcdef012345`)),
+      expectedMessage: `context_length_exceeded: ${overflowText} <redacted>`
+    },
+    {
+      id: 'redacts-bare-token-in-http-400-overflow',
+      input: () =>
+        serializeError(
+          normalizeProviderError({ status: 400, message: `${overflowText} sk-ant-api03-fixture0123456789abcdef012345` })
+        ),
       expectedMessage: `context_length_exceeded: ${overflowText} <redacted>`
     },
     {
       id: 'drops-json-container-in-overflow',
-      input: () => new Error(`${overflowText} {"prompt":"MARKER_PRIVATE_MESSAGE"}`),
+      input: () => serializeError(normalizeProviderError(`${overflowText} {"prompt":"MARKER_PRIVATE_MESSAGE"}`)),
       expectedMessage: 'context_length_exceeded: Context length exceeded'
     }
   ])('maps public statusless overflow ($id) to HTTP 400 across all dialects and stream boundaries', async (sample) => {
@@ -1180,7 +1193,7 @@ describe('statusless context-overflow classification (#24258)', () => {
   )
 
   it('shapes statusless internal runtime overflows for Claude Code compaction and OpenAI/Pi clients', () => {
-    const plainOverflow = new Error(overflowText)
+    const plainOverflow = normalizeProviderError({ message: overflowText })
     const anthropicErr = objectGatewayError(plainOverflow, serializeError(plainOverflow), 'anthropic') as Error & {
       status?: number
       error?: { type: string; error: { type: string; message: string } }
@@ -1192,9 +1205,9 @@ describe('statusless context-overflow classification (#24258)', () => {
       error: { type: 'invalid_request_error', message: `Prompt is too long: ${overflowText}` }
     })
 
-    const countedOverflow = new Error(
-      "This model's maximum context length is 128000 tokens. However, you requested 140000 tokens."
-    )
+    const countedOverflow = normalizeProviderError({
+      message: "This model's maximum context length is 128000 tokens. However, you requested 140000 tokens."
+    })
     const countedErr = objectGatewayError(countedOverflow, serializeError(countedOverflow), 'anthropic') as Error & {
       status?: number
     }

@@ -2463,7 +2463,11 @@ export class AiStreamManager extends BaseService {
       }
       const fromThrow = serializeError(result.threw.error)
       const serialized =
-        result.streamErrorText !== undefined && !signal.aborted && !hasHttpMetadata(fromThrow) && !fromThrow.i18nKey
+        result.streamErrorText !== undefined &&
+        !signal.aborted &&
+        !hasHttpMetadata(fromThrow) &&
+        !fromThrow.providerErrorCategory &&
+        !fromThrow.i18nKey
           ? errorFromStreamChunk(result.streamErrorText)
           : fromThrow
       if (fromThrow.reportingHandled === true) serialized.reportingHandled = true

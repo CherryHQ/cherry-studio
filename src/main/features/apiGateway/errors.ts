@@ -8,7 +8,6 @@ import { isDev } from '@main/core/platform'
 import { getSafeProviderErrorMessage } from '@shared/ai/providerError'
 import { DataApiError } from '@shared/data/api/errors'
 import type { SerializedError } from '@shared/types/error'
-import { classifyErrorCategory } from '@shared/utils/errorCategory'
 import { redactSecretTokens } from '@shared/utils/redaction'
 
 import type { OutputFormat } from './adapters'
@@ -156,22 +155,12 @@ function googleStatusName(status: number): string {
  * extras (`stack`, `url`, `requestBodyValues`, `responseBody`, `responseHeaders`)
  * are intentionally ignored so they never reach the client.
  */
-const JS_RUNTIME_ERROR_NAMES = new Set([
-  'TypeError',
-  'ReferenceError',
-  'SyntaxError',
-  'RangeError',
-  'URIError',
-  'EvalError'
-])
-
 function extractError(error: unknown): {
   status?: number
   message?: string
   type?: string
   name?: string
   code?: string
-  errorCode?: string
   category?: string
   errorSource?: string
 } {
@@ -184,7 +173,7 @@ function extractError(error: unknown): {
     message?: unknown
     providerErrorCategory?: unknown
     errorSource?: unknown
-    error?: { type?: unknown; message?: unknown; code?: unknown }
+    error?: { type?: unknown; message?: unknown }
   }
   // Prefer `status` (HTTP libs / OpenAI APIError), then `statusCode` (AI-SDK APICallError / SerializedError).
   const status = typeof e.status === 'number' ? e.status : typeof e.statusCode === 'number' ? e.statusCode : undefined
@@ -194,10 +183,9 @@ function extractError(error: unknown): {
   const type = typeof e.error?.type === 'string' ? e.error.type : undefined
   const name = typeof e.name === 'string' ? e.name : undefined
   const code = typeof e.code === 'string' ? e.code : undefined
-  const errorCode = typeof e.error?.code === 'string' ? e.error.code : undefined
   const category = typeof e.providerErrorCategory === 'string' ? e.providerErrorCategory : undefined
   const errorSource = typeof e.errorSource === 'string' ? e.errorSource : undefined
-  return { status, message, type, name, code, errorCode, category, errorSource }
+  return { status, message, type, name, code, category, errorSource }
 }
 
 /**
@@ -213,6 +201,12 @@ function safeMessage(status: number | undefined, message: string | undefined): s
   return isDev && message && message.length > 0 ? message : fallback
 }
 
+function publicContextOverflowMessage(message: string | undefined): string {
+  const detail =
+    getSafeProviderErrorMessage({ message: redactSecretTokens(message ?? '') }) || 'Context length exceeded'
+  return `context_length_exceeded: ${detail}`
+}
+
 function normalizeProviderError(error: unknown): {
   statusCode: number
   message: string
@@ -221,7 +215,7 @@ function normalizeProviderError(error: unknown): {
 } {
   const extracted = extractError(error)
   const details = detailsOf(error)
-  const { status, name, code, errorCode, category, errorSource } = extracted
+  const { status, name, code, category, errorSource } = extracted
   const message = typeof details?.error.message === 'string' ? details.error.message : extracted.message
   const type = typeof details?.error.type === 'string' ? details.error.type : extracted.type
   if (status !== undefined)
@@ -229,7 +223,7 @@ function normalizeProviderError(error: unknown): {
       statusCode: status >= 200 && status < 300 ? 502 : status,
       message:
         !details && status === 400 && category === 'context_length'
-          ? `context_length_exceeded: ${safeMessage(status, message)}`
+          ? publicContextOverflowMessage(message)
           : safeMessage(status, message),
       type,
       category
@@ -248,32 +242,14 @@ function normalizeProviderError(error: unknown): {
   if (name === 'AbortError' || name === 'ResponseAborted' || code === 'ABORT_ERR') {
     return { statusCode: 504, message: 'Upstream stream aborted', type }
   }
-  if (errorSource !== 'local' && (!name || !JS_RUNTIME_ERROR_NAMES.has(name))) {
-    const detailsCode = typeof details?.error.code === 'string' ? details.error.code : undefined
-    const classificationText = [message, detailsCode, errorCode, code].filter(Boolean).join('\n')
-    const resolvedCategory =
-      (category && category !== 'unknown' ? category : undefined) ??
-      (classificationText ? classifyErrorCategory({ text: classificationText }) : undefined)
-    if (resolvedCategory === 'context_length') {
-      if (details) {
-        return {
-          statusCode: 400,
-          message: message && message.length > 0 ? message : 'Context length exceeded',
-          type,
-          category: 'context_length'
-        }
-      }
-      const safeDetail = getSafeProviderErrorMessage({
-        message: typeof message === 'string' ? redactSecretTokens(message) : message
-      })
-      return {
-        statusCode: 400,
-        message: safeDetail
-          ? `context_length_exceeded: ${safeDetail}`
-          : 'context_length_exceeded: Context length exceeded',
-        type,
-        category: 'context_length'
-      }
+  if (errorSource !== 'local' && category === 'context_length') {
+    return {
+      statusCode: 400,
+      message: details
+        ? getSafeProviderErrorMessage({ message }) || 'Context length exceeded'
+        : publicContextOverflowMessage(message),
+      type,
+      category
     }
   }
   return { statusCode: 500, message: details && message ? message : safeMessage(undefined, message), type }

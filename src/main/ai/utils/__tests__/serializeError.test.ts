@@ -1,6 +1,7 @@
 import { APICallError, JSONParseError, NoSuchToolError, RetryError, TypeValidationError } from 'ai'
 import { describe, expect, it } from 'vitest'
 
+import { normalizeProviderError } from '@main/ai/runtime/aiSdk/params/features/providerErrorBoundary'
 import { createLocalError } from '@shared/utils/localError'
 
 import { serializeError } from '../serializeError'
@@ -76,8 +77,8 @@ describe('serializeError', () => {
       expect(JSON.stringify(result)).not.toMatch(/object-secret|nested-secret|\[object Object\]/)
     })
 
-    it('preserves validated status and overflow category from a code-only structured overflow object', () => {
-      const result = serializeError({
+    it('preserves validated status and category after the provider boundary classifies a code-only overflow', () => {
+      const providerError = {
         type: 'error',
         status: 400,
         error: {
@@ -86,10 +87,10 @@ describe('serializeError', () => {
         },
         apiKey: 'object-secret',
         prompt: 'private prompt'
-      })
+      }
+      const result = serializeError(normalizeProviderError(providerError))
 
-      expect(result).toEqual({
-        name: null,
+      expect(result).toMatchObject({
         message: 'The request cannot be processed.',
         stack: null,
         statusCode: 400,
