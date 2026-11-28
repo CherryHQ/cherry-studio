@@ -50,6 +50,8 @@ export interface CreateRichEditorExtensionsOptions {
   onRowActionClick?: TableActionHandler<'rowIndex'>
   /** Table column action-menu trigger. */
   onColumnActionClick?: TableActionHandler<'colIndex'>
+  /** Directory used to resolve relative image sources for display only. */
+  imageBaseDir?: string
   /** Whether image input rules and insertion commands are enabled. */
   enableImageInsertion?: boolean
   /** Slash-menu commands hidden for this editor instance. */
@@ -78,6 +80,7 @@ export const createRichEditorExtensions = (options: CreateRichEditorExtensionsOp
     mathInlineOptions,
     onRowActionClick,
     onColumnActionClick,
+    imageBaseDir,
     enableImageInsertion = true,
     disabledCommands
   } = options
@@ -116,7 +119,7 @@ export const createRichEditorExtensions = (options: CreateRichEditorExtensionsOp
       blockOptions: mathBlockOptions,
       inlineOptions: mathInlineOptions
     }),
-    EnhancedImage.configure({ enableInputRules: enableImageInsertion }),
+    EnhancedImage.configure({ enableInputRules: enableImageInsertion, imageBaseDir }),
     Placeholder.configure({
       placeholder,
       showOnlyWhenEditable: true,

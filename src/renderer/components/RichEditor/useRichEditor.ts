@@ -49,6 +49,8 @@ export interface UseRichEditorOptions {
   enableSpellCheck?: boolean
   /** Accessible name for the editing surface, for editors with no visible label */
   ariaLabel?: string
+  /** Directory used to resolve relative image sources for display only. */
+  imageBaseDir?: string
   /** Whether users can insert images */
   enableImageInsertion?: boolean
   /** Slash-menu commands hidden for this editor instance */
@@ -107,6 +109,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
     autoFocus = true,
     enableSpellCheck = false,
     ariaLabel,
+    imageBaseDir,
     enableImageInsertion = true,
     disabledCommands,
     onShowTableActionMenu,
@@ -275,11 +278,20 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
         onColumnActionClick: ({ colIndex, position }) => {
           showTableActionMenu('column', colIndex, position)
         },
+        imageBaseDir,
         enableImageInsertion,
         disabledCommands
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [placeholder, activeCodeTheme, handleLinkHover, handleLinkHoverEnd, enableImageInsertion, disabledCommands]
+    [
+      placeholder,
+      activeCodeTheme,
+      handleLinkHover,
+      handleLinkHoverEnd,
+      imageBaseDir,
+      enableImageInsertion,
+      disabledCommands
+    ]
   )
 
   const editor = useEditor({

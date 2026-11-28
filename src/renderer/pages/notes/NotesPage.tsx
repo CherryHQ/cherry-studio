@@ -79,6 +79,12 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
   const noteByPathRef = useRef(noteByPath)
   const { activeNode } = useActiveNode(notesTree, activeFilePath)
 
+  const noteFilePath = activeFilePath || activeNode?.externalPath
+  const imageBaseDir = noteFilePath?.slice(
+    0,
+    Math.max(noteFilePath.lastIndexOf('/'), noteFilePath.lastIndexOf('\\')) + 1
+  )
+
   const activeFileHandle = useMemo(
     () => (activeFilePath ? createFilePathHandle(activeFilePath) : undefined),
     [activeFilePath]
@@ -1134,6 +1140,7 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
               key={`${fileSession.sessionId}:${fileSession.documentEpoch}`}
               readOnly={fileSession.readOnly}
               activeNodeId={editorNodeId}
+              imageBaseDir={imageBaseDir}
               voiceNoteId={activeNode?.type === 'file' ? voiceNoteId : undefined}
               currentContent={currentContent}
               contentLoadError={contentLoadError}

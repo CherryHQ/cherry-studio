@@ -135,4 +135,83 @@ describe('NotesEditor RichEditor integration', () => {
     })
     await waitFor(() => expect(externalContent).toBe(String.raw`edited \[ a^2+b^2=c^2 \] after`))
   })
+
+  it('renders note-relative images in preview and read without rewriting, and preserves them across edits', async () => {
+    const user = userEvent.setup()
+    const editorRef: RefObject<RichEditorRef | null> = { current: null }
+    const initialContent = [
+      '# Export folder note',
+      '',
+      'Body line before the image.',
+      '',
+      '![](assets/img-1.png)',
+      '',
+      'Body line after the image.'
+    ].join('\n')
+    let externalContent = initialContent
+    const TestEditor = () => {
+      const [content, setContent] = useState(initialContent)
+      return (
+        <NotesEditor
+          activeNodeId="/notes/QA-relative-image-note.md"
+          imageBaseDir="/notes/"
+          currentContent={content}
+          tokenCount={content.length}
+          editorRef={editorRef}
+          codeEditorRef={{ current: null }}
+          onMarkdownChange={(next) => {
+            externalContent = next
+            setContent(next)
+          }}
+        />
+      )
+    }
+    const { container } = render(<TestEditor />)
+
+    const expectResolvedImage = async () => {
+      await waitFor(
+        () => expect(container.querySelector('img')?.getAttribute('src')).toBe('file:///notes/assets/img-1.png'),
+        { timeout: 10_000 }
+      )
+    }
+
+    await expectResolvedImage()
+    expect(externalContent).toBe(initialContent)
+
+    await user.click(screen.getByRole('combobox'))
+    await user.click(screen.getByRole('option', { name: 'notes.settings.editor.view_mode.read_mode' }))
+    await expectResolvedImage()
+    expect(externalContent).toBe(initialContent)
+
+    await user.click(screen.getByRole('combobox'))
+    await user.click(screen.getByRole('option', { name: 'notes.settings.editor.edit_mode.preview_mode' }))
+    await expectResolvedImage()
+    expect(externalContent).toBe(initialContent)
+
+    const endPos = editorRef.current!.getContent().length + 4
+    act(() => {
+      const surface = container.querySelector<HTMLElement>('[contenteditable="true"]')!
+      surface.focus()
+      editorRef.current?.executeCommand('setTextSelection', endPos)
+      editorRef.current?.executeCommand('splitBlock')
+      editorRef.current?.insertText('Edited during acceptance check.')
+    })
+
+    await waitFor(() =>
+      expect(externalContent).toBe(
+        [
+          '# Export folder note',
+          '',
+          'Body line before the image.',
+          '',
+          '![](assets/img-1.png)',
+          '',
+          'Body line after the image.',
+          '',
+          'Edited during acceptance check.'
+        ].join('\n')
+      )
+    )
+    expect(container.querySelector('img')?.getAttribute('src')).toBe('file:///notes/assets/img-1.png')
+  })
 })

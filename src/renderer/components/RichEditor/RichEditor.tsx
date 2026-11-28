@@ -174,6 +174,7 @@ const RichEditor = ({
   fontSize = 16,
   enableSpellCheck = false,
   ariaLabel,
+  imageBaseDir,
   enableImageInsertion = true,
   disabledCommands
   // toolbarItems: _toolbarItems // TODO: Implement custom toolbar items
@@ -190,6 +191,7 @@ const RichEditor = ({
     autoFocus,
     enableSpellCheck,
     ariaLabel,
+    imageBaseDir,
     enableImageInsertion,
     disabledCommands,
     scrollParent: () => scrollContainerRef.current,
