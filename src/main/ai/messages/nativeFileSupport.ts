@@ -22,8 +22,8 @@ import {
 } from '@shared/utils/model'
 import { isAzureOpenAIProvider } from '@shared/utils/provider'
 
-import { usesAzureAnthropicRuntime } from '../../provider/azure'
-import { resolveVertexRuntimeProviderId } from '../../provider/vertex'
+import { usesAzureAnthropicRuntime } from '../provider/azure'
+import { resolveVertexRuntimeProviderId } from '../provider/vertex'
 import type { AppProviderId } from '../types'
 
 /** What a (provider, model) accepts as a native user-message file part. */

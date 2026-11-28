@@ -14,11 +14,7 @@ import { assistantDataService } from '@data/services/AssistantService'
 import { messageService } from '@data/services/MessageService'
 import { topicService } from '@data/services/TopicService'
 import { loggerService } from '@logger'
-import {
-  COMPACTION_INPUT_SAFETY_RATIO,
-  COMPACTION_MIN_INPUT_BUDGET,
-  CONTEXT_COMPACT_KEEP_BUDGET_OF_TRIGGER
-} from '@main/ai/constants'
+import { CONTEXT_COMPACT_KEEP_BUDGET_OF_TRIGGER } from '@main/ai/constants'
 import { resolveCompressionBudget } from '@main/ai/contextBuild/resolveCompressionBudget'
 import { resolveAttachmentBudget } from '@main/ai/messages/attachmentBudget'
 import { collectFileAttachments, prepareChatMessagesForEstimate } from '@main/ai/messages/attachmentRouting'
@@ -58,7 +54,6 @@ import {
 } from '../../contextBuild/resolveRequestContextSettings'
 import { toModelMessages } from '../../messages/messageRules'
 import { applyTurnInputAttributes, startAiChildTurnSpan } from '../../observability'
-import { resolveAiSdkProviderId, resolveEffectiveEndpoint } from '../../provider/endpoint'
 import { wrapSteerReminder } from '../../steerReminder'
 import { resolveModelTokenDialect, type TokenDialect } from '../../tokens/dialect'
 import { estimateModelMessagesSync } from '../../tokens/footprint'
