@@ -249,6 +249,44 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
         ruleId: 'mise-mutation'
       })
     })
+
+    it('enforces global-install, plan denial, and mise-mutation on PowerShell tool calls too', async () => {
+      const globalInput = { command: 'npm install -g left-pad' }
+      await expect(evaluate(makeCtx({ toolName: 'PowerShell', input: globalInput }))).resolves.toMatchObject({
+        effect: 'ask',
+        ruleId: 'global-install'
+      })
+      await expect(
+        evaluate(makeCtx({ toolName: 'PowerShell', permissionMode: 'plan', input: globalInput }))
+      ).resolves.toEqual({
+        effect: 'deny',
+        ruleId: 'global-install-plan',
+        reason: GLOBAL_INSTALL_PLAN_DENIAL
+      })
+      await expect(
+        evaluate(makeCtx({ toolName: 'PowerShell', interaction: HEADLESS, input: globalInput }))
+      ).resolves.toEqual({
+        effect: 'deny',
+        ruleId: 'global-install',
+        reason: GLOBAL_INSTALL_UNATTENDED_DENIAL
+      })
+      await expect(
+        evaluate(makeCtx({ toolName: 'PowerShell', permissionMode: 'bypassPermissions', input: globalInput }))
+      ).resolves.toBeUndefined()
+      await expect(
+        evaluate(
+          makeCtx({
+            toolName: 'PowerShell',
+            permissionMode: 'bypassPermissions',
+            input: { command: 'mise use -g fd' }
+          })
+        )
+      ).resolves.toEqual({
+        effect: 'deny',
+        ruleId: 'mise-mutation',
+        reason: 'Blocked: direct mise mutation (use cli_search / cli_install).'
+      })
+    })
   })
 
   describe('skill-absent-dependency', () => {
@@ -307,8 +345,26 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
       ).resolves.toBeUndefined()
     })
 
+    it('denies a stuck PowerShell loop at the hard threshold in every mode, bypass included', async () => {
+      for (const mode of ['default', 'bypassPermissions'] as const) {
+        const decision = await evaluate(makeCtx({ ...loopingCtx(5), toolName: 'PowerShell', permissionMode: mode }))
+        expect(decision?.ruleId).toBe('bash-repeat-no-progress')
+        expect(decision?.effect).toBe('deny')
+        expect(decision?.reason).toContain('PowerShell')
+        expect(decision?.reason).toContain('5 times')
+      }
+    })
+
     it('does not gate non-Bash tools or calls without a command', async () => {
-      await expect(evaluate(makeCtx({ toolName: 'Read', bashNoProgressRun: () => 5 }))).resolves.toBeUndefined()
+      await expect(
+        evaluate(
+          makeCtx({
+            toolName: 'Read',
+            input: { command: 'curl -s http://localhost/health' },
+            bashNoProgressRun: () => 5
+          })
+        )
+      ).resolves.toBeUndefined()
       await expect(evaluate(makeCtx({ bashNoProgressRun: () => 5 }))).resolves.toBeUndefined()
     })
   })
@@ -579,17 +635,22 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
     })
 
     it('asks (soft) for a file-tool path outside the allowed roots', async () => {
-      const decision = await evaluate(
-        makeCtx({ toolName: 'Read', cwd, agentDataPath, input: { file_path: path.join(root, 'outside.txt') } })
-      )
-      expect(decision?.ruleId).toBe('workspace-escape')
-      expect(decision?.effect).toBe('ask')
-      expect(decision?.reason).toContain(cwd)
+      for (const toolName of ['Read', 'Edit', 'MultiEdit', 'Write'] as const) {
+        const decision = await evaluate(
+          makeCtx({ toolName, cwd, agentDataPath, input: { file_path: path.join(root, 'outside.txt') } })
+        )
+        expect(decision?.ruleId).toBe('workspace-escape')
+        expect(decision?.effect).toBe('ask')
+        expect(decision?.reason).toContain(cwd)
+      }
     })
 
     it('stays silent for paths inside the workspace or agent data directory', async () => {
       await expect(
         evaluate(makeCtx({ toolName: 'Read', cwd, agentDataPath, input: { file_path: path.join(cwd, 'a.txt') } }))
+      ).resolves.toBeUndefined()
+      await expect(
+        evaluate(makeCtx({ toolName: 'MultiEdit', cwd, agentDataPath, input: { file_path: path.join(cwd, 'a.txt') } }))
       ).resolves.toBeUndefined()
       await expect(
         evaluate(

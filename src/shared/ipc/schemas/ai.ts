@@ -325,6 +325,7 @@ export const aiRequestSchemas = {
       // With a requestId: also push each text delta to the caller as `ai.text.delta` while generating.
       streamDeltas: z.boolean().optional(),
       ...aiChatRequestShape,
+      utilityTask: z.boolean().optional(),
       disableTools: z.boolean().optional(),
       reasoningEffort: ReasoningEffortOptionSchema.optional(),
       serviceTier: ServiceTierSelectionSchema.optional(),
@@ -417,7 +418,8 @@ export const aiRequestSchemas = {
           reasoningEffort: ReasoningEffortOptionSchema.optional(),
           serviceTier: ServiceTierSelectionSchema.optional(),
           fastMode: z.boolean().optional(),
-          followUp: z.boolean().optional()
+          followUp: z.boolean().optional(),
+          resendUnsentMessageId: z.uuid().optional()
         }),
         z.object({
           ...aiStreamRegenerateShape,
@@ -499,10 +501,6 @@ export const aiRequestSchemas = {
       value: z.union([z.string(), z.boolean()])
     }),
     output: z.custom<LocalAgentSessionInfo>()
-  }),
-  'ai.local_agents.set_mode': defineRoute({
-    input: z.strictObject({ sessionId: z.string().min(1), configId: z.string().min(1), value: z.string() }),
-    output: z.custom<LocalAgentSessionView>()
   }),
   'ai.local_agents.set_thought_level': defineRoute({
     input: z.strictObject({
@@ -721,13 +719,23 @@ export const aiRequestSchemas = {
       topicId: z.string().min(1),
       change: z.discriminatedUnion('type', [
         z.strictObject({
+          type: z.literal('begin-edit'),
+          inputId: z.uuid(),
+          revision: z.int().nonnegative(),
+          token: z.uuid()
+        }),
+        z.strictObject({ type: z.literal('cancel-edit'), inputId: z.uuid(), token: z.uuid() }),
+        z.strictObject({
           type: z.literal('edit'),
           inputId: z.uuid(),
           revision: z.int().nonnegative(),
-          text: z.string()
+          token: z.uuid(),
+          parts: z.array(z.custom<CherryMessagePart>())
         }),
         z.strictObject({ type: z.literal('reorder'), before: z.array(z.uuid()), after: z.array(z.uuid()) }),
-        z.strictObject({ type: z.literal('withdraw'), inputId: z.uuid() })
+        z.strictObject({ type: z.literal('withdraw'), inputId: z.uuid() }),
+        z.strictObject({ type: z.literal('steer'), inputId: z.uuid() }),
+        z.strictObject({ type: z.literal('resume') })
       ])
     }),
     output: z.boolean()

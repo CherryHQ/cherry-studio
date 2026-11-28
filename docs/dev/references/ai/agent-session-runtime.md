@@ -301,13 +301,21 @@ Stop is now the only abort source). `enqueueUserMessage()`:
    for an interactive input on the current config. When the connected operation declares durable
    persistence, the Composer sends Enter with `followUp: true` while busy. Other runtimes keep
    the draft in the dock until idle. Pi Durable persists those submissions in its native queue.
-   The dock shows the native waiting order and supports editing, reordering and withdrawing queued
-   inputs. When Durable places the input, the driver emits `run-started` after the preceding
+   The dock shows the native waiting order and supports reordering and withdrawing queued inputs.
+   Editing opens the Work composer after Durable marks the waiting entry. Earlier follow-ups can
+   run while that entry and later follow-ups wait. Saving updates the original entry and clears
+   the edit mark in one native commit. Main saves the complete product input before native submission and keeps it off the
+   conversation branch while it waits. Placement publishes the input and reserves its reply
+   in the same transaction. Admission records the original request ID for recovery in Durable.
+   Startup reconciles those IDs with their committed submissions. Opening the session also checks
+   inputs saved before admission. When Durable places the input, the driver emits `run-started` after the preceding
    answer. Main gives it a distinct Run and holds the handoff until the source reply has an open
-   stream and any earlier handoff settles. Steers keep the existing Run and reply. The preceding reply settles as answered at the boundary; Durable reports its
-   input's outcome when the run ends, and the host then replaces a reply whose input did not
-   complete. An autonomous reply settles at that boundary, and a deferred user turn resumes
-   there. Only explicit refusal permits fallback to Main’s queue.
+   stream and any earlier handoff settles. Steers keep the existing Run and reply. The host uses
+   the input outcomes associated with its reply, including steers spanning native runs.
+   When a provider failure leaves follow-ups queued, the failed reply settles and the follow-ups
+   remain available in the dock.
+   An autonomous reply settles at that boundary, and a deferred user turn resumes there.
+   Only explicit refusal permits fallback to Main’s queue.
    An input queued before a restart has no entry-side context; the host reads its bound user
    message instead. If that input starts native work by itself, it also gets a new reply.
 3. **No eligible native operation** —
@@ -367,7 +375,7 @@ positions retain their order independently of the canonical assistant row.
 
 A `run-checkpoint` event identifies its owning Run through the stable input association and native
 context. Main retains evidence received before placement creates a reply, attaches it to an active
-Run, or updates only the private checkpoint of an already successful Run. A later session-wide
+Run, or updates only the private checkpoint of an already successful Run. A later foreground
 completion cannot replace that exact answer position. Pi Durable obtains these positions from
 committed submission answers, independently of foreground inactivity; cold pending-reply recovery
 commits the same evidence with its terminal body. Receiving a checkpoint does not terminate a Run.
@@ -377,12 +385,17 @@ The first segment retains the Run's message ID; later keys combine the Run ID wi
 first part ID. `sourceMessageId` retains the durable owner for approvals, usage and fork. Only the
 last segment exposes the completed Run's fork boundary and statistics. Existing open text and tools
 stay in their original segment; a steer never cuts a string or moves a tool into a new parent.
-Only the first visible content segment owns the Run identity header; subsequent segments keep their
-body and tool parents without repeating it. Boundary compaction parts are separate marker rows with
+A pending Run without parts shows its identity header after its latest placed input. Every visible
+content segment shows that header. Boundary compaction parts are separate marker rows with
 no assistant header, action footer or selection checkbox. In-loop compaction remains inside its process
 group. A paused Run projects one stable interrupted marker from its persisted terminal status,
 after both its last content and its latest placed input. Unplaced queue inputs and
 inputs owned by other Runs do not move that marker.
+
+Once a steer joins a Run, process groups in segments before that input use the completed
+disclosure when their parts settle. Unfinished thinking, tool calls, and approvals keep their
+group active. A focused tool stays mounted until focus leaves its group. Assistant prose remains
+inline before and after the steer, including when the Run ends as paused.
 
 The segment layout selects stable part IDs from the shared projection reader. Text and tool progress
 continue through keyed part subscriptions; only new membership or a baseline changes the list projection.
@@ -1371,12 +1384,14 @@ files remain untouched. Restoring an older backup repeats the same conversion.
 Pi and Pi Durable model calls exchange native protocol request/event objects with Cherry's gateway
 in process, without internal HTTP/JSON/SSE codecs or a listener dependency. The gateway resolves
 the configured provider/model and owns credentials, request options and billing through Cherry's
-provider execution path. Pi remains the sole tool executor and loop owner. Desktop Pi and Pi Durable
-disable native provider retries for roots and children. Internal object requests reuse `ai-retry`
-with three retries for retryable failures before the first content chunk; partial streams are not replayed.
-AI SDK built-in retries remain disabled.
-The final upstream error is preserved. Public HTTP gateway requests retain their no-retry policy.
-A later user input can start a new run after a failure.
+provider execution path. Each harness owns its tool execution and loop. Internal object requests use
+`ai-retry` with three retries for eligible failures before content. For desktop Pi Durable roots and
+children, the AI SDK integration classifies provider errors and plans retries. The AI stream manager
+reports idle timeouts. The harness persists the plan in its generation checkpoint and resumes when
+the delay expires. An explicitly offline or suspended network waits with persisted backoff. Resets and
+truncated streams use a finite budget. Both can issue a new model request within the original run,
+retaining committed tool results and excluding interrupted drafts from model context. The final error
+retains its upstream cause. AI SDK built-in retries and public HTTP gateway request retries remain disabled.
 
 ## Internal Agent continuation normalization
 
@@ -1434,8 +1449,9 @@ For connections subject to the idle timer, expiry closes the entry:
 Service stop and destroy close all runtime entries. User Stop (`stopSession()`) additionally
 invokes an optional connection `interrupt()` before closing, including when the visible stream has
 already finished but background work remains. A `retainOnStop` connection (Pi Durable) is
-interrupted but not closed: Stop withdraws queued follow-ups, and the host marks each withdrawn user
-message `paused`, which the transcript shows as not sent with Resend and Edit. The connection's `stopping`
+interrupted and remains open. Stop pauses waiting follow-ups in the native inbox. They keep their order
+and submission IDs across reopen and require an explicit resume to start draining again. A natural turn
+completion drains a running queue. The connection's `stopping`
 occupancy keeps the session busy and holds later input until the connection emits
 `stop-confirmed`. After stop confirmation, Main checks every input admitted to the stopped Run. A completed original
 input cannot replace the paused status while a steered input was aborted or remains unresolved.

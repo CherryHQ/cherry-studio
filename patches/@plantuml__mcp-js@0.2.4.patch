@@ -1,0 +1,12 @@
+diff --git a/engine.js b/engine.js
+--- a/engine.js
++++ b/engine.js
+@@ -35480,6 +35480,8 @@
+     nsp_FileFormatOption__init_($fileFormatOption, nsp_FileFormat_SVG_DETERMINISTIC);
+     $tb = $diagram.$getTextBlock(0, $fileFormatOption);
+     $backcolor = $tb.$getBackcolor();
++    if ($backcolor === null && $diagram instanceof nsp_TitledDiagram)
++        $backcolor = nsps_SkinParam_getBackgroundColor($diagram.$skinParam0);
+     if ($backcolor === null) {
+         nspkc_HColors_$callClinit();
+         $scale = nspkc_HColors_WHITE;

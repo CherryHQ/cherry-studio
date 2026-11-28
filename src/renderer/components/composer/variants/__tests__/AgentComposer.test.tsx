@@ -1610,10 +1610,13 @@ describe('AgentComposer', () => {
     )
   })
 
-  it('reuses QuickPanel permission-mode toolbar for local modes, wires Shift+Tab plan toggling safely, and routes config/security options', async () => {
+  it('dispatches the same Plan Only launcher for a local Shift+Tab shortcut', async () => {
     mocks.pinnedToolIds = ['permission-mode']
+    const togglePlan = vi.fn()
+    mocks.optionalQuickPanel = { isVisible: false } as typeof mocks.optionalQuickPanel
     mocks.toolLaunchers = [
-      { id: 'permission-mode', kind: 'group', sources: ['popover'], label: 'Permission Mode', icon: null, submenu: [] }
+      { id: 'permission-mode', kind: 'group', sources: ['popover'], label: 'Permission Mode', icon: null, submenu: [] },
+      { id: 'plan-mode', kind: 'command', sources: ['root-panel'], label: 'Plan Only', icon: null, action: togglePlan }
     ]
     const info = {
       models: [],
@@ -1664,36 +1667,9 @@ describe('AgentComposer', () => {
     expect(getControls().queryByLabelText('code.adv.permission_mode')).toBeNull()
     expect(getControls().queryByLabelText('local_agents.configuration')).not.toBeInTheDocument()
 
-    // Shift+Tab enters plan mode via ai.local_agents.set_mode.
-    expect(mocks.surfaceProps?.onShiftTab).toBeTypeOf('function')
     act(() => mocks.surfaceProps?.onShiftTab?.())
-    await waitFor(() =>
-      expect(mocks.ipcApiRequest).toHaveBeenCalledWith('ai.local_agents.set_mode', {
-        sessionId: 'session-1',
-        configId: 'mode',
-        value: 'plan'
-      })
-    )
-
-    // Even if previously in high-risk yolo mode, leaving plan via Shift+Tab falls back to safe default.
-    mocks.ipcApiRequest.mockImplementation(async (route) =>
-      route === 'ai.local_agents.session_info'
-        ? { info: { ...info, mode: { ...info.mode, currentValue: 'plan' } } }
-        : {}
-    )
-    view.rerender(<AgentComposer {...props} sessionId="session-plan-safe" />)
-    await waitFor(() =>
-      expect(
-        (mocks.runtimeHostProps?.session?.localPermission?.mode as { currentValue?: string } | undefined)?.currentValue
-      ).toBe('plan')
-    )
-    act(() => mocks.surfaceProps?.onShiftTab?.())
-    await waitFor(() =>
-      expect(mocks.ipcApiRequest).toHaveBeenCalledWith('ai.local_agents.set_mode', {
-        sessionId: 'session-plan-safe',
-        configId: 'mode',
-        value: 'default'
-      })
+    expect(togglePlan).toHaveBeenCalledWith(
+      expect.objectContaining({ source: 'root-panel', quickPanel: mocks.optionalQuickPanel })
     )
 
     for (const isStreaming of [true, false]) {

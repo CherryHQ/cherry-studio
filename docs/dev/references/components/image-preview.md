@@ -121,8 +121,8 @@ Web Worker that runs the PlantUML TeaVM headless engine. Graphviz-based layouts
 use Viz.js. The worker runs one diagram at a time and terminates when an active
 request is cancelled or exceeds 10 s. The next request starts a fresh worker.
 
-The preview keeps a white backing for PlantUML's light SVG colours. It sends no
-source to an external service. Unavailable includes, including external URLs,
+The SVG uses the background defined in the diagram. A white preview backing
+remains behind the SVG. The preview sends no source to an external service. Unavailable includes, including external URLs,
 local files, and unbundled standard-library files, surface as render errors.
 The SVG sanitizer strips automatically loaded image and stylesheet elements.
 

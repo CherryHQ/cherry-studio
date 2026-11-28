@@ -2,7 +2,6 @@ import { LoaderCircle, ScanLine, Settings2, Terminal, ToolCase } from 'lucide-re
 import React, { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { requiresPermissionConfirmation } from '@cherrystudio/agent-runtime/cli'
 import { Alert, Badge, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { AgentContextUsageSummary } from '@renderer/components/chat/agent/AgentContextUsageSummary'
@@ -72,11 +71,7 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 import type { ThinkingOption } from '@renderer/types/reasoning'
 import { TopicType } from '@renderer/types/topic'
-import {
-  findLocalDefaultNonPlanOption,
-  findLocalPlanModeOption,
-  isUnifiedLocalPermissionMode
-} from '@renderer/utils/agent/localAgentLabels'
+import { findLocalPlanModeOption, isUnifiedLocalPermissionMode } from '@renderer/utils/agent/localAgentLabels'
 import { buildAgentFileWorkspaceKey } from '@renderer/utils/agentSession'
 import { anyFileExt, excludeFileExt, isSupportedExtension } from '@renderer/utils/file'
 import {
@@ -88,9 +83,10 @@ import {
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { resolveReasoningEffortForModel } from '@renderer/utils/model'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
+import type { AgentSessionFollowup } from '@shared/ai/agentSessionFollowups'
 import { AGENT_SESSION_RUNTIME_CONTROLS_CACHE_KEY } from '@shared/ai/agentSessionRuntimeControls'
 import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
-import { getLocalAgentProtocol } from '@shared/ai/localAgent'
+import { getLocalAgentProtocol, getLocalSessionPermission } from '@shared/ai/localAgent'
 import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
 import { isManagedCherryCloudModel } from '@shared/data/presets/cherryai'
 import type { AgentEntity } from '@shared/data/types/agent'
@@ -202,6 +198,7 @@ export interface AgentComposerSendBody {
   serviceTier?: ServiceTierSelection
   fastMode?: boolean
   followUp?: boolean
+  resendUnsentMessageId?: string
 }
 
 export type AgentComposerSendOptions = { body?: AgentComposerSendBody }
@@ -237,6 +234,7 @@ type Props = {
   compactWhenSingleLine?: boolean
   previewInputFile?: ComposerInputFilePreviewAction
   launchOptions?: AgentComposerLaunchOptions
+  onEditQueuedFollowup?: (topicId: string, item: AgentSessionFollowup) => void
   /** Sends during a running turn steer it instead of queueing, for windows that cannot keep a queue alive. */
   steerWhileBusy?: boolean
   /** The latest reply failed because a provider other than Cherry Cloud ran out of quota. */
@@ -272,6 +270,7 @@ const AgentComposerRoot = ({
   compactWhenSingleLine = false,
   previewInputFile,
   launchOptions,
+  onEditQueuedFollowup,
   steerWhileBusy = false,
   providerQuotaExhausted = false,
   renderControls,
@@ -453,6 +452,7 @@ const AgentComposerRoot = ({
         compactWhenSingleLine={compactWhenSingleLine}
         previewInputFile={previewInputFile}
         launchOptions={launchOptions}
+        onEditQueuedFollowup={onEditQueuedFollowup}
         steerWhileBusy={steerWhileBusy}
         providerQuotaExhausted={providerQuotaExhausted}
         renderControls={renderControls}
@@ -499,6 +499,7 @@ interface InnerProps {
   compactWhenSingleLine: boolean
   previewInputFile?: ComposerInputFilePreviewAction
   launchOptions?: AgentComposerLaunchOptions
+  onEditQueuedFollowup?: (topicId: string, item: AgentSessionFollowup) => void
   steerWhileBusy: boolean
   providerQuotaExhausted: boolean
   renderControls: AgentComposerControlsRenderer
@@ -591,6 +592,7 @@ const AgentComposerInner = ({
   compactWhenSingleLine,
   previewInputFile,
   launchOptions,
+  onEditQueuedFollowup,
   steerWhileBusy,
   providerQuotaExhausted,
   renderControls,
@@ -722,29 +724,19 @@ const AgentComposerInner = ({
   }, [usingSlash, requestCommands])
   const usesCherryPermissionMode = (capabilities?.permissionModes.length ?? 0) > 0
   const supportsPlan = capabilities?.permissionModes.some((mode) => mode === 'plan') ?? false
-  const localMode = localInfo?.mode ?? localView?.idleMode
   const localEffort = localInfo?.thoughtLevel
   const localExtraOptions = useMemo(() => {
     return localInfo?.configOptions?.filter(
       (option) => option.category !== 'model_config' && option.category !== 'model' && option.id !== localEffort?.id
     )
   }, [localInfo?.configOptions, localEffort?.id])
-  const nativePermissionSelection = isUnifiedLocalPermissionMode(localMode) ? localMode : undefined
-  const localPermissionSelection =
-    localInfo?.launchPermission ??
-    localView?.idleLaunchPermission ??
-    localInfo?.hostPermission ??
-    localView?.idleHostPermission ??
-    nativePermissionSelection
+  const localPermissionCatalog = localInfo
+    ? getLocalSessionPermission(localInfo)
+    : (localView?.idleLaunchPermission ?? localView?.idleHostPermission ?? localView?.idleMode)
+  const localPermissionSelection = isUnifiedLocalPermissionMode(localPermissionCatalog)
+    ? localPermissionCatalog
+    : undefined
   const localPlanOption = useMemo(() => findLocalPlanModeOption(localPermissionSelection), [localPermissionSelection])
-  const lastNonPlanLocalModeRef = useRef<{ sessionId: string; value: string } | null>(null)
-  const localPlanSwitchInFlightRef = useRef(false)
-  useEffect(() => {
-    if (!localPermissionSelection || !localPlanOption) return
-    if (localPermissionSelection.currentValue !== localPlanOption.value) {
-      lastNonPlanLocalModeRef.current = { sessionId, value: localPermissionSelection.currentValue }
-    }
-  }, [localPermissionSelection, localPlanOption, sessionId])
   const runtimeControls = useSharedCacheValue(AGENT_SESSION_RUNTIME_CONTROLS_CACHE_KEY(sessionId))
   const hasDurableFollowUp = runtimeControls?.durableFollowUp ?? false
   const inputDelivery = runtimeControls?.delivery?.status
@@ -772,44 +764,6 @@ const AgentComposerInner = ({
     const launcher = getLaunchers('root-panel').find((entry) => entry.id === 'plan-mode')
     if (launcher && quickPanel) dispatchLauncher(launcher, { quickPanel, source: 'root-panel' })
   }, [dispatchLauncher, getLaunchers, quickPanel])
-  const toggleLocalPlanMode = useCallback(() => {
-    if (isStreaming || localPlanSwitchInFlightRef.current || !localPermissionSelection || !localPlanOption) return
-    const activeSelection = localPermissionSelection
-    const isCurrentlyPlan = activeSelection.currentValue === localPlanOption.value
-    let targetValue: string | undefined
-    if (!isCurrentlyPlan) {
-      targetValue = localPlanOption.value
-    } else {
-      const remembered =
-        lastNonPlanLocalModeRef.current?.sessionId === sessionId ? lastNonPlanLocalModeRef.current.value : undefined
-      const rememberedOption = remembered
-        ? activeSelection.options.find((option) => option.value === remembered)
-        : undefined
-      if (
-        rememberedOption &&
-        rememberedOption.value !== localPlanOption.value &&
-        !requiresPermissionConfirmation(rememberedOption)
-      ) {
-        targetValue = rememberedOption.value
-      } else {
-        targetValue = findLocalDefaultNonPlanOption(activeSelection, localPlanOption.value)?.value
-      }
-    }
-    if (!targetValue || targetValue === activeSelection.currentValue) return
-    localPlanSwitchInFlightRef.current = true
-    void ipcApi
-      .request('ai.local_agents.set_mode', {
-        sessionId,
-        configId: activeSelection.id,
-        value: targetValue
-      })
-      .catch((error) => {
-        toast.error(String(error))
-      })
-      .finally(() => {
-        localPlanSwitchInFlightRef.current = false
-      })
-  }, [isStreaming, localPermissionSelection, localPlanOption, sessionId])
   const rootPanelVisible =
     layerActive && Boolean(quickPanel?.isVisible && quickPanel.symbol === ComposerPanelSymbol.Root)
   const skillsPanelVisible =
@@ -1566,7 +1520,7 @@ const AgentComposerInner = ({
   )
 
   const sendQueuedPayload = useCallback(
-    async (payload: ComposerQueuedMessagePayload, followUp = false) => {
+    async (payload: ComposerQueuedMessagePayload, followUp = false, resendUnsentMessageId?: string) => {
       if (sendDisabled) return false
       try {
         const attachments = (payload.attachments as ComposerAttachment[] | undefined) ?? []
@@ -1596,7 +1550,8 @@ const AgentComposerInner = ({
               reasoningEffort: payload.reasoningEffort,
               serviceTier: payload.serviceTier,
               ...(payload.fastMode ? { fastMode: true } : {}),
-              ...(followUp ? { followUp: true } : {})
+              ...(followUp ? { followUp: true } : {}),
+              ...(resendUnsentMessageId ? { resendUnsentMessageId } : {})
             }
           }
         )
@@ -1745,7 +1700,11 @@ const AgentComposerInner = ({
       const data = payload as { topicId?: string; messageId?: string; parts?: CherryMessagePart[]; send?: boolean }
       if (!data?.messageId || !data.parts?.length || data.topicId !== sessionTopicId) return
       if (data.send) {
-        void sendQueuedPayload({ text: getComposerHistoryText(data.parts), userMessageParts: data.parts }, isStreaming)
+        void sendQueuedPayload(
+          { text: getComposerHistoryText(data.parts), userMessageParts: data.parts },
+          isStreaming,
+          data.messageId
+        )
         return
       }
       if (actionsRef.current.getDraft().text.trim() || filesRef.current.length > 0) {
@@ -2077,7 +2036,7 @@ const AgentComposerInner = ({
             launchOptions?.editing ? { ...launchOptions.editing, cancelDisabled: isDirectSending } : undefined
           }
           onPause={abortAgentSession}
-          onShiftTab={supportsPlan ? togglePlanMode : localPlanOption ? toggleLocalPlanMode : undefined}
+          onShiftTab={supportsPlan || localPlanOption ? togglePlanMode : undefined}
           queueContent={
             <>
               {quotaExhaustion ? <CherryCloudQuotaNotice exhaustion={quotaExhaustion} /> : null}
@@ -2102,8 +2061,13 @@ const AgentComposerInner = ({
                   description={compaction.error}
                 />
               )}
-              {hasDurableFollowUp && !launchOptions?.editing ? (
-                <NativeQueuedFollowups key={runtimeTopicId} topicId={runtimeTopicId} />
+              {hasDurableFollowUp && onEditQueuedFollowup ? (
+                <NativeQueuedFollowups
+                  key={runtimeTopicId}
+                  topicId={runtimeTopicId}
+                  canSteer={isStreaming}
+                  onEdit={launchOptions?.editing ? undefined : onEditQueuedFollowup}
+                />
               ) : null}
               {queuedFollowups.length > 0 ? (
                 <QueuedFollowupsDock

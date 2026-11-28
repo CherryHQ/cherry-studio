@@ -2,7 +2,9 @@
  * Normalizes function-tool JSON Schemas into what providers actually accept.
  *
  * Every function tool loses `$schema` and the advisory keywords rejected by
- * Gemini's Schema proto (issue #10052).
+ * Gemini's Schema proto (issue #10052), as well as non-portable regex `pattern`
+ * keywords (such as `\u` escapes, lone surrogates, or invalid regexes) rejected
+ * by strict provider schema validators (issue #24524).
  *
  * Strict tools additionally lose validation keywords outside the sampling
  * grammar subset accepted by Anthropic and OpenAI (issue #18037).
@@ -43,7 +45,7 @@ import type { LanguageModelMiddleware } from 'ai'
 
 import { definePlugin } from '@cherrystudio/ai-core'
 import { loggerService } from '@logger'
-import { normalizeRootObjectSchema } from '@main/ai/utils/toolSchema'
+import { normalizeRootObjectSchema, stripIncompatibleSchemaPatterns } from '@main/ai/utils/toolSchema'
 import { ENDPOINT_TYPE, isUniqueModelId } from '@shared/data/types/model'
 import { isGeminiModel } from '@shared/utils/model'
 
@@ -374,6 +376,7 @@ function normalizeToolSchemas(params: LanguageModelV3CallOptions, scope: Request
     }
     const keywords = tool.strict === true ? STRICT_UNSUPPORTED : new Set(ALWAYS_UNSUPPORTED)
     inputSchema = stripKeywords(inputSchema, keywords)
+    inputSchema = stripIncompatibleSchemaPatterns(inputSchema)
     if (isGeminiEndpoint) inputSchema = stripKeywords(inputSchema, GEMINI_UNSUPPORTED)
     if (isGeminiEndpoint || isChatGeminiModel) {
       inputSchema = mapSchemas(inputSchema, (node) => {

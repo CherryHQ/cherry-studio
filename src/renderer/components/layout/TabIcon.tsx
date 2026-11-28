@@ -13,7 +13,7 @@ import { getTabIcon } from './tabIcons'
 
 /**
  * Renders a tab's icon: a per-entity emoji, a CLI avatar, a mini-app logo,
- * an image url, or — when no icon is set — the route's default lucide glyph.
+ * an image url, or — when no icon is set — the route's default glyph.
  * Shared by the main tab strip (AppShellTabBar) and the sub-window title bar.
  */
 export const TabIcon: FC<{ tab: Tab; size: number; className?: string }> = ({ tab, size, className }) => {

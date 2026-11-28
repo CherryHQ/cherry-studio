@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/architecture/2026-11-28-model-retry.md
+2026-11-28-model-retry.md: 628901928a1cd8cbeae13a3288c5ac7fcd69f441
+2026-11-28-model-retry.zh.md: 5eb15edbdf83f498308397e229f79db75e4fb8e6

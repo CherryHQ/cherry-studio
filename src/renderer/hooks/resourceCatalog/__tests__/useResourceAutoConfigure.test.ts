@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useResourceAutoConfigure } from '../useResourceAutoConfigure'
 
-const fetchGenerate = vi.hoisted(() => vi.fn<(input: { content: string }) => Promise<string>>())
+const fetchGenerate = vi.hoisted(() => vi.fn<(input: { content: string; utilityTask?: boolean }) => Promise<string>>())
 const installPreset = vi.hoisted(() => vi.fn())
 
 vi.mock('@renderer/utils/aiGeneration', () => ({ fetchGenerate }))
@@ -71,6 +71,7 @@ describe('useResourceAutoConfigure', () => {
       mcpServerIds: ['mcp-github'],
       knowledgeBaseIds: ['kb-docs']
     })
+    expect(fetchGenerate.mock.calls[0][0].utilityTask).toBe(true)
     const offered = fetchGenerate.mock.calls[0][0].content
     for (const hidden of ['skill-builtin', 'skill-off', 'mcp-inactive', 'mcp-browser']) {
       expect(offered).not.toContain(hidden)

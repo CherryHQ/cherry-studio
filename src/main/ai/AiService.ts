@@ -85,14 +85,16 @@ import { resolveEffectiveEndpoint, resolveWireModelId } from './provider/endpoin
 import { listModels as listModelsFromProvider, probeOllamaModel } from './provider/listModels'
 import { ToolContinuationRouteError } from './provider/replayRoute'
 import { resolveSdkConfig } from './provider/sdkConfig'
-import type { AgentLoopHooks, RequestFeature } from './runtime/aiSdk'
+import type { AgentLoopHooks, RecoverableModelTransportFailure, RequestFeature } from './runtime/aiSdk'
 import {
   Agent,
   buildAgentParams,
   buildApiKeyFallbackModels,
   buildFallbackModels,
   createRetryableWrap,
-  readRetryPolicy
+  readRetryPolicy,
+  recoverableModelTransportFailure,
+  resolveModelRetryPolicy
 } from './runtime/aiSdk'
 import { skillService } from './skills/SkillService'
 import type { AiStreamSource } from './streamManager'
@@ -185,32 +187,20 @@ function sourceSnapshotForAssistant(assistant: Assistant | undefined): SourceSna
     : undefined
 }
 
-function resolveTextRetryPolicy(
-  configured: ReturnType<typeof readRetryPolicy>,
-  requestMaxRetries: number | undefined,
-  hasApiKeyFallbacks: boolean
-): ReturnType<typeof readRetryPolicy> {
-  if (configured.enabled || !hasApiKeyFallbacks || requestMaxRetries === undefined || requestMaxRetries <= 0) {
-    return configured
-  }
-  return { ...configured, enabled: true, maxAttempts: Math.max(1, Math.trunc(requestMaxRetries)), fallbackModelIds: [] }
-}
-
 function createCallerRetryWrap(
   maxRetries: number | undefined,
-  onRetryEvent?: Parameters<typeof createRetryableWrap>[0]['onRetryEvent']
+  recoverOutputTokens: boolean | undefined,
+  onRetryEvent?: Parameters<typeof createRetryableWrap>[0]['onRetryEvent'],
+  handlesTransportRetry?: boolean
 ): ReturnType<typeof createRetryableWrap> {
-  if (maxRetries === undefined || maxRetries <= 0) return undefined
-  return createRetryableWrap({
-    retryPolicy: {
-      ...readRetryPolicy(),
-      enabled: true,
-      maxAttempts: Math.max(1, Math.trunc(maxRetries)),
-      fallbackModelIds: []
-    },
-    fallbacks: [],
-    onRetryEvent
+  if (!(maxRetries !== undefined && maxRetries > 0) && !recoverOutputTokens) return undefined
+  const policy = resolveModelRetryPolicy(readRetryPolicy(), {
+    owner: 'caller',
+    maxRetries,
+    recoverOutputTokens,
+    handlesTransportRetry
   })
+  return createRetryableWrap({ ...policy, fallbacks: [], onRetryEvent })
 }
 
 function createCaptureContext(input: {
@@ -300,6 +290,8 @@ export function mergeProviderModelsWithRegistry(remote: Partial<Model>[], regist
 export interface AiRequestOptions extends AiTransportOptions {
   /** In-process only. Renderer payloads use `AiTransportOptions` (no signal). */
   signal?: AbortSignal
+  /** Trusted caller owns retry scheduling for reported transport failures. */
+  onModelTransportFailure?: (failure: RecoverableModelTransportFailure) => void
 }
 
 /** Widens `requestOptions` to accept the in-process shape on `AiService.*` method signatures. */
@@ -658,6 +650,28 @@ export class AiService extends BaseService {
       throw new Error(`Agent session stream ${request.conversation.topicId} requires an agent-session runtime request`)
     }
 
+    const onFailure = request.requestOptions?.onModelTransportFailure
+    const reportTransportFailure =
+      onFailure &&
+      ((error: unknown) => {
+        if (signal.aborted) return
+        const failure = recoverableModelTransportFailure(error)
+        if (failure) onFailure(failure)
+      })
+    try {
+      return await this.streamSdkText(request, signal, extraFeatures, reportTransportFailure)
+    } catch (error) {
+      reportTransportFailure?.(error)
+      throw error
+    }
+  }
+
+  private async streamSdkText(
+    request: AsInProcessChat<AiStreamRequest>,
+    signal: AbortSignal,
+    extraFeatures: readonly RequestFeature[],
+    reportTransportFailure?: (error: unknown) => void
+  ): Promise<AiStreamSource> {
     const repairUsagePlugins: { current?: AiPlugin[] } = {}
     const {
       sdkConfig,
@@ -736,8 +750,11 @@ export class AiService extends BaseService {
       : undefined
     let wrapModel =
       request.contextOwner === 'caller'
-        ? createCallerRetryWrap(request.requestOptions?.maxRetries, (event) =>
-            agentRef.current?.write({ type: 'data-retry', id: 'retry', data: event })
+        ? createCallerRetryWrap(
+            request.requestOptions?.maxRetries,
+            request.retryOutputTokenLimit,
+            (event) => agentRef.current?.write({ type: 'data-retry', id: 'retry', data: event }),
+            !!reportTransportFailure
           )
         : undefined
     let sdkMaxRetries = wrapModel ? 0 : options.maxRetries
@@ -756,16 +773,17 @@ export class AiService extends BaseService {
             request.usageContext?.recordInvocation
           )
       })
-      const retryPolicy = resolveTextRetryPolicy(
-        readRetryPolicy(),
-        request.requestOptions?.maxRetries,
-        apiKeyFallbacks.length > 0
-      )
+      const { retryPolicy, outputTokenRetries } = resolveModelRetryPolicy(readRetryPolicy(), {
+        owner: 'chat',
+        maxRetries: request.requestOptions?.maxRetries,
+        hasApiKeyFallbacks: apiKeyFallbacks.length > 0
+      })
       if (retryPolicy.enabled || apiKeyFallbacks.length > 0) sdkMaxRetries = 0
       wrapModel = createRetryableWrap({
         primaryReplayRouteId,
         apiKeyFallbacks,
         retryPolicy,
+        outputTokenRetries,
         diagnosticContext: {
           chatId: request.conversation.topicId,
           messageId: request.messageId,
@@ -807,7 +825,7 @@ export class AiService extends BaseService {
     } else if (request.contextOwner !== 'caller') {
       wrapModel = createRetryableWrap({
         primaryReplayRouteId,
-        retryPolicy: { ...readRetryPolicy(), enabled: false },
+        ...resolveModelRetryPolicy(readRetryPolicy(), { owner: 'chat', maxRetries: 0 }),
         fallbacks: []
       })
     }
@@ -827,6 +845,16 @@ export class AiService extends BaseService {
       options: wrapModel ? { ...options, maxRetries: sdkMaxRetries, repairToolCall } : options,
       hookParts: [
         this.analyticsHookPart(model, request.tokenUsageSource ?? 'chat'),
+        ...(reportTransportFailure
+          ? [
+              {
+                onError: ({ error }) => {
+                  reportTransportFailure(error)
+                  return 'abort'
+                }
+              } satisfies Partial<AgentLoopHooks>
+            ]
+          : []),
         ...(request.runtimeTimingSink
           ? [
               {
@@ -958,7 +986,9 @@ export class AiService extends BaseService {
 
     // An explicit per-request `maxRetries: 0` disables retry for this request.
     let wrapModel =
-      request.contextOwner === 'caller' ? createCallerRetryWrap(request.requestOptions?.maxRetries) : undefined
+      request.contextOwner === 'caller'
+        ? createCallerRetryWrap(request.requestOptions?.maxRetries, request.retryOutputTokenLimit)
+        : undefined
     let sdkMaxRetries = wrapModel ? 0 : options.maxRetries
     if (request.contextOwner !== 'caller' && request.requestOptions?.maxRetries !== 0) {
       const apiKeyFallbacks = buildApiKeyFallbackModels({
@@ -974,16 +1004,17 @@ export class AiService extends BaseService {
             createAiUsageCaptureContext({ ...usageContext(), credentialReceipt: fallbackReceipt })
           )
       })
-      const retryPolicy = resolveTextRetryPolicy(
-        readRetryPolicy(),
-        request.requestOptions?.maxRetries,
-        apiKeyFallbacks.length > 0
-      )
+      const { retryPolicy, outputTokenRetries } = resolveModelRetryPolicy(readRetryPolicy(), {
+        owner: 'chat',
+        maxRetries: request.requestOptions?.maxRetries,
+        hasApiKeyFallbacks: apiKeyFallbacks.length > 0
+      })
       if (retryPolicy.enabled || apiKeyFallbacks.length > 0) sdkMaxRetries = 0
       wrapModel = createRetryableWrap({
         primaryReplayRouteId,
         apiKeyFallbacks,
         retryPolicy,
+        outputTokenRetries,
         diagnosticContext: { assistantId: request.assistantId },
         fallbacks: buildFallbackModels({
           request,
@@ -1018,7 +1049,7 @@ export class AiService extends BaseService {
     if (request.contextOwner !== 'caller' && request.requestOptions?.maxRetries === 0) {
       wrapModel = createRetryableWrap({
         primaryReplayRouteId,
-        retryPolicy: { ...readRetryPolicy(), enabled: false },
+        ...resolveModelRetryPolicy(readRetryPolicy(), { owner: 'chat', maxRetries: 0 }),
         fallbacks: []
       })
     }

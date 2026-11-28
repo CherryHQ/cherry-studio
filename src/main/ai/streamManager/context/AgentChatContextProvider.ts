@@ -82,6 +82,7 @@ export type ValidatedAgentDispatch = {
   userMessageId: string
   userMessageParts: CherryMessagePart[]
   deliveryMessage?: AgentSessionMessageEntity
+  resendUnsent?: Pick<AgentSessionMessageEntity, 'id' | 'updatedAt'>
   shouldAutoNameInitialTurn: boolean
 }
 
@@ -185,7 +186,11 @@ export class AgentChatContextProvider implements ChatContextProvider {
       throw new Error('Invalid durable agent delivery message')
     }
 
-    const userMessageParts = deliveryMessage?.data.parts ?? req.userMessageParts ?? []
+    const resendId = req.trigger === 'submit-message' ? req.resendUnsentMessageId : undefined
+    const unsent = resendId && agentSessionMessageService.getSessionMessage(sessionId, resendId)
+    if (unsent && (unsent.role !== 'user' || unsent.status !== 'paused' || unsent.delivery || deliveryMessage))
+      throw DataApiErrorFactory.resourceLocked('Message', unsent.id, 'a changed or already resent input')
+    const userMessageParts = (unsent ? unsent.data.parts : (deliveryMessage?.data.parts ?? req.userMessageParts)) ?? []
     if (
       !deliveryMessage &&
       !AGENT_RUNTIME_CAPABILITIES[agent.type].knowledgeBases &&
@@ -250,6 +255,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
       userMessageId: deliveryMessage?.id ?? uuidv7(),
       userMessageParts,
       ...(deliveryMessage ? { deliveryMessage } : {}),
+      ...(unsent && { resendUnsent: { id: unsent.id, updatedAt: unsent.updatedAt } }),
       shouldAutoNameInitialTurn
     }
   }
@@ -286,6 +292,8 @@ export class AgentChatContextProvider implements ChatContextProvider {
       },
       expectedAgent
     )
+    if (validated.resendUnsent)
+      agentSessionMessageService.removeResentUnsentMessageTx(tx, validated.sessionId, validated.resendUnsent)
     return {
       validated,
       assistantMessageId,
@@ -457,19 +465,28 @@ export class AgentChatContextProvider implements ChatContextProvider {
         throw DataApiErrorFactory.resourceLocked('Agent session', validated.sessionId, 'an active turn')
       }
       this.assertAppendable(validated)
-      const savedUserMessage = agentSessionMessageService.saveMessage(
-        {
-          sessionId: validated.sessionId,
-          parentId: validated.parentMessageId,
-          message: {
-            id: validated.userMessageId,
-            role: 'user',
-            status: 'success',
-            data: { parts: validated.userMessageParts }
-          }
-        },
-        { publishDataChange: true }
-      )
+      const followUp = req.trigger === 'submit-message' ? req.followUp : undefined
+      const stageFollowup = validated.agentType === 'pi-durable' && followUp === true
+      const params = {
+        sessionId: validated.sessionId,
+        parentId: validated.parentMessageId,
+        ...(stageFollowup && { stageFollowup: true }),
+        message: {
+          id: validated.userMessageId,
+          role: 'user',
+          status: 'success',
+          data: { parts: validated.userMessageParts }
+        }
+      } satisfies Parameters<typeof agentSessionMessageService.saveMessage>[0]
+      const resendUnsent = validated.resendUnsent
+      const savedUserMessage = resendUnsent
+        ? application.get('DbService').withWriteTx((tx) => {
+            const saved = agentSessionMessageService.saveMessage(params, { db: tx })
+            agentSessionMessageService.removeResentUnsentMessageTx(tx, validated.sessionId, resendUnsent)
+            return saved
+          })
+        : agentSessionMessageService.saveMessage(params, { publishDataChange: true })
+      if (resendUnsent) this.notifyReservedMessages({ validated, savedMessages: [savedUserMessage] })
 
       application.get('AgentSessionRuntimeService').enqueueUserMessage(validated.sessionId, savedUserMessage, {
         headless: validated.headless,
@@ -479,13 +496,13 @@ export class AgentChatContextProvider implements ChatContextProvider {
         reasoningEffort: validated.reasoningEffort,
         serviceTier: validated.serviceTier,
         fastMode: validated.fastMode,
-        followUp: req.trigger === 'submit-message' ? req.followUp : undefined
+        followUp
       })
 
       return {
         topicId: validated.topicId,
         models: [],
-        reservedMessages: [toReservedAgentUIMessage(savedUserMessage)],
+        reservedMessages: stageFollowup ? [] : [toReservedAgentUIMessage(savedUserMessage)],
         listeners: [subscriber]
       }
     }
@@ -500,13 +517,16 @@ export class AgentChatContextProvider implements ChatContextProvider {
     return this.activateDispatch(persisted, subscriber)
   }
 
-  private notifyReservedMessages({ validated, savedMessages }: PersistedAgentDispatch): void {
+  private notifyReservedMessages({
+    validated,
+    savedMessages
+  }: Pick<PersistedAgentDispatch, 'validated' | 'savedMessages'>): void {
     notifyDataApiDataChange([
       {
         endpoint: '/agent-sessions/:sessionId/messages',
         kind: 'membership',
         routeParams: { sessionId: validated.sessionId },
-        entityIds: savedMessages.map(({ id }) => id)
+        ...(validated.resendUnsent ? {} : { entityIds: savedMessages.map(({ id }) => id) })
       }
     ])
   }

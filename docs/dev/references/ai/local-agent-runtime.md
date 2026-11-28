@@ -126,7 +126,9 @@ are preserved.
   access, routes approval decisions and publishes incremental updates to the Cherry run.
 - Local Claude Code and built-in Claude Code share the Claude Agent SDK session reader,
   incremental message projection and native history. Local sessions use the selected CLI,
-  workspace and account configuration. The Claude runtime package derives SDK
+  workspace and account configuration. When discovery finds no Claude CLI, Agent Services
+  and Code CLI can use the verified executable already downloaded for the built-in
+  Claude Agent SDK. The Claude runtime package derives SDK
   spawn options from that installation for both chat and Settings. Permission mode
   and effort apply to the current query. Settings reads the initialization catalog
   without sending a message or creating a transcript.
@@ -439,26 +441,23 @@ legacy model list. Each catalog entry carries its own advertised effort choices.
 A standard ACP probe can associate `thought_level` with the reported current
 model. Pi ACP's legacy thinking modes follow the same rule.
 
-Scheduled-task conversations and non-ACP runtimes can record a declared permission
-mode before opening a connection. Ordinary ACP conversations require the live
-connection to change permission modes. The live session publishes its
-current permission, effort and other configuration controls, and a disconnect
-withdraws them. Claude and Codex offer the levels advertised for the active
-model. Cursor reads the active model's effort parameter from the SDK catalog
-and applies it on the next send. ACP uses the session's advertised effort
-options. Pi ACP also accepts its legacy thinking modes, and Grok can read its
-legacy model metadata and update effort on that native model. A reconnect
-validates saved choices against the live control and model before applying them.
+Ordinary ACP conversations need a live connection to discover permission choices.
+The permission menu, Plan Only, and Shift+Tab save the same Agent configuration
+field, `permission_mode`. A session maps that setting to its own supported native
+choices before it admits a new turn. When several native choices map to one level,
+the first advertised match represents that level. Idle connections apply changes
+immediately. A running local turn uses its current permission until the next turn.
 
-Running turns block reconfiguration. Per-session choices apply within the
-runtime and leave global CLI settings intact. High-risk changes require
-confirmation. `Shift+Tab` switches between the active safe mode and the
-advertised plan or read-only mode.
+The connection publishes its confirmed native permission, effort, and other
+configuration controls. Cursor reads the active model's effort parameter from
+the SDK catalog and applies it on the next send. ACP uses its advertised effort
+options. Pi ACP also accepts its legacy thinking modes, and Grok can set effort
+on a model reported by its legacy catalog. A reconnect validates saved effort
+against the live control and model before applying it.
 
-The runtime maps its current permission setting to the shared Agent permission
-mode. Prompt suggestions stay disabled while either the Agent configuration or
-the live session requires Plan mode. The permission picker and Plan shortcut use
-the same native aliases when identifying full-access choices.
+Full Access requires confirmation. Shift+Tab toggles the advertised Plan or
+read-only mode and exits to a safe working mode. Prompt suggestions stay disabled
+while the Agent configuration or the live session requires Plan mode.
 
 ### Approval and content
 
@@ -489,7 +488,7 @@ the same native aliases when identifying full-access choices.
   A legacy command string without an argument array can run as approved shell input.
 - ACP sessions without a verified approval control or multiple verified approval choices use Cherry's shared
   permission menu for Ask Before Acting, Auto-accept Edits, and Full Access. Cherry
-  remembers the choice per session. Auto-accept Edits covers writes within the
+  saves the choice on the Agent. Auto-accept Edits covers writes within the
   workspace. Full Access selects native single-use approvals when available and
   skips Cherry's delegated file and terminal confirmations. Native restrictions,
   read-only mode, structured questions and unattended execution keep their own policies.
@@ -500,18 +499,15 @@ the same native aliases when identifying full-access choices.
   `brave_mode` and a separate workflow. Kiro maps Supervised to the default
   permission level and Autopilot to Auto. Cline exposes a session boolean for tool
   auto-approval alongside Act and Plan. Antigravity uses the approval choices
-  advertised by the active session. Muse retains distinct native choices for
-  actions covered by different approval rules. MiniMax's process-scoped
+  advertised by the active session. MiniMax's process-scoped
   `permissionMode` setter writes CLI configuration. Cherry excludes that setter
   from session controls and retains the native legacy Plan selector.
   Antigravity, Grok Build, and Oh My Pi expose launch-time bypass through the same menu.
   Cline uses its launch flag as a fallback when its native approval control is
-  unavailable. Cherry scopes launch bypass to the selected Agent session, closes
-  the old process before changing startup arguments, and restores the native
-  conversation. Entering Plan removes the flag before restoring. This changes
-  no CLI configuration file. Explicit custom arguments keep their own policy.
-  When a native approval catalog becomes available, a saved Cherry-only choice
-  leaves native approvals at their reported setting until the user selects a native mode.
+  unavailable. A session that requires launch bypass restarts its process with
+  the Agent's selected permission and restores the native conversation. Entering
+  Plan removes the flag before restoring. Cherry leaves the CLI configuration
+  files intact. Explicit custom arguments keep their own policy.
 - ACP thoughts become reasoning parts and plan updates replace the current turn's plan.
   Native message IDs provide attribution and do not replace Cherry message UUIDs.
   ACP suppresses transcript replay during load because Cherry already stores it.

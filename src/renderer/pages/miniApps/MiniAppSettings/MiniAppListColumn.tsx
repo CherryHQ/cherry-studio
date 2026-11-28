@@ -54,7 +54,7 @@ const MiniAppListColumn: FC<Props> = ({ title, count, apps, onToggle, onReorder,
               return (
                 <Tooltip content={displayName} placement="left" fullWidthTrigger>
                   <div
-                    className="flex w-full items-center gap-1.5 rounded-md px-2 py-0.5 transition-colors hover:bg-accent/40 focus-visible:bg-accent/40 focus-visible:outline-none"
+                    className="flex w-full items-center gap-1.5 rounded-md px-2 py-0.5 transition-[color] hover:bg-accent/40 focus-visible:bg-accent/40 focus-visible:outline-none"
                     role="button"
                     tabIndex={0}
                     onKeyDown={(e) => {

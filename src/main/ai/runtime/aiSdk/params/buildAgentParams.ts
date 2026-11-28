@@ -146,7 +146,8 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     provider,
     model,
     resolvedEndpoint,
-    request.apiKeyOverride
+    request.apiKeyOverride,
+    request.utilityTask
   )
   const replayRouteId = getReplayRouteId(provider.id, resolvedEndpoint.endpointType, sdkConfig)
   applyHttpTrace(sdkConfig.providerSettings, {
@@ -867,6 +868,8 @@ function buildAgentOptions(
             providerSettings: sdkConfig.providerSettings,
             modelId: sdkConfig.modelId,
             headers,
+            signal: scope.signal,
+            retryInvalidOutput: maxRetries !== 0,
             getUsagePlugins: getRepairUsagePlugins,
             requestTools
           })

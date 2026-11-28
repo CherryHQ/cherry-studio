@@ -105,6 +105,29 @@ describe('buildAgentParams provider resolution', () => {
     expect(moved.replayRouteId).not.toBe(first.replayRouteId)
   })
 
+  // The provider builder decides signed-out access from this flag; dropping it here re-gates every utility task.
+  it('hands a utility-task request to provider config resolution', async () => {
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: { providerId: 'openai-compatible', providerSettings: { baseURL: 'https://relay.test/v1', apiKey: 'k' } },
+      credentialReceipt: { attribution: 'unknown' }
+    })
+    const build = (utilityTask?: boolean) =>
+      buildAgentParams({
+        request: { conversation: CONVERSATION, contextOwner: 'caller', utilityTask },
+        signal: undefined,
+        provider: makeProvider({ id: 'openai', defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS }),
+        model: makeModel({ providerId: 'openai', apiModelId: 'gpt-4o' })
+      })
+
+    await build(true)
+    await build()
+
+    expect(resolveProviderAiSdkConfigMock.mock.calls.map(([, , options]) => options?.utilityTask)).toEqual([
+      true,
+      undefined
+    ])
+  })
+
   it('sends only selected MCP guidance to the provider and suppresses it for tool-disabled requests', async () => {
     const server = { id: 'docs', name: 'Documents', isActive: true, disabledTools: [], disabledAutoApproveTools: [] }
     const toolId = 'mcp__docs__read'
@@ -204,9 +227,44 @@ describe('buildAgentParams provider resolution', () => {
     expect(withCallerHeaders.options.headers).toEqual({ 'x-opencode-session': 'caller-wins', 'x-other': 'kept' })
   })
 
-  it.each([undefined, { 'X-OpenCode-Session': 'caller-session' }])(
-    'sends the chat session on AI-assisted tool repair with caller headers %j',
-    async (callerHeaders) => {
+  it.each([
+    { scenario: 'valid on first response', content: ['{"query":"fixed"}'], attempts: 1, repaired: true },
+    {
+      scenario: 'caller session override',
+      callerHeaders: { 'X-OpenCode-Session': 'caller-session' },
+      content: ['{"query":"fixed"}'],
+      attempts: 1,
+      repaired: true
+    },
+    {
+      scenario: 'valid after retrying invalid output',
+      content: ['{"query":17}', '{"query":"fixed"}'],
+      attempts: 2,
+      repaired: true
+    },
+    {
+      scenario: 'invalid after exhausting the retry',
+      content: ['{"query":17}', '{"query":17}'],
+      attempts: 2,
+      repaired: false
+    },
+    {
+      scenario: 'invalid with retries disabled',
+      content: ['{"query":17}'],
+      maxRetries: 0,
+      attempts: 1,
+      repaired: false
+    },
+    {
+      scenario: 'truncated output',
+      content: ['{"query":'],
+      finishReason: 'length',
+      attempts: 1,
+      repaired: false
+    }
+  ])(
+    'repairs tool arguments on the same model and session when $scenario',
+    async ({ callerHeaders, content, maxRetries, finishReason = 'stop', attempts, repaired: valid }) => {
       const outgoing: Headers[] = []
       resolveProviderAiSdkConfigMock.mockResolvedValue({
         config: {
@@ -216,13 +274,14 @@ describe('buildAgentParams provider resolution', () => {
             name: 'opencode',
             baseURL: 'https://provider.test/v1',
             fetch: async (_input: RequestInfo | URL, init?: RequestInit) => {
+              const responseContent = content[outgoing.length]
               outgoing.push(new Headers(init?.headers))
               return Response.json({
                 id: 'repair-1',
                 created: 0,
                 model: 'glm-5',
                 choices: [
-                  { index: 0, message: { role: 'assistant', content: '{"query":"fixed"}' }, finish_reason: 'stop' }
+                  { index: 0, message: { role: 'assistant', content: responseContent }, finish_reason: finishReason }
                 ],
                 usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 }
               })
@@ -232,7 +291,7 @@ describe('buildAgentParams provider resolution', () => {
         credentialReceipt: { attribution: 'unknown' }
       })
       const { options } = await buildAgentParams({
-        request: { conversation: CONVERSATION, requestOptions: { headers: callerHeaders } },
+        request: { conversation: CONVERSATION, requestOptions: { headers: callerHeaders, maxRetries } },
         signal: undefined,
         provider: makeProvider({ id: 'opencode' }),
         model: makeModel({ id: 'opencode::glm-5', providerId: 'opencode', apiModelId: 'glm-5' })
@@ -249,9 +308,12 @@ describe('buildAgentParams provider resolution', () => {
           cause: new Error('query required')
         })
       })
-      expect(repaired?.input).toBe('{"query":"fixed"}')
-      expect(outgoing).toHaveLength(1)
-      expect(outgoing[0].get('x-opencode-session')).toBe(callerHeaders ? 'caller-session' : CONVERSATION.id)
+      if (valid) expect(repaired?.input).toBe('{"query":"fixed"}')
+      else expect(repaired).toBeNull()
+      expect(outgoing).toHaveLength(attempts)
+      for (const headers of outgoing) {
+        expect(headers.get('x-opencode-session')).toBe(callerHeaders ? 'caller-session' : CONVERSATION.id)
+      }
     }
   )
 
