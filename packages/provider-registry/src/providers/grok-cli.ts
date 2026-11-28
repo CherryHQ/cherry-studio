@@ -3,9 +3,8 @@ import { defineProvider } from './types'
 /**
  * Login-based provider that drives the SuperGrok subscription via xAI OAuth
  * (`authMethods: ['oauth']`) through the Grok CLI chat proxy; model list served
- * from this registry (`modelListSource: 'registry'`). The proxy serves
- * CLI-exclusive models, so both are named standalones rather than base-catalog
- * rows. OAuth runtime lives in `src/main/services/oauth/`.
+ * from this registry (`modelListSource: 'registry'`). OAuth runtime lives in
+ * `src/main/services/oauth/`.
  */
 export default defineProvider({
   id: 'grok-cli',
@@ -165,12 +164,9 @@ export default defineProvider({
       }
     },
     {
+      modelId: 'composer-2-5-fast',
       apiModelId: 'grok-composer-2.5-fast',
-      name: 'Composer 2.5 Fast',
-      description:
-        "Composer 2.5 Fast is xAI's fast coding model, available through the SuperGrok subscription via the Grok CLI proxy.",
-      family: 'grok',
-      ownedBy: 'xai',
+      description: "Cursor's Composer 2.5 Fast is available through the SuperGrok subscription via the Grok CLI proxy.",
       capabilities: { force: ['function-call', 'image-recognition'] },
       inputModalities: ['text', 'image'],
       outputModalities: ['text'],

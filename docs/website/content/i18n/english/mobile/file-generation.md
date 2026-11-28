@@ -4,74 +4,79 @@ icon: file-text
 
 # Create and Edit Files
 
-An agent can save text as a file for you to preview, revise, and share. This suits checklists, meeting notes, table data, and simple web pages.
+Agents can save text and create or edit genuine Word, Excel, and PowerPoint files. Use **Standard** mode with a tool-capable text model, then specify the format, content, and destination.
 
 ## Save an answer as a file
 
-Select a text model that supports tool calls and explicitly request a **saved file** with a filename:
+Request a saved result with a filename:
 
-> Turn the travel advice above into a Markdown checklist. Save it as weekend-packing-list.md and provide a file I can open.
+> Turn the travel advice into a Markdown checklist named weekend-packing-list.md and provide a file I can open.
 
-Markdown is a text format for headings, lists, and tables. For plain text, ask for a `.txt` file.
+> Create budget.xlsx from the attached shopping list, with category totals and a separate detail worksheet.
 
-Text shown during generation is content being prepared, not an already saved file. Wait for completion, then open the resulting file card. You can also find it under **Files** in the sidebar.
-
-If the answer only contains a code block, follow up with: “Please save this content as an actual file, not only display it in the response.”
+Wait for the tool to finish and open the returned file card, or find it under **Files**. Streaming text or a code block is not proof that a file was saved.
 
 ## Which format should I choose?
 
-| Desired result | Format | Example |
+| Desired result | Format | Notes |
 | --- | --- | --- |
-| Plain text | TXT | “Save it as call-notes.txt.” |
-| An article with headings, lists, and tables | Markdown | “Save it as meeting-notes.md.” |
-| Data for a spreadsheet app | CSV | “Use item, quantity, and notes columns; save as shopping-list.csv.” |
-| A designed page or presentation | HTML | “Create a standalone HTML file named project-overview.html.” |
+| Plain text, notes, or checklists | TXT, Markdown | Easy to copy and edit |
+| Simple table data | CSV | No workbook sheets, styles, or charts |
+| Paragraphs, headings, tables, and images | DOCX | A genuine Word document editable in compatible software |
+| Worksheets, formulas, and table data | XLSX | A genuine Excel workbook; verify calculated results |
+| Editable presentations | PPTX | Document tools create supported text, images, and slide content |
+| Webpages, cards, or appearance-focused slides | HTML | Preview or [convert to images or image-based PPT](html-export.md) |
 
-The built-in file writing tool saves text, up to 1 MB per file. **Naming a file `.docx`, `.xlsx`, or `.pptx` does not turn it into a genuine Office document.** CSV opens in spreadsheet apps but does not contain workbook sheets, styling, or charts.
+The old restriction to text-only file creation no longer applies. The text writer still has a **1 MiB** UTF-8 limit per file; Office tools use their own formats and limits. Renaming text to `.docx`, `.xlsx`, or `.pptx` still does not produce a valid Office document.
 
-For PPT, create an HTML presentation and use [HTML to Image and PPT](html-export.md). A connected plugin may offer other document-creation features; its actual capabilities determine what is available.
+Native PPTX creation differs from HTML conversion: native files can contain editable objects, while converted PPTX pages are pictures. Choose according to whether individual objects need later editing.
 
 ## Save through workspace paths
 
-Associate a folder from the conversation header, then ask “Save the summary as notes/meeting-notes.md.” New outputs go to that workspace, or to the library root when none is associated. Several conversations can use the same folder; see [File library and shared workspaces](file-library.md).
+Associate a workspace through **＋ → Folders**, then request a path such as notes/meeting-notes.md. New outputs go there, or to the file-library root if no workspace is associated. You can also ask the agent to create a folder first.
+
+Several conversations can share a folder. Changing the association does not move earlier files; see [file workspaces](file-library.md).
 
 ## Read and edit an existing file
 
-1. In the conversation, choose **＋ → File** and select or upload a file.
-2. Specify exactly what to change, the replacement, and what should stay unchanged.
-3. Open the revised file and check the result.
+1. Attach it through **＋ → Files**, or use workspace material.
+2. Ask the agent to inspect its structure, then specify changes and what must remain.
+3. Open the resulting file and inspect it before sharing.
 
 For example:
 
-> In the attached shopping-list.csv, change the quantity for Umbrella from 1 to 2. Keep all other rows unchanged.
+> Inspect this Word document's headings and tables. Change the delivery date in section two to next Wednesday and preserve everything else.
 
-> In the meeting-notes.md you just created, replace “Deliver next Monday” with “Deliver next Wednesday.” Keep everything else.
+> In the attached workbook, change only B5 on the Budget worksheet. Preserve all other sheets and formulas.
 
-Text files can be edited directly. Supported PDF and Office documents can provide extracted content for the model to read, but the built-in editor cannot directly modify their original layout and file structure. Ask it to extract and organize the content into a new Markdown file instead. See [Chat and Files](chat-and-files.md) for attachment formats and reading limits.
+You can select paragraphs, cells, or slides in Word, Excel, and PowerPoint previews and return that selection to chat. A selection identifies context; it does not perform an edit by itself.
+
+PDF text extraction, supported recognition, and previews do not imply arbitrary editing of the original PDF layout. Check complex layouts, macros, external links, charts, and unsupported structures separately. Follow tool errors and narrow the change when necessary.
 
 ### Does editing overwrite the original?
 
-* Editing an uploaded file or an earlier response's file retains the old content and creates a new version. The library shows the logical file's current version; earlier messages keep their original references. This does not mean each edit appears as a separate file named `v2`.
-* Within one response, the agent may refine its current draft repeatedly and finish with one file, instead of producing a new version for every change.
+* Editing an older file retains the source version and returns a new file or logical-file revision; historical messages keep their earlier references.
+* Drafts created within one task can be refined without creating a separate library item for every change.
+* Editing an imported copy does not synchronize the original elsewhere on your device or cloud drive.
 
-This is not continuous synchronization. Editing an imported copy in Cherry Studio does not update the original elsewhere on your phone or in cloud storage.
+Check the returned file and actual library result rather than inferring overwrites from a filename.
 
 ### Why can't it find the text to replace?
 
-Editing matches the original text. Changed wording, repeated sentences, and differences in spaces or punctuation can prevent a clear match. Ask the agent to reread the relevant passage and identify a longer sentence or surrounding context. Request replacement of every occurrence only when that is what you intend.
+Replacement needs a matching source. Changed content, repeated sentences, spaces, or punctuation can prevent it. Ask the agent to reread and locate the target. For Office files, identify paragraphs, worksheets/cells, or slides structurally.
 
 ## Does reading part of a file mean it read everything?
 
-No. Large files may need multiple reads, and document extraction has its own limits. For a full review, ask the agent to continue through unread sections and state any gaps. If extraction already omitted part of the source, further reads cannot recover it; split the document and provide it again.
+No. Large files, pagination, and parsers have separate limits. Ask for coverage and unread portions. Truncated source content or unrecognized pages require additional or smaller material.
 
-Reading tools use accessible attachments, outputs, and associated workspace material, not every file on your phone. In another conversation, attach the file again or associate the same [folder workspace](file-library.md).
+Office tools can inspect structure and validate file packages, but validity does not establish content correctness. A missing Excel formula cache differs from a formula error; open the workbook in software that recalculates formulas instead of treating missing cached results as zero.
+
+Tools access authorized conversation attachments, outputs, and workspace material, not the entire phone.
 
 ## Find, preview, and share files
 
-Open **Files** from the sidebar to browse by type and switch between list and grid views. Tap a file to preview it. Formats without an internal preview can open in another system app.
+Open an output in **Files** to preview supported documents. Word previews fit the screen and support zooming; selected content can be handed back to chat. Open oversized or unsupported files in another app.
 
-The preview's top-right **More** menu offers sharing and opening with other apps. Text files also offer copying. When a long file is only partially displayed, copying includes only that visible portion; sharing uses the complete original file.
+Copy may contain only displayed content; **sharing the original** transfers the complete file. The common panel offers **Save** and **Share**; see [Sharing and export](sharing-and-export.md) for destinations and temporary-file behavior.
 
-Files are stored on this device. Save important material to the system Files app or other storage through sharing, and confirm you can open it before cleaning local files or uninstalling Cherry Studio. Exporting chat messages uses a separate workflow: [Sharing and Export](sharing-and-export.md).
-
-Built-in text file reading, creation, and editing usually run directly, including in **Ask when needed** mode. See [Tool Approval](using-tools.md).
+Save important results outside the app and confirm the receiving software can open them. File reads and text/Office creation and editing generally proceed directly; moves, deletion, and external changes have their own approval rules. See [tools](using-tools.md).

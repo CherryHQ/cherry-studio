@@ -1,20 +1,38 @@
 import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs'
 import { realpath } from 'node:fs/promises'
+import { createRequire } from 'node:module'
 import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
 
 import { BACKGROUND_CONTEXT } from '@earendil-works/chord/context'
-import { createAssistantMessageEventStream, type AssistantMessage, type Usage } from '@earendil-works/pi-ai'
-import { AgentDoc, configure, createSession, type ConversationId } from '@earendil-works/pi-durable'
+import {
+  createAssistantMessageEventStream,
+  createModels,
+  type AssistantMessage,
+  type Usage
+} from '@earendil-works/pi-ai'
+import {
+  AgentDoc,
+  configure,
+  createRegistry,
+  createSession,
+  Harness,
+  type ConversationId
+} from '@earendil-works/pi-durable'
 import { trace } from '@opentelemetry/api'
 import { BasicTracerProvider } from '@opentelemetry/sdk-trace-base'
+import { childTimeline } from '@test-helpers/childTimeline'
 import { setupTestDatabase } from '@test-helpers/db'
 import { connectMcpTestClient } from '@test-helpers/mcp/client'
+import { MockApplicationUtils } from '@test-mocks/main/application'
+// eslint-disable-next-line @typescript-eslint/no-restricted-imports -- The integration test connects the renderer subscriber over an in-process IPC fixture.
+import { projectionIpc } from '@test-mocks/renderer/ProjectionIpc'
 import { eq } from 'drizzle-orm'
 import { v7 as uuid } from 'uuid'
-import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 
 import { application } from '@application'
-import { runtimeId, type InputState } from '@cherrystudio/agent-runtime'
+import { runtimeId, ThreadFeed, type InputState } from '@cherrystudio/agent-runtime'
 import type {
   createPiDurableRuntime,
   DurableObservation,
@@ -22,32 +40,47 @@ import type {
 } from '@cherrystudio/agent-runtime-pi-durable'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
+import { fileEntryTable } from '@data/db/schemas/file'
+import { agentSessionMessageFileRefTable } from '@data/db/schemas/fileRelations'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
+import { readAgentSessionMessagePartIdsTx } from '@data/services/agentSessionMessageTree'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import type * as AgentPrompt from '@main/ai/agents/prompt/buildAgentPrompt'
-import { savedChildView } from '@main/ai/agentSession/ChildThreadProjection'
-import { openDurableStorage } from '@main/ai/agentSession/durableNativeContext'
+import { AgentSessionDeliveryService } from '@main/ai/agentSession/AgentSessionDeliveryService'
+import { AgentSessionRuntimeService } from '@main/ai/agentSession/AgentSessionRuntimeService'
+import { savedChildView } from '@main/ai/agentSession/childArchive'
+import { ChildThreadProjection } from '@main/ai/agentSession/ChildThreadProjection'
+import { createDurableBackend, openDurableStorage } from '@main/ai/agentSession/durableNativeContext'
 import { AgentSessionForkOperations } from '@main/ai/agentSession/fork/AgentSessionForkOperations'
 import { readForkResources } from '@main/ai/agentSession/fork/resources'
-import { bindNativeInput, prepareNativeSubmission } from '@main/ai/agentSession/nativeSubmission'
+import { bindNativeInput, lookupNativeInput, prepareNativeSubmission } from '@main/ai/agentSession/nativeSubmission'
 import { readSessionHistory } from '@main/ai/agentSession/sessionHistory'
 import { ThreadMessageProjection } from '@main/ai/agentSession/ThreadMessageProjection'
 import { getPiTraceContext, observabilitySinks } from '@main/ai/observability'
+import type { StartRuntimeTurnInput } from '@main/ai/streamManager/AiStreamManager'
+import { pipeMessageStream } from '@main/ai/streamManager/pipeMessageStream'
 import { checkCommand } from '@main/ai/toolApproval/commandPolicy'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import type { ToolGuardInteractionState } from '@main/ai/toolApproval/toolGuards'
 import { serializeError } from '@main/ai/utils/serializeError'
+import { BaseService } from '@main/core/lifecycle/BaseService'
+import { ConversationImportService } from '@main/services/conversationImport/ConversationImportService'
 import { getShellEnv } from '@main/utils/shellEnv'
+// eslint-disable-next-line @typescript-eslint/no-restricted-imports -- Run the renderer reducer against real Main and native events in the integration test.
+import { MessageProjectionService } from '@renderer/services/aiTransport/MessageProjectionService'
+import { AGENT_SESSION_STREAM_TOPIC_CACHE_KEY } from '@shared/ai/agentSessionStreamTopic'
 import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
 import { McpServerSchema } from '@shared/data/types/mcpServer'
 import { ENDPOINT_TYPE, ModelSchema } from '@shared/data/types/model'
 import { ProviderSchema } from '@shared/data/types/provider'
 import type { SpanEntity } from '@shared/data/types/trace'
+import { withKnowledgeScopePart } from '@shared/data/types/uiParts'
 import type { RetryPartData } from '@shared/data/types/uiParts'
 
 import {
@@ -60,15 +93,22 @@ import {
 } from '../../../../../packages/agent-runtime-pi/tests/sessionSupport'
 import { subagentCall, gate, toolCallPart } from '../../../../../packages/agent-runtime-pi/tests/subagentSupport'
 import type * as AgentMcpServers from '../agentMcpServers'
+import type * as GatewayBinding from '../pi/gatewayModelBinding'
 import type { PiConnectionSnapshot } from '../pi/piConnectionSignature'
 import { runtimeDriverRegistry } from '../registry'
 import type { AgentRuntimeConnectInput, AgentRuntimeEvent } from '../types'
 import { allocateDurableBackendTx, prepareDurableBranch, reserveDurableBranchTx } from './durableContext'
 import { prepareDurableDesktop } from './durableDesktop'
+import { DurableForkCheckpointSchema } from './forkCheckpoint'
 import type { PiDurableRuntimeConnection } from './PiDurableRuntimeConnection'
 import { PiDurableRuntimeDriver } from './PiDurableRuntimeDriver'
 
 const modelId = 'test::test-model'
+
+vi.mock('@renderer/data/DataApiService', async () => {
+  const { MockDataApiService } = await import('@test-mocks/renderer/DataApiService')
+  return MockDataApiService
+})
 
 const mocks = vi.hoisted(() => ({
   capture: vi.fn(),
@@ -78,7 +118,8 @@ const mocks = vi.hoisted(() => ({
   catalog: vi.fn(),
   interaction: vi.fn<() => ToolGuardInteractionState>(),
   delegated: vi.fn(),
-  prime: vi.fn(),
+  adopt: vi.fn(),
+  skipFollowupProjection: false,
   backendError: undefined as ((error: unknown) => void) | undefined
 }))
 vi.mock('@application', async () => {
@@ -103,7 +144,7 @@ vi.mock('@application', async () => {
     },
     AgentSessionRuntimeService: {
       getInteractionState: mocks.interaction,
-      primeConnection: mocks.prime,
+      adoptDurableConnection: mocks.adopt,
       getTurnTrustedNotifyChannels: () => undefined
     }
   }
@@ -120,7 +161,15 @@ vi.mock('@cherrystudio/agent-runtime-pi-durable', async (importOriginal) => {
     ...actual,
     createPiDurableRuntime: (options: Parameters<typeof createPiDurableRuntime>[0]) => {
       mocks.backendError = options.onError
-      return actual.createPiDurableRuntime(options)
+      return actual.createPiDurableRuntime({
+        ...options,
+        onFollowupsChanged: (thread, queue, paused) => {
+          if (!mocks.skipFollowupProjection) options.onFollowupsChanged?.(thread, queue, paused)
+        },
+        onFollowupEdit: (thread, inputId, edit) => {
+          if (!mocks.skipFollowupProjection) options.onFollowupEdit?.(thread, inputId, edit)
+        }
+      })
     }
   }
 })
@@ -158,7 +207,7 @@ describe('desktop Pi Durable connection', () => {
     vi.mocked(getShellEnv).mockReset()
     mocks.interaction.mockReturnValue({ currentTurn: 'interactive', userResponse: 'stream' })
     mocks.delegated.mockClear()
-    mocks.prime.mockReset()
+    mocks.adopt.mockReset()
     directory = await realpath(tempDir('desktop-pi'))
     vi.mocked(application.getPath).mockImplementation((key, file) => {
       const dir = join(directory, key)
@@ -245,7 +294,7 @@ describe('desktop Pi Durable connection', () => {
         }
       }
     })
-    const submit = vi.spyOn(handle.input, 'submit')
+    const submit = vi.spyOn(handle.durable, 'submitTurn')
     const compact = vi.spyOn(handle.durable, 'compact')
     const sending = connection.send({ message: message('Pending task input') })
     try {
@@ -287,6 +336,54 @@ describe('desktop Pi Durable connection', () => {
       .poll(() => nativeInputs.some((state) => state.inputId === user.id && state.outcome === 'aborted'))
       .toBe(true)
     await expect.poll(() => events.some((event) => event.type === 'stop-confirmed')).toBe(true)
+  })
+
+  it('sends imported Claude tool calls and results as text on the first durable turn', async () => {
+    const root = join(directory, 'claude-history')
+    mkdirSync(root)
+    const records = [
+      'Generated setup',
+      'Find the invoice',
+      [{ type: 'tool_use', id: 'call', name: 'lookup', input: { query: 'invoice search' } }],
+      [{ type: 'tool_result', tool_use_id: 'call', content: 'Invoice 42' }]
+    ].map((content, index) =>
+      JSON.stringify({
+        sessionId: 'history',
+        version: '2.1.284',
+        uuid: String(index),
+        parentUuid: index ? String(index - 1) : null,
+        timestamp: '2026-01-01T00:00:00Z',
+        type: index === 2 ? 'assistant' : 'user',
+        isMeta: index === 0,
+        message: { content }
+      })
+    )
+    writeFileSync(join(root, 'history.jsonl'), records.join('\n'))
+    const importer = new ConversationImportService()
+    const scan = await importer.discover('window', 'claude-code', root)
+    const refs = scan.candidates.map((candidate) => candidate.ref)
+    const preview = await importer.preview(
+      'window',
+      scan.scanId,
+      input.agentId,
+      refs.map((ref) => ({ ref }))
+    )
+    const [imported] = await importer.commit('window', preview.previewId, refs)
+    expect(imported).toMatchObject({ status: 'imported', initialization: 'ready' })
+    input = { ...input, sessionId: imported.sessionId! }
+    const storedSetup = messages.listSessionMessages(input.sessionId, { limit: 10 }).items.at(-1)
+    expect(storedSetup).toMatchObject({ role: 'user', provenance: { source: 'claude-code', isSetup: true } })
+    snapshot.session = agentSessionService.getById(input.sessionId)
+    const current = await connect()
+    const prompt = message('Continue the search')
+    await current.connection.send({ message: prompt, context: await readSessionHistory(input.sessionId, prompt.id) })
+    await done(current.events)
+    expect(script.calls).toHaveLength(1)
+    const request = JSON.stringify(script.calls[0].messages)
+    expect(request).toMatch(
+      /Generated setup[\s\S]*Find the invoice[\s\S]*Historical tool call: lookup[\s\S]*invoice search[\s\S]*Historical tool result: lookup[\s\S]*Invoice 42[\s\S]*Continue the search/
+    )
+    expect(script.calls[0].messages.some((message) => message.role === 'toolResult')).toBe(false)
   })
 
   it('continues unbound history on separate native branches and retains it after reopening', async () => {
@@ -343,6 +440,62 @@ describe('desktop Pi Durable connection', () => {
     expect(resumedRequest).not.toContain('Sibling banana')
     expect(resumedRequest.match(/Previous conversation history/g)).toHaveLength(1)
   })
+  it.each(['store', 'conversation', 'binding'])(
+    'continues from product history after losing the native %s',
+    async (missing) => {
+      const reserved = prepareDurableBranch(input.sessionId)
+      const backend = await createDurableBackend(reserved.backendId)
+      if (backend.locator.kind !== 'pi-durable') throw new Error('Expected Durable backend')
+      const path = application.getPath('feature.agents.durable.stores', backend.locator.fileName)
+      const emptyStore = readFileSync(path)
+
+      const first = await connect()
+      const previous = message('Remember the blue notebook')
+      await first.connection.send({ message: previous })
+      const answer = await savedAnswer(first)
+      messages.saveMessage({
+        sessionId: input.sessionId,
+        parentId: previous.id,
+        message: { role: 'assistant', status: 'success', data: { parts: [{ type: 'text', text: 'Sibling branch' }] } }
+      })
+      await first.connection.close()
+      if (missing === 'binding') {
+        application.get('DbService').withWriteTx((tx) => contexts.detachBranchTx(tx, reserved.id))
+      } else {
+        if (missing === 'store') unlinkSync(path)
+        else writeFileSync(path, emptyStore)
+      }
+
+      messages.selectBranch(input.sessionId, answer.id)
+      input.branchHead = answer.id
+      if (missing !== 'binding') await expect(driver.connect(input)).rejects.toThrow()
+      input.headless = false
+      setScript([assistantReply('Recovered answer')])
+      const recovered = await connect()
+      expect(recovered.connection.contextId).not.toBe(first.connection.contextId)
+      expect(script.calls).toHaveLength(0)
+      const followup = message('What did I ask you to remember?')
+      await recovered.connection.send({
+        message: followup,
+        context: await readSessionHistory(input.sessionId, followup.id, recovered.connection.contextId)
+      })
+      const recoveredAnswer = await savedAnswer(recovered)
+      const request = JSON.stringify(script.calls[0].messages.filter((message) => message.role !== 'system'))
+      expect(request).toContain('Remember the blue notebook')
+      expect(request).toContain('Hello world')
+      expect(request).not.toContain('Sibling branch')
+      if (missing === 'store') expect(existsSync(path)).toBe(false)
+      if (missing === 'conversation') expect(readFileSync(path)).toEqual(emptyStore)
+
+      await recovered.connection.close()
+      input.branchHead = recoveredAnswer.id
+      const reopened = await connect()
+      expect(reopened.connection.contextId).toBe(recovered.connection.contextId)
+      const next = message('Continue after reopening')
+      expect(await readSessionHistory(input.sessionId, next.id, reopened.connection.contextId)).toBeUndefined()
+    }
+  )
+
   it.each([false, true])('materializes the captured model name for headless=%s', async (headless) => {
     const { buildAgentPrompt } = await vi.importActual<typeof AgentPrompt>('@main/ai/agents/prompt/buildAgentPrompt')
     mocks.prompt.mockImplementation(buildAgentPrompt)
@@ -474,7 +627,11 @@ describe('desktop Pi Durable connection', () => {
   function setScript(parts: AssistantMessage[], delay?: number) {
     script = scriptedModel(parts, delay)
   }
-  function holdResponse(text: string) {
+  function holdResponse(
+    text: string,
+    receiveAppend?: (append: (suffix: string) => void) => void,
+    receiveReasoning?: (open: (text: string) => void) => void
+  ) {
     const fallback = script.model
     let finish!: () => void
     let started = false
@@ -485,6 +642,17 @@ describe('desktop Pi Durable connection', () => {
       const message = { ...assistantReply(text), model: model.id, api: model.api, provider: model.provider }
       stream.push({ type: 'start', partial: message })
       stream.push({ type: 'text_delta', contentIndex: 0, delta: text, partial: message })
+      receiveAppend?.((suffix) => {
+        const part = message.content[0]
+        if (part.type !== 'text') throw new Error('Expected streaming text')
+        message.content = [{ ...part, text: part.text + suffix }]
+        stream.push({ type: 'text_delta', contentIndex: 0, delta: suffix, partial: message })
+      })
+      receiveReasoning?.((thinking) => {
+        const contentIndex = message.content.length
+        message.content = [...message.content, { type: 'thinking', thinking }]
+        stream.push({ type: 'thinking_delta', contentIndex, delta: thinking, partial: message })
+      })
       const abort = () => {
         message.stopReason = 'aborted'
         stream.push({ type: 'error', reason: 'aborted', error: message })
@@ -501,7 +669,7 @@ describe('desktop Pi Durable connection', () => {
     return () => finish()
   }
   function sharedHosts() {
-    dbh.db.insert(userProviderTable).values({ providerId: 'test', name: 'Test', orderKey: 'a0' }).run()
+    dbh.db.insert(userProviderTable).values({ providerId: 'test', name: 'Test', isEnabled: true, orderKey: 'a0' }).run()
     dbh.db
       .insert(userModelTable)
       .values({
@@ -534,8 +702,8 @@ describe('desktop Pi Durable connection', () => {
     })
     runtimeDriverRegistry.register(driver)
   }
-  async function savedAnswer(current: Awaited<ReturnType<typeof connect>>) {
-    await done(current.events)
+  async function savedAnswer(current: Awaited<ReturnType<typeof connect>>, timeout?: number) {
+    await done(current.events, timeout)
     const complete = current.events.findLast((event) => event.type === 'turn-complete')!
     if (complete.type !== 'turn-complete' || !complete.forkAnchor) throw new Error('Missing committed checkpoint')
     return messages.saveMessage({
@@ -771,6 +939,42 @@ describe('desktop Pi Durable connection', () => {
     expect(reopened.events.filter((event) => event.type === 'error')).toEqual([])
   })
 
+  it('opens a surviving fork when its deleted source left a finished child in a legacy store', async () => {
+    sharedHosts()
+    const sourceId = input.sessionId
+    setScript([
+      assistantReply(
+        [subagentCall('spawn', { description: 'research', prompt: 'child work', background: false, fork: false })],
+        'toolUse'
+      ),
+      assistantReply('finished child'),
+      assistantReply('finished parent')
+    ])
+    const parent = await connect()
+    await parent.connection.send({ message: message('delegate') })
+    const answer = await savedAnswer(parent, CHILD_WAIT.timeout)
+    const root = contexts.context(parent.connection.contextId!)
+    expect(contexts.children(root.id)).toHaveLength(1)
+    const forkId = await new AgentSessionForkOperations().fork(sourceId, answer.id)
+    await parent.connection.close()
+    dbh.db.delete(agentSessionTable).where(eq(agentSessionTable.id, sourceId)).run()
+    const { recoveryIndex } = await import('@cherrystudio/agent-runtime-pi-durable')
+    const native = createSession(await openDurableStorage(contexts.backend(root.backendId)))
+    try {
+      await native.commit(async (tx) => {
+        Object.assign(await tx.doc(recoveryIndex), { initialized: false, behavior: {}, archives: {} })
+      }, BACKGROUND_CONTEXT)
+    } finally {
+      await native.close(BACKGROUND_CONTEXT)
+    }
+    input = { ...input, sessionId: forkId }
+    setScript([assistantReply('surviving fork answer')])
+    const reopened = await connect()
+    await reopened.connection.send({ message: message('continue fork') })
+    await done(reopened.events)
+    expect(text(reopened.events)).toContain('surviving fork answer')
+  })
+
   it('routes concurrent roots to their own workspace, approval channel and model registration', async () => {
     sharedHosts()
     const sourceId = input.sessionId
@@ -951,6 +1155,158 @@ describe('desktop Pi Durable connection', () => {
     expect(next.events.filter((event) => event.type === 'error')).toEqual([])
   })
 
+  it('uses the next request settings when an idle root only has a stale recovery hint', async () => {
+    sharedHosts()
+    input = { ...input, reasoningEffort: 'high', fastMode: true }
+    const initial = await connect()
+    await initial.connection.send({ message: message('old settings') })
+    await done(initial.events)
+    const root = contexts.context(initial.connection.contextId!)
+    await initial.connection.close()
+    const { recoveryIndex } = await import('@cherrystudio/agent-runtime-pi-durable')
+    const native = createSession(await openDurableStorage(contexts.backend(root.backendId)))
+    try {
+      await native.commit(async (tx) => {
+        ;(await tx.doc(recoveryIndex)).behavior[root.nativeThreadId!] = true
+      }, BACKGROUND_CONTEXT)
+    } finally {
+      await native.close(BACKGROUND_CONTEXT)
+    }
+
+    const binding = mocks.binding.getMockImplementation()!
+    mocks.binding.mockImplementation(async (...args: Parameters<typeof binding>) => {
+      const request = args[0]
+      script = respondingModel(() => assistantReply(`${request.reasoningEffort}/${request.fastMode}`))
+      return binding(...args)
+    })
+    input = { ...input, reasoningEffort: 'low', fastMode: false }
+    const current = await connect()
+    await current.connection.send({ message: message('new settings') })
+    await done(current.events)
+    expect(text(current.events)).toContain('low/false')
+  })
+
+  async function recoveredSecondaryRoot() {
+    sharedHosts()
+    const user = message('B')
+    const root = prepareDurableBranch(input.sessionId, user.id)
+    input = { ...input, branchHead: user.id, reasoningEffort: 'default', serviceTier: 'standard' }
+    const connection = await driver.connect(input)
+    connections.push(connection)
+    const sibling = messages.saveMessage({
+      sessionId: input.sessionId,
+      parentId: messages.readEditSnapshotTx(dbh.db, input.sessionId, user.id).user.parentId!,
+      message: { role: 'user', data: { parts: [{ type: 'text', text: 'A' }] } }
+    })
+    contexts.reserveBranchTx(dbh.db, {
+      sessionId: input.sessionId,
+      backendId: root.backendId,
+      anchorMessageId: sibling.id
+    })
+    messages.selectBranch(input.sessionId, sibling.id)
+    BaseService.resetInstances()
+    const service = new AgentSessionRuntimeService()
+    await service._doInit()
+    runtimeDriverRegistry.register(driver)
+    const iterators = vi.spyOn(connection.events, Symbol.asyncIterator)
+    service.adoptDurableConnection(input, root, connection)
+    return { user, root, connection, service, iterators }
+  }
+
+  it('keeps the active scoped topic, decision and stop target after selecting a recovered root', async () => {
+    const { user, root, connection, service } = await recoveredSecondaryRoot()
+    const { sessionId } = input
+    const topic = `agent-session:${sessionId}/context/${root.id}`
+    const assistant = messages.saveMessage({
+      sessionId,
+      parentId: user.id,
+      message: { role: 'assistant', status: 'pending', data: { parts: [] } }
+    })
+    messages.linkReply(sessionId, [user.id], assistant.id)
+    const launched = Promise.withResolvers<StartRuntimeTurnInput>()
+    const decisions: string[] = []
+    MockApplicationUtils.setService('AiStreamManager', {
+      startRuntimeTurn: (start: StartRuntimeTurnInput) => launched.resolve(start),
+      resolveToolApproval: (topicId: string) => decisions.push(topicId),
+      drainRuntimeReply: async () => {},
+      pauseRuntimeTurn: () => {}
+    })
+    try {
+      connection.events.push({
+        type: 'autonomous-turn-state',
+        state: 'started',
+        origin: { kind: 'background-work' },
+        recoveredInputId: user.id
+      })
+      const turn = await launched.promise
+      expect(turn.topicId).toBe(topic)
+      messages.selectBranch(sessionId, user.id)
+      await service.prepareBranch(sessionId, user.id)
+      expect(service.inspect(sessionId)).toMatchObject({ topicId: topic, assistantMessageId: assistant.id })
+      expect(application.get('CacheService').getShared(AGENT_SESSION_STREAM_TOPIC_CACHE_KEY(sessionId))).toBe(topic)
+      const answer = Promise.withResolvers<{ approved: boolean }>()
+      toolApprovalRegistry.register({
+        approvalId: 'B-approval',
+        toolCallId: 'B-call',
+        sessionId,
+        contextId: root.id,
+        toolName: 'read',
+        originalInput: {},
+        resolve: answer.resolve
+      })
+      expect(service.respondToolApproval('B-approval', { approved: true })).toEqual({ ok: true })
+      await expect(answer.promise).resolves.toMatchObject({ approved: true })
+      expect(decisions).toEqual([topic])
+      expect(service.abortPendingTurn(sessionId, 'test-stop', root.id)).toBe(true)
+      expect(turn.abortController!.signal.aborted).toBe(true)
+    } finally {
+      await service._doDestroy()
+      MockApplicationUtils.resetServices()
+    }
+  })
+
+  it('keeps one reader and the complete reply when selecting a restored secondary root', async () => {
+    const { user, service, iterators, connection } = await recoveredSecondaryRoot()
+    const submitted = vi.spyOn(connection, 'send')
+    try {
+      messages.selectBranch(input.sessionId, user.id)
+      await service.prepareBranch(input.sessionId, user.id)
+      const assistant = messages.saveMessage({
+        sessionId: input.sessionId,
+        parentId: user.id,
+        message: { role: 'assistant', status: 'pending', data: { parts: [] } }
+      })
+      const run = service.beginTurn({
+        ...input,
+        agentType: 'pi-durable',
+        topicId: `agent-session:${input.sessionId}`,
+        assistantMessageId: assistant.id,
+        userMessage: user
+      })
+      const source = service.openTurnStream({
+        sessionId: input.sessionId,
+        turnId: run.turnId,
+        signal: run.abortController.signal
+      })
+      const result = await pipeMessageStream(
+        source,
+        run.abortController.signal,
+        { id: assistant.id, role: 'assistant' },
+        () => {},
+        () => {},
+        () => {}
+      )
+      expect(result.finalMessage?.parts).toContainEqual(expect.objectContaining({ type: 'text', text: 'Hello world' }))
+      expect(iterators).toHaveBeenCalledTimes(1)
+      expect(submitted.mock.calls.map(([command]) => command.message.id)).toEqual([user.id])
+      for (const listener of run.listeners)
+        await listener.onDone({ status: 'success', finalMessage: result.finalMessage })
+      expect(messages.getSessionMessage(input.sessionId, assistant.id).status).toBe('success')
+    } finally {
+      await service._doDestroy()
+    }
+  })
+
   it.each([false, true])(
     'restores a pending peer with cleared Agent default=%s and its frozen request settings',
     async (clearDefault) => {
@@ -988,15 +1344,17 @@ describe('desktop Pi Durable connection', () => {
         })
         return { modelRuntime: shared, model: shared.getModel(model.provider, model.id)! }
       })
-      mocks.prime.mockImplementation(async (sessionId: string) => {
-        recovered = await driver.connect({ sessionId, agentId: sourceInput.agentId, modelId })
-        connections.push(recovered)
-        void (async () => {
-          for await (const event of recovered.events) recoveredEvents.push(event)
-        })()
-      })
+      mocks.adopt.mockImplementation(
+        (_input: AgentRuntimeConnectInput, _context: unknown, connection: PiDurableRuntimeConnection) => {
+          recovered = connection
+          connections.push(connection)
+          void (async () => {
+            for await (const event of connection.events) recoveredEvents.push(event)
+          })()
+        }
+      )
       input = { ...input, sessionId: forkId, reasoningEffort: 'low', fastMode: false }
-      const fork = await connect()
+      const [fork] = await Promise.all([connect(), driver.recoverWork()])
       await expect.poll(() => recoveredEvents.some((event) => event.type === 'turn-complete')).toBe(true)
       expect(text(recoveredEvents)).toContain(`${sourceInput.sessionId}:high:true`)
       expect(recovered!['runtime']).toBe(fork.connection['runtime'])
@@ -1112,11 +1470,131 @@ describe('desktop Pi Durable connection', () => {
     }
   })
 
+  it('restores concurrent roots using the provider names committed in their native checkpoints', async () => {
+    sharedHosts()
+    const gateway = await vi.importActual<typeof GatewayBinding>('../pi/gatewayModelBinding')
+    const aliases: string[] = []
+    const requests: { sessionId: string; prompt: string; effort?: string; fast?: boolean }[] = []
+    const held = new Map<string, ReturnType<typeof Promise.withResolvers<void>>>()
+    let stage: 'initial' | 'hold' | 'restore' = 'initial'
+    mocks.binding.mockImplementation(async (...args: Parameters<typeof gateway.createPiGatewayModelBinding>) => {
+      // Create the old database using the production binding that predated recovery aliases.
+      const result =
+        stage === 'restore'
+          ? await gateway.createPiGatewayModelBinding(...args)
+          : await gateway.createPiGatewayModelBinding(args[0], args[1], args[2], args[3], args[4], args[5])
+      aliases.push(result.model.provider)
+      return result
+    })
+    const transport = application.get('ApiGatewayService')
+    const routes = transport.createAgentObjectTransports
+    const unexpectedProtocol = async (): Promise<never> => {
+      throw new Error('Expected an OpenAI Chat Completions request')
+    }
+    transport.createAgentObjectTransports = (request) => ({
+      'openai-responses': unexpectedProtocol,
+      'anthropic-messages': unexpectedProtocol,
+      'google-generative-ai': unexpectedProtocol,
+      'openai-completions': async (body, { signal }) => {
+        const prompt = String(body.messages.at(-1)?.content)
+        requests.push({ sessionId: request.sessionId, prompt, effort: request.reasoningEffort, fast: request.fastMode })
+        if (stage === 'hold') {
+          held.get(request.sessionId)!.resolve()
+          await new Promise<never>((_resolve, reject) => {
+            signal!.throwIfAborted()
+            signal!.addEventListener('abort', () => reject(signal!.reason), { once: true })
+          })
+        }
+        const text = 'reply to ' + prompt
+        return {
+          status: 200,
+          headers: new Headers(),
+          events: (async function* () {
+            yield {
+              id: uuid(),
+              object: 'chat.completion.chunk',
+              created: 1,
+              model: body.model,
+              choices: [{ index: 0, delta: { role: 'assistant', content: text }, finish_reason: 'stop' }]
+            }
+          })()
+        }
+      }
+    })
+    try {
+      input = { ...input, reasoningEffort: 'low', fastMode: false }
+      const primaryId = input.sessionId
+      const primary = await connect()
+      await primary.connection.send({ message: message('create fork boundary') })
+      const answer = await savedAnswer(primary)
+      const secondaryId = await new AgentSessionForkOperations().fork(primaryId, answer.id)
+      input = { ...input, sessionId: secondaryId, reasoningEffort: 'high', fastMode: true }
+      const secondary = await connect()
+      stage = 'hold'
+      for (const id of [primaryId, secondaryId]) held.set(id, Promise.withResolvers<void>())
+      const secondInput = message('secondary prompt')
+      await secondary.connection.send({ message: secondInput })
+      await held.get(secondaryId)!.promise
+      input = { ...input, sessionId: primaryId, reasoningEffort: 'low', fastMode: false }
+      const firstInput = message('primary prompt')
+      await primary.connection.send({ message: firstInput })
+      await held.get(primaryId)!.promise
+      await primary.connection.close()
+      await secondary.connection.close()
+      expect(aliases.slice(0, 2)).toEqual(['test', expect.stringMatching(/^cherry-gateway\//)])
+      stage = 'restore'
+      requests.length = 0
+      const sinks = new Map<string, AgentRuntimeEvent[]>()
+      mocks.adopt.mockImplementation(
+        (target: AgentRuntimeConnectInput, _context, connection: PiDurableRuntimeConnection) => {
+          const events: AgentRuntimeEvent[] = []
+          sinks.set(target.sessionId, events)
+          connections.push(connection)
+          void (async () => {
+            for await (const event of connection.events) events.push(event)
+          })()
+        }
+      )
+      await driver.recoverWork()
+      await Promise.all([...sinks.values()].map((events) => done(events, 5000)))
+      const status = async (id: string, context: string, inputId: string) => {
+        const result = await lookupNativeInput(id, context, inputId)
+        if (result.status !== 'confirmed' || !result.value.found) return result
+        return result.value.input.error?.code ?? result.value.input.outcome
+      }
+      const result = {
+        primary: await status(primaryId, primary.connection.contextId!, firstInput.id),
+        secondary: await status(secondaryId, secondary.connection.contextId!, secondInput.id),
+        requests: requests.toSorted((a, b) => a.prompt.localeCompare(b.prompt))
+      }
+      expect(result, 'Production gateway registrations: ' + aliases.join(' → ')).toEqual({
+        primary: 'completed',
+        secondary: 'completed',
+        requests: [
+          { sessionId: primaryId, prompt: 'primary prompt', effort: 'low', fast: false },
+          { sessionId: secondaryId, prompt: 'secondary prompt', effort: 'high', fast: true }
+        ]
+      })
+      expect(text(sinks.get(primaryId)!)).toContain('reply to primary prompt')
+      expect(text(sinks.get(secondaryId)!)).toContain('reply to secondary prompt')
+    } finally {
+      transport.createAgentObjectTransports = routes
+    }
+  })
+
   function message(text: string) {
     return messages.saveMessage({
       sessionId: input.sessionId,
       message: { id: uuid(), role: 'user', data: { parts: [{ type: 'text', text }] } }
     })
+  }
+  function submitBusy(
+    connection: PiDurableRuntimeConnection,
+    kind: 'steer' | 'followUp',
+    user: ReturnType<typeof message>
+  ) {
+    bindNativeInput(input.sessionId, connection.contextId!, user)
+    return connection.threadInput![kind]!.submit({ inputId: runtimeId(user.id), message: user })
   }
   async function connect() {
     const connection = await driver.connect(input)
@@ -1144,6 +1622,15 @@ describe('desktop Pi Durable connection', () => {
       Extract<AgentRuntimeEvent, { type: 'message-projection' }>['projection']['messages'][number]
     >()
     for (const event of events) {
+      if (event.type === 'message.tool-output') {
+        const message = messages.get(event.ref.id)
+        if (message) {
+          const parts = message.parts.slice()
+          parts[event.part] = event.tool
+          messages.set(message.id, { ...message, parts })
+        }
+        continue
+      }
       if (event.type !== 'message-projection') continue
       for (const old of [...Object.keys(event.projection.replaces), ...event.projection.removed]) messages.delete(old)
       for (const message of event.projection.messages)
@@ -1156,23 +1643,49 @@ describe('desktop Pi Durable connection', () => {
       .filter((message) => message.role === 'assistant')
       .flatMap((message) => message.parts.flatMap((part) => (part.type === 'text' ? [part.text] : [])))
       .join('')
-  it('preserves output truncation through the desktop error boundary', async () => {
+  it('preserves a bracketed native initialization cause through desktop serialization', async () => {
+    const runtimeRequire = createRequire(
+      createRequire(import.meta.url).resolve('@cherrystudio/agent-runtime-pi-durable')
+    )
+    const { Harness } = await import(runtimeRequire.resolve('@earendil-works/pi-durable'))
+    vi.spyOn(Harness, 'open').mockRejectedValueOnce(new Error('[SQLITE_BUSY] database is locked; apiKey=private-key'))
+    let failure: unknown
+    try {
+      await connect()
+    } catch (error) {
+      failure = error
+    }
+
+    expect(failure).toBeInstanceOf(Error)
+    const serialized = serializeError(failure)
+    expect(serialized).toMatchObject({
+      errorSource: 'local',
+      message: 'Pi Durable initialize: native-error — [SQLITE_BUSY] database is locked; apiKey="<redacted>"'
+    })
+    expect(JSON.stringify(serialized)).not.toContain('private-key')
+  })
+
+  it('reports output truncation before the desktop completion boundary', async () => {
     const response = assistantReply('', 'length')
     response.content = [{ type: 'thinking', thinking: 'Partial reasoning' }]
     setScript([response])
     const { connection, events } = await connect()
-    await connection.send({ message: message('Solve a reasoning task') })
+    const user = message('Solve a reasoning task')
+    await connection.send({ message: user })
     await done(events)
 
-    const failure = events.find((event) => event.type === 'error')
-    expect(failure).toBeDefined()
-    if (failure?.type !== 'error') throw new Error('Expected a truncation failure')
-    expect(serializeError(failure.error)).toMatchObject({
-      reason: 'output-truncated',
-      finishReason: 'length',
-      i18nKey: 'output_token_limit_reached'
-    })
-    expect(events.some((event) => event.type === 'turn-complete')).toBe(false)
+    const boundary = events.findIndex((event) => event.type === 'turn-complete')
+    expect(boundary).toBeGreaterThanOrEqual(0)
+    expect(events.slice(0, boundary)).toContainEqual(
+      expect.objectContaining({
+        type: 'input-state',
+        input: expect.objectContaining({
+          inputId: user.id,
+          outcome: 'unanswered',
+          error: expect.objectContaining({ code: 'output-truncated' })
+        })
+      })
+    )
   })
 
   it('loads workspace instructions and reflects changes on later model requests', async () => {
@@ -1417,12 +1930,7 @@ describe('desktop Pi Durable connection', () => {
       .flatMap((message) => message.parts)
       .find((part) => part.type === 'dynamic-tool' && part.toolName === 'update_goal')
     expect(completion).toMatchObject({ state: 'output-available' })
-    expect(events).toContainEqual(
-      expect.objectContaining({
-        type: 'input-submission',
-        result: expect.objectContaining({ status: 'acknowledged', facts: ['locally-handled'] })
-      })
-    )
+    expect(messages.inputTarget(input.sessionId, command.id)?.locallyHandled).toBeTruthy()
     if (withHistory) {
       const firstRound = script.calls.find((call) => !call.systemPrompt.startsWith('Evaluate whether the objective'))!
       expect(JSON.stringify(firstRound.messages)).toContain('Remember mango from the imported conversation')
@@ -1458,12 +1966,6 @@ describe('desktop Pi Durable connection', () => {
       })
       await done(first.events)
       expect(script.calls).toHaveLength(0)
-      expect(first.events).toContainEqual(
-        expect.objectContaining({
-          type: 'input-submission',
-          result: expect.objectContaining({ status: 'acknowledged', facts: ['locally-handled'] })
-        })
-      )
       expect(text(first.events)).not.toBe('')
       expect(messages.hasContextInput(input.sessionId, first.connection.contextId!)).toBe(true)
       expect(messages.hasContextModelInput(input.sessionId, first.connection.contextId!)).toBe(false)
@@ -1639,21 +2141,36 @@ describe('desktop Pi Durable connection', () => {
 
   it('streams incrementally and reopens the same SQLite conversation without replaying old text', async () => {
     setScript([assistantReply('first streaming answer')])
-    const finish = holdResponse('first streaming answer')
+    const append = Promise.withResolvers<(suffix: string) => void>()
+    const openReasoning = Promise.withResolvers<(text: string) => void>()
+    const finish = holdResponse('first streaming', append.resolve, openReasoning.resolve)
     const first = await connect()
     const user = message('first')
     await first.connection.send({ message: user })
-    await expect.poll(() => text(first.events).length).toBeGreaterThan(0)
+    await expect.poll(() => text(first.events)).toBe('first streaming')
+    const appendText = await append.promise
+    appendText(' answer')
+    await expect
+      .poll(() => first.events.find((event) => event.type === 'message.text-append'))
+      .toMatchObject({ type: 'message.text-append', part: 0, text: ' answer' })
+    const open = await openReasoning.promise
+    open('check the answer')
+    await expect
+      .poll(() => first.events.find((event) => event.type === 'message.text-open'))
+      .toMatchObject({ kind: 'reasoning', part: 1 })
     expect(first.events.some((event) => event.type === 'turn-complete')).toBe(false)
     finish()
     await done(first.events)
+    expect(first.events.filter((event) => event.type === 'message.text-finish').map((event) => event.part)).toEqual([
+      0, 1
+    ])
     expect(text(first.events)).toBe('first streaming answer')
     expect(first.events.filter((event) => event.type === 'error')).toEqual([])
     const context = prepareDurableBranch(input.sessionId)
     expect(first.nativeInputs.some((state) => state.inputId === user.id && state.outcome === 'completed')).toBe(true)
     expect(messages.inputBinding(input.sessionId, user.id)).toMatchObject({
       contextId: context.id,
-      nativeInputId: expect.any(String)
+      nativeInputId: null
     })
     await first.connection.close()
     setScript([assistantReply('second answer')])
@@ -1691,9 +2208,7 @@ describe('desktop Pi Durable connection', () => {
     await connection.send({ message: message('hello') })
     await done(events)
 
-    const metadata = events.flatMap((event) =>
-      event.type === 'chunk' && event.chunk.type === 'message-metadata' ? [event.chunk.messageMetadata] : []
-    )
+    const metadata = events.flatMap((event) => (event.type === 'message-metadata' ? [event.messageMetadata] : []))
     expect(metadata.at(-1)).toEqual({
       totalTokens: 12,
       stats: { inputTokens: 5, outputTokens: 7, totalTokens: 12, outputTokenDetails: { reasoningTokens: 3 } }
@@ -1719,7 +2234,7 @@ describe('desktop Pi Durable connection', () => {
     await expect.poll(() => text(events)).toBe('first answer')
     finish()
     const late = message('late correction')
-    expect(connection.redirect({ message: late })).toBe(true)
+    await expect(submitBusy(connection, 'steer', late)).resolves.toMatchObject({ status: 'acknowledged' })
     await expect
       .poll(() => nativeInputs.some((state) => state.inputId === late.id && state.outcome === 'completed'), {
         timeout: 10_000
@@ -1823,102 +2338,96 @@ describe('desktop Pi Durable connection', () => {
     expect(events.filter((event) => event.type === 'error')).toEqual([])
   })
 
-  it.each(['reopen', 'retry archive flush'] as const)(
-    'retains independent child output and continuation after %s',
-    async (scenario) => {
-      const held = gate()
-      let root = ''
-      let child = ''
-      let childRuns = 0
-      script = respondingModel((call) => {
-        root ||= call.sessionId!
-        if (call.sessionId !== root) {
-          child = call.sessionId!
-          childRuns++
-          return childRuns === 1
-            ? held.wait({ ...assistantReply('child first answer'), responseId: 'child-response-1' })
-            : { ...assistantReply('child continued answer'), responseId: 'child-response-2' }
-        }
-        if (!call.messages.some((entry) => entry.role === 'toolResult'))
-          return assistantReply(
-            [
-              toolCallPart('spawn', 'subagent', {
-                description: 'research',
-                prompt: 'child work',
-                background: true,
-                fork: false
-              })
-            ],
-            'toolUse'
-          )
-        return assistantReply('parent done')
-      })
-      const { connection, events } = await connect()
-      const user = message('delegate')
-      await connection.send({ message: user })
-      await held.reached
-      await done(events, CHILD_WAIT.timeout)
-      const view = await connection.childProjection('spawn')
-      expect(view).toBeDefined()
-      expect(view!.snapshot().canSubmit).toBe(true)
-      // A watched child stays loaded after it finishes, so close still owns its final archive flush.
-      if (scenario === 'retry archive flush') view!.subscribe(() => {})
-      expect(text(events)).not.toContain('child first')
-      held.open()
-      await expect.poll(() => JSON.stringify(view!.snapshot().messages), CHILD_WAIT).toContain('child first answer')
-      await expect.poll(() => view!.snapshot().active, CHILD_WAIT).toBe(false)
-      const contextId = view!.snapshot().contextId
-      const childIdentity = contexts.context(contextId).nativeThreadId
-      await connection.messageChild(contextId, 'continue research')
-      await expect.poll(() => JSON.stringify(view!.snapshot().messages), CHILD_WAIT).toContain('child continued answer')
-      expect(contexts.context(contextId).nativeThreadId).toBe(childIdentity)
-      const childMessage = view!
-        .snapshot()
-        .messages.find((message) =>
-          message.parts.some((part) => part.type === 'text' && part.text === 'child continued answer')
-        )!
-      await expect
-        .poll(
-          () => events.filter((event) => event.type === 'response-start' && event.responseId === 'child-response-2'),
-          CHILD_WAIT
-        )
-        .toContainEqual({
-          type: 'response-start',
-          responseId: 'child-response-2',
-          messageId: childMessage.id
-        })
-      expect(child).not.toBe(root)
-      expect(text(events)).not.toContain('child continued answer')
-      expect(events.filter((event) => event.type === 'error')).toEqual([])
-      if (scenario === 'retry archive flush') {
-        const shutdown = vi.spyOn(connection['runtime']!, 'shutdown')
-        const resource = (await connection['childResources']()).find(
-          (known) => known.projection.context.id === contextId
-        )!
-        vi.spyOn(resource.handle, 'archive').mockResolvedValueOnce({
-          status: 'unknown',
-          error: { operation: 'archive', code: 'native-error', message: 'archive temporarily unavailable' }
-        })
-        await expect(connection.close()).rejects.toThrow('archive temporarily unavailable')
-        await connection.close()
-        expect(shutdown).toHaveBeenCalledTimes(1)
-        expect(view!.snapshot().available).toBe(false)
-      } else {
-        await connection.close()
+  it('retains independent child output and continuation after reopen', async () => {
+    const held = gate()
+    let root = ''
+    let child = ''
+    let childRuns = 0
+    script = respondingModel((call) => {
+      root ||= call.sessionId!
+      if (call.sessionId !== root) {
+        child = call.sessionId!
+        childRuns++
+        return childRuns === 1
+          ? held.wait({ ...assistantReply('child first answer'), responseId: 'child-response-1' })
+          : { ...assistantReply('child continued answer'), responseId: 'child-response-2' }
       }
-      setScript([assistantReply('child answer after reopen')])
-      const reopened = await connect()
-      const restored = await reopened.connection.childProjection('spawn')
-      expect(restored?.snapshot().contextId).toBe(contextId)
-      expect(JSON.stringify(restored?.snapshot().messages)).toContain('child continued answer')
-      expect(text(reopened.events)).toBe('')
-      await reopened.connection.messageChild(contextId, 'continue after reopen')
-      await expect
-        .poll(() => JSON.stringify(restored!.snapshot().messages), CHILD_WAIT)
-        .toContain('child answer after reopen')
-      expect(script.calls[0].model.id).toBe(MODEL.id)
-    }
-  )
+      if (!call.messages.some((entry) => entry.role === 'toolResult'))
+        return assistantReply(
+          [
+            toolCallPart('spawn', 'subagent', {
+              description: 'research',
+              prompt: 'child work',
+              background: true,
+              fork: false
+            })
+          ],
+          'toolUse'
+        )
+      return assistantReply('parent done')
+    })
+    const { connection, events } = await connect()
+    const user = message('delegate')
+    await connection.send({ message: user })
+    await held.reached
+    await done(events, CHILD_WAIT.timeout)
+    const view = childTimeline(input.sessionId, 'spawn')
+    expect(view).toBeDefined()
+    expect(view!.snapshot().canSubmit).toBe(true)
+    expect(text(events)).not.toContain('child first')
+    held.open()
+    await expect.poll(() => JSON.stringify(view!.snapshot().messages), CHILD_WAIT).toContain('child first answer')
+    await expect.poll(() => view!.snapshot().active, CHILD_WAIT).toBe(false)
+    const contextId = view!.snapshot().contextId
+    const childIdentity = contexts.context(contextId).nativeThreadId
+    await connection.messageChild(contextId, 'continue research')
+    await expect.poll(() => JSON.stringify(view!.snapshot().messages), CHILD_WAIT).toContain('child continued answer')
+    expect(contexts.context(contextId).nativeThreadId).toBe(childIdentity)
+    const childMessage = view!
+      .snapshot()
+      .messages.find((message) =>
+        message.parts.some((part) => part.type === 'text' && part.text === 'child continued answer')
+      )!
+    await expect
+      .poll(
+        () => events.filter((event) => event.type === 'response-start' && event.responseId === 'child-response-2'),
+        CHILD_WAIT
+      )
+      .toContainEqual({
+        type: 'response-start',
+        responseId: 'child-response-2',
+        messageId: childMessage.id
+      })
+    expect(child).not.toBe(root)
+    expect(text(events)).not.toContain('child continued answer')
+    expect(events.filter((event) => event.type === 'error')).toEqual([])
+    await connection.close()
+    const continuedInput = view!
+      .snapshot()
+      .messages.find(
+        (row) =>
+          row.role === 'user' && row.parts.some((part) => part.type === 'text' && part.text === 'continue research')
+      )!
+    const firstReceipt = await lookupNativeInput(contexts.context(contextId).sessionId, contextId, continuedInput.id)
+    expect(firstReceipt).toMatchObject({
+      status: 'confirmed',
+      value: { found: true, input: { inputId: continuedInput.id, outcome: 'completed' } }
+    })
+    setScript([assistantReply('child answer after reopen')])
+    const reopened = await connect()
+    const restored = childTimeline(input.sessionId, 'spawn')
+    expect(restored?.snapshot().contextId).toBe(contextId)
+    expect(JSON.stringify(restored?.snapshot().messages)).toContain('child continued answer')
+    expect(text(reopened.events)).toBe('')
+    await reopened.connection.messageChild(contextId, 'continue after reopen')
+    await expect
+      .poll(() => JSON.stringify(restored!.snapshot().messages), CHILD_WAIT)
+      .toContain('child answer after reopen')
+    expect(await lookupNativeInput(contexts.context(contextId).sessionId, contextId, continuedInput.id)).toEqual(
+      firstReceipt
+    )
+    expect(script.calls[0].model.id).toBe(MODEL.id)
+  })
 
   // Catches a continuation saved ahead of child output that the projection has received but not yet written.
   it.each(['acknowledged', 'rejected'] as const)(
@@ -1953,11 +2462,11 @@ describe('desktop Pi Durable connection', () => {
       await connection.send({ message: message('delegate') })
       await held.reached
       await done(events)
-      const view = (await connection.childProjection('spawn'))!
+      const view = childTimeline(input.sessionId, 'spawn')!
       const contextId = view.snapshot().contextId
       const [child] = await connection['childResources']()
       if (outcome === 'rejected')
-        vi.spyOn(child.handle.input, 'submit').mockImplementationOnce(async (draft) => ({
+        vi.spyOn(child.handle.input.steer, 'submit').mockImplementationOnce(async (draft) => ({
           status: 'rejected',
           inputId: draft.inputId,
           error: { operation: 'submit', code: 'busy', message: 'child is busy' }
@@ -1976,7 +2485,7 @@ describe('desktop Pi Durable connection', () => {
       let steering: Promise<string> | undefined
       await child.handle.observe(async (event) => {
         const delivered =
-          event.type === 'snapshot' ? event.messages : event.type === 'message.upsert' ? [event.message] : []
+          event.type === 'snapshot' ? event.messages : event.type === 'message.reconcile' ? [event.message] : []
         if (!steering && JSON.stringify(delivered).includes('child first answer'))
           steering = connection.messageChild(contextId, 'steer now').then(
             () => 'sent',
@@ -1987,7 +2496,9 @@ describe('desktop Pi Durable connection', () => {
       await expect.poll(() => steering !== undefined).toBe(true)
       expect(await steering).toBe(outcome === 'rejected' ? 'child is busy' : 'sent')
       if (outcome === 'acknowledged')
-        await expect.poll(() => JSON.stringify(view.snapshot().messages)).toContain('child continued answer')
+        await expect
+          .poll(() => JSON.stringify(view.snapshot().messages), CHILD_WAIT)
+          .toContain('child continued answer')
       await connection.drainChildWrites()
       const saved = order(savedChildView(contexts.context(contextId)).messages)
       expect(saved.answer).toBeGreaterThanOrEqual(0)
@@ -2035,7 +2546,8 @@ describe('desktop Pi Durable connection', () => {
         await expect.poll(pending).toMatchObject({ status: 'confirmed', value: { pending: [call] } })
         await expect.poll(() => events.filter((event) => event.type === 'turn-complete').length).toBe(index * 2 + 1)
         const relation = batches
-          .flatMap((batch) => batch.events)
+          .map((batch) => batch.events)
+          .flat()
           .flatMap((event) =>
             event.type === 'snapshot'
               ? (event.subagents ?? [])
@@ -2087,7 +2599,7 @@ describe('desktop Pi Durable connection', () => {
     await connection.send({ message: message('delegate') })
     await answering.reached
     await done(events)
-    const view = (await connection.childProjection('spawn'))!
+    const view = childTimeline(input.sessionId, 'spawn')!
     const accept = ThreadMessageProjection.prototype.accept
     let blocked = false
     const observer = vi.spyOn(ThreadMessageProjection.prototype, 'accept').mockImplementation(async function (
@@ -2141,9 +2653,7 @@ describe('desktop Pi Durable connection', () => {
       outcome: 'failed',
       error: { code: 'model_error', message: '429: CONCURRENCY_LIMITED' }
     })
-    expect(events.find((event) => event.type === 'error')).toMatchObject({
-      error: { message: expect.stringContaining('CONCURRENCY_LIMITED') }
-    })
+    expect(events.some((event) => event.type === 'turn-complete')).toBe(true)
     const boundary = events.length
     await connection.send({ message: message('try again') })
     await expect.poll(() => events.slice(boundary).some((event) => event.type === 'turn-complete')).toBe(true)
@@ -2182,7 +2692,7 @@ describe('desktop Pi Durable connection', () => {
       )
       .toBe('error')
     expect(attempts).toBe(1)
-    const view = (await connection.childProjection('spawn'))!
+    const view = childTimeline(input.sessionId, 'spawn')!
     await connection.drainChildWrites()
     const saved = savedChildView(contexts.context(view.snapshot().contextId)).messages
     const errors = saved.flatMap((message) => message.parts.filter((part) => part.type === 'data-error'))
@@ -2243,7 +2753,7 @@ describe('desktop Pi Durable connection', () => {
     const { connection, events } = await connect()
     await connection.send({ message: message('delegate') })
     await done(events, 10_000)
-    const view = await connection.childProjection('spawn')
+    const view = childTimeline(input.sessionId, 'spawn')
     expect(view).toBeDefined()
     const tool = () =>
       view!
@@ -2273,7 +2783,56 @@ describe('desktop Pi Durable connection', () => {
       parts: expect.arrayContaining([{ type: 'text', text: 'child prefix', state: 'streaming' }])
     })
     const id = answer()!.id
+    const [child] = await connection['childResources']()
+    await child.projection.drain()
+    vi.stubGlobal('window', { api: { ipcApi: { on: vi.fn(), request: vi.fn() } } })
+    const ipc = projectionIpc()
+    const store = new MessageProjectionService()
+    const target = { kind: 'child' as const, sessionId: input.sessionId, toolCallId: 'spawn' }
+    const stopRenderer = store.subscribe(target, () => {})
+    const attach = ipc.attachments[0]
+    const stopDelivery = view!.subscribe((update) => ipc.emit(attach.subscriptionId, update))
+    attach.resolve(view!.snapshot())
+    onTestFinished(() => {
+      stopDelivery()
+      stopRenderer()
+      vi.unstubAllGlobals()
+    })
+    await expect
+      .poll(() => {
+        const current = store.getSnapshot(target).view
+        return current?.kind === 'child' && current.active
+      })
+      .toBe(true)
+    const row = store.getSnapshot(target).view!.messages.find((message) => message.id === id)!
+    const partId = row.partIds![row.parts.findIndex((part) => part.type === 'text' && part.text === 'child prefix')]
+    const reader = store.partsFor(target)
+    const baseline = store.getSnapshot(target)
+    const db = application.get('DbService')
+    const stacks = new Set<string>()
+    const getDb = db.getDb.bind(db)
+    const read = vi.spyOn(db, 'getDb').mockImplementation(() => {
+      stacks.add(new Error().stack!.split('\n').slice(2, 7).join('\n'))
+      return getDb()
+    })
+    const writeStacks = new Set<string>()
+    const withWriteTx = db.withWriteTx.bind(db)
+    const write = vi.spyOn(db, 'withWriteTx').mockImplementation((tx) => {
+      writeStacks.add(new Error().stack!.split('\n').slice(2, 8).join('\n'))
+      return withWriteTx(tx)
+    })
+    const received = Promise.withResolvers<{ reads: string[]; writes: string[] }>()
+    const stopPart = reader.subscribe(partId, () => {
+      const part = reader.read(partId)
+      if (part?.type === 'text' && part.text === 'child prefix suffix')
+        received.resolve({ reads: [...stacks], writes: [...writeStacks] })
+    })
+    onTestFinished(stopPart)
     append()
+    expect(await received.promise).toEqual({ reads: [], writes: [] })
+    expect(store.getSnapshot(target)).toBe(baseline)
+    read.mockRestore()
+    write.mockRestore()
     await expect.poll(answer).toMatchObject({
       id,
       metadata: { status: 'pending' },
@@ -2313,39 +2872,34 @@ describe('desktop Pi Durable connection', () => {
     const { connection, events } = await connect()
     await connection.send({ message: message('delegate') })
     await done(events, CHILD_WAIT.timeout)
-    await expect
-      .poll(() => [connection['releasedChildren'].size, connection['children'].size], CHILD_WAIT)
-      .toEqual([1, 0])
     return connection
   }
 
-  // Catches releasing a reopened finished child before the caller's continuation subscribes to it.
-  it('keeps a reopened finished child for a subscriber that arrives in its continuation', async () => {
+  it('reads a released child from SQLite and follows its next explicit command', async () => {
     const connection = await finishedChild()
-    const view = (await connection.childProjection('spawn'))!
+    await expect
+      .poll(() => [connection['releasedChildren'].size, connection['children'].size], CHILD_WAIT)
+      .toEqual([1, 0])
+    const view = childTimeline(input.sessionId, 'spawn')!
     await Promise.resolve()
     const updates: string[] = []
     view.subscribe((update) => updates.push(JSON.stringify(update)))
     await new Promise<void>((resolve) => setImmediate(resolve))
-    expect(view.snapshot().available).toBe(true)
+    expect(view.snapshot().available).toBe(false)
     await connection.messageChild(view.snapshot().contextId, 'continue research')
     await expect.poll(() => updates.join(), CHILD_WAIT).toContain('child continued answer')
   })
 
   // Catches close skipping a finished child whose release flush failed while close waited for it.
   it('flushes a finished child on close after its release flush fails', async () => {
-    const connection = await finishedChild()
-    const view = (await connection.childProjection('spawn'))!
-    const unsubscribe = view.subscribe(() => {})
-    const [child] = await connection['childResources']()
     const flushing = gate()
-    vi.spyOn(child.projection, 'stop').mockImplementationOnce(async () => {
+    vi.spyOn(ChildThreadProjection.prototype, 'stop').mockImplementationOnce(async () => {
       await flushing.wait(undefined)
       throw new Error('archive temporarily unavailable')
     })
-    await new Promise((resolve) => setImmediate(resolve))
-    unsubscribe()
+    const connection = await finishedChild()
     await flushing.reached
+    const view = childTimeline(input.sessionId, 'spawn')!
     const closing = connection.close()
     await new Promise((resolve) => setTimeout(resolve, 20))
     flushing.open()
@@ -2386,8 +2940,8 @@ describe('desktop Pi Durable connection', () => {
 
     expect(nativeInputs.some((state) => state.inputId === user.id && state.outcome === 'aborted')).toBe(true)
     expect(events.filter((event) => event.type === 'error')).toEqual([])
-    expect(events.filter((event) => event.type === 'turn-complete')).toEqual([
-      { type: 'turn-complete', status: 'paused' }
+    expect(events.filter((event) => event.type === 'turn-complete')).toMatchObject([
+      { status: 'paused', nativeRun: { inputs: [{ inputId: user.id, outcome: 'aborted' }] } }
     ])
   })
 
@@ -2421,9 +2975,7 @@ describe('desktop Pi Durable connection', () => {
 
     await connection.interrupt()
     await expect.poll(() => events.some((event) => event.type === 'stop-confirmed')).toBe(true)
-    expect(events.filter((event) => event.type === 'turn-complete')).toEqual([
-      { type: 'turn-complete', status: 'paused' }
-    ])
+    expect(events.filter((event) => event.type === 'turn-complete').map((event) => event.status)).toEqual(['paused'])
     expect(script.calls.find((call) => call.sessionId !== root)?.signal?.aborted).toBe(true)
 
     await connection.send({ message: message('next') })
@@ -2451,7 +3003,7 @@ describe('desktop Pi Durable connection', () => {
     await connection.send({ message: message('delegate') })
     await answering.reached
     await done(events)
-    const view = (await connection.childProjection('spawn'))!
+    const view = childTimeline(input.sessionId, 'spawn')!
     const [child] = (
       connection as unknown as {
         children: Map<string, { resource: { projection: { projection: ThreadMessageProjection } } }>
@@ -2511,17 +3063,9 @@ describe('desktop Pi Durable connection', () => {
         await released
         return observe(batch)
       }
-      const submit = connection['submit'].bind(connection)
-      const submitted: Promise<unknown>[] = []
-      connection['submit'] = (...args: Parameters<typeof submit>) => {
-        const result = submit(...args)
-        submitted.push(result)
-        return result
-      }
       // Each queued input is one observation; the backlog limit is 100.
       const queued = Array.from({ length: 120 }, (_, index) => message(`queued-${index}`))
-      for (const input of queued) expect(connection.followUp({ message: input })).toBe(true)
-      await Promise.all(submitted)
+      await Promise.all(queued.map((user) => submitBusy(connection, 'followUp', user)))
       release()
       await expect.poll(() => gaps).toContain('overflow')
       held.open()
@@ -2577,20 +3121,376 @@ describe('desktop Pi Durable connection', () => {
     expect(script.calls).toHaveLength(0)
   })
 
+  it.each(['stop', 'length', 'error', 'aborted'] as const)(
+    'repairs the original Run from its archived %s answer without opening a connection',
+    async (reason) => {
+      const held = gate()
+      if (reason === 'aborted') script = respondingModel(() => held.wait(assistantReply('never published')))
+      else setScript([assistantReply('Complete native text', reason)])
+      const { connection, events } = await connect()
+      const original = message('finish this reply')
+      const run = messages.saveMessage({
+        sessionId: input.sessionId,
+        parentId: original.id,
+        message: { role: 'assistant', status: 'pending', data: { parts: [{ type: 'text', text: 'partial' }] } }
+      })
+      const partId = messages.getStoredMessagePartFacts(input.sessionId, run.id)[0].partId
+      await connection.send({ message: original })
+      if (reason === 'aborted') {
+        await held.reached
+        await connection.interrupt()
+      }
+      await done(events)
+      await connection.close()
+      dbh.db
+        .update(agentSessionMessageTable)
+        .set({ pos: null })
+        .where(eq(agentSessionMessageTable.id, original.id))
+        .run()
+      setScript([assistantReply('unexpected duplicate request')])
+      BaseService.resetInstances()
+      const service = new AgentSessionRuntimeService()
+      const restored: string[] = []
+      service.onTurnTerminal((event) => restored.push(event.assistantMessageId))
+      await service._doInit()
+      await service._doAllReady()
+      await service.recoverPendingReplies({ sessionId: input.sessionId, runId: run.id })
+      await service._doDestroy()
+      const row = messages.getSessionMessage(input.sessionId, run.id)
+      expect(row.status).toBe(reason === 'stop' ? 'success' : reason === 'aborted' ? 'paused' : 'error')
+      const prefix = messages.readForkPrefixTx(dbh.db, input.sessionId, run.id)!
+      expect(prefix.map((row) => row.id)).toContain(original.id)
+      const recovered = prefix.find((row) => row.id === run.id)!
+      if (reason === 'stop') {
+        expect(recovered.data.runtimeAnchor).toMatchObject({
+          checkpoint: { runtime: 'pi-durable', entryId: expect.any(String) }
+        })
+        expect(recovered.runtimeResumeToken).toBeTruthy()
+      } else expect(recovered.data.runtimeAnchor).toBeUndefined()
+      expect(row.data.parts?.[0]).toMatchObject({
+        type: 'text',
+        text: reason === 'aborted' ? 'partial' : 'Complete native text'
+      })
+      if (reason === 'length')
+        expect(row.data.parts).toContainEqual(
+          expect.objectContaining({
+            type: 'data-error',
+            data: expect.objectContaining({ i18nKey: 'output_token_limit_reached', finishReason: 'length' })
+          })
+        )
+      expect(messages.getStoredMessagePartFacts(input.sessionId, run.id)[0].partId).toBe(partId)
+      expect(restored).toEqual([run.id])
+      expect(script.calls).toHaveLength(0)
+    }
+  )
+
+  it('interrupts a delivery lost between local binding and native submission and starts the next request', async () => {
+    sharedHosts()
+    const { connection } = await connect()
+    const { sessionId, agentId } = input
+    const sender = uuid()
+    dbh.db
+      .insert(agentSessionTable)
+      .values({ id: sender, agentId, workspaceId: snapshot.session.workspace.id, name: 'Sender', orderKey: 'a1' })
+      .run()
+    const target = {
+      senderAgentId: agentId,
+      senderSessionId: sender,
+      receiverSessionId: sessionId,
+      replyPolicy: 'none' as const
+    }
+    const first = messages.acceptSessionDelivery({ ...target, content: 'first delivery' })
+    const run = messages.saveMessage({
+      sessionId,
+      parentId: first.id,
+      message: { role: 'assistant', status: 'pending', data: { parts: [] } }
+    })
+    messages.transitionSessionDelivery(sessionId, first.id, 'delivering', { expected: ['accepted'], turnRef: run.id })
+    prepareNativeSubmission(sessionId, first.id, connection.contextId!)
+    await connection.close()
+    const next = messages.acceptSessionDelivery({ ...target, content: 'next delivery' })
+    BaseService.resetInstances()
+    const runtime = new AgentSessionRuntimeService()
+    const deliveries = new AgentSessionDeliveryService()
+    let submitting = true
+    let sent: string | undefined
+    MockApplicationUtils.setService('AgentSessionRuntimeService', runtime)
+    MockApplicationUtils.setService('AiStreamManager', {
+      hasLiveStream: () => false,
+      hasTerminalPersistenceInFlight: () => false,
+      hasUnsettledTopicWork: () => submitting,
+      withDispatchLock: (_topic: string, action: () => Promise<void>) => action(),
+      whenTerminalDispatchSettled: async () => {},
+      send: ({ models }: { models: { request: { messages: { id: string }[] } }[] }) => {
+        sent = models[0].request.messages[0].id
+      }
+    })
+    try {
+      await deliveries._doInit()
+      await deliveries.drainSessionQueues([sessionId])
+      expect(messages.getSessionMessage(sessionId, run.id).status).toBe('pending')
+      submitting = false
+      deliveries.kick(sessionId)
+      await deliveries.drainSessionQueues([sessionId])
+      expect(messages.getSessionMessage(sessionId, run.id).status).toBe('paused')
+      expect(messages.getSessionMessage(sessionId, first.id).delivery).toMatchObject({
+        status: 'consumed',
+        outcome: 'interrupted'
+      })
+      expect(messages.getSessionMessage(sessionId, next.id).delivery?.status).toBe('delivering')
+      expect(sent).toBe(next.id)
+    } finally {
+      await deliveries._doStop()
+      await runtime._doDestroy()
+      MockApplicationUtils.resetServices()
+    }
+  })
+
+  it('recovers a completed tool into its original part and stores the full result before publishing', async () => {
+    const text = 'native tool output '.repeat(2050) + 'end of tool result'
+    writeFileSync(join(directory, 'tool-result.txt'), text)
+    setScript([
+      assistantReply([toolCallPart('reading', 'read', { path: 'tool-result.txt' })], 'toolUse'),
+      assistantReply('Read complete')
+    ])
+    const { connection, events } = await connect()
+    const question = message('Read the tool result')
+    const { sessionId } = input
+    const partId = uuid()
+    const run = messages.saveMessage({
+      sessionId,
+      parentId: question.id,
+      partIds: [partId],
+      positions: new Map([[partId, 42]]),
+      message: {
+        role: 'assistant',
+        status: 'pending',
+        data: {
+          parts: [
+            {
+              type: 'dynamic-tool',
+              toolName: 'read',
+              toolCallId: 'reading',
+              state: 'input-available',
+              input: { path: 'tool-result.txt' }
+            }
+          ]
+        }
+      }
+    })
+    const [original] = messages.getStoredMessagePartFacts(sessionId, run.id)
+    await connection.send({ message: question })
+    await done(events)
+    await connection.close()
+    setScript([assistantReply('unexpected second request')])
+    const published: string[] = []
+    const { recoverDurableReplies } = await import('./recoverDurableReplies')
+    await recoverDurableReplies((event) => {
+      const result = messages.getSessionToolOutput(sessionId, event.assistantMessageId, 'reading')
+      if (result.found) published.push(JSON.stringify(result.output))
+    })
+    expect(published).toHaveLength(1)
+    expect(published[0]).toContain(text)
+    const [tool] = messages.getStoredMessagePartFacts(sessionId, run.id)
+    expect([tool.partId, tool.pos]).toEqual([original.partId, original.pos])
+    expect(messages.getSessionMessage(sessionId, run.id).status).toBe('success')
+    expect(script.calls).toHaveLength(0)
+  })
+
+  it.each(['placed', 'answered', 'edited'])('recovers a %s follow-up when Main missed its placement', async (state) => {
+    const first = gate()
+    const second = gate()
+    script = respondingModel((call) => {
+      const last = JSON.stringify(call.messages.findLast((entry) => entry.role === 'user'))
+      return last.includes('second')
+        ? second.wait(assistantReply('second answer'))
+        : first.wait(assistantReply('first answer'))
+    })
+    const { connection, handle } = await connect()
+    try {
+      await connection.send({ message: message('first') })
+      await first.reached
+      const { sessionId } = input
+      const previousParts = [{ type: 'text' as const, text: 'before edit' }]
+      const fileEntryId = uuid()
+      const managedRefs = () =>
+        dbh.db
+          .select()
+          .from(agentSessionMessageFileRefTable)
+          .where(eq(agentSessionMessageFileRefTable.fileEntryId, fileEntryId))
+          .all()
+      const editParts = [
+        { type: 'text' as const, text: 'second' },
+        {
+          type: 'file' as const,
+          mediaType: 'text/plain',
+          filename: 'recovered.txt',
+          providerMetadata: { cherry: { fileEntryId } },
+          url: pathToFileURL(join(directory, 'recovered.txt')).href
+        }
+      ]
+      writeFileSync(join(directory, 'recovered.txt'), 'Restored attachment')
+      const queued = messages.saveMessage({
+        sessionId,
+        stageFollowup: true,
+        message: { role: 'user', data: { parts: state === 'edited' ? previousParts : editParts.slice(0, 1) } }
+      })
+      await submitBusy(connection, 'followUp', queued)
+      await expect.poll(() => handle.durable.followups().map(({ inputId }) => inputId)).toEqual([queued.id])
+      if (state === 'edited') {
+        dbh.db
+          .insert(fileEntryTable)
+          .values({
+            id: fileEntryId,
+            origin: 'internal',
+            name: 'recovered',
+            ext: 'txt',
+            size: 19,
+            cleanupPolicy: 'delete_when_unreferenced'
+          })
+          .run()
+        const contextId = connection.contextId!
+        expect(messages.protectNativeFollowupFiles(sessionId, contextId, queued.id, editParts)).toBe(true)
+        expect(managedRefs()).toEqual([expect.objectContaining({ sourceId: queued.id })])
+        mocks.skipFollowupProjection = true
+        const hold = { token: uuid(), owner: 'editor' }
+        expect(
+          await handle.durable.changeFollowups({
+            type: 'begin-edit',
+            inputId: queued.id,
+            revision: 0,
+            hold,
+            isOwnerLive: (id) => id === hold.owner
+          })
+        ).toBe(true)
+        expect(
+          await handle.durable.changeFollowups({
+            type: 'edit',
+            inputId: queued.id,
+            revision: 0,
+            hold,
+            content: 'second with recovered.txt',
+            parts: JSON.stringify(editParts)
+          })
+        ).toBe(true)
+        expect(messages.getSessionMessage(sessionId, queued.id).data.parts).toEqual(previousParts)
+      }
+      const [{ readFollowupProjections }, { recoverDurableFollowups, recoverDurableReplies }] = await Promise.all([
+        import('@cherrystudio/agent-runtime-pi-durable'),
+        import('./recoverDurableReplies')
+      ])
+      const context = contexts.context(connection.contextId!)
+      const backend = contexts.backend(context.backendId)
+      const thread = Number(context.nativeThreadId) as ConversationId
+      const stored = async <T>(read: (storage: Awaited<ReturnType<typeof openDurableStorage>>) => Promise<T>) => {
+        const storage = await openDurableStorage(backend, 'ro')
+        try {
+          return await read(storage)
+        } finally {
+          await storage.close(BACKGROUND_CONTEXT)
+        }
+      }
+      expect(await stored(readFollowupProjections)).toEqual([{ threadId: context.nativeThreadId, inputId: queued.id }])
+      const recover = () => stored((storage) => recoverDurableFollowups(backend.id, storage, () => true))
+      expect((await recover()).acknowledged).toEqual([])
+      expect(messages.listSessionMessages(sessionId).items.some(({ id }) => id === queued.id)).toBe(false)
+
+      first.open()
+      await second.reached
+      if (state === 'placed') {
+        expect((await recover()).acknowledged).toHaveLength(1)
+        expect(messages.replyTo(sessionId, queued.id)?.status).toBe('pending')
+      }
+      second.open()
+      await expect
+        .poll(() =>
+          stored(async (storage) => (await storage.submissionByRequest(thread, queued.id, BACKGROUND_CONTEXT))?.status)
+        )
+        .toBe('done')
+      await connection.close()
+      expect(contexts.backend(backend.id).needsRecoveryCheck).toBe(true)
+      if (state === 'edited') {
+        expect(messages.getSessionMessage(sessionId, queued.id).data.parts).toEqual(previousParts)
+      }
+      mocks.skipFollowupProjection = false
+      const restarted = new PiDurableRuntimeDriver(undefined, (scope) =>
+        recoverDurableReplies(() => {}, undefined, scope)
+      )
+      await restarted.recoverWork()
+      const reply = messages.replyTo(sessionId, queued.id)!
+      expect(reply.status).toBe('success')
+      expect(messages.getSessionMessage(sessionId, reply.id).data.parts).toContainEqual(
+        expect.objectContaining({ type: 'text', text: 'second answer' })
+      )
+      if (state === 'edited') {
+        expect(messages.getSessionMessage(sessionId, queued.id).data.parts).toEqual(editParts)
+        expect(managedRefs()).toEqual([expect.objectContaining({ sourceId: queued.id })])
+      }
+      expect(await stored(readFollowupProjections)).toEqual([])
+      expect(contexts.backend(backend.id).needsRecoveryCheck).toBe(false)
+      await restarted.recoverWork()
+      if (state === 'edited') expect(messages.getSessionMessage(sessionId, queued.id).data.parts).toEqual(editParts)
+      expect(
+        messages
+          .listSessionMessages(sessionId)
+          .items.filter(({ role }) => role === 'assistant')
+          .map(({ id }) => id)
+      ).toEqual([reply.id])
+    } finally {
+      mocks.skipFollowupProjection = false
+      first.open()
+      second.open()
+    }
+  })
+
+  it('leaves an ambiguous legacy sibling pending on native reply recovery', async () => {
+    const { connection, events } = await connect()
+    const question = message('Answer my first request')
+    await connection.send({ message: question })
+    await done(events)
+    await connection.close()
+    const sessionId = input.sessionId
+    const parentId = question.id
+    messages.saveMessage({
+      sessionId,
+      parentId,
+      message: { role: 'assistant', status: 'success', data: { parts: [{ type: 'text', text: 'Hello world' }] } }
+    })
+    const sibling = messages.saveMessage({
+      sessionId,
+      parentId,
+      message: { role: 'assistant', status: 'pending', data: { parts: [] } }
+    })
+    const terminalIds: string[] = []
+    const { recoverDurableReplies } = await import('./recoverDurableReplies')
+    await recoverDurableReplies((event) => terminalIds.push(event.assistantMessageId))
+    expect(messages.getSessionMessage(sessionId, sibling.id)).toMatchObject({
+      status: 'pending',
+      data: { parts: [] }
+    })
+    expect(terminalIds).toEqual([])
+    expect(script.calls).toHaveLength(1)
+  })
+
   it('identifies an active recovered input before publishing its first content', async () => {
-    const { connection, events, handle } = await connect()
+    const { connection, events } = await connect()
     const context = prepareDurableBranch(input.sessionId)
     const user = message('interrupted before first output')
-    prepareNativeSubmission(input.sessionId, user.id, context.id, 'reject')
-    const pending: InputState = {
-      inputId: runtimeId(user.id),
-      nativeInput: { session: handle.thread, id: runtimeId<'native-input'>('interrupted-input') },
-      facts: ['accepted', 'placed']
-    }
+    prepareNativeSubmission(input.sessionId, user.id, context.id)
     const observer = connection as unknown as { onObservation(batch: DurableObservation): Promise<void> }
     await observer.onObservation({
       backgroundResults: { status: 'confirmed', value: { active: false, pending: [], notification: [] } },
-      events: [{ type: 'snapshot', messages: [], inputs: [pending], activity: { state: 'active' } }],
+      events: [
+        {
+          type: 'snapshot',
+          messages: [],
+          get inputs(): never {
+            throw new Error('Replayed historical inputs')
+          },
+          activity: { state: 'active' }
+        }
+      ],
+      resumedInput: runtimeId(user.id),
       aliases: {},
       live: []
     })
@@ -2629,14 +3529,14 @@ describe('desktop Pi Durable connection', () => {
     await connection.send({ message: message('first') })
     await held.reached
     const second = message('second')
-    expect(connection.followUp({ message: second, systemReminder: true })).toBe(true)
+    await expect(submitBusy(connection, 'followUp', second)).resolves.toMatchObject({ status: 'acknowledged' })
     await expect
       .poll(() => nativeInputs.some((state) => state.nativeInput && state.facts.includes('queued')))
       .toBe(true)
     held.open()
     await done(events)
 
-    const boundaries = events.filter((event) => event.type === 'steer-boundary')
+    const boundaries = events.filter((event) => event.type === 'run-started')
     expect(boundaries).toEqual([expect.objectContaining({ inputIds: [second.id] })])
     const boundary = events.indexOf(boundaries[0])
     expect(projectionIndex(events, 'first answer')).toBeLessThan(boundary)
@@ -2644,6 +3544,316 @@ describe('desktop Pi Durable connection', () => {
     expect(nativeInputs.some((state) => state.inputId === second.id && state.outcome === 'completed')).toBe(true)
     expect(events.filter((event) => event.type === 'turn-complete')).toHaveLength(1)
     expect(events.filter((event) => event.type === 'error')).toEqual([])
+  })
+
+  it('edits a file-only queued input in place, retaining one attachment and replacing another', async () => {
+    const held = answerByInput()
+    const { connection, events, nativeInputs, handle } = await connect()
+    const part = (filename: string) => {
+      const path = join(directory, filename)
+      writeFileSync(path, filename)
+      return { type: 'file' as const, mediaType: 'text/plain', filename, url: pathToFileURL(path).href }
+    }
+    const retained = part('retained.txt')
+    const removed = part('removed.txt')
+    const added = part('added.txt')
+    const caption = { type: 'text' as const, text: 'Read this second' }
+    await connection.send({ message: message('first') })
+    await held.reached
+    const { sessionId } = input
+    const queued = messages.saveMessage({
+      sessionId,
+      stageFollowup: true,
+      message: { role: 'user', data: { parts: [retained, removed] } }
+    })
+    try {
+      await expect(submitBusy(connection, 'followUp', queued)).resolves.toMatchObject({ status: 'acknowledged' })
+      const before = handle.durable.followups()[0]
+      const [retainedId, removedId] = readAgentSessionMessagePartIdsTx(dbh.db, queued.id)
+      const token = uuid()
+      const editor = { id: 'editor', isLive: (id: string) => id === 'editor' }
+      await expect(
+        connection.changeFollowups({ type: 'begin-edit', inputId: queued.id, revision: 0, token }, undefined, editor)
+      ).resolves.toBe(true)
+      await expect(
+        connection.changeFollowups(
+          { type: 'edit', inputId: queued.id, revision: 0, token, parts: [added, retained, caption] },
+          undefined,
+          editor
+        )
+      ).resolves.toBe(true)
+      expect(handle.durable.followups()).toEqual([
+        expect.objectContaining({ inputId: queued.id, submissionId: before.submissionId, revision: 1 })
+      ])
+      await expect(
+        connection.changeFollowups(
+          { type: 'edit', inputId: queued.id, revision: 0, token, parts: [removed] },
+          undefined,
+          editor
+        )
+      ).resolves.toBe(false)
+      await expect(
+        connection.changeFollowups(
+          { type: 'edit', inputId: queued.id, revision: 1, token, parts: withKnowledgeScopePart([caption], [uuid()]) },
+          undefined,
+          editor
+        )
+      ).rejects.toMatchObject({ reason: 'input_unsupported' })
+      expect(messages.getSessionMessage(sessionId, queued.id).data.parts).toEqual([added, retained, caption])
+      const ids = readAgentSessionMessagePartIdsTx(dbh.db, queued.id)
+      expect(ids[1]).toBe(retainedId)
+      expect(ids).not.toContain(removedId)
+    } finally {
+      held.open()
+    }
+    await done(events)
+    const request = JSON.stringify(script.calls.at(-1)?.messages.findLast((entry) => entry.role === 'user'))
+    expect(request).toContain(caption.text)
+    expect(request).toContain('retained.txt')
+    expect(request).toContain('added.txt')
+    expect(request).not.toContain('removed.txt')
+    expect(text(events)).toContain('second answer')
+    expect(nativeInputs.some((state) => state.inputId === queued.id && state.outcome === 'completed')).toBe(true)
+  })
+
+  it('reports a failed run while its follow-up stays queued', async () => {
+    const held = gate()
+    script = respondingModel(() =>
+      held.wait({ ...assistantReply('', 'error'), errorMessage: '402 Insufficient Balance' })
+    )
+    const { connection, events, nativeInputs } = await connect()
+    const first = message('first')
+    await connection.send({ message: first })
+    await held.reached
+    const second = message('second')
+    try {
+      await expect(submitBusy(connection, 'followUp', second)).resolves.toMatchObject({ status: 'acknowledged' })
+      await expect.poll(() => nativeInputs.findLast((state) => state.inputId === second.id)?.facts).toContain('queued')
+    } finally {
+      held.open()
+    }
+
+    await expect.poll(() => nativeInputs.findLast((state) => state.inputId === first.id)?.outcome).toBe('failed')
+    await done(events)
+    expect(events.filter((event) => event.type === 'turn-complete')).toHaveLength(1)
+    expect(events.filter((event) => event.type === 'error')).toEqual([])
+    expect(nativeInputs.findLast((state) => state.inputId === first.id)?.error?.message).toContain(
+      '402 Insufficient Balance'
+    )
+    expect(nativeInputs.findLast((state) => state.inputId === second.id)).toMatchObject({
+      facts: ['accepted', 'queued']
+    })
+    expect(events.some((event) => event.type === 'run-started')).toBe(false)
+    await connection.close()
+
+    const reopened = await connect()
+    await expect(reopened.connection.lookupInput(reopened.connection.contextId!, second.id)).resolves.toMatchObject({
+      status: 'confirmed',
+      value: { found: true, input: { inputId: second.id, facts: ['accepted', 'queued'] } }
+    })
+    expect(script.calls).toHaveLength(1)
+  })
+
+  it('settles the failed reply from the retained boundary after observation overflow', async () => {
+    const model = gate()
+    const observer = gate()
+    script = respondingModel(() =>
+      model.wait({ ...assistantReply('', 'error'), errorMessage: '402 Insufficient Balance' })
+    )
+    const first = message('first')
+    const queued = message('queued')
+    const assistant = messages.saveMessage({
+      sessionId: input.sessionId,
+      parentId: first.id,
+      message: { role: 'assistant', status: 'pending', data: { parts: [] } }
+    })
+    const failed = Promise.withResolvers<ThreadFeed>()
+    const publish = ThreadFeed.prototype.publish
+    const publisher = vi.spyOn(ThreadFeed.prototype, 'publish').mockImplementation(function (this: ThreadFeed, event) {
+      const result = publish.call(this, event)
+      if (event.type === 'input.changed' && event.input.inputId === first.id && event.input.outcome === 'failed')
+        failed.resolve(this)
+      return result
+    })
+    const connected = Promise.withResolvers<PiDurableRuntimeConnection>()
+    const connect = driver.connect.bind(driver)
+    vi.spyOn(driver, 'connect').mockImplementation(async (request) => {
+      const connection = await connect(request)
+      connections.push(connection)
+      connected.resolve(connection)
+      return connection
+    })
+    BaseService.resetInstances()
+    const service = new AgentSessionRuntimeService()
+    try {
+      await service._doInit()
+      sharedHosts()
+      const run = service.beginTurn({
+        ...input,
+        agentType: 'pi-durable',
+        topicId: `agent-session:${input.sessionId}`,
+        assistantMessageId: assistant.id,
+        userMessage: first
+      })
+      const source = service.openTurnStream({
+        sessionId: input.sessionId,
+        turnId: run.turnId,
+        signal: run.abortController.signal
+      })
+      const settled = pipeMessageStream(
+        source,
+        run.abortController.signal,
+        { id: assistant.id, role: 'assistant' },
+        () => {},
+        () => {},
+        () => {}
+      )
+      const connection = await connected.promise
+      await model.reached
+      const observe = connection['onObservation'].bind(connection)
+      const delivered: DurableObservation['events'][number][] = []
+      connection['onObservation'] = async (batch) => {
+        await observer.wait(undefined)
+        delivered.push(...batch.events)
+        observe(batch)
+      }
+      await expect(submitBusy(connection, 'followUp', queued)).resolves.toMatchObject({ status: 'acknowledged' })
+      await observer.reached
+      model.open()
+      const feed = await failed.promise
+      for (let index = 0; index < 101; index++) feed.publish({ type: 'activity.changed', activity: { state: 'idle' } })
+      observer.open()
+      const result = await settled
+      expect(delivered).toContainEqual({ type: 'gap', reason: 'overflow' })
+      expect(
+        delivered.some(
+          (event) =>
+            event.type === 'input.changed' && event.input.inputId === first.id && event.input.outcome === 'failed'
+        )
+      ).toBe(false)
+      const error = result.threw?.error
+      expect(error).toMatchObject({ message: expect.stringContaining('402 Insufficient Balance') })
+      const failure = { status: 'error' as const, finalMessage: result.finalMessage, error: serializeError(error) }
+      for (const listener of run.listeners) await listener.onError(failure, error)
+      expect(messages.getSessionMessage(input.sessionId, assistant.id)).toMatchObject({
+        status: 'error',
+        data: {
+          parts: expect.arrayContaining([
+            expect.objectContaining({
+              type: 'data-error',
+              data: expect.objectContaining({ message: expect.stringContaining('402 Insufficient Balance') })
+            })
+          ])
+        }
+      })
+      await expect(connection.lookupInput(connection.contextId!, queued.id)).resolves.toMatchObject({
+        status: 'confirmed',
+        value: { found: true, input: { inputId: queued.id, facts: ['accepted', 'queued'] } }
+      })
+      expect(script.calls).toHaveLength(1)
+    } finally {
+      observer.open()
+      model.open()
+      publisher.mockRestore()
+      await service._doDestroy()
+    }
+  }, 20_000)
+
+  it('completes the preceding reply while a queued edit waits, then opens one reply for the saved input', async () => {
+    const held = answerByInput()
+    const { connection, events, handle } = await connect()
+    const first = message('first')
+    await connection.send({ message: first })
+    await held.reached
+    const queued = messages.saveMessage({
+      sessionId: input.sessionId,
+      stageFollowup: true,
+      message: { role: 'user', data: { parts: [{ type: 'text', text: 'original' }] } }
+    })
+    const token = uuid()
+    const editor = { id: 'editor', isLive: (id: string) => id === 'editor' }
+    try {
+      await submitBusy(connection, 'followUp', queued)
+      await expect(
+        connection.changeFollowups({ type: 'begin-edit', inputId: queued.id, revision: 0, token }, undefined, editor)
+      ).resolves.toBe(true)
+    } finally {
+      held.open()
+    }
+    await done(events)
+    expect(script.calls).toHaveLength(1)
+    expect(handle.durable.followups()).toMatchObject([{ inputId: queued.id, editing: true }])
+
+    const parts = [{ type: 'text' as const, text: 'edited second' }]
+    await expect(
+      connection.changeFollowups({ type: 'edit', inputId: queued.id, revision: 0, token, parts }, undefined, editor)
+    ).resolves.toBe(true)
+    await expect.poll(() => events.filter(({ type }) => type === 'turn-complete').length).toBe(2)
+    expect(events.filter((event) => event.type === 'run-started').flatMap((event) => event.inputIds)).toEqual([
+      queued.id
+    ])
+    expect(script.calls).toHaveLength(2)
+    expect(JSON.stringify(script.calls[1].messages.findLast((entry) => entry.role === 'user'))).toContain(
+      'edited second'
+    )
+    expect(messages.getSessionMessage(input.sessionId, queued.id).data.parts).toEqual(parts)
+  })
+
+  it('reports each queued Run checkpoint before idle and replays the exact answer positions on reopen', async () => {
+    const first = gate()
+    const second = gate()
+    script = respondingModel((call) =>
+      JSON.stringify(call.messages.findLast((entry) => entry.role === 'user')).includes('second')
+        ? second.wait(assistantReply('second answer'))
+        : first.wait(assistantReply('first answer'))
+    )
+    const running = await connect()
+    const original = message('first')
+    await running.connection.send({ message: original })
+    await first.reached
+    const queued = message('second')
+    await expect(submitBusy(running.connection, 'followUp', queued)).resolves.toMatchObject({ status: 'acknowledged' })
+    await expect
+      .poll(() => running.nativeInputs.some((state) => state.inputId === queued.id && state.facts.includes('queued')))
+      .toBe(true)
+    first.open()
+    await second.reached
+    await expect
+      .poll(() => running.events.some((event) => event.type === 'run-checkpoint' && event.inputId === original.id))
+      .toBe(true)
+    expect(running.events.some((event) => event.type === 'turn-complete')).toBe(false)
+    const checkpoint = running.events.find((event) => event.type === 'run-checkpoint' && event.inputId === original.id)!
+    second.open()
+    await done(running.events)
+    const last = running.events.find((event) => event.type === 'run-checkpoint' && event.inputId === queued.id)!
+    expect(last).toBeDefined()
+    expect(last).not.toEqual(checkpoint)
+    if (checkpoint.type !== 'run-checkpoint') throw new Error('Missing first Run checkpoint')
+    const selected = DurableForkCheckpointSchema.parse(checkpoint.forkAnchor.checkpoint)
+    const fork = await driver.fork({
+      sourceSessionId: input.sessionId,
+      sourceBackendId: selected.backendId,
+      checkpoint: selected,
+      checkpoints: [selected],
+      targetSessionId: uuid(),
+      targetCwd: directory,
+      artifactDirectory: directory,
+      signal: new AbortController().signal
+    })
+    const inherited = await running.connection['runtime']!.durable.commit(
+      async (tx) =>
+        (await tx.scanEntries({ conversationId: Number(fork.resumeToken) as ConversationId, order: 'ascending' }, 256))
+          .items,
+      BACKGROUND_CONTEXT
+    )
+    expect(JSON.stringify(inherited)).toContain('first answer')
+    expect(JSON.stringify(inherited)).not.toContain('second answer')
+    await running.connection.close()
+    const reopened = await connect()
+    await expect
+      .poll(() => reopened.events.filter((event) => event.type === 'run-checkpoint'))
+      .toEqual(expect.arrayContaining([checkpoint, last]))
+    expect(script.calls).toHaveLength(2)
   })
 
   // A truncated answer belongs to its own input; the follow-up placed after it must not inherit the failure.
@@ -2658,7 +3868,9 @@ describe('desktop Pi Durable connection', () => {
     const first = message('first')
     await connection.send({ message: first })
     await held.reached
-    expect(connection.followUp({ message: message('second'), systemReminder: true })).toBe(true)
+    await expect(submitBusy(connection, 'followUp', message('second'))).resolves.toMatchObject({
+      status: 'acknowledged'
+    })
     await expect
       .poll(() => nativeInputs.some((state) => state.nativeInput && state.facts.includes('queued')))
       .toBe(true)
@@ -2679,6 +3891,44 @@ describe('desktop Pi Durable connection', () => {
     expect(events.filter((event) => event.type === 'turn-complete')).toHaveLength(1)
   })
 
+  it('reports both native outcomes and one reply boundary when a steer continues a truncated response', async () => {
+    const held = gate()
+    script = respondingModel((call) => {
+      const last = JSON.stringify(call.messages.findLast((entry) => entry.role === 'user'))
+      if (last.includes('correction')) return assistantReply('corrected answer')
+      return held.wait(assistantReply('truncated answer', 'length'))
+    })
+    const { connection, events, nativeInputs } = await connect()
+    const first = message('first')
+    await connection.send({ message: first })
+    await held.reached
+    const steer = message('correction')
+    await expect(submitBusy(connection, 'steer', steer)).resolves.toMatchObject({ status: 'acknowledged' })
+    await expect.poll(() => nativeInputs.some((state) => state.inputId === steer.id)).toBe(true)
+    held.open()
+    await done(events, 10000)
+    expect(events).toContainEqual(expect.objectContaining({ type: 'steer-boundary', inputIds: [steer.id] }))
+    expect(events.filter((event) => event.type === 'run-started')).toEqual([])
+    const boundary = events.findIndex((event) => event.type === 'turn-complete')
+    expect(boundary).toBeGreaterThanOrEqual(0)
+    expect(events.slice(0, boundary)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'input-state',
+          input: expect.objectContaining({
+            inputId: first.id,
+            outcome: 'unanswered',
+            error: expect.objectContaining({ code: 'output-truncated' })
+          })
+        }),
+        expect.objectContaining({
+          type: 'input-state',
+          input: expect.objectContaining({ inputId: steer.id, outcome: 'completed' })
+        })
+      ])
+    )
+  })
+
   // AC4: a send that races running native work used to fail with "Durable already has an active submission".
   it('admits a send that arrives while native work runs', async () => {
     const held = answerByInput()
@@ -2691,33 +3941,172 @@ describe('desktop Pi Durable connection', () => {
     await done(events)
 
     expect(text(events)).toContain('second answer')
-    expect(events).toContainEqual(expect.objectContaining({ type: 'steer-boundary', inputIds: [second.id] }))
+    expect(events).toContainEqual(expect.objectContaining({ type: 'run-started', inputIds: [second.id] }))
     expect(nativeInputs.some((state) => state.inputId === second.id && state.outcome === 'completed')).toBe(true)
     expect(events.filter((event) => event.type === 'error')).toEqual([])
   })
 
-  // Stop withdraws input queued behind the stopped turn; it must not start a run of its own afterwards.
-  it('withdraws a queued follow-up on Stop', async () => {
+  it('keeps a queued submission editable after Stop and runs the saved edit on Resume', async () => {
     const held = answerByInput()
-    const { connection, events, nativeInputs } = await connect()
+    const { connection, events, nativeInputs, handle } = await connect()
     await connection.send({ message: message('first') })
     await held.reached
-    const second = message('second')
-    connection.followUp({ message: second, systemReminder: true })
-    await expect
-      .poll(() => nativeInputs.some((state) => state.nativeInput && state.facts.includes('queued')))
-      .toBe(true)
-    await connection.interrupt()
-    await expect.poll(() => events.some((event) => event.type === 'stop-confirmed')).toBe(true)
-    await new Promise((resolve) => setTimeout(resolve, 300))
+    const second = messages.saveMessage({
+      sessionId: input.sessionId,
+      stageFollowup: true,
+      message: { role: 'user', data: { parts: [{ type: 'text', text: 'second' }] } }
+    })
+    await submitBusy(connection, 'followUp', second)
+    await expect.poll(handle.durable.followups).toMatchObject([{ inputId: second.id }])
+    const token = uuid()
+    const editor = { id: 'editor', isLive: (id: string) => id === 'editor' }
+    await expect(
+      connection.changeFollowups({ type: 'begin-edit', inputId: second.id, revision: 0, token }, undefined, editor)
+    ).resolves.toBe(true)
+    const waiting = handle.durable.followups()
 
-    expect(nativeInputs.findLast((state) => state.inputId === second.id)).toMatchObject({ outcome: 'aborted' })
-    expect(text(events)).not.toContain('second answer')
-    expect(events).not.toContainEqual(expect.objectContaining({ type: 'steer-boundary', inputIds: [second.id] }))
+    await connection.interrupt()
+    expect(handle.durable.followupsPaused()).toBe(true)
+    await expect.poll(() => events.some((event) => event.type === 'stop-confirmed')).toBe(true)
+    expect(handle.durable.followups()).toEqual(waiting)
+    expect(nativeInputs.findLast((state) => state.inputId === second.id)?.outcome).toBeUndefined()
+    expect(events).not.toContainEqual(expect.objectContaining({ type: 'run-started', inputIds: [second.id] }))
+
+    const parts = [{ type: 'text' as const, text: 'edited second' }]
+    await expect(
+      connection.changeFollowups({ type: 'edit', inputId: second.id, revision: 0, token, parts }, undefined, editor)
+    ).resolves.toBe(true)
+    expect(handle.durable.followupsPaused()).toBe(true)
+    expect(messages.getSessionMessage(input.sessionId, second.id).data.parts).toEqual(parts)
+
+    await expect(connection.changeFollowups({ type: 'resume' })).resolves.toBe(true)
+    await expect.poll(() => nativeInputs.findLast((state) => state.inputId === second.id)?.outcome).toBe('completed')
+    expect(JSON.stringify(script.calls.at(-1)?.messages.findLast((entry) => entry.role === 'user'))).toContain(
+      'edited second'
+    )
+    expect(text(events)).toContain('second answer')
+    expect(events.filter((event) => event.type === 'run-started').flatMap((event) => event.inputIds)).toEqual([
+      second.id
+    ])
+    expect(handle.durable.followups()).toEqual([])
   })
 
-  // A follow-up that fails before reaching Durable is in no queue; handing it back lets the host send it.
-  it('hands a follow-up whose submission throws back to the host', async () => {
+  it.each(['legacy', 'interrupted', 'removed', 'removed-and-discarded'])(
+    'recovers a %s follow-up before acknowledgement',
+    async (kind) => {
+      const removed = kind.startsWith('removed')
+      const discarded = kind === 'removed-and-discarded'
+      const held = answerByInput()
+      const { connection, handle } = await connect()
+      const active = message('first')
+      await connection.send({ message: active })
+      await held.reached
+      const queued = messages.saveMessage({
+        sessionId: input.sessionId,
+        ...(kind !== 'legacy' && { stageFollowup: true }),
+        message: { role: 'user', data: { parts: [{ type: 'text', text: 'second' }] } }
+      })
+      await expect(submitBusy(connection, 'followUp', queued)).resolves.toMatchObject({ status: 'acknowledged' })
+      await expect.poll(() => handle.durable.followups().map(({ inputId }) => inputId)).toEqual([queued.id])
+      const [{ submissionId }] = handle.durable.followups()
+      const context = contexts.context(connection.contextId!)
+      const threadId = Number(context.nativeThreadId) as ConversationId
+      if (removed)
+        await expect(handle.durable.changeFollowups({ type: 'withdraw', inputId: queued.id })).resolves.toBe(true)
+      if (discarded) messages.discardStagedFollowup(input.sessionId, queued.id, context.id)
+      await connection.close()
+
+      // Settle the held turn so recovery can inspect a store without active work.
+      const backend = contexts.backend(context.backendId)
+      const harness = await Harness.open(
+        await openDurableStorage(backend),
+        {
+          models: createModels(),
+          registry: createRegistry()
+        },
+        BACKGROUND_CONTEXT
+      )
+      try {
+        if (!removed) expect(await harness.abortSubmission(submissionId, BACKGROUND_CONTEXT, threadId)).toBe('aborted')
+        await (await harness.conversation(threadId, BACKGROUND_CONTEXT))!.abort(BACKGROUND_CONTEXT)
+        expect(await harness.commit((tx) => tx.submission(submissionId), BACKGROUND_CONTEXT)).toMatchObject({
+          status: 'unanswered',
+          reason: removed ? 'withdrawn' : 'aborted'
+        })
+      } finally {
+        await harness.close(BACKGROUND_CONTEXT)
+      }
+      if (!discarded) expect(messages.getSessionMessage(input.sessionId, queued.id).status).toBe('success')
+      expect(contexts.backend(backend.id).needsRecoveryCheck).toBe(true)
+
+      const reopened = new PiDurableRuntimeDriver()
+      await reopened.recoverWork()
+      if (removed) {
+        expect(() => messages.getSessionMessage(input.sessionId, queued.id)).toThrow()
+        expect(messages.getSessionMessage(input.sessionId, active.id).status).toBe('success')
+        expect(contexts.backend(backend.id).needsRecoveryCheck).toBe(false)
+        return
+      }
+      const restored = messages.getSessionMessage(input.sessionId, queued.id)
+      expect(restored).toMatchObject({ status: 'paused', data: { parts: [{ type: 'text', text: 'second' }] } })
+      expect(messages.replyTo(input.sessionId, queued.id)).toBeUndefined()
+      expect(messages.getSessionMessage(input.sessionId, active.id).status).toBe('success')
+      contexts.markRecoveryCheck(backend.id, true)
+      await reopened.recoverWork()
+      expect(messages.getSessionMessage(input.sessionId, queued.id).updatedAt).toBe(restored.updatedAt)
+    }
+  )
+
+  it('keeps a durable follow-up on its native thread when the receipt is lost after acceptance', async () => {
+    const held = answerByInput()
+    const { connection, events } = await connect()
+    await connection.send({ message: message('first') })
+    await held.reached
+    const durable = connection['handle']!.durable
+    const submit = durable.submitStagedFollowup
+    vi.spyOn(durable, 'submitStagedFollowup').mockImplementationOnce(async (draft) => {
+      await submit(draft)
+      throw new Error('lost receipt')
+    })
+    const second = messages.saveMessage({
+      sessionId: input.sessionId,
+      stageFollowup: true,
+      message: { role: 'user', data: { parts: [{ type: 'text', text: 'second' }] } }
+    })
+    try {
+      await expect(submitBusy(connection, 'followUp', second)).resolves.toMatchObject({
+        inputId: second.id,
+        status: 'unknown'
+      })
+    } finally {
+      held.open()
+    }
+    await expect
+      .poll(() => events)
+      .toContainEqual(expect.objectContaining({ type: 'run-started', inputIds: [second.id] }))
+  })
+
+  it('recovers inputs saved before native admission when opening the owning session', async () => {
+    const { connection } = await connect()
+    const sessionId = input.sessionId
+    const saved = ['without a binding', 'with a binding'].map((text) =>
+      messages.saveMessage({
+        sessionId,
+        stageFollowup: true,
+        message: { role: 'user', data: { parts: [{ type: 'text', text }] } }
+      })
+    )
+    bindNativeInput(sessionId, connection.contextId!, saved[1])
+    await connection.close()
+    await driver.recoverWork()
+    expect(messages.listSessionMessages(sessionId).items).toEqual([])
+    await connect()
+    expect(messages.listSessionMessages(sessionId).items).toEqual(
+      expect.arrayContaining(saved.map(({ id }) => expect.objectContaining({ id, status: 'paused', replyId: null })))
+    )
+  })
+
+  it('rejects stale follow-up content before binding or dispatch', async () => {
     const held = answerByInput()
     const { connection, events } = await connect()
     await connection.send({ message: message('first') })
@@ -2725,9 +4114,8 @@ describe('desktop Pi Durable connection', () => {
     const second = message('second')
     const changed = { ...second, data: { parts: [{ type: 'text' as const, text: 'edited elsewhere' }] } }
 
-    expect(connection.followUp({ message: changed, systemReminder: true })).toBe(true)
-
-    await expect.poll(() => events).toContainEqual({ type: 'steer-undelivered', inputIds: [second.id] })
+    expect(() => submitBusy(connection, 'followUp', changed)).toThrow('Native input content changed')
+    expect(messages.inputBinding(input.sessionId, second.id)).toBeUndefined()
     held.open()
     await done(events)
   })
@@ -2740,7 +4128,7 @@ describe('desktop Pi Durable connection', () => {
     await first.connection.send({ message: user })
     await held.reached
     const second = message('second')
-    first.connection.followUp({ message: second, systemReminder: true })
+    await submitBusy(first.connection, 'followUp', second)
     await expect
       .poll(() => first.nativeInputs.some((state) => state.nativeInput && state.facts.includes('queued')))
       .toBe(true)
@@ -2758,7 +4146,7 @@ describe('desktop Pi Durable connection', () => {
     expect(reopened.events).toContainEqual(
       expect.objectContaining({ type: 'autonomous-turn-state', state: 'started', recoveredInputId: user.id })
     )
-    expect(reopened.events).toContainEqual(expect.objectContaining({ type: 'steer-boundary', inputIds: [second.id] }))
+    expect(reopened.events).toContainEqual(expect.objectContaining({ type: 'run-started', inputIds: [second.id] }))
     expect(text(reopened.events)).toContain('second answer')
     expect(reopened.nativeInputs.some((state) => state.inputId === second.id && state.outcome === 'completed')).toBe(
       true
@@ -2788,36 +4176,35 @@ describe('desktop Pi Durable connection', () => {
     const { connection, events, handle } = await connect()
     const context = prepareDurableBranch(input.sessionId)
     const nativeInput = { session: handle.thread, id: runtimeId<'native-input'>('queued-input') }
-    if (retained) {
-      const user = message('queued before restart')
-      prepareNativeSubmission(input.sessionId, user.id, context.id, 'follow-up')
-      bindNativeInput(input.sessionId, context.id, {
-        inputId: runtimeId(user.id),
-        nativeInput,
-        facts: ['accepted', 'queued']
-      })
+    const user = retained ? message('queued before restart') : undefined
+    if (user) prepareNativeSubmission(input.sessionId, user.id, context.id)
+    const queued: InputState = {
+      ...(user && { inputId: runtimeId<'input'>(user.id) }),
+      nativeInput,
+      facts: ['accepted', 'queued']
     }
-    const queued: InputState = { nativeInput, facts: ['accepted', 'queued'] }
     const observer = connection as unknown as {
-      onObservation(batch: DurableObservation): Promise<void>
+      onObservation(batch: DurableObservation): void
     }
     const snapshot = { type: 'snapshot' as const, messages: [], inputs: [queued] }
-    await observer.onObservation({
+    observer.onObservation({
       backgroundResults: { status: 'confirmed', value: { active: false, pending: [], notification: [] } },
       events: [{ ...snapshot, activity: { state: 'active' } }],
       aliases: {},
       live: []
     })
-    await observer.onObservation({
+    observer.onObservation({
       backgroundResults: { status: 'confirmed', value: { active: false, pending: [], notification: [] } },
       events: [{ ...snapshot, activity: { state: 'idle' } }],
       aliases: {},
       live: []
     })
-    expect(events.some((event) => event.type === 'autonomous-turn-state' && event.state === 'started')).toBe(true)
+    await expect
+      .poll(() => events.some((event) => event.type === 'autonomous-turn-state' && event.state === 'started'))
+      .toBe(true)
     expect(events.filter((event) => event.type === 'turn-complete' || event.type === 'error')).toEqual([])
     const completed = { ...queued, outcome: 'completed' as const }
-    await observer.onObservation({
+    observer.onObservation({
       backgroundResults: { status: 'confirmed', value: { active: false, pending: [], notification: [] } },
       events: [{ ...snapshot, inputs: [completed], activity: { state: 'idle' } }],
       aliases: {},
@@ -2835,7 +4222,7 @@ describe('desktop Pi Durable connection', () => {
     async (status) => {
       const { connection, handle } = await connect()
       const user = message('not accepted')
-      vi.spyOn(handle.input, 'submit').mockResolvedValue({
+      vi.spyOn(handle.durable, 'submitTurn').mockResolvedValue({
         status,
         inputId: runtimeId(user.id),
         error: { operation: 'submit', code: 'fixture', message: status }
@@ -2901,7 +4288,10 @@ describe('desktop Pi Durable connection', () => {
     const { connection, events } = await connect()
     await connection.send({ message: message('question') })
     await done(events)
-    expect(connection.redirect({ message: message('too late') })).toBe(false)
+    const late = message('too late')
+    await expect(
+      connection.threadInput!.steer!.submit({ inputId: runtimeId(late.id), message: late })
+    ).resolves.toMatchObject({ status: 'rejected' })
   })
   // Catches a child retry appearing on the root or another child, including before native content exists.
   it('routes model retry status to the root and its independent children', async () => {
@@ -2940,8 +4330,8 @@ describe('desktop Pi Durable connection', () => {
     try {
       await connection.send({ message: message('delegate retry work') })
       await expect.poll(() => childSessions.size, { timeout: 10000 }).toBe(2)
-      const first = await connection.childProjection('retry-A')
-      const second = await connection.childProjection('retry-B')
+      const first = childTimeline(input.sessionId, 'retry-A')
+      const second = childTimeline(input.sessionId, 'retry-B')
       expect(first).toBeDefined()
       expect(second).toBeDefined()
       const detachFirst = first!.subscribe(() => {})
@@ -2955,11 +4345,10 @@ describe('desktop Pi Durable connection', () => {
         await expect.poll(() => statuses(first!), { timeout: 10000 }).toHaveLength(1)
         await expect.poll(() => statuses(second!), { timeout: 10000 }).toHaveLength(1)
         expect(statuses(first!)[0]).not.toEqual(statuses(second!)[0])
-        expect(
-          events.flatMap((event) =>
-            event.type === 'chunk' && event.chunk.type === 'data-retry' ? [event.chunk.data] : []
-          )
-        ).toEqual([{ state: 'retrying', modelId: 'root-model', attempt: 2, reason: 'http 429' }, { state: 'settled' }])
+        expect(events.flatMap((event) => (event.type === 'data-retry' ? [event.data] : []))).toEqual([
+          { state: 'retrying', modelId: 'root-model', attempt: 2, reason: 'http 429' },
+          { state: 'settled' }
+        ])
         held.open()
         await expect.poll(() => statuses(first!), { timeout: 10000 }).toEqual([])
         await expect.poll(() => statuses(second!), { timeout: 10000 }).toEqual([])

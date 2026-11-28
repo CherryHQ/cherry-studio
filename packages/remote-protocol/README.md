@@ -61,6 +61,17 @@ Agent catalogs optionally include `emoji` (nonempty Unicode text, at most 64 UTF
 It is display metadata, not a file path or URL. Omission remains compatible with older hosts;
 clients keep their normal fallback. Image transfer is outside this field's contract.
 
+### Choosing a model at Session creation
+
+A desktop advertising `connection.hello.agentSessionModelSelection` accepts `agent.models.list`
+under the Agent grant. Supply the Agent ID, optional search text, and page parameters. Each choice
+carries model and provider IDs and display names. The desktop applies its Agent model picker rules.
+Pass the selected `{ providerId, modelId }` as `model` on `agent.sessions.create`. Creation rechecks
+availability, rejecting a stale choice with `MODEL_UNAVAILABLE`, and commits the selection with the
+Session. Omitting it follows the Agent default.
+A changed selection requires a new command ID. Hosts without the capability support the existing
+default creation flow.
+
 ### Message usage
 
 `AgentMessage.usage` is an optional materialized summary. It carries nonnegative token counts,

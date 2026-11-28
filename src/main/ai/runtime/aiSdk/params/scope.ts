@@ -9,6 +9,8 @@
  * that already pull from `agentParams/`.
  */
 
+import type { ToolSet } from 'ai'
+
 import type { ResolvedReasoningProfile, ResolvedServiceTierControl } from '@data/services/ProviderRegistryService'
 import type { CompressionModelDescriptor } from '@main/ai/contextBuild/resolveCompressionModel'
 import type { CompactionSink } from '@shared/ai/compaction'
@@ -31,12 +33,16 @@ export interface RequestScope extends ToolApplyScope {
   readonly traceContext?: AgentRuntimeTraceContext
   readonly outputReservation?: { maxOutputTokens: number | undefined }
   readonly request: AiChatRequest & Pick<AiStreamRequest, 'messages'>
+  readonly system?: string
+  readonly tools?: ToolSet
+  readonly requestedMaxOutputTokens?: number
   readonly signal: AbortSignal | undefined
   readonly registry: ToolRegistry
   readonly model: Model
   readonly provider: Provider
   readonly capabilities: ResolvedCapabilities | undefined
   readonly sdkConfig: SdkConfig
+  readonly replayRouteId: string
   readonly endpointType: EndpointType | undefined
   readonly aiSdkProviderId: AppProviderId
   readonly reasoningProfile: ResolvedReasoningProfile

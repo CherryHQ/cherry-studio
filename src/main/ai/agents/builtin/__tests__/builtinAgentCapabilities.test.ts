@@ -36,9 +36,10 @@ describe('hostToolsEnabled', () => {
     expect(hostToolsEnabled(agentOf(type, BUILTIN_AGENT_ROLE.ASSISTANT), { channelLinked: true })).toBe(false)
   })
 
-  it('keeps Cherry Support host tools on channel-linked sessions, but only on claude-code', () => {
+  it('keeps Cherry Support host tools on Claude Code and Pi Durable, including channel-linked sessions', () => {
     for (const channelLinked of [false, true]) {
       expect(hostToolsEnabled(agentOf('claude-code', BUILTIN_AGENT_ROLE.SUPPORT), { channelLinked })).toBe(true)
+      expect(hostToolsEnabled(agentOf('pi-durable', BUILTIN_AGENT_ROLE.SUPPORT), { channelLinked })).toBe(true)
       expect(hostToolsEnabled(agentOf('pi', BUILTIN_AGENT_ROLE.SUPPORT), { channelLinked })).toBe(false)
     }
   })

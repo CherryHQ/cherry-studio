@@ -196,6 +196,27 @@ describe('AgentTaskJobHandler', () => {
       expect(jobScheduleService.getById('s1')?.enabled).toBe(true)
     })
 
+    it('keeps a skipped one-shot eligible for another manual catch-up', async () => {
+      const at = Date.now() - 1000
+      jobScheduleService.update('s1', {
+        trigger: { kind: 'once', at },
+        enabled: false,
+        metadata: { missed: { reason: 'agent_archived', at, jobId: 'job-1' } }
+      })
+
+      await agentTaskJobHandler.onSettled?.(makeSettled({ status: 'completed', output: { kind: 'skipped' } }))
+
+      expect(jobScheduleService.getById('s1')).toMatchObject({
+        metadata: { missed: { reason: 'agent_archived', at } },
+        lastRun: null
+      })
+
+      await agentTaskJobHandler.onSettled?.(makeSettled({ status: 'completed', output: { kind: 'executed' } }))
+
+      expect(jobScheduleService.getById('s1')?.metadata).not.toHaveProperty('missed')
+      expect(jobScheduleService.getById('s1')?.lastRun).not.toBeNull()
+    })
+
     it('does not act on non-failed terminal events', async () => {
       await agentTaskJobHandler.onSettled?.(makeSettled({ status: 'completed' }))
       await agentTaskJobHandler.onSettled?.(makeSettled({ status: 'cancelled' }))

@@ -28,6 +28,12 @@ describe('OpenAiMessageConverter', () => {
     expect(converter.extractStreamOptions(params({})).maxOutputTokens).toBeUndefined()
   })
 
+  it('preserves the function the caller requires the model to invoke', () => {
+    const request = params({ tool_choice: { type: 'function', function: { name: 'session_title' } } })
+    expect(converter.extractStreamOptions(request).toolChoice).toEqual({ type: 'tool', toolName: 'session_title' })
+    expect(converter.extractStreamOptions(params({ tool_choice: 'none' })).toolChoice).toBe('none')
+  })
+
   it.each(['', null])('replays a zero-arg tool call with arguments %j as an empty input object', (args) => {
     const messages = converter.toUIMessages(
       params({

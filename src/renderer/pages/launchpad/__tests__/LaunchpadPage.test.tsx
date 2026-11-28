@@ -16,6 +16,7 @@ import type { SiteMiniApp } from '@shared/data/types/miniApp'
 
 const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
+  openSettingsTab: vi.fn(),
   pinnedMiniApps: [] as any[],
   openedMiniApps: [] as any[],
   reorderMiniAppsByStatus: vi.fn(() => Promise.resolve()),
@@ -118,6 +119,8 @@ vi.mock('@renderer/hooks/useSidebarShortcuts', () => ({
   })
 }))
 
+vi.mock('@renderer/services/mainWindowNavigation', () => ({ openSettingsTab: mocks.openSettingsTab }))
+
 vi.mock('@renderer/services/toast', () => ({
   toast: {
     error: mocks.toastError
@@ -141,6 +144,7 @@ vi.mock('react-i18next', () => ({
           'settings.scheduledTasks.title': 'Scheduled Tasks',
           'assistants.presets.title': 'Library',
           'code.title': 'Code',
+          'code.api_gateway.title': 'Unified Gateway',
           'files.title': 'Files',
           'knowledge.title': 'Knowledge',
           'launchpad.apps': 'Apps',
@@ -201,6 +205,12 @@ describe('LaunchpadPage', () => {
     mocks.reorderMiniAppsByStatus.mockResolvedValue(undefined)
   })
 
+  it('opens the unified gateway from its launchpad tile', async () => {
+    render(<LaunchpadPage />)
+    await userEvent.click(screen.getByRole('button', { name: 'Unified Gateway' }))
+    expect(mocks.navigate).toHaveBeenCalledWith({ to: '/app/api-gateway' })
+  })
+
   it('opens the marketplace from its launchpad tile', async () => {
     render(<LaunchpadPage />)
     await userEvent.click(screen.getByRole('button', { name: 'Marketplace' }))
@@ -259,6 +269,16 @@ describe('LaunchpadPage', () => {
     expect(persisted.slice(0, 3)).toEqual(['assistants', 'agents', 'translate'])
     expect(persisted).toHaveLength(systemSortable.items.length)
     expect(mocks.setSidebarFavorites).not.toHaveBeenCalled()
+  })
+
+  it('opens Agent Services settings from CodeMate without replacing the launchpad tab', async () => {
+    const user = userEvent.setup()
+    render(<LaunchpadPage />)
+
+    await user.click(screen.getByRole('button', { name: 'Code' }))
+
+    expect(mocks.openSettingsTab).toHaveBeenCalledExactlyOnceWith('/settings/local-agents')
+    expect(mocks.navigate).not.toHaveBeenCalled()
   })
 
   it.each([

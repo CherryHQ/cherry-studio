@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-28-app-cache-cleanup-scope.md
+2026-11-28-app-cache-cleanup-scope.md: a531855db148245e1726adeffc41ebc15d4ad467
+2026-11-28-app-cache-cleanup-scope.zh.md: cac60c2a0e49e845d879928314342e7638150849

@@ -7,8 +7,9 @@ import {
   type ToolCallRepairFunction,
   type ToolSet
 } from 'ai'
+import { and, createRetryableModel, finishReason, result } from 'ai-retry/language-model'
 
-import { type AiPlugin, generateText as aiCoreGenerateText } from '@cherrystudio/ai-core'
+import { type AiPlugin, createExecutor } from '@cherrystudio/ai-core'
 import type { StringKeys } from '@cherrystudio/ai-core/provider'
 import { loggerService } from '@logger'
 
@@ -28,6 +29,8 @@ export interface AiRepairContext<T extends AppProviderId = AppProviderId> {
   modelId: string
   /** Per-call headers from the owning chat request. */
   headers?: Record<string, string | undefined>
+  signal?: AbortSignal
+  retryInvalidOutput?: boolean
   /** Reuse the request's usage middleware so repair is its own invocation. */
   getUsagePlugins?: () => AiPlugin[]
 }
@@ -111,20 +114,35 @@ export function createAiRepair<T extends AppProviderId>(ctx: AiRepairContext<T>)
       `Validation error: ${error.message}`
     ].join('\n')
 
+    const retryInvalidArguments = and(
+      finishReason('stop'),
+      result(async ({ content }, { current }) => {
+        if (current.options.abortSignal?.aborted) return false
+        const text = content.flatMap((part) => (part.type === 'text' ? [part.text] : [])).join('')
+        const parsed = await safeParseJSON({ text })
+        return !parsed.success || (await canonicalize(parsed.value)) === undefined
+      })
+    ).retry({ maxAttempts: 2 })
     let repaired: unknown
     try {
-      const result = await aiCoreGenerateText<AppProviderSettingsMap, T>(
+      const executor = await createExecutor<AppProviderSettingsMap, T>(
         ctx.providerId,
         ctx.providerSettings,
+        ctx.getUsagePlugins?.()
+      )
+      const generated = await executor.generateText(
         {
           model: ctx.modelId,
           headers: ctx.headers,
+          abortSignal: ctx.signal,
           prompt,
           output: Output.object({ schema: jsonSchema(schemaJson) })
         },
-        ctx.getUsagePlugins?.()
+        ctx.retryInvalidOutput
+          ? (model) => createRetryableModel({ model, retries: [retryInvalidArguments] })
+          : undefined
       )
-      repaired = result.output
+      repaired = generated.output
     } catch (err) {
       logger.warn('AI repair generateText failed', err as Error, {
         toolName: toolCall.toolName,

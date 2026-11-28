@@ -23,8 +23,8 @@ detaches its native view and drops its loaded history, and a later `open` loads 
 When an unloaded child receives input, its nearest loaded ancestor publishes
 `subagent.upsert` so hosts can observe it again. `shutdown()` seals all accesses, closes the Harness and
 storage, and joins tracked calls. Unfinished durable tasks are not marked cancelled.
-It captures committed archives after native execution has quiesced and before storage
-closes; retained accesses can flush these archives until `release()`.
+After native execution has quiesced, shutdown extends each retained conversation's archive
+to the final stored entry. Its readers share the frozen result until the last access calls `release()`.
 Shared behavior drains native input admission before ending local consumption waits.
 Ending a wait does not cancel or resend an admitted input; a queued steer remains in
 native storage for recovery. Unexpected native closure seals accesses and closes
@@ -33,29 +33,39 @@ still drains admitted relation reads and their final facts before closing feeds.
 
 `resume()` enables the entire Harness scheduler. Reading with `open` or `observe` does not resume it. Native `submit` and `interrupt` can resume the entire
 Harness, including other conversations. Without shared behavior, `interrupt()` uses native ordinary-scope
-abort: queued inputs and owned non-background work are included; queued writes and
-background subtrees are not. These effects are not application-wide cancellation.
+abort includes queued inputs and owned non-background work. Queued writes and background subtrees remain.
+With shared behavior, a user stop on a root records the stop, pauses waiting follow-ups and marks the active run for
+cancellation in the same native transaction. Paused follow-ups keep their inbox entries and submission IDs until the
+host explicitly resumes or withdraws them. Run completion counts only inputs eligible to run.
 
 ## Input and output
 
-Every Durable access provides `input.submit(input)`. Before command routing or input submission,
+A root handle exposes `input.submit`, `input.steer.submit` and a durable `input.followUp.submit`. A behavior-managed child exposes `input.steer.submit`. Before command routing or input submission,
 the desktop may call `durable.initializeContext(text)` to admit initial model-only reference
 history as a passive native write. The native request ID makes repeated initialization
 idempotent across reopening. It starts no model run and is excluded from product projections
 and behavior-authorizing user history, while ordinary and autonomous model requests see it.
-Busy rejection comes from native
-`ConversationBusy`; uncertain failures return `unknown`. Once native admission returns, a failed
-status read cannot erase the acknowledged receipt. Inputs retain their logical InputId in native
-entry metadata, so observations recover their placement and outcome after reopening. External
-native submissions may lack that logical ID. The adapter exposes no separate host deduplication,
-lookup or retraction API; unknown admission is reconciled from captured facts without resubmitting.
+Ordinary submissions use the product `inputId` as the conversation-scoped native request key.
+Native `ConversationBusy` proves rejection. Once the call is admitted, a failed status read
+retains that acknowledgement. The queued draft and the placed entry carry the product ID
+for live observations. Native background work can have its own identity.
+`lookupInput(thread, inputId)` reads the submission from the original store. It works while
+the input is queued and after reopening. For a child command, the parent decision records
+the target child and the native request key in its transaction. That decision proves dispatch.
+The child submission proves admission. A lookup starts no execution.
 
-`whenBusy: 'steer'` delivers input at the next native input boundary. If the current
-run finishes normally before taking it, the input starts a subsequent run. `follow-up`
-waits for the final boundary. Both policies start a run when the conversation is idle;
-normal completion does not discard accepted input. Explicit interruption still follows
-the native cancellation scope. Read captured input facts to distinguish
-acceptance from placement and completion.
+`input.steer.submit` delivers input at the next native input boundary. If the current
+run finishes normally before taking it, the input starts a subsequent run. `input.followUp.submit`
+waits for the final boundary. Both policies can start a run when idle. A paused inbox
+holds follow-ups until resume. The desktop's explicit new turn can start while the inbox
+is paused. Read captured input facts to distinguish acceptance, placement and completion.
+
+The desktop mirrors the ordered native follow-up inbox after attachment and on inbox commits.
+Editing and reordering check the still-waiting entries inside a native transaction. A persistent edit mark
+stops follow-up placement at that item. Saving updates the native content and revised message parts and
+clears the mark under the original submission ID. The native boundary resumes if the edit deferred dispatch
+and Stop has not paused it. The desktop can reapply edited parts on reopen, including legacy text-only
+edits. Remove settles one waiting submission as `withdrawn` and removes it from the inbox in one commit.
 
 Several inputs can share a native answer. Native `done` alone is insufficient: Durable also uses it for truncated output
 and tool-only termination. The adapter reads the actual assistant stop reason before reporting
@@ -69,7 +79,10 @@ Each attempt remains in history after later retries. Input outcomes come from na
 independently of these message-local errors. Live observations and archive reads use the same projection.
 
 `durable.observe` captures content, inputs, aliases, live provenance, `backgroundResults` and foreground
-completion from one native `ConversationView` revision. Completion includes the last visible committed entry ID for desktop fork checkpoints. A history fold of the lineage's entries and tool
+completion from one native `ConversationView` revision. Successful native submissions also retain their exact
+`answer` entry IDs, keyed by product input ID. These facts are retained across observer delivery and
+replayed from committed submissions after reopening; they do not wait for overall inactivity.
+Foreground completion retains the last visible committed entry ID as a fallback for work without a product input. A history fold of the lineage's entries and tool
 tasks, fed by the opening scan and by commit notifications, supplies result origins without retaining
 entry bodies; continuation records identify the current triggering call. Pending results
 include undelivered reports and unfinished notification generation, including the gap before it starts.
@@ -82,18 +95,25 @@ Preview delivery follows that receipt microtask and cannot establish completion.
 Deferred in-memory progress is a preview without a durable revision; only stored commits can
 confirm foreground completion. Native progress may remain unpersisted for up to its configured
 `persistWithinMs` interval (1,000 ms by default); archives contain stored entries only. Reopen reads all submission
-facts, including placed native-only inputs. Completion stays pending during admission, unresolved input,
-foreground work or compaction, and carries terminal inputs after their content. Revision and pending state stay private to the projection.
-A confirmed rejection releases only its temporary admission hold; unknown admission remains unresolved.
-Initial observation never replays earlier completion. A generation preview already active at attachment remains live for its product consumer; committed output after the unique logical user-input boundary of an unfinished placed input also remains live. Earlier answers, queued inputs and ambiguous boundaries remain historical. A returning preview receives a fresh local identity even when a resumed native task repeats its attempt number. State-only reads and updates use `ThreadFeed.state`. Native views append the same entry records, so
-the projection keeps its committed messages frozen and projects only appended entries; a later tool
-result or live progress copies only the message it changes. A view that does not extend the previous
+facts, including placed native-only inputs. A committed change to the foreground run identity settles the
+previous run after its content, carrying only the submissions placed into that run. The same commit can
+identify a successor run. A follow-up that remains queued after failure retains its native submission.
+Initial observation never replays earlier completion. A generation preview already active at attachment remains live for its product consumer; committed output after the unique logical user-input boundary of an unfinished placed input also remains live. Earlier answers, queued inputs and ambiguous boundaries remain historical. A returning preview receives a fresh local identity. When the host supplies saved source IDs, the restored snapshot aliases the saved preview to the same native task and generation attempt or to the task's interrupted output already committed in the active reply. State-only reads and updates use `ThreadFeed.state`. Native views append the same entry records, so
+the projection keeps its committed messages frozen and projects only appended entries. A tool
+result copies the parts array of its owning message once per batch. A generation correction reads
+the current assistant's content directly. A live tool view looks up committed calls by ID and
+indexes only calls introduced by that view. A view that does not extend the previous
 entries, such as after compaction, rebuilds once. Unchanged messages keep their identity across
 snapshots. An observation starts with a snapshot, and the projection publishes another only after a
 mapping reset and when a run starts, so an observer receives the run's inputs and activity in one frame;
-a run end publishes `activity.changed`. Every other update publishes `message.upsert`,
-`message.remove` and `input.changed` for what changed. A committed answer replaces its preview through
-`replaces`. When an update's changes cannot reproduce the new order, it publishes a snapshot instead.
+a run end publishes `activity.changed`. Exact native text appends for an already published preview
+travel as `message.text-append`. Running tool output changes and matching single-tool result receipts
+publish `message.tool-output` for the existing native tool part. General view updates publish
+`message.parts` for changed blocks. `message.reconcile` installs or corrects one native source and
+uses `replaces` to bind a committed answer to its preview. Message removal and input state use
+`message.remove` and `input.changed`. A snapshot restores order when these changes cannot express it.
+Restoring a conversation publishes its recorded inputs in one snapshot. Later native commits
+publish the input facts they changed. Admission and input facts leave committed content untouched.
 Completion rides the update's last frame, or `activity.changed` when nothing else changed.
 Slow observers retain terminal batches through bounded recovery; final persistence must
 await `Observation.drain()` after native production stops.
@@ -117,7 +137,8 @@ reset and compaction. Inherited fork entries are excluded so a child archive doe
 not import its parent's messages. Pagination is bounded by the head captured when
 the read begins; appends after that head belong to a later read. A loaded conversation
 keeps its sealed archive projection, so later reads fold only newer committed entries and
-return immutable messages; unloading drops it. It neither resumes
+return immutable messages. Provider response IDs are collected during this archive fold.
+Unloading drops the archive. It neither resumes
 the Harness nor includes live previews. `messages` contains SDK message values. `aliases` maps committed message IDs to proven
 preview IDs; tool results update their calling message instead of creating a separate row.
 `legacy` identifies old item-to-part associations using native entry evidence for host checkpoints. These
@@ -202,7 +223,7 @@ identity files, skill catalog entries and tool schemas expose individual estimat
 from tool registration, including codemode-only tools listed as deferred. Reads never rerender sections
 or reload files. These partial estimates are separate from native billable usage records.
 
-The runtime `durable.commit` facet shares the existing native mutation line; desktop fork operations retain the backend while using it. The thread `durable` facet exposes native configuration, compaction, behavior facts,
+The runtime `durable.commit` and `durable.observeCommits` facets share the existing native mutation line; desktop fork operations and deferred retired-desktop reclamation retain the backend while using them. The thread `durable` facet exposes native configuration, compaction, behavior facts,
 provider session identity and tool-call resolution for the desktop adapter. These stay
 outside the harness-neutral Runtime contract. `onInputPlaced(inputId, thread)` runs synchronously at
 native placement so the host reserves input attribution before the next model request; native-only
@@ -248,7 +269,8 @@ Desktop and live-provider acceptance are separate from these package tests.
 Nested calls project onto their owning assistant message using native IDs and parent
 edges. Native session records retain executed arguments, terminal state and bounded
 results independently of the outer script outcome. Archive projection reads those
-records without executing tools. Missing legacy or over-budget payloads remain
+records without executing tools. The parent evidence and the nested tool part share
+each retained JSON result across successful and failed calls. Missing legacy or over-budget payloads remain
 explicitly absent; complete successful built-in artifact declarations can render
 through the same tool mapping as direct calls.
 

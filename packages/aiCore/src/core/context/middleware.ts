@@ -114,6 +114,8 @@ export interface ContextMiddlewareOptions {
    * configurations, which involve no budget check.
    */
   contextWindow?: number
+  /** Estimate the current history when prior response usage does not describe the prompt. */
+  estimateHistoryTokens?: (history: ContextMessage[]) => number
   /** Enable tool result truncation. Omit for no truncation. */
   truncate?: TruncateOptions
   /**
@@ -183,6 +185,7 @@ export function createContextMiddleware(options: ContextMiddlewareOptions): Lang
   const janitor = budgeting
     ? new Janitor({
         contextWindow: options.contextWindow as number,
+        estimateHistoryTokens: options.estimateHistoryTokens,
         // Installed so every compression is counted for the persistence warning.
         onCompress: onCompressionFired,
         onBeforeCompress: options.onBeforeCompress,
@@ -228,7 +231,7 @@ export function createContextMiddleware(options: ContextMiddlewareOptions): Lang
     wrapGenerate: async ({ doGenerate }) => {
       const result = await doGenerate()
 
-      if (!janitor) return result
+      if (!janitor || options.estimateHistoryTokens) return result
 
       const inputTokens = getContextInputTokens(result.usage?.inputTokens?.total, result.providerMetadata)
       if (inputTokens != null) {
@@ -245,7 +248,7 @@ export function createContextMiddleware(options: ContextMiddlewareOptions): Lang
     },
 
     wrapStream: async ({ doStream }) => {
-      if (!janitor) return doStream()
+      if (!janitor || options.estimateHistoryTokens) return doStream()
 
       const { stream, ...rest } = await doStream()
 

@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react'
+import { type Dispatch, type SetStateAction, useCallback, useRef, useState } from 'react'
 
 import type { FileEntry } from '@shared/data/types/file'
 
@@ -17,7 +17,7 @@ export type MaterializeInputs = () => Promise<{ entries: FileEntry[]; complete: 
 
 interface UsePaintingGenerationSubmitInput {
   painting: PaintingData
-  onPaintingChange: (painting: PaintingData) => void
+  onPaintingChange: Dispatch<SetStateAction<PaintingData>>
   ensureCurrentCatalog: () => Promise<ModelOption[]>
 }
 
