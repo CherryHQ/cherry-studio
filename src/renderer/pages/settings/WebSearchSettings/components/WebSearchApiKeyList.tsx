@@ -3,7 +3,7 @@ import type { FC } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { ScrollArea } from '@cherrystudio/ui'
+import { ScrollArea, HelpTooltip } from '@cherrystudio/ui'
 import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, Input, Tooltip } from '@cherrystudio/ui'
 import EditIcon from '@renderer/components/icons/EditIcon'
 import { popup } from '@renderer/services/popup'
@@ -137,7 +137,13 @@ const WebSearchApiKeyItem: FC<WebSearchApiKeyItemProps> = ({ item, onUpdate, onR
             </button>
           </Tooltip>
           <div className="flex shrink-0 items-center gap-0.5">
-            <Button type="button" variant="ghost" size="icon-sm" aria-label={t('common.copy')} onClick={handleCopy}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              aria-label={t('common.copy')}
+              onClick={handleCopy}
+              className="text-muted-foreground">
               <Copy className="size-3.5" />
             </Button>
             <Button
@@ -145,7 +151,8 @@ const WebSearchApiKeyItem: FC<WebSearchApiKeyItemProps> = ({ item, onUpdate, onR
               variant="ghost"
               size="icon-sm"
               aria-label={t('common.edit')}
-              onClick={() => setIsEditing(true)}>
+              onClick={() => setIsEditing(true)}
+              className="text-muted-foreground">
               <EditIcon size={14} />
             </Button>
             <Button
@@ -153,7 +160,8 @@ const WebSearchApiKeyItem: FC<WebSearchApiKeyItemProps> = ({ item, onUpdate, onR
               variant="ghost"
               size="icon-sm"
               aria-label={t('common.delete')}
-              onClick={() => void handleRemove()}>
+              onClick={() => void handleRemove()}
+              className="text-muted-foreground">
               <Minus className="size-3.5" />
             </Button>
           </div>
@@ -194,9 +202,7 @@ export const WebSearchApiKeyList: FC<WebSearchApiKeyListProps> = ({ providerId }
       </div>
 
       <div className="mt-3.5 flex items-center justify-between gap-3">
-        <span className="min-w-0 text-xs leading-tight text-muted-foreground">
-          {t('settings.provider.api_key.tip')}
-        </span>
+        <HelpTooltip content={t('settings.provider.api_key.tip')} />
         <Button
           type="button"
           size="sm"

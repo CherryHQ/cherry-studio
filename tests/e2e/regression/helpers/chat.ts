@@ -35,13 +35,18 @@ export async function selectChatModel(page: Page, model: string, providerId?: st
   await expect(page.getByRole('button', { name: 'Selected models', exact: true })).toBeVisible()
 }
 
-export async function sendChatMarker(page: Page, prompt: string, marker: string, exact = true): Promise<string> {
+export async function sendChatMarker(
+  page: Page,
+  prompt: string,
+  marker: string | RegExp,
+  exact = true
+): Promise<string> {
   const composer = page.locator('[data-ui~="chat.composer"] [contenteditable="true"]').first()
   await composer.fill(prompt)
   return submitChatMarker(page, marker, exact)
 }
 
-export async function submitChatMarker(page: Page, marker: string, exact = true): Promise<string> {
+export async function submitChatMarker(page: Page, marker: string | RegExp, exact = true): Promise<string> {
   const messages = page.locator('[data-ui~="chat.message"][data-message-id]:visible')
   const previousIds = await messages.evaluateAll((elements) =>
     elements.map((element) => element.getAttribute('data-message-id'))

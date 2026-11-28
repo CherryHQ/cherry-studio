@@ -9,6 +9,7 @@ const logger = loggerService.withContext('ToolApprovalRegistry')
  * `tool_call` block/mutation) so no SDK type leaks into this shared path.
  */
 export type DispatchDecision = {
+  applicationScope?: 'always' | 'session' | 'reject'
   approved: boolean
   reason?: string
   /** Marks a reason the user actually supplied, so drivers can attribute it to the user rather
@@ -18,18 +19,19 @@ export type DispatchDecision = {
 }
 
 type PendingApproval = {
+  contextId?: string
   approvalId: string
   sessionId: string
   toolCallId: string
   toolName: string
   originalInput: Record<string, unknown>
-  presentation: 'stream' | 'message'
+  presentation: 'stream' | 'message' | 'application'
   resolve: (decision: DispatchDecision) => void
   signal?: AbortSignal
   abortListener?: () => void
 }
 
-type ApprovalRegistration = Pick<PendingApproval, 'sessionId' | 'toolCallId' | 'presentation'>
+type ApprovalRegistration = Pick<PendingApproval, 'sessionId' | 'contextId' | 'toolCallId' | 'presentation'>
 type PendingApprovalRegistration = Omit<PendingApproval, 'abortListener' | 'presentation'> & {
   presentation?: PendingApproval['presentation']
 }
@@ -52,8 +54,8 @@ class ToolApprovalRegistry {
   private readonly _onAborted = new Emitter<AbortedApproval>()
 
   /**
-   * Fired for each approval `abort()` or `clear()` resolves without a user decision. Listeners own
-   * any durable consequence — a card parked at `approval-requested` must be retired here.
+   * Fired once for each pending approval cancelled by its signal or registry cleanup.
+   * Listeners retire any persisted card parked at `approval-requested`.
    */
   public readonly onAborted: Event<AbortedApproval> = this._onAborted.event
 
@@ -79,7 +81,7 @@ class ToolApprovalRegistry {
 
     const stored: PendingApproval = { ...entry, presentation: entry.presentation ?? 'stream' }
     if (signal) {
-      const abortListener = () => this.dispatch(approvalId, { approved: false, reason: 'aborted' })
+      const abortListener = () => this.cancel([approvalId], 'aborted')
       stored.abortListener = abortListener
       signal.addEventListener('abort', abortListener, { once: true })
     }
@@ -88,15 +90,34 @@ class ToolApprovalRegistry {
     return true
   }
 
+  /** The pending call itself, so main can preview what approving it would do. */
+  peekCall(approvalId: string): Pick<PendingApproval, 'sessionId' | 'toolName' | 'originalInput'> | undefined {
+    const entry = this.pending.get(approvalId)
+    if (!entry) return undefined
+    return { sessionId: entry.sessionId, toolName: entry.toolName, originalInput: entry.originalInput }
+  }
+
   /** Returns `undefined` for unknown ids (already dispatched / session expired). */
   peek(approvalId: string): ApprovalRegistration | undefined {
     const entry = this.pending.get(approvalId)
     if (!entry) return undefined
     return {
       sessionId: entry.sessionId,
+      contextId: entry.contextId,
       toolCallId: entry.toolCallId,
       presentation: entry.presentation
     }
+  }
+
+  listForSession(sessionId: string) {
+    return [...this.pending.values()]
+      .filter((entry) => entry.sessionId === sessionId)
+      .map((entry) => ({
+        approvalId: entry.approvalId,
+        toolCallId: entry.toolCallId,
+        toolName: entry.toolName,
+        input: entry.originalInput
+      }))
   }
 
   /** Returns `undefined` for unknown ids (already dispatched / session expired). */
@@ -108,30 +129,19 @@ class ToolApprovalRegistry {
     entry.resolve(decision)
     return {
       sessionId: entry.sessionId,
+      contextId: entry.contextId,
       toolCallId: entry.toolCallId,
       presentation: entry.presentation
     }
   }
 
-  abort(sessionId: string, reason = 'session-aborted'): number {
-    const aborted: AbortedApproval[] = []
-    for (const [approvalId, entry] of this.pending) {
-      if (entry.sessionId !== sessionId) continue
-      this.pending.delete(approvalId)
-      this.detachAbort(entry)
-      entry.resolve({ approved: false, reason })
-      aborted.push({
-        approvalId,
-        sessionId,
-        toolCallId: entry.toolCallId,
-        presentation: entry.presentation,
-        reason
-      })
-    }
-    if (aborted.length > 0) logger.info('Aborted pending approvals', { sessionId, count: aborted.length, reason })
-    // Notified after the sweep: a listener that registers a new approval must not be caught by it.
-    for (const entry of aborted) this._onAborted.fire(entry)
-    return aborted.length
+  abort(sessionId: string, reason = 'session-aborted', contextId?: string): number {
+    const approvalIds = [...this.pending.values()]
+      .filter((entry) => entry.sessionId === sessionId && (contextId === undefined || entry.contextId === contextId))
+      .map((entry) => entry.approvalId)
+    const count = this.cancel(approvalIds, reason)
+    if (count > 0) logger.info('Aborted pending approvals', { sessionId, count, reason })
+    return count
   }
 
   /**
@@ -140,23 +150,8 @@ class ToolApprovalRegistry {
    * held tool promises don't hang forever) across a service restart.
    */
   clear(reason = 'service-shutdown'): number {
-    const count = this.pending.size
-    if (count === 0) return 0
-    const cleared: AbortedApproval[] = []
-    for (const [approvalId, entry] of this.pending) {
-      this.detachAbort(entry)
-      entry.resolve({ approved: false, reason })
-      cleared.push({
-        approvalId,
-        sessionId: entry.sessionId,
-        toolCallId: entry.toolCallId,
-        presentation: entry.presentation,
-        reason
-      })
-    }
-    this.pending.clear()
-    logger.info('Cleared all pending approvals', { count, reason })
-    for (const entry of cleared) this._onAborted.fire(entry)
+    const count = this.cancel([...this.pending.keys()], reason)
+    if (count > 0) logger.info('Cleared all pending approvals', { count, reason })
     return count
   }
 
@@ -166,6 +161,17 @@ class ToolApprovalRegistry {
 
   hasSession(sessionId: string): boolean {
     return [...this.pending.values()].some((entry) => entry.sessionId === sessionId)
+  }
+
+  private cancel(approvalIds: readonly string[], reason: string): number {
+    const aborted: AbortedApproval[] = []
+    for (const approvalId of approvalIds) {
+      const registration = this.dispatch(approvalId, { approved: false, reason })
+      if (registration) aborted.push({ ...registration, approvalId, reason })
+    }
+    // Notify after the sweep so listeners can register new approvals.
+    for (const entry of aborted) this._onAborted.fire(entry)
+    return aborted.length
   }
 
   private detachAbort(entry: PendingApproval): void {

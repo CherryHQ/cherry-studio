@@ -57,14 +57,14 @@ describe('findTextMatches', () => {
 
 describe('computeMessageSearchMatches', () => {
   it('matches assistant result parts in display order with stable original part ids', () => {
-    const messages = [message('a1', 'assistant')]
+    const messages = [{ ...message('a1', 'assistant'), partIds: ['p1', 'p2'] }]
     const parts = {
       a1: [textPart('First apple.'), textPart('Second apple.')]
     }
 
     expect(computeMessageSearchMatches(messages, parts, 'apple', DEFAULT_OPTIONS)).toEqual([
-      { type: 'text', key: 'a1-part-0:0', messageId: 'a1', partId: 'a1-part-0', role: 'assistant', occurrence: 0 },
-      { type: 'text', key: 'a1-part-1:0', messageId: 'a1', partId: 'a1-part-1', role: 'assistant', occurrence: 0 }
+      { type: 'text', key: 'p1:0', messageId: 'a1', partId: 'p1', role: 'assistant', occurrence: 0 },
+      { type: 'text', key: 'p2:0', messageId: 'a1', partId: 'p2', role: 'assistant', occurrence: 0 }
     ])
   })
 

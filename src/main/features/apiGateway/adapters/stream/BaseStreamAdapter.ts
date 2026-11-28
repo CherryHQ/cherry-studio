@@ -88,16 +88,36 @@ export abstract class BaseStreamAdapter<TOutputEvent> implements IStreamAdapter<
    * `message_start` first (idempotent).
    */
   transformChunk(chunk: UIMessageChunk): TOutputEvent[] {
-    // Non-object errors cannot be encoded as client tool arguments without changing their meaning.
+    const { opening, events } = this.transformChunkWithOpening(chunk)
+    return opening.length === 0 ? events : [...opening, ...events]
+  }
+
+  /**
+   * Push API: process one chunk while returning lazy opening scaffolding
+   * separately from events produced by `chunk` itself.
+   */
+  transformChunkWithOpening(chunk: UIMessageChunk): { opening: TOutputEvent[]; events: TOutputEvent[] } {
+    if (chunk.type === 'finish' && chunk.finishReason === 'error') {
+      throw Object.assign(new Error(`Upstream finished with a non-success finish reason: ${chunk.finishReason}`), {
+        statusCode: 502
+      })
+    }
+    // JSON schemas may omit SDK validation, so both tool events must enforce the wire object shape.
     if (
-      chunk.type === 'tool-input-error' &&
+      (chunk.type === 'tool-input-error' || (chunk.type === 'tool-input-available' && chunk.input !== undefined)) &&
       (chunk.input === null || typeof chunk.input !== 'object' || Array.isArray(chunk.input))
     ) {
-      throw new Error(chunk.errorText)
+      throw new Error(
+        chunk.type === 'tool-input-error'
+          ? chunk.errorText
+          : `Invalid tool arguments for ${chunk.toolName}: expected an object`
+      )
     }
     this.emitMessageStart()
+    const opening = this.drainPending()
     this.processChunk(chunk)
-    return this.drainPending()
+    const events = this.drainPending()
+    return { opening, events }
   }
 
   /**

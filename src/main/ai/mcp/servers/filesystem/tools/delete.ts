@@ -3,7 +3,7 @@ import fs from 'fs/promises'
 import type { CallToolResult } from '@modelcontextprotocol/server'
 import * as z from 'zod'
 
-import { logger, relativeToRoots, validatePath } from '../types'
+import { expandHome, logger, relativeToRoots, validatePath } from '../types'
 
 // Schema definition
 export const DeleteToolSchema = z.object({
@@ -25,6 +25,19 @@ export async function handleDeleteTool(
   const targetPath = args.path
   const validPath = await validatePath(targetPath, roots)
   const recursive = args.recursive || false
+
+  // validatePath resolves symlinks to their target; deleting a link must remove only the link entry.
+  const requestedPath = path.resolve(baseDir, expandHome(targetPath))
+  if ((await fs.lstat(requestedPath).catch(() => undefined))?.isSymbolicLink()) {
+    const linkPath = path.join(await validatePath(path.dirname(requestedPath), baseDir), path.basename(requestedPath))
+    try {
+      await fs.unlink(linkPath)
+    } catch (error: any) {
+      throw new Error(`Failed to delete: ${error.message}`)
+    }
+    logger.info('Path deleted', { path: linkPath, type: 'symlink' })
+    return { content: [{ type: 'text', text: `Symlink deleted: ${path.relative(baseDir, requestedPath)}` }] }
+  }
 
   // Check if path exists and get stats
   let stats

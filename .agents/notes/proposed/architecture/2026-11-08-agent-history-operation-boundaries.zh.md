@@ -102,6 +102,8 @@ Main 保持权威。复用现有 Agent 消息读模型，只提供 renderer 实�
 
 ### 7. Durable 与文件回滚的启用门槛
 
+后续的 [Durable 桌面分叉决策](../../implemented/feature/2026-11-09-pi-durable-desktop-fork.md)使用共享 backend 所有者替代独立目标 backend，通过公开的同存储原生分叉实现，不新增 SDK 行为补丁；该决策替代下文 Durable 桌面 fork/edit 的排除规则，并持有实现与验证证据。
+
 本次交付保持 Durable 桌面 fork/edit 不可用，共享 behavior 的子线程分叉不变。启用桌面历史操作须另有后续方案，并为以下全部条件提供证据：
 
 - 固定已提交的 conversation/entry 边界及匹配的历史配置。

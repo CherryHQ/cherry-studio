@@ -82,10 +82,11 @@ const NewMiniAppPanel: FC<Props> = ({ open, app, onClose }) => {
   }
 
   useEffect(() => {
+    if (!open) return
     revokePreviewObjectUrl()
     setStagedFile(null)
     setTab('site')
-    if (!open || !app) {
+    if (!app) {
       setName('')
       setUrl('')
       setLogo('')
@@ -289,7 +290,7 @@ const NewMiniAppPanel: FC<Props> = ({ open, app, onClose }) => {
                     <ExternalLink className="size-3.5" />
                   </Button>
                 </div>
-                <InstallMiniAppPicker onClose={handleClose} />
+                <InstallMiniAppPicker open={open} onClose={handleClose} />
               </TabsContent>
             )}
           </Tabs>

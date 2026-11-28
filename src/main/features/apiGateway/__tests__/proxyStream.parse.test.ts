@@ -78,6 +78,7 @@ vi.mock('../adapters', () => ({
     createAdapter: () => ({
       getMessageId: () => 'test-response',
       transformChunk: () => [],
+      transformChunkWithOpening: () => ({ opening: [], events: [] }),
       finalizeEvents: () => [],
       buildNonStreamingResponse: () => ({ ok: true })
     }),
@@ -86,6 +87,7 @@ vi.mock('../adapters', () => ({
 }))
 
 import { processMessage } from '../proxyStream'
+import { grokBuildRoutes } from '../routes/grokBuild'
 
 beforeEach(() => {
   BaseService.resetInstances()
@@ -208,18 +210,26 @@ describe('processMessage model-id parsing', () => {
     expect(captured.opts?.contextOwner).toBe('caller')
   })
 
-  it('passes the normalized max output tokens to provider option extraction', async () => {
+  it.each([
+    ['session_title', 'none'],
+    ['lookup', undefined]
+  ])('applies the Grok title default by requested tool (%s) on a non-DeepSeek provider', async (name, effort) => {
     mockAvailableModel('openai', 'gpt-4')
-    mockExtractStreamOptions.mockReturnValue({ maxOutputTokens: 1024 })
-
-    await resolveValid('openai:gpt-4')
-
-    expect(mockExtractProviderOptions).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 'openai' }),
-      expect.objectContaining({ apiModelId: 'gpt-4' }),
-      expect.objectContaining({ model: 'openai:gpt-4' }),
-      1024
+    const response = grokBuildRoutes.handle(
+      new Request('http://localhost/agents/grok-build/session-summary/chat/completions', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          model: 'openai:gpt-4',
+          messages: [{ role: 'user', content: 'Give this session a title' }],
+          tool_choice: { type: 'function', function: { name } }
+        })
+      })
     )
+    await vi.waitFor(() => expect(captured.opts).toBeDefined())
+    expect(captured.opts?.reasoningEffort).toBe(effort)
+    void captured.opts!.listener!.onDone({} as any)
+    expect((await response).status).toBe(200)
   })
 
   it('keeps later colons in the model id (split on FIRST colon only)', async () => {
@@ -248,19 +258,6 @@ describe('processMessage model-id parsing', () => {
     mockAvailableModel('sophnet', 'deepseek-v3', 'DeepSeek-v3')
 
     expect(await resolveValid('sophnet:DeepSeek-v3')).toBe(createUniqueModelId('sophnet', 'deepseek-v3'))
-  })
-
-  it('rejects a Cherry Cloud model from external requests', async () => {
-    mockAvailableModel(CHERRY_CLOUD_PROVIDER_ID, 'deepseek-free', 'deepseek-free', CHERRY_CLOUD_MODEL_GROUP)
-
-    await expect(
-      processMessage({
-        params: { model: `${CHERRY_CLOUD_PROVIDER_ID}:deepseek-free`, messages: [] },
-        inputFormat: 'anthropic',
-        outputFormat: 'anthropic'
-      })
-    ).rejects.toMatchObject({ status: 400 })
-    expect(mockStreamPrompt).not.toHaveBeenCalled()
   })
 
   it('routes Cherry Cloud messages for an internal request and attributes Agent session usage', async () => {

@@ -9,7 +9,7 @@ const Udio = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const UdioIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Udio, {
   Avatar: UdioAvatar,
-  colorPrimary: '#E30A5D'
+  colorPrimary: '#fce9f0'
 })
 
 export default UdioIcon

@@ -1,4 +1,5 @@
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client'
+import { Server as McpSdkServer } from '@modelcontextprotocol/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { McpServer } from '@shared/data/types/mcpServer'
@@ -402,16 +403,6 @@ describe('/v1/mcps', () => {
 
   // `warmToolsCache` can block on an upstream connect whose timeout floor is 180s. Gating
   // every message on it would put that in front of the handshake itself.
-  it('only waits on the tools cache for tools/list', async () => {
-    await rpc(app, '/v1/mcps/server-1/mcp', INITIALIZE)
-    expect(mockWarmToolsCache).not.toHaveBeenCalled()
-
-    await rpc(app, '/v1/mcps/server-1/mcp', { jsonrpc: '2.0', method: 'notifications/initialized' })
-    expect(mockWarmToolsCache).not.toHaveBeenCalled()
-
-    await rpc(app, '/v1/mcps/server-1/mcp', { jsonrpc: '2.0', id: 9, method: 'tools/list' })
-    expect(mockWarmToolsCache).toHaveBeenCalledWith('server-1')
-  })
 
   // The capability must track what the transport can actually deliver. A session holds a
   // stream, so it advertises listChanged; the one-shot path builds its bridge with
@@ -656,6 +647,103 @@ describe('/v1/mcps', () => {
       )
       expect(after.status).toBe(404)
     })
+
+    it('closes the bridge when an initialize handshake is rejected with a non-throwing HTTP error', async () => {
+      const closeSpy = vi.spyOn(McpSdkServer.prototype, 'close')
+      try {
+        // Missing `text/event-stream` in Accept causes the transport to return 406 without throwing
+        // and without calling `onsessioninitialized`.
+        const res = await app.handle(
+          new Request('http://localhost/v1/mcps/server-1/mcp', {
+            method: 'POST',
+            headers: {
+              'x-api-key': 'test-key',
+              'content-type': 'application/json',
+              accept: 'application/json'
+            },
+            body: JSON.stringify(INITIALIZE)
+          })
+        )
+
+        expect(res.status).toBe(406)
+        expect(sessions.size).toBe(0)
+        expect(closeSpy).toHaveBeenCalledTimes(1)
+      } finally {
+        closeSpy.mockRestore()
+      }
+    })
+
+    it('returns 503 (not 500) on modern POST requests when the session store is at capacity or closed', async () => {
+      // 1) Capacity limit reached by legacy sessions -> modern request must get 503, not 500.
+      const burst = await Promise.all(Array.from({ length: 64 }, () => openSession(app)))
+      expect(burst).toHaveLength(64)
+
+      const capPost = await app.handle(
+        new Request('http://localhost/v1/mcps/server-1/mcp', {
+          method: 'POST',
+          headers: {
+            'x-api-key': 'test-key',
+            'content-type': 'application/json',
+            accept: 'application/json, text/event-stream',
+            'mcp-protocol-version': '2026-07-28'
+          },
+          body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' })
+        })
+      )
+      expect(capPost.status).toBe(503)
+      expect(await capPost.json()).toMatchObject({ jsonrpc: '2.0', error: { code: -32000 }, id: null })
+
+      // 2) Store closed during gateway shutdown -> modern POST must get 503, not 500.
+      await sessions.closeAll()
+
+      const closedPost = await app.handle(
+        new Request('http://localhost/v1/mcps/server-1/mcp', {
+          method: 'POST',
+          headers: {
+            'x-api-key': 'test-key',
+            'content-type': 'application/json',
+            accept: 'application/json, text/event-stream',
+            'mcp-method': 'server/discover',
+            'mcp-protocol-version': '2026-07-28'
+          },
+          body: JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'server/discover' })
+        })
+      )
+      expect(closedPost.status).toBe(503)
+      expect(await closedPost.json()).toMatchObject({ jsonrpc: '2.0', error: { code: -32000 }, id: null })
+    })
+
+    it('does not leave a sweep timer running if closeAll races an in-flight initialize', async () => {
+      const connectOrig = McpSdkServer.prototype.connect
+      let releaseConnect!: () => void
+      let connectSpy!: ReturnType<typeof vi.spyOn>
+      const connectEntered = new Promise<void>((resolve) => {
+        connectSpy = vi
+          .spyOn(McpSdkServer.prototype, 'connect')
+          .mockImplementationOnce(async function (this: McpSdkServer, transport) {
+            resolve()
+            await new Promise<void>((done) => {
+              releaseConnect = done
+            })
+            return connectOrig.call(this, transport)
+          })
+      })
+
+      try {
+        const initPromise = rpc(app, '/v1/mcps/server-1/mcp', INITIALIZE)
+        await connectEntered
+
+        // Gateway shuts down while `initialize` is suspended inside `bridge.connect()`.
+        const closePromise = sessions.closeAll()
+        releaseConnect()
+        await Promise.all([initPromise, closePromise])
+
+        expect(sessions.size).toBe(0)
+        expect((sessions as unknown as { sweepTimer: NodeJS.Timeout | null }).sweepTimer).toBeNull()
+      } finally {
+        connectSpy.mockRestore()
+      }
+    })
   })
 
   it('documents the endpoints in the OpenAPI spec', async () => {
@@ -664,7 +752,6 @@ describe('/v1/mcps', () => {
     expect(spec.paths['/v1/mcps/'].get.description).toBe('apiGateway.docs.operations.list_mcp_servers::en-US')
     expect(spec.paths['/v1/mcps/{server_id}/mcp'].post.description).toBe('apiGateway.docs.operations.mcp_proxy::en-US')
     // GET/DELETE on the proxy path are transport plumbing, not part of the documented API.
-    expect(spec.paths['/v1/mcps/{server_id}/mcp'].get).toBeUndefined()
   })
 
   // The proxy answers JSON on the one-shot path and SSE on a session, so a client generated

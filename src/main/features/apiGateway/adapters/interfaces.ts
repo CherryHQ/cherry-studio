@@ -7,12 +7,16 @@
  * - SSE formatters: Format events for Server-Sent Events
  */
 
+import type { SharedV3ProviderMetadata } from '@ai-sdk/provider'
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
-import type { ToolSet, UIMessageChunk } from 'ai'
+import type { ProviderMetadata, ToolSet, UIMessageChunk } from 'ai'
 
+import type { CallOverrides } from '@main/ai/types'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { EndpointType, Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
+
+import type { ClaudeCodeReplayBlock } from '../claudeCodeReplay'
 
 /**
  * Token usage carried on `message-metadata` UIMessageChunks emitted by main's
@@ -24,6 +28,8 @@ import type { Provider } from '@shared/data/types/provider'
  * only available through `inputTokenDetails`.
  */
 export interface GatewayUsageMetadata {
+  providerMetadata?: ProviderMetadata
+  rawFinishReason?: string
   stats?: {
     totalTokens?: number
     inputTokens?: number
@@ -53,13 +59,7 @@ export type InputFormat = 'anthropic' | 'openai' | 'openai-responses' | 'gemini'
  * Stream text options extracted from input params
  * These are the common parameters used by AI SDK's streamText/generateText
  */
-export interface StreamTextOptions {
-  maxOutputTokens?: number
-  temperature?: number
-  topP?: number
-  topK?: number
-  stopSequences?: string[]
-}
+export type StreamTextOptions = Omit<CallOverrides, 'tools' | 'providerOptions'>
 
 /**
  * Stream Adapter Interface
@@ -87,6 +87,12 @@ export interface IStreamAdapter<TOutputEvent = unknown> {
    * Used by the AiStreamManager `SseListener` path; lazily emits message_start.
    */
   transformChunk(chunk: UIMessageChunk): TOutputEvent[]
+
+  /**
+   * Push API: process one chunk while separating lazy opening scaffolding
+   * (`message_start` / initial assistant frame) from chunk-produced semantic events.
+   */
+  transformChunkWithOpening(chunk: UIMessageChunk): { opening: TOutputEvent[]; events: TOutputEvent[] }
 
   /**
    * Push API: finalize the stream and return its closing events.
@@ -122,6 +128,9 @@ export interface StreamAdapterOptions {
   inputTokens?: number
   /** Restore a provider-safe tool name to the identity expected by the API client. */
   toClientToolName?: (toolName: string) => string
+  /** Restore a client tool call's name and optional namespace (OpenAI Responses MCP namespace tools). */
+  resolveClientToolCall?: (toolName: string) => { name: string; namespace?: string }
+  captureReplay?: (blocks: readonly ClaudeCodeReplayBlock[]) => void
 }
 
 /**
@@ -147,6 +156,9 @@ export interface IMessageConverter<TInputParams = unknown> {
   /** Restore a provider-safe tool name before returning a tool call to the API client. */
   toClientToolName?(toolName: string): string
 
+  /** Restore a client tool call's name and optional namespace before returning it to the API client. */
+  resolveClientToolCall?(toolName: string): { name: string; namespace?: string }
+
   /** Wire-safe (normalized) name for a client tool name; identity when already compatible. */
   toProviderToolName?(toolName: string): string
 
@@ -164,7 +176,8 @@ export interface IMessageConverter<TInputParams = unknown> {
     provider: Provider,
     model: Model,
     params: TInputParams,
-    maxOutputTokens?: number
+    maxOutputTokens?: number,
+    overrideReasoning?: boolean
   ): ProviderOptions | undefined
 }
 
@@ -201,6 +214,7 @@ export interface ContentBlockState {
   toolInput?: string
   // For thinking blocks — captured from reasoning chunk providerMetadata
   signature?: string
+  providerMetadata?: SharedV3ProviderMetadata
 }
 
 /**
@@ -211,6 +225,7 @@ export interface AdapterState {
   model: string
   inputTokens: number
   cacheReadTokens?: number
+  cacheWriteTokens?: number
   outputTokens: number
   reasoningTokens?: number
   currentBlockIndex: number

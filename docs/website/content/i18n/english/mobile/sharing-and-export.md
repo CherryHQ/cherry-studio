@@ -4,90 +4,77 @@ icon: share-2
 
 # Sharing and export
 
-Share one answer or turn several exchanges into images, a web document, or editable text. Select content, inspect the preview, then choose the destination.
+Select content at its source, choose a format in the common preview, then choose **Save** or **Share**. Save keeps results in Photos or the file library; Share delivers temporary artifacts to the system sharing sheet.
 
 ## Share selected messages
 
-1. Use the answer's share action or a message's share menu.
-2. Select messages on the selection page; the original message is selected initially.
-3. Confirm to open the fullscreen preview.
-4. Choose a format, image layout, and whether to include thinking content.
-5. Tap Share and choose a destination in the system sheet.
+1. Use an answer's share action or a message menu. **Selection starts in the original conversation**, retaining the composer draft instead of opening a separate excerpt-selection page.
+2. Select questions and answers. Selecting a question also selects its currently displayed completed answer; deselecting the question does not deselect that answer.
+3. Select all is available, with a limit of **128 exportable messages**. Alternative answers cannot be switched during selection; exit selection first.
+4. Choose **Share** to open Image, HTML, or Markdown preview.
+5. Inspect the range and result, then use **Save** or **Share** in the preview.
 
-Only **selected messages** are exported. Questions are not included automatically, so select them when needed for context. Output follows conversation chronology regardless of selection order.
-
-Select up to 128 messages at a time. Unfinished messages cannot be selected. Selection rows show short excerpts; export reads the complete selected content and presents code/images according to the chosen format.
-
-<div data-mobile-gallery="pair">
-<figure data-mobile-shot="phone"><a href="../../../assets/mobile/en/share.webp"><img src="../../../assets/mobile/en/share.webp" alt="Share: select messages, preview, and switch between image, HTML, or Markdown"></a><figcaption><p><strong>iPhone walkthrough</strong> · Share: select messages, preview, and switch between image, HTML, or Markdown</p></figcaption></figure>
-<figure data-mobile-shot="phone"><a href="../../../assets/mobile/en/share-formats.webp"><img src="../../../assets/mobile/en/share-formats.webp" alt="Choose Image, HTML, or Markdown in the preview"></a><figcaption><p><strong>iPhone</strong> · Choose Image, HTML, or Markdown in the preview</p></figcaption></figure>
-</div>
+Only selected content is exported, in the current conversation path's chronological order. Unfinished, missing, or changed messages may reject preparation; return to the source and reselect. Long answers can appear collapsed during selection, while HTML/Markdown read the complete selected final text.
 
 ## Include a translation
 
-Expand the translation and select its language in the conversation, then use the original message's share action. Image, HTML, and Markdown include translations expanded when sharing began; collapsed ones are omitted. The thinking-content switch does not affect this. See [Reply translation](translation.md).
+Expand the desired translation and choose its language before entering selection. Only completed, expanded translations matching the source are included. Folded, incomplete, or stale translations are omitted; sharing does not translate again. See [translation](translation.md).
 
 ## Choose a format
 
-| Format | Good for | Limitations |
+| Format | Good for | Content |
 | --- | --- | --- |
-| PNG images | Direct reading in messaging apps | Paged by default; block-code previews show only their opening portion |
-| HTML | Richer layout, complete code, expandable content | Needs a browser or compatible reader |
-| Markdown | Keeping source text, code, and tables for further editing | Rendering depends on the receiving app |
+| PNG image | Short content for direct reading in messaging apps | One height-bounded card; long text, code, or tables are truncated with an ellipsis |
+| HTML | Complete selected final text, code, and richer layout | Requires a browser or compatible reader |
+| Markdown | Complete text, code, and tables for editing | Rendering depends on the reader |
 
-Long image exports produce ordered pages; a single-long-image option is also available. Very long single images demand more memory and may fail in receiving apps. Prefer pages, HTML, or Markdown in that case.
+**Chat images no longer default to pages or offer a single-long-image/paged switch.** The whole card is limited to 3600 logical points, up to 1080 × 10800 output pixels including its footer. For complete long text or code, use HTML/Markdown or reduce the selection.
 
-Image/HTML exports simplify source presentation. Return to the conversation's original sources for detailed citation checking; an image preview is not a complete source archive.
+Files, image groups, and HTML conversions may have multiple preview items; those pages do not restore the old chat-card pagination behavior. Check citations against the original source.
 
 ## Why does the selection screen describe different formats?
 
-Some versions retain an older message saying multi-selection only supports HTML and Markdown. The current preview also supports images for multiple messages; use the formats actually offered in the preview. If image preparation fails, use HTML or Markdown.
+Current selection stays in the conversation, and every nonempty valid selection can open Image, HTML, or Markdown preview.
 
 ## Include thinking and tool activity
 
-These are omitted by default. **Include thinking content** adds visible reasoning, intermediate prose, and readable tool names, without exporting raw tool requests or diagnostic data.
+**These are not exported.** Exports contain selected user content, final answers, supported static images, attachment information, citations, and matching expanded translations. There is no Include thinking option. Thinking, intermediate prose, tool names or execution records, duration, usage, and diagnostic payloads are excluded.
 
-HTML can expand this content; image output expands the included process. Review the preview before sharing unnecessary intermediate details.
+Use [diagnosis and feedback](diagnostics.md) for error evidence; chat sharing is not a complete execution log.
 
 ## Can Markdown images work offline?
 
-Local/generated PNG and JPEG images are embedded into the Markdown file, which can increase its size. Some readers block embedded images; use HTML or image export if the recipient cannot display them.
+Supported local images can be embedded, making the file larger; some readers do not display embedded content. GIF, WebP, and other unsupported embeddings may become unavailable-image notes. Preserve animation through [original image sharing](image-generation.md), not a chat card.
 
-Local GIF, WebP, or other formats that cannot be embedded become unavailable-image notes. Other attachments may retain only their names/descriptions; their original files are not all bundled into the document. Share original files separately when needed.
-
-External image URLs remain remote links and are not automatically made available offline.
+Remote pictures may still depend on their links, and attachment descriptions do not package the originals. Share original files separately and check them at the destination.
 
 ## Image export failed
 
-If image conversion fails, the app attempts HTML. If HTML preview fails too, it retains Markdown and indicates the available format. Check the format before sharing.
+Failure **keeps the selected format and offers Retry; it does not silently fall back to HTML or Markdown**. Fix the cause, retry, or explicitly choose another format. Switching formats cancels obsolete preparation; follow the final selection and preview.
 
-Backgrounding or cancelling interrupts conversion rather than automatically changing format. Keep long exports in the foreground; reduce the selection or use paged images if necessary.
-
-Closing preview returns to message selection. Closing the system share sheet returns to chat. **Opening the share sheet does not prove the destination saved or sent the content.**
+Keep long conversions in the foreground. Closing the panel returns to the source; change a message range by selecting again in the conversation. Opening or dismissing the system sheet does not establish successful saving or sending.
 
 ## Remove the watermark
 
-Turn off **Settings → General → Share watermark** before exporting. It is on by default and affects future conversation, image, and related file exports. Existing saved/shared files do not change.
+**Settings → General → Share watermark** controls future shared artifacts and is on by default. Existing saved or shared content does not change.
+
+The preview's **Save** action creates unwatermarked results: chat images go to Photos and HTML/Markdown to the file library. Share follows the global watermark setting. Save and Share have different destinations and behavior.
 
 ## File library and original files
 
-Open **Files** in the sidebar to find imported attachments and saved generated/exported files. Supported images, text, Markdown, HTML, PDF, DOCX, XLSX, and PPTX open in the app. Oversized or unsupported files can open elsewhere.
+Select one or several files in **Files** to preview them in their original order in the common panel. File-library sharing sends original files and does not offer HTML conversion tabs.
 
-* Image previews support zoom, sharing, and saving to Photos.
-* Large text previews may be partial, and Copy uses displayed content. **Sharing the original file includes the complete original.**
-* Failed HTML previews can fall back to source view or be opened elsewhere.
-* Keep any needed files before deleting them. Cancelling system sharing does not automatically remove export files already saved to the library.
+* **Share** does not automatically add temporary exports to the library. Choose **Save** to retain them.
+* Image groups can be browsed and saved to Photos. Shared bitmaps can carry the configured watermark; local saves remain unwatermarked.
+* Copying large text may use only displayed content; share the original for a complete file.
+* If one member fails preparation, fix it or reselect. Opening the panel does not establish complete batch delivery.
 
 ## Turn HTML into images or slides
 
-For a fully previewable HTML file, choose **Share as image** or **Share as PPT**, wait for conversion, then save through system sharing.
+Open the HTML in **file preview**, then share and choose **Original / Image / PPT** where conversion is offered. This differs from original-file sharing in the library list. See [HTML to Image and PPT](html-export.md).
 
-The PPTX slides contain pictures of the pages. They preserve appearance, **not individually editable text, tables, and shapes**. Keep the original when further editing matters.
-
-Before uninstalling or clearing app data, save files outside Cherry Studio or on another device and confirm they open. Files only in the app library can be lost with app data.
-
-Exports preserve selected work. Use [Backup and restore](backup-and-restore.md) for the full mobile app, and [File library](file-library.md) for folder and trash operations.
+Converted PPTX slides contain pictures. For editable text and tables, ask the agent to [create native Office files](file-generation.md).
 
 ## Share a generated file or presentation
 
-To share a saved file instead of selected chat messages, open its file card and use the More menu. See [Create and Edit Files](file-generation.md). HTML files also offer [Share as image and Share as PPT](html-export.md); the resulting PPT contains page images, not editable text objects.
+Open the result and choose Save or Share. Files kept only in the app library remain local app data; save important results elsewhere and confirm they open before uninstalling. Individual exports do not replace a [full backup](backup-and-restore.md). See [file library](file-library.md) for folders, trash, and revisions.

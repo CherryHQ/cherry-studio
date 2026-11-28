@@ -4,58 +4,65 @@ icon: smartphone
 
 # Cherry Studio 移动版
 
-Cherry Studio 移动版是为 Android、iPhone 与 iPad 设计的 AI 客户端。你可以连接自己的模型服务，进行对话、使用技能与插件、在画板中创作图片，并用文件夹组织任务资料。
+Cherry Studio 移动版为 Android、iPhone 与 iPad 提供模型对话、智能体、技能、插件、文件处理与图片创作，也能连接电脑智能体和远程服务器。
 
-本组教程按移动版 **0.3.0** 整理。电脑智能体需要兼容的桌面端；各商店与测试渠道的版本可能不同，以设备实际安装版本为准。
-
-- **第一次使用**：[快速开始](quick-start.md)，连接模型并发出第一条消息。
-- **完成一个任务**：[日常使用](#日常使用)，查找聊天、图片、文件与分享教程。
-- **遇到问题**：[常见问题](troubleshooting.md)，按错误提示排查。
+- **首次使用**：[快速开始](quick-start.md)，选择账号或服务商并发出第一条消息。
+- **从旧版升级**：[旧功能有哪些变化](#从旧版升级先看这些变化)，再按对应教程操作。
+- **遇到错误**：先做[错误检查与 AI 诊断](diagnostics.md)，再按[常见问题](troubleshooting.md)处理。
 
 <div data-mobile-gallery="pair">
-<figure data-mobile-shot="phone"><a href="../assets/mobile/zh/sidebar.webp"><img src="../assets/mobile/zh/sidebar.webp" alt="侧边栏集中了智能体、绘画、插件、技能、文件和最近对话"></a><figcaption><p><strong>iPhone</strong> · 侧边栏集中了智能体、绘画、插件、技能、文件和最近对话</p></figcaption></figure>
-<figure data-mobile-shot="phone"><a href="../assets/mobile/zh/iphone-conversation.webp"><img src="../assets/mobile/zh/iphone-conversation.webp" alt="发送照片后由视觉模型整理成表格"></a><figcaption><p><strong>iPhone</strong> · 发送照片后由视觉模型整理成表格</p></figcaption></figure>
+<figure data-mobile-shot="phone"><a href="../assets/mobile/zh/sidebar.webp"><img src="../assets/mobile/zh/sidebar.webp" alt="侧边栏中的功能入口与对话列表"></a><figcaption><p><strong>iPhone</strong> · 从侧边栏进入智能体、绘画、插件、技能和文件</p></figcaption></figure>
+<figure data-mobile-shot="phone"><a href="../assets/mobile/zh/iphone-conversation.webp"><img src="../assets/mobile/zh/iphone-conversation.webp" alt="视觉模型把照片整理成表格的对话示例"></a><figcaption><p><strong>iPhone · 对话示例</strong> · 把照片中的信息整理成表格</p></figcaption></figure>
 </div>
 
 ## 当前状态
 
-移动版已上架 Google Play 与 App Store：
+* Android 可从[国内站下载页](https://cherryai.com.cn/download?platform=mobile)获取 GitCode APK，也保留 [Google Play](https://play.google.com/store/apps/details?id=com.cherryai.cherrystudio_app)。
+* iPhone 与 iPad 可从[国区 App Store](https://apps.apple.com/cn/app/cherry-studio-%E5%85%A8%E8%83%BD-ai-%E5%B7%A5%E4%BD%9C%E7%AB%99/id6809783714)安装，TestFlight 用于可用的测试版本。
+* 安装步骤、更新方式和渠道切换注意事项，见[下载与安装](installation.md)。
 
-* Android 推荐从[国内站下载页](https://cherryai.com.cn/download?platform=mobile)下载 APK（GitCode），也保留 [Google Play](https://play.google.com/store/apps/details?id=com.cherryai.cherrystudio_app) 安装入口。
-* iPhone 与 iPad 可从[国区 App Store](https://apps.apple.com/cn/app/cherry-studio-%E5%85%A8%E8%83%BD-ai-%E5%B7%A5%E4%BD%9C%E7%AB%99/id6809783714) 安装，也保留 TestFlight 测试版入口。
-* 界面与功能可能随版本调整，具体以你安装的版本为准。
+## 从旧版升级，先看这些变化
 
-前往[下载页的移动端选项](https://cherryai.com.cn/download?platform=mobile)，或先阅读[安装指南](installation.md)。
+| 以前的做法 | 现在的操作 |
+| --- | --- |
+| 先给智能体开启搜索、日历、绘图等能力 | 内置能力开关已移除，按模型、平台、服务与系统权限提供工具；技能/MCP 仍需添加到智能体，见[智能体](agents-and-tools.md) |
+| 重新回答替换唯一答案 | 支持多模型回复和保留不同路径，也能编辑问题后建立新分支，见[对话分支](conversation-branches.md) |
+| 分享时开思考选项、选择分页长图 | 在原对话选消息，只导出问题与最终内容；聊天图片有高度上限，完整内容选 HTML / Markdown，见[分享](sharing-and-export.md) |
+| 内置工具只能生成文本，PPT 要先转 HTML | 现在可直接创建、编辑原生 Word / Excel / PowerPoint；HTML 转换仍是图片式 PPT，见[文件生成](file-generation.md) |
+| 在设置首页找备份 | 备份、DeepSeek 导入与运行缓存清理集中在 **设置 → 数据**，见[数据设置](settings-and-usage.md) |
+| 技能只展示标注为移动兼容的项目 | 发现目录不再使用旧移动筛选，安装后仍需核对实际工具需求，见[技能](skills.md) |
 
 ## 按你现在的需求开始
 
 ### 开始使用
 
-[下载与安装](installation.md) · [快速开始](quick-start.md) · [从电脑导入配置](desktop-sync.md)
+[下载与安装](installation.md) · [快速开始](quick-start.md) · [账号与组织空间](accounts-and-organizations.md) · [从电脑导入配置](desktop-sync.md)
 
 ### 日常使用
 
-[对话与文件](chat-and-files.md) · [回复与技能文档翻译](translation.md) · [文件库与共享工作区](file-library.md) · [联网搜索与网页阅读](web-search.md) · [图片生成](image-generation.md) · [生成与修改文件](file-generation.md) · [HTML 转图片与 PPT](html-export.md) · [分享与导出](sharing-and-export.md)
+[对话与文件](chat-and-files.md) · [多模型回复与对话分支](conversation-branches.md) · [语音与音频转写](voice.md) · [回复与技能文档翻译](translation.md) · [文件库与共享工作区](file-library.md) · [生成与修改文件](file-generation.md) · [HTML 转图片与 PPT](html-export.md) · [联网搜索与网页阅读](web-search.md) · [图片生成](image-generation.md) · [分享与导出](sharing-and-export.md)
 
 <a id="agent-yu-zi-dong-hua"></a>
 <a id="agent-与自动化"></a>
 
 ### 智能体与自动化
 
-[智能体与工具](agents-and-tools.md) · [技能：安装与复用任务流程](skills.md) · [在手机使用电脑智能体](remote-chat.md) · [让 AI 使用工具](using-tools.md) · [日历与提醒事项](calendar-and-reminders.md) · [位置与健康记录](location-and-health.md) · [插件与外部工具](plugins.md)
+[智能体与工具](agents-and-tools.md) · [技能](skills.md) · [让 AI 使用工具](using-tools.md) · [日历与提醒事项](calendar-and-reminders.md) · [位置与健康记录](location-and-health.md) · [插件与外部工具](plugins.md)
+
+### 电脑与服务器
+
+[电脑智能体与定时任务结果](remote-chat.md) · [UU 远程桌面](remote-desktop.md) · [SSH 远程服务器](ssh.md)
 
 ### 配置与数据
 
-[服务商与模型](providers-and-models.md) · [模型管理](model-management.md) · [模型信息与列表更新](model-updates.md) · [设置、用量与后台回复](settings-and-usage.md) · [备份与恢复](backup-and-restore.md) · [数据、隐私与权限](data-privacy.md)
+[服务商与模型](providers-and-models.md) · [模型管理](model-management.md) · [模型信息与列表更新](model-updates.md) · [导入 DeepSeek 对话](deepseek-import.md) · [设置、用量与后台回复](settings-and-usage.md) · [备份与恢复](backup-and-restore.md) · [数据、隐私与权限](data-privacy.md)
 
 ### 故障排查
 
-[常见问题](troubleshooting.md) · [如何高效提问](../question-contact/ask.md) · [反馈问题](../question-contact/suggestions.md)
+[错误检查与 AI 诊断](diagnostics.md) · [常见问题](troubleshooting.md) · [如何高效提问](../question-contact/ask.md) · [反馈问题](../question-contact/suggestions.md)
 
 ### 开发者与贡献
 
 [移动版文档贡献与问题报告](development.md)
 
-这些教程覆盖近期移动版功能。旧版本缺少相应入口时，先通过官方渠道更新；截图中的示例名称和模型列表可能与你的配置不同。
-
-> Cherry Studio 是客户端，不附带模型额度。模型调用与已连接服务的费用、使用范围由对应平台决定。
+> 自己连接的模型服务需要自己的可用额度；已有社区权益与组织模型按对应账号服务授权，插件和其他平台的费用另由各服务决定。

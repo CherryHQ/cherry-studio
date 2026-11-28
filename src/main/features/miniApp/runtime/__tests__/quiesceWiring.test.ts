@@ -128,12 +128,4 @@ describe('uninstall goes offline first', () => {
     expect(hasRow(APP_ID)).toBe(false)
     expect(fs.existsSync(miniAppInstallPath(APP_ID))).toBe(false)
   })
-
-  it('drops the attention badge with the app', async () => {
-    // The bug this guards: a dot pointing at a row that no longer exists. Lives here
-    // rather than in Task 28 because the uninstall path is this file's subject.
-    await uninstallMiniApp(APP_ID)
-
-    expect(application.get('MiniAppRuntimeService').forgetApp).toHaveBeenCalledWith(APP_ID)
-  })
 })

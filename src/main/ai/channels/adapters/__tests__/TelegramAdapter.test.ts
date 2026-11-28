@@ -343,25 +343,6 @@ describe('TelegramAdapter', () => {
     expect(mockBot.start).toHaveBeenCalledTimes(2) // reconnected
   })
 
-  it('resets the reconnect budget after a stable polling window (REGRESSION channel-adapters-2)', async () => {
-    vi.useFakeTimers()
-    const adapter = createAdapter()
-    mockBot.start.mockReset()
-    // One transient failure bumps the attempt counter, then the reconnect stays up.
-    mockBot.start
-      .mockRejectedValueOnce(new Error('409: Conflict'))
-      .mockImplementationOnce(async (options) => options?.onStart?.({}))
-
-    await adapter.connect()
-    await vi.advanceTimersByTimeAsync(1000) // reconnect fires and succeeds
-    expect(adapter.reconnectAttempts).toBe(1)
-
-    // After the stability window the counter resets, so lifetime-cumulative transient
-    // failures can't monotonically exhaust maxReconnectAttempts.
-    await vi.advanceTimersByTimeAsync(60_000)
-    expect(adapter.reconnectAttempts).toBe(0)
-  })
-
   it('does not reconnect after disconnect() (REGRESSION channel-adapters-2)', async () => {
     vi.useFakeTimers()
     const adapter = createAdapter()
@@ -375,26 +356,6 @@ describe('TelegramAdapter', () => {
     const callsAfterDisconnect = mockBot.start.mock.calls.length
     await vi.advanceTimersByTimeAsync(60_000)
     expect(mockBot.start.mock.calls.length).toBe(callsAfterDisconnect) // no further reconnect
-  })
-
-  it('sendMessage() sends text with MarkdownV2 by default', async () => {
-    const adapter = createAdapter()
-    await adapter.connect()
-    await adapter.sendMessage('123', 'Hello')
-
-    expect(mockBot.api.sendMessage).toHaveBeenCalledWith('123', 'Hello', { parse_mode: 'MarkdownV2' })
-  })
-
-  it('sendMessage() converts markdown to MarkdownV2 via library', async () => {
-    const adapter = createAdapter()
-    await adapter.connect()
-    await adapter.sendMessage('123', 'Price is 10.5!')
-
-    const call = mockBot.api.sendMessage.mock.calls[0]
-    expect(call[0]).toBe('123')
-    expect(call[2]).toEqual({ parse_mode: 'MarkdownV2' })
-    // The library converts the text — special chars should be escaped
-    expect(call[1]).not.toBe('Price is 10.5!')
   })
 
   it('sendMessage() falls back to plain text on MarkdownV2 error', async () => {

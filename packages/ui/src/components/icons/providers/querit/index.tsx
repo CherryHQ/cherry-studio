@@ -9,7 +9,7 @@ const Querit = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const QueritIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Querit, {
   Avatar: QueritAvatar,
-  colorPrimary: '#0056F5'
+  colorPrimary: '#e8f0fe'
 })
 
 export default QueritIcon

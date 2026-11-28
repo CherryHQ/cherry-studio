@@ -6,11 +6,32 @@
   },
   "definitions": [
     {
+      "targetKey": "feature.api_gateway.lan_http_enabled",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Allow API-key authenticated model requests from the local network"
+    },
+    {
+      "targetKey": "agent.input.suggestions.enabled",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Predict a next prompt after Agent replies and let Tab fill it into the draft"
+    },
+    {
       "targetKey": "assistant.archive.related_topics",
       "type": "boolean",
       "defaultValue": false,
       "status": "classified",
       "description": "Remember whether archiving an assistant also archives its related topics"
+    },
+    {
+      "targetKey": "chat.message.scroll_to_bottom_on_send",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Scroll to the latest message after successfully sending a message"
     },
     {
       "targetKey": "chat.message.user_content.default_expanded",
@@ -22,9 +43,23 @@
     {
       "targetKey": "app.computer_use.agent_control.enabled",
       "type": "boolean",
-      "defaultValue": false,
+      "defaultValue": true,
       "status": "classified",
       "description": "Allow local agents to observe and control desktop applications through the Computer Use SDK"
+    },
+    {
+      "targetKey": "app.computer_use.approved_apps",
+      "type": "string[]",
+      "defaultValue": [],
+      "status": "classified",
+      "description": "Stable native application identities explicitly allowed for Computer Use on this installation"
+    },
+    {
+      "targetKey": "app.computer_use.agent_control.global_input",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Allow agent actions to use the shared pointer and system keyboard (required for pointer and keyboard control on Linux)"
     },
     {
       "targetKey": "agent.commit_attribution.enabled",
@@ -32,6 +67,13 @@
       "defaultValue": true,
       "status": "classified",
       "description": "Let the Claude Code runtime append its own attribution to git commits and PR bodies (Co-Authored-By trailer, Generated-with footer). Disable to omit that attribution (v2 new feature, no v1 source)"
+    },
+    {
+      "targetKey": "agent.skills.external_export.enabled",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Export skills to external agents (v2 new feature, no v1 source)"
     },
     {
       "targetKey": "app.browser.agent_control.enabled",
@@ -53,6 +95,20 @@
       "defaultValue": true,
       "status": "classified",
       "description": "Automatically open the right-side browser panel when tools browse the web (default: true)."
+    },
+    {
+      "targetKey": "app.browser.start_page.mode",
+      "type": "PreferenceTypes.BrowserStartPageMode",
+      "defaultValue": "blank",
+      "status": "classified",
+      "description": "Start page for newly opened standalone browser tabs"
+    },
+    {
+      "targetKey": "app.browser.start_page.custom_url",
+      "type": "string",
+      "defaultValue": "",
+      "status": "classified",
+      "description": "Custom HTTP(S) start page for standalone browser tabs"
     },
     {
       "targetKey": "app.fetch.allow_private_network",
@@ -251,11 +307,25 @@
       "description": "Web search compression method (from complex migration; default cutoff caps raw source content per finding #7 — new installs only, migrated profiles keep their explicit value)"
     },
     {
+      "targetKey": "feature.code_cli.agent_order",
+      "type": "string[]",
+      "defaultValue": [],
+      "status": "classified",
+      "description": "Agent directory order shared by Code Mate and settings; installation and enabled groups take precedence"
+    },
+    {
       "targetKey": "feature.code_cli.configs",
       "type": "PreferenceTypes.CodeCliConfigs",
       "defaultValue": "VALUE: {}",
       "status": "classified",
       "description": "Fresh v2 key (no migration): per-tool CLI configs with per-provider modelId, config blob, and sortIndex. v1 codeTools is throwaway."
+    },
+    {
+      "targetKey": "feature.code_cli.workspace",
+      "type": "PreferenceTypes.CodeCliWorkspace",
+      "defaultValue": "VALUE: {}",
+      "status": "classified",
+      "description": "Last working directory and removable recent directories shared by all Agent terminal launchers"
     },
     {
       "targetKey": "chat.input.toolbar.pinned_tools",
@@ -857,6 +927,16 @@
       },
       "status": "classified",
       "description": "Command shortcut: chat.message.copy_last (unified command system)"
+    },
+    {
+      "targetKey": "shortcut.chat.message.quote_selection",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": ["CommandOrControl", "Shift", "Y"],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: chat.message.quote_selection (unified command system)"
     },
     {
       "targetKey": "shortcut.chat.message.edit_last_user",
@@ -1491,6 +1571,10 @@
           "visible": true
         },
         {
+          "id": "desktop_control",
+          "visible": true
+        },
+        {
           "id": "plan",
           "visible": true
         },
@@ -1521,6 +1605,26 @@
       ],
       "status": "classified",
       "description": "Ordered session details sections and their visibility"
+    },
+    {
+      "targetKey": "chat.topics.sort",
+      "type": "PreferenceTypes.ConversationListSort",
+      "defaultValue": {
+        "by": "lastActivityAt",
+        "direction": "desc"
+      },
+      "status": "classified",
+      "description": "Independent conversation list sorting"
+    },
+    {
+      "targetKey": "agent.session.sort",
+      "type": "PreferenceTypes.ConversationListSort",
+      "defaultValue": {
+        "by": "lastActivityAt",
+        "direction": "desc"
+      },
+      "status": "classified",
+      "description": "Independent conversation list sorting"
     }
   ]
 }

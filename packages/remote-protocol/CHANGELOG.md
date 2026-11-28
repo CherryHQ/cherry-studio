@@ -1,5 +1,35 @@
 # @cherrystudio/remote-protocol
 
+## Unreleased
+
+### Patch Changes
+
+- Declare the MIT license and include a package-local license file.
+
+## 0.10.0
+
+### Minor Changes
+
+- [#25307](https://github.com/CherryHQ/cherry-studio/pull/25307) [`3cc092f`](https://github.com/CherryHQ/cherry-studio/commit/3cc092fea6b9e53a52823aee7af2e0b4a3a3b7d5) Thanks [@zhangjiadi225](https://github.com/zhangjiadi225)! - Add a negotiated desktop model catalog and an optional model selection when creating a remote Agent session.
+
+## 0.9.0
+
+### Minor Changes
+
+- [#25406](https://github.com/CherryHQ/cherry-studio/pull/25406) [`aece413`](https://github.com/CherryHQ/cherry-studio/commit/aece413cdc83edabba7e9bbbf5c9e159970a3441) Thanks [@DeJeune](https://github.com/DeJeune)! - Export `createAgentJournalWriter` to apply streaming updates by part ID while maintaining the agent journal.
+
+## 0.8.0
+
+### Minor Changes
+
+- [#24299](https://github.com/CherryHQ/cherry-studio/pull/24299) [`0648691`](https://github.com/CherryHQ/cherry-studio/commit/06486919592b74c5996dc3485051db9250a6073f) Thanks [@DeJeune](https://github.com/DeJeune)! - Add stable read-only Agent Task contracts for task discovery, configuration, execution history and revision-bound prompt content. Lists include schedule triggers and business update timestamps; runs include bounded display summaries. Tasks use the existing Agent authorization and expose persisted execution facts and readable result-session locations without adding capability flags or task storage.
+  
+  Add an optional taskId filter to agent.sessions.list so task conversations remain discoverable after execution history is collected, with existing visibility and pagination rules.
+
+### Patch Changes
+
+- [#24234](https://github.com/CherryHQ/cherry-studio/pull/24234) [`2e65759`](https://github.com/CherryHQ/cherry-studio/commit/2e6575901a59e6edb5748a2df18713f48635f658) Thanks [@DeJeune](https://github.com/DeJeune)! - Standardize public libraries on MIT and include package-local license files.
+
 ## 0.7.0
 
 ### Minor Changes

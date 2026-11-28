@@ -1,3 +1,5 @@
+import { join } from 'node:path'
+
 import type { LanguageModelV3 } from '@ai-sdk/provider'
 import type { Options } from '@anthropic-ai/claude-agent-sdk'
 
@@ -8,9 +10,10 @@ import type { ClaudeCodeSettings } from './types'
 
 /** An explicit child environment is authoritative, even when it omits the config override. */
 export function resolveClaudeConfigDirectory(env?: Options['env']): string {
+  const home = process.platform === 'win32' ? env?.USERPROFILE : env?.HOME
   return (
     (env === undefined ? process.env.CLAUDE_CONFIG_DIR : env.CLAUDE_CONFIG_DIR) ??
-    application.getPath('external.claude.config')
+    (home ? join(home, '.claude') : application.getPath('external.claude.config'))
   )
 }
 
@@ -45,6 +48,8 @@ export function createClaudeCodeQueryOptions({
 
   const opts: Partial<Options> = {
     ...settingsRest,
+    // The SDK requires this launch flag for a confirmed mid-turn switch to Full Access.
+    allowDangerouslySkipPermissions: true,
     spawnClaudeCodeProcess,
     model: modelId,
     ...(abortController ? { abortController } : {}),

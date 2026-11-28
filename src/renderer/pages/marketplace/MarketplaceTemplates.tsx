@@ -2,16 +2,17 @@ import { FileText, Plus } from 'lucide-react'
 import { useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, Dialog, HorizontalScrollContainer } from '@cherrystudio/ui'
+import { Button, Dialog, EmojiIcon } from '@cherrystudio/ui'
 import { ResourceCreateWizard } from '@renderer/components/resourceCatalog/dialogs/create'
 import { useAgentMutations } from '@renderer/hooks/resourceCatalog'
-import { toast } from '@renderer/services/toast'
+import { openRoute } from '@renderer/services/mainWindowNavigation'
 import type { MarketplaceTemplate } from '@renderer/types/marketplace'
-import { buildCreateAgentCommand } from '@renderer/utils/resourceCatalog'
+import { buildCreateAgentCommand } from '@shared/ai/agentCreateCommand'
 
 import {
   MarketplaceCard,
   MarketplaceCardAction,
+  MarketplaceCategoryFilter,
   MarketplaceDetailBody,
   MarketplaceDetailFooter,
   MarketplaceDetailHeader,
@@ -50,6 +51,8 @@ export function MarketplaceTemplates({
   const { createAgent, isCreatingAgent } = useAgentMutations()
   const [selected, setSelected] = useState<MarketplaceTemplate | null>(null)
   const [creating, setCreating] = useState<MarketplaceTemplate | null>(null)
+  // Mounted from the first add on, so the wizard's edit dialog outlives the wizard closing.
+  const [wizardMounted, setWizardMounted] = useState(false)
   useLayoutEffect(
     () => () => {
       setSelected(null)
@@ -74,28 +77,17 @@ export function MarketplaceTemplates({
   const add = (item: MarketplaceTemplate) => {
     setSelected(null)
     setCreating(item)
+    setWizardMounted(true)
   }
   return (
     <div className={preview ? '' : 'flex h-full min-h-0 flex-col'}>
-      {!preview && categories ? (
-        <div className="mb-3 shrink-0" aria-label={t('marketplace.categories')}>
-          <HorizontalScrollContainer
-            gap="4px"
-            scrollLeftLabel={t('settings.models.filter.scroll_left')}
-            scrollRightLabel={t('settings.models.filter.scroll_right')}>
-            {['', ...categories].map((group) => (
-              <Button
-                key={group}
-                variant="ghost"
-                size="sm"
-                className={'shrink-0 rounded-full ' + (category === group ? 'bg-accent' : '')}
-                aria-pressed={category === group}
-                onClick={() => onCategoryChange?.(group)}>
-                {group ? categoryLabel(group) : t('common.all')}
-              </Button>
-            ))}
-          </HorizontalScrollContainer>
-        </div>
+      {!preview && categories && onCategoryChange ? (
+        <MarketplaceCategoryFilter
+          categories={categories}
+          category={category ?? ''}
+          onCategoryChange={onCategoryChange}
+          categoryLabel={categoryLabel}
+        />
       ) : null}
       <MarketplaceLoadState loading={loading} error={error} empty={!filtered.length} retry={retry} />
       <MarketplaceGrid
@@ -107,9 +99,9 @@ export function MarketplaceTemplates({
             name={item.name}
             description={item.description || item.prompt.replace(/\s+/g, ' ')}
             icon={
-              <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-background-subtle text-2xl">
-                {item.avatar}
-              </span>
+              <div className="size-10 shrink-0">
+                <EmojiIcon emoji={item.avatar} fluid className="rounded-xl" />
+              </div>
             }
             onOpen={(event) => {
               trigger.current = event.currentTarget
@@ -128,7 +120,7 @@ export function MarketplaceTemplates({
             }>
             {item.groups.length ? (
               <div className="mt-1 flex min-w-0 items-center gap-2">
-                <span className="truncate text-xs font-normal text-foreground-tertiary">
+                <span className="text-foreground-tertiary truncate text-xs font-normal">
                   {item.groups.map(categoryLabel).join(' · ')}
                 </span>
               </div>
@@ -154,9 +146,13 @@ export function MarketplaceTemplates({
                 description={selected.description || selected.name}
                 type={t('marketplace.type.agent')}
                 icon={
-                  <span className="flex size-14 shrink-0 items-center justify-center rounded-2xl border border-border-subtle bg-background text-3xl shadow-sm">
-                    {selected.avatar}
-                  </span>
+                  <div className="size-14 shrink-0">
+                    <EmojiIcon
+                      emoji={selected.avatar}
+                      fluid
+                      className="rounded-2xl border border-border-subtle bg-background shadow-sm"
+                    />
+                  </div>
                 }></MarketplaceDetailHeader>
               <MarketplaceDetailBody>
                 {selected.groups.length ? (
@@ -167,17 +163,17 @@ export function MarketplaceTemplates({
                   />
                 ) : null}
                 {selected.description ? (
-                  <p className="whitespace-pre-wrap break-words text-sm leading-6 text-muted-foreground">
+                  <p className="text-muted-foreground text-sm leading-6 break-words whitespace-pre-wrap">
                     {selected.description}
                   </p>
                 ) : null}
                 {selected.prompt ? (
                   <section className="space-y-2">
                     <h3 className="flex items-center gap-2 text-xs font-medium">
-                      <FileText className="size-3.5 text-foreground-tertiary" />
+                      <FileText className="text-foreground-tertiary size-3.5" />
                       {t('marketplace.instructions')}
                     </h3>
-                    <p className="whitespace-pre-wrap break-words text-sm leading-6 text-muted-foreground">
+                    <p className="text-muted-foreground text-sm leading-6 break-words whitespace-pre-wrap">
                       {selected.prompt}
                     </p>
                   </section>
@@ -194,17 +190,21 @@ export function MarketplaceTemplates({
           ) : null}
         </MarketplaceDetailContent>
       </Dialog>
-      {creating ? (
+      {wizardMounted ? (
         <ResourceCreateWizard
           kind="agent"
-          open={active}
+          open={active && creating !== null}
           isSubmitting={isCreatingAgent}
-          initialValues={{
-            name: creating.name,
-            description: creating.description,
-            avatar: creating.avatar,
-            prompt: creating.prompt
-          }}
+          initialValues={
+            creating
+              ? {
+                  name: creating.name,
+                  description: creating.description,
+                  avatar: creating.avatar,
+                  prompt: creating.prompt
+                }
+              : undefined
+          }
           onOpenChange={(open) => {
             if (!open && !isCreatingAgent) {
               setCreating(null)
@@ -212,11 +212,10 @@ export function MarketplaceTemplates({
             }
           }}
           onSubmit={async (values) => {
-            await createAgent(buildCreateAgentCommand(values))
-            toast.success(t('common.add_success'))
-            setCreating(null)
-            trigger.current?.focus()
+            const created = await createAgent(buildCreateAgentCommand(values))
+            return created.id
           }}
+          onStartConversation={(agentId) => openRoute('/app/agents', { agentId })}
         />
       ) : null}
     </div>

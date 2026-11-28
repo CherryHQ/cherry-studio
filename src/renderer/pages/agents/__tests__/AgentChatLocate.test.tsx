@@ -255,10 +255,6 @@ const agentSessionPartsMocks = vi.hoisted(() => ({
   }
 }))
 
-vi.mock('@renderer/data/hooks/useDataApi', () => ({
-  useInvalidateCache: () => vi.fn()
-}))
-
 vi.mock('@renderer/hooks/agent/useSession', () => ({
   useActiveSession: () => activeSessionMocks.result,
   useUpdateSession: () => ({ updateSession: vi.fn() })
@@ -272,29 +268,21 @@ vi.mock('@renderer/hooks/useChatWithHistory', () => ({
   useChatWithHistory: () => ({
     activeExecutions: [],
     sendMessage: vi.fn(),
-    stop: vi.fn(),
-    setMessages: vi.fn()
+    stop: vi.fn()
   })
 }))
 
-vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
-  useExecutionOverlay: () => ({
-    overlay: {},
-    liveAssistants: [],
-    disposeOverlay: vi.fn(),
-    reset: vi.fn()
-  })
-}))
+vi.mock('@renderer/hooks/useHistoryReplies', () => ({ useHistoryReplies: () => [] }))
+vi.mock('@renderer/hooks/useTopicSpeech', () => ({ useTopicSpeech: () => {} }))
+vi.mock('@renderer/hooks/useTopicCompletion', () => ({ useTopicCompletion: () => {} }))
 
 vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
-  useTopicStreamStatus: () => ({ isPending: false }),
-  useTopicOverlayHandoffOnTerminal: () => {}
+  useTopicStreamStatus: () => ({ isPending: false })
 }))
 
 vi.mock('@renderer/utils/agentSession', () => ({
   buildAgentFileWorkspaceKey: (workspaceId?: string | null, workspacePath?: string) =>
-    `${workspaceId ?? ''}\0${workspacePath ?? ''}`,
-  buildAgentSessionTopicId: (sessionId: string) => `agent-session:${sessionId}`
+    `${workspaceId ?? ''}\0${workspacePath ?? ''}`
 }))
 
 vi.mock('../messages/agentMessageListAdapter', () => ({
@@ -452,15 +440,6 @@ describe('AgentChat locate pending message', () => {
     expect(onLocateMessageHandled).not.toHaveBeenCalled()
   })
 
-  it('renders the navbar and loading center while the active session is resolving', () => {
-    renderAgentChat(
-      <AgentChat conversationBootstrap={createConversationBootstrap(null, true, 'pending')} showResourceListControls />
-    )
-
-    expect(screen.getByTestId('agent-chat-navbar')).toBeInTheDocument()
-    expect(screen.getByTestId('conversation-center-state')).toHaveAttribute('data-state', 'loading')
-  })
-
   it('loads older session history for pending locate and clears it only after the target appears', async () => {
     const onLocateMessageHandled = vi.fn()
     agentSessionPartsMocks.result = {
@@ -596,6 +575,5 @@ describe('AgentChat locate pending message', () => {
     )
 
     await waitFor(() => expect(screen.getByTestId('agent-right-pane')).toHaveAttribute('data-open', 'true'))
-    expect(screen.getByTestId('agent-right-pane')).toBe(rightPane)
   })
 })

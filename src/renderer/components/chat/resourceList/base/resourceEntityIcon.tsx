@@ -3,10 +3,12 @@ import { Bot, Check } from 'lucide-react'
 import type { ReactNode } from 'react'
 
 import { EmojiIcon } from '@cherrystudio/ui'
+import { AssistantAvatarImage } from '@renderer/components/Avatar/AssistantAvatarImage'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import type { ActionDescriptor, ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
+import { LocalAgentIcon } from '@renderer/components/icons/LocalAgentIcon'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
-import type { AgentConfiguration } from '@shared/data/api/schemas/agents'
+import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AssistantIconType } from '@shared/data/preference/preferenceTypes'
 import { DEFAULT_ASSISTANT_EMOJI } from '@shared/data/presets/defaultAssistant'
 import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
@@ -52,7 +54,7 @@ function renderFallbackAssistantIcon(emoji: string | null | undefined, size: num
  */
 export function renderAssistantEntityIcon(
   iconType: AssistantIconType,
-  assistant: { emoji?: string | null; modelId?: string | null; modelName?: string | null },
+  assistant: { emoji?: string | null; avatarSrc?: string; modelId?: string | null; modelName?: string | null },
   fallbackModelId?: string | null,
   size: number = RESOURCE_ICON_SIZE,
   fallbackGlyphSize: number = RESOURCE_GLYPH_SIZE
@@ -64,7 +66,15 @@ export function renderAssistantEntityIcon(
     return <ModelAvatar model={modelAvatarModel} size={size} className="border border-border-subtle" />
   }
 
-  return renderFallbackAssistantIcon(assistant.emoji, size, fallbackGlyphSize)
+  return (
+    <AssistantAvatarImage
+      src={assistant.avatarSrc}
+      alt=""
+      size={size}
+      className="rounded-full object-cover"
+      fallback={renderFallbackAssistantIcon(assistant.emoji, size, fallbackGlyphSize)}
+    />
+  )
 }
 
 /**
@@ -72,17 +82,34 @@ export function renderAssistantEntityIcon(
  */
 export function renderAgentEntityIcon(
   iconType: AssistantIconType,
-  agent: { configuration?: AgentConfiguration; model?: string | null; modelName?: string | null } | undefined,
+  agent:
+    | (Partial<Pick<AgentEntity, 'avatarSrc' | 'configuration' | 'localRuntime' | 'modelName'>> & {
+        model?: string | null
+      })
+    | undefined,
   fallbackModelId?: string | null,
   size: number = RESOURCE_ICON_SIZE
 ) {
   if (iconType === 'none') return undefined
 
+  if (agent?.localRuntime) return <LocalAgentIcon presetId={agent.localRuntime.presetId} size={size} />
+
   const modelAvatarModel = buildModelAvatarModel(agent?.model ?? fallbackModelId, agent?.modelName)
   if (iconType === 'model' && modelAvatarModel) return <ModelAvatar model={modelAvatarModel} size={size} />
 
   return (
-    <EmojiIcon emoji={getAgentAvatarFromConfiguration(agent?.configuration) || DEFAULT_ASSISTANT_EMOJI} size={size} />
+    <AssistantAvatarImage
+      src={agent?.avatarSrc}
+      alt=""
+      size={size}
+      className="rounded-full object-cover"
+      fallback={
+        <EmojiIcon
+          emoji={getAgentAvatarFromConfiguration(agent?.configuration) || DEFAULT_ASSISTANT_EMOJI}
+          size={size}
+        />
+      }
+    />
   )
 }
 

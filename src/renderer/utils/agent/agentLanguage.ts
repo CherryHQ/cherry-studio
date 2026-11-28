@@ -10,6 +10,7 @@ export const AGENT_LANGUAGE_PRESETS: readonly string[] = [
   'Deutsch',
   'Español',
   'Português',
+  'Čeština',
   'Русский'
 ]
 
@@ -24,21 +25,4 @@ export function validateAgentLanguageInput(raw: unknown): AgentLanguageValidatio
   if (value.length > AGENT_LANGUAGE_MAX_LENGTH) return { ok: false, errorKey: 'settings.agent.language.error.too_long' }
   if (SINGLE_LINE_PATTERN.test(value)) return { ok: false, errorKey: 'settings.agent.language.error.multiline' }
   return { ok: true, value }
-}
-
-export function normalizeAgentLanguageInput(raw: unknown): string | null {
-  const result = validateAgentLanguageInput(raw)
-  return result.ok ? result.value : null
-}
-
-export type AgentLanguageMode = 'inherit' | 'off' | 'custom'
-
-export function resolveAgentLanguagePreview(
-  mode: AgentLanguageMode,
-  customDraft: string,
-  globalLanguage: string | null
-): string | null {
-  if (mode === 'off') return null
-  if (mode === 'custom') return normalizeAgentLanguageInput(customDraft) ?? globalLanguage
-  return globalLanguage
 }

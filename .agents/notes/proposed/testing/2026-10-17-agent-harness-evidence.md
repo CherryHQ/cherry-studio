@@ -200,7 +200,7 @@ The public Thread should map to the native Thread, not mechanically to the field
 
 ### ACP agents by protocol version
 
-The [ACP v1 adapter Spec](../architecture/2026-11-09-agent-runtime-acp-v1.md) records the 2026-11-09 protocol/SDK refresh, Claude/Gemini research, and executed transport/initialization probes. The section below retains its original pinned baseline; the refresh does not establish native prompt or desktop acceptance.
+The [ACP v1 adapter note](../../implemented/architecture/2026-11-09-agent-runtime-acp-v1.md) records the 2026-11-09 protocol/SDK refresh, Claude/Gemini research, and adapter/native-loop verification. The section below retains its original pinned baseline; desktop acceptance remains outside the adapter evidence.
 
 #### v1
 

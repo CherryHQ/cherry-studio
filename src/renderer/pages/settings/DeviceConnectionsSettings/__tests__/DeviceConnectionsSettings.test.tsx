@@ -7,6 +7,7 @@ import type { PropsWithChildren, ReactElement } from 'react'
 import { SWRConfig } from 'swr'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as SettingsPrimitives from '@renderer/components/SettingsPrimitives'
 import enUS from '@renderer/i18n/locales/en-us.json'
 import { toast } from '@renderer/services/toast'
 import type { OutputFor } from '@shared/ipc/types'
@@ -26,7 +27,8 @@ vi.mock('@tanstack/react-router', () => ({ useNavigate: () => navigateMock }))
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => await importOriginal())
 
-vi.mock('@renderer/components/SettingsPrimitives', () => ({
+vi.mock('@renderer/components/SettingsPrimitives', async (importOriginal) => ({
+  SettingsPageHeader: (await importOriginal<typeof SettingsPrimitives>()).SettingsPageHeader,
   SettingGroup: ({ children }: PropsWithChildren) => <section>{children}</section>,
   SettingRowTitle: ({ children }: PropsWithChildren) => <div>{children}</div>,
   SettingsContentColumn: ({ children }: PropsWithChildren) => <main>{children}</main>,
@@ -589,7 +591,7 @@ describe('DeviceConnectionsSettings', () => {
     expect(screen.queryByText(enUS['deviceConnections.toggle.risk'])).not.toBeInTheDocument()
     expect(screen.getAllByText(enUS['deviceConnections.gateway.required'])[0]).toBeVisible()
     expect(screen.queryByText(enUS['deviceConnections.pairing.requiresRunning'])).not.toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Open API Gateway settings' }))
+    await user.click(screen.getByRole('button', { name: 'Open Unified Gateway settings' }))
 
     expect(navigateMock).toHaveBeenCalledWith({ to: '/settings/api-gateway' })
     expect(requestMock).not.toHaveBeenCalled()

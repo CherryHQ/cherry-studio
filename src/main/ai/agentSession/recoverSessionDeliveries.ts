@@ -1,7 +1,14 @@
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
+import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 
 import { finalizeInterruptedParts } from '../streamManager'
+
+/** The original Durable target whose submission state governs recovery of this delivery. */
+export function durableDeliveryTarget(request: AgentSessionMessageEntity) {
+  const target = agentSessionMessageService.inputTarget(request.sessionId, request.id)
+  return target?.kind === 'pi-durable' && target.anchor !== null && !target.locallyHandled ? target : undefined
+}
 
 export function recoverSessionDeliveries(): Set<string> {
   const affectedSessionIds = new Set<string>()
@@ -30,6 +37,7 @@ export function recoverSessionDeliveries(): Set<string> {
       if (result) affectedSessionIds.add(result.sessionId)
       continue
     }
+    if (assistant.status === 'pending' && durableDeliveryTarget(message)) continue
     if (assistant.status === 'pending') {
       agentSessionMessageService.resolveCrashOrphanedMessages(
         [

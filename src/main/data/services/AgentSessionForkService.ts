@@ -1,5 +1,4 @@
 import { and, eq, inArray, sql } from 'drizzle-orm'
-import { alias, type AnySQLiteColumn } from 'drizzle-orm/sqlite-core'
 
 import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
@@ -10,13 +9,14 @@ import {
   type AgentSessionCheckpoints,
   type AgentSessionContextRow
 } from '@data/db/schemas/agentSessionContext'
-import { type AgentSessionMessageRow, agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import type { DbOrTx } from '@data/db/types'
+import type { UniqueModelId } from '@shared/data/types/model'
 
 import { agentSessionContextService } from './AgentSessionContextService'
 import { agentSessionMessageService } from './AgentSessionMessageService'
 import { agentSessionPathIds, ensureAgentSessionRootTx } from './agentSessionMessageTree'
+import type { AgentSessionMessageRecord } from './agentSessionMessageTree'
 import { agentSessionService } from './AgentSessionService'
 
 export class AgentSessionForkSourceError extends Error {
@@ -55,26 +55,18 @@ export class AgentSessionForkService {
 
   readHistoryBoundaries(sessionId: string, messageIds: readonly string[]) {
     if (!messageIds.length) return []
-    const parent = alias(agentSessionMessageTable, 'parent')
-    const anchor = (data: AnySQLiteColumn) =>
-      sql<unknown>`json_quote(json_extract(${data}, '$.runtimeAnchor'))`.mapWith((value: string): unknown =>
-        JSON.parse(value)
-      )
-    return application
-      .get('DbService')
-      .getDb()
-      .select({
-        id: agentSessionMessageTable.id,
-        role: agentSessionMessageTable.role,
-        status: agentSessionMessageTable.status,
-        delivery: agentSessionMessageTable.delivery,
-        anchor: anchor(agentSessionMessageTable.data),
-        parent: { id: parent.id, role: parent.role, status: parent.status, anchor: anchor(parent.data) }
-      })
-      .from(agentSessionMessageTable)
-      .leftJoin(parent, and(eq(parent.sessionId, sessionId), eq(parent.id, agentSessionMessageTable.parentId)))
-      .where(and(eq(agentSessionMessageTable.sessionId, sessionId), inArray(agentSessionMessageTable.id, messageIds)))
-      .all()
+    const db = application.get('DbService').getDb()
+    const histories = [agentSessionMessageService.readRunHistoryTx(db, sessionId)]
+    return messageIds.flatMap((id) => {
+      for (const history of histories) {
+        const resolved = history.inspect(id)
+        if (resolved) return [resolved]
+      }
+      const history = agentSessionMessageService.readRunHistoryTx(db, sessionId, id)
+      histories.push(history)
+      const resolved = history.inspect(id)
+      return resolved ? [resolved] : []
+    })
   }
 
   private readTx(tx: DbOrTx, sourceSessionId: string, messageId: string, excludedIds: readonly string[]) {
@@ -119,18 +111,21 @@ export class AgentSessionForkService {
       source: ReturnType<AgentSessionForkService['read']>
       excludedIds: readonly string[]
       messageId: string
-      messages: AgentSessionMessageRow[]
-      contexts: Array<Pick<AgentSessionContextRow, 'backendId' | 'anchorMessageId'> & { nativeThreadId: string }>
+      messages: AgentSessionMessageRecord[]
+      contexts: Array<
+        Pick<AgentSessionContextRow, 'backendId' | 'anchorMessageId'> & { id?: string; nativeThreadId: string }
+      >
     }
   ): void {
     const { source } = input
     const current = this.readTx(tx, source.session.id, input.messageId, input.excludedIds)
-    // Appending after the boundary is allowed. Changes to the chosen prefix, Agent or cwd are not.
+    // Appending after the boundary is allowed. Changes to the chosen prefix, Agent, cwd or model are not.
     if (
       current.agent.type !== source.agent.type ||
       current.agent.id !== source.agent.id ||
       current.workspace.id !== source.workspace.id ||
       current.workspace.path !== source.workspace.path ||
+      current.session.model !== source.session.model ||
       JSON.stringify(current.messages) !== JSON.stringify(source.messages) ||
       JSON.stringify(current.contexts) !== JSON.stringify(source.contexts)
     )
@@ -163,6 +158,7 @@ export class AgentSessionForkService {
         agentId: source.agent.id,
         name: `${baseName}${separator}(${number})`,
         description: source.session.description,
+        model: (source.session.model ?? undefined) as UniqueModelId | undefined,
         workspace:
           source.workspace.type === 'system' ? { type: 'system' } : { type: 'user', workspaceId: source.workspace.id }
       },
@@ -173,6 +169,7 @@ export class AgentSessionForkService {
     for (const binding of input.contexts) {
       const anchor = binding.anchorMessageId ?? ensureAgentSessionRootTx(tx, input.targetSessionId)
       const context = agentSessionContextService.reserveBranchTx(tx, {
+        id: binding.id,
         sessionId: input.targetSessionId,
         backendId: binding.backendId,
         nativeThreadId: binding.nativeThreadId,

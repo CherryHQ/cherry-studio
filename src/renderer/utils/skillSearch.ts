@@ -23,20 +23,16 @@ export const SKILL_SEARCH_FAILED_ERROR = SHARED_SKILL_SEARCH_FAILED_ERROR
 // Fetch helpers
 // ===========================================================================
 
-async function fetchWithTimeout(url: string, init?: RequestInit): Promise<Response> {
+async function fetchJson(url: string): Promise<unknown> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
   try {
-    return await fetch(url, { ...init, signal: controller.signal })
+    const response = await fetch(url, { signal: controller.signal })
+    if (!response.ok) throw new Error('HTTP ' + response.status)
+    return await response.json()
   } finally {
     clearTimeout(timer)
   }
-}
-
-async function fetchJson(url: string): Promise<unknown> {
-  const resp = await fetchWithTimeout(url)
-  if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
-  return resp.json()
 }
 
 // ===========================================================================
@@ -100,7 +96,7 @@ export async function loadClaudePluginsSkills(
   if (!Number.isSafeInteger(offset) || offset < 0 || !Number.isInteger(limit) || limit < 1 || limit > 100) {
     throw new Error('Invalid claude-plugins.dev pagination')
   }
-  const url = new URL('https://claude-plugins.dev/api/skills')
+  const url = new URL('https://api.claude-plugins.dev/api/skills/search')
   url.searchParams.set('limit', String(limit))
   url.searchParams.set('offset', String(offset))
   const data = ClaudePluginsSearchResponseSchema.parse(await fetchJson(url.toString()))

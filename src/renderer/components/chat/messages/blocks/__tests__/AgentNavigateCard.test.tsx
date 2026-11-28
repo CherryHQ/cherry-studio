@@ -100,6 +100,7 @@ describe('Agent navigate card', () => {
   })
 
   it('stays visible as later tools and reasoning arrive and after completion, without duplication', async () => {
+    const user = userEvent.setup()
     const parts = [ordinaryPart('before'), navigatePart]
     const view = setup(parts, true)
     await waitFor(() => expect(screen.getByRole('button', { name: buttonName })).toBeVisible())
@@ -113,9 +114,10 @@ describe('Agent navigate card', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: buttonName })).toBeVisible())
     act(() => view.activityStore.update([], [], undefined))
     view.rerender(view.tree([...later, textPart], { ...view.message, status: 'success' }))
-    expect(screen.getByTestId('completed-process-trigger')).toHaveAttribute('aria-expanded', 'false')
-    expect(screen.getAllByRole('button', { name: buttonName })).toHaveLength(1)
-    await waitFor(() => expect(screen.getByRole('button', { name: buttonName })).toBeVisible())
+    const button = await screen.findByRole('button', { name: buttonName })
+    expect(button).toBeVisible()
+    await user.click(button)
+    expect(view.navigateToRoute.mock.calls).toEqual([[target]])
   })
 
   it('renders a terminal successful navigate with no final prose as a direct result', async () => {

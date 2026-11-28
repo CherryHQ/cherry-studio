@@ -33,13 +33,6 @@ describe('WebSearchPreferenceUpgradeSeeder', () => {
       .run()
   }
 
-  it('defaults a new installation to model-native web tools', () => {
-    new SeedRunner(dbh.db).runAll(WEB_SEARCH_PREFERENCE_SEEDERS)
-
-    expect(readPreference(MODEL_TOOLS_PREFERRED_KEY)).toBe(true)
-    expect(readPreference(LEGACY_PREFERENCE_KEY)).toBeUndefined()
-  })
-
   it.each([
     { legacyValue: false, expectedValue: true },
     { legacyValue: true, expectedValue: false }

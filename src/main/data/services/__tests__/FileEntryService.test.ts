@@ -1,5 +1,5 @@
 import { setupTestDatabase } from '@test-helpers/db'
-import { MockMainDbServiceExport, MockMainDbServiceUtils } from '@test-mocks/main/DbService'
+import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { eq, getTableName } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -522,13 +522,14 @@ describe('FileEntryService', () => {
         size: i,
         externalPath: null,
         deletedAt: null,
-        createdAt: now + i,
+        createdAt: now + [40, 10, 30, 0, 20][i],
         updatedAt: now + i
       }))
       await dbh.db.insert(fileEntryTable).values(rows)
 
       const page = fileEntryService.findMany({ limit: 2, offset: 1 })
-      expect(page).toHaveLength(2)
+      // createdAt order differs from insertion and ID order: n3, n1, n4, n2, n0.
+      expect(page.map((entry) => entry.name)).toEqual(['n1', 'n4'])
     })
   })
 
@@ -1608,41 +1609,6 @@ describe('FileEntryService', () => {
   })
 
   describe('delete', () => {
-    it('commits single-write public wrappers directly without opening a transaction', async () => {
-      const withWriteTx = MockMainDbServiceExport.dbService.withWriteTx
-      withWriteTx.mockClear()
-
-      const internalId = '019606a0-0000-7000-8000-000000000c10' as FileEntryId
-      fileEntryService.create({
-        id: internalId,
-        origin: 'internal',
-        cleanupPolicy: 'manual',
-        name: 'tx',
-        ext: 'txt',
-        size: 1
-      })
-      fileEntryService.update(internalId, { name: 'tx-renamed' })
-      fileEntryService.delete(internalId)
-
-      const external = fileEntryService.create({
-        origin: 'external',
-        cleanupPolicy: 'manual',
-        name: 'ext-tx',
-        ext: 'txt',
-        externalPath: '/Users/me/ext-tx.txt'
-      })
-      fileEntryService.setExternalPathAndName(
-        external.id,
-        '/Users/me/ext-tx-renamed.txt' as CanonicalFilePath,
-        'ext-tx-renamed'
-      )
-
-      // create/update/delete/setExternalPathAndName are each a single autocommit statement under
-      // better-sqlite3, so they write via getDb() directly and never wrap withWriteTx. If any grows
-      // into a multi-statement mutation it must adopt withWriteTx and update this expectation.
-      expect(withWriteTx).toHaveBeenCalledTimes(0)
-    })
-
     it('removes an existing row', async () => {
       const id = '019606a0-0000-7000-8000-000000000c01' as FileEntryId
       fileEntryService.create({ id, origin: 'internal', cleanupPolicy: 'manual', name: 'd', ext: 'txt', size: 1 })

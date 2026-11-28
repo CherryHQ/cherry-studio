@@ -28,6 +28,7 @@ interface ModelSelectorCommonProps {
   sideOffset?: number
   contentClassName?: string
   portalContainer?: HTMLElement | null
+  allowPresentationSwitch?: boolean
   mountStrategy?: ModelSelectorMountStrategy
   multiSelectMode?: boolean
   defaultMultiSelectMode?: boolean
@@ -82,6 +83,7 @@ export interface ModelSelectorGroupItem {
   groupKind: 'pinned' | 'provider'
   provider?: Provider
   canNavigateToSettings?: boolean
+  titleAction?: ReactNode
   trailing?: ReactNode
 }
 
@@ -108,20 +110,27 @@ export interface ModelSelectorActionItem {
   leading?: ReactNode
   trailing?: ReactNode
   detail?: ReactNode
+  /** Same rank as `ModelSelectorPresentation.priority`: higher sorts later in its group. */
+  priority?: number
   onAction: () => void
 }
 
 export interface ModelSelectorPresentation {
   tags: readonly ModelSelectorTag[]
+  /** Rendered ahead of the tags, e.g. what the user must do before the model works. */
+  badge?: ReactNode
   description?: ReactNode
   disabled?: boolean
   priority?: number
+  /** Runs instead of selecting the row, as an action row does, e.g. to sign in first. */
+  onAction?: () => void
 }
 
 export interface ModelSelectorComposition {
   providerGroups?: readonly {
     id: string
     providerIds: readonly string[]
+    titleAction?: ReactNode
     trailing?: ReactNode
   }[]
   actions?: readonly ModelSelectorActionItem[]

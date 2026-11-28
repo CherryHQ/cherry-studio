@@ -9,6 +9,8 @@
  * that already pull from `agentParams/`.
  */
 
+import type { ToolSet } from 'ai'
+
 import type { ResolvedReasoningProfile, ResolvedServiceTierControl } from '@data/services/ProviderRegistryService'
 import type { CompressionModelDescriptor } from '@main/ai/contextBuild/resolveCompressionModel'
 import type { CompactionSink } from '@shared/ai/compaction'
@@ -16,24 +18,30 @@ import type { EffectiveContextSettings } from '@shared/data/types/contextSetting
 import type { EndpointType, Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
+import type { AgentRuntimeTraceContext } from '../../../observability'
 import type { AppProviderKey, SdkConfig } from '../../../provider/sdkConfig'
 import type { RequestContext } from '../../../tools/adapters/aiSdk/context'
 import type { ToolRegistry } from '../../../tools/adapters/aiSdk/registry'
 import type { ToolApplyScope } from '../../../tools/adapters/aiSdk/types'
-import type { AiChatRequest, AppProviderId } from '../../../types'
+import type { AiChatRequest, AiStreamRequest, AppProviderId } from '../../../types'
 import type { ResolvedReasoningInvocation } from '../../../utils/reasoningSerializers'
 import type { ResolvedCapabilities } from './capabilities'
 
 export type { AppProviderKey, SdkConfig, ToolApplyScope }
 
 export interface RequestScope extends ToolApplyScope {
-  readonly request: AiChatRequest
+  readonly traceContext?: AgentRuntimeTraceContext
+  readonly request: AiChatRequest & Pick<AiStreamRequest, 'messages'>
+  readonly system?: string
+  readonly tools?: ToolSet
+  readonly requestedMaxOutputTokens?: number
   readonly signal: AbortSignal | undefined
   readonly registry: ToolRegistry
   readonly model: Model
   readonly provider: Provider
   readonly capabilities: ResolvedCapabilities | undefined
   readonly sdkConfig: SdkConfig
+  readonly replayRouteId: string
   readonly endpointType: EndpointType | undefined
   readonly aiSdkProviderId: AppProviderId
   readonly reasoningProfile: ResolvedReasoningProfile

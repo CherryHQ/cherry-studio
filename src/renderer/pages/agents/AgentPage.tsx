@@ -10,7 +10,7 @@ import { loggerService } from '@logger'
 import type { ResourcePaneConfig, ResourcePaneCountButtonProps } from '@renderer/components/chat/panes/Shell'
 import { AgentResourceList } from '@renderer/components/chat/resourceList/AgentResourceList'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
-import { ConversationSidebarToggleButton } from '@renderer/components/chat/shell/ConversationSidebarToggleButton'
+import { ConversationBackButton } from '@renderer/components/chat/shell/ConversationBackButton'
 import type { AgentComposerLaunchOptions } from '@renderer/components/composer/variants/AgentComposer'
 import {
   createRecentSessionEntryFromSession,
@@ -39,11 +39,12 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { ResourceListRevealPayload } from '@renderer/services/resourceListRevealEvents'
 import { toast } from '@renderer/services/toast'
 import type { AppRouter } from '@renderer/types/router'
-import { buildAgentFileWorkspaceKey, buildAgentSessionTopicId } from '@renderer/utils/agentSession'
+import { buildAgentFileWorkspaceKey } from '@renderer/utils/agentSession'
 import { formatErrorMessage, formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { isEmoji } from '@renderer/utils/naming'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
+import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { ConcreteApiPaths } from '@shared/data/api/paths'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
@@ -407,7 +408,7 @@ const AgentPage = () => {
   })
   const visibleAgent = conversationBootstrap.resources.agent
   // An agent avatar is an emoji glyph or an image URL; the tab renders each through its own slot.
-  const agentAvatar = visibleAgent?.configuration?.avatar || undefined
+  const agentAvatar = visibleAgent?.avatarSrc || visibleAgent?.configuration?.avatar || undefined
   const agentAvatarIsEmoji = !!agentAvatar && isEmoji(agentAvatar)
   // Label this tab with its agent emoji + session name so multiple Work tabs are distinguishable.
   const preserveTabVisuals = !!targetSessionId && visibleSession?.id !== targetSessionId
@@ -486,7 +487,7 @@ const AgentPage = () => {
 
   const resolveEmptySession = useCallback(
     async (agentId: string, defaults: CreateAgentSessionDefaults = {}): Promise<AgentSessionEntity> => {
-      const workspaceSource = await resolveCreateWorkspaceSource(defaults, visibleSession)
+      const workspaceSource = await resolveCreateWorkspaceSource({ ...defaults, agentId }, visibleSession)
       const result = await reuseOrCreateSession(agentId, workspaceSource)
 
       closeConversationTabs('agents', result.deletedDuplicateSessionIds)
@@ -656,6 +657,11 @@ const AgentPage = () => {
       }
     },
     [activateSession, pendingSessionDefaults, resolveEmptySession, t]
+  )
+
+  const handleOpenAgentChatFromLibrary = useCallback(
+    (agentId: string) => void handleAgentConversationSelect(agentId),
+    [handleAgentConversationSelect]
   )
 
   const requestSessionNavigation = useCallback(
@@ -1099,27 +1105,22 @@ const AgentPage = () => {
       activeResourceKind
         ? {
             className: 'relative',
+            hideLeftPane: true,
             content: (
               <ConversationResourceView
                 kind={activeResourceKind}
-                toolbarLeading={
-                  !isWindowFrame ? (
-                    <ConversationSidebarToggleButton
-                      sidebarOpen={shellPaneOpen}
-                      onSidebarToggle={toggleShellPane}
-                      tooltipPlacement="bottom"
-                    />
-                  ) : undefined
-                }
+                onOpenAgentChat={handleOpenAgentChatFromLibrary}
+                toolbarLeading={<ConversationBackButton onClick={closeSurface} />}
               />
             )
           }
         : null,
-    [activeResourceKind, isWindowFrame, shellPaneOpen, toggleShellPane]
+    [activeResourceKind, closeSurface, handleOpenAgentChatFromLibrary]
   )
   const historyRecordsCenter = historyRecordsActive
     ? {
         className: 'relative',
+        hideLeftPane: true,
         content: (
           <HistoryRecordsView
             mode="agent"
@@ -1129,15 +1130,7 @@ const AgentPage = () => {
             onRecordSelect={handleHistoryRecordsSessionSelect}
             onActiveRecordChange={handleHistoryActiveSessionChange}
             onLocalPermanentDeletePendingChange={onLocalPermanentDeletePendingChange}
-            toolbarLeading={
-              !isWindowFrame ? (
-                <ConversationSidebarToggleButton
-                  sidebarOpen={shellPaneOpen}
-                  onSidebarToggle={toggleShellPane}
-                  tooltipPlacement="bottom"
-                />
-              ) : undefined
-            }
+            toolbarLeading={<ConversationBackButton onClick={closeSurface} />}
           />
         )
       }
@@ -1194,7 +1187,7 @@ const AgentPage = () => {
         <AgentCreateDialog
           open={agentCreateOpen}
           onOpenChange={setAgentCreateOpen}
-          onCreated={handleAgentConversationSelect}
+          onStartConversation={handleAgentConversationSelect}
         />
       </Container>
     </>

@@ -2,7 +2,9 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
+import { awaitWithContext, BACKGROUND_CONTEXT } from '@earendil-works/chord/context'
 import {
+  getCurrentTools,
   createModels,
   fauxAssistantMessage,
   fauxProvider,
@@ -15,14 +17,21 @@ import {
   defineExtension,
   defineTool,
   MemoryStorage,
-  StorageRequestError
+  StorageRequestError,
+  type ConversationId
 } from '@earendil-works/pi-durable'
 import { openNodeSqliteStorage } from '@earendil-works/pi-durable/storage/sqlite/node'
-import { obj } from '@earendil-works/pi-schema'
+import { obj, str } from '@earendil-works/pi-schema'
 import { describe, expect, it, onTestFinished } from 'vitest'
 
-import { createScriptedHost } from '@cherrystudio/agent-behavior'
-import { runtimeId, type ObservationPayload, type OperationResult } from '@cherrystudio/agent-runtime'
+import { callKeyOf, createScriptedHost } from '@cherrystudio/agent-behavior'
+import {
+  isLivePartInput,
+  runtimeId,
+  ThreadFeed,
+  type ObservationPayload,
+  type OperationResult
+} from '@cherrystudio/agent-runtime'
 
 import {
   createPiDurableRuntime,
@@ -44,10 +53,9 @@ function confirmed<T>(result: OperationResult<T>): T {
   if (result.status !== 'confirmed') throw new Error(result.error.message)
   return result.value
 }
-const draft = (text: string, whenBusy: 'reject' | 'steer' | 'follow-up' = 'reject') => ({
+const draft = (text: string) => ({
   inputId: runtimeId<'input'>(text),
-  text,
-  whenBusy
+  text
 })
 const sessionOptions = {
   ownership: { kind: 'ownerless' as const },
@@ -94,11 +102,84 @@ async function observe(access: PiDurableThreadHandle) {
   )
   return events
 }
+/** The observed state after replaying every event under feed semantics, once a snapshot arrived. */
 function current(events: ObservationPayload[]) {
-  return events.filter((event) => event.type === 'snapshot').at(-1)
+  if (!events.some((event) => event.type === 'snapshot')) return undefined
+  const feed = new ThreadFeed(
+    { type: 'snapshot', messages: [], inputs: [], activity: { state: 'unknown' } },
+    (error) => {
+      throw error
+    }
+  )
+  for (const event of events)
+    if (isLivePartInput(event)) feed.publishPart(event)
+    else feed.publish(event)
+  return feed.snapshot
 }
 
 describe('Pi Durable runtime contract', () => {
+  it.each([
+    [new Error('Storage is read-only'), ' — Storage is read-only'],
+    [new Error('[SQLITE_BUSY] database is locked'), ' — [SQLITE_BUSY] database is locked'],
+    ['Storage is locked', ' — Storage is locked'],
+    [{ internal: 'opaque' }, '']
+  ])('keeps available storage failure text in the runtime initialization diagnosis (%s)', async (cause, detail) => {
+    const result = await createPiDurableRuntime({
+      backendId: runtimeId('test-durable'),
+      openStorage: async () => {
+        throw cause
+      },
+      harness: { models: createModels(), registry: createRegistry() }
+    })
+
+    expect(result).toEqual({
+      status: 'unknown',
+      error: {
+        operation: 'initialize',
+        code: 'native-error',
+        message: `Pi Durable initialize: native-error${detail}`
+      }
+    })
+  })
+
+  it('initializes hidden reference context once across SQLite reopen without starting a model run', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'durable-reference-'))
+    onTestFinished(() => rm(dir, { recursive: true, force: true }))
+    const { runtime, faux, options } = await setup(() => openNodeSqliteStorage(join(dir, 'session.sqlite')))
+    const handle = confirmed(await runtime.create(sessionOptions))
+    expect(handle.input.followUp?.persistence).toBe('durable')
+    await handle.durable.initializeContext('Remember reference mango')
+    await handle.durable.initializeContext('Remember reference mango')
+    expect(faux.state.callCount).toBe(0)
+    expect(confirmed(await handle.archive()).messages).toEqual([])
+    expect((await handle.durable.facts()).history.filter((entry) => entry.kind === 'user')).toEqual([])
+    await runtime.shutdown()
+    const recovered = confirmed(await createPiDurableRuntime(options))
+    onTestFinished(async () => {
+      await recovered.shutdown()
+    })
+    const reopened = confirmed(await recovered.open(handle.thread))
+    await reopened.durable.initializeContext('Remember reference mango')
+    const events = await observe(reopened)
+    expect(current(events)?.messages).toEqual([])
+    expect(faux.state.callCount).toBe(0)
+    faux.setResponses([
+      (context) => {
+        expect(JSON.stringify(context.messages).match(/Remember reference mango/g)).toHaveLength(1)
+        return fauxAssistantMessage('The reference word is mango')
+      }
+    ])
+    await reopened.input.submit!(draft('Recall the reference'))
+    await expect
+      .poll(() => current(events)?.inputs.find((input) => input.inputId === 'Recall the reference')?.outcome)
+      .toBe('completed')
+    const archive = confirmed(await reopened.archive())
+    expect(archive.messages.flatMap((message) => message.parts)).toContainEqual(
+      expect.objectContaining({ type: 'text', text: 'The reference word is mango' })
+    )
+    expect(JSON.stringify(archive.messages)).not.toContain('Remember reference mango')
+  })
+
   it('pairs final content, input failure and foreground completion at one native revision for a delayed observer', async () => {
     const { runtime, faux } = await setup()
     const provider = gate()
@@ -127,11 +208,14 @@ describe('Pi Durable runtime contract', () => {
         if (slow.length === 1) await consumer.promise
       })
     )
-    await handle.input.submit(draft('atomic'))
+    await handle.input.submit!(draft('atomic'))
     await expect
       .poll(() =>
         fast.some((batch) =>
-          batch.events.some((event) => event.type === 'snapshot' && event.activity.state === 'active')
+          batch.events.some(
+            (event) =>
+              (event.type === 'snapshot' || event.type === 'activity.changed') && event.activity.state === 'active'
+          )
         )
       )
       .toBe(true)
@@ -143,11 +227,15 @@ describe('Pi Durable runtime contract', () => {
     expect(final.completion).toMatchObject({
       inputs: [{ inputId: 'atomic', outcome: 'unanswered', error: { code: 'output-truncated' } }]
     })
-    expect(final.events).toMatchObject([
-      { type: 'snapshot', inputs: expect.arrayContaining([{ ...final.completion!.inputs[0] }]) }
-    ])
-    const body = final.events.flatMap((event) => (event.type === 'snapshot' ? event.messages : []))
-    expect(body.flatMap((message) => message.parts)).toContainEqual(
+    const held = current(
+      fast
+        .slice(0, fast.indexOf(final) + 1)
+        .map((batch) => batch.events)
+        .flat()
+    )!
+    expect(held.inputs).toContainEqual(final.completion!.inputs[0])
+    expect(held.messages.some((message) => message.id.startsWith(`entry:${final.completion!.entryId}:`))).toBe(true)
+    expect(held.messages.flatMap((message) => message.parts)).toContainEqual(
       expect.objectContaining({ type: 'text', text: 'truncated body' })
     )
     consumer.resolve()
@@ -170,7 +258,7 @@ describe('Pi Durable runtime contract', () => {
     const second = confirmed(await runtime.open(first.thread))
     const left = await observe(first)
     const right = await observe(second)
-    const receipt = await first.input.submit(draft('question'))
+    const receipt = await first.input.submit!(draft('question'))
     expect(receipt).toMatchObject({ status: 'acknowledged', nativeInput: { session: first.thread } })
     await expect
       .poll(() =>
@@ -178,6 +266,16 @@ describe('Pi Durable runtime contract', () => {
       )
       .toBe(true)
     expect(current(left)?.messages.map((item) => item.id)).toEqual(current(right)?.messages.map((item) => item.id))
+    await expect.poll(() => right.some((event) => event.type === 'message.text-append')).toBe(true)
+    const preview = current(right)?.messages.find((message) => message.metadata?.completeness === 'partial')
+    const previewText = preview?.parts[0]
+    if (!preview || previewText?.type !== 'text') throw new Error('Missing the live text part')
+    const late = await observe(second)
+    await expect.poll(() => late[0]?.type).toBe('snapshot')
+    expect(current(late)?.messages.find((message) => message.id === preview.id)?.parts[0]).toMatchObject({
+      type: 'text',
+      text: expect.stringContaining(previewText.text)
+    })
     await first.release()
     const releasedCount = left.length
     await expect
@@ -201,11 +299,16 @@ describe('Pi Durable runtime contract', () => {
     const archive = confirmed(await second.archive())
     const committed = archive.messages.find((item) => item.id === response?.id)
     expect(committed).toEqual(response)
-    const preview = right
-      .flatMap((event) => (event.type === 'snapshot' ? event.messages : []))
+    const initialPreview = right
+      .flatMap((event) =>
+        event.type === 'snapshot' ? event.messages : event.type === 'message.reconcile' ? [event.message] : []
+      )
       .find((item) => item.role === 'assistant' && item.metadata?.completeness === 'partial')!
-    expect(archive.aliases[committed!.id]).toBe(preview.id)
-    expect(await first.input.submit(draft('released'))).toMatchObject({ status: 'rejected', error: { code: 'closed' } })
+    expect(archive.aliases[committed!.id]).toBe(initialPreview.id)
+    expect(await first.input.submit!(draft('released'))).toMatchObject({
+      status: 'rejected',
+      error: { code: 'closed' }
+    })
   })
 
   it('reads committed history across reset and pagination without scheduling a model', async () => {
@@ -244,6 +347,99 @@ describe('Pi Durable runtime contract', () => {
     expect(confirmed(await reopened.archive()).messages).toEqual(archive.messages)
   })
 
+  it('shares sealed tool history across shutdown and releases each archive reader independently', async () => {
+    const { runtime } = await setup()
+    const first = confirmed(await runtime.create(sessionOptions))
+    const second = confirmed(await runtime.open(first.thread))
+    const conversation = Number(first.thread.id) as ConversationId
+    const text = 'x'.repeat(64 * 1024)
+    await runtime.durable.commit(async (tx) => {
+      await tx.appendEntry(conversation, {
+        kind: 'pi.assistant',
+        model: [fauxAssistantMessage(fauxToolCall('read', {}, { id: 'call' }), { responseId: 'native' })]
+      })
+      await tx.appendEntry(conversation, {
+        kind: 'pi.tool-result',
+        model: [
+          {
+            role: 'toolResult',
+            toolCallId: 'call',
+            toolName: 'read',
+            content: [{ type: 'text', text }],
+            isError: false,
+            timestamp: 0
+          }
+        ]
+      })
+    }, BACKGROUND_CONTEXT)
+    const [owner] = confirmed(await first.archive()).messages
+    await runtime.durable.commit(async (tx) => {
+      await tx.appendEntry(conversation, { kind: 'pi.user', model: [{ role: 'user', content: 'new', timestamp: 1 }] })
+    }, BACKGROUND_CONTEXT)
+    confirmed(await runtime.shutdown())
+
+    const archive = confirmed(await first.archive())
+    expect(archive.messages[0]).toBe(owner)
+    expect(archive.messages[0].parts[0]).toMatchObject({ output: { content: [{ text }] } })
+    expect(archive.messages[1].parts).toEqual([{ type: 'text', text: 'new', state: 'done' }])
+    expect(archive.responseIds?.native).toBe(owner.id)
+    expect(archive.legacy?.[`${owner.id}:call:call`]).toEqual({ messageId: owner.id, parts: [0] })
+    expect(() => {
+      owner.parts.length = 0
+    }).toThrow(TypeError)
+    await first.release()
+    expect(await first.archive()).toMatchObject({ status: 'rejected' })
+    expect(confirmed(await second.archive()).messages[0]).toBe(owner)
+    await second.release()
+    expect(await second.archive()).toMatchObject({ status: 'rejected' })
+  })
+
+  // Catches an archive that rescans committed history on every read, or folds newer entries incorrectly.
+  it('extends a retained archive with only newer committed entries', async () => {
+    const storage = new MemoryStorage()
+    const scanned = new Set<number>()
+    const { runtime } = await setup(
+      async () =>
+        new Proxy(storage, {
+          get(target, key) {
+            if (key === 'scanEntries')
+              return async (...args: Parameters<MemoryStorage['scanEntries']>) => {
+                const page = await target.scanEntries(...args)
+                for (const entry of page.items) scanned.add(entry.id)
+                return page
+              }
+            const value = Reflect.get(target, key)
+            return typeof value === 'function' ? value.bind(target) : value
+          }
+        })
+    )
+    const access = confirmed(await runtime.create(sessionOptions))
+    const id = Number(access.thread.id) as ConversationId
+    const append = (texts: string[]) =>
+      runtime.durable.commit(async (tx) => {
+        const ids = new Set<number>()
+        for (const [index, text] of texts.entries())
+          ids.add(
+            (await tx.appendEntry(id, { kind: 'pi.user', model: [{ role: 'user', content: text, timestamp: index }] }))
+              .id
+          )
+        return ids
+      }, BACKGROUND_CONTEXT)
+    const texts = (archive: { messages: readonly { parts: readonly { type: string; text?: string }[] }[] }) =>
+      archive.messages.flatMap((message) => message.parts.flatMap((part) => (part.type === 'text' ? [part.text] : [])))
+    await append(Array.from({ length: 40 }, (_, index) => `old-${index}`))
+    const before = confirmed(await access.archive())
+    const appended = await append(['new-0', 'new-1'])
+
+    scanned.clear()
+    const after = confirmed(await access.archive())
+    expect(scanned).toEqual(appended)
+    expect(texts(after)).toEqual([...texts(before), 'new-0', 'new-1'])
+    await access.release()
+    const cold = confirmed(await runtime.open(access.thread))
+    expect(confirmed(await cold.archive())).toEqual(after)
+  })
+
   it.each(['before', 'after'] as const)(
     'keeps a steer submitted %s normal completion and answers it once',
     async (timing) => {
@@ -264,7 +460,7 @@ describe('Pi Durable runtime contract', () => {
       ])
       const handle = confirmed(await runtime.create(sessionOptions))
       const events = await observe(handle)
-      await handle.input.submit(draft('root'))
+      await handle.input.submit!(draft('root'))
       await entered.promise
       if (timing === 'after') {
         finish.resolve()
@@ -272,8 +468,8 @@ describe('Pi Durable runtime contract', () => {
           .poll(() => current(events)?.inputs.find((input) => input.inputId === 'root')?.outcome)
           .toBe('completed')
       }
-      const input = draft('additional input', 'steer')
-      const receipt = await handle.input.submit(input)
+      const input = draft('additional input')
+      const receipt = await handle.input.steer.submit(input)
       expect(receipt.status).toBe('acknowledged')
       finish.resolve()
       await expect
@@ -300,11 +496,14 @@ describe('Pi Durable runtime contract', () => {
     faux.setResponses([hold.step])
     const session = confirmed(await runtime.create(sessionOptions))
     const events = await observe(session)
-    await session.input.submit(draft('start'))
+    await session.input.submit!(draft('start'))
     await hold.reached
-    expect(await session.input.submit(draft('rejected'))).toMatchObject({ status: 'rejected', error: { code: 'busy' } })
+    expect(await session.input.submit!(draft('rejected'))).toMatchObject({
+      status: 'rejected',
+      error: { code: 'busy' }
+    })
     expect(current(events)?.inputs.some((input) => input.inputId === 'rejected')).toBe(false)
-    const queued = await session.input.submit(draft('queued', 'follow-up'))
+    const queued = await session.input.followUp!.submit(draft('queued'))
     expect(queued).toMatchObject({ status: 'acknowledged', facts: ['accepted', 'queued'] })
     expect(await session.interrupt!()).toEqual({ status: 'confirmed', value: undefined })
     await expect
@@ -318,7 +517,7 @@ describe('Pi Durable runtime contract', () => {
     faux.setResponses([fauxAssistantMessage('cut off', { stopReason: 'length' })])
     const handle = confirmed(await runtime.create(sessionOptions))
     const events = await observe(handle)
-    const receipt = await handle.input.submit(draft('long answer'))
+    const receipt = await handle.input.submit!(draft('long answer'))
     if (receipt.status !== 'acknowledged' || !receipt.nativeInput) throw new Error('Missing receipt')
     await expect
       .poll(() => current(events)?.inputs.find((input) => input.nativeInput?.id === receipt.nativeInput!.id))
@@ -337,7 +536,7 @@ describe('Pi Durable runtime contract', () => {
     const { runtime, faux } = await setup(async () => new BrokenStatusStorage())
     faux.setResponses([fauxAssistantMessage('answer')])
     const session = confirmed(await runtime.create(sessionOptions))
-    const result = await session.input.submit(draft('admitted before read failure'))
+    const result = await session.input.submit!(draft('admitted before read failure'))
     expect(result).toMatchObject({
       status: 'acknowledged',
       nativeInput: { session: session.thread },
@@ -368,7 +567,7 @@ describe('Pi Durable runtime contract', () => {
     ])
     const handle = confirmed(await runtime.create(sessionOptions))
     const events = await observe(handle)
-    expect(await handle.input.submit(draft('recoverable'))).toMatchObject({ status: 'acknowledged' })
+    expect(await handle.input.submit!(draft('recoverable'))).toMatchObject({ status: 'acknowledged' })
     const latest = () => events.filter((event) => event.type === 'input.changed').at(-1)?.input
     await expect.poll(latest).toMatchObject({ inputId: 'recoverable', facts: expect.arrayContaining(['accepted']) })
     expect(latest()?.outcome).toBeUndefined()
@@ -407,10 +606,10 @@ describe('Pi Durable runtime contract', () => {
     ])
     const handle = confirmed(await runtime.create(sessionOptions))
     const events = await observe(handle)
-    const first = await handle.input.submit(draft('root'))
+    const first = await handle.input.submit!(draft('root'))
     if (first.status !== 'acknowledged' || !first.nativeInput) throw new Error('Missing input reference')
     await executing.promise
-    await handle.input.submit(draft('steering', 'steer'))
+    await handle.input.steer.submit(draft('steering'))
     finish.resolve()
     await expect
       .poll(() => current(events)?.inputs.find((input) => input.inputId === 'steering')?.outcome)
@@ -461,7 +660,7 @@ describe('Pi Durable runtime contract', () => {
     ])
     const parent = confirmed(await runtime.create(sessionOptions))
     const parentEvents = await observe(parent)
-    await parent.input.submit(draft('delegate now'))
+    await parent.input.submit!(draft('delegate now'))
     await expect.poll(() => parentEvents.some((event) => event.type === 'subagent.upsert')).toBe(true)
     const relationship = parentEvents.find((event) => event.type === 'subagent.upsert')
     if (relationship?.type !== 'subagent.upsert') throw new Error('No child reference')
@@ -519,14 +718,14 @@ describe('Pi Durable runtime contract', () => {
         return fauxAssistantMessage('continued child output')
       }
     ])
-    const continued = await child.input.submit(draft('continue child'))
+    const continued = await child.input.submit!(draft('continue child'))
     expect(continued).toMatchObject({ status: 'acknowledged' })
     await started.promise
-    expect(await child.input.submit(draft('reject busy'))).toMatchObject({
+    expect(await child.input.submit!(draft('reject busy'))).toMatchObject({
       status: 'rejected',
       error: { code: 'busy' }
     })
-    expect(await child.input.submit(draft('extra detail', 'steer'))).toMatchObject({ status: 'acknowledged' })
+    expect(await child.input.steer.submit(draft('extra detail'))).toMatchObject({ status: 'acknowledged' })
     const retained = confirmed(await runtime.open(child.thread))
     const retainedEvents = await observe(retained)
     await child.release()
@@ -578,11 +777,11 @@ describe('Pi Durable runtime contract', () => {
     const hold = blocked()
     faux.setResponses([hold.step])
     const session = confirmed(await runtime.create(sessionOptions))
-    const receipt = await session.input.submit(draft('survive restart'))
+    const receipt = await session.input.submit!(draft('survive restart'))
     await hold.reached
     expect(receipt.status).toBe('acknowledged')
     expect(await runtime.shutdown()).toEqual({ status: 'confirmed', value: undefined })
-    expect(await session.input.submit(draft('too late'))).toMatchObject({
+    expect(await session.input.submit!(draft('too late'))).toMatchObject({
       status: 'rejected',
       error: { code: 'closed' }
     })
@@ -626,6 +825,7 @@ describe('Pi Durable runtime contract', () => {
     })
     const restoredAccess = confirmed(await restored.open(session.thread))
     expect(confirmed(await restoredAccess.archive())).toEqual({
+      through: archive.through,
       messages: archive.messages,
       responseIds: archive.responseIds,
       legacy: archive.legacy,
@@ -715,7 +915,7 @@ it('measures committed prompt sources and codemode-only tools without executing 
   faux.setResponses([fauxAssistantMessage('ready')])
   const handle = confirmed(await runtime.create(sessionOptions))
   const events = await observe(handle)
-  await handle.input.submit(draft('measure prepared context'))
+  await handle.input.submit!(draft('measure prepared context'))
   await expect
     .poll(() =>
       current(events)?.messages.some(
@@ -775,7 +975,7 @@ it('resolves a fresh model registry for each request with shared behavior enable
   const access = confirmed(await runtime.create(sessionOptions))
   const events = await observe(access)
   confirmed(await runtime.resume())
-  await access.input.submit(draft('first request'))
+  await access.input.submit!(draft('first request'))
   await expect
     .poll(() =>
       current(events)?.messages.some(
@@ -787,7 +987,7 @@ it('resolves a fresh model registry for each request with shared behavior enable
     .toBe(true)
   models = createModels()
   models.setProvider(second.provider)
-  await access.input.submit(draft('second request', 'follow-up'))
+  await access.input.followUp!.submit(draft('second request'))
   await expect
     .poll(() =>
       current(events)?.messages.some(
@@ -799,4 +999,369 @@ it('resolves a fresh model registry for each request with shared behavior enable
     .toBe(true)
   expect(first.state.callCount).toBe(1)
   expect(second.state.callCount).toBe(1)
+})
+
+it.each([0, 256])('delivers tool updates directly with %i older entries', async (count) => {
+  const { runtime, faux, registry, errors } = await setup()
+  const started = gate()
+  const progress = gate()
+  const append = gate()
+  const finish = gate()
+  const callId = 'bounded-call'
+  onTestFinished(() => {
+    progress.resolve()
+    append.resolve()
+    finish.resolve()
+  })
+  registry.install(
+    defineExtension({
+      name: 'bounded-output',
+      tools: [
+        defineTool({
+          name: 'bounded_output',
+          description: 'Publish progress and a final result.',
+          parameters: obj({}),
+          execute: async (_args, api) => {
+            started.resolve()
+            await progress.promise
+            api.output('first')
+            await append.promise
+            api.output(' more')
+            await finish.promise
+            return { output: [{ type: 'text', text: 'final' }] }
+          }
+        })
+      ]
+    })
+  )
+  faux.setResponses([
+    fauxAssistantMessage(fauxToolCall('bounded_output', {}, { id: callId }), { stopReason: 'toolUse' }),
+    fauxAssistantMessage('done')
+  ])
+  const handle = confirmed(
+    await runtime.create({
+      ...sessionOptions,
+      async init(tx, conversation) {
+        for (let index = 0; index < count; index++) {
+          await tx.appendEntry(conversation, {
+            kind: 'pi.user',
+            model: [{ role: 'user', content: 'Old input', timestamp: index }]
+          })
+        }
+      }
+    })
+  )
+  const events = await observe(handle)
+  await handle.input.submit!(draft('run tool'))
+  await started.promise
+  const results = () => events.filter((event) => event.type === 'message.tool-output')
+  progress.resolve()
+  await expect
+    .poll(() => results().map(({ tool }) => tool))
+    .toMatchObject([{ state: 'output-available', preliminary: true, output: { content: [{ text: 'first' }] } }])
+  append.resolve()
+  await expect.poll(() => results().at(-1)?.tool).toMatchObject({ output: { content: [{ text: 'first more' }] } })
+  const reattached = await observe(handle)
+  await expect
+    .poll(() => reattached[0])
+    .toMatchObject({
+      type: 'snapshot',
+      messages: expect.arrayContaining([
+        expect.objectContaining({
+          id: results()[0].ref.id,
+          parts: expect.arrayContaining([
+            expect.objectContaining({
+              toolCallId: callId,
+              preliminary: true,
+              output: { content: [{ type: 'text', text: 'first more' }] }
+            })
+          ])
+        })
+      ])
+    })
+  finish.resolve()
+  await runtime.settled()
+  expect(results().map(({ tool }) => tool)).toMatchObject([
+    { preliminary: true, output: { content: [{ text: 'first' }] } },
+    { preliminary: true, output: { content: [{ text: 'first more' }] } },
+    { preliminary: false, output: { content: [{ text: 'final' }] } }
+  ])
+  expect(new Set(results().map(({ ref, part }) => `${ref.id}/${part}`)).size).toBe(1)
+  expect(errors).toEqual([])
+})
+
+it.each([false, true])('retains nested results after task retirement and SQLite reopen (%s)', async (fails) => {
+  const dir = await mkdtemp(join(tmpdir(), 'durable-nested-'))
+  onTestFinished(() => rm(dir, { recursive: true, force: true }))
+  const { runtime, faux, registry, options } = await setup(() => openNodeSqliteStorage(join(dir, 'session.sqlite')))
+  const value = 'retained-'.repeat(60)
+  let executions = 0
+  registry.install(
+    defineExtension({
+      name: 'nested-evidence',
+      tools: [
+        defineTool({
+          name: 'leaf',
+          description: 'Return evidence',
+          parameters: obj({ value: str() }),
+          prepareArguments: () => ({ value }),
+          callers: ['tools'],
+          execute: async (args, api) => {
+            executions++
+            api.output('working')
+            return {
+              output: [{ type: 'text' as const, text: args.value }],
+              details: { proof: true }
+            }
+          }
+        }),
+        defineTool({
+          name: 'script',
+          description: 'Call nested tools',
+          parameters: obj({}),
+          execute: async (_args, api, context) => {
+            await Promise.all([
+              api.executeTool('leaf', { value: 'repair me' }, context, { key: 'a' }),
+              api.executeTool('leaf', { value: 'repair me' }, context, { key: 'b' })
+            ])
+            if (fails) throw new Error('outer failure')
+            return { output: [{ type: 'text' as const, text: 'done' }] }
+          }
+        })
+      ]
+    })
+  )
+  faux.setResponses([
+    fauxAssistantMessage(fauxToolCall('script', {}, { id: 'script' }), { stopReason: 'toolUse' }),
+    fauxAssistantMessage('done')
+  ])
+  const handle = confirmed(await runtime.create(sessionOptions))
+  await handle.input.submit!(draft('nested'))
+  await runtime.settled()
+  const archived = confirmed(await handle.archive())
+  const parts = archived.messages
+    .flatMap((message) => message.parts)
+    .filter((part) => part.type === 'dynamic-tool' && part.toolName === 'leaf')
+  expect(parts).toHaveLength(2)
+  expect(new Set(parts.map((part) => (part.type === 'dynamic-tool' ? part.toolCallId : ''))).size).toBe(2)
+  for (const part of parts)
+    expect(part).toMatchObject({
+      state: 'output-available',
+      input: { value },
+      output: { content: [{ type: 'text', text: value }], details: { proof: true } },
+      callProviderMetadata: { pi: { parentToolCallId: 'script' } }
+    })
+  await runtime.shutdown()
+  const recovered = confirmed(await createPiDurableRuntime(options))
+  onTestFinished(async () => {
+    await recovered.shutdown()
+  })
+  const reopened = confirmed(await recovered.open(handle.thread))
+  expect(confirmed(await reopened.archive()).messages).toEqual(archived.messages)
+  expect(executions).toBe(2)
+})
+
+// Approvals are keyed by this ID; a nested call without one is blocked before the user can approve it.
+it('names model and nested tool calls by the IDs their projected parts carry', async () => {
+  const { runtime, faux, registry } = await setup()
+  const tasks: Record<string, string> = {}
+  registry.install(
+    defineExtension({
+      name: 'nested-identity',
+      tools: [
+        defineTool({
+          name: 'leaf',
+          description: 'Nested call',
+          parameters: obj({}),
+          callers: ['tools'],
+          execute: async (_args, api) => {
+            tasks.leaf = String(api.taskId)
+            return { output: [{ type: 'text' as const, text: 'leaf' }] }
+          }
+        }),
+        defineTool({
+          name: 'script',
+          description: 'Model call',
+          parameters: obj({}),
+          execute: async (_args, api, context) => {
+            tasks.script = String(api.taskId)
+            await api.executeTool('leaf', {}, context, { key: 'a' })
+            return { output: [{ type: 'text' as const, text: 'done' }] }
+          }
+        })
+      ]
+    })
+  )
+  faux.setResponses([
+    fauxAssistantMessage(fauxToolCall('script', {}, { id: 'script' }), { stopReason: 'toolUse' }),
+    fauxAssistantMessage('done')
+  ])
+  const handle = confirmed(await runtime.create(sessionOptions))
+  await handle.input.submit!(draft('nested identity'))
+  await runtime.settled()
+
+  const parts = confirmed(await handle.archive()).messages.flatMap((message) => message.parts)
+  const shown = (name: string) => parts.find((part) => part.type === 'dynamic-tool' && part.toolName === name)
+  for (const name of ['script', 'leaf']) {
+    const id = await handle.durable.behaviorToolCallId({ thread: handle.thread.id, key: callKeyOf(tasks[name]) })
+    expect(id).toBeDefined()
+    expect(shown(name)).toMatchObject({ toolCallId: id })
+  }
+})
+
+it.each([false, true])('keeps recursive nested errors terminal (cancel=%s)', async (cancel) => {
+  const { runtime, faux, registry } = await setup()
+  const reached = gate()
+  registry.install(
+    defineExtension({
+      name: 'recursive',
+      tools: [
+        defineTool({
+          name: 'leaf',
+          description: 'Fail or wait',
+          parameters: obj({}),
+          callers: ['tools'],
+          execute: async (_args, _api, context) => {
+            reached.resolve()
+            if (cancel) await awaitWithContext(new Promise<never>(() => {}), context)
+            throw new Error('nested failure')
+          }
+        }),
+        defineTool({
+          name: 'middle',
+          description: 'Nested owner',
+          parameters: obj({}),
+          callers: ['tools'],
+          execute: async (_args, api, context) => {
+            const result = await api.executeTool('leaf', {}, context, { key: 'leaf' })
+            return { output: [{ type: 'text' as const, text: 'middle' }], isError: result.isError }
+          }
+        }),
+        defineTool({
+          name: 'script',
+          description: 'Outer owner',
+          parameters: obj({}),
+          execute: async (_args, api, context) => {
+            await api.executeTool('middle', {}, context, { key: 'middle' })
+            return { output: [{ type: 'text' as const, text: 'outer' }] }
+          }
+        })
+      ]
+    })
+  )
+  faux.setResponses([
+    fauxAssistantMessage(fauxToolCall('script', {}, { id: 'script' }), { stopReason: 'toolUse' }),
+    fauxAssistantMessage('done')
+  ])
+  const handle = confirmed(await runtime.create(sessionOptions))
+  await handle.input.submit!(draft('recursive'))
+  await reached.promise
+  if (cancel) confirmed(await handle.interrupt!())
+  await runtime.settled()
+  const parts = confirmed(await handle.archive()).messages.flatMap((message) => message.parts)
+  const leaf = parts.find((part) => part.type === 'dynamic-tool' && part.toolName === 'leaf')
+  expect(leaf).toMatchObject({
+    state: 'output-error',
+    callProviderMetadata: { pi: { parentToolCallId: 'script/middle' } }
+  })
+  expect(parts.find((part) => part.type === 'dynamic-tool' && part.toolName === 'middle')).toMatchObject({
+    state: 'output-error'
+  })
+})
+
+it('recovers retained nested evidence without rerunning a completed leaf after shutdown', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'durable-nested-recovery-'))
+  onTestFinished(() => rm(dir, { recursive: true, force: true }))
+  const { runtime, faux, registry, options } = await setup(() => openNodeSqliteStorage(join(dir, 'session.sqlite')))
+  const reached = gate()
+  let executions = 0
+  let recovering = false
+  registry.install(
+    defineExtension({
+      name: 'nested-recovery',
+      tools: [
+        defineTool({
+          name: 'leaf',
+          description: 'Produce evidence once',
+          parameters: obj({}),
+          callers: ['tools'],
+          execute: async () => {
+            executions++
+            return { output: [{ type: 'text' as const, text: 'retained before shutdown' }] }
+          }
+        }),
+        defineTool({
+          name: 'script',
+          description: 'Wait after a completed child',
+          parameters: obj({}),
+          execute: async (_args, api, context) => {
+            await api.executeTool('leaf', {}, context, { key: 'leaf' })
+            reached.resolve()
+            if (!recovering) await awaitWithContext(new Promise<never>(() => {}), context)
+            return { output: [{ type: 'text' as const, text: 'resumed' }] }
+          }
+        })
+      ]
+    })
+  )
+  faux.setResponses([
+    fauxAssistantMessage(fauxToolCall('script', {}, { id: 'script' }), { stopReason: 'toolUse' }),
+    fauxAssistantMessage('done')
+  ])
+  const handle = confirmed(await runtime.create(sessionOptions))
+  await handle.input.submit!(draft('recover nested'))
+  await reached.promise
+  await runtime.shutdown()
+  recovering = true
+  const recovered = confirmed(await createPiDurableRuntime(options))
+  onTestFinished(async () => {
+    await recovered.shutdown()
+  })
+  const reopened = confirmed(await recovered.open(handle.thread))
+  confirmed(await recovered.resume())
+  await recovered.settled()
+  const parts = confirmed(await reopened.archive()).messages.flatMap((message) => message.parts)
+  expect(parts.filter((part) => part.type === 'dynamic-tool' && part.toolName === 'leaf')).toEqual([
+    expect.objectContaining({
+      toolCallId: 'script/leaf',
+      state: 'output-available',
+      output: expect.objectContaining({ content: [{ type: 'text', text: 'retained before shutdown' }] })
+    })
+  ])
+  expect(executions).toBe(1)
+})
+
+it('predicts from durable context without committing prediction messages or tasks', async () => {
+  const { runtime, faux } = await setup()
+  faux.setResponses([
+    fauxAssistantMessage('Fixed the original issue.'),
+    fauxAssistantMessage('Checked the fix.'),
+    (context) => {
+      expect(context.messages).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ role: 'user', content: 'Fix the original issue' }),
+          expect.objectContaining({ role: 'user', content: 'exact prediction instruction' })
+        ])
+      )
+      expect(getCurrentTools(context.messages)).toEqual([])
+      return fauxAssistantMessage('run the tests')
+    },
+    fauxAssistantMessage([fauxToolCall('bash', { command: 'echo forbidden' })], { stopReason: 'toolUse' })
+  ])
+  const root = confirmed(await runtime.create(sessionOptions))
+  expect((await root.input.submit!(draft('Fix the original issue'))).status).toBe('acknowledged')
+  await runtime.settled()
+  expect(await root.durable.predictPrompt('exact prediction instruction', new AbortController().signal)).toBe('')
+  await root.input.submit!(draft('Check the fix'))
+  await runtime.settled()
+  const before = confirmed(await root.archive())
+  const facts = await root.durable.facts()
+  expect(await root.durable.predictPrompt('exact prediction instruction', new AbortController().signal)).toBe(
+    'run the tests'
+  )
+  expect(confirmed(await root.archive())).toEqual(before)
+  expect(await root.durable.facts()).toEqual(facts)
+  expect(await root.durable.predictPrompt('exact prediction instruction', new AbortController().signal)).toBe('')
+  expect(confirmed(await root.archive())).toEqual(before)
+  expect(await root.durable.facts()).toEqual(facts)
 })

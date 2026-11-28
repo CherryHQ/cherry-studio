@@ -16,13 +16,14 @@ const mocks = vi.hoisted(() => ({
 }))
 vi.mock('@renderer/ipc', () => ({
   ipcApi: { request: mocks.request },
-  useIpcOn: (_event: string, listener: (value: boolean) => void) => {
+  useIpcOn: (event: string, listener: (value: boolean) => void) => {
     useEffect(() => {
+      if (event !== 'window.fullscreen_changed') return
       mocks.listener = listener
       return () => {
         mocks.listener = null
       }
-    }, [listener])
+    }, [event, listener])
   }
 }))
 vi.mock('@data/hooks/usePreference', () => ({
@@ -35,6 +36,7 @@ vi.mock('@renderer/hooks/useWebSearchFallbackNotice', () => ({ useWebSearchFallb
 vi.mock('@renderer/hooks/useMiniApps', () => ({ useMiniAppListSync: () => {} }))
 vi.mock('@renderer/hooks/useTopic', () => ({ useTopicAutoRenameSync: () => {} }))
 vi.mock('@renderer/hooks/agent/useSession', () => ({ useAgentSessionAutoRenameSync: () => {} }))
+vi.mock('@renderer/hooks/agent/useAgentTabIconChangeSync', () => ({ useAgentTabIconChangeSync: () => {} }))
 vi.mock('@renderer/hooks/tab', () => ({ useConversationTabTitleChangeSync: () => {} }))
 vi.mock('@renderer/hooks/useMacTransparentWindow', () => ({ default: () => false }))
 vi.mock('@renderer/services/toast', () => ({ toast: { info: vi.fn() } }))

@@ -52,7 +52,7 @@ const AboutSettings: FC = () => {
   const showReleases = useOpenReleaseNotes()
   const location = useLocation()
   const navigate = useNavigate()
-  const search = useSearch({ strict: false }) as Partial<Record<typeof DOCTOR_OPEN_QUERY_PARAM, DoctorPanel>>
+  const search: Partial<Record<typeof DOCTOR_OPEN_QUERY_PARAM, DoctorPanel>> = useSearch({ strict: false })
   const consumedDoctorPanelRef = useRef<DoctorPanel | undefined>(undefined)
 
   const { appUpdateState, updateAppUpdateState, checkForUpdate } = useAppUpdateState(async (releaseInfo) => {
@@ -164,7 +164,7 @@ const AboutSettings: FC = () => {
 
   const onOpenDocs = () => {
     const isChinese = i18n.language.startsWith('zh')
-    void openExternalWebsite(isChinese ? 'https://docs.cherry-ai.com/' : 'https://docs.cherry-ai.com/docs/en-us')
+    void openExternalWebsite(isChinese ? 'https://cherryai.com.cn/docs' : 'https://cherryai.com/docs')
   }
 
   const testChannels = getAvailableTestChannels()
@@ -281,7 +281,10 @@ const AboutSettings: FC = () => {
             </SettingRowTitle>
           </SettingRow>
           <Divider className="my-3" />
-          <ScrollArea viewportProps={{ className: 'overflow-x-hidden pr-2' }} className="max-h-96">
+          <ScrollArea
+            contentProps={{ className: 'pr-2' }}
+            viewportProps={{ className: 'overflow-x-hidden' }}
+            className="max-h-96">
             <UpgradeReleaseNotes releaseInfo={appUpdateState.info} />
           </ScrollArea>
         </SettingGroup>
@@ -306,7 +309,9 @@ const AboutSettings: FC = () => {
           icon={<Globe className="size-4.5" />}
           title={t('settings.about.website.title')}
           actionLabel={t('settings.about.website.button')}
-          onAction={() => onOpenWebsite('https://cherry-ai.com')}
+          onAction={() =>
+            onOpenWebsite(i18n.language.startsWith('zh') ? 'https://cherryai.com.cn' : 'https://cherryai.com')
+          }
         />
         <Divider className="my-3" />
         <AboutActionRow

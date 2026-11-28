@@ -4,23 +4,44 @@ import { cacheService } from '@renderer/data/CacheService'
 import { useDataChange, useQuery } from '@renderer/data/hooks/useDataApi'
 import { useCurrentTabId } from '@renderer/hooks/tab'
 import {
+  isTaskRunSessionUnavailable,
   readTaskConversationPage,
   resolveTaskConversation,
   type TaskConversationResult
 } from '@renderer/services/taskConversation'
 import type { ScheduledTaskEntity } from '@shared/data/api/schemas/agents'
 
-type State = { key: string; result?: TaskConversationResult; loading: boolean; error?: unknown; newerRunId?: string }
+type State = {
+  taskId?: string
+  key: string
+  result?: TaskConversationResult
+  loading: boolean
+  error?: unknown
+  newerRunId?: string
+}
 
 export function useTaskConversation(task: ScheduledTaskEntity | null | undefined, runId?: string) {
   const key = `${task?.id ?? ''}:${runId ?? ''}`
   const [state, setState] = useState<State>({ key, loading: !!task })
   const [revision, setRevision] = useState(0)
   const controller = useRef<AbortController | null>(null)
+  const latestRequest = useRef(0)
   const taskRef = useRef(task)
   taskRef.current = task
-  const visible: State = state.key === key ? state : { key, loading: !!task }
+  const visible: State =
+    state.key === key
+      ? state
+      : {
+          key,
+          loading: !!task,
+          result:
+            state.taskId === task?.id && state.result
+              ? { ...state.result, session: null, selectedRun: null, runId: undefined, startedAt: undefined }
+              : undefined
+        }
   const result = visible.result
+  const resultRef = useRef(result)
+  resultRef.current = result
   const retry = useCallback(() => setRevision((value) => value + 1), [])
   const resumeConversation = useRef<() => boolean>(() => false)
   resumeConversation.current = () => {
@@ -36,14 +57,18 @@ export function useTaskConversation(task: ScheduledTaskEntity | null | undefined
     const abort = new AbortController()
     controller.current = abort
     if (resumeConversation.current()) return () => abort.abort()
-    setState({ key, loading: !!currentTask })
+    const retained = resultRef.current
+    setState({ key, taskId: currentTask?.id, result: retained, loading: !!currentTask })
     if (currentTask) {
+      const request = ++latestRequest.current
       void resolveTaskConversation(currentTask, runId, abort.signal).then(
         (next) => {
-          if (!abort.signal.aborted) setState({ key, result: next, loading: false })
+          if (!abort.signal.aborted && request === latestRequest.current)
+            setState({ key, taskId: currentTask.id, result: next, loading: false })
         },
         (error) => {
-          if (!abort.signal.aborted) setState({ key, loading: false, error })
+          if (!abort.signal.aborted && request === latestRequest.current)
+            setState({ key, taskId: currentTask.id, result: retained, loading: false, error })
         }
       )
     }
@@ -64,12 +89,14 @@ export function useTaskConversation(task: ScheduledTaskEntity | null | undefined
           ? current
           : {
               key,
+              taskId: task.id,
               loading: false,
               newerRunId: current.newerRunId,
               result: {
                 ...next,
                 ...(current.result.session || runId
                   ? {
+                      selectedRun: current.result.selectedRun,
                       session: current.result.session,
                       runId: current.result.runId,
                       startedAt: current.result.startedAt
@@ -91,34 +118,82 @@ export function useTaskConversation(task: ScheduledTaskEntity | null | undefined
 
   const refreshHistory = () => {
     if (!task) return
-    if (!result?.session) {
-      retry()
-      return
-    }
     const signal = controller.current?.signal
-    void readTaskConversationPage(task, 1, signal)
-      .then((first) => {
-        if (signal?.aborted) return
-        setState((current) =>
-          current.key !== key || !current.result
-            ? current
-            : {
-                ...current,
-                error: undefined,
-                newerRunId: first.session && first.session.id !== current.result.session?.id ? first.runId : undefined,
-                result: {
-                  ...current.result,
-                  total: first.total,
-                  logs: [
-                    ...first.logs,
-                    ...current.result.logs.filter((log) => !first.logs.some((fresh) => fresh.id === log.id))
-                  ]
-                }
-              }
-        )
+    const request = ++latestRequest.current
+    const refreshed =
+      runId || !result?.session
+        ? resolveTaskConversation(task, runId, signal)
+        : readTaskConversationPage(task, 1, signal)
+    void Promise.all([refreshed, runId ? readTaskConversationPage(task, 1, signal) : refreshed])
+      .then(([first, firstPage]) => {
+        if (signal?.aborted || request !== latestRequest.current) return
+        setState((current) => {
+          if (current.key !== key) return current
+          if (!current.result || (!runId && !current.result.session && !current.result.selectedRun))
+            return {
+              key,
+              taskId: task.id,
+              result: {
+                ...first,
+                logs: [
+                  ...firstPage.logs,
+                  ...(current.result?.logs.filter((log) => !firstPage.logs.some((fresh) => fresh.id === log.id)) ?? [])
+                ],
+                nextPage: Math.max(first.nextPage, current.result?.nextPage ?? 0),
+                total: Math.max(firstPage.total, current.result?.total ?? 0)
+              },
+              loading: false
+            }
+          const selectedRun =
+            first.selectedRun?.id === current.result.selectedRun?.id
+              ? first.selectedRun
+              : first.logs.find((log) => log.id === current.result!.selectedRun?.id)
+          return {
+            ...current,
+            loading: false,
+            error: undefined,
+            newerRunId:
+              firstPage.session && firstPage.session.id !== current.result.session?.id ? firstPage.runId : undefined,
+            result: {
+              ...current.result,
+              ...(runId
+                ? {
+                    selectedRun: first.selectedRun,
+                    session: current.result.session ?? first.session,
+                    runId: first.runId,
+                    startedAt: first.startedAt
+                  }
+                : selectedRun
+                  ? {
+                      selectedRun: {
+                        id: selectedRun.id,
+                        status: selectedRun.status,
+                        result: selectedRun.result ?? null,
+                        error: selectedRun.error ?? null,
+                        startedAt: selectedRun.startedAt
+                      },
+                      startedAt: selectedRun.startedAt
+                    }
+                  : {}),
+              total: firstPage.total,
+              logs: [
+                ...firstPage.logs,
+                ...current.result.logs.filter((log) => !firstPage.logs.some((fresh) => fresh.id === log.id))
+              ]
+            }
+          }
+        })
       })
       .catch((error) => {
-        if (!signal?.aborted) setState((current) => ({ ...current, error }))
+        if (!signal?.aborted && request === latestRequest.current) {
+          setState((current) =>
+            current.key !== key
+              ? current
+              : current.result?.session || current.result?.selectedRun
+                ? { ...current, loading: false }
+                : { ...current, loading: false, error }
+          )
+        }
       })
   }
   useDataChange('/agents/:agentId/tasks/:taskId/logs', refreshHistory, {
@@ -138,6 +213,7 @@ export function useTaskConversation(task: ScheduledTaskEntity | null | undefined
   useDataChange('/agent-sessions/:sessionId', (effects) => {
     if (sessionId && effects.some((effect) => !effect.entityIds || effect.entityIds.includes(sessionId))) void refetch()
   })
+  const unavailable = !!result?.selectedRun && !!sessionId && isTaskRunSessionUnavailable(sessionError, sessionId)
   const verifiedSession = !sessionError && session && session.id === sessionId ? session : null
   const tabId = useCurrentTabId()
   useLayoutEffect(() => {
@@ -155,7 +231,7 @@ export function useTaskConversation(task: ScheduledTaskEntity | null | undefined
     ...visible,
     session: verifiedSession,
     sessionLoading: !!sessionId && !session && !sessionError,
-    error: sessionError ?? visible.error,
+    error: (unavailable ? undefined : sessionError) ?? visible.error,
     loadMore,
     retry: () => {
       if (result?.session) {

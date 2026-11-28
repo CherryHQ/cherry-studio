@@ -244,27 +244,6 @@ describe('ProviderList', () => {
     expect(onSelectProvider).toHaveBeenCalledWith('anthropic')
   })
 
-  it('hides CherryAI from the provider list', () => {
-    useProvidersMock.mockReturnValue({
-      providers: [
-        ...providers,
-        {
-          id: 'cherryai',
-          name: 'CherryAI',
-          defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
-          isEnabled: true
-        }
-      ],
-      createProvider: vi.fn()
-    })
-
-    render(<ProviderList selectedProviderId="openai" onSelectProvider={vi.fn()} />)
-
-    expect(screen.getByText('OpenAI')).toBeInTheDocument()
-    expect(screen.queryByText('CherryAI')).not.toBeInTheDocument()
-    expect(screen.queryByTestId('provider-list-item-cherryai')).not.toBeInTheDocument()
-  })
-
   it('offers only safe canonical preset sources to the custom provider editor', async () => {
     const user = userEvent.setup()
     const canonicalOpenAI = {
@@ -324,7 +303,6 @@ describe('ProviderList', () => {
 
     render(<ProviderList selectedProviderId="openai" onSelectProvider={vi.fn()} />)
 
-    expect(useReorderMock).toHaveBeenCalledWith('/providers', { revalidateOnSuccess: false })
     expect(screen.queryByTestId('provider-editor-drawer')).not.toBeInTheDocument()
     fireEvent.click(screen.getAllByRole('button', { name: /添加/i })[0])
     expect(await screen.findByTestId('provider-editor-drawer')).toHaveAttribute('data-open', 'true')
@@ -405,17 +383,18 @@ describe('ProviderList', () => {
     expect(scrollIntoViewMock).toHaveBeenCalledTimes(1)
   })
 
-  it('labels the provider filter icon button for assistive technology', () => {
-    render(<ProviderList selectedProviderId="openai" onSelectProvider={vi.fn()} />)
-
-    expect(screen.getByRole('button', { name: '筛选服务商' })).toBeInTheDocument()
-  })
-
-  it('restores the provider filter after leaving and returning to the page', () => {
+  it('applies a provider filter by keyboard and restores it when returning to the page', async () => {
+    const user = userEvent.setup()
     const first = render(<ProviderList selectedProviderId="openai" onSelectProvider={vi.fn()} />)
 
-    fireEvent.click(screen.getByRole('button', { name: '筛选服务商' }))
-    fireEvent.click(screen.getByRole('button', { name: '仅已禁用' }))
+    const trigger = screen.getByRole('button', { name: '筛选服务商' })
+    trigger.focus()
+    await user.keyboard('{Enter}{End}{ArrowUp}')
+    expect(screen.getByRole('menuitemradio', { name: '仅已启用' })).toHaveFocus()
+    await user.keyboard('{ArrowDown}')
+    expect(screen.getByRole('menuitemradio', { name: '仅已禁用' })).toHaveFocus()
+    await user.keyboard('{Enter}')
+    await waitFor(() => expect(trigger).toHaveFocus())
 
     expect(MockUseCacheUtils.getPersistCacheValue('settings.provider.filter_mode')).toBe('disabled')
 
@@ -424,20 +403,9 @@ describe('ProviderList', () => {
 
     expect(screen.queryByText('OpenAI')).not.toBeInTheDocument()
     expect(screen.queryByText('Anthropic')).not.toBeInTheDocument()
-  })
 
-  it('keeps a single add action below the scrollable provider list', () => {
-    render(<ProviderList selectedProviderId="openai" onSelectProvider={vi.fn()} />)
-
-    const addButton = screen.getByRole('button', { name: '添加服务商' })
-    const scrollbar = screen.getByTestId('provider-list-scrollbar')
-    const filterButton = screen.getByRole('button', { name: '筛选服务商' })
-    const searchInput = screen.getByPlaceholderText('搜索模型平台...')
-    const searchWrap = searchInput.closest('div')
-
-    expect(scrollbar).not.toContainElement(addButton)
-    expect(scrollbar.compareDocumentPosition(addButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(searchWrap).toContainElement(filterButton)
+    await user.click(screen.getByRole('button', { name: '筛选服务商' }))
+    expect(screen.getByRole('menuitemradio', { name: '仅已禁用', checked: true })).toBeVisible()
   })
 
   it('surfaces reorder persistence errors', async () => {

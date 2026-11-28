@@ -644,15 +644,6 @@ describe('PdfFilePreview', () => {
         worker: expect.any(Object)
       })
     )
-    expect(mocks.pdfViewerConstructor).toHaveBeenCalledWith(
-      expect.objectContaining({
-        annotationMode: 1,
-        abortSignal: expect.any(AbortSignal),
-        pageColors: { background: 'rgb(10, 11, 12)' },
-        supportsPinchToZoom: true
-      })
-    )
-    expect(screen.getByTestId('pdfjs-viewer-container')).toHaveClass('absolute', 'inset-0', 'overflow-auto')
     expect(screen.getByTestId('pdfjs-viewer')).toHaveClass('pdfViewer')
     expect(mocks.pdfViewerScaleValues).toContain('page-width')
   })

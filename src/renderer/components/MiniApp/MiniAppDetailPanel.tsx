@@ -26,6 +26,7 @@ import MiniAppLogoAvatar from '@renderer/components/icons/MiniAppLogoAvatar'
 import { InstallConsentDialog } from '@renderer/components/MiniApp/InstallConsentDialog'
 import { PermissionChecklist } from '@renderer/components/MiniApp/PermissionChecklist'
 import { UpdateReviewDialog } from '@renderer/components/MiniApp/UpdateReviewDialog'
+import { useExitPresence } from '@renderer/hooks/useExitPresence'
 import { useMiniAppAttentionFor } from '@renderer/hooks/useMiniAppAttention'
 import { useMiniAppInstallPreview } from '@renderer/hooks/useMiniAppInstallPreview'
 import { useMiniAppUpdate } from '@renderer/hooks/useMiniAppUpdate'
@@ -96,6 +97,7 @@ function describeActivity(t: TFunction, entry: MiniAppActivityEntry): string {
 
 interface Props {
   appId: string
+  open?: boolean
   /** Called once the panel is done — after an uninstall, or when the user closes it. */
   onClose?: () => void
 }
@@ -144,7 +146,7 @@ const Usage: FC<{ label: string; usage: QuotaUsageWithLimits; testId: string }> 
  * writer route. The renderer holds no update state beyond the token the check returned:
  * that token IS the consent record, and applying re-sends it and nothing else.
  */
-const MiniAppDetailPanel: FC<Props> = ({ appId, onClose }) => {
+const MiniAppDetailPanel: FC<Props> = ({ appId, open = true, onClose }) => {
   const { t, i18n } = useTranslation()
   const [detail, setDetail] = useState<MiniAppDetail | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -240,6 +242,8 @@ const MiniAppDetailPanel: FC<Props> = ({ appId, onClose }) => {
   // "Replace package" is the install entry pinned to THIS app: main decides by version
   // whether the file is an upgrade or a reinstall, and the same card asks the questions.
   const replace = useMiniAppInstallPreview(reload, { expectAppId: appId })
+  const { value: updateOffer } = useExitPresence(update.offer)
+  const { value: replacePreview } = useExitPresence(replace.preview)
   const replaceError = replace.error
   useEffect(() => {
     if (replaceError) toast.error(t(replaceError.key, replaceError.params))
@@ -280,7 +284,7 @@ const MiniAppDetailPanel: FC<Props> = ({ appId, onClose }) => {
   return (
     <>
       <Dialog
-        open
+        open={open}
         onOpenChange={(open) => {
           if (!open) onClose?.()
         }}>
@@ -607,18 +611,22 @@ const MiniAppDetailPanel: FC<Props> = ({ appId, onClose }) => {
         </DialogContent>
       </Dialog>
 
-      {update.offer && detail && (
+      {updateOffer && detail && (
         <UpdateReviewDialog
+          key={updateOffer.updateToken}
           name={detail.name}
-          update={update.offer}
+          update={updateOffer}
+          open={update.offer !== null}
           busy={update.busy}
           onCancel={update.dismiss}
           onApply={update.apply}
         />
       )}
-      {replace.preview && (
+      {replacePreview && (
         <InstallConsentDialog
-          preview={replace.preview}
+          key={replacePreview.kind === 'upgrade' ? replacePreview.update.updateToken : replacePreview.installToken}
+          preview={replacePreview}
+          open={replace.preview !== null}
           busy={replace.busy}
           onCancel={replace.cancelPreview}
           onConfirm={replace.confirm}

@@ -3,7 +3,7 @@ import { motion } from 'motion/react'
 import { useId, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, ReorderableList, ScrollArea, Tooltip } from '@cherrystudio/ui'
+import { Badge, Button, ReorderableList, ScrollArea, Tooltip } from '@cherrystudio/ui'
 import { type ChatInputTokenKind, type ChatTokenView } from '@renderer/components/composer/chatTokenView'
 import { ComposerToken } from '@renderer/components/composer/tokenView'
 import { isComposerInputTokenKind } from '@renderer/utils/composerTokenPolicy'
@@ -17,12 +17,13 @@ const QUEUE_CSS_EASE = `cubic-bezier(${QUEUE_EASE.join(',')})`
 
 interface QueuedFollowupsDockProps {
   items: FollowupQueueItem[]
-  paused: boolean
-  onTogglePause: () => void
-  onSteer: (id: string) => void
-  onEdit: (id: string) => void
+  paused?: boolean
+  onTogglePause?: () => void
+  onSteer?: (id: string) => void
+  onEdit?: (id: string) => void
   onRemove: (id: string) => void
   onReorder: (nextItems: FollowupQueueItem[]) => void
+  onDragStart?: () => void
   isSteerDisabled?: (item: FollowupQueueItem) => boolean
   steerDisabledReason?: string
 }
@@ -63,8 +64,8 @@ function QueuedFollowupRow({
 }: {
   item: FollowupQueueItem
   dragging: boolean
-  onSteer: (id: string) => void
-  onEdit: (id: string) => void
+  onSteer?: (id: string) => void
+  onEdit?: (id: string) => void
   onRemove: (id: string) => void
   isSteerDisabled?: (item: FollowupQueueItem) => boolean
   steerDisabledReason?: string
@@ -73,7 +74,7 @@ function QueuedFollowupRow({
   const previewText = item.draft
     ? excludeComposerDraftTokens(item.draft, (token) => isComposerInputTokenKind(token.kind)).text.trim()
     : item.payload.text
-  const steerDisabled = isSteerDisabled?.(item) ?? false
+  const steerDisabled = item.editing || isSteerDisabled?.(item)
 
   return (
     <div className="group flex items-center gap-1.5 rounded-[12px] bg-muted/40 px-2 py-1.5">
@@ -87,42 +88,49 @@ function QueuedFollowupRow({
         {previewText ? <span className="line-clamp-2 text-sm text-foreground">{previewText}</span> : null}
         <DraftTokenChips item={item} hasText={Boolean(previewText)} />
       </div>
+      {item.editing && <Badge variant="secondary">{t('chat.input.followup_queue.editing')}</Badge>}
       <div className="text-muted-foreground flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
-        <Tooltip
-          placement="top"
-          content={
-            steerDisabled
-              ? (steerDisabledReason ?? t('chat.input.followup_queue.steer'))
-              : t('chat.input.followup_queue.steer')
-          }>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            className="size-7 shadow-none"
-            aria-label={t('chat.input.followup_queue.steer')}
-            disabled={steerDisabled}
-            onClick={() => onSteer(item.id)}>
-            <ArrowUp className="size-4" />
-          </Button>
-        </Tooltip>
-        <Tooltip placement="top" content={t('chat.input.followup_queue.edit')}>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            className="size-7 shadow-none"
-            aria-label={t('chat.input.followup_queue.edit')}
-            onClick={() => onEdit(item.id)}>
-            <Pencil className="size-4" />
-          </Button>
-        </Tooltip>
+        {onSteer ? (
+          <Tooltip
+            placement="top"
+            content={
+              steerDisabled
+                ? item.editing
+                  ? t('chat.input.followup_queue.editing')
+                  : (steerDisabledReason ?? t('chat.input.followup_queue.steer'))
+                : t('chat.input.followup_queue.steer')
+            }>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="size-7 shadow-none"
+              aria-label={t('chat.input.followup_queue.steer')}
+              disabled={steerDisabled}
+              onClick={() => onSteer(item.id)}>
+              <ArrowUp className="size-4" />
+            </Button>
+          </Tooltip>
+        ) : null}
+        {onEdit && (
+          <Tooltip placement="top" content={t('chat.input.followup_queue.edit')}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="size-7 shadow-none text-muted-foreground"
+              aria-label={t('chat.input.followup_queue.edit')}
+              onClick={() => onEdit(item.id)}>
+              <Pencil className="size-4" />
+            </Button>
+          </Tooltip>
+        )}
         <Tooltip placement="top" content={t('chat.input.followup_queue.remove')}>
           <Button
             type="button"
             variant="ghost"
             size="icon-sm"
-            className="size-7 shadow-none"
+            className="size-7 shadow-none text-muted-foreground"
             aria-label={t('chat.input.followup_queue.remove')}
             onClick={() => onRemove(item.id)}>
             <X className="size-4" />
@@ -135,8 +143,7 @@ function QueuedFollowupRow({
 
 /**
  * Dock above the input listing queued follow-up drafts (queue mode). Items are drag-reorderable;
- * each can be steered into the running turn, edited back into the composer, or removed; auto-drain
- * can be paused. Renders via `ComposerSurface.queueContent`.
+ * each can be steered into the running turn, edited back into the composer, or removed. Local queues can pause auto-drain. Renders via `ComposerSurface.queueContent`.
  */
 export function QueuedFollowupsDock({
   items,
@@ -146,6 +153,7 @@ export function QueuedFollowupsDock({
   onEdit,
   onRemove,
   onReorder,
+  onDragStart,
   isSteerDisabled,
   steerDisabledReason
 }: QueuedFollowupsDockProps) {
@@ -200,19 +208,21 @@ export function QueuedFollowupsDock({
             <ChevronRight className="size-3.5" />
           </span>
         </Button>
-        <Tooltip
-          placement="top"
-          content={paused ? t('chat.input.followup_queue.resume') : t('chat.input.followup_queue.pause')}>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            className="size-6 shadow-none"
-            aria-label={paused ? t('chat.input.followup_queue.resume') : t('chat.input.followup_queue.pause')}
-            onClick={onTogglePause}>
-            {paused ? <Play className="size-3.5" /> : <Pause className="size-3.5" />}
-          </Button>
-        </Tooltip>
+        {onTogglePause ? (
+          <Tooltip
+            placement="top"
+            content={paused ? t('chat.input.followup_queue.resume') : t('chat.input.followup_queue.pause')}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="size-6 shadow-none"
+              aria-label={paused ? t('chat.input.followup_queue.resume') : t('chat.input.followup_queue.pause')}
+              onClick={onTogglePause}>
+              {paused ? <Play className="size-3.5" /> : <Pause className="size-3.5" />}
+            </Button>
+          </Tooltip>
+        ) : null}
       </motion.div>
       <motion.div
         id={listId}
@@ -237,6 +247,12 @@ export function QueuedFollowupsDock({
               items={items}
               getId={(item) => item.id}
               onReorder={onReorder}
+              onDragStateChange={
+                onDragStart &&
+                ((dragging) => {
+                  if (dragging) onDragStart()
+                })
+              }
               direction="vertical"
               gap={4}
               renderItem={(item, _index, { dragging }) => (

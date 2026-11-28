@@ -15,9 +15,11 @@ await prepareWindow({
     'feature.selection.auto_close',
     'feature.selection.auto_pin',
     'feature.selection.action_window_opacity',
+    'feature.notes.path',
     'feature.quick_assistant.assistant_id',
     'feature.translate.action.alter_lang',
     'feature.translate.action.preferred_lang',
+    'feature.voice.recognition.model_id',
     'feature.voice.dictation.hold_shortcut',
     'feature.voice.dictation.mouse_hold_enabled',
     'feature.voice.dictation.toggle_shortcut'

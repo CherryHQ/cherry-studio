@@ -18,11 +18,12 @@ interface ToolBinding {
 
 const PI_TOOL_BINDING = {
   pathFields: { write: 'path', edit: 'path' },
-  shellFields: { bash: 'command' },
+  shellFields: { bash: 'command', powershell: 'command' },
   normalizeStructuredPath: normalizePiNativePathInput
 } satisfies ToolBinding
 
 const TOOL_BINDINGS = {
+  local: { pathFields: {}, shellFields: {} },
   'claude-code': {
     pathFields: {
       Write: 'file_path',
@@ -30,7 +31,7 @@ const TOOL_BINDINGS = {
       MultiEdit: 'file_path',
       NotebookEdit: 'notebook_path'
     },
-    shellFields: { Bash: 'command' }
+    shellFields: { Bash: 'command', PowerShell: 'command' }
   },
   pi: PI_TOOL_BINDING,
   'pi-durable': PI_TOOL_BINDING

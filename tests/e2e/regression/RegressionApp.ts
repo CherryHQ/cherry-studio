@@ -8,6 +8,7 @@ import type { IpcResult } from '@shared/ipc/errors/IpcError'
 
 import { loadTestConfig, type RegressionTestConfig } from '../../../scripts/e2e/regression/config'
 import { assertOwnedAppIsolation, prepareWindowsCdpConnection } from '../../../scripts/e2e/regression/debugBridge'
+import type { EmbeddingProviderConfig } from '../../../scripts/e2e/regression/embeddingMock'
 import {
   adoptRelaunchedApp,
   assertNoLaunchFailure,
@@ -15,6 +16,7 @@ import {
   readAppRecord,
   readOwnedRecord,
   restartApp,
+  stopApp,
   type AppRecord
 } from '../../../scripts/e2e/regression/lifecycle'
 import { getRunPaths, type RunPaths } from '../../../scripts/e2e/regression/paths'
@@ -39,7 +41,8 @@ export class RegressionApp {
 
   constructor(
     runDirectory: string,
-    readonly caseId: string
+    readonly caseId: string,
+    private readonly embeddingConfig?: EmbeddingProviderConfig
   ) {
     const paths = getRunPaths(runDirectory)
     this.paths = { ...paths, workspace: join(paths.workspace, `agent-workspace-${caseId}`) }
@@ -60,7 +63,12 @@ export class RegressionApp {
   }
 
   get config(): RegressionTestConfig {
-    return loadTestConfig()
+    return loadTestConfig(this.paths.root)
+  }
+
+  get embeddingProvider(): EmbeddingProviderConfig {
+    if (!this.embeddingConfig) throw new Error('Embedding mock fixture is required')
+    return this.embeddingConfig
   }
 
   get record(): AppRecord {
@@ -111,6 +119,7 @@ export class RegressionApp {
       }
     }
     const { cdpPort } = record
+    await prepareWindowsCdpConnection(record)
     this.browser = await chromium.connectOverCDP(`http://127.0.0.1:${cdpPort}`, {
       isLocal: true,
       noDefaults: true,
@@ -137,9 +146,9 @@ export class RegressionApp {
     // later case would spend its timeout on a hidden #root. Reveal the window instead.
     this.recoveringWindow = true
     try {
-      if ((await this.revealWindow()) && (await rootVisible(page, 20_000))) return page
+      if ((await this.revealWindow()) && (await rootVisible(page, 60_000))) return page
       await this.disconnect()
-      await prepareWindowsCdpConnection(await restartApp(this.paths))
+      await restartApp(this.paths)
       return await this.mainWindow()
     } finally {
       this.recoveringWindow = false
@@ -202,33 +211,42 @@ export class RegressionApp {
 
   async cleanupTransientUi(mainWindow: Page): Promise<void> {
     await cancelNativeFileDialogs(this.record.platform, this.paths)
-    await dismissTransientDialogs(mainWindow)
     const browser = await this.connect()
-    const transientPages = browser
-      .contexts()
-      .flatMap((context) => context.pages())
-      .filter((page) => /\/windows\/(quickassistant|selection)\//i.test(page.url()))
+    const pages = browser.contexts().flatMap((context) => context.pages())
+    for (const capture of pages.filter((page) => /\/windows\/screenshot\//i.test(page.url()))) {
+      try {
+        const result = (await capture.evaluate(() => window.api.ipcApi.request('screenshot.cancel'))) as IpcResult<void>
+        if (!result.ok) throw new Error(`Screenshot cleanup failed: ${result.error.code}`)
+        await capture.locator('canvas').first().waitFor({ state: 'hidden', timeout: 10_000 })
+      } catch (error) {
+        if (!capture.isClosed()) throw error
+      }
+    }
+    await dismissTransientDialogs(mainWindow)
+    const transientPages = pages.filter((page) => /\/windows\/(quickassistant|selection)\//i.test(page.url()))
     await Promise.all(transientPages.map((page) => page.keyboard.press('Escape').catch(() => undefined)))
+  }
+
+  async stop(): Promise<void> {
+    await this.disconnect()
+    await stopApp(this.paths)
   }
 
   async restart(profile?: TestProfile): Promise<Page> {
     await this.disconnect()
-    const record = await restartApp(this.paths, profile)
-    await prepareWindowsCdpConnection(record)
+    await restartApp(this.paths, profile)
     return this.mainWindow()
   }
 
   async adoptRelaunch(): Promise<Page> {
     await this.disconnect()
-    const record = await adoptRelaunchedApp(this.paths)
-    await prepareWindowsCdpConnection(record)
+    await adoptRelaunchedApp(this.paths)
     return this.mainWindow()
   }
 
   async useProfile(profile: TestProfile): Promise<Page> {
     await this.disconnect()
-    const record = await ensureProfile(this.paths, profile)
-    await prepareWindowsCdpConnection(record)
+    await ensureProfile(this.paths, profile)
     return this.mainWindow()
   }
 }

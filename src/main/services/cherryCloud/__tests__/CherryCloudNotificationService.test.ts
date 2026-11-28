@@ -6,10 +6,17 @@ import { application } from '@application'
 import type * as LifecycleModule from '@main/core/lifecycle'
 import { getConditions } from '@main/core/lifecycle/decorators'
 import type { ConditionContext } from '@main/core/lifecycle/types'
+import { t } from '@main/i18n'
 import type { CherryCloudStatus } from '@shared/ipc/schemas/cherryCloud'
 
 const edition = vi.hoisted(() => ({ current: 'cn' as 'cn' | 'global' }))
 vi.mock('@main/utils/appEdition', () => ({ getAppEdition: () => edition.current }))
+
+const { publish } = vi.hoisted(() => ({
+  publish: vi.fn<(input: unknown, options?: { recordOnly?: boolean }) => Promise<boolean>>(async () => true)
+}))
+const announced = () => publish.mock.calls.filter(([, options]) => !options?.recordOnly).map(([record]) => record)
+const recorded = () => publish.mock.calls.filter(([, options]) => options?.recordOnly).map(([record]) => record)
 
 vi.mock('@main/core/lifecycle', async (importOriginal) => {
   const actual = await importOriginal<typeof LifecycleModule>()
@@ -107,6 +114,7 @@ beforeEach(() => {
     authenticatedFetch,
     refreshAccount
   })
+  MockApplicationUtils.setService('NotificationService', { publish })
 })
 
 afterEach(() => {
@@ -267,20 +275,190 @@ describe('CherryCloudNotificationService', () => {
     }
   })
 
-  it('stops without retrying when the notification endpoints are not available', async () => {
+  it('connects once the notification endpoints go live after a 404, without fast retries', async () => {
     vi.useFakeTimers()
     try {
-      reply('/api/v1/notifications/stream', new Response(null, { status: 404 }))
+      const stream = eventStream()
+      reply('/api/v1/notifications/stream', new Response(null, { status: 404 }), stream.response)
       await start()
       await vi.waitFor(() => expect(requestedPaths()).toHaveLength(1))
 
-      await vi.advanceTimersByTimeAsync(120_000)
-
+      await vi.advanceTimersByTimeAsync(4 * 60_000)
       expect(requestedPaths()).toHaveLength(1)
-      expect(refreshAccount).not.toHaveBeenCalled()
+
+      await vi.advanceTimersByTimeAsync(60_000)
+      expect(requestedPaths()).toHaveLength(2)
+      stream.send('ready', { cursor: 'c-0' })
+      await vi.waitFor(() => expect(refreshAccount).toHaveBeenCalledOnce())
+      expect(storedCursor()).toBe('c-0')
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  it('announces live notifications in the notification center and records caught-up history silently', async () => {
+    application.get('CacheService').setPersist('cherry_cloud.notification_cursors', { 'account-1': 'c-0' })
+    reply('/api/v1/notifications', page([notification('n-1', 'c-1')], 'c-1'))
+    const stream = eventStream()
+    reply('/api/v1/notifications/stream', stream.response)
+    const service = await start()
+
+    await vi.waitFor(() => expect(recorded()).toHaveLength(1))
+    expect(recorded()[0]).toMatchObject({
+      eventKey: 'cherry-cloud:n-1',
+      target: { kind: 'settings', tab: 'profile' },
+      readAt: expect.any(Number)
+    })
+    expect(announced()).toHaveLength(0)
+    expect(service.isActive()).toBe(false)
+
+    stream.send('ready', { cursor: 'c-1' })
+    await vi.waitFor(() => expect(service.isActive()).toBe(true))
+    stream.send('notification', notification('n-2', 'c-2'))
+
+    await vi.waitFor(() => expect(announced()).toHaveLength(1))
+    expect(announced()[0]).toMatchObject({ eventKey: 'cherry-cloud:n-2', category: 'usage' })
+    expect(recorded()).toHaveLength(1)
+  })
+
+  it('announces a live notification with the server copy and time, but not once past its presentation deadline', async () => {
+    const stream = eventStream()
+    reply('/api/v1/notifications/stream', stream.response)
+    const service = await start()
+    stream.send('ready', { cursor: 'c-0' })
+    await vi.waitFor(() => expect(service.isActive()).toBe(true))
+
+    const server = {
+      title: '已关闭自动续费',
+      body: '已关闭后续自动续费，已付周期内的权益仍可使用。',
+      occurred_at: '2026-11-03T05:48:59Z'
+    }
+    stream.send('notification', { ...notification('n-1', 'c-1'), ...server, expires_at: '2999-01-01T00:00:00Z' })
+    await vi.waitFor(() => expect(publish).toHaveBeenCalledOnce())
+    expect(publish.mock.calls[0][0]).toMatchObject({
+      title: server.title,
+      message: server.body,
+      createdAt: Date.parse(server.occurred_at)
+    })
+
+    stream.send('notification', { ...notification('n-2', 'c-2'), ...server, expires_at: '2000-01-01T00:00:00Z' })
+    await vi.waitFor(() => expect(recorded()).toHaveLength(1))
+    expect(recorded()[0]).toMatchObject({ eventKey: 'cherry-cloud:n-2', readAt: expect.any(Number) })
+    expect(announced()).toHaveLength(1)
+  })
+
+  it('announces an activation with the product copy that points to the CherryAI models', async () => {
+    const stream = eventStream()
+    reply('/api/v1/notifications/stream', stream.response)
+    const service = await start()
+    stream.send('ready', { cursor: 'c-0' })
+    await vi.waitFor(() => expect(service.isActive()).toBe(true))
+
+    stream.send('notification', {
+      ...notification('n-1', 'c-1'),
+      type: 'subscription.activated',
+      title: '订阅已生效',
+      body: '订阅权益已更新，请查看当前套餐。'
+    })
+
+    await vi.waitFor(() => expect(publish).toHaveBeenCalledOnce())
+    expect(publish.mock.calls[0][0]).toMatchObject({
+      title: '订阅已生效',
+      message: t('notification.subscription.activated_message')
+    })
+    expect(t('notification.subscription.activated_message')).not.toBe('notification.subscription.activated_message')
+  })
+
+  it.each([
+    [
+      'subscription.renewal_reminder',
+      '2026-12-03T12:00:00Z',
+      () => t('notification.subscription.renewal_reminder_message', { date: '2026-12-03' })
+    ],
+    ['subscription.expired', '2999-01-01T00:00:00Z', () => t('notification.subscription.expired_message')],
+    ['subscription.renewed', '2999-01-01T00:00:00Z', () => t('notification.subscription.renewed_message')],
+    [
+      'subscription.auto_renew_enabled',
+      '2999-01-01T00:00:00Z',
+      () => t('notification.subscription.auto_renew_enabled_message')
+    ],
+    [
+      'subscription.entitlement_revoked',
+      '2999-01-01T00:00:00Z',
+      () => t('notification.subscription.entitlement_revoked_message')
+    ],
+    [
+      'subscription.entitlement_restored',
+      '2999-01-01T00:00:00Z',
+      () => t('notification.subscription.entitlement_restored_message')
+    ]
+  ])('announces %s with product copy', async (type, expiresAt, expected) => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-11-30T00:00:00Z'))
+    try {
+      const stream = eventStream()
+      reply('/api/v1/notifications/stream', stream.response)
+      const service = await start()
+      stream.send('ready', { cursor: 'c-0' })
+      await vi.waitFor(() => expect(service.isActive()).toBe(true))
+
+      stream.send('notification', { ...notification('n-1', 'c-1'), type, body: 'server text', expires_at: expiresAt })
+
+      await vi.waitFor(() => expect(publish).toHaveBeenCalledOnce())
+      expect(publish.mock.calls[0][0]).toMatchObject({ message: expected() })
+      expect(expected()).not.toContain('notification.subscription')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('stays active across a transient disconnect so the catch-up is not announced by the client', async () => {
+    vi.useFakeTimers()
+    try {
+      let close = () => {}
+      const body = new ReadableStream<Uint8Array>({
+        start: (controller) => {
+          controller.enqueue(new TextEncoder().encode(`event: ready\ndata: ${JSON.stringify({ cursor: 'c-0' })}\n\n`))
+          close = () => controller.close()
+        }
+      })
+      reply('/api/v1/notifications/stream', new Response(body))
+      const service = await start()
+      await vi.waitFor(() => expect(service.isActive()).toBe(true))
+
+      close()
+      await vi.waitFor(() => expect(requestedPaths()).toContain('/api/v1/notifications/stream'))
+      await vi.advanceTimersByTimeAsync(100)
+
+      expect(service.isActive()).toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('reports the stream inactive when the endpoints are not available', async () => {
+    reply('/api/v1/notifications/stream', new Response(null, { status: 404 }))
+    const service = await start()
+    await vi.waitFor(() => expect(requestedPaths()).toHaveLength(1))
+
+    expect(service.isActive()).toBe(false)
+  })
+
+  it('records one event once even when the server sends it under two ids', async () => {
+    const stream = eventStream()
+    reply('/api/v1/notifications/stream', stream.response)
+    const service = await start()
+    stream.send('ready', { cursor: 'c-0' })
+    await vi.waitFor(() => expect(service.isActive()).toBe(true))
+
+    const event = { type: 'subscription.activated', subscription_id: 'sub-1', occurred_at: '2026-11-09T11:24:22Z' }
+    stream.send('notification', { ...notification('n-1', 'c-1'), ...event })
+    stream.send('notification', { ...notification('n-2', 'c-2'), ...event })
+
+    await vi.waitFor(() => expect(publish).toHaveBeenCalledTimes(2))
+    const keys = publish.mock.calls.map(([record]) => (record as { eventKey: string }).eventKey)
+    expect(keys[0]).toBe('cherry-cloud:subscription.activated:sub-1:2026-11-09T11:24:22Z')
+    expect(keys[1]).toBe(keys[0])
   })
 
   it("never reuses another account's cursor", async () => {

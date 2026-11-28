@@ -25,7 +25,7 @@ type LoadState = { status: 'loading' } | { status: 'error' } | { status: 'ready'
 const ZOOM_STEP = 0.1
 
 /** Renders a `.mmd` / `.mermaid` file as its diagram, edge to edge on the pane's own background. */
-export default function MermaidFilePreview({ filePath, refreshKey }: FilePreviewPluginProps) {
+export default function MermaidFilePreview({ filePath, metadataRequest, refreshKey }: FilePreviewPluginProps) {
   const { t } = useTranslation()
   const [loadState, setLoadState] = useState<LoadState>({ status: 'loading' })
   const previewRef = useRef<BasicPreviewHandles | null>(null)
@@ -33,18 +33,24 @@ export default function MermaidFilePreview({ filePath, refreshKey }: FilePreview
   // Layout cleanup invalidates the read before its promise can resolve into a stale file.
   useLayoutEffect(() => {
     let cancelled = false
-    window.api.fs.readText(filePath).then(
-      (source) => !cancelled && setLoadState({ status: 'ready', source }),
-      (error: unknown) => {
-        if (cancelled) return
-        logger.error(`Failed to read Mermaid file: ${filePath}`, error as Error)
-        setLoadState({ status: 'error' })
-      }
-    )
+    Promise.resolve()
+      .then(async () => {
+        const metadata = await metadataRequest?.()
+        if (cancelled || (metadataRequest && metadata?.kind !== 'file')) return undefined
+        return window.api.fs.readText(filePath)
+      })
+      .then(
+        (source) => !cancelled && source !== undefined && setLoadState({ status: 'ready', source }),
+        (error: unknown) => {
+          if (cancelled) return
+          logger.error(`Failed to read Mermaid file: ${filePath}`, error as Error)
+          setLoadState({ status: 'error' })
+        }
+      )
     return () => {
       cancelled = true
     }
-  }, [filePath, refreshKey])
+  }, [filePath, metadataRequest, refreshKey])
 
   let content
   if (loadState.status === 'loading') {

@@ -98,11 +98,17 @@ markers.
 - Path-derived file token ids are never written to the clipboard. If the current
   renderer session has the original file metadata, the token may still be
   restored through a handle.
-- `quote` and `promptVariable` tokens are restored from sanitized token fields.
+- `quote` and `promptVariable` tokens are restored from sanitized token fields. The private fragment retains a quote’s source message ID when the same renderer session restores it.
 - Unsupported, unsafe, or unresolved token segments fall back to their visible
   text.
 - A fragment is restored only from the paste event's clipboard data or from the
   session cache; paste never reads the system clipboard.
+- On a Markdown live-preview surface, plain-text marker restoration uses the
+  document after replacing the selection, including the surrounding text. Markers
+  inside the resulting fenced code stay literal; markers outside it can restore
+  tokens. A paste starting inside fenced code bypasses private-fragment restoration
+  and uses this plain-text path. Clipboard files and long-text-as-file still go to
+  the file handler.
 - If the browser cannot write the private custom format, clipboard writing falls
   back to `text/html` plus `text/plain`, then to plain text when `ClipboardItem`
   is unavailable. Every such fallback clears the session cache.

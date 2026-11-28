@@ -10,6 +10,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, onTestFinished,
 
 import { dataApiService } from '@data/DataApiService'
 import en from '@renderer/i18n/locales/en-us.json'
+import type { BrowserVisit } from '@shared/data/api/schemas/browserVisits'
 
 import { WebviewNavigation } from '../WebviewNavigation'
 
@@ -22,7 +23,7 @@ const i18n = createInstance()
 const visit = (url: string, title: string) => ({ id: title, title, url, visitedAt: 1, source: 'local' })
 const report = visit('http://internal.test/reports?lang=zh#latest', 'Monthly report')
 const recent = [report, { ...report, title: 'Old report title' }, visit('https://example.com/', 'Example')]
-const result = (items = recent) => ({ items, hasMore: false })
+const result = (items: BrowserVisit[] = recent) => ({ items, hasMore: false })
 
 beforeAll(async () => {
   await i18n.init({ lng: 'en', resources: { en: { translation: en } }, keySeparator: false })
@@ -59,6 +60,27 @@ function setup(historyEnabled = true, url = 'https://current.test/') {
 }
 
 describe('Browser address history', () => {
+  it('uses a cached website icon for suggestions without fetching an external favicon service', async () => {
+    const favicon = 'data:image/png;base64,cached-favicon'
+    class CachedImage {
+      complete = true
+      naturalWidth = 16
+      addEventListener() {}
+      removeEventListener() {}
+      set src(_value: string) {}
+    }
+    const originalImage = globalThis.Image
+    vi.stubGlobal('Image', CachedImage)
+    onTestFinished(() => {
+      globalThis.Image = originalImage
+    })
+    vi.mocked(dataApiService.get).mockResolvedValue(result([{ ...report, favicon }]))
+    const { address } = setup()
+    await userEvent.click(address)
+    await screen.findByRole('option', { name: /Monthly report/ })
+    await waitFor(() => expect(screen.getByRole('presentation')).toHaveAttribute('src', favicon))
+  })
+
   it('loads history only on focus, deduplicates URLs and opens a searched result with the keyboard', async () => {
     const user = userEvent.setup()
     const { address, loadURL } = setup()
@@ -224,5 +246,90 @@ describe('Browser address display', () => {
     fireEvent.focus(address)
     expect(address).toHaveValue(url)
     expect(loadURL).not.toHaveBeenCalled()
+  })
+
+  it('keeps the history popover closed on programmatic auto-focus and shows empty-history wording on manual focus', async () => {
+    const user = userEvent.setup()
+    vi.mocked(dataApiService.get).mockResolvedValue(result([]))
+    const guest = {
+      getURL: () => 'about:blank',
+      canGoBack: () => false,
+      canGoForward: () => false,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      loadURL: vi.fn()
+    } as unknown as WebviewTag
+    render(
+      <SWRConfig value={{ provider: () => new Map() }}>
+        <I18nextProvider i18n={i18n}>
+          <WebviewNavigation
+            initialUrl="about:blank"
+            autoFocusAddress
+            webviewRef={{ current: guest }}
+            webviewRevision={1}
+            historyEnabled
+            isWebviewReady
+            isHostActive
+            target={{ id: 'test-browser', label: 'Browser' }}
+          />
+        </I18nextProvider>
+      </SWRConfig>
+    )
+    const address = screen.getByRole('combobox', { name: 'Web address' })
+    expect(address).toHaveFocus()
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
+    expect(dataApiService.get).not.toHaveBeenCalled()
+
+    await user.click(address)
+    expect(await screen.findByText('No browsing history')).toBeVisible()
+  })
+
+  it('syncs the address bar and blurs when an auto-focused blank tab navigates programmatically', () => {
+    const listeners = new Map<string, Set<(event: Event) => void>>()
+    let current = 'about:blank'
+    const guest = {
+      getURL: () => current,
+      canGoBack: () => false,
+      canGoForward: () => false,
+      addEventListener: (type: string, cb: (event: Event) => void) => {
+        const set = listeners.get(type) ?? new Set()
+        set.add(cb)
+        listeners.set(type, set)
+      },
+      removeEventListener: (type: string, cb: (event: Event) => void) => {
+        listeners.get(type)?.delete(cb)
+      },
+      loadURL: vi.fn()
+    } as unknown as WebviewTag
+    render(
+      <SWRConfig value={{ provider: () => new Map() }}>
+        <I18nextProvider i18n={i18n}>
+          <WebviewNavigation
+            initialUrl="about:blank"
+            autoFocusAddress
+            webviewRef={{ current: guest }}
+            webviewRevision={1}
+            historyEnabled
+            isWebviewReady
+            isHostActive
+            target={{ id: 'test-browser', label: 'Browser' }}
+          />
+        </I18nextProvider>
+      </SWRConfig>
+    )
+    const address = screen.getByRole('combobox', { name: 'Web address' })
+    expect(address).toHaveFocus()
+    expect(address).toHaveValue('about:blank')
+
+    act(() => {
+      current = 'https://example.com/'
+      for (const cb of listeners.get('did-navigate') ?? []) {
+        cb(Object.assign(new Event('did-navigate'), { url: current, isMainFrame: true }))
+      }
+    })
+
+    expect(address).not.toHaveFocus()
+    expect(address).toHaveValue('example.com')
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
   })
 })

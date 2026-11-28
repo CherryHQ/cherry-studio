@@ -1,16 +1,44 @@
-import { ExternalLink, Loader2, Network, Plus, Settings2 } from 'lucide-react'
+import {
+  BookOpen,
+  BrainCircuit,
+  Car,
+  CodeXml,
+  Database,
+  ExternalLink,
+  Folder,
+  Globe,
+  Loader2,
+  NotebookPen,
+  PackagePlus,
+  Plus,
+  Search,
+  SearchCode,
+  Settings2,
+  Workflow,
+  Wrench
+} from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import { useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Badge, Button, Dialog } from '@cherrystudio/ui'
+import { Badge, Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle } from '@cherrystudio/ui'
+import { getIconDisplayConfig } from '@renderer/components/icons/iconDisplayConfig'
+import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
 import type { useBuiltinMcpCatalog } from '@renderer/hooks/useBuiltinMcpCatalog'
+import { useExitPresence } from '@renderer/hooks/useExitPresence'
 import { getBuiltInMcpServerDescriptionLabelKey } from '@renderer/i18n/label'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
 import { openExternalWebsite } from '@renderer/services/website'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import { getProviderDisplayName, MCP_MARKETS, MCP_PROVIDER_ENTRIES } from '@renderer/utils/mcpDiscovery'
+import {
+  getProviderDisplayName,
+  MCP_MARKETS,
+  MCP_PROVIDER_ENTRIES,
+  type McpProviderKey
+} from '@renderer/utils/mcpDiscovery'
 import type { McpServerPreset } from '@shared/data/presets/mcpServers'
+import { BuiltinMcpServerNames } from '@shared/utils/mcp'
 
 import {
   MarketplaceCard,
@@ -22,18 +50,68 @@ import {
   MarketplaceGrid,
   MarketplaceLoadState
 } from './MarketplaceComponents'
+import MarketplaceMcpProvider from './MarketplaceMcpProvider'
+import { providers as providerConfigs } from './providers/config'
+
+const builtinMcpIcons: Partial<Record<McpServerPreset['name'], LucideIcon>> = {
+  [BuiltinMcpServerNames.flomo]: NotebookPen,
+  [BuiltinMcpServerNames.qveris]: SearchCode,
+  [BuiltinMcpServerNames.mcpAutoInstall]: PackagePlus,
+  [BuiltinMcpServerNames.sequentialThinking]: Workflow,
+  [BuiltinMcpServerNames.fetch]: Globe,
+  [BuiltinMcpServerNames.memory]: BrainCircuit,
+  [BuiltinMcpServerNames.filesystem]: Folder,
+  [BuiltinMcpServerNames.braveSearch]: Search,
+  [BuiltinMcpServerNames.difyKnowledge]: BookOpen,
+  [BuiltinMcpServerNames.python]: CodeXml,
+  [BuiltinMcpServerNames.didiMcp]: Car,
+  [BuiltinMcpServerNames.nowledgeMem]: Database
+}
+
+function BuiltinMcpIcon({ name, large = false }: { name: McpServerPreset['name']; large?: boolean }) {
+  const Icon = builtinMcpIcons[name] ?? Wrench
+  const displayConfig = getIconDisplayConfig('mini-app', 'mcp')
+  return (
+    <span
+      aria-hidden="true"
+      className={`flex shrink-0 items-center justify-center overflow-hidden bg-muted text-foreground ${large ? 'size-14' : 'size-10'}`}
+      style={{ borderRadius: displayConfig?.borderRadius }}>
+      <Icon className={large ? 'size-10' : 'size-7'} strokeWidth={1.75} />
+    </span>
+  )
+}
+
+function McpSourceIcon({ logo, name }: { logo: string; name: string }) {
+  return (
+    <span aria-hidden="true" className="shrink-0">
+      <ProviderAvatarPrimitive
+        providerId={name}
+        providerName={name}
+        logo={logo}
+        size={40}
+        className="rounded-lg"
+        displayContext="toolbar"
+        artworkSize={32}
+      />
+    </span>
+  )
+}
 
 export function MarketplaceMcp({
   catalog,
   query,
   preview = false,
   moreSources = false,
+  providerKey,
+  onProviderChange,
   active
 }: {
   catalog: ReturnType<typeof useBuiltinMcpCatalog>
   query: string
   preview?: boolean
   moreSources?: boolean
+  providerKey?: McpProviderKey
+  onProviderChange: (key?: McpProviderKey) => void
   active: boolean
 }) {
   const { t } = useTranslation()
@@ -45,6 +123,8 @@ export function MarketplaceMcp({
     []
   )
   const trigger = useRef<HTMLButtonElement | null>(null)
+  const selectedProvider = providerConfigs.find((provider) => provider.key === providerKey)
+  const providerPresence = useExitPresence(selectedProvider ?? null)
   const keyword = query.trim().toLocaleLowerCase()
   const description = (server: McpServerPreset) => t(getBuiltInMcpServerDescriptionLabelKey(server.name))
   const matches = (values: string[]) => values.join(' ').toLocaleLowerCase().includes(keyword)
@@ -98,6 +178,26 @@ export function MarketplaceMcp({
     const markets = MCP_MARKETS.filter((market) => matches([market.name, t(market.descriptionKey)]))
     return (
       <>
+        <Dialog open={Boolean(selectedProvider) && active} onOpenChange={(open) => !open && onProviderChange()}>
+          {providerPresence.value ? (
+            <DialogContent
+              className="flex max-h-[90vh] flex-col gap-0 overflow-hidden p-0"
+              showCloseButton={false}
+              onCloseAutoFocus={(event) => {
+                event.preventDefault()
+                trigger.current?.focus()
+              }}>
+              <DialogTitle className="sr-only">{getProviderDisplayName(providerPresence.value, t)}</DialogTitle>
+              <DialogDescription className="sr-only">{t('settings.mcp.providers')}</DialogDescription>
+              <MarketplaceMcpProvider provider={providerPresence.value} existingServers={catalog.mcpServers} />
+              <DialogFooter className="shrink-0 border-t border-border-subtle px-6 py-3">
+                <Button variant="outline" onClick={() => onProviderChange()}>
+                  {t('common.close')}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          ) : null}
+        </Dialog>
         <MarketplaceLoadState empty={!providers.length && !markets.length} />
         {providers.length ? (
           <section className="mb-7">
@@ -108,14 +208,21 @@ export function MarketplaceMcp({
                 <MarketplaceCard
                   name={getProviderDisplayName(provider, t)}
                   description={t('marketplace.manage_mcp')}
-                  icon={<provider.logo.Avatar size={36} shape="circle" />}
-                  onOpen={() => openSettingsTab(`/settings/mcp/${provider.key}`)}
+                  icon={<McpSourceIcon logo={provider.logo} name={getProviderDisplayName(provider, t)} />}
+                  onOpen={(event) => {
+                    trigger.current = event.currentTarget
+                    onProviderChange(provider.key)
+                  }}
                   action={
                     <Button
                       size="icon-sm"
                       variant="ghost"
                       aria-label={t('marketplace.configure') + ': ' + getProviderDisplayName(provider, t)}
-                      onClick={() => openSettingsTab(`/settings/mcp/${provider.key}`)}>
+                      onClick={(event) => {
+                        trigger.current = event.currentTarget
+                        onProviderChange(provider.key)
+                      }}
+                      className="text-muted-foreground">
                       <Settings2 className="size-4" />
                     </Button>
                   }
@@ -130,25 +237,19 @@ export function MarketplaceMcp({
             <MarketplaceGrid
               items={markets.map((market) => ({ ...market, id: market.url }))}
               renderItem={(market) => {
-                const Logo = market.logo
                 return (
                   <MarketplaceCard
                     name={market.name}
                     description={t(market.descriptionKey)}
-                    icon={
-                      typeof Logo === 'string' ? (
-                        <img src={Logo} alt="" className="size-9 shrink-0 rounded-lg object-contain" />
-                      ) : (
-                        <Logo.Avatar size={36} shape="circle" />
-                      )
-                    }
+                    icon={<McpSourceIcon logo={market.logo} name={market.name} />}
                     onOpen={() => openExternalWebsite(market.url)}
                     action={
                       <Button
                         size="icon-sm"
                         variant="ghost"
                         aria-label={t('marketplace.open_website') + ': ' + market.name}
-                        onClick={() => openExternalWebsite(market.url)}>
+                        onClick={() => openExternalWebsite(market.url)}
+                        className="text-muted-foreground">
                         <ExternalLink className="size-4" />
                       </Button>
                     }
@@ -174,11 +275,7 @@ export function MarketplaceMcp({
           <MarketplaceCard
             name={preset.name}
             description={description(preset)}
-            icon={
-              <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-background-subtle">
-                <Network className="size-5 text-muted-foreground" />
-              </span>
-            }
+            icon={<BuiltinMcpIcon name={preset.name} />}
             onOpen={(event) => {
               trigger.current = event.currentTarget
               setSelected(preset)
@@ -214,17 +311,27 @@ export function MarketplaceMcp({
                 name={selected.name}
                 description={description(selected)}
                 type={t('marketplace.type.mcp')}
-                icon={
-                  <span className="flex size-14 shrink-0 items-center justify-center rounded-2xl border border-border-subtle bg-background text-muted-foreground shadow-sm">
-                    <Network className="size-7" strokeWidth={1.5} aria-hidden="true" />
-                  </span>
-                }
+                icon={<BuiltinMcpIcon name={selected.name} large />}
               />
               <MarketplaceDetailBody>
                 <p className="whitespace-pre-wrap break-words text-sm leading-6 text-muted-foreground">
                   {description(selected)}
                 </p>
                 {selected.shouldConfig ? <Badge variant="secondary">{t('settings.mcp.requiresConfig')}</Badge> : null}
+                {selected.name === BuiltinMcpServerNames.filesystem ? (
+                  <section className="space-y-2">
+                    <h3 className="text-sm font-medium">{t('marketplace.mcp.configuration.title')}</h3>
+                    <p className="text-sm leading-6 text-muted-foreground">
+                      {t('marketplace.mcp.configuration.filesystem', {
+                        arguments: t('settings.mcp.args'),
+                        environment: t('settings.mcp.env')
+                      })}
+                    </p>
+                    <pre className="overflow-x-auto rounded-lg border border-border-subtle bg-background-subtle px-3 py-2 text-xs">
+                      <code>WORKSPACE_ROOT=/absolute/path/to/workspace</code>
+                    </pre>
+                  </section>
+                ) : null}
               </MarketplaceDetailBody>
               <MarketplaceDetailFooter>
                 {selected.reference ? (
