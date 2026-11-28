@@ -70,7 +70,7 @@ export function matchImportedToolText(text: string) {
   return /^\[Historical tool (call|result|activity)(?:: ([^\]\n]+))?\]\n+([\s\S]*)$/.exec(text)
 }
 
-/** Display-only completed tools; persisted text and native continuation history stay inert. */
+/** Project historical tool outcomes for display while keeping the stored activity inert. */
 export function presentImportedTools(
   source: HistorySource,
   messageId: string,
@@ -86,6 +86,7 @@ export function presentImportedTools(
     let name = marker[2] ?? marker[1]
     let input: unknown = marker[1] === 'call' ? { input: marker[3] } : {}
     let text = marker[1] === 'call' ? '' : marker[3]
+    let errorText: string | undefined
     if (marker[1] === 'activity' && source === 'opencode') {
       try {
         const tool = JSON.parse(marker[3])
@@ -93,18 +94,21 @@ export function presentImportedTools(
         name = typeof tool.tool === 'string' ? tool.tool : name
         input = tool.state?.input ?? {}
         text = typeof tool.state?.output === 'string' ? tool.state.output : JSON.stringify(tool.state ?? tool, null, 2)
+        if (tool.state?.status === 'error') errorText = typeof tool.state.error === 'string' ? tool.state.error : text
       } catch {
         return part
       }
     }
+    if (source === 'workbuddy' && (status === 'error' || status === 'paused'))
+      errorText = text || '[Historical interrupted tool]'
     return {
       type: 'dynamic-tool' as const,
       toolCallId: `history:${messageId}:${index}`,
       toolName: 'historical_tool',
       input,
-      ...(source === 'workbuddy' && (status === 'error' || status === 'paused')
-        ? { state: 'output-error' as const, errorText: text || '[Historical interrupted tool]' }
-        : { state: 'output-available' as const, output: text }),
+      ...(errorText === undefined
+        ? { state: 'output-available' as const, output: text }
+        : { state: 'output-error' as const, errorText }),
       callProviderMetadata: {
         cherry: { tool: { type: 'mcp', name, serverId: 'history-import', serverName: source } }
       }
