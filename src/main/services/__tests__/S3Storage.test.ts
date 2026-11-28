@@ -1,3 +1,6 @@
+import { Readable } from 'node:stream'
+import { text } from 'node:stream/consumers'
+
 import { DeleteObjectCommand, ListObjectsV2Command, type S3Client } from '@aws-sdk/client-s3'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { describe, expect, it, vi } from 'vitest'
@@ -64,7 +67,7 @@ describe('S3Storage', () => {
     }
   )
 
-  it('keeps Qiniu list and delete requests scoped to the configured root', async () => {
+  it.each(['backup.zip', 'cherry-studio/test/backup.zip'])('reads and deletes the listed Qiniu key %s', async (key) => {
     const storage = new S3Storage({
       ...config,
       endpoint: 'https://backups.s3.cn-east-1.qiniucs.com'
@@ -79,7 +82,7 @@ describe('S3Storage', () => {
         <MaxKeys>1000</MaxKeys>
         <IsTruncated>false</IsTruncated>
         <Contents>
-          <Key>cherry-studio/test/backup.zip</Key>
+          <Key>cherry-studio/test/${key}</Key>
           <LastModified>2026-09-07T00:00:00.000Z</LastModified>
           <Size>1</Size>
         </Contents>
@@ -91,16 +94,17 @@ describe('S3Storage', () => {
         response: {
           statusCode: 200,
           headers: { 'content-type': 'application/xml' },
-          body: request.method === 'GET' ? listResponse : Buffer.from('')
+          body: Readable.from([request.path === '/' ? listResponse : Buffer.from('archive')])
         }
       }
     })
     Object.assign(client.config.requestHandler, { handle })
 
     const files = await storage.listFiles()
+    expect(await text(await storage.getFileStream(files[0].key))).toBe('archive')
     await storage.deleteFile(files[0].key)
 
-    expect(files).toEqual([{ key: 'backup.zip', lastModified: '2026-09-07T00:00:00.000Z', size: 1 }])
+    expect(files).toEqual([{ key, lastModified: '2026-09-07T00:00:00.000Z', size: 1 }])
     expect(requests).toMatchObject([
       {
         hostname: 'backups.s3.cn-east-1.qiniucs.com',
@@ -110,8 +114,13 @@ describe('S3Storage', () => {
       },
       {
         hostname: 'backups.s3.cn-east-1.qiniucs.com',
+        method: 'GET',
+        path: `/cherry-studio/test/${key}`
+      },
+      {
+        hostname: 'backups.s3.cn-east-1.qiniucs.com',
         method: 'DELETE',
-        path: '/cherry-studio/test/backup.zip'
+        path: `/cherry-studio/test/${key}`
       }
     ])
   })

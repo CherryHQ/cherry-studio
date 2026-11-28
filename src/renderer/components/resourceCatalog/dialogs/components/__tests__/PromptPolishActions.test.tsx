@@ -191,7 +191,8 @@ describe('PromptPolishActions', () => {
         content: 'Original prompt',
         model: null,
         throwOnError: true,
-        signal: expect.any(AbortSignal)
+        signal: expect.any(AbortSignal),
+        utilityTask: true
       })
     )
     expect(mocks.toastError).not.toHaveBeenCalled()
@@ -208,7 +209,8 @@ describe('PromptPolishActions', () => {
         content: 'Alpha Agent',
         model: null,
         throwOnError: true,
-        signal: expect.any(AbortSignal)
+        signal: expect.any(AbortSignal),
+        utilityTask: true
       })
     )
     expect(mocks.toastError).not.toHaveBeenCalled()
@@ -227,7 +229,8 @@ describe('PromptPolishActions', () => {
       content: 'Draft {{date}} for ${city}',
       model: TEST_DEFAULT_MODEL,
       throwOnError: true,
-      signal: expect.any(AbortSignal)
+      signal: expect.any(AbortSignal),
+      utilityTask: true
     })
 
     const undoButton = screen.getByRole('button', { name: 'Undo' })
@@ -261,7 +264,8 @@ describe('PromptPolishActions', () => {
       content: 'Alpha Agent',
       model: TEST_DEFAULT_MODEL,
       throwOnError: true,
-      signal: expect.any(AbortSignal)
+      signal: expect.any(AbortSignal),
+      utilityTask: true
     })
 
     fireEvent.click(screen.getByRole('button', { name: 'Undo' }))

@@ -42,6 +42,7 @@ import { getWebSearchFallbackProviderIds, resolveReadyWebSearchProvider } from '
 
 import { resolveRequestContextSettings } from '../../../contextBuild/resolveRequestContextSettings'
 import type { FileAttachmentRef } from '../../../messages/attachmentTypes'
+import { type NativeFileSupport, resolveNativeFileSupport } from '../../../messages/nativeFileSupport'
 import { collectRetainedContext, type RetainedContext } from '../../../messages/retainedContext'
 import { applyHttpTrace, type AgentRuntimeTraceContext } from '../../../observability'
 import type { ServingCredentialReceipt } from '../../../provider/credential'
@@ -78,6 +79,7 @@ import { getCustomParameters } from '../../../utils/reasoning'
 import { normalizeRequestedSelection, resolveReasoningInvocation } from '../../../utils/reasoningSerializers'
 import { createToolCallLimitStopCondition } from '../loop/toolLoopTermination'
 import type { AgentLoopHooks, AgentOptions } from '../loop/types'
+import { observeChatBudgetPlugin } from '../retry/chatTokenFieldRetry'
 import { assembleSystemPrompt } from './assembleSystemPrompt'
 import { buildTelemetry } from './buildTelemetry'
 import { resolveCapabilities } from './capabilities'
@@ -86,7 +88,7 @@ import { createCustomParamsFetch, selectCustomBodyParameters } from './customPar
 import type { RequestFeature } from './feature'
 import { hasAnchorRow } from './features/contextBuild'
 import { INTERNAL_FEATURES } from './features/internalFeatures'
-import { type NativeFileSupport, resolveNativeFileSupport } from './nativeFileSupport'
+import { providerErrorBoundaryPlugin } from './features/providerErrorBoundary'
 import type { RequestScope, SdkConfig } from './scope'
 
 const logger = loggerService.withContext('buildAgentParams')
@@ -144,7 +146,8 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     provider,
     model,
     resolvedEndpoint,
-    request.apiKeyOverride
+    request.apiKeyOverride,
+    request.utilityTask
   )
   const replayRouteId = getReplayRouteId(provider.id, resolvedEndpoint.endpointType, sdkConfig)
   applyHttpTrace(sdkConfig.providerSettings, {
@@ -322,7 +325,26 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     toolOutputCharCap: contextSettings.truncateThreshold
   }
 
+  const mcpInstructions = request.contextOwner === 'caller' ? '' : buildMcpInstructionsContext(mcpServerIds)
+  const system =
+    request.contextOwner === 'caller'
+      ? request.system
+      : request.system !== undefined
+        ? [request.system, mcpInstructions].filter(Boolean).join('\n\n')
+        : await assembleSystemPrompt({
+            assistant,
+            model,
+            tools,
+            deferredEntries,
+            hasCitableTools,
+            webSearchEnabled: finalWebToolRoutes.webSearch !== 'none',
+            mcpInstructions
+          })
+
   const scope: RequestScope = {
+    system,
+    tools,
+    requestedMaxOutputTokens,
     request,
     signal,
     registry,
@@ -354,21 +376,6 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   const features = extraFeatures?.length ? [...INTERNAL_FEATURES, ...extraFeatures] : INTERNAL_FEATURES
   const contributions = collectFromFeatures(scope, features)
 
-  const mcpInstructions = request.contextOwner === 'caller' ? '' : buildMcpInstructionsContext(mcpServerIds)
-  const system =
-    request.contextOwner === 'caller'
-      ? request.system
-      : request.system !== undefined
-        ? [request.system, mcpInstructions].filter(Boolean).join('\n\n')
-        : await assembleSystemPrompt({
-            assistant,
-            model,
-            tools,
-            deferredEntries,
-            hasCitableTools,
-            webSearchEnabled: finalWebToolRoutes.webSearch !== 'none',
-            mcpInstructions
-          })
   const options = buildAgentOptions(
     scope,
     contributions,
@@ -404,7 +411,12 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     endpointType,
     credentialReceipt,
     tools,
-    plugins: contributions.modelAdapters,
+    // The innermost adapter classifies failures before recovery or retry can observe them.
+    plugins: [
+      ...contributions.modelAdapters,
+      ...(endpointType === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS ? [observeChatBudgetPlugin] : []),
+      providerErrorBoundaryPlugin
+    ],
     system,
     options,
     hookParts,
@@ -805,11 +817,13 @@ function buildAgentOptions(
     { standardParams, providerOptions: effectiveProviderOptions, bodyParams },
     model
   )
+  const chatCompletions = endpointType === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
   // Capture only filtered body parameters; a fetch closure cannot be sanitized later.
-  if (Object.keys(sanitized.bodyParams).length > 0) {
+  if (chatCompletions || Object.keys(sanitized.bodyParams).length > 0) {
     sdkConfig.providerSettings.fetch = createCustomParamsFetch(
       sdkConfig.providerSettings.fetch ?? globalThis.fetch,
-      sanitized.bodyParams
+      sanitized.bodyParams,
+      chatCompletions
     )
   }
   const hasProviderOptions = Object.values(sanitized.providerOptions).some((ns) => Object.keys(ns ?? {}).length > 0)
@@ -844,6 +858,8 @@ function buildAgentOptions(
             providerSettings: sdkConfig.providerSettings,
             modelId: sdkConfig.modelId,
             headers,
+            signal: scope.signal,
+            retryInvalidOutput: maxRetries !== 0,
             getUsagePlugins: getRepairUsagePlugins
           })
   }

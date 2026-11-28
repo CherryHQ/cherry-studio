@@ -1,5 +1,5 @@
 import { isToolUIPart } from 'ai'
-import { and, asc, eq, inArray, lt, sql } from 'drizzle-orm'
+import { and, asc, eq, getTableColumns, inArray, lt, sql } from 'drizzle-orm'
 import { v7 as uuidv7 } from 'uuid'
 import * as z from 'zod'
 
@@ -17,6 +17,8 @@ import { isDeferredToolOutput } from '@shared/ai/transport'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
+import { messageProvenanceSql } from './importedSessionHistory'
+
 const SQLITE_INARRAY_CHUNK = 500
 
 /** Message data assembled from the container row and its ordered part rows. */
@@ -24,6 +26,7 @@ export type AgentSessionMessageData = AgentSessionMessageStoredData & { parts?: 
 export type WithAgentSessionMessageParts<T extends { data: AgentSessionMessageStoredData }> = Omit<T, 'data'> & {
   data: T['data'] & { parts: CherryMessagePart[] }
   partIds?: string[]
+  partPositions?: (number | null)[]
 }
 export type AgentSessionMessageRecord = WithAgentSessionMessageParts<AgentSessionMessageRow>
 
@@ -36,13 +39,22 @@ export function attachAgentSessionMessagePartsTx<T extends { id: string; data: A
   const bodies = new Map(
     rows.map(({ id }) => [
       id,
-      { parts: [] as CherryMessagePart[], partIds: includePartIds ? ([] as string[]) : undefined }
+      {
+        parts: [] as CherryMessagePart[],
+        partIds: includePartIds ? ([] as string[]) : undefined,
+        partPositions: includePartIds ? ([] as (number | null)[]) : undefined
+      }
     ])
   )
   const ids = rows.map((row) => row.id)
   for (let index = 0; index < ids.length; index += SQLITE_INARRAY_CHUNK) {
     const stored = db
-      .select({ id: messageParts.id, messageId: messageParts.messageId, payload: messageParts.payload })
+      .select({
+        id: messageParts.id,
+        messageId: messageParts.messageId,
+        payload: messageParts.payload,
+        pos: messageParts.pos
+      })
       .from(messageParts)
       .where(inArray(messageParts.messageId, ids.slice(index, index + SQLITE_INARRAY_CHUNK)))
       .orderBy(asc(messageParts.messageId), asc(messageParts.seq))
@@ -50,12 +62,13 @@ export function attachAgentSessionMessagePartsTx<T extends { id: string; data: A
     for (const part of stored) {
       const body = bodies.get(part.messageId)!
       body.partIds?.push(part.id)
+      body.partPositions?.push(part.pos)
       body.parts.push(part.payload)
     }
   }
   return rows.map((row) => {
-    const { partIds, parts } = bodies.get(row.id)!
-    return { ...row, ...(partIds && { partIds }), data: { ...row.data, parts } }
+    const { partIds, partPositions, parts } = bodies.get(row.id)!
+    return { ...row, ...(partIds && { partIds, partPositions }), data: { ...row.data, parts } }
   })
 }
 
@@ -386,6 +399,7 @@ export function getAgentSessionHead(db: DbOrTx, sessionId: string): string | nul
 export function agentSessionPathIds(sessionId: string, head: string) {
   return sql`(with recursive path(id, parent_id) as (
     select id, parent_id from agent_session_message where session_id = ${sessionId} and id = ${head}
+      and json_extract(data, '$.stagedFollowup') is null
     union
     select m.id, m.parent_id from agent_session_message m join path p on m.id = p.parent_id
       where m.session_id = ${sessionId}
@@ -401,22 +415,30 @@ export function agentSessionDescendantIds(sessionId: string, messageId: string) 
   ) select id from descendants)`
 }
 
-export function readStoredAgentSessionPath(db: DbOrTx, sessionId: string, head?: string | null) {
+export function readStoredAgentSessionPath(
+  db: DbOrTx,
+  sessionId: string,
+  head?: string | null,
+  includePartIds = false
+) {
   const selected = head ?? getAgentSessionHead(db, sessionId)
   if (!selected) return []
   const rows = db
-    .select()
+    .select({ ...getTableColumns(messages), provenance: messageProvenanceSql() })
     .from(messages)
     .where(and(eq(messages.sessionId, sessionId), inArray(messages.id, agentSessionPathIds(sessionId, selected))))
     .all()
   return attachAgentSessionMessagePartsTx(
     db,
-    orderAgentSessionPath(rows, selected).filter((row) => row.role !== 'root')
+    orderAgentSessionPath(rows, selected)
+      .filter((row) => row.role !== 'root')
+      .map(({ provenance, ...row }) => ({ ...row, ...(provenance && { provenance }) })),
+    includePartIds
   )
 }
 
-export function readAgentSessionPath(db: DbOrTx, sessionId: string, head?: string | null) {
-  return hydrateAgentSessionMessageRowsTx(db, readStoredAgentSessionPath(db, sessionId, head))
+export function readAgentSessionPath(db: DbOrTx, sessionId: string, head?: string | null, includePartIds = false) {
+  return hydrateAgentSessionMessageRowsTx(db, readStoredAgentSessionPath(db, sessionId, head, includePartIds))
 }
 
 export function readAgentSessionAncestry(db: DbOrTx, sessionId: string, head: string) {

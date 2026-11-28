@@ -133,9 +133,12 @@ describe('local model catalog', () => {
 
     expect(sherpa.provenance).toMatchObject({
       license: { spdx: 'Apache-2.0' },
-      upstream: { revision: '1cb484af5e69d3c7803c1eb0b3b5ab8041e0e911' }
+      upstream: { revision: '38016c6e0622e90bf417c35e8b47e0eb805af417' }
     })
     expect(Object.keys(sherpa.platforms).sort()).toEqual([...FUNASR_SUPPORTED_PLATFORM_KEYS].sort())
+    for (const files of Object.values(sherpa.platforms)) {
+      expect(files.installSubdir).toMatch(new RegExp(`^${sherpa.version.replaceAll('.', '\\.')}/`))
+    }
     expect(sherpa.platforms['win32-arm64']).toMatchObject({
       tarballUrls: [
         expect.stringMatching(/^https:\/\/github\.com\/CherryHQ\/sherpa-onnx\/releases\/download\/sherpa-runtime-v/)
@@ -152,12 +155,7 @@ describe('local model catalog', () => {
     expect(sherpa.platforms['win32-x64']).toMatchObject({
       packageName: 'sherpa-onnx-win-x64',
       entryFile: 'sherpa-onnx.node',
-      supportFiles: expect.arrayContaining([
-        'onnxruntime_providers_shared.dll',
-        'onnxruntime.dll',
-        'sherpa-onnx-c-api.dll',
-        'sherpa-onnx-cxx-api.dll'
-      ])
+      supportFiles: ['onnxruntime_providers_shared.dll', 'onnxruntime.dll', 'sherpa-onnx-c-api.dll']
     })
   })
 

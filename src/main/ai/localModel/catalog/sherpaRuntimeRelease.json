@@ -1,6 +1,6 @@
 {
   "repository": "CherryHQ/sherpa-onnx",
-  "tag": "sherpa-runtime-v1.13.6-r1",
-  "asset": "sherpa-onnx-1.13.6-win-arm64.tgz",
-  "sha256": "bdaa6369dce7f74fee6e834c08e739d7430e1c35d8db6214ef5b071a2a486d26"
+  "tag": "sherpa-runtime-v2.0.3-r1",
+  "asset": "sherpa-onnx-2.0.3-win-arm64.tgz",
+  "sha256": "1ea86964cedb21facc3ba0d9cda6c6c72720f9392b352733bd06ba9e1cefc9e4"
 }

@@ -25,7 +25,7 @@ function parseBilingualReleaseNotes(releaseNotes) {
 }
 
 function extractHotfixReleaseNote(prBody) {
-  const blocks = [...prBody.matchAll(/```release-note[ \t]*\r?\n([\s\S]*?)^```/gm)]
+  const blocks = [...prBody.matchAll(/^ {0,3}```release-note[ \t]*\r?\n([\s\S]*?)^```/gm)]
   if (blocks.length > 1) throw new Error('A hotfix PR may contain at most one release-note block')
   if (blocks.length === 0) return null
 

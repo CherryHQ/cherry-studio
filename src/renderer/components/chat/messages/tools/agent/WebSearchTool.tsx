@@ -1,9 +1,10 @@
 import { useTranslation } from 'react-i18next'
 
 import { AgentToolsType, type WebSearchToolInput, type WebSearchToolOutput } from '../shared/agentToolTypes'
-import { ToolHeader, TruncatedIndicator } from '../shared/GenericTools'
+import { TruncatedIndicator } from '../shared/GenericTools'
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
 import { countLines, truncateOutput } from '../shared/truncateOutput'
+import ToolHeader from '../ToolHeader'
 
 export function WebSearchTool({
   input,

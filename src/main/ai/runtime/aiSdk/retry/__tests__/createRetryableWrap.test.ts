@@ -1,8 +1,15 @@
+import { createOpenAI } from '@ai-sdk/openai'
 import type { LanguageModelV3, LanguageModelV3CallOptions } from '@ai-sdk/provider'
-import { APICallError, generateText, type ModelMessage } from 'ai'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
+import { APICallError, generateText, type ModelMessage, wrapLanguageModel } from 'ai'
 import { describe, expect, it, vi } from 'vitest'
 
+import { resolveLanguageModel } from '@cherrystudio/ai-core'
+
 import { routeToolResultMedia } from '../../../../messages/messageCapabilities'
+import { createCustomParamsFetch } from '../../params/customParamsFetch'
+import { providerErrorBoundaryMiddleware } from '../../params/features/providerErrorBoundary'
+import { applyChatTokenFieldRetry, observeChatBudgetPlugin } from '../chatTokenFieldRetry'
 import type { FallbackResolver, RetryFallback } from '../createRetryableWrap'
 import type { RetryPolicy } from '../retryPolicy'
 
@@ -76,7 +83,303 @@ function policy(overrides: Partial<RetryPolicy> = {}): RetryPolicy {
   }
 }
 
+function budgetError(message: string, body: unknown, statusCode = 400, responseBody?: string) {
+  return new APICallError({ message, url: 'https://api.test/v1', requestBodyValues: body, statusCode, responseBody })
+}
+
 describe('createRetryableWrap', () => {
+  it('reports a terminal provider failure without starting retry status', async () => {
+    const rejection = makeApiError(400)
+    const onRetryEvent = vi.fn()
+    const wrap = createRetryableWrap({
+      fallbacks: [],
+      retryPolicy: policy(),
+      diagnosticContext: { messageId: 'terminal-rejection' },
+      onRetryEvent
+    })!
+    const model = wrap(makeFakeLanguageModel('primary', vi.fn().mockRejectedValue(rejection)))
+
+    await expect(model.doGenerate({ prompt: [] })).rejects.toBe(rejection)
+    expect(mockMainLoggerService.debug).toHaveBeenCalledWith('model retry attempt failed', {
+      messageId: 'terminal-rejection',
+      modelId: 'primary',
+      attempt: 1,
+      statusCode: 400
+    })
+    expect(onRetryEvent).not.toHaveBeenCalled()
+  })
+
+  it('settles live status when a retried stream is cancelled before completion', async () => {
+    const events: string[] = []
+    const doStream = vi
+      .fn()
+      .mockRejectedValueOnce(makeApiError(401))
+      .mockResolvedValueOnce({
+        stream: new ReadableStream({
+          start(controller) {
+            controller.enqueue({ type: 'text-delta', id: 'text', delta: 'partial' })
+          }
+        })
+      })
+    const wrap = createRetryableWrap({
+      apiKeyFallbacks: [fallbackOf(makeFakeLanguageModel('primary', vi.fn(), doStream))],
+      fallbacks: [],
+      onRetryEvent: (event) => events.push(event.state),
+      retryPolicy: policy({ enabled: false })
+    })!
+    const model = wrap(makeFakeLanguageModel('primary', vi.fn(), doStream))
+
+    const result = await model.doStream({ prompt: [] })
+    const reader = result.stream.getReader()
+    expect(await reader.read()).toMatchObject({ value: { type: 'text-delta', delta: 'partial' } })
+    expect(events).toEqual(['retrying'])
+    await reader.cancel()
+    expect(events).toEqual(['retrying', 'settled'])
+  })
+
+  it('only activates a fallback when the selected model is dispatched', async () => {
+    const order: string[] = []
+    const primary = makeFakeLanguageModel('primary', vi.fn().mockRejectedValue(makeApiError(400)))
+    const fallback = makeFakeLanguageModel(
+      'fallback',
+      vi.fn(async () => {
+        order.push('dispatch')
+        throw makeApiError(400)
+      })
+    )
+    const wrap = createRetryableWrap({
+      fallbacks: [fallbackOf(fallback)],
+      onFallbackActivated: () => order.push('activate'),
+      retryPolicy: policy()
+    })!
+
+    await expect(wrap(primary).doGenerate({ prompt: [] })).rejects.toThrow()
+    expect(order).toEqual(['activate', 'dispatch'])
+  })
+
+  it.each([
+    ['max_tokens', 'Invalid max_tokens value, the valid range of max_tokens is [1, 4096]', 4096],
+    ['max_tokens', 'Range of max_tokens should be [1, 4096]', 4096],
+    ['max_tokens', 'max_tokens参数非法：限制数值范围[1,4096]', 4096],
+    [
+      'max_tokens',
+      'max_tokens specified in the request are not valid: integer above maximum value, expected a value <= 4096, but got 8192 instead.',
+      4096
+    ],
+    [
+      'max_completion_tokens',
+      'max_completion_tokens=8192 cannot be greater than max_model_len=max_total_tokens=4096',
+      4096
+    ],
+    ['max_completion_tokens', 'max_completion_tokens is limited to 4096', 4096],
+    ['max_output_tokens', "Field 'max_output_tokens' must be at most 4096", 4096],
+    [
+      'gemini',
+      'Unable to submit request because it has a maxOutputTokens value of 8192 but the supported range is from 1 (inclusive) to 4096 (exclusive).',
+      4095
+    ]
+  ])('recovers %s from the provider ceiling in %s', async (field, message, ceiling) => {
+    const budgets: (number | undefined)[] = []
+    const model = makeFakeLanguageModel(
+      'primary',
+      vi.fn(async ({ maxOutputTokens }: LanguageModelV3CallOptions) => {
+        budgets.push(maxOutputTokens)
+        if (maxOutputTokens !== ceiling) {
+          const body = field === 'gemini' ? { generationConfig: { maxOutputTokens } } : { [field]: maxOutputTokens }
+          throw budgetError(message, body)
+        }
+        return okResult
+      })
+    )
+    const wrap = createRetryableWrap({ fallbacks: [], retryPolicy: policy({ enabled: false }), outputTokenRetries: 3 })!
+    await expect(wrap(model).doGenerate({ prompt: [], maxOutputTokens: 8192 })).resolves.toMatchObject({
+      content: [{ type: 'text', text: 'ok' }]
+    })
+    expect(budgets).toEqual([8192, ceiling])
+  })
+
+  it('decreases the budget on each explicit overflow and preserves the last provider error on exhaustion', async () => {
+    const budgets: (number | undefined)[] = []
+    const model = makeFakeLanguageModel(
+      'primary',
+      vi.fn(async ({ maxOutputTokens }: LanguageModelV3CallOptions) => {
+        budgets.push(maxOutputTokens)
+        throw budgetError(
+          'Param Incorrect',
+          { max_completion_tokens: maxOutputTokens },
+          422,
+          JSON.stringify({
+            error: { param: 'max_completion_tokens is too large' },
+            request_id: String(maxOutputTokens)
+          })
+        )
+      })
+    )
+    const wrap = createRetryableWrap({ fallbacks: [], retryPolicy: policy({ enabled: false }), outputTokenRetries: 3 })!
+    await expect(wrap(model).doGenerate({ prompt: [], maxOutputTokens: 8192 })).rejects.toMatchObject({
+      lastError: { statusCode: 422, responseBody: expect.stringContaining('"request_id":"1024"') }
+    })
+    expect(budgets).toEqual([8192, 4096, 2048, 1024])
+  })
+
+  it.each([
+    ['max_tokens is not supported; use max_completion_tokens instead', { max_tokens: 8192 }],
+    ['max_tokens value is outside the valid range', { max_tokens: 8192 }],
+    ['Invalid max_tokens value, the valid range of max_tokens is [1, 8192]', { max_tokens: 8192 }],
+    ['Conversation exceeds the context window', { max_tokens: 8192 }],
+    ['max_tokens must be at most 4096', { max_tokens: 16384 }],
+    ['max_tokens must be at most 4096', { max_tokens: 13192, thinking: { budget_tokens: 5000 } }]
+  ])('preserves a rejection that cannot be recovered by lowering the SDK budget: %s', async (message, body) => {
+    const failure = budgetError(message, body)
+    const generate = vi.fn().mockRejectedValue(failure)
+    const model = makeFakeLanguageModel('primary', generate)
+    const wrap = createRetryableWrap({ fallbacks: [], retryPolicy: policy({ enabled: false }), outputTokenRetries: 3 })!
+    // The reasoning case reports a lower ceiling than its thinking allocation.
+    await expect(wrap(model).doGenerate({ prompt: [], maxOutputTokens: 8192 })).rejects.toBe(failure)
+    expect(generate).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps the lowered budget across a subsequent transient failure', async () => {
+    const budgets: (number | undefined)[] = []
+    const model = makeFakeLanguageModel(
+      'primary',
+      vi.fn(async ({ maxOutputTokens }: LanguageModelV3CallOptions) => {
+        budgets.push(maxOutputTokens)
+        if (maxOutputTokens === 8192) throw budgetError('max_tokens must be at most 4096', { max_tokens: 8192 })
+        if (budgets.length === 2) {
+          throw new APICallError({
+            message: 'temporary failure',
+            url: 'https://api.test/v1',
+            requestBodyValues: {},
+            statusCode: 503,
+            responseHeaders: { 'retry-after': '0.001' }
+          })
+        }
+        return okResult
+      })
+    )
+    const wrap = createRetryableWrap({ fallbacks: [], retryPolicy: policy(), outputTokenRetries: 2 })!
+    await expect(wrap(model).doGenerate({ prompt: [], maxOutputTokens: 8192 })).resolves.toMatchObject({
+      content: [{ type: 'text', text: 'ok' }]
+    })
+    expect(budgets).toEqual([8192, 4096, 4096])
+  })
+
+  it.each([503, 400])(
+    'uses the effective budget of a lowered stream that emits HTTP %s before content',
+    async (status) => {
+      const budgets: (number | undefined)[] = []
+      const nextBudget = status === 400 ? 2048 : 4096
+      const doStream = vi.fn(async ({ maxOutputTokens }: LanguageModelV3CallOptions) => {
+        budgets.push(maxOutputTokens)
+        if (budgets.length === 1) throw budgetError('max_tokens must be at most 4096', { max_tokens: maxOutputTokens })
+        if (budgets.length === 2) {
+          const error =
+            status === 400
+              ? budgetError('max_tokens must be at most 2048', { max_tokens: maxOutputTokens })
+              : new APICallError({
+                  message: 'temporary failure',
+                  url: 'https://api.test/v1',
+                  requestBodyValues: { max_tokens: maxOutputTokens },
+                  statusCode: 503,
+                  responseHeaders: { 'retry-after': '0.001' }
+                })
+          return streamResult([
+            { type: 'stream-start', warnings: [] },
+            { type: 'error', error }
+          ])
+        }
+        return streamResult([{ type: 'text-delta', id: 'text', delta: 'ok' }])
+      })
+      const wrap = createRetryableWrap({
+        fallbacks: [],
+        retryPolicy: { ...policy(), maxAttempts: 3 },
+        outputTokenRetries: 3
+      })!
+      const result = await wrap(makeFakeLanguageModel('primary', vi.fn(), doStream)).doStream({
+        prompt: [],
+        maxOutputTokens: 8192
+      })
+      expect(await collectStream(result.stream)).toEqual([{ type: 'text-delta', id: 'text', delta: 'ok' }])
+      expect(budgets).toEqual([8192, 4096, nextBudget])
+    }
+  )
+
+  it.each(['adapter option', 'body passthrough'])('does not resend a completion budget set by %s', async (source) => {
+    const budgets: number[] = []
+    const providerFetch: typeof fetch = async (_url, init) => {
+      budgets.push(JSON.parse(String(init?.body)).max_completion_tokens)
+      return Response.json({ error: { message: 'max_completion_tokens must be at most 4096' } }, { status: 400 })
+    }
+    const passthrough = source === 'body passthrough'
+    const modelFetch = passthrough
+      ? createCustomParamsFetch(providerFetch, { max_completion_tokens: 8192 }, true)
+      : providerFetch
+    const model = createOpenAI({ apiKey: 'fixture', fetch: modelFetch }).chat(passthrough ? 'gpt-4o' : 'o3')
+    const wrap = createRetryableWrap({ fallbacks: [], retryPolicy: policy({ enabled: false }), outputTokenRetries: 3 })!
+    await expect(
+      wrap(model).doGenerate({
+        prompt: [],
+        maxOutputTokens: 8192,
+        providerOptions: { openai: passthrough ? { max_completion_tokens: 8192 } : { maxCompletionTokens: 8192 } }
+      })
+    ).rejects.toMatchObject({ statusCode: 400 })
+    expect(budgets).toEqual([8192])
+  })
+
+  it.each([true, false])('repairs a dual-field rejection only when both fields were sent (%s)', async (bothSent) => {
+    const requests: Record<string, unknown>[] = []
+    const dualFieldError = "Setting 'max_tokens' and 'max_completion_tokens' at the same time is not supported."
+    const providerFetch: typeof fetch = async (_url, init) => {
+      const body = JSON.parse(String(init?.body))
+      if (!bothSent) delete body.max_tokens
+      applyChatTokenFieldRetry(body)
+      requests.push(body)
+      if (requests.length === 1) return Response.json({ error: { message: dualFieldError } }, { status: 400 })
+      return Response.json({
+        id: 'answer',
+        created: 0,
+        model: 'gpt-4o',
+        choices: [{ index: 0, message: { role: 'assistant', content: 'ok' }, finish_reason: 'stop' }]
+      })
+    }
+    const model = await resolveLanguageModel('openai-chat', { apiKey: 'fixture', fetch: providerFetch }, 'gpt-4o', [
+      observeChatBudgetPlugin
+    ])
+    const wrap = createRetryableWrap({ fallbacks: [], retryPolicy: policy({ enabled: false }), outputTokenRetries: 3 })!
+    const result = wrap(model).doGenerate({
+      prompt: [],
+      maxOutputTokens: 4096,
+      providerOptions: { openai: { maxCompletionTokens: 8192 } }
+    })
+    if (bothSent) {
+      await expect(result).resolves.toMatchObject({ content: [{ type: 'text', text: 'ok' }] })
+      expect(requests).toHaveLength(2)
+      const { max_tokens: legacy, ...corrected } = requests[0]
+      expect(legacy).toBe(4096)
+      expect(corrected.max_completion_tokens).toBe(8192)
+      expect(requests[1]).toEqual(corrected)
+    } else {
+      await expect(result).rejects.toMatchObject({ statusCode: 400 })
+      expect(requests).toHaveLength(1)
+    }
+  })
+
+  it('does not dispatch a reduced request after cancellation', async () => {
+    const abort = new AbortController()
+    const failure = budgetError('max_tokens must be at most 4096', { max_tokens: 8192 })
+    const generate = vi.fn(async () => {
+      abort.abort()
+      throw failure
+    })
+    const wrap = createRetryableWrap({ fallbacks: [], retryPolicy: policy({ enabled: false }), outputTokenRetries: 3 })!
+    const model = wrap(makeFakeLanguageModel('primary', generate))
+    await expect(model.doGenerate({ prompt: [], maxOutputTokens: 8192, abortSignal: abort.signal })).rejects.toBe(
+      failure
+    )
+    expect(generate).toHaveBeenCalledTimes(1)
+  })
+
   it.each(['original', 'missing'])('continues a signed tool result on its %s fallback route', async (origin) => {
     const calls: Array<{ route: string; params: LanguageModelV3CallOptions }> = []
     const record = (route: string) =>
@@ -312,6 +615,29 @@ describe('createRetryableWrap', () => {
     }
   })
 
+  it('surfaces context overflow even when the provider marks it retryable', async () => {
+    const overflow = new APICallError({
+      url: 'https://provider.invalid',
+      requestBodyValues: {},
+      statusCode: 400,
+      message: 'Invalid request',
+      data: { error: { code: 'context_length_exceeded' } },
+      isRetryable: true
+    })
+    const generate = vi.fn().mockRejectedValueOnce(overflow).mockResolvedValue(okResult)
+    const wrap = createRetryableWrap({ fallbacks: [], retryPolicy: policy() })
+    const model = wrapLanguageModel({
+      model: makeFakeLanguageModel('gpt-4', generate),
+      middleware: providerErrorBoundaryMiddleware
+    })
+    await expect(wrap!(model).doGenerate({ prompt: [] })).rejects.toMatchObject({
+      providerErrorCategory: 'context_length',
+      isRetryable: false,
+      statusCode: 400
+    })
+    expect(generate).toHaveBeenCalledTimes(1)
+  })
+
   it('retries the same model on transient errors and emits retry events', async () => {
     vi.useFakeTimers()
     try {
@@ -478,27 +804,30 @@ describe('createRetryableWrap', () => {
     }
   })
 
-  it('does not retry a doStream error after content has already been emitted', async () => {
-    const streamError = makeApiError(429)
-    const doStream = vi.fn().mockResolvedValue(
-      streamResult([
-        { type: 'text-delta', id: 'text', delta: 'partial' },
+  it.each([makeApiError(429), budgetError('max_tokens must be at most 4096', { max_tokens: 8192 })])(
+    'does not retry a doStream error after content has already been emitted: $message',
+    async (streamError) => {
+      const doStream = vi.fn().mockResolvedValue(
+        streamResult([
+          { type: 'text-delta', id: 'text', delta: 'partial' },
+          { type: 'error', error: streamError }
+        ])
+      )
+      const wrap = createRetryableWrap({
+        fallbacks: [],
+        retryPolicy: policy({ maxAttempts: 2 }),
+        outputTokenRetries: 2
+      })
+      const wrapped = wrap!(makeFakeLanguageModel('primary', vi.fn(), doStream))
+
+      const result = await wrapped.doStream({ prompt: [], maxOutputTokens: 8192 })
+      const parts = await collectStream(result.stream)
+
+      expect(doStream).toHaveBeenCalledOnce()
+      expect(parts).toEqual([
+        expect.objectContaining({ type: 'text-delta', delta: 'partial' }),
         { type: 'error', error: streamError }
       ])
-    )
-    const wrap = createRetryableWrap({
-      fallbacks: [],
-      retryPolicy: policy({ maxAttempts: 2 })
-    })
-    const wrapped = wrap!(makeFakeLanguageModel('primary', vi.fn(), doStream))
-
-    const result = await wrapped.doStream({ prompt: [] })
-    const parts = await collectStream(result.stream)
-
-    expect(doStream).toHaveBeenCalledOnce()
-    expect(parts).toEqual([
-      expect.objectContaining({ type: 'text-delta', delta: 'partial' }),
-      { type: 'error', error: streamError }
-    ])
-  })
+    }
+  )
 })

@@ -2,9 +2,10 @@ import { useTranslation } from 'react-i18next'
 
 import { AgentToolsType, type GrepToolInput, type GrepToolOutput } from '../shared/agentToolTypes'
 import { ClickableFilePath } from '../shared/ClickableFilePath'
-import { ToolHeader, TruncatedIndicator } from '../shared/GenericTools'
+import { TruncatedIndicator } from '../shared/GenericTools'
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
 import { countLines, truncateOutput } from '../shared/truncateOutput'
+import ToolHeader from '../ToolHeader'
 import { TerminalContainer } from './TerminalOutput'
 
 const FILE_PATH_RE = /^(\/[\w./@+-][^:]*[^:])(:.*)?$/

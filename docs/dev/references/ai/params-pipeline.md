@@ -75,6 +75,10 @@ unrecognized. Normalization can relax the constraints sent to the provider. MCP
 tools still validate against the original schema, and gateway callers validate
 their own tools.
 
+On `google-generate-content`, any tool `enum` or `const` the Google adapter would
+still reject moves into the description with a warning naming the tool, so one
+tool schema cannot abort the whole request.
+
 Chat records the provider connection, protocol, SDK adapter, wire model, and
 Base URL with replayable state. `buildAgentParams` derives the route ID once
 from the resolved SDK configuration for use by replay middleware and retries.
@@ -243,6 +247,16 @@ Assistant enable flags, reasoning-aware limits, and mutual-exclusion rules stay
 in `getTemperature` / `getTopP`; this final step enforces sampling omission
 regardless of which input supplied the value. Undeclared support retains the
 existing default behavior.
+
+Chat Completions sends one output-token field. An explicitly supplied
+`max_completion_tokens` takes precedence over `max_tokens`, including when a
+custom parameter is merged into the SDK body. The compatible OpenAI adapter
+uses `max_completion_tokens` for OpenAI reasoning model IDs, including
+OpenAI-prefixed relay aliases.
+For retry-enabled Chat Completions calls, an explicit HTTP 400 that requires
+the completion field or rejects both fields can trigger one encoding repair.
+The retry checks the body sent by the adapter and preserves the budget. Later
+attempts for the same model call keep the corrected field.
 
 `maxOutputTokens` uses a separate raw-limit resolution before reasoning:
 

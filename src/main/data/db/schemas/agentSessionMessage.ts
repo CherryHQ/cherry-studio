@@ -92,7 +92,9 @@ export type AgentSessionMessageStoredData = Omit<MessageData, 'parts'> & {
   runtimeAnchor?: unknown
   nativeSessionId?: string
   deliveryReplyAnchor?: string
+  nativePlaced?: true
   locallyHandled?: boolean
+  stagedFollowup?: true
 }
 
 export type AgentSessionMessageRow = typeof agentSessionMessageTable.$inferSelect

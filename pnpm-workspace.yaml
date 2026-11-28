@@ -31,6 +31,8 @@ overrides:
   "brace-expansion@>=2.0.0 <2.1.4": "2.1.4"
   "brace-expansion@>=5.0.0 <5.0.9": "5.0.9"
   "@smithy/types": "4.7.1"
+  # CVE-2026-54673: cross-origin redirect leaks Authorization/PRIVATE-TOKEN headers (#388, #386).
+  "builder-util-runtime@<9.7.0": "9.7.0"
   # All consumers accept this version; one core avoids repeated nested copies in release packages.
   "@smithy/core": "3.35.0"
   "@codemirror/state": "6.5.4"
@@ -89,6 +91,8 @@ overrides:
   ai: "6.0.185"
 
 patchedDependencies:
+  # Preserve the parsed diagram background in the single-SVG TeaVM renderer (issue #25658).
+  "@plantuml/mcp-js@0.2.4": patches/@plantuml__mcp-js@0.2.4.patch
   "@larksuiteoapi/node-sdk@1.73.0": patches/@larksuiteoapi__node-sdk@1.73.0.patch
   # Accumulate streaming chat-completions tool-call deltas missing id and synthesize stable IDs (Issue #23741).
   # Remove only when an upstream version tolerates first deltas without id and all repository regressions pass unpatched.
@@ -110,7 +114,7 @@ patchedDependencies:
   "@tiptap/markdown@3.26.1": patches/@tiptap__markdown@3.26.1.patch
   "@openrouter/ai-sdk-provider@2.10.0": patches/@openrouter__ai-sdk-provider@2.10.0.patch
   onnxruntime-node@1.25.1: patches/onnxruntime-node@1.25.1.patch
-  sherpa-onnx-node@1.13.6: patches/sherpa-onnx-node@1.13.6.patch
+  sherpa-onnx-node@2.0.3: patches/sherpa-onnx-node@2.0.3.patch
   emoji-picker-react@4.19.1: patches/emoji-picker-react@4.19.1.patch
   "@ai-sdk/openai-compatible@2.0.72": patches/@ai-sdk__openai-compatible@2.0.72.patch
   "@ai-sdk/open-responses@1.0.34": patches/@ai-sdk__open-responses@1.0.34.patch
@@ -141,10 +145,16 @@ patchedDependencies:
   "@earendil-works/pi-coding-agent@1.5.2": patches/@earendil-works__pi-coding-agent@1.5.2.patch
 
   "@earendil-works/pi-durable@1.5.2": patches/@earendil-works__pi-durable@1.5.2.patch
+  pi-acp@0.0.34: patches/pi-acp@0.0.34.patch
+  "@radix-ui/react-collapsible@1.1.12": patches/@radix-ui__react-collapsible@1.1.12.patch
+  "@radix-ui/react-presence@1.1.5": patches/@radix-ui__react-presence@1.1.5.patch
+  ai-retry@1.11.1: patches/ai-retry@1.11.1.patch
 
 allowBuilds:
   "@google/genai": false
   "@paymoapp/electron-shutdown-handler": true
+  "@qoder-ai/qoder-agent-sdk": false
+  "@qodercn-ai/qodercn-agent-sdk": false
   "@sentry/cli": true
   "@swc/core": true
   better-sqlite3: true

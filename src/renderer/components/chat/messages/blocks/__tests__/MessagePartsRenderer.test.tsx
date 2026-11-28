@@ -1,5 +1,5 @@
 import { projectionIpc } from '@test-mocks/renderer/ProjectionIpc'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import React from 'react'
 import { SWRConfig } from 'swr'
@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ProjectionReaderProvider } from '@renderer/hooks/agent/ProjectionReaderProvider'
 import { toAgentSessionUIMessage } from '@renderer/hooks/useAgentSessionParts'
 import { ipcApi } from '@renderer/ipc'
+import { projectAgentTimeline } from '@renderer/pages/agents/messages/agentTimeline'
 import { MessageProjectionService } from '@renderer/services/aiTransport/MessageProjectionService'
 import { invalidateCachedMessageUiStates } from '@renderer/services/messageUiStateCache'
 import { readComposerFileTokenIdSuffix } from '@renderer/utils/message/composerFileTokenSource'
@@ -15,6 +16,7 @@ import type { ChildPartPlacement, LivePartPatch } from '@shared/ai/messageProjec
 import type { AiToolResultResponse } from '@shared/ai/transport'
 import { UpdateAgentSessionMessageSchema } from '@shared/data/api/schemas/agentSessionMessages'
 import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
+import type { CherryUIMessage } from '@shared/data/types/message'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { CherryTextMetaSchema } from '@shared/data/types/uiParts'
 
@@ -129,6 +131,8 @@ vi.mock('react-i18next', () => {
       if (key === 'message.tools.sessionCreate.open') return 'Open session'
       if (key === 'message.tools.sessionCreate.untitled') return 'Untitled session'
       if (key === 'message.tools.sessionSend.sent') return 'Sent to'
+      if (key === 'chat.artifacts.file_changes') return 'File changes'
+      if (key === 'chat.profile_pane.tabs.outputs') return 'Outputs'
       if (key === 'common.preview') return 'Preview'
       if (key === 'common.close') return 'Close'
       if (key === 'message.message.user_content.expand') return 'Expand'
@@ -647,6 +651,126 @@ describe('MessagePartsRenderer', () => {
         expectNodeBefore(screen.getByText('Here is the result.'), screen.getByRole('status'))
       }
     )
+
+    it('folds settled process groups before a steer and keeps prose and the focused tool in place', async () => {
+      const ipc = projectionIpc()
+      const store = new MessageProjectionService()
+      const target = { kind: 'topic', topicId: 't' } as const
+      const stop = store.subscribe(target, () => {})
+      const attachment = ipc.attachments[0]
+      const call = {
+        type: 'dynamic-tool',
+        toolName: 'Read',
+        toolCallId: 'held',
+        input: { path: '/a' },
+        state: 'input-available'
+      } as const
+      const source: CherryUIMessage = {
+        id: 'msg-1',
+        role: 'assistant',
+        parts: [
+          { ...call, toolCallId: 'settled', state: 'output-available', output: 'Earlier result' },
+          { type: 'text', text: 'I will check the log.', state: 'done' },
+          call
+        ],
+        partIds: ['settled', 'narration', 'held'],
+        partPositions: [1, 2, 3]
+      }
+      const steer: CherryUIMessage = {
+        id: 'steer',
+        role: 'user',
+        parts: [{ type: 'text', text: 'Steer now' }],
+        timeline: { pos: 4, replyId: source.id }
+      }
+      await act(async () => attachment.resolve({ ...target, revision: 0, executions: [], messages: [source] }))
+      activateTurn('streaming')
+      const display = (messages: CherryUIMessage[]) => {
+        const rows = projectAgentTimeline(messages, (message) => store.readMessage(target, message))
+        return (
+          <ProjectionReaderProvider reader={store.partsFor(target)}>
+            {rows.map((row) => (
+              <React.Fragment key={row.id}>
+                {row.message.role === 'user' ? (
+                  <div>Steer now</div>
+                ) : (
+                  renderPartsTree(
+                    row.parts,
+                    msg({
+                      id: row.id,
+                      sourceMessageId: row.sourceMessageId,
+                      isBeforeLatestRunInput: row.isBeforeLatestRunInput,
+                      partIds: row.partIds,
+                      status: 'pending'
+                    }),
+                    {},
+                    { ...defaultMessageRenderConfig, keepIntermediateAssistantText: true }
+                  )
+                )}
+              </React.Fragment>
+            ))}
+          </ProjectionReaderProvider>
+        )
+      }
+      const tree = render(display([source]))
+      expandCollapsedLiveToolGroups()
+      const trigger = screen.getAllByRole('button', { expanded: true }).at(-1)!
+      trigger.focus()
+      tree.rerender(display([source, { ...steer, timeline: { replyId: source.id } }]))
+      expect(screen.queryByTestId('completed-process-trigger')).not.toBeInTheDocument()
+      tree.rerender(display([source, steer]))
+      expect(screen.getByTestId('completed-process-trigger')).toHaveAttribute('aria-expanded', 'false')
+      expectNodeBefore(screen.getByText('I will check the log.'), screen.getByText('Steer now'))
+      act(() =>
+        ipc.emit(attachment.subscriptionId, {
+          kind: 'topic',
+          type: 'parts',
+          revision: 1,
+          patches: [
+            { type: 'part-open', messageId: 'msg-1', partId: 'after', kind: 'text', pos: 5 },
+            { type: 'part-append', partId: 'after', text: 'Answer after steer' }
+          ]
+        })
+      )
+      tree.rerender(display([source, steer]))
+      expect(trigger).toHaveFocus()
+      expect(trigger).toHaveAttribute('aria-expanded', 'true')
+      expectNodeBefore(trigger, screen.getByText('Steer now'))
+      expectNodeBefore(screen.getByText('Steer now'), screen.getByText('Answer after steer'))
+      act(() => trigger.blur())
+      act(() =>
+        ipc.emit(attachment.subscriptionId, {
+          kind: 'topic',
+          type: 'parts',
+          revision: 2,
+          patches: [
+            {
+              type: 'part-put',
+              partId: 'held',
+              part: { ...call, state: 'output-available', output: 'Partial', preliminary: true }
+            }
+          ]
+        })
+      )
+      expect(screen.getAllByTestId('completed-process-trigger')).toHaveLength(1)
+      expect(screen.getByTestId('mock-message-tools')).toHaveAttribute('data-status', 'invoking')
+      trigger.focus()
+      act(() =>
+        ipc.emit(attachment.subscriptionId, {
+          kind: 'topic',
+          type: 'parts',
+          revision: 3,
+          patches: [{ type: 'part-put', partId: 'held', part: { ...call, state: 'output-available', output: 'Done' } }]
+        })
+      )
+      expect(trigger).toHaveFocus()
+      expect(trigger.isConnected).toBe(true)
+      expect(screen.getByTestId('mock-message-tools')).toHaveAttribute('data-status', 'done')
+      act(() => trigger.blur())
+      expect(screen.getAllByTestId('completed-process-trigger')).toHaveLength(2)
+      expect(screen.getByText('I will check the log.')).toBeVisible()
+      tree.unmount()
+      stop()
+    })
 
     it('updates the mounted Agent tool card when only its streamed arguments change', async () => {
       const ipc = projectionIpc()
@@ -2388,6 +2512,71 @@ describe('MessagePartsRenderer', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Preview report.md' }))
       expect(openArtifactFile).toHaveBeenCalledWith('dist/report.md')
     })
+
+    it('shows a previewable file change after a local write', () => {
+      const openArtifactFile = vi.fn()
+      renderParts(
+        [
+          {
+            type: 'dynamic-tool',
+            toolCallId: 'write-1',
+            toolName: 'ACP: Write',
+            state: 'output-available',
+            input: { path: 'pelican-bicycle.html', content: '<html></html>' },
+            output: { ok: true }
+          },
+          { type: 'text', text: 'Created pelican-bicycle.html', state: 'done' }
+        ] as unknown as CherryMessagePart[],
+        msg(),
+        { openArtifactFile }
+      )
+
+      const changes = screen.getByRole('region', { name: 'File changes' })
+      expect(screen.queryByRole('region', { name: 'Outputs' })).not.toBeInTheDocument()
+      fireEvent.click(within(changes).getByRole('button', { name: 'Preview pelican-bicycle.html' }))
+      expect(openArtifactFile).toHaveBeenCalledWith('pelican-bicycle.html')
+    })
+
+    it('shows reported outputs and other file changes in separate groups', () => {
+      const openArtifactFile = vi.fn()
+      renderParts(
+        [
+          {
+            type: 'dynamic-tool',
+            toolCallId: 'write-1',
+            toolName: 'ACP: Write',
+            state: 'output-available',
+            input: { path: 'temp-draft.html', content: '<html></html>' },
+            output: { ok: true }
+          },
+          {
+            type: 'dynamic-tool',
+            toolCallId: 'write-2',
+            toolName: 'ACP: Write',
+            state: 'output-available',
+            input: { path: 'dist/final.html', content: '<html></html>' },
+            output: { ok: true }
+          },
+          {
+            type: 'dynamic-tool',
+            toolCallId: 'report-1',
+            toolName: 'mcp__cherry-tools__report_artifacts',
+            state: 'output-available',
+            input: { artifacts: [{ path: 'dist/final.html' }] },
+            output: { ok: true }
+          },
+          { type: 'text', text: 'Done', state: 'done' }
+        ] as unknown as CherryMessagePart[],
+        msg(),
+        { openArtifactFile }
+      )
+
+      const outputs = screen.getByRole('region', { name: 'Outputs' })
+      const changes = screen.getByRole('region', { name: 'File changes' })
+      expect(within(outputs).getByRole('button', { name: 'Preview final.html' })).toBeInTheDocument()
+      expect(within(changes).getByRole('button', { name: 'Preview temp-draft.html' })).toBeInTheDocument()
+      expect(within(changes).queryByRole('button', { name: 'Preview final.html' })).not.toBeInTheDocument()
+    })
   })
 
   describe('active layout', () => {
@@ -3218,10 +3407,24 @@ describe('MessagePartsRenderer', () => {
       expect(failedTool).toHaveAttribute('data-status', 'error')
     })
 
-    it('keeps an unrecovered tool failure in the collapsed completed summary', () => {
-      renderParts([toolPart('failed', 'output-error')] as unknown as CherryMessagePart[])
+    it('shows an imported OpenCode tool failure in the collapsed summary and expanded tool row', () => {
+      renderParts([
+        {
+          type: 'dynamic-tool',
+          toolCallId: 'history:message:0',
+          toolName: 'historical_tool',
+          state: 'output-error',
+          input: { filePath: 'notes.md' },
+          errorText: 'File not found',
+          callProviderMetadata: {
+            cherry: { tool: { type: 'mcp', name: 'read', serverId: 'history-import', serverName: 'opencode' } }
+          }
+        }
+      ])
 
-      expect(screen.getByRole('button', { name: 'Error' })).toBeInTheDocument()
+      fireEvent.click(screen.getByRole('button', { name: 'Error' }))
+      expandCollapsedChildToolGroups()
+      expect(screen.getByTestId('mock-message-tools')).toHaveAttribute('data-status', 'error')
     })
 
     it('keeps terminal reasoning alongside the process error', () => {

@@ -262,7 +262,7 @@ vi.mock('@renderer/utils/translate', async (importOriginal) => ({
   translateText: translateCoreMock.translateText
 }))
 
-vi.mock('../components/IconButton', () => ({
+vi.mock('@renderer/components/translate/IconButton', () => ({
   default: (props: React.ComponentProps<'button'> & { active?: boolean; size?: string }) => {
     const { active, children, size, ...buttonProps } = props
     void active
@@ -431,7 +431,7 @@ vi.mock('../components/TranslateOutputPane', () => ({
   )
 }))
 
-vi.mock('../TranslateSettings', () => ({
+vi.mock('@renderer/components/translate/TranslateSettings', () => ({
   default: ({ visible }: { visible: boolean }) => (visible ? <div data-testid="translate-settings-open" /> : null)
 }))
 

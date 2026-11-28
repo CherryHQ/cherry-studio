@@ -49,6 +49,7 @@ const { generateTextMock } = vi.hoisted(() => ({
     vi.fn<
       (args: {
         uniqueModelId: string
+        utilityTask?: boolean
         reasoningEffort?: string
         system?: string
         prompt: string
@@ -97,6 +98,8 @@ describe('detectLanguageByLLM', () => {
     generateTextMock.mockResolvedValueOnce({ text: '  en-us  ' })
 
     await expect(detectLanguageByLLM('Hello', [lang('en-us'), lang('zh-cn')], TEST_MODEL)).resolves.toBe('en-us')
+    // Detection gates translation, so it must work for a signed-out user on the built-in free model.
+    expect(generateTextMock.mock.calls[0][0].utilityTask).toBe(true)
   })
 
   it('interpolates every prompt placeholder once and preserves replacement tokens in input', async () => {

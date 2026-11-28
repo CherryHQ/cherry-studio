@@ -11,7 +11,7 @@ import {
   useState
 } from 'react'
 
-import { HtmlArtifactPopupHost } from '@renderer/components/chat/HtmlArtifactPopupContext'
+import { HtmlArtifactPopupHost } from '@renderer/components/chat/HtmlArtifactPopupHost'
 import { useChatLayoutMode } from '@renderer/components/chat/layout/ChatLayoutModeContext'
 import { useChatBottomOverlayInset } from '@renderer/components/chat/layout/ChatViewportInsetContext'
 import MultiSelectActionPopup from '@renderer/components/chat/messages/MultiSelectActionPopup'
@@ -50,9 +50,9 @@ import {
   useMessageListUi,
   useMessageRenderConfig
 } from './MessageListProvider'
-import { CHAT_CAPTURE_BACKDROP_VARIABLE, defaultMessageRenderConfig } from './types'
+import { CHAT_CAPTURE_BACKDROP_VARIABLE, defaultMessageRenderConfig, type MessageListItem } from './types'
 import { dispatchLocateMessage } from './utils/dispatchLocateMessage'
-import { getLatestAssistantGroupKey, getMessageGroupKey } from './utils/messageGroupKey'
+import { getLatestAssistantGroupKey, getMessageGroupKey, withHistoricalProcessGroups } from './utils/messageGroupKey'
 import { shouldUseWideLayoutForMessageGroup } from './utils/messageGroupLayout'
 import { getDirectAssistantModelsByUserId, shareDirectAssistantModelsByUserId } from './utils/messageListItem'
 import { createStableAnchorMessagesCache, stableAnchorMessages } from './utils/stableAnchorMessages'
@@ -211,16 +211,12 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
   // message column; this component both writes it (via the resize observer
   // below) and renders from it.
   const { setForceWideLayout, railGutterPx, setRailGutterPx, sidePaddingPx, messageEndInsetPx } = useChatLayoutMode()
-  const {
-    topic,
-    messages,
-    beforeList,
-    afterMessages,
-    messageHead,
-    messageTail,
-    hasOlder = false,
-    messageNavigation
-  } = data
+  const { topic, beforeList, afterMessages, messageHead, messageTail, hasOlder = false, messageNavigation } = data
+  const historicalProcessCache = useRef(new WeakMap<MessageListItem, MessageListItem>())
+  const messages = useMemo(
+    () => withHistoricalProcessGroups(data.messages, partsByMessageId, historicalProcessCache.current),
+    [data.messages, partsByMessageId]
+  )
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const { setTimeoutTimer } = useTimer()
   const isMultiSelectMode = selection?.isMultiSelectMode ?? false
@@ -461,6 +457,10 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
   // at the very bottom the last turn wins regardless of its height.
   const updateActiveAnchorMessage = useCallback(() => {
     if (!shouldTrackAnchorPosition) return
+    if (messageListRef.current?.isFollowing()) {
+      setActiveAnchorMessageId(null)
+      return
+    }
 
     const scrollElement = scrollContainerRef.current ?? messageListRef.current?.getScrollElement()
     if (!scrollElement) return
@@ -500,6 +500,14 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
   }, [messageById, shouldTrackAnchorPosition])
   const updateActiveAnchorMessageRef = useRef(updateActiveAnchorMessage)
   updateActiveAnchorMessageRef.current = updateActiveAnchorMessage
+  const activeAnchorFrameRef = useRef<number | null>(null)
+  const requestActiveAnchorUpdate = useCallback(() => {
+    if (activeAnchorFrameRef.current !== null) return
+    activeAnchorFrameRef.current = requestAnimationFrame(() => {
+      activeAnchorFrameRef.current = null
+      updateActiveAnchorMessageRef.current()
+    })
+  }, [])
 
   const loadMoreMessages = useCallback(() => {
     if (!hasOlder || isLoadingMoreRef.current || !loadOlder) return
@@ -700,14 +708,6 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
 
   useEffect(() => {
     if (!shouldTrackAnchorPosition) {
-      setActiveAnchorMessageId((current) => (current ? null : current))
-      return
-    }
-    updateActiveAnchorMessage()
-  }, [groupedMessages, shouldTrackAnchorPosition, updateActiveAnchorMessage])
-
-  useEffect(() => {
-    if (!shouldTrackAnchorPosition) {
       setRailGutterPx(0)
       return
     }
@@ -725,25 +725,39 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
     const resizeObserver = new ResizeObserver(updateRailGutter)
     resizeObserver.observe(scrollElement)
 
-    let frame: number | null = null
-    const handleAnchorUpdate = () => {
-      if (frame !== null) return
-      frame = requestAnimationFrame(() => {
-        frame = null
-        updateActiveAnchorMessageRef.current()
-      })
-    }
-    scrollElement.addEventListener('scroll', handleAnchorUpdate, { passive: true })
-    window.addEventListener('resize', handleAnchorUpdate)
+    scrollElement.addEventListener('scroll', requestActiveAnchorUpdate, { passive: true })
+    window.addEventListener('resize', requestActiveAnchorUpdate)
 
     // The layout owner survives topic switches, so preserve its width-derived gutter.
     return () => {
       resizeObserver.disconnect()
-      if (frame !== null) cancelAnimationFrame(frame)
-      scrollElement.removeEventListener('scroll', handleAnchorUpdate)
-      window.removeEventListener('resize', handleAnchorUpdate)
+      scrollElement.removeEventListener('scroll', requestActiveAnchorUpdate)
+      window.removeEventListener('resize', requestActiveAnchorUpdate)
     }
-  }, [data.isInitialLoading, data.listKey, setRailGutterPx, shouldTrackAnchorPosition, topic.id])
+  }, [
+    data.isInitialLoading,
+    data.listKey,
+    requestActiveAnchorUpdate,
+    setRailGutterPx,
+    shouldTrackAnchorPosition,
+    topic.id
+  ])
+
+  useEffect(() => {
+    if (shouldTrackAnchorPosition) {
+      requestActiveAnchorUpdate()
+    } else {
+      setActiveAnchorMessageId(null)
+    }
+  }, [groupedMessages, requestActiveAnchorUpdate, shouldTrackAnchorPosition, updateActiveAnchorMessage])
+
+  useEffect(() => {
+    return () => {
+      if (activeAnchorFrameRef.current === null) return
+      cancelAnimationFrame(activeAnchorFrameRef.current)
+      activeAnchorFrameRef.current = null
+    }
+  }, [shouldTrackAnchorPosition])
 
   useEffect(() => {
     return bindRuntime?.({

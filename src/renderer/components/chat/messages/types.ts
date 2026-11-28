@@ -12,6 +12,7 @@ import type { Topic } from '@renderer/types/topic'
 import type { MessagePartRows } from '@renderer/utils/message/messagePartRows'
 import type { AgentSessionDelivery } from '@shared/ai/agentSessionDelivery'
 import type { AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
+import type { LocalAgentTurnUsage } from '@shared/ai/localAgentUsage'
 import type {
   ChatMessageStyle,
   MultiModelFoldDisplayMode,
@@ -178,6 +179,8 @@ export interface MessageErrorDiagnosisInput {
 }
 
 export interface MessageUserProfile {
+  id?: string
+  avatarIcon?: ReactNode
   name?: string
   avatar?: string
 }
@@ -219,12 +222,21 @@ export interface RemoveMessageErrorPartInput {
 }
 
 export interface MessageListItem {
+  /** Durable owner when this row is a segment of an execution. */
+  sourceMessageId?: string
+  isBeforeLatestRunInput?: boolean
+  isRunBoundary?: boolean
+  presentation?: 'content' | 'marker' | 'interrupted'
+  showHeader?: boolean
   partIds?: readonly string[]
   id: string
   role: CherryUIMessage['role']
   assistantId?: string
   topicId: string
   parentId?: string | null
+  /** Display-only group for adjacent imported replies and process records; every original ID stays selectable. */
+  historicalProcessGroupId?: string
+  isImportedHistory?: boolean
   createdAt: string
   updatedAt?: string
   status: MessageStatus
@@ -235,8 +247,10 @@ export interface MessageListItem {
   messageSnapshot?: MessageSnapshot
   siblingsGroupId?: number
   isActiveBranch?: boolean
+  localTurnUsage?: LocalAgentTurnUsage
   stats?: MessageStats
   delivery?: AgentSessionDelivery
+  waitingForModel?: boolean
   turnOrigin?: AutonomousTurnOrigin
   mentions?: Array<{
     id: string
@@ -450,6 +464,7 @@ export interface MessageListActions {
   removeMessageErrorPart?: (input: RemoveMessageErrorPartInput) => void | Promise<void>
   openErrorDetail?: (input: MessageErrorDetailInput) => void | Promise<void>
   navigateErrorTarget?: (target: string) => void | Promise<void>
+  renderLocalAgentUpgrade?: () => ReactNode
   requestTranslationLanguages?: () => void
   retryTranslationLanguages?: () => void
   translateMessage?: (messageId: string, language: TranslateLanguage, sourceText: string) => void | Promise<void>
@@ -466,8 +481,6 @@ export interface MessageListActions {
     target: MessageExportTarget
   ) => void | Promise<void>
   deleteSelectedMessages?: (messageIds?: readonly string[]) => void | Promise<void>
-  /** Deletes every loaded, selectable message older than `messageId`, after confirmation. */
-  deleteMessagesBefore?: (messageId: string) => void | Promise<void>
   updateMessageUiState?: (messageId: string, updates: MessageUiState) => void
   updateRenderConfig?: (updates: MessageRenderConfigUpdate) => void
   canEditMessage?: (message: MessageListItem) => boolean

@@ -83,17 +83,10 @@ describe('paintingFileRefSchema', () => {
     }
   }
 
-  it('accepts a well-formed painting ref', () => {
-    const parsed = paintingFileRefSchema.parse(makePaintingRef())
-    expect(parsed.sourceType).toBe('painting')
-    expect(parsed.sourceId).toBe(PAINTING_ID)
-    expect(parsed.role).toBe('output')
-  })
-
   it('accepts both painting roles (output/input — the two PaintingFiles buckets)', () => {
     for (const role of ['output', 'input']) {
       const parsed = paintingFileRefSchema.parse(makePaintingRef({ role }))
-      expect(parsed.role).toBe(role)
+      expect(parsed).toMatchObject({ sourceType: 'painting', sourceId: PAINTING_ID, role })
     }
   })
 

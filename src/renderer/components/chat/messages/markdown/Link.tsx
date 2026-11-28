@@ -2,7 +2,7 @@ import { omit } from 'es-toolkit/compat'
 import type { Element } from 'hast'
 import React, { useMemo } from 'react'
 
-import { isKnownNavigationPath, NavigateToolInline } from '@renderer/components/chat/messages/tools/agent'
+import { isKnownNavigationPath, NavigateToolInline } from '@renderer/components/chat/messages/tools/NavigateTool'
 import { MarkdownLinkRenderer } from '@renderer/components/markdown'
 import type { FileLocation } from '@renderer/types/fileLocation'
 import type { Citation } from '@renderer/types/message'

@@ -178,38 +178,42 @@ function fakeResponsesSuccessResponse() {
 }
 
 describe('wire-body regression through real construction paths', () => {
-  it('default OpenAI-compatible path (providerToAiSdkConfig → createExecutor) rewrites max_tokens on the wire', async () => {
-    const provider = makeProvider({
-      id: 'some-relay',
-      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
-      endpointConfigs: {
-        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://relay.example.com/v1' }
-      }
-    })
-    const model = makeModel({
-      apiModelId: 'o3',
-      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
-    })
+  it.each(['o3', 'openai/gpt-6.1-sol'])(
+    'rewrites max_tokens on the compatible Chat request for %s',
+    async (modelId) => {
+      const provider = makeProvider({
+        id: 'some-relay',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://relay.example.com/v1' }
+        }
+      })
+      const model = makeModel({
+        apiModelId: modelId,
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+      })
 
-    const config = await providerToAiSdkConfig(provider, model)
-    expect(config.providerId).toBe('openai-compatible')
+      const config = await providerToAiSdkConfig(provider, model)
+      expect(config.providerId).toBe('openai-compatible')
 
-    const fetchSpy = vi.fn().mockResolvedValue(fakeSuccessResponse())
-    const executor = await createExecutor(
-      config.providerId as Parameters<typeof createExecutor>[0],
-      { ...config.providerSettings, fetch: fetchSpy } as Parameters<typeof createExecutor>[1]
-    )
-    const languageModel = await executor.languageModel('o3')
+      const fetchSpy = vi.fn().mockResolvedValue(fakeSuccessResponse())
+      const executor = await createExecutor(
+        config.providerId as Parameters<typeof createExecutor>[0],
+        { ...config.providerSettings, fetch: fetchSpy } as Parameters<typeof createExecutor>[1]
+      )
+      const languageModel = await executor.languageModel(modelId)
 
-    await languageModel.doGenerate({
-      prompt: [{ role: 'user', content: [{ type: 'text', text: 'hi' }] }],
-      maxOutputTokens: 1000
-    })
+      await languageModel.doGenerate({
+        prompt: [{ role: 'user', content: [{ type: 'text', text: 'hi' }] }],
+        maxOutputTokens: 1000
+      })
 
-    const body = JSON.parse(fetchSpy.mock.calls[0][1].body)
-    expect(body.max_completion_tokens).toBe(1000)
-    expect(body.max_tokens).toBeUndefined()
-  })
+      const body = JSON.parse(fetchSpy.mock.calls[0][1].body)
+      expect(body.model).toBe(modelId)
+      expect(body.max_completion_tokens).toBe(1000)
+      expect(body.max_tokens).toBeUndefined()
+    }
+  )
 
   it('rewrites max_tokens for GPT-6 Astra through the OpenAI-compatible Chat path', async () => {
     const provider = makeProvider({
@@ -296,6 +300,27 @@ describe('wire-body regression through real construction paths', () => {
     const body = JSON.parse(fetchSpy.mock.calls[0][1].body)
     expect(body.max_completion_tokens).toBe(2000)
     expect(body.max_tokens).toBeUndefined()
+  })
+
+  it('sends one output-token limit for a non-reasoning GPT-4o model through New API', async () => {
+    const fetchSpy = vi.fn().mockResolvedValue(fakeSuccessResponse())
+    const provider = createNewApi({
+      baseURL: 'https://newapi.example.com/v1',
+      apiKey: 'sk-test',
+      fetch: fetchSpy,
+      endpointType: 'openai'
+    })
+
+    await provider.languageModel('gpt-4o').doGenerate({
+      prompt: [{ role: 'user', content: [{ type: 'text', text: 'hi' }] }],
+      maxOutputTokens: 2000,
+      providerOptions: { newapi: { max_completion_tokens: 1500 } }
+    })
+
+    expect(String(fetchSpy.mock.calls[0][0])).toBe('https://newapi.example.com/v1/chat/completions')
+    const body = JSON.parse(fetchSpy.mock.calls[0][1].body)
+    expect(body).toMatchObject({ model: 'gpt-4o', max_completion_tokens: 1500 })
+    expect(body).not.toHaveProperty('max_tokens')
   })
 
   it('CherryIn createCherryIn path rewrites max_tokens on the wire', async () => {

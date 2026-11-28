@@ -1,16 +1,17 @@
 import { ChevronDown, FolderOpen } from 'lucide-react'
-import { type ComponentProps, type ReactNode, useCallback, useState } from 'react'
+import { type ComponentProps, type ReactNode, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
   Button,
   ButtonGroup,
-  MenuItem,
-  MenuList,
-  NormalTooltip,
-  Popover,
-  PopoverContent,
-  PopoverTrigger
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+  NormalTooltip
 } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { usePreferredExternalOpenTarget } from '@renderer/hooks/useExternalOpenTargets'
@@ -33,7 +34,7 @@ export interface OpenTargetButtonProps {
   primaryClassName?: string
   menuClassName?: string
   menuAction?: 'open' | 'select'
-  menuContentProps?: Pick<ComponentProps<typeof PopoverContent>, 'className' | 'alignOffset'>
+  menuContentProps?: Pick<ComponentProps<typeof DropdownMenuContent>, 'className' | 'alignOffset'>
   tooltip?: string
   className?: string
 }
@@ -51,7 +52,6 @@ export function OpenTargetButton({
   className
 }: OpenTargetButtonProps) {
   const { t } = useTranslation()
-  const [menuOpen, setMenuOpen] = useState(false)
   const hasCustomPrimary = primaryContent !== undefined
   const { targets, selectedTarget, openTarget, selectTarget } = usePreferredExternalOpenTarget(targetPath, pathKind)
 
@@ -71,39 +71,38 @@ export function OpenTargetButton({
     ? t('common.open_in', { name: selectedTarget.name ?? getOpenTargetLabel(selectedTarget, t) })
     : t('agent.preview_pane.default_app')
   const primaryIcon = selectedTarget ? <OpenTargetIcon target={selectedTarget} /> : <FolderOpen size={16} />
-  const menu = (
-    <PopoverContent
-      align={hasCustomPrimary ? 'start' : 'end'}
-      {...menuContentProps}
-      className={cn('w-56 p-1', menuContentProps?.className)}>
-      <MenuList>
-        {targets.map((target) => (
-          <MenuItem
-            key={target.id}
-            label={getOpenTargetLabel(target, t)}
-            icon={<OpenTargetIcon target={target} />}
-            suffix={
-              selectedTarget?.id === target.id && primaryShortcut ? (
-                <>
-                  {getOpenTargetBadge(target, t)}
-                  {primaryShortcut}
-                </>
-              ) : (
-                getOpenTargetBadge(target, t)
-              )
-            }
-            active={selectedTarget?.id === target.id}
-            aria-pressed={menuAction === 'select' ? selectedTarget?.id === target.id : undefined}
-            onClick={() => {
-              setMenuOpen(false)
-              if (menuAction === 'select') selectTarget(target)
-              else void handleOpen(target)
-            }}
-          />
-        ))}
-      </MenuList>
-    </PopoverContent>
-  )
+  const menuItems = targets.map((target) => {
+    const label = getOpenTargetLabel(target, t)
+    const isSelected = selectedTarget?.id === target.id
+    const badge = getOpenTargetBadge(target, t)
+    const suffix = isSelected ? primaryShortcut : undefined
+    const content = (
+      <>
+        <OpenTargetIcon target={target} className="size-4 shrink-0" />
+        <span className="min-w-0 flex-1 truncate">{label}</span>
+        {(badge || suffix) && (
+          <span className="flex shrink-0 items-center">
+            {badge}
+            {suffix}
+          </span>
+        )}
+      </>
+    )
+
+    return menuAction === 'select' ? (
+      <DropdownMenuRadioItem key={target.id} value={target.id} textValue={label} onSelect={() => selectTarget(target)}>
+        {content}
+      </DropdownMenuRadioItem>
+    ) : (
+      <DropdownMenuItem
+        key={target.id}
+        textValue={label}
+        className={cn(isSelected && 'font-medium')}
+        onSelect={() => void handleOpen(target)}>
+        {content}
+      </DropdownMenuItem>
+    )
+  })
 
   if (targets.length <= 1) {
     return (
@@ -139,8 +138,8 @@ export function OpenTargetButton({
           {primaryContent ?? primaryIcon}
         </Button>
       </NormalTooltip>
-      <Popover open={menuOpen} onOpenChange={setMenuOpen}>
-        <PopoverTrigger asChild>
+      <DropdownMenu modal={false}>
+        <DropdownMenuTrigger asChild>
           <Button
             type="button"
             className={cn(
@@ -152,9 +151,18 @@ export function OpenTargetButton({
             aria-label={t('common.more')}>
             <ChevronDown size={14} />
           </Button>
-        </PopoverTrigger>
-        {menu}
-      </Popover>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent
+          align={hasCustomPrimary ? 'start' : 'end'}
+          {...menuContentProps}
+          className={cn('w-56 p-1', menuContentProps?.className)}>
+          {menuAction === 'select' ? (
+            <DropdownMenuRadioGroup value={selectedTarget?.id}>{menuItems}</DropdownMenuRadioGroup>
+          ) : (
+            menuItems
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
     </ButtonGroup>
   )
 }

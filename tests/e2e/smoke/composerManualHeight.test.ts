@@ -2,6 +2,7 @@ import { rm } from 'node:fs/promises'
 
 import type { Locator } from '@playwright/test'
 
+import { LATEST_PRIVACY_POLICY_VERSION } from '../../../src/shared/utils/constants'
 import { expect, launchSmokeElectron, test as base } from './fixtures/electron.fixture'
 
 const test = base.extend({
@@ -51,16 +52,16 @@ test('manual composer height survives paste and typing while auto sizing still g
   electronApp,
   mainWindow: page
 }, testInfo) => {
-  await page.evaluate(async () => {
+  await page.evaluate(async (policyVersion) => {
     await window.api.preference.setMultiple({
       'app.language': 'en-US',
       'app.onboarding.provider_setup.status': 'skipped',
-      'app.privacy.policy_version': '20260820',
+      'app.privacy.policy_version': policyVersion,
       'chat.narrow_mode': false,
       'chat.input.paste_long_text_as_file': false,
       'chat.input.send_message_shortcut': ['CommandOrControl', 'Enter']
     })
-  })
+  }, LATEST_PRIVACY_POLICY_VERSION)
   await page.reload()
   await page.waitForSelector('#root')
 

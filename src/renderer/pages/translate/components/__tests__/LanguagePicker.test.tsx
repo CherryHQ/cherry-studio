@@ -1,7 +1,8 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import LanguagePicker from '../LanguagePicker'
+import LanguagePicker from '@renderer/components/translate/LanguagePicker'
+
 import { createLanguagesHookResult } from './testUtils'
 
 const mockUseLanguages = vi.fn()
