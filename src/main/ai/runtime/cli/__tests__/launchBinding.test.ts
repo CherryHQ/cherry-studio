@@ -200,9 +200,10 @@ describe('launch model binding', () => {
       ok: false,
       failure: { reason: 'startup-crash', detail: 'fixture crash' }
     })
-    const result = await openLocalAgentTerminal(
-      config('claude', { directory: root, env: { CLAUDE_CODE_TEST: 'launch-env' } })
-    )
+    const result = await openLocalAgentTerminal({
+      ...config('claude', { env: { CLAUDE_CODE_TEST: 'launch-env' } }),
+      directory: root
+    })
     expect(result).toMatchObject({ success: false })
     expect(probeClaudeExecutable).toHaveBeenCalledWith(
       '/usr/bin/claude',
@@ -214,7 +215,7 @@ describe('launch model binding', () => {
   })
 
   it('opens a healthy Code Mate Claude terminal after probing the resolved launch', async () => {
-    await openLocalAgentTerminal(config('claude', { directory: root }))
+    await openLocalAgentTerminal({ ...config('claude'), directory: root })
     expect(probeClaudeExecutable).toHaveBeenCalledOnce()
     expect(openTerminal).toHaveBeenCalledOnce()
     expect(credential.dispose).not.toHaveBeenCalled()
