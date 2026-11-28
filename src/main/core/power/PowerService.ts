@@ -12,6 +12,7 @@ import {
   ServicePhase
 } from '@main/core/lifecycle'
 import { isLinux, isMac, isWin } from '@main/core/platform'
+import type { PreventSleepMode } from '@shared/data/preference/preferenceTypes'
 
 const logger = loggerService.withContext('PowerService')
 
@@ -41,7 +42,8 @@ type ShutdownHandler = () => void | Promise<void>
  *    timeout) before the app quits, so cleanup is not truncated by OS shutdown.
  *  - Sleep prevention via a ref-counted hold registry. Any worker that must keep the
  *    machine awake registers a hold; the OS blocker is active only while at least one
- *    hold is held AND the user has opted in (`app.power.prevent_sleep_when_busy`).
+ *    hold is held AND the user chose `tasks`; mode `always` holds it for the app's lifetime
+ *    (`app.power.prevent_sleep_mode`).
  *  - Level-triggered queries (idle time/state, power source, phase) so a late subscriber
  *    can reconcile current state without having observed the edge.
  *
@@ -75,7 +77,7 @@ export class PowerService extends BaseService {
   // token Map (not a bare counter): dispose is idempotent and the holds are
   // enumerable for diagnosing a leak ("who is holding, and since when").
   private readonly holds = new Map<symbol, { reason?: string; since: number }>()
-  private preventEnabled = false
+  private preventMode: PreventSleepMode = 'off'
   private blockerId: number | null = null
 
   constructor() {
@@ -303,14 +305,18 @@ export class PowerService extends BaseService {
 
   private initSleepPrevention(): void {
     const pref = application.get('PreferenceService')
-    this.preventEnabled = pref.get('app.power.prevent_sleep_when_busy')
+    this.preventMode = pref.get('app.power.prevent_sleep_mode')
     this.applyBlockerState()
     this.registerDisposable(
-      pref.subscribeChange('app.power.prevent_sleep_when_busy', (value) => {
-        this.preventEnabled = value
+      pref.subscribeChange('app.power.prevent_sleep_mode', (value) => {
+        this.preventMode = value
         this.applyBlockerState()
       })
     )
+  }
+
+  private shouldPreventSleep(): boolean {
+    return this.preventMode === 'always' || (this.preventMode === 'tasks' && this.holds.size > 0)
   }
 
   /**
@@ -319,7 +325,7 @@ export class PowerService extends BaseService {
    * so every caller (preventSleep, dispose, the preference subscription, onStop) is safe.
    */
   private applyBlockerState(): void {
-    const shouldBlock = this.preventEnabled && this.holds.size > 0
+    const shouldBlock = this.shouldPreventSleep()
     try {
       if (shouldBlock && this.blockerId === null) {
         // 'prevent-app-suspension' keeps the system running but allows the display to
@@ -344,7 +350,7 @@ export class PowerService extends BaseService {
    * Request that the system stay awake while the returned hold is held. Mirrors the
    * `Application.preventQuit(reason)` hold idiom — and like it, this is a request, not a
    * hard guarantee: sleep is actually prevented only while a hold is held AND the user
-   * enabled `app.power.prevent_sleep_when_busy`. Call dispose() when the work finishes.
+   * chose `tasks` (or `always`) for `app.power.prevent_sleep_mode`. Call dispose() when the work finishes.
    *
    * NEVER throws and ALWAYS returns a usable Disposable: any OS-blocker failure is
    * swallowed and logged inside applyBlockerState, so callers need no defensive guard.
@@ -361,9 +367,9 @@ export class PowerService extends BaseService {
     }
   }
 
-  /** Whether sleep is currently being prevented (gate enabled AND a hold is held). */
+  /** Whether sleep is currently being prevented (mode `always`, or mode `tasks` with a hold held). */
   public isPreventingSleep(): boolean {
-    return this.preventEnabled && this.holds.size > 0
+    return this.shouldPreventSleep()
   }
 
   // ==========================================================================
