@@ -313,6 +313,73 @@ class AgentSessionContextService {
     return tx.insert(contexts).values(binding).returning().get()
   }
 
+  /**
+   * Repoints an unbound context row at another runtime backend. Used when the runtime
+   * captured a branch anchor under a previous backend (e.g. the agent's runtime was
+   * switched on an existing conversation) and (sessionId, anchorMessageId) is unique,
+   * so a fresh row cannot share the anchor.
+   */
+  retargetBranchTx(
+    tx: DbOrTx,
+    contextId: string,
+    backendId: string,
+    nativeThreadId: string | null,
+    preserveTarget = false
+  ): { context: AgentSessionContextRow; recoveryContext?: AgentSessionContextRow } {
+    this.backendTx(tx, backendId)
+    const previous = this.contextTx(tx, contextId)
+    const context = tx
+      .update(contexts)
+      .set({ backendId, nativeThreadId, checkpointMapping: { referenceHistory: true } })
+      .where(eq(contexts.id, contextId))
+      .returning()
+      .get()
+    const recoveryContext =
+      preserveTarget && previous.nativeThreadId
+        ? tx
+            .insert(contexts)
+            .values({
+              sessionId: previous.sessionId,
+              backendId: previous.backendId,
+              nativeThreadId: previous.nativeThreadId,
+              bindingState: previous.bindingState,
+              anchorMessageId: null
+            })
+            .returning()
+            .get()
+        : undefined
+    return { context, ...(recoveryContext ? { recoveryContext } : {}) }
+  }
+
+  hasNativeThreadForLocatorTx(
+    tx: DbOrTx,
+    sessionId: string,
+    locator: AgentRuntimeLocator,
+    nativeThreadId: string
+  ): boolean {
+    const parsed = locatorSchema.parse(locator)
+    const backend = tx.select().from(backends).where(eq(backends.locator, parsed)).get()
+    if (!backend) return false
+    return Boolean(
+      tx
+        .select({ id: contexts.id })
+        .from(contexts)
+        .where(
+          and(
+            eq(contexts.sessionId, sessionId),
+            eq(contexts.backendId, backend.id),
+            eq(contexts.nativeThreadId, nativeThreadId)
+          )
+        )
+        .limit(1)
+        .get()
+    )
+  }
+
+  sessionContextsTx(tx: DbOrTx, sessionId: string): AgentSessionContextRow[] {
+    return tx.select().from(contexts).where(eq(contexts.sessionId, sessionId)).all()
+  }
+
   branchTx(tx: DbOrTx, sessionId: string, messageId: string) {
     const [anchor] = tx.all<{ id: string }>(sql`
       WITH RECURSIVE path(id, parent_id) AS (

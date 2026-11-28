@@ -52,8 +52,9 @@ import { gatewayCredentialsFingerprint, resolveApiGatewayRuntime } from '../agen
 import { taskCompactionPercent } from '../taskCompaction'
 import type { AgentRuntimeConnectInput, AgentSessionUsageCapture } from '../types'
 import type { WarmQueryRequest } from './ClaudeCodeWarmQueryManager'
+import { resolveClaudeBranchResumeToken } from './claudeContext'
 import { isAnthropicOfficialHost, with1mSuffix } from './contextWindowSuffix'
-import { createClaudeCodeQueryOptions } from './queryOptions'
+import { createClaudeCodeQueryOptions, resolveClaudeConfigDirectory } from './queryOptions'
 import {
   buildClaudeCodeSessionSettings,
   buildSkillWhitelist,
@@ -533,7 +534,8 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   /** True for a headless (scheduled/responder-less) turn: it resolves against the agent
    *  default while ignoring session overrides. */
   headless = false,
-  permissionModeOverride?: AgentPermissionMode
+  permissionModeOverride?: AgentPermissionMode,
+  branchHead?: string
 ): Promise<ClaudeCodeAgentSessionQueryRequest | undefined> {
   const session = agentSessionService.getById(sessionId, { includeTaskReuse: true })
   if (!session?.agentId) return undefined
@@ -585,9 +587,9 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
       icon: agent.configuration?.avatar ?? null
     }
   )
-  const resumeSessionId =
+  const requestedResume =
     (effectiveResume === undefined
-      ? agentSessionMessageService.getLastRuntimeResumeToken(session.id)
+      ? agentSessionMessageService.getLastRuntimeResumeToken(session.id, branchHead)
       : effectiveResume) ?? undefined
   const effectiveLanguage = getEffectiveAgentLanguage(agent)
   const promptModelName = resolvePromptModelName(uniqueModelId, agent)
@@ -599,7 +601,6 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
         contextWindow,
         compactionPercent,
         maxOutputTokens,
-        lastAgentSessionId: resumeSessionId,
         mcpServerSnapshots,
         linkedChannelSnapshot,
         notificationContext,
@@ -646,11 +647,18 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
     connectionModelId,
     headless
   )
+  const resumeSessionId = resolveClaudeBranchResumeToken(
+    session.id,
+    resolveClaudeConfigDirectory(settings.env),
+    requestedResume,
+    branchHead
+  )
+  const querySettings = resumeSessionId ? { ...settings, resume: resumeSessionId } : settings
   const sdkModelId = route.modelIds.primary
   const options = createClaudeCodeQueryOptions({
     modelId: sdkModelId,
-    settings,
-    effectiveResume: resumeSessionId ?? settings.resume
+    settings: querySettings,
+    effectiveResume: resumeSessionId
   })
 
   options.promptSuggestions = !headless && application.get('PreferenceService').get('agent.input.suggestions.enabled')
@@ -663,7 +671,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
     notificationContext,
     credentialsFingerprint: route.credentialsFingerprint,
     knowledgeBaseIds: resolveKnowledgeBaseScope(agent.knowledgeBaseIds, selectedKnowledgeBaseIds),
-    settings,
+    settings: querySettings,
     sdkModelId,
     ...(route.branch === 'gateway' && contextWindow
       ? { contextWindow: { model: sdkModelId, tokens: contextWindow } }

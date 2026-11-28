@@ -233,14 +233,18 @@ describe('native context storage and reconciliation', () => {
     return { backend: contexts.backend(intent.backendId), runtime, options, faux, create }
   }
 
-  it('reserves one Durable branch without opening storage or permitting another harness to reuse it', () => {
+  it('reserves one Durable branch without opening storage and yields a pending anchor to a new runtime', () => {
     const intent = prepareDurableBranch(sessionId)
     const backend = contexts.backend(intent.backendId)
     if (backend.locator.kind !== 'pi-durable') throw new Error('Expected Durable backend')
     expect(backend.state).toBe('creating')
     expect(existsSync(application.getPath('feature.agents.durable.stores', backend.locator.fileName))).toBe(false)
     expect(prepareDurableBranch(sessionId).id).toBe(intent.id)
-    expect(() => preparePiBranch(sessionId)).toThrow('another runtime')
+    // A pending anchor captured under another runtime is retargeted in place rather
+    // than rejected: no native history exists to lose yet.
+    const pi = preparePiBranch(sessionId)
+    expect(pi.id).toBe(intent.id)
+    expect(contexts.backend(pi.backendId).locator.kind).toBe('pi')
     expect(sessionContexts().map((context) => context.id)).toEqual([intent.id])
     expect(
       dbh.db
@@ -248,7 +252,7 @@ describe('native context storage and reconciliation', () => {
         .from(agentRuntimeBackendTable)
         .all()
         .map((row) => row.id)
-    ).toEqual([backend.id])
+    ).toEqual([backend.id, pi.backendId])
   })
 
   it.each([false, true])(

@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   resolveApiKey: vi.fn(),
   getApiKeys: vi.fn(),
   getLastRuntimeResumeToken: vi.fn(),
+  resolveClaudeBranchResumeToken: vi.fn(),
   resolveEffectiveEndpoint: vi.fn(),
   buildSessionSettings: vi.fn(),
   buildSkillWhitelist: vi.fn(),
@@ -72,6 +73,7 @@ vi.mock('@data/services/AgentChannelService', () => ({
 
 vi.mock('@application', () => ({
   application: {
+    getPath: vi.fn(() => '/claude-config'),
     get: vi.fn((name: string) => {
       if (name === 'ApiGatewayService') {
         return {
@@ -113,6 +115,10 @@ vi.mock('../settingsBuilder', () => ({
   buildClaudeCodeSessionSettings: mocks.buildSessionSettings,
   buildSkillWhitelist: mocks.buildSkillWhitelist,
   getClaudeCodeLoginShellEnvironment: mocks.getClaudeCodeLoginShellEnvironment
+}))
+
+vi.mock('../claudeContext', () => ({
+  resolveClaudeBranchResumeToken: mocks.resolveClaudeBranchResumeToken
 }))
 
 const {
@@ -173,40 +179,58 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     mocks.apiGatewayGetAgentSessionUsageHeaders.mockReturnValue({ 'x-cherry-agent-session-id': 'session-1' })
     mocks.getProxyEnvironment.mockReturnValue({})
     mocks.getClaudeCodeLoginShellEnvironment.mockResolvedValue({})
-    // settingsBuilder receives `lastAgentSessionId` and reflects it as `resume`;
-    // mirror that so the builder's own precedence is what the test exercises.
+    mocks.resolveClaudeBranchResumeToken.mockReturnValue(undefined)
     mocks.buildSessionSettings.mockImplementation(async (_session, _provider, options) => ({
       ...options.thinkingOptions,
-      env: {},
-      ...(options?.lastAgentSessionId ? { resume: options.lastAgentSessionId } : {})
+      env: { CLAUDE_CONFIG_DIR: '/claude-config' }
     }))
   })
 
-  it('uses the explicit effectiveResume token and ignores the persisted one', async () => {
+  it('uses an explicit resume token only after destination-backend resolution', async () => {
     mocks.getLastRuntimeResumeToken.mockReturnValue('persisted-token')
+    mocks.resolveClaudeBranchResumeToken.mockReturnValue('explicit-token')
 
     const request = await buildClaudeCodeQueryRequestForAgentSession('session-1', 'explicit-token')
 
     expect(request?.options.resume).toBe('explicit-token')
     expect(mocks.getLastRuntimeResumeToken).not.toHaveBeenCalled()
+    expect(mocks.buildSessionSettings.mock.calls[0][2]).not.toHaveProperty('lastAgentSessionId')
   })
 
-  it('falls back to the persisted resume token when no explicit token is given', async () => {
+  it('uses a persisted resume token only after destination-backend resolution', async () => {
     mocks.getLastRuntimeResumeToken.mockReturnValue('persisted-token')
+    mocks.resolveClaudeBranchResumeToken.mockReturnValue('persisted-token')
 
     const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
 
     expect(request?.options.resume).toBe('persisted-token')
-    expect(mocks.getLastRuntimeResumeToken).toHaveBeenCalledWith('session-1')
+    expect(mocks.getLastRuntimeResumeToken).toHaveBeenCalledWith('session-1', undefined)
+    expect(mocks.resolveClaudeBranchResumeToken).toHaveBeenCalledWith(
+      'session-1',
+      expect.any(String),
+      'persisted-token',
+      undefined
+    )
   })
 
-  it('leaves resume undefined when neither an explicit nor a persisted token exists', async () => {
-    mocks.getLastRuntimeResumeToken.mockReturnValue(null)
+  it('does not construct a query with a foreign persisted resume token', async () => {
+    mocks.getLastRuntimeResumeToken.mockReturnValue('1')
+    mocks.resolveClaudeBranchResumeToken.mockReturnValue(undefined)
 
     const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
 
     expect(request?.options.resume).toBeUndefined()
-    expect(mocks.getLastRuntimeResumeToken).toHaveBeenCalledWith('session-1')
+    expect(mocks.resolveClaudeBranchResumeToken).toHaveBeenCalledWith('session-1', expect.any(String), '1', undefined)
+  })
+
+  it('does not prewarm with a foreign persisted resume token', async () => {
+    mocks.getLastRuntimeResumeToken.mockReturnValue('1')
+    mocks.resolveClaudeBranchResumeToken.mockReturnValue(undefined)
+
+    const request = await buildClaudeCodeWarmQueryRequestForAgentSession('session-1')
+
+    expect(request?.options.resume).toBeUndefined()
+    expect(mocks.resolveClaudeBranchResumeToken).toHaveBeenCalledWith('session-1', '/claude-config', '1', undefined)
   })
 
   it('passes the per-turn knowledge selection into settings and the warm signature', async () => {
