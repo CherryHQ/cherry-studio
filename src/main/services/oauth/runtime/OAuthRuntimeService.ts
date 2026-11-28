@@ -6,7 +6,13 @@ import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecyc
 import type { WindowId } from '@shared/ipc/types'
 import type { SystemProviderIds } from '@shared/utils/systemProviderId'
 
-import { describeOAuthError, OAuthServiceError, OAuthSignInCancelledError, OAuthTransientError } from '../errors'
+import {
+  describeOAuthError,
+  OAuthAuthenticationRequiredError,
+  OAuthServiceError,
+  OAuthSignInCancelledError,
+  OAuthTransientError
+} from '../errors'
 import { LoopbackCallbackTransport } from './LoopbackCallbackTransport'
 import { ProviderAuthConfigOAuthTokenStore } from './OAuthTokenStore'
 import { OAuthHttpError } from './PkceOAuthClient'
@@ -413,7 +419,7 @@ export class OAuthRuntimeService extends BaseService {
     const { context, notSignedInMessage, onUnauthorized } = options
     const creds = await this.getValidAccessToken(providerId, context)
     if (!creds?.accessToken) {
-      throw new OAuthServiceError(notSignedInMessage ?? `Not signed in to ${providerId}`)
+      throw new OAuthAuthenticationRequiredError(providerId, notSignedInMessage)
     }
 
     const first = buildRequest(creds)
@@ -429,13 +435,14 @@ export class OAuthRuntimeService extends BaseService {
         void response.body?.cancel?.()
         throw error
       }
-      if (refreshed?.accessToken) {
-        // Drain the discarded 401 body before retrying so the underlying (undici)
-        // connection is released instead of leaking one per forced refresh.
+      if (!refreshed?.accessToken) {
         void response.body?.cancel?.()
-        const retry = buildRequest(refreshed)
-        response = await doFetch(retry.input, retry.init)
+        throw new OAuthAuthenticationRequiredError(providerId, notSignedInMessage)
       }
+      // Release the first response before retrying with the refreshed credentials.
+      void response.body?.cancel?.()
+      const retry = buildRequest(refreshed)
+      response = await doFetch(retry.input, retry.init)
     }
 
     if (response.status === 401) {

@@ -12,7 +12,7 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 
 const inputGroupVariants = cva(
   [
-    'group/input-group relative flex w-full items-center rounded-md border border-input bg-background transition-[color,box-shadow] outline-none',
+    'group/input-group relative flex w-full items-center rounded-md border border-input bg-background transition-[color,box-shadow]',
     'min-w-0 has-[>textarea]:h-auto',
 
     // Variants based on alignment.
@@ -21,8 +21,8 @@ const inputGroupVariants = cva(
     'has-[>[data-align=block-start]]:h-auto has-[>[data-align=block-start]]:flex-col has-[>[data-align=block-start]]:[&>input]:pb-3',
     'has-[>[data-align=block-end]]:h-auto has-[>[data-align=block-end]]:flex-col has-[>[data-align=block-end]]:[&>input]:pt-3',
 
-    // Focus state.
-    'has-[[data-slot=input-group-control]:focus-visible]:border-primary',
+    // Focus state: the group draws the border and halo in place of its control.
+    'has-[[data-slot=input-group-control]:focus-visible]:border-ring has-[[data-slot=input-group-control]:focus-visible]:outline-3',
 
     // Error state.
     'has-[[data-slot][aria-invalid=true]]:border-destructive has-[[data-slot][aria-invalid=true]]:ring-destructive/20 dark:has-[[data-slot][aria-invalid=true]]:ring-destructive/40'
@@ -139,7 +139,7 @@ function InputGroupInput({ className, ...props }: InputProps) {
     <Input
       data-slot="input-group-control"
       className={cn(
-        'flex-1 rounded-none border-0 bg-transparent shadow-none focus-visible:ring-0 dark:bg-transparent',
+        'flex-1 rounded-none border-0 bg-transparent shadow-none outline-none dark:bg-transparent',
         className
       )}
       {...props}
@@ -152,7 +152,7 @@ function InputGroupInputNumber({ className, ...props }: InputNumberProps) {
     <InputNumber
       data-slot="input-group-control"
       className={cn(
-        'h-full flex-1 rounded-none border-0 bg-transparent shadow-none focus-visible:ring-0 dark:bg-transparent',
+        'h-full flex-1 rounded-none border-0 bg-transparent shadow-none outline-none dark:bg-transparent',
         className
       )}
       {...props}
@@ -165,7 +165,7 @@ function InputGroupTextarea({ className, ...props }: TextareaInputProps) {
     <Textarea.Input
       data-slot="input-group-control"
       className={cn(
-        'flex-1 resize-none rounded-none border-0 bg-transparent py-3 shadow-none focus-visible:ring-0 dark:bg-transparent',
+        'flex-1 resize-none rounded-none border-0 bg-transparent py-3 shadow-none outline-none dark:bg-transparent',
         className
       )}
       {...props}

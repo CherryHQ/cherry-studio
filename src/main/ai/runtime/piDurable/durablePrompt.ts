@@ -1,6 +1,13 @@
+import path from 'node:path'
+
 import type { PromptSection } from '@earendil-works/pi-durable'
 
 import { application } from '@application'
+import { resolveAgentCapabilities } from '@main/ai/agents/builtin/builtinAgentCapabilities'
+import {
+  getBuiltinAgentPluginDirectory,
+  loadBuiltinAgentDefinition
+} from '@main/ai/agents/builtin/BuiltinAgentProvisioner'
 import { PromptBuilder } from '@main/ai/agents/prompt/promptContext'
 import { isEditablePromptSection } from '@shared/ai/agentPromptSections'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
@@ -11,7 +18,7 @@ import type { loadPiSdk } from '../pi/piSdk'
 type PiSdk = Awaited<ReturnType<typeof loadPiSdk>>
 
 interface DurablePromptOptions {
-  agent: Pick<AgentEntity, 'instructions' | 'configuration' | 'modelName' | 'type'>
+  agent: Pick<AgentEntity, 'name' | 'instructions' | 'configuration' | 'modelName' | 'type'>
   cwd: string
   agentDataPath: string
   effectiveLanguage: string | null
@@ -44,7 +51,15 @@ export async function buildDurablePrompt(pi: PiSdk, options: DurablePromptOption
     knowledgeBaseScope: options.knowledgeBaseScope
   })
   const agentDir = application.getPath('feature.agents.pi.root')
-  const skills = pi.loadSkills({ cwd, agentDir, skillPaths: [...options.skillPaths], includeDefaults: false })
+  const sealed = resolveAgentCapabilities(agent).environment === 'sealed'
+  const role = agent.configuration?.builtin_role
+  const pluginDir = role && getBuiltinAgentPluginDirectory(role)
+  const bundledSkills =
+    role && pluginDir
+      ? (loadBuiltinAgentDefinition(role)?.skills ?? []).map((name) => path.join(pluginDir, 'skills', name))
+      : []
+  const skillPaths = sealed ? bundledSkills : [...bundledSkills, ...options.skillPaths]
+  const skills = pi.loadSkills({ cwd, agentDir, skillPaths, includeDefaults: false })
   const builder = new PromptBuilder()
   const sections = [
     {
@@ -57,6 +72,7 @@ export async function buildDurablePrompt(pi: PiSdk, options: DurablePromptOption
     {
       key: 'project_context',
       render() {
+        if (sealed) return undefined
         const files = pi.loadProjectContextFiles({ cwd, agentDir })
         if (!files.length) return undefined
         const entries = files.map((file) => ({
@@ -108,6 +124,7 @@ export async function buildDurablePrompt(pi: PiSdk, options: DurablePromptOption
   }) satisfies PromptSection[]
   return {
     sections: resolvedSections,
+    skillPaths,
     instructions: [prompt.base.kind === 'custom' ? prompt.base.content : undefined, prompt.append]
       .filter(Boolean)
       .join('\n\n'),

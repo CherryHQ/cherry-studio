@@ -291,3 +291,17 @@ it('closes the background page from its menu while preserving the selected page'
   await waitFor(() => expect(runtime.get('conversation', docs)).toBeUndefined())
   expect(runtime.get('conversation')?.pageId).toBe(preview)
 })
+
+it('does not auto-focus the address bar while an agent-controlled blank page is executing', () => {
+  const agentPage = runtime.openPage('conversation', 'about:blank')!
+  runtime.update('conversation', { executing: true, ready: true }, agentPage)
+  setup()
+  expect(screen.getByRole('combobox', { name: 'Web address' })).not.toHaveFocus()
+})
+
+it('auto-focuses the address bar on an idle manual blank page', () => {
+  const manualPage = runtime.openPage('conversation', 'about:blank')!
+  runtime.update('conversation', { executing: false, ready: true }, manualPage)
+  setup()
+  expect(screen.getByRole('combobox', { name: 'Web address' })).toHaveFocus()
+})

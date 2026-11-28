@@ -110,15 +110,25 @@ async function fixture(
         send: async ({ message }) => {
           connections.sent.push(message.id)
         },
-        redirect: ({ message }: { message: { id: string } }) => {
-          connections.steers.push(message.id)
-          return true
+        threadInput: {
+          steer: {
+            whenIdle: 'reject',
+            submit: async ({ inputId }) => {
+              connections.steers.push(inputId)
+              return { status: 'acknowledged', inputId, facts: ['accepted', 'queued'] }
+            }
+          },
+          ...(agentType === 'pi-durable' && {
+            followUp: {
+              persistence: 'durable',
+              submit: async ({ inputId }) => {
+                connections.followUps.push(inputId)
+                return { status: 'acknowledged' as const, inputId, facts: ['accepted', 'queued'] }
+              }
+            }
+          })
         },
         ...(agentType === 'pi-durable' && {
-          followUp: ({ message }: { message: { id: string } }) => {
-            connections.followUps.push(message.id)
-            return true
-          },
           lookupInput: async (_contextId: string, inputId: string) => {
             const input = recorded.get(inputId)
             return {
@@ -188,7 +198,7 @@ async function fixture(
     queue.close()
     await closed.promise
     queue = new AsyncEventQueue()
-    await service['commandConnection']('root')
+    await service['ensureSessionConnection']('root')
   }
   return { service, handle, context, user, reply, emit, project, views, done, reconnect, connections }
 }
@@ -1204,6 +1214,34 @@ it('publishes the tool input when approval arrives before the native tool part',
   )
 })
 
+it('withdraws the matching live approval while leaving another request actionable', async () => {
+  const f = await fixture()
+  MockApplicationUtils.setService('AiStreamManager', { retireToolApproval: () => true })
+  for (const [toolCallId, approvalId] of [
+    ['one', 'old'],
+    ['one', 'current'],
+    ['two', 'other']
+  ]) {
+    await f.emit({
+      type: 'tool-approval-request',
+      request: { toolCallId, approvalId, toolName: 'write', input: {}, presentation: 'stream' }
+    })
+  }
+  for (const approvalId of ['old', 'other'])
+    await f.emit({
+      type: 'tool-approval-withdrawn',
+      contextId: f.context.id,
+      toolCallId: approvalId === 'old' ? 'one' : 'two',
+      approvalId
+    })
+  await vi.waitFor(() =>
+    expect(f.views.at(-1)?.parts).toEqual([
+      expect.objectContaining({ toolCallId: 'one', state: 'approval-requested', approval: { id: 'current' } }),
+      expect.objectContaining({ toolCallId: 'two', state: 'input-available' })
+    ])
+  )
+})
+
 // ExitPlanMode can supply display input before native content; a completed native card must stay withdrawn.
 it.each(['output-available', 'output-denied'] as const)(
   'does not resurrect a withdrawn %s plan card',
@@ -1342,38 +1380,38 @@ it('releases unplaced inputBinding when recovering an unresolved steer across re
   const q1 = new AsyncEventQueue<AgentRuntimeEvent>()
   const q2 = new AsyncEventQueue<AgentRuntimeEvent>()
   const sentOnSecond: string[] = []
-  let firstCallbacks: Parameters<Parameters<typeof runtimeDriverRegistry.register>[0]['connect']>[0] | undefined
   runtimeDriverRegistry.register({
     type: 'pi',
     validateSession: () => {},
     connect: vi
       .fn()
-      .mockImplementationOnce(async (connectInput) => {
-        firstCallbacks = connectInput
-        return {
-          contextId: context.id,
-          events: q1,
-          send: ({ message }) => {
-            prepareNativeSubmission('root', message.id, context.id, 'reject')
-          },
-          redirect: ({ message }) => {
-            prepareNativeSubmission('root', message.id, context.id, 'steer')
-            firstCallbacks?.onInputPrepared?.(message.id, context.id)
-            return true
-          },
-          close: async () => q1.close()
-        }
-      })
+      .mockImplementationOnce(async () => ({
+        contextId: context.id,
+        events: q1,
+        send: ({ message }) => {
+          prepareNativeSubmission('root', message.id, context.id)
+        },
+        threadInput: {
+          steer: {
+            whenIdle: 'reject',
+            submit: async ({ inputId }) => ({ status: 'acknowledged', inputId, facts: ['accepted'] })
+          }
+        },
+        close: async () => q1.close()
+      }))
       .mockImplementationOnce(async () => ({
         contextId: context.id,
         events: q2,
         send: ({ message }) => {
-          prepareNativeSubmission('root', message.id, context.id, 'reject')
+          prepareNativeSubmission('root', message.id, context.id)
           sentOnSecond.push(message.id)
         },
-        lookupInput: async () => ({
-          status: 'unknown',
-          error: { operation: 'lookup-input', code: 'unavailable', message: 'unavailable' }
+        lookupInput: async (_contextId: string, inputId: string) => ({
+          status: 'confirmed',
+          value:
+            inputId === placedSteer.id
+              ? { found: true, input: { inputId: runtimeId<'input'>(inputId), facts: ['placed'] } }
+              : { found: false }
         }),
         reconcile: async () => 'current',
         close: async () => q2.close()
@@ -1634,4 +1672,80 @@ it('persists a terminal compaction marker when closing and reopening during comp
       })
     })
   )
+})
+
+it('keeps a late child tool flow on its originating reply during the next turn', async () => {
+  const f = await fixture()
+  const tool = {
+    type: 'dynamic-tool' as const,
+    toolName: 'Agent',
+    toolCallId: 'first-task',
+    input: {},
+    state: 'output-available' as const,
+    output: 'started'
+  }
+  await f.project([reply([tool])])
+  await f.emit({ type: 'turn-complete' })
+  const completed: StreamDoneResult = { status: 'success', finalMessage: (await f.done).finalMessage }
+  await f.handle.listeners[0].onDone(completed)
+  await f.handle.listeners[1].onDone(completed)
+
+  const user = savedUser(f.reply.id, 'Next request')
+  const second = messages.saveMessage({
+    sessionId: 'root',
+    parentId: user.id,
+    message: { role: 'assistant', status: 'pending', data: { parts: [] } }
+  })
+  const handle = f.service.beginTurn({
+    sessionId: 'root',
+    topicId: 'agent-session:root',
+    agentId: 'agent',
+    agentType: 'pi',
+    modelId: 'test::model',
+    assistantMessageId: second.id,
+    userMessage: user
+  })
+  const stream = f.service.openTurnStream({
+    sessionId: 'root',
+    turnId: handle.turnId,
+    signal: handle.abortController.signal
+  })
+  const done = pipeMessageStream(
+    stream,
+    handle.abortController.signal,
+    { id: second.id, role: 'assistant' },
+    () => {},
+    () => {},
+    () => {}
+  )
+  await f.project([text('second', 'Foreground')])
+  const contextId = f.context.id
+  const ref = {
+    id: runtimeId<'item'>('child-result'),
+    session: { id: runtimeId<'thread'>(contextId), backendId: runtimeId<'backend'>('backend') }
+  }
+  await f.emit({
+    type: 'message-projection',
+    toolOwner: { toolCallId: tool.toolCallId, detached: true },
+    projection: {
+      contextId,
+      messages: [{ id: ref.id, role: 'assistant', parts: [] }],
+      live: [ref.id],
+      removed: [],
+      replaces: {}
+    }
+  })
+  await f.emit({
+    type: 'message.parts',
+    contextId,
+    ref,
+    changes: [
+      { type: 'open', kind: 'text', part: 0 },
+      { type: 'append', part: 0, text: 'Child finished' },
+      { type: 'finish', part: 0 }
+    ]
+  })
+  await f.emit({ type: 'turn-complete' })
+  expect((await done).finalMessage?.parts).toEqual(text('', 'Foreground').parts)
+  expect(messages.getSessionMessage('root', f.reply.id).data.parts).toEqual([tool, ...text('', 'Child finished').parts])
 })

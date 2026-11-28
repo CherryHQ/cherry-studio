@@ -1,5 +1,5 @@
 import { projectionIpc } from '@test-mocks/renderer/ProjectionIpc'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import React from 'react'
 import { SWRConfig } from 'swr'
@@ -131,6 +131,8 @@ vi.mock('react-i18next', () => {
       if (key === 'message.tools.sessionCreate.open') return 'Open session'
       if (key === 'message.tools.sessionCreate.untitled') return 'Untitled session'
       if (key === 'message.tools.sessionSend.sent') return 'Sent to'
+      if (key === 'chat.artifacts.file_changes') return 'File changes'
+      if (key === 'chat.profile_pane.tabs.outputs') return 'Outputs'
       if (key === 'common.preview') return 'Preview'
       if (key === 'common.close') return 'Close'
       if (key === 'message.message.user_content.expand') return 'Expand'
@@ -2473,6 +2475,71 @@ describe('MessagePartsRenderer', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Preview report.md' }))
       expect(openArtifactFile).toHaveBeenCalledWith('dist/report.md')
     })
+
+    it('shows a previewable file change after a local write', () => {
+      const openArtifactFile = vi.fn()
+      renderParts(
+        [
+          {
+            type: 'dynamic-tool',
+            toolCallId: 'write-1',
+            toolName: 'ACP: Write',
+            state: 'output-available',
+            input: { path: 'pelican-bicycle.html', content: '<html></html>' },
+            output: { ok: true }
+          },
+          { type: 'text', text: 'Created pelican-bicycle.html', state: 'done' }
+        ] as unknown as CherryMessagePart[],
+        msg(),
+        { openArtifactFile }
+      )
+
+      const changes = screen.getByRole('region', { name: 'File changes' })
+      expect(screen.queryByRole('region', { name: 'Outputs' })).not.toBeInTheDocument()
+      fireEvent.click(within(changes).getByRole('button', { name: 'Preview pelican-bicycle.html' }))
+      expect(openArtifactFile).toHaveBeenCalledWith('pelican-bicycle.html')
+    })
+
+    it('shows reported outputs and other file changes in separate groups', () => {
+      const openArtifactFile = vi.fn()
+      renderParts(
+        [
+          {
+            type: 'dynamic-tool',
+            toolCallId: 'write-1',
+            toolName: 'ACP: Write',
+            state: 'output-available',
+            input: { path: 'temp-draft.html', content: '<html></html>' },
+            output: { ok: true }
+          },
+          {
+            type: 'dynamic-tool',
+            toolCallId: 'write-2',
+            toolName: 'ACP: Write',
+            state: 'output-available',
+            input: { path: 'dist/final.html', content: '<html></html>' },
+            output: { ok: true }
+          },
+          {
+            type: 'dynamic-tool',
+            toolCallId: 'report-1',
+            toolName: 'mcp__cherry-tools__report_artifacts',
+            state: 'output-available',
+            input: { artifacts: [{ path: 'dist/final.html' }] },
+            output: { ok: true }
+          },
+          { type: 'text', text: 'Done', state: 'done' }
+        ] as unknown as CherryMessagePart[],
+        msg(),
+        { openArtifactFile }
+      )
+
+      const outputs = screen.getByRole('region', { name: 'Outputs' })
+      const changes = screen.getByRole('region', { name: 'File changes' })
+      expect(within(outputs).getByRole('button', { name: 'Preview final.html' })).toBeInTheDocument()
+      expect(within(changes).getByRole('button', { name: 'Preview temp-draft.html' })).toBeInTheDocument()
+      expect(within(changes).queryByRole('button', { name: 'Preview final.html' })).not.toBeInTheDocument()
+    })
   })
 
   describe('active layout', () => {
@@ -3303,10 +3370,24 @@ describe('MessagePartsRenderer', () => {
       expect(failedTool).toHaveAttribute('data-status', 'error')
     })
 
-    it('keeps an unrecovered tool failure in the collapsed completed summary', () => {
-      renderParts([toolPart('failed', 'output-error')] as unknown as CherryMessagePart[])
+    it('shows an imported OpenCode tool failure in the collapsed summary and expanded tool row', () => {
+      renderParts([
+        {
+          type: 'dynamic-tool',
+          toolCallId: 'history:message:0',
+          toolName: 'historical_tool',
+          state: 'output-error',
+          input: { filePath: 'notes.md' },
+          errorText: 'File not found',
+          callProviderMetadata: {
+            cherry: { tool: { type: 'mcp', name: 'read', serverId: 'history-import', serverName: 'opencode' } }
+          }
+        }
+      ])
 
-      expect(screen.getByRole('button', { name: 'Error' })).toBeInTheDocument()
+      fireEvent.click(screen.getByRole('button', { name: 'Error' }))
+      expandCollapsedChildToolGroups()
+      expect(screen.getByTestId('mock-message-tools')).toHaveAttribute('data-status', 'error')
     })
 
     it('keeps terminal reasoning alongside the process error', () => {

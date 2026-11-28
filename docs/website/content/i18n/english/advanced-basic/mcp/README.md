@@ -90,9 +90,9 @@ An admin provides a read-only MCP connection. The user verifies the server works
 
 <details>
 
-<summary>What's the difference between MCP and the API Gateway?</summary>
+<summary>What's the difference between MCP and the Unified Gateway?</summary>
 
-MCP brings external tools into Cherry Studio; the API Gateway offers Cherry Studio's model capabilities to other programs through a compatible API. The data flows in opposite directions.
+MCP brings external tools into Cherry Studio; the Unified Gateway offers Cherry Studio's model capabilities to other programs through a compatible API. The data flows in opposite directions.
 </details>
 
 <details>

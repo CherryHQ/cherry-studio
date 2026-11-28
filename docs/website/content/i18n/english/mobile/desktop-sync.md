@@ -10,7 +10,7 @@ Reuse supported model providers already configured in Cherry Studio on your comp
 
 ## Connect your computer
 
-1. Connect both devices to the same local network, such as your home Wi-Fi, and keep Cherry Studio Desktop running.
+1. Keep desktop running. Prefer the same local network for first setup; an already configured reachable domain, port, or secure connection follows its actual address.
 2. Open **Device connections** on desktop and display its pairing QR code.
 3. On mobile, open **Settings → Device connections → Scan QR code**. Allow camera and local-network permissions when requested.
 4. Complete pairing and configuration-sync authorization on both devices. After pairing from Settings, start synchronization from device details; onboarding continues through import and model selection.
@@ -20,6 +20,12 @@ If the camera is unavailable, use the manual field to paste the pairing QR conte
 <div data-mobile-gallery="single">
 <figure data-mobile-shot="phone"><a href="../../../assets/mobile/en/device-connections.webp"><img src="../../../assets/mobile/en/device-connections.webp" alt="Settings → Device Connections: scan the QR code shown on desktop"></a><figcaption><p><strong>iPhone</strong> · Settings → Device Connections: scan the QR code shown on desktop</p></figcaption></figure>
 </div>
+
+## Local device names and connection addresses
+
+Device details can assign a local alias without renaming the computer or changing its grants. Use supported domain, custom-port, or HTTPS connection settings and check reachability after editing.
+
+The desktop connection address and imported model-provider addresses have different jobs. Pairing successfully does not establish access to every model endpoint from the phone.
 
 ## Select and import providers
 
@@ -52,13 +58,13 @@ Read the reason shown beside the provider:
 * **No usable API key:** key-based providers need a valid enabled key on desktop. Explicitly keyless HTTP gateways follow the import preview's requirements.
 * **Unreadable configuration:** update mobile, or skip that entry and import the others.
 
-0.3.0 can import supported HTTP-service configurations, including gateways such as LM Studio and keyless connections. Invocation still depends on the exported API: native Ollama endpoints remain unsupported; compatible endpoints depend on their actual configuration.
+The current version can import supported HTTP-service configurations, including gateways such as LM Studio and keyless connections. Invocation still depends on the exported API: native Ollama endpoints remain unsupported; compatible endpoints depend on their actual configuration.
 
 The model runs on the computer or service host. Its address must be reachable from the phone. On mobile, `localhost` and `127.0.0.1` refer to the phone itself; replace them with a reachable service address. Import does not automatically forward requests through the computer.
 
 ## Paired successfully, but cannot synchronize
 
-Pairing stores connection credentials; fetching configuration still needs a reachable computer. Keep desktop running and check the shared local network, guest-network isolation, firewall, and proxy settings.
+Pairing stores connection credentials; fetching configuration still needs a reachable computer. Keep desktop running and check the selected address, guest-network isolation, firewall, and proxy. Sharing Wi-Fi does not itself establish authorization or reachability.
 
 On iPhone/iPad, enable Cherry Studio's local-network permission in system settings if previously denied. If the app says pairing needs repair, scan a new desktop QR code.
 

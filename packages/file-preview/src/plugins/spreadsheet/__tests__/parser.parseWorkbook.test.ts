@@ -354,15 +354,13 @@ describe('parseWorkbook — formulas: three states', () => {
     expect(cell.text).toBe('30')
   })
 
-  it('formula without cache: either evaluated correctly or unevaluated with formula text shown', () => {
+  it('formula without cache: a supported multiplication evaluates to its computed result', () => {
     const cell = model.sheets[0].cells['4:1']
     expect(cell.formula).toBe('A1*A2')
-    if (cell.formulaState === 'evaluated') {
-      expect(cell.text).toBe('200')
-    } else {
-      expect(cell.formulaState).toBe('unevaluated')
-      expect(cell.text).toBe('=A1*A2')
-    }
+    // Multiplication is supported, so only evaluation is acceptable; an
+    // unevaluated fallback for this valid input would be a regression.
+    expect(cell.formulaState).toBe('evaluated')
+    expect(cell.text).toBe('200')
   })
 
   it('unresolvable function formula ends up unevaluated with formula text shown, greyed by UI', () => {

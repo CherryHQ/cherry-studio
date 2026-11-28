@@ -259,4 +259,87 @@ describe('JsonFileStorage round-trip', () => {
     expect(file).not.toContain('plaintext-must-not-land')
     await expect(storage.getTokens()).resolves.toMatchObject({ access_token: 'plaintext-must-not-land' })
   })
+
+  it.each(['EPERM', 'EACCES', 'EROFS'] as const)(
+    'degrades to in-memory session storage when writing the OAuth directory fails with %s (#24088)',
+    async (code) => {
+      const fsError = () =>
+        Object.assign(new Error(`${code}: operation not permitted, open '${serverUrlHash}_oauth.json.tmp'`), { code })
+      vi.spyOn(fs, 'writeFile').mockRejectedValue(fsError())
+      vi.spyOn(fs, 'rm').mockRejectedValue(fsError())
+
+      const storage = new JsonFileStorage(serverUrlHash, configDir, cipher)
+      // Initial cold read (ENOENT -> initial write) must not abort MCP server activation.
+      await expect(storage.getTokens()).resolves.toBeUndefined()
+
+      const tokens: StoredOAuthTokens = { access_token: 'session-token', token_type: 'Bearer' }
+      const clientInfo: StoredOAuthClientInformation = { client_id: 'session-client' }
+      const discoveryState = { authorizationServerUrl: 'https://auth.example.com' }
+
+      await storage.saveClientInformation(clientInfo)
+      await storage.saveCodeVerifier('session-verifier')
+      await storage.saveState('session-state')
+      await storage.saveDiscoveryState(discoveryState)
+      await storage.saveTokens(tokens)
+
+      // Fresh instance (as created by McpOAuthClientProvider.reloadCredentials) must see the in-memory session state.
+      const reloaded = new JsonFileStorage(serverUrlHash, configDir, cipher)
+      await expect(reloaded.getClientInformation()).resolves.toEqual(clientInfo)
+      await expect(reloaded.getCodeVerifier()).resolves.toBe('session-verifier')
+      await expect(reloaded.getState()).resolves.toBe('session-state')
+      await expect(reloaded.getDiscoveryState()).resolves.toEqual(discoveryState)
+      await expect(reloaded.getTokens()).resolves.toEqual(tokens)
+
+      await reloaded.clear('tokens')
+      await expect(new JsonFileStorage(serverUrlHash, configDir, cipher).getTokens()).resolves.toBeUndefined()
+      await expect(new JsonFileStorage(serverUrlHash, configDir, cipher).getClientInformation()).resolves.toEqual(
+        clientInfo
+      )
+
+      await deleteOAuthStorage(serverUrlHash, configDir)
+      const afterDelete = new JsonFileStorage(serverUrlHash, configDir, cipher)
+      await expect(afterDelete.getClientInformation()).resolves.toBeUndefined()
+      await expect(afterDelete.getDiscoveryState()).resolves.toBeUndefined()
+    }
+  )
+
+  it('degrades to in-memory session storage when reading and creating the OAuth directory fail with EPERM (#24088)', async () => {
+    const eperm = () => Object.assign(new Error('EPERM: operation not permitted'), { code: 'EPERM' })
+    vi.spyOn(fs, 'readFile').mockRejectedValue(eperm())
+    vi.spyOn(fs, 'mkdir').mockRejectedValue(eperm())
+
+    const storage = new JsonFileStorage(serverUrlHash, configDir, cipher)
+    await expect(storage.getTokens()).resolves.toBeUndefined()
+    await storage.saveTokens({ access_token: 'ephemeral', token_type: 'Bearer' })
+    await expect(new JsonFileStorage(serverUrlHash, configDir, cipher).getTokens()).resolves.toEqual({
+      access_token: 'ephemeral',
+      token_type: 'Bearer'
+    })
+
+    await new JsonFileStorage(serverUrlHash, configDir, cipher).clear('all')
+    await expect(new JsonFileStorage(serverUrlHash, configDir, cipher).getTokens()).resolves.toBeUndefined()
+  })
+
+  it('still surfaces non-permission write failures such as ENOSPC', async () => {
+    vi.spyOn(fs, 'writeFile').mockRejectedValue(
+      Object.assign(new Error('ENOSPC: no space left on device'), { code: 'ENOSPC' })
+    )
+    const storage = new JsonFileStorage(serverUrlHash, configDir, cipher)
+    await expect(storage.saveTokens({ access_token: 'tok', token_type: 'Bearer' })).rejects.toThrow(
+      'Failed to write OAuth storage'
+    )
+  })
+
+  it('preserves existing persisted tokens when discovery state updates degrade to in-memory on a read-only disk', async () => {
+    const tokens: StoredOAuthTokens = { access_token: 'persisted-token', token_type: 'Bearer' }
+    await new JsonFileStorage(serverUrlHash, configDir, cipher).saveTokens(tokens)
+
+    vi.spyOn(fs, 'writeFile').mockRejectedValue(Object.assign(new Error('EPERM: read-only'), { code: 'EPERM' }))
+    const reader = new JsonFileStorage(serverUrlHash, configDir, cipher)
+    await reader.saveDiscoveryState({ authorizationServerUrl: 'https://auth.example.com' })
+
+    const reloaded = new JsonFileStorage(serverUrlHash, configDir, cipher)
+    await expect(reloaded.getDiscoveryState()).resolves.toEqual({ authorizationServerUrl: 'https://auth.example.com' })
+    await expect(reloaded.getTokens()).resolves.toEqual(tokens)
+  })
 })

@@ -15,8 +15,7 @@ export function loadBuiltinAgentEnsureInput(
   return {
     ...defaults,
     builtinRole,
-    preferredModelId: defaultModelId,
-    type: 'claude-code'
+    preferredModelId: defaultModelId
   }
 }
 

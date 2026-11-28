@@ -1,5 +1,13 @@
 # @cherrystudio/provider-registry
 
+## 0.8.4
+
+### Patch Changes
+
+- [#25510](https://github.com/CherryHQ/cherry-studio/pull/25510) [`26977f6`](https://github.com/CherryHQ/cherry-studio/commit/26977f616c428205453ef197f04981471cde36e3) Thanks [@cherry-coding](https://github.com/apps/cherry-coding)! - Register missing Alibaba Qwen Image (`qwen-image-max`, `qwen-image-plus`, `qwen-image-2.0`, `qwen-image-2.0-pro`, `qwen-image-2.1-pro`, `qwen-image-2.1-turbo`, `qwen-image-edit-max`, `qwen-image-edit-plus`) and `z-image-turbo` image-generation models in the Alibaba creator catalog and DashScope provider overrides.
+
+- [#25539](https://github.com/CherryHQ/cherry-studio/pull/25539) [`68a0f22`](https://github.com/CherryHQ/cherry-studio/commit/68a0f2285d6a8a0de5b49044894a89417f08e384) Thanks [@DeJeune](https://github.com/DeJeune)! - Recognize reasoning effort controls for SWE-2, Flint, Beam, Fugu, and Namazu models added through custom providers.
+
 ## 0.8.3
 
 ### Patch Changes
