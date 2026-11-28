@@ -6,6 +6,7 @@ import type { ModelRuntime } from '@earendil-works/pi-coding-agent'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { getPiTraceContext } from '@main/ai/observability'
+import type { RecoverableModelTransportFailure } from '@main/ai/runtime/aiSdk'
 import { resolveGatewayModelAddress } from '@main/features/apiGateway/utils/models'
 import { isPiCompatibleModel, mapEndpointToPiApi } from '@shared/ai/piModelCompatibility'
 import { ENDPOINT_TYPE, MODALITY, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
@@ -39,7 +40,10 @@ export async function createPiGatewayModelBinding(
   onUsage?: (usage: Usage, nativeSessionId: string | undefined, responseId?: string) => void,
   sharedModels?: ModelRuntime,
   onRetry?: (event: RetryPartData, nativeSessionId: string) => void,
-  nativeProviders?: readonly [string, ...string[]]
+  bindingOptions?: {
+    nativeProviders?: readonly [string, ...string[]]
+    transportFailures?: WeakMap<AssistantMessage, RecoverableModelTransportFailure>
+  }
 ): Promise<{
   modelRuntime: ModelRuntime
   model: NonNullable<ReturnType<ModelRuntime['getModel']>>
@@ -57,6 +61,7 @@ export async function createPiGatewayModelBinding(
   const adapterFamily = endpointType ? provider.endpointConfigs?.[endpointType]?.adapterFamily : undefined
   const api = mapEndpointToPiApi(endpointType, adapterFamily) ?? 'openai-completions'
   const gateway = application.get('ApiGatewayService')
+  const { nativeProviders, transportFailures } = bindingOptions ?? {}
   const modelId = formatGatewayModelId(provider.id, getRawModelId(model))
   const modalities: ('text' | 'image')[] = ['text']
   if (
@@ -101,6 +106,7 @@ export async function createPiGatewayModelBinding(
       const reported: ReportedOutputUsage = {}
       const output = createAssistantMessageEventStream()
       void (async () => {
+        let transportFailure: RecoverableModelTransportFailure | undefined
         try {
           options?.signal?.throwIfAborted()
           const pending = getPendingPiReplayMessage(context)
@@ -114,7 +120,8 @@ export async function createPiGatewayModelBinding(
               origin.model,
               undefined,
               modelRuntime,
-              onRetry
+              onRetry,
+              transportFailures ? { transportFailures } : undefined
             )
             const stream = binding.modelRuntime.streamSimple(binding.model, context, options)
             for await (const event of stream) output.push(event)
@@ -138,7 +145,13 @@ export async function createPiGatewayModelBinding(
               traceContext: getPiTraceContext(options?.telemetry),
               onRetryEvent: (event) => {
                 if (options?.sessionId && !options.readOnlyFork) onRetry?.(event, options.sessionId)
-              }
+              },
+              ...(transportFailures &&
+                !options?.readOnlyFork && {
+                  onModelTransportFailure: (failure) => {
+                    transportFailure = failure
+                  }
+                })
             }),
             disableContinuation: true,
             reasoning: undefined,
@@ -160,7 +173,11 @@ export async function createPiGatewayModelBinding(
             }
             output.push(event)
           }
-          output.end(await stream.result())
+          const result = await stream.result()
+          if (transportFailure && !options?.signal?.aborted && result.stopReason === 'error') {
+            transportFailures?.set(result, transportFailure)
+          }
+          output.end(result)
         } catch (cause) {
           const reason = options?.signal?.aborted ? 'aborted' : 'error'
           const error: AssistantMessage = {
@@ -181,6 +198,7 @@ export async function createPiGatewayModelBinding(
             stopReason: reason,
             errorMessage: cause instanceof Error ? cause.message : String(cause)
           }
+          if (transportFailure && reason === 'error') transportFailures?.set(error, transportFailure)
           output.push({ type: 'error', reason, error })
           output.end(error)
         }

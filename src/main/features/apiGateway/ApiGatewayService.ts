@@ -9,6 +9,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { application } from '@application'
 import { advertisedEndpointSchema } from '@cherrystudio/remote-protocol'
 import { loggerService } from '@logger'
+import type { RecoverableModelTransportFailure } from '@main/ai/runtime/aiSdk'
 import type { InProcessUsageContext } from '@main/ai/types'
 import { createLatestReconciler, type LatestReconciler } from '@main/core/concurrency/latestReconciler'
 import { type Activatable, BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
@@ -588,6 +589,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
     fastMode?: boolean
     traceContext?: InProcessUsageContext['traceContext']
     onRetryEvent?: (event: RetryPartData) => void
+    onModelTransportFailure?: (failure: RecoverableModelTransportFailure) => void
   }) {
     const headers = new Headers()
     for (const [name, value] of Object.entries(input.headers ?? {})) {
@@ -603,6 +605,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
         replayRouteId: input.replayRouteId,
         omitGeminiSignaturesFor: input.omitGeminiSignaturesFor,
         onRetryEvent: input.onRetryEvent,
+        onModelTransportFailure: input.onModelTransportFailure,
         reasoningEffort: input.reasoningEffort ?? 'default',
         serviceTier: input.serviceTier,
         fastMode: input.fastMode === true,
