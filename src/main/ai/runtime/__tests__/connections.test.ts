@@ -682,12 +682,13 @@ describe('local protocol processes', () => {
     expect(wire.some((message) => message.method === 'session/set_config_option')).toBe(false)
   })
 
-  it('keeps setup option notifications across model selection without reopening a replayed compaction', async () => {
-    const { connection, events, closeAndDrain } = create('acp', 'model-setup-update', 'fixture-model')
+  it('keeps the resumed model and its setup controls when a different default is saved', async () => {
+    const { connection, closeAndDrain } = create('acp', 'resume-model-setup', 'fixture-model')
     await connection.start(cwd, 'native-session')
     await closeAndDrain()
+    expect(connection.localSessionInfo.activeModel?.id).toBe('updated-model')
     expect(connection.localSessionInfo.thoughtLevel?.currentValue).toBe('balanced')
-    expect(events.filter((event) => event.type.startsWith('compaction-'))).toEqual([])
+    expect((await readWire()).some(({ method }) => method === 'session/set_config_option')).toBe(false)
   })
 
   it.each(['thought-legacy-duplicate', 'thought-legacy-distinct'])(
@@ -2584,7 +2585,7 @@ describe('local protocol processes', () => {
           }
         ]
       })
-      const { connection, closeAndDrain } = create('acp', 'normal', 'cherryin:agent/deepseek-v4-pro', 'cline')
+      const { connection, closeAndDrain } = create('acp', 'normal', undefined, 'cline')
       await connection.start(cwd)
       const wire = await readWire()
       const selection = wire.find((m) => m.method === 'session/set_config_option')

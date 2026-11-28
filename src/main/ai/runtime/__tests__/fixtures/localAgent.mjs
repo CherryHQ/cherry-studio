@@ -652,10 +652,6 @@ createInterface({ input: process.stdin }).on('line', (line) => {
       secondaryValues[message.params.configId] = message.params.value
       return reply(id, { configOptions: nativePermissionOptions[scenario]() })
     }
-    if (scenario === 'model-setup-update') {
-      update({ sessionUpdate: 'config_option_update', configOptions: [thought()] })
-      update({ sessionUpdate: 'compaction_update', compactionId: 'replayed', status: 'in_progress' })
-    }
     if (scenario === 'config-semantics') return reply(id, { configOptions: [extraConfig()[1], mode()] })
     if (scenario === 'config-multiple') {
       secondaryValues[message.params.configId] = message.params.value
