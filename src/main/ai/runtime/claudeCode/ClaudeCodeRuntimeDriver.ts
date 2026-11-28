@@ -248,6 +248,46 @@ export class ClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
       const opened = await connection.start()
       if (!('status' in opened)) return opened
       await connection.close()
+      // Confirmed-missing archive (`native-storage-missing` from native open)
+      // leaves older checkpoint rows pinning the dead resume token, so a later
+      // edit/fork of the recovered suffix would fail `unsupported_checkpoint`.
+      // Clear the dead token/native binding and pin a reset boundary before the
+      // rebuild so the recovered suffix stays editable while siblings keep
+      // theirs. Transient `native-storage-unavailable` never reaches here as
+      // confirmed-missing (start() throws), and other unavailable reasons skip
+      // invalidation to preserve bindings (#23519 review inv_7965089eb0bef695).
+      const deadId = opened.context.nativeThreadId
+      const isConfirmedMissing = opened.reason.includes('native-storage-missing')
+      if (isConfirmedMissing && deadId) {
+        try {
+          messages.clearRuntimeResumeTokens(input.sessionId, deadId)
+        } catch (error) {
+          logger.warn('Failed to clear stale resume tokens before Claude rebuild — proceeding', {
+            sessionId: input.sessionId,
+            error
+          })
+        }
+        try {
+          messages.clearNativeSessionIds(input.sessionId, deadId)
+        } catch (error) {
+          logger.warn('Failed to clear stale native bindings before Claude rebuild — proceeding', {
+            sessionId: input.sessionId,
+            error
+          })
+        }
+        const boundary = input.branchHead ?? opened.context.anchorMessageId ?? undefined
+        if (boundary) {
+          try {
+            messages.markStaleResumeResetBoundary(input.sessionId, boundary)
+          } catch (error) {
+            logger.warn('Failed to mark stale reset boundary before Claude rebuild — proceeding', {
+              sessionId: input.sessionId,
+              branchHead: boundary,
+              error
+            })
+          }
+        }
+      }
       contexts.rebuildFileBranch(opened.context)
       logger.warn('Rebuilding Claude context from session messages', {
         sessionId: input.sessionId,

@@ -92,6 +92,7 @@ export type AgentSessionMessageStoredData = Omit<MessageData, 'parts'> & {
   runtimeAnchor?: unknown
   nativeSessionId?: string
   deliveryReplyAnchor?: string
+  staleResumeReset?: boolean
   nativePlaced?: true
   locallyHandled?: boolean
   stagedFollowup?: true

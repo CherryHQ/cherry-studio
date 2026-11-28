@@ -49,10 +49,14 @@ export function prepareDurableBranch(sessionId: string, messageId?: string, miss
       contexts.detachBranchTx(tx, existing.id)
     }
     const backend = allocateDurableBackendTx(tx)
+    // Fresh branches anchor at the requested head. The hidden root binding still
+    // occupies `(sessionId, root)` after a stale reset, so anchoring at the
+    // failed head keeps siblings on root. Reference history marks rebuilds from
+    // session messages.
     return contexts.reserveBranchTx(tx, {
       sessionId,
       backendId: backend.id,
-      anchorMessageId: existing?.anchorMessageId ?? anchorMessageId,
+      anchorMessageId,
       checkpointMapping: { referenceHistory: true }
     })
   })

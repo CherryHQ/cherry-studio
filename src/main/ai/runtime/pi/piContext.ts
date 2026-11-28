@@ -6,32 +6,69 @@ import { agentSessionContextService as contexts } from '@data/services/AgentSess
 import { ensureAgentSessionRootTx } from '@data/services/agentSessionMessageTree'
 import { agentSessionService } from '@data/services/AgentSessionService'
 
-export function reservePiBranchTx(tx: DbOrTx, sessionId: string, anchorMessageId: string, nativeId: string) {
+export function reservePiBranchTx(
+  tx: DbOrTx,
+  sessionId: string,
+  anchorMessageId: string,
+  nativeId: string,
+  checkpointMapping?: { staleResetHandled?: string; referenceHistory?: true }
+) {
   const backend = contexts.ensureBackendTx(tx, { version: 1, kind: 'pi' }, 'bound')
-  return contexts.reserveBranchTx(tx, { sessionId, backendId: backend.id, anchorMessageId, nativeThreadId: nativeId })
+  return contexts.reserveBranchTx(tx, {
+    sessionId,
+    backendId: backend.id,
+    anchorMessageId,
+    nativeThreadId: nativeId,
+    ...(checkpointMapping !== undefined ? { checkpointMapping } : {})
+  })
 }
 
 export function preparePiBranch(sessionId: string, messageId?: string, nativeId?: string, opening = false) {
   agentSessionService.assertIndependentSession(sessionId)
   return application.get('DbService').withWriteTx((tx) => {
     const root = ensureAgentSessionRootTx(tx, sessionId)
-    const anchorMessageId = messageId ?? root
-    const existing = contexts.branchTx(tx, sessionId, anchorMessageId)
+    const anchor = messageId ?? root
+    const existing = contexts.branchTx(tx, sessionId, anchor)
+    const resetBoundaryId = contexts.lastStaleResetBoundaryTx(tx, sessionId, anchor)
     if (existing) {
       if (contexts.backendTx(tx, existing.backendId).locator.kind !== 'pi')
         throw new Error('The selected branch belongs to another runtime')
+      if (resetBoundaryId !== undefined) {
+        const handled =
+          (existing.checkpointMapping as { staleResetHandled?: string } | null | undefined)?.staleResetHandled ===
+          resetBoundaryId
+        if (handled) {
+          // Already recovered: preserve the healthy binding. A new native on a
+          // descendant (e.g. post-recovery rotation) must not rewrite it in
+          // place (#23519 review). Pi surfaces mismatches instead of forking.
+          if (
+            !opening &&
+            nativeId &&
+            existing.nativeThreadId !== nativeId &&
+            !existing.checkpointMapping?.referenceHistory
+          )
+            throw new Error('Requested Pi identity does not match the captured branch')
+          return existing
+        }
+        // Unhandled (holds the dead identity): refresh instead of reusing it.
+        // Records the boundary so later native changes don't rewrite the
+        // healthy recovered binding.
+        return contexts.refreshResetBranchTx(tx, existing.id, nativeId ?? uuid(), resetBoundaryId)
+      }
       if (!opening && nativeId && existing.nativeThreadId !== nativeId && !existing.checkpointMapping?.referenceHistory)
         throw new Error('Requested Pi identity does not match the captured branch')
       return existing
     }
-    if (!opening || nativeId) return reservePiBranchTx(tx, sessionId, anchorMessageId, nativeId ?? uuid())
-    const backend = contexts.ensureBackendTx(tx, { version: 1, kind: 'pi' }, 'bound')
-    return contexts.reserveBranchTx(tx, {
-      sessionId,
-      backendId: backend.id,
-      anchorMessageId,
-      nativeThreadId: uuid(),
-      checkpointMapping: { referenceHistory: true }
-    })
+    // Fresh branches anchor at the requested head (`anchor`, main). The hidden
+    // root binding still occupies `(sessionId, root)` after a stale reset, so
+    // the boundary marker is recorded and siblings keep the root binding.
+    // Opening without an explicit native creates a history-reference branch.
+    if (resetBoundaryId !== undefined || (opening && !nativeId)) {
+      return reservePiBranchTx(tx, sessionId, anchor, nativeId ?? uuid(), {
+        ...(resetBoundaryId !== undefined ? { staleResetHandled: resetBoundaryId } : {}),
+        ...(opening && !nativeId ? { referenceHistory: true } : {})
+      })
+    }
+    return reservePiBranchTx(tx, sessionId, anchor, nativeId ?? uuid())
   })
 }

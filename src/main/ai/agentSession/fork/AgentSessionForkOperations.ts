@@ -131,7 +131,8 @@ export class AgentSessionForkOperations {
         const { anchor } = boundary
         if (anchor.excludedMessageIds?.some((id) => prefix.some((row) => row.id === id)))
           throw new AgentSessionForkError('history_changed')
-        const group = groupNativeHistory(prefix, bindings, driver).find((group) => group.rows.at(-1)?.id === row.id)!
+        const group = groupNativeHistory(prefix, bindings, driver).find((group) => group.rows.at(-1)?.id === row.id)
+        if (!group) throw new AgentSessionForkError('unsupported_checkpoint')
         if (group.context.locator.kind !== driver?.type) throw new AgentSessionEditError('checkpoint_unsupported')
         const checkpoints = group.rows.map((row) => RuntimeForkAnchorSchema.parse(row.data.runtimeAnchor).checkpoint)
         resources = {
@@ -273,6 +274,21 @@ export class AgentSessionForkOperations {
     ]
     const source = agentSessionForkService.read(sourceSessionId, messageId, excludedIds)
     const groups = groupNativeHistory(source.messages, source.contexts, driver)
+    // A stale-resume reset clears `runtimeResumeToken` for the failed conversation
+    // while its checkpoint anchor survives. `groupNativeHistory` skips those rows,
+    // so an entirely cleared prefix yields zero groups: that is missing native
+    // history, not an empty fork — reject explicitly instead of publishing a child
+    // with no native contexts. Likewise, the selected checkpoint must have native
+    // coverage; otherwise the child would copy a reset marker that hides its root
+    // binding and its first send would hit `Native context already belongs to
+    // another branch` (#23519 review inv_49fb89d210e5df10).
+    const anchoredRows = source.messages.filter(
+      (row) => RuntimeForkAnchorSchema.safeParse(row.data.runtimeAnchor).success
+    )
+    if (anchoredRows.length > 0 && groups.length === 0) throw new AgentSessionForkError('unsupported_checkpoint')
+    const selectedAnchor = RuntimeForkAnchorSchema.safeParse(selected.data.runtimeAnchor)
+    if (selectedAnchor.success && !groups.some((group) => group.rows.some((row) => row.id === selected.id)))
+      throw new AgentSessionForkError('unsupported_checkpoint')
     const resources: AgentSessionForkResources = {
       version: 1,
       operationId,
@@ -333,6 +349,28 @@ export class AgentSessionForkOperations {
       signal.throwIfAborted()
       const messages = cloneMessages(source.messages, resources.targetSessionId, prepared, messageId)
       const positions = new Map(source.messages.map((row, index) => [row.id, index]))
+      // Place each copied binding on the visible side of the stale-resume reset
+      // covering its own ancestry: the reset marker is copied into the child,
+      // so a root (`null`) or pre-reset anchor would be hidden by
+      // `effectivePath` while still occupying its unique anchor — the child's
+      // first send would then reserve the same native id at a descendant and
+      // hit `Native context already belongs to another branch`. Anchoring at
+      // the copied reset row keeps the binding resolvable, and persisting the
+      // copied reset id marks it handled so the first send reuses its forked
+      // native id (#23519 inv_49fb89d210e5df10, inv_1b2f2c06988481f7,
+      // inv_d75af90853619a5a). The first group's marker must not cover later
+      // groups: after `/clear` + stale recovery the earlier healthy context is
+      // still copied, but only the recovered binding's ancestry contains the
+      // reset, so each group derives its own marker.
+      const resetSourceIndexByGroup = groups.map((group) => {
+        const firstPos = positions.get(group.rows[0].id)!
+        let lastResetSourceIndex = -1
+        source.messages.forEach((row, index) => {
+          if (index <= firstPos && (row.data as { staleResumeReset?: unknown }).staleResumeReset)
+            lastResetSourceIndex = index
+        })
+        return lastResetSourceIndex
+      })
       const contexts = prepared.map(({ group, result }, index) => {
         const first = positions.get(group.rows[0].id)!
         const start = source.contexts.reduce((latest, context) => {
@@ -340,11 +378,33 @@ export class AgentSessionForkOperations {
           return position !== undefined && position <= first && position > latest ? position : latest
         }, -1)
         if (index > 0 && start < 0) throw new AgentSessionForkError('history_changed')
+        const groupResetSourceIndex = resetSourceIndexByGroup[index]
+        const groupResetVisibleId = groupResetSourceIndex >= 0 ? messages[groupResetSourceIndex].id : null
+        let anchorMessageId: string | null
+        if (index === 0) {
+          anchorMessageId = groupResetVisibleId ?? null
+        } else if (groupResetVisibleId !== null) {
+          // The source anchor may predate the reset covering this group; the
+          // copied anchor would then be hidden by `effectivePath`. Clamp to
+          // the visible side so the binding stays resolvable.
+          anchorMessageId = start >= groupResetSourceIndex ? messages[start].id : groupResetVisibleId
+        } else {
+          anchorMessageId = messages[start].id
+        }
         return {
           id: result.contextId,
           backendId: group.context.backendId,
           nativeThreadId: result.resumeToken,
-          anchorMessageId: index === 0 ? null : messages[start].id
+          anchorMessageId,
+          // The copied reset marker makes the child look unhandled on startup:
+          // without `staleResetHandled` it would try to reserve the same fresh
+          // forked native id at a descendant and hit `Native context already
+          // belongs to another branch`. Persist the copied reset id so the
+          // recovered binding is treated as handled and the child's first send
+          // reuses its forked native id (#23519 review inv_1b2f2c06988481f7).
+          // Derived per binding: a later recovered context needs its own
+          // marker even when the first group has none (inv_d75af90853619a5a).
+          ...(groupResetVisibleId !== null ? { checkpointMapping: { staleResetHandled: groupResetVisibleId } } : {})
         }
       })
       await this.publish(
@@ -504,6 +564,11 @@ function groupNativeHistory(
   for (const row of rows) {
     const anchor = RuntimeForkAnchorSchema.safeParse(row.data.runtimeAnchor)
     if (!anchor.success) continue
+    // A stale-resume reset clears `runtimeResumeToken` for the failed conversation
+    // while its checkpoint anchor survives. That row no longer has native history
+    // to fork, so skip it instead of failing the whole prefix: the recovered
+    // suffix still groups by its fresh token and edit/resend stays usable (#23519).
+    if (!row.runtimeResumeToken) continue
     const matches = contexts.filter(
       (context) =>
         context.nativeThreadId &&
