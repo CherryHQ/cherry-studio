@@ -139,15 +139,16 @@ export function createRetryableWrap(options: CreateRetryableWrapOptions): WrapLa
   // original call in `maxAttempts`, so +1 yields that many same-model retries.
   const retryCount = options.retryPolicy.maxAttempts
   const backoffEnabled = options.retryPolicy.backoffEnabled
-  const transientRetry = (
-    apiKeyFallbacks.length > 0 ? and(error.isRetryable(true), not(error.statusCode(401, 429))) : error.isRetryable(true)
+  const transientRetry = and(
+    error((cause) => options.shouldRetryError?.(cause) !== false),
+    error.isRetryable(true),
+    ...(apiKeyFallbacks.length > 0 ? [not(error.statusCode(401, 429))] : [])
   ).retry({
     maxAttempts: retryCount + 1,
     delay: RETRY_BASE_DELAY_MS,
     ...(backoffEnabled && { backoffFactor: 2 })
   })
   const retryTransient: Retryable<LanguageModel> = async (context) => {
-    if (isErrorAttempt(context.current) && options.shouldRetryError?.(context.current.error) === false) return
     const retry = await transientRetry(context)
     return (
       retry && {
