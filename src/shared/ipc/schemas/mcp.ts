@@ -126,7 +126,17 @@ export const mcpRequestSchemas = {
   // type lives in src/main): matches the legacy preload's `Promise<any>` and avoids hoisting
   // the manifest type into @shared for this transport migration.
   'mcp.package.upload_dxt': defineRoute({ input: uploadInput, output: z.any() }),
-  'mcp.package.upload_mcpb': defineRoute({ input: uploadInput, output: z.any() })
+  'mcp.package.upload_mcpb': defineRoute({ input: uploadInput, output: z.any() }),
+  'mcp.package.get_resolved_config': defineRoute({
+    input: serverIdNonEmpty,
+    output: z
+      .object({
+        command: z.string(),
+        args: z.array(z.string()),
+        env: z.record(z.string(), z.string())
+      })
+      .nullable()
+  })
 }
 
 export type McpEventSchemas = {

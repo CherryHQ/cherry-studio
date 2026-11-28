@@ -25,14 +25,12 @@ const PreviewField = ({ label, value }: { label: string; value: string }) =>
 
 export const McpServerConfigPreview = ({ server }: { server: PreviewServer }) => {
   const { t } = useTranslation()
-  const connectionPreview = server.baseUrl ?? getCommandPreview(server)
+  const baseUrl = server.baseUrl?.trim() || ''
+  const connectionPreview = baseUrl || getCommandPreview(server)
 
   return (
     <div className="space-y-3">
-      <PreviewField
-        label={server.baseUrl ? t('settings.mcp.url') : t('settings.mcp.command')}
-        value={connectionPreview}
-      />
+      <PreviewField label={baseUrl ? t('settings.mcp.url') : t('settings.mcp.command')} value={connectionPreview} />
       <PreviewField label={t('settings.mcp.env')} value={formatKeyValues(server.env, '=')} />
       <PreviewField label={t('settings.mcp.headers')} value={formatKeyValues(server.headers, ': ')} />
     </div>
@@ -43,7 +41,9 @@ export const ProtocolInstallWarningContent = ({ message, server }: { message: st
   return (
     <div className="space-y-3 text-left">
       <p>{message}</p>
-      <McpServerConfigPreview server={server} />
+      <div className="max-h-72 overflow-y-auto">
+        <McpServerConfigPreview server={server} />
+      </div>
     </div>
   )
 }

@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import type { ComponentProps } from 'react'
+import type { ComponentProps, ReactElement } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useInvalidateCache } from '@data/hooks/useDataApi'
@@ -371,5 +371,95 @@ describe('AddMcpServerModal', () => {
     )
     expect([...mocks.persistedIsActive.values()]).toEqual([true])
     expect([...mocks.persistedIsTrusted.values()]).toEqual([true])
+  })
+
+  it('renders command and arguments for imported stdio servers with empty baseUrl', async () => {
+    mocks.confirm.mockResolvedValue(false)
+    await importJson({
+      mcpServers: {
+        'local-stdio': {
+          command: 'npx',
+          args: ['-y', '@example/mcp-server'],
+          env: { API_KEY: 'secret-1', MODE: 'strict' }
+        }
+      }
+    })
+
+    await waitFor(() => expect(mocks.confirm).toHaveBeenCalledTimes(1))
+    const confirmArgs = mocks.confirm.mock.calls[0][0] as { content: ReactElement }
+    render(confirmArgs.content)
+
+    expect(screen.getByText('settings.mcp.command')).toBeInTheDocument()
+    expect(screen.queryByText('settings.mcp.url')).not.toBeInTheDocument()
+    expect(screen.getByText('npx -y @example/mcp-server')).toBeInTheDocument()
+    expect(screen.getByText(/API_KEY=secret-1/)).toBeInTheDocument()
+  })
+
+  it('uses platform-resolved MCPB launch configuration for both saved record and trust preview', async () => {
+    mocks.confirm.mockResolvedValue(false)
+    mocks.ipcRequest.mockImplementation(async (channel: string) => {
+      if (channel === 'mcp.package.upload_mcpb') {
+        return {
+          success: true,
+          data: {
+            extractDir: '/tmp/mcpb-override',
+            manifest: {
+              name: 'override-pkg',
+              display_name: 'Override Package',
+              description: 'Test package',
+              server: {
+                mcp_config: {
+                  command: 'node',
+                  args: ['${__dirname}/base.js'],
+                  env: { BASE: '1' }
+                }
+              }
+            },
+            resolvedConfig: {
+              command: 'bun',
+              args: ['/tmp/mcpb-override/win.js'],
+              env: { BASE: '1', OVERRIDE: 'yes' }
+            }
+          }
+        }
+      }
+      return undefined
+    })
+
+    const onSuccess = vi.fn(async (dtos: CreateMcpServerDto[]) => toCreatedServers(dtos))
+    const user = userEvent.setup()
+
+    render(
+      <AddMcpServerModal
+        visible
+        onClose={vi.fn()}
+        onSuccess={onSuccess}
+        existingServers={[]}
+        initialImportMethod="mcpb"
+      />
+    )
+
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
+    const file = new File([new Uint8Array([1, 2, 3])], 'override.mcpb', { type: 'application/octet-stream' })
+    Object.defineProperty(file, 'arrayBuffer', { value: async () => new Uint8Array([1, 2, 3]).buffer })
+    fireEvent.change(fileInput, { target: { files: [file] } })
+
+    const confirmButton = screen.getByRole('button', { name: 'common.confirm' })
+    await waitFor(() => expect(confirmButton).toBeEnabled())
+    await user.click(confirmButton)
+
+    await waitFor(() => expect(mocks.confirm).toHaveBeenCalledTimes(1))
+    expect(onSuccess).toHaveBeenCalledWith([
+      expect.objectContaining({
+        command: 'bun',
+        args: ['/tmp/mcpb-override/win.js'],
+        env: { BASE: '1', OVERRIDE: 'yes' }
+      })
+    ])
+
+    const confirmArgs = mocks.confirm.mock.calls[0][0] as { content: ReactElement }
+    render(confirmArgs.content)
+    expect(screen.getByText('bun /tmp/mcpb-override/win.js')).toBeInTheDocument()
+    expect(screen.getByText(/OVERRIDE=yes/)).toBeInTheDocument()
   })
 })
