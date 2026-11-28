@@ -145,6 +145,93 @@ describe('downloadBundleFiles', () => {
     expect(fractions).toContain(0.99)
     expect(fractions.at(-1)).toBe(1)
   })
+
+  it('fetches the files the bundle marks independent together, then the rest in order', async () => {
+    // A platform that retries a rejected connection can hold a whole host off for
+    // minutes, so the frontend files must not queue behind each other; the weights must
+    // never be fetched before them.
+    const first: BundleFile = {
+      ...DICT,
+      key: 'lexicon-a',
+      relPath: 'lexicon-a.txt',
+      derivation: undefined,
+      independent: true
+    }
+    const second: BundleFile = {
+      ...DICT,
+      key: 'lexicon-b',
+      relPath: 'lexicon-b.txt',
+      derivation: undefined,
+      independent: true
+    }
+    const parallel: ModelBundle = { ...BUNDLE, files: [first, second, WEIGHTS], parallelFetchFrom: 0 }
+    const started: string[] = []
+    let releaseFirst!: () => void
+    streamToFileVerified.mockImplementation(async (_url, dest) => {
+      started.push(path.basename(dest))
+      if (dest.endsWith('lexicon-a.txt')) await new Promise<void>((resolve) => (releaseFirst = resolve))
+    })
+
+    const done = downloadBundleFiles(parallel, parallel.files, options())
+    await vi.waitFor(() => expect(started).toHaveLength(2))
+    expect([...started].sort()).toEqual(['lexicon-a.txt', 'lexicon-b.txt'])
+
+    releaseFirst()
+    await done
+    expect(started.at(-1)).toBe('model.onnx')
+  })
+
+  it('aborts and settles the whole wave before a failure escapes', async () => {
+    // If one transfer exhausts its mirrors the attempt is torn down immediately; a
+    // sibling still streaming on the old attempt's signal could then write into a
+    // directory a removal has already deleted. The rejection must wait for the sibling.
+    const failing: BundleFile = {
+      ...DICT,
+      key: 'lexicon-a',
+      relPath: 'lexicon-a.txt',
+      derivation: undefined,
+      independent: true
+    }
+    const slow: BundleFile = {
+      ...DICT,
+      key: 'lexicon-b',
+      relPath: 'lexicon-b.txt',
+      derivation: undefined,
+      independent: true
+    }
+    const parallel: ModelBundle = { ...BUNDLE, files: [failing, slow], parallelFetchFrom: 0 }
+    let siblingSignal: AbortSignal | undefined
+    let siblingSettled = false
+    streamToFileVerified.mockImplementation(async (_url, dest, options) => {
+      if (dest.endsWith('lexicon-a.txt')) throw new Error('mirror exhausted')
+      siblingSignal = (options as { signal?: AbortSignal } | undefined)?.signal
+      await new Promise<void>((resolve) => {
+        const timer = setInterval(() => {
+          if (siblingSignal?.aborted) {
+            clearInterval(timer)
+            resolve()
+          }
+        }, 5)
+      })
+      siblingSettled = true
+      throw siblingSignal?.reason ?? new Error('aborted')
+    })
+
+    const done = downloadBundleFiles(parallel, parallel.files, options())
+    // Attach the expectation before any rejection can escape.
+    const caught = done.then(
+      () => {
+        throw new Error('expected the wave failure to reject the download')
+      },
+      (error: unknown) => error
+    )
+    const error = await caught
+    expect(error).toBeInstanceOf(Error)
+    expect((error as Error).message).toBe('mirror exhausted')
+    // The rejection escaped only after the sibling aborted and fully settled.
+    expect(siblingSignal?.aborted).toBe(true)
+    expect(siblingSettled).toBe(true)
+  })
 })
 
 it('fetches a pinned distribution URL without rewriting it as a model registry URL', async () => {

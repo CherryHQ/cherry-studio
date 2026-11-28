@@ -35,7 +35,7 @@ export async function downloadBundleFiles(
   const totalWeight = files.reduce((sum, file) => sum + file.weight, 0)
   let doneWeight = 0
 
-  for (const file of files) {
+  const downloadOne = (file: BundleFile, fileSignal: AbortSignal, onFileProgress: (fraction: number) => void) => {
     const urls = file.urls
       ? orderDownloadUrls(file.urls, sourceOrder[0] === 'modelscope' ? 'china-first' : 'global-first')
       : file.sources
@@ -45,15 +45,87 @@ export async function downloadBundleFiles(
               .map((source) => resolveModelFileUrl(id, source.repo, source.remoteFile, source.revision))
           )
         : sourceOrder.map((id) => resolveModelFileUrl(id, file.repo, file.remoteFile))
-    await withMirrorFallback(urls, signal, `${bundle.id}/${file.key}`, (url) =>
-      writeBundleFile(file, url, path.join(installDir, file.relPath), signal, (fraction) =>
-        onProgress?.((doneWeight + file.weight * fraction) / totalWeight)
-      )
+    return withMirrorFallback(urls, fileSignal, `${bundle.id}/${file.key}`, (url) =>
+      writeBundleFile(file, url, path.join(installDir, file.relPath), fileSignal, onFileProgress)
     )
-    doneWeight += file.weight
+  }
+
+  // The caller hands the files in catalog order, which is the order they must be written
+  // in: the frontend files first, the weights last. An interrupted attempt therefore
+  // leaves the bundle plainly incomplete, which is what lets the next download fill in
+  // the gaps instead of reporting a complete install that cannot load.
+  for (const group of downloadGroups(files, bundle.parallelFetchFrom)) {
+    if (group.length === 1) {
+      const file = group[0]
+      await downloadOne(file, signal, (fraction) => onProgress?.((doneWeight + file.weight * fraction) / totalWeight))
+    } else {
+      // A concurrent wave gets one scoped signal: the first failure aborts the siblings,
+      // and the wave is not done until every sibling has actually settled. No write or
+      // progress report may outlive this promise — the caller tears its attempt down as
+      // soon as it rejects, and a still-streaming sibling could otherwise recreate a
+      // directory a removal has just deleted.
+      const waveAbort = new AbortController()
+      const waveSignal = AbortSignal.any([signal, waveAbort.signal])
+      const fractions = group.map(() => 0)
+      const reportWave = () =>
+        onProgress?.(
+          (doneWeight + group.reduce((sum, file, index) => sum + file.weight * fractions[index], 0)) / totalWeight
+        )
+      const results = await Promise.allSettled(
+        group.map((file, index) =>
+          downloadOne(file, waveSignal, (fraction) => {
+            fractions[index] = fraction
+            reportWave()
+          }).catch((error: unknown) => {
+            waveAbort.abort(error)
+            throw error
+          })
+        )
+      )
+      const failure = results.find((result) => result.status === 'rejected')
+      if (failure) throw failure.reason
+    }
+    doneWeight += group.reduce((sum, file) => sum + file.weight, 0)
     onProgress?.(doneWeight / totalWeight)
   }
 }
+
+/**
+ * `files`, in order, split into the waves that may run at once. `parallelFrom` is where
+ * the independent files start: from there they share waves of up to
+ * {@link DOWNLOAD_CONCURRENCY}, and everything else — the files the model needs first as
+ * well as the weights — is fetched alone.
+ */
+function downloadGroups(files: readonly BundleFile[], parallelFrom: number | undefined): BundleFile[][] {
+  if (parallelFrom === undefined) return files.map((file) => [file])
+
+  const start = parallelFrom
+  if (!files[start]?.independent) {
+    // parallelFrom points to a non-independent file (e.g., a weight) — no parallel section
+    return files.map((file) => [file])
+  }
+
+  const rest = files.slice(start)
+  const runLength = rest.findIndex((file) => !file.independent)
+  const independent = new Set(runLength < 0 ? rest : rest.slice(0, runLength))
+
+  const groups: BundleFile[][] = []
+  for (const file of files) {
+    const current = groups.at(-1)
+    if (
+      independent.has(file) &&
+      current?.length &&
+      current.length < DOWNLOAD_CONCURRENCY &&
+      independent.has(current[0])
+    )
+      current.push(file)
+    else groups.push([file])
+  }
+  return groups
+}
+
+/** Two small lexicons for Kokoro; 8 is safe because files are small (<1MB each) and from the same host. */
+const DOWNLOAD_CONCURRENCY = 8
 
 async function writeBundleFile(
   file: BundleFile,
