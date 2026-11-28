@@ -646,19 +646,17 @@ describe('trashPurgeJobHandler', () => {
     const held = '019606a0-0000-7000-8000-00000000de01'
     const newer = '019606a0-0000-7000-8000-00000000de02'
     await dbh.db.insert(topicTable).values({ id: 'holder-topic', name: 'holder', orderKey: 'a0' })
-    await dbh.db
-      .insert(messageTable)
-      .values([
-        rootRow('holder-topic'),
-        {
-          id: 'holder-message',
-          parentId: 'vroot-holder-topic',
-          topicId: 'holder-topic',
-          role: 'user',
-          data: { parts: [] },
-          status: 'success'
-        }
-      ])
+    await dbh.db.insert(messageTable).values([
+      rootRow('holder-topic'),
+      {
+        id: 'holder-message',
+        parentId: 'vroot-holder-topic',
+        topicId: 'holder-topic',
+        role: 'user',
+        data: { parts: [] },
+        status: 'success'
+      }
+    ])
     await seedFileEntry(held, cutoffMs - 1)
     await seedFileEntry(newer, cutoffMs + 1)
     await dbh.db.insert(chatMessageFileRefTable).values({
