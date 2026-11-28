@@ -3,6 +3,7 @@ import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { ipcApi } from '@renderer/ipc'
+import type { InlineErrorDetailInput } from '@renderer/services/AppErrorDetailService'
 import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
@@ -80,6 +81,8 @@ export function useLaunchDialogController({
   const availableTerminals = useAvailableTerminals()
   const [launchOpen, setLaunchOpen] = useState(false)
   const [launching, setLaunching] = useState(false)
+  // In the dialog, not a toast: the dialog traps focus, so a toast's Details is out of keyboard reach.
+  const [launchFailure, setLaunchFailure] = useState<InlineErrorDetailInput | null>(null)
 
   // The picker displays a fallback terminal before the user has ever chosen one
   // (see LaunchDialog/CurrentConfigPanel); resolve that same fallback here so the
@@ -105,6 +108,9 @@ export function useLaunchDialogController({
       toast.error(t('code.folder_placeholder'))
       return
     }
+    const fail = (error: unknown, operation: string) =>
+      setLaunchFailure({ error, source: 'code.launch', operation, message: t('code.launch.error') })
+    setLaunchFailure(null)
     if (runWithoutProvider) {
       try {
         setLaunching(true)
@@ -115,13 +121,14 @@ export function useLaunchDialogController({
           terminal: effectiveTerminal
         })
         if (!runResult.success) {
-          toast.error(runResult.message)
+          const detail = runResult.message?.trim()
+          fail(detail ? { message: detail } : undefined, 'code_cli.run')
           return
         }
         setLaunchOpen(false)
       } catch (err) {
         logger.error('Failed to launch CLI tool:', err as Error)
-        toast.error(t('code.launch.error'))
+        fail(err, 'code_cli.run')
       } finally {
         setLaunching(false)
       }
@@ -155,6 +162,8 @@ export function useLaunchDialogController({
       return
     }
 
+    // The step in flight, so Details tells gateway startup and config writes apart from the terminal launch.
+    let operation = 'code_cli.resolve_model'
     try {
       setLaunching(true)
       // The gateway may have been stopped or re-keyed/re-ported since "enable" wrote the CLI
@@ -172,9 +181,11 @@ export function useLaunchDialogController({
         throw new Error(`Model is no longer available: ${cliConfigContext.modelId}`)
       }
       if (isGatewayProvider && apiGatewayProvider) {
+        operation = 'api_gateway.ensure_running'
         await apiGatewayProvider.ensureRunning()
       }
       if (isGatewayProvider && apiGatewayProvider && isFileConfiguredCli(selectedCliTool)) {
+        operation = 'code_cli.write_config'
         const apiKey = await apiGatewayProvider.getApiKey()
         let onDiskFiles: CliConfigFileDraft[] | undefined
         try {
@@ -220,6 +231,7 @@ export function useLaunchDialogController({
       // and a direct launch hands it straight to the provider's own API. A record without one
       // legitimately falls back to the raw id — unlike a missing record, rejected above.
       const launchModel = launchModelRecord.apiModelId ?? cliConfigContext.rawModelId
+      operation = 'code_cli.run'
       const runResult = await ipcApi.request('code_cli.run', {
         mode: 'normal',
         cliTool: selectedCliTool,
@@ -230,13 +242,14 @@ export function useLaunchDialogController({
         terminal: effectiveTerminal
       })
       if (!runResult.success) {
-        toast.error(runResult.message)
+        const detail = runResult.message?.trim()
+        fail(detail ? { message: detail } : undefined, 'code_cli.run')
       } else {
         setLaunchOpen(false)
       }
     } catch (err) {
       logger.error('Failed to launch CLI tool:', err as Error)
-      toast.error(t('code.launch.error'))
+      fail(err, operation)
     } finally {
       setLaunching(false)
     }
@@ -259,7 +272,10 @@ export function useLaunchDialogController({
   return {
     launchDialogProps: {
       open: launchOpen,
-      onClose: () => setLaunchOpen(false),
+      onClose: () => {
+        setLaunchOpen(false)
+        setLaunchFailure(null)
+      },
       toolName,
       directory,
       terminals: availableTerminals,
@@ -267,7 +283,8 @@ export function useLaunchDialogController({
       onSelectFolder: () => void handleSelectFolder(),
       onSelectTerminal: (terminal) => void setTerminal(terminal),
       onLaunch: () => void handleLaunch(),
-      launching
+      launching,
+      failure: launchFailure
     },
     launching,
     openLaunchDialog: () => setLaunchOpen(true)

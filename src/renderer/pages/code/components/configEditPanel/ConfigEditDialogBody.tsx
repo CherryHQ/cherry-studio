@@ -12,10 +12,13 @@ import {
   DialogTitle,
   SegmentedControl
 } from '@cherrystudio/ui'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
+import { ErrorNotice } from '@renderer/components/ErrorNotice'
 import { GatewayIcon } from '@renderer/components/icons/GatewayIcon'
 import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
 import { SettingContainer, SettingGroup, SettingTitle } from '@renderer/components/SettingsPrimitives'
 import type { CliConfigFileDraft } from '@renderer/pages/code/cliConfig'
+import type { InlineErrorDetailInput } from '@renderer/services/AppErrorDetailService'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import type { Provider } from '@shared/data/types/provider'
 import { isApiGatewayProviderId } from '@shared/types/codeCli'
@@ -46,6 +49,8 @@ export interface ConfigEditDialogBodyProps {
   error?: string
   onFilesChange: (files: CliConfigFileDraft[]) => void
   submitting: boolean
+  /** The last failed save, shown above the footer while the dialog stays open for a retry. */
+  saveFailure?: InlineErrorDetailInput | null
   canSave: boolean
   onSubmit: () => void
 }
@@ -71,6 +76,7 @@ export const ConfigEditDialogBody: FC<ConfigEditDialogBodyProps> = ({
   error,
   onFilesChange,
   submitting,
+  saveFailure,
   canSave,
   onSubmit
 }) => {
@@ -155,6 +161,14 @@ export const ConfigEditDialogBody: FC<ConfigEditDialogBodyProps> = ({
             </SettingGroup>
           )}
         </SettingContainer>
+
+        {saveFailure ? (
+          <ErrorNotice
+            variant="inline"
+            title={t('code.apply_failed')}
+            detail={<ErrorDetailAction {...saveFailure} />}
+          />
+        ) : null}
 
         <DialogFooter className="justify-end gap-2">
           <Button ref={cancelButtonRef} variant="ghost" size="sm" onClick={onClose} disabled={submitting}>

@@ -17,7 +17,7 @@ Two reusable components in [`components/popups`](../../components/popups) sit be
 
 | Component | Use | Returns |
 |---|---|---|
-| `ConfirmActionPopup` | confirm, **then run a fallible async action** behind an OK-button spinner — toasts the failure and stays open to retry | `Promise<boolean>` |
+| `ConfirmActionPopup` | confirm, **then run a fallible async action** behind an OK-button spinner — shows the failure with Details in the dialog and stays open to retry | `Promise<boolean>` |
 | `ContentPopup` | drop **arbitrary content** into a modal shell — no action buttons; closes via ✕ / overlay / Escape | `void` |
 
 Pick in this order:

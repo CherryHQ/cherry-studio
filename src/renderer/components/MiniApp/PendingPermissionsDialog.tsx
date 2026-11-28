@@ -2,7 +2,10 @@ import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@cherrystudio/ui'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
+import { ErrorNotice } from '@renderer/components/ErrorNotice'
 import { PermissionChecklist } from '@renderer/components/MiniApp/PermissionChecklist'
+import type { InlineErrorDetailInput } from '@renderer/services/AppErrorDetailService'
 
 /**
  * Leaves a Cherry release added under a namespace the app declared (decision A): the
@@ -14,10 +17,12 @@ export const PendingPermissionsDialog: FC<{
   leaves: readonly string[]
   busy: boolean
   open?: boolean
+  /** The last failed answer, shown in the dialog while it stays open for a retry. */
+  failure?: InlineErrorDetailInput | null
   onGrant: () => void
   onSnooze: () => void
   onCancel: () => void
-}> = ({ name, leaves, busy, open = true, onGrant, onSnooze, onCancel }) => {
+}> = ({ name, leaves, busy, open = true, failure, onGrant, onSnooze, onCancel }) => {
   const { t } = useTranslation()
   return (
     <Dialog
@@ -37,6 +42,13 @@ export const PendingPermissionsDialog: FC<{
             onToggle={() => undefined}
           />
         </div>
+        {failure ? (
+          <ErrorNotice
+            variant="inline"
+            title={t('miniApp.detail.action_failed')}
+            detail={<ErrorDetailAction {...failure} />}
+          />
+        ) : null}
         <DialogFooter>
           <Button variant="outline" onClick={onSnooze} disabled={busy}>
             {t('miniApp.detail.pending_snooze')}

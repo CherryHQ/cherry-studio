@@ -13,8 +13,9 @@ import {
   DialogTitle
 } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
+import { ErrorNotice } from '@renderer/components/ErrorNotice'
 import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
-import { toast } from '@renderer/services/toast'
 import { formatErrorMessage } from '@renderer/utils/error'
 
 export interface ConfirmActionParams {
@@ -29,8 +30,8 @@ export interface ConfirmActionParams {
   /**
    * The fallible work to run in-dialog once the user confirms. While it runs the OK
    * button shows a spinner; on success the dialog closes and `show()` resolves `true`.
-   * If it rejects, the dialog stays open, re-enables, and surfaces a `toast.error` so
-   * the user can retry or cancel — the confirm+run+error-feedback contract the old
+   * If it rejects, the dialog stays open, re-enables, and shows the failure with Details
+   * inside the dialog so the user can retry or cancel — the confirm+run+error-feedback contract the old
    * AppModal `onOk` owned, now in one place instead of scattered across call sites.
    */
   action: () => Promise<void> | void
@@ -51,6 +52,7 @@ const PopupContainer: React.FC<Props> = ({
 }) => {
   const { t } = useTranslation()
   const [loading, setLoading] = useState(false)
+  const [failure, setFailure] = useState<{ error: unknown } | null>(null)
 
   const handleCancel = useCallback(() => {
     if (loading) return
@@ -59,17 +61,17 @@ const PopupContainer: React.FC<Props> = ({
 
   const handleConfirm = useCallback(async () => {
     setLoading(true)
+    setFailure(null)
     try {
       await action()
     } catch (error) {
-      // Pre-regression feedback (was AppModal's onOk catch): toast the failure and keep
-      // the dialog open + interactive so the user can retry or cancel.
-      toast.error({ title: t('common.error'), description: formatErrorMessage(error) })
+      // In the dialog, not a toast: the focus trap keeps a toast's Details out of keyboard reach.
+      setFailure({ error })
       setLoading(false)
       return
     }
     resolve(true)
-  }, [action, resolve, t])
+  }, [action, resolve])
 
   const handleOpenChange = useCallback(
     (next: boolean) => {
@@ -114,6 +116,16 @@ const PopupContainer: React.FC<Props> = ({
           </div>
         </DialogHeader>
 
+        {failure ? (
+          <ErrorNotice
+            title={t('common.error')}
+            info={formatErrorMessage(failure.error)}
+            detail={
+              <ErrorDetailAction error={failure.error} source="popup.confirm_action" operation="confirm_action.run" />
+            }
+          />
+        ) : null}
+
         <DialogFooter>
           <Button variant="outline" onClick={handleCancel} disabled={loading}>
             {cancelText ?? t('common.cancel')}
@@ -131,7 +143,7 @@ const PopupContainer: React.FC<Props> = ({
  * Imperative "confirm, then run an action" dialog. Unlike the `popup.confirm` prefab —
  * which is promise-only and returns the moment the user clicks — this owns the action's
  * in-flight state: it runs `action` behind an OK-button spinner and only closes on
- * success, surfacing failures as a toast while staying open for a retry. Reach for it
+ * success, showing failures in the dialog while staying open for a retry. Reach for it
  * whenever a confirmation gates a fallible async action; use `popup.confirm` when the
  * confirmation only gates synchronous/local work.
  */

@@ -266,6 +266,14 @@ export function checkEntityImageSize(file: File): string | null {
     : null
 }
 
+/** Localized retry message for an entity image the canvas could not decode or encode. */
+export class EntityImageProcessError extends Error {
+  constructor(cause: unknown) {
+    super(i18n.t('message.error.image_process_failed'), { cause })
+    this.name = 'EntityImageProcessError'
+  }
+}
+
 /** A square region of the source image, in its pixels, that the user framed. */
 export type ImageCropArea = { x: number; y: number; width: number; height: number }
 
@@ -300,7 +308,7 @@ export async function prepareEntityImageBytes(file: File, area?: ImageCropArea):
     }
   } catch (error) {
     logger.error('Failed to process entity image', error as Error)
-    throw new Error(i18n.t('message.error.image_process_failed'))
+    throw new EntityImageProcessError(error)
   }
 }
 

@@ -154,7 +154,9 @@ describe('InstallMiniAppPanel', () => {
     await screen.findByTestId('install-preview')
     await userEvent.click(screen.getByRole('button', { name: /install|安装/i }))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(/hash mismatch/)
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent(i18n.t('miniApp.install.install_error'))
+    expect(alert).not.toHaveTextContent(/hash mismatch/)
     expect(screen.queryByTestId('install-preview')).toBeNull()
     expect(toast.success).not.toHaveBeenCalled()
     expect(onClose).not.toHaveBeenCalled()
@@ -227,7 +229,9 @@ describe('InstallMiniAppPanel', () => {
     )
     await userEvent.click(screen.getByRole('button', { name: /load|加载/i }))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(/https/i)
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent(i18n.t('miniApp.install.url_preview_error'))
+    expect(alert).not.toHaveTextContent(/https/i)
     expect(request).not.toHaveBeenCalledWith('mini_app.install.confirm', expect.anything())
   })
 

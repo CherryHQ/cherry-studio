@@ -5,7 +5,10 @@ import type ReactType from 'react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { appErrorContextService } from '@renderer/services/AppErrorContextService'
+import { toast } from '@renderer/services/toast'
 import type * as ImageUtils from '@renderer/utils/image'
+import { EntityImageProcessError, prepareEntityImageBytes } from '@renderer/utils/image'
 
 const mocks = vi.hoisted(() => ({
   ipcRequest: vi.fn(async (): Promise<unknown> => undefined)
@@ -209,6 +212,48 @@ describe('UserProfileEditor', () => {
         expect.objectContaining({ kind: 'image' })
       )
     })
+  })
+
+  it('shows a translated avatar failure and keeps the IPC cause', async () => {
+    mocks.ipcRequest.mockImplementation(async () => {
+      throw new Error('disk full')
+    })
+    render(<UserProfileEditor />)
+
+    fireEvent.click(screen.getByTestId('popover-trigger'))
+    fireEvent.click(screen.getByRole('button', { name: 'settings.general.avatar.reset' }))
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'settings.general.avatar.update_failed',
+          cause: expect.objectContaining({ message: 'disk full' })
+        })
+      )
+    )
+  })
+
+  it('shows the image processing message when the picked avatar cannot be decoded', async () => {
+    const failure = new EntityImageProcessError(new Error('cannot decode'))
+    vi.mocked(prepareEntityImageBytes).mockRejectedValueOnce(failure)
+    render(<UserProfileEditor />)
+
+    fireEvent.click(screen.getByTestId('popover-trigger'))
+    const file = new File(['png'], 'a.png', { type: 'image/png' })
+    const input = screen.getByTestId('popover-content').querySelector('input[type="file"]') as HTMLInputElement
+    fireEvent.change(input, { target: { files: [file] } })
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(expect.objectContaining({ title: failure.message, cause: failure }))
+    )
+    expect(mocks.ipcRequest).not.toHaveBeenCalledWith('profile.set_avatar', expect.objectContaining({ kind: 'image' }))
+    // No profile write was requested, so Details must not blame it.
+    expect(
+      appErrorContextService.contextForHostError(
+        'avatar-decode-failed',
+        vi.mocked(toast.error).mock.calls[0][0] as Parameters<typeof appErrorContextService.contextForHostError>[1]
+      )
+    ).toMatchObject({ operation: 'profile.prepare_avatar', source: 'profile' })
   })
 
   it('exposes avatar and nickname controls for the personal information page', () => {

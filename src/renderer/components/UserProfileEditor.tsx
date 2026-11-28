@@ -19,8 +19,9 @@ import { usePreference } from '@data/hooks/usePreference'
 import { AvatarCropPopup } from '@renderer/components/Avatar/AvatarCropPopup'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { ipcApi } from '@renderer/ipc'
+import { toastAppError } from '@renderer/services/AppErrorDetailService'
 import { toast } from '@renderer/services/toast'
-import { checkEntityImageSize, prepareEntityImageBytes } from '@renderer/utils/image'
+import { checkEntityImageSize, EntityImageProcessError, prepareEntityImageBytes } from '@renderer/utils/image'
 import { isEmoji } from '@renderer/utils/naming'
 
 import { EmojiPicker } from './EmojiPicker'
@@ -69,8 +70,11 @@ export function UserProfileEditor() {
       await ipcApi.request('profile.set_avatar', { kind: 'emoji', emoji })
       setAvatarPopoverOpen(false)
       setAvatarPopoverView('menu')
-    } catch (error: any) {
-      toast.error(error.message)
+    } catch (error: unknown) {
+      toastAppError(t('settings.general.avatar.update_failed'), error, {
+        source: 'profile',
+        operation: 'profile.set_avatar'
+      })
     }
   }
 
@@ -79,8 +83,11 @@ export function UserProfileEditor() {
       await ipcApi.request('profile.set_avatar', { kind: 'default' })
       setAvatarPopoverOpen(false)
       setAvatarPopoverView('menu')
-    } catch (error: any) {
-      toast.error(error.message)
+    } catch (error: unknown) {
+      toastAppError(t('settings.general.avatar.update_failed'), error, {
+        source: 'profile',
+        operation: 'profile.set_avatar'
+      })
     }
   }
 
@@ -99,8 +106,13 @@ export function UserProfileEditor() {
       await ipcApi.request('profile.set_avatar', { kind: 'image', data })
       setAvatarPopoverOpen(false)
       setAvatarPopoverView('menu')
-    } catch (error: any) {
-      toast.error(error.message)
+    } catch (error: unknown) {
+      // Image processing fails before any write and already throws a localized retry message.
+      const preparing = error instanceof EntityImageProcessError
+      toastAppError(preparing ? error.message : t('settings.general.avatar.update_failed'), error, {
+        source: 'profile',
+        operation: preparing ? 'profile.prepare_avatar' : 'profile.set_avatar'
+      })
     }
   }
 

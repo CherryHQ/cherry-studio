@@ -1,11 +1,13 @@
-import { act, cleanup, render, screen } from '@testing-library/react'
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { POPUP_EXIT_MS, popupService } from '@renderer/services/popup'
+import type * as AppErrorDetailService from '@renderer/services/AppErrorDetailService'
+import { createPopup, POPUP_EXIT_MS, popupService } from '@renderer/services/popup'
 
-const { toastError, localModel } = vi.hoisted(() => ({
+const { toastError, openErrorDetail, localModel } = vi.hoisted(() => ({
   toastError: vi.fn(),
+  openErrorDetail: vi.fn().mockResolvedValue('opened'),
   localModel: {
     status: 'not_downloaded',
     percent: 0,
@@ -16,6 +18,10 @@ const { toastError, localModel } = vi.hoisted(() => ({
 
 vi.mock('@renderer/services/toast', () => ({ toast: { error: toastError } }))
 vi.mock('@renderer/hooks/useLocalModel', () => ({ useLocalModel: () => localModel }))
+vi.mock('@renderer/services/AppErrorDetailService', async (importOriginal) => ({
+  ...(await importOriginal<typeof AppErrorDetailService>()),
+  appErrorDetailService: { openAppErrorDetail: openErrorDetail }
+}))
 
 // This suite exercises the real popup store + host, so opt out of the global mock.
 vi.mock('@renderer/services/popup', async (importOriginal) => await importOriginal())
@@ -38,16 +44,21 @@ vi.mock('@cherrystudio/ui', () => {
   const React = require('react')
 
   return {
+    Alert: ({ children, role }: Record<string, any>) => React.createElement('div', { role: role ?? 'alert' }, children),
     Button: ({ children, ...props }: Record<string, any>) => React.createElement('button', props, children),
     Dialog: ({ children, open }: Record<string, any>) =>
       open ? React.createElement(React.Fragment, null, children) : null,
-    DialogContent: ({ children, ...props }: Record<string, any>) => {
+    DialogContent: ({ children, overlayClassName, ...props }: Record<string, any>) => {
       delete props.showCloseButton
-      delete props.overlayClassName
       delete props.closeOnOverlayClick
       delete props.onInteractOutside
 
-      return React.createElement('div', { role: 'dialog', ...props }, children)
+      return React.createElement(
+        React.Fragment,
+        null,
+        React.createElement('button', { type: 'button', 'data-testid': 'dialog-overlay', className: overlayClassName }),
+        React.createElement('div', { role: 'dialog', ...props }, children)
+      )
     },
     DialogDescription: ({ children }: Record<string, any>) => React.createElement('div', null, children),
     DialogFooter: ({ children, ...props }: Record<string, any>) => React.createElement('div', props, children),
@@ -70,6 +81,7 @@ beforeEach(() => {
   localModel.download.mockReset()
   localModel.cancel.mockReset().mockResolvedValue(undefined)
   toastError.mockClear()
+  openErrorDetail.mockClear()
 })
 
 afterEach(() => {
@@ -132,23 +144,61 @@ describe('LocalModelDownloadPopup', () => {
     expect(localModel.cancel).toHaveBeenCalledTimes(1)
   })
 
-  it('keeps itself open for a retry when the download fails', async () => {
+  // The dialog traps focus, so a Details entry that only lives in the window-level toast is unreachable by keyboard.
+  it('keeps a failed download inside the dialog with keyboard-reachable Details and a retry', async () => {
     const user = userEvent.setup()
     render(<PopupHost />)
 
-    localModel.download.mockRejectedValueOnce(new Error('network down'))
+    const failure = new Error('network down')
+    localModel.download.mockRejectedValueOnce(failure)
 
     let result!: Promise<boolean>
+    let settled = false
     act(() => {
       result = LocalModelDownloadPopup.show(OCR)
+      void result.then(() => {
+        settled = true
+      })
     })
 
     await screen.findByText('PaddleOCR PP-OCRv6 · ~140 MB')
+    expect(screen.getByRole('dialog').className).not.toContain('z-[90]')
+    expect(screen.getByTestId('dialog-overlay').className).not.toContain('z-[90]')
     await user.click(screen.getByRole('button', { name: 'Download' }))
     await act(async () => {})
 
-    expect(toastError).toHaveBeenCalledWith('Download failed')
-    expect(screen.getByText('PaddleOCR PP-OCRv6 · ~140 MB')).toBeInTheDocument()
+    const alert = within(screen.getByRole('dialog')).getByRole('alert')
+    expect(alert).toHaveTextContent('Download failed')
+    expect(alert).not.toHaveTextContent('network down')
+    const details = within(alert).getByRole('button', { name: 'common.detail' })
+    for (let step = 0; step < 10 && document.activeElement !== details; step++) await user.tab()
+    expect(details).toHaveFocus()
+    await user.keyboard('{Enter}')
+    await waitFor(() => expect(openErrorDetail).toHaveBeenCalledTimes(1))
+    expect(openErrorDetail.mock.calls[0][0].context).toMatchObject({
+      message: 'network down',
+      operation: 'local_model.download',
+      recordId: OCR.id,
+      source: 'local_model'
+    })
+    expect(toastError).not.toHaveBeenCalled()
+    expect(settled).toBe(false)
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeEnabled()
+
+    const DetailPopup = createPopup<{ label: string }, void>(
+      ({ label, open }) => (open ? <div aria-label={label} role="dialog" /> : null),
+      { dismissResult: undefined }
+    )
+    act(() => {
+      void DetailPopup.show({ label: 'Error details' })
+    })
+    expect(
+      screen
+        .getByText('PaddleOCR PP-OCRv6 · ~140 MB')
+        .compareDocumentPosition(screen.getByRole('dialog', { name: 'Error details' })) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(settled).toBe(false)
 
     localModel.download.mockResolvedValueOnce(true)
     await user.click(screen.getByRole('button', { name: 'Retry' }))

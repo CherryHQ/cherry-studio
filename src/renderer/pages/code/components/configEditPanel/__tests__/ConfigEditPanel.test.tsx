@@ -5,17 +5,31 @@ vi.mock('@renderer/components/cherryCloud/CherryCloudModelSelector', async () =>
   }
 })
 
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { CliConfigFileDraft } from '@renderer/pages/code/cliConfig/types'
+import type * as AppErrorDetailService from '@renderer/services/AppErrorDetailService'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { CLI_API_GATEWAY_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
 
 import { ConfigEditPanel } from '../ConfigEditPanel'
+
+const { openErrorDetailMock, toastErrorMock } = vi.hoisted(() => ({
+  openErrorDetailMock: vi.fn(),
+  toastErrorMock: vi.fn()
+}))
+
+vi.mock('@renderer/services/AppErrorDetailService', async (importOriginal) => ({
+  ...(await importOriginal<typeof AppErrorDetailService>()),
+  appErrorDetailService: { openAppErrorDetail: openErrorDetailMock }
+}))
+
+vi.mock('@renderer/services/toast', () => ({ toast: { error: toastErrorMock } }))
 
 const {
   extractConfigFromCliConfigDraftMock,
@@ -42,6 +56,7 @@ vi.mock('react-i18next', () => ({
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
+  Alert: ({ children, role }: { children: ReactNode; role?: string }) => <div role={role ?? 'alert'}>{children}</div>,
   Button: ({
     children,
     loading,
@@ -545,6 +560,42 @@ describe('ConfigEditPanel', () => {
 
     fireEvent.click(screen.getByText('select new model'))
     await waitFor(() => expect(saveButton).not.toBeDisabled())
+  })
+
+  // The dialog traps focus, so a Details entry that only lives in the window-level toast is unreachable by keyboard.
+  it('keeps a failed save inside the dialog with keyboard-reachable Details and clears it on retry', async () => {
+    const onSubmit = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('EROFS: read-only file system'))
+      .mockResolvedValue(undefined)
+    const user = userEvent.setup()
+    const { onClose } = renderPanel(onSubmit)
+    await waitFor(() => expect(readCliConfigFilesMock).toHaveBeenCalled())
+
+    fireEvent.click(screen.getByText('select new model'))
+    await waitFor(() => expect(screen.getByText('common.save')).not.toBeDisabled())
+    fireEvent.click(screen.getByText('common.save'))
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('code.apply_failed')
+    expect(alert).not.toHaveTextContent('EROFS')
+    expect(toastErrorMock).not.toHaveBeenCalled()
+    expect(onClose).not.toHaveBeenCalled()
+
+    const details = within(alert).getByRole('button', { name: /common\.detail/ })
+    for (let step = 0; step < 30 && document.activeElement !== details; step++) await user.tab()
+    expect(details).toHaveFocus()
+    await user.keyboard('{Enter}')
+    await waitFor(() => expect(openErrorDetailMock).toHaveBeenCalledTimes(1))
+    expect(openErrorDetailMock.mock.calls[0][0].context).toMatchObject({
+      message: 'EROFS: read-only file system',
+      operation: 'code_cli.save_provider_config',
+      source: 'code.config'
+    })
+
+    await user.click(screen.getByText('common.save'))
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
   it('saves current unknown CLI config as a config-file-only draft', async () => {

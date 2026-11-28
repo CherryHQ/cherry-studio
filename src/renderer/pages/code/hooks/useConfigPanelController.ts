@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { toastAppError } from '@renderer/services/AppErrorDetailService'
 import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
@@ -269,7 +270,11 @@ export function useConfigPanelController({
             setCurrentCliConfigConnection(null)
           } catch (err) {
             logger.error('Failed to apply CLI config on own-login toggle:', err as Error)
-            toast.error(t('code.apply_failed'))
+            toastAppError(t('code.apply_failed'), err, {
+              source: 'code.config',
+              operation: 'code_cli.toggle_own_login',
+              recordId: provider.id
+            })
           }
           return
         }
@@ -284,7 +289,11 @@ export function useConfigPanelController({
             setCurrentCliConfigConnection(null)
           } catch (err) {
             logger.error('Failed to clear CLI config on disable:', err as Error)
-            toast.error(t('code.apply_failed'))
+            toastAppError(t('code.apply_failed'), err, {
+              source: 'code.config',
+              operation: 'code_cli.clear_config',
+              recordId: provider.id
+            })
           }
           return
         }
@@ -319,19 +328,26 @@ export function useConfigPanelController({
             setCurrentCliConfigConnection(null)
           } catch (err) {
             logger.error('Failed to select CLI provider:', err as Error)
-            toast.error(t('code.apply_failed'))
+            toastAppError(t('code.apply_failed'), err, {
+              source: 'code.config',
+              operation: 'code_cli.select_provider',
+              recordId: provider.id
+            })
           }
           return
         }
 
         // Inject first; only mark as current on success so the UI never shows a
         // provider as active while its CLI config file failed to write.
+        // The step in flight, so Details tells gateway startup and the selection write apart from the config write.
+        let operation = 'api_gateway.ensure_running'
         try {
           // Gateway: ensure it's running (generating the key on first start) before injecting.
           // Gated on the id so the real-provider path stays synchronous (no extra await tick).
           const gateway = isApiGatewayProviderId(provider.id)
             ? await resolveGatewayWriteContext(provider.id)
             : undefined
+          operation = 'code_cli.write_config'
           await writeCliConfigDraft({
             cliTool: selectedCliTool,
             modelId: cliConfigContext.modelId,
@@ -339,12 +355,17 @@ export function useConfigPanelController({
             writePrimaryModel: cliConfigContext.writePrimaryModel,
             gateway
           })
+          operation = 'code_cli.select_provider'
           await setCurrentProvider(provider.id)
           setCurrentCliConfigConnection(null)
           if (gateway) toast.info(t('code.api_gateway.requires_running'))
         } catch (err) {
           logger.error('Failed to inject CLI config on enable:', err as Error)
-          toast.error(t('code.apply_failed'))
+          toastAppError(t('code.apply_failed'), err, {
+            source: 'code.config',
+            operation,
+            recordId: provider.id
+          })
         }
       })().finally(() => {
         inFlightToolsRef.current.delete(selectedCliTool)

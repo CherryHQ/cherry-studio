@@ -1,6 +1,8 @@
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { buildInlineErrorDetailRequest } from '@renderer/services/AppErrorDetailService'
+import { toast } from '@renderer/services/toast'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { CLI_API_GATEWAY_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
@@ -55,6 +57,12 @@ vi.mock('../useAvailableTerminals', () => ({
 const { useLaunchDialogController } = await import('../useLaunchDialogController')
 
 const enabledProvider = { id: 'anthropic', name: 'Anthropic' } as Provider
+
+/** The Details request the launch dialog opens for its in-dialog failure. */
+const reportedLaunchFailure = (props: { failure?: Parameters<typeof buildInlineErrorDetailRequest>[0] | null }) => {
+  expect(props.failure).toBeTruthy()
+  return buildInlineErrorDetailRequest(props.failure!)
+}
 
 describe('useLaunchDialogController', () => {
   beforeEach(() => {
@@ -141,6 +149,48 @@ describe('useLaunchDialogController', () => {
       'code_cli.run',
       expect.objectContaining({ mode: 'normal', terminal: 'iterm2' })
     )
+  })
+
+  it('keeps the launch dialog open and shows why the launch failed', async () => {
+    mocks.requestMock.mockResolvedValue({ message: 'Directory does not exist: /tmp/project', success: false })
+    const { result } = renderHook(() =>
+      useLaunchDialogController({
+        currentProviderConfig: null,
+        directory: '/tmp/project',
+        enabledProvider: undefined,
+        isModelsLoading: false,
+        isOwnLoginSelected: false,
+        modelById: new Map(),
+        gatewayModelsById: new Map(),
+        selectedCliTool: CodeCli.QODER_CLI,
+        selectedTerminal: 'terminal',
+        selectFolder: vi.fn(),
+        setCurrentProvider: vi.fn(),
+        setTerminal: vi.fn(),
+        toolName: 'Qoder',
+        upsertProviderConfig: vi.fn()
+      })
+    )
+
+    act(() => result.current.openLaunchDialog())
+    await act(async () => {
+      result.current.launchDialogProps.onLaunch()
+    })
+
+    expect(mocks.requestMock).toHaveBeenCalledWith(
+      'code_cli.run',
+      expect.objectContaining({ cliTool: CodeCli.QODER_CLI, directory: '/tmp/project', mode: 'own-login' })
+    )
+    expect(result.current.launchDialogProps.open).toBe(true)
+    expect(toast.error).not.toHaveBeenCalled()
+    const detail = reportedLaunchFailure(result.current.launchDialogProps)
+    expect(detail.localizedErrorMessage).toBe('code.launch.error')
+    expect(detail.context).toMatchObject({
+      message: 'Directory does not exist: /tmp/project',
+      operation: 'code_cli.run',
+      source: 'code.launch'
+    })
+    expect(detail.context.stack).toBeUndefined()
   })
 
   // The run payload's `gateway` flag is derived from the enabled provider: a CLI (here gemini-cli)
@@ -406,6 +456,86 @@ describe('useLaunchDialogController', () => {
     )
   })
 
+  it('keeps a thrown provider-less launch rejection and allows another launch', async () => {
+    const failure = new Error('cli ipc rejected')
+    mocks.requestMock.mockRejectedValueOnce(failure)
+    const { result } = renderHook(() =>
+      useLaunchDialogController({
+        currentProviderConfig: null,
+        directory: '/tmp/project',
+        enabledProvider: undefined,
+        isModelsLoading: false,
+        isOwnLoginSelected: false,
+        modelById: new Map(),
+        gatewayModelsById: new Map(),
+        selectedCliTool: CodeCli.QODER_CLI,
+        selectedTerminal: 'terminal',
+        selectFolder: vi.fn(),
+        setCurrentProvider: vi.fn(),
+        setTerminal: vi.fn(),
+        toolName: 'Qoder',
+        upsertProviderConfig: vi.fn()
+      })
+    )
+
+    act(() => result.current.openLaunchDialog())
+    await act(async () => {
+      result.current.launchDialogProps.onLaunch()
+    })
+
+    expect(result.current.launchDialogProps.open).toBe(true)
+    expect(result.current.launching).toBe(false)
+    expect(result.current.launchDialogProps.failure?.error).toBe(failure)
+    expect(reportedLaunchFailure(result.current.launchDialogProps).context).toMatchObject({
+      message: 'cli ipc rejected',
+      operation: 'code_cli.run',
+      source: 'code.launch'
+    })
+
+    await act(async () => {
+      result.current.launchDialogProps.onLaunch()
+    })
+    expect(result.current.launchDialogProps.open).toBe(false)
+  })
+
+  it('keeps a thrown provider launch rejection on the same launch snapshot', async () => {
+    const failure = new Error('provider cli rejected')
+    mocks.requestMock.mockRejectedValueOnce(failure)
+    const { result } = renderHook(() =>
+      useLaunchDialogController({
+        selectedCliTool: CodeCli.CLAUDE_CODE,
+        toolName: 'Claude Code',
+        directory: '/tmp/project',
+        enabledProvider,
+        isOwnLoginSelected: false,
+        currentProviderConfig: { modelId: 'anthropic::claude-sonnet-4-5' },
+        selectedTerminal: 'terminal',
+        gatewayModelsById: new Map(),
+        modelById: new Map<UniqueModelId, Model>([
+          ['anthropic::claude-sonnet-4-5', { apiModelId: 'claude-sonnet-4-5' } as Model]
+        ]),
+        isModelsLoading: false,
+        upsertProviderConfig: vi.fn(),
+        setCurrentProvider: vi.fn(),
+        setTerminal: vi.fn(),
+        selectFolder: vi.fn()
+      })
+    )
+
+    await act(async () => {
+      result.current.launchDialogProps.onLaunch()
+    })
+
+    expect(result.current.launching).toBe(false)
+    expect(result.current.launchDialogProps.failure?.error).toBe(failure)
+    expect(reportedLaunchFailure(result.current.launchDialogProps).context).toMatchObject({
+      message: 'provider cli rejected',
+      operation: 'code_cli.run',
+      source: 'code.launch'
+    })
+    expect(toast.error).not.toHaveBeenCalled()
+  })
+
   // Reviewer: launch previously ran the CLI without re-checking the gateway, so a stopped
   // gateway (or a re-keyed/re-ported one) launched against a dead endpoint or stale on-disk
   // credentials. The gateway must be re-verified and the config rewritten before every launch.
@@ -574,6 +704,28 @@ describe('useLaunchDialogController', () => {
       expect(getApiKey).not.toHaveBeenCalled()
       expect(mocks.requestMock).not.toHaveBeenCalled()
       expect(result.current.launching).toBe(false)
+      // The terminal was never asked to run, so Details must name the gateway step.
+      expect(reportedLaunchFailure(result.current.launchDialogProps).context).toMatchObject({
+        message: 'API gateway failed to start',
+        operation: 'api_gateway.ensure_running'
+      })
+    })
+
+    it('names the config step in Details when reconciliation fails before the run', async () => {
+      const getApiKey = vi.fn().mockResolvedValue('cs-sk-current')
+      mocks.writeCliConfigDraft.mockRejectedValueOnce(new Error('EROFS: read-only file system'))
+      const { result } = renderGatewayLaunch(getApiKey)
+
+      await act(async () => {
+        result.current.launchDialogProps.onLaunch()
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      })
+
+      expect(mocks.requestMock).not.toHaveBeenCalled()
+      expect(reportedLaunchFailure(result.current.launchDialogProps).context).toMatchObject({
+        message: 'EROFS: read-only file system',
+        operation: 'code_cli.write_config'
+      })
     })
 
     it('launches Antigravity after ensuring the gateway runs without reading its key or writing config', async () => {

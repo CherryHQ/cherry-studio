@@ -2,6 +2,7 @@ import { act, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { cacheService } from '@data/CacheService'
+import { appErrorContextService } from '@renderer/services/AppErrorContextService'
 import type { Provider } from '@shared/data/types/provider'
 import { CLI_API_GATEWAY_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
 
@@ -128,7 +129,15 @@ describe('useDeepSeekHarnessController', () => {
     const { result } = renderController()
     await act(async () => result.current.onLaunch())
     expect(mocks.openSmartMiniApp).not.toHaveBeenCalled()
-    expect(mocks.toastError).toHaveBeenCalledWith('config collision')
+    const payload = mocks.toastError.mock.calls[0][0]
+    expect(payload).toMatchObject({ title: 'code.launch.error', description: 'config collision' })
+    const detail = appErrorContextService.contextForHostError('deepseek-start-rejected', payload)
+    expect(detail).toMatchObject({
+      message: 'config collision',
+      operation: 'deepseek_harness.start',
+      source: 'code.deepseek'
+    })
+    expect(detail.stack).toBeUndefined()
   })
 
   it('tracks managed status via pushed events, reopens the current URL, and stops only through the managed IPC', async () => {
@@ -156,5 +165,123 @@ describe('useDeepSeekHarnessController', () => {
       await result.current.onStop()
     })
     expect(mocks.request).toHaveBeenCalledWith('deepseek_harness.stop')
+  })
+
+  it('keeps the raw stop failure and reports that the service did not stop', async () => {
+    mocks.request.mockImplementation((route: string) => {
+      if (route === 'deepseek_harness.stop') return Promise.resolve({ success: false, message: 'port still held' })
+      return Promise.resolve({ success: true })
+    })
+    const { result } = renderController()
+
+    let stopped = true
+    await act(async () => {
+      stopped = await result.current.onStop()
+    })
+
+    expect(stopped).toBe(false)
+    expect(mocks.request).toHaveBeenCalledWith('deepseek_harness.stop')
+    const payload = mocks.toastError.mock.calls[0][0]
+    expect(payload).toMatchObject({ title: 'code.stop_failed', description: 'port still held' })
+    const detail = appErrorContextService.contextForHostError('deepseek-stop-rejected', payload)
+    expect(detail).toMatchObject({ message: 'port still held', operation: 'deepseek_harness.stop' })
+    expect(detail.stack).toBeUndefined()
+  })
+
+  it('keeps a thrown stop error, resets stopping, and reports that the service did not stop', async () => {
+    const stopError = new Error('gateway socket closed')
+    mocks.request.mockImplementation((route: string) => {
+      if (route === 'deepseek_harness.stop') return Promise.reject(stopError)
+      return Promise.resolve({ success: true })
+    })
+    const { result } = renderController()
+
+    let stopped = true
+    await act(async () => {
+      stopped = await result.current.onStop()
+    })
+
+    expect(stopped).toBe(false)
+    expect(result.current.stopping).toBe(false)
+    expect(mocks.toastError).toHaveBeenCalledWith(
+      expect.objectContaining({
+        cause: stopError,
+        data: expect.objectContaining({
+          errorContext: expect.objectContaining({
+            message: 'gateway socket closed',
+            operation: 'deepseek_harness.stop',
+            source: 'code.deepseek'
+          }),
+          localizedErrorMessage: 'code.stop_failed'
+        }),
+        title: 'code.stop_failed'
+      })
+    )
+  })
+
+  it('keeps a thrown launch rejection, resets launching, and can launch again', async () => {
+    const failure = new Error('harness ipc rejected')
+    mocks.request.mockImplementation((route: string) => {
+      if (route === 'deepseek_harness.start') return Promise.reject(failure)
+      return Promise.resolve({ success: true })
+    })
+    const { result } = renderController()
+
+    let outcome: unknown = 'pending'
+    await act(async () => {
+      outcome = await result.current.onLaunch()
+    })
+
+    expect(outcome).toBeUndefined()
+    expect(result.current.launching).toBe(false)
+    expect(mocks.openSmartMiniApp).not.toHaveBeenCalled()
+    expect(mocks.toastError).toHaveBeenCalledWith(
+      expect.objectContaining({
+        cause: failure,
+        data: expect.objectContaining({
+          errorContext: expect.objectContaining({
+            message: 'harness ipc rejected',
+            operation: 'deepseek_harness.start',
+            source: 'code.deepseek'
+          }),
+          localizedErrorMessage: 'code.launch.error'
+        }),
+        title: 'code.launch.error'
+      })
+    )
+
+    mocks.request.mockImplementation((route: string) => {
+      if (route === 'deepseek_harness.start') return Promise.resolve({ success: true, url: 'http://127.0.0.1:43123' })
+      return Promise.resolve({ success: true })
+    })
+    await act(async () => {
+      await result.current.onLaunch()
+    })
+    expect(mocks.openSmartMiniApp).toHaveBeenCalledOnce()
+  })
+
+  it('keeps the not-running Web UI error instead of a caption-only toast', async () => {
+    const { result } = renderController()
+
+    await act(async () => {
+      await result.current.onOpenWebUi()
+    })
+
+    expect(mocks.openSmartMiniApp).not.toHaveBeenCalled()
+    expect(mocks.toastError).toHaveBeenCalledWith(
+      expect.objectContaining({
+        cause: expect.objectContaining({ message: 'DeepSeek Harness Web UI is not running' }),
+        data: expect.objectContaining({
+          errorContext: expect.objectContaining({
+            message: 'DeepSeek Harness Web UI is not running',
+            operation: 'deepseek_harness.open_web_ui',
+            source: 'code.deepseek'
+          }),
+          localizedErrorMessage: 'code.launch.error'
+        }),
+        title: 'code.launch.error'
+      })
+    )
+    expect(mocks.toastError).not.toHaveBeenCalledWith('code.launch.error')
   })
 })

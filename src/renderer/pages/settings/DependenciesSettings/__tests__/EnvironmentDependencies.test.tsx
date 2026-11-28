@@ -6,6 +6,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { appErrorContextService } from '@renderer/services/AppErrorContextService'
+import type * as AppErrorDetailService from '@renderer/services/AppErrorDetailService'
 import { BABELDOC_MINIMUM_VERSION } from '@shared/data/presets/binaryTools'
 import type { BinaryToolInstalledSizes, BinaryToolSnapshot } from '@shared/types/binary'
 
@@ -27,6 +29,7 @@ const ipcMocks = vi.hoisted(() => ({
   searchRegistry: vi.fn()
 }))
 const toastMock = vi.hoisted(() => ({ error: vi.fn(), success: vi.fn() }))
+const openErrorDetail = vi.hoisted(() => vi.fn().mockResolvedValue('opened'))
 const ipcEventHandlers = vi.hoisted(() => new Map<string, (payload: unknown) => void>())
 const translationMock = vi.hoisted(() => ({
   t: (key: string, options?: { details?: string; dependents?: string }) => {
@@ -83,6 +86,10 @@ vi.mock('@renderer/ipc', () => ({
 
 vi.mock('@renderer/ipc/useIpcOn', () => ({ useIpcOn: vi.fn() }))
 vi.mock('@renderer/services/toast', () => ({ toast: toastMock }))
+vi.mock('@renderer/services/AppErrorDetailService', async (importOriginal) => ({
+  ...(await importOriginal<typeof AppErrorDetailService>()),
+  appErrorDetailService: { openAppErrorDetail: openErrorDetail }
+}))
 vi.mock('react-i18next', () => ({
   initReactI18next: { type: '3rdParty', init: vi.fn() },
   useTranslation: () => translationMock
@@ -127,7 +134,8 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
   return {
     PageHeader,
     HelpTooltip: () => null,
-
+    Alert: ({ children, role, onClick }: any) =>
+      React.createElement('div', { role: role ?? 'alert', onClick }, children),
     Badge: passthrough('span'),
     Button: ({ children, onClick, 'aria-label': ariaLabel, disabled, title }: any) =>
       React.createElement('button', { onClick, 'aria-label': ariaLabel, disabled, title }, children),
@@ -172,6 +180,10 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
       )
   }
 })
+
+/** The snapshot the shared toast host records for the first reported failure. */
+const reportedFailure = (key: string) =>
+  appErrorContextService.contextForHostError(key, toastMock.error.mock.calls[0][0])
 
 describe('EnvironmentDependencies', () => {
   beforeEach(() => {
@@ -223,15 +235,21 @@ describe('EnvironmentDependencies', () => {
     })
   })
 
-  it('surfaces a failed field write as a toast without closing the dialog', async () => {
-    setInstallSettingsMock.mockRejectedValueOnce(new Error('preference write failed'))
+  it('titles a failed field write toast with the translated conclusion without closing the dialog', async () => {
+    const writeError = new Error('preference write failed')
+    setInstallSettingsMock.mockRejectedValueOnce(writeError)
     render(<EnvironmentDependencies />)
     fireEvent.click(await screen.findByTitle('settings.dependencies.installSettings.title'))
     const mirror = screen.getByPlaceholderText('settings.dependencies.installSettings.githubMirror.placeholder')
     fireEvent.change(mirror, { target: { value: 'https://ghfast.top' } })
     fireEvent.blur(mirror)
 
-    await waitFor(() => expect(toastMock.error).toHaveBeenCalledWith('preference write failed'))
+    await waitFor(() => expect(toastMock.error).toHaveBeenCalledWith(expect.objectContaining({ cause: writeError })))
+    expect(reportedFailure('install-settings-save')).toMatchObject({
+      message: 'preference write failed',
+      operation: 'binary.save_install_settings'
+    })
+    expect(toastMock.error.mock.calls[0][0]).toMatchObject({ title: 'common.save_failed' })
     expect(screen.getByRole('dialog')).toBeInTheDocument()
   })
 
@@ -335,8 +353,9 @@ describe('EnvironmentDependencies', () => {
 
     fireEvent.click(within(card).getByText('common.retry'))
 
-    expect(await within(card).findByText('settings.dependencies.viewErrorDetails')).toBeInTheDocument()
-    expect(within(card).getByText('Cannot determine fd state: query_failed')).toBeInTheDocument()
+    expect(await within(card).findByText('settings.dependencies.installError')).toBeInTheDocument()
+    expect(within(card).queryByText(/Cannot determine fd state/)).not.toBeInTheDocument()
+    expect(within(card).getByRole('button', { name: /common\.detail/ })).toBeInTheDocument()
   })
 
   it('keeps a mise preset with no application fact display-only without an install retry', async () => {
@@ -421,7 +440,9 @@ describe('EnvironmentDependencies', () => {
     expect(within(card).queryByText('common.retry')).not.toBeInTheDocument()
     expect(within(card).queryByText('settings.mcp.install')).not.toBeInTheDocument()
 
-    fireEvent.click(within(card).getByText('settings.dependencies.viewErrorDetails'))
+    expect(within(card).getByText('settings.dependencies.removeError')).toBeInTheDocument()
+    expect(within(card).queryByText(/mise uninstall failed/)).not.toBeInTheDocument()
+    fireEvent.click(within(card).getByRole('button', { name: /common\.detail/ }))
     expect(await screen.findByRole('dialog')).toHaveTextContent('settings.dependencies.removeError')
     expect(screen.getByRole('dialog')).toHaveTextContent('settings.dependencies.removeErrorHint')
     expect(screen.getByRole('dialog')).not.toHaveTextContent('settings.dependencies.installErrorHint')
@@ -549,7 +570,7 @@ describe('EnvironmentDependencies', () => {
       }
     })
     render(<EnvironmentDependencies />)
-    expect(await screen.findByText('settings.dependencies.viewErrorDetails')).toBeInTheDocument()
+    expect(await screen.findByText('settings.dependencies.installError')).toBeInTheDocument()
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
@@ -622,7 +643,11 @@ describe('EnvironmentDependencies', () => {
     await user.click(screen.getByRole('button', { name: 'settings.dependencies.checkUpdates' }))
 
     await waitFor(() => expect(within(card).queryByText('common.retry')).not.toBeInTheDocument())
-    expect(toastMock.error).toHaveBeenCalledWith('settings.dependencies.updateCheckFailed: catalog offline')
+    expect(toastMock.error.mock.calls[0][0]).toMatchObject({ title: 'settings.dependencies.updateCheckFailed' })
+    expect(reportedFailure('update-check')).toMatchObject({
+      message: 'catalog offline',
+      operation: 'binary.get_latest_versions'
+    })
     expect(toastMock.success).not.toHaveBeenCalled()
   })
 
@@ -644,9 +669,12 @@ describe('EnvironmentDependencies', () => {
 
     await user.click(screen.getByRole('button', { name: 'settings.dependencies.checkUpdates' }))
 
-    await waitFor(() =>
-      expect(toastMock.error).toHaveBeenCalledWith('settings.dependencies.updateCheckFailed: mise ls failed')
-    )
+    await waitFor(() => expect(toastMock.error).toHaveBeenCalled())
+    expect(toastMock.error.mock.calls[0][0]).toMatchObject({ title: 'settings.dependencies.updateCheckFailed' })
+    expect(reportedFailure('state-probe')).toMatchObject({
+      message: 'mise ls failed',
+      operation: 'binary.get_tool_snapshots'
+    })
     expect(toastMock.success).not.toHaveBeenCalled()
     expect(within(card).getByText('common.retry')).toBeInTheDocument()
   })
@@ -808,6 +836,95 @@ describe('EnvironmentDependencies', () => {
       })
     )
     expect(ipcMocks.installTool).not.toHaveBeenCalled()
+  })
+
+  it('reports a rejected add inside the open add dialog without stacking the install log', async () => {
+    ipcMocks.searchRegistry.mockResolvedValue([{ name: 'jq', tool: 'jq' }])
+    ipcMocks.addCustomTool.mockRejectedValue(
+      new Error("Error invoking remote method 'ipc-api:request': EACCES /Users/x/probe.db")
+    )
+    render(<EnvironmentDependencies />)
+
+    fireEvent.click(screen.getByText('settings.dependencies.addTool'))
+    fireEvent.change(screen.getByPlaceholderText('settings.dependencies.searchRegistry'), {
+      target: { value: 'jq' }
+    })
+    fireEvent.click(await screen.findByRole('button', { name: /jq/ }))
+    fireEvent.click(screen.getByText('common.add'))
+
+    expect(await screen.findByText('settings.dependencies.addFailed')).toBeInTheDocument()
+    const dialogs = screen.getAllByRole('dialog')
+    expect(dialogs).toHaveLength(1)
+    expect(dialogs[0]).toHaveTextContent('settings.dependencies.addToolDescription')
+    expect(dialogs[0]).not.toHaveTextContent('EACCES')
+    expect(dialogs[0]).not.toHaveTextContent('settings.dependencies.installErrorHint')
+    expect(within(dialogs[0]).getByRole('button', { name: /common\.detail/ })).toBeInTheDocument()
+  })
+
+  it('attributes a late add rejection to the submitted tool, not the one selected since', async () => {
+    let rejectAdd!: (error: Error) => void
+    ipcMocks.addCustomTool.mockImplementationOnce(
+      () =>
+        new Promise((_, reject) => {
+          rejectAdd = reject
+        })
+    )
+    ipcMocks.searchRegistry.mockImplementation(async (query: string) => [{ name: query, tool: query }])
+    render(<EnvironmentDependencies />)
+    const search = (name: string) =>
+      fireEvent.change(screen.getByPlaceholderText('settings.dependencies.searchRegistry'), {
+        target: { value: name }
+      })
+
+    fireEvent.click(screen.getByText('settings.dependencies.addTool'))
+    search('jq')
+    fireEvent.click(await screen.findByRole('button', { name: /jq/ }))
+    fireEvent.click(screen.getByText('common.add'))
+    await waitFor(() => expect(ipcMocks.addCustomTool).toHaveBeenCalled())
+    search('yq')
+    fireEvent.click(await screen.findByRole('button', { name: /yq/ }))
+    await act(async () => rejectAdd(new Error('registry refused')))
+
+    fireEvent.click(await screen.findByRole('button', { name: /common\.detail/ }))
+    await waitFor(() => expect(openErrorDetail).toHaveBeenCalledTimes(1))
+    expect(openErrorDetail.mock.calls[0][0].context).toMatchObject({
+      operation: 'binary.add_custom_tool',
+      recordId: 'jq'
+    })
+  })
+
+  // Cancel does not abort the write, so a late rejection must still reach the user, just not the next dialog.
+  it('reports an add rejection that settles after dismissal on the page, not in the reopened dialog', async () => {
+    let rejectAdd!: (error: Error) => void
+    ipcMocks.addCustomTool.mockImplementationOnce(
+      () =>
+        new Promise((_, reject) => {
+          rejectAdd = reject
+        })
+    )
+    ipcMocks.searchRegistry.mockResolvedValue([{ name: 'jq', tool: 'jq' }])
+    render(<EnvironmentDependencies />)
+
+    fireEvent.click(screen.getByText('settings.dependencies.addTool'))
+    fireEvent.change(screen.getByPlaceholderText('settings.dependencies.searchRegistry'), {
+      target: { value: 'jq' }
+    })
+    fireEvent.click(await screen.findByRole('button', { name: /jq/ }))
+    fireEvent.click(screen.getByText('common.add'))
+    await waitFor(() => expect(ipcMocks.addCustomTool).toHaveBeenCalled())
+    fireEvent.click(screen.getByTestId('dialog-close'))
+    await act(async () => rejectAdd(new Error('registry refused')))
+
+    await waitFor(() => expect(toastMock.error).toHaveBeenCalledTimes(1))
+    expect(toastMock.error.mock.calls[0][0]).toMatchObject({ title: 'settings.dependencies.addFailed' })
+    expect(reportedFailure('late-add')).toMatchObject({
+      message: 'registry refused',
+      operation: 'binary.add_custom_tool',
+      recordId: 'jq',
+      source: 'settings.dependencies'
+    })
+    fireEvent.click(screen.getByText('settings.dependencies.addTool'))
+    expect(screen.getByRole('dialog')).not.toHaveTextContent('settings.dependencies.addFailed')
   })
 
   it('warns before removing a managed runtime', async () => {
@@ -981,7 +1098,7 @@ describe('EnvironmentDependencies', () => {
       }
     })
     render(<EnvironmentDependencies />)
-    const failureRow = await screen.findByText('settings.dependencies.viewErrorDetails')
+    const failureRow = await screen.findByRole('button', { name: /common\.detail/ })
 
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     fireEvent.click(failureRow)
@@ -1068,6 +1185,50 @@ describe('EnvironmentDependencies', () => {
     const fallback = screen.getByRole('alertdialog')
     expect(fallback).toHaveTextContent('settings.dependencies.removeDefinitionOnlyDependents')
     expect(fallback).toHaveTextContent('npm:alpha, npm:beta')
+  })
+
+  it('titles a rejected removal toast with the translated conclusion and keeps the raw error as its cause', async () => {
+    setSnapshots({ gh: miseSnapshot('gh', 'gh', '2.0.0') })
+    const removeError = new Error('EACCES: permission denied')
+    ipcMocks.removeTool.mockRejectedValueOnce(removeError)
+    render(<EnvironmentDependencies />)
+    const card = (await screen.findByText('GitHub CLI')).closest('[role="listitem"]') as HTMLElement
+
+    fireEvent.click(within(card).getByLabelText('settings.dependencies.uninstall'))
+    fireEvent.click(screen.getByTestId('confirm-dialog-confirm'))
+
+    await waitFor(() => expect(toastMock.error).toHaveBeenCalledWith(expect.objectContaining({ cause: removeError })))
+    expect(toastMock.error.mock.calls[0][0]).toMatchObject({ title: 'settings.dependencies.removeError' })
+    expect(reportedFailure('remove-tool')).toMatchObject({
+      message: 'EACCES: permission denied',
+      operation: 'binary.remove_tool',
+      recordId: 'gh'
+    })
+  })
+
+  it('reports a rejected definition-only removal with its own operation', async () => {
+    setSnapshots({ mytool: miseSnapshot('mytool', 'npm:mytool', '1.0.0') })
+    ipcMocks.removeTool
+      .mockResolvedValueOnce({ status: 'cleanup_blocked', reason: 'cleanup_failed', message: 'still installed' })
+      .mockRejectedValueOnce(new Error('EBUSY: definition locked'))
+    render(<EnvironmentDependencies />)
+    const card = (await screen.findByText('mytool')).closest('[role="listitem"]') as HTMLElement
+
+    fireEvent.click(within(card).getByLabelText('settings.dependencies.remove'))
+    fireEvent.click(screen.getByTestId('confirm-dialog-confirm'))
+    await waitFor(() =>
+      expect(screen.getByRole('alertdialog')).toHaveTextContent(
+        'settings.dependencies.removeDefinitionOnlyConfirmTitle'
+      )
+    )
+    fireEvent.click(within(screen.getByRole('alertdialog')).getByTestId('confirm-dialog-confirm'))
+
+    await waitFor(() => expect(toastMock.error).toHaveBeenCalled())
+    expect(reportedFailure('remove-definition')).toMatchObject({
+      message: 'EBUSY: definition locked',
+      operation: 'binary.remove_tool_definition',
+      recordId: 'mytool'
+    })
   })
 
   it('shows a removal error with no definition fallback when a fixed tool cleanup is blocked', async () => {

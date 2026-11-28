@@ -471,7 +471,7 @@ describe('useConfigDraftController (submit failure)', () => {
     return rendered
   }
 
-  it('keeps the dialog open and toasts when the submit fails', async () => {
+  it('keeps the dialog open and holds the failure for the dialog when the submit fails', async () => {
     const onSubmit = vi.fn().mockRejectedValue(new Error('write failed'))
     const onClose = vi.fn()
     const { result } = await renderDirtyController(onSubmit, onClose)
@@ -482,7 +482,13 @@ describe('useConfigDraftController (submit failure)', () => {
 
     expect(onSubmit).toHaveBeenCalledTimes(1)
     expect(onClose).not.toHaveBeenCalled()
-    expect(mocks.toastError).toHaveBeenCalledWith('code.apply_failed')
+    expect(mocks.toastError).not.toHaveBeenCalled()
+    expect(result.current.saveFailure).toMatchObject({
+      error: expect.objectContaining({ message: 'write failed' }),
+      message: 'code.apply_failed',
+      operation: 'code_cli.save_provider_config',
+      source: 'code.config'
+    })
     expect(result.current.submitting).toBe(false)
   })
 

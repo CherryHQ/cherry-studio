@@ -13,10 +13,11 @@ import {
   DialogTitle
 } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
+import { ErrorNotice } from '@renderer/components/ErrorNotice'
 import { LocalModelDownloadProgress } from '@renderer/components/LocalModelDownloadProgress'
 import { useLocalModel } from '@renderer/hooks/useLocalModel'
 import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
-import { toast } from '@renderer/services/toast'
 import type { LocalModelBundleId } from '@shared/data/presets/localModel'
 
 export interface LocalModelDownloadParams {
@@ -30,24 +31,22 @@ type Props = LocalModelDownloadParams & PopupInjectedProps<boolean>
 const PopupContainer: React.FC<Props> = ({ open, resolve, id, description }) => {
   const { t } = useTranslation()
   const { status, percent, download, cancel } = useLocalModel(id)
-  const [failed, setFailed] = useState(false)
+  const [failure, setFailure] = useState<{ error: unknown } | null>(null)
 
   const downloading = status === 'downloading'
 
   const handleDownload = useCallback(async () => {
-    setFailed(false)
+    setFailure(null)
 
     try {
       // download() resolves true once the model is on disk and false when the user
       // cancels it — which is already exactly this dialog's answer.
       resolve(await download())
-    } catch {
-      // Stay open so the user can retry without re-opening the dropdown; the cause is
-      // already logged by the main-process download service.
-      toast.error(t('settings.dependencies.localModels.notice.downloadFailed'))
-      setFailed(true)
+    } catch (error) {
+      // Stay open for a retry; shown in the dialog because its focus trap keeps a toast out of keyboard reach.
+      setFailure({ error })
     }
-  }, [download, resolve, t])
+  }, [download, resolve])
 
   const handleCancel = useCallback(() => {
     if (!downloading) {
@@ -97,6 +96,21 @@ const PopupContainer: React.FC<Props> = ({ open, resolve, id, description }) => 
         </DialogHeader>
 
         {downloading ? <LocalModelDownloadProgress percent={percent} /> : null}
+        {failure ? (
+          <ErrorNotice
+            variant="inline"
+            title={t('settings.dependencies.localModels.notice.downloadFailed')}
+            detail={
+              <ErrorDetailAction
+                error={failure.error}
+                message={t('settings.dependencies.localModels.notice.downloadFailed')}
+                source="local_model"
+                operation="local_model.download"
+                recordId={id}
+              />
+            }
+          />
+        ) : null}
 
         <DialogFooter>
           <Button variant="outline" onClick={handleCancel}>
@@ -104,8 +118,8 @@ const PopupContainer: React.FC<Props> = ({ open, resolve, id, description }) => 
           </Button>
           {downloading ? null : (
             <Button onClick={() => void handleDownload()} className="gap-1">
-              {failed ? <RefreshCw className="size-4" /> : <Download className="size-4" />}
-              {t(failed ? 'common.retry' : 'settings.dependencies.localModels.download')}
+              {failure ? <RefreshCw className="size-4" /> : <Download className="size-4" />}
+              {t(failure ? 'common.retry' : 'settings.dependencies.localModels.download')}
             </Button>
           )}
         </DialogFooter>

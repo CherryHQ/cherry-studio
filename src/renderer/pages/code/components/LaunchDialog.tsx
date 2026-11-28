@@ -2,6 +2,9 @@ import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@cherrystudio/ui'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
+import { ErrorNotice } from '@renderer/components/ErrorNotice'
+import type { InlineErrorDetailInput } from '@renderer/services/AppErrorDetailService'
 import type { TerminalConfig } from '@shared/types/codeCli'
 
 import { CurrentConfigPanel } from './CurrentConfigPanel'
@@ -17,6 +20,8 @@ export interface LaunchDialogProps {
   onSelectTerminal: (terminal: string) => void
   onLaunch: () => void
   launching: boolean
+  /** The last launch failure, shown in the dialog while it stays open for a retry. */
+  failure?: InlineErrorDetailInput | null
 }
 
 export const LaunchDialog: FC<LaunchDialogProps> = ({
@@ -29,7 +34,8 @@ export const LaunchDialog: FC<LaunchDialogProps> = ({
   onSelectFolder,
   onSelectTerminal,
   onLaunch,
-  launching
+  launching,
+  failure
 }) => {
   const { t } = useTranslation()
   const canLaunch = !!directory
@@ -48,6 +54,10 @@ export const LaunchDialog: FC<LaunchDialogProps> = ({
           onSelectFolder={onSelectFolder}
           onSelectTerminal={onSelectTerminal}
         />
+
+        {failure ? (
+          <ErrorNotice variant="inline" title={t('code.launch.error')} detail={<ErrorDetailAction {...failure} />} />
+        ) : null}
 
         <DialogFooter className="justify-end gap-2">
           <Button variant="ghost" size="sm" onClick={onClose} disabled={launching}>

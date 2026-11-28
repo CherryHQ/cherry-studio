@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { CliConfigFileDraft } from '@renderer/pages/code/cliConfig/types'
+import { toast } from '@renderer/services/toast'
 
 import { CliConfigEditor } from '../CliConfigEditor'
 
@@ -80,5 +81,21 @@ describe('CliConfigEditor', () => {
     fireEvent.click(screen.getByText('edit value'))
 
     expect(onChange).toHaveBeenCalledWith([{ ...files[0], content: `${files[0].content}\n` }])
+  })
+
+  it('reports a draft that cannot be formatted without offering it as a reportable fault', () => {
+    const onChange = vi.fn()
+    const broken = [{ ...files[0], content: '{"apiKey":"sk-draft-secret",' }]
+    render(<CliConfigEditor files={broken} error="Unexpected end of JSON input" onChange={onChange} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'code.format_json' }))
+
+    expect(onChange).not.toHaveBeenCalled()
+    expect(toast.error).toHaveBeenCalledWith({
+      title: 'code.cli_config.format_failed',
+      data: { suppressDetail: true }
+    })
+    expect(screen.getByText('Unexpected end of JSON input')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'common.detail' })).not.toBeInTheDocument()
   })
 })

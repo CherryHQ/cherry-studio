@@ -660,7 +660,7 @@ describe('useMiniApps', () => {
             { appId: 'app1', status: 'enabled' },
             { appId: 'app2', status: 'enabled' }
           ])
-        ).rejects.toThrow()
+        ).rejects.toMatchObject({ cause: expect.objectContaining({ isServerError: true }) })
       })
     })
   })

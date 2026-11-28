@@ -5,12 +5,13 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 
 import { useMutation } from '@data/hooks/useDataApi'
 import i18n from '@renderer/i18n/resolver'
+import type * as AppErrorDetailService from '@renderer/services/AppErrorDetailService'
 import { toast } from '@renderer/services/toast'
 import type { Model } from '@shared/data/types/model'
 
 // `vi.hoisted`: `vi.mock` is hoisted above every `const`, so a factory closing over a
 // plain `const request` hits the TDZ on first import of the mocked module.
-const { request, activity, selectableModels } = vi.hoisted(() => {
+const { request, activity, selectableModels, mocks } = vi.hoisted(() => {
   const model = (providerId: string, name: string): Model => ({
     id: `${providerId}::mini-app-test`,
     providerId,
@@ -23,9 +24,14 @@ const { request, activity, selectableModels } = vi.hoisted(() => {
   return {
     request: vi.fn(),
     activity: { entries: [] as unknown[], bytes: 0, days: 0 },
-    selectableModels: [model('openai', 'Regular chat model')]
+    selectableModels: [model('openai', 'Regular chat model')],
+    mocks: { openErrorDetail: vi.fn().mockResolvedValue('opened') }
   }
 })
+vi.mock('@renderer/services/AppErrorDetailService', async (importOriginal) => ({
+  ...(await importOriginal<typeof AppErrorDetailService>()),
+  appErrorDetailService: { openAppErrorDetail: mocks.openErrorDetail }
+}))
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request } }))
 // An independently tested child: the real selector needs the portal container the
 // global `@cherrystudio/ui` stand-in does not provide (same boundary ContextManagementSettings draws).
@@ -59,6 +65,7 @@ afterAll(async () => {
 // are "was NOT called with X" — exactly what a leftover call turns red.
 beforeEach(() => {
   request.mockReset()
+  mocks.openErrorDetail.mockClear()
 })
 
 import type { MiniAppDetail } from '@shared/ipc/schemas/miniApp'
@@ -197,7 +204,8 @@ describe('activity log', () => {
     )
     render(<MiniAppDetailPanel appId={detail.appId} />)
 
-    expect(await screen.findByText(/log directory is gone/)).toBeInTheDocument()
+    expect(await screen.findByText(i18n.t('miniApp.activity.load_error'))).toBeInTheDocument()
+    expect(screen.queryByText(/log directory is gone/)).not.toBeInTheDocument()
   })
 
   it('re-reads the log when the user asks, not on its own', async () => {
@@ -272,7 +280,7 @@ describe('MiniAppDetailPanel', () => {
     // is a takeover primitive for whatever file the user happened to pick.
     request.mockResolvedValueOnce(previewFor('com.example.other'))
     await userEvent.click(replaceButton())
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(expect.stringMatching(/com\.example\.other/)))
+    expect(await screen.findByRole('alert')).toHaveTextContent(/com\.example\.other/)
     expect(screen.queryByTestId('install-preview')).toBeNull()
     expect(request).toHaveBeenCalledWith('mini_app.install.cancel_preview', { installToken: 'tok-file' })
 
@@ -287,6 +295,99 @@ describe('MiniAppDetailPanel', () => {
       reinstall: { clearData: false }
     })
     expect(request).not.toHaveBeenCalledWith('mini_app.update.pick_replacement', expect.anything())
+  })
+
+  // The panel is a modal: a Details entry that lives only in the window-level toast is unreachable by keyboard.
+  it('keeps a failed replacement pick inside the panel with keyboard-reachable Details', async () => {
+    await open()
+    vi.mocked(toast.error).mockClear()
+    const failure = new Error('not a mini app package')
+    request.mockRejectedValueOnce(failure)
+    const user = userEvent.setup()
+
+    const replaceButton = screen.getByRole('button', { name: /replace package|替换本地包/i })
+    await user.click(replaceButton)
+
+    const dialog = screen.getByRole('dialog')
+    const alert = await within(dialog).findByRole('alert')
+    expect(alert).toHaveTextContent(i18n.t('miniApp.install.preview_error'))
+    expect(alert).not.toHaveTextContent(/not a mini app package/)
+    const details = within(alert).getByRole('button', { name: i18n.t('common.detail') })
+    for (let step = 0; step < 60 && document.activeElement !== details; step++) await user.tab()
+    expect(details).toHaveFocus()
+    await user.keyboard('{Enter}')
+    await waitFor(() => expect(mocks.openErrorDetail).toHaveBeenCalledTimes(1))
+    expect(mocks.openErrorDetail.mock.calls[0][0].context).toMatchObject({
+      message: 'not a mini app package',
+      operation: 'miniapp.install.pick_and_preview',
+      recordId: detail.appId,
+      source: 'miniapp'
+    })
+    expect(toast.error).not.toHaveBeenCalled()
+    expect(replaceButton).toBeEnabled()
+  })
+
+  /** Tabs to the panel notice's Details, opens it, and returns the request it opened. */
+  const openNoticeDetails = async (user: ReturnType<typeof userEvent.setup>, text: string) => {
+    const alert = await within(screen.getByRole('dialog')).findByRole('alert')
+    expect(alert).toHaveTextContent(text)
+    const details = within(alert).getByRole('button', { name: i18n.t('common.detail') })
+    for (let step = 0; step < 60 && document.activeElement !== details; step++) await user.tab()
+    expect(details).toHaveFocus()
+    await user.keyboard('{Enter}')
+    await waitFor(() => expect(mocks.openErrorDetail).toHaveBeenCalledTimes(1))
+    return { alert, request: mocks.openErrorDetail.mock.calls[0][0] }
+  }
+
+  it('keeps a failed update check inside the panel with keyboard-reachable Details, cleared on retry', async () => {
+    await open()
+    vi.mocked(toast.error).mockClear()
+    request.mockRejectedValueOnce(new Error('registry offline'))
+    const user = userEvent.setup()
+
+    await user.click(screen.getByRole('button', { name: /check for update/i }))
+
+    const { alert, request: opened } = await openNoticeDetails(user, i18n.t('miniApp.detail.action_failed'))
+    expect(alert).not.toHaveTextContent(/registry offline/)
+    expect(opened.context).toMatchObject({
+      message: 'registry offline',
+      operation: 'miniapp.update.check',
+      recordId: detail.appId,
+      source: 'miniapp'
+    })
+    expect(toast.error).not.toHaveBeenCalled()
+
+    request.mockResolvedValueOnce({ status: 'current' })
+    await user.click(screen.getByRole('button', { name: /check for update/i }))
+    await waitFor(() => expect(within(screen.getByRole('dialog')).queryByRole('alert')).toBeNull())
+  })
+
+  it('keeps a failed update apply inside the panel with keyboard-reachable Details', async () => {
+    await open()
+    vi.mocked(toast.error).mockClear()
+    request.mockResolvedValueOnce({
+      status: 'ready',
+      version: '1.1.0',
+      addedOptional: [],
+      removed: [],
+      updateToken: 'tok-1'
+    })
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: /check for update/i }))
+    request.mockRejectedValueOnce(new Error('publish failed: EBUSY'))
+    await user.click(await screen.findByRole('button', { name: /update to 1\.1\.0/i }))
+
+    // The review dialog closes with its spent token; the failure lands in the panel still open beneath it.
+    await waitFor(() => expect(screen.getAllByRole('dialog')).toHaveLength(1))
+    const { alert, request: opened } = await openNoticeDetails(user, i18n.t('miniApp.detail.action_failed'))
+    expect(alert).not.toHaveTextContent(/EBUSY/)
+    expect(opened.context).toMatchObject({
+      message: 'publish failed: EBUSY',
+      operation: 'miniapp.update.apply',
+      recordId: detail.appId,
+      source: 'miniapp'
+    })
+    expect(toast.error).not.toHaveBeenCalled()
   })
 
   it('offers replacing the package on a local app and never an update check', async () => {
@@ -327,7 +428,9 @@ describe('MiniAppDetailPanel', () => {
     request.mockRejectedValue(new Error('no such app'))
     render(<MiniAppDetailPanel appId={detail.appId} />)
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(/could not load details: no such app/i)
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent(i18n.t('miniApp.detail.load_error'))
+    expect(alert).not.toHaveTextContent(/no such app/)
   })
 
   it('reports a refused action and keeps the panel usable', async () => {
@@ -337,9 +440,36 @@ describe('MiniAppDetailPanel', () => {
     request.mockRejectedValueOnce(new Error('disk full'))
     await userEvent.click(screen.getByRole('checkbox', { name: 'Sandbox data · Write' }))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(/action failed: disk full/i)
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent(i18n.t('miniApp.detail.action_failed'))
+    expect(alert).not.toHaveTextContent(/disk full/)
     expect(screen.getByRole('heading', { name: 'My Game' })).toBeInTheDocument()
     expect(screen.getByRole('checkbox', { name: 'Sandbox data · Write' })).toBeEnabled()
+  })
+
+  // A generic cause such as "permission denied" says nothing about which command failed; the operation must.
+  it('names the failed command in Details for each refused action', async () => {
+    await open()
+    request.mockRejectedValueOnce(new Error('permission denied'))
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Sandbox data · Write' }))
+    await userEvent.click(
+      within(await screen.findByRole('alert')).getByRole('button', { name: i18n.t('common.detail') })
+    )
+    await waitFor(() => expect(mocks.openErrorDetail).toHaveBeenCalledTimes(1))
+
+    await userEvent.click(screen.getByRole('button', { name: /uninstall|卸载/i }))
+    request.mockRejectedValueOnce(new Error('permission denied'))
+    await userEvent.click(await screen.findByRole('button', { name: /confirm|确认/i }))
+    await waitFor(() => expect(request).toHaveBeenCalledWith('mini_app.uninstall', { appId: detail.appId }))
+    await userEvent.click(
+      within(await screen.findByRole('alert')).getByRole('button', { name: i18n.t('common.detail') })
+    )
+    await waitFor(() => expect(mocks.openErrorDetail).toHaveBeenCalledTimes(2))
+
+    expect(mocks.openErrorDetail.mock.calls.map(([request]) => request.context.operation)).toEqual([
+      'miniapp.grant.revoke',
+      'miniapp.uninstall'
+    ])
   })
 
   it('shows how much disk the app itself takes', async () => {

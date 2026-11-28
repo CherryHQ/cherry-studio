@@ -1,9 +1,14 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ComponentProps, ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import type * as RendererIpc from '@renderer/ipc'
+import type * as AppErrorDetailService from '@renderer/services/AppErrorDetailService'
+import { toast } from '@renderer/services/toast'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { MiniApp as MiniAppType } from '@shared/data/types/miniApp'
 
 const calculatorApp: MiniAppType = {
@@ -25,10 +30,56 @@ const mocks = vi.hoisted(() => ({
   toggleMiniApp: vi.fn(),
   pinned: [] as MiniAppType[],
   openedKeepAliveMiniApps: [] as MiniAppType[],
-  sidebarFavoriteIds: [] as string[]
+  sidebarFavoriteIds: [] as string[],
+  ipcRequest: vi.fn(),
+  openErrorDetail: vi.fn()
 }))
 
+vi.mock('@renderer/ipc', async (importOriginal) => ({
+  ...(await importOriginal<typeof RendererIpc>()),
+  ipcApi: { request: mocks.ipcRequest }
+}))
+
+vi.mock('@renderer/services/AppErrorDetailService', async (importOriginal) => ({
+  ...(await importOriginal<typeof AppErrorDetailService>()),
+  appErrorDetailService: { openAppErrorDetail: mocks.openErrorDetail }
+}))
+
+vi.mock('../PermissionChecklist', () => ({ PermissionChecklist: () => null }))
+
 vi.mock('@cherrystudio/ui', () => ({
+  Alert: ({ children, role }: { children: ReactNode; role?: string }) => <div role={role ?? 'alert'}>{children}</div>,
+  Button: ({ children, loading, variant, size, ...props }: Record<string, any>) => {
+    void loading
+    void variant
+    void size
+    return (
+      <button type="button" {...props}>
+        {children}
+      </button>
+    )
+  },
+  Dialog: ({
+    children,
+    open,
+    onOpenChange
+  }: {
+    children: ReactNode
+    open: boolean
+    onOpenChange?: (open: boolean) => void
+  }) =>
+    open ? (
+      <div data-testid="ui-dialog">
+        {children}
+        <button type="button" onClick={() => onOpenChange?.(false)}>
+          dismiss-dialog
+        </button>
+      </div>
+    ) : null,
+  DialogContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  DialogFooter: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  DialogHeader: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  DialogTitle: ({ children }: { children: ReactNode }) => <h2>{children}</h2>,
   ConfirmDialog: ({ open }: { open?: boolean }) => (open ? <div role="dialog" /> : null),
   IndicatorLight: () => <div data-testid="indicator-light" />,
   // The hover text is rendered inline so a case can read what the dot means.
@@ -165,6 +216,46 @@ describe('MiniApp launchpad pin menu', () => {
     expect(mocks.updateAppStatus).toHaveBeenCalledWith('calculator', 'pinned')
   })
 
+  it('keeps Details on a failed pin under the status-change step', async () => {
+    mocks.updateAppStatus.mockImplementationOnce(() => Promise.reject(new Error('database is locked')))
+
+    render(<TestMiniApp app={{ ...calculatorApp, status: 'enabled' }} variant="launchpad" />)
+    fireEvent.click(screen.getByRole('button', { name: 'miniApp.add_to_launchpad' }))
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'miniApp.pin_failed',
+          data: expect.objectContaining({
+            errorContext: expect.objectContaining({ operation: 'miniapp.update_status', source: 'miniapp' })
+          })
+        })
+      )
+    )
+  })
+
+  // Another window can delete the row first; the factory's English text must not be the only copy, nor Details lost.
+  it.each([
+    ['pin', 'miniApp.add_to_launchpad', mocks.updateAppStatus],
+    ['hide', 'miniApp.sidebar.hide.title', mocks.hideMiniApp]
+  ])('names a stale app on a failed %s and keeps the cause in Details', async (_, action, mutation) => {
+    mutation.mockImplementationOnce(() => Promise.reject(DataApiErrorFactory.notFound('MiniApp', 'calculator')))
+
+    render(<TestMiniApp app={{ ...calculatorApp, status: 'enabled' }} variant="launchpad" />)
+    fireEvent.click(screen.getByRole('button', { name: action }))
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(1))
+    const payload = vi.mocked(toast.error).mock.calls[0][0] as { title: string; data: Record<string, any> }
+    expect(payload.title).toBe('miniApp.error.not_found')
+    expect(payload.data.suppressDetail).toBeUndefined()
+    expect(payload.data.errorContext).toMatchObject({
+      message: "MiniApp with id 'calculator' not found",
+      operation: 'miniapp.update_status',
+      recordId: 'calculator',
+      source: 'miniapp'
+    })
+  })
+
   it('adds a mini app to sidebar favorites', () => {
     const enabledApp = { ...calculatorApp, status: 'enabled' as const }
 
@@ -281,6 +372,47 @@ describe('MiniApp attention badge', () => {
     expect(screen.getByText('miniApp.attention.updating')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'miniApp.menu.updating' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'miniApp.menu.update' })).toBeNull()
+  })
+
+  // The dialog traps focus, so a Details entry that only lives in the window-level toast is unreachable by keyboard.
+  it('keeps a failed pending grant inside its dialog with keyboard-reachable Details, cleared on retry and close', async () => {
+    MockUseCacheUtils.setSharedCacheValue('mini_app.attention', [
+      { appId: calculatorApp.appId, updateVersion: null, pendingPermissions: ['storage.clear'], updating: null }
+    ])
+    mocks.ipcRequest.mockRejectedValueOnce(new Error('grant store locked')).mockRejectedValueOnce(new Error('again'))
+    const user = userEvent.setup()
+    render(<TestMiniApp app={calculatorApp} variant="launchpad" />)
+
+    await user.click(screen.getByRole('button', { name: 'miniApp.menu.grant_pending' }))
+    await user.click(screen.getByRole('button', { name: 'miniApp.detail.grant_pending' }))
+
+    const alert = await within(screen.getByTestId('ui-dialog')).findByRole('alert')
+    expect(alert).toHaveTextContent('miniApp.detail.action_failed')
+    expect(alert).not.toHaveTextContent('grant store locked')
+    expect(toast.error).not.toHaveBeenCalled()
+
+    const details = within(alert).getByRole('button', { name: /common\.detail/ })
+    for (let step = 0; step < 20 && document.activeElement !== details; step++) await user.tab()
+    expect(details).toHaveFocus()
+    await user.keyboard('{Enter}')
+    await waitFor(() => expect(mocks.openErrorDetail).toHaveBeenCalledTimes(1))
+    expect(mocks.openErrorDetail.mock.calls[0][0].context).toMatchObject({
+      message: 'grant store locked',
+      operation: 'miniapp.grant.approve_pending',
+      recordId: calculatorApp.appId,
+      source: 'miniapp'
+    })
+
+    // A retry replaces the old failure with its own.
+    await user.click(screen.getByRole('button', { name: 'miniApp.detail.grant_pending' }))
+    await waitFor(() => expect(mocks.ipcRequest).toHaveBeenCalledTimes(2))
+    await user.click(within(screen.getByRole('alert')).getByRole('button', { name: /common\.detail/ }))
+    await waitFor(() => expect(mocks.openErrorDetail).toHaveBeenCalledTimes(2))
+    expect(mocks.openErrorDetail.mock.calls[1][0].context).toMatchObject({ message: 'again' })
+
+    await user.click(screen.getByRole('button', { name: 'dismiss-dialog' }))
+    await user.click(screen.getByRole('button', { name: 'miniApp.menu.grant_pending' }))
+    expect(within(screen.getByTestId('ui-dialog')).queryByRole('alert')).toBeNull()
   })
 
   it('says why on hover and offers the action in the menu', async () => {

@@ -3,6 +3,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@cherrystudio/ui'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
+import { ErrorNotice } from '@renderer/components/ErrorNotice'
 import { CliIcon } from '@renderer/components/icons/CliIcon'
 import { SettingContainer, SettingGroup, SettingTitle } from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
@@ -12,8 +14,8 @@ import {
   sanitizeCliConfigBlob,
   validateCliConfigDraftForWrite
 } from '@renderer/pages/code/cliConfig'
+import type { InlineErrorDetailInput } from '@renderer/services/AppErrorDetailService'
 import { loggerService } from '@renderer/services/LoggerService'
-import { toast } from '@renderer/services/toast'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import { CLI_OWN_LOGIN_PROVIDER_ID, type CodeCli } from '@shared/types/codeCli'
 
@@ -58,6 +60,8 @@ export const OwnLoginConfigPanel: FC<OwnLoginConfigPanelProps> = ({
   const [mode, setMode] = useState<'managed' | 'raw'>('managed')
   const [error, setError] = useState('')
   const [advancedOpen, setAdvancedOpen] = useState(false)
+  // In the dialog, not a toast: the dialog traps focus, so a toast's Details is out of keyboard reach.
+  const [saveFailure, setSaveFailure] = useState<InlineErrorDetailInput | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
   const loadIdRef = useRef(0)
@@ -110,6 +114,7 @@ export const OwnLoginConfigPanel: FC<OwnLoginConfigPanelProps> = ({
 
   const handleSubmit = useCallback(async () => {
     if (!canSave || submitting) return
+    setSaveFailure(null)
     try {
       setSubmitting(true)
       await onSubmit({ config, cliConfigFiles: mode === 'raw' ? files : undefined })
@@ -117,7 +122,12 @@ export const OwnLoginConfigPanel: FC<OwnLoginConfigPanelProps> = ({
     } catch (err) {
       // Keep the dialog open so the user's edits survive a failed apply.
       logger.error('Failed to save own-login config', err as Error)
-      toast.error(t('code.apply_failed'))
+      setSaveFailure({
+        error: err,
+        message: t('code.apply_failed'),
+        source: 'code.config',
+        operation: 'code_cli.save_own_login_config'
+      })
     } finally {
       setSubmitting(false)
     }
@@ -163,6 +173,14 @@ export const OwnLoginConfigPanel: FC<OwnLoginConfigPanelProps> = ({
             </SettingGroup>
           )}
         </SettingContainer>
+
+        {saveFailure ? (
+          <ErrorNotice
+            variant="inline"
+            title={t('code.apply_failed')}
+            detail={<ErrorDetailAction {...saveFailure} />}
+          />
+        ) : null}
 
         <DialogFooter className="justify-end gap-2">
           <Button ref={cancelButtonRef} variant="ghost" size="sm" onClick={onClose} disabled={submitting}>
