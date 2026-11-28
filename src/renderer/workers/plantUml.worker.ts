@@ -1,6 +1,8 @@
 import { renderSvg } from '@plantuml/mcp-js/engine.js'
 import { instance } from '@viz-js/viz'
 
+import { registerPlantUmlOpeniconic } from './plantUmlOpeniconic'
+
 export type PlantUmlRenderResponse = { svg: string } | { error: string; line?: number }
 
 type PlantUmlEngineResult =
@@ -15,6 +17,10 @@ Object.assign(globalThis, {
     fail(`Unbundled PlantUML resource: ${name}`)
   }
 })
+
+// Built-in icons (`<&name>`) must not trigger the engine's lazy `openiconic.js`
+// script-tag fetch, which fails in this worker (no `document`, offline).
+registerPlantUmlOpeniconic()
 
 self.onmessage = async ({ data: source }: MessageEvent<string>) => {
   let response: PlantUmlRenderResponse
