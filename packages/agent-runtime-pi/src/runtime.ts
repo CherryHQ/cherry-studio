@@ -10,6 +10,7 @@ import {
 } from '@earendil-works/pi-coding-agent'
 
 import {
+  goalCommandDescriptor,
   install,
   ENTRY_KINDS,
   type CallRef,
@@ -27,6 +28,7 @@ import {
   type Observation,
   type OperationResult,
   type RuntimeError,
+  type RuntimeCommandInvocation,
   type ThreadHandle,
   type ThreadInput,
   type InputDraft,
@@ -92,7 +94,7 @@ export interface PiThreadHandle extends ThreadHandle {
     toolDefinition(name: string): ToolDefinition | undefined
     toolCallId(ref: CallRef): string | undefined
     cancelQueuedInputs(): OperationResult<readonly InputId[]>
-    goalCommand(args: string, requestId: string): Promise<GoalNotice>
+    executeCommand(command: RuntimeCommandInvocation): Promise<GoalNotice>
     permissionModeChanged(): Promise<OperationResult<void>>
   }
 }
@@ -569,10 +571,11 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
             return { status: 'unknown', error: error('permission-mode-changed', 'native-error') }
           }
         },
-        goalCommand(args, requestId) {
+        executeCommand({ name, args, inputId }) {
           const work = entry.admission.then(() => {
-            if (unavailable() || !entry.owner) throw new Error('Pi goal command is unavailable')
-            return goalCommand(args, requestId)
+            if (name !== goalCommandDescriptor.name || unavailable() || !entry.owner)
+              throw new Error('Pi command is unavailable')
+            return goalCommand(args, inputId)
           })
           entry.admission = work.then(() => {}, report)
           return work

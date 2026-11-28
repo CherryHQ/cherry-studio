@@ -3,44 +3,27 @@ import path from 'node:path'
 import { application } from '@application'
 import { findAllSkillDirectories, findSkillMdPath, parseSkillMetadata } from '@main/utils/markdownParser'
 
-import { SKILL_COMMAND_PREFIX } from '../skillCommands'
-import type { RuntimeCatalogCommand } from '../types'
-
-async function listCursorSkillPaths(workspace: string) {
-  const roots = [workspace, application.getPath('sys.home')].flatMap((directory) => [
-    path.join(directory, '.cursor', 'skills'),
-    path.join(directory, '.agents', 'skills')
-  ])
-  const folders = await Promise.all(roots.map((root) => findAllSkillDirectories(root, root)))
-  return folders.flatMap((entries) => entries.map(({ folderPath }) => folderPath))
-}
-
-export async function listCursorSkillCommands(workspace: string): Promise<RuntimeCatalogCommand[]> {
-  const directories = await listCursorSkillPaths(workspace)
-  const candidates = await Promise.all(
-    directories.map(async (directory): Promise<RuntimeCatalogCommand | undefined> => {
+async function readSkills(root: string) {
+  const directories = await findAllSkillDirectories(root, root)
+  const descriptors = await Promise.all(
+    directories.map(async ({ folderPath }) => {
       try {
-        const descriptorPath = await findSkillMdPath(directory)
-        if (!descriptorPath) return
-        const { name, description } = await parseSkillMetadata(directory, path.basename(directory), 'skills', {
+        const filePath = await findSkillMdPath(folderPath)
+        if (!filePath) return
+        const { name, description } = await parseSkillMetadata(folderPath, path.basename(folderPath), 'skills', {
           calculateSize: false
         })
-        if (!/^[\w-]+$/.test(name)) return
-        return {
-          name: SKILL_COMMAND_PREFIX + name,
-          description: description ?? '',
-          argumentHint: '',
-          skillPath: descriptorPath
-        }
+        return { name, description: description ?? '', filePath }
       } catch {
         // The descriptor may have been removed or become unreadable during discovery.
         return
       }
     })
   )
-  const commands = new Map<string, RuntimeCatalogCommand>()
-  for (const candidate of candidates) {
-    if (candidate && !commands.has(candidate.name)) commands.set(candidate.name, candidate)
-  }
-  return [...commands.values()]
+  return descriptors.filter((descriptor) => descriptor !== undefined)
+}
+
+export async function listCursorSkillCommands(workspace: string) {
+  const { cursorCommandCatalog } = await import('@cherrystudio/agent-runtime-cursor')
+  return cursorCommandCatalog.listOffline({ workspace, home: application.getPath('sys.home'), readSkills })
 }

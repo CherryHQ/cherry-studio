@@ -10,7 +10,7 @@ import { resolveCodexLaunch } from './codexLaunch'
 import { checkCodex, listCodexModels } from './codexManagement'
 import { codexProcessHost } from './processHost'
 
-export const commands = () => ({ liveCatalog: 'query' as const })
+export const commands = async () => (await import('@cherrystudio/agent-runtime-codex')).codexCommandCatalog
 
 export async function connect(input: LocalRuntimeConnectInput, config: LocalAgentRuntime, cwd: string) {
   const { CodexSessionHost } = await import('./CodexSessionHost')

@@ -13,6 +13,7 @@ import {
   type ClaudeObservation
 } from '@cherrystudio/agent-runtime-claude-code'
 import { CLAUDE_PERMISSION_MODES } from '@cherrystudio/agent-runtime-claude-code/cli'
+import { localClaudeBuiltinCommands } from '@cherrystudio/agent-runtime-claude-code/commands'
 import { selectedPermissionMode } from '@cherrystudio/agent-runtime/cli'
 import type { AgentSessionContextRow } from '@data/db/schemas/agentSessionContext'
 import type { DbOrTx } from '@data/db/types'
@@ -40,34 +41,6 @@ import type {
 import { createClaudeCodeProcessDiagnostics, createSpawnClaudeCodeProcess } from './ClaudeCodeProcessManager'
 import { ClaudeSdkConnection } from './ClaudeSdkConnection'
 import { resolveClaudeLaunch } from './localClaudeLaunch'
-
-const CLAUDE_DEFAULT_COMMANDS: AgentSessionSlashCommand[] = [
-  { name: 'clear', description: 'Start a new conversation with empty context', argumentHint: '', builtin: true },
-  {
-    name: 'compact',
-    description: 'Free up context by summarizing the conversation so far',
-    argumentHint: '',
-    builtin: true
-  },
-  {
-    name: 'context',
-    description: 'Visualize current context usage as a colored grid',
-    argumentHint: '',
-    builtin: true
-  },
-  {
-    name: 'usage',
-    description: 'Show session cost, plan usage limits, and activity stats',
-    argumentHint: '',
-    builtin: true
-  },
-  {
-    name: 'goal',
-    description: 'Set a goal to work toward until it is completed',
-    argumentHint: '<goal>',
-    builtin: true
-  }
-]
 
 const UNSUPPORTED_CLAUDE_SLASH_COMMANDS = new Set([
   '__remote-workflow',
@@ -367,7 +340,7 @@ export class LocalClaudeConnection extends ClaudeSdkConnection<LocalRuntimeConne
 
   override async getSupportedCommands() {
     const commands = await super.getSupportedCommands()
-    return commands?.length ? commands : CLAUDE_DEFAULT_COMMANDS
+    return commands?.length ? commands : [...localClaudeBuiltinCommands]
   }
 
   private approve(

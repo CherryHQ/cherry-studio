@@ -80,7 +80,8 @@ Root `compact()` verifies the built-in command on the live Query. It confirms
 completion from the command's native lifecycle, manual boundary and matching result.
 The command creates no product input.
 
-Ordinary slash commands use native input. Correlated local completion adds `locally-handled`;
+The `/commands` export declares live discovery and fallback metadata. `claude.executeCommand(invocation)`
+uses native input and returns its submission receipt. Correlated local completion adds `locally-handled`;
 uncorrelated command output is not assigned to the oldest pending input. On reset,
 old root access becomes unwritable. A new thread is bound only from authoritative
 native init/result session identity, using the existing Query. The reset event's

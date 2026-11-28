@@ -14,7 +14,6 @@ import type { LocalAgentBrowserLease } from '../../mcp/LocalAgentMcpBridgeServic
 import { LocalAgentSessionRestoreError } from '../LocalAgentSessionRestoreError'
 import { LocalConnection } from '../LocalConnection'
 import { localContent } from '../localContent'
-import { buildSkillCommandPrompt } from '../skillCommands'
 import type { AgentRuntimeInput, AgentRuntimeUserInput, RuntimeSlashCommand } from '../types'
 import { cursorCredentialSelection } from './cursorDriver'
 
@@ -132,14 +131,10 @@ export class CursorConnection extends LocalConnection {
     )
   }
 
-  async executeCommand({ command, args, requestId, branchHead }: RuntimeSlashCommand) {
+  async executeCommand({ command, args, branchHead }: RuntimeSlashCommand) {
     if (!command.skillPath) throw new Error('Cursor Skill is unavailable')
-    await this.runSkillCommand(buildSkillCommandPrompt(command.skillPath, args), requestId, branchHead)
-  }
-
-  async runSkillCommand(prompt: string, _requestId: string, branchHead: string) {
     const receipt = Promise.withResolvers<void>()
-    void this.sendPrompt({ text: prompt, images: [] }, branchHead, receipt.resolve).catch(receipt.reject)
+    void this.sendPrompt({ skillPath: command.skillPath, args }, branchHead, receipt.resolve).catch(receipt.reject)
     await receipt.promise
   }
 

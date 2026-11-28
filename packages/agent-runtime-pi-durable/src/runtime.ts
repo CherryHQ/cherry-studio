@@ -31,6 +31,7 @@ import {
 } from '@earendil-works/pi-durable'
 
 import {
+  goalCommandDescriptor,
   install,
   type HostPorts,
   type GoalNotice,
@@ -51,6 +52,7 @@ import {
   type Observation,
   type OperationResult,
   type RuntimeError,
+  type RuntimeCommandInvocation,
   type ThreadHandle,
   type ThreadInput,
   type InputDraft,
@@ -134,7 +136,7 @@ export interface PiDurableThreadHandle extends ThreadHandle {
     /** Admit reference text once without starting a run or displaying a product message. */
     initializeContext(text: string): Promise<void>
     compact(instructions?: string): Promise<OperationResult<{ compacted: boolean }>>
-    goalCommand(args: string, requestId: string): Promise<GoalNotice>
+    executeCommand(command: RuntimeCommandInvocation): Promise<GoalNotice>
     permissionModeChanged(): Promise<OperationResult<void>>
   }
   /** Committed conversation-owned history, including entries before reset/compaction. Does not resume work. */
@@ -1103,10 +1105,11 @@ export async function createPiDurableRuntime(
           )
         },
         compact,
-        goalCommand(args, requestId) {
+        executeCommand({ name, args, inputId }) {
           const work = entry.admission.then(() => {
-            if (unavailable() || entry.managedChild) throw new Error('Durable goal command is unavailable')
-            return goalCommand(args, requestId)
+            if (name !== goalCommandDescriptor.name || unavailable() || entry.managedChild)
+              throw new Error('Durable command is unavailable')
+            return goalCommand(args, inputId)
           })
           entry.admission = work.then(() => {}, report)
           return track(work)

@@ -1,13 +1,60 @@
+import path from 'node:path'
+
 import { Agent, Cursor, type AgentOptions } from '@cursor/sdk'
 import { afterEach, expect, it, vi } from 'vitest'
 
-import { listCursorModels, openCursorSession, sendCursorTurn, type SDKAgent } from '../src/adapter'
+import {
+  cursorCommandCatalog,
+  listCursorModels,
+  openCursorSession,
+  sendCursorTurn,
+  type SDKAgent
+} from '../src/adapter'
 
 const env = {}
 const readShellEnv = async () => ({})
 const signal = new AbortController().signal
 
 afterEach(() => vi.restoreAllMocks())
+
+it('uses the workspace Skill when an enabled user directory contains the same name', async () => {
+  const workspace = path.resolve('project')
+  const home = path.resolve('home')
+  const catalog = await cursorCommandCatalog.listOffline({
+    workspace,
+    home,
+    async readSkills(root) {
+      if (root === path.join(workspace, '.cursor', 'skills'))
+        return [{ name: 'review', description: 'Project review.', filePath: path.join(root, 'review', 'SKILL.md') }]
+      if (root === path.join(home, '.agents', 'skills'))
+        return [
+          { name: 'review', description: 'User review.', filePath: path.join(root, 'review', 'SKILL.md') },
+          { name: 'test', description: 'Run tests.', filePath: path.join(root, 'test', 'SKILL.md') }
+        ]
+      return []
+    }
+  })
+  expect(catalog.map(({ name, description }) => ({ name, description }))).toEqual([
+    { name: 'skill:review', description: 'Project review.' },
+    { name: 'skill:test', description: 'Run tests.' }
+  ])
+})
+
+it('passes a Skill descriptor path and arguments to the SDK through its existing tool policy', async () => {
+  const skillPath = '/workspace/.cursor/skills/review/SKILL.md'
+  const host = { modelCallCompleted: vi.fn(), append: vi.fn(), toolStarted: vi.fn(), toolCompleted: vi.fn() }
+  const accepted = new Error('Observed SDK send')
+  const send: SDKAgent['send'] = async (message, options) => {
+    expect(message.text).toContain(JSON.stringify(skillPath))
+    expect(message.text).toContain('\n\nReview the staged changes.')
+    expect(options?.mode).toBe('plan')
+    expect(options?.local?.customTools).toBeUndefined()
+    throw accepted
+  }
+  await expect(sendCursorTurn({ send }, { skillPath, args: 'Review the staged changes.' }, 'plan', host)).rejects.toBe(
+    accepted
+  )
+})
 
 it.each([undefined, 'saved-agent'])('opens %s with the native workspace, toolset and permissions', async (agentId) => {
   const cwd = '/selected/workspace'

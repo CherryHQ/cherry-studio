@@ -34,7 +34,7 @@ import {
 } from '@main/core/lifecycle'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { getFullChromeWindowInfos } from '@main/utils/fullChromeWindows'
-import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
+import { AGENT_RUNTIME_BUILTIN_COMMANDS } from '@shared/ai/agentRuntimeCapabilities'
 import { AGENT_SESSION_API_RETRY_CACHE_KEY, type AgentSessionApiRetryInfo } from '@shared/ai/agentSessionApiRetry'
 import {
   AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY,
@@ -97,7 +97,6 @@ import {
   type LocalAgentSessionView
 } from '@shared/ai/localAgent'
 import type { LocalAgentTurnUsage } from '@shared/ai/localAgentUsage'
-import type { SlashCommand } from '@shared/ai/slashCommands'
 import type { AiToolApprovalRespondResponse } from '@shared/ai/transport'
 import type { AgentEntity, AgentPermissionMode, UpdateAgentDto } from '@shared/data/api/schemas/agents'
 import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
@@ -123,6 +122,7 @@ import { registerRuntimeDrivers } from '../runtime/registerDrivers'
 import { runtimeDriverRegistry } from '../runtime/registry'
 import type {
   AgentRuntimeConnectInput,
+  RuntimeCatalogCommand,
   AgentControlChunk,
   AgentRuntimeConnection,
   AgentRuntimeEvent,
@@ -1277,14 +1277,7 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   private builtinCommands(type: AgentEntity['type']): AgentSessionSlashCommand[] {
-    const builtins: readonly SlashCommand[] = AGENT_RUNTIME_CAPABILITIES[type].slashCommands
-    return builtins.map(({ command, description, subcommands }) => ({
-      name: command.slice(1),
-      description: description ?? '',
-      argumentHint: '',
-      builtin: true,
-      ...(subcommands && { subcommands })
-    }))
+    return [...AGENT_RUNTIME_BUILTIN_COMMANDS[type]]
   }
 
   async refreshSessionCommands(sessionId: string): Promise<AgentSessionSlashCommand[]> {
@@ -1307,7 +1300,7 @@ export class AgentSessionRuntimeService extends BaseService {
       const displayCommands = [
         ...this.builtinCommands(agent.type),
         ...offline.map((descriptor) => {
-          const command = { ...descriptor }
+          const command: RuntimeCatalogCommand = { ...descriptor }
           delete command.skillPath
           return command
         })

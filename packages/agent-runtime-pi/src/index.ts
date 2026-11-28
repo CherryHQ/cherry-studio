@@ -8,3 +8,4 @@ export {
   type PiThreadHandle
 } from './runtime'
 export type { PiObservation } from './runtimeProjection'
+export { piCommandCatalog } from './commands'

@@ -327,7 +327,7 @@ export class CodexSessionHost extends LocalConnection {
     this.branchHead = branchHead
     this.commandHead = branchHead
     try {
-      const text = await this.connected.executeCommand(name, args, requestId)
+      const text = await this.connected.executeCommand({ name, args, inputId: runtimeId(requestId) })
       return text ? { severity: 'info' as const, title: text } : undefined
     } finally {
       this.commandHead = undefined

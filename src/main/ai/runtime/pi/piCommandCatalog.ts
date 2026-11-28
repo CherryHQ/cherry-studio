@@ -1,14 +1,13 @@
 import { application } from '@application'
+import type { RuntimeSkillCommand } from '@cherrystudio/agent-runtime'
 import { resolveAgentCapabilities } from '@main/ai/agents/builtin/builtinAgentCapabilities'
 import { listPiSessionSkillSources } from '@main/ai/skills/piSessionSkills'
 import { skillService } from '@main/ai/skills/SkillService'
 
 import { resolveLinkedNotifyChannel } from '../linkedNotifyChannel'
-import { SKILL_COMMAND_PREFIX } from '../skillCommands'
-import type { RuntimeCatalogCommand, RuntimeCommandContext } from '../types'
-import { loadPiSdk } from './piSdk'
+import type { RuntimeCommandContext } from '../types'
 
-export async function listPiSkillCommands({ agent, session }: RuntimeCommandContext): Promise<RuntimeCatalogCommand[]> {
+export async function listPiSkillCommands({ agent, session }: RuntimeCommandContext): Promise<RuntimeSkillCommand[]> {
   if (agent.type === 'pi-durable' && resolveAgentCapabilities(agent).environment === 'sealed') return []
 
   const cwd = session.workspace.path
@@ -22,21 +21,8 @@ export async function listPiSkillCommands({ agent, session }: RuntimeCommandCont
     ...workspaceSkillPaths
   ]
   if (skillPaths.length === 0) return []
-  const pi = await loadPiSdk()
-  const { skills } = pi.loadSkills({
-    cwd,
-    agentDir: application.getPath('feature.agents.pi.root'),
-    skillPaths,
-    includeDefaults: false
-  })
-  return skills
-    .filter(({ name }) => /^[\w-]+$/.test(name))
-    .map(({ name, description, filePath }) => ({
-      name: SKILL_COMMAND_PREFIX + name,
-      description,
-      argumentHint: '',
-      skillPath: filePath
-    }))
+  const { piCommandCatalog } = await import('@cherrystudio/agent-runtime-pi')
+  return piCommandCatalog.listOffline({ cwd, agentDir: application.getPath('feature.agents.pi.root'), skillPaths })
 }
 
 export function piCommandCapabilities(context: RuntimeCommandContext) {

@@ -18,7 +18,22 @@ import {
 } from './goalState'
 import { goalRecord, requireGoal } from './goalTools'
 
-const CONTROL_WORDS: ReadonlySet<string> = new Set(['pause', 'resume', 'clear'])
+const goalActions = {
+  pause: 'pause',
+  resume: 'resume',
+  clear: 'clear',
+  edit: 'edit',
+  rounds: 'rounds',
+  budget: 'budget'
+} as const
+const CONTROL_WORDS: ReadonlySet<string> = new Set([goalActions.pause, goalActions.resume, goalActions.clear])
+export const goalCommandDescriptor = {
+  name: 'goal',
+  description: 'Set a goal to work toward until it is completed',
+  argumentHint: '',
+  builtin: true,
+  subcommands: Object.values(goalActions)
+} as const
 const NUMBER = /^-?\d+(?:\.\d+)?$/
 /** As `onOpen` stops a goal there: a goal's rounds need a model that can call tools. */
 const NO_TOOL_CALLING = 'No goal can run here: the current model has no tool calling.'
@@ -34,7 +49,7 @@ function repeated(facts: ConversationFacts, text: string, requestKey: string): S
   if (saved?.kind !== 'record' || saved.record.type !== 'goal-notice') return undefined
   const stop = keys.turnStop(requestKey)
   const turn = facts.keysSeen.has(stop) ? stoppedTurn(facts.history, stop) : undefined
-  const cause = text.trim().split(/\s+/, 1)[0].toLowerCase() === 'clear' ? 'goal-clear' : 'goal-pause'
+  const cause = text.trim().split(/\s+/, 1)[0].toLowerCase() === goalActions.clear ? 'goal-clear' : 'goal-pause'
   const effects: Effect[] = turn === undefined ? [] : [{ type: 'stop-turn', thread: facts.thread, cause, turn }]
   return { ops: [], effects, result: saved.record.value }
 }
@@ -108,7 +123,7 @@ export function decideGoalCommand(
             effects: turn === undefined ? [] : [{ type: 'stop-turn', thread: facts.thread, cause, turn }]
           }
         }
-        if (keyword === 'pause') {
+        if (keyword === goalActions.pause) {
           if (current.phase === 'complete') throw new GoalError(GOAL_COMPLETE_MESSAGE)
           if (current.phase === 'paused') return notice('Goal is already paused.')
           const stop = stopTurn('goal-pause')
@@ -119,7 +134,7 @@ export function decideGoalCommand(
             stop.effects
           )
         }
-        if (keyword === 'clear') {
+        if (keyword === goalActions.clear) {
           const stop = stopTurn('goal-clear')
           const tombstone: TxOp = {
             type: 'append-record',
@@ -138,7 +153,7 @@ export function decideGoalCommand(
         return notice('Goal resumed.', 'info', [write(next), ensureDriver(facts)])
       }
       // With no goal to edit, a leading "edit" followed by text is part of a new objective.
-      if (keyword === 'edit' && (goal || value === '')) {
+      if (keyword === goalActions.edit && (goal || value === '')) {
         const next = editGoal(
           requireGoal(facts),
           { objective: value },
@@ -148,7 +163,7 @@ export function decideGoalCommand(
         )
         return notice('Goal objective updated.', 'info', [write(next)])
       }
-      if (keyword === 'rounds' && NUMBER.test(value)) {
+      if (keyword === goalActions.rounds && NUMBER.test(value)) {
         const next = editGoal(
           requireGoal(facts),
           { maxGoalRounds: Number(value) },
@@ -158,7 +173,7 @@ export function decideGoalCommand(
         )
         return notice(`Round cap set to ${next.maxGoalRounds}.`, 'info', [write(next)])
       }
-      if (keyword === 'budget' && NUMBER.test(value.replace(/^\$/, ''))) {
+      if (keyword === goalActions.budget && NUMBER.test(value.replace(/^\$/, ''))) {
         const budget = value.startsWith('$') ? { usd: Number(value.slice(1)) } : { tokens: Number(value) }
         const next = editGoal(requireGoal(facts), { budget }, goalDefaults.maxGoalRoundsCeiling, inputs.now, usage())
         return notice('Budget updated.', 'info', [write(next)])

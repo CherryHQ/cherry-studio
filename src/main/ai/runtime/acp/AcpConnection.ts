@@ -6,7 +6,7 @@ import path from 'node:path'
 
 import type { FinishReason } from 'ai'
 
-import { runtimeId, type OperationResult } from '@cherrystudio/agent-runtime'
+import { runtimeId, type OperationResult, type RuntimeCommandInvocation } from '@cherrystudio/agent-runtime'
 import {
   acpEffortOption,
   acpHostError,
@@ -16,6 +16,7 @@ import {
   connectAcpStdio,
   mapAcpPermissionOptions,
   type AcpThreadHandle,
+  type AcpInputDraft,
   type AcpTurnUsage,
   type AcpDesktopEvents,
   type AcpClientCallbacks,
@@ -1271,7 +1272,7 @@ export class AcpConnection extends LocalConnection {
 
   async send(input: AgentRuntimeUserInput) {
     const prompt = await acpContent(input, this.promptCapabilities)
-    await this.runPrompt(input.message.id, prompt, input)
+    await this.runPrompt({ inputId: runtimeId(input.message.id), content: prompt }, input)
   }
 
   async executeCommand({ command, args, requestId, branchHead }: RuntimeSlashCommand) {
@@ -1283,7 +1284,7 @@ export class AcpConnection extends LocalConnection {
     const reply = { opened: false }
     this.commandReply = reply
     try {
-      await this.runPrompt(requestId, [{ type: 'text', text: args ? `/${name} ${args}` : `/${name}` }], branchHead)
+      await this.runPrompt({ inputId: runtimeId(requestId), name, args }, branchHead)
     } finally {
       this.commandReply = undefined
       if (reply.opened) this.events.push({ type: 'autonomous-turn-state', state: 'finished' })
@@ -1302,11 +1303,7 @@ export class AcpConnection extends LocalConnection {
     this.continueSource()
   }
 
-  private async runPrompt(
-    requestId: string,
-    prompt: Awaited<ReturnType<typeof acpContent>>,
-    input: string | AgentRuntimeUserInput
-  ) {
+  private async runPrompt(draft: AcpInputDraft | RuntimeCommandInvocation, input: string | AgentRuntimeUserInput) {
     await this.configChange?.catch(() => {})
     this.begin(input)
     this.planPart = undefined
@@ -1315,10 +1312,9 @@ export class AcpConnection extends LocalConnection {
       if (!this.session) throw new Error('ACP session is not connected')
       this.publishSessionResumeToken()
       const model = this.localSessionInfo.activeModel?.id ?? null
-      const { stopReason, usage, context } = await this.session.acp.runPrompt({
-        inputId: runtimeId<'input'>(requestId),
-        content: prompt
-      })
+      const { stopReason, usage, context } = await ('content' in draft
+        ? this.session.acp.runPrompt(draft)
+        : this.session.acp.executeCommand(draft))
       if (context) {
         this.hasContextUsageReading = true
         this.events.push({ type: 'context-usage', result: { status: 'confirmed', value: context } })

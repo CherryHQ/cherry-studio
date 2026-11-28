@@ -8,6 +8,8 @@ import type {
   ProductInputState,
   LivePartInput,
   OperationResult,
+  RuntimeCommand,
+  RuntimeCommandCatalog,
   ThreadContextUsage,
   ThreadInput
 } from '@cherrystudio/agent-runtime'
@@ -382,7 +384,7 @@ export interface AgentRuntimeConnection {
   closeForEdit?(): Promise<void>
 }
 
-export type RuntimeCatalogCommand = AgentSessionSlashCommand & { skillPath?: string }
+export type RuntimeCatalogCommand = RuntimeCommand & { skillPath?: string }
 
 export interface RuntimeSlashCommand {
   command: RuntimeCatalogCommand
@@ -391,10 +393,7 @@ export interface RuntimeSlashCommand {
   branchHead: string
 }
 
-export interface RuntimeCommandCapabilities {
-  listOffline?(): Promise<RuntimeCatalogCommand[]>
-  liveCatalog?: 'push' | 'query'
-}
+export type RuntimeCommandCapabilities = RuntimeCommandCatalog<void>
 
 export interface RuntimeCommandContext {
   agent: AgentEntity

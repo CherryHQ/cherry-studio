@@ -6,10 +6,14 @@ import {
   type UsageUpdate
 } from '@agentclientprotocol/sdk'
 
+import type { RuntimeCommand, RuntimeCommandCatalog } from '@cherrystudio/agent-runtime'
+
 import type { AcpSession } from './client'
 import type { AcpSessionControls } from './configuration'
 import type { AcpHarnessAdapter, AcpNativeTurn } from './harness'
 import type { AcpSessionConfiguration, AcpThreadHandle } from './types'
+
+export const acpCommandCatalog = { liveCatalog: 'push' } as const satisfies RuntimeCommandCatalog
 
 type ToolPatch = {
   [K in Exclude<keyof ToolCallUpdate, 'toolCallId' | '_meta'>]?: NonNullable<ToolCallUpdate[K]>
@@ -24,7 +28,7 @@ export interface AcpDesktopEvents {
   title(title: string): void
   notice(notice: { title: string; description?: string; severity: 'info' | 'warning' | 'error' }): void
   usage(usage: UsageUpdate): void
-  commands(commands: { name: string; description: string; argumentHint: string }[]): void
+  commands(commands: RuntimeCommand[]): void
   options(options: AcpSessionConfiguration['configOptions'], modes?: AcpSessionConfiguration['modes']): void
   compaction(
     event: { type: 'compaction-start' | 'compaction-complete' } | { type: 'compaction-error'; error: string }

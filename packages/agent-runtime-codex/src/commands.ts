@@ -1,9 +1,9 @@
-export interface CodexCommand {
-  name: string
-  description: string
-  argumentHint: string
+import type { RuntimeCommand, RuntimeCommandCatalog } from '@cherrystudio/agent-runtime'
+
+export const codexCommandCatalog = { liveCatalog: 'query' } as const satisfies RuntimeCommandCatalog
+
+export interface CodexCommand extends RuntimeCommand {
   aliases?: string[]
-  subcommands?: readonly string[]
   builtin: boolean
 }
 

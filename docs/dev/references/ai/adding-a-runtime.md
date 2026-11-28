@@ -140,8 +140,8 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
        so the next input gets its own reply.
      - `compact()` runs a standalone idle-thread operation. Report success from the matching
        native outcome without creating a chat turn.
-     - `commands` declares the driver's offline catalog reader and live catalog mode.
-       The host refreshes a live catalog explicitly when a conversation becomes active.
+     - The runtime package exports its `RuntimeCommandCatalog`. The driver binds host inputs
+       to offline lookup. Explicit activation refreshes a live catalog.
      - `executeCommand()` dispatches a catalog command before ordinary input admission.
        Return native acceptance or local feedback. Publish model output and completion through
        the receive-only reply's runtime events.

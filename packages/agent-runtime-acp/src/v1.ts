@@ -26,7 +26,7 @@ export type {
   AcpSubscriptionUsageReader,
   AcpNativeTurn
 } from './harness'
-export type { AcpDesktopEvents } from './desktopUpdates'
+export { acpCommandCatalog, type AcpDesktopEvents } from './desktopUpdates'
 export { acpPermissionChoice, acpPermissionControl } from './permissionMode'
 export { mapAcpPermissionOptions, type AcpPermissionOption, type AcpPermissionRequest } from './permissions'
 export { encodeAcpAttachment, type AcpAttachmentSource } from './prompt'
@@ -38,6 +38,7 @@ export type {
   AcpHostContext,
   AcpHostHandler,
   AcpInputDraft,
+  AcpPromptOutcome,
   AcpNativeMessage,
   AcpObservationFrame,
   AcpRuntime,

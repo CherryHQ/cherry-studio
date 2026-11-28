@@ -7,6 +7,7 @@ import type { ToolDefinition } from '@earendil-works/pi-coding-agent'
 import { application } from '@application'
 import type { BehaviorEvent, CallRef } from '@cherrystudio/agent-behavior'
 import {
+  buildSkillCommandPrompt,
   hasProductInputId,
   isPartBatch,
   runtimeId,
@@ -57,7 +58,7 @@ import { AsyncEventQueue } from '@shared/utils/async'
 import { markReportingHandled } from '@shared/utils/errorReporting'
 
 import { PROMPT_SUGGESTION_INSTRUCTION } from '../promptSuggestion'
-import { buildSkillCommandPrompt, isSkillCommandInput, skillCommandInputId } from '../skillCommands'
+import { isSkillCommandInput, skillCommandInputId } from '../skillCommands'
 import type { RuntimeSlashCommand } from '../types'
 import type {
   AgentRuntimeConnectInput,
@@ -504,10 +505,10 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
 
   async runSlashCommand(name: string, args: string, requestId: string) {
     const handle = this.handle
-    if (name !== 'goal' || !handle || this.closing) throw new Error('Pi slash command is unavailable')
+    if (!handle || this.closing) throw new Error('Pi slash command is unavailable')
     this.slashCommands.add(requestId)
     try {
-      const notice = await handle.pi.goalCommand(args, requestId)
+      const notice = await handle.pi.executeCommand({ name, args, inputId: runtimeId(requestId) })
       return { severity: notice.level, title: notice.text }
     } finally {
       this.slashCommands.delete(requestId)

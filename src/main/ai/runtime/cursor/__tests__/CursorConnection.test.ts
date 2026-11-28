@@ -75,21 +75,27 @@ describe('CursorConnection', () => {
 
   it('acknowledges a Skill before the underlying turn finishes and still streams the reply', async () => {
     const { connection, events, closeAndDrain } = await createCursorSession()
-    const prompt = 'Read the Skill instructions at "/workspace/.cursor/skills/review/SKILL.md".'
+    const skillPath = '/workspace/.cursor/skills/review/SKILL.md'
     const finish = Promise.withResolvers<void>()
     vi.mocked(sendCursorTurn).mockImplementation(async (_agent, content, _mode, host) => {
       return {
         status: 'completed',
         wait: async () => {
           await finish.promise
-          if (content.text === prompt) host.append('text', 'Reviewed using the selected Skill')
+          if ('skillPath' in content && content.skillPath === skillPath && content.args === 'changes')
+            host.append('text', 'Reviewed using the selected Skill')
           return { status: 'completed' }
         }
       } as unknown as Run
     })
 
     try {
-      await connection.runSkillCommand(prompt, 'command-request', 'branch-head')
+      await connection.executeCommand({
+        command: { name: 'skill:review', description: 'Review changes', argumentHint: '', skillPath },
+        args: 'changes',
+        requestId: 'command-request',
+        branchHead: 'branch-head'
+      })
       expect(events.some(({ type }) => type === 'turn-complete')).toBe(false)
       finish.resolve()
       await expect.poll(() => events.some(({ type }) => type === 'turn-complete')).toBe(true)

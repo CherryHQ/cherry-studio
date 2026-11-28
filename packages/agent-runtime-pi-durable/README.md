@@ -38,7 +38,7 @@ background subtrees are not. These effects are not application-wide cancellation
 
 ## Input and output
 
-A root handle exposes `input.submit`, `input.steer.submit` and a durable `input.followUp.submit`. A behavior-managed child exposes `input.steer.submit`. Before command routing or input submission,
+A root handle exposes `input.submit`, `input.steer.submit` and a durable `input.followUp.submit`. `durable.executeCommand(invocation)` returns a local Goal notice. A behavior-managed child exposes `input.steer.submit`. Before command routing or input submission,
 the desktop may call `durable.initializeContext(text)` to admit initial model-only reference
 history as a passive native write. The native request ID makes repeated initialization
 idempotent across reopening. It starts no model run and is excluded from product projections

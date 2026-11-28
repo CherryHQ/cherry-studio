@@ -4,6 +4,7 @@ import { setupTestDatabase } from '@test-helpers/db'
 import { MockApplicationUtils } from '@test-mocks/main/application'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import type { RuntimeCommandInvocation } from '@cherrystudio/agent-runtime'
 import type {
   ClaudeObservation,
   ClaudeObservationSink,
@@ -82,6 +83,11 @@ async function startLocalClaude(nativeModel = 'cherryin:anthropic/claude-haiku-4
       openChild: vi.fn(),
       start: () => ({ status: 'confirmed', value: undefined }),
       supportedCommands: async () => ({ status: 'confirmed', value: [] }),
+      executeCommand: async ({ inputId }: RuntimeCommandInvocation) => ({
+        status: 'acknowledged',
+        inputId,
+        facts: ['dispatch-started']
+      }),
       supportedModels: async () => ({
         status: 'confirmed',
         value: [{ value: nativeModel, displayName: nativeModel, description: '' }]

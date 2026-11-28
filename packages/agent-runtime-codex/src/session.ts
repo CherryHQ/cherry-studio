@@ -1,6 +1,13 @@
 import * as z from 'zod'
 
-import { runtimeId, type InputId, type OperationResult, type SubmitResult } from '@cherrystudio/agent-runtime'
+import {
+  formatRuntimeCommand,
+  runtimeId,
+  type InputId,
+  type OperationResult,
+  type RuntimeCommandInvocation,
+  type SubmitResult
+} from '@cherrystudio/agent-runtime'
 
 import { codexRequestHandlers, type RequestScope, type InteractionHost } from './approvals'
 import {
@@ -31,6 +38,8 @@ import {
 } from './launcher'
 import { CodexSkills } from './skills'
 import { subtractTokens, tokenUsageUpdate, turnUsage, type TokenCounts } from './usage'
+
+export { codexCommandCatalog } from './commands'
 
 type ItemText = { itemId: string; phase?: string; kind: 'agentMessage' | 'plan' }
 export type CodexSessionEvent =
@@ -646,9 +655,9 @@ export class CodexSession {
     }
   }
 
-  async executeCommand(name: string, args: string, inputId: string): Promise<string | undefined> {
+  async executeCommand(command: RuntimeCommandInvocation): Promise<string | undefined> {
     const feedback: CommandFeedback = {}
-    await this.dispatch([{ type: 'text', text: args ? `/${name} ${args}` : `/${name}` }], inputId, feedback)
+    await this.dispatch([{ type: 'text', text: formatRuntimeCommand(command) }], command.inputId, feedback)
     return feedback.text
   }
 

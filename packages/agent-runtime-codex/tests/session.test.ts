@@ -375,14 +375,14 @@ it('keeps Goal in slash commands and uses native Plan and steer settings', async
       ['pause', 'paused'],
       ['resume', 'active']
     ] as const) {
-      const updated = session.send([{ type: 'text', text: `/goal ${command}` }])
+      const updated = session.executeCommand({ name: 'goal', args: command, inputId: runtimeId(command) })
       const request = await peer.read()
       expect(request).toMatchObject({
         method: 'thread/goal/set',
         params: { threadId: 'thread', origin: 'user', status }
       })
       peer.send({ id: request.id, result: { goal: { threadId: 'thread', objective: 'ship', status } } })
-      await updated
+      await expect(updated).resolves.toBe(`ship (${status})`)
     }
     session.setMode('codex-mode', 'readOnly')
     const planned = session.send([{ type: 'text', text: 'review' }], 'first')

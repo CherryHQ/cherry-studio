@@ -270,8 +270,8 @@ export abstract class ClaudeSdkConnection<
   }
 
   async runSlashCommand(name: string, args: string, requestId: string, branchHead: string) {
-    const operation = this.handle?.claude.input?.followUp
-    if (!operation || this.closing || this.runActive || this.slashCommand)
+    const executeCommand = this.handle?.claude.executeCommand
+    if (!executeCommand || this.closing || this.runActive || this.slashCommand)
       throw new Error('Claude session is unavailable or busy')
     this.promptSuggestion.clear()
     this.currentSources.clear()
@@ -280,11 +280,9 @@ export abstract class ClaudeSdkConnection<
     this.slashCommand = command
     this.runActive = true
     try {
-      void operation
-        .submit({ inputId: runtimeId(requestId), content: args ? `/${name} ${args}` : `/${name}` })
-        .then((result) => {
-          if (result.status !== 'acknowledged') receipt.reject(new Error(result.error?.message ?? result.status))
-        }, receipt.reject)
+      void executeCommand({ inputId: runtimeId(requestId), name, args }).then((result) => {
+        if (result.status !== 'acknowledged') receipt.reject(new Error(result.error?.message ?? result.status))
+      }, receipt.reject)
       return await receipt.promise
     } finally {
       if (this.slashCommand === command) this.slashCommand = undefined

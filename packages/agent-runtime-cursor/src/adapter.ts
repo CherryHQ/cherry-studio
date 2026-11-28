@@ -11,6 +11,7 @@ import {
   type SendOptions
 } from '@cursor/sdk'
 
+import { buildSkillCommandPrompt } from '@cherrystudio/agent-runtime'
 import type {
   CompactThread,
   InputDraft,
@@ -23,6 +24,7 @@ import { readCursorSdkLoginKey, readCursorSubscriptionUsage } from './accountUsa
 import { cursorApiKeyMethod, cursorLoginMethod, type CursorPermissionMode } from './cli'
 
 export type { Run, SDKAgent, SDKUserMessage } from '@cursor/sdk'
+export { cursorCommandCatalog } from './commands'
 
 export async function listCursorModels(
   env: CursorEnvironment,
@@ -158,7 +160,7 @@ export async function openCursorSession(input: {
 
 export function sendCursorTurn(
   agent: Pick<SDKAgent, 'send'>,
-  prompt: SDKUserMessage,
+  prompt: SDKUserMessage | { skillPath: string; args: string },
   mode: CursorPermissionMode,
   host: {
     modelCallCompleted(modelCallId: string, inputTokens: number): void
@@ -193,7 +195,9 @@ export function sendCursorTurn(
       )
     }
   }
-  return agent.send(prompt, { mode: mode === 'plan' ? 'plan' : 'agent', onDelta, ...(model && { model }) })
+  const message =
+    'skillPath' in prompt ? { text: buildSkillCommandPrompt(prompt.skillPath, prompt.args), images: [] } : prompt
+  return agent.send(message, { mode: mode === 'plan' ? 'plan' : 'agent', onDelta, ...(model && { model }) })
 }
 
 export function bindCursorSteer(

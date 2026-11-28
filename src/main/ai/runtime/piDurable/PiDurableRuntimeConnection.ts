@@ -5,6 +5,7 @@ import type { EntryId } from '@earendil-works/pi-durable'
 
 import type { BehaviorEvent } from '@cherrystudio/agent-behavior'
 import {
+  buildSkillCommandPrompt,
   hasProductInputId,
   isPartBatch,
   runtimeId,
@@ -46,7 +47,7 @@ import { PiInvalidConnectionSnapshotError } from '../pi/piConnectionSignature'
 import { PiMessageMetadata } from '../pi/PiMessageMetadata'
 import { PiTurnUsage } from '../pi/PiTurnUsage'
 import { PROMPT_SUGGESTION_INSTRUCTION } from '../promptSuggestion'
-import { buildSkillCommandPrompt, isSkillCommandInput, skillCommandInputId } from '../skillCommands'
+import { isSkillCommandInput, skillCommandInputId } from '../skillCommands'
 import type { RuntimeSlashCommand } from '../types'
 import type {
   AgentRuntimeConnectInput,
@@ -236,7 +237,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
 
   async runSlashCommand(name: string, args: string, requestId: string, branchHead: string) {
     const handle = this.handle
-    if (name !== 'goal' || !handle || this.closing) throw new Error('Durable slash command is unavailable')
+    if (!handle || this.closing) throw new Error('Durable slash command is unavailable')
     this.slashCommands.add(requestId)
     try {
       const context = await readSessionHistory(this.input.sessionId, branchHead, this.context?.id, true)
@@ -246,7 +247,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
           buildAgentUserContent({ ...anchor, delivery: undefined, data: { parts: context } })
         )
       }
-      const notice = await handle.durable.goalCommand(args, requestId)
+      const notice = await handle.durable.executeCommand({ name, args, inputId: runtimeId(requestId) })
       return { severity: notice.level, title: notice.text }
     } finally {
       this.slashCommands.delete(requestId)

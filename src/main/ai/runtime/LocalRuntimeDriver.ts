@@ -28,7 +28,7 @@ import type {
 } from './types'
 
 interface LocalRuntimeAdapter {
-  commands?(context: RuntimeCommandContext): RuntimeCommandCapabilities
+  commands?(context: RuntimeCommandContext): RuntimeCommandCapabilities | Promise<RuntimeCommandCapabilities>
   connect(
     input: LocalRuntimeConnectInput,
     config: LocalAgentRuntime,
