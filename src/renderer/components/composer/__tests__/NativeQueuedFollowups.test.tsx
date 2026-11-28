@@ -17,16 +17,21 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => ({
   ReorderableList: ({
     items,
     onDragStateChange,
-    onReorder
+    onReorder,
+    renderItem
   }: {
     items: { id: string }[]
     onDragStateChange?: (dragging: boolean) => void
     onReorder: (next: { id: string }[]) => void
+    renderItem: (item: { id: string }, index: number, state: { dragging: boolean }) => React.ReactNode
   }) => (
     <>
       <button type="button" onClick={() => onDragStateChange?.(true)}>
         Start drag
       </button>
+      {items.map((item, index) => (
+        <div key={item.id}>{renderItem(item, index, { dragging: false })}</div>
+      ))}
       <button
         type="button"
         onClick={() => {
@@ -39,6 +44,25 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => ({
     </>
   )
 }))
+
+it('shows an editing item in the queue and disables only its steer action', async () => {
+  await i18n.changeLanguage('en-US')
+  const topicId = 'agent-session:editing'
+  const key = AGENT_SESSION_FOLLOWUPS_CACHE_KEY(topicId)
+  cacheService.setShared(key, {
+    items: [
+      { id: 'held', revision: 0, editing: true, parts: [{ type: 'text', text: 'Held' }] },
+      { id: 'other', revision: 0, parts: [{ type: 'text', text: 'Other' }] }
+    ],
+    paused: false
+  })
+  render(<NativeQueuedFollowups topicId={topicId} canSteer />)
+  await userEvent.setup().click(screen.getByRole('button', { name: 'Queued (2)' }))
+  expect(screen.getByText('Editing')).toBeVisible()
+  const [held, other] = screen.getAllByRole('button', { name: 'steer' })
+  expect(held).toBeDisabled()
+  expect(other).toBeEnabled()
+})
 
 it('rejects a drop computed from a queue changed in another window, and allows a fresh drag', async () => {
   const request = vi.mocked(window.api.ipcApi.request).mockResolvedValue({ ok: true, data: true })

@@ -57,6 +57,7 @@ import type {
   AgentRuntimeReconcileResult,
   AgentRuntimeTraceContext,
   AgentRuntimeCommand,
+  FollowupEditOwner,
   AgentRuntimeInput
 } from '../types'
 import { type UnavailableNativeContext, unavailableNativeContext } from '../types'
@@ -420,11 +421,13 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
       paused,
       ...(restored && { restored }),
       ...(steerIds.length && { steerIds }),
-      queue: queue.flatMap(({ inputId, revision, steering }) => {
+      queue: queue.flatMap(({ inputId, revision, steering, editing }) => {
         if (steering) return []
         if (messages.inputBinding(this.input.sessionId, inputId)?.contextId !== this.context?.id) return []
         const message = messages.getSessionMessage(this.input.sessionId, inputId)
-        return message.delivery ? [] : [{ id: inputId, revision, parts: message.data.parts ?? [] }]
+        return message.delivery
+          ? []
+          : [{ id: inputId, revision, parts: message.data.parts ?? [], ...(editing && { editing }) }]
       })
     })
   }
@@ -433,7 +436,8 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
 
   async changeFollowups(
     change: AgentSessionFollowupChange,
-    activeRun?: { inputId: string; replyId: string }
+    activeRun?: { inputId: string; replyId: string },
+    editor?: FollowupEditOwner
   ): Promise<boolean> {
     if (this.closing || !this.handle || !this.context) return false
     if (change.type === 'resume') return this.handle.durable.resumeFollowups()
@@ -459,6 +463,20 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
       })
     }
 
+    if (!editor) return false
+    const hold = { token: change.token, owner: editor.id }
+    if (change.type === 'begin-edit') {
+      return this.handle.durable.changeFollowups({
+        type: change.type,
+        inputId: change.inputId,
+        revision: change.revision,
+        hold,
+        isOwnerLive: editor.isLive
+      })
+    }
+    if (change.type === 'cancel-edit')
+      return this.handle.durable.changeFollowups({ type: change.type, inputId: change.inputId, hold })
+
     const { inputId, revision, parts } = change
     if (this.editingFollowups.has(inputId)) return false
     const boundKnowledgeBaseIds = agentService.getAgent(this.input.agentId)?.knowledgeBaseIds
@@ -480,6 +498,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
         type: 'edit',
         inputId,
         revision,
+        hold,
         content: wrapSteerReminder(buildAgentUserContent({ ...message, data: { ...message.data, parts } })),
         parts: JSON.stringify(parts)
       })

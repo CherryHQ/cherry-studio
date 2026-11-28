@@ -302,8 +302,9 @@ Stop is now the only abort source). `enqueueUserMessage()`:
    persistence, the Composer sends Enter with `followUp: true` while busy. Other runtimes keep
    the draft in the dock until idle. Pi Durable persists those submissions in its native queue.
    The dock shows the native waiting order and supports reordering and withdrawing queued inputs.
-   Editing opens the Work composer, where users can revise the content and attachments. Saving
-   updates the original waiting entry. Main saves the complete product input before native submission and keeps it off the
+   Editing opens the Work composer after Durable marks the waiting entry. Earlier follow-ups can
+   run while that entry and later follow-ups wait. Saving updates the original entry and clears
+   the edit mark in one native commit. Main saves the complete product input before native submission and keeps it off the
    conversation branch while it waits. Placement publishes the input and reserves its reply
    in the same transaction. Admission records the original request ID for recovery in Durable.
    Startup reconciles those IDs with their committed submissions. Opening the session also checks

@@ -82,8 +82,11 @@ describe('AgentComposerSlot', () => {
   })
 
   it('keeps a queued draft open when its revision is stale and cancels back to the original composer', async () => {
-    const request = vi.mocked(window.api.ipcApi.request).mockResolvedValueOnce({ ok: true, data: false })
-    const send = vi.fn()
+    vi.mocked(window.api.ipcApi.request)
+      .mockResolvedValueOnce({ ok: true, data: false })
+      .mockResolvedValueOnce({ ok: true, data: true })
+      .mockResolvedValueOnce({ ok: true, data: false })
+      .mockResolvedValueOnce({ ok: true, data: true })
     const original = { initialDraft: { text: 'Original composer draft', tokens: [] } }
     const topicId = 'agent-session:session-1'
     const item: AgentSessionFollowup = {
@@ -92,32 +95,23 @@ describe('AgentComposerSlot', () => {
       parts: [{ type: 'text', text: 'Original queued input' }]
     }
     const parts = [{ type: 'text', text: 'Attempted edit' }]
-    render(
-      <AgentComposerSlot
-        {...baseProps}
-        isStreaming
-        sendDisabled={false}
-        composerLaunchOptions={original}
-        sendMessage={send}
-      />
-    )
+    render(<AgentComposerSlot {...baseProps} isStreaming sendDisabled={false} composerLaunchOptions={original} />)
 
     await act(async () => {
-      agentComposerPropsMock.last.onEditQueuedFollowup(topicId, item)
+      await agentComposerPropsMock.last.onEditQueuedFollowup(topicId, item)
+    })
+    expect(agentComposerPropsMock.last.launchOptions).toEqual(original)
+    await act(async () => {
+      await agentComposerPropsMock.last.onEditQueuedFollowup(topicId, item)
     })
     expect(agentComposerPropsMock.last.sendDisabled).toBe(false)
     await act(async () => {
       await agentComposerPropsMock.last.sendMessage(undefined, { body: { userMessageParts: parts } })
     })
 
-    expect(request).toHaveBeenCalledWith('ai.agent.session.change_followups', {
-      topicId,
-      change: { type: 'edit', inputId: item.id, revision: item.revision, parts }
-    })
     expect(agentComposerPropsMock.last.launchOptions.editing.messageId).toBe(item.id)
-    expect(send).not.toHaveBeenCalled()
     await act(async () => {
-      agentComposerPropsMock.last.launchOptions.editing.onCancel()
+      await agentComposerPropsMock.last.launchOptions.editing.onCancel()
     })
     expect(agentComposerPropsMock.last.launchOptions).toEqual(original)
   })

@@ -299,6 +299,11 @@ export type AgentRuntimeEvent =
  */
 export type AgentRuntimeReconcileResult = 'current' | 'patched' | 'rebuild' | 'invalid' | 'failed'
 
+export interface FollowupEditOwner {
+  id: string
+  isLive(owner: string): boolean
+}
+
 export interface AgentRuntimeConnection {
   /** Bound product context for controls that precede the first native message. */
   readonly contextId?: string
@@ -336,7 +341,8 @@ export interface AgentRuntimeConnection {
   lookupInput?(contextId: string, inputId: string): Promise<OperationResult<InputLookup>>
   changeFollowups?(
     change: AgentSessionFollowupChange,
-    activeRun?: { inputId: string; replyId: string }
+    activeRun?: { inputId: string; replyId: string },
+    editor?: FollowupEditOwner
   ): Promise<boolean>
   acknowledgeFollowupProjection?(contextId: string, inputId: string): void
   /**

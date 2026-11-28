@@ -89,6 +89,30 @@ function senderWebContents(senderId: WindowId | null): Electron.WebContents | un
   return application.get('WindowManager').getWindow(senderId)?.webContents
 }
 
+const followupEditors = new WeakMap<Electron.WebContents, { id?: string }>()
+const liveFollowupEditors = new Set<string>()
+
+function followupEditOwner(sender: Electron.WebContents) {
+  let editor = followupEditors.get(sender)
+  if (!editor) {
+    const windowEditor: { id?: string } = {}
+    const invalidate = () => {
+      if (windowEditor.id) liveFollowupEditors.delete(windowEditor.id)
+      windowEditor.id = undefined
+    }
+    sender.on('did-start-navigation', ({ isMainFrame, isSameDocument }) => {
+      if (isMainFrame && !isSameDocument) invalidate()
+    })
+    sender.on('render-process-gone', invalidate)
+    sender.once('destroyed', invalidate)
+    followupEditors.set(sender, windowEditor)
+    editor = windowEditor
+  }
+  const id = (editor.id ??= randomUUID())
+  liveFollowupEditors.add(id)
+  return { id, isLive: (owner: string) => liveFollowupEditors.has(owner) }
+}
+
 /**
  * Domain → transport translation for `ai.agent.task.*` commands. The internal
  * `JOB_SCHEDULE_TRIGGER_INVALID` (a user input error the form must branch on)
@@ -387,8 +411,12 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   'ai.agent.session.edit_target': ({ sessionId, messageId }) =>
     exposeAiStreamAdmission(() => application.get('AgentSessionRuntimeService').getEditTarget(sessionId, messageId)),
   'ai.agent.session.change_followups': async ({ topicId, change }, { senderId }) => {
-    if (!senderWebContents(senderId)) return false
-    return exposeAiStreamAdmission(() => application.get('AgentSessionRuntimeService').changeFollowups(topicId, change))
+    const sender = senderWebContents(senderId)
+    if (!sender || sender.isDestroyed()) return false
+    const editor = 'token' in change ? followupEditOwner(sender) : undefined
+    return exposeAiStreamAdmission(() =>
+      application.get('AgentSessionRuntimeService').changeFollowups(topicId, change, editor)
+    )
   },
   'ai.agent.session.set_pending_input_count': async ({ sessionId, count }, { senderId }) => {
     const wc = senderWebContents(senderId)

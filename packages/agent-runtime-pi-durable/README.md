@@ -61,10 +61,11 @@ holds follow-ups until resume. The desktop's explicit new turn can start while t
 is paused. Read captured input facts to distinguish acceptance, placement and completion.
 
 The desktop mirrors the ordered native follow-up inbox after attachment and on inbox commits.
-Editing and reordering check the still-waiting entries inside a native transaction. An edit carries
-its native content and the revised message parts to placement under the original submission ID. The desktop
-can reapply those parts on reopen, including legacy text-only edits. Remove settles one waiting submission
-as `withdrawn` and removes it from the inbox in one commit.
+Editing and reordering check the still-waiting entries inside a native transaction. A persistent edit mark
+stops follow-up placement at that item. Saving updates the native content and revised message parts and
+clears the mark under the original submission ID. The native boundary resumes if the edit deferred dispatch
+and Stop has not paused it. The desktop can reapply edited parts on reopen, including legacy text-only
+edits. Remove settles one waiting submission as `withdrawn` and removes it from the inbox in one commit.
 
 Several inputs can share a native answer. Native `done` alone is insufficient: Durable also uses it for truncated output
 and tool-only termination. The adapter reads the actual assistant stop reason before reporting

@@ -6,6 +6,7 @@ export interface AgentSessionFollowup {
   id: string
   revision: number
   parts: CherryMessagePart[]
+  editing?: true
 }
 
 export interface AgentSessionFollowupQueue {
@@ -15,7 +16,9 @@ export interface AgentSessionFollowupQueue {
 
 export type AgentSessionFollowupChange =
   | { type: 'resume' }
-  | { type: 'edit'; inputId: string; revision: number; parts: CherryMessagePart[] }
+  | { type: 'begin-edit'; inputId: string; revision: number; token: string }
+  | { type: 'cancel-edit'; inputId: string; token: string }
+  | { type: 'edit'; inputId: string; revision: number; token: string; parts: CherryMessagePart[] }
   | { type: 'reorder'; before: string[]; after: string[] }
   | { type: 'withdraw'; inputId: string }
   | { type: 'steer'; inputId: string }

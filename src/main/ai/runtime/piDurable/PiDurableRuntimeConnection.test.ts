@@ -3353,11 +3353,22 @@ describe('desktop Pi Durable connection', () => {
         expect(messages.protectNativeFollowupFiles(sessionId, contextId, queued.id, editParts)).toBe(true)
         expect(managedRefs()).toEqual([expect.objectContaining({ sourceId: queued.id })])
         mocks.skipFollowupProjection = true
+        const hold = { token: uuid(), owner: 'editor' }
+        expect(
+          await handle.durable.changeFollowups({
+            type: 'begin-edit',
+            inputId: queued.id,
+            revision: 0,
+            hold,
+            isOwnerLive: (id) => id === hold.owner
+          })
+        ).toBe(true)
         expect(
           await handle.durable.changeFollowups({
             type: 'edit',
             inputId: queued.id,
             revision: 0,
+            hold,
             content: 'second with recovered.txt',
             parts: JSON.stringify(editParts)
           })
@@ -3559,22 +3570,34 @@ describe('desktop Pi Durable connection', () => {
       await expect(submitBusy(connection, 'followUp', queued)).resolves.toMatchObject({ status: 'acknowledged' })
       const before = handle.durable.followups()[0]
       const [retainedId, removedId] = readAgentSessionMessagePartIdsTx(dbh.db, queued.id)
+      const token = uuid()
+      const editor = { id: 'editor', isLive: (id: string) => id === 'editor' }
       await expect(
-        connection.changeFollowups({ type: 'edit', inputId: queued.id, revision: 0, parts: [added, retained, caption] })
+        connection.changeFollowups({ type: 'begin-edit', inputId: queued.id, revision: 0, token }, undefined, editor)
+      ).resolves.toBe(true)
+      await expect(
+        connection.changeFollowups(
+          { type: 'edit', inputId: queued.id, revision: 0, token, parts: [added, retained, caption] },
+          undefined,
+          editor
+        )
       ).resolves.toBe(true)
       expect(handle.durable.followups()).toEqual([
         expect.objectContaining({ inputId: queued.id, submissionId: before.submissionId, revision: 1 })
       ])
       await expect(
-        connection.changeFollowups({ type: 'edit', inputId: queued.id, revision: 0, parts: [removed] })
+        connection.changeFollowups(
+          { type: 'edit', inputId: queued.id, revision: 0, token, parts: [removed] },
+          undefined,
+          editor
+        )
       ).resolves.toBe(false)
       await expect(
-        connection.changeFollowups({
-          type: 'edit',
-          inputId: queued.id,
-          revision: 1,
-          parts: withKnowledgeScopePart([caption], [uuid()])
-        })
+        connection.changeFollowups(
+          { type: 'edit', inputId: queued.id, revision: 1, token, parts: withKnowledgeScopePart([caption], [uuid()]) },
+          undefined,
+          editor
+        )
       ).rejects.toMatchObject({ reason: 'input_unsupported' })
       expect(messages.getSessionMessage(sessionId, queued.id).data.parts).toEqual([added, retained, caption])
       const ids = readAgentSessionMessagePartIdsTx(dbh.db, queued.id)
@@ -3736,6 +3759,46 @@ describe('desktop Pi Durable connection', () => {
     }
   }, 20_000)
 
+  it('completes the preceding reply while a queued edit waits, then opens one reply for the saved input', async () => {
+    const held = answerByInput()
+    const { connection, events, handle } = await connect()
+    const first = message('first')
+    await connection.send({ message: first })
+    await held.reached
+    const queued = messages.saveMessage({
+      sessionId: input.sessionId,
+      stageFollowup: true,
+      message: { role: 'user', data: { parts: [{ type: 'text', text: 'original' }] } }
+    })
+    const token = uuid()
+    const editor = { id: 'editor', isLive: (id: string) => id === 'editor' }
+    try {
+      await submitBusy(connection, 'followUp', queued)
+      await expect(
+        connection.changeFollowups({ type: 'begin-edit', inputId: queued.id, revision: 0, token }, undefined, editor)
+      ).resolves.toBe(true)
+    } finally {
+      held.open()
+    }
+    await done(events)
+    expect(script.calls).toHaveLength(1)
+    expect(handle.durable.followups()).toMatchObject([{ inputId: queued.id, editing: true }])
+
+    const parts = [{ type: 'text' as const, text: 'edited second' }]
+    await expect(
+      connection.changeFollowups({ type: 'edit', inputId: queued.id, revision: 0, token, parts }, undefined, editor)
+    ).resolves.toBe(true)
+    await expect.poll(() => events.filter(({ type }) => type === 'turn-complete').length).toBe(2)
+    expect(events.filter((event) => event.type === 'run-started').flatMap((event) => event.inputIds)).toEqual([
+      queued.id
+    ])
+    expect(script.calls).toHaveLength(2)
+    expect(JSON.stringify(script.calls[1].messages.findLast((entry) => entry.role === 'user'))).toContain(
+      'edited second'
+    )
+    expect(messages.getSessionMessage(input.sessionId, queued.id).data.parts).toEqual(parts)
+  })
+
   it('reports each queued Run checkpoint before idle and replays the exact answer positions on reopen', async () => {
     const first = gate()
     const second = gate()
@@ -3895,6 +3958,11 @@ describe('desktop Pi Durable connection', () => {
     })
     await submitBusy(connection, 'followUp', second)
     await expect.poll(handle.durable.followups).toMatchObject([{ inputId: second.id }])
+    const token = uuid()
+    const editor = { id: 'editor', isLive: (id: string) => id === 'editor' }
+    await expect(
+      connection.changeFollowups({ type: 'begin-edit', inputId: second.id, revision: 0, token }, undefined, editor)
+    ).resolves.toBe(true)
     const waiting = handle.durable.followups()
 
     await connection.interrupt()
@@ -3905,9 +3973,9 @@ describe('desktop Pi Durable connection', () => {
     expect(events).not.toContainEqual(expect.objectContaining({ type: 'run-started', inputIds: [second.id] }))
 
     const parts = [{ type: 'text' as const, text: 'edited second' }]
-    await expect(connection.changeFollowups({ type: 'edit', inputId: second.id, revision: 0, parts })).resolves.toBe(
-      true
-    )
+    await expect(
+      connection.changeFollowups({ type: 'edit', inputId: second.id, revision: 0, token, parts }, undefined, editor)
+    ).resolves.toBe(true)
     expect(handle.durable.followupsPaused()).toBe(true)
     expect(messages.getSessionMessage(input.sessionId, second.id).data.parts).toEqual(parts)
 

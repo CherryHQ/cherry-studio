@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/dev/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/implemented/feature/2026-11-28-pi-durable-queued-draft-editing.md
-2026-11-28-pi-durable-queued-draft-editing.md: 3f5681d708a329aaec1c85e2aa9ccd4b5952e123
-2026-11-28-pi-durable-queued-draft-editing.zh.md: 8d96767585f07d0494b824095e11c54d547a264c
+2026-11-28-pi-durable-queued-draft-editing.md: 6f1761052e9bcd20e4ca941de8883f893bdd061d
+2026-11-28-pi-durable-queued-draft-editing.zh.md: aaeb28096ab39898d35dc013b55daedfd5ed29e7

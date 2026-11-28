@@ -1,4 +1,4 @@
-import { memo, useCallback, useMemo, useState } from 'react'
+import { memo, useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useRightPanelPresentationMaximized } from '@renderer/components/chat/panes/Shell'
@@ -76,21 +76,55 @@ function AgentComposerSlot({
   const compactWhenSingleLine = useRightPanelPresentationMaximized()
   const rightPaneActions = useOptionalAgentRightPaneActions()
   const { t } = useTranslation()
-  const [queuedEdit, setQueuedEdit] = useState<{ sessionId: string; topicId: string; item: AgentSessionFollowup }>()
+  const [queuedEdit, setQueuedEdit] = useState<{
+    sessionId: string
+    topicId: string
+    item: AgentSessionFollowup
+    token: string
+  }>()
+  const acquiringQueuedEdit = useRef(false)
   const activeQueuedEdit = queuedEdit?.sessionId === sessionId ? queuedEdit : undefined
   const startQueuedEdit = useCallback(
-    (topicId: string, item: AgentSessionFollowup) => setQueuedEdit({ sessionId, topicId, item }),
-    [sessionId]
+    async (topicId: string, item: AgentSessionFollowup) => {
+      if (acquiringQueuedEdit.current || activeQueuedEdit) return
+      acquiringQueuedEdit.current = true
+      const token = crypto.randomUUID()
+      try {
+        const started = await ipcApi.request('ai.agent.session.change_followups', {
+          topicId,
+          change: { type: 'begin-edit', inputId: item.id, revision: item.revision, token }
+        })
+        if (started) setQueuedEdit({ sessionId, topicId, item, token })
+        else toast.warning(t('chat.input.followup_queue.stale'))
+      } catch {
+        toast.error(t('common.save_failed'))
+      } finally {
+        acquiringQueuedEdit.current = false
+      }
+    },
+    [activeQueuedEdit, sessionId, t]
   )
-  const cancelQueuedEdit = useCallback(() => setQueuedEdit(undefined), [])
+  const cancelQueuedEdit = useCallback(async () => {
+    if (!activeQueuedEdit) return
+    const { topicId, item, token } = activeQueuedEdit
+    try {
+      await ipcApi.request('ai.agent.session.change_followups', {
+        topicId,
+        change: { type: 'cancel-edit', inputId: item.id, token }
+      })
+      setQueuedEdit((current) => (current === activeQueuedEdit ? undefined : current))
+    } catch {
+      toast.error(t('common.save_failed'))
+    }
+  }, [activeQueuedEdit, t])
   const saveQueuedEdit = useCallback<AgentChatRuntimeState['sendMessage']>(
     async (_, options) => {
       const parts = options?.body?.userMessageParts
       if (!activeQueuedEdit || !parts) return false
-      const { topicId, item } = activeQueuedEdit
+      const { topicId, item, token } = activeQueuedEdit
       const saved = await ipcApi.request('ai.agent.session.change_followups', {
         topicId,
-        change: { type: 'edit', inputId: item.id, revision: item.revision, parts }
+        change: { type: 'edit', inputId: item.id, revision: item.revision, token, parts }
       })
       if (saved) setQueuedEdit((current) => (current === activeQueuedEdit ? undefined : current))
       else toast.warning(t('chat.input.followup_queue.stale'))
@@ -146,7 +180,7 @@ function AgentComposerSlot({
           rightPaneActions?.canPreviewInputFileInRightPane ? rightPaneActions.previewInputFileInRightPane : undefined
         }
         launchOptions={isEditing ? editLaunchOptions : composerLaunchOptions}
-        onEditQueuedFollowup={isEditing ? undefined : startQueuedEdit}
+        onEditQueuedFollowup={editing ? undefined : startQueuedEdit}
         steerWhileBusy={steerWhileBusy}
         providerQuotaExhausted={!isEditing && providerQuotaExhausted}
       />

@@ -127,7 +127,8 @@ import type {
   AgentRuntimeToolApprovalRequest,
   AgentRuntimeTraceContext,
   AgentRuntimeUserInput,
-  AgentSessionUsageCapture
+  AgentSessionUsageCapture,
+  FollowupEditOwner
 } from '../runtime/types'
 import type { AgentMessageStreamSource, AgentPartChange, ExecutionPart, MessageStreamEvent } from '../streamManager'
 import {
@@ -1245,12 +1246,16 @@ export class AgentSessionRuntimeService extends BaseService {
     }
   }
 
-  async changeFollowups(topicId: string, change: AgentSessionFollowupChange): Promise<boolean> {
+  async changeFollowups(
+    topicId: string,
+    change: AgentSessionFollowupChange,
+    editor?: FollowupEditOwner
+  ): Promise<boolean> {
     if (!isAgentSessionTopic(topicId) || this.isWriteQuiesced || this.isShuttingDown) return false
     const sessionId = extractAgentSessionId(topicId)
     this.assertSessionWritable(sessionId)
     const entry = this.entryForContext(sessionId, extractAgentContextId(topicId))
-    if (change.type === 'resume') await entry?.stopping?.settled
+    if (change.type === 'resume' || 'token' in change) await entry?.stopping?.settled
     if (!entry || !this.isCurrentEntry(entry) || entry.topicId !== topicId || entry.closing || entry.stopping)
       return false
     const connection = this.currentConnection(entry)
@@ -1262,7 +1267,7 @@ export class AgentSessionRuntimeService extends BaseService {
       if (!inputId || turn.headless || !this.isTurnLive(entry, turn)) return false
       return (await connection?.changeFollowups?.(change, { inputId, replyId: turn.runId })) ?? false
     }
-    return (await connection?.changeFollowups?.(change)) ?? false
+    return (await connection?.changeFollowups?.(change, undefined, editor)) ?? false
   }
 
   async listSessionCommands(sessionId: string): Promise<AgentSessionSlashCommand[]> {

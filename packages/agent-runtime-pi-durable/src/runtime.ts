@@ -993,9 +993,7 @@ export async function createPiDurableRuntime(
         resumeFollowups: () =>
           unavailable() ? Promise.resolve(false) : track(entry.conversation.resumeFollowUps(context)),
         changeFollowups: (change) =>
-          unavailable()
-            ? Promise.resolve(false)
-            : track(changeFollowups(native, entry.conversation.id, change, context)),
+          unavailable() ? Promise.resolve(false) : track(changeFollowups(entry.conversation, change, context)),
         observe: (sink, knownSources) => observeCaptured(() => entry.projection.observe(sink, knownSources)),
         relation: () =>
           track(

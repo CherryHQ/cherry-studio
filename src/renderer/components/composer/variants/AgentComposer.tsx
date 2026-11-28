@@ -2061,12 +2061,12 @@ const AgentComposerInner = ({
                   description={compaction.error}
                 />
               )}
-              {hasDurableFollowUp && !launchOptions?.editing && onEditQueuedFollowup ? (
+              {hasDurableFollowUp && onEditQueuedFollowup ? (
                 <NativeQueuedFollowups
                   key={runtimeTopicId}
                   topicId={runtimeTopicId}
                   canSteer={isStreaming}
-                  onEdit={onEditQueuedFollowup}
+                  onEdit={launchOptions?.editing ? undefined : onEditQueuedFollowup}
                 />
               ) : null}
               {queuedFollowups.length > 0 ? (

@@ -98,10 +98,11 @@ is still starting, so it never joins that reply, while steers placed into the ru
 its continuation. At a same-commit handoff, Main settles the preceding reply through its input
 outcomes and carries the stream into the new reply. A follow-up whose submission fails before it
 reaches Durable moves to Main's queue.
-The composer saves edited text and attachments under the original waiting input and its captured
-revision. The native record carries the complete edited parts. Desktop projection reconciles parts
-and file references in one transaction, and startup recovery reads the same record. The run uses
-the knowledge-base authorization of its native connection.
+The composer opens an edit after Durable marks the waiting input as editing. The native boundary can
+place earlier follow-ups and waits at this item. Save checks the editing window's token and the
+captured revision, then updates the content and clears the mark in one native commit. Desktop
+projection reconciles parts and file references in one transaction, and startup recovery reads the
+same record. The run uses the knowledge-base authorization of its native connection.
 Product snapshots and headless policy stay on the Main session entry under the input ID, including
 unknown admission across connection replacement. The successor reconciles the original binding
 without resending, while generation checks reject stale callbacks.

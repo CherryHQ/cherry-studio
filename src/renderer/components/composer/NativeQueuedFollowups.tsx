@@ -23,7 +23,7 @@ export const NativeQueuedFollowups = memo(function NativeQueuedFollowups({
 }: {
   topicId: string
   canSteer?: boolean
-  onEdit: (topicId: string, item: AgentSessionFollowup) => void
+  onEdit?: (topicId: string, item: AgentSessionFollowup) => void
 }) {
   const { t } = useTranslation()
   const snapshot = useSharedCacheValue(AGENT_SESSION_FOLLOWUPS_CACHE_KEY(topicId))
@@ -31,9 +31,9 @@ export const NativeQueuedFollowups = memo(function NativeQueuedFollowups({
   const dragOrder = useRef<string[]>(undefined)
   const items = useMemo(
     () =>
-      (queue ?? []).map(({ id, parts }) => {
+      (queue ?? []).map(({ id, parts, editing }) => {
         const { text, draftTokens } = createEditableMessageDraft(parts, id)
-        return { id, draft: { text, tokens: draftTokens }, payload: { text, userMessageParts: parts } }
+        return { id, editing, draft: { text, tokens: draftTokens }, payload: { text, userMessageParts: parts } }
       }),
     [queue]
   )
@@ -56,10 +56,13 @@ export const NativeQueuedFollowups = memo(function NativeQueuedFollowups({
       paused={snapshot?.paused}
       onTogglePause={snapshot?.paused ? () => void change({ type: 'resume' }) : undefined}
       onSteer={canSteer ? (inputId) => void change({ type: 'steer', inputId }) : undefined}
-      onEdit={(id) => {
-        const item = queue?.find((candidate) => candidate.id === id)
-        if (item) onEdit(topicId, item)
-      }}
+      onEdit={
+        onEdit &&
+        ((id) => {
+          const item = queue?.find((candidate) => candidate.id === id)
+          if (item) onEdit(topicId, item)
+        })
+      }
       onRemove={(inputId) => void change({ type: 'withdraw', inputId })}
       onDragStart={() => {
         dragOrder.current = items.map(({ id }) => id)
