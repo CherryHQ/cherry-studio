@@ -118,3 +118,9 @@ icon: graduation-cap
 技能包可以包含说明、资源和脚本。是否能够执行脚本，还取决于智能体的工具、工作目录、环境依赖和权限模式。
 
 </details>
+
+## 从 Gitea 安装
+
+在在线技能搜索的 GitHub 直链标签中粘贴 HTTPS Gitea 描述文件 URL。支持 `/owner/repo/src/branch/ref/path/SKILL.md` 和 `/owner/repo/raw/branch/ref/path/SKILL.md` 两种格式，单个结果标注为 Gitea。安装仅获取所选分支已观察提交中的指定技能目录，支持含斜线的分支名。
+
+仅支持匿名 HTTPS 仓库。拒绝内嵌凭据、标签路由及仓库首页 URL。Gitea 安装不读取 Git 凭据、Cookie 或全局 Git 请求头，不跟随重定向。需要认证的服务器直接失败，不收集或发送令牌。现有 GitHub 和注册表来源保持不变。

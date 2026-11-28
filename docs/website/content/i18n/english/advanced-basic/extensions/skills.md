@@ -109,3 +109,9 @@ Skill packages can contain instructions, resources, and scripts. Whether scripts
 Skill packages can contain instructions, resources, and scripts. Whether scripts can be executed depends on the Agent's tools, working directory, environment dependencies, and permission mode.
 
 </details>
+
+## Install from Gitea
+
+In online skill search, paste an HTTPS Gitea descriptor URL into the GitHub direct-URL tab. Both `/owner/repo/src/branch/ref/path/SKILL.md` and `/owner/repo/raw/branch/ref/path/SKILL.md` are accepted. The single result is labeled Gitea. Install adds only the selected skill directory from the observed branch commit. Branch names containing slashes are supported.
+
+Only anonymous HTTPS repositories are supported. Credentials in URLs, tag routes and bare repository URLs are rejected. Gitea installation does not read Git credentials, cookies or global Git headers and does not follow redirects. Authentication-required servers fail without asking for or sending a token. Existing GitHub and registry sources are unchanged.
