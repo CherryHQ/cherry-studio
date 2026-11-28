@@ -31,7 +31,7 @@ import { UpdateReviewDialog } from '@renderer/components/MiniApp/UpdateReviewDia
 import { useExitPresence } from '@renderer/hooks/useExitPresence'
 import { useMiniAppAttentionFor } from '@renderer/hooks/useMiniAppAttention'
 import { useMiniAppInstallPreview } from '@renderer/hooks/useMiniAppInstallPreview'
-import { useMiniAppUpdate } from '@renderer/hooks/useMiniAppUpdate'
+import { type UpdateDecision, useMiniAppUpdate } from '@renderer/hooks/useMiniAppUpdate'
 import { useModelById } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { ipcApi } from '@renderer/ipc'
@@ -245,11 +245,22 @@ const MiniAppDetailPanel: FC<Props> = ({ appId, open = true, onClose }) => {
   // Live, from the same broadcast the tile draws its wedge from — not the one-shot detail read.
   const updating = useMiniAppAttentionFor(appId)?.updating ?? null
   // Check → review dialog → apply: the same three steps the tile's menu runs.
+  // Shown in the panel, not a toast: the modal traps focus, so a toast's Details is out of keyboard reach.
+  const [updateError, setUpdateError] = useState<PanelError | null>(null)
   const update = useMiniAppUpdate(appId, {
     name: detail?.name ?? appId,
     onApplied: () => void reload(),
-    onChecked: () => void reload()
+    onChecked: () => void reload(),
+    onFailed: ({ cause, operation }) => setUpdateError({ message: t('miniApp.detail.action_failed'), cause, operation })
   })
+  const checkUpdate = () => {
+    setUpdateError(null)
+    void update.check()
+  }
+  const applyUpdate = (decision: UpdateDecision) => {
+    setUpdateError(null)
+    return update.apply(decision)
+  }
   /**
    * Nothing that changes the package may run while an update is landing — `update.busy`
    * included: a check is the one package operation on this screen that does NOT go through
@@ -353,6 +364,7 @@ const MiniAppDetailPanel: FC<Props> = ({ appId, open = true, onClose }) => {
             {/* In the pinned header, not the scrolling body: a refused action must stay in view. */}
             {errorNotice(error)}
             {errorNotice(replaceError)}
+            {errorNotice(updateError)}
           </DialogHeader>
 
           {detail && (
@@ -615,7 +627,7 @@ const MiniAppDetailPanel: FC<Props> = ({ appId, open = true, onClose }) => {
                     <div className="flex flex-wrap items-center gap-2">
                       {/* A local package has no endpoint to check; every app can be handed a new package. */}
                       {detail.source !== 'file' && (
-                        <Button size="sm" variant="outline" disabled={locked} onClick={() => void update.check()}>
+                        <Button size="sm" variant="outline" disabled={locked} onClick={checkUpdate}>
                           {t('miniApp.detail.check_update')}
                         </Button>
                       )}
@@ -661,7 +673,7 @@ const MiniAppDetailPanel: FC<Props> = ({ appId, open = true, onClose }) => {
                   </Button>
                 ) : (
                   detail.updateVersion && (
-                    <Button disabled={locked} onClick={() => void update.check()}>
+                    <Button disabled={locked} onClick={checkUpdate}>
                       {t('miniApp.menu.update', { version: detail.updateVersion })}
                     </Button>
                   )
@@ -684,7 +696,7 @@ const MiniAppDetailPanel: FC<Props> = ({ appId, open = true, onClose }) => {
           open={update.offer !== null}
           busy={update.busy}
           onCancel={update.dismiss}
-          onApply={update.apply}
+          onApply={applyUpdate}
         />
       )}
       {replacePreview && (

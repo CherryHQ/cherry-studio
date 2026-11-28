@@ -26,13 +26,27 @@ export interface UpdateDecision {
  */
 export function useMiniAppUpdate(
   appId: string,
-  options: { name: string; onApplied?: () => void; onChecked?: () => void }
+  options: {
+    name: string
+    onApplied?: () => void
+    onChecked?: () => void
+    /** Replaces the failure toast, for a modal host that shows the failure inside itself. */
+    onFailed?: (failure: { cause: unknown; operation: string }) => void
+  }
 ) {
   const { t } = useTranslation()
   const [offer, setOffer] = useState<UpdateOffer | null>(null)
   /** The last check found nothing — the panel says so, the tile has nothing to say. */
   const [current, setCurrent] = useState(false)
   const [busy, setBusy] = useState(false)
+
+  const reportFailure = (cause: unknown, operation: string) => {
+    if (options.onFailed) {
+      options.onFailed({ cause, operation })
+    } else {
+      toastAppError(t('miniApp.detail.action_failed'), cause, { source: 'miniapp', operation, recordId: appId })
+    }
+  }
 
   const check = async () => {
     setBusy(true)
@@ -49,11 +63,7 @@ export function useMiniAppUpdate(
       options.onChecked?.()
     } catch (e) {
       logger.error('Mini app update check failed', e as Error)
-      toastAppError(t('miniApp.detail.action_failed'), e, {
-        source: 'miniapp',
-        operation: 'miniapp.update.check',
-        recordId: appId
-      })
+      reportFailure(e, 'miniapp.update.check')
     } finally {
       setBusy(false)
     }
@@ -77,11 +87,7 @@ export function useMiniAppUpdate(
       options.onApplied?.()
     } catch (e) {
       logger.error('Mini app update failed', e as Error)
-      toastAppError(t('miniApp.detail.action_failed'), e, {
-        source: 'miniapp',
-        operation: 'miniapp.update.apply',
-        recordId: appId
-      })
+      reportFailure(e, 'miniapp.update.apply')
     } finally {
       // Consumed either way: main deletes the review on `consume`, so the token is spent
       // even when the publish failed and a retry has to re-check. Dropped HERE rather than

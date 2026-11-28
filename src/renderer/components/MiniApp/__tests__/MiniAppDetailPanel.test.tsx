@@ -5,7 +5,6 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 
 import { useMutation } from '@data/hooks/useDataApi'
 import i18n from '@renderer/i18n/resolver'
-import { appErrorContextService } from '@renderer/services/AppErrorContextService'
 import type * as AppErrorDetailService from '@renderer/services/AppErrorDetailService'
 import { toast } from '@renderer/services/toast'
 import type { Model } from '@shared/data/types/model'
@@ -328,24 +327,67 @@ describe('MiniAppDetailPanel', () => {
     expect(replaceButton).toBeEnabled()
   })
 
-  it('opens Details for a failed update check with its cause and step', async () => {
+  /** Tabs to the panel notice's Details, opens it, and returns the request it opened. */
+  const openNoticeDetails = async (user: ReturnType<typeof userEvent.setup>, text: string) => {
+    const alert = await within(screen.getByRole('dialog')).findByRole('alert')
+    expect(alert).toHaveTextContent(text)
+    const details = within(alert).getByRole('button', { name: i18n.t('common.detail') })
+    for (let step = 0; step < 60 && document.activeElement !== details; step++) await user.tab()
+    expect(details).toHaveFocus()
+    await user.keyboard('{Enter}')
+    await waitFor(() => expect(mocks.openErrorDetail).toHaveBeenCalledTimes(1))
+    return { alert, request: mocks.openErrorDetail.mock.calls[0][0] }
+  }
+
+  it('keeps a failed update check inside the panel with keyboard-reachable Details, cleared on retry', async () => {
     await open()
     vi.mocked(toast.error).mockClear()
     request.mockRejectedValueOnce(new Error('registry offline'))
+    const user = userEvent.setup()
 
-    await userEvent.click(screen.getByRole('button', { name: /check for update/i }))
+    await user.click(screen.getByRole('button', { name: /check for update/i }))
 
-    await waitFor(() => expect(toast.error).toHaveBeenCalled())
-    const payload = vi.mocked(toast.error).mock.calls[0][0] as Parameters<
-      typeof appErrorContextService.contextForHostError
-    >[1]
-    expect(payload).toMatchObject({ title: expect.not.stringMatching(/registry offline/) })
-    expect(appErrorContextService.contextForHostError('update-check-failed', payload)).toMatchObject({
+    const { alert, request: opened } = await openNoticeDetails(user, i18n.t('miniApp.detail.action_failed'))
+    expect(alert).not.toHaveTextContent(/registry offline/)
+    expect(opened.context).toMatchObject({
       message: 'registry offline',
       operation: 'miniapp.update.check',
       recordId: detail.appId,
       source: 'miniapp'
     })
+    expect(toast.error).not.toHaveBeenCalled()
+
+    request.mockResolvedValueOnce({ status: 'current' })
+    await user.click(screen.getByRole('button', { name: /check for update/i }))
+    await waitFor(() => expect(within(screen.getByRole('dialog')).queryByRole('alert')).toBeNull())
+  })
+
+  it('keeps a failed update apply inside the panel with keyboard-reachable Details', async () => {
+    await open()
+    vi.mocked(toast.error).mockClear()
+    request.mockResolvedValueOnce({
+      status: 'ready',
+      version: '1.1.0',
+      addedOptional: [],
+      removed: [],
+      updateToken: 'tok-1'
+    })
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: /check for update/i }))
+    request.mockRejectedValueOnce(new Error('publish failed: EBUSY'))
+    await user.click(await screen.findByRole('button', { name: /update to 1\.1\.0/i }))
+
+    // The review dialog closes with its spent token; the failure lands in the panel still open beneath it.
+    await waitFor(() => expect(screen.getAllByRole('dialog')).toHaveLength(1))
+    const { alert, request: opened } = await openNoticeDetails(user, i18n.t('miniApp.detail.action_failed'))
+    expect(alert).not.toHaveTextContent(/EBUSY/)
+    expect(opened.context).toMatchObject({
+      message: 'publish failed: EBUSY',
+      operation: 'miniapp.update.apply',
+      recordId: detail.appId,
+      source: 'miniapp'
+    })
+    expect(toast.error).not.toHaveBeenCalled()
   })
 
   it('offers replacing the package on a local app and never an update check', async () => {
