@@ -311,6 +311,25 @@ async function probeJson(
   return JSON.parse(result.stdout)
 }
 
+/** Reads only the container start; the full probe may add a packet-counting pass the scan does not need. */
+async function probeFormatStartSeconds(
+  filePath: string,
+  signal: AbortSignal,
+  logger: Logger,
+  pidRegistryPath?: string
+): Promise<number> {
+  const { ffprobePath } = requireInitData()
+  const result = await runCommand(
+    ffprobePath,
+    ['-v', 'error', '-print_format', 'json', '-show_entries', 'format=start_time', '-i', filePath],
+    signal,
+    logger,
+    { pidRegistryPath }
+  )
+  if (result.truncated) throw new Error('Media probe output exceeded buffer; refusing truncated JSON')
+  return Number((JSON.parse(result.stdout) as FfprobeResult | null)?.format?.start_time)
+}
+
 function probeDurationMs(probe: unknown): number {
   if (!probe || typeof probe !== 'object') return 0
   return classifyFfprobeResult(probe).durationMs
@@ -576,8 +595,7 @@ export const mediaFfmpegHandlers: UtilityProcessHandlers<MediaFfmpegContract> = 
     }
 
     const { ffmpegPath } = requireInitData()
-    const probe = (await probeJson(filePath, signal, logger, pidRegistryPath)) as FfprobeResult | null
-    const probedStartSeconds = Number(probe?.format?.start_time)
+    const probedStartSeconds = await probeFormatStartSeconds(filePath, signal, logger, pidRegistryPath)
     const formatStartSeconds = Number.isFinite(probedStartSeconds) ? probedStartSeconds : 0
     const buckets = createSceneCandidateBuckets(durationMs, candidateLimit)
     let timestampMs: number | undefined

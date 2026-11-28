@@ -2013,6 +2013,60 @@ describe('mediaFfmpegHandlers scene scan timeout', () => {
   })
 })
 
+describe('mediaFfmpegHandlers scene scan records', () => {
+  const sceneInput = {
+    filePath: '/clip.mp4',
+    durationMs: 10_000,
+    sampleFps: SCENE_SAMPLE_FPS,
+    scoreThreshold: SCENE_SCORE_THRESHOLD,
+    scanEdgePx: SCENE_SCAN_EDGE_PX,
+    maxCandidates: 16
+  }
+  const spawned: Array<{ command: unknown; args: string[] }> = []
+
+  afterEach(() => {
+    spawnControl.replacement = null
+    spawnControl.calls = 0
+    spawned.length = 0
+    disposeMediaChildren()
+  })
+
+  /** ffprobe prints `probeStdout`; the scan prints the stderr `scanStderr` builds from its own arguments. */
+  function completedScan(probeStdout: string, scanStderr: (args: string[]) => string) {
+    const stream = () => Object.assign(new EventEmitter(), { setEncoding: () => {} })
+    applyMediaFfmpegInitData({ ffmpegPath: '/usr/bin/ffmpeg', ffprobePath: '/usr/bin/ffprobe' })
+    spawnControl.replacement = (command: unknown, args: unknown) => {
+      spawned.push({ command, args: args as string[] })
+      const child = Object.assign(new EventEmitter(), { pid: 424245, stdout: stream(), stderr: stream() })
+      queueMicrotask(() => {
+        if (command === '/usr/bin/ffprobe') child.stdout.emit('data', probeStdout)
+        else child.stderr.emit('data', scanStderr(args as string[]))
+        child.emit('close', 0)
+      })
+      return child
+    }
+  }
+
+  it('reads the scan start time without counting the packets of a multi-audio-track file', async () => {
+    completedScan(
+      '{"format":{"start_time":"1.000000","duration":"10.000000"},"streams":[{"index":0,"codec_type":"video"},{"index":1,"codec_type":"audio"},{"index":2,"codec_type":"audio"}]}',
+      () =>
+        [
+          '[Parsed_metadata_4 @ 0x1] frame:0 pts:3 pts_time:3',
+          '[Parsed_metadata_4 @ 0x1] lavfi.scene_score=0.8',
+          ''
+        ].join('\n')
+    )
+
+    const detected = await mediaFfmpegHandlers.detectSceneChanges(sceneInput, context())
+
+    expect(detected.changes).toEqual([{ timestampMs: 2_000, score: 0.8 }])
+    const probes = spawned.filter(({ command }) => command === '/usr/bin/ffprobe')
+    expect(probes.length).toBeGreaterThan(0)
+    expect(probes.some(({ args }) => args.includes('-count_packets'))).toBe(false)
+  })
+})
+
 async function waitForFile(filePath: string): Promise<void> {
   const deadline = Date.now() + 5_000
   while (!existsSync(filePath)) {
