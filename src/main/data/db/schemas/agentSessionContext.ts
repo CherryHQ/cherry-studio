@@ -2,6 +2,7 @@ import type { SharedV3ProviderMetadata } from '@ai-sdk/provider'
 import { sql } from 'drizzle-orm'
 import { type AnySQLiteColumn, check, index, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
+import type { LocalAgentModelSelection } from '@shared/ai/localAgent'
 import type { EndpointType } from '@shared/data/types/model'
 
 import { createUpdateTimestamps, uuidPrimaryKey } from './_columnHelpers'
@@ -46,6 +47,7 @@ export const agentSessionContextTable = sqliteTable(
       .notNull()
       .references(() => agentRuntimeBackendTable.id, { onDelete: 'restrict' }),
     nativeThreadId: text(),
+    localModel: text({ mode: 'json' }).$type<LocalAgentModelSelection>(),
     bindingState: text({ enum: ['pending', 'bound'] })
       .notNull()
       .default('pending'),

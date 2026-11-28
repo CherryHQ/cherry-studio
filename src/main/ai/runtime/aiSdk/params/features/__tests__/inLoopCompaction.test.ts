@@ -1,5 +1,5 @@
 import type { LanguageModelV3 } from '@ai-sdk/provider'
-import { APICallError, type ModelMessage, wrapLanguageModel } from 'ai'
+import { APICallError, jsonSchema, type ModelMessage, type ToolSet, wrapLanguageModel } from 'ai'
 import { describe, expect, it, vi } from 'vitest'
 
 import type * as AiCore from '@cherrystudio/ai-core'
@@ -58,12 +58,16 @@ const scope = (overrides: {
   thresholdPercent?: number
   compressionModel?: unknown
   adapterFamily?: string
+  system?: string
+  tools?: ToolSet
 }) =>
   ({
     request: {
       conversation: { id: overrides.chatId ?? 'no-topic', topicId: overrides.chatId },
       contextOwner: overrides.contextOwner
     },
+    system: overrides.system,
+    tools: overrides.tools,
     model: { id: 'prov::model', contextWindow: overrides.contextWindow },
     provider: provider(overrides.adapterFamily),
     contextSettings: {
@@ -246,7 +250,7 @@ describe('inLoopCompactionFeature', () => {
     return hooks.prepareStep!
   }
 
-  // #17837: at step 0 there is no usage anchor, so the whole prompt is estimated locally.
+  // #17837: the whole prompt is estimated locally before the first step.
   // Stringifying a file part fed its base64 payload to the tokenizer and scored a 13 MB MP3
   // at ~3.7 M tokens (~183x the provider's 20 k), firing compaction on a first turn that has
   // nothing to fold. Media must be priced by modality, never by payload length.
@@ -256,7 +260,7 @@ describe('inLoopCompactionFeature', () => {
     // ~3M base64 chars: as text that dwarfs the 80k trigger; as audio it costs the bounded
     // per-dialect fallback, so the first turn stays under budget and never folds.
     const messages = [audioAttachmentMessage(3_000_000)]
-    const result = await prepareStep({ messages } as any) // step 0 → no usage anchor → full local pass
+    const result = await prepareStep({ messages } as any)
     expect(compactModelMessages).not.toHaveBeenCalled()
     expect(result).toBeUndefined()
   })
@@ -528,58 +532,39 @@ describe('inLoopCompactionFeature', () => {
     expect(keepRecentTurns).toBeGreaterThanOrEqual(1)
   })
 
-  // --- usage-first trigger (real last-step usage anchor, tokenx fallback) ---
-
-  it('triggers on the real last-step usage anchor even when the message text is tiny', async () => {
-    compactModelMessages.mockClear()
-    const compacted = [userMessage(10)]
-    compactModelMessages.mockResolvedValue(compacted)
-    const prepareStep = getPrepareStep()
-    // tokenx of these messages is ~300 (well under the 80k trigger), but the provider
-    // reported an ~85k-token last step → the anchor crosses the trigger.
-    const messages = [userMessage(100), assistantMessage(100), toolMessage(100)]
-    const steps = stepsWithUsage({ inputTokens: 84_900, outputTokens: 100, totalTokens: 85_000 })
-    const result = await prepareStep({ messages, steps } as any)
-    expect(compactModelMessages).toHaveBeenCalledOnce()
-    expect(result).toEqual({ messages: compacted })
-  })
-
-  it('adds the trailing-tool delta on top of the anchor (anchor alone is under budget)', async () => {
-    compactModelMessages.mockClear()
-    const compacted = [userMessage(10)]
-    compactModelMessages.mockResolvedValue(compacted)
-    const prepareStep = getPrepareStep()
-    // anchor 70k < 80k trigger; the ~15k-token tool result appended after the last
-    // assistant tips the estimate over → triggers.
-    const messages = [userMessage(100), assistantMessage(100), toolMessage(15_000)]
-    const steps = stepsWithUsage({ inputTokens: 69_900, outputTokens: 100, totalTokens: 70_000 })
-    const result = await prepareStep({ messages, steps } as any)
-    expect(compactModelMessages).toHaveBeenCalledOnce()
-    expect(result).toEqual({ messages: compacted })
-  })
-
-  it('falls back to tokenx when last-step usage is not trustworthy (no inputTokens)', async () => {
-    compactModelMessages.mockClear()
-    const prepareStep = getPrepareStep()
-    // totalTokens claims 90k but inputTokens is missing (output-only) → distrust the
-    // anchor → tokenx of the tiny prompt (~300) stays under the trigger → no compaction.
-    const messages = [userMessage(100), assistantMessage(100), toolMessage(100)]
-    const steps = stepsWithUsage({ outputTokens: 90_000, totalTokens: 90_000 })
-    const result = await prepareStep({ messages, steps } as any)
-    expect(result).toBeUndefined()
-    expect(compactModelMessages).not.toHaveBeenCalled()
-  })
-
-  it('does not compress a continuation response solely because its prompt was billed twice', async () => {
+  it.each([300, 640_208])('sends the same prompt for prior reported usage %i', async (totalTokens) => {
     const prepareStep = getPrepareStep()
     const messages = [userMessage(100), assistantMessage(100), toolMessage(100)]
-    const steps = [
-      {
-        usage: { inputTokens: 100_100, outputTokens: 200, totalTokens: 100_300 },
-        providerMetadata: { google: { initialPromptTokenCount: 50_000 } }
-      }
-    ]
+    const steps = stepsWithUsage({ inputTokens: totalTokens - 100, outputTokens: 100, totalTokens })
+
     expect(await prepareStep({ messages, steps } as any)).toBeUndefined()
+  })
+
+  it('includes system instructions and active tool definitions in the input budget', async () => {
+    const compacted = [userMessage(10)]
+    compactModelMessages.mockResolvedValue(compacted)
+    const messages = [userMessage(20_000), assistantMessage(10_000), userMessage(20_000)]
+    const system = 'instruction '.repeat(10_000)
+    const tools = {
+      lookup: { description: 'search '.repeat(28_000), inputSchema: jsonSchema({ type: 'object' }) }
+    }
+    const input = { chatId: 'topic-1', contextWindow: CONTEXT_WINDOW, system }
+
+    expect(await getPrepareStep(scope(input))({ messages } as any)).toBeUndefined()
+    expect(await getPrepareStep(scope({ ...input, tools }))({ messages } as any)).toEqual({ messages: compacted })
+  })
+
+  it('compacts when the outgoing tool result grows under the same prior usage', async () => {
+    const compacted = [userMessage(10)]
+    compactModelMessages.mockResolvedValue(compacted)
+    const prepareStep = getPrepareStep()
+    const initial = [userMessage(100), assistantMessage(100)]
+    const steps = stepsWithUsage({ inputTokens: 200, outputTokens: 100, totalTokens: 300 })
+
+    expect(await prepareStep({ messages: [...initial, toolMessage(100)], steps } as any)).toBeUndefined()
+    expect(await prepareStep({ messages: [...initial, toolMessage(85_000)], steps } as any)).toEqual({
+      messages: compacted
+    })
   })
 })
 

@@ -11,6 +11,7 @@ export interface SelectedTaskRun {
   // becomes a job, but its log row still surfaces here), while a job read back before it
   // starts can still be 'pending' or 'delayed', which the page renders as queued.
   status: TaskRunLogEntity['status'] | 'pending' | 'delayed'
+  status: JobSnapshot['status'] | 'skipped'
   result: string | null
   error: string | null
 }
@@ -34,11 +35,11 @@ async function readTaskRunSession(task: ScheduledTaskEntity, runId: string, sign
   if (job.type !== 'agent.task' || job.scheduleId !== task.id) {
     throw DataApiErrorFactory.notFound('Task run', runId)
   }
-  const output = job.output as { sessionId?: unknown; result?: unknown } | null
+  const output = job.output as { kind?: unknown; sessionId?: unknown; result?: unknown } | null
   const selectedRun: SelectedTaskRun = {
     id: job.id,
     startedAt: job.startedAt ?? job.scheduledAt,
-    status: job.status,
+    status: job.status === 'completed' && output?.kind === 'skipped' ? 'skipped' : job.status,
     // Match AgentTaskService.toTaskRunLogEntity's stored-result projection.
     result: typeof output?.result === 'string' ? output.result : job.output != null ? JSON.stringify(job.output) : null,
     error: job.error?.message ?? null

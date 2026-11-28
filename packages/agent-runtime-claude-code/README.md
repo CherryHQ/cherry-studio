@@ -8,14 +8,19 @@ This package contains no Electron, product database, rendering, or tool policy.
 
 ## Access and ownership
 
+For a local CLI, desktop chat and Settings pass the resolved installation, workspace,
+environment and extra arguments to this package. `localClaudeOptions` configures
+the SDK launch. `probeClaudeModels` reads the initialization catalog without
+sending input or creating a transcript, then closes the query and joins its process.
+
 Pass a stable `backendId`, an absolute `configDir`, and optionally a `load(root)`
 callback returning materialized native options for a saved root. The host owns
 the backend namespace and must not create competing runtimes over the same files.
 `onError` forwards diagnostics to the host's logger. No credentials are logged.
 
 `create(options)` requires an absolute `cwd` and reserves the native session ID
-before starting execution. Native permission mode defaults to `default`; explicit
-modes and native hooks/callbacks pass through. `open(thread)` validates the backend
+before starting execution. The CLI resolves its permission mode from the selected settings
+unless the host supplies an explicit mode. Native hooks and callbacks pass through. `open(thread)` validates the backend
 and existing native storage. Opening and observing do not run a model. The first
 root submission starts or resumes its Query. Concurrent opens share that owner.
 Opening reports `native-storage-missing` when the archive is absent and
@@ -24,9 +29,8 @@ Opening reports `native-storage-missing` when the archive is absent and
 The host may supply a reserved `sessionId` to `create`. `claude.start()` initializes
 the connection without model input, optionally taking exclusive ownership of a
 matching SDK `WarmQuery` and its process-exit Promise. The host must match its
-captured configuration and credentials. Command discovery and
-permission-mode updates use typed native methods on `claude`, without exposing
-the Query iterator to a second reader.
+captured configuration and credentials. Command and model discovery, permission mode, and session effort use the same live
+Query. Clearing the effort override restores the model default. The runtime owns the Query iterator.
 
 `claudeThread(backendId, sessionId, agentId?)` constructs a reference from established
 native identity. Hosts store the opaque `Thread.id`; they do not parse its encoding.
@@ -59,8 +63,9 @@ by a newer read, model change, reset or shutdown cannot overwrite that newer sta
 
 ## Input and control
 
-Root `input.submit` supports `steer` and `follow-up`, mapped to native `next` and
-`later` priority. Busy `reject` is unsupported because the SDK exposes no atomic
+Root `input.steer.submit` and `input.followUp.submit` map to native `next` and
+`later` priority. The SDK queue is volatile. Both operations accept structured content through
+`claude.input`. Busy rejection is unsupported because the SDK exposes no atomic
 rejection operation. Steering can become a later turn when no tool boundary remains.
 Native Agent/SendMessage own child continuation; no direct child send is fabricated.
 
@@ -71,7 +76,11 @@ establishes completion, failure, interruption, or an unanswered outcome. Several
 inputs can share one response. Process loss leaves uncertain delivery uncompleted
 and never triggers automatic resubmission.
 
-Slash commands use native input. Correlated local completion adds `locally-handled`;
+Root `compact()` verifies the built-in command on the live Query. It confirms
+completion from the command's native lifecycle, manual boundary and matching result.
+The command creates no product input.
+
+Ordinary slash commands use native input. Correlated local completion adds `locally-handled`;
 uncorrelated command output is not assigned to the oldest pending input. On reset,
 old root access becomes unwritable. A new thread is bound only from authoritative
 native init/result session identity, using the existing Query. The reset event's

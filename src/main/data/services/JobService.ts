@@ -40,7 +40,7 @@ export type JobScheduleRunState =
    * finishedAt may be much later when recovery settles it), otherwise the
    * terminal-transition time.
    */
-  | { kind: 'terminal'; status: TerminalJobStatus; finishedAt: number; output?: unknown }
+  | { kind: 'terminal'; status: TerminalJobStatus; finishedAt: number; outputKind?: string }
 
 type ActiveJobScheduleRow = {
   scheduleId: string
@@ -52,7 +52,7 @@ type TerminalJobScheduleRunStateRow = {
   scheduleId: string
   status: JobStatus
   finishedAt: number
-  output: string | null
+  outputKind: string | null
 }
 
 type CancellingJobScheduleRow = {
@@ -256,7 +256,8 @@ export class JobService {
           WHEN terminal.status = 'cancelled' AND terminal.cancel_requested_at IS NOT NULL
           THEN terminal.cancel_requested_at
           ELSE terminal.finished_at
-        END AS "finishedAt"
+        END AS "finishedAt",
+        CASE WHEN json_valid(terminal.output) THEN json_extract(terminal.output, '$.kind') END AS "outputKind"
       FROM requested_schedules AS requested
       JOIN job AS terminal ON terminal.id = (
         SELECT candidate.id
@@ -301,7 +302,7 @@ export class JobService {
               kind: 'terminal',
               status: terminal.status,
               finishedAt: terminal.finishedAt,
-              ...(terminal.output !== null ? { output: JSON.parse(terminal.output) as unknown } : {})
+              ...(typeof terminal.outputKind === 'string' ? { outputKind: terminal.outputKind } : {})
             }
           ]
         ]

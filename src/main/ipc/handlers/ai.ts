@@ -3,6 +3,8 @@ import { randomUUID } from 'node:crypto'
 import { dialog } from 'electron'
 
 import { application } from '@application'
+import { agentProviderService } from '@data/services/AgentProviderService'
+import { agentService } from '@data/services/AgentService'
 import { AgentSessionEditError } from '@data/services/AgentSessionEditError'
 import { AgentSessionForkSourceError } from '@data/services/AgentSessionForkService'
 import { agentSessionService } from '@data/services/AgentSessionService'
@@ -19,11 +21,15 @@ import { childTimelines } from '@main/ai/agentSession/childTimelines'
 import { readToolResult } from '@main/ai/messages/toolResultRead'
 import { generateProfileStarters } from '@main/ai/profileStarters'
 import { AgentSessionForkError } from '@main/ai/runtime/fork'
-import { AiStreamAdmissionError, type MainDispatchRequest } from '@main/ai/streamManager'
+import { checkLocalAgent, listLocalAgentModels, readLocalAgentAccount } from '@main/ai/runtime/LocalRuntimeDriver'
+import { AiStreamAdmissionError, type MainDispatchRequest, persistentChatContextProvider } from '@main/ai/streamManager'
+import { detectLocalAgents, openLocalAgentTerminal, selectLocalAgentModel } from '@main/services/codeCli'
 import { openRequestPath } from '@main/services/file'
+import { protectLocalAgentEnvironment, resolveLocalAgentCredentials } from '@main/services/localAgentCredentials'
 import { PathStaleVersionError } from '@main/utils/file'
 import { isAgentSessionForkFailureReason } from '@shared/ai/agentSessionFork'
 import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
+import type { LocalAgentAccount, LocalAgentConfiguration } from '@shared/ai/localAgent'
 import type { ProjectionNotification } from '@shared/ai/messageProjection'
 import { ErrorCode, isDataApiError, isDataApiResourceNotFoundError } from '@shared/data/api/errors'
 import { JOB_ERROR_CODES } from '@shared/data/api/schemas/jobs'
@@ -37,6 +43,26 @@ import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { exposeAiError } from './exposeAiError'
 
 const logger = loggerService.withContext('ipc/ai')
+
+function resolveLocalAgentRequest<T extends LocalAgentConfiguration>(
+  draft: T,
+  agentId?: string
+): T & { account?: LocalAgentAccount } {
+  if (!agentId) return draft
+  const saved = agentProviderService.getBinding(agentId)
+  if (
+    !saved ||
+    draft.presetId !== saved.presetId ||
+    draft.executableOverride !== saved.executableOverride ||
+    draft.args.length !== saved.args.length ||
+    draft.args.some((arg, index) => arg !== saved.args[index]) ||
+    Object.keys(draft.env).length !== Object.keys(saved.env).length ||
+    Object.entries(draft.env).some(([key, value]) => value !== saved.env[key])
+  )
+    return draft
+
+  return { ...draft, env: resolveLocalAgentCredentials(saved).env, account: saved.account }
+}
 
 async function exposeAiStreamAdmission<T>(op: () => Promise<T>): Promise<T> {
   try {
@@ -116,6 +142,23 @@ async function exposeAgentSessionArchiveError<T>(operation: () => T | Promise<T>
 }
 
 export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
+  'ai.agent.delegation.read': async ({ originSessionId, requestId }) =>
+    application.get('AgentDelegationService').read(originSessionId, requestId),
+  'ai.agent.delegation.cancel': ({ originSessionId, requestId }) =>
+    application.get('AgentDelegationService').cancel(originSessionId, requestId),
+  'ai.agent.delegation.respond': async ({ originSessionId, requestId, approvalId, ...decision }, { senderId }) => {
+    if (!senderId) return false
+    return application.get('AgentDelegationService').respond(originSessionId, requestId, approvalId, decision)
+  },
+  'ai.topic.estimate_context': async ({ topicId, anchorId, modelId, fillsAnchor }) => {
+    if (temporaryChatService.hasTopic(topicId)) return null
+    try {
+      return await persistentChatContextProvider.estimateContextPreview(topicId, anchorId, modelId, fillsAnchor)
+    } catch (error) {
+      if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) return null
+      throw error
+    }
+  },
   'ai.agent.session.predict_prompt': (input) => application.get('AgentSessionRuntimeService').predictPrompt(input),
   'ai.agent.session.abort_prediction': async ({ sessionId, requestId }) =>
     application.get('AgentSessionRuntimeService').abortPromptPrediction(sessionId, requestId),
@@ -216,11 +259,63 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
     application.get('AiService').respondToolApproval(payload, senderWebContents(senderId)),
 
   // ── Agent creation + session warm-connection lifecycle. ──
+  'ai.local_agents.select_session_model': ({ sessionId, modelId }) =>
+    application.get('AgentSessionRuntimeService').selectLocalSessionModel(sessionId, modelId),
+  'ai.local_agents.set_config_option': ({ sessionId, configId, value }) =>
+    application.get('AgentSessionRuntimeService').setLocalConfigOption(sessionId, configId, value),
+  'ai.local_agents.set_thought_level': ({ sessionId, configId, value, modelId }) =>
+    application.get('AgentSessionRuntimeService').setLocalThoughtLevel(sessionId, configId, value, modelId),
+  'ai.local_agents.session_info': async ({ sessionId }) =>
+    application.get('AgentSessionRuntimeService').getLocalSessionView(sessionId),
+  'ai.local_agents.set_session_interactive': async ({ sessionId, active }, { senderId }) => {
+    if (senderId)
+      await application.get('AgentSessionRuntimeService').setLocalSessionInteractive(senderId, sessionId, active)
+  },
+  'ai.local_agents.detect': detectLocalAgents,
+  'ai.local_agents.web_start': ({ agentId, ...config }) =>
+    application.get('LocalAgentWebUiService').start(resolveLocalAgentRequest(config, agentId)),
+  'ai.local_agents.web_stop': ({ presetId }) => application.get('LocalAgentWebUiService').stop(presetId),
+  'ai.codebuddy_web.status': () => application.get('CodeBuddyWebUiService').getStatus(),
+  'ai.codebuddy_web.start': ({ agentId, ...config }) =>
+    application.get('CodeBuddyWebUiService').start(resolveLocalAgentRequest(config, agentId)),
+  'ai.codebuddy_web.stop': () => application.get('CodeBuddyWebUiService').stop(),
+  'ai.local_agents.open_terminal': ({ agentId, ...config }) =>
+    openLocalAgentTerminal(resolveLocalAgentRequest(config, agentId)),
+  'ai.local_agents.check': ({ agentId, ...config }) => checkLocalAgent(resolveLocalAgentRequest(config, agentId)),
+  'ai.local_agents.models': ({ agentId, ...config }) => listLocalAgentModels(resolveLocalAgentRequest(config, agentId)),
+  'ai.local_agents.subscription_usage': ({ agentId, sessionId }) =>
+    application.get('LocalAgentAuthService').readSubscriptionUsage(agentId, sessionId),
+  'ai.local_agents.read_account': ({ agentId, ...config }) =>
+    readLocalAgentAccount(resolveLocalAgentRequest(config, agentId)),
+  'ai.local_agents.authenticate': ({ requestId, agentId, config, methodId, secret, provider }, { senderId }) =>
+    application
+      .get('LocalAgentAuthService')
+      .authenticate(requestId, config, methodId, { secret, provider }, senderId, agentId),
+  'ai.local_agents.cancel_auth': ({ requestId }, { senderId }) =>
+    application.get('LocalAgentAuthService').cancel(requestId, senderId),
+  'ai.local_agents.respond_auth_consent': async ({ requestId, promptId, decision }, { senderId }) =>
+    application.get('LocalAgentAuthService').respondToBrowserConsent(requestId, promptId, decision, senderId),
+  'ai.local_agents.select_model': ({ agentId, nativeModel, ...selection }) =>
+    selectLocalAgentModel(agentId, nativeModel, selection),
+  'ai.local_agents.update_settings': async ({ agentId, name, settings }) => {
+    const { encryptedEnv, ...localRuntime } = protectLocalAgentEnvironment(settings, agentId)
+    const agent = agentService.updateAgent(agentId, { name, localRuntime }, { encryptedLocalEnv: encryptedEnv })
+    if (!agent) throw new IpcError(aiErrorCodes.AI_AGENT_NOT_FOUND, 'Local Agent not found')
+    return agent
+  },
+  'ai.local_agents.uninstall_components': ({ presetId, expectedPath }) =>
+    application.get('LocalAgentInstallService').getUninstallComponents(presetId, expectedPath),
+  'ai.local_agents.uninstall': ({ presetId, expectedPath, expectedComponents }) =>
+    application.get('LocalAgentInstallService').uninstall(presetId, expectedPath, expectedComponents),
+  'ai.local_agents.version': ({ presetId, latest }) =>
+    application.get('LocalAgentInstallService').getVersion(presetId, latest),
+  'ai.local_agents.install': ({ presetId, targetVersion, systemOnly }) =>
+    application.get('LocalAgentInstallService').install(presetId, targetVersion, systemOnly),
   'ai.agent.create': createAgent,
   'ai.agent.preview_config_change': async ({ approvalId }) => previewAgentConfigChange(approvalId),
-  'ai.agent.restore': async ({ agentId }) => {
+  'ai.agent.restore': async ({ agentId, launchSettings }) => {
     try {
-      return await application.get('AgentLifecycleService').restoreAgent(agentId)
+      return await application.get('AgentLifecycleService').restoreAgent(agentId, launchSettings)
     } catch (error) {
       if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) {
         throw new IpcError(aiErrorCodes.AI_AGENT_NOT_FOUND, error.message)
@@ -325,6 +420,8 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
     }),
 
   // ── Agent session runtime queries & commands. ──
+  'ai.agent.session.compact': ({ sessionId, generation, instructions }) =>
+    application.get('AgentSessionRuntimeService').compactSession(sessionId, generation, instructions),
   'ai.agent.session.refresh_context_usage': async ({ sessionId }) => {
     application.get('AgentSessionRuntimeService').refreshContextUsageOnDemand(sessionId)
   },

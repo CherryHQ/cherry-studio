@@ -112,11 +112,11 @@ it('closes a blocked shared-behavior child with an admitted steer without cancel
       })
     )
     confirmed(await runtime.resume())
-    await root.input.submit({ inputId: runtimeId('root'), text: 'Start a child', whenBusy: 'reject' })
+    await root.input.submit!({ inputId: runtimeId('root'), text: 'Start a child' })
     await expect.poll(() => childStarted).toBe(true)
     const child = confirmed(await root.durable.openChild('spawn')).handle
     childThread = child.thread
-    steering = child.input.submit({ inputId: runtimeId('steer'), text: 'Queued correction', whenBusy: 'steer' })
+    steering = child.input.steer.submit({ inputId: runtimeId('steer'), text: 'Queued correction' })
     await expect.poll(() => queued?.status).toBe('queued')
     expect(intent).toEqual({ inputId: 'steer', facts: ['dispatch-started'] })
     const accepted = queued!

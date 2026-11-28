@@ -75,6 +75,8 @@ export function removeSpecialCharactersForFileName(str: string): string {
     .trim()
 }
 
+export const excludeFileExt = (ext: string): string => `!${ext.toLowerCase()}`
+
 /**
  * 判断扩展名是否被允许列表接受，遵守 anyFileExt 通配符。
  *
@@ -85,7 +87,11 @@ export function removeSpecialCharactersForFileName(str: string): string {
  * @returns {boolean} 被接受返回true，否则返回false
  */
 export function isSupportedExtension(ext: string, supportExts: readonly string[]): boolean {
-  return supportExts.includes(anyFileExt) || supportExts.includes(ext)
+  const normalizedExt = (ext ?? '').toLowerCase()
+  if (normalizedExt && normalizedExt !== '.' && supportExts.includes(excludeFileExt(normalizedExt))) {
+    return false
+  }
+  return supportExts.includes(anyFileExt) || supportExts.includes(normalizedExt)
 }
 
 /**
@@ -100,7 +106,11 @@ export function isSupportedExtension(ext: string, supportExts: readonly string[]
  */
 export async function isSupportedFile(filePath: string, supportExts: Set<string>): Promise<boolean> {
   try {
-    if (supportExts.has(anyFileExt) || supportExts.has(getFileExtension(filePath))) {
+    const ext = getFileExtension(filePath)
+    if (ext !== '.' && supportExts.has(excludeFileExt(ext))) {
+      return false
+    }
+    if (supportExts.has(anyFileExt) || supportExts.has(ext)) {
       return true
     }
 

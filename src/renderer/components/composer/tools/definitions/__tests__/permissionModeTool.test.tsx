@@ -1,7 +1,7 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { TFunction } from 'i18next'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ComposerToolLauncher } from '@renderer/components/composer/toolLauncher'
 
@@ -12,8 +12,18 @@ vi.mock('@cherrystudio/ui', () => vi.importActual('@cherrystudio/ui'))
 const mocks = vi.hoisted(() => ({
   registerLaunchers: vi.fn<(launchers: ComposerToolLauncher[]) => () => void>(() => () => undefined),
   updateAgent: vi.fn(),
-  permissionMode: 'default',
+  ipcRequest: vi.fn(),
+  toastError: vi.fn(),
+  permissionMode: 'default' as string | undefined,
   agent: { id: 'agent-1', name: 'Support Bot' } as { id: string; name: string } | undefined
+}))
+
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: mocks.ipcRequest }
+}))
+
+vi.mock('@renderer/services/toast', () => ({
+  toast: { error: mocks.toastError }
 }))
 
 vi.mock('@renderer/hooks/agent/useAgent', () => ({
@@ -44,9 +54,16 @@ const renderLauncher = () => {
 const renderRuntime = () => renderLauncher()?.submenu ?? []
 
 describe('permissionModeTool submenu', () => {
+  afterEach(async () => {
+    cleanup()
+    // Radix restores focus in a deferred task, before this jsdom environment is disposed.
+    await new Promise<void>((resolve) => setTimeout(resolve, 0))
+  })
   beforeEach(() => {
     mocks.registerLaunchers.mockClear()
     mocks.updateAgent.mockClear()
+    mocks.ipcRequest.mockReset().mockResolvedValue(null)
+    mocks.toastError.mockClear()
     mocks.permissionMode = 'default'
     mocks.agent = { id: 'agent-1', name: 'Support Bot' }
   })
@@ -160,5 +177,274 @@ describe('permissionModeTool submenu', () => {
 
     expect(mocks.updateAgent).not.toHaveBeenCalled()
     expect(screen.getByRole('dialog')).toBeInTheDocument()
+  })
+
+  it('keeps unrelated mode catalogs out of the permission toolbar', () => {
+    const codexMode = {
+      id: 'codex-mode',
+      currentValue: 'workspace',
+      options: [
+        { value: 'readOnly', name: 'Read Only', permissionMode: 'plan' },
+        { value: 'workspace', name: 'Workspace', permissionMode: 'acceptEdits' },
+        { value: 'fullAccess', name: 'Full Access', permissionMode: 'bypassPermissions' }
+      ]
+    }
+    const piMode = {
+      id: 'mode',
+      currentValue: 'medium',
+      options: [
+        { value: 'off', name: 'Thinking: off' },
+        { value: 'medium', name: 'Thinking: medium' }
+      ]
+    }
+
+    expect(
+      permissionModeTool.condition?.({
+        scope: 'session',
+        session: { agentId: 'a1', sessionId: 's1', agentType: 'local', localPermission: { mode: codexMode } }
+      } as any)
+    ).toBe(true)
+    expect(
+      permissionModeTool.condition?.({
+        scope: 'session',
+        session: {
+          agentId: 'a2',
+          sessionId: 's2',
+          agentType: 'local',
+          localPermission: { mode: piMode }
+        }
+      } as any)
+    ).toBe(false)
+    expect(
+      permissionModeTool.condition?.({
+        scope: 'session',
+        session: { agentId: 'a3', sessionId: 's3', agentType: 'local', localPermission: {} }
+      } as any)
+    ).toBe(false)
+  })
+
+  it('changes execution environment from session options and confirms disabling the sandbox separately', async () => {
+    const user = userEvent.setup()
+    const Runtime = permissionModeTool.composer!.runtime!
+    render(
+      <Runtime
+        context={
+          {
+            t,
+            launcher: { registerLaunchers: mocks.registerLaunchers },
+            session: {
+              agentId: 'agent-local',
+              sessionId: 'session-local',
+              agentType: 'local',
+              localPermission: {
+                options: [
+                  {
+                    id: 'environment',
+                    name: 'Execution environment',
+                    category: 'mode',
+                    type: 'select',
+                    currentValue: 'local',
+                    options: [
+                      { value: 'local', name: 'Local' },
+                      { value: 'orb', name: 'Orb' }
+                    ]
+                  },
+                  {
+                    id: 'sandbox',
+                    name: 'Sandbox',
+                    role: 'security',
+                    type: 'boolean',
+                    currentValue: true,
+                    confirmationValue: false
+                  }
+                ]
+              }
+            }
+          } as any
+        }
+      />
+    )
+    const launchers = mocks.registerLaunchers.mock.calls.at(-1)?.[0] ?? []
+    const sessionMenu = launchers.find((item) => item.id === 'local-session-options')
+    const permissionMenu = launchers.find((item) => item.id === 'permission-mode')
+    sessionMenu?.submenu
+      ?.find((item) => item.id === 'local-option:environment')
+      ?.submenu?.find((item) => item.label === 'Orb')
+      ?.action?.({} as any)
+    expect(mocks.ipcRequest).toHaveBeenCalledWith('ai.local_agents.set_config_option', {
+      sessionId: 'session-local',
+      configId: 'environment',
+      value: 'orb'
+    })
+    expect(sessionMenu?.submenu?.some((item) => item.id === 'local-option:sandbox')).toBe(false)
+    permissionMenu?.submenu
+      ?.find((item) => item.id === 'local-option:sandbox')
+      ?.submenu?.find((item) => item.label === 'common.disabled')
+      ?.action?.({} as any)
+    expect(mocks.ipcRequest).toHaveBeenCalledTimes(1)
+    await user.click(await screen.findByRole('button', { name: 'Enable Full Access' }))
+    expect(mocks.ipcRequest).toHaveBeenLastCalledWith('ai.local_agents.set_config_option', {
+      sessionId: 'session-local',
+      configId: 'sandbox',
+      value: false
+    })
+  })
+
+  it('writes the shared Agent permission for Muse native choices', () => {
+    mocks.agent = { id: 'agent-local', name: 'Muse' }
+    mocks.permissionMode = undefined
+    const Runtime = permissionModeTool.composer!.runtime!
+    const context = {
+      t,
+      launcher: { registerLaunchers: mocks.registerLaunchers },
+      session: {
+        agentId: 'agent-local',
+        sessionId: 'session-muse',
+        agentType: 'local',
+        localPermission: {
+          mode: {
+            id: 'mode',
+            currentValue: 'denyUnmatched',
+            nativePermissionNames: true,
+            options: [
+              { value: 'onRequest', name: 'Ask on request', permissionMode: 'default' },
+              { value: 'promptUnmatched', name: 'Ask before unmatched actions', permissionMode: 'default' },
+              { value: 'denyUnmatched', name: 'Deny unmatched actions', permissionMode: 'default' },
+              { value: 'allowAll', name: 'Allow all', permissionMode: 'bypassPermissions' }
+            ]
+          }
+        }
+      }
+    }
+    render(<Runtime context={context as any} />)
+
+    const launchers = mocks.registerLaunchers.mock.calls.at(-1)?.[0] ?? []
+    const submenu = launchers.find((item) => item.id === 'permission-mode')?.submenu ?? []
+    submenu.find(({ label }) => label === 'Ask on request')?.action?.({} as any)
+    expect(mocks.updateAgent).toHaveBeenCalledWith(
+      { id: 'agent-local', configuration: { permission_mode: 'default' } },
+      { showSuccessToast: false }
+    )
+  })
+
+  it('saves local Plan and permission choices on the Agent', async () => {
+    const user = userEvent.setup()
+    mocks.agent = { id: 'agent-local', name: 'ZCode Local' }
+    mocks.permissionMode = 'acceptEdits'
+    const Runtime = permissionModeTool.composer!.runtime!
+    const zcodeMode = {
+      id: 'mode',
+      currentValue: 'build',
+      options: [
+        { value: 'plan', name: 'plan', permissionMode: 'plan' },
+        { value: 'build', name: 'build', permissionMode: 'acceptEdits' },
+        { value: 'edit', name: 'edit', permissionMode: 'acceptEdits' },
+        { value: 'guarded', name: 'guarded', permissionMode: 'default' },
+        { value: 'yolo', name: 'yolo', permissionMode: 'bypassPermissions' }
+      ]
+    }
+    const context = {
+      t,
+      launcher: { registerLaunchers: mocks.registerLaunchers },
+      session: {
+        agentId: 'agent-local',
+        sessionId: 'session-zcode',
+        agentType: 'local',
+        localPermission: { mode: zcodeMode, disabled: false }
+      }
+    }
+
+    const { rerender } = render(<Runtime context={context as any} />)
+    const launchers = mocks.registerLaunchers.mock.calls.at(-1)?.[0] ?? []
+    const permission = launchers.find((item) => item.id === 'permission-mode')
+    const plan = launchers.find((item) => item.id === 'plan-mode')
+    const submenu = permission?.submenu ?? []
+    expect(submenu.map((item) => item.id)).toEqual([
+      'permission-mode-default',
+      'permission-mode-acceptEdits',
+      'permission-mode-bypassPermissions'
+    ])
+    expect(submenu.find((item) => item.id === 'permission-mode-acceptEdits')?.active).toBe(true)
+
+    submenu.find((item) => item.id === 'permission-mode-default')?.action?.({} as any)
+    expect(mocks.updateAgent).toHaveBeenCalledWith(
+      { id: 'agent-local', configuration: { permission_mode: 'default' } },
+      { showSuccessToast: false }
+    )
+
+    mocks.updateAgent.mockClear()
+    expect(plan?.sources).toContain('root-panel')
+    plan?.action?.({} as any)
+    expect(mocks.updateAgent).toHaveBeenCalledWith(
+      { id: 'agent-local', configuration: { permission_mode: 'plan' } },
+      { showSuccessToast: false }
+    )
+
+    // Full Access requires confirmation.
+    mocks.updateAgent.mockClear()
+    submenu.find((item) => item.id === 'permission-mode-bypassPermissions')?.action?.({} as any)
+    expect(mocks.updateAgent).not.toHaveBeenCalled()
+    expect(await screen.findByRole('dialog')).toHaveTextContent('ZCode Local')
+    await user.click(screen.getByRole('button', { name: 'Enable Full Access' }))
+    expect(mocks.updateAgent).toHaveBeenCalledWith(
+      { id: 'agent-local', configuration: { permission_mode: 'bypassPermissions' } },
+      { showSuccessToast: false }
+    )
+
+    // Streaming disables submenu choices and blocks mode switches.
+    mocks.updateAgent.mockClear()
+    rerender(
+      <Runtime
+        context={
+          {
+            ...context,
+            session: {
+              ...context.session,
+              localPermission: { mode: zcodeMode, disabled: true }
+            }
+          } as any
+        }
+      />
+    )
+    const disabledSubmenu = mocks.registerLaunchers.mock.calls.at(-1)?.[0]?.[0]?.submenu ?? []
+    expect(disabledSubmenu.every((item) => item.disabled === true)).toBe(true)
+    disabledSubmenu.find((item) => item.id === 'permission-mode-default')?.action?.({} as any)
+    expect(mocks.updateAgent).not.toHaveBeenCalled()
+
+    // Config-backed permissions use the same Agent update.
+    mocks.updateAgent.mockClear()
+    const ampConfigPermission = {
+      id: 'permissions',
+      currentValue: 'default',
+      options: [
+        { value: 'default', name: 'Default', permissionMode: 'default' },
+        { value: 'bypass', name: 'Bypass', permissionMode: 'bypassPermissions' }
+      ]
+    }
+    rerender(
+      <Runtime
+        context={
+          {
+            ...context,
+            session: {
+              agentId: 'agent-amp',
+              sessionId: 'session-amp',
+              agentType: 'local',
+              localPermission: { mode: ampConfigPermission, disabled: false }
+            }
+          } as any
+        }
+      />
+    )
+    const ampSubmenu = mocks.registerLaunchers.mock.calls.at(-1)?.[0]?.[0]?.submenu ?? []
+    expect(ampSubmenu.map((item) => item.id)).toEqual(['permission-mode-default', 'permission-mode-bypassPermissions'])
+    act(() => {
+      ampSubmenu.find((item) => item.id === 'permission-mode-bypassPermissions')?.action?.({} as any)
+    })
+    await user.click(await screen.findByRole('button', { name: 'Enable Full Access' }))
+    expect(mocks.updateAgent).toHaveBeenCalledWith(
+      { id: 'agent-amp', configuration: { permission_mode: 'bypassPermissions' } },
+      { showSuccessToast: false }
+    )
   })
 })

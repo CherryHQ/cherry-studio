@@ -327,6 +327,25 @@ function needsWarmTools(body: unknown): boolean {
   return Array.isArray(body) ? body.some(wants) : wants(body)
 }
 
+/**
+ * Both `SessionLimitReachedError` and `StoreClosedError` mean "cannot take a new session
+ * right now", which is a retryable 503 rather than a 500 or a fault in the request.
+ */
+async function withSessionAvailability(serverId: string, run: () => Promise<Response>): Promise<Response> {
+  try {
+    return await run()
+  } catch (error) {
+    if (error instanceof SessionLimitReachedError || error instanceof StoreClosedError) {
+      logger.warn('Refused MCP session', { serverId, error })
+      return new Response(JSON.stringify(jsonRpcEnvelope(MCP_TRANSPORT_ERROR, error.message)), {
+        status: 503,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    }
+    throw error
+  }
+}
+
 async function handleProxyPost(
   sessions: McpSessionStore,
   serverIdOrName: string,
@@ -338,7 +357,9 @@ async function handleProxyPost(
     await application.get('McpCatalogService').warmToolsCache(server.id)
   }
 
-  if (!(await isLegacyRequest(request, body))) return sessions.handleModern(server, request, body)
+  if (!(await isLegacyRequest(request, body))) {
+    return withSessionAvailability(server.id, () => sessions.handleModern(server, request, body))
+  }
 
   const session = lookupSession(sessions, request, server.id)
   if (session === null) return sessionNotFound()
@@ -347,20 +368,7 @@ async function handleProxyPost(
   if (session) return session.transport.handleRequest(request, { parsedBody: body })
 
   if (isInitialize(body)) {
-    try {
-      return await sessions.createAndHandle(server, request, body)
-    } catch (error) {
-      // Both mean "cannot take a new session right now", which is a retryable 503 rather
-      // than a fault in the request.
-      if (error instanceof SessionLimitReachedError || error instanceof StoreClosedError) {
-        logger.warn('Refused MCP session', { serverId: server.id, error })
-        return new Response(
-          JSON.stringify({ jsonrpc: '2.0', error: { code: -32000, message: error.message }, id: null }),
-          { status: 503, headers: { 'Content-Type': 'application/json' } }
-        )
-      }
-      throw error
-    }
+    return withSessionAvailability(server.id, () => sessions.createAndHandle(server, request, body))
   }
 
   return handleOneShot(server, request, body)
@@ -373,7 +381,9 @@ async function handleProxySessionOnly(
   request: Request
 ): Promise<Response> {
   const server = resolveServer(serverIdOrName)
-  if (!(await isLegacyRequest(request))) return sessions.handleModern(server, request)
+  if (!(await isLegacyRequest(request))) {
+    return withSessionAvailability(server.id, () => sessions.handleModern(server, request))
+  }
   const session = lookupSession(sessions, request, server.id)
   if (session === null) return sessionNotFound()
   if (!session) return methodNotAllowed()
