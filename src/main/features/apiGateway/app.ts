@@ -22,6 +22,7 @@ import {
 } from './openapiDocs'
 import { chatRoutes } from './routes/chat'
 import { createGeminiRoutes } from './routes/gemini'
+import { grokBuildRoutes } from './routes/grokBuild'
 import { knowledgeRoutes } from './routes/knowledge'
 import { createMcpRoutes } from './routes/mcp'
 import { messagesRoutes } from './routes/messages'
@@ -54,6 +55,7 @@ const buildV1Routes = (mcpSessions: McpSessionStore, surface: GatewaySurface) =>
     })
     .use(messagesRoutes)
     .use(chatRoutes)
+    .use(grokBuildRoutes)
     .use(responsesRoutes)
     .use(modelsRoutes)
     .use(knowledgeRoutes)

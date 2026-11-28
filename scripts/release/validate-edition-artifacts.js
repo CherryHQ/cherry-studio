@@ -27,6 +27,11 @@ function validateEditionArtifacts({ distDirectory, edition, platform, productNam
     }
 
     const updateInfo = parse(fs.readFileSync(manifestPath, 'utf8'))
+    if (updateInfo?.version !== version) {
+      throw new Error(
+        `Update manifest version mismatch in ${manifest.file}: expected ${version}, found ${updateInfo?.version ?? 'missing'}`
+      )
+    }
     const urls = Array.isArray(updateInfo?.files) ? updateInfo.files.map((file) => file.url) : []
     for (const url of manifest.urls) {
       if (!urls.includes(url)) {

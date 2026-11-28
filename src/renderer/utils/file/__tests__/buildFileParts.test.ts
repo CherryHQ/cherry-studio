@@ -2,10 +2,10 @@ import { Blob as NodeBlob } from 'node:buffer'
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { COMPOSER_FILE_KIND, FILE_TYPE } from '@renderer/types/file'
+import { COMPOSER_FILE_KIND } from '@renderer/types/file'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { createInternalEntryInputSchema } from '@shared/ipc/schemas/file'
-import type { AbsoluteFilePath } from '@shared/types/file'
+import { type AbsoluteFilePath, FILE_TYPE } from '@shared/types/file'
 
 import { buildFilePartsForAttachments } from '../buildFileParts'
 

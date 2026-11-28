@@ -15,7 +15,7 @@
  * silently inherit a finite global instead.
  */
 import type { ContextSettingsOverride, EffectiveContextSettings } from '@shared/data/types/contextSettings'
-import { clampThresholdPercent } from '@shared/utils/contextSettings'
+import { clampThresholdPercent, resolveMaxMessages } from '@shared/utils/contextSettings'
 
 export interface ResolveContextSettingsInput {
   /** Resolved global defaults (from `chat.context_settings.*` prefs). */
@@ -30,7 +30,7 @@ export function resolveContextSettings(input: ResolveContextSettingsInput): Effe
   return {
     enabled: assistant?.enabled ?? globals.enabled,
     truncateThreshold: assistant?.truncateThreshold ?? globals.truncateThreshold,
-    maxMessages: assistant && 'maxMessages' in assistant ? (assistant.maxMessages ?? null) : globals.maxMessages,
+    maxMessages: resolveMaxMessages(assistant, globals.maxMessages),
     compress: {
       enabled: assistant?.compress?.enabled ?? globals.compress.enabled,
       // `??` treats null/undefined alike: users disable compression via

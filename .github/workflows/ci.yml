@@ -1,4 +1,5 @@
 name: CI
+run-name: ${{ github.event_name == 'schedule' && 'Nightly CI' || '' }}
 
 permissions:
   contents: read
@@ -6,7 +7,7 @@ permissions:
 on:
   workflow_dispatch:
   schedule:
-    - cron: "17 3 * * *"
+    - cron: "17 18 * * *" # 02:17 Beijing time
   push:
     branches: [main, "release/v*"]
   pull_request:
@@ -47,12 +48,13 @@ jobs:
           BEFORE_SHA: ${{ github.event.before }}
         run: |
           if [[ "$EVENT_NAME" == "pull_request" ]]; then
-            node scripts/validation/run.mjs --committed --base HEAD^1 --github-output
-          elif [[ "$EVENT_NAME" == "push" && -n "$BEFORE_SHA" && "$BEFORE_SHA" != "0000000000000000000000000000000000000000" ]]; then
-            if git fetch --no-tags --depth=1 origin "$BEFORE_SHA"; then
-              node scripts/validation/run.mjs --committed --base "$BEFORE_SHA" --github-output
+            node scripts/validation/run.mjs --committed --base HEAD^1 --no-tests --github-output
+          elif [[ "$EVENT_NAME" == "push" && "$GITHUB_REF" == "refs/heads/main" ]]; then
+            if [[ -n "$BEFORE_SHA" && "$BEFORE_SHA" != "0000000000000000000000000000000000000000" ]] &&
+               git fetch --no-tags --depth=1 origin "$BEFORE_SHA"; then
+              node scripts/validation/run.mjs --committed --base "$BEFORE_SHA" --no-tests --github-output
             else
-              node scripts/validation/run.mjs --all --github-output
+              node scripts/validation/run.mjs --all --no-tests --github-output
             fi
           else
             node scripts/validation/run.mjs --all --github-output

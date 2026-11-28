@@ -276,6 +276,14 @@ const RUNTIME_PACKAGES = [
   'agent-runtime-claude-code'
 ]
 const RUNTIME_SOURCE_DIRS = RUNTIME_PACKAGES.map((name) => path.join(RENDERER_DIRNAME, 'packages', name, 'src'))
+const RUNTIME_PACKAGE_ENTRIES = new Set(
+  RUNTIME_PACKAGES.flatMap((name) => {
+    const manifest = JSON.parse(fs.readFileSync(path.join(RENDERER_DIRNAME, 'packages', name, 'package.json'), 'utf8'))
+    return Object.keys(manifest.exports ?? {})
+      .filter((entry) => entry.startsWith('./') && !entry.includes('*'))
+      .map((entry) => `@cherrystudio/${name}/${entry.slice(2)}`)
+  })
+)
 const BARREL_DIRS = new Set()
 for (const idx of [SRC_DIR, ...RUNTIME_SOURCE_DIRS].flatMap((dir) => collectIndexTs(dir))) {
   try {
@@ -446,6 +454,7 @@ const barrelPlugin = {
       create(ctx) {
         const f = barrelFilename(ctx)
         const check = (node, spec) => {
+          if (RUNTIME_PACKAGE_ENTRIES.has(spec)) return
           const tgt = resolveBarrelSpec(spec, f)
           if (!tgt) return
           const d = outermostCrossedBarrelDir(tgt, f)

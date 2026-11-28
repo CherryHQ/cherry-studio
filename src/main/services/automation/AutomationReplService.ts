@@ -7,12 +7,12 @@ import * as z from 'zod'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase, Signal } from '@main/core/lifecycle'
 import { defineUtilityProcess } from '@main/core/utilityProcess/defineUtilityProcess'
 import type { UtilityProcessInstance } from '@main/core/utilityProcess/types'
 import type { BrowserControlSession } from '@main/features/browser'
 import type { ComputerUseTask } from '@main/services/ComputerUseService'
+import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
 import type { ComputerUseApp } from '@shared/ipc/schemas/computerUse'
 
 import browserDocumentation from '../../../../resources/skills/cherry-browser/references/api.md?raw'
@@ -219,7 +219,11 @@ export class AutomationReplService extends BaseService {
       signal.throwIfAborted()
       if (!this.accepting || closing || state.run !== run) throw new Error('Automation run is no longer active')
       const live = access()
-      return { browser: ceiling.browser && live.browser, computer: ceiling.computer && live.computer }
+      return {
+        browser: ceiling.browser && live.browser,
+        computer: ceiling.computer && live.computer,
+        browserReadOnly: Boolean(ceiling.browserReadOnly || live.browserReadOnly)
+      }
     }
     const release = async () => {
       const results = await Promise.allSettled([
@@ -318,6 +322,11 @@ export class AutomationReplService extends BaseService {
               if ((domain !== 'browser' && domain !== 'computer') || !allowed[domain])
                 throw Object.assign(new Error(`Automation capability unavailable: ${domain}`), {
                   code: 'CAPABILITY_UNAVAILABLE',
+                  effect: 'none'
+                })
+              if (domain === 'browser' && mutating && allowed.browserReadOnly)
+                throw Object.assign(new Error('Browser automation is in read-only mode'), {
+                  code: 'READ_ONLY',
                   effect: 'none'
                 })
               if (!state.documents.has('repl') || (name === 'documentation' && !documentedInCell.has('repl'))) {

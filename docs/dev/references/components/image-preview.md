@@ -4,7 +4,9 @@ sources:
   - src/renderer/components/Preview
   - packages/ui/src/lib/mermaid
   - src/renderer/services/MermaidRenderService.ts
+  - src/renderer/services/PlantUmlRenderService.ts
   - src/renderer/workers/mermaid.worker.ts
+  - src/renderer/workers/plantUml.worker.ts
 ---
 
 # Image Preview Components
@@ -15,7 +17,7 @@ by `CodeBlockView`. The current language mapping is:
 | Code language | Component | Renderer |
 |---|---|---|
 | `mermaid` | `MermaidPreview` | Merman (Rust Mermaid compiled to WASM) through `@cherrystudio/ui/mermaid` |
-| `plantuml` | `PlantUmlPreview` | Remote `www.plantuml.com` SVG endpoint |
+| `plantuml` | `PlantUmlPreview` | Local PlantUML TeaVM engine with Viz.js |
 | `svg` | `SvgPreview` | Supplied SVG string |
 | `dot`, `graphviz` | `GraphvizPreview` | Lazily initialized `@viz-js/viz` instance |
 
@@ -24,8 +26,8 @@ The four components are lazy-loaded by
 
 ## Shared rendering path
 
-Each preview passes its renderer to `useDebouncedRender`, then renders the
-result through `ImagePreviewLayout`:
+Mermaid, SVG, and Graphviz pass their renderers to `useDebouncedRender`. All
+four formats display the result through `ImagePreviewLayout`:
 
 ```text
 source change
@@ -39,7 +41,7 @@ source change
 ```
 
 `useDebouncedRender` owns the host ref, loading/error state, debounced trigger,
-cancel, and an optional `shouldRender` predicate. Rendering runs inside
+and cancellation. Rendering runs inside
 `React.startTransition`. Cancelling drops a pending debounce; it does not abort
 an asynchronous render that has already started.
 
@@ -110,10 +112,19 @@ the error.
 
 ### PlantUML
 
-`PlantUmlPreview` UTF-8 encodes and raw-deflates the diagram, applies PlantUML's
-custom base64 alphabet, and fetches SVG from the fixed public PlantUML server.
-It reports HTTP and network failures through the shared error state. There is no
-automatic retry, server selection, or server-health monitor.
+Completed Markdown PlantUML blocks open in preview by default. Streaming blocks
+show source until generation ends. The source and preview are still available
+through the code block toolbar.
+
+`PlantUmlPreview` debounces changes for 300 ms and sends source to a shared
+Web Worker that runs the PlantUML TeaVM headless engine. Graphviz-based layouts
+use Viz.js. The worker runs one diagram at a time and terminates when an active
+request is cancelled or exceeds 10 s. The next request starts a fresh worker.
+
+The preview keeps a white backing for PlantUML's light SVG colours. It sends no
+source to an external service. Unavailable includes, including external URLs,
+local files, and unbundled standard-library files, surface as render errors.
+The SVG sanitizer strips automatically loaded image and stylesheet elements.
 
 ### SVG
 
@@ -130,8 +141,6 @@ face because Graphviz has metrics for it. These defaults are prepended to the
 graph body as `graph`/`node`/`edge` statements, because Viz ignores its default
 attribute options for parsed nodes; colours the DOT source sets still win. The
 preview re-renders when the app theme changes.
-
-PlantUML keeps a white backing: its server output has fixed light colours.
 
 ## Verification
 
