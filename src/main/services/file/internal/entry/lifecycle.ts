@@ -14,15 +14,15 @@
  *
  * Renderer-backed delete actions use narrower contracts:
  * - `permanentDeleteFromTrash` accepts only unreferenced trashed internal rows.
- * - `removeExternalFromLibrary` accepts only unreferenced external rows and
- *   never removes their user-owned paths.
+ * - `removeExternalFromLibrary` preserves user-owned paths and protects
+ *   referenced rows, except missing originals with only optional translation refs.
  */
 
 import type { DbOrTx } from '@data/db/types'
 import { loggerService } from '@logger'
-import { remove as fsRemove } from '@main/utils/file'
+import { remove as fsRemove, getPathStatus } from '@main/utils/file'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
-import type { FileEntry, FileEntryId } from '@shared/data/types/file'
+import type { ExternalFileEntry, FileEntry, FileEntryId } from '@shared/data/types/file'
 import type { BatchMutationResult } from '@shared/types/file'
 
 import { runPathMutationExclusive } from '../../pathMutationLock'
@@ -159,25 +159,45 @@ async function permanentDeleteFromTrashLocked(deps: FileManagerDeps, id: FileEnt
   await cleanupDeletedEntry(deps, entry)
 }
 
-function removeExternalFromLibraryTx(deps: FileManagerDeps, tx: DbOrTx, id: FileEntryId): FileEntry {
-  const entry = deps.fileEntryService.getByIdTx(tx, id)
-  if (entry.origin !== 'external') {
-    throw DataApiErrorFactory.invalidOperation('remove file from library', `File entry ${id} must be an external file`)
-  }
-  assertUnreferenced(deps, tx, id, 'remove file from library')
-  deps.fileEntryService.deleteTx(tx, id)
-  return entry
-}
-
 export async function removeExternalFromLibrary(deps: FileManagerDeps, id: FileEntryId): Promise<void> {
-  return deps.contentWriteLock.runExclusive(id, () =>
-    runPathMutationExclusive(() => removeExternalFromLibraryLocked(deps, id))
-  )
+  return deps.contentWriteLock.runExclusive(id, async () => {
+    const pending = await runPathMutationExclusive(() => removeExternalFromLibraryIfAllowed(deps, id))
+    if (!pending) return
+
+    const status = await getPathStatus(pending.externalPath)
+    if (status.ok || status.reason !== 'missing') {
+      throw DataApiErrorFactory.invalidOperation('remove file from library', `File entry ${id} is still referenced`)
+    }
+    await runPathMutationExclusive(() => removeExternalFromLibraryIfAllowed(deps, id, pending.externalPath))
+  })
 }
 
-async function removeExternalFromLibraryLocked(deps: FileManagerDeps, id: FileEntryId): Promise<void> {
-  const entry = deps.fileEntryService.withWriteTx((tx) => removeExternalFromLibraryTx(deps, tx, id))
-  await cleanupDeletedEntry(deps, entry)
+async function removeExternalFromLibraryIfAllowed(
+  deps: FileManagerDeps,
+  id: FileEntryId,
+  missingPath?: ExternalFileEntry['externalPath']
+): Promise<ExternalFileEntry | undefined> {
+  const result = deps.fileEntryService.withWriteTx((tx) => {
+    const entry = deps.fileEntryService.getByIdTx(tx, id)
+    const operation = 'remove file from library'
+    if (entry.origin !== 'external') {
+      throw DataApiErrorFactory.invalidOperation(operation, `File entry ${id} must be an external file`)
+    }
+    if (missingPath !== undefined && entry.externalPath !== missingPath) {
+      throw DataApiErrorFactory.invalidOperation(operation, `File entry ${id} changed during removal`)
+    }
+    if (missingPath !== undefined || deps.fileRefService.countPersistentRefsByEntryIdTx(tx, id) > 0) {
+      if (deps.fileRefService.hasProtectedRefsForMissingExternalEntryTx(tx, id)) {
+        throw DataApiErrorFactory.invalidOperation(operation, `File entry ${id} is still referenced`)
+      }
+      if (missingPath === undefined) return { kind: 'check-path' as const, entry }
+    }
+    deps.fileEntryService.deleteTx(tx, id)
+    return { kind: 'removed' as const, entry }
+  })
+  if (result.kind === 'check-path') return result.entry
+  await cleanupDeletedEntry(deps, result.entry)
+  return undefined
 }
 
 function aggregateWriteTx<T>(

@@ -319,6 +319,7 @@ export interface JanitorConfig {
    * Compression is triggered when token usage exceeds this value.
    */
   contextWindow: number
+  estimateHistoryTokens?: (history: ContextMessage[]) => number
 
   /**
    * Number of recent turns to keep when compressing. A "turn" is an atomic
@@ -359,8 +360,8 @@ export interface JanitorConfig {
 /**
  * Tracks token usage across calls and shrinks over-budget histories.
  *
- * Budget source: an externally fed usage value (`feedTokenUsage`, consumed
- * once) or the character heuristic (`estimateObject`). When over budget the
+ * Budget source: the configured history estimator, an externally fed usage
+ * value (`feedTokenUsage`, consumed once), or the character heuristic. When over budget the
  * caller's `onBeforeCompress` hook gets the first chance to shrink the
  * history; if the result is still over budget, everything but the last
  * `preserveRecentMessages` turns is dropped behind a placeholder summary.
@@ -430,7 +431,8 @@ export class Janitor {
       return null
     }
 
-    const currentTokens = this._externalTokenUsage ?? estimateObject(history)
+    const currentTokens =
+      this.config.estimateHistoryTokens?.(history) ?? this._externalTokenUsage ?? estimateObject(history)
     this._externalTokenUsage = null
 
     if (currentTokens <= this.config.contextWindow) {

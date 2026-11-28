@@ -204,7 +204,9 @@ describe('evaluateUserDataSqliteGuard', () => {
   describe('literal shell scanning', () => {
     it.each([
       ['claude-code', 'Bash'],
-      ['pi', 'bash']
+      ['claude-code', 'PowerShell'],
+      ['pi', 'bash'],
+      ['pi', 'powershell']
     ] as const)('protects %s %s commands', async (runtime, toolName) => {
       await expect(evaluate({ runtime, toolName, args: { command: `sqlite3 "${databaseFile}"` } })).resolves.toEqual(
         DENIAL
@@ -224,6 +226,7 @@ describe('evaluateUserDataSqliteGuard', () => {
 
     it.each([
       ['claude-code', 'Bash', (target: string) => `python -c "import sqlite3; sqlite3.connect('${target}')"`],
+      ['claude-code', 'PowerShell', (target: string) => `python -c "import sqlite3; sqlite3.connect('${target}')"`],
       ['pi', 'bash', (target: string) => `node -e "require('better-sqlite3')('${target}')"`]
     ] as const)(
       'checks protected SQLite literals inside %s %s interpreter code',

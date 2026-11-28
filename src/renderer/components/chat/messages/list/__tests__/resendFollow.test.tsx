@@ -193,9 +193,8 @@ function createReadingFixture(handler: ResendHandler) {
         uiMessages,
         activeNodeId: 'u1',
         regenerate: vi.fn(async () => {}),
-        setMessages: vi.fn(),
         stop: vi.fn(async () => {}),
-        refresh: vi.fn(async () => uiMessages),
+        refresh: vi.fn(async () => {}),
         cache,
         seedReservedMessages,
         startNewContextBlocked: false

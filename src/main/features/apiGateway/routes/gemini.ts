@@ -2,13 +2,11 @@ import { bearer } from '@elysia/bearer'
 import { Elysia } from 'elysia'
 
 import { application } from '@application'
-import {
-  ANTIGRAVITY_MODEL_PATH_SEPARATOR,
-  isReservedGeminiGatewayModelId,
-  stripGeminiGatewayModelSuffix
-} from '@shared/utils/apiGateway'
+import { normalizeAntigravityModelPath } from '@cherrystudio/agent-runtime-antigravity-acp/terminal'
+import { isReservedGeminiGatewayModelId, stripGeminiGatewayModelSuffix } from '@shared/utils/apiGateway'
 
 import { googleEnvelope } from '../errors'
+import { allowsKeylessModelRequest } from '../lanGuard'
 import { authorizeApiRequest, authorizeCredentialScope, type GatewaySurface } from '../middleware/auth'
 import { DOC_DESCRIPTIONS, DOC_TAGS } from '../openapiDocs'
 import { processMessage } from '../proxyStream'
@@ -30,18 +28,6 @@ function parseModelMethod(raw: string): { model: string; method: string } | null
   const lastColon = raw.lastIndexOf(':')
   if (lastColon <= 0 || lastColon >= raw.length - 1) return null
   return { model: stripGeminiGatewayModelSuffix(raw.slice(0, lastColon)), method: raw.slice(lastColon + 1) }
-}
-
-/** Convert Antigravity's custom-model path back to the gateway's `providerId:apiModelId` address. */
-function normalizeAntigravityModelPath(model: string): string {
-  const separator = ANTIGRAVITY_MODEL_PATH_SEPARATOR
-  const separatorIndex = model.indexOf(separator)
-  if (separatorIndex <= 0) return model
-
-  const providerId = model.slice(0, separatorIndex)
-  const apiModelId = model.slice(separatorIndex + separator.length)
-  if (!apiModelId || providerId.includes(':')) return model
-  return `${providerId}:${apiModelId}`
 }
 
 /** Google `invalid_argument` (400) envelope for in-handler request errors. */
@@ -72,6 +58,7 @@ export const createGeminiRoutes = (surface: GatewaySurface) =>
     .guard({
       as: 'local',
       beforeHandle: ({ bearer, headers, query, set, request, body }) => {
+        if (surface === 'public' && allowsKeylessModelRequest(request)) return undefined
         const googleApiKey = headers['x-goog-api-key'] ?? (typeof query?.key === 'string' ? query.key : undefined)
         const failure =
           authorizeApiRequest(headers['x-api-key'], bearer, googleApiKey, request.headers, surface) ??

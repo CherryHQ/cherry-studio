@@ -221,8 +221,9 @@ describe('Built-in CherryAI models', () => {
     phase: 'signed-out' | 'signed-in',
     {
       loginOutcome = 'signed-in',
-      multiple = false
-    }: { loginOutcome?: 'signed-in' | 'cancelled'; multiple?: boolean } = {}
+      multiple = false,
+      forUtilityTask = false
+    }: { loginOutcome?: 'signed-in' | 'cancelled'; multiple?: boolean; forUtilityTask?: boolean } = {}
   ) => {
     plans.phase = phase
     availability.hidesEveryModel = false
@@ -246,7 +247,13 @@ describe('Built-in CherryAI models', () => {
       multiple ? (
         <CherryCloudModelSelector multiple open onSelect={onSelect} trigger={trigger} />
       ) : (
-        <CherryCloudModelSelector multiple={false} open onSelect={onSelect} trigger={trigger} />
+        <CherryCloudModelSelector
+          multiple={false}
+          open
+          onSelect={onSelect}
+          trigger={trigger}
+          forUtilityTask={forUtilityTask}
+        />
       )
     )
     return { onSelect, row: screen.getByTestId('model-selector-item-cherryai::qwen') }
@@ -255,7 +262,7 @@ describe('Built-in CherryAI models', () => {
     availability.hidesEveryModel = true
   })
 
-  // Main refuses Qwen while signed out, so the row must lead to sign-in like the DeepSeek free rows.
+  // Main refuses Qwen conversations while signed out, so the row must lead to sign-in like the DeepSeek free rows.
   it('marks Qwen as needing sign-in and selects it only once sign-in succeeds', async () => {
     const { onSelect, row } = renderQwen('signed-out')
     expect(within(row).getByText('settings.subscription.sign_in')).toBeInTheDocument()
@@ -278,6 +285,15 @@ describe('Built-in CherryAI models', () => {
     await userEvent.click(row)
     await waitFor(() => expect(request).toHaveBeenCalledWith('cherry_cloud.login.start', undefined))
     expect(onSelect).not.toHaveBeenCalled()
+  })
+
+  // Utility tasks (naming, translation) run Qwen signed out, so their pickers must not demand sign-in.
+  it('selects Qwen directly while signed out from a utility-task picker', async () => {
+    const { onSelect, row } = renderQwen('signed-out', { forUtilityTask: true })
+    expect(within(row).queryByText('settings.subscription.sign_in')).not.toBeInTheDocument()
+    await userEvent.click(row)
+    expect(onSelect).toHaveBeenCalledWith(qwen)
+    expect(request).not.toHaveBeenCalledWith('cherry_cloud.login.start', undefined)
   })
 
   it('selects Qwen directly, without a sign-in mark, once signed in', async () => {

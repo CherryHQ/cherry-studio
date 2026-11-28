@@ -1,3 +1,4 @@
+import { mockDataApiService } from '@test-mocks/renderer/DataApiService'
 import { MockUseDataApiUtils, mockUseInfiniteQuery } from '@test-mocks/renderer/useDataApi'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, renderHook } from '@testing-library/react'
@@ -58,7 +59,7 @@ describe('useTopicMessages', () => {
     expect(result.current.pathMessages.map((message) => message.id)).toEqual(['user-1', 'a1', 'user-2', 'a2-active'])
   })
 
-  it('revalidates when a loaded message read model changes', () => {
+  it('reads only the changed message on a loaded older page', async () => {
     const mutate = vi.fn().mockResolvedValue(undefined)
     const anchorMessage = {
       id: 'anchor-1',
@@ -75,7 +76,7 @@ describe('useTopicMessages', () => {
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z'
     }
-    mockUseInfiniteQuery.mockReturnValueOnce({
+    mockUseInfiniteQuery.mockReturnValue({
       pages: [
         {
           items: [
@@ -108,6 +109,7 @@ describe('useTopicMessages', () => {
       mutate
     })
 
+    mockDataApiService.get.mockResolvedValueOnce({ ...anchorMessage, status: 'paused' })
     renderHook(() => useTopicMessages('topic-1'))
 
     act(() => {
@@ -122,69 +124,9 @@ describe('useTopicMessages', () => {
         { endpoint: '/topics/:topicId/messages', kind: 'projection', entityIds: ['anchor-1'] }
       ])
     })
-    expect(mutate).toHaveBeenCalledWith()
-  })
-
-  it('revalidates on a same-topic membership change whose entity ids are not loaded yet', () => {
-    const mutate = vi.fn().mockResolvedValue(undefined)
-    const loadedMessage = {
-      id: 'loaded-1',
-      topicId: 'topic-1',
-      parentId: null,
-      role: 'user',
-      data: { parts: [] },
-      searchableText: '',
-      status: 'success',
-      siblingsGroupId: 0,
-      modelId: null,
-      messageSnapshot: null,
-      stats: null,
-      createdAt: '2026-01-01T00:00:00.000Z',
-      updatedAt: '2026-01-01T00:00:00.000Z'
-    }
-    mockUseInfiniteQuery.mockReturnValueOnce({
-      pages: [
-        {
-          items: [{ message: loadedMessage, siblingsGroup: [] }],
-          nextCursor: undefined,
-          activeNodeId: 'loaded-1'
-        }
-      ],
-      isLoading: false,
-      isRefreshing: false,
-      error: undefined,
-      hasNext: false,
-      loadNext: vi.fn(),
-      refresh: vi.fn().mockResolvedValue(undefined),
-      reset: vi.fn(),
-      mutate
-    })
-
-    renderHook(() => useTopicMessages('topic-1'))
-
-    act(() => {
-      MockUseDataApiUtils.emitDataChange([
-        {
-          endpoint: '/topics/:topicId/messages',
-          kind: 'projection',
-          routeParams: { topicId: 'topic-1' },
-          entityIds: ['new-user-1', 'new-placeholder-1']
-        }
-      ])
-    })
+    await act(async () => {})
+    expect(mockDataApiService.get).toHaveBeenCalledWith('/messages/anchor-1')
     expect(mutate).not.toHaveBeenCalled()
-
-    act(() => {
-      MockUseDataApiUtils.emitDataChange([
-        {
-          endpoint: '/topics/:topicId/messages',
-          kind: 'membership',
-          routeParams: { topicId: 'topic-1' },
-          entityIds: ['new-user-1', 'new-placeholder-1']
-        }
-      ])
-    })
-    expect(mutate).toHaveBeenCalledWith()
   })
 
   it('keeps tied single-model siblings in ID order when the active reply changes', () => {
