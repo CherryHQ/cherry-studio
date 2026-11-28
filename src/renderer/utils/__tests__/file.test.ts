@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   anyFileExt,
+  excludeFileExt,
   formatFileSize,
   getFileDirectory,
   getFileExtension,
@@ -176,6 +177,13 @@ describe('file', () => {
       // format must not be rejected on a caller that never reads the bytes.
       expect(await isSupportedFile('/tmp/weights.onnx', new Set([anyFileExt]))).toBe(true)
     })
+
+    it('rejects explicitly excluded extensions even when the wildcard is present', async () => {
+      const supportExts = new Set([anyFileExt, excludeFileExt('.png'), excludeFileExt('.mp3')])
+      expect(await isSupportedFile('/tmp/photo.PNG', supportExts)).toBe(false)
+      expect(await isSupportedFile('/tmp/clip.mp3', supportExts)).toBe(false)
+      expect(await isSupportedFile('/tmp/data.sqlite', supportExts)).toBe(true)
+    })
   })
 
   describe('isSupportedExtension', () => {
@@ -191,6 +199,12 @@ describe('file', () => {
 
     it('accepts an unlisted extension when the allowlist carries the wildcard', () => {
       expect(isSupportedExtension('.avif', ['.png', anyFileExt])).toBe(true)
+    })
+
+    it('rejects explicitly excluded extensions even when the wildcard is present', () => {
+      const supportExts = [anyFileExt, excludeFileExt('.png')]
+      expect(isSupportedExtension('.PNG', supportExts)).toBe(false)
+      expect(isSupportedExtension('.sqlite', supportExts)).toBe(true)
     })
 
     it('rejects an extensionless name without the wildcard', () => {

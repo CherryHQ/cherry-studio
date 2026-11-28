@@ -17,6 +17,7 @@ import { dataApiService } from '@renderer/data/DataApiService'
 import { useSharedCacheValue } from '@renderer/data/hooks/useCache'
 import { useAgents } from '@renderer/hooks/agent/useAgent'
 import { useAgentSessionStreamStatuses } from '@renderer/hooks/agent/useAgentSessionStreamStatuses'
+import { useAgentSessionStreamTopic } from '@renderer/hooks/agent/useAgentSessionStreamTopic'
 import { useUpdateSession } from '@renderer/hooks/agent/useSession'
 import { useResolvedCommand } from '@renderer/hooks/command'
 import { useAgentSessionsSource } from '@renderer/hooks/resourceViewSources'
@@ -35,6 +36,7 @@ import { type SessionListItem, sortSessionsForDisplayGroups } from '@renderer/ut
 import { getErrorMessage } from '@renderer/utils/error'
 import { matchesSearchText } from '@renderer/utils/pinyin'
 import { pickNeighbourAfterRemoval } from '@renderer/utils/resourceEntity'
+import { AGENT_SESSION_STREAM_TOPIC_CACHE_KEY } from '@shared/ai/agentSessionStreamTopic'
 import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
 import { classifyTurn } from '@shared/ai/transport'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
@@ -68,12 +70,15 @@ function AgentHistoryRowState({
   sessionId: string
   children: (state: HistoryRowState) => ReactElement
 }) {
-  useSharedCacheValue(`topic.stream.statuses.${buildAgentSessionTopicId(sessionId)}` as const)
+  const topicId = useAgentSessionStreamTopic(sessionId)
+  useSharedCacheValue(`topic.stream.statuses.${topicId}` as const)
   return children({ isRenaming: false })
 }
 
 function isAgentHistorySessionBusy(sessionId: string): boolean {
-  const entry = cacheService.getShared(`topic.stream.statuses.${buildAgentSessionTopicId(sessionId)}` as const)
+  const topicId =
+    cacheService.getShared(AGENT_SESSION_STREAM_TOPIC_CACHE_KEY(sessionId)) ?? buildAgentSessionTopicId(sessionId)
+  const entry = cacheService.getShared(`topic.stream.statuses.${topicId}` as const)
   const flags = classifyTurn(entry?.status)
   return flags.isStreamLive || flags.isAwaitingApproval || (entry?.awaitingApprovalAnchors?.length ?? 0) > 0
 }

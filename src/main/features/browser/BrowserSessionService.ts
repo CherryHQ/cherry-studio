@@ -221,8 +221,12 @@ export class BrowserSessionService extends BaseService {
         this.faviconCapture.abort()
         try {
           await Promise.allSettled(this.faviconTasks)
-          if (kind === 'cache') await profile.clearCache()
-          else browserHistoryService.clear()
+          if (kind === 'cache') {
+            await profile.clearData({ dataTypes: ['cache'], avoidClosingConnections: true })
+            await profile.clearCodeCaches({})
+          } else {
+            browserHistoryService.clear()
+          }
           clearBrowserFavicons()
         } finally {
           this.faviconCapture = new AbortController()

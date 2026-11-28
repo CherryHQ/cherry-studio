@@ -34,7 +34,7 @@ export function useMessageErrorActions(options: MessageErrorActionOptions): Mess
       showErrorDetailPopup({
         error: input.error,
         subject: getDoctorSubject(input.message),
-        incident: { topicId: input.message.topicId, messageId: input.message.id },
+        incident: { topicId: input.message.topicId, messageId: input.message.sourceMessageId ?? input.message.id },
         diagnosisContext: { providerId: model?.provider, modelId: model?.id },
         localizedErrorMessage: input.localizedErrorMessage,
         diagnosticReport

@@ -50,6 +50,22 @@ describe('MessageChannelConfigTool', () => {
     expect(screen.getByTestId('tool-details')).not.toHaveTextContent('BASE64')
   })
 
+  it('renders a resource-backed QR code outside the tool details', () => {
+    const uri = 'cherry-media://tool-result/topic/message/config/0'
+    render(
+      <MessageChannelConfigTool
+        toolResponse={response({
+          content: [
+            { type: 'text', text: 'Scan this QR code' },
+            { type: 'resource_link', uri, name: 'image', mimeType: 'image/png' }
+          ]
+        })}
+      />
+    )
+    expect(screen.getByRole('img', { name: 'channel authentication QR code' })).toHaveAttribute('src', uri)
+    expect(screen.getByTestId('tool-details')).not.toHaveTextContent(uri)
+  })
+
   it('uses the standard config tool renderer when no QR code is returned', () => {
     render(
       <MessageChannelConfigTool

@@ -17,6 +17,7 @@ import {
   Store
 } from 'lucide-react'
 
+import { SIDEBAR_ICON_COMPONENTS } from '@renderer/components/app/sidebarIcons'
 import type { Tab } from '@renderer/hooks/tab'
 import { parseAppRouteUrl } from '@renderer/utils/appRouteUrl'
 
@@ -34,6 +35,7 @@ export const ROUTE_ICONS: Record<string, IconComponent> = {
   '/app/translate': Languages,
   '/app/mini-app': LayoutGrid,
   '/app/launchpad': Rocket,
+  '/app/api-gateway': SIDEBAR_ICON_COMPONENTS.api_gateway,
   '/app/knowledge': FileSearch,
   '/app/file-preview': ScanSearch,
   '/app/files': Folder,

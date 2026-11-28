@@ -20,6 +20,7 @@ type Align = 'start' | 'center' | 'end'
  * that would close them and park at the viewport origin; an inactive surface drops them at once.
  */
 const TooltipSurfaceContext = React.createContext(true)
+const TooltipDelayContext = React.createContext(0)
 
 /** Marks a subtree as the anchoring surface for tooltips; inactive surfaces disable their tooltips. */
 export const TooltipSurface = ({ active = true, children }: { active?: boolean; children?: React.ReactNode }) => {
@@ -291,12 +292,20 @@ export type TooltipContentProps = React.ComponentProps<typeof RadixContent> & {
   showArrow?: boolean
 }
 
-function TooltipProvider({ delayDuration = 0, ...props }: TooltipProviderProps) {
-  return <RadixProvider data-slot="tooltip-provider" delayDuration={delayDuration} {...props} />
+function TooltipProvider({ delayDuration, ...props }: TooltipProviderProps) {
+  const parentDelay = React.use(TooltipDelayContext)
+  const delay = delayDuration ?? parentDelay
+  return (
+    <TooltipDelayContext value={delay}>
+      <RadixProvider data-slot="tooltip-provider" delayDuration={delay} {...props} />
+    </TooltipDelayContext>
+  )
 }
 
-function TooltipRoot({ delayDuration = 0, open: openProp, defaultOpen, onOpenChange, ...props }: TooltipRootProps) {
+function TooltipRoot({ delayDuration, open: openProp, defaultOpen, onOpenChange, ...props }: TooltipRootProps) {
   const surfaceActive = React.use(TooltipSurfaceContext)
+  const defaultDelay = React.use(TooltipDelayContext)
+  const delay = delayDuration ?? defaultDelay
   const {
     contentVisible: controllerContentVisible,
     effectiveOpen: controllerEffectiveOpen,
@@ -308,15 +317,15 @@ function TooltipRoot({ delayDuration = 0, open: openProp, defaultOpen, onOpenCha
   const effectiveOpen = surfaceActive && controllerEffectiveOpen
   return (
     <TooltipOverlayContext value={contentVisible}>
-      <TooltipProvider delayDuration={delayDuration}>
+      <RadixProvider delayDuration={delay}>
         <RadixRoot
           data-slot="tooltip"
-          delayDuration={delayDuration}
+          delayDuration={delay}
           open={effectiveOpen}
           onOpenChange={handleOpenChange}
           {...props}
         />
-      </TooltipProvider>
+      </RadixProvider>
     </TooltipOverlayContext>
   )
 }
@@ -438,7 +447,7 @@ export const Tooltip = ({
   content,
   title,
   placement,
-  delay = 0,
+  delay,
   sideOffset = TOOLTIP_DEFAULT_SIDE_OFFSET,
   showArrow = true,
   fullWidthTrigger = false,
@@ -452,6 +461,8 @@ export const Tooltip = ({
   asChild = false
 }: TooltipProps) => {
   const tooltipContent = content ?? title
+  const defaultDelay = React.use(TooltipDelayContext)
+  const hoverDelay = delay ?? defaultDelay
   const defaultPortalContainer = useTooltipPortalContainer()
   const zIndex = useTooltipZIndex()
   // An inactive surface drops the tooltip exactly like a disabled one; the disabled pass also
@@ -483,8 +494,8 @@ export const Tooltip = ({
   const { side, align } = parsePlacement(placement)
 
   return (
-    <TooltipProvider delayDuration={delay}>
-      <RadixRoot delayDuration={delay} open={effectiveOpen} onOpenChange={handleOpenChange}>
+    <RadixProvider delayDuration={hoverDelay}>
+      <RadixRoot delayDuration={hoverDelay} open={effectiveOpen} onOpenChange={handleOpenChange}>
         <TooltipTrigger asChild>
           {asChild ? (
             children
@@ -511,7 +522,7 @@ export const Tooltip = ({
           </RadixPortal>
         )}
       </RadixRoot>
-    </TooltipProvider>
+    </RadixProvider>
   )
 }
 

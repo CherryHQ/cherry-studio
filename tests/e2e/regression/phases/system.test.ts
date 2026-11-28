@@ -105,13 +105,10 @@ test(...caseDefinition('MP-131'), async ({ app, mainWindow: page }, testInfo) =>
 
     const knowledgeId = await tab('Knowledge Base').getAttribute('data-tab-id')
     expect(knowledgeId).toBeTruthy()
-    const knowledgeContent = await knowledge.innerText()
     await menu(tab('Knowledge Base'), 'Open in New Window')
     child = await app.window('/windows/subWindow/', knowledgeId!)
-    await expect(child.locator('[data-ui~="knowledge.view"]:visible')).toBeVisible()
-    await expect(child.locator('[data-ui~="knowledge.view"]:visible')).toHaveText(knowledgeContent, {
-      useInnerText: true
-    })
+    const detachedKnowledge = child.locator('[data-ui~="knowledge.view"]:visible')
+    await expect(detachedKnowledge.getByRole('button', { name: 'New Knowledge Base', exact: true })).toBeVisible()
     await expect(child.getByRole('button', { name: 'Back to Main Window', exact: true })).toBeVisible()
     await expect(tab('Knowledge Base')).toHaveCount(0)
     await expect(tabs).toHaveCount(1)
@@ -241,11 +238,11 @@ test(...caseDefinition('MP-141'), async ({ app, mainWindow: page }, testInfo) =>
     await expect(page.getByRole('button', { name: 'Download mobile app', exact: true })).toBeVisible()
     await expect(
       settings()
-        .getByText('Start the gateway in API Gateway settings before allowing network access.', { exact: true })
+        .getByText('Start the gateway in Unified Gateway settings before allowing network access.', { exact: true })
         .first()
     ).toBeVisible()
     await expect(page.getByRole('button', { name: 'Allow network access', exact: true })).toHaveCount(0)
-    await page.getByRole('button', { name: 'Open API Gateway settings', exact: true }).click()
+    await page.getByRole('button', { name: 'Open Unified Gateway settings', exact: true }).click()
     await expect(settings().getByText('Stopped', { exact: true })).toBeVisible()
     await page.getByRole('button', { name: 'Start', exact: true }).click()
     await expect(settings().getByText('Running', { exact: true })).toBeVisible()

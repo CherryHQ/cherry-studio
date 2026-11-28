@@ -7,6 +7,7 @@ import { Button, RowFlex, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { getMessageDeleteUnavailableText } from '@renderer/components/chat/messages/utils/messageDeleteAvailability'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import { messagePartsAt } from '@renderer/utils/message/messagePartRows'
 import { resolveUniqueModelId } from '@renderer/utils/message/modelIdentity'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
 
@@ -87,7 +88,7 @@ const MessageGroupMenuBar: FC<Props> = ({
 
   const isFailedMessage = (m: MessageListItem) => {
     if (m.role !== 'assistant') return false
-    const parts = partsMap?.[m.id]
+    const parts = messagePartsAt(partsMap, m.id)
     return m.status === 'error' || m.status === 'paused' || parts?.length === 0
   }
 
