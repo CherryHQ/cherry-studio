@@ -42,7 +42,7 @@ export interface AgentCapabilities {
     tools?: readonly AssistantToolName[]
     /** Channel-safe subset. Omit to disable host access when the Session is channel-linked. */
     toolsInChannelSessions?: readonly AssistantToolName[]
-    /** Runtimes that mount them. Support is claude-code-only today — historical, not by design. */
+    /** Runtimes that mount them. */
     runtimes: readonly AgentType[]
     /** `false` leaves the workspace file tools unmounted for an Agent that never touches files. */
     files?: false
@@ -73,7 +73,7 @@ const CAPABILITIES_BY_ROLE: Record<BuiltinAgentRole, AgentCapabilities> = {
     hostTools: {
       tools: ['navigate', 'diagnose', 'product_info', 'apply_setting', 'prepare_diagnostic_report'],
       toolsInChannelSessions: ['navigate', 'diagnose', 'product_info', 'apply_setting', 'prepare_diagnostic_report'],
-      runtimes: ['claude-code']
+      runtimes: ['claude-code', 'pi-durable']
     }
   },
   [BUILTIN_AGENT_ROLE.DOCTOR]: {

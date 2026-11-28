@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
+import { useToolResult } from '@renderer/hooks/useToolResult'
 import { cn } from '@renderer/utils/style'
 import { SESSION_CREATE_TOOL_NAME, SESSION_SEND_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
 import { isDeferredToolOutput, isPersistedToolOutput } from '@shared/ai/transport'
@@ -81,13 +82,16 @@ export function AgentToolCallCard({
   const actions = useOptionalMessageListActions()
   const { t } = useTranslation()
   const failed = hasError || status === 'error'
-  const rawErrorText = failed ? extractToolErrorText(output) : undefined
+  // An oversized failure arrives as a reference; Details reads its bounded preview for the cause.
+  const { output: deferredFault } = useToolResult(failed ? deferredOutput?.$deferredToolResult : undefined)
+  const faultOutput = output ?? deferredFault
+  const rawErrorText = failed ? extractToolErrorText(faultOutput) : undefined
   const toolFault = useMemo(() => {
     if (!failed) return undefined
     if (rawErrorText) return rawErrorText
-    if (output !== undefined) return output
+    if (faultOutput !== undefined) return faultOutput
     return { status: 'error' as const }
-  }, [failed, output, rawErrorText])
+  }, [failed, faultOutput, rawErrorText])
   // Details sits on the header row, even when the disclosure below it is expanded.
   const withToolFault = (node: ReactNode, headerHeightClass: string) =>
     toolFault ? (

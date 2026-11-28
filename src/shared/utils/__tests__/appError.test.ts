@@ -123,6 +123,19 @@ describe('projectAppErrorContext', () => {
     }
   })
 
+  it('masks a numeric last account word in a path but keeps a ratio in prose, on export and upload', () => {
+    const context = createAppErrorContext({
+      source: 'file.preview',
+      operation: 'file.preview.load_error',
+      message: 'cannot read C:\\Users\\Jane 123\\prefs.json; C:/Users/bob failed with code 5/6'
+    })
+
+    for (const view of ['export', 'upload'] as const) {
+      const projected = projectAppErrorContext(context, view)
+      expect(projected.message).toBe('cannot read ~\\prefs.json; ~ failed with code 5/6')
+    }
+  })
+
   it('leaves URL paths that merely contain a home-like segment intact', () => {
     const context = createAppErrorContext({
       source: 'mcp',
