@@ -5,6 +5,7 @@ import { computeHeadTailExcerpt } from '@cherrystudio/ai-core'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
 import { readAgentSessionPath } from '@data/services/agentSessionMessageTree'
+import { matchImportedToolText } from '@data/services/importedHistoryText'
 import { spliceTextAtKey } from '@main/ai/contextBuild/toolOutputStore'
 import { isPersistedToolOutput, PERSIST_HEAD_CHARS, PERSIST_TAIL_CHARS } from '@shared/ai/transport'
 import type { CherryMessagePart } from '@shared/data/types/message'
@@ -51,12 +52,18 @@ export async function readSessionHistory(
   const files: CherryMessagePart[] = []
   for (const row of prefix) {
     if (
-      (row.role !== 'user' && row.role !== 'assistant') ||
       row.status === 'pending' ||
       row.status === 'streaming' ||
       (row.deliveryStatus && row.deliveryStatus !== 'consumed')
     )
       continue
+    if (row.role !== 'user' && row.role !== 'assistant') {
+      if (row.role === 'system' && row.provenance) {
+        const parts = row.data.parts?.filter((part) => part.type === 'text' && matchImportedToolText(part.text))
+        if (parts?.length) history.push(JSON.stringify({ role: 'tool', status: row.status, parts }))
+      }
+      continue
+    }
     const parts = (row.data.parts ?? []).map((part) => {
       if (part.type === 'file') files.push(part)
       if (!isToolUIPart(part)) return part

@@ -1,5 +1,5 @@
 import { ArrowUpRight, ChevronDown, Loader2, ShieldCheck, TriangleAlert } from 'lucide-react'
-import { type ComponentType, useCallback, useState } from 'react'
+import { type ComponentType, useCallback, useLayoutEffect, useRef, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
 import useSWRImmutable from 'swr/immutable'
@@ -8,8 +8,10 @@ import { ScrollArea } from '@cherrystudio/ui'
 import { Button, Kbd, Textarea } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import {
+  getAcpToolDisclosure,
   getAgentConfigToolKind,
   isValidAgentToolsType,
+  readAcpTool,
   renderTool,
   TerminalOutput,
   UnknownToolRenderer
@@ -26,6 +28,12 @@ import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpToo
 import { cn } from '@renderer/utils/style'
 import type { AgentConfigToolKind } from '@shared/ai/agentConfigToolKind'
 import type { AgentConfigChangePreview as ConfigPreview } from '@shared/ai/agentConfigToolOutput'
+import {
+  isLocalAllowDecision,
+  type LocalAcpTool,
+  type LocalPermissionOption,
+  LocalPermissionOptionsSchema
+} from '@shared/ai/localAgent'
 
 import type { ComposerOverride } from '../ComposerContext'
 import { AgentConfigChangePreview } from './AgentConfigChangePreview'
@@ -52,7 +60,123 @@ function isHandledElsewhere(event: KeyboardEvent) {
   )
 }
 
+const LOCAL_PERMISSION_LABEL_KEYS = {
+  allow: 'agent.toolPermission.button.allow',
+  allow_once: 'local_agents.allow_once',
+  allow_session: 'local_agents.allow_session',
+  allow_always: 'local_agents.allow_always',
+  deny: 'agent.toolPermission.button.deny',
+  cancel: 'common.cancel'
+} as const
+
+type TranslateFn = ReturnType<typeof useTranslation>['t']
+
+function resolveLocalPermissionLabel(option: LocalPermissionOption, t: TranslateFn): string {
+  if (!option.label) return option.name
+  switch (option.label) {
+    case 'allow_always_target':
+      return option.labelTarget ? t('local_agents.allow_always_target', { target: option.labelTarget }) : option.name
+    case 'allow_always_host':
+      return option.labelTarget ? t('local_agents.allow_always_host', { host: option.labelTarget }) : option.name
+    case 'deny_always':
+      return t('local_agents.deny_always')
+    case 'deny_always_host':
+      return option.labelTarget ? t('local_agents.deny_always_host', { host: option.labelTarget }) : option.name
+    default:
+      return t(LOCAL_PERMISSION_LABEL_KEYS[option.label])
+  }
+}
+
+const COMPACT_PERMISSION_LABEL_MAX_COLUMNS = 20
+const COMPACT_PERMISSION_ROW_MAX_COLUMNS = 60
+
+// Wide CJK/full-width glyphs occupy ~2 Latin columns; measure visual columns instead of UTF-16 length.
+function measureLabelColumns(text: string): number {
+  let columns = 0
+  for (const char of text) {
+    const code = char.codePointAt(0) ?? 0
+    columns += code >= 0x1100 ? 2 : 1
+  }
+  return columns
+}
+
+function shouldStackLocalPermissionOptions(
+  entries: readonly { option: LocalPermissionOption; buttonLabel: string }[],
+  {
+    keyboardShortcuts,
+    primaryAllowOption,
+    primaryRejectOption,
+    containerWidth
+  }: {
+    keyboardShortcuts: boolean
+    primaryAllowOption: LocalPermissionOption | undefined
+    primaryRejectOption: LocalPermissionOption | undefined
+    containerWidth: number
+  }
+): boolean {
+  // Parameterized policy rules and unmapped prose choices belong in a vertical option list rather than an inline verb bar.
+  if (entries.length > 4 || entries.some((entry) => entry.option.labelTarget != null || !entry.option.label)) {
+    return true
+  }
+  if (entries.some((entry) => measureLabelColumns(entry.buttonLabel) > COMPACT_PERMISSION_LABEL_MAX_COLUMNS)) {
+    return true
+  }
+  const hasShortcutBadge = (option: LocalPermissionOption) =>
+    keyboardShortcuts && (option === primaryAllowOption || option === primaryRejectOption)
+  const totalColumns = entries.reduce(
+    (sum, entry) => sum + measureLabelColumns(entry.buttonLabel) + 4 + (hasShortcutBadge(entry.option) ? 4 : 0),
+    0
+  )
+  if (totalColumns > COMPACT_PERMISSION_ROW_MAX_COLUMNS) {
+    return true
+  }
+  if (containerWidth > 0) {
+    const estimatedRowPx =
+      entries.reduce(
+        (sum, entry) =>
+          sum + measureLabelColumns(entry.buttonLabel) * 8 + 28 + (hasShortcutBadge(entry.option) ? 44 : 0),
+        0
+      ) +
+      Math.max(0, entries.length - 1) * 8
+    if (estimatedRowPx > containerWidth) {
+      return true
+    }
+  }
+  return false
+}
+
+function orderLocalPermissionOptions(
+  options: readonly LocalPermissionOption[],
+  primaryAllowOption: LocalPermissionOption | undefined,
+  primaryRejectOption: LocalPermissionOption | undefined,
+  stacked: boolean
+): LocalPermissionOption[] {
+  const isAllow = (option: LocalPermissionOption) => isLocalAllowDecision(option.decision)
+  const secondaryAllows = options.filter((option) => isAllow(option) && option !== primaryAllowOption)
+  const otherRejects = options.filter((option) => !isAllow(option) && option !== primaryRejectOption)
+
+  if (stacked) {
+    // Place the highest-priority allow/reject actions first in vertical stacks.
+    secondaryAllows.sort((a, b) => Number(a.decision === 'acceptAlways') - Number(b.decision === 'acceptAlways'))
+    return [
+      ...(primaryAllowOption ? [primaryAllowOption] : []),
+      ...secondaryAllows,
+      ...(primaryRejectOption ? [primaryRejectOption] : []),
+      ...otherRejects
+    ]
+  }
+
+  // Inline rows mirror Cherry Studio's built-in order: negative actions left, primary allow far right.
+  return [
+    ...otherRejects,
+    ...(primaryRejectOption ? [primaryRejectOption] : []),
+    ...secondaryAllows,
+    ...(primaryAllowOption ? [primaryAllowOption] : [])
+  ]
+}
+
 export type PermissionRequestComposerProps = {
+  keyboardShortcuts?: boolean
   request: PermissionRequestComposerRequest
   onRespond: (input: MessageToolApprovalInput) => void | Promise<void>
   className?: string
@@ -117,16 +241,48 @@ export function createPermissionRequestComposerOverride({
   }
 }
 
+function stripLocalPermissionEnvelope(value: unknown) {
+  if (!value || typeof value !== 'object' || Array.isArray(value) || !('localPermissionOptions' in value)) {
+    return value
+  }
+  const rest = { ...(value as Record<string, unknown>) }
+  delete rest.localPermissionOptions
+  return rest
+}
+
 function BuiltinPermissionPreview({ toolResponse }: { toolResponse: NormalToolResponse }) {
   const toolName = toolResponse.tool.name
-  const input = toolResponse.arguments as Record<string, unknown> | string | undefined
-  const renderedItem = isValidAgentToolsType(toolName)
-    ? renderTool(toolName, input)
-    : UnknownToolRenderer({ toolName, input })
+  const rawInput = toolResponse.arguments as Record<string, unknown> | string | undefined
+  const acp = readAcpTool(toolName, rawInput)
+  const input = stripLocalPermissionEnvelope(rawInput) as Record<string, unknown> | string | undefined
+  return (
+    <BuiltinPermissionToolDisclosure
+      key={acp ? 'acp' : `tool:${toolName}`}
+      acp={acp}
+      input={input}
+      toolName={toolName}
+    />
+  )
+}
+
+function BuiltinPermissionToolDisclosure({
+  toolName,
+  input,
+  acp
+}: {
+  toolName: string
+  input: Record<string, unknown> | string | undefined
+  acp: LocalAcpTool | undefined
+}) {
+  const renderedItem = acp
+    ? getAcpToolDisclosure({ tool: acp })
+    : isValidAgentToolsType(toolName)
+      ? renderTool(toolName, input)
+      : UnknownToolRenderer({ toolName, input })
 
   const item: ToolDisclosureItem = {
     ...renderedItem,
-    label: <PermissionPreviewHeader toolName={toolName} />,
+    label: acp ? renderedItem.label : <PermissionPreviewHeader toolName={toolName} />,
     children: renderBuiltinPreviewChildren(toolName, renderedItem.children),
     classNames: {
       ...renderedItem.classNames,
@@ -155,7 +311,7 @@ function McpPermissionPreview({
   configPreview: ConfigPreviewProps | null
 }) {
   const { t } = useTranslation()
-  const args = normalizeArgs(toolResponse.arguments)
+  const args = normalizeArgs(stripLocalPermissionEnvelope(toolResponse.arguments) as ToolResponseLike['arguments'])
   const argsPreview = args ? (
     <ScrollArea
       viewportProps={{ className: 'overflow-x-hidden', 'data-testid': 'permission-mcp-args-scroll' }}
@@ -270,6 +426,7 @@ export default function PermissionRequestComposer({
   request,
   onRespond,
   className,
+  keyboardShortcuts = true,
   agentName,
   requiresAgentConfigPreview = false,
   onOpenSource
@@ -278,11 +435,65 @@ export default function PermissionRequestComposer({
   const [evidenceApprovalId, setEvidenceApprovalId] = useState<string | null>(null)
   const [submittingApprovalId, setSubmittingApprovalId] = useState<string | null>(null)
   const [rejectionDraft, setRejectionDraft] = useState({ approvalId: request.approvalId, value: '', expanded: false })
+  const actionsRef = useRef<HTMLDivElement>(null)
+  const [actionsWidth, setActionsWidth] = useState(0)
+
+  useLayoutEffect(() => {
+    const el = actionsRef.current
+    if (!el) return
+    const updateWidth = () => {
+      const next = el.clientWidth
+      setActionsWidth((prev) => (prev === next ? prev : next))
+    }
+    updateWidth()
+    if (typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(updateWidth)
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
   const reasonExpanded = rejectionDraft.approvalId === request.approvalId && rejectionDraft.expanded
   const isSubmitting = submittingApprovalId === request.approvalId
   const rejectionReason = rejectionDraft.approvalId === request.approvalId ? rejectionDraft.value : ''
   // A typed reason means the user is denying — Enter must not approve behind their back.
   const hasRejectionReason = rejectionReason.trim().length > 0
+  const parsedOptions = LocalPermissionOptionsSchema.safeParse(request.toolResponse.arguments)
+  const localOptions = parsedOptions.success ? parsedOptions.data.localPermissionOptions : undefined
+  const optionWarnings = localOptions
+    ? [...new Set(localOptions.flatMap((option) => (option.warning?.trim() ? [option.warning.trim()] : [])))]
+    : []
+  const primaryAllowOption = localOptions
+    ? (localOptions.find((option) => option.decision === 'accept') ??
+      localOptions.find((option) => option.decision === 'acceptForSession'))
+    : undefined
+  const temporaryRejects = localOptions?.filter(
+    (option) =>
+      !isLocalAllowDecision(option.decision) &&
+      !option.persistent &&
+      option.label !== 'deny_always' &&
+      option.label !== 'deny_always_host'
+  )
+  const primaryRejectOption =
+    temporaryRejects?.find((option) => option.label === 'deny') ??
+    temporaryRejects?.find((option) => option.decision === 'decline') ??
+    temporaryRejects?.find((option) => option.label === 'cancel')
+  const resolvedLocalOptions = localOptions?.map((option) => ({
+    option,
+    buttonLabel: resolveLocalPermissionLabel(option, t)
+  }))
+  const isStackedLocalLayout = Boolean(
+    resolvedLocalOptions &&
+    shouldStackLocalPermissionOptions(resolvedLocalOptions, {
+      keyboardShortcuts,
+      primaryAllowOption,
+      primaryRejectOption,
+      containerWidth: actionsWidth
+    })
+  )
+  const orderedLocalOptions = localOptions
+    ? orderLocalPermissionOptions(localOptions, primaryAllowOption, primaryRejectOption, isStackedLocalLayout).map(
+        (option) => resolvedLocalOptions!.find((entry) => entry.option === option)!
+      )
+    : undefined
   const configKind = getAgentConfigToolKind(request.toolResponse)
   const { data: configPreview, error: configPreviewError } = useSWRImmutable(
     configKind ? ['ai.agent.preview_config_change', request.approvalId] : null,
@@ -336,20 +547,55 @@ export default function PermissionRequestComposer({
 
   useHotkeys(
     'enter',
-    () => void (hasRejectionReason ? deny() : approve()),
-    { preventDefault: true, ignoreEventWhen: isHandledElsewhere },
-    [approve, deny, hasRejectionReason]
+    () => {
+      if (localOptions) {
+        if (!isSubmitting && primaryAllowOption) {
+          void respond(
+            {
+              match: request.match,
+              approved: true,
+              updatedInput: { localPermissionOption: primaryAllowOption.optionId }
+            },
+            'approve'
+          )
+        }
+        return
+      }
+      void (hasRejectionReason ? deny() : approve())
+    },
+    { enabled: keyboardShortcuts, preventDefault: true, ignoreEventWhen: isHandledElsewhere },
+    [approve, deny, hasRejectionReason, isSubmitting, localOptions, primaryAllowOption, request.match, respond]
   )
-  useHotkeys('esc', () => void deny(), { preventDefault: true, ignoreEventWhen: isHandledElsewhere }, [deny])
+  useHotkeys(
+    'esc',
+    () => {
+      if (localOptions) {
+        if (!isSubmitting && primaryRejectOption) {
+          void respond(
+            {
+              match: request.match,
+              approved: false,
+              updatedInput: { localPermissionOption: primaryRejectOption.optionId }
+            },
+            'deny'
+          )
+        }
+        return
+      }
+      void deny()
+    },
+    { enabled: keyboardShortcuts, preventDefault: true, ignoreEventWhen: isHandledElsewhere },
+    [deny, isSubmitting, localOptions, primaryRejectOption, request.match, respond]
+  )
 
   return (
     <div
       data-composer-viewport-inset-target=""
       // pointer-events-auto: the composer dock stack is click-through; override
       // composers re-enable interaction on their own root.
-      className={cn('pointer-events-auto relative z-2 flex flex-col px-4.5 pt-0 pb-4.5', className)}>
+      className={cn('pointer-events-auto relative z-2 flex min-w-0 flex-col px-4.5 pt-0 pb-4.5', className)}>
       <div
-        className="rounded-[17px] border-[0.5px] border-border p-2.5 shadow-[0_1px_5px_rgba(15,23,42,0.05)] backdrop-blur dark:shadow-[0_1px_5px_rgba(0,0,0,0.14)]"
+        className="min-w-0 overflow-hidden rounded-[17px] border-[0.5px] border-border p-2.5 shadow-[0_1px_5px_rgba(15,23,42,0.05)] backdrop-blur dark:shadow-[0_1px_5px_rgba(0,0,0,0.14)]"
         style={{ backgroundColor: 'color-mix(in srgb, var(--background) 88%, transparent)' }}>
         <div className="flex min-w-0 items-center gap-2 px-1">
           <h2 className="flex shrink-0 items-center gap-2 font-semibold text-foreground text-sm leading-5">
@@ -446,53 +692,136 @@ export default function PermissionRequestComposer({
           />
         </div>
 
-        <div className="mt-2 px-1">
-          <Button
-            type="button"
-            variant="ghost"
-            disabled={isSubmitting}
-            aria-expanded={reasonExpanded}
-            className="h-auto gap-1 px-0 py-1 text-muted-foreground text-xs"
-            onClick={() =>
-              setRejectionDraft({ approvalId: request.approvalId, value: rejectionReason, expanded: !reasonExpanded })
-            }>
-            <ChevronDown aria-hidden="true" className={cn('size-3', reasonExpanded && 'rotate-180')} />
-            {t('agent.toolPermission.reasonLabel')}
-          </Button>
-          {reasonExpanded ? (
-            <Textarea.Input
-              value={rejectionReason}
+        {!localOptions && (
+          <div className="mt-2 px-1">
+            <Button
+              type="button"
+              variant="ghost"
               disabled={isSubmitting}
-              maxLength={500}
-              rows={2}
-              aria-label={t('agent.toolPermission.reasonLabel')}
-              placeholder={t('agent.toolPermission.reasonPlaceholder')}
-              className="mt-1 min-h-14 resize-none px-3 py-2 text-sm"
-              onValueChange={(value) => setRejectionDraft({ approvalId: request.approvalId, value, expanded: true })}
-              onKeyDown={(event) => {
-                if (event.key !== 'Enter' || event.shiftKey || event.nativeEvent.isComposing) return
-                event.preventDefault()
-                void (hasRejectionReason ? deny() : approve())
-              }}
-            />
-          ) : null}
-        </div>
+              aria-expanded={reasonExpanded}
+              className="h-auto gap-1 px-0 py-1 text-muted-foreground text-xs"
+              onClick={() =>
+                setRejectionDraft({ approvalId: request.approvalId, value: rejectionReason, expanded: !reasonExpanded })
+              }>
+              <ChevronDown aria-hidden="true" className={cn('size-3', reasonExpanded && 'rotate-180')} />
+              {t('agent.toolPermission.reasonLabel')}
+            </Button>
+            {reasonExpanded ? (
+              <Textarea.Input
+                value={rejectionReason}
+                disabled={isSubmitting}
+                maxLength={500}
+                rows={2}
+                aria-label={t('agent.toolPermission.reasonLabel')}
+                placeholder={t('agent.toolPermission.reasonPlaceholder')}
+                className="mt-1 min-h-14 resize-none px-3 py-2 text-sm"
+                onValueChange={(value) => setRejectionDraft({ approvalId: request.approvalId, value, expanded: true })}
+                onKeyDown={(event) => {
+                  if (event.key !== 'Enter' || event.shiftKey || event.nativeEvent.isComposing) return
+                  event.preventDefault()
+                  void (hasRejectionReason ? deny() : approve())
+                }}
+              />
+            ) : null}
+          </div>
+        )}
 
-        <div className="mt-2.5 flex justify-end gap-2 px-1 pb-0.5">
-          <Button type="button" variant="outline" disabled={isSubmitting} onClick={() => void deny()}>
-            {t('agent.toolPermission.button.deny')}
-            <Kbd aria-hidden="true" className="bg-muted text-muted-foreground">
-              {hasRejectionReason ? 'Enter' : 'Esc'}
-            </Kbd>
-          </Button>
-          <Button type="button" variant="emphasis" disabled={cannotApprove} onClick={() => void approve()}>
-            {t(request.commandPolicy ? 'agent.toolPermission.button.allowOnce' : 'agent.toolPermission.button.allow')}
-            {!hasRejectionReason && (
-              <Kbd aria-hidden="true" className="bg-current/10 text-current">
-                Enter
-              </Kbd>
-            )}
-          </Button>
+        {optionWarnings.length > 0 && (
+          <div
+            data-testid="permission-option-warnings"
+            className="mt-2 space-y-1 rounded-[12px] border border-border bg-background px-3 py-2">
+            {optionWarnings.map((warning) => (
+              <p key={warning} className="flex items-start gap-1.5 text-warning-subtle-foreground text-xs leading-4">
+                <TriangleAlert aria-hidden="true" className="mt-0.5 size-3 shrink-0" />
+                <span>{warning}</span>
+              </p>
+            ))}
+          </div>
+        )}
+
+        <div
+          ref={actionsRef}
+          data-testid="permission-actions"
+          data-layout={orderedLocalOptions ? (isStackedLocalLayout ? 'stacked' : 'inline') : 'inline'}
+          className={cn(
+            'mt-2.5 flex min-w-0 px-1 pb-0.5',
+            isStackedLocalLayout ? 'flex-col gap-1.5' : 'flex-wrap justify-end gap-2'
+          )}>
+          {orderedLocalOptions ? (
+            orderedLocalOptions.map(({ option, buttonLabel }) => {
+              const isPrimaryAllow = option === primaryAllowOption
+              const isPrimaryReject = option === primaryRejectOption
+              const isAllow = isLocalAllowDecision(option.decision)
+              const buttonTitle = option.warning
+                ? `${buttonLabel}\n${option.warning}`
+                : isStackedLocalLayout
+                  ? buttonLabel
+                  : undefined
+              return (
+                <Button
+                  key={option.optionId}
+                  type="button"
+                  title={buttonTitle}
+                  variant={isPrimaryAllow ? 'emphasis' : isAllow ? 'secondary' : 'outline'}
+                  className={cn(
+                    isStackedLocalLayout
+                      ? 'h-auto min-h-9 w-full min-w-0 max-w-full shrink justify-between gap-3 overflow-hidden whitespace-normal rounded-[12px] px-3 py-2 text-left'
+                      : 'min-w-0 max-w-full'
+                  )}
+                  disabled={isSubmitting}
+                  onClick={() =>
+                    void respond(
+                      {
+                        match: request.match,
+                        approved: isAllow,
+                        updatedInput: { localPermissionOption: option.optionId }
+                      },
+                      isAllow ? 'approve' : 'deny'
+                    )
+                  }>
+                  <span
+                    className={cn(
+                      isStackedLocalLayout
+                        ? 'line-clamp-2 min-w-0 flex-1 break-words [overflow-wrap:anywhere]'
+                        : 'truncate'
+                    )}>
+                    {buttonLabel}
+                  </span>
+                  {keyboardShortcuts && isPrimaryAllow && (
+                    <Kbd aria-hidden="true" className="shrink-0 bg-current/10 text-current">
+                      Enter
+                    </Kbd>
+                  )}
+                  {keyboardShortcuts && isPrimaryReject && (
+                    <Kbd aria-hidden="true" className="shrink-0 bg-muted text-muted-foreground">
+                      Esc
+                    </Kbd>
+                  )}
+                </Button>
+              )
+            })
+          ) : (
+            <>
+              <Button type="button" variant="outline" disabled={isSubmitting} onClick={() => void deny()}>
+                {t('agent.toolPermission.button.deny')}
+                {keyboardShortcuts && (
+                  <Kbd aria-hidden="true" className="bg-muted text-muted-foreground">
+                    {hasRejectionReason ? 'Enter' : 'Esc'}
+                  </Kbd>
+                )}
+              </Button>
+              <Button type="button" variant="emphasis" disabled={cannotApprove} onClick={() => void approve()}>
+                {t(
+                  request.commandPolicy ? 'agent.toolPermission.button.allowOnce' : 'agent.toolPermission.button.allow'
+                )}
+                {!hasRejectionReason && keyboardShortcuts && (
+                  <Kbd aria-hidden="true" className="bg-current/10 text-current">
+                    Enter
+                  </Kbd>
+                )}
+              </Button>
+            </>
+          )}
         </div>
       </div>
     </div>

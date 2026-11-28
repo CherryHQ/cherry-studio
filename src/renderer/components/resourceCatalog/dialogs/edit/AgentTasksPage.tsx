@@ -15,7 +15,7 @@ import {
 } from '@cherrystudio/ui'
 import { getTriggerSummary } from '@renderer/components/ScheduledTask/scheduleForm'
 import { TaskFormDialog } from '@renderer/components/ScheduledTask/TaskFormDialog'
-import { formatTaskCardTime } from '@renderer/components/ScheduledTask/TaskRunSummaryLine'
+import { formatTaskCardTime, TASK_RUN_STATUS_KEYS } from '@renderer/components/ScheduledTask/TaskRunSummaryLine'
 import { useQuery } from '@renderer/data/hooks/useDataApi'
 import {
   TASKS_PAGE_LIMIT,
@@ -249,12 +249,6 @@ function TaskEditActions({ agentId, taskId, onDeleted }: { agentId: string; task
 }
 
 const HISTORY_LIMIT = 5
-const RUN_STATUS_KEYS = {
-  running: 'agent.tasks.logs.running',
-  completed: 'agent.tasks.logs.completed',
-  failed: 'agent.tasks.logs.failed',
-  cancelled: 'agent.tasks.logs.cancelled'
-} as const
 
 function TaskRunHistory({ agentId, taskId }: { agentId: string; taskId: string }) {
   const { t } = useTranslation()
@@ -275,7 +269,7 @@ function TaskRunHistory({ agentId, taskId }: { agentId: string; taskId: string }
         <ul className="mt-1 grid gap-0.5 text-muted-foreground">
           {logs.map((log) => (
             <li key={log.id}>
-              {formatTaskCardTime(log.startedAt)} · {t(RUN_STATUS_KEYS[log.status])}
+              {formatTaskCardTime(log.startedAt)} · {t(TASK_RUN_STATUS_KEYS[log.status])}
             </li>
           ))}
         </ul>

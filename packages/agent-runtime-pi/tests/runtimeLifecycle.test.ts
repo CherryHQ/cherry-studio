@@ -19,10 +19,9 @@ function confirmed<T>(result: OperationResult<T>): T {
   if (result.status !== 'confirmed') throw new Error(result.error.message)
   return result.value
 }
-const draft = (text: string, whenBusy: 'reject' | 'steer' | 'follow-up' = 'reject') => ({
+const draft = (text: string) => ({
   inputId: runtimeId<'input'>(text),
-  text,
-  whenBusy
+  text
 })
 const config = async (port: TestStream): Promise<PiSessionOptions> => ({
   ...(await createTestBinding({ stream: port, model: MODEL })),
@@ -89,7 +88,7 @@ describe('Pi runtime contract', () => {
     const first = confirmed(await a)
     const second = confirmed(await b)
     const events = await observe(second)
-    const submission = first.input.submit(draft('pending'))
+    const submission = first.input.submit!(draft('pending'))
     await preflight.reached
     let closed = false
     const closing = owner.shutdown().then((result) => {
@@ -98,7 +97,7 @@ describe('Pi runtime contract', () => {
     })
     await new Promise((resolve) => setImmediate(resolve))
     expect(closed).toBe(false)
-    expect(await second.input.submit(draft('sealed'))).toMatchObject({ status: 'rejected', error: { code: 'closed' } })
+    expect(await second.input.submit!(draft('sealed'))).toMatchObject({ status: 'rejected', error: { code: 'closed' } })
     preflight.open()
     expect(await submission).toMatchObject({ status: 'acknowledged' })
     expect(await closing).toEqual({ status: 'confirmed', value: undefined })
@@ -122,7 +121,7 @@ describe('Pi runtime contract', () => {
     const owner = await runtime()
     const root = confirmed(await owner.create(await config(model)))
     const parentEvents = await observe(root)
-    await root.input.submit(draft('start'))
+    await root.input.submit!(draft('start'))
     await expect.poll(() => texts(parentEvents)).toContain('parent done')
     const relationship = parentEvents.find((event) => event.type === 'subagent.upsert')
     if (relationship?.type !== 'subagent.upsert') throw new Error('Missing child relationship')
@@ -135,7 +134,7 @@ describe('Pi runtime contract', () => {
       .toMatchObject({ type: 'activity.changed', activity: { state: 'idle' } })
     const childUsage = confirmed(await childAccess.contextUsage())
     expect(childUsage.revision).not.toBe(confirmed(await root.contextUsage()).revision)
-    await root.input.submit(draft('again'))
+    await root.input.submit!(draft('again'))
     await expect.poll(() => texts(childEvents)).toContain('child second')
     expect(childEvents.some((event) => event.type === 'gap')).toBe(false)
     expect(confirmed(await childAccess.contextUsage()).revision).not.toBe(childUsage.revision)
