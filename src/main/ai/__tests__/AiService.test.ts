@@ -23,6 +23,7 @@ import { isGatewayRoutableModel } from '@shared/utils/model'
 import type * as HandoffNoteModule from '../messages/handoffNote'
 import type * as ImageTransportRegistryModule from '../provider/custom/imageTransportRegistry'
 import type * as ListModelsModule from '../provider/listModels'
+import type { createRetryableWrap } from '../runtime/aiSdk/retry/createRetryableWrap'
 import type { AiStreamRequest } from '../types/requests'
 import type * as CustomFetchModule from '../utils/customFetch'
 import { makeModel } from './fixtures/model'
@@ -51,10 +52,7 @@ const mockProviderGetByProviderId = vi.fn()
 const mockProviderGetRotatedApiKey = vi.fn()
 const mockProviderResolveApiKey = vi.fn()
 const mockModelGetByKey = vi.fn()
-const mockCreateRetryableWrap = vi.fn((options?: unknown): ((model: unknown) => unknown) | undefined => {
-  void options
-  return undefined
-})
+const mockCreateRetryableWrap = vi.fn<typeof createRetryableWrap>(() => undefined)
 const mockBuildFallbackModels = vi.fn((options?: unknown) => {
   void options
   return [] as unknown[]
@@ -243,8 +241,9 @@ vi.mock('@main/data/services/AiUsageRecordService', async (importActual) => {
   }
 })
 
-vi.mock('../runtime/aiSdk/retry/createRetryableWrap', () => ({
-  createRetryableWrap: (options: unknown) => mockCreateRetryableWrap(options)
+vi.mock(import('../runtime/aiSdk/retry/createRetryableWrap'), async (importOriginal) => ({
+  ...(await importOriginal()),
+  createRetryableWrap: mockCreateRetryableWrap
 }))
 
 vi.mock('../runtime/aiSdk/retry/buildFallbackModels', () => ({
@@ -2450,7 +2449,7 @@ describe('AiService tool approval', () => {
     })
     mockCreateAgent.mockResolvedValue({ generate: mockAgentGenerate })
     mockBuildApiKeyFallbackModels.mockReturnValueOnce([keyFallback]).mockReturnValueOnce([keyFallback])
-    mockCreateRetryableWrap.mockReturnValue((model: unknown) => model)
+    mockCreateRetryableWrap.mockReturnValue((model) => model)
     mockReadRetryPolicy.mockReturnValue({
       enabled: false,
       maxAttempts: 3,
@@ -2512,7 +2511,7 @@ describe('AiService tool approval', () => {
     const service = createService()
     const primaryRepair = vi.fn().mockResolvedValue(null)
     const fallbackRepair = vi.fn().mockResolvedValue(null)
-    mockCreateRetryableWrap.mockReturnValueOnce((model: unknown) => model)
+    mockCreateRetryableWrap.mockReturnValueOnce((model) => model)
     vi.spyOn(service as unknown as AiServicePrivate, 'buildAgentParamsFor').mockResolvedValue({
       sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
       credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'sk-a****aaaa' },
@@ -2529,10 +2528,7 @@ describe('AiService tool approval', () => {
 
     await service.generateText({ uniqueModelId: 'test-provider::test-model', prompt: 'hello' } as never)
 
-    const retryOptions = mockCreateRetryableWrap.mock.calls[0][0] as {
-      onFallbackActivated: (fallback: { repairToolCall: typeof fallbackRepair }) => void
-      onPrimaryActivated: () => void
-    }
+    const retryOptions = mockCreateRetryableWrap.mock.calls[0][0]
     const agentOptions = mockCreateAgent.mock.calls[0][0] as {
       agentSettings: { experimental_repairToolCall: (options: never) => Promise<null> }
     }
@@ -2540,11 +2536,14 @@ describe('AiService tool approval', () => {
     await repair({} as never)
     expect(primaryRepair).toHaveBeenCalledOnce()
 
-    retryOptions.onFallbackActivated({ repairToolCall: fallbackRepair })
+    const fallbackModel = createOpenAICompatible({ name: 'test-fallback', baseURL: 'https://fixture.invalid' })(
+      'fallback'
+    )
+    retryOptions.onFallbackActivated!({ model: fallbackModel, repairToolCall: fallbackRepair })
     await repair({} as never)
     expect(fallbackRepair).toHaveBeenCalledOnce()
 
-    retryOptions.onPrimaryActivated()
+    retryOptions.onPrimaryActivated!()
     await repair({} as never)
     expect(primaryRepair).toHaveBeenCalledTimes(2)
   })

@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { PassThrough } from 'node:stream'
 
+import { MockApplicationUtils } from '@test-mocks/main/application'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
@@ -72,6 +73,7 @@ function installSystemCommands(...names: string[]) {
 
 describe('local agent installation resolution', () => {
   let directory: string
+  const sdkBinary = { getInstalledExecutable: vi.fn<() => string | undefined>() }
   it.each([
     [{}, 'http://saved.invalid', undefined, 'saved-token'],
     [{ ANTHROPIC_BASE_URL: 'http://custom.invalid' }, 'http://custom.invalid', undefined, undefined],
@@ -128,9 +130,42 @@ describe('local agent installation resolution', () => {
     inventory.openTerminal.mockResolvedValue({ success: true })
     inventory.snapshots = {}
     inventory.bundledGitDir = null
+    sdkBinary.getInstalledExecutable.mockReset()
+    MockApplicationUtils.setService('ClaudeCodeBinaryService', sdkBinary)
   })
   afterEach(async () => {
+    MockApplicationUtils.resetServices()
     await rm(directory, { recursive: true, force: true })
+  })
+
+  it('discovers and launches Claude from the SDK download when no CLI is installed', async () => {
+    const claude = { ...config, presetId: 'claude' }
+    const signal = new AbortController().signal
+    const sdkExecutable = path.join(directory, 'Toolchain', process.platform === 'win32' ? 'claude.exe' : 'claude')
+    inventory.snapshots.claude = { name: 'claude', availability: { source: 'none' } }
+    await expect(resolveLocalAgentCli(claude)).rejects.toMatchObject({ code: 'LOCAL_AGENT_NOT_INSTALLED' })
+
+    sdkBinary.getInstalledExecutable.mockReturnValue(sdkExecutable)
+    expect((await detectLocalAgents()).find(({ presetId }) => presetId === 'claude')).toMatchObject({
+      source: 'bundled',
+      path: sdkExecutable,
+      terminalPath: sdkExecutable
+    })
+    await expect(resolveLocalAgentCli(claude)).resolves.toMatchObject({ executable: sdkExecutable })
+    await expect(resolveClaudeLaunch(claude, directory, signal, 'models')).resolves.toMatchObject({
+      installation: { path: sdkExecutable }
+    })
+    await expect(resolveClaudeLaunch(claude, directory, signal, 'chat')).resolves.toMatchObject({
+      installation: { path: sdkExecutable }
+    })
+
+    inventory.snapshots.claude.availability = { source: 'mise', path: '/mise/shims/claude' }
+    await expect(resolveLocalAgentCli(claude)).resolves.toMatchObject({ executable: '/mise/shims/claude' })
+    installSystemCommands('claude')
+    await expect(resolveLocalAgentCli(claude)).resolves.toMatchObject({ executable: '/user/bin/claude' })
+    await expect(resolveLocalAgentCli({ ...claude, executableOverride: process.execPath })).resolves.toMatchObject({
+      executable: process.execPath
+    })
   })
 
   it.each<{ lastUsedProvider: string; env: Record<string, string> }>([

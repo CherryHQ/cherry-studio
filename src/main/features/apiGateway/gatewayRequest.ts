@@ -2,6 +2,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { CHERRY_FAST_MODE_HEADER, CHERRY_REASONING_EFFORT_HEADER, CHERRY_SERVICE_TIER_HEADER } from '@main/ai/constants'
 import { resolveEffectiveEndpoint } from '@main/ai/provider/endpoint'
+import type { RecoverableModelTransportFailure } from '@main/ai/runtime/aiSdk'
 import type { InProcessUsageContext } from '@main/ai/types'
 import {
   ENDPOINT_TYPE,
@@ -30,6 +31,7 @@ export interface AgentGatewayContext {
   serviceTier?: ServiceTierSelection
   fastMode: boolean
   onRetryEvent?: (event: RetryPartData) => void
+  onModelTransportFailure?: (failure: RecoverableModelTransportFailure) => void
   resolveUsage(responseId: string): InProcessUsageContext | undefined
 }
 

@@ -236,8 +236,16 @@ function collectShortcutReferences(localeKeys: Set<string>, usedKeys: Set<string
 }
 
 export function collectUsedI18nKeysFromSource(sourceFile: SourceFile, localeKeys: Set<string>): Set<string> {
-  const usedKeys = new Set<string>()
   const topLevelNamespaces = new Set([...localeKeys].map((key) => key.split('.')[0]))
+  return collectRendererSourceKeys(sourceFile, localeKeys, topLevelNamespaces)
+}
+
+function collectRendererSourceKeys(
+  sourceFile: SourceFile,
+  localeKeys: Set<string>,
+  topLevelNamespaces: Set<string>
+): Set<string> {
+  const usedKeys = new Set<string>()
   const isI18nLabelFile = sourceFile.getFilePath().endsWith(path.join('src/renderer/i18n/label.ts'))
 
   collectCommentReferences(sourceFile, localeKeys, usedKeys)
@@ -339,7 +347,13 @@ function collectUsedKeys(
 }
 
 export function collectUsedI18nKeys(sourceFiles: string[], localeKeys: Set<string>): Set<string> {
-  return collectUsedKeys(sourceFiles, localeKeys, collectUsedI18nKeysFromSource, true)
+  const topLevelNamespaces = new Set([...localeKeys].map((key) => key.split('.')[0]))
+  return collectUsedKeys(
+    sourceFiles,
+    localeKeys,
+    (sourceFile, keys) => collectRendererSourceKeys(sourceFile, keys, topLevelNamespaces),
+    true
+  )
 }
 
 export function collectUsedMainI18nKeys(sourceFiles: string[], localeKeys: Set<string>): Set<string> {

@@ -22,6 +22,12 @@
 
 import { IdleTimeoutController, type IdleTimeoutHandle } from './IdleTimeoutController'
 
+export class StreamIdleTimeoutError extends DOMException {
+  constructor() {
+    super('Stream idle timeout exceeded', 'TimeoutError')
+  }
+}
+
 export function withIdleTimeout<T>(
   source: ReadableStream<T>,
   controller: AbortController,
@@ -34,7 +40,7 @@ export function withIdleTimeout<T>(
   // (provider HTTP, stream-manager reader, agent loop, etc.).
   const onIdleAbort = () => {
     if (!controller.signal.aborted) {
-      controller.abort(new DOMException('Stream idle timeout exceeded', 'TimeoutError'))
+      controller.abort(new StreamIdleTimeoutError())
     }
   }
   idle.signal.addEventListener('abort', onIdleAbort, { once: true })

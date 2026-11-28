@@ -1,9 +1,10 @@
+const macRunner = ['self-hosted', 'mac-studio']
 const targets = [
-  { platform: 'windows', os: 'windows-latest', arch: 'all' },
-  { platform: 'mac', os: 'macos-latest', arch: 'x64' },
-  { platform: 'mac', os: 'macos-latest', arch: 'arm64' },
-  { platform: 'linux', os: 'ubuntu-latest', arch: 'x64' },
-  { platform: 'linux', os: 'ubuntu-latest', arch: 'arm64' }
+  { platform: 'windows', runner: 'windows-latest', arch: 'all' },
+  { platform: 'mac', runner: macRunner, arch: 'x64' },
+  { platform: 'mac', runner: macRunner, arch: 'arm64' },
+  { platform: 'linux', runner: 'ubuntu-latest', arch: 'x64' },
+  { platform: 'linux', runner: 'ubuntu-latest', arch: 'arm64' }
 ]
 
 function getReleaseTargets(platform) {

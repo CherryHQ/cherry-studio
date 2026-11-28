@@ -39,7 +39,7 @@ projects; compilers run serially. Local Vitest defaults to two workers, overrida
 through the direct Vitest command or project wrappers' `--maxWorkers` option.
 
 Required workspace packages are built before typechecks and tests. CI setup marks a
-successful installation with `VALIDATION_WORKSPACE_PREPARED=true`, so later groups
+successful workspace build with `VALIDATION_WORKSPACE_PREPARED=true`, so later groups
 reuse those exports in the same job. Unprepared local validation still builds them.
 Do not run Electron development and Node tests concurrently in one
 worktree. Use isolated worktrees and dependency installations for concurrent agents.
@@ -83,7 +83,9 @@ Repository, typecheck, lint and i18n groups share one dependency installation in
 run after an earlier group fails. The classification job first checks workflows and
 formatting with the pinned tools, without installing workspace dependencies. Failed
 planning or preflight prevents heavy jobs from starting; required gates still report
-the failure.
+the failure. Basic repository checks reuse the successful formatting preflight. When
+the plan selects only formatting and documentation, basic checks install dependencies
+with their lifecycle scripts and skip the root workspace export builds.
 
 Main/preload uses two Vitest shards; selected package tests use a separate unsharded
 Linux job. Neither group waits for the other. Renderer uses three Vitest shards.

@@ -212,7 +212,7 @@ function PreviewMessageRow({ message, highlightRegex, isActive, roleLabel, onOpe
           onOpen(message.id)
         }}
         className={cn(
-          '-mx-3 w-[calc(100%+1.5rem)] cursor-pointer rounded-xl border border-transparent px-3 py-2 text-left transition-colors hover:bg-muted/35 focus-visible:bg-muted/35 focus-visible:outline-none',
+          '-mx-3 w-[calc(100%+1.5rem)] cursor-pointer rounded-xl border border-transparent px-3 py-2 text-left transition-[color] hover:bg-muted/35 focus-visible:bg-muted/35 focus-visible:outline-none',
           isActive && 'border-border-selected bg-accent/55'
         )}>
         <div className="mb-1 font-medium text-muted-foreground text-xs">{roleLabel}</div>

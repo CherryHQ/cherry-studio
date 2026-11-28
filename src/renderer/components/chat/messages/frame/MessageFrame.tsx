@@ -1,4 +1,5 @@
 import dayjs from 'dayjs'
+import { LoaderCircle } from 'lucide-react'
 import type { FC } from 'react'
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -249,7 +250,7 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
           {messageBody}
         </div>
       )}
-      {isAssistantMessage ? messageTail : <UnsentMessageNotice message={message} />}
+      {isAssistantMessage ? messageTail : <UserMessageNotice message={message} />}
     </>
   )
 
@@ -357,10 +358,16 @@ const MessageItem: FC<Props> = ({ message, messageParts, ...props }) => {
 
 export default memo(MessageItem)
 
-/** A user message the runtime withdrew before the agent received it, with ways to send it again. */
-const UnsentMessageNotice: FC<{ message: MessageListItem }> = ({ message }) => {
+const UserMessageNotice: FC<{ message: MessageListItem }> = ({ message }) => {
   const { t } = useTranslation()
   const { resendUnsentMessage, editUnsentMessage } = useMessageListActions()
+  if (message.role === 'user' && message.status !== 'paused' && message.waitingForModel)
+    return (
+      <div role="status" className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
+        <LoaderCircle aria-hidden className="size-3 shrink-0 motion-safe:animate-spin" />
+        {t('agent.session_delivery.waiting_for_model')}
+      </div>
+    )
   if (message.role !== 'user' || message.status !== 'paused' || !resendUnsentMessage || !editUnsentMessage) return null
   return (
     <div className="mt-1 flex max-w-full flex-wrap items-center gap-1 text-foreground-tertiary text-xs">
@@ -441,7 +448,7 @@ const UserBubbleMessage = ({
             <MessageContent message={message} hoistAttachments />
           </MessageErrorBoundary>
         </div>
-        <UnsentMessageNotice message={message} />
+        <UserMessageNotice message={message} />
       </MessageUserLayout>
       {!isEditing && (
         <div className="MessageFooter relative mt-1 mr-[30px] flex min-h-6.5 w-[calc(100%-30px)] max-w-full items-center justify-end text-xs leading-none text-foreground-tertiary">

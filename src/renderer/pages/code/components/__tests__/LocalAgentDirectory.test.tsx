@@ -127,10 +127,8 @@ describe('local agent settings navigation', () => {
     expect(menu.queryByRole('menuitem', { name: '用量' })).not.toBeInTheDocument()
   })
 
-  it.each([
-    { presetId: 'codex', optionLabel: /ChatGPT 账号/, methodId: 'codex-browser' },
-    { presetId: 'pi-acp', methodId: 'pi-browser' }
-  ])('starts in-app browser sign-in from the installed $presetId card', async ({ presetId, optionLabel, methodId }) => {
+  it('starts in-app browser sign-in from the installed Codex card', async () => {
+    const presetId = 'codex'
     navigation.search = { id: presetId }
     vi.mocked(ipcApi.request).mockImplementation(async (route) => {
       if (route === 'ai.local_agents.detect') return [{ presetId, path: '/test/cli' }] as never
@@ -139,21 +137,27 @@ describe('local agent settings navigation', () => {
     render(<LocalAgentDirectory />)
     await userEvent.click(await screen.findByRole('button', { name: '登录' }))
     const dialog = within(screen.getByRole('dialog'))
-    if (presetId === 'pi-acp') {
-      await userEvent.type(dialog.getByRole('combobox'), 'openai-codex')
-      await userEvent.click(dialog.getByRole('button', { name: '登录' }))
-    } else if (optionLabel) {
-      await userEvent.click(dialog.getByRole('button', { name: optionLabel }))
-    }
+    await userEvent.click(dialog.getByRole('button', { name: /ChatGPT 账号/ }))
     expect(ipcApi.request).toHaveBeenCalledWith(
       'ai.local_agents.authenticate',
       expect.objectContaining({
-        methodId,
-        ...(presetId === 'pi-acp' ? { provider: 'openai-codex' } : {}),
+        methodId: 'codex-browser',
         config: expect.objectContaining({ presetId })
       })
     )
     expect(ipcApi.request).not.toHaveBeenCalledWith('ai.local_agents.open_terminal', expect.anything())
+  })
+
+  it('keeps provider sign-in off the installed Pi Agent card', async () => {
+    navigation.search = { id: 'pi-acp' }
+    vi.mocked(ipcApi.request).mockImplementation(async (route) =>
+      route === 'ai.local_agents.detect'
+        ? ([{ presetId: 'pi-acp', path: '/test/pi' }] as never)
+        : ({ models: [], authMethods: [], success: true } as never)
+    )
+    render(<LocalAgentDirectory />)
+    await screen.findByRole('button', { name: '检查连接' })
+    expect(screen.queryByRole('button', { name: '登录' })).not.toBeInTheDocument()
   })
 
   it('launches terminal auth login and reports native signed-in status for opencode', async () => {
@@ -459,7 +463,7 @@ describe('local agent settings navigation', () => {
     render(<LocalAgentDirectory />)
     expect(await screen.findByText('v0.0.348')).toBeVisible()
     expect(screen.getByRole('button', { name: 'GitHub Copilot · 已安装的 CLI 版本不兼容' })).toBeVisible()
-    expect(screen.getByText('/usr/local/bin/copilot')).toBeVisible()
+    expect(screen.getByRole('group', { name: '程序' })).toHaveTextContent(path)
     expect(within(screen.getByRole('main')).getByRole('status')).toHaveTextContent('已安装的 CLI 版本不兼容')
     expect(await screen.findByRole('button', { name: '更新到 v1.0.116' })).toBeDisabled()
     expect(screen.queryByRole('button', { name: '安装' })).not.toBeInTheDocument()
@@ -519,7 +523,7 @@ describe('local agent settings navigation', () => {
         (route === 'ai.local_agents.detect'
           ? [{ presetId: 'claude', path: '/usr/local/bin/claude' }]
           : route === 'ai.local_agents.check'
-            ? { ok: true, status: 'ready', version: '1.2.3' }
+            ? { ok: true, status: 'ready', protocolInfo: { agent: { version: '1.2.3' } } }
             : { models: [] }) as never
     )
     render(<LocalAgentDirectory />)

@@ -9,7 +9,7 @@ import { loggerService } from '@logger'
 import type { ResourcePaneConfig, ResourcePaneCountButtonProps } from '@renderer/components/chat/panes/Shell'
 import { AssistantResourceList } from '@renderer/components/chat/resourceList/AssistantResourceList'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
-import { ConversationSidebarToggleButton } from '@renderer/components/chat/shell/ConversationSidebarToggleButton'
+import { ConversationBackButton } from '@renderer/components/chat/shell/ConversationBackButton'
 import type { ChatPanePosition } from '@renderer/components/chat/shell/paneLayout'
 import { writeChatDraftCache } from '@renderer/components/composer/variants/chat/chatDraftCache'
 import {
@@ -624,28 +624,22 @@ const HomePage: FC = () => {
       activeResourceKind
         ? {
             className: 'relative',
+            hideLeftPane: true,
             content: (
               <ConversationResourceView
                 kind={activeResourceKind}
                 onOpenAssistantChat={handleOpenAssistantChatFromLibrary}
-                toolbarLeading={
-                  !isWindowFrame ? (
-                    <ConversationSidebarToggleButton
-                      sidebarOpen={shellPaneOpen}
-                      onSidebarToggle={toggleShellPane}
-                      tooltipPlacement="bottom"
-                    />
-                  ) : undefined
-                }
+                toolbarLeading={<ConversationBackButton onClick={closeSurface} />}
               />
             )
           }
         : null,
-    [activeResourceKind, shellPaneOpen, handleOpenAssistantChatFromLibrary, isWindowFrame, toggleShellPane]
+    [activeResourceKind, closeSurface, handleOpenAssistantChatFromLibrary]
   )
   const historyRecordsCenter = historyRecordsActive
     ? {
         className: 'relative',
+        hideLeftPane: true,
         content: (
           <HistoryRecordsView
             mode="assistant"
@@ -655,15 +649,7 @@ const HomePage: FC = () => {
             onRecordSelect={handleHistoryRecordsTopicSelect}
             onActiveRecordChange={handleHistoryActiveTopicChange}
             onLocalPermanentDeletePendingChange={onLocalPermanentDeletePendingChange}
-            toolbarLeading={
-              !isWindowFrame ? (
-                <ConversationSidebarToggleButton
-                  sidebarOpen={shellPaneOpen}
-                  onSidebarToggle={toggleShellPane}
-                  tooltipPlacement="bottom"
-                />
-              ) : undefined
-            }
+            toolbarLeading={<ConversationBackButton onClick={closeSurface} />}
           />
         )
       }

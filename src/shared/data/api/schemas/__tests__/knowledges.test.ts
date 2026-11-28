@@ -283,17 +283,24 @@ describe('Knowledge base schemas', () => {
   })
 
   it('rejects invalid numeric tuning fields in update schema', () => {
-    const result = UpdateKnowledgeBaseSchema.safeParse({
-      chunkSize: -10,
-      chunkOverlap: -1,
-      documentCount: -1
-    })
+    const validBaseline = { chunkSize: 512, chunkOverlap: 50, documentCount: 3 }
+    expect(UpdateKnowledgeBaseSchema.safeParse(validBaseline).success).toBe(true)
 
-    expect(result.success).toBe(false)
+    // One invalid field per case: several invalid fields at once would let one
+    // surviving validation hide the others.
+    const invalidFields: Array<Record<string, unknown>> = [
+      { chunkSize: -10 },
+      { chunkSize: 0 },
+      { chunkOverlap: -1 },
+      { documentCount: -1 }
+    ]
+    for (const invalid of invalidFields) {
+      expect(UpdateKnowledgeBaseSchema.safeParse({ ...validBaseline, ...invalid }).success).toBe(false)
+    }
   })
 
   it('rejects invalid numeric tuning fields in entity schema', () => {
-    const result = KnowledgeBaseSchema.safeParse({
+    const validBaseline = {
       id: KNOWLEDGE_BASE_ID,
       orderKey: 'a0',
       name: 'KB',
@@ -302,35 +309,29 @@ describe('Knowledge base schemas', () => {
       groupId: null,
       status: 'completed',
       error: null,
-      chunkSize: 0,
-      chunkOverlap: -1,
-      threshold: 2,
-      documentCount: -1,
+      chunkSize: DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
+      chunkOverlap: DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
+      chunkStrategy: 'structured',
+      chunkSeparator: '\\n\\n',
+      threshold: 0.5,
+      documentCount: 0,
       createdAt: '2026-04-10T00:00:00.000Z',
       updatedAt: '2026-04-10T00:00:00.000Z'
-    })
+    }
+    expect(KnowledgeBaseSchema.safeParse(validBaseline).success).toBe(true)
 
-    expect(result.success).toBe(false)
-
-    expect(
-      KnowledgeBaseSchema.safeParse({
-        id: KNOWLEDGE_BASE_ID,
-        orderKey: 'a0',
-        name: 'KB',
-        dimensions: 1024,
-        embeddingModelId: 'embed-model',
-        groupId: null,
-        status: 'completed',
-        error: null,
-        chunkSize: DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
-        chunkOverlap: DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
-        chunkStrategy: 'structured',
-        chunkSeparator: '\\n\\n',
-        threshold: -0.1,
-        createdAt: '2026-04-10T00:00:00.000Z',
-        updatedAt: '2026-04-10T00:00:00.000Z'
-      }).success
-    ).toBe(false)
+    // One invalid field per case: several invalid fields at once would let one
+    // surviving validation hide the others.
+    const invalidFields: Array<Record<string, unknown>> = [
+      { chunkSize: 0 },
+      { chunkOverlap: -1 },
+      { threshold: -0.1 },
+      { threshold: 2 },
+      { documentCount: -1 }
+    ]
+    for (const invalid of invalidFields) {
+      expect(KnowledgeBaseSchema.safeParse({ ...validBaseline, ...invalid }).success).toBe(false)
+    }
   })
 
   it('accepts documentCount 0 for empty knowledge bases', () => {

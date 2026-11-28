@@ -34,6 +34,7 @@ vi.mock('@main/ai/tokens/textTokenizer', async (importOriginal) => {
 })
 
 import { computeKeepRecentTurns, inLoopCompactionFeature } from '../inLoopCompaction'
+import { providerErrorBoundaryMiddleware } from '../providerErrorBoundary'
 
 const CONTEXT_WINDOW = 100_000
 const COMPRESSION_LANGUAGE_MODEL = { id: 'compression-model' } as any
@@ -224,7 +225,10 @@ describe('inLoopCompactionFeature', () => {
     const context: any = { middlewares: [] }
     const plugin = inLoopCompactionFeature.contributeModelAdapters!(featureScope)[0]
     await plugin.configureContext!(context)
-    const model = wrapLanguageModel({ model: providerModel, middleware: context.middlewares })
+    const model = wrapLanguageModel({
+      model: providerModel,
+      middleware: [...context.middlewares, providerErrorBoundaryMiddleware]
+    })
     await model.doStream({
       prompt: [
         { role: 'system', content: 'system' },
