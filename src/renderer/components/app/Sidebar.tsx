@@ -72,7 +72,7 @@ export default function Sidebar({
   const { t } = useTranslation()
   const notificationCenter = useNotificationCenter()
   const unreadDescriptionId = useId()
-  const showUserInFooter = isMac && !isFullscreen
+  const showStandaloneSettings = !isMac || isFullscreen
   const [userName] = usePreference('app.user.name')
   const { shortcuts, remove, reorder } = useSidebarShortcuts()
   const registry = useSidebarShortcutRegistry()
@@ -175,7 +175,7 @@ export default function Sidebar({
       <PopoverContent
         aria-label={t('sidebar.account_menu')}
         align="start"
-        side={showUserInFooter ? 'top' : 'bottom'}
+        side={isMac ? 'top' : 'bottom'}
         sideOffset={8}
         className="w-56 rounded-md p-0"
         onOpenAutoFocus={(event) => {
@@ -295,7 +295,7 @@ export default function Sidebar({
     entries,
     emptyHint: t('sidebar.empty_hint', { launchpad: t('title.launchpad') }),
     user: sidebarUser,
-    actions: !showUserInFooter
+    actions: showStandaloneSettings
       ? (footerLayout: SidebarVisibleLayout) => (
           <Tooltip
             content={t('settings.title')}

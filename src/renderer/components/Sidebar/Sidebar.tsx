@@ -66,7 +66,7 @@ export function Sidebar({
   const footerOverlayOpenRef = useRef(false)
   const floatingPointerInsideRef = useRef(false)
   const layout = getSidebarLayout(width)
-  const showUserInFooter = isMac && !isFullscreen
+  const showUserInFooter = isMac
   const showFooter = Boolean(
     extensionsLabel || onExtensionsClick || actions || userAction || (showUserInFooter && user)
   )
@@ -197,7 +197,7 @@ export function Sidebar({
           className={cn(
             'shell-navigation slide-in-from-left-2 fixed top-0 bottom-0 left-0 flex w-43.5 animate-in select-none flex-col rounded-r-sm rounded-br-2xl bg-sidebar shadow-2xl backdrop-blur-2xl backdrop-saturate-150 duration-200',
             '[-webkit-app-region:no-drag]',
-            (showUserInFooter || hasLeadingWindowControls) && 'pt-[env(titlebar-area-height)]'
+            ((isMac && !isFullscreen) || hasLeadingWindowControls) && 'pt-[env(titlebar-area-height)]'
           )}
           onClick={(event) => event.stopPropagation()}
           onMouseLeave={() => {
