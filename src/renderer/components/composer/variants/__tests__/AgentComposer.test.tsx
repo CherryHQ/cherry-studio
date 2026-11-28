@@ -2,6 +2,7 @@ import { basename } from 'node:path'
 
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
+import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { act, fireEvent, render, renderHook, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { type ComponentProps, type ReactNode, useEffect, useRef } from 'react'
@@ -22,7 +23,9 @@ import { handOffAgentDraft } from '@renderer/services/agentDraftHandoff'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 import type { FileMetadata } from '@renderer/types/file'
+import { anyFileExt, excludeFileExt, isSupportedExtension } from '@renderer/utils/file'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
+import { getAcpHostPermissionModeSelection, type LocalAgentSelection } from '@shared/ai/localAgent'
 import type { AgentConfiguration } from '@shared/data/api/schemas/agents'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { FileUIPart } from '@shared/data/types/message'
@@ -115,7 +118,10 @@ const mocks = vi.hoisted(() => ({
     | {
         assistant?: { modelId?: string | null }
         model?: Model
-        session?: { agentId?: string }
+        session?: {
+          agentId?: string
+          localPermission?: { mode?: unknown; disabled?: boolean }
+        }
       }
     | undefined,
   useRealSpeedControl: false,
@@ -156,16 +162,23 @@ const createSerializedFolderToken = (folderPath: string): ComposerSerializedToke
 /** Fixture helper — these are shape-valid absolute paths, so the brand is safe to assert. */
 const ps = (...values: string[]) => values as AbsoluteFilePath[]
 
-const renderAgentResourceMentionSource = (accessiblePaths: readonly string[] = ['/workspace']) =>
-  renderHook(
-    ({ paths }) =>
+const renderAgentResourceMentionSource = (
+  accessiblePaths: readonly string[] = ['/workspace'],
+  supportedExts?: readonly string[]
+) =>
+  renderHook<
+    ReturnType<typeof useAgentResourceMentionSource>,
+    { paths: readonly AbsoluteFilePath[]; exts?: readonly string[] }
+  >(
+    ({ paths, exts }) =>
       useAgentResourceMentionSource({
         accessiblePaths: paths,
         files: mocks.files as unknown as ComposerAttachment[],
         setFiles: mocks.setFiles,
+        supportedExts: exts,
         enabled: true
       }),
-    { initialProps: { paths: accessiblePaths as readonly AbsoluteFilePath[] } }
+    { initialProps: { paths: accessiblePaths as readonly AbsoluteFilePath[], exts: supportedExts } }
   )
 
 const requireFirstResourceMentionSource = (
@@ -289,7 +302,8 @@ const pdfSkillToken = {
 
 vi.mock('@renderer/hooks/tab', async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
-  useIsActiveTab: () => true
+  useIsActiveTab: () => true,
+  useCurrentTabId: () => 'agent-tab'
 }))
 vi.mock('@renderer/ipc', () => ({
   useIpcOn: (event: string, callback: (payload: any) => void) => {
@@ -301,7 +315,8 @@ vi.mock('@renderer/ipc', () => ({
     }, [event, callback])
   },
   ipcApi: {
-    request: (route: string, input: unknown) => mocks.ipcApiRequest(route, input)
+    request: (route: string, input: unknown) => mocks.ipcApiRequest(route, input),
+    on: vi.fn(() => () => {})
   }
 }))
 
@@ -527,10 +542,6 @@ vi.mock('@renderer/hooks/agent/useAgentModelFilter', () => ({
   useAgentModelFilter: () => undefined
 }))
 
-vi.mock('@renderer/hooks/agent/useAgentSessionCompaction', () => ({
-  useAgentSessionCompaction: () => ({ status: 'idle' })
-}))
-
 vi.mock('@renderer/hooks/agent/useSession', () => ({
   useUpdateSession: () => ({ updateSession: mocks.updateSession })
 }))
@@ -559,6 +570,7 @@ vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
 }))
 
 vi.mock('@renderer/hooks/useProvider', () => ({
+  useProviders: () => ({ providers: [] }),
   useProviderDisplayName: (providerId?: string) => (providerId ? mocks.providerNames[providerId] : '')
 }))
 
@@ -653,6 +665,10 @@ vi.mock('@renderer/components/ModelSelector', () => ({
   )
 }))
 
+vi.mock('@renderer/components/LocalAgentModelSelector', () => ({
+  LocalAgentModelSelector: ({ trigger }: { trigger: ReactNode }) => trigger
+}))
+
 vi.mock('@renderer/components/resourceCatalog/selectors', () => ({
   AgentSelector: ({ autoSelectOnCreate, onChange, trigger }: any) => (
     <div data-testid="agent-selector" data-auto-select-on-create={String(Boolean(autoSelectOnCreate))}>
@@ -690,6 +706,8 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/ResourceEditDialogEventHos
 vi.mock('@renderer/pages/agents/AgentSettings/shared', () => ({
   AgentLabel: ({ agent }: any) => <span>{agent.name}</span>
 }))
+
+vi.mock('@renderer/hooks/useApiGatewayProvider', () => ({ useApiGatewayProvider: () => null }))
 
 vi.mock('@renderer/data/hooks/usePreference', () => ({
   usePreference: (key: string) => {
@@ -1590,6 +1608,438 @@ describe('AgentComposer', () => {
       expect.objectContaining({ text: 'hello' }),
       expect.anything()
     )
+  })
+
+  it('dispatches the same Plan Only launcher for a local Shift+Tab shortcut', async () => {
+    mocks.pinnedToolIds = ['permission-mode']
+    const togglePlan = vi.fn()
+    mocks.optionalQuickPanel = { isVisible: false } as typeof mocks.optionalQuickPanel
+    mocks.toolLaunchers = [
+      { id: 'permission-mode', kind: 'group', sources: ['popover'], label: 'Permission Mode', icon: null, submenu: [] },
+      { id: 'plan-mode', kind: 'command', sources: ['root-panel'], label: 'Plan Only', icon: null, action: togglePlan }
+    ]
+    const info = {
+      models: [],
+      images: false,
+      resume: true,
+      configOptions: [
+        {
+          id: 'allow_all',
+          name: 'Allow All',
+          type: 'boolean' as const,
+          currentValue: false
+        },
+        {
+          id: 'detail',
+          name: 'Answer detail',
+          type: 'select' as const,
+          currentValue: 'brief',
+          options: [
+            { value: 'brief', name: 'Brief' },
+            { value: 'full', name: 'Detailed' }
+          ]
+        }
+      ],
+      mode: {
+        id: 'mode',
+        currentValue: 'default',
+        options: [
+          { value: 'default', name: 'Always Ask', permissionMode: 'default' },
+          { value: 'plan', name: 'Plan', permissionMode: 'plan' },
+          { value: 'yolo', name: 'YOLO', permissionMode: 'bypassPermissions' }
+        ]
+      }
+    }
+    mocks.ipcApiRequest.mockImplementation(async (route) => (route === 'ai.local_agents.session_info' ? { info } : {}))
+    const props = {
+      agentId: 'agent-1',
+      sessionId: 'session-1',
+      resolvedAgent: { ...createControlledAgent(), type: 'local' as const },
+      resolvedModel: undefined,
+      sendMessage: mocks.sendMessage,
+      stop: mocks.stop,
+      isStreaming: false
+    }
+    const view = render(<AgentComposer {...props} />)
+    const getControls = () => within(screen.getByTestId('composer-send-accessory'))
+    await waitFor(() => expect(mocks.runtimeHostProps?.session?.localPermission?.mode).toEqual(info.mode))
+    expect(screen.getByRole('button', { name: /agent\.settings\.permissionMode\.title/ })).toBeEnabled()
+    expect(getControls().queryByLabelText('code.adv.permission_mode')).toBeNull()
+    expect(getControls().queryByLabelText('local_agents.configuration')).not.toBeInTheDocument()
+
+    act(() => mocks.surfaceProps?.onShiftTab?.())
+    expect(togglePlan).toHaveBeenCalledWith(
+      expect.objectContaining({ source: 'root-panel', quickPanel: mocks.optionalQuickPanel })
+    )
+
+    for (const isStreaming of [true, false]) {
+      view.rerender(<AgentComposer {...props} isStreaming={isStreaming} />)
+      expect(mocks.runtimeHostProps?.session?.localPermission?.disabled).toBe(isStreaming)
+    }
+  })
+
+  it.each<{ name: string; mode: LocalAgentSelection }>([
+    {
+      name: 'OpenCode',
+      mode: {
+        id: 'mode',
+        application: 'session',
+        currentValue: 'build',
+        options: [
+          { value: 'build', name: 'Build', permissionMode: 'default' },
+          { value: 'plan', name: 'Plan', permissionMode: 'plan' }
+        ]
+      }
+    },
+    {
+      name: 'Antigravity',
+      mode: {
+        id: 'mode',
+        application: 'session',
+        currentValue: 'default',
+        options: [
+          { value: 'default', name: 'Default', permissionMode: 'default' },
+          { value: 'acceptEdits', name: 'Accept Edits' },
+          { value: 'auto', name: 'Auto' },
+          { value: 'plan', name: 'Plan', restrictHost: true }
+        ]
+      }
+    }
+  ])('shows the shared permission menu for $name without a separate session mode selector', async ({ mode }) => {
+    mocks.pinnedToolIds = ['permission-mode']
+    mocks.toolLaunchers = [
+      { id: 'permission-mode', kind: 'group', sources: ['popover'], label: 'Permission Mode', icon: null, submenu: [] }
+    ]
+    mocks.ipcApiRequest.mockResolvedValue({
+      info: { models: [], images: true, resume: true, mode, hostPermission: getAcpHostPermissionModeSelection(mode) }
+    })
+    render(
+      <AgentComposer
+        sessionId="session-1"
+        agentId="agent-1"
+        resolvedAgent={{ ...createControlledAgent(), type: 'local' }}
+        resolvedModel={undefined}
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+    expect(await screen.findByRole('button', { name: /agent\.settings\.permissionMode\.title/ })).toBeEnabled()
+    expect(
+      within(screen.getByTestId('composer-send-accessory')).queryByLabelText('local_agents.configuration')
+    ).toBeNull()
+  })
+
+  it('displays runtime permission choices while hiding pinned Cherry resource controls', async () => {
+    mocks.pinnedToolIds = ['permission-mode', 'knowledge-base', 'skills', 'mcp-status']
+    mocks.toolLaunchers = [
+      { id: 'permission-mode', kind: 'group', sources: ['popover'], label: 'Permission Mode', icon: null, submenu: [] }
+    ]
+    mocks.ipcApiRequest.mockResolvedValue({
+      info: null,
+      idleMode: {
+        id: 'mode',
+        currentValue: 'manual',
+        options: [
+          { value: 'manual', name: 'Manual review', permissionMode: 'default' },
+          { value: 'edit', name: 'Review edits', permissionMode: 'acceptEdits' }
+        ]
+      }
+    })
+    render(
+      <AgentComposer
+        sessionId="session-1"
+        agentId="agent-1"
+        resolvedAgent={{ ...createControlledAgent(), type: 'local' }}
+        resolvedModel={undefined}
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+    expect(mocks.runtimeHostProps?.session?.localPermission?.disabled).toBe(false)
+    expect(await screen.findByRole('button', { name: /agent\.settings\.permissionMode\.title/ })).toBeEnabled()
+    expect(screen.queryByRole('button', { name: 'chat.input.knowledge_base' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'plugins.skills' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'MCP' })).not.toBeInTheDocument()
+  })
+
+  it('renders Pi effort without treating it as a permission mode', async () => {
+    MockUseDataApiUtils.mockQueryData('/models', [])
+    mocks.ipcApiRequest.mockResolvedValue({
+      info: {
+        models: [],
+        images: true,
+        resume: true,
+        thoughtLevel: {
+          id: 'legacy-mode',
+          application: 'session',
+          currentValue: 'medium',
+          options: [
+            { value: 'off', name: 'Thinking: off' },
+            { value: 'minimal', name: 'Thinking: minimal' },
+            { value: 'low', name: 'Thinking: low' },
+            { value: 'medium', name: 'Thinking: medium' }
+          ]
+        }
+      }
+    })
+    render(
+      <AgentComposer
+        sessionId="session-pi"
+        agentId="agent-pi"
+        resolvedAgent={{
+          ...createControlledAgent(),
+          type: 'local',
+          localRuntime: { presetId: 'pi-acp' } as any
+        }}
+        resolvedModel={undefined}
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    const getControls = () => within(screen.getByTestId('composer-send-accessory'))
+    expect(getControls().queryByRole('button', { name: 'code.adv.permission_mode' })).not.toBeInTheDocument()
+    expect(getControls().queryByRole('button', { name: 'local_agents.configuration' })).not.toBeInTheDocument()
+    const thoughtBtn = await getControls().findByRole('button', { name: 'agent.speed.title' })
+    expect(thoughtBtn).toHaveTextContent('assistants.settings.reasoning_effort.medium')
+  })
+
+  it('keeps native execution options available without adding an input control', async () => {
+    const permissionsOption = {
+      id: 'permissions',
+      application: 'session',
+      name: 'Permissions',
+      type: 'select' as const,
+      currentValue: 'default',
+      options: [
+        { value: 'default', name: 'Default', permissionMode: 'default' },
+        { value: 'bypass', name: 'Bypass', permissionMode: 'bypassPermissions' }
+      ]
+    }
+    const reasoningOption = {
+      id: 'reasoning',
+      name: 'Model default',
+      category: 'model_config',
+      type: 'select' as const,
+      currentValue: 'medium',
+      options: [
+        { value: 'off', name: 'Off' },
+        { value: 'low', name: 'Low' },
+        { value: 'medium', name: 'Medium' },
+        { value: 'high', name: 'High' },
+        { value: 'max', name: 'Max' }
+      ]
+    }
+    const executionMode = {
+      id: 'execution-environment',
+      name: 'Execution environment',
+      category: 'mode',
+      type: 'select' as const,
+      currentValue: 'local',
+      options: [
+        { value: 'local', name: 'Local' },
+        { value: 'orb', name: 'Orb' }
+      ]
+    }
+    const workflow = {
+      id: 'mode',
+      name: 'Workflow',
+      role: 'mode',
+      type: 'select' as const,
+      currentValue: 'agent',
+      options: [
+        { value: 'agent', name: 'Agent' },
+        { value: 'autopilot', name: 'Autopilot' }
+      ]
+    }
+    mocks.ipcApiRequest.mockResolvedValue({
+      info: {
+        models: [],
+        images: true,
+        resume: true,
+        mode: permissionsOption,
+        configOptions: [executionMode, workflow, reasoningOption]
+      }
+    })
+    mocks.runtimeHostProps = undefined
+
+    render(
+      <AgentComposer
+        sessionId="session-config-routing"
+        agentId="agent-amp"
+        resolvedAgent={{
+          ...createControlledAgent(),
+          type: 'local',
+          localRuntime: { presetId: 'amp-acp' } as any
+        }}
+        resolvedModel={undefined}
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    await waitFor(() =>
+      expect(mocks.runtimeHostProps?.session?.localPermission).toMatchObject({
+        mode: { id: 'permissions', currentValue: 'default' },
+        options: [executionMode, workflow]
+      })
+    )
+
+    const getControls = () => within(screen.getByTestId('composer-send-accessory'))
+    expect(getControls().queryByRole('button', { name: 'agent.speed.title' })).not.toBeInTheDocument()
+    expect(getControls().queryByRole('button', { name: 'local_agents.configuration' })).not.toBeInTheDocument()
+  })
+
+  it('displays negotiated ACP effort and omits the unsupported context meter', async () => {
+    const thinkingOption = {
+      id: 'reasoning-budget',
+      application: 'session',
+      currentValue: 'high',
+      options: [
+        { value: 'low', name: 'Low' },
+        { value: 'medium', name: 'Medium' },
+        { value: 'high', name: 'High' }
+      ]
+    }
+    const extraBool = {
+      id: 'notifications',
+      name: 'Notifications',
+      type: 'boolean' as const,
+      currentValue: true
+    }
+    mocks.ipcApiRequest.mockResolvedValue({
+      info: { models: [], images: true, resume: true, thoughtLevel: thinkingOption, configOptions: [extraBool] }
+    })
+    MockUseCacheUtils.setSharedCacheValue('agent.session.context_usage.session-thinking-role', {
+      result: {
+        status: 'unsupported',
+        error: { operation: 'contextUsage', code: 'unsupported', message: 'Not supported' }
+      }
+    })
+    mocks.sessionLayout = 'time'
+
+    render(
+      <AgentComposer
+        sessionId="session-thinking-role"
+        agentId="agent-acp-thinking"
+        resolvedAgent={{
+          ...createControlledAgent(),
+          type: 'local',
+          localRuntime: { presetId: 'antigravity-acp' } as any
+        }}
+        resolvedModel={undefined}
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    const accessory = within(screen.getByTestId('composer-send-accessory'))
+    expect(await accessory.findByRole('button', { name: 'agent.speed.title' })).toHaveTextContent(
+      'assistants.settings.reasoning_effort.high'
+    )
+    expect(accessory.queryByRole('menuitemradio', { name: 'High' })).not.toBeInTheDocument()
+    expect(accessory.queryByRole('button', { name: 'local_agents.configuration' })).not.toBeInTheDocument()
+    expect(accessory.queryByRole('meter')).not.toBeInTheDocument()
+    expect(accessory.queryByRole('status')).not.toBeInTheDocument()
+    expect(accessory.queryByLabelText(/context_usage/)).not.toBeInTheDocument()
+  })
+
+  it('allows arbitrary workspace files for local agents while honoring ACP image/audio capability exclusions', async () => {
+    mocks.ipcApiRequest.mockImplementation(async (route) =>
+      route === 'ai.local_agents.session_info'
+        ? { info: { models: [], images: false, audio: false, resume: false, supportsEmbeddedContext: false } }
+        : null
+    )
+
+    const { rerender } = render(
+      <AgentComposer
+        sessionId="session-acp-caps"
+        agentId="agent-acp"
+        resolvedAgent={{
+          ...createControlledAgent(),
+          type: 'local',
+          localRuntime: { presetId: 'pi-acp', enabled: true } as any
+        }}
+        resolvedModel={undefined}
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    await waitFor(() => expect(mocks.derivedToolState?.couldAddImageFile).toBe(false))
+    const acpExts = mocks.surfaceProps?.supportedExts ?? []
+    expect(acpExts).toContain(anyFileExt)
+    expect(isSupportedExtension('.sqlite', acpExts)).toBe(true)
+    expect(isSupportedExtension('.png', acpExts)).toBe(false)
+    expect(isSupportedExtension('.mp3', acpExts)).toBe(false)
+
+    // File-pane attach respects ACP image exclusion instead of letting unsupported files reach send.
+    await act(async () => {
+      await EventEmitter.emit(EVENT_NAMES.ATTACH_AGENT_COMPOSER_PATH, {
+        topicId: 'agent-session:session-acp-caps',
+        path: '/ws/photo.png',
+        kind: 'file'
+      })
+    })
+    expect(mocks.files).toEqual([])
+    expect(toast.info).toHaveBeenCalledWith('chat.input.file_not_supported')
+
+    // Native protocols (Claude/Codex) attach arbitrary files including audio by path.
+    rerender(
+      <AgentComposer
+        sessionId="session-claude-files"
+        agentId="agent-claude"
+        resolvedAgent={{
+          ...createControlledAgent(),
+          type: 'local',
+          localRuntime: { presetId: 'claude', enabled: true } as any
+        }}
+        resolvedModel={undefined}
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+    const claudeExts = mocks.surfaceProps?.supportedExts ?? []
+    expect(claudeExts).toContain(anyFileExt)
+    expect(isSupportedExtension('.mp3', claudeExts)).toBe(true)
+    expect(isSupportedExtension('.sqlite', claudeExts)).toBe(true)
+  })
+
+  it('uses the controlled session, agent, and model context', () => {
+    const resolvedAgent = {
+      id: 'agent-1',
+      name: 'Agent',
+      type: 'claude-code',
+      model: model.id,
+      configuration: {}
+    } as any
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sessionOverride={{
+          workspaceId: 'workspace-1',
+          workspace: { id: 'workspace-1', type: 'user', name: 'Workspace 1', path: '/workspace' }
+        }}
+        resolvedAgent={resolvedAgent}
+        resolvedModel={model}
+        resolvedWorkspaceWarning={null}
+        externalContextControls
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    expect(mocks.runtimeHostProps?.model).toBe(model)
+    expect(mocks.runtimeHostProps?.session?.agentId).toBe('agent-1')
   })
 
   it('loads and persists the agent reasoning effort without replacing other configuration', () => {
@@ -2853,6 +3303,37 @@ describe('AgentComposer', () => {
     ).not.toBeInTheDocument()
   })
 
+  it('shows and clears compaction status even without context usage metrics', () => {
+    MockUseCacheUtils.setSharedCacheValue('agent.session.compaction.session-1', {
+      status: 'compacting',
+      startedAt: '2026-09-30T00:00:00Z'
+    })
+    const composer = (
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+    const view = render(composer)
+    const accessory = screen.getByTestId('composer-send-accessory')
+    expect(within(accessory).getByRole('status')).toHaveTextContent('chat.compaction.compacting')
+    expect(within(accessory).queryByRole('meter')).not.toBeInTheDocument()
+    MockUseCacheUtils.setSharedCacheValue('agent.session.compaction.session-1', { status: 'idle' })
+    view.rerender(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+    expect(within(accessory).queryByRole('status')).not.toBeInTheDocument()
+  })
+
   it('ignores a workspace path that is not an absolute filesystem path', async () => {
     mocks.sessionWorkspacePath = 'relative/workspace'
 
@@ -3115,6 +3596,28 @@ describe('AgentComposer', () => {
 
     expect(chain.insertComposerToken).not.toHaveBeenCalled()
     expect(chain.insertContent).not.toHaveBeenCalled()
+  })
+
+  it('disables excluded extensions in @ resource mentions while keeping arbitrary wildcard files selectable', async () => {
+    mocks.listDirectoryEntries.mockResolvedValue([
+      { path: '/workspace/photo.png', isDirectory: false },
+      { path: '/workspace/data.sqlite', isDirectory: false }
+    ])
+    const { result } = renderAgentResourceMentionSource(['/workspace'], [anyFileExt, excludeFileExt('.png')])
+    const source = requireFirstResourceMentionSource(result.current)
+    const { editor, chain } = buildComposerEditorMock()
+
+    const items = await source.items({ query: '', editor })
+    const pngItem = items.find((item) => item.label === 'photo.png')
+    const sqliteItem = items.find((item) => item.label === 'data.sqlite')
+    expect(pngItem?.disabled).toBe(true)
+    expect(sqliteItem?.disabled).toBe(false)
+
+    pngItem?.command?.({ editor, range: { from: 0, to: 0 }, item: pngItem, query: '' })
+    expect(chain.insertComposerToken).not.toHaveBeenCalled()
+
+    sqliteItem?.command?.({ editor, range: { from: 0, to: 0 }, item: sqliteItem, query: '' })
+    expect(chain.insertComposerToken).toHaveBeenCalledTimes(1)
   })
 
   it('inserts the reference chip at once, blocks sending, then fills it when the transcript lands', async () => {
@@ -4966,6 +5469,11 @@ describe('AgentComposer', () => {
     { steer: false, followUp: true },
     { steer: true, followUp: undefined }
   ])('sends a busy Pi Durable message at once (steer: $steer)', async ({ steer, followUp }) => {
+    MockUseCacheUtils.setSharedCacheValue('agent.session.runtime_controls.session-1', {
+      generation: 'generation-1',
+      compact: false,
+      durableFollowUp: true
+    })
     render(
       <AgentComposer
         agentId="agent-1"

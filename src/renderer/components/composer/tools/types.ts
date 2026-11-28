@@ -8,7 +8,9 @@ import type {
 } from '@renderer/components/composer/toolLauncher'
 import type { Assistant } from '@renderer/types/assistant'
 import { TopicType } from '@renderer/types/topic'
+import type { LocalAgentConfigOption, LocalAgentSelection, LocalAgentSessionView } from '@shared/ai/localAgent'
 import type { SlashCommand } from '@shared/ai/slashCommands'
+import type { AgentType } from '@shared/data/types/agent'
 import type { Model } from '@shared/data/types/model'
 import type { AbsoluteFilePath } from '@shared/types/file'
 
@@ -65,12 +67,19 @@ export interface ToolContext {
   session?: {
     agentId?: string
     sessionId?: string
-    agentType?: string
+    agentType?: AgentType
     tools?: Array<{ id: string; name: string; type: string; description?: string }>
     accessiblePaths?: readonly AbsoluteFilePath[]
     slashCommands?: (SlashCommand & { builtin?: boolean })[]
     /** Knowledge bases statically bound to the Agent. */
     knowledgeBaseIds?: readonly string[]
+    localPermission?: Pick<LocalAgentSessionView, 'providerId' | 'presetId'> & {
+      mode?: LocalAgentSelection
+      options?: LocalAgentConfigOption[]
+      connecting?: boolean
+      unavailable?: boolean
+      disabled?: boolean
+    }
   }
 }
 

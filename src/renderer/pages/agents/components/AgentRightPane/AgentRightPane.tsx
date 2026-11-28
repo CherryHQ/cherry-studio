@@ -81,6 +81,7 @@ import { useAgentDesktopControls } from '@renderer/hooks/agent/useAgentDesktopCo
 import { useAgentSessionBackgroundTasks } from '@renderer/hooks/agent/useAgentSessionBackgroundTasks'
 import { useAgentSessionCompaction } from '@renderer/hooks/agent/useAgentSessionCompaction'
 import { useAgentSessionContextUsage } from '@renderer/hooks/agent/useAgentSessionContextUsage'
+import { useAgentSessionCost } from '@renderer/hooks/agent/useAgentSessionCost'
 import { useAgentSessionStreamTopic } from '@renderer/hooks/agent/useAgentSessionStreamTopic'
 import { useAgentSessionTaskEvents } from '@renderer/hooks/agent/useAgentSessionTaskEvents'
 import { useAgentToolParts } from '@renderer/hooks/agent/useAgentToolParts'
@@ -140,6 +141,7 @@ import {
   AgentSessionDetailsLayout
 } from './AgentSessionDetails'
 import { AgentRunTaskStopsProvider, AgentSessionDetailsSections, TaskStatusIcon } from './AgentSessionDetailsSections'
+import { AgentSubscriptionUsage } from './AgentSubscriptionUsage'
 import { AgentWorkspaceOpenShortcut } from './AgentWorkspaceOpenShortcut'
 import { useAgentPreviewUrl } from './useAgentPreviewUrl'
 import { useAgentSessionDetails } from './useAgentSessionDetails'
@@ -211,6 +213,7 @@ interface AgentFlowTab {
 
 interface AgentRightPaneMeta {
   runtimeType?: string
+  subscriptionUsageRevision?: string
   sessionId?: string
   sessionName?: string
   /** Container-level trace id for the session. When developer mode is on, the Trace tab renders this trace tree. */
@@ -614,6 +617,7 @@ function AgentRightPaneActionsProvider({
 
 function AgentRightPaneStateProvider({
   runtimeType,
+  subscriptionUsageRevision,
   children,
   workspaceId,
   workspacePath,
@@ -985,6 +989,7 @@ function AgentRightPaneStateProvider({
   const meta = useMemo<AgentRightPaneMeta>(
     () => ({
       runtimeType,
+      subscriptionUsageRevision,
       sessionId,
       sessionName,
       traceId,
@@ -1002,6 +1007,7 @@ function AgentRightPaneStateProvider({
     [
       agentAvatar,
       runtimeType,
+      subscriptionUsageRevision,
       agentId,
       agentName,
       conversationState,
@@ -1778,6 +1784,7 @@ function AgentDetailsContent() {
   const details = useAgentSessionDetails()
   const status = useAgentRightPaneStatus()
   const { usage, percentage } = useAgentSessionContextUsage(sessionId, meta.model)
+  const cost = useAgentSessionCost(sessionId)
   const compaction = useAgentSessionCompaction(sessionId)
   const desktopControls = use(DesktopControlsContext)
   const refreshMissingUsage = useEffectEvent(async (sessionId: string) => {
@@ -1799,11 +1806,15 @@ function AgentDetailsContent() {
         pendingDesktopControls={desktopControls?.pending}
         stopDesktopControl={desktopControls?.stopApp}
         contextUsage={
-          <AgentContextUsageSummary
-            usage={usage}
-            percentage={percentage}
-            isCompacting={compaction.status === 'compacting'}
-          />
+          usage?.used ? (
+            <AgentContextUsageSummary
+              cost={cost}
+              usage={usage}
+              percentage={percentage}
+              isCompacting={compaction.status === 'compacting'}
+              className="py-2"
+            />
+          ) : null
         }
         status={status}
         sessionId={meta.sessionId}
@@ -1827,6 +1838,13 @@ function AgentDetailsContent() {
             : undefined
         }
       />
+      {sessionId && meta.agentId && meta.subscriptionUsageRevision && (
+        <AgentSubscriptionUsage
+          key={JSON.stringify([sessionId, meta.agentId, meta.subscriptionUsageRevision])}
+          agentId={meta.agentId}
+          sessionId={sessionId}
+        />
+      )}
     </div>
   )
 }
