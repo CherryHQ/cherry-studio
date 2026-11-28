@@ -1178,8 +1178,8 @@ export class AgentSessionService {
   private recordWorkspaceEventTx(
     tx: DbOrTx,
     sessionId: string,
-    previous: AgentWorkspaceRow,
-    next: AgentWorkspaceRow
+    previous: Pick<AgentWorkspaceRow, 'id' | 'path'>,
+    next: Pick<AgentWorkspaceRow, 'id' | 'path'>
   ): void {
     // Recorded in the same transaction as the repoint: the event is the durable
     // evidence that the workspace change was deliberate.
