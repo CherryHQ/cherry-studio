@@ -1,9 +1,36 @@
 import { APICallError, JSONParseError, NoSuchToolError, RetryError, TypeValidationError } from 'ai'
 import { describe, expect, it } from 'vitest'
 
+import { normalizeProviderError } from '@main/ai/runtime/aiSdk/params/features/providerErrorBoundary'
+import { createLocalError } from '@shared/utils/localError'
+
 import { serializeError } from '../serializeError'
 
 describe('serializeError', () => {
+  it('retains only the allowlisted local source distinction', () => {
+    const local = serializeError(createLocalError('[SQLITE_BUSY] database is locked'))
+    expect(JSON.parse(JSON.stringify(local))).toMatchObject({
+      errorSource: 'local',
+      message: '[SQLITE_BUSY] database is locked'
+    })
+    expect(
+      serializeError(Object.assign(new Error('ordinary failure'), { errorSource: 'arbitrary' }))
+    ).not.toHaveProperty('errorSource')
+  })
+
+  it('redacts local credentials before bounding diagnostic length', () => {
+    const error = createLocalError(
+      `[SQLITE_BUSY] database is locked; sk-${'a'.repeat(25)}; https://user:pass@example.com\napiKey=short-secret\n${'x'.repeat(600)}`
+    )
+    const serialized = serializeError(error)
+    expect(serialized.message).toContain('[SQLITE_BUSY] database is locked; <redacted>; https://<redacted>@example.com')
+    expect(serialized.message).toContain('apiKey="<redacted>"')
+    expect(serialized.message).toHaveLength(501)
+    expect(serialized.message?.endsWith('…')).toBe(true)
+    expect(JSON.stringify(serialized)).not.toMatch(/short-secret|user:pass|sk-aaaa/)
+    expect(serializeError(createLocalError('x'.repeat(16_385))).message).toBe('')
+  })
+
   it('preserves reporting ownership for API errors and structured stream events without leaking payloads', () => {
     for (const error of [
       new APICallError({
@@ -48,6 +75,28 @@ describe('serializeError', () => {
 
       expect(result).toEqual({ name: null, message: null, stack: null })
       expect(JSON.stringify(result)).not.toMatch(/object-secret|nested-secret|\[object Object\]/)
+    })
+
+    it('preserves validated status and category after the provider boundary classifies a code-only overflow', () => {
+      const providerError = {
+        type: 'error',
+        status: 400,
+        error: {
+          code: 'context_length_exceeded',
+          message: 'The request cannot be processed.'
+        },
+        apiKey: 'object-secret',
+        prompt: 'private prompt'
+      }
+      const result = serializeError(normalizeProviderError(providerError))
+
+      expect(result).toMatchObject({
+        message: 'The request cannot be processed.',
+        stack: null,
+        statusCode: 400,
+        providerErrorCategory: 'context_length'
+      })
+      expect(JSON.stringify(result)).not.toMatch(/object-secret|private prompt/)
     })
   })
 

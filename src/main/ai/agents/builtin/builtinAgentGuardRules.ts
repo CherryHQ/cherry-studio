@@ -7,14 +7,13 @@
  *
  */
 
+import { loggerService } from '@logger'
 import type { GuardHit, ToolGuardContext, ToolGuardRule } from '@main/ai/toolApproval/toolGuards'
 import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
 
-import {
-  isGitHubIssueCreationCommand,
-  isLarkFormSubmissionCommand,
-  isPermanentDeletionToolName
-} from './assistantCommandSafety'
+import { isFeedbackSubmissionCommand, isPermanentDeletionToolName } from './assistantCommandSafety'
+
+const logger = loggerService.withContext('BuiltinAgentGuardRules')
 
 /** Every built-in role is protected — see `isProtectedBuiltinAgentRole`. */
 const PROTECTED_BUILTIN_ROLES: readonly string[] = Object.values(BUILTIN_AGENT_ROLE)
@@ -23,10 +22,16 @@ const destructiveBuiltinOperation = (ctx: ToolGuardContext): GuardHit | null => 
   return isPermanentDeletionToolName(ctx.toolName) ? { evidence: 'permanent deletion tool' } : null
 }
 
-const feedbackSubmissionCommand = (ctx: ToolGuardContext): GuardHit | null => {
+const feedbackSubmissionCommand = async (ctx: ToolGuardContext): Promise<GuardHit | null> => {
   const command = ctx.input?.command
-  if (typeof command !== 'string') return null
-  return isLarkFormSubmissionCommand(command) || isGitHubIssueCreationCommand(command) ? {} : null
+  const dialect = ctx.toolName === 'Bash' ? 'bash' : ctx.toolName === 'PowerShell' ? 'powershell' : undefined
+  if (typeof command !== 'string' || !dialect) return null
+  try {
+    return (await isFeedbackSubmissionCommand(command, dialect)) ? {} : null
+  } catch (error) {
+    logger.error('Feedback submission check failed; requiring approval', error as Error)
+    return {}
+  }
 }
 
 export const BUILTIN_AGENT_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
@@ -48,7 +53,7 @@ export const BUILTIN_AGENT_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
     id: 'assistant-feedback',
     bypassBehavior: 'skipInteractiveEffect',
     appliesTo: { roles: [BUILTIN_AGENT_ROLE.ASSISTANT] },
-    match: { tool: 'Bash', when: feedbackSubmissionCommand },
+    match: { when: feedbackSubmissionCommand },
     effect: 'ask',
     reason: 'Submitting Cherry Studio feedback externally requires live per-call user approval.',
     headless: {
@@ -59,11 +64,11 @@ export const BUILTIN_AGENT_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
   },
   {
     // Support shell commands can hide external submissions behind arbitrary wrappers, so every
-    // Bash call asks. The JSON command policy enforces destructive-command denials.
+    // shell call asks. The JSON command policy enforces destructive-command denials.
     id: 'support-bash',
     bypassBehavior: 'skipInteractiveEffect',
     appliesTo: { roles: [BUILTIN_AGENT_ROLE.SUPPORT] },
-    match: { tool: 'Bash' },
+    match: { when: (ctx) => (ctx.toolName === 'Bash' || ctx.toolName === 'PowerShell' ? {} : null) },
     effect: 'ask',
     reason: 'Cherry Support shell commands require live per-call user approval.',
     headless: {

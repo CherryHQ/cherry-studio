@@ -94,8 +94,8 @@ export async function hydrateDeferredImageOutputs(
       const output = (part as { output?: unknown }).output
       if (!isDeferredToolOutput(output)) continue
       try {
-        const response = await ipcApi.request('ai.tool.get_result', output.$deferredToolResult)
-        if (!response.found) {
+        const response = await ipcApi.request('ai.tool.get_result', { ...output.$deferredToolResult, purpose: 'full' })
+        if (response.status !== 'ready' || response.purpose !== 'full') {
           throw new Error(`Tool result is no longer available: ${output.$deferredToolResult.toolCallId}`)
         }
         messageParts ??= [...parts]

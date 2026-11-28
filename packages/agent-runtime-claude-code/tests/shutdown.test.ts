@@ -40,7 +40,7 @@ it.each([true, false])('confirms shutdown only after SDK escalation actually exi
       expect(result.status).toBe('confirmed')
     } else {
       expect(result).toMatchObject({ status: 'unknown', error: { code: 'process-exit-unconfirmed' } })
-      expect(await root.input!.submit({ inputId: inputId(), text: 'After stop', whenBusy: 'steer' })).toMatchObject({
+      expect(await root.input!.steer!.submit({ inputId: inputId(), text: 'After stop' })).toMatchObject({
         status: 'rejected',
         error: { code: 'closed' }
       })

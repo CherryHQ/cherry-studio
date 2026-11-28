@@ -30,6 +30,7 @@ const {
   mockPreferenceSet: vi.fn<(key: string, value: boolean | string) => Promise<void>>(),
   mockPreferenceSetMultiple: vi.fn<(updates: Record<string, unknown>) => Promise<void>>(),
   captured: {
+    gatewayService: undefined as ApiGatewayService | undefined,
     prefHandler: undefined as ((enabled: boolean) => void) | undefined,
     enabledPreference: false,
     hostPreference: '127.0.0.1',
@@ -98,6 +99,7 @@ vi.mock('@application', async () => {
       setMultiple: mockPreferenceSetMultiple
     },
     CacheService: { setShared: mockSetShared },
+    ApiGatewayService: { isInternalRequest: (headers: Headers) => captured.gatewayService?.isInternalRequest(headers) },
     AgentSessionRuntimeService: { getActiveUsageContext: mockGetActiveUsageContext },
     RemoteAccessService: {
       updateDirectEndpoint: vi.fn(),
@@ -114,6 +116,7 @@ vi.mock('@application', async () => {
 })
 
 import { ApiGatewayService } from '../ApiGatewayService'
+import { authorizeApiRequest } from '../middleware/auth'
 import { ApiGateway } from '../server'
 
 let startResolvers: Array<() => void>
@@ -121,6 +124,7 @@ let rejectStart: boolean
 
 beforeEach(() => {
   BaseService.resetInstances()
+  captured.gatewayService = undefined
   captured.prefHandler = undefined
   captured.enabledPreference = false
   captured.hostPreference = '127.0.0.1'
@@ -159,14 +163,14 @@ beforeEach(() => {
   mockStop.mockResolvedValue(undefined)
 })
 
-async function startInternalGateway(service: ApiGatewayService) {
-  const pending = service.ensureInternalGateway()
+async function startInternalGateway(service: ApiGatewayService, sessionId?: string) {
+  const pending = service.ensureInternalGateway(sessionId)
   await vi.waitFor(() => expect(startResolvers.length).toBeGreaterThan(0))
   startResolvers.at(-1)!()
   return pending
 }
 
-const CHAT_SCOPE = { path: '/v1/chat/completions', model: 'openai:gpt-4o' }
+const CHAT_SCOPE = { paths: ['/v1/chat/completions'], model: 'openai:gpt-4o' }
 
 describe('internal request budget', () => {
   it('allows a small request alongside a large one and queues a second large request', async () => {
@@ -365,7 +369,8 @@ describe('ApiGatewayService internal gateway', () => {
   // A delayed summary request must retain its initiator when the active turn changes.
   it('freezes auxiliary ownership and rejects released or cross-session captures', async () => {
     const service = new ApiGatewayService()
-    const internal = await startInternalGateway(service)
+    const internal = await startInternalGateway(service, 'session-1')
+    const childInternal = await service.ensureInternalGateway('child-session')
     const original = {
       agentSessionId: 'session-1',
       assistantMessageId: 'original-message',
@@ -378,23 +383,23 @@ describe('ApiGatewayService internal gateway', () => {
     const headers = (capture: typeof root, apiKey = internal.apiKey) =>
       new Headers({ ...capture.headers, 'x-api-key': apiKey })
     expect(service.resolveAgentSessionUsage(headers(root), 'late-response')).toEqual(original)
-    expect(service.resolveAgentSessionUsage(headers(child), 'child-summary')).toEqual({
+    expect(service.resolveAgentSessionUsage(headers(child, childInternal.apiKey), 'child-summary')).toEqual({
       agentSessionId: 'child-session',
       source: original.source
     })
-    const crossed = headers(root)
-    crossed.set('x-cherry-agent-session-id', 'another-session')
+    const crossed = headers(root, childInternal.apiKey)
+    crossed.set('x-cherry-agent-session-id', 'child-session')
     expect(service.resolveAgentSessionUsage(crossed)).toBeUndefined()
     expect(service.resolveAgentSessionUsage(headers(root, 'existing-key'))).toBeUndefined()
     root.release()
     child.release()
     expect(service.resolveAgentSessionUsage(headers(root))).toBeUndefined()
-    expect(service.resolveAgentSessionUsage(headers(child))).toBeUndefined()
+    expect(service.resolveAgentSessionUsage(headers(child, childInternal.apiKey))).toBeUndefined()
   })
 
   it('freezes the native phase parent without changing billing ownership', async () => {
     const service = new ApiGatewayService()
-    const internal = await startInternalGateway(service)
+    const internal = await startInternalGateway(service, 'session-1')
     const current = { agentSessionId: 'session-1', assistantMessageId: 'answer', source: null }
     mockGetActiveUsageContext.mockReturnValue(current)
     const parent = {
@@ -413,24 +418,80 @@ describe('ApiGatewayService internal gateway', () => {
     expect(service.resolveAgentSessionUsage(headers)).toBeUndefined()
   })
 
-  it('attributes usage to an Agent session only for the unrestricted internal key', async () => {
+  it('verifies the Agent session against the issued credential before attributing usage or accessing replay', async () => {
     const service = new ApiGatewayService()
-    const internal = await startInternalGateway(service)
+    captured.gatewayService = service
+    const internal = await startInternalGateway(service, 'session-1')
+    const unrestricted = await service.ensureInternalGateway()
     const scoped = await service.createScopedCredential(CHAT_SCOPE)
     const sessionHeaders = service.getAgentSessionUsageHeaders('session-1')
+    const own = new Headers({ ...sessionHeaders, 'x-api-key': internal.apiKey })
+    const forged = new Headers({ ...service.getAgentSessionUsageHeaders('session-2'), 'x-api-key': internal.apiKey })
 
+    expect(authorizeApiRequest(internal.apiKey, undefined, undefined, own, 'internal')).toBeUndefined()
+    expect(service.getAgentSessionId(own)).toBe('session-1')
+    expect(authorizeApiRequest(internal.apiKey, undefined, undefined, forged, 'internal')?.status).toBe(403)
+    expect(service.getAgentSessionId(forged)).toBeUndefined()
     expect(
-      service.resolveAgentSessionUsage(
-        new Headers({ ...sessionHeaders, 'x-api-key': internal.apiKey }),
-        'native-response'
-      )
-    ).toEqual({
+      service.getAgentSessionId(new Headers({ ...sessionHeaders, 'x-api-key': unrestricted.apiKey }))
+    ).toBeUndefined()
+    expect(service.resolveAgentSessionUsage(own, 'native-response')).toEqual({
       agentSessionId: 'session-1',
       source: { type: 'agent', id: 'agent-1', name: 'Original Agent', icon: '🧠' }
     })
     expect(mockGetActiveUsageContext).toHaveBeenCalledWith('session-1', 'native-response')
     expect(service.getAgentSessionId(new Headers({ ...sessionHeaders, 'x-api-key': scoped.apiKey }))).toBeUndefined()
     expect(service.getAgentSessionId(new Headers({ ...sessionHeaders, 'x-api-key': 'existing-key' }))).toBeUndefined()
+  })
+
+  it('binds scoped gateway requests to the active turn instead of an unemitted adapter response id', async () => {
+    const service = new ApiGatewayService()
+    const internal = await startInternalGateway(service, 'session-1')
+    const boundScoped = await service.createScopedCredential({ ...CHAT_SCOPE, agentSessionId: 'session-1' })
+
+    expect(
+      service.resolveAgentSessionUsage(new Headers({ 'x-api-key': boundScoped.apiKey }), 'adapter-response-id')
+    ).toEqual({
+      agentSessionId: 'session-1',
+      source: { type: 'agent', id: 'agent-1', name: 'Original Agent', icon: '🧠' }
+    })
+    expect(mockGetActiveUsageContext).toHaveBeenLastCalledWith('session-1', undefined)
+
+    const sessionHeaders = service.getAgentSessionUsageHeaders('session-1')
+    service.resolveAgentSessionUsage(
+      new Headers({ ...sessionHeaders, 'x-api-key': internal.apiKey }),
+      'native-response-id'
+    )
+    expect(mockGetActiveUsageContext).toHaveBeenLastCalledWith('session-1', 'native-response-id')
+    boundScoped.dispose()
+  })
+
+  it('isolates sessions using the same model and leaves public-key requests unassociated', async () => {
+    const service = new ApiGatewayService()
+    await startInternalGateway(service)
+    const first = await service.createScopedCredential({ ...CHAT_SCOPE, agentSessionId: 'session-1' })
+    const second = await service.createScopedCredential({ ...CHAT_SCOPE, agentSessionId: 'session-2' })
+    mockGetActiveUsageContext.mockImplementation((sessionId: string) => ({
+      agentSessionId: sessionId,
+      assistantMessageId: 'reply-for-' + sessionId,
+      source: null
+    }))
+
+    const usage = (apiKey: string) => service.resolveAgentSessionUsage(new Headers({ 'x-api-key': apiKey }))
+    expect(usage(first.apiKey)).toMatchObject({
+      agentSessionId: 'session-1',
+      assistantMessageId: 'reply-for-session-1'
+    })
+    expect(usage(second.apiKey)).toMatchObject({
+      agentSessionId: 'session-2',
+      assistantMessageId: 'reply-for-session-2'
+    })
+    expect(usage('existing-key')).toBeUndefined()
+    first.dispose()
+    expect(usage(first.apiKey)).toBeUndefined()
+    expect(usage('existing-key')).toBeUndefined()
+    expect(usage(second.apiKey)).toMatchObject({ agentSessionId: 'session-2' })
+    second.dispose()
   })
 })
 

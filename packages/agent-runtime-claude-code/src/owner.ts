@@ -14,14 +14,15 @@ import {
 import {
   cloneHistoryData,
   runtimeId,
-  type BusyPolicy,
   type InputFact,
   type InputId,
   type InputState,
+  type ProductInputState,
   type ObservationPayload,
   type Observation,
   type OperationResult,
   type Subagent,
+  type Thread,
   type ThreadContextUsage,
   type SubmitResult
 } from '@cherrystudio/agent-runtime'
@@ -51,16 +52,25 @@ interface Input {
   steer: boolean
   boundary?: boolean
   projection: ClaudeProjection
-  state: InputState & { inputId: InputId }
-  message: SDKUserMessage
-  resolve: (result: SubmitResult) => void
+  state: ProductInputState
+}
+interface Compaction {
+  id: ReturnType<typeof randomUUID>
+  sessionId: string
+  content: string
+  stage: 'checking' | 'queued' | 'dispatched' | 'started'
+  compacted: boolean
+  failure?: string
+  readonly completion: Promise<OperationResult<void>>
+  finish: (result: OperationResult<void>) => void
 }
 
-// Any explicit CLAUDE_CONFIG_DIR, even the CLI's own default, re-keys the macOS Keychain
-// credential and hides an existing `claude /login`, so only a non-default directory is passed.
+// An implicit default and an explicit CLAUDE_CONFIG_DIR can select different macOS Keychain accounts.
 function childEnvironment(env: ClaudeSessionOptions['env'], configDir: string) {
   const childEnv: Record<string, string | undefined> = { ...env, CLAUDE_CONFIG_DIR: configDir }
-  if (path.resolve(configDir) === path.join(homedir(), '.claude')) delete childEnv.CLAUDE_CONFIG_DIR
+  const home = (process.platform === 'win32' ? env?.USERPROFILE : env?.HOME) || homedir()
+  if (!env?.CLAUDE_CONFIG_DIR && path.resolve(configDir) === path.join(home, '.claude'))
+    delete childEnv.CLAUDE_CONFIG_DIR
   return childEnv
 }
 
@@ -69,8 +79,9 @@ export class ClaudeOwner {
   private readonly tasks = new Map<string, Task>()
   private readonly toolOwners = new Map<string, ClaudeProjection>()
   private readonly inputs = new Map<string, Input>()
-  private readonly logicalInputs = new Set<InputId>()
-  private readonly queue: Input[] = []
+  private readonly nativeInputIds = new Map<InputId, string>()
+  private readonly queue: { input: Input; message: SDKUserMessage; resolve: (result: SubmitResult) => void }[] = []
+  private compaction?: Compaction
   private wake?: () => void
   private readonly contextWindows = new Map<string, number>()
   private contextEpoch = 0
@@ -92,7 +103,7 @@ export class ClaudeOwner {
   private resetFrom?: string
   private activeSession: string
   private readonly archives = new Map<string, ClaudeArchive>()
-  private reading?: Promise<void>
+  private reading?: Promise<boolean>
   private buffered?: SDKMessage[]
 
   constructor(
@@ -117,27 +128,46 @@ export class ClaudeOwner {
     return projection
   }
 
+  lookupInput(thread: Thread, inputId: InputId) {
+    const input = this.inputs.get(this.nativeInputIds.get(inputId) ?? inputId)
+    return input?.projection.thread.id === thread.id && input.state.inputId === inputId ? input.state : undefined
+  }
+
   private async *inputStream(): AsyncGenerator<SDKUserMessage> {
     while (!this.closing && !this.lost) {
-      const input = this.queue.shift()
-      if (!input) {
+      const compaction = this.compaction
+      if (compaction?.stage === 'queued') {
+        compaction.stage = 'dispatched'
+        yield {
+          type: 'user',
+          uuid: compaction.id,
+          message: { role: 'user', content: compaction.content },
+          priority: 'later',
+          parent_tool_use_id: null,
+          session_id: compaction.sessionId
+        }
+        continue
+      }
+      const queued = this.queue.shift()
+      if (!queued) {
         await new Promise<void>((resolve) => {
           this.wake = resolve
         })
         continue
       }
+      const { input, message, resolve } = queued
       if (input.projection.thread.id !== this.activeSession || this.resetFrom) {
-        input.resolve({ ...rejected('submit', 'closed'), inputId: input.state.inputId })
+        resolve({ ...rejected('submit', 'closed'), inputId: input.state.inputId })
         continue
       }
       this.inputFacts(input, ['dispatch-started'])
-      input.resolve({
+      resolve({
         status: 'acknowledged',
         inputId: input.state.inputId,
         nativeInput: input.state.nativeInput,
         facts: input.state.facts
       })
-      yield input.message
+      yield message
     }
   }
 
@@ -173,10 +203,11 @@ export class ClaudeOwner {
   }
 
   private contextWindow(model: string): number | undefined {
+    const native = this.contextWindows.get(model)
+    if (native !== undefined) return native
     const declared = this.runtime.contextWindow
     const normalize = (id: string) => id.replace(/\[1m\]$/i, '')
-    if (declared && normalize(declared.model) === normalize(model)) return declared.tokens
-    return this.contextWindows.get(model)
+    return declared && normalize(declared.model) === normalize(model) ? declared.tokens : undefined
   }
 
   async contextUsage(projection: ClaudeProjection): Promise<OperationResult<ThreadContextUsage>> {
@@ -188,15 +219,10 @@ export class ClaudeOwner {
     let result: OperationResult<ThreadContextUsage>
     try {
       const native = await this.sdk.getContextUsage()
-      const window = this.contextWindow(native.model)
-      if (window) {
-        const value = normalizeContextUsage(native, window)
-        result = {
-          status: 'confirmed',
-          value: { ...value, revision: `${this.activeSession}:${epoch}:${value.revision}` }
-        }
-      } else {
-        result = { status: 'unknown', error: runtimeError('contextUsage', 'unknown-window') }
+      const value = normalizeContextUsage(native, this.contextWindow(native.model))
+      result = {
+        status: 'confirmed',
+        value: { ...value, revision: `${this.activeSession}:${epoch}:${value.revision}` }
       }
     } catch (error) {
       this.report(error)
@@ -224,7 +250,6 @@ export class ClaudeOwner {
           options: {
             ...this.config,
             env: childEnvironment(this.config.env, this.runtime.configDir),
-            permissionMode: this.config.permissionMode ?? 'default',
             sessionId: this.fresh ? this.activeSession : undefined,
             resume: this.fresh ? undefined : this.activeSession,
             persistSession: true,
@@ -288,14 +313,14 @@ export class ClaudeOwner {
     projection: ClaudeProjection,
     inputId: InputId,
     content: SDKUserMessage['message']['content'],
-    policy: BusyPolicy
+    policy: 'steer' | 'follow-up'
   ): Promise<SubmitResult> {
     const refuse = (code: string, status: 'rejected' | 'unsupported' = 'rejected'): Promise<SubmitResult> =>
       Promise.resolve({ status, inputId, error: runtimeError('submit', code) })
     if (this.closing || this.lost || this.resetFrom || projection.thread.id !== this.activeSession)
       return refuse('closed')
-    if (policy !== 'steer' && policy !== 'follow-up') return refuse('busy-policy', 'unsupported')
-    if (this.logicalInputs.has(inputId)) return refuse('duplicate-input')
+    if (this.compaction) return refuse('compacting')
+    if (this.inputs.has(inputId) || this.nativeInputIds.has(inputId)) return refuse('duplicate-input')
     if (typeof content === 'string' ? !content.trim() : !content.length) return refuse('empty-input')
     try {
       this.start()
@@ -304,30 +329,118 @@ export class ClaudeOwner {
       return refuse('native-start-failed')
     }
     const uuid = isUuid(inputId) ? inputId : randomUUID()
-    this.logicalInputs.add(inputId)
     return new Promise<SubmitResult>((resolve) => {
       const input: Input = {
         uuid,
         steer: policy === 'steer',
         projection,
-        resolve,
-        state: { inputId, nativeInput: { session: projection.thread, id: runtimeId<'native-input'>(uuid) }, facts: [] },
-        message: {
-          type: 'user',
-          uuid,
-          // oxlint-disable-next-line no-restricted-globals -- Detach one submitted user content payload before asynchronous SDK consumption.
-          message: { role: 'user', content: structuredClone(content) },
-          priority: policy === 'steer' ? 'next' : 'later',
-          parent_tool_use_id: null,
-          session_id: this.activeSession
-        }
+        state: { inputId, nativeInput: { session: projection.thread, id: runtimeId<'native-input'>(uuid) }, facts: [] }
+      }
+      const message: SDKUserMessage = {
+        type: 'user',
+        uuid,
+        // oxlint-disable-next-line no-restricted-globals -- Detach one submitted user content payload before asynchronous SDK consumption.
+        message: { role: 'user', content: structuredClone(content) },
+        priority: policy === 'steer' ? 'next' : 'later',
+        parent_tool_use_id: null,
+        session_id: this.activeSession
       }
       if (policy !== 'steer') projection.control.beginTurn()
+      if (uuid !== inputId) this.nativeInputIds.set(inputId, uuid)
       this.inputs.set(uuid, input)
-      this.queue.push(input)
+      this.queue.push({ input, message, resolve })
       projection.publish([{ type: 'input.changed', input: input.state }])
       this.wake?.()
     })
+  }
+
+  async compact(projection: ClaudeProjection, instructions?: string): Promise<OperationResult<void>> {
+    const state = projection.control.snapshot
+    if (this.compaction || this.queue.length || state.active || state.backgroundWorkActive)
+      return rejected('compact', 'busy')
+    if (this.connect(projection).status !== 'confirmed') return rejected('compact', 'closed')
+    const { promise, resolve } = Promise.withResolvers<OperationResult<void>>()
+    const operation: Compaction = {
+      id: randomUUID(),
+      sessionId: this.activeSession,
+      content: instructions ? `/compact ${instructions}` : '/compact',
+      stage: 'checking',
+      compacted: false,
+      completion: promise,
+      finish: (result) => {
+        if (this.compaction !== operation) return
+        this.compaction = undefined
+        resolve(result)
+      }
+    }
+    this.compaction = operation
+    void this.sdk!.reinitialize()
+      .then(({ commands }) => {
+        if (this.compaction !== operation) return
+        const matches = commands.filter(({ name }) => name === 'compact')
+        if (!matches.length || matches.some(({ builtin }) => builtin !== true)) {
+          operation.finish({ status: 'unsupported', error: runtimeError('compact', 'unavailable') })
+          return
+        }
+        operation.stage = 'queued'
+        this.wake?.()
+      })
+      .catch((error) => {
+        this.report(error)
+        operation.finish(rejected('compact', 'command-discovery-failed'))
+      })
+    return promise
+  }
+
+  private consumeCompaction(message: SDKMessage | ClaudeCommandLifecycle): boolean {
+    const operation = this.compaction
+    if (
+      !operation ||
+      !('session_id' in message) ||
+      message.session_id !== operation.sessionId ||
+      ('agent_id' in message && message.agent_id) ||
+      ('parent_tool_use_id' in message && message.parent_tool_use_id)
+    )
+      return false
+    if (message.type === 'system' && message.subtype === 'commands_changed' && !operation.compacted) {
+      if (operation.stage === 'checking' || operation.stage === 'queued')
+        operation.finish(rejected('compact', 'command-changed'))
+      else operation.failure = 'command-changed'
+      return false
+    }
+    if (operation.stage !== 'dispatched' && operation.stage !== 'started') return false
+    if (isCommandLifecycle(message)) {
+      if (message.command_uuid !== operation.id) return false
+      if (message.state === 'started') operation.stage = 'started'
+      if (message.state === 'cancelled' || message.state === 'discarded' || message.state === 'refused')
+        operation.finish(rejected('compact', message.state))
+      return true
+    }
+    if (message.type === 'result' && message.user_message_uuid === operation.id) {
+      const failure =
+        operation.failure ?? (message.is_error || message.subtype !== 'success' ? 'native-result-error' : undefined)
+      if (failure) operation.finish(rejected('compact', failure))
+      else if (operation.compacted) operation.finish({ status: 'confirmed', value: undefined })
+      else if (operation.stage === 'started' && message.subtype === 'success' && message.local_command)
+        operation.finish(rejected('compact', 'not-compacted'))
+      else operation.finish({ status: 'unknown', error: runtimeError('compact', 'missing-compaction-boundary') })
+      return true
+    }
+    if (message.type === 'user') return message.uuid === operation.id
+    if (message.type !== 'system' || operation.stage !== 'started') return false
+    if (message.subtype === 'status' && message.compact_result === 'failed') operation.failure ??= 'native-failed'
+    if (message.subtype === 'compact_boundary' && message.compact_metadata.trigger === 'manual') {
+      operation.compacted = true
+      this.contextEpoch++
+      this.projection(operation.sessionId).publish([
+        { type: 'context.changed', result: { status: 'unknown', error: runtimeError('contextUsage', 'compacted') } }
+      ])
+      return true
+    }
+    return (
+      message.subtype === 'local_command_output' ||
+      (message.subtype === 'status' && (message.status === 'compacting' || !!message.compact_result))
+    )
   }
 
   private inputFacts(
@@ -342,8 +455,15 @@ export class ClaudeOwner {
   }
 
   private failPending(): void {
-    for (const input of this.queue.splice(0))
-      input.resolve({ ...rejected('submit', 'not-dispatched'), inputId: input.state.inputId })
+    const compaction = this.compaction
+    if (compaction)
+      compaction.finish(
+        compaction.stage === 'checking' || compaction.stage === 'queued'
+          ? rejected('compact', 'closed')
+          : { status: 'unknown', error: runtimeError('compact', 'disconnected') }
+      )
+    for (const { input, resolve } of this.queue.splice(0))
+      resolve({ ...rejected('submit', 'not-dispatched'), inputId: input.state.inputId })
     for (const input of this.inputs.values()) {
       if (!input.state.outcome)
         this.inputFacts(input, [], {
@@ -398,11 +518,8 @@ export class ClaudeOwner {
       const callAgent = callOwner?.thread.id.split('/')[1]
       task ??= { sessionId: this.activeSession, agent: message.task_type === 'local_agent' }
       task.agent ||= message.task_type === 'local_agent'
-      const call = callOwner?.feed.snapshot.messages
-        .flatMap((item) => item.parts)
-        .find((part) => part.type === 'dynamic-tool' && part.toolCallId === message.tool_use_id)
-      if (call?.type === 'dynamic-tool' && ['Agent', 'Task'].includes(call.toolName))
-        task.origin ??= { toolCallId: call.toolCallId, description: message.description }
+      const call = message.tool_use_id && callOwner?.spawnCall(message.tool_use_id)
+      if (call) task.origin ??= { toolCallId: call.toolCallId, description: message.description }
       if (task.parentId === undefined)
         task.parentId =
           message.parent_task_id ??
@@ -420,6 +537,16 @@ export class ClaudeOwner {
     if (message.run_id) task.runId = message.run_id
     const child = task.agent ? this.projection(task.sessionId, message.task_id) : undefined
     const events: ObservationPayload[] = []
+    if (
+      child &&
+      message.subtype === 'task_started' &&
+      message.is_backgrounded &&
+      message.prompt &&
+      message.tool_use_id &&
+      message.tool_use_id === task.origin?.toolCallId
+    ) {
+      events.push(...child.startBackgroundTask(message.tool_use_id, message.prompt))
+    }
     if (message.subtype === 'task_started' || message.subtype === 'task_progress') {
       if (!task.terminal) events.push({ type: 'activity.changed', activity: { state: 'active' } })
     } else if (
@@ -434,6 +561,7 @@ export class ClaudeOwner {
   }
 
   private async consume(message: SDKMessage | ClaudeCommandLifecycle): Promise<void> {
+    if (this.consumeCompaction(message)) return
     if (isCommandLifecycle(message)) {
       const input = this.inputs.get(message.command_uuid)
       if (input) {
@@ -530,14 +658,14 @@ export class ClaudeOwner {
         (this.liveInputUsage.input_tokens ?? 0) +
         (this.liveInputUsage.cache_read_input_tokens ?? 0) +
         (this.liveInputUsage.cache_creation_input_tokens ?? 0)
-      if ((event.type === 'message_start' || event.type === 'message_delta') && model && window && tokens > 0)
+      if ((event.type === 'message_start' || event.type === 'message_delta') && model && tokens > 0)
         events.push({
           type: 'context.changed',
           result: {
             status: 'confirmed',
             value: {
               model,
-              contextWindow: window,
+              ...(window === undefined ? {} : { contextWindow: window }),
               revision: `${this.activeSession}:${this.contextEpoch}:${message.uuid}`,
               basis: 'last-request',
               used: { tokens, precision: 'reported' }
@@ -612,7 +740,7 @@ export class ClaudeOwner {
         }
       }
     } else if (message.type === 'result') {
-      const content = projection.result(message)
+      const content = projection.result(message, !!commandInput)
       if (content.length) {
         events.push(...content)
       }
@@ -678,6 +806,11 @@ export class ClaudeOwner {
   async interrupt(projection: ClaudeProjection) {
     if (this.closing || this.lost || this.resetFrom || projection.thread.id !== this.activeSession)
       return rejected('interrupt', 'closed')
+    const compaction = this.compaction
+    if (compaction?.stage === 'checking' || compaction?.stage === 'queued') {
+      compaction.finish(rejected('compact', 'cancelled'))
+      return { status: 'confirmed' as const, value: undefined }
+    }
     if (!this.sdk) return { status: 'confirmed' as const, value: undefined }
     try {
       const receipt = await this.sdk.interrupt()
@@ -704,7 +837,7 @@ export class ClaudeOwner {
     }
   }
 
-  async refresh(sessionId: string): Promise<void> {
+  async refresh(sessionId: string): Promise<boolean> {
     if (this.reading) {
       await this.reading
       return this.refresh(sessionId)
@@ -712,7 +845,7 @@ export class ClaudeOwner {
     this.buffered = []
     this.reading = (async () => {
       const archive = await readArchive(this.runtime.configDir, this.config.cwd, sessionId)
-      if (!archive) throw new Error('native-storage-missing')
+      if (!archive) return false
       const root = this.projection(sessionId)
       const entriesFor = (agentId?: string): NativeArchiveEntry[] =>
         archive.entries
@@ -739,10 +872,8 @@ export class ClaudeOwner {
         const toolCallId = native.messages.find((message) => message.parent_tool_use_id)?.parent_tool_use_id
         if (!task.origin && toolCallId) {
           const parentView = this.projection(sessionId, parentId ?? undefined)
-          const call = parentView.feed.snapshot.messages
-            .flatMap((item) => item.parts)
-            .find((part) => part.type === 'dynamic-tool' && part.toolCallId === toolCallId)
-          if (call?.type === 'dynamic-tool' && ['Agent', 'Task'].includes(call.toolName)) {
+          const call = parentView.spawnCall(toolCallId)
+          if (call) {
             const description = (call.input as { description?: unknown })?.description
             task.origin = { toolCallId, ...(typeof description === 'string' && { description }) }
           }
@@ -750,9 +881,10 @@ export class ClaudeOwner {
         this.tasks.set(native.agentId, task)
         this.relation(native.agentId, task)
       }
+      return true
     })()
     try {
-      await this.reading
+      return await this.reading
     } finally {
       this.reading = undefined
       const buffered = this.buffered
@@ -763,10 +895,12 @@ export class ClaudeOwner {
 
   async archive(projection: ClaudeProjection, refresh = true): Promise<OperationResult<ClaudeArchive>> {
     try {
-      if (refresh || !this.archives.has(projection.thread.id)) await this.refresh(projection.thread.id.split('/')[0])
+      if (!refresh) return { status: 'confirmed', value: cloneHistoryData(projection.committed()) }
+      if (!(await this.refresh(projection.thread.id.split('/')[0])))
+        return rejected('archive', 'native-storage-missing')
       const archive = this.archives.get(projection.thread.id)
       return archive
-        ? { status: 'confirmed', value: cloneHistoryData(refresh ? archive : projection.committed(archive)) }
+        ? { status: 'confirmed', value: cloneHistoryData(archive) }
         : rejected('archive', 'native-storage-missing')
     } catch (error) {
       this.report(error)
@@ -775,6 +909,7 @@ export class ClaudeOwner {
   }
 
   async settled(): Promise<void> {
+    await this.compaction?.completion
     let observation: Observation | undefined
     try {
       await new Promise<void>((resolve, reject) => {

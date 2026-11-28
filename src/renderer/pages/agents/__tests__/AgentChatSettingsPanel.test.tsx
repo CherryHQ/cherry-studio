@@ -1,3 +1,4 @@
+import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ComponentProps, PropsWithChildren, ReactNode } from 'react'
@@ -131,15 +132,16 @@ vi.mock('@renderer/components/composer/ConversationComposerStage', () => ({
   )
 }))
 
-vi.mock('@renderer/data/hooks/useCache', () => ({
-  useCache: () => [false],
-  useSharedCache: (key: string) =>
-    key === 'agent.model_switch_confirmation.skipped'
-      ? [modelSwitchConfirmationCacheMock.value, modelSwitchConfirmationCacheMock.set]
-      : [null, vi.fn()],
-  useSharedCacheValue: () => undefined,
-  usePersistCache: () => [undefined, vi.fn()]
-}))
+vi.mock('@renderer/data/hooks/useCache', async () => {
+  const { MockUseCache } = await import('@test-mocks/renderer/useCache')
+  return {
+    ...MockUseCache,
+    useSharedCache: (key: string) =>
+      key === 'agent.model_switch_confirmation.skipped'
+        ? [modelSwitchConfirmationCacheMock.value, modelSwitchConfirmationCacheMock.set]
+        : [null, vi.fn()]
+  }
+})
 
 vi.mock('@renderer/data/hooks/useDataApi', () => ({
   useInvalidateCache: () => vi.fn(),
@@ -226,18 +228,12 @@ vi.mock('@renderer/hooks/useChatWithHistory', () => ({
   })
 }))
 
-vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
-  useExecutionOverlay: () => ({
-    overlay: {},
-    liveAssistants: [],
-    disposeOverlay: vi.fn(),
-    reset: vi.fn()
-  })
-}))
+vi.mock('@renderer/hooks/useHistoryReplies', () => ({ useHistoryReplies: () => [] }))
+vi.mock('@renderer/hooks/useTopicSpeech', () => ({ useTopicSpeech: () => {} }))
+vi.mock('@renderer/hooks/useTopicCompletion', () => ({ useTopicCompletion: () => {} }))
 
 vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
-  useTopicStreamStatus: () => ({ isPending: topicStreamStatusMock.isPending }),
-  useTopicOverlayHandoffOnTerminal: () => {}
+  useTopicStreamStatus: () => ({ isPending: topicStreamStatusMock.isPending })
 }))
 
 vi.mock('react-i18next', async (importOriginal) => ({
@@ -311,10 +307,12 @@ vi.mock('@renderer/components/composer/variants/AgentComposer', () => ({
 vi.mock('../components/AgentSessionMessages', () => ({
   default: ({
     sessionId,
-    onOpenCitationsPanel
+    onOpenCitationsPanel,
+    onLocalRestoreChecked
   }: {
     sessionId: string
     onOpenCitationsPanel: (payload: { citations: unknown[] }) => void
+    onLocalRestoreChecked?: (unavailable: boolean) => void
   }) => (
     <div data-testid="agent-messages">
       <button
@@ -322,6 +320,16 @@ vi.mock('../components/AgentSessionMessages', () => ({
         onClick={() => onOpenCitationsPanel({ citations: [{ number: 1, url: `/tmp/${sessionId}.md` }] })}>
         open citations
       </button>
+      {onLocalRestoreChecked && (
+        <>
+          <button type="button" onClick={() => onLocalRestoreChecked(true)}>
+            Restore unavailable
+          </button>
+          <button type="button" onClick={() => onLocalRestoreChecked(false)}>
+            Restore available
+          </button>
+        </>
+      )}
     </div>
   )
 }))
@@ -352,7 +360,7 @@ vi.mock('@renderer/components/chat/citations/CitationsPanel', () => {
 })
 
 describe('AgentChat settings panel', () => {
-  const defaultSession = { id: 'session-1', name: '', agentId: 'agent-1', accessiblePaths: [] } as any
+  const defaultSession = { id: 'session-1', agentId: 'agent-1', accessiblePaths: [] } as any
   const createConversationBootstrap = (
     session: ComponentProps<typeof AgentChat>['conversationBootstrap']['session'] = defaultSession
   ): ComponentProps<typeof AgentChat>['conversationBootstrap'] => ({
@@ -372,6 +380,7 @@ describe('AgentChat settings panel', () => {
     )
 
   beforeEach(() => {
+    MockUseCacheUtils.resetMocks()
     partsByMessageIdMock.value = {}
     topicStreamStatusMock.isPending = false
     activeAgentMock.value = { id: 'agent-1', model: 'provider::model-1' }
@@ -403,6 +412,40 @@ describe('AgentChat settings panel', () => {
       value: {}
     })
   })
+
+  it.each([true, false])(
+    'keeps ACP task history visible while checking whether it can be continued (%s)',
+    async (unavailable) => {
+      const user = userEvent.setup()
+      const openNew = vi.fn()
+      activeAgentMock.value = {
+        id: 'agent-1',
+        type: 'local',
+        localRuntime: {
+          providerId: 'custom-provider',
+          executableOverride: '/custom/acp',
+          enabled: true,
+          args: [],
+          env: {}
+        }
+      }
+      renderAgentChat({ onStartNewTaskConversation: openNew })
+
+      expect(screen.getByTestId('agent-messages')).toBeInTheDocument()
+      expect(screen.queryByTestId('agent-composer')).not.toBeInTheDocument()
+      await user.click(screen.getByRole('button', { name: unavailable ? 'Restore unavailable' : 'Restore available' }))
+
+      if (unavailable) {
+        expect(screen.queryByTestId('agent-composer')).not.toBeInTheDocument()
+        expect(screen.getByText('local_agents.no_resume')).toBeInTheDocument()
+        await user.click(screen.getByRole('button', { name: 'chat.add.topic.title' }))
+        expect(openNew).toHaveBeenCalledWith('agent-1')
+      } else {
+        expect(screen.getByTestId('agent-composer')).toBeInTheDocument()
+        expect(screen.queryByText('local_agents.no_resume')).not.toBeInTheDocument()
+      }
+    }
+  )
 
   it('loads citations on first open and keeps the panel mounted while closing', async () => {
     const user = userEvent.setup()
@@ -440,7 +483,6 @@ describe('AgentChat settings panel', () => {
     const onSessionWorkspaceChange = vi.fn()
     const session = {
       id: 'session-1',
-      name: '',
       agentId: 'agent-1',
       workspaceId: 'workspace-1',
       workspace: { id: 'workspace-1', type: 'user', name: 'Workspace 1', path: '/workspace' }
@@ -465,7 +507,7 @@ describe('AgentChat settings panel', () => {
       })
     )
     activeAgentMock.value = undefined
-    const session = { id: 'session-unlinked', name: '', agentId: null, accessiblePaths: [] } as any
+    const session = { id: 'session-unlinked', agentId: null, accessiblePaths: [] } as any
 
     renderAgentChat({ conversationBootstrap: createConversationBootstrap(session) })
 
@@ -491,7 +533,7 @@ describe('AgentChat settings panel', () => {
       })
     )
     activeAgentMock.value = undefined
-    const session = { id: 'session-unlinked', name: '', agentId: null, accessiblePaths: [] } as any
+    const session = { id: 'session-unlinked', agentId: null, accessiblePaths: [] } as any
 
     renderAgentChat({ conversationBootstrap: createConversationBootstrap(session) })
 
@@ -507,7 +549,6 @@ describe('AgentChat settings panel', () => {
     topicStreamStatusMock.isPending = true
     const session = {
       id: 'session-1',
-      name: '',
       agentId: 'agent-1',
       workspaceId: 'workspace-1',
       workspace: { id: 'workspace-1', type: 'user', name: 'Workspace 1', path: '/workspace' }
@@ -527,7 +568,6 @@ describe('AgentChat settings panel', () => {
     }
     const session = {
       id: 'session-1',
-      name: '',
       agentId: 'agent-1',
       workspaceId: 'workspace-1',
       workspace: { id: 'workspace-1', type: 'user', name: 'Workspace 1', path: '/workspace' }

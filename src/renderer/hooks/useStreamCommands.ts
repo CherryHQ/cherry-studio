@@ -1,23 +1,11 @@
 import type { ChatRequestOptions, FileUIPart } from 'ai'
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from 'react'
 
 import { ipcApi } from '@renderer/ipc'
 import { messageProjectionService, streamDispatchService } from '@renderer/services/aiTransport'
 import type { AiChatRequestBody, AiStreamOpenRequest } from '@shared/ai/transport'
-import type { CherryUIMessage } from '@shared/data/types/message'
 
-const EMPTY_MESSAGES: CherryUIMessage[] = []
-
-/** Sends commands and retains local input; assistant output comes from the shared projection. */
-export function useStreamCommands(
-  topicId: string,
-  initialMessages: CherryUIMessage[] = EMPTY_MESSAGES,
-  onError?: (error: Error) => void
-) {
-  const [local, setLocal] = useState({ topicId, messages: initialMessages })
-  const [error, setError] = useState<Error>()
-  const initialRef = useRef(initialMessages)
-  initialRef.current = initialMessages
+export function useStreamCommands(topicId: string, onError?: (error: Error) => void) {
   const errorHandler = useRef(onError)
   errorHandler.current = onError
   const owner = useMemo(() => ({ topicId }), [topicId])
@@ -33,14 +21,12 @@ export function useStreamCommands(
   )
   const reported = useRef(new Set<number>())
   useEffect(() => {
-    setLocal({ topicId, messages: initialRef.current })
-    setError(undefined)
     reported.current.clear()
   }, [topicId])
 
   useEffect(() => {
     const view = projection.view
-    if (view?.kind !== 'topic') return
+    if (!errorHandler.current || view?.kind !== 'topic') return
     for (const execution of view.executions) {
       if (
         (execution.status !== 'error' && execution.status !== 'unresolved') ||
@@ -52,29 +38,14 @@ export function useStreamCommands(
       const part = message?.parts.find((item) => item.type === 'data-error')
       if (part?.type !== 'data-error') continue
       const failure = new Error(part.data.message ?? 'Stream error')
-      setError(failure)
       errorHandler.current?.(failure)
     }
   }, [projection])
 
-  const setMessages = useCallback(
-    (update: CherryUIMessage[] | ((messages: CherryUIMessage[]) => CherryUIMessage[])) => {
-      setLocal((previous) => ({
-        topicId,
-        messages:
-          typeof update === 'function'
-            ? update(previous.topicId === topicId ? previous.messages : initialRef.current)
-            : update
-      }))
-    },
-    [topicId]
-  )
   const dispatch = useCallback(
     async (request: AiStreamOpenRequest) => {
-      setError(undefined)
       const result = await streamDispatchService.dispatch(topicId, request)
       if (currentOwner.current !== owner || result.ok) return
-      setError(result.error)
       errorHandler.current?.(result.error)
     },
     [owner, topicId]
@@ -86,7 +57,6 @@ export function useStreamCommands(
         ...(message?.files ?? []),
         ...(message ? [{ type: 'text' as const, text: message.text }] : [])
       ]
-      setMessages((messages) => [...messages, { id: crypto.randomUUID(), role: 'user', parts }])
       await dispatch({
         trigger: 'submit-message',
         topicId,
@@ -99,10 +69,10 @@ export function useStreamCommands(
         ...(body.followUp ? { followUp: true } : {})
       })
     },
-    [dispatch, setMessages, topicId]
+    [dispatch, topicId]
   )
   const regenerate = useCallback(
-    async (options?: ChatRequestOptions & { messageId?: string }) => {
+    async (options?: ChatRequestOptions) => {
       const body = (options?.body ?? {}) as Partial<AiChatRequestBody>
       await dispatch({
         trigger: 'regenerate-message',
@@ -120,11 +90,9 @@ export function useStreamCommands(
     if (topicId) await ipcApi.request('ai.stream.abort', { topicId })
   }, [topicId])
   return {
-    messages: local.topicId === topicId ? local.messages : initialMessages,
-    setMessages,
+    projection: projection.view?.kind === 'topic' ? projection.view : null,
     sendMessage,
     regenerate,
-    stop,
-    error
+    stop
   }
 }

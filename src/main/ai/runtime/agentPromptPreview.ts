@@ -71,6 +71,7 @@ export async function previewAgentSystemPrompt(draft: AgentSystemPromptDraft): P
 
   const agent = {
     type: stored?.type ?? draft.agentType ?? 'pi-durable',
+    name: stored?.name ?? '',
     disabledTools: draft.disabledTools,
     knowledgeBaseIds: draft.knowledgeBaseIds,
     instructions: draft.instructions,
@@ -140,7 +141,7 @@ export async function previewAgentSystemPrompt(draft: AgentSystemPromptDraft): P
     ...piOptions,
     cwd,
     skillPaths: [
-      ...enabledSkills.map((skill) => skillService.getSkillDirectory(skill.folderName)),
+      ...enabledSkills.map((skill) => skillService.getInstalledSkillDirectory(skill)),
       ...workspaceSkillPaths
     ]
   })

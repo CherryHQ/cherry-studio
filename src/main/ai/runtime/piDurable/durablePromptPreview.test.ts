@@ -12,11 +12,13 @@ import { agentTable } from '@data/db/schemas/agent'
 import { agentGlobalSkillTable } from '@data/db/schemas/agentGlobalSkill'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
+import { CherrySupportSeeder } from '@data/db/seeding/seeders/cherrySupportSeeder'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { createAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
 import { AGENT_INSTRUCTIONS_SLOT } from '@shared/ai/agentPromptSections'
+import { CHERRY_SUPPORT_AGENT_ID } from '@shared/ai/builtinAgent'
 import type {
   AgentPromptInstructionsDraft,
   AgentSystemPromptDraft,
@@ -162,12 +164,13 @@ describe('previewAgentSystemPrompt', () => {
       workspace: { type: 'user', workspaceId: workspace.id },
       model: sessionModel
     })
+    const device = ({ darwin: 'mac', win32: 'windows' } as Record<string, string>)[os.platform()] ?? 'linux'
     const instructions = 'Edit the draft for {{system}} on {{model_name}}.'
     const draft: AgentPromptInstructionsDraft = { instructions, agentId: agent.id, modelId: model }
     await expect(resolveAgentPromptInstructions({ ...draft, sessionId: session.id })).resolves.toBe(
-      `Edit the draft for ${os.platform()} on Session model.`
+      `Edit the draft for ${device} on Session model.`
     )
-    await expect(resolveAgentPromptInstructions(draft)).resolves.toBe(`Edit the draft for ${os.platform()} on Test.`)
+    await expect(resolveAgentPromptInstructions(draft)).resolves.toBe(`Edit the draft for ${device} on Test.`)
   })
 
   it.each(['pi', 'claude-code'] as const)('previews the editable guidance for %s', async (agentType) => {
@@ -242,7 +245,7 @@ describe('previewAgentSystemPrompt', () => {
     expect(text).toContain('**Discover the role**')
     const runtime = await renderDurablePrompt(
       await buildDurablePrompt(await loadPiSdk(), {
-        agent: { type: 'pi-durable', instructions: '', configuration: {}, modelName: null },
+        agent: { type: 'pi-durable', name: '', instructions: '', configuration: {}, modelName: null },
         cwd: application.getPath('feature.agents.system_workspaces'),
         agentDataPath: path.join(application.getPath('feature.agents.data'), '{agent-id}'),
         effectiveLanguage: 'English',
@@ -453,6 +456,37 @@ describe('previewAgentSystemPrompt', () => {
     const preview = await previewAgentSystemPrompt(draft({ agentId: id, instructions: '' }))
 
     expect(preview.builtinInstructions).toContain('Cherry')
+  })
+
+  it('loads bundled feedback skills without importing project instructions or external skills for Cherry Support', async () => {
+    new CherrySupportSeeder().run(dbh.db)
+    const session = agentSessionService.getLatestActive({ agentId: CHERRY_SUPPORT_AGENT_ID })!
+    const project = path.join(root, 'support-project')
+    const localSkill = path.join(project, '.agents', 'skills', 'workspace-skill')
+    const piRoot = application.getPath('feature.agents.pi.root')
+    await mkdir(localSkill, { recursive: true })
+    await mkdir(piRoot, { recursive: true })
+    const workspace = agentWorkspaceService.findOrCreateByPath(project)
+    agentSessionService.setWorkspace(session.id, { type: 'user', workspaceId: workspace.id })
+    await writeFile(path.join(project, 'system.md'), 'Workspace system prompt marker')
+    await writeFile(path.join(project, 'AGENTS.md'), 'Workspace instruction marker')
+    await writeFile(path.join(piRoot, 'AGENTS.md'), 'Global instruction marker')
+    await writeFile(
+      path.join(localSkill, 'SKILL.md'),
+      '---\nname: workspace-skill\ndescription: Workspace skill\n---\n'
+    )
+    await seedSkill('global-skill', 'global-skill', 'Global skill')
+
+    const preview = await previewAgentSystemPrompt(
+      draft({ agentId: CHERRY_SUPPORT_AGENT_ID, sessionId: session.id, skillIds: ['global-skill'] })
+    )
+
+    expect(block(preview, 'cwd')?.text).toBe(workspace.path.replaceAll('\\', '/'))
+    expect(block(preview, 'workspace_system')).toBeUndefined()
+    expect(block(preview, 'project_context')).toBeUndefined()
+    const skills = block(preview, 'skills')?.text
+    expect(skills).toContain('cherry-studio-feedback')
+    expect(skills).not.toMatch(/workspace-skill|global-skill|skills-manager/)
   })
 
   it('rejects an Agent that does not exist', async () => {

@@ -5,6 +5,8 @@ import { InMemoryTransport } from '@modelcontextprotocol/client'
 
 import { MCP_FORWARDING_TIMEOUT_MS } from '@main/ai/mcp/mcpRequestOptions'
 import type { AgentMcpServer } from '@main/ai/runtime/agentMcpServers'
+import { CHERRY_MCP_SERVER, toCherryBuiltinRuntimeName } from '@main/ai/toolApproval/builtinToolPolicy'
+import { KB_LIST_TOOL_NAME, KB_READ_TOOL_NAME, KB_SEARCH_TOOL_NAME } from '@shared/ai/builtinTools'
 import { buildFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 
 import type { loadPiSdk } from './piSdk'
@@ -23,10 +25,14 @@ export function isPiToolDisabled(
   tool?: { serverName: string; name: string; serverId?: string }
 ): boolean {
   if (disabledTools.has(runtimeName)) return true
+  if (!tool) return false
+  const serverId = tool.serverId ?? tool.serverName
   return (
-    tool !== undefined &&
-    (disabledTools.has(buildFunctionCallToolName(tool.serverName, tool.name)) ||
-      disabledTools.has(`mcp__${tool.serverId ?? tool.serverName}__${tool.name}`))
+    disabledTools.has(buildFunctionCallToolName(tool.serverName, tool.name)) ||
+    disabledTools.has(`mcp__${serverId}__${tool.name}`) ||
+    (serverId === CHERRY_MCP_SERVER.CHERRY_TOOLS &&
+      (tool.name === KB_LIST_TOOL_NAME || tool.name === KB_READ_TOOL_NAME) &&
+      disabledTools.has(toCherryBuiltinRuntimeName(KB_SEARCH_TOOL_NAME)))
   )
 }
 
