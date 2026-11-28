@@ -891,8 +891,8 @@
     }
   ],
   "providers": {
-    "version": "5179a16fddc562d9",
-    "count": 68,
+    "version": "d3833b4472a04e87",
+    "count": 69,
     "entries": [
       {
         "id": "cherryin",
@@ -1089,6 +1089,10 @@
       {
         "id": "grok",
         "name": "Grok"
+      },
+      {
+        "id": "trustedrouter",
+        "name": "TrustedRouter"
       },
       {
         "id": "mistral",
