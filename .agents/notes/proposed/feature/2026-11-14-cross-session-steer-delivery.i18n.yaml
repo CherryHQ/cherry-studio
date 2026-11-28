@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-11-14-cross-session-steer-delivery.md
+2026-11-14-cross-session-steer-delivery.md: 9206a6846fbdc1dd49c05edac50907fbb1b97d83
+2026-11-14-cross-session-steer-delivery.zh.md: 49924f389d60e3144234c0a3b7a3bfa1537b6de4
