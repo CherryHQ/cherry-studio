@@ -155,12 +155,7 @@ export class SkillSubscriptionService extends BaseService {
     if (!item.membersKnown && item.subscription?.kind === 'zip') {
       const downloaded = await downloadSkillPackage(item.subscription.url)
       try {
-        await this.rememberMembers(
-          sourceId,
-          itemId,
-          downloaded.directories.map(({ path, name }) => ({ path, name })),
-          signal
-        )
+        await this.rememberMembers(sourceId, itemId, downloaded.members, signal)
       } finally {
         await safeRemoveDirectory(downloaded.tempDir)
       }

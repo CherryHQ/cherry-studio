@@ -24,7 +24,9 @@ import { SkillImportError } from './SkillImportError'
 const logger = loggerService.withContext('SkillArchive')
 
 /** What one installed skill may weigh — the directory holding SKILL.md is all that reaches the library. */
-export const MAX_SKILL_SIZE = 100 * 1024 * 1024 // 100MB
+export const MAX_SKILL_SIZE = 130 * 1024 * 1024 // 130 MiB
+/** Export buffers the archive in memory and sends it over IPC, so it keeps a lower ceiling than install. */
+export const MAX_SKILL_EXPORT_SIZE = 100 * 1024 * 1024 // 100 MiB
 export const MAX_SKILL_FILES = 20_000
 /**
  * What may be unpacked while looking for that skill. An archive is routinely a repository zipball
@@ -33,6 +35,11 @@ export const MAX_SKILL_FILES = 20_000
  */
 export const MAX_ARCHIVE_SIZE = 1024 * 1024 * 1024 // 1GB
 export const MAX_ARCHIVE_ENTRIES = 50_000
+
+const formatMiB = (bytes: number): string => {
+  const mib = bytes / (1024 * 1024)
+  return `${Number.isInteger(mib) ? mib : mib.toFixed(1)} MiB`
+}
 
 /** Export the complete package without following links outside the installed skill. */
 export async function exportSkillArchive(skillDir: string): Promise<Uint8Array> {
@@ -54,12 +61,12 @@ export async function exportSkillArchive(skillDir: string): Promise<Uint8Array> 
       } else if (entry.isFile()) {
         const snapshot = await openReadableFileSnapshot(AbsoluteFilePathSchema.parse(real))
         try {
-          if (size + snapshot.size > MAX_SKILL_SIZE) throw new Error('Skill exceeds the export size limit')
+          if (size + snapshot.size > MAX_SKILL_EXPORT_SIZE) throw new Error('Skill exceeds the export size limit')
           const chunks: Buffer[] = []
           for await (const chunk of snapshot.createReadStream()) {
             const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
             size += bytes.length
-            if (size > MAX_SKILL_SIZE) throw new Error('Skill exceeds the export size limit')
+            if (size > MAX_SKILL_EXPORT_SIZE) throw new Error('Skill exceeds the export size limit')
             chunks.push(bytes)
           }
           entries.push({
@@ -156,7 +163,9 @@ export async function assertSkillDirectoryWithinLimits(skillDir: string): Promis
   await walk(skillDir)
 
   if (totalSize > MAX_SKILL_SIZE) {
-    throw new Error(`Skill holds ${totalSize} bytes, over the ${MAX_SKILL_SIZE}-byte limit`)
+    throw new Error(
+      `Skill holds ${totalSize} bytes (${formatMiB(totalSize)}), over the ${MAX_SKILL_SIZE}-byte limit (${formatMiB(MAX_SKILL_SIZE)})`
+    )
   }
   if (fileCount > MAX_SKILL_FILES) {
     throw new Error(`Skill holds ${fileCount} files, over the ${MAX_SKILL_FILES}-file limit`)
