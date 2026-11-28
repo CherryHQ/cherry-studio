@@ -143,12 +143,15 @@ patchedDependencies:
   "@earendil-works/pi-coding-agent@1.5.2": patches/@earendil-works__pi-coding-agent@1.5.2.patch
 
   "@earendil-works/pi-durable@1.5.2": patches/@earendil-works__pi-durable@1.5.2.patch
+  pi-acp@0.0.34: patches/pi-acp@0.0.34.patch
   "@radix-ui/react-collapsible@1.1.12": patches/@radix-ui__react-collapsible@1.1.12.patch
   "@radix-ui/react-presence@1.1.5": patches/@radix-ui__react-presence@1.1.5.patch
 
 allowBuilds:
   "@google/genai": false
   "@paymoapp/electron-shutdown-handler": true
+  "@qoder-ai/qoder-agent-sdk": false
+  "@qodercn-ai/qodercn-agent-sdk": false
   "@sentry/cli": true
   "@swc/core": true
   better-sqlite3: true

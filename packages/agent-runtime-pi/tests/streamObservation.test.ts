@@ -98,7 +98,7 @@ async function setup() {
       events.push(event)
     })
   )
-  await handle.input.submit({ inputId: runtimeId('stream-input'), text: 'Stream a reply', whenBusy: 'reject' })
+  await handle.input.submit!({ inputId: runtimeId('stream-input'), text: 'Stream a reply' })
   await ready
   const updates = () => events.flatMap(observationReplay()).filter((message) => message.role === 'assistant')
   const block = (kind: 'text' | 'thinking', initial: string) => {

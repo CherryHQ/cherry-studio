@@ -1,0 +1,33 @@
+{
+  "name": "@cherrystudio/agent-runtime-qoder-acp",
+  "version": "0.0.0",
+  "private": true,
+  "description": "qoder ACP integration for Cherry Studio.",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/adapter.d.mts",
+      "default": "./dist/adapter.mjs"
+    },
+    "./cli": {
+      "types": "./dist/cli.d.mts",
+      "default": "./dist/cli.mjs"
+    }
+  },
+  "scripts": {
+    "build": "tsdown src/adapter.ts src/cli.ts --format esm --dts --clean",
+    "typecheck": "pnpm --workspace-root exec tsrs --noEmit -p packages/agent-runtime-qoder-acp/tsconfig.json"
+  },
+  "dependencies": {
+    "@cherrystudio/agent-runtime": "workspace:*",
+    "@qoder-ai/qoder-agent-sdk": "1.0.61",
+    "@qodercn-ai/qodercn-agent-sdk": "1.0.61"
+  },
+  "devDependencies": {
+    "@cherrystudio/agent-runtime-acp": "workspace:*",
+    "@types/node": "^24.10.4",
+    "tsdown": "^0.22.14",
+    "typescript": "npm:@typescript/typescript6@6.0.2"
+  }
+}

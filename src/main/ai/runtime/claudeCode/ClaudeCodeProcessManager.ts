@@ -4,6 +4,7 @@ import type { Readable } from 'node:stream'
 import { StringDecoder } from 'node:string_decoder'
 
 import type { SpawnedProcess, SpawnOptions } from '@anthropic-ai/claude-agent-sdk'
+import crossSpawn from 'cross-spawn'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
@@ -52,6 +53,7 @@ export type SpawnProcess = (
     stdio: ['pipe', 'pipe', 'pipe']
     uid?: number
     windowsHide: true
+    detached?: boolean
   }
 ) => SpawnedChildProcess
 
@@ -91,7 +93,8 @@ class ManagedClaudeCodeProcess implements SpawnedProcess {
 
   constructor(
     private readonly child: SpawnedChildProcess,
-    private readonly diagnostics: ClaudeCodeProcessDiagnostics
+    private readonly diagnostics: ClaudeCodeProcessDiagnostics,
+    private readonly detached: boolean
   ) {
     const decoder = new StringDecoder('utf8')
     child.stderr.on('data', (chunk: Buffer | string) => this.appendStderr(decoder.write(Buffer.from(chunk))))
@@ -150,6 +153,13 @@ class ManagedClaudeCodeProcess implements SpawnedProcess {
       killProcessTree(this.child as unknown as ChildProcess)
       return true
     }
+    if (this.detached && this.child.pid && this.child.exitCode === null && !this.child.signalCode) {
+      try {
+        return process.kill(-this.child.pid, signal)
+      } catch (error) {
+        if (!(error instanceof Error && 'code' in error && error.code === 'ESRCH')) throw error
+      }
+    }
     return this.child.kill(signal)
   }
 
@@ -204,7 +214,8 @@ export class ClaudeCodeProcessManager extends BaseService {
   private preflightLiveReservations = 0
 
   /** Seam for tests. A constructor parameter would break the container's `ServiceConstructor` shape. */
-  protected spawnProcess: SpawnProcess = (command, args, options) => spawn(command, args, options)
+  protected spawnProcess: SpawnProcess = (command, args, options) =>
+    (process.platform === 'win32' ? crossSpawn.spawn : spawn)(command, args, options)
 
   /** Every CLI child still running, including evicted warm ones finishing their SIGTERM. */
   getActiveProcessCount(): number {
@@ -284,7 +295,7 @@ export class ClaudeCodeProcessManager extends BaseService {
   }
 
   spawn(
-    options: SpawnOptions,
+    options: SpawnOptions & { detached?: boolean },
     diagnostics = createClaudeCodeProcessDiagnostics(),
     priority: ClaudeCodeSpawnPriority = 'live',
     ownsLivePreflight = false
@@ -311,7 +322,8 @@ export class ClaudeCodeProcessManager extends BaseService {
         signal: options.signal,
         // Keeping stdin a pipe is also what makes the CLI exit on its own once this app dies.
         stdio: ['pipe', 'pipe', 'pipe'],
-        windowsHide: true
+        windowsHide: true,
+        ...(options.detached && { detached: true })
       }
       let rawChild: SpawnedChildProcess
       try {
@@ -339,7 +351,11 @@ export class ClaudeCodeProcessManager extends BaseService {
           if (rawChild.pid === undefined) resolve()
         })
       })
-      const child = new ManagedClaudeCodeProcess(rawChild, diagnostics) as TrackedSpawnedProcess
+      const child = new ManagedClaudeCodeProcess(
+        rawChild,
+        diagnostics,
+        options.detached === true
+      ) as TrackedSpawnedProcess
       this.trackProcess(child, diagnostics.reference)
       // Untracked on the raw exit, not the wrapper's — no reason to hold a dead handle through the drain.
       rawChild.once('exit', () => this.forgetProcess(child, diagnostics.reference))
@@ -414,5 +430,5 @@ export { createClaudeCodeProcessDiagnostics } from './processExitDiagnostics'
 
 export const createSpawnClaudeCodeProcess =
   (diagnostics: ClaudeCodeProcessDiagnostics, priority: ClaudeCodeSpawnPriority = 'live') =>
-  (options: SpawnOptions): SpawnedProcess =>
+  (options: SpawnOptions & { detached?: boolean }): SpawnedProcess =>
     application.get('ClaudeCodeProcessManager').spawn(options, diagnostics, priority)
