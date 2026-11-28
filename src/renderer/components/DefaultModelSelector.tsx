@@ -1,9 +1,11 @@
 import { ChevronDown } from 'lucide-react'
 import type { ComponentProps, FC } from 'react'
+import { useId } from 'react'
 
 import { Avatar, AvatarFallback, Button } from '@cherrystudio/ui'
 import { useIcon } from '@cherrystudio/ui/icons'
 import { CherryCloudModelSelector as ModelSelector } from '@renderer/components/cherryCloud/CherryCloudModelSelector'
+import type { CherryCloudOfferFilter } from '@renderer/components/cherryCloud/useCherryCloudModelSelectorData'
 import { getProviderDisplayName, type ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { getModelLogoRef } from '@renderer/utils/model'
 import { cn } from '@renderer/utils/style'
@@ -22,6 +24,7 @@ export interface DefaultModelSelectorProps extends ModelSelectorTriggerProps {
   isModelDisabled?: ModelSelectorFilter
   includeAgentOnlyModels?: boolean
   showSubscriptionOffers?: boolean
+  offerFilter?: CherryCloudOfferFilter
   noneOptionLabel?: string
   onSelect: (model: Model | undefined) => void
 }
@@ -39,9 +42,12 @@ export const ModelSelectorTriggerButton: FC<ModelSelectorTriggerProps> = ({
   const provider = model ? providers.find((item) => item.id === model.providerId) : undefined
   const providerName = provider ? getProviderDisplayName(provider) : undefined
   const icon = useIcon(model ? getModelLogoRef(model) : undefined)
+  const contentId = useId()
 
   return (
     <Button
+      // A label replaces the button's content as its name, so the content still has to be announced.
+      aria-describedby={props['aria-label'] ? `${contentId}-model ${contentId}-provider` : undefined}
       {...props}
       type="button"
       variant="outline"
@@ -59,8 +65,14 @@ export const ModelSelectorTriggerButton: FC<ModelSelectorTriggerProps> = ({
             <AvatarFallback>{getModelInitial(model)}</AvatarFallback>
           </Avatar>
         ) : null}
-        <span className="min-w-0 flex-1 truncate">{model?.name ?? placeholder}</span>
-        {providerName && <span className="max-w-[32%] truncate text-xs text-muted-foreground">{providerName}</span>}
+        <span id={`${contentId}-model`} className="min-w-0 flex-1 truncate">
+          {model?.name ?? placeholder}
+        </span>
+        {providerName && (
+          <span id={`${contentId}-provider`} className="max-w-[32%] truncate text-xs text-muted-foreground">
+            {providerName}
+          </span>
+        )}
       </span>
       <ChevronDown size={14} className="shrink-0 text-muted-foreground" />
     </Button>
@@ -77,7 +89,9 @@ export const DefaultModelSelector: FC<DefaultModelSelectorProps> = ({
   includeAgentOnlyModels,
   noneOptionLabel,
   showSubscriptionOffers,
-  onSelect
+  offerFilter,
+  onSelect,
+  'aria-label': ariaLabel
 }) => (
   <ModelSelector
     multiple={false}
@@ -88,8 +102,15 @@ export const DefaultModelSelector: FC<DefaultModelSelectorProps> = ({
     includeAgentOnlyModels={includeAgentOnlyModels}
     noneOptionLabel={noneOptionLabel}
     showSubscriptionOffers={showSubscriptionOffers}
+    offerFilter={offerFilter}
     trigger={
-      <ModelSelectorTriggerButton model={model} providers={providers} placeholder={placeholder} compact={compact} />
+      <ModelSelectorTriggerButton
+        aria-label={ariaLabel}
+        model={model}
+        providers={providers}
+        placeholder={placeholder}
+        compact={compact}
+      />
     }
   />
 )

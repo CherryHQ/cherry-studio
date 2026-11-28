@@ -13,6 +13,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
+import type { CherryCloudPlanModel } from '@shared/ipc/schemas/cherryCloud'
 
 const harness = vi.hoisted(() => ({
   defaultModel: undefined as Model | undefined,
@@ -24,9 +25,14 @@ const harness = vi.hoisted(() => ({
   setPaintingModel: vi.fn(),
   onDefaultModelSelected: vi.fn(),
   selectorCallbacks: [] as Array<(model: Model | undefined) => void>,
-  selectorFilters: [] as Array<((model: Model) => boolean) | undefined>,
+  selectorFilters: [] as Array<
+    ((model: Model, provider?: { id: string; presetProviderId?: string | null } | null) => boolean) | undefined
+  >,
+  offerFilters: [] as Array<((offer: CherryCloudPlanModel) => boolean) | undefined>,
+  providers: [] as Array<{ id: string; presetProviderId?: string | null }>,
   preferenceValues: {} as Record<string, unknown>,
   preferenceSetters: {} as Record<string, ReturnType<typeof vi.fn>>,
+  modelsById: {} as Record<string, Model | undefined>,
   topicPanelModuleEvaluated: vi.fn(),
   translatePanelModuleEvaluated: vi.fn()
 }))
@@ -46,13 +52,15 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
     Button: ({
       children,
       onClick,
-      'aria-label': ariaLabel
+      'aria-label': ariaLabel,
+      'aria-describedby': ariaDescribedBy
     }: {
       children: ReactNode
       onClick?: ComponentProps<'button'>['onClick']
       'aria-label'?: string
+      'aria-describedby'?: string
     }) => (
-      <button type="button" aria-label={ariaLabel} onClick={onClick}>
+      <button type="button" aria-label={ariaLabel} aria-describedby={ariaDescribedBy} onClick={onClick}>
         {children}
       </button>
     ),
@@ -93,14 +101,17 @@ vi.mock('@renderer/components/ModelSelector', () => ({
   ModelSelector: ({
     onSelect,
     trigger,
-    filter
+    filter,
+    offerFilter
   }: {
     onSelect: (model: Model | undefined) => void
     trigger: ReactNode
-    filter?: (model: Model) => boolean
+    filter?: (model: Model, provider?: { id: string; presetProviderId?: string | null } | null) => boolean
+    offerFilter?: (offer: CherryCloudPlanModel) => boolean
   }) => {
     harness.selectorCallbacks.push(onSelect)
     harness.selectorFilters.push(filter)
+    harness.offerFilters.push(offerFilter)
     return trigger
   }
 }))
@@ -115,11 +126,14 @@ vi.mock('@renderer/hooks/useModel', () => ({
     setQuickModel: harness.setQuickModel,
     setTranslateModel: harness.setTranslateModel,
     setPaintingModel: harness.setPaintingModel
+  }),
+  useModelById: (modelId?: string | null) => ({
+    model: modelId ? harness.modelsById[modelId] : undefined
   })
 }))
 
 vi.mock('@renderer/hooks/useProvider', () => ({
-  useProviders: () => ({ providers: [] })
+  useProviders: () => ({ providers: harness.providers })
 }))
 
 vi.mock('@renderer/hooks/useTheme', () => ({
@@ -183,8 +197,11 @@ describe('ModelSettings', () => {
     harness.translateModel = undefined
     harness.selectorCallbacks = []
     harness.selectorFilters = []
+    harness.offerFilters = []
+    harness.providers = [{ id: 'openai', presetProviderId: 'openai' }]
     harness.preferenceValues = {}
     harness.preferenceSetters = {}
+    harness.modelsById = {}
     harness.setDefaultModel.mockResolvedValue(undefined)
     harness.setQuickModel.mockResolvedValue(undefined)
     harness.setTranslateModel.mockResolvedValue(undefined)
@@ -332,5 +349,123 @@ describe('ModelSettings', () => {
 
   it('renders off-router (onboarding compact) without calling useSearch', () => {
     expect(() => render(<ModelSettings compact showPaintingModel={false} showSettingsButton={false} />)).not.toThrow()
+  })
+
+  it('keeps video vision off onboarding and on the default models page', () => {
+    const onboarding = render(<ModelSettings compact showPaintingModel={false} showSettingsButton={false} />)
+
+    expect(
+      screen.queryByRole('button', { name: 'settings.tool.file_processing.video_vision.title' })
+    ).not.toBeInTheDocument()
+    onboarding.unmount()
+
+    render(<ModelSettings />)
+
+    expect(screen.getByRole('button', { name: 'settings.tool.file_processing.video_vision.title' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('img', { name: 'settings.tool.file_processing.video_vision.description' })
+    ).toBeInTheDocument()
+  })
+
+  it('writes a vision model selection to the media preference key', async () => {
+    const provider = { id: 'openai', presetProviderId: 'openai' }
+    const visionModel: Model = {
+      ...createModel('openai', 'gpt-4o'),
+      name: 'GPT-4o',
+      capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION]
+    }
+    const textModel = createModel('openai', 'gpt-4o-mini')
+    const preferenceKey = 'feature.file_processing.default_video_vision_model'
+
+    render(<ModelSettings />)
+
+    const videoFilterIndex = harness.selectorFilters.findIndex(
+      (filter) => filter?.(visionModel, provider) === true && filter?.(textModel, provider) === false
+    )
+    expect(videoFilterIndex).toBeGreaterThanOrEqual(0)
+    const videoFilter = harness.selectorFilters[videoFilterIndex]!
+    expect(videoFilter(visionModel, { id: 'qiniu', presetProviderId: 'qiniu' })).toBe(false)
+    expect(videoFilter(visionModel, null)).toBe(false)
+    expect(
+      videoFilter(
+        {
+          ...createModel('openai', 'vision-image-gen'),
+          capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION, MODEL_CAPABILITY.IMAGE_GENERATION]
+        },
+        provider
+      )
+    ).toBe(false)
+
+    act(() => harness.selectorCallbacks[videoFilterIndex](visionModel))
+    await waitFor(() => expect(harness.preferenceSetters[preferenceKey]).toHaveBeenCalledWith(visionModel.id))
+    expect(harness.setDefaultModel).not.toHaveBeenCalled()
+    expect(harness.setQuickModel).not.toHaveBeenCalled()
+    expect(harness.setTranslateModel).not.toHaveBeenCalled()
+    expect(harness.setPaintingModel).not.toHaveBeenCalled()
+
+    act(() => harness.selectorCallbacks[videoFilterIndex](undefined))
+    await waitFor(() => expect(harness.preferenceSetters[preferenceKey]).toHaveBeenLastCalledWith(null))
+  })
+
+  it('keeps text-only models and offers out of the vision model, including ones resolved by sign-in', async () => {
+    const visionModel: Model = {
+      ...createModel('openai', 'gpt-4o'),
+      capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION]
+    }
+    const textModel = createModel('openai', 'gpt-4o-mini')
+    const preferenceKey = 'feature.file_processing.default_video_vision_model'
+    const offer = (capabilities: string[]): CherryCloudPlanModel => ({
+      id: 'offer',
+      display_name: 'Offer',
+      capabilities,
+      available_features: ['chat']
+    })
+
+    render(<ModelSettings />)
+
+    const visionIndex = harness.selectorFilters.findIndex(
+      (filter) =>
+        filter?.(visionModel, harness.providers[0]) === true && filter?.(textModel, harness.providers[0]) === false
+    )
+    const offerFilter = harness.offerFilters[visionIndex]!
+    expect(offerFilter(offer([MODEL_CAPABILITY.IMAGE_RECOGNITION]))).toBe(true)
+    expect(offerFilter(offer([]))).toBe(false)
+    expect(offerFilter(offer([MODEL_CAPABILITY.IMAGE_RECOGNITION, MODEL_CAPABILITY.IMAGE_GENERATION]))).toBe(false)
+
+    act(() => harness.selectorCallbacks[visionIndex](textModel))
+    act(() => harness.selectorCallbacks[visionIndex](visionModel))
+    await waitFor(() => expect(harness.preferenceSetters[preferenceKey]).toHaveBeenCalledWith(visionModel.id))
+    expect(harness.preferenceSetters[preferenceKey]).toHaveBeenCalledTimes(1)
+  })
+
+  it('renders the model already stored on the media preference', () => {
+    const visionModel: Model = {
+      ...createModel('openai', 'gpt-4o'),
+      name: 'GPT-4o',
+      capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION]
+    }
+    const preferenceKey = 'feature.file_processing.default_video_vision_model'
+    harness.preferenceValues[preferenceKey] = visionModel.id
+    harness.modelsById[visionModel.id] = visionModel
+
+    render(<ModelSettings />)
+
+    expect(
+      screen.getByRole('button', { name: 'settings.tool.file_processing.video_vision.title' })
+    ).toHaveAccessibleDescription('GPT-4o')
+    expect(harness.preferenceSetters[preferenceKey]).not.toHaveBeenCalled()
+  })
+
+  it('shows a stored vision model that lost image input as unset', () => {
+    const preferenceKey = 'feature.file_processing.default_video_vision_model'
+    const editedModel: Model = { ...createModel('openai', 'gpt-4o'), name: 'GPT-4o' }
+    harness.preferenceValues[preferenceKey] = editedModel.id
+    harness.modelsById[editedModel.id] = editedModel
+
+    render(<ModelSettings />)
+
+    const picker = screen.getByRole('button', { name: 'settings.tool.file_processing.video_vision.title' })
+    expect(picker).toHaveTextContent('settings.models.empty')
+    expect(picker).not.toHaveTextContent('GPT-4o')
   })
 })

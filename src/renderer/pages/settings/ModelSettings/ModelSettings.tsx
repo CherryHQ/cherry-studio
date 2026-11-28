@@ -1,11 +1,15 @@
-import { ArrowRight, Languages, MessageSquareMore, Palette, Rocket, RotateCcw, Settings2 } from 'lucide-react'
-import type { FC, ReactNode, Ref } from 'react'
+import { ArrowRight, Languages, MessageSquareMore, Palette, Rocket, RotateCcw, ScanEye, Settings2 } from 'lucide-react'
+import type { ComponentProps, FC, ReactNode, Ref } from 'react'
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, PageSidePanel, Tooltip, HelpTooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
+import {
+  type CherryCloudOfferFilter,
+  isCherryCloudChatOffer
+} from '@renderer/components/cherryCloud/useCherryCloudModelSelectorData'
 import { DefaultModelSelector } from '@renderer/components/DefaultModelSelector'
 import {
   SettingContainer,
@@ -16,7 +20,7 @@ import {
   SettingsContentColumn,
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
-import { useDefaultModel } from '@renderer/hooks/useModel'
+import { useDefaultModel, useModelById } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { useTimer } from '@renderer/hooks/useTimer'
@@ -25,8 +29,8 @@ import { toast } from '@renderer/services/toast'
 import { scrollIntoView } from '@renderer/utils/dom'
 import { cn } from '@renderer/utils/style'
 import { TRANSLATE_PROMPT } from '@shared/ai/prompts'
-import type { Model } from '@shared/data/types/model'
-import { isGenerateImageModel, isNonChatModel } from '@shared/utils/model'
+import { isUniqueModelId, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
+import { isGenerateImageModel, isNonChatModel, isVideoVisionSelectableModel } from '@shared/utils/model'
 
 const TopicNamingSettings = lazy(() =>
   import('./TopicNamingSettings').then((module) => ({ default: module.TopicNamingSettings }))
@@ -112,6 +116,53 @@ const ModelSettingRow: FC<ModelSettingRowProps> = ({
     </SettingRow>
   </div>
 )
+
+const isVideoVisionOffer: CherryCloudOfferFilter = (offer) =>
+  isCherryCloudChatOffer(offer) && Boolean(offer.capabilities?.includes(MODEL_CAPABILITY.IMAGE_RECOGNITION))
+
+interface VideoVisionModelSettingsProps {
+  providers: ComponentProps<typeof DefaultModelSelector>['providers']
+  showDescription: boolean
+}
+
+const VideoVisionModelSettings: FC<VideoVisionModelSettingsProps> = ({ providers, showDescription }) => {
+  const { t } = useTranslation()
+  const [modelId, setModelId] = usePreference('feature.file_processing.default_video_vision_model')
+  const selectedModelId = isUniqueModelId(modelId) ? modelId : undefined
+  const { model } = useModelById(selectedModelId)
+  // Media analysis rejects a saved model that lost image input, so show it as unset like a deleted one.
+  const modelProvider = model && providers.find((item) => item.id === model.providerId)
+  const eligibleModel = model && isVideoVisionSelectableModel(model, modelProvider) ? model : undefined
+  const title = t('settings.tool.file_processing.video_vision.title')
+  const handleSelect = useCallback(
+    (selected: Model | undefined) => {
+      // A locked row resolved by sign-in reaches onSelect without passing the picker filter.
+      const provider = selected && providers.find((item) => item.id === selected.providerId)
+      if (selected && !isVideoVisionSelectableModel(selected, provider)) return
+      void setModelId(selected?.id ?? null)
+    },
+    [providers, setModelId]
+  )
+
+  return (
+    <ModelSettingRow
+      id="setting-model-video-vision-model"
+      icon={<ScanEye size={16} className="lucide-custom shrink-0 text-foreground" />}
+      title={title}
+      description={showDescription ? t('settings.tool.file_processing.video_vision.description') : undefined}>
+      <DefaultModelSelector
+        aria-label={title}
+        model={eligibleModel}
+        providers={providers}
+        filter={isVideoVisionSelectableModel}
+        offerFilter={isVideoVisionOffer}
+        noneOptionLabel={t('common.none')}
+        onSelect={handleSelect}
+        placeholder={t('settings.models.empty')}
+      />
+    </ModelSettingRow>
+  )
+}
 
 type ModelSettingsPanel = 'quick-model' | 'translate' | null
 
@@ -352,6 +403,12 @@ const ModelSettings: FC<ModelSettingsProps> = ({
                   placeholder={t('settings.models.empty')}
                 />
               </ModelSettingRow>
+            </>
+          )}
+          {!compact && (
+            <>
+              {showDividers && <SettingDivider />}
+              <VideoVisionModelSettings providers={providers} showDescription={showDescription} />
             </>
           )}
         </SettingGroup>
