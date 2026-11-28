@@ -75,7 +75,7 @@ import {
   isClaudeCodeProcessFailure,
   type ClaudeCodeProcessDiagnostics
 } from './processExitDiagnostics'
-import { ProcessFailureReporter } from './ProcessFailureReporter'
+import type { ProcessFailureReporter } from './ProcessFailureReporter'
 import { resolveClaudeConfigDirectory } from './queryOptions'
 import type { McpToolDisplayMetadata, ToolApprovalEmitterHolder } from './types'
 
@@ -448,7 +448,7 @@ export abstract class ClaudeSdkConnection<
     }
   }
 
-  private async deliverProcessFailure(): Promise<void> {
+  protected async deliverProcessFailure(): Promise<void> {
     // A descendant may keep stdout open after the process dies. Wait briefly for
     // source completion, then drain root deliveries already accepted by the feed.
     // Run outside observer callbacks so two closing roots cannot drain each other.
