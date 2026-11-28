@@ -296,7 +296,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
                 this.nativeError = error
               }
             }),
-            getLatestWorkspaceEvent: (sessionId) => agentSessionService.getLatestWorkspaceEvent(sessionId)
+            getWorkspaceEvents: (sessionId) => agentSessionService.getWorkspaceEvents(sessionId)
           })
         : undefined
       if (!successor) return unavailableNativeContext(this.context, opened.error.message)
