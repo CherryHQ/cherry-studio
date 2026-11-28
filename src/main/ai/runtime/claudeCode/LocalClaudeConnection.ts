@@ -252,9 +252,7 @@ export class LocalClaudeConnection extends ClaudeSdkConnection<LocalRuntimeConne
       ...localClaudeOptions(launch, this.abortController, (spawnOptions) => {
         const ownsPreflight = this.liveSpawnPreflightReserved
         this.liveSpawnPreflightReserved = false
-        return application
-          .get('ClaudeCodeProcessManager')
-          .spawn(spawnOptions, diagnostics, 'live', ownsPreflight)
+        return application.get('ClaudeCodeProcessManager').spawn(spawnOptions, diagnostics, 'live', ownsPreflight)
       }),
       model,
       settingSources: headless ? [] : ['user', 'project', 'local'],
