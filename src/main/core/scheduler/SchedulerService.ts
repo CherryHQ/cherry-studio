@@ -21,6 +21,13 @@ interface TimeoutEntry {
   ms: number
   callback: ScheduleCallback
   nextRunAt: number
+  /**
+   * Monotonic deadline of the pending timer (`performance.now()`-based).
+   * Carry-over math uses this so a system-clock adjustment between arms
+   * cannot make a pending interval read as overdue; `nextRunAt` stays
+   * wall-clock and is for reporting only.
+   */
+  monoDeadline: number
   running: boolean
 }
 
@@ -49,6 +56,16 @@ interface TimeoutEntry {
 export class SchedulerService extends BaseService {
   private cronJobs = new Map<string, Cron>()
   private intervalHandles = new Map<string, TimeoutEntry>()
+  /**
+   * Interval entries removed by `unregister`, keyed by id and consumed
+   * (deleted) by the next `registerSchedule` call for that id. JobManager
+   * re-arms dispose the prior registration BEFORE re-registering, so the
+   * deadline-carrying path must consult these tombstones or persisted
+   * schedules would lose their pending fire on every re-arm. Overwritten on
+   * each unregister; only entries with a still-pending deadline carry, and
+   * the tombstone is consumed by the next registration for the id either way.
+   */
+  private replacedIntervals = new Map<string, TimeoutEntry>()
 
   protected override onInit(): void {
     logger.info('SchedulerService initialized')
@@ -101,7 +118,15 @@ export class SchedulerService extends BaseService {
   /**
    * Register a callback to fire on schedule. Calling `registerSchedule` twice
    * with the same `id` replaces the previous registration (the old timer is
-   * stopped first).
+   * stopped first). For `interval` triggers, re-registering with the same
+   * period carries the pending fire deadline over instead of resetting it —
+   * frequent re-arms (startup recovery, timer sync, lifecycle events) must not
+   * push the next fire a full period away every time, which would starve the
+   * schedule indefinitely. This includes re-arms that `unregister` first
+   * (JobManager's dispose-then-re-register): the deadline survives until the
+   * next registration for the same id or its expiry, whichever comes first. A
+   * period change, an expired deadline, or a re-arm while a callback is in
+   * flight starts a fresh period.
    *
    * @param id - Unique identifier for this schedule; reused for `pause` / `resume` / `unregister` / `triggerNow`
    * @param trigger - Cron expression, repeating interval, or one-shot delay
@@ -109,6 +134,14 @@ export class SchedulerService extends BaseService {
    * @returns Disposable that unregisters when disposed; the service also auto-cleans on `onStop`
    */
   registerSchedule(id: string, trigger: Trigger, callback: ScheduleCallback): Disposable {
+    // Re-arming the same period carries the pending fire over — resetting it
+    // (as repeated re-arms do) would starve the schedule indefinitely. The
+    // previous entry may already be unregistered (JobManager re-arms dispose
+    // first), so also consult the tombstone `unregister` left. It is consumed
+    // here either way: only an immediately-following re-register carries, a
+    // later registration starts fresh.
+    const previous = this.intervalHandles.get(id) ?? this.replacedIntervals.get(id)
+    this.replacedIntervals.delete(id)
     if (this.has(id)) this.unregister(id)
 
     if (trigger.kind === 'cron') {
@@ -116,7 +149,15 @@ export class SchedulerService extends BaseService {
     } else if (trigger.kind === 'once') {
       this.scheduleOnce(id, trigger.at, callback)
     } else {
-      this.scheduleInterval(id, trigger.ms, callback)
+      // Remaining time comes from the monotonic deadline, bounded by one
+      // period; an expired deadline (including "never carried") starts a
+      // fresh period.
+      const remainingMs =
+        previous?.kind === 'interval' && previous.ms === trigger.ms && !previous.running
+          ? previous.monoDeadline - performance.now()
+          : -1
+      const carriedDelayMs = remainingMs > 0 ? Math.min(trigger.ms, remainingMs) : undefined
+      this.scheduleInterval(id, trigger.ms, callback, carriedDelayMs)
     }
 
     logger.debug('Scheduled', { id, kind: trigger.kind })
@@ -185,6 +226,11 @@ export class SchedulerService extends BaseService {
     if (interval) {
       clearTimeout(interval.handle)
       this.intervalHandles.delete(id)
+      if (interval.kind === 'interval') {
+        // Tombstone for an immediately-following re-register to carry the
+        // pending deadline over (see `replacedIntervals`).
+        this.replacedIntervals.set(id, interval)
+      }
       logger.debug('Unregistered interval/once', { id })
     }
   }
@@ -265,10 +311,18 @@ export class SchedulerService extends BaseService {
       }
     }, delay)
     handle.unref?.()
-    this.intervalHandles.set(id, { handle, kind: 'once', ms: delay, callback, nextRunAt: atMs, running: false })
+    this.intervalHandles.set(id, {
+      handle,
+      kind: 'once',
+      ms: delay,
+      callback,
+      nextRunAt: atMs,
+      monoDeadline: performance.now() + delay,
+      running: false
+    })
   }
 
-  private scheduleInterval(id: string, ms: number, callback: ScheduleCallback): void {
+  private scheduleInterval(id: string, ms: number, callback: ScheduleCallback, firstDelayMs?: number): void {
     const fire = async (): Promise<void> => {
       const entry = this.intervalHandles.get(id)
       if (!entry || entry.kind !== 'interval') return
@@ -286,13 +340,23 @@ export class SchedulerService extends BaseService {
       nextHandle.unref?.()
       entry.handle = nextHandle
       entry.nextRunAt = nextRunAt
+      entry.monoDeadline = performance.now() + ms
       entry.running = false
     }
 
-    const nextRunAt = Date.now() + ms
-    const handle = setTimeout(fire, ms)
+    const firstDelay = Math.max(0, firstDelayMs ?? ms)
+    const nextRunAt = Date.now() + firstDelay
+    const handle = setTimeout(fire, firstDelay)
     handle.unref?.()
-    this.intervalHandles.set(id, { handle, kind: 'interval', ms, callback, nextRunAt, running: false })
+    this.intervalHandles.set(id, {
+      handle,
+      kind: 'interval',
+      ms,
+      callback,
+      nextRunAt,
+      monoDeadline: performance.now() + firstDelay,
+      running: false
+    })
   }
 
   private clearAll(): void {
@@ -306,5 +370,6 @@ export class SchedulerService extends BaseService {
       logger.debug('Cleared interval/once on shutdown', { id })
     }
     this.intervalHandles.clear()
+    this.replacedIntervals.clear()
   }
 }
