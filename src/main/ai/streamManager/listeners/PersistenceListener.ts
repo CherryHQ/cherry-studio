@@ -101,11 +101,7 @@ export class PersistenceListener implements StreamListener {
     runtimeTiming: MessageRuntimeTiming | undefined,
     result: StreamDoneResult | StreamPausedResult | StreamErrorResult
   ): Promise<void> {
-    const canPersistEmpty =
-      status === 'success'
-        ? this.opts.backend.canPersistEmptySuccessTerminal
-        : this.opts.backend.canPersistEmptyTerminal
-    if (!finalMessage && !canPersistEmpty) {
+    if (!finalMessage && !this.opts.backend.canPersistEmptyTerminal) {
       logger.warn('Terminal event without finalMessage, skipping persistence', {
         backend: this.opts.backend.kind,
         topicId: this.opts.topicId,

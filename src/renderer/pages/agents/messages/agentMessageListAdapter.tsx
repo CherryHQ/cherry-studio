@@ -2,7 +2,6 @@ import { type ReactNode, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { dataApiService } from '@data/DataApiService'
-import { isHiddenPart } from '@renderer/components/chat/messages/blocks/messagePartLayouts'
 import { useMessageAuthorAvatarSources } from '@renderer/components/chat/messages/hooks/useMessageAuthorAvatarSources'
 import { useMessageListAdapterCapabilities } from '@renderer/components/chat/messages/hooks/useMessageListAdapterCapabilities'
 import {
@@ -28,24 +27,24 @@ import {
 import { dispatchLocateMessage } from '@renderer/components/chat/messages/utils/dispatchLocateMessage'
 import { bindCaptureMessageImageRuntime } from '@renderer/components/chat/messages/utils/messageImageRuntimeActions'
 import { getMessageListItemModel, toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
+import { withTerminalErrorFallback } from '@renderer/components/chat/messages/utils/terminalErrorFallback'
 import { useProfilePaneToggle } from '@renderer/components/chat/panes/profile'
 import type { DiagnosticReportConfig } from '@renderer/components/ErrorDetailModal'
 import { useSharedCacheValue } from '@renderer/data/hooks/useCache'
 import { ipcApi } from '@renderer/ipc'
-import { messageProjectionService } from '@renderer/services/aiTransport'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { openRoute } from '@renderer/services/mainWindowNavigation'
 import type { ExportMessagesToObsidian } from '@renderer/types/messageExport'
 import type { Topic } from '@renderer/types/topic'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { normalizeInlineFilePath, resolveInlineFilePath } from '@renderer/utils/filePath'
-import { PartOverrides, type MessagePartRows, messagePartsAt } from '@renderer/utils/message/messagePartRows'
+import { type MessagePartRows, messagePartsAt } from '@renderer/utils/message/messagePartRows'
 import { AGENT_SESSION_RUNTIME_CONTROLS_CACHE_KEY } from '@shared/ai/agentSessionRuntimeControls'
 import { extractAgentSessionId } from '@shared/ai/agentSessionTopic'
 import type { ProjectionTarget } from '@shared/ai/messageProjection'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { AgentSessionHistoryActions } from '@shared/data/api/schemas/agentSessionMessages'
-import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import type { CherryUIMessage } from '@shared/data/types/message'
 import { agentSessionForkFailureReason } from '@shared/ipc/errors/ai'
 import type { DoctorSubjectRef } from '@shared/types/doctor'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
@@ -82,48 +81,6 @@ const agentMessageListRuntimes = new Map<string, MessageListRuntime>()
 
 export function scrollAgentMessageListToEnd(topicId: string): void {
   agentMessageListRuntimes.get(topicId)?.scrollToBottom()
-}
-
-function withTerminalErrorFallback(
-  messages: CherryUIMessage[],
-  partsByMessageId: MessagePartRows,
-  noResponseMessage: string
-): MessagePartRows {
-  const replacements = new Map<string, CherryMessagePart[]>()
-
-  for (const message of messages) {
-    if (message.role !== 'assistant') continue
-    const status = message.metadata?.status
-    const parts = messagePartsAt(partsByMessageId, message.id) ?? message.parts ?? []
-    const resolvedParts = messageProjectionService.ownsRowParts(parts)
-      ? messageProjectionService.readParts(parts)
-      : parts
-    const hasVisiblePart = resolvedParts.some((part) => !isHiddenPart(part))
-    if (message.metadata?.provenance && hasVisiblePart) continue
-    if (message.metadata?.importedHistory) {
-      if (status === 'error' || !hasVisiblePart) {
-        replacements.set(message.id, [
-          ...resolvedParts,
-          { type: 'data-imported-status', data: { status: message.metadata.importedHistory.status } }
-        ])
-      }
-      continue
-    }
-    const needsFallback =
-      (status === 'error' && !resolvedParts.some((part) => part.type === 'data-error')) ||
-      (status === 'success' && !hasVisiblePart)
-    if (!needsFallback) continue
-
-    replacements.set(message.id, [
-      ...resolvedParts,
-      {
-        type: 'data-error',
-        data: { name: 'AgentRuntimeError', message: noResponseMessage, stack: null }
-      }
-    ])
-  }
-
-  return replacements.size ? new PartOverrides(partsByMessageId, replacements) : partsByMessageId
 }
 
 export function locateAgentMessageInList(topicId: string, messageId: string, highlight?: boolean): boolean {

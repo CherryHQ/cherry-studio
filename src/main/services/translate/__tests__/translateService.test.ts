@@ -180,6 +180,7 @@ describe('translateService.open', () => {
             prompt: string
             reasoningEffort?: string
             callOverrides?: Record<string, unknown>
+            allowEmptySuccess?: boolean
             utilityTask?: boolean
             listener: { id: string } | Array<{ id: string }>
           }
@@ -192,6 +193,11 @@ describe('translateService.open', () => {
     // The whole feature hangs off this one argument: drop it and every other
     // assertion in this file still passes while nothing reaches the model.
     expect(arg.callOverrides).toEqual({ temperature: 0.3 })
+    // Empty stays success so the renderer keeps its translate.error.empty contract.
+    expect(arg.allowEmptySuccess).toBe(true)
+    const listeners = Array.isArray(arg.listener) ? arg.listener : [arg.listener]
+    expect(listeners).toHaveLength(1)
+    expect(listeners[0].id).toBe(`wc:test:${streamId}`)
     // Translation must keep working for a signed-out user on the built-in free model.
     expect(arg.utilityTask).toBe(true)
   })

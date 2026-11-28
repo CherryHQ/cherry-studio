@@ -102,6 +102,9 @@ export interface KnowledgeScopePartData {
 /** Context boundary marker. Hidden from both the transcript and the model. */
 export type ClearPartData = Record<string, never>
 
+/** Marker for a dismissed synthetic no-response error. Hidden from both the transcript and the model. */
+export type DismissedNoResponsePartData = Record<string, never>
+
 /** The runtime could not resume the prior CLI conversation and continued on a fresh one. */
 export type ConversationResetPartData = Record<string, never>
 
@@ -152,6 +155,9 @@ export type CherryDataPartTypes = {
   'agent-session-fork': { sourceSessionId: string }
   'knowledge-scope': KnowledgeScopePartData
   clear: ClearPartData
+  'no-response-dismissed': DismissedNoResponsePartData
+  /** Main-authoritative successful ordinary-chat continuation boundary. */
+  'steer-handoff': Record<string, never>
   code: CodePartData
   retry: RetryPartData
 }
@@ -376,8 +382,11 @@ function schemaForPartType(type: string): z.ZodTypeAny | null {
 
 const KNOWLEDGE_SCOPE_PART_TYPE = 'data-knowledge-scope'
 const CLEAR_CONTEXT_PART_TYPE = 'data-clear'
+export const DISMISSED_NO_RESPONSE_PART_TYPE = 'data-no-response-dismissed'
 
 export type ClearContextPart = Extract<CherryMessagePart, { type: typeof CLEAR_CONTEXT_PART_TYPE }>
+
+export type DismissedNoResponsePart = Extract<CherryMessagePart, { type: typeof DISMISSED_NO_RESPONSE_PART_TYPE }>
 
 /** Create the hidden DataUIPart that marks a model-context boundary. */
 export function createClearContextPart(): ClearContextPart {

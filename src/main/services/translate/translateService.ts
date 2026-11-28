@@ -118,6 +118,8 @@ export class TranslateService {
       utilityTask: true,
       prompt: content,
       listener: wcListener,
+      // Empty stays success: the renderer reports it as translate.error.empty on done.
+      allowEmptySuccess: true,
       reasoningEffort,
       callOverrides
     })

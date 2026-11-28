@@ -163,9 +163,6 @@ export type PersistenceBackend<K extends keyof SavedByBackend = keyof SavedByBac
    */
   readonly canPersistEmptyTerminal?: boolean
 
-  /** True only when an empty successful response is itself a valid terminal result. */
-  readonly canPersistEmptySuccessTerminal?: boolean
-
   /**
    * Best-effort recovery when `persistAssistant` throws: drive the backing
    * placeholder row to a terminal `error` state so a reload shows a terminal
