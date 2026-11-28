@@ -676,6 +676,8 @@ Public gateway clients continue to receive the sanitized errors above.
   `generateText`, without `ToolLoopAgent`, local tool execution, AI tool repair,
   or model fallback. HTTP gateway requests disable SDK request retries. Internal Pi object
   requests use [ai-retry before content](../../../../src/main/ai/runtime/pi/README.md#model-requests).
+  Pi Durable's trusted object calls forward typed failures from the AI execution layer to
+  [native generation recovery](../../../../src/main/ai/runtime/piDurable/README.md).
   Application chat retains its loop.
 - **Assistant-agnostic.** No assistant/topic context. Sampling, client tools,
   and provider options ride as per-request `CallOverrides`.

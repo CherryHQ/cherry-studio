@@ -1349,12 +1349,14 @@ files remain untouched. Restoring an older backup repeats the same conversion.
 Pi and Pi Durable model calls exchange native protocol request/event objects with Cherry's gateway
 in process, without internal HTTP/JSON/SSE codecs or a listener dependency. The gateway resolves
 the configured provider/model and owns credentials, request options and billing through Cherry's
-provider execution path. Pi remains the sole tool executor and loop owner. Desktop Pi and Pi Durable
-disable native provider retries for roots and children. Internal object requests reuse `ai-retry`
-with three retries for retryable failures before the first content chunk; partial streams are not replayed.
-AI SDK built-in retries remain disabled.
-The final upstream error is preserved. Public HTTP gateway requests retain their no-retry policy.
-A later user input can start a new run after a failure.
+provider execution path. Each harness owns its tool execution and loop. Internal object requests use
+`ai-retry` with three retries for eligible failures before content. For desktop Pi Durable roots and
+children, the AI SDK integration classifies provider errors and plans retries. The AI stream manager
+reports idle timeouts. The harness persists the plan in its generation checkpoint and resumes when
+the delay expires. An explicitly offline or suspended network waits with persisted backoff. Resets and
+truncated streams use a finite budget. Both can issue a new model request within the original run,
+retaining committed tool results and excluding interrupted drafts from model context. The final error
+retains its upstream cause. AI SDK built-in retries and public HTTP gateway request retries remain disabled.
 
 ## Internal Agent continuation normalization
 

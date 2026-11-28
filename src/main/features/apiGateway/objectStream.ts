@@ -292,6 +292,7 @@ async function openObjectMessage<T>(
       }
     },
     onError: (result, error) => {
+      if (closed) return
       const terminal = RetryError.isInstance(error) ? error.lastError : error
       fail(
         objectGatewayError(terminal, terminal === error ? result.error : serializeError(terminal), request.outputFormat)
@@ -305,6 +306,7 @@ async function openObjectMessage<T>(
     manager.streamPrompt({
       ...gatewayPromptOptions(request, usageContext, config.timeoutMs),
       maxRetries: 3,
+      onModelTransportFailure: config.agentContext?.onModelTransportFailure,
       streamId,
       listener
     })

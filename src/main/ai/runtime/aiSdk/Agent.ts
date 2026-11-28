@@ -23,7 +23,7 @@ import { ALL_MEDIA, routeToolResultMedia } from '../../messages/messageCapabilit
 import { toModelMessages } from '../../messages/messageRules'
 import type { AppProviderSettingsMap } from '../../types'
 import { serializeError } from '../../utils/serializeError'
-import { classifyAiSdkFailure } from './failureFacts'
+import { classifyAiSdkFailure, isMissingFinishReason, MissingFinishReasonError } from './failureFacts'
 import { logger, safeCall, wrapForwardedHook, wrapToolsWithExecutionHooks } from './loop/hookRunner'
 import { resolveToolLoopTerminalError } from './loop/toolLoopTermination'
 import type { AgentLoopHooks, AgentLoopParams } from './loop/types'
@@ -32,23 +32,8 @@ import { composeHooks } from './params/composeHooks'
 
 type AppProviderKey = StringKeys<AppProviderSettingsMap>
 
-const MISSING_FINISH_REASON_MESSAGE = 'Response stream ended without a finish reason.'
-
-class MissingFinishReasonError extends Error {
-  readonly i18nKey = 'missing_finish_reason'
-
-  constructor(
-    cause: Error,
-    readonly providerId: string,
-    readonly modelId: string
-  ) {
-    super(cause.message, { cause })
-    this.name = 'MissingFinishReasonError'
-  }
-}
-
 function normalizeStreamError(error: unknown, providerId: string, modelId: string): unknown {
-  if (InvalidResponseDataError.isInstance(error) && error.message === MISSING_FINISH_REASON_MESSAGE) {
+  if (isMissingFinishReason(error)) {
     return new MissingFinishReasonError(error, providerId, modelId)
   }
   return error

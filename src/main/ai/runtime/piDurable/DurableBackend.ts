@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto'
 
+import type { AssistantMessage } from '@earendil-works/pi-ai'
 import type {
   ConversationId,
   EntryId,
@@ -23,6 +24,7 @@ import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
 import { openDurableStorage, prepareDurableRoot } from '@main/ai/agentSession/durableNativeContext'
 import { createPiTelemetry } from '@main/ai/observability'
+import { planModelTransportRetry, type RecoverableModelTransportFailure } from '@main/ai/runtime/aiSdk'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
 import { formatGatewayModelId } from '@shared/utils/apiGateway'
@@ -61,6 +63,7 @@ export class DurableBackend {
   private readonly roots = new Map<string, DurableRoot>()
   private readonly preparedRoots = new Map<string, { root: DurableRoot; attaching: boolean }>()
   private readonly nativeRoots = new Map<ThreadId, string>()
+  private readonly transportFailures = new WeakMap<AssistantMessage, RecoverableModelTransportFailure>()
 
   private readonly retired = new Set<DurableRoot>()
   private readonly deferredReclaims = new Map<string, TaskId>()
@@ -128,7 +131,13 @@ export class DurableBackend {
         backendId: runtimeId(context.backendId),
         openStorage: async () => root.storage,
         harness: {
-          settings: { retry: { enabled: false, resumeInterrupted: true } },
+          settings: {
+            retry: {
+              enabled: false,
+              resumeInterrupted: true,
+              transportRetry: (message, state) => planModelTransportRetry(owner.transportFailures.get(message), state)
+            }
+          },
           telemetry: createPiTelemetry({
             isEnabled: () => application.get('PreferenceService').get('app.developer_mode.enabled'),
             getParent: (attributes) => {
@@ -276,7 +285,7 @@ export class DurableBackend {
           (...args) => host.sink?.usage?.(...args),
           this.models,
           (...args) => host.sink?.retry?.(...args),
-          [name, ...aliases]
+          { nativeProviders: [name, ...aliases], transportFailures: this.transportFailures }
         )
       }
       const binding = await bindModel(desktop.snapshot.model, desktop.snapshot.provider)

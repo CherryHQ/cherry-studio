@@ -8,6 +8,7 @@ import {
   hasProductInputId,
   isPartBatch,
   runtimeId,
+  type Activity,
   type InputState,
   type Observation,
   type Subagent
@@ -58,6 +59,20 @@ import { saveDurableRequest } from './durableRequest'
 
 const logger = loggerService.withContext('PiDurableRuntimeConnection')
 
+function projectRetryChange(
+  previous: Activity['modelRetry'],
+  current: Activity['modelRetry']
+): RetryPartData | undefined {
+  if (!current) return previous ? { state: 'settled' } : undefined
+  if (
+    previous?.modelId === current.modelId &&
+    previous.attempt === current.attempt &&
+    previous.reason === current.reason
+  )
+    return undefined
+  return { ...current, state: 'retrying' }
+}
+
 /** Root access and its observed child projections borrow the backend owner. */
 type DurableChildResource = {
   relation: Subagent
@@ -94,6 +109,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
   private closing = false
   private closePromise?: Promise<void>
   private active = false
+  private modelRetry?: Activity['modelRetry']
   private sending = false
   private compacting = false
   private autonomous = false
@@ -429,6 +445,11 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
             logger.warn('Durable observation fault', { sessionId: this.input.sessionId, event })
           else if (event.type === 'closed' && event.reason !== 'shutdown' && !this.closing)
             throw new Error(`Durable observation ended: ${event.reason}`)
+          if (event.type === 'snapshot' || event.type === 'activity.changed') {
+            const retry = projectRetryChange(this.modelRetry, event.activity.modelRetry)
+            this.modelRetry = event.activity.modelRetry
+            if (retry) this.events.push({ type: 'data-retry', id: 'retry', data: retry })
+          }
         }
       }
       if (!parts) this.projection.accept({ ...batch, events })
@@ -704,6 +725,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
           relation.origin.description ?? id
         )
         const access = handle
+        let modelRetry: Activity['modelRetry']
         const projection = new ChildThreadProjection(
           context,
           {
@@ -712,6 +734,11 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
               return access.observe(async (event) => {
                 try {
                   await sink(event)
+                  if (event.type === 'snapshot' || event.type === 'activity.changed') {
+                    const retry = projectRetryChange(modelRetry, event.activity.modelRetry)
+                    modelRetry = event.activity.modelRetry
+                    if (retry) projection.retry(retry)
+                  }
                   if (event.type === 'subagent.upsert' && event.subagent.child)
                     void this.observeChild(event.subagent.child.id)
                   if (event.type === 'snapshot') {

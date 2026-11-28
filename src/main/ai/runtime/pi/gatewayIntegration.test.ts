@@ -3,8 +3,18 @@ import type { AddressInfo } from 'node:net'
 import { resolve } from 'node:path'
 
 import { UnsupportedFunctionalityError } from '@ai-sdk/provider'
-import { normalizeContext } from '@earendil-works/pi-ai'
+import { BACKGROUND_CONTEXT } from '@earendil-works/chord/context'
+import { normalizeContext, type AssistantMessage } from '@earendil-works/pi-ai'
 import { defineTool } from '@earendil-works/pi-coding-agent'
+import {
+  createRegistry,
+  defineExtension,
+  defineTool as defineDurableTool,
+  Harness,
+  MemoryStorage
+} from '@earendil-works/pi-durable'
+import { openNodeSqliteStorage } from '@earendil-works/pi-durable/storage/sqlite/node'
+import { obj } from '@earendil-works/pi-schema'
 import {
   FunctionCallingConfigMode,
   GoogleGenAI,
@@ -40,6 +50,7 @@ import { providerService } from '@data/services/ProviderService'
 import { AgentSessionUsageAttribution } from '@main/ai/agentSession/AgentSessionUsageAttribution'
 import { AiService } from '@main/ai/AiService'
 import { createPiTelemetry, observabilitySinks } from '@main/ai/observability'
+import { planModelTransportRetry, type RecoverableModelTransportFailure } from '@main/ai/runtime/aiSdk'
 import { AiStreamManager } from '@main/ai/streamManager/AiStreamManager'
 import type { InProcessUsageContext } from '@main/ai/types'
 import type * as CustomFetch from '@main/ai/utils/customFetch'
@@ -63,6 +74,8 @@ const mocks = vi.hoisted(() => ({
   usageContexts: new Map<string, InProcessUsageContext>(),
   gatewayUrl: '',
   gatewayRequests: 0,
+  fetchFailure: undefined as (() => Error | undefined) | undefined,
+  promptIdleTimeoutMs: undefined as number | undefined,
   manager: undefined as AiStreamManager | undefined,
   ai: undefined as AiService | undefined,
   attribution: undefined as AgentSessionUsageAttribution | undefined
@@ -75,7 +88,8 @@ vi.mock('@application', async () => {
   const overrides = {
     ...defaultServiceInstances,
     AiStreamManager: {
-      streamPrompt: (input: Parameters<AiStreamManager['streamPrompt']>[0]) => mocks.manager!.streamPrompt(input),
+      streamPrompt: (input: Parameters<AiStreamManager['streamPrompt']>[0]) =>
+        mocks.manager!.streamPrompt({ ...input, idleTimeoutMs: mocks.promptIdleTimeoutMs ?? input.idleTimeoutMs }),
       abort: (id: string) => mocks.manager!.abort(id, 'gateway-disconnected')
     },
     AiService: { streamText: (input: Parameters<AiService['streamText']>[0]) => mocks.ai!.streamText(input) },
@@ -113,7 +127,11 @@ vi.mock('@application', async () => {
 })
 vi.mock('@main/ai/utils/customFetch', async (original) => ({
   ...(await original<typeof CustomFetch>()),
-  customFetch: (...args: Parameters<typeof fetch>) => fetch(...args)
+  customFetch: async (...args: Parameters<typeof fetch>) => {
+    const failure = mocks.fetchFailure?.()
+    if (failure) throw failure
+    return fetch(...args)
+  }
 }))
 
 describe('native Pi through the production gateway', () => {
@@ -149,6 +167,7 @@ describe('native Pi through the production gateway', () => {
   const outcome = () => events.filter((event) => event.type === 'input.changed').at(-1)?.input.outcome
   let holdResponse = false
   let failStream = false
+  let truncateStream = false
   let upstreamClosed = false
   let protocol: InputFormat = 'openai'
   let plaintextResponse = false
@@ -162,6 +181,8 @@ describe('native Pi through the production gateway', () => {
         | undefined)
     | undefined
   beforeEach(async () => {
+    mocks.fetchFailure = undefined
+    mocks.promptIdleTimeoutMs = undefined
     BaseService.resetInstances()
     mocks.manager = new AiStreamManager()
     mocks.ai = new AiService()
@@ -210,6 +231,7 @@ describe('native Pi through the production gateway', () => {
     mocks.gatewayRequests = 0
     holdResponse = false
     failStream = false
+    truncateStream = false
     upstreamClosed = false
     protocol = 'openai'
     plaintextResponse = false
@@ -347,7 +369,8 @@ describe('native Pi through the production gateway', () => {
           {
             index: 0,
             delta,
-            finish_reason: holdResponse || failStream ? null : delta.tool_calls ? 'tool_calls' : 'stop'
+            finish_reason:
+              holdResponse || failStream || truncateStream ? null : delta.tool_calls ? 'tool_calls' : 'stop'
           }
         ],
         usage: { prompt_tokens: 100, completion_tokens: 25, total_tokens: 125 }
@@ -357,6 +380,8 @@ describe('native Pi through the production gateway', () => {
         res.end(
           `data: ${JSON.stringify(payload)}\n\ndata: ${JSON.stringify({ error: { message: 'stream failed', type: 'server_error' } })}\n\n`
         )
+      } else if (truncateStream) {
+        res.end(`data: ${JSON.stringify(payload)}\n\n`)
       } else if (holdResponse) {
         res.on('close', () => {
           upstreamClosed = true
@@ -2034,6 +2059,185 @@ describe('native Pi through the production gateway', () => {
     expect(requests).toHaveLength(1)
   })
 
+  async function durableRetryModel(baseDelayMs = 15) {
+    const failures = new WeakMap<AssistantMessage, RecoverableModelTransportFailure>()
+    const binding = await createPiGatewayModelBinding(
+      { sessionId: 'session' },
+      providerService.getByProviderId('port'),
+      modelService.getByKey('port', 'wire-model'),
+      undefined,
+      undefined,
+      undefined,
+      { transportFailures: failures }
+    )
+    return {
+      models: binding.modelRuntime,
+      model: { provider: binding.model.provider, modelId: binding.model.id },
+      retry: {
+        enabled: false,
+        transportRetry: (message: AssistantMessage, state: Parameters<typeof planModelTransportRetry>[1]) =>
+          planModelTransportRetry(failures.get(message), state, { maxRetries: 2, baseDelayMs, maxDelayMs: 60_000 })
+      }
+    }
+  }
+
+  it.each(['truncation', 'idle timeout'])(
+    'retries a native Durable generation after %s with its committed tool result',
+    async (failure) => {
+      let executions = 0
+      if (failure === 'idle timeout') mocks.promptIdleTimeoutMs = 250
+      call = () => {
+        const interrupted = requests.length === 2
+        truncateStream = interrupted && failure === 'truncation'
+        holdResponse = interrupted && failure === 'idle timeout'
+        if (requests.length === 1) {
+          return {
+            tool_calls: [
+              {
+                index: 0,
+                id: 'record-once',
+                type: 'function',
+                function: { name: 'record_once', arguments: '{}' }
+              }
+            ]
+          }
+        }
+        return { content: interrupted ? 'Interrupted draft' : 'Final answer after reconnect' }
+      }
+      const { models, model, retry } = await durableRetryModel()
+      const registry = createRegistry()
+      registry.install(
+        defineExtension({
+          name: 'record-once',
+          tools: [
+            defineDurableTool({
+              name: 'record_once',
+              description: 'Return a committed tool result.',
+              parameters: obj({}),
+              async execute() {
+                executions++
+                return { output: [{ type: 'text', text: 'Committed tool result' }] }
+              }
+            })
+          ]
+        })
+      )
+      const ctx = BACKGROUND_CONTEXT
+      const harness = await Harness.open(new MemoryStorage(), { models, registry, settings: { retry } }, ctx)
+      try {
+        const root = await harness.createConversation(
+          {
+            ownership: { kind: 'ownerless' },
+            agent: { model }
+          },
+          ctx
+        )
+        const submission = await root.submit(
+          { type: 'input', content: 'Run the tool, then answer.', whenBusy: 'reject' },
+          ctx
+        )
+        harness.resume()
+        expect((await submission.wait(ctx)).status).toBe('done')
+        expect(executions).toBe(1)
+        expect(requests).toHaveLength(3)
+        expect(JSON.stringify(requests[2]?.messages)).toContain('Committed tool result')
+        expect(JSON.stringify(requests[2]?.messages)).not.toContain('Interrupted draft')
+      } finally {
+        await harness.close(ctx)
+      }
+    }
+  )
+
+  it.each(['resume', 'cancel'] as const)(
+    'can %s a persisted offline run beyond its bounded retry budget',
+    async (action) => {
+      let failedRequests = 0
+      mocks.fetchFailure = () => {
+        failedRequests++
+        return new Error('net::ERR_INTERNET_DISCONNECTED')
+      }
+      const { models, model, retry } = await durableRetryModel(100)
+      const ctx = BACKGROUND_CONTEXT
+      const path = resolve(tempDir('gateway-offline'), 'session.sqlite')
+      const reopen = async () =>
+        Harness.open(
+          await openNodeSqliteStorage(path),
+          {
+            models,
+            registry: createRegistry(),
+            settings: { retry }
+          },
+          ctx
+        )
+      let harness = await reopen()
+      try {
+        const root = await harness.createConversation({ ownership: { kind: 'ownerless' }, agent: { model } }, ctx)
+        const submission = await root.submit({ type: 'input', content: 'Keep this run.', whenBusy: 'reject' }, ctx)
+        harness.resume()
+        await expect.poll(() => failedRequests).toBe(4)
+        const placed = await submission.status(ctx)
+        expect(placed).toMatchObject({ status: 'placed', runId: expect.any(Number) })
+        await harness.close(ctx)
+        mocks.fetchFailure = undefined
+        harness = await reopen()
+        const restored = (await harness.submission(submission.id, ctx))!
+        expect(await restored.status(ctx)).toEqual(placed)
+        if (action === 'cancel') {
+          await (await harness.conversation(root.id, ctx))!.abort(ctx)
+          harness.resume()
+          expect(await restored.wait(ctx)).toMatchObject({ status: 'unanswered', reason: 'aborted' })
+          // Give the restored task's native backoff a chance to fire after cancellation.
+          await new Promise((resolve) => setTimeout(resolve, 850))
+          expect(requests).toHaveLength(0)
+        } else {
+          harness.resume()
+          expect(await restored.wait(ctx)).toMatchObject({
+            status: 'done',
+            id: submission.id,
+            runId: placed.type === 'input' ? placed.runId : undefined
+          })
+          expect(requests).toHaveLength(1)
+        }
+      } finally {
+        await harness.close(ctx)
+      }
+    }
+  )
+
+  it.each([
+    { message: 'net::ERR_CONNECTION_RESET', expectedCalls: 3 },
+    { message: 'net::ERR_CERT_AUTHORITY_INVALID', expectedCalls: 1 },
+    { message: 'Provider rejected credentials', status: 401, expectedCalls: 1 }
+  ])('uses the original failure and bounds requests after $message', async ({ message, status, expectedCalls }) => {
+    let calls = 0
+    if (status) rejectUpstream = () => ({ message, status, code: 'invalid_api_key' })
+    else
+      mocks.fetchFailure = () => {
+        calls++
+        return new Error(message)
+      }
+    const { models, model, retry } = await durableRetryModel()
+    const ctx = BACKGROUND_CONTEXT
+    const harness = await Harness.open(
+      new MemoryStorage(),
+      { models, registry: createRegistry(), settings: { retry } },
+      ctx
+    )
+    try {
+      const root = await harness.createConversation({ ownership: { kind: 'ownerless' }, agent: { model } }, ctx)
+      const submission = await root.submit({ type: 'input', content: 'Hello', whenBusy: 'reject' }, ctx)
+      harness.resume()
+      expect(await submission.wait(ctx)).toMatchObject({
+        status: 'unanswered',
+        reason: 'model_error',
+        detail: expect.stringContaining(message)
+      })
+      expect(calls + requests.length).toBe(expectedCalls)
+    } finally {
+      await harness.close(ctx)
+    }
+  })
+
   it('cancels ai-retry during upstream backoff', async () => {
     rejectUpstream = () => ({
       status: 429,
@@ -2058,12 +2262,22 @@ describe('native Pi through the production gateway', () => {
     holdResponse = true
     call = () => ({})
     const abort = new AbortController()
-    const pending = directObjectCall(abort.signal)
+    const transportFailures: RecoverableModelTransportFailure[] = []
+    const transport = mocks.gatewayService!.createAgentObjectTransports({
+      sessionId: 'session',
+      onModelTransportFailure: (failure) => transportFailures.push(failure)
+    })['openai-completions']
+    const pending = transport(
+      { model: 'port:wire-model', messages: [{ role: 'user', content: 'Hello' }], stream: true },
+      { signal: abort.signal }
+    )
     const rejected = expect(pending).rejects.toThrow('cancel before content')
     await expect.poll(() => requests.length).toBe(1)
     abort.abort(new Error('cancel before content'))
     await rejected
     await expect.poll(() => upstreamClosed).toBe(true)
+    await expect.poll(() => mocks.manager!.hasLiveStreams()).toBe(false)
+    expect(transportFailures).toEqual([])
   })
 
   it('honors native request timeout before semantic output and releases the upstream', async () => {
@@ -2077,7 +2291,7 @@ describe('native Pi through the production gateway', () => {
     const answer = await binding.modelRuntime.completeSimple(
       binding.model,
       normalizeContext({ messages: [{ role: 'user', content: 'wait', timestamp: 1 }] }),
-      { timeoutMs: 50, signal: AbortSignal.timeout(2_000) }
+      { timeoutMs: 500, signal: AbortSignal.timeout(2_000) }
     )
     expect(answer.stopReason).toBe('error')
     expect(answer.errorMessage).toMatch(/timeout/i)

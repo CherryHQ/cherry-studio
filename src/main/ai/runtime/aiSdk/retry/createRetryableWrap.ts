@@ -74,6 +74,7 @@ export interface CreateRetryableWrapOptions {
   diagnosticContext?: Readonly<Record<string, unknown>>
   /** Invoked when retry starts or settles (e.g. to reconcile a live UI status part). */
   onRetryEvent?: (event: RetryPartData) => void
+  shouldRetryError?: (error: unknown) => boolean
   /** Switches request-scoped helpers to the credential/model selected by a fallback. */
   onFallbackActivated?: (fallback: RetryFallback) => void
   /** Restores request-scoped helpers when a new operation starts from the primary model. */
@@ -188,17 +189,22 @@ export function createRetryableWrap(options: CreateRetryableWrapOptions): WrapLa
     delay: RETRY_BASE_DELAY_MS,
     ...(backoffEnabled && { backoffFactor: 2 })
   })
-  const retries: Retries<LanguageModel> = [
-    // Same-model transient retry on retryable errors: honors Retry-After headers,
-    // otherwise delay + backoff. (`.retry()` requires maxAttempts >= 2, which
-    // holds since retryCount >= 1.)
+  const sameModelRetry =
     apiKeyFallbacks.length > 0
       ? transientRetry
       : error.isRetryable(true).retry({
           maxAttempts: retryCount + 1,
           delay: RETRY_BASE_DELAY_MS,
           ...(backoffEnabled && { backoffFactor: 2 })
-        }),
+        })
+  const retries: Retries<LanguageModel> = [
+    // Same-model transient retry on retryable errors: honors Retry-After headers,
+    // otherwise delay + backoff. (`.retry()` requires maxAttempts >= 2, which
+    // holds since retryCount >= 1.)
+    (context) =>
+      isErrorAttempt(context.current) && options.shouldRetryError?.(context.current.error) === false
+        ? undefined
+        : sameModelRetry(context),
     // Cross-model fallback, tried in user-configured order (one attempt each).
     // Resolved lazily on first failure (memoized) so the happy path pays nothing;
     // each fallback carries its own middleware + params (a per-retry override).
