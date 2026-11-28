@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "29741508-650e-4f34-b124-abedf6f7f73e",
+  "id": "905a0e08-91eb-4485-ac2f-c2f84ee12f26",
   "prevId": "f60834a2-ff4a-49c4-9be0-c2647b1da2f7",
   "tables": {
     "agent": {
@@ -3644,7 +3644,7 @@
       "checkConstraints": {
         "asmfr_role_check": {
           "name": "asmfr_role_check",
-          "value": "\"agent_session_message_file_ref\".\"role\" IN ('attachment', 'author_avatar')"
+          "value": "\"agent_session_message_file_ref\".\"role\" IN ('attachment', 'author_avatar', 'generated')"
         }
       }
     },
@@ -3839,7 +3839,7 @@
       "checkConstraints": {
         "cmfr_role_check": {
           "name": "cmfr_role_check",
-          "value": "\"chat_message_file_ref\".\"role\" IN ('attachment', 'tool_output', 'author_avatar')"
+          "value": "\"chat_message_file_ref\".\"role\" IN ('attachment', 'tool_output', 'author_avatar', 'generated')"
         }
       }
     },
