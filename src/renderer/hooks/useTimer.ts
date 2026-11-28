@@ -98,7 +98,9 @@ export const useTimer = () => {
       clearTimeout(timeoutMapRef.current.get(key))
       const timer = setTimeout(...args)
       timeoutMapRef.current.set(key, timer)
-      return () => clearTimeoutTimer(key)
+      return () => {
+        if (timeoutMapRef.current.get(key) === timer) clearTimeoutTimer(key)
+      }
     },
     [clearTimeoutTimer]
   )
@@ -125,7 +127,9 @@ export const useTimer = () => {
       clearInterval(intervalMapRef.current.get(key))
       const timer = setInterval(...args)
       intervalMapRef.current.set(key, timer)
-      return () => clearIntervalTimer(key)
+      return () => {
+        if (intervalMapRef.current.get(key) === timer) clearIntervalTimer(key)
+      }
     },
     [clearIntervalTimer]
   )
