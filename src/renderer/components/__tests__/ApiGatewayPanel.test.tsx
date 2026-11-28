@@ -1,6 +1,7 @@
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
-import { render, screen, within } from '@testing-library/react'
+import { act, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import type { ReactNode } from 'react'
 import { SWRConfig } from 'swr'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -9,6 +10,12 @@ import en from '@renderer/i18n/locales/en-us.json'
 import ApiGatewayPanel from '../ApiGatewayPanel'
 
 const useApiGatewayMock = vi.fn()
+
+vi.mock(import('@cherrystudio/ui'), async (importOriginal) => ({
+  ...(await importOriginal()),
+  ...(await import('@cherrystudio/ui/components/primitives/button-group')),
+  ...(await import('@cherrystudio/ui/components/primitives/dropdown-menu'))
+}))
 
 vi.mock('@renderer/hooks/useApiGateway', () => ({
   useApiGateway: () => useApiGatewayMock()
@@ -90,6 +97,39 @@ describe('ApiGatewayPanel', () => {
     expect(models.queryByText('GPT 5')).not.toBeInTheDocument()
     await user.click(models.getByRole('button', { name: `Copy · ${id}` }))
     expect(await navigator.clipboard.readText()).toBe(id)
+  })
+
+  it('offers restart in the service controls and keeps them locked during the rebind', async () => {
+    const user = userEvent.setup()
+    const restart = Promise.withResolvers<void>()
+    const state = gatewayState()
+    const running = { ...state, apiGatewayRunning: true }
+    useApiGatewayMock.mockReturnValue(running)
+    const renderHeader = (controls: ReactNode) => <header>{controls}</header>
+    const { rerender } = render(<ApiGatewayPanel renderHeader={renderHeader} />)
+    const header = within(screen.getByRole('banner'))
+    const more = () => header.getByRole('button', { name: 'More' })
+    expect(header.queryByRole('button', { name: 'More' })).not.toBeInTheDocument()
+
+    const enabled = {
+      ...running,
+      apiGatewayConfig: { ...state.apiGatewayConfig, enabled: true },
+      restartApiGateway: () => restart.promise
+    }
+    useApiGatewayMock.mockReturnValue(enabled)
+    rerender(<ApiGatewayPanel renderHeader={renderHeader} />)
+    await user.click(more())
+    await user.click(await screen.findByRole('menuitem', { name: 'Restart' }))
+
+    useApiGatewayMock.mockReturnValue({ ...enabled, apiGatewayRunning: false })
+    rerender(<ApiGatewayPanel renderHeader={renderHeader} />)
+    expect(more()).toBeDisabled()
+    expect(header.getByRole('button', { name: 'Stop' })).toBeDisabled()
+    expect(header.queryByRole('button', { name: 'Start' })).not.toBeInTheDocument()
+
+    useApiGatewayMock.mockReturnValue(enabled)
+    await act(async () => restart.resolve())
+    expect(more()).toBeEnabled()
   })
 
   it('keeps the LAN key out of local setup and remasks it after rotation', async () => {

@@ -119,6 +119,8 @@ startup setting and closes remote-device sessions. LAN API sharing remains confi
 Gateway-dependent clients and Agent routes need the gateway again before they can
 be used. Ordinary chats can continue without it.
 
+To restart a running gateway, choose **Restart** from the menu next to **Stop** in the page header.
+
 An active PDF translation can keep the local gateway running after **Stop**;
 the notification explains that shutdown is deferred. Let the translation finish
 or cancel it. Once the last task releases the gateway, it stops unless you have

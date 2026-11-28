@@ -1,4 +1,16 @@
-import { ExternalLink, Eye, EyeOff, Laptop, Network, Play, RotateCcw, Search, Square, Terminal } from 'lucide-react'
+import {
+  ChevronDown,
+  ExternalLink,
+  Eye,
+  EyeOff,
+  Laptop,
+  Network,
+  Play,
+  RotateCcw,
+  Search,
+  Square,
+  Terminal
+} from 'lucide-react'
 import { type ReactNode, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import useSWR from 'swr'
@@ -10,6 +22,11 @@ import {
   AccordionItem,
   AccordionTrigger,
   Button,
+  ButtonGroup,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
   IndicatorLight,
   InputGroup,
   InputGroupAddon,
@@ -265,6 +282,7 @@ export default function ApiGatewayPanel({ renderHeader }: { renderHeader?: (cont
   const [lanUpdating, setLanUpdating] = useState(false)
   const [selectedAddress, setSelectedAddress] = useState('')
   const [lanError, setLanError] = useState('')
+  const [restarting, setRestarting] = useState(false)
   const lanRunning = lanEnabled && apiGatewayRunning && apiGatewayEndpoint?.host === '0.0.0.0'
   const {
     data: lanAddresses,
@@ -279,6 +297,16 @@ export default function ApiGatewayPanel({ renderHeader }: { renderHeader?: (cont
   const port = (apiGatewayRunning && apiGatewayEndpoint?.port) || apiGatewayConfig.port || 23333
   const localOrigin = gatewayClientOrigin('127.0.0.1', port)
   const apiKey = apiGatewayConfig.apiKey || ''
+  const gatewayActive = apiGatewayRunning || restarting
+
+  const handleRestart = async () => {
+    setRestarting(true)
+    try {
+      await restartApiGateway()
+    } finally {
+      setRestarting(false)
+    }
+  }
 
   const setLanAccess = async (enabled: boolean) => {
     setLanUpdating(true)
@@ -305,7 +333,7 @@ export default function ApiGatewayPanel({ renderHeader }: { renderHeader?: (cont
     <GatewayCredential
       key={apiKey}
       apiKey={apiKey}
-      running={apiGatewayRunning}
+      running={gatewayActive}
       regenerate={async () => {
         await setApiGatewayConfig({ apiKey: `cs-sk-${uuidv4()}` })
         toast.success(t('apiGateway.messages.apiKeyRegenerated'))
@@ -324,11 +352,38 @@ export default function ApiGatewayPanel({ renderHeader }: { renderHeader?: (cont
         <IndicatorLight color="currentColor" size={7} />
         {t(apiGatewayRunning ? 'apiGateway.status.running' : 'apiGateway.status.stopped')}
       </div>
-      {apiGatewayRunning ? (
-        <Button size="sm" variant="outline" loading={apiGatewayLoading} disabled={lanUpdating} onClick={stopApiGateway}>
-          {!apiGatewayLoading && <Square size={14} />}
-          {t('apiGateway.actions.stop')}
-        </Button>
+      {gatewayActive ? (
+        <ButtonGroup>
+          <Button
+            size="sm"
+            variant="outline"
+            loading={apiGatewayLoading && !restarting}
+            disabled={lanUpdating || restarting}
+            onClick={stopApiGateway}>
+            {(!apiGatewayLoading || restarting) && <Square size={14} />}
+            {t('apiGateway.actions.stop')}
+          </Button>
+          {(apiGatewayConfig.enabled || restarting) && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  size="icon-sm"
+                  variant="outline"
+                  aria-label={t('common.more')}
+                  loading={restarting}
+                  disabled={apiGatewayLoading || lanUpdating || restarting}>
+                  {!restarting && <ChevronDown className="size-3.5" />}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onSelect={handleRestart}>
+                  <RotateCcw />
+                  {t('apiGateway.actions.restart.button')}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+        </ButtonGroup>
       ) : (
         <Button size="sm" loading={apiGatewayLoading} disabled={lanUpdating} onClick={startApiGateway}>
           {!apiGatewayLoading && <Play size={14} />}
@@ -425,26 +480,19 @@ export default function ApiGatewayPanel({ renderHeader }: { renderHeader?: (cont
                 aria-label={t('apiGateway.fields.port.label')}
                 step={1}
                 value={port}
-                disabled={apiGatewayRunning}
+                disabled={gatewayActive}
                 onBlur={handlePortChange}
               />
             </div>
             {!lanEnabled && credential}
             {apiGatewayRunning && (
-              <div className="flex flex-wrap gap-2">
-                <Button variant="outline" onClick={() => void openExternalWebsite(`${localOrigin}/openapi`)}>
-                  <ExternalLink size={13} />
-                  {t('apiGateway.documentation.title')}
-                </Button>
-                <Button
-                  variant="outline"
-                  loading={apiGatewayLoading}
-                  disabled={lanUpdating}
-                  onClick={restartApiGateway}>
-                  {!apiGatewayLoading && <RotateCcw size={14} />}
-                  {t('apiGateway.actions.restart.button')}
-                </Button>
-              </div>
+              <Button
+                variant="outline"
+                className="self-start"
+                onClick={() => void openExternalWebsite(`${localOrigin}/openapi`)}>
+                <ExternalLink size={13} />
+                {t('apiGateway.documentation.title')}
+              </Button>
             )}
           </AccordionContent>
         </AccordionItem>
