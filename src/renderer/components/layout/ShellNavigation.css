@@ -5,7 +5,7 @@
     --app-nav-active-surface: color-mix(in srgb, var(--sidebar-foreground) 12%, transparent);
     --app-nav-active-foreground: var(--sidebar-foreground);
     --app-nav-focus-ring: color-mix(in oklab, var(--sidebar-ring) 60%, var(--sidebar-foreground));
-    --app-nav-state-transition: background-color 200ms ease-in-out, color 200ms ease-in-out;
+    --app-nav-state-transition: color 200ms ease-in-out;
   }
 
   .shell-navigation-item {
@@ -43,7 +43,7 @@
 
   @media (prefers-reduced-motion: reduce) {
     .shell-navigation {
-      --app-nav-state-transition: background-color 0s, color 0s;
+      --app-nav-state-transition: color 0s;
     }
   }
 }

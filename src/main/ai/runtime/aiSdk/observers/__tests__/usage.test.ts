@@ -45,24 +45,30 @@ function makeStep(usage: LanguageModelUsage) {
 // ──────────────────────────────────────────────────────────────────────────────
 
 describe('attachUsageObserver', () => {
-  it('keeps continuation billing totals separate from the persisted context anchor', () => {
+  it('preserves aggregated provider tool usage and its cache breakdown', () => {
     const { agent, written } = makeFakeAgent()
     attachUsageObserver(agent as any)
     agent.fire('onStart')
     agent.fire('onStepFinish', {
-      usage: { inputTokens: 203, outputTokens: 8, totalTokens: 211 },
-      providerMetadata: { google: { initialPromptTokenCount: 100 } }
+      usage: {
+        inputTokens: 632_721,
+        outputTokens: 7_487,
+        totalTokens: 640_208,
+        inputTokenDetails: { cacheReadTokens: 591_616 }
+      },
+      toolResults: [{ type: 'tool-result', toolName: 'web_search', providerExecuted: true }]
     })
     const chunk = written[0] as Extract<CherryUIMessageChunk, { type: 'message-metadata' }>
     expect(chunk.messageMetadata?.stats).toMatchObject({
-      inputTokens: 203,
-      outputTokens: 8,
-      totalTokens: 211,
-      contextTokens: 108
+      inputTokens: 632_721,
+      outputTokens: 7_487,
+      totalTokens: 640_208,
+      inputTokenDetails: { cacheReadTokens: 591_616 }
     })
+    expect(chunk.messageMetadata?.stats).not.toHaveProperty('contextTokens')
   })
 
-  it('emits totalTokens as running sum and contextTokens as last-step value', () => {
+  it('emits totalTokens as a running sum', () => {
     const { agent, written } = makeFakeAgent()
 
     attachUsageObserver(agent as any)
@@ -89,21 +95,15 @@ describe('attachUsageObserver', () => {
 
     // totalTokens must be the running SUM (15 + 28 = 43)
     expect(meta?.stats?.totalTokens).toBe(43)
-
-    // contextTokens must be the LAST step's totalTokens (28), not the sum
-    expect(meta?.stats?.contextTokens).toBe(28)
   })
 
-  it('emits contextTokens as undefined when inputTokens is absent (output-only provider shape)', () => {
+  it('keeps output-only provider usage', () => {
     const { agent, written } = makeFakeAgent()
 
     attachUsageObserver(agent as any)
 
     agent.fire('onStart')
 
-    // Final step with output-only usage: provider omits inputTokens.
-    // AI SDK derives totalTokens = addTokenCounts(undefined, 200) === 200.
-    // That tiny value must NOT be recorded as contextTokens anchor.
     agent.fire(
       'onStepFinish',
       makeStep({
@@ -119,11 +119,9 @@ describe('attachUsageObserver', () => {
 
     // outputTokens must still be summed (200)
     expect(meta?.stats?.outputTokens).toBe(200)
-    // contextTokens must be undefined — no bogus output-only anchor
-    expect(meta?.stats?.contextTokens).toBeUndefined()
   })
 
-  it('resets contextTokens on onStart so a new turn does not carry forward the previous value', () => {
+  it('resets cumulative usage for a new turn', () => {
     const { agent, written } = makeFakeAgent()
 
     attachUsageObserver(agent as any)
@@ -138,13 +136,6 @@ describe('attachUsageObserver', () => {
       'onStepFinish',
       makeStep({ inputTokens: 20, outputTokens: 8, totalTokens: 28, outputTokenDetails: {} } as LanguageModelUsage)
     )
-    // After two steps, contextTokens should be 28.
-    const afterSecondStep = written[1]
-    expect(
-      (afterSecondStep as Extract<CherryUIMessageChunk, { type: 'message-metadata' }>).messageMetadata?.stats
-        ?.contextTokens
-    ).toBe(28)
-
     // Second turn — onStart resets everything
     agent.fire('onStart')
     agent.fire(
@@ -157,8 +148,6 @@ describe('attachUsageObserver', () => {
 
     // totalTokens resets: only step C = 9
     expect(meta?.stats?.totalTokens).toBe(9)
-    // contextTokens resets: should be 9, not 28 + 9
-    expect(meta?.stats?.contextTokens).toBe(9)
   })
 
   it('emits accumulated cache token details in message metadata', () => {
@@ -181,14 +170,11 @@ describe('attachUsageObserver', () => {
     expect(written).toHaveLength(1)
     const meta = (written[0] as Extract<CherryUIMessageChunk, { type: 'message-metadata' }>).messageMetadata
 
-    // inputTokens is present → contextTokens anchors on the last-step totalTokens (14);
-    // cache-token details accumulate alongside the base counters.
     expect(meta).toEqual({
       stats: {
         inputTokens: 10,
         outputTokens: 4,
         totalTokens: 14,
-        contextTokens: 14,
         inputTokenDetails: { noCacheTokens: 3, cacheReadTokens: 5, cacheWriteTokens: 2 },
         outputTokenDetails: { reasoningTokens: 1 }
       }

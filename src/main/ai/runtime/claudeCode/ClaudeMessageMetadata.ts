@@ -50,7 +50,10 @@ export class ClaudeMessageMetadata {
   >()
   private catalog: Record<string, McpToolDisplayMetadata> = {}
 
-  constructor(private readonly mcpToolMetadata: Record<string, McpToolDisplayMetadata> = {}) {}
+  constructor(
+    private readonly mcpToolMetadata: Record<string, McpToolDisplayMetadata> = {},
+    private readonly localAgentProtocol?: 'claude'
+  ) {}
 
   private catalogChanged(batch: ClaudeObservation): boolean {
     const check = batch.native.length
@@ -313,6 +316,7 @@ export class ClaudeMessageMetadata {
       'claude-code': claudeCode,
       cherry: {
         transport: AGENT_RUNTIME_CAPABILITIES['claude-code'].transport,
+        ...(this.localAgentProtocol && { localAgentProtocol: this.localAgentProtocol }),
         tool: {
           type: state.toolType ?? 'provider',
           ...(state.displayName ? { name: state.displayName } : {}),

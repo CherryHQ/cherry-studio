@@ -16,7 +16,9 @@ Status: implemented
 
 在分配重任务 runner 前，先在分类 job 中检查工作流语法和格式。从仓库 manifest 获取精确的格式化工具版本，不安装 workspace 依赖。计划生成或预检失败仍会让必需门禁失败。保留只读耗时采集脚本供按需分析；CI Performance 的自动执行通过仓库 Actions 设置停用。
 
-保留 Linux 受影响项目选择、测试清单、worker 限制，以及 `basic-checks`、`general-test`、`render-test` 门禁。调整执行布局时，同步更新门禁依赖和结果映射。
+PR 和 `main` 推送执行计划选中的静态检查和仓库校验。Nightly CI 在北京时间 02:17 执行全量计划。手动运行也执行全量计划。每次推送到 `release/v*` 都执行全量计划。发布门禁要求对应发布分支及提交的推送 CI 通过。保留测试清单、worker 限制，以及 `basic-checks`、`general-test`、`render-test` 门禁。所有测试任务均跳过时，测试门禁仍验证计划。
+
+上游仓库的定时 CI 失败并发现代码回归时，使用 [Nightly CI Repair](../../../../.github/workflows/nightly-ci-repair.yml) 修复。Claude 以只读仓库权限读取准确的失败提交和对应运行尝试的日志。Claude 报告针对性检查通过，且 `main` 仍指向失败的提交时，由独立任务发布补丁。发布任务拒绝修改 GitHub 自动化配置的补丁，并创建带签名提交的 PR 供审核。
 
 将生成的文档来源索引视为文档，而不是触发全量验证的未知输入。`aiCore`、`ai-sdk-provider` 和 `web-search` 中的可移植 TypeScript 源码保留其 Linux 项目及消费者测试，同时省略原生平台 job。主进程和共享层源码、原生适配器、配置、未知输入及混合改动保留现有的原生平台选择。定时和手动全量验证始终包含两个平台。在计划和范围哈希中记录平台选择，确保执行与必需门禁一致。
 
@@ -38,3 +40,6 @@ Status: implemented
 - Regression — `scripts/__tests__/validationWorkflow.test.ts` 约束七台 Linux runner 加一台 macOS 和一台 Windows runner，确保 package 测试组完整运行、两个 main/preload 分片和三个 renderer 分片均被覆盖、汇总门禁正确处理失败、预检失败被正确处理，并且仅在依赖安装成功后写入准备标记。
 - Regression — `scripts/__tests__/validationPlan.test.ts` 确保已准备和未准备的 workspace 都完整执行选中的测试组，并保留原生 ABI 准备。
 - Regression — `scripts/__tests__/validationPlan.test.ts` 和 `scripts/__tests__/validationWorkflow.test.ts` 复现文档索引回退问题，并验证可移植改动保留 Linux 消费者覆盖，混合、原生、配置输入及全量验证要求两个平台，跳过原生 job 不能掩盖缺失的 Linux job。
+- Regression — `scripts/__tests__/validationWorkflow.test.ts` 验证 PR 中较早提交的源码改动仍会触发静态检查，main 推送缺少比较基准时回退到全量静态检查，以及每次发布分支推送、Nightly 和手动运行均覆盖所有测试项目和两个原生平台。
+- Regression — `scripts/__tests__/release-workflow.test.ts` 验证即使提交 SHA 相同，`main` 上的成功运行也无法满足发布门禁。
+- Regression — `scripts/__tests__/validationWorkflow.test.ts` 验证修复流程的触发条件，并在临时 Git 仓库中应用补丁，确保发布任务会阻止基准过期或修改 GitHub 工作流的补丁。

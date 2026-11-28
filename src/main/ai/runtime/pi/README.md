@@ -58,6 +58,8 @@ is not replayed. Cancellation stops pending backoff; exhaustion reports the last
 The explicit request count enables retries independently of the chat retry toggle and count;
 backoff follows `chat.retry.backoff_enabled` and honors `Retry-After`. API-key and model fallback
 remain disabled. HTTP gateway requests retain their existing no-retry policy.
+The shared binding also lets [Pi Durable](../piDurable/README.md) handle recognized transport
+failures in its native generation checkpoint.
 Caller retry events travel through a typed gateway callback, outside native protocol events.
 The binding identifies the native call owner so root and child replies reuse the chat
 `data-retry` status independently. Settlement or cancellation clears the status; child

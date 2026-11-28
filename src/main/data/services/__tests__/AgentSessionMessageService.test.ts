@@ -21,17 +21,25 @@ import {
 } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { aiUsageRecordTable } from '@data/db/schemas/aiUsageRecord'
+import { appStateTable } from '@data/db/schemas/appState'
 import { fileEntryTable } from '@data/db/schemas/file'
 import { agentSessionMessageFileRefTable } from '@data/db/schemas/fileRelations'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionForkService } from '@data/services/AgentSessionForkService'
+import { sessionMessageOrdering } from '@data/services/agentSessionMessageOrder'
 import type { AgentSessionDeliveryRoutingError } from '@data/services/AgentSessionMessageService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { replaceAgentSessionMessagePartsTx } from '@data/services/agentSessionMessageTree'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { aiUsageRecordService } from '@data/services/AiUsageRecordService'
+import {
+  getImportedHistoryState,
+  queueImportedHistoryTx,
+  setImportedMetadataTx,
+  setMessageProvenanceTx
+} from '@data/services/importedSessionHistory'
 import { AgentSessionForkOperations } from '@main/ai/agentSession/fork/AgentSessionForkOperations'
 import { findPersistedToolOutput } from '@main/ai/messages/persistedToolOutput'
 import { prepareClaudeBranch } from '@main/ai/runtime/claudeCode/claudeContext'
@@ -41,7 +49,9 @@ import { PiForkCheckpointSchema } from '@main/ai/runtime/pi/forkCheckpoint'
 import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
 import { DEFER_TOOL_OUTPUT_BYTES } from '@main/utils/messageOutputProjection'
+import type { LocalAgentTurnUsage } from '@shared/ai/localAgentUsage'
 import { isDeferredToolOutput } from '@shared/ai/transport'
+import { AiUsageRecordStatsQuerySchema } from '@shared/data/api/schemas/aiUsageRecords'
 
 const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({
   notifyDataApiDataChangeMock: vi.fn()
@@ -105,6 +115,207 @@ describe('AgentSessionMessageService', () => {
     vi.restoreAllMocks()
   })
 
+  it('invalidates local usage and cumulative cost after deleting their carrier message', () => {
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: { id: ASSISTANT_MESSAGE_ID, role: 'assistant', data: { parts: [] } },
+      localSessionCost: { nativeSessionId: 'native', reportedAt: 1, cost: { currency: 'USD', amount: 0.2 } }
+    })
+    notifyDataApiDataChangeMock.mockClear()
+    agentSessionMessageService.deleteSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID)
+    expect(agentSessionMessageService.getSessionCost(SESSION_ID)).toBeNull()
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({ endpoint: '/ai-usage-records/local', kind: 'membership' }),
+        expect.objectContaining({ endpoint: '/agent-sessions/:sessionId/cost', routeParams: { sessionId: SESSION_ID } })
+      ])
+    )
+  })
+
+  it('stores the latest cumulative native-session snapshot without changing message content, activity or invocation costs', async () => {
+    expect(agentSessionMessageService.getSessionCost(SESSION_ID)).toBeNull()
+    agentSessionMessageService.saveSessionCost(SESSION_ID, {
+      nativeSessionId: 'native',
+      reportedAt: 1,
+      cost: { amount: 1, currency: 'EUR' }
+    })
+    expect(agentSessionMessageService.hasSessionMessages(SESSION_ID)).toBe(false)
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: {
+        id: USER_MESSAGE_ID,
+        role: 'user',
+        data: { parts: [{ type: 'text', text: 'Hello' }] }
+      }
+    })
+    const before = agentSessionMessageService.getSessionMessage(SESSION_ID, USER_MESSAGE_ID)
+    const activity = agentSessionService.getById(SESSION_ID).lastActivityAt
+    for (const amount of [1, 1, 0.5, 0]) {
+      const snapshot = { nativeSessionId: 'native', reportedAt: Date.now(), cost: { amount, currency: 'EUR' } }
+      agentSessionMessageService.saveSessionCost(SESSION_ID, snapshot)
+      expect(agentSessionMessageService.getSessionCost(SESSION_ID)).toEqual(snapshot)
+    }
+    const after = agentSessionMessageService.getSessionMessage(SESSION_ID, USER_MESSAGE_ID)
+    expect(after.data.parts).toEqual(before.data.parts)
+    expect(after.stats).toEqual(before.stats)
+    expect(agentSessionService.getById(SESSION_ID).lastActivityAt).toBe(activity)
+    expect(dbh.db.select().from(aiUsageRecordTable).all()).toEqual([])
+    await seedSession({ id: 'other', name: 'Other', orderKey: 'a1' })
+    expect(agentSessionMessageService.getSessionCost('other')).toBeNull()
+  })
+
+  it('protects Main-authored cost snapshots on message writes and isolates forked sessions', async () => {
+    const snapshot = { nativeSessionId: 'native', reportedAt: 10, cost: { amount: 0.12, currency: 'USD' } }
+    const forged = { ...snapshot, cost: { amount: 999, currency: 'USD' } }
+    const message = {
+      id: ASSISTANT_MESSAGE_ID,
+      role: 'assistant' as const,
+      data: { parts: [], localSessionCost: forged }
+    }
+    agentSessionMessageService.saveMessage({ sessionId: SESSION_ID, message })
+    expect(agentSessionMessageService.getSessionCost(SESSION_ID)).toBeNull()
+    agentSessionMessageService.saveSessionCost(SESSION_ID, snapshot)
+    agentSessionMessageService.updateSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID, {
+      data: { parts: [{ type: 'text', text: 'Edited' }], localSessionCost: forged }
+    })
+    expect(agentSessionMessageService.getSessionCost(SESSION_ID)).toEqual(snapshot)
+    agentSessionMessageService.saveMessage({ sessionId: SESSION_ID, message })
+    expect(agentSessionMessageService.getSessionCost(SESSION_ID)).toEqual(snapshot)
+    const reset = { nativeSessionId: 'new-native', reportedAt: 11, cost: null }
+    agentSessionMessageService.saveSessionCost(SESSION_ID, reset)
+    expect(agentSessionMessageService.getSessionCost(SESSION_ID)).toEqual(reset)
+    await seedSession({ id: 'fork', name: 'Fork', orderKey: 'a1' })
+    const source = dbh.db
+      .select()
+      .from(agentSessionMessageTable)
+      .where(eq(agentSessionMessageTable.id, ASSISTANT_MESSAGE_ID))
+      .get()!
+    application
+      .get('DbService')
+      .withWriteTx((tx) =>
+        agentSessionMessageService.insertForkMessagesTx(tx, 'fork', [
+          { ...source, data: { ...source.data, parts: [] }, id: USER_MESSAGE_ID }
+        ])
+      )
+    expect(agentSessionMessageService.getSessionCost('fork')).toBeNull()
+    expect(agentSessionMessageService.getSessionCost(SESSION_ID)).toEqual(reset)
+  })
+
+  it('keeps native turn summaries separate from provider calls and legacy aggregates, without rewriting history', async () => {
+    const summary: LocalAgentTurnUsage = {
+      nativeSessionId: 'native',
+      model: 'native-model',
+      reportedAt: 100,
+      correlation: 'gateway',
+      usage: { inputTokens: 700, outputTokens: 300, totalTokens: 1000 }
+    }
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      localTurnUsage: summary,
+      message: {
+        id: ASSISTANT_MESSAGE_ID,
+        role: 'assistant',
+        data: { parts: [] },
+        messageSnapshot: { id: 'local', name: 'Local' }
+      }
+    })
+    for (let n = 0; n < 4; n++) {
+      aiUsageRecordService.recordInvocation({
+        requestId: `native-request-${n}`,
+        context: createAiUsageCaptureContext({
+          providerId: n === 3 ? 'local-agent:old' : 'provider',
+          providerName: 'Provider',
+          modelId: 'api-model',
+          modelName: 'API model',
+          credentialReceipt: { attribution: 'auth', method: 'external-cli' },
+          source: { type: 'agent', id: 'local', name: 'Local', icon: null },
+          messageRef: { kind: 'agent-session', id: ASSISTANT_MESSAGE_ID }
+        }),
+        modality: 'language',
+        usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+        completedAt: 100
+      })
+    }
+    const before = dbh.db.select().from(aiUsageRecordTable).all()
+    const stats = aiUsageRecordService.stats(
+      AiUsageRecordStatsQuerySchema.parse({ from: 90, to: 110, groupBy: 'model', metric: 'tokens', currency: 'USD' })
+    )
+    expect(stats.totals).toMatchObject({ requestCount: 3, totalTokens: 45 })
+    expect(aiUsageRecordService.list({ limit: 100 }).items).toHaveLength(3)
+    const query = { from: 90, to: 110, scope: 'turn' as const, limit: 1 }
+    const first = aiUsageRecordService.listLocalUsage(query)
+    const second = aiUsageRecordService.listLocalUsage({ ...query, cursor: first.nextCursor })
+    expect(first.nextCursor).toBeDefined()
+    expect(second.nextCursor).toBeUndefined()
+    const items = [...first.items, ...second.items]
+    expect(items.find((row) => row.scope === 'turn')).toMatchObject({ summary, agentName: 'Local' })
+    expect(items.find((row) => row.scope === 'legacy-turn')).toMatchObject({ legacyTokens: 15, summary: null })
+    expect(aiUsageRecordService.listLocalUsage({ ...query, from: 101 })).toEqual({ items: [], nextCursor: undefined })
+    expect(dbh.db.select().from(aiUsageRecordTable).all()).toEqual(before)
+    agentSessionMessageService.updateSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID, {
+      data: { parts: [], localTurnUsage: { ...summary, usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 } } }
+    })
+    expect(agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID).data.localTurnUsage).toEqual(
+      summary
+    )
+    await seedSession({ id: 'native-fork', name: 'Fork', orderKey: 'a1' })
+    const source = dbh.db
+      .select()
+      .from(agentSessionMessageTable)
+      .where(eq(agentSessionMessageTable.id, ASSISTANT_MESSAGE_ID))
+      .get()!
+    application
+      .get('DbService')
+      .withWriteTx((tx) =>
+        agentSessionMessageService.insertForkMessagesTx(tx, 'native-fork', [
+          { ...source, data: { ...source.data, parts: [] }, id: FILE_ENTRY_ID }
+        ])
+      )
+    expect(
+      agentSessionMessageService.getSessionMessage('native-fork', FILE_ENTRY_ID).data.localTurnUsage
+    ).toBeUndefined()
+  })
+
+  it('reads the latest native cumulative cost as a snapshot, retaining zero, unknown and currency changes', () => {
+    for (const [id, reportedAt, cost] of [
+      [ASSISTANT_MESSAGE_ID, 100, { amount: 4, currency: 'EUR' }],
+      [FILE_ENTRY_ID, 101, { amount: 0, currency: 'JPY' }]
+    ] as const) {
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        localSessionCost: { nativeSessionId: 'native', reportedAt, cost },
+        message: { id, role: 'assistant', data: { parts: [] } }
+      })
+    }
+    const query = { from: 90, to: 110, scope: 'session-cost' as const, limit: 25 }
+    expect(aiUsageRecordService.listLocalUsage(query).items.map((item) => item.cost)).toEqual([
+      { amount: 0, currency: 'JPY' }
+    ])
+    agentSessionMessageService.saveSessionCost(SESSION_ID, { nativeSessionId: 'native', reportedAt: 102, cost: null })
+    expect(aiUsageRecordService.listLocalUsage(query).items.map((item) => item.cost)).toEqual([null])
+    expect(dbh.db.select().from(aiUsageRecordTable).all()).toEqual([])
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: {
+        id: USER_MESSAGE_ID,
+        role: 'user',
+        data: {
+          parts: [],
+          localTurnUsage: {
+            nativeSessionId: 'forged',
+            model: null,
+            reportedAt: 100,
+            correlation: 'unknown',
+            usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 }
+          }
+        }
+      }
+    })
+    expect(
+      agentSessionMessageService.getSessionMessage(SESSION_ID, USER_MESSAGE_ID).data.localTurnUsage
+    ).toBeUndefined()
+  })
+
   it('pins a snapshot avatar across message updates and releases it when the file is deleted', () => {
     dbh.db
       .insert(fileEntryTable)
@@ -150,6 +361,42 @@ describe('AgentSessionMessageService', () => {
     ).toEqual([])
   })
 
+  it('presents imported Codex context as system history without rewriting stored messages', () => {
+    const data = {
+      parts: [{ type: 'text' as const, text: '# AGENTS.md instructions\n\n<INSTRUCTIONS>Notes</INSTRUCTIONS>' }]
+    }
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: { id: USER_MESSAGE_ID, role: 'user', data, status: 'success' }
+    })
+    expect(agentSessionMessageService.getSessionMessage(SESSION_ID, USER_MESSAGE_ID).role).toBe('user')
+    application
+      .get('DbService')
+      .withWriteTx((tx) =>
+        setMessageProvenanceTx(tx, SESSION_ID, USER_MESSAGE_ID, { source: 'codex', sourceOrder: 1, isSetup: true })
+      )
+    const presented = agentSessionMessageService.getSessionMessage(SESSION_ID, USER_MESSAGE_ID)
+    expect(presented.role).toBe('system')
+    expect(presented.data.parts?.[0]).toEqual({
+      type: 'text',
+      text: expect.stringContaining('[Historical project instructions]')
+    })
+    const stored = dbh.db
+      .select()
+      .from(agentSessionMessageTable)
+      .where(eq(agentSessionMessageTable.id, USER_MESSAGE_ID))
+      .get()
+    expect(stored?.role).toBe('user')
+    expect(
+      dbh.db
+        .select({ part: agentSessionMessagePartTable.payload })
+        .from(agentSessionMessagePartTable)
+        .where(eq(agentSessionMessagePartTable.messageId, USER_MESSAGE_ID))
+        .all()
+        .map((row) => row.part)
+    ).toEqual(data.parts)
+  })
+
   it('settles a tool approval in the stored body without dropping message metadata', () => {
     const runtimeAnchor = { checkpoint: { runtime: 'pi', boundary: 2 } }
     agentSessionMessageService.saveMessage({
@@ -176,10 +423,15 @@ describe('AgentSessionMessageService', () => {
     })
 
     expect(
-      agentSessionMessageService.applyToolApprovalDecision(SESSION_ID, ASSISTANT_MESSAGE_ID, {
-        approvalId: 'approval-1',
-        approved: true
-      })
+      agentSessionMessageService.applyToolApprovalDecision(
+        SESSION_ID,
+        ASSISTANT_MESSAGE_ID,
+        {
+          approvalId: 'approval-1',
+          approved: true
+        },
+        'live'
+      )
     ).toBe(true)
 
     const parts = agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID).data.parts
@@ -544,6 +796,147 @@ describe('AgentSessionMessageService', () => {
     expect(agentSessionMessageService.hasSessionMessages('session-2')).toBe(false)
   })
 
+  it('keeps WorkBuddy causal order across pages, anchors, forks and native continuation', async () => {
+    const base = Date.UTC(2026, 0, 1)
+    const ids = ['wb-user', 'wb-call', 'wb-result', 'wb-answer']
+    const times = [base, base + 200, base + 9, base + 300]
+    application.get('DbService').withWriteTx((tx) => {
+      agentSessionMessageService.importMessagesTx(
+        tx,
+        SESSION_ID,
+        ids.map((id, sourceOrder) => ({
+          id,
+          role: sourceOrder === 0 ? 'user' : 'assistant',
+          status: 'success',
+          data: { parts: [{ type: 'text', text: id }] },
+          createdAt: times[sourceOrder],
+          updatedAt: times[sourceOrder],
+          runtimeResumeToken: 'imported-token',
+          provenance: { source: 'workbuddy', sourceOrder }
+        }))
+      )
+    })
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      runtimeResumeToken: 'native-token',
+      message: { id: USER_MESSAGE_ID, role: 'user', data: { parts: [{ type: 'text', text: 'continue' }] } }
+    })
+    const read: string[] = []
+    let cursor: string | undefined
+    do {
+      const page = agentSessionMessageService.listSessionMessages(SESSION_ID, { limit: 2, cursor })
+      read.push(...page.items.map((row) => row.id))
+      cursor = page.nextCursor
+    } while (cursor)
+    expect(read.reverse()).toEqual([...ids, USER_MESSAGE_ID])
+    expect(
+      agentSessionMessageService
+        .listSessionMessages(SESSION_ID, { messageId: 'wb-result', limit: 2 })
+        .items.map((row) => row.id)
+    ).toEqual(['wb-result', 'wb-call'])
+    expect(agentSessionMessageService.getLastRuntimeResumeToken(SESSION_ID)).toBe('native-token')
+    const prefix = agentSessionMessageService.readForkPrefixTx(dbh.db, SESSION_ID, 'wb-result')!
+    expect(prefix.map((row) => row.id)).toEqual(ids.slice(0, 3))
+    expect(prefix.map((row) => row.createdAt)).toEqual(times.slice(0, 3))
+    await seedSession({ id: 'wb-copy', name: 'Copy', orderKey: 'wb-copy' })
+    application.get('DbService').withWriteTx((tx) =>
+      agentSessionMessageService.insertForkMessagesTx(
+        tx,
+        'wb-copy',
+        prefix.map((row) => ({ ...row, id: row.id + '-copy', partIds: row.partIds?.map((id) => id + '-copy') }))
+      )
+    )
+    expect(
+      agentSessionMessageService.listSessionMessages('wb-copy').items.map((row) => row.provenance?.sourceOrder)
+    ).toEqual([2, 1, 0])
+
+    const prepare = vi.spyOn(dbh.sqlite, 'prepare')
+    agentSessionMessageService.listSessionMessages(SESSION_ID, { limit: 1 })
+    const smallPageQueries = prepare.mock.calls.length
+    prepare.mockClear()
+    agentSessionMessageService.listSessionMessages(SESSION_ID, { limit: 4 })
+    expect(prepare.mock.calls.length).toBe(smallPageQueries)
+    prepare.mockRestore()
+    const query = dbh.db
+      .select({ id: agentSessionMessageTable.id })
+      .from(agentSessionMessageTable)
+      .where(eq(agentSessionMessageTable.sessionId, SESSION_ID))
+      .orderBy(...sessionMessageOrdering(dbh.db, SESSION_ID).orderBy)
+      .limit(2)
+      .toSQL()
+    const plan = dbh.sqlite.prepare('EXPLAIN QUERY PLAN ' + query.sql).all(...query.params)
+    expect(JSON.stringify(plan)).toContain('SEARCH app_state USING INDEX sqlite_autoindex_app_state_1 (key=?)')
+
+    expect(
+      agentSessionMessageService.replaceMessageParts(SESSION_ID, 'wb-call', [{ type: 'text', text: 'Edited' }])
+        .provenance
+    ).toEqual({ source: 'workbuddy', sourceOrder: 1 })
+    agentSessionMessageService.deleteSessionMessage(SESSION_ID, 'wb-result')
+    expect(
+      dbh.db
+        .select()
+        .from(appStateTable)
+        .where(eq(appStateTable.key, 'conversation-import:message:' + SESSION_ID + ':wb-result'))
+        .get()
+    ).toBeUndefined()
+    const edit = agentSessionMessageService.readEditSnapshotTx(dbh.db, SESSION_ID, 'wb-user')
+    application
+      .get('DbService')
+      .withWriteTx((tx) => agentSessionMessageService.replaceEditBranchTx(tx, SESSION_ID, edit.plan))
+    expect(agentSessionMessageService.listSessionMessages(SESSION_ID).items).toEqual([])
+    expect(
+      dbh.db
+        .select()
+        .from(appStateTable)
+        .all()
+        .map((row) => row.key)
+        .sort()
+    ).toEqual(
+      ids
+        .slice(0, 3)
+        .map((id) => 'conversation-import:message:wb-copy:' + id + '-copy')
+        .sort()
+    )
+  })
+
+  it('refreshes imported history count once after deleting an edit tail', () => {
+    application.get('DbService').withWriteTx((tx) => {
+      setImportedMetadataTx(tx, SESSION_ID, { source: 'claude-code', originalSessionId: 'tail-source' })
+      agentSessionMessageService.importMessagesTx(
+        tx,
+        SESSION_ID,
+        Array.from({ length: 32 }, (_, index) => ({
+          id: 'tail-' + index,
+          role: index === 0 || index === 8 ? 'user' : 'assistant',
+          status: 'success',
+          data: { parts: [{ type: 'text' as const, text: 'History ' + index }] },
+          createdAt: index,
+          updatedAt: index,
+          provenance: { source: 'claude-code' as const, sourceOrder: index }
+        }))
+      )
+      queueImportedHistoryTx(tx, SESSION_ID, 'af21c360-e55a-4ad7-bfb1-31d676a946ec', 32)
+    })
+    const snapshot = agentSessionMessageService.readEditSnapshotTx(dbh.db, SESSION_ID, 'tail-8')
+    const prepare = vi.spyOn(dbh.sqlite, 'prepare')
+    application
+      .get('DbService')
+      .withWriteTx((tx) => agentSessionMessageService.replaceEditBranchTx(tx, SESSION_ID, snapshot.plan))
+    const countQueries = prepare.mock.calls.filter(([query]) =>
+      /select count\(\*\).*agent_session_message/i.test(query)
+    )
+    expect(countQueries).toHaveLength(1)
+    prepare.mockRestore()
+    expect(
+      agentSessionMessageService
+        .listSessionMessages(SESSION_ID)
+        .items.map((row) => row.id)
+        .reverse()
+    ).toEqual(Array.from({ length: 8 }, (_, index) => 'tail-' + index))
+    expect(getImportedHistoryState(dbh.db, SESSION_ID)?.messageCount).toBe(8)
+    expect(dbh.db.select().from(appStateTable).all()).toHaveLength(9)
+  })
+
   describe('native fork persistence', () => {
     it('adds a late Run checkpoint without replacing parts and ignores duplicate or non-success checkpoints', () => {
       const anchor = { checkpoint: { runtime: 'pi', runtimeSessionId: 'native', leafId: 'answer' } }
@@ -905,6 +1298,12 @@ describe('AgentSessionMessageService', () => {
     ] as const)(
       'reports %s when fork is requested without publishing a session',
       async (_label, runtimeAnchor, reason) => {
+        runtimeDriverRegistry.register({
+          type: 'claude-code',
+          validateSession: vi.fn(),
+          connect: vi.fn(),
+          fork: vi.fn()
+        })
         await seedAgent('fork-agent', 'Fork Agent')
         dbh.db.update(agentTable).set({ type: 'pi' }).where(eq(agentTable.id, 'fork-agent')).run()
         runtimeDriverRegistry.register({
@@ -1520,6 +1919,60 @@ describe('AgentSessionMessageService', () => {
       ).toEqual([first!.id, request.id].sort())
     })
 
+    it.each([false, true])('returns the child failure with partial output: %s', async (partial) => {
+      await seedAgent('agent-a', 'Agent A')
+      await seedSession({ id: 'sender', agentId: 'agent-a', name: 'Sender', orderKey: 'b0' })
+      await seedSession({ id: 'target', agentId: 'agent-a', name: 'Target', orderKey: 'b1' })
+      const request = agentSessionMessageService.acceptSessionDelivery({
+        senderAgentId: 'agent-a',
+        senderSessionId: 'sender',
+        receiverSessionId: 'target',
+        content: 'Do the work',
+        replyPolicy: 'completion'
+      })
+      agentSessionMessageService.saveMessage({
+        sessionId: 'target',
+        message: {
+          id: ASSISTANT_MESSAGE_ID,
+          role: 'assistant',
+          status: 'error',
+          data: {
+            parts: [
+              ...(partial ? [{ type: 'text' as const, text: 'Partial result' }] : []),
+              { type: 'data-error', data: { message: 'Selected model is unavailable', stack: 'private stack' } }
+            ]
+          }
+        }
+      })
+      agentSessionMessageService.transitionSessionDelivery('target', request.id, 'delivering', {
+        expected: ['accepted'],
+        turnRef: ASSISTANT_MESSAGE_ID
+      })
+      const input = {
+        requestSessionId: 'target',
+        requestMessageId: request.id,
+        assistantMessageId: ASSISTANT_MESSAGE_ID,
+        outcome: 'failed' as const
+      }
+      const result = agentSessionMessageService.finalizeSessionDelivery(input)
+      expect(result?.data.parts).toEqual([
+        ...(partial ? [{ type: 'text', text: 'Partial result' }] : []),
+        { type: 'text', text: 'Selected model is unavailable' }
+      ])
+      expect(result?.delivery).toMatchObject({
+        outcome: 'failed',
+        error: {
+          code: 'TARGET_EXECUTION_FAILED',
+          message: 'Selected model is unavailable'
+        }
+      })
+      expect(agentSessionMessageService.getSessionMessage('target', request.id).delivery?.error).toEqual(
+        result?.delivery?.error
+      )
+      expect(agentSessionMessageService.finalizeSessionDelivery(input)).toBeNull()
+      expect(JSON.stringify(result)).not.toContain('private stack')
+    })
+
     it('does not write a completion result to a trashed caller when finalizing', async () => {
       await seedAgent('agent-a', 'Agent A')
       await seedAgent('agent-b', 'Agent B')
@@ -1856,11 +2309,16 @@ describe('AgentSessionMessageService', () => {
 
     now.mockReturnValue(2_000)
     expect(
-      agentSessionMessageService.applyToolApprovalDecision(SESSION_ID, ASSISTANT_MESSAGE_ID, {
-        approvalId: 'approval-1',
-        approved: true,
-        updatedInput
-      })
+      agentSessionMessageService.applyToolApprovalDecision(
+        SESSION_ID,
+        ASSISTANT_MESSAGE_ID,
+        {
+          approvalId: 'approval-1',
+          approved: true,
+          updatedInput
+        },
+        'live'
+      )
     ).toBe(true)
 
     const saved = agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID)
@@ -1936,8 +2394,12 @@ describe('AgentSessionMessageService', () => {
       updatedInput: { questions: [], answers: { Choice: 'SQLite' } }
     }
 
-    expect(agentSessionMessageService.applyToolApprovalDecision(SESSION_ID, ASSISTANT_MESSAGE_ID, decision)).toBe(true)
-    expect(agentSessionMessageService.applyToolApprovalDecision(SESSION_ID, ASSISTANT_MESSAGE_ID, decision)).toBe(false)
+    expect(
+      agentSessionMessageService.applyToolApprovalDecision(SESSION_ID, ASSISTANT_MESSAGE_ID, decision, 'undelivered')
+    ).toBe(true)
+    expect(
+      agentSessionMessageService.applyToolApprovalDecision(SESSION_ID, ASSISTANT_MESSAGE_ID, decision, 'undelivered')
+    ).toBe(false)
     expect(
       agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID).data.parts?.[0]
     ).toMatchObject({
@@ -1946,6 +2408,41 @@ describe('AgentSessionMessageService', () => {
       approval: { id: 'approval-1', approved: true }
     })
   })
+
+  it.each([false, true])(
+    'rejects an undeliverable native answer using the original persisted card (retired=%s)',
+    (retired) => {
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: {
+          id: ASSISTANT_MESSAGE_ID,
+          role: 'assistant',
+          status: 'success',
+          data: {
+            parts: [
+              {
+                type: 'tool-AskUserQuestion',
+                toolCallId: 'tool-call',
+                state: 'approval-requested',
+                input: { responseMode: 'native-request', questions: [] },
+                approval: { id: 'approval' }
+              }
+            ]
+          }
+        }
+      })
+      if (retired) agentSessionMessageService.retireAbandonedApproval(SESSION_ID, 'approval', 'connection closed')
+      const decision = { approvalId: 'approval', approved: true, updatedInput: { answers: { Choice: 'SQLite' } } }
+      expect(
+        agentSessionMessageService.applyToolApprovalDecision(SESSION_ID, ASSISTANT_MESSAGE_ID, decision, 'undelivered')
+      ).toBe(false)
+      const saved = agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID)
+      expect(saved.data.parts?.[0]).toMatchObject({
+        state: retired ? 'output-error' : 'approval-requested',
+        input: { responseMode: 'native-request' }
+      })
+    }
+  )
 
   it('leaves an answered approval card and other sessions untouched when retiring an abandoned one', async () => {
     await seedSession({ id: 'session-2', name: 'Other', orderKey: 'a1' })
@@ -1969,11 +2466,16 @@ describe('AgentSessionMessageService', () => {
         data: { parts: [{ ...answered, approval: { id: 'approval-other' } }] }
       }
     })
-    agentSessionMessageService.applyToolApprovalDecision(SESSION_ID, ASSISTANT_MESSAGE_ID, {
-      approvalId: 'approval-answered',
-      approved: true,
-      updatedInput: { questions: [], answers: { Choice: 'SQLite' } }
-    })
+    agentSessionMessageService.applyToolApprovalDecision(
+      SESSION_ID,
+      ASSISTANT_MESSAGE_ID,
+      {
+        approvalId: 'approval-answered',
+        approved: true,
+        updatedInput: { questions: [], answers: { Choice: 'SQLite' } }
+      },
+      'live'
+    )
 
     expect(
       agentSessionMessageService.retireAbandonedApproval(SESSION_ID, 'approval-answered', 'connection closed')

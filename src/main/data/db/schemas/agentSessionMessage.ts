@@ -95,6 +95,7 @@ export type AgentSessionMessageStoredData = Omit<MessageData, 'parts'> & {
   staleResumeReset?: boolean
   nativePlaced?: true
   locallyHandled?: boolean
+  stagedFollowup?: true
 }
 
 export type AgentSessionMessageRow = typeof agentSessionMessageTable.$inferSelect

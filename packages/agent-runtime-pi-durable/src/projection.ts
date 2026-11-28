@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { isDeepStrictEqual } from 'node:util'
 
-import type { ConversationView, EntryRecord, LiveState, ToolSlot, TaskId } from '@earendil-works/pi-durable'
+import type { ConversationView, EntryRecord, InboxState, LiveState, ToolSlot, TaskId } from '@earendil-works/pi-durable'
 
 import { subagentResults, type HistoryEntry, type SubagentResults } from '@cherrystudio/agent-behavior'
 import {
@@ -10,6 +10,7 @@ import {
   messageObservation,
   textEdits,
   type RuntimePartEdit,
+  type Activity,
   runtimeId,
   ThreadFeed,
   type InputId,
@@ -50,6 +51,7 @@ export class DurableProjection {
   readonly aliases: Record<string, string> = {}
 
   private nativeBusy = false
+  private pausedFollowups?: ReadonlySet<string>
   private revision?: number
   private pending = false
   private readonly admitting = new Set<InputId>()
@@ -233,7 +235,12 @@ export class DurableProjection {
     let unfinished = false
     for (const input of inputs) {
       if (input.outcome || input.facts.includes('locally-handled')) continue
-      this.cycle.add(input.nativeInput?.id ?? input.inputId!)
+      const id = input.nativeInput?.id ?? input.inputId!
+      if (this.pausedFollowups?.has(id)) {
+        this.cycle.delete(id)
+        continue
+      }
+      this.cycle.add(id)
       unfinished = true
     }
     const pending = Boolean(this.admitting.size || this.nativeBusy || unfinished)
@@ -358,6 +365,10 @@ export class DurableProjection {
         ? { inputs: publication.inputs, events: [] }
         : this.acceptInputFacts(previousState.inputs, publication?.changes ?? [], revision)
     const live = view.docs['pi.live'] as LiveState | undefined
+    const inbox = view.docs['pi.inbox'] as InboxState | undefined
+    this.pausedFollowups = inbox?.followUpsPaused
+      ? new Set(inbox.items.flatMap((item) => (item.mode === 'followUp' ? [String(item.id)] : [])))
+      : undefined
     this.nativeBusy = Boolean(live?.run || live?.compactions?.length)
     const content = this.committedContent(view.entries)
     const generation = live?.generation
@@ -404,7 +415,14 @@ export class DurableProjection {
     }
     if (reset) this.feed.publish({ type: 'gap', reason: 'mapping-reset' })
     this.preview = preview
-    const activity = { state: live?.run ? ('active' as const) : ('idle' as const) }
+    const retry = generation?.retry
+    const activity: Activity = {
+      state: live?.run ? 'active' : 'idle',
+      ...(retry?.model !== undefined &&
+        retry.nextAttempt !== undefined && {
+          modelRetry: { modelId: retry.model, attempt: retry.nextAttempt, reason: retry.error }
+        })
+    }
     // A run start sends a snapshot so observers see its inputs and activity in one frame; so do the first
     // publication and a reset. Other updates carry only changes.
     const messages =
@@ -420,7 +438,7 @@ export class DurableProjection {
     ]
     if (
       messages &&
-      (previousState.activity.state !== activity.state ||
+      (!isDeepStrictEqual(previousState.activity, activity) ||
         (!events.length &&
           (completion || answers.length || !isDeepStrictEqual(previousResults, this.backgroundResults))))
     )

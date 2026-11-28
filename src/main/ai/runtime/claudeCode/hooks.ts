@@ -24,6 +24,7 @@ import {
 import { evaluateToolGuards } from '@main/ai/toolApproval/toolGuards'
 import { MOVE_TO_TRASH_TOOL_NAME } from '@main/ai/tools/moveToTrash'
 import { SAVE_ATTACHMENT_TOOL_NAME } from '@main/ai/tools/saveAttachment'
+import { t } from '@main/i18n'
 import { rtkRewrite } from '@main/utils/rtk'
 
 import { BASH_NO_PROGRESS_HARD_THRESHOLD, BASH_NO_PROGRESS_THRESHOLD, BASH_RUN_BREAK_TOOLS } from './bashNoProgress'
@@ -112,13 +113,13 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
       // Soft tier of the bash-repeat-no-progress guard (the hard deny is the guard rule): the
       // first call past the soft threshold is allowed with a one-shot warning so the model can
       // self-correct; exactly-at-threshold fires it once, before the run grows past it.
-      if (toolName === 'Bash' && typeof toolInput?.command === 'string') {
+      if ((toolName === 'Bash' || toolName === 'PowerShell') && typeof toolInput?.command === 'string') {
         const run = sessionState().getBashNoProgressRun(sessionId, toolInput.command, input.agent_id)
         if (run === BASH_NO_PROGRESS_THRESHOLD) {
           return {
             hookSpecificOutput: {
               hookEventName: 'PreToolUse',
-              additionalContext: `Loop warning: this exact Bash command has already run ${run} times in a row with byte-identical output, and is denied outright once the run reaches ${BASH_NO_PROGRESS_HARD_THRESHOLD}. If you are waiting for a change, make the edit first; if you are stuck, diagnose the cause or report the blocker instead of retrying.`
+              additionalContext: `Loop warning: this exact ${toolName} command has already run ${run} times in a row with byte-identical output, and is denied outright once the run reaches ${BASH_NO_PROGRESS_HARD_THRESHOLD}. If you are waiting for a change, make the edit first; if you are stuck, diagnose the cause or report the blocker instead of retrying.`
             }
           }
         }
@@ -163,14 +164,27 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
     if (typeof command !== 'string' || !command.trim()) return {}
 
     // Register before yielding so an in-flight rewrite cannot recreate state after teardown.
-    sessionState().recordBashRewriteOrigin(sessionId, input.tool_use_id, command)
-    const rewritten = await rtkRewrite(command)
-    if (!rewritten) {
+    const origin = sessionState().recordBashRewriteOrigin(sessionId, input.tool_use_id, command)
+    const rewrite = await rtkRewrite(command)
+    if (!rewrite) {
       sessionState().takeBashRewriteOrigin(sessionId, input.tool_use_id)
       return {}
     }
-    logger.info('rtk rewrote Bash command', { original: command, rewritten })
-    return { hookSpecificOutput: { hookEventName: 'PreToolUse', updatedInput: { ...toolInput, command: rewritten } } }
+    const updatedInput = { ...toolInput, command: rewrite.command }
+    if (rewrite.approvalRequired) {
+      origin.rtkApprovalRequired = true
+      // Return updatedInput here so native Claude Code deny rules evaluate the final command too.
+      return {
+        hookSpecificOutput: {
+          hookEventName: 'PreToolUse',
+          permissionDecision: 'ask',
+          permissionDecisionReason: t('command_approval.permission_required'),
+          updatedInput
+        }
+      }
+    }
+    logger.info('rtk rewrote Bash command', { original: command, rewritten: rewrite.command })
+    return { hookSpecificOutput: { hookEventName: 'PreToolUse', updatedInput } }
   }
   const bashRewriteCleanupHook: HookCallback = async (input) => {
     if (input.hook_event_name !== 'PostToolBatch') return {}
@@ -200,7 +214,7 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
     }
     const agentId = input.agent_id
 
-    if (input.tool_name !== 'Bash') {
+    if (input.tool_name !== 'Bash' && input.tool_name !== 'PowerShell') {
       // A completed mutating tool changed the workspace: break the run so a verifier still printing
       // the same remaining errors is not misread as a stuck loop. Read-only tools do not break it —
       // an agent alternating Bash with Read is still looping.

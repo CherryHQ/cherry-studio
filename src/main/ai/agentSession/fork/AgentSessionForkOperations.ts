@@ -109,7 +109,9 @@ export class AgentSessionForkOperations {
     const editFailure = getEditFailure(
       driver?.fork && driver.isForkCheckpoint
         ? { type: driver.type, isForkCheckpoint: driver.isForkCheckpoint.bind(driver) }
-        : undefined,
+        : driver
+          ? { type: driver.type }
+          : undefined,
       source.plan.resolution
     )
     if (editFailure) throw new AgentSessionEditError(editFailure)

@@ -33,7 +33,7 @@ it('claims one prewarmed native process for commands, input and confirmed shutdo
     expect(commands.some((command) => command.name === 'compact')).toBe(true)
     expect(root.thread.id).toBe(sessionId)
     const id = inputId()
-    await root.input!.submit({ inputId: id, text: 'Use the warm process', whenBusy: 'steer' })
+    await root.input!.steer!.submit({ inputId: id, text: 'Use the warm process' })
     const request = await test.request()
     request.reply.block({ type: 'text', text: 'Warm answer' })
     request.reply.finish()
@@ -54,7 +54,7 @@ it('reconciles an archive read overlapping live output without losing the commit
     const root = confirmed(await test.runtime().create(test.options))
     const view = await observe(root)
     const id = inputId()
-    await root.input!.submit({ inputId: id, text: 'Archive while streaming', whenBusy: 'steer' })
+    await root.input!.steer!.submit({ inputId: id, text: 'Archive while streaming' })
     const request = await test.request()
     request.reply.block({ type: 'text', text: 'Before archive' })
     await expect.poll(() => textOf(view.snapshot)).toContain('Before archive')
@@ -87,13 +87,13 @@ it('places steer at a native tool boundary and associates one answer with both i
     const root = confirmed(await test.runtime().create(test.options))
     const view = await observe(root)
     const first = inputId()
-    await root.input!.submit({ inputId: first, text: 'Run a child', whenBusy: 'steer' })
+    await root.input!.steer!.submit({ inputId: first, text: 'Run a child' })
     const request = await test.request()
     request.reply.block(spawnChild('toolu_steer'))
     request.reply.finish('tool_use')
     const child = await test.request()
     const second = inputId()
-    await root.input!.submit({ inputId: second, text: 'Use the revised requirement', whenBusy: 'steer' })
+    await root.input!.steer!.submit({ inputId: second, text: 'Use the revised requirement' })
     await view.event(
       (event) => event.type === 'command_lifecycle' && event.command_uuid === second && event.state === 'queued'
     )
@@ -132,7 +132,7 @@ it('places steer at a native tool boundary and associates one answer with both i
         .flatMap((batch) => batch.events)
         .filter((event) => event.type === 'input.changed' && event.input.outcome === 'completed')
     ).toHaveLength(2)
-    expect(await root.input!.submit({ inputId: second, text: 'Changed payload', whenBusy: 'steer' })).toMatchObject({
+    expect(await root.input!.steer!.submit({ inputId: second, text: 'Changed payload' })).toMatchObject({
       status: 'rejected',
       error: { code: 'duplicate-input' }
     })
@@ -147,12 +147,12 @@ it('keeps end-boundary steer as the next turn instead of rejecting it', async ()
     const root = confirmed(await test.runtime().create(test.options))
     const view = await observe(root)
     const firstId = inputId()
-    await root.input!.submit({ inputId: firstId, text: 'First', whenBusy: 'steer' })
+    await root.input!.steer!.submit({ inputId: firstId, text: 'First' })
     const first = await test.request()
     first.reply.block({ type: 'text', text: 'First answer' })
     await view.event((event) => event.type === 'assistant' && event.user_message_uuid === firstId)
     const nextId = inputId()
-    await root.input!.submit({ inputId: nextId, text: 'Next requirement', whenBusy: 'steer' })
+    await root.input!.steer!.submit({ inputId: nextId, text: 'Next requirement' })
     first.reply.finish()
     const next = await test.request()
     expect(JSON.stringify(next.body.messages)).toContain('Next requirement')
@@ -172,7 +172,7 @@ it('stops only the addressed sibling and keeps the other child observable', asyn
     const runtime = test.runtime()
     const root = confirmed(await runtime.create(test.options))
     const view = await observe(root)
-    await root.input!.submit({ inputId: inputId(), text: 'Run siblings', whenBusy: 'steer' })
+    await root.input!.steer!.submit({ inputId: inputId(), text: 'Run siblings' })
     const request = await test.request()
     request.reply.block(spawnChild('toolu_left', true))
     request.reply.block(spawnChild('toolu_right', true))
@@ -229,7 +229,7 @@ it('keeps nested relationships on the immediate parent across archive reopen', a
     const runtime = test.runtime()
     const root = confirmed(await runtime.create(test.options))
     const view = await observe(root)
-    await root.input!.submit({ inputId: inputId(), text: 'Nested children', whenBusy: 'steer' })
+    await root.input!.steer!.submit({ inputId: inputId(), text: 'Nested children' })
     const request = await test.request()
     request.reply.block(spawnChild('toolu_child'))
     request.reply.finish('tool_use')
@@ -279,7 +279,7 @@ it.each([false, true])(
       let runtime = test.runtime()
       let root = confirmed(await runtime.create(test.options))
       let view = await observe(root)
-      await root.input!.submit({ inputId: inputId(), text: 'Start child', whenBusy: 'steer' })
+      await root.input!.steer!.submit({ inputId: inputId(), text: 'Start child' })
       const request = await test.request()
       request.reply.block(spawnChild('toolu_original'))
       request.reply.finish('tool_use')
@@ -301,7 +301,7 @@ it.each([false, true])(
       }
       const child = confirmed(await runtime.open(childThread))
       const childView = await observe(child)
-      await root.input!.submit({ inputId: inputId(), text: 'Continue the child', whenBusy: 'steer' })
+      await root.input!.steer!.submit({ inputId: inputId(), text: 'Continue the child' })
       const followup = await test.request()
       followup.reply.block({
         type: 'tool_use',
@@ -349,21 +349,28 @@ it.each([false, true])(
   30000
 )
 
-it('retains product observation through compaction while the native archive selects the continuation view', async () => {
+it('compacts without admitting a product input and retains the native summary', async () => {
   const test = await fixture()
   try {
-    const root = confirmed(await test.runtime().create(test.options))
+    const root = confirmed(
+      await test.runtime().create({
+        ...test.options,
+        env: { ...test.options.env, CLAUDE_CODE_EMIT_SESSION_STATE_EVENTS: '1' }
+      })
+    )
     const view = await observe(root)
-    await root.input!.submit({ inputId: inputId(), text: 'Original context. '.repeat(500), whenBusy: 'steer' })
+    const original = inputId()
+    await root.input!.steer!.submit({ inputId: original, text: 'Original context. '.repeat(500) })
     const request = await test.request()
     request.reply.block({ type: 'text', text: 'Original decision' })
     request.reply.finish()
     await view.event((event) => event.type === 'result')
-    await root.input!.submit({ inputId: inputId(), text: '/compact Retain decision', whenBusy: 'follow-up' })
+    const compacting = root.compact!('Retain decision')
     const compact = await test.request()
     compact.reply.block({ type: 'text', text: '<summary>Retained decision.</summary>' })
     compact.reply.finish()
-    await view.event((event) => event.type === 'system' && event.subtype === 'compact_boundary')
+    confirmed(await compacting)
+    expect(view.snapshot.inputs.flatMap((input) => input.inputId ?? [])).toEqual([original])
     const archive = confirmed(await root.claude.archive())
     expect(JSON.stringify(archive.content)).toContain('Retained decision.')
     expect(textOf(view.snapshot)).toContain('Original decision')
@@ -380,7 +387,7 @@ it('does not retry input after process loss or claim its successful completion',
     const root = confirmed(await runtime.create(test.options))
     const view = await observe(root)
     const id = inputId()
-    await root.input!.submit({ inputId: id, text: 'Uncertain turn', whenBusy: 'steer' })
+    await root.input!.steer!.submit({ inputId: id, text: 'Uncertain turn' })
     const request = await test.request()
     request.reply.startText('Partial before loss')
     await expect.poll(() => textOf(view.snapshot)).toContain('Partial before loss')
@@ -395,7 +402,7 @@ it('does not retry input after process loss or claim its successful completion',
     const input = view.snapshot.inputs.find((value) => value.inputId === id)
     expect(input?.outcome).toBeUndefined()
     expect(input?.error?.code).toBe('delivery-unknown')
-    expect(await root.input!.submit({ inputId: id, text: 'Uncertain turn', whenBusy: 'steer' })).toMatchObject({
+    expect(await root.input!.steer!.submit({ inputId: id, text: 'Uncertain turn' })).toMatchObject({
       status: 'rejected',
       error: { code: 'closed' }
     })
@@ -415,7 +422,7 @@ it('shares a lazy Query, binds streamed blocks once, and retains archives after 
     const other = await observe(second)
     expect(test.children).toHaveLength(0)
     const id = inputId()
-    expect(await first.input!.submit({ inputId: id, text: 'Say two blocks', whenBusy: 'steer' })).toMatchObject({
+    expect(await first.input!.steer!.submit({ inputId: id, text: 'Say two blocks' })).toMatchObject({
       status: 'acknowledged',
       facts: ['dispatch-started']
     })
@@ -434,7 +441,7 @@ it('shares a lazy Query, binds streamed blocks once, and retains archives after 
     expect(test.children).toHaveLength(1)
     await first.release()
     const nextId = inputId()
-    await second.input!.submit({ inputId: nextId, text: 'Continue', whenBusy: 'follow-up' })
+    await second.input!.followUp!.submit({ inputId: nextId, text: 'Continue' })
     const next = await test.request()
     next.reply.block({ type: 'text', text: 'Continued' })
     next.reply.finish()
@@ -462,10 +469,9 @@ it('attributes background spawn and continuation until the parent has answered e
     const pending = () => controls().findLast((event) => event.type === 'background-results')?.result
     let taskId: string | undefined
     for (const callId of ['toolu_spawn_result', 'toolu_continue_result']) {
-      await root.input!.submit({
+      await root.input!.steer!.submit({
         inputId: inputId(),
-        text: taskId ? 'Continue the child' : 'Start child',
-        whenBusy: 'steer'
+        text: taskId ? 'Continue the child' : 'Start child'
       })
       const request = await test.request()
       request.reply.block(
@@ -515,7 +521,7 @@ it('observes a background child after its parent result without adding child bod
     const runtime = test.runtime()
     const root = confirmed(await runtime.create(test.options))
     const parent = await observe(root)
-    await root.input!.submit({ inputId: inputId(), text: 'Start background child', whenBusy: 'steer' })
+    await root.input!.steer!.submit({ inputId: inputId(), text: 'Start background child' })
     const request = await test.request()
     request.reply.block(spawnChild('toolu_background', true))
     request.reply.finish('tool_use')
@@ -562,16 +568,14 @@ it('preserves interrupted partial output and later queued input, without claimin
     const runtime = test.runtime()
     const root = confirmed(await runtime.create(test.options))
     const view = await observe(root)
-    expect(await root.input!.submit({ inputId: inputId(), text: 'Reject', whenBusy: 'reject' })).toMatchObject({
-      status: 'unsupported'
-    })
+    expect(root.input?.submit).toBeUndefined()
     const firstId = inputId()
-    await root.input!.submit({ inputId: firstId, text: 'Long answer', whenBusy: 'steer' })
+    await root.input!.steer!.submit({ inputId: firstId, text: 'Long answer' })
     const first = await test.request()
     first.reply.startText('Unfinished')
     await expect.poll(() => textOf(view.snapshot)).toContain('Unfinished')
     const laterId = inputId()
-    await root.input!.submit({ inputId: laterId, text: 'Answer later', whenBusy: 'follow-up' })
+    await root.input!.followUp!.submit({ inputId: laterId, text: 'Answer later' })
     await view.event(
       (event) => (event as { type: string }).type === 'command_lifecycle' && JSON.stringify(event).includes(laterId)
     )
@@ -604,7 +608,7 @@ it('reopens native history without starting work and rejects missing storage or 
     const runtime = test.runtime()
     const root = confirmed(await runtime.create(test.options))
     const view = await observe(root)
-    await root.input!.submit({ inputId: inputId(), text: 'Save a message', whenBusy: 'steer' })
+    await root.input!.steer!.submit({ inputId: inputId(), text: 'Save a message' })
     const request = await test.request()
     request.reply.block({ type: 'text', text: 'Saved answer' })
     request.reply.finish()
@@ -636,7 +640,7 @@ it.each(['rejected-loader', 'missing-configuration', 'missing-archive'] as const
       const creator = test.runtime()
       const root = confirmed(await creator.create(test.options))
       const view = await observe(root)
-      await root.input!.submit({ inputId: inputId(), text: 'Save before reopening', whenBusy: 'steer' })
+      await root.input!.steer!.submit({ inputId: inputId(), text: 'Save before reopening' })
       const request = await test.request()
       request.reply.block({ type: 'text', text: 'Retained answer' })
       request.reply.finish()
@@ -678,23 +682,23 @@ it('closes stale admission on clear and binds the new native session to the same
     const root = confirmed(await runtime.create(test.options))
     const view = await observe(root)
     const firstId = inputId()
-    await root.input!.submit({ inputId: firstId, text: 'Before clear', whenBusy: 'steer' })
+    await root.input!.steer!.submit({ inputId: firstId, text: 'Before clear' })
     const request = await test.request()
     request.reply.block({ type: 'text', text: 'Old answer' })
     request.reply.finish()
     await view.event((event) => event.type === 'result')
     const clearId = inputId()
-    await root.input!.submit({ inputId: clearId, text: '/clear', whenBusy: 'follow-up' })
+    await root.input!.followUp!.submit({ inputId: clearId, text: '/clear' })
     const reset = await view.event((event) => event.type === 'conversation_reset')
     const result = await view.event((event) => event.type === 'result' && event.user_message_uuid === clearId)
     if (result.type !== 'result' || reset.type !== 'conversation_reset') throw new Error('Missing clear result')
     expect(result.session_id).not.toBe(reset.new_conversation_id)
-    expect(await root.input!.submit({ inputId: inputId(), text: 'Stale', whenBusy: 'steer' })).toMatchObject({
+    expect(await root.input!.steer!.submit({ inputId: inputId(), text: 'Stale' })).toMatchObject({
       status: 'rejected',
       error: { code: 'closed' }
     })
     const next = confirmed(await runtime.open(claudeThread(root.thread.backendId, result.session_id)))
-    await next.input!.submit({ inputId: inputId(), text: 'After clear', whenBusy: 'steer' })
+    await next.input!.steer!.submit({ inputId: inputId(), text: 'After clear' })
     const fresh = await test.request()
     expect(JSON.stringify(fresh.body.messages)).not.toContain('Before clear')
     fresh.reply.block({ type: 'text', text: 'New answer' })
@@ -717,7 +721,7 @@ it('does not spawn a CLI for context reads and normalizes the real native readin
     expect(test.children).toHaveLength(0)
     const view = await observe(root)
     const id = inputId()
-    await root.input!.submit({ inputId: id, text: 'Context reading', whenBusy: 'steer' })
+    await root.input!.steer!.submit({ inputId: id, text: 'Context reading' })
     const request = await test.request()
     request.reply.block({ type: 'text', text: 'A native response' })
     request.reply.finish()
@@ -749,7 +753,7 @@ it('recovers real CLI API rejection identity from raw storage with a fresh owner
     const view = await observe(root)
     const reason = 'Quota exhausted; retry tomorrow.'
     const quoted = `API Error: Request rejected (429) · ${reason}`
-    await root.input!.submit({ inputId: inputId(), text: 'Quote this diagnostic', whenBusy: 'steer' })
+    await root.input!.steer!.submit({ inputId: inputId(), text: 'Quote this diagnostic' })
     const request = await test.request()
     request.reply.block({ type: 'text', text: quoted })
     request.reply.finish()
@@ -760,7 +764,7 @@ it('recovers real CLI API rejection identity from raw storage with a fresh owner
 
     test.refuseRequests(429, { type: 'error', error: { type: 'rate_limit_error', message: reason } })
     const rejectedInput = inputId()
-    await root.input!.submit({ inputId: rejectedInput, text: 'Rejected native request', whenBusy: 'steer' })
+    await root.input!.steer!.submit({ inputId: rejectedInput, text: 'Rejected native request' })
     const rejection = await view.event((message) => message.type === 'assistant' && message.error === 'rate_limit')
     await expect
       .poll(() => view.snapshot.inputs.find((input) => input.inputId === rejectedInput)?.outcome)

@@ -1,12 +1,16 @@
 export { Agent } from './Agent'
-export { classifyAiSdkFailure } from './failureFacts'
+export {
+  classifyAiSdkFailure,
+  type RecoverableModelTransportFailure,
+  recoverableModelTransportFailure
+} from './failureFacts'
 export { markTrustedLocalToolTerminalFailure } from './loop/localToolTerminalOutcome'
 export type { AgentLoopHooks } from './loop/types'
 export { mergeUsage, ZERO_USAGE } from './observers/usage'
 export { buildAgentParams } from './params/buildAgentParams'
 export type { RequestFeature } from './params/feature'
-export type { NativeFileSupport } from './params/nativeFileSupport'
 export { buildApiKeyFallbackModels } from './retry/buildApiKeyFallbackModels'
 export { buildFallbackModels } from './retry/buildFallbackModels'
 export { createRetryableWrap } from './retry/createRetryableWrap'
-export { readRetryPolicy } from './retry/retryPolicy'
+export { MAX_OUTPUT_TOKEN_RETRIES } from './retry/outputTokenRetry'
+export { planModelTransportRetry, readRetryPolicy } from './retry/retryPolicy'

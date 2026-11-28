@@ -89,6 +89,7 @@ type MotionDivProps = HTMLAttributes<HTMLDivElement> & {
   exit?: unknown
   initial?: unknown
   layout?: unknown
+  layoutDependency?: unknown
   ref?: Ref<HTMLDivElement>
   transition?: unknown
 }
@@ -103,6 +104,7 @@ vi.mock('motion/react', () => {
         delete domProps.exit
         delete domProps.initial
         delete domProps.layout
+        delete domProps.layoutDependency
         delete domProps.transition
 
         return (
@@ -234,6 +236,19 @@ describe('ChatAppShell', () => {
     rerender(<ChatAppShell pane={<Pane />} paneOpen centerContent={<div />} />)
 
     expect(screen.getByRole('textbox', { name: 'Pane query' })).toHaveValue('persisted')
+  })
+
+  it('hides the open sidebar immediately for an auxiliary page and restores its controls', () => {
+    const pane = <button type="button">Sidebar action</button>
+    const centerContent = <div>Page content</div>
+    const { rerender } = render(<ChatAppShell pane={pane} paneOpen centerContent={centerContent} />)
+
+    rerender(<ChatAppShell pane={pane} paneOpen hideLeftPane centerContent={centerContent} />)
+    expect(screen.getByText('Sidebar action')).not.toBeVisible()
+    expect(screen.getByText('Page content')).toBeVisible()
+
+    rerender(<ChatAppShell pane={pane} paneOpen centerContent={centerContent} />)
+    expect(screen.getByRole('button', { name: 'Sidebar action' })).toBeVisible()
   })
 
   it('defers mounting a pane that has never been opened', () => {

@@ -34,6 +34,40 @@ type ResponseCreateParams = OpenAI.Responses.ResponseCreateParams
 type EasyInputMessage = OpenAI.Responses.EasyInputMessage
 type FunctionCallOutput = OpenAI.Responses.ResponseInputItem.FunctionCallOutput
 
+interface NamespaceSubtool {
+  type: 'function'
+  name: string
+  description?: string | null
+  parameters?: Record<string, unknown> | null
+  strict?: boolean | null
+}
+
+interface NamespaceToolDefinition {
+  type: 'namespace'
+  name: string
+  description?: string | null
+  tools: unknown[]
+}
+
+function isNamespaceToolDefinition(toolDef: unknown): toolDef is NamespaceToolDefinition {
+  if (!toolDef || typeof toolDef !== 'object') return false
+  const candidate = toolDef as Partial<NamespaceToolDefinition>
+  return candidate.type === 'namespace' && Array.isArray(candidate.tools)
+}
+
+function isNamespaceSubtool(toolDef: unknown): toolDef is NamespaceSubtool {
+  if (!toolDef || typeof toolDef !== 'object') return false
+  const candidate = toolDef as Partial<NamespaceSubtool>
+  return candidate.type === 'function' && typeof candidate.name === 'string'
+}
+
+function nextAvailableToolName(preferred: string, reserved: Set<string>): string {
+  if (!reserved.has(preferred)) return preferred
+  let suffix = 2
+  while (reserved.has(`${preferred}__${suffix}`)) suffix += 1
+  return `${preferred}__${suffix}`
+}
+
 /** A function_call_output split into the model-visible string output and relocated user parts. */
 interface FunctionOutputConversion {
   output: string
@@ -96,6 +130,35 @@ export type ResponsesCreateParams = ResponseCreateParams & {
  * OpenAI Responses Message Converter
  */
 export class OpenAiResponsesMessageConverter implements IMessageConverter<ResponsesCreateParams> {
+  private readonly namespacedTools = new Map<string, { name: string; namespace: string }>()
+  private readonly scopedToolNames = new Map<string, string>()
+
+  private indexTools(tools: ResponsesCreateParams['tools']): void {
+    this.namespacedTools.clear()
+    this.scopedToolNames.clear()
+    if (!tools?.length) return
+
+    const reserved = new Set<string>()
+    for (const toolDef of tools) {
+      if (toolDef.type === 'function' && !isBlankToolName(toolDef.name)) reserved.add(toolDef.name)
+    }
+
+    for (const toolDef of tools as readonly unknown[]) {
+      if (!isNamespaceToolDefinition(toolDef) || isBlankToolName(toolDef.name)) continue
+      for (const sub of toolDef.tools) {
+        if (!isNamespaceSubtool(sub) || isBlankToolName(sub.name)) continue
+        const flatName = nextAvailableToolName(`${toolDef.name}__${sub.name}`, reserved)
+        reserved.add(flatName)
+        this.namespacedTools.set(flatName, { name: sub.name, namespace: toolDef.name })
+        this.scopedToolNames.set(`${toolDef.name}\0${sub.name}`, flatName)
+      }
+    }
+  }
+
+  resolveClientToolCall(toolName: string): { name: string; namespace?: string } {
+    return this.namespacedTools.get(toolName) ?? { name: toolName }
+  }
+
   /**
    * Convert Responses API params to AI SDK `CherryUIMessage[]`.
    *
@@ -106,6 +169,7 @@ export class OpenAiResponsesMessageConverter implements IMessageConverter<Respon
    * require the chain back once a turn performed a tool call.
    */
   toUIMessages(params: ResponsesCreateParams): CherryUIMessage[] {
+    this.indexTools(params.tools)
     const messages: CherryUIMessage[] = []
 
     if (params.instructions && typeof params.instructions === 'string') {
@@ -126,14 +190,21 @@ export class OpenAiResponsesMessageConverter implements IMessageConverter<Respon
     const functionOutputs = new Map<string, FunctionOutputConversion>()
     for (const item of inputArray) {
       if ('type' in item && item.type === 'function_call' && 'call_id' in item && 'name' in item) {
-        const funcCall = item
+        const funcCall = item as OpenAI.Responses.ResponseFunctionToolCall & { namespace?: unknown }
+        const ns =
+          typeof funcCall.namespace === 'string' && !isBlankToolName(funcCall.namespace)
+            ? funcCall.namespace
+            : undefined
+        const resolvedName = ns
+          ? (this.scopedToolNames.get(`${ns}\0${funcCall.name}`) ?? `${ns}__${funcCall.name}`)
+          : funcCall.name
         let input: unknown
         try {
           input = funcCall.arguments ? JSON.parse(funcCall.arguments) : {}
         } catch {
           input = { raw: funcCall.arguments }
         }
-        functionCalls.set(funcCall.call_id, { name: funcCall.name, input })
+        functionCalls.set(funcCall.call_id, { name: resolvedName, input })
       } else if ('type' in item && item.type === 'function_call_output') {
         functionOutputs.set(item.call_id, functionOutputToConversion(item.call_id, item.output))
       }
@@ -286,34 +357,70 @@ export class OpenAiResponsesMessageConverter implements IMessageConverter<Respon
    */
   toAiSdkTools(params: ResponsesCreateParams): ToolSet | undefined {
     const tools = params.tools
-    if (!tools || tools.length === 0) return undefined
+    if (!tools || tools.length === 0) {
+      this.indexTools(tools)
+      return undefined
+    }
 
+    this.indexTools(tools)
     const aiSdkTools: ToolSet = {}
     const droppedTools: Array<{ index: number; path: string; name: string; description?: string | null }> = []
 
     for (const [index, toolDef] of tools.entries()) {
-      if (toolDef.type !== 'function') continue
-      if (isBlankToolName(toolDef.name)) {
-        droppedTools.push({
-          index,
-          path: `tools[${index}].name`,
-          name: toolDef.name,
-          description: toolDef.description
+      if (toolDef.type === 'function') {
+        if (isBlankToolName(toolDef.name)) {
+          droppedTools.push({
+            index,
+            path: `tools[${index}].name`,
+            name: toolDef.name,
+            description: toolDef.description
+          })
+          continue
+        }
+
+        const funcTool = toolDef
+        const schema = funcTool.parameters ?? { type: 'object' as const }
+
+        aiSdkTools[funcTool.name] = tool({
+          description: funcTool.description || '',
+          inputSchema: jsonSchema(schema),
+          ...(typeof funcTool.strict === 'boolean' ? { strict: funcTool.strict } : {})
         })
         continue
       }
 
-      const funcTool = toolDef
-      const rawSchema = funcTool.parameters
-      const schema = rawSchema ?? { type: 'object' as const }
-
-      const aiTool = tool({
-        description: funcTool.description || '',
-        inputSchema: jsonSchema(schema),
-        ...(typeof funcTool.strict === 'boolean' ? { strict: funcTool.strict } : {})
-      })
-
-      aiSdkTools[funcTool.name] = aiTool
+      const rawToolDef: unknown = toolDef
+      if (isNamespaceToolDefinition(rawToolDef)) {
+        if (isBlankToolName(rawToolDef.name)) {
+          droppedTools.push({
+            index,
+            path: `tools[${index}].name`,
+            name: rawToolDef.name,
+            description: rawToolDef.description
+          })
+          continue
+        }
+        for (const [subIndex, sub] of rawToolDef.tools.entries()) {
+          if (!isNamespaceSubtool(sub)) continue
+          if (isBlankToolName(sub.name)) {
+            droppedTools.push({
+              index,
+              path: `tools[${index}].tools[${subIndex}].name`,
+              name: sub.name,
+              description: sub.description
+            })
+            continue
+          }
+          const flatName =
+            this.scopedToolNames.get(`${rawToolDef.name}\0${sub.name}`) ?? `${rawToolDef.name}__${sub.name}`
+          const schema = sub.parameters ?? { type: 'object' as const }
+          aiSdkTools[flatName] = tool({
+            description: sub.description || (rawToolDef.description ? `${rawToolDef.description}: ${sub.name}` : ''),
+            inputSchema: jsonSchema(schema),
+            ...(typeof sub.strict === 'boolean' ? { strict: sub.strict } : {})
+          })
+        }
+      }
     }
 
     if (droppedTools.length > 0) {
@@ -349,7 +456,12 @@ export class OpenAiResponsesMessageConverter implements IMessageConverter<Respon
     overrideReasoning = false
   ): ProviderOptions | undefined {
     if (overrideReasoning) return undefined
-    return mapReasoningEffortToProviderOptions(provider, model, params.reasoning_effort, maxOutputTokens)
+    return mapReasoningEffortToProviderOptions(
+      provider,
+      model,
+      params.reasoning?.effort ?? params.reasoning_effort,
+      maxOutputTokens
+    )
   }
 }
 
