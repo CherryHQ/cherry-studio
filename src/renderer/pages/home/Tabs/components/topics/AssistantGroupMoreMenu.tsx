@@ -1,4 +1,5 @@
 import { MoreHorizontal } from 'lucide-react'
+import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { actionsToCommandMenuExtraItems } from '@renderer/components/chat/actions/actionMenuItems'
@@ -50,33 +51,54 @@ export function AssistantGroupMoreMenu({
   onToggleSidebar: (assistantId: string) => void | Promise<void>
 }) {
   const { t } = useTranslation()
-  const actionContext: AssistantGroupActionContext = {
-    assistantId,
+  const getExtraItems = useCallback(() => {
+    const actionContext: AssistantGroupActionContext = {
+      assistantId,
+      assistantIconType,
+      deleteAssistantDisabled,
+      deleteTopicsDisabled,
+      disabled,
+      isGroupGrouping,
+      onDeleteAssistant,
+      onDeleteAllTopics,
+      onPermanentDeleteAssistant,
+      permanentDeleteShortcut,
+      onEdit,
+      onSetAssistantIconType,
+      onToggleGrouping,
+      onTogglePin,
+      onToggleSidebar,
+      pinned,
+      sidebarPinned,
+      t
+    }
+    const actions = resolveAssistantGroupActions(actionContext)
+    return actionsToCommandMenuExtraItems(actions, (action) => {
+      void executeAssistantGroupAction(action, actionContext)
+    })
+  }, [
     assistantIconType,
+    assistantId,
     deleteAssistantDisabled,
     deleteTopicsDisabled,
     disabled,
     isGroupGrouping,
-    onDeleteAssistant,
     onDeleteAllTopics,
-    onPermanentDeleteAssistant,
-    permanentDeleteShortcut,
+    onDeleteAssistant,
     onEdit,
+    onPermanentDeleteAssistant,
     onSetAssistantIconType,
     onToggleGrouping,
     onTogglePin,
     onToggleSidebar,
+    permanentDeleteShortcut,
     pinned,
     sidebarPinned,
     t
-  }
-  const actions = resolveAssistantGroupActions(actionContext)
-  const extraItems = actionsToCommandMenuExtraItems(actions, (action) => {
-    void executeAssistantGroupAction(action, actionContext)
-  })
+  ])
 
   return (
-    <CommandPopupMenu location="webcontents.context" extraItems={extraItems} align="end" side="bottom">
+    <CommandPopupMenu location="webcontents.context" getExtraItems={getExtraItems} align="end" side="bottom">
       <ResourceList.GroupHeaderActionButton
         type="button"
         aria-label={t('common.more')}

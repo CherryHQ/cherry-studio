@@ -244,10 +244,7 @@ const SessionItem = ({
   )
 
   const { getActions: getMenuActions, handleMenuAction } = useSessionMenuActions(actionContext)
-  const deleteAction = useMemo(
-    () => getMenuActions().find((action) => action.id === 'session.delete'),
-    [getMenuActions]
-  )
+  const isDeleteDisabled = isStreamPending || showAwaitingApprovalBadge
 
   const handlePress = useCallback(
     (event: MouseEvent) => {
@@ -363,9 +360,10 @@ const SessionItem = ({
         <Tooltip title={t('common.archive')} delay={500}>
           <ResourceList.ItemAction
             aria-label={t('common.archive')}
-            disabled={!deleteAction?.availability.enabled}
+            disabled={isDeleteDisabled}
             onClick={(event) => {
               event.stopPropagation()
+              const deleteAction = getMenuActions().find((action) => action.id === 'session.delete')
               if (deleteAction) void handleMenuAction(deleteAction)
             }}>
             <Archive size={14} className="size-3.5!" />

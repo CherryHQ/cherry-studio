@@ -3,6 +3,7 @@ import { memo, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
+import type { MessageExportView } from '@renderer/types/messageExport'
 import { getComposerTextFromParts } from '@renderer/utils/message/composerTokens'
 import { canEditAssistantMessageParts, hasTextParts, hasTranslationParts } from '@renderer/utils/message/partsHelpers'
 import { classNames } from '@renderer/utils/style'
@@ -20,6 +21,8 @@ import { defaultMessageMenuConfig, type MessageListItem } from '../types'
 import { createMessageExportView } from '../utils/messageListItem'
 import {
   executeMessageMenuBarAction,
+  hasMessageMenuBarMenuActions,
+  hasMessageMenuBarTranslationItems,
   type MessageMenuBarActionContext,
   type MessageMenuBarResolvedAction,
   resolveMessageMenuBarMenuActions,
@@ -72,12 +75,6 @@ const MessageMenuBar: FC<Props> = (props) => {
 
   const messageParts = useMessageParts(message.id)
   const priorCitationParts = useMessagePriorCitationParts(message.id)
-  const messageForExport = useMemo(
-    () => createMessageExportView(message, messageParts, priorCitationParts),
-    [message, messageParts, priorCitationParts]
-  )
-
-  const mainTextContent = useMemo(() => getComposerTextFromParts(messageParts), [messageParts])
 
   const isTranslating = messageUi.isMessageTranslating?.(message.id) ?? false
 
@@ -92,16 +89,25 @@ const MessageMenuBar: FC<Props> = (props) => {
   const showMessageTokens = variant === 'footer' && (!isBubbleStyle || isAssistantMessage)
   const isUserBubbleStyleMessage = variant === 'footer' && isBubbleStyle && isUserMessage
 
-  const actionContext = useMemo<MessageMenuBarActionContext>(
-    () => ({
+  const actionContext = useMemo<MessageMenuBarActionContext>(() => {
+    let cachedMessageForExport: MessageExportView | undefined
+    let cachedMainTextContent: string | undefined
+
+    return {
       actions: actions.canDeleteMessage?.(message) === false ? { ...actions, deleteMessage: undefined } : actions,
       message,
       messageParts,
-      messageForExport,
+      get messageForExport() {
+        cachedMessageForExport ??= createMessageExportView(message, messageParts, priorCitationParts)
+        return cachedMessageForExport
+      },
       messageContainerRef,
       acquireMessageCaptureLease: messageMountLease?.acquireMessageMountLease,
       getRenderedMessageElement: messageMountLease?.getRenderedMessageElement,
-      mainTextContent,
+      get mainTextContent() {
+        cachedMainTextContent ??= getComposerTextFromParts(messageParts)
+        return cachedMainTextContent
+      },
       selection,
       menuConfig,
       copied,
@@ -121,40 +127,40 @@ const MessageMenuBar: FC<Props> = (props) => {
       startEditingMessage: onStartEditing,
       onSelectContext,
       t
-    }),
-    [
-      actions,
-      copied,
-      hasTranslationBlocks,
-      isAssistantMessage,
-      isEditable,
-      isGrouped,
-      isLastMessage,
-      isProcessing,
-      isTranslating,
-      isSelectedForContext,
-      isUserMessage,
-      mainTextContent,
-      menuConfig,
-      message,
-      messageContainerRef,
-      messageMountLease,
-      messageUi.getTranslationLanguageLabel,
-      messageUi.translationLanguagesStatus,
-      messageForExport,
-      messageParts,
-      onStartEditing,
-      onSelectContext,
-      selection,
-      setCopied,
-      t,
-      translateLanguages
-    ]
-  )
+    }
+  }, [
+    actions,
+    copied,
+    hasTranslationBlocks,
+    isAssistantMessage,
+    isEditable,
+    isGrouped,
+    isLastMessage,
+    isProcessing,
+    isTranslating,
+    isSelectedForContext,
+    isUserMessage,
+    menuConfig,
+    message,
+    messageContainerRef,
+    messageMountLease,
+    messageParts,
+    messageUi.getTranslationLanguageLabel,
+    messageUi.translationLanguagesStatus,
+    onStartEditing,
+    onSelectContext,
+    priorCitationParts,
+    selection,
+    setCopied,
+    t,
+    translateLanguages
+  ])
 
-  const menuActions = useMemo(() => resolveMessageMenuBarMenuActions(actionContext), [actionContext])
+  const hasMenuActions = useMemo(() => hasMessageMenuBarMenuActions(actionContext), [actionContext])
+  const getMenuActions = useCallback(() => resolveMessageMenuBarMenuActions(actionContext), [actionContext])
   const toolbarActions = useMemo(() => resolveMessageMenuBarToolbarActions(actionContext), [actionContext])
-  const translationItems = useMemo(() => resolveMessageMenuBarTranslationItems(actionContext), [actionContext])
+  const hasTranslationItems = useMemo(() => hasMessageMenuBarTranslationItems(actionContext), [actionContext])
+  const getTranslationItems = useCallback(() => resolveMessageMenuBarTranslationItems(actionContext), [actionContext])
 
   const executeAction = useCallback(
     async (action: MessageMenuBarResolvedAction) => {
@@ -178,10 +184,12 @@ const MessageMenuBar: FC<Props> = (props) => {
             action={action}
             actionContext={actionContext}
             executeAction={executeAction}
-            menuActions={menuActions}
+            hasMenuActions={hasMenuActions}
+            getMenuActions={getMenuActions}
             onMenuOpenChange={onMenuOpenChange}
             softHoverBg={softHoverBg}
-            translationItems={translationItems}
+            hasTranslationItems={hasTranslationItems}
+            getTranslationItems={getTranslationItems}
           />
         ))}
       </div>

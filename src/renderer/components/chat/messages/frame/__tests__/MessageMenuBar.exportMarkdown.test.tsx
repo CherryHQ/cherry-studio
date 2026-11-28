@@ -64,13 +64,16 @@ vi.mock('@renderer/components/command', async () => {
     CommandPopupMenu: ({
       children,
       extraItems = [],
+      getExtraItems,
       onOpenChange
     }: {
       children: ReactNode
       extraItems?: ExtraMenuItem[]
+      getExtraItems?: () => ExtraMenuItem[]
       onOpenChange?: (open: boolean) => void
     }) => {
       const [open, setOpen] = React.useState(false)
+      const resolvedItems = open ? (getExtraItems ? getExtraItems() : extraItems) : []
       const child = React.isValidElement<{ onClick?: (event: MouseEvent) => void }>(children) ? children : null
       const close = () => {
         setOpen(false)
@@ -90,7 +93,7 @@ vi.mock('@renderer/components/command', async () => {
       return (
         <>
           {trigger}
-          {open && <div role="menu">{renderExtraItems(extraItems, close)}</div>}
+          {open && <div role="menu">{renderExtraItems(resolvedItems, close)}</div>}
         </>
       )
     }

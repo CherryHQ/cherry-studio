@@ -68,13 +68,15 @@ export function AgentGroupMoreMenu({
     sidebarPinned,
     t
   }
-  const actions = resolveAgentGroupActions(actionContext)
-  const extraItems = actionsToCommandMenuExtraItems(actions, (action) => {
-    void executeAgentGroupAction(action, actionContext)
-  })
+  const getExtraItems = () => {
+    const actions = resolveAgentGroupActions(actionContext)
+    return actionsToCommandMenuExtraItems(actions, (action) => {
+      void executeAgentGroupAction(action, actionContext)
+    })
+  }
 
   return (
-    <CommandPopupMenu location="webcontents.context" extraItems={extraItems} align="end" side="bottom">
+    <CommandPopupMenu location="webcontents.context" getExtraItems={getExtraItems} align="end" side="bottom">
       <ResourceList.GroupHeaderActionButton
         type="button"
         aria-label={t('common.more')}
@@ -131,13 +133,15 @@ export function WorkdirGroupMoreMenu({
     t,
     workdirPath
   }
-  const actions = resolveWorkdirGroupActions(actionContext)
-  const extraItems = actionsToCommandMenuExtraItems(actions, (action) => {
-    void executeWorkdirGroupAction(action, actionContext)
-  })
+  const getExtraItems = () => {
+    const actions = resolveWorkdirGroupActions(actionContext)
+    return actionsToCommandMenuExtraItems(actions, (action) => {
+      void executeWorkdirGroupAction(action, actionContext)
+    })
+  }
 
   return (
-    <CommandPopupMenu location="webcontents.context" extraItems={extraItems} align="end" side="bottom">
+    <CommandPopupMenu location="webcontents.context" getExtraItems={getExtraItems} align="end" side="bottom">
       <ResourceList.GroupHeaderActionButton
         type="button"
         aria-label={t('common.more')}

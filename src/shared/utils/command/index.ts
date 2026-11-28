@@ -33,6 +33,7 @@ export {
 } from './keybindings'
 export {
   type CommandMenuState,
+  hasStaticMenuContributions,
   MENU_CONTRIBUTIONS,
   MenuRegistry,
   resolveMenu,

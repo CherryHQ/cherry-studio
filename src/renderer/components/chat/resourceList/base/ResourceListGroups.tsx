@@ -228,7 +228,7 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
   const selected = clickBehavior === 'select-first-then-toggle' && groupState.selected
   const groupHeaderContext = { collapsed }
   const groupHeaderAction = meta.getGroupHeaderAction?.(group)
-  const groupHeaderContextMenu = meta.getGroupHeaderContextMenu?.(group)
+  const hasGroupHeaderContextMenu = Boolean(meta.getGroupHeaderContextMenu)
   const groupHeaderLeadingAction = meta.getGroupHeaderLeadingAction?.(group, groupHeaderContext)
   const customGroupHeaderIcon = meta.getGroupHeaderIcon?.(group, groupHeaderContext)
   const groupHeaderLabelSuffix = meta.getGroupHeaderLabelSuffix?.(group)
@@ -280,9 +280,7 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
   )
 
   // Lazy: ContextMenuContent stays empty until right-click — stopPropagated bubbles must not reveal items.
-  const headerContextMenuItems =
-    groupHeaderContextMenu && groupHeaderContextMenu.length > 0 ? groupHeaderContextMenu : null
-  const resolveHeaderContextMenuItems = useCallback(() => headerContextMenuItems ?? [], [headerContextMenuItems])
+  const resolveHeaderContextMenuItems = useCallback(() => meta.getGroupHeaderContextMenu?.(group) ?? [], [group, meta])
 
   if (!group.label) return null
   // Type separates kinds of header, not click behaviour: rows naming a manageable entity (agent,
@@ -439,7 +437,7 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
   return (
     <CommandFocusScope rootRef={headerRef} context={{ 'resource.focused': true }}>
       <GroupHeaderPermanentDelete group={group} />
-      {headerContextMenuItems ? (
+      {hasGroupHeaderContextMenu ? (
         <CommandContextMenu location="webcontents.context" getExtraItems={resolveHeaderContextMenuItems}>
           {header}
         </CommandContextMenu>
