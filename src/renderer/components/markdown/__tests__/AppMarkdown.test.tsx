@@ -1,3 +1,4 @@
+import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { Components } from 'streamdown'
@@ -45,6 +46,28 @@ describe('AppMarkdown', () => {
       </AppMarkdown>
     )
     expect(screen.getByRole('textbox', { name: 'Code draft' })).toHaveValue('original\n')
+  })
+
+  it('keeps opted-out Mermaid as source after a partial streaming fence label', () => {
+    MockUsePreferenceUtils.setPreferenceValue('chat.code.mermaid.auto_render', false)
+    try {
+      const view = render(
+        <AppMarkdown id="mermaid-stream" isStreaming>
+          {'```mer'}
+        </AppMarkdown>,
+        { wrapper: CodeStyleProvider }
+      )
+      view.rerender(
+        <AppMarkdown id="mermaid-stream" isStreaming>
+          {'```mermaid\ngraph TD; A-->B\n```'}
+        </AppMarkdown>
+      )
+      expect(view.container.querySelector('.code-viewer')).not.toBeNull()
+      expect(view.container.querySelector('.code-viewer')).toHaveTextContent('graph TD; A-->B')
+      expect(view.container.querySelector('.special-view')).toBeNull()
+    } finally {
+      MockUsePreferenceUtils.setPreferenceValue('chat.code.mermaid.auto_render', true)
+    }
   })
 
   it('repairs the same bold URL in static and streaming content', () => {

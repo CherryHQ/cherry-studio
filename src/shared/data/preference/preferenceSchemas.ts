@@ -176,6 +176,8 @@ export interface PreferenceSchemas {
     'chat.code.fancy_block': boolean
     // redux/settings/codeImageTools
     'chat.code.image_tools': boolean
+    // target-key-definitions/complex/complex
+    'chat.code.mermaid.auto_render': boolean
     // redux/settings/codePreview.themeDark
     'chat.code.preview.theme_dark': string
     // redux/settings/codePreview.themeLight
@@ -812,6 +814,7 @@ export const DefaultPreferences: PreferenceSchemas = {
     'chat.code.execution.timeout_minutes': 1,
     'chat.code.fancy_block': true,
     'chat.code.image_tools': false,
+    'chat.code.mermaid.auto_render': true,
     'chat.code.preview.theme_dark': 'auto',
     'chat.code.preview.theme_light': 'auto',
     'chat.code.show_line_numbers': false,

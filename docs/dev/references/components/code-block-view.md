@@ -69,7 +69,8 @@ Initial behavior:
 
 - Ordinary code starts in `source`; the edit action lazily opens CodeMirror when editing is enabled.
 - Ordinary code that starts streaming uses `source` and stays on the same Viewer when the stream settles.
-- Special languages start in `special`.
+- Special languages start in `special`, except Mermaid starts in `source` when `chat.code.mermaid.auto_render` is false (the default is true).
+- If a streamed language label becomes Mermaid later, that preference is applied unless the user has already chosen a view. Manual source, preview, edit and split choices remain in place.
 
 Entering split mode remembers the previous mode. A split entered from edit keeps the Editor on the source side; other
 split paths use the Viewer.

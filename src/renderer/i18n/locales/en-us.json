@@ -1164,6 +1164,7 @@
   "chat.settings.code_image_tools.tip": "Enable preview tools for images rendered from code blocks such as mermaid",
   "chat.settings.code_theme.cherry_default": "Cherry (default)",
   "chat.settings.code_wrappable": "Code block wrappable",
+  "chat.settings.mermaid_auto_render": "Auto-render Mermaid diagrams",
   "chat.settings.show_line_numbers": "Show line numbers in code",
   "chat.settings.thought_auto_collapse.label": "Collapse Thought Content",
   "chat.settings.thought_auto_collapse.tip": "Keep reasoning collapsed by default from the start",
