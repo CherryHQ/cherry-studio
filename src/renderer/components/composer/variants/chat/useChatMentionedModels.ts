@@ -7,6 +7,9 @@ interface UseMentionedModelSelectorParams {
   enabled: boolean | undefined
   runtimeModel: Model | undefined
   runtimeModelPending: boolean
+  /** Model last used in this topic; seeds the selector when the topic is opened. */
+  topicLastModel?: Model
+  topicLastModelPending?: boolean
   selectedAssistantId: string | null
   topicId: string
   mentionedModels: Model[]
@@ -35,6 +38,8 @@ export function useChatMentionedModels({
   enabled,
   runtimeModel,
   runtimeModelPending,
+  topicLastModel,
+  topicLastModelPending = false,
   selectedAssistantId,
   topicId,
   mentionedModels,
@@ -48,13 +53,21 @@ export function useChatMentionedModels({
   const mentionedModelMultiSelectModeRef = useRef(mentionedModelMultiSelectMode)
   const mentionedModelSelectorValueRef = useRef(mentionedModelSelectorValue)
   const mentionedModelsRef = useRef(mentionedModels)
+  const explicitSelectionScopeRef = useRef<string | null>(null)
   const selectorScopeKeyRef = useRef<string | null>(null)
   mentionedModelMultiSelectModeRef.current = mentionedModelMultiSelectMode
   mentionedModelSelectorValueRef.current = mentionedModelSelectorValue
   mentionedModelsRef.current = mentionedModels
 
   const initializeMentionedModelSelector = useEffectEvent(
-    (isInitialSelection: boolean, preserveExplicitSelection: boolean, selectedModel?: Model) => {
+    (
+      isInitialSelection: boolean,
+      preserveExplicitSelection: boolean,
+      selectedModel?: Model,
+      ownsPendingSelection = false
+    ) => {
+      // A pending-history edit owns the whole selector, including mode and an empty value.
+      if (ownsPendingSelection) return
       const currentMentionedModels = mentionedModelsRef.current
       const keepCurrentSelection = preserveExplicitSelection && currentMentionedModels.length > 0
       setMentionedModelSelectorValue(
@@ -86,6 +99,9 @@ export function useChatMentionedModels({
     }
 
     const selectorScopeKey = `${topicId}:${selectedAssistantId ?? 'no-assistant'}`
+    const isNewSelectorScope = selectorScopeKeyRef.current !== selectorScopeKey
+    if (isNewSelectorScope && topicLastModelPending) return
+    const seedModel = isNewSelectorScope ? (topicLastModel ?? runtimeModel) : runtimeModel
     const initializationKey = `${selectorScopeKey}:${runtimeModel?.id ?? 'no-model'}`
     if (mentionedModelSelectorInitKeyRef.current === initializationKey) return
 
@@ -95,12 +111,18 @@ export function useChatMentionedModels({
     selectorScopeKeyRef.current = selectorScopeKey
     initializeMentionedModelSelector(
       isInitialSelection,
-      Boolean(preserveExplicitSelectionOnRuntimeChange && isSameSelectorScope),
-      runtimeModel
+      Boolean(
+        (preserveExplicitSelectionOnRuntimeChange && isSameSelectorScope) ||
+        (isNewSelectorScope && explicitSelectionScopeRef.current === selectorScopeKey)
+      ),
+      seedModel,
+      isNewSelectorScope && explicitSelectionScopeRef.current === selectorScopeKey
     )
   }, [
     runtimeModel,
     runtimeModelPending,
+    topicLastModel,
+    topicLastModelPending,
     selectedAssistantId,
     topicId,
     enabled,
@@ -109,6 +131,7 @@ export function useChatMentionedModels({
 
   const handleMentionedModelsSelect = useCallback(
     (nextModels: Model[]) => {
+      explicitSelectionScopeRef.current = `${topicId}:${selectedAssistantId ?? 'no-assistant'}`
       setMentionedModelSelectorValue(nextModels)
       if (mentionedModelMultiSelectModeRef.current) {
         setMentionedModels(nextModels)
@@ -119,11 +142,12 @@ export function useChatMentionedModels({
       const [nextModel] = nextModels
       if (nextModel) onModelSelect(nextModel)
     },
-    [onModelSelect, setMentionedModels]
+    [onModelSelect, setMentionedModels, topicId, selectedAssistantId]
   )
 
   const handleMentionedModelMultiSelectModeChange = useCallback(
     (nextEnabled: boolean) => {
+      explicitSelectionScopeRef.current = `${topicId}:${selectedAssistantId ?? 'no-assistant'}`
       mentionedModelMultiSelectModeRef.current = nextEnabled
       setMentionedModelMultiSelectMode(nextEnabled)
 
@@ -135,7 +159,7 @@ export function useChatMentionedModels({
       setMentionedModelSelectorValue(collapsedModels)
       setMentionedModels(collapsedModels)
     },
-    [setMentionedModels]
+    [setMentionedModels, topicId, selectedAssistantId]
   )
 
   const handleMentionedModelSelectorRestore = useCallback(() => {
@@ -159,9 +183,10 @@ export function useChatMentionedModels({
 
   const restoreMentionedModelDraft = useCallback(
     (models: Model[], multiSelectMode: boolean) => {
+      explicitSelectionScopeRef.current = `${topicId}:${selectedAssistantId ?? 'no-assistant'}`
       restoreMentionedModelSelection(models, models, multiSelectMode)
     },
-    [restoreMentionedModelSelection]
+    [restoreMentionedModelSelection, topicId, selectedAssistantId]
   )
 
   return {
