@@ -182,6 +182,7 @@ const ChatContentInner: FC<InnerProps> = ({
     isHistoryLoading,
     replyHistory,
     uiMessages,
+    siblingsMap,
     displayIndex,
     refresh,
     activeNodeId,

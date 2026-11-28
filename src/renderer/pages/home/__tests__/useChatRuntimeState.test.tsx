@@ -178,6 +178,7 @@ function RuntimeHost({
       return index < 0 ? undefined : index
     },
     uiMessages: messages,
+    siblingsMap: {},
     refresh: mocks.refresh,
     replyHistory: {
       layout: {},
