@@ -34,13 +34,13 @@ export {
 export { useResolvedCommand } from './useResolvedCommand'
 export { useResolvedCommandMenu } from './useResolvedCommandMenu'
 
-export type { FocusScopeOptions } from './commandFocusScope'
+export type { CommandInvocation, FocusScopeOptions } from './commandFocusScope'
 export {
   CommandFocusHostContext,
   CommandFocusRegistry,
   CommandFocusScopeContext,
   CommandFocusScopeState,
-  findScopeHandler,
+  isCommandInvocationActive,
   readScopeContext,
   readRegisteredHandler
 } from './commandFocusScope'

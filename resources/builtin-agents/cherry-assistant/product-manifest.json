@@ -129,6 +129,9 @@
       "titleKey": "settings.shortcuts.exit_fullscreen",
       "categoryKey": "settings.shortcuts.general",
       "scope": "renderer",
+      "renderer": {
+        "target": "window"
+      },
       "keybinding": {
         "defaultBinding": [
           "Escape"
@@ -143,6 +146,9 @@
       "titleKey": "settings.shortcuts.search_message",
       "categoryKey": "settings.shortcuts.general",
       "scope": "renderer",
+      "renderer": {
+        "target": "window"
+      },
       "keybinding": {
         "defaultBinding": [
           "CommandOrControl",
@@ -156,6 +162,9 @@
       "titleKey": "settings.shortcuts.print",
       "categoryKey": "settings.shortcuts.general",
       "scope": "renderer",
+      "renderer": {
+        "target": "focused"
+      },
       "keybinding": {
         "defaultBinding": [
           "CommandOrControl",
@@ -168,6 +177,9 @@
       "titleKey": "settings.shortcuts.toggle_left_sidebar",
       "categoryKey": "settings.shortcuts.topic",
       "scope": "renderer",
+      "renderer": {
+        "target": "focused"
+      },
       "keybinding": {
         "defaultBinding": [
           "CommandOrControl",
@@ -180,6 +192,9 @@
       "titleKey": "settings.shortcuts.open_sidebar_item_1",
       "categoryKey": "settings.shortcuts.general",
       "scope": "renderer",
+      "renderer": {
+        "target": "active-tab"
+      },
       "keybinding": {
         "defaultBinding": [
           "CommandOrControl",
@@ -193,6 +208,9 @@
       "titleKey": "settings.shortcuts.open_sidebar_item_2",
       "categoryKey": "settings.shortcuts.general",
       "scope": "renderer",
+      "renderer": {
+        "target": "active-tab"
+      },
       "keybinding": {
         "defaultBinding": [
           "CommandOrControl",
@@ -206,6 +224,9 @@
       "titleKey": "settings.shortcuts.open_sidebar_item_3",
       "categoryKey": "settings.shortcuts.general",
       "scope": "renderer",
+      "renderer": {
+        "target": "active-tab"
+      },
       "keybinding": {
         "defaultBinding": [
           "CommandOrControl",
@@ -219,6 +240,9 @@
       "titleKey": "settings.shortcuts.open_sidebar_item_4",
       "categoryKey": "settings.shortcuts.general",
       "scope": "renderer",
+      "renderer": {
+        "target": "active-tab"
+      },
       "keybinding": {
         "defaultBinding": [
           "CommandOrControl",
@@ -232,6 +256,9 @@
       "titleKey": "settings.shortcuts.open_sidebar_item_5",
       "categoryKey": "settings.shortcuts.general",
       "scope": "renderer",
+      "renderer": {
+        "target": "active-tab"
+      },
       "keybinding": {
         "defaultBinding": [
           "CommandOrControl",
@@ -245,6 +272,9 @@
       "titleKey": "settings.shortcuts.open_sidebar_item_6",
       "categoryKey": "settings.shortcuts.general",
       "scope": "renderer",
+      "renderer": {
+        "target": "active-tab"
+      },
       "keybinding": {
         "defaultBinding": [
           "CommandOrControl",
@@ -258,6 +288,9 @@
       "titleKey": "settings.shortcuts.open_sidebar_item_7",
       "categoryKey": "settings.shortcuts.general",
       "scope": "renderer",
+      "renderer": {
+        "target": "active-tab"
+      },
       "keybinding": {
         "defaultBinding": [
           "CommandOrControl",
@@ -271,6 +304,9 @@
       "titleKey": "settings.shortcuts.open_sidebar_item_8",
       "categoryKey": "settings.shortcuts.general",
       "scope": "renderer",
+      "renderer": {
+        "target": "active-tab"
+      },
       "keybinding": {
         "defaultBinding": [
           "CommandOrControl",
@@ -284,6 +320,9 @@
       "titleKey": "settings.shortcuts.open_sidebar_item_9",
       "categoryKey": "settings.shortcuts.general",
       "scope": "renderer",
+      "renderer": {
+        "target": "active-tab"
+      },
       "keybinding": {
         "defaultBinding": [
           "CommandOrControl",
@@ -393,6 +432,9 @@
       "titleKey": "settings.shortcuts.open_workspace",
       "categoryKey": "settings.shortcuts.chat",
       "scope": "renderer",
+      "renderer": {
+        "target": "focused"
+      },
       "keybinding": {
         "defaultBinding": [
           "CommandOrControl",
@@ -406,6 +448,9 @@
       "titleKey": "settings.shortcuts.focus_input",
       "categoryKey": "settings.shortcuts.chat",
       "scope": "renderer",
+      "renderer": {
+        "target": "focused"
+      },
       "keybinding": {
         "defaultBinding": [
           "CommandOrControl",
@@ -419,6 +464,9 @@
       "titleKey": "settings.shortcuts.toggle_new_context",
       "categoryKey": "settings.shortcuts.chat",
       "scope": "renderer",
+      "renderer": {
+        "target": "focused"
+      },
       "keybinding": {
         "defaultBinding": [
           "CommandOrControl",
@@ -431,6 +479,9 @@
       "titleKey": "settings.shortcuts.copy_last_message",
       "categoryKey": "settings.shortcuts.chat",
       "scope": "renderer",
+      "renderer": {
+        "target": "focused"
+      },
       "keybinding": {
         "defaultBinding": [
           "CommandOrControl",
@@ -458,6 +509,9 @@
       "titleKey": "settings.shortcuts.edit_last_user_message",
       "categoryKey": "settings.shortcuts.chat",
       "scope": "renderer",
+      "renderer": {
+        "target": "focused"
+      },
       "keybinding": {
         "defaultBinding": [
           "CommandOrControl",
@@ -471,6 +525,9 @@
       "titleKey": "settings.shortcuts.search_message_in_chat",
       "categoryKey": "settings.shortcuts.chat",
       "scope": "renderer",
+      "renderer": {
+        "target": "focused"
+      },
       "keybinding": {
         "defaultBinding": [
           "CommandOrControl",
@@ -483,6 +540,9 @@
       "titleKey": "settings.shortcuts.select_model",
       "categoryKey": "settings.shortcuts.chat",
       "scope": "renderer",
+      "renderer": {
+        "target": "focused"
+      },
       "keybinding": {
         "defaultBinding": [
           "CommandOrControl",
@@ -566,6 +626,9 @@
       "titleKey": "chat.topics.clear.title",
       "categoryKey": "settings.shortcuts.topic",
       "scope": "renderer",
+      "renderer": {
+        "target": "focused"
+      },
       "keybinding": {
         "defaultBinding": [
           "CommandOrControl",
@@ -578,6 +641,9 @@
       "titleKey": "settings.shortcuts.new_topic",
       "categoryKey": "settings.shortcuts.topic",
       "scope": "renderer",
+      "renderer": {
+        "target": "focused"
+      },
       "keybinding": {
         "defaultBinding": [
           "CommandOrControl",
@@ -590,6 +656,9 @@
       "titleKey": "settings.shortcuts.rename_topic",
       "categoryKey": "settings.shortcuts.topic",
       "scope": "renderer",
+      "renderer": {
+        "target": "focused"
+      },
       "keybinding": {
         "defaultBinding": [
           "CommandOrControl",
@@ -602,6 +671,9 @@
       "titleKey": "settings.shortcuts.toggle_right_sidebar",
       "categoryKey": "settings.shortcuts.topic",
       "scope": "renderer",
+      "renderer": {
+        "target": "focused"
+      },
       "keybinding": {
         "defaultBinding": [
           "CommandOrControl",
@@ -614,6 +686,9 @@
       "titleKey": "settings.shortcuts.delete_current_list_item",
       "categoryKey": "settings.shortcuts.topic",
       "scope": "renderer",
+      "renderer": {
+        "target": "focused"
+      },
       "keybinding": {
         "defaultBinding": [
           "CommandOrControl",
@@ -627,6 +702,9 @@
       "titleKey": "settings.shortcuts.next_assistant",
       "categoryKey": "settings.shortcuts.topic",
       "scope": "renderer",
+      "renderer": {
+        "target": "focused"
+      },
       "keybinding": {
         "defaultBinding": [
           "CommandOrControl",
@@ -640,6 +718,9 @@
       "titleKey": "settings.shortcuts.prev_assistant",
       "categoryKey": "settings.shortcuts.topic",
       "scope": "renderer",
+      "renderer": {
+        "target": "focused"
+      },
       "keybinding": {
         "defaultBinding": [
           "CommandOrControl",
@@ -653,6 +734,9 @@
       "titleKey": "settings.shortcuts.next_topic",
       "categoryKey": "settings.shortcuts.topic",
       "scope": "renderer",
+      "renderer": {
+        "target": "focused"
+      },
       "keybinding": {
         "defaultBinding": [
           "CommandOrControl",
@@ -666,6 +750,9 @@
       "titleKey": "settings.shortcuts.prev_topic",
       "categoryKey": "settings.shortcuts.topic",
       "scope": "renderer",
+      "renderer": {
+        "target": "focused"
+      },
       "keybinding": {
         "defaultBinding": [
           "CommandOrControl",
@@ -679,6 +766,9 @@
       "titleKey": "settings.shortcuts.close_tab",
       "categoryKey": "settings.shortcuts.general",
       "scope": "renderer",
+      "renderer": {
+        "target": "window"
+      },
       "keybinding": {
         "defaultBinding": [
           "CommandOrControl",
@@ -691,6 +781,9 @@
       "titleKey": "settings.shortcuts.number_keys.tabs",
       "categoryKey": "settings.shortcuts.general",
       "scope": "renderer",
+      "renderer": {
+        "target": "window"
+      },
       "keybinding": {
         "defaultBinding": {
           "default": [
@@ -710,6 +803,9 @@
       "titleKey": "settings.shortcuts.number_keys.tabs",
       "categoryKey": "settings.shortcuts.general",
       "scope": "renderer",
+      "renderer": {
+        "target": "window"
+      },
       "keybinding": {
         "defaultBinding": {
           "default": [
@@ -729,6 +825,9 @@
       "titleKey": "settings.shortcuts.number_keys.tabs",
       "categoryKey": "settings.shortcuts.general",
       "scope": "renderer",
+      "renderer": {
+        "target": "window"
+      },
       "keybinding": {
         "defaultBinding": {
           "default": [
@@ -748,6 +847,9 @@
       "titleKey": "settings.shortcuts.number_keys.tabs",
       "categoryKey": "settings.shortcuts.general",
       "scope": "renderer",
+      "renderer": {
+        "target": "window"
+      },
       "keybinding": {
         "defaultBinding": {
           "default": [
@@ -767,6 +869,9 @@
       "titleKey": "settings.shortcuts.number_keys.tabs",
       "categoryKey": "settings.shortcuts.general",
       "scope": "renderer",
+      "renderer": {
+        "target": "window"
+      },
       "keybinding": {
         "defaultBinding": {
           "default": [
@@ -786,6 +891,9 @@
       "titleKey": "settings.shortcuts.number_keys.tabs",
       "categoryKey": "settings.shortcuts.general",
       "scope": "renderer",
+      "renderer": {
+        "target": "window"
+      },
       "keybinding": {
         "defaultBinding": {
           "default": [
@@ -805,6 +913,9 @@
       "titleKey": "settings.shortcuts.number_keys.tabs",
       "categoryKey": "settings.shortcuts.general",
       "scope": "renderer",
+      "renderer": {
+        "target": "window"
+      },
       "keybinding": {
         "defaultBinding": {
           "default": [
@@ -824,6 +935,9 @@
       "titleKey": "settings.shortcuts.number_keys.tabs",
       "categoryKey": "settings.shortcuts.general",
       "scope": "renderer",
+      "renderer": {
+        "target": "window"
+      },
       "keybinding": {
         "defaultBinding": {
           "default": [
@@ -843,6 +957,9 @@
       "titleKey": "settings.shortcuts.number_keys.tabs",
       "categoryKey": "settings.shortcuts.general",
       "scope": "renderer",
+      "renderer": {
+        "target": "window"
+      },
       "keybinding": {
         "defaultBinding": {
           "default": [
@@ -862,6 +979,9 @@
       "titleKey": "settings.shortcuts.next_tab",
       "categoryKey": "settings.shortcuts.general",
       "scope": "renderer",
+      "renderer": {
+        "target": "window"
+      },
       "keybinding": {
         "defaultBinding": {
           "default": [
@@ -880,6 +1000,9 @@
       "titleKey": "settings.shortcuts.prev_tab",
       "categoryKey": "settings.shortcuts.general",
       "scope": "renderer",
+      "renderer": {
+        "target": "window"
+      },
       "keybinding": {
         "defaultBinding": {
           "default": [

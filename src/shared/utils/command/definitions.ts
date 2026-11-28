@@ -16,6 +16,7 @@ export const COMMAND_DEFINITIONS = [
     titleKey: 'settings.shortcuts.exit_fullscreen',
     categoryKey: 'settings.shortcuts.general',
     scope: 'renderer',
+    renderer: { target: 'window' },
     keybinding: {
       defaultBinding: ['Escape'],
       editable: false,
@@ -29,6 +30,7 @@ export const COMMAND_DEFINITIONS = [
     titleKey: 'settings.shortcuts.search_message',
     categoryKey: 'settings.shortcuts.general',
     scope: 'renderer',
+    renderer: { target: 'window' },
     keybinding: {
       defaultBinding: ['CommandOrControl', 'Shift', 'F']
     }
@@ -38,6 +40,7 @@ export const COMMAND_DEFINITIONS = [
     titleKey: 'settings.shortcuts.print',
     categoryKey: 'settings.shortcuts.general',
     scope: 'renderer',
+    renderer: { target: 'focused' },
     keybinding: {
       defaultBinding: ['CommandOrControl', 'P']
     }
@@ -47,6 +50,7 @@ export const COMMAND_DEFINITIONS = [
     titleKey: 'settings.shortcuts.toggle_left_sidebar',
     categoryKey: 'settings.shortcuts.topic',
     scope: 'renderer',
+    renderer: { target: 'focused' },
     keybinding: {
       defaultBinding: ['CommandOrControl', '[']
     }
@@ -56,6 +60,7 @@ export const COMMAND_DEFINITIONS = [
     titleKey: 'settings.shortcuts.open_sidebar_item_1',
     categoryKey: 'settings.shortcuts.general',
     scope: 'renderer',
+    renderer: { target: 'active-tab' },
     keybinding: {
       defaultBinding: ['CommandOrControl', '1'],
       when: '!webview.focused'
@@ -66,6 +71,7 @@ export const COMMAND_DEFINITIONS = [
     titleKey: 'settings.shortcuts.open_sidebar_item_2',
     categoryKey: 'settings.shortcuts.general',
     scope: 'renderer',
+    renderer: { target: 'active-tab' },
     keybinding: {
       defaultBinding: ['CommandOrControl', '2'],
       when: '!webview.focused'
@@ -76,6 +82,7 @@ export const COMMAND_DEFINITIONS = [
     titleKey: 'settings.shortcuts.open_sidebar_item_3',
     categoryKey: 'settings.shortcuts.general',
     scope: 'renderer',
+    renderer: { target: 'active-tab' },
     keybinding: {
       defaultBinding: ['CommandOrControl', '3'],
       when: '!webview.focused'
@@ -86,6 +93,7 @@ export const COMMAND_DEFINITIONS = [
     titleKey: 'settings.shortcuts.open_sidebar_item_4',
     categoryKey: 'settings.shortcuts.general',
     scope: 'renderer',
+    renderer: { target: 'active-tab' },
     keybinding: {
       defaultBinding: ['CommandOrControl', '4'],
       when: '!webview.focused'
@@ -96,6 +104,7 @@ export const COMMAND_DEFINITIONS = [
     titleKey: 'settings.shortcuts.open_sidebar_item_5',
     categoryKey: 'settings.shortcuts.general',
     scope: 'renderer',
+    renderer: { target: 'active-tab' },
     keybinding: {
       defaultBinding: ['CommandOrControl', '5'],
       when: '!webview.focused'
@@ -106,6 +115,7 @@ export const COMMAND_DEFINITIONS = [
     titleKey: 'settings.shortcuts.open_sidebar_item_6',
     categoryKey: 'settings.shortcuts.general',
     scope: 'renderer',
+    renderer: { target: 'active-tab' },
     keybinding: {
       defaultBinding: ['CommandOrControl', '6'],
       when: '!webview.focused'
@@ -116,6 +126,7 @@ export const COMMAND_DEFINITIONS = [
     titleKey: 'settings.shortcuts.open_sidebar_item_7',
     categoryKey: 'settings.shortcuts.general',
     scope: 'renderer',
+    renderer: { target: 'active-tab' },
     keybinding: {
       defaultBinding: ['CommandOrControl', '7'],
       when: '!webview.focused'
@@ -126,6 +137,7 @@ export const COMMAND_DEFINITIONS = [
     titleKey: 'settings.shortcuts.open_sidebar_item_8',
     categoryKey: 'settings.shortcuts.general',
     scope: 'renderer',
+    renderer: { target: 'active-tab' },
     keybinding: {
       defaultBinding: ['CommandOrControl', '8'],
       when: '!webview.focused'
@@ -136,6 +148,7 @@ export const COMMAND_DEFINITIONS = [
     titleKey: 'settings.shortcuts.open_sidebar_item_9',
     categoryKey: 'settings.shortcuts.general',
     scope: 'renderer',
+    renderer: { target: 'active-tab' },
     keybinding: {
       defaultBinding: ['CommandOrControl', '9'],
       when: '!webview.focused'
@@ -215,6 +228,7 @@ export const COMMAND_DEFINITIONS = [
     titleKey: 'settings.shortcuts.open_workspace',
     categoryKey: 'settings.shortcuts.chat',
     scope: 'renderer',
+    renderer: { target: 'focused' },
     keybinding: {
       defaultBinding: ['CommandOrControl', 'O'],
       when: '!webview.focused'
@@ -225,6 +239,7 @@ export const COMMAND_DEFINITIONS = [
     titleKey: 'settings.shortcuts.focus_input',
     categoryKey: 'settings.shortcuts.chat',
     scope: 'renderer',
+    renderer: { target: 'focused' },
     keybinding: {
       defaultBinding: ['CommandOrControl', 'I'],
       when: '!webview.focused'
@@ -235,6 +250,7 @@ export const COMMAND_DEFINITIONS = [
     titleKey: 'settings.shortcuts.toggle_new_context',
     categoryKey: 'settings.shortcuts.chat',
     scope: 'renderer',
+    renderer: { target: 'focused' },
     keybinding: {
       defaultBinding: ['CommandOrControl', 'K']
     }
@@ -244,6 +260,7 @@ export const COMMAND_DEFINITIONS = [
     titleKey: 'settings.shortcuts.copy_last_message',
     categoryKey: 'settings.shortcuts.chat',
     scope: 'renderer',
+    renderer: { target: 'focused' },
     keybinding: {
       defaultBinding: ['CommandOrControl', 'Shift', 'C']
     }
@@ -263,6 +280,7 @@ export const COMMAND_DEFINITIONS = [
     titleKey: 'settings.shortcuts.edit_last_user_message',
     categoryKey: 'settings.shortcuts.chat',
     scope: 'renderer',
+    renderer: { target: 'focused' },
     keybinding: {
       defaultBinding: ['CommandOrControl', 'Shift', 'E']
     }
@@ -272,6 +290,7 @@ export const COMMAND_DEFINITIONS = [
     titleKey: 'settings.shortcuts.search_message_in_chat',
     categoryKey: 'settings.shortcuts.chat',
     scope: 'renderer',
+    renderer: { target: 'focused' },
     keybinding: {
       defaultBinding: ['CommandOrControl', 'F']
     }
@@ -281,6 +300,7 @@ export const COMMAND_DEFINITIONS = [
     titleKey: 'settings.shortcuts.select_model',
     categoryKey: 'settings.shortcuts.chat',
     scope: 'renderer',
+    renderer: { target: 'focused' },
     keybinding: {
       defaultBinding: ['CommandOrControl', 'Shift', 'M']
     }
@@ -341,6 +361,7 @@ export const COMMAND_DEFINITIONS = [
     titleKey: 'chat.topics.clear.title',
     categoryKey: 'settings.shortcuts.topic',
     scope: 'renderer',
+    renderer: { target: 'focused' },
     keybinding: {
       defaultBinding: ['CommandOrControl', 'L']
     }
@@ -350,6 +371,7 @@ export const COMMAND_DEFINITIONS = [
     titleKey: 'settings.shortcuts.new_topic',
     categoryKey: 'settings.shortcuts.topic',
     scope: 'renderer',
+    renderer: { target: 'focused' },
     keybinding: {
       defaultBinding: ['CommandOrControl', 'N']
     }
@@ -359,6 +381,7 @@ export const COMMAND_DEFINITIONS = [
     titleKey: 'settings.shortcuts.rename_topic',
     categoryKey: 'settings.shortcuts.topic',
     scope: 'renderer',
+    renderer: { target: 'focused' },
     keybinding: {
       defaultBinding: ['CommandOrControl', 'T']
     }
@@ -368,6 +391,7 @@ export const COMMAND_DEFINITIONS = [
     titleKey: 'settings.shortcuts.toggle_right_sidebar',
     categoryKey: 'settings.shortcuts.topic',
     scope: 'renderer',
+    renderer: { target: 'focused' },
     keybinding: {
       defaultBinding: ['CommandOrControl', ']']
     }
@@ -377,6 +401,7 @@ export const COMMAND_DEFINITIONS = [
     titleKey: 'settings.shortcuts.delete_current_list_item',
     categoryKey: 'settings.shortcuts.topic',
     scope: 'renderer',
+    renderer: { target: 'focused' },
     keybinding: {
       defaultBinding: ['CommandOrControl', 'Backspace'],
       when: 'resource.focused && !input.focused'
@@ -387,6 +412,7 @@ export const COMMAND_DEFINITIONS = [
     titleKey: 'settings.shortcuts.next_assistant',
     categoryKey: 'settings.shortcuts.topic',
     scope: 'renderer',
+    renderer: { target: 'focused' },
     keybinding: {
       defaultBinding: ['CommandOrControl', 'Alt', 'Right']
     }
@@ -396,6 +422,7 @@ export const COMMAND_DEFINITIONS = [
     titleKey: 'settings.shortcuts.prev_assistant',
     categoryKey: 'settings.shortcuts.topic',
     scope: 'renderer',
+    renderer: { target: 'focused' },
     keybinding: {
       defaultBinding: ['CommandOrControl', 'Alt', 'Left']
     }
@@ -405,6 +432,7 @@ export const COMMAND_DEFINITIONS = [
     titleKey: 'settings.shortcuts.next_topic',
     categoryKey: 'settings.shortcuts.topic',
     scope: 'renderer',
+    renderer: { target: 'focused' },
     keybinding: {
       defaultBinding: ['CommandOrControl', 'Alt', 'Down']
     }
@@ -414,6 +442,7 @@ export const COMMAND_DEFINITIONS = [
     titleKey: 'settings.shortcuts.prev_topic',
     categoryKey: 'settings.shortcuts.topic',
     scope: 'renderer',
+    renderer: { target: 'focused' },
     keybinding: {
       defaultBinding: ['CommandOrControl', 'Alt', 'Up']
     }
@@ -423,6 +452,7 @@ export const COMMAND_DEFINITIONS = [
     titleKey: 'settings.shortcuts.close_tab',
     categoryKey: 'settings.shortcuts.general',
     scope: 'renderer',
+    renderer: { target: 'window' },
     keybinding: {
       defaultBinding: ['CommandOrControl', 'W']
     }
@@ -432,6 +462,7 @@ export const COMMAND_DEFINITIONS = [
     titleKey: 'settings.shortcuts.number_keys.tabs',
     categoryKey: 'settings.shortcuts.general',
     scope: 'renderer',
+    renderer: { target: 'window' },
     keybinding: {
       defaultBinding: { default: ['Alt', '1'], darwin: ['Ctrl', '1'] },
       when: '!webview.focused'
@@ -442,6 +473,7 @@ export const COMMAND_DEFINITIONS = [
     titleKey: 'settings.shortcuts.number_keys.tabs',
     categoryKey: 'settings.shortcuts.general',
     scope: 'renderer',
+    renderer: { target: 'window' },
     keybinding: {
       defaultBinding: { default: ['Alt', '2'], darwin: ['Ctrl', '2'] },
       when: '!webview.focused'
@@ -452,6 +484,7 @@ export const COMMAND_DEFINITIONS = [
     titleKey: 'settings.shortcuts.number_keys.tabs',
     categoryKey: 'settings.shortcuts.general',
     scope: 'renderer',
+    renderer: { target: 'window' },
     keybinding: {
       defaultBinding: { default: ['Alt', '3'], darwin: ['Ctrl', '3'] },
       when: '!webview.focused'
@@ -462,6 +495,7 @@ export const COMMAND_DEFINITIONS = [
     titleKey: 'settings.shortcuts.number_keys.tabs',
     categoryKey: 'settings.shortcuts.general',
     scope: 'renderer',
+    renderer: { target: 'window' },
     keybinding: {
       defaultBinding: { default: ['Alt', '4'], darwin: ['Ctrl', '4'] },
       when: '!webview.focused'
@@ -472,6 +506,7 @@ export const COMMAND_DEFINITIONS = [
     titleKey: 'settings.shortcuts.number_keys.tabs',
     categoryKey: 'settings.shortcuts.general',
     scope: 'renderer',
+    renderer: { target: 'window' },
     keybinding: {
       defaultBinding: { default: ['Alt', '5'], darwin: ['Ctrl', '5'] },
       when: '!webview.focused'
@@ -482,6 +517,7 @@ export const COMMAND_DEFINITIONS = [
     titleKey: 'settings.shortcuts.number_keys.tabs',
     categoryKey: 'settings.shortcuts.general',
     scope: 'renderer',
+    renderer: { target: 'window' },
     keybinding: {
       defaultBinding: { default: ['Alt', '6'], darwin: ['Ctrl', '6'] },
       when: '!webview.focused'
@@ -492,6 +528,7 @@ export const COMMAND_DEFINITIONS = [
     titleKey: 'settings.shortcuts.number_keys.tabs',
     categoryKey: 'settings.shortcuts.general',
     scope: 'renderer',
+    renderer: { target: 'window' },
     keybinding: {
       defaultBinding: { default: ['Alt', '7'], darwin: ['Ctrl', '7'] },
       when: '!webview.focused'
@@ -502,6 +539,7 @@ export const COMMAND_DEFINITIONS = [
     titleKey: 'settings.shortcuts.number_keys.tabs',
     categoryKey: 'settings.shortcuts.general',
     scope: 'renderer',
+    renderer: { target: 'window' },
     keybinding: {
       defaultBinding: { default: ['Alt', '8'], darwin: ['Ctrl', '8'] },
       when: '!webview.focused'
@@ -512,6 +550,7 @@ export const COMMAND_DEFINITIONS = [
     titleKey: 'settings.shortcuts.number_keys.tabs',
     categoryKey: 'settings.shortcuts.general',
     scope: 'renderer',
+    renderer: { target: 'window' },
     keybinding: {
       defaultBinding: { default: ['Alt', '9'], darwin: ['Ctrl', '9'] },
       when: '!webview.focused'
@@ -522,6 +561,7 @@ export const COMMAND_DEFINITIONS = [
     titleKey: 'settings.shortcuts.next_tab',
     categoryKey: 'settings.shortcuts.general',
     scope: 'renderer',
+    renderer: { target: 'window' },
     keybinding: {
       // macOS reserves Cmd+Tab for the system app switcher.
       defaultBinding: { default: ['CommandOrControl', 'Tab'], darwin: ['Ctrl', 'Tab'] }
@@ -532,6 +572,7 @@ export const COMMAND_DEFINITIONS = [
     titleKey: 'settings.shortcuts.prev_tab',
     categoryKey: 'settings.shortcuts.general',
     scope: 'renderer',
+    renderer: { target: 'window' },
     keybinding: {
       defaultBinding: { default: ['CommandOrControl', 'Shift', 'Tab'], darwin: ['Ctrl', 'Shift', 'Tab'] }
     }
@@ -559,7 +600,9 @@ const registerCommand = (definition: CommandDefinition<CommandId>): RegisteredCo
   id: definition.id,
   titleKey: definition.titleKey,
   categoryKey: definition.categoryKey,
-  scope: definition.scope,
+  ...(definition.scope === 'main'
+    ? { scope: definition.scope }
+    : { scope: definition.scope, renderer: definition.renderer }),
   iconKey: definition.iconKey,
   enablement: definition.enablement ? parseContextExpr(definition.enablement) : undefined,
   enablementSource: definition.enablement

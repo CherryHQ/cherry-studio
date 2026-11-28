@@ -14,7 +14,7 @@ Renderer 命令上下文曾是窗口级快照，互不相关界面的 handler �
 
 Renderer 持有附着于 DOM 的 `CommandFocusScope` 实例及其上下文/handler 注册项。现有 shared `CommandScope` 仍表示 `main` / `renderer` / `both`；shared 表达式和快捷键解析保持纯函数。这沿用 VS Code 的[列表作用域上下文](https://github.com/microsoft/vscode/blob/main/src/vs/platform/list/browser/listService.ts)和[按事件目标解析](https://github.com/microsoft/vscode/blob/main/src/vs/platform/keybinding/common/abstractKeybindingService.ts)的方式。
 
-作用域 provider 附着于现有 `rootRef`，不添加布局包装节点。`useCommandHandler`、`useCommandContextKey` 和组件的程序调用绑定到最近作用域。键盘分发从事件路径解析该作用域，将其上下文与允许继承的父级/根值组合，在消费事件前选定单一合格 handler。兄弟作用域不参与竞争。较近作用域拥有的命令已禁用时，阻止该命令回退；未被局部拥有的命令可以沿父级解析。同一作用域内保留最后一个已启用注册项的优先级。
+作用域 provider 绑定已有 `rootRef`，不新增布局包装。`useCommandHandler`、`useCommandContextKey` 和组件程序调用绑定最近的作用域。[命令目标路由后继说明](2026-11-09-command-target-routing.md) 部分接替 handler 选择：事件上下文仍来自焦点，声明的策略选择焦点/tab/窗口拥有者，有歧义的注册被拒绝。焦点命令仍保留最近注册禁用时的回退屏障。本说明继续负责交互边界、可编辑目标保护、展示和生命周期保证。
 
 上下文和 handler 值同步读取；局部订阅更新展示，不另设权威焦点注册表。在事件路径上识别 input/textarea/select 及继承的 contenteditable，包括明确声明的不可编辑区域。`resource.focused && !input.focused` 控制永久删除按键资格；目标就绪、重命名、固定/忙碌保护、待处理确认和实际删除仍由资源消费者负责。选中会话绝不替代缺失的焦点目标。
 
@@ -24,7 +24,7 @@ Provider 仅在激活状态或上下文值变化时发布选项更新。若每�
 
 只有外部 Tab 重定向才显示切换遮罩并暂停 Tab 作用域。内部路由解析完成后，在 URL 写回 Tab 状态期间仍保持可交互；持久化确认延迟不属于外部切换。
 
-会话数字导航注册到所属 Tab 的运行时，由 `TabIdProvider` 捕获并通过 `useTabCommandRuntime` 读取。列表顺序、加载状态、活动 Tab 和列表激活状态仍决定可用位置。这允许在 composer 中使用 Cmd/Ctrl+1–9，而不会把永久删除提升到列表之外。不在 Tab provider 内时，导航使用窗口拥有者。
+会话数字导航现在在本地注册，并集中声明活动 tab 目标。后继实现移除了消费者自行选择 tab runtime 的路径。列表顺序、加载状态、活动 tab 和列表激活状态仍决定可用位置；输入框导航不扩大永久删除范围。没有 tab 生命周期的独立窗口使用窗口拥有者。
 
 ### 交互边界与来源
 

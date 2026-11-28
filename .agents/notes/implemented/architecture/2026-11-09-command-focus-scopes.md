@@ -14,7 +14,7 @@ Renderer command context was a window-wide snapshot, and handlers competed by re
 
 Renderer owns DOM-attached `CommandFocusScope` instances and their context/handler registrations. The existing shared `CommandScope` still means `main` / `renderer` / `both`; shared expressions and shortcut resolution remain pure. This follows VS Code's [scoped list context](https://github.com/microsoft/vscode/blob/main/src/vs/platform/list/browser/listService.ts) and [event-target resolution](https://github.com/microsoft/vscode/blob/main/src/vs/platform/keybinding/common/abstractKeybindingService.ts).
 
-The scope provider attaches to an existing `rootRef`, without a layout wrapper. `useCommandHandler`, `useCommandContextKey` and component programmatic execution bind to the nearest scope. Keyboard dispatch resolves that scope from the event path, combines its context with allowed parent/root values, and selects one eligible handler before consuming the event. Siblings never compete. A nearer scope that owns a disabled command blocks fallback for that command; unclaimed commands may resolve through its parents. Registrations within one scope retain last-enabled precedence.
+The scope provider attaches to an existing `rootRef`, without a layout wrapper. `useCommandHandler`, `useCommandContextKey` and component programmatic execution bind to the nearest scope. The [command target routing successor](2026-11-09-command-target-routing.md) partially supersedes handler selection: event context stays focused, declared policies select focused/tab/window owners, and ambiguous registrations are refused. Focused commands retain the nearest registration's disabled fallback barrier. This note continues to own interaction boundaries, editable-target protection, presentation and lifecycle guarantees.
 
 Context and handler values are read synchronously; local subscriptions update presentation without a second authoritative focus registry. Input/textarea/select and inherited contenteditable are recognized on the event path, including explicit noneditable islands. `resource.focused && !input.focused` gates permanent-delete keys; target readiness, rename, pinned/busy guards, pending confirmation and actual deletion remain with resource consumers. A selected conversation never substitutes for a missing focused target.
 
@@ -24,7 +24,7 @@ The provider publishes option changes only when activation or context values cha
 
 Only an external tab retarget starts the transition cover and suspends the tab scope. Internal route resolution stays interactive while its URL is written back to tab state; a delayed persistence acknowledgement is not an external transition.
 
-Conversation-number navigation is registered with the owning tab runtime captured by `TabIdProvider` and read through `useTabCommandRuntime`. List ordering, loading, active-tab and list-activation guards still determine eligible slots. This allows Cmd/Ctrl+1–9 from the composer without hoisting permanent deletion out of the list. Outside a tab provider, navigation uses the window owner.
+Conversation-number navigation now registers locally and declares an active-tab target centrally. The successor removes the consumer-selected tab runtime. List ordering, loading, active-tab and list-activation guards still determine eligible slots; composer navigation does not broaden permanent deletion. Standalone windows without a tab lifecycle use the window owner.
 
 ### Interaction boundaries and origins
 
