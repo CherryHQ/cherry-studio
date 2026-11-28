@@ -136,6 +136,7 @@ const fake = vi.hoisted(() => {
       assertSessionWritable() {},
       async prepareBranch() {},
       isSessionBusy: () => false,
+      whenSessionClosingSettled: async (): Promise<void> => undefined,
       isSessionBusyForArchive: () => false,
       respondToolApproval: vi.fn((): AiToolApprovalRespondResponse => ({ ok: true })),
       cancelSessionForks: async () => {},

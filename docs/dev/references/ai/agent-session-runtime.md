@@ -1444,7 +1444,9 @@ For connections subject to the idle timer, expiry closes the entry:
 
 - clears `runtimeState.queue`;
 - closes the runtime connection;
-- prewarms Claude Code when a latest resume token is known.
+- requests Claude Code prewarming when a latest resume token is known, subject to the driver's capacity and memory guards. This TTL callback does not require an open renderer window.
+
+Separately from the TTL callback, a completed headless run eagerly tears down its runtime connection when execution is `idle`, the turn queue and pending inputs are empty, no connection attempt is active, and no background work remains. This path does not depend on renderer warm leases. If background work was still running when the turn settled, the same eager-close check runs when that work finishes.
 
 Service stop and destroy close all runtime entries. User Stop (`stopSession()`) additionally
 invokes an optional connection `interrupt()` before closing, including when the visible stream has

@@ -1,3 +1,4 @@
+import { MockApplicationUtils } from '@test-mocks/main/application'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { BaseService } from '@main/core/lifecycle/BaseService'
@@ -86,6 +87,41 @@ describe('AiStreamManager.dispatch — per-topic serialization', () => {
 
   afterEach(() => {
     BaseService.resetInstances()
+  })
+
+  it('waits for native teardown before dispatching a desktop agent follow-up', async () => {
+    const closing = Promise.withResolvers<void>()
+    const whenSessionClosingSettled = vi.fn(() => closing.promise)
+    MockApplicationUtils.setService('AgentSessionRuntimeService', { whenSessionClosingSettled })
+    try {
+      const dispatch = mgr.dispatch(fakeSubscriber, openReq('agent-session:s'))
+      await flush()
+      expect(whenSessionClosingSettled).toHaveBeenCalledWith('s')
+      expect(dispatchEvents).toEqual([])
+      closing.resolve()
+      await flush()
+      expect(dispatchEvents).toEqual(['start:agent-session:s:0'])
+      await settleDispatch(0)
+      await expect(dispatch).resolves.toEqual({ mode: 'started' })
+    } finally {
+      MockApplicationUtils.resetServices()
+    }
+  })
+
+  it('rechecks write quiesce after desktop native teardown settles', async () => {
+    const closing = Promise.withResolvers<void>()
+    MockApplicationUtils.setService('AgentSessionRuntimeService', { whenSessionClosingSettled: () => closing.promise })
+    const dispatch = mgr.dispatch(fakeSubscriber, openReq('agent-session:s'))
+    await flush()
+    const hold = mgr.pause('test')
+    try {
+      closing.resolve()
+      await expect(dispatch).resolves.toEqual({ mode: 'blocked', reason: 'paused' })
+      expect(dispatchEvents).toEqual([])
+    } finally {
+      hold.dispose()
+      MockApplicationUtils.resetServices()
+    }
   })
 
   it('serializes two concurrent dispatches on the same topic — the second waits for the first', async () => {

@@ -25,9 +25,10 @@ const prepareDispatchMock = vi.fn((primary: StreamListener, req: { topicId: stri
   })
 })
 
-const { sessionGetById, runtimeBusy } = vi.hoisted(() => ({
+const { sessionGetById, runtimeBusy, whenSessionClosingSettled } = vi.hoisted(() => ({
   sessionGetById: vi.fn(),
-  runtimeBusy: vi.fn(() => false)
+  runtimeBusy: vi.fn(() => false),
+  whenSessionClosingSettled: vi.fn(async (): Promise<void> => undefined)
 }))
 
 vi.mock('../../context/AgentChatContextProvider', () => ({
@@ -43,7 +44,7 @@ vi.mock('@application', () => ({
   application: {
     get: (name: string) => {
       if (name === 'AiStreamManager') return managerHolder.current
-      if (name === 'AgentSessionRuntimeService') return { isSessionBusy: runtimeBusy }
+      if (name === 'AgentSessionRuntimeService') return { isSessionBusy: runtimeBusy, whenSessionClosingSettled }
       throw new Error(`startAgentSessionRun.test: unexpected application.get('${name}')`)
     }
   }
@@ -70,6 +71,7 @@ describe('startAgentSessionRun — per-topic dispatch serialization', () => {
     prepareDispatchMock.mockClear()
     sessionGetById.mockReset().mockReturnValue({ agentId: 'agent-1' })
     runtimeBusy.mockReset().mockReturnValue(false)
+    whenSessionClosingSettled.mockReset().mockResolvedValue(undefined)
 
     const Ctor = AiStreamManager as unknown as new () => ManagerInstance
     const manager = new Ctor()
@@ -187,6 +189,59 @@ describe('startAgentSessionRun — per-topic dispatch serialization', () => {
     prepareResolvers[0]()
     await expect(run).resolves.toEqual({ mode: 'started' })
     expect(events).toEqual(['prepare:agent-session:s:0', 'send:agent-session:s'])
+  })
+
+  it('waits for idle teardown before admitting an already queued headless follow-up', async () => {
+    let release!: () => void
+    runtimeBusy.mockReturnValue(true)
+    whenSessionClosingSettled.mockImplementationOnce(
+      () =>
+        new Promise<void>((done) => {
+          release = done
+        })
+    )
+    const run = startAgentSessionRun({
+      sessionId: 's',
+      userParts: [text('queued')],
+      listeners: [listener('channel')],
+      headless: true,
+      requireIdle: { expectedAgentId: 'agent-1' }
+    })
+    await flush()
+    expect(prepareDispatchMock).not.toHaveBeenCalled()
+    expect(whenSessionClosingSettled).toHaveBeenCalledWith('s')
+    runtimeBusy.mockReturnValue(false)
+    release()
+    await flush()
+    prepareResolvers[0]()
+    await expect(run).resolves.toEqual({ mode: 'started' })
+  })
+
+  it('rejects a send when write quiesce starts during idle teardown', async () => {
+    let release!: () => void
+    whenSessionClosingSettled.mockImplementationOnce(
+      () =>
+        new Promise<void>((done) => {
+          release = done
+        })
+    )
+    let quiesced = false
+    vi.spyOn(managerHolder.current as ManagerInstance, 'isWriteQuiesced', 'get').mockImplementation(() => quiesced)
+    const run = startAgentSessionRun({
+      sessionId: 's',
+      userParts: [text('queued')],
+      listeners: [listener('remote')],
+      requireIdle: { expectedAgentId: 'agent-1' }
+    })
+    const rejected = expect(run).rejects.toThrow('write-quiesced')
+    await flush()
+    quiesced = true
+    release()
+    await flush()
+    prepareResolvers[0]?.()
+    await rejected
+    expect(prepareDispatchMock).not.toHaveBeenCalled()
+    expect(sendSpy).not.toHaveBeenCalled()
   })
 
   it('returns busy when the runtime becomes active during preparation', async () => {

@@ -117,6 +117,10 @@ export interface AgentRuntimeConnectInput {
    * the later `steer-boundary` confirms placement without creating another execution.
    */
   onSteerInjected?: (inputIds: readonly string[]) => void
+  /** Pins a pending product input before native admission can run synchronously. */
+  onInputPrepared?: (inputId: string, contextId: string) => void
+  /** Cancels a connection attempt still waiting for CLI admission. */
+  signal?: AbortSignal
 }
 
 export interface LocalRuntimeConnectInput extends AgentRuntimeConnectInput {

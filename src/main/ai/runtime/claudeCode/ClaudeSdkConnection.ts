@@ -172,6 +172,7 @@ export abstract class ClaudeSdkConnection<
   ): Promise<this> {
     this.context = context
     this.spawnOptions ??= options
+    this.input.signal?.throwIfAborted()
     this.abortController.signal.throwIfAborted()
     const { createClaudeCodeRuntime } = await import('@cherrystudio/agent-runtime-claude-code')
     const { resume, cwd, ...nativeOptions } = options
@@ -195,11 +196,14 @@ export abstract class ClaudeSdkConnection<
       throw new Error(opened.error.message)
     }
     this.handle = opened.value
+    this.input.signal?.throwIfAborted()
     this.abortController.signal.throwIfAborted()
     this.bindApprovalEmitter()
     await this.observeRoot(this.handle)
     if (consumedWarmQuery && !consumedWarmQuery.processDiagnostics.exited)
       throw new Error('Prewarmed process has no exit barrier')
+    this.input.signal?.throwIfAborted()
+    this.abortController.signal.throwIfAborted()
     const started = this.handle.claude.start(
       consumedWarmQuery && {
         query: consumedWarmQuery.warmQuery,
@@ -392,7 +396,12 @@ export abstract class ClaudeSdkConnection<
     await this.close()
   }
 
+  protected releaseLiveSpawnPreflight(): void {
+    // Overridden by drivers that reserve a spawn-cap slot before admission.
+  }
+
   private async closeQuery(): Promise<void> {
+    this.releaseLiveSpawnPreflight()
     this.promptSuggestion.clear()
     this.closing = true
     if (this.parkedQuery) {

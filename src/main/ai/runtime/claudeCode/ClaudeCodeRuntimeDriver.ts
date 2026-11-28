@@ -1,4 +1,4 @@
-import type { Options } from '@anthropic-ai/claude-agent-sdk'
+import type { Options, SpawnedProcess, SpawnOptions } from '@anthropic-ai/claude-agent-sdk'
 import { validate as isUuid } from 'uuid'
 
 import { application } from '@application'
@@ -26,6 +26,7 @@ import {
   toolPolicyFactsEqual
 } from './agentSessionWarmup'
 import { createClaudeCodeProcessDiagnostics, createSpawnClaudeCodeProcess } from './ClaudeCodeProcessManager'
+import { ensureClaudeCodeSpawnCapacity, isClaudeCodeSpawnMemoryPressured } from './claudeCodeSpawnCapacity'
 import { claudeBranchQueryIdentity } from './claudeContext'
 import { forkClaudeSession } from './claudeFork'
 import { ClaudeSdkConnection } from './ClaudeSdkConnection'
@@ -58,6 +59,8 @@ class ClaudeCodeRuntimeConnection extends ClaudeSdkConnection<AgentRuntimeConnec
   private connectionConfig?: ConnectionConfig
   /** Serializes reconciles per connection so push/pull can't interleave SDK and snapshot writes. */
   private reconcileChain: Promise<unknown> = Promise.resolve()
+
+  private liveSpawnPreflightReserved = false
 
   constructor(input: AgentRuntimeConnectInput) {
     if (!isUniqueModelId(input.modelId)) throw new Error('Provider model required')
@@ -96,6 +99,13 @@ class ClaudeCodeRuntimeConnection extends ClaudeSdkConnection<AgentRuntimeConnec
 
     const traceEnv = await this.prepareTraceEnv()
     const coldProcessDiagnostics = createClaudeCodeProcessDiagnostics()
+    const spawnColdProcess = (spawnOptions: SpawnOptions): SpawnedProcess => {
+      const ownsPreflight = this.liveSpawnPreflightReserved
+      this.liveSpawnPreflightReserved = false
+      return application
+        .get('ClaudeCodeProcessManager')
+        .spawn(spawnOptions, coldProcessDiagnostics, 'live', ownsPreflight)
+    }
     const options: Options = {
       ...request.options,
       ...claudeBranchQueryIdentity(this.context, storedResume ?? undefined),
@@ -108,7 +118,7 @@ class ClaudeCodeRuntimeConnection extends ClaudeSdkConnection<AgentRuntimeConnec
           }
         : {}),
       abortController: this.abortController,
-      spawnClaudeCodeProcess: createSpawnClaudeCodeProcess(coldProcessDiagnostics)
+      spawnClaudeCodeProcess: spawnColdProcess
     }
     if (!options.resume) this.resumeToken = undefined
     // Env is part of the warm signature, so a traced turn asks with the OTEL vars merged in and can
@@ -144,12 +154,38 @@ class ClaudeCodeRuntimeConnection extends ClaudeSdkConnection<AgentRuntimeConnec
       request.connectionConfig?.live.toolPolicy.mcps ?? [],
       this.mcpToolMetadata
     )
+    if (!consumedWarmQuery && !(await ensureClaudeCodeSpawnCapacity('live', this.input.signal))) {
+      if (this.input.signal?.aborted) throw new Error('Claude Code connection cancelled before spawn')
+      throw new Error('Claude Code CLI process cap reached')
+    }
+    if (!consumedWarmQuery) this.liveSpawnPreflightReserved = true
     try {
+      if (this.input.signal?.aborted) throw new Error('Claude Code connection cancelled before spawn')
       return await this.startSdk(options, this.context, request.contextWindow, consumedWarmQuery)
     } catch (error) {
-      if (error instanceof LocalAgentSessionRestoreError) return unavailableNativeContext(this.context, error.message)
+      if (error instanceof LocalAgentSessionRestoreError) {
+        this.releaseLiveSpawnPreflightIfHeld()
+        return unavailableNativeContext(this.context, error.message)
+      }
+      this.releaseLiveSpawnPreflightIfHeld()
+      void this.close().catch((cleanupError) => {
+        logger.warn('Claude Code failed connection cleanup failed', {
+          sessionId: this.input.sessionId,
+          error: cleanupError
+        })
+      })
       throw error
     }
+  }
+
+  private releaseLiveSpawnPreflightIfHeld(): void {
+    if (!this.liveSpawnPreflightReserved) return
+    this.liveSpawnPreflightReserved = false
+    application.get('ClaudeCodeProcessManager').releaseLiveSpawnPreflight()
+  }
+
+  protected override releaseLiveSpawnPreflight(): void {
+    this.releaseLiveSpawnPreflightIfHeld()
   }
 
   async reconcile(input: Parameters<AgentRuntimeConnection['reconcile']>[0]): Promise<AgentRuntimeReconcileResult> {
@@ -265,6 +301,7 @@ export class ClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
   }
 
   onSessionIdle(sessionId: string): void {
+    if (isClaudeCodeSpawnMemoryPressured()) return
     // `prewarmAgentSession` bakes the session's trace env when trace mode is on, so the park it
     // leaves behind matches what the next turn asks for either way — no driver-side guard needed.
     void application.get('ClaudeCodeWarmQueryManager').prewarmAgentSession(sessionId)

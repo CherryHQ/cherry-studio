@@ -258,6 +258,18 @@ describe('previewAgentSystemPrompt', () => {
     expect(text).toBe(runtime)
   })
 
+  it.each(['pi', 'pi-durable', 'claude-code'] as const)(
+    'preserves the stored Agent name in %s previews',
+    async (type) => {
+      const agent = agentService.createAgentWithId(randomUUID(), { type, name: 'Configured Reviewer', model })
+      const preview = await previewAgentSystemPrompt(draft({ agentId: agent.id }))
+
+      expect(block(preview, 'bootstrap')?.text).toContain('Your name is already configured: "Configured Reviewer"')
+      expect(block(preview, 'bootstrap')?.text).not.toContain('What should your name be?')
+      expect(block(preview, 'bootstrap')?.text).not.toContain('action: "rename"')
+    }
+  )
+
   it('includes onboarding for a new Agent with instructions', async () => {
     const preview = await previewAgentSystemPrompt(draft())
 

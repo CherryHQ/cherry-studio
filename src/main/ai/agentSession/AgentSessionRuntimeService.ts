@@ -580,7 +580,7 @@ export class AgentSessionRuntimeService extends BaseService {
   /** Async connection resources live outside the pure state; attempt ids reject stale completions. */
   private readonly connectionAttempts = new Map<
     AgentSessionRuntimeEntry,
-    { id: string; promise: Promise<boolean>; interrupt?: boolean }
+    { id: string; promise: Promise<boolean>; interrupt?: boolean; abortController: AbortController }
   >()
   /** Promise resources for a rebuild-blocked connection; the state only owns the blocked phase. */
   private readonly backgroundWorkWaiters = new Map<
@@ -1811,6 +1811,13 @@ export class AgentSessionRuntimeService extends BaseService {
     return barrier
   }
 
+  /** Admission may outlive a terminal dispatch while its idle native child shuts down. */
+  async whenSessionClosingSettled(sessionId: string): Promise<void> {
+    while (this.closingSessions.has(sessionId)) {
+      await this.closingSessions.get(sessionId)!.promise
+    }
+  }
+
   async closeSessionForArchive(sessionId: string): Promise<void> {
     await this.closeSession(sessionId)
     await application.get('ClaudeCodeWarmQueryManager').close(sessionId)
@@ -2628,7 +2635,8 @@ export class AgentSessionRuntimeService extends BaseService {
       entry.connectionGeneration = attemptId
       this.applyRuntimeStateEvent(entry, { type: 'connection-started', attemptId })
       this.publishLocalSessionInfo(entry, null)
-      const connecting = this.connect(entry, target, attemptId).finally(() => {
+      const attemptAbortController = new AbortController()
+      const connecting = this.connect(entry, target, attemptId, attemptAbortController.signal).finally(() => {
         if (this.connectionAttempts.get(entry)?.id === attemptId) {
           this.connectionAttempts.delete(entry)
         }
@@ -2641,7 +2649,11 @@ export class AgentSessionRuntimeService extends BaseService {
           this.publishLocalSessionInfo(entry, null)
         }
       })
-      this.connectionAttempts.set(entry, { id: attemptId, promise: connecting })
+      this.connectionAttempts.set(entry, {
+        id: attemptId,
+        promise: connecting,
+        abortController: attemptAbortController
+      })
       const connected = await connecting
       if (connected) return true
     }
@@ -2652,7 +2664,8 @@ export class AgentSessionRuntimeService extends BaseService {
   private async connect(
     entry: AgentSessionRuntimeEntry,
     target: AgentSessionConnectionTarget,
-    attemptId: string
+    attemptId: string,
+    signal?: AbortSignal
   ): Promise<boolean> {
     const driver = runtimeDriverRegistry.getAgentSessionDriver(entry.agentType)
     if (!driver) throw new Error(`Unsupported agent runtime type: ${entry.agentType}`)
@@ -2682,6 +2695,7 @@ export class AgentSessionRuntimeService extends BaseService {
       trace: this.sessionTraceContext(entry, target.modelId),
       nativeSessionId: agentSessionMessageService.getNativeSessionId(entry.sessionId, entry.branchHead),
       branchHead: entry.branchHead,
+      signal,
       ...this.inputCallbacks(entry, attemptId)
     }
     const connection = await driver.connect(request).catch((error: unknown) => {
@@ -4958,6 +4972,20 @@ export class AgentSessionRuntimeService extends BaseService {
     ) {
       return
     }
+    const execution = entry.runtimeState.execution
+    if (
+      !entry.closing &&
+      !entry.pendingInputs?.size &&
+      !this.connectionAttempts.has(entry) &&
+      execution.kind === 'idle' &&
+      execution.lastTurn?.headless &&
+      entry.runtimeState.queue.length === 0
+    ) {
+      void this.closeSession(entry.sessionId).catch((error) => {
+        logger.warn('Failed to close idle headless session', { sessionId: entry.sessionId, error })
+      })
+      return
+    }
     entry.idleTimer = setTimeout(() => {
       if (
         !this.isCurrentEntry(entry) ||
@@ -5005,7 +5033,9 @@ export class AgentSessionRuntimeService extends BaseService {
       turns.map((turn) => application.get('AiStreamManager').drainRuntimeReply(entry.topicId, turn.runId))
     )
     for (const turn of turns) this.closeTurn(turn)
-    const connectionAttempt = this.connectionAttempts.get(entry)?.promise
+    const pendingAttempt = this.connectionAttempts.get(entry)
+    pendingAttempt?.abortController.abort('agent-session-closed')
+    const connectionAttempt = pendingAttempt?.promise
     const connection = this.currentConnection(entry)
     const connectionLoop = entry.connectionLoop
     await this.closeRuntimeConnection(connection, entry, true, interrupt)

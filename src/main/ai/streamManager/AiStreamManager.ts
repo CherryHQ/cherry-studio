@@ -584,6 +584,11 @@ export class AiStreamManager extends BaseService {
       // A renderer submit can land while the previous turn's terminal dispatch is still running;
       // admitting now would evict that stream before its terminal lifecycle ran (see startAgentSessionRun).
       await this.whenTerminalDispatchSettled(req.topicId)
+      if (isAgentSessionTopic(req.topicId) && req.trigger !== 'steer-continuation') {
+        await application
+          .get('AgentSessionRuntimeService')
+          .whenSessionClosingSettled(extractAgentSessionId(req.topicId))
+      }
 
       // Write-quiesce admission gate, re-checked under the lock so a pause landing while this
       // dispatch waited on the mutex still rejects it — the gate must sit before `prepareDispatch`

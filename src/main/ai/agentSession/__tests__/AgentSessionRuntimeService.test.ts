@@ -206,6 +206,7 @@ vi.mock('@application', async () => {
 
 const realFs = await vi.importActual<typeof FsPromises>('node:fs/promises')
 const { AgentSessionForkOperations } = await import('../fork')
+
 const { AgentSessionRuntimeService } = await import('../AgentSessionRuntimeService')
 const { runtimeDriverRegistry } = await import('../../runtime/registry')
 const { toolApprovalRegistry } = await import('../../toolApproval/ToolApprovalRegistry')
@@ -1773,6 +1774,35 @@ describe('AgentSessionRuntimeService', () => {
 
       expect(getEntry(service).currentTurn.headless).toBe(true)
       expect(service.getInteractionState('session-1').currentTurn).toBe('headless')
+    })
+
+    it('closes an unheld headless session immediately after the turn settles', async () => {
+      const service = new AgentSessionRuntimeService()
+      const connection = { close: vi.fn().mockResolvedValue(undefined), send: vi.fn(), events: [] }
+      service.beginTurn({ ...baseTurnInput, headless: true })
+      const entry = getEntry(service)
+      entry.connection = connection
+      entry.lastResumeToken = 'resume-1'
+
+      service.markTurnTerminal('session-1', 'success')
+
+      expect(service.inspect('session-1')).toBeUndefined()
+      await vi.waitFor(() => expect(connection.close).toHaveBeenCalled())
+    })
+
+    it('closes an unheld headless session when background work finishes after the turn settled', () => {
+      const service = new AgentSessionRuntimeService()
+      const connection = { close: vi.fn().mockResolvedValue(undefined), send: vi.fn(), events: [] }
+      service.beginTurn({ ...baseTurnInput, headless: true })
+      const entry = getEntry(service)
+      entry.connection = connection
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      service.markTurnTerminal('session-1', 'success')
+      expect(service.inspect('session-1')).toBeDefined()
+
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+
+      expect(service.inspect('session-1')).toBeUndefined()
     })
 
     it.each([true, false])(
@@ -3933,6 +3963,7 @@ describe('AgentSessionRuntimeService', () => {
       const service = new AgentSessionRuntimeService()
       service.beginTurn({ ...baseTurnInput, headless: true })
       const entry = getEntry(service)
+      entry.connection = { close: vi.fn(), send: vi.fn(), events: [] }
       ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
       service.markTurnTerminal('session-1', 'success')
 
@@ -4571,7 +4602,8 @@ describe('AgentSessionRuntimeService', () => {
     service.beginTurn(baseTurnInput)
     const connectionAttempt = createDeferred<void>()
     ;(service as any).connectionAttempts.set((service as any).entries.get('session-1'), {
-      promise: connectionAttempt.promise
+      promise: connectionAttempt.promise,
+      abortController: new AbortController()
     })
     mocks.cacheDeleteShared.mockImplementationOnce(() => {
       throw new Error('cache cleanup failed')
@@ -4594,7 +4626,8 @@ describe('AgentSessionRuntimeService', () => {
     service.beginTurn(baseTurnInput)
     const connectionAttempt = createDeferred<boolean>()
     ;(service as any).connectionAttempts.set((service as any).entries.get('session-1'), {
-      promise: connectionAttempt.promise
+      promise: connectionAttempt.promise,
+      abortController: new AbortController()
     })
 
     const closing = service.closeSession('session-1')
@@ -5862,6 +5895,87 @@ describe('AgentSessionRuntimeService', () => {
     })
   })
 
+  it('cancels a pending connection attempt when the session closes so the close does not wait on admission', async () => {
+    let attemptSignal: AbortSignal | undefined
+    const connect = vi.fn(
+      (input: { signal?: AbortSignal }) =>
+        new Promise<never>((_resolve, reject) => {
+          attemptSignal = input.signal
+          // Simulates a driver blocked on process-cap admission until it is cancelled.
+          input.signal?.addEventListener('abort', () => reject(new Error('cancelled')), { once: true })
+        })
+    )
+    runtimeDriverRegistry.register({
+      type: 'test-runtime',
+      connect,
+      validateSession: vi.fn()
+    })
+    const service = new AgentSessionRuntimeService()
+    const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+    const stream = openChunkStream(service, {
+      sessionId: 'session-1',
+      turnId: handle.turnId,
+      signal: new AbortController().signal
+    })
+    const reader = stream.getReader()
+    await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+    await vi.waitFor(() => expect(connect).toHaveBeenCalledOnce())
+    expect(attemptSignal?.aborted).toBe(false)
+
+    await service.closeSession('session-1')
+
+    expect(attemptSignal?.aborted).toBe(true)
+  })
+
+  it.each(['none', 'background', 'queued', 'retained', 'interactive'] as const)(
+    'eagerly closes completed headless connections only without an ownership guard: %s',
+    async (guard) => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({ ...baseTurnInput, headless: guard !== 'interactive' })
+      const entry = getEntry(service)
+      entry.connection = { close: vi.fn(), send: vi.fn(), events: [], retainWhileIdle: guard === 'retained' }
+      if (guard === 'background')
+        (service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      if (guard === 'queued') service.enqueueUserMessage('session-1', userMessage('queued-followup'))
+      const close = vi.spyOn(service, 'closeSession').mockResolvedValue(undefined)
+      service.markTurnTerminal('session-1', 'success')
+      expect(close).toHaveBeenCalledTimes(guard === 'none' ? 1 : 0)
+      close.mockRestore()
+      await service.closeSession('session-1')
+    }
+  )
+
+  it.each(['launch-scheduled', 'pending-input', 'connection-attempt'] as const)(
+    'does not close a completed headless session while %s still owns work',
+    async (guard) => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({ ...baseTurnInput, headless: true })
+      const entry = getEntry(service)
+      entry.connection = { close: vi.fn(), send: vi.fn(), events: [], retainWhileIdle: true }
+      service.markTurnTerminal('session-1', 'success')
+      expect(entry.runtimeState.execution.kind).toBe('idle')
+      entry.connection.retainWhileIdle = false
+      if (guard === 'launch-scheduled')
+        entry.runtimeState.launch = { kind: 'scheduled', target: { kind: 'queued-turn' } }
+      if (guard === 'pending-input')
+        entry.pendingInputs = new Map([['pending', { input: { message: userMessage('pending') } }]])
+      if (guard === 'connection-attempt')
+        (service as any).connectionAttempts.set(entry, {
+          id: 'pending',
+          promise: Promise.resolve(false),
+          abortController: new AbortController()
+        })
+      const close = vi.spyOn(service, 'closeSession').mockResolvedValue(undefined)
+      ;(service as any).refreshIdleTimer(entry)
+      expect(close).not.toHaveBeenCalled()
+      close.mockRestore()
+      entry.pendingInputs?.clear()
+      ;(service as any).connectionAttempts.delete(entry)
+      entry.runtimeState.launch = { kind: 'idle' }
+      await service.closeSession('session-1')
+    }
+  )
+
   it('passes trace context to the runtime driver and keeps the connection warm across turns', async () => {
     const events = createAsyncQueue<any>()
     const connection = {
@@ -5905,6 +6019,7 @@ describe('AgentSessionRuntimeService', () => {
         nativeSessionId: undefined,
         branchHead: 'assistant-1',
         onSteerInjected: expect.any(Function),
+        signal: expect.any(AbortSignal),
         trace: {
           topicId: 'agent-session:session-1',
           traceId: 'a'.repeat(32),
@@ -6018,6 +6133,7 @@ describe('AgentSessionRuntimeService', () => {
         nativeSessionId: undefined,
         branchHead: 'assistant-1',
         onSteerInjected: expect.any(Function),
+        signal: expect.any(AbortSignal),
         trace: {
           topicId: 'agent-session:session-1',
           traceId: 'a'.repeat(32),

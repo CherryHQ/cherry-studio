@@ -4,6 +4,7 @@ import { setupTestDatabase } from '@test-helpers/db'
 import { MockApplicationUtils } from '@test-mocks/main/application'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { application } from '@application'
 import type {
   ClaudeObservation,
   ClaudeObservationSink,
@@ -51,7 +52,10 @@ afterEach(async () => {
   vi.clearAllMocks()
 })
 
-async function startLocalClaude(nativeModel = 'cherryin:anthropic/claude-haiku-4.5') {
+async function startLocalClaude(
+  nativeModel = 'cherryin:anthropic/claude-haiku-4.5',
+  setup?: (manager: any, handle: ClaudeThreadHandle) => void
+) {
   const workspaceId = randomUUID()
   const sessionId = randomUUID()
   const cwd = '/tmp/local-claude-test'
@@ -68,7 +72,15 @@ async function startLocalClaude(nativeModel = 'cherryin:anthropic/claude-haiku-4
     env: {}
   })
   vi.mocked(acquireLocalAgentBrowserLease).mockResolvedValue(undefined)
-  MockApplicationUtils.setService('ClaudeCodeProcessManager', { spawn: vi.fn() })
+  const manager = {
+    spawn: vi.fn(),
+    getActiveProcessCount: () => 0,
+    getCapSlotProcessCount: () => 0,
+    tryReserveLiveSpawnPreflight: vi.fn(() => true),
+    releaseLiveSpawnPreflight: vi.fn(),
+    waitForActiveProcessBelowCap: vi.fn(async () => {})
+  }
+  MockApplicationUtils.setService('ClaudeCodeProcessManager', manager)
 
   let observationSink: ClaudeObservationSink | undefined
   let createdConfig: any
@@ -151,6 +163,7 @@ async function startLocalClaude(nativeModel = 'cherryin:anthropic/claude-haiku-4
     await drained
   })
 
+  setup?.(manager, handle)
   await connection.start(cwd)
 
   return {
@@ -168,6 +181,33 @@ async function startLocalClaude(nativeModel = 'cherryin:anthropic/claude-haiku-4
 }
 
 describe('LocalClaudeConnection', () => {
+  it('waits for an evicted warm child before admitting installed Claude', async () => {
+    let active = 6
+    let manager: any
+    const evict = vi.fn(() => true)
+    const test = await startLocalClaude(undefined, (processManager) => {
+      manager = processManager
+      manager.getActiveProcessCount = () => active
+      manager.getCapSlotProcessCount = () => (active === 6 && evict.mock.calls.length ? 5 : active)
+      manager.waitForActiveProcessBelowCap.mockImplementation(async () => {
+        active = 5
+      })
+      vi.spyOn(application, 'getExisting').mockImplementation(
+        (name) =>
+          (name === 'ClaudeCodeProcessManager'
+            ? manager
+            : name === 'ClaudeCodeWarmQueryManager'
+              ? { evictOldestWarmQuery: evict }
+              : undefined) as never
+      )
+    })
+    expect(evict).toHaveBeenCalledOnce()
+    expect(manager.waitForActiveProcessBelowCap).toHaveBeenCalledOnce()
+    expect(manager.tryReserveLiveSpawnPreflight).toHaveBeenCalledOnce()
+    await test.connection.close()
+    expect(manager.releaseLiveSpawnPreflight).toHaveBeenCalledOnce()
+  })
+
   it('emits unified decision options in canUseTool and caches session grants', async () => {
     const { events, createdConfig } = await startLocalClaude()
     const canUseTool = createdConfig.canUseTool

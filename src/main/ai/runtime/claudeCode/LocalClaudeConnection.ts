@@ -37,6 +37,7 @@ import type {
   LocalRuntimeConnectInput
 } from '../types'
 import { createClaudeCodeProcessDiagnostics, createSpawnClaudeCodeProcess } from './ClaudeCodeProcessManager'
+import { ensureClaudeCodeSpawnCapacity } from './claudeCodeSpawnCapacity'
 import { ClaudeSdkConnection } from './ClaudeSdkConnection'
 import { resolveClaudeLaunch } from './localClaudeLaunch'
 
@@ -120,6 +121,7 @@ async function withLocalClaudeProbe<T>(
 }
 
 export class LocalClaudeConnection extends ClaudeSdkConnection<LocalRuntimeConnectInput> {
+  private liveSpawnPreflightReserved = false
   private effortModels: readonly ModelInfo[] = []
   readonly sessionCostScope = 'native-session' as const
   readonly localSessionInfo: LocalAgentSessionInfo = {
@@ -243,10 +245,15 @@ export class LocalClaudeConnection extends ClaudeSdkConnection<LocalRuntimeConne
       isReadOnly: () => this.effectivePermissionMode === 'plan'
     })
     signal.throwIfAborted()
-    this.processDiagnostics = createClaudeCodeProcessDiagnostics()
+    const diagnostics = createClaudeCodeProcessDiagnostics()
+    this.processDiagnostics = diagnostics
     const model = launch.modelBinding?.model ?? this.config.nativeModel ?? (headless ? launch.nativeModel : undefined)
     const options: Options = {
-      ...localClaudeOptions(launch, this.abortController, createSpawnClaudeCodeProcess(this.processDiagnostics)),
+      ...localClaudeOptions(launch, this.abortController, (spawnOptions) => {
+        const ownsPreflight = this.liveSpawnPreflightReserved
+        this.liveSpawnPreflightReserved = false
+        return application.get('ClaudeCodeProcessManager').spawn(spawnOptions, diagnostics, 'live', ownsPreflight)
+      }),
       model,
       settingSources: headless ? [] : ['user', 'project', 'local'],
       ...(headless
@@ -330,7 +337,18 @@ export class LocalClaudeConnection extends ClaudeSdkConnection<LocalRuntimeConne
     if (this.resumeToken || context.bindingState === 'bound')
       options.resume = this.resumeToken ?? context.nativeThreadId ?? undefined
     else options.sessionId = context.nativeThreadId ?? undefined
-    await this.startSdk(options, context, launch.contextWindow)
+    if (!(await ensureClaudeCodeSpawnCapacity('live', signal))) {
+      signal.throwIfAborted()
+      throw new Error('Claude Code CLI process cap reached')
+    }
+    this.liveSpawnPreflightReserved = true
+    try {
+      await this.startSdk(options, context, launch.contextWindow)
+    } catch (error) {
+      this.releaseLiveSpawnPreflight()
+      await this.close()
+      throw error
+    }
     const models = await this.handle!.claude.supportedModels()
     if (models.status === 'confirmed') {
       this.effortModels = models.value
@@ -525,6 +543,12 @@ export class LocalClaudeConnection extends ClaudeSdkConnection<LocalRuntimeConne
   protected async disposeSettings() {
     this.abortController.abort()
     await Promise.all([this.browserLease?.dispose(), this.releaseModelBinding()])
+  }
+
+  protected override releaseLiveSpawnPreflight(): void {
+    if (!this.liveSpawnPreflightReserved) return
+    this.liveSpawnPreflightReserved = false
+    application.get('ClaudeCodeProcessManager').releaseLiveSpawnPreflight()
   }
 
   private releaseModelBinding() {
