@@ -13,8 +13,11 @@ vi.mock('../../shared/ClickableFilePath', () => ({
   )
 }))
 vi.mock('../../shared/GenericTools', () => ({
-  SkeletonValue: ({ value }: { value: ReactNode }) => <>{value}</>,
-  ToolHeader: ({ params, stats }: { params?: ReactNode; stats?: ReactNode }) => (
+  SkeletonValue: ({ value }: { value: ReactNode }) => <>{value}</>
+}))
+
+vi.mock('../../ToolHeader', () => ({
+  default: ({ params, stats }: { params?: ReactNode; stats?: ReactNode }) => (
     <div data-testid="tool-header">
       {params}
       <span data-testid="stats">{stats}</span>

@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ipcApi } from '@renderer/ipc'
 import type { AgentDelegationSnapshot } from '@shared/ai/agentSessionDelivery'
 
-import { AgentDelegationCard } from '../AgentDelegationCard'
+import { AgentDelegationCard } from '../../AgentDelegationCard'
 
 const navigateToRoute = vi.hoisted(() => vi.fn())
 vi.mock('../../../MessageListProvider', () => ({ useOptionalMessageListActions: () => ({ navigateToRoute }) }))

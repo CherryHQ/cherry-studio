@@ -5,6 +5,7 @@ import { application } from '@application'
 import type * as LegacyUpgradeModule from '@data/migration/legacyUpgrade'
 import { findLegacyUpgradeProfile } from '@data/migration/legacyUpgrade'
 import { showLegacyUpgradeWindow } from '@data/migration/legacyUpgradeWindow'
+import type * as PlatformModule from '@main/core/platform'
 import { bootConfigService } from '@main/data/bootConfig'
 
 import { runLegacyUpgradeGate } from '../legacyUpgradeGate'
@@ -15,6 +16,13 @@ vi.mock('@data/migration/legacyUpgrade', async (importOriginal) => ({
 }))
 
 vi.mock('@main/utils/appEdition', () => ({ getAppEdition: () => 'global' }))
+
+vi.mock('@main/core/platform', async (importOriginal) => ({
+  ...(await importOriginal<typeof PlatformModule>()),
+  get isPortable() {
+    return process.platform === 'win32' && 'PORTABLE_EXECUTABLE_DIR' in process.env
+  }
+}))
 
 vi.mock('@data/migration/legacyUpgradeWindow', () => ({ showLegacyUpgradeWindow: vi.fn() }))
 vi.mock('@main/data/bootConfig', () => ({ bootConfigService: { get: vi.fn(), set: vi.fn(), persist: vi.fn() } }))
@@ -40,12 +48,34 @@ describe('legacy upgrade gate', () => {
     const [screen, downloads] = vi.mocked(showLegacyUpgradeWindow).mock.calls[0]
     expect(screen.detail).toContain('2.2.2')
     expect(screen.detail).not.toContain('/legacy/profile')
-    expect(screen.prerequisite).toContain('1.9.12')
-    expect(screen.prerequisite).toContain('2.2.2')
+    expect(screen.prerequisite).toContain('v1.9.13')
+    expect(screen.downloadPrerequisite).toContain('v1.9.13')
     expect(screen.installation?.detail).toContain('2.2.2')
     expect(downloads.bridge).toContain('/releases/download/v2.2.2/Cherry-Studio-2.2.2-')
-    expect(downloads.prerequisite).toContain('/releases/download/v1.9.12/Cherry-Studio-1.9.12-')
+    expect(downloads.prerequisite).toContain('/releases/download/v1.9.13/Cherry-Studio-1.9.13-')
     expect(application.quit).toHaveBeenCalledOnce()
+  })
+
+  it('offers both portable EXEs when a legacy portable profile has no version log', async () => {
+    const platform = vi.spyOn(process, 'platform', 'get').mockReturnValue('win32')
+    const arch = vi.spyOn(process, 'arch', 'get').mockReturnValue('x64')
+    vi.stubEnv('PORTABLE_EXECUTABLE_DIR', 'C:\\Cherry Studio')
+    try {
+      await runLegacyUpgradeGate()
+
+      const [screen, downloads] = vi.mocked(showLegacyUpgradeWindow).mock.calls[0]
+      expect(screen.prerequisite).toContain('same folder')
+      expect(screen.prerequisite).not.toContain('Check for Updates')
+      expect(screen.downloadPrerequisite).toBe('Download v1.9.13 Portable')
+      expect(screen.download).toBe('Download v2.2.2 Portable')
+      expect(screen.showBridgeDownload).toBe(true)
+      expect(downloads.prerequisite).toContain('/v1.9.13/Cherry-Studio-1.9.13-x64-portable.exe')
+      expect(downloads.bridge).toContain('/v2.2.2/Cherry-Studio-2.2.2-win-x64-portable.exe')
+    } finally {
+      vi.unstubAllEnvs()
+      platform.mockRestore()
+      arch.mockRestore()
+    }
   })
 
   it('persists a recovered v2 location and restarts without showing migration UI', async () => {

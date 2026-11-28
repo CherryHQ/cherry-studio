@@ -5,6 +5,7 @@ import { useScopedPartsMap } from '@renderer/components/chat/messages/blocks/Mes
 import type { NormalToolResponse } from '@renderer/types/mcpTool'
 
 import { SubagentStatusContext } from '../../blocks/SubagentStatusContext'
+import { NavigateToolInline } from '../NavigateTool'
 import { AgentToolsType, isAskUserQuestionToolName } from '../shared/agentToolTypes'
 import { getEffectiveStatus, StreamingContext } from '../shared/GenericTools'
 import { ToolApprovalOutcome } from '../shared/ToolApprovalOutcome'
@@ -12,7 +13,6 @@ import { isToolPartAwaitingApproval } from '../toolResponse'
 import { useToolResponsePreview } from '../useToolResponsePreview'
 import { AgentToolCallCard } from './AgentToolCallCard'
 import { AskUserQuestionCard } from './AskUserQuestionCard'
-import { NavigateToolInline } from './NavigateTool'
 import { isCherrySessionToolResponse } from './sessionToolResult'
 
 export function AgentExecutionTimeline({ toolResponse: originalResponse }: { toolResponse: NormalToolResponse }) {

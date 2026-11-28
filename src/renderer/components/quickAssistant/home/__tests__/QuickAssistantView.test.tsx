@@ -3,9 +3,11 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { ipcApi } from '@renderer/ipc'
 import type { VoiceTargetRegistration } from '@renderer/services/voice'
 import { AutoReadService } from '@renderer/services/voice/AutoReadService'
 import type { ExecutionFinishEvent, ExecutionContentUpdate } from '@renderer/types/message'
+import HomeWindow from '@renderer/windows/quickAssistant/home/HomeWindow'
 import type { ActiveExecution } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
@@ -54,7 +56,7 @@ const state = vi.hoisted(() => ({
   windowStyle: 'default'
 }))
 
-import HomeWindow, { finalizeReply } from '../HomeWindow'
+import QuickAssistantView, { finalizeReply } from '../QuickAssistantView'
 
 vi.mock('@renderer/ipc', () => ({
   ipcApi: { request: vi.fn(), on: vi.fn(() => () => {}) },
@@ -207,10 +209,25 @@ vi.mock('../components/FeatureMenus', () => ({
 }))
 
 vi.mock('../components/Footer', () => ({
-  default: ({ loading, onEsc, onReadAloud }: { loading?: boolean; onEsc: () => void; onReadAloud?: () => void }) => (
+  default: ({
+    loading,
+    onEsc,
+    onReadAloud,
+    setIsPinned,
+    isPinned
+  }: {
+    loading?: boolean
+    onEsc: () => void
+    onReadAloud?: () => void
+    setIsPinned: (pinned: boolean) => void
+    isPinned: boolean
+  }) => (
     <div data-testid="footer">
       <button type="button" onClick={onEsc}>
         Escape
+      </button>
+      <button type="button" aria-pressed={isPinned} onClick={() => setIsPinned(!isPinned)}>
+        Pin
       </button>
       {!loading && onReadAloud && (
         <button type="button" onClick={onReadAloud}>
@@ -278,7 +295,7 @@ describe('finalizeReply', () => {
   })
 })
 
-describe('HomeWindow', () => {
+describe('QuickAssistantView', () => {
   beforeEach(() => {
     state.quickAssistantId = ''
     state.quickModel = {
@@ -311,10 +328,34 @@ describe('HomeWindow', () => {
     state.windowStyle = 'default'
   })
 
+  it('keeps pinning and closing the settings preview local', () => {
+    vi.mocked(ipcApi.request).mockClear()
+    render(<QuickAssistantView />)
+
+    const pin = screen.getByRole('button', { name: 'Pin' })
+    fireEvent.click(pin)
+    fireEvent.click(screen.getByRole('button', { name: 'Escape' }))
+
+    expect(pin).toHaveAttribute('aria-pressed', 'true')
+    expect(ipcApi.request).not.toHaveBeenCalledWith('quick_assistant.set_pin', expect.anything())
+    expect(ipcApi.request).not.toHaveBeenCalledWith('quick_assistant.hide')
+  })
+
+  it('pins and hides the real quick-assistant window from its controls', () => {
+    vi.mocked(ipcApi.request).mockClear()
+    render(<HomeWindow />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Pin' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Escape' }))
+
+    expect(ipcApi.request).toHaveBeenCalledWith('quick_assistant.set_pin', { isPinned: true })
+    expect(ipcApi.request).toHaveBeenCalledWith('quick_assistant.hide')
+  })
+
   it('uses an opaque floating surface for the Windows dark-mode first render', () => {
     state.theme = 'dark'
 
-    const { container } = render(<HomeWindow draggable={false} />)
+    const { container } = render(<QuickAssistantView draggable={false} />)
 
     // Windows needs the opaque floating-surface token because its native window is not transparent.
     expect(container.querySelector('[data-ui~="quick-assistant.view"]')).toHaveStyle({
@@ -323,7 +364,7 @@ describe('HomeWindow', () => {
   })
 
   it.each([true, false])('preserves draggable=%s when opening the chat branch', async (draggable) => {
-    const { container } = render(<HomeWindow draggable={draggable} />)
+    const { container } = render(<QuickAssistantView draggable={draggable} />)
     fireEvent.click(screen.getByRole('button', { name: 'Chat route' }))
     await screen.findByTestId('chat-window')
     expect(container.querySelector('.drag') !== null).toBe(draggable)
@@ -331,7 +372,7 @@ describe('HomeWindow', () => {
 
   it('uses the configured quick model in model-only mode', () => {
     const quickModelId = state.quickModel!.id
-    render(<HomeWindow draggable={false} />)
+    render(<QuickAssistantView draggable={false} />)
 
     const input = screen.getByTestId('quick-input')
     expect(input).toHaveAttribute('placeholder', 'Ask Claude Sonnet')
@@ -343,28 +384,28 @@ describe('HomeWindow', () => {
   })
 
   it('shows sent inputs only in their own temporary conversation', async () => {
-    const window = render(<HomeWindow draggable={false} />)
+    const window = render(<QuickAssistantView draggable={false} />)
     fireEvent.click(screen.getByRole('button', { name: 'Chat route' }))
     const input = screen.getByTestId('quick-input')
     fireEvent.change(input, { target: { value: 'first question' } })
     fireEvent.keyDown(input, { code: 'Enter', key: 'Enter' })
     expect(await screen.findByText('first question')).toBeVisible()
     state.temporaryTopicId = 'another-topic'
-    window.rerender(<HomeWindow draggable={false} />)
+    window.rerender(<QuickAssistantView draggable={false} />)
     expect(screen.queryByText('first question')).not.toBeInTheDocument()
   })
 
   it('does not fall back to the default model while the quick model is unresolved', () => {
     state.quickModel = undefined
 
-    render(<HomeWindow draggable={false} />)
+    render(<QuickAssistantView draggable={false} />)
 
     expect(screen.queryByTestId('quick-input')).not.toBeInTheDocument()
     expect(state.sendMessage).not.toHaveBeenCalled()
   })
 
   it('keeps typed input out of the clipboard preview', () => {
-    render(<HomeWindow draggable={false} />)
+    render(<QuickAssistantView draggable={false} />)
 
     fireEvent.change(screen.getByTestId('quick-input'), { target: { value: 'hello' } })
 
@@ -373,7 +414,7 @@ describe('HomeWindow', () => {
   })
 
   it('binds dictation to the temporary topic and replaces the live input selection without sending', async () => {
-    render(<HomeWindow draggable={false} />)
+    render(<QuickAssistantView draggable={false} />)
     await waitFor(() => expect(state.voiceTargetRegistration).not.toBeNull())
 
     const input = screen.getByTestId<HTMLInputElement>('quick-input')
@@ -398,11 +439,11 @@ describe('HomeWindow', () => {
   })
 
   it('unbinds the old input target and binds a distinct target when the temporary topic changes', async () => {
-    const { rerender, unmount } = render(<HomeWindow draggable={false} />)
+    const { rerender, unmount } = render(<QuickAssistantView draggable={false} />)
     await waitFor(() => expect(state.bindVoiceTarget).toHaveBeenCalledOnce())
 
     state.temporaryTopicId = 'temp-topic-next'
-    rerender(<HomeWindow draggable={false} />)
+    rerender(<QuickAssistantView draggable={false} />)
 
     await waitFor(() => expect(state.bindVoiceTarget).toHaveBeenCalledTimes(2))
     expect(state.unbindVoiceTarget).toHaveBeenCalledOnce()
@@ -429,10 +470,10 @@ describe('HomeWindow', () => {
       }
     })
     state.autoReadUpdate.mockImplementation((input) => coordinator.update(input))
-    const view = render(<HomeWindow draggable={false} />)
+    const view = render(<QuickAssistantView draggable={false} />)
     fireEvent.click(screen.getByRole('button', { name: 'Chat route' }))
     state.activeExecutions = [{ executionId: 'provider::model', attemptId: 7 }]
-    view.rerender(<HomeWindow draggable={false} />)
+    view.rerender(<QuickAssistantView draggable={false} />)
     await act(async () => {
       state.overlayOnUpdate?.('provider::model', {
         type: 'snapshot',
@@ -456,10 +497,10 @@ describe('HomeWindow', () => {
 
   it('forwards a tracked chat finish to auto-read and exposes that exact result for manual playback', async () => {
     state.autoReadEnabled = true
-    const view = render(<HomeWindow draggable={false} />)
+    const view = render(<QuickAssistantView draggable={false} />)
     fireEvent.click(screen.getByRole('button', { name: 'Chat route' }))
     state.activeExecutions = [{ executionId: 'provider::model', attemptId: 7 }]
-    view.rerender(<HomeWindow draggable={false} />)
+    view.rerender(<QuickAssistantView draggable={false} />)
     const message = {
       id: 'quick-result-7',
       role: 'assistant',
@@ -500,19 +541,19 @@ describe('HomeWindow', () => {
     expect(input).toHaveFocus()
 
     state.isPending = true
-    view.rerender(<HomeWindow draggable={false} />)
+    view.rerender(<QuickAssistantView draggable={false} />)
     expect(screen.queryByRole('button', { name: 'Read result aloud' })).not.toBeInTheDocument()
   })
 
   it('does not infer auto-read from an execution disappearing without a finish event', () => {
     state.autoReadEnabled = true
-    const view = render(<HomeWindow draggable={false} />)
+    const view = render(<QuickAssistantView draggable={false} />)
     fireEvent.click(screen.getByRole('button', { name: 'Chat route' }))
     state.activeExecutions = [{ executionId: 'provider::model', attemptId: 8 }]
-    view.rerender(<HomeWindow draggable={false} />)
+    view.rerender(<QuickAssistantView draggable={false} />)
 
     state.activeExecutions = []
-    view.rerender(<HomeWindow draggable={false} />)
+    view.rerender(<QuickAssistantView draggable={false} />)
 
     expect(state.autoReadConsume).not.toHaveBeenCalled()
     expect(screen.queryByRole('button', { name: 'Read result aloud' })).not.toBeInTheDocument()
@@ -520,10 +561,10 @@ describe('HomeWindow', () => {
 
   it('marks translate finishes ineligible and never offers manual playback', () => {
     state.autoReadEnabled = true
-    const view = render(<HomeWindow draggable={false} />)
+    const view = render(<QuickAssistantView draggable={false} />)
     fireEvent.click(screen.getByRole('button', { name: 'Translate route' }))
     state.activeExecutions = [{ executionId: 'provider::model', attemptId: 9 }]
-    view.rerender(<HomeWindow draggable={false} />)
+    view.rerender(<QuickAssistantView draggable={false} />)
     const message = {
       id: 'translated-result',
       role: 'assistant',
@@ -545,7 +586,7 @@ describe('HomeWindow', () => {
   })
 
   it('replaces a finished temporary reply at the same anchor and ignores an older replay', async () => {
-    const window = render(<HomeWindow draggable={false} />)
+    const window = render(<QuickAssistantView draggable={false} />)
     fireEvent.click(screen.getByRole('button', { name: 'Chat route' }))
     const finish = (attemptId: number, text: string) =>
       act(() =>
@@ -563,16 +604,16 @@ describe('HomeWindow', () => {
     expect(screen.queryByText('old reply')).not.toBeInTheDocument()
     expect(screen.getAllByText('new reply')).toHaveLength(1)
     state.temporaryTopicId = 'another-topic'
-    window.rerender(<HomeWindow draggable={false} />)
+    window.rerender(<QuickAssistantView draggable={false} />)
     expect(screen.queryByText('new reply')).not.toBeInTheDocument()
   })
 
   it('rejects a stale completion after the temporary topic is reset', () => {
     state.autoReadEnabled = true
-    const view = render(<HomeWindow draggable={false} />)
+    const view = render(<QuickAssistantView draggable={false} />)
     fireEvent.click(screen.getByRole('button', { name: 'Chat route' }))
     state.activeExecutions = [{ executionId: 'provider::model', attemptId: 10 }]
-    view.rerender(<HomeWindow draggable={false} />)
+    view.rerender(<QuickAssistantView draggable={false} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Escape' }))
     act(() => {
@@ -589,7 +630,7 @@ describe('HomeWindow', () => {
     })
     state.temporaryTopicId = 'temp-topic-next'
     state.activeExecutions = []
-    view.rerender(<HomeWindow draggable={false} />)
+    view.rerender(<QuickAssistantView draggable={false} />)
 
     act(() => {
       state.overlayOnFinish?.('provider::model', {

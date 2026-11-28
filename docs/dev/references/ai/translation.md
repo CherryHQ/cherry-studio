@@ -6,8 +6,8 @@ sources:
   - src/main/services/translate/translateService.ts
   - src/shared/data/preference/preferenceSchemas.ts
   - src/renderer/utils/translate/translateText.ts
-  - src/renderer/pages/translate/TranslateSettings.tsx
-  - src/renderer/pages/translate/useTranslateReasoningEffort.ts
+  - src/renderer/components/translate/TranslateSettings.tsx
+  - src/renderer/components/translate/useTranslateReasoningEffort.ts
   - src/renderer/pages/home/messages/homeMessageListAdapter.tsx
 ---
 

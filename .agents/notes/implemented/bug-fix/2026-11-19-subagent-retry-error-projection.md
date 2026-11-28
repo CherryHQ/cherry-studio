@@ -20,6 +20,10 @@ This updates the retry boundary in [SDK forwarding](../architecture/2026-11-09-g
 
 [Model retry](../../../../docs/dev/references/ai/model-retry.md#output-token-limits) also recovers from a provider's output-budget rejection in Chat and trusted Work requests. Catalog limits can differ from the serving endpoint's limits. The retry uses the failed provider request to confirm that changing the SDK option can lower the budget, then retries the same call with a smaller value. This keeps provider middleware and retry status in the existing execution path. [Work reports](https://github.com/CherryHQ/cherry-studio/issues/20240) and [Chat reports](https://github.com/CherryHQ/cherry-studio/issues/22197) capture the observed provider errors.
 
+Chat Completions resolves competing output-budget fields before dispatch. An explicit completion budget owns the field and takes precedence over the legacy budget. The compatibility transform recognizes OpenAI-prefixed relay aliases while preserving the wire model ID. Custom body passthrough applies the same rule after merging fields. [Dual-field rejection](https://github.com/CherryHQ/cherry-studio/issues/24988) and [legacy-field rejection](https://github.com/CherryHQ/cherry-studio/issues/18765) are tracked separately.
+
+Unknown compatible endpoints can require the completion field even when the model name gives no signal. The retry wrapper recognizes explicit field rejections and selects one body correction using the captured outgoing budget fields. The correction preserves the budget, follows the existing attempt limit, and stays scoped to the active model call.
+
 ## Alternatives considered
 
 - Keep native retries: loses the shared model retry/status path and risks multiplying attempts if gateway retry is also enabled.

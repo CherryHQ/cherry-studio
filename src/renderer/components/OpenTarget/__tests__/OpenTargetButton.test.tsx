@@ -94,9 +94,40 @@ describe('OpenTargetButton', () => {
     expect(mocks.openTarget).toHaveBeenCalledWith(selectedTarget)
 
     await user.click(screen.getByRole('button', { name: 'More' }))
-    await user.click(screen.getByRole('button', { name: /File manager/ }))
+    await user.click(screen.getByRole('menuitem', { name: /File manager/ }))
 
     expect(mocks.openTarget).toHaveBeenLastCalledWith(fileManagerTarget)
+  })
+
+  it('navigates workspace targets by keyboard and returns focus when dismissed', async () => {
+    const user = userEvent.setup()
+    mocks.usePreferredExternalOpenTarget.mockReturnValue({
+      targets: [fileManagerTarget, selectedTarget],
+      selectedTarget,
+      openTarget: mocks.openTarget
+    })
+    render(<OpenTargetButton targetPath="/tmp/My Workspace" pathKind="directory" primaryContent="My Workspace" />)
+
+    const trigger = screen.getByRole('button', { name: 'More' })
+    trigger.focus()
+    await user.keyboard('{ArrowDown}')
+    const menu = screen.getByRole('menu')
+    const fileManager = within(menu).getByRole('menuitem', { name: /File manager/ })
+    const editor = within(menu).getByRole('menuitem', { name: /Visual Studio Code/ })
+    expect(fileManager).toHaveFocus()
+    await user.keyboard('{ArrowDown}')
+    expect(editor).toHaveFocus()
+    await user.keyboard('{Home}')
+    expect(fileManager).toHaveFocus()
+    await user.keyboard('{End}')
+    expect(editor).toHaveFocus()
+
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+    await waitFor(() => expect(trigger).toHaveFocus())
+
+    await user.keyboard('{ArrowDown}{ArrowDown}{Enter}')
+    expect(mocks.openTarget).toHaveBeenCalledExactlyOnceWith(selectedTarget)
   })
 
   it.each([1, 2])(
@@ -161,10 +192,10 @@ it('selects a default without launching and uses it for the next primary action'
   )
   await user.click(screen.getByRole('button', { name: 'More' }))
   expect(
-    within(screen.getByRole('button', { name: 'Visual Studio Code', pressed: true })).getByText('⌘O')
+    within(screen.getByRole('menuitemradio', { name: 'Visual Studio Code', checked: true })).getByText('⌘O')
   ).toBeVisible()
-  expect(within(screen.getByRole('button', { name: 'File manager' })).queryByText('⌘O')).not.toBeInTheDocument()
-  await user.click(screen.getByRole('button', { name: 'File manager', pressed: false }))
+  expect(within(screen.getByRole('menuitemradio', { name: 'File manager' })).queryByText('⌘O')).not.toBeInTheDocument()
+  await user.click(screen.getByRole('menuitemradio', { name: 'File manager', checked: false }))
   expect(mocks.openTarget).not.toHaveBeenCalled()
   view.rerender(
     <OpenTargetButton
@@ -175,8 +206,12 @@ it('selects a default without launching and uses it for the next primary action'
     />
   )
   await user.click(screen.getByRole('button', { name: 'More' }))
-  expect(within(screen.getByRole('button', { name: 'File manager', pressed: true })).getByText('⌘O')).toBeVisible()
-  expect(within(screen.getByRole('button', { name: 'Visual Studio Code' })).queryByText('⌘O')).not.toBeInTheDocument()
+  expect(
+    within(screen.getByRole('menuitemradio', { name: 'File manager', checked: true })).getByText('⌘O')
+  ).toBeVisible()
+  expect(
+    within(screen.getByRole('menuitemradio', { name: 'Visual Studio Code' })).queryByText('⌘O')
+  ).not.toBeInTheDocument()
   await user.click(screen.getByRole('button', { name: 'More' }))
   await user.click(screen.getByRole('button', { name: 'Open in File manager' }))
   expect(mocks.openTarget).toHaveBeenCalledExactlyOnceWith(fileManagerTarget)

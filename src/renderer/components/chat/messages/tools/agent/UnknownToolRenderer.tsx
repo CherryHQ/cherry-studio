@@ -2,10 +2,10 @@ import { CallToolResultSchema } from '@modelcontextprotocol/core'
 import { useTranslation } from 'react-i18next'
 
 import { ToolArgsTable } from '../shared/ArgsTable'
-import { ToolHeader } from '../shared/GenericTools'
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
 import { ToolResultLinkList } from '../shared/ToolResultLinkList'
 import { getToolResultLinks, type ToolResultLinkData } from '../shared/toolResultLinks'
+import ToolHeader from '../ToolHeader'
 
 interface UnknownToolProps {
   toolName: string

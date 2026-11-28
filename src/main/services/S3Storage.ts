@@ -88,8 +88,7 @@ export default class S3Storage {
    * 内部辅助方法，用来拼接带 root 的对象 key
    */
   private buildKey(key: string): string {
-    if (!this.root) return key
-    return key.startsWith(`${this.root}/`) ? key : `${this.root}/${key}`
+    return this.root ? `${this.root}/${key}` : key
   }
 
   async putFileContents(

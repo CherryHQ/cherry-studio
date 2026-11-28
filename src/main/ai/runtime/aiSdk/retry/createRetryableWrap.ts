@@ -33,6 +33,7 @@ import type { RetryPartData } from '@shared/data/types/uiParts'
 import { getPendingReplayRoute, ToolContinuationRouteError } from '../../../provider/replayRoute'
 import { getTerminalModelError } from '../../../utils/retryError'
 import type { AgentLoopHooks } from '../loop/types'
+import { chatTokenFieldRetry } from './chatTokenFieldRetry'
 import { outputTokenRetry } from './outputTokenRetry'
 import { createModelRetryEvents } from './retryEvents'
 import type { RetryPolicy } from './retryPolicy'
@@ -133,7 +134,9 @@ function withActivation(model: LanguageModelV3, activate?: () => void): Language
  */
 export function createRetryableWrap(options: CreateRetryableWrapOptions): WrapLanguageModel | undefined {
   const apiKeyFallbacks = options.apiKeyFallbacks ?? []
-  const outputRetries = options.outputTokenRetries ? [outputTokenRetry(options.outputTokenRetries)] : []
+  const outputRetries = options.outputTokenRetries
+    ? [chatTokenFieldRetry(options.outputTokenRetries), outputTokenRetry(options.outputTokenRetries)]
+    : []
   if (
     !options.primaryReplayRouteId &&
     !options.retryPolicy.enabled &&

@@ -901,8 +901,9 @@ describe('buildAgentParams provider resolution', () => {
     }
   )
 
-  it('preserves assistant custom parameters unchanged in the final provider request body', async () => {
+  it('preserves assistant custom parameters while keeping one Chat output budget on the wire', async () => {
     const firstCustomParameters = [
+      { name: 'max_completion_tokens', type: 'json' as const, value: '8192' },
       { name: 'reasoning_effort', type: 'json' as const, value: '"high"' },
       { name: 'tool_choice', type: 'json' as const, value: '"auto"' },
       { name: 'enable_search', type: 'json' as const, value: 'true' },
@@ -973,12 +974,13 @@ describe('buildAgentParams provider resolution', () => {
         signal: undefined,
         provider,
         model,
-        assistant: makeAssistant({ settings: { customParameters } })
+        assistant: makeAssistant({ settings: { customParameters, enableMaxTokens: true, maxTokens: 4096 } })
       })
       requestFetches.push(result.sdkConfig.providerSettings.fetch as typeof globalThis.fetch)
       await aiCoreGenerateText<AppProviderSettingsMap>(result.sdkConfig.providerId, result.sdkConfig.providerSettings, {
         model: result.sdkConfig.modelId,
         prompt: 'hello',
+        maxOutputTokens: result.options.maxOutputTokens,
         providerOptions: result.options.providerOptions
       })
     }
@@ -986,6 +988,9 @@ describe('buildAgentParams provider resolution', () => {
     const receivedCustomParameterSets = expectedCustomParameterSets.map((expectedCustomParameters, index) =>
       Object.fromEntries(Object.keys(expectedCustomParameters).map((name) => [name, receivedBodies[index]?.[name]]))
     )
+    expect(receivedBodies[0]).not.toHaveProperty('max_tokens')
+    expect(receivedBodies[1]).toHaveProperty('max_tokens', 4096)
+    expect(receivedBodies[1]).not.toHaveProperty('max_completion_tokens')
     expect(receivedCustomParameterSets).toEqual(expectedCustomParameterSets)
   })
 })
