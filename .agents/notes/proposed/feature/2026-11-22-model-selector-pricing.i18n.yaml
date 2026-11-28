@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-11-22-model-selector-pricing.md
+2026-11-22-model-selector-pricing.md: 782db317b7d24e969039d7f6db54bf67ea58f58f
+2026-11-22-model-selector-pricing.zh.md: 7dcd3dc4e77f34544924660905f30a7491e04fde
