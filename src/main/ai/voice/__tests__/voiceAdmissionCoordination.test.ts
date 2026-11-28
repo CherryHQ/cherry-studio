@@ -625,7 +625,7 @@ describe('voice admission coordination through the renderer coordinators', () =>
       native.speech.mockResolvedValue({ audio: wav(), mediaType: 'audio/wav' })
       const { playback, voice, voiceOwner, audios } = createPlayback()
       await playback.start({
-        text: 'A sentence to read aloud. '.repeat(180),
+        text: 'word '.repeat(120),
         trigger: 'manual',
         sourceLabel: 'document',
         sourceEntityId: 'long-document'
@@ -682,7 +682,7 @@ describe('voice admission coordination through the renderer coordinators', () =>
       native.speech.mockResolvedValue({ audio: wav(), mediaType: 'audio/wav' })
       const { playback, voice, voiceOwner, audios, ipc } = createPlayback()
       await playback.start({
-        text: 'A sentence to read aloud. '.repeat(180),
+        text: 'word '.repeat(120),
         trigger: 'manual',
         sourceLabel: 'document',
         sourceEntityId: 'long-document'
