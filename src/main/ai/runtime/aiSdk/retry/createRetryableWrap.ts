@@ -31,8 +31,8 @@ import type { RetryPartData } from '@shared/data/types/uiParts'
 
 import { getPendingReplayRoute, ToolContinuationRouteError } from '../../../provider/replayRoute'
 import { getTerminalModelError } from '../../../utils/retryError'
-import { createModelRetryEvents } from './modelRetryEvents'
 import { outputTokenRetry } from './outputTokenRetry'
+import { createModelRetryEvents } from './retryEvents'
 import type { RetryPolicy } from './retryPolicy'
 
 const logger = loggerService.withContext('ModelRetry')
