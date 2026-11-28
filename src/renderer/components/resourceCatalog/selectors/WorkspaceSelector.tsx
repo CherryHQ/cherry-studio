@@ -187,7 +187,6 @@ export function WorkspaceSelector({
             <ModelSelectorRowActionButton
               disabled={disabled}
               aria-label={t('agent.session.workdir.delete.trigger')}
-              className="focus-visible:opacity-100"
               onMouseEnter={preloadWorkspaceDeleteConfirmDialog}
               onFocus={preloadWorkspaceDeleteConfirmDialog}
               onClick={() => handleRequestDeleteWorkspace(workspace)}>

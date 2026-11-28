@@ -943,7 +943,7 @@ export function ModelSelector(props: ModelSelectorProps) {
                   variant="ghost"
                   size="icon-sm"
                   aria-label={t('navigate.provider_settings')}
-                  className="size-4 shrink-0 translate-y-[2px] p-0 text-muted-foreground opacity-0 transition hover:opacity-100! group-hover:opacity-60"
+                  className="size-4 shrink-0 translate-y-[2px] p-0 text-muted-foreground opacity-0 transition hover:opacity-100! group-hover:opacity-60 focus-visible:opacity-100"
                   onClick={(event) => {
                     event.stopPropagation()
                     handleNavigateToProviderSettings(item.provider!.id)
