@@ -21,7 +21,7 @@ import {
   isVisionModel
 } from '@shared/utils/model'
 
-import type { AppProviderId } from '../../../types'
+import type { AppProviderId } from '../types'
 
 /** What a (provider, model) accepts as a native user-message file part. */
 export interface NativeFileSupport {

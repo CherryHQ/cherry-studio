@@ -120,19 +120,15 @@ export class PersistenceListener implements StreamListener {
           parts: finalizeInterruptedParts(dropEmptyContentParts(stripTransientStatusParts(finalMessage.parts)), status)
         })
       : finalMessage
-    const contextTokens = finalMessageForPersistence?.metadata?.stats?.contextTokens
     result.finalMessage = finalMessageForPersistence
-    const runtimeStats: MessageRuntimeStatsInput = {
-      ...(runtimeTiming ? { runtimeTiming } : {}),
-      ...(typeof contextTokens === 'number' && Number.isFinite(contextTokens) ? { contextTokens } : {})
-    }
+    const runtimeStats: MessageRuntimeStatsInput | undefined = runtimeTiming ? { runtimeTiming } : undefined
 
     try {
       const saved = await this.opts.backend.persistAssistant({
         finalMessage: finalMessageForPersistence,
         status,
         modelId: this.opts.modelId ? getProviderModelId(this.opts.modelId) : undefined,
-        ...(Object.keys(runtimeStats).length > 0 ? { runtimeStats } : {})
+        ...(runtimeStats ? { runtimeStats } : {})
       })
       if (saved) result.persistence = { status: 'saved', message: saved }
       logger.info('Assistant message persisted', {

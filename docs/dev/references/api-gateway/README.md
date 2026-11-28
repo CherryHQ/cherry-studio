@@ -640,8 +640,10 @@ upstream response. Otherwise, `TimeoutError` or an exact message of
 `Upstream idle timeout exceeded`, `Stream idle timeout exceeded`, or
 `Idle timeout exceeded` maps to 504 with `Upstream request timed out`; otherwise
 `AbortError`, `ResponseAborted`, or string code `ABORT_ERR` maps to 504 with
-`Upstream stream aborted`. These matches classify the available error shape and
-do not establish upstream provenance. An extracted status in `[200, 300)` is
+`Upstream stream aborted`. A statusless provider error already classified as
+`context_length` by the AI runtime maps to HTTP 400 or the corresponding terminal
+SSE error. Public responses include the context-overflow marker and a sanitized
+message. Internal Anthropic responses use `Prompt is too long:`. An extracted status in `[200, 300)` is
 normalized to **502** for `/v1/messages`, `/v1/chat`, `/v1/responses`, `/v1beta`,
 and their SSE error frames: the AI SDK can create an `APICallError` with
 `statusCode: response.status` when an upstream 2xx body is unusable, and returning

@@ -158,7 +158,15 @@ describe('native Pi through the production gateway', () => {
   let call: (body: Record<string, unknown>) => { content?: string; tool_calls?: unknown[] }
   let rejectUpstream:
     | (() =>
-        | { message: string; code: string; status?: number; type?: string; param?: string; retryAfter?: string }
+        | {
+            message: string
+            code: string
+            status?: number
+            type?: string
+            param?: string
+            retryAfter?: string
+            stream?: 'before-content' | 'after-content'
+          }
         | undefined)
     | undefined
   beforeEach(async () => {
@@ -225,7 +233,7 @@ describe('native Pi through the production gateway', () => {
       requests.push(body)
       dispatchKeys.push(req.headers.authorization)
       const rejection = rejectUpstream?.()
-      if (rejection) {
+      if (rejection && !rejection.stream) {
         const { status = 400, retryAfter, ...error } = rejection
         res.writeHead(status, { 'content-type': 'application/json', ...(retryAfter && { 'retry-after': retryAfter }) })
         res.end(
@@ -353,7 +361,11 @@ describe('native Pi through the production gateway', () => {
         usage: { prompt_tokens: 100, completion_tokens: 25, total_tokens: 125 }
       }
       res.writeHead(200, { 'content-type': 'text/event-stream' })
-      if (failStream) {
+      if (rejection?.stream) {
+        const content = rejection.stream === 'after-content' ? `data: ${JSON.stringify(payload)}\n\n` : ''
+        const error = { message: rejection.message, code: rejection.code, type: 'invalid_request_error' }
+        res.end(`${content}data: ${JSON.stringify({ error })}\n\n`)
+      } else if (failStream) {
         res.end(
           `data: ${JSON.stringify(payload)}\n\ndata: ${JSON.stringify({ error: { message: 'stream failed', type: 'server_error' } })}\n\n`
         )
@@ -797,6 +809,55 @@ describe('native Pi through the production gateway', () => {
     expect(retryEvents[0]).toMatchObject({ state: 'retrying', attempt: 2 })
     expect(retryEvents.at(-1)).toEqual({ state: 'settled' })
   })
+
+  it('surfaces the final SSE overflow when a transient error already triggered a retry', async () => {
+    rejectUpstream = () =>
+      requests.length === 1
+        ? { status: 429, code: 'CONCURRENCY_LIMITED', message: 'Provider busy', retryAfter: '0.001' }
+        : { stream: 'before-content', code: 'context_length_exceeded', message: 'The request cannot be processed.' }
+    await expect(directObjectCall()).rejects.toMatchObject({
+      status: 400,
+      error: { error: { code: 'context_length_exceeded' } }
+    })
+    expect(requests).toHaveLength(2)
+  })
+
+  it.each(['before-content', 'after-content'] as const)(
+    'preserves a code-only upstream SSE overflow %s',
+    async (stream) => {
+      rejectUpstream = () => ({ stream, code: 'context_length_exceeded', message: 'The request cannot be processed.' })
+      const response = await fetch(`${mocks.gatewayUrl}/v1/chat/completions`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          model: 'port:wire-model',
+          messages: [{ role: 'user', content: 'Hello' }],
+          stream: true
+        })
+      })
+      const body = await response.text()
+      expect(response.status).toBe(stream === 'before-content' ? 400 : 200)
+      if (stream === 'after-content') {
+        expect(body).toContain('Model answer')
+        expect(body).not.toContain('[DONE]')
+      }
+      const errors =
+        stream === 'before-content'
+          ? [JSON.parse(body).error]
+          : body
+              .split('\n')
+              .filter((line) => line.startsWith('data: '))
+              .map((line) => JSON.parse(line.slice(6)).error)
+              .filter(Boolean)
+      expect(errors).toEqual([
+        expect.objectContaining({
+          code: 'context_length_exceeded',
+          message: expect.stringContaining('The request cannot be processed.')
+        })
+      ])
+      expect(requests).toHaveLength(1)
+    }
+  )
 
   it('preserves non-context provider errors in the native Pi response', async () => {
     const message = `Provider rejected configuration: ${'detail '.repeat(110)}`
