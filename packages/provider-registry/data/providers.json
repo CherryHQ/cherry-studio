@@ -771,6 +771,31 @@
     {
       "availableInEditions": ["global", "cn"],
       "defaultChatEndpoint": "openai-chat-completions",
+      "description": "TeamoRouter - AI model provider",
+      "endpointConfigs": {
+        "anthropic-messages": {
+          "adapterFamily": "anthropic",
+          "baseUrl": "https://api.teamorouter.com"
+        },
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://api.teamorouter.com/v1"
+        }
+      },
+      "id": "teamorouter",
+      "metadata": {
+        "website": {
+          "apiKey": "https://teamorouter.com/dashboard",
+          "docs": "https://teamorouter.com/docs",
+          "models": "https://teamorouter.com/models",
+          "official": "https://teamorouter.com"
+        }
+      },
+      "name": "TeamoRouter"
+    },
+    {
+      "availableInEditions": ["global", "cn"],
+      "defaultChatEndpoint": "openai-chat-completions",
       "description": "TokenDance - AI model provider",
       "endpointConfigs": {
         "anthropic-messages": {
@@ -2969,5 +2994,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "5179a16fddc562d9"
+  "version": "7093cca9ba784a59"
 }

@@ -897,8 +897,8 @@
     }
   ],
   "providers": {
-    "version": "5179a16fddc562d9",
-    "count": 68,
+    "version": "7093cca9ba784a59",
+    "count": 69,
     "entries": [
       {
         "id": "cherryin",
@@ -979,6 +979,10 @@
       {
         "id": "radeon-cloud",
         "name": "AMD GPU Cloud"
+      },
+      {
+        "id": "teamorouter",
+        "name": "TeamoRouter"
       },
       {
         "id": "tokendance",

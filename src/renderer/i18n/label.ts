@@ -68,6 +68,7 @@ const providerKeyMap = {
   openrouter: 'provider.openrouter',
   perplexity: 'provider.perplexity',
   ph8: 'provider.ph8',
+  teamorouter: 'provider.teamorouter',
   ppio: 'provider.ppio',
   qiniu: 'provider.qiniu',
   qwencloud: 'provider.qwencloud',
