@@ -27,11 +27,9 @@ export interface NativeInputRef {
   readonly session: Thread
   readonly id: NativeInputId
 }
-export type BusyPolicy = 'reject' | 'steer' | 'follow-up'
 export interface InputDraft {
   readonly inputId: InputId
   readonly text: string
-  readonly whenBusy: BusyPolicy
 }
 export interface RuntimeError {
   readonly operation: string
@@ -49,7 +47,9 @@ export type SubmitResult =
       readonly nativeInput?: NativeInputRef
       readonly facts: readonly InputFact[]
     }
-  | { readonly status: 'rejected' | 'unsupported' | 'unknown'; readonly inputId: InputId; readonly error: RuntimeError }
+  | { readonly status: 'rejected'; readonly inputId: InputId; readonly error: RuntimeError }
+  | { readonly status: 'unsupported'; readonly inputId: InputId; readonly error: RuntimeError }
+  | { readonly status: 'unknown'; readonly inputId: InputId; readonly error: RuntimeError }
 export type InputState = (
   | { readonly inputId: InputId; readonly nativeInput?: NativeInputRef }
   | { readonly inputId?: InputId; readonly nativeInput: NativeInputRef }
@@ -87,6 +87,7 @@ export interface Subagent {
 }
 export interface Activity {
   readonly state: 'active' | 'idle' | 'unknown'
+  readonly modelRetry?: { readonly modelId: string; readonly attempt: number; readonly reason: string }
 }
 export type ContextCategoryKey =
   | 'messages'
@@ -119,7 +120,7 @@ export interface ContextResource {
 export interface ThreadContextUsage {
   readonly model: string
   readonly revision: string
-  readonly contextWindow: number
+  readonly contextWindow?: number
   readonly used?: ContextTokenCount
   readonly basis: 'current-context' | 'last-request'
   readonly reserved?: ContextTokenCount
@@ -222,13 +223,21 @@ export interface Observation {
   drain(): Promise<void>
   stop(): Promise<void>
 }
-export interface ThreadInput {
-  submit(input: InputDraft): Promise<SubmitResult>
+export type SubmitInput<D extends { readonly inputId: InputId } = InputDraft> = (
+  input: D & { readonly whenBusy?: never }
+) => Promise<SubmitResult>
+export interface ThreadInput<D extends { readonly inputId: InputId } = InputDraft> {
+  readonly submit?: SubmitInput<D>
+  readonly steer?: { readonly whenIdle: 'reject' | 'may-start'; readonly submit: SubmitInput<D> }
+  readonly followUp?: { readonly persistence: 'durable' | 'volatile' | 'unknown'; readonly submit: SubmitInput<D> }
 }
+export type CompactThread = (instructions?: string) => Promise<OperationResult<void>>
+
 export interface ThreadHandle {
   readonly thread: Thread
   contextUsage(): Promise<OperationResult<ThreadContextUsage>>
   readonly input?: ThreadInput
+  readonly compact?: CompactThread
   observe(sink: ObservationSink): Promise<OperationResult<Observation>>
   interrupt?: () => Promise<OperationResult<void>>
   release(): Promise<void>
@@ -236,4 +245,22 @@ export interface ThreadHandle {
 export interface AgentRuntime {
   open(ref: Thread): Promise<OperationResult<ThreadHandle>>
   shutdown(): Promise<OperationResult<void>>
+}
+export interface RuntimeEffortControl<Value extends string = string> {
+  id: string
+  currentValue: Value
+  application: 'session' | 'next-turn'
+  modelId?: string
+  options: Array<{ value: Value; name: string; description?: string }>
+}
+
+export interface RuntimeModelOption {
+  id: string
+  name: string
+  description?: string
+  _meta?: Record<string, unknown>
+  effort?: {
+    options: RuntimeEffortControl['options']
+    defaultValue?: string
+  }
 }

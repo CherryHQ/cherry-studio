@@ -237,6 +237,45 @@ describe('shared projection delivery', () => {
     off()
   })
 
+  it('applies terminal truncation and appended output to the addressed tool without replacing its row', async () => {
+    const ipc = projectionIpc()
+    const store = new MessageProjectionService()
+    const off = store.subscribe(target, () => {})
+    const first = ipc.attachments[0]
+    const tool = {
+      type: 'dynamic-tool',
+      toolName: 'ACP: Shell',
+      toolCallId: 'shell',
+      state: 'input-available',
+      input: { localAcpTool: { terminals: { log: '🌸abc' }, terminalDetails: { log: { truncated: false } } } }
+    } as const
+    first.resolve({ ...base, messages: [{ ...base.messages[0], parts: [tool], partIds: ['part'] }] })
+    await flush()
+    const row = store.partsFor(target).row('m')!
+    const before = row.getSnapshot()
+    const send = (revision: number) =>
+      ipc.emit(first.subscriptionId, {
+        kind: 'topic',
+        type: 'parts',
+        revision,
+        patches: [
+          {
+            type: 'part-tool-terminal',
+            partId: 'part',
+            delta: { toolCallId: 'shell', terminalId: 'log', drop: 2, append: '新', truncated: true }
+          }
+        ]
+      })
+    send(1)
+    send(1)
+    expect(store.readPart(target, 'part')).toMatchObject({
+      input: { localAcpTool: { terminals: { log: 'abc新' }, terminalDetails: { log: { truncated: true } } } }
+    })
+    expect(tool.input.localAcpTool.terminals.log).toBe('🌸abc')
+    expect(row.getSnapshot()).toBe(before)
+    off()
+  })
+
   it('delivers running tool output to its row and settles its status in the view', async () => {
     const ipc = projectionIpc()
     const store = new MessageProjectionService()

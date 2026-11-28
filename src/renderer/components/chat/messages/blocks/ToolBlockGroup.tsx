@@ -333,6 +333,9 @@ function getToolTitle(
   t: ReturnType<typeof useTranslation>['t'],
   withIntent: boolean
 ) {
+  const acpTitle = toolResponse.tool.name.startsWith('ACP: ') ? toolResponse.tool.name.slice(5).trim() : ''
+  if (acpTitle) return acpTitle
+
   const isActive = status === 'invoking' || status === 'streaming' || status === 'waiting'
   const mcpPresentation = getMcpToolGroupPresentation(toolResponse.tool, toolResponse.arguments)
   if (mcpPresentation && status === 'error') return t('message.tools.activity.extensionFailed')

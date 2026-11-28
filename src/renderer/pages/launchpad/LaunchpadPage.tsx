@@ -7,6 +7,7 @@ import { Button, ScrollArea } from '@cherrystudio/ui'
 import { Sortable } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import agentsIcon from '@renderer/assets/images/apps/launchpad-agents.svg'
+import apiGatewayIcon from '@renderer/assets/images/apps/launchpad-api-gateway.svg'
 import assistantsIcon from '@renderer/assets/images/apps/launchpad-assistants.svg'
 import codeToolsIcon from '@renderer/assets/images/apps/launchpad-code-tools.svg'
 import filesIcon from '@renderer/assets/images/apps/launchpad-files.svg'
@@ -17,7 +18,6 @@ import notesIcon from '@renderer/assets/images/apps/launchpad-notes.svg'
 import paintingsIcon from '@renderer/assets/images/apps/launchpad-paintings.svg'
 import scheduledTasksIcon from '@renderer/assets/images/apps/launchpad-scheduled-tasks.svg'
 import translateIcon from '@renderer/assets/images/apps/launchpad-translate.svg'
-import { SidebarIcon } from '@renderer/components/app/sidebarIcons'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
 import SidebarShortcutIcon from '@renderer/components/icons/SidebarShortcutIcon'
 import App from '@renderer/components/MiniApp/MiniApp'
@@ -25,13 +25,14 @@ import { useLaunchpadAppOrder } from '@renderer/hooks/useLaunchpadAppOrder'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
 import { getSidebarIconLabelKey } from '@renderer/i18n/label'
+import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
 import { parseAppRouteUrl } from '@renderer/utils/appRouteUrl'
 import type { SidebarAppId } from '@renderer/utils/sidebar'
 import { createSidebarShortcutTarget, getSidebarMenuPath, SIDEBAR_SHORTCUT_PROVIDER_IDS } from '@renderer/utils/sidebar'
 import type { MiniApp as MiniAppType } from '@shared/data/types/miniApp'
 
-const LAUNCHPAD_GRID_CLASS = 'grid grid-cols-6 justify-items-center gap-2 px-2'
+const LAUNCHPAD_GRID_CLASS = 'grid grid-cols-[repeat(auto-fit,minmax(max(92px,calc((100%_-_40px)/6)),1fr))] gap-2 px-2'
 const LAUNCHPAD_ITEM_CLASS = 'mx-auto w-[92px]'
 const APP_ICON_SURFACE_CLASS =
   'relative flex size-14 items-center justify-center overflow-hidden rounded-2xl bg-muted group-focus-visible:inset-ring-2 group-focus-visible:inset-ring-ring'
@@ -40,7 +41,7 @@ const APP_ICON_FRAME_CLASS =
 const APP_ICON_CLASS = 'size-full object-contain'
 const SORTABLE_CONTENTS_STYLE = { display: 'contents' } as const
 
-const APP_ICON_SOURCES: Record<SidebarAppId, string | undefined> = {
+const APP_ICON_SOURCES: Record<SidebarAppId, string> = {
   assistants: assistantsIcon,
   agents: agentsIcon,
   scheduled_tasks: scheduledTasksIcon,
@@ -51,7 +52,8 @@ const APP_ICON_SOURCES: Record<SidebarAppId, string | undefined> = {
   knowledge: knowledgeIcon,
   files: filesIcon,
   code_tools: codeToolsIcon,
-  notes: notesIcon
+  notes: notesIcon,
+  api_gateway: apiGatewayIcon
 }
 
 export default function LaunchpadPage() {
@@ -135,6 +137,10 @@ export default function LaunchpadPage() {
 
   const openLaunchpadItem = (favorite: SidebarAppId) => {
     if (shouldSuppressLaunchClick(favorite)) return
+    if (favorite === 'code_tools') {
+      openSettingsTab('/settings/local-agents')
+      return
+    }
 
     // Launchpad opens each app at its base entry (chat -> new conversation,
     // agents -> new session). Resuming the last-used instance is the sidebar's
@@ -251,21 +257,15 @@ export default function LaunchpadPage() {
         type="button"
         data-dnd-row-control
         onClick={() => openLaunchpadItem(item.id)}
-        className={`${LAUNCHPAD_ITEM_CLASS} group flex cursor-pointer flex-col items-center gap-1 rounded-2xl px-1 py-2 text-center outline-none transition-transform duration-200 hover:scale-105 focus-visible:scale-105 active:scale-95`}>
+        className="group flex w-full min-w-0 cursor-pointer flex-col items-center gap-1 rounded-2xl px-1 py-2 text-center outline-none transition-transform duration-200 hover:scale-105 focus-visible:scale-105 active:scale-95">
         <span className="relative flex size-14 items-center justify-center">
           <span className={APP_ICON_SURFACE_CLASS}>
             <span className={APP_ICON_FRAME_CLASS}>
-              {item.iconSrc ? (
-                <img src={item.iconSrc} alt="" className={APP_ICON_CLASS} draggable={false} />
-              ) : (
-                <SidebarIcon icon={item.id} className="size-9 text-foreground" />
-              )}
+              <img src={item.iconSrc} alt="" className={APP_ICON_CLASS} draggable={false} />
             </span>
           </span>
         </span>
-        <span className="w-full overflow-hidden text-ellipsis whitespace-nowrap text-[12px] text-foreground">
-          {item.text}
-        </span>
+        <span className="w-full truncate text-[12px] text-foreground">{item.text}</span>
       </button>
     </CommandContextMenu>
   )

@@ -170,7 +170,7 @@ async function startInternalGateway(service: ApiGatewayService, sessionId?: stri
   return pending
 }
 
-const CHAT_SCOPE = { path: '/v1/chat/completions', model: 'openai:gpt-4o' }
+const CHAT_SCOPE = { paths: ['/v1/chat/completions'], model: 'openai:gpt-4o' }
 
 describe('internal request budget', () => {
   it('allows a small request alongside a large one and queues a second large request', async () => {
@@ -296,7 +296,7 @@ describe('ApiGatewayService internal gateway', () => {
     for (const result of results) {
       expect(result.status).toBe('rejected')
       if (result.status === 'rejected') {
-        expect(result.reason.message).toContain('internal API Gateway')
+        expect(result.reason.message).toContain('internal Unified Gateway')
         expect(result.reason.message).toContain('::1, requested TCP port 49152')
         expect(result.reason.message).toContain('Retry the request')
         expect(result.reason.cause).toBe(original)
@@ -442,6 +442,56 @@ describe('ApiGatewayService internal gateway', () => {
     expect(mockGetActiveUsageContext).toHaveBeenCalledWith('session-1', 'native-response')
     expect(service.getAgentSessionId(new Headers({ ...sessionHeaders, 'x-api-key': scoped.apiKey }))).toBeUndefined()
     expect(service.getAgentSessionId(new Headers({ ...sessionHeaders, 'x-api-key': 'existing-key' }))).toBeUndefined()
+  })
+
+  it('binds scoped gateway requests to the active turn instead of an unemitted adapter response id', async () => {
+    const service = new ApiGatewayService()
+    const internal = await startInternalGateway(service, 'session-1')
+    const boundScoped = await service.createScopedCredential({ ...CHAT_SCOPE, agentSessionId: 'session-1' })
+
+    expect(
+      service.resolveAgentSessionUsage(new Headers({ 'x-api-key': boundScoped.apiKey }), 'adapter-response-id')
+    ).toEqual({
+      agentSessionId: 'session-1',
+      source: { type: 'agent', id: 'agent-1', name: 'Original Agent', icon: '🧠' }
+    })
+    expect(mockGetActiveUsageContext).toHaveBeenLastCalledWith('session-1', undefined)
+
+    const sessionHeaders = service.getAgentSessionUsageHeaders('session-1')
+    service.resolveAgentSessionUsage(
+      new Headers({ ...sessionHeaders, 'x-api-key': internal.apiKey }),
+      'native-response-id'
+    )
+    expect(mockGetActiveUsageContext).toHaveBeenLastCalledWith('session-1', 'native-response-id')
+    boundScoped.dispose()
+  })
+
+  it('isolates sessions using the same model and leaves public-key requests unassociated', async () => {
+    const service = new ApiGatewayService()
+    await startInternalGateway(service)
+    const first = await service.createScopedCredential({ ...CHAT_SCOPE, agentSessionId: 'session-1' })
+    const second = await service.createScopedCredential({ ...CHAT_SCOPE, agentSessionId: 'session-2' })
+    mockGetActiveUsageContext.mockImplementation((sessionId: string) => ({
+      agentSessionId: sessionId,
+      assistantMessageId: 'reply-for-' + sessionId,
+      source: null
+    }))
+
+    const usage = (apiKey: string) => service.resolveAgentSessionUsage(new Headers({ 'x-api-key': apiKey }))
+    expect(usage(first.apiKey)).toMatchObject({
+      agentSessionId: 'session-1',
+      assistantMessageId: 'reply-for-session-1'
+    })
+    expect(usage(second.apiKey)).toMatchObject({
+      agentSessionId: 'session-2',
+      assistantMessageId: 'reply-for-session-2'
+    })
+    expect(usage('existing-key')).toBeUndefined()
+    first.dispose()
+    expect(usage(first.apiKey)).toBeUndefined()
+    expect(usage('existing-key')).toBeUndefined()
+    expect(usage(second.apiKey)).toMatchObject({ agentSessionId: 'session-2' })
+    second.dispose()
   })
 })
 
@@ -804,7 +854,7 @@ describe('ApiGatewayService independent LAN access', () => {
     const service = new ApiGatewayService()
     await service._doInit()
 
-    await expect(service.setLanEnabled(true)).rejects.toThrow('Start the API Gateway')
+    await expect(service.setLanEnabled(true)).rejects.toThrow('Start the Unified Gateway')
 
     expect(service.getCurrentConfig()).toMatchObject({ enabled: false, host: '127.0.0.1' })
     expect(service.isActivated).toBe(false)
@@ -861,6 +911,20 @@ describe('ApiGatewayService independent LAN access', () => {
 })
 
 describe('ApiGatewayService running-state publication', () => {
+  it('publishes the bound endpoint when the preference changes during startup and clears it on stop', async () => {
+    const service = new ApiGatewayService()
+    await service._doInit()
+    const started = service.start()
+    await vi.waitFor(() => expect(mockStart).toHaveBeenCalledTimes(1))
+    captured.portPreference = 24444
+    startResolvers[0]()
+    await started
+    expect(mockSetShared).toHaveBeenCalledWith('feature.api_gateway.endpoint', { host: '127.0.0.1', port: 23333 })
+    await service.stop()
+    expect(mockSetShared).toHaveBeenLastCalledWith('feature.api_gateway.lan_running', false)
+    expect(mockSetShared).toHaveBeenCalledWith('feature.api_gateway.endpoint', null)
+  })
+
   it('returns stopped when stop() deactivates the server immediately', async () => {
     const service = new ApiGatewayService()
     await service._doInit()

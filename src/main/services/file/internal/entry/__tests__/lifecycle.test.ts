@@ -9,8 +9,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { paintingFileRefTable } from '@data/db/schemas/fileRelations'
 import { paintingTable } from '@data/db/schemas/painting'
+import { translateHistoryService } from '@data/services/TranslateHistoryService'
 import { ErrorCode } from '@shared/data/api/errors'
-import type { FileEntryId } from '@shared/data/types/file'
+import { type FileEntryId, translateHistorySourceType } from '@shared/data/types/file'
 import type { AbsoluteFilePath } from '@shared/types/file'
 import { KeyedMutex } from '@shared/utils/async'
 
@@ -40,6 +41,7 @@ const {
 const { exists } = await import('@main/utils/file')
 const { createInternal, ensureExternal } = await import('../create')
 
+import { runPathMutationExclusive } from '../../../pathMutationLock'
 import type { FileManagerDeps } from '../../deps'
 
 describe('internal/entry/lifecycle', () => {
@@ -296,6 +298,9 @@ describe('internal/entry/lifecycle', () => {
       const entry = fileEntryService.getById(id)
       if (entry.origin !== 'external') throw new Error('expected external entry')
 
+      vi.spyOn(await import('@main/utils/file'), 'getPathStatus').mockRejectedValue(
+        new Error('external path unavailable')
+      )
       await removeExternalFromLibrary(deps, id)
 
       expect(fileEntryService.findById(id)).toBeNull()
@@ -316,6 +321,90 @@ describe('internal/entry/lifecycle', () => {
       expect(fileEntryService.findById(id)).not.toBeNull()
       expect(await exists(entry.externalPath)).toBe(true)
     })
+
+    it.each([
+      'missing',
+      'present',
+      'missing with another reference',
+      'missing with a reference added during the probe'
+    ] as const)(
+      'preserves the translation history and its target when the external source is %s',
+      async (sourceState) => {
+        const sourceId = await makeExternal()
+        const targetId = await makeInternal()
+        const source = fileEntryService.getById(sourceId)
+        if (source.origin !== 'external') throw new Error('expected external entry')
+
+        const history = fileEntryService.withWriteTx((tx) =>
+          translateHistoryService.createFileTx(tx, {
+            sourceText: 'original.pdf',
+            targetText: 'translated.pdf',
+            sourceLanguage: null,
+            targetLanguage: null,
+            sourceFileEntryId: sourceId,
+            targetFileEntryId: targetId
+          })
+        )
+        if (sourceState !== 'present') await rm(source.externalPath)
+        if (sourceState === 'missing with another reference') await seedPersistentRef(sourceId)
+
+        const fileUtils = await import('@main/utils/file')
+        const probe = vi.spyOn(fileUtils, 'getPathStatus')
+        const probeStarted = Promise.withResolvers<void>()
+        const probeFinished = Promise.withResolvers<Awaited<ReturnType<typeof fileUtils.getPathStatus>>>()
+        if (sourceState === 'missing with a reference added during the probe') {
+          probe.mockImplementationOnce(() => {
+            probeStarted.resolve()
+            return probeFinished.promise
+          })
+        }
+
+        const removal = batchRemoveFromLibrary(deps, [sourceId])
+        if (sourceState === 'missing with a reference added during the probe') {
+          let competingWrite: Promise<void> | undefined
+          try {
+            await probeStarted.promise
+            let committed = false
+            competingWrite = runPathMutationExclusive(async () => {
+              await seedPersistentRef(sourceId)
+              committed = true
+            })
+            await vi.waitFor(() => expect(committed).toBe(true), { timeout: 500 })
+          } finally {
+            probeFinished.resolve({ ok: false, reason: 'missing' })
+            await Promise.all([competingWrite, removal])
+          }
+        }
+        const result = await removal
+        const canRemove = sourceState === 'missing'
+        if (canRemove) {
+          expect(result).toEqual({ succeeded: [sourceId], failed: [] })
+          expect(fileEntryService.findById(sourceId)).toBeNull()
+        } else {
+          expect(result.succeeded).toEqual([])
+          expect(result.failed).toEqual([{ id: sourceId, error: expect.stringMatching(/referenced/i) }])
+          expect(fileEntryService.getById(sourceId)).toEqual(source)
+        }
+
+        expect(await exists(source.externalPath)).toBe(sourceState === 'present')
+        expect(translateHistoryService.getById(history.id)).toEqual(history)
+        const refs = fileRefService.findBySource({ sourceType: translateHistorySourceType, sourceId: history.id })
+        expect(
+          refs
+            .filter((ref) => ref.sourceType === translateHistorySourceType)
+            .map(({ role, fileEntryId }) => [role, fileEntryId])
+            .sort()
+        ).toEqual(
+          canRemove
+            ? [['target', targetId]]
+            : [
+                ['source', sourceId],
+                ['target', targetId]
+              ]
+        )
+        expect(await exists(path.join(filesDir, `${targetId}.txt`) as AbsoluteFilePath)).toBe(true)
+      }
+    )
   })
 
   describe('batch ops', () => {

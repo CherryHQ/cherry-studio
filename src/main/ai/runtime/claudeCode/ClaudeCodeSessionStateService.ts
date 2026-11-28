@@ -44,6 +44,11 @@ interface McpSessionCatalogState {
   subscription?: { dispose(): void }
 }
 
+interface BashRewriteOrigin {
+  originalCommand: string
+  rtkApprovalRequired?: boolean
+}
+
 @Injectable('ClaudeCodeSessionStateService')
 @ServicePhase(Phase.WhenReady)
 export class ClaudeCodeSessionStateService extends BaseService {
@@ -51,7 +56,7 @@ export class ClaudeCodeSessionStateService extends BaseService {
   private readonly toolPolicySnapshots = new Map<string, ToolPolicySnapshot>()
   private readonly mcpSessionCatalogStates = new Map<string, McpSessionCatalogState>()
   private readonly bashOutcomes = new Map<string, BashOutcome[]>()
-  private readonly bashRewriteOrigins = new Map<string, Map<string, string>>()
+  private readonly bashRewriteOrigins = new Map<string, Map<string, BashRewriteOrigin>>()
 
   getToolApprovalEmitterHolder(sessionId: string): ToolApprovalEmitterHolder {
     let holder = this.toolApprovalEmitters.get(sessionId)
@@ -150,13 +155,19 @@ export class ClaudeCodeSessionStateService extends BaseService {
    * evaluated the original. Keyed by tool_use_id so the recorder files the outcome under the
    * command the guard will see on the next retry.
    */
-  recordBashRewriteOrigin(sessionId: string, toolUseId: string, originalCommand: string): void {
+  recordBashRewriteOrigin(sessionId: string, toolUseId: string, originalCommand: string): BashRewriteOrigin {
     let origins = this.bashRewriteOrigins.get(sessionId)
     if (!origins) {
       origins = new Map()
       this.bashRewriteOrigins.set(sessionId, origins)
     }
-    origins.set(toolUseId, originalCommand)
+    const origin: BashRewriteOrigin = { originalCommand }
+    origins.set(toolUseId, origin)
+    return origin
+  }
+
+  isBashRtkApprovalRequired(sessionId: string, toolUseId: string): boolean {
+    return this.bashRewriteOrigins.get(sessionId)?.get(toolUseId)?.rtkApprovalRequired === true
   }
 
   takeBashRewriteOrigin(sessionId: string, toolUseId: string): string | undefined {
@@ -165,7 +176,7 @@ export class ClaudeCodeSessionStateService extends BaseService {
     const original = origins.get(toolUseId)
     origins.delete(toolUseId)
     if (origins.size === 0) this.bashRewriteOrigins.delete(sessionId)
-    return original
+    return original?.originalCommand
   }
 
   disposeToolPolicySnapshot(sessionId: string): void {

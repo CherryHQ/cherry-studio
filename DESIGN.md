@@ -117,6 +117,19 @@ themes. Resolve theme differences through semantic tokens; a component-local `da
 override a caller's semantic foreground. Fix conflicting defaults in the owning shared component instead of adding
 `!important` overrides to individual callers.
 
+### Action icon consistency
+
+- Neutral utility icons in the same card, toolbar, or action group use the same foreground role, normally
+  `muted-foreground`. Adding an action must preserve that group's existing icon treatment.
+- Primary and destructive buttons may inherit their variant's foreground; status icons use the matching feedback
+  role. Preserve brand artwork colors instead of applying utility-icon colors to logos.
+- An explicit Lucide color inside `Button` must follow its
+  [icon color contract](./packages/ui/README.md#icon-colors), including the `lucide-custom` marker. A foreground
+  utility alone does not override the button's inherited-icon rule.
+- Apply the same treatment to alternate icons: loading, start/stop, open, retry, and upgrade states.
+- Verify the rendered result beside adjacent controls in light and dark themes. Inspect computed icon colors when
+  inheritance is involved; a class name or a passing type check is not evidence of the displayed color.
+
 ## 4. Typography
 
 Use the shared body and heading font families for functional UI. Code-rendering components own their monospace
@@ -174,18 +187,27 @@ semantic roles. Exact state styling belongs to the shared component.
 
 ### Focus
 
-Keyboard focus must be visible and should reuse a component's existing border, fill, text, underline, or an inset
-indicator. Avoid adding a second frame outside the control.
+Keyboard focus uses two channels, both colored by `--ring`:
 
-- Text-entry controls may change their existing border while editing or keyboard-focused.
-- Buttons, menu items, tabs, links, and selectable rows should use their established hover vocabulary for
-  focus-visible feedback.
-- Controls that cannot express focus through an existing surface may use an inset ring or inset shadow.
-- Do not remove focus feedback, and do not use non-inset focus rings, positive outline offsets, or focus shadows
-  that extend beyond the component bounds.
+- **Halo:** the shared base layer draws a 3px outline of `--ring` at 40% alpha directly outside the edge of every
+  `:focus-visible` element. Do not add per-call-site focus rings, outlines, or shadows, and do not remove the halo
+  from a focusable control with `outline-none`.
+- **Border:** bordered controls change their border to the opaque `--ring` (`focus-visible:border-ring`), which
+  carries the contrast. A state that owns the border, such as checked or invalid, may keep it; the halo still
+  marks focus.
+- Borderless controls, such as filled, ghost, and link buttons, tabs, and menu-list rows, keep their focus-visible
+  fill, text, or underline change alongside the halo.
+- A wrapper that draws the border for an inner control, such as an input group, also draws the halo, and the inner
+  control opts out.
+- Popup containers that receive focus programmatically (menus, popovers, dialogs, sheets, drawers, select content)
+  opt out with `outline-none` in their primitive. Popup list items (menu items, select options, command items) use
+  the `accent` highlight instead of the halo, and a checked option shows only its check mark.
 
-Pointer focus, an open popup, or a pressed control does not automatically justify a theme-colored border.
-Persistent states such as selected, checked, active, and invalid may use a border when it communicates that state.
+`--ring` derives from the brand color rather than the user's theme color, so no theme color can hide focus.
+
+Pointer focus, an open popup, or a pressed control shows neither the halo nor a ring-colored border. Text-entry
+controls match `:focus-visible` on click, so they show both while editing. Persistent states such as selected,
+checked, active, and invalid may use a border when it communicates that state.
 
 ### State and motion
 
@@ -219,5 +241,6 @@ Before shipping new UI, check that it:
 - verifies rendered icon colors against their semantic roles in both themes, including rest, hover, keyboard
   focus, selected/open, and disabled states; utility class presence alone does not prove the resulting color;
 - provides accessible names for icon-only actions;
+- keeps adjacent action icons and their loading/state replacements visually consistent;
 - respects reduced motion;
 - keeps page-specific implementation choices out of the global design-system contract.

@@ -522,13 +522,14 @@ describe('FileEntryService', () => {
         size: i,
         externalPath: null,
         deletedAt: null,
-        createdAt: now + i,
+        createdAt: now + [40, 10, 30, 0, 20][i],
         updatedAt: now + i
       }))
       await dbh.db.insert(fileEntryTable).values(rows)
 
       const page = fileEntryService.findMany({ limit: 2, offset: 1 })
-      expect(page).toHaveLength(2)
+      // createdAt order differs from insertion and ID order: n3, n1, n4, n2, n0.
+      expect(page.map((entry) => entry.name)).toEqual(['n1', 'n4'])
     })
   })
 
