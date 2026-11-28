@@ -254,7 +254,32 @@ describe('inLoopCompactionFeature', () => {
     return hooks.prepareStep!
   }
 
+  it('does not serve or cache an oversized replacement', async () => {
+    compactModelMessages.mockClear()
+    compactModelMessages.mockResolvedValue([userMessage(20_000)])
+    const currentScope = scope({ chatId: 'topic-1', contextWindow: 10_000 })
+    currentScope.request.callOverrides = { maxOutputTokens: 4096 }
+    const events = vi.fn()
+    currentScope.compactionSink = events
+    const prepareStep = getPrepareStep(currentScope)
+    const messages = [userMessage(4500)]
+    expect(await prepareStep({ messages } as any)).toBeUndefined()
+    expect(events.mock.calls.at(-1)?.[1].status).toBe('skipped')
+  })
+
+  it('returns no override and does not compact when the prompt is below 80% of the window', async () => {
+    compactModelMessages.mockClear()
+    const prepareStep = getPrepareStep()
+    // trigger = 0.8 * floor(100_000 * 0.9) = 72_000; a small prompt stays well under it.
+    const messages = [userMessage(100)]
+    const result = await prepareStep({ messages } as any)
+    expect(result).toBeUndefined()
+    expect(compactModelMessages).not.toHaveBeenCalled()
+  })
+
+  // #17837: at step 0 there is no usage anchor, so the whole prompt is estimated locally.
   // #17837: the whole prompt is estimated locally before the first step.
+
   // Stringifying a file part fed its base64 payload to the tokenizer and scored a 13 MB MP3
   // at ~3.7 M tokens (~183x the provider's 20 k), firing compaction on a first turn that has
   // nothing to fold. Media must be priced by modality, never by payload length.
@@ -349,6 +374,52 @@ describe('inLoopCompactionFeature', () => {
     await prepareStep({ messages: [userMessage(90_000)] } as any)
     const { maxOutputTokens, maxInputTokens } = compactModelMessages.mock.calls[0][2]
     expect(maxOutputTokens + maxInputTokens).toBeLessThan(8_000)
+  })
+
+  // Boundary contract: compacts inside the new 72K–80K band (100K window).
+  // Without the safety margin the trigger is 80K; with it the trigger is 72K.
+  // A 73K prompt is above the new trigger but below the old one, proving the
+  // margin actually changes the compaction boundary.
+  it('compacts inside the new 72K–80K trigger band for a 100K window', async () => {
+    compactModelMessages.mockClear()
+    compactModelMessages.mockResolvedValue([userMessage(10)])
+    const prepareStep = getPrepareStep()
+    // trigger = 0.8 * floor(100_000 * 0.9) = 72_000; 73_000 > 72_000 → compacts.
+    // Without the margin the trigger would be 80_000 and 73_000 would not compact.
+    const messages = [userMessage(73_000)]
+    const result = await prepareStep({ messages } as any)
+    expect(compactModelMessages).toHaveBeenCalledOnce()
+    expect(result).toEqual({ messages: [userMessage(10)] })
+  })
+
+  // The compressor fallback must apply the safety margin exactly once, not twice.
+  // When compressor.contextWindow is null the fallback uses the raw contextWindow
+  // (not the already-margined effectiveContextWindow).
+  it('applies the safety margin exactly once in the compressor-fallback budget', async () => {
+    compactModelMessages.mockClear()
+    compactModelMessages.mockResolvedValue([userMessage(10)])
+    const prepareStep = getPrepareStep(
+      scope({
+        chatId: 'topic-1',
+        contextWindow: CONTEXT_WINDOW, // 100k chat model
+        // compressor has no declared contextWindow → falls back to raw contextWindow
+        compressionModel: { languageModel: COMPRESSION_LANGUAGE_MODEL, contextWindow: null }
+      })
+    )
+    const messages = [userMessage(90_000)]
+    const result = await prepareStep({ messages } as any)
+    // Observable contract: the over-budget prompt compacted to the summary.
+    expect(compactModelMessages).toHaveBeenCalledOnce()
+    expect(result).toEqual({ messages: [userMessage(10)] })
+    const { maxOutputTokens, maxInputTokens } = compactModelMessages.mock.calls[0][2]
+    const summarizeBudget = maxOutputTokens + maxInputTokens
+    // The summarize call fits inside the once-margined compressor window
+    // (floor(100_000 * 0.9) = 90_000) …
+    expect(summarizeBudget).toBe(78_957)
+    // … but is larger than a double-margined budget would allow
+    // (floor(90_000 * 0.9) = 81_000 window → ~71_307 total), proving the
+    // margin was applied once, not twice.
+    expect(summarizeBudget).toBeGreaterThan(71_307)
   })
 
   // `compactModelMessages` propagates provider errors. Letting one escape

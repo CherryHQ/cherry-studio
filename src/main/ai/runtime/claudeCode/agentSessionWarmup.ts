@@ -53,7 +53,10 @@ import { taskCompactionPercent } from '../taskCompaction'
 import type { AgentRuntimeConnectInput, AgentSessionUsageCapture } from '../types'
 import type { WarmQueryRequest } from './ClaudeCodeWarmQueryManager'
 import { isAnthropicOfficialHost, with1mSuffix } from './contextWindowSuffix'
+import { isTrustedClaudeSlot } from './environment'
+import { gatewayPinAddresses, resolveGatewayBudgetSlots } from './gatewayBudget'
 import { createClaudeCodeQueryOptions } from './queryOptions'
+import type { ClaudeCodeGatewayModelSlot } from './settingsBuilder'
 import {
   buildClaudeCodeSessionSettings,
   buildSkillWhitelist,
@@ -103,6 +106,17 @@ interface ClaudeCodeRouteFacts {
   toolSearchCompatible: boolean
   /** Configured model identities keyed by every SDK alias that can appear in `result.modelUsage`. */
   usageModels: Extract<AgentSessionUsageCapture, { owner: 'agent-sdk' }>['frozenModels']
+  /**
+   * Routed sub-model slots for gateway sessions, derived from the materialized route.
+   * The gateway fans out per-model slots to providers the settings builder never sees, so the
+   * single process-wide budget protects the weakest usable slot (minimum wins).
+   */
+  budgetSlots?: ClaudeCodeGatewayModelSlot[]
+  /**
+   * Trust verdict for the primary slot, materialized with the route. Budgeting prefers
+   * it over re-reading provider/model rows; an absent verdict resolves live, failing closed.
+   */
+  primaryTrusted?: boolean
 }
 
 interface ClaudeCodeRuntimeRoute extends ClaudeCodeRouteFacts {
@@ -124,6 +138,7 @@ function gatewayBypassRule(route: Pick<ClaudeCodeRouteFacts, 'branch' | 'baseUrl
 
 interface ConnectionMaterializationFacts {
   route: ClaudeCodeRouteFacts
+  gatewayPins: ClaudeCodeGatewayModelSlot[]
   mcp: unknown[]
   skills: string[]
   notificationContext: AgentNotificationContext
@@ -431,6 +446,16 @@ async function deriveConnectionConfigFromSnapshot(
     serviceTier: routeFacts.branch === 'gateway' ? serviceTier : undefined,
     fastMode: effectiveFastMode,
     route: buildRebuildRouteFacts(routeFacts),
+    gatewayPins:
+      materialized?.gatewayPins ??
+      (routeFacts.branch === 'gateway'
+        ? resolveGatewayBudgetSlots(
+            gatewayPinAddresses({
+              ...(await getClaudeCodeLoginShellEnvironment(getProxyEnvironment(process.env))),
+              ...agent.configuration?.env_vars
+            })
+          )
+        : []),
     cwd,
     // Rebuild fact: language change invalidates the warm connection so the new
     // language instruction is baked into the next prompt and prompt cache. This
@@ -591,6 +616,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
       : effectiveResume) ?? undefined
   const effectiveLanguage = getEffectiveAgentLanguage(agent)
   const promptModelName = resolvePromptModelName(uniqueModelId, agent)
+  let gatewayPins: ClaudeCodeGatewayModelSlot[] = []
   const settings = mergeRuntimeSettings(
     await buildClaudeCodeSessionSettings(
       session,
@@ -610,7 +636,13 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
         fastMode: nativeFastMode,
         effectiveLanguage,
         promptModelName,
-        effectiveModelId: uniqueModelId
+        effectiveModelId: uniqueModelId,
+        primaryModelId: uniqueModelId,
+        primaryTrusted: route.primaryTrusted,
+        gatewayModelSlots: route.branch === 'gateway' ? route.budgetSlots : undefined,
+        onGatewayPinsResolved: (slots) => {
+          gatewayPins = slots
+        }
       },
       agent
     ),
@@ -629,6 +661,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
     selectedKnowledgeBaseIds,
     {
       route: toConnectionRouteFacts(route),
+      gatewayPins,
       mcp: deriveMcpDefinitionFacts(agent.mcps, mcpServerSnapshots),
       skills: settings.skills ?? [],
       notificationContext,
@@ -759,6 +792,8 @@ function deriveRouteFacts(
       credentialsFingerprint: 'external-cli',
       toolSearchCompatible,
       modelIds,
+      budgetSlots: [],
+      primaryTrusted: isTrustedClaudeSlot(primaryProvider, primaryModel),
       usageModels: buildUsageModels([
         { sdkModelId: modelIds.primary, ref: externalRefs.primary },
         { sdkModelId: modelIds.opus, ref: externalRefs.opus },
@@ -781,6 +816,8 @@ function deriveRouteFacts(
       sonnet: slotModelId(sonnetRef),
       haiku: slotModelId(haikuRef)
     },
+    budgetSlots: resolveGatewayBudgetSlots([slotModelId(sonnetRef), slotModelId(haikuRef)]),
+    primaryTrusted: isTrustedClaudeSlot(primaryProvider, primaryModel),
     usageModels: []
   }
 }
@@ -831,6 +868,8 @@ function toConnectionRouteFacts(route: ClaudeCodeRuntimeRoute): ClaudeCodeRouteF
     credentialsFingerprint: route.credentialsFingerprint,
     toolSearchCompatible: route.toolSearchCompatible,
     modelIds: route.modelIds,
+    budgetSlots: route.budgetSlots,
+    primaryTrusted: route.primaryTrusted,
     usageModels: route.usageModels
   }
 }

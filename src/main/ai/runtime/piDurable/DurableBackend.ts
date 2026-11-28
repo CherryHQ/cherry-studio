@@ -33,6 +33,7 @@ import { getRawModelId } from '@shared/utils/model'
 import { createPiGatewayModelBinding } from '../pi/gatewayModelBinding'
 import { createPiBehaviorHost } from '../pi/piBehaviorHost'
 import { type AgentRuntimeConnectInput, type AgentRuntimeEvent, unavailableNativeContext } from '../types'
+import { resolveDurableCompaction } from './durableCompaction'
 import { prepareDurableDesktop } from './durableDesktop'
 import { readDurableRequest } from './durableRequest'
 import { projectFollowupEdit } from './recoverDurableReplies'
@@ -164,6 +165,7 @@ export class DurableBackend {
             const binding = await host.behavior.configureChild({ thread, modelKey })
             return {
               ...host.desktop.agentConfig,
+              compaction: resolveDurableCompaction(binding.model.contextWindow),
               model: { provider: binding.model.provider, modelId: binding.model.id }
             }
           }

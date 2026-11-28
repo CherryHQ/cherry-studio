@@ -9,16 +9,14 @@ import { type Span, SpanStatusCode } from '@opentelemetry/api'
 import type { ModelMessage, UIMessage } from 'ai'
 
 import { application } from '@application'
-import { ContextPrompts, resolveCompressionOutputTokens, summarizeModelMessages } from '@cherrystudio/ai-core'
+import { ContextPrompts, estimateSummarizeInputTokens, summarizeModelMessages } from '@cherrystudio/ai-core'
 import { assistantDataService } from '@data/services/AssistantService'
 import { messageService } from '@data/services/MessageService'
 import { topicService } from '@data/services/TopicService'
 import { loggerService } from '@logger'
-import {
-  COMPACTION_INPUT_SAFETY_RATIO,
-  COMPACTION_MIN_INPUT_BUDGET,
-  CONTEXT_COMPACT_KEEP_BUDGET_OF_TRIGGER
-} from '@main/ai/constants'
+import { COMPACTION_CONTEXT_WINDOW_SAFETY_MARGIN } from '@main/ai/constants'
+import { resolveCompactionBudgets } from '@main/ai/contextBuild/resolveCompactionBudgets'
+import { resolveSummarizeBudget } from '@main/ai/contextBuild/resolveSummarizeBudget'
 import { resolveAttachmentBudget } from '@main/ai/messages/attachmentBudget'
 import { collectFileAttachments, prepareChatMessagesForEstimate } from '@main/ai/messages/attachmentRouting'
 import { resolveMediaCapabilities, resolveToolResultMediaCapabilities } from '@main/ai/messages/messageCapabilities'
@@ -48,7 +46,6 @@ import { applyMaxMessagesWindow, resolveMaxMessages } from '@shared/utils/contex
 import { isFunctionCallingModel } from '@shared/utils/model'
 
 import { resolveMinContextWindow } from '../../contextBuild/resolveContextWindow'
-import { resolveInputRoom } from '../../contextBuild/resolveInputRoom'
 import { resolveOutputReservation, resolveRequestedMaxOutputTokens } from '../../contextBuild/resolveOutputReservation'
 import {
   resolveGlobalContextSettings,
@@ -1036,10 +1033,15 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       logger.warn('no model declares a contextWindow — skipping durable compaction for this request', { topicId })
       return serve(effective)
     }
+    // Shared with the in-loop lane: margined window → input room → trigger → keep.
     // Against the room the PROMPT actually has: whatever this request declares
     // as max_tokens is billed alongside the input, so it is not history's to use.
-    const inputRoom = resolveInputRoom(minContextWindow, resolveOutputReservation(assistantId, models))
-    const trigger = Math.floor((inputRoom * contextSettings.compress.thresholdPercent) / 100)
+    const thresholdPercent = contextSettings.compress.thresholdPercent
+    const { effectiveContextWindow, inputRoom, trigger, keepBudget } = resolveCompactionBudgets(
+      minContextWindow,
+      resolveOutputReservation(assistantId, models),
+      thresholdPercent
+    )
     const assistant = assistantId ? assistantDataService.getById(assistantId) : undefined
     const before = await this.estimateReplay(effective, models[0], assistant).catch((error) => {
       logger.warn('could not price durable compaction replay', { topicId, error })
@@ -1048,10 +1050,21 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     if (!before || before.tokens <= trigger) {
       return serve(effective)
     }
+    logger.info('durable compaction triggered', {
+      topicId,
+      declaredContextWindow: minContextWindow,
+      effectiveContextWindow,
+      thresholdPercent,
+      inputRoom,
+      trigger,
+      keepBudget,
+      safetyMargin: COMPACTION_CONTEXT_WINDOW_SAFETY_MARGIN
+    })
 
     const preTokens = before.tokens
     const recent = rows.slice(d + 1)
     const replayTail = before.replay.slice(d < 0 ? 0 : 1)
+
     const oldSummary = d >= 0 ? rows[d].compactionSummary : undefined
     // Declared before the try so the catch can settle the anchor it opened:
     // this summarize call runs BEFORE the model stream, so without an explicit
@@ -1061,11 +1074,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     // make each later fold overwrite the previous one's anchor.
     const anchorId = compactionAnchorChunkId()
     try {
-      const keepIdx = await planKeepBoundary(
-        recent,
-        Math.floor(trigger * CONTEXT_COMPACT_KEEP_BUDGET_OF_TRIGGER),
-        (i) => before.estimate([replayTail[i]])
-      )
+      const keepIdx = await planKeepBoundary(recent, keepBudget, (i) => before.estimate([replayTail[i]]))
       // With no earlier prefix to fold, the in-loop hook can still compact the final prompt.
       if (keepIdx === null) return serve(effective)
       const boundary = recent[keepIdx - 1]
@@ -1083,15 +1092,19 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       // The window that matters here is the COMPRESSOR's, not the request
       // model's: an explicitly picked 8k compressor on a 128k chat would
       // otherwise be handed a 128k-derived budget and overflow immediately.
-      const compressionWindow = compressionModel.contextWindow ?? minContextWindow
-      const maxOutputTokens = resolveCompressionOutputTokens(compressionWindow)
+      // Apply the same safety margin to the compressor's window so
+      // the summarize call also leaves headroom for overstated declared windows.
+      const compressionWindow = Math.floor(
+        (compressionModel.contextWindow ?? minContextWindow) * COMPACTION_CONTEXT_WINDOW_SAFETY_MARGIN
+      )
+      const { maxOutputTokens, maxInputTokens } = resolveSummarizeBudget(
+        compressionWindow,
+        estimateSummarizeInputTokens(modelMessages)
+      )
       compactionSink?.(anchorId, { status: 'compacting', phase: 'turn-start', startedAt })
       const summary = await summarizeModelMessages(modelMessages, compressionModel.languageModel, {
         maxOutputTokens,
-        maxInputTokens: Math.max(
-          COMPACTION_MIN_INPUT_BUDGET,
-          Math.floor((compressionWindow - maxOutputTokens) * COMPACTION_INPUT_SAFETY_RATIO)
-        )
+        maxInputTokens
       })
       // Every exit below clears the spinner — a fold that produced nothing and a
       // fold that threw both continue with un-compacted history, so leaving
@@ -1130,6 +1143,17 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       ]
       const after = await this.estimateReplay(served, models[0], assistant)
       if (!after) {
+        skip()
+        return serve(effective)
+      }
+      // Retained assistants measured the pre-fold prefix. Their usage is not
+      // evidence about this newly assembled replacement.
+      if (after.tokens > inputRoom) {
+        logger.warn('durable compaction replacement exceeds input room; keeping existing history', {
+          topicId,
+          postTokens: after.tokens,
+          inputRoom
+        })
         skip()
         return serve(effective)
       }

@@ -97,6 +97,14 @@ export async function resolveGatewayModelAddress(
   modelAddress: string,
   internal = false
 ): Promise<ResolvedGatewayModelAddress> {
+  return resolveGatewayModelAddressSnapshot(modelAddress, internal)
+}
+
+/** Read the current admission decision without starting a provider request. */
+export function resolveGatewayModelAddressSnapshot(
+  modelAddress: string,
+  internal = false
+): ResolvedGatewayModelAddress {
   const sepIdx = modelAddress.indexOf(':')
   if (sepIdx <= 0 || sepIdx >= modelAddress.length - 1) {
     throw gatewayModelError(`Invalid model format: "${modelAddress}". Expected "providerId:apiModelId".`, 400)

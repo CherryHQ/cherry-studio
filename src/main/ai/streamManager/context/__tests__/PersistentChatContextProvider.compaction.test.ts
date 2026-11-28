@@ -321,7 +321,7 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
   })
 
   it('1. under budget, no marker → full history served, no summarization', async () => {
-    // 3 tiny messages — well under 4000 * 0.8 = 3200 token trigger threshold
+    // 3 tiny messages — well under floor(4000 * 0.9) * 0.8 = 2880 token trigger threshold
     const path = [
       fakeMsg('u1', 'user', 'hello'),
       fakeMsg('a1', 'assistant', 'hi'),
@@ -509,11 +509,11 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
   })
 
   // Providers bill `input + max_tokens`, so a request that declares max_tokens
-  // has that much less room for history. 4000 window − 2000 reserved = 2000 of
-  // room, tripping at 1600 where the raw window would have waited until 3200.
+  // has that much less room for history. 3600 effective window − 2000 reserved = 1600 of
+  // room, tripping at 1280 where the raw window would have waited until 2880.
   it('2a. an Anthropic-endpoint request folds against the room left after max_tokens', async () => {
     mockResolveEffectiveEndpoint.mockReturnValue({ endpointType: 'anthropic-messages' })
-    const MID = 'token '.repeat(400) // 5 × 400 = 2000: under 3200, over 1600
+    const MID = 'token '.repeat(400) // 5 × 400 = 2000: under 2880, over 1280
     mockGetPathToNode.mockReturnValue(
       ['u1', 'a1', 'u2', 'a2', 'u3'].map((id, i) => fakeMsg(id, i % 2 === 0 ? 'user' : 'assistant', MID))
     )
@@ -591,10 +591,10 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
   })
 
   it('2. over budget → summarize + persist on boundary + serve compacted view', async () => {
-    // Use massive text so total tokens exceed 4000 * 0.8 = 3200 token trigger.
-    // Each 'token '.repeat(700) block ≈ 700 tokens × 5 messages = 3500 > 3200.
-    // keepBudget = floor(4000 * 0.3) = 1200.
-    // Walking from tail: u3(700)≤1200 → keepStart=4; a2(700)→1400>1200 → stop.
+    // Use massive text so total tokens exceed floor(4000 * 0.9) * 0.8 = 2880 token trigger.
+    // Each 'token '.repeat(700) block ≈ 700 tokens × 5 messages = 3500 > 2880.
+    // keepBudget = floor(3600 * 0.3) = 1080.
+    // Walking from tail: u3(700)≤1080 → keepStart=4; a2(700)→1400>1080 → stop.
     // keepIdx=4, boundary = recent[3] = a2.
     const BIG = 'token '.repeat(700)
 
@@ -731,7 +731,7 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
   })
 
   it('2g. budgets the summarize call by the compressor window, not the chat window', async () => {
-    // 20k chat window → trigger 16k tokens; 5 × 4k-token blocks = 20k clears it.
+    // 20k chat window → trigger floor(20000 * 0.9) * 0.8 = 14400 tokens; 5 × 4k-token blocks = 20k clears it.
     const BIG = 'token '.repeat(4_000)
     const path = [
       fakeMsg('u1', 'user', BIG),
@@ -752,6 +752,78 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
     expect(opts.maxOutputTokens + opts.maxInputTokens).toBeLessThan(8_000)
   })
 
+  // Boundary contract for the safety margin in durable turn-start compaction.
+  // 100K window → effective = floor(100K * 0.9) = 90K; trigger = floor(90K * 0.8) = 72K.
+  // A 73K prompt is above the new 72K trigger but below the old 80K trigger,
+  // proving the margin actually changes the compaction boundary.
+  it('2g-1. compacts inside the new 72K–80K trigger band for a 100K window (turn-start)', async () => {
+    // 100K window → effective = floor(100K * 0.9) = 90K; trigger = floor(90K * 0.8) = 72K.
+    // 19 messages of 4K tokens each = 76K, above the new 72K trigger but below the old 80K trigger.
+    const BIG = 'token '.repeat(4_000)
+    const path = [fakeMsg('u1', 'user', BIG), fakeMsg('a1', 'assistant', BIG)]
+    for (let i = 2; i < 19; i++) {
+      path.push(fakeMsg(`u${i}`, 'user', BIG))
+    }
+    mockGetPathToNode.mockReturnValue(path)
+    compressionOn()
+
+    const { messages } = await makeHistory('u1', [DEFAULT_MODEL_ID], { contextWindow: 100_000 })
+
+    expect(mockSummarizeModelMessages).toHaveBeenCalled()
+    expect(mockSetCompactionSummary).toHaveBeenCalled()
+    expect(messages[0].id).toMatch(/^compaction:/)
+    expect(messages.at(-1)?.id).toBe('u18')
+  })
+
+  // The compressor fallback must apply the safety margin exactly once, not twice.
+  // When compressionModel.contextWindow is null the fallback uses minContextWindow
+  // (not the already-margined effectiveContextWindow).
+  it('2g-2. applies the safety margin exactly once in the compressor-fallback budget', async () => {
+    // 100K chat window, compressor has no declared contextWindow → falls back to minContextWindow.
+    // Need > 72K tokens to exceed the trigger (floor(90K * 0.8) = 72K).
+    const BIG = 'token '.repeat(4_000)
+    const path = [
+      fakeMsg('u1', 'user', BIG),
+      fakeMsg('a1', 'assistant', BIG),
+      fakeMsg('u2', 'user', BIG),
+      fakeMsg('a2', 'assistant', BIG),
+      fakeMsg('u3', 'user', BIG),
+      fakeMsg('a3', 'assistant', BIG),
+      fakeMsg('u4', 'user', BIG),
+      fakeMsg('a4', 'assistant', BIG),
+      fakeMsg('u5', 'user', BIG),
+      fakeMsg('a5', 'assistant', BIG),
+      fakeMsg('u6', 'user', BIG),
+      fakeMsg('a6', 'assistant', BIG),
+      fakeMsg('u7', 'user', BIG),
+      fakeMsg('a7', 'assistant', BIG),
+      fakeMsg('u8', 'user', BIG),
+      fakeMsg('a8', 'assistant', BIG),
+      fakeMsg('u9', 'user', BIG),
+      fakeMsg('a9', 'assistant', BIG),
+      fakeMsg('u10', 'user', BIG),
+      fakeMsg('a10', 'assistant', BIG)
+    ]
+    mockGetPathToNode.mockReturnValue(path)
+    // Explicit compressor with no contextWindow → triggers fallback path.
+    compressionOn({ languageModel: {}, contextWindow: null })
+
+    const { messages } = await makeHistory('u3', [DEFAULT_MODEL_ID], { contextWindow: 100_000 })
+
+    expect(mockSummarizeModelMessages).toHaveBeenCalled()
+    expect(mockSetCompactionSummary).toHaveBeenCalled()
+    expect(messages[0].id).toMatch(/^compaction:/)
+    const opts = mockSummarizeModelMessages.mock.calls[0][2]
+    const summarizeBudget = opts.maxOutputTokens + opts.maxInputTokens
+    // The summarize call fits inside the once-margined compressor window
+    // (floor(100_000 * 0.9) = 90_000) …
+    expect(summarizeBudget).toBe(78_957)
+    // … but is larger than a double-margined budget would allow
+    // (floor(90_000 * 0.9) = 81_000 window → ~71_307 total), proving the
+    // margin was applied once, not twice.
+    expect(summarizeBudget).toBeGreaterThan(71_307)
+  })
+
   const fiveBigTurns = () => {
     const BIG = 'token '.repeat(700)
     mockGetPathToNode.mockReturnValue([
@@ -762,6 +834,38 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
       fakeMsg('u3', 'user', BIG)
     ])
   }
+
+  it('accepts a fitting replacement despite a retained assistant old full-history usage', async () => {
+    const BIG = 'word '.repeat(3000)
+    mockGetPathToNode.mockReturnValue([
+      fakeMsg('u1', 'user', BIG),
+      fakeMsg('a1', 'assistant', BIG),
+      fakeMsg('u2', 'user', 'recent question'),
+      fakeMsgWithContextTokens('a2', 'assistant', 'short answer', 12_000),
+      fakeMsg('u3', 'user', 'continue')
+    ])
+    compressionOn()
+    const { messages } = await makeHistory('u3', [DEFAULT_MODEL_ID], { contextWindow: 10_000 })
+    expect(mockSummarizeModelMessages).toHaveBeenCalledTimes(1)
+    expect(mockSetCompactionSummary).toHaveBeenCalled()
+    expect(messages[0].id).toMatch(/^compaction:/)
+    expect(messages.map((message) => message.id)).toContain('a2')
+    const completed = capturedChunks.filter((chunk) => chunk.type === 'data-compaction-anchor').at(-1)
+    expect(completed?.data.status).toBe('done')
+  })
+
+  it('does not persist or serve a summary replacement larger than the input room', async () => {
+    fiveBigTurns()
+    compressionOn()
+    mockSummarizeModelMessages.mockResolvedValue('token '.repeat(20_000))
+    const { messages } = await makeHistory('u3')
+    expect(mockSummarizeModelMessages).toHaveBeenCalled()
+    expect(mockSetCompactionSummary).not.toHaveBeenCalled()
+    expect(messages[0].id).not.toMatch(/^compaction:/)
+    expect(capturedChunks.filter((chunk) => chunk.type === 'data-compaction-anchor').at(-1)?.data.status).toBe(
+      'skipped'
+    )
+  })
 
   it.each(['success', 'empty', 'error'] as const)(
     'publishes progress before summarization settles and clears it after %s',
@@ -933,7 +1037,7 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
 
   it('3. existing marker, under budget → apply marker, no new summarization', async () => {
     // a1 has a compactionSummary → applyDeepestMarker replaces [u1,a1] with [summary(a1)].
-    // Resulting effective = [summary(a1), u2, a2, u3] — well under 3200 token threshold.
+    // Resulting effective = [summary(a1), u2, a2, u3] — well under 2880 token threshold.
     const path = [
       fakeMsg('u1', 'user', 'old question'),
       fakeMsg('a1', 'assistant', 'old answer', 'PRIOR SUMMARY'),
@@ -989,6 +1093,28 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
     expect(ids).not.toContain('a1')
     expect(ids).not.toContain('u2')
     expect(ids).not.toContain('a3')
+  })
+
+  it('5. over-budget by anchor → contextTokens base tips total over threshold', async () => {
+    // Anchor carries real prior usage tokenx cannot see, so anchor+tail crosses
+    // the trigger while full-tokenx alone would not; the large tail also finds a keep boundary.
+
+    const MED = 'word '.repeat(2000)
+    const TRAIL = 'word '.repeat(1000)
+    const path = [
+      fakeMsg('u1', 'user', 'tiny question'),
+      fakeMsgWithContextTokens('a1', 'assistant', 'ok', 6100),
+      fakeMsg('u2', 'user', MED),
+      fakeMsg('a2', 'assistant', MED),
+      fakeMsg('u3', 'user', TRAIL)
+    ]
+    mockGetPathToNode.mockReturnValue(path)
+    compressionOn()
+
+    const { messages } = await makeHistory('u3')
+
+    expect(messages.map((message) => message.id)).toEqual(path.map((message) => message.id))
+    expect(mockSetCompactionSummary).not.toHaveBeenCalled()
   })
 
   it.each([12, 640_208])('replays the same history for legacy context count %i', async (contextTokens) => {
@@ -1067,8 +1193,8 @@ function inLoopScope(contextWindow: number): RequestScope {
 }
 
 describe('in-loop vs turn-start compaction — no double-compact', () => {
-  const WINDOW = 4000 // makeModel default; trigger = floor(4000 * 0.8) = 3200
-  // 700-token blocks: 5 rows = 3500 > 3200 → turn-start compaction triggers.
+  const WINDOW = 4000 // makeModel default; effective = floor(4000 * 0.9) = 3600; trigger = floor(3600 * 0.8) = 2880
+  // 700-token blocks: 5 rows = 3500 > 2880 → turn-start compaction triggers.
   const BIG = 'token '.repeat(700)
 
   beforeEach(() => {
@@ -1126,7 +1252,7 @@ describe('in-loop vs turn-start compaction — no double-compact', () => {
     const { modelMessages } = await servedTurnStartHistory()
 
     // Simulate the agent loop accumulating output: append an assistant turn plus a
-    // tool result, large enough to tip the prompt over the 3200-token trigger.
+    // tool result, large enough to tip the prompt over the 2880-token trigger.
     const grownPrompt = [
       ...modelMessages,
       { role: 'assistant' as const, content: [{ type: 'text', text: 'word '.repeat(1500) }] },

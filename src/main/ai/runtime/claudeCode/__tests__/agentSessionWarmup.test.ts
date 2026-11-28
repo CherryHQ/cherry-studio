@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   getAgent: vi.fn(),
   getProviderByProviderId: vi.fn(),
   getModelByKey: vi.fn(),
+  listModels: vi.fn(),
   resolveApiKey: vi.fn(),
   getApiKeys: vi.fn(),
   getLastRuntimeResumeToken: vi.fn(),
@@ -49,7 +50,7 @@ vi.mock('@data/services/ProviderService', () => ({
 }))
 
 vi.mock('@data/services/ModelService', () => ({
-  modelService: { getByKey: mocks.getModelByKey }
+  modelService: { getByKey: mocks.getModelByKey, list: mocks.listModels }
 }))
 
 vi.mock('@data/services/AgentSessionMessageService', () => ({
@@ -1296,6 +1297,43 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     }
   })
 
+  it('captures only admitted background models and both effective pin budgets', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'primary::main',
+      planModel: 'disabled::plan',
+      configuration: { env_vars: { CLAUDE_CODE_WORKFLOW_SUBAGENT_MODEL: 'workflow:task-api' } }
+    })
+    mocks.getClaudeCodeLoginShellEnvironment.mockResolvedValue({})
+    mocks.getProviderByProviderId.mockImplementation((id: string) => ({ id, isEnabled: id !== 'disabled' }))
+    mocks.getModelByKey.mockImplementation((providerId: string, modelId: string) => ({
+      id: `${providerId}::${modelId}`,
+      providerId,
+      capabilities: [],
+      apiModelId: `${modelId}-api`,
+      contextWindow: providerId === 'primary' ? 256_000 : 64_000
+    }))
+    mocks.listModels.mockImplementation(({ providerId }: { providerId: string }) => [
+      mocks.getModelByKey(providerId, providerId === 'primary' ? 'main' : 'task')
+    ])
+    let capturedOptions:
+      | { gatewayModelSlots?: unknown[]; onGatewayPinsResolved?: (slots: unknown[]) => void }
+      | undefined
+    mocks.buildSessionSettings.mockImplementation(async (_session, _provider, options) => {
+      capturedOptions = options
+      mocks.getClaudeCodeLoginShellEnvironment.mockResolvedValue({ CLAUDE_CODE_SUBAGENT_MODEL: 'child:task-api' })
+      const { resolveGatewayBudgetSlots } = await import('../gatewayBudget')
+      options.onGatewayPinsResolved(resolveGatewayBudgetSlots(['child:task-api', 'workflow:task-api']))
+      return {
+        env: { CLAUDE_CODE_SUBAGENT_MODEL: 'child:task-api', CLAUDE_CODE_WORKFLOW_SUBAGENT_MODEL: 'workflow:task-api' }
+      }
+    })
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+    expect(capturedOptions?.gatewayModelSlots).toEqual([expect.objectContaining({ providerId: 'primary' })])
+    const derived = await deriveConnectionConfig('session-1', undefined, 'default', false, [])
+    expect(derived.ok && derived.config.rebuildSignature).toBe(request?.connectionConfig.rebuildSignature)
+  })
+
   it('preserves explicit timeout controls for local API gateway routes', async () => {
     mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'openai::gpt-main' })
     mocks.getProviderByProviderId.mockReturnValue({
@@ -2075,6 +2113,16 @@ describe('deriveConnectionConfig', () => {
   })
 
   it('changes the rebuild signature when model context metadata changes', async () => {
+    mocks.getProviderByProviderId.mockReturnValue({ id: 'provider-1', isEnabled: true })
+    mocks.listModels.mockImplementation(() => [
+      {
+        ...mocks.getModelByKey('provider-1', 'model-1'),
+        id: 'provider-1::model-1',
+        providerId: 'provider-1',
+        capabilities: []
+      }
+    ])
+
     mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) => ({
       id: modelId,
       apiModelId: `${modelId}-api`,
@@ -2094,7 +2142,9 @@ describe('deriveConnectionConfig', () => {
       Object.keys(original.rebuildFactFingerprints).filter(
         (name) => original.rebuildFactFingerprints[name] !== changed.rebuildFactFingerprints[name]
       )
-    ).toEqual(['contextWindow'])
+      // The route fingerprint moves too: routed budget slots carry window-derived budgets,
+      // so a window change re-materializes the route (#18894).
+    ).toEqual(['contextWindow', 'route'])
   })
 
   it('rebuilds when browser control or browser permissions change', async () => {
@@ -2189,6 +2239,101 @@ describe('deriveConnectionConfig', () => {
     })
     const instructionsArrived = await deriveSignature()
     expect(instructionsArrived.rebuildSignature).not.toBe(mcpDefinitionChanged.rebuildSignature)
+  })
+
+  it('rebuilds when a routed gateway sub-provider endpoint flips trust without id or window changes', async () => {
+    mocks.listModels.mockImplementation(({ providerId }: { providerId: string }) => [
+      {
+        ...mocks.getModelByKey(providerId, providerId === 'relay' ? 'model-2' : 'model-1'),
+        id: `${providerId}::${providerId === 'relay' ? 'model-2' : 'model-1'}`,
+        providerId,
+        capabilities: []
+      }
+    ])
+
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      planModel: 'relay::model-2',
+      disabledTools: [],
+      mcps: [],
+      configuration: {}
+    })
+    const relayEndpoint = (baseUrl: string) => ({
+      id: 'relay',
+      isEnabled: true,
+      presetProviderId: 'relay',
+      defaultChatEndpoint: 'anthropic-messages',
+      endpointConfigs: { 'anthropic-messages': { baseUrl } }
+    })
+    mocks.getProviderByProviderId.mockImplementation((id: string) =>
+      id === 'relay'
+        ? relayEndpoint('https://api.anthropic.com')
+        : {
+            id: 'provider-1',
+            endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://anthropic.example.com' } }
+          }
+    )
+    mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) => ({
+      id: modelId,
+      apiModelId: `${modelId}-api`,
+      contextWindow: 256_000,
+      maxOutputTokens: 32_000,
+      endpointTypes: ['anthropic-messages']
+    }))
+    const trusted = await deriveSignature()
+
+    mocks.getProviderByProviderId.mockImplementation((id: string) =>
+      id === 'relay'
+        ? relayEndpoint('https://relay.example.com')
+        : {
+            id: 'provider-1',
+            endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://anthropic.example.com' } }
+          }
+    )
+    const untrusted = await deriveSignature()
+
+    expect(untrusted.rebuildSignature).not.toBe(trusted.rebuildSignature)
+    expect(
+      Object.keys(trusted.rebuildFactFingerprints).filter(
+        (name) => trusted.rebuildFactFingerprints[name] !== untrusted.rebuildFactFingerprints[name]
+      )
+    ).toEqual(['route'])
+  })
+
+  it('rebuilds when the primary endpoint flips primary trust without id or window changes', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      disabledTools: [],
+      mcps: [],
+      configuration: {}
+    })
+    const primaryEndpoint = (baseUrl: string) => ({
+      id: 'provider-1',
+      presetProviderId: 'provider-1',
+      defaultChatEndpoint: 'anthropic-messages',
+      endpointConfigs: { 'anthropic-messages': { baseUrl } }
+    })
+    mocks.getProviderByProviderId.mockReturnValue(primaryEndpoint('https://api.anthropic.com'))
+    mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) => ({
+      id: modelId,
+      apiModelId: `${modelId}-api`,
+      contextWindow: 256_000,
+      maxOutputTokens: 32_000,
+      endpointTypes: ['anthropic-messages']
+    }))
+    const trusted = await deriveSignature()
+
+    mocks.getProviderByProviderId.mockReturnValue(primaryEndpoint('https://relay.example.com'))
+    const flipped = await deriveSignature()
+
+    expect(flipped.rebuildSignature).not.toBe(trusted.rebuildSignature)
+    expect(
+      Object.keys(trusted.rebuildFactFingerprints).filter(
+        (name) => trusted.rebuildFactFingerprints[name] !== flipped.rebuildFactFingerprints[name]
+      )
+    ).toEqual(['route'])
   })
 
   it('fingerprints knowledge-base bindings as a set', async () => {

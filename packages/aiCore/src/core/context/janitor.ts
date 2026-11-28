@@ -94,7 +94,7 @@ function attachmentToPlaceholder(att: Attachment): string {
  * Pure function — does not mutate the input array or any message inside it.
  * Messages without attachments pass through by reference (no allocation).
  */
-function stripAttachmentsForCompression(messages: ContextMessage[]): ContextMessage[] {
+export function stripAttachmentsForCompression(messages: ContextMessage[]): ContextMessage[] {
   return messages.map((msg) => {
     if (!msg.attachments?.length) return msg
 

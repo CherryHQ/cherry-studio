@@ -27,6 +27,7 @@ import {
   compactModelMessages,
   createCompressionAdapter,
   definePlugin,
+  estimateSummarizeInputTokens,
   fromAISDK,
   groupIntoTurns,
   resolveCompressionOutputTokens,
@@ -34,13 +35,14 @@ import {
 } from '@cherrystudio/ai-core'
 import { loggerService } from '@logger'
 import {
+  COMPACTION_CONTEXT_WINDOW_SAFETY_MARGIN,
   COMPACTION_INPUT_SAFETY_RATIO,
-  COMPACTION_MIN_INPUT_BUDGET,
-  CONTEXT_COMPACT_KEEP_BUDGET_OF_TRIGGER
+  COMPACTION_MIN_INPUT_BUDGET
 } from '@main/ai/constants'
+import { resolveCompactionBudgets } from '@main/ai/contextBuild/resolveCompactionBudgets'
 import { resolveContextWindow } from '@main/ai/contextBuild/resolveContextWindow'
-import { resolveInputRoom } from '@main/ai/contextBuild/resolveInputRoom'
 import { resolveRequestedMaxOutputTokens } from '@main/ai/contextBuild/resolveOutputReservation'
+import { resolveSummarizeBudget } from '@main/ai/contextBuild/resolveSummarizeBudget'
 import { omitCompactedAnthropicThinking, usesAnthropicMessagesSdk } from '@main/ai/messages/anthropicThinking'
 import { countToolSetTokens } from '@main/ai/messages/attachmentBudget'
 import { resolveModelTokenDialect, type TokenDialect } from '@main/ai/tokens/dialect'
@@ -210,7 +212,9 @@ export const inLoopCompactionFeature: RequestFeature = {
     }
     // Against the room the PROMPT actually has, not the whole window: whatever
     // this request declares as max_tokens is billed alongside the input.
-    const inputRoom = resolveInputRoom(
+    const thresholdPercent = scope.contextSettings.compress.thresholdPercent
+    // Shared with the durable lane: margined window → input room → trigger → keep.
+    const { effectiveContextWindow, inputRoom, trigger, keepBudget } = resolveCompactionBudgets(
       contextWindow,
       resolveRequestedMaxOutputTokens(
         scope.request.callOverrides?.maxOutputTokens,
@@ -218,16 +222,19 @@ export const inLoopCompactionFeature: RequestFeature = {
         scope.assistant,
         scope.model,
         scope.endpointType
-      )
+      ),
+      thresholdPercent
     )
-    const trigger = Math.floor((inputRoom * scope.contextSettings.compress.thresholdPercent) / 100)
-    const keepBudget = Math.floor(trigger * CONTEXT_COMPACT_KEEP_BUDGET_OF_TRIGGER)
     // The trigger/keep budgets above belong to the REQUEST model (they describe
     // the chat history it must fit), but the summarize call is issued against
     // the compressor, so its own budget must come from the compressor's window.
     // With an 8k compressor on a 128k chat, sizing by the chat window overflows
     // the summarize request outright.
-    const compressionWindow = compressor.contextWindow ?? contextWindow
+    // Apply the same safety margin to the compressor's window so
+    // the summarize call also leaves headroom for overstated declared windows.
+    const compressionWindow = Math.floor(
+      (compressor.contextWindow ?? contextWindow) * COMPACTION_CONTEXT_WINDOW_SAFETY_MARGIN
+    )
     // Resolved once per request: it only selects the per-modality cost table (image/audio/
     // video constants), so it can't change between steps of the same request.
     const dialect = resolveModelTokenDialect(scope.provider, scope.model)
@@ -279,11 +286,25 @@ export const inLoopCompactionFeature: RequestFeature = {
           // A previously folded view that still fits is served as-is — zero LLM calls.
           return foldCache ? { messages: candidate } : undefined
         }
+        logger.info('in-loop compaction triggered', {
+          modelId: scope.model.id,
+          declaredContextWindow: contextWindow,
+          effectiveContextWindow,
+          thresholdPercent,
+          inputRoom,
+          trigger,
+          keepBudget,
+          estimate,
+          safetyMargin: COMPACTION_CONTEXT_WINDOW_SAFETY_MARGIN
+        })
         const keepRecentTurns = computeKeepRecentTurns(candidate, Math.max(0, keepBudget - fixedTokens), dialect)
         // Same budgeting as the turn-start path: the summarize call is itself a
         // window-bound request, so cap its input and size its output from the
         // window instead of a fixed constant.
-        const maxOutputTokens = resolveCompressionOutputTokens(compressionWindow)
+        const { maxOutputTokens, maxInputTokens } = resolveSummarizeBudget(
+          compressionWindow,
+          estimateSummarizeInputTokens(candidate, keepRecentTurns)
+        )
         // Summarizing is a full model round-trip in the middle of a tool loop —
         // seconds of apparent silence. Announce it so the UI can say so; the
         // same part id is replaced by the `done` event below.
@@ -297,10 +318,7 @@ export const inLoopCompactionFeature: RequestFeature = {
           compacted = await compactModelMessages(candidate, model, {
             keepRecentTurns,
             maxOutputTokens,
-            maxInputTokens: Math.max(
-              COMPACTION_MIN_INPUT_BUDGET,
-              Math.floor((compressionWindow - maxOutputTokens) * COMPACTION_INPUT_SAFETY_RATIO)
-            )
+            maxInputTokens
           })
         } catch (error) {
           // `compactModelMessages` propagates provider errors. Letting one out of
@@ -344,6 +362,18 @@ export const inLoopCompactionFeature: RequestFeature = {
         }
         const completedAt = new Date().toISOString()
         const prefixTokens = estimateMessages(compacted)
+        // A summary can grow or retain too much recent history. Never replace a
+        // fitting prompt with one that exceeds the request model's input room.
+        if (fixedTokens + prefixTokens > inputRoom) {
+          compactionDisabled = true
+          scope.compactionSink?.(anchorId, {
+            status: 'skipped',
+            phase: 'in-loop',
+            startedAt,
+            completedAt
+          })
+          return foldCache ? { messages: candidate } : undefined
+        }
         scope.compactionSink?.(anchorId, {
           status: 'done',
           phase: 'in-loop',

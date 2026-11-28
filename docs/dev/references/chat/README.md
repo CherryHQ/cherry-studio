@@ -162,12 +162,14 @@ With a valid model `contextWindow`, `resolveInputRoom.ts` and
 `PersistentChatContextProvider.ts` use token budgets:
 
 ```text
-inputRoom = max(contextWindow - outputReservation, floor(contextWindow * 0.2))
+effectiveWindow = floor(contextWindow * 0.9)
+inputRoom = max(effectiveWindow - outputReservation, floor(effectiveWindow * 0.2))
 trigger = floor(inputRoom * thresholdPercent / 100)
 keptRecentBudget = floor(trigger * 0.375)
 ```
 
-An unset `outputReservation` subtracts nothing, so `inputRoom = contextWindow`.
+An unset `outputReservation` subtracts nothing, so `inputRoom = effectiveWindow`. A 100K declaration with the default 80% threshold
+therefore triggers above 72K tokens, not 80K.
 Request construction resolves the requested output limit in this order: explicit call override,
 numeric custom parameter, assistant `maxTokens` when enabled, then `model.maxOutputTokens` only for
 the Anthropic Messages endpoint. The assistant default has `enableMaxTokens = false`, so an assistant

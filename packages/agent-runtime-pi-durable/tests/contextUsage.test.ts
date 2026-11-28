@@ -1,5 +1,5 @@
 import { BACKGROUND_CONTEXT as context } from '@earendil-works/chord/context'
-import { createModels, fauxProvider } from '@earendil-works/pi-ai'
+import { createModels, fauxProvider, fauxAssistantMessage } from '@earendil-works/pi-ai'
 import { Harness, MemoryStorage, createRegistry, type CompactionSettings } from '@earendil-works/pi-durable'
 import { expect, it } from 'vitest'
 
@@ -191,6 +191,44 @@ it('reflects conversation compaction overrides without changing sibling policies
     expect((await root.contextUsage(context))?.compactionThreshold).toBeUndefined()
     await root.configure({ compaction: null }, context)
     expect((await root.contextUsage(context))?.compactionThreshold).toBe(118_000)
+  } finally {
+    await native.close(context)
+  }
+})
+
+it('uses measured latest response rather than recounting the unchanged large prefix', async () => {
+  const models = createModels()
+  models.setProvider(fauxProvider().provider)
+  const native = await Harness.open(new MemoryStorage(), { models, registry: createRegistry() }, context)
+  try {
+    const root = await native.createConversation(
+      { ownership: { kind: 'ownerless' }, agent: { model: { provider: 'faux', modelId: 'faux-1' } } },
+      context
+    )
+    await native.commit(
+      (tx) =>
+        tx.appendEntry(root.id, {
+          kind: 'test.context',
+          model: [
+            { role: 'user', content: 'large '.repeat(100000), timestamp: 1 },
+            {
+              ...fauxAssistantMessage('answer'),
+              usage: {
+                input: 130000,
+                output: 6254,
+                cacheRead: 0,
+                cacheWrite: 0,
+                totalTokens: 136254,
+                cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 }
+              }
+            }
+          ]
+        }),
+      context
+    )
+    const before = await readContextUsage(root)
+    expect(before.status === 'confirmed' && before.value.used?.tokens).toBe(136254)
+    expect(await readContextUsage((await native.conversation(root.id, context))!)).toEqual(before)
   } finally {
     await native.close(context)
   }

@@ -158,7 +158,18 @@ describe('Pi Durable desktop tools of a user Agent', () => {
       name: 'Session',
       workspace: { type: 'user', workspaceId: workspace.id }
     })
+    MockMainPreferenceServiceUtils.setPreferenceValue('chat.context_settings.enabled', true)
+    MockMainPreferenceServiceUtils.setPreferenceValue('chat.context_settings.compress.enabled', true)
+    MockMainPreferenceServiceUtils.setPreferenceValue('chat.context_settings.compress.threshold_percent', 60)
     const desktop = await prepareDurableDesktop({ sessionId: session.id, agentId: agent.id, modelId: MODEL }, () => {})
+    expect(desktop.agentConfig.compaction?.enabled).toBe(true)
+    expect(
+      (await desktop.reconcile({ sessionId: session.id, agentId: agent.id, modelId: MODEL }, false)).signature
+    ).toBe(desktop.snapshot.signature)
+    MockMainPreferenceServiceUtils.setPreferenceValue('chat.context_settings.compress.enabled', false)
+    expect(
+      (await desktop.reconcile({ sessionId: session.id, agentId: agent.id, modelId: MODEL }, false)).signature
+    ).not.toBe(desktop.snapshot.signature)
     const fake = fauxProvider({ tokensPerSecond: 100_000 })
     let systemPrompt = ''
     // The model follows only what its system prompt says: the `await tools.<name>(` calls it names.

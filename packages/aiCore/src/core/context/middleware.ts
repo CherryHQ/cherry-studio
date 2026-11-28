@@ -14,8 +14,11 @@ import type { LanguageModelV3Message, LanguageModelV3Prompt, LanguageModelV3Stre
 import { generateText, type LanguageModel, type LanguageModelMiddleware, type ModelMessage, pruneMessages } from 'ai'
 
 import { fromAISDK, repairToolResultNames, toAISDK } from './adapter'
-import { Janitor, summarizeHistory, type SummarizeHistoryOptions } from './janitor'
+import { planCompaction } from './durableCompaction'
+import { Janitor, stripAttachmentsForCompression, summarizeHistory, type SummarizeHistoryOptions } from './janitor'
 import { fromModelMessages } from './modelMessageAdapter'
+import { ContextPrompts } from './prompts'
+import { estimateObject } from './tokenUtils'
 import { type TruncateOptions, truncateToolResults } from './truncator'
 import type { ContextLogger, ContextMessage } from './types'
 import { getContextInputTokens } from './usage'
@@ -317,39 +320,41 @@ function toCompressRole(role: string): CompressRole {
 }
 
 /**
- * Adapts an AI SDK LanguageModelV3 into the compression callback that the
- * summarizer pipeline expects: (messages: ContextMessage[]) => Promise<string>
- *
+ * Format the exact text sent to the compressor, also used for input estimates.
  * Tool messages are converted to user messages describing the tool interaction,
  * since generateText only accepts system/user/assistant roles.
  */
+function formatCompressionMessages(messages: ContextMessage[]): { role: CompressRole; content: string }[] {
+  return messages.map((m): { role: CompressRole; content: string } => {
+    if (m.role === 'tool') {
+      return {
+        role: 'user' satisfies CompressRole,
+        content: `[Tool result${m.tool_call_id ? ` (${m.tool_call_id})` : ''}: ${m.content}]`
+      }
+    }
+    if (m.role === 'assistant' && m.tool_calls?.length) {
+      const toolCallsDesc = m.tool_calls
+        .map((tc) => `[Called tool: ${tc.function.name}(${tc.function.arguments})]`)
+        .join('\n')
+      return {
+        role: 'assistant' satisfies CompressRole,
+        content: m.content ? `${m.content}\n${toolCallsDesc}` : toolCallsDesc
+      }
+    }
+    return {
+      role: toCompressRole(m.role),
+      content: m.content
+    }
+  })
+}
+
 export function createCompressionAdapter(
   model: LanguageModel,
   maxOutputTokens: number = COMPRESSION_MIN_OUTPUT_TOKENS,
   abortSignal?: AbortSignal
 ): (messages: ContextMessage[]) => Promise<string> {
   return async (messages: ContextMessage[]): Promise<string> => {
-    const formatted = messages.map((m): { role: CompressRole; content: string } => {
-      if (m.role === 'tool') {
-        return {
-          role: 'user' satisfies CompressRole,
-          content: `[Tool result${m.tool_call_id ? ` (${m.tool_call_id})` : ''}: ${m.content}]`
-        }
-      }
-      if (m.role === 'assistant' && m.tool_calls?.length) {
-        const toolCallsDesc = m.tool_calls
-          .map((tc) => `[Called tool: ${tc.function.name}(${tc.function.arguments})]`)
-          .join('\n')
-        return {
-          role: 'assistant' satisfies CompressRole,
-          content: m.content ? `${m.content}\n${toolCallsDesc}` : toolCallsDesc
-        }
-      }
-      return {
-        role: toCompressRole(m.role),
-        content: m.content
-      }
-    })
+    const formatted = formatCompressionMessages(messages)
 
     const { text, finishReason } = await generateText({
       model,
@@ -371,6 +376,23 @@ export function createCompressionAdapter(
     // placeholder — i.e. the history was silently dropped.
     return text
   }
+}
+
+/** Estimate exactly the fold altitude consumed by the chunker, including its instruction.
+ * Recent turns and standing system messages never enter this request.
+ */
+export function estimateSummarizeInputTokens(messages: ModelMessage[], keepRecentTurns?: number): number {
+  const ir = fromModelMessages(messages)
+  const fold =
+    keepRecentTurns === undefined
+      ? ir.filter((message) => message.role !== 'system')
+      : planCompaction(ir, { keepRecentTurns }).toSummarize
+  return estimateObject(
+    formatCompressionMessages([
+      ...stripAttachmentsForCompression(fold),
+      { role: 'user', content: ContextPrompts.CONTEXT_COMPACTION_INSTRUCTION }
+    ])
+  )
 }
 
 /** Options for {@link summarizeModelMessages}. */

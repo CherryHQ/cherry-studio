@@ -62,6 +62,7 @@ import type {
 } from '../types'
 import { type UnavailableNativeContext, unavailableNativeContext } from '../types'
 import type { DurableBackend, DurableRoot } from './DurableBackend'
+import { resolveDurableCompaction } from './durableCompaction'
 import type { prepareDurableBranch } from './durableContext'
 import { saveDurableRequest } from './durableRequest'
 
@@ -995,6 +996,15 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     text: string
   ): Promise<void> {
     await projection.drain()
+    // A sibling can keep the shared backend alive across the parent's reconnect.
+    // Existing children need fresh policy too, sized from their own native model.
+    let usage = await handle.contextUsage()
+    if (usage.status === 'unknown') usage = await handle.contextUsage()
+    // Measurement can be invalidated by a concurrent child commit. Do not lose
+    // a valid steer for that passive-read race; retain its existing policy and
+    // let the next continuation refresh it.
+    if (usage.status === 'confirmed')
+      await handle.durable.configure({ compaction: resolveDurableCompaction(usage.value.contextWindow) })
     const { sessionId } = projection.context
     const id = randomUUID()
     messages.saveMessage({ sessionId, message: { id, role: 'user', data: { parts: [{ type: 'text', text }] } } })
