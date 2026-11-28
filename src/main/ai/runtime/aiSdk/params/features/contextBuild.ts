@@ -85,6 +85,20 @@ export function resolveInFlightTruncateThreshold(
 }
 
 /** Exported for direct middleware testing. Returns null when the layer is off. */
+/**
+ * Whether the no-LLM sliding-window fallback (`onBeforeCompress`) is installed for this
+ * request: compression enabled but no compressor model resolved, and a known window to
+ * budget against. It can drop attachment-bearing history, so callers that gate the
+ * `read_file` recovery path share this predicate rather than re-deriving it.
+ */
+export function slidingWindowFallbackActive(scope: RequestScope): boolean {
+  const settings = scope.contextSettings
+  if (scope.request.contextOwner === 'caller' || !settings.enabled) return false
+  return (
+    settings.compress.enabled && !scope.compressionModel && resolveContextWindow(scope.model.contextWindow) !== null
+  )
+}
+
 export function buildContextOptions(scope: RequestScope, toolTokens = 0): ContextMiddlewareOptions | null {
   const settings = scope.contextSettings
   if (scope.request.contextOwner === 'caller' || !settings.enabled) return null
@@ -144,7 +158,9 @@ export function buildContextOptions(scope: RequestScope, toolTokens = 0): Contex
   // and aiCore rejects `onBeforeCompress` without a `contextWindow` outright
   // (previously the `as number` cast smuggled a `NaN` past that check and every
   // comparison against it was silently false).
-  if (settings.compress.enabled && !scope.compressionModel && contextWindow !== null) {
+  // The `!== null` guard lives inside slidingWindowFallbackActive; restated inline so
+  // TypeScript narrows `contextWindow` for resolveInputRoom below.
+  if (slidingWindowFallbackActive(scope) && contextWindow !== null) {
     logger.debug('compress enabled but no model resolved — sliding-window fallback only')
     const outputReservation =
       scope.requestedMaxOutputTokens ??
