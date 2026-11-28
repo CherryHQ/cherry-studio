@@ -111,6 +111,14 @@ SVG drawing internals such as `path`, `g`, `defs`, gradients, masks, filters, an
 default. They enter the public contract only when they carry `data-ui`, `data-slot`, `data-testid`, `role`, or a trusted
 business handler. HTML descendants of `foreignObject` are processed as a new semantic boundary.
 
+The same build step also writes a `data-analytics` attribute on interactive controls (buttons, links, menu items,
+switches, and similar roles) for click analytics only. It is not part of the `data-ui` contract or the Custom CSS
+surface, never appears in scan or query results, and changes whenever its source signal does. Its value is the owning
+component's `domain.component` prefix plus the control's label i18n key, else its named click handler, else a static
+`data-testid`, `name`, `id`, or `key`—for example `chat.message:common.copy`. Controls without such a signal get no
+value, and an authored or spread `data-analytics` wins. Code inside `packages/ui` is never named; call sites name its
+controls.
+
 During source work, resolve a semantic prefix without building the app:
 
 ```bash

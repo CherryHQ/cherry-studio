@@ -30,4 +30,8 @@ Existing static `data-slot` markers remain unchanged in source and output and en
 as authored `data-ui` `part:*` tokens. Caller semantics passed through component props are merged with the intrinsic
 node's structural parts, including through JSX spreads and Radix `asChild` slots.
 
+The renderer build also writes an analytics-only `data-analytics` name on interactive controls, derived from the owning
+component plus the control's label i18n key or named handler. It is not part of the `data-ui` contract or the Custom
+CSS surface and never enters descriptors; see the contract document for the naming rule.
+
 Use `pnpm ui:contract:query chat.message` to discover matching semantic roles and their current source locations.
