@@ -136,6 +136,7 @@ function withResolvedApprovals(message: CherryUIMessage, exec: StreamExecution):
 
 const logger = loggerService.withContext('AiStreamManager')
 type ManagedAiStreamRequest = AiStreamRequest & {
+  /** In-process options (adds `signal`/`streamContinuation`); this request never crosses IPC. */
   requestOptions?: AsInProcess<AiStreamRequest>['requestOptions']
   taskIds?: readonly string[]
   usageContext?: InProcessUsageContext
@@ -1091,6 +1092,8 @@ export class AiStreamManager extends BaseService {
     source?: SourceSnapshot | null
     /** Per-request retry limit; `0` also disables model fallback. */
     maxRetries?: number
+    /** `false` disables mid-stream resume (structured-output consumers cannot splice a continuation). */
+    streamContinuation?: boolean
     utilityTask?: boolean
     onModelTransportFailure?: AiRequestOptions['onModelTransportFailure']
   }): SendResult {
@@ -1120,11 +1123,16 @@ export class AiStreamManager extends BaseService {
       ...(input.usageContext ? { usageContext: input.usageContext } : {}),
       ...(input.tokenUsageSource ? { tokenUsageSource: input.tokenUsageSource } : {}),
       source: input.source,
-      ...(input.idleTimeoutMs !== undefined || input.maxRetries !== undefined || input.onModelTransportFailure
+      ...(input.idleTimeoutMs !== undefined ||
+      input.maxRetries !== undefined ||
+      input.streamContinuation !== undefined ||
+      input.onModelTransportFailure
         ? {
             requestOptions: {
               ...(input.idleTimeoutMs !== undefined ? { timeout: input.idleTimeoutMs } : {}),
+              ...(input.idleTimeoutMs !== undefined ? { timeout: input.idleTimeoutMs } : {}),
               ...(input.maxRetries !== undefined ? { maxRetries: input.maxRetries } : {}),
+              ...(input.streamContinuation !== undefined ? { streamContinuation: input.streamContinuation } : {}),
               onModelTransportFailure: input.onModelTransportFailure
             }
           }

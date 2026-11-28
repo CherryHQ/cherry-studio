@@ -191,7 +191,8 @@ function createCallerRetryWrap(
   maxRetries: number | undefined,
   recoverOutputTokens: boolean | undefined,
   onRetryEvent?: Parameters<typeof createRetryableWrap>[0]['onRetryEvent'],
-  handlesTransportRetry?: boolean
+  handlesTransportRetry?: boolean,
+  streamContinuation?: boolean
 ): ReturnType<typeof createRetryableWrap> {
   if (!(maxRetries !== undefined && maxRetries > 0) && !recoverOutputTokens) return undefined
   const policy = resolveModelRetryPolicy(readRetryPolicy(), {
@@ -200,7 +201,12 @@ function createCallerRetryWrap(
     recoverOutputTokens,
     handlesTransportRetry
   })
-  return createRetryableWrap({ ...policy, fallbacks: [], onRetryEvent })
+  return createRetryableWrap({
+    ...policy,
+    fallbacks: [],
+    onRetryEvent,
+    ...(streamContinuation === false ? { streamContinuation } : {})
+  })
 }
 
 function createCaptureContext(input: {
@@ -292,6 +298,12 @@ export interface AiRequestOptions extends AiTransportOptions {
   signal?: AbortSignal
   /** Trusted caller owns retry scheduling for reported transport failures. */
   onModelTransportFailure?: (failure: RecoverableModelTransportFailure) => void
+  /**
+   * In-process only. `false` disables mid-stream resume for consumers that
+   * cannot splice a continuation (structured-output transports parsing the
+   * whole body as one document); pre-content retries still apply.
+   */
+  streamContinuation?: boolean
 }
 
 /** Widens `requestOptions` to accept the in-process shape on `AiService.*` method signatures. */
@@ -754,7 +766,8 @@ export class AiService extends BaseService {
             request.requestOptions?.maxRetries,
             request.retryOutputTokenLimit,
             (event) => agentRef.current?.write({ type: 'data-retry', id: 'retry', data: event }),
-            !!reportTransportFailure
+            !!reportTransportFailure,
+            request.requestOptions?.streamContinuation
           )
         : undefined
     let sdkMaxRetries = wrapModel ? 0 : options.maxRetries
@@ -784,6 +797,7 @@ export class AiService extends BaseService {
         apiKeyFallbacks,
         retryPolicy,
         outputTokenRetries,
+        ...(request.requestOptions?.timeout !== undefined ? { idleTimeoutMs: request.requestOptions.timeout } : {}),
         diagnosticContext: {
           chatId: request.conversation.topicId,
           messageId: request.messageId,
@@ -987,7 +1001,13 @@ export class AiService extends BaseService {
     // An explicit per-request `maxRetries: 0` disables retry for this request.
     let wrapModel =
       request.contextOwner === 'caller'
-        ? createCallerRetryWrap(request.requestOptions?.maxRetries, request.retryOutputTokenLimit)
+        ? createCallerRetryWrap(
+            request.requestOptions?.maxRetries,
+            request.retryOutputTokenLimit,
+            undefined,
+            undefined,
+            request.requestOptions?.streamContinuation
+          )
         : undefined
     let sdkMaxRetries = wrapModel ? 0 : options.maxRetries
     if (request.contextOwner !== 'caller' && request.requestOptions?.maxRetries !== 0) {
