@@ -24,7 +24,9 @@ import {
   formatApiHost,
   formatOllamaApiHost,
   isBareVertexApiHost,
+  isFullImageRequestUrl,
   isWithTrailingSharp,
+  normalizeFullImageRequestUrl,
   withoutTrailingApiVersion,
   withoutTrailingSlash
 } from '@shared/utils/api'
@@ -41,7 +43,7 @@ import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
 import type { ProviderConfig } from '../types'
 import { type AppProviderId, appProviderIds, type AppProviderSettingsMap } from '../types'
-import { customFetch } from '../utils/customFetch'
+import { customFetch, HTTP_TRACE_FINAL_URL_SLOT } from '../utils/customFetch'
 import {
   getBaseUrl,
   getExtraHeaders,
@@ -101,6 +103,22 @@ export interface ResolvedProviderAiSdkConfig {
 /** Applies endpoint-/provider-specific formatting (API version, Ollama/Gemini paths). */
 function formatBaseURL(baseURL: string, provider: Provider, endpointType?: EndpointType): string {
   if (!baseURL) return ''
+
+  // Full image request URLs (e.g. iFlytek Spark TTI `.../v2.1/tti`, or a pasted
+  // `.../v1/images/generations?tenant=x`) must be POSTed as-is: no `/v1`
+  // appending here and no `/images/...` appending downstream
+  // (see buildOpenAICompatibleConfig). Only an explicitly configured image
+  // endpoint opts in — a blank image field falling back to the chat host
+  // (e.g. `.../v2.1/openai/v1`) stays a base host with SDK path joining.
+  if (
+    (endpointType === ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION || endpointType === ENDPOINT_TYPE.OPENAI_IMAGE_EDIT) &&
+    isFullImageRequestUrl(baseURL)
+  ) {
+    const explicitBase = provider.endpointConfigs?.[endpointType]?.baseUrl?.trim()
+    if (explicitBase) {
+      return normalizeFullImageRequestUrl(baseURL)
+    }
+  }
 
   const appendApiVersion = !isWithTrailingSharp(baseURL)
 
@@ -874,6 +892,47 @@ function buildAzureConfig(
 
 function buildOpenAICompatibleConfig(ctx: BuilderContext): ProviderConfig<'openai-compatible'> {
   const commonOptions = buildCommonOptions(ctx)
+
+  // Full image request URLs (see #18572) bypass the SDK's hardcoded
+  // `baseURL + /images/generations|edits` join: POST the OpenAI body directly
+  // to the user-entered full path (query preserved). Only an explicitly
+  // configured image endpoint opts in — a blank image field falling back to
+  // the chat host stays on SDK path joining.
+  if (
+    ctx.endpointType === ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION ||
+    ctx.endpointType === ENDPOINT_TYPE.OPENAI_IMAGE_EDIT
+  ) {
+    const currentRaw = ctx.actualProvider.endpointConfigs?.[ctx.endpointType]?.baseUrl
+    if (currentRaw?.trim() && isFullImageRequestUrl(currentRaw)) {
+      const genRaw = ctx.actualProvider.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]?.baseUrl
+      const editRaw = ctx.actualProvider.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_IMAGE_EDIT]?.baseUrl
+      const genFull = genRaw?.trim() && isFullImageRequestUrl(genRaw) ? normalizeFullImageRequestUrl(genRaw) : null
+      const editFull = editRaw?.trim() && isFullImageRequestUrl(editRaw) ? normalizeFullImageRequestUrl(editRaw) : null
+      const baseFull = normalizeFullImageRequestUrl(currentRaw)
+
+      return {
+        providerId: 'openai-compatible',
+        endpoint: ctx.endpoint,
+        providerSettings: {
+          ...ctx.baseConfig,
+          baseURL: baseFull,
+          ...commonOptions,
+          name: ctx.actualProvider.id,
+          includeUsage: resolveEndpointDialect(ctx.actualProvider, ctx.endpointType).streamOptions,
+          fetch: (input, init) => {
+            const inputStr = input instanceof Request ? input.url : String(input)
+            const isEditOp = inputStr.includes('/images/edits')
+            const dest = isEditOp ? (editFull ?? genFull ?? baseFull) : (genFull ?? editFull ?? baseFull)
+            const urlSlot = (init as { [HTTP_TRACE_FINAL_URL_SLOT]?: { url?: string } } | undefined)?.[
+              HTTP_TRACE_FINAL_URL_SLOT
+            ]
+            if (urlSlot) urlSlot.url = dest
+            return customFetch(dest, init)
+          }
+        }
+      }
+    }
+  }
 
   return {
     providerId: 'openai-compatible',

@@ -6,7 +6,11 @@ import type { Span, Tracer } from '@opentelemetry/api'
 import { SpanStatusCode } from '@opentelemetry/api'
 import { describe, expect, it, vi } from 'vitest'
 
-import { HTTP_TRACE_FINAL_BODY_SLOT, type HttpTraceFinalBodySlot } from '../../utils/customFetch'
+import {
+  HTTP_TRACE_FINAL_BODY_SLOT,
+  HTTP_TRACE_FINAL_URL_SLOT,
+  type HttpTraceFinalBodySlot
+} from '../../utils/customFetch'
 import { createHttpTraceFetch } from '../httpTraceFetch'
 
 setFlagsFromString('--expose_gc')
@@ -166,6 +170,32 @@ describe('createHttpTraceFetch', () => {
     expect(JSON.parse(attributes.inputs as string)).toEqual({
       tools: [{ type: 'web_search' }, { type: 'web_extractor' }]
     })
+  })
+
+  it('overwrites http.url with the final URL when the inner fetch rewrites it via the trace slot', async () => {
+    const { tracer, attributes, state } = fakeTracer()
+    // Simulates the full image request URL wrapper, which bypasses the SDK's
+    // `baseURL + /images/...` join and POSTs directly to the user-entered path.
+    const innerFetch = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const slot = (init as { [HTTP_TRACE_FINAL_URL_SLOT]?: { url?: string } } | undefined)?.[HTTP_TRACE_FINAL_URL_SLOT]
+      if (slot) slot.url = 'https://maas-api.cn-huabei-1.xf-yun.com/v2.1/tti?key=secret'
+      return new Response(null, { status: 204 })
+    })
+
+    const f = createHttpTraceFetch(innerFetch, { topicId: 't1', tracer })
+    await f('https://maas-api.cn-huabei-1.xf-yun.com/v2.1/tti/images/generations', {
+      method: 'POST',
+      body: '{}'
+    })
+    await vi.waitFor(() => expect(state.ended).toBe(true))
+
+    // The span points endpoint debugging at the path the request never used
+    // unless the wrapper-corrected URL (redacted) overwrites the SDK path.
+    const url = attributes['http.url'] as string
+    expect(url).not.toContain('secret')
+    expect(url).not.toContain('/images/generations')
+    expect(new URL(url).searchParams.get('key')).toBe('<redacted>')
+    expect(url.startsWith('https://maas-api.cn-huabei-1.xf-yun.com/v2.1/tti')).toBe(true)
   })
 
   it('clears inputs when the inner fetch drops the request body', async () => {

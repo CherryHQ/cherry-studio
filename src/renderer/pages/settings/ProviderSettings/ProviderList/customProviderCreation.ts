@@ -3,6 +3,7 @@ import { trim } from 'es-toolkit/compat'
 import { formatApiHost, validateApiHost } from '@renderer/utils/api'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { EndpointConfig } from '@shared/data/types/provider'
+import { isFullImageRequestUrl, normalizeFullImageRequestUrl } from '@shared/utils/api'
 
 export const CUSTOM_PROVIDER_TEXT_ENDPOINTS = [
   ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
@@ -81,6 +82,15 @@ export function buildCustomProviderEndpointPreview(baseUrl: string, endpointType
   const value = trim(baseUrl)
   if (!value || !validateApiHost(value)) {
     return ''
+  }
+
+  // Full image request URLs (e.g. `.../v2.1/tti#`) are POSTed as-is — preview
+  // the final URL instead of appending `/images/...` (see #18572).
+  if (
+    (endpointType === ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION || endpointType === ENDPOINT_TYPE.OPENAI_IMAGE_EDIT) &&
+    isFullImageRequestUrl(value)
+  ) {
+    return normalizeFullImageRequestUrl(value)
   }
 
   const formattedHost =

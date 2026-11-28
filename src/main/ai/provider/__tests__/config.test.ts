@@ -1575,6 +1575,221 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       expect(radeonSettings).not.toHaveProperty('request_source')
     })
 
+    it.each([
+      ['https://maas-api.cn-huabei-1.xf-yun.com/v2.1/tti', 'https://maas-api.cn-huabei-1.xf-yun.com/v2.1/tti'],
+      ['https://maas-api.cn-huabei-1.xf-yun.com/v2.1/tti#', 'https://maas-api.cn-huabei-1.xf-yun.com/v2.1/tti'],
+      ['https://api.example.com/v1/images/generations', 'https://api.example.com/v1/images/generations']
+    ])(
+      'POSTs full image request URL %s as-is without appending /v1 or /images (REGRESSION #18572)',
+      async (baseUrl, expectedBaseURL) => {
+        const provider = makeProvider({
+          id: 'custom-spark',
+          defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+          endpointConfigs: {
+            [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.example.com/v1' },
+            [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]: { baseUrl }
+          }
+        })
+        const model = makeModel({
+          providerId: 'custom-spark',
+          endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION],
+          capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION]
+        })
+
+        const config = await providerToAiSdkConfig(provider, model)
+        const settings = config.providerSettings as Record<string, unknown>
+
+        expect(config.providerId).toBe('openai-compatible')
+        expect(settings.baseURL).toBe(expectedBaseURL)
+        // Full-URL mode installs its own fetch that POSTs the exact user path.
+        expect(typeof settings.fetch).toBe('function')
+        expect(settings.fetch).not.toBe(customFetch)
+
+        // The SDK still calls fetch with `baseURL + /images/generations`; the
+        // wrapper must ignore that and POST the full URL instead.
+        vi.mocked(net.fetch).mockImplementationOnce(async (input) => {
+          expect(String(input)).toBe(expectedBaseURL)
+          return new Response(JSON.stringify({ data: [{ b64_json: 'QUJD' }] }), {
+            headers: { 'content-type': 'application/json' }
+          })
+        })
+        await (settings.fetch as (input: unknown, init?: RequestInit) => Promise<Response>)(
+          `${expectedBaseURL}/v1/images/generations`,
+          { method: 'POST', body: '{}' }
+        )
+      }
+    )
+
+    it('keeps legacy base-host behaviour for image hosts without a full request path', async () => {
+      const provider = makeProvider({
+        id: 'custom-relay',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://relay.example.com' },
+          [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]: { baseUrl: 'https://relay.example.com/custom#' }
+        }
+      })
+      const model = makeModel({
+        providerId: 'custom-relay',
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION],
+        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION]
+      })
+
+      const config = await providerToAiSdkConfig(provider, model)
+      const settings = config.providerSettings as Record<string, unknown>
+
+      expect(config.providerId).toBe('openai-compatible')
+      expect(settings.baseURL).toBe('https://relay.example.com/custom')
+      expect(settings.fetch).toBe(customFetch)
+    })
+
+    it('preserves the query string when POSTing a full image request URL as-is (#25653)', async () => {
+      const baseUrl = 'https://api.example.com/v1/images/generations?tenant=x'
+      const provider = makeProvider({
+        id: 'custom-query',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.example.com/v1' },
+          [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]: { baseUrl }
+        }
+      })
+      const model = makeModel({
+        providerId: 'custom-query',
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION],
+        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION]
+      })
+
+      const config = await providerToAiSdkConfig(provider, model)
+      const settings = config.providerSettings as Record<string, unknown>
+
+      expect(settings.baseURL).toBe('https://api.example.com/v1/images/generations?tenant=x')
+      expect(settings.fetch).not.toBe(customFetch)
+
+      vi.mocked(net.fetch).mockImplementationOnce(async (input) => {
+        expect(String(input)).toBe('https://api.example.com/v1/images/generations?tenant=x')
+        return new Response(JSON.stringify({ data: [{ b64_json: 'QUJD' }] }), {
+          headers: { 'content-type': 'application/json' }
+        })
+      })
+      await (settings.fetch as (input: unknown, init?: RequestInit) => Promise<Response>)(
+        'https://api.example.com/v1/images/generations?tenant=x/images/generations',
+        { method: 'POST', body: '{}' }
+      )
+    })
+
+    it('preserves a trailing slash inside the query value instead of stripping it (#25653)', async () => {
+      const baseUrl = 'https://maas-api.cn-huabei-1.xf-yun.com/v2.1/tti?prefix=tenant/'
+      const provider = makeProvider({
+        id: 'custom-tti-query',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.example.com/v1' },
+          [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]: { baseUrl }
+        }
+      })
+      const model = makeModel({
+        providerId: 'custom-tti-query',
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION],
+        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION]
+      })
+
+      const config = await providerToAiSdkConfig(provider, model)
+      const settings = config.providerSettings as Record<string, unknown>
+
+      expect(settings.baseURL).toBe('https://maas-api.cn-huabei-1.xf-yun.com/v2.1/tti?prefix=tenant/')
+    })
+
+    it.each([
+      ['https://relay.example/v2.1/openai/v1', 'https://relay.example/v2.1/openai/v1'],
+      ['https://relay.example/v2.1/openai#', 'https://relay.example/v2.1/openai']
+    ])(
+      'keeps gateway base %s on SDK path joining instead of direct routing (#25653)',
+      async (chatBase, expectedBase) => {
+        const provider = makeProvider({
+          id: 'custom-gateway',
+          defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+          endpointConfigs: {
+            [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: chatBase }
+          }
+        })
+        const model = makeModel({
+          providerId: 'custom-gateway',
+          endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION],
+          capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION]
+        })
+
+        const config = await providerToAiSdkConfig(provider, model)
+        const settings = config.providerSettings as Record<string, unknown>
+
+        expect(settings.baseURL).toBe(expectedBase)
+        expect(settings.fetch).toBe(customFetch)
+      }
+    )
+
+    it('keeps an explicit dotted gateway base on SDK path joining (#25653)', async () => {
+      const provider = makeProvider({
+        id: 'custom-gateway-explicit',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://relay.example.com/v1' },
+          [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]: { baseUrl: 'https://relay.example/v2.1/openai#' }
+        }
+      })
+      const model = makeModel({
+        providerId: 'custom-gateway-explicit',
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION],
+        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION]
+      })
+
+      const config = await providerToAiSdkConfig(provider, model)
+      const settings = config.providerSettings as Record<string, unknown>
+
+      expect(settings.baseURL).toBe('https://relay.example/v2.1/openai')
+      expect(settings.fetch).toBe(customFetch)
+    })
+
+    it('routes /images/edits to the configured edit full URL when generation is primary (#25653)', async () => {
+      const genFull = 'https://vendor.example/v2.1/gen-tti'
+      const editFull = 'https://vendor.example/v2.1/edit-tti'
+      const provider = makeProvider({
+        id: 'custom-distinct',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.example.com/v1' },
+          [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]: { baseUrl: genFull },
+          [ENDPOINT_TYPE.OPENAI_IMAGE_EDIT]: { baseUrl: editFull }
+        }
+      })
+      const model = makeModel({
+        providerId: 'custom-distinct',
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION],
+        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION]
+      })
+
+      const config = await providerToAiSdkConfig(provider, model)
+      const settings = config.providerSettings as Record<string, unknown>
+      const fetchFn = settings.fetch as (input: unknown, init?: RequestInit) => Promise<Response>
+
+      expect(settings.baseURL).toBe(genFull)
+      expect(fetchFn).not.toBe(customFetch)
+
+      const seen: string[] = []
+      vi.mocked(net.fetch).mockImplementation(async (input) => {
+        seen.push(String(input))
+        return new Response(JSON.stringify({ data: [{ b64_json: 'QUJD' }] }), {
+          headers: { 'content-type': 'application/json' }
+        })
+      })
+
+      await fetchFn(`${genFull}/images/generations`, { method: 'POST', body: '{}' })
+      await fetchFn(`${genFull}/images/edits`, {
+        method: 'POST',
+        body: new FormData() as unknown as BodyInit
+      })
+
+      expect(seen).toEqual([genFull, editFull])
+    })
+
     it('routes DashScope openai-compatible endpoints through DashScope config and preserves stream usage support', async () => {
       const provider = makeProvider({
         id: 'dashscope',

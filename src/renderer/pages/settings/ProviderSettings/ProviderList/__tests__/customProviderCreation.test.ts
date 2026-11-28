@@ -96,6 +96,41 @@ describe('custom provider creation', () => {
     ).toBe('https://api.example.com/custom/v2/chat/completions')
   })
 
+  it.each([
+    [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION, 'https://maas-api.cn-huabei-1.xf-yun.com/v2.1/tti'],
+    [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION, 'https://maas-api.cn-huabei-1.xf-yun.com/v2.1/tti#'],
+    [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION, 'https://api.example.com/v1/images/generations'],
+    [ENDPOINT_TYPE.OPENAI_IMAGE_EDIT, 'https://api.example.com/v1/images/edits#']
+  ] as const)('previews %s full image request URL as-is: %s (#18572)', (endpointType, baseUrl) => {
+    const expected = baseUrl.replace(/#$/, '').replace(/\/+$/, '')
+    expect(buildCustomProviderEndpointPreview(baseUrl, endpointType)).toBe(expected)
+  })
+
+  it.each([
+    [
+      ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION,
+      'https://api.example.com/v1/images/generations?tenant=x',
+      'https://api.example.com/v1/images/generations?tenant=x'
+    ],
+    [
+      ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION,
+      'https://maas-api.cn-huabei-1.xf-yun.com/v2.1/tti?prefix=tenant/',
+      'https://maas-api.cn-huabei-1.xf-yun.com/v2.1/tti?prefix=tenant/'
+    ]
+  ] as const)('previews %s full image request URL with query as-is: %s (#25653)', (endpointType, baseUrl, expected) => {
+    expect(buildCustomProviderEndpointPreview(baseUrl, endpointType)).toBe(expected)
+  })
+
+  it.each([
+    'https://relay.example/v2.1/openai/v1',
+    'https://relay.example/v2.1/openai#',
+    'https://api.example.com/api/v1/services/aigc/multimodal-generation/generation#'
+  ])('keeps gateway-style %s on legacy base preview instead of direct routing (#25653)', (baseUrl) => {
+    const preview = buildCustomProviderEndpointPreview(baseUrl, ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION)
+    expect(preview).toContain('/images/generations')
+    expect(preview).not.toBe(baseUrl.replace(/#$/, ''))
+  })
+
   it('requires at least one text endpoint even when an image endpoint is configured', () => {
     expect(
       findInvalidCustomProviderCreationUrl({
