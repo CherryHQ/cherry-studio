@@ -969,7 +969,7 @@ describe('BinaryManager', () => {
       ;(service as any).miseBin = '/mock/mise'
       ;(service as any).isolatedEnv = {}
       const shim = path.join('/mock/feature.binary.data', 'shims', name + '.cmd')
-      mockFs.existsSync.mockImplementation((candidate) => candidate === shim)
+      mockFs.existsSync.mockImplementation((...args: unknown[]) => args[0] === shim)
       ;(mockFsp.access as any).mockImplementation(async (file: string) => {
         if (file.endsWith('.exe')) throw new Error('ENOENT')
       })
