@@ -4,7 +4,7 @@ import { open } from 'node:fs/promises'
 import { getToolName, isToolUIPart } from 'ai'
 
 import { application } from '@application'
-import { modelSummarySchema } from '@cherrystudio/remote-protocol/agent'
+import { modelOptionSchema, modelSummarySchema } from '@cherrystudio/remote-protocol/agent'
 import type {
   AgentInteraction,
   AgentParams,
@@ -21,15 +21,19 @@ import { agentSessionMessageService } from '@data/services/AgentSessionMessageSe
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentTaskService } from '@data/services/AgentTaskService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
+import { modelService } from '@data/services/ModelService'
+import { providerService } from '@data/services/ProviderService'
+import { isAgentModelSelectable } from '@shared/ai/agentRuntimeCapabilities'
 import { toExecutionFailure } from '@shared/ai/executionFailure'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { FileEntryIdSchema } from '@shared/data/types/file'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import { UniqueModelIdSchema, parseUniqueModelId } from '@shared/data/types/model'
+import { type UniqueModelId, UniqueModelIdSchema, parseUniqueModelId } from '@shared/data/types/model'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 import type { SerializedError } from '@shared/types/error'
+import { createCherryCloudModelAccess } from '@shared/utils/cherryCloudModelAvailability'
 
 import { DEFAULT_PAGE, pageOf, queryPage } from './agentPagination'
 import { toMessageUsage } from './agentUsage'
@@ -359,6 +363,56 @@ export function listAgents(cursor?: string, limit?: number) {
   )
 }
 
+function wireLabel(raw: string, fallback: string, maxLength: number): string {
+  const sanitize = (value: string) =>
+    value
+      .slice(0, maxLength)
+      .replace(/[\uD800-\uDBFF]$/, '')
+      .toWellFormed()
+      .trim()
+  return sanitize(raw.trim()) || sanitize(fallback)
+}
+
+function selectableModels(
+  agentId: string,
+  selected?: { providerId: string; modelId: string }
+): Array<{
+  id: UniqueModelId
+  identity: ReturnType<typeof parseUniqueModelId>
+  name: string
+  providerName: string
+}> {
+  const agent = agentService.getAgent(agentId)
+  if (!agent) throw new RemoteRpcError('NOT_FOUND', 'Agent not found')
+  const providers = new Map(providerService.list({ enabled: true }).map((provider) => [provider.id, provider]))
+  const cloud = createCherryCloudModelAccess(application.get('CherryCloudService').getAccountReceipt().models)
+  return modelService.list({ enabled: true, providerId: selected?.providerId }).flatMap((model) => {
+    const provider = providers.get(model.providerId)
+    if (!provider || !isAgentModelSelectable(agent.type, model, provider) || !cloud.isSelectable(model, true)) return []
+    const identity = parseUniqueModelId(model.id)
+    if (selected && identity.modelId !== selected.modelId) return []
+    return [{ id: model.id, identity, name: model.name, providerName: provider.name }]
+  })
+}
+
+export function listModels({ agentId, cursor, limit, search }: AgentParams<'agent.models.list'>) {
+  const keywords = search?.toLowerCase().trim().split(/\s+/) ?? []
+  const items = selectableModels(agentId)
+    .flatMap(({ identity, name, providerName }) => {
+      const summary = modelOptionSchema.safeParse({
+        ...identity,
+        name: wireLabel(name, identity.modelId, 2048),
+        providerName: wireLabel(providerName, identity.providerId, 4096)
+      })
+      return summary.success ? [summary.data] : []
+    })
+    .filter((item) => {
+      const text = [item.providerId, item.providerName, item.modelId, item.name].join(' ').toLowerCase()
+      return keywords.every((keyword) => text.includes(keyword))
+    })
+  return pageOf(items, cursor, limit)
+}
+
 export function listWorkspaces(agentId: string, cursor?: string, limit?: number) {
   if (!agentService.agentExists(agentId)) throw new RemoteRpcError('NOT_FOUND', 'Agent not found')
   return {
@@ -392,11 +446,26 @@ export function listSessions(query: AgentParams<'agent.sessions.list'>): {
   }
 }
 
-export function createSessionTx(tx: DbOrTx, sessionId: string, input: AgentParams<'agent.sessions.create'>): void {
+export function createSessionTx(
+  tx: DbOrTx,
+  sessionId: string,
+  input: AgentParams<'agent.sessions.create'>,
+  options?: { cloudRefreshFailed?: boolean }
+): void {
+  let model: UniqueModelId | undefined
+  if (input.model) {
+    if (options?.cloudRefreshFailed) {
+      notFound(() => agentService.assertActiveTx(tx, input.agentId))
+      throw new RemoteRpcError('MODEL_UNAVAILABLE', 'Cherry Cloud model availability could not be refreshed')
+    }
+    model = selectableModels(input.agentId, input.model)[0]?.id
+    if (!model) throw new RemoteRpcError('MODEL_UNAVAILABLE', 'Selected session model is no longer available')
+  }
   notFound(() =>
     agentSessionService.createTx(tx, sessionId, {
       agentId: input.agentId,
       name: input.title ?? '',
+      model,
       workspace:
         'workspace' in input
           ? input.workspace.kind === 'system'

@@ -57,6 +57,36 @@ describe('dismissScreenshotFault', () => {
     expect(appErrorContextSchema.safeParse(request.mock.calls[0][1]).success).toBe(true)
   })
 
+  it('reports an error whose name accessor answers once and then throws', async () => {
+    const thrown = new Error('overlay boom')
+    // V8 formats `stack` lazily and reads `name` while doing so; materialize it so only our reads count.
+    void thrown.stack
+    let reads = 0
+    Object.defineProperty(thrown, 'name', {
+      get() {
+        reads += 1
+        if (reads > 1) throw new Error('name accessor exploded')
+        return 'FlakyError'
+      }
+    })
+
+    await expect(dismissScreenshotFault(thrown)).resolves.toBeUndefined()
+    expect(channels()).toEqual(['screenshot.fail'])
+    expect(request.mock.calls[0][1]).toEqual(expect.objectContaining({ name: 'FlakyError' }))
+  })
+
+  it('still cancels the session when reading the error throws', async () => {
+    const thrown = new Error('overlay boom')
+    Object.defineProperty(thrown, 'stack', {
+      get() {
+        throw new Error('stack accessor exploded')
+      }
+    })
+
+    await expect(dismissScreenshotFault(thrown)).resolves.toBeUndefined()
+    expect(channels()).toEqual(['screenshot.cancel'])
+  })
+
   it('still cancels the session when main rejects the report', async () => {
     request.mockImplementation(async (channel: string) => {
       if (channel === 'screenshot.fail') throw new Error('invalid input')

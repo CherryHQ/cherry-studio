@@ -21,19 +21,20 @@ function ScreenshotRuntime(): null {
 
 /** Main ends the session before presenting, so the fallback never depends on this renderer surviving. */
 export async function dismissScreenshotFault(error: unknown): Promise<void> {
-  // Error fields can be overwritten with any value; the IPC schema accepts only strings.
-  const message = error instanceof Error ? error.message : error
-  const name = error instanceof Error && typeof error.name === 'string' ? error.name : undefined
-  const stack = error instanceof Error && typeof error.stack === 'string' ? error.stack : undefined
-  const context = createAppErrorContext({
-    source: 'screenshotWindow',
-    operation: 'react.render',
-    message: typeof message === 'string' ? message : stringifyThrown(message),
-    ...(name ? { name } : {}),
-    ...(stack ? { stack } : {})
-  })
   const logger = loggerService.withContext('ScreenshotApp')
   try {
+    // Error fields can be any value or a throwing accessor, so each is read once, inside the guard.
+    const isError = error instanceof Error
+    const message = isError ? error.message : error
+    const name: unknown = isError ? error.name : undefined
+    const stack: unknown = isError ? error.stack : undefined
+    const context = createAppErrorContext({
+      source: 'screenshotWindow',
+      operation: 'react.render',
+      message: typeof message === 'string' ? message : stringifyThrown(message),
+      ...(typeof name === 'string' && name ? { name } : {}),
+      ...(typeof stack === 'string' && stack ? { stack } : {})
+    })
     await ipcApi.request('screenshot.fail', context)
   } catch (failError) {
     logger.error('Failed to report a screenshot error', failError as Error)
