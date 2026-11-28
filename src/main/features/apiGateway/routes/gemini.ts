@@ -6,6 +6,7 @@ import { normalizeAntigravityModelPath } from '@cherrystudio/agent-runtime-antig
 import { isReservedGeminiGatewayModelId, stripGeminiGatewayModelSuffix } from '@shared/utils/apiGateway'
 
 import { googleEnvelope } from '../errors'
+import { allowsKeylessModelRequest } from '../lanGuard'
 import { authorizeApiRequest, authorizeCredentialScope, type GatewaySurface } from '../middleware/auth'
 import { DOC_DESCRIPTIONS, DOC_TAGS } from '../openapiDocs'
 import { processMessage } from '../proxyStream'
@@ -57,6 +58,7 @@ export const createGeminiRoutes = (surface: GatewaySurface) =>
     .guard({
       as: 'local',
       beforeHandle: ({ bearer, headers, query, set, request, body }) => {
+        if (surface === 'public' && allowsKeylessModelRequest(request)) return undefined
         const googleApiKey = headers['x-goog-api-key'] ?? (typeof query?.key === 'string' ? query.key : undefined)
         const failure =
           authorizeApiRequest(headers['x-api-key'], bearer, googleApiKey, request.headers, surface) ??

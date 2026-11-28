@@ -4,7 +4,7 @@
 
 上下文长度与最大输出以 K / M 缩写并四舍五入（1K 约为 1,000～1,024 tokens，1M 约为 100 万 tokens），例如 131,072 与 128,000 均写作 128K。悬停可查看完整数值，精确限制请以模型服务商为准。
 
-> **数据更新时间**: 2026-11-03 16:01:16 UTC / 2026-11-04 00:01:16 CST (北京时间)
+> **数据更新时间**: 2026-11-27 17:59:10 UTC / 2026-11-28 01:59:10 CST (北京时间)
 
 <div data-models-table="num:2,3;sort:1;search:0,1;cap:4:函数调用,推理,识图,结构化输出,文件输入">
 
@@ -98,6 +98,12 @@
 | Doubao 1.5 Thinking Pro M<br><code>doubao-1-5-thinking-pro-m</code> | bytedance | <span title="131,072">128K</span> | <span title="16,384">16K</span> | 推理、函数调用 | 文本 | 文本 |
 | Doubao Seed Translation<br><code>doubao-seed-translation</code> | bytedance | <span title="4,096">4K</span> | <span title="3,072">3K</span> | - | 文本 | 文本 |
 | doubao-seed-1-8<br><code>doubao-seed-1-8</code> | bytedance | - | - | - | - | - |
+| SWE-1.6<br><code>swe-1-6</code> | cognition | - | - | 函数调用、推理 | 文本 | 文本 |
+| SWE-1.7<br><code>swe-1-7</code> | cognition | - | - | 函数调用、推理 | 文本 | 文本 |
+| SWE-2<br><code>swe-2</code> | cognition | - | - | 函数调用、推理 | 文本 | 文本 |
+| SWE-2 Flash<br><code>swe-2-flash</code> | cognition | - | - | 函数调用、推理 | 文本 | 文本 |
+| SWE-2.1<br><code>swe-2-1</code> | cognition | - | - | 函数调用、推理 | 文本 | 文本 |
+| SWE-2.1 Ultrafast<br><code>swe-2-1-ultrafast</code> | cognition | - | - | 函数调用、推理 | 文本 | 文本 |
 | Aya Expanse 32B<br><code>c4ai-aya-expanse-32b</code> | cohere | <span title="131,072">128K</span> | <span title="4,096">4K</span> | 函数调用 | 文本 | 文本 |
 | Aya Expanse 8B<br><code>c4ai-aya-expanse-8b</code> | cohere | <span title="8,192">8K</span> | <span title="4,096">4K</span> | 函数调用 | 文本 | 文本 |
 | Command<br><code>command</code> | cohere | <span title="4,096">4K</span> | <span title="4,096">4K</span> | 函数调用 | - | - |
@@ -118,6 +124,8 @@
 | Tiny Aya Fire<br><code>tiny-aya-fire</code> | cohere | <span title="8,192">8K</span> | <span title="8,192">8K</span> | 函数调用 | - | - |
 | Tiny Aya Global<br><code>tiny-aya-global</code> | cohere | <span title="8,192">8K</span> | <span title="8,192">8K</span> | 函数调用 | - | - |
 | Tiny Aya Water<br><code>tiny-aya-water</code> | cohere | <span title="8,192">8K</span> | <span title="8,192">8K</span> | 函数调用 | - | - |
+| Composer 2.5<br><code>composer-2-5</code> | cursor | <span title="200,000">200K</span> | - | 函数调用 | 文本 | 文本 |
+| Composer 2.5 Fast<br><code>composer-2-5-fast</code> | cursor | <span title="200,000">200K</span> | - | 函数调用 | 文本 | 文本 |
 | DeepSeek R1<br><code>deepseek-r1</code> | deepseek | <span title="163,840">160K</span> | <span title="32,768">32K</span> | 函数调用、推理、结构化输出 | 文本 | 文本 |
 | DeepSeek R1 Distill Llama 70B<br><code>deepseek-r1-distill-llama-70b</code> | deepseek | <span title="32,768">32K</span> | <span title="16,384">16K</span> | 函数调用、推理 | 文本 | 文本 |
 | DeepSeek R1 Distill Llama 8B<br><code>deepseek-r1-distill-llama-8b</code> | deepseek | <span title="32,768">32K</span> | <span title="16,384">16K</span> | 函数调用、推理 | 文本 | 文本 |
@@ -236,7 +244,11 @@
 | OpenAI: GPT-3.5 Turbo Instruct<br><code>gpt-3-5-turbo-instruct</code> | openai | <span title="4,095">4K</span> | - | 结构化输出 | 文本 | 文本 |
 | OpenAI: GPT-4 Turbo Preview<br><code>gpt-4-turbo-preview</code> | openai | <span title="128,000">128K</span> | - | 函数调用、结构化输出 | 文本 | 文本 |
 | Perplexity Sonar Deep Research<br><code>sonar-deep-research</code> | perplexity | <span title="128,000">128K</span> | <span title="32,768">32K</span> | 推理 | 文本 | 文本 |
+| Flint<br><code>flint-v1-0</code> | recursive | <span title="262,144">256K</span> | <span title="262,144">256K</span> | 函数调用、推理、结构化输出 | 文本 | 文本 |
+| Beam 1.0<br><code>beam</code> | reflection | <span title="1,048,576">1.05M</span> | <span title="131,072">128K</span> | 函数调用、推理、结构化输出 | 文本 | 文本 |
 | Reka Flash 3<br><code>reka-flash-3</code> | reka | <span title="65,536">64K</span> | - | 推理、结构化输出 | 文本 | 文本 |
+| Extract-1<br><code>scaledown-extract-1</code> | scaledown | <span title="1,000,000">1M</span> | <span title="1,000,000">1M</span> | 结构化输出 | 文本 | 文本 |
+| Summarize-1<br><code>scaledown-summarize-1</code> | scaledown | <span title="1,000,000">1M</span> | <span title="1,000">1K</span> | - | 文本 | 文本 |
 | Step 1 (32K)<br><code>step-1-32k</code> | stepfun | <span title="32,768">32K</span> | <span title="32,768">32K</span> | 函数调用 | 文本 | 文本 |
 | Step 2 (16K)<br><code>step-2-16k</code> | stepfun | <span title="16,384">16K</span> | <span title="8,192">8K</span> | 函数调用 | 文本 | 文本 |
 | Kat Coder Pro V2<br><code>kat-coder-pro-v2</code> | streamlake | <span title="262,144">256K</span> | <span title="256,000">256K</span> | 函数调用、推理、结构化输出 | 文本 | 文本 |
@@ -251,6 +263,7 @@
 | Hunyuan MT2 Plus<br><code>hy-mt2-plus</code> | tencent | <span title="8,192">8K</span> | <span title="4,096">4K</span> | - | 文本 | 文本 |
 | Hunyuan MT2 Pro<br><code>hy-mt2-pro</code> | tencent | <span title="8,192">8K</span> | <span title="4,096">4K</span> | - | 文本 | 文本 |
 | Hunyuan Role<br><code>hy-role</code> | tencent | <span title="32,768">32K</span> | <span title="4,096">4K</span> | - | - | - |
+| Hunyuan Role Latest<br><code>hunyuan-role-latest</code> | tencent | <span title="32,768">32K</span> | <span title="4,096">4K</span> | - | - | - |
 | Hunyuan T1<br><code>hunyuan-t1</code> | tencent | - | - | 推理、函数调用 | - | - |
 | Hunyuan TurboS<br><code>hunyuan-turbos</code> | tencent | - | - | 函数调用 | - | - |
 | Tencent Code<br><code>tc-code</code> | tencent | - | - | 函数调用 | - | - |
@@ -278,9 +291,9 @@
 | Grok 4.1<br><code>grok-4-1</code> | xai | <span title="256,000">256K</span> | - | 推理、函数调用 | - | - |
 | Grok Beta<br><code>grok-beta</code> | xai | <span title="131,072">128K</span> | - | 函数调用 | - | - |
 | Grok Code Fast 1<br><code>grok-code-fast-1</code> | xai | <span title="256,000">256K</span> | - | 函数调用 | - | - |
-| MiMo V2.5 Pro<br><code>mimo-v2-5-pro</code> | xiaomi | <span title="1,050,000">1.05M</span> | <span title="131,072">128K</span> | 函数调用、推理、结构化输出 | 文本 | 文本 |
 | MiMo-V2-Flash<br><code>mimo-v2-flash</code> | xiaomi | <span title="262,144">256K</span> | <span title="65,536">64K</span> | 函数调用、推理 | 文本 | 文本 |
 | MiMo-V2-Pro<br><code>mimo-v2-pro</code> | xiaomi | <span title="1,048,576">1.05M</span> | <span title="131,072">128K</span> | 函数调用、推理 | 文本 | 文本 |
+| MiMo-V2.5-Pro<br><code>mimo-v2-5-pro</code> | xiaomi | <span title="1,048,576">1.05M</span> | <span title="131,072">128K</span> | 函数调用、推理、结构化输出 | 文本 | 文本 |
 | MiMo-V2.5-Pro-UltraSpeed<br><code>mimo-v2-5-pro-ultraspeed</code> | xiaomi | <span title="1,048,576">1.05M</span> | <span title="131,072">128K</span> | 函数调用、推理 | 文本 | 文本 |
 | GLM 4.5<br><code>glm-4-5</code> | zhipu | <span title="131,072">128K</span> | <span title="98,304">96K</span> | 函数调用、推理、结构化输出 | 文本 | 文本 |
 | GLM 4.5 Air<br><code>glm-4-5-air</code> | zhipu | <span title="131,072">128K</span> | <span title="98,304">96K</span> | 函数调用、推理 | 文本 | 文本 |
@@ -290,7 +303,7 @@
 | GLM 4.7 FlashX<br><code>glm-4-7-flashx</code> | zhipu | <span title="200,000">200K</span> | <span title="131,072">128K</span> | 函数调用、推理 | 文本 | 文本 |
 | GLM 5 Turbo<br><code>glm-5-turbo</code> | zhipu | <span title="202,800">202.8K</span> | <span title="131,100">131.1K</span> | 函数调用、推理、结构化输出 | 文本 | 文本 |
 | GLM 5.2 Fast<br><code>glm-5-2-fast</code> | zhipu | <span title="1,000,000">1M</span> | <span title="128,000">128K</span> | 函数调用、推理、结构化输出 | 文本 | 文本 |
-| GLM 5.3<br><code>glm-5-3</code> | zhipu | <span title="1,310,720">1.31M</span> | <span title="131,072">128K</span> | 函数调用、推理、结构化输出 | 文本 | 文本 |
+| GLM 5.3<br><code>glm-5-3</code> | zhipu | <span title="1,048,576">1.05M</span> | <span title="131,072">128K</span> | 函数调用、推理、结构化输出 | 文本 | 文本 |
 | GLM 5.3 Fast<br><code>glm-5-3-fast</code> | zhipu | <span title="1,048,576">1.05M</span> | <span title="262,144">256K</span> | 函数调用、推理、结构化输出 | 文本 | 文本 |
 | GLM-3-Turbo<br><code>glm-3-turbo</code> | zhipu | <span title="131,072">128K</span> | - | 函数调用 | - | - |
 | GLM-4<br><code>glm-4</code> | zhipu | <span title="131,072">128K</span> | - | 函数调用 | - | - |

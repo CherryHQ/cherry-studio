@@ -34,7 +34,7 @@ vi.mock('@renderer/components/CopyButton', () => ({
   default: () => <button type="button">copy</button>
 }))
 
-vi.mock('@renderer/components/resourceCatalog/selectors', () => ({
+vi.mock('@renderer/components/resourceCatalog/WorkspaceSelector', () => ({
   WorkspaceSelector: ({ trigger }: { trigger: React.ReactNode }) => <>{trigger}</>
 }))
 

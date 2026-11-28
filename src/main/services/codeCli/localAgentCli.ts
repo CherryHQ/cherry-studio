@@ -1,6 +1,10 @@
 import { application } from '@application'
 import { resolveCliProgram } from '@main/ai/runtime/cli/cliProgram'
-import { inspectAgentInstallation, selectAvailableInstallation } from '@main/ai/runtime/cli/installedCli'
+import {
+  getClaudeSdkFallback,
+  inspectAgentInstallation,
+  selectAvailableInstallation
+} from '@main/ai/runtime/cli/installedCli'
 import { readInstalledPackageVersion } from '@main/ai/runtime/cli/installedVersion'
 import { mergeEnvironment } from '@main/utils/env'
 import {
@@ -25,7 +29,8 @@ export async function detectLocalAgents(): Promise<LocalAgentDetection[]> {
   const unresolved = (command: string) => !snapshots[command] || snapshots[command].application?.status === 'unknown'
   return Promise.all(
     LOCAL_CLI_AGENT_PRESETS.map(async (preset) => {
-      const { available, installed } = await inspectAgentInstallation(preset, snapshots)
+      const { available: detected, installed } = await inspectAgentInstallation(preset, snapshots)
+      const available = detected.source === 'none' ? (getClaudeSdkFallback(preset.executable) ?? detected) : detected
       const terminal =
         preset.terminalCli && (available.source === 'none' || available.componentId !== preset.terminalCli.executable)
           ? await selectAvailableInstallation(preset.terminalCli, snapshots)

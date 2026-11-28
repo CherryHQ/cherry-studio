@@ -130,7 +130,7 @@ vi.mock('@renderer/hooks/useTimer', () => ({
   useTimer: () => ({ setTimeoutTimer: setTimeoutTimerMock })
 }))
 
-vi.mock('@renderer/pages/translate/TranslateSettings', () => {
+vi.mock('@renderer/components/translate/TranslateSettings', () => {
   harness.translatePanelModuleEvaluated()
   return { TranslateSettingsPanelContent: () => <div data-testid="translate-settings-panel" /> }
 })

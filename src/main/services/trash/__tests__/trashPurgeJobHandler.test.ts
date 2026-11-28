@@ -572,7 +572,7 @@ describe('trashPurgeJobHandler', () => {
     expect(agentJobsServiceMock.reconcileAgentSchedules).toHaveBeenCalledTimes(1)
   })
 
-  it('emptyAll purges every trashed row regardless of retention, sparing active rows', async () => {
+  it('emptyAll purges previously trashed rows regardless of retention, sparing active rows', async () => {
     // retention 0 would normally disable the purge — emptyAll must override it.
     MockMainPreferenceServiceUtils.setPreferenceValue('data.trash.retention_days', 0)
     await dbh.db.insert(topicTable).values([
@@ -611,6 +611,8 @@ describe('trashPurgeJobHandler', () => {
   it('emptyAll keeps referenced trashed files and reports how many remain', async () => {
     const held = '019606a0-0000-7000-8000-00000000dd01'
     const free = '019606a0-0000-7000-8000-00000000dd02'
+    const later = '019606a0-0000-7000-8000-00000000dd03'
+    const now = Date.now()
     await dbh.db.insert(topicTable).values({ id: 'topic-file-holder', name: 'holder', orderKey: 'a0' })
     await dbh.db.insert(messageTable).values([
       rootRow('topic-file-holder'),
@@ -625,6 +627,7 @@ describe('trashPurgeJobHandler', () => {
     ])
     await seedFileEntry(held, OLD)
     await seedFileEntry(free, OLD)
+    await seedFileEntry(later, now)
     await dbh.db.insert(chatMessageFileRefTable).values({
       id: 'cmfr-trash-held',
       fileEntryId: held,
@@ -632,13 +635,13 @@ describe('trashPurgeJobHandler', () => {
       role: 'attachment'
     })
 
-    const result = await trashPurgeJobHandler.execute(makeCtx({ emptyAll: true }))
+    const result = await trashPurgeJobHandler.execute(makeCtx({ emptyAll: true, cutoffMs: now }))
 
     expect(result).toMatchObject({
       purged: expect.objectContaining({ fileEntry: 1 }),
       retainedReferencedFileCount: 1
     })
-    expect(allIds(dbh.db.select({ id: fileEntryTable.id }).from(fileEntryTable).all())).toEqual([held])
+    expect(allIds(dbh.db.select({ id: fileEntryTable.id }).from(fileEntryTable).all()).sort()).toEqual([held, later])
   })
 
   it('counts only reference-protected files inside the confirmed purge scope', async () => {

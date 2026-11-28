@@ -1,4 +1,4 @@
-import type { Cursor } from '@earendil-works/pi-durable'
+import type { Cursor, Storage } from '@earendil-works/pi-durable'
 
 import { application } from '@application'
 import type { DurableRecoveryWork } from '@cherrystudio/agent-runtime-pi-durable'
@@ -20,6 +20,7 @@ import { prepareDurableBranch } from './durableContext'
 import { forkDurable } from './durableFork'
 import { DurableForkCheckpointSchema } from './forkCheckpoint'
 import { PiDurableRuntimeConnection } from './PiDurableRuntimeConnection'
+import { recoverDurableFollowups } from './recoverDurableReplies'
 
 const logger = loggerService.withContext('PiDurableRuntimeDriver')
 type Slot = { owner?: DurableBackend; connections: Map<string, PiDurableRuntimeConnection> }
@@ -31,7 +32,9 @@ export class PiDurableRuntimeDriver implements AgentSessionRuntimeDriver {
 
   constructor(
     private readonly adopt: Adopt = (root, connection) =>
-      application.get('AgentSessionRuntimeService').adoptDurableConnection(root.input, root.context, connection)
+      application.get('AgentSessionRuntimeService').adoptDurableConnection(root.input, root.context, connection),
+    private readonly recoverReply = (scope: { sessionId: string; runId: string }) =>
+      application.get('AgentSessionRuntimeService').recoverPendingReplies(scope)
   ) {}
 
   private readonly operations = new SequencerByKey<string>()
@@ -96,6 +99,28 @@ export class PiDurableRuntimeDriver implements AgentSessionRuntimeDriver {
     }
   }
 
+  private async recoverProjections(
+    backend: AgentRuntimeBackendRow,
+    storage: Storage,
+    isWritable: (sessionId: string) => boolean,
+    scope?: Parameters<typeof recoverDurableFollowups>[3]
+  ): Promise<void> {
+    const { acknowledged, replies } = await recoverDurableFollowups(backend.id, storage, isWritable, scope)
+    for (const reply of replies) if (isWritable(reply.sessionId)) await this.recoverReply(reply)
+    if (!acknowledged.length) return
+    const [{ createSession }, { acknowledgeFollowupProjections }, { BACKGROUND_CONTEXT }] = await Promise.all([
+      import('@earendil-works/pi-durable'),
+      import('@cherrystudio/agent-runtime-pi-durable'),
+      import('@earendil-works/chord/context')
+    ])
+    const session = createSession(await openDurableStorage(backend))
+    try {
+      await session.commit((tx) => acknowledgeFollowupProjections(tx, acknowledged), BACKGROUND_CONTEXT)
+    } finally {
+      await session.close(BACKGROUND_CONTEXT)
+    }
+  }
+
   recoverBackend(
     backend: AgentRuntimeBackendRow,
     blockedSessions: ReadonlySet<string>,
@@ -104,12 +129,16 @@ export class PiDurableRuntimeDriver implements AgentSessionRuntimeDriver {
     return this.operations.queue(backend.id, async () => {
       if (!canWrite() || this.backends.get(backend.id)?.owner || !contexts.backend(backend.id).needsRecoveryCheck)
         return
-      const { BACKGROUND_CONTEXT } = await import('@earendil-works/chord/context')
+      const [{ BACKGROUND_CONTEXT }, { readFollowupProjections }] = await Promise.all([
+        import('@earendil-works/chord/context'),
+        import('@cherrystudio/agent-runtime-pi-durable')
+      ])
       const storage = await openDurableStorage(backend, 'ro')
       let work: DurableRecoveryWork
       let root: AgentSessionContextRow
       let request: AgentRuntimeConnectInput
       try {
+        await this.recoverProjections(backend, storage, (id) => canWrite() && !blockedSessions.has(id))
         let cursor: Cursor | undefined
         let blockedWithdrawal = false
         do {
@@ -151,7 +180,8 @@ export class PiDurableRuntimeDriver implements AgentSessionRuntimeDriver {
               await session.close(BACKGROUND_CONTEXT)
             }
           }
-          if (!blockedWithdrawal && canWrite()) contexts.markRecoveryCheck(backend.id, false)
+          if (!blockedWithdrawal && canWrite() && !(await readFollowupProjections(storage)).length)
+            contexts.markRecoveryCheck(backend.id, false)
           return
         }
         if (roots.some((binding) => !binding || blockedSessions.has(binding.sessionId))) return
@@ -198,6 +228,25 @@ export class PiDurableRuntimeDriver implements AgentSessionRuntimeDriver {
     if (existing) return existing
     const current = contexts.context(context.id)
     if (!current.anchorMessageId) return unavailableNativeContext(context, 'Durable branch binding was replaced')
+    if (!slot.owner && !recovery) {
+      const inputIds: string[] = []
+      for (const { contextId, messageId } of messages.stagedFollowups(current.sessionId)) {
+        if (!contextId) messages.markUserMessageUnsent(current.sessionId, messageId, null)
+        else if (contextId === current.id) inputIds.push(messageId)
+      }
+      if (current.nativeThreadId && inputIds.length) {
+        const { BACKGROUND_CONTEXT } = await import('@earendil-works/chord/context')
+        const backend = contexts.backend(current.backendId)
+        const storage = await openDurableStorage(backend, 'ro').catch(() => undefined)
+        if (storage) {
+          try {
+            await this.recoverProjections(backend, storage, () => true, { context: current, inputIds })
+          } finally {
+            await storage.close(BACKGROUND_CONTEXT)
+          }
+        }
+      }
+    }
     contexts.markRecoveryCheck(context.backendId, true)
     const created = slot.owner ? undefined : await DurableBackend.open(input, current, recovery)
     if (created && 'status' in created) return created
@@ -263,10 +312,17 @@ export class PiDurableRuntimeDriver implements AgentSessionRuntimeDriver {
   }
 
   private async clearIfSettled(backendId: string): Promise<void> {
-    const { BACKGROUND_CONTEXT } = await import('@earendil-works/chord/context')
+    const [{ BACKGROUND_CONTEXT }, { readFollowupProjections }] = await Promise.all([
+      import('@earendil-works/chord/context'),
+      import('@cherrystudio/agent-runtime-pi-durable')
+    ])
     const storage = await openDurableStorage(contexts.backend(backendId), 'ro')
     try {
-      if (!(await DurableBackend.readWork(backendId, storage)).roots.size) contexts.markRecoveryCheck(backendId, false)
+      if (
+        !(await readFollowupProjections(storage)).length &&
+        !(await DurableBackend.readWork(backendId, storage)).roots.size
+      )
+        contexts.markRecoveryCheck(backendId, false)
     } finally {
       await storage.close(BACKGROUND_CONTEXT)
     }

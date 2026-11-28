@@ -1,8 +1,9 @@
 import { createFileRoute, redirect } from '@tanstack/react-router'
 
-// /settings/ 重定向到 /settings/provider
+import { DEFAULT_SETTINGS_PATH } from '@shared/data/types/settingsPath'
+
 export const Route = createFileRoute('/settings/')({
   beforeLoad: () => {
-    throw redirect({ to: '/settings/provider' })
+    throw redirect({ to: DEFAULT_SETTINGS_PATH })
   }
 })

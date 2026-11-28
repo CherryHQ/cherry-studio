@@ -10,8 +10,11 @@ vi.mock('@renderer/components/CodeViewer', () => ({
 }))
 vi.mock('../../shared/GenericTools', () => ({
   SkeletonValue: ({ value }: { value: ReactNode }) => <>{value}</>,
-  ToolHeader: () => <div />,
   TruncatedIndicator: () => null
+}))
+
+vi.mock('../../ToolHeader', () => ({
+  default: () => <div />
 }))
 
 import { ReadTool } from '../ReadTool'

@@ -1390,6 +1390,16 @@ export default defineConfig([
       )
     }
   },
+  {
+    files: ['src/renderer/**/*.{ts,tsx,js,jsx}'],
+    ignores: RENDERER_IGNORES,
+    plugins: { 'import-x': importX },
+    settings: { ...boundarySettings, 'import-x/extensions': ['.js', '.jsx', '.ts', '.tsx'] },
+    rules: {
+      'import-x/no-cycle': ['error', { ignoreExternal: true }],
+      'import-x/no-self-import': 'error'
+    }
+  },
   // Renderer boundary block L: layer edges into shared buckets — Zone A (shared→pages/windows) + Zone C (utils impurity).
   // Scoped to shared-bucket files so it never collides with block P on a pages file. Flips to error once A+C clear.
   {

@@ -1,5 +1,5 @@
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -8,6 +8,7 @@ import i18n from '@renderer/i18n/resolver'
 
 import { EMPTY_STATS_METRICS } from '../usageAnalytics'
 import UsageSettings from '../UsageSettings'
+import { useUsageData } from '../useUsageData'
 
 const usageDataOverride = vi.hoisted(() => ({ current: {} as Record<string, unknown> }))
 const useUsageEntriesDataMock = vi.hoisted(() =>
@@ -78,7 +79,7 @@ vi.mock('../useUsageData', () => {
   }
 
   return {
-    useUsageData: () => ({
+    useUsageData: vi.fn(() => ({
       costTotals: [],
       costCurrency: undefined,
       timelineBuckets: [],
@@ -94,7 +95,7 @@ vi.mock('../useUsageData', () => {
       exploreStatsLoading: false,
       exploreTimelineLoading: false,
       ...usageDataOverride.current
-    }),
+    })),
     useUsageEntriesData: useUsageEntriesDataMock
   }
 })
@@ -112,6 +113,31 @@ describe('UsageSettings', () => {
     MockCacheUtils.resetMocks()
     usageDataOverride.current = {}
     useUsageEntriesDataMock.mockClear()
+  })
+
+  it('includes the new day when the open page regains focus after midnight', () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    try {
+      vi.setSystemTime(new Date(2026, 0, 31, 23, 59))
+      render(<UsageSettings />)
+      vi.setSystemTime(new Date(2026, 1, 1, 0, 1))
+      fireEvent.focus(window)
+
+      expect(useUsageData).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          windowRange: {
+            from: new Date(2026, 0, 3).getTime(),
+            to: new Date(2026, 1, 1, 23, 59, 59, 999).getTime()
+          },
+          previousWindowRange: {
+            from: new Date(2025, 11, 4).getTime(),
+            to: new Date(2026, 0, 2, 23, 59, 59, 999).getTime()
+          }
+        })
+      )
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('discloses that totals may include local estimates even for an empty selection', () => {

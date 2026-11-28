@@ -19,6 +19,20 @@ backoff — `TimeoutError`s are deliberately not retried, see below) retry the
 order. Retry happens at the model layer — below the agent loop, so tool state
 and hook composition are untouched.
 
+### Output token limits
+
+Chat and trusted desktop Work requests recover when the provider rejects the
+SDK-managed output budget with a recognized HTTP 400 or 422 before any content.
+The same model receives the provider's ceiling. An explicit overflow without a
+numeric ceiling halves the budget. Each retry must lower the wire value while
+preserving any explicit thinking budget. Up to three retries share the
+same-model attempt limit. Chat uses this recovery even when transient retry is
+disabled, unless the call explicitly sets `maxRetries: 0`. Public gateway calls
+retain their no-retry policy. The reduction applies to the current model call.
+After key failover, the replacement credential shares its attempt count across
+budget reduction and transient retry. Pre-content stream errors use the options
+that opened the failing stream, including any preceding reduction.
+
 ```text
 AiService.streamText/generateText
   └─ createRetryableWrap()              src/main/ai/runtime/aiSdk/retry/
@@ -74,9 +88,14 @@ in `buildAgentParams`, closed over that model). So for each configured fallback
    configuration, authentication, plugin, and other unexpected errors propagate
    instead of being silently converted into "no fallback".
 
-**`createRetryableWrap`** (`createRetryableWrap.ts`) assembles the ai-retry
-policy and checks route-bound tool continuations. An eligible fallback, a
-model retry policy, or a replay route guard can install the wrapper. Key failover
+**`resolveModelRetryPolicy`** derives the allowed same-model rules and
+fallback settings for Chat and caller-owned requests. Both Chat entry points
+use it. **`createRetryableWrap`** assembles the ordered rules and checks
+route-bound tool continuations. It activates the selected credential and
+tool repair when dispatch starts. The credential pool retains the active key
+across tool steps, and each model call owns its attempt execution and status.
+An eligible fallback, a model retry policy, or a replay route guard can install
+the wrapper. Key failover
 is attempted first for 401/429 responses. When model retry is enabled, a selected
 replacement key still receives the configured same-model retry for other
 retryable errors (such as 503/529) before cross-model fallback begins. A recognized
@@ -131,10 +150,14 @@ before applying middleware, so callers never need a V3 assertion.
 — a **stable-id, non-transient** data part, so it rides `message.parts` and the
 renderer renders it as a "retrying…" status line (`RetryStatusBlock`). The
 stable `id` makes repeated retries reconcile into one part (latest wins), and
-the wrapper publishes `{ state: 'settled' }` after success or terminal failure,
-which clears the live spinner. `PersistenceListener` calls
+the wrappers share one reporter per model call. Once a retry is reported, the
+reporter publishes `{ state: 'settled' }` once when the call succeeds, fails, or
+is cancelled. For a stream, receiving its handle does not settle the call.
+`PersistenceListener` calls
 `stripTransientStatusParts` before every terminal write, so retry status is
-live-only and never persisted. Cross-model fallback is logged at warning level
+live-only and never persisted. The outer retry wrapper logs failed attempts at
+debug level, including terminal failures that never produce `retrying`.
+Cross-model fallback is logged at warning level
 with both failed and fallback ids; terminal logs preserve the original error
 and per-attempt diagnostics. All logging goes through
 `loggerService.withContext('ModelRetry')`.
@@ -172,9 +195,12 @@ Pi and Pi Durable internal object requests reuse `createRetryableWrap` through t
 caller-owned single-step path. `RuntimeExecutor.streamText` / `generateText` apply the
 wrapper after provider middleware. An explicit request count enables three retries,
 independently of the chat retry toggle and count; backoff uses `chat.retry.backoff_enabled`.
-Native and AI SDK built-in retries remain disabled. The Gateway selects the
-serving key once per request. Retries use that key and model, and only run before
-the first content chunk is forwarded.
+The Gateway selects the serving key once per request. Its retries use that key and
+model before the first content chunk is forwarded. AI SDK built-in retries remain
+disabled. The AI SDK integration sets the retry budget and backoff for recognized transport failures
+in Pi Durable, including failures after content has been forwarded. Pi Durable persists the plan
+and resumes the generation at the scheduled time. See
+[Pi Durable model recovery](../../../../src/main/ai/runtime/piDurable/README.md).
 An explicit zero keeps HTTP gateway requests outside the wrapper. See the
 [Pi model request contract](../../../../src/main/ai/runtime/pi/README.md#model-requests).
 

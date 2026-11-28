@@ -118,7 +118,7 @@ The workflow and publication scripts are pinned to the selected `main` commit; o
 
 The **Release** workflow checks GitHub Actions for a successful `ci.yml` push run whose `head_sha` exactly equals the commit being released. A successful run for an older commit does not satisfy this gate.
 
-If CI is queued, running, cancelled, or failing, no build is dispatched. Fix or rerun CI first.
+If CI is queued, running, cancelled, or failing, no build is dispatched. For a failed run, open **Release CI failures** in the run summary after the required checks finish. It lists failed jobs and steps with links to the logs for that commit. Fix or rerun CI before building.
 
 ### Repairing the Initial Release Branch
 
