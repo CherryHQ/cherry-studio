@@ -164,6 +164,45 @@ describe('expandDirectoryOwnerToTree', () => {
     expect(leaves.some((leaf) => leaf.data.source.endsWith('z.txt'))).toBe(true)
   })
 
+  it.each([undefined, 'processor'])(
+    'reserves directory paths before source and artifact allocation (%s)',
+    async (processor) => {
+      tempRoot = createTempRoot()
+      const rootDir = path.join(tempRoot, 'reports')
+      realFs.mkdirSync(rootDir)
+      for (const name of ['report.pdf', 'report.md']) realFs.writeFileSync(path.join(rootDir, name), 'source')
+      for (const name of ['report_1.pdf', 'report_1.md']) {
+        realFs.mkdirSync(path.join(rootDir, name))
+        realFs.writeFileSync(path.join(rootDir, name, 'child.txt'), 'child')
+      }
+      const result = await expandDirectoryOwnerToTree(
+        createDirectoryOwner(rootDir),
+        'kb-1',
+        'reports',
+        createSignal(),
+        ignoreCopyProgress,
+        processor
+      )
+      const leaves: string[] = []
+      const collect = (nodes: typeof result) => {
+        for (const node of nodes) {
+          if (node.type === 'file') leaves.push(node.data.relativePath)
+          else collect(node.children)
+        }
+      }
+      collect(result)
+      expect(leaves).toHaveLength(4)
+      expect(leaves).toContain('reports/report_1.pdf/child.txt')
+      expect(leaves).toContain('reports/report_1.md/child.txt')
+      expect(leaves).not.toContain('reports/report_1.pdf')
+      expect(leaves).not.toContain('reports/report_1.md')
+      if (!processor) {
+        expect(leaves).toContain('reports/report.pdf')
+        expect(leaves).toContain('reports/report.md')
+      }
+    }
+  )
+
   it('imports all supported image formats from directories', async () => {
     tempRoot = createTempRoot()
     const rootDir = path.join(tempRoot, 'images')

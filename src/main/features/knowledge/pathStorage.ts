@@ -152,9 +152,9 @@ export function getProcessedMarkdownRelativePath(relativePath: string): PosixRel
 export function reserveImportedFileRelativePath(
   sourceRelativePath: string,
   reserveProcessedArtifact: boolean,
-  reservedPaths: Set<string>
+  reservedPaths: Set<string>,
+  occupied = new Set(Array.from(reservedPaths, (name) => name.toLowerCase()))
 ): PosixRelativeFilePath {
-  const occupied = new Set(Array.from(reservedPaths, (name) => name.toLowerCase()))
   const chosen = nextFreeKnowledgeRelativePath(sourceRelativePath, (candidate) => {
     if (occupied.has(candidate.toLowerCase())) {
       return false
@@ -167,8 +167,11 @@ export function reserveImportedFileRelativePath(
   // handing it out as a branded value.
   assertSafeKnowledgeRelativePath(chosen)
   reservedPaths.add(chosen)
+  occupied.add(chosen.toLowerCase())
   if (reserveProcessedArtifact) {
-    reservedPaths.add(getProcessedMarkdownRelativePath(chosen))
+    const artifact = getProcessedMarkdownRelativePath(chosen)
+    reservedPaths.add(artifact)
+    occupied.add(artifact.toLowerCase())
   }
   return chosen
 }

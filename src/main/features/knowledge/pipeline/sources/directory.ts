@@ -3,11 +3,12 @@ import path from 'node:path'
 
 import { nextFreeKnowledgeRelativePath } from '@main/utils/knowledge'
 import type { DirectoryItemData, FileItemData, KnowledgeItem } from '@shared/data/types/knowledge'
-import { knowledgeFileProcessingExts, knowledgeSupportedFileExts, imageExts } from '@shared/utils/file'
+import { knowledgeSupportedFileExts } from '@shared/utils/file'
 
 import {
   assertSafeKnowledgeRelativePath,
   copyFileIntoKnowledgeBaseAt,
+  needsProcessedArtifactReservation,
   reserveImportedFileRelativePath
 } from '../../pathStorage'
 
@@ -83,7 +84,9 @@ async function expandDirectoryNode(
   node: DirectoryEntryNode,
   signal: AbortSignal,
   onFileCopied: () => void,
-  reservedPaths: Set<string>
+  reservedPaths: Set<string>,
+  occupied: Set<string>,
+  fileProcessorId: string | null | undefined
 ): Promise<ExpandedDirectoryNode | null> {
   if (node.type === 'file') {
     if (!KNOWLEDGE_SUPPORTED_FILE_EXT_SET.has(path.extname(node.externalPath).toLowerCase())) {
@@ -100,8 +103,9 @@ async function expandDirectoryNode(
     // which is also what brands it for `copyFileIntoKnowledgeBaseAt`.
     const materialPath = reserveImportedFileRelativePath(
       `${pathPrefix}/${subtreePath}`,
-      [...imageExts, ...knowledgeFileProcessingExts].includes(path.extname(node.externalPath).toLowerCase()),
-      reservedPaths
+      needsProcessedArtifactReservation(fileProcessorId, node.externalPath),
+      reservedPaths,
+      occupied
     )
     assertSafeKnowledgeRelativePath(materialPath)
     // Thread the abort signal so a hung single-file copy can be interrupted, and allow
@@ -126,7 +130,16 @@ async function expandDirectoryNode(
   const children: ExpandedDirectoryNode[] = []
 
   for (const child of node.children ?? []) {
-    const expandedChild = await expandDirectoryNode(baseId, pathPrefix, child, signal, onFileCopied, reservedPaths)
+    const expandedChild = await expandDirectoryNode(
+      baseId,
+      pathPrefix,
+      child,
+      signal,
+      onFileCopied,
+      reservedPaths,
+      occupied,
+      fileProcessorId
+    )
     if (expandedChild) {
       children.push(expandedChild)
     }
@@ -187,7 +200,8 @@ export async function expandDirectoryOwnerToTree(
   baseId: string,
   pathPrefix: string,
   signal: AbortSignal,
-  onCopyProgress: (percent: number) => void
+  onCopyProgress: (percent: number) => void,
+  fileProcessorId?: string | null
 ): Promise<ExpandedDirectoryNode[]> {
   if (owner.type !== 'directory') {
     throw new Error(`Knowledge item '${owner.id}' must be type 'directory', received '${owner.type}'`)
@@ -197,6 +211,15 @@ export async function expandDirectoryOwnerToTree(
   const children = await readDirectoryTree(resolvedPath, signal)
   const expandedChildren: ExpandedDirectoryNode[] = []
   const reservedPaths = new Set<string>()
+  const reserveDirectories = (nodes: DirectoryEntryNode[]) => {
+    for (const node of nodes) {
+      if (node.type !== 'folder') continue
+      reservedPaths.add(`${pathPrefix}/${node.treePath.replace(/^\/+/, '')}`)
+      reserveDirectories(node.children ?? [])
+    }
+  }
+  reserveDirectories(children)
+  const occupied = new Set(Array.from(reservedPaths, (name) => name.toLowerCase()))
   const totalFiles = countSupportedFiles(children)
   let copiedFiles = 0
   if (totalFiles > 0) {
@@ -208,7 +231,16 @@ export async function expandDirectoryOwnerToTree(
   }
 
   for (const child of children) {
-    const expandedChild = await expandDirectoryNode(baseId, pathPrefix, child, signal, onFileCopied, reservedPaths)
+    const expandedChild = await expandDirectoryNode(
+      baseId,
+      pathPrefix,
+      child,
+      signal,
+      onFileCopied,
+      reservedPaths,
+      occupied,
+      fileProcessorId
+    )
     if (expandedChild) {
       expandedChildren.push(expandedChild)
     }
