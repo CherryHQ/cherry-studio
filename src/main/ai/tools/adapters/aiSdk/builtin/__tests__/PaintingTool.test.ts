@@ -44,7 +44,13 @@ vi.mock('@logger', () => ({
   }
 }))
 
-import { generateImageFromPrompt, PAINTING_MODEL_NOT_CONFIGURED_NOTE } from '../../../../painting'
+import { EMPTY_IMAGE_ERROR_CODE } from '@main/ai/utils/emptyImageError'
+
+import {
+  generateImageFromPrompt,
+  PAINTING_MODEL_NOT_CONFIGURED_NOTE,
+  PAINTING_NO_OUTPUT_NOTE
+} from '../../../../painting'
 import { createGenerateImageToolEntry } from '../PaintingTool'
 
 const entry = createGenerateImageToolEntry()
@@ -246,6 +252,18 @@ describe('generate_image', () => {
     const result = await callExecute({ prompt: 'a cat' })
 
     expect(result).toEqual({ error: expect.any(String) })
+  })
+
+  it('keeps the billing guidance and never says retry when the request completed without an image', async () => {
+    getPreference.mockReturnValue('openai::dall-e-3')
+    generateImage.mockRejectedValue(Object.assign(new Error('no images'), { code: EMPTY_IMAGE_ERROR_CODE }))
+
+    const result = await callExecute({ prompt: 'a cat' })
+
+    expect(result).toEqual({ error: PAINTING_NO_OUTPUT_NOTE })
+    expect(PAINTING_NO_OUTPUT_NOTE).toMatch(/charged/)
+    expect(PAINTING_NO_OUTPUT_NOTE).toMatch(/Do not resubmit automatically/)
+    expect(PAINTING_NO_OUTPUT_NOTE).not.toMatch(/retry or inform/)
   })
 
   it('rethrows an abort instead of converting it to an error discriminant', async () => {
