@@ -18,4 +18,5 @@ export {
 export { buildApiKeyFallbackModels, hasApiKeyFallbackCandidates } from './retry/buildApiKeyFallbackModels'
 export { buildFallbackModels } from './retry/buildFallbackModels'
 export { createRetryableWrap } from './retry/createRetryableWrap'
+export { MAX_OUTPUT_TOKEN_RETRIES } from './retry/outputTokenRetry'
 export { planModelTransportRetry, readRetryPolicy, resolveEffectiveFallbackModelIds } from './retry/retryPolicy'
