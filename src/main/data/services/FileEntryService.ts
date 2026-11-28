@@ -739,7 +739,7 @@ class FileEntryServiceImpl implements FileEntryService {
           and(
             isNotNull(fileEntryTable.deletedAt),
             lt(fileEntryTable.deletedAt, cutoffMs),
-            not(and(...persistentRefAbsenceConditions()))
+            or(...persistentRefAbsenceConditions().map((condition) => not(condition)))
           )
         )
         .get()?.value ?? 0
