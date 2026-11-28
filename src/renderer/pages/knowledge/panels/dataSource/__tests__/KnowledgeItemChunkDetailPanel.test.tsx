@@ -100,7 +100,7 @@ vi.mock('@renderer/utils/time', () => ({
   formatRelativeTime: () => '刚刚'
 }))
 
-vi.mock('@renderer/pages/knowledge/utils/error', () => ({
+vi.mock('@renderer/utils/knowledgeError', () => ({
   normalizeKnowledgeError: (error: unknown) => (error instanceof Error ? error : new Error(String(error)))
 }))
 

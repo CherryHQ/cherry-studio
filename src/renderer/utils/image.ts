@@ -266,22 +266,26 @@ export function checkEntityImageSize(file: File): string | null {
     : null
 }
 
+/** A square region of the source image, in its pixels, that the user framed. */
+export type ImageCropArea = { x: number; y: number; width: number; height: number }
+
 /**
  * Normalize an entity image (avatar / logo) to a 128×128 cover-cropped WebP in the
  * renderer via the native canvas — the same shape main-side sharp produces (short
- * edge scaled to 128, centered square crop), so the two paths agree. Output is a few
+ * edge scaled to 128, centered square crop), so the two paths agree. `area` replaces the centered
+ * square with the one the user framed. Output is a few
  * KB, so this (not the raw upload) is what crosses IPC. Throws on any decode/encode
  * failure — the caller surfaces it so the user can retry; the raw bytes are never
  * sent to main, which could not decode them either.
  */
-export async function prepareEntityImageBytes(file: File): Promise<Uint8Array<ArrayBuffer>> {
+export async function prepareEntityImageBytes(file: File, area?: ImageCropArea): Promise<Uint8Array<ArrayBuffer>> {
   try {
     const bitmap = await createImageBitmap(file)
     try {
-      // Cover crop: sample the largest centered square, scale it to 128×128.
-      const side = Math.min(bitmap.width, bitmap.height)
-      const sx = (bitmap.width - side) / 2
-      const sy = (bitmap.height - side) / 2
+      // Cover crop: sample the framed square, or the largest centered one, and scale it to 128×128.
+      const side = area?.width ?? Math.min(bitmap.width, bitmap.height)
+      const sx = area?.x ?? (bitmap.width - side) / 2
+      const sy = area?.y ?? (bitmap.height - side) / 2
       const canvas = document.createElement('canvas')
       canvas.width = ENTITY_IMAGE_DIMENSION
       canvas.height = ENTITY_IMAGE_DIMENSION
@@ -975,9 +979,28 @@ const hasPositiveIntrinsicSvgLength = (value: string | null): boolean => {
  * Percentage/missing dimensions give that standalone image the browser's small
  * default intrinsic size, so the viewer's fit and zoom geometry starts from the
  * wrong box. Give only the preview clone an intrinsic vector size.
+ *
+ * The inline diagram is typically stretched to the chat width (e.g. a `200x80`
+ * viewBox shown at `~600px`), while the preview viewer never enlarges past the
+ * natural size (`fitScale <= 1`) and zooms via a rasterized CSS transform. A `1x`
+ * viewBox restore therefore looks shrunken and blurs on zoom/retina. Scale the
+ * restored size up (matching the `3x` PNG export) with a long-edge target so
+ * small diagrams fill the fullscreen dialog, capped for memory safety.
  */
+const PREVIEW_UPSCALE = 3
+const PREVIEW_TARGET_LONG_EDGE = 2400
+const PREVIEW_MAX_LONG_EDGE = 4096
+
+const roundPreviewDimension = (value: number): number => Math.max(1, Math.round(value))
+
 const createStandaloneSvgPreview = (svgElement: SVGElement): SVGElement => {
   const clone = svgElement.cloneNode(true) as SVGElement
+  // Responsive inline styles would constrain the standalone `<img>`; the
+  // width/height attributes below govern the preview instead.
+  clone.style.removeProperty('max-width')
+  clone.style.removeProperty('max-height')
+  clone.style.removeProperty('width')
+  clone.style.removeProperty('height')
   if (
     hasPositiveIntrinsicSvgLength(clone.getAttribute('width')) ||
     hasPositiveIntrinsicSvgLength(clone.getAttribute('height'))
@@ -991,8 +1014,19 @@ const createStandaloneSvgPreview = (svgElement: SVGElement): SVGElement => {
     .split(/[\s,]+/)
     .map(Number)
   if (viewBox?.length === 4 && viewBox.every(Number.isFinite) && viewBox[2] > 0 && viewBox[3] > 0) {
-    clone.setAttribute('width', String(viewBox[2]))
-    clone.setAttribute('height', String(viewBox[3]))
+    const viewWidth = viewBox[2]
+    const viewHeight = viewBox[3]
+    const scale = Math.max(PREVIEW_UPSCALE, PREVIEW_TARGET_LONG_EDGE / Math.max(viewWidth, viewHeight))
+    let width = roundPreviewDimension(viewWidth * scale)
+    let height = roundPreviewDimension(viewHeight * scale)
+    const longest = Math.max(width, height)
+    if (longest > PREVIEW_MAX_LONG_EDGE) {
+      const downscale = PREVIEW_MAX_LONG_EDGE / longest
+      width = roundPreviewDimension(width * downscale)
+      height = roundPreviewDimension(height * downscale)
+    }
+    clone.setAttribute('width', String(width))
+    clone.setAttribute('height', String(height))
   }
 
   return clone

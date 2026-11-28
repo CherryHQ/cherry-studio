@@ -5,6 +5,9 @@ import { InMemoryTransport } from '@modelcontextprotocol/client'
 
 import { MCP_FORWARDING_TIMEOUT_MS } from '@main/ai/mcp/mcpRequestOptions'
 import type { AgentMcpServer } from '@main/ai/runtime/agentMcpServers'
+import { CHERRY_MCP_SERVER, toCherryBuiltinRuntimeName } from '@main/ai/toolApproval/builtinToolPolicy'
+import { KB_LIST_TOOL_NAME, KB_READ_TOOL_NAME, KB_SEARCH_TOOL_NAME } from '@shared/ai/builtinTools'
+import { buildFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 
 import type { loadPiSdk } from './piSdk'
 
@@ -14,6 +17,23 @@ export function buildPiMcpToolName(serverName: string, toolName: string, collide
   if (name.length <= 64 && !collides) return name
   const hash = createHash('sha256').update(`${serverName}\0${toolName}`).digest('hex').slice(0, 8)
   return `${name.slice(0, 55)}_${hash}`
+}
+
+export function isPiToolDisabled(
+  disabledTools: ReadonlySet<string>,
+  runtimeName: string,
+  tool?: { serverName: string; name: string; serverId?: string }
+): boolean {
+  if (disabledTools.has(runtimeName)) return true
+  if (!tool) return false
+  const serverId = tool.serverId ?? tool.serverName
+  return (
+    disabledTools.has(buildFunctionCallToolName(tool.serverName, tool.name)) ||
+    disabledTools.has(`mcp__${serverId}__${tool.name}`) ||
+    (serverId === CHERRY_MCP_SERVER.CHERRY_TOOLS &&
+      (tool.name === KB_LIST_TOOL_NAME || tool.name === KB_READ_TOOL_NAME) &&
+      disabledTools.has(toCherryBuiltinRuntimeName(KB_SEARCH_TOOL_NAME)))
+  )
 }
 
 /** Cherry owns server configuration; Pi owns MCP discovery, tool execution, results and teardown. */

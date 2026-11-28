@@ -1,22 +1,16 @@
 import { describe, expect, it } from 'vitest'
 
+import {
+  antigravityGatewayModel,
+  normalizeAntigravityModelPath
+} from '@cherrystudio/agent-runtime-antigravity-acp/terminal'
 import { CHERRYAI_DEFAULT_MODEL_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
-import { ANTIGRAVITY_MODEL_PATH_SEPARATOR, formatGatewayModelId, gatewayClientOrigin } from '@shared/utils/apiGateway'
+import { formatGatewayModelId, gatewayClientOrigin } from '@shared/utils/apiGateway'
 
 /** The gateway proxy's parse side (proxyStream.ts): split on the FIRST ':'. */
 function parseByFirstColon(gatewayModelId: string): { providerId: string; modelId: string } {
   const sepIdx = gatewayModelId.indexOf(':')
   return { providerId: gatewayModelId.slice(0, sepIdx), modelId: gatewayModelId.slice(sepIdx + 1) }
-}
-
-/** The Antigravity round-trip: producer builds the path, `routes/gemini.ts` splits on the FIRST separator. */
-function parseAntigravityPath(gatewayModelId: string): { providerId: string; modelId: string } {
-  const path = gatewayModelId.replace(':', ANTIGRAVITY_MODEL_PATH_SEPARATOR)
-  const sepIdx = path.indexOf(ANTIGRAVITY_MODEL_PATH_SEPARATOR)
-  return {
-    providerId: path.slice(0, sepIdx),
-    modelId: path.slice(sepIdx + ANTIGRAVITY_MODEL_PATH_SEPARATOR.length)
-  }
 }
 
 describe('formatGatewayModelId', () => {
@@ -49,7 +43,9 @@ describe('formatGatewayModelId', () => {
 
   it('round-trips an apiModelId that itself contains the Antigravity separator', () => {
     const id = formatGatewayModelId('provider-a', 'models/gemini-flash')
-    expect(parseAntigravityPath(id)).toEqual({ providerId: 'provider-a', modelId: 'models/gemini-flash' })
+    const native = antigravityGatewayModel(id)
+    expect(native).toBe('gemini-api://provider-a/models/models/gemini-flash')
+    expect(normalizeAntigravityModelPath(native.slice('gemini-api://'.length))).toBe(id)
   })
 })
 

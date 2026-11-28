@@ -39,11 +39,12 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { ResourceListRevealPayload } from '@renderer/services/resourceListRevealEvents'
 import { toast } from '@renderer/services/toast'
 import type { AppRouter } from '@renderer/types/router'
-import { buildAgentFileWorkspaceKey, buildAgentSessionTopicId } from '@renderer/utils/agentSession'
+import { buildAgentFileWorkspaceKey } from '@renderer/utils/agentSession'
 import { formatErrorMessage, formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { isEmoji } from '@renderer/utils/naming'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
+import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { ConcreteApiPaths } from '@shared/data/api/paths'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
@@ -486,7 +487,7 @@ const AgentPage = () => {
 
   const resolveEmptySession = useCallback(
     async (agentId: string, defaults: CreateAgentSessionDefaults = {}): Promise<AgentSessionEntity> => {
-      const workspaceSource = await resolveCreateWorkspaceSource(defaults, visibleSession)
+      const workspaceSource = await resolveCreateWorkspaceSource({ ...defaults, agentId }, visibleSession)
       const result = await reuseOrCreateSession(agentId, workspaceSource)
 
       closeConversationTabs('agents', result.deletedDuplicateSessionIds)
@@ -656,6 +657,11 @@ const AgentPage = () => {
       }
     },
     [activateSession, pendingSessionDefaults, resolveEmptySession, t]
+  )
+
+  const handleOpenAgentChatFromLibrary = useCallback(
+    (agentId: string) => void handleAgentConversationSelect(agentId),
+    [handleAgentConversationSelect]
   )
 
   const requestSessionNavigation = useCallback(
@@ -1102,6 +1108,7 @@ const AgentPage = () => {
             content: (
               <ConversationResourceView
                 kind={activeResourceKind}
+                onOpenAgentChat={handleOpenAgentChatFromLibrary}
                 toolbarLeading={
                   !isWindowFrame ? (
                     <ConversationSidebarToggleButton
@@ -1115,7 +1122,7 @@ const AgentPage = () => {
             )
           }
         : null,
-    [activeResourceKind, isWindowFrame, shellPaneOpen, toggleShellPane]
+    [activeResourceKind, handleOpenAgentChatFromLibrary, isWindowFrame, shellPaneOpen, toggleShellPane]
   )
   const historyRecordsCenter = historyRecordsActive
     ? {
@@ -1194,7 +1201,7 @@ const AgentPage = () => {
         <AgentCreateDialog
           open={agentCreateOpen}
           onOpenChange={setAgentCreateOpen}
-          onCreated={handleAgentConversationSelect}
+          onStartConversation={handleAgentConversationSelect}
         />
       </Container>
     </>

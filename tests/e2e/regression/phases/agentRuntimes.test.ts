@@ -4,11 +4,12 @@ import {
   builtinAssistantAgent,
   createAgent,
   runAgentFileTask,
+  selectAgent,
   selectAgentWorkspace,
   startNewAgentTask
 } from '../helpers/agents'
 import { ensureCustomChatProvider, selectVisibleModel } from '../helpers/models'
-import { dismissOnboarding, selectSidebarApp } from '../helpers/navigation'
+import { dismissOnboarding } from '../helpers/navigation'
 import { closeSettings } from '../helpers/settings'
 import { agentFilePreview } from '../scenarios/agentFilePreview'
 import { agentGlobalInstallApproval } from '../scenarios/agentGlobalInstallApproval'
@@ -69,9 +70,7 @@ test(...caseDefinition('A-03'), async ({ app, mainWindow: page }) => {
 
   page = await app.restart('authenticated')
   await dismissOnboarding(page)
-  await selectSidebarApp(page, 'Work')
-  const restartedAgentView = page.locator('[data-ui~="agent.view"]:visible').first()
-  await expect(restartedAgentView.getByRole('button', { name, exact: true })).toBeVisible()
+  await selectAgent(page, name)
 })
 
 test(...caseDefinition('A-04'), async ({ app, mainWindow: page }) => {

@@ -305,7 +305,7 @@ function ActiveSessionBrowserView({
       onNavigate={(url) => browserRuntime.navigate(sessionId, pageId, url)}
       isWebviewReady={resource.ready}
       isHostActive={isHostActive}
-      autoFocusAddress={resource.url === 'about:blank'}
+      autoFocusAddress={resource.url === 'about:blank' && !resource.executing}
       target={pageTarget}
       onAnnotationSaved={onAnnotationSaved}
       banner={resource.securityProfile === WebviewSecurityProfile.AgentBrowser && <WebviewImportBanner />}>

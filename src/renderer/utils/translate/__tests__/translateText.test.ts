@@ -61,7 +61,7 @@ interface MockAiApi {
 
 interface MockListeners {
   chunk: Array<(data: { topicId: string; chunk: unknown }) => void>
-  done: Array<(data: { topicId: string }) => void>
+  done: Array<(data: { topicId: string; status: 'success' | 'paused' }) => void>
   error: Array<(data: { topicId: string; error?: { name?: string; message?: string } }) => void>
 }
 
@@ -82,7 +82,7 @@ function createMocks(): {
         if (i >= 0) listeners.chunk.splice(i, 1)
       }
     }),
-    onStreamDone: vi.fn((cb: (data: { topicId: string }) => void) => {
+    onStreamDone: vi.fn((cb: MockListeners['done'][number]) => {
       listeners.done.push(cb)
       return () => {
         const i = listeners.done.indexOf(cb)
@@ -139,8 +139,8 @@ function emitChunk(listeners: MockListeners, delta: string, topicId: string) {
   }
 }
 
-function emitDone(listeners: MockListeners, topicId: string) {
-  for (const cb of [...listeners.done]) cb({ topicId })
+function emitDone(listeners: MockListeners, topicId: string, status: 'success' | 'paused' = 'success') {
+  for (const cb of [...listeners.done]) cb({ topicId, status })
 }
 
 function emitError(listeners: MockListeners, error: { name?: string; message: string }, topicId: string) {
@@ -318,21 +318,36 @@ describe('translateText (main-driven streaming)', () => {
   })
 
   describe('abort signal', () => {
-    it('calls streamAbort with the streamId when the signal fires mid-stream', async () => {
+    it.each(['', 'partial'])('does not complete a cancelled translation with output %j', async (partial) => {
       const controller = new AbortController()
-      const promise = translateText('source', TARGET, undefined, controller.signal)
+      const onResponse = vi.fn()
+      const promise = translateText('source', TARGET, onResponse, controller.signal)
+      const cancelled = expect(promise).rejects.toMatchObject({ name: 'AbortError' })
       await waitForOpen(mockRequest)
       const streamId = lastStreamId(mockRequest)
 
-      emitChunk(mockListeners, 'partial', streamId)
+      if (partial) emitChunk(mockListeners, partial, streamId)
       controller.abort()
-      // Main would emit an abort-shaped error in response; simulate it here so
-      // the function's reject path completes.
-      emitError(mockListeners, { name: 'AbortError', message: 'aborted' }, streamId)
+      emitChunk(mockListeners, 'late text', streamId)
+      emitDone(mockListeners, streamId, 'paused')
 
-      await promise.catch(() => undefined)
-
+      await cancelled
       expect(mockAi.streamAbort).toHaveBeenCalledWith({ topicId: streamId })
+      expect(onResponse.mock.calls).toEqual(partial ? [[partial, false]] : [])
+      expect(mockListeners).toEqual({ chunk: [], done: [], error: [] })
+    })
+
+    it('unsubscribes when cancelling even if main sends no terminal event', async () => {
+      const controller = new AbortController()
+      const promise = translateText('source', TARGET, undefined, controller.signal)
+      const result = promise.catch((error: unknown) => error)
+      await waitForOpen(mockRequest)
+      mockAi.streamAbort.mockRejectedValueOnce(new Error('IPC unavailable'))
+
+      controller.abort()
+
+      expect(mockListeners).toEqual({ chunk: [], done: [], error: [] })
+      await expect(result).resolves.toMatchObject({ name: 'AbortError' })
     })
 
     it('rejects synchronously when the supplied signal is already aborted', async () => {

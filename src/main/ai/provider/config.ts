@@ -75,6 +75,8 @@ interface BuilderContext {
   baseConfig: BaseConfig
   resolvedBaseUrl: string
   apiKeyOverride?: string
+  utilityTask?: boolean
+  routeOnly?: boolean
   endpointType?: EndpointType
   endpoint?: string
   aiSdkProviderId: StringKeys<AppProviderSettingsMap>
@@ -86,6 +88,8 @@ type ApiKeyBuilderContext = BuilderContext & {
 
 interface ProviderToAiSdkConfigOptions {
   apiKeyOverride?: string
+  utilityTask?: boolean
+  routeOnly?: boolean
   resolvedEndpoint?: ResolvedEndpoint
 }
 
@@ -170,6 +174,7 @@ type ConfigBuilderEntry = {
 }
 
 function selectApiKey(ctx: BuilderContext): ApiKeyBuilderContext {
+  if (ctx.routeOnly) return { ...ctx, apiKeySelection: { attribution: 'unknown' } }
   const resolved = providerService.resolveApiKey(ctx.actualProvider.id, ctx.apiKeyOverride)
   return {
     ...ctx,
@@ -234,6 +239,8 @@ export async function resolveProviderAiSdkConfig(
     // for a key they never serve with.
     baseConfig: { baseURL, apiKey: '' },
     apiKeyOverride: options?.apiKeyOverride,
+    utilityTask: options?.utilityTask,
+    routeOnly: options?.routeOnly,
     endpointType,
     endpoint,
     aiSdkProviderId
@@ -433,7 +440,7 @@ export async function resolveProviderAiSdkConfig(
 async function buildCopilotConfig(ctx: BuilderContext): Promise<ProviderConfig<'github-copilot-openai-compatible'>> {
   const storedHeaders = {} // TODO: read from PreferenceService if copilot headers are persisted
   const headers = mergeHeaders(COPILOT_DEFAULT_HEADERS, storedHeaders)
-  const { token } = await copilotService.getToken(null as any, headers)
+  const token = ctx.routeOnly ? '' : (await copilotService.getToken(null as any, headers)).token
 
   return {
     providerId: 'github-copilot-openai-compatible',
@@ -585,9 +592,11 @@ async function buildCherryAIConfig(ctx: BuilderContext): Promise<ProviderConfig<
       includeUsage: resolveEndpointDialect(ctx.actualProvider, ctx.endpointType).streamOptions,
       headers: { ...getProviderAppHeaders(ctx.actualProvider), ...getExtraHeaders(ctx.actualProvider) },
       fetch: async (input: RequestInfo | URL, init?: RequestInit) => {
-        // The built-in free model is offered only to signed-in Cherry AI accounts.
-        const { phase } = await application.get('CherryCloudService').getStatus()
-        if (phase !== 'signed-in') throw new ModelUnavailableError(t('chat.cherryai.sign_in_required'))
+        // The built-in free model needs a Cherry AI sign-in for conversations; utility tasks run signed out.
+        if (!ctx.utilityTask) {
+          const { phase } = await application.get('CherryCloudService').getStatus()
+          if (phase !== 'signed-in') throw new ModelUnavailableError(t('chat.cherryai.sign_in_required'))
+        }
         const signature = generateSignature({
           method: 'POST',
           path: '/chat/completions',

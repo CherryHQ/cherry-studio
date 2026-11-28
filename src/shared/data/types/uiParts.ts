@@ -26,6 +26,7 @@
 import * as z from 'zod'
 
 import type { CompactionAnchorData } from '@shared/ai/compaction'
+import type { LocalAgentPlan } from '@shared/ai/localAgent'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema, type FileType, FileTypeSchema } from '@shared/types/file'
 
 import type { SerializedError } from '../../types/error'
@@ -138,6 +139,8 @@ export type RetryPartData = z.infer<typeof RetryPartDataSchema>
  * Used with `useChat({ dataPartSchemas })` to enable type-safe custom parts.
  */
 export type CherryDataPartTypes = {
+  'acp-content': { content: unknown; reasoning: boolean; messageId?: string }
+  'agent-plan': LocalAgentPlan
   'imported-status': { status: string }
   error: ErrorPartData
   translation: TranslationPartData
@@ -293,6 +296,7 @@ const ComposerMessageTokenSchema: z.ZodType<ComposerMessageToken> = z.object({
   description: z.string().optional(),
   index: z.number(),
   textOffset: z.number(),
+  sourceMessageId: z.string().optional(),
   promptText: z.string().optional(),
   payload: ComposerMessageFileTokenPayloadSchema.optional()
 })
@@ -449,6 +453,7 @@ export interface ComposerMessageToken {
   description?: string
   index: number
   textOffset: number
+  sourceMessageId?: string
   promptText?: string
   payload?: ComposerMessageTokenPayload
 }

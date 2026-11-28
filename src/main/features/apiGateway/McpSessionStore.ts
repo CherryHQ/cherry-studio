@@ -132,13 +132,20 @@ export class McpSessionStore {
     try {
       await bridge.connect(transport)
       const response = await transport.handleRequest(request, { parsedBody })
-      // `closeAll()` may have run while we were connecting; that sweep could not have seen
-      // this session, so retire it here rather than leaving it behind a closed server.
-      if (registered && this.closed) await this.delete(transport.sessionId!)
+      if (!registered) {
+        // A rejected handshake (e.g. 406/400) returns an error Response without throwing or
+        // firing `onsessioninitialized` — close the bridge here rather than leaking it.
+        await bridge.close().catch(() => {})
+      } else if (this.closed) {
+        // `closeAll()` may have run while we were connecting; that sweep could not have seen
+        // this session, so retire it here rather than leaving it behind a closed server.
+        await this.delete(transport.sessionId!)
+      }
       return response
     } catch (error) {
       // A failed handshake registers nothing — drop the bridge rather than leak it.
       if (!registered) await bridge.close().catch(() => {})
+      else if (this.closed) await this.delete(transport.sessionId!)
       throw error
     } finally {
       this.pendingAdmissions--
@@ -192,7 +199,7 @@ export class McpSessionStore {
   }
 
   private ensureSweeping(): void {
-    if (this.sweepTimer) return
+    if (this.closed || this.sweepTimer) return
     this.sweepTimer = setInterval(() => void this.sweepIdle(), SWEEP_INTERVAL_MS)
     // Never hold the event loop open for a housekeeping timer.
     this.sweepTimer.unref?.()

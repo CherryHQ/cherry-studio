@@ -1,12 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { ModelListSchema } from '@cherrystudio/provider-registry'
+import { ModelListSchema, ProviderModelListSchema } from '@cherrystudio/provider-registry'
 import en from '@renderer/i18n/locales/en-us.json'
 import i18n from '@renderer/i18n/resolver'
 import type { FileMetadata } from '@renderer/types/file'
 import type { FileEntry } from '@shared/data/types/file'
 
 import modelCatalog from '../../../../../../packages/provider-registry/data/models.json'
+import providerModelCatalog from '../../../../../../packages/provider-registry/data/provider-models.json'
 import { isOptionsConfigItem } from '../../form/baseConfigItem'
 import { imageGenerationToFields } from '../../form/imageGenerationToFields'
 import { checkProviderEnabled } from '../../utils/checkProviderEnabled'
@@ -383,4 +384,201 @@ it('uses the same effective mode fallback as the parameter schema for custom pai
     }
   })
   expect(lastGenerateCall().paramValues).toEqual({ size: '1024x1024' })
+})
+
+describe('DashScope newly registered image models (A2)', () => {
+  const dashscopeOverrides = ProviderModelListSchema.parse(providerModelCatalog).overrides.filter(
+    (row) => row.providerId === 'dashscope'
+  )
+
+  beforeEach(() => {
+    generatePaintingMock.mockClear()
+  })
+
+  it.each([
+    {
+      apiModelId: 'qwen-image-max',
+      mode: 'generate' as const,
+      sizeControl: 'input' as const,
+      size: '1664x928',
+      numImages: 1,
+      seed: 42
+    },
+    {
+      apiModelId: 'qwen-image-plus',
+      mode: 'generate' as const,
+      sizeControl: 'input' as const,
+      size: '1472x1140',
+      numImages: 1,
+      seed: 13
+    },
+    {
+      apiModelId: 'qwen-image-2.0',
+      mode: 'generate' as const,
+      sizeControl: 'sizeChips' as const,
+      size: '2688x1536',
+      numImages: 3,
+      seed: 7
+    },
+    {
+      apiModelId: 'qwen-image-2.0-pro',
+      mode: 'generate' as const,
+      sizeControl: 'sizeChips' as const,
+      size: '2048x2048',
+      numImages: 6,
+      seed: 9
+    },
+    {
+      apiModelId: 'qwen-image-2.1-pro',
+      mode: 'edit' as const,
+      sizeControl: 'sizeChips' as const,
+      size: '2688x1536',
+      numImages: 4,
+      seed: 11
+    },
+    {
+      apiModelId: 'qwen-image-2.1-turbo',
+      mode: 'generate' as const,
+      sizeControl: 'sizeChips' as const,
+      size: 'auto',
+      numImages: 2,
+      seed: 17
+    },
+    {
+      apiModelId: 'qwen-image-edit-max',
+      mode: 'edit' as const,
+      sizeControl: 'sizeChips' as const,
+      size: '2048x2048',
+      numImages: 5,
+      seed: 23
+    },
+    {
+      apiModelId: 'qwen-image-edit-plus',
+      mode: 'edit' as const,
+      sizeControl: 'sizeChips' as const,
+      size: '1536x2688',
+      numImages: 2,
+      seed: 31
+    },
+    {
+      apiModelId: 'z-image-turbo',
+      mode: 'generate' as const,
+      sizeControl: 'input' as const,
+      size: '2048x2048',
+      numImages: 1,
+      seed: 123
+    }
+  ])(
+    '$apiModelId ($mode) exposes size/numImages/seed controls and submits chosen values',
+    async ({ apiModelId, mode, sizeControl, size, numImages, seed }) => {
+      const support = dashscopeOverrides.find((row) => row.apiModelId === apiModelId)?.imageGeneration
+      expect(support).toBeDefined()
+
+      const fields = imageGenerationToFields(support, { mode })
+      expect(fields.map((field) => field.key)).toEqual(expect.arrayContaining(['size', 'numImages', 'seed']))
+
+      const sizeField = fields.find((field) => field.key === 'size')
+      expect(sizeField?.type).toBe(sizeControl)
+      if (sizeControl === 'sizeChips') {
+        if (!sizeField || !isOptionsConfigItem(sizeField) || !Array.isArray(sizeField.options)) {
+          throw new Error(`Expected sizeChips options for ${apiModelId}`)
+        }
+        expect(sizeField.options).toContainEqual(expect.objectContaining({ value: size }))
+      }
+
+      const binaryImage = vi.fn(async () => ({ data: [1, 2, 3], mime: 'image/png' }))
+      ;(window as unknown as { api: unknown }).api = { file: { binaryImage } }
+      const inputFiles = mode === 'edit' ? ([{ id: 'ref-1', ext: 'png' }] as unknown as FileEntry[]) : []
+
+      await canonicalGenerate(
+        makeInput({ size, numImages: String(numImages), seed: String(seed) }, { model: apiModelId, inputFiles }),
+        {
+          support,
+          mode
+        }
+      )
+
+      expect(lastGenerateCall().paramValues).toMatchObject({ size, numImages, seed })
+    }
+  )
+
+  it('omits unset size on z-image-turbo instead of substituting an unverified default', async () => {
+    const support = dashscopeOverrides.find((row) => row.apiModelId === 'z-image-turbo')?.imageGeneration
+    expect(support).toBeDefined()
+
+    const fields = imageGenerationToFields(support, { mode: 'generate' })
+    const sizeField = fields.find((field) => field.key === 'size')
+    expect(sizeField?.type).toBe('input')
+    expect(sizeField?.initialValue).toBeUndefined()
+
+    await canonicalGenerate(makeInput({}, { model: 'z-image-turbo' }), { mode: 'generate', support })
+
+    expect(lastGenerateCall().paramValues).toEqual({})
+  })
+
+  it('enforces the 10-image edit limit on qwen-image-2.1-pro', async () => {
+    const support = dashscopeOverrides.find((row) => row.apiModelId === 'qwen-image-2.1-pro')?.imageGeneration
+    const inputFiles = Array.from({ length: 11 }, (_, index) => ({
+      id: `ref-${index + 1}`,
+      ext: 'png'
+    })) as unknown as FileEntry[]
+
+    await expect(
+      canonicalGenerate(makeInput({}, { model: 'qwen-image-2.1-pro', inputFiles }), {
+        mode: 'edit',
+        support
+      })
+    ).rejects.toMatchObject({ name: 'PaintingGenerateError', code: 'INPUT_IMAGE_LIMIT_EXCEEDED' })
+  })
+
+  it.each(['1536×1024', '1536*1024', '1536X1024', ' 1536 × 1024 '])(
+    'normalizes z-image-turbo free-form size %j to canonical 1536x1024',
+    async (size) => {
+      const support = dashscopeOverrides.find((row) => row.apiModelId === 'z-image-turbo')?.imageGeneration
+      await canonicalGenerate(makeInput({ size }, { model: 'z-image-turbo' }), { mode: 'generate', support })
+      expect(lastGenerateCall().paramValues.size).toBe('1536x1024')
+    }
+  )
+
+  it.each([
+    ['dashscope', 'qwen-image-2.0'],
+    ['dashscope', 'qwen-image-2.0-pro'],
+    ['qwencloud', 'qwen-image-2.0'],
+    ['qwencloud', 'qwen-image-2.0-pro']
+  ])('enforces the 3-image edit limit for %s %s', async (providerId, apiModelId) => {
+    const overrides = ProviderModelListSchema.parse(providerModelCatalog).overrides
+    const support = overrides.find(
+      (row) => row.providerId === providerId && row.apiModelId === apiModelId
+    )?.imageGeneration
+    expect(support?.modes.edit?.maxInputImages).toBe(3)
+
+    const binaryImage = vi.fn(async () => ({ data: [1, 2, 3], mime: 'image/png' }))
+    ;(window as unknown as { api: unknown }).api = { file: { binaryImage } }
+
+    const threeFiles = Array.from({ length: 3 }, (_, index) => ({
+      id: `ref-${index + 1}`,
+      ext: 'png'
+    })) as unknown as FileEntry[]
+    await canonicalGenerate(makeInput({}, { providerId, model: apiModelId, inputFiles: threeFiles }), {
+      mode: 'edit',
+      support
+    })
+    expect(binaryImage).toHaveBeenCalledTimes(3)
+    expect(lastGenerateCall().inputImages).toHaveLength(3)
+
+    binaryImage.mockClear()
+    generatePaintingMock.mockClear()
+    const fourFiles = Array.from({ length: 4 }, (_, index) => ({
+      id: `ref-${index + 1}`,
+      ext: 'png'
+    })) as unknown as FileEntry[]
+    await expect(
+      canonicalGenerate(makeInput({}, { providerId, model: apiModelId, inputFiles: fourFiles }), {
+        mode: 'edit',
+        support
+      })
+    ).rejects.toMatchObject({ name: 'PaintingGenerateError', code: 'INPUT_IMAGE_LIMIT_EXCEEDED' })
+    expect(binaryImage).not.toHaveBeenCalled()
+    expect(generatePaintingMock).not.toHaveBeenCalled()
+  })
 })
