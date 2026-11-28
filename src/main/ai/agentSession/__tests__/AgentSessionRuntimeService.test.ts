@@ -27,6 +27,7 @@ import { AiStreamManager } from '@main/ai/streamManager/AiStreamManager'
 import { MessageRuntimeTimingCollector } from '@main/ai/streamManager/MessageRuntimeTimingCollector'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { AGENT_SESSION_API_RETRY_CACHE_KEY } from '@shared/ai/agentSessionApiRetry'
+import type { AgentSessionEditTarget } from '@shared/ai/agentSessionEdit'
 import {
   ACP_HOST_PERMISSION_MODE_ID,
   getAcpHostPermissionModeSelection,
@@ -4903,6 +4904,7 @@ describe('AgentSessionRuntimeService', () => {
     await vi.waitFor(() =>
       expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.context_usage.session-1', {
         modelId: baseTurnInput.modelId,
+        branchHead: baseTurnInput.assistantMessageId,
         result: usage,
         measuredAt: expect.any(Number)
       })
@@ -4945,7 +4947,9 @@ describe('AgentSessionRuntimeService', () => {
       await vi.waitFor(() =>
         expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.context_usage.session-1', {
           modelId: entry.modelId,
-          result: reading
+          branchHead: baseTurnInput.assistantMessageId,
+          result: reading,
+          measuredAt: expect.any(Number)
         })
       )
     })
@@ -4976,6 +4980,7 @@ describe('AgentSessionRuntimeService', () => {
       await vi.waitFor(() =>
         expect(mocks.cacheSetShared).toHaveBeenLastCalledWith('agent.session.context_usage.session-1', {
           modelId: baseTurnInput.modelId,
+          branchHead: baseTurnInput.assistantMessageId,
           result: latestUsage,
           measuredAt: expect.any(Number)
         })
@@ -5032,6 +5037,7 @@ describe('AgentSessionRuntimeService', () => {
       await vi.waitFor(() => expect(entry.contextUsageRefresh).toBeUndefined())
       expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.context_usage.session-1', {
         modelId: baseTurnInput.modelId,
+        branchHead: baseTurnInput.assistantMessageId,
         result: unavailable
       })
     })
@@ -5080,6 +5086,7 @@ describe('AgentSessionRuntimeService', () => {
       await vi.waitFor(() =>
         expect(cache.get('agent.session.context_usage.session-1')).toEqual({
           modelId: baseTurnInput.modelId,
+          branchHead: baseTurnInput.assistantMessageId,
           result: confirmed,
           measuredAt: expect.any(Number)
         })
@@ -5167,12 +5174,10 @@ describe('AgentSessionRuntimeService', () => {
           })
         )
 
-        // Idle disconnect happens 5 minutes later via resetConnectionRuntimeState.
-        vi.setSystemTime(1_700_000_300_000)
-        ;(service as any).resetConnectionRuntimeState(getEntry(service), connA)
-        eventsA.end()
-        await vi.waitFor(() => expect(getEntry(service).connectionLoop).toBeUndefined())
-        ;(service as any).entries.delete('session-1')
+        // Normal 5-minute idle teardown marks the cached reading stale while preserving measuredAt.
+        void terminalListener(hA).onDone({ status: 'success', isTopicDone: true })
+        await vi.advanceTimersByTimeAsync(5 * 60 * 1000)
+        await vi.waitFor(() => expect(service.inspect('session-1')).toBeUndefined())
         expect(cache.get('agent.session.context_usage.session-1')).toMatchObject({
           result: confirmed,
           stale: true,
@@ -5201,28 +5206,157 @@ describe('AgentSessionRuntimeService', () => {
         eventsB.push({ type: 'turn-complete' })
         await expect(rB.read()).resolves.toMatchObject({ done: true })
 
-        // Simulating idle removal then editing history must clear the cached context usage.
-        ;(service as any).entries.delete('session-1')
+        // Normal idle removal then editing history must clear the cached context usage.
+        void terminalListener(hB).onDone({ status: 'success', isTopicDone: true })
+        await vi.advanceTimersByTimeAsync(5 * 60 * 1000)
+        await vi.waitFor(() => expect(service.inspect('session-1')).toBeUndefined())
+        type ForkOperationsWithRunEdit = {
+          runEdit: (
+            sessionId: string,
+            target: AgentSessionEditTarget,
+            operationId: string,
+            signal: AbortSignal,
+            closeSource: () => Promise<void>,
+            persist: () => unknown
+          ) => Promise<unknown>
+        }
         const runEdit = vi
-          .spyOn(service['forks'] as any, 'runEdit')
-          .mockImplementation(
-            async (
-              _sid: unknown,
-              _target: unknown,
-              _opId: unknown,
-              _sig: unknown,
-              closeSource: () => Promise<void>
-            ) => {
-              await closeSource()
-              return 'ok'
-            }
-          )
+          .spyOn(service['forks'] as unknown as ForkOperationsWithRunEdit, 'runEdit')
+          .mockImplementation(async (_sid, _target, _opId, _sig, closeSource) => {
+            await closeSource()
+            return 'ok'
+          })
         try {
-          await service.editSession('session-1', { messageId: 'user-a', version: 0 }, () => 'ok')
+          await service.editSession('session-1', { messageId: 'user-a', version: 'v1' }, () => 'ok')
         } finally {
           runEdit.mockRestore()
         }
         expect(cache.has('agent.session.context_usage.session-1')).toBe(false)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('clears branch A context usage after idle teardown when selecting or attaching sibling branch B with the same model', async () => {
+      vi.useFakeTimers()
+      try {
+        const confirmed = reading(42)
+        const transientFailure = {
+          status: 'unknown' as const,
+          error: { operation: 'contextUsage', code: 'native-error', message: 'Subprocess exited' }
+        }
+        const cache = new Map<string, any>()
+        mocks.cacheSetShared.mockImplementation((key: string, value: any) => {
+          cache.set(key, value)
+        })
+        mocks.cacheGetShared.mockImplementation((key: string) => cache.get(key))
+        mocks.cacheDeleteShared.mockImplementation((key: string) => {
+          cache.delete(key)
+        })
+        const branchOf = (id: string) => (id.endsWith('-a') ? 'a' : id.endsWith('-b') ? 'b' : undefined)
+        mocks.sharesBranch.mockImplementation((_sessionId: string, left: string, right: string) => {
+          if (left === right || left === 'root' || right === 'root') return true
+          const leftBranch = branchOf(left)
+          const rightBranch = branchOf(right)
+          return Boolean(leftBranch && leftBranch === rightBranch)
+        })
+
+        const eventsA = createAsyncQueue<any>()
+        const eventsB = createAsyncQueue<any>()
+        const deferredB = createDeferred<typeof transientFailure>()
+        const connA = {
+          events: eventsA.iterable,
+          send: vi.fn(),
+          close: vi.fn(async () => {
+            eventsA.end()
+          }),
+          getContextUsage: vi.fn().mockResolvedValue(confirmed)
+        }
+        const connB = {
+          events: eventsB.iterable,
+          send: vi.fn(),
+          close: vi.fn(async () => {
+            eventsB.end()
+          }),
+          getContextUsage: vi.fn().mockReturnValue(deferredB.promise)
+        }
+        runtimeDriverRegistry.register({
+          type: 'test-runtime',
+          connect: vi.fn().mockResolvedValueOnce(connA).mockResolvedValueOnce(connB),
+          validateSession: vi.fn()
+        })
+
+        const service = new AgentSessionRuntimeService()
+        vi.setSystemTime(1_700_000_000_000)
+        const hA = service.beginTurn({
+          ...baseTurnInput,
+          assistantMessageId: 'assistant-a',
+          userMessage: userMessage('user-a')
+        })
+        const rA = openChunkStream(service, {
+          sessionId: 'session-1',
+          turnId: hA.turnId,
+          signal: new AbortController().signal
+        }).getReader()
+        await expect(rA.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+        eventsA.push({ type: 'turn-complete' })
+        await expect(rA.read()).resolves.toMatchObject({ done: true })
+        await vi.waitFor(() =>
+          expect(cache.get('agent.session.context_usage.session-1')).toMatchObject({
+            result: confirmed,
+            branchHead: 'assistant-a'
+          })
+        )
+
+        // Branch A idles out normally, leaving its stale reading in cache with no live entry.
+        void terminalListener(hA).onDone({ status: 'success', isTopicDone: true })
+        await vi.advanceTimersByTimeAsync(5 * 60 * 1000)
+        await vi.waitFor(() => expect(service.inspect('session-1')).toBeUndefined())
+        expect(cache.get('agent.session.context_usage.session-1')).toMatchObject({
+          result: confirmed,
+          stale: true,
+          branchHead: 'assistant-a'
+        })
+
+        // Selecting sibling branch B with no live entry clears branch A's reading immediately.
+        await service.prepareBranch('session-1', 'user-b')
+        expect(cache.has('agent.session.context_usage.session-1')).toBe(false)
+
+        // Also guard the attachment path: if A's stale reading survived prepareBranch (e.g. shared root),
+        // attaching B with the same model must clear A's reading before B reports usage and never retain it on failure.
+        cache.set('agent.session.context_usage.session-1', {
+          modelId: baseTurnInput.modelId,
+          branchHead: 'assistant-a',
+          result: confirmed,
+          stale: true,
+          measuredAt: 1_700_000_000_000
+        })
+        await service.prepareBranch('session-1', 'root')
+        expect(cache.has('agent.session.context_usage.session-1')).toBe(true)
+
+        const hB = service.beginTurn({
+          ...baseTurnInput,
+          assistantMessageId: 'assistant-b',
+          userMessage: userMessage('user-b')
+        })
+        const rB = openChunkStream(service, {
+          sessionId: 'session-1',
+          turnId: hB.turnId,
+          signal: new AbortController().signal
+        }).getReader()
+        await expect(rB.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+        expect(cache.has('agent.session.context_usage.session-1')).toBe(false)
+
+        deferredB.resolve(transientFailure)
+        await vi.waitFor(() =>
+          expect(cache.get('agent.session.context_usage.session-1')).toEqual({
+            modelId: baseTurnInput.modelId,
+            branchHead: 'assistant-b',
+            result: transientFailure
+          })
+        )
+        eventsB.push({ type: 'turn-complete' })
+        await expect(rB.read()).resolves.toMatchObject({ done: true })
       } finally {
         vi.useRealTimers()
       }
@@ -5913,6 +6047,7 @@ describe('AgentSessionRuntimeService', () => {
 
     expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.context_usage.session-1', {
       modelId: baseTurnInput.modelId,
+      branchHead: baseTurnInput.assistantMessageId,
       result: usage,
       measuredAt: expect.any(Number)
     })
@@ -6000,6 +6135,7 @@ describe('AgentSessionRuntimeService', () => {
     await vi.waitFor(() =>
       expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.context_usage.session-1', {
         modelId: baseTurnInput.modelId,
+        branchHead: baseTurnInput.assistantMessageId,
         result: usage,
         measuredAt: expect.any(Number)
       })

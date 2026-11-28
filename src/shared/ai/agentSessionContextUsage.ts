@@ -1,8 +1,9 @@
 import type { OperationResult, ThreadContextUsage } from '@cherrystudio/agent-runtime'
 
-/** Product model association for a harness-owned context reading. */
+/** Product model and branch association for a harness-owned context reading. */
 export interface AgentSessionContextUsage {
   readonly modelId?: string
+  readonly branchHead?: string
   readonly result: OperationResult<ThreadContextUsage>
   /** Epoch ms when a confirmed reading with used tokens was measured (surfaced when retained). */
   readonly measuredAt?: number

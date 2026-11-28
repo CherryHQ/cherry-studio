@@ -964,6 +964,11 @@ export class AgentSessionRuntimeService extends BaseService {
 
   private selectBranchStream(sessionId: string, head: string): void {
     const selected = this.entries.get(sessionId)
+    if (selected?.branchHead && !agentSessionMessageService.sharesBranch(sessionId, selected.branchHead, head)) {
+      this.invalidateContextUsage(selected)
+    } else {
+      this.invalidateContextUsageIfBranchChanged(sessionId, head)
+    }
     if (!this.secondaryRoots.size && !(selected && extractAgentContextId(selected.topicId))) {
       this.setBranchStream(sessionId)
       return
@@ -985,6 +990,8 @@ export class AgentSessionRuntimeService extends BaseService {
       this.assertSessionEditable(sessionId)
       this.invalidateContextUsage(entry)
       await this.closeSession(sessionId)
+    } else {
+      this.invalidateContextUsageIfBranchChanged(sessionId, messageId)
     }
     this.selectRecoveredRoot(sessionId, messageId)
   }
@@ -1054,7 +1061,15 @@ export class AgentSessionRuntimeService extends BaseService {
       }
     }
 
-    if (existing) void this.closeSession(input.sessionId)
+    if (existing) {
+      if (
+        existing.branchHead &&
+        !agentSessionMessageService.sharesBranch(input.sessionId, existing.branchHead, input.assistantMessageId)
+      ) {
+        this.invalidateContextUsage(existing)
+      }
+      void this.closeSession(input.sessionId)
+    }
 
     const entry: AgentSessionRuntimeEntry = {
       sessionId: input.sessionId,
@@ -1069,6 +1084,7 @@ export class AgentSessionRuntimeService extends BaseService {
       pendingInputs: existing?.pendingInputs
     }
     this.entries.set(input.sessionId, entry)
+    this.invalidateContextUsageIfBranchChanged(input.sessionId, entry.branchHead)
     this.setBranchStream(input.sessionId, entry.topicId)
     this.syncRuntimeActivity()
 
@@ -3536,6 +3552,50 @@ export class AgentSessionRuntimeService extends BaseService {
       })
   }
 
+  private sharesCachedBranch(
+    sessionId: string,
+    cachedBranchHead: string | undefined,
+    targetBranchHead: string | undefined
+  ): boolean {
+    return (
+      !cachedBranchHead ||
+      !targetBranchHead ||
+      agentSessionMessageService.sharesBranch(sessionId, cachedBranchHead, targetBranchHead)
+    )
+  }
+
+  private invalidateContextUsageIfBranchChanged(sessionId: string, branchHead: string | undefined): void {
+    if (!branchHead) return
+    const cache = application.get('CacheService')
+    const key = AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(sessionId)
+    const cachedUsage = cache.getShared(key)
+    if (
+      cachedUsage?.branchHead &&
+      !agentSessionMessageService.sharesBranch(sessionId, cachedUsage.branchHead, branchHead)
+    ) {
+      cache.deleteShared(key)
+    }
+  }
+
+  private markContextUsageStale(entry: AgentSessionRuntimeEntry, cache = application.get('CacheService')): void {
+    if (this.entries.get(entry.sessionId) !== entry) return
+    const usageKey = AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(entry.sessionId)
+    const cachedUsage = cache.getShared(usageKey)
+    if (!cachedUsage) return
+    if (
+      (cachedUsage.modelId && cachedUsage.modelId !== entry.modelId) ||
+      !this.sharesCachedBranch(entry.sessionId, cachedUsage.branchHead, entry.branchHead)
+    ) {
+      cache.deleteShared(usageKey)
+    } else if (cachedUsage.result.status === 'confirmed' && cachedUsage.result.value.used && !cachedUsage.stale) {
+      cache.setShared(usageKey, {
+        ...cachedUsage,
+        stale: true,
+        measuredAt: cachedUsage.measuredAt ?? Date.now()
+      })
+    }
+  }
+
   private invalidateContextUsage(entry: AgentSessionRuntimeEntry): void {
     entry.prediction?.controller.abort()
     entry.contextUsageEpoch = (entry.contextUsageEpoch ?? 0) + 1
@@ -3553,14 +3613,16 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   private persistContextUsage(entry: AgentSessionRuntimeEntry, result: AgentSessionContextUsage['result']): void {
-    if (!this.isCurrentEntry(entry)) return
+    if (this.entries.get(entry.sessionId) !== entry) return
     if (entry.contextUsageModel !== entry.modelId) return
     const cache = application.get('CacheService')
     const key = AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(entry.sessionId)
+    const branchHead = entry.branchHead
     if (result.status === 'confirmed') {
       const measuredAt = result.value.used ? Date.now() : undefined
       cache.setShared(key, {
         modelId: entry.modelId,
+        ...(branchHead ? { branchHead } : {}),
         result,
         ...(measuredAt !== undefined ? { measuredAt } : {})
       })
@@ -3573,10 +3635,16 @@ export class AgentSessionRuntimeService extends BaseService {
       result.error.code === 'model-changed'
     if (!invalidatesPrior) {
       const existing = cache.getShared(key)
-      if (existing?.modelId === entry.modelId && existing.result.status === 'confirmed' && existing.result.value.used) {
+      if (
+        existing?.modelId === entry.modelId &&
+        this.sharesCachedBranch(entry.sessionId, existing.branchHead, branchHead) &&
+        existing.result.status === 'confirmed' &&
+        existing.result.value.used
+      ) {
         if (!existing.stale || existing.measuredAt === undefined) {
           cache.setShared(key, {
             modelId: entry.modelId,
+            ...((existing.branchHead ?? branchHead) ? { branchHead: existing.branchHead ?? branchHead } : {}),
             result: existing.result,
             stale: true,
             measuredAt: existing.measuredAt ?? Date.now()
@@ -3585,7 +3653,11 @@ export class AgentSessionRuntimeService extends BaseService {
         return
       }
     }
-    cache.setShared(key, { modelId: entry.modelId, result })
+    cache.setShared(key, {
+      modelId: entry.modelId,
+      ...(branchHead ? { branchHead } : {}),
+      result
+    })
   }
 
   /**
@@ -3881,17 +3953,7 @@ export class AgentSessionRuntimeService extends BaseService {
     entry.prediction?.controller.abort()
     entry.contextUsageEpoch = (entry.contextUsageEpoch ?? 0) + 1
     const cache = application.get('CacheService')
-    const usageKey = AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(entry.sessionId)
-    const cachedUsage = cache.getShared(usageKey)
-    if (cachedUsage?.modelId && cachedUsage.modelId !== entry.modelId) {
-      cache.deleteShared(usageKey)
-    } else if (cachedUsage?.result.status === 'confirmed' && cachedUsage.result.value.used && !cachedUsage.stale) {
-      cache.setShared(usageKey, {
-        ...cachedUsage,
-        stale: true,
-        measuredAt: cachedUsage.measuredAt ?? Date.now()
-      })
-    }
+    this.markContextUsageStale(entry, cache)
     this.applyRuntimeStateEvent(entry, { type: 'connection-occupancy', occupancy: 'background', active: false })
     if (entry.runtimeState.execution.kind === 'autonomous-turn') {
       this.applyRuntimeStateEvent(entry, { type: 'autonomous-turn-finished' })
@@ -4960,6 +5022,7 @@ export class AgentSessionRuntimeService extends BaseService {
       try {
         this.clearApiRetry(entry)
         const cache = application.get('CacheService')
+        this.markContextUsageStale(entry, cache)
         cache.deleteShared(AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY(entry.sessionId))
         cache.deleteShared(AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY(entry.sessionId))
         cache.deleteShared(AGENT_SESSION_TASK_EVENTS_CACHE_KEY(entry.sessionId))
