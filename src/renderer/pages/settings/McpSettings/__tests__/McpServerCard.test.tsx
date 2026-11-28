@@ -86,4 +86,34 @@ describe('McpServerCard', () => {
     expect(mocks.invalidate).toHaveBeenCalledWith('/mcp-servers')
     expect(toast.error).not.toHaveBeenCalled()
   })
+
+  it('requires explicit trust confirmation before activating an untrusted manually imported server', async () => {
+    mocks.request.mockReset()
+    vi.mocked(popup.confirm).mockReset().mockResolvedValue(false)
+    const untrustedManualServer: McpServer = {
+      id: 'manual-untrusted-card',
+      name: 'Imported MCP',
+      type: 'stdio',
+      command: 'npx',
+      args: ['-y', 'untrusted-server'],
+      installSource: 'manual',
+      isActive: false,
+      isTrusted: false
+    }
+
+    const user = userEvent.setup()
+    render(<McpServerCard server={untrustedManualServer} onEdit={vi.fn()} />)
+
+    await user.click(screen.getByRole('switch'))
+
+    await waitFor(() => expect(popup.confirm).toHaveBeenCalledTimes(1))
+    expect(popup.confirm).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'settings.mcp.importTrustWarning.title',
+        okText: 'settings.mcp.importTrustWarning.confirm',
+        okButtonProps: { danger: true }
+      })
+    )
+    expect(mocks.request).not.toHaveBeenCalledWith('mcp.server.refresh_tools', expect.anything())
+  })
 })

@@ -5,6 +5,7 @@ import type { McpServerLogEntry } from '@shared/types/mcp'
 
 const logger = loggerService.withContext('McpSettings/utils')
 
+export { getCommandPreview } from '@renderer/components/mcp/McpTrustWarningContent'
 export { toCreateMcpServerDto, toUpdateMcpServerDto } from '@renderer/utils/mcpServerDraft'
 
 /**
@@ -26,17 +27,6 @@ function isServerInWhitelist(server: McpServer): boolean {
 }
 
 /**
- * Get command preview string from MCP server configuration
- * @param server - The MCP server to extract command from
- * @returns Formatted command string with arguments
- */
-export const getCommandPreview = (server: Pick<McpServer, 'command' | 'args'>): string => {
-  return [server.command, ...(server.args ?? [])]
-    .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
-    .join(' ')
-}
-
-/**
  * Ensures a server is trusted before proceeding (pure logic, no UI)
  * @param currentServer - The server to verify trust for
  * @param requestConfirm - Callback to request user confirmation
@@ -49,6 +39,7 @@ export async function ensureServerTrusted(
   updateServer: (body: UpdateMcpServerDto) => void
 ): Promise<McpServer | null> {
   const isProtocolInstall = currentServer.installSource === 'protocol'
+  const requiresTrust = currentServer.isTrusted === false || (isProtocolInstall && !currentServer.isTrusted)
 
   logger.silly('ensureServerTrusted', {
     serverId: currentServer.id,
@@ -57,12 +48,12 @@ export async function ensureServerTrusted(
   })
 
   // Early return if no trust verification needed
-  if (!isProtocolInstall || currentServer.isTrusted) {
+  if (!requiresTrust) {
     return currentServer
   }
 
-  // Auto-trust whitelisted servers (e.g., WPS Notes)
-  if (isServerInWhitelist(currentServer)) {
+  // Auto-trust whitelisted protocol servers (e.g., WPS Notes)
+  if (isProtocolInstall && isServerInWhitelist(currentServer)) {
     logger.info('Auto-trusting whitelisted server', {
       serverId: currentServer.id,
       baseUrl: currentServer.baseUrl
@@ -85,9 +76,9 @@ export async function ensureServerTrusted(
     return null
   }
 
-  // Update server with trust information
-  const trustFields = {
-    installSource: 'protocol' as const,
+  // Update server with trust information, preserving its installSource
+  const trustFields: UpdateMcpServerDto = {
+    ...(currentServer.installSource ? { installSource: currentServer.installSource } : {}),
     isTrusted: true,
     trustedAt: Date.now()
   }

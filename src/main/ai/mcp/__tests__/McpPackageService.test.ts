@@ -399,4 +399,43 @@ describe('McpPackageService package upload collision guard', () => {
     expect(result.error).toBeUndefined()
     expect(result.success).toBe(true)
   })
+
+  it('returns platform-resolved launch config alongside upload metadata', async () => {
+    const manifestWithOverride = {
+      ...MANIFEST,
+      server: {
+        mcp_config: {
+          command: 'node',
+          args: ['${__dirname}/scripts/base.js'],
+          env: { BASE: '1', SHARED: 'base' },
+          platform_overrides: {
+            [process.platform]: {
+              command: 'bun',
+              args: ['${__dirname}/scripts/platform.js'],
+              env: { SHARED: 'platform', EXTRA: '2' }
+            }
+          }
+        }
+      }
+    }
+
+    const result = await withServiceRoot(async () =>
+      sharedService.uploadDxt(
+        await buildDxt({
+          'manifest.json': JSON.stringify(manifestWithOverride),
+          'scripts/base.js': '// base entry',
+          'scripts/platform.js': '// platform entry'
+        }),
+        'demo.dxt'
+      )
+    )
+
+    expect(result.error).toBeUndefined()
+    expect(result.success).toBe(true)
+    expect(result.data?.resolvedConfig).toMatchObject({
+      command: 'bun',
+      args: [`${result.data!.extractDir}/scripts/platform.js`],
+      env: { BASE: '1', SHARED: 'platform', EXTRA: '2' }
+    })
+  })
 })

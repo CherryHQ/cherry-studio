@@ -101,6 +101,7 @@ export interface McpPackageUploadResult {
   data?: {
     manifest: McpPackageManifest
     extractDir: string
+    resolvedConfig?: ResolvedMcpConfig
   }
   error?: string
 }
@@ -568,12 +569,15 @@ export class McpPackageService extends BaseService {
         fs.unlinkSync(filePath)
       }
 
-      // Return success with manifest and extraction path
+      const resolvedConfig = this.getResolvedMcpConfig(finalExtractDir) ?? undefined
+
+      // Return success with manifest, extraction path, and effective platform-resolved launch config
       return {
         success: true,
         data: {
           manifest,
-          extractDir: finalExtractDir
+          extractDir: finalExtractDir,
+          resolvedConfig
         }
       }
     } catch (error) {

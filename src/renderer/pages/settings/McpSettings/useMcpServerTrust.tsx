@@ -1,12 +1,16 @@
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { loggerService } from '@logger'
+import { ipcApi } from '@renderer/ipc'
 import { popup } from '@renderer/services/popup'
 import type { UpdateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
 import type { McpServer } from '@shared/data/types/mcpServer'
 
 import ProtocolInstallWarningContent from './ProtocolInstallWarning'
 import { ensureServerTrusted as ensureServerTrustedCore } from './utils'
+
+const logger = loggerService.withContext('useMcpServerTrust')
 
 /**
  * Hook for handling MCP server trust verification
@@ -23,13 +27,42 @@ export const useMcpServerTrust = (updateServer: (body: UpdateMcpServerDto) => vo
    */
   const requestConfirm = useCallback(
     async (server: McpServer): Promise<boolean> => {
+      let previewServer = server
+      if (server.dxtPath) {
+        try {
+          const resolved = await ipcApi.request('mcp.package.get_resolved_config', { serverId: server.id })
+          if (resolved) {
+            previewServer = {
+              ...server,
+              command: resolved.command,
+              args: resolved.args,
+              env: resolved.env
+            }
+          }
+        } catch (error) {
+          logger.warn('Failed to resolve package launch config for trust preview', error as Error)
+        }
+      }
+
+      const isProtocolInstall = server.installSource === 'protocol'
       return popup.confirm({
         centered: true,
-        title: t('settings.mcp.protocolInstallWarning.title'),
-        content: (
-          <ProtocolInstallWarningContent message={t('settings.mcp.protocolInstallWarning.message')} server={server} />
+        title: t(
+          isProtocolInstall ? 'settings.mcp.protocolInstallWarning.title' : 'settings.mcp.importTrustWarning.title'
         ),
-        okText: t('settings.mcp.protocolInstallWarning.run'),
+        content: (
+          <ProtocolInstallWarningContent
+            message={t(
+              isProtocolInstall
+                ? 'settings.mcp.protocolInstallWarning.message'
+                : 'settings.mcp.importTrustWarning.message'
+            )}
+            server={previewServer}
+          />
+        ),
+        okText: t(
+          isProtocolInstall ? 'settings.mcp.protocolInstallWarning.run' : 'settings.mcp.importTrustWarning.confirm'
+        ),
         cancelText: t('common.cancel'),
         okButtonProps: { danger: true }
       })

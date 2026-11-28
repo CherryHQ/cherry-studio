@@ -5,7 +5,7 @@ vi.mock('@application', () => ({ application: { get: appGetMock } }))
 
 import { mcpHandlers } from '../mcp'
 
-const runtime = { abortTool: vi.fn() }
+const runtime = { abortTool: vi.fn(), getEffectivePackageLaunchConfig: vi.fn() }
 const catalog = { refreshTools: vi.fn() }
 const pkg = { uploadDxt: vi.fn(), uploadMcpb: vi.fn() }
 const ctx = { senderId: 'w1' }
@@ -39,5 +39,12 @@ describe('mcpHandlers', () => {
     await mcpHandlers['mcp.package.upload_mcpb']({ buffer, fileName: 'b.mcpb' }, ctx)
     expect(pkg.uploadDxt).toHaveBeenCalledWith(buffer, 'a.dxt')
     expect(pkg.uploadMcpb).toHaveBeenCalledWith(buffer, 'b.mcpb')
+  })
+
+  it('get_resolved_config delegates to McpRuntimeService.getEffectivePackageLaunchConfig', async () => {
+    const expected = { command: 'node', args: ['/pkg/win.js'], env: { MODE: 'override' } }
+    runtime.getEffectivePackageLaunchConfig.mockReturnValue(expected)
+    await expect(mcpHandlers['mcp.package.get_resolved_config']({ serverId: 's1' }, ctx)).resolves.toEqual(expected)
+    expect(runtime.getEffectivePackageLaunchConfig).toHaveBeenCalledWith('s1')
   })
 })

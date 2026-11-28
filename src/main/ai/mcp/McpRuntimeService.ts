@@ -305,6 +305,27 @@ export class McpRuntimeService extends BaseService {
     return mcpServerService.getById(serverId)
   }
 
+  public getEffectivePackageLaunchConfig(
+    serverId: string
+  ): { command: string; args: string[]; env: Record<string, string> } | null {
+    let server: McpServer
+    try {
+      server = this.getServerById(serverId)
+    } catch {
+      return null
+    }
+    if (!server.dxtPath) return null
+    const packages = application.get('McpPackageService')
+    if (!packages.isReady) return null
+    const resolved = packages.getResolvedMcpConfig(server.dxtPath)
+    if (!resolved) return null
+    return {
+      command: resolved.command,
+      args: resolved.args,
+      env: { ...server.env, ...resolved.env }
+    }
+  }
+
   public setServerStatus(serverId: string, state: McpRuntimeState, error?: unknown, authorizing?: boolean): void {
     if (this.removedServerIds.has(serverId)) return
 

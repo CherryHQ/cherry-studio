@@ -108,9 +108,11 @@ export const mcpHandlers: IpcHandlersFor<typeof mcpRequestSchemas> = {
   'mcp.request.cancel': async ({ requestId }, { senderId }) => {
     if (senderId) application.get('McpRuntimeService').cancelDesktopRequest(senderId, requestId)
   },
-  // Package upload.
+  // Package upload & launch preview resolution.
   'mcp.package.upload_dxt': async ({ buffer, fileName }) =>
     application.get('McpPackageService').uploadDxt(buffer, fileName),
   'mcp.package.upload_mcpb': async ({ buffer, fileName }) =>
-    application.get('McpPackageService').uploadMcpb(buffer, fileName)
+    application.get('McpPackageService').uploadMcpb(buffer, fileName),
+  'mcp.package.get_resolved_config': async ({ serverId }) =>
+    application.get('McpRuntimeService').getEffectivePackageLaunchConfig(serverId)
 }
