@@ -42,20 +42,30 @@ export function expandHome(filepath: string): string {
 }
 
 // Security validation
-export async function validatePath(requestedPath: string, baseDir?: string): Promise<string> {
+export async function validatePath(requestedPath: string, baseDir?: string | string[]): Promise<string> {
+  return (await validatePathWithRoot(requestedPath, baseDir)).validPath
+}
+
+export async function validatePathWithRoot(
+  requestedPath: string,
+  baseDir?: string | string[]
+): Promise<{ validPath: string; root: string }> {
   const expandedPath = expandHome(requestedPath)
-  const root = expandHome(baseDir ?? process.cwd())
-  const absolute = path.isAbsolute(expandedPath) ? path.resolve(expandedPath) : path.resolve(root, expandedPath)
-
-  const resolvedRoot = await canonicalizePathForContainment(path.resolve(root), { allowMissing: true })
+  const roots = (Array.isArray(baseDir) ? baseDir : [baseDir ?? process.cwd()]).map(expandHome)
+  const isAbsolute = path.isAbsolute(expandedPath)
+  const absolute = isAbsolute ? path.resolve(expandedPath) : path.resolve(roots[0], expandedPath)
   const resolvedPath = await canonicalizePathForContainment(absolute, { allowMissing: true })
-
-  // Exact comparison on purpose: isSameOrInside case-folds on macOS even on case-sensitive volumes.
-  if (!resolvedRoot || !resolvedPath || isOutsidePath(path.relative(resolvedRoot, resolvedPath))) {
-    throw new Error(`Access denied: Path is outside the configured workspace root: ${requestedPath}`)
+  if (resolvedPath) {
+    for (const root of isAbsolute ? roots : roots.slice(0, 1)) {
+      const resolvedRoot = await canonicalizePathForContainment(path.resolve(root), { allowMissing: true })
+      // Exact comparison on purpose: isSameOrInside case-folds on macOS even on case-sensitive volumes.
+      if (resolvedRoot && !isOutsidePath(path.relative(resolvedRoot, resolvedPath))) {
+        return { validPath: resolvedPath, root: resolvedRoot }
+      }
+    }
   }
 
-  return resolvedPath
+  throw new Error(`Access denied: Path is outside the configured workspace root: ${requestedPath}`)
 }
 
 // ============================================================================

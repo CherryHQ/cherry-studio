@@ -2635,7 +2635,7 @@
   "marketplace.instructions": "Instructions",
   "marketplace.load_failed": "Unable to load the marketplace. Please try again.",
   "marketplace.manage_mcp": "Manage MCP",
-  "marketplace.mcp.configuration.filesystem": "After adding the server, open its settings and enter an absolute directory path on the first line of {{arguments}}. Alternatively, set WORKSPACE_ROOT to that path in {{environment}}; it takes priority over {{arguments}}. Leave both unset to use the built-in MCP workspace. Save and enable the server, then select it in your Agent's MCP settings. Files outside the directory cannot be accessed.",
+  "marketplace.mcp.configuration.filesystem": "After adding the server, open its settings and enter one absolute directory path per line in {{arguments}}. Each nonblank line grants access to that directory, including paths already saved on later lines. Relative tool paths use the first directory; absolute tool paths can access any configured directory. Alternatively, set WORKSPACE_ROOT to a single path in {{environment}}; it overrides all {{arguments}}. Leave both unset to use the built-in MCP workspace. Save and enable the server, then select it in your Agent's MCP settings. Files outside the configured directories cannot be accessed.",
   "marketplace.mcp.configuration.title": "Configuration guide",
   "marketplace.more_sources": "More sources",
   "marketplace.no_results": "No resources found",

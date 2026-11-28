@@ -81,6 +81,12 @@ it('explains filesystem configuration before the server is installed', async () 
 
   const dialog = within(screen.getByRole('dialog'))
   expect(dialog.getByRole('heading', { name: 'Configuration guide' })).toBeVisible()
-  expect(dialog.getByText(/first line of Arguments/)).toHaveTextContent('built-in MCP workspace')
+  const guide = dialog.getByText(/one absolute directory path per line in Arguments/)
+  expect(guide).toHaveTextContent('Relative tool paths use the first directory')
+  expect(guide).toHaveTextContent('absolute tool paths can access any configured directory')
+  expect(guide).toHaveTextContent(
+    'set WORKSPACE_ROOT to a single path in Environment Variables; it overrides all Arguments'
+  )
+  expect(guide).toHaveTextContent('built-in MCP workspace')
   expect(dialog.getByText('WORKSPACE_ROOT=/absolute/path/to/workspace', { exact: true })).toBeVisible()
 })

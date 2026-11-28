@@ -2635,7 +2635,7 @@
   "marketplace.instructions": "Talimatlar",
   "marketplace.load_failed": "Pazar yüklenemedi. Lütfen yeniden deneyin.",
   "marketplace.manage_mcp": "MCP yönetimi",
-  "marketplace.mcp.configuration.filesystem": "Sunucuyu ekledikten sonra ayarlarını açın ve {{arguments}} alanının ilk satırına mutlak bir klasör yolu girin. Alternatif olarak, {{environment}} içinde WORKSPACE_ROOT değerini bu yola ayarlayın; bu değer {{arguments}} alanından önceliklidir. Her ikisi de boş bırakılırsa yerleşik MCP çalışma klasörü kullanılır. Sunucuyu kaydedip etkinleştirin, ardından ajanın MCP ayarlarında seçin. Bu klasörün dışındaki dosyalara erişilemez.",
+  "marketplace.mcp.configuration.filesystem": "Sunucuyu ekledikten sonra ayarlarını açın ve {{arguments}} alanına her satıra bir mutlak dizin yolu girin. Boş olmayan her satır, sonraki satırlarda önceden kaydedilmiş yollar dahil olmak üzere ilgili dizine erişim izni verir. Araçların göreli yolları ilk dizini kullanır; mutlak yollar yapılandırılmış herhangi bir dizine erişebilir. Alternatif olarak {{environment}} alanında WORKSPACE_ROOT değerini tek bir yola ayarlayın; bu, tüm {{arguments}} değerlerini geçersiz kılar. Yerleşik MCP çalışma alanını kullanmak için ikisini de ayarlamadan bırakın. Sunucuyu kaydedip etkinleştirin, ardından Ajanınızın MCP ayarlarında seçin. Yapılandırılmış dizinlerin dışındaki dosyalara erişilemez.",
   "marketplace.mcp.configuration.title": "Yapılandırma kılavuzu",
   "marketplace.more_sources": "Diğer kaynaklar",
   "marketplace.no_results": "Kaynak bulunamadı",

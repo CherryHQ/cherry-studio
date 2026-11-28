@@ -5,7 +5,7 @@ import type { CallToolResult } from '@modelcontextprotocol/server'
 import * as z from 'zod'
 
 import type { FileInfo } from '../types'
-import { logger, MAX_FILES_LIMIT, runRipgrep, validatePath } from '../types'
+import { expandHome, logger, MAX_FILES_LIMIT, runRipgrep, validatePath, validatePathWithRoot } from '../types'
 
 // Schema definition
 export const GlobToolSchema = z.object({
@@ -23,9 +23,13 @@ export const globToolDefinition = {
 }
 
 // Handler implementation
-export async function handleGlobTool(args: z.infer<typeof GlobToolSchema>, baseDir: string): Promise<CallToolResult> {
-  const searchPath = args.path || baseDir
-  const validPath = await validatePath(searchPath, baseDir)
+export async function handleGlobTool(
+  args: z.infer<typeof GlobToolSchema>,
+  baseDir: string | string[]
+): Promise<CallToolResult> {
+  const searchPath = args.path || '.'
+  const { validPath, root } = await validatePathWithRoot(searchPath, baseDir)
+  const discoveryRoots = path.isAbsolute(expandHome(searchPath)) ? baseDir : root
 
   // Verify the search directory exists
   try {
@@ -92,7 +96,7 @@ export async function handleGlobTool(args: z.infer<typeof GlobToolSchema>, baseD
 
       try {
         // Re-validate each result to filter out symlink escapes (--follow traverses symlinks)
-        await validatePath(absolutePath, baseDir)
+        await validatePath(absolutePath, discoveryRoots)
         const stats = await fs.stat(absolutePath)
         files.push({
           path: absolutePath,
