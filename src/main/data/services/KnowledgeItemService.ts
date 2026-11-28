@@ -148,6 +148,7 @@ export class KnowledgeItemService {
 
   list(baseId: string, query: ListKnowledgeItemsQuery): KnowledgeItemListResponse {
     knowledgeBaseService.getById(baseId)
+    this.repairDerivedContainerFailures(baseId)
     const { limit, type, groupId, sortBy } = query
     const sortOrder = query.sortOrder ?? (sortBy === 'updatedAt' ? 'desc' : 'asc')
 
@@ -852,6 +853,63 @@ export class KnowledgeItemService {
     return this.patchItemData(id, ['directory'], { relativePath }, 'directory relative path')
   }
 
+  private repairDerivedContainerFailures(baseId: string): void {
+    const candidates = this.db
+      .select({ id: knowledgeItemTable.id, groupId: knowledgeItemTable.groupId })
+      .from(knowledgeItemTable)
+      .where(
+        and(
+          eq(knowledgeItemTable.baseId, baseId),
+          eq(knowledgeItemTable.type, 'directory'),
+          eq(knowledgeItemTable.status, 'failed'),
+          eq(knowledgeItemTable.error, CONTAINER_CHILD_FAILURE_ERROR)
+        )
+      )
+      .all()
+    if (candidates.length === 0) return
+
+    const candidatesById = new Map(candidates.map((candidate) => [candidate.id, candidate]))
+    const pendingChildren = new Map(candidates.map(({ id }) => [id, 0]))
+    for (const { groupId } of candidates) {
+      if (groupId && pendingChildren.has(groupId)) {
+        pendingChildren.set(groupId, pendingChildren.get(groupId)! + 1)
+      }
+    }
+    const queue = candidates.filter(({ id }) => pendingChildren.get(id) === 0)
+
+    application.get('DbService').withWriteTx((tx) => {
+      for (let index = 0; index < queue.length; index++) {
+        const { id, groupId } = queue[index]
+        const [stats] = tx
+          .select({
+            activeCount: sql<number>`sum(case when ${knowledgeItemTable.status} not in ('completed', 'failed', 'deleting') then 1 else 0 end)`,
+            failedCount: sql<number>`sum(case when ${knowledgeItemTable.status} = 'failed' then 1 else 0 end)`
+          })
+          .from(knowledgeItemTable)
+          .where(and(eq(knowledgeItemTable.baseId, baseId), eq(knowledgeItemTable.groupId, id)))
+          .all()
+        const nextStatus: KnowledgeItemStatus =
+          Number(stats?.activeCount ?? 0) > 0
+            ? 'processing'
+            : Number(stats?.failedCount ?? 0) > 0
+              ? 'failed'
+              : 'completed'
+        // Candidates already carry the derived failure marker; truthful failures need no write.
+        if (nextStatus !== 'failed') {
+          tx.update(knowledgeItemTable)
+            .set({ status: nextStatus, error: null })
+            .where(and(eq(knowledgeItemTable.baseId, baseId), eq(knowledgeItemTable.id, id)))
+            .run()
+        }
+        if (groupId && pendingChildren.has(groupId)) {
+          const remaining = pendingChildren.get(groupId)! - 1
+          pendingChildren.set(groupId, remaining)
+          if (remaining === 0) queue.push(candidatesById.get(groupId)!)
+        }
+      }
+    })
+  }
+
   private reconcileContainers(baseId: string, startContainerIds: Array<string | null | undefined>): void {
     application.get('DbService').withWriteTx((tx) => this.reconcileContainersTx(tx, baseId, startContainerIds))
   }
@@ -863,67 +921,58 @@ export class KnowledgeItemService {
    * children.
    */
   private reconcileContainersTx(tx: DbOrTx, baseId: string, startContainerIds: Array<string | null | undefined>): void {
-    const queue = [...new Set(startContainerIds.filter((id): id is string => Boolean(id)))]
-    const visited = new Set<string>()
+    const starts = new Set(startContainerIds.filter((id): id is string => Boolean(id)))
 
-    while (queue.length > 0) {
-      const containerId = queue.shift()
-      if (!containerId || visited.has(containerId)) {
-        continue
-      }
-      visited.add(containerId)
+    // Finish each chain so later starts can propagate changed children through shared ancestors.
+    for (const startId of starts) {
+      let containerId: string | null = startId
+      while (containerId) {
+        const [containerRow] = tx
+          .select()
+          .from(knowledgeItemTable)
+          .where(and(eq(knowledgeItemTable.baseId, baseId), eq(knowledgeItemTable.id, containerId)))
+          .limit(1)
+          .all()
 
-      const [containerRow] = tx
-        .select()
-        .from(knowledgeItemTable)
-        .where(and(eq(knowledgeItemTable.baseId, baseId), eq(knowledgeItemTable.id, containerId)))
-        .limit(1)
-        .all()
-
-      if (!containerRow || containerRow.type !== 'directory') {
-        continue
-      }
-
-      if (containerRow.status === 'deleting') {
-        continue
-      }
-
-      if (containerRow.status === 'preparing') {
-        if (containerRow.groupId) {
-          queue.push(containerRow.groupId)
+        if (!containerRow || containerRow.type !== 'directory') {
+          break
         }
-        continue
-      }
 
-      const [stats] = tx
-        .select({
-          activeCount: sql<number>`sum(case when ${knowledgeItemTable.status} not in ('completed', 'failed', 'deleting') then 1 else 0 end)`,
-          failedCount: sql<number>`sum(case when ${knowledgeItemTable.status} = 'failed' then 1 else 0 end)`
-        })
-        .from(knowledgeItemTable)
-        .where(and(eq(knowledgeItemTable.baseId, baseId), eq(knowledgeItemTable.groupId, containerId)))
-        .all()
+        if (containerRow.status === 'deleting') {
+          break
+        }
 
-      if (Number(stats?.activeCount ?? 0) > 0) {
+        if (containerRow.status === 'preparing') {
+          containerId = containerRow.groupId
+          continue
+        }
+
+        const [stats] = tx
+          .select({
+            activeCount: sql<number>`sum(case when ${knowledgeItemTable.status} not in ('completed', 'failed', 'deleting') then 1 else 0 end)`,
+            failedCount: sql<number>`sum(case when ${knowledgeItemTable.status} = 'failed' then 1 else 0 end)`
+          })
+          .from(knowledgeItemTable)
+          .where(and(eq(knowledgeItemTable.baseId, baseId), eq(knowledgeItemTable.groupId, containerId)))
+          .all()
+
+        if (Number(stats?.activeCount ?? 0) > 0) {
+          tx.update(knowledgeItemTable)
+            .set({ status: 'processing', error: null })
+            .where(and(eq(knowledgeItemTable.baseId, baseId), eq(knowledgeItemTable.id, containerId)))
+            .run()
+
+          containerId = containerRow.groupId
+          continue
+        }
+
+        const nextStatus: KnowledgeItemStatus = Number(stats?.failedCount ?? 0) > 0 ? 'failed' : 'completed'
         tx.update(knowledgeItemTable)
-          .set({ status: 'processing', error: null })
+          .set({ status: nextStatus, error: nextStatus === 'failed' ? CONTAINER_CHILD_FAILURE_ERROR : null })
           .where(and(eq(knowledgeItemTable.baseId, baseId), eq(knowledgeItemTable.id, containerId)))
           .run()
 
-        if (containerRow.groupId) {
-          queue.push(containerRow.groupId)
-        }
-        continue
-      }
-
-      const nextStatus: KnowledgeItemStatus = Number(stats?.failedCount ?? 0) > 0 ? 'failed' : 'completed'
-      tx.update(knowledgeItemTable)
-        .set({ status: nextStatus, error: nextStatus === 'failed' ? CONTAINER_CHILD_FAILURE_ERROR : null })
-        .where(and(eq(knowledgeItemTable.baseId, baseId), eq(knowledgeItemTable.id, containerId)))
-        .run()
-
-      if (containerRow.groupId) {
-        queue.push(containerRow.groupId)
+        containerId = containerRow.groupId
       }
     }
   }
