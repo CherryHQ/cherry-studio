@@ -78,13 +78,31 @@ describe('PpioTransport', () => {
 
   it('retries a transient 5xx poll response up to the cap instead of failing fast', async () => {
     const transport = createPpioTransport({ apiKey: 'token' })
-    vi.spyOn(transport, 'getTaskResult').mockRejectedValue(new PpioApiError('PPIO API error: 503', 503))
+    const getTaskResult = vi
+      .spyOn(transport, 'getTaskResult')
+      .mockRejectedValue(new PpioApiError('PPIO API error: 503', 503))
 
     const promise = transport.pollTaskResult('task-1').catch((e) => e)
     await vi.advanceTimersByTimeAsync(60000)
     const error = await promise
 
     expect(error).toBeInstanceOf(PpioApiError)
+    expect(getTaskResult).toHaveBeenCalledTimes(10)
+  })
+
+  it('returns the completed result after a transient poll failure', async () => {
+    const transport = createPpioTransport({ apiKey: 'token' })
+    const completed = {
+      task: { task_id: 'task-1', status: 'TASK_STATUS_SUCCEED', task_type: 'image' },
+      images: []
+    } as const
+    vi.spyOn(transport, 'getTaskResult')
+      .mockRejectedValueOnce(new PpioApiError('PPIO API error: 503', 503))
+      .mockResolvedValue({ task: completed.task, images: [] })
+
+    const result = expect(transport.pollTaskResult('task-1')).resolves.toEqual(completed)
+    await vi.advanceTimersByTimeAsync(15000)
+    await result
   })
 
   it('treats a 4xx poll response as terminal (single call, no retry storm)', async () => {

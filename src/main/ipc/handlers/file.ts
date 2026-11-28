@@ -1,6 +1,9 @@
+import { dialog } from 'electron'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { logFailure } from '@main/core/logger/logFailure'
+import { t } from '@main/i18n'
 import {
   assertOutsideManagedStorageMutation,
   ContentCommittedMetadataPendingError,
@@ -25,6 +28,7 @@ import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { fileRequestSchemas } from '@shared/ipc/schemas/file'
 import type { IpcHandlersFor, WindowId } from '@shared/ipc/types'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 
 /**
  * The caller window's WebContents — the directory tree addresses its mutation
@@ -201,6 +205,14 @@ const handlers: IpcHandlersFor<typeof fileRequestSchemas> = {
       (entryId) => fileManager.open(entryId, { channel: 'file.open' }),
       (path) => safeOpen(path, { channel: 'file.open' })
     )
+  },
+  'file.select_folder': async ({ defaultPath }) => {
+    const { canceled, filePaths } = await dialog.showOpenDialog({
+      title: t('dialog.select_folder'),
+      properties: ['openDirectory'],
+      defaultPath
+    })
+    return canceled || !filePaths[0] ? null : AbsoluteFilePathSchema.parse(filePaths[0])
   },
   'file.show_in_folder': async (handle) => {
     const fileManager = application.get('FileManager')

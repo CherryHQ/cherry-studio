@@ -33,7 +33,7 @@ export function projectAgentTimeline(
   messages.forEach((message, index) => {
     const current = read(message)
     const ids = current.partIds
-    if (message.role !== 'assistant' || !ids || ids.length !== current.parts.length) {
+    if (message.role !== 'assistant' || message.metadata?.provenance || !ids || ids.length !== current.parts.length) {
       rows.push({ row: { id: message.id, message, parts: current.parts, partIds: ids }, anchor: index, order: -1 })
       return
     }

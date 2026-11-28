@@ -43,7 +43,7 @@ const mocks = vi.hoisted(() => {
 })
 
 vi.mock('../../MessageListProvider', () => ({
-  useMessageRenderConfig: () => mocks.renderConfig,
+  useOptionalMessageRenderConfig: () => mocks.renderConfig,
   useOptionalMessageListActions: () => mocks.messageListActions
 }))
 

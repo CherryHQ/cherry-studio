@@ -7,10 +7,10 @@ import type { AgentControlChunk } from '@main/ai/runtime/types'
 import type { SerializeErrorContext } from '@main/ai/utils/serializeError'
 import type { Event } from '@main/core/lifecycle'
 import type { CompactionAnchorData } from '@shared/ai/compaction'
+import type { ExecutionId } from '@shared/ai/executionIdentity'
 import type { LivePartPatch, TimelinePlacement } from '@shared/ai/messageProjection'
 import type { StreamChunkPayload, TopicStreamStatus } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage, MessageRuntimeTiming } from '@shared/data/types/message'
-import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
 
 import type { StreamLifecycle } from './lifecycle/StreamLifecycle'
@@ -54,7 +54,7 @@ interface TerminalOutcome {
 export interface StreamDoneResult extends TerminalOutcome {
   finalMessage?: CherryUIMessage
   status: 'success'
-  modelId?: UniqueModelId
+  modelId?: ExecutionId
   attemptId?: number
   topicAttemptWatermark?: number
   anchorMessageId?: string
@@ -69,7 +69,7 @@ export interface StreamPausedResult extends TerminalOutcome {
   reason?: string
   finalMessage?: CherryUIMessage
   status: 'paused'
-  modelId?: UniqueModelId
+  modelId?: ExecutionId
   attemptId?: number
   topicAttemptWatermark?: number
   anchorMessageId?: string
@@ -84,7 +84,7 @@ export interface StreamErrorResult extends TerminalOutcome {
   /** Whatever accumulated before the error — same shape as the success case. */
   finalMessage?: CherryUIMessage
   status: 'error'
-  modelId?: UniqueModelId
+  modelId?: ExecutionId
   attemptId?: number
   topicAttemptWatermark?: number
   anchorMessageId?: string
@@ -104,8 +104,10 @@ export type ExecutionPart = {
 export type MessageStreamEvent = { type: 'error'; error: unknown } | { type: 'control'; chunk: AgentControlChunk }
 
 export type AgentPartChange =
-  | Exclude<LivePartPatch<TimelinePlacement>, { type: 'part-put' | 'part-add' }>
-  | (Extract<LivePartPatch<TimelinePlacement>, { type: 'part-add' | 'part-put' }> & {
+  | Exclude<LivePartPatch<TimelinePlacement>, { type: 'part-put' | 'part-add' | 'part-tool-terminal' }>
+  | (Extract<LivePartPatch<TimelinePlacement>, { type: 'part-add' }> & { readonly archiveMessageId: string })
+  | (Extract<LivePartPatch<TimelinePlacement>, { type: 'part-put' }> & {
+      readonly terminalPatch?: Extract<LivePartPatch<TimelinePlacement>, { type: 'part-tool-terminal' }>
       readonly archiveMessageId: string
     })
 
@@ -131,7 +133,7 @@ export interface StreamListener {
 
   onChunk(
     chunk: UIMessageChunk,
-    sourceModelId?: UniqueModelId,
+    sourceModelId?: ExecutionId,
     anchorMessageId?: string,
     attemptId?: number,
     sequence?: number
@@ -162,7 +164,7 @@ export interface StreamExecution {
   /** Agent input identity survives a queued turn receiving a new execution attempt. */
   userMessageId?: string
   /** Format: "providerId::modelId". */
-  modelId: UniqueModelId
+  modelId: ExecutionId
   /** Unique identity for this run, even when modelId and anchorMessageId are reused by retry. Monotonic within the Main-process lifetime; newer attempts have larger values. */
   attemptId: number
   /** Placeholder id for fresh/regenerate, anchor id for tool-approval continue. Undefined for temporary topics. */
@@ -250,8 +252,8 @@ export interface ActiveStream {
   topicId: string
   /** Unique per stream lifecycle for renderer-side unread/seen tracking. */
   turnId: string
-  /** Key = `UniqueModelId`. */
-  executions: Map<UniqueModelId, StreamExecution>
+  /** Key = `ExecutionId`. */
+  executions: Map<ExecutionId, StreamExecution>
   /** Shared across all executions. Key = `listener.id`. */
   listeners: Map<string, StreamListener>
   status: TopicStreamStatus

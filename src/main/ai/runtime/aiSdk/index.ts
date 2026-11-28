@@ -10,7 +10,7 @@ export {
   resolveNativeFileSupport,
   resolveFallbackNativeFileSupport,
   type NativeFileSupport
-} from './params/nativeFileSupport'
+} from '../../messages/nativeFileSupport'
 export { buildApiKeyFallbackModels, hasApiKeyFallbackCandidates } from './retry/buildApiKeyFallbackModels'
 export { buildFallbackModels } from './retry/buildFallbackModels'
 export { createRetryableWrap } from './retry/createRetryableWrap'

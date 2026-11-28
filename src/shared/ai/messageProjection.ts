@@ -1,8 +1,8 @@
-import { isEqual, omit } from 'es-toolkit'
+import { isEqual, isPlainObject, omit } from 'es-toolkit'
 
+import type { ExecutionId } from '@shared/ai/executionIdentity'
 import type { DeferredToolResultRef } from '@shared/ai/transport'
 import type { CherryUIMessage } from '@shared/data/types/message'
-import type { UniqueModelId } from '@shared/data/types/model'
 import type { ErrorPartData } from '@shared/data/types/uiParts'
 
 export type ProjectionTarget =
@@ -21,7 +21,7 @@ export interface ChildProjectionState {
 }
 
 export type ProjectedExecution = {
-  executionId: UniqueModelId
+  executionId: ExecutionId
   attemptId: number
   userMessageId?: string
   anchorMessageId?: string
@@ -65,6 +65,14 @@ export type NonTextPartWrite<P extends PartPlacement = PartPlacement> = {
   afterPartId?: never
 } & ({ type: 'part-add'; placement: P } | { type: 'part-put'; placement?: never })
 
+export interface ToolTerminalDelta {
+  toolCallId: string
+  terminalId: string
+  drop: number
+  append: string
+  truncated: boolean
+}
+
 export type LivePartPatch<P extends PartPlacement = PartPlacement> = {
   partId: string
   entries?: never
@@ -83,6 +91,7 @@ export type LivePartPatch<P extends PartPlacement = PartPlacement> = {
     })
   | ({ messageId?: never; pos?: never; afterPartId?: never; placement?: never } & (
       | { type: 'part-append'; text: string; part?: never }
+      | { type: 'part-tool-terminal'; delta: ToolTerminalDelta; part?: never; text?: never }
       | {
           type: 'part-finish'
           providerMetadata?: Extract<CherryUIMessage['parts'][number], { type: 'text' }>['providerMetadata']
@@ -115,6 +124,35 @@ export function updatedPartValue(before: Part | undefined, patch: LivePartPatch)
         }
   if (patch.type === 'part-add') return before ? undefined : patch.part
   if (!before) return
+  if (patch.type === 'part-tool-terminal') {
+    const { toolCallId, terminalId, drop, append, truncated } = patch.delta
+    if (before.type !== 'dynamic-tool' || before.toolCallId !== toolCallId) return
+    const input = before.input
+    if (!isPlainObject(input) || !isPlainObject(input.localAcpTool)) return
+    const tool = input.localAcpTool
+    if (!isPlainObject(tool.terminals) || !isPlainObject(tool.terminalDetails)) return
+    const old: unknown = tool.terminals[terminalId]
+    const details: unknown = tool.terminalDetails[terminalId]
+    if (
+      typeof old !== 'string' ||
+      !isPlainObject(details) ||
+      !Number.isSafeInteger(drop) ||
+      drop < 0 ||
+      drop > old.length
+    )
+      return
+    return {
+      ...before,
+      input: {
+        ...input,
+        localAcpTool: {
+          ...tool,
+          terminals: { ...tool.terminals, [terminalId]: old.slice(drop) + append },
+          terminalDetails: { ...tool.terminalDetails, [terminalId]: { ...details, truncated } }
+        }
+      }
+    }
+  }
   if (patch.type === 'part-correct' || patch.type === 'part-put') {
     if (
       before.type !== patch.part.type ||

@@ -94,6 +94,10 @@ export interface CreateRetryableWrapOptions {
 
 const RETRY_BASE_DELAY_MS = 1_000
 
+export function getTerminalModelError(error: unknown): unknown {
+  return RetryError.isInstance(error) && error.lastError !== undefined ? getTerminalModelError(error.lastError) : error
+}
+
 function lazyFallbackRetryable(
   resolveFallback: FallbackResolver,
   onFallbackActivated?: (fallback: RetryFallback) => void,
@@ -155,8 +159,7 @@ function apiKeyFallbackRetryable(
   let nextFallbackIndex = 0
   return (context) => {
     if (!isErrorAttempt(context.current)) return undefined
-    const attemptError = context.current.error
-    const terminalError = RetryError.isInstance(attemptError) ? attemptError.lastError : attemptError
+    const terminalError = getTerminalModelError(context.current.error)
     if (
       !APICallError.isInstance(terminalError) ||
       (terminalError.statusCode !== 401 && terminalError.statusCode !== 429)

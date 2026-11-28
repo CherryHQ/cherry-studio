@@ -8,6 +8,8 @@ import { isDev } from '@main/core/platform'
 import { getSafeProviderErrorMessage } from '@shared/ai/providerError'
 import { DataApiError } from '@shared/data/api/errors'
 import type { SerializedError } from '@shared/types/error'
+import { GROK_SESSION_SUMMARY_PATH } from '@shared/utils/apiGateway'
+import { redactSecretTokens } from '@shared/utils/redaction'
 
 import type { OutputFormat } from './adapters'
 
@@ -161,6 +163,7 @@ function extractError(error: unknown): {
   name?: string
   code?: string
   category?: string
+  errorSource?: string
 } {
   if (error === null || typeof error !== 'object') return {}
   const e = error as {
@@ -170,6 +173,7 @@ function extractError(error: unknown): {
     statusCode?: unknown
     message?: unknown
     providerErrorCategory?: unknown
+    errorSource?: unknown
     error?: { type?: unknown; message?: unknown }
   }
   // Prefer `status` (HTTP libs / OpenAI APIError), then `statusCode` (AI-SDK APICallError / SerializedError).
@@ -181,7 +185,8 @@ function extractError(error: unknown): {
   const name = typeof e.name === 'string' ? e.name : undefined
   const code = typeof e.code === 'string' ? e.code : undefined
   const category = typeof e.providerErrorCategory === 'string' ? e.providerErrorCategory : undefined
-  return { status, message, type, name, code, category }
+  const errorSource = typeof e.errorSource === 'string' ? e.errorSource : undefined
+  return { status, message, type, name, code, category, errorSource }
 }
 
 /**
@@ -197,6 +202,12 @@ function safeMessage(status: number | undefined, message: string | undefined): s
   return isDev && message && message.length > 0 ? message : fallback
 }
 
+function publicContextOverflowMessage(message: string | undefined): string {
+  const detail =
+    getSafeProviderErrorMessage({ message: redactSecretTokens(message ?? '') }) || 'Context length exceeded'
+  return `context_length_exceeded: ${detail}`
+}
+
 function normalizeProviderError(error: unknown): {
   statusCode: number
   message: string
@@ -205,7 +216,7 @@ function normalizeProviderError(error: unknown): {
 } {
   const extracted = extractError(error)
   const details = detailsOf(error)
-  const { status, name, code, category } = extracted
+  const { status, name, code, category, errorSource } = extracted
   const message = typeof details?.error.message === 'string' ? details.error.message : extracted.message
   const type = typeof details?.error.type === 'string' ? details.error.type : extracted.type
   if (status !== undefined)
@@ -213,7 +224,7 @@ function normalizeProviderError(error: unknown): {
       statusCode: status >= 200 && status < 300 ? 502 : status,
       message:
         !details && status === 400 && category === 'context_length'
-          ? `context_length_exceeded: ${safeMessage(status, message)}`
+          ? publicContextOverflowMessage(message)
           : safeMessage(status, message),
       type,
       category
@@ -231,6 +242,16 @@ function normalizeProviderError(error: unknown): {
   }
   if (name === 'AbortError' || name === 'ResponseAborted' || code === 'ABORT_ERR') {
     return { statusCode: 504, message: 'Upstream stream aborted', type }
+  }
+  if (errorSource !== 'local' && category === 'context_length') {
+    return {
+      statusCode: 400,
+      message: details
+        ? getSafeProviderErrorMessage({ message }) || 'Context length exceeded'
+        : publicContextOverflowMessage(message),
+      type,
+      category
+    }
   }
   return { statusCode: 500, message: details && message ? message : safeMessage(undefined, message), type }
 }
@@ -554,6 +575,7 @@ function dialectForPath(request: Request): 'anthropic' | 'openai' | 'google' | '
     return 'rest'
   }
   if (pathname.startsWith('/v1/messages')) return 'anthropic'
+  if (pathname === `/v1${GROK_SESSION_SUMMARY_PATH}/chat/completions`) return 'openai'
   if (pathname.startsWith('/v1/chat') || pathname.startsWith('/v1/responses')) return 'openai'
   if (pathname.startsWith('/v1beta')) return 'google'
   if (MCP_PROXY_PATH.test(pathname)) return 'mcp'

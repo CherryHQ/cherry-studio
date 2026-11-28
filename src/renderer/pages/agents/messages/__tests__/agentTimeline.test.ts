@@ -24,6 +24,16 @@ const run: CherryUIMessage = {
 }
 
 describe('Agent timeline display', () => {
+  it('keeps a paused imported reply as one historical record when native part IDs are available', () => {
+    const history: CherryUIMessage = {
+      ...run,
+      metadata: { status: 'paused', provenance: { source: 'claude-code', sourceOrder: 1 } }
+    }
+    const rows = projectAgentTimeline([history, input('follow-up', 4)], (message) => message)
+    expect(rows.map((row) => row.id)).toEqual(['run', 'follow-up'])
+    expect(rows[0].partIds).toEqual(run.partIds)
+  })
+
   it('places new output after each placed input while keeping the original tool in its segment', () => {
     const rows = projectAgentTimeline(
       [input('prompt', 1), run, input('first', 4), input('second', 6)],
