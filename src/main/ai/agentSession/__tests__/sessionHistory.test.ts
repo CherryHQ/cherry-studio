@@ -1,4 +1,6 @@
 import { randomUUID } from 'node:crypto'
+import { resolve } from 'node:path'
+import { pathToFileURL } from 'node:url'
 
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
@@ -315,9 +317,10 @@ it('does not accept a caller-authored local-command marker as evidence of non-mo
 })
 
 it('retains attachment metadata through the existing runtime input conversion without changing product parts', async () => {
+  const image = resolve('managed', 'image.png')
   const file: CherryMessagePart = {
     type: 'file',
-    url: 'file:///managed/image.png',
+    url: pathToFileURL(image).href,
     filename: 'original.png',
     mediaType: 'image/png'
   }
@@ -327,7 +330,7 @@ it('retains attachment metadata through the existing runtime input conversion wi
   expect(withAgentContext(current, context).data.parts).toContainEqual(file)
   const text = buildAgentUserContent(current, context)
   expect(text).toContain('original.png')
-  expect(text).toContain('/managed/image.png')
+  expect(text).toContain(image)
   expect(current.data.parts).toEqual([{ type: 'text', text: 'Describe that image' }])
 })
 

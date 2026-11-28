@@ -49,11 +49,18 @@ import type {
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import type { CursorPaginationResponse, DataApiDataChangeEffect } from '@shared/data/api/types'
+import type { AgentSessionImportMetadata } from '@shared/data/types/conversationImport'
 import { isUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { sanitizeConversationTitle } from '@shared/utils/conversationTitle'
 import { createNameComparator } from '@shared/utils/nameOrdering'
 
 import { ensureAgentSessionRootTx } from './agentSessionMessageTree'
+import {
+  deleteImportedHistoryTx,
+  findImportedSessionTx,
+  importedMetadataSql,
+  setImportedMetadataTx
+} from './importedSessionHistory'
 import { decodeListCursor, keysetOrdering } from './utils/keysetCursor'
 import { applyMoves, insertWithOrderKey } from './utils/orderKey'
 import {
@@ -96,6 +103,7 @@ function publishTaskReadModelChanges(taskIds: readonly string[]): void {
 
 type JoinedSessionRow = {
   session: SessionRow
+  importMetadata?: AgentSessionImportMetadata | null
   workspace: AgentWorkspaceRow
 }
 
@@ -126,6 +134,7 @@ function rowToSession(row: JoinedSessionRow): AgentSessionEntity {
     workspaceId: clean.workspaceId,
     workspace: rowToAgentWorkspace(row.workspace),
     traceId: clean.traceId,
+    ...(row.importMetadata ? { importMetadata: row.importMetadata } : {}),
     orderKey: clean.orderKey,
     lastActivityAt: timestampToISO(row.session.lastActivityAt),
     createdAt: timestampToISO(row.session.createdAt),
@@ -419,6 +428,15 @@ export class AgentSessionService {
     ensureAgentSessionRootTx(tx, id)
   }
 
+  findImportedTx(tx: DbOrTx, source: string, originalSessionId: string) {
+    return findImportedSessionTx(tx, source, originalSessionId)
+  }
+
+  setImportMetadataTx(tx: DbOrTx, id: string, metadata: AgentSessionImportMetadata, lastActivityAt: number): void {
+    setImportedMetadataTx(tx, id, metadata)
+    tx.update(sessionsTable).set({ lastActivityAt, updatedAt: lastActivityAt }).where(eq(sessionsTable.id, id)).run()
+  }
+
   finishHistoryImportTx(tx: DbOrTx, sessionId: string, updatedAt: number): void {
     tx.update(sessionsTable)
       .set({ isNameManuallyEdited: true, updatedAt, lastActivityAt: updatedAt })
@@ -497,7 +515,11 @@ export class AgentSessionService {
   private readById(id: string, scope?: SQL, includeTaskReuse = false) {
     const db = application.get('DbService').getDb()
     const [row] = db
-      .select({ session: sessionsTable, workspace: agentWorkspaceTable })
+      .select({
+        session: sessionsTable,
+        importMetadata: importedMetadataSql(sessionsTable.id),
+        workspace: agentWorkspaceTable
+      })
       .from(sessionsTable)
       .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
       .where(and(eq(sessionsTable.id, id), scope, isNull(sessionsTable.deletedAt)))
@@ -528,7 +550,11 @@ export class AgentSessionService {
 
   getByTaskScheduleIdTx(tx: DbOrTx, taskScheduleId: string): AgentSessionEntity | null {
     const [row] = tx
-      .select({ session: sessionsTable, workspace: agentWorkspaceTable })
+      .select({
+        session: sessionsTable,
+        importMetadata: importedMetadataSql(sessionsTable.id),
+        workspace: agentWorkspaceTable
+      })
       .from(sessionsTable)
       .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
       .innerJoin(agentsTable, and(eq(sessionsTable.agentId, agentsTable.id), isNull(agentsTable.deletedAt)))
@@ -704,7 +730,11 @@ export class AgentSessionService {
           ? eq(agentsTable.id, query.agentId)
           : undefined
     const [row] = db
-      .select({ session: sessionsTable, workspace: agentWorkspaceTable })
+      .select({
+        session: sessionsTable,
+        importMetadata: importedMetadataSql(sessionsTable.id),
+        workspace: agentWorkspaceTable
+      })
       .from(sessionsTable)
       .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
       .leftJoin(agentsTable, and(eq(sessionsTable.agentId, agentsTable.id), isNull(agentsTable.deletedAt)))
@@ -742,7 +772,11 @@ export class AgentSessionService {
           })()
 
           const reusableRows = tx
-            .select({ session: sessionsTable, workspace: agentWorkspaceTable })
+            .select({
+              session: sessionsTable,
+              importMetadata: importedMetadataSql(sessionsTable.id),
+              workspace: agentWorkspaceTable
+            })
             .from(sessionsTable)
             .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
             .where(
@@ -770,7 +804,11 @@ export class AgentSessionService {
             const now = Date.now()
             this.advanceLastActivityAtTx(tx, reusable.session.id, now)
             const updatedSession = tx
-              .select({ session: sessionsTable, workspace: agentWorkspaceTable })
+              .select({
+                session: sessionsTable,
+                importMetadata: importedMetadataSql(sessionsTable.id),
+                workspace: agentWorkspaceTable
+              })
               .from(sessionsTable)
               .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
               .where(eq(sessionsTable.id, reusable.session.id))
@@ -796,7 +834,11 @@ export class AgentSessionService {
             workspace: dto.workspace
           })
           const [created] = tx
-            .select({ session: sessionsTable, workspace: agentWorkspaceTable })
+            .select({
+              session: sessionsTable,
+              importMetadata: importedMetadataSql(sessionsTable.id),
+              workspace: agentWorkspaceTable
+            })
             .from(sessionsTable)
             .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
             .where(eq(sessionsTable.id, reservedId))
@@ -899,7 +941,12 @@ export class AgentSessionService {
           )
         : undefined
       const pinRows = db
-        .select({ session: sessionsTable, workspace: agentWorkspaceTable, pinOrderKey: pinTable.orderKey })
+        .select({
+          session: sessionsTable,
+          importMetadata: importedMetadataSql(sessionsTable.id),
+          workspace: agentWorkspaceTable,
+          pinOrderKey: pinTable.orderKey
+        })
         .from(sessionsTable)
         .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
         .leftJoin(agentsTable, and(eq(sessionsTable.agentId, agentsTable.id), isNull(agentsTable.deletedAt)))
@@ -978,7 +1025,11 @@ export class AgentSessionService {
         })
       : undefined
     const sessionRows = db
-      .select({ session: sessionsTable, workspace: agentWorkspaceTable })
+      .select({
+        session: sessionsTable,
+        importMetadata: importedMetadataSql(sessionsTable.id),
+        workspace: agentWorkspaceTable
+      })
       .from(sessionsTable)
       .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
       .leftJoin(agentsTable, and(eq(sessionsTable.agentId, agentsTable.id), isNull(agentsTable.deletedAt)))
@@ -1205,7 +1256,11 @@ export class AgentSessionService {
 
   private getJoinedSessionRowTx(tx: DbOrTx, id: string): JoinedSessionRow {
     const [row] = tx
-      .select({ session: sessionsTable, workspace: agentWorkspaceTable })
+      .select({
+        session: sessionsTable,
+        importMetadata: importedMetadataSql(sessionsTable.id),
+        workspace: agentWorkspaceTable
+      })
       .from(sessionsTable)
       .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
       .where(and(eq(sessionsTable.id, id), isNull(sessionsTable.deletedAt)))
@@ -1275,7 +1330,11 @@ export class AgentSessionService {
 
     const result = application.get('DbService').withWriteTx((tx) => {
       const [row] = tx
-        .select({ session: sessionsTable, workspace: agentWorkspaceTable })
+        .select({
+          session: sessionsTable,
+          importMetadata: importedMetadataSql(sessionsTable.id),
+          workspace: agentWorkspaceTable
+        })
         .from(sessionsTable)
         .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
         .where(and(eq(sessionsTable.id, id), isNotNull(sessionsTable.deletedAt)))
@@ -1293,7 +1352,11 @@ export class AgentSessionService {
 
   deleteTx(tx: DbOrTx, id: string): string[] {
     const [row] = tx
-      .select({ session: sessionsTable, workspace: agentWorkspaceTable })
+      .select({
+        session: sessionsTable,
+        importMetadata: importedMetadataSql(sessionsTable.id),
+        workspace: agentWorkspaceTable
+      })
       .from(sessionsTable)
       .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
       .where(eq(sessionsTable.id, id))
@@ -1326,7 +1389,11 @@ export class AgentSessionService {
 
       const rows = chunk(uniqueIds, SQLITE_INARRAY_CHUNK).flatMap((idChunk) =>
         tx
-          .select({ session: sessionsTable, workspace: agentWorkspaceTable })
+          .select({
+            session: sessionsTable,
+            importMetadata: importedMetadataSql(sessionsTable.id),
+            workspace: agentWorkspaceTable
+          })
           .from(sessionsTable)
           .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
           .where(
@@ -1510,7 +1577,11 @@ export class AgentSessionService {
 
     const rows = chunk(uniqueIds, SQLITE_INARRAY_CHUNK).flatMap((idChunk) =>
       tx
-        .select({ session: sessionsTable, workspace: agentWorkspaceTable })
+        .select({
+          session: sessionsTable,
+          importMetadata: importedMetadataSql(sessionsTable.id),
+          workspace: agentWorkspaceTable
+        })
         .from(sessionsTable)
         .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
         .where(
@@ -1531,6 +1602,7 @@ export class AgentSessionService {
     for (const idChunk of chunk(purgedIds, SQLITE_INARRAY_CHUNK)) {
       tx.delete(sessionsTable).where(inArray(sessionsTable.id, idChunk)).run()
     }
+    deleteImportedHistoryTx(tx, purgedIds)
     pinService.purgeForEntitiesTx(tx, 'session', purgedIds)
     for (const workspaceId of systemWorkspaceIds) agentWorkspaceService.deleteByIdTx(tx, workspaceId)
     return purgedIds
@@ -1582,6 +1654,7 @@ export class AgentSessionService {
       .returning({ id: sessionsTable.id })
       .all()
     const sessionIds = deletedSessions.map((session) => session.id)
+    deleteImportedHistoryTx(tx, sessionIds)
     pinService.purgeForEntitiesTx(tx, 'session', sessionIds)
     return sessionIds
   }
@@ -1638,7 +1711,11 @@ export class AgentSessionService {
     }
 
     const rows = tx
-      .select({ session: sessionsTable, workspace: agentWorkspaceTable })
+      .select({
+        session: sessionsTable,
+        importMetadata: importedMetadataSql(sessionsTable.id),
+        workspace: agentWorkspaceTable
+      })
       .from(sessionsTable)
       .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
       .where(eq(sessionsTable.agentId, agentId))
@@ -1792,6 +1869,7 @@ export class AgentSessionService {
         .all()
         .map((row) => row.id)
     )
+    deleteImportedHistoryTx(tx, deletedIds)
 
     pinService.purgeForEntitiesTx(tx, 'session', deletedIds)
     return deletedIds

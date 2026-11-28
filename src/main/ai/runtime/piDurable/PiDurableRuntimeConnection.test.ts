@@ -66,6 +66,7 @@ import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry
 import type { ToolGuardInteractionState } from '@main/ai/toolApproval/toolGuards'
 import { serializeError } from '@main/ai/utils/serializeError'
 import { BaseService } from '@main/core/lifecycle/BaseService'
+import { ConversationImportService } from '@main/services/conversationImport/ConversationImportService'
 import { getShellEnv } from '@main/utils/shellEnv'
 // eslint-disable-next-line @typescript-eslint/no-restricted-imports -- Run the renderer reducer against real Main and native events in the integration test.
 import { MessageProjectionService } from '@renderer/services/aiTransport/MessageProjectionService'
@@ -321,6 +322,54 @@ describe('desktop Pi Durable connection', () => {
       .poll(() => nativeInputs.some((state) => state.inputId === user.id && state.outcome === 'aborted'))
       .toBe(true)
     await expect.poll(() => events.some((event) => event.type === 'stop-confirmed')).toBe(true)
+  })
+
+  it('sends imported Claude tool calls and results as text on the first durable turn', async () => {
+    const root = join(directory, 'claude-history')
+    mkdirSync(root)
+    const records = [
+      'Generated setup',
+      'Find the invoice',
+      [{ type: 'tool_use', id: 'call', name: 'lookup', input: { query: 'invoice search' } }],
+      [{ type: 'tool_result', tool_use_id: 'call', content: 'Invoice 42' }]
+    ].map((content, index) =>
+      JSON.stringify({
+        sessionId: 'history',
+        version: '2.1.284',
+        uuid: String(index),
+        parentUuid: index ? String(index - 1) : null,
+        timestamp: '2026-01-01T00:00:00Z',
+        type: index === 2 ? 'assistant' : 'user',
+        isMeta: index === 0,
+        message: { content }
+      })
+    )
+    writeFileSync(join(root, 'history.jsonl'), records.join('\n'))
+    const importer = new ConversationImportService()
+    const scan = await importer.discover('window', 'claude-code', root)
+    const refs = scan.candidates.map((candidate) => candidate.ref)
+    const preview = await importer.preview(
+      'window',
+      scan.scanId,
+      input.agentId,
+      refs.map((ref) => ({ ref }))
+    )
+    const [imported] = await importer.commit('window', preview.previewId, refs)
+    expect(imported).toMatchObject({ status: 'imported', initialization: 'ready' })
+    input = { ...input, sessionId: imported.sessionId! }
+    const storedSetup = messages.listSessionMessages(input.sessionId, { limit: 10 }).items.at(-1)
+    expect(storedSetup).toMatchObject({ role: 'user', provenance: { source: 'claude-code', isSetup: true } })
+    snapshot.session = agentSessionService.getById(input.sessionId)
+    const current = await connect()
+    const prompt = message('Continue the search')
+    await current.connection.send({ message: prompt, context: await readSessionHistory(input.sessionId, prompt.id) })
+    await done(current.events)
+    expect(script.calls).toHaveLength(1)
+    const request = JSON.stringify(script.calls[0].messages)
+    expect(request).toMatch(
+      /Generated setup[\s\S]*Find the invoice[\s\S]*Historical tool call: lookup[\s\S]*invoice search[\s\S]*Historical tool result: lookup[\s\S]*Invoice 42[\s\S]*Continue the search/
+    )
+    expect(script.calls[0].messages.some((message) => message.role === 'toolResult')).toBe(false)
   })
 
   it('continues unbound history on separate native branches and retains it after reopening', async () => {
