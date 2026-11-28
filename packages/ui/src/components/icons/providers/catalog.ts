@@ -153,6 +153,7 @@ import { SerplyIcon } from './serply'
 import { SiliconIcon } from './silicon'
 import { SkyworkIcon } from './skywork'
 import { SmitheryIcon } from './smithery'
+import { SofyaIcon } from './sofya/sofya'
 import { SophnetIcon } from './sophnet'
 import { StabilityIcon } from './stability'
 import { StepIcon } from './step'
@@ -330,6 +331,7 @@ export const PROVIDER_ICON_CATALOG = {
   silicon: SiliconIcon,
   skywork: SkyworkIcon,
   smithery: SmitheryIcon,
+  sofya: SofyaIcon,
   sophnet: SophnetIcon,
   stability: StabilityIcon,
   step: StepIcon,

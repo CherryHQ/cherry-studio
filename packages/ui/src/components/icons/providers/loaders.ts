@@ -153,6 +153,7 @@ export const PROVIDER_ICON_LOADERS = {
   silicon: () => import('./silicon').then(({ SiliconIcon }) => SiliconIcon),
   skywork: () => import('./skywork').then(({ SkyworkIcon }) => SkyworkIcon),
   smithery: () => import('./smithery').then(({ SmitheryIcon }) => SmitheryIcon),
+  sofya: () => import('./sofya/sofya').then(({ SofyaIcon }) => SofyaIcon),
   sophnet: () => import('./sophnet').then(({ SophnetIcon }) => SophnetIcon),
   stability: () => import('./stability').then(({ StabilityIcon }) => StabilityIcon),
   step: () => import('./step').then(({ StepIcon }) => StepIcon),

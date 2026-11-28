@@ -150,6 +150,7 @@ import { meta as serplyMeta } from './serply/meta'
 import { meta as siliconMeta } from './silicon/meta'
 import { meta as skyworkMeta } from './skywork/meta'
 import { meta as smitheryMeta } from './smithery/meta'
+import { meta as sofyaMeta } from './sofya/meta'
 import { meta as sophnetMeta } from './sophnet/meta'
 import { meta as stabilityMeta } from './stability/meta'
 import { meta as stepMeta } from './step/meta'
@@ -327,6 +328,7 @@ export const PROVIDER_ICON_META_CATALOG = {
   silicon: siliconMeta,
   skywork: skyworkMeta,
   smithery: smitheryMeta,
+  sofya: sofyaMeta,
   sophnet: sophnetMeta,
   stability: stabilityMeta,
   step: stepMeta,
