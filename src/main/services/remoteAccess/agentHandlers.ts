@@ -21,6 +21,7 @@ import { remoteCommandService, type RemoteCommandOutcome } from '@data/services/
 import { loggerService } from '@logger'
 import { previewAgentConfigChange } from '@main/ai/agents/agentConfigTool'
 import { serializeError } from '@main/ai/utils/serializeError'
+import { AgentImageLimitError } from '@shared/ai/agentImageLimits'
 import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
 import { toExecutionFailure } from '@shared/ai/executionFailure'
 import { isManagedCherryCloudModel } from '@shared/data/presets/cherryai'
@@ -142,6 +143,23 @@ export function registerAgentMethods(
         outcome = {
           status: 'rejected',
           error: { reason: 'TARGET_UNAVAILABLE', message: toExecutionFailure(serializeError(error)).message }
+        }
+      } else if (error instanceof AgentImageLimitError) {
+        // Capability-driven multi-image guard (#20030): the outcome is known —
+        // the turn exceeds the model's image cap — so record a rejection with
+        // the typed limit instead of interrupted/INTERNAL.
+        outcome = {
+          status: 'rejected',
+          error: {
+            reason: 'CONFLICT',
+            message: error.message,
+            details: {
+              limit: error.limit,
+              count: error.count,
+              ...(error.runtime ? { runtime: error.runtime } : {}),
+              ...(error.sent ? { sent: true } : {})
+            }
+          }
         }
       } else {
         logger.error('Remote command failed before settling', error as Error)

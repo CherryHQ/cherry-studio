@@ -11,6 +11,7 @@ import { getProviderDisplayName } from '@renderer/utils/naming'
 import type { ActiveExecution, StreamDonePayload, StreamErrorPayload } from '@shared/ai/transport'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { isUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import { aiErrorDetail } from '@shared/ipc/errors/ai'
 
 interface RecoveryActions {
   retry?: (message: CherryUIMessage, modelId: UniqueModelId) => Promise<void>
@@ -112,6 +113,24 @@ export function useConversationErrorToasts(scopeKey: string, actions: RecoveryAc
   const report = useCallback(
     async (error: unknown, modelId?: string, message?: CherryUIMessage) => {
       if (!state.active) return
+      // Capability-driven multi-image guard (#20030): a main-side rejection now
+      // arrives as AI_REQUEST_FAILED with serializeError data (limit/count).
+      // Render the typed limit warning so retry preserves the draft instead of
+      // a generic processing error. Covers both desktop IPC and channel-adjacent
+      // surfaces that funnel through this controller.
+      const imageLimit = aiErrorDetail(error) as
+        | { i18nKey?: unknown; limit?: unknown; count?: unknown; detailI18nValues?: unknown }
+        | undefined
+      const imageLimitKey = typeof imageLimit?.i18nKey === 'string' ? imageLimit.i18nKey : undefined
+      if (imageLimitKey === 'agent_image_limit_exceeded' || imageLimitKey === 'agent_image_limit_exceeded_after_send') {
+        const values = (imageLimit?.detailI18nValues as Record<string, string> | undefined) ?? {}
+        const limit = Number(values.limit ?? imageLimit?.limit)
+        const count = Number(values.count ?? imageLimit?.count)
+        if (Number.isFinite(limit) && Number.isFinite(count)) {
+          toast.warning(i18n.t('agent.image_limit_exceeded', { limit, count }))
+          return
+        }
+      }
       const generation = state.generation
       const identity = modelId && isUniqueModelId(modelId) ? parseUniqueModelId(modelId) : undefined
       const provider = identity

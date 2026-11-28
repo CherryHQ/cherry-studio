@@ -115,6 +115,8 @@
   "appMenu.zoomOut": "Zoom Out",
   "backup.restore.failed": "Restore failed",
   "backup.restore.retry": "The backup was not restored. Your previous data has been kept. Please try restoring again.",
+  "channel.agent_image_limit_exceeded": "The attached images exceed what the selected Agent model accepts in one prompt. Remove some images and retry — nothing was sent. Model limit: {{limit}} image(s); attached: {{count}} image(s).",
+  "channel.agent_image_limit_exceeded_after_send": "The attached images exceed what the selected Agent model accepts in one prompt. Remove some images and retry — the request was already sent. Model limit: {{limit}} image(s); attached: {{count}} image(s).",
   "chat.cherryai.sign_in_required": "Sign in to Cherry AI to use this model",
   "chat.conversation.new": "New Chat",
   "code.cli_config.invalid_model_list": "{{tool}} configuration: {{field}} must be a list. Check the CLI config file.",

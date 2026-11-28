@@ -1519,6 +1519,289 @@ describe('AgentComposer', () => {
     expect(toast.error).toHaveBeenCalledWith('code.model_required')
   })
 
+  it('blocks an over-limit multi-image send with the limit message and keeps the draft', async () => {
+    mocks.modelResult = {
+      ...model,
+      capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION],
+      maxAgentImages: 1
+    } as unknown as Model
+    mocks.files = [
+      {
+        ...file,
+        id: 'file-a',
+        fileTokenSourceId: 'source-a',
+        name: 'a.png',
+        origin_name: 'a.png',
+        path: '/tmp/a.png',
+        ext: '.png',
+        type: 'image'
+      },
+      {
+        ...file,
+        id: 'file-b',
+        fileTokenSourceId: 'source-b',
+        name: 'b.jpg',
+        origin_name: 'b.jpg',
+        path: '/tmp/b.jpg',
+        ext: '.jpg',
+        type: 'image'
+      }
+    ] as unknown as FileMetadata[]
+    const tokens = [
+      { id: 'file:source-a', kind: 'file', label: 'a.png', index: 0, textOffset: 0 },
+      { id: 'file:source-b', kind: 'file', label: 'b.jpg', index: 1, textOffset: 0 }
+    ] as ComposerSerializedToken[]
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    act(() => {
+      mocks.surfaceProps?.onTextChange('compare these screenshots')
+    })
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'compare these screenshots', tokens })
+    })
+
+    expect(mocks.sendMessage).not.toHaveBeenCalled()
+    expect(toast.warning).toHaveBeenCalledWith('agent.image_limit_exceeded')
+    expect(mocks.surfaceProps?.text).toBe('compare these screenshots')
+  })
+
+  it('sends multiple images in order when the model has no declared limit', async () => {
+    mocks.modelResult = { ...model, capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION] }
+    mocks.files = [
+      {
+        ...file,
+        id: 'file-a',
+        fileTokenSourceId: 'source-a',
+        name: 'a.png',
+        origin_name: 'a.png',
+        path: '/tmp/a.png',
+        ext: '.png',
+        type: 'image'
+      },
+      {
+        ...file,
+        id: 'file-b',
+        fileTokenSourceId: 'source-b',
+        name: 'b.jpg',
+        origin_name: 'b.jpg',
+        path: '/tmp/b.jpg',
+        ext: '.jpg',
+        type: 'image'
+      }
+    ] as unknown as FileMetadata[]
+    const tokens = [
+      { id: 'file:source-a', kind: 'file', label: 'a.png', index: 0, textOffset: 0 },
+      { id: 'file:source-b', kind: 'file', label: 'b.jpg', index: 1, textOffset: 0 }
+    ] as ComposerSerializedToken[]
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'compare', tokens })
+    })
+
+    expect(mocks.sendMessage).toHaveBeenCalledTimes(1)
+    expect(toast.warning).not.toHaveBeenCalledWith('agent.image_limit_exceeded')
+  })
+
+  it('sends PNG+TIFF on Claude when only the PNG counts toward the native cap (inv_129fa9c831baabe0)', async () => {
+    // The Claude driver emits only the PNG as a native image block and forwards
+    // the TIFF by path, so the composer must not reject PNG+TIFF against a
+    // one-image native cap.
+    mocks.modelResult = {
+      ...model,
+      capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION],
+      maxAgentImages: 1
+    } as unknown as Model
+    mocks.files = [
+      {
+        ...file,
+        id: 'file-a',
+        fileTokenSourceId: 'source-a',
+        name: 'a.png',
+        origin_name: 'a.png',
+        path: '/tmp/a.png',
+        ext: '.png',
+        type: 'image'
+      },
+      {
+        ...file,
+        id: 'file-b',
+        fileTokenSourceId: 'source-b',
+        name: 'b.tiff',
+        origin_name: 'b.tiff',
+        path: '/tmp/b.tiff',
+        ext: '.tiff',
+        type: 'image'
+      }
+    ] as unknown as FileMetadata[]
+    const tokens = [
+      { id: 'file:source-a', kind: 'file', label: 'a.png', index: 0, textOffset: 0 },
+      { id: 'file:source-b', kind: 'file', label: 'b.tiff', index: 1, textOffset: 0 }
+    ] as ComposerSerializedToken[]
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'compare', tokens })
+    })
+
+    expect(mocks.sendMessage).toHaveBeenCalledTimes(1)
+    expect(toast.warning).not.toHaveBeenCalledWith('agent.image_limit_exceeded')
+  })
+
+  it('blocks PNG+.jpe on Claude with zero copy calls under a one-image native cap (inv_cd0875c7798b05bd)', async () => {
+    // The MIME-less `.jpe` resolves to `image/jpeg` after the file bridge, and
+    // main rejects the two-image send. The composer pre-send guard must agree
+    // before creating managed entries, so the pair rejects with zero copy
+    // calls instead of leaving unreferenced copies for every retry.
+    mocks.modelResult = {
+      ...model,
+      capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION],
+      maxAgentImages: 1
+    } as unknown as Model
+    mocks.files = [
+      {
+        ...file,
+        id: 'file-a',
+        fileTokenSourceId: 'source-a',
+        name: 'a.png',
+        origin_name: 'a.png',
+        path: '/tmp/a.png',
+        ext: '.png',
+        type: 'image'
+      },
+      {
+        ...file,
+        id: 'file-b',
+        fileTokenSourceId: 'source-b',
+        name: 'b.jpe',
+        origin_name: 'b.jpe',
+        path: '/tmp/b.jpe',
+        ext: '.jpe',
+        type: 'image'
+      }
+    ] as unknown as FileMetadata[]
+    const tokens = [
+      { id: 'file:source-a', kind: 'file', label: 'a.png', index: 0, textOffset: 0 },
+      { id: 'file:source-b', kind: 'file', label: 'b.jpe', index: 1, textOffset: 0 }
+    ] as ComposerSerializedToken[]
+    mocks.createInternalEntry.mockClear()
+    const claudeAgent = {
+      id: 'agent-1',
+      name: 'Agent',
+      type: 'claude-code',
+      model: 'test::claude-model',
+      modelName: 'Claude',
+      instructions: 'Follow instructions',
+      knowledgeBaseIds: [],
+      configuration: {}
+    } as unknown as NonNullable<ComponentProps<typeof AgentComposerImpl>['resolvedAgent']>
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+        resolvedAgent={claudeAgent}
+      />
+    )
+
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'compare', tokens })
+    })
+
+    expect(mocks.sendMessage).not.toHaveBeenCalled()
+    expect(toast.warning).toHaveBeenCalledWith('agent.image_limit_exceeded')
+    expect(mocks.createInternalEntry).not.toHaveBeenCalled()
+  })
+
+  it('sends manual /compact with images on Pi without hitting the image cap (inv_151778bef122ee04)', async () => {
+    // Both Pi drivers compact without submitting images or replay, so the
+    // composer idle and drain gates must skip the cap for genuine `/compact`.
+    mocks.modelResult = {
+      ...model,
+      capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION],
+      maxAgentImages: 1
+    } as unknown as Model
+    mocks.files = [
+      {
+        ...file,
+        id: 'file-a',
+        fileTokenSourceId: 'source-a',
+        name: 'a.png',
+        origin_name: 'a.png',
+        path: '/tmp/a.png',
+        ext: '.png',
+        type: 'image'
+      },
+      {
+        ...file,
+        id: 'file-b',
+        fileTokenSourceId: 'source-b',
+        name: 'b.png',
+        origin_name: 'b.png',
+        path: '/tmp/b.png',
+        ext: '.png',
+        type: 'image'
+      }
+    ] as unknown as FileMetadata[]
+    const tokens = [
+      { id: 'file:source-a', kind: 'file', label: 'a.png', index: 0, textOffset: 0 },
+      { id: 'file:source-b', kind: 'file', label: 'b.png', index: 1, textOffset: 0 }
+    ] as ComposerSerializedToken[]
+    const piAgent = {
+      id: 'agent-1',
+      name: 'Agent',
+      type: 'pi',
+      model: 'test::pi-model',
+      modelName: 'Pi',
+      instructions: 'Follow instructions',
+      knowledgeBaseIds: [],
+      configuration: {}
+    } as unknown as NonNullable<ComponentProps<typeof AgentComposerImpl>['resolvedAgent']>
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+        resolvedAgent={piAgent}
+      />
+    )
+
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: '/compact keep facts', tokens })
+    })
+
+    expect(mocks.sendMessage).toHaveBeenCalledTimes(1)
+    expect(toast.warning).not.toHaveBeenCalledWith('agent.image_limit_exceeded')
+  })
+
   it('sends directly via the steer option while streaming, bypassing the queue', async () => {
     render(
       <AgentComposer

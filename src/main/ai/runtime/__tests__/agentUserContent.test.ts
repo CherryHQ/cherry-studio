@@ -39,4 +39,43 @@ describe('buildAgentUserContent', () => {
 
     expect(content).toContain(fileURLToPath(url))
   })
+
+  it('forwards every attached image in the user order (#20030)', () => {
+    const content = buildAgentUserContent(
+      message([
+        { type: 'text', text: 'Compare these screenshots.' },
+        filePart('file:///C:/managed/first', 'first.png'),
+        filePart('file:///C:/managed/second', 'second.jpg'),
+        filePart('file:///C:/managed/third', 'third.webp')
+      ])
+    )
+
+    const first = content.indexOf(fileURLToPath('file:///C:/managed/first'))
+    const second = content.indexOf(fileURLToPath('file:///C:/managed/second'))
+    const third = content.indexOf(fileURLToPath('file:///C:/managed/third'))
+    expect(first).toBeGreaterThanOrEqual(0)
+    expect(second).toBeGreaterThan(first)
+    expect(third).toBeGreaterThan(second)
+    expect(content).toContain(JSON.stringify('first.png'))
+    expect(content).toContain(JSON.stringify('second.jpg'))
+    expect(content).toContain(JSON.stringify('third.webp'))
+  })
+
+  it('keeps non-image attachments alongside multiple images without dropping any', () => {
+    const content = buildAgentUserContent(
+      message([
+        { type: 'text', text: 'Review.' },
+        { type: 'file', url: 'file:///C:/managed/a', mediaType: 'image/png', filename: 'a.png' },
+        { type: 'file', url: 'file:///C:/managed/doc', mediaType: 'application/pdf', filename: 'doc.pdf' },
+        { type: 'file', url: 'file:///C:/managed/b', mediaType: 'image/jpeg', filename: 'b.jpg' }
+      ] as unknown as CherryMessagePart[])
+    )
+
+    expect(content).toContain(fileURLToPath('file:///C:/managed/a'))
+    expect(content).toContain(fileURLToPath('file:///C:/managed/doc'))
+    expect(content).toContain(fileURLToPath('file:///C:/managed/b'))
+    expect(content.indexOf(fileURLToPath('file:///C:/managed/a'))).toBeLessThan(
+      content.indexOf(fileURLToPath('file:///C:/managed/b'))
+    )
+  })
 })

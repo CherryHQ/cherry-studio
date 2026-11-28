@@ -41,6 +41,7 @@ import {
 import { prepareClaudeBranch } from '@main/ai/runtime/claudeCode/claudeContext'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import { probeReadable } from '@main/utils/file'
+import { AgentImageLimitError, resolveMaxAgentImages } from '@shared/ai/agentImageLimits'
 import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { CherryUIMessage, FileUIPart } from '@shared/data/types/message'
@@ -231,13 +232,20 @@ export abstract class ClaudeSdkConnection<
       throw new Error('The /fast command is unavailable; use the host Fast control instead')
     }
 
+    const hasAdmitted = 'admittedMaxImages' in input
+    const admittedMaxImages = hasAdmitted ? input.admittedMaxImages : undefined
     const sdkMessage = await toSdkUserMessage(
       withAgentContext(input.message, input.context),
       this.resumeToken,
       input.systemReminder,
       {
         supportsAttachmentReads: this.assistantFileToolsEnabled,
-        supportsImages: !isUniqueModelId(this.input.modelId) || resolveModelImageSupport(this.input.modelId)
+        supportsImages: !isUniqueModelId(this.input.modelId) || resolveModelImageSupport(this.input.modelId),
+        maxImages: hasAdmitted
+          ? admittedMaxImages
+          : !isUniqueModelId(this.input.modelId)
+            ? undefined
+            : resolveModelImageLimit(this.input.modelId)
       }
     )
     if (this.closing) throw new Error('Claude session is unavailable')
@@ -274,7 +282,8 @@ export abstract class ClaudeSdkConnection<
     return {
       steer: {
         whenIdle: 'may-start',
-        submit: async ({ inputId, message, context, systemReminder }) => {
+        submit: async (steerInput) => {
+          const { inputId, message, context, systemReminder } = steerInput
           const reject = (code: string, message: string) => ({
             status: 'rejected' as const,
             inputId,
@@ -285,9 +294,16 @@ export abstract class ClaudeSdkConnection<
           if (!canSteer()) return reject('closed', 'Claude session is unavailable')
           let sdkMessage: SDKUserMessage
           try {
+            const steerHasAdmitted = 'admittedMaxImages' in steerInput
+            const steerAdmittedMaxImages = steerHasAdmitted ? steerInput.admittedMaxImages : undefined
             sdkMessage = await toSdkUserMessage(withAgentContext(message, context), this.resumeToken, systemReminder, {
               supportsAttachmentReads: this.assistantFileToolsEnabled,
-              supportsImages: !isUniqueModelId(this.input.modelId) || resolveModelImageSupport(this.input.modelId)
+              supportsImages: !isUniqueModelId(this.input.modelId) || resolveModelImageSupport(this.input.modelId),
+              maxImages: steerHasAdmitted
+                ? steerAdmittedMaxImages
+                : !isUniqueModelId(this.input.modelId)
+                  ? undefined
+                  : resolveModelImageLimit(this.input.modelId)
             })
           } catch (error) {
             return reject('not-dispatched', error instanceof Error ? error.message : String(error))
@@ -898,16 +914,35 @@ function resolveModelImageSupport(uniqueModelId: UniqueModelId): boolean {
   }
 }
 
+/**
+ * Capability-driven multi-image limit for the turn's model (#20030).
+ * Unresolvable models keep the legacy unlimited behavior; only a declared
+ * limit enforces a pre-send rejection.
+ */
+function resolveModelImageLimit(uniqueModelId: UniqueModelId): number | undefined {
+  try {
+    const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
+    return resolveMaxAgentImages(modelService.getByKey(providerId, modelId))
+  } catch (error) {
+    logger.warn('Failed to resolve model for image limit; assuming unlimited', {
+      uniqueModelId,
+      error
+    })
+    return undefined
+  }
+}
+
 async function toSdkUserMessage(
   message: AgentSessionMessageEntity,
   resumeToken?: string,
   systemReminder = false,
   {
     supportsAttachmentReads = false,
-    supportsImages = true
-  }: { supportsAttachmentReads?: boolean; supportsImages?: boolean } = {}
+    supportsImages = true,
+    maxImages
+  }: { supportsAttachmentReads?: boolean; supportsImages?: boolean; maxImages?: number } = {}
 ): Promise<SDKUserMessage> {
-  let content = await materializeUserContent(message, supportsImages, supportsAttachmentReads)
+  let content = await materializeUserContent(message, supportsImages, supportsAttachmentReads, maxImages)
   if (systemReminder) {
     content = applySteerReminder(content)
   }
@@ -952,7 +987,8 @@ function applySteerReminder(content: SDKUserMessage['message']['content']): SDKU
 async function materializeUserContent(
   message: AgentSessionMessageEntity,
   supportsImages: boolean,
-  supportsAttachmentReads: boolean
+  supportsAttachmentReads: boolean,
+  maxImages?: number
 ): Promise<SDKUserMessage['message']['content']> {
   const parts = message.data?.parts ?? []
   const firstPartyFileParts = parts.filter(
@@ -997,6 +1033,24 @@ async function materializeUserContent(
     .filter((part): part is { type: 'text'; text: string } => part.type === 'text')
     .map((part) => part.text)
     .join('\n')
+  // Capability-driven multi-image guard (#20030): static pre-check on the
+  // parts that would become native image blocks — before file I/O and before
+  // the paid SDK call. Supported models keep every image in the user's order;
+  // over-limit turns throw with the actual limit and the draft stays intact.
+  if (maxImages !== undefined && supportsImages) {
+    const nativeCandidates = [
+      ...preparedParts.filter((part): part is FileUIPart => part.type === 'file'),
+      ...firstPartyPathParts,
+      ...externalFileParts
+    ].filter((part) => {
+      const fileEntryId = readCherryMeta(part)?.fileEntryId
+      const originalPart = (fileEntryId && originalFirstPartyFiles.get(fileEntryId)) || part
+      return isImageFilePart(originalPart) && canBeClaudeImage(part)
+    })
+    if (nativeCandidates.length > maxImages) {
+      throw new AgentImageLimitError({ limit: maxImages, count: nativeCandidates.length, runtime: 'claude-code' })
+    }
+  }
   const images: ImageBlockParam[] = []
   const fallbackParts: FileUIPart[] = []
   const unavailableParts: FileUIPart[] = []

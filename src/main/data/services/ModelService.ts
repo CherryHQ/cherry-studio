@@ -445,6 +445,11 @@ function assertCompleteCustomModelRow(row: UserModelRow): asserts row is Complet
 function customRowToRuntimeModel(row: UserModelRow): Model {
   assertCompleteCustomModelRow(row)
   const reasoning = row.reasoning ? ReasoningConfigSchema.parse(row.reasoning) : undefined
+  // Future-proof: a `maxAgentImages` column, when migrated, flows straight
+  // through; today custom rows carry no limit and stay unlimited.
+  const rowLimit = (row as { maxAgentImages?: unknown }).maxAgentImages
+  const maxAgentImages =
+    typeof rowLimit === 'number' && Number.isFinite(rowLimit) && rowLimit >= 0 ? Math.floor(rowLimit) : undefined
 
   return {
     id: createUniqueModelId(row.providerId, row.modelId),
@@ -467,6 +472,7 @@ function customRowToRuntimeModel(row: UserModelRow): Model {
     reasoning: reasoning ? { ...reasoning, selectableEfforts: reasoning.selectableEfforts ?? [] } : undefined,
     userDefaultReasoningEffort: row.reasoning?.defaultEffort,
     parameterSupport: projectModelParameterSupport(row.parameters),
+    ...(maxAgentImages !== undefined ? { maxAgentImages } : {}),
     pricing: row.pricing ?? undefined,
     hasCustomPricing: row.pricing != null,
     isEnabled: row.isEnabled,
@@ -825,6 +831,12 @@ class ModelService {
         }
         if (model.maxOutputTokens === undefined && registryModel?.maxOutputTokens !== undefined) {
           updates.maxOutputTokens = registryModel.maxOutputTokens
+        }
+        // Capability-driven Agent image limit (#20030): a future registry can
+        // seed per-model caps; custom rows inherit it until a user override
+        // (or future DB column) supplies its own.
+        if (model.maxAgentImages === undefined && registryModel?.maxAgentImages !== undefined) {
+          updates.maxAgentImages = registryModel.maxAgentImages
         }
         if (model.parameterSupport === undefined && registryModel?.parameterSupport !== undefined) {
           updates.parameterSupport = registryModel.parameterSupport

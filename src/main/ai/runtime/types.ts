@@ -134,7 +134,16 @@ export interface AgentRuntimeUserInput {
   messageSnapshot?: MessageSnapshot
 }
 
-export type AgentRuntimeCommand = Pick<AgentRuntimeUserInput, 'message' | 'systemReminder' | 'context'>
+export type AgentRuntimeCommand = Pick<AgentRuntimeUserInput, 'message' | 'systemReminder' | 'context'> & {
+  /**
+   * Image-limit admitted when the turn was accepted (before persistence/ack).
+   * Presence (even as `undefined` for uncapped) means the host already gated
+   * the turn — drivers must reuse it instead of a fresh catalog lookup, so a
+   * cap published while the accepted turn opens cannot reject after the draft
+   * was cleared. Absence (pre-existing callers) falls back to a fresh lookup.
+   */
+  admittedMaxImages?: number
+}
 
 export type AgentRuntimeInput = ThreadInput<AgentRuntimeCommand & { readonly inputId: InputId }>
 

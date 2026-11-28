@@ -56,4 +56,13 @@ describe('getFileTypeByExt', () => {
       expect(getFileTypeByExt(ext)).toBe('other')
     }
   })
+
+  it('keeps AVIF/HEIC/TIFF as other so agent routing keeps its path fallback (#20030)', () => {
+    // Agent multi-image counting uses its own superset (AGENT_IMAGE_EXTS);
+    // the shared routing table must stay untouched so non-vision turns keep
+    // the local-path fallback instead of rerouting into OCR.
+    for (const ext of ['avif', 'heic', 'heif', 'tif', 'tiff']) {
+      expect(getFileTypeByExt(ext)).toBe('other')
+    }
+  })
 })

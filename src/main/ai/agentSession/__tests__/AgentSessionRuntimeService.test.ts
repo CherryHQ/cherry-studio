@@ -19,6 +19,7 @@ import type * as SessionMessageModule from '@data/services/AgentSessionMessageSe
 import type * as SessionModule from '@data/services/AgentSessionService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import type * as UsageRecordModule from '@data/services/AiUsageRecordService'
+import { modelService } from '@data/services/ModelService'
 import type { AgentSessionForkResources } from '@main/ai/agentSession/fork/resources'
 import { PiForkCheckpointSchema } from '@main/ai/runtime/pi/forkCheckpoint'
 import type { AgentRuntimeConnection, AgentRuntimeEvent, AgentRuntimeInput } from '@main/ai/runtime/types'
@@ -26,6 +27,7 @@ import type { StreamDoneResult, StreamErrorResult, StreamPausedResult } from '@m
 import { AiStreamManager } from '@main/ai/streamManager/AiStreamManager'
 import { MessageRuntimeTimingCollector } from '@main/ai/streamManager/MessageRuntimeTimingCollector'
 import { BaseService } from '@main/core/lifecycle/BaseService'
+import { AgentImageLimitError } from '@shared/ai/agentImageLimits'
 import { AGENT_SESSION_API_RETRY_CACHE_KEY } from '@shared/ai/agentSessionApiRetry'
 import {
   ACP_HOST_PERMISSION_MODE_ID,
@@ -34,6 +36,7 @@ import {
   type AcpHostPermissionMode,
   type LocalAgentSelection
 } from '@shared/ai/localAgent'
+import { ModelSchema } from '@shared/data/types/model'
 import { CodeCli } from '@shared/types/codeCli'
 
 import type { AgentRuntimeConnectInput, AgentRuntimeUserInput } from '../../runtime/types'
@@ -618,7 +621,10 @@ describe('AgentSessionForkOperations recovery', () => {
 })
 
 vi.mock('@data/services/ModelService', () => ({
-  modelService: { getNamesByUniqueIdsTx: (_tx, ids) => new Map(ids.map((id) => [id, 'Override model'])) }
+  modelService: {
+    getNamesByUniqueIdsTx: (_tx, ids) => new Map(ids.map((id) => [id, 'Override model'])),
+    getByKey: vi.fn()
+  }
 }))
 
 describe('AgentSessionRuntimeService', () => {
@@ -721,6 +727,630 @@ describe('AgentSessionRuntimeService', () => {
       await service.closeSession('session-1')
     }
   )
+
+  describe('multi-image limits (#20030)', () => {
+    const imagePart = (filename: string) => ({
+      type: 'file',
+      url: `file:///tmp/${filename}`,
+      mediaType: 'image/png',
+      filename
+    })
+    const singleImageModel = {
+      id: 'test::single-image',
+      providerId: 'test',
+      name: 'Single Image Model',
+      capabilities: ['image-recognition'],
+      supportsStreaming: true,
+      isEnabled: true,
+      isHidden: false,
+      maxAgentImages: 1
+    }
+    const unlimitedVisionModel = {
+      id: 'test::vision',
+      providerId: 'test',
+      name: 'Vision Model',
+      capabilities: ['image-recognition'],
+      supportsStreaming: true,
+      isEnabled: true,
+      isHidden: false
+    }
+
+    beforeEach(() => {
+      vi.mocked(modelService.getByKey)
+        .mockReset()
+        .mockReturnValue(undefined as never)
+    })
+
+    it('admits one image against a single-image model', () => {
+      vi.mocked(modelService.getByKey).mockReturnValue(singleImageModel as never)
+      const service = new AgentSessionRuntimeService()
+      const handle = service.beginTurn({
+        ...baseTurnInput,
+        userMessage: {
+          ...userMessage('user-1'),
+          data: { parts: [{ type: 'text', text: 'look' }, imagePart('a.png')] }
+        }
+      })
+      expect(handle.turnId).toBeTruthy()
+    })
+
+    it('rejects over-limit images on beginTurn before the turn exists', () => {
+      vi.mocked(modelService.getByKey).mockReturnValue(singleImageModel as never)
+      const service = new AgentSessionRuntimeService()
+      const message = {
+        ...userMessage('user-2'),
+        data: { parts: [imagePart('a.png'), imagePart('b.png')] }
+      }
+      let error: unknown
+      try {
+        service.beginTurn({ ...baseTurnInput, userMessage: message })
+      } catch (thrown) {
+        error = thrown
+      }
+      expect(error).toBeInstanceOf(AgentImageLimitError)
+      expect(error).toMatchObject({ limit: 1, count: 2 })
+      expect(getEntry(service)).toBeUndefined()
+    })
+
+    it('passes multiple images to unlimited models in order', () => {
+      vi.mocked(modelService.getByKey).mockReturnValue(unlimitedVisionModel as never)
+      const service = new AgentSessionRuntimeService()
+      const handle = service.beginTurn({
+        ...baseTurnInput,
+        userMessage: {
+          ...userMessage('user-3'),
+          data: { parts: [imagePart('first.png'), imagePart('second.png'), imagePart('third.png')] }
+        }
+      })
+      expect(handle.turnId).toBeTruthy()
+      const turn = (service as any).currentTurn(getEntry(service))
+      expect(turn.userMessage.data.parts.map((part: any) => part.filename)).toEqual([
+        'first.png',
+        'second.png',
+        'third.png'
+      ])
+    })
+
+    it('rejects over-limit images on enqueueUserMessage without queueing', () => {
+      vi.mocked(modelService.getByKey).mockReturnValue(singleImageModel as never)
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({
+        ...baseTurnInput,
+        userMessage: {
+          ...userMessage('user-1'),
+          data: { parts: [{ type: 'text', text: 'first' }] }
+        }
+      })
+      const message = {
+        ...userMessage('user-2'),
+        data: { parts: [imagePart('a.png'), imagePart('b.png')] }
+      }
+      expect(() => service.enqueueUserMessage('session-1', message)).toThrow(AgentImageLimitError)
+      expect(getEntry(service).runtimeState.queue).toEqual([])
+    })
+
+    it('blocks a second image through the production model contract before the provider call', () => {
+      // The cap travels on the runtime `Model` (ModelSchema-validated), so a
+      // mocked `getByKey` returning a schema-valid model proves the normal
+      // dispatch path stops before invoking the provider.
+      const parsed = ModelSchema.safeParse(singleImageModel)
+      expect(parsed.success).toBe(true)
+      vi.mocked(modelService.getByKey).mockReturnValue((parsed.success ? parsed.data : singleImageModel) as never)
+      const service = new AgentSessionRuntimeService()
+      let error: unknown
+      try {
+        service.beginTurn({
+          ...baseTurnInput,
+          userMessage: {
+            ...userMessage('user-2'),
+            data: { parts: [imagePart('a.png'), imagePart('b.png')] }
+          }
+        })
+      } catch (thrown) {
+        error = thrown
+      }
+      expect(error).toBeInstanceOf(AgentImageLimitError)
+      expect(error).toMatchObject({ limit: 1, count: 2 })
+      expect(getEntry(service)).toBeUndefined()
+    })
+
+    it('uses the opening turn model for admission when the default changes mid-open', async () => {
+      const unlimitedId = baseTurnInput.modelId
+      const cappedId = switchedModelId
+      const unlimitedModel = {
+        id: unlimitedId,
+        providerId: 'test',
+        name: 'Unlimited',
+        capabilities: ['image-recognition'],
+        supportsStreaming: true,
+        isEnabled: true,
+        isHidden: false
+      }
+      const cappedModel = {
+        id: cappedId,
+        providerId: 'test',
+        name: 'Capped',
+        capabilities: ['image-recognition'],
+        supportsStreaming: true,
+        isEnabled: true,
+        isHidden: false,
+        maxAgentImages: 1
+      }
+      vi.mocked(modelService.getByKey).mockImplementation((providerId: string, modelId: string) => {
+        const full = `${providerId}::${modelId}`
+        if (full === String(cappedId)) return cappedModel as never
+        return unlimitedModel as never
+      })
+
+      const connection = {
+        ...createAsyncQueue<any>(),
+        send: vi.fn().mockResolvedValue(undefined),
+        reconcile: vi.fn().mockResolvedValue('current')
+      }
+      const connect = vi.fn().mockResolvedValue(connection)
+      runtimeDriverRegistry.register({
+        type: 'test-runtime',
+        connect,
+        validateSession: vi.fn()
+      })
+      const service = new AgentSessionRuntimeService()
+      const handle = service.beginTurn({
+        ...baseTurnInput,
+        userMessage: {
+          ...userMessage('user-1'),
+          data: { parts: [imagePart('a.png'), imagePart('b.png')] }
+        }
+      })
+      // Agent default changes while the turn is opening: the entry tracks the
+      // new default, but the live turn (and its connection) still targets the
+      // original model.
+      await (service as any).handleAgentUpdated('agent-1', { model: cappedId }, { id: 'agent-1', model: cappedId })
+      expect(getEntry(service).modelId).toBe(cappedId)
+
+      const stream = openChunkStream(service, {
+        sessionId: 'session-1',
+        turnId: handle.turnId,
+        signal: new AbortController().signal
+      })
+      const reader = stream.getReader()
+      await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+      await vi.waitFor(() => expect(connection.send).toHaveBeenCalled())
+      // Admission used the opening turn's unlimited model, not the new
+      // single-image default — the two-image turn dispatches.
+      expect(connect).toHaveBeenCalledWith(expect.objectContaining({ modelId: unlimitedId }))
+      await reader.cancel().catch(() => undefined)
+    })
+
+    it('permits a text-only continuation with only orphaned history but rejects routed history', async () => {
+      // Regression for inv_9210c3c63f2e4d13: admitTurn counts history-inclusive
+      // parts with routed filtering, so orphaned managed history (tokens absent)
+      // does not reject a text-only send, while two actually routed images do.
+      const { withCherryMeta } = await import('@shared/data/types/uiParts')
+      vi.mocked(modelService.getByKey).mockReturnValue(singleImageModel as never)
+      const service = new AgentSessionRuntimeService()
+      const orphaned = (filename: string, sourceId: string) =>
+        withCherryMeta(
+          { type: 'file', url: `file:///tmp/${filename}`, mediaType: 'image/png', filename } as never,
+          { fileEntryId: `entry-${sourceId}`, fileTokenSourceId: sourceId } as never
+        )
+      const routedParts = [
+        { type: 'text', text: 'Previous conversation history' },
+        ...[
+          { type: 'file', url: 'file:///tmp/a.png', mediaType: 'image/png', filename: 'a.png' },
+          { type: 'file', url: 'file:///tmp/b.png', mediaType: 'image/png', filename: 'b.png' }
+        ],
+        { type: 'text', text: 'continuation' }
+      ]
+      expect(() =>
+        (
+          service as unknown as {
+            assertTurnImageLimit: (
+              modelId: unknown,
+              parts: unknown,
+              agentType: string,
+              opts?: { routed?: boolean }
+            ) => void
+          }
+        ).assertTurnImageLimit(baseTurnInput.modelId, routedParts as never, 'claude-code', { routed: true })
+      ).toThrow(AgentImageLimitError)
+      const orphanedParts = [
+        { type: 'text', text: 'Previous conversation history' },
+        orphaned('a.png', 'source-a'),
+        orphaned('b.png', 'source-b'),
+        { type: 'text', text: 'continuation' }
+      ]
+      expect(() =>
+        (
+          service as unknown as {
+            assertTurnImageLimit: (
+              modelId: unknown,
+              parts: unknown,
+              agentType: string,
+              opts?: { routed?: boolean }
+            ) => void
+          }
+        ).assertTurnImageLimit(baseTurnInput.modelId, orphanedParts as never, 'claude-code', { routed: true })
+      ).not.toThrow()
+    })
+
+    it('rejects replayed workspace PNGs without live tokens for Pi and Claude', async () => {
+      // Regression for inv_51dc347acbf34330: the file bridge stamps composer
+      // source IDs onto accessible-path parts (no fileEntryId), and replay
+      // omits live tokens. The routed gate used to count zero and let Pi send
+      // both paths (and Claude send both native blocks) after the ack that
+      // clears the draft. Runtime-specific gates now reject before dispatch.
+      const { withCherryMeta } = await import('@shared/data/types/uiParts')
+      vi.mocked(modelService.getByKey).mockReturnValue(singleImageModel as never)
+      const service = new AgentSessionRuntimeService()
+      const workspacePng = (filename: string, sourceId: string) =>
+        withCherryMeta(
+          { type: 'file', url: `file:///workspace/${filename}`, mediaType: 'image/png', filename } as never,
+          { fileTokenSourceId: sourceId } as never
+        )
+      const replay = [
+        { type: 'text', text: 'Previous conversation history (reference only)' },
+        workspacePng('a.png', 'source-a'),
+        workspacePng('b.png', 'source-b'),
+        { type: 'text', text: 'continuation' }
+      ]
+      type AssertFn = (modelId: unknown, parts: unknown, agentType: string, opts?: { routed?: boolean }) => void
+      const assert = (service as unknown as { assertTurnImageLimit: AssertFn }).assertTurnImageLimit.bind(service)
+      for (const agentType of ['pi', 'pi-durable', 'claude-code']) {
+        let error: unknown
+        try {
+          assert(baseTurnInput.modelId, replay, agentType, { routed: true })
+        } catch (thrown) {
+          error = thrown
+        }
+        expect(error).toBeInstanceOf(AgentImageLimitError)
+        expect(error).toMatchObject({ limit: 1, count: 2 })
+      }
+      // Claude still permits orphaned managed history (routing drops it) while
+      // Pi rejects the same replay (every file:// path is forwarded).
+      const orphanedManaged = [
+        { type: 'text', text: 'Previous conversation history' },
+        withCherryMeta(
+          { type: 'file', url: 'file:///tmp/a.png', mediaType: 'image/png', filename: 'a.png' } as never,
+          { fileEntryId: 'entry-a', fileTokenSourceId: 'source-a' } as never
+        ),
+        withCherryMeta(
+          { type: 'file', url: 'file:///tmp/b.png', mediaType: 'image/png', filename: 'b.png' } as never,
+          { fileEntryId: 'entry-b', fileTokenSourceId: 'source-b' } as never
+        )
+      ]
+      expect(() => assert(baseTurnInput.modelId, orphanedManaged, 'claude-code', { routed: true })).not.toThrow()
+      expect(() => assert(baseTurnInput.modelId, orphanedManaged, 'pi', { routed: true })).toThrow(AgentImageLimitError)
+    })
+
+    it('permits manual /compact with replayed images on Pi without submitting replay (inv_dae5bb8beabb913b)', () => {
+      // Both Pi drivers short-circuit `/compact` before submission, so the
+      // image gates must not count replay for these turns. `beginTurn` (idle,
+      // systemReminder=false) skips; steers keep validation because the
+      // drivers do not treat them as compact.
+      vi.mocked(modelService.getByKey).mockReturnValue(singleImageModel as never)
+      const compactWithImages = {
+        ...userMessage('user-compact'),
+        data: {
+          parts: [{ type: 'text', text: '/compact keep facts' }, imagePart('a.png'), imagePart('b.png')]
+        }
+      }
+      for (const agentType of ['pi', 'pi-durable'] as const) {
+        BaseService.resetInstances()
+        const service = new AgentSessionRuntimeService()
+        const handle = service.beginTurn({ ...baseTurnInput, agentType, userMessage: compactWithImages })
+        expect(handle.turnId).toBeTruthy()
+      }
+      // Claude has no manual-compact bypass: the same payload still gates.
+      BaseService.resetInstances()
+      const claudeService = new AgentSessionRuntimeService()
+      let error: unknown
+      try {
+        claudeService.beginTurn({
+          ...baseTurnInput,
+          agentType: 'claude-code',
+          userMessage: compactWithImages
+        })
+      } catch (thrown) {
+        error = thrown
+      }
+      expect(error).toBeInstanceOf(AgentImageLimitError)
+    })
+
+    it('rejects split and delivery-prefixed /compact as ordinary turns (inv_a799a7c78eb893f7)', () => {
+      // Drivers join text parts and prefix delivery wrappers: `Compare these`
+      // + `/compact` or delivery + `/compact` submits an ordinary turn and
+      // must gate, while genuine `/compact` still reaches compaction.
+      vi.mocked(modelService.getByKey).mockReturnValue(singleImageModel as never)
+      const splitCompact = {
+        ...userMessage('user-split'),
+        data: {
+          parts: [
+            { type: 'text', text: 'Compare these' },
+            { type: 'text', text: '/compact' },
+            imagePart('a.png'),
+            imagePart('b.png')
+          ]
+        }
+      }
+      for (const agentType of ['pi', 'pi-durable'] as const) {
+        BaseService.resetInstances()
+        const service = new AgentSessionRuntimeService()
+        let error: unknown
+        try {
+          service.beginTurn({ ...baseTurnInput, agentType, userMessage: splitCompact })
+        } catch (thrown) {
+          error = thrown
+        }
+        expect(error).toBeInstanceOf(AgentImageLimitError)
+        expect(error).toMatchObject({ limit: 1, count: 2 })
+      }
+      const deliveryCompact = {
+        ...userMessage('user-delivery'),
+        delivery: { sender: 'a', receiver: 'b' },
+        data: {
+          parts: [{ type: 'text', text: '/compact' }, imagePart('a.png'), imagePart('b.png')]
+        }
+      } as never
+      for (const agentType of ['pi', 'pi-durable'] as const) {
+        BaseService.resetInstances()
+        const service = new AgentSessionRuntimeService()
+        let error: unknown
+        try {
+          service.beginTurn({ ...baseTurnInput, agentType, userMessage: deliveryCompact })
+        } catch (thrown) {
+          error = thrown
+        }
+        expect(error).toBeInstanceOf(AgentImageLimitError)
+      }
+    })
+
+    it('keeps the admitted capability when a cap appears while the turn is opening (inv_512fd59aaedb2023)', async () => {
+      // Submit two images to an uncapped model, then publish a one-image cap
+      // for the same model ID while the accepted turn is opening. Admit must
+      // use the captured uncapped capability, not a fresh lookup, so it does
+      // not reject after persistence and the ack that clears the draft.
+      const uncappedModel = {
+        id: baseTurnInput.modelId,
+        providerId: 'test',
+        name: 'Uncapped',
+        capabilities: ['image-recognition'],
+        supportsStreaming: true,
+        isEnabled: true,
+        isHidden: false
+      }
+      const cappedModel = { ...uncappedModel, maxAgentImages: 1 }
+      vi.mocked(modelService.getByKey).mockReturnValue(uncappedModel as never)
+      const connection = {
+        ...createAsyncQueue<any>(),
+        send: vi.fn().mockResolvedValue(undefined),
+        reconcile: vi.fn().mockResolvedValue('current')
+      }
+      const connect = vi.fn().mockResolvedValue(connection)
+      runtimeDriverRegistry.register({
+        type: 'test-runtime',
+        connect,
+        validateSession: vi.fn()
+      })
+      const service = new AgentSessionRuntimeService()
+      const handle = service.beginTurn({
+        ...baseTurnInput,
+        userMessage: {
+          ...userMessage('user-1'),
+          data: { parts: [imagePart('a.png'), imagePart('b.png')] }
+        }
+      })
+      const admittedTurn = (service as any).currentTurn(getEntry(service))
+      expect(admittedTurn.admittedMaxImages).toBeUndefined()
+      // Catalog refresh publishes a cap for the same model ID after acceptance.
+      vi.mocked(modelService.getByKey).mockReturnValue(cappedModel as never)
+      const stream = openChunkStream(service, {
+        sessionId: 'session-1',
+        turnId: handle.turnId,
+        signal: new AbortController().signal
+      })
+      const reader = stream.getReader()
+      await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+      await vi.waitFor(() => expect(connection.send).toHaveBeenCalled())
+      await reader.cancel().catch(() => undefined)
+    })
+
+    it('re-resolves the drain cap after an agent-default switch hides a stale uncapped snapshot (inv_cfe1f41fb5f7c9e8)', async () => {
+      // Queue two images under uncapped Pi model A, then change the Agent
+      // default to model B with a declared one-image cap before the host queue
+      // drains. `handleAgentUpdated` mutates `entry.modelId` to B, so comparing
+      // the drain-time effective model against `entry.modelId` alone would reuse
+      // A's stale uncapped snapshot and dispatch both paths to B. The drain
+      // compares against the enqueue-time admitted model and re-resolves, so
+      // B's cap governs B's dispatch.
+      const modelA = {
+        id: baseTurnInput.modelId,
+        providerId: 'test',
+        name: 'Model A',
+        capabilities: ['image-recognition'],
+        supportsStreaming: true,
+        isEnabled: true,
+        isHidden: false
+      }
+      const modelB = {
+        id: switchedModelId,
+        providerId: 'test',
+        name: 'Model B',
+        capabilities: ['image-recognition'],
+        supportsStreaming: true,
+        isEnabled: true,
+        isHidden: false,
+        maxAgentImages: 1
+      }
+      vi.mocked(modelService.getByKey).mockImplementation((providerId: string, modelId: string) => {
+        const full = `${providerId}::${modelId}`
+        if (full === String(switchedModelId)) return modelB as never
+        return modelA as never
+      })
+      mocks.getAgent.mockReturnValue({ id: 'agent-1', type: 'test-runtime', model: baseTurnInput.modelId })
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      const entry = getEntry(service)
+      entry.runtimeState.execution.reply.delivery = { kind: 'open' }
+      entry.runtimeState.execution.reply.admission = 'admitted'
+      entry.connection = { close: vi.fn(), send: vi.fn(), events: [], redirect: vi.fn().mockReturnValue(false) }
+      // Queue two images under A (uncapped): admitted snapshot is uncapped.
+      service.enqueueUserMessage('session-1', {
+        ...userMessage('user-2'),
+        data: { parts: [imagePart('a.png'), imagePart('b.png')] }
+      } as never)
+      expect(entry.pendingTurns).toHaveLength(1)
+      expect(entry.pendingTurns[0].admittedMaxImages).toBeUndefined()
+      expect(entry.pendingTurns[0].admittedModelId).toBe(baseTurnInput.modelId)
+      // Agent default switches to B before the drain.
+      await (service as any).handleAgentUpdated(
+        'agent-1',
+        { model: switchedModelId },
+        { id: 'agent-1', model: switchedModelId }
+      )
+      mocks.getAgent.mockReturnValue({ id: 'agent-1', type: 'test-runtime', model: switchedModelId })
+      mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-1', model: null })
+      service.markTurnTerminal('session-1', 'success')
+      await (service as any).startNextTurn(entry)
+      // Drain re-resolved against B: the new turn carries B's cap, so admit
+      // would reject the two-image payload before `send`.
+      const drainedTurn = (service as any).currentTurn(entry)
+      expect(drainedTurn.modelId).toBe(switchedModelId)
+      expect(drainedTurn.admittedMaxImages).toBe(1)
+      let error: unknown
+      try {
+        ;(service as any).assertTurnImageLimit(drainedTurn.modelId, [imagePart('a.png'), imagePart('b.png')], 'pi', {
+          maxImages: drainedTurn.admittedMaxImages
+        })
+      } catch (thrown) {
+        error = thrown
+      }
+      expect(error).toBeInstanceOf(AgentImageLimitError)
+      expect(error).toMatchObject({ limit: 1, count: 2 })
+      mocks.getSessionById.mockReturnValue({ updatedAt: '2026-01-01T00:00:01.000Z' })
+    })
+
+    it('carries the admitted cap into the native-block guard after a mid-open catalog refresh (inv_ffefc9caff940445)', async () => {
+      // Submit two PNGs while uncapped, then publish a one-image cap for the
+      // same model ID while the accepted turn opens. The host admit gate keeps
+      // the uncapped capability, and `connection.send` must receive the same
+      // admitted value so Claude's native-block guard cannot reject after the
+      // rows are committed and the stream ack clears the draft.
+      const uncappedModel = {
+        id: baseTurnInput.modelId,
+        providerId: 'test',
+        name: 'Uncapped',
+        capabilities: ['image-recognition'],
+        supportsStreaming: true,
+        isEnabled: true,
+        isHidden: false
+      }
+      const cappedModel = { ...uncappedModel, maxAgentImages: 1 }
+      vi.mocked(modelService.getByKey).mockReturnValue(uncappedModel as never)
+      const connection = {
+        ...createAsyncQueue<any>(),
+        send: vi.fn().mockResolvedValue(undefined),
+        reconcile: vi.fn().mockResolvedValue('current')
+      }
+      const connect = vi.fn().mockResolvedValue(connection)
+      runtimeDriverRegistry.register({
+        type: 'test-runtime',
+        connect,
+        validateSession: vi.fn()
+      })
+      const service = new AgentSessionRuntimeService()
+      const handle = service.beginTurn({
+        ...baseTurnInput,
+        userMessage: {
+          ...userMessage('user-1'),
+          data: { parts: [imagePart('a.png'), imagePart('b.png')] }
+        }
+      })
+      expect((service as any).currentTurn(getEntry(service)).admittedMaxImages).toBeUndefined()
+      vi.mocked(modelService.getByKey).mockReturnValue(cappedModel as never)
+      const stream = openChunkStream(service, {
+        sessionId: 'session-1',
+        turnId: handle.turnId,
+        signal: new AbortController().signal
+      })
+      const reader = stream.getReader()
+      await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+      await vi.waitFor(() => expect(connection.send).toHaveBeenCalled())
+      // Host carried the acceptance-time uncapped capability into the driver.
+      expect(connection.send).toHaveBeenCalledWith(expect.objectContaining({ admittedMaxImages: undefined }))
+      await reader.cancel().catch(() => undefined)
+    })
+
+    it('keeps the acceptance-time cap when reconnect recovery requeues an acknowledged steer (inv_00347e03659bc635)', () => {
+      // An acknowledged native steer is already cleared from the composer. If a
+      // catalog refresh lowers the same model's cap while the steer is pending,
+      // reconnect recovery must reuse the acceptance-time capability, not a
+      // fresh lookup, otherwise the queued steer rejects after the draft was
+      // cleared.
+      const uncappedModel = {
+        id: baseTurnInput.modelId,
+        providerId: 'test',
+        name: 'Uncapped',
+        capabilities: ['image-recognition'],
+        supportsStreaming: true,
+        isEnabled: true,
+        isHidden: false
+      }
+      const cappedModel = { ...uncappedModel, maxAgentImages: 1 }
+      vi.mocked(modelService.getByKey).mockReturnValue(uncappedModel as never)
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      const entry = getEntry(service)
+      const steerId = randomUUID()
+      const steer = {
+        ...userMessage(steerId),
+        data: { parts: [imagePart('a.png'), imagePart('b.png')] }
+      } as never
+      entry.connection = {
+        close: vi.fn(),
+        send: vi.fn(),
+        events: [],
+        contextId: saveSteerInputs(steer),
+        threadInput: steering()
+      }
+      entry.connectionGeneration = 'test-generation'
+      entry.runtimeState.execution.reply.delivery = { kind: 'open' }
+      entry.runtimeState.execution.reply.admission = 'admitted'
+      service.enqueueUserMessage('session-1', steer)
+      const pending = entry.pendingInputs?.get(steerId)
+      expect(pending).toBeDefined()
+      // Acceptance-time snapshot is uncapped for the same model (carried in nextTurn).
+      expect('admittedMaxImages' in pending!.nextTurn).toBe(true)
+      expect(pending!.nextTurn.admittedMaxImages).toBeUndefined()
+      expect(pending!.nextTurn.admittedModelId).toBe(baseTurnInput.modelId)
+      // Catalog refresh lowers the same model's cap while the steer is pending.
+      vi.mocked(modelService.getByKey).mockReturnValue(cappedModel as never)
+      const pendingContextId = pending!.contextId
+      ;(service as any).fallbackNativeInput(entry, 'test-generation', pendingContextId, {
+        status: 'rejected',
+        inputId: steerId,
+        error: { operation: 'steer', code: 'turn-ended', message: 'Turn ended' }
+      })
+      const queued = entry.runtimeState.queue[0]
+      expect(queued).toBeDefined()
+      // Recovery carries the acceptance-time values, not the fresh lower cap.
+      expect('admittedMaxImages' in queued).toBe(true)
+      expect(queued.admittedMaxImages).toBeUndefined()
+      expect(queued.admittedModelId).toBe(baseTurnInput.modelId)
+      // Admit-time presence with an `undefined` cap means uncapped: `admitTurn`
+      // skips validation entirely. A fresh lookup for the same model would now
+      // reject the two-image payload, proving the carry-over matters.
+      const hasAdmitted = 'admittedMaxImages' in queued
+      expect(hasAdmitted && queued.admittedMaxImages === undefined).toBe(true)
+      let freshError: unknown
+      try {
+        ;(service as any).assertTurnImageLimit(baseTurnInput.modelId, (steer as any).data.parts, 'test-runtime')
+      } catch (thrown) {
+        freshError = thrown
+      }
+      expect(freshError).toBeInstanceOf(AgentImageLimitError)
+      expect(freshError).toMatchObject({ limit: 1, count: 2 })
+    })
+  })
 
   it.each(['disabled', 'headless', 'failure', 'plan', 'live-plan', 'unfocused'] as const)(
     'does not generate a prediction for %s turns',
@@ -2092,7 +2722,9 @@ describe('AgentSessionRuntimeService', () => {
 
     await expect(secondReader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
     await vi.waitFor(() =>
-      expect(secondConnection.send).toHaveBeenCalledWith({ message: userMessage('user-2'), systemReminder: false })
+      expect(secondConnection.send).toHaveBeenCalledWith(
+        expect.objectContaining({ message: userMessage('user-2'), systemReminder: false })
+      )
     )
 
     expect(firstConnection.close).toHaveBeenCalled()
@@ -2266,7 +2898,9 @@ describe('AgentSessionRuntimeService', () => {
     const reader = stream.getReader()
     await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
     await vi.waitFor(() =>
-      expect(connection.send).toHaveBeenCalledWith({ message: userMessage('user-1'), systemReminder: false })
+      expect(connection.send).toHaveBeenCalledWith(
+        expect.objectContaining({ message: userMessage('user-1'), systemReminder: false })
+      )
     )
     const turn = getEntry(service).currentTurn
 
@@ -2506,6 +3140,7 @@ describe('AgentSessionRuntimeService', () => {
   })
 
   it('queues follow-ups instead of redirecting them into a stale-model live connection', async () => {
+    vi.mocked(modelService.getByKey).mockReturnValue(undefined as never)
     const service = new AgentSessionRuntimeService()
     service.beginTurn(baseTurnInput)
     const entry = getEntry(service)
@@ -2525,6 +3160,7 @@ describe('AgentSessionRuntimeService', () => {
       { model: switchedModelId },
       { id: 'agent-1', model: switchedModelId }
     )
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', type: 'test-runtime', model: switchedModelId })
     service.enqueueUserMessage('session-1', userMessage('user-2'))
 
     expect(connection.threadInput.steer.submit).not.toHaveBeenCalled()
@@ -2535,12 +3171,15 @@ describe('AgentSessionRuntimeService', () => {
         serviceTier: 'standard',
         knowledgeBaseIds: [],
         fastMode: false,
-        steer: true
+        steer: true,
+        admittedMaxImages: undefined,
+        admittedModelId: switchedModelId
       }
     ])
   })
 
   it('queues a follow-up when its Fast selection differs from the live turn', () => {
+    vi.mocked(modelService.getByKey).mockReturnValue(undefined as never)
     const service = new AgentSessionRuntimeService()
     service.beginTurn({ ...baseTurnInput, fastMode: true })
     const entry = getEntry(service)
@@ -2565,7 +3204,9 @@ describe('AgentSessionRuntimeService', () => {
         serviceTier: 'standard',
         knowledgeBaseIds: [],
         fastMode: false,
-        steer: true
+        steer: true,
+        admittedMaxImages: undefined,
+        admittedModelId: baseTurnInput.modelId
       }
     ])
   })
@@ -6395,6 +7036,7 @@ describe('AgentSessionRuntimeService', () => {
     })
 
     it('queues a steer whose effective knowledge scope differs from the live turn', async () => {
+      vi.mocked(modelService.getByKey).mockReturnValue(undefined as never)
       const events = createAsyncQueue<any>()
       const submitSteer = vi.fn<Steer>(steering().steer.submit)
       const connection = {
@@ -6436,7 +7078,9 @@ describe('AgentSessionRuntimeService', () => {
           serviceTier: 'standard',
           knowledgeBaseIds: ['kb-2'],
           fastMode: false,
-          steer: true
+          steer: true,
+          admittedMaxImages: undefined,
+          admittedModelId: baseTurnInput.modelId
         }
       ])
       void service.closeSession('session-1')

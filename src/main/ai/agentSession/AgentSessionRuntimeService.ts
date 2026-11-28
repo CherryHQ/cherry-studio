@@ -34,6 +34,7 @@ import {
 } from '@main/core/lifecycle'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { getFullChromeWindowInfos } from '@main/utils/fullChromeWindows'
+import { assertRuntimeAgentImageLimit, isManualCompactParts, resolveMaxAgentImages } from '@shared/ai/agentImageLimits'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import { AGENT_SESSION_API_RETRY_CACHE_KEY, type AgentSessionApiRetryInfo } from '@shared/ai/agentSessionApiRetry'
 import {
@@ -276,6 +277,16 @@ type AgentSessionRun = {
   runId: string
   userMessage: AgentSessionMessageEntity
   modelId: ExecutionId
+  /**
+   * Image-limit admitted when the turn was accepted (before persistence/ack).
+   * `admitTurn` re-validates against this captured value instead of a fresh
+   * catalog lookup, so a cap published while the accepted turn is opening
+   * cannot reject it after the draft was cleared. `undefined` means the turn
+   * was admitted uncapped (or the limit was unresolvable) — `admitTurn` then
+   * skips. Absent on pre-existing turns (backward compat) falls back to a
+   * fresh lookup.
+   */
+  admittedMaxImages?: number
   /** Immutable author snapshot captured when this exact turn was submitted. */
   messageSnapshot?: MessageSnapshot
   /** Whether this initial turn owns the session's one automatic AI naming attempt. */
@@ -315,6 +326,21 @@ type QueuedAgentSessionInput = {
   trustedNotifyChannels?: readonly NotifyChannel[]
   /** Submit-time author snapshot so a mid-session agent/model change can't restamp the reply. */
   messageSnapshot?: MessageSnapshot
+  /**
+   * Image-limit admitted at enqueue time, carried into the started turn so a
+   * catalog refresh while queued cannot reject after the draft was cleared.
+   * See `AgentSessionTurn.admittedMaxImages`.
+   */
+  admittedMaxImages?: number
+  /**
+   * Model the enqueue-time admission was resolved against. `handleAgentUpdated`
+   * mutates `entry.modelId` before the host queue drains, so comparing the
+   * drain-time effective model against `entry.modelId` alone would reuse a stale
+   * uncapped snapshot after an agent-default switch (A uncapped -> B capped).
+   * The drain compares against this captured model and re-resolves when it
+   * differs, so B's cap governs B's dispatch.
+   */
+  admittedModelId?: ExecutionId
 }
 
 type AgentSessionConnectionTarget = AgentSessionRuntimeConnectionTarget & {
@@ -484,6 +510,56 @@ export class AgentSessionRuntimeService extends BaseService {
 
   assertSessionWritable(sessionId: string): void {
     if (this.forks.edits.has(sessionId) || this.entries.get(sessionId)?.closing) throw new AgentSessionEditError('busy')
+  }
+
+  /**
+   * Capability-driven multi-image guard (#20030): count the turn's image
+   * attachments in the user's order and reject before any paid provider
+   * request when the turn's model declares fewer than attached. Supported
+   * combinations pass through untouched and receive every image in order.
+   * Unresolvable models keep the legacy unlimited behavior instead of
+   * blocking on missing metadata.
+   *
+   * Runtime-specific payloads differ, so the gate branches: Pi/Durable forward
+   * every `file://` path (raw count over history + new parts), Claude counts
+   * only native-block candidates (routed managed + external workspace images,
+   * AVIF/HEIC excluded via the path fallback), and other runtimes keep the
+   * routed/history distinction.
+   */
+  private resolveTurnImageLimit(modelId: ExecutionId | undefined): number | undefined {
+    if (!modelId || !isUniqueModelId(modelId)) return undefined
+    try {
+      const { providerId, modelId: rawModelId } = parseUniqueModelId(modelId)
+      return resolveMaxAgentImages(modelService.getByKey(providerId, rawModelId))
+    } catch (error) {
+      logger.warn('Failed to resolve model for agent image-limit validation; skipping', { modelId, error })
+      return undefined
+    }
+  }
+
+  private assertTurnImageLimit(
+    modelId: ExecutionId | undefined,
+    parts: readonly CherryMessagePart[] | undefined,
+    agentType: string | undefined,
+    opts?: { routed?: boolean; maxImages?: number }
+  ): void {
+    if (opts?.maxImages !== undefined) {
+      assertRuntimeAgentImageLimit(parts, undefined, agentType, {
+        routed: opts?.routed,
+        maxImages: opts.maxImages
+      })
+      return
+    }
+    if (!modelId || !isUniqueModelId(modelId)) return
+    let model: ReturnType<typeof modelService.getByKey> | undefined
+    try {
+      const { providerId, modelId: rawModelId } = parseUniqueModelId(modelId)
+      model = modelService.getByKey(providerId, rawModelId)
+    } catch (error) {
+      logger.warn('Failed to resolve model for agent image-limit validation; skipping', { modelId, error })
+      return
+    }
+    assertRuntimeAgentImageLimit(parts, model, agentType, { routed: opts?.routed })
   }
 
   assertSessionEditable(sessionId: string, ownEdit = false): void {
@@ -986,6 +1062,18 @@ export class AgentSessionRuntimeService extends BaseService {
   beginTurn(input: BeginAgentSessionTurnInput): AgentSessionRuntimeHandle {
     this.assertSessionWritable(input.sessionId)
     const userMessage = input.userMessage ?? createSyntheticUserMessage(input.sessionId)
+    // Manual `/compact` on Pi / Pi-Durable compacts without submitting images
+    // or replay (both drivers short-circuit when `systemReminder` is false
+    // and no delivery wrapper prefixes the prompt, which `beginTurn` always
+    // satisfies), so it never gates — matching `send`. Joined-text + delivery
+    // check mirrors `buildAgentUserContent`.
+    const isManualCompact =
+      (input.agentType === 'pi' || input.agentType === 'pi-durable') &&
+      isManualCompactParts(userMessage.data.parts, { hasDelivery: userMessage.delivery !== undefined })
+    if (!isManualCompact) {
+      this.assertTurnImageLimit(input.modelId, userMessage.data.parts, input.agentType)
+    }
+    const admittedMaxImages = isManualCompact ? undefined : this.resolveTurnImageLimit(input.modelId)
     // oxlint-disable-next-line no-restricted-globals -- Capture per-turn model/settings metadata before asynchronous native dispatch.
     const messageSnapshot = input.messageSnapshot ? structuredClone(input.messageSnapshot) : undefined
     const existing = this.selectRecoveredRoot(input.sessionId, input.assistantMessageId)
@@ -1002,6 +1090,7 @@ export class AgentSessionRuntimeService extends BaseService {
       runId: input.assistantMessageId,
       userMessage,
       modelId: input.modelId,
+      admittedMaxImages,
       messageSnapshot,
       shouldAutoName: input.shouldAutoName === true,
       reasoningEffort: input.reasoningEffort ?? 'default',
@@ -1209,6 +1298,7 @@ export class AgentSessionRuntimeService extends BaseService {
       userMessage: input.message,
       parentId: input.message.id,
       modelId: source.modelId,
+      admittedMaxImages: 'admittedMaxImages' in source ? source.admittedMaxImages : undefined,
       messageSnapshot: input.messageSnapshot ?? entry.messageSnapshot,
       reasoningEffort: source.reasoningEffort,
       serviceTier: source.serviceTier,
@@ -1585,6 +1675,11 @@ export class AgentSessionRuntimeService extends BaseService {
         headless ? null : this.readSessionModelOverride(sessionId)
       ) ?? entry.modelId
     if (latestEffectiveModel !== entry.modelId) entry.modelId = latestEffectiveModel
+    // Capability-driven multi-image guard (#20030): reject before any paid
+    // provider request when the turn's model accepts fewer images than
+    // attached. The message is never queued, so retry keeps the full draft.
+    this.assertTurnImageLimit(entry.modelId, message.data.parts, entry.agentType)
+    const admittedMaxImages = this.resolveTurnImageLimit(entry.modelId)
     // A changed model/reasoning/service-tier/Fast/knowledge scope must queue as the next turn.
     const configuredKnowledgeBaseIds = agentService.getAgent(entry.agentId)?.knowledgeBaseIds
     const canUseCurrentTurnConfig =
@@ -1606,6 +1701,8 @@ export class AgentSessionRuntimeService extends BaseService {
       knowledgeBaseIds,
       fastMode,
       steer: !opts.followUp,
+      admittedMaxImages,
+      admittedModelId: entry.modelId,
       ...(headless ? { headless } : {}),
       ...(opts.permissionModeOverride ? { permissionModeOverride: opts.permissionModeOverride } : {}),
       ...(trustedNotifyChannels !== undefined ? { trustedNotifyChannels } : {}),
@@ -1637,7 +1734,12 @@ export class AgentSessionRuntimeService extends BaseService {
       pending.set(message.id, { input, nextTurn: { ...nextTurn, message: input.message }, generation, contextId })
       const inputId = runtimeId<'input'>(message.id)
       const submit = async () => {
-        const result = await native({ inputId, message: input.message, systemReminder: input.systemReminder })
+        const result = await native({
+          inputId,
+          message: input.message,
+          systemReminder: input.systemReminder,
+          admittedMaxImages
+        })
         if (result.inputId !== inputId) throw new Error('Native input receipt names a different input')
         if (result.status === 'rejected' || result.status === 'unsupported') {
           this.fallbackNativeInput(entry, generation, contextId, result)
@@ -2809,7 +2911,17 @@ export class AgentSessionRuntimeService extends BaseService {
       agentSessionMessageService.markUserMessageUnsent(entry.sessionId, result.inputId)
       return
     }
-    this.applyRuntimeStateEvent(entry, { type: 'queue-turn', turn: pending.nextTurn })
+    // Carry the acceptance-time capability into the queued steer so a catalog
+    // refresh that lowers the same model's cap while the input is pending
+    // cannot reject it after the composer cleared the draft. Presence reuses
+    // the acceptance value (`undefined` = admitted uncapped); absence (older
+    // entries) falls back to a fresh lookup for backward compatibility.
+    const turn = pending.nextTurn
+    if (!('admittedMaxImages' in turn)) {
+      turn.admittedMaxImages = this.resolveTurnImageLimit(entry.modelId)
+      turn.admittedModelId = entry.modelId
+    }
+    this.applyRuntimeStateEvent(entry, { type: 'queue-turn', turn })
   }
 
   private pendingInputValues(
@@ -3250,6 +3362,7 @@ export class AgentSessionRuntimeService extends BaseService {
         const turn = createSessionRun({
           ...this.connectionTarget(entry),
           modelId: background ? modelId : entry.modelId,
+          admittedMaxImages: this.resolveTurnImageLimit(background ? modelId : entry.modelId),
           taskIds: recoveredInput ? [recoveredInput] : [],
           userMessage: recoveredInput
             ? agentSessionMessageService.getSessionMessage(entry.sessionId, recoveredInput)
@@ -3988,10 +4101,77 @@ export class AgentSessionRuntimeService extends BaseService {
       this.currentConnection(entry) !== connection
     )
       return
+    // Last gate before the paid provider call: validate against the turn's
+    // captured model, not the entry's latest default. The connection targets
+    // `turn.modelId` while live (see `connectionTarget`), so an agent-default
+    // change during connection opening must not re-gate the opening turn.
+    // The admitted image limit is also captured at acceptance (before
+    // persistence/ack): a cap published while the accepted turn is opening
+    // must not reject it after the draft was cleared — the turn keeps its
+    // admitted capability. Include replayed history with the runtime-specific
+    // payload in mind: Pi / Durable forward every `file://` path (raw count,
+    // so replayed workspace PNGs gate even without live tokens), Claude
+    // counts native-block candidates (routed managed + external workspace
+    // images, AVIF excluded), and orphaned managed history passes for
+    // runtimes whose routing drops it.
+    // Manual `/compact` on Pi / Pi-Durable compacts without submitting replay
+    // (both drivers short-circuit on the joined prompt when `systemReminder`
+    // is false and no delivery wrapper prefixes it), so it skips validation
+    // — matching `send`. Steers never skip: the drivers do not treat them as
+    // compact and still submit replay. Joined-text + delivery check mirrors
+    // `buildAgentUserContent`: `Compare these` + `/compact` as separate parts
+    // or a delivery prefix submits an ordinary turn and must still gate.
+    // A rejection here fires before `connection.send`, so the composer draft
+    // stays intact and no pending assistant row is left without a stream.
+    const isManualCompact =
+      (entry.agentType === 'pi' || entry.agentType === 'pi-durable') &&
+      isManualCompactParts(turn.userMessage.data.parts, {
+        systemReminder: turn.systemReminder === true,
+        hasDelivery: turn.userMessage.delivery !== undefined
+      })
+    if (!isManualCompact) {
+      // Prefer the admitted capability captured at acceptance when present.
+      // `undefined` means the turn was admitted uncapped — skip, even if the
+      // catalog now declares a cap. Absent (pre-existing turns) falls back to
+      // a fresh lookup for backward compatibility.
+      const hasAdmitted = 'admittedMaxImages' in turn
+      const admittedMaxImages = hasAdmitted ? turn.admittedMaxImages : undefined
+      if (hasAdmitted) {
+        if (admittedMaxImages !== undefined) {
+          if (context?.length) {
+            this.assertTurnImageLimit(
+              turn.modelId,
+              [...context, ...(turn.userMessage.data.parts ?? [])],
+              entry.agentType,
+              {
+                routed: true,
+                maxImages: admittedMaxImages
+              }
+            )
+          } else {
+            this.assertTurnImageLimit(turn.modelId, turn.userMessage.data.parts, entry.agentType, {
+              maxImages: admittedMaxImages
+            })
+          }
+        }
+      } else if (context?.length) {
+        this.assertTurnImageLimit(turn.modelId, [...context, ...(turn.userMessage.data.parts ?? [])], entry.agentType, {
+          routed: true
+        })
+      } else {
+        this.assertTurnImageLimit(turn.modelId, turn.userMessage.data.parts, entry.agentType)
+      }
+    }
     await connection.send({
       message: turn.userMessage,
       systemReminder: turn.systemReminder === true,
-      ...(context && { context })
+      ...(context && { context }),
+      // Carry the admitted capability into the driver's native-block guard so
+      // a cap published while the accepted turn opens cannot reject after
+      // persistence/ack. Presence (even `undefined` for uncapped) reuses the
+      // acceptance value; absence (pre-existing turns) lets the driver fall
+      // back to a fresh lookup.
+      ...('admittedMaxImages' in turn ? { admittedMaxImages: turn.admittedMaxImages } : {})
     })
   }
 
@@ -4315,7 +4495,8 @@ export class AgentSessionRuntimeService extends BaseService {
     const liveAgent = agentService.getAgent(entry.agentId)
     const sessionOverride = pending.headless ? null : this.readSessionModelOverride(entry.sessionId)
     const effectiveModel = this.getAgentExecutionId(liveAgent, sessionOverride)
-    if (effectiveModel && effectiveModel !== entry.modelId) {
+    const modelChanged = Boolean(effectiveModel && effectiveModel !== entry.modelId)
+    if (effectiveModel && modelChanged) {
       entry.modelId = effectiveModel
       this.invalidateContextUsage(entry)
     }
@@ -4325,12 +4506,26 @@ export class AgentSessionRuntimeService extends BaseService {
             .getNamesByUniqueIdsTx(application.get('DbService').getDb(), [sessionOverride])
             .get(sessionOverride) ?? parseUniqueModelId(sessionOverride).modelId)
         : liveAgent?.modelName
+    // Keep the admitted capability when the model is unchanged: a cap
+    // published while queued must not reject after the draft was cleared.
+    // When the model itself changed, the new model governs — resolve fresh.
+    // Compare against the enqueue-time admitted model, not `entry.modelId`
+    // alone: `handleAgentUpdated` mutates `entry.modelId` before the drain,
+    // which would otherwise hide an A (uncapped) -> B (capped) switch and
+    // reuse A's stale snapshot for B's dispatch.
+    const admittedModelId = 'admittedModelId' in pending ? pending.admittedModelId : undefined
+    const modelChangedSinceAdmission = admittedModelId ? admittedModelId !== effectiveModel : modelChanged
+    const admittedMaxImages =
+      !modelChangedSinceAdmission && 'admittedMaxImages' in pending
+        ? pending.admittedMaxImages
+        : this.resolveTurnImageLimit(entry.modelId)
     const turn = createSessionRun({
       taskIds: [pending.message.id],
       userMessage: pending.message,
       parentId: pending.message.id,
       systemReminder: pending.steer === true,
       modelId: entry.modelId,
+      admittedMaxImages,
       messageSnapshot: reconcileSnapshotModel(
         pending.messageSnapshot ?? entry.messageSnapshot,
         entry.modelId,

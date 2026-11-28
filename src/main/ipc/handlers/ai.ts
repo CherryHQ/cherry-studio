@@ -23,10 +23,12 @@ import { generateProfileStarters } from '@main/ai/profileStarters'
 import { AgentSessionForkError } from '@main/ai/runtime/fork'
 import { checkLocalAgent, listLocalAgentModels, readLocalAgentAccount } from '@main/ai/runtime/LocalRuntimeDriver'
 import { AiStreamAdmissionError, type MainDispatchRequest, persistentChatContextProvider } from '@main/ai/streamManager'
+import { serializeError } from '@main/ai/utils/serializeError'
 import { detectLocalAgents, openLocalAgentTerminal, selectLocalAgentModel } from '@main/services/codeCli'
 import { openRequestPath } from '@main/services/file'
 import { protectLocalAgentEnvironment, resolveLocalAgentCredentials } from '@main/services/localAgentCredentials'
 import { PathStaleVersionError } from '@main/utils/file'
+import { AgentImageLimitError } from '@shared/ai/agentImageLimits'
 import { isAgentSessionForkFailureReason } from '@shared/ai/agentSessionFork'
 import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
 import type { LocalAgentAccount, LocalAgentConfiguration } from '@shared/ai/localAgent'
@@ -73,6 +75,13 @@ async function exposeAiStreamAdmission<T>(op: () => Promise<T>): Promise<T> {
     }
     if (error instanceof AiStreamAdmissionError) {
       throw new IpcError(aiErrorCodes.AI_STREAM_ADMISSION_REJECTED, error.reason, { reason: error.reason })
+    }
+    if (error instanceof AgentImageLimitError) {
+      // Capability-driven multi-image guard (#20030): preserve the typed limit
+      // across IPC so the renderer can render the limit/count warning instead of
+      // a generic processing error. Uses AI_REQUEST_FAILED + serializeError so
+      // aiErrorDetail() recovers limit/count/i18nKey/sent in the renderer.
+      throw new IpcError(aiErrorCodes.AI_REQUEST_FAILED, error.message, serializeError(error))
     }
     throw error
   }

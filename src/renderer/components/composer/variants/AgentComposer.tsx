@@ -82,6 +82,14 @@ import {
 } from '@renderer/utils/input'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { resolveReasoningEffortForModel } from '@renderer/utils/model'
+import {
+  countAgentImageAttachments,
+  countAgentImageFileParts,
+  countClaudeNativeFileParts,
+  countClaudeNativeImageAttachments,
+  isManualCompactParts,
+  resolveMaxAgentImages
+} from '@shared/ai/agentImageLimits'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import { AGENT_SESSION_RUNTIME_CONTROLS_CACHE_KEY } from '@shared/ai/agentSessionRuntimeControls'
 import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
@@ -93,6 +101,7 @@ import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { CherryMessagePart, CherryUIMessage, FileUIPart } from '@shared/data/types/message'
 import type { Model, ServiceTierSelection } from '@shared/data/types/model'
 import { getKnowledgeBaseIdsFromParts, withKnowledgeScopePart } from '@shared/data/types/uiParts'
+import { aiErrorDetail } from '@shared/ipc/errors/ai'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import type { LocalSkill } from '@shared/types/skill'
 import { archiveExts, audioExts, documentExts, imageExts, textExts, videoExts } from '@shared/utils/file'
@@ -1518,6 +1527,28 @@ const AgentComposerInner = ({
       if (sendDisabled) return false
       try {
         const attachments = (payload.attachments as ComposerAttachment[] | undefined) ?? []
+        // Re-check on drain: the model may have changed since the follow-up was
+        // queued. Keeps the payload so a model switch unblocks retry. Count both
+        // composer attachments and prebuilt file parts (Desktop unsent-message
+        // Resend reaches here with prebuilt parts that bypass the draft count).
+        // Claude counts only native-block candidates (TIFF/AVIF take the path
+        // fallback in the driver), so PNG+TIFF fits a one-image native cap.
+        // Manual `/compact` on Pi / Pi-Durable compacts without submitting
+        // images or replay (both drivers short-circuit), so it never gates —
+        // matching `beginTurn`/`admitTurn` and `send`.
+        const isManualCompact =
+          (agent?.type === 'pi' || agent?.type === 'pi-durable') && isManualCompactParts(payload.userMessageParts)
+        const drainMaxImages = resolveMaxAgentImages(model)
+        if (drainMaxImages !== undefined && !isManualCompact) {
+          const isClaudeNative = agent?.type === 'claude-code'
+          const drainImageCount = isClaudeNative
+            ? countClaudeNativeImageAttachments(attachments) + countClaudeNativeFileParts(payload.userMessageParts)
+            : countAgentImageAttachments(attachments) + countAgentImageFileParts(payload.userMessageParts)
+          if (drainImageCount > drainMaxImages) {
+            toast.warning(t('agent.image_limit_exceeded', { limit: drainMaxImages, count: drainImageCount }))
+            return false
+          }
+        }
         const originals = launchOptions?.initialParts?.filter((part): part is FileUIPart => part.type === 'file') ?? []
         const retainedParts = attachments.map((attachment) => {
           const index = initialDraft.files.findIndex((file) => file.fileTokenSourceId === attachment.fileTokenSourceId)
@@ -1556,21 +1587,46 @@ const AgentComposerInner = ({
         return true
       } catch (error: unknown) {
         logger.warn('Failed to send message:', error as Error)
+        // Capability-driven multi-image guard (#20030): a main-side rejection
+        // now arrives as AI_REQUEST_FAILED with serializeError data (limit/count
+        // via aiErrorDetail), while direct throws still carry the typed fields.
+        // Render the limit warning so retry preserves the draft instead of
+        // showing a generic processing error.
+        const direct = error as Record<string, unknown> | null
+        const detail = (aiErrorDetail(error) as Record<string, unknown> | undefined) ?? undefined
+        const serialized = (detail ?? direct) as Record<string, unknown> | undefined
+        const i18nKey = typeof serialized?.i18nKey === 'string' ? serialized.i18nKey : undefined
+        if (
+          i18nKey === 'agent_image_limit_exceeded' ||
+          i18nKey === 'agent_image_limit_exceeded_after_send' ||
+          (error as Error)?.name === 'AgentImageLimitError'
+        ) {
+          const values = (serialized?.detailI18nValues as Record<string, string> | undefined) ?? {}
+          const limit = Number(values.limit ?? serialized?.limit)
+          const count = Number(values.count ?? serialized?.count)
+          if (Number.isFinite(limit) && Number.isFinite(count)) {
+            toast.warning(t('agent.image_limit_exceeded', { limit, count }))
+            return false
+          }
+        }
         toast.errorFromException(error)
         return false
       }
     },
     [
       accessiblePaths,
+      agent?.type,
       agentId,
       sendDisabled,
       chatSendMessage,
       initialDraft.files,
       launchOptions,
+      model,
       saveHistory,
       sessionId,
       sessionTopicId,
-      supportsKnowledgeBases
+      supportsKnowledgeBases,
+      t
     ]
   )
 
@@ -1733,6 +1789,25 @@ const AgentComposerInner = ({
       }
       const payload = buildQueuedPayload(draft)
       if (!payload) return
+      // Capability-driven multi-image guard (#20030): block before anything is
+      // sent when the attached images exceed the model's limit. The draft stays
+      // intact so retry preserves attachments and instructions. Claude counts
+      // only native-block candidates (TIFF/AVIF take the path fallback in the
+      // driver), so PNG+TIFF fits a one-image native cap. Manual `/compact` on
+      // Pi / Pi-Durable compacts without submitting images or replay, so it
+      // never gates — matching `beginTurn`/`admitTurn`, `send`, and the drain
+      // gate above.
+      const isManualCompact =
+        (agent?.type === 'pi' || agent?.type === 'pi-durable') && isManualCompactParts(payload.userMessageParts)
+      const maxImages = resolveMaxAgentImages(model)
+      if (maxImages !== undefined && !isManualCompact) {
+        const imageCount =
+          agent?.type === 'claude-code' ? countClaudeNativeImageAttachments(files) : countAgentImageAttachments(files)
+        if (imageCount > maxImages) {
+          toast.warning(t('agent.image_limit_exceeded', { limit: maxImages, count: imageCount }))
+          return
+        }
+      }
 
       const compact = /^\/compact(?:\s+([\s\S]+))?$/.exec(payload.text.trim())
       if (
@@ -1788,6 +1863,7 @@ const AgentComposerInner = ({
       buildQueuedPayload,
       clearCurrentDraft,
       enqueueFollowup,
+      files,
       isStreaming,
       model,
       hasDurableFollowUp,

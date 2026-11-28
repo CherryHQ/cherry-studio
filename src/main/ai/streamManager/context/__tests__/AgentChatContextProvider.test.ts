@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   branchTip: vi.fn(),
   saveMessage: vi.fn(),
   saveMessagesTx: vi.fn(),
+  deleteSessionMessage: vi.fn(),
   hasSessionMessages: vi.fn(),
   maybeRenameAgentSessionFromFirstUserMessage: vi.fn(),
   maybeRenameAgentSession: vi.fn(),
@@ -27,14 +28,19 @@ const mocks = vi.hoisted(() => ({
   runtimeValidateSession: vi.fn(),
   setEditRuntimeTx: vi.fn(),
   reserveDurableBranchTx: vi.fn(),
-  getModelNames: vi.fn(() => new Map<string, string>())
+  getModelNames: vi.fn(() => new Map<string, string>()),
+  getModelByKey: vi.fn(),
+  readAgentSessionPath: vi.fn((): unknown[] => [])
 }))
 
 vi.mock('@data/services/AgentSessionService', () => ({
   agentSessionService: { getById: mocks.getSession, ensureTraceIdTx: mocks.ensureTraceIdTx }
 }))
 
-vi.mock('@data/services/agentSessionMessageTree', () => ({ getAgentSessionHead: () => mocks.captureHead() }))
+vi.mock('@data/services/agentSessionMessageTree', () => ({
+  getAgentSessionHead: () => mocks.captureHead(),
+  readAgentSessionPath: mocks.readAgentSessionPath
+}))
 vi.mock('@main/ai/runtime/claudeCode', () => ({ reserveClaudeBranchTx: vi.fn() }))
 vi.mock('@main/ai/runtime/pi/piContext', () => ({ reservePiBranchTx: vi.fn() }))
 vi.mock('@main/ai/runtime/piDurable/durableContext', () => ({ reserveDurableBranchTx: mocks.reserveDurableBranchTx }))
@@ -57,6 +63,7 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
     branchTip: mocks.branchTip,
     saveMessage: mocks.saveMessage,
     saveMessagesTx: mocks.saveMessagesTx,
+    deleteSessionMessage: mocks.deleteSessionMessage,
     hasSessionMessages: mocks.hasSessionMessages,
     setEditRuntimeTx: mocks.setEditRuntimeTx
   }
@@ -70,7 +77,7 @@ vi.mock('@main/services/TopicNamingService', () => ({
 }))
 
 vi.mock('@data/services/ModelService', () => ({
-  modelService: { getNamesByUniqueIdsTx: () => mocks.getModelNames() }
+  modelService: { getNamesByUniqueIdsTx: () => mocks.getModelNames(), getByKey: mocks.getModelByKey }
 }))
 
 vi.mock('@application', () => ({
@@ -178,6 +185,8 @@ describe('AgentChatContextProvider', () => {
     mocks.runtimeValidateSession.mockResolvedValue(undefined)
     mocks.runtimeIsSessionBusy.mockReturnValue(false)
     mocks.runtimeEditSession.mockImplementation(async (_sessionId, _target, fn) => fn({}, 'native-session'))
+    // History-inclusive image validation is fail-open by default (no replay).
+    mocks.readAgentSessionPath.mockReturnValue([])
     // clearAllMocks preserves return values: re-seed the name map so override
     // tests can't leak state into later cases.
     mocks.getModelNames.mockReturnValue(new Map())
@@ -654,5 +663,333 @@ describe('AgentChatContextProvider', () => {
     )
     expect(mocks.saveMessage).not.toHaveBeenCalled()
     expect(mocks.saveMessagesTx).not.toHaveBeenCalled()
+  })
+
+  describe('multi-image limits (#20030)', () => {
+    const imagePart = (filename: string) => ({
+      type: 'file',
+      url: `file:///tmp/${filename}`,
+      mediaType: 'image/png',
+      filename
+    })
+    const twoImages = [imagePart('a.png'), imagePart('b.png')]
+    const singleImageModel = {
+      id: 'anthropic::claude-sonnet',
+      providerId: 'anthropic',
+      name: 'Single',
+      capabilities: ['image-recognition'],
+      supportsStreaming: true,
+      isEnabled: true,
+      isHidden: false,
+      maxAgentImages: 1
+    }
+
+    beforeEach(() => {
+      mocks.getModelByKey.mockReset().mockReturnValue(singleImageModel)
+      mocks.deleteSessionMessage.mockReset()
+    })
+
+    it('rejects over-limit idle dispatch before committing any rows', async () => {
+      mocks.runtimeIsSessionBusy.mockReturnValue(false)
+
+      await expect(
+        provider.prepareDispatch(makeSubscriber(), openReq({ userMessageParts: twoImages as any }))
+      ).rejects.toMatchObject({ name: 'AgentImageLimitError', limit: 1, count: 2 })
+
+      expect(mocks.saveMessagesTx).not.toHaveBeenCalled()
+      expect(mocks.saveMessage).not.toHaveBeenCalled()
+      expect(mocks.runtimeBeginTurn).not.toHaveBeenCalled()
+      expect(mocks.deleteSessionMessage).not.toHaveBeenCalled()
+    })
+
+    it('rejects over-limit busy dispatch before saving the user row', async () => {
+      mocks.runtimeIsSessionBusy.mockReturnValue(true)
+
+      await expect(
+        provider.prepareDispatch(makeSubscriber(), openReq({ userMessageParts: twoImages as any }))
+      ).rejects.toMatchObject({ name: 'AgentImageLimitError', limit: 1, count: 2 })
+
+      expect(mocks.saveMessage).not.toHaveBeenCalled()
+      expect(mocks.saveMessagesTx).not.toHaveBeenCalled()
+      expect(mocks.runtimeEnqueueUserMessage).not.toHaveBeenCalled()
+    })
+
+    it('deletes the saved busy user row when enqueue rejects after the save race', async () => {
+      mocks.runtimeIsSessionBusy.mockReturnValue(true)
+      // Pre-save validation passes (unlimited at validate time and at the
+      // pre-save re-check), then enqueue rejects — the provider must clean up
+      // the just-saved row.
+      const unlimited = {
+        id: 'anthropic::claude-sonnet',
+        providerId: 'anthropic',
+        name: 'Unlimited',
+        capabilities: ['image-recognition'],
+        supportsStreaming: true,
+        isEnabled: true,
+        isHidden: false
+      }
+      mocks.getModelByKey.mockReset().mockReturnValue(unlimited)
+      const { AgentImageLimitError } = await import('@shared/ai/agentImageLimits')
+      mocks.runtimeEnqueueUserMessage.mockImplementationOnce(() => {
+        throw new AgentImageLimitError({ limit: 1, count: 2, runtime: 'claude-code' })
+      })
+
+      await expect(
+        provider.prepareDispatch(makeSubscriber(), openReq({ userMessageParts: twoImages as any }))
+      ).rejects.toMatchObject({ name: 'AgentImageLimitError' })
+
+      expect(mocks.saveMessage).toHaveBeenCalledOnce()
+      expect(mocks.deleteSessionMessage).toHaveBeenCalledWith('session-1', expect.any(String))
+    })
+
+    it('deletes committed rows when beginTurn rejects after persist', async () => {
+      mocks.runtimeIsSessionBusy.mockReturnValue(false)
+      mocks.getModelByKey.mockReturnValue({
+        id: 'anthropic::claude-sonnet',
+        providerId: 'anthropic',
+        name: 'Unlimited',
+        capabilities: ['image-recognition'],
+        supportsStreaming: true,
+        isEnabled: true,
+        isHidden: false
+      })
+      const { AgentImageLimitError } = await import('@shared/ai/agentImageLimits')
+      mocks.runtimeBeginTurn.mockImplementationOnce(() => {
+        throw new AgentImageLimitError({ limit: 1, count: 2, runtime: 'claude-code' })
+      })
+
+      await expect(
+        provider.prepareDispatch(makeSubscriber(), openReq({ userMessageParts: twoImages as any }))
+      ).rejects.toMatchObject({ name: 'AgentImageLimitError' })
+
+      expect(mocks.saveMessagesTx).toHaveBeenCalledOnce()
+      expect(mocks.deleteSessionMessage).toHaveBeenCalledTimes(2)
+    })
+
+    it('rejects a text-only continuation that must replay saved workspace images before committing (inv_907b732ecb902515)', async () => {
+      // Regression: admitTurn used to reject after the user + assistant rows
+      // were committed and the ack cleared the draft. The idle gate now
+      // validates the replay payload (history files + new parts) before any
+      // write, so zero rows are committed and no stream opens.
+      mocks.runtimeIsSessionBusy.mockReturnValue(false)
+      mocks.getAgent.mockReturnValue({
+        id: 'agent-1',
+        name: 'My Agent',
+        type: 'pi',
+        model: 'anthropic::claude-sonnet',
+        modelName: 'Claude Sonnet'
+      })
+      runtimeDriverRegistry.clearForTest()
+      runtimeDriverRegistry.register({
+        type: 'pi',
+        connect: vi.fn(),
+        validateSession: mocks.runtimeValidateSession
+      })
+      const historyRow = (filename: string) => ({
+        id: `hist-${filename}`,
+        role: 'user',
+        status: 'success',
+        data: {
+          parts: [{ type: 'file', url: `file:///workspace/${filename}`, mediaType: 'image/png', filename }]
+        },
+        runtimeResumeToken: null,
+        inputContextId: null,
+        deliveryStatus: null
+      })
+      mocks.readAgentSessionPath.mockReturnValue([historyRow('a.png'), historyRow('b.png')])
+      await expect(
+        provider.prepareDispatch(
+          makeSubscriber(),
+          openReq({ userMessageParts: [{ type: 'text', text: 'continue' }] as any })
+        )
+      ).rejects.toMatchObject({ name: 'AgentImageLimitError', limit: 1, count: 2 })
+      expect(mocks.saveMessagesTx).not.toHaveBeenCalled()
+      expect(mocks.saveMessage).not.toHaveBeenCalled()
+      expect(mocks.runtimeBeginTurn).not.toHaveBeenCalled()
+      expect(mocks.deleteSessionMessage).not.toHaveBeenCalled()
+    })
+
+    it('permits manual /compact with replayed images on Pi without submitting replay (inv_dae5bb8beabb913b)', async () => {
+      // Both Pi drivers compact without submitting replay, so the idle gate
+      // skips replay validation for `/compact`. Claude keeps gating because it
+      // has no manual-compact bypass.
+      mocks.runtimeIsSessionBusy.mockReturnValue(false)
+      const historyRow = (filename: string) => ({
+        id: `hist-${filename}`,
+        role: 'user',
+        status: 'success',
+        data: {
+          parts: [{ type: 'file', url: `file:///workspace/${filename}`, mediaType: 'image/png', filename }]
+        },
+        runtimeResumeToken: null,
+        inputContextId: null,
+        deliveryStatus: null
+      })
+      mocks.readAgentSessionPath.mockReturnValue([historyRow('a.png'), historyRow('b.png')])
+      const compactParts = [{ type: 'text', text: '/compact keep facts' }] as any
+      for (const agentType of ['pi', 'pi-durable'] as const) {
+        mocks.getAgent.mockReturnValue({
+          id: 'agent-1',
+          name: 'My Agent',
+          type: agentType,
+          model: 'anthropic::claude-sonnet',
+          modelName: 'Claude Sonnet'
+        })
+        runtimeDriverRegistry.clearForTest()
+        runtimeDriverRegistry.register({
+          type: agentType,
+          connect: vi.fn(),
+          validateSession: mocks.runtimeValidateSession
+        })
+        await provider.prepareDispatch(makeSubscriber(), openReq({ userMessageParts: compactParts }))
+        expect(mocks.saveMessagesTx).toHaveBeenCalled()
+        mocks.saveMessagesTx.mockClear()
+        mocks.runtimeBeginTurn.mockClear()
+      }
+      mocks.getAgent.mockReturnValue({
+        id: 'agent-1',
+        name: 'My Agent',
+        type: 'claude-code',
+        model: 'anthropic::claude-sonnet',
+        modelName: 'Claude Sonnet'
+      })
+      runtimeDriverRegistry.clearForTest()
+      runtimeDriverRegistry.register({
+        type: 'claude-code',
+        connect: vi.fn(),
+        validateSession: mocks.runtimeValidateSession
+      })
+      await expect(
+        provider.prepareDispatch(makeSubscriber(), openReq({ userMessageParts: compactParts }))
+      ).rejects.toMatchObject({ name: 'AgentImageLimitError', limit: 1, count: 2 })
+    })
+
+    it('rejects split /compact and delivery-prefixed /compact while genuine /compact passes (inv_a799a7c78eb893f7)', async () => {
+      // Drivers join text parts via `buildAgentUserContent` and prefix delivery
+      // wrappers: `Compare these` + `/compact` as separate parts, or any
+      // delivery-prefixed `/compact`, submits an ordinary turn and must gate.
+      mocks.runtimeIsSessionBusy.mockReturnValue(false)
+      mocks.getAgent.mockReturnValue({
+        id: 'agent-1',
+        name: 'My Agent',
+        type: 'pi',
+        model: 'anthropic::claude-sonnet',
+        modelName: 'Claude Sonnet'
+      })
+      runtimeDriverRegistry.clearForTest()
+      runtimeDriverRegistry.register({ type: 'pi', connect: vi.fn(), validateSession: mocks.runtimeValidateSession })
+      const historyRow = (filename: string) => ({
+        id: `hist-${filename}`,
+        role: 'user',
+        status: 'success',
+        data: {
+          parts: [{ type: 'file', url: `file:///workspace/${filename}`, mediaType: 'image/png', filename }]
+        },
+        runtimeResumeToken: null,
+        inputContextId: null,
+        deliveryStatus: null
+      })
+      mocks.readAgentSessionPath.mockReturnValue([historyRow('a.png'), historyRow('b.png')])
+      const splitCompact = [
+        { type: 'text', text: 'Compare these' },
+        { type: 'text', text: '/compact' }
+      ] as any
+      await expect(
+        provider.prepareDispatch(makeSubscriber(), openReq({ userMessageParts: splitCompact }))
+      ).rejects.toMatchObject({ name: 'AgentImageLimitError', limit: 1, count: 2 })
+      mocks.saveMessagesTx.mockClear()
+      // Delivery-prefixed `/compact` never compacts (security-notice prefix),
+      // so it must also gate.
+      const deliveryCompact = [{ type: 'text', text: '/compact' }] as any
+      await expect(
+        provider.prepareDispatch(
+          makeSubscriber(),
+          openReq({
+            userMessageParts: deliveryCompact,
+            agentDeliveryMessage: {
+              id: 'delivery-1',
+              sessionId: 'session-1',
+              role: 'user',
+              data: { parts: deliveryCompact },
+              delivery: { sender: 'a', receiver: 'b' }
+            } as any
+          })
+        )
+      ).rejects.toMatchObject({ name: 'AgentImageLimitError', limit: 1, count: 2 })
+      mocks.saveMessagesTx.mockClear()
+      // Genuine single-part `/compact` still reaches compaction (no rejection,
+      // rows committed).
+      mocks.readAgentSessionPath.mockReturnValue([historyRow('a.png'), historyRow('b.png')])
+      await provider.prepareDispatch(
+        makeSubscriber(),
+        openReq({ userMessageParts: [{ type: 'text', text: '/compact keep facts' }] as any })
+      )
+      expect(mocks.saveMessagesTx).toHaveBeenCalled()
+    })
+
+    it('permits text-only edits that remove workspace images (inv_e5b3b1538d5182fc)', async () => {
+      // The first turn saved two workspace PNGs and failed before binding
+      // native input. Editing that turn to text-only must pass: the
+      // preliminary tip check would count the message being replaced, so edit
+      // dispatches validate only fresh parts up front and defer history to the
+      // transactional retained-prefix check.
+      mocks.runtimeIsSessionBusy.mockReturnValue(false)
+      mocks.getAgent.mockReturnValue({
+        id: 'agent-1',
+        name: 'My Agent',
+        type: 'pi',
+        model: 'anthropic::claude-sonnet',
+        modelName: 'Claude Sonnet'
+      })
+      runtimeDriverRegistry.clearForTest()
+      runtimeDriverRegistry.register({ type: 'pi', connect: vi.fn(), validateSession: mocks.runtimeValidateSession })
+      // Preliminary tip contains the message being replaced (two images);
+      // transactional retained prefix (post-reset head) contains no images.
+      mocks.captureHead.mockReturnValueOnce('tip-with-two-images').mockReturnValue('retained-prefix')
+      const tipRow = (filename: string) => ({
+        id: `tip-${filename}`,
+        role: 'user',
+        status: 'success',
+        data: {
+          parts: [{ type: 'file', url: `file:///workspace/${filename}`, mediaType: 'image/png', filename }]
+        },
+        runtimeResumeToken: null,
+        inputContextId: null,
+        deliveryStatus: null
+      })
+      mocks.readAgentSessionPath.mockImplementation(((_db: unknown, _sessionId: string, parentId: string) => {
+        if (parentId === 'tip-with-two-images') return [tipRow('a.png'), tipRow('b.png')]
+        return []
+      }) as any)
+      mocks.runtimeEditSession.mockImplementation(async (_sessionId, _target, fn) => fn({}, 'native-session'))
+      await provider.prepareDispatch(makeSubscriber(), {
+        ...openReq({ userMessageParts: [{ type: 'text', text: 'text-only replacement' }] as any }),
+        trigger: 'edit-agent-message',
+        editTarget: { messageId: 'msg-1', version: 'v1' }
+      } as MainDispatchRequest)
+      expect(mocks.saveMessagesTx).toHaveBeenCalled()
+    })
+
+    it('skips history scans for uncapped models (inv_c23ccc3159f3a2b9)', async () => {
+      // With no finite cap both fresh and routed checks are no-ops — the idle
+      // gate must return before the synchronous full-path history read.
+      mocks.runtimeIsSessionBusy.mockReturnValue(false)
+      mocks.getModelByKey.mockReturnValue({
+        id: 'anthropic::claude-sonnet',
+        providerId: 'anthropic',
+        name: 'Unlimited',
+        capabilities: ['image-recognition'],
+        supportsStreaming: true,
+        isEnabled: true,
+        isHidden: false
+      })
+      mocks.readAgentSessionPath.mockClear()
+      await provider.prepareDispatch(
+        makeSubscriber(),
+        openReq({ userMessageParts: [{ type: 'text', text: 'continue' }] as any })
+      )
+      expect(mocks.readAgentSessionPath).not.toHaveBeenCalled()
+      expect(mocks.saveMessagesTx).toHaveBeenCalled()
+    })
   })
 })
