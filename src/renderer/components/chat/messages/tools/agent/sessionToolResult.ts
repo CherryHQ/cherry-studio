@@ -1,4 +1,5 @@
 import {
+  AGENT_DELEGATE_TOOL_NAME,
   SESSION_CREATE_TOOL_NAME,
   SESSION_READ_TOOL_NAME,
   SESSION_SEARCH_TOOL_NAME,
@@ -10,8 +11,14 @@ import type { ToolResponseLike } from '../toolResponse'
 export interface SessionCreateResult {
   ok: true
   sessionId: string
+  agentId?: string
+  requestId?: string
+  originSessionId?: string
   delivery?: {
     status?: string
+    sender?: { agentId?: string; sessionId?: string }
+    receiver?: { agentId?: string }
+    receiverSnapshot?: { agentName?: string }
   }
 }
 
@@ -29,7 +36,12 @@ export interface SessionToolTarget {
 export const MAX_SESSION_SEARCH_RESULT_CARDS = 3
 
 function isSessionCreateToolName(toolName: string | undefined): boolean {
-  return toolName === SESSION_CREATE_TOOL_NAME || toolName === `mcp__cherry-tools__${SESSION_CREATE_TOOL_NAME}`
+  return (
+    toolName === SESSION_CREATE_TOOL_NAME ||
+    toolName === `mcp__cherry-tools__${SESSION_CREATE_TOOL_NAME}` ||
+    toolName === AGENT_DELEGATE_TOOL_NAME ||
+    toolName === `mcp__cherry-tools__${AGENT_DELEGATE_TOOL_NAME}`
+  )
 }
 
 function isSessionSendToolName(toolName: string | undefined): boolean {
@@ -92,11 +104,48 @@ export function parseSessionCreateResult(value: unknown): SessionCreateResult | 
   const candidate = parseJsonResult(value)
   if (!isRecord(candidate) || candidate.ok !== true || typeof candidate.sessionId !== 'string') return undefined
   const delivery = isRecord(candidate.delivery) ? candidate.delivery : undefined
+  const sender = delivery && isRecord(delivery.sender) ? delivery.sender : undefined
+  const receiver = delivery && isRecord(delivery.receiver) ? delivery.receiver : undefined
+  const receiverSnapshot = delivery && isRecord(delivery.receiverSnapshot) ? delivery.receiverSnapshot : undefined
+
   return {
     ok: true,
     sessionId: candidate.sessionId,
-    delivery: delivery && typeof delivery.status === 'string' ? { status: delivery.status } : undefined
+    agentId: typeof candidate.agentId === 'string' ? candidate.agentId : undefined,
+    requestId: typeof candidate.requestId === 'string' ? candidate.requestId : undefined,
+    originSessionId: typeof candidate.originSessionId === 'string' ? candidate.originSessionId : undefined,
+    delivery: delivery
+      ? {
+          status: typeof delivery.status === 'string' ? delivery.status : undefined,
+          sender: sender
+            ? {
+                agentId: typeof sender.agentId === 'string' ? sender.agentId : undefined,
+                sessionId: typeof sender.sessionId === 'string' ? sender.sessionId : undefined
+              }
+            : undefined,
+          receiver: receiver
+            ? { agentId: typeof receiver.agentId === 'string' ? receiver.agentId : undefined }
+            : undefined,
+          receiverSnapshot: receiverSnapshot
+            ? {
+                agentName: typeof receiverSnapshot.agentName === 'string' ? receiverSnapshot.agentName : undefined
+              }
+            : undefined
+        }
+      : undefined
   }
+}
+
+/**
+ * The card may only claim "this agent" when the tool result proves the new session stayed with the caller.
+ * @param result Parsed session_create payload
+ * @returns Target Agent name when the new session lives under a different Agent, else undefined
+ */
+export function getSessionCreateTargetAgentName(result: SessionCreateResult | undefined): string | undefined {
+  const receiverId = result?.delivery?.receiver?.agentId ?? result?.agentId
+  const senderId = result?.delivery?.sender?.agentId
+  if (!receiverId || !senderId || receiverId === senderId) return undefined
+  return result?.delivery?.receiverSnapshot?.agentName?.trim() || undefined
 }
 
 export function parseSessionSendResult(value: unknown): SessionSendResult | undefined {
@@ -175,6 +224,7 @@ export function getSessionToolTargets(toolResponse: ToolResponseLike): SessionTo
     const title = typeof input?.title === 'string' ? input.title.trim() : ''
     return [
       {
+        agentName: getSessionCreateTargetAgentName(result),
         conversationType: 'agent',
         kind: 'create',
         renderKey,

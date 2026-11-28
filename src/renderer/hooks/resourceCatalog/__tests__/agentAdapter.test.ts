@@ -1,9 +1,8 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { useAgentMutations, useAgentMutationsById } from '../agentAdapter'
+import { useAgentMutations } from '../agentAdapter'
 
-const triggerMock = vi.hoisted(() => vi.fn())
 const useMutationMock = vi.hoisted(() => vi.fn())
 const invalidateMock = vi.hoisted(() => vi.fn())
 const ipcRequestMock = vi.hoisted(() => vi.fn())
@@ -15,42 +14,6 @@ vi.mock('@data/hooks/useDataApi', () => ({
 }))
 
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: ipcRequestMock } }))
-
-describe('useAgentMutationsById', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    useMutationMock.mockReturnValue({
-      trigger: triggerMock,
-      isLoading: false,
-      error: undefined
-    })
-  })
-
-  it('uses DataApi only for the scoped update mutation', () => {
-    renderHook(() => useAgentMutationsById('agent-1'))
-
-    expect(useMutationMock).toHaveBeenCalledWith('PATCH', '/agents/agent-1', {
-      refresh: expect.any(Function)
-    })
-    expect(useMutationMock).toHaveBeenCalledTimes(1)
-  })
-
-  it('additionally refreshes /skills only when the PATCH body includes skillUpdates', () => {
-    renderHook(() => useAgentMutationsById('agent-1'))
-
-    const patchCall = useMutationMock.mock.calls.find(([method]) => method === 'PATCH')
-    const refresh = patchCall?.[2].refresh as (ctx: { args?: { body?: object } }) => string[]
-
-    expect(refresh({ args: { body: { name: 'Renamed' } } })).toEqual(['/agents', '/agents/*'])
-    expect(refresh({ args: { body: { skillUpdates: [{ skillId: 'skill-1', isEnabled: true }] } } })).toEqual([
-      '/agents',
-      '/agents/*',
-      '/skills'
-    ])
-    expect(refresh({ args: { body: { skillUpdates: [] } } })).toEqual(['/agents', '/agents/*', '/skills'])
-    expect(refresh({ args: undefined })).toEqual(['/agents', '/agents/*'])
-  })
-})
 
 describe('useAgentMutations', () => {
   beforeEach(() => {

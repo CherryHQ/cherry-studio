@@ -71,9 +71,14 @@ export class ClaudeCodeBinaryService extends BaseService {
     }
   }
 
+  getInstalledExecutable(): string | undefined {
+    return this.isInstalled() ? this.executable : undefined
+  }
+
   requireExecutable(): string {
-    if (!this.isInstalled()) throw new Error(t('agent.session.claude.runtime_unavailable'))
-    return this.executable
+    const executable = this.getInstalledExecutable()
+    if (!executable) throw new Error(t('agent.session.claude.runtime_unavailable'))
+    return executable
   }
 
   async ensureExecutable(): Promise<string> {
@@ -130,6 +135,9 @@ export class ClaudeCodeBinaryService extends BaseService {
 
   private async install(signal: AbortSignal): Promise<void> {
     const root = application.getPath('feature.claude_code.binary')
+    await mkdir(root, { recursive: true }).catch((error) => {
+      throw new BinaryStorageError('Could not create runtime root directory', { cause: error })
+    })
     const staging = await mkdtemp(path.join(root, '.download-')).catch((error) => {
       throw new BinaryStorageError('Could not create runtime staging directory', { cause: error })
     })

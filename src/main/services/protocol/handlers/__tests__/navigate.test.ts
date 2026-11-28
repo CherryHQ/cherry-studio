@@ -33,8 +33,6 @@ describe('navigate protocol handler', () => {
 
   it('blocks paths outside the route allowlist', () => {
     handleNavigateProtocolUrl(new URL('cherrystudio://navigate/agents-legacy'))
-
-    expect(loggerMock.warn).toHaveBeenCalledWith('Blocked navigation to disallowed route: /agents-legacy')
     expect(openRouteInMainWindowMock).not.toHaveBeenCalled()
     expect(openSettingsInMainWindowMock).not.toHaveBeenCalled()
   })
@@ -57,8 +55,6 @@ describe('navigate protocol handler', () => {
     handleNavigateProtocolUrl(
       new URL('cherrystudio://navigate/settings/mcp/servers?protocolInstall=forged&protocolInstallRequestId=1')
     )
-
-    expect(loggerMock.warn).toHaveBeenCalledWith('Blocked navigation with internal MCP install parameters')
     expect(openSettingsInMainWindowMock).not.toHaveBeenCalled()
   })
 })

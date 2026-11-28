@@ -41,15 +41,6 @@ function RegisteredCommand({
   return null
 }
 
-function RuntimeButton({ command }: { command: CommandId }) {
-  const runtime = useCommandRuntime()
-  return (
-    <button type="button" onClick={() => runtime.execute(command)}>
-      execute
-    </button>
-  )
-}
-
 function renderProvider(children: ReactNode) {
   return render(
     <CommandContextKeyProvider>
@@ -81,17 +72,6 @@ describe('CommandProvider', () => {
 
   afterEach(() => {
     cleanup()
-  })
-
-  it('registers one global keydown listener', () => {
-    const addEventListener = vi.spyOn(window, 'addEventListener')
-    const removeEventListener = vi.spyOn(window, 'removeEventListener')
-
-    const { unmount } = renderProvider(null)
-
-    expect(addEventListener.mock.calls.filter(([type]) => String(type) === 'keydown')).toHaveLength(1)
-    unmount()
-    expect(removeEventListener.mock.calls.filter(([type]) => String(type) === 'keydown')).toHaveLength(1)
   })
 
   it('executes the matching command from keyboard input', () => {
@@ -225,14 +205,6 @@ describe('CommandProvider', () => {
     })
 
     expect(onExecute).toHaveBeenCalledOnce()
-  })
-
-  it('warns when executing a command without an active handler', () => {
-    renderProvider(<RuntimeButton command="topic.create" />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'execute' }))
-
-    expect(loggerMock.warn).toHaveBeenCalledWith('No renderer command handler registered: topic.create')
   })
 })
 

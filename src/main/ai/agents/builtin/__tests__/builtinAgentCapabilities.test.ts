@@ -1,27 +1,14 @@
 import { describe, expect, it } from 'vitest'
 
-import { DEFAULT_ASSISTANT_TOOL_NAMES } from '@main/ai/toolApproval/assistantToolNames'
 import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
 import { AGENT_TYPES, type AgentType } from '@shared/data/api/schemas/agents'
 
-import {
-  hostToolsEnabled,
-  resolveAgentCapabilities,
-  resolveHostTools,
-  resolveMountedMcpServers
-} from '../builtinAgentCapabilities'
+import { hostToolsEnabled, resolveAgentCapabilities, resolveMountedMcpServers } from '../builtinAgentCapabilities'
 
 const agentOf = (type: AgentType, builtinRole?: string) =>
   ({ type, configuration: builtinRole ? { builtin_role: builtinRole } : {} }) as never
 
 describe('resolveAgentCapabilities', () => {
-  it('gives an Agent with no built-in role the unprivileged defaults', () => {
-    expect(resolveAgentCapabilities({ configuration: {} })).toEqual({
-      environment: 'open',
-      allKnowledgeBases: false
-    })
-  })
-
   it('does not grant host tools to an unrecognized role', () => {
     const capabilities = resolveAgentCapabilities({ configuration: { builtin_role: 'assistantt' } as never })
     expect(capabilities.hostTools).toBeUndefined()
@@ -41,20 +28,6 @@ describe('resolveAgentCapabilities', () => {
     // Assistant declares no subset, so the server uses the default tool set.
     expect(assistant.hostTools?.tools).toBeUndefined()
   })
-
-  it('keeps diagnostic draft preparation in the reusable channel-linked Support tool set', () => {
-    expect(DEFAULT_ASSISTANT_TOOL_NAMES).toContain('prepare_diagnostic_report')
-    const support = resolveAgentCapabilities({ configuration: { builtin_role: BUILTIN_AGENT_ROLE.SUPPORT } })
-    const assistant = resolveAgentCapabilities({ configuration: { builtin_role: BUILTIN_AGENT_ROLE.ASSISTANT } })
-    const channelLinkedSupportTools = resolveHostTools(agentOf('claude-code', BUILTIN_AGENT_ROLE.SUPPORT), {
-      channelLinked: true
-    })
-    const expectedSupportTools = ['navigate', 'diagnose', 'product_info', 'apply_setting', 'prepare_diagnostic_report']
-
-    expect(support.hostTools?.tools).toEqual(expectedSupportTools)
-    expect(channelLinkedSupportTools?.tools).toEqual(expectedSupportTools)
-    expect(assistant.hostTools?.tools).toBeUndefined()
-  })
 })
 
 describe('hostToolsEnabled', () => {
@@ -63,9 +36,10 @@ describe('hostToolsEnabled', () => {
     expect(hostToolsEnabled(agentOf(type, BUILTIN_AGENT_ROLE.ASSISTANT), { channelLinked: true })).toBe(false)
   })
 
-  it('keeps Cherry Support host tools on channel-linked sessions, but only on claude-code', () => {
+  it('keeps Cherry Support host tools on Claude Code and Pi Durable, including channel-linked sessions', () => {
     for (const channelLinked of [false, true]) {
       expect(hostToolsEnabled(agentOf('claude-code', BUILTIN_AGENT_ROLE.SUPPORT), { channelLinked })).toBe(true)
+      expect(hostToolsEnabled(agentOf('pi-durable', BUILTIN_AGENT_ROLE.SUPPORT), { channelLinked })).toBe(true)
       expect(hostToolsEnabled(agentOf('pi', BUILTIN_AGENT_ROLE.SUPPORT), { channelLinked })).toBe(false)
     }
   })

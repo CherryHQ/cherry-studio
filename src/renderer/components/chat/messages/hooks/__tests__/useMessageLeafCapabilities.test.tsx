@@ -1,8 +1,7 @@
 import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { FILE_TYPE } from '@renderer/types/file'
-import type { AbsoluteFilePath } from '@shared/types/file'
+import { type AbsoluteFilePath, FILE_TYPE } from '@shared/types/file'
 
 import { useMessageLeafCapabilities } from '../useMessageLeafCapabilities'
 
@@ -102,26 +101,6 @@ describe('useMessageLeafCapabilities', () => {
 
     expect(mockSafeOpen).toHaveBeenCalledWith({ kind: 'path', path: '/tmp/a.txt' })
     expect(mockPreview).not.toHaveBeenCalled()
-  })
-
-  it('keeps legacy pasted temp-file display behavior local to message attachments', () => {
-    const { result } = renderHook(() => useMessageLeafCapabilities({ partsByMessageId: {} }))
-
-    expect(
-      result.current.getFileView?.({
-        origin_name: 'temp_file_1_image.png',
-        ext: '.png',
-        created_at: '2026-01-01T00:00:00.000Z'
-      })
-    ).toEqual({ displayName: '2026-01-01 message.attachments.pasted_image.png' })
-
-    expect(
-      result.current.getFileView?.({
-        origin_name: 'report.pdf',
-        ext: '.pdf',
-        created_at: '2026-01-01T00:00:00.000Z'
-      })
-    ).toEqual({ displayName: 'report.pdf' })
   })
 })
 

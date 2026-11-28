@@ -12,6 +12,7 @@ import { useScopedMcpServers } from '@renderer/hooks/useMcpServer'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { isSupportedToolUse } from '@renderer/utils/assistant'
+import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import { DEFAULT_MCP_MODE } from '@shared/data/types/assistant'
 import type { McpResource } from '@shared/types/mcp'
 
@@ -74,11 +75,11 @@ export const McpResourceComposerRuntime = ({ context }: { context: McpResourceTo
 
   const { agent } = useAgent(dataRequested && scope === TopicType.Session ? (session?.agentId ?? null) : null)
   const boundServerIds = useMemo<readonly string[] | 'all' | null>(() => {
-    if (scope === TopicType.Session) return agent?.mcps ?? []
+    if (scope === TopicType.Session) return agent?.type === 'local' && !agent.mcps?.length ? 'all' : (agent?.mcps ?? [])
     const mode = assistant ? (assistant.settings?.mcpMode ?? DEFAULT_MCP_MODE) : 'disabled'
     if (mode === 'disabled') return null
     return mode === 'auto' ? 'all' : (assistant?.mcpServerIds ?? [])
-  }, [agent?.mcps, assistant, scope])
+  }, [agent?.mcps, agent?.type, assistant, scope])
   const { servers } = useScopedMcpServers(boundServerIds, { enabled: dataRequested })
 
   useEffect(() => {
@@ -285,6 +286,7 @@ const mcpResourceTool = defineTool({
   key: 'mcp_resources',
   label: (t) => t('chat.input.mcp_resources.title'),
   visibleInScopes: [TopicType.Chat, TopicType.Session],
+  condition: ({ session }) => !session?.agentType || AGENT_RUNTIME_CAPABILITIES[session.agentType].mcp,
 
   dependencies: {
     actions: ['onTextChange'] as const

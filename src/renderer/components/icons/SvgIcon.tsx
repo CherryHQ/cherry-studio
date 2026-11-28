@@ -394,7 +394,6 @@ export const ZedIcon = (props: SVGProps<SVGSVGElement>) => {
   )
 }
 
-//joplin icon needs to be updated into iconfont
 export const JoplinIcon = (props: SVGProps<SVGSVGElement>) => (
   <svg
     viewBox="0 0 24 24"

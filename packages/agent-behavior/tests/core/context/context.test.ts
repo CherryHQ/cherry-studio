@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { offloadMarker, offloadName, offloadPlan, summaryDecision } from '../../../src/core/context/offload'
+import { offloadMarker, offloadName, offloadPlan } from '../../../src/core/context/offload'
 import { recallText } from '../../../src/core/context/recall'
 import { assistant, callTo, compaction, marker, result, user } from '../history'
 
@@ -25,12 +25,6 @@ describe('offload (D31)', () => {
     expect(offloadName('abc')).toBe('tool-output-ba7816bf8f01cfea.txt')
     expect(offloadMarker(big, { path: 'out/f.txt' })).toContain('Full output saved to: out/f.txt')
     expect(offloadMarker(big, { error: 'disk full' })).toContain('could not be saved (disk full)')
-  })
-
-  // Catches an empty summary accepted, which would replace the folded history with nothing (D33).
-  it('declines an empty summary', () => {
-    expect(summaryDecision('  ')).toEqual({ decline: true })
-    expect(summaryDecision('s')).toEqual({ summary: 's' })
   })
 })
 

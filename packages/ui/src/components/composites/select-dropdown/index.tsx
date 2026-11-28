@@ -144,7 +144,7 @@ export function SelectDropdown<T extends { id: string }>({
       return (
         <div
           className={cn(
-            'flex items-center gap-1 rounded-md pr-1 transition-colors',
+            'flex items-center gap-1 rounded-md pr-1 transition-[color]',
             isSelected && 'bg-primary/10 text-primary'
           )}>
           <button
@@ -153,7 +153,7 @@ export function SelectDropdown<T extends { id: string }>({
               onSelect(item.id)
               setOpen(false)
             }}
-            className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-muted">
+            className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted">
             {renderItem(item, isSelected)}
           </button>
           <button
@@ -174,7 +174,7 @@ export function SelectDropdown<T extends { id: string }>({
           setOpen(false)
         }}
         className={cn(
-          'w-full rounded-md px-2.5 py-1.5 text-left text-sm transition-colors',
+          'w-full rounded-md px-2.5 py-1.5 text-left text-sm transition-[color]',
           isSelected ? 'bg-primary/10 text-primary' : 'text-foreground hover:bg-muted'
         )}>
         {renderItem(item, isSelected)}

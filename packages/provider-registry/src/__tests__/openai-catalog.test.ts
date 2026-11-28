@@ -16,6 +16,84 @@ const loader = new RegistryLoader({
 })
 
 describe('OpenAI catalog', () => {
+  it('omits unsupported top_p from GPT 5.6 Luna request parameters', () => {
+    const model = loader.findModel('openai/gpt-5.6-luna')
+
+    expect(model).not.toBeNull()
+    expect(model?.parameterSupport?.topP.supported).toBe(false)
+  })
+
+  it.each([
+    ['astra', 8, 0.4, 10, 40, 272000, 144000],
+    ['sol', 2, 0.1, 2.5, 10, 500000, 372000]
+  ])(
+    'resolves GPT-6.2 %s with API and Codex contracts',
+    (variant, input, cacheRead, cacheWrite, output, contextWindow, maxInputTokens) => {
+      const apiModelId = `gpt-6.2-${variant}`
+      expect(loader.findModel(apiModelId)).toMatchObject({
+        name: `GPT-6.2 ${variant === 'astra' ? 'Astra' : 'Sol'}`,
+        ownedBy: 'openai',
+        contextWindow: 1050000,
+        maxInputTokens: 922000,
+        maxOutputTokens: 128000,
+        inputModalities: ['text', 'image'],
+        outputModalities: ['text'],
+        endpointTypes: ['openai-responses'],
+        capabilities: expect.arrayContaining([
+          'reasoning',
+          'function-call',
+          'image-recognition',
+          'structured-output',
+          'file-search'
+        ]),
+        pricing: {
+          input: { perMillionTokens: input },
+          cacheRead: { perMillionTokens: cacheRead },
+          cacheWrite: { perMillionTokens: cacheWrite },
+          output: { perMillionTokens: output },
+          inputTokenTiers: [
+            {
+              minInputTokens: 272001,
+              input: { perMillionTokens: input * 2 },
+              cacheRead: { perMillionTokens: cacheRead * 2 },
+              cacheWrite: { perMillionTokens: cacheWrite * 2 },
+              output: { perMillionTokens: output * 1.5 }
+            }
+          ]
+        },
+        parameterSupport: { temperature: { supported: false }, topP: { supported: false } },
+        reasoning: {
+          controls: [{ kind: 'effort', values: ['low', 'medium', 'high', 'xhigh', 'max'], default: 'medium' }]
+        }
+      })
+      expect(isServerToolModelEligible(apiModelId, 'openai', 'web-search')).toBe(true)
+      expect(loader.findOverride('openai-codex', apiModelId)).toMatchObject({
+        apiModelId,
+        endpointTypes: ['openai-responses'],
+        limits: { contextWindow, maxInputTokens },
+        supportsFastMode: true,
+        reasoningContracts: {
+          'openai-responses': {
+            support: {
+              controls: [{ kind: 'effort', values: ['low', 'medium', 'high', 'xhigh', 'max'], default: 'low' }]
+            }
+          }
+        }
+      })
+    }
+  )
+
+  it.each([
+    'gpt-6.2-astra',
+    'gpt-6-2-astra',
+    'openai/gpt-6.2-astra',
+    'gpt-6.2-sol',
+    'gpt-6-2-sol',
+    'openai/gpt-6.2-sol'
+  ])('does not offer rejected reasoning efforts for custom model %s', (id) => {
+    expect(inferReasoningControls(id)).toEqual([{ kind: 'effort', values: ['low', 'medium', 'high', 'xhigh', 'max'] }])
+  })
+
   it('resolves GPT-6.1 Terra with official API pricing, limits, and reasoning', () => {
     expect(loader.findModel('gpt-6.1-terra')).toMatchObject({
       name: 'GPT-6.1 Terra',

@@ -6,6 +6,10 @@ sources:
   - src/main/ai/agentSession/persistence/AgentSessionMessageBackend.ts
   - src/main/data/services/AgentSessionForkService.ts
   - src/main/data/services/AgentSessionMessageService.ts
+  - src/main/data/db/schemas/agentSessionMessage.ts
+  - src/main/data/db/seeding/seeders/AgentSessionMessageTreeSeeder.ts
+  - migrations/sqlite-drizzle/0039_agent_session_tree_backfill.sql
+  - migrations/sqlite-drizzle/0040_agent_session_tree_constraints.sql
   - src/main/ai/runtime/fork
   - src/main/ai/runtime/claudeCode
   - src/main/ai/runtime/pi
@@ -19,12 +23,14 @@ sources:
 ## Behavior
 
 Pi, Claude Code and Pi Durable support **Fork** on successful assistant messages with valid native checkpoints. Legacy replies without a native checkpoint remain ineligible; the operation never rebuilds native history from product messages.
+
+Local Agents do not implement native forks: **Edit and resend** is hidden, and **Fork** is disabled with an explanation. Backend requests report unsupported runtime capability separately from missing or incompatible checkpoints.
 The operation creates an independent Agent session containing the visible
 history through the selected turn and a native runtime resume reference.
 It does not start or interrupt the source connection. The source can continue
 appending later turns, and deleting it does not invalidate a published child.
 
-The last copied message carries a `data-agent-session-fork` part containing only
+The selected assistant Run carries a `data-agent-session-fork` part containing only
 `sourceSessionId`. Its link opens the direct parent after checking it still exists;
 missing or trashed parents produce a frontend error. Forking again replaces inherited
 markers. The link stays at the copied boundary, with no backfill for existing forks.
@@ -33,6 +39,19 @@ The new name uses the next available suffix for the Agent, such as `Session (1)`
 Forking a numbered session advances that suffix instead of nesting it. Queued
 deliveries, live tasks, approval authority, and usage statistics are not inherited.
 Copied unfinished tool calls become terminal errors; they do not resume execution.
+Placed steer inputs belonging to the selected Run are included even when their rows follow
+the assistant row. Copied inputs reference the new Run ID; copied parts receive new IDs
+and retain their timeline positions. Only the final display segment offers the Run fork action.
+Runs are ordered by their first admitted input. Fork includes only complete Runs
+through its selected boundary, regardless of queued tree ancestry. Bound inputs
+without an admitted position are excluded; genuine positionless legacy history remains.
+Publication reconnects the retained rows into the child branch. The history resolver
+selects the prefix from metadata before loading its parts and archived tool results.
+An addressed nonactive branch uses its own history for action eligibility.
+An action page reuses each resolved branch across its rows. Prefix message reads
+are batched below the SQLite parameter limit and reassembled in resolver order.
+Confirmed native placement recovered after a missed live event remains admission
+evidence even when the recovered Run ends in error or pauses.
 
 User workspaces remain shared. System workspaces copy their **current** files into
 the child's workspace; selecting an earlier turn does not restore historical file
@@ -45,8 +64,9 @@ The operation journal records the intended native context before preparation. Th
 
 ## Edit and resend within a session
 
-**Edit and resend** replaces the selected input and removes its descendant subtree
-in one product transaction. It does not retain a new history version. The common
+**Edit and resend** replaces the selected Run's original input and its later descendants
+in one product transaction. The selected path is reconnected in Run order first, so
+queued tree ancestry cannot remove an earlier completed Run. It does not retain a new history version. The common
 prefix, existing sibling branches outside that subtree, and independent fork sessions remain unchanged.
 Desktop asks for confirmation when saving an edit, before changing displayed history or dispatching the replacement. Cancelling keeps the draft and original messages.
 Hiding or closing the originating view invalidates its pending confirmation, even if the same session is shown again before the dialog is answered.
@@ -56,27 +76,54 @@ that binding and do not overwrite the original prefix rows.
 
 For the first input, an empty prefix records a fresh intended native identity;
 Pi creates that context on dispatch. A nonempty prefix requires a valid native
-checkpoint immediately before the edited input. Editing is rejected while the session has unsettled work,
-including outgoing cross-session deliveries. Failed preparation or publication preserves the original tree.
+checkpoint from the preceding Run in execution order. In-Run steer inputs remain
+ineligible for editing. Editing is rejected while the session has unsettled work,
+including outgoing cross-session deliveries. Inputs accepted inside a Run cannot use its final
+checkpoint as their preceding edit boundary. Failed preparation or publication preserves the original tree.
+Eligibility and native preparation share the resolver's edit resolution. Steer and
+known unplaced inputs cannot produce an edit plan. Withdrawn inputs cannot supply
+the preceding checkpoint. Product replacement consumes the read phase's opaque,
+readonly edit plan with its captured history version; a changed version rejects
+publication before any parent links or messages change. Unchanged links are not written.
 Pi Durable noninitial edits publish the native fork's allocated product context identity and remapped checkpoints in the replacement input transaction. First-input edits reserve a fresh empty backend/context and create native storage only on dispatch. Native numeric IDs are local to a store, so publication and recovery check the exact context rather than matching an unrelated backend's token.
 Neither edit/resend nor branch selection restores workspace files.
 
-The sibling navigator selects the chosen sibling's latest descendant. Selection
+Public message PATCH and DELETE reject in-flight deliveries (`accepted` or
+`delivering`), including messages without a native input binding yet.
+
+The sibling navigator follows the newest immediate child by `(createdAt, id)`
+at each level until it reaches a leaf beneath the chosen sibling. Selection
 only changes the stored view; it does not run the harness. The next send resolves
 that branch's native context. An idle connection on another branch is closed
 before connecting; an active connection prevents a cross-branch send.
 
 Claude Code **Edit and resend** reserves the replacement's native identity in the same
 transaction as its input. Editing the first input starts an empty native
-session under that reserved identity. Startup resumes only a verified native
+session under that reserved identity in the backend captured before the original
+reply is removed. Startup resumes only a verified native
 history token from the captured branch; an allocated identity alone is not proof
 that native history exists. Other edits publish their verified native fork before
 startup, and switching the UI selection does not change the captured branch.
 
-The additive schema migration supplies parent/selection and binding fields.
-`AgentSessionMessageTreeSeeder` converts old flat archives into one selected
-path, preserving existing IDs and message facts. Previously deleted tails cannot
+SQLite enforces that only roots have a null parent, and every non-root parent
+exists in the same Session. Deleting a message with children requires reparenting
+those children first; deleting the whole Session still removes its entire archive.
+These constraints do not enforce acyclicity or native execution bindings.
+
+An appended data migration converts untouched flat archives, including empty
+Sessions, into one selected path before the constraint migration rebuilds the table. Existing branches and
+selections are preserved; invalid existing parent edges abort the upgrade without
+changing user rows. V1 conversion runs in the 2.2.2 bridge release; its v2
+archives follow the same appended migration path. Startup seeding only backfills
+legacy delivery reply anchors. Previously deleted tails cannot
 be recovered.
+
+Message pages select IDs before loading payloads. With `deferToolOutputs`, each
+assistant message is projected as it is loaded, so raw oversized outputs do not
+accumulate across the page. Default reads retain the complete stored payload,
+and cursor ordering is unchanged. The initial window uses the 50/200 default/maximum
+limits; a page expands through an older Run referenced by its inputs, with the cursor
+following that expanded boundary.
 
 ## Ownership and dependencies
 
@@ -114,8 +161,10 @@ coordinates runtime and filesystem operations in addition to SQLite writes.
 
 ## Checkpoints and the read/write path
 
-1. At turn completion, the adapter validates its native checkpoint and attaches
-   it to the `turn-complete` event. The host records queued message IDs to exclude.
+1. Adapters provide native checkpoints with `turn-complete` or an independently addressed
+   `run-checkpoint`. Pi Durable uses the successful submission's exact answer entry, so consecutive
+   queued Runs retain separate boundaries without waiting for the session to become idle.
+   Main resolves input ownership rather than assigning late evidence to the current Run.
 2. `AgentSessionMessageBackend` validates the common envelope and saves it in the
    existing message's private `data.runtimeAnchor`. If checkpoint validation or
    checkpoint persistence fails, the completed answer is still saved without it.
@@ -131,9 +180,10 @@ coordinates runtime and filesystem operations in addition to SQLite writes.
 5. The coordinator clones visible messages with new IDs, remaps their anchors,
    strips execution state and statistics, and publishes the native artifacts.
 6. `DbService.withWriteTx` rechecks the source prefix, captured context bindings,
-   backend locators, Agent, and workspace, then creates the child, messages and
-   per-segment context bindings atomically. Later source appends are allowed;
-   changes to the selected prefix fail with `source_changed`. A read-model change
+   backend locators, Agent, workspace, and session model override, then creates the child,
+   messages and per-segment context bindings atomically. The child inherits the source
+   session model override, including `null` to follow the Agent default. Later source
+   appends are allowed; changes to the selected prefix fail with `source_changed`. A read-model change
    notification follows the commit, and IPC returns the child session ID.
 
 Copied contexts retain separate native histories. Only the context at the selected
@@ -147,12 +197,15 @@ all artifacts prepared or published by the operation.
 The public checkpoint envelope knows only `runtime`; all other checkpoint fields
 are opaque to the host and data layer. Native schemas live in each adapter's
 `forkCheckpoint.ts` and validate capture, fork input, and remapped results. Public
-message reads strip `runtimeAnchor`. The child uses the existing
+message reads strip `runtimeAnchor`. Remote MCP skills have no activation state to inherit;
+supporting files are read on demand against the current manifest. See [MCP Skills Client](./mcp-skills-client.md). The child uses the existing
 `runtimeResumeToken` persistence and normal runtime resume path.
 
-The message-list API composes Main-authored `historyActions` alongside the visible rows.
-`AgentSessionRuntimeService` obtains current-page boundary facts from `AgentSessionForkService`,
-including parents outside the page, and applies the shared fork-domain rules. Ordinary
+The message-list API and single-message GET with `deferToolOutputs: true` return
+Main-authored `historyActions` and sibling IDs alongside compact message content.
+The single-message GET looks up the addressed row directly. Both handlers use
+`readHistoryActions` to obtain the requested messages and their parent boundary facts
+from `AgentSessionForkService` and apply the shared fork-domain rules. Ordinary
 `AgentSessionMessageService.listSessionMessages()` reads neither compute these actions nor
 accept runtime callbacks. Raw anchors stay in Main.
 Fork requires a successful native-backed assistant boundary; editing requires either
@@ -171,6 +224,8 @@ without an `app_state` fork record. Cherry does not
 generate a summary, reconstruct model context from UI messages, or apply Chat
 compression settings to Agent forks.
 
+Legacy DeepSeek imports that prepared native history retain their native entry IDs. When reading such a Fork/Edit prefix, `AgentSessionMessageService` rebases their conversation ID to the selected product branch's native conversation in the same backend. This preserves the corresponding ancestor path without a quadratic checkpoint map. Current imports create no historical native checkpoints; answers produced after continuation use normal runtime checkpoints.
+
 ## Native adapter paths
 
 | Adapter | Native boundary | Fork implementation |
@@ -182,6 +237,14 @@ Claude creates its own worker and pass them to `runForkWorker`. The
 shared helper returns an opaque result and waits for termination on success,
 failure, cancellation, or timeout before the coordinator can clean up files.
 Adapters validate the returned native result before publication.
+
+Claude uses the SDK history reader to select context across retry and compaction
+records. Compaction metadata is opaque to Cherry; the SDK owns its interpretation
+and UUID remapping. A missing parent reference alone does not reject a fork. Before staging
+the child, the worker reads both prefixes through the SDK and requires the same
+ordered messages, types and contents under the SDK's UUID mapping. The selected
+checkpoint must remain readable. A failed read or changed context is rejected;
+Cherry does not repair parent links or change the original transcript.
 
 ## Publication and failure cleanup
 

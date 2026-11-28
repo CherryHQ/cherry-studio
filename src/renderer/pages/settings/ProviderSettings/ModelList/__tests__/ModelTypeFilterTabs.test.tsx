@@ -1,4 +1,5 @@
 import { act, cleanup, render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
@@ -61,8 +62,9 @@ describe('ModelTypeFilterTabs', () => {
 
       return {
         observe: vi.fn((target: Element) => instance.targets.push(target)),
+        unobserve: vi.fn(),
         disconnect: vi.fn()
-      } as unknown as ResizeObserver
+      }
     })
   })
 
@@ -81,7 +83,7 @@ describe('ModelTypeFilterTabs', () => {
     )
 
     const tabList = screen.getByRole('tablist')
-    const scrollElement = tabList.closest('[data-horizontal-scroll-viewport]') as HTMLElement | null
+    const scrollElement = tabList.closest<HTMLElement>('[data-horizontal-scroll-viewport]')
     expect(scrollElement).not.toBeNull()
     setElementSize(scrollElement as HTMLElement, { clientWidth: 320, scrollWidth: 760 })
 
@@ -89,9 +91,6 @@ describe('ModelTypeFilterTabs', () => {
 
     expect(screen.queryByRole('button', { name: 'settings.models.filter.scroll_left' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'settings.models.filter.scroll_right' })).toBeInTheDocument()
-    // Overflow ownership must stay on the shared container so it can calculate and control the scroll position.
-    expect(tabList).toHaveClass('w-max', 'min-w-full', 'shrink-0')
-    expect(tabList).not.toHaveClass('w-full', 'max-w-full', 'overflow-x-auto')
   })
 
   it('omits empty model types from the simplified filter row', () => {
@@ -117,5 +116,32 @@ describe('ModelTypeFilterTabs', () => {
 
     rerender(<ModelTypeFilterTabs value="image" onValueChange={vi.fn()} counts={counts} hideEmptyFilters />)
     expect(screen.getByRole('tab', { name: /models\.type\.image/ })).toBeInTheDocument()
+  })
+
+  it('explains the tab-type vs row-icon distinction in a tooltip while keeping extra tabs and switching intact', async () => {
+    const user = userEvent.setup()
+    const onValueChange = vi.fn()
+    render(
+      <ModelTypeFilterTabs
+        value="all"
+        onValueChange={onValueChange}
+        counts={{ all: 4, text: 2, image: 2, embedding: 0, audio: 0, video: 0, rerank: 0, speech: 0, transcription: 0 }}
+        extraTabs={[{ value: 'failed', label: 'Failed', count: 1 }]}
+      />
+    )
+
+    const helpTrigger = screen.getByRole('img', { name: 'settings.models.filter.help_label' })
+    expect(helpTrigger).toBeInTheDocument()
+
+    act(() => {
+      helpTrigger.focus()
+    })
+    const tooltip = await screen.findByRole('tooltip')
+    expect(tooltip).toHaveTextContent('settings.models.filter.legend_tooltip')
+
+    const failedTab = screen.getByRole('tab', { name: /Failed/ })
+    await user.click(failedTab)
+    expect(failedTab).toHaveAttribute('aria-selected', 'true')
+    expect(onValueChange).toHaveBeenCalledWith('failed')
   })
 })

@@ -174,6 +174,7 @@ export function SectionHeader({ section, className, ref, style, ...props }: Sect
         <button
           type="button"
           aria-expanded={!collapsed}
+          data-dnd-row-control
           className="flex h-full min-w-0 flex-1 items-center gap-1.5 text-left text-inherit outline-none"
           onClick={() => actions.toggleGroup(section.id)}>
           <span className={cn('min-w-0 truncate text-left text-inherit', RESOURCE_LIST_LABEL_CLASS)}>
@@ -230,6 +231,7 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
   const groupHeaderContextMenu = meta.getGroupHeaderContextMenu?.(group)
   const groupHeaderLeadingAction = meta.getGroupHeaderLeadingAction?.(group, groupHeaderContext)
   const customGroupHeaderIcon = meta.getGroupHeaderIcon?.(group, groupHeaderContext)
+  const groupHeaderLabelSuffix = meta.getGroupHeaderLabelSuffix?.(group)
   const groupHeaderTooltip = meta.getGroupHeaderTooltip?.(group)
   const groupHeaderIcon = customGroupHeaderIcon ?? null
   // Default to `entity` explicitly: a list that declares no kinds at all reads as all-entity.
@@ -305,7 +307,7 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
   const headerContent = (
     <div
       className={cn(
-        'relative flex w-full items-center gap-1.5 transition-colors duration-150',
+        'relative flex w-full items-center gap-1.5 transition-[color] duration-150',
         hasLeadingSlot ? 'px-1.5' : 'px-2.5',
         RESOURCE_LIST_VISUAL_ROW_CLASS,
         RESOURCE_LIST_INTERACTIVE_ROW_CLASS,
@@ -329,6 +331,7 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
           <button
             type="button"
             aria-current={showsSelectedSurface ? 'true' : undefined}
+            data-dnd-row-control
             className="flex h-full min-w-0 items-center gap-1.5 text-left text-inherit outline-none"
             onClick={handleClick}>
             {groupHeaderIcon && (
@@ -339,6 +342,7 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
             <span ref={labelOverflow.ref} className={groupHeaderLabelClassName}>
               {group.label}
             </span>
+            {groupHeaderLabelSuffix}
           </button>
           <button
             type="button"
@@ -355,6 +359,7 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
             type="button"
             aria-hidden="true"
             tabIndex={-1}
+            data-dnd-row-control
             className="h-full flex-1 cursor-pointer"
             onClick={handleClick}
           />
@@ -364,6 +369,7 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
           type="button"
           aria-expanded={!collapsed}
           aria-current={showsSelectedSurface ? 'true' : undefined}
+          data-dnd-row-control
           className="flex h-full min-w-0 flex-1 items-center gap-1.5 text-left text-inherit outline-none"
           onClick={handleClick}>
           {groupHeaderIcon && (
@@ -374,6 +380,7 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
           <span ref={labelOverflow.ref} className={groupHeaderLabelClassName}>
             {group.label}
           </span>
+          {groupHeaderLabelSuffix}
           <span aria-hidden="true" className={GROUP_HEADER_CHEVRON_SLOT_CLASS}>
             {chevron}
           </span>
@@ -388,6 +395,7 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
           <span ref={labelOverflow.ref} className={groupHeaderLabelClassName}>
             {group.label}
           </span>
+          {groupHeaderLabelSuffix}
         </div>
       )}
       {groupHeaderAction && (

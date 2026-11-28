@@ -14,6 +14,8 @@ The fallback-to-editor handoff also scheduled focus through TipTap's animation f
 
 Retain each deferred request while its replay is pending. Consume it inside the timer callback after confirming that the editor is still alive, immediately before delivery. Effect cleanup can cancel and reschedule pending work without losing the request; a completed replay cannot be repeated by a later render. Preserve the existing timer cleanup and editor event paths.
 
+Panel replay also waits for the QuickPanel runtime and its launchers to become available. An editor can mount before its tool registrations; consuming the request during that interval loses the first toolbar activation.
+
 Restore the editor selection through TipTap, then focus its view synchronously before scrolling the selection into view. Retain the guard that preserves another active input and require actual fallback interaction before transferring focus.
 
 ## Alternatives considered
@@ -27,6 +29,8 @@ Restore the editor selection through TipTap, then focus its view synchronously b
 Lazy loading remains intact; focus transfers synchronously when the interacted-with fallback unmounts. Deferred toolbar and transfer requests survive renders before delivery without introducing persistent state or data migration.
 
 ## Verification
+
+- Regression — `ComposerSurface.test.tsx` delays launcher registration and verifies that the retained request opens the MCP prompt menu after registration; the test fails before the availability guard.
 
 - Regression — a component test reproduces a dependency change before replay, asserts actual pasted text appears exactly once in the editor DOM, and verifies the event does not reach the document paste handler. It fails before the repair and passes afterward.
 - `pnpm test:renderer src/renderer/components/composer/__tests__/ComposerSurface.test.tsx src/renderer/components/composer/__tests__/ComposerSurface.lazy.test.tsx`: 212 tests passed.

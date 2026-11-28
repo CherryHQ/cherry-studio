@@ -11,7 +11,12 @@ export function agentSessionForkAvailability(
   actions?: AgentSessionHistoryActions
 ): ActionAvailabilityInput {
   if (message.role !== 'assistant') return false
-  const failure = message.status !== 'success' ? 'not_turn_boundary' : actions ? actions.fork : 'unsupported_checkpoint'
+  const failure =
+    message.isRunBoundary === false || message.status !== 'success'
+      ? 'not_turn_boundary'
+      : actions
+        ? actions.fork
+        : 'unsupported_checkpoint'
   const enabled = failure === null
   return {
     visible: true,
@@ -25,6 +30,8 @@ export function agentSessionForkReasonLabel(t: TFunction, reason: AgentSessionFo
   switch (reason) {
     case 'cancelled':
       return t('message.tools.cancelled')
+    case 'runtime_unsupported':
+      return t('agent_session_fork.runtime_unsupported')
     case 'legacy_history':
       return t('agent_session_fork.legacy_history')
     case 'not_turn_boundary':

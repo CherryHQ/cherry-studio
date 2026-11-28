@@ -11,6 +11,7 @@ import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceT
 
 import { useMessageParts } from '../blocks/MessagePartsContext'
 import type { MessageListItem } from '../types'
+import { getMessageListPartId } from '../utils/messageListItem'
 
 interface MessageOutlineProps {
   getMessageElement(messageId: string): HTMLElement | null
@@ -44,7 +45,7 @@ const MessageOutline: FC<MessageOutlineProps> = ({
       if (part.type === 'text' && 'text' in part) {
         const text = part.text.trim()
         if (text.length > 0) {
-          textEntries.push({ id: `${message.id}-part-${idx}`, content: text })
+          textEntries.push({ id: getMessageListPartId(message, idx), content: text })
         }
       }
       idx++
@@ -79,7 +80,7 @@ const MessageOutline: FC<MessageOutlineProps> = ({
     }
 
     return result
-  }, [message.id, messageParts])
+  }, [message, messageParts])
 
   const miniLevel = useMemo(() => {
     return headings.length ? Math.min(...headings.map((heading) => heading.level)) : 1
@@ -112,10 +113,12 @@ const MessageOutline: FC<MessageOutlineProps> = ({
         data-ui="part:message-outline"
         type="hover"
         viewportProps={{
-          className: 'overflow-y-hidden! pt-2.5 pb-2.5 pl-2.5 group-hover/outline:overflow-y-auto!'
+          className: 'overflow-y-hidden! group-hover/outline:overflow-y-auto!'
         }}
-        contentProps={{ className: 'inline-flex flex-col gap-1' }}
-        className="group group/outline pointer-events-auto max-h-[min(70vh,100%)] max-w-1/2 rounded-[10px] border border-transparent hover:border-border-subtle hover:bg-popover hover:px-2.5 hover:shadow-[0_0_10px_0_rgba(128,128,128,0.2)]">
+        contentProps={{
+          className: 'inline-flex flex-col gap-1 py-2.5 pl-2.5 group-hover/outline:pl-5 group-hover/outline:pr-2.5'
+        }}
+        className="group group/outline pointer-events-auto max-h-[min(70vh,100%)] max-w-1/2 rounded-[10px] border border-transparent hover:border-border-subtle hover:bg-popover hover:shadow-[0_0_10px_0_rgba(128,128,128,0.2)]">
         {headings.map((heading, index) => (
           <div
             key={index}

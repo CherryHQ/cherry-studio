@@ -36,7 +36,11 @@ export const openclawRequestSchemas = {
     output: z.string()
   }),
   'openclaw.sync_config': defineRoute({
-    input: z.object({ uniqueModelId: UniqueModelIdSchema, port: z.number().optional() }),
+    input: z.object({
+      uniqueModelId: UniqueModelIdSchema,
+      port: z.number().optional(),
+      viaGateway: z.boolean().optional()
+    }),
     output: operationResultSchema
   })
 }

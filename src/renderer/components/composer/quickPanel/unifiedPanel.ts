@@ -1,13 +1,14 @@
 import * as tinyPinyin from 'tiny-pinyin'
 
-import type {
-  QuickPanelContextType,
-  QuickPanelFilterFn,
-  QuickPanelInputAdapter,
-  QuickPanelListItem,
-  QuickPanelOpenOptions,
-  QuickPanelSortFn,
-  QuickPanelTriggerInfo
+import {
+  calculateMatchScore,
+  type QuickPanelContextType,
+  type QuickPanelFilterFn,
+  type QuickPanelInputAdapter,
+  type QuickPanelListItem,
+  type QuickPanelOpenOptions,
+  type QuickPanelSortFn,
+  type QuickPanelTriggerInfo
 } from '@renderer/components/QuickPanel'
 
 import type { ComposerToolLauncher, ComposerToolLauncherSource } from '../toolLauncher'
@@ -175,9 +176,12 @@ const sortUnifiedQuickPanelItems: QuickPanelSortFn = (items, searchText) => {
     .map((item, index) => ({
       item,
       index,
+      score: calculateMatchScore(item, searchText),
       metadata: getUnifiedPanelSortMetadata(item)
     }))
     .sort((a, b) => {
+      if (a.score !== b.score) return b.score - a.score
+
       const layerDiff = getUnifiedPanelSortLayer(a.metadata?.section) - getUnifiedPanelSortLayer(b.metadata?.section)
       if (layerDiff !== 0) return layerDiff
 
@@ -317,9 +321,7 @@ function createUnifiedPanelListItem(
           ...options,
           ancestorLauncherIds: nextAncestorLauncherIds,
           parentPanel,
-          queryAnchor: nextQueryAnchor,
-          searchText,
-          triggerInfo
+          queryAnchor: nextQueryAnchor
         })
         return
       }
@@ -381,30 +383,28 @@ function createUnifiedPanelRootSearchItems(
   return [...customPanelItems, ...submenuItems]
 }
 
-function openUnifiedPanelSubmenu(
+type UnifiedPanelSubmenuItemOptions = Omit<Parameters<typeof createUnifiedPanelListItem>[1], 'source'>
+
+export function createUnifiedPanelSubmenuItems(
   launcher: ComposerToolLauncher,
-  options: {
-    inputAdapter?: QuickPanelInputAdapter
-    quickPanel: QuickPanelContextType
-    onToolLauncherSelect?: ComposerUnifiedPanelSelectHandler
-    getRootPanelOptions?: () => QuickPanelOpenOptions
-    parentPanel?: QuickPanelOpenOptions
-    queryAnchor?: number
-    searchText?: string
-    triggerInfo?: QuickPanelTriggerInfo
-    ancestorLauncherIds?: ReadonlySet<string>
-  }
-) {
+  options: UnifiedPanelSubmenuItemOptions
+): QuickPanelListItem[] {
   const nextAncestorLauncherIds = new Set(options.ancestorLauncherIds)
   nextAncestorLauncherIds.add(launcher.id)
-  const childItems = getUnifiedChildren(launcher, nextAncestorLauncherIds).map((child) =>
+  return getUnifiedChildren(launcher, nextAncestorLauncherIds).map((child) =>
     createUnifiedPanelListItem(child, {
       ...options,
       ancestorLauncherIds: nextAncestorLauncherIds,
       source: getLauncherPreferredSource(child)
     })
   )
+}
 
+function openUnifiedPanelSubmenu(
+  launcher: ComposerToolLauncher,
+  options: UnifiedPanelSubmenuItemOptions & { parentPanel?: QuickPanelOpenOptions; queryAnchor?: number }
+) {
+  const childItems = createUnifiedPanelSubmenuItems(launcher, options)
   options.quickPanel.open({
     title: typeof launcher.label === 'string' ? launcher.label : undefined,
     list: childItems,

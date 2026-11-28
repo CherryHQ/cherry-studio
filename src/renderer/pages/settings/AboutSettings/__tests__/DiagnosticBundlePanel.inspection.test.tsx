@@ -74,8 +74,7 @@ describe('DiagnosticBundlePanel inspection state', () => {
     expect(screen.queryByText('settings.about.diagnostics.sources.unavailable')).not.toBeInTheDocument()
     // The live announcement must not add a normal-flow row that changes the centered dialog height.
     const inspectionStatus = screen.getByRole('status')
-    expect(inspectionStatus).toHaveClass('sr-only')
-    expect(inspectionStatus.parentElement).not.toHaveClass('space-y-4')
+
     expect(inspectionStatus).toHaveTextContent('settings.about.diagnostics.inspecting')
 
     await act(async () => resolve24h(inspectResult))

@@ -43,67 +43,28 @@ vi.mock('@renderer/hooks/useMcpServer', () => ({
 }))
 
 describe('composer tool visibility', () => {
-  it('keeps assistant core capabilities discoverable when the current model cannot enable them', () => {
-    mockIsGenerateImageModel.mockReturnValue(false)
-    mockIsReasoningModel.mockReturnValue(false)
-    mockIsSupportedToolUse.mockReturnValue(false)
-
-    const tools = getToolsForScope(TopicType.Chat, {
-      assistant: {
-        id: 'assistant-1',
-        settings: {},
-        mcpServerIds: [],
-        knowledgeBaseIds: []
-      } as any,
-      model: {
-        id: 'text-only',
-        providerId: 'provider-1',
-        name: 'Text only'
-      } as any
-    })
-
-    expect(tools.map((tool) => tool.key)).toEqual(
-      expect.arrayContaining(['web_search', 'generate_image', 'knowledge_base'])
+  it('keeps composer operations available while omitting Cherry resources for local sessions', () => {
+    const tools = getToolsForScope(TopicType.Session, { session: { agentId: 'local', agentType: 'local' } }).map(
+      (tool) => tool.key
     )
-  })
-
-  it('keeps dictation available without mounting assistant tools in an unlinked chat with a default model', () => {
-    const tools = getToolsForScope(TopicType.Chat, {
-      model: { id: 'default-model', providerId: 'provider-1', name: 'Default model' } as any
-    }).map((tool) => tool.key)
-
+    expect(tools).toContain('attachment')
     expect(tools).toContain('dictation')
-    expect(tools).not.toContain('web_search')
-    expect(tools).not.toContain('generate_image')
+    expect(tools).not.toContain('knowledge_base')
+    expect(tools).not.toContain('mcp_status')
+    expect(tools).not.toContain('mcp_prompts')
+    expect(tools).not.toContain('mcp_resources')
+    expect(tools).toContain('note-reference')
+    expect(tools).not.toContain('permission_mode')
+    expect(tools).toContain('slash_commands')
   })
 
-  it('shows MCP status in chat and agent session scopes only', () => {
-    const model = {
-      id: 'text-only',
-      providerId: 'provider-1',
-      name: 'Text only'
-    } as any
-
-    expect(getToolsForScope(TopicType.Chat, { model }).map((tool) => tool.key)).toContain('mcp_status')
-    expect(getToolsForScope(TopicType.Session, { model }).map((tool) => tool.key)).toContain('mcp_status')
-    expect(getToolsForScope('quick-assistant', { model }).map((tool) => tool.key)).not.toContain('mcp_status')
-  })
-
-  it('makes knowledge selection discoverable in Agent Session scope', () => {
-    const tools = getToolsForScope(TopicType.Session, {
-      model: { id: 'agent-model', providerId: 'provider-1', name: 'Agent model' } as any,
-      session: { agentId: 'agent-1', knowledgeBaseIds: [] }
-    })
-
-    expect(tools.map((tool) => tool.key)).toContain('knowledge_base')
-  })
-
-  it('exposes shared dictation only in Chat, Agent Session, and Painting composers', () => {
-    const model = { id: 'model', providerId: 'provider', name: 'Model' } as any
-
-    expect(getToolsForScope(TopicType.Chat, { model }).map((tool) => tool.key)).toContain('dictation')
-    expect(getToolsForScope(TopicType.Session, { model }).map((tool) => tool.key)).toContain('dictation')
-    expect(getToolsForScope('painting', { model }).map((tool) => tool.key)).toContain('dictation')
-    expect(getToolsForScope('quick-assistant', { model }).map((tool) => tool.key)).not.toContain('dictation')
-  })
+  it.each(['pi', 'claude-code'] as const)(
+    'keeps Cherry permission controls available to the %s runtime',
+    (agentType) => {
+      const tools = getToolsForScope(TopicType.Session, { session: { agentId: 'agent', agentType } })
+      expect(tools.map((tool) => tool.key)).toEqual(
+        expect.arrayContaining(['permission_mode', 'knowledge_base', 'mcp_status'])
+      )
+    }
+  )
 })

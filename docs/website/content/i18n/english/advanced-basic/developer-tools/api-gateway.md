@@ -1,11 +1,11 @@
 ---
 icon: bridge
 ---
-# API Gateway
+# Unified Gateway
 
-The API Gateway exposes the model capabilities configured in Cherry Studio to local programs via OpenAI and Anthropic-compatible HTTP APIs. It also serves as the internal service required for Agent execution.
+The Unified Gateway exposes the model capabilities configured in Cherry Studio to local programs via OpenAI and Anthropic-compatible HTTP APIs. It also serves as the internal service required for Agent execution.
 
-Path: [Settings] → [API Gateway].
+Path: [Settings] → [Unified Gateway].
 
 ## Distinguish Between Agent Usage and External Calls
 
@@ -43,7 +43,7 @@ First, request the model list or send a short text according to the API document
 
 ## Use Case: Calling Models from Local Scripts
 
-First, confirm that the model can converse normally in [Settings] → [Model Provider], then start the API Gateway. The script should only store the local gateway address and key. Start by requesting the model list, then send a short text. Before integrating the full program, ensure the client supports OpenAI or Anthropic-compatible interfaces.
+First, confirm that the model can converse normally in [Settings] → [Model Provider], then start the Unified Gateway. The script should only store the local gateway address and key. Start by requesting the model list, then send a short text. Before integrating the full program, ensure the client supports OpenAI or Anthropic-compatible interfaces.
 
 | Configuration | Recommended Start | Purpose | Notes |
 | ------ | ---------- | --------- | ----------------- |
@@ -68,9 +68,9 @@ The API key can invoke the model services you have configured in Cherry Studio. 
 
 <details>
 
-<summary>What is the relationship between the API Gateway and Model Services? </summary>
+<summary>What is the relationship between the Unified Gateway and Model Services? </summary>
 
-Model Services store the connections to upstream providers; the API Gateway converts these capabilities into compatible interfaces. The gateway itself does not provide models; it still requires at least one available provider and model.
+Model Services store the connections to upstream providers; the Unified Gateway converts these capabilities into compatible interfaces. The gateway itself does not provide models; it still requires at least one available provider and model.
 
 </details>
 

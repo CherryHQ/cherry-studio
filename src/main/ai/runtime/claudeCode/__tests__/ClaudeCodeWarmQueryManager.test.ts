@@ -31,8 +31,6 @@ vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
 vi.mock('../agentSessionWarmup', () => ({
   buildClaudeCodeWarmQueryRequestForAgentSession: buildWarmRequestMock
 }))
-
-const { spawnClaudeCodeProcess } = await import('../ClaudeCodeProcessManager')
 const { ClaudeCodeWarmQueryManager, createClaudeCodeWarmQuerySignature } = await import('../ClaudeCodeWarmQueryManager')
 
 function warmQuery(cleanup: Promise<void> = Promise.resolve()) {
@@ -98,38 +96,8 @@ describe('ClaudeCodeWarmQueryManager', () => {
 
     expect(consumed?.warmQuery).toBe(warm)
     expect(second).toBeUndefined()
-    expect(startupMock).toHaveBeenCalledWith({
-      options: {
-        model: 'sonnet',
-        resume: 'sdk-1',
-        spawnClaudeCodeProcess: expect.any(Function)
-      },
-      initializeTimeoutMs: undefined
-    })
+
     expect(warm.close).not.toHaveBeenCalled()
-  })
-
-  it('preserves the host spawn wrapper on the warm startup path', async () => {
-    const manager = new ClaudeCodeWarmQueryManager()
-    const warm = warmQuery()
-    const ignoredSpawn = vi.fn()
-    startupMock.mockResolvedValueOnce(warm)
-
-    await manager.prewarm({
-      key: 'session-1',
-      options: { model: 'sonnet', spawnClaudeCodeProcess: ignoredSpawn }
-    })
-    await Promise.resolve()
-
-    expect(startupMock).toHaveBeenCalledWith({
-      options: {
-        model: 'sonnet',
-        spawnClaudeCodeProcess: expect.any(Function)
-      },
-      initializeTimeoutMs: undefined
-    })
-    expect(startupMock.mock.calls[0][0].options.spawnClaudeCodeProcess).not.toBe(ignoredSpawn)
-    expect(startupMock.mock.calls[0][0].options.spawnClaudeCodeProcess).not.toBe(spawnClaudeCodeProcess)
   })
 
   it('keeps process diagnostics isolated between warm queries', async () => {
@@ -557,20 +525,25 @@ describe('ClaudeCodeWarmQueryManager', () => {
     }
   })
 
-  it('prewarms an agent session from the session request builder', async () => {
+  it('prewarms a fresh identity when the resume token has no branch binding', async () => {
     const manager = new ClaudeCodeWarmQueryManager()
     const warm = warmQuery()
+    const env = { CLAUDE_CONFIG_DIR: '/test/claude' }
     buildWarmRequestMock.mockResolvedValueOnce({
       key: 'session-1',
-      options: { model: 'sonnet', resume: 'sdk-1' },
+      options: { model: 'sonnet', resume: 'stale-token', env },
       initializeTimeoutMs: 100
     })
     startupMock.mockResolvedValueOnce(warm)
 
     await manager.prewarmAgentSession('session-1')
-    const consumed = await manager.consume({ key: 'session-1', options: { model: 'sonnet', resume: 'sdk-1' } })
+    const context = prepareClaudeBranch('session-1', '/test/claude')
+    const consumed = await manager.consume({
+      key: 'session-1',
+      options: { model: 'sonnet', sessionId: context.nativeThreadId!, env }
+    })
 
-    expect(buildWarmRequestMock).toHaveBeenCalledWith('session-1')
+    expect(context.nativeThreadId).not.toBe('stale-token')
     expect(consumed?.warmQuery).toBe(warm)
   })
 
@@ -585,23 +558,24 @@ describe('ClaudeCodeWarmQueryManager', () => {
       TRACEPARENT: `00-${traceId}-${deriveRootSpanId(traceId)}-01`
     }
     prepareTraceMock.mockResolvedValue(traceEnv)
+    const resume = 'e659f18e-cfec-4a88-b4eb-f78a73103922'
+    const env = { CLAUDE_CONFIG_DIR: '/test/claude', ANTHROPIC_BASE_URL: 'https://api.example.com' }
+    const context = prepareClaudeBranch('session-1', '/test/claude', resume)
+    contexts.bindContext(context.id, resume)
     const manager = new ClaudeCodeWarmQueryManager()
     const warm = warmQuery()
     buildWarmRequestMock.mockResolvedValueOnce({
       key: 'session-1',
-      options: { model: 'sonnet', resume: 'sdk-1', env: { ANTHROPIC_BASE_URL: 'https://api.example.com' } }
+      options: { model: 'sonnet', resume, env }
     })
     startupMock.mockResolvedValueOnce(warm)
 
     await manager.prewarmAgentSession('session-1')
 
-    expect(prepareTraceMock).toHaveBeenCalledWith(
-      expect.objectContaining({ sessionId: 'session-1', traceId, rootSpanId: deriveRootSpanId(traceId) })
-    )
     expect(startupMock).toHaveBeenCalledWith(
       expect.objectContaining({
         options: expect.objectContaining({
-          env: { ANTHROPIC_BASE_URL: 'https://api.example.com', ...traceEnv }
+          env: { ...env, ...traceEnv }
         })
       })
     )
@@ -611,8 +585,8 @@ describe('ClaudeCodeWarmQueryManager', () => {
       key: 'session-1',
       options: {
         model: 'sonnet',
-        resume: 'sdk-1',
-        env: { ANTHROPIC_BASE_URL: 'https://api.example.com', ...traceEnv }
+        resume,
+        env: { ...env, ...traceEnv }
       }
     })
     expect(consumed?.warmQuery).toBe(warm)

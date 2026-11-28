@@ -1,0 +1,1275 @@
+diff --git a/dist/entries.d.ts b/dist/entries.d.ts
+index 63eaa89918fd3f9e40cb2c3d6bea193c00bee89a..4dd7cd3841c3503caa033103d10db61c3d4ef97c 100644
+--- a/dist/entries.d.ts
++++ b/dist/entries.d.ts
+@@ -1,12 +1,12 @@
+ import type { JsonValue } from "@earendil-works/chord/json";
+ import type { CompactionReason, ToolDiagnostic } from "./harness/types.ts";
+-import type { Entry } from "./types.ts";
++import type { Entry, TaskId } from "./types.ts";
+ /** Define a typed entry kind whose `is()` guard narrows by `EntryRecord.kind`. */
+ export declare function defineEntry<D extends JsonValue = never>(kind: string): Entry<D>;
+ /** User input: `model` is `[UserMessage]`. Written by submissions. */
+ export declare const UserEntry: Entry<never>;
+ /** Provider result with any stop reason: `model` is `[AssistantMessage]`. Written by generation. */
+-export declare const AssistantEntry: Entry<never>;
++export declare const AssistantEntry: Entry<{ runId: TaskId }>;
+ /** Positional prompt and tool change: `model` is `[SystemMessage]` with empty `content`. */
+ export declare const SystemEntry: Entry<never>;
+ /**
+@@ -27,5 +27,7 @@ export declare const ResetEntry: Entry<never>;
+  */
+ export declare const CompactionEntry: Entry<{
+     reason: CompactionReason;
++    runId?: TaskId;
++    metadata?: JsonValue;
+ }>;
+ //# sourceMappingURL=entries.d.ts.map
+diff --git a/dist/harness/agent.js b/dist/harness/agent.js
+index dbae2ff3bd5ded4db56c1fa3f5c4a58eee2af315..9d993bfcc79bc82a13374f4426527e5bed24ee8c 100644
+--- a/dist/harness/agent.js
++++ b/dist/harness/agent.js
+@@ -242,6 +242,12 @@ report) {
+                 applyWrap(sections, wrap.section, (section) => wrap.wrap(section), (section) => section.key, wrapReport);
+         }
+     }
++    for (const extension of extensions) {
++        if (extension.wrapTools === undefined)
++            continue;
++        for (const name of [...composed.keys()])
++            applyWrap(composed, name, (tool) => extension.wrapTools(tool, state?.model), (tool) => tool.name, (error) => report(error, extension.name));
++    }
+     const enabled = filterTools([...composed.values()], state?.tools);
+     const callableBy = (caller) => (tool) => tool.callers === undefined || tool.callers.includes(caller);
+     const modelCallable = enabled.filter(callableBy("model"));
+diff --git a/dist/harness/compaction.d.ts b/dist/harness/compaction.d.ts
+index 02d9e3d97d9cdb1199f42605306c1a8066051184..424a99a8bfd894e7c49b70bf1a8281464126cbc3 100644
+--- a/dist/harness/compaction.d.ts
++++ b/dist/harness/compaction.d.ts
+@@ -4,6 +4,8 @@ import type { CompactionHooks, CompactionPolicy, CompactionReason, CompactionRes
+ export type CompactionInput = {
+     reason: CompactionReason;
+     instructions?: string;
++    ownerAt?: EntryId;
++    runId?: TaskId;
+ };
+ /** The pinned summarization request. */
+ export type SummaryRequest = {
+diff --git a/dist/harness/compaction.js b/dist/harness/compaction.js
+index 54f3ef34ddf1bf85e3ad9c41bdbd216c081a476f..99c298b83638e0f1c61e40fc24aad6f49942e974 100644
+--- a/dist/harness/compaction.js
++++ b/dist/harness/compaction.js
+@@ -75,6 +75,7 @@ export const CompactionTask = defineTask({
+             const { reason, instructions } = task.input;
+             const compaction = {
+                 reason,
++                ownerAt: task.input.ownerAt,
+                 entries: view.entries.slice(0, cut),
+                 messages: summarizedMessages(view, cut),
+                 firstKept,
+@@ -88,7 +89,7 @@ export const CompactionTask = defineTask({
+             if (decision !== undefined && "decline" in decision)
+                 return complete(runtime, context);
+             if (decision !== undefined)
+-                return place(runtime, firstKept, decision.summary, context);
++                return place(runtime, firstKept, decision.summary, context, decision.metadata);
+             const request = {
+                 attempt: 1,
+                 model: ref,
+@@ -130,6 +131,24 @@ export const CompactionTask = defineTask({
+                 sessionId: await ensureProviderSessionId(runtime, context),
+                 ...(thinkingLevel === "off" ? {} : { reasoning: thinkingLevel }),
+             };
++            let blocked;
++            await runtime.hooks.each("beforeSummary", async (hook) => {
++                if (blocked !== undefined)
++                    return;
++                try {
++                    blocked = await hook({ runId: task.input.runId, attempt }, runtime, context);
++                }
++                catch (error) {
++                    blocked = { block: error instanceof Error ? error.message : String(error) };
++                }
++            });
++            if (blocked !== undefined) {
++                return runtime.commit(async (tx) => {
++                    const live = await tx.doc(LiveDoc, runtime.conversationId);
++                    failCompactionStatus(live, runtime.taskId, blocked.block);
++                    return { status: "terminal", outcome: { status: "failed", error: { message: blocked.block } } };
++                }, context);
++            }
+             const message = await runtime.models.completeSimple(model, { messages }, options);
+             // An abort mark or close: the abort invocation or the reopened task handles the committed state.
+             runtime.signal.throwIfAborted();
+@@ -140,8 +159,12 @@ export const CompactionTask = defineTask({
+                 policy.enabled &&
+                 attempt <= policy.maxRetries;
+             const until = retry ? runtime.now() + retryDelayMs(policy, attempt) : 0;
++            const summaryHooks = [];
++            await runtime.hooks.each("afterSummary", (hook) => { summaryHooks.push(hook); });
+             await runtime.commit(async (tx, current) => {
+                 await recordUsage(tx, runtime.conversationId, "models", `${message.provider}/${message.model}`, message.usage);
++                for (const hook of summaryHooks)
++                    await hook({ message, attempt, runId: current.input.runId, taskId: runtime.taskId, memos: current.memos ?? {} }, tx, context);
+                 const live = await tx.doc(LiveDoc, runtime.conversationId);
+                 if (summary !== undefined)
+                     return placeSummary(tx, runtime, current, live, firstKept, summary);
+@@ -192,9 +215,10 @@ export const CompactionTask = defineTask({
+ export async function createCompaction(tx, conversationId, input, owner) {
+     const ownership = owner === undefined ? { kind: "conversation" } : { kind: "task", taskId: owner };
+     const background = owner === undefined && input.reason !== "manual";
+-    const taskId = await tx.createTask(CompactionTask, input, { ownership, conversationId, background });
++    const live = await tx.doc(LiveDoc, conversationId);
++    const taskId = await tx.createTask(CompactionTask, { ...input, ...(live.run && { runId: live.run.id ?? live.run.taskId }) }, { ownership, conversationId, background });
+     const status = { taskId, trigger: input.reason, blocking: owner !== undefined, attempt: 1 };
+-    addCompactionStatus(await tx.doc(LiveDoc, conversationId), status);
++    addCompactionStatus(live, status);
+     return taskId;
+ }
+ /**
+@@ -377,8 +401,8 @@ function truncate(text, maxChars) {
+     return `${text.slice(0, maxChars)}\n\n[... ${text.length - maxChars} more characters truncated]`;
+ }
+ /** Place a summary supplied by a hook in its own commit. */
+-async function place(runtime, firstKept, summary, context) {
+-    await runtime.commit(async (tx, current) => placeSummary(tx, runtime, current, await tx.doc(LiveDoc, runtime.conversationId), firstKept, summary), context);
++async function place(runtime, firstKept, summary, context, metadata) {
++    await runtime.commit(async (tx, current) => placeSummary(tx, runtime, current, await tx.doc(LiveDoc, runtime.conversationId), firstKept, summary, metadata), context);
+ }
+ /**
+  * Place the summary entry and complete (spec §8.7). A blocking compaction, owned by its generation, appends it: the
+@@ -386,7 +410,7 @@ async function place(runtime, firstKept, summary, context) {
+  * idle, otherwise at the next boundary, or settled `stale`.
+  * REMINDER: nothing else may append to a busy conversation, so every non-blocking summary goes through admission.
+  */
+-async function placeSummary(tx, runtime, current, live, firstKept, summary) {
++async function placeSummary(tx, runtime, current, live, firstKept, summary, metadata) {
+     removeCompactionStatus(live, runtime.taskId);
+     delete live.compactionFailure;
+     const text = `${SUMMARY_PREFIX}${summary}${SUMMARY_SUFFIX}`;
+@@ -394,7 +418,7 @@ async function placeSummary(tx, runtime, current, live, firstKept, summary) {
+         kind: CompactionEntry.kind,
+         head: firstKept,
+         model: [{ role: "user", content: [{ type: "text", text }], timestamp: runtime.now() }],
+-        data: { reason: current.input.reason },
++        data: { reason: current.input.reason, ...(current.input.runId !== undefined && { runId: current.input.runId }), ...(metadata !== undefined && { metadata }) },
+     };
+     const result = current.owner === undefined
+         ? {
+diff --git a/dist/harness/generation.d.ts b/dist/harness/generation.d.ts
+index 840a966f75087d5a7b91ea82085f0ea7b6ced06d..78b0bde6eeca8000504660d8434e8e1bc03d6536 100644
+--- a/dist/harness/generation.d.ts
++++ b/dist/harness/generation.d.ts
+@@ -4,10 +4,11 @@ import type { ConversationId, EntryId, SubmissionId, Task, TaskId, Tx } from "..
+ import { type LiveState } from "./live.ts";
+ import { type ToolTaskResult } from "./tool.ts";
+ import type { CompactionResult, ConversationStreamOptions, GenerationHooks, ModelRef, RunSummary } from "./types.ts";
+-export type GenerationInput = Record<string, never>;
++export type GenerationInput = { runId?: TaskId };
+ export type GenerationCheckpoint = {
+     phase: "prepare";
+     attempt: number;
++    retryStreak?: number;
+     /** The blocking compaction this generation waited for; it starts no other compaction (spec §8.3). */
+     compacted?: TaskId<CompactionResult>;
+     /** Error text of the overflow that started `compacted`; checked once when `prepare` resumes. */
+@@ -17,6 +18,7 @@ export type GenerationCheckpoint = {
+ } | {
+     phase: "request";
+     attempt: number;
++    retryStreak?: number;
+     compacted?: TaskId<CompactionResult>;
+     model: ModelRef;
+     thinkingLevel: ModelThinkingLevel;
+@@ -27,6 +29,8 @@ export type GenerationCheckpoint = {
+ } | {
+     phase: "retry";
+     attempt: number;
++    nextAttempt?: number;
++    retryStreak?: number;
+     compacted?: TaskId<CompactionResult>;
+     until: number;
+     /**
+diff --git a/dist/harness/generation.js b/dist/harness/generation.js
+index 27e60bb9b479b5600a7314f13bba25177a5e47d9..726a0ff802a8c7a3b9eaff1027177b11ebb475f0 100644
+--- a/dist/harness/generation.js
++++ b/dist/harness/generation.js
+@@ -48,7 +48,7 @@ export const GenerationTask = defineTask({
+             const resolved = model === undefined ? undefined : runtime.models.getModel(model.provider, model.modelId);
+             if (model === undefined || resolved === undefined)
+                 return failNoModel(runtime, model, context);
+-            const { attempt, compacted, overflow, threshold: blocked } = task.state.checkpoint;
++            const { attempt, compacted, overflow, threshold: blocked, retryStreak } = task.state.checkpoint;
+             if (compacted !== undefined && overflow !== undefined) {
+                 const [outcome] = await runtime.outcomes([compacted], context);
+                 if (outcome?.status !== "completed" || outcome.result.entryId === undefined) {
+@@ -92,8 +92,9 @@ export const GenerationTask = defineTask({
+             if (threshold === "blocking") {
+                 // Compact first and prepare again; the transcript is unchanged until the compaction appends.
+                 await runtime.commit(async (tx) => {
+-                    const child = await createCompaction(tx, conversationId, { reason: "threshold" }, runtime.taskId);
+-                    const checkpoint = { phase: "prepare", attempt, compacted: child, threshold: true };
++                    const ownerAt = await tx.latestEntryId(conversationId);
++                    const child = await createCompaction(tx, conversationId, { reason: "threshold", ...(ownerAt !== undefined && { ownerAt }) }, runtime.taskId);
++                    const checkpoint = { phase: "prepare", attempt, compacted: child, threshold: true, ...(retryStreak === undefined ? {} : { retryStreak }) };
+                     return { status: "waiting", checkpoint, on: [child], policy: "allSettled" };
+                 }, context);
+                 return;
+@@ -105,13 +106,14 @@ export const GenerationTask = defineTask({
+                     cutoff = (await tx.appendEntry(SystemEntry, conversationId, entry)).id;
+                 // Checked in this commit, so a compaction admitted during preparation counts.
+                 if (threshold === "background" && (await tx.doc(LiveDoc, conversationId)).compactions === undefined) {
+-                    await createCompaction(tx, conversationId, { reason: "threshold" });
++                    await createCompaction(tx, conversationId, { reason: "threshold", ownerAt: cutoff });
+                 }
+                 const request = {
+                     attempt,
+                     ...(compacted === undefined ? {} : { compacted }),
+                     model,
+                     thinkingLevel,
++                    ...(retryStreak === undefined ? {} : { retryStreak }),
+                     streamOptions: settings.stream,
+                     cutoff,
+                 };
+@@ -125,7 +127,7 @@ export const GenerationTask = defineTask({
+             // The host stopped while this request was in flight: a failed attempt, not a resend (spec §8.3).
+             if (task.restarts !== undefined)
+                 return interrupted(runtime, task.state.checkpoint, context);
+-            const { attempt, compacted, model: ref, thinkingLevel, streamOptions, cutoff } = task.state.checkpoint;
++            const { attempt, compacted, model: ref, thinkingLevel, streamOptions, cutoff, retryStreak } = task.state.checkpoint;
+             const conversationId = runtime.conversationId;
+             // The attempt shown is presentation, stored like progress (`PROGRESS_COMMIT`); converting a partial left by an
+             // interrupted attempt appends an entry, which makes the commit immediate.
+@@ -154,12 +156,12 @@ export const GenerationTask = defineTask({
+                 onPayload: (payload) => providerPayload(runtime, model, payload, context),
+             };
+             const message = await streamResponse(runtime, model, messages, options, attempt, context);
+-            const request = { attempt, compacted, model: ref, thinkingLevel, cutoff, messages: view.messages };
++            const request = { attempt, compacted, model: ref, thinkingLevel, cutoff, messages: view.messages, retryStreak };
+             await classify(runtime, request, message, context);
+         },
+         /** After the backoff's sleep; a run before `until` (an early wake, or a record of an earlier version) sleeps again. */
+         retry: async (task, runtime, context) => {
+-            const { attempt, compacted, until, poll } = task.state.checkpoint;
++            const { attempt, compacted, until, poll, retryStreak, nextAttempt = attempt + 1 } = task.state.checkpoint;
+             if (cutOffTooOften(task, runtime))
+                 return endCutOff(runtime, task, context);
+             if (until > runtime.now())
+@@ -176,8 +178,8 @@ export const GenerationTask = defineTask({
+                         checkpoint: { phase: "poll", attempt: attempt + 1, ...kept, ...poll, pollAt },
+                     };
+                 }
+-                live.generation = { attempt: attempt + 1 };
+-                return { status: "running", checkpoint: { phase: "prepare", attempt: attempt + 1, ...kept } };
++                live.generation = { attempt: nextAttempt };
++                return { status: "running", checkpoint: { phase: "prepare", attempt: nextAttempt, ...kept, ...(retryStreak === undefined ? {} : { retryStreak }) } };
+             }, context);
+         },
+         /** After the sleep until `pollAt`; a run before it (an early wake, or a record of an earlier version) sleeps again. */
+@@ -346,7 +348,7 @@ async function failModelError(runtime, text, context) {
+ async function interrupted(runtime, checkpoint, context) {
+     const { attempt, compacted } = checkpoint;
+     const policy = runtime.settings.retry;
+-    const retry = policy.enabled && attempt <= policy.maxRetries;
++    const retry = (policy.enabled || policy.resumeInterrupted) && attempt <= policy.maxRetries;
+     const until = retry ? runtime.now() + retryDelayMs(policy, attempt) : 0;
+     const polled = checkpoint.phase === "poll" ? checkpoint : undefined;
+     const text = polled === undefined
+@@ -615,7 +617,7 @@ async function classify(runtime, request, message, context) {
+                 const live = await tx.doc(LiveDoc, conversationId);
+                 await appendAssistant(tx, conversationId, message);
+                 delete live.generation;
+-                const child = await createCompaction(tx, conversationId, { reason: "overflow" }, runtime.taskId);
++                const child = await createCompaction(tx, conversationId, { reason: "overflow", ownerAt: cutoff }, runtime.taskId);
+                 const checkpoint = { phase: "prepare", attempt, compacted: child, overflow: text };
+                 return { status: "waiting", checkpoint, on: [child], policy: "allSettled" };
+             }, context);
+@@ -624,23 +626,36 @@ async function classify(runtime, request, message, context) {
+     }
+     const policy = settings.retry;
+     // An overflow is never retried: only a compaction can make the next request fit.
+-    const retry = message.stopReason === "error" &&
+-        !overflow &&
+-        isRetryableAssistantError(message) &&
+-        policy.enabled &&
+-        attempt <= policy.maxRetries;
+-    const until = retry ? runtime.now() + retryDelayMs(policy, attempt) : 0;
++    const canRetry = message.stopReason === "error" && !overflow;
++    const transport = canRetry
++        ? policy.transportRetry?.(message, { attempt, retryStreak: request.retryStreak })
++        : undefined;
++    const nativeRetry = canRetry && policy.enabled && attempt <= policy.maxRetries && isRetryableAssistantError(message);
++    const delay = transport?.delayMs ?? (nativeRetry ? retryDelayMs(policy, attempt) : undefined);
++    const until = delay === undefined ? 0 : runtime.now() + delay;
+     await runtime.commit(async (tx) => {
+         // Read before the first table write; only a failure uses it.
+-        const failure = retry ? undefined : await prepareFailure(tx, runtime);
++        const failure = delay === undefined ? await prepareFailure(tx, runtime) : undefined;
+         const live = await tx.doc(LiveDoc, conversationId);
+-        await appendAssistant(tx, conversationId, message);
++        if (!transport || message.content.length > 0)
++            await appendAssistant(tx, conversationId, transport ? { ...message, stopReason: "aborted" } : message);
++        else
++            await recordUsage(tx, conversationId, "models", `${message.provider}/${message.model}`, message.usage);
+         if (failure === undefined) {
+-            live.generation = { attempt, retry: { at: until, error: message.errorMessage ?? "" } };
++            live.generation = {
++                attempt,
++                retry: {
++                    at: until,
++                    error: message.errorMessage ?? "",
++                    ...(transport ? { model: message.model, nextAttempt: transport.visibleAttempt } : {}),
++                },
++            };
+             const checkpoint = {
+                 phase: "retry",
+                 attempt,
+                 ...(compacted === undefined ? {} : { compacted }),
++                ...(transport === undefined ? {} : { nextAttempt: transport.nextAttempt }),
++                ...(transport?.retryStreak === undefined ? {} : { retryStreak: transport.retryStreak }),
+                 until,
+             };
+             return { status: "sleeping", checkpoint, until };
+@@ -687,7 +702,7 @@ async function answer(runtime, message, context) {
+             // The continuation starts the run's turn count over: bounding `onYield` loops is the extension's job.
+             if (live.run?.taskId === runtime.taskId)
+                 live.run.turns = 0;
+-            handOver(live, runtime.taskId, await createGeneration(tx, conversationId));
++            handOver(live, runtime.taskId, await createGeneration(tx, conversationId, live.run?.id ?? live.run?.taskId));
+             delete live.generation;
+             return result;
+         }
+@@ -917,9 +932,12 @@ async function finishToolRound(runtime, assistant, tools, context) {
+             else {
+                 delete live.tools;
+                 delete live.nestedTools;
+-                if (live.run?.taskId === runtime.taskId)
++                if (live.run?.taskId === runtime.taskId) {
++                    live.run.id ??= live.run.taskId;
+                     live.run.inputs.push(...users);
+-                handOver(live, runtime.taskId, await createGeneration(tx, conversationId));
++                    for (const id of users) tx.bindSubmissionRun(id, live.run.id);
++                }
++                handOver(live, runtime.taskId, await createGeneration(tx, conversationId, live.run?.id ?? live.run?.taskId));
+             }
+         }
+         return { status: "terminal", outcome: { status: "completed", result: { entryId: assistant } } };
+@@ -931,7 +949,11 @@ async function finishToolRound(runtime, assistant, tools, context) {
+  */
+ async function appendAssistant(tx, conversationId, message) {
+     await recordUsage(tx, conversationId, "models", `${message.provider}/${message.model}`, message.usage);
+-    return tx.appendEntry(AssistantEntry, conversationId, { model: [message] });
++    const live = await tx.doc(LiveDoc, conversationId);
++    const runId = live.run?.id ?? live.run?.taskId;
++    return tx.appendEntry(AssistantEntry, conversationId, {
++        model: [message], ...(runId === undefined ? {} : { data: { runId } })
++    });
+ }
+ /**
+  * Start a run for `inputs`, placed input submissions, whose first entry is `first` (`LiveRun.first`): a new generation
+@@ -940,18 +962,21 @@ async function appendAssistant(tx, conversationId, message) {
+  */
+ export async function startRun(tx, conversationId, live, run, options) {
+     const { inputs, first } = run;
+-    const taskId = await createGeneration(tx, conversationId, { submissionIds: inputs });
+-    live.run = { taskId, inputs, turns: 0, ...(first === undefined ? {} : { first }) };
++    const taskId = await createGeneration(tx, conversationId, undefined, { submissionIds: inputs });
++    live.run = { id: taskId, taskId, inputs, turns: 0, ...(first === undefined ? {} : { first }) };
++    for (const id of inputs) tx.bindSubmissionRun(id, taskId);
+     if (options?.keepFailure !== true)
+         delete live.runFailure;
+ }
+ /** A generation owned by its conversation. */
+-function createGeneration(tx, conversationId, telemetry = {}) {
+-    return tx.createTask(GenerationTask, {}, { ownership: { kind: "conversation" }, conversationId, ...telemetry });
++function createGeneration(tx, conversationId, runId, telemetry = {}) {
++    return tx.createTask(GenerationTask, runId === undefined ? {} : { runId }, { ownership: { kind: "conversation" }, conversationId, ...telemetry });
+ }
+ /** Hand run control from `from` to `to`; the run's inputs move with it. */
+ export function handOver(live, from, to) {
+-    if (live.run?.taskId === from)
++    if (live.run?.taskId === from) {
++        live.run.id ??= from;
+         live.run.taskId = to;
++    }
+ }
+ //# sourceMappingURL=generation.js.map
+\ No newline at end of file
+diff --git a/dist/harness/harness.js b/dist/harness/harness.js
+index e286f00f872ebec79367a594938040c6a37a879f..ceed5c98bbc1013addf6e533ab8a8b11ef7aaaa7 100644
+--- a/dist/harness/harness.js
++++ b/dist/harness/harness.js
+@@ -1,3 +1,4 @@
++import { createQueryFork } from "@earendil-works/pi-ai/utils/query-fork";
+ import { withAbortSignal, withoutAbortSignal } from "@earendil-works/chord/context";
+ import { mergeClientIdentity, PI_ATTRIBUTION, withClientIdentity, } from "@earendil-works/pi-ai/utils/identity";
+ import { createTypedMetrics, NOOP_TELEMETRY_CONTEXT, NOOP_TELEMETRY_METRICS, } from "@earendil-works/pi-telemetry";
+@@ -6,8 +7,8 @@ import { contained, SessionImpl } from "../session/session.js";
+ import { hostTimers } from "../timers.js";
+ import { ROOT_CONVERSATION_ID } from "../types.js";
+ import { AgentDoc, configure, createAgent, resolveAgent, resolveSettings } from "./agent.js";
+-import { createCompaction } from "./compaction.js";
+-import { readContext } from "./context.js";
++import { compactionPolicy, createCompaction, estimateContext } from "./compaction.js";
++import { readContext, readContextFrom } from "./context.js";
+ import { InboxDoc, withdrawQueuedInputs } from "./inbox.js";
+ import { LIMITS_RESTARTS, LiveDoc, settleSchedulerOutcome } from "./live.js";
+ import { ProviderDoc } from "./provider.js";
+@@ -27,6 +28,7 @@ export const SCHEDULER_IDLE_STATE = Symbol.for("pi-durable.schedulerIdleState");
+ class ConversationImpl {
+     id;
+     #host;
++    #contextRange;
+     constructor(id, host) {
+         this.id = id;
+         this.#host = host;
+@@ -46,7 +48,10 @@ class ConversationImpl {
+     async compact(instructions, context) {
+         this.#host.tasks.resume();
+         const input = { reason: "manual", ...(instructions === undefined ? {} : { instructions }) };
+-        return this.#host.harness.commitWith((tx) => createCompaction(tx, this.id, input), context);
++        return this.#host.harness.commitWith(async (tx) => {
++            const ownerAt = await tx.latestEntryId(this.id);
++            return createCompaction(tx, this.id, { ...input, ...(ownerAt !== undefined && { ownerAt }) });
++        }, context);
+     }
+     async reset(handoff, context) {
+         const model = handoff === undefined
+@@ -61,6 +66,35 @@ class ConversationImpl {
+     context(context, options) {
+         return readContext(this.#host.harness, this.#host.storage, this.id, context, options?.at);
+     }
++    async createQueryFork(context) {
++        const agent = await this.agent(context);
++        const usage = await this.contextUsage(context);
++        const models = this.#host.models();
++        const model = usage && models.getModel(usage.model.provider, usage.model.modelId);
++        if (!model) throw new Error("No model selected");
++        const provider = await this.#host.harness.snapshot(ProviderDoc, this.id, context);
++        return createQueryFork(model, usage.messages, (model, context, options) => models.streamSimple(model, context, options),
++            { ...this.#host.settings().stream, reasoning: agent.thinkingLevel === "off" ? undefined : agent.thinkingLevel, sessionId: provider?.sessionId });
++    }
++    async contextUsage(context) {
++        const before = await this.agent(context);
++        const model = before.model && this.#host.models().getModel(before.model.provider, before.model.modelId);
++        if (!model || model.contextWindow <= 0) return undefined;
++        const { view, range } = await readContextFrom(this.#host.harness, this.#host.storage, this.id, context, undefined, this.#contextRange);
++        const after = await this.agent(context);
++        if (JSON.stringify(before) !== JSON.stringify(after)) return undefined;
++        this.#contextRange = range;
++        const policy = compactionPolicy(this.#host.settings(), before.model, before.compaction);
++        return {
++            model: before.model,
++            revision: JSON.stringify([range?.bounds.head?.id, range?.bounds.tail, before, policy]),
++            contextWindow: model.contextWindow,
++            tokens: estimateContext(view, []),
++            ...(policy.enabled ? { compactionThreshold: Math.max(0, model.contextWindow - policy.reserveTokens) } : {}),
++            messages: view.messages,
++            deferred: [...before.deferred, ...before.callable.filter(tool => !before.tools.some(loaded => loaded.name === tool.name) && !before.deferred.some(deferred => deferred.name === tool.name))],
++        };
++    }
+     entries(query, limit, cursor, context) {
+         const scan = conversationEntries(this.id, query);
+         return this.#host.harness.readOnLine((storage) => storage.scanEntries(scan, limit, cursor, context));
+@@ -68,6 +102,12 @@ class ConversationImpl {
+     fork(at, options, context) {
+         return this.#host.create({ kind: "fork", parentId: this.id, at, ownership: options.ownership }, options, context);
+     }
++    resumeFollowUps(context) {
++        return this.#host.submissions.resumeFollowUps(this.id, context);
++    }
++    changeFollowUps(change, context) {
++        return this.#host.submissions.changeFollowUps(this.id, change, context);
++    }
+     async abort(context, options) {
+         this.#host.tasks.resume();
+         return this.#host.tasks.abortConversation(this.id, options?.background === true, context);
+@@ -118,12 +158,13 @@ class HarnessImpl extends SessionImpl {
+         this.#report = report;
+         this.#hostSettings = hostSettings;
+         const settings = () => resolveSettings(hostSettings());
++        const models = currentModels(options.models, options.identity);
+         this.#tasks = new TaskScheduler({
+             telemetry: options.telemetry,
+             session: this,
+             storage,
+             registry: options.registry,
+-            models: currentModels(options.models, options.identity),
++            models,
+             agent: (id, snapshot, callContext) => this.resolveAgent(id, snapshot, callContext),
+             settings,
+             env: (id, callContext) => this.buildEnv(id, callContext),
+@@ -153,6 +194,8 @@ class HarnessImpl extends SessionImpl {
+             tasks: this.#tasks,
+             submissions: this.#submissions,
+             views: new ConversationViews(this),
++            models,
++            settings,
+             now,
+             create: (target, createOptions, context) => this.#create(target, createOptions, context),
+         };
+diff --git a/dist/harness/inbox.d.ts b/dist/harness/inbox.d.ts
+index 59d3598da52544b00f7a4abd306d82b26b749103..40a12e9a050cd1ac3451e37f2ca08e7068e06d4e 100644
+--- a/dist/harness/inbox.d.ts
++++ b/dist/harness/inbox.d.ts
+@@ -6,6 +6,7 @@ import type { InputEntry, QueueMode, Settings, UserInput } from "./types.ts";
+ export type InboxItem = {
+     id: SubmissionId;
+     mode: "steer" | "followUp";
++    editHold?: { token: string; owner: string };
+     content: JsonRepresentation<UserInput>;
+     entry?: JsonRepresentation<InputEntry>;
+ }
+@@ -17,6 +18,8 @@ export type InboxItem = {
+ };
+ /** Built-in queue of one conversation's submissions waiting for a boundary, in ID order. */
+ export type InboxState = {
++    followUpsPaused?: true;
++    followUpsDeferred?: true;
+     items: InboxItem[];
+ };
+ export declare const InboxDoc: import("../types.ts").ConversationDocToken<InboxState>;
+diff --git a/dist/harness/inbox.js b/dist/harness/inbox.js
+index 415ef367aa3c964f00f6b11c376ba5a97fe8bb1d..4c9821aaac3ee98371dce2efad45c468c91e12b6 100644
+--- a/dist/harness/inbox.js
++++ b/dist/harness/inbox.js
+@@ -38,11 +38,25 @@ export async function applyBoundary(tx, boundary, at, now) {
+     const reset = hasQueuedReset(items);
+     const final = at === "final" || reset;
+     const pick = (mode, queueMode) => {
+-        const indexes = items.flatMap((item, index) => (item.mode === mode ? [index] : []));
+-        return queueMode === "all" ? indexes : indexes.slice(0, 1);
++        const indexes = [];
++        for (const [index, item] of items.entries()) {
++            if (item.mode !== mode)
++                continue;
++            if (mode === "followUp" && item.editHold)
++                break;
++            indexes.push(index);
++            if (queueMode !== "all")
++                break;
++        }
++        return indexes;
+     };
+     const writes = items.flatMap((item, index) => (item.mode === "write" ? [index] : []));
+-    const users = [...pick("steer", boundary.steeringMode), ...(final ? pick("followUp", boundary.followUpMode) : [])];
++    const users = [...pick("steer", boundary.steeringMode), ...(final && !inbox.followUpsPaused ? pick("followUp", boundary.followUpMode) : [])];
++    if (final) {
++        delete inbox.followUpsDeferred;
++        if (!inbox.followUpsPaused && users.length === 0 && items.find((item) => item.mode === "followUp")?.editHold)
++            inbox.followUpsDeferred = true;
++    }
+     users.sort((a, b) => a - b);
+     // `appendEntry()` copies the drafts' values; the items are removed only afterwards.
+     let first;
+@@ -101,20 +115,22 @@ export function isStale(boundary, entry) {
+ }
+ /** Remove a withdrawn submission's item; the caller settles the submission. */
+ export async function removeInboxItem(tx, conversationId, id) {
+-    const items = (await tx.doc(InboxDoc, conversationId)).items;
++    const inbox = await tx.doc(InboxDoc, conversationId);
++    const items = inbox.items;
+     const index = items.findIndex((item) => item.id === id);
+     if (index >= 0)
+         items.splice(index, 1);
++    if (inbox.followUpsPaused && !items.some((item) => item.mode === "followUp"))
++        delete inbox.followUpsPaused;
+ }
+ /**
+- * Withdraw every queued input of a conversation, as `Conversation.abort()` and abort cascades do: each settles
+- * `unanswered` with `reason` (default `aborted`) and leaves the inbox; queued writes stay for later placement.
++ * Settle withdrawn inputs as `unanswered` with `reason`. Writes and paused follow-ups stay in the inbox.
+  */
+ export async function withdrawQueuedInputs(tx, conversationId, reason = "aborted") {
+-    const items = (await tx.doc(InboxDoc, conversationId)).items;
++    const { items, followUpsPaused } = await tx.doc(InboxDoc, conversationId);
+     for (let index = items.length - 1; index >= 0; index--) {
+         const item = items[index];
+-        if (item.mode === "write")
++        if (item.mode === "write" || (followUpsPaused && item.mode === "followUp"))
+             continue;
+         tx.settleSubmission(item.id, { status: "unanswered", reason });
+         items.splice(index, 1);
+diff --git a/dist/harness/live.d.ts b/dist/harness/live.d.ts
+index f5df47714c20273c2c353635a998d3817b436ba0..07fba27a88bfb7269b24462fd82b7516282cb10b 100644
+--- a/dist/harness/live.d.ts
++++ b/dist/harness/live.d.ts
+@@ -7,6 +7,7 @@ import type { SchedulerOutcome } from "./scheduler.ts";
+ import type { CompactionReason, CompactionResult, ToolDiagnostic } from "./types.ts";
+ /** What a running tool call publishes, shared by model-issued and nested calls. */
+ type SlotProgress = {
++    nestedCalls?: JsonRepresentation<import("@earendil-works/pi-ai").NestedToolCalls>;
+     callId: string;
+     name: string;
+     status: "pending" | "running" | "done";
+@@ -110,6 +111,8 @@ export type RunFailure = {
+ };
+ /** Run control (spec §8.2). */
+ export type LiveRun = {
++    /** First generation task, stable across tool rounds and retries. */
++    id?: TaskId;
+     /** The task that settles the run's inputs: its generation, handed from one to the next. */
+     taskId: TaskId;
+     /** The run's placed inputs, settled when it ends; `[]` once it answered and runs only its `afterRun` tasks. */
+@@ -143,6 +146,8 @@ export type LiveState = {
+         retry?: {
+             at: number;
+             error: string;
++            model?: string;
++            nextAttempt?: number;
+         };
+         /** Provider-side deferred response being polled. */
+         deferred?: {
+diff --git a/dist/harness/prompt.js b/dist/harness/prompt.js
+index d9433a83bb9c548c5a4a87aa7bc9281acce47f15..e689c179bdaf465dbfdc376501a3221abc34a7d0 100644
+--- a/dist/harness/prompt.js
++++ b/dist/harness/prompt.js
+@@ -1,8 +1,9 @@
+-import { declarationsEqual, getCurrentTools, toToolDeclaration } from "@earendil-works/pi-ai/utils/transcript";
++import { getCurrentSystemMessage, declarationsEqual, getCurrentTools, toToolDeclaration } from "@earendil-works/pi-ai/utils/transcript";
+ import { SystemEntry } from "../entries.js";
+ /** Sections in effect after replaying system messages in order: set in place, `null` deletes, re-adding appends. */
+ export function replaySections(messages) {
+     const shown = new Map();
++    shown.sources = getCurrentSystemMessage(messages)?.contextSources?.sections ?? {};
+     for (const message of messages) {
+         if (message.role !== "system" || message.sections === undefined)
+             continue;
+@@ -21,6 +22,7 @@ export function replaySections(messages) {
+  */
+ export async function renderSections(sections, input, shown, report, context) {
+     const desired = new Map();
++    desired.sources = {};
+     for (const section of sections) {
+         let text;
+         try {
+@@ -31,12 +33,18 @@ export async function renderSections(sections, input, shown, report, context) {
+                 throw error;
+             report(error, section);
+             const kept = shown.get(section.key);
+-            if (kept !== undefined)
++            if (kept !== undefined) {
+                 desired.set(section.key, kept);
++                if (shown.sources?.[section.key]) desired.sources[section.key] = shown.sources[section.key];
++            }
+             continue;
+         }
+         if (text === undefined)
+             continue;
++        if (typeof text === "object") {
++            desired.sources[section.key] = text.source;
++            text = text.text;
++        }
+         desired.set(section.key, section.tag === false ? text : `<${section.key}>\n${text}\n</${section.key}>`);
+     }
+     return desired;
+@@ -54,6 +62,16 @@ export async function renderSections(sections, input, shown, report, context) {
+  * Tool changes ride on the last planned entry, or on one entry of their own.
+  */
+ export function planSystemEntries(view, desired, tools, timestamp) {
++    const entries = planEntries(view, desired, tools, timestamp);
++    const contextSources = { sections: desired.sources ?? {}, tools: Object.fromEntries(tools.map(tool => [tool.name,
++        tool.contextSource ?? { kind: "system-tools" }])) };
++    const current = getCurrentSystemMessage(view.messages)?.contextSources;
++    if (entries.length === 0 && JSON.stringify(current) !== JSON.stringify(contextSources))
++        entries.push(systemEntry(undefined, undefined, timestamp));
++    if (entries.length) entries.at(-1).model[0].contextSources = contextSources;
++    return entries;
++}
++function planEntries(view, desired, tools, timestamp) {
+     const head = view.head;
+     if (head !== undefined && !view.entries.some((entry) => SystemEntry.is(entry) && entry.id > head.id)) {
+         const edits = view.entries
+diff --git a/dist/harness/scheduler.js b/dist/harness/scheduler.js
+index df651a4f8f0769d10daee02292ea91380b158d5e..fd66052b224b5d7721f62b5f3957f5dbd44d3e82 100644
+--- a/dist/harness/scheduler.js
++++ b/dist/harness/scheduler.js
+@@ -2798,7 +2798,7 @@ function interruptionOf(error) {
+         return undefined;
+     return detail.reason === "restart_limit" || detail.reason === "interrupted" ? detail.reason : undefined;
+ }
+-function withAbortMark(record, reason) {
++export function withAbortMark(record, reason) {
+     const { abortReason: _reason, restarts: _restarts, ...rest } = record;
+     return { ...rest, abortRequested: true, ...(reason === undefined ? {} : { abortReason: reason }) };
+ }
+diff --git a/dist/harness/submissions.d.ts b/dist/harness/submissions.d.ts
+index 949742355cc8de73fa141ff2db5d5caa200251ca..8213722f23e7cb3cdd9888407c3e4b0aa6f3cd98 100644
+--- a/dist/harness/submissions.d.ts
++++ b/dist/harness/submissions.d.ts
+@@ -2,7 +2,7 @@ import { type Context } from "@earendil-works/chord/context";
+ import { type TelemetryContext, type TelemetrySpan } from "@earendil-works/pi-telemetry";
+ import type { SessionImpl } from "../session/session.ts";
+ import type { ConversationId, SubmissionId, SubmissionRecord, Tx } from "../types.ts";
+-import { type QueueModes } from "./inbox.ts";
++import { type InboxState, type QueueModes } from "./inbox.ts";
+ import type { SettledSubmissionRecord, Submission, SubmissionDraft } from "./types.ts";
+ type AbortResult = "aborted" | "already_placed" | "settled";
+ type Admission = {
+@@ -11,6 +11,7 @@ type Admission = {
+ };
+ /** Admission, waits, and withdrawal of the durable submissions of one Harness. */
+ export declare class Submissions {
++    changeFollowUps(conversationId: ConversationId, change: (tx: Tx, inbox: InboxState) => boolean | Promise<boolean>, context: Context, resume?: boolean): Promise<boolean>;
+     #private;
+     constructor(session: SessionImpl, now: () => number, queueModes: () => QueueModes, resume: () => void, telemetry?: TelemetryContext);
+     /** Admit a submission in one commit; see `admitSubmission()`. */
+diff --git a/dist/harness/submissions.js b/dist/harness/submissions.js
+index 512b2477c29b83c03a1c239ee427d928ce553caa..bffe5bc2a09d824175b8c78f11b9fff6846dc3bd 100644
+--- a/dist/harness/submissions.js
++++ b/dist/harness/submissions.js
+@@ -5,8 +5,21 @@ import { ConversationBusy, ConversationIdle, ReadAfterWrite } from "../errors.js
+ import { startRun } from "./generation.js";
+ import { appendInput, applyBoundary, hasQueuedReset, InboxDoc, isDisplayOnly, isStale, pickInputEntry, prepareBoundary, removeInboxItem, } from "./inbox.js";
+ import { LiveDoc } from "./live.js";
++import { withAbortMark } from "./scheduler.js";
+ import { DURABLE_TELEMETRY_SCHEMA } from "./telemetry.js";
+ import { closedError, Waiters } from "./util.js";
++/** Park waiting inputs and persist the run's stop intent with the host's stop record. */
++export async function pauseFollowUpsForStop(tx, conversationId) {
++    const inbox = await tx.doc(InboxDoc, conversationId);
++    if (!inbox.items.some((item) => item.mode === "followUp"))
++        return;
++    const { run } = await tx.doc(LiveDoc, conversationId);
++    const task = run && await tx.task(run.taskId);
++    inbox.followUpsPaused = true;
++    delete inbox.followUpsDeferred;
++    if (task && task.state.status !== "terminal")
++        tx.setTask(withAbortMark(task));
++}
+ /** Admission, waits, and withdrawal of the durable submissions of one Harness. */
+ export class Submissions {
+     #telemetry;
+@@ -30,6 +43,38 @@ export class Submissions {
+             this.#waiters.rejectAll(closedError(this.#session));
+         });
+     }
++    resumeFollowUps(conversationId, context) {
++        return this.changeFollowUps(conversationId, (_tx, inbox) => {
++            if (!inbox.followUpsPaused)
++                return false;
++            delete inbox.followUpsPaused;
++            inbox.followUpsDeferred = true;
++            return true;
++        }, context, true);
++    }
++    async changeFollowUps(conversationId, change, context, resume = false) {
++        let started = false;
++        const changed = await this.#session.commitWith(async (tx) => {
++            const live = await tx.doc(LiveDoc, conversationId);
++            const boundary = await prepareBoundary(tx, conversationId, this.#queueModes());
++            const { inbox } = boundary;
++            if (!await change(tx, inbox))
++                return false;
++            if (live.run !== undefined) {
++                delete inbox.followUpsDeferred;
++            } else if (inbox.followUpsDeferred && !inbox.followUpsPaused) {
++                const { users, first } = await applyBoundary(tx, boundary, "final", this.#now());
++                if (users.length > 0) {
++                    await startRun(tx, conversationId, live, { inputs: users, first });
++                    started = true;
++                }
++            }
++            return true;
++        }, context);
++        if (changed && (started || resume))
++            this.#resume();
++        return changed;
++    }
+     /** Admit a submission in one commit; see `admitSubmission()`. */
+     async submit(conversationId, draft, context) {
+         const { id } = await this.#traced(conversationId, draft, context, (span) => this.#session.commitWith((tx) => admitSubmission(tx, conversationId, draft, this.#now(), this.#queueModes(), span), withTelemetry(span, context)));
+@@ -210,6 +255,7 @@ export async function admitSubmission(tx, conversationId, draft, now, queueModes
+         // Items an earlier failed run left queued (`afterFailedRun: "keep"`) are placed first and join the run. Its history
+         // starts with the failed run's, so `afterRun` hooks see what that run did.
+         const { users, first } = await applyBoundary(tx, boundary, "final", now);
++        delete boundary.inbox.followUpsDeferred;
+         await startRun(tx, conversationId, live, { inputs: [...users, id], first: live.runFailure?.first ?? first });
+         return { id, status: "placed" };
+     }
+@@ -229,7 +275,8 @@ export async function admitSubmission(tx, conversationId, draft, now, queueModes
+         if (draft.type === "write")
+             items.push({ id, mode: "write", entry: value });
+         else {
+-            const mode = draft.whenBusy === "steer" ? "steer" : "followUp";
++            const startWhilePaused = boundary?.inbox.followUpsPaused && draft.whenIdle === "start";
++            const mode = draft.whenBusy === "steer" || startWhilePaused ? "steer" : "followUp";
+             const content = value;
+             const entry = draft.entry === undefined ? {} : { entry: pickInputEntry(draft.entry) };
+             items.push({ id, mode, content, ...entry });
+diff --git a/dist/harness/tool.js b/dist/harness/tool.js
+index 2da76582241fad1f38970312a9135c290333560e..d7cf741be9d5936e269496550c40d37a85254862 100644
+--- a/dist/harness/tool.js
++++ b/dist/harness/tool.js
+@@ -1,3 +1,4 @@
++import { retainNestedToolCall } from "@earendil-works/pi-ai";
+ import { awaitWithContext } from "@earendil-works/chord/context";
+ import { overlap, ownedSlice } from "@earendil-works/chord/delta";
+ import { copyJson } from "@earendil-works/chord/json";
+@@ -638,6 +639,24 @@ async function settle(runtime, input, call, ending, result, context, durationMs)
+         const slot = toolSlot(live, runtime.taskId);
+         let settled;
+         if (input.kind === "nested") {
++            const parentSlot = toolSlot(live, input.parent);
++            if (parentSlot) {
++                const record = {
++                    id: call.id, parentToolCallId: input.parentCallId, name: call.name,
++                    arguments: slot?.arguments ?? call.arguments,
++                    status: result.isError || ending.status !== "completed" ? "error" : "ok",
++                    result: { content: result.output ?? [], details: result.details, structuredContent: result.structuredOutput },
++                    ...(durationMs === undefined ? {} : { durationMs }),
++                    ...(result.isError ? { error: errorTextOf({ diagnostics: result.diagnostics ?? [] }, result.output ?? []).slice(0, 500) } : {})
++                };
++                parentSlot.nestedCalls = retainNestedToolCall(parentSlot.nestedCalls, record);
++                for (const child of slot?.nestedCalls?.calls ?? [])
++                    parentSlot.nestedCalls = retainNestedToolCall(parentSlot.nestedCalls, child);
++                if (slot?.nestedCalls?.omittedCalls) {
++                    parentSlot.nestedCalls.omittedCalls = (parentSlot.nestedCalls.omittedCalls ?? 0) + slot.nestedCalls.omittedCalls;
++                    parentSlot.nestedCalls.complete = false;
++                }
++            }
+             const nested = nestedResult(runtime.taskId, result, durationMs);
+             if (nested.usage !== undefined)
+                 await recordUsage(tx, conversationId, "tools", call.name, nested.usage);
+@@ -655,7 +674,7 @@ async function settle(runtime, input, call, ending, result, context, durationMs)
+         }
+         else {
+             const timing = { timestamp: runtime.now(), durationMs };
+-            const entry = await appendToolResult(tx, conversationId, call, result, timing);
++            const entry = await appendToolResult(tx, conversationId, call, { ...result, nestedCalls: slot?.nestedCalls }, timing);
+             if (slot !== undefined && !("parentTaskId" in slot)) {
+                 finishSlot(slot);
+                 slot.entry = entry.id;
+@@ -851,6 +870,7 @@ export async function appendToolResult(tx, conversationId, call, result, meta) {
+         content.push({ type: "text", text: renderDiagnostics(diagnostics) });
+     const message = {
+         role: "toolResult",
++        ...(result.nestedCalls === undefined ? {} : { nestedCalls: result.nestedCalls }),
+         toolCallId: call.id,
+         toolName: call.name,
+         content,
+diff --git a/dist/harness/types.d.ts b/dist/harness/types.d.ts
+index 7f4a0ba59df6d5870248c60c055dd188fdab51c4..dc4009bd480fb23e1e3bd582d2b5a475e223ebfe 100644
+--- a/dist/harness/types.d.ts
++++ b/dist/harness/types.d.ts
+@@ -1,3 +1,4 @@
++import type { QueryFork } from "@earendil-works/pi-ai/utils/query-fork";
+ import type { Context } from "@earendil-works/chord/context";
+ import type { JsonValue } from "@earendil-works/chord/json";
+ import type { WatchHandle } from "@earendil-works/chord/watch";
+@@ -6,6 +7,7 @@ import type { Static } from "@earendil-works/pi-schema";
+ import type { TelemetryContext } from "@earendil-works/pi-telemetry";
+ import type { ExecutionEnv, ShellOutputSkip, ShellOutputWindow } from "../env/index.ts";
+ import type { CommitOptions, ConversationId, ConversationOwnership, ConversationRecord, Cursor, DocumentObserver, DocumentReader, Entry, EntryDraft, EntryId, EntryQuery, EntryRecord, JsonObject, Observation, Observer, Page, Report, Session, SetTimer, SubmissionId, SubmissionRecord, Task, TaskId, TaskOptions, TaskRecord, TaskState, Tx, TypedEntry } from "../types.ts";
++import type { InboxState } from "./inbox.ts";
+ import type { TaskGraph, TaskGraphWatch } from "./task-graph.ts";
+ import type { UsageState } from "./usage.ts";
+ import type { ConversationView, ConversationWindow } from "./view.ts";
+@@ -38,8 +40,9 @@ export type SubmissionDraft = {
+      * `reject`: an idle conversation (no run) rejects the input with `ConversationIdle` and writes nothing, so the input
+      * never starts a run of its own. With `whenBusy: "steer"` it steers the current run or is refused; a run that
+      * answered and waits for its `afterRun` tasks is still busy, and such an input queues and starts the next run.
++     * `start`: when idle, place this input even if older follow-ups are paused.
+      */
+-    readonly whenIdle?: "reject";
++    readonly whenIdle?: "reject" | "start";
+     /** Place the input as this entry; default `pi.user` without data. The kind must not start with `pi.`. */
+     readonly entry?: InputEntry;
+ } | {
+@@ -141,6 +144,7 @@ export type ToolDiagnostic = {
+  * (`executeTool()` callers, code mode scripts), and `details` for UIs.
+  */
+ export type ToolExecutionResult<TDetails extends JsonValue = JsonValue> = {
++    readonly nestedCalls?: import("@earendil-works/pi-ai").NestedToolCalls;
+     /** For the model. Omitted: the retained `output()` text. */
+     readonly output?: ToolResultMessage["content"];
+     /**
+@@ -283,6 +287,7 @@ type IsAny<T> = boolean extends (T extends never ? true : false) ? true : false;
+  * `execute()`; `defineTool()` infers both generics.
+  */
+ export type ToolRegistration<TParameters extends object = object, TDetails extends JsonValue = JsonValue> = Tool<TParameters> & {
++    readonly contextSource?: import("@earendil-works/pi-ai").ContextSource;
+     /** Whether an interrupted execution may rerun on recovery. Default `unsafe`. */
+     readonly replay?: "safe" | "unsafe";
+     /** Default: the settings' `toolExecution`. One sequential call makes its whole round sequential. */
+@@ -328,10 +333,11 @@ export type PromptInput<Tool extends ToolRegistration = ToolRegistration> = {
+     /** Committed document reads. */
+     readonly read: DocumentReader;
+ };
++export type PromptSectionContent = string | undefined | { text: string; source: import("@earendil-works/pi-ai").ContextSource };
+ /** One system prompt section; the agent's sections render in order before each request. */
+ export type PromptSection<Tool extends ToolRegistration = ToolRegistration> = {
+     readonly key: string;
+-    render(input: PromptInput<Tool>, context: Context): string | undefined | Promise<string | undefined>;
++    render(input: PromptInput<Tool>, context: Context): PromptSectionContent | Promise<PromptSectionContent>;
+     /** Default true: wrap the text as `<key>\n...\n</key>`. */
+     readonly tag?: boolean;
+ };
+@@ -356,6 +362,8 @@ export interface Extension<Tool extends ToolRegistration = ToolRegistration> {
+     readonly hooks?: readonly HookRegistration[];
+     /** Apply where this extension is selected, in order. */
+     readonly wraps?: readonly Wrap<Tool>[];
++    /** Applied to every tool after all `wraps`, where this extension is selected, with the agent's model. Must keep the name; pure. */
++    wrapTools?(tool: Tool, model: ModelRef | undefined): Tool;
+     /** Resolved by name for every task, whichever conversations select this extension. */
+     readonly tasks?: readonly AnyTask[];
+ }
+@@ -465,7 +473,7 @@ export type Agent<Tool extends ToolRegistration = ToolRegistration> = {
+     /** The tools nested calls (`executeTool()`) resolve among, in order: enabled and callable by tools. */
+     readonly callable: readonly Tool[];
+     /** Enabled deferred tools the model may call and is not offered yet, in registry order: what `tool_search` loads. */
+-    readonly deferred: readonly Tool[];
++    readonly deferred: readonly ToolRegistration[];
+     /** Extension sections, then `instructions` when set. */
+     readonly sections: readonly PromptSection<Tool>[];
+     readonly instructions?: string;
+@@ -510,6 +518,18 @@ export type ConversationStreamOptions = {
+ /** Durable generation attempt retries; the JSON shape of pi-ai `RetryPolicy`. */
+ export type ConversationRetryPolicy = {
+     enabled: boolean;
++    /** Resume a generation interrupted by host exit even when provider retries are disabled. */
++    resumeInterrupted?: boolean;
++    /** Host plan for retrying a failed model request on the current generation. */
++    transportRetry?: (message: AssistantMessage, state: {
++        attempt: number;
++        retryStreak?: number;
++    }) => {
++        delayMs: number;
++        nextAttempt: number;
++        retryStreak?: number;
++        visibleAttempt: number;
++    } | undefined;
+     maxRetries: number;
+     baseDelayMs: number;
+     maxAgentDelayMs?: number;
+@@ -758,8 +778,20 @@ export type ContextView = {
+     readonly messages: readonly Message[];
+ };
+ /** Stateless handle for one conversation, bound to the Harness that returned it. Compare handles by `id`. */
++export interface ConversationContextUsage {
++    readonly model: { readonly provider: string; readonly modelId: string };
++    readonly revision: string;
++    readonly contextWindow: number;
++    readonly tokens: number;
++    readonly compactionThreshold?: number;
++    readonly deferred: readonly ToolRegistration[];
++    readonly messages: readonly Message[];
++}
+ export interface Conversation {
++    createQueryFork(context: Context): Promise<QueryFork>;
+     readonly id: ConversationId;
++    /** Passive committed-context estimate, using the same accounting as threshold compaction. Does not resume tasks. */
++    contextUsage(context: Context): Promise<ConversationContextUsage | undefined>;
+     /** Resolved with the current registry snapshot and settings. */
+     agent(context: Context): Promise<Agent>;
+     /** `configure()` in its own commit. */
+@@ -806,6 +838,10 @@ export interface Conversation {
+     /** Fork-aware history of this conversation, newest first unless `query.order` is `ascending`. */
+     entries(query: Omit<EntryQuery, "conversationId">, limit: number, cursor: Cursor | undefined, context: Context): Promise<Page<EntryRecord, Cursor>>;
+     fork(at: EntryId, options: ConversationCreateOptions, context: Context): Promise<Conversation>;
++    /** Release paused follow-ups and start the first eligible batch when idle. */
++    resumeFollowUps(context: Context): Promise<boolean>;
++    /** Change waiting inputs and apply a deferred final boundary in the same commit. */
++    changeFollowUps(change: (tx: Tx, inbox: InboxState) => boolean | Promise<boolean>, context: Context): Promise<boolean>;
+     /**
+      * Withdraw queued inputs (queued writes stay), mark every live non-background task of the ordinary ownership scope,
+      * signal them, and resolve once the scope is idle. Background subtrees survive unless `background` is set.
+@@ -990,6 +1026,10 @@ export interface ToolHooks {
+ }
+ /** Hooks of the built-in compaction task. */
+ export interface CompactionHooks {
++    /** Before each native summary model request, including retries. */
++    beforeSummary(request: { readonly runId?: TaskId; readonly attempt: number }, api: HookApi, context: Context): HookResult<{ readonly block: string }>;
++    /** Persist host accounting in the same transaction as the native summary response. */
++    afterSummary(response: { readonly message: AssistantMessage; readonly attempt: number; readonly runId?: TaskId; readonly taskId: TaskId; readonly memos: Readonly<Record<string, JsonValue>> }, tx: Tx, context: Context): void | Promise<void>;
+     /**
+      * After range selection, before summarizing; the first decision wins. `entries` are the active entries the summary
+      * replaces, the head marker first, and `messages` their model context, the summarizer's source; `firstKept` is the
+@@ -997,6 +1037,7 @@ export interface CompactionHooks {
+      */
+     beforeCompact(compaction: {
+         readonly reason: CompactionReason;
++        readonly ownerAt?: EntryId;
+         readonly entries: readonly EntryRecord[];
+         readonly messages: readonly Message[];
+         readonly firstKept: EntryId;
+@@ -1005,6 +1046,8 @@ export interface CompactionHooks {
+         readonly decline: true;
+     } | {
+         readonly summary: string;
++        /** Opaque host data persisted with the summary entry. */
++        readonly metadata?: JsonValue;
+     }>;
+ }
+ export {};
+diff --git a/dist/harness/view.d.ts b/dist/harness/view.d.ts
+index 1a20990469a4f2aa34b359dc19bd944b64a952c0..36fce6f532c4b2ca936d9ab8aba80fb791736a32 100644
+--- a/dist/harness/view.d.ts
++++ b/dist/harness/view.d.ts
+@@ -1,7 +1,7 @@
+ import { type Context } from "@earendil-works/chord/context";
+ import { type WatchCall, type WatchEnd, type WatchHandle } from "@earendil-works/chord/watch";
+ import { type SessionImpl } from "../session/session.ts";
+-import type { ConversationId, ConversationRecord, EntryId, EntryRecord, JsonObject, Observation, Observer } from "../types.ts";
++import type { ConversationId, ConversationRecord, EntryId, EntryRecord, JsonObject, Observation, Observer, Storage } from "../types.ts";
+ /** Structural view of one conversation: a window over its transcript and its built-in documents (spec §9.3). */
+ export type ConversationView = {
+     readonly conversation: ConversationRecord;
+@@ -21,6 +21,8 @@ export type ConversationView = {
+  * to `min`. With `from`, it starts at `from` instead when at most `max` entries are at or after it.
+  */
+ export type ConversationWindow = {
++    /** Observe the complete active context instead of a bounded transcript window. */
++    readonly active?: boolean;
+     /**
+      * Where the first value's window starts, inclusive, such as right after the newest entry a client has
+      * (`ConversationTranscript.resume`). It selects only that first value: every entry committed after the attachment is
+@@ -61,7 +63,7 @@ export declare class ConversationViews {
+      * Register an observer created from its window's first revision, atomically on the Session line: it sees every later
+      * publication and nothing earlier. `release` drops it, and the mount with its last observer.
+      */
+-    attach<O extends ViewObserver>(id: ConversationId, window: ConversationWindow | undefined, create: (value: ConversationView, release: () => void) => O, context: Context): Promise<{
++    attach<O extends ViewObserver>(id: ConversationId, window: ConversationWindow | undefined, create: (value: ConversationView, release: () => void, storage: Storage) => O | Promise<O>, context: Context): Promise<{
+         observer: O;
+         detach: () => void;
+     }>;
+diff --git a/dist/harness/view.js b/dist/harness/view.js
+index 7b5dbf295511c8874fce382e575b6261586a1f0c..1236e1c0520f0d40d334a1a4535cbe50b41bae15 100644
+--- a/dist/harness/view.js
++++ b/dist/harness/view.js
+@@ -3,6 +3,7 @@ import { applyImmutable } from "@earendil-works/chord/delta";
+ import { Watch } from "@earendil-works/chord/watch";
+ import { idFromNumber } from "../ids.js";
+ import { closeEndOf, closeEnds, contained, guardObserver, observation, } from "../session/session.js";
++import { captureContextBounds, deriveContext } from "./context.js";
+ import { AgentDoc } from "./agent.js";
+ import { InboxDoc } from "./inbox.js";
+ import { LiveDoc } from "./live.js";
+@@ -110,7 +111,9 @@ export class ConversationViews {
+         const bounds = resolveWindow(window);
+         return this.#session.readOnLine(async (storage) => {
+             const mount = this.#mounts.get(id) ?? (await this.#build(storage, id, context));
+-            const { entries, before } = await loadWindow(storage, id, bounds, context);
++            const { entries, before } = window?.active
++                ? await deriveContext(storage, id, await captureContextBounds(this.#session, storage, id, context), context)
++                : await loadWindow(storage, id, bounds, context);
+             const value = view(mount.conversation, entries, before, mount.docs);
+             let windowed;
+             const detach = () => {
+@@ -119,12 +122,12 @@ export class ConversationViews {
+                 if (mount.observers.size === 0 && this.#mounts.get(id) === mount)
+                     this.#mounts.delete(id);
+             };
+-            const observer = create(value, detach);
++            const observer = await create(value, detach, storage);
+             // Close or cancellation may begin while the mount hydrates; register nothing then.
+             if (this.#closed)
+                 throw closedError(this.#session);
+             context.abortSignal?.throwIfAborted();
+-            windowed = { min: bounds.min, max: bounds.max, value, observer };
++            windowed = { active: window?.active, min: bounds.min, max: bounds.max, value, observer };
+             this.#mounts.set(id, mount);
+             mount.observers.add(windowed);
+             return { observer, detach };
+@@ -216,8 +219,6 @@ function advance(id, mount, publication, context, report) {
+             docOps.push(["s", path, change.value]);
+         }
+     }
+-    if (docOps.length === 0 && appended.length === 0)
+-        return;
+     if (docOps.length > 0)
+         mount.docs = applyImmutable({ docs: mount.docs }, docOps).docs;
+     const frameContext = withoutAbortSignal(context);
+@@ -227,7 +228,20 @@ function advance(id, mount, publication, context, report) {
+         let entries = previous.entries;
+         let before = previous.before;
+         let ops = docOps;
+-        if (appended.length > 0) {
++        if (windowed.active && appended.length > 0) {
++            ops = [...docOps];
++            for (const entry of appended) {
++                if (entry.head === undefined) {
++                    ops.push(["p", ["entries"], entries.length, 0, [entry]]);
++                    entries = [...entries, entry];
++                } else {
++                    const first = entries.findIndex((candidate) => candidate.head === undefined && candidate.id >= entry.head);
++                    const drop = first < 0 ? entries.length : first;
++                    ops.push(["p", ["entries"], 0, drop, [entry]]);
++                    entries = [entry, ...entries.slice(drop)];
++                }
++            }
++        } else if (appended.length > 0) {
+             ops = [...docOps, ["p", ["entries"], entries.length, 0, inserted]];
+             entries = entries.concat(appended);
+             if (entries.length > windowed.max) {
+@@ -239,7 +253,8 @@ function advance(id, mount, publication, context, report) {
+         }
+         windowed.value = view(mount.conversation, entries, before, mount.docs);
+         const call = { kind: "value", value: windowed.value, ops, retired: false };
+-        contained(() => windowed.observer.advance(call, frameContext), report);
++        if (ops.length > 0)
++            contained(() => windowed.observer.advance(call, frameContext), report);
+     }
+ }
+ /** `op` moved under `prefix`; a root replacement becomes a set of the prefix. */
+diff --git a/dist/index.d.ts b/dist/index.d.ts
+index 051d498c54f04ec527cacde335d5ab5d1bf93dd1..fad006adfb699d7fe3474abca0e3cc27529b09e3 100644
+--- a/dist/index.d.ts
++++ b/dist/index.d.ts
+@@ -1,3 +1,4 @@
++export { conversationViews } from "./harness/view.ts";
+ export type { NativeWatchCall, WatchCall, WatchEnd, WatchHandle } from "@earendil-works/chord/watch";
+ export { defineDoc, defineDocFamily } from "./documents.ts";
+ export { AssistantEntry, CompactionEntry, defineEntry, ResetEntry, SystemEntry, ToolResultEntry, UserEntry, } from "./entries.ts";
+@@ -8,6 +9,10 @@ export { defineExtension, defineTool, hook, runEndTask, section, wrapSection, wr
+ export { type GenerationCheckpoint, type GenerationInput, type GenerationResult, GenerationTask, } from "./harness/generation.ts";
+ export { DEFAULT_HARNESS_IDENTITY, Harness } from "./harness/harness.ts";
+ export { InboxDoc, type InboxItem, type InboxState } from "./harness/inbox.ts";
++export declare function pauseFollowUpsForStop(
++    tx: import("./types.ts").Tx,
++    conversationId: import("./types.ts").ConversationId
++): Promise<void>;
+ export { type CompactionFailure, type CompactionStatus, LiveDoc, type LiveRun, type LiveState, type NestedToolSlot, type NestedToolSummary, type RunFailure, type RunFailureReason, type ToolSlot, } from "./harness/live.ts";
+ export { ProviderDoc, type ProviderState } from "./harness/provider.ts";
+ export { createRegistry } from "./harness/registry.ts";
+@@ -19,7 +24,7 @@ export { NestedCallDoc, type NestedCallState, ToolTask, type ToolTaskCheckpoint,
+ export { ConversationTranscript, type ConversationTranscriptOptions, type EntryLoader, type TranscriptItem, type TranscriptView, } from "./harness/transcript.ts";
+ export type { AfterFailedRun, Agent, AgentChange, AgentState, AnyTask, CompactionHooks, CompactionPolicy, CompactionReason, CompactionResult, CompactionSettings, ContextView, Conversation, ConversationAbortOptions, ConversationCreateOptions, ConversationHandle, ConversationInit, ConversationRetryPolicy, ConversationStreamOptions, ConversationWatch, EnvTarget, Extension, GenerationHooks, HarnessInspection, HarnessOptions, HarnessSettings, HookApi, HookRegistration, HookResult, HooksOf, InputEntry, InputSubmissionDraft, ModelRef, NestedToolExecutionResult, ProgressPolicy, PromptInput, PromptSection, QueueMode, Registry, RegistryReader, RegistrySnapshot, RunEndTask, RunSummary, Settings, SettledSubmissionRecord, SettledTask, Submission, SubmissionDraft, TaskInspection, ToolControl, ToolDiagnostic, ToolExecutionApi, ToolExecutionMode, ToolExecutionResult, ToolHookCall, ToolHooks, ToolRegistration, UserInput, Wake, Wrap, } from "./harness/types.ts";
+ export { UsageDoc, type UsageState } from "./harness/usage.ts";
+-export type { ConversationView, ConversationWindow } from "./harness/view.ts";
++export type { ConversationView, ConversationWindow, ViewObserver } from "./harness/view.ts";
+ export { createSession } from "./session/session.ts";
+ export { MemoryStorage } from "./storage/memory.ts";
+ export { defineTask } from "./tasks.ts";
+diff --git a/dist/index.js b/dist/index.js
+index 0f748f53ffb1be5bd1fe46c0f8f01d1335e7a41c..06b5b6cc0a84a1928947463f16223baa57948051 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -1,3 +1,4 @@
++export { conversationViews } from "./harness/view.js";
+ export { defineDoc, defineDocFamily } from "./documents.js";
+ export { AssistantEntry, CompactionEntry, defineEntry, ResetEntry, SystemEntry, ToolResultEntry, UserEntry, } from "./entries.js";
+ export { ConversationBusy, ConversationIdle, ReadAfterWrite, ReadOnlySession, SessionFailed, StorageRequestError, } from "./errors.js";
+@@ -7,6 +8,7 @@ export { defineExtension, defineTool, hook, runEndTask, section, wrapSection, wr
+ export { GenerationTask, } from "./harness/generation.js";
+ export { DEFAULT_HARNESS_IDENTITY, Harness } from "./harness/harness.js";
+ export { InboxDoc } from "./harness/inbox.js";
++export { pauseFollowUpsForStop } from "./harness/submissions.js";
+ export { LiveDoc, } from "./harness/live.js";
+ export { ProviderDoc } from "./harness/provider.js";
+ export { createRegistry } from "./harness/registry.js";
+diff --git a/dist/session/transaction.d.ts b/dist/session/transaction.d.ts
+index b2f88d02e3f5d0380dba7b2cbdedb6898c8bf94e..265c1536d864b83b0edce21b6234bb410d5c0cb9 100644
+--- a/dist/session/transaction.d.ts
++++ b/dist/session/transaction.d.ts
+@@ -127,6 +127,8 @@ export declare class Transaction implements Tx {
+     settleSubmission(id: SubmissionId, settlement: SubmissionSettlement): void;
+     /** Place a queued submission at `entry`; resolved during assembly like `settleSubmission()`. */
+     placeSubmission(id: SubmissionId, entry: EntryId): void;
++    /** Bind a placed input to its consuming run in the same commit; settled inputs retain the identity. */
++    bindSubmissionRun(id: SubmissionId, runId: TaskId): void;
+     /** Internal: replace one task record completely. Tasks change their own state through their runtime. */
+     setTask(value: AnyTaskRecord): void;
+     /** Internal: candidate records of the tasks this transaction created or replaced so far. */
+diff --git a/dist/session/transaction.js b/dist/session/transaction.js
+index 1ddb158ebf5569c20080d135cb5e9b89bbb07509..439e4cdba16935f7af54108457ec09117a381c31 100644
+--- a/dist/session/transaction.js
++++ b/dist/session/transaction.js
+@@ -13,6 +13,13 @@ import { documentKey, incarnationKey, scopeKey, tableKeys } from "./keys.js";
+ function applySubmissionChange(current, change) {
+     if (current.status === "done" || current.status === "unanswered")
+         return current;
++    if ("runId" in change) {
++        if (current.type !== "input" || current.status !== "placed")
++            throw new Error(`Submission ${current.id} is not a placed input`);
++        if (current.runId !== undefined && current.runId !== change.runId)
++            throw new Error(`Submission ${current.id} already belongs to another run`);
++        return { ...current, runId: change.runId };
++    }
+     if (change.status === "placed") {
+         if (current.status !== "queued")
+             throw new Error(`Submission ${current.id} is not queued`);
+@@ -278,6 +285,11 @@ export class Transaction {
+         this.#hasTableWrite = true;
+         this.#submissionChanges.push({ id, change: { status: "placed", entry } });
+     }
++    bindSubmissionRun(id, runId) {
++        this.#assertOpen();
++        this.#hasTableWrite = true;
++        this.#submissionChanges.push({ id, change: { runId } });
++    }
+     /** Internal: replace one task record completely. Tasks change their own state through their runtime. */
+     setTask(value) {
+         this.#assertOpen();
+diff --git a/dist/storage/sqlite/storage.d.ts b/dist/storage/sqlite/storage.d.ts
+index 22a6246735be5cc1aeb56716f45602dbd6c5e088..e30b1aaabb3bd01266d2309836fb405bcc0fa736 100644
+--- a/dist/storage/sqlite/storage.d.ts
++++ b/dist/storage/sqlite/storage.d.ts
+@@ -22,6 +22,8 @@ export declare class SqliteStorage implements Storage {
+     private constructor();
+     /** Initialize storage over an owned SQLite database facade. */
+     static open(db: SqliteDatabase, options?: SqliteStorageOptions): Promise<SqliteStorage>;
++    /** Open initialized storage without migrations; the database must already exist. */
++    static openExisting(db: SqliteDatabase, options?: SqliteStorageOptions): Promise<SqliteStorage>;
+     /**
+      * Commit `batches` in one SQL transaction, each with its own seq. Each batch is checked before it writes anything,
+      * against the state the earlier ones left, and the first one refused ends the batch: the transaction commits the ones
+diff --git a/dist/storage/sqlite/storage.js b/dist/storage/sqlite/storage.js
+index 6d3a6eb2d40b05510c08c02289d847ae13ce2ad9..b3017f8f4bf18dda4e0c364a6051d7fc6eda6939 100644
+--- a/dist/storage/sqlite/storage.js
++++ b/dist/storage/sqlite/storage.js
+@@ -3,7 +3,7 @@ import { StorageRequestError } from "../../errors.js";
+ import { idFromNumber, seqFromNumber } from "../../ids.js";
+ import { nextCursor, scanStart } from "../scan.js";
+ import { CommitState, claimOf, PendingWrites, prepareDocumentActions } from "./commit.js";
+-import { applySqliteMigrationsForSchema } from "./migrations.js";
++import { applySqliteMigrationsForSchema, CURRENT_SQLITE_SCHEMA_VERSION } from "./migrations.js";
+ import { addressParts, encodeIndexedString, isCurrentOnly, parseJson, scopeColumns } from "./rows.js";
+ import { createSqliteSchema } from "./schema.js";
+ const cursorId = (cursor) => {
+@@ -94,6 +94,23 @@ export class SqliteStorage {
+      * copy reads the copy's source from the database: the batches before it are written first, so a call of many fork
+      * batches costs a few statements per fork.
+      */
++    /** Open an initialized store without schema writes or implicit creation. */
++    static async openExisting(db, options = {}) {
++        try {
++            const schema = createSqliteSchema(options.prefix);
++            const version = await db.get(`SELECT version FROM ${schema.tables.durableSchema} WHERE singleton = 1`);
++            if (version?.version !== CURRENT_SQLITE_SCHEMA_VERSION)
++                throw new Error("Durable SQLite schema requires explicit migration");
++            const metadata = await db.get(`SELECT next_id FROM ${schema.tables.durableMetadata} WHERE singleton = 1`);
++            const nextId = Number(metadata?.next_id);
++            if (!Number.isSafeInteger(nextId) || nextId < 2)
++                throw new Error("Durable SQLite metadata is invalid");
++            return new SqliteStorage(db, schema, nextId);
++        } catch (error) {
++            try { await db.close(); } catch { /* Preserve the opening failure. */ }
++            throw error;
++        }
++    }
+     async commit(batches, receive, _context) {
+         this.assertOpen();
+         const seqs = [];
+diff --git a/dist/types.d.ts b/dist/types.d.ts
+index 783d56468bdd1c4d2f07e1e58a38b9ae004c2e97..706312d02e58efb1de7d3aa902ac88d6d5502181 100644
+--- a/dist/types.d.ts
++++ b/dist/types.d.ts
+@@ -460,6 +460,8 @@ type SubmissionRecordBase = {
+ /** Durable lifecycle of one admitted user input, passive entry write, or continue. */
+ export type SubmissionRecord = (SubmissionRecordBase & {
+     readonly type: "input";
++    /** First generation task of the consuming run; absent until placement or on pre-metadata records. */
++    readonly runId?: TaskId;
+ } & ({
+     /** Admitted but not yet represented in the transcript. */
+     readonly status: "queued";
+@@ -942,6 +944,8 @@ export interface Tx {
+      * `settleSubmission()`. Inbox boundaries place the submissions they select.
+      */
+     placeSubmission(id: SubmissionId, entry: EntryId): void;
++    /** Bind a placed input to its consuming run in the same commit; settled inputs retain the identity. */
++    bindSubmissionRun(id: SubmissionId, runId: TaskId): void;
+     doc<T extends JsonObject>(token: SessionDocToken<T>): Promise<Draft<T>>;
+     doc<T extends JsonObject>(token: ConversationDocToken<T>, conversationId: ConversationId): Promise<Draft<T>>;
+     doc<T extends JsonObject>(token: TaskDocToken<T>, taskId: TaskId): Promise<Draft<T>>;

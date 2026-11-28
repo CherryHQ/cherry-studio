@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/testing/2026-11-26-conversation-performance-e2e.md
+2026-11-26-conversation-performance-e2e.md: a11b57f5ca3488a98162445e97a2d3fbe71b597f
+2026-11-26-conversation-performance-e2e.zh.md: bcc2e6b4df62782775fb5241acb197c147ce3bc5

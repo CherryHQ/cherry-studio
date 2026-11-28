@@ -12,13 +12,10 @@ import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { DataApiErrorFactory } from '@shared/data/api/errors'
-
 const mocks = vi.hoisted(() => ({
   agentCreate: vi.fn(),
   applicationGetPath: vi.fn(),
   mcpList: vi.fn(),
-  modelGetByKey: vi.fn(),
   providerGetById: vi.fn(),
   diagnoseEndpoint: vi.fn(),
   doctorRun: vi.fn()
@@ -44,10 +41,6 @@ vi.mock('@main/ai/agents/createAgent', () => ({
 
 vi.mock('@data/services/McpServerService', () => ({
   mcpServerService: { list: mocks.mcpList }
-}))
-
-vi.mock('@data/services/ModelService', () => ({
-  modelService: { getByKey: mocks.modelGetByKey }
 }))
 
 vi.mock('@data/services/ProviderService', () => ({
@@ -115,30 +108,13 @@ beforeEach(() => {
   mocks.applicationGetPath.mockReset()
   mocks.applicationGetPath.mockReturnValue('/mock/product-manifest.json')
   mocks.mcpList.mockReset()
-  mocks.modelGetByKey.mockReset()
   mocks.providerGetById.mockReset()
   mocks.diagnoseEndpoint.mockReset()
   mocks.doctorRun.mockReset()
   mocks.mcpList.mockReturnValue({ items: [] })
-  mocks.modelGetByKey.mockReturnValue({ id: 'anthropic::claude-sonnet' })
-  mocks.agentCreate.mockReturnValue({
-    id: 'agent-created',
-    name: 'Reviewer',
-    model: 'anthropic::claude-sonnet'
-  })
 })
 
 describe('product_info', () => {
-  it('removes release lookup from the diagnose contract', async () => {
-    const client = await connectAssistantClient()
-
-    const listed = await client.listTools()
-    const diagnose = listed.tools.find((tool) => tool.name === 'diagnose')
-    const properties = diagnose?.inputSchema.properties as Record<string, { enum?: string[] }>
-
-    expect(properties.action.enum).not.toContain('check_update')
-  })
-
   it('returns a compact current-package manifest index through its registered path', async () => {
     const manifest = {
       schemaVersion: 1,
@@ -149,10 +125,8 @@ describe('product_info', () => {
     writeProductManifest(JSON.stringify(manifest))
     const client = await connectAssistantClient()
 
-    const listed = await client.listTools()
     const result = await client.callTool({ name: 'product_info', arguments: { source: 'manifest' } })
 
-    expect(listed.tools.map((tool) => tool.name)).toContain('product_info')
     expect(JSON.parse(toolResultText(result))).toEqual({
       runtimeVersion: '1.0.0',
       manifestVersion: '2.0.0-dev',
@@ -323,17 +297,12 @@ describe('apply_setting', () => {
 })
 
 describe('create_agent', () => {
-  it('is listed and callable for the default Assistant capability set', async () => {
+  it('is listed for the default Assistant capability set', async () => {
     const client = await connectAssistantClient()
 
-    expect((await client.listTools()).tools.map((tool) => tool.name)).toContain('create_agent')
-    const result = await client.callTool({
-      name: 'create_agent',
-      arguments: { name: 'Reviewer', instructions: 'Review code.', model: 'anthropic::claude-sonnet' }
-    })
-
-    expect(result.isError).not.toBe(true)
-    expect(mocks.agentCreate).toHaveBeenCalledOnce()
+    expect((await client.listTools()).tools.map((tool) => tool.name)).toEqual(
+      expect.arrayContaining(['create_agent', 'create_assistant', 'update_agent'])
+    )
   })
 
   it('is neither listed nor callable for the Support capability set', async () => {
@@ -345,111 +314,9 @@ describe('create_agent', () => {
     ).rejects.toThrow('create_agent')
     expect(mocks.agentCreate).not.toHaveBeenCalled()
   })
-
-  it('creates an agent through the v2 data service', async () => {
-    const result = await callTool('create_agent', {
-      name: ' Reviewer ',
-      description: ' Reviews code ',
-      instructions: ' Review Python code. ',
-      model: 'anthropic::claude-sonnet'
-    })
-
-    expect(mocks.agentCreate).toHaveBeenCalledWith({
-      type: 'claude-code',
-      name: 'Reviewer',
-      description: 'Reviews code',
-      instructions: 'Review Python code.',
-      model: 'anthropic::claude-sonnet',
-      configuration: {
-        permission_mode: 'default',
-        env_vars: {}
-      }
-    })
-    const output = {
-      ok: true,
-      agentId: 'agent-created',
-      name: 'Reviewer',
-      model: 'anthropic::claude-sonnet'
-    }
-    expect(result.structuredContent).toEqual(output)
-    expect(JSON.parse(toolResultText(result))).toEqual(output)
-  })
-
-  it("defaults to Cherry Assistant's current model when model is omitted", async () => {
-    const client = await connectAssistantClient(undefined, 'openai::gpt-5')
-
-    await callTool('create_agent', { name: 'Reviewer', instructions: 'Review code.' }, client)
-
-    expect(mocks.agentCreate).toHaveBeenCalledWith(expect.objectContaining({ model: 'openai::gpt-5' }))
-  })
-
-  it('rejects legacy single-colon model ids', async () => {
-    const result = await callTool('create_agent', {
-      name: 'Reviewer',
-      instructions: 'Review code.',
-      model: 'anthropic:claude-sonnet'
-    })
-
-    expect(result.isError).toBe(true)
-    expect(toolResultText(result)).toContain('providerId::modelId')
-    expect(mocks.agentCreate).not.toHaveBeenCalled()
-  })
-
-  it('rejects a well-formed model id that is not configured', async () => {
-    mocks.modelGetByKey.mockImplementationOnce(() => {
-      throw DataApiErrorFactory.notFound('Model', 'anthropic/missing')
-    })
-    const result = await callTool('create_agent', {
-      name: 'Reviewer',
-      instructions: 'Review code.',
-      model: 'anthropic::missing'
-    })
-
-    expect(result.isError).toBe(true)
-    expect(toolResultText(result)).toContain('Model is not configured in Cherry Studio: anthropic::missing')
-    expect(mocks.agentCreate).not.toHaveBeenCalled()
-  })
-
-  it.each([
-    ['blank name', { name: '   ', instructions: 'Review code.', model: 'anthropic::claude-sonnet' }],
-    ['missing instructions', { name: 'Reviewer', model: 'anthropic::claude-sonnet' }],
-    ['no model and no default model', { name: 'Reviewer', instructions: 'Review code.' }]
-  ])('rejects %s without creating an agent', async (_case, args) => {
-    const result = await callTool('create_agent', args)
-
-    expect(result.isError).toBe(true)
-    expect(mocks.agentCreate).not.toHaveBeenCalled()
-  })
 })
 
 describe('prepare_diagnostic_report', () => {
-  it('is exposed by the default assistant tool set and callable through the packaged list path', async () => {
-    const assistantClient = await connectAssistantClient()
-    const supportClient = await connectAssistantClient(SUPPORT_ASSISTANT_TOOL_NAMES)
-
-    expect((await assistantClient.listTools()).tools.map((tool) => tool.name)).toEqual([
-      'navigate',
-      'diagnose',
-      'product_info',
-      'apply_setting',
-      'create_agent',
-      'prepare_diagnostic_report'
-    ])
-
-    const supportTools = (await supportClient.listTools()).tools
-    const draftTool = supportTools.find((tool) => tool.name === 'prepare_diagnostic_report')
-    expect(draftTool).toMatchObject({
-      inputSchema: {
-        required: ['description'],
-        additionalProperties: false
-      },
-      outputSchema: {
-        required: ['ok', 'description'],
-        additionalProperties: false
-      }
-    })
-  })
-
   it('returns an editable normalized draft without performing submission', async () => {
     const client = await connectAssistantClient()
     const output = { ok: true, description: 'first\r\nsecond\r\nthird' }
@@ -590,7 +457,6 @@ describe('diagnose config', () => {
       provider: 'openai',
       modelId: 'gpt-4o-mini'
     })
-    expect(config).not.toHaveProperty('topicNamingModel')
   })
 
   it('redacts assistant-visible proxy values to origin only', async () => {

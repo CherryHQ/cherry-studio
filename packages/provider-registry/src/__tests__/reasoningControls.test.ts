@@ -7,18 +7,11 @@ import { inferReasoningControls } from '../patterns/reasoning-heuristics'
 import { REASONING_EFFORT, REASONING_EFFORT_ORDER } from '../schemas/enums'
 import type { ReasoningControl } from '../schemas/model'
 import { ReasoningSupportSchema } from '../schemas/model'
-import { REASONING_FORMAT_TYPES } from '../schemas/provider'
 import { deriveLegacyReasoningFields } from '../utils/reasoningControls'
 
 describe('REASONING_EFFORT_ORDER', () => {
   it('is a permutation of REASONING_EFFORT (exhaustiveness lock)', () => {
     expect([...REASONING_EFFORT_ORDER].sort()).toEqual(Object.values(REASONING_EFFORT).sort())
-  })
-})
-
-describe('REASONING_FORMAT_TYPES', () => {
-  it('derives every discriminator from the format union', () => {
-    expect(REASONING_FORMAT_TYPES).toEqual(['openai-chat', 'openai-responses', 'anthropic', 'gemini', 'ollama', 'none'])
   })
 })
 
@@ -101,6 +94,12 @@ describe('inferReasoningControls (ingest-time heuristics)', () => {
 
   it.each([
     // [id, expected controls]
+    ['swe-2-flash', [{ kind: 'effort', values: ['medium', 'high', 'max'] }]],
+    ['swe-2.1-ultrafast', [{ kind: 'effort', values: ['low', 'medium', 'high', 'xhigh', 'max'] }]],
+    ['recursive/flint-v1.0', [{ kind: 'effort', values: ['low', 'medium', 'high'] }]],
+    ['beam', [{ kind: 'effort', values: ['low', 'medium', 'high', 'xhigh', 'max'] }]],
+    ['sakana/fugu-ultra-v2', [{ kind: 'effort', values: ['high', 'xhigh', 'max'] }]],
+    ['sakana/namazu', [{ kind: 'effort', values: ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] }]],
     ['gpt-5.1', [{ kind: 'effort', values: ['none', 'low', 'medium', 'high'] }]],
     ['gpt-5.2-pro', [{ kind: 'effort', values: ['medium', 'high', 'xhigh'] }]],
     ['o3', [{ kind: 'effort', values: ['low', 'medium', 'high'] }]],
@@ -154,6 +153,10 @@ describe('inferReasoningControls (ingest-time heuristics)', () => {
     ['xsparkx2flash', [{ kind: 'toggle' }]],
     ['gemma4:31b', [{ kind: 'toggle' }]],
     ['gemma-4-31b-it', [{ kind: 'toggle' }]],
+    ['mistral-large-4', [{ kind: 'effort', values: ['low', 'medium', 'high'] }]],
+    ['mistral-large-4-0', [{ kind: 'effort', values: ['low', 'medium', 'high'] }]],
+    ['mistral-large-4-0-8', [{ kind: 'effort', values: ['low', 'medium', 'high'] }]],
+    ['mistralai/mistral-large-4-0', [{ kind: 'effort', values: ['low', 'medium', 'high'] }]],
     ['mistral-small-2603', [{ kind: 'effort', values: ['none', 'high'] }]],
     // provider-namespaced ids are normalized before matching
     ['deepseek/deepseek-v4', [{ kind: 'effort', values: ['none', 'low', 'high', 'max'] }]],

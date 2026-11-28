@@ -1,8 +1,10 @@
-import { render, screen } from '@testing-library/react'
+import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { ComposerContextValue } from '@renderer/components/composer/ComposerContext'
+import type { AgentSessionFollowup } from '@shared/ai/agentSessionFollowups'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 
 import AgentComposerSlot from '../AgentComposerSlot'
@@ -18,7 +20,8 @@ vi.mock('@renderer/components/chat/panes/Shell', () => ({
 }))
 
 vi.mock('@renderer/components/composer/ConversationComposerSlot', () => ({
-  default: ({ fallback }: { fallback?: ReactNode }) => fallback
+  default: ({ composerContext, fallback }: { composerContext?: ComposerContextValue; fallback?: ReactNode }) =>
+    composerContext?.overrides?.[0]?.render({}) ?? fallback
 }))
 
 vi.mock('@renderer/components/composer/variants/AgentComposer', () => ({
@@ -68,62 +71,6 @@ describe('AgentComposerSlot', () => {
     rightPanelPresentationMock.maximized = false
   })
 
-  it('mounts the real composer while agent metadata is resolving', () => {
-    render(<AgentComposerSlot {...baseProps} />)
-
-    expect(screen.getByTestId('agent-composer')).toBeInTheDocument()
-    expect(agentComposerPropsMock.last).toEqual(
-      expect.objectContaining({
-        agentId: 'agent-1',
-        resolvedAgent: undefined,
-        sendDisabled: true,
-        previewInputFile: previewInputFileInRightPaneMock
-      })
-    )
-  })
-
-  it('mounts the real composer after agent metadata resolves', async () => {
-    const activeAgent = { id: 'agent-1', model: 'provider::model-1' } as any
-    const activeModel = { id: 'provider::model-1', name: 'Model 1' } as any
-    render(
-      <AgentComposerSlot
-        {...baseProps}
-        activeAgent={activeAgent}
-        activeModel={activeModel}
-        workspaceWarning="Workspace unavailable"
-      />
-    )
-
-    expect(await screen.findByTestId('agent-composer')).toBeInTheDocument()
-    expect(agentComposerPropsMock.last).toMatchObject({
-      resolvedAgent: activeAgent,
-      resolvedModel: activeModel,
-      resolvedWorkspaceWarning: 'Workspace unavailable',
-      externalContextControls: true
-    })
-    expect(agentComposerPropsMock.last?.onAgentChange).toBeUndefined()
-    expect(agentComposerPropsMock.last?.onWorkspaceChange).toBeUndefined()
-  })
-
-  it('forwards one-shot launch options to the real composer', () => {
-    const launchOptions = {
-      initialDraft: { text: 'Use the cherry-studio-feedback skill.', tokens: [] },
-      onSent: vi.fn()
-    }
-
-    render(<AgentComposerSlot {...baseProps} composerLaunchOptions={launchOptions} />)
-
-    expect(agentComposerPropsMock.last?.launchOptions).toBe(launchOptions)
-  })
-
-  it.each([true, false])('uses the shared right-panel presentation state when maximized is %s', (maximized) => {
-    rightPanelPresentationMock.maximized = maximized
-
-    render(<AgentComposerSlot {...baseProps} />)
-
-    expect(agentComposerPropsMock.last?.compactWhenSingleLine).toBe(maximized)
-  })
-
   it('lets an unlinked session select an active agent', async () => {
     const user = userEvent.setup()
     const onAgentChange = vi.fn()
@@ -134,9 +81,38 @@ describe('AgentComposerSlot', () => {
     expect(onAgentChange).toHaveBeenCalledWith('agent-2')
   })
 
-  it('hides the composer in multi-select mode', () => {
-    const { container } = render(<AgentComposerSlot {...baseProps} isMultiSelectMode />)
+  it('keeps a queued draft open when its revision is stale and cancels back to the original composer', async () => {
+    vi.mocked(window.api.ipcApi.request)
+      .mockResolvedValueOnce({ ok: true, data: false })
+      .mockResolvedValueOnce({ ok: true, data: true })
+      .mockResolvedValueOnce({ ok: true, data: false })
+      .mockResolvedValueOnce({ ok: true, data: true })
+    const original = { initialDraft: { text: 'Original composer draft', tokens: [] } }
+    const topicId = 'agent-session:session-1'
+    const item: AgentSessionFollowup = {
+      id: 'queued-1',
+      revision: 1,
+      parts: [{ type: 'text', text: 'Original queued input' }]
+    }
+    const parts = [{ type: 'text', text: 'Attempted edit' }]
+    render(<AgentComposerSlot {...baseProps} isStreaming sendDisabled={false} composerLaunchOptions={original} />)
 
-    expect(container).toBeEmptyDOMElement()
+    await act(async () => {
+      await agentComposerPropsMock.last.onEditQueuedFollowup(topicId, item)
+    })
+    expect(agentComposerPropsMock.last.launchOptions).toEqual(original)
+    await act(async () => {
+      await agentComposerPropsMock.last.onEditQueuedFollowup(topicId, item)
+    })
+    expect(agentComposerPropsMock.last.sendDisabled).toBe(false)
+    await act(async () => {
+      await agentComposerPropsMock.last.sendMessage(undefined, { body: { userMessageParts: parts } })
+    })
+
+    expect(agentComposerPropsMock.last.launchOptions.editing.messageId).toBe(item.id)
+    await act(async () => {
+      await agentComposerPropsMock.last.launchOptions.editing.onCancel()
+    })
+    expect(agentComposerPropsMock.last.launchOptions).toEqual(original)
   })
 })

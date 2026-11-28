@@ -2,8 +2,7 @@ import { renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { preferenceService } from '@data/PreferenceService'
-
-import { useApiGatewayProvider } from '../useApiGatewayProvider'
+import { useApiGatewayProvider } from '@renderer/hooks/useApiGatewayProvider'
 
 const mocks = vi.hoisted(() => ({
   apiGatewayRunning: false,
@@ -35,7 +34,7 @@ describe('useApiGatewayProvider gateway lifecycle', () => {
   it('rejects when a non-running gateway fails to start', async () => {
     mocks.startApiGateway.mockResolvedValue(false)
     const { result } = renderHook(() => useApiGatewayProvider())
-    await expect(result.current!.ensureRunning()).rejects.toThrow('API gateway failed to start')
+    await expect(result.current!.ensureRunning()).rejects.toThrow('Unified Gateway failed to start')
   })
 
   it('does not restart a running gateway', async () => {
@@ -62,7 +61,7 @@ describe('useApiGatewayProvider gateway lifecycle', () => {
   it('rejects a missing persisted key rather than using the old displayed key', async () => {
     vi.mocked(window.api.preference.get).mockResolvedValue(null)
     const { result } = renderHook(() => useApiGatewayProvider())
-    await expect(result.current!.getApiKey()).rejects.toThrow('API gateway did not provide a key')
+    await expect(result.current!.getApiKey()).rejects.toThrow('Unified Gateway did not provide a key')
   })
 
   it('propagates a failed persisted read rather than falling back to the renderer cache', async () => {

@@ -71,7 +71,7 @@ class MarkdownResultStore {
         }
 
         const contentType = response.headers.get('content-type')
-        if (contentType !== 'application/zip') {
+        if (contentType?.split(';')[0].trim().toLowerCase() !== 'application/zip') {
           throw new Error(`Markdown result download returned unexpected content-type: ${contentType}`)
         }
 

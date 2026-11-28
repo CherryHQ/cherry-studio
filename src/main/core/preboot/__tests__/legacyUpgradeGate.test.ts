@@ -1,0 +1,127 @@
+import { dialog } from 'electron'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { application } from '@application'
+import type * as LegacyUpgradeModule from '@data/migration/legacyUpgrade'
+import { findLegacyUpgradeProfile } from '@data/migration/legacyUpgrade'
+import { showLegacyUpgradeWindow } from '@data/migration/legacyUpgradeWindow'
+import type * as PlatformModule from '@main/core/platform'
+import { bootConfigService } from '@main/data/bootConfig'
+
+import { runLegacyUpgradeGate } from '../legacyUpgradeGate'
+
+vi.mock('@data/migration/legacyUpgrade', async (importOriginal) => ({
+  ...(await importOriginal<typeof LegacyUpgradeModule>()),
+  findLegacyUpgradeProfile: vi.fn()
+}))
+
+vi.mock('@main/utils/appEdition', () => ({ getAppEdition: () => 'global' }))
+
+vi.mock('@main/core/platform', async (importOriginal) => ({
+  ...(await importOriginal<typeof PlatformModule>()),
+  get isPortable() {
+    return process.platform === 'win32' && 'PORTABLE_EXECUTABLE_DIR' in process.env
+  }
+}))
+
+vi.mock('@data/migration/legacyUpgradeWindow', () => ({ showLegacyUpgradeWindow: vi.fn() }))
+vi.mock('@main/data/bootConfig', () => ({ bootConfigService: { get: vi.fn(), set: vi.fn(), persist: vi.fn() } }))
+
+describe('legacy upgrade gate', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.mocked(findLegacyUpgradeProfile).mockReturnValue({ kind: 'legacy', path: '/legacy/profile' })
+    vi.mocked(showLegacyUpgradeWindow).mockResolvedValue(undefined)
+    vi.mocked(bootConfigService.get).mockReturnValue(null)
+    vi.mocked(bootConfigService.persist).mockImplementation(() => {})
+  })
+
+  it('permits normal startup without a prompt', async () => {
+    vi.mocked(findLegacyUpgradeProfile).mockReturnValue(undefined)
+    expect(await runLegacyUpgradeGate()).toBe('skipped')
+    expect(showLegacyUpgradeWindow).not.toHaveBeenCalled()
+    expect(application.quit).not.toHaveBeenCalled()
+  })
+
+  it('offers fixed installers and prerequisites before quitting without bootstrap', async () => {
+    expect(await runLegacyUpgradeGate()).toBe('handled')
+    const [screen, downloads] = vi.mocked(showLegacyUpgradeWindow).mock.calls[0]
+    expect(screen.detail).toContain('2.2.2')
+    expect(screen.detail).not.toContain('/legacy/profile')
+    expect(screen.prerequisite).toContain('v1.9.13')
+    expect(screen.downloadPrerequisite).toContain('v1.9.13')
+    expect(screen.installation?.detail).toContain('2.2.2')
+    expect(downloads.bridge).toContain('/releases/download/v2.2.2/Cherry-Studio-2.2.2-')
+    expect(downloads.prerequisite).toContain('/releases/download/v1.9.13/Cherry-Studio-1.9.13-')
+    expect(application.quit).toHaveBeenCalledOnce()
+  })
+
+  it('offers both portable EXEs when a legacy portable profile has no version log', async () => {
+    const platform = vi.spyOn(process, 'platform', 'get').mockReturnValue('win32')
+    const arch = vi.spyOn(process, 'arch', 'get').mockReturnValue('x64')
+    vi.stubEnv('PORTABLE_EXECUTABLE_DIR', 'C:\\Cherry Studio')
+    try {
+      await runLegacyUpgradeGate()
+
+      const [screen, downloads] = vi.mocked(showLegacyUpgradeWindow).mock.calls[0]
+      expect(screen.prerequisite).toContain('same folder')
+      expect(screen.prerequisite).not.toContain('Check for Updates')
+      expect(screen.downloadPrerequisite).toBe('Download v1.9.13 Portable')
+      expect(screen.download).toBe('Download v2.2.2 Portable')
+      expect(screen.showBridgeDownload).toBe(true)
+      expect(downloads.prerequisite).toContain('/v1.9.13/Cherry-Studio-1.9.13-x64-portable.exe')
+      expect(downloads.bridge).toContain('/v2.2.2/Cherry-Studio-2.2.2-win-x64-portable.exe')
+    } finally {
+      vi.unstubAllEnvs()
+      platform.mockRestore()
+      arch.mockRestore()
+    }
+  })
+
+  it('persists a recovered v2 location and restarts without showing migration UI', async () => {
+    vi.mocked(findLegacyUpgradeProfile).mockReturnValue({ kind: 'recover', path: '/custom/profile' })
+    vi.mocked(bootConfigService.get).mockReturnValue({ '/other/exe': '/other/profile' })
+    expect(await runLegacyUpgradeGate()).toBe('handled')
+    expect(bootConfigService.set).toHaveBeenCalledWith(
+      'app.user_data_path',
+      expect.objectContaining({ '/other/exe': '/other/profile' })
+    )
+    const mapping = vi.mocked(bootConfigService.set).mock.calls[0][1]
+    expect(Object.values(mapping!)).toContain('/custom/profile')
+    expect(bootConfigService.persist).toHaveBeenCalledOnce()
+    expect(application.relaunch).toHaveBeenCalledOnce()
+    expect(showLegacyUpgradeWindow).not.toHaveBeenCalled()
+  })
+
+  it('does not restart or bootstrap when recovering the path cannot be persisted', async () => {
+    vi.mocked(findLegacyUpgradeProfile).mockReturnValue({ kind: 'recover', path: '/custom/profile' })
+    vi.mocked(bootConfigService.persist).mockImplementation(() => {
+      throw new Error('Read-only config')
+    })
+    expect(await runLegacyUpgradeGate()).toBe('handled')
+    expect(bootConfigService.set).toHaveBeenLastCalledWith('app.user_data_path', null)
+    expect(application.relaunch).not.toHaveBeenCalled()
+    expect(application.quit).toHaveBeenCalledOnce()
+    expect(showLegacyUpgradeWindow).not.toHaveBeenCalled()
+  })
+
+  it('fails closed on inspection errors', async () => {
+    vi.mocked(findLegacyUpgradeProfile).mockImplementation(() => {
+      throw new Error('Data directory unavailable')
+    })
+    expect(await runLegacyUpgradeGate()).toBe('handled')
+    expect(dialog.showErrorBox).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.stringContaining('Data directory unavailable')
+    )
+    expect(showLegacyUpgradeWindow).not.toHaveBeenCalled()
+    expect(application.quit).toHaveBeenCalledOnce()
+  })
+
+  it('reports download launch failure and still prevents bootstrap', async () => {
+    vi.mocked(showLegacyUpgradeWindow).mockRejectedValueOnce(new Error('Browser unavailable'))
+    expect(await runLegacyUpgradeGate()).toBe('handled')
+    expect(dialog.showErrorBox).toHaveBeenCalledWith(expect.any(String), expect.stringContaining('Browser unavailable'))
+    expect(application.quit).toHaveBeenCalledOnce()
+  })
+})

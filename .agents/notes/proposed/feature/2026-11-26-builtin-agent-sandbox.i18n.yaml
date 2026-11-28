@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-11-26-builtin-agent-sandbox.md
+2026-11-26-builtin-agent-sandbox.md: e4a073e762c36e9303eea32d6d5d69aedfc6af6f
+2026-11-26-builtin-agent-sandbox.zh.md: 28ceedc955424c58bb2e97b5023d421ed5c46f5f

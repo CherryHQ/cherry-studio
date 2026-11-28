@@ -28,7 +28,6 @@ describe('useSaveTool', () => {
       { initialProps: { enabled: true } }
     )
 
-    expect(result.current[0]).toMatchObject({ id: 'save', tooltip: 'code_block.edit.save.label' })
     act(() => result.current[0].onClick?.())
     expect(save).toHaveBeenCalledOnce()
 

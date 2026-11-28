@@ -1,5 +1,32 @@
 import { execFileSync } from 'node:child_process'
 
+const acpAdapters = [
+  'amp',
+  'antigravity',
+  'cline',
+  'codebuddy',
+  'copilot',
+  'deepseek-harness',
+  'factory',
+  'glm',
+  'goose',
+  'grok',
+  'hermes',
+  'kimi',
+  'kiro',
+  'minimax',
+  'omp',
+  'openclaw',
+  'opencode',
+  'poolside',
+  'qoder',
+  'qwen',
+  'snow',
+  'trae',
+  'vibe',
+  'zcode'
+].map((name) => 'agent-runtime-' + name + '-acp')
+
 export const testProjects = [
   'main',
   'preload',
@@ -14,8 +41,11 @@ export const testProjects = [
   'agent-behavior',
   'agent-runtime',
   'agent-runtime-pi',
+  'agent-runtime-pi-acp',
   'agent-runtime-pi-durable',
   'agent-runtime-acp',
+  'agent-runtime-codex',
+  'agent-runtime-cursor',
   'agent-runtime-claude-code',
   'ai-sdk-provider',
   'remote-protocol',
@@ -36,6 +66,24 @@ export const checkTasks = {
   'types-aicore': { group: 'types', args: ['--filter', '@cherrystudio/ai-core', 'typecheck'] },
   'types-e2e': { group: 'types', args: ['typecheck:e2e'] },
   'types-agent-runtime-pi': { group: 'types', args: ['--filter', '@cherrystudio/agent-runtime-pi', 'typecheck'] },
+  'types-agent-runtime-codex': { group: 'types', args: ['--filter', '@cherrystudio/agent-runtime-codex', 'typecheck'] },
+  'types-agent-runtime-cursor': {
+    group: 'types',
+    args: ['--filter', '@cherrystudio/agent-runtime-cursor', 'typecheck']
+  },
+  ...Object.fromEntries(
+    acpAdapters.map((name) => [
+      'types-' + name,
+      {
+        group: 'types',
+        args: ['--filter', '@cherrystudio/' + name, 'typecheck']
+      }
+    ])
+  ),
+  'types-agent-runtime-pi-acp': {
+    group: 'types',
+    args: ['--filter', '@cherrystudio/agent-runtime-pi-acp', 'typecheck']
+  },
   'types-agent-runtime-pi-durable': {
     group: 'types',
     args: ['--filter', '@cherrystudio/agent-runtime-pi-durable', 'typecheck']
@@ -67,6 +115,7 @@ const consumers = {
     'agent-runtime',
     'agent-behavior',
     'agent-runtime-pi',
+    'agent-runtime-pi-acp',
     'agent-runtime-pi-durable',
     'agent-runtime-acp',
     'agent-runtime-claude-code',
@@ -74,7 +123,11 @@ const consumers = {
   ],
   'agent-runtime-pi': ['agent-runtime-pi', 'main'],
   'agent-runtime-pi-durable': ['agent-runtime-pi-durable'],
-  'agent-runtime-acp': ['agent-runtime-acp'],
+  'agent-runtime-acp': ['agent-runtime-acp', 'agent-runtime-pi-acp', 'main'],
+  'agent-runtime-pi-acp': ['agent-runtime-pi-acp', 'main'],
+  ...Object.fromEntries(acpAdapters.map((name) => [name, ['main', 'renderer', 'shared']])),
+  'agent-runtime-codex': ['agent-runtime-codex', 'shared', 'renderer', 'main'],
+  'agent-runtime-cursor': ['agent-runtime-cursor', 'main'],
   'agent-runtime-claude-code': ['agent-runtime-claude-code'],
   'ai-sdk-provider': ['ai-sdk-provider', 'aiCore', 'main', 'preload', 'renderer'],
   ui: ['ui', 'file-preview', 'renderer'],
@@ -91,7 +144,7 @@ const consumers = {
 function scopeFor(file) {
   if (file.startsWith('resources/')) return 'all'
   if (file.startsWith('docs/website/')) return 'docs'
-  if (file === '.github/website-docs-sync-plan.json') return 'docs'
+  if (file === 'docs/dev/sources-index.json' || file === '.github/website-docs-sync-plan.json') return 'docs'
   if (
     file === 'CONTRIBUTING.i18n.yaml' ||
     ((file.startsWith('docs/') || file.startsWith('.agents/notes/')) && file.endsWith('.i18n.yaml'))
@@ -136,11 +189,13 @@ function scopeFor(file) {
 export function createPlan(files, fullReason) {
   const reasons = {}
   const projects = new Set()
+  let platform = false
   const add = (task, reason) => {
     const entries = (reasons[task] ??= [])
     if (entries.length < 3 && !entries.includes(reason)) entries.push(reason)
   }
   const full = (reason) => {
+    platform = true
     for (const task of Object.keys(checkTasks)) add(task, reason)
     for (const project of testProjects) projects.add(project)
   }
@@ -166,6 +221,8 @@ export function createPlan(files, fullReason) {
     add('knowledge', file)
     if (file.startsWith('src/renderer/') && /\.(?:tsx?|css)$/.test(file)) add('theme', file)
     const affected = scope === 'preload' ? ['main', 'preload', 'renderer'] : consumers[scope]
+    if (affected.includes('main') && !/^packages\/(?:aiCore|ai-sdk-provider|web-search)\/src\/.*\.tsx?$/.test(file))
+      platform = true
     for (const project of affected) projects.add(project)
     if (affected.some((project) => ['main', 'shared', 'scripts', 'provider-registry'].includes(project)))
       add('types-node', file)
@@ -175,6 +232,12 @@ export function createPlan(files, fullReason) {
     if (affected.includes('agent-runtime-pi')) add('types-agent-runtime-pi', file)
     if (affected.includes('agent-runtime-pi-durable')) add('types-agent-runtime-pi-durable', file)
     if (affected.includes('agent-runtime-claude-code')) add('types-agent-runtime-claude-code', file)
+    if (scope === 'agent-runtime-codex') add('types-agent-runtime-codex', file)
+    if (scope === 'agent-runtime-cursor') add('types-agent-runtime-cursor', file)
+    for (const adapter of acpAdapters) {
+      if (scope === adapter || affected.includes('agent-runtime-acp')) add('types-' + adapter, file)
+    }
+    if (affected.includes('agent-runtime-pi-acp')) add('types-agent-runtime-pi-acp', file)
     if (affected.includes('agent-runtime-acp')) add('types-agent-runtime-acp', file)
     if (affected.includes('agent-runtime')) add('types-agent-runtime', file)
     if (affected.includes('remote-protocol')) add('types-remote-protocol', file)
@@ -193,6 +256,7 @@ export function createPlan(files, fullReason) {
   return {
     tasks: Object.keys(checkTasks).filter((task) => reasons[task]),
     projects: testProjects.filter((project) => projects.has(project)),
+    platform,
     reasons
   }
 }
@@ -218,7 +282,7 @@ export function selectedGroups(plan) {
     types: plan.tasks.some((task) => checkTasks[task].group === 'types'),
     i18n: plan.tasks.some((task) => checkTasks[task].group === 'i18n'),
     main: plan.projects.includes('main'),
-    platform: plan.projects.includes('main'),
+    platform: plan.platform,
     renderer: plan.projects.includes('renderer'),
     packages: plan.projects.some((project) => !['main', 'preload', 'renderer'].includes(project))
   }

@@ -87,6 +87,8 @@ function Slider({
   value,
   min = 0,
   max = 100,
+  step = 1,
+  snapOnRelease = false,
   size,
   marks,
   orientation = 'horizontal',
@@ -95,9 +97,12 @@ function Slider({
   getThumbAriaLabel,
   getThumbAriaValueText,
   onValueChange,
+  onValueCommit,
   ...props
 }: React.ComponentProps<typeof SliderPrimitive.Root> &
   VariantProps<typeof sliderTrackVariants> & {
+    /** Single-thumb sliders can track the pointer continuously and settle onto a step on release. */
+    snapOnRelease?: boolean
     marks?: SliderMark[]
     showValueLabel?: boolean
     formatValueLabel?: (value: number) => React.ReactNode
@@ -114,6 +119,12 @@ function Slider({
     }
   }, [value])
 
+  const [dragValues, setDragValues] = React.useState<number[] | null>(null)
+  const pointerDownRef = React.useRef(false)
+  const canSnap = snapOnRelease && localValues.length === 1
+  const dragging = canSnap && dragValues !== null
+  const snapValues = (values: number[]) =>
+    values.map((val) => Math.min(max, Math.max(min, Number((min + Math.round((val - min) / step) * step).toFixed(10)))))
   const isVertical = orientation === 'vertical'
 
   const sliderElement = (
@@ -121,19 +132,63 @@ function Slider({
       data-slot="slider"
       data-size={size}
       defaultValue={defaultValue}
-      value={value}
+      value={dragging ? dragValues : canSnap ? (value ?? localValues) : value}
+      step={dragging ? step / 1000 : step}
+      data-dragging={dragging || undefined}
       min={min}
       max={max}
       orientation={orientation}
       onValueChange={(newValues) => {
-        setLocalValues(newValues)
-        onValueChange?.(newValues)
+        if (dragging) setDragValues(newValues)
+        const nextValues = canSnap ? snapValues(newValues) : newValues
+        if (!canSnap || nextValues.some((val, index) => val !== localValues[index])) {
+          setLocalValues(nextValues)
+          onValueChange?.(nextValues)
+        }
       }}
+      onValueCommit={(newValues) => onValueCommit?.(canSnap ? snapValues(newValues) : newValues)}
       className={cn(
         'relative flex w-full touch-none items-center select-none data-[disabled]:opacity-50 data-[orientation=vertical]:h-full data-[orientation=vertical]:min-h-44 data-[orientation=vertical]:w-auto data-[orientation=vertical]:flex-col',
+        canSnap && [
+          '[&_[data-slot=slider-range]]:transition-[left,right,top,bottom] [&>span:has(>[data-slot=slider-thumb])]:transition-[left,right,top,bottom]',
+          '[&_[data-slot=slider-range]]:duration-250 [&>span:has(>[data-slot=slider-thumb])]:duration-250',
+          '[&_[data-slot=slider-range]]:ease-[cubic-bezier(0.22,1,0.36,1)] [&>span:has(>[data-slot=slider-thumb])]:ease-[cubic-bezier(0.22,1,0.36,1)]',
+          '[&_[data-slot=slider-thumb]]:transition-[scale,box-shadow] [&_[data-slot=slider-thumb]]:duration-150',
+          'data-[dragging=true]:[&_[data-slot=slider-range]]:transition-none data-[dragging=true]:[&_[data-slot=slider-thumb]]:scale-110 data-[dragging=true]:[&>span:has(>[data-slot=slider-thumb])]:transition-none',
+          'motion-reduce:[&_[data-slot=slider-range]]:transition-none motion-reduce:[&_[data-slot=slider-thumb]]:scale-100 motion-reduce:[&_[data-slot=slider-thumb]]:transition-none motion-reduce:[&>span:has(>[data-slot=slider-thumb])]:transition-none'
+        ],
         !marks?.length && className
       )}
-      {...props}>
+      {...props}
+      onPointerDownCapture={(event) => {
+        props.onPointerDownCapture?.(event)
+        if (canSnap && !props.disabled && !event.defaultPrevented && event.button === 0) {
+          pointerDownRef.current = true
+          if ((event.target as HTMLElement).closest('[data-slot=slider-thumb]')) {
+            setDragValues(value ?? localValues)
+          }
+        }
+      }}
+      onPointerMoveCapture={(event) => {
+        props.onPointerMoveCapture?.(event)
+        if (pointerDownRef.current && !dragging && !event.defaultPrevented) {
+          setDragValues(value ?? localValues)
+        }
+      }}
+      onPointerUp={(event) => {
+        pointerDownRef.current = false
+        props.onPointerUp?.(event)
+      }}
+      onLostPointerCapture={(event) => {
+        pointerDownRef.current = false
+        setDragValues(null)
+        props.onLostPointerCapture?.(event)
+      }}
+      onPointerCancel={(event) => {
+        pointerDownRef.current = false
+        setDragValues(null)
+        props.onPointerCancel?.(event)
+      }}>
       <SliderPrimitive.Track data-slot="slider-track" className={sliderTrackVariants({ size })}>
         <SliderPrimitive.Range
           data-slot="slider-range"

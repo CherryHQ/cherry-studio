@@ -1,8 +1,8 @@
-export { isKnownNavigationPath } from '@shared/utils/navigationPath'
 import { Compass } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { useOptionalMessageListActions } from '../../MessageListProvider'
+export { isKnownNavigationPath } from '@shared/utils/navigationPath'
 
 interface NavigateToolInput {
   path?: string
@@ -20,6 +20,7 @@ const ROUTE_LABELS: Record<string, { icon: string; labelKey: string }> = {
   '/app/knowledge': { icon: '📚', labelKey: 'title.knowledge' },
   '/app/mini-app': { icon: '📦', labelKey: 'title.apps' },
   '/app/code': { icon: '💻', labelKey: 'title.code' },
+  '/app/api-gateway': { icon: '🌐', labelKey: 'apiGateway.title' },
   '/app/launchpad': { icon: '🚀', labelKey: 'title.launchpad' },
   '/app/agents': { icon: '🤖', labelKey: 'agent.sidebar_title' },
 

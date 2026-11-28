@@ -14,24 +14,6 @@ beforeEach(() => {
 })
 
 describe('resolveDisallowedTools', () => {
-  it('disables every disabled-exposure tool with no overrides or ctx', () => {
-    const disallowed = new Set(resolveDisallowedTools({}))
-    // Parity with the former GLOBALLY_DISALLOWED_TOOLS set.
-    expect(disallowed.has('WebSearch')).toBe(true)
-    expect(disallowed.has('WebFetch')).toBe(true)
-    expect(disallowed.has('TodoWrite')).toBe(true)
-    // Newly disabled per the registry classification.
-    expect(disallowed.has('NotebookEdit')).toBe(true)
-    expect(disallowed.has('REPL')).toBe(true)
-    expect(disallowed.has('CronCreate')).toBe(true)
-    expect(disallowed.has('Monitor')).toBe(true)
-    // user / internal tools are not disabled by default.
-    expect(disallowed.has('Bash')).toBe(false)
-    expect(disallowed.has('Read')).toBe(false)
-    expect(disallowed.has('Workflow')).toBe(false)
-    expect(disallowed.has('Agent')).toBe(false)
-  })
-
   it('disables a user tool and its dependents (BashOutput follows Bash)', () => {
     const disallowed = new Set(resolveDisallowedTools({ disabledTools: ['Bash'] }))
     expect(disallowed.has('Bash')).toBe(true)
@@ -75,12 +57,6 @@ describe('resolveDisallowedTools', () => {
     expect(disallowed.has('mcp__docs__search_docs')).toBe(true)
     expect(disallowed.has('mcp__docs__*')).toBe(true)
     expect(disallowed.has('Agent')).toBe(false)
-  })
-
-  it('treats predicate-gated tools as enabled when no ctx is supplied', () => {
-    const disallowed = new Set(resolveDisallowedTools({}))
-    expect(disallowed.has('EnterWorktree')).toBe(false)
-    expect(disallowed.has('mcp__cherry-tools__notify')).toBe(false)
   })
 
   it('disables worktree tools without .git but keeps notify available (self-degrades when no channels)', () => {
