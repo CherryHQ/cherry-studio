@@ -38,8 +38,7 @@ other APIs are not listed. No assets are downloaded by the helper.
 
 ## Build
 
-Install Visual Studio C++ x64 build tools, C++ ATL, and the Windows SDK, including its
-C++/WinRT headers. The build locates Visual Studio with `vswhere` and activates
+Install Visual Studio C++ x64 build tools, C++ ATL, and the Windows SDK. The build locates Visual Studio with `vswhere` and activates
 its x64 toolchain; an existing x64 Native Tools prompt also works. MSVC's static
 runtime is linked, so users do not need build tools or a separate VC runtime for
 the helper.
@@ -113,5 +112,4 @@ macOS tests and source inspection cannot establish Windows support.
 API references: [SAPI WAV recognition](https://learn.microsoft.com/en-us/previous-versions/windows/desktop/ms717071%28v%3Dvs.85%29),
 [in-process input](https://learn.microsoft.com/en-us/previous-versions/windows/desktop/ee413281%28v%3Dvs.85%29),
 [dictation loading](https://learn.microsoft.com/en-us/previous-versions/windows/desktop/ee413304%28v%3Dvs.85%29),
-[SAPI voice output](https://learn.microsoft.com/en-us/previous-versions/windows/desktop/ms719788%28v%3Dvs.85%29),
-[WinRT JSON in desktop apps](https://learn.microsoft.com/en-us/windows/apps/desktop/modernize/winrt-api-desktop-app-support).
+[SAPI voice output](https://learn.microsoft.com/en-us/previous-versions/windows/desktop/ms719788%28v%3Dvs.85%29).
