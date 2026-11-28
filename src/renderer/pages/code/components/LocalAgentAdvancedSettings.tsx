@@ -154,7 +154,7 @@ export function LocalAgentAdvancedSettings({
             </div>
           ) : (
             <div className="flex items-center justify-end gap-2">
-              {preset && detection?.path && !config.executableOverride && (
+              {preset && detection?.path && detection.source !== 'bundled' && !config.executableOverride && (
                 <Button variant="outline" className="mr-auto" disabled={busy} onClick={() => void onUninstall()}>
                   {busyAction === 'uninstall' ? (
                     <Loader2 className="size-4 animate-spin" />

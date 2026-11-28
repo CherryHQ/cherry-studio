@@ -60,6 +60,18 @@ describe('PlantUmlPreview', () => {
     expect(diagram?.querySelector('image, style')).toBeNull()
   })
 
+  it('preserves the rendered diagram background when mounting the preview', async () => {
+    const { container } = render(<PlantUmlPreview>{source}</PlantUmlPreview>)
+    await advance()
+    await reply({
+      svg: svg('<text fill="#FFF">Alice to Bob</text>').replace('<svg ', '<svg style="background:#000000;" ')
+    })
+
+    const diagram = getHost(container).shadowRoot?.querySelector('svg')
+    expect(diagram?.style.backgroundColor).toBe('rgb(0, 0, 0)')
+    expect(diagram?.querySelector('text')).toHaveAttribute('fill', '#FFF')
+  })
+
   it('shows the reported PlantUML error and line when the source cannot render', async () => {
     render(<PlantUmlPreview>{source}</PlantUmlPreview>)
     await advance()

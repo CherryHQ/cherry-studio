@@ -16,6 +16,12 @@ type AgentCommand = Pick<LocalCliAgentPreset, 'executable' | 'aliases'> &
 
 export type InstalledBinary = InstalledCli<string, Exclude<BinaryAvailability['source'], 'none'>>
 
+export function getClaudeSdkFallback(executable: string) {
+  if (executable !== 'claude') return undefined
+  const path = application.get('ClaudeCodeBinaryService').getInstalledExecutable()
+  return path ? { componentId: executable, source: 'bundled' as const, path } : undefined
+}
+
 async function supportsAgentCommand(preset: AgentCommand, candidate: BinaryAvailability) {
   if (preset.protocol !== 'acp' || !preset.minimumAcpVersion || candidate.source === 'none') return true
   const version =

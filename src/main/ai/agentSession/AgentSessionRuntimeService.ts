@@ -1204,6 +1204,7 @@ export class AgentSessionRuntimeService extends BaseService {
     const input = inputs[0]
     if (!source || !input) return undefined
     const turn = createSessionRun({
+      runId: agentSessionMessageService.replyTo(entry.sessionId, input.message.id)?.id,
       taskIds: inputs.map(({ message }) => message.id),
       userMessage: input.message,
       parentId: input.message.id,
@@ -1707,6 +1708,10 @@ export class AgentSessionRuntimeService extends BaseService {
     }
     entry.stopping = stopping
     // Stop withdraws queued follow-ups; input arriving after Stop waits for the native confirmation.
+    if (entry.agentType === 'pi-durable')
+      for (const { message } of entry.runtimeState.queue)
+        if (agentSessionMessageService.isStagedFollowup(entry.sessionId, message.id))
+          agentSessionMessageService.markUserMessageUnsent(entry.sessionId, message.id)
     this.applyRuntimeStateEvent(entry, { type: 'clear-queue' })
     this.applyRuntimeStateEvent(entry, { type: 'connection-occupancy', occupancy: 'stopping', active: true })
     let timer: ReturnType<typeof setTimeout> | undefined
@@ -2876,6 +2881,8 @@ export class AgentSessionRuntimeService extends BaseService {
           (input.facts.includes('queued') || input.facts.includes('placed'))
         ) {
           pending.generation = generation
+          if (pending.nextTurn.steer && !input.facts.includes('placed'))
+            this.publishInputDelivery(entry, inputId, 'queued')
           continue
         }
         if (input.facts.includes('placed')) {
@@ -3027,6 +3034,12 @@ export class AgentSessionRuntimeService extends BaseService {
         this.recordRuntimeUsage(entry, event.invocation)
         break
       case 'followup-queue':
+        if (event.restored && connection?.contextId)
+          agentSessionMessageService.stageRestoredFollowups(
+            entry.sessionId,
+            connection.contextId,
+            event.queue.map(({ id }) => id)
+          )
         for (const { id, revision, parts } of event.queue) {
           const pending = revision > 0 ? entry.pendingInputs?.get(id) : undefined
           if (pending && pending.generation === entry.connectionGeneration) {
@@ -3037,21 +3050,39 @@ export class AgentSessionRuntimeService extends BaseService {
         application.get('CacheService').setShared(AGENT_SESSION_FOLLOWUPS_CACHE_KEY(entry.topicId), event.queue)
         break
       case 'input-state':
-        if (event.input.facts.includes('locally-handled'))
-          markLocalInput(entry.sessionId, event.contextId, event.input.inputId)
-        if (event.input.facts.includes('placed')) {
+        if (
+          event.input.outcome ||
+          event.input.facts.includes('locally-handled') ||
+          event.input.facts.includes('placed')
+        )
           this.publishInputDelivery(entry, event.input.inputId)
+        if (event.input.facts.includes('locally-handled')) {
+          markLocalInput(entry.sessionId, event.contextId, event.input.inputId)
+          if (entry.agentType === 'pi-durable')
+            agentSessionMessageService.publishStagedFollowup(entry.sessionId, event.input.inputId)
+        }
+        if (event.input.facts.includes('placed')) {
           const timeline = this.timelineFor(entry)
+          const current = this.currentTurn(entry)
           const pos = agentSessionMessageService.saveInputTimelinePosition(
             entry.sessionId,
             event.input.inputId,
             event.contextId,
-            timeline.lastPos
+            timeline.lastPos,
+            entry.agentType === 'pi-durable'
+              ? {
+                  modelId: current?.modelId ?? entry.modelId,
+                  messageSnapshot:
+                    entry.pendingInputs?.get(event.input.inputId)?.input.messageSnapshot ?? entry.messageSnapshot
+                }
+              : undefined
           )
           if (pos !== undefined) timeline.lastPos = pos
         }
         this.resolvePendingInput(entry, event.contextId, event.input)
         this.noteNativeOutcome(entry, event.contextId, event.input)
+        if (event.input.facts.includes('placed') || event.input.outcome)
+          connection?.acknowledgeFollowupProjection?.(event.contextId, event.input.inputId)
         break
       case 'steer-boundary':
         for (const inputId of event.inputIds) this.publishInputDelivery(entry, inputId)
@@ -3368,9 +3399,24 @@ export class AgentSessionRuntimeService extends BaseService {
     const key = AGENT_SESSION_RUNTIME_CONTROLS_CACHE_KEY(entry.sessionId)
     const cache = application.get('CacheService')
     const view = cache.getShared(key)
-    if (!view || view.generation !== entry.connectionGeneration || (!status && view.delivery?.inputId !== inputId))
+    if (!view || view.generation !== entry.connectionGeneration) return
+    const pendingSteerIds = view.pendingSteerIds ?? []
+    if (
+      status &&
+      status !== 'unknown' &&
+      entry.agentType === 'pi-durable' &&
+      entry.pendingInputs?.get(inputId)?.nextTurn.steer
+    ) {
+      if (!pendingSteerIds.includes(inputId))
+        cache.setShared(key, { ...view, pendingSteerIds: [...pendingSteerIds, inputId] })
       return
-    cache.setShared(key, { ...view, delivery: status && { inputId, status } })
+    }
+    if (!status && view.delivery?.inputId !== inputId && !pendingSteerIds.includes(inputId)) return
+    cache.setShared(key, {
+      ...view,
+      pendingSteerIds: status ? view.pendingSteerIds : pendingSteerIds.filter((id) => id !== inputId),
+      delivery: status ? { inputId, status } : view.delivery?.inputId === inputId ? undefined : view.delivery
+    })
   }
 
   private handleCompactionStart(
@@ -4243,6 +4289,8 @@ export class AgentSessionRuntimeService extends BaseService {
     if (entry.runtimeState.execution.kind !== 'idle') return
     const pending = entry.runtimeState.queue[0]
     if (!pending) return
+    if (entry.agentType === 'pi-durable')
+      agentSessionMessageService.publishStagedFollowup(entry.sessionId, pending.message.id)
     const liveAgent = agentService.getAgent(entry.agentId)
     const sessionOverride = pending.headless ? null : this.readSessionModelOverride(entry.sessionId)
     const effectiveModel = this.getAgentExecutionId(liveAgent, sessionOverride)

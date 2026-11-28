@@ -399,6 +399,7 @@ export function getAgentSessionHead(db: DbOrTx, sessionId: string): string | nul
 export function agentSessionPathIds(sessionId: string, head: string) {
   return sql`(with recursive path(id, parent_id) as (
     select id, parent_id from agent_session_message where session_id = ${sessionId} and id = ${head}
+      and json_extract(data, '$.stagedFollowup') is null
     union
     select m.id, m.parent_id from agent_session_message m join path p on m.id = p.parent_id
       where m.session_id = ${sessionId}

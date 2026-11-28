@@ -31,7 +31,7 @@ const sliderTrackVariants = cva(
 const sliderThumbVariants = cva(
   cn(
     'block shrink-0 rounded-full border border-background bg-primary shadow-xs transition-[color,box-shadow]',
-    'ring-primary/30 hover:ring-4 focus-visible:ring-2 focus-visible:outline-hidden focus-visible:ring-inset',
+    'ring-primary/30 hover:ring-4',
     'disabled:pointer-events-none disabled:opacity-50'
   ),
   {
