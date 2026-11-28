@@ -34,6 +34,18 @@ function buildInput(
   }
 }
 
+function buildBm25Input(unitCount: number): RebuildMaterialInput {
+  const words = Array.from({ length: unitCount }, (_, index) => `chunk-${index}`)
+  const text = words.join(' ')
+  const ranges: Array<[number, number]> = []
+  let offset = 0
+  for (const word of words) {
+    ranges.push([offset, offset + word.length])
+    offset += word.length + 1
+  }
+  return { ...buildInput(text, ranges), usesEmbeddings: false, embeddings: [] }
+}
+
 describe('KnowledgeIndexStore', () => {
   let tempDir: string
   let driver: BetterSqlite3Driver
@@ -387,15 +399,14 @@ describe('KnowledgeIndexStore', () => {
     expect(await count('content')).toBe(2) // shared (m1+m3) + unique (m2)
     expect(await count('embedding')).toBe(2)
 
-    // Duplicate id must be de-duped; the whole batch deletes in one transaction with a
-    // single GC pass — the path a folder delete takes (one deleteMaterials over N files).
+    // Duplicate ids are de-duped; the bounded deletion still reaches the same final state.
     await store.deleteMaterials(['m1', 'm2', 'm1'])
 
     expect(driver.execute(`SELECT material_id FROM material`).rows.map((r) => r.material_id)).toEqual(['m3'])
     expect(store.listMaterialUnits('m1')).toEqual([])
     expect(store.listMaterialUnits('m2')).toEqual([])
-    // The single end-of-batch GC must sweep m2's now-orphaned body/embedding/content while
-    // keeping the body m3 still references — i.e. the same end state N per-material GCs gave.
+    // The end-of-batch GC must sweep m2's now-orphaned body/embedding/content while
+    // keeping the body m3 still references.
     expect(await count('content')).toBe(1)
     expect(await count('embedding')).toBe(1)
 
@@ -445,6 +456,57 @@ describe('KnowledgeIndexStore', () => {
     expect(await count('material')).toBe(0)
     expect(await count('search_text')).toBe(0)
     expect(await count('embedding')).toBe(0)
+  })
+
+  it('yields the main-process event loop while deleting many units from one material', async () => {
+    store.rebuildMaterial('large-material', buildBm25Input(120))
+
+    let clock = 0
+    const perfNow = vi.spyOn(performance, 'now').mockImplementation(() => (clock += 100))
+    const observedUnitCounts: number[] = []
+    const scheduleImmediate = global.setImmediate
+    const immediate = vi.spyOn(global, 'setImmediate').mockImplementation((callback, ...args) => {
+      observedUnitCounts.push(store.listMaterialUnits('large-material').length)
+      return scheduleImmediate(callback, ...args)
+    })
+    let yields = 0
+    try {
+      await store.deleteMaterials(['large-material'], { allowPartialMaterialProgress: true })
+      yields = immediate.mock.calls.length
+    } finally {
+      perfNow.mockRestore()
+      immediate.mockRestore()
+    }
+
+    expect(yields).toBeGreaterThan(1)
+    expect(observedUnitCounts.some((count) => count > 0)).toBe(true)
+    expect(await count('material')).toBe(0)
+    expect(await count('search_unit')).toBe(0)
+    expect(await count('search_text')).toBe(0)
+    expect(await count('embedding')).toBe(0)
+    expect(await count('content')).toBe(0)
+  })
+
+  it('keeps a material atomic for callers without durable delete recovery', async () => {
+    store.rebuildMaterial('large-material', buildBm25Input(120))
+
+    let clock = 0
+    const perfNow = vi.spyOn(performance, 'now').mockImplementation(() => (clock += 100))
+    const observedUnitCounts: number[] = []
+    const scheduleImmediate = global.setImmediate
+    const immediate = vi.spyOn(global, 'setImmediate').mockImplementation((callback, ...args) => {
+      observedUnitCounts.push(store.listMaterialUnits('large-material').length)
+      return scheduleImmediate(callback, ...args)
+    })
+    try {
+      await store.deleteMaterials(['large-material'])
+    } finally {
+      perfNow.mockRestore()
+      immediate.mockRestore()
+    }
+
+    expect(observedUnitCounts.length).toBeGreaterThan(0)
+    expect(observedUnitCounts.every((count) => count === 0)).toBe(true)
   })
 
   it('does not yield when a small batch stays within the time budget', async () => {
