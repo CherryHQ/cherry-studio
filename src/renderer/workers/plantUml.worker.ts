@@ -1,6 +1,7 @@
 import { renderSvg } from '@plantuml/mcp-js/engine.js'
 import { instance } from '@viz-js/viz'
 
+import { applyBackgroundSkinparam } from '../utils/plantUmlBackground'
 import { registerPlantUmlOpeniconic } from './plantUmlOpeniconic'
 
 export type PlantUmlRenderResponse = { svg: string } | { error: string; line?: number }
@@ -27,7 +28,11 @@ self.onmessage = async ({ data: source }: MessageEvent<string>) => {
   try {
     const json = await new Promise<string>((resolve) => renderSvg(source, resolve))
     const result: PlantUmlEngineResult = JSON.parse(json)
-    response = result.valid ? { svg: result.svg } : { error: result.errorMessage, line: result.errorLineNumber }
+    // The engine always emits a white root background, dropping an explicit
+    // `skinparam backgroundColor`; reapply it so the preview honors the source.
+    response = result.valid
+      ? { svg: applyBackgroundSkinparam(source, result.svg) }
+      : { error: result.errorMessage, line: result.errorLineNumber }
   } catch (error) {
     response = { error: error instanceof Error ? error.message : String(error) }
   }
