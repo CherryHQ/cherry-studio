@@ -14,6 +14,7 @@ import { citationRequestSchemas } from './citation'
 import { codeCliRequestSchemas } from './codeCli'
 import { type ComputerUseEventSchemas, computerUseRequestSchemas } from './computerUse'
 import { conversationImportRequestSchemas } from './conversationImport'
+import { decisionsRequestSchemas } from './decisions'
 import { deepSeekHarnessRequestSchemas } from './deepSeekHarness'
 import { diagnosticsRequestSchemas } from './diagnostics'
 import { doctorRequestSchemas } from './doctor'
@@ -108,6 +109,7 @@ export const ipcRequestSchemas = {
   ...skillRequestSchemas,
   ...systemRequestSchemas,
   ...tabRequestSchemas,
+  ...decisionsRequestSchemas,
   ...translateRequestSchemas,
   ...toolResultRequestSchemas,
   ...trashRequestSchemas,
