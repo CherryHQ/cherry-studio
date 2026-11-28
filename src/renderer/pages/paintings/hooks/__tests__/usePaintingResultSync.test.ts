@@ -1,9 +1,12 @@
-import { renderHook } from '@testing-library/react'
+import { act, renderHook, waitFor } from '@testing-library/react'
+import { useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { FileMetadata } from '@renderer/types/file'
 
+import * as pipeline from '../../model/paintingPipeline'
 import type { PaintingData } from '../../model/types/paintingData'
+import { usePaintingGeneration } from '../usePaintingGeneration'
 import { usePaintingResultSync } from '../usePaintingResultSync'
 
 const makeFile = (id: string): FileMetadata => ({ id }) as unknown as FileMetadata
@@ -23,6 +26,41 @@ function renderResultSync(currentPainting: PaintingData, historyItems: PaintingD
 }
 
 describe('usePaintingResultSync', () => {
+  it.each(['success', 'canceled'] as const)(
+    'preserves draft edits when a visible generation settles with %s',
+    async (outcome) => {
+      const pending = Promise.withResolvers<FileMetadata[]>()
+      const run = vi.spyOn(pipeline, 'paintingGenerate').mockReturnValueOnce(pending.promise)
+      const { result } = renderHook(() => {
+        const [painting, setPainting] = useState(() => makePainting('p1', { prompt: 'original' }))
+        const generation = usePaintingGeneration({ painting, onPaintingChange: setPainting })
+        return { painting, setPainting, ...generation }
+      })
+
+      let done: Promise<void>
+      act(() => {
+        done = result.current.generate([], () => {})
+      })
+      await waitFor(() => expect(result.current.generating).toBe(true))
+      act(() => result.current.setPainting((current) => ({ ...current, prompt: 'next prompt', params: { seed: 7 } })))
+      const files = [makeFile('output')]
+      await act(async () => {
+        if (outcome === 'success') pending.resolve(files)
+        else pending.reject(new DOMException('Canceled', 'AbortError'))
+        await done
+      })
+
+      expect(run.mock.calls[0][0].painting.prompt).toBe('original')
+      expect(result.current.painting).toMatchObject({
+        prompt: 'next prompt',
+        params: { seed: 7 },
+        files: outcome === 'success' ? files : []
+      })
+      expect(result.current.generating).toBe(false)
+      run.mockRestore()
+    }
+  )
+
   it('backfills output files when the matching history item carries more than the local copy', () => {
     const current = makePainting('p1')
     const history = [makePainting('p1', { files: [makeFile('a'), makeFile('b')] })]
