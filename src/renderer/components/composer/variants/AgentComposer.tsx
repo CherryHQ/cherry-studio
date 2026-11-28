@@ -198,6 +198,7 @@ export interface AgentComposerSendBody {
   serviceTier?: ServiceTierSelection
   fastMode?: boolean
   followUp?: boolean
+  resendUnsentMessageId?: string
 }
 
 export type AgentComposerSendOptions = { body?: AgentComposerSendBody }
@@ -1550,7 +1551,7 @@ const AgentComposerInner = ({
   )
 
   const sendQueuedPayload = useCallback(
-    async (payload: ComposerQueuedMessagePayload, followUp = false) => {
+    async (payload: ComposerQueuedMessagePayload, followUp = false, resendUnsentMessageId?: string) => {
       if (sendDisabled) return false
       try {
         const attachments = (payload.attachments as ComposerAttachment[] | undefined) ?? []
@@ -1580,7 +1581,8 @@ const AgentComposerInner = ({
               reasoningEffort: payload.reasoningEffort,
               serviceTier: payload.serviceTier,
               ...(payload.fastMode ? { fastMode: true } : {}),
-              ...(followUp ? { followUp: true } : {})
+              ...(followUp ? { followUp: true } : {}),
+              ...(resendUnsentMessageId ? { resendUnsentMessageId } : {})
             }
           }
         )
@@ -1729,7 +1731,11 @@ const AgentComposerInner = ({
       const data = payload as { topicId?: string; messageId?: string; parts?: CherryMessagePart[]; send?: boolean }
       if (!data?.messageId || !data.parts?.length || data.topicId !== sessionTopicId) return
       if (data.send) {
-        void sendQueuedPayload({ text: getComposerHistoryText(data.parts), userMessageParts: data.parts }, isStreaming)
+        void sendQueuedPayload(
+          { text: getComposerHistoryText(data.parts), userMessageParts: data.parts },
+          isStreaming,
+          data.messageId
+        )
         return
       }
       if (actionsRef.current.getDraft().text.trim() || filesRef.current.length > 0) {

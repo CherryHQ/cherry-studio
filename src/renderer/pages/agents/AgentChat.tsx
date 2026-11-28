@@ -917,6 +917,7 @@ function AgentChatLayout({
         pane={pane}
         paneOpen={paneOpen}
         panePosition={panePosition}
+        hideLeftPane={centerSurface?.hideLeftPane}
         onPaneCollapse={onPaneCollapse}
         onPaneAutoCollapseChange={onPaneAutoCollapseChange}
         paneManualToggle={paneManualToggle}

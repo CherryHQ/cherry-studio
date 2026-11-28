@@ -96,7 +96,7 @@ export interface PiDurableRuntimeOptions {
   readonly behavior?: PiDurableRuntimeBehavior
   /** Synchronous placement notification before the scheduler can issue the next model request. */
   readonly onInputPlaced?: (inputId: InputId | undefined, thread: ThreadId, promotion?: { replyId?: string }) => void
-  readonly onFollowupsChanged?: (thread: ThreadId, queue: readonly DurableFollowup[]) => void
+  readonly onFollowupsChanged?: (thread: ThreadId, queue: readonly DurableFollowup[], paused: boolean) => void
   readonly onFollowupEdit?: (thread: ThreadId, inputId: InputId, textPart: string) => void
   readonly onError?: (error: unknown) => void
 }
@@ -111,7 +111,10 @@ export type PiDurableSessionOptions = ConversationCreateOptions
 export interface PiDurableThreadHandle extends ThreadHandle {
   readonly input: ThreadInput & Required<Pick<ThreadInput, 'steer'>>
   readonly durable: {
+    submitTurn(draft: InputDraft): Promise<SubmitResult>
     submitStagedFollowup(draft: InputDraft): Promise<SubmitResult>
+    followupsPaused(): boolean
+    resumeFollowups(): Promise<boolean>
     followups(): readonly DurableFollowup[]
     changeFollowups(change: DurableFollowupChange): Promise<boolean>
     observe(
@@ -166,6 +169,7 @@ interface Entry {
   conversation: Conversation
   projection: DurableProjection
   followups(): readonly DurableFollowup[]
+  followupsPaused(): boolean
   admission: Promise<void>
   contextEpoch: number
   contextRead?: Promise<void>
@@ -521,6 +525,7 @@ export async function createPiDurableRuntime(
       let detach: (() => void) | undefined
       let detachCommits: (() => void) | undefined
       let followups: readonly DurableFollowup[] = []
+      let followupsPaused = false
       try {
         const attached = await conversationViews(native).attach(
           conversation.id,
@@ -562,9 +567,11 @@ export async function createPiDurableRuntime(
               }
             }
             function publishFollowups(view: ConversationView) {
-              followups = readFollowups(view.docs['pi.inbox'] as InboxState | undefined)
+              const inbox = view.docs['pi.inbox'] as InboxState | undefined
+              followups = readFollowups(inbox)
+              followupsPaused = inbox?.followUpsPaused === true
               try {
-                options.onFollowupsChanged?.(refFor(conversation.id).id, followups)
+                options.onFollowupsChanged?.(refFor(conversation.id).id, followups, followupsPaused)
               } catch (cause) {
                 report(cause)
               }
@@ -755,6 +762,7 @@ export async function createPiDurableRuntime(
           conversation,
           projection,
           followups: () => followups,
+          followupsPaused: () => followupsPaused,
           admission: Promise.resolve(),
           contextEpoch: 0,
           handles: 0,
@@ -829,7 +837,7 @@ export async function createPiDurableRuntime(
     }
     function submit(
       input: InputDraft,
-      whenBusy: 'reject' | 'steer' | 'follow-up',
+      whenBusy: 'reject' | 'steer' | 'follow-up' | 'turn',
       project = false
     ): Promise<SubmitResult> {
       if (unavailable()) return Promise.resolve({ ...rejected('submit', 'closed'), inputId: input.inputId })
@@ -884,7 +892,8 @@ export async function createPiDurableRuntime(
             type: 'input',
             content: input.text,
             requestId: input.inputId,
-            whenBusy: whenBusy === 'follow-up' ? 'followUp' : whenBusy,
+            whenBusy: whenBusy === 'follow-up' || whenBusy === 'turn' ? 'followUp' : whenBusy,
+            ...(whenBusy === 'turn' && { whenIdle: 'start' }),
             entry: { kind: 'cherry.user-input', data: { cherryInputId: input.inputId } }
           }
           const submission = project
@@ -985,8 +994,12 @@ export async function createPiDurableRuntime(
         }
       },
       durable: {
+        submitTurn: (draft) => submit(draft, 'turn'),
         submitStagedFollowup: (draft) => submit(draft, 'follow-up', true),
         followups: entry.followups,
+        followupsPaused: entry.followupsPaused,
+        resumeFollowups: () =>
+          unavailable() ? Promise.resolve(false) : track(entry.conversation.resumeFollowUps(context)),
         changeFollowups: (change) =>
           unavailable()
             ? Promise.resolve(false)

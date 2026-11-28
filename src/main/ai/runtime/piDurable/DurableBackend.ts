@@ -51,7 +51,7 @@ export interface DurableRoot {
     usage: Parameters<typeof createPiGatewayModelBinding>[3]
     retry: Parameters<typeof createPiGatewayModelBinding>[5]
     placed(input: string | undefined, promotion?: { replyId?: string }): void
-    followups(queue: readonly DurableFollowup[]): void
+    followups(queue: readonly DurableFollowup[], paused: boolean): void
   }
 }
 const logger = loggerService.withContext('DurableBackend')
@@ -169,12 +169,12 @@ export class DurableBackend {
           }
         },
         onInputPlaced: (id, thread, promotion) => owner.forThread(thread).sink?.placed(id, promotion),
-        onFollowupsChanged: (thread, queue) => {
+        onFollowupsChanged: (thread, queue, paused) => {
           const root = owner.forThread(thread)
           if (root.context.nativeThreadId !== thread) return
           for (const { inputId, textPart } of queue)
             if (textPart !== undefined) projectFollowupEdit(root.context, inputId, textPart)
-          root.sink?.followups(queue)
+          root.sink?.followups(queue, paused)
         },
         onFollowupEdit: (thread, inputId, textPart) => {
           const root = owner.forThread(thread)

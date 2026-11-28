@@ -1206,9 +1206,9 @@ export class AgentSessionRuntimeService extends BaseService {
     inputs: AgentRuntimeUserInput[]
   ): AgentSessionRun | undefined {
     if (!this.isCurrentEntry(entry)) return undefined
-    const source = this.currentTurn(entry)
+    const source = this.currentTurn(entry) ?? this.connectionTarget(entry)
     const input = inputs[0]
-    if (!source || !input) return undefined
+    if (!input) return undefined
     const turn = createSessionRun({
       runId: agentSessionMessageService.replyTo(entry.sessionId, input.message.id)?.id,
       taskIds: inputs.map(({ message }) => message.id),
@@ -1254,7 +1254,9 @@ export class AgentSessionRuntimeService extends BaseService {
     const sessionId = extractAgentSessionId(topicId)
     this.assertSessionWritable(sessionId)
     const entry = this.entryForContext(sessionId, extractAgentContextId(topicId))
-    if (!entry || entry.topicId !== topicId || entry.closing || entry.stopping) return false
+    if (change.type === 'resume') await entry?.stopping?.settled
+    if (!entry || !this.isCurrentEntry(entry) || entry.topicId !== topicId || entry.closing || entry.stopping)
+      return false
     const connection = this.currentConnection(entry)
     if (change.type === 'steer') {
       const execution = entry.runtimeState.execution
@@ -1775,7 +1777,7 @@ export class AgentSessionRuntimeService extends BaseService {
         !turn.continuedInBackground && { input: { ids: turn.taskIds, replyId: turn.runId, outcomes: new Map() } })
     }
     entry.stopping = stopping
-    // Stop withdraws queued follow-ups; input arriving after Stop waits for the native confirmation.
+    // Inputs still pending Main admission have no durable receipt to pause.
     if (entry.agentType === 'pi-durable')
       for (const { message } of entry.runtimeState.queue)
         if (agentSessionMessageService.isStagedFollowup(entry.sessionId, message.id))
@@ -3124,7 +3126,10 @@ export class AgentSessionRuntimeService extends BaseService {
             pending.nextTurn.message.data.parts = parts
           }
         }
-        application.get('CacheService').setShared(AGENT_SESSION_FOLLOWUPS_CACHE_KEY(entry.topicId), event.queue)
+        application.get('CacheService').setShared(AGENT_SESSION_FOLLOWUPS_CACHE_KEY(entry.topicId), {
+          items: event.queue,
+          paused: event.paused === true
+        })
         for (const inputId of event.steerIds ?? []) {
           this.publishInputDelivery(entry, inputId, 'queued', true)
           agentSessionMessageService.publishStagedFollowup(entry.sessionId, inputId)
@@ -4097,7 +4102,8 @@ export class AgentSessionRuntimeService extends BaseService {
       if (offline?.length) cache.setShared(key, offline)
       else cache.deleteShared(key)
     }
-    if (connection.changeFollowups) cache.setShared(AGENT_SESSION_FOLLOWUPS_CACHE_KEY(entry.topicId), [])
+    if (connection.changeFollowups)
+      cache.setShared(AGENT_SESSION_FOLLOWUPS_CACHE_KEY(entry.topicId), { items: [], paused: false })
     cache.setShared(AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY(entry.sessionId), [])
     cache.setShared(AGENT_SESSION_TASK_EVENTS_CACHE_KEY(entry.sessionId), {})
   }
@@ -4310,7 +4316,7 @@ export class AgentSessionRuntimeService extends BaseService {
       void this.recoverPendingReplies({ sessionId: entry.sessionId, runId: replyId }).catch((error) =>
         logger.warn('Could not recover terminal input', { replyId, error })
       )
-    // Stop withdraws input Durable had not placed yet, so no reply will ever follow it.
+    // An input withdrawn before native placement has no reply to settle.
     else if (
       input.outcome === 'aborted' &&
       !input.facts.includes('placed') &&

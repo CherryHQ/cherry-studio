@@ -235,7 +235,7 @@ export type AgentRuntimeEvent =
   /** Steered inputs join the current Run. A native follow-up can start a distinct Run. */
   | { type: 'steer-boundary'; inputIds: readonly string[] }
   | { type: 'run-started'; inputIds: readonly string[] }
-  | { type: 'followup-queue'; queue: AgentSessionFollowup[]; steerIds?: string[]; restored?: true }
+  | { type: 'followup-queue'; queue: AgentSessionFollowup[]; paused?: boolean; steerIds?: string[]; restored?: true }
   | { type: 'input-state'; contextId: string; input: ProductInputState; promotion?: { replyId?: string } }
   | { type: 'compaction-start'; trigger?: AgentSessionCompactionTrigger }
   | { type: 'compaction-complete'; anchor?: AgentSessionCompactionAnchorData }
