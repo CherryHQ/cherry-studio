@@ -19,7 +19,7 @@ import { isLocalInferenceHardwareAccelerationSupported } from './runtime/inferen
 const logger = loggerService.withContext('LocalModelService')
 
 @Injectable('LocalModelService')
-@ServicePhase(Phase.BeforeReady)
+@ServicePhase(Phase.Background)
 export class LocalModelService extends BaseService {
   private readonly installers = Object.fromEntries(
     ALL_MODEL_BUNDLE_IDS.map((id) => {
@@ -37,13 +37,15 @@ export class LocalModelService extends BaseService {
   ) as Record<LocalModelBundleId, BundleInstaller>
 
   protected async onInit(): Promise<void> {
-    for (const id of ALL_MODEL_BUNDLE_IDS) {
-      try {
-        await localModelStorageService.sweepStaleDownloads(getModelBundle(id))
-      } catch (error) {
-        logger.warn('failed to sweep stale local model downloads', { bundle: id, error: String(error) })
-      }
-    }
+    await Promise.all(
+      ALL_MODEL_BUNDLE_IDS.map(async (id) => {
+        try {
+          await localModelStorageService.sweepStaleDownloads(getModelBundle(id))
+        } catch (error) {
+          logger.warn('failed to sweep stale local model downloads', { bundle: id, error: String(error) })
+        }
+      })
+    )
   }
 
   protected async onStop(): Promise<void> {
