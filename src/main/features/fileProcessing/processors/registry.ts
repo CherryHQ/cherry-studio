@@ -1,4 +1,4 @@
-import { isDarwinX64, isMac, isWin, isWinArm64 } from '@main/core/platform'
+import { isDarwinX64, isMac, isWin, isWinArm64, isWindowsLegacy } from '@main/core/platform'
 import type { FileProcessorFeature } from '@shared/data/preference/preferenceTypes'
 
 import { isOvOcrAvailable } from './ovocr/utils'
@@ -31,7 +31,7 @@ export const processorRegistry = {
   },
   system: {
     runtime: 'local',
-    isSupported: () => isMac || isWin,
+    isSupported: () => isMac || (isWin && !isWindowsLegacy()),
     capabilities: {
       image_to_text: lazyHandler('background', async () =>
         import('./system/imageToText/handler').then(({ systemImageToTextHandler }) => systemImageToTextHandler)
@@ -54,10 +54,9 @@ export const processorRegistry = {
   },
   'local-paddleocr': {
     runtime: 'local',
-    // Intel Mac ships no onnxruntime-node binding, so the model can never run
-    // there. Whether it is *downloaded* is a separate, user-fixable question the
-    // UI must keep offering — see FILE_PROCESSOR_LOCAL_MODEL.
-    isSupported: () => !isDarwinX64,
+    // Intel Mac ships no onnxruntime-node binding, and Windows < 10 lacks the APIs
+    // onnxruntime.dll imports. Whether the model is downloaded is separate.
+    isSupported: () => !isDarwinX64 && !isWindowsLegacy(),
     capabilities: {
       image_to_text: lazyHandler('background', async () =>
         import('./localPaddleocr/imageToText/handler').then(
@@ -69,8 +68,8 @@ export const processorRegistry = {
   'local-document': {
     runtime: 'local',
     // Scanned PDFs need the local OCR model, while text PDFs need anydoc. The
-    // latter ships no Windows ARM64 binding or wasm fallback.
-    isSupported: () => !isDarwinX64 && !isWinArm64,
+    // latter requires Windows 10+ and ships no Windows ARM64 binding or wasm fallback.
+    isSupported: () => !isDarwinX64 && !isWinArm64 && !isWindowsLegacy(),
     capabilities: {
       document_to_markdown: lazyHandler('background', async () =>
         import('./localDocument/documentToMarkdown/handler').then(

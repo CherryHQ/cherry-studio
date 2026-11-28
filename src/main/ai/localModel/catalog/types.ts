@@ -24,6 +24,7 @@ export interface SharedArtifact {
   id: SharedArtifactId
   version: string
   minimumMacOS?: string
+  minimumWindows?: string
   installDirKey: PathKey
   /** Platforms this artifact ships binaries for. A missing entry means *unsupported*:
    * every bundle requiring it reads as `unsupported` there rather than offering a

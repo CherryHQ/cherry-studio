@@ -131,6 +131,24 @@ describe('shared artifact acquisition', () => {
     vi.unstubAllGlobals()
   })
 
+  it('enforces the runtime minimum Windows version on win32 before offering installation', () => {
+    const winArtifact = {
+      ...FIXTURE_ARTIFACT,
+      minimumWindows: '10.0',
+      platforms: {
+        ...FIXTURE_ARTIFACT.platforms,
+        'win32-x64': FIXTURE_ARTIFACT.platforms['linux-x64']
+      }
+    }
+    vi.stubGlobal('process', { ...process, platform: 'win32', arch: 'x64', getSystemVersion: () => '6.1.7601' })
+    expect(isArtifactSupported(winArtifact)).toBe(false)
+    vi.stubGlobal('process', { ...process, platform: 'win32', arch: 'x64', getSystemVersion: () => '10.0.19045' })
+    expect(isArtifactSupported(winArtifact)).toBe(true)
+    vi.stubGlobal('process', { ...process, platform: 'linux', arch: 'x64', getSystemVersion: () => '6.1.0' })
+    expect(isArtifactSupported(winArtifact)).toBe(true)
+    vi.unstubAllGlobals()
+  })
+
   it('resolves the entry file under the platform install dir', () => {
     expect(artifactEntryPath(FIXTURE_ARTIFACT)).toBe(
       path.join(toolchainDir, 'napi-v6', FAKE_PLATFORM, FAKE_ARCH, 'onnxruntime_binding.node')

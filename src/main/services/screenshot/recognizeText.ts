@@ -1,20 +1,24 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
 import type { OcrLine } from '@main/ai/localModel'
-import { isMac, isWin } from '@main/core/platform'
+import { isMac, isWin, isWindowsLegacy } from '@main/core/platform'
 import type { OcrRecognitionResult, OcrTextLine } from '@shared/ipc/schemas/screenshot'
 
 const logger = loggerService.withContext('ScreenshotOcr')
 
+function isSystemOcrSupported(): boolean {
+  return isMac || (isWin && !isWindowsLegacy())
+}
+
 export function isScreenshotOcrAvailable(): boolean {
-  return isMac || isWin || application.get('LocalModelService').isDefaultModelReady('ocr')
+  return isSystemOcrSupported() || application.get('LocalModelService').isDefaultModelReady('ocr')
 }
 
 export async function recognizeScreenshotText(
   imageBytes: Uint8Array,
   size: { width: number; height: number }
 ): Promise<OcrRecognitionResult> {
-  if (isMac || isWin) {
+  if (isSystemOcrSupported()) {
     try {
       // Keep a broken native binding from preventing screenshot capture at startup.
       const { recognize, OcrAccuracy } = await import('@napi-rs/system-ocr')

@@ -1,8 +1,10 @@
+import { xxh3 } from '@node-rs/xxhash'
 import { describe, expect, it } from 'vitest'
 
 import { ContentHashSchema } from '@shared/data/types/file'
 
 import { CONTENT_HASH_ALGO, createContentHasher, hashContent, parseContentHash } from '../contentHash'
+import { createXxh3_64FallbackHasher, xxh3_64Fallback } from '../xxh3Fallback'
 
 const PRNG = Uint8Array.from([0x00, 0x52, 0x92, 0x9b, 0xb7, 0x32, 0xa3, 0x24])
 const VECTORS: ReadonlyArray<{ len: number; hex: string }> = [
@@ -58,5 +60,22 @@ describe('contentHash', () => {
     ''
   ])('returns null for malformed input: %s', (value) => {
     expect(parseContentHash(value)).toBeNull()
+  })
+
+  it('produces bit-identical XXH3-64 digests between native @node-rs/xxhash and pure-TS fallback across all length regimes', () => {
+    const buf = Uint8Array.from({ length: 4096 }, (_, index) => (index * 131 + 17) & 0xff)
+    const testLengths = [
+      0, 1, 2, 3, 4, 7, 8, 9, 15, 16, 17, 32, 33, 64, 65, 96, 97, 128, 129, 240, 241, 1024, 2048, 4096
+    ]
+    for (const len of testLengths) {
+      const slice = buf.subarray(0, len)
+      expect(xxh3_64Fallback(slice)).toBe(xxh3.xxh64(slice, 0n))
+    }
+
+    const fallbackHasher = createXxh3_64FallbackHasher()
+    fallbackHasher.update(buf.subarray(0, 111))
+    fallbackHasher.update(buf.subarray(111, 999))
+    fallbackHasher.update(buf.subarray(999))
+    expect(fallbackHasher.digest()).toBe(xxh3.xxh64(buf, 0n))
   })
 })

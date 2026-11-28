@@ -1,4 +1,5 @@
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 
 import { application } from '@application'
@@ -38,15 +39,25 @@ export function artifactPlatformFiles(artifact: SharedArtifact): ArtifactPlatfor
   return artifact.platforms[currentPlatformKey()]
 }
 
-export function isArtifactSupported(artifact: SharedArtifact): boolean {
-  if (!artifactPlatformFiles(artifact)) return false
-  if (!artifact.minimumMacOS) return true
-  const actual = process.getSystemVersion?.().split('.').map(Number)
-  const required = artifact.minimumMacOS.split('.').map(Number)
+function meetsMinimumVersion(actualVersion: string | undefined, requiredVersion: string): boolean {
+  const actual = actualVersion?.split('.').map(Number)
+  const required = requiredVersion.split('.').map(Number)
   if (!actual || actual.some((part) => !Number.isFinite(part))) return false
   for (let index = 0; index < required.length; index += 1) {
     const difference = (actual[index] ?? 0) - required[index]
     if (difference !== 0) return difference > 0
+  }
+  return true
+}
+
+export function isArtifactSupported(artifact: SharedArtifact): boolean {
+  if (!artifactPlatformFiles(artifact)) return false
+  if (artifact.minimumMacOS && !meetsMinimumVersion(process.getSystemVersion?.(), artifact.minimumMacOS)) {
+    return false
+  }
+  if (artifact.minimumWindows && process.platform === 'win32') {
+    const version = process.getSystemVersion?.() || os.release()
+    if (!meetsMinimumVersion(version, artifact.minimumWindows)) return false
   }
   return true
 }

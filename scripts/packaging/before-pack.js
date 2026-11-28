@@ -1,7 +1,9 @@
 const { Arch } = require('electron-builder')
 const { rebuild } = require('@electron/rebuild')
-const { execSync } = require('child_process')
+const { execFileSync, execSync } = require('child_process')
+const crypto = require('crypto')
 const fs = require('fs')
+const os = require('os')
 const path = require('path')
 const { parse } = require('yaml')
 
@@ -98,18 +100,96 @@ const platformToArch = {
   linuxmusl: 'linuxmusl'
 }
 
+function isWin7Packaging(context) {
+  if (process.env.CHERRY_WIN7_PACKAGING === 'true') return true
+  const platform = platformToArch[context?.packager?.platform?.name]
+  const electronDownload = context?.packager?.config?.electronDownload
+  const mirror = electronDownload?.mirror ?? electronDownload?.mirrorOptions?.mirror
+  return platform === 'win32' && typeof mirror === 'string' && mirror.includes('electron-legacy')
+}
+exports.isWin7Packaging = isWin7Packaging
+
 function resolveElectronHeaderUrl(context) {
   const override = process.env.CHERRY_ELECTRON_HEADER_URL?.trim()
   if (override) return override
-  const platform = platformToArch[context.packager.platform.name]
-  const electronDownload = context.packager.config.electronDownload
-  const mirror = electronDownload?.mirror ?? electronDownload?.mirrorOptions?.mirror
-  if (platform === 'win32' && typeof mirror === 'string' && mirror.includes('electron-legacy')) {
+  if (isWin7Packaging(context)) {
     return 'https://thorium.rocks/electron-legacy/headers'
   }
   return undefined
 }
 exports.resolveElectronHeaderUrl = resolveElectronHeaderUrl
+
+/**
+ * Pre-Rust-1.78 Windows x64 prebuilt `.node` binaries that do not import Win8+
+ * `api-ms-win-core-synch-l1-2-0.dll!WaitOnAddress` or `bcryptprimitives.dll!ProcessPrng`.
+ */
+const WIN7_PREBUILT_ADDONS = [
+  {
+    packageName: '@node-rs/xxhash-win32-x64-msvc',
+    version: '1.7.0',
+    tarballUrl: 'https://registry.npmjs.org/@node-rs/xxhash-win32-x64-msvc/-/xxhash-win32-x64-msvc-1.7.0.tgz',
+    sha256: 'bb5717d829acc7fa5e4613b682687ddf6df082ddcd4c4291fba0f03391d4e773',
+    binaryFile: 'xxhash.win32-x64-msvc.node'
+  },
+  {
+    packageName: 'node-screenshots-win32-x64-msvc',
+    version: '0.2.0',
+    tarballUrl:
+      'https://registry.npmjs.org/node-screenshots-win32-x64-msvc/-/node-screenshots-win32-x64-msvc-0.2.0.tgz',
+    sha256: '66897ec18ae540307405f144bc482289bbecb8bec94611f671461d3630e84164',
+    binaryFile: 'node-screenshots.win32-x64-msvc.node'
+  },
+  {
+    packageName: '@napi-rs/canvas-win32-x64-msvc',
+    version: '0.1.52',
+    tarballUrl: 'https://registry.npmjs.org/@napi-rs/canvas-win32-x64-msvc/-/canvas-win32-x64-msvc-0.1.52.tgz',
+    sha256: '1b7b8f099ced2887c640edf00d16cbf2e3d9928c7336741ceda71e066ad744dc',
+    binaryFile: 'skia.win32-x64-msvc.node'
+  }
+]
+exports.WIN7_PREBUILT_ADDONS = WIN7_PREBUILT_ADDONS
+
+async function defaultInstallWin7Addon(addon, projectRoot) {
+  const pkgJsonPath = require.resolve(`${addon.packageName}/package.json`, { paths: [projectRoot] })
+  const moduleDir = path.dirname(pkgJsonPath)
+  const targetBinary = path.join(moduleDir, addon.binaryFile)
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cherry-win7-addon-'))
+  const tarballPath = path.join(tmpDir, 'addon.tgz')
+  try {
+    execFileSync('curl', ['-fSL', '--retry', '3', '--retry-all-errors', '-o', tarballPath, addon.tarballUrl], {
+      stdio: 'inherit'
+    })
+    const actualSha = crypto.createHash('sha256').update(fs.readFileSync(tarballPath)).digest('hex')
+    if (actualSha !== addon.sha256) {
+      throw new Error(
+        `SHA256 mismatch for ${addon.packageName}@${addon.version}: expected ${addon.sha256}, got ${actualSha}`
+      )
+    }
+    const { extract } = await import('tar')
+    await extract({
+      file: tarballPath,
+      cwd: tmpDir,
+      strip: 1,
+      filter: (entryPath) => entryPath === `package/${addon.binaryFile}`
+    })
+    const extracted = path.join(tmpDir, addon.binaryFile)
+    if (!fs.existsSync(extracted)) {
+      throw new Error(`Tarball ${addon.packageName}@${addon.version} did not contain package/${addon.binaryFile}`)
+    }
+    fs.copyFileSync(extracted, targetBinary)
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true })
+  }
+}
+
+async function prepareWin7NativeAddons(context, installAddonFn = defaultInstallWin7Addon) {
+  if (!isWin7Packaging(context) || context.arch !== Arch.x64) return
+  const projectRoot = context.packager.projectDir
+  for (const addon of WIN7_PREBUILT_ADDONS) {
+    await installAddonFn(addon, projectRoot)
+  }
+}
+exports.prepareWin7NativeAddons = prepareWin7NativeAddons
 
 async function prepareNativeModulesForElectron(
   context,
@@ -238,16 +318,24 @@ exports.default = async function (context) {
   prepareSystemSpeechHelper(context)
 
   await prepareNativeModulesForElectron(context)
+  await prepareWin7NativeAddons(context)
   buildSelectionPanel({ platform, arch })
   buildExternalApp({ platform, arch, packaging: true })
   assertPrebuiltPackages(platform, arch)
 
-  console.log(`Downloading bundled binaries for ${platform}-${arch}...`)
-  execSync(`node "${path.join(__dirname, '../download-binaries.js')}" ${platform} ${arch} --packaging`, {
-    stdio: 'inherit'
-  })
+  const win7 = isWin7Packaging(context)
+  console.log(`Downloading bundled binaries for ${platform}-${arch}${win7 ? ' (win7 compatible)' : ''}...`)
+  execSync(
+    `node "${path.join(__dirname, '../download-binaries.js')}" ${platform} ${arch} --packaging${win7 ? ' --win7' : ''}`,
+    {
+      stdio: 'inherit'
+    }
+  )
   // Fail the build rather than ship a half-empty resources/binaries/<platform>.
-  require('../download-binaries').verifyBundledBinaries(platform, arch)
+  const downloadBinaries = require('../download-binaries')
+  downloadBinaries.verifyBundledBinaries(platform, arch, {
+    tools: downloadBinaries.resolveToolsForTarget({ win7 })
+  })
 
   const excludePackages = async (packagesToExclude) => {
     // 从项目根目录的 electron-builder.yml 读取 files 配置，避免多次覆盖配置导致出错

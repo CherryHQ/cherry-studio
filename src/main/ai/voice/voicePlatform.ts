@@ -70,12 +70,16 @@ export async function openMicrophoneSettings(): Promise<void> {
   await shell.openExternal(url)
 }
 
-function isSupportedWindowsX64(platform: { platform: string; arch?: string; majorVersion?: number }): boolean {
+function isLegacyWindowsPlatform(platform: { platform: string; majorVersion?: number }): boolean {
   return (
     platform.platform === 'win32' &&
-    platform.arch === 'x64' &&
-    (platform.majorVersion === undefined || (Number.isInteger(platform.majorVersion) && platform.majorVersion >= 10))
+    platform.majorVersion !== undefined &&
+    (!Number.isInteger(platform.majorVersion) || platform.majorVersion < 10)
   )
+}
+
+function isSupportedWindowsX64(platform: { platform: string; arch?: string; majorVersion?: number }): boolean {
+  return platform.platform === 'win32' && platform.arch === 'x64' && !isLegacyWindowsPlatform(platform)
 }
 
 /** A recommendation only: unavailable resources never change an explicit selection. */
@@ -84,6 +88,7 @@ export function resolveDefaultAsrModel(
   explicitModelId?: LocalTranscriptionModelId
 ): LocalTranscriptionModelId | undefined {
   if (explicitModelId !== undefined) return explicitModelId
+  if (isLegacyWindowsPlatform(platform)) return undefined
   if (platform.platform === 'darwin') {
     if (platform.majorVersion !== undefined && Number.isInteger(platform.majorVersion) && platform.majorVersion >= 13)
       return APPLE_ASR_MODEL_ID
@@ -99,6 +104,7 @@ export function resolveDefaultSpeechModel(platform: {
   majorVersion?: number
   minorVersion?: number
 }): LocalSpeechModelId | undefined {
+  if (isLegacyWindowsPlatform(platform)) return undefined
   if (isSupportedWindowsX64(platform)) return WINDOWS_TTS_MODEL_ID
   if (
     platform.platform === 'darwin' &&

@@ -68,6 +68,7 @@ export const SHARED_ARTIFACTS = {
   'onnxruntime-node': {
     id: 'onnxruntime-node',
     version: '1.25.1',
+    minimumWindows: '10.0',
     installDirKey: 'feature.onnxruntime.binary',
     // No darwin-x64: onnxruntime-node ships no binding for it, so both bundles read
     // as `unsupported` on Intel Macs instead of offering a download that cannot work.
@@ -117,6 +118,7 @@ export const SHARED_ARTIFACTS = {
   'sherpa-onnx': {
     id: 'sherpa-onnx',
     version: '1.13.6',
+    minimumWindows: '10.0',
     installDirKey: 'feature.sherpa_onnx.binary',
     provenance: {
       license: {

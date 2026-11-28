@@ -16,10 +16,13 @@ import { parse } from 'yaml'
 // CJS build script — vitest interops the module.exports fine.
 import {
   assertPrebuiltPackages,
+  isWin7Packaging,
   keepPackages,
   prepareNativeModulesForElectron,
   prepareSystemSpeechHelper,
-  resolveElectronHeaderUrl
+  prepareWin7NativeAddons,
+  resolveElectronHeaderUrl,
+  WIN7_PREBUILT_ADDONS
 } from '../packaging/before-pack'
 
 const require = createRequire(import.meta.url)
@@ -253,6 +256,52 @@ describe('legacy electron-builder configs and header resolution', () => {
         minimumSystemVersion: '12.0.0'
       }
     })
+  })
+
+  it('substitutes Win7-compatible pre-Rust-1.78 native addons and CLI tools only during Win7 x64 packaging', async () => {
+    const win7Config = require('../../electron-builder.win7.config.cjs')
+    const mac12Config = require('../../electron-builder.mac12.config.cjs')
+    const { resolveToolsForTarget, TOOLS, WIN7_TOOL_OVERRIDES } = require('../download-binaries')
+
+    const win7Context = {
+      arch: Arch.x64,
+      packager: { projectDir: '/repo', platform: { name: 'windows' }, config: win7Config }
+    }
+    const mac12Context = {
+      arch: Arch.arm64,
+      packager: { projectDir: '/repo', platform: { name: 'mac' }, config: mac12Config }
+    }
+
+    expect(isWin7Packaging(win7Context)).toBe(true)
+    expect(isWin7Packaging(mac12Context)).toBe(false)
+
+    const installedAddons: string[] = []
+    await prepareWin7NativeAddons(win7Context, async (addon: { packageName: string; version: string }) => {
+      installedAddons.push(`${addon.packageName}@${addon.version}`)
+    })
+    expect(installedAddons).toEqual([
+      '@node-rs/xxhash-win32-x64-msvc@1.7.0',
+      'node-screenshots-win32-x64-msvc@0.2.0',
+      '@napi-rs/canvas-win32-x64-msvc@0.1.52'
+    ])
+    expect(WIN7_PREBUILT_ADDONS).toHaveLength(3)
+
+    const macAddons: string[] = []
+    await prepareWin7NativeAddons(mac12Context, async (addon: { packageName: string }) => {
+      macAddons.push(addon.packageName)
+    })
+    expect(macAddons).toEqual([])
+
+    const defaultTools = resolveToolsForTarget({ win7: false })
+    expect(defaultTools).toBe(TOOLS)
+
+    const win7Tools = resolveToolsForTarget({ win7: true })
+    const win7Rg = win7Tools.find((t: { name: string }) => t.name === 'rg')
+    const win7Mingit = win7Tools.find((t: { name: string }) => t.name === 'mingit')
+    expect(win7Rg.version).toBe(WIN7_TOOL_OVERRIDES.rg.version)
+    expect(win7Rg.packages['win32-x64'].sha256).toBe(WIN7_TOOL_OVERRIDES.rg.packages['win32-x64'].sha256)
+    expect(win7Mingit.version).toBe(WIN7_TOOL_OVERRIDES.mingit.version)
+    expect(win7Mingit.packages['win32-x64'].sha256).toBe(WIN7_TOOL_OVERRIDES.mingit.packages['win32-x64'].sha256)
   })
 })
 

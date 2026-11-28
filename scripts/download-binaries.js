@@ -467,6 +467,53 @@ const TOOLS = [
   }
 ]
 
+// Pre-Rust-1.78 / Windows-7-compatible builds for win32-x64 legacy packaging.
+const WIN7_RG_VERSION = '14.1.0'
+const WIN7_MINGIT_VERSION = '2.46.2'
+
+const WIN7_TOOL_OVERRIDES = {
+  rg: {
+    version: WIN7_RG_VERSION,
+    packages: {
+      'win32-x64': {
+        url: `https://github.com/BurntSushi/ripgrep/releases/download/${WIN7_RG_VERSION}/ripgrep-${WIN7_RG_VERSION}-x86_64-pc-windows-msvc.zip`,
+        archive: 'zip',
+        binaries: ['rg.exe'],
+        strip: `ripgrep-${WIN7_RG_VERSION}-x86_64-pc-windows-msvc`,
+        sha256: 'fe4f75edfaa50f0d4fecbf47696b7629f3449c9c2c5a4da828753139e5a2e203'
+      }
+    }
+  },
+  mingit: {
+    version: WIN7_MINGIT_VERSION,
+    packages: {
+      'win32-x64': {
+        url: `https://github.com/git-for-windows/git/releases/download/v${WIN7_MINGIT_VERSION}.windows.1/MinGit-${WIN7_MINGIT_VERSION}-64-bit.zip`,
+        archive: 'zip-tree',
+        dir: 'git',
+        binaries: ['git/cmd/git.exe'],
+        sha256: '0dca60869825ceb8b6108be69f0c536174fbca45e11300f2c14c34632d8238ed'
+      }
+    }
+  }
+}
+
+function resolveToolsForTarget({ win7 = false } = {}) {
+  if (!win7) return TOOLS
+  return TOOLS.map((tool) => {
+    const override = WIN7_TOOL_OVERRIDES[tool.name]
+    if (!override) return tool
+    return {
+      ...tool,
+      version: override.version,
+      packages: {
+        ...tool.packages,
+        ...override.packages
+      }
+    }
+  })
+}
+
 // ── Core logic ───────────────────────────────────────────────────────
 
 function verifyHash(filePath, expected) {
@@ -867,11 +914,13 @@ async function main() {
   const argv = process.argv.slice(2)
   const positional = argv.filter((arg) => !arg.startsWith('--'))
   const packaging = argv.includes('--packaging')
+  const win7 = argv.includes('--win7') || process.env.CHERRY_WIN7_PACKAGING === 'true'
+  const tools = resolveToolsForTarget({ win7 })
   const platform = positional[0] || process.platform
   const arch = positional[1] || process.arch
   const platformKey = `${platform}-${arch}`
 
-  if (packaging) return prepareTools(platform, arch)
+  if (packaging) return prepareTools(platform, arch, { tools })
 
   console.log(`Downloading binaries for ${platformKey}...`)
 
@@ -879,7 +928,7 @@ async function main() {
   const cacheRoot = resolveSharedCacheRoot()
   const failed = []
 
-  for (const tool of TOOLS) {
+  for (const tool of tools) {
     const outputDir = cacheRoot ? cachedVersionDir(cacheRoot, platformKey, tool) : bundleDir
     try {
       await downloadTool(tool, platformKey, outputDir, { versionFile: cacheRoot ? null : tool.versionFile })
@@ -897,7 +946,7 @@ async function main() {
     return
   }
 
-  const stats = materialize(TOOLS, platformKey, cacheRoot, bundleDir)
+  const stats = materialize(tools, platformKey, cacheRoot, bundleDir)
   let reclaimed = 0
   try {
     reclaimed = sweepUnreferencedVersions(cacheRoot, UNREFERENCED_CACHE_TTL_MS)
@@ -1007,9 +1056,11 @@ module.exports = {
   extract,
   extractZipArchive,
   materialize,
+  resolveToolsForTarget,
   sweepUnreferencedVersions,
   verifyBundledBinaries,
   TOOLS,
+  WIN7_TOOL_OVERRIDES,
   prepareTools,
   PACKAGING_DOWNLOAD_VERSION: 1
 }

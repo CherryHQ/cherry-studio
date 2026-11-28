@@ -69,7 +69,7 @@ describe('default system speech model', () => {
     expect(resolveDefaultSpeechModel({ platform: 'linux', arch: 'x64' })).toBe(KOKORO_TTS_MODEL_ID)
     expect(resolveDefaultSpeechModel({ platform: 'linux', arch: 'arm64' })).toBe(KOKORO_TTS_MODEL_ID)
     expect(resolveDefaultSpeechModel({ platform: 'win32', arch: 'x64', majorVersion: 10 })).toBe(WINDOWS_TTS_MODEL_ID)
-    expect(resolveDefaultSpeechModel({ platform: 'win32', arch: 'x64', majorVersion: 6 })).toBe(KOKORO_TTS_MODEL_ID)
+    expect(resolveDefaultSpeechModel({ platform: 'win32', arch: 'x64', majorVersion: 6 })).toBeUndefined()
   })
 })
 
@@ -79,9 +79,10 @@ describe('legacy Windows voice environment and settings guards', () => {
     vi.clearAllMocks()
   })
 
-  it('falls back from Windows WinRT defaults when majorVersion is below 10', () => {
+  it('excludes both Windows WinRT and sherpa-onnx defaults when Windows majorVersion is below 10', () => {
     expect(resolveDefaultAsrModel({ platform: 'win32', arch: 'x64', majorVersion: 10 })).toBe(WINDOWS_ASR_MODEL_ID)
-    expect(resolveDefaultAsrModel({ platform: 'win32', arch: 'x64', majorVersion: 6 })).toBe(FUNASR_MODEL_ID)
+    expect(resolveDefaultAsrModel({ platform: 'win32', arch: 'x64', majorVersion: 6 })).toBeUndefined()
+    expect(resolveDefaultSpeechModel({ platform: 'win32', arch: 'x64', majorVersion: 6 })).toBeUndefined()
   })
 
   it('rejects opening Windows ms-settings URIs on Windows 7 while keeping Windows 10 working', async () => {
