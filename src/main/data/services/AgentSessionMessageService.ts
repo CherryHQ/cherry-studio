@@ -385,8 +385,14 @@ type SavedAgentSessionMessage = {
   activityTimestamp: number | null
 }
 
-function replaceAgentSessionMessageFileRefsTx(tx: DbOrTx, messageId: string, data: AgentSessionMessageData): void {
-  tx.delete(agentSessionMessageFileRefTable).where(eq(agentSessionMessageFileRefTable.sourceId, messageId)).run()
+function replaceAgentSessionMessageFileRefsTx(
+  tx: DbOrTx,
+  messageId: string,
+  data: AgentSessionMessageData,
+  retainCurrentRefs = false
+): void {
+  if (!retainCurrentRefs)
+    tx.delete(agentSessionMessageFileRefTable).where(eq(agentSessionMessageFileRefTable.sourceId, messageId)).run()
 
   const snapshot = tx
     .select({ snapshot: sessionMessagesTable.messageSnapshot })
@@ -427,6 +433,9 @@ function replaceAgentSessionMessageFileRefsTx(tx: DbOrTx, messageId: string, dat
         : [])
     ])
 
+  if (retainCurrentRefs && [...attachmentIds].some((id) => !existingIds.has(id))) {
+    throw new AgentSessionEditError('attachment_unavailable')
+  }
   if (existingIds.size !== ids.length) {
     logger.warn('Dropped agent-session message file refs without matching file_entry', {
       messageId,
@@ -436,9 +445,9 @@ function replaceAgentSessionMessageFileRefsTx(tx: DbOrTx, messageId: string, dat
   }
 
   for (let index = 0; index < rows.length; index += SQLITE_INARRAY_CHUNK) {
-    tx.insert(agentSessionMessageFileRefTable)
-      .values(rows.slice(index, index + SQLITE_INARRAY_CHUNK))
-      .run()
+    const insert = tx.insert(agentSessionMessageFileRefTable).values(rows.slice(index, index + SQLITE_INARRAY_CHUNK))
+    if (retainCurrentRefs) insert.onConflictDoNothing().run()
+    else insert.run()
   }
 }
 
@@ -1144,7 +1153,9 @@ export class AgentSessionMessageService {
     messageId: string,
     contextId: string,
     after = 0,
-    followupReply?: Pick<CreateAgentSessionMessageDto, 'modelId' | 'messageSnapshot'>
+    followupReply?: Pick<CreateAgentSessionMessageDto, 'modelId' | 'messageSnapshot'> & {
+      promotion?: { replyId?: string }
+    }
   ): number | undefined {
     const result = application.get('DbService').withWriteTx((tx) => {
       const saved = tx
@@ -1169,25 +1180,49 @@ export class AgentSessionMessageService {
       advanceAgentSessionPositionTx(tx, sessionId, saved.pos)
       const published = this.publishStagedFollowupTx(tx, sessionId, messageId, contextId)
       let replyId: string | undefined
-      if (published && followupReply) {
-        const model = followupReply.modelId
+      if (followupReply && (published || followupReply.promotion)) {
+        const steerReplyId = followupReply.promotion?.replyId
+        const steerReply = steerReplyId
           ? tx
-              .select({ id: userModelTable.id })
-              .from(userModelTable)
-              .where(eq(userModelTable.id, followupReply.modelId))
+              .select({ id: sessionMessagesTable.id })
+              .from(sessionMessagesTable)
+              .where(
+                and(
+                  eq(sessionMessagesTable.sessionId, sessionId),
+                  eq(sessionMessagesTable.id, steerReplyId),
+                  eq(sessionMessagesTable.role, 'assistant')
+                )
+              )
               .get()
           : undefined
-        const reply = this.saveMessageTx(tx, {
-          sessionId,
-          parentId: messageId,
-          message: { ...followupReply, modelId: model?.id, role: 'assistant', status: 'pending', data: { parts: [] } }
-        })
-        replyId = reply.entity.id
-        tx.update(sessionMessagesTable).set({ replyId }).where(eq(sessionMessagesTable.id, messageId)).run()
+        if (!steerReply) {
+          const model = followupReply.modelId
+            ? tx
+                .select({ id: userModelTable.id })
+                .from(userModelTable)
+                .where(eq(userModelTable.id, followupReply.modelId))
+                .get()
+            : undefined
+          replyId = this.saveMessageTx(tx, {
+            sessionId,
+            parentId: messageId,
+            message: {
+              messageSnapshot: followupReply.messageSnapshot,
+              modelId: model?.id,
+              role: 'assistant',
+              status: 'pending',
+              data: { parts: [] }
+            }
+          }).entity.id
+        }
+        tx.update(sessionMessagesTable)
+          .set({ replyId: steerReply?.id ?? replyId })
+          .where(eq(sessionMessagesTable.id, messageId))
+          .run()
       }
       return { pos: saved.pos, published, replyId }
     })
-    if (result?.published)
+    if (result?.published || result?.replyId)
       this.publishDeliveryMutation(
         [messageId, ...(result.replyId ? [result.replyId] : [])].map((id) => ({
           sessionId,
@@ -1226,6 +1261,7 @@ export class AgentSessionMessageService {
       .set({ parentId, data: sql`json_remove(${sessionMessagesTable.data}, '$.stagedFollowup')` })
       .where(eq(sessionMessagesTable.id, messageId))
       .run()
+    this.releaseNativeFollowupFilesTx(tx, sessionId, messageId)
     advanceAgentSessionHeadTx(tx, sessionId, parentId, messageId)
     agentSessionService.advanceLastActivityAtTx(tx, sessionId, Date.now())
     return true
@@ -1254,6 +1290,50 @@ export class AgentSessionMessageService {
         )
         .get()
     )
+  }
+
+  removeResentUnsentMessageTx(tx: DbOrTx, sessionId: string, message: { id: string; updatedAt: string }): void {
+    const source = tx
+      .select({ contextId: sessionMessagesTable.inputContextId })
+      .from(sessionMessagesTable)
+      .where(
+        and(
+          eq(sessionMessagesTable.sessionId, sessionId),
+          eq(sessionMessagesTable.id, message.id),
+          eq(sessionMessagesTable.role, 'user'),
+          eq(sessionMessagesTable.status, 'paused'),
+          eq(sessionMessagesTable.updatedAt, Date.parse(message.updatedAt)),
+          isNull(sessionMessagesTable.pos),
+          isNull(sessionMessagesTable.replyId),
+          isNull(sessionMessagesTable.deliveryStatus)
+        )
+      )
+      .get()
+    if (!source || (source.contextId && !this.releaseInputBindingTx(tx, sessionId, message.id, source.contextId)))
+      throw DataApiErrorFactory.resourceLocked('Message', message.id, 'a changed or already resent input')
+    this.deleteSessionMessageTx(tx, sessionId, message.id)
+  }
+
+  discardStagedFollowup(sessionId: string, messageId: string, contextId: string): void {
+    application.get('DbService').withWriteTx((tx) => {
+      const staged = tx
+        .select({ id: sessionMessagesTable.id })
+        .from(sessionMessagesTable)
+        .where(
+          and(
+            eq(sessionMessagesTable.sessionId, sessionId),
+            eq(sessionMessagesTable.id, messageId),
+            eq(sessionMessagesTable.role, 'user'),
+            eq(sessionMessagesTable.status, 'success'),
+            isNull(sessionMessagesTable.replyId),
+            isNull(sessionMessagesTable.deliveryStatus),
+            sql`json_extract(${sessionMessagesTable.data}, '$.stagedFollowup') = 1`
+          )
+        )
+        .get()
+      if (staged && this.releaseInputBindingTx(tx, sessionId, messageId, contextId))
+        this.deleteSessionMessageTx(tx, sessionId, messageId)
+    })
   }
 
   stagedFollowups(sessionId: string) {
@@ -2769,29 +2849,74 @@ export class AgentSessionMessageService {
     if (changed.changes > 0) this.publishDeliveryChange(sessionId, messageId, 'projection')
   }
 
+  protectNativeFollowupFiles(
+    sessionId: string,
+    contextId: string,
+    messageId: string,
+    parts: CherryMessagePart[]
+  ): boolean {
+    return application.get('DbService').withWriteTx((tx) => {
+      const row = this.findExistingMessageRow(tx, sessionId, messageId)
+      if (row?.role !== 'user' || row.inputContextId !== contextId || row.delivery || !row.data.stagedFollowup)
+        return false
+      // Keep new files reachable if the native commit succeeds before desktop projection.
+      replaceAgentSessionMessageFileRefsTx(tx, messageId, { parts }, true)
+      return true
+    })
+  }
+
+  releaseNativeFollowupFiles(sessionId: string, messageId: string): void {
+    application.get('DbService').withWriteTx((tx) => this.releaseNativeFollowupFilesTx(tx, sessionId, messageId))
+  }
+
+  private releaseNativeFollowupFilesTx(tx: DbOrTx, sessionId: string, messageId: string): void {
+    const row = this.findExistingMessageRow(tx, sessionId, messageId)
+    if (row) replaceAgentSessionMessageFileRefsTx(tx, messageId, row.data)
+  }
+
   applyNativeFollowupEdit(
     sessionId: string,
     contextId: string,
     messageId: string,
-    text: Extract<CherryMessagePart, { type: 'text' }>
+    edit: CherryMessagePart[] | Extract<CherryMessagePart, { type: 'text' }>
   ): void {
     const changed = application.get('DbService').withWriteTx((tx) => {
-      const row = this.findExistingMessageRow(tx, sessionId, messageId)
-      if (row?.role !== 'user' || row.inputContextId !== contextId || row.delivery) return false
-      const parts = [...(row.data.parts ?? [])]
-      const index = parts.findIndex((part) => part.type === 'text')
-      if (index < 0 || JSON.stringify(parts[index]) === JSON.stringify(text)) return false
-      parts[index] = text
+      const row = this.findExistingMessageRow(tx, sessionId, messageId, true)
+      if (
+        row?.role !== 'user' ||
+        row.inputContextId !== contextId ||
+        row.delivery ||
+        row.status !== 'success' ||
+        row.pos != null ||
+        row.replyId
+      )
+        return false
+      const previous = row.data.parts
+      const previousIds = row.partIds!
+      let parts: CherryMessagePart[]
+      let partIds: string[]
+      if (Array.isArray(edit)) {
+        parts = edit
+        const idsByPart = new Map<string, string[]>()
+        previous.forEach((part, index) => {
+          const key = JSON.stringify(part)
+          const ids = idsByPart.get(key) ?? []
+          ids.push(previousIds[index])
+          idsByPart.set(key, ids)
+        })
+        partIds = parts.map((part) => idsByPart.get(JSON.stringify(part))?.shift() ?? uuidv7())
+      } else {
+        const index = previous.findIndex((part) => part.type === 'text')
+        if (index < 0) return false
+        parts = previous.map((part, i) => (i === index ? edit : part))
+        partIds = previousIds
+      }
+      if (JSON.stringify(previous) === JSON.stringify(parts)) return false
       const updatedAt = Date.now()
       this.invalidateForkPrefixTx(tx, sessionId, messageId)
       tx.update(sessionMessagesTable).set({ updatedAt }).where(eq(sessionMessagesTable.id, messageId)).run()
-      replaceAgentSessionMessagePartsTx(tx, {
-        sessionId,
-        messageId,
-        parts,
-        partIds: readAgentSessionMessagePartIdsTx(tx, messageId),
-        timestampMs: updatedAt
-      })
+      replaceAgentSessionMessagePartsTx(tx, { sessionId, messageId, parts, partIds, timestampMs: updatedAt })
+      replaceAgentSessionMessageFileRefsTx(tx, messageId, { parts })
       return true
     })
     if (changed) this.publishDeliveryChange(sessionId, messageId, 'projection')

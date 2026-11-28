@@ -31,7 +31,7 @@ export interface HistoryRun {
   folds?: Runs<ToolFold>
 }
 export type HistorySection =
-  | { key: string; kind: 'process'; runs: Runs<HistoryRun> }
+  | { key: string; kind: 'process'; runs: Runs<HistoryRun>; hasUnsettledPart: boolean }
   | { key: string; kind: 'inline'; entry: AddressedEntry }
 
 export interface PartLayout {
@@ -83,11 +83,22 @@ function joinHistory(left: HistoryRun, right: HistoryRun): HistoryRun | undefine
 const joinSections = (a?: Runs<HistorySection>, b?: Runs<HistorySection>) =>
   joinRuns(a, b, (left, right) =>
     left.kind === 'process' && right.kind === 'process'
-      ? { ...left, runs: joinRuns(left.runs, right.runs, joinHistory)! }
+      ? {
+          ...left,
+          runs: joinRuns(left.runs, right.runs, joinHistory)!,
+          hasUnsettledPart: left.hasUnsettledPart || right.hasUnsettledPart
+        }
       : undefined
   )
 
 export const EMPTY_LAYOUT: PartLayout = {}
+
+export function isUnsettledProcessPart(part: CherryMessagePart, tool?: ToolRenderItem): boolean {
+  const status = tool?.toolResponse.status
+  return part.type === 'reasoning'
+    ? part.state === 'streaming'
+    : status === 'pending' || status === 'invoking' || status === 'streaming'
+}
 
 export function joinPartLayout(left: PartLayout, right: PartLayout): PartLayout {
   if (left === EMPTY_LAYOUT) return right
@@ -117,6 +128,7 @@ export function layoutPart(
 ): PartLayout {
   const { key, part } = entry
   const entries = single(key, entry)
+  const hasUnsettledPart = isUnsettledProcessPart(part, tool)
   const fold = tool && { key, title: intentTitle, first: tool, last: tool, items: single(key, tool) }
   const run: HistoryRun = {
     key,
@@ -128,20 +140,14 @@ export function layoutPart(
     firstTool: tool,
     lastTool: tool,
     waiting: tool && 'state' in part && part.state === 'approval-requested' ? tool : undefined,
-    running:
-      tool &&
-      (tool.toolResponse.status === 'invoking' ||
-        tool.toolResponse.status === 'streaming' ||
-        tool.toolResponse.status === 'pending')
-        ? tool
-        : undefined,
+    running: hasUnsettledPart ? tool : undefined,
     hasIntent: !!intentTitle,
     folds: fold ? { first: fold } : undefined
   }
   const process = kind === 'process'
   const section: HistorySection = keepInline
     ? { key, kind: 'inline', entry }
-    : { key, kind: 'process', runs: { first: run } }
+    : { key, kind: 'process', runs: { first: run }, hasUnsettledPart }
   return {
     history: process ? { first: section } : undefined,
     tailHistory: process ? undefined : { first: section },

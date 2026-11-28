@@ -167,7 +167,7 @@ export const FileList = memo(function FileList({
               onClick={() => {
                 if (!isRenaming && !file.isMissing) onOpen(file)
               }}
-              className={`${FILE_LIST_GRID} group absolute top-0 right-3 left-3 h-10 cursor-default rounded-md px-2.5 transition-colors ${
+              className={`${FILE_LIST_GRID} group absolute top-0 right-3 left-3 h-10 cursor-default rounded-md px-2.5 transition-[color] ${
                 selected ? 'bg-accent ring-1 ring-border-subtle ring-inset' : 'hover:bg-accent'
               }`}
               style={{ transform: `translateY(${virtualRow.start}px)` }}>

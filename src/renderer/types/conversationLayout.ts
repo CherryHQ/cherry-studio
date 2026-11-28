@@ -3,6 +3,7 @@ import type { ReactNode, Ref } from 'react'
 export type ConversationCenterSlot = {
   className?: string
   content: ReactNode
+  hideLeftPane?: boolean
   id?: string
   ref?: Ref<HTMLDivElement>
 }

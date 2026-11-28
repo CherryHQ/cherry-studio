@@ -51,6 +51,45 @@ describe('message-owned native input bindings', () => {
     }
   }
 
+  it.each([undefined, true] as const)(
+    'saves exactly one replacement for an unsent input (staged: %s)',
+    (stageFollowup) => {
+      prepareNativeSubmission(sessionId, messageId, contextId)
+      messages.markUserMessageUnsent(sessionId, messageId, contextId)
+      const original = messages.getSessionMessage(sessionId, messageId)
+      const retry = (afterSave?: () => never) =>
+        application.get('DbService').withWriteTx((tx) => {
+          const replacement = messages.saveMessage(
+            { sessionId, stageFollowup, message: { role: 'user', data: original.data } },
+            { db: tx }
+          )
+          messages.removeResentUnsentMessageTx(tx, sessionId, original)
+          afterSave?.()
+          return replacement
+        })
+
+      expect(() =>
+        retry(() => {
+          throw new Error('persistence failed')
+        })
+      ).toThrow('persistence failed')
+      expect(messages.getSessionMessage(sessionId, messageId)).toMatchObject({ status: 'paused', data: original.data })
+      const replacement = retry()
+      expect(() => retry()).toThrow()
+      expect(messages.hasSessionMessage(sessionId, messageId)).toBe(false)
+      expect(messages.getSessionMessage(sessionId, replacement.id).data).toEqual(original.data)
+      expect(messages.stagedFollowups(sessionId).map(({ messageId }) => messageId)).toEqual(
+        stageFollowup ? [replacement.id] : []
+      )
+      const storedUsers = dbh.db
+        .select()
+        .from(agentSessionMessageTable)
+        .all()
+        .filter(({ role }) => role === 'user')
+      expect(storedUsers.map(({ id }) => id)).toEqual([replacement.id])
+    }
+  )
+
   it('keeps a saved follow-up off the branch until placement and publishes it only once', () => {
     const id = uuid()
     messages.saveMessage({

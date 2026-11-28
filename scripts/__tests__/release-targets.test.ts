@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { getReleaseTargets } from '../release/targets'
 
 describe('release target selection', () => {
-  it('keeps USB signing on one Windows job per edition and separates hosted architectures', () => {
+  it('keeps USB signing on one Windows job per edition and separates macOS and Linux architectures', () => {
     const targets = getReleaseTargets('all')
     expect(targets.map(({ platform, arch }) => `${platform}-${arch}`).sort()).toEqual([
       'linux-arm64',
@@ -14,9 +14,11 @@ describe('release target selection', () => {
     ])
   })
 
-  it.each(['mac', 'linux'])('uses the same hosted runner pool for both %s architectures', (platform) => {
-    const targets = getReleaseTargets(platform)
-    expect(new Set(targets.map((target) => target.os)).size).toBe(1)
+  it('routes every macOS architecture to the self-hosted Mac Studio', () => {
+    expect(getReleaseTargets('mac').map(({ runner }) => runner)).toEqual([
+      ['self-hosted', 'mac-studio'],
+      ['self-hosted', 'mac-studio']
+    ])
   })
 
   it.each(['windows', 'mac', 'linux'])('builds only the requested %s platform during repair', (platform) => {
