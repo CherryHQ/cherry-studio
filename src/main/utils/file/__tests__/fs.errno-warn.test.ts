@@ -360,7 +360,7 @@ describe('atomicWriteFile (write/sync failure cleans up .tmp-{uuid})', () => {
     const writeErr = makeErrnoErr('ENOSPC', 'no space left on device')
     mockOpen.mockImplementation(async (p, flags) => {
       const real = await actualOpen(p as string, flags as never)
-      if (typeof p === 'string' && p.startsWith(target + '.tmp-')) {
+      if (typeof p === 'string' && path.dirname(p) === path.dirname(target) && path.basename(p).startsWith('.tmp-')) {
         return failingHandle(real, 'writeFile', writeErr)
       }
       return real
@@ -377,7 +377,7 @@ describe('atomicWriteFile (write/sync failure cleans up .tmp-{uuid})', () => {
     const syncErr = makeErrnoErr('EIO', 'I/O error')
     mockOpen.mockImplementation(async (p, flags) => {
       const real = await actualOpen(p as string, flags as never)
-      if (typeof p === 'string' && p.startsWith(target + '.tmp-')) {
+      if (typeof p === 'string' && path.dirname(p) === path.dirname(target) && path.basename(p).startsWith('.tmp-')) {
         return failingHandle(real, 'sync', syncErr)
       }
       return real

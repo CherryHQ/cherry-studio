@@ -637,3 +637,14 @@ describe('OCR artifact ownership and case-folded reservations', () => {
     expect(reserveImportedFileRelativePath('photo.png', true, reserved)).toBe('photo_1.png')
   })
 })
+
+describe('stored POSIX artifact names', () => {
+  it.each([String.raw`\report.pdf`, String.raw`folder/a\b.pdf`])('preserves literal backslashes in %s', (source) => {
+    expect(getProcessedMarkdownRelativePath(source)).toBe(source.slice(0, -4) + '.md')
+    expect(
+      collectKnowledgeReservedRelativePaths([{ type: 'file', data: { relativePath: source } }], {
+        fileProcessorId: null
+      })
+    ).toContain(source.slice(0, -4) + '.md')
+  })
+})

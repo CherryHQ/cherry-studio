@@ -141,20 +141,25 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
 
     await this.knowledgeLockManager.runExclusive(base.id, async () => {
       try {
+        const excludedIds = new Set<string>()
         if (conflictStrategy === 'replace') {
-          // Purge the conflicting existing items synchronously inside the lock and
-          // BEFORE reserving paths, so the freed name is claimed by the incoming
-          // source instead of being auto-renamed with a numeric suffix.
-          await this.purgeConflictingExistingItems(base, itemsToAdd)
+          const roots = knowledgeItemService.getRootItemsByBaseId(base.id)
+          const { conflictingExistingRootIds } = resolveKnowledgeAddConflicts(itemsToAdd, roots)
+          if (conflictingExistingRootIds.length > 0) {
+            for (const item of knowledgeItemService.getSubtreeItems(base.id, conflictingExistingRootIds, {
+              includeRoots: true
+            })) {
+              excludedIds.add(item.id)
+            }
+          }
         }
-
-        // Reserve every existing on-disk path up front, then let each new file
-        // claim a collision-free name (auto-renaming with a numeric suffix)
-        // against the same growing set, so a same-named batch add no longer
-        // throws — earlier inputs are visible when deduping later ones.
-        const reservedPaths = this.loadReservedKnowledgeFilePaths(base.id, base.fileProcessorId)
-        for (const input of itemsToAdd) {
-          const { createInput, copies } = this.planRuntimeAddItemInput(base.fileProcessorId, input, reservedPaths)
+        const reservedPaths = this.loadReservedKnowledgeFilePaths(base.id, base.fileProcessorId, excludedIds)
+        const planned = itemsToAdd.map((input) =>
+          this.planRuntimeAddItemInput(base.fileProcessorId, input, reservedPaths)
+        )
+        // Validate every reservation and incoming plan before Replace can remove existing material.
+        if (conflictStrategy === 'replace') await this.purgeConflictingExistingItems(base, itemsToAdd)
+        for (const { createInput, copies } of planned) {
           if (options.copyInline) {
             for (const copy of copies) {
               await copyFileIntoKnowledgeBaseAt(base.id, copy.from, copy.relativePath)
@@ -733,10 +738,17 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
     }
   }
 
-  private loadReservedKnowledgeFilePaths(baseId: string, fileProcessorId: string | null | undefined): Set<string> {
+  private loadReservedKnowledgeFilePaths(
+    baseId: string,
+    fileProcessorId: string | null | undefined,
+    excludedIds = new Set<string>()
+  ): Set<string> {
     // A deleting row's pending cleanup still unlinks its paths, so a new item must not claim them.
     const items = knowledgeItemService.getItemsByBaseId(baseId, { includeDeleting: true })
-    return collectKnowledgeReservedRelativePaths(items, { fileProcessorId })
+    return collectKnowledgeReservedRelativePaths(
+      items.filter((item) => !excludedIds.has(item.id)),
+      { fileProcessorId }
+    )
   }
 
   private assertKnowledgeRelativePathNotReserved(

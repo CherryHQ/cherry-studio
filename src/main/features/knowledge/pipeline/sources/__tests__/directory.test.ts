@@ -44,6 +44,7 @@ const realOs = await vi.importActual<typeof NodeOs>('node:os')
 const realPath = await vi.importActual<typeof NodePath>('node:path')
 
 afterEach(() => {
+  copyFileIntoKnowledgeBaseAtMock.mockReset().mockImplementation(async (_base, _source, relative) => relative)
   vi.mocked(path.resolve).mockImplementation(realPath.resolve)
   vi.mocked(path.basename).mockImplementation(realPath.basename)
   vi.mocked(path.parse).mockImplementation(realPath.parse)
@@ -228,6 +229,42 @@ describe('expandDirectoryOwnerToTree', () => {
       excludeItemId: 'pdf'
     })
     expect(reserved.has(pdfOutput)).toBe(false)
+  })
+
+  it('copies long same-stem PDF and Markdown leaves through real atomic copies', async () => {
+    tempRoot = createTempRoot()
+    const rootDir = path.join(tempRoot, 'input')
+    const output = path.join(tempRoot, 'output')
+    realFs.mkdirSync(rootDir)
+    realFs.mkdirSync(output)
+    const stem = 'a'.repeat(210)
+    for (const name of [stem + '.pdf', stem + '.md', 'normal.txt']) realFs.writeFileSync(path.join(rootDir, name), name)
+    const { copy } = await import('@main/utils/file/fs')
+    for (let index = 0; index < 3; index++) {
+      copyFileIntoKnowledgeBaseAtMock.mockImplementationOnce(async (_base, source, relative) => {
+        const target = path.join(output, path.basename(relative))
+        await copy(
+          source as import('@shared/types/file').AbsoluteFilePath,
+          target as import('@shared/types/file').AbsoluteFilePath
+        )
+        return relative
+      })
+    }
+    const result = await expandDirectoryOwnerToTree(
+      createDirectoryOwner(rootDir),
+      'kb-1',
+      'input',
+      createSignal(),
+      ignoreCopyProgress,
+      null
+    )
+    const leaves = result.filter((node) => node.type === 'file')
+    expect(leaves).toHaveLength(3)
+    for (const leaf of leaves)
+      expect(realFs.readFileSync(path.join(output, path.basename(leaf.data.relativePath)), 'utf8')).toBe(
+        path.basename(leaf.data.source)
+      )
+    expect(realFs.readdirSync(output)).toHaveLength(3)
   })
 
   it('imports all supported image formats from directories', async () => {

@@ -128,12 +128,12 @@ export function getKnowledgeSourceRelativePath(sourcePath: string): PosixRelativ
 
 export function getProcessedMarkdownRelativePath(relativePath: string): PosixRelativeFilePath {
   assertSafeKnowledgeRelativePath(relativePath)
-  const parsed = path.parse(relativePath)
+  const parsed = path.posix.parse(relativePath)
   // Re-asserted rather than inheriting the input's brand: swapping the extension
   // builds a NEW string, and `path.parse` on a dotfile (`.env` → name `.env`,
   // ext '') can turn one into `.env.md` — a different path that has to clear the
   // guard on its own.
-  const processed = normalizeRelativePath(path.join(parsed.dir, `${parsed.name}.md`))
+  const processed = path.posix.join(parsed.dir, `${parsed.name}.md`)
   assertSafeKnowledgeRelativePath(processed)
   return processed
 }
@@ -409,20 +409,6 @@ export function assertSafeKnowledgeRelativePath(relativePath: string): asserts r
   if (segments[0] === CHERRY_META_DIR) {
     throw new Error(`Knowledge relative path is reserved: ${relativePath}`)
   }
-}
-
-/**
- * Producer-side POSIX spelling for a path this module builds with `path.join`,
- * which emits `\` on Windows while material paths are stored `/`-separated.
- *
- * The fold is unconditional and therefore lossy on POSIX, where `\` is an
- * ordinary filename character: a source truly named `a\b.xls` yields `a/b.md`
- * here, one segment too deep. Tracked in #17429 — fixing it means teaching this
- * function the platform distinction that `pathSpec` now draws, which is out of
- * scope for the type work that removed its other caller.
- */
-function normalizeRelativePath(relativePath: string): string {
-  return path.normalize(relativePath).replace(/\\/g, '/')
 }
 
 async function assertTargetAvailable(destPath: AbsoluteFilePath): Promise<void> {

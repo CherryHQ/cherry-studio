@@ -16,6 +16,7 @@ import {
   KNOWLEDGE_ITEM_ERROR_INDEXING_INTERRUPTED
 } from '@shared/data/types/knowledge'
 import { createUniqueModelId } from '@shared/data/types/model'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import type { PosixRelativeFilePath } from '@shared/utils/file'
 
 import type * as KnowledgeItemsModule from '../items'
@@ -457,6 +458,74 @@ describe('KnowledgeService integration', () => {
       expect(rows).toHaveLength(1)
       expect(rows[0].id).not.toBe(EXISTING_NOTE_ID)
       expect((rows[0].data as { content: string }).content).toBe('Doc A\nreplacement body')
+    })
+
+    it('replaces another item beside a stored literal-backslash PDF without losing either source', async () => {
+      await seedCompletedBaseWithNote()
+      const pdfId = '0198f3f2-7d2a-7abc-8def-123456789abd'
+      await dbh.db.insert(knowledgeItemTable).values({
+        id: pdfId,
+        baseId: COMPLETED_BASE_ID,
+        groupId: null,
+        type: 'file',
+        data: { source: String.raw`/old/\report.pdf`, relativePath: String.raw`\report.pdf` as PosixRelativeFilePath },
+        status: 'completed',
+        error: null
+      })
+      const service = new KnowledgeService()
+      await expect(
+        service.addItems(COMPLETED_BASE_ID, [noteInput('Doc A\nreplacement body')], 'replace')
+      ).resolves.toEqual({ status: 'added' })
+      const rows = await baseRows()
+      expect(rows).toHaveLength(2)
+      expect(rows.find((row) => row.id === pdfId)?.data).toMatchObject({ relativePath: String.raw`\report.pdf` })
+      expect(
+        rows.some(
+          (row) => row.type === 'note' && 'content' in row.data && row.data.content === 'Doc A\nreplacement body'
+        )
+      ).toBe(true)
+    })
+
+    it('keeps the original item when an incoming replacement plan fails validation', async () => {
+      await seedCompletedBaseWithNote()
+      const service = new KnowledgeService()
+      await expect(
+        service.addItems(
+          COMPLETED_BASE_ID,
+          [
+            noteInput('Doc A\nreplacement body'),
+            {
+              type: 'file',
+              data: { source: '/new/bad.exe', path: '/new/bad.exe' as AbsoluteFilePath }
+            }
+          ],
+          'replace'
+        )
+      ).rejects.toThrow()
+      expect(await baseRows()).toEqual([
+        expect.objectContaining({ id: EXISTING_NOTE_ID, data: { source: 'Doc A', content: 'Doc A\noriginal body' } })
+      ])
+    })
+
+    it('keeps the original item when existing path reservation fails validation', async () => {
+      await seedCompletedBaseWithNote()
+      await dbh.db.insert(knowledgeItemTable).values({
+        id: '0198f3f2-7d2a-7abc-8def-123456789abd',
+        baseId: COMPLETED_BASE_ID,
+        groupId: null,
+        type: 'file',
+        data: { source: '/old/a.pdf', relativePath: '.cherry/a.pdf' as PosixRelativeFilePath },
+        status: 'completed',
+        error: null
+      })
+      const service = new KnowledgeService()
+      await expect(
+        service.addItems(COMPLETED_BASE_ID, [noteInput('Doc A\nreplacement body')], 'replace')
+      ).rejects.toThrow('reserved')
+      expect((await baseRows()).find((row) => row.id === EXISTING_NOTE_ID)?.data).toEqual({
+        source: 'Doc A',
+        content: 'Doc A\noriginal body'
+      })
     })
 
     it('does not collide when the titles differ, even though both bodies open with the same line', async () => {
