@@ -2,6 +2,7 @@ import { mkdtemp, rm, symlink } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
@@ -419,6 +420,84 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
       )
       expect(decision?.ruleId).toBe('support-bash')
       expect(decision?.effect).toBe('deny')
+    })
+
+    describe('with a verified sandbox', () => {
+      const sandboxed = { ...supportCtx, sandboxed: true } as const
+      const escape = (command: string, flag: unknown = true) => ({ command, dangerouslyDisableSandbox: flag })
+
+      it.each(['default', 'acceptEdits'] as const)('runs local Bash without a card in %s mode (AC1)', async (mode) => {
+        await expect(
+          evaluate(makeCtx({ ...sandboxed, permissionMode: mode, input: { command: 'ls -la' } }))
+        ).resolves.toBeUndefined()
+      })
+
+      it.each([true, 'true', 1])(
+        'asks before a Bash call leaves the sandbox, saying so (AC3, flag %s)',
+        async (flag) => {
+          const decision = await evaluate(makeCtx({ ...sandboxed, input: escape('gh issue create', flag) }))
+          expect(decision).toMatchObject({ effect: 'ask', ruleId: 'sandbox-escape' })
+          expect(decision?.reason).toContain('outside the sandbox')
+        }
+      )
+
+      it('words the escape card in the current app language', async () => {
+        const ctx = makeCtx({ ...sandboxed, input: escape('gh issue create') })
+
+        MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'zh-CN')
+        expect((await evaluate(ctx))?.reason).toContain('沙箱外运行')
+        MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'en-US')
+        expect((await evaluate(ctx))?.reason).toContain('outside the sandbox')
+      })
+
+      it('keeps asking in plan mode, where sandboxed writes would still change the workspace', async () => {
+        const decision = await evaluate(makeCtx({ ...sandboxed, permissionMode: 'plan', input: { command: 'ls' } }))
+        expect(decision).toMatchObject({ effect: 'ask', ruleId: 'support-bash' })
+      })
+
+      it('still asks for PowerShell, which the sandbox does not cover', async () => {
+        const decision = await evaluate(
+          makeCtx({ ...sandboxed, toolName: 'PowerShell', input: { command: 'Get-ChildItem' } })
+        )
+        expect(decision).toMatchObject({ effect: 'ask', ruleId: 'support-bash' })
+      })
+
+      it('lets Full Access leave the sandbox without a card (AC5)', async () => {
+        await expect(
+          evaluate(makeCtx({ ...sandboxed, permissionMode: 'bypassPermissions', input: escape('gh issue create') }))
+        ).resolves.toBeUndefined()
+      })
+
+      it.each([
+        ['sandboxed Bash', { command: 'ls' }],
+        ['an escape', escape('gh issue create')]
+      ])('denies %s on headless turns even under bypass (AC5)', async (_label, input) => {
+        for (const interaction of [HEADLESS, { currentTurn: 'interactive', userResponse: 'unavailable' } as const]) {
+          const decision = await evaluate(
+            makeCtx({ ...sandboxed, permissionMode: 'bypassPermissions', input, interaction })
+          )
+          expect(decision?.effect).toBe('deny')
+        }
+      })
+    })
+
+    it('denies an unattended escape for any sandboxed Agent unless Full Access lifts it', async () => {
+      const escape = { sandboxed: true, input: { command: 'gh api /zen', dangerouslyDisableSandbox: true } } as const
+
+      await expect(evaluate(makeCtx({ ...escape, interaction: HEADLESS }))).resolves.toMatchObject({
+        effect: 'deny',
+        ruleId: 'sandbox-escape'
+      })
+      await expect(
+        evaluate(makeCtx({ ...escape, interaction: HEADLESS, permissionMode: 'bypassPermissions' }))
+      ).resolves.toBeUndefined()
+    })
+
+    it('never treats an escape flag as a sandbox when the connection has none (AC6)', async () => {
+      const decision = await evaluate(
+        makeCtx({ ...supportCtx, input: { command: 'ls', dangerouslyDisableSandbox: false } })
+      )
+      expect(decision).toMatchObject({ effect: 'ask', ruleId: 'support-bash' })
     })
   })
 

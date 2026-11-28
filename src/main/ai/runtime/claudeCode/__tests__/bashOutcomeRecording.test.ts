@@ -168,7 +168,8 @@ describe('bashOutcomeHook', () => {
       builtinRole: undefined,
       mountedServers: new Set(),
       pluginDirectories: new Map(),
-      supportsImages: false
+      supportsImages: false,
+      sandboxed: false
     })
     // PreToolUse: [toolGuardHook, skillDependencyAdvisoryHook, rtkRewriteHook, steerHook].
     toolGuardHook = hooks!.PreToolUse![0].hooks[0]

@@ -2,6 +2,7 @@ import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
+import type * as ClaudeAgentSdk from '@anthropic-ai/claude-agent-sdk'
 import type { McpSdkServerConfigWithInstance } from '@anthropic-ai/claude-agent-sdk'
 import { connectMcpTestClient } from '@test-helpers/mcp/client'
 import { MockMainPreferenceServiceExport, MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
@@ -69,7 +70,13 @@ const mocks = vi.hoisted(() => ({
   getTurnTrustedNotifyChannels: vi.fn(),
   rtkRewrite: vi.fn(),
   platform: { isLinux: false, isMac: false },
-  isWin: false
+  isWin: false,
+  resolveSettings: vi.fn()
+}))
+
+vi.mock('@anthropic-ai/claude-agent-sdk', async (importOriginal) => ({
+  ...(await importOriginal<typeof ClaudeAgentSdk>()),
+  resolveSettings: mocks.resolveSettings
 }))
 
 vi.mock('electron', () => ({
@@ -3401,6 +3408,187 @@ describe('buildClaudeCodeSessionSettings', () => {
       disposeToolPolicySnapshot('session-1')
 
       expect(mocks.mcpSubscriptionDispose).toHaveBeenCalledOnce()
+    })
+  })
+
+  describe('Bash sandbox wiring', () => {
+    const NO_OTHER_SETTINGS = { effective: {}, provenance: {}, sources: [] }
+
+    function useAgent(configuration: Record<string, unknown>) {
+      mocks.getAgent.mockReturnValue({
+        id: 'agent-1',
+        type: 'claude-code',
+        model: 'anthropic::claude-sonnet',
+        mcps: [],
+        allowedTools: [],
+        configuration
+      })
+    }
+
+    function build() {
+      return buildClaudeCodeSessionSettings(
+        { id: 'session-1', agentId: 'agent-1', workspace: { type: 'user', path: '/workspace/project' } } as never,
+        {} as never
+      )
+    }
+
+    async function preToolUseDecision(
+      settings: Awaited<ReturnType<typeof buildClaudeCodeSessionSettings>>,
+      toolInput: Record<string, unknown>
+    ) {
+      const hook = settings.hooks?.PreToolUse?.[0]?.hooks.find((candidate) => candidate.name === 'toolGuardHook')
+      const output = await hook?.(
+        { hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: toolInput } as never,
+        'tool-use-1',
+        {} as never
+      )
+      return (output as { hookSpecificOutput?: { permissionDecision?: string } } | undefined)?.hookSpecificOutput
+        ?.permissionDecision
+    }
+
+    beforeEach(() => {
+      mocks.platform.isMac = true
+      mocks.resolveSettings.mockResolvedValue(NO_OTHER_SETTINGS)
+    })
+
+    it('sandboxes Support Bash on macOS and runs local commands without asking (AC1, AC2)', async () => {
+      useAgent({ builtin_role: 'support', permission_mode: 'acceptEdits' })
+
+      const settings = await build()
+
+      expect(settings.sandbox).toMatchObject({
+        enabled: true,
+        failIfUnavailable: true,
+        autoAllowBashIfSandboxed: true,
+        network: { strictAllowlist: true, allowedDomains: [] }
+      })
+      // The check must read the same settings tiers the query will load.
+      expect(mocks.resolveSettings).toHaveBeenCalledWith({ cwd: settings.cwd, settingSources: settings.settingSources })
+      await expect(preToolUseDecision(settings, { command: 'ls -la' })).resolves.toBeUndefined()
+    })
+
+    it('shows the Bash card with the sandbox reason when a command asks to leave (AC3)', async () => {
+      useAgent({ builtin_role: 'support', permission_mode: 'acceptEdits' })
+      mocks.createToolPolicySnapshot.mockResolvedValue({
+        resolve: vi.fn(() => ({ approval: 'auto' })),
+        isDisabled: vi.fn(() => false),
+        getPermissionMode: vi.fn(() => 'acceptEdits'),
+        update: vi.fn(),
+        setPermissionMode: vi.fn()
+      })
+      const settings = await build()
+      const emit = vi.fn()
+      settings.approvalEmitter!.emit = emit
+      const input = { command: 'gh issue create --title bug', dangerouslyDisableSandbox: true }
+
+      await expect(preToolUseDecision(settings, input)).resolves.toBe('ask')
+      void settings.canUseTool!('Bash', input, {
+        signal: new AbortController().signal,
+        toolUseID: 'escape',
+        matchedAskRule: undefined
+      } as never)
+
+      await vi.waitFor(() =>
+        expect(emit).toHaveBeenCalledWith(
+          expect.objectContaining({
+            toolName: 'Bash',
+            input,
+            providerMetadata: {
+              cherry: expect.objectContaining({
+                commandPolicy: expect.objectContaining({ reason: expect.stringContaining('outside the sandbox') })
+              })
+            }
+          })
+        )
+      )
+    })
+
+    it('keeps per-call approval and no sandbox for Support outside macOS (AC6)', async () => {
+      mocks.platform.isMac = false
+      useAgent({ builtin_role: 'support', permission_mode: 'acceptEdits' })
+
+      const settings = await build()
+
+      expect(settings.sandbox).toBeUndefined()
+      await expect(preToolUseDecision(settings, { command: 'ls -la' })).resolves.toBe('ask')
+    })
+
+    it.each([
+      ['Assistant', { builtin_role: 'assistant' }],
+      ['Doctor', { builtin_role: 'doctor' }],
+      ['a user Agent', {}]
+    ])('gives %s no sandbox (AC7)', async (_label, configuration) => {
+      useAgent(configuration)
+
+      expect((await build()).sandbox).toBeUndefined()
+    })
+
+    describe('escape guidance on network denials (AC12)', () => {
+      const denial =
+        'Exit code 1\n<sandbox_violations>\ndeny network-outbound api.github.com:443 (host is not on the allow list)\n</sandbox_violations>'
+
+      async function guidanceFor(
+        settings: Awaited<ReturnType<typeof buildClaudeCodeSessionSettings>>,
+        event: 'PostToolUse' | 'PostToolUseFailure',
+        toolInput: Record<string, unknown>
+      ) {
+        const input = {
+          hook_event_name: event,
+          tool_name: 'Bash',
+          tool_input: toolInput,
+          tool_use_id: 'tool-use-1',
+          ...(event === 'PostToolUse' ? { tool_response: { stdout: '', stderr: denial } } : { error: denial })
+        }
+        const outputs = await Promise.all(
+          (settings.hooks?.[event]?.[0]?.hooks ?? []).map((hook) => hook(input as never, 'tool-use-1', {} as never))
+        )
+        return outputs
+          .map((output) => (output as { hookSpecificOutput?: { additionalContext?: string } }).hookSpecificOutput)
+          .map((specific) => specific?.additionalContext)
+          .filter((context): context is string => context !== undefined)
+      }
+
+      it.each(['PostToolUse', 'PostToolUseFailure'] as const)(
+        'tells the model how to escape after a sandboxed denial reported through %s',
+        async (event) => {
+          useAgent({ builtin_role: 'support', permission_mode: 'acceptEdits' })
+          const settings = await build()
+
+          const [guidance, ...rest] = await guidanceFor(settings, event, { command: 'gh auth status' })
+
+          expect(rest).toEqual([])
+          expect(guidance).toContain('api.github.com')
+          expect(guidance).toContain('`dangerouslyDisableSandbox: true`')
+        }
+      )
+
+      it('adds nothing to an escape call', async () => {
+        useAgent({ builtin_role: 'support', permission_mode: 'acceptEdits' })
+        const settings = await build()
+
+        await expect(
+          guidanceFor(settings, 'PostToolUseFailure', { command: 'gh auth status', dangerouslyDisableSandbox: true })
+        ).resolves.toEqual([])
+      })
+
+      it('adds nothing when the session has no sandbox', async () => {
+        mocks.platform.isMac = false
+        useAgent({ builtin_role: 'support', permission_mode: 'acceptEdits' })
+        const settings = await build()
+
+        await expect(guidanceFor(settings, 'PostToolUseFailure', { command: 'gh auth status' })).resolves.toEqual([])
+      })
+    })
+
+    it('fails the build before any command runs when another tier changes the sandbox (AC11)', async () => {
+      useAgent({ builtin_role: 'support', permission_mode: 'bypassPermissions' })
+      mocks.resolveSettings.mockResolvedValue({
+        effective: {},
+        provenance: {},
+        sources: [{ source: 'managed', settings: { sandbox: { enabled: false } } }]
+      })
+
+      await expect(build()).rejects.toThrow('cannot be verified')
     })
   })
 })

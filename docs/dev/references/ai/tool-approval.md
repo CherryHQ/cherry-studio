@@ -8,6 +8,8 @@ sources:
   - src/renderer/pages/home/hooks/useToolApprovalBridge.ts
   - src/renderer/components/chat/messages/tools/hooks/useToolApproval.ts
   - src/main/ai/runtime/claudeCode/settingsBuilder.ts
+  - src/main/ai/runtime/claudeCode/sandboxSettings.ts
+  - src/main/ai/toolApproval/sandboxPolicy.ts
   - src/main/ai/runtime/claudeCode/ClaudeCodeRuntimeDriver.ts
   - src/main/ai/runtime/claudeCode/ToolApprovalRegistry.ts
   - src/main/ai/runtime/claudeCode/hooks.ts
@@ -195,6 +197,37 @@ This is a usability guard, not operating-system isolation or proof of safety. Un
 programs, script files, aliases, Git hooks and ambient configuration can still have arbitrary
 side effects. Shell filesystem access is not contained by this policy. SQLite protection,
 disabled tools, install and role-specific guards can independently tighten the outcome.
+
+## Shell sandbox
+
+An Agent whose capabilities declare a `sandbox` overlay runs Claude Code Bash in the SDK's
+macOS sandbox; today only Cherry Support declares one, and it is empty. `resolveSandboxPolicy`
+merges the overlay into the base policy and returns nothing off macOS, so Linux and Windows keep
+the per-call shell approval. The Claude Code adapter turns the policy into the SDK `sandbox`
+option: writes stay in the workspace, Agent data and temp directories, the network allowlist is
+strict and empty, and sandboxed Bash runs without a card.
+
+Before a sandboxed connection starts, `assertSandboxSettingsUnchanged` resolves every other
+settings tier the CLI would load for the same cwd and setting sources. A tier with its own
+`sandbox` block, a `policyHelper`, `permissions.additionalDirectories`, or `WebFetch(domain:…)` /
+`Edit(…)` allow rules fails the build with a localized error, so the turn errors before any command
+runs. A live connection repeats the check before each turn it sends, so settings changed after
+connect fail the next turn instead of riding on the first check.
+
+The connection's verified state reaches the guard table as `sandboxed`. A Bash call with
+`dangerouslyDisableSandbox` set asks through `sandbox-escape`, whose reason says the command
+leaves the sandbox; Full Access skips that card, and a headless or responder-less turn denies the
+escape outside Full Access. Support's `support-bash` asks for shell calls the sandbox does not
+cover (PowerShell, escapes, or any call without a sandbox) and for every shell call in plan mode,
+and headless or responder-less turns deny every Support shell call in every mode. PowerShell and
+other tools, MCP web access included, are outside this boundary.
+
+A network denial alone does not lead every model to the escape. When a sandboxed Bash result
+reports `deny network-outbound <host>`, a PostToolUse or PostToolUseFailure hook (the CLI uses the
+first for a zero exit code and the second otherwise) appends `sandboxEscapeGuidance`: rerun with
+`dangerouslyDisableSandbox` if the user's request needs the host, do not use `allowed_domains` or
+other tools, and tell the user if it does not. The CLI rejects `allowed_domains` under the strict
+allowlist before any hook runs, so the guidance must arrive with the first denial.
 
 ## Persistent decisions
 

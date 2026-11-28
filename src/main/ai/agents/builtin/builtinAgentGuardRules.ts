@@ -8,7 +8,12 @@
  */
 
 import { loggerService } from '@logger'
-import type { GuardHit, ToolGuardContext, ToolGuardRule } from '@main/ai/toolApproval/toolGuards'
+import {
+  type GuardHit,
+  runsInSandbox,
+  type ToolGuardContext,
+  type ToolGuardRule
+} from '@main/ai/toolApproval/toolGuards'
 import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
 
 import { isFeedbackSubmissionCommand, isPermanentDeletionToolName } from './assistantCommandSafety'
@@ -18,8 +23,17 @@ const logger = loggerService.withContext('BuiltinAgentGuardRules')
 /** Every built-in role is protected — see `isProtectedBuiltinAgentRole`. */
 const PROTECTED_BUILTIN_ROLES: readonly string[] = Object.values(BUILTIN_AGENT_ROLE)
 
+const SUPPORT_HEADLESS_SHELL_DENIAL =
+  'Headless channel or scheduled turns cannot run shell commands for Cherry Support. Keep only a sanitized local draft using the structured file tools.'
+
 const destructiveBuiltinOperation = (ctx: ToolGuardContext): GuardHit | null => {
   return isPermanentDeletionToolName(ctx.toolName) ? { evidence: 'permanent deletion tool' } : null
+}
+
+const supportShellNeedsApproval = (ctx: ToolGuardContext): boolean => {
+  if (ctx.toolName !== 'Bash' && ctx.toolName !== 'PowerShell') return false
+  // Sandboxed writes still reach the workspace, so plan mode keeps asking for every shell call.
+  return !runsInSandbox(ctx) || ctx.permissionMode === 'plan'
 }
 
 const feedbackSubmissionCommand = async (ctx: ToolGuardContext): Promise<GuardHit | null> => {
@@ -64,18 +78,20 @@ export const BUILTIN_AGENT_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
   },
   {
     // Support shell commands can hide external submissions behind arbitrary wrappers, so every
-    // shell call asks. The JSON command policy enforces destructive-command denials.
+    // shell call the sandbox does not cover asks. The JSON command policy enforces destructive-command denials.
     id: 'support-bash',
     bypassBehavior: 'skipInteractiveEffect',
     appliesTo: { roles: [BUILTIN_AGENT_ROLE.SUPPORT] },
-    match: { when: (ctx) => (ctx.toolName === 'Bash' || ctx.toolName === 'PowerShell' ? {} : null) },
+    match: { when: (ctx) => (supportShellNeedsApproval(ctx) ? {} : null) },
     effect: 'ask',
     reason: 'Cherry Support shell commands require live per-call user approval.',
-    headless: {
-      predicate: 'either',
-      reason:
-        'Headless channel or scheduled turns cannot run shell commands for Cherry Support. Keep only a sanitized local draft using the structured file tools.'
-    }
+    headless: { predicate: 'either', reason: SUPPORT_HEADLESS_SHELL_DENIAL }
+  },
+  {
+    id: 'support-sandboxed-bash-headless',
+    appliesTo: { roles: [BUILTIN_AGENT_ROLE.SUPPORT] },
+    match: { when: (ctx) => (runsInSandbox(ctx) ? {} : null) },
+    headless: { predicate: 'either', reason: SUPPORT_HEADLESS_SHELL_DENIAL }
   },
   {
     // The result is useful only when AgentChat can present its user-owned review dialog.
