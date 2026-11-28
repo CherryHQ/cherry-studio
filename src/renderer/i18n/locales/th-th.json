@@ -755,6 +755,9 @@
   "apiGateway.status.running": "กำลังทำงาน",
   "apiGateway.status.stopped": "หยุดแล้ว",
   "apiGateway.title": "เกตเวย์รวม",
+  "assistant.mcp_defaults.description": "ค่าเริ่มต้นจะใช้กับผู้ช่วยใหม่เท่านั้น ผู้ช่วยแต่ละคนสามารถเลือกเซิร์ฟเวอร์ต่างกันได้",
+  "assistant.mcp_defaults.load_failed": "ไม่สามารถโหลดค่าเริ่มต้นของ MCP ได้ โปรดลองอีกครั้งก่อนดำเนินการต่อ",
+  "assistant.mcp_defaults.title": "เซิร์ฟเวอร์ MCP เริ่มต้นสำหรับผู้ช่วยใหม่",
   "assistants.abbr": "ผู้ช่วย",
   "assistants.clear.menu_title": "ลบหัวข้อ",
   "assistants.delete.content": "การลบผู้ช่วยจะลบการสนทนาและไฟล์ทั้งหมดภายใต้ผู้ช่วย แน่ใจหรือไม่ว่าต้องการลบ?",
@@ -5488,6 +5491,7 @@
   "settings.mcp.builtinServersDescriptions.python": "รันโค้ด Python ในสภาพแวดล้อม Sandbox ที่ปลอดภัย รัน Python ด้วย Pyodide รองรับไลบรารีมาตรฐานส่วนใหญ่และแพ็กเกจคำนวณทางวิทยาศาสตร์",
   "settings.mcp.builtinServersDescriptions.qveris": "เชื่อมต่อ QVeris เพื่อค้นหา ตรวจสอบ และเรียกใช้ความสามารถของ AI agent ลงชื่อเข้าใช้ผ่าน OAuth ในเบราว์เซอร์เป็นหลัก หรือกำหนดค่า QVERIS_API_KEY เป็น API Key สำรอง",
   "settings.mcp.builtinServersDescriptions.sequentialthinking": "MCP server ที่ให้เครื่องมือสำหรับการแก้ปัญหาแบบไดนามิกและสะท้อนกลับผ่านกระบวนการคิดที่มีโครงสร้าง",
+  "settings.mcp.catalog_load_failed": "ไม่สามารถโหลดรายการเซิร์ฟเวอร์ MCP ได้",
   "settings.mcp.command": "คำสั่ง",
   "settings.mcp.copyLogs": "คัดลอก log",
   "settings.mcp.customRegistryPlaceholder": "ป้อน URL รีจิสทรีส่วนตัว เช่น https://npm.company.com",
@@ -7061,9 +7065,5 @@
   "webview.tabs.empty": "เปิดหน้าเว็บในการสนทนานี้",
   "webview.tabs.label": "แท็บเบราว์เซอร์",
   "webview.tabs.new": "แท็บใหม่",
-  "webview.tabs.view": "ดู",
-  "assistant.mcp_defaults.description": "ค่าเริ่มต้นจะใช้กับผู้ช่วยใหม่เท่านั้น ผู้ช่วยแต่ละคนสามารถเลือกเซิร์ฟเวอร์ต่างกันได้",
-  "assistant.mcp_defaults.load_failed": "ไม่สามารถโหลดค่าเริ่มต้นของ MCP ได้ โปรดลองอีกครั้งก่อนดำเนินการต่อ",
-  "assistant.mcp_defaults.title": "เซิร์ฟเวอร์ MCP เริ่มต้นสำหรับผู้ช่วยใหม่",
-  "settings.mcp.catalog_load_failed": "ไม่สามารถโหลดรายการเซิร์ฟเวอร์ MCP ได้"
+  "webview.tabs.view": "ดู"
 }

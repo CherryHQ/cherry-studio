@@ -755,6 +755,9 @@
   "apiGateway.status.running": "Chạy",
   "apiGateway.status.stopped": "Đã dừng",
   "apiGateway.title": "Cổng thống nhất",
+  "assistant.mcp_defaults.description": "Cài đặt mặc định chỉ áp dụng cho trợ lý mới. Mỗi trợ lý có thể dùng một lựa chọn khác.",
+  "assistant.mcp_defaults.load_failed": "Không thể tải cài đặt MCP mặc định. Hãy thử lại trước khi tiếp tục.",
+  "assistant.mcp_defaults.title": "Máy chủ MCP mặc định cho trợ lý mới",
   "assistants.abbr": "Trợ lý",
   "assistants.clear.menu_title": "Xóa chủ đề",
   "assistants.delete.content": "Việc xóa trợ lý sẽ xóa toàn bộ chủ đề và tệp trong trợ lý. Bạn có chắc chắn muốn xóa không?",
@@ -5488,6 +5491,7 @@
   "settings.mcp.builtinServersDescriptions.python": "Thực thi mã Python trong môi trường sandbox an toàn. Chạy Python với Pyodide, hỗ trợ hầu hết các thư viện chuẩn và các gói tính toán khoa học",
   "settings.mcp.builtinServersDescriptions.qveris": "Kết nối với QVeris để khám phá, kiểm tra và gọi các khả năng của tác nhân AI. Đăng nhập qua OAuth trong trình duyệt hoặc cấu hình QVERIS_API_KEY làm khóa API dự phòng.",
   "settings.mcp.builtinServersDescriptions.sequentialthinking": "Một triển khai máy chủ MCP cung cấp các công cụ để giải quyết vấn đề động và phản chiếu thông qua các quy trình tư duy có cấu trúc",
+  "settings.mcp.catalog_load_failed": "Không tải được danh sách máy chủ MCP.",
   "settings.mcp.command": "Lệnh",
   "settings.mcp.copyLogs": "Sao chép nhật ký",
   "settings.mcp.customRegistryPlaceholder": "Nhập URL của registry riêng, ví dụ: https://npm.company.com",
@@ -7061,9 +7065,5 @@
   "webview.tabs.empty": "Mở trang web trong cuộc trò chuyện này",
   "webview.tabs.label": "Thẻ trình duyệt",
   "webview.tabs.new": "Thẻ mới",
-  "webview.tabs.view": "Xem",
-  "assistant.mcp_defaults.description": "Cài đặt mặc định chỉ áp dụng cho trợ lý mới. Mỗi trợ lý có thể dùng một lựa chọn khác.",
-  "assistant.mcp_defaults.load_failed": "Không thể tải cài đặt MCP mặc định. Hãy thử lại trước khi tiếp tục.",
-  "assistant.mcp_defaults.title": "Máy chủ MCP mặc định cho trợ lý mới",
-  "settings.mcp.catalog_load_failed": "Không tải được danh sách máy chủ MCP."
+  "webview.tabs.view": "Xem"
 }

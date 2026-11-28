@@ -755,6 +755,9 @@
   "apiGateway.status.running": "執行中",
   "apiGateway.status.stopped": "已停止",
   "apiGateway.title": "統一網關",
+  "assistant.mcp_defaults.description": "預設設定僅適用於新建助理。每個助理都可以使用不同的選擇。",
+  "assistant.mcp_defaults.load_failed": "無法載入 MCP 預設設定。請重試後再繼續。",
+  "assistant.mcp_defaults.title": "新助理的預設 MCP 伺服器",
   "assistants.abbr": "助理",
   "assistants.clear.menu_title": "清空話題",
   "assistants.delete.content": "刪除助理會刪除所有該助理下的對話和檔案，確定要繼續嗎？",
@@ -5488,6 +5491,7 @@
   "settings.mcp.builtinServersDescriptions.python": "在安全的沙盒環境中執行 Python 程式碼。使用 Pyodide 執行 Python，支援大多數標準函式庫和科學計算套件",
   "settings.mcp.builtinServersDescriptions.qveris": "連接 QVeris，讓 AI 智能體探索、檢查及呼叫外部能力。優先透過瀏覽器 OAuth 登入，亦可設定 QVERIS_API_KEY 作為備選。",
   "settings.mcp.builtinServersDescriptions.sequentialthinking": "一個 MCP 伺服器實作，提供了透過結構化思維過程進行動態和反思性問題解決的工具",
+  "settings.mcp.catalog_load_failed": "無法載入 MCP 伺服器清單。",
   "settings.mcp.command": "指令",
   "settings.mcp.copyLogs": "複製日誌",
   "settings.mcp.customRegistryPlaceholder": "請輸入私有儲存庫位址，如：https://npm.company.com",
@@ -7061,9 +7065,5 @@
   "webview.tabs.empty": "在目前對話中開啟網頁",
   "webview.tabs.label": "瀏覽器分頁",
   "webview.tabs.new": "新增分頁",
-  "webview.tabs.view": "檢視",
-  "assistant.mcp_defaults.description": "預設設定僅適用於新建助理。每個助理都可以使用不同的選擇。",
-  "assistant.mcp_defaults.load_failed": "無法載入 MCP 預設設定。請重試後再繼續。",
-  "assistant.mcp_defaults.title": "新助理的預設 MCP 伺服器",
-  "settings.mcp.catalog_load_failed": "無法載入 MCP 伺服器清單。"
+  "webview.tabs.view": "檢視"
 }

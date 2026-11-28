@@ -769,6 +769,9 @@
   "apiGateway.status.running": "Работает",
   "apiGateway.status.stopped": "Остановлен",
   "apiGateway.title": "Единый шлюз",
+  "assistant.mcp_defaults.description": "Настройки по умолчанию применяются только к новым ассистентам. Для каждого ассистента можно выбрать другой набор.",
+  "assistant.mcp_defaults.load_failed": "Не удалось загрузить настройки MCP по умолчанию. Повторите попытку перед продолжением.",
+  "assistant.mcp_defaults.title": "Серверы MCP по умолчанию для новых ассистентов",
   "assistants.abbr": "Ассистент",
   "assistants.clear.menu_title": "Очистить темы",
   "assistants.delete.content": "Удаление ассистента удалит все топики и файлы под ассистентом. Вы уверены, что хотите удалить его?",
@@ -5560,6 +5563,7 @@
   "settings.mcp.builtinServersDescriptions.python": "Выполняйте код Python в безопасной песочнице. Запускайте Python с помощью Pyodide, поддерживается большинство стандартных библиотек и пакетов для научных вычислений",
   "settings.mcp.builtinServersDescriptions.qveris": "Подключитесь к QVeris, чтобы находить, просматривать и вызывать возможности ИИ-агентов. Войдите через OAuth в браузере или укажите QVERIS_API_KEY в качестве резервного API-ключа.",
   "settings.mcp.builtinServersDescriptions.sequentialthinking": "MCP серверная реализация, предоставляющая инструменты для динамического и рефлексивного решения проблем посредством структурированного мыслительного процесса",
+  "settings.mcp.catalog_load_failed": "Не удалось загрузить список серверов MCP.",
   "settings.mcp.command": "Команда",
   "settings.mcp.copyLogs": "Скопировать журналы",
   "settings.mcp.customRegistryPlaceholder": "Введите адрес частного склада, например: https://npm.company.com",
@@ -7147,9 +7151,5 @@
   "webview.tabs.empty": "Откройте веб-страницу в этом разговоре",
   "webview.tabs.label": "Вкладки браузера",
   "webview.tabs.new": "Новая вкладка",
-  "webview.tabs.view": "Показать",
-  "assistant.mcp_defaults.description": "Настройки по умолчанию применяются только к новым ассистентам. Для каждого ассистента можно выбрать другой набор.",
-  "assistant.mcp_defaults.load_failed": "Не удалось загрузить настройки MCP по умолчанию. Повторите попытку перед продолжением.",
-  "assistant.mcp_defaults.title": "Серверы MCP по умолчанию для новых ассистентов",
-  "settings.mcp.catalog_load_failed": "Не удалось загрузить список серверов MCP."
+  "webview.tabs.view": "Показать"
 }

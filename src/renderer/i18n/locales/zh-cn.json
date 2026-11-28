@@ -755,6 +755,9 @@
   "apiGateway.status.running": "运行中",
   "apiGateway.status.stopped": "已停止",
   "apiGateway.title": "统一网关",
+  "assistant.mcp_defaults.description": "默认设置仅适用于新建助手。每个助手都可以使用不同的选择。",
+  "assistant.mcp_defaults.load_failed": "无法加载 MCP 默认设置。请重试后再继续。",
+  "assistant.mcp_defaults.title": "新助手的默认 MCP 服务器",
   "assistants.abbr": "助手",
   "assistants.clear.menu_title": "清空话题",
   "assistants.delete.content": "删除助手会删除所有该助手下的对话和文件，确定要继续吗？",
@@ -5488,6 +5491,7 @@
   "settings.mcp.builtinServersDescriptions.python": "在安全的沙盒环境中执行 Python 代码。使用 Pyodide 运行 Python，支持大多数标准库和科学计算包",
   "settings.mcp.builtinServersDescriptions.qveris": "连接 QVeris，供 AI 智能体发现、检查和调用外部能力。优先通过浏览器 OAuth 登录，也可配置 QVERIS_API_KEY 作为备选。",
   "settings.mcp.builtinServersDescriptions.sequentialthinking": "一个 MCP 服务器实现，提供了通过结构化思维过程进行动态和反思性问题解决的工具",
+  "settings.mcp.catalog_load_failed": "无法加载 MCP 服务器列表。",
   "settings.mcp.command": "命令",
   "settings.mcp.copyLogs": "复制日志",
   "settings.mcp.customRegistryPlaceholder": "请输入私有仓库地址，如: https://npm.company.com",
@@ -7061,9 +7065,5 @@
   "webview.tabs.empty": "在当前会话中打开网页",
   "webview.tabs.label": "浏览器标签页",
   "webview.tabs.new": "新建标签页",
-  "webview.tabs.view": "查看",
-  "assistant.mcp_defaults.description": "默认设置仅适用于新建助手。每个助手都可以使用不同的选择。",
-  "assistant.mcp_defaults.load_failed": "无法加载 MCP 默认设置。请重试后再继续。",
-  "assistant.mcp_defaults.title": "新助手的默认 MCP 服务器",
-  "settings.mcp.catalog_load_failed": "无法加载 MCP 服务器列表。"
+  "webview.tabs.view": "查看"
 }

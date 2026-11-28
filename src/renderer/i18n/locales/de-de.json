@@ -755,6 +755,9 @@
   "apiGateway.status.running": "Läuft",
   "apiGateway.status.stopped": "Gestoppt",
   "apiGateway.title": "Einheitliches Gateway",
+  "assistant.mcp_defaults.description": "Die Vorgaben gelten nur für neue Assistenten. Jeder Assistent kann eine andere Auswahl verwenden.",
+  "assistant.mcp_defaults.load_failed": "Die MCP-Vorgaben konnten nicht geladen werden. Versuchen Sie es erneut, bevor Sie fortfahren.",
+  "assistant.mcp_defaults.title": "Standard-MCP-Server für neue Assistenten",
   "assistants.abbr": "Assistent",
   "assistants.clear.menu_title": "Themen leeren",
   "assistants.delete.content": "Das Löschen des Assistenten löscht alle Themen und Dateien unter diesem Assistenten. Möchten Sie fortfahren?",
@@ -5488,6 +5491,7 @@
   "settings.mcp.builtinServersDescriptions.python": "Python-Code in einem sicheren Sandbox-Umgebung ausführen. Verwendung von Pyodide für Python, Unterstützung für die meisten Standardbibliotheken und wissenschaftliche Pakete",
   "settings.mcp.builtinServersDescriptions.qveris": "Verbinden Sie QVeris, um Fähigkeiten von KI-Agenten zu entdecken, zu prüfen und aufzurufen. Melden Sie sich per OAuth im Browser an oder konfigurieren Sie QVERIS_API_KEY als alternativen API-Schlüssel.",
   "settings.mcp.builtinServersDescriptions.sequentialthinking": "MCP-Server-Implementierung mit strukturiertem Denkprozess, der dynamische und reflektierende Problemlösungen ermöglicht",
+  "settings.mcp.catalog_load_failed": "Die MCP-Serverliste konnte nicht geladen werden.",
   "settings.mcp.command": "Befehl",
   "settings.mcp.copyLogs": "Logs kopieren",
   "settings.mcp.customRegistryPlaceholder": "Privates Repository-Adresse eingeben, z. B. https://npm.company.com",
@@ -7061,9 +7065,5 @@
   "webview.tabs.empty": "Eine Webseite in dieser Unterhaltung öffnen",
   "webview.tabs.label": "Browser-Tabs",
   "webview.tabs.new": "Neuer Tab",
-  "webview.tabs.view": "Anzeigen",
-  "assistant.mcp_defaults.description": "Die Vorgaben gelten nur für neue Assistenten. Jeder Assistent kann eine andere Auswahl verwenden.",
-  "assistant.mcp_defaults.load_failed": "Die MCP-Vorgaben konnten nicht geladen werden. Versuchen Sie es erneut, bevor Sie fortfahren.",
-  "assistant.mcp_defaults.title": "Standard-MCP-Server für neue Assistenten",
-  "settings.mcp.catalog_load_failed": "Die MCP-Serverliste konnte nicht geladen werden."
+  "webview.tabs.view": "Anzeigen"
 }
