@@ -6,6 +6,8 @@ import { useEffect, useRef } from 'react'
 
 import { cn } from '@renderer/utils/style'
 
+import type { ChartClickParams } from '../types'
+
 echarts.use([AriaComponent, CanvasRenderer])
 
 interface EchartsProps {
@@ -15,7 +17,10 @@ interface EchartsProps {
   loadingColor: string
   loadingLabel: string | undefined
   loadingTextColor: string
+  onClick?: (params: ChartClickParams) => void
+  onTimelineChange?: (currentIndex: number) => void
   option: EChartsCoreOption
+  timelineIndex?: number
 }
 
 export function Echarts({
@@ -25,11 +30,20 @@ export function Echarts({
   loadingColor,
   loadingLabel,
   loadingTextColor,
-  option
+  onClick,
+  onTimelineChange,
+  option,
+  timelineIndex
 }: EchartsProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const instanceRef = useRef<EChartsType | null>(null)
   const appliedOptionRef = useRef<{ option: EChartsCoreOption; settings: SetOptionOpts } | null>(null)
+  const onClickRef = useRef(onClick)
+  onClickRef.current = onClick
+  const onTimelineChangeRef = useRef(onTimelineChange)
+  onTimelineChangeRef.current = onTimelineChange
+  const timelineIndexRef = useRef(timelineIndex)
+  timelineIndexRef.current = timelineIndex
 
   useEffect(() => {
     const container = containerRef.current
@@ -37,6 +51,35 @@ export function Echarts({
 
     const instance = echarts.init(container, undefined, { renderer: 'canvas' })
     instanceRef.current = instance
+    const handleClick = (params: {
+      componentType?: string
+      seriesIndex?: number
+      seriesId?: string
+      dataIndex?: number
+      name?: string
+    }) => {
+      if (params.componentType !== 'series' || typeof params.dataIndex !== 'number') return
+      onClickRef.current?.({
+        seriesIndex: params.seriesIndex,
+        seriesId: params.seriesId,
+        dataIndex: params.dataIndex,
+        name: params.name,
+        timelineIndex: timelineIndexRef.current
+      })
+    }
+    const handleTimelineChanged = (params: unknown) => {
+      if (
+        typeof params === 'object' &&
+        params !== null &&
+        'currentIndex' in params &&
+        typeof params.currentIndex === 'number'
+      ) {
+        timelineIndexRef.current = params.currentIndex
+        onTimelineChangeRef.current?.(params.currentIndex)
+      }
+    }
+    instance.on?.('click', handleClick)
+    instance.on?.('timelinechanged', handleTimelineChanged)
     let hasSized = container.clientWidth > 0 && container.clientHeight > 0
     const resizeObserver = new ResizeObserver(() => {
       if (container.clientWidth === 0 || container.clientHeight === 0) return
@@ -49,6 +92,8 @@ export function Echarts({
     resizeObserver.observe(container)
 
     return () => {
+      instance.off?.('click', handleClick)
+      instance.off?.('timelinechanged', handleTimelineChanged)
       resizeObserver.disconnect()
       instance.dispose()
       instanceRef.current = null

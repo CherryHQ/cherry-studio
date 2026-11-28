@@ -621,4 +621,98 @@ describe('internal Anthropic agent through the production gateway and SDK', () =
       expect(endpoint).toBe('https://openai.test/v1/chat/completions')
     }
   )
+
+  // #25526: Claude Code embeds `x-anthropic-billing-header:` in `system`; non-Anthropic
+  // OpenAI-compatible relays reject requests carrying it with HTTP 400 while native
+  // Anthropic endpoints must keep it unchanged.
+  it.each([
+    [
+      'dedicated billing-header block',
+      [
+        {
+          type: 'text' as const,
+          text: 'x-anthropic-billing-header: cc_version=2.2.3; cc_entrypoint=sdk-ts; cch=abc12'
+        },
+        { type: 'text' as const, text: "You are Claude Code, Anthropic's official CLI tool for Claude." }
+      ]
+    ],
+    [
+      'leading line inside a single system block',
+      [
+        {
+          type: 'text' as const,
+          text: "x-anthropic-billing-header: cc_version=2.2.3; cc_entrypoint=sdk-ts; cch=abc12\n\nYou are Claude Code, Anthropic's official CLI tool for Claude."
+        }
+      ]
+    ]
+  ])(
+    'strips x-anthropic-billing-header (%s) on OpenAI Chat Completions relays while keeping prompt and tools',
+    async (_label, system) => {
+      dbh.db
+        .update(userModelTable)
+        .set({ endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] })
+        .where(eq(userModelTable.id, 'wire::wire-model'))
+        .run()
+      let sentBody: {
+        messages?: Array<{ role: string; content: string }>
+        tools?: Array<{ function?: { name?: string } }>
+      } = {}
+      mocks.transport.mockImplementation(async (_url, init) => {
+        sentBody = JSON.parse(String(init?.body))
+        const systemContent = sentBody.messages?.find((m) => m.role === 'system')?.content ?? ''
+        if (/x-anthropic-billing-header/i.test(systemContent)) {
+          return new Response(
+            JSON.stringify({ code: '11-128', message: 'Illegal API invocation from an unapproved channel' }),
+            { status: 400, headers: { 'content-type': 'application/json' } }
+          )
+        }
+        return new Response(
+          `data: ${JSON.stringify({
+            id: 'openai-result',
+            object: 'chat.completion.chunk',
+            created: 1,
+            model: 'wire-model',
+            choices: [{ index: 0, delta: { content: 'Done' }, finish_reason: 'stop' }],
+            usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 }
+          })}\n\ndata: [DONE]\n\n`,
+          { headers: { 'content-type': 'text/event-stream' } }
+        )
+      })
+
+      const reply = await request([{ role: 'user', content: 'Hello' }], false, {
+        thinking: { type: 'disabled' },
+        system
+      })
+
+      expect(reply.content).toMatchObject([{ type: 'text', text: 'Done' }])
+      expect(sentBody.messages?.[0]).toEqual({
+        role: 'system',
+        content: "You are Claude Code, Anthropic's official CLI tool for Claude."
+      })
+      expect(sentBody.tools?.map((t) => t.function?.name)).toEqual(['echo'])
+    }
+  )
+
+  it('preserves x-anthropic-billing-header on native Anthropic endpoints', async () => {
+    const billingBlock = {
+      type: 'text' as const,
+      text: 'x-anthropic-billing-header: cc_version=2.2.3; cc_entrypoint=sdk-ts; cch=abc12'
+    }
+    const promptBlock = {
+      type: 'text' as const,
+      text: "You are Claude Code, Anthropic's official CLI tool for Claude."
+    }
+    let sentBody: { system?: Array<{ type: string; text: string }> } = {}
+    mocks.transport.mockImplementation(async (_url, init) => {
+      sentBody = JSON.parse(String(init?.body))
+      return anthropicResponse(false)
+    })
+
+    await request([{ role: 'user', content: 'Hello' }], false, {
+      thinking: { type: 'disabled' },
+      system: [billingBlock, promptBlock]
+    })
+
+    expect(sentBody.system).toMatchObject([{ type: 'text', text: `${billingBlock.text}\n\n${promptBlock.text}` }])
+  })
 })

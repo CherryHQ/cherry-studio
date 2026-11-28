@@ -75,6 +75,13 @@ Shell commands are shown in full in a scrollable, copyable preview. The optional
 rejection reason expands on demand. Opening task details or expanding the reason
 with Enter never submits an approval decision.
 
+The composer identifies the requesting Agent or subagent. Child requests carry the
+spawning tool-call ID in provider metadata; the card uses that identity to show the
+matching task name and background status, with a link to the task in Agent sessions.
+Shell commands are shown in full in a scrollable, copyable preview. The optional
+rejection reason expands on demand. Opening task details or expanding the reason
+with Enter never submits an approval decision.
+
 ## End-to-end flow
 
 1. **Tool needs approval** — at `execute` time, the wrapper checks
@@ -146,7 +153,10 @@ Runtimes reach the policy only through the `commandPolicy` barrel's `checkComman
 the command, its dialect (from the tool name), cwd, built-in role and the root's permission
 mode, and returns `deny`, `ask` (only in `auto`) or `allow`, the localized policy reason, card
 evidence and a `context` fingerprint. A runtime compares the fingerprint after a grant instead
-of re-deriving the policy inputs. The parser, semantic adapters, JSON document and the
+of re-deriving the policy inputs. The built-in Assistant's feedback-submission guard also uses
+the barrel's `resolveInvocationCommands`, which returns every command an invocation runs
+(wrapped, substituted and nested-shell commands included) and whether any part stayed
+unresolved; it makes no policy decision of its own. The parser, semantic adapters, JSON document and the
 built-in role's destructive-operation detector are private to the directory; lint rejects
 deep imports. Decisions are cached per command, dialect and role, because one call is
 checked by a hook, a permission callback and again after approval.
