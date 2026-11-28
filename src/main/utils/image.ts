@@ -65,7 +65,11 @@ export async function clampImageForModel(
 ): Promise<Uint8Array | null> {
   const sharp = (await import('sharp')).default
   const probe = sharp(bytes, { failOn: 'none' })
-  const { width, height } = await probe.metadata()
+  const metadata = await probe.metadata()
+  const { width } = metadata
+  // For multi-page images `height` can report the stacked total while `pageHeight` is the
+  // per-frame dimension; the provider edge limits apply per frame.
+  const height = metadata.pageHeight ?? metadata.height
   if (!width || !height) throw new Error('could not read image dimensions')
   if (width <= maxEdge && height <= maxEdge) return null
   if (isApng(bytes)) return clampApng(bytes, width, height, maxEdge)
