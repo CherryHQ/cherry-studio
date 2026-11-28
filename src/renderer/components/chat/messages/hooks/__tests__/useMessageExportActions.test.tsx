@@ -33,6 +33,7 @@ const second: MessageExportView = {
 }
 const save = vi.fn()
 const write = vi.fn()
+const exportWrite = vi.fn()
 const ipcRequest = vi.fn()
 const showObsidian = vi.fn()
 const fetchMock = vi.fn()
@@ -47,6 +48,7 @@ const renderExports = (topicName?: string) =>
 beforeEach(async () => {
   vi.clearAllMocks()
   save.mockResolvedValue('/tmp/export.md')
+  exportWrite.mockResolvedValue(undefined)
   showObsidian.mockResolvedValue(true)
   ipcRequest.mockResolvedValue({ ok: true, data: true })
   createPage.mockResolvedValue({ id: 'page' })
@@ -54,7 +56,7 @@ beforeEach(async () => {
   Object.defineProperty(window, 'api', {
     configurable: true,
     value: {
-      file: { save, write },
+      file: { save, write, exportWrite },
       ipcApi: { request: ipcRequest, on: vi.fn() }
     }
   })
@@ -101,7 +103,7 @@ describe('message export actions', () => {
       expect(await result.current.exportMessages([first], 'markdown')).toBe(true)
     })
     expect(save).not.toHaveBeenCalled()
-    expect(write).toHaveBeenCalledWith(
+    expect(exportWrite).toHaveBeenCalledWith(
       expect.stringMatching(/^\/exports\/Topic \d{4}-.*\.md$/),
       expect.stringContaining('Question')
     )
