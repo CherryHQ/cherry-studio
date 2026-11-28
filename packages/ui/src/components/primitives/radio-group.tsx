@@ -6,9 +6,9 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 
 const radioGroupItemVariants = cva(
   cn(
-    'aspect-square shrink-0 rounded-full border border-input bg-transparent text-primary shadow-none transition-[color,border-color,box-shadow] outline-none',
+    'aspect-square shrink-0 rounded-full border border-input bg-transparent text-primary shadow-none transition-[color,border-color,box-shadow]',
     'data-[state=checked]:border-2 data-[state=checked]:border-primary',
-    'focus-visible:border-primary',
+    'focus-visible:border-ring',
     'aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40',
     'disabled:cursor-not-allowed disabled:opacity-50'
   ),

@@ -21,7 +21,7 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 
 const comboboxTriggerVariants = cva(
   cn(
-    'inline-flex items-center justify-between rounded-md border-1 text-sm font-normal transition-colors outline-none',
+    'inline-flex items-center justify-between rounded-md border-1 text-sm font-normal transition-colors',
     'bg-muted/20',
     'text-foreground'
   ),
