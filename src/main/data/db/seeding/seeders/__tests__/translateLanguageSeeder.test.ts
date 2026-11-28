@@ -14,6 +14,7 @@ describe('TranslateLanguageSeeder', () => {
 
     const rows = await dbh.db.select().from(translateLanguageTable)
     expect(rows).toHaveLength(BUILTIN_TRANSLATE_LANGUAGES.length)
+    expect(rows.map((row) => row.langCode).sort()).toEqual(BUILTIN_TRANSLATE_LANGUAGES.map((row) => row.langCode).sort())
   })
 
   it('should only insert missing languages and preserve customized existing rows', async () => {
@@ -30,6 +31,7 @@ describe('TranslateLanguageSeeder', () => {
 
     const rows = await dbh.db.select().from(translateLanguageTable)
     expect(rows).toHaveLength(BUILTIN_TRANSLATE_LANGUAGES.length)
+    expect(rows.map((row) => row.langCode).sort()).toEqual(BUILTIN_TRANSLATE_LANGUAGES.map((row) => row.langCode).sort())
     for (const customized of preExisting) {
       const row = rows.find((r) => r.langCode === customized.langCode)
       expect(row?.value).toBe(customized.value)

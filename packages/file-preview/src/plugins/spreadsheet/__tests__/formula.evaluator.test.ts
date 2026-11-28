@@ -1,4 +1,4 @@
-import type { FunctionArg } from 'fast-formula-parser'
+import FormulaParser, { type FunctionArg } from 'fast-formula-parser'
 import { describe, expect, it, vi } from 'vitest'
 
 import {
@@ -472,7 +472,8 @@ describe('createFormulaEvaluator — recursion depth guard', () => {
     for (let row = 2; row <= DEPTH; row++) {
       sheets.Sheet1[`${row}:1`] = { formula: `A${row - 1}+1` }
     }
-    const { evaluator } = setup(sheets)
+    const { evaluator, callCount } = setup(sheets)
+    const parseSpy = vi.spyOn(FormulaParser.prototype, 'parse')
 
     // Short-chain control: the evaluator still evaluates an in-limit chain exactly,
     // so any degradation below is attributable to the depth guard, not broken evaluation.
@@ -487,12 +488,10 @@ describe('createFormulaEvaluator — recursion depth guard', () => {
       outcome = evaluator.evaluate(`A${DEPTH - 1}+1`, { sheet: 'Sheet1', row: DEPTH, col: 1 })
     }).not.toThrow()
     expect(Date.now() - start).toBeLessThan(1000)
-    // Bounded evaluation: once a middle link hits the guard it contributes 0, so the
-    // head evaluates to a degraded value strictly below the full 199 links. A swallowed
-    // internal failure would instead surface as 'unevaluated' at the head, and a missing
-    // guard would recurse until it throws. The exact degraded value tracks the internal
-    // depth constant, so assert the shape, not the number.
-    expect(outcome?.state).toBe('evaluated')
-    expect(typeof outcome?.value === 'number' && outcome.value > 0 && outcome.value < DEPTH - 1).toBe(true)
+    expect(outcome).toEqual({ state: 'evaluated', value: 64 })
+    expect(callCount({ sheet: 'Sheet1', row: 136, col: 1 })).toBe(1)
+    expect(callCount({ sheet: 'Sheet1', row: 135, col: 1 })).toBe(0)
+    expect(parseSpy.mock.results.every((result) => result.type === 'return')).toBe(true)
+    parseSpy.mockRestore()
   })
 })

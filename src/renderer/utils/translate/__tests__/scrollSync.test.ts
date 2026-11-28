@@ -35,7 +35,8 @@ describe('createOutputScrollHandler', () => {
     ['bottom', 120, 150]
   ])('maps the source %s boundary to the target', (_name, sourceScrollTop, expectedTargetScrollTop) => {
     const { sourceRef, input, inputRef, isProgrammaticScrollRef } = createScrollFixture()
-    sourceRef.current!.scrollTop = sourceScrollTop
+    input.scrollTop = 75
+    sourceRef.current.scrollTop = sourceScrollTop
     const onScroll = createOutputScrollHandler(sourceRef, inputRef, isProgrammaticScrollRef, true)
     onScroll()
 
