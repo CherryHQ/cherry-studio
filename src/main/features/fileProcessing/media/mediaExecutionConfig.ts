@@ -56,6 +56,11 @@ export interface MediaVisionExecutionConfig {
   resolveServing: () => Promise<MediaVisionServing>
 }
 
+export interface MediaAnalysisOptions {
+  /** Analyzes frames when no Video Vision model is selected; used only if it is a selectable vision model. */
+  fallbackVisionModelId?: UniqueModelId
+}
+
 export interface MediaExecutionConfig {
   asr: MediaAsrExecutionConfig | null
   ocr: MediaOcrExecutionConfig | null
@@ -110,8 +115,22 @@ function resolveOcrExecutionConfig(): MediaOcrExecutionConfig | null {
   }
 }
 
-function resolveVisionExecutionConfig(): MediaVisionExecutionConfig | null {
-  const raw = application.get('PreferenceService').get('feature.file_processing.default_video_vision_model')
+function modelExists(uniqueModelId: string): boolean {
+  const parsed = UniqueModelIdSchema.safeParse(uniqueModelId)
+  if (!parsed.success) return false
+  try {
+    const { providerId, modelId } = parseUniqueModelId(parsed.data)
+    modelService.getByKey(providerId, modelId)
+    return true
+  } catch {
+    return false
+  }
+}
+
+function resolveVisionExecutionConfig(fallbackModelId: UniqueModelId | undefined): MediaVisionExecutionConfig | null {
+  const saved = application.get('PreferenceService').get('feature.file_processing.default_video_vision_model')
+  // Settings show a deleted Vision Model as None, so its saved id falls back to the chat model like an unset one.
+  const raw = (saved && modelExists(saved) ? saved : null) || fallbackModelId
   if (!raw) return null
   const parsed = UniqueModelIdSchema.safeParse(raw)
   if (!parsed.success) return null
@@ -174,11 +193,14 @@ function resolveVisionExecutionConfig(): MediaVisionExecutionConfig | null {
   }
 }
 
-export async function resolveMediaExecutionConfig(signal?: AbortSignal): Promise<MediaExecutionConfig> {
+export async function resolveMediaExecutionConfig(
+  options: MediaAnalysisOptions = {},
+  signal?: AbortSignal
+): Promise<MediaExecutionConfig> {
   return {
     asr: await resolveAsrExecutionConfig(signal),
     ocr: resolveOcrExecutionConfig(),
-    vision: resolveVisionExecutionConfig(),
+    vision: resolveVisionExecutionConfig(options.fallbackVisionModelId),
     budget: { ...DEFAULT_MEDIA_FRAME_BUDGET },
     pipelineVersion: MEDIA_PIPELINE_VERSION
   }
