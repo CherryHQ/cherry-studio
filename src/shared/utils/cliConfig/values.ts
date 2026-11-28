@@ -36,6 +36,30 @@ export function firstApiKey(keys: ApiKeyEntry[] | undefined): string {
   return keys?.find((k) => k.isEnabled)?.key ?? ''
 }
 
+/**
+ * Key for a model's direct CLI config: its enabled per-model binding, else the first
+ * enabled key (unset, missing, or disabled bindings fall back to automatic selection).
+ */
+export function modelApiKey(keys: ApiKeyEntry[] | undefined, apiKeyId: string | null | undefined): string {
+  const bound = apiKeyId ? keys?.find((k) => k.id === apiKeyId && k.isEnabled) : undefined
+  return bound?.key ?? firstApiKey(keys)
+}
+
+/**
+ * Identity of a model's effective bound key: its enabled binding, else null (automatic
+ * selection). Mirrors the main-process `resolveEffectivePreferredKeyId` semantics; kept local
+ * because `@data` resolves to the renderer bundle here. Used to compare what each Claude role
+ * model would intend against the single credential a config file can carry.
+ */
+export function effectiveBoundKeyId(
+  keys: ApiKeyEntry[] | undefined,
+  apiKeyId: string | null | undefined
+): string | null {
+  if (!apiKeyId) return null
+  const bound = keys?.find((k) => k.id === apiKeyId && k.isEnabled)
+  return bound ? apiKeyId : null
+}
+
 export function asRecord(value: unknown): Record<string, any> {
   return value && typeof value === 'object' ? (value as Record<string, any>) : {}
 }

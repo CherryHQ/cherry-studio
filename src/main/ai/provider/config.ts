@@ -175,7 +175,11 @@ type ConfigBuilderEntry = {
 
 function selectApiKey(ctx: BuilderContext): ApiKeyBuilderContext {
   if (ctx.routeOnly) return { ...ctx, apiKeySelection: { attribution: 'unknown' } }
-  const resolved = providerService.resolveApiKey(ctx.actualProvider.id, ctx.apiKeyOverride)
+  const resolved = providerService.resolveApiKey(
+    ctx.actualProvider.id,
+    ctx.apiKeyOverride,
+    ctx.apiKeyOverride === undefined ? ctx.model.apiKeyId : undefined
+  )
   return {
     ...ctx,
     baseConfig: { ...ctx.baseConfig, apiKey: resolved.value },

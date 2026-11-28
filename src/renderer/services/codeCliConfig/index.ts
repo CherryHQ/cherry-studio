@@ -10,7 +10,13 @@ export {
   stripClaudeOneMMarker
 } from './claudeModels'
 export { clearCliConfig, prepareCliConfigClear } from './clear'
-export { readCliConfigDraft, readCliConfigFiles, writeCliConfigDraft } from './draft'
+export {
+  CliConfigRoleBindingError,
+  isCliConfigRoleBindingError,
+  readCliConfigDraft,
+  readCliConfigFiles,
+  writeCliConfigDraft
+} from './draft'
 export { formatCliConfigDraftFile, updateCliConfigDraftConfig } from './draftUpdater'
 export { gatewayExpectedModel, gatewayModelIdFromAddress } from './gatewayModel'
 export { resolveLaunchModelId } from './launchModelId'

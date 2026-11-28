@@ -1,6 +1,7 @@
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { CliConfigRoleBindingError } from '@renderer/services/codeCliConfig'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
@@ -470,6 +471,24 @@ describe('useConfigDraftController (submit failure)', () => {
     expect(rendered.result.current.canSave).toBe(true)
     return rendered
   }
+
+  it('toasts the actionable role-binding message when the guard rejects the submit', async () => {
+    const onSubmit = vi.fn().mockRejectedValue(new CliConfigRoleBindingError('ANTHROPIC_DEFAULT_HAIKU_MODEL differs'))
+    const onClose = vi.fn()
+    const { result } = await renderDirtyController(onSubmit, onClose)
+
+    await act(async () => {
+      result.current.onSubmit()
+    })
+
+    expect(onSubmit).toHaveBeenCalledTimes(1)
+    expect(onClose).not.toHaveBeenCalled()
+    expect(mocks.toastError).toHaveBeenCalledWith({
+      title: 'code.apply_failed',
+      description: 'ANTHROPIC_DEFAULT_HAIKU_MODEL differs'
+    })
+    expect(result.current.submitting).toBe(false)
+  })
 
   it('keeps the dialog open and toasts when the submit fails', async () => {
     const onSubmit = vi.fn().mockRejectedValue(new Error('write failed'))

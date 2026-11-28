@@ -54,4 +54,12 @@ export type {
   CliConfigWriteArgs,
   ResolvedCliConfigContext
 } from './types'
-export { asRecord, firstApiKey, normalizeUrl, safeCreateUniqueModelId, stringValue } from './values'
+export {
+  asRecord,
+  effectiveBoundKeyId,
+  firstApiKey,
+  modelApiKey,
+  normalizeUrl,
+  safeCreateUniqueModelId,
+  stringValue
+} from './values'

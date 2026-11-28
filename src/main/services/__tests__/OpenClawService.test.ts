@@ -149,7 +149,8 @@ vi.mock('@data/services/ModelService', () => ({
 vi.mock('@data/services/ProviderService', () => ({
   providerService: {
     getApiKeys: vi.fn(),
-    getByProviderId: vi.fn()
+    getByProviderId: vi.fn(),
+    resolveApiKey: vi.fn()
   }
 }))
 
@@ -2091,6 +2092,17 @@ describe('OpenClawService gateway status state machine', () => {
   // ─── syncConfig ─────────────────────────────────────────────
 
   describe('syncConfig', () => {
+    beforeEach(async () => {
+      const { providerService } = await import('@data/services/ProviderService')
+      const { selectProviderApiKey } = await import('@data/services/providerApiKeySelection')
+      vi.mocked(providerService.resolveApiKey).mockImplementation((providerId, override, preferredKeyId) =>
+        selectProviderApiKey(providerService.getApiKeys(providerId), override, preferredKeyId, {
+          getLastUsedKeyId: () => undefined,
+          setLastUsedKeyId: () => {}
+        })
+      )
+    })
+
     it('maps input-token pricing tiers to OpenClaw whole-request ranges', () => {
       const model = createModel({
         pricing: {
@@ -2160,6 +2172,123 @@ describe('OpenClawService gateway status state machine', () => {
       await service.syncConfig('openai::gpt-4o')
 
       expect((service as any).gatewayPort).toBe(12345)
+    })
+
+    it('uses automatic provider credentials and per-model bindings when syncing OpenClaw config', async () => {
+      const { modelService } = await import('@data/services/ModelService')
+      const { providerService } = await import('@data/services/ProviderService')
+      vi.mocked(providerService.getByProviderId).mockReturnValue(createProvider())
+      const model = createModel({ apiKeyId: 'key-2' })
+      vi.mocked(modelService.getByKey).mockReturnValue(model)
+      vi.mocked(modelService.list).mockReturnValue([model])
+      vi.mocked(providerService.getApiKeys).mockReturnValue([
+        { id: 'key-1', key: 'sk-primary', isEnabled: true },
+        { id: 'key-2', key: 'sk-bound', isEnabled: true }
+      ])
+      const syncProviderConfigSpy = vi.spyOn(service, 'syncProviderConfig').mockResolvedValue({ success: true })
+
+      const result = await service.syncConfig('openai::gpt-4o')
+
+      expect(result).toEqual({ success: true })
+      expect(providerService.resolveApiKey).not.toHaveBeenCalled()
+      expect(syncProviderConfigSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          apiKey: 'sk-primary,sk-bound',
+          models: [expect.objectContaining({ id: 'gpt-4o', apiKey: 'sk-bound' })]
+        }),
+        expect.objectContaining({ id: 'gpt-4o', apiKey: 'sk-bound' })
+      )
+    })
+
+    it('keeps unbound models on automatic provider credentials when the primary model is bound', async () => {
+      const { modelService } = await import('@data/services/ModelService')
+      const { providerService } = await import('@data/services/ProviderService')
+      vi.mocked(providerService.getByProviderId).mockReturnValue(createProvider())
+      const primary = createModel({ apiKeyId: 'key-2' })
+      const secondary = createModel({
+        id: 'openai::gpt-4o-mini',
+        apiModelId: 'gpt-4o-mini',
+        name: 'GPT-4o mini'
+      })
+      vi.mocked(modelService.getByKey).mockReturnValue(primary)
+      vi.mocked(modelService.list).mockReturnValue([primary, secondary])
+      vi.mocked(providerService.getApiKeys).mockReturnValue([
+        { id: 'key-1', key: 'sk-auto', isEnabled: true },
+        { id: 'key-2', key: 'sk-bound', isEnabled: true }
+      ])
+      const syncProviderConfigSpy = vi.spyOn(service, 'syncProviderConfig').mockResolvedValue({ success: true })
+
+      await service.syncConfig('openai::gpt-4o')
+
+      expect(providerService.resolveApiKey).not.toHaveBeenCalled()
+      expect(syncProviderConfigSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          apiKey: 'sk-auto,sk-bound',
+          models: [
+            expect.objectContaining({ id: 'gpt-4o', apiKey: 'sk-bound' }),
+            expect.not.objectContaining({ apiKey: expect.anything() })
+          ]
+        }),
+        expect.objectContaining({ id: 'gpt-4o' })
+      )
+    })
+
+    it('resolves per-model api key bindings for non-primary models when syncing', async () => {
+      const { modelService } = await import('@data/services/ModelService')
+      const { providerService } = await import('@data/services/ProviderService')
+      vi.mocked(providerService.getByProviderId).mockReturnValue(createProvider())
+      const primary = createModel()
+      const boundModel = createModel({
+        id: 'openai::gpt-4o-mini',
+        apiModelId: 'gpt-4o-mini',
+        name: 'GPT-4o mini',
+        apiKeyId: 'key-2'
+      })
+      vi.mocked(modelService.getByKey).mockReturnValue(primary)
+      vi.mocked(modelService.list).mockReturnValue([primary, boundModel])
+      vi.mocked(providerService.getApiKeys).mockReturnValue([
+        { id: 'key-1', key: 'sk-primary', isEnabled: true },
+        { id: 'key-2', key: 'sk-bound', isEnabled: true }
+      ])
+      const syncProviderConfigSpy = vi.spyOn(service, 'syncProviderConfig').mockResolvedValue({ success: true })
+
+      await service.syncConfig('openai::gpt-4o')
+
+      expect(syncProviderConfigSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          models: [
+            expect.not.objectContaining({ apiKey: expect.anything() }),
+            expect.objectContaining({ id: 'gpt-4o-mini', apiKey: 'sk-bound' })
+          ]
+        }),
+        expect.objectContaining({ id: 'gpt-4o' })
+      )
+    })
+
+    it('omits the per-model api key when the bound key is disabled and selection falls back to automatic', async () => {
+      const { modelService } = await import('@data/services/ModelService')
+      const { providerService } = await import('@data/services/ProviderService')
+      vi.mocked(providerService.getByProviderId).mockReturnValue(createProvider())
+      const model = createModel({ apiKeyId: 'key-2' })
+      vi.mocked(modelService.getByKey).mockReturnValue(model)
+      vi.mocked(modelService.list).mockReturnValue([model])
+      vi.mocked(providerService.getApiKeys).mockReturnValue([
+        { id: 'key-1', key: 'sk-primary', isEnabled: true },
+        { id: 'key-2', key: 'sk-disabled', isEnabled: false }
+      ])
+      const syncProviderConfigSpy = vi.spyOn(service, 'syncProviderConfig').mockResolvedValue({ success: true })
+
+      await service.syncConfig('openai::gpt-4o')
+
+      // The stale binding must not pin a rotation result into the model entry.
+      expect(syncProviderConfigSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          models: [expect.not.objectContaining({ apiKey: expect.anything() })]
+        }),
+        expect.objectContaining({ id: 'gpt-4o' })
+      )
+      // Per-model serialization must not call the rotation-aware resolver for stale bindings.
+      expect(providerService.resolveApiKey).not.toHaveBeenCalled()
     })
 
     it('resolves a unique model id before syncing OpenClaw config', async () => {
@@ -2731,6 +2860,28 @@ describe('OpenClawService gateway status state machine', () => {
         expect(apiGatewayMock.liveKeys.size).toBe(0)
       })
 
+      it('launches a bound gateway model with only the scoped gateway credential', async () => {
+        const { modelService } = await import('@data/services/ModelService')
+        const { providerService } = await import('@data/services/ProviderService')
+        vi.mocked(modelService.getByKey).mockReturnValue(createModel({ apiKeyId: 'key-bound' }))
+        vi.mocked(providerService.getApiKeys).mockReturnValue([
+          { id: 'key-bound', key: 'sk-bound-upstream', isEnabled: true }
+        ])
+
+        await expect(service.syncConfig('openai::gpt-4o', undefined, true)).resolves.toEqual({ success: true })
+        await expect(service.startGateway()).resolves.toEqual({ success: true })
+
+        const config = privateConfigOf(0)
+        const [apiKey] = apiGatewayMock.liveKeys
+        const provider = config.models.providers['cherry-api-gateway']
+        expect(provider.apiKey).toBe(apiKey)
+        expect(provider.models).toMatchObject([{ id: 'openai:gpt-4o' }])
+        expect(provider.models[0]).not.toHaveProperty('apiKey')
+        expect(JSON.stringify(config)).not.toContain('sk-bound-upstream')
+        expect(fs.readFileSync(formalPath(), 'utf8')).not.toContain('sk-bound-upstream')
+        expect(providerService.getApiKeys).not.toHaveBeenCalled()
+      })
+
       it('restarts an owned gateway on a fresh credential when the gateway model changes', async () => {
         await service.syncConfig('openai::gpt-4o', undefined, true)
         await service.startGateway()
@@ -2835,6 +2986,125 @@ describe('OpenClawService gateway status state machine', () => {
       const written = JSON.parse(fs.readFileSync(path.join(configDir, 'openclaw.json'), 'utf-8'))
       expect(written.models.providers['cherry-openai']).toMatchObject({ apiKey: 'sk-test' })
       expect(written.agents.defaults.model.primary).toBe('cherry-openai/gpt-4o')
+    })
+
+    it('writes per-model api keys when the schema supports them', async () => {
+      schemaCapabilitySpy.mockResolvedValueOnce(
+        createRuntimeConfigSchema(['apiKey', 'contextWindow', 'maxTokens', 'reasoning', 'input', 'cost'])
+      )
+      const provider = {
+        ...legacyProvider,
+        models: [
+          { id: 'gpt-4o', name: 'GPT-4o' },
+          { id: 'gpt-4o-mini', name: 'GPT-4o mini', apiKey: 'sk-bound' }
+        ]
+      }
+
+      await service.syncProviderConfig(provider, legacyModel)
+
+      const written = JSON.parse(fs.readFileSync(path.join(configDir, 'openclaw.json'), 'utf-8'))
+      expect(written.models.providers['cherry-openai'].models).toEqual([
+        { id: 'gpt-4o', name: 'GPT-4o', contextWindow: 128000 },
+        { id: 'gpt-4o-mini', name: 'GPT-4o mini', apiKey: 'sk-bound', contextWindow: 128000 }
+      ])
+    })
+
+    it('fails the sync when a bound model key cannot be served without schema-level model api keys', async () => {
+      schemaCapabilitySpy.mockResolvedValueOnce(createRuntimeConfigSchema(['contextWindow']))
+      const provider = {
+        ...legacyProvider,
+        models: [
+          { id: 'gpt-4o', name: 'GPT-4o' },
+          { id: 'gpt-4o-mini', name: 'GPT-4o mini', apiKey: 'sk-bound' }
+        ]
+      }
+
+      const result = await service.syncProviderConfig(provider, legacyModel)
+
+      expect(result.success).toBe(false)
+      expect('message' in result && result.message).toContain('does not support per-model API keys')
+      expect('message' in result && result.message).toContain('GPT-4o mini')
+      // The formal config must be untouched rather than written with misrouted credentials.
+      expect(fs.existsSync(path.join(configDir, 'openclaw.json'))).toBe(false)
+    })
+
+    it('preserves legacy, active, and backup files when per-model binding validation rejects sync', async () => {
+      schemaCapabilitySpy.mockResolvedValueOnce(createRuntimeConfigSchema(['contextWindow']))
+      const files = {
+        'openclaw.cherry.json': '{"legacy":true}',
+        'openclaw.json': '{"active":true}',
+        'openclaw.json.bak': 'prior backup'
+      }
+      for (const [name, content] of Object.entries(files)) fs.writeFileSync(path.join(configDir, name), content)
+      const result = await service.syncProviderConfig(
+        {
+          ...legacyProvider,
+          models: [
+            { id: 'gpt-4o', name: 'GPT-4o' },
+            { id: 'gpt-4o-mini', name: 'GPT-4o mini', apiKey: 'sk-bound' }
+          ]
+        },
+        legacyModel
+      )
+      expect(result.success).toBe(false)
+      expect('message' in result && result.message).toContain('per-model API keys')
+      for (const [name, content] of Object.entries(files))
+        expect(fs.readFileSync(path.join(configDir, name), 'utf-8')).toBe(content)
+    })
+
+    it('names the malformed legacy candidate without directing recovery at a valid active file', async () => {
+      const legacyPath = path.join(configDir, 'openclaw.cherry.json')
+      const activePath = path.join(configDir, 'openclaw.json')
+      const active = '{"active":true}'
+      fs.writeFileSync(legacyPath, '{ invalid json')
+      fs.writeFileSync(activePath, active)
+      const result = await service.syncProviderConfig(legacyProvider, legacyModel)
+      expect(result.success).toBe(false)
+      expect('message' in result && result.message).toContain(`fix or remove ${legacyPath}`)
+      expect(fs.readFileSync(activePath, 'utf-8')).toBe(active)
+      expect(fs.readFileSync(legacyPath, 'utf-8')).toBe('{ invalid json')
+    })
+
+    it('reads legacy config when both legacy and primary config files exist', async () => {
+      const legacyPath = path.join(configDir, 'openclaw.cherry.json')
+      const primaryPath = path.join(configDir, 'openclaw.json')
+      fs.writeFileSync(
+        legacyPath,
+        JSON.stringify({
+          models: { providers: { 'external-legacy': { apiKey: 'legacy-only' } } }
+        })
+      )
+      fs.writeFileSync(
+        primaryPath,
+        JSON.stringify({
+          models: { providers: { 'external-primary': { apiKey: 'primary-only' } } }
+        })
+      )
+
+      await service.syncProviderConfig(legacyProvider, legacyModel)
+
+      const written = JSON.parse(fs.readFileSync(primaryPath, 'utf-8'))
+      expect(written.models.providers['external-legacy']).toEqual({ apiKey: 'legacy-only' })
+      expect(written.models.providers['external-primary']).toBeUndefined()
+    })
+
+    it('drops a retained per-model api key once the model is no longer bound', async () => {
+      fs.writeFileSync(
+        path.join(configDir, 'openclaw.json'),
+        JSON.stringify({
+          models: {
+            providers: {
+              'cherry-openai': { models: [{ id: 'gpt-4o', name: 'GPT-4o', apiKey: 'stale-key' }] }
+            }
+          }
+        })
+      )
+      schemaCapabilitySpy.mockResolvedValueOnce(createRuntimeConfigSchema(['apiKey']))
+
+      await service.syncProviderConfig(legacyProvider, legacyModel)
+
+      const written = JSON.parse(fs.readFileSync(path.join(configDir, 'openclaw.json'), 'utf-8'))
+      expect(written.models.providers['cherry-openai'].models).toEqual([{ id: 'gpt-4o', name: 'GPT-4o' }])
     })
 
     it('disables the OpenClaw update hint so its banner cannot swap the managed binary', async () => {

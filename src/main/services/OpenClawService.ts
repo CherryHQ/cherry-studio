@@ -331,6 +331,7 @@ export interface OpenClawConfig {
 export interface OpenClawModelConfig {
   id: string
   name: string
+  apiKey?: string
   contextWindow?: number
   maxTokens?: number
   reasoning?: boolean
@@ -360,7 +361,7 @@ export interface OpenClawProviderConfig {
 }
 
 type OpenClawSyncModel = Model &
-  Pick<OpenClawModelConfig, 'contextWindow' | 'maxTokens' | 'reasoning' | 'input' | 'cost'>
+  Pick<OpenClawModelConfig, 'apiKey' | 'contextWindow' | 'maxTokens' | 'reasoning' | 'input' | 'cost'>
 type OpenClawSyncProvider = Provider & { headers?: Record<string, string> }
 
 /**
@@ -833,6 +834,14 @@ export class OpenClawService extends BaseService {
     this.throwValidationReportError(report)
   }
 
+  /** Ensures the config directory exists; returns whether a legacy config candidate is present. */
+  private ensureConfigDirectory(): boolean {
+    if (!fs.existsSync(openclawConfigDir())) {
+      fs.mkdirSync(openclawConfigDir(), { recursive: true })
+    }
+    return fs.existsSync(openclawLegacyConfigPath())
+  }
+
   private ensureConfigDirectoryAndMigrateLegacy(): boolean {
     if (!fs.existsSync(openclawConfigDir())) {
       fs.mkdirSync(openclawConfigDir(), { recursive: true })
@@ -847,13 +856,23 @@ export class OpenClawService extends BaseService {
     return true
   }
 
-  private async writeValidatedConfig(runtime: OpenClawRuntime, serialized: string, token: string): Promise<void> {
+  private async writeValidatedConfig(
+    runtime: OpenClawRuntime,
+    serialized: string,
+    token: string,
+    promoteLegacy = false
+  ): Promise<void> {
     const candidatePath = AbsoluteFilePathSchema.parse(
       path.join(openclawConfigDir(), `openclaw.json.cherry-candidate-${crypto.randomUUID()}`)
     )
     try {
       await atomicWriteFile(candidatePath, serialized, { mode: OPENCLAW_CONFIG_FILE_MODE })
       await this.assertConfigValid(runtime, candidatePath)
+      // Promote legacy files only after all binding and runtime validation succeeds.
+      if (promoteLegacy) {
+        if (fs.existsSync(openclawConfigPath())) fs.renameSync(openclawConfigPath(), openclawConfigBakPath())
+        fs.renameSync(openclawLegacyConfigPath(), openclawConfigPath())
+      }
       await atomicWriteFile(openclawConfigPath(), serialized, { mode: OPENCLAW_CONFIG_FILE_MODE })
       this.gatewayAuthToken = token
     } finally {
@@ -1558,7 +1577,7 @@ export class OpenClawService extends BaseService {
   ): { provider: OpenClawSyncProvider; primaryModel: OpenClawSyncModel } {
     const { providerId, modelId, model: primaryModel } = this.resolveGatewayModel(uniqueModelId)
     const model = {
-      ...this.toOpenClawModel(primaryModel),
+      ...this.toOpenClawModel(primaryModel, false),
       id: formatGatewayModelId(providerId, primaryModel.apiModelId ?? modelId),
       provider: openClawCli.gatewayProviderId,
       endpoint_type: 'openai' as const
@@ -1676,16 +1695,24 @@ export class OpenClawService extends BaseService {
     }
   }
 
-  private toOpenClawModel(model: DataModel): OpenClawSyncModel {
+  private toOpenClawModel(model: DataModel, includeBinding = true): OpenClawSyncModel {
     const { modelId } = parseUniqueModelId(model.id)
     const input = model.inputModalities?.filter((modality) => modality === 'text' || modality === 'image')
     const cost = this.toOpenClawCost(model)
+    // Resolve bindings without `resolveApiKey` so a stale id cannot advance rotation
+    // while the serialized model omits the credential and uses the provider key.
+    const boundEntry =
+      includeBinding && model.apiKeyId
+        ? providerService.getApiKeys(model.providerId).find((entry) => entry.id === model.apiKeyId && entry.isEnabled)
+        : undefined
+    const boundApiKey = boundEntry?.key
     return {
       id: model.apiModelId ?? modelId,
       provider: model.providerId,
       name: model.name,
       group: model.group ?? '',
       endpoint_type: this.toOpenClawEndpointType(model.endpointTypes?.[0]),
+      ...(boundApiKey !== undefined ? { apiKey: boundApiKey } : {}),
       ...(model.contextWindow ? { contextWindow: model.contextWindow } : {}),
       ...(model.maxOutputTokens ? { maxTokens: model.maxOutputTokens } : {}),
       ...(model.reasoning || model.capabilities.includes(MODEL_CAPABILITY.REASONING) ? { reasoning: true } : {}),
@@ -1765,12 +1792,13 @@ export class OpenClawService extends BaseService {
       const runtime = await this.resolveOpenClawRuntime()
       const configSchema = await this.assertSchemaCapability(runtime)
 
-      // Ensure config directory exists and migrate legacy openclaw.cherry.json → openclaw.json
-      this.ensureConfigDirectoryAndMigrateLegacy()
-      const config = this.readFormalConfig()
+      // Ensure config directory exists. Read the legacy candidate in place:
+      // rejected syncs must not alter active files or backups.
+      const hasLegacyConfig = this.ensureConfigDirectory()
+      const config = this.readFormalConfig(hasLegacyConfig)
       await this.applyCherryProvider(config, configSchema, provider, primaryModel)
       const token = this.applyGatewaySettings(config)
-      await this.writeValidatedConfig(runtime, JSON.stringify(config, null, 2), token)
+      await this.writeValidatedConfig(runtime, JSON.stringify(config, null, 2), token, hasLegacyConfig)
 
       logger.info(`Synced provider ${provider.id} to OpenClaw config`)
       return { success: true }
@@ -1781,17 +1809,18 @@ export class OpenClawService extends BaseService {
     }
   }
 
-  private readFormalConfig(): OpenClawConfig {
+  private readFormalConfig(sourceLegacy = false): OpenClawConfig {
     // Read existing config. An unparseable file aborts the sync instead of
     // being rebuilt from scratch — silently replacing it would destroy any
     // hand-edited OpenClaw config the user could otherwise repair.
+    const sourceConfigPath = sourceLegacy ? openclawLegacyConfigPath() : openclawConfigPath()
     let config: OpenClawConfig = {}
-    if (fs.existsSync(openclawConfigPath())) {
-      const content = fs.readFileSync(openclawConfigPath(), 'utf-8')
+    if (fs.existsSync(sourceConfigPath)) {
+      const content = fs.readFileSync(sourceConfigPath, 'utf-8')
       try {
         config = JSON.parse(content)
       } catch {
-        throw new Error(`Existing OpenClaw config is not valid JSON; fix or remove ${openclawConfigPath()}`)
+        throw new Error(`Existing OpenClaw config is not valid JSON; fix or remove ${sourceConfigPath}`)
       }
     }
     return config
@@ -1855,6 +1884,22 @@ export class OpenClawService extends BaseService {
     const supportsModelField = (field: string) => schemaSupportsPath(configSchema, [...modelSchemaPath, field])
     const supportsTieredPricing = schemaSupportsPath(configSchema, [...modelSchemaPath, 'cost', 'tieredPricing'])
 
+    // Without schema-level model api keys every model would silently authenticate
+    // with the provider-level (primary) credential instead of its own binding.
+    if (!supportsModelField('apiKey')) {
+      const misboundModels = provider.models
+        .filter((m) => {
+          const bound = (m as OpenClawSyncModel).apiKey
+          return bound !== undefined && bound !== apiKey
+        })
+        .map((m) => m.name || m.id)
+      if (misboundModels.length > 0) {
+        throw new Error(
+          `The OpenClaw runtime does not support per-model API keys; update OpenClaw or remove the model API key binding for: ${misboundModels.join(', ')}`
+        )
+      }
+    }
+
     const openclawProvider: OpenClawProviderConfig = {
       ...existingProviderOverrides,
       baseUrl,
@@ -1868,13 +1913,19 @@ export class OpenClawService extends BaseService {
           cost = { ...cost }
           delete cost.tieredPricing
         }
+        // Model-level credentials are Cherry-owned like the provider key:
+        // retained overrides are dropped so unbinding regenerates instead of
+        // leaking a stale key.
+        const retained = pickSchemaSupportedProperties(configSchema, modelSchemaPath, existing) as OpenClawModelConfig
+        delete retained.apiKey
         return {
           ...(supportsModelField('maxTokens') && synced.maxTokens !== undefined ? { maxTokens: synced.maxTokens } : {}),
           ...(supportsModelField('reasoning') && synced.reasoning !== undefined ? { reasoning: synced.reasoning } : {}),
           ...(supportsModelField('input') && synced.input ? { input: synced.input } : {}),
           ...(supportsModelField('cost') && cost ? { cost } : {}),
           ...(supportsModelField('contextWindow') ? { contextWindow: synced.contextWindow ?? 128000 } : {}),
-          ...pickSchemaSupportedProperties(configSchema, modelSchemaPath, existing),
+          ...retained,
+          ...(supportsModelField('apiKey') && synced.apiKey !== undefined ? { apiKey: synced.apiKey } : {}),
           id: m.id,
           name: m.name
         }
