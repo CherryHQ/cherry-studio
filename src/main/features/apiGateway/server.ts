@@ -103,7 +103,7 @@ export class ApiGateway {
     const previousHost = this.getHost()
     if (previousHost === host) return
     const port = this.boundPort
-    if (!previousHost || port === undefined) throw new Error('API Gateway has no TCP listener')
+    if (!previousHost || port === undefined) throw new Error('Unified Gateway has no TCP listener')
 
     const releaseListeners = () => {
       // Releasing listening handles does not terminate existing streams.
@@ -196,7 +196,7 @@ export class ApiGateway {
 
   getPort(): number {
     const address = this.servers[0]?.raw.node.server.address()
-    if (!address || typeof address === 'string') throw new Error('API Gateway is not listening on a TCP port')
+    if (!address || typeof address === 'string') throw new Error('Unified Gateway is not listening on a TCP port')
     return address.port
   }
 }

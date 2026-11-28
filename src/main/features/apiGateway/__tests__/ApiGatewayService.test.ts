@@ -296,7 +296,7 @@ describe('ApiGatewayService internal gateway', () => {
     for (const result of results) {
       expect(result.status).toBe('rejected')
       if (result.status === 'rejected') {
-        expect(result.reason.message).toContain('internal API Gateway')
+        expect(result.reason.message).toContain('internal Unified Gateway')
         expect(result.reason.message).toContain('::1, requested TCP port 49152')
         expect(result.reason.message).toContain('Retry the request')
         expect(result.reason.cause).toBe(original)
@@ -854,7 +854,7 @@ describe('ApiGatewayService independent LAN access', () => {
     const service = new ApiGatewayService()
     await service._doInit()
 
-    await expect(service.setLanEnabled(true)).rejects.toThrow('Start the API Gateway')
+    await expect(service.setLanEnabled(true)).rejects.toThrow('Start the Unified Gateway')
 
     expect(service.getCurrentConfig()).toMatchObject({ enabled: false, host: '127.0.0.1' })
     expect(service.isActivated).toBe(false)

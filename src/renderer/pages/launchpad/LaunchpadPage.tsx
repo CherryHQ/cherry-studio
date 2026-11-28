@@ -7,6 +7,7 @@ import { Button, ScrollArea } from '@cherrystudio/ui'
 import { Sortable } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import agentsIcon from '@renderer/assets/images/apps/launchpad-agents.svg'
+import apiGatewayIcon from '@renderer/assets/images/apps/launchpad-api-gateway.svg'
 import assistantsIcon from '@renderer/assets/images/apps/launchpad-assistants.svg'
 import codeToolsIcon from '@renderer/assets/images/apps/launchpad-code-tools.svg'
 import filesIcon from '@renderer/assets/images/apps/launchpad-files.svg'
@@ -17,7 +18,6 @@ import notesIcon from '@renderer/assets/images/apps/launchpad-notes.svg'
 import paintingsIcon from '@renderer/assets/images/apps/launchpad-paintings.svg'
 import scheduledTasksIcon from '@renderer/assets/images/apps/launchpad-scheduled-tasks.svg'
 import translateIcon from '@renderer/assets/images/apps/launchpad-translate.svg'
-import { SidebarIcon } from '@renderer/components/app/sidebarIcons'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
 import SidebarShortcutIcon from '@renderer/components/icons/SidebarShortcutIcon'
 import App from '@renderer/components/MiniApp/MiniApp'
@@ -42,7 +42,7 @@ const APP_ICON_FRAME_CLASS =
 const APP_ICON_CLASS = 'size-full object-contain'
 const SORTABLE_CONTENTS_STYLE = { display: 'contents' } as const
 
-const APP_ICON_SOURCES: Record<SidebarAppId, string | undefined> = {
+const APP_ICON_SOURCES: Record<SidebarAppId, string> = {
   assistants: assistantsIcon,
   agents: agentsIcon,
   scheduled_tasks: scheduledTasksIcon,
@@ -54,7 +54,7 @@ const APP_ICON_SOURCES: Record<SidebarAppId, string | undefined> = {
   files: filesIcon,
   code_tools: codeToolsIcon,
   notes: notesIcon,
-  api_gateway: undefined
+  api_gateway: apiGatewayIcon
 }
 
 export default function LaunchpadPage() {
@@ -262,11 +262,7 @@ export default function LaunchpadPage() {
         <span className="relative flex size-14 items-center justify-center">
           <span className={APP_ICON_SURFACE_CLASS}>
             <span className={APP_ICON_FRAME_CLASS}>
-              {item.iconSrc ? (
-                <img src={item.iconSrc} alt="" className={APP_ICON_CLASS} draggable={false} />
-              ) : (
-                <SidebarIcon icon={item.id} className="size-9 text-foreground" />
-              )}
+              <img src={item.iconSrc} alt="" className={APP_ICON_CLASS} draggable={false} />
             </span>
           </span>
         </span>

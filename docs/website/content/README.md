@@ -50,7 +50,7 @@ Cherry Studio 使用文档：按你要完成的事找到教程。
 
 ## 配置与数据
 
-[连接模型服务](pre-basic/providers/README.md) · [API 网关](advanced-basic/developer-tools/api-gateway.md) · [软件设置](pre-basic/settings/README.md) · [备份与数据管理](pre-basic/data-settings/README.md)
+[连接模型服务](pre-basic/providers/README.md) · [统一网关](advanced-basic/developer-tools/api-gateway.md) · [软件设置](pre-basic/settings/README.md) · [备份与数据管理](pre-basic/data-settings/README.md)
 
 ## 选型与参考
 
