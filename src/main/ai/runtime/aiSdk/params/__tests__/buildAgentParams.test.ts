@@ -3013,3 +3013,43 @@ describe('assistant automation tool selection', () => {
     expectDescription(automation?.function.description, false, true)
   })
 })
+
+it('wires MCP alias identity against the full inline and deferred request catalog', async () => {
+  resolveProviderAiSdkConfigMock.mockResolvedValue({
+    config: { providerId: 'openai', providerSettings: {} },
+    credentialReceipt: { attribution: 'unknown' }
+  })
+  const { NoSuchToolError } = await import('ai')
+  const names = ['mcp__inline_alias_probe', 'mcp__deferred_alias_probe']
+  for (const [index, name] of names.entries())
+    registry.register({
+      name,
+      namespace: 'test',
+      description: 'alias probe',
+      defer: index ? 'always' : 'never',
+      tool: { inputSchema: z.object({}), metadata: { cherry: { tool: { type: 'mcp', name: 'alias_probe' } } } }
+    })
+  try {
+    const params = await buildAgentParams({
+      request: { conversation: CONVERSATION },
+      signal: undefined,
+      provider: makeProvider(),
+      model: makeModel({ capabilities: [MODEL_CAPABILITY.FUNCTION_CALL] })
+    })
+    expect(params.plugins.some((plugin) => plugin.name === 'request-mcp-alias-identity')).toBe(true)
+    expect(params.tools?.[names[0]]).toBeDefined()
+    expect(params.tools?.[names[1]]).toBeUndefined()
+    await expect(
+      params.options.repairToolCall!({
+        system: undefined,
+        messages: [],
+        toolCall: { type: 'tool-call', toolCallId: 'probe', toolName: 'alias_probe', input: '{}' },
+        tools: params.tools!,
+        inputSchema: async () => ({}),
+        error: new NoSuchToolError({ toolName: 'alias_probe' })
+      })
+    ).rejects.toThrow(/matches mcp__inline_alias_probe and mcp__deferred_alias_probe/)
+  } finally {
+    names.forEach((name) => registry.deregister(name))
+  }
+})

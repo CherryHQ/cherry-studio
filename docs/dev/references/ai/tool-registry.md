@@ -7,6 +7,8 @@ sources:
 
 # Tool Registry
 
+English | [中文](tool-registry.zh.md)
+
 ## Model
 
 ```ts
@@ -152,7 +154,7 @@ The injected three are added to the tool set by `applyDeferExposition` when
     search-then-invoke beats inlining.
   - **META_TOOLS_OVERHEAD_TOKENS** — estimated savings must exceed the
     meta-tools' static prompt cost. Without these gates, small tool sets
-    + small-context models trigger defer and pay net-negative tokens.
+    and small-context models trigger defer and pay net-negative tokens.
 
 - `applyDeferExposition(tools, registry, contextWindow)` — strips the
   deferred names out of `tools`, injects `tool_search` / `tool_inspect` /
@@ -189,8 +191,17 @@ see [Pi code mode](./agent-session-runtime.md#pi-code-mode).
 - `createAiRepair(...)` (`tools/adapters/aiSdk/repair.ts`) — passed to AI SDK as
   `experimental_repairToolCall`. When the model emits **malformed args**
   (`InvalidToolInputError`), the repair function gets one chance to fix it via a
-  follow-up LLM call. Other failures (e.g. an unknown tool name) are
-  returned unrepaired.
+  follow-up LLM call. MCP protocol-name aliases are resolved only within the
+  full request catalog, including deferred tools. A unique direct match must
+  also be inline. Unknown, ambiguous, and deferred direct calls receive distinct
+  diagnostics with a recovery hint; no server is selected by guesswork.
+- `createMcpAliasMiddleware(...)` canonicalizes streaming start and final call
+  names before the SDK creates UI parts, approval records, or saved history.
+  It also records the resolved wire name in `tool_invoke` input, so later turns
+  use the same MCP formatter and App launch identity after request caches expire.
+  Source authorization and App declaration checks still run at launch.
+- This alias path belongs to the AI SDK chat runtime. Native Agent runtimes use
+  their own tool surfaces and are not covered by this repair.
 
 ## Where to read more
 

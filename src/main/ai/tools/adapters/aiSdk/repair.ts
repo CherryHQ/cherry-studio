@@ -15,14 +15,16 @@ import { loggerService } from '@logger'
 
 import type { AppProviderSettingsMap } from '../../../types'
 import { createMcpJsonSchemaValidator } from './mcpSchema'
-import { resolveToolNameAlias } from './toolNameAlias'
+import { resolveRequestToolName } from './toolNameAlias'
 
 const logger = loggerService.withContext('repairToolCall')
 
 type AppProviderId = StringKeys<AppProviderSettingsMap>
 
 export interface AiRepairContext<T extends AppProviderId = AppProviderId> {
-  /** Same provider id as the main request — repair stays on the same model. */
+  /** Full allowed request catalog, including deferred entries. */
+  requestTools?: ToolSet
+  /** Same provider id as the main request. */
   providerId: T
   /** Provider settings for the same provider; passed straight to ai-core. */
   providerSettings: AppProviderSettingsMap[T]
@@ -41,16 +43,21 @@ export function createAiRepair<T extends AppProviderId>(ctx: AiRepairContext<T>)
     // wire id ('mcp__{serverSlug}__{toolSlug}_{digest}'): the tool is
     // connected and discovered, yet the call died as "tool is not available"
     // (#24583). A unique protocol-name alias repairs the call in place; an
-    // ambiguous or unknown name is left to fail with the SDK's error.
+    // ambiguous or unknown name receives a request-scoped recovery hint.
     if (NoSuchToolError.isInstance(error)) {
-      const alias = resolveToolNameAlias(toolCall.toolName, Object.keys(tools), (name) => tools[name])
-      if (!alias || 'ambiguous' in alias) return null
+      const catalog = ctx.requestTools ?? tools
+      const resolved = resolveRequestToolName(toolCall.toolName, new Set(Object.keys(catalog)), (name) => catalog[name])
+      if (!tools[resolved]) {
+        throw new Error(
+          `Tool is deferred in this request: ${toolCall.toolName}; use tool_inspect and tool_invoke with ${resolved}`
+        )
+      }
       logger.info('Repaired tool call by MCP protocol-name alias', {
         from: toolCall.toolName,
-        to: alias.resolved,
+        to: resolved,
         toolCallId: toolCall.toolCallId
       })
-      return { ...toolCall, toolName: alias.resolved }
+      return { ...toolCall, toolName: resolved }
     }
 
     if (!InvalidToolInputError.isInstance(error)) return null
