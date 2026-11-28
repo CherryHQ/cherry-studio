@@ -11,14 +11,22 @@ import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { resolveClaudeLaunch } from '@main/ai/runtime/claudeCode/localClaudeLaunch'
 import { t } from '@main/i18n'
+import type * as HealthProbe from '@main/services/codeCli/claudeHealthProbe'
+import { probeClaudeExecutable } from '@main/services/codeCli/claudeHealthProbe'
 import { CodeCliService } from '@main/services/codeCli/CodeCliService'
 import { openLocalAgentTerminal } from '@main/services/codeCli/localAgentCli'
 import type { LocalAgentConfiguration } from '@shared/ai/localAgent'
 import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { createUniqueModelId } from '@shared/data/types/model'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 
 import { bindLaunchModel } from '../launchBinding'
 import { LocalAgentOverlayService } from '../LocalAgentOverlayService'
+
+vi.mock('@main/services/codeCli/claudeHealthProbe', async (load) => ({
+  ...(await load<typeof HealthProbe>()),
+  probeClaudeExecutable: vi.fn(async () => ({ ok: true }))
+}))
 
 vi.mock('@main/utils/shellEnv', () => ({ getRawShellEnv: vi.fn(async () => ({})) }))
 
@@ -50,6 +58,8 @@ describe('launch model binding', () => {
     })
     MockApplicationUtils.setService('ApiGatewayService', { createScopedCredential })
     MockApplicationUtils.setService('LocalAgentOverlayService', overlayService)
+    vi.mocked(probeClaudeExecutable).mockReset()
+    vi.mocked(probeClaudeExecutable).mockResolvedValue({ ok: true })
     credential.dispose.mockClear()
     createScopedCredential.mockReset()
     createScopedCredential.mockResolvedValue(credential)
@@ -185,6 +195,33 @@ describe('launch model binding', () => {
     })
     expect(createScopedCredential).toHaveBeenCalledWith(expect.objectContaining({ agentSessionId: 'task-session' }))
     await launch.modelBinding?.dispose()
+  })
+
+  it('blocks Code Mate terminal launch when the selected system Claude crashes', async () => {
+    vi.mocked(probeClaudeExecutable).mockResolvedValueOnce({
+      ok: false,
+      failure: { reason: 'startup-crash', detail: 'fixture crash' }
+    })
+    const result = await openLocalAgentTerminal({
+      ...config('claude', { env: { CLAUDE_CODE_TEST: 'launch-env' } }),
+      directory: AbsoluteFilePathSchema.parse(root)
+    })
+    expect(result).toMatchObject({ success: false })
+    expect(probeClaudeExecutable).toHaveBeenCalledWith(
+      '/usr/bin/claude',
+      root,
+      expect.objectContaining({ CLAUDE_CODE_TEST: 'launch-env' })
+    )
+    expect(openTerminal).not.toHaveBeenCalled()
+    expect(credential.dispose).toHaveBeenCalledOnce()
+  })
+
+  it('opens a healthy Code Mate Claude terminal after probing the resolved launch', async () => {
+    await openLocalAgentTerminal({ ...config('claude'), directory: AbsoluteFilePathSchema.parse(root) })
+    expect(probeClaudeExecutable).toHaveBeenCalledOnce()
+    expect(openTerminal).toHaveBeenCalledOnce()
+    expect(credential.dispose).not.toHaveBeenCalled()
+    await (overlayService as unknown as { onStop(): Promise<void> }).onStop()
   })
 
   it('opens a Cherry-bound Codex terminal and keeps its credential until Cherry stops', async () => {
