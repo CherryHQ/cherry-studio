@@ -19,6 +19,14 @@ const fixtureModelOption = {
     _meta: { fixture: { modalities: ['image'] } }
   })
 }
+const fixtureModelConfig = (currentValue) => ({
+  id: 'model',
+  category: 'model',
+  name: 'Model',
+  type: 'select',
+  currentValue,
+  options: [fixtureModelOption]
+})
 if (process.env.FIXTURE_LOG) {
   writeFileSync(`${process.env.FIXTURE_LOG}.pid`, String(process.pid))
   writeFileSync(`${process.env.FIXTURE_LOG}.argv.json`, JSON.stringify(process.argv))
@@ -680,19 +688,15 @@ createInterface({ input: process.stdin }).on('line', (line) => {
         }, 40)
       }
       thoughtValue = message.params.value
+      if (scenario === 'thought' || scenario === 'thought-uncategorized') {
+        return reply(id, {
+          configOptions: [thought(), fixtureModelConfig('fixture-default')]
+        })
+      }
       return reply(id, { configOptions: scenario === 'thought-removed' ? [] : [thought()] })
     }
     reply(id, {
-      configOptions: [
-        {
-          id: 'model',
-          category: 'model',
-          name: 'Model',
-          type: 'select',
-          currentValue: message.params.value,
-          options: [fixtureModelOption]
-        }
-      ]
+      configOptions: [fixtureModelConfig(message.params.value)]
     })
   } else if (method === 'model/list') {
     const efforts = [

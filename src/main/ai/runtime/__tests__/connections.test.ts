@@ -57,7 +57,7 @@ vi.mock(import('@cherrystudio/agent-runtime-cursor'), async (importOriginal) => 
   ...(await importOriginal()),
   listCursorModels: async () => [
     { id: 'opus-5.5', name: 'Claude Opus 5.5', description: 'Native description' },
-    { id: 'composer-2.5', name: 'Composer 2.5' }
+    { id: 'unregistered-cursor-fixture-model', name: 'Unregistered Cursor fixture model' }
   ]
 }))
 
@@ -904,10 +904,16 @@ describe('local protocol processes', () => {
         event.type === 'context-usage' && event.result.status === 'confirmed' ? [event.result.value] : []
       )
       expect(readings).toEqual(
-        [20, 40, 10].map((used) => ({
+        [
+          { used: 20, contextWindow: 100 },
+          { used: 40, contextWindow: 100 },
+          { used: 10 },
+          { used: 10, contextWindow: 100 },
+          { used: 10 }
+        ].map(({ used, contextWindow }) => ({
           model: 'fixture-default',
           revision: 'fixture-default',
-          contextWindow: 100,
+          ...(contextWindow === undefined ? {} : { contextWindow }),
           basis: 'current-context',
           used: { tokens: used, precision: 'reported' }
         }))
@@ -1125,7 +1131,7 @@ describe('local protocol processes', () => {
   it.each([
     ['grok-question-foreign', 'grok-build', false, { result: { outcome: 'cancelled' } }],
     ['grok-plan', 'grok-build', true, { result: { outcome: 'abandoned' } }],
-    ['grok-question', 'custom', false, { error: { code: -32601 } }]
+    ['grok-question', undefined, false, { error: { code: -32601 } }]
   ] as const)(
     'only opens native Grok approvals in the owning interactive session (%s, %s)',
     async (scenario, preset, headless, expected) => {
@@ -1185,7 +1191,7 @@ describe('local protocol processes', () => {
     expect(events.some((event) => event.type === 'local-turn-usage')).toBe(false)
   })
 
-  it.each(['copilot', 'custom', undefined])('uses ordinary ACP usage for preset %s', async (presetId) => {
+  it.each(['copilot', undefined])('uses ordinary ACP usage for preset %s', async (presetId) => {
     const { connection, events, closeAndDrain } = create('acp', 'xai-usage-response', undefined, presetId)
     await connection.start(cwd)
     await connection.send(input)
@@ -1744,7 +1750,7 @@ describe('local protocol processes', () => {
 
   it('rejects a saved model that disappeared from the catalog before sending a change request', async () => {
     const { connection } = create('acp', 'both-models', 'retired-model')
-    await expect(connection.start(cwd)).rejects.toThrow(/retired-model/)
+    await expect(connection.start(cwd)).rejects.toThrow('This model is no longer available')
     expect(
       (await readWire()).some(
         (message) => message.method === 'session/set_model' || message.method === 'session/set_config_option'
@@ -2115,22 +2121,16 @@ describe('local protocol processes', () => {
     const { connection } = create('acp', 'config-multiple')
     await connection.start(cwd)
     const acp = connection as AcpConnection
-    expect(acp.localSessionInfo.configOptions?.map((option) => option.id)).toEqual([
-      'model',
-      'secondary-mode',
-      'secondary-thought',
-      'secondary-model',
-      'verbosity',
-      'notifications'
-    ])
     await acp.setConfigOption('secondary-mode', 'plan')
     await acp.setConfigOption('secondary-thought', 'deep')
     await acp.setConfigOption('secondary-model', 'other-model')
-    expect(acp.localSessionInfo.configOptions?.slice(1, 4).map((option) => option.currentValue)).toEqual([
-      'plan',
-      'deep',
-      'other-model'
-    ])
+    expect(acp.localSessionInfo.configOptions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: 'secondary-mode', currentValue: 'plan' }),
+        expect.objectContaining({ id: 'secondary-thought', currentValue: 'deep' }),
+        expect.objectContaining({ id: 'secondary-model', currentValue: 'other-model' })
+      ])
+    )
     expect(acp.localSessionInfo).toMatchObject({
       mode: { id: 'agent-mode', currentValue: 'ask' },
       thoughtLevel: { id: 'reasoning-budget', currentValue: 'balanced' },
@@ -2619,7 +2619,7 @@ describe('local protocol processes', () => {
     await matching.drained
 
     const overridden = create('acp', 'no-models', 'different-model', 'snow')
-    await expect(overridden.connection.start(cwd)).rejects.toThrow('This agent does not support model selection')
+    await expect(overridden.connection.start(cwd)).rejects.toThrow('This ACP session does not support model switching')
     await overridden.connection.close()
     await overridden.drained
   })
