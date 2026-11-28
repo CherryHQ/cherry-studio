@@ -544,6 +544,18 @@ describe('ExportService', () => {
       expect(markdown).toContain('Parts-only content')
     })
 
+    it.each([false, true])(
+      'keeps code and indentation intact when exporting citations (excluded: %s)',
+      async (exclude) => {
+        const code = ['Use `items[0]` here.', '', '~~~c++', '    return items[1];', '~~~'].join('\n')
+        const message = createExportView([{ type: 'text', text: `${code}\n\nSource [2]` }])
+
+        const markdown = await messageToMarkdown(message, exclude)
+
+        expect(markdown).toContain(`${code}\n\n${exclude ? 'Source\n' : 'Source [^2]\n'}`)
+      }
+    )
+
     it('uses the frozen producing author for the header, surviving rename/delete', async () => {
       const message = createExportView([{ type: 'text', text: 'snapshotted reply' }])
       message.messageSnapshot = {

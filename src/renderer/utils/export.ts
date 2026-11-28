@@ -1,3 +1,6 @@
+import { fromMarkdown } from 'mdast-util-from-markdown'
+import { visit } from 'unist-util-visit'
+
 import type { ExportableMessage } from '@renderer/types/messageExport'
 import { markdownToPlainText } from '@renderer/utils/markdown'
 import { readComposerFileTokenSourceIdFromTokenId } from '@renderer/utils/message/composerFileTokenSource'
@@ -44,53 +47,41 @@ export function getTitleFromString(str: string, length: number = 80): string {
  * @returns 处理后的文本
  */
 export const processCitations = (content: string, mode: 'remove' | 'normalize' = 'remove'): string => {
-  // 使用正则表达式匹配Markdown代码块
-  const codeBlockRegex = /(```[a-zA-Z]*\n[\s\S]*?\n```)/g
-  const parts = content.split(codeBlockRegex)
+  if (!/\[\d+\]|<sup\b/.test(content)) return content
 
-  const processedParts = parts.map((part, index) => {
-    // 如果是代码块(奇数索引),则原样返回
-    if (index % 2 === 1) {
-      return part
-    }
+  const citation =
+    /\[<sup\b[^>]*>(\d+)<\/sup>\]\([^)]*\)|<sup\b[^>]*\bdata-citation\b[^>]*>(\d+)<\/sup>|\[(\d+)\](?!\()/g
+  let result = ''
+  let cursor = 0
 
-    let result = part
-
-    if (mode === 'remove') {
-      // 移除各种形式的引用标记
-      result = result
-        .replace(/\[<sup[^>]*data-citation[^>]*>\d+<\/sup>\]\([^)]*\)/g, '')
-        .replace(/\[<sup[^>]*>\d+<\/sup>\]\([^)]*\)/g, '')
-        .replace(/<sup[^>]*data-citation[^>]*>\d+<\/sup>/g, '')
-        .replace(/\[(\d+)\](?!\()/g, '')
-    } else if (mode === 'normalize') {
-      // 标准化引用格式为Markdown脚注格式
-      result = result
-        // 将 [<sup data-citation='...'>数字</sup>](链接) 转换为 [^数字]
-        .replace(/\[<sup[^>]*data-citation[^>]*>(\d+)<\/sup>\]\([^)]*\)/g, '[^$1]')
-        // 将 [<sup>数字</sup>](链接) 转换为 [^数字]
-        .replace(/\[<sup[^>]*>(\d+)<\/sup>\]\([^)]*\)/g, '[^$1]')
-        // 将独立的 <sup data-citation='...'>数字</sup> 转换为 [^数字]
-        .replace(/<sup[^>]*data-citation[^>]*>(\d+)<\/sup>/g, '[^$1]')
-        // 将 [数字] 转换为 [^数字]（但要小心不要转换其他方括号内容）
-        .replace(/\[(\d+)\](?!\()/g, '[^$1]')
-    }
-
-    // 按行处理，保留Markdown结构
-    const lines = result.split('\n')
-    const processedLines = lines.map((line) => {
-      // 如果是引用块或其他特殊格式，不要修改空格
-      if (line.match(/^>|^#{1,6}\s|^\s*[-*+]\s|^\s*\d+\.\s|^\s{4,}/)) {
-        return line.replace(/[ ]+/g, ' ').replace(/[ ]+$/g, '')
+  function appendProse(end: number) {
+    let last = cursor
+    for (const match of content.slice(cursor, end).matchAll(citation)) {
+      const start = cursor + match.index
+      const after = start + match[0].length
+      result += content.slice(last, start)
+      last = after
+      if (mode === 'normalize') {
+        result += `[^${match[1] ?? match[2] ?? match[3]}]`
+      } else if (result.endsWith(' ') && !/\S/.test(content.charAt(after))) {
+        result = result.slice(0, -1)
+      } else if ((!result || result.endsWith('\n')) && content[after] === ' ') {
+        last++
       }
-      // 普通文本行，清理多余空格但保留基本格式
-      return line.replace(/[ ]+/g, ' ').trim()
-    })
+    }
+    result += content.slice(last, end)
+  }
 
-    return processedLines.join('\n')
+  visit(fromMarkdown(content), ['code', 'inlineCode'], (node) => {
+    const start = node.position?.start.offset
+    const end = node.position?.end.offset
+    if (start === undefined || end === undefined) return
+    appendProse(start)
+    result += content.slice(start, end)
+    cursor = end
   })
-
-  return processedParts.join('').trim()
+  appendProse(content.length)
+  return result
 }
 
 /**

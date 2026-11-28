@@ -646,11 +646,11 @@ Final paragraph [8].`
 > Quote with citation
 
 - List item
- - Nested item
+  - Nested item
 
 Text with **bold** and *italic* formatting.
 
- Code block with should not be processed
+    Code block with [7] should not be processed
 
 Final paragraph .`
 
@@ -659,11 +659,11 @@ Final paragraph .`
 > Quote with citation [^2]
 
 - List item [^3]
- - Nested item [^4]
+  - Nested item [^4]
 
 Text with **bold** [^5] and *italic* [^6] formatting.
 
- Code block with [^7] should not be processed
+    Code block with [7] should not be processed
 
 Final paragraph [^8].`
 
