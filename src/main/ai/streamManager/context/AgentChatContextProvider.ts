@@ -36,6 +36,7 @@ import type { CherryMessagePart, CherryUIMessage, MessageSnapshot } from '@share
 import { parseUniqueModelId, type ServiceTierSelection, type UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
+import { restoreStoredChannelContext } from '../../../utils/channelContextParts'
 import { validateEditedInput } from '../../agentSession/editInput'
 import { applyTurnInputAttributes, startAiChildTurnSpan } from '../../observability'
 import { runtimeDriverRegistry } from '../../runtime/registry'
@@ -253,6 +254,10 @@ export class AgentChatContextProvider implements ChatContextProvider {
           : { nativeModel: { runtime: localRuntime ? getLocalAgentProtocol(localRuntime.presetId) : 'local' } })
       },
       userMessageId: deliveryMessage?.id ?? uuidv7(),
+      // Hidden channel metadata is host-owned and this layer TRUSTS its main-process callers:
+      // channel facades (ChannelMessageHandler via startAgentSessionRun) and the durable delivery
+      // message legitimately carry data-channel-context. Renderer-submitted parts are stripped at
+      // the IPC ingress (ai.stream.open / ai.agent.session.edit_resend), never here.
       userMessageParts,
       ...(deliveryMessage ? { deliveryMessage } : {}),
       ...(unsent && { resendUnsent: { id: unsent.id, updatedAt: unsent.updatedAt } }),
@@ -423,11 +428,14 @@ export class AgentChatContextProvider implements ChatContextProvider {
       const persisted = await runtime.editSession(
         validated.sessionId,
         req.editTarget,
-        (tx, nativeSessionId, nativeContextId, sourceBackendId) => {
+        (tx, nativeSessionId, nativeContextId, sourceBackendId, storedUserParts) => {
           validated.parentMessageId = getAgentSessionHead(tx, validated.sessionId)!
           const result = this.persistDispatchTx(
             tx,
-            validated,
+            {
+              ...validated,
+              userMessageParts: restoreStoredChannelContext(validated.userMessageParts, storedUserParts)
+            },
             {
               id: validated.agentId,
               updatedAt: validated.agentUpdatedAt,

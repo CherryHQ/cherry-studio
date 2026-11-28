@@ -8,8 +8,12 @@ import {
   CherryReasoningMetaSchema,
   CherryTextMetaSchema,
   CherryToolMetaSchema,
+  createChannelContextPart,
   createClearContextPart,
   type DiagnosisResult,
+  ChannelContextPartDataSchema,
+  formatChannelContext,
+  getChannelContextFromParts,
   getKnowledgeBaseIdsFromParts,
   hasClearContextPart,
   isBlankUserTurn,
@@ -116,6 +120,44 @@ describe('CherryErrorMetaSchema', () => {
 
   it('rejects a diagnosis whose steps are not step objects', () => {
     expect(CherryErrorMetaSchema.safeParse({ diagnosis: { ...diagnosis, steps: ['plain'] } }).success).toBe(false)
+  })
+})
+
+describe('channel context parts', () => {
+  it('round-trips the source chat identity and formats it for the system prompt', () => {
+    const part = createChannelContextPart({ channel: 'feishu', chatId: 'oc_123', chatType: 'group' })
+    const parts = [{ type: 'text', text: 'hi' }, part] as CherryMessagePart[]
+
+    expect(getChannelContextFromParts(parts)).toEqual({
+      channel: 'feishu',
+      chatId: 'oc_123',
+      chatType: 'group'
+    })
+    expect(formatChannelContext(getChannelContextFromParts(parts)!)).toBe(
+      'channel=feishu chat_id=oc_123 chat_type=group'
+    )
+  })
+
+  it('rejects identifiers with embedded newlines so the prompt line cannot be split', () => {
+    expect(
+      ChannelContextPartDataSchema.safeParse({ channel: 'feishu', chatId: 'oc_123\nINJECTED', chatType: 'group' })
+        .success
+    ).toBe(false)
+    expect(
+      getChannelContextFromParts([
+        { type: 'data-channel-context', data: { channel: 'feishu', chatId: 'oc_123\nINJECTED', chatType: 'group' } }
+      ] as CherryMessagePart[])
+    ).toBeUndefined()
+  })
+
+  it('prefers the last valid part and rejects malformed data at the read boundary', () => {
+    const parts = [
+      { type: 'data-channel-context', data: { channel: 'feishu', chatId: 'oc_old', chatType: 'p2p' } },
+      { type: 'data-channel-context', data: { channel: 'feishu', chatId: '', chatType: 'group' } }
+    ] as CherryMessagePart[]
+
+    expect(getChannelContextFromParts(parts)).toEqual({ channel: 'feishu', chatId: 'oc_old', chatType: 'p2p' })
+    expect(getChannelContextFromParts([{ type: 'text', text: 'hi' }] as CherryMessagePart[])).toBeUndefined()
   })
 })
 

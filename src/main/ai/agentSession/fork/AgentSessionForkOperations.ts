@@ -20,6 +20,7 @@ import { AgentSessionForkError } from '@main/ai/runtime/fork'
 import { t } from '@main/i18n'
 import { isOutsidePath } from '@main/utils/file'
 import type { AgentSessionEditTarget } from '@shared/ai/agentSessionEdit'
+import type { CherryMessagePart } from '@shared/data/types/message'
 import { Sequencer } from '@shared/utils/async'
 
 import { ensureRetiredSessionHistory } from '../../runtime/pi/retiredSessionHistory'
@@ -78,7 +79,13 @@ export class AgentSessionForkOperations {
     sessionId: string,
     target: AgentSessionEditTarget,
     closeSource: () => Promise<void>,
-    persist: (tx: DbOrTx, nativeSessionId: string, nativeContextId?: string, sourceBackendId?: string) => T
+    persist: (
+      tx: DbOrTx,
+      nativeSessionId: string,
+      nativeContextId: string | undefined,
+      sourceBackendId: string | undefined,
+      storedUserParts: CherryMessagePart[]
+    ) => T
   ): Promise<T> {
     if (this.edits.has(sessionId)) return Promise.reject(new AgentSessionEditError('busy'))
     const operationId = randomUUID()
@@ -96,7 +103,13 @@ export class AgentSessionForkOperations {
     operationId: string,
     signal: AbortSignal,
     closeSource: () => Promise<void>,
-    persist: (tx: DbOrTx, nativeSessionId: string, nativeContextId?: string, sourceBackendId?: string) => T
+    persist: (
+      tx: DbOrTx,
+      nativeSessionId: string,
+      nativeContextId: string | undefined,
+      sourceBackendId: string | undefined,
+      storedUserParts: CherryMessagePart[]
+    ) => T
   ): Promise<T> {
     await ensureRetiredSessionHistory(sessionId)
     const database = application.get('DbService')
@@ -181,8 +194,8 @@ export class AgentSessionForkOperations {
         const sourceBackendId = sourceHead
           ? agentSessionContextService.branchTx(tx, sessionId, sourceHead)?.backendId
           : undefined
-        agentSessionMessageService.replaceEditBranchTx(tx, sessionId, source.plan)
-        const result = persist(tx, nativeSessionId, nativeContextId, sourceBackendId)
+        const storedUserParts = agentSessionMessageService.replaceEditBranchTx(tx, sessionId, source.plan)
+        const result = persist(tx, nativeSessionId, nativeContextId, sourceBackendId, storedUserParts)
         if (resources) {
           const checkpointMapping = Object.fromEntries(
             prefix.flatMap((row) => {

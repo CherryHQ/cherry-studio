@@ -182,6 +182,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       workspacePath,
       agentDataPath,
       agent,
+      channelContext: this.input.channelContext,
       channelLinked: linkedChannel !== null,
       disabledTools: this.disabledTools,
       knowledgeBaseScope,
@@ -942,6 +943,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     this.disabledTools = disabled
     if (
       this.failure ||
+      (input.channelContext ?? undefined) !== this.input.channelContext ||
       snapshot.signature !== this.connectionSignature ||
       (input.reasoningEffort ?? 'default') !== (this.input.reasoningEffort ?? 'default') ||
       (input.serviceTier ?? 'standard') !== (this.input.serviceTier ?? 'standard') ||

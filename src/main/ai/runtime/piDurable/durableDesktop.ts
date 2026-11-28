@@ -86,6 +86,7 @@ export async function prepareDurableDesktop(
     effectiveLanguage: snapshot.effectiveLanguage,
     modelName: snapshot.model.name ?? snapshot.model.id,
     channelLinked: snapshot.linkedChannel !== null,
+    channelContext: input.channelContext,
     disabledTools: disabled,
     knowledgeBaseScope: resolveKnowledgeBaseScope(agent.knowledgeBaseIds, input.knowledgeBaseIds),
     skillPaths: snapshot.additionalSkillPaths,

@@ -1693,6 +1693,54 @@ describe('AgentSessionRuntimeService', () => {
       expect(getEntry(service).pendingTurns).toHaveLength(0)
     })
 
+    it('queues a channel steer whose chat identity differs from the live turn, folds an equal one', async () => {
+      const withContext = (id: string, chatId?: string) => {
+        const message = userMessage(id)
+        if (chatId) {
+          message.data.parts.push({
+            type: 'data-channel-context',
+            data: { channel: 'feishu', chatId, chatType: 'group' }
+          })
+        }
+        return message
+      }
+
+      // Live turn serving chat oc_123 on a connection baked with that identity.
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({ ...baseTurnInput, userMessage: withContext('user-1', 'oc_123') })
+      const entry = getEntry(service)
+      const sameChat = withContext(randomUUID(), 'oc_123')
+      const differentChat = withContext(randomUUID(), 'oc_other')
+      const submit = vi.fn<Steer>(async ({ inputId }) => ({
+        status: 'acknowledged',
+        inputId,
+        facts: ['accepted', 'queued']
+      }))
+      const connection = {
+        close: vi.fn(),
+        send: vi.fn(),
+        events: [],
+        contextId: saveSteerInputs(sameChat, differentChat),
+        threadInput: steering(submit)
+      }
+      entry.connection = connection
+      entry.connectionGeneration = 'test-generation'
+      entry.connectionModelId = baseTurnInput.modelId
+      entry.runtimeState.execution.reply.delivery = { kind: 'open' }
+      entry.runtimeState.execution.reply.admission = 'admitted'
+
+      // Equal context can fold before a queued turn establishes FIFO ordering.
+      service.enqueueUserMessage('session-1', sameChat, {})
+      await vi.waitFor(() => expect(submit).toHaveBeenCalledTimes(1))
+      expect(submit.mock.calls[0][0]).toMatchObject({ inputId: sameChat.id })
+      expect(entry.pendingTurns).toHaveLength(0)
+      submit.mockClear()
+      service.enqueueUserMessage('session-1', differentChat, {})
+      expect(submit).not.toHaveBeenCalled()
+      expect(entry.pendingTurns).toHaveLength(1)
+      void service.closeSession('session-1')
+    })
+
     it('keeps the run author, identity and trace when a steer carries a newer snapshot', () => {
       const service = new AgentSessionRuntimeService()
       const priorSnapshot = { id: 'agent-1', name: 'Original', model: { id: 'old', name: 'Old', provider: 'p' } }

@@ -44,6 +44,7 @@ export interface AgentRuntimePrompt {
 export interface BuildAgentPromptOptions {
   workspacePath: string
   agentDataPath: string
+  channelContext?: string
   agent: Pick<AgentEntity, 'instructions' | 'configuration' | 'modelName' | 'name'>
   /** Formats a model-facing call reference when the session can reach the tool. */
   referenceTool?: (server: string, tool: string) => string | undefined
@@ -69,6 +70,7 @@ export async function buildAgentPrompt({
   workspacePath,
   agentDataPath,
   agent,
+  channelContext,
   referenceTool,
   toolCallHint,
   includeKnowledgeCitations = false,
@@ -135,6 +137,7 @@ export async function buildAgentPrompt({
       ['memories', 'guidance', parts.memories],
       ['cwd', 'live', base.kind === 'custom' ? customBaseContext : undefined],
       ['citations', 'guidance', referenceTool && buildCitationInstructions(referenceTool, includeKnowledgeCitations)],
+      ['channel_context', 'live', channelContext ? buildChannelContextSection(channelContext) : undefined],
       ['language', 'setting', getLanguageInstruction(agent, effectiveLanguage)]
     ] satisfies [string, AgentPromptBlockKind, string | undefined][]
   ).flatMap(([key, kind, text]) => (text ? [{ key, kind, text }] : []))
@@ -147,6 +150,18 @@ export async function buildAgentPrompt({
     blocks.unshift({ key: 'workspace_system', kind: 'live', text: parts.base.content })
   }
   return { base, append, blocks }
+}
+
+/**
+ * Source-chat identity for channel-originated sessions. Lives in the system prompt (never the
+ * user-turn text) so command parses keep seeing byte-identical input while the agent can still
+ * pick a reply style per chat kind.
+ */
+function buildChannelContextSection(channelContext: string): string {
+  return `## Source chat
+
+This session's messages arrive from a linked chat channel. Pick a reply style that fits the chat kind (direct p2p vs group).
+${channelContext}`
 }
 
 function buildAgentInstructionsSection(instructions: string): string {

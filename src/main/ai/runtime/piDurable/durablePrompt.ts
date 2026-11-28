@@ -24,6 +24,7 @@ interface DurablePromptOptions {
   effectiveLanguage: string | null
   /** Effective turn model display name for `{{model_name}}`; defaults to `agent.modelName`. */
   modelName?: string | null
+  channelContext?: string
   channelLinked: boolean
   /** Normalized disabled tool IDs. */
   disabledTools: ReadonlySet<string>
@@ -46,6 +47,7 @@ export async function buildDurablePrompt(pi: PiSdk, options: DurablePromptOption
     modelName: options.modelName,
     instructionsSlot: options.instructionsSlot,
     channelLinked: options.channelLinked,
+    channelContext: options.channelContext,
     toolSearchLoadsMcp: true,
     disabledTools: options.disabledTools,
     knowledgeBaseScope: options.knowledgeBaseScope

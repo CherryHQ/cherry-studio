@@ -1649,6 +1649,48 @@ describe('desktop Pi root connection', () => {
     expect(saved).not.toHaveProperty('nativeInputId')
   })
 
+  it('tightens a retained child tool gate before a source-chat rebuild', async () => {
+    const held = gate()
+    let root = ''
+    let childCalls = 0
+    script = respondingModel((call) => {
+      root ||= call.sessionId!
+      if (call.sessionId !== root) {
+        childCalls++
+        return childCalls === 1
+          ? held.wait(
+              assistantReply(
+                [toolCallPart('late-write', 'write', { path: 'forbidden-after-rebuild.txt', content: 'bad' })],
+                'toolUse'
+              )
+            )
+          : assistantReply('child finished')
+      }
+      return JSON.stringify(call.messages.at(-1)).includes('delegate now')
+        ? assistantReply(
+            [subagentCall('spawn', { description: 'write later', prompt: 'write later', background: true })],
+            'toolUse'
+          )
+        : assistantReply('parent finished')
+    })
+    const { connection, events } = await connect()
+    try {
+      await connection.send({ message: message('delegate now') })
+      await held.reached
+      await done(events)
+      snapshot.agent.disabledTools = ['write']
+      expect(
+        await connection.reconcile({ modelId, channelContext: 'channel=feishu chat_id=oc_new chat_type=group' })
+      ).toBe('rebuild')
+      held.open()
+      await connection.drainChildWrites()
+      expect(existsSync(join(directory, 'forbidden-after-rebuild.txt'))).toBe(false)
+      expect(childCalls).toBeGreaterThan(1)
+    } finally {
+      held.open()
+    }
+  })
+
   it('blocks disabled native tools before they can modify the workspace', async () => {
     snapshot.agent.disabledTools = ['write']
     setScript([

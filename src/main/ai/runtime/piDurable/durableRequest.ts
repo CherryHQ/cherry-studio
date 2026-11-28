@@ -10,6 +10,7 @@ import type { AgentRuntimeConnectInput } from '../types'
 
 const requestSchema = z.object({
   modelId: UniqueModelIdSchema,
+  channelContext: z.string().optional(),
   reasoningEffort: ReasoningEffortOptionSchema.optional(),
   serviceTier: ServiceTierSelectionSchema.optional(),
   fastMode: z.boolean().optional(),

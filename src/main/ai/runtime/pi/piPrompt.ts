@@ -13,7 +13,7 @@ export function buildPiAgentPrompt({
   ...prompt
 }: Pick<
   BuildAgentPromptOptions,
-  'workspacePath' | 'agentDataPath' | 'effectiveLanguage' | 'modelName' | 'instructionsSlot'
+  'workspacePath' | 'agentDataPath' | 'effectiveLanguage' | 'modelName' | 'instructionsSlot' | 'channelContext'
 > & {
   agent: BuildAgentPromptOptions['agent'] & Pick<AgentEntity, 'type'>
   channelLinked: boolean

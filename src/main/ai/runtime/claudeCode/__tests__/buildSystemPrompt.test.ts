@@ -202,7 +202,7 @@ describe('buildSystemPrompt — Agent System Prompt authority', () => {
       modelName: 'Claude Sonnet 4.5'
     })
 
-    await buildSystemPrompt(agent, '/tmp/cwd', undefined, [], [], undefined, 'Claude Opus')
+    await buildSystemPrompt(agent, '/tmp/cwd', undefined, [], [], undefined, undefined, 'Claude Opus')
 
     expect(mockReplacePromptVariables).toHaveBeenCalledWith('Use {{model_name}}.', 'Claude Opus')
   })

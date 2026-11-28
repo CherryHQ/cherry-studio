@@ -144,6 +144,8 @@ export interface ClaudeCodeSessionOptions {
   notificationContext?: AgentNotificationContext
   /** Per-turn composer selection captured by the connection builder. */
   knowledgeBaseIds?: readonly string[]
+  /** Formatted source-chat identity for channel-originated sessions; surfaced via the system prompt. */
+  channelContext?: string
   thinkingOptions?: {
     effort?: Options['effort']
     thinking?: Options['thinking']
@@ -250,6 +252,7 @@ export async function buildClaudeCodeSessionSettings(
     knowledgeBaseScope,
     disallowedTools,
     options?.effectiveLanguage,
+    options?.channelContext,
     options?.promptModelName,
     linkedChannelSnapshot !== null
   )
@@ -755,12 +758,15 @@ export async function buildSystemPrompt(
   disallowedTools: readonly string[] = resolveDisallowedTools({ disabledTools: agent.disabledTools }, { cwd }),
   /** Materialized effective language; when omitted the preference is read live. */
   effectiveLanguage?: string | null,
+  /** Formatted source-chat identity for channel-originated sessions. */
+  channelContext?: string,
   /** Effective turn model display name for `{{model_name}}`; defaults to `agent.modelName`. */
   promptModelName?: string | null,
   channelLinked = false
 ): Promise<ClaudeCodeSettings['systemPrompt']> {
   const prompt = await buildClaudeAgentPrompt({
     agent,
+    channelContext,
     cwd,
     agentDataPath,
     knowledgeBaseIds,
@@ -790,6 +796,7 @@ export function buildClaudeAgentPrompt({
   effectiveLanguage,
   promptModelName,
   channelLinked = false,
+  channelContext,
   instructionsSlot
 }: {
   agent: Pick<
@@ -803,6 +810,7 @@ export function buildClaudeAgentPrompt({
   effectiveLanguage?: string | null
   promptModelName?: string | null
   channelLinked?: boolean
+  channelContext?: string
   instructionsSlot?: string
 }) {
   const { allowsTool } = resolveAgentMcpToolExposure(agent, { channelLinked })
@@ -812,6 +820,7 @@ export function buildClaudeAgentPrompt({
     'Use it as the default base for file operations and shell commands; resolve unspecified or relative paths against it.'
   ].join('\n')
   return buildAgentPrompt({
+    channelContext,
     workspacePath: cwd,
     agentDataPath,
     agent,

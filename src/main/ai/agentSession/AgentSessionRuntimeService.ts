@@ -107,7 +107,12 @@ import {
   type ServiceTierSelection,
   type UniqueModelId
 } from '@shared/data/types/model'
-import { type AgentTaskEventPartData, getKnowledgeBaseIdsFromParts } from '@shared/data/types/uiParts'
+import {
+  type AgentTaskEventPartData,
+  getChannelContextFromParts,
+  formatChannelContext,
+  getKnowledgeBaseIdsFromParts
+} from '@shared/data/types/uiParts'
 import type { InputFor, WindowId } from '@shared/ipc/types'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
@@ -269,6 +274,7 @@ export interface AgentSessionInteractionState {
 type AgentSessionRun = {
   localTurnUsage?: LocalAgentTurnUsage
   taskIds: readonly string[]
+  channelContext?: string
   inputOutcomes?: Map<string, NativeInputState>
   forkAnchor?: RuntimeForkAnchor
   /** Stream attachment correlation, independent of durable execution ownership. */
@@ -308,6 +314,7 @@ type QueuedAgentSessionInput = {
   reasoningEffort: ReasoningEffortOption
   serviceTier: ServiceTierSelection
   knowledgeBaseIds: readonly string[]
+  channelContext?: string
   fastMode: boolean
   /** The message arrived mid-turn (steer) — the drained turn wraps it in a system-reminder. */
   steer?: boolean
@@ -523,7 +530,13 @@ export class AgentSessionRuntimeService extends BaseService {
   editSession<T>(
     sessionId: string,
     target: AgentSessionEditTarget,
-    persist: (tx: DbOrTx, nativeSessionId: string, nativeContextId?: string, sourceBackendId?: string) => T
+    persist: (
+      tx: DbOrTx,
+      nativeSessionId: string,
+      nativeContextId: string | undefined,
+      sourceBackendId: string | undefined,
+      storedUserParts: CherryMessagePart[]
+    ) => T
   ): Promise<T> {
     this.assertSessionEditable(sessionId)
     const editing = this.forks.edit(
@@ -1010,6 +1023,7 @@ export class AgentSessionRuntimeService extends BaseService {
       reasoningEffort: input.reasoningEffort ?? 'default',
       serviceTier: input.serviceTier ?? 'standard',
       knowledgeBaseIds: getKnowledgeBaseIdsFromParts(userMessage.data.parts ?? []) ?? [],
+      channelContext: this.channelContextStringFromParts(userMessage.data.parts ?? []),
       fastMode: input.fastMode === true,
       headless: input.headless === true,
       permissionModeOverride: input.permissionModeOverride,
@@ -1216,6 +1230,7 @@ export class AgentSessionRuntimeService extends BaseService {
       reasoningEffort: source.reasoningEffort,
       serviceTier: source.serviceTier,
       knowledgeBaseIds: source.knowledgeBaseIds,
+      channelContext: source.channelContext,
       fastMode: source.fastMode,
       headless: source.headless === true && inputs.every((item) => item.headless === true),
       trustedNotifyChannels: source.trustedNotifyChannels
@@ -1581,6 +1596,7 @@ export class AgentSessionRuntimeService extends BaseService {
     const reasoningEffort = opts.reasoningEffort ?? 'default'
     const serviceTier = opts.serviceTier ?? 'standard'
     const knowledgeBaseIds = getKnowledgeBaseIdsFromParts(message.data.parts ?? []) ?? []
+    const channelContext = this.channelContextStringFromParts(message.data.parts ?? [])
     const fastMode = opts.fastMode === true
 
     const turn = this.currentTurn(entry)
@@ -1599,6 +1615,9 @@ export class AgentSessionRuntimeService extends BaseService {
       turn.reasoningEffort === reasoningEffort &&
       turn.serviceTier === serviceTier &&
       turn.fastMode === fastMode &&
+      // A channel steer may only fold into a turn whose connection already serves the same source
+      // chat identity; otherwise it queues as the next turn and the rebuild picks the context up.
+      turn.channelContext === channelContext &&
       knowledgeScopeEquals(
         resolveKnowledgeBaseScope(configuredKnowledgeBaseIds, turn.knowledgeBaseIds),
         resolveKnowledgeBaseScope(configuredKnowledgeBaseIds, knowledgeBaseIds)
@@ -1611,6 +1630,7 @@ export class AgentSessionRuntimeService extends BaseService {
       reasoningEffort,
       serviceTier,
       knowledgeBaseIds,
+      channelContext,
       fastMode,
       steer: !opts.followUp,
       ...(headless ? { headless } : {}),
@@ -2447,6 +2467,12 @@ export class AgentSessionRuntimeService extends BaseService {
     return !!entry.secondaryContextId && this.secondaryRoots.get(entry.secondaryContextId) === entry
   }
 
+  /** Formatted source-chat identity for a turn, or undefined for non-channel turns. */
+  private channelContextStringFromParts(parts: readonly CherryMessagePart[]): string | undefined {
+    const data = getChannelContextFromParts(parts)
+    return data ? formatChannelContext(data) : undefined
+  }
+
   /** Resolve live work against its captured configuration; idle connections follow the agent's current settings. */
   private connectionTarget(
     entry: AgentSessionRuntimeEntry,
@@ -2474,6 +2500,7 @@ export class AgentSessionRuntimeService extends BaseService {
           reasoningEffort: turn.reasoningEffort,
           serviceTier: turn.serviceTier,
           knowledgeBaseIds: turn.knowledgeBaseIds,
+          channelContext: turn.channelContext,
           fastMode: turn.fastMode,
           headless: turn.headless === true,
           ...(turn.permissionModeOverride ? { permissionModeOverride: turn.permissionModeOverride } : {}),
@@ -2502,6 +2529,7 @@ export class AgentSessionRuntimeService extends BaseService {
       current.reasoningEffort === target.reasoningEffort &&
       current.serviceTier === target.serviceTier &&
       current.fastMode === target.fastMode &&
+      current.channelContext === target.channelContext &&
       (current.headless === true) === (target.headless === true) &&
       current.permissionModeOverride === target.permissionModeOverride &&
       knowledgeScopeEquals(
@@ -2674,6 +2702,7 @@ export class AgentSessionRuntimeService extends BaseService {
       reasoningEffort: target.reasoningEffort,
       serviceTier: target.serviceTier,
       knowledgeBaseIds: target.knowledgeBaseIds,
+      channelContext: target.channelContext,
       fastMode: target.fastMode,
       headless: target.headless,
       ...(target.localPermissionMode ? { localPermissionMode: target.localPermissionMode } : {}),
@@ -4413,6 +4442,7 @@ export class AgentSessionRuntimeService extends BaseService {
       reasoningEffort: pending.reasoningEffort,
       serviceTier: pending.serviceTier,
       knowledgeBaseIds: pending.knowledgeBaseIds,
+      channelContext: pending.channelContext,
       fastMode: pending.fastMode,
       headless: pending.headless,
       permissionModeOverride: pending.permissionModeOverride,

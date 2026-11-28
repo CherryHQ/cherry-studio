@@ -76,6 +76,7 @@ class ClaudeCodeRuntimeConnection extends ClaudeSdkConnection<AgentRuntimeConnec
       this.input.fastMode === true,
       this.input.knowledgeBaseIds,
       this.input.serviceTier,
+      this.input.channelContext,
       this.input.headless === true,
       this.input.permissionModeOverride
     )
@@ -176,6 +177,7 @@ class ClaudeCodeRuntimeConnection extends ClaudeSdkConnection<AgentRuntimeConnec
       input.fastMode === true,
       input.knowledgeBaseIds,
       input.serviceTier,
+      input.channelContext,
       input.headless === true,
       input.permissionModeOverride
     )
