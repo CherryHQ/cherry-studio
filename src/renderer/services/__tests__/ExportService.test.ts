@@ -172,6 +172,7 @@ import {
   ExportService,
   exportService,
   exportContentToNotes,
+  exportMessageToNotes,
   exportTopicToNotes,
   messagesToMarkdown,
   messageToMarkdown,
@@ -938,6 +939,20 @@ describe('ExportService', () => {
       await expect(exportContentToNotes('Topic', 'Synthetic content', '/notes')).rejects.toThrow('Write failed')
       expect(toast.success).not.toHaveBeenCalled()
       expect(toast.error).toHaveBeenCalledWith('message.error.notes.export')
+    })
+
+    it('reports a saved note by where it came from, and nothing when the write fails', async () => {
+      const created = () =>
+        imageCaptureMocks.request.mock.calls
+          .filter(([route]) => route === 'analytics.track')
+          .map(([, event]) => (event as { trigger?: string }).trigger)
+
+      await exportMessageToNotes('Reply', 'Synthetic reply', '/notes')
+      await exportContentToNotes('Selection', 'Synthetic selection', '/notes')
+      vi.mocked(addNote).mockRejectedValueOnce(new Error('Write failed'))
+      await expect(exportContentToNotes('Failed', 'Synthetic', '/notes')).rejects.toThrow('Write failed')
+
+      expect(created()).toEqual(['chat', 'other'])
     })
 
     it('logs and toasts when topic markdown generation fails', async () => {

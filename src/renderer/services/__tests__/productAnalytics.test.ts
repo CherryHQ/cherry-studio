@@ -16,16 +16,16 @@ const model = (providerId: string) => ({ id: `${providerId}::m`, providerId, nam
 beforeEach(() => request.mockClear())
 
 describe('product analytics helpers', () => {
-  it('names a picked model only by its built-in provider and counts multi-model mentions', () => {
+  it('names a picked model only by its built-in provider and counts a multi-model pick', () => {
     trackModelSelected('chat', [model('openai')])
     trackModelSelected('agent', [model('3f2b1c0a-user-provider')])
-    trackModelSelected('mention', [model('cherryin'), model('anthropic')])
-    trackModelSelected('mention', [])
+    trackModelSelected('chat', [model('cherryin'), model('anthropic')])
+    trackModelSelected('chat', [])
 
     expect(tracked()).toEqual([
       { event: 'chat_model_selected', surface: 'chat', modelSource: 'own_key', target: 'openai' },
       { event: 'chat_model_selected', surface: 'agent', modelSource: 'own_key' },
-      { event: 'chat_model_selected', surface: 'mention', modelSource: 'cherryin', target: 'cherryin', count: 2 }
+      { event: 'chat_model_selected', surface: 'chat', modelSource: 'cherryin', target: 'cherryin', count: 2 }
     ])
   })
 

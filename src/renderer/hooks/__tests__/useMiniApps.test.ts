@@ -639,6 +639,27 @@ describe('useMiniApps', () => {
     })
   })
 
+  describe('createCustomMiniApp analytics', () => {
+    it('reports an added custom app without its name or URL, and nothing when saving fails', async () => {
+      const added = () =>
+        mocks.request.mock.calls.filter(([route]) => route === 'analytics.track').map(([, event]) => event)
+      MockUseDataApiUtils.mockMutationSuccess('POST', '/mini-apps', createMiniApp('custom-1'))
+      const { result } = renderHook(() => useMiniApps())
+      const dto = { appId: 'custom-1', name: 'Private Tool', url: 'https://private.example.com' } as never
+
+      await act(async () => {
+        await result.current.createCustomMiniApp(dto)
+      })
+      MockUseDataApiUtils.mockMutationError('POST', '/mini-apps', new Error('conflict'))
+      const { result: failing } = renderHook(() => useMiniApps())
+      await act(async () => {
+        await expect(failing.current.createCustomMiniApp(dto)).rejects.toThrow()
+      })
+
+      expect(added()).toEqual([{ event: 'feature_used', feature: 'mini_app', action: 'app_added' }])
+    })
+  })
+
   // === setAppStatusBulk partial-failure ===
 
   describe('setAppStatusBulk partial-failure', () => {

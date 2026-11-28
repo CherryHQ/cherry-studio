@@ -1138,7 +1138,7 @@ describe('BackupManager direct v2 data compatibility', () => {
     vi.mocked(fs.stat).mockResolvedValue(createStats('file', 6) as never)
     vi.mocked(fs.createReadStream).mockReturnValue(uploadStream as never)
 
-    await backupManager.backupToS3({} as Electron.IpcMainInvokeEvent, {
+    const backup = await backupManager.backupToS3({} as Electron.IpcMainInvokeEvent, {
       endpoint: 'https://s3.example.com',
       region: 'test',
       bucket: 'backups',
@@ -1152,6 +1152,32 @@ describe('BackupManager direct v2 data compatibility', () => {
 
     expect(putFileContents).toHaveBeenCalledWith('backup.zip', uploadStream, 6, { signal: undefined })
     expect(fs.promises.readFile).not.toHaveBeenCalled()
+    expect(backup.sizeBytes).toBe(6)
+  })
+
+  it('reports the size of the archive kept in the local backup directory', async () => {
+    vi.spyOn(backupManager as any, 'backupDirect').mockResolvedValue('/backups/backup.zip')
+    vi.mocked(fs.stat).mockResolvedValue(createStats('file', 12) as never)
+
+    const backup = await backupManager.backupToLocalDir(null, 'backup.zip', {
+      localBackupDir: '/backups',
+      maxBackups: 0
+    })
+
+    expect(backup).toEqual({ result: '/backups/backup.zip', cleanupError: null, sizeBytes: 12 })
+  })
+
+  it('keeps a finished local backup when its size cannot be read', async () => {
+    vi.spyOn(backupManager as any, 'backupDirect').mockResolvedValue('/backups/backup.zip')
+    vi.mocked(fs.stat).mockRejectedValue(new Error('EPERM: operation not permitted'))
+
+    const backup = await backupManager.backupToLocalDir(null, 'backup.zip', {
+      localBackupDir: '/backups',
+      maxBackups: 0
+    })
+
+    expect(backup.result).toBe('/backups/backup.zip')
+    expect(backup.sizeBytes).toBeUndefined()
   })
 
   it('preserves S3 object paths relative to the configured root', async () => {
@@ -1301,7 +1327,7 @@ describe('BackupManager direct v2 data compatibility', () => {
     await vi.waitFor(() => expect(deleteFile).toHaveBeenCalledOnce())
     controller.abort(new DOMException('Stopped.', 'AbortError'))
 
-    await expect(backup).resolves.toMatchObject({ result: true, cleanupError: { name: 'AbortError' } })
+    await expect(backup).resolves.toMatchObject({ result: true, cleanupError: { name: 'AbortError' }, sizeBytes: 6 })
     expect(deleteFile).toHaveBeenCalledWith('cherry-studio.20260804000000.test-host.mac.zip', deleteSignal)
     expect(deleteSignal?.aborted).toBe(true)
     expect(getDirectoryContents).toHaveBeenCalledWith(expect.any(AbortSignal))

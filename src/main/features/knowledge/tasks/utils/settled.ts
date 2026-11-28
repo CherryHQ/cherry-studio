@@ -1,3 +1,4 @@
+import { jobService } from '@data/services/JobService'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import type { JobSettledEvent } from '@main/core/job/types'
 import type { LoggerService } from '@main/core/logger/LoggerService'
@@ -7,6 +8,19 @@ import {
   KNOWLEDGE_ITEM_ERROR_EMPTY_INDEXABLE_TEXT,
   KNOWLEDGE_ITEM_ERROR_INDEXING_INTERRUPTED
 } from '@shared/data/types/knowledge'
+
+/** Run time of a settled job; the terminal row is written before its settle hook runs. */
+export function settledJobDurationMs(jobId: string): number | undefined {
+  let job: ReturnType<typeof jobService.getById>
+  try {
+    job = jobService.getById(jobId)
+  } catch {
+    return undefined
+  }
+  if (!job?.startedAt || !job.finishedAt) return undefined
+  const durationMs = Date.parse(job.finishedAt) - Date.parse(job.startedAt)
+  return Number.isFinite(durationMs) && durationMs >= 0 ? durationMs : undefined
+}
 
 export async function markKnowledgeItemFailedOnSettled(
   event: JobSettledEvent<{ itemId: string }>,
@@ -30,6 +44,7 @@ export async function markKnowledgeItemFailedOnSettled(
     if (item.status === 'deleting') return
 
     knowledgeItemService.updateStatus(itemId, 'failed', { error: reason })
+    const durationMs = settledJobDurationMs(event.jobId)
     trackMainProductEvent({
       event: 'feature_used',
       feature: 'knowledge',
@@ -41,7 +56,8 @@ export async function markKnowledgeItemFailedOnSettled(
           ? 'indexing_interrupted'
           : reason === KNOWLEDGE_ITEM_ERROR_EMPTY_INDEXABLE_TEXT
             ? 'empty_indexable_text'
-            : 'other'
+            : 'other',
+      ...(durationMs !== undefined && { durationMs })
     })
   } catch (error) {
     if (isDataApiNotFoundError(error)) return

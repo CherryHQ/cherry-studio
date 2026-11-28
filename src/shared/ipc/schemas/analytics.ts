@@ -113,6 +113,7 @@ export const featureUsedEventSchema = z.strictObject({
       'launchpad',
       'sidebar',
       'split',
+      'restore',
       'other'
     ])
     .optional(),
@@ -278,10 +279,10 @@ export const rendererAnalyticsEventSchema = z.discriminatedUnion('event', [
     reason: z.enum(ERROR_CATEGORIES),
     surface: z.enum(['chat', 'agent'])
   }),
-  // `target` is a built-in provider id; `count` is set for a multi-model mention pick.
+  // `target` is a built-in provider id; `count` is set when several models were picked at once.
   z.strictObject({
     event: z.literal('chat_model_selected'),
-    surface: z.enum(['chat', 'agent', 'mention']),
+    surface: z.enum(['chat', 'agent']),
     modelSource: analyticsModelSourceSchema,
     target: presetIdSchema.optional(),
     count: z.number().int().nonnegative().optional()
@@ -347,12 +348,15 @@ export const rendererAnalyticsEventSchema = z.discriminatedUnion('event', [
   }),
   z.strictObject({
     event: z.literal('window_opened'),
-    kind: z.enum(['tab_detached', 'topic', 'session'])
+    kind: z.enum(['tab_detached', 'topic', 'session', 'browser', 'knowledge'])
   })
 ])
 export type RendererAnalyticsEvent = z.infer<typeof rendererAnalyticsEventSchema>
 
 export type BackupAnalyticsTarget = 'file' | 'local_dir' | 'webdav' | 'nutstore' | 's3'
+/** Why a backup upload or update download failed; an enum because the raw messages carry URLs. */
+export type TransferFailureReason = 'network' | 'timeout' | 'auth' | 'config' | 'server' | 'disk_full' | 'other'
+export type BackupSizeBucket = 'under_10mb' | '10mb_to_100mb' | '100mb_to_1gb' | 'over_1gb'
 
 /** Events produced inside the main process; typed only, since they never cross IPC. */
 export type MainAnalyticsEvent =
@@ -369,7 +373,11 @@ export type MainAnalyticsEvent =
   // Once per local day while the app runs, so long-running sessions count as daily activity.
   | { event: 'app_active' }
   | { event: 'update_checked'; source: 'manual' | 'auto'; result: 'available' | 'not_available' | 'error' }
-  | { event: 'update_downloaded'; status: 'success' | 'error' }
+  | {
+      event: 'update_downloaded'
+      status: 'success' | 'error'
+      errorReason?: Exclude<TransferFailureReason, 'config'> | 'checksum' | 'signature'
+    }
   | { event: 'update_install_started' }
   | {
       event: 'backup_run'
@@ -377,6 +385,9 @@ export type MainAnalyticsEvent =
       mode: 'manual' | 'auto'
       status: 'success' | 'warning' | 'error'
       durationMs: number
+      // `errorReason` only on error; `sizeBucket` (the archive) only when one was written.
+      errorReason?: TransferFailureReason | 'too_large'
+      sizeBucket?: BackupSizeBucket
     }
   // Restores and relocations end in a relaunch, so their results are reported on the next launch.
   | { event: 'restore_run'; target?: BackupAnalyticsTarget; status: 'completed' | 'failed' }

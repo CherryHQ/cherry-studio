@@ -1,7 +1,7 @@
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
-import { act, cleanup, render, screen } from '@testing-library/react'
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { WebviewTag } from 'electron'
 import { useState } from 'react'
@@ -476,6 +476,18 @@ describe('MiniApp open analytics', () => {
       { event: 'feature_used', feature: 'mini_app', action: 'opened', trigger: 'other', target: 'openai' },
       { event: 'feature_used', feature: 'mini_app', action: 'opened', trigger: 'other' }
     ])
+  })
+
+  it('reports an app reopened from the last session as restored', async () => {
+    const { cacheService } = await import('@data/CacheService')
+    cacheService.setPersist('ui.tab.normal_tabs', [
+      { id: 'restored-a', type: 'route', url: '/app/mini-app/a', title: 'A' }
+    ])
+    cacheService.setPersist('ui.tab.active_tab_id', 'restored-a')
+
+    mount()
+
+    await waitFor(() => expect(openedEvents()).toMatchObject([{ action: 'opened', trigger: 'restore' }]))
   })
 
   it('names the entry point that opened the app, once', async () => {

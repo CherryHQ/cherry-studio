@@ -23,6 +23,8 @@ export interface ResolvedSidebarEntry {
   disabled?: boolean
   onOpenNewTab?: () => void
   contextMenuItems?: readonly CommandContextMenuExtraItem[]
+  /** Static `data-analytics` name for the row; never carries a user resource id. */
+  analyticsName?: string
 }
 
 export type SidebarLayout = 'hidden' | 'icon' | 'full'

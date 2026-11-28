@@ -3,51 +3,9 @@ import { connect as tlsConnect } from 'node:tls'
 
 import { net } from 'electron'
 
-import { NETWORK_ERROR_CODES, type NetworkFailureKind, type NetworkLayerResult, type TlsPeerInfo } from './types'
+import { classifyNetworkError } from '@main/utils/networkError'
 
-const CODE_TO_KIND: ReadonlyMap<string, NetworkFailureKind> = new Map(
-  (Object.entries(NETWORK_ERROR_CODES) as Array<[NetworkFailureKind, readonly string[]]>).flatMap(([kind, codes]) =>
-    codes.map((code) => [code, kind] as const)
-  )
-)
-
-/**
- * Maps a thrown error and/or an HTTP status to a failure kind. Reads Chromium `net::ERR_*`
- * messages, Node `code`s, and walks `cause` because undici wraps transport errors in
- * `TypeError: fetch failed` with the errno one level down.
- */
-export function classifyNetworkError(
-  error: unknown,
-  httpStatus?: number
-): { readonly kind: NetworkFailureKind; readonly code?: string } {
-  if (httpStatus !== undefined) {
-    if (httpStatus === 407) return { kind: 'proxy_auth', code: 'HTTP 407' }
-    if (httpStatus >= 500) return { kind: 'http_server', code: `HTTP ${httpStatus}` }
-    if (httpStatus >= 400) return { kind: 'http_client', code: `HTTP ${httpStatus}` }
-  }
-  const chain: unknown[] = []
-  for (let current = error; current != null && chain.length < 5; current = (current as { cause?: unknown }).cause) {
-    chain.push(current)
-  }
-  const nodeCode = chain
-    .map((e) => (e as { code?: unknown } | null)?.code)
-    .find((code): code is string => typeof code === 'string')
-  const message = chain.map((e) => (e instanceof Error ? e.message : String(e))).join(' ')
-  const chromiumCode = /(ERR_[A-Z_]+)/.exec(message)?.[1]
-  for (const code of [nodeCode, chromiumCode]) {
-    if (!code) continue
-    const kind = CODE_TO_KIND.get(code)
-    if (kind) return { kind, code }
-    // Chromium has dozens of cert codes; the table lists the common ones, the prefix catches the rest.
-    if (code.startsWith('ERR_CERT_') || code.startsWith('ERR_SSL_')) return { kind: 'tls_cert', code }
-  }
-  // An abort is the caller's deadline (`AbortSignal.timeout`, run cancel), never the network's verdict.
-  const abort = chain
-    .map((e) => (e as { name?: unknown } | null)?.name)
-    .find((n) => n === 'AbortError' || n === 'TimeoutError')
-  if (abort) return { kind: 'timeout', code: nodeCode ?? abort }
-  return { kind: 'unknown', code: nodeCode ?? chromiumCode }
-}
+import type { NetworkLayerResult, TlsPeerInfo } from './types'
 
 function failed<T>(started: number, error: unknown, httpStatus?: number): NetworkLayerResult<T> {
   return { status: 'failed', durationMs: performance.now() - started, ...classifyNetworkError(error, httpStatus) }

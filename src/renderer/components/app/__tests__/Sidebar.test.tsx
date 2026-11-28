@@ -104,6 +104,7 @@ vi.mock('../../Sidebar', async () => {
         key: string
         label: string
         disabled?: boolean
+        analyticsName?: string
         onOpen: () => void
         contextMenuItems: Array<{ id: string; label: string; enabled?: boolean; onSelect: () => void }>
       }>
@@ -138,6 +139,7 @@ vi.mock('../../Sidebar', async () => {
                 <button
                   type="button"
                   aria-disabled={entry.disabled || undefined}
+                  data-analytics={entry.analyticsName}
                   onClick={() => !entry.disabled && entry.onOpen()}>
                   {entry.label}
                 </button>
@@ -439,6 +441,29 @@ describe('app Sidebar', () => {
     expect(mocks.activate).not.toHaveBeenCalled()
     fireEvent.click(screen.getByRole('button', { name: 'launchpad.unpin_from_sidebar' }))
     expect(mocks.remove).toHaveBeenCalledWith(missing.target)
+  })
+
+  it('names built-in pages by id and other shortcuts only by kind for click analytics', () => {
+    const entries = [
+      shortcut('core.app', 'translate', 'Translate'),
+      shortcut('core.assistant', '3f2b1c0a-9d55-4f8a-a1b2-2f9f8e6b1a11', 'My Assistant'),
+      shortcut('core.mini-app', 'my-private-app', 'Private App'),
+      shortcut('vendor.unknown', 'x', 'Unknown')
+    ]
+    mocks.shortcuts = entries
+    mocks.resolutions = entries.map((item) => ({ status: 'missing', shortcut: item }))
+
+    render(<Sidebar />)
+
+    const names = ['Translate', 'My Assistant', 'Private App', 'Unknown'].map((name) =>
+      screen.getByRole('button', { name }).getAttribute('data-analytics')
+    )
+    expect(names).toEqual([
+      'app.sidebar.entry:translate',
+      'app.sidebar.entry:assistant',
+      'app.sidebar.entry:mini-app',
+      'app.sidebar.entry:other'
+    ])
   })
 
   it('keeps the dropped order visible until the preference write confirms it', async () => {

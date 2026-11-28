@@ -1524,8 +1524,16 @@ async function createSiyuanDoc(
   return data.data
 }
 
-const saveContentToNotes = async (title: string, content: string, folderPath: string): Promise<void> => {
+type NoteSaveTrigger = 'chat' | 'other'
+
+const saveContentToNotes = async (
+  title: string,
+  content: string,
+  folderPath: string,
+  trigger: NoteSaveTrigger
+): Promise<void> => {
   const { path } = await addNote(title, content, folderPath)
+  trackProductEvent({ event: 'feature_used', feature: 'notes', action: 'note_created', trigger })
 
   toast.success({
     title: i18n.t('message.success.notes.export'),
@@ -1548,9 +1556,14 @@ const handleNotesExportError = (error: unknown): void => {
  * @param content 笔记内容
  * @param folderPath 目标笔记文件夹
  */
-export const exportContentToNotes = async (title: string, content: string, folderPath: string): Promise<void> => {
+export const exportContentToNotes = async (
+  title: string,
+  content: string,
+  folderPath: string,
+  trigger: NoteSaveTrigger = 'other'
+): Promise<void> => {
   try {
-    await saveContentToNotes(title, content, folderPath)
+    await saveContentToNotes(title, content, folderPath, trigger)
   } catch (error) {
     handleNotesExportError(error)
     throw error
@@ -1565,7 +1578,7 @@ export const exportContentToNotes = async (title: string, content: string, folde
  */
 export const exportMessageToNotes = async (title: string, content: string, folderPath: string): Promise<void> => {
   const cleanedContent = content.replace(/^## 🤖 Assistant(\n|$)/m, '')
-  await exportContentToNotes(title, cleanedContent, folderPath)
+  await exportContentToNotes(title, cleanedContent, folderPath, 'chat')
 }
 
 /**
@@ -1576,7 +1589,7 @@ export const exportMessageToNotes = async (title: string, content: string, folde
 export const exportTopicToNotes = async (topic: Topic, folderPath: string): Promise<void> => {
   try {
     const content = await topicToMarkdown(topic)
-    await saveContentToNotes(topic.name, content, folderPath)
+    await saveContentToNotes(topic.name, content, folderPath, 'chat')
   } catch (error) {
     handleNotesExportError(error)
     throw error
