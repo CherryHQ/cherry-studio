@@ -10,6 +10,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { PageSidePanel } from '@cherrystudio/ui/components/composites/page-side-panel'
 import { Combobox } from '@cherrystudio/ui/components/primitives/combobox'
 import { Dialog, DialogContent } from '@cherrystudio/ui/components/primitives/dialog'
+import { TabsContext, type TabsContextValue, useIsActiveTab } from '@renderer/hooks/tab'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
 
 const knobs = vi.hoisted(() => ({
@@ -381,5 +382,107 @@ describe('TabRouter', () => {
     await act(async () => resolve())
     await waitFor(() => expect(screen.queryByTestId('tab-route-transition-cover')).not.toBeInTheDocument())
     expect(screen.getByTestId('router-provider')).toHaveAttribute('data-router-url', '/app/agents')
+  })
+})
+
+describe('TabRouter primary route keep-alive', () => {
+  function RouteStateProbe({ label }: { label: string }) {
+    const [count, setCount] = React.useState(0)
+    const isActiveTab = useIsActiveTab()
+    return (
+      <div data-testid={`probe-${label}`} data-active-tab={String(isActiveTab)} data-count={count}>
+        <button type="button" onClick={() => setCount((c) => c + 1)}>
+          Increment {label}
+        </button>
+      </div>
+    )
+  }
+
+  it('keeps /app/chat and /app/agents mounted via Activity and restores slot URL on bare revisit', async () => {
+    knobs.renderPage = (url) => {
+      if (url.startsWith('/app/chat')) return <RouteStateProbe label="chat" />
+      if (url.startsWith('/app/agents')) return <RouteStateProbe label="agents" />
+      return null
+    }
+    const onUrlChange = vi.fn()
+    const { container, rerender } = render(
+      <TabRouter tab={tab('main-tab', '/app/chat?topicId=t1')} isActive onUrlChange={onUrlChange} />
+    )
+
+    const chatIncButton = await screen.findByRole('button', { name: 'Increment chat' })
+    fireEvent.click(chatIncButton)
+    expect(screen.getByTestId('probe-chat')).toHaveAttribute('data-count', '1')
+
+    rerender(<TabRouter tab={tab('main-tab', '/app/agents?sessionId=s1')} isActive onUrlChange={onUrlChange} />)
+    const agentsIncButton = await screen.findByRole('button', { name: 'Increment agents' })
+    fireEvent.click(agentsIncButton)
+    expect(screen.getByTestId('probe-agents')).toHaveAttribute('data-count', '1')
+
+    // Chat slot remains mounted with preserved state and display:none
+    const chatSlotRoot = container.querySelector('[data-testid="probe-chat"]')?.closest('[class*="relative"]') as
+      | HTMLElement
+      | undefined
+    expect(chatSlotRoot?.style.display).toBe('none')
+
+    // Bare `/app/chat` click restores `/app/chat?topicId=t1` without recreating state or flashing cover
+    onUrlChange.mockClear()
+    rerender(<TabRouter tab={tab('main-tab', '/app/chat')} isActive onUrlChange={onUrlChange} />)
+
+    await waitFor(() => expect(onUrlChange).toHaveBeenCalledWith('/app/chat?topicId=t1'))
+    expect(screen.queryByTestId('tab-route-transition-cover')).not.toBeInTheDocument()
+    expect(screen.getByTestId('probe-chat')).toHaveAttribute('data-count', '1')
+    expect(chatSlotRoot?.style.display).not.toBe('none')
+  })
+
+  it('isolates useIsActiveTab() and PageSidePanel portals across keep-alive route slots in the same tab', async () => {
+    function SlotPage({ url }: { url: string }) {
+      const isChat = url.startsWith('/app/chat')
+      const [open] = React.useState(isChat)
+      return (
+        <>
+          <RouteStateProbe label={isChat ? 'chat' : 'agents'} />
+          {open && <PageSidePanel open onClose={() => {}} title={`panel ${url}`} />}
+        </>
+      )
+    }
+
+    knobs.renderPage = (url) => <SlotPage url={url} />
+    const renderWithTabs = (url: string) => {
+      const current = tab('main-tab', url)
+      const value = { tabs: [current], activeTabId: 'main-tab', activeTab: current } as unknown as TabsContextValue
+      return (
+        <TabsContext value={value}>
+          <TabRouter tab={current} isActive onUrlChange={() => {}} />
+        </TabsContext>
+      )
+    }
+
+    const { container, rerender } = render(renderWithTabs('/app/chat?topicId=t1'))
+    await waitFor(() => expect(screen.getByTestId('probe-chat')).toHaveAttribute('data-active-tab', 'true'))
+    await waitFor(() => expect(container.querySelector('[role="dialog"]')).toBeInTheDocument())
+
+    rerender(renderWithTabs('/app/agents?sessionId=s1'))
+    await waitFor(() => expect(screen.getByTestId('probe-agents')).toHaveAttribute('data-active-tab', 'true'))
+    expect(screen.getByTestId('probe-chat')).toHaveAttribute('data-active-tab', 'false')
+
+    const agentsSlotRoot = screen.getByTestId('probe-agents').closest('[class*="relative"]') as HTMLElement
+    const chatSlotRoot = screen.getByTestId('probe-chat').closest('[class*="relative"]') as HTMLElement
+    expect(chatSlotRoot.style.display).toBe('none')
+    expect(chatSlotRoot.querySelector('[role="dialog"]')).toBeInTheDocument()
+    expect(agentsSlotRoot.querySelector('[role="dialog"]')).not.toBeInTheDocument()
+  })
+
+  it('navigates an already-mounted keep-alive slot when given an explicit target query URL', async () => {
+    knobs.renderPage = (url) => <div data-testid="page-url">{url}</div>
+    const { rerender } = render(
+      <TabRouter tab={tab('main-tab', '/app/chat?topicId=t1')} isActive onUrlChange={() => {}} />
+    )
+    await waitFor(() => expect(screen.getByTestId('page-url')).toHaveTextContent('/app/chat?topicId=t1'))
+
+    rerender(<TabRouter tab={tab('main-tab', '/app/agents?sessionId=s1')} isActive onUrlChange={() => {}} />)
+    await screen.findByText('/app/agents?sessionId=s1')
+
+    rerender(<TabRouter tab={tab('main-tab', '/app/chat?topicId=t2')} isActive onUrlChange={() => {}} />)
+    await waitFor(() => expect(screen.getByText('/app/chat?topicId=t2')).toBeInTheDocument())
   })
 })

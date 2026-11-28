@@ -14,6 +14,12 @@ import { useOptionalTabsContext } from './useTabsContext'
  */
 export const TabIdContext = createContext<string | null>(null)
 
+/**
+ * Provides whether the enclosing keep-alive route slot inside a tab is active.
+ * Defaults to `true` outside `TabRouter` route-slot keep-alive boundaries.
+ */
+export const TabRouteActiveContext = createContext<boolean>(true)
+
 /** The owning tab's id, or null when rendered outside a tab (e.g. tests). */
 export function useCurrentTabId(): string | null {
   return use(TabIdContext)
@@ -31,5 +37,6 @@ export function useCurrentTab(): Tab | undefined {
 export function useIsActiveTab(): boolean {
   const currentTabId = useCurrentTabId()
   const activeTabId = useOptionalTabsContext()?.activeTabId
-  return !!currentTabId && currentTabId === activeTabId
+  const isRouteActive = use(TabRouteActiveContext)
+  return !!currentTabId && currentTabId === activeTabId && isRouteActive
 }

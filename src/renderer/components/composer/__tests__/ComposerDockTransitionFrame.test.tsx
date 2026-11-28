@@ -206,4 +206,28 @@ describe('ComposerDockTransitionFrame', () => {
       expect(dockLayer).toHaveStyle({ paddingInlineStart: '8px', paddingInlineEnd: '24px' })
     })
   })
+
+  it('measures inset target getBoundingClientRect once instead of twice on initial docked mount', () => {
+    let insetRectCalls = 0
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(
+      function getBoundingClientRect(this: HTMLElement) {
+        if (this.hasAttribute('data-composer-viewport-inset-target')) {
+          insetRectCalls += 1
+          return rect(620, 820)
+        }
+        return rect(0, 900)
+      }
+    )
+
+    render(
+      <ComposerDockTransitionFrame
+        placement="docked"
+        main={<InsetProbe />}
+        composer={<div data-composer-viewport-inset-target="" />}
+        mainVisible
+      />
+    )
+
+    expect(insetRectCalls).toBe(1)
+  })
 })

@@ -105,6 +105,8 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
   })
   const latestClientYRef = useRef<number | null>(null)
   const animationFrameRef = useRef<number | null>(null)
+  const lastAnchorSyncKeyRef = useRef<string | null>(null)
+  const hasMeasuredRailHeightRef = useRef(false)
 
   /** Rail height in px; drives every tick position so they never depend on DOM
    * reads. Null until the first layout measurement, so a rail genuinely
@@ -304,30 +306,45 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
   // has already shrunk, that stale event would otherwise read as a user scroll
   // away from the bottom and clear the pin.
   useLayoutEffect(() => {
-    const el = railScrollRef.current
-    const anchor = scrollAnchorRef.current
-    if (el) {
-      const maxScroll = Math.max(0, el.scrollHeight - el.clientHeight)
-      const currentScrollTop = el.scrollTop
-      let target = currentScrollTop
-      const added = turnCount - anchor.count
-      if (!anchor.entered) {
-        anchor.entered = true
-        anchor.pinned = true
-      } else if (added > 0 && firstTurnId !== anchor.firstId) {
-        target += added * RAIL_TICK_PITCH_PX
-      } else if (added > 0 && maxScroll - currentScrollTop <= added * RAIL_TICK_PITCH_PX + 1) {
-        anchor.pinned = true
+    const syncKey = `${firstTurnId ?? ''}:${turnCount}:${railHeight ?? ''}:${bottomInset}`
+    const syncAnchorScroll = () => {
+      const el = railScrollRef.current
+      const anchor = scrollAnchorRef.current
+      if (el) {
+        const maxScroll = Math.max(0, el.scrollHeight - el.clientHeight)
+        const currentScrollTop = el.scrollTop
+        let target = currentScrollTop
+        const added = turnCount - anchor.count
+        if (!anchor.entered) {
+          anchor.entered = true
+          anchor.pinned = true
+        } else if (added > 0 && firstTurnId !== anchor.firstId) {
+          target += added * RAIL_TICK_PITCH_PX
+        } else if (added > 0 && maxScroll - currentScrollTop <= added * RAIL_TICK_PITCH_PX + 1) {
+          anchor.pinned = true
+        }
+        if (anchor.pinned) target = maxScroll
+        if (target !== currentScrollTop) {
+          el.scrollTop = target
+          target = el.scrollTop
+        }
+        setScrollTop(target)
       }
-      if (anchor.pinned) target = maxScroll
-      if (target !== currentScrollTop) {
-        el.scrollTop = target
-        target = el.scrollTop
-      }
-      setScrollTop(target)
+      anchor.firstId = firstTurnId
+      anchor.count = turnCount
     }
-    anchor.firstId = firstTurnId
-    anchor.count = turnCount
+
+    if (lastAnchorSyncKeyRef.current === syncKey && scrollAnchorRef.current.entered) {
+      const viewport = Math.max(0, (railHeight ?? 0) - RAIL_MIN_EDGE_MARGIN_PX * 2)
+      const overflows = turnCount * RAIL_TICK_PITCH_PX > viewport
+      if (!overflows) return undefined
+      const restoreRafId = requestAnimationFrame(syncAnchorScroll)
+      return () => cancelAnimationFrame(restoreRafId)
+    }
+
+    lastAnchorSyncKeyRef.current = syncKey
+    syncAnchorScroll()
+    return undefined
   }, [firstTurnId, turnCount, railHeight, bottomInset])
 
   // Track the rail height so tick geometry stays exact across window/composer
@@ -336,11 +353,19 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
   // often not rendered yet (wrapper null) — the effect must re-run once it
   // mounts, and measure before paint or the ticks flash top-aligned.
   useLayoutEffect(() => {
-    if (!hasRail) return
+    if (!hasRail) {
+      hasMeasuredRailHeightRef.current = false
+      return
+    }
     const wrapper = wrapperRef.current
     if (!wrapper || typeof ResizeObserver === 'undefined') return
-    const update = () => setRailHeight(wrapper.getBoundingClientRect().height)
-    update()
+    const update = () => {
+      hasMeasuredRailHeightRef.current = true
+      setRailHeight(wrapper.getBoundingClientRect().height)
+    }
+    if (!hasMeasuredRailHeightRef.current) {
+      update()
+    }
     const observer = new ResizeObserver(update)
     observer.observe(wrapper)
     return () => observer.disconnect()

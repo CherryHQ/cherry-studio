@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import React, { useRef } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -33,6 +33,10 @@ mocks.useVirtualizer.mockImplementation((options) => {
 
 vi.mock('@tanstack/react-virtual', () => ({
   useVirtualizer: mocks.useVirtualizer,
+  elementScroll: vi.fn((offset, { adjustments = 0, behavior } = {}, instance) => {
+    const el = instance?.scrollElement
+    el?.scrollTo?.({ [instance?.options?.horizontal ? 'left' : 'top']: offset + adjustments, behavior })
+  }),
   defaultRangeExtractor: vi.fn((range) =>
     Array.from({ length: range.endIndex - range.startIndex + 1 }, (_, i) => range.startIndex + i)
   )
@@ -132,6 +136,69 @@ describe('DynamicVirtualList', () => {
 
       expect(mocks.virtualizer.measure).toHaveBeenCalledOnce()
       expect(screen.getByTestId('item-0')).toBeInTheDocument()
+    })
+
+    it('observes preceding siblings and ancestors for scroll margin without observing content itself', () => {
+      const observedTargets: Element[] = []
+      vi.stubGlobal(
+        'ResizeObserver',
+        class {
+          observe(target: Element) {
+            observedTargets.push(target)
+          }
+          unobserve() {}
+          disconnect() {}
+        }
+      )
+
+      render(<DynamicVirtualList {...defaultProps} contentProps={{ className: 'p-1' }} />)
+
+      const contentContainer = document.querySelector('[data-index="0"]')?.parentElement as HTMLElement
+      expect(contentContainer).toBeTruthy()
+      expect(observedTargets).not.toContain(contentContainer)
+      expect(observedTargets).toContain(screen.getByRole('region'))
+    })
+
+    it('preserves measured contentScrollMargin when rects collapse to zero under hidden Activity', () => {
+      let observerCallback: (() => void) | undefined
+      vi.stubGlobal(
+        'ResizeObserver',
+        class {
+          constructor(callback: ResizeObserverCallback) {
+            observerCallback = () => callback([], this)
+          }
+          observe() {}
+          unobserve() {}
+          disconnect() {}
+        }
+      )
+      vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
+        cb(0)
+        return 1
+      })
+
+      let rectValue = { top: 48, left: 0, width: 300, height: 100 }
+      vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+        if (this.getAttribute('role') === 'region') {
+          return {
+            top: 0,
+            left: 0,
+            width: rectValue.width,
+            height: rectValue.height === 0 ? 0 : 400
+          } as DOMRect
+        }
+        return rectValue as DOMRect
+      })
+
+      render(<DynamicVirtualList {...defaultProps} contentProps={{ className: 'pt-12' }} />)
+      expect(mocks.virtualizer.getVirtualItems).toHaveBeenCalled()
+      expect(mocks.useVirtualizer.mock.calls.at(-1)?.[0]?.scrollMargin).toBe(48)
+
+      rectValue = { top: 0, left: 0, width: 0, height: 0 }
+      act(() => {
+        observerCallback?.()
+      })
+      expect(mocks.useVirtualizer.mock.calls.at(-1)?.[0]?.scrollMargin).toBe(48)
     })
   })
 
@@ -319,6 +386,153 @@ describe('DynamicVirtualList', () => {
       expect(ref.getTotalSize()).toBe(150)
       expect(ref.getVirtualItems()).toEqual(mocks.virtualizer.getVirtualItems())
       expect(ref.getVirtualIndexes()).toEqual([0, 1, 2])
+    })
+
+    it('reuses cached scroll element rect across Activity reconnects and ignores 0x0 hidden collapses', () => {
+      const resizeCallbacks: ResizeObserverCallback[] = []
+      const originalResizeObserver = globalThis.ResizeObserver
+      globalThis.ResizeObserver = class {
+        constructor(cb: ResizeObserverCallback) {
+          resizeCallbacks.push(cb)
+        }
+        observe() {}
+        disconnect() {}
+        unobserve() {}
+      }
+
+      try {
+        render(
+          <DynamicVirtualList list={[{ id: 1 }, { id: 2 }, { id: 3 }]} estimateSize={() => 40}>
+            {(item) => <div>{item.id}</div>}
+          </DynamicVirtualList>
+        )
+
+        const options = mocks.useVirtualizer.mock.calls.at(-1)?.[0]
+        const observeElementRect = options?.observeElementRect as
+          | ((
+              instance: { scrollElement: HTMLElement | null },
+              cb: (rect: { width: number; height: number }) => void
+            ) => (() => void) | undefined)
+          | undefined
+        expect(observeElementRect).toBeTypeOf('function')
+
+        const el = document.createElement('div')
+        const getRectSpy = vi.spyOn(el, 'getBoundingClientRect').mockReturnValue({
+          width: 320,
+          height: 640,
+          top: 0,
+          left: 0,
+          bottom: 640,
+          right: 320,
+          x: 0,
+          y: 0,
+          toJSON: () => ({})
+        })
+        const offsetWidthSpy = vi.spyOn(el, 'offsetWidth', 'get')
+        const offsetHeightSpy = vi.spyOn(el, 'offsetHeight', 'get')
+
+        const cb1 = vi.fn()
+        const stop1 = observeElementRect!({ scrollElement: el }, cb1)
+        expect(cb1).toHaveBeenCalledWith({ width: 320, height: 640 })
+        expect(getRectSpy).toHaveBeenCalledTimes(1)
+
+        // Simulate Activity hidden 0x0 collapse while keeping last valid cached rect
+        resizeCallbacks.at(-1)?.(
+          [
+            {
+              contentRect: { width: 0, height: 0 },
+              borderBoxSize: [{ inlineSize: 0, blockSize: 0 }]
+            } as unknown as ResizeObserverEntry
+          ],
+          {} as ResizeObserver
+        )
+        expect(cb1).toHaveBeenCalledTimes(1)
+        stop1?.()
+
+        const cb2 = vi.fn()
+        const stop2 = observeElementRect!({ scrollElement: el }, cb2)
+        expect(cb2).toHaveBeenCalledWith({ width: 320, height: 640 })
+        expect(getRectSpy).toHaveBeenCalledTimes(1)
+        expect(offsetWidthSpy).not.toHaveBeenCalled()
+        expect(offsetHeightSpy).not.toHaveBeenCalled()
+        stop2?.()
+      } finally {
+        globalThis.ResizeObserver = originalResizeObserver
+      }
+    })
+
+    it('reuses cached scroll offset on reconnect and skips/defers reconnect scrollTo', () => {
+      render(
+        <DynamicVirtualList list={[{ id: 1 }, { id: 2 }, { id: 3 }]} estimateSize={() => 40}>
+          {(item) => <div>{item.id}</div>}
+        </DynamicVirtualList>
+      )
+
+      const options = mocks.useVirtualizer.mock.calls.at(-1)?.[0]
+      const observeElementOffset = options?.observeElementOffset as
+        | ((
+            instance: {
+              scrollElement: HTMLElement | null
+              options: { horizontal?: boolean; isScrollingResetDelay?: number }
+            },
+            cb: (offset: number, isScrolling: boolean) => void
+          ) => (() => void) | undefined)
+        | undefined
+      const scrollToFn = options?.scrollToFn as
+        | ((
+            offset: number,
+            opts: { adjustments?: number; behavior?: ScrollBehavior },
+            instance: { scrollElement: HTMLElement | null; options: { horizontal?: boolean } }
+          ) => void)
+        | undefined
+      expect(observeElementOffset).toBeTypeOf('function')
+      expect(scrollToFn).toBeTypeOf('function')
+
+      const el = document.createElement('div')
+      const currentScrollTop = 120
+      const scrollTopGetter = vi.fn(() => currentScrollTop)
+      Object.defineProperty(el, 'scrollTop', { get: scrollTopGetter, configurable: true })
+      const scrollToSpy = vi.fn()
+      el.scrollTo = scrollToSpy
+
+      const cb1 = vi.fn()
+      const stop1 = observeElementOffset!({ scrollElement: el, options: { horizontal: false } }, cb1)
+      expect(cb1).toHaveBeenCalledWith(120, false)
+      expect(scrollTopGetter).toHaveBeenCalledTimes(1)
+      stop1?.()
+
+      // Reconnect must reuse cached offset without reading scrollTop again
+      const cb2 = vi.fn()
+      const stop2 = observeElementOffset!({ scrollElement: el, options: { horizontal: false } }, cb2)
+      expect(cb2).toHaveBeenCalledWith(120, false)
+      expect(scrollTopGetter).toHaveBeenCalledTimes(1)
+      stop2?.()
+
+      // _willUpdate pass (adjustments/behavior undefined) with offset=0 skips scrollTo completely
+      const instance = { scrollElement: el, options: { horizontal: false } }
+      scrollToFn!(0, { adjustments: undefined, behavior: undefined }, instance)
+      expect(scrollToSpy).not.toHaveBeenCalled()
+
+      // _willUpdate pass with offset>0 defers scrollTo into rAF
+      const rafCallbacks: FrameRequestCallback[] = []
+      const rafSpy = vi.spyOn(globalThis, 'requestAnimationFrame').mockImplementation((cb) => {
+        rafCallbacks.push(cb)
+        return rafCallbacks.length
+      })
+      try {
+        scrollToFn!(200, { adjustments: undefined, behavior: undefined }, instance)
+        expect(scrollToSpy).not.toHaveBeenCalled()
+        expect(rafCallbacks).toHaveLength(1)
+        rafCallbacks[0](0)
+        expect(scrollToSpy).toHaveBeenCalledWith({ top: 200, behavior: undefined })
+      } finally {
+        rafSpy.mockRestore()
+      }
+
+      // Explicit scrollTo calls execute synchronously
+      scrollToSpy.mockClear()
+      scrollToFn!(240, { adjustments: 0, behavior: 'auto' }, instance)
+      expect(scrollToSpy).toHaveBeenCalledWith({ top: 240, behavior: 'auto' })
     })
   })
 })

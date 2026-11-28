@@ -1,9 +1,140 @@
-import type { Range, ScrollToOptions, VirtualItem, VirtualizerOptions } from '@tanstack/react-virtual'
-import { defaultRangeExtractor, useVirtualizer } from '@tanstack/react-virtual'
+import type {
+  Range,
+  Rect,
+  ScrollToOptions,
+  VirtualItem,
+  Virtualizer,
+  VirtualizerOptions
+} from '@tanstack/react-virtual'
+import { defaultRangeExtractor, elementScroll, useVirtualizer } from '@tanstack/react-virtual'
 import React, { memo, useCallback, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
 import { ScrollArea } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
+
+const cachedElementRects = new WeakMap<Element, Rect>()
+const cachedElementOffsets = new WeakMap<Element, number>()
+
+function readScrollOffset(element: Element, horizontal?: boolean): number {
+  return horizontal ? element.scrollLeft : element.scrollTop
+}
+
+// Reuse last measured scroll offset across Activity reconnects instead of re-reading scrollTop synchronously.
+function observeDynamicVirtualListElementOffset<TScrollElement extends Element | Window, TItemElement extends Element>(
+  instance: Virtualizer<TScrollElement, TItemElement>,
+  cb: (offset: number, isScrolling: boolean) => void
+): (() => void) | undefined {
+  const element = instance.scrollElement
+  if (!(element instanceof Element)) return undefined
+
+  const horizontal = instance.options.horizontal
+  const cached = cachedElementOffsets.get(element)
+  if (cached !== undefined) {
+    cb(cached, false)
+  } else {
+    const initial = readScrollOffset(element, horizontal)
+    cachedElementOffsets.set(element, initial)
+    cb(initial, false)
+  }
+
+  let timeoutId: ReturnType<typeof setTimeout> | undefined
+  const onScroll = () => {
+    const next = readScrollOffset(element, instance.options.horizontal)
+    cachedElementOffsets.set(element, next)
+    cb(next, true)
+    if (timeoutId !== undefined) clearTimeout(timeoutId)
+    timeoutId = setTimeout(() => {
+      timeoutId = undefined
+      cb(next, false)
+    }, instance.options.isScrollingResetDelay ?? 150)
+  }
+
+  element.addEventListener('scroll', onScroll, { passive: true })
+  return () => {
+    if (timeoutId !== undefined) clearTimeout(timeoutId)
+    element.removeEventListener('scroll', onScroll)
+  }
+}
+
+// Virtualizer._willUpdate calls scrollToFn with { adjustments: undefined, behavior: undefined } on Activity reappear.
+function scrollDynamicVirtualListElement<TScrollElement extends Element | Window, TItemElement extends Element>(
+  offset: number,
+  options: { adjustments?: number; behavior?: ScrollBehavior },
+  instance: Virtualizer<TScrollElement, TItemElement>
+): void {
+  if (options.adjustments === undefined && options.behavior === undefined) {
+    if (offset === 0) return
+    requestAnimationFrame(() => elementScroll(offset, options, instance))
+    return
+  }
+  elementScroll(offset, options, instance)
+}
+
+function readNonZeroElementRect(element: Element): Rect | null {
+  const rect = element.getBoundingClientRect()
+  if (rect.width <= 0 && rect.height <= 0) return null
+  return { width: rect.width, height: rect.height }
+}
+
+// Skip synchronous offsetWidth/offsetHeight layout reads on Activity reappear when a valid size is already cached.
+function observeDynamicVirtualListElementRect<TScrollElement extends Element | Window, TItemElement extends Element>(
+  instance: Virtualizer<TScrollElement, TItemElement>,
+  cb: (rect: Rect) => void
+): (() => void) | undefined {
+  const element = instance.scrollElement
+  if (!(element instanceof Element)) return undefined
+
+  const cached = cachedElementRects.get(element)
+  if (cached) {
+    cb(cached)
+  } else {
+    const initial = readNonZeroElementRect(element)
+    if (initial) {
+      cachedElementRects.set(element, initial)
+      cb(initial)
+    }
+  }
+
+  let rafId = 0
+  let pendingRect: Rect | null = null
+
+  const flush = () => {
+    rafId = 0
+    if (!pendingRect) return
+    const next = pendingRect
+    pendingRect = null
+    cachedElementRects.set(element, next)
+    cb(next)
+  }
+
+  const ResizeObserverCtor = element.ownerDocument?.defaultView?.ResizeObserver ?? globalThis.ResizeObserver
+  if (!ResizeObserverCtor) return undefined
+
+  const observer = new ResizeObserverCtor((entries) => {
+    const entry = entries[entries.length - 1]
+    const boxSize = entry?.borderBoxSize?.[0] ?? entry?.contentBoxSize?.[0]
+    const width = boxSize ? boxSize.inlineSize : (entry?.contentRect.width ?? 0)
+    const height = boxSize ? boxSize.blockSize : (entry?.contentRect.height ?? 0)
+    if (width <= 0 && height <= 0) return
+
+    const prev = cachedElementRects.get(element)
+    if (prev && prev.width === width && prev.height === height) return
+
+    pendingRect = { width, height }
+    if (rafId === 0) {
+      rafId = requestAnimationFrame(flush)
+    }
+  })
+
+  observer.observe(element)
+  return () => {
+    if (rafId !== 0) {
+      cancelAnimationFrame(rafId)
+      rafId = 0
+    }
+    observer.disconnect()
+  }
+}
 
 type InheritedVirtualizerOptions = Partial<
   Omit<
@@ -186,6 +317,7 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
   )
 
   const contentRef = useRef<HTMLDivElement>(null)
+  const hasMeasuredScrollMarginRef = useRef(false)
   const [contentScrollMargin, setContentScrollMargin] = useState(0)
   const usesExternalScroll = externalScrollElement !== undefined
   const measuresContentOffset = usesExternalScroll || contentProps !== undefined
@@ -196,6 +328,7 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
     const content = contentRef.current
     const scrollElement = usesExternalScroll ? externalScrollElement : internalScrollerRef.current
     if (!measuresContentOffset) {
+      hasMeasuredScrollMarginRef.current = false
       setContentScrollMargin(0)
       return undefined
     }
@@ -204,23 +337,54 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
     const measureScrollMargin = () => {
       const contentRect = content.getBoundingClientRect()
       const scrollRect = scrollElement.getBoundingClientRect()
-      setContentScrollMargin(
-        horizontal
-          ? contentRect.left - scrollRect.left + scrollElement.scrollLeft - scrollElement.clientLeft
-          : contentRect.top - scrollRect.top + scrollElement.scrollTop - scrollElement.clientTop
-      )
+      // Preserve measured offset while hidden under React <Activity mode="hidden">.
+      if (
+        hasMeasuredScrollMarginRef.current &&
+        contentRect.width === 0 &&
+        contentRect.height === 0 &&
+        scrollRect.width === 0 &&
+        scrollRect.height === 0
+      ) {
+        return
+      }
+      const nextMargin = horizontal
+        ? contentRect.left - scrollRect.left + scrollElement.scrollLeft - scrollElement.clientLeft
+        : contentRect.top - scrollRect.top + scrollElement.scrollTop - scrollElement.clientTop
+      hasMeasuredScrollMarginRef.current = true
+      setContentScrollMargin((prev) => (prev === nextMargin ? prev : nextMargin))
     }
-    measureScrollMargin()
-    const observer = new ResizeObserver(measureScrollMargin)
-    // Preceding siblings can move the list without resizing a min-height ancestor.
-    for (let element: HTMLElement | null = content; element; element = element.parentElement) {
+
+    let frameId: number | null = null
+    const scheduleMeasureScrollMargin = () => {
+      if (frameId !== null) return
+      frameId = window.requestAnimationFrame(() => {
+        frameId = null
+        measureScrollMargin()
+      })
+    }
+
+    if (!hasMeasuredScrollMarginRef.current) {
+      measureScrollMargin()
+    }
+    const observer = new ResizeObserver(scheduleMeasureScrollMargin)
+    // Preceding siblings can move the list without resizing a min-height ancestor;
+    // content's own size changes do not move its offset inside scrollElement.
+    for (let sibling = content.previousElementSibling; sibling; sibling = sibling.previousElementSibling) {
+      observer.observe(sibling)
+    }
+    for (let element: HTMLElement | null = content.parentElement; element; element = element.parentElement) {
       observer.observe(element)
       if (element === scrollElement) break
-      for (let sibling = element.previousElementSibling; sibling; sibling = sibling.previousElementSibling) {
+      for (let sibling = element.previousElementSibling; sibling; sibling = element.previousElementSibling) {
         observer.observe(sibling)
       }
     }
-    return () => observer.disconnect()
+    return () => {
+      if (frameId !== null) {
+        window.cancelAnimationFrame(frameId)
+      }
+      observer.disconnect()
+    }
   }, [
     externalScrollElement,
     usesExternalScroll,
@@ -309,7 +473,10 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
     getScrollElement: () => (usesExternalScroll ? externalScrollElement : internalScrollerRef.current),
     scrollMargin,
     estimateSize,
-    rangeExtractor: resolvedRangeExtractor
+    rangeExtractor: resolvedRangeExtractor,
+    observeElementRect: restOptions.observeElementRect ?? observeDynamicVirtualListElementRect,
+    observeElementOffset: restOptions.observeElementOffset ?? observeDynamicVirtualListElementOffset,
+    scrollToFn: restOptions.scrollToFn ?? scrollDynamicVirtualListElement
   })
   const previousListLengthRef = useRef(list.length)
 
