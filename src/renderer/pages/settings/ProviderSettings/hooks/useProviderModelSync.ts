@@ -57,7 +57,10 @@ export function useProviderModelSync(providerId: string, options: UseProviderMod
       logger.info('Fetching remote provider models for sync', {
         providerId
       })
-      const { models: resolvedModels } = await fetchResolvedProviderModels(providerId)
+      const { models: resolvedModels, discoveredReasoning = [] } = await fetchResolvedProviderModels(providerId)
+      const nativeReasoningById = new Map(
+        discoveredReasoning.flatMap((model) => (model.reasoning ? [[model.id, model.reasoning] as const] : []))
+      )
       if (resolvedModels.length === 0) {
         logger.info('No remote provider models were resolved for sync', {
           providerId
@@ -73,7 +76,14 @@ export function useProviderModelSync(providerId: string, options: UseProviderMod
       const existingModelIds = new Set<UniqueModelId>(latestModels.map((model) => model.id))
       const payload = resolvedModels
         .filter((model) => !existingModelIds.has(model.id))
-        .map((model) => toCreateModelDto(providerId, model, resolveCreateModelEndpointTypes(endpointProvider, model)))
+        .map((model) =>
+          toCreateModelDto(
+            providerId,
+            model,
+            resolveCreateModelEndpointTypes(endpointProvider, model),
+            nativeReasoningById.get(model.id)
+          )
+        )
 
       if (payload.length === 0) {
         logger.info('Skipping provider model creation because resolved models are already present', {

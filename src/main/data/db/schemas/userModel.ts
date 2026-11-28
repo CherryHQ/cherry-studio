@@ -84,8 +84,12 @@ export const userModelTable = sqliteTable(
     /** Streaming support (null inherits the preset) */
     supportsStreaming: integer({ mode: 'boolean' }),
 
-    /** Reasoning configuration */
+    /** Reasoning configuration (user-owned: default effort only) */
     reasoning: text({ mode: 'json' }).$type<ReasoningConfig>(),
+
+    /** Provider-reported intrinsic reasoning controls (e.g. Ollama `/api/show`); server-managed
+     *  discovery metadata, refreshed by model-list reconcile. Never a user setting. */
+    reportedReasoning: text({ mode: 'json' }).$type<ReasoningConfig>(),
 
     /** Parameter support */
     parameters: text({ mode: 'json' }).$type<ParameterSupport>(),
