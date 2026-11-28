@@ -712,6 +712,7 @@ const originalFetch = globalThis.fetch
 
 describe('ChatComposer', () => {
   beforeEach(() => {
+    sessionStorage.clear()
     mocks.quotaExhaustion = null
     mocks.exhaustedTargets.clear()
     mocks.availabilityRevision = 1
@@ -3001,6 +3002,61 @@ describe('ChatComposer', () => {
 
     view.rerender(<ChatComposer topic={topic} onSend={vi.fn()} />)
     expect(mocks.surfaceProps?.text).toBe('topic one draft')
+  })
+
+  it.each([true, false])(
+    'retains only unaccepted text after switching topics during a send (accepted: %s)',
+    async (accepted) => {
+      const pendingSend = createDeferred<boolean>()
+      const onSend = vi.fn(() => pendingSend.promise)
+      mocks.getDraft.mockImplementation((props?: ComposerSurfaceProps) => ({ text: props?.text ?? '', tokens: [] }))
+      const view = render(<ChatComposer topic={topic} onSend={onSend} />)
+      act(() => mocks.surfaceProps?.onTextChange('Submitted draft'))
+      let sending: Promise<unknown> | undefined
+      act(() => {
+        sending = Promise.resolve(mocks.surfaceProps?.onSendDraft({ text: 'Submitted draft', tokens: [] }))
+      })
+      await waitFor(() => expect(onSend).toHaveBeenCalledOnce())
+      view.rerender(<ChatComposer topic={{ ...topic, id: 'topic-2' }} onSend={onSend} />)
+      act(() => mocks.surfaceProps?.onTextChange('Other topic draft'))
+
+      await act(async () => {
+        pendingSend.resolve(accepted)
+        await sending
+      })
+      view.unmount()
+      MockCacheUtils.resetMocks()
+      const reloaded = render(<ChatComposer topic={topic} onSend={onSend} />)
+      expect(mocks.surfaceProps?.text).toBe(accepted ? '' : 'Submitted draft')
+      reloaded.rerender(<ChatComposer topic={{ ...topic, id: 'topic-2' }} onSend={onSend} />)
+      expect(mocks.surfaceProps?.text).toBe('Other topic draft')
+    }
+  )
+
+  it('preserves newer text when an old topic send finishes after remounting', async () => {
+    const pendingSend = createDeferred<boolean>()
+    const onSend = vi.fn(() => pendingSend.promise)
+    mocks.getDraft.mockImplementation((props?: ComposerSurfaceProps) => ({ text: props?.text ?? '', tokens: [] }))
+    const view = render(<ChatComposer topic={topic} onSend={onSend} />)
+    act(() => mocks.surfaceProps?.onTextChange('Submitted draft'))
+    let sending: Promise<unknown> | undefined
+    act(() => {
+      sending = Promise.resolve(mocks.surfaceProps?.onSendDraft({ text: 'Submitted draft', tokens: [] }))
+    })
+    await waitFor(() => expect(onSend).toHaveBeenCalledOnce())
+    view.rerender(<ChatComposer topic={{ ...topic, id: 'topic-2' }} onSend={onSend} />)
+    view.rerender(<ChatComposer topic={topic} onSend={onSend} />)
+    act(() => mocks.surfaceProps?.onTextChange('New draft'))
+
+    await act(async () => {
+      pendingSend.resolve(true)
+      await sending
+    })
+    expect(mocks.surfaceProps?.text).toBe('New draft')
+    view.unmount()
+    MockCacheUtils.resetMocks()
+    render(<ChatComposer topic={topic} onSend={onSend} />)
+    expect(mocks.surfaceProps?.text).toBe('New draft')
   })
 
   it('restores knowledge tokens and selection from the topic draft cache', async () => {

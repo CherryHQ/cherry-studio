@@ -1,21 +1,17 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { cacheService } from '@data/CacheService'
-
+import { serializeComposerDocument } from '../../composerDraft'
+import { getComposerPlainTextPasteOverride } from '../../composerPaste'
 import type { ComposerSerializedToken } from '../../tokens'
 import {
   type ChatComposerDraftCache,
+  clearSubmittedChatDraftCache,
+  getChatDraftCacheKey,
   hasChatDraftContent,
   readChatDraftCache,
   writeChatDraftCache
 } from '../chat/chatDraftCache'
-
-vi.mock('@data/CacheService', () => ({
-  cacheService: {
-    get: vi.fn(),
-    set: vi.fn()
-  }
-}))
 
 const fileToken: ComposerSerializedToken = {
   id: 'file:source-1',
@@ -47,12 +43,16 @@ const file = { fileTokenSourceId: 'source-1', name: 'doc.pdf', path: '/tmp/doc.p
 
 describe('chatDraftCache', () => {
   beforeEach(() => {
-    vi.mocked(cacheService.get).mockReset()
-    vi.mocked(cacheService.set).mockReset()
+    MockCacheUtils.resetMocks()
+    sessionStorage.clear()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
   })
 
   it('reads an empty draft from a missing topic cache entry', () => {
-    vi.mocked(cacheService.get).mockReturnValue(undefined)
     expect(readChatDraftCache('topic-a')).toEqual({
       text: '',
       tokens: [],
@@ -64,13 +64,20 @@ describe('chatDraftCache', () => {
   })
 
   it('degrades malformed fields independently', () => {
-    vi.mocked(cacheService.get).mockReturnValue({
-      text: 42,
-      tokens: 'invalid',
-      files: [file],
-      knowledgeBaseIds: ['base-1', 42],
-      mentionedModelIds: ['provider::model-a', 'invalid'],
-      modelMultiSelectMode: 'invalid'
+    MockCacheUtils.setInitialState({
+      memory: [
+        [
+          'chat.composer_draft.topic-a',
+          {
+            text: 42,
+            tokens: 'invalid',
+            files: [file],
+            knowledgeBaseIds: ['base-1', 42],
+            mentionedModelIds: ['provider::model-a', 'invalid'],
+            modelMultiSelectMode: 'invalid'
+          }
+        ]
+      ]
     })
 
     expect(readChatDraftCache('topic-a')).toEqual({
@@ -95,10 +102,166 @@ describe('chatDraftCache', () => {
 
     writeChatDraftCache('topic-a', draft)
 
-    expect(cacheService.set).toHaveBeenCalledWith('chat.composer_draft.topic-a', draft, expect.any(Number))
-    const written = vi.mocked(cacheService.set).mock.calls[0][1]
-    vi.mocked(cacheService.get).mockReturnValue(written)
     expect(readChatDraftCache('topic-a')).toEqual(draft)
+  })
+
+  it('restores typed text per topic after the renderer cache is recreated', () => {
+    const empty = readChatDraftCache('topic-a')
+    writeChatDraftCache('topic-a', { ...empty, text: 'First topic\nDraft' })
+    writeChatDraftCache('topic-b', { ...empty, text: 'Second topic' })
+
+    MockCacheUtils.resetMocks()
+
+    expect(readChatDraftCache('topic-a').text).toBe('First topic\nDraft')
+    expect(readChatDraftCache('topic-b').text).toBe('Second topic')
+    expect(readChatDraftCache('topic-c').text).toBe('')
+  })
+
+  it('does not resurrect a cleared draft when the renderer cache is recreated', () => {
+    const empty = readChatDraftCache('topic-a')
+    writeChatDraftCache('topic-a', { ...empty, text: 'Previous draft' })
+    writeChatDraftCache('topic-a', empty)
+
+    MockCacheUtils.resetMocks()
+
+    expect(readChatDraftCache('topic-a')).toEqual(empty)
+    expect(sessionStorage.getItem(getChatDraftCacheKey('topic-a'))).toBeNull()
+  })
+
+  it('does not restore text after the existing 24-hour deadline', () => {
+    vi.useFakeTimers()
+    const empty = readChatDraftCache('topic-a')
+    writeChatDraftCache('topic-a', { ...empty, text: 'Expired draft' })
+
+    MockCacheUtils.resetMocks()
+    vi.setSystemTime(Date.now() + 24 * 60 * 60 * 1000 + 1)
+
+    expect(readChatDraftCache('topic-a')).toEqual(empty)
+  })
+
+  it('recovers typed text without turning a token’s prompt into user input', () => {
+    const empty = readChatDraftCache('topic-a')
+    writeChatDraftCache('topic-a', {
+      ...empty,
+      text: 'quoted text My reply',
+      tokens: [{ ...quoteToken, textOffset: 0 }]
+    })
+
+    MockCacheUtils.resetMocks()
+
+    expect(readChatDraftCache('topic-a')).toEqual({ ...empty, text: 'My reply' })
+  })
+
+  it('recovers a standalone pasted URL as text without its token metadata', () => {
+    const empty = readChatDraftCache('topic-a')
+    const url = 'https://example.com/article'
+    const content = getComposerPlainTextPasteOverride(url, {})!
+    const draft = serializeComposerDocument({ type: 'doc', content: [{ type: 'paragraph', content }] })
+    writeChatDraftCache('topic-a', { ...empty, ...draft })
+
+    MockCacheUtils.resetMocks()
+
+    expect(readChatDraftCache('topic-a')).toEqual({ ...empty, text: url })
+    expect(JSON.parse(sessionStorage.getItem(getChatDraftCacheKey('topic-a'))!)).toEqual({
+      text: url,
+      expiresAt: expect.any(Number)
+    })
+  })
+
+  it('recovers filled variable text while omitting quote and tool prompts', () => {
+    const empty = readChatDraftCache('topic-a')
+    const draft = serializeComposerDocument({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            { type: 'composerToken', attrs: quoteToken },
+            { type: 'text', text: ' Route from ' },
+            {
+              type: 'composerToken',
+              attrs: {
+                id: 'prompt-variable:from',
+                kind: 'promptVariable',
+                label: 'from',
+                promptText: 'Shanghai',
+                payload: { variableName: 'from', raw: '${from}' }
+              }
+            },
+            { type: 'text', text: ' to Beijing ' },
+            { type: 'composerToken', attrs: knowledgeToken }
+          ]
+        }
+      ]
+    })
+    writeChatDraftCache('topic-a', { ...empty, ...draft })
+
+    MockCacheUtils.resetMocks()
+
+    expect(readChatDraftCache('topic-a')).toEqual({ ...empty, text: 'Route from Shanghai to Beijing ' })
+  })
+
+  it('reclaims expired draft entries before saving within the storage quota', () => {
+    const empty = readChatDraftCache('topic-a')
+    const expiredKey = getChatDraftCacheKey('expired-topic')
+    const otherKey = 'another-feature'
+    const validKey = getChatDraftCacheKey('valid-topic')
+    sessionStorage.setItem(expiredKey, JSON.stringify({ text: 'expired'.repeat(100), expiresAt: Date.now() - 1 }))
+    sessionStorage.setItem(otherKey, JSON.stringify({ text: 'other', expiresAt: Date.now() - 1 }))
+    sessionStorage.setItem(validKey, JSON.stringify({ text: 'Keep this draft', expiresAt: Date.now() + 60000 }))
+    const setItem = Storage.prototype.setItem
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(function (this: Storage, key, value) {
+      if (this.getItem(expiredKey)) throw new DOMException('Storage is full', 'QuotaExceededError')
+      setItem.call(this, key, value)
+    })
+
+    writeChatDraftCache('topic-a', { ...empty, text: 'Current draft' })
+    MockCacheUtils.resetMocks()
+
+    expect(readChatDraftCache('topic-a').text).toBe('Current draft')
+    expect(sessionStorage.getItem(expiredKey)).toBeNull()
+    expect(sessionStorage.getItem(otherKey)).not.toBeNull()
+    expect(readChatDraftCache('valid-topic').text).toBe('Keep this draft')
+  })
+
+  it('preserves a newer token selection even when its submitted text is unchanged', () => {
+    const empty = readChatDraftCache('topic-a')
+    const submitted = { text: 'My reply', tokens: [fileToken] }
+    const updated = {
+      ...empty,
+      ...submitted,
+      tokens: [fileToken, knowledgeToken],
+      files: [file],
+      knowledgeBaseIds: ['base-1']
+    }
+    writeChatDraftCache('topic-a', updated)
+
+    clearSubmittedChatDraftCache('topic-a', submitted)
+
+    expect(readChatDraftCache('topic-a')).toEqual(updated)
+    MockCacheUtils.resetMocks()
+    expect(readChatDraftCache('topic-a').text).toBe('My reply')
+  })
+
+  it('keeps the live draft and discards the older recovery copy if storage is full', () => {
+    const empty = readChatDraftCache('topic-a')
+    writeChatDraftCache('topic-a', { ...empty, text: 'Previous draft' })
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementationOnce(() => {
+      throw new DOMException('Storage is full', 'QuotaExceededError')
+    })
+
+    writeChatDraftCache('topic-a', { ...empty, text: 'Current draft' })
+
+    expect(readChatDraftCache('topic-a').text).toBe('Current draft')
+    MockCacheUtils.resetMocks()
+    expect(readChatDraftCache('topic-a')).toEqual(empty)
+  })
+
+  it('ignores a malformed recovery copy', () => {
+    const empty = readChatDraftCache('topic-a')
+    sessionStorage.setItem(getChatDraftCacheKey('topic-a'), '{')
+
+    expect(readChatDraftCache('topic-a')).toEqual(empty)
   })
 
   it('detects editor tools and explicit model selection as draft content', () => {
