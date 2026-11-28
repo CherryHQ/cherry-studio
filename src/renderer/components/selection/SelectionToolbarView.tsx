@@ -73,6 +73,9 @@ const ActionIcons: FC<{
         <button
           type="button"
           key={action.id}
+          // Selection is a pointer gesture: neither Tab nor a click may focus these buttons.
+          tabIndex={-1}
+          onMouseDown={(event) => event.preventDefault()}
           onClick={unavailableReason ? undefined : () => handleAction(action)}
           title={isCompact ? displayName : undefined}
           aria-label={displayName}
