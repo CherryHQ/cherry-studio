@@ -1564,7 +1564,7 @@ describe('release workflow gates', () => {
 
   it.each([
     ['windows', 'windows-2022', 'win', '-setup.exe'],
-    ['mac', 'mac-studio', 'mac', '.dmg'],
+    ['mac', 'macos-latest', 'mac', '.dmg'],
     ['linux', 'ubuntu-latest', 'linux', '.AppImage']
   ])('uploads only separate nightly installers for %s', (platform, runner, filePlatform, suffix) => {
     const workflow = parse(fs.readFileSync(path.join(workflowRoot, 'nightly-build.yml'), 'utf8'))

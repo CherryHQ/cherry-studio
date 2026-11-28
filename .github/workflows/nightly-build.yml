@@ -42,11 +42,11 @@ jobs:
   nightly-build:
     needs: check-repository
     if: needs.check-repository.outputs.should_run == 'true'
-    runs-on: ${{ matrix.os == 'mac-studio' && fromJSON('["self-hosted", "mac-studio"]') || matrix.os }}
+    runs-on: ${{ matrix.os }}
 
     strategy:
       matrix:
-        os: [mac-studio, windows-2022, ubuntu-latest]
+        os: [macos-latest, windows-2022, ubuntu-latest]
       fail-fast: false
 
     steps:
@@ -60,8 +60,8 @@ jobs:
         with:
           node-version-file: ".node-version"
 
-      - name: Install macOS Python dependencies
-        if: matrix.os == 'mac-studio'
+      - name: macos-latest dependencies fix
+        if: matrix.os == 'macos-latest'
         run: |
           brew install python-setuptools
 
@@ -114,7 +114,7 @@ jobs:
           RENDERER_VITE_PPIO_APP_SECRET: ${{ secrets.RENDERER_VITE_PPIO_APP_SECRET }}
 
       - name: Build Mac
-        if: matrix.os == 'mac-studio'
+        if: matrix.os == 'macos-latest'
         run: |
           pnpm build:mac
         env:
@@ -167,7 +167,7 @@ jobs:
           fi
 
           # macOS artifacts
-          if [ "${{ matrix.os }}" == "mac-studio" ]; then
+          if [ "${{ matrix.os }}" == "macos-latest" ]; then
             find dist -name "*-mac-arm64.dmg" -exec cp {} renamed-artifacts/cherry-studio-nightly-${DATE}-mac-arm64.dmg \;
             find dist -name "*-mac-x64.dmg" -exec cp {} renamed-artifacts/cherry-studio-nightly-${DATE}-mac-x64.dmg \;
           fi
