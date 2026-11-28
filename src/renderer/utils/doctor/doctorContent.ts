@@ -44,6 +44,7 @@ export const DOCTOR_STATUS_LABEL_KEYS = {
 } as const satisfies Record<DoctorCheckStatus | 'pending', string>
 
 export const DOCTOR_NAVIGATION_LABEL_KEYS = {
+  '/app/code': 'code.title',
   '/settings/about': 'settings.doctor.actions.open_about',
   '/settings/data': 'settings.doctor.actions.open_data',
   '/settings/dependencies': 'settings.doctor.actions.open_dependencies',
