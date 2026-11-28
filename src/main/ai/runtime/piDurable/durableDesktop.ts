@@ -167,7 +167,7 @@ export async function prepareDurableDesktop(
         getPermissionMode: () => permissionMode,
         builtinRole: agent.configuration?.builtin_role,
         isDisabled,
-        additionalReadOnlyRoots: [...snapshot.additionalSkillPaths, application.getPath('feature.agents.outputs')],
+        additionalReadOnlyRoots: [...prompt.skillPaths, application.getPath('feature.agents.outputs')],
         autoApprovedTools: policies('auto'),
         approvalRequiredTools: policies('required'),
         nonBypassableApprovalTools: policies('required', true),

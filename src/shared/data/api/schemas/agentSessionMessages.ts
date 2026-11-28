@@ -7,6 +7,7 @@ import * as z from 'zod'
 import { AgentSessionDeliverySchema } from '@shared/ai/agentSessionDelivery'
 import { agentSessionEditFailureReasons } from '@shared/ai/agentSessionEdit'
 import { AGENT_SESSION_FORK_FAILURE_REASONS } from '@shared/ai/agentSessionFork'
+import { MessageProvenanceSchema } from '@shared/data/types/conversationImport'
 import {
   type CherryUIMessage,
   ContentMessageRoleSchema,
@@ -73,6 +74,7 @@ export const AgentSessionMessageEntitySchema = AgentSessionMessageBaseSchema.ext
   replyId: z.string().nullable().optional(),
   siblings: z.array(z.string()).optional(),
   historyActions: AgentSessionHistoryActionsSchema.optional(),
+  provenance: MessageProvenanceSchema.nullable().optional(),
   searchableText: z.string(),
   runtimeResumeToken: z.string().nullable(),
   createdAt: z.iso.datetime(),
