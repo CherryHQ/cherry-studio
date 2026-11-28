@@ -48,6 +48,7 @@ import {
 } from '@shared/data/api/schemas/agents'
 import {
   AgentSessionEntitySchema,
+  type ModelSwitchHandoffDraft,
   type ReusableAgentSessionPlaceholdersResponse,
   ReuseOrCreateAgentSessionSchema
 } from '@shared/data/api/schemas/agentSessions'
@@ -257,6 +258,10 @@ const predictionRequest = z.strictObject({
 })
 
 export const aiRequestSchemas = {
+  'ai.agent.session.handoff.generate': defineRoute({
+    input: z.strictObject({ sessionId: z.string().min(1), requestId: z.string().min(1) }),
+    output: z.custom<ModelSwitchHandoffDraft>()
+  }),
   'ai.agent.delegation.read': defineRoute({
     input: z.strictObject({ originSessionId: z.string().min(1), requestId: z.string().min(1) }),
     output: z.custom<AgentDelegationSnapshot>()

@@ -412,122 +412,205 @@ describe('Agent fork publication', () => {
   })
 
   // Editing must never append the replacement to the old native prompt or partially delete a turn.
-  it.each(['commit', 'after steer', 'first message', 'history changed', 'close failed', 'write failed'] as const)(
-    'edits a native prefix: %s',
-    async (outcome) => {
-      if (outcome === 'first message') agentSessionMessageService.deleteSessionMessage(sessionId, messageId)
-      const steer =
-        outcome === 'after steer'
-          ? agentSessionMessageService.saveMessage({
-              sessionId,
-              message: { role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'Steer' }] } }
-            })
-          : undefined
-      if (steer) agentSessionMessageService.linkReply(sessionId, [steer.id], messageId)
-      const tail = dbh.db.transaction((tx) =>
-        agentSessionMessageService.saveMessagesTx(tx, {
-          sessionId,
-          messages: [
-            { role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'Old question' }] } },
-            { role: 'assistant', status: 'success', data: { parts: [{ type: 'text', text: 'Old answer' }] } },
-            { role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'Later question' }] } },
-            { role: 'assistant', status: 'success', data: { parts: [{ type: 'text', text: 'Later answer' }] } }
-          ]
-        })
-      )
-      const target = {
-        messageId: tail[0].id,
-        version: agentSessionMessageService.readEditSnapshotTx(dbh.db, sessionId, tail[0].id).version
-      }
-      beforeForkResult = async (input) => {
-        if (outcome === 'first message') throw new Error('Empty history must not fork the old native session')
-        expect(input.targetCwd).toBe(directory)
-        expect(input.checkpoint).toMatchObject({ leafId: 'leaf' })
-        if (outcome === 'history changed')
-          tail.push(
-            ...dbh.db.transaction((tx) =>
-              agentSessionMessageService.saveMessagesTx(tx, {
-                sessionId,
-                messages: [{ role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'New input' }] } }]
-              })
-            )
-          )
-      }
-      const operation = new AgentSessionForkOperations().edit(
+  it.each([
+    'commit',
+    'handoff',
+    'after steer',
+    'handoff after steer',
+    'first message',
+    'history changed',
+    'close failed',
+    'write failed'
+  ] as const)('edits a native prefix: %s', async (outcome) => {
+    if (outcome === 'first message') agentSessionMessageService.deleteSessionMessage(sessionId, messageId)
+    let originalInputId: string | undefined
+    if (outcome === 'handoff after steer') {
+      const assistant = dbh.db
+        .select()
+        .from(agentSessionMessageTable)
+        .where(eq(agentSessionMessageTable.id, messageId))
+        .get()!
+      originalInputId = agentSessionMessageService.saveMessage({
         sessionId,
-        target,
-        async () => {
-          if (outcome === 'close failed') throw new Error('close failed')
-        },
-        (tx, nativeSessionId) => {
-          const saved = agentSessionMessageService.saveMessagesTx(tx, {
+        parentId: assistant.parentId!,
+        message: { role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'Original input' }] } }
+      }).id
+      dbh.db
+        .update(agentSessionMessageTable)
+        .set({ createdAt: assistant.createdAt - 1, pos: 0 })
+        .where(eq(agentSessionMessageTable.id, originalInputId))
+        .run()
+      dbh.db
+        .update(agentSessionMessageTable)
+        .set({ parentId: originalInputId })
+        .where(eq(agentSessionMessageTable.id, messageId))
+        .run()
+      dbh.db.update(agentSessionTable).set({ activeNodeId: messageId }).where(eq(agentSessionTable.id, sessionId)).run()
+    }
+    let handoffId: string | undefined
+    if (outcome === 'handoff')
+      handoffId = agentSessionMessageService.saveMessage({
+        sessionId,
+        message: {
+          role: 'system',
+          status: 'success',
+          data: {
+            parts: [{ type: 'text', text: 'Reviewed handoff' }],
+            modelSwitchHandoff: { previousModel: 'fixture::old', nextModel: 'fixture::new', sourceHead: messageId }
+          }
+        }
+      }).id
+    const steer =
+      outcome === 'after steer' || outcome === 'handoff after steer'
+        ? agentSessionMessageService.saveMessage({
             sessionId,
-            messages: [{ role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'New question' }] } }]
+            message: { role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'Steer' }] } }
           })
-          reservePiBranchTx(tx, sessionId, saved[0].id, nativeSessionId)
-          agentSessionMessageService.setEditRuntimeTx(tx, sessionId, saved[0].id, nativeSessionId)
-          if (outcome === 'write failed') throw new Error('write failed')
-          return saved[0].id
-        }
+        : undefined
+    if (steer)
+      agentSessionMessageService.linkReply(
+        sessionId,
+        [...(originalInputId ? [originalInputId] : []), steer.id],
+        messageId
       )
-      if (outcome === 'commit' || outcome === 'after steer' || outcome === 'first message') {
-        const newId = await operation
-        const rows = agentSessionMessageService.listSessionMessages(sessionId).items.toReversed()
-        expect(rows.map((row) => row.id)).toEqual(
-          outcome === 'first message' ? [newId] : [messageId, ...(steer ? [steer.id] : []), newId]
-        )
-        expect(rows.at(-1)?.data).toEqual({ parts: [{ type: 'text', text: 'New question' }] })
-        if (outcome === 'commit' || outcome === 'after steer') {
-          expect(agentSessionMessageService.getNativeSessionId(sessionId)).toBe('native-child')
-          expect(
-            agentSessionMessageService
-              .readEditSnapshotTx(dbh.db, sessionId, newId)
-              .prefix.filter((row) => row.role === 'assistant')
-              .map((row) => row.data)
-          ).toEqual([
-            expect.objectContaining({
-              runtimeAnchor: { checkpoint: expect.objectContaining({ runtimeSessionId: 'native-child' }) }
-            })
-          ])
-        } else expect(agentSessionMessageService.getNativeSessionId(sessionId)).toMatch(/^[\da-f-]{36}$/)
-        expect(agentSessionMessageService.getNativeSessionId(sessionId)).not.toBe(sessionId)
-        expect(agentSessionMessageService.getLastRuntimeResumeToken(sessionId)).toBe(
-          outcome === 'commit' || outcome === 'after steer' ? 'native-child' : null
-        )
-        expect(agentSessionService.getById(sessionId).workspace.path).toBe(directory)
-        await new AgentSessionForkOperations().recover()
-        if (outcome === 'commit' || outcome === 'after steer') {
-          expect(rows[0].data.parts).toEqual([{ type: 'text', text: 'Preserved answer' }])
-          expect(await readFile(publishedFile, 'utf8')).toBe('native child history')
-        } else {
-          expect(await readForkResources()).toEqual([])
+    if (outcome === 'handoff after steer')
+      handoffId = agentSessionMessageService.saveMessage({
+        sessionId,
+        message: {
+          role: 'system',
+          status: 'success',
+          data: {
+            parts: [{ type: 'text', text: 'Reviewed handoff after steer' }],
+            modelSwitchHandoff: { previousModel: 'fixture::old', nextModel: 'fixture::new', sourceHead: steer!.id }
+          }
         }
-        await expect(
-          new AgentSessionForkOperations().edit(
-            sessionId,
-            target,
-            async () => {},
-            () => {}
+      }).id
+
+    const tail = dbh.db.transaction((tx) =>
+      agentSessionMessageService.saveMessagesTx(tx, {
+        sessionId,
+        messages: [
+          { role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'Old question' }] } },
+          { role: 'assistant', status: 'success', data: { parts: [{ type: 'text', text: 'Old answer' }] } },
+          { role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'Later question' }] } },
+          { role: 'assistant', status: 'success', data: { parts: [{ type: 'text', text: 'Later answer' }] } }
+        ]
+      })
+    )
+    const target = {
+      messageId: tail[0].id,
+      version: agentSessionMessageService.readEditSnapshotTx(dbh.db, sessionId, tail[0].id).version
+    }
+    beforeForkResult = async (input) => {
+      if (outcome === 'first message') throw new Error('Empty history must not fork the old native session')
+      expect(input.targetCwd).toBe(directory)
+      expect(input.checkpoint).toMatchObject({ leafId: 'leaf' })
+      if (outcome === 'history changed')
+        tail.push(
+          ...dbh.db.transaction((tx) =>
+            agentSessionMessageService.saveMessagesTx(tx, {
+              sessionId,
+              messages: [{ role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'New input' }] } }]
+            })
           )
-        ).rejects.toMatchObject({ reason: 'invalid_target' })
-        for (const row of tail) expect(() => agentSessionMessageService.getSessionMessage(sessionId, row.id)).toThrow()
-        expect(rows.at(-1)?.siblings).toEqual([newId])
-        expect(agentSessionMessageService.getLastRuntimeResumeToken(sessionId)).toBe(
-          outcome === 'commit' || outcome === 'after steer' ? 'native-child' : null
         )
-      } else {
-        await expect(operation).rejects.toThrow()
+    }
+    const operation = new AgentSessionForkOperations().edit(
+      sessionId,
+      target,
+      async () => {
+        if (outcome === 'close failed') throw new Error('close failed')
+      },
+      (tx, nativeSessionId) => {
+        const saved = agentSessionMessageService.saveMessagesTx(tx, {
+          sessionId,
+          messages: [{ role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'New question' }] } }]
+        })
+        reservePiBranchTx(tx, sessionId, saved[0].id, nativeSessionId)
+        agentSessionMessageService.setEditRuntimeTx(tx, sessionId, saved[0].id, nativeSessionId)
+        if (outcome === 'write failed') throw new Error('write failed')
+        return saved[0].id
+      }
+    )
+    if (
+      outcome === 'commit' ||
+      outcome === 'handoff' ||
+      outcome === 'after steer' ||
+      outcome === 'handoff after steer' ||
+      outcome === 'first message'
+    ) {
+      const newId = await operation
+      const rows = agentSessionMessageService.listSessionMessages(sessionId).items.toReversed()
+      expect(rows.map((row) => row.id)).toEqual(
+        outcome === 'first message'
+          ? [newId]
+          : outcome === 'handoff' || outcome === 'handoff after steer'
+            ? [...(originalInputId ? [originalInputId] : []), messageId, ...(steer ? [steer.id] : []), handoffId, newId]
+            : [messageId, ...(steer ? [steer.id] : []), newId]
+      )
+      expect(rows.at(-1)?.data).toEqual({ parts: [{ type: 'text', text: 'New question' }] })
+      if (outcome === 'commit' || outcome === 'after steer') {
+        expect(agentSessionMessageService.getNativeSessionId(sessionId)).toBe('native-child')
         expect(
           agentSessionMessageService
-            .listSessionMessages(sessionId)
-            .items.toReversed()
-            .map((row) => row.id)
-        ).toEqual([messageId, ...tail.map((row) => row.id)])
-        expect(agentSessionMessageService.getLastRuntimeResumeToken(sessionId)).toBe('native-parent')
+            .readEditSnapshotTx(dbh.db, sessionId, newId)
+            .prefix.filter((row) => row.role === 'assistant')
+            .map((row) => row.data)
+        ).toEqual([
+          expect.objectContaining({
+            runtimeAnchor: { checkpoint: expect.objectContaining({ runtimeSessionId: 'native-child' }) }
+          })
+        ])
+      } else if (outcome === 'first message')
+        expect(agentSessionMessageService.getNativeSessionId(sessionId)).toMatch(/^[\da-f-]{36}$/)
+      expect(agentSessionMessageService.getNativeSessionId(sessionId)).not.toBe(sessionId)
+      expect(agentSessionMessageService.getLastRuntimeResumeToken(sessionId)).toBe(
+        outcome === 'commit' || outcome === 'handoff' || outcome === 'after steer' || outcome === 'handoff after steer'
+          ? 'native-child'
+          : null
+      )
+      expect(agentSessionService.getById(sessionId).workspace.path).toBe(directory)
+      await new AgentSessionForkOperations().recover()
+      if (
+        outcome === 'commit' ||
+        outcome === 'handoff' ||
+        outcome === 'after steer' ||
+        outcome === 'handoff after steer'
+      ) {
+        expect(rows.find((row) => row.id === messageId)?.data.parts).toEqual([
+          { type: 'text', text: 'Preserved answer' }
+        ])
+        expect(await readFile(publishedFile, 'utf8')).toBe('native child history')
+      } else {
         expect(await readForkResources()).toEqual([])
       }
+      await expect(
+        new AgentSessionForkOperations().edit(
+          sessionId,
+          target,
+          async () => {},
+          () => {}
+        )
+      ).rejects.toMatchObject({ reason: 'invalid_target' })
+      for (const row of tail) expect(() => agentSessionMessageService.getSessionMessage(sessionId, row.id)).toThrow()
+      expect(rows.at(-1)?.siblings).toEqual([newId])
+      expect(agentSessionMessageService.getLastRuntimeResumeToken(sessionId)).toBe(
+        outcome === 'commit' || outcome === 'handoff' || outcome === 'after steer' || outcome === 'handoff after steer'
+          ? 'native-child'
+          : null
+      )
+    } else {
+      await expect(operation).rejects.toThrow()
+      expect(
+        agentSessionMessageService
+          .listSessionMessages(sessionId)
+          .items.toReversed()
+          .map((row) => row.id)
+      ).toEqual([messageId, ...tail.map((row) => row.id)])
+      expect(agentSessionMessageService.getLastRuntimeResumeToken(sessionId)).toBe('native-parent')
+      expect(await readForkResources()).toEqual([])
     }
-  )
+  })
 
   it.each(['missing', 'assistant'] as const)('rejects an invalid edit target: %s', (target) => {
     expect(() =>

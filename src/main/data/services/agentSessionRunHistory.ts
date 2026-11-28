@@ -82,6 +82,21 @@ function boundary(row: AgentSessionMessageRow): RunHistoryBoundary {
   return { id: row.id, role: row.role, status: row.status, anchor: row.data.runtimeAnchor }
 }
 
+// Model-switch handoffs stay in the product history, but native history ends at the checkpoint before them.
+function nativePredecessor(
+  row: AgentSessionMessageRow | undefined,
+  placed: readonly AgentSessionMessageRow[],
+  byId: ReadonlyMap<string, AgentSessionMessageRow>
+): AgentSessionMessageRow | undefined {
+  let index = row ? placed.lastIndexOf(row) : -1
+  while (row && row.role === 'system' && row.data.modelSwitchHandoff) {
+    index -= 1
+    row = placed[index]
+    if (!row) return undefined
+  }
+  return row?.role === 'user' && row.replyId ? (byId.get(row.replyId) ?? row) : row
+}
+
 class AgentSessionRunHistory {
   private readonly rows: AgentSessionMessageRow[]
   private readonly byId: Map<string, AgentSessionMessageRow>
@@ -94,9 +109,11 @@ class AgentSessionRunHistory {
     this.unplaced = unplacedAgentRunInputs(rows)
     const firstInputs = new Set<string>()
     let previous: AgentSessionMessageRow | undefined
+    const placed: AgentSessionMessageRow[] = []
     for (const row of this.rows) {
       const predecessor =
         previous?.role === 'user' && previous.replyId ? (this.byId.get(previous.replyId) ?? previous) : previous
+      const nativeBoundary = nativePredecessor(predecessor, placed, this.byId)
       if (row.role === 'user') {
         const kind = row.delivery
           ? 'invalid'
@@ -111,13 +128,16 @@ class AgentSessionRunHistory {
             ? {
                 [planIdentity]: 'edit-target',
                 kind,
-                boundary: predecessor ? boundary(predecessor) : null
+                boundary: nativeBoundary ? boundary(nativeBoundary) : null
               }
             : { kind }
         )
         if (row.replyId && !this.unplaced.has(row.id)) firstInputs.add(row.replyId)
       }
-      if (!this.unplaced.has(row.id)) previous = row
+      if (!this.unplaced.has(row.id)) {
+        previous = row
+        placed.push(row)
+      }
     }
   }
 

@@ -24,6 +24,7 @@ import { agentService } from '@data/services/AgentService'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import type * as AgentPromptModule from '@main/ai/agents/prompt/buildAgentPrompt'
 import { savedChildView } from '@main/ai/agentSession/childArchive'
 import { childTimelines } from '@main/ai/agentSession/childTimelines'
 import { bindNativeInput, prepareNativeSubmission } from '@main/ai/agentSession/nativeSubmission'
@@ -272,6 +273,52 @@ describe('desktop Pi root connection', () => {
     const directory = application.getPath('feature.agents.pi.sessions')
     return existsSync(directory) ? readdirSync(directory) : []
   }
+
+  it('delivers a saved edited handoff as system context when the next model resumes native history', async () => {
+    const { buildAgentPrompt } = await vi.importActual<typeof AgentPromptModule>(
+      '@main/ai/agents/prompt/buildAgentPrompt'
+    )
+    mocks.prompt.mockImplementation(buildAgentPrompt)
+    const first = await connect()
+    await first.connection.send({ message: message('Original task context: export.ts') })
+    await done(first.events)
+    const nativeId = script.calls[0].sessionId
+    await first.connection.close()
+    messages.saveMessagesTx(dbh.db, {
+      sessionId: input.sessionId,
+      messages: [
+        {
+          role: 'system',
+          status: 'success',
+          data: {
+            parts: [{ type: 'text', text: 'Edited handoff: test export.ts before release.' }],
+            modelSwitchHandoff: {
+              previousModel: modelId,
+              nextModel: 'test::next-model',
+              sourceHead: messages.captureHead(input.sessionId)
+            }
+          }
+        }
+      ]
+    })
+    snapshot.model = { ...snapshot.model, id: 'test::next-model' }
+    snapshot.signature = 'next-model'
+    input.modelId = 'test::next-model'
+    setScript([assistantReply('Continuing the reviewed task')])
+    mocks.binding.mockImplementation(async () =>
+      createTestBinding({ model: { ...MODEL, id: 'next-model' }, stream: script.model })
+    )
+    const next = await connect()
+    await next.connection.send({ message: message('Continue the task') })
+    await done(next.events)
+    expect(next.events.filter((event) => event.type === 'error')).toEqual([])
+    expect(script.calls[0].model.id).toBe('next-model')
+    expect(script.calls[0].sessionId).toBe(nativeId)
+    expect(script.calls[0].systemPrompt).toContain('Edited handoff: test export.ts before release.')
+    const users = JSON.stringify(script.calls[0].messages.filter((value) => value.role === 'user'))
+    expect(users).toContain('Original task context: export.ts')
+    expect(users).not.toContain('Edited handoff:')
+  })
 
   it.each([false, true])('limits PowerShell exposure to Windows and honors disabledTools (%s)', async (disabled) => {
     snapshot.agent.disabledTools = disabled ? ['PowerShell'] : []

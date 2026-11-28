@@ -36,6 +36,7 @@ import type {
   AgentSessionEntity,
   CreateAgentSessionDto,
   DeleteAgentSessionsResult,
+  ModelSwitchHandoff,
   SetAgentSessionWorkspaceDto,
   UpdateAgentSessionDto
 } from '@shared/data/api/schemas/agentSessions'
@@ -552,6 +553,13 @@ export const useUpdateSession = () => {
     // '/agent-sessions/undefined' (which would miss every cache entry).
     refresh: ({ args }) => ['/agent-sessions', `/agent-sessions/${args!.params.sessionId}`]
   })
+  const { trigger: switchHandoffTrigger } = useMutation('POST', '/agent-sessions/:sessionId/model-switch', {
+    refresh: ({ args }) => [
+      '/agent-sessions',
+      `/agent-sessions/${args!.params.sessionId}`,
+      `/agent-sessions/${args!.params.sessionId}/messages/*`
+    ]
+  })
   const { trigger: setWorkspaceTrigger } = useMutation('PUT', '/agent-sessions/:sessionId/workspace', {
     // Switching workspace creates/deletes a backing system workspace row, so
     // refresh the workspace list alongside the session caches.
@@ -592,7 +600,19 @@ export const useUpdateSession = () => {
     [setWorkspaceTrigger, t]
   )
 
-  return { updateSession, setSessionWorkspace }
+  const switchModelWithHandoff = useCallback(
+    async (id: string, body: ModelSwitchHandoff) => {
+      try {
+        return await switchHandoffTrigger({ params: { sessionId: id }, body })
+      } catch (error) {
+        toast.error({ title: t('agent.session.update.error.failed'), description: getErrorMessage(error) })
+        return undefined
+      }
+    },
+    [switchHandoffTrigger, t]
+  )
+
+  return { updateSession, setSessionWorkspace, switchModelWithHandoff }
 }
 
 /**

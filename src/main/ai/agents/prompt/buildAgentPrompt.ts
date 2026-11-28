@@ -1,3 +1,4 @@
+import { agentSessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
 import { loadBuiltinAgentDefinition, provisionBuiltinAgent } from '@main/ai/agents/builtin/BuiltinAgentProvisioner'
 import { getEffectiveAgentLanguage } from '@main/ai/utils/agentLanguage'
@@ -42,6 +43,9 @@ export interface AgentRuntimePrompt {
 }
 
 export interface BuildAgentPromptOptions {
+  /** With `branchHead`, adds the one-time handoff when this session's model was switched. */
+  sessionId?: string
+  branchHead?: string | null
   workspacePath: string
   agentDataPath: string
   agent: Pick<AgentEntity, 'instructions' | 'configuration' | 'modelName' | 'name'>
@@ -66,6 +70,8 @@ const promptBuilder = new PromptBuilder()
 
 /** Materialize Cherry-owned prompt policy once; runtime adapters only map base/append into their SDK. */
 export async function buildAgentPrompt({
+  sessionId,
+  branchHead,
   workspacePath,
   agentDataPath,
   agent,
@@ -135,6 +141,11 @@ export async function buildAgentPrompt({
       ['memories', 'guidance', parts.memories],
       ['cwd', 'live', base.kind === 'custom' ? customBaseContext : undefined],
       ['citations', 'guidance', referenceTool && buildCitationInstructions(referenceTool, includeKnowledgeCitations)],
+      [
+        'model_switch_handoff',
+        'guidance',
+        sessionId ? agentSessionService.getModelSwitchHandoff(sessionId, branchHead) : undefined
+      ],
       ['language', 'setting', getLanguageInstruction(agent, effectiveLanguage)]
     ] satisfies [string, AgentPromptBlockKind, string | undefined][]
   ).flatMap(([key, kind, text]) => (text ? [{ key, kind, text }] : []))

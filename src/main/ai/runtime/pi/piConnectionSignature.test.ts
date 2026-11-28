@@ -12,6 +12,7 @@ import type { AgentEntity } from '@shared/data/api/schemas/agents'
 const mocks = vi.hoisted(() => ({
   gatewayOrigin: 'http://127.0.0.1:9000',
   getSession: vi.fn(),
+  getHandoff: vi.fn(),
   getAgent: vi.fn(),
   getProvider: vi.fn(),
   getModel: vi.fn(),
@@ -40,7 +41,9 @@ vi.mock('@application', async () => {
   })
   return result
 })
-vi.mock('@data/services/AgentSessionService', () => ({ agentSessionService: { getById: mocks.getSession } }))
+vi.mock('@data/services/AgentSessionService', () => ({
+  agentSessionService: { getById: mocks.getSession, getModelSwitchHandoff: mocks.getHandoff }
+}))
 vi.mock('@data/services/AgentService', () => ({ agentService: { getAgent: mocks.getAgent } }))
 vi.mock('@data/services/ProviderService', () => ({
   providerService: { getByProviderId: mocks.getProvider, getApiKeys: mocks.getApiKeys }
@@ -91,6 +94,14 @@ beforeEach(() => {
 })
 
 describe('capturePiConnectionSnapshot', () => {
+  it('rebuilds when the branch-pinned effective handoff is removed', async () => {
+    mocks.getHandoff.mockReturnValueOnce('Keep exported CSV')
+    const before = await capturePiConnectionSnapshot('session-1', agent.id, 'provider::model', [], 'branch-a')
+    const after = await capturePiConnectionSnapshot('session-1', agent.id, 'provider::model', [], 'branch-a')
+    expect(mocks.getHandoff).toHaveBeenCalledWith('session-1', 'branch-a')
+    expect(after.signature).not.toBe(before.signature)
+  })
+
   it('rebuilds a warm connection when server instructions arrive or disappear', async () => {
     const cold = await capturePiConnectionSnapshot('session-1', agent.id, 'provider::model')
     mocks.getInstructions.mockReturnValue({

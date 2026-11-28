@@ -156,6 +156,8 @@ export interface AssistantTurnOptions {
  * they need Cherry-specific data part type safety.
  */
 export interface MessageData {
+  modelSwitchHandoff?: { previousModel: string; nextModel: string; sourceHead: string }
+
   importedHistory?: {
     insertedAt?: string
     source: 'deepseek'

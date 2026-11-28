@@ -342,6 +342,7 @@ export interface AgentRuntimeConnection {
    * pinning the host uses for `connect`.
    */
   reconcile(input: {
+    branchHead?: string
     modelId: ExecutionId
     reasoningEffort?: ReasoningEffortOption
     serviceTier?: ServiceTierSelection

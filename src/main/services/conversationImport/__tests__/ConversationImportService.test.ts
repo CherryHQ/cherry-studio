@@ -663,6 +663,38 @@ describe('local history atomic import', () => {
     })
     await expect(ensureImportedSessionHistory(sessionId)).resolves.toBeUndefined()
   })
+  it('recovers a missing native file when only a model-switch handoff follows the import', async () => {
+    await source()
+    const p = await preview()
+    const [created] = await service.commit('window', p.previewId, [p.items[0].ref])
+    const sessionId = created.sessionId!
+    agentSessionMessageService.saveMessage({
+      sessionId,
+      message: {
+        role: 'system',
+        status: 'success',
+        data: {
+          parts: [{ type: 'text', text: 'Continue with the next model' }],
+          modelSwitchHandoff: { previousModel: 'pi::old', nextModel: 'pi::new', sourceHead: 'head' }
+        }
+      }
+    })
+    const directory = path.join(root, 'feature.agents.pi.sessions')
+    const file = path.join(directory, (await readdir(directory))[0])
+    await rm(file)
+    await expect(ensureImportedSessionHistory(sessionId)).rejects.toBeUndefined()
+    // The handoff stays in product history; the rebuilt native file holds only imported entries.
+    expect(agentSessionMessageService.listSessionMessages(sessionId).items).toHaveLength(3)
+    expect(SessionManager.open(file, directory).getEntries()).toHaveLength(2)
+    // A real continuation row still blocks reconstruction once the native file is gone again.
+    agentSessionMessageService.saveMessage({
+      sessionId,
+      runtimeResumeToken: getImportedHistoryState(dbh.db, sessionId)!.nativeSessionId,
+      message: { role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'Real follow-up' }] } }
+    })
+    await rm(file)
+    await expect(ensureImportedSessionHistory(sessionId)).rejects.toThrow('history_unrecoverable')
+  })
   it.each(['malformed', 'truncated', 'replaced'] as const)('rejects a %s imported native prefix', async (damage) => {
     await source()
     const p = await preview()

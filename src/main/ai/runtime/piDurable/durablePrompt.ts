@@ -18,6 +18,8 @@ import type { loadPiSdk } from '../pi/piSdk'
 type PiSdk = Awaited<ReturnType<typeof loadPiSdk>>
 
 interface DurablePromptOptions {
+  sessionId?: string
+  branchHead?: string | null
   agent: Pick<AgentEntity, 'name' | 'instructions' | 'configuration' | 'modelName' | 'type'>
   cwd: string
   agentDataPath: string
@@ -39,6 +41,8 @@ export async function buildDurablePrompt(pi: PiSdk, options: DurablePromptOption
   const { agent, cwd, agentDataPath } = options
   const overrides = agent.configuration?.prompt_overrides
   const prompt = await buildPiAgentPrompt({
+    sessionId: options.sessionId,
+    branchHead: options.branchHead,
     workspacePath: cwd,
     agentDataPath,
     agent,

@@ -31,14 +31,16 @@ export async function prepareDurableDesktop(
     input.sessionId,
     input.agentId,
     input.modelId,
-    input.knowledgeBaseIds
+    input.knowledgeBaseIds,
+    input.branchHead
   )
   await warmAgentMcpToolCatalogs(discovery.agent.mcps ?? [])
   const snapshot = await capturePiConnectionSnapshot(
     input.sessionId,
     input.agentId,
     input.modelId,
-    input.knowledgeBaseIds
+    input.knowledgeBaseIds,
+    input.branchHead
   )
   const { session, agent } = snapshot
   const cwd = session.workspace.path
@@ -80,6 +82,8 @@ export async function prepareDurableDesktop(
     getShellEnv()
   ])
   const prompt = await buildDurablePrompt(pi, {
+    sessionId: input.sessionId,
+    branchHead: input.branchHead,
     agent,
     cwd,
     agentDataPath,
@@ -177,7 +181,8 @@ export async function prepareDurableDesktop(
           next.sessionId,
           next.agentId,
           next.modelId,
-          next.knowledgeBaseIds
+          next.knowledgeBaseIds,
+          next.branchHead
         )
         const mode = next.permissionModeOverride ?? current.agent.configuration?.permission_mode ?? 'default'
         // The approval gate reads the mode per tool call, so a change applies mid-turn from the next call.

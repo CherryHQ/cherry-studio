@@ -125,6 +125,7 @@ export function registerMcpSessionCatalogSync(
 // ── Input types ─────────────────────────────────────────────────────
 
 export interface ClaudeCodeSessionOptions {
+  branchHead?: string | null
   compactionPercent?: number
   lastAgentSessionId?: string
   /** Whether the connection model accepts native image input. */
@@ -251,7 +252,9 @@ export async function buildClaudeCodeSessionSettings(
     disallowedTools,
     options?.effectiveLanguage,
     options?.promptModelName,
-    linkedChannelSnapshot !== null
+    linkedChannelSnapshot !== null,
+    session.id,
+    options?.branchHead
   )
 
   // 6. MCP servers (session + built-in)
@@ -757,7 +760,9 @@ export async function buildSystemPrompt(
   effectiveLanguage?: string | null,
   /** Effective turn model display name for `{{model_name}}`; defaults to `agent.modelName`. */
   promptModelName?: string | null,
-  channelLinked = false
+  channelLinked = false,
+  sessionId?: string,
+  branchHead?: string | null
 ): Promise<ClaudeCodeSettings['systemPrompt']> {
   const prompt = await buildClaudeAgentPrompt({
     agent,
@@ -767,7 +772,9 @@ export async function buildSystemPrompt(
     disallowedTools,
     effectiveLanguage,
     promptModelName,
-    channelLinked
+    channelLinked,
+    sessionId,
+    branchHead
   })
 
   // Rebuilding and resuming must apply changed Cherry instructions without waiting for compaction.
@@ -790,7 +797,9 @@ export function buildClaudeAgentPrompt({
   effectiveLanguage,
   promptModelName,
   channelLinked = false,
-  instructionsSlot
+  instructionsSlot,
+  sessionId,
+  branchHead
 }: {
   agent: Pick<
     AgentEntity,
@@ -804,6 +813,8 @@ export function buildClaudeAgentPrompt({
   promptModelName?: string | null
   channelLinked?: boolean
   instructionsSlot?: string
+  sessionId?: string
+  branchHead?: string | null
 }) {
   const { allowsTool } = resolveAgentMcpToolExposure(agent, { channelLinked })
   const customBaseContext = [
@@ -812,6 +823,8 @@ export function buildClaudeAgentPrompt({
     'Use it as the default base for file operations and shell commands; resolve unspecified or relative paths against it.'
   ].join('\n')
   return buildAgentPrompt({
+    sessionId,
+    branchHead,
     workspacePath: cwd,
     agentDataPath,
     agent,

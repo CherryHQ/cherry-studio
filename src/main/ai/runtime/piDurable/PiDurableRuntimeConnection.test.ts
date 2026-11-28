@@ -426,6 +426,48 @@ describe('desktop Pi Durable connection', () => {
     expect(resumedRequest).not.toContain('Sibling banana')
     expect(resumedRequest.match(/Previous conversation history/g)).toHaveLength(1)
   })
+  it('pins the prompt and signature to the captured branch while desktop setup awaits', async () => {
+    input.branchHead = 'captured-branch-a'
+    const current = await connect()
+    expect(mocks.prompt).toHaveBeenCalledWith(expect.objectContaining({ branchHead: 'captured-branch-a' }))
+    expect(mocks.capture.mock.calls.every((args) => args[4] === 'captured-branch-a')).toBe(true)
+    await current.connection.close()
+  })
+  it('rebuilds an idle same-model connection for a new handoff and retains native history', async () => {
+    const { buildAgentPrompt } = await vi.importActual<typeof AgentPrompt>('@main/ai/agents/prompt/buildAgentPrompt')
+    mocks.prompt.mockImplementation(buildAgentPrompt)
+    mocks.capture.mockImplementation(async (_session, _agent, _model, _knowledge, head) => {
+      const handoff = agentSessionService.getModelSwitchHandoff(input.sessionId, head)
+      return { ...snapshot, signature: handoff ?? 'no-handoff', modelSwitchHandoff: handoff }
+    })
+    input.branchHead = undefined
+    const first = await connect()
+    await first.connection.send({ message: message('Remember native mango history') })
+    const answer = await savedAnswer(first)
+    messages.saveMessage({
+      sessionId: input.sessionId,
+      parentId: answer.id,
+      message: {
+        role: 'system',
+        status: 'success',
+        data: {
+          parts: [{ type: 'text', text: 'Edited brief after switching away and back' }],
+          modelSwitchHandoff: { previousModel: 'test::other', nextModel: modelId, sourceHead: answer.id }
+        }
+      }
+    })
+    const followup = message('Continue with the edited brief')
+    expect(await first.connection.reconcile({ modelId: input.modelId, branchHead: followup.id })).toBe('rebuild')
+    await first.connection.close()
+    input.branchHead = followup.id
+    const reopened = await connect()
+    await reopened.connection.send({ message: followup })
+    await savedAnswer(reopened)
+    const last = script.calls.at(-1)!
+    expect(last.systemPrompt).toContain('Edited brief after switching away and back')
+    expect(JSON.stringify(last.messages)).toContain('Remember native mango history')
+  })
+
   it.each(['store', 'conversation', 'binding'])(
     'continues from product history after losing the native %s',
     async (missing) => {

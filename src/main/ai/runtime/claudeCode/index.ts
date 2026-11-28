@@ -1,6 +1,6 @@
 export { prepareClaudeBranch, reserveClaudeBranchTx } from './claudeContext'
 export { ClaudeCodeBinaryService } from './ClaudeCodeBinaryService'
-export { ClaudeCodeProcessManager } from './ClaudeCodeProcessManager'
+export { ClaudeCodeProcessManager, spawnClaudeCodeProcess } from './ClaudeCodeProcessManager'
 export { ClaudeCodeSessionStateService } from './ClaudeCodeSessionStateService'
 export { ClaudeCodeWarmQueryManager } from './ClaudeCodeWarmQueryManager'
 export { createClaudeCodeRuntimeDriver, loadLocalClaudeDriver, loadLocalClaudeRuntime } from './loaders'
@@ -9,3 +9,5 @@ export { ClaudeForkCheckpointSchema } from './forkCheckpoint'
 export { readClaudeTranscriptEvidence } from './transcriptEvidence'
 export type { ClaudeCodeSettings, ToolApprovalEmitterHolder } from './types'
 export { claudeWorkspaceRelocation } from './workspaceRelocation'
+
+export { buildEnvironment, resolveClaudeExecutablePath } from './environment'

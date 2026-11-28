@@ -48,6 +48,7 @@ export interface PiConnectionSnapshot {
   mcpInstructions?: string
   compactionPercent?: number
   signature: string
+  modelSwitchHandoff?: string
 }
 
 export class PiInvalidConnectionSnapshotError extends Error {}
@@ -68,7 +69,8 @@ export async function capturePiConnectionSnapshot(
   sessionId: string,
   agentId: string,
   requestedModelId?: UniqueModelId,
-  selectedKnowledgeBaseIds?: readonly string[]
+  selectedKnowledgeBaseIds?: readonly string[],
+  branchHead?: string | null
 ): Promise<PiConnectionSnapshot> {
   const session = agentSessionService.getById(sessionId, { includeTaskReuse: true })
   const agent = agentService.getAgent(agentId)
@@ -111,6 +113,7 @@ export async function capturePiConnectionSnapshot(
   const configuration = { ...agent.configuration, permission_mode: undefined }
   const effectiveLanguage = getEffectiveAgentLanguage(agent)
   const compactionPercent = taskCompactionPercent(session)
+  const modelSwitchHandoff = agentSessionService.getModelSwitchHandoff(sessionId, branchHead)
   const signature = createHash('sha256')
     .update(
       JSON.stringify(
@@ -118,6 +121,7 @@ export async function capturePiConnectionSnapshot(
           agent: { ...agent, updatedAt: undefined, configuration },
           session: { workspaceId: session.workspaceId, workspace: session.workspace },
           compactionPercent,
+          modelSwitchHandoff,
           modelId,
           provider,
           model,
@@ -153,6 +157,7 @@ export async function capturePiConnectionSnapshot(
     ],
     mcpServerSnapshots,
     linkedChannel,
-    signature
+    signature,
+    modelSwitchHandoff
   }
 }

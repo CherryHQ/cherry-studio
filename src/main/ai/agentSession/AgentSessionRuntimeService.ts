@@ -318,6 +318,7 @@ type QueuedAgentSessionInput = {
 }
 
 type AgentSessionConnectionTarget = AgentSessionRuntimeConnectionTarget & {
+  branchHead?: string
   localWorkingDirectory?: string
   localPermissionMode?: AgentPermissionMode
   modelId: ExecutionId
@@ -2459,6 +2460,7 @@ export class AgentSessionRuntimeService extends BaseService {
         hasAgentSessionRuntimeBackgroundWork(entry.runtimeState))
     return live
       ? {
+          branchHead: entry.branchHead,
           localWorkingDirectory,
           ...(localPermissionMode && !turn.headless && !turn.permissionModeOverride ? { localPermissionMode } : {}),
           modelId: turn.modelId,
@@ -2471,6 +2473,7 @@ export class AgentSessionRuntimeService extends BaseService {
           trustedNotifyChannels: turn.trustedNotifyChannels
         }
       : {
+          branchHead: entry.branchHead,
           localWorkingDirectory,
           ...(localPermissionMode ? { localPermissionMode } : {}),
           modelId: entry.modelId,
@@ -2487,6 +2490,7 @@ export class AgentSessionRuntimeService extends BaseService {
     const current = this.connectionTarget(entry, agent)
     const configuredKnowledgeBaseIds = agent?.knowledgeBaseIds
     return (
+      current.branchHead === target.branchHead &&
       current.localWorkingDirectory === target.localWorkingDirectory &&
       current.localPermissionMode === target.localPermissionMode &&
       current.modelId === target.modelId &&

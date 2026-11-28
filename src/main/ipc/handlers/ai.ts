@@ -17,6 +17,7 @@ import { createAgent } from '@main/ai/agents/createAgent'
 import { createBuiltinAssistantSession } from '@main/ai/agents/createBuiltinAssistantSession'
 import { createBuiltinSkillSession } from '@main/ai/agents/createBuiltinSkillSession'
 import { createBuiltinSupportSession } from '@main/ai/agents/createBuiltinSupportSession'
+import { generateModelSwitchHandoff } from '@main/ai/agents/modelSwitchHandoff'
 import { childTimelines } from '@main/ai/agentSession/childTimelines'
 import { readToolResult } from '@main/ai/messages/toolResultRead'
 import { generateProfileStarters } from '@main/ai/profileStarters'
@@ -142,6 +143,8 @@ async function exposeAgentSessionArchiveError<T>(operation: () => T | Promise<T>
 }
 
 export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
+  'ai.agent.session.handoff.generate': ({ sessionId, requestId }) =>
+    exposeAiError('ai.agent.session.handoff.generate', () => generateModelSwitchHandoff(sessionId, requestId)),
   'ai.agent.delegation.read': async ({ originSessionId, requestId }) =>
     application.get('AgentDelegationService').read(originSessionId, requestId),
   'ai.agent.delegation.cancel': ({ originSessionId, requestId }) =>

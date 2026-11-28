@@ -124,8 +124,9 @@ export class AgentSessionForkOperations {
     let nativeContextId: string | undefined
     let resources: AgentSessionForkResources | undefined
     try {
-      if (prefix.length) {
-        const row = source.boundary!
+      // A root boundary means no native history precedes the edit, including when only handoffs do.
+      const row = source.boundary?.role === 'root' ? undefined : source.boundary
+      if (row) {
         const boundary = resolveForkBoundary(driver, row)
         if (boundary.reason) throw new AgentSessionEditError('checkpoint_unsupported')
         const { anchor } = boundary
