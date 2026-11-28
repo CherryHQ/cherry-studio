@@ -178,6 +178,12 @@ function trackedEvents() {
   return cloudMocks.ipcRequest.mock.calls.filter(([route]) => route === 'analytics.track').map(([, event]) => event)
 }
 
+function cherryInSignInResults() {
+  return cloudMocks.ipcRequest.mock.calls
+    .filter(([route, payload]) => route === 'analytics.track' && payload?.event === 'cherryin_sign_in_result')
+    .map(([, payload]) => payload)
+}
+
 async function openProviderSetup() {
   fireEvent.click(screen.getByRole('button', { name: /onboarding\.welcome\.other_provider/ }))
   await screen.findByTestId('provider-settings')
@@ -944,6 +950,34 @@ describe('OnboardingPage', () => {
     expect(screen.queryByTestId('model-settings')).not.toBeInTheDocument()
     expect(toastErrorMock).toHaveBeenCalledWith('onboarding.provider_setup.missing_model')
     expect(toastSuccessMock).not.toHaveBeenCalled()
+    expect(cherryInSignInResults()).toEqual([
+      { event: 'cherryin_sign_in_result', source: 'onboarding', result: 'no_model', durationMs: expect.any(Number) }
+    ])
+  })
+
+  it('reports only the latest CherryIN sign-in attempt when an earlier one settles late', async () => {
+    vi.useFakeTimers()
+    let rejectFirst: (error: Error) => void = () => {}
+    oauthWithCherryInMock
+      .mockImplementationOnce(() => new Promise<string>((_, reject) => (rejectFirst = reject)))
+      .mockImplementationOnce(async (setKey: (keys: string) => Promise<void>) => {
+        await setKey('sk-two')
+        return 'sk-two'
+      })
+    render(<OnboardingPage />)
+    const loginButton = screen.getByRole('button', { name: 'onboarding.welcome.login_cherryin' })
+
+    await act(async () => fireEvent.click(loginButton))
+    await act(() => vi.advanceTimersByTime(10_000))
+    await act(async () => fireEvent.click(loginButton))
+    await act(async () => rejectFirst(new Error('late failure')))
+    vi.useRealTimers()
+
+    await waitFor(() =>
+      expect(cherryInSignInResults()).toEqual([
+        { event: 'cherryin_sign_in_result', source: 'onboarding', result: 'success', durationMs: expect.any(Number) }
+      ])
+    )
   })
 
   it('offers API key setup after CherryIN authorization without advancing to model selection', async () => {

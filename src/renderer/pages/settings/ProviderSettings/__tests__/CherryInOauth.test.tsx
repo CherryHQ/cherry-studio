@@ -331,18 +331,17 @@ describe('CherryInOauth', () => {
 
     const user = userEvent.setup()
     await user.click(screen.getByRole('button', { name: /充值|Top Up/i }))
+    // The top-up link carries the analytics flow id; analytics calls are not balance refreshes.
     expect(ipcApiRequestMock).toHaveBeenCalledWith(
       'system.shell.open_external_website',
-      'https://open.cherryin.ai/console/topup'
+      expect.stringMatching(/^https:\/\/open\.cherryin\.ai\/console\/topup(\?|$)/)
     )
     ipcApiRequestMock.mockClear()
 
     fireEvent.focus(window)
     await screen.findByText('$256.00')
-    expect(ipcApiRequestMock).toHaveBeenCalledTimes(1)
-    expect(ipcApiRequestMock).toHaveBeenCalledWith('cherryin.get_balance', {
-      apiHost: 'https://open.cherryin.ai'
-    })
+    const refreshes = ipcApiRequestMock.mock.calls.filter(([route]) => route !== 'analytics.track')
+    expect(refreshes).toEqual([['cherryin.get_balance', { apiHost: 'https://open.cherryin.ai' }]])
 
     ipcApiRequestMock.mockClear()
     fireEvent.focus(window)

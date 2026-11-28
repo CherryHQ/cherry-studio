@@ -100,6 +100,17 @@ vi.mock('../context/dispatch', async (importOriginal) => {
   return { ...actual, dispatchStreamRequest: mockDispatchStreamRequest }
 })
 
+// Provider rows by id: preset-derived instances carry the preset they were created from.
+const providerPresets: Record<string, string> = { 'cherryin-express': 'cherryin' }
+vi.mock('@data/services/ProviderService', () => ({
+  providerService: {
+    getByProviderId: (id: string) => ({
+      id,
+      presetProviderId: providerPresets[id] ?? id
+    })
+  }
+}))
+
 vi.mock('@main/data/services/MessageService', () => ({
   messageService: {
     create: vi.fn().mockResolvedValue({ id: 'msg-001' }),
@@ -193,6 +204,7 @@ const fakeCacheService = {
 const mockSaveSpans = vi.fn<(topicId: string) => Promise<void>>(async () => undefined)
 const mockWillContinueTopic = vi.fn<(topicId: string) => boolean>(() => false)
 const mockStopSession = vi.fn<(sessionId: string, reason: unknown) => Promise<void>>(async () => undefined)
+const mockTrackProductEvent = vi.fn()
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -210,6 +222,7 @@ vi.mock('@application', async () => {
     },
     CacheService: fakeCacheService,
     TraceStorageService: { saveSpans: mockSaveSpans },
+    AnalyticsService: { trackProductEvent: mockTrackProductEvent },
     AgentSessionRuntimeService: {
       willContinueTopic: mockWillContinueTopic,
       abortPendingTurn: mockAbortPendingTurn,
@@ -2264,6 +2277,61 @@ describe('AiStreamManager', () => {
 
       expect(l.errorResults[0].finalMessage?.id).toBe('assistant-1')
       expect(mgr.inspect('a')!.executions[0].finalMessage?.id).toBe('assistant-1')
+    })
+
+    it.each([
+      ['a', 'chat', 'cherryin::gpt-test'],
+      ['agent-session:s1', 'agent', 'cherryin::gpt-test'],
+      ['a', 'chat', 'cherryin-express::gpt-test']
+    ] as const)(
+      'reports an insufficient CherryIN balance on %s as a %s quota error from %s',
+      async (topicId, composer, modelId) => {
+        mockTrackProductEvent.mockClear()
+        startSingle(mgr, { topicId, modelId, request: req(topicId), listeners: [] })
+
+        await mgr.onExecutionError(topicId, modelId, {
+          ...error('403: insufficient_user_quota'),
+          statusCode: 403
+        })
+
+        expect(mockTrackProductEvent).toHaveBeenCalledExactlyOnceWith({ event: 'cherryin_quota_error', composer })
+      }
+    )
+
+    it.each([
+      [
+        'an agent model call through the gateway',
+        'agent' as const,
+        [{ event: 'cherryin_quota_error', composer: 'agent' }]
+      ],
+      ['an internal prompt stream', undefined, []]
+    ])('classifies a CherryIN quota error from %s by its trusted origin', async (_, tokenUsageSource, expected) => {
+      mockTrackProductEvent.mockClear()
+      mgr.streamPrompt({
+        streamId: 'gateway-object-1',
+        uniqueModelId: 'cherryin::gpt-test',
+        prompt: 'hello',
+        listener: new FakeListener('gateway:object-1'),
+        ...(tokenUsageSource && { tokenUsageSource })
+      })
+
+      await mgr.onExecutionError('gateway-object-1', 'cherryin::gpt-test', {
+        ...error('403: insufficient_user_quota'),
+        statusCode: 403
+      })
+
+      expect(mockTrackProductEvent.mock.calls.map(([event]) => event)).toEqual(expected)
+    })
+
+    it('does not report quota errors from other providers or other CherryIN failures', async () => {
+      mockTrackProductEvent.mockClear()
+      startSingle(mgr, { topicId: 'a', modelId: 'openai::gpt-test', request: req('a'), listeners: [] })
+      startSingle(mgr, { topicId: 'b', modelId: 'cherryin::gpt-test', request: req('b'), listeners: [] })
+
+      await mgr.onExecutionError('a', 'openai::gpt-test', error('insufficient_quota'))
+      await mgr.onExecutionError('b', 'cherryin::gpt-test', { ...error('rate limit exceeded'), statusCode: 429 })
+
+      expect(mockTrackProductEvent).not.toHaveBeenCalled()
     })
   })
 

@@ -252,6 +252,8 @@ export interface ActiveStream {
   lifecycle: StreamLifecycle
   /** Snapshotted at admission so temporary/internal streams never emit a conversation completion. */
   isPersistentConversation: boolean
+  /** Analytics only: the composer a user typed into; unset for internal prompt streams. */
+  analyticsComposer?: 'chat' | 'agent'
 
   /** Grace-period expiry (ms epoch); written by `lifecycle.cleanup` if it defers eviction. */
   expiresAt?: number
