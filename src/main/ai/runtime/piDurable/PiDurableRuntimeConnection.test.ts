@@ -3627,54 +3627,71 @@ describe('desktop Pi Durable connection', () => {
     expect(handle.durable.followups()).toEqual([])
   })
 
-  it.each(['legacy', 'registered'])('recovers a withdrawn %s follow-up after a native-only commit', async (kind) => {
-    const held = answerByInput()
-    const { connection, handle } = await connect()
-    const active = message('first')
-    await connection.send({ message: active })
-    await held.reached
-    const queued = messages.saveMessage({
-      sessionId: input.sessionId,
-      ...(kind === 'registered' && { stageFollowup: true }),
-      message: { role: 'user', data: { parts: [{ type: 'text', text: 'second' }] } }
-    })
-    await expect(submitBusy(connection, 'followUp', queued)).resolves.toMatchObject({ status: 'acknowledged' })
-    await expect.poll(() => handle.durable.followups().map(({ inputId }) => inputId)).toEqual([queued.id])
-    const [{ submissionId }] = handle.durable.followups()
-    const context = contexts.context(connection.contextId!)
-    const threadId = Number(context.nativeThreadId) as ConversationId
-    await connection.close()
+  it.each(['legacy', 'interrupted', 'removed', 'removed-and-discarded'])(
+    'recovers a %s follow-up before acknowledgement',
+    async (kind) => {
+      const removed = kind.startsWith('removed')
+      const discarded = kind === 'removed-and-discarded'
+      const held = answerByInput()
+      const { connection, handle } = await connect()
+      const active = message('first')
+      await connection.send({ message: active })
+      await held.reached
+      const queued = messages.saveMessage({
+        sessionId: input.sessionId,
+        ...(kind !== 'legacy' && { stageFollowup: true }),
+        message: { role: 'user', data: { parts: [{ type: 'text', text: 'second' }] } }
+      })
+      await expect(submitBusy(connection, 'followUp', queued)).resolves.toMatchObject({ status: 'acknowledged' })
+      await expect.poll(() => handle.durable.followups().map(({ inputId }) => inputId)).toEqual([queued.id])
+      const [{ submissionId }] = handle.durable.followups()
+      const context = contexts.context(connection.contextId!)
+      const threadId = Number(context.nativeThreadId) as ConversationId
+      if (removed)
+        await expect(handle.durable.changeFollowups({ type: 'withdraw', inputId: queued.id })).resolves.toBe(true)
+      if (discarded) messages.discardStagedFollowup(input.sessionId, queued.id, context.id)
+      await connection.close()
 
-    // Commit through the SDK with no desktop observer to model the gap before the product write.
-    const backend = contexts.backend(context.backendId)
-    const harness = await Harness.open(
-      await openDurableStorage(backend),
-      {
-        models: createModels(),
-        registry: createRegistry()
-      },
-      BACKGROUND_CONTEXT
-    )
-    try {
-      expect(await harness.abortSubmission(submissionId, BACKGROUND_CONTEXT, threadId)).toBe('aborted')
-      await (await harness.conversation(threadId, BACKGROUND_CONTEXT))!.abort(BACKGROUND_CONTEXT)
-      expect((await harness.commit((tx) => tx.submission(submissionId), BACKGROUND_CONTEXT))?.status).toBe('unanswered')
-    } finally {
-      await harness.close(BACKGROUND_CONTEXT)
+      // Settle the held turn so recovery can inspect a store without active work.
+      const backend = contexts.backend(context.backendId)
+      const harness = await Harness.open(
+        await openDurableStorage(backend),
+        {
+          models: createModels(),
+          registry: createRegistry()
+        },
+        BACKGROUND_CONTEXT
+      )
+      try {
+        if (!removed) expect(await harness.abortSubmission(submissionId, BACKGROUND_CONTEXT, threadId)).toBe('aborted')
+        await (await harness.conversation(threadId, BACKGROUND_CONTEXT))!.abort(BACKGROUND_CONTEXT)
+        expect(await harness.commit((tx) => tx.submission(submissionId), BACKGROUND_CONTEXT)).toMatchObject({
+          status: 'unanswered',
+          reason: removed ? 'withdrawn' : 'aborted'
+        })
+      } finally {
+        await harness.close(BACKGROUND_CONTEXT)
+      }
+      if (!discarded) expect(messages.getSessionMessage(input.sessionId, queued.id).status).toBe('success')
+      expect(contexts.backend(backend.id).needsRecoveryCheck).toBe(true)
+
+      const reopened = new PiDurableRuntimeDriver()
+      await reopened.recoverWork()
+      if (removed) {
+        expect(() => messages.getSessionMessage(input.sessionId, queued.id)).toThrow()
+        expect(messages.getSessionMessage(input.sessionId, active.id).status).toBe('success')
+        expect(contexts.backend(backend.id).needsRecoveryCheck).toBe(false)
+        return
+      }
+      const restored = messages.getSessionMessage(input.sessionId, queued.id)
+      expect(restored).toMatchObject({ status: 'paused', data: { parts: [{ type: 'text', text: 'second' }] } })
+      expect(messages.replyTo(input.sessionId, queued.id)).toBeUndefined()
+      expect(messages.getSessionMessage(input.sessionId, active.id).status).toBe('success')
+      contexts.markRecoveryCheck(backend.id, true)
+      await reopened.recoverWork()
+      expect(messages.getSessionMessage(input.sessionId, queued.id).updatedAt).toBe(restored.updatedAt)
     }
-    expect(messages.getSessionMessage(input.sessionId, queued.id).status).toBe('success')
-    expect(contexts.backend(backend.id).needsRecoveryCheck).toBe(true)
-
-    const reopened = new PiDurableRuntimeDriver()
-    await reopened.recoverWork()
-    const restored = messages.getSessionMessage(input.sessionId, queued.id)
-    expect(restored).toMatchObject({ status: 'paused', data: { parts: [{ type: 'text', text: 'second' }] } })
-    expect(messages.replyTo(input.sessionId, queued.id)).toBeUndefined()
-    expect(messages.getSessionMessage(input.sessionId, active.id).status).toBe('success')
-    contexts.markRecoveryCheck(backend.id, true)
-    await reopened.recoverWork()
-    expect(messages.getSessionMessage(input.sessionId, queued.id).updatedAt).toBe(restored.updatedAt)
-  })
+  )
 
   it('keeps a durable follow-up on its native thread when the receipt is lost after acceptance', async () => {
     const held = answerByInput()

@@ -1277,6 +1277,28 @@ export class AgentSessionMessageService {
     )
   }
 
+  discardStagedFollowup(sessionId: string, messageId: string, contextId: string): void {
+    application.get('DbService').withWriteTx((tx) => {
+      const staged = tx
+        .select({ id: sessionMessagesTable.id })
+        .from(sessionMessagesTable)
+        .where(
+          and(
+            eq(sessionMessagesTable.sessionId, sessionId),
+            eq(sessionMessagesTable.id, messageId),
+            eq(sessionMessagesTable.role, 'user'),
+            eq(sessionMessagesTable.status, 'success'),
+            isNull(sessionMessagesTable.replyId),
+            isNull(sessionMessagesTable.deliveryStatus),
+            sql`json_extract(${sessionMessagesTable.data}, '$.stagedFollowup') = 1`
+          )
+        )
+        .get()
+      if (staged && this.releaseInputBindingTx(tx, sessionId, messageId, contextId))
+        this.deleteSessionMessageTx(tx, sessionId, messageId)
+    })
+  }
+
   stagedFollowups(sessionId: string) {
     return application
       .get('DbService')

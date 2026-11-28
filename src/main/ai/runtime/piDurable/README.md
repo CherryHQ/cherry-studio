@@ -109,7 +109,7 @@ summary marker to the current reply.
   cancels the native foreground scope and stops running background children. The same native commit
   records the stop intent and pauses waiting follow-ups in `pi.inbox`. Those inputs stay in queue order
   with their original submission IDs across reopen. Users can edit, reorder, withdraw or resume them.
-  An unconsumed steer can still be withdrawn and shown as not sent. The connection emits
+  An unconsumed steer can still be aborted and shown as not sent. The connection emits
   `stop-confirmed` after the stopped turn's terminal event. The next explicit send reuses the access
   and can start while older follow-ups remain paused. An unconfirmed stop, including a native interrupt that never
   returns, closes the access after 20 seconds. If Durable completed or failed the input before the stop
@@ -138,8 +138,9 @@ summary marker to the current reply.
   physical store with unfinished work. It installs the affected roots and child writers before
   resuming and keeps unresolved stores eligible for another recovery. Interactive follow-up admission
   records a pending conversation update in the native transaction. Startup reads those request IDs
-  even when the store has no execution work, publishes placed inputs, and restores withdrawals as
-  unsent. The desktop retires the ID after the product transaction succeeds. A cold session open
+  even when the store has no execution work. It publishes placed inputs, discards explicitly removed
+  drafts, and restores interrupted inputs that qualify as unsent. The desktop retires the ID after the
+  product transaction succeeds. A cold session open
   checks any saved input left before native admission against its original binding.
 - Closing a child panel only detaches its projection subscription.
 

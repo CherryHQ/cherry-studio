@@ -63,7 +63,7 @@ it('preserves queued IDs across edit, reorder and restart, and only withdraws wa
     changeFollowups(harness, conversation.id, change, context)
   const order = ['First', 'Second', 'Removed']
   expect(await mutate({ type: 'withdraw', inputId: 'Removed' })).toBe(true)
-  expect(await removed.status(context)).toMatchObject({ status: 'unanswered', reason: 'aborted' })
+  expect(await removed.status(context)).toMatchObject({ status: 'unanswered', reason: 'withdrawn' })
   expect(await active.status(context)).toMatchObject({ status: 'placed' })
   expect(await mutate({ type: 'reorder', before: order, after: [...order].reverse() })).toBe(false)
   expect(await mutate({ type: 'reorder', before: ['First', 'Second'], after: ['Second', 'First'] })).toBe(true)

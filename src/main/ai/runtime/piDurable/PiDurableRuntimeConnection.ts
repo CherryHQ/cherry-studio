@@ -439,7 +439,14 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     if (messages.inputBinding(this.input.sessionId, change.inputId)?.contextId !== context.id) return false
     const message = messages.getSessionMessage(this.input.sessionId, change.inputId)
     if (message.delivery || message.role !== 'user') return false
-    if (change.type === 'withdraw') return this.handle.durable.changeFollowups(change)
+    if (change.type === 'withdraw') {
+      const applied = await this.handle.durable.changeFollowups(change)
+      if (applied) {
+        messages.discardStagedFollowup(this.input.sessionId, change.inputId, context.id)
+        this.acknowledgeFollowupProjection(context.id, change.inputId)
+      }
+      return applied
+    }
     if (change.type === 'steer') {
       if (!activeRun || !this.active || this.compacting) return false
       return this.handle.durable.changeFollowups({
