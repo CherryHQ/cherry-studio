@@ -55,6 +55,7 @@ import {
   resolveRequestContextSettings
 } from '../../contextBuild/resolveRequestContextSettings'
 import { toModelMessages } from '../../messages/messageRules'
+import { buildModelSnapshotFromRuntimeModel } from '../../messages/modelSnapshot'
 import { applyTurnInputAttributes, startAiChildTurnSpan } from '../../observability'
 import { wrapSteerReminder } from '../../steerReminder'
 import { resolveModelTokenDialect, type TokenDialect } from '../../tokens/dialect'
@@ -126,11 +127,7 @@ function buildAssistantMessageSnapshot(
   if (!assistant) return undefined
   return {
     ...assistant,
-    model: {
-      id: model.apiModelId ?? parseUniqueModelId(model.id).modelId,
-      name: model.name,
-      provider: model.providerId
-    }
+    model: buildModelSnapshotFromRuntimeModel(model)
   }
 }
 

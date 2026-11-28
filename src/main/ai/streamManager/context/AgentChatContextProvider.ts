@@ -32,11 +32,12 @@ import { getLocalAgentProtocol, isLocalAgentPlaceholderTitle } from '@shared/ai/
 import { DataApiErrorFactory, ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
-import type { CherryMessagePart, CherryUIMessage, MessageSnapshot } from '@shared/data/types/message'
+import { type CherryMessagePart, type CherryUIMessage, type MessageSnapshot } from '@shared/data/types/message'
 import { parseUniqueModelId, type ServiceTierSelection, type UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
 import { validateEditedInput } from '../../agentSession/editInput'
+import { createModelSnapshot, resolveSnapshotProviderName } from '../../messages/modelSnapshot'
 import { applyTurnInputAttributes, startAiChildTurnSpan } from '../../observability'
 import { runtimeDriverRegistry } from '../../runtime/registry'
 import type { StreamListener } from '../types'
@@ -239,11 +240,12 @@ export class AgentChatContextProvider implements ChatContextProvider {
         ...(agent.avatarFileId ? { avatarFileId: agent.avatarFileId } : {}),
         ...(providerModel
           ? {
-              model: {
+              model: createModelSnapshot({
                 id: providerModel.modelId,
                 name: modelName ?? providerModel.modelId,
-                provider: providerModel.providerId
-              }
+                provider: providerModel.providerId,
+                providerName: resolveSnapshotProviderName(providerModel.providerId)
+              })
             }
           : { nativeModel: { runtime: localRuntime ? getLocalAgentProtocol(localRuntime.presetId) : 'local' } })
       },

@@ -17,6 +17,7 @@ import { modelService } from '@data/services/ModelService'
 import { getRetiredAgentSessionMigration } from '@data/services/retiredAgentRuntimeMigration'
 import { loggerService } from '@logger'
 import { AgentSessionForkOperations, readHistoryActions } from '@main/ai/agentSession/fork'
+import { resolveSnapshotProviderName } from '@main/ai/messages/modelSnapshot'
 import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
 import type { RuntimeForkAnchor } from '@main/ai/runtime/fork'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
@@ -5089,7 +5090,15 @@ function reconcileSnapshotModel(
   if (snapshot.model && createUniqueModelId(snapshot.model.provider, snapshot.model.id) === providerModelId)
     return snapshot
   const { providerId, modelId: rawModelId } = parseUniqueModelId(providerModelId)
-  return { ...snapshot, model: { id: rawModelId, name: modelName ?? rawModelId, provider: providerId } }
+  return {
+    ...snapshot,
+    model: {
+      id: rawModelId,
+      name: modelName ?? rawModelId,
+      provider: providerId,
+      providerName: resolveSnapshotProviderName(providerId)
+    }
+  }
 }
 
 function sourceSnapshotFromMessageSnapshot(snapshot: MessageSnapshot | undefined): SourceSnapshot | null {

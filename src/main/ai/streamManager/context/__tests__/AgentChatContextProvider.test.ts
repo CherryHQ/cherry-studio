@@ -77,6 +77,12 @@ vi.mock('@application', () => ({
   application: { get: mocks.applicationGet, isReady: () => true }
 }))
 
+vi.mock('@main/data/services/ProviderService', () => ({
+  providerService: {
+    getByProviderId: vi.fn(() => ({ name: 'Anthropic' }))
+  }
+}))
+
 const { AgentChatContextProvider } = await import('../AgentChatContextProvider')
 const { runtimeDriverRegistry } = await import('../../../runtime/registry')
 
@@ -284,7 +290,7 @@ describe('AgentChatContextProvider', () => {
             id: 'agent-1',
             name: 'My Agent',
             emoji: '🤖',
-            model: { id: 'claude-sonnet', name: 'Claude Sonnet', provider: 'anthropic' }
+            model: { id: 'claude-sonnet', name: 'Claude Sonnet', provider: 'anthropic', providerName: 'Anthropic' }
           }
         })
       })
@@ -309,7 +315,7 @@ describe('AgentChatContextProvider', () => {
         id: 'agent-1',
         name: 'My Agent',
         emoji: '🤖',
-        model: { id: 'claude-sonnet', name: 'Claude Sonnet', provider: 'anthropic' }
+        model: { id: 'claude-sonnet', name: 'Claude Sonnet', provider: 'anthropic', providerName: 'Anthropic' }
       },
       shouldAutoName: true
     })
@@ -348,7 +354,7 @@ describe('AgentChatContextProvider', () => {
           id: 'agent-1',
           name: 'My Agent',
           emoji: '🤖',
-          model: { id: 'claude-sonnet', name: 'Claude Sonnet', provider: 'anthropic' }
+          model: { id: 'claude-sonnet', name: 'Claude Sonnet', provider: 'anthropic', providerName: 'Anthropic' }
         },
         reasoningEffort: 'default',
         serviceTier: 'standard'
@@ -398,7 +404,7 @@ describe('AgentChatContextProvider', () => {
           id: 'agent-1',
           name: 'My Agent',
           emoji: '🤖',
-          model: { id: 'claude-sonnet', name: 'Claude Sonnet', provider: 'anthropic' }
+          model: { id: 'claude-sonnet', name: 'Claude Sonnet', provider: 'anthropic', providerName: 'Anthropic' }
         },
         reasoningEffort: 'default',
         serviceTier: 'standard'
