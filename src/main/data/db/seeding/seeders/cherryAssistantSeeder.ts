@@ -21,7 +21,7 @@ export class CherryAssistantSeeder implements ISeeder {
     db.transaction((tx) => {
       const builtinRole = BUILTIN_AGENT_ROLE.ASSISTANT
       const existing = agentService.findBuiltinAgentByRoleTx(tx, builtinRole, { includeDeleted: true })
-      if (existing) return
+      if (existing || agentService.isBuiltinAgentPurgedTx(tx, builtinRole)) return
 
       // Onboarding assigns a compatible model after the user chooses one.
       const { agent } = agentService.createBuiltinAgentTx(

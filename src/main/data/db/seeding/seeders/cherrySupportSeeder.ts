@@ -29,6 +29,8 @@ export class CherrySupportSeeder implements ISeeder {
         return
       }
 
+      if (agentService.isBuiltinAgentPurgedTx(tx, BUILTIN_AGENT_ROLE.SUPPORT)) return
+
       const assistant = agentService.findBuiltinAgentByRoleTx(tx, BUILTIN_AGENT_ROLE.ASSISTANT)
       const { agent } = agentService.createBuiltinAgentTx(
         tx,
