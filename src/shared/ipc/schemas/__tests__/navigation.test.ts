@@ -15,6 +15,7 @@ describe('conversation draft hand-off', () => {
           id: 'quote:1',
           kind: 'quote',
           label: 'Quote',
+          sourceMessageId: 'original-message',
           promptText: '<blockquote>x</blockquote>',
           index: 0,
           textOffset: 0

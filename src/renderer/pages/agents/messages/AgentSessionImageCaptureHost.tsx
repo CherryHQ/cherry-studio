@@ -3,12 +3,13 @@ import { memo, useCallback, useMemo, useRef } from 'react'
 import { loggerService } from '@logger'
 import { useMessageImageCaptureMessages } from '@renderer/components/chat/messages/hooks/useMessageImageCaptureMessages'
 import MessageImageCaptureHost from '@renderer/components/chat/messages/MessageImageCaptureHost'
+import { LocalAgentIcon } from '@renderer/components/icons/LocalAgentIcon'
 import { getAgentSessionExportTitle, getAgentSessionMessagesForExport } from '@renderer/services/agentSessionExport'
 import type { GetAgentResponse } from '@renderer/types/agent'
 import type { Topic } from '@renderer/types/topic'
 import { TopicType } from '@renderer/types/topic'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
-import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
+import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { ModelSnapshot } from '@shared/data/types/message'
 
@@ -67,6 +68,9 @@ const AgentSessionImageCaptureHost = ({ activeAgent, modelFallback, session }: A
       ? {
           id: captureTarget.activeAgent.id,
           name: captureTarget.activeAgent.name,
+          avatarIcon: captureTarget.activeAgent.localRuntime ? (
+            <LocalAgentIcon presetId={captureTarget.activeAgent.localRuntime.presetId} size={30} />
+          ) : undefined,
           avatar: getAgentAvatarFromConfiguration(
             captureTarget.activeAgent.configuration,
             captureTarget.activeAgent.avatarSrc

@@ -4,7 +4,7 @@ Data comes from the model catalog bundled with Cherry Studio ([provider-registry
 
 Context length and max output are abbreviated with K / M and rounded (1K is roughly 1,000–1,024 tokens, 1M roughly one million), e.g. 131,072 and 128,000 both read 128K. Hover a value to see the exact number; confirm limits with the model provider.
 
-> **Data updated**: 2026-11-03 16:01:16 UTC / 2026-11-04 00:01:16 CST (Beijing time)
+> **Data updated**: 2026-11-27 17:59:10 UTC / 2026-11-28 01:59:10 CST (Beijing time)
 
 <div data-models-table="num:2,3;sort:1;search:0,1;cap:4:Function calling,Reasoning,Image recognition,Structured output,File input">
 
@@ -98,6 +98,12 @@ Context length and max output are abbreviated with K / M and rounded (1K is roug
 | Doubao 1.5 Thinking Pro M<br><code>doubao-1-5-thinking-pro-m</code> | bytedance | <span title="131,072">128K</span> | <span title="16,384">16K</span> | Reasoning, Function calling | Text | Text |
 | Doubao Seed Translation<br><code>doubao-seed-translation</code> | bytedance | <span title="4,096">4K</span> | <span title="3,072">3K</span> | - | Text | Text |
 | doubao-seed-1-8<br><code>doubao-seed-1-8</code> | bytedance | - | - | - | - | - |
+| SWE-1.6<br><code>swe-1-6</code> | cognition | - | - | Function calling, Reasoning | Text | Text |
+| SWE-1.7<br><code>swe-1-7</code> | cognition | - | - | Function calling, Reasoning | Text | Text |
+| SWE-2<br><code>swe-2</code> | cognition | - | - | Function calling, Reasoning | Text | Text |
+| SWE-2 Flash<br><code>swe-2-flash</code> | cognition | - | - | Function calling, Reasoning | Text | Text |
+| SWE-2.1<br><code>swe-2-1</code> | cognition | - | - | Function calling, Reasoning | Text | Text |
+| SWE-2.1 Ultrafast<br><code>swe-2-1-ultrafast</code> | cognition | - | - | Function calling, Reasoning | Text | Text |
 | Aya Expanse 32B<br><code>c4ai-aya-expanse-32b</code> | cohere | <span title="131,072">128K</span> | <span title="4,096">4K</span> | Function calling | Text | Text |
 | Aya Expanse 8B<br><code>c4ai-aya-expanse-8b</code> | cohere | <span title="8,192">8K</span> | <span title="4,096">4K</span> | Function calling | Text | Text |
 | Command<br><code>command</code> | cohere | <span title="4,096">4K</span> | <span title="4,096">4K</span> | Function calling | - | - |
@@ -118,6 +124,8 @@ Context length and max output are abbreviated with K / M and rounded (1K is roug
 | Tiny Aya Fire<br><code>tiny-aya-fire</code> | cohere | <span title="8,192">8K</span> | <span title="8,192">8K</span> | Function calling | - | - |
 | Tiny Aya Global<br><code>tiny-aya-global</code> | cohere | <span title="8,192">8K</span> | <span title="8,192">8K</span> | Function calling | - | - |
 | Tiny Aya Water<br><code>tiny-aya-water</code> | cohere | <span title="8,192">8K</span> | <span title="8,192">8K</span> | Function calling | - | - |
+| Composer 2.5<br><code>composer-2-5</code> | cursor | <span title="200,000">200K</span> | - | Function calling | Text | Text |
+| Composer 2.5 Fast<br><code>composer-2-5-fast</code> | cursor | <span title="200,000">200K</span> | - | Function calling | Text | Text |
 | DeepSeek R1<br><code>deepseek-r1</code> | deepseek | <span title="163,840">160K</span> | <span title="32,768">32K</span> | Function calling, Reasoning, Structured output | Text | Text |
 | DeepSeek R1 Distill Llama 70B<br><code>deepseek-r1-distill-llama-70b</code> | deepseek | <span title="32,768">32K</span> | <span title="16,384">16K</span> | Function calling, Reasoning | Text | Text |
 | DeepSeek R1 Distill Llama 8B<br><code>deepseek-r1-distill-llama-8b</code> | deepseek | <span title="32,768">32K</span> | <span title="16,384">16K</span> | Function calling, Reasoning | Text | Text |
@@ -236,7 +244,11 @@ Context length and max output are abbreviated with K / M and rounded (1K is roug
 | OpenAI: GPT-3.5 Turbo Instruct<br><code>gpt-3-5-turbo-instruct</code> | openai | <span title="4,095">4K</span> | - | Structured output | Text | Text |
 | OpenAI: GPT-4 Turbo Preview<br><code>gpt-4-turbo-preview</code> | openai | <span title="128,000">128K</span> | - | Function calling, Structured output | Text | Text |
 | Perplexity Sonar Deep Research<br><code>sonar-deep-research</code> | perplexity | <span title="128,000">128K</span> | <span title="32,768">32K</span> | Reasoning | Text | Text |
+| Flint<br><code>flint-v1-0</code> | recursive | <span title="262,144">256K</span> | <span title="262,144">256K</span> | Function calling, Reasoning, Structured output | Text | Text |
+| Beam 1.0<br><code>beam</code> | reflection | <span title="1,048,576">1.05M</span> | <span title="131,072">128K</span> | Function calling, Reasoning, Structured output | Text | Text |
 | Reka Flash 3<br><code>reka-flash-3</code> | reka | <span title="65,536">64K</span> | - | Reasoning, Structured output | Text | Text |
+| Extract-1<br><code>scaledown-extract-1</code> | scaledown | <span title="1,000,000">1M</span> | <span title="1,000,000">1M</span> | Structured output | Text | Text |
+| Summarize-1<br><code>scaledown-summarize-1</code> | scaledown | <span title="1,000,000">1M</span> | <span title="1,000">1K</span> | - | Text | Text |
 | Step 1 (32K)<br><code>step-1-32k</code> | stepfun | <span title="32,768">32K</span> | <span title="32,768">32K</span> | Function calling | Text | Text |
 | Step 2 (16K)<br><code>step-2-16k</code> | stepfun | <span title="16,384">16K</span> | <span title="8,192">8K</span> | Function calling | Text | Text |
 | Kat Coder Pro V2<br><code>kat-coder-pro-v2</code> | streamlake | <span title="262,144">256K</span> | <span title="256,000">256K</span> | Function calling, Reasoning, Structured output | Text | Text |
@@ -251,6 +263,7 @@ Context length and max output are abbreviated with K / M and rounded (1K is roug
 | Hunyuan MT2 Plus<br><code>hy-mt2-plus</code> | tencent | <span title="8,192">8K</span> | <span title="4,096">4K</span> | - | Text | Text |
 | Hunyuan MT2 Pro<br><code>hy-mt2-pro</code> | tencent | <span title="8,192">8K</span> | <span title="4,096">4K</span> | - | Text | Text |
 | Hunyuan Role<br><code>hy-role</code> | tencent | <span title="32,768">32K</span> | <span title="4,096">4K</span> | - | - | - |
+| Hunyuan Role Latest<br><code>hunyuan-role-latest</code> | tencent | <span title="32,768">32K</span> | <span title="4,096">4K</span> | - | - | - |
 | Hunyuan T1<br><code>hunyuan-t1</code> | tencent | - | - | Reasoning, Function calling | - | - |
 | Hunyuan TurboS<br><code>hunyuan-turbos</code> | tencent | - | - | Function calling | - | - |
 | Tencent Code<br><code>tc-code</code> | tencent | - | - | Function calling | - | - |
@@ -278,9 +291,9 @@ Context length and max output are abbreviated with K / M and rounded (1K is roug
 | Grok 4.1<br><code>grok-4-1</code> | xai | <span title="256,000">256K</span> | - | Reasoning, Function calling | - | - |
 | Grok Beta<br><code>grok-beta</code> | xai | <span title="131,072">128K</span> | - | Function calling | - | - |
 | Grok Code Fast 1<br><code>grok-code-fast-1</code> | xai | <span title="256,000">256K</span> | - | Function calling | - | - |
-| MiMo V2.5 Pro<br><code>mimo-v2-5-pro</code> | xiaomi | <span title="1,050,000">1.05M</span> | <span title="131,072">128K</span> | Function calling, Reasoning, Structured output | Text | Text |
 | MiMo-V2-Flash<br><code>mimo-v2-flash</code> | xiaomi | <span title="262,144">256K</span> | <span title="65,536">64K</span> | Function calling, Reasoning | Text | Text |
 | MiMo-V2-Pro<br><code>mimo-v2-pro</code> | xiaomi | <span title="1,048,576">1.05M</span> | <span title="131,072">128K</span> | Function calling, Reasoning | Text | Text |
+| MiMo-V2.5-Pro<br><code>mimo-v2-5-pro</code> | xiaomi | <span title="1,048,576">1.05M</span> | <span title="131,072">128K</span> | Function calling, Reasoning, Structured output | Text | Text |
 | MiMo-V2.5-Pro-UltraSpeed<br><code>mimo-v2-5-pro-ultraspeed</code> | xiaomi | <span title="1,048,576">1.05M</span> | <span title="131,072">128K</span> | Function calling, Reasoning | Text | Text |
 | GLM 4.5<br><code>glm-4-5</code> | zhipu | <span title="131,072">128K</span> | <span title="98,304">96K</span> | Function calling, Reasoning, Structured output | Text | Text |
 | GLM 4.5 Air<br><code>glm-4-5-air</code> | zhipu | <span title="131,072">128K</span> | <span title="98,304">96K</span> | Function calling, Reasoning | Text | Text |
@@ -290,7 +303,7 @@ Context length and max output are abbreviated with K / M and rounded (1K is roug
 | GLM 4.7 FlashX<br><code>glm-4-7-flashx</code> | zhipu | <span title="200,000">200K</span> | <span title="131,072">128K</span> | Function calling, Reasoning | Text | Text |
 | GLM 5 Turbo<br><code>glm-5-turbo</code> | zhipu | <span title="202,800">202.8K</span> | <span title="131,100">131.1K</span> | Function calling, Reasoning, Structured output | Text | Text |
 | GLM 5.2 Fast<br><code>glm-5-2-fast</code> | zhipu | <span title="1,000,000">1M</span> | <span title="128,000">128K</span> | Function calling, Reasoning, Structured output | Text | Text |
-| GLM 5.3<br><code>glm-5-3</code> | zhipu | <span title="1,310,720">1.31M</span> | <span title="131,072">128K</span> | Function calling, Reasoning, Structured output | Text | Text |
+| GLM 5.3<br><code>glm-5-3</code> | zhipu | <span title="1,048,576">1.05M</span> | <span title="131,072">128K</span> | Function calling, Reasoning, Structured output | Text | Text |
 | GLM 5.3 Fast<br><code>glm-5-3-fast</code> | zhipu | <span title="1,048,576">1.05M</span> | <span title="262,144">256K</span> | Function calling, Reasoning, Structured output | Text | Text |
 | GLM-3-Turbo<br><code>glm-3-turbo</code> | zhipu | <span title="131,072">128K</span> | - | Function calling | - | - |
 | GLM-4<br><code>glm-4</code> | zhipu | <span title="131,072">128K</span> | - | Function calling | - | - |

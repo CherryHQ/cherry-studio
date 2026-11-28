@@ -362,6 +362,7 @@ vi.mock('react-i18next', () => {
     ({
       'agent.manage.title': '管理智能体',
       'agent.session.list.title': '任务',
+      'common.back': '返回',
       'settings.about.feedback.agent.description': '使用内置的问题反馈 Agent 获取使用帮助或提交反馈。',
       'settings.skills.intentInvalid': 'Skill unavailable',
       'settings.skills.launchDraft': `Use ${options?.name ?? ''} Skill to help me.`
@@ -663,10 +664,16 @@ vi.mock('@renderer/components/chat/resourceList/AgentResourceList', () => ({
 }))
 
 vi.mock('../components/AgentCreateDialog', () => ({
-  AgentCreateDialog: ({ open, onCreated }: { open?: boolean; onCreated?: (agentId: string) => void }) =>
+  AgentCreateDialog: ({
+    open,
+    onStartConversation
+  }: {
+    open?: boolean
+    onStartConversation?: (agentId: string) => void
+  }) =>
     open ? (
       <div data-testid="agent-create-dialog">
-        <button type="button" onClick={() => onCreated?.('agent-b')}>
+        <button type="button" onClick={() => onStartConversation?.('agent-b')}>
           Create resource agent
         </button>
       </div>
@@ -712,9 +719,11 @@ vi.mock('@renderer/components/history/HistoryRecordsView', () => ({
   default: ({
     open,
     onActiveRecordChange,
-    onLocalPermanentDeletePendingChange
+    onLocalPermanentDeletePendingChange,
+    toolbarLeading
   }: {
     open?: boolean
+    toolbarLeading?: ReactNode
     onActiveRecordChange?: (sessionId: string | null) => void
     onLocalPermanentDeletePendingChange?: (id: string | null) => void
   }) => {
@@ -722,6 +731,7 @@ vi.mock('@renderer/components/history/HistoryRecordsView', () => ({
     agentPageMocks.historyOnPending = onLocalPermanentDeletePendingChange
     return open ? (
       <div data-testid="history-records-view">
+        {toolbarLeading}
         <button type="button" onClick={() => onActiveRecordChange?.('session-next')}>
           Replace history session
         </button>
@@ -1061,37 +1071,6 @@ describe('AgentPage', () => {
     expect(agentPageMocks.setClassicLayoutRightPaneOpenOverride).toHaveBeenCalledWith(false)
   })
 
-  it('toggles the classic session pane when the selected agent is clicked again', () => {
-    agentPageMocks.sessionDisplayMode = 'agent'
-    agentPageMocks.classicLayoutRightPaneOpenOverride = true
-    activeSessionMocks.session = { ...agentPageMocks.persistedSession, agentId: 'agent-a' }
-    activeSessionMocks.sessionSource = 'query'
-
-    render(<AgentPage />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'Toggle selected agent pane' }))
-
-    expect(agentPageMocks.setClassicLayoutRightPaneOpenOverride).toHaveBeenCalledWith(false)
-  })
-
-  it('closes classic-layout history records when the active agent is clicked', () => {
-    agentPageMocks.sessionDisplayMode = 'agent'
-    agentPageMocks.sessionPanePosition = 'right'
-    activeSessionMocks.session = { ...agentPageMocks.persistedSession, agentId: 'agent-a' }
-    activeSessionMocks.sessionSource = 'query'
-
-    render(<AgentPage />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'Open history records' }))
-    expect(screen.getByTestId('history-records-view')).toBeInTheDocument()
-    expect(screen.getByTestId('agent-resource-list')).toHaveAttribute('data-history-active', 'true')
-
-    fireEvent.click(screen.getByRole('button', { name: 'Toggle selected agent pane' }))
-
-    expect(screen.queryByTestId('history-records-view')).not.toBeInTheDocument()
-    expect(screen.getByTestId('agent-resource-list')).toHaveAttribute('data-history-active', 'false')
-  })
-
   it('opens the agent create dialog from the modern add entry', () => {
     agentPageMocks.sessionDisplayMode = 'time'
 
@@ -1102,20 +1081,25 @@ describe('AgentPage', () => {
     expect(screen.getByTestId('agent-create-dialog')).toBeInTheDocument()
   })
 
-  it('renders history records inside the stable AgentChat shell and toggles them from the sidebar', () => {
-    activeSessionMocks.session = { ...agentPageMocks.persistedSession, agentId: 'agent-a' }
-    activeSessionMocks.sessionSource = 'query'
+  it.each(['time', 'agent'] as const)(
+    'returns from history to the same session and sidebar in %s layout',
+    (displayMode) => {
+      agentPageMocks.sessionDisplayMode = displayMode
+      agentPageMocks.showSidebar = true
+      activeSessionMocks.session = { ...agentPageMocks.persistedSession, agentId: 'agent-a' }
+      activeSessionMocks.sessionSource = 'query'
+      render(<AgentPage />)
 
-    render(<AgentPage />)
+      fireEvent.click(screen.getByRole('button', { name: 'Open history records' }))
+      expect(screen.getByTestId('history-records-view')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Open history records' }))
-
-    expect(screen.getByTestId('history-records-view')).toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Open history records' }))
-
-    expect(screen.queryByTestId('history-records-view')).not.toBeInTheDocument()
-  })
+      fireEvent.click(screen.getByRole('button', { name: '返回' }))
+      expect(screen.queryByTestId('history-records-view')).not.toBeInTheDocument()
+      expect(screen.getByTestId('active-session')).toHaveTextContent(agentPageMocks.persistedSession.id)
+      expect(screen.getByTestId('pane-open')).toHaveTextContent('true')
+      expect(agentPageMocks.setShowSidebar).not.toHaveBeenCalled()
+    }
+  )
 
   it('keeps the agent resource view open until the created agent session is ready', async () => {
     agentPageMocks.sessionDisplayMode = 'agent'
@@ -1214,25 +1198,18 @@ describe('AgentPage', () => {
     })
   })
 
-  it('keeps a sidebar toggle beside agent resource search so a collapsed pane can be reopened', async () => {
+  it('returns from agent management with the sidebar restored', () => {
     agentPageMocks.showSidebar = true
     activeSessionMocks.session = { ...agentPageMocks.persistedSession, agentId: 'agent-a' }
     activeSessionMocks.sessionSource = 'query'
-
     render(<AgentPage />)
+
     fireEvent.click(screen.getByRole('button', { name: 'agent.manage.title' }))
 
-    const shell = screen.getByTestId('agent-conversation-page-shell')
-    expect(within(shell).getByTestId('resource-pane-open')).toHaveTextContent('true')
-
-    const toolbarLeading = within(shell).getByTestId('resource-toolbar-leading')
-
-    // Collapse the pane from the resource toolbar toggle, then confirm the toggle survives the collapse.
-    fireEvent.click(within(toolbarLeading).getByRole('button'))
-    await waitFor(() => expect(within(shell).getByTestId('resource-pane-open')).toHaveTextContent('false'))
-
-    fireEvent.click(within(toolbarLeading).getByRole('button'))
-    await waitFor(() => expect(within(shell).getByTestId('resource-pane-open')).toHaveTextContent('true'))
+    fireEvent.click(within(screen.getByTestId('resource-catalog-agent')).getByRole('button', { name: '返回' }))
+    expect(screen.queryByTestId('resource-catalog-agent')).not.toBeInTheDocument()
+    expect(screen.getByTestId('pane-open')).toHaveTextContent('true')
+    expect(agentPageMocks.setShowSidebar).not.toHaveBeenCalled()
   })
 
   it('preserves a manually closed classic-layout agent right pane across remounts', async () => {
@@ -2824,5 +2801,34 @@ describe('AgentPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Show visible workspace' }))
 
     await waitFor(() => expect(agentPageMocks.setLastUsedWorkspaceId).toHaveBeenCalledWith('workspace-visible'))
+  })
+
+  it('reuses the remembered workspace when creating a new session for a local agent', async () => {
+    agentPageMocks.lastUsedWorkspaceId = 'workspace-a'
+    agentPageMocks.agents = [
+      { id: 'agent-a', model: 'model-a', name: 'Agent A' },
+      {
+        id: 'agent-b',
+        model: null,
+        name: 'Claude Code',
+        type: 'local',
+        localRuntime: { providerId: 'claude-provider', presetId: 'claude', enabled: true, args: [], env: {} }
+      } as any
+    ]
+    agentPageMocks.dataApiGet.mockImplementation(async (path: string) => {
+      if (path === '/agent-workspaces/workspace-a') return agentPageMocks.workspace
+      return undefined
+    })
+
+    render(<AgentPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Select missing agent' }))
+
+    await waitFor(() =>
+      expect(agentPageMocks.reuseOrCreateSession).toHaveBeenCalledWith('agent-b', {
+        type: AGENT_WORKSPACE_TYPE.USER,
+        workspaceId: 'workspace-a'
+      })
+    )
   })
 })

@@ -16,6 +16,7 @@ import {
   Tooltip
 } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
+import { AvatarCropPopup } from '@renderer/components/Avatar/AvatarCropPopup'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
@@ -90,8 +91,11 @@ export function UserProfileEditor() {
       return
     }
 
+    const area = await AvatarCropPopup.show({ file, shape: 'round' })
+    if (!area) return
+
     try {
-      const data = await prepareEntityImageBytes(file)
+      const data = await prepareEntityImageBytes(file, area)
       await ipcApi.request('profile.set_avatar', { kind: 'image', data })
       setAvatarPopoverOpen(false)
       setAvatarPopoverView('menu')

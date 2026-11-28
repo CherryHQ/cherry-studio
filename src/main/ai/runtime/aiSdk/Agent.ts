@@ -18,11 +18,13 @@ import type { StringKeys } from '@cherrystudio/ai-core/provider'
 import { logAiFailure } from '@main/ai/errorReporting'
 import { isAbortError } from '@main/utils/error'
 
+import { usesAnthropicMessagesSdk } from '../../messages/anthropicThinking'
 import { ALL_MEDIA, routeToolResultMedia } from '../../messages/messageCapabilities'
 import { toModelMessages } from '../../messages/messageRules'
 import type { AppProviderSettingsMap } from '../../types'
+import { getTerminalModelError } from '../../utils/retryError'
 import { serializeError } from '../../utils/serializeError'
-import { classifyAiSdkFailure } from './failureFacts'
+import { classifyAiSdkFailure, isMissingFinishReason, MissingFinishReasonError } from './failureFacts'
 import { logger, safeCall, wrapForwardedHook, wrapToolsWithExecutionHooks } from './loop/hookRunner'
 import { resolveToolLoopTerminalError } from './loop/toolLoopTermination'
 import type { AgentLoopHooks, AgentLoopParams } from './loop/types'
@@ -31,23 +33,8 @@ import { composeHooks } from './params/composeHooks'
 
 type AppProviderKey = StringKeys<AppProviderSettingsMap>
 
-const MISSING_FINISH_REASON_MESSAGE = 'Response stream ended without a finish reason.'
-
-class MissingFinishReasonError extends Error {
-  readonly i18nKey = 'missing_finish_reason'
-
-  constructor(
-    cause: Error,
-    readonly providerId: string,
-    readonly modelId: string
-  ) {
-    super(cause.message, { cause })
-    this.name = 'MissingFinishReasonError'
-  }
-}
-
 function normalizeStreamError(error: unknown, providerId: string, modelId: string): unknown {
-  if (InvalidResponseDataError.isInstance(error) && error.message === MISSING_FINISH_REASON_MESSAGE) {
+  if (isMissingFinishReason(error)) {
     return new MissingFinishReasonError(error, providerId, modelId)
   }
   return error
@@ -131,17 +118,18 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
         : undefined
       const singleStep = {
         ...settings,
+        output: opts.output,
         model: params.modelId,
         system: params.system,
         tools,
-        maxRetries: 0,
+        maxRetries: params.wrapModel ? 0 : (opts.maxRetries ?? 0),
         stopWhen: stepCountIs(1)
       }
       return {
         stream: (input: { messages: ModelMessage[]; abortSignal?: AbortSignal }) =>
-          executor.streamText({ ...singleStep, ...input }),
+          executor.streamText({ ...singleStep, ...input }, params.wrapModel),
         generate: (input: ({ prompt: string } | { messages: ModelMessage[] }) & { abortSignal?: AbortSignal }) =>
-          executor.generateText({ ...singleStep, ...input })
+          executor.generateText({ ...singleStep, ...input }, params.wrapModel)
       }
     }
     const toolsWithHooks = wrapToolsWithExecutionHooks(params.tools, hooks)
@@ -184,7 +172,9 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
   async generate(
     input: { prompt: string } | { messages: ModelMessage[] },
     signal?: AbortSignal,
-    mode: 'generate' | 'stream' = 'generate'
+    mode: 'generate' | 'stream' = 'generate',
+    /** Stream mode only: each text delta as it arrives, before the result resolves. */
+    onTextDelta?: (delta: string) => void
   ): Promise<{ text: string; usage: LanguageModelUsage; finishReason: FinishReason; rawFinishReason?: string }> {
     const hooks = this.composedHooks()
     try {
@@ -218,6 +208,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
           if (part.type === 'error') throw part.error
           if (part.type === 'abort') throw signal?.reason ?? new Error('Model check aborted')
           if (part.type === 'finish') finished = true
+          if (part.type === 'text-delta') onTextDelta?.(part.text)
         }
         signal?.throwIfAborted()
         const [text, usage, finishReason, rawFinishReason, steps] = await Promise.all([
@@ -256,9 +247,12 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
       }
 
       logAiFailure(logger, 'agent generate error', err, 'agent.ai_sdk.generate', classifyAiSdkFailure(err))
+      const terminalError = getTerminalModelError(err)
       if (hooks.onError) {
         try {
-          await hooks.onError({ error: err instanceof Error ? err : new Error(String(err)) })
+          await hooks.onError({
+            error: terminalError instanceof Error ? terminalError : new Error(String(terminalError))
+          })
         } catch (hookErr) {
           logAiFailure(logger, 'hooks.onError threw; rethrowing original', hookErr, 'agent.ai_sdk.hook', {
             source: 'application',
@@ -269,7 +263,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
           })
         }
       }
-      throw err
+      throw terminalError
     }
   }
 
@@ -375,7 +369,16 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
         initialMessages,
         params.mediaCapabilities,
         params.tools,
-        params.toolResultMediaCapabilities
+        params.toolResultMediaCapabilities,
+        {
+          preserveSignedGeminiWhitespace: true,
+          preserveEmptyAnthropicThinking:
+            params.contextOwner !== 'caller' &&
+            usesAnthropicMessagesSdk(params.providerId, {
+              endpointType: params.endpointType,
+              sdkConfig: { modelId: params.modelId }
+            })
+        }
       )
       let hasUsedProvidedMessageId = false
 
@@ -391,6 +394,10 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
       const uiStream = result.toUIMessageStream({
         originalMessages: messages,
         sendSources: true,
+        messageMetadata: ({ part }) =>
+          params.contextOwner === 'caller' && part.type === 'finish-step'
+            ? { providerMetadata: part.providerMetadata, rawFinishReason: part.rawFinishReason }
+            : undefined,
         onError: (error) => {
           capturedUiErrors.push({ error })
           return error instanceof Error ? error.message : String(error)
@@ -486,7 +493,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
         }
 
         const streamError = normalizeStreamError(
-          err,
+          getTerminalModelError(err),
           params.errorContext?.providerId ?? params.providerId,
           params.errorContext?.modelId ?? params.modelId
         )

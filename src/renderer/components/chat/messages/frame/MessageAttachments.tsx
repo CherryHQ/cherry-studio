@@ -1,4 +1,3 @@
-import { Icon } from '@iconify/react'
 import { ExternalLink } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -6,9 +5,9 @@ import { useTranslation } from 'react-i18next'
 import { Button, CircularProgress } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { useQuery } from '@data/hooks/useDataApi'
+import { FileIcon } from '@renderer/components/icons/FileIcon'
 import { popup } from '@renderer/services/popup'
 import type { InputFilePreview } from '@renderer/types/inputFilePreview'
-import { getFileIconName } from '@renderer/utils/fileIconName'
 import type { FileHandle } from '@shared/data/types/file'
 import { isFileEntryHandle } from '@shared/utils/file'
 
@@ -84,7 +83,7 @@ const MessageAttachments: FC<Props> = ({ handle, inputFilePreview, name, ext, cr
           aria-label={fileName}
           disabled={!canPreview && !openFile}>
           <span className="flex size-10 shrink-0 items-center justify-center" aria-hidden="true">
-            <Icon icon={`material-icon-theme:${getFileIconName(iconFileName)}`} className="size-6" />
+            <FileIcon path={iconFileName} className="size-6" />
           </span>
           <span className="min-w-0 flex-1">
             <span className="block truncate text-foreground text-sm font-normal">{fileName}</span>

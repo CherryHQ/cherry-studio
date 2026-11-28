@@ -204,7 +204,7 @@ export const SelectedModelsTrigger = ({
             return (
               <div
                 key={model.id}
-                className="group mx-1.5 grid h-10.5 grid-cols-[18px_minmax(0,1fr)_auto_auto] items-start gap-x-2 rounded-md px-2 py-[5px] transition-colors hover:bg-accent/45"
+                className="group mx-1.5 grid h-10.5 grid-cols-[18px_minmax(0,1fr)_auto_auto] items-start gap-x-2 rounded-md px-2 py-[5px] transition-[color] hover:bg-accent/45"
                 data-testid={`selected-model-row-${model.id}`}>
                 <div className="flex h-8 w-4.5 shrink-0 items-center justify-center">
                   <ModelAvatar model={model} size={16} />
@@ -273,7 +273,7 @@ export const SelectedModelsTrigger = ({
           ref={ref}
           variant="ghost"
           size="sm"
-          className={cn(className, 'min-w-0', iconOnly && hasVisibleTriggerIcon && 'w-8 justify-center px-0')}
+          className={cn('min-w-0', className, iconOnly && hasVisibleTriggerIcon && 'w-8 justify-center px-0')}
           aria-label={ariaLabel ?? selectedModelsLabel}
           {...buttonProps}
           onClick={handleTriggerClick}

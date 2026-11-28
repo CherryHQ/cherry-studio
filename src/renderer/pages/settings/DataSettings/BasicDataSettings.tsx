@@ -225,30 +225,39 @@ const BasicDataSettings: React.FC = () => {
           if (legacyRequested && legacyMarkerReady) {
             const legacyIndex = results.findIndex(({ group }) => group === 'legacy_v1')
             const mainLegacyResult = results[legacyIndex]
-            if (!mainLegacyResult) throw new Error('Missing main-process v1 cleanup result')
-            results[legacyIndex] = finalizeLegacyV1Cleanup(
-              mergeLegacyV1CleanupResults(
-                mainLegacyResult,
-                await clearLegacyV1BrowserData(() =>
-                  toast.warning(t('settings.data.clear_cache.waiting_for_legacy_database'))
+            if (mainLegacyResult) {
+              try {
+                results[legacyIndex] = finalizeLegacyV1Cleanup(
+                  mergeLegacyV1CleanupResults(
+                    mainLegacyResult,
+                    await clearLegacyV1BrowserData(() =>
+                      toast.warning(t('settings.data.clear_cache.waiting_for_legacy_database'))
+                    )
+                  )
                 )
-              )
-            )
+              } catch (error) {
+                logger.error('Legacy browser data cleanup failed', error as Error)
+                results[legacyIndex] = { group: 'legacy_v1', status: 'failed' }
+              }
+            }
           } else if (legacyRequested) {
             results.push({ group: 'legacy_v1', status: 'failed' })
           }
 
-          const hasFailures = results.some(({ status }) => ['partial', 'skipped', 'failed'].includes(status))
-          if (hasFailures) {
+          const remaining = groups.filter(
+            (group) =>
+              !results.some((result) => result.group === group && ['cleared', 'not_found'].includes(result.status))
+          )
+          if (remaining.length > 0) {
             toast.warning(t('settings.data.clear_cache.partial_success'))
           } else {
             toast.success(t('settings.data.clear_cache.success'))
           }
-          return !hasFailures
+          return remaining
         } catch (error) {
           logger.error('Cache cleanup failed', error as Error)
           toast.error(t('settings.data.clear_cache.error'))
-          return false
+          return groups
         } finally {
           setClearingCache(false)
           void refreshCacheSize()

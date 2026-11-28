@@ -1,5 +1,5 @@
 import { MockUseDataApiUtils, mockUseQuery } from '@test-mocks/renderer/useDataApi'
-import { act, render, screen } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import i18next from 'i18next'
 import type { ComponentProps } from 'react'
 import { afterEach, expect, it, vi } from 'vitest'
@@ -18,6 +18,7 @@ vi.unmock('@cherrystudio/ui')
 
 const state = vi.hoisted(() => ({
   active: true,
+  navigate: vi.fn(),
   visible: true,
   notificationId: undefined as string | undefined,
   runStatus: 'failed' as 'failed' | 'completed'
@@ -28,7 +29,7 @@ vi.mock('@renderer/hooks/tab', async (importOriginal) => ({
 }))
 vi.mock('@tanstack/react-router', () => ({
   getRouteApi: () => ({ useSearch: () => ({ taskId: 'task', notificationId: state.notificationId }) }),
-  useNavigate: () => vi.fn()
+  useNavigate: () => state.navigate
 }))
 vi.mock('@renderer/hooks/agent/useTasks', () => ({
   TASKS_PAGE_LIMIT: 50,
@@ -52,10 +53,14 @@ vi.mock('../AgentChat', () => ({
     locateToEnd,
     onLocateMessageHandled,
     paneOpen,
-    conversationToolbar
+    conversationToolbar,
+    onStartNewTaskConversation
   }: ComponentProps<typeof AgentChat>) => (
     <>
       <header>{conversationToolbar}</header>
+      <button type="button" onClick={() => onStartNewTaskConversation?.('task-agent')}>
+        New conversation
+      </button>
       <button type="button" aria-expanded={paneOpen} onClick={onLocateMessageHandled}>
         {locateMessageId ?? (locateToEnd ? 'latest' : 'no request')}
       </button>
@@ -69,7 +74,22 @@ afterEach(() => {
   state.active = true
   state.notificationId = undefined
   state.runStatus = 'failed'
+  state.navigate.mockReset()
   MockUseDataApiUtils.resetMocks()
+})
+
+it('opens the newly created conversation by ID instead of routing to the existing conversations', async () => {
+  MockUseDataApiUtils.mockMutationSuccess('POST', '/agent-sessions', { id: 'created-session' } as never)
+  render(
+    <TabIdContext value="task-tab">
+      <ScheduledTasksPage />
+    </TabIdContext>
+  )
+
+  act(() => screen.getByRole('button', { name: 'New conversation' }).click())
+  await waitFor(() =>
+    expect(state.navigate).toHaveBeenCalledWith({ to: '/app/agents', search: { sessionId: 'created-session' } })
+  )
 })
 
 it.each(['message', null])('delivers navigation %s only when the task conversation is visible', (messageId) => {

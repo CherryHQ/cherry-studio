@@ -774,7 +774,8 @@ function createCapturedTextBody(
   const truncated = alreadyTruncated || text.length > MAX_BODY_CHARS
   const visibleText = text.slice(0, MAX_BODY_CHARS)
   return {
-    text: redactBodyText(visibleText, contentType),
+    // Copy UTF-16 code units so the bounded preview cannot retain the full body's backing string.
+    text: Buffer.from(redactBodyText(visibleText, contentType), 'utf16le').toString('utf16le'),
     contentType,
     size,
     truncated: truncated || undefined

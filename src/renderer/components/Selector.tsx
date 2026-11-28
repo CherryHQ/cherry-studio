@@ -157,7 +157,7 @@ const Selector = <V extends string | number>({
           aria-selected={isSelected}
           disabled={disabled || option.disabled}
           className={cn(
-            'flex w-full items-center justify-between gap-2 rounded-sm px-2 py-1.5 text-left text-sm outline-hidden transition-colors',
+            'flex w-full items-center justify-between gap-2 rounded-sm px-2 py-1.5 text-left text-sm outline-hidden transition-[color]',
             'hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:text-accent-foreground',
             'disabled:pointer-events-none disabled:opacity-50',
             level > 0 && 'pl-4'

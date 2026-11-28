@@ -6,6 +6,30 @@
 
 - Include a package-local MIT license file and correct the README license link.
 
+## 2.6.0
+
+### Minor Changes
+
+- [#25634](https://github.com/CherryHQ/cherry-studio/pull/25634) [`7157ffe`](https://github.com/CherryHQ/cherry-studio/commit/7157ffea44449cdec59ce899c0dbc3546be42eae) Thanks [@DeJeune](https://github.com/DeJeune)! - Allow context middleware to estimate the outgoing history for compression decisions while preserving provider-reported usage.
+
+## 2.5.3
+
+### Patch Changes
+
+- [#25413](https://github.com/CherryHQ/cherry-studio/pull/25413) [`5c2c798`](https://github.com/CherryHQ/cherry-studio/commit/5c2c798395f0c3f87e1efc00d757ea095b20b5b4) Thanks [@DeJeune](https://github.com/DeJeune)! - Update the DeepSeek AI SDK provider to 2.0.79 to support replaying reasoning content in follow-up requests.
+
+## 2.5.2
+
+### Patch Changes
+
+- [#24913](https://github.com/CherryHQ/cherry-studio/pull/24913) [`8692e8f`](https://github.com/CherryHQ/cherry-studio/commit/8692e8f8755b9ad10187453a5e4f689b5dc1d2dc) Thanks [@DeJeune](https://github.com/DeJeune)! - Apply an optional caller model wrapper after provider middleware for single-step streaming and generation requests.
+
+## 2.5.1
+
+### Patch Changes
+
+- [#24830](https://github.com/CherryHQ/cherry-studio/pull/24830) [`01f35cb`](https://github.com/CherryHQ/cherry-studio/commit/01f35cb5716191a81402969c8b59c8c0c8b5d3a3) Thanks [@kovsu](https://github.com/kovsu)! - Recognize llama.cpp's "exceeds the available context size" error as a context overflow.
+
 ## 2.5.0
 
 ### Minor Changes

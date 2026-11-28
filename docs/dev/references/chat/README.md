@@ -11,6 +11,7 @@ sources:
   - scripts/data-classify/data/target-key-definitions.json
   - src/shared/data/preference/preferenceSchemas.ts
   - src/shared/data/types/contextSettings.ts
+  - src/shared/utils/contextSettings.ts
   - src/shared/data/types/assistant.ts
   - src/shared/data/types/model.ts
   - src/main/ai/constants.ts
@@ -50,6 +51,39 @@ directory; consumers import from the module that owns the capability.
 The repository previously carried target-architecture documents for a generic
 adapter layer and root package barrel. Those APIs did not land; the current
 reference set documents implemented behavior only.
+
+## Conversation list sorting
+
+The Chat and Agent conversation list menus expose separate Group by and Sort by
+controls. Each domain saves its sorting choice across the sidebar and right
+panel: Last updated, Date created, Name, or Manually. Automatic sorts support
+ascending and descending directions. Grouping controls section placement; the
+selected sort applies within each group, and pinned rows retain pin order.
+
+Last updated uses conversation activity (`lastActivityAt`), so renaming or
+reordering a conversation does not move it. Automatic sorting disables row
+reordering. Manually enables supported group-local drops and preserves custom
+order across activity changes and switches to other sorting modes. Collection
+queries apply the selected order before cursor pagination.
+
+Name sorting follows the application language using ICU/CLDR collation. It
+compares numeric runs naturally (`2` before `10`), ignores case, distinguishes
+accents and punctuation, and uses ascending id order for equivalent names in
+both directions. Simplified Chinese uses pinyin; Traditional Chinese uses stroke
+order. Japanese kanji are not automatically converted to readings. Mixed-script
+titles use the selected locale's collation rules. Changing application language
+starts a new localized page chain.
+
+The main process sorts matching name/id metadata with the shared comparator
+before hydrating the current page. This keeps database pagination and display
+groups consistent without a native SQLite ICU extension. Name pagination reads
+all matching name/id pairs per request; other modes retain SQL keyset pagination.
+
+On first upgrade, missing sorting settings are inferred separately from active
+Chat and ordinary Agent rows. A stored manual order that differs from creation
+time descending selects Manually; otherwise the default is Last updated descending.
+Equal creation timestamps do not imply a custom order. Existing sorting settings
+are preserved, and initialization never rewrites conversation order keys.
 
 ## Agent mode controls
 
@@ -111,6 +145,15 @@ Per-assistant `contextSettings` overrides globals field by field in
 assistant `null` overrides a finite global limit. `thresholdPercent` is clamped
 at merge time. `max_messages` is independent of the master toggle: it bounds how
 much history is sent, not what happens on overflow.
+
+The window and the `maxMessages` merge live in `src/shared/utils/contextSettings.ts`
+so Home chat can show the same cut: `pages/home/messages/contextWindowBoundary.ts`
+windows the loaded active path after the latest clear-context marker plus the next
+user row, and the list draws a divider above the first message that request still
+carries, or after the history when only the new message fits. Home shows the
+prediction once the assistant settings are known and the topic is idle. If the
+cut starts at the first loaded user row, Home checks the preceding row for a
+context reset. A cut inside an unloaded page becomes visible when that page loads.
 An assistant-level `compress.modelId` of `null` inherits the global selection instead of forcing the current request model.
 
 ### Budget with a declared window
@@ -133,7 +176,16 @@ assistant and endpoint limits itself and uses the largest reservation across a m
 in-loop hook additionally sees the call override. Neither compaction path passes the custom output
 parameter.
 
-Proactive compaction is attempted only when estimated history is **strictly greater** than
+Turn-start compaction estimates the history selected for replay, including the effective summary.
+The estimate includes locally extracted attachment text within its inline cap and shapes cached
+MCP results for the selected model and endpoint. If an image requires OCR, the estimate is
+unavailable before dispatch and compaction can still run in the request loop.
+In-loop compaction estimates the candidate prompt and includes assembled system instructions and
+the available active tool definitions. The composer meter estimates the selected path and assistant
+prompt before dispatch. It can omit draft content and request-time tool or system additions.
+Provider usage continues to describe consumption and does not drive any of these estimates.
+
+Proactive compaction is attempted only when estimated input is **strictly greater** than
 `trigger`, with context building and compression enabled and a compression model
 resolved. The kept-recent fraction is `0.375` in `src/main/ai/constants.ts`.
 `model.maxInputTokens` is not an input to these formulas; filling it alone does not
@@ -144,8 +196,10 @@ Compaction can fail open. If the compression model cannot be resolved, the produ
 empty, or summarization throws, the turn-start durable-compaction stage serves the marker-applied
 history unchanged. In the unresolved-model case, with context building and compression enabled and
 a known request-model window, request construction still installs the sliding-window fallback
-(`contextBuild.ts:142–145`); over-budget history may therefore lose its oldest turns before reaching
-the provider. An in-loop summarization failure stops further in-loop compaction for that request and
+(`contextBuild.ts`); over-budget history may therefore lose its oldest turns before reaching
+the provider. This fallback estimates the current history after tool-output truncation and deducts
+requested output, the system prompt, and active tool definitions from the window. An in-loop
+summarization failure stops further in-loop compaction for that request and
 lets it continue. A finite `max_messages` also short-circuits turn-start durable compaction: the window
 is computed over raw rows without applying existing compaction summaries, so the two settings do not
 compose, although the in-loop hook can still run.
@@ -181,7 +235,7 @@ itself prove that no window is in effect.
 ### Recovering from a context-length rejection
 
 When context building and compression are enabled for a persistent Chat, a recognized context-length
-HTTP 400 before a model step produces output triggers one in-loop compaction and retries that model
+provider error before a model step produces output triggers one in-loop compaction and retries that model
 request. Completed tool calls are not replayed. If the request has no foldable history, compaction
 fails, or the retried request also fails, the error is returned instead of retrying indefinitely.
 The original conversation remains intact; this recovery's compacted view lasts for the current request.
@@ -195,9 +249,12 @@ reduction still applies before summarization.
 
 The shared matcher in `packages/aiCore/src/contextOverflow.ts` recognizes provider-message patterns such as
 `context_length_exceeded`, `too many tokens`, `maximum context length`,
-`context window`, `prompt is too long`, and `input is too long`. Both overflow recovery and
-`src/shared/utils/errorCategory.ts` use it; recovery also requires an AI SDK HTTP 400 error and excludes
-authentication, quota, and rate-limit failures.
+`context window`, `prompt is too long`, `input is too long`, and llama.cpp's
+`exceeds the available context size`. Both overflow recovery and
+`src/shared/utils/errorCategory.ts` use it. Recovery accepts HTTP 400 and statusless
+provider errors, including a stream error whose structured code identifies the overflow.
+The provider adapter classifies these errors before compaction and model retry.
+Authentication, quota, and rate-limit failures do not trigger compaction.
 The error toast offers one action for that category: `trimContext`, wired in
 `src/renderer/utils/errorToast.ts` and handled in `useChatRuntimeState.ts`.
 

@@ -1,5 +1,4 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
 import { Activity } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -53,6 +52,7 @@ const readResult = (revision: number) => ({
 beforeEach(async () => {
   mocks.request.mockReset()
   await i18n.changeLanguage('en-US')
+  vi.useFakeTimers({ shouldAdvanceTime: true })
   vi.stubGlobal('Worker', WorkbookWorker)
   vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(400)
   vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(500)
@@ -60,8 +60,11 @@ beforeEach(async () => {
   vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(500)
 })
 
-afterEach(() => {
+afterEach(async () => {
   cleanup()
+  // Flush the virtualizer's scroll-end debounce before jsdom teardown.
+  await act(() => vi.runOnlyPendingTimersAsync())
+  vi.useRealTimers()
   vi.restoreAllMocks()
   globalThis.Worker = originalWorker
 })
@@ -126,7 +129,6 @@ describe('FilePreview workbook refresh', () => {
   })
 
   it('waits for fresh metadata after Activity reconnects and stamps selections with that same request', async () => {
-    const user = userEvent.setup()
     const reconnectedMetadata = Promise.withResolvers<ReturnType<typeof metadata>>()
     const getMetadata = vi
       .fn()
@@ -165,7 +167,10 @@ describe('FilePreview workbook refresh', () => {
     expect(read).toHaveBeenCalledTimes(2)
 
     fireEvent.scroll(grid, { target: { scrollTop: 0, scrollLeft: 0 } })
-    await user.click(await screen.findByRole('gridcell', { name: 'Quarter' }))
+    grid.focus()
+    fireEvent.keyDown(grid, { key: 'Enter' })
+    fireEvent.keyDown(grid, { key: 'ArrowDown' })
+    fireEvent.keyUp(grid, { key: 'ArrowDown' })
     await waitFor(() =>
       expect(onSelectionReference).toHaveBeenLastCalledWith({
         path: filePath,
@@ -175,4 +180,9 @@ describe('FilePreview workbook refresh', () => {
       })
     )
   })
+})
+
+vi.mock('@renderer/services/fileObservation', async () => {
+  const { mockFileObservationService } = await import('@test-mocks/renderer/FileObservationService')
+  return { fileObservationService: mockFileObservationService }
 })

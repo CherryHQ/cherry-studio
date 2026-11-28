@@ -1,4 +1,4 @@
-import type { Extensions } from '@tiptap/core'
+import { type Extensions, getSchema } from '@tiptap/core'
 import { TaskItem, TaskList } from '@tiptap/extension-list'
 import Mention from '@tiptap/extension-mention'
 import {
@@ -8,6 +8,7 @@ import {
 } from '@tiptap/extension-table-of-contents'
 import Typography from '@tiptap/extension-typography'
 import { Markdown } from '@tiptap/markdown'
+import type { Schema } from '@tiptap/pm/model'
 import { StarterKit } from '@tiptap/starter-kit'
 
 import { TableCell, TableHeader, TableRow } from '@cherrystudio/extension-table-plus'
@@ -17,7 +18,7 @@ import { CodeBlockHighlight } from './extensions/codeBlockHighlight/codeBlockHig
 import { EnhancedImage } from './extensions/enhancedImage'
 import { EnhancedLink, type EnhancedLinkOptions } from './extensions/enhancedLink'
 import { EnhancedMath, type EnhancedMathOptions } from './extensions/enhancedMath'
-import { MarkdownTable } from './extensions/markdownTable'
+import { createMarkdownTable } from './extensions/markdownTable'
 import { Placeholder } from './extensions/placeholder'
 import { YamlFrontMatter } from './extensions/yamlFrontMatter'
 
@@ -81,7 +82,8 @@ export const createRichEditorExtensions = (options: CreateRichEditorExtensionsOp
     disabledCommands
   } = options
 
-  return [
+  let tableSchema: Schema | undefined
+  const extensions: Extensions = [
     // Native Markdown parsing/serialization via the official @tiptap/markdown AST
     // (marked-based). Custom nodes contribute their own parse/render hooks.
     Markdown.configure({
@@ -129,7 +131,7 @@ export const createRichEditorExtensions = (options: CreateRichEditorExtensionsOp
       suggestion: createCommandSuggestion({ enableImageInsertion, disabledCommands })
     }),
     Typography,
-    MarkdownTable.configure({
+    createMarkdownTable(() => (tableSchema ??= getSchema(extensions))).configure({
       resizable: true,
       allowTableNodeSelection: true,
       onRowActionClick,
@@ -145,4 +147,5 @@ export const createRichEditorExtensions = (options: CreateRichEditorExtensionsOp
       nested: true
     })
   ]
+  return extensions
 }

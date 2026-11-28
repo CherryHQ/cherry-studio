@@ -31,8 +31,13 @@ Caller-owned requests (`contextOwner: 'caller'`) use the same stream lifecycle
 but execute through AI Core's `streamText` / `generateText`, without constructing
 `ToolLoopAgent`. They retain `messageRules`, provider plugins, usage observers,
 and error/cancellation delivery. The execution is capped at one step, strips
-local tool execution, omits `prepareStep` and AI tool repair, and disables retries
-and model fallbacks. Tool calls return to the caller that owns the outer loop.
+local tool execution, omits `prepareStep` and AI tool repair, and disables model fallbacks.
+A supplied `wrapModel` is applied after provider middleware, just as in the chat loop.
+SDK built-in retries stay at zero while that wrapper is active; without a wrapper, they
+default to zero and honor an explicit `maxRetries` value. Tool calls return to the caller that owns the outer loop. Caller-owned
+requests can supply the SDK's `Output` specification for structured generation. Their UI
+stream carries the SDK's finish-step provider metadata and raw finish reason in
+`message-metadata`, so protocol adapters can retain native response details.
 
 ## API
 
@@ -115,7 +120,7 @@ live topic is handled one level up by the stream manager: it persists and
 queues the steer, the current step loop yields cleanly, and a continuation
 answers the queued row — see [Stream Manager → Steering](./stream-manager.md#steering).
 
-Agent-session runtimes are different: a driver with `redirect` can inject the
+Agent-session runtimes are different: a driver with a bound steering operation can inject the
 follow-up at a runtime-native safe point; otherwise the host queues it on
 `pendingTurns` for the next turn —
 see [Agent Session Runtime](./agent-session-runtime.md#live-follow-up).

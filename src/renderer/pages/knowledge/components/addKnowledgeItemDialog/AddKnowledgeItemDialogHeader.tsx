@@ -1,4 +1,4 @@
-import { KnowledgeDialogHeader } from '../KnowledgeDialogLayout'
+import { KnowledgeDialogHeader } from '@renderer/components/knowledge/KnowledgeDialogLayout'
 
 interface AddKnowledgeItemDialogHeaderProps {
   title: string
