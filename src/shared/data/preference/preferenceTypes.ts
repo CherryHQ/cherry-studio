@@ -160,6 +160,7 @@ export const SIDEBAR_FAVORITES = [
   'files',
   'code_tools',
   'notes',
+  'api_gateway',
   'openclaw'
 ] as const
 
