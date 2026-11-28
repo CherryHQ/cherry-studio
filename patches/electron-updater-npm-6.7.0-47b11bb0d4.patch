@@ -226,23 +226,29 @@ index 7095549478c7f880eeef4c8baa7ce300720f1afe..c84c44f3eb308ac82d851f41030eb4d6
          throw new Error(`Package manager ${packageManager} not supported`);
      }
 diff --git a/out/main.d.ts b/out/main.d.ts
-index 82382c2b42686bfd22bce78b4d5f0d883dfb5587..ccda3335c4aab3ffcece897fa924b5fee5badfeb 100644
+index 82382c2b42686bfd22bce78b4d5f0d883dfb5587..33e9be606ebdce173ace71fb45982269e85cf0b2 100644
 --- a/out/main.d.ts
 +++ b/out/main.d.ts
-@@ -17,3 +17,4 @@ export declare const autoUpdater: AppUpdater;
-  */
- export type VerifyUpdateCodeSignature = (publisherName: string[], path: string) => Promise<string | null>;
- export type VerifyUpdateSupport = (updateInfo: UpdateInfo) => boolean | Promise<boolean>;
+@@ -9,6 +9,7 @@ export { PacmanUpdater } from "./PacmanUpdater";
+ export { RpmUpdater } from "./RpmUpdater";
+ export { MacUpdater } from "./MacUpdater";
+ export { NsisUpdater } from "./NsisUpdater";
 +export { PortableUpdater } from "./PortableUpdater";
+ export * from "./types";
+ export declare const autoUpdater: AppUpdater;
+ /**
 diff --git a/out/main.js b/out/main.js
-index 7052a0e9726f2ac26155f77319a108ff86c61396..a401598afad378effc8d1c58a829789d33be4580 100644
+index 7052a0e9726f2ac26155f77319a108ff86c61396..56088ce68e23dea43b244880705341fb624ebbe7 100644
 --- a/out/main.js
 +++ b/out/main.js
-@@ -84,3 +84,4 @@ Object.defineProperty(exports, "autoUpdater", {
-     },
- });
- //# sourceMappingURL=main.js.map
+@@ -36,6 +36,7 @@ var MacUpdater_1 = require("./MacUpdater");
+ Object.defineProperty(exports, "MacUpdater", { enumerable: true, get: function () { return MacUpdater_1.MacUpdater; } });
+ var NsisUpdater_1 = require("./NsisUpdater");
+ Object.defineProperty(exports, "NsisUpdater", { enumerable: true, get: function () { return NsisUpdater_1.NsisUpdater; } });
 +Object.defineProperty(exports, "PortableUpdater", { enumerable: true, get: function () { return require("./PortableUpdater").PortableUpdater; } });
+ __exportStar(require("./types"), exports);
+ // autoUpdater to mimic electron bundled autoUpdater
+ let _autoUpdater;
 diff --git a/out/portableInstallScript.js b/out/portableInstallScript.js
 new file mode 100644
 index 0000000000000000000000000000000000000000..b9b41304b48c915259c3f38e43f6e5108b74a29d

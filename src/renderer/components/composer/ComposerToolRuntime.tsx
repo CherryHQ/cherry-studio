@@ -164,7 +164,10 @@ export const ComposerToolRuntimeHost = ({ scope, assistant, model, session }: Co
   )
 
   const availableTools = useMemo(() => {
-    return getToolsForScope(scope, { assistant, model, session }).filter((tool) => model || tool.availableWithoutModel)
+    const hasRuntimeModel = Boolean(model || session?.agentType === 'local')
+    return getToolsForScope(scope, { assistant, model, session }).filter(
+      (tool) => hasRuntimeModel || tool.availableWithoutModel
+    )
   }, [assistant, model, scope, session])
 
   const getLauncherApiForTool = useCallback(
@@ -412,7 +415,7 @@ export const ComposerActiveToolControls = ({ inputAdapter }: ComposerToolMenuPro
         <button
           key={launcher.id}
           type="button"
-          className="flex h-7 shrink-0 items-center gap-1.5 rounded-full px-2 font-medium text-muted-foreground text-xs transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-40 data-[active=true]:bg-accent data-[active=true]:text-accent-foreground [&_svg]:size-4"
+          className="flex h-7 shrink-0 items-center gap-1.5 rounded-full px-2 font-medium text-muted-foreground text-xs transition-[color] hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-40 data-[active=true]:bg-accent data-[active=true]:text-accent-foreground [&_svg]:size-4"
           data-active
           disabled={launcher.disabled}
           aria-label={typeof launcher.label === 'string' ? launcher.label : undefined}

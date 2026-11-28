@@ -1,3 +1,5 @@
+import { lazy, Suspense } from 'react'
+
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@cherrystudio/ui'
 import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
 
@@ -45,4 +47,3 @@ const TextFilePreviewPopup = {
 }
 
 export default TextFilePreviewPopup
-import { lazy, Suspense } from 'react'

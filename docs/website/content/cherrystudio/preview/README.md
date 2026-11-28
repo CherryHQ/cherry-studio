@@ -4,7 +4,7 @@ icon: box-check
 
 # 功能介绍
 
-Cherry Studio 是一款桌面级 AI 客户端，集成了 **对话助手、智能体、绘画、翻译、知识库、笔记、文件管理、编码搭档** 等核心能力，并通过 [API 网关](../../advanced-basic/developer-tools/api-gateway.md)、[频道](../../advanced-basic/automation/channels.md)、[定时任务](../../advanced-basic/automation/scheduled-heartbeat.md) 把 AI 能力延伸到自动化与跨平台场景。
+Cherry Studio 是一款桌面级 AI 客户端，集成了 **对话助手、智能体、绘画、翻译、知识库、笔记、文件管理、编码搭档** 等核心能力，并通过 [统一网关](../../advanced-basic/developer-tools/api-gateway.md)、[频道](../../advanced-basic/automation/channels.md)、[定时任务](../../advanced-basic/automation/scheduled-heartbeat.md) 把 AI 能力延伸到自动化与跨平台场景。
 
 下表是本节涉及的主要功能与对应入口：
 

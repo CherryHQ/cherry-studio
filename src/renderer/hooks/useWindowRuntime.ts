@@ -14,6 +14,7 @@ import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { useMiniAppListSync } from '@renderer/hooks/useMiniApps'
 import { useTopicAutoRenameSync } from '@renderer/hooks/useTopic'
 import { useWebSearchFallbackNotice } from '@renderer/hooks/useWebSearchFallbackNotice'
+import { useWheelZoom } from '@renderer/hooks/useWheelZoom'
 import { setDayjsLocale } from '@renderer/i18n/resolver'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
@@ -79,6 +80,7 @@ export function useWindowRuntime(): void {
   useCustomCss()
   useDayjsLocaleSync()
   useAppPathSnapshot()
+  useWheelZoom()
 
   // Root background (macOS vibrancy / transparent-window aware).
   useEffect(() => {
@@ -97,6 +99,16 @@ export function useWindowRuntime(): void {
     }
   })
 
+  useIpcOn('ai.local_agents.notice', ({ sessionId, notice }) => {
+    toast[notice.severity]({
+      key: JSON.stringify(['local-agent-notice', sessionId, notice.severity, notice.title, notice.description]),
+      title: notice.title,
+      description: notice.description,
+      timeout: 6000
+    })
+  })
+
+  // ESC exits fullscreen (all platforms), gated by the shortcut preference.
   useEffect(() => {
     let active = true
     const revision = fullscreenRevision.current

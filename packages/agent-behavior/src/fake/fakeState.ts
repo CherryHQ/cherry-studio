@@ -26,6 +26,7 @@ import type {
   JobHandler,
   LifecycleHandlers,
   MessageResult,
+  ModelContext,
   RequestMeterHandler,
   StartResult,
   ToolDefinition
@@ -165,7 +166,9 @@ export function unansweredCalls(entries: readonly StoredEntry[], at: number): re
   )
   return reply.toolCalls.filter((call) => !answered.has(call.callId))
 }
-export const resultEntry = (id: ItemId, call: ToolCallFact, result: ToolResultFact): HistoryEntry => ({
+/** A result as the fake stores it: what the tool returned, or the gate's block with its reason. */
+export type FakeResult = ToolResultFact & { readonly blocked?: string }
+export const resultEntry = (id: ItemId, call: ToolCallFact, result: FakeResult): HistoryEntry => ({
   kind: 'tool-result',
   id,
   callId: call.callId,
@@ -220,10 +223,10 @@ export function visibleEntries(state: FakeState, epoch: Epoch, thread: ThreadSta
   const omitted = new Set(epoch.filter?.omit(thread.id, buildFacts(state, thread.id)))
   return modelEntries(thread).filter(({ entry }) => !omitted.has(entry.id))
 }
-export const modelContext = (state: FakeState, epoch: Epoch, thread: ThreadState): JsonValue[] =>
+export const modelContext = (state: FakeState, epoch: Epoch, thread: ThreadState): ModelContext =>
   visibleEntries(state, epoch, thread).map(({ entry, summary }) => ({
-    kind: entry.kind,
-    text: summary ?? ('text' in entry ? entry.text : '')
+    role: entry.kind === 'assistant' ? 'assistant' : entry.kind === 'tool-result' ? 'toolResult' : 'user',
+    content: summary ?? ('text' in entry ? entry.text : '')
   }))
 
 const addUsage = (a: UsageFact, b: UsageFact): UsageFact => ({
@@ -386,5 +389,6 @@ export function persistentSnapshot(state: FakeState): JsonValue {
   const jobs = [...state.jobs.values()]
     .sort((a, b) => byCodeUnit(a.key, b.key))
     .map((job) => ({ key: job.key, kind: job.spec.kind, scope: job.spec.scope, state: job.state }))
+  // oxlint-disable-next-line copy/no-json-roundtrip -- Crash replay needs a detached snapshot with the same JSON semantics as persistent storage.
   return JSON.parse(JSON.stringify({ threads, memo, jobs }))
 }

@@ -33,7 +33,6 @@ export type {
 export { callKeyOf, ENTRY_KINDS } from './core/facts'
 export type {
   CallRef,
-  ApprovalOutcome,
   ToolCategory,
   ApprovalHostFacts,
   ApprovalAnswer,
@@ -51,6 +50,7 @@ export type {
   HostSettingsSnapshot
 } from './core/hostFacts'
 export type { EncodedEntry, RawEntry } from './core/entryCodec'
+export { needsReopen } from './core/driver/lifecycle'
 export { decodeEntry, encodeEntry } from './core/entryCodec'
 export type {
   TurnInput,
@@ -65,7 +65,7 @@ export type {
   Step
 } from './core/decisions'
 export type { Key } from './core/keys'
-export { nativeSummaryKey } from './core/keys'
+export { nativeSummaryKey, subagentMessageKey } from './core/keys'
 export { goalForRequest, turnOrigin } from './core/goal/goalHistory'
 export { delegationStatus, subagentViews, subagentResults } from './core/subagents/subagentLedger'
 export type { DelegationStatus, SubagentResults } from './core/subagents/subagentLedger'

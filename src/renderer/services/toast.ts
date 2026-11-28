@@ -68,14 +68,17 @@ function errorFromException(error: unknown, context: ErrorToastContext = {}): st
     ...context.actions
   }
   const actionKind = presentation.action
-  const diagnosisKey = `error.diagnosis.${category}`
+  const diagnosisKey =
+    context.category && context.category !== classification.category
+      ? `error.diagnosis.${context.category}`
+      : classification.i18nKey
   const actionLabelKey = `toast.error.${actionKind}`
   const run = actionKind ? actions[actionKind] : undefined
   let running = false
   const key = notifications[presentation.type]({
     key: context.key,
     title: planQuota
-      ? i18n.t('models.detail.quota_exhausted')
+      ? i18n.t('models.detail.quota_insufficient_for_request')
       : category === 'unknown'
         ? details || i18n.t('error.unknown')
         : i18n.t(diagnosisKey),

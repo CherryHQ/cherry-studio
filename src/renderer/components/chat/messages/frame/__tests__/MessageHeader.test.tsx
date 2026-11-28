@@ -13,6 +13,7 @@ const providerState = vi.hoisted(() => ({
   actions: {} as {
     navigateToRoute?: (target: { path: string; query?: Record<string, string> }) => void
     selectMessage?: (messageId: string, selected: boolean) => void
+    toggleAuthorProfile?: () => void
   },
   selection: undefined as { isMultiSelectMode: boolean; selectedMessageIds: string[] } | undefined,
   meta: {} as Partial<MessageListMeta>
@@ -88,7 +89,7 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
-const createMessage = (role: 'assistant' | 'user' = 'assistant', extra: Record<string, unknown> = {}) =>
+const createMessage = (role: 'assistant' | 'user' | 'system' = 'assistant', extra: Record<string, unknown> = {}) =>
   ({
     id: 'message-1',
     role,
@@ -102,6 +103,25 @@ describe('MessageHeader', () => {
     providerState.actions = {}
     providerState.selection = undefined
     providerState.meta = {}
+  })
+
+  it('attributes historical system records to the system instead of the user', () => {
+    render(<MessageHeader message={createMessage('system')} />)
+    expect(screen.getByText('chat.message.system')).toBeInTheDocument()
+    expect(screen.queryByText('User')).not.toBeInTheDocument()
+  })
+
+  it('keeps the body DOM and focus when the Run identity slot becomes visible', () => {
+    const message = createMessage('assistant', { messageSnapshot: { id: 'agent', name: 'Run author' } })
+    const body = <button type="button">Tool approval</button>
+    const view = render(<MessageHeader message={message} showHeader={false} contentSlot={body} />)
+    const tool = screen.getByRole('button', { name: 'Tool approval' })
+    tool.focus()
+    expect(screen.queryByText('Run author')).not.toBeInTheDocument()
+    view.rerender(<MessageHeader message={message} showHeader contentSlot={body} />)
+    expect(screen.getByText('Run author')).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Tool approval' })).toBe(tool)
+    expect(tool).toHaveFocus()
   })
 
   it('updates historical author avatars and restores the snapshot after deletion', () => {
@@ -194,6 +214,22 @@ describe('MessageHeader', () => {
     } finally {
       vi.unstubAllGlobals()
     }
+  })
+
+  it('turns the assistant avatar into the profile toggle only when the conversation offers a profile', () => {
+    providerState.meta = { assistantProfile: { name: 'Writer', avatar: '✍️' } }
+    const { rerender } = render(<MessageHeader message={createMessage()} />)
+    expect(screen.queryByRole('button', { name: 'chat.profile_pane.open' })).toBeNull()
+
+    let opened = 0
+    providerState.actions = { toggleAuthorProfile: () => opened++ }
+    rerender(<MessageHeader message={createMessage('assistant', { id: 'message-2' })} />)
+    fireEvent.click(screen.getByRole('button', { name: 'chat.profile_pane.open' }))
+    expect(opened).toBe(1)
+
+    // A user message never opens the Assistant's profile from its own avatar.
+    rerender(<MessageHeader message={createMessage('user', { id: 'message-3' })} />)
+    expect(screen.queryByRole('button', { name: 'chat.profile_pane.open' })).toBeNull()
   })
 
   it('explains a runtime-started assistant turn with its origin', () => {

@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react'
+import React, { useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@cherrystudio/ui'
@@ -13,8 +13,11 @@ import { useScrollAnchor } from './useScrollAnchor'
 
 interface BaseProps {
   children: (isExpanded: boolean) => React.ReactNode
+  groupId?: string | number
+  showElapsed?: boolean
   message: MessageListItem
   toolItems: ToolRenderItem[]
+  onFocusWithinChange?: (hasFocus: boolean) => void
 }
 
 type Props = BaseProps &
@@ -24,9 +27,16 @@ type Props = BaseProps &
         phase: 'completed'
         outcome: 'success' | 'error'
         defaultExpanded?: boolean
+        /**
+         * Preference-driven sync target for histories that contain reasoning.
+         * `true` = auto-collapse OFF so the group must open; `false` = auto-collapse
+         * ON so it must close; `undefined` = no reasoning present, leave manual state alone.
+         */
+        syncExpanded?: boolean
       }
   )
 
+const PROCESS_GROUP_SPACING_CLASS_NAME = 'mb-2 [.block-wrapper+&]:mt-2'
 const PROCESS_CONTENT_CLASS_NAME =
   'flex w-full flex-col gap-3 [&>.block-wrapper+.block-wrapper]:mt-0! [&>.block-wrapper:empty]:hidden [&>.block-wrapper]:mt-0! [&_.message-thought-container]:mt-0! [&_.message-thought-container]:mb-0!'
 
@@ -61,7 +71,13 @@ function getApprovalWaitDurationMs(runtimeTiming: MessageRuntimeTiming): number 
   return durationMs
 }
 
-const LazyCompletedProcessContent = React.memo(function LazyCompletedProcessContent({
+/**
+ * Radix `AccordionContent` mounts its children only while the item is open (and
+ * during the close animation), so this component never renders for a collapsed
+ * group. The render function therefore always receives `true`: passing the live
+ * `isExpanded` value would blank the content while the close animation runs.
+ */
+const CompletedProcessContent = React.memo(function CompletedProcessContent({
   render
 }: {
   render: (isExpanded: boolean) => React.ReactNode
@@ -94,12 +110,24 @@ const ActiveProcessHeader = React.memo(function ActiveProcessHeader({
 
 /** The top-level process group across both active and completed message phases. */
 const MessageProcessGroup = React.memo(function MessageProcessGroup(props: Props) {
-  const { children, message, toolItems } = props
+  const { children, groupId, message, showElapsed = true, toolItems, onFocusWithinChange } = props
   const { t } = useTranslation()
+  const disclosureKey = groupId === undefined ? 'completed-process' : `completed-process:${groupId}`
   const [isExpanded, setIsExpanded] = useMessageDisclosureState(
-    'completed-process',
+    disclosureKey,
     props.phase === 'completed' && (props.defaultExpanded ?? false)
   )
+  const syncTarget = props.phase === 'completed' ? props.syncExpanded : undefined
+  const [previousSyncTarget, setPreviousSyncTarget] = useMessageDisclosureState(
+    syncTarget === undefined ? undefined : `${disclosureKey}-preference`,
+    syncTarget ?? false
+  )
+
+  useEffect(() => {
+    if (syncTarget === undefined) return
+    if (previousSyncTarget !== syncTarget) setIsExpanded(syncTarget)
+    setPreviousSyncTarget(syncTarget)
+  }, [previousSyncTarget, setIsExpanded, setPreviousSyncTarget, syncTarget])
   const { anchorRef, withScrollAnchor } = useScrollAnchor<HTMLDivElement>()
   const runtimeTiming = message.stats?.runtimeTiming
   const completedElapsedMs = useMemo(() => {
@@ -119,16 +147,29 @@ const MessageProcessGroup = React.memo(function MessageProcessGroup(props: Props
 
   if (props.phase === 'active') {
     return (
-      <div className="group/live-tool-group mb-2 w-full max-w-full pb-2" data-testid="live-tool-group">
+      <div
+        className={`group/live-tool-group w-full max-w-full ${PROCESS_GROUP_SPACING_CLASS_NAME}`}
+        onFocus={onFocusWithinChange && (() => onFocusWithinChange(true))}
+        onBlur={
+          onFocusWithinChange &&
+          ((event) => {
+            if (!event.currentTarget.contains(event.relatedTarget)) onFocusWithinChange(false)
+          })
+        }
+        data-testid="live-tool-group">
         <div
           data-testid="live-tool-group-header"
           className="flex min-h-7 w-full items-center py-0.5 text-left select-none">
           <div className="min-w-0 flex-1 overflow-hidden">
-            <ActiveProcessHeader
-              createdAt={message.createdAt}
-              startedAtMs={runtimeTiming?.startedAt}
-              toolItems={toolItems}
-            />
+            {showElapsed ? (
+              <ActiveProcessHeader
+                createdAt={message.createdAt}
+                startedAtMs={runtimeTiming?.startedAt}
+                toolItems={toolItems}
+              />
+            ) : (
+              <ToolBlockGroupHeaderContent items={toolItems} summary={t('message.tools.processed')} preferSummary />
+            )}
           </div>
         </div>
         <div data-testid="live-tool-group-content" className={`${PROCESS_CONTENT_CLASS_NAME} pt-2`}>
@@ -138,14 +179,22 @@ const MessageProcessGroup = React.memo(function MessageProcessGroup(props: Props
     )
   }
 
-  const elapsedText = completedElapsedMs === undefined ? undefined : formatPlaceholderElapsed(completedElapsedMs, t)
-  const summary = props.outcome === 'error' ? t('message.tools.error') : t('message.tools.processed')
+  const elapsedText =
+    !showElapsed || completedElapsedMs === undefined ? undefined : formatPlaceholderElapsed(completedElapsedMs, t)
+  const summary =
+    props.outcome === 'error' && message.status !== 'paused'
+      ? t('message.tools.error')
+      : toolItems.length > 0
+        ? t('message.tools.groupHeader', { count: toolItems.length })
+        : t('message.tools.processed')
   const header = (
     <ToolBlockGroupHeaderContent items={toolItems} elapsedText={elapsedText} summary={summary} preferSummary />
   )
 
   return (
-    <div ref={anchorRef} className={`group/completed-tool-history mb-2 w-full max-w-full ${isExpanded ? 'pb-2' : ''}`}>
+    <div
+      ref={anchorRef}
+      className={`group/completed-tool-history w-full max-w-full ${PROCESS_GROUP_SPACING_CLASS_NAME}`}>
       <Accordion
         type="single"
         collapsible
@@ -159,14 +208,14 @@ const MessageProcessGroup = React.memo(function MessageProcessGroup(props: Props
         <AccordionItem value="history" className="border-0 first:border-t-0">
           <AccordionTrigger
             data-testid="completed-process-trigger"
-            className="group/tool-group-trigger h-auto min-h-7 w-fit max-w-full flex-none justify-start gap-1.5 rounded bg-transparent px-0 py-0.5 text-left font-normal shadow-none select-none hover:no-underline focus-visible:bg-accent/50 focus-visible:outline-none [&>svg]:size-3.5 [&>svg]:-rotate-90 [&>svg]:opacity-60 [&>svg]:transition-transform [&[data-state=open]>svg]:rotate-0">
+            className="group/tool-group-trigger h-auto min-h-7 w-fit max-w-full flex-none justify-start gap-1.5 rounded bg-transparent px-0 py-0.5 text-left font-normal shadow-none select-none hover:no-underline focus-visible:bg-accent/50 focus-visible:outline-none [&>svg]:size-3.5 [&>svg]:-rotate-90 [&>svg]:opacity-60 motion-safe:[&>svg]:transition-transform motion-reduce:[&>svg]:transition-none [&[data-state=open]>svg]:rotate-0">
             <div className="min-w-0 overflow-hidden">{header}</div>
           </AccordionTrigger>
           <AccordionContent
             data-testid="tool-history-content"
             className={`${PROCESS_CONTENT_CLASS_NAME} px-0 pt-2 pb-0 text-inherit`}
             contentClassName="text-inherit motion-safe:data-[state=open]:[animation-duration:200ms] motion-safe:data-[state=closed]:[animation-duration:160ms] motion-reduce:animate-none">
-            <LazyCompletedProcessContent render={children} />
+            <CompletedProcessContent render={children} />
           </AccordionContent>
         </AccordionItem>
       </Accordion>

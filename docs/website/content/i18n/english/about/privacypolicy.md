@@ -6,53 +6,68 @@ icon: user-shield
 
 ## Cherry Studio Privacy Policy
 
-**Updated Date:** August 20, 2026
+**Updated Date:** November 26, 2026
 
-**Effective Date:** August 20, 2026
+**Effective Date:** November 26, 2026
 
 Welcome to Cherry Studio (hereinafter referred to as "this Software" or "we"). We place a high priority on protecting your privacy. This Privacy Policy explains how we handle and protect your personal information and data. Please read and understand this policy carefully before using this Software.
 
 ### I. Scope of Information We Collect
 
-To ensure the proper functioning of the Software, optimize user experience, and improve product quality, we collect the following fully anonymized non-personal operational information in the following two categories. All such information is anonymized, contains no data that can identify you personally, and cannot be linked to your personal information. You retain full control over all data collection activities, as described below.
+To ensure the proper functioning of the Software, optimize the user experience, and improve product quality, we collect the categories of operational and usage information listed below. This information does not include your conversation content, API keys, knowledge base content, or text you enter. You can turn off this collection at any time as described below.
 
 #### (1) Basic Operational Information
 
-This information is collected by default to ensure the basic functionality, security, and version compatibility of the Software:
+This information helps ensure that core features work properly, securely, and across versions. Collection is enabled by default after you accept the current version of this Privacy Policy. You can turn it off at any time. We collect the following information:
 
-- Software version information: Used for version compatibility checks and security update delivery;
-- Aggregated feature usage information: Overall usage summaries of various features (excluding specific behavioral details).
+1. Software and device information: the software version, operating system type and version, a randomly generated identifier for this device, and the IP address, used to check version compatibility, deliver security updates, adapt to your operating environment, and keep the service secure.
+2. Operational events: app launches and updates, used to measure app activity.
 
 #### (2) Product Improvement Information
 
-To continuously improve the product experience, we collect the following information by default:
+To continue improving the product experience, we collect the following information under the same conditions:
 
-- Feature usage activity and frequency: The activity level and call frequency of various features;
-- Error logs and crash reports: Anonymous error logs and crash stack traces generated during Software operation, used for troubleshooting and stability improvement.
+1. Feature usage: how often each feature is used, the outcome (success or failure and the type of failure), and the time taken. This includes interactions such as page views and time spent on pages, clicks, keyboard shortcuts, and changes to settings. For settings that accept text, we record only whether the setting changed.
+2. Model usage: model service type, model name, and token usage.
+3. Errors and crashes: error logs, crash stack traces, and similar information generated while the Software is running, used to troubleshoot issues and improve stability. For native crashes, the diagnostic report may also include a crash dump.
 
-The above information is highly aggregated anonymous data and does not involve your conversation content, API Keys, or any personally identifiable information.
+This information does not include your conversation content, API keys, knowledge base content, or text you enter.
 
-**How to Disable:** You may disable the collection of both categories of information at any time through the corresponding toggles under [Settings] - [Data Settings] - [Privacy Settings]. Disabling these options will not affect the core functionality of the Software. If you disable the collection of Basic Operational Information, you may not receive version compatibility notices and security update notifications in a timely manner.
+**How to Disable:** You can turn off collection at any time using the switch under Settings → Data → Privacy Settings. Core features will continue to work.
 
-#### (3) Our Commitments
+#### (3) Information Associated with Your Account
 
-Whether categorized as Basic Operational Information or Product Improvement Information, we commit that all collected information:
+You can use the core features without signing in. If you choose to sign in to your Cherry Studio account, the information described above will be linked to your account identifier. Related records generated on this device before you signed in may also be linked to your account so we can better serve you. After you sign out, newly generated information is no longer linked to your account. See the Cherry Studio Privacy Policy for accounts for details about how we handle personal information in connection with your account.
 
-- Is fully anonymized and cannot be linked to your personal identity;
-- Will NOT be used for user profiling or targeted advertising, nor sold or otherwise provided to third parties (except as mandatorily required by laws and regulations);
-- Will NOT include your conversation content, API Keys, knowledge base content, or any other sensitive data (see Section II for details).
+#### (4) Storage Location and Retention Periods
+
+As a general rule, personal information we collect or generate within the People's Republic of China is stored within the People's Republic of China. If we provide personal information outside the country, we will follow the procedures required by applicable laws and regulations.
+
+We retain your personal information only for the shortest period necessary to fulfill the purposes described in this policy, unless laws or regulations require otherwise. We retain basic operational information such as device identifiers and IP addresses, operational logs, error and crash information, and product improvement information for six months from the date of collection. After that period, we delete or anonymize it. We may keep anonymized statistics for long-term statistical analysis if they cannot identify a specific individual and the anonymization cannot be reversed. We retain any records required by law or administrative regulation for the periods prescribed.
+
+When the retention period expires or you withdraw your consent, we will delete or anonymize your personal information. If a retention period required by law or administrative regulation has yet to expire, we will only store the information and take the necessary security measures to protect it. We will cease using it for other purposes and promptly delete or anonymize it when the statutory period expires.
+
+#### (5) Our Commitments
+
+For both basic operational information and product improvement information, we make the following commitments:
+
+- When you are signed out, we link this information only to device information such as the randomly generated identifier and the IP address. We do not link it to information that identifies you personally, such as your name, phone number, or email address. When you sign in, we link it to your account only as described in subsection (3).
+- We do not use this information for user profiling or advertising, sell it, or otherwise provide it to third parties, except as required by law or when we engage service providers to process it for the purposes described in this policy.
+- This information does not include your conversation content, API keys, knowledge base content, or other sensitive data (see Section II).
 
 ### II. Information We Explicitly Do NOT Collect
 
-To maximize the protection of your privacy and information security, we explicitly commit that we will NOT collect, store, transmit, or process the following data:
+To protect your privacy and information security, we do not collect, store, transmit, or process the following data when you use local features, whether or not you have registered an account, or when you use a third-party model service you configured yourself:
 
 - **Your API Keys:** The model service API Key information you input into this Software;
-- **Your Conversation Data:** Any conversation data generated during your use of this Software, including but not limited to chat content, instruction information, knowledge base information, vector data, and other custom content (except for the transient relay strictly necessary to complete inference when you use the Built-in Model Services described in Section IV; we do not log or store such content);
-- **Personal Identity Information and Sensitive Personal Information:** Any information that could directly or indirectly identify you, as well as sensitive personal information as defined by applicable laws and regulations.
+- **Your Conversation Data:** Any conversation data generated during your use of the Software, including chat content, instructions, knowledge base information, vector data, and other custom content. If you use a third-party model service you configured yourself, your device sends the relevant data directly to that provider, and we do not collect or store it. If you register an account, sign in, and use a model service we provide, the Cherry Studio Privacy Policy for accounts governs how the relevant data is handled.
+- **Personal Identity Information and Sensitive Personal Information:** Information that directly identifies you, such as your name, mobile phone number, email address, or identity document number, and sensitive personal information as defined by applicable laws and regulations. The device identifier, IP address, usage information, and account identifier described in Section I are excluded from this commitment.
+
+If you choose to submit a problem report and the report offers an option to include conversation records, it will include records from the conversations selected for that report only if you select the option and submit the report.
 
 ### III. Local Storage and Data Interaction Explanation
 
-**Data Localization:** Your API Keys, historical conversation records, and personal preference settings are by default stored locally on your device. Cherry Studio does not provide cloud synchronization services and will not upload this data to our servers (except for the transient relay strictly necessary to complete inference when you use the Built-in Model Services described in Section IV).
+**Data Localization:** Your local settings, API keys, local history, and similar data are stored on your device by default and are not uploaded to our servers. If you choose to submit a problem report and include conversation records, those records are uploaded with the report. See Section IV for how model services provided by Cherry Studio handle conversation data.
 
 **Direct Calls:** When you use third-party model services that you have configured yourself, this Software acts as a local tool providing interface calling functionality to third-party model services. Your terminal device establishes a direct network connection with the servers of the third-party model providers you configure (e.g., OpenAI, Anthropic), and such data is not relayed through our servers.
 
@@ -60,15 +75,7 @@ To maximize the protection of your privacy and information security, we explicit
 
 ### IV. Built-in Model Services
 
-Cherry Studio provides Built-in Model Services that require no API Key configuration on your part. When you use these services, the prompts, conversation context, and model responses necessary to complete inference are relayed through Cherry Studio's official service.
-
-The relay service processes only the current request. It does not log or store the relevant content, discards it immediately upon completion of the request, and does not use it for any purpose beyond that request.
-
-The upstream model service provider corresponding to a Built-in Model Service will process such request content within the scope of its services, as governed by its own privacy policy.
-
-The built-in models and their service providers may be adjusted according to service conditions. You may also choose to use other model services that you configure yourself.
-
-The Built-in Model Services are provided in reliance on the capabilities of upstream model service providers and may be subject to interruption, delay, or unavailability due to service adjustments, network conditions, or upstream changes. Model outputs are automatically generated by the model; we make no warranty as to their accuracy, completeness, or fitness for any purpose, and you should exercise your own judgment and bear the risks of using such content. To the extent permitted by law, we shall not be liable for any losses arising from your use of the Built-in Model Services.
+After signing in to your Cherry Studio account, you can use built-in models (Cherry Cloud models) and other services. When you use Cherry Cloud models, we retain the relevant conversation content. See the Cherry Studio Privacy Policy for accounts for the purposes and periods of retention and details about your rights.
 
 ### V. Privacy Policy Statement Regarding Third-Party Model Service Providers
 
@@ -82,7 +89,7 @@ If you wish to learn about or disable such data processing and collection activi
 
 ### VI. Special Explanation Regarding Third-Party Services
 
-To facilitate your management and processing of data, in the [Settings] - [Data Settings] section of this Software, we support the following third-party service functions, including but not limited to, that you can choose to configure and use by entering API addresses, usernames, passwords, etc.:
+To facilitate your management and processing of data, this Software supports third-party services under Settings → Data, including those listed below. You can choose which services to configure and use by entering details such as API addresses, usernames, and passwords.
 
 - **Cloud Backup Settings:** WebDAV, S3-compatible storage, Nutstore (坚果云);
 - **Third-Party Connections:** Notion, Yuque (语雀), Joplin, Obsidian, SiYuan Note (思源笔记), and others.
@@ -91,7 +98,7 @@ The third-party services actually supported are as displayed within the client.
 
 When you use the above third-party services through this Software:
 
-The API Keys, passwords, and other credentials you enter are used only locally on your device. This Software does not collect or store such information or data. Please properly safeguard your credentials.
+If you choose to save API keys, passwords, or other connection credentials, the client stores them locally and uses them according to the authentication requirements of the service you configured. Please keep your credentials secure.
 
 Third-party services are operated independently by their respective service providers. Their data processing activities (including collection, use, storage, and sharing) are governed by those service providers' own privacy policies and terms. We recommend that you carefully read and understand the relevant service provider's privacy policy and terms of service before connecting. You are responsible for using the third-party service in compliance and for assuming all risks and responsibilities associated with using that service. We assume no responsibility for data breaches, loss, or improper processing resulting from your use of third-party services.
 
@@ -141,11 +148,15 @@ Within a reasonable scope, this Software may provide users with necessary techni
 
 The charging, deduction, refund, and service activities independently carried out by third-party service providers shall not be transformed into the conduct or liability of this Software merely because the user uses such Third-Party Services through this Software.
 
-### VIII. Policy Updates and Modifications
+### VIII. Protection of Minors
 
-This Privacy Policy may be updated from time to time. In the event of any material changes (including but not limited to adjustments to the scope of information collection, modifications to user rights, or changes in data processing practices), we will notify you in advance through prominent notices within the Software, version release notes, or other appropriate means, and will clearly indicate the updated date and effective date in the new version. Please review such updates promptly. Your continued use of the Software after the effective date of the updated policy shall be deemed as your acknowledgment and acceptance of the updated terms.
+This Software is not offered to minors. If you are under 18, please do not use the Software. If we discover that a minor is using the Software, we will take measures in accordance with the law, such as discontinuing service to that user and deleting the relevant information.
 
-### IX. Contact Us
+### IX. Policy Updates and Modifications
+
+This Privacy Policy may be updated from time to time. In the event of any material changes (including but not limited to adjustments to the scope of information collection, modifications to user rights, or changes in data processing practices), we will notify you in advance through prominent notices within the Software, version release notes, or other appropriate means, and will clearly indicate the updated date and effective date in the new version. Where the law requires renewed consent, we will obtain it before processing your personal information under the updated policy.
+
+### X. Contact Us
 
 If you have any questions regarding this Privacy Policy or Cherry Studio's privacy protection measures, or if you wish to contact us regarding the processing of your information, please feel free to contact us through the following channel:
 
@@ -154,5 +165,3 @@ If you have any questions regarding this Privacy Policy or Cherry Studio's priva
 We will respond within 15 business days after receiving your request.
 
 Thank you for choosing and trusting Cherry Studio. We will continue to provide you with a safe and reliable product experience.
-
-Updated Date: August 20, 2026

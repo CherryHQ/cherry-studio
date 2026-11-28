@@ -3,10 +3,11 @@ import path from 'path'
 
 import { optimizer } from '@electron-toolkit/utils'
 import type { BrowserWindow } from 'electron'
-import { app, dialog, nativeImage, nativeTheme, session, shell } from 'electron'
+import { app, dialog, nativeImage, nativeTheme, screen, session, shell } from 'electron'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { MCP_APP_PARTITION_PREFIX } from '@main/ai/mcp/mcpAppResource'
 import { installDevtoolsExtensions } from '@main/core/devtools'
 import { BaseService, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isLinux, isLinuxWayland, isMac, isWin } from '@main/core/platform'
@@ -16,6 +17,7 @@ import { WindowType } from '@main/core/window/types'
 import { isMiniAppPartition } from '@main/features/miniApp/runtime/partition'
 import { t } from '@main/i18n'
 import { openRequestPath } from '@main/services/file'
+import { fitMainWindowBounds, resolveMainWindowOptions } from '@main/services/mainWindowBounds'
 import { openTabInMainWindow, resetMainRendererTabAttachDelivery } from '@main/services/mainWindowNavigation'
 import {
   AgentDevPreviewRequestPolicy,
@@ -214,17 +216,26 @@ export class MainWindowService extends BaseService {
 
   /** Set the main window's minimum size (window.main.set_minimum_size). */
   public setMainWindowMinimumSize(width: number, height: number): void {
-    this.requireMainWindow().setMinimumSize(width, height)
+    const mainWindow = this.requireMainWindow()
+    const bounds = mainWindow.getBounds()
+    const { workArea } = screen.getDisplayMatching(bounds)
+    mainWindow.setMinimumSize(Math.min(width, workArea.width), Math.min(height, workArea.height))
+    if (mainWindow.isMaximized() || mainWindow.isFullScreen() || mainWindow.isMinimized()) return
+
+    const placed = fitMainWindowBounds(bounds, workArea, width, height)
+    if (
+      bounds.x !== placed.x ||
+      bounds.y !== placed.y ||
+      bounds.width !== placed.width ||
+      bounds.height !== placed.height
+    ) {
+      mainWindow.setBounds(placed)
+    }
   }
 
   /** Reset the main window's minimum size, growing it back if it shrank below the floor. */
   public resetMainWindowMinimumSize(): void {
-    const mainWindow = this.requireMainWindow()
-    mainWindow.setMinimumSize(MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
-    const [width, height] = mainWindow.getSize() ?? [MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT]
-    if (width < MIN_WINDOW_WIDTH) {
-      mainWindow.setSize(MIN_WINDOW_WIDTH, height)
-    }
+    this.setMainWindowMinimumSize(MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
   }
 
   /** Reload the main window if present (read at call time for singleton-reopen safety). */
@@ -265,6 +276,7 @@ export class MainWindowService extends BaseService {
     // and does nothing on singleton reuse (where this.mainWindow is already set).
     windowManager.open(WindowType.Main, {
       initData,
+      configureOptions: resolveMainWindowOptions,
       options: {
         darkTheme: nativeTheme.shouldUseDarkColors,
         ...(isLinux && { icon: linuxIcon }),
@@ -331,7 +343,16 @@ export class MainWindowService extends BaseService {
 
   private setupMainWindowMonitor(mainWindow: BrowserWindow) {
     mainWindow.webContents.on('render-process-gone', (_, details) => {
-      logger.error(`Renderer process crashed with: ${JSON.stringify(details)}`)
+      logger.error('Renderer process exited', {
+        operation: 'window.renderer.exit',
+        failure: {
+          source: 'application',
+          kind: ['clean-exit', 'killed'].includes(details.reason) ? 'expected' : 'reliability',
+          reason: details.reason,
+          outcome: 'failed'
+        },
+        exitCode: details.exitCode
+      })
       // A window being torn down can report its renderer gone after the webContents is
       // destroyed, where reload() throws and hides the real crash behind a dialog.
       if (mainWindow.isDestroyed() || mainWindow.webContents.isDestroyed()) return
@@ -446,6 +467,8 @@ export class MainWindowService extends BaseService {
     const agentArtifactSession = session.fromPartition(getWebviewPartition(WebviewSecurityProfile.AgentHtmlArtifact))
 
     mainWindow.webContents.on('will-attach-webview', (event, webPreferences, params) => {
+      // MCP App attachments are authorized by McpAppViewService for every host.
+      if (params.partition?.startsWith(MCP_APP_PARTITION_PREFIX)) return
       const securityProfile = getWebviewSecurityProfile(params.partition ?? '')
       // Mini app partitions carry their own gate (installMiniAppWebviewHost) and the
       // shared `persist:webview` lockdown lives in WebviewService.attachWebviewPreload.

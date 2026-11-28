@@ -249,6 +249,16 @@ export const COMMAND_DEFINITIONS = [
     }
   }),
   defineCommand({
+    id: 'chat.message.quote_selection',
+    titleKey: 'chat.message.quote',
+    categoryKey: 'settings.shortcuts.chat',
+    scope: 'renderer',
+    keybinding: {
+      defaultBinding: ['CommandOrControl', 'Shift', 'Y'],
+      when: '!input.focused && !webview.focused'
+    }
+  }),
+  defineCommand({
     id: 'chat.message.edit_last_user',
     titleKey: 'settings.shortcuts.edit_last_user_message',
     categoryKey: 'settings.shortcuts.chat',

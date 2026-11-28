@@ -1,3 +1,15 @@
+export {
+  acknowledgeChildArchive,
+  acknowledgeFollowupProjections,
+  nonterminalTaskStates,
+  readDurableWork,
+  readFollowupProjections,
+  recoveryIndex,
+  type DurableRecoveryWork,
+  type FollowupProjection
+} from './recovery'
+export { readDurableInput } from './inputLookup'
+export { areDurableInputsAbsent, readDurableReply } from './replyHistory'
 export { createPiDurableRuntime } from './runtime'
 export type {
   PiDurableRuntime,
@@ -9,3 +21,11 @@ export type {
 } from './runtime'
 
 export type { DurableObservation } from './projection'
+
+export {
+  followupEdit,
+  followupSteerPlacement,
+  type DurableFollowup,
+  type DurableFollowupChange,
+  type DurableFollowupEdit
+} from './followups'

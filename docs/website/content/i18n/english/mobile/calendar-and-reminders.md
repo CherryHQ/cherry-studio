@@ -10,8 +10,8 @@ Built-in calendar tools use calendars accessible through your phone's system on 
 
 ## Before you start
 
-1. Select a text model that supports tool calls.
-2. Edit the current agent and enable **Calendar** or **Reminders** in its **System** section.
+1. Use Standard mode and a text model that supports tool calls.
+2. No old agent capability switch is required; available calendar/reminder tools follow device support and system permissions.
 3. Grant permission when prompted, or check access under **Settings → System Permissions**.
 4. To review creation, changes, and deletion before execution, set the agent's approval mode to **Ask when needed**.
 

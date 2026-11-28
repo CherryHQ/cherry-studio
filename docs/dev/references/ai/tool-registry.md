@@ -86,6 +86,19 @@ not limited to assistant settings.
 
 The sync is idempotent; a stale entry is overwritten on the next sync.
 
+Assistant and Agent tool catalogs apply MCP Apps visibility to model-facing
+discovery. The MCP runtime checks that same visibility on the originating
+connection before execution, including calls through deferred tools. The
+source catalog retains App-only entries for settings and App access.
+
+Successful Assistant MCP tool results can carry a host-issued App reference.
+When the saved result enters view, the desktop host rechecks the topic's MCP
+selection and the server's tool declaration. The App renders inline after any
+declared external origins have been confirmed.
+Oversized results keep an App marker in the renderer projection. The host
+restores offloaded results before launching the App. If the topic or Assistant
+loses access to the source, the host releases both pending and mounted Apps.
+
 ### Tool catalog reads never block on MCP
 
 `McpCatalogService` splits the MCP tool catalog into a **read** facade and a
@@ -175,10 +188,13 @@ see [Pi code mode](./agent-session-runtime.md#pi-code-mode).
   with a warning log.
 - `createAiRepair(...)` (`tools/adapters/aiSdk/repair.ts`) — passed to AI SDK as
   `experimental_repairToolCall`. When the model emits **malformed args**
-  (`InvalidToolInputError`), the repair function gets one chance to fix it via a
-  follow-up LLM call. Other failures (e.g. an unknown tool name) are
-  returned unrepaired. The follow-up call passes `maxRetries: 0`, so one bad
-  tool call cannot become more than one repair request.
+  (`InvalidToolInputError`), repair first tries to normalize the input locally.
+  A follow-up generation uses the same model and validates the result against
+  the tool's input schema. An invalid result from a normally completed
+  generation allows one additional attempt unless the Chat request sets
+  `maxRetries: 0`. Other failures, such as an unknown tool name, are returned
+  unrepaired. The follow-up call passes `maxRetries: 0`, so one bad tool call
+  cannot become more than one repair request.
 
 ## Where to read more
 

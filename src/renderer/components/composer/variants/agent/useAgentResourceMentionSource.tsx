@@ -1,14 +1,13 @@
-import { Icon } from '@iconify/react'
 import type { Editor } from '@tiptap/core'
 import { Folder } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { FILE_TYPE } from '@renderer/types/file'
-import { getFileIconName } from '@renderer/utils/fileIconName'
+import { FileIcon } from '@renderer/components/icons/FileIcon'
+import { isSupportedExtension } from '@renderer/utils/file'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { createComposerFileTokenSourceId } from '@renderer/utils/message/composerFileTokenSource'
-import { type AbsoluteFilePath, AbsoluteFilePathSchema, type DirectoryEntry } from '@shared/types/file'
+import { type AbsoluteFilePath, AbsoluteFilePathSchema, type DirectoryEntry, FILE_TYPE } from '@shared/types/file'
 import { getFileTypeByExt } from '@shared/utils/file'
 
 import { serializeComposerDocument } from '../../composerDraft'
@@ -84,6 +83,7 @@ interface AgentResourceMentionOptions {
   accessiblePaths: readonly AbsoluteFilePath[]
   files: ComposerAttachment[]
   setFiles: React.Dispatch<React.SetStateAction<ComposerAttachment[]>>
+  supportedExts?: readonly string[]
   /** Whether the agent session exposes any accessible workspace paths to mention. */
   enabled: boolean
   /** Extra items appended after the workspace resources, sharing the same `@` panel. */
@@ -100,6 +100,7 @@ export function useAgentResourceMentionSource({
   accessiblePaths,
   files,
   setFiles,
+  supportedExts,
   enabled,
   getAdditionalItems
 }: AgentResourceMentionOptions): ComposerSuggestionSource[] {
@@ -112,6 +113,7 @@ export function useAgentResourceMentionSource({
     accessiblePathsKey,
     files,
     setFiles,
+    supportedExts,
     getAdditionalItems,
     t
   })
@@ -120,6 +122,7 @@ export function useAgentResourceMentionSource({
     accessiblePathsKey,
     files,
     setFiles,
+    supportedExts,
     getAdditionalItems,
     t
   }
@@ -193,7 +196,7 @@ export function useAgentResourceMentionSource({
         invalidateResourceSearch()
       },
       items: async ({ query, editor }) => {
-        const { accessiblePaths, accessiblePathsKey, files, setFiles, getAdditionalItems, t } =
+        const { accessiblePaths, accessiblePathsKey, files, setFiles, supportedExts, getAdditionalItems, t } =
           resourceMentionStateRef.current
         const normalizedQuery = query.trim()
         // Settled here, not at the await below: a rejection there would reject the whole source
@@ -279,15 +282,20 @@ export function useAgentResourceMentionSource({
               const token = agentFileToComposerToken(tokenFile)
               const isSelectedFile = (currentFile: ComposerAttachment) =>
                 currentFile.path === filePath || agentComposerTokenId.file(currentFile) === token.id
+              const fileExt = tokenFile.ext ?? getFileExtension(getBaseName(filePath))
+              const isUnsupported = Boolean(
+                supportedExts && supportedExts.length > 0 && !isSupportedExtension(fileExt, supportedExts)
+              )
 
               resourceItems.push({
                 id: createAgentResourceItemId(filePath),
                 label: getBaseName(filePath),
                 description: relativePath,
-                icon: <Icon icon={`material-icon-theme:${getFileIconName(filePath)}`} width={16} height={16} />,
+                icon: <FileIcon path={filePath} width={16} height={16} />,
                 filterText: `${relativePath} ${filePath}`,
-                disabled: files.some(isSelectedFile),
+                disabled: files.some(isSelectedFile) || isUnsupported,
                 command: ({ editor }) => {
+                  if (isUnsupported) return
                   const exists = serializeComposerDocument(editor).tokens.some(
                     (currentToken) => currentToken.id === token.id
                   )

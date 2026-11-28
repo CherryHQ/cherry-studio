@@ -6,10 +6,10 @@ import { createContext, use } from 'react'
 import type { DropEvent, DropzoneOptions, FileRejection } from 'react-dropzone'
 import { useDropzone as useReactDropzone } from 'react-dropzone'
 
-export { useDropzone } from 'react-dropzone'
-
 import { Button } from '@cherrystudio/ui/components/primitives/button'
 import { cn } from '@cherrystudio/ui/lib/utils'
+
+export { useDropzone } from 'react-dropzone'
 
 type DropzoneContextType = {
   src?: File[]

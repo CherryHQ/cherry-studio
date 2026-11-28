@@ -18,7 +18,6 @@ const fs = require('fs')
 const path = require('path')
 const os = require('os')
 const { execFileSync, spawn } = require('child_process')
-const AdmZip = require('adm-zip')
 
 const REPO_ROOT = path.join(__dirname, '..')
 const BINARIES_ROOT = path.join(REPO_ROOT, 'resources', 'binaries')
@@ -73,8 +72,8 @@ function linkFile(src, dest, stats) {
   const srcStat = fs.statSync(src)
   const destStat = fs.statSync(dest, { throwIfNoEntry: false })
   if (destStat) {
-    // ino is 0 on filesystems that do not report one; never treat that as a match.
-    if (srcStat.ino !== 0 && destStat.ino === srcStat.ino) return
+    // Inodes identify files only within one device. An inode of zero is unavailable.
+    if (srcStat.ino !== 0 && destStat.ino === srcStat.ino && destStat.dev === srcStat.dev) return
     // A copied bundle never matches inodes, so compare size+mtime too or every run
     // re-copies ~200MB. getTime(), since utimesSync loses sub-ms precision.
     if (destStat.size === srcStat.size && destStat.mtime.getTime() === srcStat.mtime.getTime()) return
@@ -482,8 +481,13 @@ function chmodExec(filePath) {
   if (process.platform !== 'win32') fs.chmodSync(filePath, 0o755)
 }
 
+function isNonEmptyFile(filePath) {
+  const stats = statOrNull(filePath)
+  return stats !== null && stats.isFile() && stats.size > 0
+}
+
 function isUpToDate(binaryPaths, versionPath, expectedVersion) {
-  if (binaryPaths.some((binaryPath) => !fs.existsSync(binaryPath))) return false
+  if (!binaryPaths.every(isNonEmptyFile)) return false
   // No marker path means the directory itself is version-scoped.
   if (!versionPath) return true
   if (!fs.existsSync(versionPath)) return false
@@ -510,27 +514,31 @@ function download(url, dest) {
 }
 
 /**
- * Extract a zip synchronously in-process. On the windows-2022 runner image the
+ * Extract a zip in-process. On the windows-2022 runner image the
  * PowerShell 7 Microsoft.PowerShell.Archive module is on PSModulePath, and
  * loaded by Windows PowerShell 5.1 its -Force branch fails non-terminatingly
  * while powershell still exits 0 — so Expand-Archive cannot be trusted to fail
  * when extraction fails; the empty tree resurfaces later as a copy ENOENT.
  */
-function extractZipArchive(archivePath, destinationDir) {
+async function extractZipArchive(archivePath, destinationDir) {
+  const StreamZip = require('node-stream-zip')
   fs.mkdirSync(destinationDir, { recursive: true })
+  const zip = new StreamZip.async({ file: archivePath })
   try {
-    new AdmZip(archivePath).extractAllTo(destinationDir, true)
+    await zip.extract(null, destinationDir)
   } catch (error) {
     throw new Error(`failed to extract ${path.basename(archivePath)}: ${error.message}`, { cause: error })
+  } finally {
+    await zip.close().catch(() => {})
   }
 }
 
-function extract(archivePath, archive, outputDir, pkg) {
+async function extract(archivePath, archive, outputDir, pkg) {
   if (archive === 'zip') {
     if (process.platform === 'win32') {
       const tmpExtract = path.join(outputDir, '__extract_tmp')
       try {
-        extractZipArchive(archivePath, tmpExtract)
+        await extractZipArchive(archivePath, tmpExtract)
         for (const b of pkg.binaries) {
           const expected = pkg.strip ? `${pkg.strip}/${b}` : b
           const src = path.join(tmpExtract, expected)
@@ -556,7 +564,7 @@ function extract(archivePath, archive, outputDir, pkg) {
     fs.rmSync(destDir, { recursive: true, force: true })
     fs.mkdirSync(destDir, { recursive: true })
     if (process.platform === 'win32') {
-      extractZipArchive(archivePath, destDir)
+      await extractZipArchive(archivePath, destDir)
     } else {
       execFileSync('unzip', ['-o', '-q', archivePath, '-d', destDir], { stdio: 'inherit' })
     }
@@ -584,7 +592,7 @@ function extract(archivePath, archive, outputDir, pkg) {
  * binaries, which the flat bundle needs to tell versions apart and the cache
  * does not, since its directory name already carries the version.
  */
-function downloadTool(tool, platformKey, outputDir, { versionFile = null, assetPath = null } = {}) {
+async function downloadTool(tool, platformKey, outputDir, { versionFile = null, assetPath = null } = {}) {
   const pkg = tool.packages[platformKey]
   if (!pkg) {
     if (tool.required) {
@@ -629,7 +637,7 @@ function downloadTool(tool, platformKey, outputDir, { versionFile = null, assetP
     if (assetPath) fs.copyFileSync(assetPath, archivePath)
     else download(pkg.url, archivePath)
     verifyHash(archivePath, pkg.sha256)
-    extract(archivePath, pkg.archive, staging, pkg)
+    await extract(archivePath, pkg.archive, staging, pkg)
     fs.unlinkSync(archivePath)
   }
 
@@ -747,9 +755,10 @@ async function prepareTools(
 ) {
   const platformKey = `${platform}-${arch}`
   const bundleDir = path.join(resourcesDir, platformKey)
-  const pending = tools.filter((tool) => {
+  const pending = []
+  for (const tool of tools) {
     const pkg = tool.packages[platformKey]
-    if (!pkg) return false
+    if (!pkg) continue
     if (
       isUpToDate(
         pkg.binaries.map((name) => path.join(bundleDir, name)),
@@ -757,11 +766,11 @@ async function prepareTools(
         tool.version
       )
     ) {
-      downloadTool(tool, platformKey, bundleDir, { versionFile: tool.versionFile })
-      return false
+      await downloadTool(tool, platformKey, bundleDir, { versionFile: tool.versionFile })
+    } else {
+      pending.push(tool)
     }
-    return true
-  })
+  }
   if (pending.length === 0) {
     verifyBundledBinaries(platform, arch, { tools, resourcesDir })
     return
@@ -837,7 +846,7 @@ async function prepareTools(
     for (const [tool, assetPath] of assets) {
       const started = Date.now()
       try {
-        downloadTool(tool, platformKey, bundleDir, { versionFile: tool.versionFile, assetPath })
+        await downloadTool(tool, platformKey, bundleDir, { versionFile: tool.versionFile, assetPath })
         toolTiming(tool.name, 'extract-install', started)
       } catch (error) {
         errors.push(new Error(`[${tool.name}] ${error.message}`, { cause: error }))
@@ -873,7 +882,7 @@ async function main() {
   for (const tool of TOOLS) {
     const outputDir = cacheRoot ? cachedVersionDir(cacheRoot, platformKey, tool) : bundleDir
     try {
-      downloadTool(tool, platformKey, outputDir, { versionFile: cacheRoot ? null : tool.versionFile })
+      await downloadTool(tool, platformKey, outputDir, { versionFile: cacheRoot ? null : tool.versionFile })
       if (cacheRoot && tool.packages[platformKey]) touch(outputDir)
     } catch (error) {
       if (tool.required) throw error
@@ -958,7 +967,9 @@ function verifyBundledBinaries(platform, arch, options = {}) {
       continue
     }
     for (const binary of pkg.binaries) {
-      if (!fs.existsSync(path.join(outputDir, binary))) problems.push(path.join(platformKey, binary))
+      if (!isNonEmptyFile(path.join(outputDir, binary))) {
+        problems.push(`${path.join(platformKey, binary)} (expected a non-empty regular file)`)
+      }
     }
     // BinaryManager refuses to extract a tool whose marker is missing, so a
     // bundle without one ships a dead toolchain and no error until runtime.

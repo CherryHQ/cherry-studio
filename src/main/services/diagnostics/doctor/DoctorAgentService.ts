@@ -9,10 +9,10 @@ import { loggerService } from '@logger'
 import { incidentErrors, readIncidentMessage } from '@main/ai/agents/doctor/doctorIncident'
 import { applyWrite, undoWrite, writeRisk } from '@main/ai/agents/doctor/doctorWrites'
 import { loadBuiltinAgentEnsureInput } from '@main/ai/agents/ensureBuiltinAgent'
-import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
-import { startAgentSessionRun, type StreamListener } from '@main/ai/streamManager'
+import { startAgentSessionRun, StreamReplyText, type StreamListener } from '@main/ai/streamManager'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { getAppLanguage } from '@main/i18n'
+import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
 import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
@@ -313,11 +313,16 @@ export class DoctorAgentService extends BaseService {
 
   private createListener(key: DoctorAgentKey, runId: string): StreamListener {
     let text = ''
-    const toolCalls: string[] = []
+    let reply: StreamReplyText | undefined
+    const toolCalls = new Map<string, string>()
     let flushTimer: NodeJS.Timeout | undefined
     const flush = () => {
       flushTimer = undefined
-      this.update(key, runId, (current) => ({ ...current, text, toolCalls: [...toolCalls] }))
+      this.update(key, runId, (current) => ({
+        ...current,
+        text: reply?.read() ?? text,
+        toolCalls: [...toolCalls.values()]
+      }))
     }
     const scheduleFlush = () => {
       flushTimer ??= setTimeout(flush, TEXT_PUBLISH_INTERVAL_MS)
@@ -325,7 +330,7 @@ export class DoctorAgentService extends BaseService {
     const settle = (status: 'completed' | 'canceled' | 'failed', error?: string) => {
       if (flushTimer) clearTimeout(flushTimer)
       this.finish(key, runId, (current) => {
-        const run = { ...current, text, toolCalls: [...toolCalls] }
+        const run = { ...current, text: reply?.read() ?? text, toolCalls: [...toolCalls.values()] }
         return status === 'failed' ? { status, error: error ?? 'unknown error', ...run } : { status, ...run }
       })
     }
@@ -336,19 +341,33 @@ export class DoctorAgentService extends BaseService {
           text += chunk.delta
           scheduleFlush()
         } else if (chunk.type === 'tool-input-start') {
-          toolCalls.push(chunk.toolName)
+          toolCalls.set(chunk.toolCallId, chunk.toolName)
           scheduleFlush()
         }
       },
-      onMessage(message, _model, kind) {
-        if (kind !== 'messages') return
-        text = message.parts.flatMap((part) => (part.type === 'text' ? [part.text] : [])).join('')
-        toolCalls.splice(
-          0,
-          toolCalls.length,
-          ...message.parts.flatMap((part) => (part.type === 'dynamic-tool' ? [part.toolName] : []))
-        )
-        scheduleFlush()
+      content: {
+        snapshot(message, source) {
+          if (source !== 'messages') return
+          ;(reply ??= new StreamReplyText()).reset(message)
+          toolCalls.clear()
+          for (const part of message.parts) {
+            if (part.type !== 'dynamic-tool') continue
+            toolCalls.set(part.toolCallId, part.toolName)
+          }
+          scheduleFlush()
+        },
+        part(change) {
+          reply ??= new StreamReplyText()
+          if (reply.apply(change)) scheduleFlush()
+          if (
+            (change.type === 'part-add' || change.type === 'part-put') &&
+            change.part.type === 'dynamic-tool' &&
+            toolCalls.get(change.part.toolCallId) !== change.part.toolName
+          ) {
+            toolCalls.set(change.part.toolCallId, change.part.toolName)
+            scheduleFlush()
+          }
+        }
       },
       onDone: () => settle(this.active.get(key)?.abortTimer ? 'canceled' : 'completed'),
       onPaused: () => settle(this.active.get(key)?.abortTimer ? 'canceled' : 'completed'),

@@ -135,6 +135,16 @@ class ReleaseCosTests(unittest.TestCase):
         self.assertEqual({file.name for file in draft.iterdir()}, {"global-windows.bin", "global-mac.bin", "global-linux.bin"})
         self.assertEqual((draft / "global-windows.bin").read_bytes(), b"new")
 
+    def test_partial_retry_requires_the_same_mac_bridge_mode(self):
+        baseline = f"{self.base}/baselines/{os.environ['RELEASE_SHA']}.json"
+        for previous, retry in ((False, "true"), (True, "false")):
+            with self.subTest(previous=previous, retry=retry):
+                release.write_json(self.store, baseline, {"macCnRegionBridge": previous, "files": {}})
+                with patch.dict(os.environ, {"MAC_CN_REGION_BRIDGE": retry}):
+                    with self.assertRaisesRegex(ValueError, "Run an all-platform build"):
+                        release.assemble(self.store, self.base, self.prefix, "windows")
+                self.assertFalse(Path("cos-release.json").exists())
+
     def populate_targets(self):
         for edition in release.EDITIONS:
             product = "Cherry-Studio" if edition == "global" else "Cherry-Studio-CN"
@@ -183,6 +193,31 @@ class ReleaseCosTests(unittest.TestCase):
         with self.assertRaises(MissingObject):
             release.assemble(self.store, self.base, self.prefix, "all")
         self.assertFalse(Path("cos-release.json").exists())
+
+    def test_recovery_assembles_new_mac_with_previous_windows_and_linux_packages(self):
+        self.populate_targets()
+        old_prefix = f"{self.base}/100"
+        reused = {}
+        for edition in release.EDITIONS:
+            for platform in ("windows", "linux"):
+                for group in release.inventory_groups(platform):
+                    name = f"{edition}/{group}.json"
+                    inventory = release.read_json(self.store, f"{self.prefix}/{name}")
+                    for relative, entry in inventory.items():
+                        old_key = entry["key"].replace(self.prefix, old_prefix)
+                        self.store.objects[old_key] = self.store.objects.pop(entry["key"])
+                        entry["key"] = old_key
+                        reused[relative] = entry
+                    self.store.objects.pop(f"{self.prefix}/{name}")
+                    release.write_json(self.store, f"{old_prefix}/{name}", inventory)
+
+        self.run_cli("reuse-non-mac", "100")
+        self.run_cli("assemble", "all", "manifests")
+        inventory = json.loads(Path("cos-release.json").read_text())
+        self.assertEqual(inventory["platform"], "all")
+        files = inventory["files"]
+        self.assertEqual({name: files[name] for name in reused}, reused)
+        self.assertTrue(files["cn/mac/latest-cn-mac.yml"]["key"].startswith(self.prefix + "/"))
 
     def test_finalization_downloads_only_metadata_after_incremental_package_uploads(self):
         self.populate_targets()

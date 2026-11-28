@@ -1,4 +1,4 @@
-import { ChevronsDownUp, ChevronsUpDown, Group, MoreHorizontal } from 'lucide-react'
+import { ArrowDownUp, ChevronsDownUp, ChevronsUpDown, Group, MoreHorizontal } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -17,6 +17,8 @@ import {
   DropdownMenuTrigger,
   Tooltip
 } from '@cherrystudio/ui'
+import { cn } from '@renderer/utils/style'
+import type { ConversationListSort, ConversationListSortBy } from '@shared/data/types/conversationList'
 
 import { ResourceList } from './ResourceList'
 
@@ -46,7 +48,17 @@ type ConversationListOptionsMenuProps<TMode extends string> = {
   options: readonly ConversationListOption<TMode>[]
   sectionToggle?: ConversationListSectionToggle
   title: string
+  sort: ConversationListSort
+  onSortChange: (sort: ConversationListSort) => void
 }
+
+const SORT_LABEL_KEYS: Record<ConversationListSortBy, string> = {
+  lastActivityAt: 'chat.list.sort.last_updated',
+  createdAt: 'chat.list.sort.date_created',
+  name: 'chat.list.sort.name',
+  orderKey: 'chat.list.sort.manually'
+}
+const SORT_OPTIONS: ConversationListSortBy[] = ['lastActivityAt', 'createdAt', 'name', 'orderKey']
 
 export function ConversationListOptionsMenu<TMode extends string>({
   historyAction,
@@ -55,10 +67,13 @@ export function ConversationListOptionsMenu<TMode extends string>({
   onChange,
   options,
   sectionToggle,
-  title
+  title,
+  sort,
+  onSortChange
 }: ConversationListOptionsMenuProps<TMode>) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
+  const [skipExitAnimation, setSkipExitAnimation] = useState(false)
   const selectedOption = options.find((option) => option.value === mode)
   const runAfterMenuClose = (action: () => void) => {
     setOpen(false)
@@ -70,6 +85,8 @@ export function ConversationListOptionsMenu<TMode extends string>({
       aria-current={action.active ? 'page' : undefined}
       className={action.active ? 'bg-accent' : undefined}
       onSelect={() => {
+        // Navigation hides the trigger before an animated exit can finish.
+        setSkipExitAnimation(true)
         setOpen(false)
         void action.onSelect()
       }}>
@@ -79,7 +96,12 @@ export function ConversationListOptionsMenu<TMode extends string>({
   )
 
   return (
-    <DropdownMenu open={open} onOpenChange={setOpen}>
+    <DropdownMenu
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (nextOpen) setSkipExitAnimation(false)
+        setOpen(nextOpen)
+      }}>
       <Tooltip title={t('chat.list.options')} delay={500}>
         <DropdownMenuTrigger asChild>
           <ResourceList.HeaderActionButton type="button" aria-label={t('chat.list.options')}>
@@ -87,7 +109,12 @@ export function ConversationListOptionsMenu<TMode extends string>({
           </ResourceList.HeaderActionButton>
         </DropdownMenuTrigger>
       </Tooltip>
-      <DropdownMenuContent align="end" className="w-max min-w-48 max-w-(--radix-dropdown-menu-content-available-width)">
+      <DropdownMenuContent
+        align="end"
+        className={cn(
+          'w-max min-w-48 max-w-(--radix-dropdown-menu-content-available-width)',
+          skipExitAnimation && 'data-[state=closed]:animate-none!'
+        )}>
         <DropdownMenuSub>
           <DropdownMenuSubTrigger>
             <Group size={16} />
@@ -106,6 +133,50 @@ export function ConversationListOptionsMenu<TMode extends string>({
                   </DropdownMenuRadioItem>
                 ))}
               </DropdownMenuRadioGroup>
+            </DropdownMenuSubContent>
+          </DropdownMenuPortal>
+        </DropdownMenuSub>
+        <DropdownMenuSub>
+          <DropdownMenuSubTrigger>
+            <ArrowDownUp size={16} />
+            <span className="flex-1">{t('chat.list.sort.title')}</span>
+            <span className="text-muted-foreground text-xs">{t(SORT_LABEL_KEYS[sort.by])}</span>
+          </DropdownMenuSubTrigger>
+          <DropdownMenuPortal>
+            <DropdownMenuSubContent>
+              <DropdownMenuRadioGroup value={sort.by} aria-label={t('chat.list.sort.title')}>
+                {SORT_OPTIONS.map((by) => (
+                  <DropdownMenuRadioItem
+                    key={by}
+                    value={by}
+                    onSelect={() =>
+                      runAfterMenuClose(() =>
+                        onSortChange(
+                          by === 'orderKey'
+                            ? { by }
+                            : { by, direction: sort.by === 'orderKey' ? 'desc' : sort.direction }
+                        )
+                      )
+                    }>
+                    {t(SORT_LABEL_KEYS[by])}
+                  </DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+              {sort.by !== 'orderKey' && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuRadioGroup value={sort.direction} aria-label={t('chat.list.sort.direction')}>
+                    {(['desc', 'asc'] as const).map((direction) => (
+                      <DropdownMenuRadioItem
+                        key={direction}
+                        value={direction}
+                        onSelect={() => runAfterMenuClose(() => onSortChange({ ...sort, direction }))}>
+                        {t(direction === 'desc' ? 'chat.list.sort.descending' : 'chat.list.sort.ascending')}
+                      </DropdownMenuRadioItem>
+                    ))}
+                  </DropdownMenuRadioGroup>
+                </>
+              )}
             </DropdownMenuSubContent>
           </DropdownMenuPortal>
         </DropdownMenuSub>

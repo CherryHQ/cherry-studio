@@ -94,6 +94,12 @@ describe('inferReasoningControls (ingest-time heuristics)', () => {
 
   it.each([
     // [id, expected controls]
+    ['swe-2-flash', [{ kind: 'effort', values: ['medium', 'high', 'max'] }]],
+    ['swe-2.1-ultrafast', [{ kind: 'effort', values: ['low', 'medium', 'high', 'xhigh', 'max'] }]],
+    ['recursive/flint-v1.0', [{ kind: 'effort', values: ['low', 'medium', 'high'] }]],
+    ['beam', [{ kind: 'effort', values: ['low', 'medium', 'high', 'xhigh', 'max'] }]],
+    ['sakana/fugu-ultra-v2', [{ kind: 'effort', values: ['high', 'xhigh', 'max'] }]],
+    ['sakana/namazu', [{ kind: 'effort', values: ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] }]],
     ['gpt-5.1', [{ kind: 'effort', values: ['none', 'low', 'medium', 'high'] }]],
     ['gpt-5.2-pro', [{ kind: 'effort', values: ['medium', 'high', 'xhigh'] }]],
     ['o3', [{ kind: 'effort', values: ['low', 'medium', 'high'] }]],
@@ -147,6 +153,10 @@ describe('inferReasoningControls (ingest-time heuristics)', () => {
     ['xsparkx2flash', [{ kind: 'toggle' }]],
     ['gemma4:31b', [{ kind: 'toggle' }]],
     ['gemma-4-31b-it', [{ kind: 'toggle' }]],
+    ['mistral-large-4', [{ kind: 'effort', values: ['low', 'medium', 'high'] }]],
+    ['mistral-large-4-0', [{ kind: 'effort', values: ['low', 'medium', 'high'] }]],
+    ['mistral-large-4-0-8', [{ kind: 'effort', values: ['low', 'medium', 'high'] }]],
+    ['mistralai/mistral-large-4-0', [{ kind: 'effort', values: ['low', 'medium', 'high'] }]],
     ['mistral-small-2603', [{ kind: 'effort', values: ['none', 'high'] }]],
     // provider-namespaced ids are normalized before matching
     ['deepseek/deepseek-v4', [{ kind: 'effort', values: ['none', 'low', 'high', 'max'] }]],

@@ -1,8 +1,3 @@
-import { pathToFileURL } from 'node:url'
-
-import { BrowserWindow, type IpcMainInvokeEvent } from 'electron'
-import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-
 /**
  * Tests for the Preference_Subscribe IPC handler.
  *
@@ -12,6 +7,11 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
  * never receive a push), and must register all requested keys for a
  * resolvable window.
  */
+import { pathToFileURL } from 'node:url'
+
+import { BrowserWindow, type IpcMainInvokeEvent } from 'electron'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { IpcChannel } from '@shared/IpcChannel'
 
 import type { PreferenceService as PreferenceServiceType } from '../PreferenceService'
