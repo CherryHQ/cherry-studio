@@ -5,7 +5,7 @@ import { Button, Tooltip } from '@cherrystudio/ui'
 import { usePersistCache } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
 import { CommandTooltip } from '@renderer/components/command'
-import GlobalSearchPopup from '@renderer/components/GlobalSearch/GlobalSearchPopup'
+import GlobalSearchPopup, { preloadGlobalSearchPanel } from '@renderer/components/GlobalSearch/GlobalSearchPopup'
 import { getSidebarLayout } from '@renderer/components/Sidebar'
 import { useAppUpdateState } from '@renderer/hooks/useAppUpdateState'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
@@ -69,6 +69,8 @@ export function ShellTabBarActions() {
             size="icon"
             aria-label={t('globalSearch.open')}
             onClick={handleSearchClick}
+            onPointerEnter={preloadGlobalSearchPanel}
+            onFocus={preloadGlobalSearchPanel}
             className="flex h-8 w-8 items-center justify-center rounded-[8px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground dark:text-muted-foreground">
             <Search size={16} strokeWidth={1.8} />
           </Button>

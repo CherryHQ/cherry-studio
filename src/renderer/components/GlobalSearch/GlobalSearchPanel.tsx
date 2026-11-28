@@ -1,5 +1,5 @@
 import { ChevronDown, Clock3, CornerDownLeft, Search, X } from 'lucide-react'
-import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -51,10 +51,7 @@ import {
   type GlobalSearchPanelGroupFooter,
   sanitizeGlobalSearchRecentEntries
 } from './globalSearchGroups'
-import {
-  GlobalSearchMessagePreviewPanel,
-  type GlobalSearchMessagePreviewTarget
-} from './GlobalSearchMessagePreviewPanel'
+import type { GlobalSearchMessagePreviewTarget } from './GlobalSearchMessagePreviewPanel'
 import {
   GlobalMessageSearchGroupHeader,
   GlobalMessageSearchRow,
@@ -83,6 +80,12 @@ import {
   useGlobalSearchPanelData
 } from './useGlobalSearchPanelData'
 import { GLOBAL_SEARCH_QUERY_DEBOUNCE_MS, useImeAwareDebouncedValue } from './useImeAwareDebouncedValue'
+
+const LazyGlobalSearchMessagePreviewPanel = lazy(() =>
+  import('./GlobalSearchMessagePreviewPanel').then((module) => ({
+    default: module.GlobalSearchMessagePreviewPanel
+  }))
+)
 
 type GlobalSearchPanelProps = {
   onClose: () => void
@@ -389,7 +392,10 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
   }, [hasMoreMessageResults, messageVirtualGroups])
 
   useEffect(() => {
-    inputRef.current?.focus({ preventScroll: true })
+    const frameId = window.requestAnimationFrame(() => {
+      inputRef.current?.focus({ preventScroll: true })
+    })
+    return () => window.cancelAnimationFrame(frameId)
   }, [])
 
   useEffect(() => {
@@ -1094,13 +1100,15 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
       <div className={cn('min-h-0 flex-1', showSearchControls && 'border-border-subtle border-t')}>
         {isMessageSearchMode ? (
           messagePreviewTarget ? (
-            <GlobalSearchMessagePreviewPanel
-              className="h-full min-w-0"
-              searchQuery={deferredQuery}
-              target={messagePreviewTarget}
-              onClose={() => setMessagePreviewTarget(null)}
-              onOpenMessage={openMessagePreviewMessage}
-            />
+            <Suspense fallback={null}>
+              <LazyGlobalSearchMessagePreviewPanel
+                className="h-full min-w-0"
+                searchQuery={deferredQuery}
+                target={messagePreviewTarget}
+                onClose={() => setMessagePreviewTarget(null)}
+                onOpenMessage={openMessagePreviewMessage}
+              />
+            </Suspense>
           ) : (
             messageResultsContent
           )
@@ -1193,12 +1201,14 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
           </KbdGroup>
         </div>
       )}
-      <ResourceEditDialogHost
-        target={editDialogTarget}
-        onOpenChange={(open) => {
-          if (!open) setEditDialogTarget(null)
-        }}
-      />
+      {editDialogTarget ? (
+        <ResourceEditDialogHost
+          target={editDialogTarget}
+          onOpenChange={(open) => {
+            if (!open) setEditDialogTarget(null)
+          }}
+        />
+      ) : null}
     </div>
   )
 }
