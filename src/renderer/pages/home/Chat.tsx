@@ -274,6 +274,7 @@ const Chat: FC<Props> = (props) => {
       pane={props.pane}
       paneOpen={props.paneOpen}
       panePosition={props.panePosition}
+      hideLeftPane={centerSurface?.hideLeftPane}
       onPaneCollapse={props.onPaneCollapse}
       onPaneAutoCollapseChange={props.onPaneAutoCollapseChange}
       paneManualToggle={props.paneManualToggle}

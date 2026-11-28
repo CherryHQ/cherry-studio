@@ -588,8 +588,11 @@ async function buildToolPermissions(
     }
     // Ordinary delegation is approved by PreToolUse. Reaching this callback means the SDK still
     // requires a user decision, even when matchedAskRule is absent.
+    const rtkApprovalRequired =
+      toolName === 'Bash' && sessionState().isBashRtkApprovalRequired(session.id, opts.toolUseID)
     const approvalHoldsInThisMode =
       commandRequiresApproval ||
+      rtkApprovalRequired ||
       installApprovalHolds ||
       policy?.approval === 'delegation' ||
       (policy?.approval === 'required' &&

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react'
+import { type Dispatch, type SetStateAction, useCallback } from 'react'
 
 import { cacheService } from '@data/CacheService'
 import { usePaintings } from '@renderer/hooks/usePaintings'
@@ -24,18 +24,13 @@ function hasOutput(painting: PaintingData) {
 
 interface UsePaintingGenerationInput {
   painting: PaintingData
-  onPaintingChange: (painting: PaintingData) => void
+  onPaintingChange: Dispatch<SetStateAction<PaintingData>>
 }
 
 export function usePaintingGeneration({ painting, onPaintingChange }: UsePaintingGenerationInput) {
   const { createPainting, updatePainting, refresh } = usePaintings()
   const currentProviderId = painting.providerId
   const { provider } = usePaintingProviderRuntime(currentProviderId)
-  const visibleIdRef = useRef(painting.id)
-
-  useEffect(() => {
-    visibleIdRef.current = painting.id
-  }, [painting.id])
 
   // No unmount-abort: the page-level cache mirror in
   // `painting.generation.${id}` lets a navigated-away generation finish,
@@ -47,10 +42,8 @@ export function usePaintingGeneration({ painting, onPaintingChange }: UsePaintin
   }, [])
 
   const applyIfVisible = useCallback(
-    (next: PaintingData) => {
-      if (visibleIdRef.current === next.id) {
-        onPaintingChange(next)
-      }
+    (id: string, updates: Partial<PaintingData>) => {
+      onPaintingChange((current) => (current.id === id ? { ...current, ...updates } : current))
     },
     [onPaintingChange]
   )
@@ -96,16 +89,9 @@ export function usePaintingGeneration({ painting, onPaintingChange }: UsePaintin
       // page's in-memory state plus a Memory-cache mirror keyed by paintingId.
       // The cache mirror outlives this component's unmount, so navigating away
       // and back rehydrates the running spinner.
-      const pushGenerationState = (updates: Partial<PaintingGenerationState>) => {
-        Object.assign(generationState, updates, { generationStatus: 'running' as const })
-        cacheService.set(cacheKey, paintingGenerationStateToCache(generationState))
-        applyIfVisible({ ...targetPainting, ...generationState })
-      }
-
-      visibleIdRef.current = targetPainting.id
       onPaintingChange({ ...targetPainting, ...generationState })
       registerPaintingAbortController(targetPainting.id, controller)
-      pushGenerationState(generationState)
+      cacheService.set(cacheKey, paintingGenerationStateToCache(generationState))
       onPrepared()
 
       try {
@@ -122,9 +108,13 @@ export function usePaintingGeneration({ painting, onPaintingChange }: UsePaintin
           }
         })
         cacheService.set(cacheKey, null)
-        // Merge the freshly-generated output into the in-memory draft; do not
-        // re-read from the DB record (which would drop params / mode again).
-        applyIfVisible({ ...targetPainting, files: generatedFiles })
+        applyIfVisible(targetPainting.id, {
+          files: generatedFiles,
+          generationStatus: null,
+          generationTaskId: null,
+          generationError: null,
+          generationProgress: null
+        })
         await refresh()
       } catch (error) {
         const isCanceled = controller.signal.aborted || (error instanceof Error && error.name === 'AbortError')
@@ -134,7 +124,7 @@ export function usePaintingGeneration({ painting, onPaintingChange }: UsePaintin
           generationError: isCanceled ? null : error instanceof Error ? error.message : String(error)
         }
         cacheService.set(cacheKey, paintingGenerationStateToCache(failedState))
-        applyIfVisible({ ...targetPainting, ...failedState })
+        applyIfVisible(targetPainting.id, failedState)
         if (!isCanceled) {
           presentPaintingGenerateError(error)
         }

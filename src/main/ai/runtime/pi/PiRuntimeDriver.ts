@@ -7,11 +7,13 @@ import { loggerService } from '@logger'
 import { logAiFailure } from '@main/ai/errorReporting'
 import { prepareAgentSessionWorkspaceDirectory } from '@main/ai/runtime/agentSessionWorkspace'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import { isUniqueModelId } from '@shared/data/types/model'
 
 import { listEntries, reclaimStale } from '../orphanSessionReclaim'
 import type { AgentRuntimeConnectInput, AgentSessionRuntimeDriver, OrphanSessionReclaimOptions } from '../types'
 import { classifyPiFailure } from './failureFacts'
 import { PiForkCheckpointSchema } from './forkCheckpoint'
+import { ensureImportedSessionHistory } from './importedSessionHistory'
 import { forkPiSession } from './piFork'
 import { PiRuntimeConnection } from './PiRuntimeConnection'
 import { ensureRetiredSessionHistory, migrateRetiredSessionHistories } from './retiredSessionHistory'
@@ -29,6 +31,7 @@ export class PiRuntimeDriver implements AgentSessionRuntimeDriver {
   readonly recoverSessions = migrateRetiredSessionHistories
 
   async validateSession(session: AgentSessionEntity, opts?: { headless?: boolean }): Promise<void> {
+    await ensureImportedSessionHistory(session.id)
     await ensureRetiredSessionHistory(session.id)
     const cwd = session.workspace?.path
     if (!cwd) {
@@ -48,6 +51,8 @@ export class PiRuntimeDriver implements AgentSessionRuntimeDriver {
   }
 
   async connect(input: AgentRuntimeConnectInput) {
+    if (!isUniqueModelId(input.modelId)) throw new Error('Provider model required')
+    await ensureImportedSessionHistory(input.sessionId)
     await ensureRetiredSessionHistory(input.sessionId)
     const connection = new PiRuntimeConnection(input)
     try {

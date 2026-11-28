@@ -25,10 +25,9 @@ function confirmed<T>(result: OperationResult<T>): T {
   return result.value
 }
 
-const draft = (text: string, whenBusy: 'reject' | 'steer' = 'reject') => ({
+const draft = (text: string) => ({
   inputId: runtimeId<'input'>(text),
-  text,
-  whenBusy
+  text
 })
 type ObservedThread = Awaited<ReturnType<typeof project>>
 const answers = ({ projection }: ObservedThread) =>
@@ -138,7 +137,7 @@ it('projects two Pi background children independently across parent release, sel
   const { runtime, root, errors } = await pi(provider.model)
   rootId = root.thread.id
   const parent = await project(root)
-  await root.input.submit(draft('delegate'))
+  await root.input.submit!(draft('delegate'))
   await Promise.all([a.reached, b.reached])
   await expect
     .poll(async () => (await runtime.lookupInput(parent.projection.thread, runtimeId('delegate')))?.outcome)
@@ -169,7 +168,7 @@ it('projects two Pi background children independently across parent release, sel
   expect(parent.projection.snapshot()).toBe(savedParent)
   expect(answers(parent)).toEqual(['parent finished'])
 
-  expect(await childA.input.submit(draft('continue A', 'steer'))).toMatchObject({ status: 'acknowledged' })
+  expect(await childA.input.steer.submit(draft('continue A'))).toMatchObject({ status: 'acknowledged' })
   await continuation.reached
   const secondAccess = confirmed(await runtime.open(childA.thread))
   await viewA.observation.stop()
@@ -201,7 +200,7 @@ it('shows Pi foreground cancellation in the parent and leaves its next turn isol
   const { runtime, root, errors } = await pi(provider.model)
   rootId = root.thread.id
   const parent = await project(root)
-  await root.input.submit(draft('delegate'))
+  await root.input.submit!(draft('delegate'))
   await held.reached
   await expect.poll(() => parent.children.size).toBe(1)
   const child = confirmed(await runtime.open(firstChild(parent)))
@@ -210,7 +209,7 @@ it('shows Pi foreground cancellation in the parent and leaves its next turn isol
   await expect
     .poll(async () => (await runtime.lookupInput(parent.projection.thread, runtimeId('delegate')))?.outcome)
     .toBe('aborted')
-  await root.input.submit(draft('next'))
+  await root.input.submit!(draft('next'))
   confirmed(await child.interrupt!())
   await expect
     .poll(async () => (await runtime.lookupInput(parent.projection.thread, runtimeId('next')))?.outcome)
@@ -280,7 +279,7 @@ it('projects a Durable parent, child and grandchild, then continues only the chi
     })
   )
   const parent = await project(root)
-  await root.input.submit(draft('delegate'))
+  await root.input.submit!(draft('delegate'))
   await expect.poll(() => parent.children.size).toBe(1)
   const child = confirmed(await runtime.open(firstChild(parent)))
   let childView = await project(child)
@@ -314,10 +313,10 @@ it('projects a Durable parent, child and grandchild, then continues only the chi
       return fauxAssistantMessage('child continued')
     }
   ])
-  await child.input.submit(draft('continue child'))
+  await child.input.submit!(draft('continue child'))
   await continuation.reached
-  expect(await child.input.submit(draft('busy'))).toMatchObject({ status: 'rejected', error: { code: 'busy' } })
-  expect(await child.input.submit(draft('extra detail', 'steer'))).toMatchObject({ status: 'acknowledged' })
+  expect(await child.input.submit!(draft('busy'))).toMatchObject({ status: 'rejected', error: { code: 'busy' } })
+  expect(await child.input.steer.submit(draft('extra detail'))).toMatchObject({ status: 'acknowledged' })
   const access = confirmed(await runtime.open(child.thread))
   await childView.observation.stop()
   childView = await project(access, childView.projection)

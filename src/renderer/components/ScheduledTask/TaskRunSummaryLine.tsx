@@ -4,6 +4,16 @@ import { useTranslation } from 'react-i18next'
 
 import type { TaskRunSummary } from '@shared/data/api/schemas/agents'
 
+export const TASK_RUN_STATUS_KEYS = {
+  pending: 'agent.tasks.runSummary.queued',
+  delayed: 'agent.tasks.runSummary.queued',
+  running: 'agent.tasks.logs.running',
+  completed: 'agent.tasks.logs.completed',
+  failed: 'agent.tasks.logs.failed',
+  cancelled: 'agent.tasks.logs.cancelled',
+  skipped: 'agent.tasks.logs.skipped'
+} as const
+
 export function formatTaskCardTime(value: string) {
   return new Date(value).toLocaleString(undefined, {
     month: 'numeric',
@@ -36,6 +46,14 @@ export const TaskRunSummaryLine: FC<{ summary: TaskRunSummary }> = ({ summary })
   }
 
   const time = formatTaskCardTime(summary.finishedAt)
+  if (summary.status === 'skipped') {
+    return (
+      <span className="flex items-center gap-1.5 text-muted-foreground">
+        <CircleStop aria-hidden className="size-3 shrink-0" />
+        {t('agent.tasks.runSummary.skipped', { time })}
+      </span>
+    )
+  }
   if (summary.status === 'completed') {
     return (
       <span className="flex items-center gap-1.5 text-muted-foreground">

@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-20-local-agent-workspace-reconnect.md
+2026-11-20-local-agent-workspace-reconnect.md: 293d6a702201930d20bb0c68fb55fe5d88437899
+2026-11-20-local-agent-workspace-reconnect.zh.md: 2ee56cebbb22673b5964fc00b5cf851f74c7a42a

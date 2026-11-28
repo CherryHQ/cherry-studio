@@ -17,6 +17,7 @@ interface BaseProps {
   showElapsed?: boolean
   message: MessageListItem
   toolItems: ToolRenderItem[]
+  onFocusWithinChange?: (hasFocus: boolean) => void
 }
 
 type Props = BaseProps &
@@ -109,7 +110,7 @@ const ActiveProcessHeader = React.memo(function ActiveProcessHeader({
 
 /** The top-level process group across both active and completed message phases. */
 const MessageProcessGroup = React.memo(function MessageProcessGroup(props: Props) {
-  const { children, groupId, message, showElapsed = true, toolItems } = props
+  const { children, groupId, message, showElapsed = true, toolItems, onFocusWithinChange } = props
   const { t } = useTranslation()
   const disclosureKey = groupId === undefined ? 'completed-process' : `completed-process:${groupId}`
   const [isExpanded, setIsExpanded] = useMessageDisclosureState(
@@ -148,6 +149,13 @@ const MessageProcessGroup = React.memo(function MessageProcessGroup(props: Props
     return (
       <div
         className={`group/live-tool-group w-full max-w-full ${PROCESS_GROUP_SPACING_CLASS_NAME}`}
+        onFocus={onFocusWithinChange && (() => onFocusWithinChange(true))}
+        onBlur={
+          onFocusWithinChange &&
+          ((event) => {
+            if (!event.currentTarget.contains(event.relatedTarget)) onFocusWithinChange(false)
+          })
+        }
         data-testid="live-tool-group">
         <div
           data-testid="live-tool-group-header"

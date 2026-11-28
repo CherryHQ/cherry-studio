@@ -18,24 +18,6 @@ const modelRecords = vi.hoisted(() => [] as Model[])
 vi.mock('@renderer/hooks/useModel', () => ({
   useModels: () => ({ models: modelRecords })
 }))
-vi.mock('@renderer/hooks/useProvider', () => ({
-  getProviderDisplayName: (p: Provider) => p.name
-}))
-vi.mock('@renderer/pages/code/cliConfig', () => ({
-  hasClaudeDetailedModels: (config: Record<string, unknown>) =>
-    Boolean((config.env as Record<string, string> | undefined)?.ANTHROPIC_DEFAULT_FABLE_MODEL),
-  getClaudeContextModelId: (
-    providerId: string,
-    config: Record<string, unknown>,
-    gatewayModels?: Map<string, Model>
-  ) => {
-    const model = (config.env as Record<string, string> | undefined)?.ANTHROPIC_DEFAULT_FABLE_MODEL
-    if (!model) return undefined
-    if (!gatewayModels) return `${providerId}::${model}`
-    return [...gatewayModels.values()].find((entry) => `${entry.providerId}:${entry.apiModelId}` === model)?.id
-  }
-}))
-
 const anthropicEndpoint = { endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://api.anthropic.com' } } }
 
 const apiKeyProvider = {
@@ -74,6 +56,22 @@ beforeEach(() => {
 })
 
 describe('useConfigMetadata.gatewayModelsById', () => {
+  it('offers OpenClaw gateway-convertible Gemini models without requiring a direct OpenAI endpoint', () => {
+    const gemini = {
+      id: 'gemini',
+      name: 'Gemini',
+      isEnabled: true,
+      endpointConfigs: { 'google-generate-content': { baseUrl: 'https://generativelanguage.googleapis.com' } }
+    } as unknown as Provider
+    const model = { ...makeModel('gemini', 'gemini-chat'), endpointTypes: ['google-generate-content'] } as Model
+    modelRecords.push(model)
+    const { result } = renderHook(() => useConfigMetadata(CodeCli.OPENCLAW, [gemini, disabledProvider, oauthProvider]))
+    expect(result.current.filterProviders([gemini, disabledProvider, oauthProvider]).map((p) => p.id)).toEqual([
+      'gemini'
+    ])
+    expect(result.current.makeModelFilter('gemini')(model)).toBe(true)
+  })
+
   it('includes only models the running gateway can resolve', () => {
     const routableModel = makeModel('anthropic', 'claude-chat')
     const nonChatModel = makeModel('anthropic', 'embed', [MODEL_CAPABILITY.EMBEDDING])
@@ -113,11 +111,14 @@ describe('useConfigMetadata.filterProviders', () => {
     expect(filtered).toEqual([apiKeyProvider])
   })
 
-  it('filters providers with the requested CLI tool instead of the active one', () => {
-    const { result } = renderHook(() => useConfigMetadata(CodeCli.CLAUDE_CODE, []))
+  it('filters providers for the tool supplied by the current owner', () => {
+    const { result, rerender } = renderHook(({ tool }: { tool: CodeCli }) => useConfigMetadata(tool, []), {
+      initialProps: { tool: CodeCli.CLAUDE_CODE }
+    })
 
-    expect(result.current.filterProvidersForTool(CodeCli.CLAUDE_CODE, [apiKeyProvider])).toEqual([apiKeyProvider])
-    expect(result.current.filterProvidersForTool(CodeCli.OPENAI_CODEX, [apiKeyProvider])).toEqual([])
+    expect(result.current.filterProviders([apiKeyProvider])).toEqual([apiKeyProvider])
+    rerender({ tool: CodeCli.OPENAI_CODEX })
+    expect(result.current.filterProviders([apiKeyProvider])).toEqual([])
   })
 })
 
@@ -190,44 +191,5 @@ describe('useConfigMetadata.makeModelFilter (gateway)', () => {
     const filter = result.current.makeModelFilter(CLI_API_GATEWAY_PROVIDER_ID)
 
     expect(filter(model('corp:west', 'gpt-4o'))).toBe(false)
-  })
-})
-
-describe('useConfigMetadata.resolveProviderMeta', () => {
-  it('surfaces the primary detailed Claude model as the model name', () => {
-    const { result } = renderHook(() => useConfigMetadata(CodeCli.CLAUDE_CODE, []))
-
-    const meta = result.current.resolveProviderMeta(apiKeyProvider, {
-      modelId: null,
-      config: { env: { ANTHROPIC_DEFAULT_FABLE_MODEL: 'claude-fable-5' } }
-    })
-
-    expect(meta.modelName).toBe('claude-fable-5')
-  })
-
-  it('resolves a detailed gateway address to the model name', () => {
-    const model = {
-      ...makeModel('anthropic', 'claude-chat'),
-      apiModelId: 'claude-chat',
-      name: 'Claude Chat'
-    } as Model
-    modelRecords.push(model)
-    const gatewayProvider = { id: CLI_API_GATEWAY_PROVIDER_ID, name: 'Unified Gateway' } as Provider
-    const { result } = renderHook(() => useConfigMetadata(CodeCli.CLAUDE_CODE, [apiKeyProvider]))
-
-    const meta = result.current.resolveProviderMeta(gatewayProvider, {
-      modelId: null,
-      config: { env: { ANTHROPIC_DEFAULT_FABLE_MODEL: 'anthropic:claude-chat' } }
-    })
-
-    expect(meta.modelName).toBe('Claude Chat')
-  })
-
-  it('resolves the plain configured model for non-detailed configs', () => {
-    const { result } = renderHook(() => useConfigMetadata(CodeCli.CLAUDE_CODE, []))
-
-    const meta = result.current.resolveProviderMeta(apiKeyProvider, { modelId: 'anthropic::claude-old' })
-
-    expect(meta.modelName).toBe('claude-old')
   })
 })

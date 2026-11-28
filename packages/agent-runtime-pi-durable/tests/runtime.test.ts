@@ -53,10 +53,9 @@ function confirmed<T>(result: OperationResult<T>): T {
   if (result.status !== 'confirmed') throw new Error(result.error.message)
   return result.value
 }
-const draft = (text: string, whenBusy: 'reject' | 'steer' | 'follow-up' = 'reject') => ({
+const draft = (text: string) => ({
   inputId: runtimeId<'input'>(text),
-  text,
-  whenBusy
+  text
 })
 const sessionOptions = {
   ownership: { kind: 'ownerless' as const },
@@ -148,6 +147,7 @@ describe('Pi Durable runtime contract', () => {
     onTestFinished(() => rm(dir, { recursive: true, force: true }))
     const { runtime, faux, options } = await setup(() => openNodeSqliteStorage(join(dir, 'session.sqlite')))
     const handle = confirmed(await runtime.create(sessionOptions))
+    expect(handle.input.followUp?.persistence).toBe('durable')
     await handle.durable.initializeContext('Remember reference mango')
     await handle.durable.initializeContext('Remember reference mango')
     expect(faux.state.callCount).toBe(0)
@@ -169,7 +169,7 @@ describe('Pi Durable runtime contract', () => {
         return fauxAssistantMessage('The reference word is mango')
       }
     ])
-    await reopened.input.submit(draft('Recall the reference'))
+    await reopened.input.submit!(draft('Recall the reference'))
     await expect
       .poll(() => current(events)?.inputs.find((input) => input.inputId === 'Recall the reference')?.outcome)
       .toBe('completed')
@@ -208,7 +208,7 @@ describe('Pi Durable runtime contract', () => {
         if (slow.length === 1) await consumer.promise
       })
     )
-    await handle.input.submit(draft('atomic'))
+    await handle.input.submit!(draft('atomic'))
     await expect
       .poll(() =>
         fast.some((batch) =>
@@ -258,7 +258,7 @@ describe('Pi Durable runtime contract', () => {
     const second = confirmed(await runtime.open(first.thread))
     const left = await observe(first)
     const right = await observe(second)
-    const receipt = await first.input.submit(draft('question'))
+    const receipt = await first.input.submit!(draft('question'))
     expect(receipt).toMatchObject({ status: 'acknowledged', nativeInput: { session: first.thread } })
     await expect
       .poll(() =>
@@ -305,7 +305,10 @@ describe('Pi Durable runtime contract', () => {
       )
       .find((item) => item.role === 'assistant' && item.metadata?.completeness === 'partial')!
     expect(archive.aliases[committed!.id]).toBe(initialPreview.id)
-    expect(await first.input.submit(draft('released'))).toMatchObject({ status: 'rejected', error: { code: 'closed' } })
+    expect(await first.input.submit!(draft('released'))).toMatchObject({
+      status: 'rejected',
+      error: { code: 'closed' }
+    })
   })
 
   it('reads committed history across reset and pagination without scheduling a model', async () => {
@@ -457,7 +460,7 @@ describe('Pi Durable runtime contract', () => {
       ])
       const handle = confirmed(await runtime.create(sessionOptions))
       const events = await observe(handle)
-      await handle.input.submit(draft('root'))
+      await handle.input.submit!(draft('root'))
       await entered.promise
       if (timing === 'after') {
         finish.resolve()
@@ -465,8 +468,8 @@ describe('Pi Durable runtime contract', () => {
           .poll(() => current(events)?.inputs.find((input) => input.inputId === 'root')?.outcome)
           .toBe('completed')
       }
-      const input = draft('additional input', 'steer')
-      const receipt = await handle.input.submit(input)
+      const input = draft('additional input')
+      const receipt = await handle.input.steer.submit(input)
       expect(receipt.status).toBe('acknowledged')
       finish.resolve()
       await expect
@@ -493,11 +496,14 @@ describe('Pi Durable runtime contract', () => {
     faux.setResponses([hold.step])
     const session = confirmed(await runtime.create(sessionOptions))
     const events = await observe(session)
-    await session.input.submit(draft('start'))
+    await session.input.submit!(draft('start'))
     await hold.reached
-    expect(await session.input.submit(draft('rejected'))).toMatchObject({ status: 'rejected', error: { code: 'busy' } })
+    expect(await session.input.submit!(draft('rejected'))).toMatchObject({
+      status: 'rejected',
+      error: { code: 'busy' }
+    })
     expect(current(events)?.inputs.some((input) => input.inputId === 'rejected')).toBe(false)
-    const queued = await session.input.submit(draft('queued', 'follow-up'))
+    const queued = await session.input.followUp!.submit(draft('queued'))
     expect(queued).toMatchObject({ status: 'acknowledged', facts: ['accepted', 'queued'] })
     expect(await session.interrupt!()).toEqual({ status: 'confirmed', value: undefined })
     await expect
@@ -511,7 +517,7 @@ describe('Pi Durable runtime contract', () => {
     faux.setResponses([fauxAssistantMessage('cut off', { stopReason: 'length' })])
     const handle = confirmed(await runtime.create(sessionOptions))
     const events = await observe(handle)
-    const receipt = await handle.input.submit(draft('long answer'))
+    const receipt = await handle.input.submit!(draft('long answer'))
     if (receipt.status !== 'acknowledged' || !receipt.nativeInput) throw new Error('Missing receipt')
     await expect
       .poll(() => current(events)?.inputs.find((input) => input.nativeInput?.id === receipt.nativeInput!.id))
@@ -530,7 +536,7 @@ describe('Pi Durable runtime contract', () => {
     const { runtime, faux } = await setup(async () => new BrokenStatusStorage())
     faux.setResponses([fauxAssistantMessage('answer')])
     const session = confirmed(await runtime.create(sessionOptions))
-    const result = await session.input.submit(draft('admitted before read failure'))
+    const result = await session.input.submit!(draft('admitted before read failure'))
     expect(result).toMatchObject({
       status: 'acknowledged',
       nativeInput: { session: session.thread },
@@ -561,7 +567,7 @@ describe('Pi Durable runtime contract', () => {
     ])
     const handle = confirmed(await runtime.create(sessionOptions))
     const events = await observe(handle)
-    expect(await handle.input.submit(draft('recoverable'))).toMatchObject({ status: 'acknowledged' })
+    expect(await handle.input.submit!(draft('recoverable'))).toMatchObject({ status: 'acknowledged' })
     const latest = () => events.filter((event) => event.type === 'input.changed').at(-1)?.input
     await expect.poll(latest).toMatchObject({ inputId: 'recoverable', facts: expect.arrayContaining(['accepted']) })
     expect(latest()?.outcome).toBeUndefined()
@@ -600,10 +606,10 @@ describe('Pi Durable runtime contract', () => {
     ])
     const handle = confirmed(await runtime.create(sessionOptions))
     const events = await observe(handle)
-    const first = await handle.input.submit(draft('root'))
+    const first = await handle.input.submit!(draft('root'))
     if (first.status !== 'acknowledged' || !first.nativeInput) throw new Error('Missing input reference')
     await executing.promise
-    await handle.input.submit(draft('steering', 'steer'))
+    await handle.input.steer.submit(draft('steering'))
     finish.resolve()
     await expect
       .poll(() => current(events)?.inputs.find((input) => input.inputId === 'steering')?.outcome)
@@ -654,7 +660,7 @@ describe('Pi Durable runtime contract', () => {
     ])
     const parent = confirmed(await runtime.create(sessionOptions))
     const parentEvents = await observe(parent)
-    await parent.input.submit(draft('delegate now'))
+    await parent.input.submit!(draft('delegate now'))
     await expect.poll(() => parentEvents.some((event) => event.type === 'subagent.upsert')).toBe(true)
     const relationship = parentEvents.find((event) => event.type === 'subagent.upsert')
     if (relationship?.type !== 'subagent.upsert') throw new Error('No child reference')
@@ -712,14 +718,14 @@ describe('Pi Durable runtime contract', () => {
         return fauxAssistantMessage('continued child output')
       }
     ])
-    const continued = await child.input.submit(draft('continue child'))
+    const continued = await child.input.submit!(draft('continue child'))
     expect(continued).toMatchObject({ status: 'acknowledged' })
     await started.promise
-    expect(await child.input.submit(draft('reject busy'))).toMatchObject({
+    expect(await child.input.submit!(draft('reject busy'))).toMatchObject({
       status: 'rejected',
       error: { code: 'busy' }
     })
-    expect(await child.input.submit(draft('extra detail', 'steer'))).toMatchObject({ status: 'acknowledged' })
+    expect(await child.input.steer.submit(draft('extra detail'))).toMatchObject({ status: 'acknowledged' })
     const retained = confirmed(await runtime.open(child.thread))
     const retainedEvents = await observe(retained)
     await child.release()
@@ -771,11 +777,11 @@ describe('Pi Durable runtime contract', () => {
     const hold = blocked()
     faux.setResponses([hold.step])
     const session = confirmed(await runtime.create(sessionOptions))
-    const receipt = await session.input.submit(draft('survive restart'))
+    const receipt = await session.input.submit!(draft('survive restart'))
     await hold.reached
     expect(receipt.status).toBe('acknowledged')
     expect(await runtime.shutdown()).toEqual({ status: 'confirmed', value: undefined })
-    expect(await session.input.submit(draft('too late'))).toMatchObject({
+    expect(await session.input.submit!(draft('too late'))).toMatchObject({
       status: 'rejected',
       error: { code: 'closed' }
     })
@@ -909,7 +915,7 @@ it('measures committed prompt sources and codemode-only tools without executing 
   faux.setResponses([fauxAssistantMessage('ready')])
   const handle = confirmed(await runtime.create(sessionOptions))
   const events = await observe(handle)
-  await handle.input.submit(draft('measure prepared context'))
+  await handle.input.submit!(draft('measure prepared context'))
   await expect
     .poll(() =>
       current(events)?.messages.some(
@@ -969,7 +975,7 @@ it('resolves a fresh model registry for each request with shared behavior enable
   const access = confirmed(await runtime.create(sessionOptions))
   const events = await observe(access)
   confirmed(await runtime.resume())
-  await access.input.submit(draft('first request'))
+  await access.input.submit!(draft('first request'))
   await expect
     .poll(() =>
       current(events)?.messages.some(
@@ -981,7 +987,7 @@ it('resolves a fresh model registry for each request with shared behavior enable
     .toBe(true)
   models = createModels()
   models.setProvider(second.provider)
-  await access.input.submit(draft('second request', 'follow-up'))
+  await access.input.followUp!.submit(draft('second request'))
   await expect
     .poll(() =>
       current(events)?.messages.some(
@@ -1046,7 +1052,7 @@ it.each([0, 256])('delivers tool updates directly with %i older entries', async 
     })
   )
   const events = await observe(handle)
-  await handle.input.submit(draft('run tool'))
+  await handle.input.submit!(draft('run tool'))
   await started.promise
   const results = () => events.filter((event) => event.type === 'message.tool-output')
   progress.resolve()
@@ -1130,7 +1136,7 @@ it.each([false, true])('retains nested results after task retirement and SQLite 
     fauxAssistantMessage('done')
   ])
   const handle = confirmed(await runtime.create(sessionOptions))
-  await handle.input.submit(draft('nested'))
+  await handle.input.submit!(draft('nested'))
   await runtime.settled()
   const archived = confirmed(await handle.archive())
   const parts = archived.messages
@@ -1191,7 +1197,7 @@ it('names model and nested tool calls by the IDs their projected parts carry', a
     fauxAssistantMessage('done')
   ])
   const handle = confirmed(await runtime.create(sessionOptions))
-  await handle.input.submit(draft('nested identity'))
+  await handle.input.submit!(draft('nested identity'))
   await runtime.settled()
 
   const parts = confirmed(await handle.archive()).messages.flatMap((message) => message.parts)
@@ -1248,7 +1254,7 @@ it.each([false, true])('keeps recursive nested errors terminal (cancel=%s)', asy
     fauxAssistantMessage('done')
   ])
   const handle = confirmed(await runtime.create(sessionOptions))
-  await handle.input.submit(draft('recursive'))
+  await handle.input.submit!(draft('recursive'))
   await reached.promise
   if (cancel) confirmed(await handle.interrupt!())
   await runtime.settled()
@@ -1303,7 +1309,7 @@ it('recovers retained nested evidence without rerunning a completed leaf after s
     fauxAssistantMessage('done')
   ])
   const handle = confirmed(await runtime.create(sessionOptions))
-  await handle.input.submit(draft('recover nested'))
+  await handle.input.submit!(draft('recover nested'))
   await reached.promise
   await runtime.shutdown()
   recovering = true
@@ -1343,10 +1349,10 @@ it('predicts from durable context without committing prediction messages or task
     fauxAssistantMessage([fauxToolCall('bash', { command: 'echo forbidden' })], { stopReason: 'toolUse' })
   ])
   const root = confirmed(await runtime.create(sessionOptions))
-  expect((await root.input.submit(draft('Fix the original issue'))).status).toBe('acknowledged')
+  expect((await root.input.submit!(draft('Fix the original issue'))).status).toBe('acknowledged')
   await runtime.settled()
   expect(await root.durable.predictPrompt('exact prediction instruction', new AbortController().signal)).toBe('')
-  await root.input.submit(draft('Check the fix'))
+  await root.input.submit!(draft('Check the fix'))
   await runtime.settled()
   const before = confirmed(await root.archive())
   const facts = await root.durable.facts()

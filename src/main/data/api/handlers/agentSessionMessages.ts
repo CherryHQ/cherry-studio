@@ -27,6 +27,13 @@ export const agentSessionMessageHandlers: HandlersFor<AgentSessionMessageSchemas
       return { items: [...page.messages], nextCursor: page.olderCursor }
     }
   },
+  '/agent-sessions/:sessionId/cost': {
+    GET: async ({ params }) => {
+      agentSessionService.getConversationById(params.sessionId)
+      return agentSessionMessageService.getSessionCost(params.sessionId)
+    }
+  },
+
   '/agent-sessions/:sessionId/branch': {
     PUT: async ({ params, body }) => {
       agentSessionService.getConversationById(params.sessionId)
