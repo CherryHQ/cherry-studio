@@ -11,18 +11,20 @@ import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { resolveClaudeLaunch } from '@main/ai/runtime/claudeCode/localClaudeLaunch'
 import { t } from '@main/i18n'
+import type * as HealthProbe from '@main/services/codeCli/claudeHealthProbe'
 import { probeClaudeExecutable } from '@main/services/codeCli/claudeHealthProbe'
 import { CodeCliService } from '@main/services/codeCli/CodeCliService'
 import { openLocalAgentTerminal } from '@main/services/codeCli/localAgentCli'
 import type { LocalAgentConfiguration } from '@shared/ai/localAgent'
 import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { createUniqueModelId } from '@shared/data/types/model'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 
 import { bindLaunchModel } from '../launchBinding'
 import { LocalAgentOverlayService } from '../LocalAgentOverlayService'
 
 vi.mock('@main/services/codeCli/claudeHealthProbe', async (load) => ({
-  ...(await load<typeof import('@main/services/codeCli/claudeHealthProbe')>()),
+  ...(await load<typeof HealthProbe>()),
   probeClaudeExecutable: vi.fn(async () => ({ ok: true }))
 }))
 
@@ -202,7 +204,7 @@ describe('launch model binding', () => {
     })
     const result = await openLocalAgentTerminal({
       ...config('claude', { env: { CLAUDE_CODE_TEST: 'launch-env' } }),
-      directory: root
+      directory: AbsoluteFilePathSchema.parse(root)
     })
     expect(result).toMatchObject({ success: false })
     expect(probeClaudeExecutable).toHaveBeenCalledWith(
@@ -215,7 +217,7 @@ describe('launch model binding', () => {
   })
 
   it('opens a healthy Code Mate Claude terminal after probing the resolved launch', async () => {
-    await openLocalAgentTerminal({ ...config('claude'), directory: root })
+    await openLocalAgentTerminal({ ...config('claude'), directory: AbsoluteFilePathSchema.parse(root) })
     expect(probeClaudeExecutable).toHaveBeenCalledOnce()
     expect(openTerminal).toHaveBeenCalledOnce()
     expect(credential.dispose).not.toHaveBeenCalled()

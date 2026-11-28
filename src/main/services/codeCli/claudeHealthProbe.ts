@@ -173,8 +173,15 @@ function truncateDetail(detail: string): string {
 
 /** Actionable failure text: names the binary and offers the managed-binary recovery path. */
 export function describeClaudeStartupFailure(executablePath: string, failure: ClaudeStartupProbeFailure): string {
-  return t(`code_cli.claude_startup.${failure.reason}`, {
-    path: executablePath,
-    detail: truncateDetail(failure.detail)
-  })
+  const params = { path: executablePath, detail: truncateDetail(failure.detail) }
+  switch (failure.reason) {
+    case 'startup-crash':
+      return t('code_cli.claude_startup.startup-crash', params)
+    case 'timeout':
+      return t('code_cli.claude_startup.timeout', params)
+    case 'spawn':
+      return t('code_cli.claude_startup.spawn', params)
+    case 'exit':
+      return t('code_cli.claude_startup.exit', params)
+  }
 }
