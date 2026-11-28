@@ -151,7 +151,7 @@ jobs:
   build:
     name: Build preview ${{ matrix.edition }} (${{ matrix.target.platform }}-${{ matrix.target.arch }})
     needs: [resolve, bundle]
-    runs-on: ${{ matrix.target.os }}
+    runs-on: ${{ matrix.target.runner }}
     strategy:
       fail-fast: false
       matrix:
@@ -171,7 +171,7 @@ jobs:
         with:
           node-version-file: ".node-version"
 
-      - name: macos-latest dependencies fix
+      - name: Install macOS Python dependencies
         if: matrix.target.platform == 'mac'
         run: brew install python-setuptools
 
