@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef } from 'react'
 
 import { cacheService } from '@data/CacheService'
+import { useModels } from '@renderer/hooks/useModel'
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import { uuid } from '@renderer/utils/uuid'
 import type { FileEntry } from '@shared/data/types/file'
 
-import { presentPaintingGenerateError } from '../errors/paintingGenerateError'
+import { paintingDoctorModel, presentPaintingGenerateError } from '../errors/paintingGenerateError'
 import { paintingDataToCreateDto } from '../model/mappers/paintingDataToCreateDto'
 import { paintingDataToUpdateDto } from '../model/mappers/paintingDataToUpdateDto'
 import {
@@ -31,6 +32,7 @@ export function usePaintingGeneration({ painting, onPaintingChange }: UsePaintin
   const { createPainting, updatePainting, refresh } = usePaintings()
   const currentProviderId = painting.providerId
   const { provider } = usePaintingProviderRuntime(currentProviderId)
+  const { models } = useModels({ providerId: currentProviderId })
   const visibleIdRef = useRef(painting.id)
 
   useEffect(() => {
@@ -79,7 +81,11 @@ export function usePaintingGeneration({ painting, onPaintingChange }: UsePaintin
           : await updatePainting(targetPainting.id, paintingDataToUpdateDto(targetPainting))
         targetPainting.persistedAt = persisted.createdAt
       } catch (error) {
-        presentPaintingGenerateError(error)
+        presentPaintingGenerateError(error, {
+          operation: 'painting.persist',
+          providerId: targetPainting.providerId,
+          recordId: targetPainting.id
+        })
         return
       }
 
@@ -108,6 +114,7 @@ export function usePaintingGeneration({ painting, onPaintingChange }: UsePaintin
       pushGenerationState(generationState)
       onPrepared()
 
+      let generated = false
       try {
         const generatedFiles = await paintingGenerate({
           painting: targetPainting,
@@ -115,6 +122,7 @@ export function usePaintingGeneration({ painting, onPaintingChange }: UsePaintin
           tab: 'default',
           abortController: controller
         })
+        generated = true
         await updatePainting(targetPainting.id, {
           files: {
             output: generatedFiles.map((file) => file.id),
@@ -135,14 +143,29 @@ export function usePaintingGeneration({ painting, onPaintingChange }: UsePaintin
         }
         cacheService.set(cacheKey, paintingGenerationStateToCache(failedState))
         applyIfVisible({ ...targetPainting, ...failedState })
-        if (!isCanceled) {
-          presentPaintingGenerateError(error)
+        // Delete aborts the run before trashing the row, so a canceled run's late output-save failure stays silent.
+        if (isCanceled) return
+        if (generated) {
+          presentPaintingGenerateError(error, {
+            operation: 'painting.persist',
+            providerId: targetPainting.providerId,
+            recordId: targetPainting.id
+          })
+        } else {
+          const doctorModel = paintingDoctorModel(models, targetPainting.model)
+          presentPaintingGenerateError(error, {
+            operation: 'painting.generate',
+            providerId: targetPainting.providerId,
+            ...doctorModel,
+            recordId: targetPainting.id,
+            params: targetPainting.params
+          })
         }
       } finally {
         clearPaintingAbortController(targetPainting.id, controller)
       }
     },
-    [applyIfVisible, createPainting, painting, provider, refresh, onPaintingChange, updatePainting]
+    [applyIfVisible, createPainting, models, painting, provider, refresh, onPaintingChange, updatePainting]
   )
 
   const cancel = useCallback((paintingId: string) => {

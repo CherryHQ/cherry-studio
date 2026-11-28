@@ -26,6 +26,7 @@
   "file_preview.pptd.unsupported_element": "Element neacceptat {{id}} ({{type}})",
   "file_preview.too_large.action": "Deschide cu aplicația implicită",
   "file_preview.too_large.description": "Dimensiunea fișierului {{size}} depășește limita de previzualizare de {{limit}}.",
+  "file_preview.too_large.generic_description": "Acest fișier depășește dimensiunea permisă pentru previzualizare.",
   "file_preview.too_large.title": "Fișier prea mare pentru previzualizare",
   "file_preview.unsupported.action": "Deschide cu aplicația implicită",
   "file_preview.unsupported.description": "Acest tip de fișier nu poate fi previzualizat încă.",

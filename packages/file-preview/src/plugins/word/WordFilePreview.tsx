@@ -65,7 +65,7 @@ export default function WordFilePreview({
   document: previewDocument,
   onSelection
 }: FilePreviewPluginProps) {
-  const { options, failDocument, isCurrentDocument } = usePreviewHost()
+  const { options, failDocument, errorDetail, isCurrentDocument } = usePreviewHost()
   const { t } = useTranslation()
   const docxClassName = `docx-preview-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`
   const containerRef = useRef<HTMLDivElement>(null)
@@ -437,6 +437,7 @@ export default function WordFilePreview({
                   icon={AlertCircle}
                   title={t('file_preview.load_error.title')}
                   description={t('file_preview.load_error.description')}
+                  detail={errorDetail}
                   className="h-full"
                 />
               )}

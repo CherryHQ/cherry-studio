@@ -81,6 +81,8 @@ outline navigation, emit diagnostics while the rest of the document remains usab
 
 `onError` receives a `PreviewError` with a stable `code` and an optional underlying
 `cause`. Error messages are diagnostic details, not localized UI copy.
+`errorDetail` renders host content, such as a link to the host's error details, directly
+under the load-error message. Unsupported and too-large states do not show it.
 
 | Code | Meaning |
 | --- | --- |
@@ -95,7 +97,8 @@ outline navigation, emit diagnostics while the rest of the document remains usab
 an open button. Its reason is `unsupported` for unrecognized formats or `too_large`
 for size-limit fallbacks; rendering or refreshing an unsupported source never opens
 another application automatically. DOCX/PPTX above 25 MiB, XLSX above 20 MiB,
-RTF above 10 MiB and images above 64 MiB show their limits. PDF has a 16 MiB
+RTF above 10 MiB and images above 64 MiB show their limits; a host `too_large` read below
+those caps shows size-policy copy without a limit. PDF has a 16 MiB
 assembled-range cap, without a whole-document size limit. These states offer an external-open button when the
 host supplies the callback.
 `resources.baseUrl` optionally overrides the bundled worker/font/CMap directory;

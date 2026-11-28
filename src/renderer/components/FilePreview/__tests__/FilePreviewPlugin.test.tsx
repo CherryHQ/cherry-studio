@@ -2,6 +2,7 @@ import type * as SentryRenderer from '@sentry/electron/renderer'
 import { MockCherrystudioUI } from '@test-mocks/renderer/CherrystudioUI'
 import '@testing-library/jest-dom/vitest'
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { FilePreviewLayout, FilePreviewToolbar } from '@cherrystudio/file-preview/react'
@@ -28,12 +29,14 @@ vi.mock('@renderer/ipc', () => ({
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
-  EmptyState: ({ title, description }: { title?: string; description?: string }) => (
+  EmptyState: ({ title, description, detail }: { title?: string; description?: string; detail?: ReactNode }) => (
     <div data-testid="empty-state">
       <div>{title}</div>
       <div>{description}</div>
+      {detail}
     </div>
   ),
+  Button: MockCherrystudioUI.Button,
   ScrollArea: MockCherrystudioUI.ScrollArea
 }))
 

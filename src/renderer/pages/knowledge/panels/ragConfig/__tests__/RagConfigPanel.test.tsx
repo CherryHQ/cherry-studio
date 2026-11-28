@@ -59,22 +59,8 @@ vi.mock('@cherrystudio/ui', async () => {
     AccordionItem: ({ children }: { children: ReactNode }) => <div>{children}</div>,
     AccordionTrigger: ({ children }: { children: ReactNode }) => <button type="button">{children}</button>,
     AccordionContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-    Alert: ({
-      action,
-      description,
-      message,
-      ...props
-    }: {
-      action?: ReactNode
-      description?: ReactNode
-      message?: ReactNode
-      [key: string]: unknown
-    }) => (
-      <div {...props}>
-        <div>{message}</div>
-        <div>{description}</div>
-        {action}
-      </div>
+    Alert: ({ children, role }: { children?: ReactNode; role?: string }) => (
+      <div role={role ?? 'alert'}>{children}</div>
     ),
     Button: ({
       children,
@@ -476,8 +462,9 @@ describe('RagConfigPanel', () => {
     })
   })
 
-  it('shows save failure toast with the original error', async () => {
-    mockSave.mockRejectedValueOnce(new Error('save failed'))
+  it('titles a save failure toast with the translated conclusion and keeps the raw error as its cause', async () => {
+    const saveError = new Error('save failed')
+    mockSave.mockRejectedValueOnce(saveError)
 
     renderRagConfigPanel()
 
@@ -485,7 +472,7 @@ describe('RagConfigPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: '保存' }))
 
     await waitFor(() => {
-      expect(toast.error).toHaveBeenCalledWith('保存失败: save failed')
+      expect(toast.error).toHaveBeenCalledWith({ title: '保存失败', cause: saveError })
     })
   })
 
@@ -634,8 +621,9 @@ describe('RagConfigPanel', () => {
     expect(onRestoreBase).not.toHaveBeenCalled()
   })
 
-  it('shows a dimension-fetch failure toast and does not save when saving the embedding model directly fails', async () => {
-    mockEmbedMany.mockRejectedValueOnce(new Error('probe failed'))
+  it('shows a translated dimension-fetch failure toast and does not save when saving the embedding model directly fails', async () => {
+    const probeError = new Error('probe failed')
+    mockEmbedMany.mockRejectedValueOnce(probeError)
     const onRestoreBase = vi.fn()
 
     renderRagConfigPanel(onRestoreBase, {}, 0)
@@ -644,7 +632,7 @@ describe('RagConfigPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: '保存' }))
 
     await waitFor(() => {
-      expect(toast.error).toHaveBeenCalledWith('获取嵌入维度失败: probe failed')
+      expect(toast.error).toHaveBeenCalledWith({ title: '获取嵌入维度失败', cause: expect.anything() })
     })
     expect(mockSave).not.toHaveBeenCalled()
     expect(onRestoreBase).not.toHaveBeenCalled()

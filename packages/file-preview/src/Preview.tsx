@@ -39,9 +39,11 @@ export interface PreviewProps {
   onDiagnostic?: (diagnostic: PreviewDiagnostic) => void
   onError?: (error: PreviewError) => void
   onRequestOpen?: (reason: 'unsupported' | 'too_large') => void
+  /** Host content shown under the load-error message, such as a link to error details. */
+  errorDetail?: ReactNode
 }
 
-function PreviewState({ kind }: { kind: 'loading' | 'error' | 'unsupported' }) {
+function PreviewState({ kind, detail }: { kind: 'loading' | 'error' | 'unsupported'; detail?: ReactNode }) {
   const { t } = useTranslation()
   const { onRequestOpen } = usePreviewHost()
   const canOpen = kind === 'unsupported' && onRequestOpen !== undefined
@@ -62,6 +64,7 @@ function PreviewState({ kind }: { kind: 'loading' | 'error' | 'unsupported' }) {
             )}
             actionLabel={canOpen ? t('file_preview.unsupported.action') : undefined}
             onAction={canOpen ? () => onRequestOpen('unsupported') : undefined}
+            detail={kind === 'error' ? detail : undefined}
             className="h-full"
           />
         )}
@@ -90,7 +93,8 @@ function PreviewSession({
   onSelection,
   onDiagnostic,
   onError,
-  onRequestOpen
+  onRequestOpen,
+  errorDetail
 }: Omit<PreviewProps, 'locale'>) {
   const [root, setRoot] = useState<HTMLDivElement | null>(null)
   const [session, setSession] = useState<{
@@ -99,7 +103,7 @@ function PreviewSession({
     document: PreviewDocument
     plugin: ReturnType<typeof resolvePreviewPlugin>
   } | null>(null)
-  const [failure, setFailure] = useState<{ source: PreviewSource; refreshKey: number } | null>(null)
+  const [failure, setFailure] = useState<{ source: PreviewSource; refreshKey: number; tooLarge: boolean } | null>(null)
   // Plugin-requested reload: re-opens the source so the plugin receives a new
   // document (fresh size/revision), which re-reading the retained one cannot do.
   const [reloadNonce, setReloadNonce] = useState(0)
@@ -164,6 +168,7 @@ function PreviewSession({
       onDiagnostic: reportDiagnostic,
       onRequestOpen: hasOpenAction ? requestOpen : undefined,
       failDocument,
+      errorDetail,
       isCurrentDocument: isCurrentSession,
       onRequestReload: requestReload
     }),
@@ -175,6 +180,7 @@ function PreviewSession({
       requestOpen,
       hasOpenAction,
       failDocument,
+      errorDetail,
       isCurrentSession,
       requestReload
     ]
@@ -212,7 +218,7 @@ function PreviewSession({
       } catch (error) {
         close()
         if (controller.signal.aborted) return
-        setFailure({ source, refreshKey })
+        setFailure({ source, refreshKey, tooLarge: error instanceof PreviewError && error.code === 'too_large' })
         reportFailure(error)
       }
     })()
@@ -228,14 +234,14 @@ function PreviewSession({
   const content = !Plugin ? (
     <PreviewState kind="unsupported" />
   ) : failed ? (
-    <PreviewState kind="error" />
+    <PreviewState kind="error" detail={failure.tooLarge ? undefined : errorDetail} />
   ) : !ready ? (
     <PreviewState kind="loading" />
   ) : (
     <ErrorBoundary
       key={`${source.id}:${plugin?.id}`}
       resetKeys={[ready.document]}
-      fallback={<PreviewState kind="error" />}
+      fallback={<PreviewState kind="error" detail={errorDetail} />}
       onError={failDocument}>
       <Suspense fallback={<PreviewState kind="loading" />}>
         <Plugin

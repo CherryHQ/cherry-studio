@@ -1,4 +1,5 @@
 import { act, cleanup, render, screen } from '@testing-library/react'
+import i18n from 'i18next'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { PlantUmlRenderResponse } from '@renderer/workers/plantUml.worker'
@@ -59,12 +60,13 @@ describe('PlantUmlPreview', () => {
     expect(diagram?.querySelector('image, style')).toBeNull()
   })
 
-  it('shows the reported PlantUML error and line when the source cannot render', async () => {
+  it('reports a source that cannot render with the localized title and keeps the PlantUML reason for Details', async () => {
     render(<PlantUmlPreview>{source}</PlantUmlPreview>)
     await advance()
     await reply({ error: 'Cannot include diagram', line: 2 })
 
-    expect(screen.getByText('2: Cannot include diagram')).toBeInTheDocument()
+    expect(screen.getByText(i18n.t('preview.render.failed'))).toBeInTheDocument()
+    expect(screen.queryByText('2: Cannot include diagram')).not.toBeInTheDocument()
   })
 
   it.each([nextSource, ''])('discards the obsolete result when the source changes to %j', async (next) => {

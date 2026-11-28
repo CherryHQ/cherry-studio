@@ -1,4 +1,5 @@
 import { act, cleanup, render, screen } from '@testing-library/react'
+import i18n from 'i18next'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { MermaidRenderRequest } from '@renderer/types/mermaid'
@@ -82,7 +83,8 @@ describe('MermaidPreview', () => {
     startRender()
     await act(async () => FakeWorker.current.reply({ error: 'parse error' }))
 
-    expect(screen.getByText('parse error')).toBeInTheDocument()
+    expect(screen.getByText(i18n.t('preview.render.failed'))).toBeInTheDocument()
+    expect(screen.queryByText('parse error')).not.toBeInTheDocument()
     expect(mounted(container)).toHaveTextContent('first')
   })
 

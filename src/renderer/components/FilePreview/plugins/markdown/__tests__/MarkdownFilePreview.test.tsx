@@ -2,6 +2,7 @@ import { MockCherrystudioUI } from '@test-mocks/renderer/CherrystudioUI'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
@@ -20,10 +21,11 @@ vi.mock('@renderer/components/FileEditor', () => ({
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => ({
   ...(await importOriginal<typeof CherryStudioUi>()),
-  EmptyState: ({ title, description }: { title: string; description?: string }) => (
+  EmptyState: ({ title, description, detail }: { title: string; description?: string; detail?: ReactNode }) => (
     <div>
       <span>{title}</span>
       <span>{description}</span>
+      {detail}
     </div>
   ),
   ScrollArea: MockCherrystudioUI.ScrollArea,

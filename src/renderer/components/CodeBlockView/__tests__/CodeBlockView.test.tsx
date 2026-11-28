@@ -1,5 +1,5 @@
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -47,6 +47,17 @@ vi.mock('@renderer/services/PyodideService', () => ({
     runScript: mocks.runScript
   }
 }))
+
+const svgPreview = vi.hoisted(() => ({ failed: false }))
+
+vi.mock('@renderer/components/Preview/SvgPreview', async () => {
+  const { useEffect } = await import('react')
+  const SvgPreview = ({ onErrorChange }: { onErrorChange?: (failed: boolean) => void }) => {
+    useEffect(() => onErrorChange?.(svgPreview.failed))
+    return <div>svg preview</div>
+  }
+  return { default: SvgPreview }
+})
 
 vi.mock('react-i18next', () => ({
   initReactI18next: { type: '3rdParty', init: vi.fn() },
@@ -107,6 +118,39 @@ describe('CodeBlockView', () => {
     expect(screen.queryByLabelText('Code viewer')).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'preview.label' }))
     expect(screen.getByLabelText('Code viewer')).toHaveTextContent('const value = 1')
+  })
+
+  it('offers image copy and download only while the diagram actually renders', async () => {
+    const user = userEvent.setup()
+    const openMoreTools = async () => {
+      const more = screen.queryByRole('button', { name: 'code_block.more' })
+      if (more) await user.click(more)
+    }
+    svgPreview.failed = true
+    const { rerender } = render(
+      <CodeBlockView language="svg" editable={false}>
+        {'<svg>'}
+      </CodeBlockView>
+    )
+
+    // A failed render leaves no image, so download falls back to the source file alone.
+    expect(await screen.findByRole('button', { name: 'code_block.download.source' })).toBeInTheDocument()
+    await openMoreTools()
+    expect(screen.queryByRole('button', { name: 'preview.copy.image' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'code_block.copy.source' })).toBeInTheDocument()
+
+    svgPreview.failed = false
+    rerender(
+      <CodeBlockView language="svg" editable={false}>
+        {'<svg></svg>'}
+      </CodeBlockView>
+    )
+
+    await waitFor(() =>
+      expect(screen.queryByRole('button', { name: 'code_block.download.source' })).not.toBeInTheDocument()
+    )
+    await openMoreTools()
+    expect(screen.getByRole('button', { name: 'preview.copy.image' })).toBeInTheDocument()
   })
 
   it('renders display-only code without a toolbar', () => {

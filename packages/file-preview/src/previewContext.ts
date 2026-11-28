@@ -1,4 +1,4 @@
-import { createContext, use, useMemo } from 'react'
+import { createContext, type ReactNode, use, useMemo } from 'react'
 
 import type { PreviewDiagnostic, PreviewOptions, PreviewResources } from './types'
 
@@ -9,6 +9,8 @@ export interface PreviewHost {
   onDiagnostic?: (diagnostic: PreviewDiagnostic) => void
   onRequestOpen?: (reason: 'unsupported' | 'too_large') => void
   failDocument?: (error: unknown) => void
+  /** Host content for terminal load-error states, such as a link to error details. */
+  errorDetail?: ReactNode
   /** Retained presentation may outlive the document operations that produced it. */
   isCurrentDocument?: () => boolean
   /**

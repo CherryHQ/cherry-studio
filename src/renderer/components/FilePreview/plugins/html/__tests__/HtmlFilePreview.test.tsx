@@ -68,13 +68,14 @@ vi.mock('@renderer/components/CodeBlockView/HtmlPreviewFrame', async (importOrig
 })
 
 vi.mock('@cherrystudio/ui', () => ({
-  EmptyState: ({ title, description }: { title: string; description?: string }) => (
+  Button: (props: ComponentPropsWithoutRef<'button'>) => <button type="button" {...props} />,
+  EmptyState: ({ title, description, detail }: { title: string; description?: string; detail?: ReactNode }) => (
     <div>
       <span>{title}</span>
       <span>{description}</span>
+      {detail}
     </div>
   ),
-  Button: (props: ComponentPropsWithoutRef<'button'>) => <button type="button" {...props} />,
   Tooltip: ({ children }: { children: ReactNode }) => <>{children}</>,
   ScrollArea: MockCherrystudioUI.ScrollArea
 }))

@@ -12,9 +12,16 @@ import type { BasicPreviewHandles, BasicPreviewProps } from './types'
 
 const logger = loggerService.withContext('EChartsPreview')
 
+/** Parser reason and position only. V8 quotes the offending source in double quotes, so that form is dropped. */
+function jsonParseFault(error: unknown): SyntaxError {
+  const message = error instanceof Error ? error.message : ''
+  return new SyntaxError(message && !message.includes('"') ? message : 'Unexpected token in JSON')
+}
+
 const EChartsPreview = ({
   children,
   enableToolbar = false,
+  onErrorChange,
   isStreaming = false,
   ref
 }: BasicPreviewProps & { ref?: React.RefObject<BasicPreviewHandles | null> }) => {
@@ -53,9 +60,9 @@ const EChartsPreview = ({
       let option: EChartsCoreOption
       try {
         option = JSON.parse(content) as EChartsCoreOption
-      } catch {
+      } catch (parseError) {
         optionRef.current = null
-        throw new Error(t('code_block.preview.invalid_json'))
+        throw new Error(t('code_block.preview.invalid_json'), { cause: jsonParseFault(parseError) })
       }
 
       optionRef.current = option
@@ -70,7 +77,7 @@ const EChartsPreview = ({
     [isStreaming, t, renderChartOption]
   )
 
-  const { containerRef, error, isLoading, triggerImmediateRender } = useDebouncedRender(children, renderChart, {
+  const { containerRef, error, cause, isLoading, triggerImmediateRender } = useDebouncedRender(children, renderChart, {
     debounceDelay: 300
   })
 
@@ -155,7 +162,9 @@ const EChartsPreview = ({
     <ImagePreviewLayout
       loading={isLoading || isStreaming}
       error={error}
+      cause={cause}
       enableToolbar={enableToolbar}
+      onErrorChange={onErrorChange}
       // ECharts owns interactions inside the chart; generic image pan/zoom would break its coordinate model.
       enableDrag={false}
       enableWheelZoom={false}

@@ -2,6 +2,7 @@ import { debounce } from 'es-toolkit/compat'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { loggerService } from '@logger'
+import i18n from '@renderer/i18n/resolver'
 
 const logger = loggerService.withContext('useDebouncedRender')
 
@@ -21,6 +22,8 @@ export interface DebouncedRenderResult {
   containerRef: React.RefObject<HTMLDivElement | null>
   /** 错误状态 */
   error: string | null
+  /** Original failure behind `error`. Absent when the render succeeded. */
+  cause: unknown | null
   /** 加载状态 */
   isLoading: boolean
   /** 手动触发渲染 */
@@ -59,7 +62,10 @@ export const useDebouncedRender = (
   const containerRef = useRef<HTMLDivElement>(null)
   const debouncedFunctionRef = useRef<ReturnType<typeof debounce> | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [cause, setCause] = useState<unknown>(null)
   const [isLoading, setIsLoading] = useState(false)
+  // Only the latest request may commit state; an older one can settle after it.
+  const requestIdRef = useRef(0)
 
   // 包装渲染函数，添加容器检查和错误处理
   const wrappedRenderFunction = useCallback(
@@ -74,19 +80,24 @@ export const useDebouncedRender = (
         throw new Error('Container element not available')
       }
 
+      const requestId = ++requestIdRef.current
       try {
         setIsLoading(true)
 
         await renderFunction(content, containerRef.current)
 
+        if (requestId !== requestIdRef.current) return
         // 渲染成功，确保清除错误状态
         setError(null)
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown rendering error'
+        setCause(null)
+      } catch (caught) {
+        const errorMessage = caught instanceof Error ? caught.message : i18n.t('preview.render.unknown')
         logger.error(errorMessage)
+        if (requestId !== requestIdRef.current) return
+        setCause(caught)
         setError(errorMessage)
       } finally {
-        setIsLoading(false)
+        if (requestId === requestIdRef.current) setIsLoading(false)
       }
     },
     [renderFunction]
@@ -116,6 +127,7 @@ export const useDebouncedRender = (
         debouncedRender.cancel()
         setIsLoading(false)
         setError(null)
+        setCause(null)
       }
     },
     [debouncedRender]
@@ -132,6 +144,7 @@ export const useDebouncedRender = (
         debouncedRender.cancel()
         setIsLoading(false)
         setError(null)
+        setCause(null)
       }
     },
     [debouncedRender, wrappedRenderFunction]
@@ -144,6 +157,7 @@ export const useDebouncedRender = (
 
   const clearError = useCallback(() => {
     setError(null)
+    setCause(null)
   }, [])
 
   // 手动设置加载状态
@@ -175,6 +189,7 @@ export const useDebouncedRender = (
   return {
     containerRef,
     error,
+    cause,
     isLoading,
     triggerRender,
     triggerImmediateRender,

@@ -15,11 +15,13 @@ const PlantUmlPreview = ({
   children,
   enableToolbar = false,
   isStreaming = false,
+  onErrorChange,
   ref
 }: BasicPreviewProps & { ref?: React.RefObject<BasicPreviewHandles | null> }) => {
   const { t } = useTranslation()
   const containerRef = useRef<HTMLDivElement>(null)
   const [error, setError] = useState<string | null>(null)
+  const [cause, setCause] = useState<unknown>(null)
   const [isLoading, setIsLoading] = useState(false)
   const source = isStreaming ? '' : children.trim()
 
@@ -27,6 +29,7 @@ const PlantUmlPreview = ({
     const container = containerRef.current
     container?.shadowRoot?.replaceChildren()
     setError(null)
+    setCause(null)
     setIsLoading(Boolean(source))
     if (!container || !source) return
 
@@ -37,7 +40,9 @@ const PlantUmlPreview = ({
         const result = await plantUmlRenderService.render(source, signal)
         if (signal.aborted) return
         if ('error' in result) {
-          setError(result.line ? `${result.line}: ${result.error}` : result.error)
+          const message = result.line ? `${result.line}: ${result.error}` : result.error
+          setError(message)
+          setCause(new Error(message))
         } else {
           renderSvgInShadowHost(result.svg, container, {
             sanitize: {
@@ -51,6 +56,7 @@ const PlantUmlPreview = ({
         logger.warn('Local PlantUML rendering failed', {
           message: error instanceof Error ? error.message : String(error)
         })
+        setCause(error)
         setError(
           error instanceof DOMException && error.name === 'TimeoutError'
             ? t('error.request_timeout')
@@ -71,7 +77,9 @@ const PlantUmlPreview = ({
     <ImagePreviewLayout
       loading={isLoading}
       error={error}
+      cause={cause}
       enableToolbar={enableToolbar}
+      onErrorChange={onErrorChange}
       ref={ref}
       imageRef={containerRef}
       source="plantuml">

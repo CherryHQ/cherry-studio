@@ -35,7 +35,7 @@ source change
   → format-specific renderer
   → renderSvgInShadowHost
   → ImagePreviewLayout
-    ├─ loading overlay or error
+    ├─ loading overlay or failure placeholder
     ├─ sanitized SVG in Shadow DOM
     └─ optional ImageToolbar
 ```
@@ -43,7 +43,9 @@ source change
 `useDebouncedRender` owns the host ref, loading/error state, debounced trigger,
 and cancellation. Rendering runs inside
 `React.startTransition`. Cancelling drops a pending debounce; it does not abort
-an asynchronous render that has already started.
+an asynchronous render that has already started. Only the latest started render
+updates the error and loading state, so an older request that settles later
+cannot report a failure over a newer result.
 
 ## SVG boundary
 
@@ -73,6 +75,18 @@ The layout exposes pan, zoom, copy, download, and the expanded dialog through
 its preview ref so `CodeBlockView` tools and the RichEditor code block toolbar
 can operate on the same SVG. The Notes editor keeps zoom and pan in the
 expanded dialog, because an inline diagram scrolls with the note.
+
+A render failure covers the preview area with a neutral placeholder (a localized
+title and a Details link). The area keeps its size while the previous render stays
+mounted, as with Mermaid. When the renderer clears the host before failing, as
+`renderSvgInShadowHost` does for input with no usable SVG, the placeholder fills
+only the minimum preview height. The layout isolates its stacking context, so a
+host toolbar drawn over the preview, such as the RichEditor code block header,
+stays clickable above the placeholder.
+The layout reports the failure through the optional `onErrorChange` prop.
+`CodeBlockView` uses it to drop its copy-image and image-download actions until
+a render succeeds. `MermaidFilePreview` uses it to disable its header toolbar
+actions, so they never act on a diagram hidden under the placeholder.
 
 SVG, Graphviz, PlantUML, and Mermaid diagrams are centered in their host.
 
@@ -107,8 +121,8 @@ changes.
 Merman's `interactive` resource profile is used with only its layout-work limit
 raised, because the default already rejects a 200-node flowchart. Time is bounded
 by the worker deadline instead.
-When a newer source fails to render, the previous diagram stays in place under
-the error.
+When a newer source fails to render, the previous diagram stays mounted under
+the failure placeholder.
 
 ### PlantUML
 

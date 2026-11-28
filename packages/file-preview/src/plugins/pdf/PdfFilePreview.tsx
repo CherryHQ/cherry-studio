@@ -123,7 +123,7 @@ export default function PdfFilePreview({
   onSelection
 }: FilePreviewPluginProps) {
   const logger = usePreviewLogger('PdfFilePreview')
-  const { root: previewRoot, resources, options, failDocument, isCurrentDocument } = usePreviewHost()
+  const { root: previewRoot, resources, options, failDocument, errorDetail, isCurrentDocument } = usePreviewHost()
   const { t } = useTranslation()
   const rootRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -838,6 +838,7 @@ export default function PdfFilePreview({
                 icon={AlertCircle}
                 title={t('file_preview.load_error.title')}
                 description={t('file_preview.load_error.description')}
+                detail={errorDetail}
                 className="h-full"
               />
             </div>

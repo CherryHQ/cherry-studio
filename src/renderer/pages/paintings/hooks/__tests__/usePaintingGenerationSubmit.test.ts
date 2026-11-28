@@ -215,7 +215,9 @@ it.each([
   expect(materialize).not.toHaveBeenCalled()
   expect(mockValidateBeforeGenerate).not.toHaveBeenCalled()
   expect(mockGenerate).not.toHaveBeenCalled()
-  expect(toast.error).toHaveBeenCalledWith(en[key as keyof typeof en] ?? 'missing translation')
+  expect(toast.error).toHaveBeenCalledWith(
+    expect.objectContaining({ title: en[key as keyof typeof en] ?? 'missing translation' })
+  )
   expect(result.current.submitting).toBe(false)
 })
 
@@ -236,7 +238,9 @@ it.each([
       await act(async () => {
         await result.current.submit(materialize)
       })
-      expect(toast.error).toHaveBeenCalledExactlyOnceWith(en['paintings.seedream.dmxapi_unsupported'])
+      expect(toast.error).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({ title: en['paintings.seedream.dmxapi_unsupported'] })
+      )
       expect(materialize).not.toHaveBeenCalled()
       expect(mockGenerate).not.toHaveBeenCalled()
       expect(mockValidateBeforeGenerate).not.toHaveBeenCalled()

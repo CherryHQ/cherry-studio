@@ -980,6 +980,7 @@ vi.mock('@cherrystudio/ui', async () => {
       onAction,
       secondaryLabel,
       onSecondary,
+      detail,
       preset,
       compact: _compact,
       ...props
@@ -995,7 +996,8 @@ vi.mock('@cherrystudio/ui', async () => {
           : null,
         secondaryLabel && onSecondary
           ? React.createElement('button', { type: 'button', onClick: onSecondary }, secondaryLabel)
-          : null
+          : null,
+        detail
       ),
     Alert: ({ children, message, description, action, icon, showIcon, type, role, ...props }) =>
       React.createElement(

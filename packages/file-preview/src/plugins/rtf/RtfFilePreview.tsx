@@ -20,7 +20,7 @@ EMFJS.loggingEnabled(false)
 
 export default function RtfFilePreview({ fileName, document: previewDocument }: FilePreviewPluginProps) {
   const { t } = useTranslation()
-  const { failDocument } = usePreviewHost()
+  const { failDocument, errorDetail } = usePreviewHost()
   const bodyRef = useRef<HTMLDivElement>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
@@ -91,6 +91,7 @@ export default function RtfFilePreview({ fileName, document: previewDocument }: 
                 icon={AlertCircle}
                 title={t('file_preview.load_error.title')}
                 description={t('file_preview.load_error.description')}
+                detail={errorDetail}
                 className="h-full"
               />
             )}

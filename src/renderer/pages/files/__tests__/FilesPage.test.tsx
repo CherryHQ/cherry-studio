@@ -1214,7 +1214,19 @@ describe('FilesPage file operations', () => {
 
     await waitFor(() => {
       expect(errorSpy).toHaveBeenCalledWith('Failed to open file preview', expect.any(Error))
-      expect(toast.error).toHaveBeenCalledWith('files.preview.error')
+      expect(toast.error).toHaveBeenCalledWith(
+        expect.objectContaining({
+          cause: expect.any(Error),
+          data: expect.objectContaining({
+            errorContext: expect.objectContaining({
+              operation: 'file.preview',
+              recordId: entry.id,
+              source: 'files'
+            })
+          }),
+          title: 'files.preview.error'
+        })
+      )
     })
     expect(filePreviewMocks.render).not.toHaveBeenCalled()
   })
@@ -1579,7 +1591,19 @@ describe('FilesPage file operations', () => {
 
     await waitFor(() => {
       expect(toast.error).toHaveBeenCalledOnce()
-      expect(toast.error).toHaveBeenCalledWith('files.error.delete_partial_failed')
+      expect(toast.error).toHaveBeenCalledWith(
+        expect.objectContaining({
+          cause: expect.objectContaining({ message: 'second chunk unavailable' }),
+          data: expect.objectContaining({
+            errorContext: expect.objectContaining({
+              operation: 'file.delete',
+              recordId: entries[500].id,
+              source: 'files'
+            })
+          }),
+          title: 'files.error.delete_partial_failed'
+        })
+      )
       expect(recycleBinFeedbackMocks.showRecycleBinBatchUndo).toHaveBeenCalledWith({
         itemCount: 500,
         onUndo: expect.any(Function)
@@ -1607,7 +1631,20 @@ describe('FilesPage file operations', () => {
     fireEvent.keyDown(document, { key: 'Delete' })
 
     await waitFor(() => {
-      expect(toast.error).toHaveBeenCalledWith('files.error.delete_partial_failed')
+      expect(toast.error).toHaveBeenCalledWith(
+        expect.objectContaining({
+          cause: 'denied',
+          data: expect.objectContaining({
+            errorContext: expect.objectContaining({
+              message: 'denied',
+              operation: 'file.delete',
+              recordId: entry.id,
+              source: 'files'
+            })
+          }),
+          title: 'files.error.delete_partial_failed'
+        })
+      )
     })
     expect(recycleBinFeedbackMocks.showRecycleBinBatchUndo).not.toHaveBeenCalled()
   })
@@ -1764,9 +1801,52 @@ describe('FilesPage file operations', () => {
 
     await waitFor(() => {
       expect(toast.error).toHaveBeenCalledTimes(1)
-      expect(toast.error).toHaveBeenCalledWith('files.error.delete_partial_failed')
+      expect(toast.error).toHaveBeenCalledWith(
+        expect.objectContaining({
+          cause: 'trash denied\nremove denied',
+          title: 'files.error.delete_partial_failed'
+        })
+      )
     })
+    expect(JSON.stringify(vi.mocked(toast.error).mock.calls)).not.toContain('/tmp/')
     expect(recycleBinFeedbackMocks.showRecycleBinBatchUndo).not.toHaveBeenCalled()
+  })
+
+  // A reconciled trash request error must not be filed as the cause of the external item's failure.
+  it('reports the external removal failure with its own cause after the trash request is reconciled', async () => {
+    ipcMocks.request.mockImplementation((route: string, input?: unknown) => {
+      if (route === 'file.batch_get_metadata') return Promise.resolve({})
+      if (route === 'file.batch_get_physical_paths') return Promise.resolve({})
+      if (route === 'file.batch_get_dangling_states') return Promise.resolve({})
+      if (route === 'file.batch_trash') return Promise.reject(new Error('trash request lost'))
+      if (route === 'file.batch_remove_from_library') {
+        return Promise.resolve({ succeeded: [], failed: [{ id: externalEntry.id, error: 'remove denied' }] })
+      }
+      return Promise.resolve(input)
+    })
+    vi.mocked(dataApiService.get).mockImplementation(async (path) => {
+      if (path.endsWith(entry.id)) return { ...entry, deletedAt: 1_900_000_000_000 } as never
+      return externalEntry as never
+    })
+    renderFilesPage([entry, externalEntry])
+
+    selectFileAt(0)
+    selectFileAt(1)
+    fireEvent.keyDown(document, { key: 'Delete' })
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(1))
+    expect(toast.error).toHaveBeenCalledWith(
+      expect.objectContaining({
+        cause: 'remove denied',
+        data: expect.objectContaining({
+          errorContext: expect.objectContaining({
+            message: 'remove denied',
+            operation: 'file.delete',
+            recordId: externalEntry.id
+          })
+        })
+      })
+    )
   })
 
   it('shows a toast when delete rejects', async () => {
@@ -1782,7 +1862,20 @@ describe('FilesPage file operations', () => {
     fireEvent.keyDown(document, { key: 'Delete' })
 
     await waitFor(() => {
-      expect(toast.error).toHaveBeenCalledWith('files.error.delete_failed')
+      expect(toast.error).toHaveBeenCalledWith(
+        expect.objectContaining({
+          cause: expect.objectContaining({ message: 'delete failed' }),
+          data: expect.objectContaining({
+            errorContext: expect.objectContaining({
+              message: 'delete failed',
+              operation: 'file.delete',
+              recordId: entry.id,
+              source: 'files'
+            })
+          }),
+          title: 'files.error.delete_failed'
+        })
+      )
     })
     expect(recycleBinFeedbackMocks.showRecycleBinBatchUndo).not.toHaveBeenCalled()
   })
@@ -1829,7 +1922,20 @@ describe('FilesPage file operations', () => {
     fireEvent.blur(input)
 
     await waitFor(() => {
-      expect(toast.error).toHaveBeenCalledWith('files.error.rename_failed')
+      expect(toast.error).toHaveBeenCalledWith(
+        expect.objectContaining({
+          cause: expect.objectContaining({ message: 'rename failed' }),
+          data: expect.objectContaining({
+            errorContext: expect.objectContaining({
+              message: 'rename failed',
+              operation: 'file.rename',
+              recordId: entry.id,
+              source: 'files'
+            })
+          }),
+          title: 'files.error.rename_failed'
+        })
+      )
     })
   })
 
@@ -1892,8 +1998,17 @@ describe('FilesPage file operations', () => {
     })
 
     await waitFor(() => {
-      expect(toast.error).toHaveBeenCalledWith('files.error.import_partial_failed')
+      expect(toast.error).toHaveBeenCalledWith(
+        expect.objectContaining({
+          cause: 'denied',
+          data: expect.objectContaining({
+            errorContext: expect.objectContaining({ message: 'denied', operation: 'file.import', source: 'files' })
+          }),
+          title: 'files.error.import_partial_failed'
+        })
+      )
     })
+    expect(JSON.stringify(vi.mocked(toast.error).mock.calls)).not.toContain('/tmp/import.md')
   })
 
   it('shows a toast when import rejects', async () => {
@@ -1912,8 +2027,17 @@ describe('FilesPage file operations', () => {
     })
 
     await waitFor(() => {
-      expect(toast.error).toHaveBeenCalledWith('files.error.import_failed')
+      expect(toast.error).toHaveBeenCalledWith(
+        expect.objectContaining({
+          cause: expect.objectContaining({ message: 'import failed' }),
+          data: expect.objectContaining({
+            errorContext: expect.objectContaining({ operation: 'file.import', source: 'files' })
+          }),
+          title: 'files.error.import_failed'
+        })
+      )
     })
+    expect(JSON.stringify(vi.mocked(toast.error).mock.calls)).not.toContain('/tmp/import.md')
   })
 
   it('keeps missing external files visible so they can be removed from the library', async () => {
