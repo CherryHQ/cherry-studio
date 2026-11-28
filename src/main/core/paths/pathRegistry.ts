@@ -249,6 +249,7 @@ export function buildPathRegistry() {
     'feature.agents.skills.builtin': path.join(appRootResources, 'skills'), // bundled skill templates (read-only)
     'feature.agents.skills': path.join(appUserDataData, 'Skills'), // installed skills storage
     'feature.agents.skills.install.temp': path.join(appTemp, 'skill-install'),
+    'feature.agents.claude.sandbox_status.temp': path.join(appTemp, 'claude-sandbox-status'),
     'feature.agents.claude.root': path.join(appUserDataData, 'Agents', '.claude'), // v1 userData/.claude is copied here during v2 migration
     'feature.agents.claude.skills': path.join(appUserDataData, 'Agents', '.claude', 'skills'), // symlinks → feature.agents.skills
     // Claude Code's own session transcripts under Cherry's config dir. A registry key

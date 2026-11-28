@@ -1,7 +1,19 @@
+import { execFile } from 'node:child_process'
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import path from 'node:path'
+import { promisify } from 'node:util'
+
 import { type Options, resolveSettings, type SandboxSettings, type Settings } from '@anthropic-ai/claude-agent-sdk'
 
+import { application } from '@application'
 import type { SandboxPolicy } from '@main/ai/toolApproval/sandboxPolicy'
+import { isWin } from '@main/core/platform'
 import { t } from '@main/i18n'
+
+const execFileAsync = promisify(execFile)
+const SANDBOX_STATUS_TIMEOUT_MS = 5_000
+
+export type ClaudeCodeSandboxAvailability = { available: true } | { available: false; reason: string }
 
 /**
  * Translates a resolved sandbox policy into the Claude Agent SDK `sandbox` option. The session's
@@ -22,6 +34,46 @@ export function toClaudeCodeSandboxSettings(policy: SandboxPolicy): SandboxSetti
     },
     filesystem: { allowWrite: [...policy.writablePaths] }
   }
+}
+
+/**
+ * Asks the Claude Code CLI whether its sandbox can run on this machine, through `claude sandbox status`
+ * with a throwaway config directory. Native Windows is not enabled yet, so it is never asked.
+ */
+export async function checkClaudeCodeSandboxAvailability(
+  cliPath: string,
+  env: Record<string, string | undefined>
+): Promise<ClaudeCodeSandboxAvailability> {
+  if (isWin) return { available: false, reason: 'the shell sandbox is not enabled on native Windows' }
+  const configDir = await mkdtemp(application.getPath('feature.agents.claude.sandbox_status.temp', 'check-'))
+  try {
+    await writeFile(path.join(configDir, 'settings.json'), JSON.stringify({ sandbox: { enabled: true } }))
+    const { stdout } = await execFileAsync(cliPath, ['sandbox', 'status'], {
+      env: { ...env, CLAUDE_CONFIG_DIR: configDir },
+      timeout: SANDBOX_STATUS_TIMEOUT_MS
+    })
+    return parseSandboxStatus(stdout)
+  } catch (error) {
+    return { available: false, reason: `claude sandbox status failed: ${(error as Error).message}` }
+  } finally {
+    await rm(configDir, { recursive: true, force: true })
+  }
+}
+
+function parseSandboxStatus(stdout: string): ClaudeCodeSandboxAvailability {
+  let status: { statusVersion?: unknown; supported?: unknown; enabled?: unknown; unavailableReason?: unknown }
+  try {
+    status = JSON.parse(stdout)
+  } catch {
+    return { available: false, reason: 'claude sandbox status did not print JSON' }
+  }
+  if (status.statusVersion !== 3) {
+    return { available: false, reason: `unknown sandbox status version ${String(status.statusVersion)}` }
+  }
+  if (status.supported !== true) return { available: false, reason: 'the CLI does not support a sandbox here' }
+  if (status.enabled !== true) return { available: false, reason: 'the CLI did not enable the sandbox' }
+  if (status.unavailableReason !== null) return { available: false, reason: String(status.unavailableReason) }
+  return { available: true }
 }
 
 /**

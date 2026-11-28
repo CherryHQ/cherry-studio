@@ -19,6 +19,7 @@ import { BrowserSessionService } from '@main/features/browser'
 import type * as FileUtils from '@main/utils/file'
 
 import { GLOBAL_INSTALL_PLAN_DENIAL, GLOBAL_INSTALL_UNATTENDED_DENIAL } from '../guardRules'
+import type * as SandboxSettings from '../sandboxSettings'
 
 const APPROVAL_REQUIRED_RUNTIME_NAMES = listBuiltinToolPolicies()
   .filter(({ approval }) => approval !== 'auto')
@@ -71,12 +72,18 @@ const mocks = vi.hoisted(() => ({
   rtkRewrite: vi.fn(),
   platform: { isLinux: false, isMac: false },
   isWin: false,
-  resolveSettings: vi.fn()
+  resolveSettings: vi.fn(),
+  sandboxAvailability: vi.fn()
 }))
 
 vi.mock('@anthropic-ai/claude-agent-sdk', async (importOriginal) => ({
   ...(await importOriginal<typeof ClaudeAgentSdk>()),
   resolveSettings: mocks.resolveSettings
+}))
+
+vi.mock('../sandboxSettings', async (importOriginal) => ({
+  ...(await importOriginal<typeof SandboxSettings>()),
+  checkClaudeCodeSandboxAvailability: mocks.sandboxAvailability
 }))
 
 vi.mock('electron', () => ({
@@ -340,6 +347,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     mocks.applicationGetPath.mockImplementation((key: string) => `/app/${key}`)
     mocks.platform.isLinux = false
     mocks.platform.isMac = false
+    mocks.sandboxAvailability.mockResolvedValue({ available: false, reason: 'not under test' })
     mocks.getShellEnv.mockResolvedValue({})
     mocks.refreshShellEnv.mockResolvedValue({})
     mocks.getBinaryPath.mockResolvedValue('/usr/local/bin/bun')
@@ -3447,7 +3455,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     }
 
     beforeEach(() => {
-      mocks.platform.isMac = true
+      mocks.sandboxAvailability.mockResolvedValue({ available: true })
       mocks.resolveSettings.mockResolvedValue(NO_OTHER_SETTINGS)
     })
 
@@ -3503,8 +3511,8 @@ describe('buildClaudeCodeSessionSettings', () => {
       )
     })
 
-    it('keeps per-call approval and no sandbox for Support outside macOS (AC6)', async () => {
-      mocks.platform.isMac = false
+    it('keeps per-call approval and no sandbox for Support when the CLI reports none', async () => {
+      mocks.sandboxAvailability.mockResolvedValue({ available: false, reason: 'bubblewrap is not installed' })
       useAgent({ builtin_role: 'support', permission_mode: 'acceptEdits' })
 
       const settings = await build()
@@ -3572,7 +3580,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       })
 
       it('adds nothing when the session has no sandbox', async () => {
-        mocks.platform.isMac = false
+        mocks.sandboxAvailability.mockResolvedValue({ available: false, reason: 'bubblewrap is not installed' })
         useAgent({ builtin_role: 'support', permission_mode: 'acceptEdits' })
         const settings = await build()
 

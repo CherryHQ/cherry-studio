@@ -234,6 +234,14 @@ jobs:
         id: dependencies
       - name: "Dependency cache: ${{ steps.dependencies.outputs.cache-state }}"
         run: ":"
+      # The Agent shell sandbox test needs a working Linux sandbox (bubblewrap, socat, user namespaces).
+      - name: Linux shell sandbox prerequisites
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq bubblewrap socat
+          if [ -e /proc/sys/kernel/apparmor_restrict_unprivileged_userns ]; then
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          fi
       - run: pnpm check --group main --shard=${{ matrix.shard }}/2
 
   package-test:
