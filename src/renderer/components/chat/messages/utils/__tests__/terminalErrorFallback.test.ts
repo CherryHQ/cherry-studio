@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
+import { messagePartsAt } from '@renderer/utils/message/messagePartRows'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 
 import { createDismissedNoResponsePart } from '../dismissedNoResponse'
@@ -28,7 +29,7 @@ describe('withTerminalErrorFallback', () => {
 
     const next = withTerminalErrorFallback(messages, partsByMessageId, 'No response')
 
-    expect(next.m1.some((part) => part.type === 'data-error')).toBe(true)
+    expect(messagePartsAt(next, 'm1')?.some((part) => part.type === 'data-error')).toBe(true)
   })
 
   it('leaves an error message that already has a data-error part unchanged', () => {
@@ -99,7 +100,7 @@ describe('withEmptySuccessFallback', () => {
     const next = withEmptySuccessFallback(messages, partsByMessageId, 'No response')
 
     expect(next).not.toBe(partsByMessageId)
-    expect(next.m1).toEqual([
+    expect(messagePartsAt(next, 'm1')).toEqual([
       stepStart,
       {
         type: 'data-error',
@@ -154,7 +155,7 @@ describe('withNoResponseFallback', () => {
     const next = withNoResponseFallback(messages, partsByMessageId, 'No response')
 
     expect(next).not.toBe(partsByMessageId)
-    expect(next.ok).toBe(partsByMessageId.ok)
-    expect(next.empty.some((part) => part.type === 'data-error')).toBe(true)
+    expect(messagePartsAt(next, 'ok')).toBe(partsByMessageId.ok)
+    expect(messagePartsAt(next, 'empty')?.some((part) => part.type === 'data-error')).toBe(true)
   })
 })
