@@ -897,8 +897,8 @@
     }
   ],
   "providers": {
-    "version": "5179a16fddc562d9",
-    "count": 68,
+    "version": "efeebd6a65755aca",
+    "count": 69,
     "entries": [
       {
         "id": "cherryin",
@@ -1171,6 +1171,10 @@
       {
         "id": "minimax-global",
         "name": "minimax-global"
+      },
+      {
+        "id": "hostlinku",
+        "name": "Hostlinku"
       }
     ]
   },

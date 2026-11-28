@@ -7,6 +7,10 @@ describe('resolveProviderIconRef', () => {
     expect(resolveProviderIconRef('rapid-mlx')).toEqual(expect.objectContaining({ kind: 'provider', key: 'rapid-mlx' }))
   })
 
+  it('resolves the Hostlinku provider icon', () => {
+    expect(resolveProviderIconRef('hostlinku')).toEqual(expect.objectContaining({ kind: 'provider', key: 'hostlinku' }))
+  })
+
   it('falls back to the model catalog for provider IDs that only exist there', () => {
     // `claude` is a model-catalog key with no provider-catalog entry
     expect(resolveProviderIconRef('claude')).toEqual(expect.objectContaining({ kind: 'model', key: 'claude' }))
