@@ -19,6 +19,17 @@ backoff — `TimeoutError`s are deliberately not retried, see below) retry the
 order. Retry happens at the model layer — below the agent loop, so tool state
 and hook composition are untouched.
 
+### Output token limits
+
+Chat and trusted desktop Work requests recover when the provider rejects the
+SDK-managed output budget with a recognized HTTP 400 or 422 before any content.
+The same model receives the provider's ceiling. An explicit overflow without a
+numeric ceiling halves the budget. Each retry must lower the wire value while
+preserving any explicit thinking budget. Up to three retries share the
+same-model attempt limit. Chat uses this recovery even when transient retry is
+disabled, unless the call explicitly sets `maxRetries: 0`. Public gateway calls
+retain their no-retry policy. The reduction applies to the current model call.
+
 ```text
 AiService.streamText/generateText
   └─ createRetryableWrap()              src/main/ai/runtime/aiSdk/retry/

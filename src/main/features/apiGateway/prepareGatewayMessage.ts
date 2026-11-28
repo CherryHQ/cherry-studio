@@ -172,6 +172,7 @@ export function gatewayPromptOptions(
     callOverrides: request.callOverrides,
     contextOwner: 'caller' as const,
     ...(request.adapterOptions.captureReplay && { replayProviderState: true }),
+    ...(request.internal && request.agentSessionId && { retryOutputTokenLimit: true }),
     ...(usageContext ? { usageContext } : {}),
     ...(request.agentSessionId ? { tokenUsageSource: 'agent' as const } : {}),
     idleTimeoutMs,
