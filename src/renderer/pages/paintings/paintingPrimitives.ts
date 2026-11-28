@@ -4,7 +4,7 @@ export const paintingClasses = {
   tabsWrap: 'shrink-0 flex justify-center px-6 pt-3 pb-2',
   tabsList: 'rounded-full border border-border-subtle bg-secondary p-1 shadow-sm backdrop-blur-sm',
   tabsTrigger:
-    'rounded-full px-4 py-1.5 text-xs font-medium text-muted-foreground transition data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm',
+    'rounded-full px-4 py-1.5 text-xs font-medium text-muted-foreground transition-[color] data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm',
   frame: 'relative flex min-h-0 flex-1 overflow-hidden px-2 pt-2 pb-1',
   surface: 'relative isolate flex min-w-0 flex-1 overflow-hidden rounded-none',
   centerPane: 'relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden',

@@ -1139,7 +1139,9 @@ export class AgentSessionMessageService {
     messageId: string,
     contextId: string,
     after = 0,
-    followupReply?: Pick<CreateAgentSessionMessageDto, 'modelId' | 'messageSnapshot'>
+    followupReply?: Pick<CreateAgentSessionMessageDto, 'modelId' | 'messageSnapshot'> & {
+      promotion?: { replyId?: string }
+    }
   ): number | undefined {
     const result = application.get('DbService').withWriteTx((tx) => {
       const saved = tx
@@ -1164,25 +1166,49 @@ export class AgentSessionMessageService {
       advanceAgentSessionPositionTx(tx, sessionId, saved.pos)
       const published = this.publishStagedFollowupTx(tx, sessionId, messageId, contextId)
       let replyId: string | undefined
-      if (published && followupReply) {
-        const model = followupReply.modelId
+      if (followupReply && (published || followupReply.promotion)) {
+        const steerReplyId = followupReply.promotion?.replyId
+        const steerReply = steerReplyId
           ? tx
-              .select({ id: userModelTable.id })
-              .from(userModelTable)
-              .where(eq(userModelTable.id, followupReply.modelId))
+              .select({ id: sessionMessagesTable.id })
+              .from(sessionMessagesTable)
+              .where(
+                and(
+                  eq(sessionMessagesTable.sessionId, sessionId),
+                  eq(sessionMessagesTable.id, steerReplyId),
+                  eq(sessionMessagesTable.role, 'assistant')
+                )
+              )
               .get()
           : undefined
-        const reply = this.saveMessageTx(tx, {
-          sessionId,
-          parentId: messageId,
-          message: { ...followupReply, modelId: model?.id, role: 'assistant', status: 'pending', data: { parts: [] } }
-        })
-        replyId = reply.entity.id
-        tx.update(sessionMessagesTable).set({ replyId }).where(eq(sessionMessagesTable.id, messageId)).run()
+        if (!steerReply) {
+          const model = followupReply.modelId
+            ? tx
+                .select({ id: userModelTable.id })
+                .from(userModelTable)
+                .where(eq(userModelTable.id, followupReply.modelId))
+                .get()
+            : undefined
+          replyId = this.saveMessageTx(tx, {
+            sessionId,
+            parentId: messageId,
+            message: {
+              messageSnapshot: followupReply.messageSnapshot,
+              modelId: model?.id,
+              role: 'assistant',
+              status: 'pending',
+              data: { parts: [] }
+            }
+          }).entity.id
+        }
+        tx.update(sessionMessagesTable)
+          .set({ replyId: steerReply?.id ?? replyId })
+          .where(eq(sessionMessagesTable.id, messageId))
+          .run()
       }
       return { pos: saved.pos, published, replyId }
     })
-    if (result?.published)
+    if (result?.published || result?.replyId)
       this.publishDeliveryMutation(
         [messageId, ...(result.replyId ? [result.replyId] : [])].map((id) => ({
           sessionId,
@@ -1249,6 +1275,50 @@ export class AgentSessionMessageService {
         )
         .get()
     )
+  }
+
+  removeResentUnsentMessageTx(tx: DbOrTx, sessionId: string, message: { id: string; updatedAt: string }): void {
+    const source = tx
+      .select({ contextId: sessionMessagesTable.inputContextId })
+      .from(sessionMessagesTable)
+      .where(
+        and(
+          eq(sessionMessagesTable.sessionId, sessionId),
+          eq(sessionMessagesTable.id, message.id),
+          eq(sessionMessagesTable.role, 'user'),
+          eq(sessionMessagesTable.status, 'paused'),
+          eq(sessionMessagesTable.updatedAt, Date.parse(message.updatedAt)),
+          isNull(sessionMessagesTable.pos),
+          isNull(sessionMessagesTable.replyId),
+          isNull(sessionMessagesTable.deliveryStatus)
+        )
+      )
+      .get()
+    if (!source || (source.contextId && !this.releaseInputBindingTx(tx, sessionId, message.id, source.contextId)))
+      throw DataApiErrorFactory.resourceLocked('Message', message.id, 'a changed or already resent input')
+    this.deleteSessionMessageTx(tx, sessionId, message.id)
+  }
+
+  discardStagedFollowup(sessionId: string, messageId: string, contextId: string): void {
+    application.get('DbService').withWriteTx((tx) => {
+      const staged = tx
+        .select({ id: sessionMessagesTable.id })
+        .from(sessionMessagesTable)
+        .where(
+          and(
+            eq(sessionMessagesTable.sessionId, sessionId),
+            eq(sessionMessagesTable.id, messageId),
+            eq(sessionMessagesTable.role, 'user'),
+            eq(sessionMessagesTable.status, 'success'),
+            isNull(sessionMessagesTable.replyId),
+            isNull(sessionMessagesTable.deliveryStatus),
+            sql`json_extract(${sessionMessagesTable.data}, '$.stagedFollowup') = 1`
+          )
+        )
+        .get()
+      if (staged && this.releaseInputBindingTx(tx, sessionId, messageId, contextId))
+        this.deleteSessionMessageTx(tx, sessionId, messageId)
+    })
   }
 
   stagedFollowups(sessionId: string) {
