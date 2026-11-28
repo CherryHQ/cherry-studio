@@ -337,6 +337,8 @@ function dtoToNewUserModel(dto: CreateModelDto): NewUserModelInput {
     maxInputTokens: dto.maxInputTokens ?? null,
     maxOutputTokens: dto.maxOutputTokens ?? null,
     supportsStreaming: dto.supportsStreaming ?? true,
+    // Registry-sourced DTOs and provider-discovered DTOs both carry an intrinsic
+    // descriptor here; the custom path infers one below only when it is absent.
     reasoning: null,
     parameters: dto.parameterSupport ?? null,
     pricing: dto.pricing ?? null,
@@ -522,6 +524,8 @@ class ModelService {
 
   private buildCreateValues(dto: CreateModelDto, registryData?: CreateModelRegistryData): NewUserModelInput {
     if (registryData?.providerModel) {
+      // A registry-authored model owns its intrinsic descriptor, so the row keeps only the
+      // user-owned delta; a provider declaration has nothing left to supply here.
       return {
         ...dtoToNewUserModel({ ...registryData.providerModel, ...dto, presetModelId: undefined }),
         reasoning: mergeUserReasoning(null, dto.reasoning)
@@ -546,6 +550,8 @@ class ModelService {
     // No preset: a custom model. When the id/capabilities say the model reasons,
     // infer the controls from the registry heuristics so custom rows are
     // descriptor-driven like catalog rows (#16598).
+    // The provider's own declaration outranks that id heuristic when it made one.
+    if (dto.providerReasoning) dtoValues.reasoning = dto.providerReasoning
     if (dtoValues.reasoning == null) {
       const declaredReasoning = (dtoValues.capabilities ?? []).includes(MODEL_CAPABILITY.REASONING)
       const inferred =
