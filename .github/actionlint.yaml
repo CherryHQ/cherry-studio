@@ -1,5 +1,6 @@
 self-hosted-runner:
   labels:
+    - mac-studio
     - windows-signing
 paths:
   .github/workflows/qa-ondemand.yml:

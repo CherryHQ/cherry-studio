@@ -38,7 +38,7 @@ env:
 jobs:
   package:
     name: Package target
-    runs-on: ${{ fromJSON(inputs.target).platform == 'windows' && fromJSON('["self-hosted", "windows-signing"]') || fromJSON(inputs.target).os }}
+    runs-on: ${{ fromJSON(inputs.target).platform == 'windows' && fromJSON('["self-hosted", "windows-signing"]') || fromJSON(inputs.target).runner }}
     permissions:
       contents: read
     steps:
@@ -53,7 +53,7 @@ jobs:
         with:
           node-version-file: ".node-version"
 
-      - name: macos-latest dependencies fix
+      - name: Install macOS Python dependencies
         if: fromJSON(inputs.target).platform == 'mac'
         run: |
           brew install python-setuptools

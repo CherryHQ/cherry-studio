@@ -27,6 +27,7 @@ interface ChatAppShellBaseProps {
   pane?: ReactNode
   paneOpen?: boolean
   panePosition?: ChatPanePosition
+  hideLeftPane?: boolean
   sidePanel?: ReactNode
   centerOverlay?: ReactNode
   /** Overlay scoped to the center area but rendered above the center's transform/stacking layer. */
@@ -275,6 +276,7 @@ export function ChatAppShell({
   pane,
   paneOpen,
   panePosition = 'left',
+  hideLeftPane,
   main,
   centerContent,
   bottomComposer,
@@ -330,7 +332,11 @@ export function ChatAppShell({
       id={rootId}
       className={cn('relative flex min-w-0 flex-1 flex-col overflow-hidden', rootClassName)}>
       <div id={contentId} className="flex min-w-0 flex-1 shrink flex-row overflow-hidden">
-        <PageSidebar open={leftPaneOpen} onPaneCollapse={onPaneCollapse} onResizingChange={setListResizing}>
+        <PageSidebar
+          open={leftPaneOpen}
+          hidden={hideLeftPane}
+          onPaneCollapse={onPaneCollapse}
+          onResizingChange={setListResizing}>
           {panePosition === 'left' ? pane : undefined}
         </PageSidebar>
 
@@ -342,7 +348,7 @@ export function ChatAppShell({
               data-chat-app-shell-center
               id={centerId}
               // Live splitter movement must reflow content without scaling its text and icons.
-              layout={!listResizing}
+              layout={!listResizing && !hideLeftPane}
               layoutDependency={centerLayoutDependency}
               transition={centerTransition}
               className={cn(

@@ -73,7 +73,7 @@ function TaskRow({
   return (
     <div
       className={cn(
-        'group flex items-center gap-1 rounded-lg pr-1.5 shadow-none transition-colors',
+        'group flex items-center gap-1 rounded-lg pr-1.5 shadow-none transition-[color]',
         selected
           ? 'bg-resource-list-row-selected'
           : 'hover:bg-resource-list-row-hover has-[:focus-visible]:bg-resource-list-row-hover'

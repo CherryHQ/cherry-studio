@@ -9,6 +9,7 @@ export interface AgentTimelineRow {
   parts: CherryMessagePart[]
   partIds?: readonly string[]
   sourceMessageId?: string
+  isBeforeLatestRunInput?: boolean
   isRunBoundary?: boolean
 }
 
@@ -63,6 +64,7 @@ export function projectAgentTimeline(
     const contents = groups.filter((group) => group.kind === 'content')
     const firstContent = contents[0]
     const visible = contents.filter((group) => group.parts.some((part) => !isHiddenPart(part)))
+    const latestInput = latestRunInputs.get(message.id) ?? index
     groups.forEach((group) =>
       rows.push({
         anchor: group.anchor,
@@ -80,6 +82,7 @@ export function projectAgentTimeline(
           parts: group.parts,
           partIds: group.ids,
           sourceMessageId: message.id,
+          isBeforeLatestRunInput: group.kind === 'content' && group.anchor < latestInput,
           isRunBoundary: group === visible.at(-1)
         }
       })
@@ -106,6 +109,7 @@ export function projectAgentTimeline(
       const before = old.get(row.id)
       return before &&
         before.message === row.message &&
+        before.isBeforeLatestRunInput === row.isBeforeLatestRunInput &&
         before.isRunBoundary === row.isRunBoundary &&
         before.kind === row.kind &&
         before.showHeader === row.showHeader &&
