@@ -66,6 +66,7 @@ export const CustomSelectionActionSchema = z.object({
   isBuiltIn: z.literal(false),
   runner: z.enum(SELECTION_ACTION_RUNNERS),
   prompt: z.string().optional(),
+  askInput: z.boolean().optional(),
   assistantId: z.string().optional()
 })
 
