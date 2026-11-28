@@ -83,6 +83,54 @@ function budgetError(message: string, body: unknown, statusCode = 400, responseB
 }
 
 describe('createRetryableWrap', () => {
+  it('settles live status when a retried stream is cancelled before completion', async () => {
+    const events: string[] = []
+    const doStream = vi
+      .fn()
+      .mockRejectedValueOnce(makeApiError(401))
+      .mockResolvedValueOnce({
+        stream: new ReadableStream({
+          start(controller) {
+            controller.enqueue({ type: 'text-delta', id: 'text', delta: 'partial' })
+          }
+        })
+      })
+    const wrap = createRetryableWrap({
+      apiKeyFallbacks: [fallbackOf(makeFakeLanguageModel('primary', vi.fn(), doStream))],
+      fallbacks: [],
+      onRetryEvent: (event) => events.push(event.state),
+      retryPolicy: policy({ enabled: false })
+    })!
+    const model = wrap(makeFakeLanguageModel('primary', vi.fn(), doStream))
+
+    const result = await model.doStream({ prompt: [] })
+    const reader = result.stream.getReader()
+    expect(await reader.read()).toMatchObject({ value: { type: 'text-delta', delta: 'partial' } })
+    expect(events).toEqual(['retrying'])
+    await reader.cancel()
+    expect(events).toEqual(['retrying', 'settled'])
+  })
+
+  it('only activates a fallback when the selected model is dispatched', async () => {
+    const order: string[] = []
+    const primary = makeFakeLanguageModel('primary', vi.fn().mockRejectedValue(makeApiError(400)))
+    const fallback = makeFakeLanguageModel(
+      'fallback',
+      vi.fn(async () => {
+        order.push('dispatch')
+        throw makeApiError(400)
+      })
+    )
+    const wrap = createRetryableWrap({
+      fallbacks: [fallbackOf(fallback)],
+      onFallbackActivated: () => order.push('activate'),
+      retryPolicy: policy()
+    })!
+
+    await expect(wrap(primary).doGenerate({ prompt: [] })).rejects.toThrow()
+    expect(order).toEqual(['activate', 'dispatch'])
+  })
+
   it.each([
     ['max_tokens', 'Invalid max_tokens value, the valid range of max_tokens is [1, 4096]', 4096],
     ['max_tokens', 'Range of max_tokens should be [1, 4096]', 4096],

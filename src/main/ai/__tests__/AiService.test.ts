@@ -249,7 +249,8 @@ vi.mock('../runtime/aiSdk/retry/buildApiKeyFallbackModels', () => ({
   buildApiKeyFallbackModels: (options: unknown) => mockBuildApiKeyFallbackModels(options)
 }))
 
-vi.mock('../runtime/aiSdk/retry/retryPolicy', () => ({
+vi.mock(import('../runtime/aiSdk/retry/retryPolicy'), async (importOriginal) => ({
+  ...(await importOriginal()),
   readRetryPolicy: () => mockReadRetryPolicy()
 }))
 

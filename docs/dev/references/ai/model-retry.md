@@ -88,9 +88,14 @@ in `buildAgentParams`, closed over that model). So for each configured fallback
    configuration, authentication, plugin, and other unexpected errors propagate
    instead of being silently converted into "no fallback".
 
-**`createRetryableWrap`** (`createRetryableWrap.ts`) assembles the ai-retry
-policy and checks route-bound tool continuations. An eligible fallback, a
-model retry policy, or a replay route guard can install the wrapper. Key failover
+**`resolveModelRetryPolicy`** derives the allowed same-model rules and
+fallback settings for Chat and caller-owned requests. Both Chat entry points
+use it. **`createRetryableWrap`** assembles the ordered rules and checks
+route-bound tool continuations. It activates the selected credential and
+tool repair when dispatch starts. The credential pool retains the active key
+across tool steps, and each model call owns its attempt execution and status.
+An eligible fallback, a model retry policy, or a replay route guard can install
+the wrapper. Key failover
 is attempted first for 401/429 responses. When model retry is enabled, a selected
 replacement key still receives the configured same-model retry for other
 retryable errors (such as 503/529) before cross-model fallback begins. A recognized
@@ -145,8 +150,10 @@ before applying middleware, so callers never need a V3 assertion.
 — a **stable-id, non-transient** data part, so it rides `message.parts` and the
 renderer renders it as a "retrying…" status line (`RetryStatusBlock`). The
 stable `id` makes repeated retries reconcile into one part (latest wins), and
-the wrapper publishes `{ state: 'settled' }` after success or terminal failure,
-which clears the live spinner. `PersistenceListener` calls
+the wrappers share one reporter per model call. Once a retry is reported, the
+reporter publishes `{ state: 'settled' }` once when the call succeeds, fails, or
+is cancelled. For a stream, receiving its handle does not settle the call.
+`PersistenceListener` calls
 `stripTransientStatusParts` before every terminal write, so retry status is
 live-only and never persisted. Cross-model fallback is logged at warning level
 with both failed and fallback ids; terminal logs preserve the original error

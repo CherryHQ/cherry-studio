@@ -22,8 +22,7 @@ import {
   type LanguageModel,
   type LanguageModelRetryCallOptions,
   type Retries,
-  type Retryable,
-  type RetryContext
+  type Retryable
 } from 'ai-retry'
 import { and, createRetryableModel, error, not } from 'ai-retry/language-model'
 
@@ -32,6 +31,7 @@ import type { RetryPartData } from '@shared/data/types/uiParts'
 
 import { getPendingReplayRoute, ToolContinuationRouteError } from '../../../provider/replayRoute'
 import { getTerminalModelError } from '../../../utils/retryError'
+import { createModelRetryEvents } from './modelRetryEvents'
 import { outputTokenRetry } from './outputTokenRetry'
 import type { RetryPolicy } from './retryPolicy'
 
@@ -86,77 +86,34 @@ export interface CreateRetryableWrapOptions {
 
 const RETRY_BASE_DELAY_MS = 1_000
 
-function lazyFallbackRetryable(
-  resolveFallback: FallbackResolver,
-  onFallbackActivated?: (fallback: RetryFallback) => void,
-  wrapFallbackModel?: WrapLanguageModel,
-  crossRoute = false
-): Retryable<LanguageModel> {
-  let cached: Promise<RetryFallback | null> | undefined
-  return async (context) => {
-    if (!isErrorAttempt(context.current)) return undefined
-    if (crossRoute && getPendingReplayRoute(context.current.options.prompt)) return undefined
-    cached ??= resolveFallback()
-    const fallback = await cached
-    if (!fallback) {
-      cached = undefined
-      return undefined
+function rememberFallback(resolve: FallbackResolver): FallbackResolver {
+  let result: Promise<RetryFallback | null> | undefined
+  return async () => {
+    result ??= resolve()
+    try {
+      const fallback = await result
+      if (!fallback) result = undefined
+      return fallback
+    } catch (error) {
+      result = undefined
+      throw error
     }
-    onFallbackActivated?.(fallback)
-    const model = wrapFallbackModel?.(fallback.model) ?? fallback.model
-    return fallback.options ? { model, options: fallback.options } : { model }
   }
 }
 
-function apiKeyFallbackRetryable(
-  resolveFallbacks: FallbackResolver[],
-  onFallbackActivated?: (fallback: RetryFallback) => void,
-  wrapFallbackModel?: WrapLanguageModel,
-  onExhausted?: (error: APICallError) => void
-): Retryable<LanguageModel> {
-  const resolvedFallbacks = resolveFallbacks.map((resolveFallback) =>
-    lazyFallbackRetryable(resolveFallback, onFallbackActivated, wrapFallbackModel)
-  )
-  let nextFallbackIndex = 0
-  return (context) => {
-    if (!isErrorAttempt(context.current)) return undefined
-    const terminalError = getTerminalModelError(context.current.error)
-    if (
-      !APICallError.isInstance(terminalError) ||
-      (terminalError.statusCode !== 401 && terminalError.statusCode !== 429)
-    ) {
-      return undefined
+function withActivation(model: LanguageModelV3, activate?: () => void): LanguageModelV3 {
+  if (!activate) return model
+  return wrapLanguageModel({
+    model,
+    middleware: {
+      specificationVersion: 'v3',
+      transformParams: async ({ params }) => {
+        params.abortSignal?.throwIfAborted()
+        activate()
+        return params
+      }
     }
-    const resolve = resolvedFallbacks[nextFallbackIndex]
-    if (!resolve) {
-      onExhausted?.(terminalError)
-      return undefined
-    }
-    return Promise.resolve(resolve(context)).then((fallback) => {
-      if (!fallback) return undefined
-      nextFallbackIndex += 1
-      return { ...fallback, maxAttempts: resolveFallbacks.length + 1 }
-    })
-  }
-}
-
-function describeAttempt(context: RetryContext<LanguageModelV3>): Extract<RetryPartData, { state: 'retrying' }> {
-  const { current, attempts } = context
-  let reason = 'unknown'
-  if (isErrorAttempt(current)) {
-    const { error } = current
-    if (APICallError.isInstance(error)) {
-      reason =
-        error.statusCode !== undefined
-          ? `http ${error.statusCode}: ${error.message}`
-          : `${error.name}: ${error.message}`
-    } else if (error instanceof Error) {
-      reason = `${error.name}: ${error.message}`
-    }
-  } else {
-    reason = 'result rejected'
-  }
-  return { state: 'retrying', modelId: current.model.modelId, attempt: attempts.length + 1, reason }
+  })
 }
 
 /**
@@ -174,20 +131,8 @@ export function createRetryableWrap(options: CreateRetryableWrapOptions): WrapLa
     return undefined
   }
 
-  const fallbackResolvers = options.fallbacks.map((resolve) => {
-    let result: Promise<RetryFallback | null> | undefined
-    return async () => {
-      result ??= resolve()
-      try {
-        const fallback = await result
-        if (!fallback) result = undefined
-        return fallback
-      } catch (error) {
-        result = undefined
-        throw error
-      }
-    }
-  })
+  const fallbackResolvers = options.fallbacks.map(rememberFallback)
+  const credentialResolvers = apiKeyFallbacks.map(rememberFallback)
 
   // `max_attempts` is the number of RETRIES (matches the "Max retry attempts"
   // setting and the embedding/rerank AI SDK `maxRetries`). ai-retry counts the
@@ -217,182 +162,143 @@ export function createRetryableWrap(options: CreateRetryableWrapOptions): WrapLa
     ...(options.retryPolicy.enabled ? [retryTransient] : [])
   ]
   const crossModelRetries = options.retryPolicy.enabled
-    ? fallbackResolvers.map((fallback) => lazyFallbackRetryable(fallback, options.onFallbackActivated, undefined, true))
+    ? fallbackResolvers.map<Retryable<LanguageModel>>((resolve) => async ({ current }) => {
+        if (!isErrorAttempt(current) || getPendingReplayRoute(current.options.prompt)) return
+        const fallback = await resolve()
+        if (!fallback) return
+        const model = withActivation(fallback.model, () => options.onFallbackActivated?.(fallback))
+        return { model, options: fallback.options }
+      })
     : []
 
   return (base) => {
-    const primary = options.onPrimaryActivated
-      ? wrapLanguageModel({
-          model: base,
-          middleware: {
-            specificationVersion: 'v3',
-            transformParams: async ({ params }) => {
-              options.onPrimaryActivated?.()
-              return params
-            }
+    const primary = withActivation(base, options.onPrimaryActivated)
+    let activeCredential: { index: number; fallback: RetryFallback } | undefined
+    let exhaustedApiKeyError: APICallError | undefined
+
+    const createCall = async (
+      params: LanguageModelV3CallOptions,
+      events: ReturnType<typeof createModelRetryEvents>
+    ) => {
+      const onRetry = events.report
+      const wrapWithRetries = (model: LanguageModelV3, retries: Retries<LanguageModel>) =>
+        createRetryableModel({
+          model,
+          retries,
+          onRetry,
+          onFailure: (context) => {
+            if (context.attempts.length === 1 && !options.retryPolicy.enabled) return
+            const failure = context.error instanceof Error ? context.error : new Error(String(context.error))
+            logger.error('model call failed after retries', failure, {
+              ...options.diagnosticContext,
+              attempts: context.attempts.length,
+              lastModelId: context.current.model.modelId,
+              attemptErrors: context.attempts.flatMap((attempt) =>
+                isErrorAttempt(attempt)
+                  ? [
+                      {
+                        modelId: attempt.model.modelId,
+                        reason:
+                          attempt.error instanceof Error ? `${attempt.error.name}: ${attempt.error.message}` : 'unknown'
+                      }
+                    ]
+                  : []
+              )
+            })
           }
         })
-      : base
-    let retryActive = false
-    const settleRetryStatus = () => {
-      if (!retryActive) return
-      retryActive = false
-      options.onRetryEvent?.({ state: 'settled' })
-    }
-    const wrapApiKeyFallback: WrapLanguageModel | undefined = sameModelRetries.length
-      ? (model) =>
-          createRetryableModel({
-            model,
-            retries: sameModelRetries,
-            onRetry: (context) => {
-              const event = describeAttempt(context)
-              logger.info('retrying model call', { ...options.diagnosticContext, ...event })
-              retryActive = true
-              options.onRetryEvent?.(event)
-            }
-          })
-      : undefined
-    let activeApiKeyModel = primary
-    let activeApiKeyFallback: RetryFallback | undefined
-    let exhaustedApiKeyError: APICallError | undefined
-    const requestApiKeyModel: LanguageModelV3 = {
-      specificationVersion: 'v3',
-      get provider() {
-        return activeApiKeyModel.provider
-      },
-      get modelId() {
-        return activeApiKeyModel.modelId
-      },
-      get supportedUrls() {
-        return activeApiKeyModel.supportedUrls
-      },
-      doGenerate: (callOptions) => {
-        if (exhaustedApiKeyError) throw exhaustedApiKeyError
-        if (activeApiKeyFallback) options.onFallbackActivated?.(activeApiKeyFallback)
-        return activeApiKeyModel.doGenerate(callOptions)
-      },
-      doStream: (callOptions) => {
-        if (exhaustedApiKeyError) throw exhaustedApiKeyError
-        if (activeApiKeyFallback) options.onFallbackActivated?.(activeApiKeyFallback)
-        return activeApiKeyModel.doStream(callOptions)
-      }
-    }
 
-    const keyPoolModel =
-      apiKeyFallbacks.length > 0
+      const route = options.primaryReplayRouteId ? getPendingReplayRoute(params.prompt) : undefined
+      if (route && route !== options.primaryReplayRouteId) {
+        for (const resolve of fallbackResolvers) {
+          const fallback = await resolve()
+          if (fallback?.replayRouteId === route) {
+            const model = withActivation(fallback.model, () => options.onFallbackActivated?.(fallback))
+            return {
+              model: outputRetries.length ? wrapWithRetries(model, outputRetries) : model,
+              params: { ...params, ...fallback.options }
+            }
+          }
+        }
+        throw new ToolContinuationRouteError()
+      }
+
+      let selectedCredential = activeCredential
+      const wrapCredential = (candidate: NonNullable<typeof activeCredential>) => {
+        const model = withActivation(candidate.fallback.model, () => {
+          selectedCredential = candidate
+          activeCredential = candidate
+          options.onFallbackActivated?.(candidate.fallback)
+        })
+        return sameModelRetries.length ? createRetryableModel({ model, retries: sameModelRetries, onRetry }) : model
+      }
+
+      const keyPoolModel = credentialResolvers.length
         ? createRetryableModel({
-            model: requestApiKeyModel,
+            model: exhaustedApiKeyError
+              ? withActivation(base, () => {
+                  throw exhaustedApiKeyError
+                })
+              : selectedCredential
+                ? wrapCredential(selectedCredential)
+                : primary,
             retries: [
-              apiKeyFallbackRetryable(
-                apiKeyFallbacks,
-                (fallback) => {
-                  activeApiKeyFallback = fallback
-                  options.onFallbackActivated?.(fallback)
-                },
-                (model) => {
-                  activeApiKeyModel = wrapApiKeyFallback?.(model) ?? model
-                  return activeApiKeyModel
-                },
-                (error) => {
+              async ({ current }) => {
+                if (!isErrorAttempt(current)) return
+                const error = getTerminalModelError(current.error)
+                if (!APICallError.isInstance(error) || (error.statusCode !== 401 && error.statusCode !== 429)) return
+                const index = (selectedCredential?.index ?? -1) + 1
+                const resolve = credentialResolvers[index]
+                if (!resolve) {
                   exhaustedApiKeyError = error
+                  return
                 }
-              )
+                const fallback = await resolve()
+                if (!fallback) return
+                return {
+                  model: wrapCredential({ index, fallback }),
+                  options: fallback.options,
+                  maxAttempts: credentialResolvers.length + 1
+                }
+              }
             ],
-            onRetry: (context) => {
-              const event = { ...describeAttempt(context), modelId: base.modelId }
-              logger.info('retrying model call with next API key', { ...options.diagnosticContext, ...event })
-              retryActive = true
-              options.onRetryEvent?.(event)
-            },
-            ...(!sameModelRetries.length && {
-              onSuccess: settleRetryStatus,
-              onFailure: settleRetryStatus
-            })
+            onRetry: (context) => onRetry(context, base.modelId)
           })
         : primary
 
-    const wrapWithRetries = (model: LanguageModelV3, rules: Retries<LanguageModel>) =>
-      createRetryableModel({
-        model,
-        retries: rules,
-        onRetry: (context) => {
-          const event = describeAttempt(context)
-          const failedModelId = context.attempts.at(-1)?.model.modelId
-          if (failedModelId && failedModelId !== event.modelId) {
-            logger.warn('falling back to a different model', {
-              ...options.diagnosticContext,
-              failedModelId,
-              fallbackModelId: event.modelId,
-              attempt: event.attempt,
-              reason: event.reason
-            })
-          } else {
-            logger.info('retrying model call', { ...options.diagnosticContext, ...event })
-          }
-          retryActive = true
-          options.onRetryEvent?.(event)
-        },
-        onSuccess: settleRetryStatus,
-        onFailure: (context) => {
-          settleRetryStatus()
-          if (context.attempts.length === 1 && !options.retryPolicy.enabled) return
-          const failure = context.error instanceof Error ? context.error : new Error(String(context.error))
-          logger.error('model call failed after retries', failure, {
-            ...options.diagnosticContext,
-            attempts: context.attempts.length,
-            lastModelId: context.current.model.modelId,
-            attemptErrors: context.attempts.flatMap((attempt) =>
-              isErrorAttempt(attempt)
-                ? [
-                    {
-                      modelId: attempt.model.modelId,
-                      reason:
-                        attempt.error instanceof Error ? `${attempt.error.name}: ${attempt.error.message}` : 'unknown'
-                    }
-                  ]
-                : []
-            )
-          })
-        }
-      })
-    const retries: Retries<LanguageModel> = [
-      // Replacement credentials have already run both same-model rules together.
-      ...sameModelRetries.map<Retryable<LanguageModel>>(
-        (rule) => (context) =>
-          activeApiKeyFallback && context.current.model === keyPoolModel ? undefined : rule(context)
-      ),
-      ...crossModelRetries
-    ]
-    const retryModel = retries.length > 0 ? wrapWithRetries(keyPoolModel, retries) : keyPoolModel
-
-    if (!options.primaryReplayRouteId) return retryModel
-
-    const resolvePinned = async (params: LanguageModelV3CallOptions) => {
-      const route = getPendingReplayRoute(params.prompt)
-      if (!route || route === options.primaryReplayRouteId) return undefined
-      for (const resolve of fallbackResolvers) {
-        const fallback = await resolve()
-        if (fallback?.replayRouteId === route) {
-          options.onFallbackActivated?.(fallback)
-          return outputRetries.length
-            ? { ...fallback, model: wrapWithRetries(fallback.model, outputRetries) }
-            : fallback
-        }
-      }
-      throw new ToolContinuationRouteError()
+      const retries: Retries<LanguageModel> = [
+        // A replacement key already runs the same-model rules under its own attempt budget.
+        ...sameModelRetries.map<Retryable<LanguageModel>>(
+          (rule) => (context) =>
+            selectedCredential && context.current.model === keyPoolModel ? undefined : rule(context)
+        ),
+        ...crossModelRetries
+      ]
+      return { model: retries.length ? wrapWithRetries(keyPoolModel, retries) : keyPoolModel, params }
     }
 
     return wrapLanguageModel({
-      model: retryModel,
+      model: base,
       middleware: {
         specificationVersion: 'v3',
-        wrapGenerate: async ({ params, doGenerate }) => {
-          const pinned = await resolvePinned(params)
-          return pinned ? pinned.model.doGenerate({ ...params, ...pinned.options }) : doGenerate()
+        wrapGenerate: async ({ params }) => {
+          const events = createModelRetryEvents(options.onRetryEvent, options.diagnosticContext, params.abortSignal)
+          try {
+            const call = await createCall(params, events)
+            return await call.model.doGenerate(call.params)
+          } finally {
+            events.settle()
+          }
         },
-        wrapStream: async ({ params, doStream }) => {
-          const pinned = await resolvePinned(params)
-          return pinned ? pinned.model.doStream({ ...params, ...pinned.options }) : doStream()
+        wrapStream: async ({ params }) => {
+          const events = createModelRetryEvents(options.onRetryEvent, options.diagnosticContext, params.abortSignal)
+          try {
+            const call = await createCall(params, events)
+            return events.observeStream(await call.model.doStream(call.params))
+          } catch (error) {
+            events.settle()
+            throw error
+          }
         }
       }
     })
