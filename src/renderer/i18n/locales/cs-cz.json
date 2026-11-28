@@ -1164,7 +1164,7 @@
   "chat.settings.code_wrappable": "Bloky kódu zalamovat",
   "chat.settings.show_line_numbers": "Zobrazovat čísla řádků v kódu",
   "chat.settings.thought_auto_collapse.label": "Sbalit obsah uvažování",
-  "chat.settings.thought_auto_collapse.tip": "Po skončení uvažování automaticky sbalit obsah uvažování",
+  "chat.settings.thought_auto_collapse.tip": "Ve výchozím nastavení sbalit obsah uvažování hned od začátku",
   "chat.topics.auto_rename": "Vygenerovat název konverzace",
   "chat.topics.auto_rename_failed": "Automatické vygenerování názvu konverzace se nezdařilo",
   "chat.topics.clear.title": "Vymazat zprávy",

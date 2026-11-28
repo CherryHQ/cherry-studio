@@ -1162,7 +1162,7 @@
   "chat.settings.code_wrappable": "Bloco de código com quebra de linha",
   "chat.settings.show_line_numbers": "Exibir números de linha no código",
   "chat.settings.thought_auto_collapse.label": "Conteúdo de pensamento colapsado automaticamente",
-  "chat.settings.thought_auto_collapse.tip": "O conteúdo de pensamento será colapsado automaticamente após a conclusão do pensamento",
+  "chat.settings.thought_auto_collapse.tip": "Manter o raciocínio recolhido por predefinição desde o início",
   "chat.topics.auto_rename": "Gerar nome de tópico",
   "chat.topics.auto_rename_failed": "Falha ao gerar nome da conversa automaticamente",
   "chat.topics.clear.title": "Limpar mensagens",

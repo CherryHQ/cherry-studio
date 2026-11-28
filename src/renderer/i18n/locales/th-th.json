@@ -1162,7 +1162,7 @@
   "chat.settings.code_wrappable": "บล็อกโค้ดตัดบรรทัดได้",
   "chat.settings.show_line_numbers": "แสดงหมายเลขบรรทัดในโค้ด",
   "chat.settings.thought_auto_collapse.label": "ยุบเนื้อหาความคิด",
-  "chat.settings.thought_auto_collapse.tip": "ยุบเนื้อหาความคิดโดยอัตโนมัติหลังจากสิ้นสุดการคิด",
+  "chat.settings.thought_auto_collapse.tip": "แสดงเนื้อหาการให้เหตุผลแบบยุบไว้ตั้งแต่เริ่มต้นตามค่าเริ่มต้น",
   "chat.topics.auto_rename": "สร้างชื่อสนทนา",
   "chat.topics.auto_rename_failed": "ไม่สามารถสร้างชื่อสนทนาอัตโนมัติ",
   "chat.topics.clear.title": "ลบข้อความ",
