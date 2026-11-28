@@ -116,63 +116,59 @@ export const SHARED_ARTIFACTS = {
   },
   'sherpa-onnx': {
     id: 'sherpa-onnx',
-    version: '1.13.6',
+    version: '2.0.3',
     installDirKey: 'feature.sherpa_onnx.binary',
     provenance: {
       license: {
         spdx: 'Apache-2.0',
-        url: 'https://github.com/k2-fsa/sherpa-onnx/blob/1cb484af5e69d3c7803c1eb0b3b5ab8041e0e911/LICENSE'
+        url: 'https://github.com/k2-fsa/sherpa-onnx/blob/38016c6e0622e90bf417c35e8b47e0eb805af417/LICENSE'
       },
       upstream: {
         url: 'https://github.com/k2-fsa/sherpa-onnx',
-        revision: '1cb484af5e69d3c7803c1eb0b3b5ab8041e0e911'
+        revision: '38016c6e0622e90bf417c35e8b47e0eb805af417'
       }
     },
+    // Version installSubdir per release so upgrades fetch matching native bindings instead of loading stale 1.13.6 binaries.
     platforms: {
       'darwin-arm64': {
         packageName: 'sherpa-onnx-darwin-arm64',
-        tarballSha256: '213f438edec89d2adc85861a4377ee9620e5dd602db079252530637e79a325ab',
+        tarballSha256: '7e48259845d72528d344a0a4ca4c2837af7a6ea111bf5604096707dc3d3e2ff8',
         tarballPrefix: 'package/',
-        installSubdir: 'darwin/arm64',
+        installSubdir: '2.0.3/darwin/arm64',
         entryFile: 'sherpa-onnx.node',
-        supportFiles: ['libsherpa-onnx-c-api.dylib', 'libsherpa-onnx-cxx-api.dylib', 'libonnxruntime.dylib']
+        supportFiles: ['libsherpa-onnx-c-api.dylib', 'libonnxruntime.dylib']
       },
       'darwin-x64': {
         packageName: 'sherpa-onnx-darwin-x64',
-        tarballSha256: 'd8a60dd2656a81281235f2315dc6ff623257446c187f2b43fd6cb32daf45fbda',
+        tarballSha256: '0818d29eaff62b9f9f4e8c4042b8f73920562c31879ad33f9862c91dbda10571',
         tarballPrefix: 'package/',
-        installSubdir: 'darwin/x64',
+        installSubdir: '2.0.3/darwin/x64',
         entryFile: 'sherpa-onnx.node',
-        supportFiles: ['libsherpa-onnx-c-api.dylib', 'libsherpa-onnx-cxx-api.dylib', 'libonnxruntime.dylib']
+        supportFiles: ['libsherpa-onnx-c-api.dylib', 'libonnxruntime.dylib']
       },
       'linux-x64': {
         packageName: 'sherpa-onnx-linux-x64',
-        tarballSha256: '9aeb779dc87702db2640cbb29c097ac0585a34ecbc5b1c72f056903e2d74d7d5',
+        tarballSha256: '7db826dabf368aacc5bb63a918948d5aff206d01730c1153e5918ba67d705880',
         tarballPrefix: 'package/',
-        installSubdir: 'linux/x64',
+        installSubdir: '2.0.3/linux/x64',
         entryFile: 'sherpa-onnx.node',
-        supportFiles: ['libsherpa-onnx-c-api.so', 'libsherpa-onnx-cxx-api.so', 'libonnxruntime.so']
+        supportFiles: ['libsherpa-onnx-c-api.so', 'libonnxruntime.so']
       },
       'linux-arm64': {
         packageName: 'sherpa-onnx-linux-arm64',
-        tarballSha256: '14479ecdf502b36c49281c0eb2cfde43c406309039e49d124aee30761f436fbf',
+        tarballSha256: '0d41c3b83cefc468990c718a276079a2d7a3c4eb8d3bf087cff0fbd71524d3c6',
         tarballPrefix: 'package/',
-        installSubdir: 'linux/arm64',
+        installSubdir: '2.0.3/linux/arm64',
         entryFile: 'sherpa-onnx.node',
-        supportFiles: ['libsherpa-onnx-c-api.so', 'libsherpa-onnx-cxx-api.so', 'libonnxruntime.so']
+        supportFiles: ['libsherpa-onnx-c-api.so', 'libonnxruntime.so']
       },
       'win32-x64': {
         packageName: 'sherpa-onnx-win-x64',
-        tarballSha256: '3efca85485f3d56c09b62912d473e15b583a831d9541ed91c6fdab08e713025d',
+        tarballSha256: 'a965ef89c99381d99e0ae45e94021df6e2bd4db47f5cf97914dbde2507f32191',
         tarballPrefix: 'package/',
-        installSubdir: 'win32/x64',
+        installSubdir: '2.0.3/win32/x64',
         entryFile: 'sherpa-onnx.node',
-        supportFiles: [
-          'onnxruntime_providers_shared.dll',
-          'onnxruntime.dll',
-          'sherpa-onnx-c-api.dll',
-          'sherpa-onnx-cxx-api.dll'
-        ]
+        supportFiles: ['onnxruntime_providers_shared.dll', 'onnxruntime.dll', 'sherpa-onnx-c-api.dll']
       },
       'win32-arm64': {
         packageName: 'cherry-sherpa-onnx-win-arm64',
@@ -181,7 +177,7 @@ export const SHARED_ARTIFACTS = {
         ],
         tarballSha256: sherpaRuntimeRelease.sha256,
         tarballPrefix: 'runtime/',
-        installSubdir: 'win32/arm64',
+        installSubdir: '2.0.3/win32/arm64',
         entryFile: 'sherpa-onnx.node',
         supportFiles: [
           'onnxruntime_providers_shared.dll',
