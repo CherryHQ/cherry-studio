@@ -243,6 +243,25 @@ Coordinator duties around the selected engine:
    draft comment, but never describe that draft as submitted or visible to
    others.
 
+### PR verification evidence
+
+Use the scope and claimed outcomes to identify every user-visible UI fix and
+performance optimization, regardless of which files changed. Check the PR
+body and accessible conversation for the evidence required under
+`Verification` in the [PR template](../../../../.github/pull_request_template.md).
+
+- Open the screenshots or video and confirm that they show the affected
+  scenario before and after the fix. A screenshot of the fixed state alone
+  leaves the before/after comparison incomplete.
+- Check that the performance results compare the baseline and reviewed head
+  under comparable conditions and measure the claimed improvement. Timing
+  estimates, code inspection, and a passing CI status leave the measurement
+  requirement unmet.
+- Report missing, inaccessible, stale, or non-comparable evidence as a
+  PR-level verification finding and state what the author needs to supply.
+  Continue the code review. In an authorized submission, put PR-level
+  findings in the review body without an inline anchor.
+
 ### Agent Note / Spec review
 
 Read the PR body's `Agent Note`, `Spec PR`, and `Acceptance criteria` fields.
@@ -281,6 +300,9 @@ Present results to user:
 - Summary: one paragraph describing the purpose and scope of the change.
 - Overall assessment: code quality evaluation and key improvement directions.
 - Issue list (or "no issues found" if clean).
+- For applicable UI fixes and performance optimizations, link the reviewed
+  comparisons, summarize the measured before/after values, and list any
+  verification findings.
 - When `LIMITED_SINGLE_AGENT = true`: explicitly disclose that a non-small PR
   received single-agent review without independent adversarial verification
   because the runtime has no subagent capability.
@@ -291,9 +313,8 @@ Present results to user:
   `proposed`; regular PR review never accepts, inserts, or claims to persist
   checklist rules.
 
-If no issues → report that the review found no issues and stop. Do not submit
-an approval and do not merge; only run these when the user explicitly asks
-afterwards:
+If no code or verification issues were found, report that and stop. Submit
+an approval or merge only when the user explicitly asks afterwards:
 
 ```bash
 # Reuse the viewer's PENDING review id when one exists; otherwise start one
@@ -303,7 +324,7 @@ gh pr-review review submit --repo {OWNER_REPO} --pr {number} \
 gh pr merge {number} --squash --delete-branch
 ```
 
-If issues found → present them to the user in the following format:
+If code issues are found, present them to the user in the following format:
 
 ```
 {N}. [{priority}] {file}:{line} — {description and fix guidance}
@@ -312,6 +333,8 @@ If issues found → present them to the user in the following format:
 Where `{priority}` is the checklist item ID (e.g., A2, B1, C7).
 For Medium/High risk, fix guidance lists feasible options, key trade-offs, and
 an optional reviewer recommendation; it never presents an option as chosen.
+
+PR-level verification findings require no file or line citation.
 
 - **`AUTHORIZED_SUBMIT` = false** (default): stop here — no GitHub writes.
   If the user then asks to submit, that grants authorization; continue below.
@@ -355,7 +378,7 @@ comments. Do not use `gh pr comment` or raw `gh api` for review submission.
    against `CURRENT_REVIEWER_PENDING_COMMENTS` so a drafted point is not
    repeated.
 
-2. Add inline comments for each selected issue:
+2. Add inline comments for each confirmed code issue:
    ```bash
    gh pr-review review add-comment --repo {OWNER_REPO} --pr {number} \
      --review-id "{REVIEW_ID}" \
@@ -372,9 +395,10 @@ comments. Do not use `gh pr comment` or raw `gh api` for review submission.
      --body "**[{priority}]** {description and suggested fix}"
    ```
 
-3. Preview before submitting. `review preview` accepts only `--repo`, `--pr`,
-   and `--thread-id` — it has no `--review-id`, so preview the PR's pending
-   comments and, when needed, narrow to a single thread:
+3. If there are pending inline comments, preview them before submitting.
+   `review preview` accepts only `--repo`, `--pr`, and `--thread-id` — it has
+   no `--review-id`, so preview the PR's pending comments and, when needed,
+   narrow to a single thread:
    ```bash
    gh pr-review review preview --repo {OWNER_REPO} --pr {number}
    ```

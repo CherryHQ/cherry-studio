@@ -151,6 +151,11 @@ whole repo"), and report the results:
 
 - Docs/markdown-only fixes — including this skill's own files — run
   `pnpm docs:check`.
+- Applied user-visible UI fixes and performance optimizations also need the
+  evidence specified under `Verification` in the
+  [PR template](../../../.github/pull_request_template.md). Include the
+  applicable before/after comparisons in the fix report. If collection
+  is blocked, report the missing evidence and the blocker.
 - Code fixes run `pnpm lint` (which already ends with `pnpm format`, so never
   invoke `format` again) plus the tests covering the change: a per-project
   wrapper such as `pnpm test:main <file>` or `pnpm exec vitest run <file>`.

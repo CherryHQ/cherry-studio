@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/process/2026-11-28-pr-verification-evidence.md
+2026-11-28-pr-verification-evidence.md: 15a94ce5d7423cf4e286e9a0499a0e0009a690d6
+2026-11-28-pr-verification-evidence.zh.md: a78e1d1644051cc6549ec88998b94f219ec2a413
