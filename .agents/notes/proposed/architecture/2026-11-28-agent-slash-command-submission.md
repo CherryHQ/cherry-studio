@@ -24,6 +24,8 @@ Use the Agent composer's existing Quick Panel to complete command names at the s
 
 Tab, Enter on a highlighted candidate, and clicking a candidate insert its text in the draft. The user submits through the existing send action. Completion replaces the active token, preserves text and attachments outside it, and follows existing IME and dismiss behavior.
 
+Opening or reactivating an ordinary interactive ACP, Claude Agent, local Claude Code, or Codex conversation refreshes its live command catalog through the existing connection path. Main reuses an available connection or joins the in-flight open or restore. Claude reads the SDK catalog, and an active Codex connection requests a new Skill listing. A historical, archived, or inactive view does not start a runtime to read commands. Pi and Pi Durable read their builtin catalog.
+
 ## Alternatives considered
 
 - Filter command text only in the renderer. This leaves command rows in the product tree and input history and can change which input a later replay treats as conversation.
@@ -40,6 +42,8 @@ Tab, Enter on a highlighted candidate, and clicking a candidate insert its text 
 - AC6 — A typed prefix such as `/go` completes to the matching catalog command. Choosing a completion changes the draft only, and text outside the active token remains intact. (verification: renderer and Electron — implementation owner)
 - AC7 — A space after `/goal` opens the selected runtime's subcommand candidates. Typing `/goal pa` filters them to `pause`, and choosing it leaves `/goal pause` ready to send. Codex excludes Pi's `edit`, `rounds`, and `budget` candidates. (verification: catalog and renderer — implementation owner)
 - AC8 — Unknown slash text, a new argument after the first, and a native command without subcommand metadata do not open subcommand completion. Escape preserves the typed draft. (verification: renderer — implementation owner)
+
+- AC9 — Activating or returning to an ordinary Claude or Codex conversation updates the displayed command descriptions from the current connection. Codex sees updated Skill metadata on return. Browsing read-only history or an inactive view opens no connection for this purpose. (verification: renderer, Main and native catalog — implementation owner)
 
 ## Risks
 

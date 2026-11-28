@@ -24,6 +24,8 @@ Agent 输入框目前把大多数斜杠命令作为普通聊天输入发送。ru
 
 按 Tab、在高亮候选上按 Enter 或点击候选，都会将候选填入草稿。用户通过现有发送动作提交。补全只替换当前词，保留词外的文本和附件，并沿用输入法和关闭面板的现有行为。
 
+打开或重新激活普通 ACP、Claude Agent、本地 Claude Code 或 Codex 会话时，沿现有连接路径刷新命令目录。Main 复用可用连接，或等待正在进行的打开或恢复操作。Claude 读取 SDK 目录，已连接的 Codex 重新读取 Skill 列表。历史页、已归档会话或非活跃标签不会为了读取命令启动 runtime。Pi 和 Pi Durable 使用内置目录。
+
 ## 备选方案
 
 - 只在渲染进程过滤命令文本。命令行仍留在产品消息树和输入历史中，也可能改变后续回放时被视作会话输入的内容。
@@ -40,6 +42,8 @@ Agent 输入框目前把大多数斜杠命令作为普通聊天输入发送。ru
 - AC6 — 输入 `/go` 这样的前缀可以补全为目录中匹配的命令。选择候选只修改草稿，当前词以外的文本保持完整。（verification: renderer and Electron — implementation owner）
 - AC7 — 在 `/goal` 后输入空格会打开所选 runtime 的子命令候选。输入 `/goal pa` 会筛选出 `pause`，选择后草稿为待发送的 `/goal pause`。Codex 不显示 Pi 的 `edit`、`rounds` 和 `budget` 候选。（verification: catalog and renderer — implementation owner）
 - AC8 — 未识别的斜杠文本、第一个参数之后的新参数，以及缺少子命令元数据的原生命令均不会打开子命令补全。按 Escape 保留已输入的草稿。（verification: renderer — implementation owner）
+
+- AC9 — 打开或切回普通 Claude 或 Codex 会话时，界面从当前连接更新命令说明。切回 Codex 后可以看到更新后的 Skill 元数据。浏览只读历史或非活跃标签时不会为此打开连接。（verification: renderer, Main and native catalog — implementation owner）
 
 ## 风险
 

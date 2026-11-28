@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/dev/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/proposed/architecture/2026-11-28-agent-slash-command-submission.md
-2026-11-28-agent-slash-command-submission.md: c99eb925c3a7eda05ebfe77f47a27fc7151264c9
-2026-11-28-agent-slash-command-submission.zh.md: 8a8eb99ffcc4b842679f33857359c969652da174
+2026-11-28-agent-slash-command-submission.md: 9e8e9f8a2be5999ded37ba036064ff20a00c40b1
+2026-11-28-agent-slash-command-submission.zh.md: 00e86ab330cc51c83d94e1ccd0751bfd33717d50
