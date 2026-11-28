@@ -30,7 +30,7 @@ import type { SourceSnapshot } from '@main/data/services/AiUsageRecordService'
 import { messageService } from '@main/data/services/MessageService'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { isAbortError } from '@main/utils/error'
-import { projectAgentNonTextPart } from '@main/utils/messageOutputProjection'
+import { projectAgentNonTextPart, shouldDeferToolOutput } from '@main/utils/messageOutputProjection'
 import { withIdleTimeout } from '@main/utils/withIdleTimeout'
 import { extractAgentContextId, extractAgentSessionId, isAgentSessionTopic } from '@shared/ai/agentSessionTopic'
 import { toExecutionFailure } from '@shared/ai/executionFailure'
@@ -1613,7 +1613,6 @@ export class AiStreamManager extends BaseService {
         exec.buffer.push(segment)
       }
     }
-    HEAD
     // Released after buffering: evicting the opener to make room for its own
     // terminal output would orphan that output in attach replay.
     if (

@@ -204,6 +204,11 @@ function serializeOversizedToolOutput(output: unknown): string | undefined {
   }
 }
 
+export function shouldDeferToolOutput(output: unknown): boolean {
+  if (output === undefined || output === null || isDeferredToolOutput(output)) return false
+  return serializeOversizedToolOutput(output) !== undefined
+}
+
 /** Whether a payload exceeds the renderer transport budget. */
 function exceedsToolOutputTransportLimit(output: unknown): boolean {
   try {
