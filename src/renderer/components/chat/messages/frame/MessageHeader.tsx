@@ -1,5 +1,5 @@
 import dayjs from 'dayjs'
-import { ArrowUpRight, MousePointerClick, Sparkle, Target } from 'lucide-react'
+import { ArrowUpRight, MousePointerClick, Sparkle, Target, Terminal } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
 import { memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -132,6 +132,8 @@ const MessageHeader: FC<Props> = memo(
       displayModelName && displayProviderName ? `${displayModelName} | ${displayProviderName}` : displayModelName
     const ModelIcon = useIcon(useMemo(() => getModelLogoRef(displayModel), [displayModel]))
     const authorName = authorSnapshot ? authorSnapshot.name : assistantProfile?.name
+    const authorIcon =
+      !authorSnapshot || authorSnapshot.id === assistantProfile?.id ? assistantProfile?.avatarIcon : undefined
     const snapshotAvatarSrc = authorSnapshot?.avatarFileId
       ? meta.assistantAvatarSources?.get(authorSnapshot.avatarFileId)
       : undefined
@@ -142,6 +144,7 @@ const MessageHeader: FC<Props> = memo(
     const avatarKey = `${message.id}:${avatarSource}`
     const authorAvatar = failedAvatarKey === avatarKey ? authorSnapshot?.emoji : avatarSource
     const getUserName = useCallback(() => {
+      if (message.role === 'system') return t('chat.message.system')
       if (message.role === 'assistant') {
         return authorName || displayModel?.name || displayModel?.id || ''
       }
@@ -169,7 +172,9 @@ const MessageHeader: FC<Props> = memo(
     const hasBodySlot = !!contentSlot || !!footerSlot
     const toggleAuthorProfile = isAssistantMessage ? actions.toggleAuthorProfile : undefined
 
-    const assistantAvatar = authorAvatar ? (
+    const assistantAvatar = authorIcon ? (
+      <MessageAvatarFrame>{authorIcon}</MessageAvatarFrame>
+    ) : authorAvatar ? (
       <MessageAvatar
         avatar={authorAvatar}
         fallback={authorSnapshot?.emoji || avatarName}
@@ -194,6 +199,10 @@ const MessageHeader: FC<Props> = memo(
         className={`${showHeader ? 'message-header' : 'message-continuation'} group/header relative flex gap-2.5 ${hasBodySlot ? 'mb-0 items-start' : 'mb-2 items-center'}`}>
         {!showHeader ? (
           <span aria-hidden className="w-8 shrink-0" />
+        ) : message.role === 'system' ? (
+          <MessageAvatarFrame className="bg-muted text-muted-foreground">
+            <Terminal className={MESSAGE_MODEL_AVATAR_ICON_CLASS} aria-hidden="true" />
+          </MessageAvatarFrame>
         ) : toggleAuthorProfile ? (
           <button
             type="button"

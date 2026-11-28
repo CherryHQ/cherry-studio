@@ -10,8 +10,11 @@ When choosing a model, also weigh the task type, context length, multimodal and 
 * [Text Leaderboard](text.md): This is Arena AI's core text battle leaderboard, which estimates relative model strength from blind human-voted matchups.
 * [Search Leaderboard](search.md): This leaderboard measures how models perform on web search and information-retrieval tasks.
 * [Vision Leaderboard](vision.md): This leaderboard measures how multimodal models perform on image-understanding tasks.
+* [Document Leaderboard](document.md): This leaderboard measures how models perform on document understanding and analysis tasks, such as long documents, charts and scans.
 * [Code / Web Dev Leaderboard](code-webdev.md): This leaderboard measures how models perform in practice on web front-end development (HTML/CSS/JS) tasks.
 * [Text-to-Image Leaderboard](text-to-image.md): This leaderboard measures how well text-to-image models turn a text prompt into an image.
+* [Single-Image Editing Leaderboard](image-edit-single.md): This leaderboard measures how well models edit a single input image following an instruction.
+* [Text-to-Video Leaderboard](text-to-video.md): This leaderboard measures how well text-to-video models turn a text prompt into a video.
 
 ***
 

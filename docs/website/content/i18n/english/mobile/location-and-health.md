@@ -4,13 +4,13 @@ icon: map-pin
 
 # Location and Health Records
 
-The location tool reads your phone's current position. Health tools summarize existing iOS Health records. Each needs the agent's capability switch and system permission; Automatically approve does not grant access.
+The location tool reads your phone's current position; health tools read existing iOS Health records. Available tools depend on model/platform support and system permissions. Automatic approval neither grants OS access nor skips separate consent to health-record reads.
 
 ## Manage permissions
 
-Enable **Location** or **Health** in the current agent's **System** section, then authorize access when prompted. You can also check supported permissions and their status under **Settings → System Permissions**.
+Use Standard mode and a tool-capable text model, then authorize access when prompted or inspect **Settings → System Permissions**.
 
-To stop one agent using a capability, turn off its switch. To revoke the app's system access, follow the permission page's instructions to the relevant system settings.
+Revoke app access in the relevant system settings. The old agent switches are gone. Minimal mode excludes app tools without revoking OS permission.
 
 ## Get your location, then search nearby
 
@@ -41,7 +41,7 @@ The built-in location tool obtains a current foreground position. It does not pr
 
 ## Summarize health records on iOS
 
-Health access returns in **0.3.0** and requires an updated App package containing the native capability. **Every health query asks for confirmation, even under automatic approval**, and identifies the model provider receiving the data. Results remain in conversation history and may be sent to selected AI services with later messages. App approval and system Health authorization are separate; “requested” does not mean every data type was allowed.
+**Every health-record read asks for confirmation, even under automatic approval**, and identifies the model provider receiving the data. Results remain in conversation history and may be sent to selected AI services with later messages. App approval and system Health authorization are separate; “requested” does not mean every data type was allowed.
 
 Current tools can read these recorded data types:
 
@@ -49,8 +49,11 @@ Current tools can read these recorded data types:
 | --- | --- |
 | Daily activity | Steps, active energy, walking and running distance |
 | Heart measurements | Heart rate, resting heart rate, heart rate variability |
-| Sleep | Recorded sleep duration |
+| Sleep | Recorded duration and supported sleep-stage samples |
 | Workouts | Recorded workouts within a date range |
+| Other records | Device-supported weight, blood pressure, oxygen, nutrition, other types/samples, and supported record details |
+
+Ask the agent to list device-supported types before requesting metrics, samples, or record details. A type catalog does not establish authorization or available records; support depends on OS, hardware, and data sources.
 
 Authorize only the types you need. A step summary does not require sharing heart or sleep data. Current tools read records; they cannot write or delete Health records. Android currently does not offer these health tools.
 
@@ -62,7 +65,7 @@ Example requests:
 
 > List this month's recorded workouts, state how many were returned, and explain if the list may be incomplete.
 
-A query can span at most 90 days. Without dates, tools default to the last seven days. Workout lists default to 20 records and allow at most 50 per call. Query shorter periods when there are more records.
+Date-based queries span at most 90 days and generally default to seven days; current characteristics or medication catalogs have their own scope. Workout lists default to 20 and allow 50 per call. General samples support pages of up to 200; pages are not necessarily chronological. Follow the next page before claiming complete coverage or totals.
 
 ## Why are results empty or partial?
 

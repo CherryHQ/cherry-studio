@@ -2,11 +2,10 @@ import { Bolt, Minus } from 'lucide-react'
 import React, { memo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Avatar, AvatarFallback, Button, RowFlex, Tooltip } from '@cherrystudio/ui'
-import { useIcon } from '@cherrystudio/ui/icons'
+import { Button, Tooltip } from '@cherrystudio/ui'
+import ModelListRow from '@renderer/components/ModelListRow'
 import type { ModelWithStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
 import { toast } from '@renderer/services/toast'
-import { getModelLogoRef } from '@renderer/utils/model'
 import type { Model } from '@shared/data/types/model'
 import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
 
@@ -44,7 +43,6 @@ const ModelListItem: React.FC<ModelListItemProps> = ({
   onDelete
 }) => {
   const { t } = useTranslation()
-  const Icon = useIcon(getModelLogoRef(model))
   const deleteTooltip = isDefaultModel
     ? t('settings.models.manage.default_model_cannot_remove')
     : t('settings.models.manage.remove_model')
@@ -66,72 +64,50 @@ const ModelListItem: React.FC<ModelListItemProps> = ({
   }, [model, onDelete, t])
 
   return (
-    <div ref={ref} className={modelListClasses.row}>
-      <RowFlex className={modelListClasses.rowMain}>
-        {(() => {
-          return Icon ? (
-            <span className={modelListClasses.rowAvatar}>
-              <Icon.Avatar size={26} shape="circle" />
-            </span>
-          ) : (
-            <Avatar className={modelListClasses.rowAvatar}>
-              <AvatarFallback className="rounded-[inherit]">{model.name?.[0]?.toUpperCase()}</AvatarFallback>
-            </Avatar>
-          )
-        })()}
-        <div className={modelListClasses.rowBody}>
-          <div className="flex h-7 min-w-0 items-center gap-1.5">
-            <span className="inline-flex h-7 min-w-0 shrink select-text items-center overflow-hidden text-ellipsis whitespace-nowrap text-left font-normal text-foreground text-sm leading-none">
-              {model.name}
-            </span>
+    <ModelListRow ref={ref} model={model}>
+      <div className={modelListClasses.rowActionsCluster}>
+        <div className={modelListClasses.rowCapabilityStrip}>
+          <div className={modelListClasses.rowCapabilityTagCluster}>
+            <ModelTagsWithLabel model={model} provider={provider} size={12} style={{ flexWrap: 'nowrap' }} />
           </div>
+          <FreeTrialModelTag modelId={model.id} providerId={model.providerId} />
         </div>
-      </RowFlex>
-      <RowFlex className={modelListClasses.rowActions}>
-        <div className={modelListClasses.rowActionsCluster}>
-          <div className={modelListClasses.rowCapabilityStrip}>
-            <div className={modelListClasses.rowCapabilityTagCluster}>
-              <ModelTagsWithLabel model={model} provider={provider} size={12} style={{ flexWrap: 'nowrap' }} />
-            </div>
-            <FreeTrialModelTag modelId={model.id} providerId={model.providerId} />
-          </div>
-          <div className={modelListClasses.rowInlineActions}>
-            {modelStatus && onToggleApiKey ? (
-              <ModelCheckStatus
-                result={modelStatus}
-                apiKeyEntries={apiKeyEntries}
-                savingKeyId={savingKeyId}
-                onToggleKey={onToggleApiKey}
-              />
-            ) : null}
-            <Tooltip content={t('common.settings')} placement="top">
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                className={modelListClasses.rowActionButton}
-                aria-label={t('common.settings')}
-                disabled={disabled}
-                onClick={handleEdit}>
-                <Bolt className="size-4" />
-              </Button>
-            </Tooltip>
-            <Tooltip content={deleteTooltip} placement="top">
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                className={`${modelListClasses.rowActionButton} ${modelListClasses.rowDangerActionButton}`}
-                aria-label={t('settings.models.manage.remove_model')}
-                disabled={disabled || isDefaultModel}
-                onClick={handleDelete}>
-                <Minus className="size-4" />
-              </Button>
-            </Tooltip>
-          </div>
+        <div className={modelListClasses.rowInlineActions}>
+          {modelStatus && onToggleApiKey ? (
+            <ModelCheckStatus
+              result={modelStatus}
+              apiKeyEntries={apiKeyEntries}
+              savingKeyId={savingKeyId}
+              onToggleKey={onToggleApiKey}
+            />
+          ) : null}
+          <Tooltip content={t('common.settings')} placement="top">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className={modelListClasses.rowActionButton}
+              aria-label={t('common.settings')}
+              disabled={disabled}
+              onClick={handleEdit}>
+              <Bolt className="size-4" />
+            </Button>
+          </Tooltip>
+          <Tooltip content={deleteTooltip} placement="top">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className={`${modelListClasses.rowActionButton} ${modelListClasses.rowDangerActionButton}`}
+              aria-label={t('settings.models.manage.remove_model')}
+              disabled={disabled || isDefaultModel}
+              onClick={handleDelete}>
+              <Minus className="size-4" />
+            </Button>
+          </Tooltip>
         </div>
-      </RowFlex>
-    </div>
+      </div>
+    </ModelListRow>
   )
 }
 

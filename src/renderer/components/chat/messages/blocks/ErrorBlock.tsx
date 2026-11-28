@@ -18,6 +18,7 @@ import {
   getClaudeCodeExitCategory,
   getClaudeCodeExitInfo,
   getLocalModelResolutionFailure,
+  getProviderAuthenticationFailure,
   isUnattributedClaudeCodeExit
 } from '@renderer/utils/errorClassifier'
 
@@ -53,7 +54,7 @@ const ErrorMessage: React.FC<{ error: Props['error']; category: ErrorCategory }>
   const { t, i18n } = useTranslation()
   const { navigateToRoute } = useMessageListActions()
 
-  if (isUnattributedClaudeCodeExit(error)) return null
+  if (getProviderAuthenticationFailure(error) || isUnattributedClaudeCodeExit(error)) return null
   const claudeCodeExitMessage = getClaudeCodeExitMessage(error, t)
   if (claudeCodeExitMessage !== undefined) return claudeCodeExitMessage
 
@@ -138,8 +139,14 @@ const MessageErrorInfo: React.FC<{
   error: Props['error']
   message: MessageListItem
 }> = ({ partId, error, message }) => {
-  const { diagnoseMessageError, removeMessageErrorPart, openErrorDetail, navigateErrorTarget, notifyError } =
-    useMessageListActions()
+  const {
+    diagnoseMessageError,
+    removeMessageErrorPart,
+    openErrorDetail,
+    navigateErrorTarget,
+    notifyError,
+    renderLocalAgentUpgrade
+  } = useMessageListActions()
   const { setTimeoutTimer } = useTimer()
   const { t, i18n } = useTranslation()
   const [dataCollectionEnabled] = usePreference('app.privacy.data_collection.enabled')
@@ -154,7 +161,8 @@ const MessageErrorInfo: React.FC<{
   const appOwnedErrorKey = typeof errorI18nKey === 'string' ? `error.${errorI18nKey}` : ''
   const hasAppOwnedI18nKey = appOwnedErrorKey !== '' && i18n.exists(appOwnedErrorKey)
 
-  const providerId = getMessageListItemModel(message)?.provider ?? errorProviderId
+  const authentication = getProviderAuthenticationFailure(error)
+  const providerId = authentication?.providerId ?? getMessageListItemModel(message)?.provider ?? errorProviderId
   const classification = useMemo(() => classifyError(error, providerId), [error, providerId])
   const localModelFailure = useMemo(() => getLocalModelResolutionFailure(error), [error])
   const cloudPresentation = getCherryCloudErrorPresentation(error, providerId, classification.category)
@@ -170,6 +178,7 @@ const MessageErrorInfo: React.FC<{
     if (hasAppOwnedI18nKey && !providerId) return t(appOwnedErrorKey)
     if (localModelFailure) {
       const { providerId: failedProviderId, modelId } = localModelFailure
+      if (!modelId && failedProviderId) return t('error.diagnosis.provider_unavailable', { provider: failedProviderId })
       if (!modelId) return t('code.select_provider_model')
       return t('error.diagnosis.model_unavailable', {
         model: failedProviderId ? `${failedProviderId}/${modelId}` : modelId
@@ -297,7 +306,8 @@ const MessageErrorInfo: React.FC<{
       )}
 
       {/* Footer */}
-      <div className="mt-2.5 ml-5.75 flex items-center gap-2">
+      <div className="mt-2.5 ml-5.75 flex flex-wrap items-center gap-2">
+        {classification.i18nKey === 'error.diagnosis.codex_model_unsupported' && renderLocalAgentUpgrade?.()}
         {canDiagnose && (
           <Button size="sm" type="button" variant="outline" disabled={isDiagnosing} onClick={onDiagnose}>
             {t(isDiagnosing ? 'error.diagnosis.ai_loading' : 'error.diagnosis.ai_button')}

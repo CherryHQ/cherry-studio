@@ -4,7 +4,6 @@ import {
   type LookupInput,
   type InputLookup,
   type OperationResult,
-  type BusyPolicy,
   type InputDraft,
   type InputState,
   type SubmitResult
@@ -12,8 +11,8 @@ import {
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
 import type { AgentSessionMessageData, AgentSessionMessageRecord } from '@data/services/agentSessionMessageTree'
 
-function submissionDraft(message: AgentSessionMessageRecord, whenBusy: BusyPolicy, preparedText?: string): InputDraft {
-  if (preparedText !== undefined) return { inputId: runtimeId(message.id), text: preparedText, whenBusy }
+function submissionDraft(message: AgentSessionMessageRecord, preparedText?: string): InputDraft {
+  if (preparedText !== undefined) return { inputId: runtimeId(message.id), text: preparedText }
   if (!message.data.parts?.length) throw new Error('Native submission requires message content')
   const text = message.data.parts
     .map((part) => {
@@ -21,21 +20,35 @@ function submissionDraft(message: AgentSessionMessageRecord, whenBusy: BusyPolic
       return part.text
     })
     .join('\n')
-  return { inputId: runtimeId(message.id), text, whenBusy }
+  return { inputId: runtimeId(message.id), text }
+}
+
+function assertInputContent(message: AgentSessionMessageRecord, parts: AgentSessionMessageData['parts']): void {
+  if (JSON.stringify(message.data.parts) !== JSON.stringify(parts))
+    throw new Error('Native input content changed during preparation')
 }
 
 export function prepareNativeSubmission(
   sessionId: string,
   messageId: string,
   contextId: string,
-  whenBusy: BusyPolicy,
   prepared?: { text: string; parts: AgentSessionMessageData['parts'] }
 ): InputDraft {
   return application.get('DbService').withWriteTx((tx) => {
     const message = messages.bindInputContextTx(tx, sessionId, messageId, contextId)
-    if (prepared && JSON.stringify(message.data.parts) !== JSON.stringify(prepared.parts))
-      throw new Error('Native input content changed during preparation')
-    return submissionDraft(message, whenBusy, prepared?.text)
+    if (prepared) assertInputContent(message, prepared.parts)
+    return submissionDraft(message, prepared?.text)
+  })
+}
+
+export function bindNativeInput(
+  sessionId: string,
+  contextId: string,
+  input: { id: string; data: { parts?: AgentSessionMessageData['parts'] } }
+): void {
+  application.get('DbService').withWriteTx((tx) => {
+    const message = messages.bindInputContextTx(tx, sessionId, input.id, contextId)
+    assertInputContent(message, input.data.parts)
   })
 }
 

@@ -2,7 +2,6 @@ import { randomUUID } from 'node:crypto'
 
 import { UnsupportedFunctionalityError } from '@ai-sdk/provider'
 import type { ObjectTransportResponse, ObjectTransports } from '@earendil-works/pi-ai'
-import { RetryError } from 'ai'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
@@ -291,12 +290,7 @@ async function openObjectMessage<T>(
         fail(error)
       }
     },
-    onError: (result, error) => {
-      const terminal = RetryError.isInstance(error) ? error.lastError : error
-      fail(
-        objectGatewayError(terminal, terminal === error ? result.error : serializeError(terminal), request.outputFormat)
-      )
-    },
+    onError: (result, error) => fail(objectGatewayError(error, result.error, request.outputFormat)),
     onPaused: () => fail(streamInterruptedError()),
     isAlive: () => !closed
   }
@@ -305,6 +299,7 @@ async function openObjectMessage<T>(
     manager.streamPrompt({
       ...gatewayPromptOptions(request, usageContext, config.timeoutMs),
       maxRetries: 3,
+      onModelTransportFailure: config.agentContext?.onModelTransportFailure,
       streamId,
       listener
     })

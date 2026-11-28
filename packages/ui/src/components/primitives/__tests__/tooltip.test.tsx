@@ -70,6 +70,30 @@ function renderOpenTooltipContent(content: ReactNode, props?: ComponentProps<typ
 }
 
 describe('Tooltip', () => {
+  it.each([Tooltip, NormalTooltip])('honors the enclosing provider hover delay', (Component) => {
+    vi.useFakeTimers()
+    try {
+      render(
+        <TooltipProvider delayDuration={800}>
+          <Component content="Delayed details" asChild>
+            <button type="button">Trigger</button>
+          </Component>
+        </TooltipProvider>
+      )
+      fireEvent.pointerMove(screen.getByRole('button', { name: 'Trigger' }))
+      act(() => {
+        vi.advanceTimersByTime(799)
+      })
+      expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
+      act(() => {
+        vi.advanceTimersByTime(1)
+      })
+      expect(screen.getByRole('tooltip')).toHaveTextContent('Delayed details')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   describe('Radix trigger rendering', () => {
     it('unmounts an open tooltip content immediately when isDisabled turns true', () => {
       const { rerender } = render(
