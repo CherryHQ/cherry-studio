@@ -59,7 +59,12 @@ export function DoctorChecksPanel({ controller }: { readonly controller: DoctorC
             electron: t('settings.doctor.copy.electron'),
             node: t('settings.doctor.copy.node'),
             chrome: t('settings.doctor.copy.chrome'),
-            v8: t('settings.doctor.copy.v8')
+            v8: t('settings.doctor.copy.v8'),
+            agentPythonImage: t('settings.doctor.copy.agent_python_image'),
+            managedPyodide: t('settings.doctor.copy.managed_pyodide'),
+            managedPython: t('settings.doctor.copy.managed_python'),
+            managedOpenpyxl: t('settings.doctor.copy.managed_openpyxl'),
+            managedEtXmlfile: t('settings.doctor.copy.managed_et_xmlfile')
           },
           title: (id) => t(doctorCheckTitleKey(id)),
           status: (status) => t(DOCTOR_STATUS_LABEL_KEYS[status]),

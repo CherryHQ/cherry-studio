@@ -2,6 +2,8 @@ import { release } from 'node:os'
 
 import { app } from 'electron'
 
+import agentPythonRuntime from '@shared/data/presets/agentPythonRuntime.json'
+
 import type { DiagnosticWarning } from './types'
 
 interface DiagnosticSystemSnapshot {
@@ -22,6 +24,11 @@ interface DiagnosticSystemSnapshot {
     readonly electron?: string
     readonly node?: string
     readonly v8?: string
+    readonly agentPythonImage: string
+    readonly managedPyodide: string
+    readonly managedPython: string
+    readonly managedOpenpyxl: string
+    readonly managedEtXmlfile: string
   }
 }
 
@@ -54,7 +61,12 @@ export async function collectDiagnosticSystemInfo(warnings: Set<DiagnosticWarnin
       chrome: process.versions.chrome,
       electron: process.versions.electron,
       node: process.versions.node,
-      v8: process.versions.v8
+      v8: process.versions.v8,
+      agentPythonImage: agentPythonRuntime.imageVersion,
+      managedPyodide: agentPythonRuntime.pyodideVersion,
+      managedPython: agentPythonRuntime.pythonVersion,
+      managedOpenpyxl: agentPythonRuntime.packages.openpyxl,
+      managedEtXmlfile: agentPythonRuntime.packages['et-xmlfile']
     }
   }
 }

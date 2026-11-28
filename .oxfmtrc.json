@@ -29,6 +29,7 @@
     "src/main/integration/**",
     "src/main/services/nutstore/sso/lib/**",
     "src/preload/globals.d.ts",
+    "src/renderer/public/pyodide/**",
     "src/renderer/routeTree.gen.ts",
     "src/shared/data/bootConfig/bootConfigSchemas.ts",
     "src/shared/data/preference/preferenceSchemas.ts",

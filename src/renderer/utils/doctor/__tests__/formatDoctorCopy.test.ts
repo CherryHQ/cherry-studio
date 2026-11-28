@@ -22,7 +22,7 @@ describe('formatDoctorReportForCopy', () => {
         platform: 'darwin',
         arch: 'arm64',
         osRelease: '25.0.0',
-        runtime: { electron: '40.0.0', node: '24.0.0' },
+        runtime: { electron: '40.0.0', node: '24.0.0', managedOpenpyxl: '3.1.5', managedPyodide: '0.28.0' },
         isPackaged: true,
         isPortable: false,
         userDataPath: '/Users/private/Library/Application Support/CherryStudio'
@@ -69,6 +69,9 @@ describe('formatDoctorReportForCopy', () => {
     expect(text).toContain('global')
     expect(text).toContain('darwin arm64')
     expect(text).toContain('Electron: 40.0.0')
+    expect(text).toContain('managedOpenpyxl: 3.1.5')
+    expect(text).toContain('managedPyodide: 0.28.0')
+    expect(text).not.toContain('undefined:')
     expect(text).toContain('Cherry Cloud endpoint [network-endpoint-cloud]: FAIL')
     expect(text).toContain('status: 503')
     expect(text).not.toContain('secret-run-id')
