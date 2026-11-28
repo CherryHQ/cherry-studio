@@ -8,6 +8,7 @@ import { LEGACY_PREREQUISITE_VERSION, LEGACY_UPGRADE_VERSION } from '@data/migra
 import {
   findLegacyUpgradeProfile,
   getLegacyUpgradeDownloadUrl,
+  LEGACY_IN_APP_UPGRADE_VERSION,
   restoreInterruptedPortableTraySetting
 } from '@data/migration/legacyUpgrade'
 import { showLegacyUpgradeWindow } from '@data/migration/legacyUpgradeWindow'
@@ -60,6 +61,7 @@ export async function runLegacyUpgradeGate(): Promise<'handled' | 'skipped'> {
     const eligibility = getLegacyBridgeEligibility(profile.path)
     const prerequisiteTarget =
       eligibility.target?.version === LEGACY_PREREQUISITE_VERSION ? eligibility.target : undefined
+    const prerequisiteVersion = prerequisiteTarget?.version ?? LEGACY_IN_APP_UPGRADE_VERSION
     await showLegacyUpgradeWindow(
       {
         title: t('dialog.legacy_upgrade.title', undefined, language),
@@ -71,9 +73,9 @@ export async function runLegacyUpgradeGate(): Promise<'handled' | 'skipped'> {
               { prerequisite: LEGACY_PREREQUISITE_VERSION, version: LEGACY_UPGRADE_VERSION },
               language
             )
-          : t('dialog.legacy_upgrade.prerequisite', { version: LEGACY_UPGRADE_VERSION }, language),
+          : t('dialog.legacy_upgrade.prerequisite', { version: prerequisiteVersion }, language),
         download: t('dialog.legacy_upgrade.download', { version: LEGACY_UPGRADE_VERSION }, language),
-        downloadPrerequisite: t('dialog.legacy_upgrade.download', { version: LEGACY_PREREQUISITE_VERSION }, language),
+        downloadPrerequisite: t('dialog.legacy_upgrade.download', { version: prerequisiteVersion }, language),
         quit: t('dialog.legacy_upgrade.quit', undefined, language),
         installation: {
           enabled: !!eligibility.target,
@@ -97,7 +99,7 @@ export async function runLegacyUpgradeGate(): Promise<'handled' | 'skipped'> {
       {
         bridge: getLegacyUpgradeDownloadUrl(platform),
         prerequisite:
-          prerequisiteTarget?.url ?? getLegacyUpgradeDownloadUrl({ ...platform, version: LEGACY_PREREQUISITE_VERSION })
+          prerequisiteTarget?.url ?? getLegacyUpgradeDownloadUrl({ ...platform, version: prerequisiteVersion })
       },
       eligibility.target,
       profile.path

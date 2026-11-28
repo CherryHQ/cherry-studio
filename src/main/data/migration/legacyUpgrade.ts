@@ -12,13 +12,10 @@ import { getLegacyProfilePaths } from '@main/core/paths/legacyProfilePaths'
 import { getNormalizedExecutablePath, isUsableDataDir } from '@main/core/preboot/userDataLocation'
 import { bootConfigService } from '@main/data/bootConfig'
 
-import {
-  LEGACY_PREREQUISITE_VERSION,
-  LEGACY_UPGRADE_VERSION,
-  type LegacyBridgeVersion,
-  type LegacyLinuxPackageType
-} from './legacyBridgeTarget'
+import { LEGACY_UPGRADE_VERSION, type LegacyBridgeVersion, type LegacyLinuxPackageType } from './legacyBridgeTarget'
 import { MIGRATION_V2_STATUS, migrationStatusSchema } from './migrationStatus'
+
+export const LEGACY_IN_APP_UPGRADE_VERSION = '1.9.13'
 
 export function getLegacyUpgradeDownloadUrl({
   platform,
@@ -33,11 +30,12 @@ export function getLegacyUpgradeDownloadUrl({
   arch: string
   translated: boolean
   portable: boolean
-  version?: LegacyBridgeVersion
+  version?: LegacyBridgeVersion | typeof LEGACY_IN_APP_UPGRADE_VERSION
   edition?: 'global' | 'cn'
   linuxPackageType?: LegacyLinuxPackageType
 }): string {
   const nativeArch = translated ? 'arm64' : arch
+  const legacyAsset = version !== LEGACY_UPGRADE_VERSION
   if (nativeArch !== 'arm64' && nativeArch !== 'x64') throw new Error(`Unsupported architecture: ${nativeArch}`)
   let asset: string
   switch (platform) {
@@ -53,7 +51,7 @@ export function getLegacyUpgradeDownloadUrl({
     default:
       throw new Error(`Unsupported platform: ${platform}`)
   }
-  if (version === LEGACY_PREREQUISITE_VERSION) {
+  if (legacyAsset) {
     asset = asset.replace(/^(mac|win|linux)-/, '')
     if (platform === 'linux') {
       const legacyArch = {
@@ -64,8 +62,9 @@ export function getLegacyUpgradeDownloadUrl({
       asset = `${legacyArch}.${linuxPackageType}`
     }
   }
-  const host = edition === 'cn' && version !== LEGACY_PREREQUISITE_VERSION ? 'gitcode.com' : 'github.com'
-  return `https://${host}/CherryHQ/cherry-studio/releases/download/v${version}/Cherry-Studio-${edition === 'cn' && version !== LEGACY_PREREQUISITE_VERSION ? 'CN-' : ''}${version}-${asset}`
+  const chineseAsset = edition === 'cn' && !legacyAsset
+  const host = chineseAsset ? 'gitcode.com' : 'github.com'
+  return `https://${host}/CherryHQ/cherry-studio/releases/download/v${version}/Cherry-Studio-${chineseAsset ? 'CN-' : ''}${version}-${asset}`
 }
 
 function statIfPresent(file: string) {

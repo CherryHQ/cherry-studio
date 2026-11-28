@@ -40,11 +40,11 @@ describe('legacy upgrade gate', () => {
     const [screen, downloads] = vi.mocked(showLegacyUpgradeWindow).mock.calls[0]
     expect(screen.detail).toContain('2.2.2')
     expect(screen.detail).not.toContain('/legacy/profile')
-    expect(screen.prerequisite).toContain('1.9.12')
-    expect(screen.prerequisite).toContain('2.2.2')
+    expect(screen.prerequisite).toContain('v1.9.13')
+    expect(screen.downloadPrerequisite).toContain('v1.9.13')
     expect(screen.installation?.detail).toContain('2.2.2')
     expect(downloads.bridge).toContain('/releases/download/v2.2.2/Cherry-Studio-2.2.2-')
-    expect(downloads.prerequisite).toContain('/releases/download/v1.9.12/Cherry-Studio-1.9.12-')
+    expect(downloads.prerequisite).toContain('/releases/download/v1.9.13/Cherry-Studio-1.9.13-')
     expect(application.quit).toHaveBeenCalledOnce()
   })
 
