@@ -1,7 +1,7 @@
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { appErrorContextService } from '@renderer/services/AppErrorContextService'
+import { buildInlineErrorDetailRequest } from '@renderer/services/AppErrorDetailService'
 import { toast } from '@renderer/services/toast'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -58,12 +58,11 @@ const { useLaunchDialogController } = await import('../useLaunchDialogController
 
 const enabledProvider = { id: 'anthropic', name: 'Anthropic' } as Provider
 
-/** The snapshot the shared toast host records for the launch failure. */
-const reportedLaunchFailure = (key: string) =>
-  appErrorContextService.contextForHostError(
-    key,
-    vi.mocked(toast.error).mock.calls[0][0] as Parameters<typeof appErrorContextService.contextForHostError>[1]
-  )
+/** The Details request the launch dialog opens for its in-dialog failure. */
+const reportedLaunchFailure = (props: { failure?: Parameters<typeof buildInlineErrorDetailRequest>[0] | null }) => {
+  expect(props.failure).toBeTruthy()
+  return buildInlineErrorDetailRequest(props.failure!)
+}
 
 describe('useLaunchDialogController', () => {
   beforeEach(() => {
@@ -183,17 +182,15 @@ describe('useLaunchDialogController', () => {
       expect.objectContaining({ cliTool: CodeCli.QODER_CLI, directory: '/tmp/project', mode: 'own-login' })
     )
     expect(result.current.launchDialogProps.open).toBe(true)
-    const payload = vi.mocked(toast.error).mock.calls[0][0] as Parameters<
-      typeof appErrorContextService.contextForHostError
-    >[1]
-    expect(payload).toMatchObject({ title: 'code.launch.error', description: 'Directory does not exist: /tmp/project' })
-    const detail = appErrorContextService.contextForHostError('launch-run-rejected', payload)
-    expect(detail).toMatchObject({
+    expect(toast.error).not.toHaveBeenCalled()
+    const detail = reportedLaunchFailure(result.current.launchDialogProps)
+    expect(detail.localizedErrorMessage).toBe('code.launch.error')
+    expect(detail.context).toMatchObject({
       message: 'Directory does not exist: /tmp/project',
       operation: 'code_cli.run',
       source: 'code.launch'
     })
-    expect(detail.stack).toBeUndefined()
+    expect(detail.context.stack).toBeUndefined()
   })
 
   // The run payload's `gateway` flag is derived from the enabled provider: a CLI (here gemini-cli)
@@ -488,20 +485,12 @@ describe('useLaunchDialogController', () => {
 
     expect(result.current.launchDialogProps.open).toBe(true)
     expect(result.current.launching).toBe(false)
-    expect(toast.error).toHaveBeenCalledWith(
-      expect.objectContaining({
-        cause: failure,
-        data: expect.objectContaining({
-          errorContext: expect.objectContaining({
-            message: 'cli ipc rejected',
-            operation: 'code_cli.run',
-            source: 'code.launch'
-          }),
-          localizedErrorMessage: 'code.launch.error'
-        }),
-        title: 'code.launch.error'
-      })
-    )
+    expect(result.current.launchDialogProps.failure?.error).toBe(failure)
+    expect(reportedLaunchFailure(result.current.launchDialogProps).context).toMatchObject({
+      message: 'cli ipc rejected',
+      operation: 'code_cli.run',
+      source: 'code.launch'
+    })
 
     await act(async () => {
       result.current.launchDialogProps.onLaunch()
@@ -538,21 +527,13 @@ describe('useLaunchDialogController', () => {
     })
 
     expect(result.current.launching).toBe(false)
-    expect(toast.error).toHaveBeenCalledWith(
-      expect.objectContaining({
-        cause: failure,
-        title: 'code.launch.error',
-        data: expect.objectContaining({
-          localizedErrorMessage: 'code.launch.error',
-          errorContext: expect.objectContaining({
-            message: 'provider cli rejected',
-            operation: 'code_cli.run',
-            source: 'code.launch'
-          })
-        })
-      })
-    )
-    expect(toast.error).not.toHaveBeenCalledWith('code.launch.error')
+    expect(result.current.launchDialogProps.failure?.error).toBe(failure)
+    expect(reportedLaunchFailure(result.current.launchDialogProps).context).toMatchObject({
+      message: 'provider cli rejected',
+      operation: 'code_cli.run',
+      source: 'code.launch'
+    })
+    expect(toast.error).not.toHaveBeenCalled()
   })
 
   // Reviewer: launch previously ran the CLI without re-checking the gateway, so a stopped
@@ -724,7 +705,7 @@ describe('useLaunchDialogController', () => {
       expect(mocks.requestMock).not.toHaveBeenCalled()
       expect(result.current.launching).toBe(false)
       // The terminal was never asked to run, so Details must name the gateway step.
-      expect(reportedLaunchFailure('gateway-start-failed')).toMatchObject({
+      expect(reportedLaunchFailure(result.current.launchDialogProps).context).toMatchObject({
         message: 'API gateway failed to start',
         operation: 'api_gateway.ensure_running'
       })
@@ -741,7 +722,7 @@ describe('useLaunchDialogController', () => {
       })
 
       expect(mocks.requestMock).not.toHaveBeenCalled()
-      expect(reportedLaunchFailure('config-write-failed')).toMatchObject({
+      expect(reportedLaunchFailure(result.current.launchDialogProps).context).toMatchObject({
         message: 'EROFS: read-only file system',
         operation: 'code_cli.write_config'
       })

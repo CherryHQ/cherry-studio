@@ -3,7 +3,7 @@ import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { ipcApi } from '@renderer/ipc'
-import { toastAppError } from '@renderer/services/AppErrorDetailService'
+import type { InlineErrorDetailInput } from '@renderer/services/AppErrorDetailService'
 import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
@@ -81,6 +81,8 @@ export function useLaunchDialogController({
   const availableTerminals = useAvailableTerminals()
   const [launchOpen, setLaunchOpen] = useState(false)
   const [launching, setLaunching] = useState(false)
+  // In the dialog, not a toast: the dialog traps focus, so a toast's Details is out of keyboard reach.
+  const [launchFailure, setLaunchFailure] = useState<InlineErrorDetailInput | null>(null)
 
   // The picker displays a fallback terminal before the user has ever chosen one
   // (see LaunchDialog/CurrentConfigPanel); resolve that same fallback here so the
@@ -106,6 +108,9 @@ export function useLaunchDialogController({
       toast.error(t('code.folder_placeholder'))
       return
     }
+    const fail = (error: unknown, operation: string) =>
+      setLaunchFailure({ error, source: 'code.launch', operation, message: t('code.launch.error') })
+    setLaunchFailure(null)
     if (runWithoutProvider) {
       try {
         setLaunching(true)
@@ -117,21 +122,13 @@ export function useLaunchDialogController({
         })
         if (!runResult.success) {
           const detail = runResult.message?.trim()
-          toast.error({
-            title: t('code.launch.error'),
-            description: detail,
-            cause: detail ? { message: detail } : undefined,
-            data: { source: 'code.launch', operation: 'code_cli.run' }
-          })
+          fail(detail ? { message: detail } : undefined, 'code_cli.run')
           return
         }
         setLaunchOpen(false)
       } catch (err) {
         logger.error('Failed to launch CLI tool:', err as Error)
-        toastAppError(t('code.launch.error'), err, {
-          source: 'code.launch',
-          operation: 'code_cli.run'
-        })
+        fail(err, 'code_cli.run')
       } finally {
         setLaunching(false)
       }
@@ -246,18 +243,13 @@ export function useLaunchDialogController({
       })
       if (!runResult.success) {
         const detail = runResult.message?.trim()
-        toast.error({
-          title: t('code.launch.error'),
-          description: detail,
-          cause: detail ? { message: detail } : undefined,
-          data: { source: 'code.launch', operation: 'code_cli.run' }
-        })
+        fail(detail ? { message: detail } : undefined, 'code_cli.run')
       } else {
         setLaunchOpen(false)
       }
     } catch (err) {
       logger.error('Failed to launch CLI tool:', err as Error)
-      toastAppError(t('code.launch.error'), err, { source: 'code.launch', operation })
+      fail(err, operation)
     } finally {
       setLaunching(false)
     }
@@ -280,7 +272,10 @@ export function useLaunchDialogController({
   return {
     launchDialogProps: {
       open: launchOpen,
-      onClose: () => setLaunchOpen(false),
+      onClose: () => {
+        setLaunchOpen(false)
+        setLaunchFailure(null)
+      },
       toolName,
       directory,
       terminals: availableTerminals,
@@ -288,7 +283,8 @@ export function useLaunchDialogController({
       onSelectFolder: () => void handleSelectFolder(),
       onSelectTerminal: (terminal) => void setTerminal(terminal),
       onLaunch: () => void handleLaunch(),
-      launching
+      launching,
+      failure: launchFailure
     },
     launching,
     openLaunchDialog: () => setLaunchOpen(true)
