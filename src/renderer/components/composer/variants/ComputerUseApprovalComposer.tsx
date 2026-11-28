@@ -65,7 +65,7 @@ export function ComputerUseApprovalComposer({
     <div
       data-composer-viewport-inset-target=""
       className={cn(
-        'pointer-events-auto rounded-xl border border-border bg-background p-3 text-foreground',
+        'pointer-events-auto min-w-0 overflow-hidden rounded-xl border border-border bg-background p-3 text-foreground',
         className
       )}>
       <div className="flex items-center gap-2 font-medium text-sm">
@@ -78,14 +78,22 @@ export function ComputerUseApprovalComposer({
           {t('agent.toolPermission.error.sendFailed')}
         </p>
       )}
-      <div className="mt-3 flex flex-wrap justify-end gap-2">
-        <Button variant="outline" disabled={submitting} onClick={() => void respond('reject')}>
+      <div className="mt-3 flex min-w-0 flex-wrap justify-end gap-2">
+        <Button
+          variant="outline"
+          className="min-w-0 max-w-full"
+          disabled={submitting}
+          onClick={() => void respond('reject')}>
           {t('settings.computerUse.approval.reject')}
         </Button>
-        <Button variant="secondary" disabled={submitting} onClick={() => void respond('session')}>
+        <Button
+          variant="secondary"
+          className="min-w-0 max-w-full"
+          disabled={submitting}
+          onClick={() => void respond('session')}>
           {t('settings.computerUse.approval.session')}
         </Button>
-        <Button disabled={submitting} onClick={() => void respond('always')}>
+        <Button className="min-w-0 max-w-full" disabled={submitting} onClick={() => void respond('always')}>
           {t('settings.computerUse.approval.always')}
         </Button>
       </div>

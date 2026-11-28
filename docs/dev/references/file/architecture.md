@@ -156,6 +156,10 @@ currently cover binary reads, optimistic writes, metadata, path and dangling-sta
 internal-entry batch creation, trash operations, rename, open/reveal, and the directory-tree
 protocol.
 
+`file.select_folder` opens the native directory picker with an optional absolute starting path.
+It returns the selected absolute path or `null` when the user cancels.
+
+
 `file.batch_permanent_delete_from_trash` keeps its reference guard by default. The Archive UI's
 explicit detach action opts in to deleting the entry and cascading its association rows; internal
 blob cleanup remains best-effort, including when the blob is already missing.
@@ -193,7 +197,8 @@ External entries are best-effort references to user-owned paths:
 - `rename(id, newName)` renames the physical file within its current parent and updates the row;
 - `trash` and `restore` reject external entries;
 - `permanentDelete(id)` removes only the row and leaves the user's file on disk;
-- missing paths are reported through `DanglingState`, not treated as permission to delete the row.
+- missing paths are reported through `DanglingState`; only an explicit removal can detach a missing
+  translation original whose persistent references are all optional source references.
 
 UI copy must distinguish removing an external reference from deleting an internal managed file or
 an arbitrary path on disk.

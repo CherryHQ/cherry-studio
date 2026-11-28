@@ -74,6 +74,24 @@ describe('buildPathRegistry', () => {
     expect(buildPathRegistry()['feature.computer_use.runtime']).toBe(path.join('/mock/resources', 'computer-use', name))
   })
 
+  it('resolves WorkBuddy storage without creating it or using CodeBuddy configuration', () => {
+    const previous = process.env.WORKBUDDY_CONFIG_DIR
+    const previousCodeBuddy = process.env.CODEBUDDY_CONFIG_DIR
+    try {
+      delete process.env.WORKBUDDY_CONFIG_DIR
+      process.env.CODEBUDDY_CONFIG_DIR = '/unrelated-codebuddy'
+      expect(buildPathRegistry()['external.workbuddy.home']).toBe(path.join(os.homedir(), '.workbuddy'))
+      process.env.WORKBUDDY_CONFIG_DIR = '/selected-workbuddy'
+      expect(buildPathRegistry()['external.workbuddy.home']).toBe('/selected-workbuddy')
+      expect(shouldAutoEnsure('external.workbuddy.home')).toBe(false)
+    } finally {
+      if (previous === undefined) delete process.env.WORKBUDDY_CONFIG_DIR
+      else process.env.WORKBUDDY_CONFIG_DIR = previous
+      if (previousCodeBuddy === undefined) delete process.env.CODEBUDDY_CONFIG_DIR
+      else process.env.CODEBUDDY_CONFIG_DIR = previousCodeBuddy
+    }
+  })
+
   it.each(['darwin', 'win32', 'linux'] as const)(
     'locates the %s addon in target-specific unpackable resources',
     (platform) => {
@@ -93,6 +111,9 @@ describe('buildPathRegistry', () => {
     }
   )
 
+  it('leaves managed ACP materialization to the installation owner', () => {
+    expect(shouldAutoEnsure('feature.acp.agents')).toBe(false)
+  })
   it.each(['feature.pdfjs.cmaps', 'feature.pdfjs.standard_fonts'] as const)(
     'reads %s from the extraResources directory electron-builder ships',
     (key) => {

@@ -1,5 +1,5 @@
 import { isToolUIPart } from 'ai'
-import { and, asc, eq, inArray, lt, sql } from 'drizzle-orm'
+import { and, asc, eq, getTableColumns, inArray, lt, sql } from 'drizzle-orm'
 import { v7 as uuidv7 } from 'uuid'
 import * as z from 'zod'
 
@@ -16,6 +16,8 @@ import type { DbOrTx } from '@data/db/types'
 import { isDeferredToolOutput } from '@shared/ai/transport'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { CherryMessagePart } from '@shared/data/types/message'
+
+import { messageProvenanceSql } from './importedSessionHistory'
 
 const SQLITE_INARRAY_CHUNK = 500
 
@@ -397,6 +399,7 @@ export function getAgentSessionHead(db: DbOrTx, sessionId: string): string | nul
 export function agentSessionPathIds(sessionId: string, head: string) {
   return sql`(with recursive path(id, parent_id) as (
     select id, parent_id from agent_session_message where session_id = ${sessionId} and id = ${head}
+      and json_extract(data, '$.stagedFollowup') is null
     union
     select m.id, m.parent_id from agent_session_message m join path p on m.id = p.parent_id
       where m.session_id = ${sessionId}
@@ -421,13 +424,15 @@ export function readStoredAgentSessionPath(
   const selected = head ?? getAgentSessionHead(db, sessionId)
   if (!selected) return []
   const rows = db
-    .select()
+    .select({ ...getTableColumns(messages), provenance: messageProvenanceSql() })
     .from(messages)
     .where(and(eq(messages.sessionId, sessionId), inArray(messages.id, agentSessionPathIds(sessionId, selected))))
     .all()
   return attachAgentSessionMessagePartsTx(
     db,
-    orderAgentSessionPath(rows, selected).filter((row) => row.role !== 'root'),
+    orderAgentSessionPath(rows, selected)
+      .filter((row) => row.role !== 'root')
+      .map(({ provenance, ...row }) => ({ ...row, ...(provenance && { provenance }) })),
     includePartIds
   )
 }

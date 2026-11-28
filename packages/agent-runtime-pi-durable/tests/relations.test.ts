@@ -105,7 +105,7 @@ async function observe(handle: PiDurableThreadHandle) {
 }
 
 async function submit(handle: PiDurableThreadHandle) {
-  const result = await handle.input.submit({ inputId: runtimeId('input'), text: 'delegate', whenBusy: 'reject' })
+  const result = await handle.input.submit!({ inputId: runtimeId('input'), text: 'delegate' })
   expect(result.status).toBe('acknowledged')
 }
 

@@ -1,4 +1,6 @@
+import { MockMainPreferenceService } from '@test-mocks/main/PreferenceService'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
+import { dialog } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as FileFailureModule from '@main/services/file/failureFacts'
@@ -142,6 +144,7 @@ beforeEach(() => {
     if (name === 'FileManager') return fileManager
     if (name === 'DirectoryTreeManager') return directoryTreeManager
     if (name === 'WindowManager') return windowManager
+    if (name === 'PreferenceService') return MockMainPreferenceService.getInstance()
     throw new Error(`Unexpected application.get(${name})`)
   })
 })
@@ -150,6 +153,19 @@ const ctx = { senderId: null }
 const windowCtx = { senderId: 'win-1' }
 
 describe('fileHandlers', () => {
+  it('returns the folder picked in the native dialog and null on cancellation', async () => {
+    const defaultPath = '/projects/current' as AbsoluteFilePath
+    vi.mocked(dialog.showOpenDialog)
+      .mockResolvedValueOnce({ canceled: false, filePaths: ['/projects/new folder'] })
+      .mockResolvedValueOnce({ canceled: true, filePaths: [] })
+
+    await expect(fileHandlers['file.select_folder']({ defaultPath }, windowCtx)).resolves.toBe('/projects/new folder')
+    expect(dialog.showOpenDialog).toHaveBeenLastCalledWith(
+      expect.objectContaining({ defaultPath, properties: ['openDirectory'] })
+    )
+    await expect(fileHandlers['file.select_folder']({}, windowCtx)).resolves.toBeNull()
+  })
+
   it('dispatches clipboard copies to the path or entry owner, and refuses unmanaged callers first', async () => {
     const path = '/tmp/physical' as AbsoluteFilePath
     const pathHandle = { kind: 'path' as const, path }

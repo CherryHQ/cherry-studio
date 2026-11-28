@@ -1194,6 +1194,21 @@ describe('utils/image', () => {
       expect(previewSvg.getAttribute('height')).toBe('2731')
     })
 
+    it.each([
+      ['0 0 10000 1', '4096', '1'],
+      ['0 0 1 10000', '1', '4096']
+    ])('keeps an extreme-aspect viewBox preview positive: %s', async (viewBox, expectedWidth, expectedHeight) => {
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+      svg.setAttribute('viewBox', viewBox)
+      svg.setAttribute('width', '100%')
+
+      await imageInputToPreviewUrl(svg, { format: 'svg' })
+
+      const previewSvg = new DOMParser().parseFromString(await readBlob(previewBlob!), 'image/svg+xml').documentElement
+      expect(previewSvg.getAttribute('width')).toBe(expectedWidth)
+      expect(previewSvg.getAttribute('height')).toBe(expectedHeight)
+    })
+
     it('preserves an SVG that already has positive intrinsic dimensions', async () => {
       const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
       svg.setAttribute('viewBox', '0 0 800 400')
