@@ -192,6 +192,28 @@ describe('shellEnv – Windows registry PATH', () => {
 
   // -- Cherry Studio tool directories appended ------------------------------
 
+  it('sanitizes registry PATH before caching the raw environment', async () => {
+    mockRegistryPaths({ system: 'C:\\Windows;C:\\Tools\0', user: 'C:\\User\0' })
+    const env = await refreshShellEnv()
+    expect(env.Path).not.toContain('\0')
+    const raw = await getRawShellEnv()
+    expect(raw.Path).toBe('C:\\Windows;C:\\Tools;C:\\User')
+    expect(raw.Path).not.toContain('.cherrystudio')
+    raw.Path = 'mutated'
+    expect((await getRawShellEnv()).Path).toBe('C:\\Windows;C:\\Tools;C:\\User')
+  })
+
+  it('sanitizes every PATH casing on a cancellable cold raw read', async () => {
+    vi.resetModules()
+    const { getRawShellEnv: coldRead } = await import('../shellEnv')
+    process.env.PATH = 'C:\\Other'
+    mockRegistryPaths({ system: 'C:\\Tools\0' })
+    const raw = await coldRead(new AbortController().signal)
+    expect(raw.Path).toBe('C:\\Tools')
+    expect(raw.PATH).toBe('C:\\Tools')
+    expect((await coldRead()).Path).toBe('C:\\Tools')
+  })
+
   it('should preserve the unmodified user environment for system tools', async () => {
     process.env.MISE_DATA_DIR = 'C:\\Users\\TestUser\\mise-data'
     mockRegistryPaths({ system: 'C:\\Windows;C:\\UserNode' })
