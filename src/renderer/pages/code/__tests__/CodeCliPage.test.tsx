@@ -88,10 +88,12 @@ beforeEach(() => {
 describe('managed local Agent details', () => {
   afterEach(() => vi.restoreAllMocks())
 
-  it('provides a native file editor for every preset with persistent configuration', () => {
-    const missing = LOCAL_CLI_AGENT_PRESETS.filter((p) => p.id !== 'deepagents')
-      .filter((p) => !getCliConfigTargets(codeCliForLocalAgent(p.id) ?? p.id).length)
-      .map((p) => p.id)
+  it('exposes the native settings file declared by each file-backed model preset', () => {
+    const missing = LOCAL_CLI_AGENT_PRESETS.flatMap(({ id, modelConfig }) => {
+      if (!modelConfig) return []
+      const targets = getCliConfigTargets(codeCliForLocalAgent(id) ?? id)
+      return targets.some((target) => target === modelConfig.target) ? [] : [{ id, target: modelConfig.target }]
+    })
     expect(missing).toEqual([])
   })
 

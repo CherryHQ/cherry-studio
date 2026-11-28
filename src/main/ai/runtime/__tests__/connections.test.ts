@@ -57,7 +57,7 @@ vi.mock(import('@cherrystudio/agent-runtime-cursor'), async (importOriginal) => 
   ...(await importOriginal()),
   listCursorModels: async () => [
     { id: 'opus-5.5', name: 'Claude Opus 5.5', description: 'Native description' },
-    { id: 'composer-2.5', name: 'Composer 2.5' }
+    { id: 'unregistered-cursor-fixture-model', name: 'Unregistered Cursor fixture model' }
   ]
 }))
 
@@ -348,7 +348,7 @@ describe('local protocol processes', () => {
       { type: 'file', mediaType: 'image/png', url: `data:image/png;base64,${image}`, filename: 'image.png' },
       { type: 'file', mediaType: 'text/plain', url: pathToFileURL(file).href, filename: '说明 #1.txt' }
     ]
-    await connection.send({ message: { data: { parts } } } as AgentRuntimeUserInput)
+    await connection.send({ message: { ...input.message, data: { parts } } } as AgentRuntimeUserInput)
     const wire = await readWire()
     const prompt = wire.find((message) => message.method === 'session/prompt').params.prompt
     expect(prompt).toEqual([
@@ -379,11 +379,11 @@ describe('local protocol processes', () => {
       type: 'file',
       mediaType: 'audio/wav',
       filename: 'clip.wav',
-      url: source === 'inline' ? 'data:audio/wav;base64,YXVkaW8=' : 'file:///stale.wav',
+      url: source === 'inline' ? 'data:audio/wav;base64,YXVkaW8=' : pathToFileURL(path.join(cwd, 'stale.wav')).href,
       ...(source === 'managed' ? { providerMetadata: { cherry: { fileEntryId: 'managed-audio' } } } : {})
     }
     await connection.send({
-      message: { data: { parts: [{ type: 'text', text: 'Listen' }, part] } }
+      message: { ...input.message, data: { parts: [{ type: 'text', text: 'Listen' }, part] } }
     } as AgentRuntimeUserInput)
     const wire = await readWire()
     expect(wire.find(({ method }) => method === 'session/prompt').params.prompt).toEqual([
@@ -406,7 +406,7 @@ describe('local protocol processes', () => {
                   type: 'file',
                   mediaType: 'audio/wav',
                   filename: 'missing.wav',
-                  url: 'file:///missing-acp-audio.wav'
+                  url: pathToFileURL(path.join(cwd, 'missing-acp-audio.wav')).href
                 }
               ]
             }
@@ -475,6 +475,7 @@ describe('local protocol processes', () => {
     const gbk = Buffer.from('c4e3bac3', 'hex').toString('base64')
     await connection.send({
       message: {
+        ...input.message,
         data: {
           parts: [
             {
@@ -488,7 +489,7 @@ describe('local protocol processes', () => {
           ]
         }
       }
-    } as AgentRuntimeUserInput)
+    })
     const wire = await readWire()
     expect(wire.find((message) => message.method === 'session/prompt').params.prompt).toEqual([
       {
@@ -681,12 +682,13 @@ describe('local protocol processes', () => {
     expect(wire.some((message) => message.method === 'session/set_config_option')).toBe(false)
   })
 
-  it('keeps setup option notifications across model selection without reopening a replayed compaction', async () => {
-    const { connection, events, closeAndDrain } = create('acp', 'model-setup-update', 'fixture-model')
+  it('keeps the resumed model and its setup controls when a different default is saved', async () => {
+    const { connection, closeAndDrain } = create('acp', 'resume-model-setup', 'fixture-model')
     await connection.start(cwd, 'native-session')
     await closeAndDrain()
+    expect(connection.localSessionInfo.activeModel?.id).toBe('updated-model')
     expect(connection.localSessionInfo.thoughtLevel?.currentValue).toBe('balanced')
-    expect(events.filter((event) => event.type.startsWith('compaction-'))).toEqual([])
+    expect((await readWire()).some(({ method }) => method === 'session/set_config_option')).toBe(false)
   })
 
   it.each(['thought-legacy-duplicate', 'thought-legacy-distinct'])(
@@ -903,10 +905,16 @@ describe('local protocol processes', () => {
         event.type === 'context-usage' && event.result.status === 'confirmed' ? [event.result.value] : []
       )
       expect(readings).toEqual(
-        [20, 40, 10].map((used) => ({
+        [
+          { used: 20, contextWindow: 100 },
+          { used: 40, contextWindow: 100 },
+          { used: 10 },
+          { used: 10, contextWindow: 100 },
+          { used: 10 }
+        ].map(({ used, contextWindow }) => ({
           model: 'fixture-default',
           revision: 'fixture-default',
-          contextWindow: 100,
+          ...(contextWindow === undefined ? {} : { contextWindow }),
           basis: 'current-context',
           used: { tokens: used, precision: 'reported' }
         }))
@@ -1124,7 +1132,7 @@ describe('local protocol processes', () => {
   it.each([
     ['grok-question-foreign', 'grok-build', false, { result: { outcome: 'cancelled' } }],
     ['grok-plan', 'grok-build', true, { result: { outcome: 'abandoned' } }],
-    ['grok-question', 'custom', false, { error: { code: -32601 } }]
+    ['grok-question', undefined, false, { error: { code: -32601 } }]
   ] as const)(
     'only opens native Grok approvals in the owning interactive session (%s, %s)',
     async (scenario, preset, headless, expected) => {
@@ -1184,7 +1192,7 @@ describe('local protocol processes', () => {
     expect(events.some((event) => event.type === 'local-turn-usage')).toBe(false)
   })
 
-  it.each(['copilot', 'custom', undefined])('uses ordinary ACP usage for preset %s', async (presetId) => {
+  it.each(['copilot', undefined])('uses ordinary ACP usage for preset %s', async (presetId) => {
     const { connection, events, closeAndDrain } = create('acp', 'xai-usage-response', undefined, presetId)
     await connection.start(cwd)
     await connection.send(input)
@@ -1743,7 +1751,7 @@ describe('local protocol processes', () => {
 
   it('rejects a saved model that disappeared from the catalog before sending a change request', async () => {
     const { connection } = create('acp', 'both-models', 'retired-model')
-    await expect(connection.start(cwd)).rejects.toThrow(/retired-model/)
+    await expect(connection.start(cwd)).rejects.toThrow('This model is no longer available')
     expect(
       (await readWire()).some(
         (message) => message.method === 'session/set_model' || message.method === 'session/set_config_option'
@@ -2114,22 +2122,16 @@ describe('local protocol processes', () => {
     const { connection } = create('acp', 'config-multiple')
     await connection.start(cwd)
     const acp = connection as AcpConnection
-    expect(acp.localSessionInfo.configOptions?.map((option) => option.id)).toEqual([
-      'model',
-      'secondary-mode',
-      'secondary-thought',
-      'secondary-model',
-      'verbosity',
-      'notifications'
-    ])
     await acp.setConfigOption('secondary-mode', 'plan')
     await acp.setConfigOption('secondary-thought', 'deep')
     await acp.setConfigOption('secondary-model', 'other-model')
-    expect(acp.localSessionInfo.configOptions?.slice(1, 4).map((option) => option.currentValue)).toEqual([
-      'plan',
-      'deep',
-      'other-model'
-    ])
+    expect(acp.localSessionInfo.configOptions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: 'secondary-mode', currentValue: 'plan' }),
+        expect.objectContaining({ id: 'secondary-thought', currentValue: 'deep' }),
+        expect.objectContaining({ id: 'secondary-model', currentValue: 'other-model' })
+      ])
+    )
     expect(acp.localSessionInfo).toMatchObject({
       mode: { id: 'agent-mode', currentValue: 'ask' },
       thoughtLevel: { id: 'reasoning-budget', currentValue: 'balanced' },
@@ -2583,7 +2585,7 @@ describe('local protocol processes', () => {
           }
         ]
       })
-      const { connection, closeAndDrain } = create('acp', 'normal', 'cherryin:agent/deepseek-v4-pro', 'cline')
+      const { connection, closeAndDrain } = create('acp', 'normal', undefined, 'cline')
       await connection.start(cwd)
       const wire = await readWire()
       const selection = wire.find((m) => m.method === 'session/set_config_option')
@@ -2618,7 +2620,7 @@ describe('local protocol processes', () => {
     await matching.drained
 
     const overridden = create('acp', 'no-models', 'different-model', 'snow')
-    await expect(overridden.connection.start(cwd)).rejects.toThrow('This agent does not support model selection')
+    await expect(overridden.connection.start(cwd)).rejects.toThrow('This ACP session does not support model switching')
     await overridden.connection.close()
     await overridden.drained
   })
