@@ -13,6 +13,7 @@ interface VersionStatusCardProps {
   toolName: string
   status: VersionStatus
   onInstall?: () => void
+  onRetryDetection?: () => void
   onUpgrade?: () => void
   onRemove?: () => void
   onLaunch?: () => void
@@ -36,6 +37,7 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
   toolName,
   status,
   onInstall,
+  onRetryDetection,
   onUpgrade,
   onRemove,
   onLaunch,
@@ -59,22 +61,20 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
   const removing = status.operation?.status === 'removing'
   const failedInstall = status.operation?.status === 'failed' && status.operation.action === 'install'
   const failedRemoval = status.operation?.status === 'failed' && status.operation.action === 'remove'
+  const detectionUncertain = !!status.detectionStatus || status.applicationStatus === 'unknown'
   const retryInstall =
-    !failedRemoval &&
-    !!onInstall &&
-    (failedInstall || status.applicationStatus === 'broken' || status.applicationStatus === 'unknown')
+    !detectionUncertain && !failedRemoval && !!onInstall && (failedInstall || status.applicationStatus === 'broken')
+  const retryDetection = detectionUncertain && status.detectionStatus !== 'loading'
   const canRemove = !!onRemove && (status.applicationStatus === 'applied' || status.applicationStatus === 'broken')
   const installing = isInstalling || isUpgrading
   const busy = installing || removing
-  // "Up to date" must describe a genuinely current tool. A runnable-but-not-applied
-  // mise state (broken/conflict/unknown) still reports installed with no upgrade, so
-  // gate the badge on a clean application fact to avoid pairing it with Retry. A
-  // bundled/system source carries no application fact and stays eligible.
   const cleanlyInstalled =
     isInstalled &&
+    !detectionUncertain &&
+    !!status.latest &&
+    status.current === status.latest &&
     status.applicationStatus !== 'broken' &&
-    status.applicationStatus !== 'conflict' &&
-    status.applicationStatus !== 'unknown'
+    status.applicationStatus !== 'conflict'
   const launchUnavailable = !running && !canLaunch
 
   const launchButton = (
@@ -140,6 +140,9 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
           </div>
 
           <div className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
+            {detectionUncertain && (
+              <span>{t(status.detectionStatus === 'loading' ? 'common.loading' : 'common.unknown')}</span>
+            )}
             {isInstalled
               ? status.current && <span className="font-mono">v{status.current}</span>
               : status.latest && (
@@ -197,6 +200,12 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
             </Button>
           )}
 
+          {retryDetection && onRetryDetection && (
+            <Button type="button" variant="outline" size="sm" onClick={onRetryDetection}>
+              {t('common.retry')}
+            </Button>
+          )}
+
           {retryInstall && (
             <Button
               type="button"
@@ -227,7 +236,8 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
             </>
           ) : (
             !failedRemoval &&
-            !retryInstall && (
+            !retryInstall &&
+            !detectionUncertain && (
               <Button
                 type="button"
                 variant="outline"

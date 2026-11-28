@@ -2387,14 +2387,33 @@ describe('edit dialogs', () => {
     expect(screen.getByRole('heading', { name: title })).toBeInTheDocument()
   })
 
-  // A sealed builtin role has no skills page, so its deep link lands on the settings page.
-  it('opens the settings page for a skills deep link on an Agent without a skills page', () => {
-    const sealed = { ...AGENT, configuration: { ...AGENT.configuration, builtin_role: 'support' as const } }
-    render(<AgentEditDialog open resource={sealed} onOpenChange={vi.fn()} initialTab="tools.skills" />)
+  it.each([
+    ['support', undefined],
+    ['doctor', undefined],
+    ['support', 'tools.skills'],
+    ['doctor', 'tools.skills']
+  ] as const)('shows a read-only skills notice for %s when opened with %s', (role, initialTab) => {
+    const sealed = { ...AGENT, configuration: { ...AGENT.configuration, builtin_role: role } }
+    render(<AgentEditDialog open resource={sealed} onOpenChange={vi.fn()} initialTab={initialTab} />)
 
     expect(screen.getByRole('heading', { name: 'Edit Agent' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /^技能:/ })).not.toBeInTheDocument()
+    expect(screen.getByText(/skill list is fixed by the system/i)).toBeVisible()
+    expect(screen.queryByRole('button', { name: /^技能(?:$|:)/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('switch', { name: 'Skill One' })).not.toBeInTheDocument()
   })
+
+  it.each(['assistant', undefined] as const)(
+    'offers editable skills without the fixed-list notice for %s',
+    async (role) => {
+      const user = userEvent.setup()
+      const agent = role ? { ...AGENT, configuration: { ...AGENT.configuration, builtin_role: role } } : AGENT
+      render(<AgentEditDialog open resource={agent} onOpenChange={vi.fn()} />)
+
+      expect(screen.queryByText(/skill list is fixed by the system/i)).not.toBeInTheDocument()
+      await user.click(screen.getByRole('button', { name: /^技能:/ }))
+      expect(screen.getByRole('switch', { name: 'Skill One' })).toBeEnabled()
+    }
+  )
 
   it('waits for background skill refresh before initializing the editable baseline', async () => {
     installedSkillsState.current = {
