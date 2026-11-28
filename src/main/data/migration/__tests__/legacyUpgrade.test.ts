@@ -236,7 +236,7 @@ describe('legacy profile detection', () => {
 describe('fixed migration release downloads', () => {
   it.each([
     ['2.2.2', 'gitcode.com', 'Cherry-Studio-CN-2.2.2-mac-arm64.dmg'],
-    ['1.9.12', 'github.com', 'Cherry-Studio-1.9.12-arm64.dmg']
+    ['1.9.13', 'github.com', 'Cherry-Studio-1.9.13-arm64.dmg']
   ] as const)('uses a published China-edition download for %s', (version, host, asset) => {
     expect(
       getLegacyUpgradeDownloadUrl({
@@ -258,8 +258,8 @@ describe('fixed migration release downloads', () => {
     ['linux', 'x64', false, false, 'x86_64.AppImage'],
     ['linux', 'arm64', false, false, 'arm64.AppImage']
   ] as const)('selects prerequisite installer for %s/%s', (platform, arch, translated, portable, asset) => {
-    expect(getLegacyUpgradeDownloadUrl({ platform, arch, translated, portable, version: '1.9.12' })).toBe(
-      `https://github.com/CherryHQ/cherry-studio/releases/download/v1.9.12/Cherry-Studio-1.9.12-${asset}`
+    expect(getLegacyUpgradeDownloadUrl({ platform, arch, translated, portable, version: '1.9.13' })).toBe(
+      `https://github.com/CherryHQ/cherry-studio/releases/download/v1.9.13/Cherry-Studio-1.9.13-${asset}`
     )
   })
 

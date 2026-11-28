@@ -17,6 +17,7 @@ import { useTranslation } from 'react-i18next'
 import { ConfirmDialog, EmptyState, PageSidePanel } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { FileIcon } from '@renderer/components/icons/FileIcon'
+import IconButton from '@renderer/components/translate/IconButton'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { useLanguages, useTranslateHistories, useTranslateHistory } from '@renderer/hooks/translate'
 import { ipcApi } from '@renderer/ipc'
@@ -33,7 +34,6 @@ import {
   saveTranslationFileAs,
   type TranslationFiles
 } from '../translationFiles'
-import IconButton from './IconButton'
 
 const logger = loggerService.withContext('TranslateHistory')
 
@@ -311,7 +311,7 @@ const HistoryRow: FC<{
           onSelect(item.id)
         }
       }}
-      className="group relative flex w-full cursor-pointer flex-col gap-1.5 rounded-md p-2.5 text-left transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:outline-none">
+      className="group relative flex w-full cursor-pointer flex-col gap-1.5 rounded-md p-2.5 text-left transition-[color] hover:bg-accent focus-visible:bg-accent focus-visible:outline-none">
       <IconButton
         size="sm"
         tone="star"

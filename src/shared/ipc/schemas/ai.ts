@@ -425,7 +425,8 @@ export const aiRequestSchemas = {
           reasoningEffort: ReasoningEffortOptionSchema.optional(),
           serviceTier: ServiceTierSelectionSchema.optional(),
           fastMode: z.boolean().optional(),
-          followUp: z.boolean().optional()
+          followUp: z.boolean().optional(),
+          resendUnsentMessageId: z.uuid().optional()
         }),
         z.object({
           ...aiStreamRegenerateShape,
@@ -725,13 +726,23 @@ export const aiRequestSchemas = {
       topicId: z.string().min(1),
       change: z.discriminatedUnion('type', [
         z.strictObject({
+          type: z.literal('begin-edit'),
+          inputId: z.uuid(),
+          revision: z.int().nonnegative(),
+          token: z.uuid()
+        }),
+        z.strictObject({ type: z.literal('cancel-edit'), inputId: z.uuid(), token: z.uuid() }),
+        z.strictObject({
           type: z.literal('edit'),
           inputId: z.uuid(),
           revision: z.int().nonnegative(),
-          text: z.string()
+          token: z.uuid(),
+          parts: z.array(z.custom<CherryMessagePart>())
         }),
         z.strictObject({ type: z.literal('reorder'), before: z.array(z.uuid()), after: z.array(z.uuid()) }),
-        z.strictObject({ type: z.literal('withdraw'), inputId: z.uuid() })
+        z.strictObject({ type: z.literal('withdraw'), inputId: z.uuid() }),
+        z.strictObject({ type: z.literal('steer'), inputId: z.uuid() }),
+        z.strictObject({ type: z.literal('resume') })
       ])
     }),
     output: z.boolean()

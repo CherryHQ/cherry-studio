@@ -862,6 +862,17 @@ agent_servers:
     await expect(resolveLocalAgentLaunch(selected)).rejects.toMatchObject({ code: 'LOCAL_AGENT_NOT_INSTALLED' })
   })
 
+  it('rejects Antigravity subscription usage without spawning the CLI', async () => {
+    installSystemCommands('agy')
+    vi.mocked(spawnLocalAgentStdio).mockClear()
+    const account = bindAccount({ ...config, presetId: 'antigravity-acp' })
+
+    await expect(account.readSubscriptionUsage?.(new AbortController().signal)).resolves.toEqual({
+      status: 'unsupported'
+    })
+    expect(spawnLocalAgentStdio).not.toHaveBeenCalled()
+  })
+
   it('reads Amp subscription usage without requiring the chat adapter', async () => {
     installSystemCommands('amp')
     vi.mocked(spawnLocalAgentStdio).mockImplementationOnce(({ executable, args, env }) => {

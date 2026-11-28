@@ -50,9 +50,11 @@ describe('PlantUmlPreview', () => {
     const { container } = render(<PlantUmlPreview>{source}</PlantUmlPreview>)
     await advance()
     await reply({
-      svg: svg(
-        '<text>Alice to Bob</text><image href="https://example.invalid/image.png"/><style>@import "https://example.invalid/diagram.css";</style>'
-      )
+      svgs: [
+        svg(
+          '<text>Alice to Bob</text><image href="https://example.invalid/image.png"/><style>@import "https://example.invalid/diagram.css";</style>'
+        )
+      ]
     })
 
     const diagram = getHost(container).shadowRoot?.querySelector('svg')
@@ -64,7 +66,7 @@ describe('PlantUmlPreview', () => {
     const { container } = render(<PlantUmlPreview>{source}</PlantUmlPreview>)
     await advance()
     await reply({
-      svg: svg('<text fill="#FFF">Alice to Bob</text>').replace('<svg ', '<svg style="background:#000000;" ')
+      svgs: [svg('<text fill="#FFF">Alice to Bob</text>').replace('<svg ', '<svg style="background:#000000;" ')]
     })
 
     const diagram = getHost(container).shadowRoot?.querySelector('svg')
@@ -80,18 +82,49 @@ describe('PlantUmlPreview', () => {
     expect(screen.getByText('2: Cannot include diagram')).toBeInTheDocument()
   })
 
+  it('lets the user page through every page of a multi-page diagram', async () => {
+    const { container } = render(<PlantUmlPreview>{source}</PlantUmlPreview>)
+    await advance()
+    await reply({ svgs: [svg('<text>First page</text>'), svg('<text>Second page</text>')] })
+
+    expect(screen.getByText('第 1 页，共 2 页')).toBeInTheDocument()
+    expect(getHost(container).shadowRoot?.querySelector('svg')).toHaveTextContent('First page')
+
+    await act(async () => {
+      screen.getByRole('button', { name: '下一页' }).click()
+    })
+    expect(screen.getByText('第 2 页，共 2 页')).toBeInTheDocument()
+    expect(getHost(container).shadowRoot?.querySelector('svg')).toHaveTextContent('Second page')
+
+    await act(async () => {
+      screen.getByRole('button', { name: '上一页' }).click()
+    })
+    expect(screen.getByText('第 1 页，共 2 页')).toBeInTheDocument()
+    expect(getHost(container).shadowRoot?.querySelector('svg')).toHaveTextContent('First page')
+  })
+
+  it('shows no pager for a single-page diagram', async () => {
+    render(<PlantUmlPreview>{source}</PlantUmlPreview>)
+    await advance()
+    await reply({ svgs: [svg('<text>Only page</text>')] })
+
+    expect(screen.queryByText(/第 \d+ 页/)).toBeNull()
+  })
+
   it.each([nextSource, ''])('discards the obsolete result when the source changes to %j', async (next) => {
     const { container, rerender } = render(<PlantUmlPreview>{source}</PlantUmlPreview>)
     await advance()
     const obsoleteReply = FakeWorker.current?.onmessage
 
     rerender(<PlantUmlPreview>{next}</PlantUmlPreview>)
-    await act(async () => obsoleteReply?.(new MessageEvent('message', { data: { svg: svg('<text>Obsolete</text>') } })))
+    await act(async () =>
+      obsoleteReply?.(new MessageEvent('message', { data: { svgs: [svg('<text>Obsolete</text>')] } }))
+    )
     expect(getHost(container).shadowRoot?.querySelector('svg')).toBeFalsy()
 
     if (next) {
       await advance()
-      await reply({ svg: svg('<text>Bob to Carol</text>') })
+      await reply({ svgs: [svg('<text>Bob to Carol</text>')] })
       expect(getHost(container).shadowRoot?.querySelector('svg')).toHaveTextContent('Bob to Carol')
     }
   })
@@ -103,7 +136,9 @@ describe('PlantUmlPreview', () => {
     const host = getHost(container)
     unmount()
 
-    await act(async () => obsoleteReply?.(new MessageEvent('message', { data: { svg: svg('<text>Obsolete</text>') } })))
+    await act(async () =>
+      obsoleteReply?.(new MessageEvent('message', { data: { svgs: [svg('<text>Obsolete</text>')] } }))
+    )
     expect(host.shadowRoot?.querySelector('svg')).toBeFalsy()
   })
 
@@ -118,7 +153,7 @@ describe('PlantUmlPreview', () => {
     rerender(<PlantUmlPreview>{nextSource}</PlantUmlPreview>)
     await advance()
     expect(FakeWorker.current).not.toBe(timedOutWorker)
-    await reply({ svg: svg('<text>Bob to Carol</text>') })
+    await reply({ svgs: [svg('<text>Bob to Carol</text>')] })
     expect(getHost(container).shadowRoot?.querySelector('svg')).toHaveTextContent('Bob to Carol')
   })
 

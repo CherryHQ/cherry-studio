@@ -1,0 +1,438 @@
+name: Sync Legacy OS Branch
+
+on:
+  schedule:
+    - cron: "30 20 * * *" # 04:30 BJ Time; GitHub Actions only fires schedule from the default branch main
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Check if main is ahead without modifying branches
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sync-legacy-os-branch
+  cancel-in-progress: false
+
+env:
+  TARGET_BRANCH: build/legacy-os-support
+  SOURCE_BRANCH: main
+  SYNC_PR_BRANCH: auto-sync/legacy-os-main
+
+jobs:
+  sync:
+    name: Merge main into legacy OS branch
+    if: github.repository == 'CherryHQ/cherry-studio'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    outputs:
+      status: ${{ steps.merge.outputs.status }}
+      base_sha: ${{ steps.merge.outputs.base_sha }}
+      head_sha: ${{ steps.merge.outputs.head_sha }}
+    steps:
+      - name: Merge main into legacy OS branch
+        id: merge
+        env:
+          DRY_RUN: ${{ inputs.dry_run || false }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          BASE_SHA="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/$TARGET_BRANCH" --jq '.object.sha')"
+          HEAD_SHA="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/$SOURCE_BRANCH" --jq '.object.sha')"
+          echo "base_sha=$BASE_SHA" >> "$GITHUB_OUTPUT"
+          echo "head_sha=$HEAD_SHA" >> "$GITHUB_OUTPUT"
+
+          AHEAD_BY="$(gh api "repos/$GITHUB_REPOSITORY/compare/$BASE_SHA...$HEAD_SHA" --jq '.ahead_by')"
+          if [[ "$AHEAD_BY" -eq 0 ]]; then
+            echo "\`$TARGET_BRANCH\` is already up to date with \`$SOURCE_BRANCH\` (\`$HEAD_SHA\`)." >> "$GITHUB_STEP_SUMMARY"
+            echo "status=up-to-date" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [[ "$DRY_RUN" == "true" ]]; then
+            echo "Dry run: \`$TARGET_BRANCH\` is $AHEAD_BY commit(s) behind \`$SOURCE_BRANCH\` (\`$HEAD_SHA\`)." >> "$GITHUB_STEP_SUMMARY"
+            echo "status=dry-run" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          payload="$(jq -nc \
+            --arg base "$TARGET_BRANCH" \
+            --arg head "$HEAD_SHA" \
+            --arg msg "chore(legacy-os): merge $SOURCE_BRANCH into $TARGET_BRANCH" \
+            '{base: $base, head: $head, commit_message: $msg}')"
+
+          http_code="$(curl -sS -o "$RUNNER_TEMP/merge-response.json" -w '%{http_code}' \
+            -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/$GITHUB_REPOSITORY/merges" \
+            -d "$payload")"
+
+          case "$http_code" in
+            204)
+              echo "\`$TARGET_BRANCH\` is already up to date with \`$SOURCE_BRANCH\`." >> "$GITHUB_STEP_SUMMARY"
+              echo "status=up-to-date" >> "$GITHUB_OUTPUT"
+              ;;
+            201)
+              merged_sha="$(jq -r '.sha' "$RUNNER_TEMP/merge-response.json")"
+              verified="$(jq -r '.commit.verification.verified // false' "$RUNNER_TEMP/merge-response.json")"
+              echo "Merged \`$SOURCE_BRANCH\` (\`$HEAD_SHA\`) into \`$TARGET_BRANCH\`: \`$merged_sha\` (verified: \`$verified\`)." >> "$GITHUB_STEP_SUMMARY"
+              echo "status=merged" >> "$GITHUB_OUTPUT"
+              ;;
+            409)
+              echo "Merge conflict detected merging \`$SOURCE_BRANCH\` (\`$HEAD_SHA\`) into \`$TARGET_BRANCH\` (\`$BASE_SHA\`). Handing off to Claude Agent SDK." >> "$GITHUB_STEP_SUMMARY"
+              echo "status=conflict" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "::error::Unexpected GitHub merge API status: $http_code"
+              cat "$RUNNER_TEMP/merge-response.json" >&2
+              exit 1
+              ;;
+          esac
+
+  resolve-conflicts:
+    name: Resolve merge conflicts with Claude Agent SDK
+    needs: sync
+    if: needs.sync.outputs.status == 'conflict'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    outputs:
+      patch: ${{ steps.patch.outputs.ready }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.sync.outputs.base_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Prepare merge conflict worktree
+        id: prep
+        env:
+          HEAD_SHA: ${{ needs.sync.outputs.head_sha }}
+        run: |
+          set -euo pipefail
+
+          git fetch origin "$HEAD_SHA"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git merge --no-commit --no-ff "$HEAD_SHA" || true
+
+          while IFS= read -r -d '' p; do
+            if git cat-file -e "${HEAD_SHA}:${p}" 2>/dev/null; then
+              git checkout "$HEAD_SHA" -- "$p"
+              git add -- "$p"
+            else
+              git rm -f -- "$p"
+            fi
+          done < <(git diff --name-only --diff-filter=U -z -- .github)
+
+          github_hash="$(find .github -type f | LC_ALL=C sort | xargs sha256sum | sha256sum | awk '{print $1}')"
+          echo "github_hash=$github_hash" >> "$GITHUB_OUTPUT"
+
+          git diff --name-only --diff-filter=U > "$RUNNER_TEMP/conflicted-files.txt"
+          if [[ -s "$RUNNER_TEMP/conflicted-files.txt" ]]; then
+            echo "has_conflicts=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_conflicts=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: ./.github/actions/setup-validation
+        if: steps.prep.outputs.has_conflicts == 'true'
+        continue-on-error: true
+
+      - name: Resolve conflicts with Claude Agent SDK
+        id: claude
+        if: steps.prep.outputs.has_conflicts == 'true'
+        uses: anthropics/claude-code-action@v1
+        env:
+          ANTHROPIC_BASE_URL: ${{ vars.ANTHROPIC_BASE_URL }}
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ github.token }}
+          allowed_bots: ${{ github.actor }}
+          claude_args: >-
+            --model ${{ vars.ANTHROPIC_MODEL }} --max-turns 40
+            --tools "Bash,Edit,Glob,Grep,Read,Write"
+            --allowedTools "Edit,Write,Bash(git status:*),Bash(git diff:*),Bash(git add:*),Bash(git show:*),Bash(git log:*),Bash(git checkout --ours:*),Bash(git checkout --theirs:*),Bash(pnpm exec oxfmt:*),Bash(pnpm exec oxlint:*),Bash(pnpm exec eslint:*),Bash(pnpm typecheck:node),Bash(pnpm exec vitest run:*),Bash(pnpm test:scripts:*),Bash(pnpm test:main:*)"
+            --json-schema '{"type":"object","properties":{"resolved":{"type":"boolean"},"summary":{"type":"string"}},"required":["resolved","summary"],"additionalProperties":false}'
+          prompt: |
+            You are resolving merge conflicts from merging `main` (`${{ needs.sync.outputs.head_sha }}`) into `build/legacy-os-support` (`${{ needs.sync.outputs.base_sha }}`).
+            The conflicted file paths are listed in `${{ runner.temp }}/conflicted-files.txt`.
+
+            Requirements:
+            - Adopt upstream `main` changes while preserving all legacy OS support features and configs on `build/legacy-os-support`:
+              - `electron-builder.win7.config.cjs`, `electron-builder.mac12.config.cjs`, `build/nsis-installer-win7.nsh`
+              - `resolveElectronHeaderUrl` in `scripts/packaging/before-pack.js`
+              - `build:win7:*` and `build:mac12*` scripts in `package.json`
+              - `parseOsMajorVersion` / `isWindowsLegacy` in `src/main/core/platform.ts`
+              - Windows < 10 guards in `src/main/ai/voice/voicePlatform.ts`, `src/main/ai/voice/localAdapters/windows.ts`, and `src/main/features/fileProcessing/processors/system/imageToText/handler.ts`
+            - Stage each resolved file with `git add`.
+            - Format modified files with `pnpm exec oxfmt --write`, verify `pnpm exec oxlint --deny-warnings`, `pnpm typecheck:node`, and run relevant Vitest suites (`pnpm test:scripts scripts/__tests__/before-pack.test.ts scripts/__tests__/edition-packaging.test.ts` plus tests for any affected main modules).
+            - Do NOT edit anything under `.github/`, commit, push, or open a PR.
+            - Set `resolved` to `true` only when every conflict is cleanly resolved with no conflict markers left and the checks pass. Describe what conflicted, how each conflict was resolved, and exact check results in `summary`.
+
+      - name: Save resolved merge patch
+        id: patch
+        env:
+          GITHUB_HASH_BEFORE: ${{ steps.prep.outputs.github_hash }}
+          HAS_CONFLICTS: ${{ steps.prep.outputs.has_conflicts }}
+          HEAD_SHA: ${{ needs.sync.outputs.head_sha }}
+          CLAUDE_RESULT: ${{ steps.claude.outputs.structured_output }}
+        run: |
+          set -euo pipefail
+
+          github_hash_after="$(find .github -type f | LC_ALL=C sort | xargs sha256sum | sha256sum | awk '{print $1}')"
+          if [[ "$github_hash_after" != "$GITHUB_HASH_BEFORE" ]]; then
+            echo "::error::Conflict resolution modified .github/ files."
+            exit 1
+          fi
+
+          if [[ "$HAS_CONFLICTS" == "true" ]]; then
+            jq -r '.summary // empty' <<< "$CLAUDE_RESULT" | tee "$RUNNER_TEMP/merge-summary.md" >> "$GITHUB_STEP_SUMMARY"
+            if ! jq -e '.resolved == true' <<< "$CLAUDE_RESULT" > /dev/null; then
+              echo "Claude did not report a verified conflict resolution." >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+          else
+            echo "Conflicts only affected \`.github/\` and were resolved to \`main\`." | tee "$RUNNER_TEMP/merge-summary.md" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          if [[ -n "$(git diff --name-only --diff-filter=U)" ]]; then
+            echo "::warning::Unmerged paths remain after conflict resolution."
+            exit 0
+          fi
+
+          while IFS= read -r file; do
+            [[ -n "$file" && -f "$file" ]] || continue
+            if grep -qE '^(<<<<<<<|=======|>>>>>>>)' "$file"; then
+              echo "::warning::Conflict markers remain in $file"
+              exit 0
+            fi
+          done < "$RUNNER_TEMP/conflicted-files.txt"
+
+          git add -A
+          git diff --cached --binary "$HEAD_SHA" > "$RUNNER_TEMP/legacy-os-merge.patch"
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v7
+        if: steps.patch.outputs.ready == 'true'
+        with:
+          name: legacy-os-merge-resolution
+          path: |
+            ${{ runner.temp }}/legacy-os-merge.patch
+            ${{ runner.temp }}/merge-summary.md
+            ${{ runner.temp }}/conflicted-files.txt
+          retention-days: 1
+
+  open-pr:
+    name: Open merge resolution pull request
+    needs: [sync, resolve-conflicts]
+    if: needs.resolve-conflicts.outputs.patch == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.sync.outputs.head_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: legacy-os-merge-resolution
+          path: ${{ runner.temp }}
+
+      - name: Apply resolved merge tree and verify .github boundary
+        env:
+          BASE_SHA: ${{ needs.sync.outputs.base_sha }}
+        run: |
+          set -euo pipefail
+
+          git fetch origin "$BASE_SHA"
+          if [[ -s "$RUNNER_TEMP/legacy-os-merge.patch" ]]; then
+            git apply --index "$RUNNER_TEMP/legacy-os-merge.patch"
+          fi
+
+          while IFS= read -r -d '' p; do
+            staged_oid="$(git rev-parse ":$p" 2>/dev/null || true)"
+            base_oid="$(git rev-parse "$BASE_SHA:$p" 2>/dev/null || true)"
+            if [[ "$staged_oid" != "$base_oid" ]]; then
+              echo "::error::Unexpected modification to .github path: $p"
+              exit 1
+            fi
+          done < <(git diff --cached --name-only -z -- .github)
+
+      - name: Create verified 2-parent merge commit via GitHub API
+        id: commit
+        env:
+          BASE_SHA: ${{ needs.sync.outputs.base_sha }}
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ needs.sync.outputs.head_sha }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          current_base="$(gh api "repos/$REPO/git/ref/heads/$TARGET_BRANCH" --jq '.object.sha')"
+          if [[ "$current_base" != "$BASE_SHA" ]]; then
+            echo "$TARGET_BRANCH moved from \`$BASE_SHA\` to \`$current_base\` while resolving conflicts. Re-run sync to refresh." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          node <<'NODE'
+          const { execFileSync } = require('node:child_process')
+          const fs = require('node:fs')
+
+          const repo = process.env.REPO
+          const token = process.env.GH_TOKEN
+          const baseSha = process.env.BASE_SHA
+          const headSha = process.env.HEAD_SHA
+          const targetBranch = process.env.TARGET_BRANCH
+
+          async function ghRest(method, endpoint, body) {
+            const response = await fetch(`https://api.github.com/repos/${repo}${endpoint}`, {
+              method,
+              headers: {
+                Accept: 'application/vnd.github+json',
+                Authorization: `Bearer ${token}`,
+                'X-GitHub-Api-Version': '2022-11-28',
+                ...(body ? { 'Content-Type': 'application/json' } : {})
+              },
+              ...(body ? { body: JSON.stringify(body) } : {})
+            })
+            if (!response.ok) {
+              const text = await response.text()
+              throw new Error(`GitHub API ${method} ${endpoint} failed (${response.status}): ${text}`)
+            }
+            return response.json()
+          }
+
+          async function main() {
+            const headTreeSha = execFileSync('git', ['rev-parse', `${headSha}^{tree}`], { encoding: 'utf8' }).trim()
+            const changedPaths = execFileSync('git', ['diff', '--cached', '--name-only', '--no-renames', '-z'], {
+              encoding: 'buffer'
+            })
+              .toString('utf8')
+              .split('\0')
+              .filter(Boolean)
+
+            const regularModes = new Set(['100644', '100755'])
+            const treeEntries = []
+
+            for (const filePath of changedPaths) {
+              const stageLine = execFileSync('git', ['ls-files', '--stage', '--', filePath], { encoding: 'utf8' }).trim()
+              if (!stageLine) {
+                treeEntries.push({ path: filePath, mode: '100644', type: 'blob', sha: null })
+                continue
+              }
+              const mode = stageLine.slice(0, 6)
+              if (!regularModes.has(mode)) {
+                throw new Error(`Unsupported file mode ${mode} for ${filePath}`)
+              }
+              const stats = fs.lstatSync(filePath)
+              if (!stats.isFile() || stats.isSymbolicLink()) {
+                throw new Error(`Unsupported non-regular file ${filePath}`)
+              }
+              const content = fs.readFileSync(filePath).toString('base64')
+              const blob = await ghRest('POST', '/git/blobs', { content, encoding: 'base64' })
+              treeEntries.push({ path: filePath, mode, type: 'blob', sha: blob.sha })
+            }
+
+            let treeSha = headTreeSha
+            if (treeEntries.length > 0) {
+              const tree = await ghRest('POST', '/git/trees', {
+                base_tree: headTreeSha,
+                tree: treeEntries
+              })
+              treeSha = tree.sha
+            }
+
+            const commit = await ghRest('POST', '/git/commits', {
+              message: `chore(legacy-os): merge main into ${targetBranch}\n\nResolved merge conflicts from ${headSha} with Claude Agent SDK.`,
+              tree: treeSha,
+              parents: [baseSha, headSha]
+            })
+
+            const verifiedCommit = await ghRest('GET', `/commits/${commit.sha}`)
+            if (verifiedCommit?.commit?.verification?.verified !== true) {
+              throw new Error(`Merge commit ${commit.sha} was not verified by GitHub`)
+            }
+
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, `sha=${commit.sha}\n`)
+          }
+
+          main().catch((error) => {
+            console.error(error)
+            process.exit(1)
+          })
+          NODE
+
+      - name: Update sync branch and open or update PR
+        if: steps.commit.outputs.sha != ''
+        env:
+          BASE_SHA: ${{ needs.sync.outputs.base_sha }}
+          COMMIT_SHA: ${{ steps.commit.outputs.sha }}
+          GH_TOKEN: ${{ secrets.TOKEN_GITHUB_WRITE }}
+          HEAD_SHA: ${{ needs.sync.outputs.head_sha }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          if gh api "repos/$REPO/git/ref/heads/$SYNC_PR_BRANCH" >/dev/null 2>&1; then
+            gh api --method PATCH "repos/$REPO/git/refs/heads/$SYNC_PR_BRANCH" -f sha="$COMMIT_SHA" -F force=true >/dev/null
+          else
+            gh api --method POST "repos/$REPO/git/refs" -f ref="refs/heads/$SYNC_PR_BRANCH" -f sha="$COMMIT_SHA" >/dev/null
+          fi
+
+          CONFLICTED_LIST="$(sed '/^$/d; s/^/- `/' "$RUNNER_TEMP/conflicted-files.txt" | sed 's/$/`/' || true)"
+          if [[ -z "$CONFLICTED_LIST" ]]; then
+            CONFLICTED_LIST="- None (only \`.github/\` differed)"
+          fi
+          CLAUDE_SUMMARY="$(cat "$RUNNER_TEMP/merge-summary.md" 2>/dev/null || echo "No summary provided.")"
+          RUN_URL="$GITHUB_SERVER_URL/$REPO/actions/runs/$GITHUB_RUN_ID"
+
+          BODY="$(printf '%s\n' \
+            "### Daily Sync: \`$SOURCE_BRANCH\` → \`$TARGET_BRANCH\`" \
+            '' \
+            "- **Source (\`$SOURCE_BRANCH\`)**: \`$HEAD_SHA\`" \
+            "- **Base (\`$TARGET_BRANCH\`)**: \`$BASE_SHA\`" \
+            "- **Verified 2-parent merge commit**: \`$COMMIT_SHA\`" \
+            "- **Workflow run**: $RUN_URL" \
+            '' \
+            '> [!IMPORTANT]' \
+            "> Merge this pull request using **Create a merge commit** (not squash or rebase) so \`$SOURCE_BRANCH\` remains in the merge ancestry of \`$TARGET_BRANCH\`." \
+            '' \
+            '#### Conflicted files' \
+            "$CONFLICTED_LIST" \
+            '' \
+            '#### Claude Agent SDK resolution summary' \
+            "$CLAUDE_SUMMARY" \
+            '' \
+            '```release-note' \
+            'NONE' \
+            '```')"
+
+          EXISTING_PR_JSON="$(gh pr list --repo "$REPO" --base "$TARGET_BRANCH" --head "$SYNC_PR_BRANCH" --state open --json number,url)"
+          EXISTING_PR_NUMBER="$(jq -r '.[0].number // empty' <<< "$EXISTING_PR_JSON")"
+
+          if [[ -n "$EXISTING_PR_NUMBER" ]]; then
+            gh pr edit "$EXISTING_PR_NUMBER" --repo "$REPO" --body "$BODY"
+            gh pr comment "$EXISTING_PR_NUMBER" --repo "$REPO" --body "Updated conflict-resolved merge commit to \`$COMMIT_SHA\` from [workflow run]($RUN_URL)."
+          else
+            gh pr create --repo "$REPO" \
+              --base "$TARGET_BRANCH" \
+              --head "$SYNC_PR_BRANCH" \
+              --title "chore(legacy-os): merge $SOURCE_BRANCH into $TARGET_BRANCH" \
+              --body "$BODY"
+          fi

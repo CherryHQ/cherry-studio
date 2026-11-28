@@ -36,6 +36,35 @@ describe('CodeToolButton', () => {
     expect(onClick).toHaveBeenCalledTimes(3)
   })
 
+  it('runs only the focused child action when selecting with the keyboard', async () => {
+    const user = userEvent.setup()
+    const downloadSvg = vi.fn()
+    const downloadPng = vi.fn()
+    render(
+      <CodeToolButton
+        tool={makeTool({
+          tooltip: 'Download',
+          onClick: undefined,
+          children: [
+            makeTool({ id: 'svg', tooltip: 'SVG', onClick: downloadSvg }),
+            makeTool({ id: 'png', tooltip: 'PNG', onClick: downloadPng })
+          ]
+        })}
+      />
+    )
+    const trigger = screen.getByRole('button', { name: 'Download' })
+    await user.tab()
+    expect(trigger).toHaveFocus()
+    await user.keyboard('{Enter}{ArrowDown}')
+    expect(screen.getByRole('menuitem', { name: 'PNG' })).toHaveFocus()
+    await user.keyboard('{Enter}')
+
+    expect(downloadPng).toHaveBeenCalledOnce()
+    expect(downloadSvg).not.toHaveBeenCalled()
+    await waitFor(() => expect(trigger).toHaveFocus())
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+  })
+
   it('runs a child action and closes its menu', async () => {
     const user = userEvent.setup()
     const downloadSvg = vi.fn()
@@ -59,11 +88,11 @@ describe('CodeToolButton', () => {
       />
     )
 
-    expect(screen.queryByRole('button', { name: 'SVG' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: 'SVG' })).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Download' }))
-    await user.click(await screen.findByRole('button', { name: 'SVG' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'SVG' }))
 
     expect(downloadSvg).toHaveBeenCalledOnce()
-    await waitFor(() => expect(screen.queryByRole('button', { name: 'SVG' })).not.toBeInTheDocument())
+    await waitFor(() => expect(screen.queryByRole('menuitem', { name: 'SVG' })).not.toBeInTheDocument())
   })
 })

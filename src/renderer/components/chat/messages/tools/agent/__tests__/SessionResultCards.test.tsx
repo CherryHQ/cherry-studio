@@ -30,7 +30,7 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
-import { SessionResultCards } from '../SessionResultCards'
+import { SessionResultCards } from '../../SessionResultCards'
 
 function toolResponse(name: string, response: unknown, input?: Record<string, unknown>): NormalToolResponse {
   return {

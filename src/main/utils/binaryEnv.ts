@@ -98,7 +98,7 @@ export function getBinaryExecutionEnv(): Record<string, string> {
   return {
     MISE_DATA_DIR: dataDir,
     MISE_CONFIG_DIR: path.join(dataDir, 'config'),
-    MISE_CACHE_DIR: path.join(dataDir, 'cache'),
+    MISE_CACHE_DIR: application.getPath('feature.binary.data.cache'),
     MISE_STATE_DIR: path.join(dataDir, 'state'),
     MISE_SHIMS_DIR: getBinaryShimsDir(),
     // rustup owns rust's binaries, so they live outside MISE_DATA_DIR. Both the

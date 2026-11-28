@@ -939,7 +939,11 @@ export class CodexSession {
       turn.steers?.delete(inputId)
       steer.settle(endedSteer(turn, inputId))
     }
-    if (turn.id) await this.client.request('turn/interrupt', { threadId: this.id, turnId: turn.id })
+    if (turn.id) {
+      // An interrupt can finish the turn and close stdio before cancelled approvals reach the server.
+      if (this.options.signal.aborted) await this.client.flushServerReplies()
+      if (this.turn === turn) await this.client.request('turn/interrupt', { threadId: this.id, turnId: turn.id })
+    }
   }
 }
 

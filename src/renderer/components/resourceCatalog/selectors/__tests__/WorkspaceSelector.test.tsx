@@ -103,7 +103,7 @@ vi.mock('react-i18next', async (importOriginal) => {
   }
 })
 
-import { WorkspaceSelector } from '../WorkspaceSelector'
+import { WorkspaceSelector } from '../../WorkspaceSelector'
 
 const WORKSPACES = [
   {
