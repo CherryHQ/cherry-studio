@@ -20,6 +20,7 @@ import type {
   ClaudeThreadHandle
 } from '@cherrystudio/agent-runtime-claude-code'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
+import { agentSessionService } from '@data/services/AgentSessionService'
 import { modelService } from '@data/services/ModelService'
 import { loggerService } from '@logger'
 import { ChildThreadProjection } from '@main/ai/agentSession/ChildThreadProjection'
@@ -39,6 +40,7 @@ import {
   wrapAgentSessionDeliveryContent
 } from '@main/ai/runtime/agentUserContent'
 import { prepareClaudeBranch } from '@main/ai/runtime/claudeCode/claudeContext'
+import { openRebindSuccessor } from '@main/ai/runtime/claudeCode/rebindResume'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import { probeReadable } from '@main/utils/file'
 import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
@@ -190,11 +192,39 @@ export abstract class ClaudeSdkConnection<
       ? await this.runtime.open({ backendId: runtimeId(this.context.backendId), id: runtimeId(resume) })
       : await this.runtime.create(config)
     if (opened.status !== 'confirmed') {
-      if (resume && opened.error.code === 'native-storage-missing')
-        throw new LocalAgentSessionRestoreError(opened.error.message)
-      throw new Error(opened.error.message)
+      if (resume && opened.error.code === 'native-storage-missing') {
+        // AC5 of the session workdir rebind spec: a transcript miss under the current
+        // project tree is fail-closed unless a deliberate rebind is recorded; then the
+        // session continues as a successor engine session under the new cwd.
+        const successor = await openRebindSuccessor({
+          sessionId: this.input.sessionId,
+          resumeToken: resume,
+          backendId: this.context.backendId,
+          currentCwd: cwd,
+          primaryRuntime: this.runtime,
+          createConfig: config,
+          createRuntime: createClaudeCodeRuntime,
+          probeRuntimeOptions: (previousCwd) => ({
+            backendId: runtimeId(this.context!.backendId),
+            configDir: resolveClaudeConfigDirectory(options.env),
+            contextWindow,
+            load: async () => ({ ...config, cwd: previousCwd }),
+            onError: (error) => {
+              this.nativeError = error
+            }
+          }),
+          getWorkspaceEvents: (sessionId) => agentSessionService.getWorkspaceEvents(sessionId)
+        })
+        if (!successor) throw new LocalAgentSessionRestoreError(opened.error.message)
+        // The successor is a fresh engine session; the resume token keeps its constructor
+        // value until the new session's control message rebinds it (updateResumeToken).
+        this.handle = successor
+      } else {
+        throw new Error(opened.error.message)
+      }
+    } else {
+      this.handle = opened.value
     }
-    this.handle = opened.value
     this.abortController.signal.throwIfAborted()
     this.bindApprovalEmitter()
     await this.observeRoot(this.handle)

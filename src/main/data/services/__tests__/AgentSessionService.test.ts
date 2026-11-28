@@ -1246,6 +1246,52 @@ describe('AgentSessionService', () => {
     expect(dbh.db.transaction((tx) => agentSessionService.consumeWorkspaceChangeNoteTx(tx, untouched.id))).toBeNull()
   })
 
+  it('orders persisted workspace history by insertion when rebind timestamps tie', async () => {
+    const first = await createWorkspace('chain-a')
+    const second = await createWorkspace('chain-b')
+    const third = await createWorkspace('chain-c')
+    const session = await createSession('Multi-hop rebind', first.id)
+    agentSessionService.setWorkspace(session.id, { type: 'user', workspaceId: second.id })
+    agentSessionService.setWorkspace(session.id, { type: 'user', workspaceId: third.id })
+    application
+      .get('DbService')
+      .getDb()
+      .update(agentSessionWorkspaceEventTable)
+      .set({ createdAt: 1000 })
+      .where(eq(agentSessionWorkspaceEventTable.sessionId, session.id))
+      .run()
+    const events = agentSessionService.getWorkspaceEvents(session.id)
+    expect(events.map((event) => [event.previousWorkspaceId, event.newWorkspaceId])).toEqual([
+      [second.id, third.id],
+      [first.id, second.id]
+    ])
+    expect(agentSessionService.getLatestWorkspaceEvent(session.id)?.id).toBe(events[0].id)
+  })
+
+  it('returns the latest recorded rebind for resume verification', async () => {
+    const first = await createWorkspace('latest-before')
+    const second = await createWorkspace('latest-middle')
+    const third = await createWorkspace('latest-after')
+    const session = await createSession('Latest rebind event', first.id)
+    expect(agentSessionService.getLatestWorkspaceEvent(session.id)).toBeNull()
+
+    const now = vi.spyOn(Date, 'now').mockReturnValue(1000)
+    try {
+      agentSessionService.setWorkspace(session.id, { type: 'user', workspaceId: second.id })
+      now.mockReturnValue(2000)
+      agentSessionService.setWorkspace(session.id, { type: 'user', workspaceId: third.id })
+    } finally {
+      now.mockRestore()
+    }
+
+    expect(agentSessionService.getLatestWorkspaceEvent(session.id)).toMatchObject({
+      previousWorkspaceId: second.id,
+      previousWorkspacePath: second.path,
+      newWorkspaceId: third.id,
+      newWorkspacePath: third.path
+    })
+  })
+
   it('deletes a session', async () => {
     const session = await createSession('Delete me')
     notifyDataApiDataChangeMock.mockClear()
