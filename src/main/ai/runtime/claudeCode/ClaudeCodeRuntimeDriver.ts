@@ -82,8 +82,9 @@ import { ClaudePromptSuggestion } from './ClaudePromptSuggestion'
 import { ClaudeCodeResultError, toAgentRuntimeEvent } from './ClaudeRuntimeState'
 import { classifyClaudeFailure } from './failureFacts'
 import { ClaudeForkCheckpointSchema } from './forkCheckpoint'
-import { canSalvageClaudeOutput } from './processExitDiagnostics'
+import { resolveModelNativeImageSupport } from './modelImageSupport'
 import {
+  canSalvageClaudeOutput,
   createClaudeCodeProcessExitError,
   isClaudeCodeProcessFailure,
   type ClaudeCodeProcessDiagnostics
@@ -332,7 +333,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       input.systemReminder,
       {
         supportsAttachmentReads: this.assistantFileToolsEnabled,
-        supportsImages: resolveModelImageSupport(this.input.modelId)
+        supportsImages: resolveModelNativeImageSupport(this.input.modelId)
       }
     )
     const contextId = this.context!.id
