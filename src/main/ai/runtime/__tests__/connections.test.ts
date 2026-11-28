@@ -379,7 +379,7 @@ describe('local protocol processes', () => {
       type: 'file',
       mediaType: 'audio/wav',
       filename: 'clip.wav',
-      url: source === 'inline' ? 'data:audio/wav;base64,YXVkaW8=' : 'file:///stale.wav',
+      url: source === 'inline' ? 'data:audio/wav;base64,YXVkaW8=' : pathToFileURL(path.join(cwd, 'stale.wav')).href,
       ...(source === 'managed' ? { providerMetadata: { cherry: { fileEntryId: 'managed-audio' } } } : {})
     }
     await connection.send({
@@ -406,7 +406,7 @@ describe('local protocol processes', () => {
                   type: 'file',
                   mediaType: 'audio/wav',
                   filename: 'missing.wav',
-                  url: 'file:///missing-acp-audio.wav'
+                  url: pathToFileURL(path.join(cwd, 'missing-acp-audio.wav')).href
                 }
               ]
             }

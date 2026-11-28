@@ -1705,6 +1705,7 @@ describe('edit dialogs', () => {
       prompt: expect.any(String),
       content: 'Original instructions',
       model: DEFAULT_PROMPT_MODEL,
+      utilityTask: true,
       throwOnError: true,
       signal: expect.any(AbortSignal)
     })
@@ -2047,6 +2048,7 @@ describe('edit dialogs', () => {
       prompt: expect.any(String),
       content: 'Original prompt',
       model: DEFAULT_PROMPT_MODEL,
+      utilityTask: true,
       throwOnError: true,
       signal: expect.any(AbortSignal)
     })
@@ -2070,6 +2072,7 @@ describe('edit dialogs', () => {
       prompt: expect.any(String),
       content: 'Alpha Assistant',
       model: DEFAULT_PROMPT_MODEL,
+      utilityTask: true,
       throwOnError: true,
       signal: expect.any(AbortSignal)
     })
