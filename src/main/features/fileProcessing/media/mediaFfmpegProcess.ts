@@ -36,6 +36,8 @@ export interface MediaExtractedAudioChunk {
 
 export interface MediaExtractAudioResult {
   chunks: MediaExtractedAudioChunk[]
+  /** Timeline offset of the stream this extraction mapped; absent when that stream could not be probed. */
+  audioStartMs?: number
   sampleRateHz: 16000
   channels: 1
 }
