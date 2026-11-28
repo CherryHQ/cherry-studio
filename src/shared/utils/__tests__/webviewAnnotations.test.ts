@@ -15,6 +15,10 @@ describe('sanitizeWebviewAnnotationUrl', () => {
     )
   })
 
+  it('keeps a valid file source when its path contains a malformed escape', () => {
+    expect(sanitizeWebviewAnnotationUrl('file:///Users/example/100%/index.html')).toBe('file:index.html')
+  })
+
   it('reduces non-page schemes and rejects malformed values', () => {
     expect(sanitizeWebviewAnnotationUrl('data:text/html,secret')).toBe('data:')
     expect(sanitizeWebviewAnnotationUrl('not a url')).toBe('')

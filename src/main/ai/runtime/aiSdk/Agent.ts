@@ -29,6 +29,7 @@ import { resolveToolLoopTerminalError } from './loop/toolLoopTermination'
 import type { AgentLoopHooks, AgentLoopParams } from './loop/types'
 import { attachUsageObserver } from './observers/usage'
 import { composeHooks } from './params/composeHooks'
+import { getTerminalModelError } from './retry/createRetryableWrap'
 
 type AppProviderKey = StringKeys<AppProviderSettingsMap>
 
@@ -261,9 +262,12 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
       }
 
       logAiFailure(logger, 'agent generate error', err, 'agent.ai_sdk.generate', classifyAiSdkFailure(err))
+      const terminalError = getTerminalModelError(err)
       if (hooks.onError) {
         try {
-          await hooks.onError({ error: err instanceof Error ? err : new Error(String(err)) })
+          await hooks.onError({
+            error: terminalError instanceof Error ? terminalError : new Error(String(terminalError))
+          })
         } catch (hookErr) {
           logAiFailure(logger, 'hooks.onError threw; rethrowing original', hookErr, 'agent.ai_sdk.hook', {
             source: 'application',
@@ -274,7 +278,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
           })
         }
       }
-      throw err
+      throw terminalError
     }
   }
 
@@ -381,7 +385,15 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
         params.mediaCapabilities,
         params.tools,
         params.toolResultMediaCapabilities,
-        params.contextOwner !== 'caller' && usesAnthropicMessagesSdk(params.providerId)
+        {
+          preserveSignedGeminiWhitespace: true,
+          preserveEmptyAnthropicThinking:
+            params.contextOwner !== 'caller' &&
+            usesAnthropicMessagesSdk(params.providerId, {
+              endpointType: params.endpointType,
+              sdkConfig: { modelId: params.modelId }
+            })
+        }
       )
       let hasUsedProvidedMessageId = false
 
@@ -496,7 +508,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
         }
 
         const streamError = normalizeStreamError(
-          err,
+          getTerminalModelError(err),
           params.errorContext?.providerId ?? params.providerId,
           params.errorContext?.modelId ?? params.modelId
         )

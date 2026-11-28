@@ -461,6 +461,7 @@ async function deriveConnectionConfigFromSnapshot(
       .sort(([a], [b]) => a.localeCompare(b)),
     proxyEnvironment: proxyEnvironmentFingerprint,
     disabledTools: [...(agent.disabledTools ?? [])].sort(),
+    hideFileWriteTools: agent.configuration?.permission_mode === 'plan',
     knowledgeBaseIds: resolveKnowledgeBaseScope(agent.knowledgeBaseIds, selectedKnowledgeBaseIds),
     mcp: materialized?.mcp ?? deriveMcpDefinitionFacts(agent.mcps),
     notificationContext

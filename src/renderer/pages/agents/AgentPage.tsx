@@ -491,7 +491,7 @@ const AgentPage = () => {
 
   const resolveEmptySession = useCallback(
     async (agentId: string, defaults: CreateAgentSessionDefaults = {}): Promise<AgentSessionEntity> => {
-      const workspaceSource = await resolveCreateWorkspaceSource(defaults, visibleSession)
+      const workspaceSource = await resolveCreateWorkspaceSource({ ...defaults, agentId }, visibleSession)
       // A handoff destination holds its reviewed draft only in the session-keyed
       // draft cache, so an unnamed, message-less session reads as an empty
       // placeholder: a later new-conversation action would count it as reusable

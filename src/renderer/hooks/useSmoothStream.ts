@@ -112,14 +112,7 @@ export const useSmoothStream = ({
   const stallEstRef = useRef<number>(0)
   /** Ring of recent inter-arrival gaps (ms) for the relative ARM threshold. */
   const gapsRef = useRef<number[]>([])
-  /** Last arrival timestamp — survives `arrivalsRef` pruning so a >window
-   *  stall's gap is still measurable. Seeded to stream-start while idling so
-   *  the first arrival's gap is the startup/TTFT latency. */
-  const lastArrivalTRef = useRef<number>(0)
-  /** False until the first chunk: the startup/TTFT gap arms the cushion but
-   *  must NOT enter the cadence-median samples (it would poison the relative
-   *  ARM threshold for every later stall). */
-  const sawFirstChunkRef = useRef<boolean>(false)
+  const lastArrivalTRef = useRef<number | null>(null)
   /** Sub-1-grapheme-per-frame playout budget carried between frames so slow
    *  streams aren't forced up to MIN_STEP/frame. */
   const creditRef = useRef<number>(0)
@@ -136,21 +129,22 @@ export const useSmoothStream = ({
     if (chars.length === 0) return
     const now = performance.now()
     chunkQueueRef.current = [...chunkQueueRef.current, ...chars]
-    if (firstChunkTRef.current < 0) firstChunkTRef.current = now
+    const isFirstChunk = firstChunkTRef.current < 0
+    if (isFirstChunk) firstChunkTRef.current = now
     totalCharsRef.current += chars.length
 
     // Stall detection: a gap is a "stall" only if it dwarfs this stream's
     // own recent cadence (relative ARM) — protects slow-but-steady providers.
     const prev = lastArrivalTRef.current
     lastArrivalTRef.current = now
-    if (prev > 0) {
+    if (prev !== null) {
       const gap = now - prev
       const gaps = gapsRef.current
       // Startup/TTFT gap arms the cushion but is excluded from the cadence
       // median (median over GAP_SAMPLES is already robust to the ~few-percent
       // recurring stalls, but a single huge TTFT in a near-empty ring would
       // poison it). All later gaps feed the median.
-      if (sawFirstChunkRef.current) {
+      if (!isFirstChunk) {
         gaps.push(gap)
         if (gaps.length > GAP_SAMPLES) gaps.shift()
       }
@@ -161,7 +155,6 @@ export const useSmoothStream = ({
         // Fast attack: one stall arms the cushion (clamped to CAP).
         stallEstRef.current = Math.max(stallEstRef.current, Math.min(gap / 1000, TARGET_DELAY_CAP_SEC))
       }
-      sawFirstChunkRef.current = true
     }
     ensureLoopRef.current()
   }, [])
@@ -177,17 +170,13 @@ export const useSmoothStream = ({
       firstChunkTRef.current = -1
       stallEstRef.current = 0
       gapsRef.current = []
-      lastArrivalTRef.current = 0
-      sawFirstChunkRef.current = false
+      lastArrivalTRef.current = externalStreamDone === true ? null : performance.now()
       creditRef.current = 0
       lastFrameTimeRef.current = 0
       displayedTextRef.current = newText
       lastAccumulatedRef.current = newText
       if (externalStreamDone === undefined) setInternalStreamDone(false)
       onUpdateRef.current(newText)
-      // Revive the loop: it was just cancelled, and a same-value
-      // setInternalStreamDone wouldn't change renderLoop identity.
-      ensureLoopRef.current()
     },
     [externalStreamDone]
   )
@@ -226,20 +215,8 @@ export const useSmoothStream = ({
 
   const renderLoop = useCallback(() => {
     const queue = chunkQueueRef.current
-
-    // Empty queue: finalize + stop if the stream ended, else idle one frame.
     if (queue.length === 0) {
-      if (streamDone) {
-        onUpdateRef.current(displayedTextRef.current)
-        animationFrameRef.current = null
-        return
-      }
-      // Stamp stream-start while idling pre-first-token, so the first
-      // arrival's gap = startup/TTFT latency and arms the cushion like the
-      // (largest) stall it effectively is — covering even the first
-      // mid-stream stall. Fast-start providers (TTFT < ARM) stay at FLOOR.
-      if (lastArrivalTRef.current === 0) lastArrivalTRef.current = performance.now()
-      animationFrameRef.current = requestAnimationFrame(renderLoop)
+      animationFrameRef.current = null
       return
     }
 
@@ -263,11 +240,7 @@ export const useSmoothStream = ({
       displayedTextRef.current += queue.slice(0, n).join('')
       chunkQueueRef.current = queue.slice(n)
       onUpdateRef.current(displayedTextRef.current)
-      if (chunkQueueRef.current.length > 0 || !streamDone) {
-        animationFrameRef.current = requestAnimationFrame(renderLoop)
-      } else {
-        animationFrameRef.current = null
-      }
+      animationFrameRef.current = chunkQueueRef.current.length > 0 ? requestAnimationFrame(renderLoop) : null
       return
     }
 
@@ -326,20 +299,11 @@ export const useSmoothStream = ({
 
     onUpdateRef.current(displayedTextRef.current)
 
-    if (chunkQueueRef.current.length > 0 || !streamDone) {
-      animationFrameRef.current = requestAnimationFrame(renderLoop)
-    } else {
-      animationFrameRef.current = null
-    }
+    animationFrameRef.current = chunkQueueRef.current.length > 0 ? requestAnimationFrame(renderLoop) : null
   }, [streamDone, minDelay])
 
-  // The loop stops itself (animationFrameRef → null) when there is nothing
-  // to do. `ensureLoop` revives it; `addChunk`/`reset` call it so a queued
-  // chunk or a post-reset restart is never stranded waiting for a
-  // `renderLoop`-identity change (the old bug: reset cancelled the frame,
-  // and when `streamDone` didn't change value nothing rescheduled it).
   const ensureLoop = useCallback(() => {
-    if (animationFrameRef.current === null) {
+    if (animationFrameRef.current === null && chunkQueueRef.current.length > 0) {
       animationFrameRef.current = requestAnimationFrame(renderLoop)
     }
   }, [renderLoop])
@@ -349,6 +313,8 @@ export const useSmoothStream = ({
   })
 
   useEffect(() => {
+    // Measure the first-chunk wait without polling the empty queue.
+    if (!streamDone && lastArrivalTRef.current === null) lastArrivalTRef.current = performance.now()
     ensureLoop()
     return () => {
       if (animationFrameRef.current !== null) {
@@ -356,7 +322,7 @@ export const useSmoothStream = ({
         animationFrameRef.current = null
       }
     }
-  }, [ensureLoop])
+  }, [ensureLoop, streamDone])
 
   return { addChunk, reset, update }
 }

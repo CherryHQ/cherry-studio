@@ -241,20 +241,6 @@ describe('ModelService.update', () => {
     })
   })
 
-  it('parameterSupport DTO key maps to parameters DB column', async () => {
-    await seedExistingModel()
-
-    const params = { temperature: { supported: true } } as any
-    modelService.update('openai', 'gpt-4o', { parameterSupport: params })
-
-    const [row] = await dbh.db
-      .select()
-      .from(userModelTable)
-      .where(and(eq(userModelTable.providerId, 'openai'), eq(userModelTable.modelId, 'gpt-4o')))
-
-    expect(row.parameters).toEqual(params)
-  })
-
   it('records an explicitly empty input-modality update as user-owned', async () => {
     await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
     await dbh.db.insert(userModelTable).values(

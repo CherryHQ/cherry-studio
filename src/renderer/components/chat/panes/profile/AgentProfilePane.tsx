@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next'
 
 import { AgentChannels } from '@renderer/components/channel/AgentChannels'
+import { LocalAgentIcon } from '@renderer/components/icons/LocalAgentIcon'
 import { AgentAvatarPicker } from '@renderer/components/resourceCatalog/dialogs/components/AgentAvatarPicker'
 import { useAgent } from '@renderer/hooks/agent/useAgent'
 import { getAgentAvatar } from '@renderer/utils/agent'
@@ -41,14 +42,18 @@ export function AgentProfilePane({
     <ProfilePaneFrame>
       <ProfilePaneHeader
         avatar={
-          <AgentAvatarPicker
-            agentId={agent.id}
-            emoji={getAgentAvatar(agent.configuration?.avatar)}
-            avatarSrc={agent.avatarSrc}
-            ariaLabel={t('library.config.dialogs.create.avatar_aria')}
-            portalContainer={null}
-            size="lg"
-          />
+          agent.type === 'local' ? (
+            <LocalAgentIcon presetId={agent.localRuntime?.presetId} size={84} variant="card" />
+          ) : (
+            <AgentAvatarPicker
+              agentId={agent.id}
+              emoji={getAgentAvatar(agent.configuration?.avatar)}
+              avatarSrc={agent.avatarSrc}
+              ariaLabel={t('library.config.dialogs.create.avatar_aria')}
+              portalContainer={null}
+              size="lg"
+            />
+          )
         }
         name={agent.name}
         description={agent.description}

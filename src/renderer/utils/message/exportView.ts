@@ -14,6 +14,7 @@ export function exportViewToUIMessage(message: MessageExportView): CherryUIMessa
   if (message.siblingsGroupId !== undefined) metadata.siblingsGroupId = message.siblingsGroupId
   if (message.modelId) metadata.modelId = message.modelId
   if (message.messageSnapshot) metadata.messageSnapshot = message.messageSnapshot
+  if (message.provenance) metadata.provenance = message.provenance
   if (message.stats) {
     metadata.stats = message.stats
     if (message.stats.totalTokens) metadata.totalTokens = message.stats.totalTokens

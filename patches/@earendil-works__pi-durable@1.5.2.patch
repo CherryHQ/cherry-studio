@@ -170,7 +170,7 @@ index 840a966f75087d5a7b91ea82085f0ea7b6ced06d..235794fc87ff8e81751f3d404273d740
      phase: "prepare";
      attempt: number;
 diff --git a/dist/harness/generation.js b/dist/harness/generation.js
-index 27e60bb9b479b5600a7314f13bba25177a5e47d9..32446667cf4f6ce0ddd69f5c2b51c890fce9a43d 100644
+index 27e60bb9b479b5600a7314f13bba25177a5e47d9..331fc1d7be0424bdcf629aad59fd12485d6dec39 100644
 --- a/dist/harness/generation.js
 +++ b/dist/harness/generation.js
 @@ -92,7 +92,8 @@ export const GenerationTask = defineTask({
@@ -192,6 +192,15 @@ index 27e60bb9b479b5600a7314f13bba25177a5e47d9..32446667cf4f6ce0ddd69f5c2b51c890
                  }
                  const request = {
                      attempt,
+@@ -346,7 +347,7 @@ async function failModelError(runtime, text, context) {
+ async function interrupted(runtime, checkpoint, context) {
+     const { attempt, compacted } = checkpoint;
+     const policy = runtime.settings.retry;
+-    const retry = policy.enabled && attempt <= policy.maxRetries;
++    const retry = (policy.enabled || policy.resumeInterrupted) && attempt <= policy.maxRetries;
+     const until = retry ? runtime.now() + retryDelayMs(policy, attempt) : 0;
+     const polled = checkpoint.phase === "poll" ? checkpoint : undefined;
+     const text = polled === undefined
 @@ -615,7 +616,7 @@ async function classify(runtime, request, message, context) {
                  const live = await tx.doc(LiveDoc, conversationId);
                  await appendAssistant(tx, conversationId, message);
@@ -498,7 +507,7 @@ index 2da76582241fad1f38970312a9135c290333560e..d7cf741be9d5936e269496550c40d37a
          toolName: call.name,
          content,
 diff --git a/dist/harness/types.d.ts b/dist/harness/types.d.ts
-index 7f4a0ba59df6d5870248c60c055dd188fdab51c4..70ef230281e0a7f81bd98c0ae35a07b1ec630007 100644
+index 7f4a0ba59df6d5870248c60c055dd188fdab51c4..8a2f5b367517343df6e713986879bcd9c8ef450b 100644
 --- a/dist/harness/types.d.ts
 +++ b/dist/harness/types.d.ts
 @@ -1,3 +1,4 @@
@@ -553,7 +562,16 @@ index 7f4a0ba59df6d5870248c60c055dd188fdab51c4..70ef230281e0a7f81bd98c0ae35a07b1
      /** Extension sections, then `instructions` when set. */
      readonly sections: readonly PromptSection<Tool>[];
      readonly instructions?: string;
-@@ -758,8 +764,20 @@ export type ContextView = {
+@@ -510,6 +516,8 @@ export type ConversationStreamOptions = {
+ /** Durable generation attempt retries; the JSON shape of pi-ai `RetryPolicy`. */
+ export type ConversationRetryPolicy = {
+     enabled: boolean;
++    /** Resume a generation interrupted by host exit even when provider retries are disabled. */
++    resumeInterrupted?: boolean;
+     maxRetries: number;
+     baseDelayMs: number;
+     maxAgentDelayMs?: number;
+@@ -758,8 +766,20 @@ export type ContextView = {
      readonly messages: readonly Message[];
  };
  /** Stateless handle for one conversation, bound to the Harness that returned it. Compare handles by `id`. */
@@ -574,7 +592,7 @@ index 7f4a0ba59df6d5870248c60c055dd188fdab51c4..70ef230281e0a7f81bd98c0ae35a07b1
      /** Resolved with the current registry snapshot and settings. */
      agent(context: Context): Promise<Agent>;
      /** `configure()` in its own commit. */
-@@ -990,6 +1008,10 @@ export interface ToolHooks {
+@@ -990,6 +1010,10 @@ export interface ToolHooks {
  }
  /** Hooks of the built-in compaction task. */
  export interface CompactionHooks {
@@ -585,7 +603,7 @@ index 7f4a0ba59df6d5870248c60c055dd188fdab51c4..70ef230281e0a7f81bd98c0ae35a07b1
      /**
       * After range selection, before summarizing; the first decision wins. `entries` are the active entries the summary
       * replaces, the head marker first, and `messages` their model context, the summarizer's source; `firstKept` is the
-@@ -997,6 +1019,7 @@ export interface CompactionHooks {
+@@ -997,6 +1021,7 @@ export interface CompactionHooks {
       */
      beforeCompact(compaction: {
          readonly reason: CompactionReason;
@@ -593,7 +611,7 @@ index 7f4a0ba59df6d5870248c60c055dd188fdab51c4..70ef230281e0a7f81bd98c0ae35a07b1
          readonly entries: readonly EntryRecord[];
          readonly messages: readonly Message[];
          readonly firstKept: EntryId;
-@@ -1005,6 +1028,8 @@ export interface CompactionHooks {
+@@ -1005,6 +1030,8 @@ export interface CompactionHooks {
          readonly decline: true;
      } | {
          readonly summary: string;

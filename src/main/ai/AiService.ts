@@ -74,6 +74,7 @@ import { resolveAttachmentBudget } from './messages/attachmentBudget'
 import { prepareChatMessages } from './messages/attachmentRouting'
 import { buildHandoff, HANDOFF_SYSTEM_PROMPT, readHandoffSource } from './messages/handoffNote'
 import { resolveMediaCapabilities, resolveToolResultMediaCapabilities } from './messages/messageCapabilities'
+import type { NativeFileSupport } from './messages/nativeFileSupport'
 import { applyHttpTrace } from './observability'
 import { resolveProviderAiSdkConfig } from './provider/config'
 import { hasImageTransport, resolveImageTransport } from './provider/custom/imageTransportRegistry'
@@ -83,8 +84,9 @@ import { buildVendorProviderOptions } from './provider/custom/wire/buildImageReq
 import { DEFAULT_DIFFUSION_REGISTRATION, WIRE_REGISTRY } from './provider/custom/wire/wireProfile'
 import { resolveEffectiveEndpoint, resolveWireModelId } from './provider/endpoint'
 import { listModels as listModelsFromProvider, probeOllamaModel } from './provider/listModels'
+import { ToolContinuationRouteError } from './provider/replayRoute'
 import { resolveSdkConfig } from './provider/sdkConfig'
-import type { AgentLoopHooks, NativeFileSupport, RequestFeature } from './runtime/aiSdk'
+import type { AgentLoopHooks, RequestFeature } from './runtime/aiSdk'
 import {
   Agent,
   buildAgentParams,
@@ -306,7 +308,7 @@ export type AsInProcess<T extends AiRequest> = Omit<T, 'requestOptions'> & {
   requestOptions?: AiRequestOptions
   /** Trusted in-process classification for remote token analytics. */
   tokenUsageSource?: TokenUsageSource
-  resolvedModel?: { readonly provider: Provider; readonly model: Model }
+  resolvedModel?: { readonly provider: Provider; readonly model: Model; readonly replayRouteId?: string }
 }
 
 /** Chat requests additionally carry the turn's correlation and the stream manager's sinks. */
@@ -660,6 +662,8 @@ export class AiService extends BaseService {
     const repairUsagePlugins: { current?: AiPlugin[] } = {}
     const {
       sdkConfig,
+      endpointType,
+      replayRouteId: primaryReplayRouteId,
       credentialReceipt,
       tools,
       plugins,
@@ -722,6 +726,9 @@ export class AiService extends BaseService {
     // An explicit per-request `maxRetries: 0` means "no retries for this request"
     // — honor it (like embedding/rerank), overriding the global retry preference.
     const retryDisabledForRequest = request.contextOwner === 'caller' || request.requestOptions?.maxRetries === 0
+    if (request.resolvedModel?.replayRouteId && request.resolvedModel.replayRouteId !== primaryReplayRouteId) {
+      throw new ToolContinuationRouteError()
+    }
     const agentRef: { current?: Agent } = {}
     let activeRepairToolCall = options.repairToolCall
     const repairToolCall = options.repairToolCall
@@ -734,6 +741,7 @@ export class AiService extends BaseService {
             agentRef.current?.write({ type: 'data-retry', id: 'retry', data: event })
           )
         : undefined
+    let sdkMaxRetries = wrapModel ? 0 : options.maxRetries
     if (!retryDisabledForRequest) {
       const apiKeyFallbacks = buildApiKeyFallbackModels({
         request,
@@ -754,7 +762,9 @@ export class AiService extends BaseService {
         request.requestOptions?.maxRetries,
         apiKeyFallbacks.length > 0
       )
+      if (retryPolicy.enabled || apiKeyFallbacks.length > 0) sdkMaxRetries = 0
       wrapModel = createRetryableWrap({
+        primaryReplayRouteId,
         apiKeyFallbacks,
         retryPolicy,
         diagnosticContext: {
@@ -795,10 +805,17 @@ export class AiService extends BaseService {
         // PersistenceListener strips it before the message is saved.
         onRetryEvent: (event) => agentRef.current?.write({ type: 'data-retry', id: 'retry', data: event })
       })
+    } else if (request.contextOwner !== 'caller') {
+      wrapModel = createRetryableWrap({
+        primaryReplayRouteId,
+        retryPolicy: { ...readRetryPolicy(), enabled: false },
+        fallbacks: []
+      })
     }
 
     const agent = new Agent({
       contextOwner: request.contextOwner,
+      endpointType,
       providerId: sdkConfig.providerId,
       providerSettings: sdkConfig.providerSettings,
       modelId: sdkConfig.modelId,
@@ -808,7 +825,7 @@ export class AiService extends BaseService {
       wrapModel,
       tools,
       system,
-      options: wrapModel ? { ...options, maxRetries: 0, repairToolCall } : options,
+      options: wrapModel ? { ...options, maxRetries: sdkMaxRetries, repairToolCall } : options,
       hookParts: [
         this.analyticsHookPart(model, request.tokenUsageSource ?? 'chat'),
         ...(request.runtimeTimingSink
@@ -943,6 +960,7 @@ export class AiService extends BaseService {
     const repairUsagePlugins: { current?: AiPlugin[] } = {}
     const {
       sdkConfig,
+      replayRouteId: primaryReplayRouteId,
       credentialReceipt,
       tools,
       plugins,
@@ -973,6 +991,7 @@ export class AiService extends BaseService {
     // An explicit per-request `maxRetries: 0` disables retry for this request.
     let wrapModel =
       request.contextOwner === 'caller' ? createCallerRetryWrap(request.requestOptions?.maxRetries) : undefined
+    let sdkMaxRetries = wrapModel ? 0 : options.maxRetries
     if (request.contextOwner !== 'caller' && request.requestOptions?.maxRetries !== 0) {
       const apiKeyFallbacks = buildApiKeyFallbackModels({
         request,
@@ -992,7 +1011,9 @@ export class AiService extends BaseService {
         request.requestOptions?.maxRetries,
         apiKeyFallbacks.length > 0
       )
+      if (retryPolicy.enabled || apiKeyFallbacks.length > 0) sdkMaxRetries = 0
       wrapModel = createRetryableWrap({
+        primaryReplayRouteId,
         apiKeyFallbacks,
         retryPolicy,
         diagnosticContext: { assistantId: request.assistantId },
@@ -1026,6 +1047,14 @@ export class AiService extends BaseService {
       })
     }
 
+    if (request.contextOwner !== 'caller' && request.requestOptions?.maxRetries === 0) {
+      wrapModel = createRetryableWrap({
+        primaryReplayRouteId,
+        retryPolicy: { ...readRetryPolicy(), enabled: false },
+        fallbacks: []
+      })
+    }
+
     // Same media gating as the streaming path — `agent.generate` hands `ModelMessage[]` to the
     // SDK as-is, so without these the structured tool-result media the converter produces would
     // be JSON/base64-encoded or rejected on OpenAI/Ollama, diverging from `stream`.
@@ -1039,7 +1068,7 @@ export class AiService extends BaseService {
       wrapModel,
       tools,
       system,
-      options: wrapModel ? { ...options, maxRetries: 0, repairToolCall } : options,
+      options: wrapModel ? { ...options, maxRetries: sdkMaxRetries, repairToolCall } : options,
       hookParts: [this.analyticsHookPart(model, request.tokenUsageSource ?? 'chat'), ...hookParts],
       mediaCapabilities,
       toolResultMediaCapabilities: resolveToolResultMediaCapabilities(
@@ -1207,8 +1236,12 @@ export class AiService extends BaseService {
     // canonical bag to each provider's wire — a registered profile for the
     // OpenAI / google / dashscope / aihubmix / dmxapi families, else the diffusion
     // catch-all (DEFAULT_DIFFUSION_REGISTRATION).
-    const registration = WIRE_REGISTRY[sdkConfig.providerId] ?? DEFAULT_DIFFUSION_REGISTRATION
-    const imageProviderOptions = buildVendorProviderOptions(sdkConfig.providerId, params, registration, vendorBag)
+    const wireProviderId =
+      sdkConfig.providerId === 'newapi' && sdkConfig.providerOptionsKey === 'google' ? 'google' : sdkConfig.providerId
+    const registration = WIRE_REGISTRY[wireProviderId] ?? DEFAULT_DIFFUSION_REGISTRATION
+    // OpenAI-compatible models read providerOptions[actualProviderId], not the adapter id.
+    const deliveryKey = sdkConfig.providerId === 'openai-compatible' ? sdkConfig.providerOptionsKey : wireProviderId
+    const imageProviderOptions = buildVendorProviderOptions(deliveryKey, params, registration, vendorBag)
 
     // `structured.aspectRatio` is already normalized to `X:Y` by the aspectRatio
     // native binding's `map` (in `splitParamValues`).

@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef } from 'react'
 
 import { useDataChange, useInfiniteFlatItems, useInfiniteQuery, useQuery } from '@renderer/data/hooks/useDataApi'
 import type {
+  AiUsageRecordGroupFilter,
   AiUsageRecordListSortBy,
   AiUsageRecordSortOrder,
   AiUsageRecordStatsBucket
@@ -92,7 +93,8 @@ export function useUsageData({
   })
   const exploreTimelineResult = useQuery('/ai-usage-records/timeline', {
     query: exploreQuery,
-    enabled: rollup !== 'total'
+    enabled: rollup !== 'total',
+    swrOptions: { keepPreviousData: false }
   })
   const refetchTimeline = timelineQueryResult.refetch
   const refetchOverviewStats = overviewStatsResult.refetch
@@ -149,32 +151,51 @@ interface UseUsageEntriesDataOptions {
   currency: Currency | undefined
   sortBy: AiUsageRecordListSortBy
   sortOrder: AiUsageRecordSortOrder
+  groupFilter?: AiUsageRecordGroupFilter
 }
 
-export function useUsageEntriesData({ windowRange, currency, sortBy, sortOrder }: UseUsageEntriesDataOptions) {
+export function useUsageEntriesData({
+  windowRange,
+  currency,
+  sortBy,
+  sortOrder,
+  groupFilter
+}: UseUsageEntriesDataOptions) {
   const queryCurrency = currency ?? CURRENCY.USD
   const entriesQuery = useMemo(
     () => ({
       sortBy,
       sortOrder,
       ...(sortBy === 'cost' ? { costCurrency: queryCurrency } : {}),
+      ...groupFilter,
       ...toQueryRange(windowRange)
     }),
-    [queryCurrency, sortBy, sortOrder, windowRange]
+    [groupFilter, queryCurrency, sortBy, sortOrder, windowRange]
   )
-  const { pages, isLoading, isRefreshing, hasNext, loadNext, refresh, reset } = useInfiniteQuery('/ai-usage-records', {
-    query: entriesQuery,
-    limit: ENTRY_PAGE_SIZE,
-    swrOptions: { keepPreviousData: true }
-  })
+  const { pages, isLoading, isRefreshing, error, hasNext, loadNext, refresh, reset } = useInfiniteQuery(
+    '/ai-usage-records',
+    {
+      query: entriesQuery,
+      limit: ENTRY_PAGE_SIZE,
+      swrOptions: { keepPreviousData: true }
+    }
+  )
   const entries = useInfiniteFlatItems(pages)
   const total = pages[0]?.total ?? 0
 
+  const entriesQueryKey = JSON.stringify(entriesQuery)
+  const prevEntriesQueryKeyRef = useRef(entriesQueryKey)
+  const lastLoadedQueryKeyRef = useRef<string | undefined>(undefined)
+  if (!error && !isLoading && pages.length > 0) {
+    lastLoadedQueryKeyRef.current = entriesQueryKey
+  }
   const resetRef = useRef(reset)
   resetRef.current = reset
   useEffect(() => {
+    if (prevEntriesQueryKeyRef.current === entriesQueryKey) return
+    prevEntriesQueryKeyRef.current = entriesQueryKey
     resetRef.current()
-  }, [queryCurrency, sortBy, sortOrder, windowRange.from, windowRange.to])
+  }, [entriesQueryKey])
 
   const refreshEntries = useMemo(
     () =>
@@ -187,12 +208,16 @@ export function useUsageEntriesData({ windowRange, currency, sortBy, sortOrder }
   useDataChange(['/ai-usage-records'], refreshEntries)
   useEffect(() => () => refreshEntries.cancel(), [refreshEntries])
 
+  // Do not show previous-query rows under a newly applied filter/range if its initial fetch failed.
+  const hasFailedNewQuery = Boolean(error && lastLoadedQueryKeyRef.current !== entriesQueryKey)
+
   return {
-    entries,
-    total,
+    entries: hasFailedNewQuery ? [] : entries,
+    total: hasFailedNewQuery ? 0 : total,
     isLoading,
     isRefreshing,
-    hasNext,
+    error: hasFailedNewQuery || pages.length === 0 ? error : undefined,
+    hasNext: hasFailedNewQuery ? false : hasNext,
     loadNext
   }
 }

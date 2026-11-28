@@ -123,6 +123,7 @@ export default defineConfig({
           alias: {
             '@shared': resolve('src/shared'),
             '@cherrystudio/ai-core/contextOverflow': resolve('packages/aiCore/src/contextOverflow.ts'),
+            '@cherrystudio/provider-registry/data': resolve('packages/provider-registry/src/bundled-catalog'),
             '@cherrystudio/provider-registry/node': resolve('packages/provider-registry/src/registry-loader'),
             '@cherrystudio/provider-registry': resolve('packages/provider-registry/src'),
             '@cherrystudio/web-search/catalog': resolve('packages/web-search/src/catalog.ts'),
@@ -165,6 +166,7 @@ export default defineConfig({
         resolve: {
           alias: {
             '@shared': resolve('src/shared'),
+            '@cherrystudio/provider-registry/data': resolve('packages/provider-registry/src/bundled-catalog'),
             '@cherrystudio/provider-registry/node': resolve('packages/provider-registry/src/registry-loader'),
             '@cherrystudio/provider-registry': resolve('packages/provider-registry/src'),
             '@cherrystudio/web-search/catalog': resolve('packages/web-search/src/catalog.ts'),
@@ -219,8 +221,10 @@ export default defineConfig({
         ['agent-behavior', 'tests'],
         ['agent-runtime', 'tests'],
         ['agent-runtime-pi', 'tests'],
+        ['agent-runtime-pi-acp', 'tests'],
         ['agent-runtime-pi-durable', 'tests'],
         ['agent-runtime-acp', 'tests'],
+        ['agent-runtime-codex', 'tests'],
         ['agent-runtime-claude-code', 'tests'],
         ['ai-sdk-provider', 'src'],
         ['remote-protocol', 'tests'],

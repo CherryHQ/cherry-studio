@@ -5,6 +5,7 @@ import {
   getFilePreviewExtension,
   getFilePreviewFileName,
   getFilePreviewRefreshKey,
+  getFilePreviewSourceLocation,
   normalizeFilePreviewPath,
   parseFilePreviewRouteSearch
 } from '../filePreview'
@@ -92,5 +93,28 @@ describe('file preview route target', () => {
     expect(getFilePreviewRefreshKey({ filePreviewRefreshKey: 1.5 })).toBe(0)
     expect(getFilePreviewRefreshKey({ filePreviewRefreshKey: '3' })).toBe(0)
     expect(getFilePreviewRefreshKey(undefined)).toBe(0)
+  })
+})
+
+describe('file preview source locations', () => {
+  it('retains a valid stored target without changing its navigation identity', () => {
+    const target = { line: 42 }
+    expect(getFilePreviewSourceLocation({ filePreviewSourceLocation: target })).toBe(target)
+  })
+
+  it('ignores malformed or non-positive stored positions', () => {
+    for (const value of [
+      undefined,
+      null,
+      42,
+      {},
+      { line: '42' },
+      { line: 0 },
+      { line: -1 },
+      { line: 1.5 },
+      { line: Infinity }
+    ]) {
+      expect(getFilePreviewSourceLocation({ filePreviewSourceLocation: value })).toBeUndefined()
+    }
   })
 })

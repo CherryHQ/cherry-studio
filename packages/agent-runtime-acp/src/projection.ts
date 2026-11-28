@@ -19,6 +19,7 @@ import {
   type ThreadContextUsage
 } from '@cherrystudio/agent-runtime'
 
+import type { AcpSessionControls } from './configuration'
 import { unavailable } from './result'
 import type { AcpNativeMessage, AcpSessionState } from './types'
 
@@ -32,7 +33,6 @@ export class Projection {
   readonly feed: ThreadFeed
   revision = 0
   publishing?: SessionUpdate
-  private configuration: AcpSessionState['configuration'] = {}
   private readonly epoch = randomUUID()
   private sequence = 0
   private current?: { kind: string; id: string }
@@ -41,21 +41,22 @@ export class Projection {
   private readonly metadata = new Map<SessionUpdate['sessionUpdate'], SessionUpdate>()
   private readonly streams = new Map<string, RuntimeMessageStream>()
   private activeMessages = new Set<string>()
-  private usage?: UsageUpdate
+  private usage?: { value: UsageUpdate; modelRevision: number }
   private turns: { inputId: InputId; response: PromptResponse }[] = []
 
   constructor(
     readonly sessionId: string,
     private readonly thread: Thread,
+    private readonly controls: Pick<AcpSessionControls, 'snapshot' | 'standardModelId' | 'modelRevision'>,
     report: (error: unknown) => void
   ) {
     this.feed = new ThreadFeed({ type: 'snapshot', messages: [], inputs: [], activity: { state: 'unknown' } }, report)
   }
 
   state(): AcpSessionState {
-    // oxlint-disable-next-line no-restricted-globals -- Capture full ACP recovery state for observers; desktop does not use this adapter yet.
+    // oxlint-disable-next-line no-restricted-globals -- Detach native state for an explicit recovery snapshot.
     return structuredClone({
-      configuration: this.configuration,
+      configuration: this.controls.snapshot,
       turns: this.turns,
       messages: Array.from(this.messages.values(), (source) => source.native),
       tools: [...this.tools.values()],
@@ -63,33 +64,23 @@ export class Projection {
     })
   }
 
-  configure(value: AcpSessionState['configuration']): void {
-    this.updateConfiguration(value)
+  publishConfiguration(): void {
     this.publish({ ...this.feed.snapshot, contextUsage: this.contextUsage() })
   }
 
-  private get model(): string | undefined {
-    const option = this.configuration.configOptions?.find((item) => item.category === 'model' && item.type === 'select')
-    return option?.type === 'select' ? option.currentValue : undefined
-  }
-
-  private updateConfiguration(value: AcpSessionState['configuration']): void {
-    const model = this.model
-    this.configuration = { ...this.configuration, ...value }
-    if (this.model !== model) this.usage = undefined
-  }
-
   contextUsage(): OperationResult<ThreadContextUsage> {
-    const model = this.model
-    if (!this.usage || !model) return unavailable('contextUsage', 'missing-native-context-or-model')
-    if (this.usage.size <= 0) return unavailable('contextUsage', 'invalid-native-context')
+    const model = this.controls.standardModelId
+    const usage = this.usage
+    if (!usage || !model || usage.modelRevision !== this.controls.modelRevision)
+      return unavailable('contextUsage', 'missing-native-context-or-model')
+    if (usage.value.size <= 0) return unavailable('contextUsage', 'invalid-native-context')
     return {
       status: 'confirmed',
       value: {
         model,
         revision: String(this.revision),
-        contextWindow: this.usage.size,
-        used: { tokens: this.usage.used, precision: 'reported' },
+        contextWindow: usage.value.size,
+        used: { tokens: usage.value.used, precision: 'reported' },
         basis: 'current-context'
       }
     }
@@ -198,11 +189,8 @@ export class Projection {
       event = this.observeMessage(await stream.append(chunks, 'partial'))
     } else {
       this.metadata.set(update.sessionUpdate, update)
-      if (update.sessionUpdate === 'config_option_update')
-        this.updateConfiguration({ configOptions: update.configOptions })
-      if (update.sessionUpdate === 'current_mode_update' && this.configuration.modes)
-        this.configuration.modes.currentModeId = update.currentModeId
-      if (update.sessionUpdate === 'usage_update') this.usage = update
+      if (update.sessionUpdate === 'usage_update')
+        this.usage = { value: update, modelRevision: this.controls.modelRevision }
       if (update.sessionUpdate === 'usage_update' || update.sessionUpdate === 'config_option_update')
         event = { ...this.feed.snapshot, contextUsage: this.contextUsage() }
     }

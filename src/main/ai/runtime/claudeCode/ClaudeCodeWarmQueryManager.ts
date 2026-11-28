@@ -3,9 +3,10 @@ import { createHash } from 'node:crypto'
 import type { Options, WarmQuery } from '@anthropic-ai/claude-agent-sdk'
 
 import { application } from '@application'
+import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
-import { prepareClaudeBranch } from '@main/ai/runtime/claudeCode/claudeContext'
+import { claudeBranchQueryIdentity, prepareClaudeBranch } from '@main/ai/runtime/claudeCode/claudeContext'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
 import { deriveRootSpanId } from '@shared/data/types/trace'
@@ -189,16 +190,17 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
       const { buildClaudeCodeWarmQueryRequestForAgentSession } = await import('./agentSessionWarmup')
       const warmRequest = await buildClaudeCodeWarmQueryRequestForAgentSession(sessionId)
       if (!warmRequest) return
+      const storedResume = messages.getLastRuntimeResumeToken(sessionId) ?? undefined
       const context = prepareClaudeBranch(
         sessionId,
         resolveClaudeConfigDirectory(warmRequest.options.env),
-        warmRequest.options.resume
+        storedResume,
+        undefined,
+        true
       )
       warmRequest.options = {
         ...warmRequest.options,
-        ...(warmRequest.options.resume || context.bindingState === 'bound'
-          ? { resume: warmRequest.options.resume ?? context.nativeThreadId! }
-          : { sessionId: context.nativeThreadId! })
+        ...claudeBranchQueryIdentity(context, storedResume)
       }
       await this.prewarm(await this.withTraceEnv(sessionId, warmRequest))
     } catch (error) {

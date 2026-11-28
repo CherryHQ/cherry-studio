@@ -13,6 +13,8 @@ request options and usage callbacks even when their Cherry Provider is the same.
 The desktop Harness disables native provider retries for roots and children. The shared
 [gateway binding](../pi/README.md#model-requests) uses `ai-retry` before the first content chunk.
 A final failure retains its upstream error; later user input can start a new run.
+The patched Harness applies its native retry budget and backoff to generation interrupted
+by host exit so reopened work can resume.
 
 `durableDesktop.ts` installs native coding tools, codemode and tool search, Cherry's
 prompt and selected skills. `durableMcp.ts` connects Cherry-selected MCP servers through
@@ -47,6 +49,10 @@ interrupted association write without guessing by history or replacing a missing
 Creation initializes and closes a private staging store before exclusively publishing
 its final path. An initialization failure before publication leaves the same reservation
 retryable. Reopening checks identity and never creates or replaces a SQLite file.
+When a new turn encounters a missing bound file or conversation, the driver detaches
+the lost branch binding and opens a fresh store through the normal creation path.
+The [Session history reader](../../../../../docs/dev/references/ai/agent-session-runtime.md#first-submission-without-native-history)
+supplies the selected branch's reference context.
 
 Pi Durable owns its transcript, task graph, submissions and behavior records. Product
 messages retain display history. For a branch without previous native input, the Session host
@@ -66,6 +72,10 @@ Input placement reserves attribution before a model call. Each native answer is
 associated with its product input once; later snapshots and autonomous child-result
 turns do not repeat a prior input's response association.
 The adapter delivers content, input outcomes and foreground settlement from one native revision.
+Successful submission answer positions become `run-checkpoint` events, addressed through the
+stable product input association. Main resolves the owning Run, including deferred placements
+and already saved replies. Overall foreground settlement does not overwrite this precise answer
+position. Pending-reply recovery reads the same native answer and commits its checkpoint with the restored body.
 The connection consumes that batch; it does not poll pending inputs or infer completion from idle.
 It reports an input only when its state changes and reconsiders a child's status and release on
 snapshots, activity changes and input changes.
@@ -73,24 +83,23 @@ An `aborted` outcome, including one caused by user Stop, settles the turn as pau
 `unanswered` outcomes report an error carrying their native reason.
 A message sent while native work runs is submitted with Durable's `follow-up` busy policy and
 persisted at once. The Work composer sends it immediately instead of holding it in its follow-up
-dock, because the descriptor declares `nativeFollowUp`; the connection has no single-submission gate and Main keeps no queue for it. Durable places it at the next run
+dock, when the connected runtime exposes its durable follow-up operation; the dock shows the native waiting order. Durable places it at the next run
 boundary, in the same batch as the preceding answer. The connection announces the placement with
-`steer-boundary` after that batch's projection, so the preceding answer stays in its reply and Main
+`run-started` after that batch's projection, so the preceding answer stays in its reply and Main
 opens a new one. The event marks the placement as a follow-up: Main holds it while the previous reply
 is still starting, so it never joins that reply, while steers placed into the running turn still share
 its continuation. Durable reports the preceding input's outcome only when the run ends, so Main
 settles that reply as answered at the boundary and replaces it if the outcome is not `completed`;
-cycle completion reads only the input that owns the current reply. A follow-up whose submission
+cycle completion aggregates only the inputs owned by the current Run. A follow-up whose submission
 fails before it reaches Durable moves to Main's queue.
-`/compact` still waits in Main's queue, and input is refused while compacting.
 Product snapshots and headless policy stay on the Main session entry under the input ID, including
 unknown admission across connection replacement. The successor reconciles the original binding
 without resending, while generation checks reject stale callbacks.
 
-Manual compaction remains an active desktop submission until native work settles.
-Its completion card requires a committed summary; an idle snapshot or a declined
-summary cannot report successful compaction. Stop and shutdown retain their native
-cancellation and ownership semantics.
+The connected Composer invokes thread `compact()` while idle. Main holds the session
+until the native task settles and any summary submission is placed. The operation
+creates no chat input or reply. Automatic compaction can still attach its committed
+summary marker to the current reply.
 
 ## Stop, close and reopen
 
@@ -124,7 +133,9 @@ cancellation and ownership semantics.
   with a terminal status is not rebuilt. At startup Main reads terminal native evidence by the original input and
   commits the recovered body to the corresponding product Run. The driver owns one scheduler per
   physical store with unfinished work. It installs the affected roots and child writers before
-  resuming and keeps unresolved stores eligible for another recovery.
+  resuming and keeps unresolved stores eligible for another recovery. Startup also restores the unsent
+  status of inputs withdrawn before placement by matching the submission request ID to the user
+  message bound to the native root. This works for stores with no remaining work.
 - Closing a child panel only detaches its projection subscription.
 
 Background continuation keeps one child identity. Independent continuation of an ended
@@ -151,6 +162,8 @@ covers boot delivery recovery, including a Session that cannot connect.
 `durableMcp.test.ts` runs an actual linked MCP server through the native tool loop.
 The storage and child-projection suites cover strict reopen, interrupted binding
 recovery and asynchronous archive reconciliation.
+The desktop connection suite verifies continuation from retained branch messages after
+losing a branch binding, bound store, or conversation, and ordinary native reuse after reopening.
 
 `tests/e2e/smoke/piDurableTurnAuthority.test.ts` runs the built Electron app against a local mock
 provider: a queued follow-up, steer, Stop with subagent content and the next message, and killing

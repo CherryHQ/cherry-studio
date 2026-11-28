@@ -44,6 +44,7 @@ export type AcceptSessionDeliveryInput = {
 }
 
 export type CreateSessionDeliveryInput = {
+  delegation?: true
   senderAgentId: string
   senderSessionId: string
   targetAgentId?: string
@@ -74,6 +75,11 @@ export class AgentSessionDeliveryService extends BaseService {
     )
     this.registerDisposable(runtime.onRuntimeIdle(({ sessionId }) => this.kick(sessionId)))
     for (const sessionId of recoverSessionDeliveries()) this.suppressedSessionIds.add(sessionId)
+  }
+
+  protected override async onAllReady(): Promise<void> {
+    await application.get('AgentSessionRuntimeService').whenStartupRecoverySettles()
+    if (this.isShuttingDown) return
     this.registerInterval(() => this.kick(), DELIVERY_RETRY_SWEEP_MS)
     this.kick()
   }
