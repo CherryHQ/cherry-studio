@@ -9,6 +9,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { application } from '@application'
 import { advertisedEndpointSchema } from '@cherrystudio/remote-protocol'
 import { loggerService } from '@logger'
+import type { RecoverableModelTransportFailure } from '@main/ai/runtime/aiSdk'
 import type { InProcessUsageContext } from '@main/ai/types'
 import { createLatestReconciler, type LatestReconciler } from '@main/core/concurrency/latestReconciler'
 import { type Activatable, BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
@@ -17,7 +18,7 @@ import type { RetryPartData } from '@shared/data/types/uiParts'
 import type { OutputFor } from '@shared/ipc/types'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import type { ApiGatewayConfig, ApiGatewayStopOutcome } from '@shared/types/apiGateway'
-import { gatewayClientOrigin } from '@shared/utils/apiGateway'
+import { gatewayClientOrigin, INTERNAL_CREDENTIAL_PREFIX } from '@shared/utils/apiGateway'
 import { REDACTED } from '@shared/utils/redaction'
 
 import { isGatewayBindPermissionError, mapGatewayBindError } from './bindError'
@@ -33,8 +34,12 @@ const INTERNAL_GATEWAY_HOST = '127.0.0.1'
 const REQUEST_UNIT_BYTES = 1024 * 1024
 const INTERNAL_REQUEST_BUDGET = 32
 
-/** What a scoped internal credential may call: one generation path, one model address. */
-export type InternalCredentialScope = { path: string; model: string }
+/** What a scoped internal credential may call: its generation paths, one model address. */
+export type InternalCredentialScope = {
+  paths: readonly string[]
+  model: string
+  agentSessionId?: string
+}
 
 function presentedToken(headers: Headers): string | undefined {
   return (
@@ -60,7 +65,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
     cancel: (reason: unknown) => void
   }>()
   /** Never persisted or shown to the user; unrestricted on the internal listener. */
-  private readonly internalApiKey = `cs-internal-${uuidv4()}`
+  private readonly internalApiKey = `${INTERNAL_CREDENTIAL_PREFIX}${uuidv4()}`
   private readonly agentCredentialSecret = randomBytes(32)
   /** Live scoped credentials; each authorizes only its own scope until disposed. */
   private readonly scopedCredentials = new Map<string, InternalCredentialScope>()
@@ -92,7 +97,10 @@ export class ApiGatewayService extends BaseService implements Activatable {
     apply: async ({ desired, actual }) => {
       if (!desired) await this.deactivate()
       else if (!actual) await this.activate()
-      else {
+      else if (!this.isRunning()) {
+        await this.deactivate()
+        await this.activate()
+      } else {
         await this.lanMutex.runExclusive(async () => {
           const host = this.listeningHost()
           if (host === '127.0.0.1') application.get('RemoteAccessService').closeIngress()
@@ -194,6 +202,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
       .updateDirectEndpoint(remoteReady ? { port: endpoint.port, ipv6: endpoint.hosts.includes('::') } : undefined)
     try {
       const cache = application.get('CacheService')
+      cache.setShared('feature.api_gateway.endpoint', host && endpoint ? { host, port: endpoint.port } : null)
       cache.setShared('feature.api_gateway.running', running)
       cache.setShared('feature.api_gateway.lan_running', remoteReady)
     } catch (error) {
@@ -203,7 +212,11 @@ export class ApiGatewayService extends BaseService implements Activatable {
 
   private listeningHost(): string {
     const config = this.getCurrentConfig()
-    return config.enabled && config.host === '0.0.0.0' ? '0.0.0.0' : '127.0.0.1'
+    return config.enabled && (config.host === '0.0.0.0' || this.isLanHttpEnabled()) ? '0.0.0.0' : '127.0.0.1'
+  }
+
+  private isLanHttpEnabled(): boolean {
+    return application.get('PreferenceService').get('feature.api_gateway.lan_http_enabled') === true
   }
 
   /**
@@ -308,7 +321,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
     })
     this.reconciler.request()
     await this.reconciler.flush()
-    const target = enabled ? '0.0.0.0' : '127.0.0.1'
+    const target = this.listeningHost()
     if (
       (enabled && !this.getCurrentConfig().enabled) ||
       (this.isActivated ? this.apiGateway?.getHost() !== target : enabled)
@@ -324,6 +337,44 @@ export class ApiGatewayService extends BaseService implements Activatable {
       }
       throw error
     }
+    this.publishRunningState(this.isRunning())
+  }
+
+  async setLanHttpEnabled(enabled: boolean): Promise<void> {
+    const preferences = application.get('PreferenceService')
+    await this.lanMutex.runExclusive(async () => {
+      if (enabled) {
+        if (!this.getCurrentConfig().enabled || !this.isRunning()) {
+          throw new Error('API Gateway is not running')
+        }
+        await this.ensureValidApiKey()
+        if (!this.getCurrentConfig().enabled) throw new Error('API Gateway was stopped')
+      }
+      await preferences.set('feature.api_gateway.lan_http_enabled', enabled)
+    })
+    this.reconciler.request()
+    await this.reconciler.flush()
+    if (this.isLanHttpEnabled() !== enabled) return
+    if (this.getCurrentConfig().enabled && (!this.isRunning() || this.apiGateway?.getHost() !== this.listeningHost())) {
+      const error = this.failureError('Failed to change network access')
+      if (enabled) {
+        await this.lanMutex.runExclusive(async () => {
+          await preferences.set('feature.api_gateway.lan_http_enabled', false)
+        })
+        this.reconciler.request()
+        await this.reconciler.flush()
+      }
+      throw error
+    }
+  }
+
+  async getLanHttpAddresses(): Promise<string[]> {
+    const metadata = await getInterfaceMetadata()
+    if (!this.isLanHttpEnabled() || !this.apiGateway?.isRunning() || this.apiGateway.getHost() !== '0.0.0.0') return []
+    const port = this.apiGateway.getPort()
+    return getRemoteAddressOptions(networkInterfaces(), metadata, this.apiGateway.getHosts().includes('::')).map(
+      ({ address }) => gatewayClientOrigin(address, port)
+    )
   }
 
   private async closeRemoteAccess(): Promise<void> {
@@ -394,7 +445,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
     scope: InternalCredentialScope
   ): Promise<{ baseUrl: string; apiKey: string; dispose: () => void }> {
     const baseUrl = await this.ensureInternalListener()
-    const apiKey = `cs-internal-${uuidv4()}`
+    const apiKey = `${INTERNAL_CREDENTIAL_PREFIX}${uuidv4()}`
     this.scopedCredentials.set(apiKey, scope)
     return { baseUrl, apiKey, dispose: () => this.scopedCredentials.delete(apiKey) }
   }
@@ -538,6 +589,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
     fastMode?: boolean
     traceContext?: InProcessUsageContext['traceContext']
     onRetryEvent?: (event: RetryPartData) => void
+    onModelTransportFailure?: (failure: RecoverableModelTransportFailure) => void
   }) {
     const headers = new Headers()
     for (const [name, value] of Object.entries(input.headers ?? {})) {
@@ -553,6 +605,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
         replayRouteId: input.replayRouteId,
         omitGeminiSignaturesFor: input.omitGeminiSignaturesFor,
         onRetryEvent: input.onRetryEvent,
+        onModelTransportFailure: input.onModelTransportFailure,
         reasoningEffort: input.reasoningEffort ?? 'default',
         serviceTier: input.serviceTier,
         fastMode: input.fastMode === true,
@@ -595,6 +648,8 @@ export class ApiGatewayService extends BaseService implements Activatable {
   /** The session named by the request and verified against its issued credential. */
   getAgentSessionId(headers: Headers): string | undefined {
     const token = presentedToken(headers)
+    const scope = token && this.scopedCredentials.get(token)
+    if (scope) return scope.agentSessionId
     const sessionId = headers.get(AGENT_SESSION_ID_HEADER)?.trim()
     return sessionId && token?.startsWith('cs-agent-') && isValidToken(token, this.agentApiKey(sessionId))
       ? sessionId
@@ -610,6 +665,8 @@ export class ApiGatewayService extends BaseService implements Activatable {
       const usage = this.usageCaptures.get(capture)
       return usage?.agentSessionId === sessionId ? usage : undefined
     }
-    return application.get('AgentSessionRuntimeService').getActiveUsageContext(sessionId, responseId)
+    return application
+      .get('AgentSessionRuntimeService')
+      .getActiveUsageContext(sessionId, this.getCredentialScope(headers) ? undefined : responseId)
   }
 }

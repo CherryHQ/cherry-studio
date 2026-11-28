@@ -259,4 +259,15 @@ describe('AgentContextUsageSummary', () => {
     expect(screen.queryByRole('table')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'MCP tools 1' })).not.toBeInTheDocument()
   })
+
+  it('distinguishes unsupported context usage from initial unknown state', () => {
+    const { rerender } = renderSummary({ usage: null, percentage: null, status: null })
+    expect(screen.getByText('Unknown')).toBeVisible()
+    rerender(
+      <I18nextProvider i18n={i18n}>
+        <AgentContextUsageSummary usage={null} percentage={null} status="unsupported" />
+      </I18nextProvider>
+    )
+    expect(screen.getByText('Not reported by this agent')).toBeVisible()
+  })
 })

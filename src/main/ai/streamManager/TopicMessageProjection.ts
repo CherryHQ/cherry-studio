@@ -3,6 +3,7 @@ import { isToolUIPart } from 'ai'
 import { MessageProjection } from '@main/ai/messages/MessageProjection'
 import type { PublishedPartPatch } from '@main/utils/messageOutputProjection'
 import { toExecutionFailure } from '@shared/ai/executionFailure'
+import type { ExecutionId } from '@shared/ai/executionIdentity'
 import { projectPersistenceFailures } from '@shared/ai/messageProjection'
 import type {
   MessageViewPatch,
@@ -13,7 +14,6 @@ import type {
 } from '@shared/ai/messageProjection'
 import type { ActiveExecution } from '@shared/ai/transport'
 import type { CherryUIMessage } from '@shared/data/types/message'
-import type { UniqueModelId } from '@shared/data/types/model'
 import type { ErrorPartData } from '@shared/data/types/uiParts'
 
 import { finalizeInterruptedParts } from './persistence/PersistenceBackend'
@@ -23,9 +23,9 @@ import type { StreamDoneResult, StreamErrorResult, StreamListener, StreamPausedR
 /** One live overlay per topic; saved history stays in its existing message store. */
 export class TopicMessageProjection extends MessageProjection<TopicProjectionState> implements StreamListener {
   readonly id = 'message-projection'
-  private readonly executions = new Map<UniqueModelId, ProjectedExecution>()
-  private readonly messages = new Map<UniqueModelId, CherryUIMessage>()
-  private agent?: { modelId: UniqueModelId; readMessage: () => CherryUIMessage | undefined }
+  private readonly executions = new Map<ExecutionId, ProjectedExecution>()
+  private readonly messages = new Map<ExecutionId, CherryUIMessage>()
+  private agent?: { modelId: ExecutionId; readMessage: () => CherryUIMessage | undefined }
 
   constructor(
     readonly topicId: string,
@@ -57,7 +57,7 @@ export class TopicMessageProjection extends MessageProjection<TopicProjectionSta
     else this.publish(true)
   }
 
-  readAgentFrom(modelId: UniqueModelId, attemptId: number, readMessage: () => CherryUIMessage | undefined): void {
+  readAgentFrom(modelId: ExecutionId, attemptId: number, readMessage: () => CherryUIMessage | undefined): void {
     if (this.executions.get(modelId)?.attemptId !== attemptId) return
     this.flush()
     this.agent = { modelId, readMessage }
@@ -74,7 +74,7 @@ export class TopicMessageProjection extends MessageProjection<TopicProjectionSta
     )
   }
 
-  accumulate(modelId: UniqueModelId, attemptId: number, message: CherryUIMessage): void {
+  accumulate(modelId: ExecutionId, attemptId: number, message: CherryUIMessage): void {
     const execution = this.executions.get(modelId)
     if (!execution || execution.attemptId !== attemptId || execution.status !== 'active') return
     if (this.agent?.modelId === modelId) this.relayAgentMessage(execution, message)
@@ -84,14 +84,14 @@ export class TopicMessageProjection extends MessageProjection<TopicProjectionSta
     }
   }
 
-  refreshAgentMessage(modelId: UniqueModelId, attemptId: number): void {
+  refreshAgentMessage(modelId: ExecutionId, attemptId: number): void {
     const execution = this.executions.get(modelId)
     if (this.agent?.modelId !== modelId || execution?.attemptId !== attemptId || execution.status !== 'active') return
     const message = execution.messageId && this.agent.readMessage()
     if (message) this.relayAgentMessage(execution, message, false)
   }
 
-  relayAgentPart(modelId: UniqueModelId, attemptId: number, change: PublishedPartPatch<TimelinePlacement>): void {
+  relayAgentPart(modelId: ExecutionId, attemptId: number, change: PublishedPartPatch<TimelinePlacement>): void {
     const execution = this.executions.get(modelId)
     if (this.agent?.modelId !== modelId || execution?.attemptId !== attemptId || execution.status !== 'active') return
     if (execution.messageId) this.publishParts([change])
@@ -117,7 +117,7 @@ export class TopicMessageProjection extends MessageProjection<TopicProjectionSta
   }
 
   private persistenceFailed(
-    modelId: UniqueModelId | undefined,
+    modelId: ExecutionId | undefined,
     attemptId: number | undefined,
     userMessageId: string | undefined,
     persistenceError: ErrorPartData

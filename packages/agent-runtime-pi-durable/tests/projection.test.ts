@@ -46,6 +46,26 @@ const live = (attempt = 1): LiveState => ({
   generation: { attempt, message: JSON.parse(JSON.stringify(fauxAssistantMessage('same text'))) }
 })
 
+it('restores a model retry for new observers and clears it when the same run resumes', async () => {
+  const active = live()
+  const { projection, update } = setup(
+    view([], {
+      run: active.run,
+      generation: { attempt: 1, retry: { at: 20_000, error: 'Network suspended', model: 'fixture', nextAttempt: 2 } }
+    })
+  )
+  const activity: unknown[] = []
+  const observation = projection.feed.observe((event) => {
+    if (event.type === 'snapshot' || event.type === 'activity.changed') activity.push(event.activity)
+  })
+  update(view([], { run: active.run, generation: { attempt: 2 } }))
+  await observation.drain()
+  expect(activity).toEqual([
+    { state: 'active', modelRetry: { modelId: 'fixture', attempt: 2, reason: 'Network suspended' } },
+    { state: 'active' }
+  ])
+})
+
 it('renders committed and live assistant content without reading archive response IDs', () => {
   const active = live()
   const assistant = (text: string) =>

@@ -89,6 +89,8 @@ export interface AiRequest {
 export interface AiChatRequest extends AiRequest {
   conversation: ConversationRef
   mcpToolIds?: string[]
+  /** A utility task (naming, translation, diagnosis, prompt helpers) rather than a conversation turn. */
+  utilityTask?: boolean
   /** Canonical per-turn reasoning selection captured when the message was submitted. */
   reasoningEffort?: ReasoningEffortOption
   /** Canonical provider request tier captured when the message was submitted. */
@@ -111,6 +113,8 @@ export interface AiChatRequest extends AiRequest {
   contextOwner?: ContextOwner
   /** Gateway-backed Claude Code supplies replay provenance while retaining history ownership. */
   replayProviderState?: boolean
+  /** Trusted desktop gateway caller opting into output-budget validation recovery. */
+  retryOutputTokenLimit?: boolean
   /** Per-request overrides (in-process only; assistant-less callers like the API gateway). */
   callOverrides?: CallOverrides
   /** In-process caller identity used only for targeted embedded MCP authorization. */

@@ -318,10 +318,16 @@ test.describe('Pi Durable turn authority in Electron', () => {
       await expect(chat.message('FIRST_PARTIAL')).toBeVisible()
 
       await chat.send('QUEUED_QUESTION')
-      await expect(chat.view.getByRole('button', { name: /^Queued \(/ })).toHaveCount(0)
-      await expect(chat.message('QUEUED_QUESTION')).toBeVisible()
+      const queuedPanel = chat.view.getByRole('button', { name: 'Queued (1)', exact: true })
+      await expect(queuedPanel).toBeVisible()
+      await queuedPanel.click()
+      await expect(chat.view.getByText('QUEUED_QUESTION', { exact: true })).toBeVisible()
+      await expect(chat.message('QUEUED_QUESTION')).toHaveCount(0)
+      await capture(page, testInfo, 'queued-waiting')
       first.complete('FIRST_ANSWER')
       const queued = await route.next('QUEUED_QUESTION')
+      await expect(queuedPanel).toBeHidden()
+      await expect(chat.message('QUEUED_QUESTION')).toHaveCount(1)
       queued.complete('QUEUED_ANSWER')
 
       await expect(chat.message('QUEUED_ANSWER')).toBeVisible()
@@ -345,7 +351,7 @@ test.describe('Pi Durable turn authority in Electron', () => {
     }
   })
 
-  test('steers a running turn and continues in a new reply', async ({ mainWindow: page }, testInfo) => {
+  test('steers a running turn while preserving the original reply owner', async ({ mainWindow: page }, testInfo) => {
     test.setTimeout(180_000)
     const server = await startMockChatServer()
     const route = routeRequests(server)
@@ -358,12 +364,18 @@ test.describe('Pi Durable turn authority in Electron', () => {
       await expect(chat.message('SOURCE_PARTIAL')).toBeVisible()
 
       await chat.steer('STEER_INPUT')
-      await expect(chat.message('STEER_INPUT')).toBeVisible()
+      const waiting = chat.message('STEER_INPUT').getByRole('status').filter({ hasText: 'Waiting for the model…' })
+      await expect(waiting).toBeVisible()
       // Durable places a steer before the next model call, so the run needs one more step.
       source.completeToolCall({ id: 'call-read', name: 'read', arguments: { path: 'steer-probe.txt' } })
       // The steer must wait through the approval and land on the call after it.
-      await page.getByRole('button', { name: /^Allow/ }).click()
+      const allow = page.getByRole('button', { name: /^Allow/ })
+      await expect(allow).toBeVisible()
+      await expect(waiting).toBeVisible()
+      await capture(page, testInfo, 'steer-waiting')
+      await allow.click()
       const steered = await route.next('STEER_INPUT')
+      await expect(waiting).toHaveCount(0)
       steered.complete('STEER_ANSWER')
 
       await expect(chat.message('STEER_ANSWER')).toBeVisible()
@@ -373,9 +385,8 @@ test.describe('Pi Durable turn authority in Electron', () => {
         )
         .toMatchObject([
           { role: 'user', text: has('STEER_SOURCE') },
-          { role: 'assistant', status: 'success', text: has('SOURCE_PARTIAL') },
-          { role: 'user', text: has('STEER_INPUT') },
-          { role: 'assistant', status: 'success', text: has('STEER_ANSWER') }
+          { role: 'assistant', status: 'success', text: expect.stringMatching(/SOURCE_PARTIAL.*STEER_ANSWER/) },
+          { role: 'user', text: has('STEER_INPUT') }
         ])
       await expectNoErrorCard(page, session.sessionId)
       expect(route.unclaimed()).toEqual([])
@@ -468,11 +479,8 @@ test.describe('Pi Durable turn authority in Electron', () => {
       held.sendText('CRASH_PARTIAL ')
       await expect(chat.message('CRASH_PARTIAL')).toBeVisible()
       await chat.send('CRASH_QUEUED')
-      await expect
-        .poll(async () => (await rows(first.page, session.sessionId)).some((row) => row.text.includes('CRASH_QUEUED')))
-        .toBe(true)
-      // Main saves the user row, then submits it; give the native submission time to commit.
-      await first.page.waitForTimeout(2_000)
+      await expect(chat.view.getByRole('button', { name: 'Queued (1)', exact: true })).toBeVisible()
+      await expect(chat.message('CRASH_QUEUED')).toHaveCount(0)
 
       await test.step('Crash the owned Electron application', async () => {
         const child = first.app.process()
@@ -499,8 +507,11 @@ test.describe('Pi Durable turn authority in Electron', () => {
       running = second.app
       const reopened = await openSession(second.page, session)
       const resumed = await route.next('CRASH_QUESTION')
+      await expect(reopened.view.getByRole('button', { name: 'Queued (1)', exact: true })).toBeVisible()
+      await expect(reopened.message('CRASH_QUEUED')).toHaveCount(0)
       resumed.complete('CRASH_ANSWER')
       const queued = await route.next('CRASH_QUEUED')
+      await expect(reopened.message('CRASH_QUEUED')).toHaveCount(1)
       queued.complete('CRASH_QUEUED_ANSWER')
 
       await expect(reopened.message('CRASH_QUEUED_ANSWER')).toBeVisible()

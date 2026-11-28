@@ -1,4 +1,4 @@
-import { memo, useMemo } from 'react'
+import { memo, useEffect, useMemo } from 'react'
 
 import MessageList from '@renderer/components/chat/messages/MessageList'
 import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
@@ -9,11 +9,13 @@ import type {
   MessageListSelectAllPagination,
   MessageStreamingLayers
 } from '@renderer/components/chat/messages/types'
+import { LocalAgentIcon } from '@renderer/components/icons/LocalAgentIcon'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { ProjectionReaderProvider } from '@renderer/hooks/agent/ProjectionReaderProvider'
 import { useAgentSessionStreamTopic } from '@renderer/hooks/agent/useAgentSessionStreamTopic'
 import { useSession } from '@renderer/hooks/agent/useSession'
 import { useStableStringArray } from '@renderer/hooks/useStableStringArray'
+import { ipcApi } from '@renderer/ipc'
 import { messageProjectionService } from '@renderer/services/aiTransport'
 import type { GetAgentResponse } from '@renderer/types/agent'
 import { type Topic, TopicType } from '@renderer/types/topic'
@@ -59,6 +61,7 @@ type Props = {
   editBusy?: boolean
   respondToolApproval?: MessageListActions['respondToolApproval']
   navigateToForkSource?: NavigateToForkSource
+  onLocalRestoreChecked?: (unavailable: boolean) => void
 }
 
 const AgentSessionMessages = ({
@@ -89,9 +92,19 @@ const AgentSessionMessages = ({
   startEditing,
   editBusy,
   respondToolApproval,
-  navigateToForkSource
+  navigateToForkSource,
+  onLocalRestoreChecked
 }: Props) => {
   const { session } = useSession(sessionId)
+  useEffect(() => {
+    if (!onLocalRestoreChecked) return
+    onLocalRestoreChecked(false)
+    return ipcApi.on('ai.local_agents.session_updated', (event) => {
+      if (event.sessionId !== sessionId || (!event.info && !event.restoreUnavailable)) return
+      onLocalRestoreChecked(event.restoreUnavailable === true)
+    })
+  }, [sessionId, onLocalRestoreChecked])
+
   const sessionTopicId = useMemo(() => buildAgentSessionTopicId(sessionId), [sessionId])
   const streamTopicId = useAgentSessionStreamTopic(sessionId)
   const target = useMemo(() => ({ kind: 'topic' as const, topicId: streamTopicId }), [streamTopicId])
@@ -109,6 +122,9 @@ const AgentSessionMessages = ({
         ? {
             id: activeAgent.id,
             name: activeAgent.name,
+            avatarIcon: activeAgent.localRuntime ? (
+              <LocalAgentIcon presetId={activeAgent.localRuntime.presetId} size={30} />
+            ) : undefined,
             avatar: getAgentAvatarFromConfiguration(activeAgent.configuration, activeAgent.avatarSrc)
           }
         : undefined,
@@ -163,6 +179,11 @@ const AgentSessionMessages = ({
     streamingLayers,
     assistantProfile,
     assistantId: agentId,
+    supportsNativeFork: !!activeAgent && activeAgent.type !== 'local',
+    providerErrorSettingsPath:
+      activeAgent?.type === 'local'
+        ? `/settings/local-agents?id=${encodeURIComponent(activeAgent.localRuntime?.presetId ?? activeAgent.id)}`
+        : undefined,
     isLoading,
     hasOlder,
     loadOlder,

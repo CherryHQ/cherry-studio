@@ -94,6 +94,7 @@ import {
   type ComposerUnifiedPanelResourceProvider,
   type ComposerUnifiedPanelSelectHandler,
   createComposerSuggestionQuickPanelItem,
+  createUnifiedPanelSubmenuItems,
   createUnifiedQuickPanelOpenOptions,
   getComposerPositionAtTextOffset,
   getComposerSuggestionTriggerContext,
@@ -2111,6 +2112,18 @@ export default function ComposerSurfaceRuntime({
 
   const isRootQuickPanelVisible =
     quickPanelEnabled && quickPanel.isVisible && quickPanel.symbol === ComposerPanelSymbol.Root
+  const openLauncherSubmenuId =
+    quickPanelEnabled && quickPanel.isVisible && quickPanel.parentPanel?.symbol === ComposerPanelSymbol.Root
+      ? quickPanel.symbol
+      : undefined
+  useEffect(() => {
+    if (!openLauncherSubmenuId) return
+    const { getToolLaunchers, onToolLauncherSelect, quickPanel } = rootSuggestionStateRef.current
+    const launcher = getToolLaunchers?.().find(({ id }) => id === openLauncherSubmenuId)
+    if (!launcher?.submenu?.length) return
+    quickPanel.updateList(createUnifiedPanelSubmenuItems(launcher, { inputAdapter, onToolLauncherSelect, quickPanel }))
+  }, [inputAdapter, openLauncherSubmenuId, toolLaunchersVersion])
+
   const rootQuickPanelQueryAnchor = quickPanel.queryAnchor
   const rootQuickPanelTriggerInfo = quickPanel.triggerInfo
   // Preserve the open-time category seed so a re-list keeps category views (opened via a toolbar

@@ -211,9 +211,9 @@ it.each(['cherry-tools', 'my-server', 'my_server'])(
       })
     )
     try {
-      expect(
-        await handle.input.submit({ inputId: runtimeId('tools'), text: 'Run the native tools', whenBusy: 'reject' })
-      ).toMatchObject({ status: 'acknowledged' })
+      expect(await handle.input.submit!({ inputId: runtimeId('tools'), text: 'Run the native tools' })).toMatchObject({
+        status: 'acknowledged'
+      })
       await handle.pi.settled()
       await observation.drain()
       expect(events.filter((event) => event.type === 'input.changed').at(-1)?.input.outcome).toBe('completed')

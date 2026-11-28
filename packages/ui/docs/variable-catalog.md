@@ -94,7 +94,7 @@ black, or the page foreground will have sufficient contrast.
 | --- | --- |
 | `--border` | Default `border-color` and divider color |
 | `--input` | Input and control border color |
-| `--ring` | Keyboard focus ring or outline color |
+| `--ring` | Keyboard focus color: the opaque focus border, and the base-layer focus halo at 40% alpha |
 | `--sidebar-border` | Sidebar divider and boundary color |
 | `--sidebar-ring` | Focus ring inside the sidebar zone |
 | `--chart-1` | First categorical data series |
