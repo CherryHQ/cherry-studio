@@ -299,7 +299,7 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
     Boolean(specialViewDefinition?.supportsImageActions) && (viewMode === 'special' || viewMode === 'split')
 
   const { previewImageReady, onImageReadyChange: handleImageReadyChange } = usePreviewImageReady(
-    JSON.stringify([language, source, isStreaming, viewMode]),
+    JSON.stringify([language, source, isStreaming, showPreviewTools]),
     language === 'plantuml'
   )
 
