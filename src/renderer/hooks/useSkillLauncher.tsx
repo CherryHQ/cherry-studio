@@ -35,7 +35,7 @@ export function SkillLauncherProvider({ children }: PropsWithChildren) {
 
   const launchSkill = useCallback<LaunchSkill>(
     async (skill) => {
-      if (!skill.isGlobalEnabled) {
+      if (!skill.isGlobalEnabled || skill.activationState === 'pending') {
         setPendingSkill(skill)
         return
       }

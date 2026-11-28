@@ -88,11 +88,10 @@ export type HeartbeatRunResult = z.infer<typeof HeartbeatRunResultSchema>
 export const CreateAgentCommandSchema = AgentBaseSchema.extend({
   type: AgentEntitySchema.shape.type,
   avatarImage: ImageBytesSchema.optional(),
-  /**
-   * Create-only: ids of pre-existing global skills to enable for the new
-   * Agent. Join rows are written in the same DB transaction as the Agent.
-   */
+  /** Exact selection of installed optional skills. Built-in skills follow the global switch. */
   skillIds: AgentSkillIdSetSchema.optional(),
+  /** Explicit opt-outs from global inheritance when `skillIds` is omitted. */
+  disabledSkillIds: AgentSkillIdSetSchema.optional(),
   /**
    * Create-only: channels owned by the new Agent, created in the same DB transaction.
    * QR-login channels are always created inactive.

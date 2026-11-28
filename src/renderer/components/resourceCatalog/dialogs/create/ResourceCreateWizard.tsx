@@ -99,7 +99,7 @@ function getDefaultValues(
     modelId: null,
     prompt: '',
     knowledgeBaseIds: [],
-    skillIds: [],
+    disabledSkillIds: [],
     mcpServerIds: [],
     enableWebSearch: false,
     disabledTools: [],
@@ -134,6 +134,7 @@ function applyAutoConfigDraft(
     knowledgeBaseIds: draft.knowledgeBaseIds,
     mcpServerIds: draft.mcpServerIds,
     skillIds: draft.skillIds,
+    disabledSkillIds: [],
     enableWebSearch: draft.enableWebSearch,
     ...(draft.permissionMode ? { permissionMode: draft.permissionMode } : {})
   }
@@ -526,7 +527,8 @@ export function ResourceCreateWizard({
       description: values.description.trim(),
       prompt: values.prompt.trim(),
       knowledgeBaseIds: values.knowledgeBaseIds,
-      skillIds: values.skillIds,
+      ...(values.skillIds !== undefined ? { skillIds: values.skillIds } : {}),
+      ...(values.disabledSkillIds?.length ? { disabledSkillIds: values.disabledSkillIds } : {}),
       mcpServerIds: values.mcpServerIds,
       enableWebSearch: values.enableWebSearch,
       disabledTools: values.disabledTools,

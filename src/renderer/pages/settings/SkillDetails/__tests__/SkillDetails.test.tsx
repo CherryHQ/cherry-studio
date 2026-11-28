@@ -92,9 +92,12 @@ vi.mock('react-i18next', () => ({
     t: (key: string) =>
       (
         ({
+          'settings.skills.enableForAgents': 'Enable for Agents',
           'settings.skills.externalAgents': 'Available to external agents',
           'settings.skills.externalAgentsDescription':
-            'Export this skill to ~/.agents/skills for use by external agents.'
+            'Export this skill to ~/.agents/skills for use by external agents.',
+          'settings.skills.pendingActivation': 'Pending confirmation',
+          'settings.skills.pendingActivationDescription': 'Agents inherit this skill after you confirm.'
         }) as Record<string, string>
       )[key] ?? key
   })
@@ -177,6 +180,7 @@ function createSkill(overrides: Partial<InstalledSkill> = {}): InstalledSkill {
     version: '1.2.3',
     sourceTags: ['writing'],
     contentHash: 'hash',
+    activationState: 'active',
     isGlobalEnabled: true,
     mirrorEnabled: true,
     isEnabled: false,
@@ -266,6 +270,19 @@ describe('SkillDetails', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'library.action.uninstall' }))
     await waitFor(() => expect(mocks.uninstallSkill).toHaveBeenCalledOnce())
     expect(mocks.navigate).toHaveBeenCalledWith({ to: '/settings/skills', search: { scope: undefined } })
+  })
+
+  it('offers confirmation in place of an on switch for a pending Skill', async () => {
+    mocks.query.data = createSkill({ source: 'local', activationState: 'pending', isGlobalEnabled: true })
+    render(<SkillDetails skillId="skill-1" />)
+
+    expect(screen.getByText('Pending confirmation')).toBeVisible()
+    expect(screen.queryByRole('switch')).not.toBeInTheDocument()
+    const confirm = screen.getByRole('button', { name: 'Enable for Agents' })
+    expect(confirm).toHaveAccessibleDescription('Agents inherit this skill after you confirm.')
+    await userEvent.setup().click(confirm)
+
+    expect(mocks.updateGlobalEnabled).toHaveBeenCalledExactlyOnceWith(true)
   })
 
   it('keeps export changes pending until saved, then displays the refreshed preference', async () => {

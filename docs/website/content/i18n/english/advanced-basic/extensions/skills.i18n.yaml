@@ -1,0 +1,4 @@
+# Bilingual consistency record for the website's locale directory layout.
+# Record each value with git hash-object <path> after reviewing both pages.
+docs/website/content/i18n/english/advanced-basic/extensions/skills.md: 28bcbf27862cbab985adc532e0b834ac87d67b4d
+docs/website/content/advanced-basic/extensions/skills.md: afda7722f8f47998afdcd23817f422c801228e36

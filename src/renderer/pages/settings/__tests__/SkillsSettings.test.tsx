@@ -31,11 +31,40 @@ vi.mock('@renderer/components/resourceCatalog/catalog', () => ({
   ResourceCatalogView: (props: ResourceCatalogViewProps) => {
     resourceCatalogViewMock(props)
     const installed = [
-      { isGlobalEnabled: true, name: 'System import', scope: 'system', source: 'system', sourceUrl: null },
-      { isGlobalEnabled: true, name: 'Builtin skill', scope: 'builtin', source: 'builtin', sourceUrl: null },
-      { isGlobalEnabled: false, name: 'Local system import', scope: 'system', source: 'local', sourceUrl: null },
-      { isGlobalEnabled: false, name: 'Unknown origin', scope: 'local', source: 'local', sourceUrl: null },
       {
+        activationState: 'active',
+        isGlobalEnabled: true,
+        name: 'System import',
+        scope: 'system',
+        source: 'system',
+        sourceUrl: null
+      },
+      {
+        activationState: 'active',
+        isGlobalEnabled: true,
+        name: 'Builtin skill',
+        scope: 'builtin',
+        source: 'builtin',
+        sourceUrl: null
+      },
+      {
+        activationState: 'active',
+        isGlobalEnabled: false,
+        name: 'Local system import',
+        scope: 'system',
+        source: 'local',
+        sourceUrl: null
+      },
+      {
+        activationState: 'pending',
+        isGlobalEnabled: true,
+        name: 'Legacy adopted skill',
+        scope: 'local',
+        source: 'local',
+        sourceUrl: null
+      },
+      {
+        activationState: 'active',
         isGlobalEnabled: true,
         name: 'Online import',
         scope: 'system',
@@ -195,7 +224,7 @@ describe('SkillsSettings', () => {
     expect(screen.getByRole('menuitemcheckbox', { name: '仅显示已开启技能' })).toBeChecked()
   })
 
-  it('keeps globally enabled Skills when the enabled-only filter is active', () => {
+  it('shows only confirmed, globally enabled Skills when the enabled-only filter is active', () => {
     MockUseCacheUtils.setPersistCacheValue('settings.skills.enabled_only', true)
     render(<SkillsSettings />)
 

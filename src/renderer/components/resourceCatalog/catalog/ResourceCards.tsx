@@ -11,6 +11,7 @@ import { RESOURCE_TYPE_META } from '@renderer/utils/resourceCatalog'
 import { cn } from '@renderer/utils/style'
 import type { Group } from '@shared/data/types/group'
 
+import { PendingSkillActivation } from './PendingSkillActivation'
 import { ResourceCardMenu } from './ResourceCardMenu'
 import { SkillSourceBadge } from './SkillSourceBadge'
 
@@ -53,6 +54,10 @@ function SkillGlobalToggle({ resource }: { resource: Extract<ResourceItem, { typ
     }
   }
 
+  if (resource.raw.activationState === 'pending') {
+    return <PendingSkillActivation disabled={isUpdating} onConfirm={() => void handleCheckedChange(true)} />
+  }
+
   return (
     <Tooltip title={t('settings.skills.globalEnabled')} asChild>
       <span className="inline-flex shrink-0">
@@ -87,6 +92,7 @@ export function ResourceCard({
   const showOverflowMenu = hasOverflowActions(r)
   const visibleGroup = r.type === 'assistant' ? r.groupName : undefined
   const skillVersion = r.type === 'skill' ? r.raw.version?.trim() : undefined
+  const isSkillPending = r.type === 'skill' && r.raw.activationState === 'pending'
 
   return (
     <div
@@ -185,7 +191,7 @@ export function ResourceCard({
                     {t('settings.skills.tryNow')}
                   </Button>
                 ) : null}
-                <SkillGlobalToggle resource={r} />
+                {isSkillPending ? null : <SkillGlobalToggle resource={r} />}
                 <ResourceCardMenu
                   resource={r}
                   onDuplicate={onDuplicate}
@@ -216,6 +222,11 @@ export function ResourceCard({
             )}
           </div>
         </div>
+        {isSkillPending ? (
+          <div className={cn('mt-2', isSkillSettings ? 'ml-11' : 'ml-13')} onClick={(e) => e.stopPropagation()}>
+            <SkillGlobalToggle resource={r} />
+          </div>
+        ) : null}
       </div>
     </div>
   )

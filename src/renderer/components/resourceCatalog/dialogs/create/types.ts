@@ -23,7 +23,7 @@ export type AvatarImageDraft = {
  * Field names are deliberately aligned with the shared edit-dialog field
  * components (`avatar`, `name`, `description`, `modelId`) so those components
  * can be reused as-is. `knowledgeBaseIds` is shared by both kinds, while
- * `skillIds` is set by the Agent capability step or by auto create.
+ * `skillIds` is an explicit selection from auto create or a prefilled draft.
  */
 export type ResourceCreateWizardFormValues = {
   avatar: string
@@ -40,7 +40,8 @@ export type ResourceCreateWizardFormValues = {
   // assistant step 3 / agent step 4
   knowledgeBaseIds: string[]
   // agent step 3
-  skillIds: string[]
+  skillIds?: string[]
+  disabledSkillIds?: string[]
   // agent MCP step, or auto create
   mcpServerIds: string[]
   // set only by auto create

@@ -22,7 +22,7 @@ import {
 } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { SkillSourceBadge } from '@renderer/components/resourceCatalog/catalog'
+import { PendingSkillActivation, SkillSourceBadge } from '@renderer/components/resourceCatalog/catalog'
 import { SettingDescription, SettingsContentBody } from '@renderer/components/SettingsPrimitives'
 import { useDataChange, useQuery } from '@renderer/data/hooks/useDataApi'
 import { useSkillMutationsById } from '@renderer/hooks/resourceCatalog'
@@ -196,6 +196,8 @@ export function SkillDetails({ skillId }: { skillId: string }) {
     )
   }
 
+  const isPending = skill.activationState === 'pending'
+
   return (
     <SettingsContentBody
       className="min-h-0 flex-1 overflow-hidden pt-4"
@@ -216,23 +218,30 @@ export function SkillDetails({ skillId }: { skillId: string }) {
                 {t('settings.skills.readOnly')}
               </Badge>
             ) : null}
-            <div className="flex items-center gap-2">
-              <Label htmlFor={globalToggleId} className="text-xs text-muted-foreground">
-                {t('settings.skills.globalEnabled')}
-              </Label>
-              <Switch
-                id={globalToggleId}
-                size="sm"
-                checked={skill.isGlobalEnabled}
-                disabled={isUpdating}
-                aria-label={t('settings.skills.globalToggle', { name: skill.name })}
-                onCheckedChange={(checked) => void handleToggle(checked)}
-              />
-            </div>
+            {isPending ? null : (
+              <div className="flex items-center gap-2">
+                <Label htmlFor={globalToggleId} className="text-xs text-muted-foreground">
+                  {t('settings.skills.globalEnabled')}
+                </Label>
+                <Switch
+                  id={globalToggleId}
+                  size="sm"
+                  checked={skill.isGlobalEnabled}
+                  disabled={isUpdating}
+                  aria-label={t('settings.skills.globalToggle', { name: skill.name })}
+                  onCheckedChange={(checked) => void handleToggle(checked)}
+                />
+              </div>
+            )}
           </div>
           <SettingDescription className="mt-1 line-clamp-2 text-sm leading-5">
             {skill.description || t('library.skill_detail.no_description')}
           </SettingDescription>
+          {isPending ? (
+            <div className="mt-2">
+              <PendingSkillActivation disabled={isUpdating} onConfirm={() => void handleToggle(true)} />
+            </div>
+          ) : null}
         </div>
         <div
           data-ui="skill-detail-actions"

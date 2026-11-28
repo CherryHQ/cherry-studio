@@ -23,11 +23,7 @@ const { importSkillDialogState, installedSkillsState, marketplaceDialogState, sy
       }
     },
     installedSkillsState: {
-      skills: [
-        { id: 'skill-a', name: 'Alpha Skill', source: 'local', isGlobalEnabled: true },
-        { id: 'skill-b', name: 'Beta Skill', source: 'local', isGlobalEnabled: true },
-        { id: 'skill-builtin', name: 'Builtin Skill', source: 'builtin', isGlobalEnabled: true }
-      ] as InstalledSkill[]
+      skills: [] as InstalledSkill[]
     },
     systemSkillDialogState: {
       current: null as null | {
@@ -90,15 +86,14 @@ function CapabilityStepHarness() {
       permissionMode: 'default',
       modelId: null,
       prompt: '',
-      knowledgeBaseIds: [],
-      skillIds: []
+      knowledgeBaseIds: []
     }
   })
 
   return (
     <>
       <CapabilityStep form={form} portalContainer={null} />
-      <output data-testid="skill-ids">{form.watch('skillIds').join(',')}</output>
+      <output data-testid="disabled-skills">{form.watch('disabledSkillIds')?.join(',')}</output>
     </>
   )
 }
@@ -106,80 +101,100 @@ function CapabilityStepHarness() {
 describe('CapabilityStep', () => {
   beforeEach(() => {
     installedSkillsState.skills = [
-      { id: 'skill-a', name: 'Alpha Skill', source: 'local', isGlobalEnabled: true },
-      { id: 'skill-b', name: 'Beta Skill', source: 'local', isGlobalEnabled: true },
-      { id: 'skill-builtin', name: 'Builtin Skill', source: 'builtin', isGlobalEnabled: true }
+      { id: 'skill-a', name: 'Alpha Skill', source: 'system', isGlobalEnabled: true, activationState: 'active' },
+      { id: 'skill-b', name: 'Beta Skill', source: 'local', isGlobalEnabled: true, activationState: 'active' },
+      {
+        id: 'skill-builtin',
+        name: 'Builtin Skill',
+        source: 'builtin',
+        isGlobalEnabled: true,
+        activationState: 'active'
+      },
+      { id: 'skill-pending', name: 'Pending Skill', source: 'local', isGlobalEnabled: true, activationState: 'pending' }
     ] as InstalledSkill[]
     importSkillDialogState.current = null
     marketplaceDialogState.current = null
     systemSkillDialogState.current = null
   })
 
-  it('writes selected skills from their switches', async () => {
+  it('starts inherited skills on and retains an explicit opt-out across catalog refreshes', async () => {
     const user = userEvent.setup()
-    render(<CapabilityStepHarness />)
+    const { rerender } = render(<CapabilityStepHarness />)
+    const alpha = () => screen.getByRole('switch', { name: 'Alpha Skill' })
+    const beta = () => screen.getByRole('switch', { name: 'Beta Skill' })
 
-    await user.click(screen.getByRole('switch', { name: 'Alpha Skill' }))
-    expect(screen.getByTestId('skill-ids')).toHaveTextContent('skill-a')
+    expect(alpha()).toBeChecked()
+    expect(beta()).toBeChecked()
+    await user.click(alpha())
+    expect(alpha()).not.toBeChecked()
+    expect(screen.getByTestId('disabled-skills')).toHaveTextContent('skill-a')
 
-    await user.click(screen.getByRole('switch', { name: 'Beta Skill' }))
-    expect(screen.getByTestId('skill-ids')).toHaveTextContent('skill-a,skill-b')
+    const initialSkills = installedSkillsState.skills
+    installedSkillsState.skills = initialSkills.filter((skill) => skill.id !== 'skill-a')
+    rerender(<CapabilityStepHarness />)
+    await user.click(beta())
+    installedSkillsState.skills = [
+      ...initialSkills,
+      {
+        id: 'new-skill',
+        name: 'New Skill',
+        source: 'local',
+        isGlobalEnabled: true,
+        activationState: 'active'
+      } as InstalledSkill
+    ]
+    rerender(<CapabilityStepHarness />)
+    expect(alpha()).not.toBeChecked()
+    expect(beta()).not.toBeChecked()
+    expect(screen.getByRole('switch', { name: 'New Skill' })).toBeChecked()
 
-    await user.click(screen.getByRole('switch', { name: 'Alpha Skill' }))
-    expect(screen.getByTestId('skill-ids')).toHaveTextContent('skill-b')
+    await user.click(alpha())
+    expect(screen.getByTestId('disabled-skills')).toHaveTextContent(/^skill-b$/)
   })
 
-  it('shows builtin skills pre-checked and locked, and never adds them to skillIds', async () => {
+  it('keeps pending skills unavailable and builtins locked during bulk selection', async () => {
     const user = userEvent.setup()
     render(<CapabilityStepHarness />)
 
     const builtinCheckbox = screen.getByRole('switch', { name: 'Builtin Skill' })
+    expect(screen.queryByRole('switch', { name: 'Pending Skill' })).toBeNull()
+    expect(screen.getByText('settings.skills.pendingActivationDescription')).toBeVisible()
     expect(builtinCheckbox).toBeChecked()
     expect(builtinCheckbox).toBeDisabled()
-
-    await user.click(builtinCheckbox)
-    expect(builtinCheckbox).toBeChecked()
-    expect(screen.getByTestId('skill-ids').textContent).toBe('')
-
-    await user.click(screen.getByRole('switch', { name: 'Alpha Skill' }))
-    expect(screen.getByTestId('skill-ids').textContent).toBe('skill-a')
-  })
-
-  it('selects and clears every configurable skill without adding builtin skills to skillIds', async () => {
-    const user = userEvent.setup()
-    render(<CapabilityStepHarness />)
 
     const selectAllSwitch = screen.getByRole('switch', {
       name: 'library.config.agent.section.tools.skills_enable_all'
     })
     const alphaSkill = screen.getByRole('switch', { name: 'Alpha Skill' })
     const betaSkill = screen.getByRole('switch', { name: 'Beta Skill' })
-    const builtinSkill = screen.getByRole('switch', { name: 'Builtin Skill' })
 
+    expect(selectAllSwitch).toBeChecked()
     await user.click(selectAllSwitch)
-    expect(screen.getByTestId('skill-ids')).toHaveTextContent('skill-a,skill-b')
-    expect(alphaSkill).toBeChecked()
-    expect(betaSkill).toBeChecked()
-    expect(builtinSkill).toBeChecked()
-
-    await user.click(selectAllSwitch)
-    expect(screen.getByTestId('skill-ids').textContent).toBe('')
+    expect(screen.getByTestId('disabled-skills')).toHaveTextContent('skill-a,skill-b')
     expect(alphaSkill).not.toBeChecked()
     expect(betaSkill).not.toBeChecked()
-    expect(builtinSkill).toBeChecked()
+    expect(builtinCheckbox).toBeChecked()
+
+    await user.click(selectAllSwitch)
+    expect(screen.getByTestId('disabled-skills')).toBeEmptyDOMElement()
+    expect(alphaSkill).toBeChecked()
+    expect(betaSkill).toBeChecked()
   })
 
-  it('enables an imported system skill for the new agent selection', async () => {
+  it('restores an opted-out system skill from system search', async () => {
     const user = userEvent.setup()
     render(<CapabilityStepHarness />)
 
+    const alpha = screen.getByRole('switch', { name: 'Alpha Skill' })
+    expect(alpha).toBeChecked()
+    await user.click(alpha)
     await user.click(screen.getByRole('button', { name: 'library.skill_add.add' }))
     await user.click(screen.getByRole('button', { name: 'library.skill_add.system_search' }))
     expect(systemSkillDialogState.current?.open).toBe(true)
     expect(systemSkillDialogState.current?.mode).toBe('agent-create')
 
-    act(() => systemSkillDialogState.current?.onEnabled?.('system-skill-id'))
-    expect(screen.getByTestId('skill-ids')).toHaveTextContent('system-skill-id')
-    expect(systemSkillDialogState.current?.selectedSkillIds).toEqual(['system-skill-id'])
+    act(() => systemSkillDialogState.current?.onEnabled?.('skill-a'))
+    expect(alpha).toBeChecked()
+    expect(screen.getByTestId('disabled-skills')).toBeEmptyDOMElement()
   })
 })

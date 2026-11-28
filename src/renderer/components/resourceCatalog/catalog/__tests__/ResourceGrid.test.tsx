@@ -52,8 +52,11 @@ vi.mock('react-i18next', () => ({
           'library.toolbar.group_button': '分组',
           'library.type.assistant': '助手',
           'library.type.skill': '技能',
+          'settings.skills.enableForAgents': '为智能体启用',
           'settings.skills.globalEnabled': '全局启用',
           'settings.skills.globalToggle': '全局启用技能',
+          'settings.skills.pendingActivation': '待确认',
+          'settings.skills.pendingActivationDescription': '确认后，智能体将继承此技能。',
           'settings.skills.source.local': '本地',
           'settings.skills.tryNow': '立即试用',
           'settings.skills.toggleFailed': '更新技能全局状态失败'
@@ -441,7 +444,13 @@ it('renders assistant card images with an emoji fallback for missing or broken i
   expect(screen.getByText('🤖')).toBeVisible()
 })
 
-function createSkillResource(version: string | null = null, isGlobalEnabled = true): ResourceItem {
+type SkillResource = Extract<ResourceItem, { type: 'skill' }>
+
+function createSkillResource(
+  version: string | null = null,
+  isGlobalEnabled = true,
+  activationState: SkillResource['raw']['activationState'] = 'active'
+): SkillResource {
   return {
     id: 'skill-1',
     type: 'skill',
@@ -450,7 +459,7 @@ function createSkillResource(version: string | null = null, isGlobalEnabled = tr
     avatar: 'S',
     createdAt: '2026-05-06T00:00:00.000Z',
     updatedAt: '2026-05-06T00:00:00.000Z',
-    raw: { version, isGlobalEnabled, source: 'local' } as Extract<ResourceItem, { type: 'skill' }>['raw']
+    raw: { version, isGlobalEnabled, source: 'local', activationState } as SkillResource['raw']
   }
 }
 
@@ -827,6 +836,27 @@ describe('ResourceGrid card actions', () => {
     rerender(<ResourceCard resource={createSkillResource()} {...getResourceCardProps()} />)
 
     expect(screen.queryByText('1.2.3')).not.toBeInTheDocument()
+  })
+
+  it('confirms a pending Skill even when its saved global switch is already on', async () => {
+    const user = userEvent.setup()
+    const onEdit = vi.fn()
+    const skill = createSkillResource(null, true, 'pending')
+    const props = getResourceCardProps({ onEdit })
+    updateSkillGlobalEnabledMock.mockClear().mockResolvedValueOnce({})
+    const { rerender } = render(<ResourceCard resource={skill} variant="settings" {...props} />)
+
+    expect(screen.getByText('待确认')).toBeVisible()
+    expect(screen.queryByRole('switch')).not.toBeInTheDocument()
+    const confirm = screen.getByRole('button', { name: '为智能体启用' })
+    expect(confirm).toHaveAccessibleDescription('确认后，智能体将继承此技能。')
+    await user.click(confirm)
+
+    expect(updateSkillGlobalEnabledMock).toHaveBeenCalledExactlyOnceWith(true)
+    expect(onEdit).not.toHaveBeenCalled()
+    rerender(<ResourceCard resource={createSkillResource()} variant="settings" {...props} />)
+    expect(screen.queryByRole('button', { name: '为智能体启用' })).not.toBeInTheDocument()
+    expect(screen.getByRole('switch', { name: '全局启用技能' })).toBeChecked()
   })
 
   it('keeps Try Now and More visible on every settings Skill card', async () => {

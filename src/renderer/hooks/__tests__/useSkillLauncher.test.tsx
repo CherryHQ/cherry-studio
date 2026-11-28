@@ -63,6 +63,7 @@ function createSkill(isGlobalEnabled: boolean): InstalledSkill {
     version: null,
     sourceTags: [],
     contentHash: 'hash',
+    activationState: 'active',
     isGlobalEnabled,
     mirrorEnabled: false,
     isEnabled: false,
@@ -124,9 +125,12 @@ describe('useSkillLauncher', () => {
     expect(mocks.ipcRequest).not.toHaveBeenCalled()
   })
 
-  it('enables a disabled Skill before creating its prepared session', async () => {
+  it.each([
+    ['disabled', createSkill(false)],
+    ['pending with its saved global switch on', { ...createSkill(true), activationState: 'pending' as const }]
+  ])('confirms a Skill that is %s before creating its prepared session', async (_state, skill) => {
     const user = userEvent.setup()
-    renderLauncher(createSkill(false))
+    renderLauncher(skill)
 
     await user.click(screen.getByRole('button', { name: 'Launch' }))
     expect(mocks.ipcRequest).not.toHaveBeenCalled()

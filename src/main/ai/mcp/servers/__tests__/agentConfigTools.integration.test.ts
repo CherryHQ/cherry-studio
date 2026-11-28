@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
 import { agentGlobalSkillTable } from '@data/db/schemas/agentGlobalSkill'
+import { agentSkillTable } from '@data/db/schemas/agentSkill'
 import { fileEntryTable } from '@data/db/schemas/file'
 import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
@@ -36,6 +37,7 @@ const DEFAULT_MODEL = 'wire::default-model'
 const OTHER_MODEL = 'wire::other-model'
 const USER_SKILL = 'user-skill'
 const BUILTIN_SKILL = 'builtin-skill'
+const PENDING_SKILL = 'pending-skill'
 const KNOWLEDGE_BASE = '6f1d2c3b-4a5e-4f60-8a7b-9c0d1e2f3a4b'
 
 describe('Agent create and configure tools', () => {
@@ -135,6 +137,22 @@ describe('Agent create and configure tools', () => {
     return agentGlobalSkillService.list({ agentId }).find((skill) => skill.id === skillId)?.isEnabled ?? false
   }
 
+  function seedPendingSkill() {
+    dbh.db
+      .insert(agentGlobalSkillTable)
+      .values({
+        id: PENDING_SKILL,
+        name: 'Pending skill',
+        folderName: PENDING_SKILL,
+        source: 'local',
+        sourceUrl: null,
+        contentHash: 'pending',
+        isEnabled: true,
+        activationState: 'pending'
+      })
+      .run()
+  }
+
   function liveAgents(): AgentEntity[] {
     return agentService.listAgents().agents
   }
@@ -228,6 +246,91 @@ describe('Agent create and configure tools', () => {
   })
 
   describe('create_agent', () => {
+    it('blocks explicit selection of a pending skill during Agent creation', async () => {
+      seedPendingSkill()
+      const agent = seedAgent('new-agent', { skillIds: [USER_SKILL, PENDING_SKILL] })
+
+      expect(skillEnabledFor(agent.id, PENDING_SKILL)).toBe(false)
+      expect(agentGlobalSkillService.listJoinByAgent(agent.id)).not.toContainEqual({
+        skillId: PENDING_SKILL,
+        isEnabled: true
+      })
+      expect(skillEnabledFor(agent.id, USER_SKILL)).toBe(true)
+
+      const result = await callBuiltinTool(assistantServer, 'create_agent', {
+        name: 'Reviewer',
+        instructions: 'Review.',
+        skillIds: [PENDING_SKILL]
+      })
+      expect(result.isError).toBe(true)
+      expect(liveAgents().map(({ id }) => id)).toEqual([agent.id])
+    })
+
+    it.each([
+      {
+        skillIds: undefined,
+        expected: ['another-skill', BUILTIN_SKILL, USER_SKILL],
+        names: ['Another skill', 'Built-in', 'Code Review']
+      },
+      { skillIds: [], expected: [BUILTIN_SKILL], names: ['Built-in'] },
+      { skillIds: [USER_SKILL], expected: [BUILTIN_SKILL, USER_SKILL], names: ['Built-in', 'Code Review'] }
+    ])('applies and reports the skill selection $skillIds', async ({ skillIds, expected, names }) => {
+      dbh.db
+        .insert(agentGlobalSkillTable)
+        .values([
+          {
+            id: 'another-skill',
+            name: 'Another skill',
+            folderName: 'another-skill',
+            source: 'local',
+            contentHash: 'c',
+            isEnabled: true
+          },
+          {
+            id: 'paused-skill',
+            name: 'Paused skill',
+            folderName: 'paused-skill',
+            source: 'local',
+            contentHash: 'd',
+            isEnabled: false
+          },
+          {
+            id: 'paused-builtin',
+            name: 'Paused built-in',
+            folderName: 'paused-builtin',
+            source: 'builtin',
+            contentHash: 'e',
+            isEnabled: false
+          }
+        ])
+        .run()
+
+      const result = await callBuiltinTool(assistantServer, 'create_agent', {
+        name: 'Reviewer',
+        instructions: 'Review.',
+        ...(skillIds !== undefined ? { skillIds } : {})
+      })
+
+      expect(result.isError, toolText(result)).not.toBe(true)
+      const { agentId, summary } = result.structuredContent as { agentId: string; summary: string[] }
+      const effectiveIds = () =>
+        agentGlobalSkillService
+          .list({ agentId })
+          .filter((skill) => skill.isEnabled)
+          .map((skill) => skill.id)
+          .sort()
+      expect.soft(effectiveIds()).toEqual(expected)
+      const reportedSkills = summary.find((line) => line.startsWith('Skills: '))?.slice('Skills: '.length)
+      expect.soft(reportedSkills?.split(', ').sort()).toEqual(names)
+      agentGlobalSkillService.updateGlobalEnabled('another-skill', false)
+      agentGlobalSkillService.updateGlobalEnabled('another-skill', true)
+      agentGlobalSkillService.updateGlobalEnabled('paused-skill', true)
+      agentGlobalSkillService.updateGlobalEnabled('paused-builtin', true)
+      expect(effectiveIds()).toEqual(
+        [...expected, 'paused-builtin', ...(skillIds === undefined ? ['paused-skill'] : [])].sort()
+      )
+    })
+
     it('creates a Pi Durable Agent that carries every supplied field and shows up in the Agent list', async () => {
       const result = await callBuiltinTool(assistantServer, 'create_agent', {
         name: 'Reviewer',
@@ -646,13 +749,13 @@ describe('Agent create and configure tools', () => {
       })
       expect(previewAgentConfigChange(approvalId).ok).toBe(true)
       const input = prepareAgentConfigApproval(approvalId, { approved: true }).executionInput!()
-      agentGlobalSkillService.upsertJoin('target', USER_SKILL, true)
+      agentGlobalSkillService.upsertJoin('target', USER_SKILL, false)
 
       const result = await callBuiltinTool(assistantServer, 'update_agent', input)
 
       expect(result.isError).toBe(true)
       expect(agentService.getAgent('target')?.description).toBe('Original description')
-      expect(skillEnabledFor('target', USER_SKILL)).toBe(true)
+      expect(skillEnabledFor('target', USER_SKILL)).toBe(false)
     })
 
     it('shows a schedule-only heartbeat change while the heartbeat is off', () => {
@@ -814,6 +917,30 @@ describe('Agent create and configure tools', () => {
   })
 
   describe('config_update (self)', () => {
+    it('blocks new pending bindings during updates and keeps existing bindings through unrelated edits', async () => {
+      seedPendingSkill()
+      seedAgent('unbound')
+      seedAgent('bound')
+      dbh.db.insert(agentSkillTable).values({ agentId: 'bound', skillId: PENDING_SKILL, isEnabled: true }).run()
+      const bindings = dbh.db.select().from(agentSkillTable).all()
+
+      agentService.updateAgent('unbound', { skillUpdates: [{ skillId: PENDING_SKILL, isEnabled: true }] })
+      expect(skillEnabledFor('unbound', PENDING_SKILL)).toBe(false)
+
+      const blocked = await callBuiltinTool(cherryToolsServer('unbound'), 'config_update', {
+        skillIds: [PENDING_SKILL]
+      })
+      expect(blocked.isError).toBe(true)
+
+      const edited = await callBuiltinTool(cherryToolsServer('bound'), 'config_update', {
+        instructions: 'New instructions'
+      })
+      expect(edited.isError, toolText(edited)).not.toBe(true)
+      expect(agentService.getAgent('bound')?.instructions).toBe('New instructions')
+      expect(skillEnabledFor('bound', PENDING_SKILL)).toBe(true)
+      expect(dbh.db.select().from(agentSkillTable).all()).toEqual(bindings)
+    })
+
     it("changes the calling Agent's own fields", async () => {
       seedAgent('self')
 

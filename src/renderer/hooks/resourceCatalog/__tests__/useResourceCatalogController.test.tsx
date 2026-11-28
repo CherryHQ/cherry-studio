@@ -194,6 +194,7 @@ function createSkillResource(id: string, folderName: string, source: string): Ex
       version: null,
       sourceTags: [],
       contentHash: 'hash',
+      activationState: 'active',
       isGlobalEnabled: true,
       mirrorEnabled: true,
       isEnabled: false,

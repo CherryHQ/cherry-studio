@@ -6,6 +6,8 @@
 
 import * as z from 'zod'
 
+import { SkillActivationStateSchema } from '@shared/data/api/schemas/skills'
+
 // ============================================================================
 // Search source registries
 // ============================================================================
@@ -151,6 +153,7 @@ export const InstalledSkillSchema = z.object({
   sourceTags: z.array(z.string()).default([]),
   contentHash: z.string(),
   isGlobalEnabled: z.boolean(),
+  activationState: SkillActivationStateSchema,
   isEnabled: z.boolean(),
   /** Whether the skill is projected into ~/.agents/skills for external agents. */
   mirrorEnabled: z.boolean(),

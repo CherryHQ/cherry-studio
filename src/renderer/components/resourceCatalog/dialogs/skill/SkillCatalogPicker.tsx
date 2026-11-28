@@ -28,7 +28,7 @@ const skillIcon = (
 )
 
 /**
- * Builtin skills default to on. An existing Agent can restore a previously disabled builtin.
+ * Globally enabled builtins are locked on during creation. An existing Agent can restore a disabled builtin.
  */
 export function SkillCatalogPicker({
   mode,

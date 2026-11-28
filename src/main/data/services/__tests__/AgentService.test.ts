@@ -1260,19 +1260,31 @@ describe('AgentService', () => {
       expect(rows.every((r) => r.isEnabled)).toBe(true)
     })
 
-    it('writes no skill rows when skillIds is omitted or empty', async () => {
-      const omitted = createAgentForTest({ type: 'claude-code', name: 'No Skills', model: TEST_MODEL_ID })
-      const empty = createAgentForTest({
-        type: 'claude-code',
-        name: 'Empty Skills',
-        model: TEST_MODEL_ID,
-        skillIds: []
-      })
+    it('inherits globally enabled skills and keeps a creation opt-out after reactivation', async () => {
+      await insertGlobalSkill('skill_inherited')
+      await insertGlobalSkill('skill_unchecked')
+      await insertGlobalSkill('skill_paused')
+      agentGlobalSkillService.updateGlobalEnabled('skill_inherited', true)
+      agentGlobalSkillService.updateGlobalEnabled('skill_unchecked', true)
 
-      for (const id of [omitted.id, empty.id]) {
-        const rows = await dbh.db.select().from(agentSkillTable).where(eq(agentSkillTable.agentId, id))
-        expect(rows).toHaveLength(0)
-      }
+      const created = createAgentForTest({
+        type: 'claude-code',
+        name: 'Selective Skills',
+        model: TEST_MODEL_ID,
+        disabledSkillIds: ['skill_unchecked']
+      })
+      const effectiveIds = () =>
+        agentGlobalSkillService
+          .list({ agentId: created.id })
+          .filter((skill) => skill.isEnabled)
+          .map((skill) => skill.id)
+
+      expect(effectiveIds()).toEqual(['skill_inherited'])
+      agentGlobalSkillService.updateGlobalEnabled('skill_unchecked', false)
+      agentGlobalSkillService.updateGlobalEnabled('skill_unchecked', true)
+      expect(effectiveIds()).toEqual(['skill_inherited'])
+      agentGlobalSkillService.updateGlobalEnabled('skill_paused', true)
+      expect(effectiveIds()).toEqual(['skill_inherited', 'skill_paused'])
     })
 
     it('rejects with NOT_FOUND and persists no agent when a skillId does not exist', async () => {
