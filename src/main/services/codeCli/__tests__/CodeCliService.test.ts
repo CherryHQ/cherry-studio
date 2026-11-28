@@ -18,6 +18,7 @@ const installerMock = vi.hoisted(() => ({
   installCli: vi.fn(),
   uninstallCli: vi.fn()
 }))
+const claudeBinaryMock = vi.hoisted(() => ({ getInstalledExecutable: vi.fn<() => string | undefined>() }))
 const deepSeekHarnessMock = vi.hoisted(() => ({ writeConfigFiles: vi.fn() }))
 const hermesDashboardMock = vi.hoisted(() => ({ writeConfigFiles: vi.fn() }))
 const antigravityLaunchMock = vi.hoisted(() => vi.fn())
@@ -42,6 +43,7 @@ vi.mock('@application', async () => {
   const services = {
     BinaryManager: binaryManagerMock,
     LocalAgentInstallService: installerMock,
+    ClaudeCodeBinaryService: claudeBinaryMock,
     DeepSeekHarnessService: deepSeekHarnessMock,
     HermesDashboardService: hermesDashboardMock
   }
@@ -187,6 +189,7 @@ describe('CodeCliService', () => {
     )
     installerMock.installCli.mockResolvedValue({ ok: true, reused: false, path: '/usr/local/bin/codex' })
     installerMock.uninstallCli.mockResolvedValue({ ok: true })
+    claudeBinaryMock.getInstalledExecutable.mockReset()
     binaryManagerMock.removeTool.mockResolvedValue({ status: 'removed' })
     skillServiceMock.syncBuiltinSkill.mockReset().mockResolvedValue(false)
     skillServiceMock.uninstallBuiltinSkill.mockReset().mockResolvedValue(false)
@@ -481,6 +484,31 @@ describe('CodeCliService', () => {
   // Previously the flag was assembled from provider name + model id here, which could
   // drift from the provider key written into opencode.json (gateway mode) and made
   // OpenCode reject the model and fall back to its own last-used one.
+  it('launches the downloaded Claude SDK CLI before trying to install Claude', async () => {
+    const originalPlatform = process.platform
+    Object.defineProperty(process, 'platform', { value: 'darwin', configurable: true })
+    vi.useFakeTimers()
+    try {
+      const { codeCliService } = await loadModules()
+      const executable = '/mock/sdk install/claude'
+      claudeBinaryMock.getInstalledExecutable.mockReturnValue(executable)
+      vi.mocked(fs.existsSync).mockReturnValue(true)
+      binaryManagerMock.getToolSnapshots.mockResolvedValue({ claude: { availability: { source: 'none' } } })
+
+      await expect(
+        codeCliService.run({
+          mode: 'login-flow',
+          cliTool: CodeCli.CLAUDE_CODE,
+          directory: '/tmp/project'
+        })
+      ).resolves.toMatchObject({ success: true })
+      expect(String(vi.mocked(fs.writeFileSync).mock.calls.at(-1)?.[1])).toContain(`'${executable}' /login`)
+    } finally {
+      vi.useRealTimers()
+      Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true })
+    }
+  })
+
   describe('run (OpenCode launch)', () => {
     const originalPlatform = process.platform
 

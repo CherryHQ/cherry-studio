@@ -48,7 +48,7 @@ Once you receive a summary based on the README, you can ask follow-up questions 
 ## Choose a Model Source
 
 * To use the agent's own models, sign in or configure credentials using the method it supports. The agent supplies the model list. If it provides no choices, use its native configuration.
-* If the agent supports models from a Cherry Studio provider, configure the provider in **Settings** → **Model Provider**, then return to **Agent services** and choose a compatible model. Cherry Studio routes requests locally. You can leave the **API Gateway** service off.
+* If the agent supports models from a Cherry Studio provider, configure the provider in **Settings** → **Model Provider**, then return to **Agent services** and choose a compatible model. Cherry Studio routes requests locally. You can leave the **Unified Gateway** service off.
 
 ## If the Connection Fails
 
