@@ -49,9 +49,10 @@ A provider failure can end foreground work while Durable keeps follow-ups in the
 shows the failure on the settled reply and keeps the follow-ups queued under their original
 submission IDs.
 
-The connection forwards Durable's input outcomes before the completion boundary. Main combines
-the outcomes of inputs linked to the same reply, including steers that span native runs, and maps
-them to the product terminal status:
+The connection forwards the native run's input outcomes with its completion boundary so they survive
+observer overflow together. Main combines the outcomes of inputs linked to the same reply, including
+steers that span native runs. Before settling a reply, Main reads any missing terminal outcomes from
+the bound Durable context. A missing outcome after that read prevents a successful settlement.
 
 - `completed` → `success`
 - `aborted` → `paused`
@@ -136,3 +137,4 @@ The decision shipped as a Spec-first stack:
 - AC7 — `tests/e2e/smoke/piDurableTurnAuthority.test.ts` with a local mock provider: a queued follow-up, a steer, Stop followed by a new message, and SIGKILL of Main mid-turn each persist Durable's outcome with no error row or error part, and the Stop and kill scenarios show the subagent transcript in its panel. On the stack base the queued, Stop and kill scenarios fail.
 - Regression — `PiDurableRuntimeConnection.test.ts` checks that a provider failure settles the active reply while the follow-up remains queued after reopening. The Electron failure scenario checks that committed text and the provider error persist on the failed reply, the composer exits its running state, and the queued input remains visible.
 - Regression — `AgentSessionRuntimeService.projection.test.ts` checks that Main keeps the original truncation error and both text segments when a steer completes on the same desktop reply.
+- Regression — `PiDurableRuntimeConnection.test.ts` overflows a held observer after a model failure, then verifies that Main persists the original error and the follow-up remains queued.

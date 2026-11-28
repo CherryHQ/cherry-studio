@@ -47,7 +47,7 @@ Pi Durable 持久记录每条输入的生命周期，包括准入、放置、原
 
 提供商报错时，前台工作可能结束，同时 Durable 将后续消息保留在原生队列中。宿主在已结算的回复上显示错误，并以原提交 ID 保留排队中的后续消息。
 
-连接在结束边界前转发 Durable 的输入结局。Main 汇总关联到同一条回复的输入结局，其中包括跨原生轮次的 steer，再映射为产品的终局状态：
+连接随原生轮次的结束边界一起转发其输入结局，两者共同保留在观察队列溢出的恢复中。Main 汇总关联到同一条回复的输入结局，其中包括跨原生轮次的 steer。结算前，Main 从输入绑定的 Durable 上下文回读缺失的终局。回读后仍缺少终局时，回复不会按成功结算。
 
 - `completed` → `success`
 - `aborted` → `paused`
@@ -132,3 +132,4 @@ Durable 持久记录在跑的请求是否可以与用户交互。退出应用时
 - AC7 — `tests/e2e/smoke/piDurableTurnAuthority.test.ts` 使用本地模拟提供商：排队 follow-up、steer、Stop 后发送新消息，以及在一轮中途对 Main 执行 SIGKILL，每种情况都落库 Durable 结局，没有 error 消息行或 error part；Stop 与杀进程场景会在子任务面板中显示子会话记录。在栈的基线上，排队、Stop 与杀进程场景会失败。
 - Regression — `PiDurableRuntimeConnection.test.ts` 验证提供商报错会结算当前回复，重新打开后 follow-up 仍在队列中。Electron 的失败场景验证已提交的正文和提供商错误保存在失败的回复上，输入框退出运行状态，队列中仍显示该输入。
 - Regression — `AgentSessionRuntimeService.projection.test.ts` 验证 steer 成功接续时，Main 仍将早先的截断错误结算到同一条桌面回复，并保留两段正文。
+- Regression — `PiDurableRuntimeConnection.test.ts` 在模型报错后让阻塞的观察队列溢出，验证 Main 持久化原始错误，同时 follow-up 继续排队。

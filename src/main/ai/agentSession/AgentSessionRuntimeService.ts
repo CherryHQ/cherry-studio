@@ -3,7 +3,7 @@ import { isToolUIPart } from 'ai'
 import { v7 as uuidv7 } from 'uuid'
 
 import { application } from '@application'
-import { runtimeId, type SubmitResult } from '@cherrystudio/agent-runtime'
+import { hasProductInputId, runtimeId, type SubmitResult } from '@cherrystudio/agent-runtime'
 import type { AgentSessionContextRow } from '@data/db/schemas/agentSessionContext'
 import type { DbOrTx } from '@data/db/types'
 import { agentService } from '@data/services/AgentService'
@@ -146,6 +146,7 @@ import {
   type AgentSessionRuntimeState,
   type AgentSessionRuntimeStateEffect,
   type AgentSessionRuntimeStateEvent,
+  type AgentSessionTerminalOutcome,
   type AgentSessionTerminalStatus,
   createAgentSessionRuntimeState,
   getAgentSessionRuntimeConnection,
@@ -183,6 +184,7 @@ const CONTEXT_USAGE_REFRESH_THROTTLE_MS = 3_000
 /** Stream abort reasons that mean the user stopped the work, as opposed to teardown. */
 const USER_STOP_REASONS: ReadonlySet<unknown> = new Set(['user-requested', 'remote-cancel'])
 type NativeInputState = Extract<AgentRuntimeEvent, { type: 'input-state' }>['input']
+type RuntimeTurnCompletion = Extract<AgentRuntimeEvent, { type: 'turn-complete' }>
 /** Shown on a card whose requesting runtime went away before the user could answer it. */
 const ABANDONED_APPROVAL_ERROR = 'The runtime connection closed before this request was answered'
 
@@ -2940,7 +2942,8 @@ export class AgentSessionRuntimeService extends BaseService {
     try {
       for await (const event of connection.events) {
         if (!this.isCurrentEntry(entry) || this.currentConnection(entry) !== connection) break
-        this.handleRuntimeEvent(entry, event, connection)
+        const settled = this.handleRuntimeEvent(entry, event, connection)
+        if (settled) await settled
       }
     } catch (error) {
       if (this.isCurrentEntry(entry) && this.currentConnection(entry) === connection) {
@@ -2953,7 +2956,7 @@ export class AgentSessionRuntimeService extends BaseService {
     entry: AgentSessionRuntimeEntry,
     event: AgentRuntimeEvent,
     connection = this.currentConnection(entry)
-  ): void {
+  ): void | Promise<void> {
     switch (event.type) {
       case 'message.text-open':
       case 'message.text-append':
@@ -3290,25 +3293,21 @@ export class AgentSessionRuntimeService extends BaseService {
         }
         break
       }
+      case 'native-run-complete':
       case 'turn-complete': {
+        const nativeRun = event.nativeRun
+        if (nativeRun)
+          for (const input of nativeRun.inputs)
+            if (hasProductInputId(input)) this.noteNativeOutcome(entry, nativeRun.contextId, input)
+        if (event.type === 'native-run-complete') break
+
         const turn = getAgentSessionRuntimeNativeTurn(entry.runtimeState)
-        if (turn) {
-          const input = runInputOutcome(turn.taskIds.flatMap((id) => turn.inputOutcomes?.get(id) ?? []))
-          const terminal = input && nativeOutcomeTerminal(input)
-          const outcome =
-            terminal?.status === 'error' ? terminal : { status: event.status ?? terminal?.status ?? 'success' }
-          if (outcome.status === 'success' && event.forkAnchor)
-            turn.forkAnchor ??= {
-              ...event.forkAnchor,
-              excludedMessageIds: entry.runtimeState.queue.map((item) => item.message.id)
-            }
-          // A native abort that Cherry did not start must still end the renderer stream as paused.
-          if (outcome.status === 'paused' && !entry.closing)
-            application.get('AiStreamManager').pauseRuntimeTurn(entry.topicId, 'agent-runtime-aborted')
-          this.applyRuntimeStateEvent(entry, { type: 'runtime-terminal', turn, outcome })
+        if (turn && nativeRun && !entry.stopping) {
+          const missing = turn.taskIds.filter((id) => !turn.inputOutcomes?.has(id))
+          if (missing.length)
+            return this.completeRuntimeTurnFromStorage(entry, connection, turn, event, nativeRun.contextId, missing)
         }
-        this.clearApiRetry(entry)
-        this.refreshContextUsage(entry)
+        this.completeRuntimeTurn(entry, turn, event)
         break
       }
       case 'stop-confirmed': {
@@ -3326,6 +3325,74 @@ export class AgentSessionRuntimeService extends BaseService {
       default:
         event satisfies never
     }
+  }
+
+  private async completeRuntimeTurnFromStorage(
+    entry: AgentSessionRuntimeEntry,
+    connection: AgentRuntimeConnection | undefined,
+    turn: AgentSessionRun,
+    event: RuntimeTurnCompletion,
+    contextId: string,
+    missing: readonly string[]
+  ): Promise<void> {
+    const outcomes = await Promise.all(
+      missing.map(async (inputId) => {
+        try {
+          const result = await connection?.lookupInput?.(contextId, inputId)
+          if (result?.status !== 'confirmed' || !result.value.found) return
+          const input = result.value.input
+          if (input.outcome) return input
+          if (input.facts.includes('locally-handled')) return { ...input, outcome: 'completed' as const }
+        } catch (error) {
+          logger.warn('Could not read Durable input outcome at completion', { inputId, error })
+        }
+        return undefined
+      })
+    )
+    if (
+      !this.isCurrentEntry(entry) ||
+      this.currentConnection(entry) !== connection ||
+      entry.closing ||
+      getAgentSessionRuntimeNativeTurn(entry.runtimeState) !== turn
+    )
+      return
+    for (const input of outcomes) if (input) this.noteNativeOutcome(entry, contextId, input)
+    this.completeRuntimeTurn(entry, turn, event)
+  }
+
+  private completeRuntimeTurn(
+    entry: AgentSessionRuntimeEntry,
+    turn: AgentSessionRun | undefined,
+    event: RuntimeTurnCompletion
+  ): void {
+    if (turn) {
+      const inputs = turn.taskIds.flatMap((id) => turn.inputOutcomes?.get(id) ?? [])
+      const input = runInputOutcome(inputs)
+      const terminal = input && nativeOutcomeTerminal(input)
+      const nativeInputs = event.nativeRun?.inputs
+      const nativeFailure = nativeInputs?.every((input) => !hasProductInputId(input))
+        ? nativeInputs.map(nativeOutcomeTerminal).find((outcome) => outcome?.status === 'error')
+        : undefined
+      let outcome: AgentSessionTerminalOutcome =
+        terminal?.status === 'error'
+          ? terminal
+          : (nativeFailure ?? { status: event.status ?? terminal?.status ?? 'success' })
+      if (outcome.status === 'success' && event.nativeRun && inputs.length < turn.taskIds.length)
+        outcome = entry.stopping
+          ? { status: 'paused' }
+          : { status: 'error', error: new Error('Pi Durable completed without a recorded input outcome') }
+      if (outcome.status === 'success' && event.forkAnchor)
+        turn.forkAnchor ??= {
+          ...event.forkAnchor,
+          excludedMessageIds: entry.runtimeState.queue.map((item) => item.message.id)
+        }
+      // A native abort that Cherry did not start must still end the renderer stream as paused.
+      if (outcome.status === 'paused' && !entry.closing)
+        application.get('AiStreamManager').pauseRuntimeTurn(entry.topicId, 'agent-runtime-aborted')
+      this.applyRuntimeStateEvent(entry, { type: 'runtime-terminal', turn, outcome })
+    }
+    this.clearApiRetry(entry)
+    this.refreshContextUsage(entry)
   }
 
   async compactSession(sessionId: string, expectedConnection: string, instructions?: string): Promise<boolean> {

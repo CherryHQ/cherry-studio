@@ -83,7 +83,9 @@ position. Pending-reply recovery reads the same native answer and commits its ch
 The connection consumes that batch; it does not poll pending inputs or infer completion from idle.
 It reports an input only when its state changes and reconsiders a child's status and release on
 snapshots, activity changes and input changes.
-Main combines the input outcomes for each reply, including steers that span native runs.
+The connection sends the input outcomes with the retained run boundary, including when another native
+run continues the foreground execution. Main combines the outcomes by input ID for the owning reply
+and reads any missing terminal outcome from its bound Durable context before settling.
 An `aborted` outcome, including one caused by user Stop, settles the reply as paused; `failed` and
 `unanswered` outcomes report an error carrying their native reason.
 A message sent while native work runs is submitted with Durable's `follow-up` busy policy and
