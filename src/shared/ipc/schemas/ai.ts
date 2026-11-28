@@ -325,6 +325,7 @@ export const aiRequestSchemas = {
       // With a requestId: also push each text delta to the caller as `ai.text.delta` while generating.
       streamDeltas: z.boolean().optional(),
       ...aiChatRequestShape,
+      utilityTask: z.boolean().optional(),
       disableTools: z.boolean().optional(),
       reasoningEffort: ReasoningEffortOptionSchema.optional(),
       serviceTier: ServiceTierSelectionSchema.optional(),
@@ -499,10 +500,6 @@ export const aiRequestSchemas = {
       value: z.union([z.string(), z.boolean()])
     }),
     output: z.custom<LocalAgentSessionInfo>()
-  }),
-  'ai.local_agents.set_mode': defineRoute({
-    input: z.strictObject({ sessionId: z.string().min(1), configId: z.string().min(1), value: z.string() }),
-    output: z.custom<LocalAgentSessionView>()
   }),
   'ai.local_agents.set_thought_level': defineRoute({
     input: z.strictObject({

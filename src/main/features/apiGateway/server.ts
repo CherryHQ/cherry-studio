@@ -100,16 +100,22 @@ export class ApiGateway {
   }
 
   async rebind(host: string): Promise<void> {
-    if (this.getHost() === host) return
-    if (!this.servers.length || this.boundPort === undefined) throw new Error('API Gateway has no TCP listener')
-    // Release listening handles only; existing local streams retain their sockets.
-    for (const server of this.servers) {
-      const http = server.raw.node.server
-      if (http.listening) http.close()
+    const previousHost = this.getHost()
+    if (previousHost === host) return
+    const port = this.boundPort
+    if (!previousHost || port === undefined) throw new Error('API Gateway has no TCP listener')
+
+    const releaseListeners = () => {
+      // Releasing listening handles does not terminate existing streams.
+      for (const server of this.servers) {
+        const http = server.raw.node.server
+        if (http.listening) http.close()
+      }
     }
-    try {
+
+    const bindListeners = async (nextHost: string) => {
       for (const [index, server] of this.servers.entries()) {
-        const address = index === 0 ? host : host === '0.0.0.0' ? '::' : '::1'
+        const address = index === 0 ? nextHost : nextHost === '0.0.0.0' ? '::' : '::1'
         const http = server.raw.node.server
         await new Promise<void>((resolve, reject) => {
           const onError = (error: Error) => {
@@ -122,16 +128,23 @@ export class ApiGateway {
           }
           http.once('error', onError)
           http.once('listening', onListening)
-          http.listen({ port: this.boundPort, host: address, ipv6Only: true })
+          http.listen({ port, host: address, ipv6Only: true })
         })
       }
+    }
+
+    releaseListeners()
+    try {
+      await bindListeners(host)
     } catch (error) {
-      // A partially rebound pair must not leave an unreported network listener open.
-      for (const server of this.servers) {
-        const http = server.raw.node.server
-        if (http.listening) http.close()
+      releaseListeners()
+      try {
+        await bindListeners(previousHost)
+      } catch (restoreError) {
+        releaseListeners()
+        logger.warn('Failed to restore API Gateway listeners', restoreError as Error)
+        this.servers.length = 0
       }
-      this.servers.length = 0
       throw error
     }
   }

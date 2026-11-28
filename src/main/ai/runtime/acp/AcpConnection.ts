@@ -23,7 +23,11 @@ import {
   type AcpPromptCapabilities,
   type AcpSessionConfiguration
 } from '@cherrystudio/agent-runtime-acp/v1'
-import { hasPermissionModeChoices, selectedPermissionMode } from '@cherrystudio/agent-runtime/cli'
+import {
+  hasPermissionModeChoices,
+  selectedPermissionMode,
+  type AgentPermissionMode
+} from '@cherrystudio/agent-runtime/cli'
 import { loggerService } from '@logger'
 import { t } from '@main/i18n'
 import { findExecutableInEnv } from '@main/utils/commandResolver'
@@ -273,21 +277,27 @@ export class AcpConnection extends LocalConnection {
     return signature === this.launchConfigSignature ? 'current' : 'rebuild'
   }
 
-  async start(cwd: string, resume?: string, launchBypass = false): Promise<this> {
+  async start(cwd: string, resume?: string, launchBypass = false, permissionMode?: AgentPermissionMode): Promise<this> {
     try {
-      return await this.startConnection(cwd, resume, launchBypass)
+      return await this.startConnection(cwd, resume, launchBypass, permissionMode)
     } catch (error) {
       throw acpError(error, this.process.stderr)
     }
   }
-  private async startConnection(cwd: string, resume: string | undefined, launchBypass: boolean): Promise<this> {
+  private async startConnection(
+    cwd: string,
+    resume: string | undefined,
+    launchBypass: boolean,
+    permissionMode?: AgentPermissionMode
+  ): Promise<this> {
     this.launchBypass = !this.headless && launchBypass && !!getAcpLaunchBypassArgs(this.config)
     this.launchConfigSignature = acpPreset(this.config.presetId)?.chatConfigSignature?.(this.config)
     const { launch, gateway, mode, contextWindow } = await prepareAcpChatLaunch(
       this.config,
       this.sessionId,
       this.abort.signal,
-      this.launchBypass
+      this.launchBypass,
+      permissionMode
     )
     if (this.abort.signal.aborted) {
       await gateway?.dispose()

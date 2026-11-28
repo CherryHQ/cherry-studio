@@ -89,9 +89,39 @@ describe('Agent timeline display', () => {
   })
 })
 
-it('assigns one identity header and one action boundary across all content segments of a Run', () => {
+it('shows the waiting Run identity after its latest placed input before any output', () => {
+  const pending: CherryUIMessage = {
+    id: 'run',
+    role: 'assistant',
+    metadata: { status: 'pending' },
+    partIds: [],
+    parts: []
+  }
+  const prompt = input('prompt', 1)
+  const waiting = projectAgentTimeline([prompt, pending], (message) => message)
+  expect(waiting.find((row) => row.showHeader)?.id).toBe('run')
+
+  const steer = { ...input('steer', 3), timeline: { pos: 3, replyId: 'run' } }
+  const queued = { ...input('queued'), timeline: { replyId: 'run' } }
+  const messages = [prompt, pending, steer, queued]
+  const steered = projectAgentTimeline(messages, (message) => message, waiting)
+  expect(steered.map((row) => row.id)).toEqual(['prompt', 'steer', 'run', 'queued'])
+  expect(steered.filter((row) => row.showHeader).map((row) => row.id)).toEqual(['run'])
+
+  const streaming: CherryUIMessage = {
+    ...pending,
+    partIds: ['answer'],
+    partPositions: [4],
+    parts: [{ type: 'text', text: 'Reply after steer', state: 'streaming' }]
+  }
+  const output = projectAgentTimeline(messages, (message) => (message.id === pending.id ? streaming : message), steered)
+  expect(output.map((row) => row.id)).toEqual(steered.map((row) => row.id))
+  expect(output.filter((row) => row.showHeader).map((row) => row.id)).toEqual(['run'])
+})
+
+it('shows the assistant identity before and after a steer while keeping one Run action boundary', () => {
   const rows = projectAgentTimeline([input('prompt', 1), run, input('steer', 4)], (message) => message)
-  expect(rows.filter((row) => row.showHeader).map((row) => row.id)).toEqual(['run'])
+  expect(rows.filter((row) => row.showHeader).map((row) => row.id)).toEqual(['run', 'run:part:answer'])
   expect(rows.filter((row) => row.isRunBoundary).map((row) => row.id)).toEqual(['run:part:answer'])
 })
 
@@ -143,7 +173,7 @@ it('preserves an existing content segment when a marker and a continuation arriv
   const rows = projectAgentTimeline([after], (message) => message, before)
   expect(rows.map((row) => row.id)).toEqual(['run', 'run:marker:fold', 'run:part:next', 'run:interrupted'])
   expect(rows[0].partIds).toEqual(before[0].partIds)
-  expect(rows.filter((row) => row.showHeader)).toHaveLength(1)
+  expect(rows.filter((row) => row.showHeader).map((row) => row.id)).toEqual(['run', 'run:part:next'])
   expect(rows.at(-1)?.kind).toBe('interrupted')
 })
 

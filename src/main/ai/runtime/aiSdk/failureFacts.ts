@@ -17,6 +17,54 @@ import { isCancellation } from '@shared/utils/errorReporting'
 
 import { ToolLoopTerminalError } from './loop/toolLoopTermination'
 
+const MISSING_FINISH_REASON_MESSAGE = 'Response stream ended without a finish reason.'
+
+export class MissingFinishReasonError extends Error {
+  readonly i18nKey = 'missing_finish_reason'
+
+  constructor(
+    cause: Error,
+    readonly providerId: string,
+    readonly modelId: string
+  ) {
+    super(cause.message, { cause })
+    this.name = 'MissingFinishReasonError'
+  }
+}
+
+export function isMissingFinishReason(error: unknown): error is InvalidResponseDataError {
+  return InvalidResponseDataError.isInstance(error) && error.message === MISSING_FINISH_REASON_MESSAGE
+}
+
+export type RecoverableModelTransportFailure = 'network-unavailable' | 'interrupted'
+
+export function recoverableModelTransportFailure(error: unknown): RecoverableModelTransportFailure | undefined {
+  for (let current = error, depth = 0; current instanceof Error && depth < 12; depth++) {
+    if (APICallError.isInstance(current) && current.statusCode !== undefined && current.statusCode >= 400)
+      return undefined
+    if (isCancellation(current)) return undefined
+    if (current instanceof MissingFinishReasonError || isMissingFinishReason(current)) return 'interrupted'
+    const code = 'code' in current && typeof current.code === 'string' ? current.code : undefined
+    const chromiumCode = /^net::(ERR_[A-Z_]+)$/.exec(current.message)?.[1]
+    switch (code ?? chromiumCode) {
+      case 'ERR_INTERNET_DISCONNECTED':
+      case 'ERR_NETWORK_IO_SUSPENDED':
+      case 'ENETDOWN':
+        return 'network-unavailable'
+      case 'ERR_NETWORK_CHANGED':
+      case 'ERR_CONNECTION_RESET':
+      case 'ERR_CONNECTION_CLOSED':
+      case 'ERR_CONNECTION_ABORTED':
+      case 'ECONNRESET':
+      case 'ECONNABORTED':
+      case 'UND_ERR_SOCKET':
+        return 'interrupted'
+    }
+    current = RetryError.isInstance(current) ? current.lastError : current.cause
+  }
+  return undefined
+}
+
 export function classifyAiSdkFailure(error: unknown, depth = 0): FailureFacts {
   const facts: FailureFacts = {
     runtime: 'ai-sdk',

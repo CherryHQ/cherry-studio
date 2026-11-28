@@ -103,30 +103,15 @@ function getWindowDays(windowKey: WindowKey): number {
   return windowKey === '30d' ? 30 : windowKey === '90d' ? 90 : 365
 }
 
-export function getWindowRange(windowKey: WindowKey): BoundedTimeRange {
+export function getWindowRange(windowKey: WindowKey, endingAt: number): BoundedTimeRange {
   const days = getWindowDays(windowKey)
-  const today = startOfLocalDay(new Date())
-  const from = new Date(today)
-  from.setDate(today.getDate() - days + 1)
+  const endDay = startOfLocalDay(new Date(endingAt))
+  const from = new Date(endDay)
+  from.setDate(endDay.getDate() - days + 1)
 
   return {
     from: from.getTime(),
-    to: endOfLocalDay(today).getTime()
-  }
-}
-
-export function getPreviousWindowRange(windowKey: WindowKey): BoundedTimeRange {
-  const days = getWindowDays(windowKey)
-  const currentRange = getWindowRange(windowKey)
-  const currentFrom = startOfLocalDay(new Date(currentRange.from))
-  const previousFrom = new Date(currentFrom)
-  previousFrom.setDate(currentFrom.getDate() - days)
-  const previousTo = new Date(currentFrom)
-  previousTo.setDate(currentFrom.getDate() - 1)
-
-  return {
-    from: startOfLocalDay(previousFrom).getTime(),
-    to: endOfLocalDay(previousTo).getTime()
+    to: endOfLocalDay(endDay).getTime()
   }
 }
 

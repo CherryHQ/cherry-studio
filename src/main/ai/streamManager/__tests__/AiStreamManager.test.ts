@@ -723,6 +723,18 @@ describe('AiStreamManager', () => {
       )
     })
 
+    it('carries a signed-out CherryAI opt-in onto the stream request', () => {
+      mgr.streamPrompt({
+        streamId: 'translate-1',
+        uniqueModelId: 'provider-a::model-a',
+        prompt: 'hello',
+        listener: new FakeListener('translate-1'),
+        utilityTask: true
+      })
+
+      expect(mockStreamText).toHaveBeenCalledWith(expect.objectContaining({ utilityTask: true }))
+    })
+
     it('keeps a trusted Agent SDK call in its agent session conversation', () => {
       mgr.streamPrompt({
         streamId: 'gateway-request-1',

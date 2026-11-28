@@ -299,6 +299,7 @@ async function openObjectMessage<T>(
     manager.streamPrompt({
       ...gatewayPromptOptions(request, usageContext, config.timeoutMs),
       maxRetries: 3,
+      onModelTransportFailure: config.agentContext?.onModelTransportFailure,
       streamId,
       listener
     })

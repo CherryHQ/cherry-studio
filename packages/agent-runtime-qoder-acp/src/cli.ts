@@ -1,3 +1,4 @@
+import type { RuntimeAccountResult } from '@cherrystudio/agent-runtime'
 import type { AcpCliPreset } from '@cherrystudio/agent-runtime-acp/profile'
 import { parseBooleanLoginStatus } from '@cherrystudio/agent-runtime/cli'
 
@@ -6,7 +7,7 @@ export const qoderCli = {
   accountProbe: {
     signedOutExitCode: 1,
     args: ['status', '-o', 'json'],
-    parse: (output) => parseBooleanLoginStatus(output, 'logged_in')
+    parse: (output): RuntimeAccountResult => parseBooleanLoginStatus(output, 'logged_in')
   },
   loginArgs: ['login'],
   terminalArgs: [],
