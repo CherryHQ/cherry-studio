@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useWebSearchFallbackNotice } from '@renderer/hooks/useWebSearchFallbackNotice'
@@ -45,6 +45,8 @@ describe('SelectionActionApp top-level error boundary', () => {
   it('shows the window fatal fallback instead of a white screen when a provider throws', () => {
     render(<SelectionActionApp />)
 
-    expect(screen.getByRole('alert')).toHaveTextContent('theme provider boom')
+    const alert = screen.getByRole('alert')
+    fireEvent.click(within(alert).getByRole('button', { expanded: false }))
+    expect(alert).toHaveTextContent('theme provider boom')
   })
 })

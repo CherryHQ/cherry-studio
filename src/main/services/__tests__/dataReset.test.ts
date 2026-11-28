@@ -1,7 +1,7 @@
 import type * as NodePathModule from 'node:path'
 
 import { createMockApplication } from '@test-mocks/main/application'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // The in-memory filesystem exercises the reset marker protocol without disk I/O.
 
@@ -12,8 +12,9 @@ const MARKER_ASIDE = `${USER_DATA}/data-reset.pending.invalid`
 const REGISTRY_OVERRIDE = `${USER_DATA}/Runtime/provider-registry-override`
 
 let applicationMock: ReturnType<typeof createMockApplication>
-const showErrorBoxMock = vi.fn()
 const showMessageBoxMock = vi.fn()
+const showErrorBoxMock = vi.fn()
+const writeTextMock = vi.fn()
 const appendFileSyncMock = vi.fn()
 const rmSyncMock = vi.fn()
 const readdirSyncMock = vi.fn()
@@ -149,9 +150,11 @@ function stubElectron() {
   webviewSession = makeSession()
   vi.doMock('electron', () => ({
     __esModule: true,
-    app: { isPackaged: false },
+    app: { isPackaged: false, isReady: () => true, getLocale: () => 'en-US' },
+    clipboard: { writeText: writeTextMock },
     dialog: { showErrorBox: showErrorBoxMock, showMessageBox: showMessageBoxMock },
-    session: { defaultSession, fromPartition: vi.fn(() => webviewSession) }
+    session: { defaultSession, fromPartition: vi.fn(() => webviewSession) },
+    shell: { openExternal: vi.fn() }
   }))
 }
 
@@ -174,7 +177,7 @@ function stubApplication(userData: string = USER_DATA, opts: { throwOnUserData?:
 }
 
 function stubI18n() {
-  vi.doMock('@main/i18n', () => ({ t: (key: string) => key }))
+  vi.doMock('@main/i18n', () => ({ t: (key: string) => key, resolveSystemLanguage: () => 'en-US' }))
 }
 
 function stubFs(listing: string[] | Error = DEFAULT_LISTING) {
@@ -351,7 +354,7 @@ function completedMarker(): CompletedMarker {
 
 async function runReset() {
   const { runDataReset } = await import('../dataReset')
-  runDataReset()
+  await runDataReset()
 }
 
 async function requestReset() {
@@ -366,6 +369,11 @@ function wipedEntries(): string[] {
 beforeEach(() => {
   vi.resetModules()
   vi.clearAllMocks()
+})
+
+// Every reset outcome goes through the supported dialog, never the bare error box.
+afterEach(() => {
+  expect(showErrorBoxMock).not.toHaveBeenCalled()
 })
 
 describe('runDataReset', () => {
@@ -477,7 +485,7 @@ describe('runDataReset', () => {
 
     expect(renameSyncMock).not.toHaveBeenCalled()
     expect(rmSyncMock).not.toHaveBeenCalled()
-    expect(showErrorBoxMock).toHaveBeenCalled()
+    expect(showMessageBoxMock).toHaveBeenCalled()
     expect(applicationMock.forceExit).toHaveBeenCalledWith(1)
     expect(applicationMock.relaunch).not.toHaveBeenCalled()
   })
@@ -493,7 +501,7 @@ describe('runDataReset', () => {
 
     expect(markerExists()).toBe(true)
     expect(rmSyncMock).not.toHaveBeenCalled()
-    expect(showErrorBoxMock).toHaveBeenCalled()
+    expect(showMessageBoxMock).toHaveBeenCalled()
     expect(applicationMock.forceExit).toHaveBeenCalledWith(1)
     expect(applicationMock.relaunch).not.toHaveBeenCalled()
   })
@@ -527,7 +535,15 @@ describe('runDataReset', () => {
 
     expect(rmSyncMock).not.toHaveBeenCalled()
     expect(markerExists()).toBe(false)
-    expect(showErrorBoxMock).toHaveBeenCalledWith(expect.any(String), expect.any(String))
+    await vi.waitFor(() =>
+      expect(showMessageBoxMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          buttons: ['dialog.support.close', 'dialog.support.copy_and_feedback', 'dialog.support.releases'],
+          message: 'dialog.data_reset.cancelled.message',
+          title: 'dialog.data_reset.cancelled.title'
+        })
+      )
+    )
     expect(applicationMock.forceExit).not.toHaveBeenCalled()
   })
 
@@ -540,7 +556,12 @@ describe('runDataReset', () => {
 
     expect(rmSyncMock).not.toHaveBeenCalled()
     expect(markerExists()).toBe(true)
-    expect(showErrorBoxMock).toHaveBeenCalledWith(expect.any(String), expect.any(String))
+    expect(showMessageBoxMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        buttons: expect.arrayContaining(['dialog.support.exit', 'dialog.support.releases']),
+        title: 'dialog.data_reset.failed.title'
+      })
+    )
     expect(applicationMock.forceExit).toHaveBeenCalledWith(1)
     expect(applicationMock.relaunch).not.toHaveBeenCalled()
   })
@@ -568,7 +589,7 @@ describe('runDataReset', () => {
     expect(readStoredMarker()).toMatchObject({ status: 'pending', attempts: 1 })
     expect(applicationMock.relaunch).toHaveBeenCalledTimes(1)
     expect(applicationMock.forceExit).not.toHaveBeenCalled()
-    expect(showErrorBoxMock).not.toHaveBeenCalled()
+    expect(showMessageBoxMock).not.toHaveBeenCalled()
   })
 
   it('gives up at the attempt cap: clears the marker, warns, continues boot', async () => {
@@ -579,9 +600,74 @@ describe('runDataReset', () => {
     await runReset()
 
     expect(markerExists()).toBe(false)
-    expect(showErrorBoxMock).toHaveBeenCalled()
+    await vi.waitFor(() => expect(showMessageBoxMock).toHaveBeenCalled())
     expect(applicationMock.relaunch).not.toHaveBeenCalled()
     expect(applicationMock.forceExit).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['an exhausted marker', pendingMarker({ attempts: 2 })],
+    ['a path mismatch', pendingMarker({ canonicalPath: '/mock/old-target' })]
+  ])('returns before Electron is ready when %s only needs a warning', async (_case, marker) => {
+    stubAll(marker)
+    let markReady!: () => void
+    const ready = new Promise<void>((resolve) => (markReady = resolve))
+    let isReady = false
+    vi.doMock('electron', () => ({
+      __esModule: true,
+      app: { isPackaged: true, isReady: () => isReady, whenReady: () => ready, getLocale: () => 'en-US' },
+      dialog: { showErrorBox: showErrorBoxMock, showMessageBox: showMessageBoxMock },
+      session: { defaultSession, fromPartition: vi.fn(() => webviewSession) }
+    }))
+
+    // Relocation must still isolate sessionData before ready, so the warning cannot hold preboot.
+    // `ready` stays pending until markReady(), so returning at all proves preboot did not wait for it.
+    await runReset()
+    expect(markerExists()).toBe(false)
+    expect(showMessageBoxMock).not.toHaveBeenCalled()
+
+    isReady = true
+    markReady()
+    await vi.waitFor(() => expect(showMessageBoxMock).toHaveBeenCalledOnce())
+    expect(applicationMock.forceExit).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    {
+      name: 'a path mismatch',
+      setup: () => {
+        stubAll(pendingMarker({ canonicalPath: '/mock/old-target' }))
+        realpathNativeMock.mockImplementation(() => '/mock/new-target')
+      },
+      cause: ['/mock/old-target', '/mock/new-target']
+    },
+    {
+      name: 'an unrecordable attempt count',
+      setup: () => {
+        stubAll(pendingMarker())
+        fsCtl.failWrite = true
+      },
+      cause: ['EROFS']
+    },
+    {
+      name: 'a terminal wipe failure',
+      setup: () => {
+        stubAll(pendingMarker({ attempts: 1 }))
+        rmSyncMock.mockImplementation((target: string) => {
+          if (String(target).endsWith('/Data')) throw new Error('EBUSY: resource busy')
+        })
+      },
+      cause: [`${USER_DATA}/Data`, 'EBUSY: resource busy']
+    }
+  ])('copies the cause of $name, not the warning text', async ({ setup, cause }) => {
+    setup()
+    showMessageBoxMock.mockResolvedValueOnce({ response: 1 }).mockResolvedValue({ response: 0 })
+
+    await runReset()
+
+    await vi.waitFor(() => expect(showMessageBoxMock).toHaveBeenCalledTimes(2))
+    const copied = String(writeTextMock.mock.calls[0]?.[0])
+    for (const text of cause) expect(copied).toContain(text)
   })
 
   it('abandons a marker that already reached the attempt cap without another pass', async () => {
@@ -590,7 +676,7 @@ describe('runDataReset', () => {
 
     expect(rmSyncMock).not.toHaveBeenCalled()
     expect(markerExists()).toBe(false)
-    expect(showErrorBoxMock).toHaveBeenCalled()
+    await vi.waitFor(() => expect(showMessageBoxMock).toHaveBeenCalled())
   })
 
   it('quits rather than booting writable when abandoning a marker fails', async () => {
@@ -599,7 +685,7 @@ describe('runDataReset', () => {
     await runReset()
 
     expect(markerExists()).toBe(true)
-    expect(showErrorBoxMock).toHaveBeenCalled()
+    expect(showMessageBoxMock).toHaveBeenCalled()
     expect(applicationMock.forceExit).toHaveBeenCalledWith(1)
     expect(applicationMock.relaunch).not.toHaveBeenCalled()
   })
@@ -621,7 +707,12 @@ describe('runDataReset', () => {
     await runReset()
 
     expect(readStoredMarker()?.status).toBe('completed')
-    expect(showErrorBoxMock).toHaveBeenCalledWith(expect.any(String), expect.any(String))
+    expect(showMessageBoxMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        buttons: expect.arrayContaining(['dialog.support.exit']),
+        title: 'dialog.data_reset.incomplete.title'
+      })
+    )
     expect(applicationMock.forceExit).toHaveBeenCalledWith(1)
     expect(applicationMock.relaunch).not.toHaveBeenCalled()
   })
@@ -633,7 +724,7 @@ describe('runDataReset', () => {
     fsCtl.directorySyncFailuresToSkip = 2
     await runReset()
 
-    expect(showErrorBoxMock).not.toHaveBeenCalled()
+    expect(showMessageBoxMock).not.toHaveBeenCalled()
     expect(applicationMock.relaunch).toHaveBeenCalledTimes(1)
     expect(applicationMock.forceExit).not.toHaveBeenCalled()
   })
@@ -644,7 +735,7 @@ describe('runDataReset', () => {
     await runReset()
 
     expect(readStoredMarker()?.status).toBe('completed')
-    expect(showErrorBoxMock).not.toHaveBeenCalled()
+    expect(showMessageBoxMock).not.toHaveBeenCalled()
     expect(applicationMock.relaunch).toHaveBeenCalledTimes(1)
     expect(applicationMock.forceExit).not.toHaveBeenCalled()
   })
@@ -655,7 +746,7 @@ describe('runDataReset', () => {
 
     expect(rmSyncMock).not.toHaveBeenCalled()
     expect(markerExists()).toBe(false)
-    expect(showErrorBoxMock).not.toHaveBeenCalled()
+    expect(showMessageBoxMock).not.toHaveBeenCalled()
     expect(applicationMock.relaunch).not.toHaveBeenCalled()
     expect(applicationMock.forceExit).not.toHaveBeenCalled()
   })
@@ -693,7 +784,7 @@ describe('runDataReset', () => {
 
     expect(rmSyncMock).not.toHaveBeenCalled()
     expect(markerExists()).toBe(true)
-    expect(showErrorBoxMock).not.toHaveBeenCalled()
+    expect(showMessageBoxMock).not.toHaveBeenCalled()
     expect(applicationMock.forceExit).not.toHaveBeenCalled()
   })
 
@@ -759,7 +850,7 @@ describe('runDataReset', () => {
     await runReset()
 
     expect(rmSyncMock).not.toHaveBeenCalled()
-    expect(showErrorBoxMock).toHaveBeenCalled()
+    expect(showMessageBoxMock).toHaveBeenCalled()
     expect(applicationMock.forceExit).toHaveBeenCalledWith(1)
     expect(applicationMock.relaunch).not.toHaveBeenCalled()
   })

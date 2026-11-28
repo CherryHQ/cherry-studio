@@ -7,12 +7,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { application } from '@application'
 import type { readRestoreJournal } from '@data/db/restore/restoreJournal'
 
-const runRestorePromotionMock = vi.fn<() => Promise<void>>()
+const runRestorePromotionMock = vi.fn<() => Promise<string | undefined>>()
 const markRestoreFailedAfterCrashMock = vi.fn<() => void>()
 const isLiveDbStrandedMock = vi.fn<() => boolean>()
 const cleanupTerminalRestoreArtifactsMock = vi.fn<() => void>()
 const readRestoreJournalMock = vi.fn<typeof readRestoreJournal>()
 const showErrorBoxMock = vi.fn()
+const showMessageBoxMock = vi.fn()
+const writeTextMock = vi.fn()
 const electronState = { ready: false, sessionData: '' }
 const setPathMock = vi.fn((key: string, value: string) => {
   if (key === 'sessionData') electronState.sessionData = value
@@ -26,7 +28,12 @@ vi.mock('electron', () => ({
     isReady: () => electronState.ready,
     setPath: (...args: [string, string]) => setPathMock(...args)
   },
-  dialog: { showErrorBox: (...args: unknown[]) => showErrorBoxMock(...args) }
+  clipboard: { writeText: (...args: unknown[]) => writeTextMock(...args) },
+  shell: { openExternal: vi.fn() },
+  dialog: {
+    showErrorBox: (...args: unknown[]) => showErrorBoxMock(...args),
+    showMessageBox: (...args: unknown[]) => showMessageBoxMock(...args)
+  }
 }))
 
 vi.mock('@data/db/restore/restorePromotion', () => ({
@@ -56,6 +63,7 @@ beforeEach(() => {
   isLiveDbStrandedMock.mockReturnValue(false)
   readRestoreJournalMock.mockReturnValue({ kind: 'none' })
   showErrorBoxMock.mockClear()
+  showMessageBoxMock.mockReset().mockResolvedValue({ response: 0 })
   setPathMock.mockClear()
   electronState.ready = false
   profileRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'cherry-restore-session-'))
@@ -134,14 +142,16 @@ describe('runBackupRestoreGate', () => {
       journal: { state } as Extract<ReturnType<typeof readRestoreJournal>, { kind: 'ok' }>['journal']
     })
     cleanupTerminalRestoreArtifactsMock.mockImplementation(() => {
-      expect(showErrorBoxMock).toHaveBeenCalledWith(
-        'Restore failed',
-        expect.stringContaining('Your previous data has been kept')
+      expect(showMessageBoxMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'Restore failed',
+          message: expect.stringContaining('Your previous data has been kept')
+        })
       )
     })
 
     await expect(runBackupRestoreGate()).resolves.toBe('skipped')
-    expect(showErrorBoxMock).toHaveBeenCalledOnce()
+    expect(showMessageBoxMock).toHaveBeenCalledOnce()
   })
 
   it('delegates to the promotion logic and skips the crash net on success', async () => {
@@ -149,7 +159,7 @@ describe('runBackupRestoreGate', () => {
 
     await expect(runBackupRestoreGate()).resolves.toBe('skipped')
 
-    expect(showErrorBoxMock).not.toHaveBeenCalled()
+    expect(showMessageBoxMock).not.toHaveBeenCalled()
   })
 
   it.each(['completed', 'failed', 'expired'] as const)(
@@ -157,7 +167,10 @@ describe('runBackupRestoreGate', () => {
     async (state) => {
       setJournalState('staged')
       const isolated = prepareBackupRestoreSession()
-      runRestorePromotionMock.mockImplementation(async () => setJournalState(state))
+      runRestorePromotionMock.mockImplementation(async () => {
+        setJournalState(state)
+        return undefined
+      })
       cleanupTerminalRestoreArtifactsMock.mockImplementation(() =>
         readRestoreJournalMock.mockReturnValue({ kind: 'none' })
       )
@@ -168,7 +181,7 @@ describe('runBackupRestoreGate', () => {
       expect(normalBootstrapReached).toBe(false)
       expect(readRestoreJournalMock()).toEqual({ kind: 'none' })
       expect(application.relaunch).toHaveBeenCalledOnce()
-      expect(showErrorBoxMock).toHaveBeenCalledTimes(state === 'completed' ? 0 : 1)
+      expect(showMessageBoxMock).toHaveBeenCalledTimes(state === 'completed' ? 0 : 1)
     }
   )
 
@@ -180,7 +193,39 @@ describe('runBackupRestoreGate', () => {
     )
 
     await expect(runBackupRestoreGate(true)).resolves.toBe('handled')
-    expect(showErrorBoxMock).toHaveBeenCalledWith('Restore failed', expect.stringContaining('previous data'))
+    expect(showMessageBoxMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'Restore failed',
+        message: expect.stringContaining('previous data')
+      })
+    )
+  })
+
+  it('copies the recovered promotion error and the journal state, not the retry text', async () => {
+    runRestorePromotionMock.mockRejectedValue(new Error('promotion crash'))
+    markRestoreFailedAfterCrashMock.mockImplementation(() => setJournalState('failed'))
+    showMessageBoxMock.mockResolvedValueOnce({ response: 1 }).mockResolvedValue({ response: 0 })
+
+    await expect(runBackupRestoreGate()).resolves.toBe('skipped')
+
+    const copied = String(writeTextMock.mock.calls[0]?.[0])
+    expect(copied).toContain('promotion crash')
+    expect(copied).toContain('failed')
+    expect(copied).not.toContain('previous data')
+  })
+
+  it('copies the admission refusal reason, not just the expired journal state', async () => {
+    runRestorePromotionMock.mockImplementation(async () => {
+      setJournalState('expired')
+      return 'live fingerprint mismatch — the DB changed after staging'
+    })
+    showMessageBoxMock.mockResolvedValueOnce({ response: 1 }).mockResolvedValue({ response: 0 })
+
+    await expect(runBackupRestoreGate()).resolves.toBe('skipped')
+
+    const copied = String(writeTextMock.mock.calls[0]?.[0])
+    expect(copied).toContain('expired')
+    expect(copied).toContain('live fingerprint mismatch')
   })
 
   it.each(['promoting', 'completed', 'failed'] as const)(

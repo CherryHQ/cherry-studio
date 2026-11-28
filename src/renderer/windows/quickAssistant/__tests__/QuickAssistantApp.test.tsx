@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -47,7 +47,9 @@ describe('QuickAssistantApp top-level error boundary', () => {
   it('shows the window fatal fallback instead of a white screen when a provider throws', () => {
     render(<QuickAssistantApp />)
 
-    expect(screen.getByRole('alert')).toHaveTextContent('theme provider boom')
+    const alert = screen.getByRole('alert')
+    fireEvent.click(within(alert).getByRole('button', { expanded: false }))
+    expect(alert).toHaveTextContent('theme provider boom')
   })
 
   it('mounts the shared playback host inside the quick-assistant providers', () => {

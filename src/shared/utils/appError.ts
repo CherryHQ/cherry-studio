@@ -7,6 +7,7 @@ export {
   createAppErrorContext,
   isSafeErrorCode,
   projectAppErrorContext,
+  stringifyThrown,
   summarizeErrorParams,
   summarizeProviderResponse
 } from './appErrorSnapshot'
