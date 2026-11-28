@@ -90,6 +90,19 @@ describe('AgentSessionService', () => {
     })
   }
 
+  function insertSessionMessageAt(sessionId: string, id: string, createdAt: number) {
+    insertAgentSessionMessages(dbh.db, {
+      parentId: seedSessionRoot(dbh.db, sessionId),
+      id,
+      sessionId,
+      role: 'user',
+      createdAt,
+      data: { parts: [{ type: 'text', text: 'hello' }] },
+      searchableText: 'hello',
+      status: 'success'
+    })
+  }
+
   function createTaskSchedule(agentId = 'agent-session-test') {
     return jobScheduleService.create({
       type: 'agent.task',
@@ -1241,6 +1254,91 @@ describe('AgentSessionService', () => {
       newWorkspaceId: third.id,
       newWorkspacePath: third.path
     })
+  })
+
+  it('resolves a reported path against the workspace bound when its message was written', async () => {
+    const first = await createWorkspace('open-before')
+    const second = await createWorkspace('open-after')
+    const session = await createSession('Historical open resolution', first.id)
+
+    insertSessionMessageAt(session.id, 'message-before-rebind', 1000)
+    agentSessionService.setWorkspace(session.id, { type: 'user', workspaceId: second.id })
+    insertSessionMessageAt(session.id, 'message-after-rebind', 3000)
+    // The event's createdAt comes from a $defaultFn(Date.now) captured at module
+    // load, so pin it explicitly to place it between the two messages.
+    const [rebind] = agentSessionService.listWorkspaceEvents(session.id)
+    dbh.db
+      .update(agentSessionWorkspaceEventTable)
+      .set({ createdAt: 2000 })
+      .where(eq(agentSessionWorkspaceEventTable.id, rebind.id))
+      .run()
+
+    // A historical link keeps opening the file in the workspace it was written against (AC6).
+    expect(agentSessionService.getWorkspacePathForOpen(session.id, 'message-before-rebind')).toBe(first.path)
+    expect(agentSessionService.getWorkspacePathForOpen(session.id, 'message-after-rebind')).toBe(second.path)
+    // No message context or an unknown message: the current workspace (pre-rebind behavior).
+    expect(agentSessionService.getWorkspacePathForOpen(session.id)).toBe(second.path)
+    expect(agentSessionService.getWorkspacePathForOpen(session.id, 'no-such-message')).toBe(second.path)
+    // No rebind recorded: always the current workspace.
+    const untouched = await createSession('No rebind open resolution')
+    await insertSessionMessage(untouched.id, 'untouched-message')
+    expect(agentSessionService.getWorkspacePathForOpen(untouched.id, 'untouched-message')).toBe(
+      untouched.workspace.path
+    )
+  })
+
+  it('resolves a message written between two rebinds against the middle workspace', async () => {
+    const first = await createWorkspace('chain-first')
+    const second = await createWorkspace('chain-second')
+    const third = await createWorkspace('chain-third')
+    const session = await createSession('Chained rebinds', first.id)
+
+    agentSessionService.setWorkspace(session.id, { type: 'user', workspaceId: second.id })
+    insertSessionMessageAt(session.id, 'message-in-middle', 2000)
+    agentSessionService.setWorkspace(session.id, { type: 'user', workspaceId: third.id })
+    // Pin the event timestamps around the message (see the previous test for why
+    // a Date.now mock cannot place them). Identify the events by workspace rather
+    // than position: both can share a createdAt millisecond before pinning.
+    const rebinds = agentSessionService.listWorkspaceEvents(session.id)
+    const toSecond = rebinds.find((e) => e.newWorkspaceId === second.id)
+    const toThird = rebinds.find((e) => e.newWorkspaceId === third.id)
+    expect(toSecond).toBeDefined()
+    expect(toThird).toBeDefined()
+    dbh.db
+      .update(agentSessionWorkspaceEventTable)
+      .set({ createdAt: 1000 })
+      .where(eq(agentSessionWorkspaceEventTable.id, toSecond!.id))
+      .run()
+    dbh.db
+      .update(agentSessionWorkspaceEventTable)
+      .set({ createdAt: 3000 })
+      .where(eq(agentSessionWorkspaceEventTable.id, toThird!.id))
+      .run()
+
+    expect(agentSessionService.getWorkspacePathForOpen(session.id, 'message-in-middle')).toBe(second.path)
+  })
+
+  it('keeps a rebound-away workspace referenced by the recorded event through orphan cleanup', async () => {
+    const first = await createWorkspace('retained-after-rebind')
+    const second = await createWorkspace('retained-after-rebind-next')
+    const session = await createSession('Retained workspace', first.id)
+    agentSessionService.setWorkspace(session.id, { type: 'user', workspaceId: second.id })
+
+    // The rebind moved the only session off `first`, but its history still carries links into it
+    // (AC6): the recorded event keeps the row from being swept.
+    let deleted = false
+    dbh.db.transaction((tx) => {
+      deleted = agentWorkspaceService.deleteIfUnreferencedTx(tx, first.id)
+    })
+    expect(deleted).toBe(false)
+
+    // A workspace nothing references is still swept.
+    const stray = await createWorkspace('stray-sweep')
+    let strayDeleted = false
+    dbh.db.transaction((tx) => {
+      strayDeleted = agentWorkspaceService.deleteIfUnreferencedTx(tx, stray.id)
+    })
+    expect(strayDeleted).toBe(true)
   })
 
   it('deletes a session', async () => {

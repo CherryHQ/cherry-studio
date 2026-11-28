@@ -556,10 +556,24 @@ export const aiRequestSchemas = {
     output: z.boolean()
   }),
   // Opens a path a session's tools reported. `path` may be relative to the session's workspace —
-  // main owns that resolution, so the renderer never joins paths itself.
+  // main owns that resolution, so the renderer never joins paths itself. `messageId` anchors the
+  // resolution to the workspace bound when that message was written (AC6 of the rebind spec);
+  // without it the current workspace is used.
   'ai.agent.session.open_path': defineRoute({
-    input: z.strictObject({ sessionId: z.string().min(1), path: z.string().min(1) }),
+    input: z.strictObject({
+      sessionId: z.string().min(1),
+      path: z.string().min(1),
+      messageId: z.string().min(1).optional()
+    }),
     output: z.void()
+  }),
+  // The session's recorded workspace rebinds, oldest first: the renderer resolves historical
+  // relative links against their originating workspace (AC6 of the rebind spec).
+  'ai.agent.session.list_workspace_events': defineRoute({
+    input: z.strictObject({ sessionId: z.string().min(1) }),
+    output: z.array(
+      z.strictObject({ previousWorkspacePath: z.string(), newWorkspacePath: z.string(), createdAt: z.number() })
+    )
   }),
 
   // ── Agent scheduled-task commands (AgentJobsService is the sole command owner) ──

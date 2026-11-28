@@ -1198,6 +1198,54 @@ export class AgentSessionService {
     )
   }
 
+  /**
+   * Every recorded deliberate workspace rebind of a session, oldest first.
+   * Backs AC6 of the rebind spec: a historical relative link resolves against
+   * the workspace that was bound when its message was written, not the
+   * session's current one.
+   */
+  listWorkspaceEvents(sessionId: string): AgentSessionWorkspaceEventRow[] {
+    return application
+      .get('DbService')
+      .getDb()
+      .select()
+      .from(agentSessionWorkspaceEventTable)
+      .where(eq(agentSessionWorkspaceEventTable.sessionId, sessionId))
+      .orderBy(asc(agentSessionWorkspaceEventTable.createdAt))
+      .all()
+  }
+
+  /**
+   * The workspace path a reported path resolves against when opened from a
+   * given message (AC6 of the rebind spec): the binding in effect when that
+   * message was written, so a historical link keeps opening its original file
+   * after a rebind. Unknown or missing message context falls back to the
+   * session's current workspace — the pre-rebind behavior.
+   */
+  getWorkspacePathForOpen(sessionId: string, messageId?: string): string {
+    const session = this.getById(sessionId)
+    const current = session.workspace.path
+    if (!messageId) return current
+    const db = application.get('DbService').getDb()
+    const message = db
+      .select({ createdAt: agentSessionMessageTable.createdAt })
+      .from(agentSessionMessageTable)
+      .where(and(eq(agentSessionMessageTable.id, messageId), eq(agentSessionMessageTable.sessionId, sessionId)))
+      .limit(1)
+      .get()
+    if (!message) return current
+    const events = this.listWorkspaceEvents(sessionId)
+    if (events.length === 0) return current
+    let applicable: AgentSessionWorkspaceEventRow | undefined
+    for (const event of events) {
+      if (event.createdAt <= message.createdAt) applicable = event
+      else break
+    }
+    // Before the first recorded rebind the session was bound to that event's
+    // previous workspace; after one, to its new workspace.
+    return applicable ? applicable.newWorkspacePath : events[0].previousWorkspacePath
+  }
+
   private recordWorkspaceEventTx(
     tx: DbOrTx,
     sessionId: string,

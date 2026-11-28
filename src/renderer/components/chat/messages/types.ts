@@ -420,11 +420,11 @@ export interface MessageListActions {
   exportToSiyuan?: (message: MessageExportView) => void | Promise<void>
   openArtifactFile?: (path: string, location?: FileLocation) => void | Promise<void>
   openDiagnosticReport?: (description?: string) => void
-  resolvePath?: (path: string) => string
+  resolvePath?: (path: string, messageId?: string) => string
   previewInputFile?: (input: MessageInputFilePreview) => void | Promise<void>
-  isDirectory?: (path: string) => Promise<boolean>
+  isDirectory?: (path: string, messageId?: string) => Promise<boolean>
   openFile?: (target: MessageAttachmentTarget) => void | Promise<void>
-  openPath?: (path: string) => void | Promise<void>
+  openPath?: (path: string, messageId?: string) => void | Promise<void>
   openCitationsPanel?: (data: { citations: Citation[] }) => void
   isAgentToolFlowActive?: (toolCallId: string) => boolean
   openAgentToolFlow?: (input: OpenAgentToolFlowInput) => void

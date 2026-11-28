@@ -29,7 +29,7 @@ const {
     getSessionToolOutput: vi.fn(),
     getSessionToolOutputRange: vi.fn()
   },
-  agentSessionService: { getById: vi.fn() },
+  agentSessionService: { getById: vi.fn(), getWorkspacePathForOpen: vi.fn(), listWorkspaceEvents: vi.fn() },
   fileEntryService: { findById: vi.fn() },
   messageService: { getById: vi.fn() },
   createAgent: vi.fn(),
@@ -807,10 +807,13 @@ describe('aiHandlers — agent sessions & tasks', () => {
   // Relative paths reported by a session's tools are resolved against that session's workspace,
   // and only main knows it — the renderer sends the path text verbatim.
   it('open_path resolves the raw path against the session workspace', async () => {
-    agentSessionService.getById.mockReturnValue({ workspace: { path: '/home/alice/project' } })
+    agentSessionService.getWorkspacePathForOpen.mockReturnValue('/home/alice/project')
 
-    await aiHandlers['ai.agent.session.open_path']({ sessionId: 's1', path: 'assets/logo.png' }, ctx)
+    await aiHandlers['ai.agent.session.open_path']({ sessionId: 's1', path: 'assets/logo.png', messageId: 'm1' }, ctx)
 
+    // The message id reaches the service so historical links resolve against the
+    // workspace bound when that message was written (AC6 of the rebind spec).
+    expect(agentSessionService.getWorkspacePathForOpen).toHaveBeenCalledExactlyOnceWith('s1', 'm1')
     expect(openRequestPath).toHaveBeenCalledExactlyOnceWith('assets/logo.png', '/home/alice/project', {
       channel: 'ai.agent.session.open_path'
     })
@@ -819,7 +822,7 @@ describe('aiHandlers — agent sessions & tasks', () => {
   // A workspace row that is not an absolute path must not steer resolution; the caller's own
   // absolute path still opens, and a relative one fails rather than resolving against the cwd.
   it('open_path drops a workspace path that is not absolute', async () => {
-    agentSessionService.getById.mockReturnValue({ workspace: { path: 'project' } })
+    agentSessionService.getWorkspacePathForOpen.mockReturnValue('project')
 
     await aiHandlers['ai.agent.session.open_path']({ sessionId: 's1', path: '/opt/out.png' }, ctx)
 
