@@ -21,6 +21,7 @@ import { generateProfileStarters } from '@main/ai/profileStarters'
 import { AgentSessionForkError } from '@main/ai/runtime/fork'
 import { AiStreamAdmissionError, type MainDispatchRequest } from '@main/ai/streamManager'
 import { openRequestPath } from '@main/services/file'
+import { trackAgentSessionCreated, trackMainProductEvent } from '@main/services/productAnalytics'
 import { PathStaleVersionError } from '@main/utils/file'
 import { isAgentSessionForkFailureReason } from '@shared/ai/agentSessionFork'
 import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
@@ -216,7 +217,7 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
     application.get('AiService').respondToolApproval(payload, senderWebContents(senderId)),
 
   // ── Agent creation + session warm-connection lifecycle. ──
-  'ai.agent.create': createAgent,
+  'ai.agent.create': (input) => createAgent(input),
   'ai.agent.preview_config_change': async ({ approvalId }) => previewAgentConfigChange(approvalId),
   'ai.agent.restore': async ({ agentId }) => {
     try {
@@ -242,10 +243,16 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
     application.get('AttachmentPresenceService').list(sessionId),
   'ai.agent.sessions.delete': ({ agentId }) =>
     exposeAgentSessionArchiveError(() => application.get('AgentLifecycleService').archiveAgentSessions(agentId)),
-  'ai.agent.support_session.create': async () => ({ sessionId: createBuiltinSupportSession().id }),
+  'ai.agent.support_session.create': async () => {
+    const sessionId = createBuiltinSupportSession().id
+    trackMainProductEvent({ event: 'agent_session_created', agentKind: 'builtin' })
+    return { sessionId }
+  },
   'ai.agent.assistant_session.create': async ({ workspace }) => {
     try {
-      return { sessionId: createBuiltinAssistantSession(workspace).id }
+      const sessionId = createBuiltinAssistantSession(workspace).id
+      trackMainProductEvent({ event: 'agent_session_created', agentKind: 'builtin' })
+      return { sessionId }
     } catch (error) {
       if (isDataApiResourceNotFoundError(error, 'Workspace')) {
         throw new IpcError(aiErrorCodes.AI_AGENT_WORKSPACE_NOT_FOUND, error.message)
@@ -253,7 +260,11 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
       throw error
     }
   },
-  'ai.agent.skill_session.create': async ({ skillId }) => ({ sessionId: createBuiltinSkillSession(skillId).id }),
+  'ai.agent.skill_session.create': async ({ skillId }) => {
+    const sessionId = createBuiltinSkillSession(skillId).id
+    trackMainProductEvent({ event: 'agent_session_created', agentKind: 'builtin' })
+    return { sessionId }
+  },
   'ai.agent.session.commands': async ({ sessionId }) => {
     await application.get('AgentSessionRuntimeService').listSessionCommands(sessionId)
   },
@@ -268,7 +279,11 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
     exposeAgentSessionArchiveError(() =>
       application.get('AgentLifecycleService').deleteActiveSessionsPermanently(sessionIds)
     ),
-  'ai.agent.session.reuse_or_create': (input) => application.get('AgentLifecycleService').reuseOrCreateSession(input),
+  'ai.agent.session.reuse_or_create': async (input) => {
+    const result = await application.get('AgentLifecycleService').reuseOrCreateSession(input)
+    if (result.created) trackAgentSessionCreated(input.agentId)
+    return result
+  },
   'ai.agent.session.fork': async ({ sourceSessionId, messageId }) => {
     try {
       return {

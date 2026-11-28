@@ -33,6 +33,7 @@ import { ipcApi } from '@renderer/ipc'
 import ModelSettings from '@renderer/pages/settings/ModelSettings/ModelSettings'
 import { ProviderSettingsPage, useProviderModelSync } from '@renderer/pages/settings/ProviderSettings'
 import { CHERRYIN_API_KEY_URL, oauthWithCherryIn } from '@renderer/services/oauth'
+import { trackProductEvent } from '@renderer/services/productAnalytics'
 import { toast } from '@renderer/services/toast'
 import { openExternalWebsite } from '@renderer/services/website'
 import { getAppEdition } from '@renderer/utils/appEdition'
@@ -41,6 +42,7 @@ import { isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
 import type { OnboardingProviderSetupStatus } from '@shared/data/preference/preferenceTypes'
 import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID, isManagedCherryProviderId } from '@shared/data/presets/cherryai'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
+import type { OnboardingAnalyticsOption } from '@shared/ipc/schemas/analytics'
 import type { CherryCloudStatus } from '@shared/ipc/schemas/cherryCloud'
 import { LATEST_PRIVACY_POLICY_VERSION } from '@shared/utils/constants'
 import { defaultLanguage } from '@shared/utils/languages'
@@ -50,6 +52,7 @@ import { PrivacyPolicyDialog } from '../privacy/PrivacyPolicyDialog'
 
 type OnboardingStep = 'welcome' | 'provider' | 'select-model'
 type OnboardingCompletionStatus = Exclude<OnboardingProviderSetupStatus, 'pending'>
+const ANALYTICS_STEP = { welcome: 'welcome', provider: 'provider', 'select-model': 'select_model' } as const
 type PrivacyChoiceAction = () => void | Promise<void>
 interface OnboardingPageProps {
   enableCherryAccountLogin?: boolean
@@ -103,6 +106,9 @@ export default function OnboardingPage({
   const loginLoadingTimeoutRef = useRef<number | null>(null)
   const cloudStatusRef = useRef<CherryCloudStatus | null>(null)
   const hasRoutedCloudLoginRef = useRef(false)
+  const firstOptionAtRef = useRef<number | null>(null)
+  const lastOptionRef = useRef<OnboardingAnalyticsOption | null>(null)
+  const previousStepRef = useRef<OnboardingStep>('welcome')
   const isCnEdition = appEdition === 'cn'
   const shouldUseCherryAccountLogin = isCnEdition && enableCherryAccountLogin
   const {
@@ -176,6 +182,36 @@ export default function OnboardingPage({
     [updateSeededAgentModels]
   )
 
+  const selectOption = useCallback((option: OnboardingAnalyticsOption) => {
+    firstOptionAtRef.current ??= Date.now()
+    lastOptionRef.current = option
+    trackProductEvent({ event: 'onboarding_option_selected', option })
+  }, [])
+
+  const trackCompleted = useCallback(
+    (status: OnboardingCompletionStatus, path: 'cherryin_login' | 'cherry_cloud' | 'custom_provider' | 'skip') => {
+      const startedAt = firstOptionAtRef.current
+      trackProductEvent({
+        event: 'onboarding_completed',
+        status,
+        path,
+        durationMs: startedAt === null ? undefined : Date.now() - startedAt
+      })
+    },
+    []
+  )
+
+  useEffect(() => {
+    const fromStep = previousStepRef.current
+    previousStepRef.current = step
+    if (step === 'welcome' || step === fromStep) return
+    trackProductEvent({
+      event: 'onboarding_step_viewed',
+      step: ANALYTICS_STEP[step],
+      fromStep: ANALYTICS_STEP[fromStep]
+    })
+  }, [step])
+
   const handleLanguageChange = (value: string) => {
     if (!isAppLanguage(value)) return
 
@@ -242,17 +278,34 @@ export default function OnboardingPage({
         if (!(await persistPrivacyChoice())) {
           return
         }
+        if (status === 'skipped') selectOption('skip')
         if (status === 'completed' && defaultModel) {
           await updateSeededResourceModels(defaultModel)
         }
         await updateOnboardingPreferences({ providerSetupStatus: status })
+        trackCompleted(
+          status,
+          status === 'skipped'
+            ? 'skip'
+            : lastOptionRef.current === 'cherryin_login'
+              ? 'cherryin_login'
+              : 'custom_provider'
+        )
       } catch {
         toast.error(t('onboarding.toast.complete_failed'))
       } finally {
         setIsCompleting(false)
       }
     },
-    [defaultModel, persistPrivacyChoice, t, updateOnboardingPreferences, updateSeededResourceModels]
+    [
+      defaultModel,
+      persistPrivacyChoice,
+      selectOption,
+      t,
+      trackCompleted,
+      updateOnboardingPreferences,
+      updateSeededResourceModels
+    ]
   )
 
   const completeWithCloudAgentModel = useCallback(
@@ -263,6 +316,7 @@ export default function OnboardingPage({
         await updateSeededAgentModels(modelId)
         if (expectedStatus.scopeId !== cloudStatusRef.current?.scopeId) return
         await updateOnboardingPreferences({ providerSetupStatus: 'skipped' })
+        trackCompleted('skipped', 'cherry_cloud')
       } catch {
         if (expectedStatus.scopeId === cloudStatusRef.current?.scopeId) {
           toast.error(t('onboarding.toast.complete_failed'))
@@ -271,7 +325,7 @@ export default function OnboardingPage({
         setIsCompleting(false)
       }
     },
-    [persistPrivacyChoice, t, updateOnboardingPreferences, updateSeededAgentModels]
+    [persistPrivacyChoice, t, trackCompleted, updateOnboardingPreferences, updateSeededAgentModels]
   )
 
   const openProviderSetupAfterCloudModelUnavailable = () => {
@@ -460,9 +514,10 @@ export default function OnboardingPage({
                         isUpdatingPrivacy || (shouldUseCherryAccountLogin && cloudStatus?.phase === 'signed-in')
                       }
                       onClick={() =>
-                        void runAfterPrivacyChoice(
-                          shouldUseCherryAccountLogin ? handleCherryCloudLogin : handleCherryInLogin
-                        )
+                        void runAfterPrivacyChoice(() => {
+                          selectOption(shouldUseCherryAccountLogin ? 'cherry_cloud_login' : 'cherryin_login')
+                          return shouldUseCherryAccountLogin ? handleCherryCloudLogin() : handleCherryInLogin()
+                        })
                       }>
                       {!isPrimaryLoginPending && <LogIn size={16} />}
                       {primaryLoginLabel}
@@ -494,7 +549,12 @@ export default function OnboardingPage({
                       size="lg"
                       className="h-11 w-full rounded-xl"
                       disabled={isUpdatingPrivacy}
-                      onClick={() => void runAfterPrivacyChoice(() => setStep('provider'))}>
+                      onClick={() =>
+                        void runAfterPrivacyChoice(() => {
+                          selectOption('other_provider')
+                          setStep('provider')
+                        })
+                      }>
                       <KeyRound size={16} />
                       {t('onboarding.welcome.other_provider')}
                     </Button>

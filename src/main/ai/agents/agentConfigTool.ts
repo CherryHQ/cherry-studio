@@ -612,7 +612,8 @@ async function executeAgentCreate({
         heartbeatTimeoutMinutes: created.heartbeatTimeoutMinutes,
         envVarsText: ''
       }
-    })
+    }),
+    'assistant_tool'
   )
   return { ...toOutput(agent, describeCreated(blank, created)), highlights: agentHighlights(created) }
 }
