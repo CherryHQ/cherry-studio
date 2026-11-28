@@ -56,7 +56,10 @@ import { buildFilePartsForAttachments, withComposerFilePartMeta } from '@rendere
 import { getImageBlobFromSource } from '@renderer/utils/image'
 import { resolveSendShortcut } from '@renderer/utils/input'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
-import { createComposerFileTokenSourceId } from '@renderer/utils/message/composerFileTokenSource'
+import {
+  composerFileTokenIdFromSourceId,
+  createComposerFileTokenSourceId
+} from '@renderer/utils/message/composerFileTokenSource'
 import { canEditAssistantMessageParts } from '@renderer/utils/message/partsHelpers'
 import { isOpenAIWebSearchModel, resolveReasoningEffortForModel } from '@renderer/utils/model'
 import type { ComposerChatTarget, ComposerQueuedMessagePayload } from '@shared/ai/transport'
@@ -70,7 +73,7 @@ import {
   type UniqueModelId
 } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { getKnowledgeBaseIdsFromParts, withKnowledgeScopePart } from '@shared/data/types/uiParts'
+import { getKnowledgeBaseIdsFromParts, readCherryMeta, withKnowledgeScopePart } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { imageExts } from '@shared/utils/file'
 import { isGPT5SeriesReasoningModel, isVisionModel } from '@shared/utils/model'
@@ -93,6 +96,12 @@ import {
   renderChatToolbarControls
 } from './chat/chatComposerControls'
 import { type ChatComposerDraftCache, readChatDraftCache, writeChatDraftCache } from './chat/chatDraftCache'
+import {
+  deleteMessageEditDraftCache,
+  type MessageEditDraftCache,
+  readMessageEditDraftCache,
+  writeMessageEditDraftCache
+} from './chat/messageEditDraftCache'
 import {
   createEditableMessageDraft,
   getEditableKnowledgeBases,
@@ -203,6 +212,8 @@ interface SavedComposerDraft {
   mentionedModelSelectionWasPending: boolean
   selectedKnowledgeBases: KnowledgeBase[]
   knowledgeBaseIds: string[]
+  knowledgeBaseSelectionWasPending: boolean
+  cachedModelDraft?: Pick<ChatComposerDraftCache, 'mentionedModelIds' | 'modelMultiSelectMode'>
 }
 
 interface InputHistoryToolSnapshot extends Pick<SavedComposerDraft, 'files' | 'selectedKnowledgeBases'> {
@@ -437,9 +448,8 @@ const ChatComposerInner = ({
   const [searching, setSearching] = useCache('chat.web_search.searching')
   const [isMultiSelectMode] = useCache('chat.multi_select_mode')
   const chatWrite = useChatWrite()
-  const { editingMessage, cancelEditing, stopEditing } = useMessageEditing()
+  const { editingMessage, cancelEditing, stopEditingSession } = useMessageEditing()
   const editingMessageForCurrentTopic = topicId && editingMessage?.message.topicId === topicId ? editingMessage : null
-  const staleEditingMessage = editingMessage && !editingMessageForCurrentTopic
   // Assistant edits expose the reasoning above the main text. Signed reasoning
   // is saved with a replay marker so the main-process pipeline can send the
   // corrected text as a plain `<think>` block. A message with several reasoning
@@ -455,9 +465,15 @@ const ChatComposerInner = ({
     return { index, text: part.text ?? '' }
   }, [editingMessageForCurrentTopic])
   const [reasoningDraft, setReasoningDraft] = useState('')
+  const reasoningDraftRef = useLatest(reasoningDraft)
   useEffect(() => {
-    setReasoningDraft(editingReasoning?.text ?? '')
-  }, [editingMessageForCurrentTopic?.editingSessionId, editingReasoning?.index, editingReasoning?.text])
+    if (!editingMessageForCurrentTopic) {
+      setReasoningDraft('')
+      return
+    }
+    const cachedReasoning = readMessageEditDraftCache(editingMessageForCurrentTopic.message.id)?.reasoningText
+    setReasoningDraft(cachedReasoning ?? editingReasoning?.text ?? '')
+  }, [editingMessageForCurrentTopic, editingReasoning?.index, editingReasoning?.text])
   const { isPending, status: streamStatus, lastCompletedAt } = useTopicStreamStatus(streamScopeKey)
   const [isSending, setIsSending] = useState(false)
   const [isDirectSending, setIsDirectSending] = useState(false)
@@ -489,6 +505,7 @@ const ChatComposerInner = ({
     quickPanel?.isVisible && quickPanel.symbol === ComposerPanelSymbol.KnowledgeBase
   )
   const knowledgeBasesDataEnabled =
+    initialDraft.knowledgeBaseIds.length > 0 ||
     selectedKnowledgeBases.length > 0 ||
     getComposerTokenIds(draftTokens ?? [], 'knowledge').size > 0 ||
     Boolean(editingMessageForCurrentTopic) ||
@@ -558,8 +575,10 @@ const ChatComposerInner = ({
   )
   const savedDraftBeforeEditingRef = useRef<SavedComposerDraft | null>(null)
   const editSaveInFlightSessionIdRef = useRef<number | null>(null)
+  const editingOriginalFileTokensRef = useRef<NonNullable<MessageEditDraftCache['originalFileTokens']>>([])
   const editingOriginalFilePartsByTokenIdRef = useRef(new Map<string, ComposerFilePart>())
   const restoredEditingSessionIdRef = useRef<number | null>(null)
+  const pendingEditKnowledgeBaseIdsRef = useRef<string[] | null>(null)
   const isSavingEdit = savingEditingSessionId === editingMessageForCurrentTopic?.editingSessionId
   const { screenshotEnabled, startScreenshot } = useScreenshotChat({
     scopeKey: streamScopeKey,
@@ -669,29 +688,31 @@ const ChatComposerInner = ({
   const mentionedModelMultiSelectModeRef = useLatest(mentionedModelMultiSelectMode)
   const runtimeModelRef = useLatest(runtimeModel)
 
+  const restoreCachedMentionedModels = useCallback(
+    (modelIds: readonly UniqueModelId[], multiSelectMode: boolean) => {
+      const modelsById = new Map(draftModels.map((model) => [model.id, model]))
+      const models = modelIds.flatMap((id) => {
+        const model = modelsById.get(id)
+        return model ? [model] : []
+      })
+      if (modelIds.length > 0 && models.length === 0) restoreMentionedModelSelector()
+      else restoreMentionedModelDraft(models, multiSelectMode)
+    },
+    [draftModels, restoreMentionedModelDraft, restoreMentionedModelSelector]
+  )
+
   useEffect(() => {
     if (isMentionedModelDraftHydrated || !useMentionedModelSelector) return
     if (runtimeModelPending || (initialDraft.mentionedModelIds.length > 0 && isDraftModelsLoading)) return
 
-    const modelById = new Map(draftModels.map((model) => [model.id, model]))
-    const restoredModels = initialDraft.mentionedModelIds.flatMap((modelId) => {
-      const restoredModel = modelById.get(modelId)
-      return restoredModel ? [restoredModel] : []
-    })
-    if (initialDraft.mentionedModelIds.length > 0 && restoredModels.length === 0) {
-      restoreMentionedModelSelector()
-    } else {
-      restoreMentionedModelDraft(restoredModels, initialDraft.modelMultiSelectMode)
-    }
+    restoreCachedMentionedModels(initialDraft.mentionedModelIds, initialDraft.modelMultiSelectMode)
     setIsMentionedModelDraftHydrated(true)
   }, [
-    draftModels,
     initialDraft.mentionedModelIds,
     initialDraft.modelMultiSelectMode,
     isDraftModelsLoading,
     isMentionedModelDraftHydrated,
-    restoreMentionedModelDraft,
-    restoreMentionedModelSelector,
+    restoreCachedMentionedModels,
     runtimeModelPending,
     useMentionedModelSelector
   ])
@@ -960,7 +981,7 @@ const ChatComposerInner = ({
       skipDraftCacheWriteForHistoryPreviewRef.current = false
       return
     }
-    if (editingMessage) return
+    if (editingMessageForCurrentTopic) return
     syncKnowledgeBaseIds()
     const draft = actionsRef.current.getDraft()
     writeChatDraftCache(draftCacheScopeKey, {
@@ -974,7 +995,7 @@ const ChatComposerInner = ({
     actionsRef,
     draftCacheScopeKey,
     draftTokenRevision,
-    editingMessage,
+    editingMessageForCurrentTopic,
     files,
     isInputHistoryActive,
     isKnowledgeBaseDraftHydrated,
@@ -987,9 +1008,25 @@ const ChatComposerInner = ({
   ])
 
   const persistFinalDraft = useEffectEvent(() => {
+    const activeEdit = editingMessageForCurrentTopicRef.current
+    const historyEditDraft = activeEdit && isInputHistoryActive ? takeDraftBeforeHistory() : null
+    if (activeEdit) {
+      const editDraft = historyEditDraft ?? surfaceGetDraftRef.current()
+      writeMessageEditDraftCache(activeEdit.message.id, {
+        text: editDraft.text,
+        tokens: editDraft.tokens,
+        files: historyEditDraft ? (inputHistoryToolsRef.current?.files ?? filesRef.current) : filesRef.current,
+        knowledgeBaseIds: editDraft.tokens
+          .filter((token) => token.kind === 'knowledge')
+          .map((token) => token.id.slice('knowledge:'.length)),
+        originalFileTokens: editingOriginalFileTokensRef.current,
+        ...(editingReasoning ? { reasoningText: reasoningDraftRef.current } : {})
+      })
+    }
     if (isInputHistoryActive) return
+
     const savedDraft = savedDraftBeforeEditingRef.current
-    if (editingMessage && !savedDraft) return
+    if (activeEdit && !savedDraft) return
     const draft = savedDraft ? { text: savedDraft.text, tokens: savedDraft.draftTokens } : surfaceGetDraftRef.current()
     writeChatDraftCache(draftCacheScopeKey, {
       text: draft.text,
@@ -997,9 +1034,13 @@ const ChatComposerInner = ({
       files: savedDraft?.files ?? filesRef.current,
       knowledgeBaseIds: savedDraft?.knowledgeBaseIds ?? knowledgeBaseIdsRef.current,
       mentionedModelIds:
-        savedDraft?.mentionedModels.map((model) => model.id) ?? mentionedModelDraftRef.current.mentionedModelIds,
+        savedDraft?.cachedModelDraft?.mentionedModelIds ??
+        savedDraft?.mentionedModels.map((model) => model.id) ??
+        mentionedModelDraftRef.current.mentionedModelIds,
       modelMultiSelectMode:
-        savedDraft?.mentionedModelMultiSelectMode ?? mentionedModelDraftRef.current.modelMultiSelectMode
+        savedDraft?.cachedModelDraft?.modelMultiSelectMode ??
+        savedDraft?.mentionedModelMultiSelectMode ??
+        mentionedModelDraftRef.current.modelMultiSelectMode
     })
   })
   useEffect(() => () => persistFinalDraft(), [draftCacheScopeKey])
@@ -1016,21 +1057,37 @@ const ChatComposerInner = ({
     setText(savedDraft.text)
     setDraftTokens(savedDraft.draftTokens)
     setFiles(savedDraft.files)
-    const restoredSelectorModels =
-      savedDraft.mentionedModelSelectionWasPending && savedDraft.mentionedModelSelectorValue.length === 0
-        ? runtimeModelRef.current
-          ? [runtimeModelRef.current]
-          : []
-        : savedDraft.mentionedModelSelectorValue
-    restoreMentionedModelSelection(
-      restoredSelectorModels,
-      savedDraft.mentionedModels,
-      savedDraft.mentionedModelMultiSelectMode
-    )
-    setSelectedKnowledgeBases(savedDraft.selectedKnowledgeBases)
+    pendingEditKnowledgeBaseIdsRef.current = null
+    if (savedDraft.cachedModelDraft) {
+      const { mentionedModelIds, modelMultiSelectMode } = savedDraft.cachedModelDraft
+      // If loading is still pending, the existing topic hydration will restore these same IDs.
+      if (isMentionedModelDraftHydrated) restoreCachedMentionedModels(mentionedModelIds, modelMultiSelectMode)
+    } else {
+      const restoredSelectorModels =
+        savedDraft.mentionedModelSelectionWasPending && savedDraft.mentionedModelSelectorValue.length === 0
+          ? runtimeModelRef.current
+            ? [runtimeModelRef.current]
+            : []
+          : savedDraft.mentionedModelSelectorValue
+      restoreMentionedModelSelection(
+        restoredSelectorModels,
+        savedDraft.mentionedModels,
+        savedDraft.mentionedModelMultiSelectMode
+      )
+    }
+    knowledgeBaseIdsRef.current = [...savedDraft.knowledgeBaseIds]
+    if (savedDraft.knowledgeBaseSelectionWasPending) {
+      restoreKnowledgeBaseSelection(savedDraft.knowledgeBaseIds)
+    } else {
+      setSelectedKnowledgeBases(savedDraft.selectedKnowledgeBases)
+    }
   }, [
     actionsRef,
     exitInputHistoryPreview,
+    isMentionedModelDraftHydrated,
+    knowledgeBaseIdsRef,
+    restoreKnowledgeBaseSelection,
+    restoreCachedMentionedModels,
     restoreMentionedModelSelection,
     runtimeModelRef,
     setFiles,
@@ -1038,9 +1095,10 @@ const ChatComposerInner = ({
   ])
 
   const handleCancelEditing = useCallback(() => {
+    if (editingMessageForCurrentTopic) deleteMessageEditDraftCache(editingMessageForCurrentTopic.message.id)
     restoreSavedDraft()
     cancelEditing()
-  }, [cancelEditing, restoreSavedDraft])
+  }, [cancelEditing, editingMessageForCurrentTopic, restoreSavedDraft])
   const editingMessageId = editingMessageForCurrentTopic?.message.id
   const handleLocateEditingMessage = useCallback(() => {
     if (!editingMessageId) return
@@ -1049,16 +1107,32 @@ const ChatComposerInner = ({
 
   const restoreEditableMessageDraft = useEffectEvent((nextEditingMessage: NonNullable<typeof editingMessage>) => {
     releaseFollowupEditRef.current()
-    const editableDraft = createEditableMessageDraft(nextEditingMessage.parts, nextEditingMessage.message.id)
+    const cachedDraft = readMessageEditDraftCache(nextEditingMessage.message.id)
+    const editableDraft = cachedDraft
+      ? {
+          text: cachedDraft.text,
+          draftTokens: cachedDraft.tokens,
+          files: cachedDraft.files,
+          originalFileTokens: cachedDraft.originalFileTokens
+        }
+      : createEditableMessageDraft(nextEditingMessage.parts, nextEditingMessage.message.id)
+    // Old cached drafts can recover explicit source IDs, never infer identity from URL or position.
+    const originalFileTokens =
+      editableDraft.originalFileTokens ??
+      nextEditingMessage.parts.flatMap((part, partIndex) => {
+        const sourceId = part.type === 'file' && part.url && readCherryMeta(part)?.fileTokenSourceId
+        return sourceId ? [{ tokenId: composerFileTokenIdFromSourceId(sourceId), partIndex }] : []
+      })
     const originalFilePartsByTokenId = new Map<string, ComposerFilePart>()
-    const originalFileParts = nextEditingMessage.parts.filter(
-      (part): part is ComposerFilePart => part.type === 'file' && !!part.url
-    )
-    originalFileParts.forEach((part, index) => {
-      const file = editableDraft.files[index]
-      if (file) originalFilePartsByTokenId.set(chatComposerTokenId.file(file), part)
-    })
+    for (const { tokenId, partIndex } of originalFileTokens) {
+      const part = nextEditingMessage.parts[partIndex]
+      if (part?.type === 'file' && part.url) originalFilePartsByTokenId.set(tokenId, part)
+    }
+    editingOriginalFileTokensRef.current = originalFileTokens
     editingOriginalFilePartsByTokenIdRef.current = originalFilePartsByTokenId
+    pendingEditKnowledgeBaseIdsRef.current =
+      cachedDraft?.knowledgeBaseIds ??
+      [...getComposerTokenIds(editableDraft.draftTokens, 'knowledge')].map((id) => id.slice('knowledge:'.length))
     actionsRef.current.replaceDraft({ text: editableDraft.text, tokens: editableDraft.draftTokens })
     setText(editableDraft.text)
     setDraftTokens(editableDraft.draftTokens)
@@ -1069,6 +1143,7 @@ const ChatComposerInner = ({
   useLayoutEffect(() => {
     if (!editingMessageForCurrentTopic) {
       restoredEditingSessionIdRef.current = null
+      editingOriginalFileTokensRef.current = []
       editingOriginalFilePartsByTokenIdRef.current = new Map()
       return
     }
@@ -1077,7 +1152,10 @@ const ChatComposerInner = ({
 
     if (savedDraftBeforeEditingRef.current?.text === undefined) {
       const historyPreview = exitInputHistoryPreview()
-      const currentDraft = historyPreview.draft ?? actionsRef.current.getDraft()
+      const surfaceDraftReady = surfaceGetDraftRef.current !== emptyActions.getDraft
+      const currentDraft =
+        historyPreview.draft ??
+        (surfaceDraftReady ? actionsRef.current.getDraft() : { text: initialDraft.text, tokens: initialDraft.tokens })
       const currentTools = historyPreview.tools
       savedDraftBeforeEditingRef.current = {
         text: currentDraft.text,
@@ -1088,7 +1166,14 @@ const ChatComposerInner = ({
         mentionedModelMultiSelectMode: mentionedModelMultiSelectModeRef.current,
         mentionedModelSelectionWasPending: runtimeModelPending && mentionedModelSelectorValueRef.current.length === 0,
         selectedKnowledgeBases: currentTools?.selectedKnowledgeBases ?? selectedKnowledgeBasesRef.current,
-        knowledgeBaseIds: [...knowledgeBaseIdsRef.current]
+        knowledgeBaseIds: [...knowledgeBaseIdsRef.current],
+        knowledgeBaseSelectionWasPending: !isKnowledgeBaseDraftHydrated,
+        cachedModelDraft: !isMentionedModelDraftHydrated
+          ? {
+              mentionedModelIds: [...initialDraft.mentionedModelIds],
+              modelMultiSelectMode: initialDraft.modelMultiSelectMode
+            }
+          : undefined
       }
     } else {
       exitInputHistoryPreview()
@@ -1107,10 +1192,18 @@ const ChatComposerInner = ({
   ])
 
   useEffect(() => {
-    if (!staleEditingMessage) return
-    restoreSavedDraft()
-    stopEditing()
-  }, [restoreSavedDraft, staleEditingMessage, stopEditing])
+    const pendingIds = pendingEditKnowledgeBaseIdsRef.current
+    if (!pendingIds || !editingMessageForCurrentTopic || !isKnowledgeBaseDraftHydrated || isKnowledgeBasesLoading)
+      return
+    pendingEditKnowledgeBaseIdsRef.current = null
+    restoreKnowledgeBaseSelection(pendingIds)
+    setDraftTokenRevision((revision) => revision + 1)
+  }, [
+    editingMessageForCurrentTopic,
+    isKnowledgeBaseDraftHydrated,
+    isKnowledgeBasesLoading,
+    restoreKnowledgeBaseSelection
+  ])
 
   const placeholderText = t('chat.input.placeholder')
 
@@ -1674,8 +1767,9 @@ const ChatComposerInner = ({
         }
         if (reasoningChanged) toast.success(t('message.reasoning.saved'))
         if (editingMessageForCurrentTopicRef.current?.editingSessionId === editingSessionId) {
+          deleteMessageEditDraftCache(editingMessageForCurrentTopic.message.id)
           restoreSavedDraft()
-          stopEditing()
+          stopEditingSession(editingSessionId)
         }
       } catch (error) {
         logger.warn('edited message save failed', { error, role: editingMessageForCurrentTopic.message.role })
@@ -1703,7 +1797,7 @@ const ChatComposerInner = ({
       serviceTier,
       restoreSavedDraft,
       speedControlModel,
-      stopEditing,
+      stopEditingSession,
       t
     ]
   )
@@ -1716,12 +1810,6 @@ const ChatComposerInner = ({
   const handleSendDraft = useCallback(
     async (draft: ComposerSerializedDraft) => {
       if (directSendInFlightRef.current) return
-
-      if (staleEditingMessage) {
-        restoreSavedDraft()
-        stopEditing()
-        return
-      }
 
       if (editingMessageForCurrentTopic) {
         if (quotaBlocksSend && editingMessageForCurrentTopic.message.role !== 'assistant') return
@@ -1793,9 +1881,6 @@ const ChatComposerInner = ({
       sendDisabled,
       selectAssistantMessage,
       sendQueuedPayload,
-      staleEditingMessage,
-      stopEditing,
-      restoreSavedDraft,
       t
     ]
   )

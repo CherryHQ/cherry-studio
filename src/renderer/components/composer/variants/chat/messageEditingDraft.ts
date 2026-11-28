@@ -22,6 +22,7 @@ export interface EditableMessageDraft {
   text: string
   draftTokens: ComposerSerializedToken[]
   files: ComposerAttachment[]
+  originalFileTokens: Array<{ tokenId: string; partIndex: number }>
 }
 
 const ANCHOR_ID_PREFIX = 'message-part'
@@ -285,6 +286,7 @@ export function createEditableMessageDraft(parts: CherryMessagePart[], messageId
   const fileTokens = draftTokens.filter((token) => token.kind === 'file')
   const usedFileTokenIds = new Set<string>()
   const attachmentByMatchedTokenId = new Map<string, ComposerAttachment>()
+  const originalFileTokens: EditableMessageDraft['originalFileTokens'] = []
   const extraFileTokens: ComposerSerializedToken[] = []
   const files = parts.flatMap((part, index) => {
     if (part.type !== 'file') return []
@@ -308,6 +310,7 @@ export function createEditableMessageDraft(parts: CherryMessagePart[], messageId
         payload: file
       })
     }
+    originalFileTokens.push({ tokenId: chatComposerTokenId.file(file), partIndex: index })
     return [file]
   })
   // Live composer file tokens carry the attachment as their payload; the stored snapshot only
@@ -319,7 +322,7 @@ export function createEditableMessageDraft(parts: CherryMessagePart[], messageId
     return file ? [{ ...token, id: composerFileTokenIdFromSourceId(file.fileTokenSourceId), payload: file }] : []
   })
 
-  return { text, draftTokens: [...normalizedDraftTokens, ...extraFileTokens, ...anchors], files }
+  return { text, draftTokens: [...normalizedDraftTokens, ...extraFileTokens, ...anchors], files, originalFileTokens }
 }
 
 export function getEditableKnowledgeBases(

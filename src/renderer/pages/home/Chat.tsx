@@ -3,6 +3,7 @@ import React, { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { usePreference } from '@data/hooks/usePreference'
+import { MessageEditingProvider } from '@renderer/components/chat/editing/MessageEditingContext'
 import { ChatLayoutModeProvider } from '@renderer/components/chat/layout/ChatLayoutModeContext'
 import { useProfilePaneToggle } from '@renderer/components/chat/panes/profile'
 import {
@@ -264,8 +265,12 @@ const Chat: FC<Props> = (props) => {
       // the empty center rather than spinning forever. Same split as AgentChat.
       <ConversationCenterState state={props.topicPending ? 'loading' : 'empty'} />
     ))
-  // ChatContent is keyed by topic; keep width-derived layout state outside that remount boundary.
-  const center = <ChatLayoutModeProvider>{centerContent}</ChatLayoutModeProvider>
+  // ChatContent is keyed by topic; keep width-derived layout and editing state outside that remount boundary.
+  const center = (
+    <ChatLayoutModeProvider>
+      <MessageEditingProvider>{centerContent}</MessageEditingProvider>
+    </ChatLayoutModeProvider>
+  )
 
   return (
     <ConversationShell

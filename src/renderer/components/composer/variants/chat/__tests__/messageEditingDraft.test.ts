@@ -78,9 +78,13 @@ describe('createEditableMessageDraft', () => {
       MESSAGE_ID
     )
 
-    const labels = draft.draftTokens.filter((token) => token.kind === 'file').map((token) => token.label)
-    expect(labels.sort()).toEqual(['notes.txt', 'shot.png'])
+    const fileTokens = draft.draftTokens.filter((token) => token.kind === 'file')
+    expect(fileTokens.map((token) => token.label).sort()).toEqual(['notes.txt', 'shot.png'])
     expect(draft.files.map((file) => file.previewUrl)).toEqual(['file:///tmp/notes.txt', 'file:///tmp/shot.png'])
+    expect(draft.originalFileTokens).toEqual([
+      { tokenId: fileTokens.find((token) => token.payload === draft.files[0])?.id, partIndex: 1 },
+      { tokenId: fileTokens.find((token) => token.payload === draft.files[1])?.id, partIndex: 2 }
+    ])
   })
 
   // The stored part has no filesystem path, so without the URL the edit composer has no image to preview.

@@ -181,6 +181,13 @@ export interface CacheChatComposerDraft extends CacheComposerDraftBase {
   modelMultiSelectMode: boolean
 }
 
+/** Unsubmitted message-edit composer state. Memory-only because attachments can contain Blobs. */
+export interface CacheMessageEditDraft extends CacheComposerDraftBase {
+  /** Original message part index paired with the file token created for that part. */
+  originalFileTokens?: Array<{ tokenId: string; partIndex: number }>
+  reasoningText?: string
+}
+
 export interface CacheAgentComposerDraft extends CacheComposerDraftBase {
   workspaceKey: string
   agentId: string

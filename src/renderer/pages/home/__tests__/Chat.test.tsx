@@ -1,7 +1,8 @@
-import { act, render } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as MessageEditingContextModule from '@renderer/components/chat/editing/MessageEditingContext'
 import type * as ChatLayoutModeContextModule from '@renderer/components/chat/layout/ChatLayoutModeContext'
 import type * as PaneShellModule from '@renderer/components/chat/panes/Shell'
 import { popup } from '@renderer/services/popup'
@@ -176,16 +177,37 @@ vi.mock('../ChatContent', async () => {
   const { useChatLayoutMode } = await vi.importActual<typeof ChatLayoutModeContextModule>(
     '@renderer/components/chat/layout/ChatLayoutModeContext'
   )
+  const { useMessageEditing } = await vi.importActual<typeof MessageEditingContextModule>(
+    '@renderer/components/chat/editing/MessageEditingContext'
+  )
 
   function MockChatContent(props: any) {
     chatContentProps.current = props
     const { railGutterPx, setRailGutterPx } = useChatLayoutMode()
+    const { editingMessageId, startEditing } = useMessageEditing()
 
     return (
       <div data-testid="chat-content">
         <output aria-label="rail gutter">{railGutterPx}</output>
+        <output data-testid="editing-message">{editingMessageId ?? ''}</output>
         <button type="button" onClick={() => setRailGutterPx(24)}>
           reserve rail gutter
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            startEditing(
+              {
+                id: `message-${props.topic.id}`,
+                topicId: props.topic.id,
+                role: 'user',
+                createdAt: '2026-01-01T00:00:00.000Z',
+                status: 'success'
+              } as any,
+              []
+            )
+          }>
+          start editing
         </button>
       </div>
     )
@@ -232,6 +254,17 @@ describe('Chat', () => {
     assistantContextMock.isModelPending = false
     commandHandlers.clear()
     activeTabMock.current = true
+  })
+
+  it('keeps message editing state across keyed topic remounts', () => {
+    const view = render(<Chat activeTopic={topic} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'start editing' }))
+    expect(screen.getByTestId('editing-message')).toHaveTextContent('message-topic-1')
+
+    view.rerender(<Chat activeTopic={{ ...topic, id: 'topic-2' }} />)
+
+    expect(screen.getByTestId('editing-message')).toHaveTextContent('message-topic-1')
   })
 
   it('clears the active topic once the confirmation is accepted', async () => {

@@ -3385,6 +3385,200 @@ describe('ChatComposer', () => {
     ])
   })
 
+  it('preserves an unsent message edit when switching topics', async () => {
+    const drafts = new Map<string, unknown>()
+    vi.mocked(cacheService.get).mockImplementation((key: string) => drafts.get(key))
+    vi.mocked(cacheService.set).mockImplementation((key: string, value: unknown) => {
+      drafts.set(key, value)
+    })
+    vi.mocked(cacheService.delete).mockImplementation((key: string) => drafts.delete(key))
+    mocks.getDraft.mockImplementation((surfaceProps?: ComposerSurfaceProps) => ({
+      text: surfaceProps?.text ?? '',
+      tokens: []
+    }))
+    const topicTwo = { ...topic, id: 'topic-2' }
+    const message = {
+      id: 'message-1',
+      role: 'user',
+      topicId: topic.id,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      status: 'success'
+    } as const
+    const parts = [{ type: 'text', text: 'old prompt' }] as any[]
+    const renderComposer = (currentTopic: typeof topic) => (
+      <MessageEditingProvider>
+        <StartEditingButton message={message} parts={parts} />
+        <ChatComposer topic={currentTopic} onSend={vi.fn()} />
+      </MessageEditingProvider>
+    )
+    const view = render(renderComposer(topic))
+
+    fireEvent.click(screen.getByRole('button', { name: 'start editing' }))
+    await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe('message-1'))
+    act(() => {
+      mocks.surfaceProps?.onTextChange('edited prompt')
+    })
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe('edited prompt'))
+
+    view.rerender(renderComposer(topicTwo))
+    await waitFor(() => expect(mocks.surfaceProps?.editingState).toBeUndefined())
+    expect(drafts.get('chat.message_edit_draft.message-1')).toMatchObject({ text: 'edited prompt' })
+
+    view.rerender(renderComposer(topic))
+    await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe('message-1'))
+    expect(mocks.surfaceProps?.text).toBe('edited prompt')
+
+    act(() => {
+      mocks.surfaceProps?.editingState?.onCancel()
+    })
+    await waitFor(() => expect(mocks.surfaceProps?.editingState).toBeUndefined())
+    expect(drafts.has('chat.message_edit_draft.message-1')).toBe(false)
+
+    fireEvent.click(screen.getByRole('button', { name: 'start editing' }))
+    await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe('message-1'))
+    expect(mocks.surfaceProps?.text).toBe('old prompt')
+  })
+
+  it.each([false, true])(
+    'preserves original attachment identity after resuming an edit (replacement: %s)',
+    async (replace) => {
+      const drafts = new Map<string, unknown>()
+      vi.mocked(cacheService.get).mockImplementation((key: string) => drafts.get(key))
+      vi.mocked(cacheService.set).mockImplementation((key: string, value: unknown) => {
+        drafts.set(key, value)
+      })
+      const editMessage = vi.fn().mockResolvedValue(undefined)
+      mocks.chatWrite = { pause: vi.fn(), editMessage, resend: vi.fn(), forkAndResend: vi.fn() }
+      mocks.getDraft.mockImplementation((surfaceProps?: ComposerSurfaceProps) => ({
+        text: surfaceProps?.text ?? '',
+        tokens: surfaceProps?.tokens.map(serializeComposerToken) ?? []
+      }))
+      const message = {
+        id: 'message-1',
+        role: 'user',
+        topicId: topic.id,
+        createdAt: '2026-01-01T00:00:00.000Z',
+        status: 'success'
+      } as const
+      const originalFile = {
+        type: 'file',
+        url: 'file:///tmp/legacy.pdf',
+        mediaType: 'application/pdf',
+        filename: 'legacy.pdf'
+      } as const
+      const replacement = {
+        fileTokenSourceId: 'replacement',
+        name: 'replacement.pdf',
+        origin_name: 'replacement.pdf',
+        path: '/tmp/replacement.pdf',
+        ext: '.pdf',
+        type: 'document',
+        size: 1
+      }
+      const renderComposer = (currentTopic: typeof topic) => (
+        <MessageEditingProvider>
+          <StartEditingButton message={message} parts={[{ type: 'text', text: 'old prompt' }, originalFile]} />
+          <ChatComposer topic={currentTopic} onSend={vi.fn()} />
+        </MessageEditingProvider>
+      )
+      const view = render(renderComposer(topic))
+      fireEvent.click(screen.getByRole('button', { name: 'start editing' }))
+      await waitFor(() =>
+        expect(mocks.surfaceProps?.tokens).toEqual([expect.objectContaining({ label: 'legacy.pdf' })])
+      )
+      if (replace) {
+        act(() => {
+          mocks.setFiles([replacement])
+          mocks.surfaceProps?.onTextChange('updated prompt')
+        })
+        await waitFor(() =>
+          expect(mocks.surfaceProps?.tokens).toEqual([expect.objectContaining({ id: 'file:replacement' })])
+        )
+      }
+
+      view.rerender(renderComposer({ ...topic, id: 'topic-2' }))
+      await waitFor(() => expect(mocks.surfaceProps?.editingState).toBeUndefined())
+      view.rerender(renderComposer(topic))
+      await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe(message.id))
+
+      await act(async () => {
+        await mocks.surfaceProps?.editingState?.onSave?.({
+          text: 'updated prompt',
+          tokens: mocks.surfaceProps.tokens.map(serializeComposerToken)
+        })
+      })
+
+      expect(editMessage).toHaveBeenCalledTimes(1)
+      const savedParts = editMessage.mock.calls[0][1]
+      const savedFiles = savedParts.filter((part: { type: string }) => part.type === 'file')
+      expect(savedFiles).toEqual([
+        replace
+          ? expect.objectContaining({ url: 'file:///p/fe-1.pdf', filename: replacement.name })
+          : expect.objectContaining(originalFile)
+      ])
+    }
+  )
+
+  it('restores the ordinary knowledge bases and model selection after canceling a resumed edit', async () => {
+    const knowledgeBase = { id: 'base-1', name: 'Base 1' } as KnowledgeBase
+    mocks.knowledgeBases = [knowledgeBase]
+    const ordinaryDraft = {
+      text: 'ordinary draft',
+      tokens: [],
+      files: [],
+      knowledgeBaseIds: [knowledgeBase.id],
+      mentionedModelIds: [model.id, modelB.id],
+      modelMultiSelectMode: true
+    }
+    const drafts = new Map<string, unknown>([['chat.composer_draft.topic-1', ordinaryDraft]])
+    vi.mocked(cacheService.get).mockImplementation((key: string) => drafts.get(key))
+    vi.mocked(cacheService.set).mockImplementation((key: string, value: unknown) => {
+      drafts.set(key, value)
+    })
+    vi.mocked(cacheService.delete).mockImplementation((key: string) => drafts.delete(key))
+    mocks.getDraft.mockImplementation((surfaceProps?: ComposerSurfaceProps) => ({
+      text: surfaceProps?.text ?? '',
+      tokens: []
+    }))
+    const message = {
+      id: 'message-1',
+      role: 'user',
+      topicId: topic.id,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      status: 'success'
+    } as const
+    const renderComposer = (currentTopic: typeof topic) => (
+      <MessageEditingProvider>
+        <StartEditingButton message={message} parts={[{ type: 'text', text: 'old prompt' }]} />
+        <ChatComposer topic={currentTopic} onSend={vi.fn()} useMentionedModelSelector />
+      </MessageEditingProvider>
+    )
+    const view = render(renderComposer(topic))
+    await waitFor(() => expect(mocks.selectedKnowledgeBases).toEqual([knowledgeBase]))
+    await waitFor(() => expect(mocks.mentionedModels).toEqual([model, modelB]))
+    fireEvent.click(screen.getByRole('button', { name: 'start editing' }))
+    await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe(message.id))
+
+    view.rerender(renderComposer({ ...topic, id: 'topic-2' }))
+    await waitFor(() => expect(mocks.surfaceProps?.editingState).toBeUndefined())
+    // The mock tool provider shares state, unlike the real provider keyed by topic.
+    mocks.mentionedModels = []
+    mocks.selectedKnowledgeBases = []
+    view.rerender(renderComposer(topic))
+    await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe(message.id))
+
+    fireEvent.click(screen.getByText('select model 2'))
+    act(() => mocks.surfaceProps?.editingState?.onCancel())
+    await waitFor(() => {
+      expect(mocks.surfaceProps?.editingState).toBeUndefined()
+      expect(mocks.surfaceProps?.text).toBe(ordinaryDraft.text)
+      expect(mocks.selectedKnowledgeBases).toEqual([knowledgeBase])
+      expect(screen.getByTestId('model-selector')).toHaveAttribute('data-multi-select-mode', 'true')
+      expect(screen.getByTestId('model-selector')).toHaveAttribute('data-value-count', '2')
+      expect(drafts.get('chat.composer_draft.topic-1')).toMatchObject(ordinaryDraft)
+    })
+  })
+
   it('routes new topic shortcuts through the explicit parent action', () => {
     const onNewTopic = vi.fn()
     render(<ChatComposer topic={topic} onSend={vi.fn()} onNewTopic={onNewTopic} />)
@@ -3596,7 +3790,7 @@ describe('ChatComposer', () => {
 
     render(
       <MessageEditingProvider>
-        <StartEditingButton message={message as any} parts={parts} />
+        <StartEditingButton message={message} parts={parts} />
         <ChatComposer topic={topic} onSend={onSend} useMentionedModelSelector />
       </MessageEditingProvider>
     )
@@ -3634,7 +3828,7 @@ describe('ChatComposer', () => {
     const parts = [{ type: 'text', text: 'old prompt' }] as any[]
     const view = render(
       <MessageEditingProvider>
-        <StartEditingButton message={message as any} parts={parts} />
+        <StartEditingButton message={message} parts={parts} />
         <ChatComposer topic={topic} onSend={onSend} useMentionedModelSelector />
       </MessageEditingProvider>
     )

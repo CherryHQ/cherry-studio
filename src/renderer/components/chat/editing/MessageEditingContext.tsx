@@ -23,6 +23,7 @@ interface MessageEditingContextType {
   ) => void
   cancelEditing: () => void
   stopEditing: () => void
+  stopEditingSession: (editingSessionId: number) => void
 }
 
 const MessageEditingContext = createContext<MessageEditingContextType | null>(null)
@@ -49,15 +50,20 @@ export function MessageEditingProvider({ children }: { children: ReactNode }) {
     setEditingMessage(null)
   }, [])
 
+  const stopEditingSession = useCallback((editingSessionId: number) => {
+    setEditingMessage((current) => (current?.editingSessionId === editingSessionId ? null : current))
+  }, [])
+
   const value = useMemo<MessageEditingContextType>(
     () => ({
       editingMessageId: editingMessage?.message.id ?? null,
       editingMessage,
       startEditing,
       cancelEditing: stopEditing,
-      stopEditing
+      stopEditing,
+      stopEditingSession
     }),
-    [editingMessage, startEditing, stopEditing]
+    [editingMessage, startEditing, stopEditing, stopEditingSession]
   )
 
   if (parent) return <>{children}</>
