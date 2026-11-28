@@ -490,7 +490,7 @@ export interface MessageListActions {
   startEditing?: (
     message: MessageListItem,
     parts: CherryMessagePart[],
-    options?: { lockedMentionedModels?: Model[] }
+    options?: { lockedMentionedModels?: Model[]; inheritedModelIds?: UniqueModelId[] }
   ) => void
   /** Presentation eligibility for deleting this message on this surface. Absent = every message the action supports. */
   canDeleteMessage?: (message: MessageListItem) => boolean

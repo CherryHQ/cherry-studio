@@ -106,7 +106,8 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
       if (canStartEditing && messageId === message.id) {
         actions.startEditing?.(message, messageParts, {
           lockedMentionedModels:
-            lockedMentionedModels && lockedMentionedModels.length > 1 ? lockedMentionedModels : undefined
+            lockedMentionedModels && lockedMentionedModels.length > 1 ? lockedMentionedModels : undefined,
+          inheritedModelIds: lockedMentionedModels?.length ? lockedMentionedModels.map((item) => item.id) : undefined
         })
       }
     },

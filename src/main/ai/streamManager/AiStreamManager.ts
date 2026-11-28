@@ -14,6 +14,7 @@ import { AcceptedToolResults } from '@main/ai/messages/AcceptedToolResults'
 import { ProjectionSubscriptions } from '@main/ai/messages/ProjectionSubscriptions'
 import { classifyAiSdkFailure } from '@main/ai/runtime/aiSdk'
 import { chatErrorContext } from '@main/ai/utils/chatErrorContext'
+import { serializeChatStreamError } from '@main/ai/utils/serializeChatStreamError'
 import { serializeError } from '@main/ai/utils/serializeError'
 import {
   BaseService,
@@ -2287,7 +2288,7 @@ export class AiStreamManager extends BaseService {
     exec.loopPromise = launchLoop()
       .catch((err) => {
         // Defensive funnel for sync throws (e.g. `streamText` rejects before returning a stream).
-        return this.onExecutionError(topicId, modelId, serializeError(err), exec, err)
+        return this.onExecutionError(topicId, modelId, serializeChatStreamError(err, request), exec, err)
       })
       .finally(() => activity.dispose())
 
@@ -2373,7 +2374,7 @@ export class AiStreamManager extends BaseService {
           { topicId, modelId, err: chatErrorContext(err) }
         )
       }
-      await this.onExecutionError(topicId, modelId, serializeError(err), exec, err)
+      await this.onExecutionError(topicId, modelId, serializeChatStreamError(err, request), exec, err)
       return
     }
 
@@ -2487,7 +2488,7 @@ export class AiStreamManager extends BaseService {
           }
         )
       }
-      const fromThrow = serializeError(result.threw.error)
+      const fromThrow = serializeChatStreamError(result.threw.error, request)
       const serialized =
         result.streamErrorText !== undefined &&
         !signal.aborted &&

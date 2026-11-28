@@ -39,6 +39,19 @@ describe('parseDataUrl', () => {
     })
   })
 
+  it('parses a data URL with an uppercase or mixed-case scheme and MIME type', () => {
+    expect(parseDataUrl('DATA:image/jpeg;base64,/9j/4AAQ')).toEqual({
+      mediaType: 'image/jpeg',
+      isBase64: true,
+      data: '/9j/4AAQ'
+    })
+    expect(parseDataUrl('Data:IMAGE/PNG;base64,iVBORw0KGgo=')).toEqual({
+      mediaType: 'IMAGE/PNG',
+      isBase64: true,
+      data: 'iVBORw0KGgo='
+    })
+  })
+
   it('parses a data URL with empty media type', () => {
     const result = parseDataUrl('data:;base64,SGVsbG8=')
     expect(result).toEqual({
@@ -98,7 +111,9 @@ describe('parseDataUrl', () => {
 describe('isDataUrl', () => {
   it('returns true for valid data URLs', () => {
     expect(isDataUrl('data:image/png;base64,ABC')).toBe(true)
+    expect(isDataUrl('DATA:image/png;base64,ABC')).toBe(true)
     expect(isDataUrl('data:text/plain,hello')).toBe(true)
+    expect(isDataUrl('Data:,simple')).toBe(true)
     expect(isDataUrl('data:,simple')).toBe(true)
   })
 
@@ -117,6 +132,8 @@ describe('isDataUrl', () => {
 describe('isBase64ImageDataUrl', () => {
   it('returns true for base64 image data URLs', () => {
     expect(isBase64ImageDataUrl('data:image/png;base64,ABC')).toBe(true)
+    expect(isBase64ImageDataUrl('DATA:image/jpeg;base64,/9j/')).toBe(true)
+    expect(isBase64ImageDataUrl('Data:IMAGE/PNG;base64,ABC')).toBe(true)
     expect(isBase64ImageDataUrl('data:image/jpeg;base64,/9j/')).toBe(true)
     expect(isBase64ImageDataUrl('data:image/gif;base64,R0lG')).toBe(true)
     expect(isBase64ImageDataUrl('data:image/webp;base64,UklG')).toBe(true)

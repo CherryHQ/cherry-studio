@@ -153,6 +153,31 @@ describe('ErrorBlock', () => {
     }
   )
 
+  it('renders image recovery beside the payload diagnosis', () => {
+    mocks.i18nKeys.add('error.diagnosis.payload')
+    mocks.i18nKeys.add('error.image_payload_rejection_detail')
+    mocks.translations.set('error.diagnosis.payload', enUS['error.diagnosis.payload'])
+    mocks.translations.set('error.image_payload_rejection_detail', enUS['error.image_payload_rejection_detail'])
+    render(
+      <ErrorBlock
+        partId="part-1"
+        message={message}
+        error={{
+          name: 'Error',
+          message: 'Downloaded image content cannot exceed 30MB',
+          stack: null,
+          i18nKey: 'diagnosis.payload',
+          detailI18nKey: 'image_payload_rejection_detail',
+          detailI18nValues: { reason: 'Downloaded image content cannot exceed 30MB' }
+        }}
+      />
+    )
+    expect(screen.getByText(/Images from earlier turns may be included again/)).toHaveTextContent(
+      enUS['error.diagnosis.payload']
+    )
+    expect(screen.getByText(/Images from earlier turns may be included again/)).toBeInTheDocument()
+  })
+
   it.each([false, true])('gates model requests on privacy and a user click (data collection: %s)', async (enabled) => {
     const user = userEvent.setup()
     MockUsePreferenceUtils.setPreferenceValue('app.privacy.data_collection.enabled', enabled)

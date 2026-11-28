@@ -4,6 +4,7 @@ import type { CherryMessagePart } from '@shared/data/types/message'
 
 import {
   findOpenTextTailIndex,
+  isResultPart,
   type MessagePartLayoutItem,
   type PartEntry,
   projectCompletedMessageParts,
@@ -616,4 +617,26 @@ it('preserves imported reasoning and tool chronology outside the answer lane', (
   const layout = projectCompletedMessageParts(parts, { keepIntermediateAssistantText: true })
   expect(indexes(historyEntries(layout.items))).toEqual([0, 1, 2, 3])
   expect(indexes(inlineEntries(layout.items))).toEqual([4, 5])
+})
+
+it('keeps data-image-payload-reduced inline outside collapsed process groups', () => {
+  const layout = projectCompletedMessageParts(
+    entries([
+      { type: 'data-image-payload-reduced', data: { reducedCount: 2, omittedCount: 0 } },
+      { type: 'reasoning', text: 'Inspecting', state: 'done' },
+      { type: 'text', text: 'Done' }
+    ])
+  )
+
+  expect(indexes(inlineEntries(layout.items))).toEqual([0, 2])
+  expect(indexes(historyEntries(layout.items))).toEqual([1])
+  expect(isResultPart(inlineEntries(layout.items)[0].part)).toBe(false)
+
+  const withError = projectCompletedMessageParts(
+    entries([
+      { type: 'data-image-payload-reduced', data: { reducedCount: 0, omittedCount: 1 } },
+      { type: 'data-error', data: { message: 'Request content too large' } }
+    ])
+  )
+  expect(indexes(inlineEntries(withError.items))).toEqual([0, 1])
 })

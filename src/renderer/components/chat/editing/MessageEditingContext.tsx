@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { createContext, use, useCallback, useMemo, useRef, useState } from 'react'
 
 import type { CherryMessagePart } from '@shared/data/types/message'
-import type { Model } from '@shared/data/types/model'
+import type { Model, UniqueModelId } from '@shared/data/types/model'
 
 import type { MessageListItem } from '../messages/types'
 
@@ -10,6 +10,7 @@ export interface EditingMessageSnapshot {
   message: MessageListItem
   parts: CherryMessagePart[]
   lockedMentionedModels?: Model[]
+  inheritedModelIds?: UniqueModelId[]
   editingSessionId: number
 }
 
@@ -19,7 +20,7 @@ interface MessageEditingContextType {
   startEditing: (
     message: MessageListItem,
     parts: CherryMessagePart[],
-    options?: { lockedMentionedModels?: Model[] }
+    options?: { lockedMentionedModels?: Model[]; inheritedModelIds?: UniqueModelId[] }
   ) => void
   cancelEditing: () => void
   stopEditing: () => void
@@ -33,12 +34,19 @@ export function MessageEditingProvider({ children }: { children: ReactNode }) {
   const editingSessionIdRef = useRef(0)
 
   const startEditing = useCallback(
-    (message: MessageListItem, parts: CherryMessagePart[], options?: { lockedMentionedModels?: Model[] }) => {
+    (
+      message: MessageListItem,
+      parts: CherryMessagePart[],
+      options?: { lockedMentionedModels?: Model[]; inheritedModelIds?: UniqueModelId[] }
+    ) => {
       editingSessionIdRef.current += 1
       setEditingMessage({
         message,
         parts,
         lockedMentionedModels: options?.lockedMentionedModels,
+        inheritedModelIds:
+          options?.inheritedModelIds ??
+          (options?.lockedMentionedModels?.length ? options.lockedMentionedModels.map((model) => model.id) : undefined),
         editingSessionId: editingSessionIdRef.current
       })
     },

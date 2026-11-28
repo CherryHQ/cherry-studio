@@ -27,6 +27,7 @@ export function conversationParts(origin: string, attachment: string, forkSource
     },
     'imported-status': { type: 'data-imported-status', data: { status: 'interrupted' } },
     error: { type: 'data-error', data: { name: 'Error', message: 'Fixture provider connection closed' } },
+    'image-payload-reduced': { type: 'data-image-payload-reduced', data: { reducedCount: 2, omittedCount: 1 } },
     translation: { type: 'data-translation', data: { content: '翻译示例：已核对所有目录。', targetLanguage: 'zh-CN' } },
     video: { type: 'data-video', data: { url: origin + '/sample.mp4' } },
     compact: {

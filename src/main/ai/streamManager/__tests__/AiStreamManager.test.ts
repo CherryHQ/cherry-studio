@@ -659,6 +659,34 @@ describe('AiStreamManager', () => {
     sender.emit('destroyed')
   })
 
+  it('delivers image rejection recovery from a failed stream', async () => {
+    vi.useRealTimers()
+    const feed = controlledStream()
+    mockStreamText.mockResolvedValueOnce(feed.stream)
+    const listener = new FakeListener('image-rejection')
+    startSingle(mgr, {
+      topicId: 'image-rejection',
+      modelId: 'provider-a::model-a',
+      request: req('image-rejection'),
+      listeners: [listener]
+    })
+    feed.error(
+      new APICallError({
+        message: 'Downloaded image content cannot exceed 30MB',
+        url: '',
+        statusCode: 413,
+        requestBodyValues: {
+          messages: [{ content: [{ type: 'image_url', image_url: { url: 'data:image/jpeg;base64,a' } }] }]
+        }
+      })
+    )
+    await vi.waitFor(() => expect(listener.errorResults).toHaveLength(1))
+    expect(listener.errorResults[0].error).toMatchObject({
+      providerErrorCategory: 'payload',
+      detailI18nKey: 'image_payload_rejection_detail'
+    })
+  })
+
   describe('streamPrompt', () => {
     it.each([true, false])('keeps the original exception restricted to prompt streams (%s)', async (prompt) => {
       vi.useRealTimers()

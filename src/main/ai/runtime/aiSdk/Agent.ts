@@ -2,6 +2,7 @@
  * AI SDK execution and stream lifecycle. See `docs/dev/references/ai/agent-loop.md`.
  */
 
+import type { LanguageModelV3Prompt } from '@ai-sdk/provider'
 import {
   type FinishReason,
   InvalidResponseDataError,
@@ -10,16 +11,19 @@ import {
   stepCountIs,
   type ToolSet,
   type UIMessage,
-  type UIMessageChunk
+  type UIMessageChunk,
+  wrapLanguageModel
 } from 'ai'
 
 import { createAgent, createExecutor } from '@cherrystudio/ai-core'
 import type { StringKeys } from '@cherrystudio/ai-core/provider'
 import { logAiFailure } from '@main/ai/errorReporting'
 import { isAbortError } from '@main/utils/error'
+import { parseDataUrl } from '@shared/utils/dataUrl'
 
 import { usesAnthropicMessagesSdk } from '../../messages/anthropicThinking'
-import { ALL_MEDIA, routeToolResultMedia } from '../../messages/messageCapabilities'
+import { enforceImagePayloadBudget } from '../../messages/imagePayloadBudget'
+import { ALL_MEDIA, routeToolResultMedia, stripUnsupportedMedia } from '../../messages/messageCapabilities'
 import { toModelMessages } from '../../messages/messageRules'
 import type { AppProviderSettingsMap } from '../../types'
 import { getTerminalModelError } from '../../utils/retryError'
@@ -38,6 +42,23 @@ function normalizeStreamError(error: unknown, providerId: string, modelId: strin
     return new MissingFinishReasonError(error, providerId, modelId)
   }
   return error
+}
+
+function resolveSdkFileMediaType(part: Extract<UIMessage['parts'][number], { type: 'file' }>): string | undefined {
+  if (part.url) {
+    const commaIndex = part.url.indexOf(',')
+    if (commaIndex !== -1) {
+      try {
+        const parsed = new URL(part.url.slice(0, commaIndex + 1))
+        if (parsed.protocol === 'data:') {
+          return parseDataUrl(parsed.toString())?.mediaType
+        }
+      } catch {
+        // Not a parseable URL — fall back to the declared mediaType, matching the SDK.
+      }
+    }
+  }
+  return part.mediaType
 }
 
 type ObserverMap = {
@@ -82,7 +103,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
     return composeHooks(parts)
   }
 
-  private async buildExecution(hooks: AgentLoopHooks) {
+  private async buildExecution(hooks: AgentLoopHooks, wrapModel = this.params.wrapModel) {
     const params = this.params
     const opts = params.options ?? {}
     const settings = {
@@ -157,7 +178,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
       providerSettings: params.providerSettings,
       modelId: params.modelId,
       plugins: params.plugins,
-      wrapModel: params.wrapModel,
+      wrapModel,
       agentSettings: {
         ...settings,
         tools: toolsWithHooks,
@@ -267,7 +288,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
     }
   }
 
-  stream(initialMessages: UIMessage[], signal: AbortSignal): ReadableStream<UIMessageChunk> {
+  stream(initialMessages: UIMessage[], signal: AbortSignal, budgetImages = false): ReadableStream<UIMessageChunk> {
     const params = this.params
     let outputController!: TransformStreamDefaultController<UIMessageChunk>
     let terminalOutcome: 'running' | 'success' | 'abort' = 'running'
@@ -359,8 +380,68 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
 
     ;(async () => {
       await safeCall('onStart', hooks.onStart)
-
-      const execution = await this.buildExecution(hooks)
+      let startWrite: Promise<void> | undefined
+      const writeStart = (chunk: Extract<UIMessageChunk, { type: 'start' }>) => (startWrite ??= writer.write(chunk))
+      let noticeCount = 0
+      const lastMessage = initialMessages.at(-1)
+      const existingNoticeIds = new Set(
+        budgetImages && lastMessage?.role === 'assistant'
+          ? lastMessage.parts.flatMap((part) =>
+              part.type === 'data-image-payload-reduced' && part.id !== undefined ? [part.id] : []
+            )
+          : []
+      )
+      const messageId = (lastMessage?.role === 'assistant' ? lastMessage.id : params.messageId) ?? crypto.randomUUID()
+      const currentUser = budgetImages ? initialMessages.findLast((message) => message.role === 'user') : undefined
+      const currentImageCount = currentUser
+        ? stripUnsupportedMedia([currentUser], params.mediaCapabilities ?? ALL_MEDIA)[0].parts.filter((part) => {
+            if (part.type !== 'file') return false
+            // The SDK normalizes data URLs via `new URL(...)` and prefers the inline media type.
+            return resolveSdkFileMediaType(part)?.toLowerCase().startsWith('image/')
+          }).length
+        : 0
+      const wrapModel: AgentLoopParams<T>['wrapModel'] = budgetImages
+        ? (model) => {
+            let lastPrompt: LanguageModelV3Prompt | undefined
+            let prepared: ReturnType<typeof enforceImagePayloadBudget> | undefined
+            return wrapLanguageModel({
+              model: params.wrapModel?.(model) ?? model,
+              middleware: {
+                specificationVersion: 'v3',
+                transformParams: async ({ params: call }) => {
+                  const callSignal = call.abortSignal ?? signal
+                  callSignal.throwIfAborted()
+                  // SDK retries reuse the same prompt. Keep its bytes and notice stable.
+                  if (call.prompt !== lastPrompt) {
+                    lastPrompt = call.prompt
+                    prepared = enforceImagePayloadBudget(call.prompt, currentImageCount, callSignal).then(
+                      async (result) => {
+                        callSignal.throwIfAborted()
+                        if (result.reducedCount || result.omittedCount) {
+                          await writeStart({ type: 'start', messageId })
+                          let id: string
+                          do {
+                            id = noticeCount++ === 0 ? 'image-payload-reduced' : `image-payload-reduced-${noticeCount}`
+                          } while (existingNoticeIds.has(id))
+                          await writer.write({
+                            type: 'data-image-payload-reduced',
+                            id,
+                            data: { reducedCount: result.reducedCount, omittedCount: result.omittedCount }
+                          })
+                        }
+                        return result
+                      }
+                    )
+                  }
+                  const result = await prepared!
+                  callSignal.throwIfAborted()
+                  return { ...call, prompt: result.prompt }
+                }
+              }
+            })
+          }
+        : params.wrapModel
+      const execution = await this.buildExecution(hooks, wrapModel)
 
       const messages = initialMessages
       // Shape only the conversion input — keep `messages` (originalMessages for the
@@ -403,6 +484,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
           return error instanceof Error ? error.message : String(error)
         },
         generateMessageId: () => {
+          if (budgetImages) return messageId
           if (!hasUsedProvidedMessageId && params.messageId) {
             hasUsedProvidedMessageId = true
             return params.messageId
@@ -439,7 +521,8 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
             pendingFinish = value
             continue
           }
-          await writer.write(value)
+          if (budgetImages && value.type === 'start') await writeStart(value)
+          else await writer.write(value)
         }
       } catch (error) {
         readFailure = { error }
