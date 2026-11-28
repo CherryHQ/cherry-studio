@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -122,6 +122,36 @@ describe('DiagnosticHistoryDialog', () => {
       expect(screen.getByRole('button', { name: 'Previous' })).toBeDisabled()
       expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled()
     })
+  })
+
+  it('ignores a refresh failure from an earlier opening while the current refresh runs', async () => {
+    const previous = Promise.withResolvers<void>()
+    const current = Promise.withResolvers<void>()
+    const refetch = vi.fn().mockResolvedValue(undefined)
+    MockUseDataApiUtils.mockQueryResult('/diagnostic-reports', {
+      data: {
+        items: [{ reportId: 'report-1', submittedAt: 1, processingStatus: 'pending', lastCheckedAt: null }],
+        page: 1,
+        total: 21
+      },
+      refetch
+    })
+    mocks.request.mockReturnValueOnce(previous.promise).mockReturnValueOnce(current.promise)
+    const onOpenChange = vi.fn()
+    const { rerender } = render(<DiagnosticHistoryDialog open onOpenChange={onOpenChange} />)
+    await waitFor(() => expect(mocks.request).toHaveBeenCalledTimes(1))
+
+    rerender(<DiagnosticHistoryDialog open={false} onOpenChange={onOpenChange} />)
+    rerender(<DiagnosticHistoryDialog open onOpenChange={onOpenChange} />)
+    await waitFor(() => expect(mocks.request).toHaveBeenCalledTimes(2))
+
+    await act(async () => previous.reject(new Error('Previous opening timed out')))
+    expect(screen.queryByText('Could not refresh some statuses')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled()
+
+    await act(async () => current.resolve())
+    expect(screen.getByRole('button', { name: 'Next' })).toBeEnabled()
+    expect(screen.queryByText('Could not refresh some statuses')).not.toBeInTheDocument()
   })
 
   it('refreshes visible statuses when opening history again and changing pages', async () => {

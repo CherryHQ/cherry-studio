@@ -1,5 +1,5 @@
 import { ChevronLeft, ChevronRight } from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -49,30 +49,38 @@ export function DiagnosticHistoryDialog({ open, onOpenChange }: DiagnosticHistor
 
   useDataChange(open ? '/diagnostic-reports' : [], () => void refetch())
 
-  const refreshPage = useCallback(async () => {
-    const reportIds = JSON.parse(reportIdsKey) as string[]
-    if (reportIds.length === 0) return
-    setRefreshing(true)
-    setRefreshError(false)
-    try {
-      const results = await Promise.allSettled(
-        reportIds.map((reportId) => ipcApi.request('diagnostics.report.refresh', { reportId }))
-      )
-      await refetch()
-      if (results.some((result) => result.status === 'rejected')) {
-        logger.warn('Some diagnostic status lookups failed')
-        setRefreshError(true)
-      }
-    } catch {
-      setRefreshError(true)
-    } finally {
-      setRefreshing(false)
-    }
-  }, [reportIdsKey, refetch])
-
   useEffect(() => {
-    if (open && hasReports) void refreshPage()
-  }, [open, hasReports, reportIdsKey, refreshPage])
+    let active = true
+
+    const refreshPage = async () => {
+      const reportIds = JSON.parse(reportIdsKey) as string[]
+      const shouldRefresh = open && reportIds.length > 0
+      setRefreshing(shouldRefresh)
+      setRefreshError(false)
+      if (!shouldRefresh) return
+
+      try {
+        const results = await Promise.allSettled(
+          reportIds.map((reportId) => ipcApi.request('diagnostics.report.refresh', { reportId }))
+        )
+        if (!active) return
+        await refetch()
+        if (active && results.some((result) => result.status === 'rejected')) {
+          logger.warn('Some diagnostic status lookups failed')
+          setRefreshError(true)
+        }
+      } catch {
+        if (active) setRefreshError(true)
+      } finally {
+        if (active) setRefreshing(false)
+      }
+    }
+    void refreshPage()
+
+    return () => {
+      active = false
+    }
+  }, [open, reportIdsKey, refetch])
 
   const openReport = async (url: string) => {
     try {
