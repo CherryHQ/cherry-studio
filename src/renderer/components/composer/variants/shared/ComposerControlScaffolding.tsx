@@ -18,7 +18,7 @@ export const COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS = 'w-8 justify-center px-0
 export const COMPOSER_ICON_ONLY_LABEL_CLASS = 'sr-only'
 /** The top bar's Assistant / Agent avatar, a button of its own that toggles the profile pane. */
 export const COMPOSER_PROFILE_AVATAR_BUTTON_CLASS =
-  'flex size-7 shrink-0 items-center justify-center rounded-md outline-none transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring aria-pressed:bg-accent'
+  'flex size-7 shrink-0 items-center justify-center rounded-md transition-colors hover:bg-accent aria-pressed:bg-accent'
 
 type RenderContextControls = (args: { side: 'top' | 'bottom'; iconOnly: boolean }) => ReactNode
 

@@ -36,7 +36,7 @@ export function ConversationTopBarPortalHost({ children, className }: { children
       ref={context?.setTarget}
       data-conversation-topbar-controls
       className={cn(
-        'ml-2 flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden [-webkit-app-region:no-drag] [&_button]:h-7 [&_button]:px-1.5',
+        'ml-2 flex min-w-0 flex-1 items-center gap-1.5 [-webkit-app-region:no-drag] [&_button]:h-7 [&_button]:px-1.5',
         className
       )}>
       {children}

@@ -29,7 +29,7 @@ const AgentContent = ({
 
   return (
     <div className="flex w-full justify-between">
-      <div data-navbar-left-occupant className="flex min-w-0 flex-1 items-center overflow-hidden">
+      <div data-navbar-left-occupant className="flex min-w-0 flex-1 items-center">
         {showSidebarControls && (
           <ConversationSidebarToggleButton
             sidebarOpen={showSidebar}

@@ -27,7 +27,7 @@ const AgentChatNavbar = ({
 }: Props) => {
   return (
     <NavbarHeader className={cn('agent-navbar relative', className)} style={{ height: 'var(--navbar-height)' }}>
-      <div className="-mx-1 flex h-full min-w-0 flex-1 items-center justify-between overflow-hidden">
+      <div className="-mx-1 flex h-full min-w-0 flex-1 items-center justify-between">
         <AgentContent
           activeAgent={activeAgent}
           conversationControls={conversationControls}
