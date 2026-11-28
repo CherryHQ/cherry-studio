@@ -1,12 +1,16 @@
-import { mockUseInvalidateCache, mockUseMutation } from '@test-mocks/renderer/useDataApi'
+import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
+import { mockUseDataChange, mockUseInvalidateCache, mockUseMutation } from '@test-mocks/renderer/useDataApi'
+import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { act, type ReactNode } from 'react'
+import { getI18n } from 'react-i18next'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as ToolApprovalOverridesModule from '@renderer/components/composer/useToolApprovalComposerOverrides'
-import type { useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
+import type { useTopicCompletion } from '@renderer/hooks/useTopicCompletion'
 import type * as RendererIpc from '@renderer/ipc'
 import type * as EventServiceModule from '@renderer/services/EventService'
+import { messagePartsAt } from '@renderer/utils/message/messagePartRows'
 import type { ComposerChatTarget } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 
@@ -39,8 +43,8 @@ const mockUseTopicMessages = vi.fn()
 const mockMessageListValue = vi.hoisted(() => ({ current: null as any }))
 const mockChatWriteValue = vi.hoisted(() => ({ current: null as any }))
 const mockEventEmit = vi.hoisted(() => vi.fn())
-const mockExecutionOverlay = vi.hoisted(() => ({ current: null as any }))
-const mockUseExecutionOverlay = vi.hoisted(() => vi.fn<typeof useExecutionOverlay>(() => mockExecutionOverlay.current))
+const mockLiveReplies = vi.hoisted(() => ({ current: [] as CherryUIMessage[] }))
+const mockCompletion = vi.hoisted(() => vi.fn<typeof useTopicCompletion>())
 type ToolApprovalOverridesModuleType = typeof ToolApprovalOverridesModule
 type ToolApprovalOverridesOptions = Parameters<ToolApprovalOverridesModuleType['useToolApprovalComposerOverrides']>[0]
 const mockToolApprovalOverridesOptions = vi.hoisted(() => ({
@@ -66,7 +70,16 @@ vi.mock('@renderer/hooks/chat/ChatWriteContext', () => ({
 }))
 
 vi.mock('@renderer/hooks/useTopicMessages', () => ({
-  useTopicMessages: (...args: unknown[]) => mockUseTopicMessages(...args)
+  useTopicMessages: (...args: unknown[]) => {
+    const result = mockUseTopicMessages(...args)
+    return {
+      ...result,
+      displayIndex: (id: string) => {
+        const index = result.uiMessages.findIndex((message: CherryUIMessage) => message.id === id)
+        return index < 0 ? undefined : index
+      }
+    }
+  }
 }))
 
 vi.mock('@renderer/services/EventService', async (importOriginal) => {
@@ -77,9 +90,9 @@ vi.mock('@renderer/services/EventService', async (importOriginal) => {
   }
 })
 
-vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
-  useExecutionOverlay: mockUseExecutionOverlay
-}))
+vi.mock('@renderer/hooks/useHistoryReplies', () => ({ useHistoryReplies: () => mockLiveReplies.current }))
+vi.mock('@renderer/hooks/useTopicSpeech', () => ({ useTopicSpeech: () => {} }))
+vi.mock('@renderer/hooks/useTopicCompletion', () => ({ useTopicCompletion: mockCompletion }))
 
 vi.mock('@renderer/components/composer/useToolApprovalComposerOverrides', async (importOriginal) => {
   const actual = await importOriginal<ToolApprovalOverridesModuleType>()
@@ -172,7 +185,9 @@ vi.mock('@renderer/components/composer/variants/ChatComposer', () => ({
             onClick={() => onDraftAssistantChange?.('assistant-2')}>
             home composer
           </button>
-          {contextUsage ? <span role="meter" aria-label="context usage" /> : null}
+          {contextUsage ? (
+            <span role="meter" aria-label="context usage" aria-valuenow={contextUsage.contextTokens} />
+          ) : null}
         </>
       )
     }
@@ -191,7 +206,9 @@ vi.mock('@renderer/components/composer/variants/ChatComposer', () => ({
           }>
           send
         </button>
-        {contextUsage ? <span role="meter" aria-label="context usage" /> : null}
+        {contextUsage ? (
+          <span role="meter" aria-label="context usage" aria-valuenow={contextUsage.contextTokens} />
+        ) : null}
       </>
     )
   }
@@ -210,8 +227,7 @@ vi.mock('@renderer/components/composer/ConversationComposerStage', () => ({
 }))
 
 vi.mock('@renderer/components/chat/messages/blocks/MessagePartsContext', () => ({
-  PartsProvider: ({ children }: { children: ReactNode }) => children,
-  RefreshProvider: ({ children }: { children: ReactNode }) => children
+  PartsProvider: ({ children }: { children: ReactNode }) => children
 }))
 
 vi.mock('@renderer/components/chat/messages/MessageListProvider', () => ({
@@ -231,12 +247,16 @@ vi.mock('../messages/homeMessageListAdapter', () => ({
     }
     onBindRuntime?: (runtime: unknown) => void | (() => void)
     isInitialLoading?: boolean
+    messageHead?: { content: ReactNode }
+    afterMessages?: ReactNode
   }) => ({
     state: {
       messages: params.messages,
       partsByMessageId: params.partsByMessageId,
       streamingLayers: params.streamingLayers,
-      isInitialLoading: params.isInitialLoading
+      isInitialLoading: params.isInitialLoading,
+      messageHead: params.messageHead,
+      afterMessages: params.afterMessages
     },
     actions: { bindRuntime: params.onBindRuntime },
     meta: {}
@@ -249,7 +269,9 @@ vi.mock('@renderer/components/chat/messages/MessageList', () => ({
       <div data-testid="message-list-loading" />
     ) : (
       <div data-testid="messages">
+        {mockMessageListValue.current?.state.messageHead?.content}
         {mockMessageListValue.current?.state.messages.map((message: CherryUIMessage) => message.id).join(',')}
+        {mockMessageListValue.current?.state.afterMessages}
       </div>
     )
 }))
@@ -317,16 +339,9 @@ describe('ChatContent', () => {
       stop: vi.fn(),
       error: null,
       status: 'ready',
-      setMessages: vi.fn(),
       activeExecutions: []
     })
-    mockExecutionOverlay.current = {
-      overlay: {},
-      liveAssistants: [],
-      disposeOverlay: vi.fn(),
-      reset: vi.fn()
-    }
-    mockUseExecutionOverlay.mockImplementation(() => mockExecutionOverlay.current)
+    mockLiveReplies.current = []
     mockToolApprovalOverridesOptions.current = undefined
 
     ;(window as any).api = { ...originalApi }
@@ -339,7 +354,37 @@ describe('ChatContent', () => {
     mockMessageListValue.current = null
     mockChatWriteValue.current = null
     mockEventEmit.mockReset()
-    mockUseExecutionOverlay.mockReset()
+    MockUseCacheUtils.resetMocks()
+    MockUsePreferenceUtils.resetMocks()
+  })
+
+  it('only previews the next new turn with resolved assistant settings and an idle topic', () => {
+    MockUsePreferenceUtils.setPreferenceValue('chat.context_settings.max_messages', 1)
+    mockUseTopicMessages.mockReturnValue({
+      ...mockUseTopicMessages(),
+      pathMessages: [
+        { id: 'history-user', role: 'user', data: {} },
+        { id: 'history-assistant', role: 'assistant', data: {} }
+      ]
+    })
+    const dividerLabel = getI18n().t('chat.message.context_window_excluded', { limit: 1 })
+    const { rerender } = render(<ChatContent topic={topic} />)
+    expect(screen.queryByText(dividerLabel)).toBeNull()
+
+    const assistantContext = {
+      assistant: { id: topic.assistantId, settings: {} }
+    } as NonNullable<Parameters<typeof ChatContent>[0]['assistantContext']>
+    rerender(<ChatContent topic={topic} assistantContext={assistantContext} />)
+    expect(screen.getByText(dividerLabel)).toBeInTheDocument()
+    expect(screen.queryByRole('separator')).toBeNull()
+
+    MockUseCacheUtils.setSharedCacheValue('topic.stream.statuses.topic-1', {
+      status: 'streaming',
+      activeExecutions: [],
+      awaitingApprovalAnchors: []
+    })
+    rerender(<ChatContent topic={topic} assistantContext={assistantContext} />)
+    expect(screen.queryByText(dividerLabel)).toBeNull()
   })
 
   it('opens a stream against the active branch node', async () => {
@@ -349,7 +394,6 @@ describe('ChatContent', () => {
       regenerate: vi.fn(),
       stop: vi.fn(),
       error: null,
-      setMessages: vi.fn(),
       activeExecutions: []
     })
 
@@ -374,7 +418,7 @@ describe('ChatContent', () => {
     expect(sendMessage).not.toHaveBeenCalled()
   })
 
-  it('hides context usage while topic history is stale', () => {
+  it('refreshes the estimate for the selected model and hides it while history is stale', async () => {
     const activeAssistant = {
       ...createUiMessage('history-assistant', 'assistant'),
       metadata: {
@@ -397,12 +441,34 @@ describe('ChatContent', () => {
     }
     mockUseTopicMessages.mockReturnValue(topicMessagesResult)
 
-    const view = render(<ChatContent topic={topic} />)
+    let editedHistoryTokens = 35
+    ipcMock.request = (route, input) =>
+      Promise.resolve(
+        route === 'ai.topic.estimate_context'
+          ? (input as { modelId: string }).modelId === 'provider::model-a'
+            ? 15
+            : editedHistoryTokens
+          : undefined
+      )
+    const unlinkedTopic = { ...topic, assistantId: null }
+    const view = render(<ChatContent topic={unlinkedTopic} composerModelId="provider::model-a" />)
 
-    expect(screen.getByRole('meter', { name: 'context usage' })).toBeInTheDocument()
+    expect(await screen.findByRole('meter', { name: 'context usage' })).toHaveAttribute('aria-valuenow', '15')
+
+    view.rerender(<ChatContent topic={unlinkedTopic} composerModelId="provider::model-b" />)
+    expect(screen.queryByRole('meter', { name: 'context usage' })).not.toBeInTheDocument()
+    expect(await screen.findByRole('meter', { name: 'context usage' })).toHaveAttribute('aria-valuenow', '35')
+
+    const listener = mockUseDataChange.mock.calls.at(-1)?.[1]
+    expect(listener).toBeDefined()
+    editedHistoryTokens = 80
+    act(() => {
+      listener?.([{ endpoint: '/topics/:topicId/messages', kind: 'projection', entityIds: ['unloaded-ancestor'] }])
+    })
+    expect(await screen.findByRole('meter', { name: 'context usage' })).toHaveAttribute('aria-valuenow', '80')
 
     mockUseTopicMessages.mockReturnValue({ ...topicMessagesResult, isLoading: true, isStale: true })
-    view.rerender(<ChatContent topic={topic} />)
+    view.rerender(<ChatContent topic={unlinkedTopic} composerModelId="provider::model-b" />)
 
     expect(screen.queryByRole('meter', { name: 'context usage' })).not.toBeInTheDocument()
   })
@@ -512,7 +578,6 @@ describe('ChatContent', () => {
       stop: vi.fn(),
       error: null,
       status: 'ready',
-      setMessages: vi.fn(),
       activeExecutions: []
     })
 
@@ -614,7 +679,6 @@ describe('ChatContent', () => {
       regenerate: vi.fn(),
       stop: vi.fn(),
       error: null,
-      setMessages: vi.fn(),
       activeExecutions: [{ executionId: 'pending-placeholder', anchorMessageId: 'pending-placeholder' }] as never
     })
 
@@ -660,20 +724,16 @@ describe('ChatContent', () => {
       stop: vi.fn(),
       error: null,
       status: 'streaming',
-      setMessages: vi.fn(),
       activeExecutions
     })
-    mockExecutionOverlay.current = {
-      overlay: { [pendingMessage.id]: firstLiveAssistant.parts as CherryMessagePart[] },
-      liveAssistants: [firstLiveAssistant],
-      disposeOverlay: vi.fn(),
-      reset: vi.fn()
-    }
+    mockLiveReplies.current = [firstLiveAssistant]
 
     const view = render(<ChatContent topic={topic} />)
 
     await waitFor(() => {
-      expect(mockMessageListValue.current?.state.partsByMessageId[pendingMessage.id][0]).toMatchObject({
+      expect(
+        messagePartsAt(mockMessageListValue.current?.state.partsByMessageId, pendingMessage.id)?.[0]
+      ).toMatchObject({
         text: 'stream frame 1'
       })
     })
@@ -687,16 +747,13 @@ describe('ChatContent', () => {
       ...pendingMessage,
       parts: [{ type: 'text', text: 'stream frame 2' }]
     } as CherryUIMessage
-    mockExecutionOverlay.current = {
-      overlay: { [pendingMessage.id]: secondLiveAssistant.parts as CherryMessagePart[] },
-      liveAssistants: [secondLiveAssistant],
-      disposeOverlay: vi.fn(),
-      reset: vi.fn()
-    }
+    mockLiveReplies.current = [secondLiveAssistant]
     view.rerender(<ChatContent topic={topic} />)
 
     await waitFor(() => {
-      expect(mockMessageListValue.current?.state.partsByMessageId[pendingMessage.id][0]).toMatchObject({
+      expect(
+        messagePartsAt(mockMessageListValue.current?.state.partsByMessageId, pendingMessage.id)?.[0]
+      ).toMatchObject({
         text: 'stream frame 2'
       })
     })
@@ -757,13 +814,7 @@ describe('ChatContent', () => {
       )
     })
 
-    mockExecutionOverlay.current = {
-      overlay: { 'reserved-assistant': liveAssistant.parts as CherryMessagePart[] },
-      liveAssistants: [liveAssistant],
-      disposeOverlay: vi.fn(),
-      reset: vi.fn()
-    }
-    mockUseExecutionOverlay.mockImplementation(() => mockExecutionOverlay.current)
+    mockLiveReplies.current = [liveAssistant]
     view.rerender(<ChatContent topic={topic} onBranchLiveStateChange={onBranchLiveStateChange} />)
 
     await waitFor(() => {
@@ -803,15 +854,9 @@ describe('ChatContent', () => {
       stop: vi.fn(),
       error: null,
       status: 'ready',
-      setMessages: vi.fn(),
       activeExecutions: [{ executionId: 'provider::model', anchorMessageId: 'reserved-assistant' }]
     })
-    mockExecutionOverlay.current = {
-      overlay: {},
-      liveAssistants: [liveAssistant],
-      disposeOverlay: vi.fn(),
-      reset: vi.fn()
-    }
+    mockLiveReplies.current = [liveAssistant]
 
     const view = render(<ChatContent topic={topic} onBranchLiveStateChange={onBranchLiveStateChange} />)
 
@@ -836,15 +881,9 @@ describe('ChatContent', () => {
       stop: vi.fn(),
       error: null,
       status: 'ready',
-      setMessages: vi.fn(),
       activeExecutions: []
     })
-    mockExecutionOverlay.current = {
-      overlay: {},
-      liveAssistants: [],
-      disposeOverlay: vi.fn(),
-      reset: vi.fn()
-    }
+    mockLiveReplies.current = []
 
     view.rerender(<ChatContent topic={topic} onBranchLiveStateChange={onBranchLiveStateChange} />)
 
@@ -906,7 +945,6 @@ describe('ChatContent', () => {
         createdAt: '2026-01-01T00:00:04.000Z'
       }
     } as CherryUIMessage
-    const setMessages = vi.fn()
     const regenerate = vi.fn().mockResolvedValue(undefined)
     streamOpen.mockResolvedValueOnce({
       mode: 'started',
@@ -934,7 +972,6 @@ describe('ChatContent', () => {
       stop: vi.fn(),
       error: null,
       status: 'ready',
-      setMessages,
       activeExecutions: [
         {
           executionId: 'forked-exec',
@@ -955,7 +992,6 @@ describe('ChatContent', () => {
       body: { parts: editedParts }
     })
     expect(refresh).toHaveBeenCalled()
-    expect(setMessages).toHaveBeenCalledWith(expect.arrayContaining([expect.objectContaining({ id: 'forked-user' })]))
     expect(streamOpen).toHaveBeenCalledWith(
       expect.objectContaining({
         trigger: 'regenerate-message',
@@ -988,7 +1024,7 @@ describe('ChatContent', () => {
       )
     })
 
-    const finish = mockUseExecutionOverlay.mock.lastCall?.[2]?.onFinish
+    const finish = mockCompletion.mock.lastCall?.[2]
     expect(finish).toBeDefined()
 
     act(() => {
@@ -1094,7 +1130,6 @@ describe('ChatContent', () => {
       stop: vi.fn(),
       error: null,
       status: 'ready',
-      setMessages: vi.fn(),
       activeExecutions: []
     })
 
@@ -1169,7 +1204,6 @@ describe('ChatContent', () => {
       stop: vi.fn(),
       error: null,
       status: 'ready',
-      setMessages: vi.fn(),
       activeExecutions: []
     })
 
@@ -1207,7 +1241,6 @@ describe('ChatContent', () => {
       createdAt: '2026-01-01T00:00:03.000Z',
       updatedAt: '2026-01-01T00:00:03.000Z'
     })
-    const setMessages = vi.fn()
     const regenerate = vi.fn().mockResolvedValue(undefined)
     const rootUser = {
       ...createUiMessage('root-user', 'user'),
@@ -1276,7 +1309,6 @@ describe('ChatContent', () => {
       stop: vi.fn(),
       error: null,
       status: 'ready',
-      setMessages,
       activeExecutions: []
     })
 
@@ -1291,9 +1323,6 @@ describe('ChatContent', () => {
       body: { parts: editedParts }
     })
     expect(refresh).toHaveBeenCalled()
-    expect(setMessages).toHaveBeenCalledWith(
-      expect.arrayContaining([expect.objectContaining({ id: 'forked-root-user', parts: editedParts })])
-    )
     expect(streamOpen).toHaveBeenCalledWith(
       expect.objectContaining({
         trigger: 'regenerate-message',
@@ -1389,9 +1418,8 @@ describe('ChatContent', () => {
       )
     })
 
-    const finish = mockUseExecutionOverlay.mock.lastCall?.[2]?.onFinish
+    const finish = mockCompletion.mock.lastCall?.[2]
     expect(finish).toBeDefined()
-    const disposeOverlay = mockExecutionOverlay.current.disposeOverlay
     refresh.mockClear()
 
     act(() => {
@@ -1404,8 +1432,6 @@ describe('ChatContent', () => {
     })
 
     await waitFor(() => {
-      expect(refresh).toHaveBeenCalledTimes(1)
-      expect(disposeOverlay).toHaveBeenCalledWith('reserved-assistant-a')
       expect(onBranchLiveStateChange).not.toHaveBeenLastCalledWith(null)
     })
 
@@ -1446,7 +1472,6 @@ describe('ChatContent', () => {
       regenerate: vi.fn(),
       stop: vi.fn(),
       error: null,
-      setMessages: vi.fn(),
       activeExecutions: [{ executionId: 'gemini-new-pending', anchorMessageId: 'gemini-new-pending' }] as never
     })
 
@@ -1498,6 +1523,7 @@ describe('ChatContent', () => {
     const onLocateMessageHandled = vi.fn()
     mockUseTopicMessages.mockReturnValue({
       uiMessages: [createUiMessage('history-user', 'user')],
+      pathMessages: [],
       siblingsMap: {},
       isLoading: true,
       refresh: vi.fn().mockResolvedValue([]),
@@ -1521,6 +1547,7 @@ describe('ChatContent', () => {
     const onLocateMessageHandled = vi.fn()
     mockUseTopicMessages.mockReturnValue({
       uiMessages: [createUiMessage('history-user', 'user')],
+      pathMessages: [],
       siblingsMap: {},
       isLoading: false,
       refresh: vi.fn().mockResolvedValue([]),

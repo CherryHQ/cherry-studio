@@ -8,3 +8,5 @@ const permissionModeParser = AgentPermissionModeSchema.catch(DEFAULT_PERMISSION_
 export function normalizePermissionMode(mode: string | undefined | null): AgentPermissionMode {
   return permissionModeParser.parse(mode)
 }
+
+export { isAgentFullAccessMode } from '@cherrystudio/agent-runtime/cli'

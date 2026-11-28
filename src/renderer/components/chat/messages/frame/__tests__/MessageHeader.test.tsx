@@ -89,7 +89,7 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
-const createMessage = (role: 'assistant' | 'user' = 'assistant', extra: Record<string, unknown> = {}) =>
+const createMessage = (role: 'assistant' | 'user' | 'system' = 'assistant', extra: Record<string, unknown> = {}) =>
   ({
     id: 'message-1',
     role,
@@ -103,6 +103,25 @@ describe('MessageHeader', () => {
     providerState.actions = {}
     providerState.selection = undefined
     providerState.meta = {}
+  })
+
+  it('attributes historical system records to the system instead of the user', () => {
+    render(<MessageHeader message={createMessage('system')} />)
+    expect(screen.getByText('chat.message.system')).toBeInTheDocument()
+    expect(screen.queryByText('User')).not.toBeInTheDocument()
+  })
+
+  it('keeps the body DOM and focus when the Run identity slot becomes visible', () => {
+    const message = createMessage('assistant', { messageSnapshot: { id: 'agent', name: 'Run author' } })
+    const body = <button type="button">Tool approval</button>
+    const view = render(<MessageHeader message={message} showHeader={false} contentSlot={body} />)
+    const tool = screen.getByRole('button', { name: 'Tool approval' })
+    tool.focus()
+    expect(screen.queryByText('Run author')).not.toBeInTheDocument()
+    view.rerender(<MessageHeader message={message} showHeader contentSlot={body} />)
+    expect(screen.getByText('Run author')).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Tool approval' })).toBe(tool)
+    expect(tool).toHaveFocus()
   })
 
   it('updates historical author avatars and restores the snapshot after deletion', () => {

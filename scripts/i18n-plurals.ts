@@ -17,7 +17,7 @@ const PLURAL_SUFFIX_RE = /^(.+)_(zero|one|two|few|many|other)$/
  * Locales whose catalogs must carry every plural form their language selects.
  * Other locales may add their extra forms but are not yet required to.
  */
-export const COMPLETE_PLURAL_LOCALES = new Set(['pl-pl'])
+export const COMPLETE_PLURAL_LOCALES = new Set(['pl-pl', 'ru-ru'])
 
 /** `pl-pl.json` -> `pl-PL`. */
 export const localeFromFileName = (fileName: string): string => {

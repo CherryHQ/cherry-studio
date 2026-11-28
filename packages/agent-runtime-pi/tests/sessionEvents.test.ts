@@ -3,6 +3,30 @@ import { describe, expect, it } from 'vitest'
 
 import { type AgentRuntimeEvent, SessionEvents } from '../src/sessionEvents'
 
+it('reports new entry identities in order without reading their bodies', () => {
+  const manager = SessionManager.inMemory()
+  const events: AgentRuntimeEvent[] = []
+  const observer = new SessionEvents(manager, (event) => events.push(event))
+  const message = manager.appendMessage({ role: 'user', content: 'private message body', timestamp: 1 })
+  const custom = manager.appendCustomEntry('opaque', {
+    get payload() {
+      throw new Error('Append notifications must not read entry bodies')
+    }
+  })
+
+  observer.flush()
+  observer.flush()
+  expect(events).toEqual([
+    {
+      type: 'session-append',
+      entries: [
+        { id: message, type: 'message', role: 'user' },
+        { id: custom, type: 'custom' }
+      ]
+    }
+  ])
+})
+
 it('delivers committed compaction entries before completion and preserves a later failure', () => {
   const manager = SessionManager.inMemory('/tmp/runtime-events')
   const events: AgentRuntimeEvent[] = []

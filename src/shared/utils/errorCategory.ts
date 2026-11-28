@@ -13,6 +13,7 @@ export const ERROR_CATEGORIES = [
   'quota',
   'rate_limit',
   'context_length',
+  'prefill_memory',
   'payload',
   'network',
   'proxy',
@@ -222,6 +223,15 @@ export function classifyErrorCategory({ text, status, finishReason }: ErrorCateg
     return 'rate_limit'
   }
 
+  // oMLX can reject prefill within the model's context window when the memory budget is exhausted.
+  if (
+    (status === undefined || status === 400) &&
+    (msg.includes('omlx prefill memory guard rejected this prompt:') ||
+      /(?:^|\n|"(?:code|omlx_code)"\s*:\s*")prefill_memory_exceeded(?=\n|$|")/.test(msg))
+  ) {
+    return 'prefill_memory'
+  }
+
   // Context length exceeded
   if (isContextOverflowMessage(msg)) {
     return 'context_length'
@@ -230,7 +240,7 @@ export function classifyErrorCategory({ text, status, finishReason }: ErrorCateg
   // Payload too large (413)
   if (
     status === 413 ||
-    msg.includes('payload too large') ||
+    /(?<!\bresponse\s+(?:body\s+)?)\bpayload (?:is )?too large/.test(msg) ||
     msg.includes('request entity too large') ||
     msg.includes('failed to buffer the request body: length limit exceeded')
   ) {

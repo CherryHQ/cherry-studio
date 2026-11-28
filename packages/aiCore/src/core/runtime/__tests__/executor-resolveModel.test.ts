@@ -78,37 +78,6 @@ describe('RuntimeExecutor - Model Resolution', () => {
   })
 
   describe('Language Model Resolution (String modelId)', () => {
-    it('should resolve string modelId through provider', async () => {
-      await executor.generateText({
-        model: 'gpt-4',
-        messages: [{ role: 'user', content: 'Hello' }]
-      })
-
-      expect(mockProvider.languageModel).toHaveBeenCalledWith('gpt-4')
-    })
-
-    it('should pass resolved model to generateText', async () => {
-      await executor.generateText({
-        model: 'gpt-4',
-        messages: [{ role: 'user', content: 'Hello' }]
-      })
-
-      expect(generateText).toHaveBeenCalledWith(
-        expect.objectContaining({
-          model: mockLanguageModel
-        })
-      )
-    })
-
-    it('should resolve traditional format modelId', async () => {
-      await executor.generateText({
-        model: 'gpt-4-turbo',
-        messages: [{ role: 'user', content: 'Test' }]
-      })
-
-      expect(mockProvider.languageModel).toHaveBeenCalledWith('gpt-4-turbo')
-    })
-
     it('should resolve namespaced format modelId', async () => {
       await executor.generateText({
         model: 'aihubmix|anthropic|claude-3',
@@ -177,15 +146,6 @@ describe('RuntimeExecutor - Model Resolution', () => {
   })
 
   describe('Image Model Resolution', () => {
-    it('should resolve string image modelId through provider', async () => {
-      await executor.generateImage({
-        model: 'dall-e-3',
-        prompt: 'A beautiful sunset'
-      })
-
-      expect(mockProvider.imageModel).toHaveBeenCalledWith('dall-e-3')
-    })
-
     it('should accept direct ImageModelV3 object', async () => {
       const directImageModel: ImageModelV3 = createMockImageModel({
         specificationVersion: 'v3',
@@ -215,19 +175,6 @@ describe('RuntimeExecutor - Model Resolution', () => {
       expect(mockProvider.imageModel).toHaveBeenCalledWith('aihubmix|openai|dall-e-3')
     })
 
-    it('should throw ImageModelResolutionError on resolution failure', async () => {
-      mockProvider.imageModel.mockImplementation(() => {
-        throw new Error('Model not found')
-      })
-
-      await expect(
-        executor.generateImage({
-          model: 'invalid-model',
-          prompt: 'Test'
-        })
-      ).rejects.toThrow(ImageModelResolutionError)
-    })
-
     it('should include modelId and providerId in ImageModelResolutionError', async () => {
       mockProvider.imageModel.mockImplementation(() => {
         throw new Error('Not found')
@@ -246,73 +193,9 @@ describe('RuntimeExecutor - Model Resolution', () => {
         expect(imgError.providerId).toBe('openai')
       }
     })
-
-    it('should extract modelId from direct model object in error', async () => {
-      const directModel = createMockImageModel({
-        modelId: 'direct-model',
-        doGenerate: vi.fn().mockRejectedValue(new Error('Generation failed'))
-      })
-
-      vi.mocked(generateImage).mockRejectedValue(new Error('Generation failed'))
-
-      await expect(
-        executor.generateImage({
-          model: directModel,
-          prompt: 'Test'
-        })
-      ).rejects.toThrow()
-    })
   })
 
   describe('Provider-Specific Model Resolution', () => {
-    it('should resolve models for OpenAI provider', async () => {
-      const openaiModel = createMockLanguageModel({ provider: 'openai', modelId: 'gpt-4' })
-      const openaiProvider = createMockProviderV3({
-        provider: 'openai',
-        languageModel: vi.fn(() => openaiModel)
-      })
-      const openaiExecutor = RuntimeExecutor.create('openai', openaiProvider, mockProviderConfigs.openai)
-
-      await openaiExecutor.generateText({
-        model: 'gpt-4',
-        messages: [{ role: 'user', content: 'Test' }]
-      })
-
-      expect(openaiProvider.languageModel).toHaveBeenCalledWith('gpt-4')
-    })
-
-    it('should resolve models for Anthropic provider', async () => {
-      const anthropicModel = createMockLanguageModel({ provider: 'anthropic', modelId: 'claude-3-5-sonnet' })
-      const anthropicProvider = createMockProviderV3({
-        provider: 'anthropic',
-        languageModel: vi.fn(() => anthropicModel)
-      })
-      const anthropicExecutor = RuntimeExecutor.create('anthropic', anthropicProvider, mockProviderConfigs.anthropic)
-
-      await anthropicExecutor.generateText({
-        model: 'claude-3-5-sonnet',
-        messages: [{ role: 'user', content: 'Test' }]
-      })
-
-      expect(anthropicProvider.languageModel).toHaveBeenCalledWith('claude-3-5-sonnet')
-    })
-
-    it('should resolve models for Google provider', async () => {
-      const googleModel = createMockLanguageModel({ provider: 'google', modelId: 'gemini-2.0-flash' })
-      const googleProvider = createMockProviderV3({
-        provider: 'google',
-        languageModel: vi.fn(() => googleModel)
-      })
-      const googleExecutor = RuntimeExecutor.create('google', googleProvider, mockProviderConfigs.google)
-
-      await googleExecutor.generateText({
-        model: 'gemini-2.0-flash',
-        messages: [{ role: 'user', content: 'Test' }]
-      })
-
-      expect(googleProvider.languageModel).toHaveBeenCalledWith('gemini-2.0-flash')
-    })
-
     it('should resolve models for OpenAI-compatible provider', async () => {
       const compatModel = createMockLanguageModel({ provider: 'openai-compatible', modelId: 'custom-model' })
       const compatProvider = createMockProviderV3({

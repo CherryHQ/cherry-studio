@@ -1,11 +1,11 @@
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { CliConfigConnection, CliConfigFileDraft } from '@renderer/pages/code/cliConfig'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
 import { CLI_API_GATEWAY_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
+import type { CliConfigConnection, CliConfigFileDraft } from '@shared/utils/cliConfig'
 
 const mocks = vi.hoisted(() => ({
   extractConnectionFromCliConfigDraft: vi.fn(),
@@ -26,9 +26,9 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
-vi.mock('@renderer/pages/code/cliConfig', async (importOriginal) => {
+vi.mock('@renderer/services/codeCliConfig', async (importOriginal) => {
   // oxlint-disable-next-line consistent-type-imports
-  const actual = await importOriginal<typeof import('@renderer/pages/code/cliConfig')>()
+  const actual = await importOriginal<typeof import('@renderer/services/codeCliConfig')>()
   return {
     ...actual,
     extractConnectionFromCliConfigDraft: mocks.extractConnectionFromCliConfigDraft,

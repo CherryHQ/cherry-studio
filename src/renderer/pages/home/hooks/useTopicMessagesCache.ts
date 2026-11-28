@@ -1,21 +1,3 @@
-/**
- * Optimistic-cache helpers for the `/topics/:topicId/messages` infinite key.
- *
- * Every write in the chat pipeline that needs to reflect in the branch
- * message list goes through this hook — delete / edit / fork / setActiveNode
- * (DataApi mutations) and send (optimistic seed only, actual dispatch
- * happens through `useChat` / IPC).
- *
- * Two parallel stores need to stay in sync for every such write:
- *   (1) the shared SWR infinite cache for `/topics/:id/messages` — read by
- *       every `useTopicMessages` subscriber (including other detached
- *       windows),
- *   (2) `useChat.state.messages` — owned by the caller's local instance.
- *
- * This hook owns (1) via the `mutate` passed in from `useTopicMessages`
- * (which targets the same infinite cache key). Syncing (2) stays with the
- * caller since it holds `setMessages` from `useChatWithHistory`.
- */
 import { useCallback } from 'react'
 import type { SWRInfiniteKeyedMutator } from 'swr/infinite'
 
