@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useMemo, useRef } from 'react'
 
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
@@ -8,7 +8,7 @@ import type {
   CodeCliId,
   CodeCliToolState
 } from '@shared/data/preference/preferenceTypes'
-import { CLI_OWN_LOGIN_PROVIDER_ID, CodeCli, isApiGatewayProviderId } from '@shared/types/codeCli'
+import { CodeCli } from '@shared/types/codeCli'
 import { Sequencer } from '@shared/utils/async'
 
 const logger = loggerService.withContext('useCodeCli')
@@ -32,7 +32,7 @@ function getToolState(toolId: CodeCliId, configs: CodeCliConfigs): CodeCliToolSt
   return { ...state, providers }
 }
 
-export const useCodeCli = (initialTool: CodeCli = DEFAULT_TOOL, onToolChange?: (tool: CodeCli) => void) => {
+export const useCodeCli = (selectedCliTool: CodeCli = DEFAULT_TOOL) => {
   const [configs, setConfigs] = usePreference(PREFERENCE_KEY)
 
   // Mirror configs in a ref so sequential writes read the freshest value.
@@ -42,18 +42,6 @@ export const useCodeCli = (initialTool: CodeCli = DEFAULT_TOOL, onToolChange?: (
   configsRef.current = configs
   const writeQueueRef = useRef(new Sequencer())
 
-  const [selectedCliTool, setSelectedCliTool] = useState<CodeCli>(initialTool)
-
-  useEffect(() => setSelectedCliTool(initialTool), [initialTool])
-
-  const selectTool = useCallback(
-    (tool: CodeCli) => {
-      setSelectedCliTool(tool)
-      onToolChange?.(tool)
-    },
-    [onToolChange]
-  )
-
   const currentToolState = useMemo(() => getToolState(selectedCliTool, configs), [selectedCliTool, configs])
 
   const currentProviderId = currentToolState.current
@@ -61,8 +49,6 @@ export const useCodeCli = (initialTool: CodeCli = DEFAULT_TOOL, onToolChange?: (
     () => (currentProviderId ? (currentToolState.providers[currentProviderId] ?? null) : null),
     [currentToolState, currentProviderId]
   )
-  const selectedTerminal = currentToolState.terminal
-  const directory = currentToolState.directory
   const providerConfigs = currentToolState.providers
 
   const patchToolState = useCallback(
@@ -127,75 +113,14 @@ export const useCodeCli = (initialTool: CodeCli = DEFAULT_TOOL, onToolChange?: (
     [patchToolState, selectedCliTool]
   )
 
-  const reorderProviders = useCallback(
-    async (orderedIds: string[]) => {
-      const toolId = selectedCliTool as CodeCliId
-      await patchToolState(toolId, (prev) => {
-        const nextProviders = { ...prev.providers }
-        for (let i = 0; i < orderedIds.length; i++) {
-          const id = orderedIds[i]
-          const existing = nextProviders[id]
-          if (!existing) {
-            // The virtual own-login / Cherry-gateway entries have no real config; persist a
-            // placeholder so their drag position sticks. Real unconfigured providers are still
-            // skipped (no empty configs).
-            if (id === CLI_OWN_LOGIN_PROVIDER_ID || isApiGatewayProviderId(id)) {
-              nextProviders[id] = { modelId: null, sortIndex: i }
-            }
-            continue
-          }
-          nextProviders[id] = { ...existing, sortIndex: i }
-        }
-        return { ...prev, providers: nextProviders }
-      })
-    },
-    [patchToolState, selectedCliTool]
-  )
-
-  const setTerminal = useCallback(
-    async (terminal: string) => {
-      await patchToolState(selectedCliTool, (prev) => ({ ...prev, terminal }))
-    },
-    [patchToolState, selectedCliTool]
-  )
-
-  const setDirectory = useCallback(
-    async (directory: string) => {
-      await patchToolState(selectedCliTool, (prev) => ({ ...prev, directory }))
-    },
-    [patchToolState, selectedCliTool]
-  )
-
-  const selectFolder = useCallback(async (): Promise<string | null> => {
-    try {
-      const folderPath = await window.api.file.selectFolder()
-      if (folderPath) {
-        await setDirectory(folderPath)
-        return folderPath
-      }
-      return null
-    } catch (error) {
-      logger.error('Failed to select folder:', error as Error)
-      throw error
-    }
-  }, [setDirectory])
-
   return {
-    configs,
     selectedCliTool,
     currentToolState,
     currentProviderId,
     currentProviderConfig,
     providerConfigs,
-    directory,
-    selectedTerminal,
     upsertProviderConfig,
     deleteProviderConfig,
-    setCurrentProvider,
-    reorderProviders,
-    selectTool,
-    setTerminal,
-    setDirectory,
-    selectFolder
+    setCurrentProvider
   }
 }

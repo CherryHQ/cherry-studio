@@ -6,18 +6,38 @@ import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
 import { resolveAgentCapabilities, resolveAutomationAccess } from '@main/ai/agents/builtin/builtinAgentCapabilities'
-import { automationReplDescription, automationReplInput, automationReplResetInput } from '@main/ai/tools/automationRepl'
+import {
+  automationReplDescription,
+  automationReplInput,
+  automationReplResetInput,
+  buildAutomationReplDescription
+} from '@main/ai/tools/automationRepl'
 import type { AutomationRun } from '@main/services/automation'
 
 const logger = loggerService.withContext('AutomationReplAdapter')
+
+export interface AutomationReplServerOptions {
+  browserOnly?: boolean
+  isBrowserAllowed?: () => boolean
+  isReadOnly?: () => boolean
+}
+
+export interface AutomationReplController {
+  createServer(): McpServer
+  dispose(): Promise<void>
+}
 
 function toMcpResult({ content, isError }: CallToolResult): CallToolResult {
   // Claude replaces text content with structuredContent; REPL metadata must not hide observations.
   return { content, isError }
 }
 
-export function createAutomationReplServer(sessionId: string, agentId: string): McpServer {
-  const server = new McpServer({ name: 'automation', version: '1.0.0' })
+/** Own one turn-gated Automation REPL session controller that can serve long-lived or per-request MCP servers. */
+export function createAutomationReplController(
+  sessionId: string,
+  agentId: string,
+  options?: AutomationReplServerOptions
+): AutomationReplController {
   const service = application.get('AutomationReplService')
   const runtime = application.get('AgentSessionRuntimeService')
   const owner = {
@@ -26,6 +46,9 @@ export function createAutomationReplServer(sessionId: string, agentId: string): 
     ownerId: agentId,
     label: `${agentService.getAgent(agentId)?.name ?? agentId} · ${sessionId.slice(0, 8)}`
   }
+  const description = options?.browserOnly
+    ? buildAutomationReplDescription({ browser: true, computer: false })
+    : automationReplDescription
   let run: AutomationRun | undefined
   let finishing = Promise.resolve()
   let closed = false
@@ -41,10 +64,18 @@ export function createAutomationReplServer(sessionId: string, agentId: string): 
     ) {
       throw new Error('Automation requires an active local Agent task')
     }
+    const browserEnabled = application.get('PreferenceService').get('app.browser.agent_control.enabled')
+    if (options?.browserOnly) {
+      return {
+        browser: browserEnabled && (options.isBrowserAllowed ? options.isBrowserAllowed() : true),
+        computer: false,
+        browserReadOnly: Boolean(options.isReadOnly?.())
+      }
+    }
     return {
       ...resolveAutomationAccess(agent, {
         channelLinked: false,
-        browserEnabled: application.get('PreferenceService').get('app.browser.agent_control.enabled'),
+        browserEnabled,
         computerUseEnabled: application.get('PreferenceService').get('app.computer_use.agent_control.enabled')
       }),
       computerApproval: {
@@ -73,21 +104,6 @@ export function createAutomationReplServer(sessionId: string, agentId: string): 
     run ??= service.beginRun(owner, runtime.getLiveAssistantMessageId(sessionId)!, access)
     return run
   }
-  server.registerTool(
-    'js',
-    { description: automationReplDescription, inputSchema: automationReplInput },
-    async ({ code }, context) => toMcpResult(await (await currentRun()).execute(code, context.mcpReq.signal))
-  )
-  server.registerTool(
-    'reset',
-    {
-      description:
-        'Clear automation JS state and release control leases. Does not close pages or resume user-stopped control.',
-      inputSchema: automationReplResetInput
-    },
-    async () => toMcpResult(await (await currentRun()).reset())
-  )
-  const close = server.close.bind(server)
   let cleanup: Promise<void> | undefined
   const dispose = () => {
     if (cleanup) return cleanup
@@ -98,12 +114,39 @@ export function createAutomationReplServer(sessionId: string, agentId: string): 
     cleanup = finishing.then(() => service.close(owner))
     return cleanup
   }
+  const createServer = (): McpServer => {
+    const server = new McpServer({ name: 'automation', version: '1.0.0' })
+    server.registerTool('js', { description, inputSchema: automationReplInput }, async ({ code }, context) =>
+      toMcpResult(await (await currentRun()).execute(code, context.mcpReq.signal))
+    )
+    server.registerTool(
+      'reset',
+      {
+        description:
+          'Clear automation JS state and release control leases. Does not close pages or resume user-stopped control.',
+        inputSchema: automationReplResetInput
+      },
+      async () => toMcpResult(await (await currentRun()).reset())
+    )
+    return server
+  }
+  return { createServer, dispose }
+}
+
+export function createAutomationReplServer(
+  sessionId: string,
+  agentId: string,
+  options?: AutomationReplServerOptions
+): McpServer {
+  const controller = createAutomationReplController(sessionId, agentId, options)
+  const server = controller.createServer()
+  const close = server.close.bind(server)
   server.server.onclose = () => {
-    void dispose().catch((error) => logger.warn('Automation disconnect cleanup failed', { error }))
+    void controller.dispose().catch((error) => logger.warn('Automation disconnect cleanup failed', { error }))
   }
   server.close = async () => {
     try {
-      await dispose()
+      await controller.dispose()
     } finally {
       await close()
     }

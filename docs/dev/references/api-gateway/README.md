@@ -1,17 +1,21 @@
 ---
-description: API gateway purpose, start and stop controls, automatic startup, and HTTP protocol reference
+description: Unified Gateway purpose, start and stop controls, automatic startup, and HTTP protocol reference
 sources:
   - src/main/features/apiGateway
   - src/main/ai/runtime/agentApiGateway.ts
   - src/main/services/PdfTranslationService.ts
+  - src/renderer/components/ApiGatewayPanel.tsx
+  - src/renderer/pages/apiGateway
+  - src/renderer/routes/app/api-gateway.tsx
+  - src/renderer/pages/launchpad/LaunchpadPage.tsx
   - src/renderer/hooks/useApiGateway.ts
   - src/renderer/pages/settings/ToolSettings/ApiGatewaySettings
   - src/renderer/pages/settings/DeviceConnectionsSettings
 ---
 
-# API Gateway Reference
+# Unified Gateway Reference
 
-The **API Gateway** exposes Cherry Studio's AI capabilities over a local HTTP
+The **Unified Gateway** exposes Cherry Studio's AI capabilities over a local HTTP
 server that speaks the **OpenAI**, **Anthropic**, and **Gemini** wire protocols,
 plus Cherry REST and Streamable HTTP MCP endpoints. Compatible clients can point at
 `http://127.0.0.1:23333` and drive whatever provider/model the desktop app has
@@ -86,36 +90,36 @@ to enable it. It is disabled by default.
 
 | Use case | When the gateway is needed |
 |---|---|
-| Another local app uses Cherry Studio's models | Start it and give the app the gateway URL and API key. The gateway translates supported API protocols for the configured provider. |
+| Another local app uses Cherry Studio's models | Start it and copy the client’s gateway URL. Model requests on loopback do not require a key. The gateway translates supported API protocols for the configured provider. |
 | An Agent uses a Cherry-managed model | Pi and Pi Durable call the gateway in process without a listener. Claude Code uses the internal loopback listener, started on demand independently of the public gateway setting. |
 | PDF translation | Cherry Studio starts the gateway temporarily for the translation task and releases it afterward. You do not need to enable it manually. |
-| A paired device connects to Cherry Studio | Start it, then allow network access in **Settings → Device Connections** and approve pairing. See [LAN exposure](#lan-exposure-is-confined-to-the-remote-access-upgrade) for the access boundary. |
+| A paired device connects to Cherry Studio | Start it, then allow network access in **Settings → Device Connections** and approve pairing. See [LAN exposure](#lan-exposure) for the access boundary. |
 
 ### Start the gateway for a client
 
 1. Configure a working provider and model in **Settings → Model Provider** for
    model requests. Keep Cherry Studio running while the client uses the gateway.
-2. Open **Settings → API Gateway**. While stopped, choose an available port
+2. Open **Unified Gateway** from the Launchpad apps grid, or open **Settings → Unified Gateway** (also linked from **Settings → Device Connections**). Right-click the Launchpad tile to pin it to the sidebar. While stopped, choose an available port
    between `1000` and `65535` if the default `23333` is already in use.
-3. Click **Start** and wait for **Running**. Cherry Studio generates a gateway
-   API key on first activation.
-4. Copy the server URL and API key from this page into the client. For an
-   OpenAI-compatible client, the default base URL is `http://127.0.0.1:23333/v1`;
-   use the displayed port if you changed it. This is the gateway's key, separate
-   from the upstream provider's credentials.
-5. Select a model from the gateway's model list. Its ID includes the provider,
-   such as `anthropic:claude-sonnet-4-6`; see the [HTTP surface](#http-surface) for
-   each protocol's endpoints and authentication.
+3. Click **Start** and wait for **Running**.
+4. Under **Connect on this computer**, copy the Base URL (`/v1`) or the full
+   request URL for Chat Completions, Responses, or Anthropic Messages.
+5. Find the model in the **Models** list below the URLs and copy its ID into your client. The copied ID
+   includes the provider prefix required by the gateway, such as
+   `anthropic:claude-sonnet-4-6`.
 
-Local API clients do not need **Allow network access**. That control is for paired
-remote devices; it does not expose the ordinary HTTP APIs to the LAN.
+To connect from another machine, enable **Share on local network**, select the
+interface address, and copy the appropriate URL and API key. Local model calls
+work without the key.
 
 ### Stop the gateway and automatic startup
 
-Open **Settings → API Gateway** and click **Stop**. This clears the saved
-startup setting, disables network access, and closes remote-device sessions.
+Open **Unified Gateway** from the Launchpad or **Settings → Unified Gateway** and click **Stop**. This clears the saved
+startup setting and closes remote-device sessions. LAN API sharing remains configured for the next start.
 Gateway-dependent clients and Agent routes need the gateway again before they can
 be used. Ordinary chats can continue without it.
+
+To restart a running gateway, choose **Restart** from the menu next to **Stop** in the page header.
 
 An active PDF translation can keep the local gateway running after **Stop**;
 the notification explains that shutdown is deferred. Let the translation finish
@@ -125,14 +129,14 @@ temporary tasks.
 
 ### Understand why it starts automatically
 
-- Clicking **Start**, or accepting an Agent's **Enable the API Gateway?** prompt,
+- Clicking **Start**, or accepting an Agent's **Enable the Unified Gateway?** prompt,
   saves the enabled setting. The gateway then starts on future Cherry Studio
   launches until you click **Stop**.
 - PDF translation uses the gateway temporarily without changing that saved
   setting. If it was disabled, it stops again after the last translation task;
   if you had enabled it, it stays running.
 - Upgrading from v1 preserves a previously enabled API Server setting. Check
-  **Settings → API Gateway** and click **Stop** if you no longer use it.
+  **Settings → Unified Gateway** and click **Stop** if you no longer use it.
 
 ## Where the code lives
 
@@ -217,6 +221,7 @@ guard, described below.
 | `POST /v1/messages` | Anthropic | `anthropic` → `anthropic` |
 | `POST /v1/messages/count_tokens` | Anthropic | token estimate over the converted request; anthropic-dialect endpoints forward it to the provider's own `count_tokens` (via the app proxy/auth), other dialects stay local; no stream |
 | `POST /v1/chat/completions` | OpenAI Chat | `openai` → `openai` |
+| `POST /v1/agents/grok-build/session-summary/chat/completions` | Grok Build session summary | OpenAI Chat with a route-specific reasoning default for the forced `session_title` tool |
 | `POST /v1/responses` | OpenAI Responses | `openai-responses` → `openai-responses` |
 | `POST /v1beta/models/{provider:model}:generateContent` | Gemini | `gemini` → Gemini JSON |
 | `POST /v1beta/models/{provider:model}:streamGenerateContent?alt=sse` | Gemini | `gemini` → Gemini SSE |
@@ -231,6 +236,10 @@ guard, described below.
 
 The model in every chat/messages/responses body is `"<providerId>:<modelId>"`
 (split on the **first** `:`), e.g. `anthropic:claude-sonnet-4-6`.
+
+Agent-specific routes share authentication, model resolution and protocol conversion
+with the standard gateway routes. The Grok Build route requests reasoning effort
+`none` for its title tool. The selected model's adapter owns the upstream wire format.
 
 Gemini routes carry a separate local auth guard because Gemini clients use
 `x-goog-api-key` or `?key=`. The `/v1` scoped guard must not intercept `/v1beta`.
@@ -251,7 +260,7 @@ already be configured through the desktop. Legacy callers continue through the
 v1 bridge; scalar and array structured results also receive a JSON text
 projection so legacy clients can consume them.
 
-### LAN exposure is confined to the remote-access upgrade
+### LAN exposure
 
 The gateway listens on `127.0.0.1` and `::1` by default at its configured port (default
 `23333`). Allowing network access rebinds to all IPv4 / IPv6 interfaces (`0.0.0.0` and `::`).
@@ -260,22 +269,19 @@ If IPv6 is unavailable, IPv4 remains usable and only its addresses are advertise
 A port conflict fails startup and releases both listeners. Local HTTP and remote WebSocket clients share the port. Rebinding only
 releases the listening handles; existing local streams and MCP sessions continue.
 An OS-refused bind (`EACCES` from `listen`) on the internal loopback gateway triggers up to two automatic retries, each with a fresh server and an OS-assigned port. Concurrent internal consumers share the same three-attempt budget. Failed starts release their listeners before retrying; exhaustion reports the final failed address/port and allows a later request to try again. Other errors are not retried automatically. The public gateway reports recovery guidance and keeps its configured port; change the port in Settings and click Start to retry.
-The settings card explains network exposure and pairing requirements in plain language.
-Actual bound addresses appear only in the collapsed connection details, including while access is disabled.
+Device pairing and LAN model API sharing have separate controls. Either can
+widen the listener, and disabling one leaves the other available. When both
+are off, the listener returns to loopback.
 
-The root `onRequest` guard (`lanGuard.ts`) runs before CORS and screens each
-request by its socket peer. Ordinary HTTP routes remain loopback-only. The only
-LAN route allowed is the `/v1/remote/connect` WebSocket upgrade, and it requires
-both the gateway and LAN preferences to be enabled. The remote route is also
-blocked on loopback when LAN access is disabled. Desktop consumers continue to
-use `127.0.0.1` through `gatewayClientOrigin`.
+The root guard checks the socket peer before CORS. LAN model API sharing allows
+model listing, generation, and token counting after API key verification.
+Device Connections allows the encrypted `/v1/remote/connect` WebSocket upgrade.
+MCP, knowledge bases, and OpenAPI docs remain loopback-only. Plain HTTP does
+not encrypt the gateway key.
 
-Disabling LAN first restores `feature.api_gateway.host` to `127.0.0.1`, then
-closes remote sessions and clears pending invitations, then rebinds to loopback.
-The guard rejects remote requests during the transition; afterward the network
-interfaces no longer accept new TCP connections. If opening access fails, the
-service restores loopback intent and attempts to rebind locally. If narrowing
-the listener fails, it remains unbound and the command reports an error.
+Enabling sharing prepares the key before opening access. Disabling it rejects
+subsequent LAN model requests, including on previously accepted connections.
+If a listener rebind fails, the gateway attempts to restore its previous bind.
 
 ### Internal listener for Cherry consumers
 
@@ -288,9 +294,12 @@ verifies that credential against the claimed session before opening its replay
 checkpoint. Calling `ensureInternalGateway` without a session ID returns the
 general internal key, which grants no checkpoint access.
 `createScopedCredential({ path, model })` issues a key for a single consumer run
-that only calls that path with that model and is revoked by `dispose`. The
-internal listener accepts only those keys, sent in a header, and the public
-listener accepts only the user's key. Enabled CherryAI subscription chat models
+that only calls that path with that model and is revoked by `dispose`. Local
+Agent connections may additionally bind `agentSessionId` in this in-memory scope;
+request headers cannot override that binding or attribute an unbound scoped key.
+The runtime host resolves the active assistant message at request start. The
+internal listener accepts only those keys, sent in a header. The public listener
+rejects internal credentials. Enabled CherryAI subscription chat models
 are listed and served by the public gateway as `cherryai-subscription:<apiModelId>`,
 including in Code Mate's gateway model picker. Requests use the signed-in CherryAI
 account and its subscription quota; the provider refreshes model entitlements
@@ -474,25 +483,25 @@ requested listening scope. Start/stop persist user intent before convergence.
 Cherry's own consumers never keep this listener up; they use the internal
 listener described below.
 
-LAN commands are serialized with remote-session cleanup. Enabling LAN requires
-an enabled, running gateway and persists `host = 0.0.0.0`. Disabling LAN persists
-`host = 127.0.0.1`, closes remote sessions and rebinds the listener without interrupting local requests.
-
-An explicit gateway stop atomically persists `enabled = false` and disables LAN,
-then closes remote sessions and stops the listener. An explicit restart retains LAN intent and reuses the
-configured gateway port; a fresh QR is only needed if the endpoint changes.
+Enabling device pairing or HTTP sharing requires a running gateway. Pairing
+persists `host = 0.0.0.0` and HTTP sharing persists `lan_http_enabled = true`.
+Both use the same listener and port. An explicit stop clears the start and
+pairing intent, closes remote sessions, and stops the listener. It retains HTTP
+sharing intent. An explicit restart retains both network settings.
 
 ### Running state — Shared Cache, not IPC
 
 `publishRunningState()` writes `feature.api_gateway.running` (boolean) into the
 **Shared Cache** via `CacheService.setShared(...)`. It also publishes
-`feature.api_gateway.lan_running` for remote-access availability. **Main is authoritative**;
+`feature.api_gateway.lan_running` for remote-access availability and the bound host and port in
+`feature.api_gateway.endpoint`, cleared when stopped. The panel uses that endpoint while running
+and the configured host and port while stopped. **Main is authoritative**;
 the renderer reads it reactively with `useSharedCacheValue('feature.api_gateway.running')`.
 There is deliberately **no status/config pull IPC** — pulling running state or
 config over IPC would be an anti-pattern, since running lives in the shared
 cache and config lives in the Preference subsystem.
 
-### IpcApi (imperative actions only)
+### IpcApi commands and discovery
 
 | Route | Result | Handler |
 |---|---|---|
@@ -500,6 +509,9 @@ cache and config lives in the Preference subsystem.
 | `api_gateway.stop` | success includes `outcome: 'stopped'` | `ApiGatewayService.stop()` |
 | `api_gateway.restart` | `{ success } \| { success:false, error }` | `ApiGatewayService.restart()` |
 | `api_gateway.lan.set_enabled` | `void`; failures use the standard IpcApi error channel | `ApiGatewayService.setLanEnabled(enabled)` |
+| `api_gateway.lan_http.set_enabled` | open or close LAN model API sharing | `ApiGatewayService.setLanHttpEnabled(enabled)` |
+| `api_gateway.lan_http.addresses` | reachable-interface URLs for the currently bound port | `ApiGatewayService.getLanHttpAddresses()` |
+| `api_gateway.models` | configured display names, model IDs, and ownership for the gateway catalog | `getGatewayModelCatalog()` |
 | `api_gateway.remote.create_invitation` | active LAN endpoint + one-time invitation and desktop identity; failures use the standard IpcApi error channel | `ApiGatewayService.createRemoteInvitation()` |
 | `api_gateway.remote.list_claims` / `api_gateway.remote.decide_pairing` | pending pairing claims and the local approve/reject decision with granted capabilities | `RemoteAccessService` |
 
@@ -511,7 +523,8 @@ pending claims in every settings window.
 | Key | Type | Default | Notes |
 |---|---|---|---|
 | `feature.api_gateway.enabled` | `boolean` | `false` | Auto-start on launch / toggled from settings |
-| `feature.api_gateway.host` | `string` | `'127.0.0.1'` | `0.0.0.0` enables remote access on the shared listener; other values disable it |
+| `feature.api_gateway.host` | `string` | `'127.0.0.1'` | `0.0.0.0` enables device pairing on the shared listener; other values disable it |
+| `feature.api_gateway.lan_http_enabled` | `boolean` | `false` | Allow API-key authenticated model HTTP requests from LAN clients |
 | `feature.api_gateway.port` | `number` | `23333` | TCP port shared by local and LAN listeners; UI accepts 1000–65535 |
 | `feature.api_gateway.api_key` | `string \| null` | `null` | Auto-generated `cs-sk-<uuid>` on first activate |
 
@@ -524,14 +537,12 @@ to change these — see the v2 data-classify toolchain.
 `useApiGateway()` reads config (`enabled`/`host`/`port`/`apiKey`) from
 Preferences and `running` from the shared cache, exposes `loading`, and wraps
 the three IpcApi actions plus `setApiGatewayConfig`. Main owns writes to the
-`enabled` key inside start/stop so persisted intent and runtime state cannot diverge. The
-`ApiGatewaySettings` page renders the status indicator, start/stop/restart
-controls, port input, server URL, the (copy/regenerate) API key, an
-`Authorization` header example, and a link to `…/openapi`.
+`enabled` key inside start/stop. The shared `ApiGatewayPanel` renders copyable
+protocol URLs based on the listening port, model IDs from the gateway catalog, a LAN sharing switch, and
+advanced port and credential controls.
 
-The separate `DeviceConnectionsSettings` page owns LAN exposure, remote pairing,
-and access revocation. It only sends LAN enable/disable commands. When the local
-gateway is disabled or not running, it offers a link to API Gateway settings.
+`DeviceConnectionsSettings` owns device pairing and access revocation. When
+the gateway is stopped, it links to Unified Gateway settings.
 The pairing section uses the same gateway-required guidance. If LAN intent is
 enabled but its listener is down, the page offers Retry alongside Disable LAN
 access so recovery does not require toggling the preference off first.
@@ -577,6 +588,11 @@ transport in `packages/remote-transport`, and the desktop owner in
 
 ## Authentication
 
+The public listener permits keyless model requests from a loopback socket with
+a loopback HTTP host and a same-origin browser context or a native client.
+LAN model requests and the existing local MCP and knowledge APIs use key
+verification. Internal credentials apply to the internal listener.
+
 `authorizeApiRequest(xApiKey, bearerToken)` (`middleware/auth.ts`), run from the
 `/v1` guard's `beforeHandle`:
 
@@ -597,6 +613,11 @@ token is hashed and looked up only by the local guard on
 `/v1beta` routes. Future mobile-only endpoints opt into this guard explicitly.
 
 ## Error handling
+
+OAuth-only providers without an access token return HTTP 401 with sign-in guidance,
+including after a rejected refresh has disabled the provider. A disabled provider
+with saved credentials still follows the ordinary availability check. Providers
+that also support API keys keep their existing authentication path.
 
 One root `onError` (`gatewayErrorHandler`) selects the response envelope by
 request **path**, so every endpoint speaks its caller's dialect:
@@ -627,8 +648,10 @@ upstream response. Otherwise, `TimeoutError` or an exact message of
 `Upstream idle timeout exceeded`, `Stream idle timeout exceeded`, or
 `Idle timeout exceeded` maps to 504 with `Upstream request timed out`; otherwise
 `AbortError`, `ResponseAborted`, or string code `ABORT_ERR` maps to 504 with
-`Upstream stream aborted`. These matches classify the available error shape and
-do not establish upstream provenance. An extracted status in `[200, 300)` is
+`Upstream stream aborted`. A statusless provider error already classified as
+`context_length` by the AI runtime maps to HTTP 400 or the corresponding terminal
+SSE error. Public responses include the context-overflow marker and a sanitized
+message. Internal Anthropic responses use `Prompt is too long:`. An extracted status in `[200, 300)` is
 normalized to **502** for `/v1/messages`, `/v1/chat`, `/v1/responses`, `/v1beta`,
 and their SSE error frames: the AI SDK can create an `APICallError` with
 `statusCode: response.status` when an upstream 2xx body is unusable, and returning
@@ -676,6 +699,8 @@ Public gateway clients continue to receive the sanitized errors above.
   `generateText`, without `ToolLoopAgent`, local tool execution, AI tool repair,
   or model fallback. HTTP gateway requests disable SDK request retries. Internal Pi object
   requests use [ai-retry before content](../../../../src/main/ai/runtime/pi/README.md#model-requests).
+  Pi Durable's trusted object calls forward typed failures from the AI execution layer to
+  [native generation recovery](../../../../src/main/ai/runtime/piDurable/README.md).
   Application chat retains its loop.
 - **Assistant-agnostic.** No assistant/topic context. Sampling, client tools,
   and provider options ride as per-request `CallOverrides`.
@@ -684,7 +709,7 @@ Public gateway clients continue to receive the sanitized errors above.
 - **Generation dialect is chosen by path, both directions.** Input format is
   fixed per route; output envelope (success and error) is chosen from the path,
   so a generation client gets back the protocol it spoke.
-- **Auth key is the persisted preference.** `feature.api_gateway.api_key`, compared
+- **Public API key verification uses the persisted preference.** `feature.api_gateway.api_key`, compared
   timing-safe; auto-generated on first activation.
 - **Remote grants are domain-scoped.** Configuration export and Agent access use
   the encrypted remote connection and independent grants. Remote credentials

@@ -1,0 +1,273 @@
+diff --git a/dist/index.js b/dist/index.js
+index 64758f027a38a7ecbe7d6e05e88edcc72ee9f193..52a3328520c80b784c067aeea54a97ab2c60bb68 100755
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -720,6 +720,7 @@ function toToolCallLocations(args, cwd, line) {
+ }
+ var SessionManager = class {
+   sessions = /* @__PURE__ */ new Map();
++  createElicitation;
+   store = new SessionStore();
+   /** Dispose all sessions and their underlying pi subprocesses. */
+   disposeAll() {
+@@ -779,6 +780,7 @@ var SessionManager = class {
+       mcpServers: params.mcpServers,
+       proc,
+       conn: params.conn,
++      createElicitation: this.createElicitation,
+       fileCommands: params.fileCommands ?? []
+     });
+     this.sessions.set(sessionId, session);
+@@ -802,12 +804,35 @@ var SessionManager = class {
+       mcpServers: params.mcpServers,
+       proc: params.proc,
+       conn: params.conn,
++      createElicitation: this.createElicitation,
+       fileCommands: params.fileCommands ?? []
+     });
+     this.sessions.set(sessionId, session);
+     return session;
+   }
+ };
++function addTurnUsage(total, u) {
++  if (!u || typeof u !== "object") return total;
++  const input = (typeof u.input === "number" ? u.input : 0) + (typeof u.cacheRead === "number" ? u.cacheRead : 0) + (typeof u.cacheWrite === "number" ? u.cacheWrite : 0);
++  const output = typeof u.output === "number" ? u.output : 0;
++  total ??= { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
++  total.inputTokens += input;
++  total.outputTokens += output;
++  total.totalTokens += typeof u.totalTokens === "number" && u.totalTokens > 0 ? u.totalTokens : input + output;
++  if (typeof u.cacheRead === "number") total.cachedReadTokens = (total.cachedReadTokens ?? 0) + u.cacheRead;
++  if (typeof u.cacheWrite === "number") total.cachedWriteTokens = (total.cachedWriteTokens ?? 0) + u.cacheWrite;
++  if (typeof u.reasoning === "number") total.thoughtTokens = (total.thoughtTokens ?? 0) + u.reasoning;
++  return total;
++}
++function lastRequestContext(message, model) {
++  if (!model || model.id !== message.model || model.provider !== message.provider) return;
++  const usage = message.usage;
++  if (!usage || !Number.isSafeInteger(usage.input) || usage.input < 0) return;
++  const tokens = usage.input + (usage.cacheRead ?? 0) + (usage.cacheWrite ?? 0);
++  if (Number.isSafeInteger(tokens) && tokens > 0 && Number.isSafeInteger(model.contextWindow) && model.contextWindow > 0) {
++    return { model: model.provider + "/" + model.id, tokens, contextWindow: model.contextWindow };
++  }
++}
+ var PiAcpSession = class {
+   sessionId;
+   cwd;
+@@ -822,6 +847,9 @@ var PiAcpSession = class {
+   cancelRequested = false;
+   // Current in-flight turn (if any). Additional prompts are queued.
+   pendingTurn = null;
++  lastAssistantOutcome;
++  lastRequest;
++  turnUsage;
+   turnQueue = [];
+   // Track tool call statuses and ensure they are monotonic (pending -> in_progress -> completed).
+   // Some pi events can arrive out of order (e.g. late toolcall_* deltas after execution starts),
+@@ -847,6 +875,7 @@ var PiAcpSession = class {
+     this.mcpServers = opts.mcpServers;
+     this.proc = opts.proc;
+     this.conn = opts.conn;
++    this.createElicitation = opts.createElicitation;
+     this.fileCommands = opts.fileCommands ?? [];
+     this.proc.onEvent((ev) => this.handlePiEvent(ev));
+   }
+@@ -867,10 +896,10 @@ var PiAcpSession = class {
+       content: { type: "text", text: this.startupInfo }
+     });
+   }
+-  async prompt(message, images = []) {
++  async prompt(message, images = [], reportLastRequest = false) {
+     const expandedMessage = expandSlashCommand(message, this.fileCommands);
+     const turnPromise = new Promise((resolve4, reject) => {
+-      const queued = { message: expandedMessage, images, resolve: resolve4, reject };
++      const queued = { message: expandedMessage, images, reportLastRequest, resolve: resolve4, reject };
+       if (this.pendingTurn) {
+         this.turnQueue.push(queued);
+         this.emit({
+@@ -937,9 +966,16 @@ var PiAcpSession = class {
+     await this.flushEmits();
+   }
+   async settleTurn() {
+-    await this.publishContextUsage();
+-    const reason = this.cancelRequested ? "cancelled" : "end_turn";
+-    this.pendingTurn?.resolve(reason);
++    const lastRequest = this.pendingTurn?.reportLastRequest && !this.cancelRequested ? this.lastRequest : undefined;
++    if (lastRequest) await this.flushEmits();
++    else await this.publishContextUsage();
++    const message = this.lastAssistantOutcome;
++    const reason = this.cancelRequested ? "cancelled" : message?.stopReason === "length" ? "max_tokens" : "end_turn";
++    if (!this.cancelRequested && message?.stopReason === "error") {
++      this.pendingTurn?.reject(RequestError2.internalError({}, message.errorMessage || "Pi model request failed"));
++    } else {
++      this.pendingTurn?.resolve({ stopReason: reason, usage: this.turnUsage, lastRequest });
++    }
+     this.pendingTurn = null;
+     this.inAgentLoop = false;
+     const next = this.turnQueue.shift();
+@@ -993,20 +1029,21 @@ var PiAcpSession = class {
+   }
+   startTurn(t) {
+     this.cancelRequested = false;
++    this.lastAssistantOutcome = undefined;
++    this.lastRequest = undefined;
++    this.turnUsage = undefined;
+     this.inAgentLoop = false;
+-    this.pendingTurn = { resolve: t.resolve, reject: t.reject };
++    this.pendingTurn = { resolve: t.resolve, reject: t.reject, reportLastRequest: t.reportLastRequest };
+     this.emit({
+       sessionUpdate: "session_info_update",
+       _meta: { piAcp: { queueDepth: this.turnQueue.length, running: true } }
+     });
+     this.proc.prompt(t.message, t.images).catch((err) => {
+       void this.flushEmits().finally(() => {
+-        const authErr = maybeAuthRequiredError(err);
+-        if (authErr) {
+-          this.pendingTurn?.reject(authErr);
++        if (this.cancelRequested) {
++          this.pendingTurn?.resolve("cancelled");
+         } else {
+-          const reason = this.cancelRequested ? "cancelled" : "error";
+-          this.pendingTurn?.resolve(reason);
++          this.pendingTurn?.reject(maybeAuthRequiredError(err) ?? RequestError2.internalError({}, String(err?.message ?? err)));
+         }
+         this.pendingTurn = null;
+         this.inAgentLoop = false;
+@@ -1253,7 +1290,12 @@ var PiAcpSession = class {
+         });
+         break;
+       }
++      case "compaction_start":
++      case "compaction_end":
++        this.lastRequest = undefined;
++        break;
+       case "auto_compaction_start": {
++        this.lastRequest = undefined;
+         this.emit({
+           sessionUpdate: "agent_message_chunk",
+           content: {
+@@ -1264,6 +1306,7 @@ var PiAcpSession = class {
+         break;
+       }
+       case "auto_compaction_end": {
++        this.lastRequest = undefined;
+         this.emit({
+           sessionUpdate: "agent_message_chunk",
+           content: {
+@@ -1281,6 +1324,16 @@ var PiAcpSession = class {
+         break;
+       }
+       case "agent_end": {
++        this.lastAssistantOutcome = undefined;
++        this.lastRequest = undefined;
++        for (const message of Array.isArray(ev.messages) ? ev.messages : []) {
++          if (message?.role !== "assistant") continue;
++          this.lastAssistantOutcome = { stopReason: message.stopReason, errorMessage: message.errorMessage };
++          this.lastRequest = undefined;
++          if (message.stopReason === "error" || message.stopReason === "aborted") continue;
++          this.turnUsage = addTurnUsage(this.turnUsage, message.usage);
++          this.lastRequest = lastRequestContext(message, this.proc.usageModel);
++        }
+         this.inAgentLoop = false;
+         break;
+       }
+@@ -1307,14 +1360,28 @@ var PiAcpSession = class {
+       return;
+     }
+     if (method === "input" || method === "editor") {
+-      this.emit({
+-        sessionUpdate: "agent_message_chunk",
+-        content: {
+-          type: "text",
+-          text: `Pi ${method} UI request is not supported in ACP yet; cancelling it.`
+-        }
+-      });
+-      await this.proc.sendExtensionUiResponse({ id, cancelled: true });
++      let value;
++      if (this.createElicitation) {
++        const reply = await this.createElicitation({
++          sessionId: this.sessionId,
++          mode: "form",
++          message: ev.title,
++          requestedSchema: {
++            type: "object",
++            properties: {
++              value: { type: "string", title: ev.title, description: ev.placeholder, default: ev.prefill ?? "" }
++            },
++            required: ["value"]
++          }
++        });
++        if (reply.action === "accept") value = reply.content?.value;
++      } else {
++        this.emit({
++          sessionUpdate: "agent_message_chunk",
++          content: { type: "text", text: `Pi ${method} UI request requires ACP form support; cancelling it.` }
++        });
++      }
++      await this.proc.sendExtensionUiResponse(typeof value === "string" ? { id, value } : { id, cancelled: true });
+       return;
+     }
+     if (method === "notify") {
+@@ -1887,7 +1954,7 @@ function mergeCommands(a, b) {
+   }
+   return out;
+ }
+-var pkg = readNearestPackageJson(import.meta.url);
++var pkg = { name: "pi-acp", version: "0.0.34-cherry.2" };
+ var PiAcpAgent = class {
+   conn;
+   sessions = new SessionManager();
+@@ -1973,9 +2040,19 @@ var PiAcpAgent = class {
+       this.restoringSessions.delete(sessionId);
+     }
+   }
++  async extMethod(method, params) {
++    if (method !== "_pi/context_usage") throw RequestError3.methodNotFound(method);
++    const session = this.sessions.maybeGet(params.sessionId);
++    if (!session) throw RequestError3.invalidParams("Session is not open");
++    const stats = await session.proc.getSessionStats(SESSION_STATS_TIMEOUT_MS);
++    return { contextUsage: stats.contextUsage ?? null };
++  }
+   async initialize(params) {
+     const supportedVersion = 1;
+     const requested = params.protocolVersion;
++    this.sessions.createElicitation = params.clientCapabilities?.elicitation?.form
++      ? (request) => this.conn.unstable_createElicitation(request)
++      : undefined;
+     return {
+       protocolVersion: requested === supportedVersion ? requested : supportedVersion,
+       agentInfo: {
+@@ -1989,6 +2066,7 @@ var PiAcpAgent = class {
+         supportsTerminalAuthMeta: params?.clientCapabilities?._meta?.["terminal-auth"] === true
+       }),
+       agentCapabilities: {
++        _meta: { piAcp: { contextUsage: 1 } },
+         loadSession: true,
+         mcpCapabilities: { http: false, sse: false },
+         promptCapabilities: {
+@@ -2494,9 +2572,14 @@ ${JSON.stringify(stats, null, 2)}`;
+         return { stopReason: "end_turn" };
+       }
+     }
+-    const result = await session.prompt(message, images);
+-    const stopReason = result === "error" ? session.wasCancelRequested() ? "cancelled" : "end_turn" : result;
+-    return { stopReason };
++    const result = await session.prompt(message, images, params._meta?.piAcp?.reportLastRequest === true);
++    const outcome = typeof result === "string" ? { stopReason: result } : result;
++    const stopReason = outcome.stopReason === "error" ? session.wasCancelRequested() ? "cancelled" : "end_turn" : outcome.stopReason;
++    return {
++      stopReason,
++      ...(outcome.usage ? { usage: outcome.usage } : {}),
++      ...(outcome.lastRequest ? { _meta: { piAcp: { lastRequest: outcome.lastRequest } } } : {})
++    };
+   }
+   async cancel(params) {
+     const session = this.sessions.maybeGet(params.sessionId);
+@@ -2820,6 +2903,7 @@ async function getModelState(proc, pre) {
+     }
+   })();
+   const model = state?.model;
++  proc.usageModel = model ? { id: model.id, provider: model.provider, contextWindow: model.contextWindow } : undefined;
+   if (model && typeof model === "object") {
+     const provider = String(model.provider ?? "").trim();
+     const id = String(model.id ?? "").trim();

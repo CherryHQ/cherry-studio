@@ -115,7 +115,7 @@ already migrated or prescribe unreviewed wire names/token formats.
 ```mermaid
 flowchart TD
   Mobile[Mobile client] --> Reachability[Direct URL or relay routing]
-  Reachability --> Gateway[Desktop API Gateway: remote WS ingress]
+  Reachability --> Gateway[Desktop Unified Gateway: remote WS ingress]
   Gateway --> Protocol[Remote adapter: identity, device authorization, schemas, delivery]
   Protocol --> Execution[Agent execution owner]
   Protocol --> Data[Owned data services]
@@ -130,7 +130,7 @@ in direct and relay modes; see the [API surface](../ai/remote-agent-access.md#co
 
 | Owner | Responsibility | Boundary |
 |---|---|---|
-| API Gateway | HTTP upgrade, route isolation, connection admission | Does not execute Agents or grant access based on provider credentials |
+| Unified Gateway | HTTP upgrade, route isolation, connection admission | Does not execute Agents or grant access based on provider credentials |
 | Remote adapter | Authentication, live authorization, DTO conversion, journal, delivery | Calls execution/data owners; never adds a second Agent loop |
 | Agent execution owner | Stream listeners and state notifications, execution identity, send/cancel/approve serialization, final persistence | Must not import remote-access services |
 | Data services | Durable command admission, device authorization state, session/history reads | SQLite changes remain in existing owning services and appended migrations |
@@ -548,6 +548,6 @@ sourcing and cannot promise recovery of unpersisted output after a desktop crash
 ## Related references
 
 - [Remote Agent API Design](../ai/remote-agent-access.md) — authoritative target wire and package API.
-- [API Gateway Reference](./README.md) — current implementation.
+- [Unified Gateway Reference](./README.md) — current implementation.
 - [AI Reference](../ai/README.md) — execution, stream listeners, persistence, and approval ownership.
 - [Lifecycle](../lifecycle/README.md) — resource ownership and shutdown.

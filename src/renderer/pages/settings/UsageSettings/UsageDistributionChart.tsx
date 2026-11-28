@@ -1,8 +1,9 @@
 import { CircleAlert } from 'lucide-react'
-import { lazy, Suspense, useCallback, useMemo } from 'react'
+import { lazy, Suspense, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { EmptyState, Skeleton } from '@cherrystudio/ui'
+import type { ChartClickParams } from '@renderer/components/Chart'
 import { formatCompactNumber } from '@renderer/utils/number'
 import { getLocaleFirstDayOfWeek } from '@renderer/utils/time'
 import type {
@@ -30,6 +31,13 @@ import { formatCost, parseDateKey } from './usageDisplay'
 
 const Chart = lazy(() => import('@renderer/components/Chart').then((module) => ({ default: module.Chart })))
 
+export interface UsageChartPointSelection {
+  periodKey?: string
+  periodLabel?: string
+  identity?: AiUsageRecordGroupIdentity
+  selectionKey: string
+}
+
 interface UsageDistributionChartProps {
   range: BoundedTimeRange
   timelineBuckets: AiUsageRecordTimelineBucket[]
@@ -48,6 +56,7 @@ interface UsageDistributionChartProps {
   dateFormatter: Intl.DateTimeFormat
   monthFormatter: Intl.DateTimeFormat
   getBucketLabel: (bucket: AiUsageRecordGroupIdentity) => string
+  onSelectPoint?: (selection: UsageChartPointSelection) => void
 }
 
 function makeUniqueNames(labels: string[]): string[] {
@@ -79,7 +88,8 @@ export function UsageDistributionChart({
   exploreTimelineLoading,
   dateFormatter,
   monthFormatter,
-  getBucketLabel
+  getBucketLabel,
+  onSelectPoint
 }: UsageDistributionChartProps) {
   const { t, i18n } = useTranslation()
   const firstDayOfWeek = useMemo(() => getLocaleFirstDayOfWeek(i18n.resolvedLanguage), [i18n.resolvedLanguage])
@@ -145,6 +155,62 @@ export function UsageDistributionChart({
   const isEmpty = periodKeys.length === 0 || chartSeries.every((series) => series.total <= 0)
 
   const isLoading = rollup === 'total' ? exploreStatsLoading : exploreTimelineLoading
+  const [selectedPiePeriodKey, setSelectedPiePeriodKey] = useState<string | undefined>()
+  const activePieIndex = useMemo(() => {
+    if (rollup === 'total' || chartType !== 'pie') return 0
+    if (selectedPiePeriodKey) {
+      const selectedIndex = periodKeys.indexOf(selectedPiePeriodKey)
+      if (selectedIndex >= 0) return selectedIndex
+    }
+    let index = Math.max(0, periodKeys.length - 1)
+    while (index > 0 && chartSeries.every((series) => (series.values[index] ?? 0) <= 0)) {
+      index -= 1
+    }
+    return index
+  }, [chartSeries, chartType, periodKeys, rollup, selectedPiePeriodKey])
+  const handlePieTimelineChange = useCallback(
+    (index: number) => {
+      const nextPeriodKey = periodKeys[index]
+      if (nextPeriodKey) setSelectedPiePeriodKey(nextPeriodKey)
+    },
+    [periodKeys]
+  )
+
+  const handlePointClick = useCallback(
+    (params: ChartClickParams) => {
+      if (!onSelectPoint) return
+      if (rollup === 'total') {
+        const seriesItem = chartSeries[params.dataIndex]
+        if (!seriesItem?.identity) return
+        onSelectPoint({
+          identity: seriesItem.identity,
+          selectionKey: `total:${seriesItem.key}`
+        })
+        return
+      }
+
+      const seriesItem =
+        chartType === 'pie'
+          ? chartSeries[params.dataIndex]
+          : params.seriesId !== undefined
+            ? chartSeries.find((item) => item.key === params.seriesId)
+            : params.seriesIndex !== undefined
+              ? chartSeries[params.seriesIndex]
+              : undefined
+      const periodIndex = chartType === 'pie' ? (params.timelineIndex ?? activePieIndex) : params.dataIndex
+      const periodKey = periodKeys[periodIndex]
+      if (!seriesItem || !periodKey) return
+
+      onSelectPoint({
+        periodKey,
+        periodLabel: formatPeriod(periodKey),
+        identity: seriesItem.identity,
+        selectionKey: `${periodKey}:${seriesItem.key}`
+      })
+    },
+    [activePieIndex, chartSeries, chartType, formatPeriod, onSelectPoint, periodKeys, rollup]
+  )
+  const chartClickHandler = onSelectPoint ? handlePointClick : undefined
 
   if (rollup === 'total' && exploreStatsError) {
     return (
@@ -201,6 +267,7 @@ export function UsageDistributionChart({
                   ariaLabel={t(CHART_TYPE_LABEL_KEYS.pie)}
                   className="h-80"
                   data={chartSeries.map((item, index) => ({ name: names[index], value: item.total }))}
+                  onDataPointClick={chartClickHandler}
                   option={{ tooltip, legend: {} }}
                 />
               ) : (
@@ -209,6 +276,7 @@ export function UsageDistributionChart({
                   ariaLabel={t(CHART_TYPE_LABEL_KEYS.bar)}
                   className="h-80"
                   categories={names}
+                  onDataPointClick={chartClickHandler}
                   series={[{ name: t(METRIC_LABEL_KEYS[chartMetric]), values: chartSeries.map((item) => item.total) }]}
                   option={{
                     tooltip,
@@ -234,10 +302,6 @@ export function UsageDistributionChart({
         value: item.values[periodIndex] ?? 0
       }))
     }))
-    let currentIndex = Math.max(0, frames.length - 1)
-    while (currentIndex > 0 && frames[currentIndex].data.every((item) => item.value <= 0)) {
-      currentIndex -= 1
-    }
 
     return (
       <div className="min-w-0 p-3">
@@ -246,10 +310,12 @@ export function UsageDistributionChart({
             type="pie"
             ariaLabel={t(CHART_TYPE_LABEL_KEYS.pie)}
             className="h-80"
-            data={frames[currentIndex]?.data ?? []}
+            data={frames[activePieIndex]?.data ?? []}
             loading={exploreTimelineLoading}
             loadingLabel={t('settings.usage.explore.loading')}
-            timeline={{ currentIndex, frames }}
+            onDataPointClick={chartClickHandler}
+            onTimelineChange={handlePieTimelineChange}
+            timeline={{ currentIndex: activePieIndex, frames }}
             option={{ tooltip, legend: {} }}
           />
         </Suspense>
@@ -273,6 +339,7 @@ export function UsageDistributionChart({
           className="h-80"
           loading={exploreTimelineLoading}
           loadingLabel={t('settings.usage.explore.loading')}
+          onDataPointClick={chartClickHandler}
           series={series}
           stack="total"
           visibleCategoryCount={rollup === 'daily' ? 30 : 16}

@@ -1,12 +1,29 @@
 import { randomUUID } from 'node:crypto'
 import path from 'node:path'
 
-import type { Observation, OperationResult, Subagent, Thread } from '@cherrystudio/agent-runtime'
+import type { Query, SDKUserMessage } from '@anthropic-ai/claude-agent-sdk'
+
+import type {
+  InputDraft,
+  InputId,
+  ThreadInput,
+  SubmitResult,
+  Observation,
+  OperationResult,
+  Subagent,
+  Thread
+} from '@cherrystudio/agent-runtime'
 
 import { isUuid, nativeIdentity, rejected, runtimeError } from './identity'
 import { ClaudeOwner } from './owner'
 import type { ClaudeProjection } from './projection'
-import type { ClaudeCodeRuntime, ClaudeCodeRuntimeOptions, ClaudeSessionOptions, ClaudeThreadHandle } from './types'
+import type {
+  ClaudeInput,
+  ClaudeCodeRuntime,
+  ClaudeCodeRuntimeOptions,
+  ClaudeSessionOptions,
+  ClaudeThreadHandle
+} from './types'
 
 export function createClaudeCodeRuntime(options: ClaudeCodeRuntimeOptions): ClaudeCodeRuntime {
   options = { ...options }
@@ -46,6 +63,11 @@ export function createClaudeCodeRuntime(options: ClaudeCodeRuntimeOptions): Clau
   ): ClaudeThreadHandle => {
     let released = false
     const observations = new Set<Observation>()
+    const control = <T>(operation: string, invoke: (query: Query) => Promise<T>): Promise<OperationResult<T>> =>
+      released || agentId
+        ? Promise.resolve(rejected(operation, agentId ? 'child-control' : 'released'))
+        : owner.control(projection, operation, invoke)
+
     const observe: ClaudeThreadHandle['claude']['observe'] = async (sink, needsRecovery) => {
       if (released) return rejected('observe', 'released')
       try {
@@ -63,23 +85,32 @@ export function createClaudeCodeRuntime(options: ClaudeCodeRuntimeOptions): Clau
         return rejected('observe', 'closed')
       }
     }
-    const submit: ClaudeThreadHandle['claude']['submit'] = (inputId, content, whenBusy) =>
-      released || agentId
-        ? Promise.resolve({
-            status: agentId ? 'unsupported' : 'rejected',
-            inputId,
-            error: runtimeError('submit', agentId ? 'child-input' : 'released')
-          })
-        : owner.submit(projection, inputId, content, whenBusy)
+    function bindInput<D extends { inputId: InputId }>(
+      content: (draft: D) => SDKUserMessage['message']['content']
+    ): ThreadInput<D> | undefined {
+      if (agentId) return undefined
+      const send = (draft: D, priority: 'steer' | 'follow-up'): Promise<SubmitResult> =>
+        released
+          ? Promise.resolve({ status: 'rejected', inputId: draft.inputId, error: runtimeError('submit', 'released') })
+          : owner.submit(projection, draft.inputId, content(draft), priority)
+      return {
+        steer: { whenIdle: 'may-start', submit: (draft) => send(draft, 'steer') },
+        followUp: { persistence: 'volatile', submit: (draft) => send(draft, 'follow-up') }
+      }
+    }
     return {
       thread: projection.thread,
+      compact: agentId
+        ? undefined
+        : async (instructions) =>
+            released ? rejected('compact', 'released') : owner.compact(projection, instructions),
       contextUsage: async () => {
         if (released) return rejected('contextUsage', 'released')
         if (agentId) return { status: 'unsupported', error: runtimeError('contextUsage', 'child-control') }
         const result = await owner.contextUsage(projection)
         return released ? rejected('contextUsage', 'released') : result
       },
-      input: agentId ? undefined : { submit: (input) => submit(input.inputId, input.text, input.whenBusy) },
+      input: bindInput<InputDraft>((draft) => draft.text),
       interrupt: agentId
         ? undefined
         : () => (released ? Promise.resolve(rejected('interrupt', 'released')) : owner.interrupt(projection)),
@@ -142,15 +173,11 @@ export function createClaudeCodeRuntime(options: ClaudeCodeRuntimeOptions): Clau
           released || agentId
             ? rejected('start', agentId ? 'child-control' : 'released')
             : owner.connect(projection, warm),
-        supportedCommands: () =>
-          released || agentId
-            ? Promise.resolve(rejected('supportedCommands', agentId ? 'child-control' : 'released'))
-            : owner.control(projection, 'supportedCommands', (query) => query.supportedCommands()),
-        setPermissionMode: (mode) =>
-          released || agentId
-            ? Promise.resolve(rejected('setPermissionMode', agentId ? 'child-control' : 'released'))
-            : owner.control(projection, 'setPermissionMode', (query) => query.setPermissionMode(mode)),
-        submit,
+        supportedCommands: () => control('supportedCommands', (query) => query.supportedCommands()),
+        supportedModels: () => control('supportedModels', (query) => query.supportedModels()),
+        setEffort: (effort) => control('setEffort', (query) => query.applyFlagSettings({ effortLevel: effort })),
+        setPermissionMode: (mode) => control('setPermissionMode', (query) => query.setPermissionMode(mode)),
+        input: bindInput<ClaudeInput>((draft) => draft.content),
         observe,
         archive: (options) =>
           released ? Promise.resolve(rejected('archive', 'released')) : owner.archive(projection, options?.refresh),

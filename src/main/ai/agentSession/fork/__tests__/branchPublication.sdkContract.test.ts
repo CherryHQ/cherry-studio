@@ -135,7 +135,7 @@ describe('Pi branch publication with native files', () => {
       )
     }
     const originalContext = preparePiBranch('product', old.id, source.getSessionId())
-    prepareNativeSubmission('product', old.id, originalContext.id, 'reject')
+    prepareNativeSubmission('product', old.id, originalContext.id)
     const first = await edit(old.id)
     expect(messages.inputBinding('product', old.id)).toBeUndefined()
     expect(messages.inputBinding('product', first.row.id)).toBeUndefined()
@@ -144,7 +144,7 @@ describe('Pi branch publication with native files', () => {
     expect(JSON.stringify(child.buildSessionContext().messages)).not.toContain('Old question')
     child.appendMessage({ role: 'user', content: 'Edited question', timestamp: Date.now() })
     const childContext = preparePiBranch('product', first.row.id, first.nativeId)
-    prepareNativeSubmission('product', first.row.id, childContext.id, 'reject')
+    prepareNativeSubmission('product', first.row.id, childContext.id)
     const childAnswer = answer('Edited answer', child)
     expect(messages.getLastRuntimeResumeToken('product')).toBe(first.nativeId)
     expect(messages.listSessionMessages('product').items[0].id).toBe(childAnswer.id)

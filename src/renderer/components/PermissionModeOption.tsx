@@ -145,6 +145,7 @@ export function FullAccessConfirmDialog({
   onConfirm,
   scopeName,
   scopeKind = 'agent',
+  localHost = false,
   t
 }: {
   open: boolean
@@ -152,6 +153,7 @@ export function FullAccessConfirmDialog({
   onConfirm: () => boolean | void
   scopeName?: string
   scopeKind?: FullAccessScopeKind
+  localHost?: boolean
   t: TFunction
 }) {
   const scopeLabelKey =
@@ -165,10 +167,14 @@ export function FullAccessConfirmDialog({
       open={open}
       onOpenChange={onOpenChange}
       title={t('agent.settings.tooling.permissionMode.fullAccessConfirm.title', 'Enable Full Access?')}
-      description={t(
-        'agent.settings.tooling.permissionMode.fullAccessConfirm.description',
-        'This applies to every folder and resource in the selected scope, including folders connected later. Most tools will run without asking first.'
-      )}
+      description={
+        localHost
+          ? t('local_agents.host_permission.bypass_description')
+          : t(
+              'agent.settings.tooling.permissionMode.fullAccessConfirm.description',
+              'This applies to every folder and resource in the selected scope, including folders connected later. Most tools will run without asking first.'
+            )
+      }
       content={
         <div className="flex flex-col gap-2">
           {scopeName ? (
@@ -177,12 +183,14 @@ export function FullAccessConfirmDialog({
               <span className="font-medium text-foreground">{scopeName}</span>
             </p>
           ) : null}
-          <p className="text-muted-foreground text-sm">
-            {t(
-              'agent.settings.tooling.permissionMode.fullAccessConfirm.protections',
-              'Explicit safety blocks still apply, and you can switch back to another mode at any time.'
-            )}
-          </p>
+          {!localHost && (
+            <p className="text-muted-foreground text-sm">
+              {t(
+                'agent.settings.tooling.permissionMode.fullAccessConfirm.protections',
+                'Explicit safety blocks still apply, and you can switch back to another mode at any time.'
+              )}
+            </p>
+          )}
         </div>
       }
       confirmText={t('agent.settings.tooling.permissionMode.fullAccessConfirm.confirm', 'Enable Full Access')}

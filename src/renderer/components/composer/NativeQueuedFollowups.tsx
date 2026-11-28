@@ -18,7 +18,13 @@ import { createEditableMessageDraft } from './variants/chat/messageEditingDraft'
 
 const logger = loggerService.withContext('NativeQueuedFollowups')
 
-export const NativeQueuedFollowups = memo(function NativeQueuedFollowups({ topicId }: { topicId: string }) {
+export const NativeQueuedFollowups = memo(function NativeQueuedFollowups({
+  topicId,
+  canSteer
+}: {
+  topicId: string
+  canSteer?: boolean
+}) {
   const { t } = useTranslation()
   const queue = useSharedCacheValue(AGENT_SESSION_FOLLOWUPS_CACHE_KEY(topicId))
   const [edit, setEdit] = useState<{ item: AgentSessionFollowup; text: string }>()
@@ -49,6 +55,7 @@ export const NativeQueuedFollowups = memo(function NativeQueuedFollowups({ topic
     <>
       <QueuedFollowupsDock
         items={items}
+        onSteer={canSteer ? (inputId) => void change({ type: 'steer', inputId }) : undefined}
         onEdit={(id) => {
           const item = queue?.find((candidate) => candidate.id === id)
           if (item) setEdit({ item, text: readFollowupText(item.parts) })

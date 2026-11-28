@@ -1,0 +1,41 @@
+{
+  "name": "@cherrystudio/agent-runtime-codex",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Codex App Server client and native chat sessions for Cherry Studio.",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/session.d.mts",
+      "default": "./dist/session.mjs"
+    },
+    "./app-server-client": {
+      "types": "./dist/appServerClient.d.mts",
+      "default": "./dist/appServerClient.mjs"
+    },
+    "./cli": {
+      "types": "./dist/cli.d.mts",
+      "default": "./dist/cli.mjs"
+    },
+    "./launcher": {
+      "types": "./dist/launcher.d.mts",
+      "default": "./dist/launcher.mjs"
+    }
+  },
+  "scripts": {
+    "build": "tsdown src/session.ts src/appServerClient.ts src/cli.ts src/launcher.ts --format esm --dts --clean",
+    "generate:protocol": "node scripts/generate-protocol.mjs && pnpm --workspace-root exec oxfmt --write packages/agent-runtime-codex/src/protocol.ts",
+    "typecheck": "pnpm --workspace-root exec tsrs --noEmit -p packages/agent-runtime-codex/tsconfig.json"
+  },
+  "dependencies": {
+    "@cherrystudio/agent-runtime": "workspace:*",
+    "json-rpc-2.0": "1.8.1",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.4",
+    "tsdown": "^0.22.14",
+    "typescript": "npm:@typescript/typescript6@6.0.2"
+  }
+}

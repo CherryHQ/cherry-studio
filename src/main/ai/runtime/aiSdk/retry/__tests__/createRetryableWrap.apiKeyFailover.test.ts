@@ -1,3 +1,4 @@
+import { createOpenAI } from '@ai-sdk/openai'
 import type { LanguageModelV3 } from '@ai-sdk/provider'
 import { APICallError } from 'ai'
 import { describe, expect, it, vi } from 'vitest'
@@ -220,6 +221,51 @@ describe('createRetryableWrap API key failover', () => {
 
     expect(attempts).toEqual(['key-1', 'key-2', 'fallback-model'])
   })
+
+  it.each([
+    { first: 400, second: 503, maxAttempts: 1, expected: [8192, 4096] },
+    { first: 503, second: 400, maxAttempts: 3, expected: [8192, 8192, 4096] }
+  ])(
+    'shares replacement-key retries between budget and transient failures ($first then $second)',
+    async ({ first, second, maxAttempts, expected }) => {
+      const budgets: number[] = []
+      const providerFetch: typeof fetch = async (_url, init) => {
+        budgets.push(JSON.parse(String(init?.body)).max_tokens)
+        const status = [first, second][budgets.length - 1]
+        if (status) {
+          const message = status === 400 ? 'max_tokens must be at most 4096' : 'temporary failure'
+          return Response.json({ error: { message } }, { status, headers: { 'retry-after': '0.001' } })
+        }
+        return Response.json({
+          id: 'answer',
+          created: 0,
+          model: 'gpt-4o',
+          choices: [
+            {
+              index: 0,
+              message: { role: 'assistant', content: 'ok' },
+              finish_reason: 'stop'
+            }
+          ]
+        })
+      }
+      const primary = createOpenAI({
+        apiKey: 'primary',
+        fetch: async () => Response.json({ error: { message: 'invalid key' } }, { status: 401 })
+      }).chat('gpt-4o')
+      const replacement = createOpenAI({ apiKey: 'replacement', fetch: providerFetch }).chat('gpt-4o')
+      const wrap = createRetryableWrap({
+        apiKeyFallbacks: [fallbackOf(replacement)],
+        retryPolicy: { ...policy(true), maxAttempts },
+        outputTokenRetries: maxAttempts,
+        fallbacks: []
+      })!
+      const result = wrap(primary).doGenerate({ prompt: [], maxOutputTokens: 8192 })
+      if (maxAttempts === 1) await expect(result).rejects.toThrow()
+      else await expect(result).resolves.toMatchObject({ content: [{ type: 'text', text: 'ok' }] })
+      expect(budgets).toEqual(expected)
+    }
+  )
 
   it('retries a replacement key for transient errors before cross-model fallback', async () => {
     vi.useFakeTimers()

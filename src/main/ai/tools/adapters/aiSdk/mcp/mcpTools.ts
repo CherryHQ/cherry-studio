@@ -1,20 +1,23 @@
 import type { CallToolResult } from '@modelcontextprotocol/client'
-import { type JSONSchema7, type Tool } from 'ai'
+import { type JSONSchema7, type Tool, type ToolSet } from 'ai'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
 import type { McpInteractionContext } from '@main/ai/mcp/connections/McpConnection'
 import { registerMcpToolResources } from '@main/ai/messages/mcpToolResources'
 import { mcpServerService } from '@main/data/services/McpServerService'
-import { isMcpToolForcePromptBySource } from '@shared/ai/tools/mcpSourcePolicy'
+import { isMcpToolDisabledBySource, isMcpToolForcePromptBySource } from '@shared/ai/tools/mcpSourcePolicy'
+import type { Assistant } from '@shared/data/types/assistant'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import type { McpTool } from '@shared/types/mcp'
 import type { McpAppReference } from '@shared/types/mcpApp'
+import { getEffectiveMcpMode } from '@shared/utils/mcp'
 
 import { getRequestContext } from '../context'
 import { createMcpInputSchema } from '../mcpSchema'
 import { registry, type ToolRegistry } from '../registry'
 import type { ToolEntry } from '../types'
+import { resolveServersForAssistant } from './resolveAssistantMcpTools'
 import { mcpResultToModelOutput, mcpResultToTextSummary } from './utils'
 
 const logger = loggerService.withContext('mcpTools')
@@ -118,6 +121,22 @@ function toEntry(mcpTool: McpTool, server: McpServer): ToolEntry {
     tool: createMcpTool(mcpTool, forcePrompt),
     applies: (scope) => scope.mcpToolIds.has(mcpTool.id)
   }
+}
+
+/** Read the cached model-facing tool converters without warming an MCP connection. */
+export function resolveCachedMcpTools(assistant: Assistant): ToolSet {
+  const mode = getEffectiveMcpMode(assistant)
+  if (mode === 'disabled') return {}
+  const servers = resolveServersForAssistant(assistant, mode)
+  return Object.fromEntries(
+    servers.flatMap((server) =>
+      application
+        .get('McpCatalogService')
+        .listTools(server.id, { audience: 'model' })
+        .filter((tool) => !isMcpToolDisabledBySource(server, tool))
+        .map((tool) => [tool.id, toEntry(tool, server).tool])
+    )
+  )
 }
 
 export interface SyncMcpToolsToRegistryOptions {

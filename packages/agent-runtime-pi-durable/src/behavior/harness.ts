@@ -930,6 +930,19 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
       unsubscribe = harness.observeCommits({
         advance(publication) {
           for (const change of publication.changes) {
+            if (
+              change.type === 'document' &&
+              change.kind === 'change' &&
+              change.record.kind === ProviderDoc.definition.kind &&
+              change.record.key === undefined &&
+              change.conversationId !== undefined
+            ) {
+              const sessionId = change.value.sessionId
+              if (typeof sessionId === 'string' && sessionId) {
+                providers.set(sessionId, threadId(change.conversationId))
+              }
+              continue
+            }
             if (change.type !== 'entry' || !CompactionEntry.is(change.value)) continue
             const thread = threadId(change.value.conversationId)
             void withCall(thread, (ports) => lifecycle?.onCompacted(thread, ports) ?? Promise.resolve()).catch(

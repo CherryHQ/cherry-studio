@@ -56,7 +56,10 @@ beforeEach(() => {
   vi.stubGlobal('AudioContext', Context)
   vi.stubGlobal('AudioWorkletNode', Node)
 })
-afterEach(() => vi.unstubAllGlobals())
+afterEach(() => {
+  vi.useRealTimers()
+  vi.unstubAllGlobals()
+})
 
 describe('PCM playback lifecycle', () => {
   it('isolates old attempts, acknowledges consumption rather than receipt, and waits for device output before drain', async () => {
@@ -88,17 +91,19 @@ describe('PCM playback lifecycle', () => {
       await player.pause()
       expect(context.state).toBe('suspended')
       Node.current.port.onmessage!({ data: { type: 'consumed', frames: 128, underruns: 0, peakFrames: 128 } })
-      await vi.waitFor(() => expect(acknowledgements).toEqual([128]))
+      expect(acknowledgements).toEqual([128])
+      vi.useFakeTimers()
       let drained = false
       player.addEventListener('ended', () => {
         drained = true
       })
       Node.current.port.onmessage!({ data: { type: 'drained', frames: 128, contextTime: 0.01 } })
-      await new Promise((resolve) => setTimeout(resolve, 30))
+      await vi.advanceTimersByTimeAsync(30)
       expect(drained).toBe(false)
       await player.play()
       context.outputTime = 0.02
-      await vi.waitFor(() => expect(drained).toBe(true))
+      await vi.advanceTimersByTimeAsync(20)
+      expect(drained).toBe(true)
     } finally {
       context.closed.resolve()
       await player.close()

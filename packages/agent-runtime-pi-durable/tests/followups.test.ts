@@ -93,54 +93,101 @@ it('preserves queued IDs across edit, reorder and restart, and only withdraws wa
   expect(await changeFollowups(resumed, conversation.id, { type: 'withdraw', inputId: 'First' }, context)).toBe(false)
 })
 
-it('publishes admissions and doc-only edits to a live queue observer', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'durable-followup-observer-'))
-  onTestFinished(() => rm(directory, { recursive: true, force: true }))
-  const models = createModels()
-  const faux = fauxProvider()
-  models.setProvider(faux.provider)
-  let notifyStarted!: () => void
-  const started = new Promise<void>((resolve) => (notifyStarted = resolve))
-  faux.setResponses([
-    (_modelContext, call) =>
-      new Promise((_, reject) => {
-        notifyStarted()
-        const signal = call!.signal!
-        signal.addEventListener('abort', () => reject(signal.reason), { once: true })
+it.each([false, true])(
+  'publishes admissions and doc-only edits to a live queue observer (staged: %s)',
+  async (staged) => {
+    const directory = await mkdtemp(join(tmpdir(), 'durable-followup-observer-'))
+    onTestFinished(() => rm(directory, { recursive: true, force: true }))
+    const models = createModels()
+    const faux = fauxProvider()
+    models.setProvider(faux.provider)
+    let notifyStarted!: () => void
+    const started = new Promise<void>((resolve) => (notifyStarted = resolve))
+    faux.setResponses([
+      (_modelContext, call) =>
+        new Promise((_, reject) => {
+          notifyStarted()
+          const signal = call!.signal!
+          signal.addEventListener('abort', () => reject(signal.reason), { once: true })
+        })
+    ])
+    const observed: { inputId: string; revision: number }[][] = []
+    const runtime = confirmed(
+      await createPiDurableRuntime({
+        backendId: runtimeId('followup-observer'),
+        openStorage: () => openNodeSqliteStorage(join(directory, 'session.sqlite')),
+        harness: { models, registry: createRegistry() },
+        onFollowupsChanged: (_thread, queue) =>
+          observed.push(queue.map(({ inputId, revision }) => ({ inputId, revision })))
       })
-  ])
-  const observed: { inputId: string; revision: number }[][] = []
-  const runtime = confirmed(
-    await createPiDurableRuntime({
-      backendId: runtimeId('followup-observer'),
-      openStorage: () => openNodeSqliteStorage(join(directory, 'session.sqlite')),
-      harness: { models, registry: createRegistry() },
-      onFollowupsChanged: (_thread, queue) =>
-        observed.push(queue.map(({ inputId, revision }) => ({ inputId, revision })))
+    )
+    onTestFinished(async () => {
+      await runtime.shutdown()
     })
-  )
-  onTestFinished(async () => {
-    await runtime.shutdown()
-  })
-  const driver = confirmed(
-    await runtime.create({
-      ownership: { kind: 'ownerless' },
-      agent: { model: { provider: 'faux', modelId: 'faux-1' } }
+    const queuedCommitDocuments: string[][] = []
+    const commits = runtime.durable.observeCommits({
+      advance({ changes }) {
+        if (
+          changes.some(
+            (change) =>
+              change.type === 'submission' && change.value.status === 'queued' && change.value.requestId === 'Next'
+          )
+        ) {
+          queuedCommitDocuments.push(
+            changes.flatMap((change) => (change.type === 'document' ? [change.record.kind] : []))
+          )
+        }
+      },
+      end() {}
     })
-  )
-  confirmed(await runtime.resume())
-  await driver.input.submit({ inputId: runtimeId('Active'), text: 'Active', whenBusy: 'reject' })
-  await started
-  await driver.input.submit({ inputId: runtimeId('Next'), text: 'Next', whenBusy: 'follow-up' })
-  expect(observed.at(-1)).toEqual([{ inputId: 'Next', revision: 0 }])
-  expect(
-    await driver.durable.changeFollowups({
-      type: 'edit',
+    onTestFinished(() => commits.detach())
+    const driver = confirmed(
+      await runtime.create({
+        ownership: { kind: 'ownerless' },
+        agent: { model: { provider: 'faux', modelId: 'faux-1' } }
+      })
+    )
+    confirmed(await runtime.resume())
+    await driver.input.submit!({ inputId: runtimeId('Active'), text: 'Active' })
+    await started
+    const next = { inputId: runtimeId<'input'>('Next'), text: 'Next' }
+    const submitted = staged ? driver.durable.submitStagedFollowup(next) : driver.input.followUp!.submit(next)
+    await expect(submitted).resolves.toMatchObject({ status: 'acknowledged', facts: ['accepted', 'queued'] })
+    expect(queuedCommitDocuments).toHaveLength(1)
+    expect(queuedCommitDocuments[0].includes('cherry.recovery')).toBe(staged)
+    expect(observed.at(-1)).toEqual([{ inputId: 'Next', revision: 0 }])
+    expect(
+      await driver.durable.changeFollowups({
+        type: 'edit',
+        inputId: 'Next',
+        revision: 0,
+        content: 'Edited next',
+        textPart: 'edited'
+      })
+    ).toBe(true)
+    expect(observed.at(-1)).toEqual([{ inputId: 'Next', revision: 1 }])
+    const original = driver.durable.followups()[0]
+    const steer = {
+      type: 'steer',
       inputId: 'Next',
-      revision: 0,
-      content: 'Edited next',
-      textPart: 'edited'
+      activeInputId: 'Active',
+      replyId: 'active-reply'
+    } as const
+    expect(await driver.durable.changeFollowups({ ...steer, activeInputId: 'stale' })).toBe(false)
+    expect(await driver.durable.changeFollowups(steer)).toBe(true)
+    expect(await driver.durable.changeFollowups(steer)).toBe(false)
+    expect(driver.durable.followups()).toEqual([{ ...original, steering: true }])
+    await runtime.shutdown()
+    const reopened = confirmed(
+      await createPiDurableRuntime({
+        backendId: driver.thread.backendId,
+        openStorage: () => openNodeSqliteStorage(join(directory, 'session.sqlite')),
+        harness: { models, registry: createRegistry() }
+      })
+    )
+    onTestFinished(async () => {
+      await reopened.shutdown()
     })
-  ).toBe(true)
-  expect(observed.at(-1)).toEqual([{ inputId: 'Next', revision: 1 }])
-})
+    expect(confirmed(await reopened.open(driver.thread)).durable.followups()).toEqual([{ ...original, steering: true }])
+  }
+)
