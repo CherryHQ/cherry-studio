@@ -200,10 +200,14 @@ disabled tools, install and role-specific guards can independently tighten the o
 
 ## Shell sandbox
 
-An Agent whose capabilities declare a `sandbox` overlay runs Claude Code Bash in the SDK's
-macOS sandbox; today only Cherry Support declares one, and it is empty. `resolveSandboxPolicy`
-merges the overlay into the base policy and returns nothing off macOS, so Linux and Windows keep
-the per-call shell approval. The Claude Code adapter turns the policy into the SDK `sandbox`
+An Agent whose capabilities declare a `sandbox` overlay runs Claude Code Bash in the CLI's
+sandbox; today only Cherry Support declares one, and it is empty. Before each such connection is
+built, `checkClaudeCodeSandboxAvailability` runs the bundled CLI's `claude sandbox status` with a
+throwaway config directory and treats the sandbox as available only for `statusVersion` 3,
+`supported` and `enabled` true and a null `unavailableReason`; native Windows is never asked.
+`resolveSandboxPolicy` merges the overlay into the base policy only when the sandbox is available,
+so a machine without one (Linux without bubblewrap or socat, native Windows) keeps the per-call
+shell approval and the reason is logged. The Claude Code adapter turns the policy into the SDK `sandbox`
 option: writes stay in the workspace, Agent data and temp directories, the network allowlist is
 strict and empty, and sandboxed Bash runs without a card.
 

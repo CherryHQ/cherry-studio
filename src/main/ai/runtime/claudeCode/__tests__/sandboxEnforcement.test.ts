@@ -1,16 +1,24 @@
 import { spawn } from 'node:child_process'
-import { existsSync } from 'node:fs'
+import { existsSync, realpathSync } from 'node:fs'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import type { ServerResponse } from 'node:http'
+import { createRequire } from 'node:module'
+import { tmpdir } from 'node:os'
 import path from 'node:path'
 
 import { type HookCallback, type PermissionMode, query, type SpawnOptions } from '@anthropic-ai/claude-agent-sdk'
 import { startTestHttpServer, type TestHttpServer } from '@test-helpers/http/server'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
+import { application } from '@application'
 import { resolveSandboxPolicy } from '@main/ai/toolApproval/sandboxPolicy'
 
-import { assertSandboxSettingsUnchanged, sandboxEscapeGuidance, toClaudeCodeSandboxSettings } from '../sandboxSettings'
+import {
+  assertSandboxSettingsUnchanged,
+  checkClaudeCodeSandboxAvailability,
+  sandboxEscapeGuidance,
+  toClaudeCodeSandboxSettings
+} from '../sandboxSettings'
 
 // Each case starts the native CLI and runs one Bash turn.
 vi.setConfig({ testTimeout: 90_000 })
@@ -18,6 +26,56 @@ vi.setConfig({ testTimeout: 90_000 })
 // The main test setup stubs `os.homedir()`; the sandbox protects the real one.
 const home = process.env.HOME ?? ''
 const PUBLIC_HOST = 'example.com'
+const isDarwin = process.platform === 'darwin'
+const isLinux = process.platform === 'linux'
+
+function bundledCliPath(): string {
+  const sdk = realpathSync(path.join(process.cwd(), 'node_modules/@anthropic-ai/claude-agent-sdk'))
+  return createRequire(path.join(sdk, 'package.json')).resolve(
+    `@anthropic-ai/claude-agent-sdk-${process.platform}-${process.arch}/claude`
+  )
+}
+
+const statusRoot = await mkdtemp(path.join(tmpdir(), 'cherry-sandbox-status-'))
+vi.mocked(application.getPath).mockImplementation((key: string, filename?: string) =>
+  key === 'feature.agents.claude.sandbox_status.temp' ? path.join(statusRoot, filename ?? '') : `/mock/${key}`
+)
+const availability =
+  isDarwin || isLinux ? await checkClaudeCodeSandboxAvailability(bundledCliPath(), process.env) : undefined
+
+afterAll(async () => {
+  await rm(statusRoot, { recursive: true, force: true })
+})
+
+// The path does not exist: native Windows must answer without starting a CLI at all.
+it.runIf(process.platform === 'win32')(
+  'keeps the sandbox off on native Windows without asking the CLI (AC5)',
+  async () => {
+    await expect(checkClaudeCodeSandboxAvailability('Z:\\no-such-claude.exe', process.env)).resolves.toEqual({
+      available: false,
+      reason: 'the shell sandbox is not enabled on native Windows'
+    })
+  }
+)
+
+describe.runIf(isLinux)('Claude Code shell sandbox availability on Linux', () => {
+  it('reports the sandbox unavailable when bubblewrap is not on PATH (AC3)', async () => {
+    const emptyPath = await mkdtemp(path.join(tmpdir(), 'cherry-empty-path-'))
+    try {
+      const result = await checkClaudeCodeSandboxAvailability(bundledCliPath(), { HOME: home, PATH: emptyPath })
+
+      expect(result.available).toBe(false)
+      expect(result.available === false && result.reason).toMatch(/bubblewrap|bwrap|socat/i)
+    } finally {
+      await rm(emptyPath, { recursive: true, force: true })
+    }
+  })
+
+  // The CI job installs bubblewrap and socat; without this the enforcement suite would skip silently.
+  it.runIf(process.env.CI === 'true')('has a working sandbox on the CI runner', () => {
+    expect(availability).toEqual({ available: true })
+  })
+})
 
 type MessagesBody = { model: string; tools?: { name: string }[]; messages: { content: unknown }[] }
 
@@ -87,7 +145,7 @@ function toolResultText(body: MessagesBody): string | undefined {
     : String(result.content)
 }
 
-describe.runIf(process.platform === 'darwin')('Claude Code shell sandbox on macOS', () => {
+describe.runIf(availability?.available === true)('Claude Code shell sandbox', () => {
   let root: string
   let echo: TestHttpServer
   let echoHits = 0
@@ -137,7 +195,7 @@ describe.runIf(process.platform === 'darwin')('Claude Code shell sandbox on macO
     })
     const approvals: Record<string, unknown>[] = []
     try {
-      const policy = resolveSandboxPolicy({}, home)
+      const policy = resolveSandboxPolicy({}, home, true)
       if (!policy) throw new Error('expected a sandbox policy on macOS')
       const sdk = query({
         prompt: 'run the command',
@@ -203,7 +261,7 @@ describe.runIf(process.platform === 'darwin')('Claude Code shell sandbox on macO
         .map((file) => `touch '${file}'`)
         .join('; ')
       // The CLI points sandboxed commands at their own temp directory through $TMPDIR.
-      const tempWrite = `touch "$TMPDIR/cherry-sandbox-test-${mode}.txt" && echo TEMP_WRITE_OK`
+      const tempWrite = `touch "\${TMPDIR:-/tmp}/cherry-sandbox-test-${mode}.txt" && echo TEMP_WRITE_OK`
       const hitsBefore = echoHits
 
       const { toolResult, approvals } = await runBash(
@@ -235,22 +293,24 @@ describe.runIf(process.platform === 'darwin')('Claude Code shell sandbox on macO
     expect(toolResult).toContain('`dangerouslyDisableSandbox: true`')
   })
 
-  it.each(['acceptEdits', 'bypassPermissions'] as const)(
-    'runs no Bash command when the sandbox cannot be applied in %s mode (AC11)',
-    async (mode) => {
-      const marker = path.join(root, 'work', `unsandboxed-${mode}.txt`)
+  describe.runIf(isDarwin)('inside another Seatbelt profile', () => {
+    it.each(['acceptEdits', 'bypassPermissions'] as const)(
+      'runs no Bash command when the sandbox cannot be applied in %s mode (AC11)',
+      async (mode) => {
+        const marker = path.join(root, 'work', `unsandboxed-${mode}.txt`)
 
-      const { toolResult, approvals } = await runBash(
-        { command: `touch '${marker}'`, description: 'sandbox start probe' },
-        mode,
-        spawnInsideSeatbelt
-      )
+        const { toolResult, approvals } = await runBash(
+          { command: `touch '${marker}'`, description: 'sandbox start probe' },
+          mode,
+          spawnInsideSeatbelt
+        )
 
-      expect(approvals).toEqual([])
-      expect(toolResult).toContain('sandbox_apply: Operation not permitted')
-      expect(existsSync(marker)).toBe(false)
-    }
-  )
+        expect(approvals).toEqual([])
+        expect(toolResult).toContain('sandbox_apply: Operation not permitted')
+        expect(existsSync(marker)).toBe(false)
+      }
+    )
+  })
 
   it('refuses the sandbox when a real settings tier changes it (AC11)', async () => {
     const project = path.join(root, 'project-settings')

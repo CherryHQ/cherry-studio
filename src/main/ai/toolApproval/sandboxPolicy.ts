@@ -1,7 +1,5 @@
 import path from 'node:path'
 
-import { isMac } from '@main/core/platform'
-
 /**
  * What one Agent adds to the base sandbox. Only these fields are read; anything else an overlay
  * carries is ignored.
@@ -39,10 +37,14 @@ const SHELL_STARTUP_FILES = new Set([
 
 /**
  * Merges an Agent's overlay into the base policy. Returns `undefined` when the Agent declares no
- * overlay or the platform has no zero-setup sandbox (only macOS does).
+ * overlay or its runtime reports no working sandbox on this machine.
  */
-export function resolveSandboxPolicy(overlay: SandboxOverlay | undefined, homeDir: string): SandboxPolicy | undefined {
-  if (!overlay || !isMac) return undefined
+export function resolveSandboxPolicy(
+  overlay: SandboxOverlay | undefined,
+  homeDir: string,
+  available: boolean
+): SandboxPolicy | undefined {
+  if (!overlay || !available) return undefined
   const deniedDomains = unique([...BASE_SANDBOX_POLICY.deniedDomains, ...(overlay.deniedDomains ?? [])])
   return {
     allowedDomains: unique([...BASE_SANDBOX_POLICY.allowedDomains, ...(overlay.allowedDomains ?? [])]).filter(
