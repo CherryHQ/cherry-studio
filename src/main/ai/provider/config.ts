@@ -61,6 +61,7 @@ import { dmxapiUsesCustomTransport } from './custom/dmxapi/dmxapiImageRouting'
 import { resolveAiSdkProviderId, type ResolvedEndpoint, resolveEffectiveEndpoint } from './endpoint'
 import { buildGrokCliRequestHeaders, rewriteGrokCliResponsesBody } from './grokCli'
 import { transformLmStudioRequestBody } from './lmstudio'
+import { withStreamOptionsOmitted } from './streamOptionsFetch'
 import { isVertexMaasModelId, normalizeVertexCredentials } from './vertex'
 import { transformZhipuRequestBody } from './zhipuWebSearch'
 
@@ -428,6 +429,14 @@ export async function resolveProviderAiSdkConfig(
   // that install their own fetch wrapper (e.g. CherryAI request signing) compose
   // on top of customFetch; `??=` preserves them rather than clobbering them.
   config.providerSettings.fetch ??= customFetch
+
+  if (
+    config.providerSettings.fetch &&
+    ctx.endpointType === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS &&
+    !resolveEndpointDialect(ctx.actualProvider, ctx.endpointType).streamOptions
+  ) {
+    config.providerSettings.fetch = withStreamOptionsOmitted(config.providerSettings.fetch)
+  }
 
   return {
     config,

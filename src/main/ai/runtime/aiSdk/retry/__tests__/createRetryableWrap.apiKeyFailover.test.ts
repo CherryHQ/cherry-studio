@@ -257,7 +257,7 @@ describe('createRetryableWrap API key failover', () => {
       const wrap = createRetryableWrap({
         apiKeyFallbacks: [fallbackOf(replacement)],
         retryPolicy: { ...policy(true), maxAttempts },
-        outputTokenRetries: maxAttempts,
+        requestRepairRetries: maxAttempts,
         fallbacks: []
       })!
       const result = wrap(primary).doGenerate({ prompt: [], maxOutputTokens: 8192 })

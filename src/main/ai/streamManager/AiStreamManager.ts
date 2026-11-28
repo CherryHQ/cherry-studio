@@ -1077,7 +1077,7 @@ export class AiStreamManager extends BaseService {
     /** Which layer owns history shaping; omitted means Cherry-managed. */
     contextOwner?: ContextOwner
     replayProviderState?: boolean
-    retryOutputTokenLimit?: boolean
+    repairRejectedRequest?: boolean
     /** Explicit reasoning selection; 'none' disables thinking when the model's wire profile supports off. */
     reasoningEffort?: ReasoningEffortOption
     serviceTier?: ServiceTierSelection
@@ -1113,7 +1113,7 @@ export class AiStreamManager extends BaseService {
       callOverrides: input.callOverrides,
       contextOwner: input.contextOwner,
       replayProviderState: input.replayProviderState,
-      retryOutputTokenLimit: input.retryOutputTokenLimit,
+      repairRejectedRequest: input.repairRejectedRequest,
       reasoningEffort: input.reasoningEffort,
       serviceTier: input.serviceTier,
       fastMode: input.fastMode,

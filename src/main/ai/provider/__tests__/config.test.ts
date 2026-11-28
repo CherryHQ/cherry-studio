@@ -1600,6 +1600,40 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       expect(settings.fetch).toBe(customFetch)
     })
 
+    it('omits stream_options upfront when the dialect disables it (no 400 needed, #23368)', async () => {
+      vi.mocked(net.fetch).mockResolvedValue(new Response('{}'))
+      const provider = makeProvider({
+        id: 'custom-no-usage',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+            baseUrl: 'https://custom.example.com/v1',
+            adapterFamily: 'openai',
+            dialect: { streamOptions: false }
+          }
+        }
+      })
+      const model = makeModel({
+        providerId: 'custom-no-usage',
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+      })
+
+      const config = await providerToAiSdkConfig(provider, model)
+      const settings = config.providerSettings as { baseURL: string; fetch: typeof fetch }
+      await settings.fetch(`${settings.baseURL}/chat/completions`, {
+        method: 'POST',
+        body: JSON.stringify({ model: 'm', stream: true, stream_options: { include_usage: true } })
+      })
+
+      expect(net.fetch).toHaveBeenCalledTimes(1)
+      const sentBody = JSON.parse((vi.mocked(net.fetch).mock.calls[0][1]?.body ?? '{}') as string) as Record<
+        string,
+        unknown
+      >
+      expect(sentBody).not.toHaveProperty('stream_options')
+      expect(sentBody).toMatchObject({ model: 'm', stream: true })
+    })
+
     it('routes a preset-derived DashScope instance (UUID id) through DashScope config', async () => {
       // Same defect class as #18537: keyed on a bare `id === 'dashscope'`, a user-added
       // instance stopped at providerId 'openai-compatible', which has no async image

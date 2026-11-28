@@ -9,7 +9,7 @@ import { resolveLanguageModel } from '@cherrystudio/ai-core'
 import { routeToolResultMedia } from '../../../../messages/messageCapabilities'
 import { createCustomParamsFetch } from '../../params/customParamsFetch'
 import { providerErrorBoundaryMiddleware } from '../../params/features/providerErrorBoundary'
-import { applyChatTokenFieldRetry, observeChatBudgetPlugin } from '../chatTokenFieldRetry'
+import { applyChatRequestRepair, observeChatRequestPlugin } from '../chatRequestRepair'
 import type { FallbackResolver, RetryFallback } from '../createRetryableWrap'
 import type { RetryPolicy } from '../retryPolicy'
 
@@ -191,7 +191,11 @@ describe('createRetryableWrap', () => {
         return okResult
       })
     )
-    const wrap = createRetryableWrap({ fallbacks: [], retryPolicy: policy({ enabled: false }), outputTokenRetries: 3 })!
+    const wrap = createRetryableWrap({
+      fallbacks: [],
+      retryPolicy: policy({ enabled: false }),
+      requestRepairRetries: 3
+    })!
     await expect(wrap(model).doGenerate({ prompt: [], maxOutputTokens: 8192 })).resolves.toMatchObject({
       content: [{ type: 'text', text: 'ok' }]
     })
@@ -215,7 +219,11 @@ describe('createRetryableWrap', () => {
         )
       })
     )
-    const wrap = createRetryableWrap({ fallbacks: [], retryPolicy: policy({ enabled: false }), outputTokenRetries: 3 })!
+    const wrap = createRetryableWrap({
+      fallbacks: [],
+      retryPolicy: policy({ enabled: false }),
+      requestRepairRetries: 3
+    })!
     await expect(wrap(model).doGenerate({ prompt: [], maxOutputTokens: 8192 })).rejects.toMatchObject({
       lastError: { statusCode: 422, responseBody: expect.stringContaining('"request_id":"1024"') }
     })
@@ -233,7 +241,11 @@ describe('createRetryableWrap', () => {
     const failure = budgetError(message, body)
     const generate = vi.fn().mockRejectedValue(failure)
     const model = makeFakeLanguageModel('primary', generate)
-    const wrap = createRetryableWrap({ fallbacks: [], retryPolicy: policy({ enabled: false }), outputTokenRetries: 3 })!
+    const wrap = createRetryableWrap({
+      fallbacks: [],
+      retryPolicy: policy({ enabled: false }),
+      requestRepairRetries: 3
+    })!
     // The reasoning case reports a lower ceiling than its thinking allocation.
     await expect(wrap(model).doGenerate({ prompt: [], maxOutputTokens: 8192 })).rejects.toBe(failure)
     expect(generate).toHaveBeenCalledTimes(1)
@@ -258,7 +270,7 @@ describe('createRetryableWrap', () => {
         return okResult
       })
     )
-    const wrap = createRetryableWrap({ fallbacks: [], retryPolicy: policy(), outputTokenRetries: 2 })!
+    const wrap = createRetryableWrap({ fallbacks: [], retryPolicy: policy(), requestRepairRetries: 2 })!
     await expect(wrap(model).doGenerate({ prompt: [], maxOutputTokens: 8192 })).resolves.toMatchObject({
       content: [{ type: 'text', text: 'ok' }]
     })
@@ -294,7 +306,7 @@ describe('createRetryableWrap', () => {
       const wrap = createRetryableWrap({
         fallbacks: [],
         retryPolicy: { ...policy(), maxAttempts: 3 },
-        outputTokenRetries: 3
+        requestRepairRetries: 3
       })!
       const result = await wrap(makeFakeLanguageModel('primary', vi.fn(), doStream)).doStream({
         prompt: [],
@@ -316,7 +328,11 @@ describe('createRetryableWrap', () => {
       ? createCustomParamsFetch(providerFetch, { max_completion_tokens: 8192 }, true)
       : providerFetch
     const model = createOpenAI({ apiKey: 'fixture', fetch: modelFetch }).chat(passthrough ? 'gpt-4o' : 'o3')
-    const wrap = createRetryableWrap({ fallbacks: [], retryPolicy: policy({ enabled: false }), outputTokenRetries: 3 })!
+    const wrap = createRetryableWrap({
+      fallbacks: [],
+      retryPolicy: policy({ enabled: false }),
+      requestRepairRetries: 3
+    })!
     await expect(
       wrap(model).doGenerate({
         prompt: [],
@@ -333,7 +349,7 @@ describe('createRetryableWrap', () => {
     const providerFetch: typeof fetch = async (_url, init) => {
       const body = JSON.parse(String(init?.body))
       if (!bothSent) delete body.max_tokens
-      applyChatTokenFieldRetry(body)
+      applyChatRequestRepair(body)
       requests.push(body)
       if (requests.length === 1) return Response.json({ error: { message: dualFieldError } }, { status: 400 })
       return Response.json({
@@ -344,9 +360,13 @@ describe('createRetryableWrap', () => {
       })
     }
     const model = await resolveLanguageModel('openai-chat', { apiKey: 'fixture', fetch: providerFetch }, 'gpt-4o', [
-      observeChatBudgetPlugin
+      observeChatRequestPlugin
     ])
-    const wrap = createRetryableWrap({ fallbacks: [], retryPolicy: policy({ enabled: false }), outputTokenRetries: 3 })!
+    const wrap = createRetryableWrap({
+      fallbacks: [],
+      retryPolicy: policy({ enabled: false }),
+      requestRepairRetries: 3
+    })!
     const result = wrap(model).doGenerate({
       prompt: [],
       maxOutputTokens: 4096,
@@ -372,7 +392,11 @@ describe('createRetryableWrap', () => {
       abort.abort()
       throw failure
     })
-    const wrap = createRetryableWrap({ fallbacks: [], retryPolicy: policy({ enabled: false }), outputTokenRetries: 3 })!
+    const wrap = createRetryableWrap({
+      fallbacks: [],
+      retryPolicy: policy({ enabled: false }),
+      requestRepairRetries: 3
+    })!
     const model = wrap(makeFakeLanguageModel('primary', generate))
     await expect(model.doGenerate({ prompt: [], maxOutputTokens: 8192, abortSignal: abort.signal })).rejects.toBe(
       failure
@@ -816,7 +840,7 @@ describe('createRetryableWrap', () => {
       const wrap = createRetryableWrap({
         fallbacks: [],
         retryPolicy: policy({ maxAttempts: 2 }),
-        outputTokenRetries: 2
+        requestRepairRetries: 2
       })
       const wrapped = wrap!(makeFakeLanguageModel('primary', vi.fn(), doStream))
 

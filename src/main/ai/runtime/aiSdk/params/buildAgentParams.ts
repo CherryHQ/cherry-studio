@@ -35,6 +35,7 @@ import { isFunctionCallingModel } from '@shared/utils/model'
 import {
   finalizeWebToolRoutes,
   isSupportFastMode,
+  resolveEndpointDialect,
   resolveWebToolRoutes,
   type WebToolRoutes
 } from '@shared/utils/provider'
@@ -79,7 +80,7 @@ import { getCustomParameters } from '../../../utils/reasoning'
 import { normalizeRequestedSelection, resolveReasoningInvocation } from '../../../utils/reasoningSerializers'
 import { createToolCallLimitStopCondition } from '../loop/toolLoopTermination'
 import type { AgentLoopHooks, AgentOptions } from '../loop/types'
-import { observeChatBudgetPlugin } from '../retry/chatTokenFieldRetry'
+import { observeChatRequestPlugin } from '../retry/chatRequestRepair'
 import { assembleSystemPrompt } from './assembleSystemPrompt'
 import { buildTelemetry } from './buildTelemetry'
 import { resolveCapabilities } from './capabilities'
@@ -414,7 +415,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     // The innermost adapter classifies failures before recovery or retry can observe them.
     plugins: [
       ...contributions.modelAdapters,
-      ...(endpointType === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS ? [observeChatBudgetPlugin] : []),
+      ...(endpointType === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS ? [observeChatRequestPlugin] : []),
       providerErrorBoundaryPlugin
     ],
     system,
@@ -823,7 +824,8 @@ function buildAgentOptions(
     sdkConfig.providerSettings.fetch = createCustomParamsFetch(
       sdkConfig.providerSettings.fetch ?? globalThis.fetch,
       sanitized.bodyParams,
-      chatCompletions
+      chatCompletions,
+      resolveEndpointDialect(provider, endpointType).streamOptions
     )
   }
   const hasProviderOptions = Object.values(sanitized.providerOptions).some((ns) => Object.keys(ns ?? {}).length > 0)

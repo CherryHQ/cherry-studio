@@ -184,6 +184,7 @@ describe('native Pi through the production gateway', () => {
             type?: string
             param?: string
             retryAfter?: string
+            plainText?: boolean
             stream?: 'before-content' | 'after-content'
           }
         | undefined)
@@ -256,13 +257,18 @@ describe('native Pi through the production gateway', () => {
       dispatchKeys.push(req.headers.authorization)
       const rejection = rejectUpstream?.()
       if (rejection && !rejection.stream) {
-        const { status = 400, retryAfter, ...error } = rejection
-        res.writeHead(status, { 'content-type': 'application/json', ...(retryAfter && { 'retry-after': retryAfter }) })
+        const { status = 400, retryAfter, plainText, ...error } = rejection
+        res.writeHead(status, {
+          'content-type': plainText ? 'text/plain' : 'application/json',
+          ...(retryAfter && { 'retry-after': retryAfter })
+        })
         res.end(
-          JSON.stringify({
-            error: { ...error, type: error.type ?? 'invalid_request_error' },
-            request_id: 'upstream-id'
-          })
+          plainText
+            ? error.message
+            : JSON.stringify({
+                error: { ...error, type: error.type ?? 'invalid_request_error' },
+                request_id: 'upstream-id'
+              })
         )
         return
       }
@@ -659,6 +665,102 @@ describe('native Pi through the production gateway', () => {
     for await (const chunk of result.stream) chunks.push(chunk)
     expect(chunks).toContainEqual(expect.objectContaining({ type: 'text-delta', delta: 'Model answer' }))
     expect(requests).toEqual([expect.objectContaining({ max_tokens: 500000 }), { ...requests[0], max_tokens: 393216 }])
+  })
+
+  it.each([
+    { adapterFamily: 'openai-compatible', plainText: false, rejectsStreamOptions: true },
+    { adapterFamily: 'openai', plainText: true, rejectsStreamOptions: true },
+    { adapterFamily: 'openai', plainText: false, rejectsStreamOptions: false }
+  ])(
+    'handles Chat stream usage with $adapterFamily (plain text: $plainText, matching 400: $rejectsStreamOptions)',
+    async ({ adapterFamily, plainText, rejectsStreamOptions }) => {
+      const endpoint = providerService.getByProviderId('port').endpointConfigs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+      dbh.db
+        .update(userProviderTable)
+        .set({
+          endpointConfigs: {
+            [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: endpoint!.baseUrl, adapterFamily }
+          }
+        })
+        .where(eq(userProviderTable.providerId, 'port'))
+        .run()
+      MockMainPreferenceServiceUtils.setPreferenceValue('chat.retry.enabled', false)
+      rejectUpstream = () =>
+        requests.length === 1
+          ? {
+              message: rejectsStreamOptions
+                ? "Unknown parameter: 'stream_options.include_usage'."
+                : "Unknown parameter: 'temperature'. The request also carries stream_options.",
+              code: 'unknown_parameter',
+              plainText
+            }
+          : undefined
+      const readChat = async () => {
+        const result = await mocks.ai!.streamText({
+          conversation: { id: 'chat', topicId: 'chat' },
+          trigger: 'submit-message',
+          uniqueModelId: 'port::wire-model',
+          messages: [{ id: 'user', role: 'user', parts: [{ type: 'text', text: 'Hello' }] }],
+          requestOptions: { signal: new AbortController().signal }
+        })
+        if (result.kind !== 'chunks') throw new Error('Expected text stream')
+        const chunks: UIMessageChunk[] = []
+        for await (const chunk of result.stream) chunks.push(chunk)
+        return chunks
+      }
+      if (rejectsStreamOptions) {
+        await expect(readChat()).resolves.toContainEqual(
+          expect.objectContaining({ type: 'text-delta', delta: 'Model answer' })
+        )
+      } else {
+        await expect(readChat()).rejects.toThrow("Unknown parameter: 'temperature'")
+      }
+      const { stream_options, ...body } = requests[0]
+      expect(stream_options).toEqual({ include_usage: true })
+      expect(requests.slice(1)).toEqual(rejectsStreamOptions ? [body] : [])
+    }
+  )
+
+  it.each([true, false])(
+    'repairs Pi stream usage once within a model call (rejected again: %s)',
+    async (rejectedAgain) => {
+      rejectUpstream = () =>
+        requests.length === 1 || rejectedAgain
+          ? { message: "Unknown parameter: 'stream_options.include_usage'.", code: 'unknown_parameter' }
+          : undefined
+      const binding = await createPiGatewayModelBinding(
+        { sessionId: 'session' },
+        providerService.getByProviderId('port'),
+        modelService.getByKey('port', 'wire-model')
+      )
+      const prompt = normalizeContext({ messages: [{ role: 'user', content: 'Hello', timestamp: 1 }] })
+      const answer = await binding.modelRuntime.completeSimple(binding.model, prompt)
+      expect(answer.stopReason).toBe(rejectedAgain ? 'error' : 'stop')
+      const { stream_options, ...body } = requests[0]
+      expect(stream_options).toEqual({ include_usage: true })
+      expect(requests.slice(1)).toEqual([body])
+
+      rejectUpstream = undefined
+      await binding.modelRuntime.completeSimple(binding.model, prompt)
+      expect(requests[2]).toEqual(requests[0])
+    }
+  )
+
+  it('preserves the stream options rejection on a public Gateway request', async () => {
+    const message = "Unknown parameter: 'stream_options.include_usage'."
+    rejectUpstream = () => ({ message, code: 'unknown_parameter' })
+    const response = await processMessage({
+      params: {
+        model: 'port:wire-model',
+        stream: true,
+        messages: [{ role: 'user', content: 'Hello' }]
+      },
+      inputFormat: 'openai',
+      outputFormat: 'openai',
+      requestHeaders: new Headers()
+    }).catch((error: unknown) => error)
+    expect(response).toMatchObject({ statusCode: 400, message })
+    expect(requests).toEqual([expect.objectContaining({ stream_options: { include_usage: true } })])
   })
 
   it('lowers a rejected Pi output budget on the same Work request', async () => {

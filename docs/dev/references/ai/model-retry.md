@@ -19,7 +19,7 @@ backoff — `TimeoutError`s are deliberately not retried, see below) retry the
 order. Retry happens at the model layer — below the agent loop, so tool state
 and hook composition are untouched.
 
-### Output token limits
+### Request repair
 
 Chat and trusted desktop Work requests recover when the provider rejects the
 SDK-managed output budget with a recognized HTTP 400 or 422 before any content.
@@ -32,6 +32,14 @@ retain their no-retry policy. The reduction applies to the current model call.
 After key failover, the replacement credential shares its attempt count across
 budget reduction and transient retry. Pre-content stream errors use the options
 that opened the failing stream, including any preceding reduction.
+
+For Chat Completions, a compatible host can reject the optional
+`stream_options.include_usage` field. Chat and trusted desktop Work calls
+retry once without `stream_options` when the serialized request contained the
+field and the provider explicitly rejects it with HTTP 400. The repair shares
+the model attempt budget. Usage reporting can be absent on the repaired
+response. If the endpoint explicitly sets `streamOptions: false`, the first
+request already omits the field.
 
 ```text
 AiService.streamText/generateText

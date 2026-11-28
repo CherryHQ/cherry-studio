@@ -1,7 +1,7 @@
 import { applyReasoningModelMaxTokensConversion } from '@cherrystudio/ai-sdk-provider'
 
 import { isCustomProviderNamespace } from '../../../utils/options'
-import { applyChatTokenFieldRetry } from '../retry/chatTokenFieldRetry'
+import { applyChatRequestRepair } from '../retry/chatRequestRepair'
 
 const CUSTOM_PARAMS_FETCH_CACHE_SIZE = 10
 const customParamsFetchCache = new WeakMap<typeof globalThis.fetch, Map<string, typeof globalThis.fetch>>()
@@ -31,13 +31,14 @@ export function selectCustomBodyParameters(
 export function createCustomParamsFetch(
   innerFetch: typeof globalThis.fetch,
   customParams: Record<string, unknown>,
-  chatCompletions = false
+  chatCompletions = false,
+  streamUsageEnabled = true
 ): typeof globalThis.fetch {
   const hasCustomParams = Object.keys(customParams).length > 0
   if (!chatCompletions && !hasCustomParams) return innerFetch
 
   const serializedCustomParams = JSON.stringify(customParams) ?? '{}'
-  const cacheKey = chatCompletions ? `chat:${serializedCustomParams}` : serializedCustomParams
+  const cacheKey = chatCompletions ? `chat:${streamUsageEnabled}:${serializedCustomParams}` : serializedCustomParams
   let cachedByParams = customParamsFetchCache.get(innerFetch)
   if (!cachedByParams) {
     cachedByParams = new Map()
@@ -54,7 +55,9 @@ export function createCustomParamsFetch(
   const customParamsSnapshot = JSON.parse(serializedCustomParams) as Record<string, unknown>
   const wrappedFetch: typeof globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
     if (init?.method?.toUpperCase() === 'POST' && typeof init.body === 'string') {
-      if (!hasCustomParams && !init.body.includes('"max_tokens"')) return innerFetch(input, init)
+      if (!hasCustomParams && !init.body.includes('"max_tokens"') && !init.body.includes('"stream_options"')) {
+        return innerFetch(input, init)
+      }
       let body: unknown
       try {
         body = JSON.parse(init.body)
@@ -68,7 +71,7 @@ export function createCustomParamsFetch(
           if (merged.max_completion_tokens != null || customParamsSnapshot.max_tokens != null) {
             merged = applyReasoningModelMaxTokensConversion(merged)
           }
-          applyChatTokenFieldRetry(merged)
+          applyChatRequestRepair(merged, streamUsageEnabled)
         }
         return innerFetch(input, {
           ...init,
