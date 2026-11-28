@@ -8,6 +8,7 @@ import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { modelService } from '@data/services/ModelService'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
+import { isFunctionCallingModel, isVisionModel } from '@shared/utils/model'
 
 describe('ProviderRegistryService provider-owned model metadata', () => {
   const dbh = setupTestDatabase()
@@ -101,6 +102,55 @@ describe('ProviderRegistryService provider-owned model metadata', () => {
       inputModalities: ['text'],
       imageGeneration: { modes: { generate: { supports: { seed: { type: 'text' } } } } }
     })
+  })
+
+  it('does not assign a bundled endpoint to an untyped Ace model', () => {
+    dbh.db
+      .insert(userProviderTable)
+      .values({ providerId: 'ace', presetProviderId: 'acedatacloud', name: 'Ace', orderKey: 'b0' })
+      .run()
+    const modelId = 'custom-alias'
+    const [resolved] = providerRegistryService.resolveModels('ace', [modelId])
+    expect(resolved.endpointTypes ?? []).toEqual([])
+    modelService.create([
+      {
+        dto: { providerId: 'ace', modelId },
+        registryData: providerRegistryService.lookupModel('ace', modelId)
+      }
+    ])
+    providerRegistryService.clearCache()
+    const model = modelService.getByKey('ace', modelId)
+    expect(model.endpointTypes ?? []).toEqual([])
+    expect(isFunctionCallingModel(model)).toBe(false)
+    expect(model.contextWindow).toBeUndefined()
+    expect(model.pricing).toBeUndefined()
+    modelService.update('ace', modelId, { capabilities: ['image-recognition'] })
+    const visionModel = modelService.getByKey('ace', modelId)
+    expect(isVisionModel(visionModel)).toBe(true)
+    expect(isFunctionCallingModel(visionModel)).toBe(false)
+  })
+
+  it('reads back the explicitly discovered vision input after importing an Ace model', () => {
+    dbh.db
+      .insert(userProviderTable)
+      .values({ providerId: 'my-ace', presetProviderId: 'acedatacloud', name: 'Ace', orderKey: 'b0' })
+      .run()
+    const modelId = 'vision-fixture'
+    modelService.create([
+      {
+        dto: {
+          providerId: 'my-ace',
+          modelId,
+          capabilities: ['image-recognition'],
+          inputModalities: ['text', 'image']
+        },
+        registryData: providerRegistryService.lookupModel('my-ace', modelId)
+      }
+    ])
+    providerRegistryService.clearCache()
+    const saved = modelService.getByKey('my-ace', modelId)
+    expect(saved.inputModalities).toEqual(['text', 'image'])
+    expect(isFunctionCallingModel(saved)).toBe(false)
   })
 
   it('keeps catalog matching for ordinary providers', () => {

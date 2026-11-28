@@ -887,8 +887,23 @@ function buildOpenAICompatibleConfig(ctx: BuilderContext): ProviderConfig<'opena
   }
 }
 
+function usesAceBearerAuth(ctx: BuilderContext): boolean {
+  return (
+    matchesPreset(ctx.actualProvider, SystemProviderIds.acedatacloud) &&
+    ctx.baseConfig.baseURL.startsWith('https://api.acedata.cloud/')
+  )
+}
+
 function buildGenericProviderConfig(ctx: BuilderContext): ProviderConfig {
   const commonOptions = buildCommonOptions(ctx)
+
+  if (ctx.aiSdkProviderId === 'anthropic' && usesAceBearerAuth(ctx)) {
+    return {
+      providerId: 'anthropic',
+      endpoint: ctx.endpoint,
+      providerSettings: { ...commonOptions, baseURL: ctx.baseConfig.baseURL, authToken: ctx.baseConfig.apiKey }
+    }
+  }
 
   return {
     providerId: ctx.aiSdkProviderId,
@@ -915,7 +930,7 @@ function buildOpenResponsesConfig(ctx: BuilderContext): ProviderConfig<'open-res
         ...getProviderAppHeaders(ctx.actualProvider),
         ...getExtraHeaders(ctx.actualProvider),
         // Parity with buildCommonOptions' 'openai' branch — these providers received it before.
-        'X-Api-Key': ctx.baseConfig.apiKey
+        ...(usesAceBearerAuth(ctx) ? {} : { 'X-Api-Key': ctx.baseConfig.apiKey })
       }
     }
   }

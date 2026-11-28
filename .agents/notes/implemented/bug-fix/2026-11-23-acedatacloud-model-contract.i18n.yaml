@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-23-acedatacloud-model-contract.md
+2026-11-23-acedatacloud-model-contract.md: 46fc0f79d315f2f06b46669852167f2180931a48
+2026-11-23-acedatacloud-model-contract.zh.md: 99527a3cc8d736e7a8c01edf9a85c3daf0ec02e2

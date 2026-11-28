@@ -96,9 +96,17 @@ GET /providers/:providerId/models:resolve?ids=gpt-4o&ids=o3
         → mergePresetModel(preset, override, ...) or createCustomModel(...)
     → Return merged Model[]
 
-SDK only provides model IDs. All other data (capabilities, pricing, etc.)
-comes from the registry — SDK data does not overwrite curated registry data.
+Generic SDK lists provide model IDs; other metadata comes from the registry.
+Providers with authoritative typed metadata may supply endpoint types and support
+metadata. Provider-owned model resolution prevents those IDs from inheriting a
+same-name vendor's prices or limits.
 ```
+
+### Ace Data Cloud typed model refresh
+
+Ace Data Cloud intersects authenticated IDs with its public chat catalog. A model's declared endpoint types select Chat Completions, Responses or native Messages; an image-capable chat model stays in the chat list. Custom hosts retain their configured discovery behavior. Public metadata requests never receive the user's API token.
+
+Ace Data Cloud's fallback metadata leaves untyped models on the provider's configured chat endpoint. The public catalog does not declare tool support, so discovery does not assign the function-calling capability. Users can configure capabilities through the normal model settings.
 
 ### 4. CherryIN Endpoint Refresh
 
