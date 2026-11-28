@@ -20,6 +20,10 @@ Status: implemented
 
 [模型重试](../../../../docs/dev/references/ai/model-retry.md#output-token-limits)也处理 Chat 和可信 Work 请求的输出预算超限。模型目录记录的上限可能与服务端实际上限不同。重试先根据失败请求确认调整 SDK 参数可以降低预算，再以较小的值重发同一次模型调用，复用现有提供商中间件和重试状态。实际报错见 [Work 汇总](https://github.com/CherryHQ/cherry-studio/issues/20240)和 [Chat 汇总](https://github.com/CherryHQ/cherry-studio/issues/22197)。
 
+Chat Completions 在发送前处理冲突的输出预算字段。显式设置的 completion 预算优先于旧字段。兼容转换识别带 OpenAI 前缀的中转模型别名，并保留发送时的模型 ID。自定义请求体参数合并后也应用同一规则。相关报告见[双字段拒绝](https://github.com/CherryHQ/cherry-studio/issues/24988)和[旧字段拒绝](https://github.com/CherryHQ/cherry-studio/issues/18765)。
+
+未知的兼容端点可能要求使用 completion 字段，而模型名无法提供这个信息。重试包装器识别明确的字段拒绝，再根据实际发送的预算字段选择一次请求体修正。修正保留预算数值、遵守现有尝试次数限制，作用域为当前模型调用。
+
 ## Alternatives considered
 
 - 保留原生重试：无法复用模型重试与状态路径，若同时启用网关重试，还会放大尝试次数。

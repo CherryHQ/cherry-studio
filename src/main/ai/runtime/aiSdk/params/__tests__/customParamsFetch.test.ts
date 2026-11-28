@@ -85,4 +85,24 @@ describe('createCustomParamsFetch', () => {
       messages: []
     })
   })
+
+  it.each([
+    { custom: { max_tokens: 4096 }, sdk: { max_completion_tokens: 8192 } },
+    { custom: { max_completion_tokens: 8192 }, sdk: { max_tokens: 4096 } },
+    { custom: {}, sdk: { max_tokens: 4096, max_completion_tokens: 8192 } }
+  ])('keeps one completion budget in the final Chat body for $custom and $sdk', async ({ custom, sdk }) => {
+    const innerFetch = createInnerFetch()
+    await createCustomParamsFetch(
+      innerFetch,
+      custom,
+      true
+    )('https://example.com/v1/chat/completions', {
+      method: 'POST',
+      body: JSON.stringify({ model: 'gpt-4o', ...sdk })
+    })
+    expect(JSON.parse(String(innerFetch.mock.calls[0][1]?.body))).toEqual({
+      model: 'gpt-4o',
+      max_completion_tokens: 8192
+    })
+  })
 })

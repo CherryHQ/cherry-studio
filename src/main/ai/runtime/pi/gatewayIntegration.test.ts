@@ -682,6 +682,41 @@ describe('native Pi through the production gateway', () => {
     expect(requests).toEqual([expect.objectContaining({ max_tokens: 1024 }), { ...requests[0], max_tokens: 512 }])
   })
 
+  it.each([false, true])(
+    'retries an explicit Chat token field rejection once (repeated rejection: %s)',
+    async (repeated) => {
+      rejectUpstream = () => {
+        if (requests.length === 1 || repeated) {
+          return {
+            message:
+              "Unsupported parameter: 'max_tokens' is not supported with this model. Use 'max_completion_tokens' instead.",
+            code: 'unsupported_parameter'
+          }
+        }
+        if (requests.length === 2) {
+          return { message: 'Try again', code: 'busy', status: 503, retryAfter: '0.01' }
+        }
+        return undefined
+      }
+      const binding = await createPiGatewayModelBinding(
+        { sessionId: 'session' },
+        providerService.getByProviderId('port'),
+        modelService.getByKey('port', 'wire-model')
+      )
+      const prompt = normalizeContext({ messages: [{ role: 'user', content: 'Hello', timestamp: 1 }] })
+      const answer = await binding.modelRuntime.completeSimple(binding.model, prompt)
+      expect(answer.stopReason).toBe(repeated ? 'error' : 'stop')
+      const { max_tokens, ...body } = requests[0]
+      expect(max_tokens).toBe(1024)
+      const corrected = { ...body, max_completion_tokens: 1024 }
+      expect(requests.slice(1)).toEqual(repeated ? [corrected] : [corrected, corrected])
+
+      rejectUpstream = undefined
+      await binding.modelRuntime.completeSimple(binding.model, prompt)
+      expect(requests.at(-1)).toEqual(requests[0])
+    }
+  )
+
   it.each([true, false])(
     'recovers an Anthropic gateway request only for a trusted desktop session (%s)',
     async (internal) => {

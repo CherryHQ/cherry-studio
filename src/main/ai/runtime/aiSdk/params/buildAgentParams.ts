@@ -79,6 +79,7 @@ import { getCustomParameters } from '../../../utils/reasoning'
 import { normalizeRequestedSelection, resolveReasoningInvocation } from '../../../utils/reasoningSerializers'
 import { createToolCallLimitStopCondition } from '../loop/toolLoopTermination'
 import type { AgentLoopHooks, AgentOptions } from '../loop/types'
+import { observeChatBudgetPlugin } from '../retry/chatTokenFieldRetry'
 import { assembleSystemPrompt } from './assembleSystemPrompt'
 import { buildTelemetry } from './buildTelemetry'
 import { resolveCapabilities } from './capabilities'
@@ -411,7 +412,11 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     credentialReceipt,
     tools,
     // The innermost adapter classifies failures before recovery or retry can observe them.
-    plugins: [...contributions.modelAdapters, providerErrorBoundaryPlugin],
+    plugins: [
+      ...contributions.modelAdapters,
+      ...(endpointType === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS ? [observeChatBudgetPlugin] : []),
+      providerErrorBoundaryPlugin
+    ],
     system,
     options,
     hookParts,
@@ -812,11 +817,13 @@ function buildAgentOptions(
     { standardParams, providerOptions: effectiveProviderOptions, bodyParams },
     model
   )
+  const chatCompletions = endpointType === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
   // Capture only filtered body parameters; a fetch closure cannot be sanitized later.
-  if (Object.keys(sanitized.bodyParams).length > 0) {
+  if (chatCompletions || Object.keys(sanitized.bodyParams).length > 0) {
     sdkConfig.providerSettings.fetch = createCustomParamsFetch(
       sdkConfig.providerSettings.fetch ?? globalThis.fetch,
-      sanitized.bodyParams
+      sanitized.bodyParams,
+      chatCompletions
     )
   }
   const hasProviderOptions = Object.values(sanitized.providerOptions).some((ns) => Object.keys(ns ?? {}).length > 0)

@@ -12,7 +12,7 @@
  * `max_tokens`. Matches the pattern used internally by `@ai-sdk/openai`.
  */
 export function isOpenAIReasoningModelId(modelId: string): boolean {
-  const id = modelId.toLowerCase()
+  const id = modelId.toLowerCase().replace(/^openai[/:]/, '')
   return (
     id.startsWith('o1') ||
     id.startsWith('o3') ||
