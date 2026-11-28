@@ -103,6 +103,8 @@ extraResources:
     to: "pi-acp"
   - from: "packages/ui/licenses"
     to: "licenses/ui"
+  - from: "src/renderer/pages/settings/SelectionAssistantSettings/components/selectionIconTags.LICENSE"
+    to: "licenses/lucide-selection-icon-tags.LICENSE"
   - from: "src/main/ai/voice/localAdapters/NOTICE.txt"
     to: "voice-audio/NOTICE.txt"
   - from: "migrations/sqlite-drizzle"

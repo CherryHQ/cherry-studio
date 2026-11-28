@@ -16,7 +16,7 @@ vi.mock('lucide-react/dynamic', () => ({
 import SelectionActionIcon from '../SelectionActionIcon'
 
 describe('SelectionActionIcon', () => {
-  it.each(['languages', 'file-question', 'scan-text', 'search', 'clipboard-copy', 'wand-sparkles', 'quote'])(
+  it.each(['bot', 'languages', 'file-question', 'scan-text', 'search', 'clipboard-copy', 'wand-sparkles', 'quote'])(
     'renders built-in %s without the dynamic icon fallback',
     (name) => {
       dynamicIconState.render.mockClear()
@@ -54,4 +54,15 @@ describe('SelectionActionIcon', () => {
     await waitFor(() => expect(dynamicIconState.render).toHaveBeenCalledWith('custom-icon'))
     expect(icon).toHaveAttribute('data-icon-name', 'custom-icon')
   })
+
+  it.each(['__proto__', 'constructor', 'toString'])(
+    'does not treat the inherited name %s as a built-in icon',
+    async (name) => {
+      dynamicIconState.render.mockClear()
+
+      render(<SelectionActionIcon name={name} />)
+
+      await waitFor(() => expect(dynamicIconState.render).toHaveBeenCalledWith(name))
+    }
+  )
 })

@@ -1,3 +1,4 @@
+import Bot from 'lucide-react/dist/esm/icons/bot'
 import ClipboardCopy from 'lucide-react/dist/esm/icons/clipboard-copy'
 import FileQuestion from 'lucide-react/dist/esm/icons/file-question'
 import Languages from 'lucide-react/dist/esm/icons/languages'
@@ -13,6 +14,7 @@ const DynamicSelectionActionIcon = lazy(() => import('./DynamicSelectionActionIc
 type StaticSelectionActionIcon = typeof Languages
 
 const BUILT_IN_SELECTION_ACTION_ICONS: Record<string, StaticSelectionActionIcon> = {
+  bot: Bot,
   'clipboard-copy': ClipboardCopy,
   'file-question': FileQuestion,
   languages: Languages,
@@ -28,7 +30,9 @@ type SelectionActionIconProps = ComponentProps<StaticSelectionActionIcon> & {
 }
 
 const SelectionActionIcon: FC<SelectionActionIconProps> = ({ fallback, name, ...props }) => {
-  const BuiltInIcon = name ? BUILT_IN_SELECTION_ACTION_ICONS[name] : undefined
+  // Own properties only: a saved name like `__proto__` must reach the fallback, not Object.prototype.
+  const BuiltInIcon =
+    name && Object.hasOwn(BUILT_IN_SELECTION_ACTION_ICONS, name) ? BUILT_IN_SELECTION_ACTION_ICONS[name] : undefined
 
   if (BuiltInIcon) {
     return <BuiltInIcon {...props} />

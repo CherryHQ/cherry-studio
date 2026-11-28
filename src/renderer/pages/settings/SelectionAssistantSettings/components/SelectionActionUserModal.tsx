@@ -1,8 +1,7 @@
-import { CircleHelp, Dices, ExternalLink, OctagonX } from 'lucide-react'
-import { DynamicIcon, iconNames } from 'lucide-react/dynamic'
+import { CircleHelp } from 'lucide-react'
 import type React from 'react'
 import type { FC } from 'react'
-import { useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -34,6 +33,8 @@ import { SELECTION_ACTION_RUNNER, type SelectionActionRunner } from '@shared/dat
 import type { CustomSelectionAction } from '@shared/types/selection'
 
 import { SelectionAgentPicker, SelectionWorkspacePicker } from './selectionAgentPickers'
+
+const SelectionActionIconPicker = lazy(() => import('./SelectionActionIconPicker'))
 
 interface SelectionActionUserModalProps {
   isModalOpen: boolean
@@ -81,10 +82,6 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
       newErrors.name = t('selection.settings.user_modal.name.hint')
     }
 
-    if (formData.icon && !iconNames.includes(formData.icon as any)) {
-      newErrors.icon = t('selection.settings.user_modal.icon.error')
-    }
-
     if (runner === SELECTION_ACTION_RUNNER.AGENT && !formData.agentId) {
       newErrors.agentId = t('selection.settings.user_modal.agent.hint')
     }
@@ -93,18 +90,50 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
     return Object.keys(newErrors).length === 0
   }
 
-  const handleOk = () => {
-    if (!validateForm()) {
+  // A dice roll that is still loading must land before the form is saved. It is tracked only while
+  // pending: once it resolves, its icon is already in the form and later choices win.
+  const pendingRollRef = useRef<Promise<string | null> | null>(null)
+  const submitTokenRef = useRef(0)
+  const submittingRef = useRef(false)
+
+  // Each open editor is its own session: a roll or submit started in one never reaches the next.
+  const [editorSession, setEditorSession] = useState(0)
+  const invalidatePendingSubmit = () => {
+    submitTokenRef.current += 1
+    submittingRef.current = false
+    pendingRollRef.current = null
+  }
+
+  useEffect(() => {
+    invalidatePendingSubmit()
+    if (isModalOpen) setEditorSession((session) => session + 1)
+  }, [isModalOpen, editingAction])
+
+  const handleCancel = () => {
+    invalidatePendingSubmit()
+    onCancel()
+  }
+
+  const handleOk = async () => {
+    if (submittingRef.current || !validateForm()) {
       return
     }
-
+    const pendingRoll = pendingRollRef.current
+    let rolledIcon: string | null = null
+    if (pendingRoll) {
+      const token = submitTokenRef.current
+      submittingRef.current = true
+      rolledIcon = await pendingRoll.catch(() => null)
+      if (token !== submitTokenRef.current) return
+      submittingRef.current = false
+    }
     // 构建完整的 ActionItem
     const actionItem: CustomSelectionAction = {
       id: editingAction?.id || `user-${Date.now()}`,
       name: formData.name || 'USER',
       enabled: editingAction?.enabled || false,
       isBuiltIn: false,
-      icon: formData.icon,
+      icon: rolledIcon ?? formData.icon,
       prompt: formData.prompt,
       runner,
       assistantId: formData.assistantId,
@@ -124,7 +153,7 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
   }
 
   return (
-    <Dialog open={isModalOpen} onOpenChange={(next) => !next && onCancel()}>
+    <Dialog open={isModalOpen} onOpenChange={(next) => !next && handleCancel()}>
       <DialogContent
         aria-describedby={undefined}
         closeOnOverlayClick={false}
@@ -159,43 +188,21 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
                   <Tooltip content={t('selection.settings.user_modal.icon.tooltip')}>
                     <QuestionIcon size={14} />
                   </Tooltip>
-                  <Spacer />
-                  <a
-                    href="https://lucide.dev/icons/"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-xs text-link">
-                    {t('selection.settings.user_modal.icon.view_all')}
-                    <ExternalLink size={12} />
-                  </a>
-                  <Tooltip content={t('selection.settings.user_modal.icon.random')}>
-                    <DiceButton
-                      onClick={() => {
-                        const randomIcon = iconNames[Math.floor(Math.random() * iconNames.length)]
-                        handleInputChange('icon', randomIcon)
-                      }}>
-                      <Dices size={14} className="btn-icon" />
-                    </DiceButton>
-                  </Tooltip>
                 </ModalSectionTitle>
-                <div className="flex gap-2">
-                  <Input
-                    placeholder={t('selection.settings.user_modal.icon.placeholder')}
+                <Suspense fallback={<div aria-busy="true" className="h-9 w-full rounded-md border border-border" />}>
+                  <SelectionActionIconPicker
+                    key={editorSession}
                     value={formData.icon || ''}
-                    onChange={(e) => handleInputChange('icon', e.target.value)}
-                    className="w-full"
-                    aria-invalid={!!errors.icon}
+                    onChange={(icon) => handleInputChange('icon', icon)}
+                    onRoll={(roll) => {
+                      pendingRollRef.current = roll
+                      const clear = () => {
+                        if (pendingRollRef.current === roll) pendingRollRef.current = null
+                      }
+                      roll.then(clear, clear)
+                    }}
                   />
-                  <IconPreview>
-                    {formData.icon &&
-                      (iconNames.includes(formData.icon as any) ? (
-                        <DynamicIcon name={formData.icon as any} size={18} />
-                      ) : (
-                        <OctagonX size={18} color="var(--error)" />
-                      ))}
-                  </IconPreview>
-                </div>
-                {errors.icon && <ErrorText>{errors.icon}</ErrorText>}
+                </Suspense>
               </div>
             </div>
           </ModalSection>
@@ -322,7 +329,7 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
           </ModalSection>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={onCancel}>
+          <Button variant="outline" onClick={handleCancel}>
             {t('common.cancel')}
           </Button>
           <Button onClick={handleOk}>{t('common.confirm')}</Button>
@@ -356,16 +363,6 @@ const Spacer = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) 
   <div className={cn('flex-1', className)} {...props} />
 )
 
-const IconPreview = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div
-    className={cn(
-      'flex size-9 shrink-0 items-center justify-center rounded-md border border-border bg-background-subtle',
-      className
-    )}
-    {...props}
-  />
-)
-
 const AssistantItem = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div
     className={cn('flex h-7 w-full max-w-full min-w-0 flex-row items-center gap-2 overflow-hidden', className)}
@@ -386,16 +383,6 @@ const CurrentTag = ({
     className={cn(
       'shrink-0 rounded px-1 py-0.5 text-xs',
       isCurrent ? 'text-primary' : 'text-foreground-tertiary',
-      className
-    )}
-    {...props}
-  />
-)
-
-const DiceButton = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div
-    className={cn(
-      'ml-1 flex cursor-pointer items-center justify-center transition-all active:rotate-720 [&_.btn-icon]:text-muted-foreground hover:[&_.btn-icon]:text-foreground',
       className
     )}
     {...props}
