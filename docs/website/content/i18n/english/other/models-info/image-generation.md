@@ -4,22 +4,31 @@ Data comes from the model catalog bundled with Cherry Studio ([provider-registry
 
 Context length and max output are abbreviated with K / M and rounded (1K is roughly 1,000–1,024 tokens, 1M roughly one million), e.g. 131,072 and 128,000 both read 128K. Hover a value to see the exact number; confirm limits with the model provider.
 
-> **Data updated**: 2026-11-03 16:01:16 UTC / 2026-11-04 00:01:16 CST (Beijing time)
+> **Data updated**: 2026-11-27 17:59:10 UTC / 2026-11-28 01:59:10 CST (Beijing time)
 
 <div data-models-table="num:2,3;sort:1;search:0,1;cap:4:Function calling,Reasoning,Image recognition,Speech recognition,Video understanding,Structured output,File input;in:5:Image input=Image,Audio input=Audio,Video input=Video;out:6:Text output=Text">
 
 | Model | Provider | Context | Max output | Capabilities | Input modalities | Output modalities |
 | --- | --- | --- | --- | --- | --- | --- |
 | Qwen Image<br><code>qwen-image</code> | alibaba | - | - | Image generation | Text | Image |
+| Qwen Image 2.0<br><code>qwen-image-2-0</code> | alibaba | - | - | Image recognition, Image generation | Text, Image | Image |
+| Qwen Image 2.0 Pro<br><code>qwen-image-2-0-pro</code> | alibaba | - | - | Image recognition, Image generation | Text, Image | Image |
+| Qwen Image 2.1 Pro<br><code>qwen-image-2-1-pro</code> | alibaba | - | - | Image recognition, Image generation | Text, Image | Image |
+| Qwen Image 2.1 Turbo<br><code>qwen-image-2-1-turbo</code> | alibaba | - | - | Image recognition, Image generation | Text, Image | Image |
 | Qwen Image 3.0<br><code>qwen-image-3-0</code> | alibaba | - | - | Image recognition, Image generation | Text, Image | Image |
 | Qwen Image 3.0 Pro<br><code>qwen-image-3-0-pro</code> | alibaba | - | - | Image recognition, Image generation | Text, Image | Image |
 | Qwen Image Edit<br><code>qwen-image-edit</code> | alibaba | - | - | Image recognition, Image generation, File input | Text, Image | Image |
+| Qwen Image Edit Max<br><code>qwen-image-edit-max</code> | alibaba | - | - | Image recognition, Image generation | Text, Image | Image |
+| Qwen Image Edit Plus<br><code>qwen-image-edit-plus</code> | alibaba | - | - | Image recognition, Image generation | Text, Image | Image |
+| Qwen Image Max<br><code>qwen-image-max</code> | alibaba | - | - | Image generation | Text | Image |
+| Qwen Image Plus<br><code>qwen-image-plus</code> | alibaba | - | - | Image generation | Text | Image |
 | Qwen: Qwen Image 3<br><code>qwen-image-3</code> | alibaba | - | - | Image recognition, Image generation | Text, Image | Image |
 | Qwen: Qwen Image 3 Pro<br><code>qwen-image-3-pro</code> | alibaba | - | - | Image recognition, Image generation | Text, Image | Image |
 | wan2-6-t2i<br><code>wan2-6-t2i</code> | alibaba | - | - | Image generation | Text | Image |
 | wan2.6-image<br><code>wan2-6-image</code> | alibaba | - | - | Image generation | Text, Image | - |
 | wan2.7-image<br><code>wan2-7-image</code> | alibaba | - | - | Image generation | Text | Image |
 | wan2.7-image-pro<br><code>wan2-7-image-pro</code> | alibaba | - | - | Image generation | Text | Image |
+| Z-Image Turbo<br><code>z-image-turbo</code> | alibaba | - | - | Image generation | Text | Image |
 | Flux 2 Flex<br><code>flux-2-flex</code> | black-forest-labs | - | - | Image generation | Text | Image |
 | Flux 2 Pro<br><code>flux-2-pro</code> | black-forest-labs | <span title="67,300">67.3K</span> | <span title="67,300">67.3K</span> | Image generation | Text | Image |
 | Flux Schnell<br><code>flux-fast-schnell</code> | black-forest-labs | 512 | - | Image generation | Text | Image |
@@ -53,6 +62,7 @@ Context length and max output are abbreviated with K / M and rounded (1K is roug
 | Doubao Seedream 4 5<br><code>doubao-seedream-4-5</code> | bytedance | - | - | Image generation | Text, Image | Image |
 | Doubao Seedream 5.0 Lite<br><code>doubao-seedream-5-0-lite</code> | bytedance | - | - | Image generation | Text, Image | Image |
 | Doubao Seedream 5.0 Pro<br><code>doubao-seedream-5-0-pro</code> | bytedance | - | - | Image generation | Text, Image | Image |
+| Doubao Seedream 5.5<br><code>doubao-seedream-5-5</code> | bytedance | - | - | Image generation | Text, Image | Image |
 | Seedream 4.0<br><code>seedream-4-0</code> | bytedance | - | - | Image generation | Text | Image |
 | Seedream 4.5<br><code>seedream-4-5</code> | bytedance | - | - | Image recognition, Image generation | Text, Image | Image |
 | Seedream 5.0 Lite<br><code>seedream-5-0-lite</code> | bytedance | - | - | Image recognition, Image generation | Text, Image | Image |
@@ -89,6 +99,10 @@ Context length and max output are abbreviated with K / M and rounded (1K is roug
 | Kolors<br><code>kolors</code> | kling | - | - | Image generation | Text | Image |
 | Luma Photon<br><code>photon</code> | luma | - | - | Image generation | Text | Image |
 | Luma Photon Flash<br><code>photon-flash</code> | luma | - | - | Image generation | Text | Image |
+| Meta: Muse Image<br><code>muse-image</code> | meta | - | - | Image recognition, Image generation | Text, Image | Image |
+| Muse Image 1.0<br><code>muse-image-1-0</code> | meta | - | - | Image recognition, Image generation, File input | Text, Image | Image |
+| Microsoft AI: MAI-Image-2.7<br><code>mai-image-2-7</code> | microsoft | - | - | Image recognition, Image generation | Text, Image | Image |
+| Microsoft AI: MAI-Image-2.7 Flash<br><code>mai-image-2-7-flash</code> | microsoft | - | - | Image recognition, Image generation | Text, Image | Image |
 | MicrosoftAI: MAI-Image-2.5<br><code>mai-image-2-5</code> | microsoft | - | - | Image recognition, Image generation | Text, Image | Image |
 | MicrosoftAI: MAI-Image-2.5 Pro<br><code>mai-image-2-5-pro</code> | microsoft | - | - | Image recognition, Image generation | Text, Image | Image |
 | MicrosoftAI: MAI-Image-2.6<br><code>mai-image-2-6</code> | microsoft | - | - | Image recognition, Image generation | Text, Image | Image |
@@ -101,6 +115,8 @@ Context length and max output are abbreviated with K / M and rounded (1K is roug
 | GPT Image 1.5<br><code>gpt-image-1-5</code> | openai | - | - | Image recognition, Image generation, File input | Text, Image | Text, Image |
 | GPT Image 2.5 Flare<br><code>gpt-image-2-5-flare</code> | openai | - | - | Image recognition, Image generation | Text, Image | Image |
 | GPT Image 2.5 Sunburst<br><code>gpt-image-2-5-sunburst</code> | openai | - | - | Image recognition, Image generation | Text, Image | Image |
+| GPT Image 2.6 Flare<br><code>gpt-image-2-6-flare</code> | openai | - | - | Image recognition, Image generation | Text, Image | Image |
+| GPT Image 2.6 Sunburst<br><code>gpt-image-2-6-sunburst</code> | openai | - | - | Image recognition, Image generation | Text, Image | Image |
 | GPT-Image-1<br><code>gpt-image-1</code> | openai | - | - | Image recognition, Image generation, File input | Text, Image | Image |
 | GPT-Image-1-Mini<br><code>gpt-image-1-mini</code> | openai | - | - | Image recognition, Image generation, File input | Text, Image | Text, Image |
 | GPT-Image-2<br><code>gpt-image-2</code> | openai | - | - | Image recognition, Image generation, File input | Text, Image | Image |
@@ -135,7 +151,6 @@ Context length and max output are abbreviated with K / M and rounded (1K is roug
 | Hunyuan Image 3.0<br><code>hy-image-v3-0</code> | tencent | - | - | Image generation | Text, Image | Image |
 | Hunyuan Image Lite<br><code>hy-image-lite</code> | tencent | - | - | Image generation | Text | Image |
 | Arrow 1.1<br><code>arrow-1-1</code> | vercel | <span title="131,072">128K</span> | <span title="131,072">128K</span> | Image generation | Text | Image |
-| Muse Image 1.0<br><code>muse-image-1-0</code> | vercel | - | - | Image recognition, Image generation, File input | Text, Image | Image |
 | Vidu Q1<br><code>viduq1</code> | vidu | - | - | Image generation | Text | Image |
 | Vidu Q2<br><code>viduq2</code> | vidu | - | - | Image generation | Text | Image |
 | Grok Imagine Image<br><code>grok-imagine-image</code> | xai | <span title="16,000">16K</span> | - | Image recognition, Image generation, File input | Text, Image | Image |

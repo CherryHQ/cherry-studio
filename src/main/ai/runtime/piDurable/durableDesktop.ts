@@ -7,6 +7,7 @@ import { listBuiltinToolPolicies } from '@main/ai/toolApproval/builtinToolPolicy
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { getPathFromEnvironment, getShellEnv } from '@main/utils/shellEnv'
 import { normalizePiDisabledToolId } from '@shared/ai/piBuiltinTools'
+import { isUniqueModelId } from '@shared/data/types/model'
 
 import { buildAgentMcpServers, warmAgentMcpToolCatalogs } from '../agentMcpServers'
 import { prepareAgentSessionWorkspaceDirectory } from '../agentSessionWorkspace'
@@ -22,8 +23,10 @@ import { withDurableShellTimeout } from './durableShellTimeout'
 export async function prepareDurableDesktop(
   input: AgentRuntimeConnectInput,
   emit: (event: AgentRuntimeEvent) => void,
-  namespace?: string
+  root?: { contextId: string; namespace: string }
 ) {
+  const namespace = root?.namespace
+  if (!isUniqueModelId(input.modelId)) throw new Error('Provider model required')
   const discovery = await capturePiConnectionSnapshot(
     input.sessionId,
     input.agentId,
@@ -157,17 +160,19 @@ export async function prepareDurableDesktop(
         workspacePath: cwd,
         agentDataPath,
         emit,
-        getInteractionState: () => application.get('AgentSessionRuntimeService').getInteractionState(input.sessionId),
+        getInteractionState: () =>
+          application.get('AgentSessionRuntimeService').getInteractionState(input.sessionId, root?.contextId),
         getPermissionMode: () => permissionMode,
         builtinRole: agent.configuration?.builtin_role,
         isDisabled,
-        additionalReadOnlyRoots: [...snapshot.additionalSkillPaths, application.getPath('feature.agents.outputs')],
+        additionalReadOnlyRoots: [...prompt.skillPaths, application.getPath('feature.agents.outputs')],
         autoApprovedTools: policies('auto'),
         approvalRequiredTools: policies('required'),
         nonBypassableApprovalTools: policies('required', true),
         delegationTools: policies('delegation')
       },
       async reconcile(next: AgentRuntimeConnectInput, active: boolean) {
+        if (!isUniqueModelId(next.modelId)) throw new Error('Provider model required')
         const current = await capturePiConnectionSnapshot(
           next.sessionId,
           next.agentId,

@@ -40,7 +40,7 @@ export const IconTooltip = ({
     />
   )
   const triggerClassName =
-    'inline-flex shrink-0 items-center justify-center rounded-sm border-0 bg-transparent p-0 outline-none focus-visible:bg-accent'
+    'inline-flex shrink-0 items-center justify-center rounded-sm border-0 bg-transparent p-0 focus-visible:bg-accent'
 
   return (
     <Tooltip content={content} {...tooltipProps} asChild>

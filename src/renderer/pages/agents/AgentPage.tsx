@@ -488,7 +488,7 @@ const AgentPage = () => {
 
   const resolveEmptySession = useCallback(
     async (agentId: string, defaults: CreateAgentSessionDefaults = {}): Promise<AgentSessionEntity> => {
-      const workspaceSource = await resolveCreateWorkspaceSource(defaults, visibleSession)
+      const workspaceSource = await resolveCreateWorkspaceSource({ ...defaults, agentId }, visibleSession)
       const result = await reuseOrCreateSession(agentId, workspaceSource)
 
       closeConversationTabs('agents', result.deletedDuplicateSessionIds)

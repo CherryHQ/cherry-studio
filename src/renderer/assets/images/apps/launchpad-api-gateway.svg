@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 56 56">
+  <style>
+    @media (prefers-color-scheme: dark) { .icon-background { fill: #21382c; } }
+  </style>
+  <defs>
+    <linearGradient id="signal" x1="14" y1="13" x2="41" y2="33" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#71dd96"/>
+      <stop offset="1" stop-color="#2cb56b"/>
+    </linearGradient>
+    <linearGradient id="antenna" x1="24" y1="20" x2="32" y2="43" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#59d488"/>
+      <stop offset="1" stop-color="#168754"/>
+    </linearGradient>
+  </defs>
+  <path class="icon-background" fill="#e8f8ed" d="M0 0h56v56H0z"/>
+  <path d="M16 14a16 16 0 0 0 0 23m24-23a16 16 0 0 1 0 23M21 19a9 9 0 0 0 0 13m14-13a9 9 0 0 1 0 13" fill="none" stroke="url(#signal)" stroke-width="3.3" stroke-linecap="round"/>
+  <path fill="url(#antenna)" d="M32.5 25.5a4.5 4.5 0 1 0-6.75 3.9v11.35a2.25 2.25 0 0 0 4.5 0V29.4a4.5 4.5 0 0 0 2.25-3.9z"/>
+</svg>

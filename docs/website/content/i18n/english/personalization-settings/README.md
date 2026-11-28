@@ -54,7 +54,7 @@ Controls how AI replies appear in the chat area:
 | --- | --- |
 | **Wide layout** | Lets message content fill a wider area |
 | **Use serif font** | Switches body text to a serif font, which is more comfortable for long reads |
-| **Auto-collapse thinking content** | For reasoning models, collapses the thinking process automatically once it's done |
+| **Auto-collapse thinking content** | Keeps reasoning collapsed by default from the start and shows completed segments one at a time in the header. Click the header to expand the full reasoning |
 | **Show message outline** | Generates a clickable outline for longer replies |
 | **Message style** | Switch between **Bubble** and **Plain** styles |
 | **Multi-model answer style** | Layout when comparing multiple models, such as **Horizontal** |

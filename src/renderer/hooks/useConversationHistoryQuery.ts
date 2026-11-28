@@ -14,7 +14,10 @@ const CONVERSATION_HISTORY_RETENTION = {
   releaseDelayMs: 1_000
 } as const
 
-type ConversationHistoryPath = '/topics/:topicId/messages' | '/agent-sessions/:sessionId/messages'
+type ConversationHistoryPath =
+  | '/agent-sessions/:sessionId/children/:toolCallId/history'
+  | '/topics/:topicId/messages'
+  | '/agent-sessions/:sessionId/messages'
 
 const conversationHistoryRetentionMiddleware = createInfiniteQueryRetentionMiddleware(CONVERSATION_HISTORY_RETENTION)
 

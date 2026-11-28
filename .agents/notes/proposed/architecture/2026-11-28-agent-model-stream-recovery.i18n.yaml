@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/architecture/2026-11-28-agent-model-stream-recovery.md
+2026-11-28-agent-model-stream-recovery.md: 23da95e7f1ae786db61d03bed2e45efad7e0943a
+2026-11-28-agent-model-stream-recovery.zh.md: 8720c7d887c627652d40c01ceec46c6e43e704f5
