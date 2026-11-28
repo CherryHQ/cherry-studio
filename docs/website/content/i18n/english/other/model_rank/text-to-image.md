@@ -4,7 +4,7 @@ This page shows the top 30 models on the [Arena AI](https://arena.ai/leaderboard
 
 This leaderboard measures how well text-to-image models turn a text prompt into an image.
 
-> **Data updated**: 2026-11-27 17:58:27 UTC / 2026-11-28 01:58:27 CST (Beijing time)
+> **Data updated**: 2026-11-28 16:44:09 UTC / 2026-11-29 00:44:09 CST (Beijing time)
 
 {% hint style="info" %}
 A leaderboard reflects one particular evaluation and the preferences of its voters, so a high rank does not mean a model will do better on your tasks. Weigh price, speed, context, tool calling, privacy and regional availability as well.
