@@ -1,6 +1,8 @@
 import path from 'node:path'
+import { isDeepStrictEqual } from 'node:util'
 
-import { and, eq, isNull, sql } from 'drizzle-orm'
+import { and, eq, isNotNull, isNull, sql } from 'drizzle-orm'
+import { v4 as uuid } from 'uuid'
 import * as z from 'zod'
 
 import { application } from '@application'
@@ -13,7 +15,8 @@ import { agentSessionTable as sessions } from '@data/db/schemas/agentSession'
 import {
   agentSessionContextTable as contexts,
   type AgentSessionContextRow,
-  type AgentSessionCheckpoints
+  type AgentSessionCheckpoints,
+  type ClaudeCodeReplayEntry
 } from '@data/db/schemas/agentSessionContext'
 import type { DbOrTx } from '@data/db/types'
 
@@ -21,6 +24,7 @@ import { ensureAgentSessionRootTx, getAgentSessionHead } from './agentSessionMes
 import { agentSessionService } from './AgentSessionService'
 
 const locatorSchema = z.discriminatedUnion('kind', [
+  z.object({ version: z.literal(1), kind: z.literal('local') }),
   z.object({ version: z.literal(1), kind: z.literal('pi') }),
   z.object({
     version: z.literal(1),
@@ -36,6 +40,51 @@ export interface RootProjectionCheckpoint {
 }
 
 class AgentSessionContextService {
+  private claudeCodeReplayContext(tx: DbOrTx, sessionId: string) {
+    return tx
+      .select({ id: contexts.id, checkpoint: contexts.checkpointMapping })
+      .from(contexts)
+      .innerJoin(backends, eq(backends.id, contexts.backendId))
+      .where(
+        and(
+          eq(contexts.sessionId, sessionId),
+          isNull(contexts.parentContextId),
+          sql`json_extract(${backends.locator}, '$.kind') = 'claude-code'`
+        )
+      )
+      .orderBy(
+        sql`json_type(${contexts.checkpointMapping}, '$.claudeCodeReplay') IS NULL`,
+        contexts.createdAt,
+        contexts.id
+      )
+      .limit(1)
+      .get()
+  }
+
+  readClaudeCodeReplay(sessionId: string) {
+    return this.claudeCodeReplayContext(application.get('DbService').getDb(), sessionId)?.checkpoint?.claudeCodeReplay
+  }
+
+  saveClaudeCodeReplay(
+    sessionId: string,
+    states: ReadonlyArray<[string, Exclude<ClaudeCodeReplayEntry, 'ambiguous'>]>
+  ): void {
+    application.get('DbService').withWriteTx((tx) => {
+      const context = this.claudeCodeReplayContext(tx, sessionId)
+      if (!context) return
+      const claudeCodeReplay = { ...context.checkpoint?.claudeCodeReplay }
+      for (const [key, state] of states) {
+        // A repeated block with different state has no unambiguous origin.
+        claudeCodeReplay[key] =
+          !Object.hasOwn(claudeCodeReplay, key) || isDeepStrictEqual(claudeCodeReplay[key], state) ? state : 'ambiguous'
+      }
+      tx.update(contexts)
+        .set({ checkpointMapping: { ...context.checkpoint, claudeCodeReplay } })
+        .where(eq(contexts.id, context.id))
+        .run()
+    })
+  }
+
   removedRootSourceIds(contextId: string): string[] {
     const row = application
       .get('DbService')
@@ -116,6 +165,26 @@ class AgentSessionContextService {
     return rows.length === 1 ? rows[0].context : undefined
   }
 
+  localRootForThread(sessionId: string, providerId: string, nativeThreadId: string) {
+    return application
+      .get('DbService')
+      .getDb()
+      .select({ context: contexts })
+      .from(contexts)
+      .innerJoin(backends, eq(backends.id, contexts.backendId))
+      .innerJoin(sessions, eq(sessions.id, contexts.sessionId))
+      .where(
+        and(
+          eq(contexts.sessionId, sessionId),
+          eq(backends.localProviderId, providerId),
+          eq(contexts.nativeThreadId, nativeThreadId),
+          isNull(contexts.parentContextId),
+          isNull(sessions.deletedAt)
+        )
+      )
+      .get()?.context
+  }
+
   roots(backendId: string): AgentSessionContextRow[] {
     return application
       .get('DbService')
@@ -123,7 +192,14 @@ class AgentSessionContextService {
       .select({ context: contexts })
       .from(contexts)
       .innerJoin(sessions, eq(sessions.id, contexts.sessionId))
-      .where(and(eq(contexts.backendId, backendId), isNull(contexts.parentContextId), isNull(sessions.deletedAt)))
+      .where(
+        and(
+          eq(contexts.backendId, backendId),
+          isNull(contexts.parentContextId),
+          isNotNull(contexts.anchorMessageId),
+          isNull(sessions.deletedAt)
+        )
+      )
       .all()
       .map((row) => row.context)
   }
@@ -232,7 +308,9 @@ class AgentSessionContextService {
   reserveBranchTx(
     tx: DbOrTx,
     binding: Pick<AgentSessionContextRow, 'sessionId' | 'backendId' | 'anchorMessageId'> &
-      Partial<Pick<AgentSessionContextRow, 'id' | 'nativeThreadId' | 'checkpointMapping'>>
+      Partial<
+        Pick<AgentSessionContextRow, 'id' | 'nativeThreadId' | 'bindingState' | 'checkpointMapping' | 'localModel'>
+      >
   ): AgentSessionContextRow {
     this.backendTx(tx, binding.backendId)
     if (!binding.anchorMessageId) throw new Error('Branch anchor is required')
@@ -271,11 +349,40 @@ class AgentSessionContextService {
     return anchor && tx.select().from(contexts).where(eq(contexts.id, anchor.id)).get()
   }
 
+  detachBranchTx(tx: DbOrTx, contextId: string): void {
+    // Retain the context row for historical input and child archive references.
+    tx.update(contexts)
+      .set({ anchorMessageId: null, nativeThreadId: null, bindingState: 'pending', updatedAt: Date.now() })
+      .where(eq(contexts.id, contextId))
+      .run()
+  }
+
+  rebuildFileBranch(context: AgentSessionContextRow): AgentSessionContextRow {
+    return application.get('DbService').withWriteTx((tx) => {
+      const anchorMessageId = context.anchorMessageId!
+      const current = this.branchTx(tx, context.sessionId, anchorMessageId)
+      if (!current) throw new Error('The branch no longer exists')
+      if (current.id !== context.id) return current
+      this.detachBranchTx(tx, context.id)
+      return this.reserveBranchTx(tx, {
+        sessionId: context.sessionId,
+        backendId: context.backendId,
+        anchorMessageId,
+        nativeThreadId: uuid(),
+        checkpointMapping: { referenceHistory: true }
+      })
+    })
+  }
+
   publishBranchTx(tx: DbOrTx, sessionId: string, nativeId: string, checkpointMapping: Record<string, unknown>): void {
     const context = this.branchTx(tx, sessionId, getAgentSessionHead(tx, sessionId)!)
     if (context?.nativeThreadId !== nativeId) throw new Error('Native edit identity does not match the selected branch')
     tx.update(contexts)
-      .set({ nativeThreadId: nativeId, bindingState: 'bound', checkpointMapping: { fork: checkpointMapping } })
+      .set({
+        nativeThreadId: nativeId,
+        bindingState: 'bound',
+        checkpointMapping: { fork: checkpointMapping, claudeCodeReplay: context.checkpointMapping?.claudeCodeReplay }
+      })
       .where(eq(contexts.id, context.id))
       .run()
   }
@@ -294,8 +401,21 @@ class AgentSessionContextService {
     state: AgentRuntimeBackendRow['state']
   ): AgentRuntimeBackendRow {
     const parsed = locatorSchema.parse(locator)
+    if (parsed.kind === 'local') throw new Error('A local backend requires a provider')
     const existing = tx.select().from(backends).where(eq(backends.locator, parsed)).get()
     return existing ?? tx.insert(backends).values({ locator: parsed, state }).returning().get()
+  }
+
+  ensureLocalBackendTx(tx: DbOrTx, providerId: string): AgentRuntimeBackendRow {
+    const existing = tx.select().from(backends).where(eq(backends.localProviderId, providerId)).get()
+    return (
+      existing ??
+      tx
+        .insert(backends)
+        .values({ locator: { version: 1, kind: 'local' }, state: 'bound', localProviderId: providerId })
+        .returning()
+        .get()
+    )
   }
 
   backend(id: string): AgentRuntimeBackendRow {
@@ -323,6 +443,10 @@ class AgentSessionContextService {
     const row = tx.select().from(contexts).where(eq(contexts.id, id)).get()
     if (!row) throw new Error('Native context does not exist')
     return row
+  }
+
+  setLocalModelTx(tx: DbOrTx, contextId: string, localModel: NonNullable<AgentSessionContextRow['localModel']>) {
+    return tx.update(contexts).set({ localModel }).where(eq(contexts.id, contextId)).returning().get()
   }
 
   bindContext(id: string, nativeThreadId: string): AgentSessionContextRow {

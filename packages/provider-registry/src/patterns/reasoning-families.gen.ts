@@ -134,7 +134,6 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   // bailing
   { pattern: 'ring-(?:1t|mini|flash)' },
   { pattern: '^ling-3[.-]0-flash' },
-  { pattern: '^inkling' },
   // bytedance
   {
     pattern: 'doubao-seed-1-6-(?:lite-)?251015|doubao-seed-2[.-]\\d|doubao-seed-1[.-]8',
@@ -156,6 +155,9 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   },
   { pattern: 'seed-oss' },
   { pattern: '^seed-[12][.-]\\d' },
+  // cognition
+  { pattern: '^swe-2(?:-flash)?$', effort: ['medium', 'high', 'max'] },
+  { pattern: '^swe-2[.-]1(?:-ultrafast)?$', effort: ['low', 'medium', 'high', 'xhigh', 'max'] },
   // cohere
   { pattern: '^command-a-plus' },
   { pattern: '^north-mini-code' },
@@ -267,6 +269,13 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   // perplexity
   { pattern: '^sonar-reasoning|^sonar-deep-research', effort: ['low', 'medium', 'high'] },
   { pattern: 'sonar-deep-research' },
+  // recursive
+  { pattern: '^flint-v1[.-]0$', effort: ['low', 'medium', 'high'] },
+  // reflection
+  { pattern: '^beam$', effort: ['low', 'medium', 'high', 'xhigh', 'max'] },
+  // sakana
+  { pattern: '^fugu-(?:max|ultra(?:-v2)?)$', effort: ['high', 'xhigh', 'max'] },
+  { pattern: '^namazu$', effort: ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] },
   // stepfun
   { pattern: '^step-5-preview$', effort: ['low', 'medium', 'high'] },
   { pattern: 'step-3' },
@@ -277,6 +286,8 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   { pattern: 'hunyuan-t1' },
   { pattern: 'hunyuan-a13b' },
   { pattern: '^hy[34]' },
+  // thinkingmachines
+  { pattern: '^inkling(?:-|$)' },
   // upstage
   { pattern: '^solar-pro-?[2-9]' },
   // vercel

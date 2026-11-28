@@ -1,9 +1,35 @@
 import type { LanguageModelMiddleware } from 'ai'
 
 import { definePlugin } from '@cherrystudio/ai-core'
-import { hasAnthropicThinkingCredential } from '@main/ai/messages/anthropicThinking'
+import { hasAnthropicThinkingCredential, usesAnthropicMessagesSdk } from '@main/ai/messages/anthropicThinking'
+import { ENDPOINT_TYPE } from '@shared/data/types/model'
 
+import { getReplayEndpoint } from '../../../../provider/replayRoute'
 import type { RequestFeature } from '../feature'
+import { createProviderStateReplayMiddleware } from './providerStateReplay'
+
+export const anthropicThinkingReplayFeature: RequestFeature = {
+  name: 'anthropic-thinking-replay',
+  applies: (scope) =>
+    scope.request.contextOwner !== 'caller' &&
+    (getReplayEndpoint(scope.endpointType, scope.sdkConfig) === ENDPOINT_TYPE.ANTHROPIC_MESSAGES ||
+      usesAnthropicMessagesSdk(scope.sdkConfig.providerId, scope)),
+  contributeModelAdapters: ({ replayRouteId }) => [
+    definePlugin({
+      name: 'anthropic-thinking-replay',
+      enforce: 'pre',
+      configureContext: (context) => {
+        context.middlewares ??= []
+        context.middlewares.push(
+          createProviderStateReplayMiddleware({
+            routeId: replayRouteId,
+            hasState: hasAnthropicThinkingCredential
+          })
+        )
+      }
+    })
+  ]
+}
 
 const preservedThinkingModel = /^claude-(?:(?:opus|sonnet|haiku)-5-5|(?:fable|mythos)-5-[12])(?:-\d{8})?$/
 

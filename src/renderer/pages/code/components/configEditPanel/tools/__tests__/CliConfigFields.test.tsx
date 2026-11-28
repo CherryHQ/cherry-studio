@@ -3,7 +3,6 @@ import type { ButtonHTMLAttributes, ReactElement, ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
 import { CodexConfigFields } from '../CodexConfigFields'
-import { GeminiConfigFields } from '../GeminiConfigFields'
 import { KimiConfigFields } from '../KimiConfigFields'
 import { OpenCodeConfigFields } from '../OpenCodeConfigFields'
 import { QwenConfigFields } from '../QwenConfigFields'
@@ -84,6 +83,80 @@ vi.mock('@cherrystudio/ui', async () => {
 })
 
 describe('CLI config provider fields', () => {
+  it('renders only supported Codex toggles', () => {
+    const { container } = render(<CodexConfigFields config={{}} onChange={vi.fn()} />)
+
+    expect(screen.getByText('code.adv.codex.goal_mode')).toBeInTheDocument()
+    expect(screen.getByText('code.adv.codex.remote_compaction')).toBeInTheDocument()
+    expect(screen.getByText('code.adv.codex.disable_response_storage')).toBeInTheDocument()
+    expect(screen.getByText('code.adv.permission_mode')).toBeInTheDocument()
+    expect(screen.getByText('code.adv.permission_modes.full_access_high_risk')).toBeInTheDocument()
+    expect(screen.getByText('code.adv.reasoning_effort')).toBeInTheDocument()
+    expect(screen.getByText('code.adv.reasoning_efforts.xhigh')).toBeInTheDocument()
+    expect(screen.queryByText('code.adv.codex.reasoning_effort_hint')).not.toBeInTheDocument()
+    expect(screen.queryByText('code.adv.codex.model_verbosity_hint')).not.toBeInTheDocument()
+
+    const advanced = render(<CodexConfigFields config={{}} onChange={vi.fn()} section="advanced" />)
+    expect(advanced.container).toBeEmptyDOMElement()
+    advanced.unmount()
+    expect(container).not.toBeEmptyDOMElement()
+  })
+
+  it('renders only supported Open Code toggles', () => {
+    const { container } = render(<OpenCodeConfigFields config={{}} onChange={vi.fn()} />)
+
+    expect(screen.getByText('code.adv.opencode.enable_reasoning')).toBeInTheDocument()
+    expect(screen.getByText('code.adv.opencode.auto_compact')).toBeInTheDocument()
+    expect(screen.getByText('code.adv.permission_mode')).toBeInTheDocument()
+    expect(screen.getByText('code.adv.permission_modes.default_allow_all')).toBeInTheDocument()
+    expect(screen.queryByText('code.adv.opencode.max_turns_hint')).not.toBeInTheDocument()
+    expect(screen.queryByText('code.adv.opencode.reasoning_effort_hint')).not.toBeInTheDocument()
+    expect(screen.queryByText('code.adv.opencode.thinking_budget_hint')).not.toBeInTheDocument()
+
+    const advanced = render(<OpenCodeConfigFields config={{}} onChange={vi.fn()} section="advanced" />)
+    expect(advanced.container).toBeEmptyDOMElement()
+    advanced.unmount()
+    expect(container).not.toBeEmptyDOMElement()
+  })
+
+  it('renders only supported Qwen toggles', () => {
+    const { container } = render(<QwenConfigFields config={{}} onChange={vi.fn()} />)
+
+    expect(screen.getByText('code.adv.qwen.vim_mode')).toBeInTheDocument()
+    expect(screen.getByText('code.adv.qwen.hide_banner')).toBeInTheDocument()
+    expect(screen.getByText('code.adv.qwen.disable_usage_stats')).toBeInTheDocument()
+    expect(screen.getByText('code.adv.qwen.disable_auto_update')).toBeInTheDocument()
+    expect(screen.getByText('code.adv.qwen.classify_all_shell')).toBeInTheDocument()
+    expect(screen.getByText('code.adv.permission_mode')).toBeInTheDocument()
+    expect(screen.getByText('code.adv.permission_modes.yolo_high_risk')).toBeInTheDocument()
+    expect(screen.queryByText('code.adv.qwen.approval_mode_hint')).not.toBeInTheDocument()
+    expect(screen.queryByText('code.adv.qwen.auto_mode_allow_hint')).not.toBeInTheDocument()
+
+    const advanced = render(<QwenConfigFields config={{}} onChange={vi.fn()} section="advanced" />)
+    expect(advanced.container).toBeEmptyDOMElement()
+    advanced.unmount()
+    expect(container).not.toBeEmptyDOMElement()
+  })
+
+  it('renders only supported Kimi toggles', () => {
+    const { container } = render(<KimiConfigFields config={{}} onChange={vi.fn()} />)
+
+    expect(screen.getByText('code.adv.kimi.plan_mode')).toBeInTheDocument()
+    expect(screen.getByText('code.adv.kimi.disable_telemetry')).toBeInTheDocument()
+    expect(screen.getByText('code.adv.kimi.thinking')).toBeInTheDocument()
+    expect(screen.getByText('code.adv.kimi.micro_compaction')).toBeInTheDocument()
+    expect(screen.getByText('code.adv.kimi.keep_background_tasks')).toBeInTheDocument()
+    expect(screen.getByText('code.adv.permission_mode')).toBeInTheDocument()
+    expect(screen.getByText('code.adv.permission_modes.yolo_high_risk')).toBeInTheDocument()
+    expect(screen.queryByText('code.adv.kimi.permission_mode_hint')).not.toBeInTheDocument()
+    expect(screen.queryByText('code.adv.kimi.max_steps_hint')).not.toBeInTheDocument()
+
+    const advanced = render(<KimiConfigFields config={{}} onChange={vi.fn()} section="advanced" />)
+    expect(advanced.container).toBeEmptyDOMElement()
+    advanced.unmount()
+    expect(container).not.toBeEmptyDOMElement()
+  })
+
   it('writes Codex permission mode selections', () => {
     const onChange = vi.fn()
     render(<CodexConfigFields config={{}} onChange={onChange} />)
@@ -111,13 +184,17 @@ describe('CLI config provider fields', () => {
     expect(onChange).toHaveBeenCalledWith({})
   })
 
-  it('writes Gemini approval mode selections', () => {
+  it('shows OpenCode default compaction as enabled and explicitly saves false when switched off', () => {
     const onChange = vi.fn()
-    render(<GeminiConfigFields config={{}} onChange={onChange} />)
-
-    fireEvent.click(screen.getByText('code.adv.permission_modes.auto_edit'))
-
-    expect(onChange).toHaveBeenCalledWith({ general: { defaultApprovalMode: 'auto_edit' } })
+    const { rerender } = render(<OpenCodeConfigFields config={{}} onChange={onChange} />)
+    const toggle = screen.getByRole('button', { name: 'code.adv.opencode.auto_compact' })
+    expect(toggle).toHaveAttribute('aria-pressed', 'true')
+    fireEvent.click(toggle)
+    expect(onChange).toHaveBeenLastCalledWith({ autoCompact: false })
+    rerender(<OpenCodeConfigFields config={{ autoCompact: false }} onChange={onChange} />)
+    expect(toggle).toHaveAttribute('aria-pressed', 'false')
+    fireEvent.click(toggle)
+    expect(onChange).toHaveBeenLastCalledWith({ autoCompact: true })
   })
 
   it('writes Qwen approval mode selections', () => {

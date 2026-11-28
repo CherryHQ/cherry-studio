@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "2f6269f0-e120-452c-b738-8f8b92d06c94",
-  "prevId": "b62b716a-ea3f-4fdd-b754-965be6c21926",
+  "id": "f60834a2-ff4a-49c4-9be0-c2647b1da2f7",
+  "prevId": "bcf56f72-417f-46a1-9729-f108654f9c39",
   "tables": {
     "agent": {
       "name": "agent",
@@ -628,8 +628,88 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
-    "agent_runtime_backend": {
-      "name": "agent_runtime_backend",
+    "agent_provider_binding": {
+      "name": "agent_provider_binding",
+      "columns": {
+        "agent_id": {
+          "name": "agent_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "provider_id": {
+          "name": "provider_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "enabled": {
+          "name": "enabled",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "browser_control": {
+          "name": "browser_control",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "model": {
+          "name": "model",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "agent_provider_binding_provider_idx": {
+          "name": "agent_provider_binding_provider_idx",
+          "columns": [
+            "provider_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "agent_provider_binding_agent_id_agent_id_fk": {
+          "name": "agent_provider_binding_agent_id_agent_id_fk",
+          "tableFrom": "agent_provider_binding",
+          "tableTo": "agent",
+          "columnsFrom": [
+            "agent_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "agent_provider_binding_provider_id_agent_provider_id_fk": {
+          "name": "agent_provider_binding_provider_id_agent_provider_id_fk",
+          "tableFrom": "agent_provider_binding",
+          "tableTo": "agent_provider",
+          "columnsFrom": [
+            "provider_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "agent_provider": {
+      "name": "agent_provider",
       "columns": {
         "id": {
           "name": "id",
@@ -638,18 +718,46 @@
           "notNull": true,
           "autoincrement": false
         },
-        "locator": {
-          "name": "locator",
+        "preset_id": {
+          "name": "preset_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "autoincrement": false
         },
-        "state": {
-          "name": "state",
+        "executable": {
+          "name": "executable",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "args": {
+          "name": "args",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "env": {
+          "name": "env",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "encrypted_env": {
+          "name": "encrypted_env",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "account": {
+          "name": "account",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
           "autoincrement": false
         },
         "created_at": {
@@ -667,16 +775,111 @@
           "autoincrement": false
         }
       },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "agent_provider_launch_target_check": {
+          "name": "agent_provider_launch_target_check",
+          "value": "\"agent_provider\".\"preset_id\" IS NOT NULL OR \"agent_provider\".\"executable\" IS NOT NULL"
+        }
+      }
+    },
+    "agent_runtime_backend": {
+      "name": "agent_runtime_backend",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "locator": {
+          "name": "locator",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "local_provider_id": {
+          "name": "local_provider_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "state": {
+          "name": "state",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "needs_recovery_check": {
+          "name": "needs_recovery_check",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
       "indexes": {
+        "agent_runtime_backend_recovery_idx": {
+          "name": "agent_runtime_backend_recovery_idx",
+          "columns": [
+            "id"
+          ],
+          "isUnique": false,
+          "where": "\"agent_runtime_backend\".\"needs_recovery_check\" = 1"
+        },
         "agent_runtime_backend_locator_uniq": {
           "name": "agent_runtime_backend_locator_uniq",
           "columns": [
             "locator"
           ],
+          "isUnique": true,
+          "where": "json_extract(\"agent_runtime_backend\".\"locator\", '$.kind') <> 'local'"
+        },
+        "agent_runtime_backend_provider_uniq": {
+          "name": "agent_runtime_backend_provider_uniq",
+          "columns": [
+            "local_provider_id"
+          ],
           "isUnique": true
         }
       },
-      "foreignKeys": {},
+      "foreignKeys": {
+        "agent_runtime_backend_local_provider_id_agent_provider_id_fk": {
+          "name": "agent_runtime_backend_local_provider_id_agent_provider_id_fk",
+          "tableFrom": "agent_runtime_backend",
+          "tableTo": "agent_provider",
+          "columnsFrom": [
+            "local_provider_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {
@@ -783,6 +986,14 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
+        },
+        "last_pos": {
+          "name": "last_pos",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
         },
         "order_key": {
           "name": "order_key",
@@ -986,6 +1197,13 @@
           "notNull": false,
           "autoincrement": false
         },
+        "local_model": {
+          "name": "local_model",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "binding_state": {
           "name": "binding_state",
           "type": "text",
@@ -1111,6 +1329,130 @@
         }
       }
     },
+    "agent_session_message_part": {
+      "name": "agent_session_message_part",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "message_id": {
+          "name": "message_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "session_id": {
+          "name": "session_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "seq": {
+          "name": "seq",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "type": {
+          "name": "type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "payload": {
+          "name": "payload",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "pos": {
+          "name": "pos",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "agent_session_message_part_message_seq_uniq": {
+          "name": "agent_session_message_part_message_seq_uniq",
+          "columns": [
+            "message_id",
+            "seq"
+          ],
+          "isUnique": true
+        },
+        "agent_session_message_part_session_idx": {
+          "name": "agent_session_message_part_session_idx",
+          "columns": [
+            "session_id"
+          ],
+          "isUnique": false
+        },
+        "agent_session_message_part_pos_uniq": {
+          "name": "agent_session_message_part_pos_uniq",
+          "columns": [
+            "session_id",
+            "pos"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {
+        "agent_session_message_part_message_id_agent_session_message_id_fk": {
+          "name": "agent_session_message_part_message_id_agent_session_message_id_fk",
+          "tableFrom": "agent_session_message_part",
+          "tableTo": "agent_session_message",
+          "columnsFrom": [
+            "message_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "agent_session_message_part_session_id_agent_session_id_fk": {
+          "name": "agent_session_message_part_session_id_agent_session_id_fk",
+          "tableFrom": "agent_session_message_part",
+          "tableTo": "agent_session",
+          "columnsFrom": [
+            "session_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
     "agent_session_message": {
       "name": "agent_session_message",
       "columns": {
@@ -1209,6 +1551,13 @@
         "reply_id": {
           "name": "reply_id",
           "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "pos": {
+          "name": "pos",
+          "type": "integer",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
@@ -1319,6 +1668,23 @@
             "\"id\" asc"
           ],
           "isUnique": false
+        },
+        "agent_session_message_reply_idx": {
+          "name": "agent_session_message_reply_idx",
+          "columns": [
+            "session_id",
+            "reply_id"
+          ],
+          "isUnique": false,
+          "where": "\"agent_session_message\".\"reply_id\" IS NOT NULL"
+        },
+        "agent_session_message_pending_reply_idx": {
+          "name": "agent_session_message_pending_reply_idx",
+          "columns": [
+            "session_id"
+          ],
+          "isUnique": false,
+          "where": "\"agent_session_message\".\"role\" = 'assistant' AND \"agent_session_message\".\"status\" = 'pending'"
         },
         "agent_session_message_status_idx": {
           "name": "agent_session_message_status_idx",

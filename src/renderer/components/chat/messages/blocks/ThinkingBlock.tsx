@@ -1,4 +1,4 @@
-import { type CSSProperties, memo, useEffect, useId, useMemo, useRef } from 'react'
+import { type CSSProperties, memo, useCallback, useEffect, useId, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import BeatLoader from 'react-spinners/BeatLoader'
 
@@ -102,6 +102,10 @@ const ThinkingBlock: React.FC<Props> = ({
   )
   const hasContent = !!content
 
+  const toggleExpanded = useCallback(() => {
+    setIsExpanded((expanded) => !expanded)
+  }, [setIsExpanded])
+
   useEffect(() => {
     const panel = contentRef.current
     if (!panel || !isExpanded || !isStreaming) return
@@ -137,7 +141,9 @@ const ThinkingBlock: React.FC<Props> = ({
   }, [thinkingPreviewScanResult])
 
   useEffect(() => {
-    if (previousThoughtAutoCollapse !== thoughtAutoCollapse) setIsExpanded(!thoughtAutoCollapse)
+    if (previousThoughtAutoCollapse !== thoughtAutoCollapse) {
+      setIsExpanded(!thoughtAutoCollapse)
+    }
     setPreviousThoughtAutoCollapse(thoughtAutoCollapse)
   }, [previousThoughtAutoCollapse, setIsExpanded, setPreviousThoughtAutoCollapse, thoughtAutoCollapse])
 
@@ -156,18 +162,17 @@ const ThinkingBlock: React.FC<Props> = ({
         aria-expanded={isExpanded}
         aria-controls={contentId}
         className="w-full rounded border-0 bg-transparent p-0 text-left focus-visible:bg-accent/50 focus-visible:outline-none"
-        onClick={() =>
-          withScrollAnchor(() => setIsExpanded((expanded) => !expanded), { enterReadingMode: !isExpanded })
-        }
+        onClick={() => withScrollAnchor(toggleExpanded, { enterReadingMode: !isExpanded })}
         onKeyDown={(e) => {
           if (e.target !== e.currentTarget) return
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault()
-            withScrollAnchor(() => setIsExpanded((expanded) => !expanded), { enterReadingMode: !isExpanded })
+            withScrollAnchor(toggleExpanded, { enterReadingMode: !isExpanded })
           }
         }}>
         <ThinkingEffect
           thinkingTimeText={<ThinkingTimeSeconds isThinking={isThinking} />}
+          isExpanded={isExpanded}
           trailing={
             isThinking ? (
               <>

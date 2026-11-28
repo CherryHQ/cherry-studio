@@ -28,6 +28,7 @@ import { agentSessionMessageService as messages } from '@data/services/AgentSess
 import { AgentSessionRuntimeService } from '@main/ai/agentSession/AgentSessionRuntimeService'
 import { savedChildView } from '@main/ai/agentSession/childArchive'
 import { ChildThreadProjection } from '@main/ai/agentSession/ChildThreadProjection'
+import { bindNativeInput } from '@main/ai/agentSession/nativeSubmission'
 import { readSessionHistory } from '@main/ai/agentSession/sessionHistory'
 import { ThreadMessageProjection } from '@main/ai/agentSession/ThreadMessageProjection'
 import { prepareClaudeBranch, reserveClaudeBranchTx } from '@main/ai/runtime/claudeCode/claudeContext'
@@ -332,7 +333,14 @@ it('joins native steer to the shared answer while keeping foreground child histo
     })
   expect(refresh).not.toHaveBeenCalled()
   const second = test.input('Use the revised requirement')
-  expect(connection.redirect!({ ...second, systemReminder: true })).toBe(true)
+  bindNativeInput(test.sessionId, connection.contextId!, second.message)
+  await expect(
+    connection.threadInput!.steer!.submit({
+      inputId: runtimeId(second.message.id),
+      ...second,
+      systemReminder: true
+    })
+  ).resolves.toMatchObject({ status: 'acknowledged' })
   await expect
     .poll(() =>
       test.nativeInputs.some((state) => state.inputId === second.message.id && state.facts.includes('dispatch-started'))
@@ -399,12 +407,20 @@ it('accepts steer across native completion and closes the actual subprocess', as
   request.reply.finish()
   await test.wait('turn-complete')
   const second = test.input('Next')
-  expect(connection.redirect!(second)).toBe(true)
+  bindNativeInput(test.sessionId, connection.contextId!, second.message)
+  await expect(
+    connection.threadInput!.steer!.submit({
+      inputId: runtimeId(second.message.id),
+      ...second
+    })
+  ).resolves.toMatchObject({ status: 'acknowledged' })
   const next = await test.request()
   next.reply.block({ type: 'text', text: 'Second answer' })
   next.reply.finish()
   await expect.poll(() => test.events.filter((event) => event.type === 'turn-complete').length).toBe(2)
-  expect(test.events.filter((event) => event.type === 'steer-boundary')).toHaveLength(1)
+  expect(test.events.filter((event) => event.type === 'run-started')).toEqual([
+    expect.objectContaining({ inputIds: [second.message.id] })
+  ])
   await connection.closeForEdit!()
   expect(test.children.every((child) => child.exitCode !== null || child.signalCode !== null)).toBe(true)
   expect(test.events.filter((event) => event.type === 'error')).toEqual([])
@@ -818,7 +834,7 @@ it.each(['rejected', 'unsupported', 'unknown'] as const)(
     const connection = await test.connect()
     const user = test.input('not accepted')
     const handle = (connection as unknown as { handle: ClaudeThreadHandle }).handle
-    vi.spyOn(handle.claude, 'submit').mockResolvedValue({
+    vi.spyOn(handle.claude.input!.followUp!, 'submit').mockResolvedValue({
       status,
       inputId: runtimeId(user.message.id),
       error: { operation: 'submit', code: 'fixture', message: status }
@@ -872,6 +888,91 @@ it('creates a reserved empty Claude branch and reopens it after its first answer
   const continuation = await test.request()
   expect(JSON.stringify(continuation.body.messages)).toContain('Edited branch answer')
   continuation.reply.block({ type: 'text', text: 'Restored edited branch' })
+  continuation.reply.finish()
+  await test.wait('turn-complete')
+}, 30000)
+
+it.each(['missing archive', 'invalid token', 'missing binding'])(
+  'rebuilds Claude context from the selected product history after %s',
+  async (failure) => {
+    const test = await desktop()
+    const token = failure === 'invalid token' ? 'invalid-session-id' : randomUUID()
+    const previous = test.input('Remember the blue notebook')
+    const original = prepareClaudeBranch(test.sessionId, test.configDir, token, previous.message.id)
+    if (failure === 'missing archive') contexts.bindContext(original.id, token)
+    if (failure === 'missing binding') dbh.db.transaction((tx) => contexts.detachBranchTx(tx, original.id))
+    const answer = messages.saveMessage({
+      sessionId: test.sessionId,
+      runtimeResumeToken: token,
+      message: { role: 'assistant', status: 'success', data: { parts: [{ type: 'text', text: 'Notebook saved' }] } }
+    })
+    const request = await ports.build()
+    ports.build.mockImplementation(async (_sessionId: string, resume?: string | null) => ({
+      ...request,
+      options: { ...request.options, resume: resume ?? undefined }
+    }))
+    const next = test.input('What should you remember?')
+    if (failure === 'missing archive') {
+      dbh.db.transaction((tx) => {
+        messages.bindInputContextTx(tx, test.sessionId, next.message.id, original.id)
+        tx.update(sessionMessagesTable)
+          .set({ nativeInputId: 'stale-input' })
+          .where(eq(sessionMessagesTable.id, next.message.id))
+          .run()
+      })
+    }
+    const connection = await test.connect(undefined, answer.id)
+    expect(connection.contextId).not.toBe(original.id)
+    await connection.send({
+      ...next,
+      context: await readSessionHistory(test.sessionId, next.message.id, connection.contextId)
+    })
+    const response = await test.request()
+    expect(JSON.stringify(response.body.messages)).toContain('Remember the blue notebook')
+    expect(JSON.stringify(response.body.messages)).toContain('Notebook saved')
+    response.reply.block({ type: 'text', text: 'Context recovered' })
+    response.reply.finish()
+    await test.wait('turn-complete')
+    expect(messages.inputBinding(test.sessionId, next.message.id)).toMatchObject({ contextId: connection.contextId })
+    expect(messages.inputBinding(test.sessionId, next.message.id)?.nativeInputId).not.toBe('stale-input')
+    await connection.closeForEdit!()
+    const reopened = await test.connect(undefined, answer.id)
+    expect(reopened.contextId).toBe(connection.contextId)
+    const followup = test.input('Continue again')
+    expect(await readSessionHistory(test.sessionId, followup.message.id, reopened.contextId)).toBeUndefined()
+  },
+  30000
+)
+
+it('reuses the original Claude archive with a stale hint or missing product binding', async () => {
+  const test = await desktop()
+  const first = await test.connect()
+  await first.send(test.input('Remember the blue notebook'))
+  const response = await test.request()
+  response.reply.block({ type: 'text', text: 'Notebook saved' })
+  response.reply.finish()
+  await test.wait('turn-complete')
+  await first.closeForEdit!()
+  const original = contexts.context(first.contextId!)
+  const answer = messages.saveMessage({
+    sessionId: test.sessionId,
+    runtimeResumeToken: original.nativeThreadId!,
+    message: { role: 'assistant', status: 'success', data: { parts: [{ type: 'text', text: 'Notebook saved' }] } }
+  })
+  const reopened = await test.connect('stale-token', answer.id)
+  expect(reopened.contextId).toBe(original.id)
+  await reopened.closeForEdit!()
+  dbh.db.transaction((tx) => contexts.detachBranchTx(tx, original.id))
+
+  const restored = await test.connect('stale-token', answer.id)
+  expect(contexts.context(restored.contextId!).nativeThreadId).toBe(original.nativeThreadId)
+  const next = test.input('What should you remember?')
+  expect(await readSessionHistory(test.sessionId, next.message.id, restored.contextId)).toBeUndefined()
+  test.events.length = 0
+  await restored.send(next)
+  const continuation = await test.request()
+  expect(JSON.stringify(continuation.body.messages)).toContain('Remember the blue notebook')
+  continuation.reply.block({ type: 'text', text: 'Context kept' })
   continuation.reply.finish()
   await test.wait('turn-complete')
 }, 30000)

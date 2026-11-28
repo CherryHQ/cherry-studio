@@ -1,6 +1,20 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { coerceSearchRole, MessageDataSchema, MessageSnapshotSchema, TOPIC_MESSAGE_SEARCH_ROLES } from '../message'
+import {
+  coerceSearchRole,
+  MessageDataSchema,
+  MessageIdSchema,
+  MessageSnapshotSchema,
+  TOPIC_MESSAGE_SEARCH_ROLES
+} from '../message'
+
+it('accepts legacy and native message IDs and rejects non-UUID strings', () => {
+  const legacyId = '550e8400-e29b-41d4-a716-446655440000'
+  const nativeId = '019746de-59a3-7f00-8000-000000000000'
+  expect(MessageIdSchema.parse(legacyId)).toBe(legacyId)
+  expect(MessageIdSchema.parse(nativeId)).toBe(nativeId)
+  expect(MessageIdSchema.safeParse('not-a-uuid').success).toBe(false)
+})
 
 describe('coerceSearchRole', () => {
   it('returns the role only when it is in the allowed search role set', () => {

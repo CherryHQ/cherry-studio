@@ -50,7 +50,6 @@ interface MessageSelectionController {
     | 'saveSelectedMessages'
     | 'exportSelectedMessages'
     | 'deleteSelectedMessages'
-    | 'deleteMessagesBefore'
   >
 }
 
@@ -155,6 +154,8 @@ export function useMessageSelectionController({
           (message) =>
             // Mirrors MessageFrame's isContextBoundary early return — no checkbox is rendered there.
             !message.isContextBoundary &&
+            message.presentation !== 'marker' &&
+            message.presentation !== 'interrupted' &&
             // Hidden fold-layout siblings of multi-model groups; remove if multi-select ever unhides them (PRD D6).
             !(message.role === 'assistant' && message.siblingsGroupId != null && message.isActiveBranch === false)
         )
@@ -341,9 +342,12 @@ export function useMessageSelectionController({
     [ensureSelection, exportMessages, t, toggleMultiSelectMode]
   )
 
-  const confirmAndDeleteMessages = useCallback(
-    async (requestedIds: readonly string[]) => {
+  const deleteSelectedMessages = useCallback(
+    async (messageIds?: readonly string[]) => {
+      const requestedIds = ensureSelection(messageIds)
+      if (!requestedIds) return
       const ids = [...requestedIds]
+
       if (!deleteMessage) {
         toast.error(t('message.delete.failed'))
         return
@@ -371,30 +375,7 @@ export function useMessageSelectionController({
         toggleMultiSelectMode(false)
       }
     },
-    [deleteMessage, isDeletePlanAllowed, t, toggleMultiSelectMode]
-  )
-
-  const deleteSelectedMessages = useCallback(
-    async (messageIds?: readonly string[]) => {
-      const ids = ensureSelection(messageIds)
-      if (!ids) return
-      await confirmAndDeleteMessages(ids)
-    },
-    [confirmAndDeleteMessages, ensureSelection]
-  )
-
-  const deleteMessagesBefore = useCallback(
-    async (messageId: string) => {
-      const ids = latestSelectableIdsRef.current
-      const index = ids.indexOf(messageId)
-      const olderIds = index === -1 ? [] : ids.slice(0, index)
-      if (olderIds.length === 0) {
-        toast.warning(t('chat.multiple.select.empty'))
-        return
-      }
-      await confirmAndDeleteMessages(olderIds)
-    },
-    [confirmAndDeleteMessages, t]
+    [deleteMessage, ensureSelection, isDeletePlanAllowed, t, toggleMultiSelectMode]
   )
 
   const selection = useMemo<MessageListSelectionState>(
@@ -419,14 +400,12 @@ export function useMessageSelectionController({
       copySelectedMessages,
       saveSelectedMessages: saveTextFile ? saveSelectedMessages : undefined,
       exportSelectedMessages: exportMessages ? exportSelectedMessages : undefined,
-      deleteSelectedMessages: deleteMessage && canDeleteSelection ? deleteSelectedMessages : undefined,
-      deleteMessagesBefore: deleteMessage ? deleteMessagesBefore : undefined
+      deleteSelectedMessages: deleteMessage && canDeleteSelection ? deleteSelectedMessages : undefined
     }),
     [
       canDeleteSelection,
       copySelectedMessages,
       deleteMessage,
-      deleteMessagesBefore,
       deleteSelectedMessages,
       exportSelectedMessages,
       exportMessages,

@@ -20,6 +20,9 @@ import { createUniqueModelId, type UniqueModelId } from '@shared/data/types/mode
 
 import { makeProvider } from '../../../__tests__/fixtures'
 import type * as RequestContextSettingsModule from '../../../contextBuild/resolveRequestContextSettings'
+import type * as AttachmentTextExtractionModule from '../../../messages/attachmentTextExtraction'
+import type * as AttachmentWorkerClientModule from '../../../messages/attachmentWorkerClient'
+import type * as ProviderEndpointModule from '../../../provider/endpoint'
 import type { RequestScope } from '../../../runtime/aiSdk/params/scope'
 import { ToolRegistry } from '../../../tools/adapters/aiSdk/registry'
 
@@ -63,9 +66,25 @@ vi.mock('@data/services/AssistantService', () => ({
 vi.mock('@main/data/services/ProviderService', () => ({
   providerService: { getByProviderId: mockGetProviderById }
 }))
-vi.mock('@main/ai/provider/endpoint', () => ({
+vi.mock('@main/ai/provider/endpoint', async (importOriginal) => ({
+  ...(await importOriginal<typeof ProviderEndpointModule>()),
   resolveEffectiveEndpoint: mockResolveEffectiveEndpoint
 }))
+
+vi.mock('../../../messages/attachmentTextExtraction', async (importOriginal) => ({
+  ...(await importOriginal<typeof AttachmentTextExtractionModule>()),
+  extractDocumentText: (entryId: string) => (entryId === 'long-text' ? 'replayed attachment words '.repeat(850) : null)
+}))
+
+vi.mock('../../../messages/attachmentWorkerClient', async (importOriginal) => {
+  const { allocateInlineCaps } = await import('../../../messages/attachmentInlineBudget')
+  const actual = await importOriginal<typeof AttachmentWorkerClientModule>()
+  return {
+    ...actual,
+    runAttachmentWorker: (type: string, input: { bodies: string[]; tokens: number }) =>
+      type === 'allocate' ? Promise.resolve(allocateInlineCaps(input.bodies, input.tokens)) : undefined
+  }
+})
 
 vi.mock('@data/services/FileEntryService', () => ({
   fileEntryService: { findById: mockFindFileEntryById }
@@ -116,7 +135,7 @@ vi.mock('@application', async () => {
       return { broadcastTopicError: vi.fn() }
     }
     if (name === 'FileManager') {
-      return { getPhysicalPath: (id: string) => `/blobs/${id}.txt` }
+      return { getPhysicalPath: (id: string) => `/blobs/${id}.txt`, getById: () => ({ ext: 'txt' }) }
     }
     return originalGet(name)
   })
@@ -209,7 +228,7 @@ function fakeMsg(
   }
 }
 
-/** Like fakeMsg but carries stats.contextTokens for anchor-based trigger tests. */
+/** Like fakeMsg but carries stats.contextTokens to simulate legacy context counts. */
 function fakeMsgWithContextTokens(
   id: string,
   role: 'user' | 'assistant',
@@ -319,6 +338,31 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
     expect(ids).toContain('u1')
     expect(ids).toContain('a1')
     expect(ids).toContain('u2')
+  })
+
+  it('counts inlined attachment text when deciding whether to fold the older history', async () => {
+    const attached = fakeMsg('u1', 'user', 'read the notes')
+    ;(attached.data as { parts: unknown[] }).parts.push({
+      type: 'file',
+      mediaType: 'text/plain',
+      url: 'file:///tmp/notes.txt',
+      filename: 'notes.txt',
+      providerMetadata: { cherry: { fileEntryId: 'long-text' } }
+    })
+    const text = 'word '.repeat(700)
+    mockGetPathToNode.mockReturnValue([
+      attached,
+      fakeMsg('a1', 'assistant', text),
+      fakeMsg('u2', 'user', text),
+      fakeMsg('a2', 'assistant', text),
+      fakeMsg('u3', 'user', 'continue')
+    ])
+    compressionOn(undefined, 60)
+
+    const { messages } = await makeHistory('u3')
+
+    expect(messages[0].id).toMatch(/^compaction:/)
+    expect(messages.at(-1)?.id).toBe('u3')
   })
 
   it('1b. maxMessages set → serves the last-N window and skips turn-start folding even over budget', async () => {
@@ -1057,7 +1101,6 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
 
     const MED = 'word '.repeat(2000)
     const TRAIL = 'word '.repeat(1000)
-
     const path = [
       fakeMsg('u1', 'user', 'tiny question'),
       fakeMsgWithContextTokens('a1', 'assistant', 'ok', 6100),
@@ -1066,45 +1109,30 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
       fakeMsg('u3', 'user', TRAIL)
     ]
     mockGetPathToNode.mockReturnValue(path)
-    compressionOn({})
+    compressionOn()
 
-    // Use a model with contextWindow=10000
-    const { resolveModels } = await import('../modelResolution')
-    const MODEL_ID_10K = createUniqueModelId('openai', 'gpt-4o-10k')
-    vi.mocked(resolveModels).mockReturnValueOnce([makeModel(MODEL_ID_10K, 10_000)])
-    // Also patch createUserMessageWithPlaceholders for this one-off model id
-    const { messageService } = await import('@main/data/services/MessageService')
-    vi.mocked(messageService.createUserMessageWithPlaceholders).mockReturnValueOnce({
-      userMessage: fakeMsg('anchor', 'user', 'q') as any,
-      placeholders: [fakeMsg('ph0', 'assistant', '') as any]
-    })
+    const { messages } = await makeHistory('u3')
 
-    const provider = new PersistentChatContextProvider()
-    await provider.prepareDispatch(
-      makeSubscriber(),
-      { trigger: 'submit-message', topicId: 'topic-1', parentAnchorId: 'u3', userMessageParts: [] } as any,
-      { hasLiveStream: false }
-    )
-
-    // Anchor+tail exceeded threshold → compaction must have triggered
-    expect(mockSummarizeModelMessages).toHaveBeenCalledTimes(1)
+    expect(messages.map((message) => message.id)).toEqual(path.map((message) => message.id))
+    expect(mockSetCompactionSummary).not.toHaveBeenCalled()
   })
 
-  it('6. no anchor → fallback to full tokenx; under budget → no compaction', async () => {
-    // No row carries contextTokens → estimateContext falls back to estimateTotal (full tokenx).
-    // Tiny messages → full tokenx well under threshold → no compaction.
-    const path = [fakeMsg('u1', 'user', 'hello'), fakeMsg('a1', 'assistant', 'hi'), fakeMsg('u2', 'user', 'goodbye')]
+  it.each([12, 640_208])('replays the same history for legacy context count %i', async (contextTokens) => {
+    const text = 'word '.repeat(700)
+    const path = [
+      fakeMsg('u1', 'user', text),
+      fakeMsgWithContextTokens('a1', 'assistant', 'ok', contextTokens),
+      fakeMsg('u2', 'user', text),
+      fakeMsg('a2', 'assistant', text),
+      fakeMsg('u3', 'user', 'continue')
+    ]
     mockGetPathToNode.mockReturnValue(path)
     compressionOn()
 
-    const { messages } = await makeHistory('u2')
+    const { messages } = await makeHistory('u3')
 
-    expect(mockSummarizeModelMessages).not.toHaveBeenCalled()
+    expect(messages.map((message) => message.id)).toEqual(path.map((message) => message.id))
     expect(mockSetCompactionSummary).not.toHaveBeenCalled()
-    const ids = messages.map((m) => m.id)
-    expect(ids).toContain('u1')
-    expect(ids).toContain('a1')
-    expect(ids).toContain('u2')
   })
 })
 
@@ -1155,6 +1183,7 @@ function inLoopScope(contextWindow: number): RequestScope {
     mcpToolIds: new Set(),
     capabilities: undefined,
     sdkConfig: { providerId: 'openai', providerOptionsKey: 'openai', providerSettings: {}, modelId: 'gpt-4o' },
+    replayRouteId: 'fixture-route',
     endpointType: 'openai-chat-completions',
     aiSdkProviderId: 'openai',
     reasoningProfile: { format: 'none', wire: { disabled: true } },

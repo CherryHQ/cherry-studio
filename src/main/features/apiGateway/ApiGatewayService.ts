@@ -1,3 +1,4 @@
+import { createHmac, randomBytes } from 'node:crypto'
 import { hostname, networkInterfaces } from 'node:os'
 
 import type { ProviderHeaders } from '@earendil-works/pi-ai'
@@ -16,7 +17,7 @@ import type { RetryPartData } from '@shared/data/types/uiParts'
 import type { OutputFor } from '@shared/ipc/types'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import type { ApiGatewayConfig, ApiGatewayStopOutcome } from '@shared/types/apiGateway'
-import { gatewayClientOrigin } from '@shared/utils/apiGateway'
+import { gatewayClientOrigin, INTERNAL_CREDENTIAL_PREFIX } from '@shared/utils/apiGateway'
 import { REDACTED } from '@shared/utils/redaction'
 
 import { isGatewayBindPermissionError, mapGatewayBindError } from './bindError'
@@ -32,8 +33,12 @@ const INTERNAL_GATEWAY_HOST = '127.0.0.1'
 const REQUEST_UNIT_BYTES = 1024 * 1024
 const INTERNAL_REQUEST_BUDGET = 32
 
-/** What a scoped internal credential may call: one generation path, one model address. */
-export type InternalCredentialScope = { path: string; model: string }
+/** What a scoped internal credential may call: its generation paths, one model address. */
+export type InternalCredentialScope = {
+  paths: readonly string[]
+  model: string
+  agentSessionId?: string
+}
 
 function presentedToken(headers: Headers): string | undefined {
   return (
@@ -59,7 +64,8 @@ export class ApiGatewayService extends BaseService implements Activatable {
     cancel: (reason: unknown) => void
   }>()
   /** Never persisted or shown to the user; unrestricted on the internal listener. */
-  private readonly internalApiKey = `cs-internal-${uuidv4()}`
+  private readonly internalApiKey = `${INTERNAL_CREDENTIAL_PREFIX}${uuidv4()}`
+  private readonly agentCredentialSecret = randomBytes(32)
   /** Live scoped credentials; each authorizes only its own scope until disposed. */
   private readonly scopedCredentials = new Map<string, InternalCredentialScope>()
   private readonly usageCaptures = new Map<string, InProcessUsageContext>()
@@ -373,11 +379,18 @@ export class ApiGatewayService extends BaseService implements Activatable {
   }
 
   /**
-   * Base URL and unrestricted credential for Cherry-launched consumers. Served by a dedicated loopback
+   * Base URL and credential for Cherry-launched consumers. Served by a dedicated loopback
    * listener so internal traffic never depends on, or turns on, the user-facing gateway.
    */
-  async ensureInternalGateway(): Promise<{ baseUrl: string; apiKey: string }> {
-    return { baseUrl: await this.ensureInternalListener(), apiKey: this.internalApiKey }
+  async ensureInternalGateway(sessionId?: string): Promise<{ baseUrl: string; apiKey: string }> {
+    return {
+      baseUrl: await this.ensureInternalListener(),
+      apiKey: sessionId === undefined ? this.internalApiKey : this.agentApiKey(sessionId)
+    }
+  }
+
+  private agentApiKey(sessionId: string): string {
+    return `cs-agent-${createHmac('sha256', this.agentCredentialSecret).update(sessionId).digest('base64url')}`
   }
 
   /** A credential for one consumer run that authorizes only `scope`, revoked by `dispose`. */
@@ -385,7 +398,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
     scope: InternalCredentialScope
   ): Promise<{ baseUrl: string; apiKey: string; dispose: () => void }> {
     const baseUrl = await this.ensureInternalListener()
-    const apiKey = `cs-internal-${uuidv4()}`
+    const apiKey = `${INTERNAL_CREDENTIAL_PREFIX}${uuidv4()}`
     this.scopedCredentials.set(apiKey, scope)
     return { baseUrl, apiKey, dispose: () => this.scopedCredentials.delete(apiKey) }
   }
@@ -427,7 +440,12 @@ export class ApiGatewayService extends BaseService implements Activatable {
   /** Whether the request presents an internal credential; external callers never hold one. */
   isInternalRequest(headers: Headers): boolean {
     const token = presentedToken(headers)
-    return !!token && (isValidToken(token, this.internalApiKey) || this.scopedCredentials.has(token))
+    return (
+      !!token &&
+      (isValidToken(token, this.internalApiKey) ||
+        this.scopedCredentials.has(token) ||
+        !!this.getAgentSessionId(headers))
+    )
   }
 
   /** Limit overlapping internal HTTP payloads before image preparation and SDK encoding. */
@@ -516,6 +534,8 @@ export class ApiGatewayService extends BaseService implements Activatable {
 
   createAgentObjectTransports(input: {
     sessionId: string
+    replayRouteId?: string
+    omitGeminiSignaturesFor?: ReadonlySet<number>
     headers?: ProviderHeaders
     reasoningEffort?: ReasoningEffortOption
     serviceTier?: ServiceTierSelection
@@ -534,6 +554,8 @@ export class ApiGatewayService extends BaseService implements Activatable {
       requestHeaders: headers,
       agentContext: {
         agentSessionId: sessionId,
+        replayRouteId: input.replayRouteId,
+        omitGeminiSignaturesFor: input.omitGeminiSignaturesFor,
         onRetryEvent: input.onRetryEvent,
         reasoningEffort: input.reasoningEffort ?? 'default',
         serviceTier: input.serviceTier,
@@ -574,11 +596,15 @@ export class ApiGatewayService extends BaseService implements Activatable {
     }
   }
 
-  /** Agent session id of an unrestricted internal request; undefined for every other caller. */
+  /** The session named by the request and verified against its issued credential. */
   getAgentSessionId(headers: Headers): string | undefined {
     const token = presentedToken(headers)
-    if (!token || !isValidToken(token, this.internalApiKey)) return undefined
-    return headers.get(AGENT_SESSION_ID_HEADER)?.trim() || undefined
+    const scope = token && this.scopedCredentials.get(token)
+    if (scope) return scope.agentSessionId
+    const sessionId = headers.get(AGENT_SESSION_ID_HEADER)?.trim()
+    return sessionId && token?.startsWith('cs-agent-') && isValidToken(token, this.agentApiKey(sessionId))
+      ? sessionId
+      : undefined
   }
 
   /** Capture the reserved continuation or active turn of the requesting Agent session. */
@@ -590,6 +616,8 @@ export class ApiGatewayService extends BaseService implements Activatable {
       const usage = this.usageCaptures.get(capture)
       return usage?.agentSessionId === sessionId ? usage : undefined
     }
-    return application.get('AgentSessionRuntimeService').getActiveUsageContext(sessionId, responseId)
+    return application
+      .get('AgentSessionRuntimeService')
+      .getActiveUsageContext(sessionId, this.getCredentialScope(headers) ? undefined : responseId)
   }
 }

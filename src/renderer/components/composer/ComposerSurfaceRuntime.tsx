@@ -94,6 +94,7 @@ import {
   type ComposerUnifiedPanelResourceProvider,
   type ComposerUnifiedPanelSelectHandler,
   createComposerSuggestionQuickPanelItem,
+  createUnifiedPanelSubmenuItems,
   createUnifiedQuickPanelOpenOptions,
   getComposerPositionAtTextOffset,
   getComposerSuggestionTriggerContext,
@@ -2111,6 +2112,18 @@ export default function ComposerSurfaceRuntime({
 
   const isRootQuickPanelVisible =
     quickPanelEnabled && quickPanel.isVisible && quickPanel.symbol === ComposerPanelSymbol.Root
+  const openLauncherSubmenuId =
+    quickPanelEnabled && quickPanel.isVisible && quickPanel.parentPanel?.symbol === ComposerPanelSymbol.Root
+      ? quickPanel.symbol
+      : undefined
+  useEffect(() => {
+    if (!openLauncherSubmenuId) return
+    const { getToolLaunchers, onToolLauncherSelect, quickPanel } = rootSuggestionStateRef.current
+    const launcher = getToolLaunchers?.().find(({ id }) => id === openLauncherSubmenuId)
+    if (!launcher?.submenu?.length) return
+    quickPanel.updateList(createUnifiedPanelSubmenuItems(launcher, { inputAdapter, onToolLauncherSelect, quickPanel }))
+  }, [inputAdapter, openLauncherSubmenuId, toolLaunchersVersion])
+
   const rootQuickPanelQueryAnchor = quickPanel.queryAnchor
   const rootQuickPanelTriggerInfo = quickPanel.triggerInfo
   // Preserve the open-time category seed so a re-list keeps category views (opened via a toolbar
@@ -2379,11 +2392,11 @@ export default function ComposerSurfaceRuntime({
   const compactControls = renderCompactControls?.(inputAdapter, unifiedPanelControl)
   const ExpandIcon = hasCustomHeight ? Minimize2 : Maximize2
   const sendAction = showPauseButton ? (
-    <Tooltip content={t('chat.input.pause')} placement="top">
+    <Tooltip content={t('chat.input.pause')} placement="top" asChild>
       <button
         data-ui="chat.composer.action.pause"
         type="button"
-        className="text-error flex size-7.5 items-center justify-center rounded-full hover:bg-accent"
+        className="text-error flex size-7.5 shrink-0 items-center justify-center rounded-full hover:bg-accent"
         aria-label={t('chat.input.pause')}
         onClick={() => void onPause()}>
         <CirclePause size={20} />

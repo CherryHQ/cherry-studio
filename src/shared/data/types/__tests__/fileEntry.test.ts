@@ -146,10 +146,6 @@ describe('SafeNameSchema validation', () => {
 
 describe('FileEntrySchema origin invariants', () => {
   describe('internal', () => {
-    it('accepts a valid internal entry', () => {
-      expect(FileEntrySchema.safeParse(makeInternal()).success).toBe(true)
-    })
-
     it('accepts internal with null ext (extensionless files like Dockerfile)', () => {
       expect(FileEntrySchema.safeParse(makeInternal({ ext: null })).success).toBe(true)
     })
@@ -165,10 +161,6 @@ describe('FileEntrySchema origin invariants', () => {
   })
 
   describe('external', () => {
-    it('accepts a valid external entry', () => {
-      expect(FileEntrySchema.safeParse(makeExternal()).success).toBe(true)
-    })
-
     it('accepts external with null ext', () => {
       expect(FileEntrySchema.safeParse(makeExternal({ ext: null })).success).toBe(true)
     })

@@ -217,6 +217,7 @@ guard, described below.
 | `POST /v1/messages` | Anthropic | `anthropic` → `anthropic` |
 | `POST /v1/messages/count_tokens` | Anthropic | token estimate over the converted request; anthropic-dialect endpoints forward it to the provider's own `count_tokens` (via the app proxy/auth), other dialects stay local; no stream |
 | `POST /v1/chat/completions` | OpenAI Chat | `openai` → `openai` |
+| `POST /v1/agents/grok-build/session-summary/chat/completions` | Grok Build session summary | OpenAI Chat with a route-specific reasoning default for the forced `session_title` tool |
 | `POST /v1/responses` | OpenAI Responses | `openai-responses` → `openai-responses` |
 | `POST /v1beta/models/{provider:model}:generateContent` | Gemini | `gemini` → Gemini JSON |
 | `POST /v1beta/models/{provider:model}:streamGenerateContent?alt=sse` | Gemini | `gemini` → Gemini SSE |
@@ -231,6 +232,10 @@ guard, described below.
 
 The model in every chat/messages/responses body is `"<providerId>:<modelId>"`
 (split on the **first** `:`), e.g. `anthropic:claude-sonnet-4-6`.
+
+Agent-specific routes share authentication, model resolution and protocol conversion
+with the standard gateway routes. The Grok Build route requests reasoning effort
+`none` for its title tool. The selected model's adapter owns the upstream wire format.
 
 Gemini routes carry a separate local auth guard because Gemini clients use
 `x-goog-api-key` or `?key=`. The `/v1` scoped guard must not intercept `/v1beta`.
@@ -279,21 +284,27 @@ the listener fails, it remains unbound and the command reports an error.
 
 ### Internal listener for Cherry consumers
 
-Agent runtimes and PDF translation reach models through a second listener that
+Claude Code and PDF translation reach models through a second listener that
 `ApiGatewayService` starts on `127.0.0.1` with an ephemeral port the first time
 it is needed. It is independent of the user's `enabled` preference and stays up
-until the service stops. Its keys live only in memory and are never persisted or
-shown: `ensureInternalGateway` returns one unrestricted key, and
+until the service stops. Its keys live only in memory. `ensureInternalGateway`
+issues Claude Code a credential bound to its Agent session. The listener
+verifies that credential against the claimed session before opening its replay
+checkpoint. Calling `ensureInternalGateway` without a session ID returns the
+general internal key, which grants no checkpoint access.
 `createScopedCredential({ path, model })` issues a key for a single consumer run
-that only calls that path with that model and is revoked by `dispose`. The
+that only calls that path with that model and is revoked by `dispose`. Local
+Agent connections may additionally bind `agentSessionId` in this in-memory scope;
+request headers cannot override that binding or attribute an unbound scoped key.
+The runtime host resolves the active assistant message at request start. The
 internal listener accepts only those keys, sent in a header, and the public
 listener accepts only the user's key. Enabled CherryAI subscription chat models
 are listed and served by the public gateway as `cherryai-subscription:<apiModelId>`,
 including in Code Mate's gateway model picker. Requests use the signed-in CherryAI
 account and its subscription quota; the provider refreshes model entitlements
 before sending, and the server enforces quota. Internal consumers still apply
-their feature-specific model selection rules. Gateway requests run without Cherry's retries or
-fallback models, so a request is served only by the model it named.
+their feature-specific model selection rules. Gateway requests run without
+Cherry's retries or fallback models.
 
 Internal Anthropic requests prefer Anthropic Messages when the model declares
 that endpoint and the provider configures it. This preserves native thinking
@@ -595,6 +606,11 @@ token is hashed and looked up only by the local guard on
 
 ## Error handling
 
+OAuth-only providers without an access token return HTTP 401 with sign-in guidance,
+including after a rejected refresh has disabled the provider. A disabled provider
+with saved credentials still follows the ordinary availability check. Providers
+that also support API keys keep their existing authentication path.
+
 One root `onError` (`gatewayErrorHandler`) selects the response envelope by
 request **path**, so every endpoint speaks its caller's dialect:
 
@@ -624,8 +640,10 @@ upstream response. Otherwise, `TimeoutError` or an exact message of
 `Upstream idle timeout exceeded`, `Stream idle timeout exceeded`, or
 `Idle timeout exceeded` maps to 504 with `Upstream request timed out`; otherwise
 `AbortError`, `ResponseAborted`, or string code `ABORT_ERR` maps to 504 with
-`Upstream stream aborted`. These matches classify the available error shape and
-do not establish upstream provenance. An extracted status in `[200, 300)` is
+`Upstream stream aborted`. A statusless provider error already classified as
+`context_length` by the AI runtime maps to HTTP 400 or the corresponding terminal
+SSE error. Public responses include the context-overflow marker and a sanitized
+message. Internal Anthropic responses use `Prompt is too long:`. An extracted status in `[200, 300)` is
 normalized to **502** for `/v1/messages`, `/v1/chat`, `/v1/responses`, `/v1beta`,
 and their SSE error frames: the AI SDK can create an `APICallError` with
 `statusCode: response.status` when an upstream 2xx body is unusable, and returning
@@ -663,6 +681,12 @@ Public gateway clients continue to receive the sanitized errors above.
   window messages, or run summary compaction. Protocol conversion and provider
   serialization still run normally. Prompt assembly, deferred-tool discovery,
   and Responses system-message removal apply only to Cherry-owned context.
+- **Claude Code provider state.** For authenticated Claude Code Agent sessions,
+  the gateway records upstream replay state in the Agent session checkpoint and
+  matches it to assistant blocks that occur exactly once in the returned history.
+  The AI SDK applies route compatibility to matched state. When a pending tool
+  continuation requires its original route, the gateway resolves that route
+  directly, even if the newly requested model is disabled.
 - **Caller-owned loop.** Gateway requests use single-step SDK `streamText` /
   `generateText`, without `ToolLoopAgent`, local tool execution, AI tool repair,
   or model fallback. HTTP gateway requests disable SDK request retries. Internal Pi object
