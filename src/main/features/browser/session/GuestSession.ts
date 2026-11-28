@@ -1,9 +1,12 @@
+import { closeSync, mkdirSync, openSync } from 'node:fs'
+import path from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
 
 import { Mutex } from 'async-mutex'
 import type { ProtocolMapping } from 'devtools-protocol/types/protocol-mapping'
 import type { DownloadItem } from 'electron'
 
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { snapshotOptionsSchema } from '@main/ai/mcp/browserToolDefinitions'
 import { type Disposable, Emitter } from '@main/core/lifecycle'
@@ -30,6 +33,44 @@ import { cdpAllowList, type CdpCommandArgs, type CdpEvent, cdpEventMethods, type
 import { WebMcpTools } from './WebMcpTools'
 
 const logger = loggerService.withContext('GuestSession')
+
+function truncateFilename(value: string, maxBytes: number): string {
+  let result = ''
+  for (const character of value) {
+    if (Buffer.byteLength(result) + Buffer.byteLength(character) > maxBytes) break
+    result += character
+  }
+  return result
+}
+
+/**
+ * Reserve a destination in the MCP workspace that cannot replace an existing or
+ * concurrently downloading file. The empty placeholder is created exclusively
+ * (`wx`), so two downloads with the same suggested name get distinct paths.
+ */
+function reserveManagedDownload(suggested: string): { savePath: string; filename: string } {
+  let base = path.basename(suggested)
+  base = base && base !== '.' && base !== '..' ? base : 'download'
+  const parsed = path.parse(base)
+  const ext = truncateFilename(parsed.ext, 32)
+  const name = parsed.name
+  const workspace = application.getPath('feature.mcp.workspace')
+  mkdirSync(workspace, { recursive: true })
+  for (let attempt = 0; attempt < 1000; attempt++) {
+    const suffix = attempt === 0 ? '' : ` (${attempt})`
+    // Leave room for Chromium's intermediate download suffix and uniquifier.
+    const stem = truncateFilename(name, 200 - Buffer.byteLength(ext + suffix))
+    const filename = `${stem}${suffix}${ext}`
+    const savePath = application.getPath('feature.mcp.workspace', filename)
+    try {
+      closeSync(openSync(savePath, 'wx'))
+      return { savePath, filename }
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error
+    }
+  }
+  throw new Error('No free managed download filename')
+}
 
 export class GuestSession implements Disposable {
   readonly ownership: SessionOwnership['ownership']
@@ -397,8 +438,9 @@ export class GuestSession implements Disposable {
 
   private readonly onDownload = (_event: Electron.Event, item: DownloadItem, guest: Electron.WebContents) => {
     if (guest !== this.guest) return
+    let filename = item.getFilename()
     const record = (state: string) => {
-      this.downloadUpdates.set(item, { filename: item.getFilename(), state })
+      this.downloadUpdates.set(item, { filename, state })
       if (this.downloadUpdates.size > 200) this.downloadUpdates.delete(this.downloadUpdates.keys().next().value!)
     }
     const updated = (_event: Electron.Event, state: string) => record(state)
@@ -414,6 +456,19 @@ export class GuestSession implements Disposable {
     this.downloadItems.set(item, cleanup)
     item.on('updated', updated)
     item.once('done', done)
+    if (this.ownership === 'managed') {
+      try {
+        const slot = reserveManagedDownload(filename)
+        filename = slot.filename
+        item.setSavePath(slot.savePath)
+      } catch (error) {
+        logger.warn('Failed to reserve a managed download destination', { error })
+        filename = path.basename(filename) || 'download'
+        done({} as Electron.Event, 'cancelled')
+        item.cancel()
+        return
+      }
+    }
     record('progressing')
   }
 
