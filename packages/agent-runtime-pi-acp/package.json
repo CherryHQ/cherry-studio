@@ -1,0 +1,36 @@
+{
+  "name": "@cherrystudio/agent-runtime-pi-acp",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Pi-specific ACP session behavior and bundled bridge for the installed Pi CLI.",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/adapter.d.mts",
+      "default": "./dist/adapter.mjs"
+    },
+    "./package.json": "./package.json",
+    "./cli": {
+      "types": "./dist/cli.d.mts",
+      "default": "./dist/cli.mjs"
+    }
+  },
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "pnpm --workspace-root exec tsrs --noEmit -p packages/agent-runtime-pi-acp/tsconfig.json"
+  },
+  "dependencies": {
+    "@agentclientprotocol/sdk": "2.4.0",
+    "@cherrystudio/agent-runtime": "workspace:*",
+    "@cherrystudio/agent-runtime-acp": "workspace:*",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.4",
+    "pi-acp": "0.0.34",
+    "tsdown": "^0.22.14",
+    "typescript": "npm:@typescript/typescript6@6.0.2",
+    "vitest": "^5.0.1"
+  }
+}

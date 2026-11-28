@@ -5,28 +5,54 @@ import { agentSessionMessageService } from '@data/services/AgentSessionMessageSe
 import { fileEntryService } from '@data/services/FileEntryService'
 import { messageService } from '@data/services/MessageService'
 import { loggerService } from '@logger'
-import { extractAgentSessionId, isAgentSessionTopic } from '@main/ai/agentSession/topic'
+import { childTimelines } from '@main/ai/agentSession/childTimelines'
 import { inflateEntities, isToolOutputBlobEntry, reconstructOutput } from '@main/ai/contextBuild/toolOutputStore'
-import type { AiToolResultResponse, PersistedToolOutput, PersistedToolOutputBlobRef } from '@shared/ai/transport'
-import { blobRefsOf, isPersistedToolOutput } from '@shared/ai/transport'
+import { extractAgentSessionId, isAgentSessionTopic } from '@shared/ai/agentSessionTopic'
+import type { DeferredToolResultRef, PersistedToolOutput, PersistedToolOutputBlobRef } from '@shared/ai/transport'
+import { blobRefsOf, isDeferredToolOutput, isPersistedToolOutput } from '@shared/ai/transport'
 
 const logger = loggerService.withContext('ai:persistedToolOutput')
+
+/** Resolve the live value first, then locate the archive row by stable part identity. */
+export function resolveToolResultRead({ topicId, messageId, toolCallId, partId }: DeferredToolResultRef) {
+  const manager = application.get('AiStreamManager')
+  const live = partId
+    ? manager.getDeferredToolOutput(topicId, toolCallId, messageId, partId)
+    : manager.getDeferredToolOutput(topicId, toolCallId, messageId)
+  if (live.found || !partId || !isAgentSessionTopic(topicId)) return { live, messageId }
+  const sessionId = extractAgentSessionId(topicId)
+  const child = childTimelines.toolResult(sessionId, partId, toolCallId)
+  if (child) return { live: child, messageId }
+  const owner = agentSessionMessageService.resolveToolResultMessageId(sessionId, partId, toolCallId)
+  return owner ? { live, messageId: owner } : undefined
+}
 
 export async function findPersistedToolOutput(
   topicId: string,
   messageId: string,
-  toolCallId: string
-): Promise<AiToolResultResponse> {
+  toolCallId: string,
+  hydrate = true,
+  partId?: string
+): Promise<{ found: true; output: unknown } | { found: false }> {
   try {
-    const parts = isAgentSessionTopic(topicId)
-      ? agentSessionMessageService.getSessionMessage(extractAgentSessionId(topicId), messageId).data.parts
-      : messageService.getById(messageId).data.parts
+    if (isAgentSessionTopic(topicId)) {
+      const sessionId = extractAgentSessionId(topicId)
+      const direct = agentSessionMessageService.getSessionToolOutput(sessionId, messageId, toolCallId, partId)
+      if (direct.found && hydrate && isPersistedToolOutput(direct.output)) {
+        return { found: true, output: await resolvePersistedToolOutput(direct.output) }
+      }
+      return direct
+    }
+    const message = messageService.getById(messageId)
+    if ('topicId' in message && message.topicId !== topicId) return { found: false }
+    const parts = message.data.parts
     for (const part of parts ?? []) {
       if (!isToolUIPart(part) || part.state !== 'output-available') continue
       if (part.toolCallId !== toolCallId) continue
       if (isPersistedToolOutput(part.output)) {
-        return { found: true, output: await resolvePersistedToolOutput(part.output) }
+        return { found: true, output: hydrate ? await resolvePersistedToolOutput(part.output) : part.output }
       }
+      if (isDeferredToolOutput(part.output)) return { found: false }
       return { found: true, output: part.output }
     }
   } catch (error) {
@@ -37,7 +63,10 @@ export async function findPersistedToolOutput(
   return { found: false }
 }
 
-async function resolvePersistedToolOutput(output: PersistedToolOutput): Promise<unknown> {
+export async function resolvePersistedToolOutput(
+  output: PersistedToolOutput,
+  { allowExcerpt = true }: { allowExcerpt?: boolean } = {}
+): Promise<unknown> {
   const ref = output.$persistedToolOutput
   const readBlob = async (blob: PersistedToolOutputBlobRef): Promise<string> => {
     try {
@@ -46,6 +75,7 @@ async function resolvePersistedToolOutput(output: PersistedToolOutput): Promise<
       const { content } = await application.get('FileManager').read(blob.fileEntryId, { encoding: 'text' })
       return content
     } catch (error) {
+      if (!allowExcerpt) throw error
       logger.warn('persisted tool output unavailable, serving excerpt', { fileEntryId: blob.fileEntryId, error })
       return `${blob.head}\n\n[persisted output no longer available — showing excerpt of ${blob.totalChars} chars]\n\n${blob.tail}`
     }

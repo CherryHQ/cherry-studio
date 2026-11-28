@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-14-notes-backslash-math-delimiters.md
+2026-11-14-notes-backslash-math-delimiters.md: 9a762e7faf2db04ff4a155491f6a10fc1bceb457
+2026-11-14-notes-backslash-math-delimiters.zh.md: 15b42a457c45b7d77e447e3d7da92bc43c99d722

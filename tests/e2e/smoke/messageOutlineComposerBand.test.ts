@@ -1,5 +1,6 @@
 import type { Locator } from '@playwright/test'
 
+import { LATEST_PRIVACY_POLICY_VERSION } from '../../../src/shared/utils/constants'
 import { expect, test } from './fixtures/electron.fixture'
 
 // The transform-derived token on the component root; present in both the fixed
@@ -25,18 +26,18 @@ async function requireBox(locator: Locator): Promise<Box> {
 test('message outline rail clears the composer band and keeps working above it', async ({
   mainWindow: page
 }, testInfo) => {
-  await page.evaluate(async () => {
+  await page.evaluate(async (policyVersion) => {
     await window.api.preference.setMultiple({
       'app.language': 'en-US',
       'app.onboarding.provider_setup.status': 'skipped',
-      'app.privacy.policy_version': '20260820',
+      'app.privacy.policy_version': policyVersion,
       'chat.message.show_outline': true,
       // A full-width composer puts the input card's left edge under the rail's
       // left strip without resizing the window, which would race the app's
       // own window-state restoration.
       'chat.narrow_mode': false
     })
-  })
+  }, LATEST_PRIVACY_POLICY_VERSION)
   await page.reload()
   await page.waitForSelector('#root')
 

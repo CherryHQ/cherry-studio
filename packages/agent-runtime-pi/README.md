@@ -7,22 +7,25 @@ Concurrent handles share one execution source; release stops observation, while 
 in one captured batch. Native text/thinking updates synchronously capture the current
 block's full text before asynchronous processing; they do not copy unrelated blocks or
 the complete native partial. End events still apply authoritative text corrections, and
-completed tool arguments are captured separately. `backgroundResults` reads existing behavior records and notification inputs;
+completed tool arguments are captured separately. Other native events and context rebuilds are
+captured with `immutable()`, which copies their containers and shares strings such as image data;
+the frozen values then pass into observation without another copy. `backgroundResults` reads existing behavior records and notification inputs;
 its pending and notification IDs name the current triggering tool calls, including continuations.
 Results remain pending through report delivery and parent generation, including the gap before that
 generation starts. Lifecycle and ledger callbacks publish them through the same ordered projection.
 Its first baseline is historical; overflow recovery retains unseen terminal facts
 after their body. Hosts do not parse child tool receipts or read mutable aliases at delivery time.
 
-Each Pi handle exposes `input.submit`. Root contexts support `reject`,
-`steer`, and `follow-up`. Managed children support only `steer`, through their parent's subagent
-behavior rules: a live run receives a queued message; a finished child continues in the background
-in the same native session. An unsupported policy is rejected before native dispatch.
+A root handle can reject busy submissions with `input.submit`, steer with `input.steer.submit`,
+or queue a volatile follow-up with `input.followUp.submit`. Managed children expose only
+`input.steer.submit`. Their parent's behavior queues the message for a live child, or continues a
+finished child in the background in the same native session.
 
 Constructs native Pi coding-agent sessions. The caller supplies Pi's `ModelRuntime` and `Model`;
-Pi owns the execution loop, tools, context accounting and compaction. Content deltas use the common AI SDK message reader before observer fanout; the package
-imports no Cherry application code. Native tool results and progress update their calling message,
-without reordering its text, reasoning and tool parts. Completed results preserve native
+Pi owns the execution loop, tools, context accounting and compaction. The native callback captures the
+source ID, content index and changed block before delivery. Text and thinking deltas update that index.
+A shortened authoritative ending corrects the same block. A tool call ID identifies the source and
+block for input, progress and final output. Completed results preserve native
 `structuredContent` in live and historical projections, including error-result metadata;
 MCP clients can recover the original result and its execution context without relying on
 model-facing content annotations.
@@ -45,7 +48,7 @@ as required by the behavior adapter's request accounting.
 - Root `input.submit` preserves native commands, input hooks, busy policies and input correlation.
   `/goal` is handled locally through the behavior entry; it never becomes a model prompt.
   Local handling flushes native state before acknowledgement, including a fresh plan-held goal.
-- Child `input.submit` supports `steer` through `entries.messageSubagent`, using the same admission,
+- Child `input.steer.submit` delivers input through `entries.messageSubagent`, using the same admission,
   continuation and reporting rules as the model's `message_subagent` tool. Its native custom input
   carries the caller's `inputId`, including when a background report job starts the continuation.
   A refused continuation returns `rejected`; no raw child prompt bypasses that decision.
@@ -55,6 +58,10 @@ as required by the behavior adapter's request accounting.
 - `pi.permissionModeChanged()` notifies behavior after the host changes permission settings;
   `pi.compact(instructions)` invokes native compaction and its lifecycle. A failed summary rejects the operation.
   Interrupt and shutdown cancel native compaction even when no behavior run is active.
+- `onError` keeps the original cause. A manual-compaction failure also carries its operation and
+  thread, plus failed native `compaction_end` facts when that invocation produced them. Failures
+  after a successful summary, including `onCompacted`, have no failed-compaction facts. Hosts
+  can correlate their native event handling without suppressing unrelated runtime errors.
 - Subagent relations are projected onto the parent; each live child can be opened, observed and
   released independently. Releasing a handle stops its observations. Shutdown closes the shared
   behavior instance, all native sessions and projections.
@@ -143,8 +150,9 @@ Pi's low-level `open` also
 accepts a missing path as a new session; hosts loading an existing association must check its
 existence and verify the native session ID instead of silently replacing it.
 
-`onEvent` observes copied native entries (`session-append`), compaction start/end, and completed
-turns. These events are for observation; storage works without a listener. A slow listener should
+`onEvent` reports the ID and type of each appended entry (`session-append`), plus the role of a message entry.
+Read a full entry from `SessionManager.getEntry(id)` when its contents are needed. The listener also observes
+compaction start/end and completed turns. Storage works without a listener. A slow listener should
 hand off its work because callbacks run inline. `dispose()` flushes the final observations.
 
 ## Context usage
@@ -200,7 +208,7 @@ for host persistence; billing retains its native response identity independently
 
 `compaction: { reserveTokens, keepRecentTokens, enabled? }` controls native thresholds. Pi generates the
 summary itself; each native model request is metered and its reported usage is attributed to the captured goal
-and child run. Empty or failed summaries cancel compaction. `pi.compact()` also works when automatic compaction
+and child run. Empty or failed summaries cancel compaction. `compact()` also works when automatic compaction
 is disabled.
 
 [`agent-behavior`](../agent-behavior/README.md) owns AskUserQuestion, Todo, goals, output offload,
@@ -335,3 +343,25 @@ results independently of the outer script outcome. Archive projection reads thos
 records without executing tools. Missing legacy or over-budget payloads remain
 explicitly absent; complete successful built-in artifact declarations can render
 through the same tool mapping as direct calls.
+
+## Detached prompt prediction
+
+`pi.predictPrompt(instruction, signal)` uses the patched native
+`AgentSession.createQueryFork()` to snapshot the idle compacted session projection.
+The shared pi-ai fork makes one streaming model request without submitting input,
+writing transcript/history, creating tasks or changing goals. It retains the parent
+model, reasoning, session identity and tool declarations, but aborts at the first
+streamed tool call before any tool can execute. Owner shutdown cancels the request.
+
+The pi-ai dependency patch carries `skipCacheWrite` through provider option conversion.
+Anthropic, Anthropic-compatible chat completions and Bedrock retain the parent's
+explicit cache breakpoints and add none for the response/prediction suffix. This is
+not `cacheRetention: 'none'`: cache reads remain enabled. Automatic server-side cache
+writes are provider-controlled; the flag does not promise to disable those writes.
+Continuation state and parent reply usage/budget accounting are not updated by the fork.
+There is no prediction-specific reasoning, timeout or retry override.
+
+Prediction requires at least two assistant messages, a successful latest response,
+and documented uncached/cache-write token gates. The host owns turn-end scheduling,
+focus/Plan/preference gates and source-reply validation; renderer reads consume the
+existing ephemeral result without triggering another query.

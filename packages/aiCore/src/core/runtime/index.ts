@@ -2,6 +2,10 @@
  * Runtime 模块导出
  * 专注于运行时插件化AI调用处理
  */
+import { type AiPlugin } from '../plugins'
+import { extensionRegistry } from '../providers'
+import { type CoreProviderSettingsMap, type StringKeys } from '../providers/types'
+import { RuntimeExecutor } from './executor'
 
 // 主要的运行时执行器
 export { RuntimeExecutor } from './executor'
@@ -20,11 +24,6 @@ export type {
 } from './types'
 
 // === 便捷工厂函数 ===
-
-import { type AiPlugin } from '../plugins'
-import { extensionRegistry } from '../providers'
-import { type CoreProviderSettingsMap, type StringKeys } from '../providers/types'
-import { RuntimeExecutor } from './executor'
 
 /**
  * 创建运行时执行器 - 支持类型安全的已知provider

@@ -4,11 +4,23 @@ import userEvent from '@testing-library/user-event'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
+import i18n from '@renderer/i18n/resolver'
 
 import { EMPTY_STATS_METRICS } from '../usageAnalytics'
 import UsageSettings from '../UsageSettings'
 
 const usageDataOverride = vi.hoisted(() => ({ current: {} as Record<string, unknown> }))
+const useUsageEntriesDataMock = vi.hoisted(() =>
+  vi.fn(() => ({
+    entries: [],
+    total: 0,
+    isLoading: false,
+    isRefreshing: false,
+    error: undefined,
+    hasNext: false,
+    loadNext: vi.fn()
+  }))
+)
 
 vi.unmock('@data/hooks/useCache')
 
@@ -19,11 +31,34 @@ vi.mock('@renderer/hooks/useProvider', () => ({
 }))
 
 vi.mock('@renderer/components/Chart', () => ({
-  Chart: () => null
+  Chart: ({
+    onDataPointClick
+  }: {
+    onDataPointClick?: (params: { seriesIndex?: number; dataIndex: number }) => void
+  }) =>
+    onDataPointClick ? (
+      <button type="button" onClick={() => onDataPointClick({ seriesIndex: 0, dataIndex: 0 })}>
+        MockChartPoint
+      </button>
+    ) : null
 }))
 
 vi.mock('../UsageEntriesTable', () => ({
-  UsageEntriesTable: () => null
+  UsageEntriesTable: ({
+    activeFilterLabel,
+    onClearFilter
+  }: {
+    activeFilterLabel?: string
+    onClearFilter?: () => void
+  }) =>
+    activeFilterLabel ? (
+      <div>
+        <span>{activeFilterLabel}</span>
+        <button type="button" onClick={onClearFilter}>
+          ClearFilter
+        </button>
+      </div>
+    ) : null
 }))
 
 vi.mock('../useUsageData', () => {
@@ -60,18 +95,12 @@ vi.mock('../useUsageData', () => {
       exploreTimelineLoading: false,
       ...usageDataOverride.current
     }),
-    useUsageEntriesData: () => ({
-      entries: [],
-      total: 0,
-      isLoading: false,
-      isRefreshing: false,
-      hasNext: false,
-      loadNext: vi.fn()
-    })
+    useUsageEntriesData: useUsageEntriesDataMock
   }
 })
 
-beforeAll(() => {
+beforeAll(async () => {
+  await i18n.changeLanguage('zh-cn')
   if (!HTMLElement.prototype.hasPointerCapture) HTMLElement.prototype.hasPointerCapture = () => false
   if (!HTMLElement.prototype.releasePointerCapture) HTMLElement.prototype.releasePointerCapture = () => {}
   if (!HTMLElement.prototype.setPointerCapture) HTMLElement.prototype.setPointerCapture = () => {}
@@ -82,6 +111,13 @@ describe('UsageSettings', () => {
   beforeEach(() => {
     MockCacheUtils.resetMocks()
     usageDataOverride.current = {}
+    useUsageEntriesDataMock.mockClear()
+  })
+
+  it('discloses that totals may include local estimates even for an empty selection', () => {
+    render(<UsageSettings />)
+
+    expect(screen.getByText('总计可能包含本地成本估算；实际费用以服务商账单为准。')).toBeVisible()
   })
 
   it('restores the view selections after leaving and returning to the page', async () => {
@@ -198,5 +234,88 @@ describe('UsageSettings', () => {
     render(<UsageSettings />)
     expect(screen.getByRole('heading', { name: '概览' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '头像' })).not.toBeInTheDocument()
+  })
+
+  it('filters entries by the clicked line chart point and clears on repeat click or clear action', async () => {
+    const user = userEvent.setup()
+    const today = new Date()
+    const yyyy = today.getFullYear()
+    const mm = String(today.getMonth() + 1).padStart(2, '0')
+    const dd = String(today.getDate()).padStart(2, '0')
+    const todayKey = `${yyyy}-${mm}-${dd}`
+    const startOf30d = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 29)
+    const startKey = `${startOf30d.getFullYear()}-${String(startOf30d.getMonth() + 1).padStart(2, '0')}-${String(startOf30d.getDate()).padStart(2, '0')}`
+
+    MockCacheUtils.setInitialState({
+      persist: [
+        ['settings.usage.chart_type', 'line'],
+        ['settings.usage.group_by', 'model'],
+        ['settings.usage.rollup', 'daily']
+      ]
+    })
+    usageDataOverride.current = {
+      overviewTotals: { ...EMPTY_STATS_METRICS, totalTokens: 100, requestCount: 1 },
+      timelineBuckets: [
+        {
+          date: todayKey,
+          costCurrency: null,
+          totalTokens: 100,
+          totalNoCacheTokens: 100,
+          totalCacheReadTokens: 0,
+          totalCacheWriteTokens: 0,
+          totalCost: 0,
+          recordCount: 1,
+          requestCount: 1,
+          estimatedRequestCount: 0,
+          unpricedRequestCount: 1
+        }
+      ],
+      exploreTimelineRows: [
+        {
+          date: startKey,
+          providerId: 'openai',
+          providerName: 'OpenAI',
+          modelId: 'openai::gpt-4o',
+          costCurrency: null,
+          totalTokens: 100,
+          totalNoCacheTokens: 100,
+          totalCacheReadTokens: 0,
+          totalCacheWriteTokens: 0,
+          totalCost: 0,
+          recordCount: 1,
+          requestCount: 1,
+          estimatedRequestCount: 0,
+          unpricedRequestCount: 1
+        }
+      ]
+    }
+
+    render(<UsageSettings />)
+
+    await user.click(await screen.findByRole('button', { name: 'MockChartPoint' }))
+
+    expect(useUsageEntriesDataMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        windowRange: {
+          from: new Date(startOf30d.getFullYear(), startOf30d.getMonth(), startOf30d.getDate(), 0, 0, 0, 0).getTime(),
+          to: new Date(startOf30d.getFullYear(), startOf30d.getMonth(), startOf30d.getDate(), 23, 59, 59, 999).getTime()
+        },
+        groupFilter: { providerId: 'openai', modelId: 'openai::gpt-4o' }
+      })
+    )
+    expect(screen.getByText(/gpt-4o/)).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'MockChartPoint' }))
+    expect(screen.queryByRole('button', { name: 'ClearFilter' })).not.toBeInTheDocument()
+    expect(useUsageEntriesDataMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        groupFilter: undefined
+      })
+    )
+
+    await user.click(screen.getByRole('button', { name: 'MockChartPoint' }))
+    expect(screen.getByRole('button', { name: 'ClearFilter' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'ClearFilter' }))
+    expect(screen.queryByRole('button', { name: 'ClearFilter' })).not.toBeInTheDocument()
   })
 })

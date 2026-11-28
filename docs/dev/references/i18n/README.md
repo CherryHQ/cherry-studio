@@ -4,6 +4,8 @@ sources:
   - src/renderer/i18n
   - src/main/i18n/locales
   - scripts/i18n-sync.ts
+  - scripts/i18n-check.ts
+  - scripts/i18n-key-format.ts
   - scripts/i18n-plurals.ts
   - scripts/i18n-glossary.json
 ---
@@ -36,6 +38,8 @@ The plugin has already been configured in the project — simply install it to g
 ### Use Flat Keys
 
 Catalogs are flat: the whole dotted path is one literal JSON key. Never nest.
+
+`pnpm i18n:check` enforces at least two nonempty dot-separated segments, without whitespace, in all three catalog groups. Use `agent.import.missing_file`, not `agent_import_missing_file`. Underscores within a segment, including locale plural suffixes such as `_other`, remain valid.
 
 ```json
 // Correct - Flat structure

@@ -81,5 +81,6 @@ describe('useAgentSessionContextUsage', () => {
     const { result } = renderHook(() => useAgentSessionContextUsage(SESSION_ID))
     expect(result.current.usage).toBeNull()
     expect(result.current.percentage).toBeNull()
+    expect(result.current.status).toBe('unsupported')
   })
 })

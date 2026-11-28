@@ -1,3 +1,4 @@
+import { UnsupportedFunctionalityError } from '@ai-sdk/provider'
 import { JSONRPC_VERSION, ProtocolErrorCode } from '@modelcontextprotocol/server'
 import { APICallError } from 'ai'
 import { ElysiaCustomStatusResponse, type ErrorHandler, ValidationError } from 'elysia'
@@ -7,6 +8,8 @@ import { isDev } from '@main/core/platform'
 import { getSafeProviderErrorMessage } from '@shared/ai/providerError'
 import { DataApiError } from '@shared/data/api/errors'
 import type { SerializedError } from '@shared/types/error'
+import { GROK_SESSION_SUMMARY_PATH } from '@shared/utils/apiGateway'
+import { redactSecretTokens } from '@shared/utils/redaction'
 
 import type { OutputFormat } from './adapters'
 
@@ -57,6 +60,24 @@ export function internalGatewayError(error: unknown, fallback: SerializedError):
 
 function detailsOf(error: unknown): ProviderDetails | undefined {
   return error !== null && typeof error === 'object' ? (error as InternalError)[providerDetails] : undefined
+}
+
+/** Preserve the HTTP dialect's error semantics without encoding a response body. */
+export function objectGatewayError(error: unknown, fallback: SerializedError, format: OutputFormat): Error {
+  if (UnsupportedFunctionalityError.isInstance(error)) return error
+  const status = extractError(error).status
+  const retained = { ...internalGatewayError(error, fallback), ...(status !== undefined && { statusCode: status }) }
+  const { statusCode, errorResponse } =
+    format === 'anthropic'
+      ? transformAnthropicError(retained)
+      : format === 'gemini'
+        ? transformGoogleError(retained)
+        : transformOpenAiError(retained)
+  return Object.assign(new Error(errorResponse.error.message), {
+    status: statusCode,
+    error: errorResponse,
+    headers: new Headers(detailsOf(retained)?.headers)
+  })
 }
 
 type GatewayErrorContext = Parameters<ErrorHandler<{ DATA_API: DataApiError }>>[0]
@@ -142,6 +163,7 @@ function extractError(error: unknown): {
   name?: string
   code?: string
   category?: string
+  errorSource?: string
 } {
   if (error === null || typeof error !== 'object') return {}
   const e = error as {
@@ -151,6 +173,7 @@ function extractError(error: unknown): {
     statusCode?: unknown
     message?: unknown
     providerErrorCategory?: unknown
+    errorSource?: unknown
     error?: { type?: unknown; message?: unknown }
   }
   // Prefer `status` (HTTP libs / OpenAI APIError), then `statusCode` (AI-SDK APICallError / SerializedError).
@@ -162,7 +185,8 @@ function extractError(error: unknown): {
   const name = typeof e.name === 'string' ? e.name : undefined
   const code = typeof e.code === 'string' ? e.code : undefined
   const category = typeof e.providerErrorCategory === 'string' ? e.providerErrorCategory : undefined
-  return { status, message, type, name, code, category }
+  const errorSource = typeof e.errorSource === 'string' ? e.errorSource : undefined
+  return { status, message, type, name, code, category, errorSource }
 }
 
 /**
@@ -178,6 +202,12 @@ function safeMessage(status: number | undefined, message: string | undefined): s
   return isDev && message && message.length > 0 ? message : fallback
 }
 
+function publicContextOverflowMessage(message: string | undefined): string {
+  const detail =
+    getSafeProviderErrorMessage({ message: redactSecretTokens(message ?? '') }) || 'Context length exceeded'
+  return `context_length_exceeded: ${detail}`
+}
+
 function normalizeProviderError(error: unknown): {
   statusCode: number
   message: string
@@ -186,7 +216,7 @@ function normalizeProviderError(error: unknown): {
 } {
   const extracted = extractError(error)
   const details = detailsOf(error)
-  const { status, name, code, category } = extracted
+  const { status, name, code, category, errorSource } = extracted
   const message = typeof details?.error.message === 'string' ? details.error.message : extracted.message
   const type = typeof details?.error.type === 'string' ? details.error.type : extracted.type
   if (status !== undefined)
@@ -194,7 +224,7 @@ function normalizeProviderError(error: unknown): {
       statusCode: status >= 200 && status < 300 ? 502 : status,
       message:
         !details && status === 400 && category === 'context_length'
-          ? `context_length_exceeded: ${safeMessage(status, message)}`
+          ? publicContextOverflowMessage(message)
           : safeMessage(status, message),
       type,
       category
@@ -213,6 +243,16 @@ function normalizeProviderError(error: unknown): {
   if (name === 'AbortError' || name === 'ResponseAborted' || code === 'ABORT_ERR') {
     return { statusCode: 504, message: 'Upstream stream aborted', type }
   }
+  if (errorSource !== 'local' && category === 'context_length') {
+    return {
+      statusCode: 400,
+      message: details
+        ? getSafeProviderErrorMessage({ message }) || 'Context length exceeded'
+        : publicContextOverflowMessage(message),
+      type,
+      category
+    }
+  }
   return { statusCode: 500, message: details && message ? message : safeMessage(undefined, message), type }
 }
 
@@ -220,9 +260,25 @@ function normalizeProviderError(error: unknown): {
 const anthropicTypeForStatus = (status: number): string => {
   if (status === 401 || status === 403) return 'authentication_error'
   if (status === 404) return 'not_found_error'
+  if (status === 413) return 'request_too_large'
   if (status === 429) return 'rate_limit_error'
   if (status >= 500) return 'api_error'
   return 'invalid_request_error'
+}
+
+// vLLM: https://github.com/vllm-project/vllm/blob/b5b9f7982cc82a2925e6f83cbe2e9b39aaf7fb47/vllm/renderers/params.py#L544-L548
+// llama.cpp: https://github.com/ggml-org/llama.cpp/blob/65758d01f5eee145e71e3e903d930574cb5d523e/tools/server/server-context.cpp#L4041-L4043
+const overflowLimit = /(?:maximum context length is|available context size \()\s*([\d,]+) tokens/i
+const overflowRequest =
+  /(?:resulted in|you requested|request has|contains(?: at least)?|request \()\s*([\d,]+) (?:input )?tokens/i
+
+// Claude Code sizes an overflow (and its reactive compaction) only from Anthropic's `N tokens > M` wording.
+function anthropicOverflowMessage(message: string): string {
+  const limit = Number(overflowLimit.exec(message)?.[1].replaceAll(',', ''))
+  const requested = Number(overflowRequest.exec(message)?.[1].replaceAll(',', ''))
+  return requested > limit
+    ? `Prompt is too long: ${requested} tokens > ${limit} maximum. ${message}`
+    : `Prompt is too long: ${message}`
 }
 
 /**
@@ -243,7 +299,7 @@ function transformAnthropicError(error: unknown): {
     statusCode === 400 &&
     category === 'context_length' &&
     !message.toLowerCase().includes('prompt is too long')
-      ? `Prompt is too long: ${message}`
+      ? anthropicOverflowMessage(message)
       : message
   const requestId =
     error !== null && typeof error === 'object' && typeof (error as { request_id?: unknown }).request_id === 'string'
@@ -519,6 +575,7 @@ function dialectForPath(request: Request): 'anthropic' | 'openai' | 'google' | '
     return 'rest'
   }
   if (pathname.startsWith('/v1/messages')) return 'anthropic'
+  if (pathname === `/v1${GROK_SESSION_SUMMARY_PATH}/chat/completions`) return 'openai'
   if (pathname.startsWith('/v1/chat') || pathname.startsWith('/v1/responses')) return 'openai'
   if (pathname.startsWith('/v1beta')) return 'google'
   if (MCP_PROXY_PATH.test(pathname)) return 'mcp'

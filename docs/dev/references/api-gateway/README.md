@@ -22,7 +22,13 @@ Every generation endpoint converts its inbound dialect to SDK messages, tools,
 and provider options, then makes one SDK call. The selected SDK provider adapter
 owns outgoing serialization and transport, including same-protocol requests.
 This preserves supported semantics, not arbitrary wire fields or byte identity.
-There is no separate raw HTTP branch.
+There is no separate raw HTTP branch. Desktop Pi and Pi Durable inject native protocol object
+transports into this same conversion and execution path. They exchange request/event objects
+without an internal HTTP listener, request JSON encoding or SSE formatting. Native replay and
+tools remain in Pi; external clients, including Claude Code, keep HTTP.
+Object calls carry a typed trusted context for session ownership, request selections and usage.
+They do not authenticate through synthetic bearer headers. Explicit child captures take precedence
+over a root binding's defaults and ambient trace parent.
 
 Generation requests route through main's `AiStreamManager` as equal,
 **non-persisting** subscribers (alongside the renderer's `WebContentsListener`
@@ -35,13 +41,36 @@ represented as tool argument objects without changing their meaning. The gateway
 tools or substitutes an empty argument object for invalid input.
 Authenticated internal requests can carry Cherry reasoning, service-tier and Fast selections;
 external callers cannot override these through internal headers.
+Internal Agent calls to `POST /v1/messages` share a request-size-weighted allowance
+before conversion and outbound encoding. Larger image-heavy calls may wait for a
+previous response to finish, fail, or disconnect. The queued call retains its full
+model history. Cancelling a queued call lets the next request proceed as soon as
+the available allowance can cover it.
 
 Responses reasoning preserves provider-issued item IDs and encrypted content in both streaming and
 non-streaming output and on subsequent input, including items with no readable summary. The gateway
 uses AI SDK provider metadata for this round trip; it does not decrypt or synthesize the encrypted state.
-Anthropic redacted thinking retains its ciphertext as `redacted_thinking`. Gemini text and thought
+Chat Completions retains OpenRouter structured `reasoning_details`, including encrypted-only state, on output and subsequent input. Repeated cumulative metadata snapshots produce one native replay signature. Anthropic redacted thinking retains its ciphertext as `redacted_thinking`. Gemini text and thought
 parts retain their signatures, including metadata-only deltas. The pinned AI SDK patch forwards empty
 text deltas carrying provider metadata so those updates reach both native replay and accumulated output.
+
+OpenAI usage retains reported cache-read and cache-write breakdowns without changing cache-inclusive input totals. Anthropic reports uncached input separately from cache reads/writes and retains reported `thinking_tokens`. Unreported breakdowns remain absent. A final token-limit or filtering outcome takes precedence over earlier tool calls; successful tool calls cannot turn a truncated or filtered response into normal completion.
+
+Gemini HTTP and object requests share the same configuration mapping. It includes sampling,
+penalties and seed, JSON/schema output, function selection, safety settings, cached content,
+labels, media options, service tier and continuation tokens supported by the pinned Google
+language provider. Explicit safety settings override Cherry defaults. Trusted reasoning
+selection replaces only thinking configuration. `ANY` and `VALIDATED` restrictions use the
+SDK's tool choice and active-tool subset; client tools still have no gateway executor.
+
+Generated files retain `inlineData` and thought signatures. Terminal responses retain native
+finish reasons, safety feedback, finish messages, reported service tier and continuation tokens.
+Pi text sessions retain their native output capabilities; forwarding image parts does not add
+an image display feature to those sessions. The pinned provider supports `TEXT` and `IMAGE`
+output, not speech generation. Object calls accept disabled client automatic function calling;
+enabling client-side execution or requesting unsupported local functionality raises an SDK
+capability error without fabricating an HTTP 400. Actual upstream HTTP errors retain their
+provider status.
 
 > **Naming.** React components and the lifecycle service use `apiGateway`;
 > IpcApi routes use `api_gateway.*`; Preference and Shared Cache keys use
@@ -58,7 +87,7 @@ to enable it. It is disabled by default.
 | Use case | When the gateway is needed |
 |---|---|
 | Another local app uses Cherry Studio's models | Start it and give the app the gateway URL and API key. The gateway translates supported API protocols for the configured provider. |
-| An Agent uses a Cherry-managed model | Pi, Pi Durable and Claude Code use the internal loopback listener, started on demand independently of the public gateway setting. |
+| An Agent uses a Cherry-managed model | Pi and Pi Durable call the gateway in process without a listener. Claude Code uses the internal loopback listener, started on demand independently of the public gateway setting. |
 | PDF translation | Cherry Studio starts the gateway temporarily for the translation task and releases it afterward. You do not need to enable it manually. |
 | A paired device connects to Cherry Studio | Start it, then allow network access in **Settings → Device Connections** and approve pairing. See [LAN exposure](#lan-exposure-is-confined-to-the-remote-access-upgrade) for the access boundary. |
 
@@ -118,9 +147,10 @@ src/main/features/apiGateway/        ← the HTTP server (Elysia + @elysia/node)
 ├── McpSessionStore.ts               ← bounded live Streamable HTTP MCP sessions
 ├── ModernMcpProxy.ts                ← MCP 2026-07-28 discovery, MRTR and subscriptions
 ├── gatewayRequest.ts                ← trusted request options and admitted provider/endpoint resolution
+├── prepareGatewayMessage.ts         ← shared protocol conversion and request overrides
+├── objectStream.ts                  ← native protocol object transport for Pi / Pi Durable
 ├── proxyStream.ts                   ← `processMessage()` — converter → single SDK call → response adapter
-├── reasoningCache.ts                ← google / openrouter reasoning-signature caches
-├── openrouter.ts                    ← OpenRouter `reasoning_details` type contract (used by reasoningCache)
+├── reasoningCache.ts                ← Google signatures and OpenRouter reasoning details captured per tool call
 ├── providerExport.ts                ← provider/model export payload served to paired devices over remote access
 ├── middleware/
 │   └── auth.ts                      ← desktop API-key auth
@@ -187,6 +217,7 @@ guard, described below.
 | `POST /v1/messages` | Anthropic | `anthropic` → `anthropic` |
 | `POST /v1/messages/count_tokens` | Anthropic | token estimate over the converted request; anthropic-dialect endpoints forward it to the provider's own `count_tokens` (via the app proxy/auth), other dialects stay local; no stream |
 | `POST /v1/chat/completions` | OpenAI Chat | `openai` → `openai` |
+| `POST /v1/agents/grok-build/session-summary/chat/completions` | Grok Build session summary | OpenAI Chat with a route-specific reasoning default for the forced `session_title` tool |
 | `POST /v1/responses` | OpenAI Responses | `openai-responses` → `openai-responses` |
 | `POST /v1beta/models/{provider:model}:generateContent` | Gemini | `gemini` → Gemini JSON |
 | `POST /v1beta/models/{provider:model}:streamGenerateContent?alt=sse` | Gemini | `gemini` → Gemini SSE |
@@ -201,6 +232,10 @@ guard, described below.
 
 The model in every chat/messages/responses body is `"<providerId>:<modelId>"`
 (split on the **first** `:`), e.g. `anthropic:claude-sonnet-4-6`.
+
+Agent-specific routes share authentication, model resolution and protocol conversion
+with the standard gateway routes. The Grok Build route requests reasoning effort
+`none` for its title tool. The selected model's adapter owns the upstream wire format.
 
 Gemini routes carry a separate local auth guard because Gemini clients use
 `x-goog-api-key` or `?key=`. The `/v1` scoped guard must not intercept `/v1beta`.
@@ -249,21 +284,27 @@ the listener fails, it remains unbound and the command reports an error.
 
 ### Internal listener for Cherry consumers
 
-Agent runtimes and PDF translation reach models through a second listener that
+Claude Code and PDF translation reach models through a second listener that
 `ApiGatewayService` starts on `127.0.0.1` with an ephemeral port the first time
 it is needed. It is independent of the user's `enabled` preference and stays up
-until the service stops. Its keys live only in memory and are never persisted or
-shown: `ensureInternalGateway` returns one unrestricted key, and
+until the service stops. Its keys live only in memory. `ensureInternalGateway`
+issues Claude Code a credential bound to its Agent session. The listener
+verifies that credential against the claimed session before opening its replay
+checkpoint. Calling `ensureInternalGateway` without a session ID returns the
+general internal key, which grants no checkpoint access.
 `createScopedCredential({ path, model })` issues a key for a single consumer run
-that only calls that path with that model and is revoked by `dispose`. The
+that only calls that path with that model and is revoked by `dispose`. Local
+Agent connections may additionally bind `agentSessionId` in this in-memory scope;
+request headers cannot override that binding or attribute an unbound scoped key.
+The runtime host resolves the active assistant message at request start. The
 internal listener accepts only those keys, sent in a header, and the public
 listener accepts only the user's key. Enabled CherryAI subscription chat models
 are listed and served by the public gateway as `cherryai-subscription:<apiModelId>`,
 including in Code Mate's gateway model picker. Requests use the signed-in CherryAI
 account and its subscription quota; the provider refreshes model entitlements
 before sending, and the server enforces quota. Internal consumers still apply
-their feature-specific model selection rules. Gateway requests run without Cherry's retries or
-fallback models, so a request is served only by the model it named.
+their feature-specific model selection rules. Gateway requests run without
+Cherry's retries or fallback models.
 
 Internal Anthropic requests prefer Anthropic Messages when the model declares
 that endpoint and the provider configures it. This preserves native thinking
@@ -364,6 +405,13 @@ A streaming request has two error regimes:
   finish chunk, or clean completion commits HTTP 200, headers can no longer
   change. A later error or pause therefore emits the dialect's terminal SSE
   error frame and closes the stream.
+
+The in-process object transport uses the same commitment chunks: a failure before
+commitment rejects the call, and a later failure ends its event iterator. Unread events
+are not bounded separately; the stream manager already accumulates the same response.
+The native `timeoutMs` bounds startup and subsequent upstream idle waits. Native providers release the response on every terminal path,
+including a rejected response hook before iteration. Gemini loads its SDK response wrapper
+on demand and rejects config fields the shared converter cannot represent.
 
 Client disconnect before commitment abandons the pending response, clears its
 startup buffer, aborts the manager execution, and does not surface a gateway
@@ -558,6 +606,11 @@ token is hashed and looked up only by the local guard on
 
 ## Error handling
 
+OAuth-only providers without an access token return HTTP 401 with sign-in guidance,
+including after a rejected refresh has disabled the provider. A disabled provider
+with saved credentials still follows the ordinary availability check. Providers
+that also support API keys keep their existing authentication path.
+
 One root `onError` (`gatewayErrorHandler`) selects the response envelope by
 request **path**, so every endpoint speaks its caller's dialect:
 
@@ -587,8 +640,10 @@ upstream response. Otherwise, `TimeoutError` or an exact message of
 `Upstream idle timeout exceeded`, `Stream idle timeout exceeded`, or
 `Idle timeout exceeded` maps to 504 with `Upstream request timed out`; otherwise
 `AbortError`, `ResponseAborted`, or string code `ABORT_ERR` maps to 504 with
-`Upstream stream aborted`. These matches classify the available error shape and
-do not establish upstream provenance. An extracted status in `[200, 300)` is
+`Upstream stream aborted`. A statusless provider error already classified as
+`context_length` by the AI runtime maps to HTTP 400 or the corresponding terminal
+SSE error. Public responses include the context-overflow marker and a sanitized
+message. Internal Anthropic responses use `Prompt is too long:`. An extracted status in `[200, 300)` is
 normalized to **502** for `/v1/messages`, `/v1/chat`, `/v1/responses`, `/v1beta`,
 and their SSE error frames: the AI SDK can create an `APICallError` with
 `statusCode: response.status` when an upstream 2xx body is unusable, and returning
@@ -598,6 +653,8 @@ error classification only in its terminal error frame.
 Unmatched statusless errors remain 500 with
 internal messages shown only in development. JSON responses and terminal SSE error
 frames exclude AI-SDK stack, URL, and request/response diagnostic extras.
+Anthropic status-only 413 errors use `request_too_large` in both JSON responses and
+terminal SSE error frames.
 
 For authenticated internal runtime requests, the prompt stream also passes its original
 provider exception to the gateway without putting it in persisted or renderer-facing error
@@ -605,8 +662,10 @@ state. The existing endpoint error handlers retain provider response details whi
 the error into the requested dialect and preserving its HTTP status. Request IDs and rate-limit
 headers are forwarded from an allowlist; request bodies and credential headers are not.
 For an internal Anthropic request, a classified context-overflow 400 also gains a
-`Prompt is too long:` prefix so Claude Code can recognize it; the provider message and
-structured error fields remain in the response.
+`Prompt is too long:` prefix so Claude Code can recognize it. When the provider message states
+a requested token count above its limit (OpenAI, vLLM, and llama.cpp wordings), the prefix becomes
+`Prompt is too long: N tokens > M maximum.` so Claude Code can size the overflow and its compaction.
+The provider message and structured error fields remain in the response.
 After HTTP 200 is committed, provider details go in the dialect error event instead of
 changing the response status or headers. Runtime SDKs may normalize that response further.
 Public gateway clients continue to receive the sanitized errors above.
@@ -622,9 +681,17 @@ Public gateway clients continue to receive the sanitized errors above.
   window messages, or run summary compaction. Protocol conversion and provider
   serialization still run normally. Prompt assembly, deferred-tool discovery,
   and Responses system-message removal apply only to Cherry-owned context.
+- **Claude Code provider state.** For authenticated Claude Code Agent sessions,
+  the gateway records upstream replay state in the Agent session checkpoint and
+  matches it to assistant blocks that occur exactly once in the returned history.
+  The AI SDK applies route compatibility to matched state. When a pending tool
+  continuation requires its original route, the gateway resolves that route
+  directly, even if the newly requested model is disabled.
 - **Caller-owned loop.** Gateway requests use single-step SDK `streamText` /
   `generateText`, without `ToolLoopAgent`, local tool execution, AI tool repair,
-  generation retry, or model fallback. Application chat retains its loop.
+  or model fallback. HTTP gateway requests disable SDK request retries. Internal Pi object
+  requests use [ai-retry before content](../../../../src/main/ai/runtime/pi/README.md#model-requests).
+  Application chat retains its loop.
 - **Assistant-agnostic.** No assistant/topic context. Sampling, client tools,
   and provider options ride as per-request `CallOverrides`.
 - **Main owns running state.** `feature.api_gateway.running` in the Shared Cache is

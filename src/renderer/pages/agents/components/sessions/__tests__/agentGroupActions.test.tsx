@@ -8,6 +8,7 @@ describe('Agent group archive actions', () => {
   it.each([false, true])('resolves archive actions with protected=%s', (deleteSessionsOnly) => {
     const context: AgentGroupActionContext = {
       agentId: 'agent-a',
+      isLocalAgent: false,
       assistantIconType: 'emoji',
       deleteSessionsOnly,
       onArchiveSessions: vi.fn(),
@@ -20,6 +21,7 @@ describe('Agent group archive actions', () => {
       sidebarPinned: false,
       t: ((key: string) => key) as TFunction
     }
+    expect(resolveAgentGroupActions(context).some((action) => action.id === 'agent-group.import-deepseek')).toBe(false)
     expect(
       resolveAgentGroupActions(context)
         .filter((action) => action.group === 'danger')

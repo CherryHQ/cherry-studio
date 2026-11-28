@@ -14,6 +14,7 @@
  * currently fall back to inline base64 here.
  */
 
+import { hash } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 
 import mime from 'mime'
@@ -29,6 +30,9 @@ const logger = loggerService.withContext('ai:fileProcessor')
 // Ark documents edges >14 px; 15 also satisfies an inclusive 14 px floor.
 // This is an attachment compatibility target, not a universal provider minimum.
 const MIN_ATTACHMENT_IMAGE_EDGE = 15
+const MAX_IMAGE_VALIDATIONS = 512
+/** Decisions by data URL digest: `null` rejects, `url` replaces the image with its padded form. */
+const imageValidations = new Map<string, { url?: string } | null>()
 const MAX_ATTACHMENT_IMAGE_PIXELS = 100_000_000
 
 // `type/subtype`, per RFC 6838; `*` in the subtype allows the `image/*`
@@ -109,6 +113,21 @@ export async function materializeNativeFilePart(part: FileUIPart): Promise<FileU
   // remote URLs or reject other formats merely because this decoder lacks them.
   if (!/^image\/(?:png|jpeg|webp|gif)$/i.test(normalized.mediaType) || !normalized.url.startsWith('data:'))
     return normalized
+  // History images repeat on every native model call; validate each content once.
+  const key = hash('sha256', normalized.url)
+  const known = imageValidations.get(key)
+  if (known !== undefined) {
+    imageValidations.delete(key)
+    imageValidations.set(key, known)
+    return known && (known.url ? { ...normalized, url: known.url } : normalized)
+  }
+  const validated = await validateImage(normalized)
+  imageValidations.set(key, validated && (validated === normalized ? {} : { url: validated.url }))
+  if (imageValidations.size > MAX_IMAGE_VALIDATIONS) imageValidations.delete(imageValidations.keys().next().value!)
+  return validated
+}
+
+async function validateImage(normalized: FileUIPart): Promise<FileUIPart | null> {
   try {
     const comma = normalized.url.indexOf(',')
     if (comma < 0) return null

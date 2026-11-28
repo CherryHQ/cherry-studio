@@ -1,10 +1,20 @@
 import { randomUUID } from 'node:crypto'
 
 import type { Usage } from '@earendil-works/pi-ai'
+import type { EntryId } from '@earendil-works/pi-durable'
 
 import type { BehaviorEvent } from '@cherrystudio/agent-behavior'
-import { runtimeId, type InputState, type Observation, type Subagent } from '@cherrystudio/agent-runtime'
+import {
+  hasProductInputId,
+  isPartBatch,
+  runtimeId,
+  type CompactThread,
+  type InputState,
+  type Observation,
+  type Subagent
+} from '@cherrystudio/agent-runtime'
 import type {
+  DurableFollowup,
   DurableObservation,
   PiDurableRuntime,
   PiDurableThreadHandle
@@ -16,14 +26,16 @@ import { ChildThreadProjection } from '@main/ai/agentSession/ChildThreadProjecti
 import {
   prepareNativeSubmission,
   lookupNativeInput,
-  bindNativeInput,
-  applyNativeSubmissionResult
+  applyNativeSubmissionResult,
+  nativeOutcomeTerminal
 } from '@main/ai/agentSession/nativeSubmission'
 import { ThreadProjection } from '@main/ai/agentSession/ThreadProjection'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { t } from '@main/i18n'
+import { replaceFollowupText, type AgentSessionFollowupChange } from '@shared/ai/agentSessionFollowups'
 import type { AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
+import type { RetryPartData } from '@shared/data/types/uiParts'
 import { AsyncEventQueue } from '@shared/utils/async'
 
 import { buildAgentUserContent } from '../agentUserContent'
@@ -31,14 +43,17 @@ import { PiChildTasks } from '../pi/PiChildTasks'
 import { PiInvalidConnectionSnapshotError } from '../pi/piConnectionSignature'
 import { PiMessageMetadata } from '../pi/PiMessageMetadata'
 import { PiTurnUsage } from '../pi/PiTurnUsage'
+import { PROMPT_SUGGESTION_INSTRUCTION } from '../promptSuggestion'
 import type {
   AgentRuntimeConnectInput,
   AgentRuntimeConnection,
   AgentRuntimeEvent,
   AgentRuntimeReconcileResult,
   AgentRuntimeTraceContext,
-  AgentRuntimeCommand
+  AgentRuntimeCommand,
+  AgentRuntimeInput
 } from '../types'
+import { type UnavailableNativeContext, unavailableNativeContext } from '../types'
 import type { DurableBackend, DurableRoot } from './DurableBackend'
 import type { prepareDurableBranch } from './durableContext'
 import { saveDurableRequest } from './durableRequest'
@@ -50,6 +65,14 @@ type DurableChildResource = {
   relation: Subagent
   handle: PiDurableThreadHandle
   projection: ChildThreadProjection
+  through?: EntryId
+  /** In-flight commands keep the native handle alive through admission. */
+  pins: number
+  finished: boolean
+}
+
+function isCompactCommand(text: string) {
+  return /^\/compact(?:\s|$)/.test(text.trim())
 }
 
 export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
@@ -58,6 +81,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
   }
 
   readonly retainWhileIdle = true
+  readonly retainOnStop = true
   readonly usageCapture = { owner: 'provider-calls' as const }
   readonly events = new AsyncEventQueue<AgentRuntimeEvent>()
   private runtime?: PiDurableRuntime
@@ -67,98 +91,158 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
   private desktop?: DurableRoot['desktop']
   private access?: { owner: DurableBackend; root: DurableRoot; release(flush: () => Promise<void>): Promise<void> }
   private closing = false
-  private readonly closingAccess = new AbortController()
   private closePromise?: Promise<void>
   private active = false
   private sending = false
   private compacting = false
   private autonomous = false
   private failure?: unknown
+  private stopGeneration = 0
+  private admission: Promise<unknown> = Promise.resolve()
+  private runEnded?: PromiseWithResolvers<void>
   private nextOrigin: AutonomousTurnOrigin = { kind: 'background-work' }
   private providerSessionId?: string
   private readonly turnUsage = new PiTurnUsage()
   private reconcileChain: Promise<unknown> = Promise.resolve()
   private readonly steers = new Set<string>()
+  /** Inputs submitted while native work ran; their placement is announced even with an outcome. */
+  private readonly queued = new Set<string>()
+  /** Product inputs whose placement was announced; each placement starts its own reply once. */
+  private readonly placed = new Set<string>()
+  /** The input whose reply the host is writing. */
+  private readonly runInputs = new Set<string>()
   private readonly children = new Map<
     string,
     | { state: 'opening'; pending: Promise<DurableChildResource | undefined> }
     | { state: 'attached' | 'closing'; resource: DurableChildResource }
+    | { state: 'releasing'; pending: Promise<void> }
   >()
+  /** Origins and context ids of finished children whose native history was released. */
+  private readonly releasedChildren = new Map<string, { id: string; origin: Subagent['origin']; contextId: string }>()
   private readonly childTasks = new PiChildTasks(
     (id) => this.childOrigin(id),
     (event) => this.events.push(event)
   )
   private readonly adapter = new PiMessageMetadata((name) => this.desktop?.mcp.metadata.get(name))
+  private retryUpdates: Promise<void> = Promise.resolve()
+  private publishedBackground?: DurableObservation['backgroundResults']
+  private publishedFollowups?: readonly DurableFollowup[]
   private projection?: ThreadProjection
+
+  preparedFor(request: AgentRuntimeConnectInput): boolean {
+    return this.input === request
+  }
+
+  bindInputs(callbacks: Pick<AgentRuntimeConnectInput, 'onSteerInjected'>): void {
+    this.input.onSteerInjected = callbacks.onSteerInjected
+  }
 
   constructor(
     private readonly input: AgentRuntimeConnectInput,
-    private readonly acquire: () => Promise<{
-      owner: DurableBackend
-      root: DurableRoot
-      release(flush: () => Promise<void>): Promise<void>
-    }>
-  ) {}
+    access: NonNullable<PiDurableRuntimeConnection['access']>
+  ) {
+    this.access = access
+  }
 
-  async start(): Promise<this> {
-    try {
-      this.access = await this.acquire()
-      const { owner, root } = this.access
-      this.desktop = root.desktop
-      this.context = root.context
-      this.runtime = owner.runtime
-      root.sink = {
-        event: (event) => (event.type === 'error' ? this.fail(event.error) : this.events.push(event)),
-        behavior: (event) => this.onBehavior(event),
-        usage: (usage, sessionId, responseId) => {
-          if (sessionId === this.providerSessionId) {
-            if (responseId) this.events.push({ type: 'response-start', responseId })
-            this.recordUsage(usage)
-          }
-        },
-        placed: (inputId) => {
-          if (inputId && this.steers.has(inputId)) this.input.onSteerInjected?.([inputId])
+  async start(recoverChildren: readonly string[] = []): Promise<this | UnavailableNativeContext> {
+    const { owner, root } = this.access!
+    this.desktop = root.desktop
+    this.context = root.context
+    this.runtime = owner.runtime
+    root.sink = {
+      event: (event) => (event.type === 'error' ? this.fail(event.error) : this.events.push(event)),
+      behavior: (event) => this.onBehavior(event),
+      usage: (usage, sessionId, responseId) => {
+        if (sessionId === this.providerSessionId) {
+          if (responseId) this.events.push({ type: 'response-start', responseId })
+          this.recordUsage(usage)
         }
+      },
+      retry: (event, sessionId) => this.onModelRetry(event, sessionId),
+      followups: (queue) => this.publishFollowups(queue),
+      placed: (inputId) => {
+        if (inputId && this.steers.has(inputId)) this.input.onSteerInjected?.([inputId])
       }
-      const opened = await this.runtime.open({
-        backendId: runtimeId(this.context.backendId),
-        id: runtimeId(this.context.nativeThreadId!)
-      })
-      if (opened.status !== 'confirmed') throw new Error(opened.error.message)
-      this.handle = opened.value
-      this.context = contexts.bindContext(this.context.id, this.handle.thread.id)
-      await saveDurableRequest(this.runtime, this.handle.thread.id, this.input)
-      await this.handle.durable.configure(root.agent)
-      this.providerSessionId = await this.handle.durable.providerSessionId()
-      const observed = await this.handle.durable.observe((batch) => this.onObservation(batch))
-      if (observed.status !== 'confirmed') throw new Error(observed.error.message)
-      this.observation = observed.value
-      await this.observation.drain()
-      await this.childResources()
-      this.events.push({ type: 'resume-token', token: this.handle.thread.id })
-      root.attached()
-      await owner.resume()
-      return this
-    } catch (error) {
-      await this.close()
-      throw error
     }
+    const opened = await this.runtime.open({
+      backendId: runtimeId(this.context.backendId),
+      id: runtimeId(this.context.nativeThreadId!)
+    })
+    if (opened.status === 'rejected' && opened.error.code === 'not-found')
+      return unavailableNativeContext(root.context, opened.error.message)
+    if (opened.status !== 'confirmed') throw new Error(opened.error.message)
+    this.handle = opened.value
+    this.context = contexts.bindContext(this.context.id, this.handle.thread.id)
+    this.publishFollowups(this.handle.durable.followups())
+    await saveDurableRequest(this.runtime, this.handle.thread.id, this.input)
+    await this.handle.durable.configure(root.agent)
+    this.providerSessionId = await this.handle.durable.providerSessionId()
+    const observed = await this.handle.durable.observe(
+      (batch) => this.onObservation(batch),
+      Object.keys(this.context.checkpointMapping?.root?.sources ?? {})
+    )
+    if (observed.status !== 'confirmed') throw new Error(observed.error.message)
+    this.observation = observed.value
+    await this.observation.drain()
+    for (const child of recoverChildren)
+      if (!(await this.observeChild(child))) throw new Error('Durable child archive is unavailable')
+    await this.childResources()
+    // Finish opening native observations before reclamation lets a queued shutdown proceed.
+    await owner.reclaimRetired(root)
+    this.events.push({ type: 'resume-token', token: this.handle.thread.id })
+    return this
+  }
+
+  async predictPrompt(signal: AbortSignal): Promise<string> {
+    if (!this.handle || this.closing) return ''
+    return this.handle.durable.predictPrompt(PROMPT_SUGGESTION_INSTRUCTION, signal)
   }
 
   async send(input: AgentRuntimeCommand): Promise<void> {
     if (!this.handle || !this.context || this.closing) throw new Error('Durable runtime is unavailable')
-    if (this.sending) throw new Error('Durable already has an active submission')
-    this.sending = true
-    this.failure = undefined
-    this.turnUsage.reset()
     const text = buildAgentUserContent(input.message)
-    if (!input.systemReminder && /^\/compact(?:\s|$)/.test(text.trim())) {
+    const manual = !input.systemReminder && isCompactCommand(text)
+    if (manual && this.sending) throw new Error('Durable cannot compact while native work is running')
+    // Compaction is not an input run; the host holds input behind its compaction occupancy.
+    if (this.compacting) throw new Error('Durable is compacting')
+    // Input that arrives while native work runs waits in Durable's queue and joins the running turn.
+    const running = this.sending
+    this.sending = true
+    // The host turn already owns input that starts new work; only a queued placement needs announcing.
+    if (running) this.queued.add(input.message.id)
+    else {
+      this.placed.add(input.message.id)
+      this.runInputs.clear()
+      this.runInputs.add(input.message.id)
+      this.failure = undefined
+      this.turnUsage.reset()
+    }
+    const stopGeneration = this.stopGeneration
+    const snapshot = this.desktop?.snapshot
+    let thresholdReached = false
+    if (!running && !manual && snapshot?.compactionPercent !== undefined && snapshot.model.contextWindow) {
       this.compacting = true
-      this.events.push({ type: 'compaction-start', trigger: 'manual' })
+      const usage = await this.handle.contextUsage().catch(() => undefined)
+      this.compacting = false
+      const contextWindow = usage?.status === 'confirmed' ? usage.value.contextWindow : undefined
+      thresholdReached =
+        usage?.status === 'confirmed' &&
+        !!usage.value.used &&
+        contextWindow !== undefined &&
+        contextWindow > 0 &&
+        usage.value.used.tokens >= (contextWindow * snapshot.compactionPercent) / 100
+    }
+    if (manual || (thresholdReached && stopGeneration === this.stopGeneration && !this.closing)) {
+      const trigger = manual ? 'manual' : 'auto'
+      this.compacting = true
+      this.events.push({ type: 'compaction-start', trigger })
       try {
-        const compacted = await this.handle.durable.compact(text.trim().slice('/compact'.length).trim() || undefined)
+        const compacted = await this.handle.durable.compact(
+          manual ? text.trim().slice('/compact'.length).trim() || undefined : undefined
+        )
         if (compacted.status !== 'confirmed') throw new Error(compacted.error.message)
-        if (!this.closing && !compacted.value.compacted) this.projection?.notice(t('common.agent_compaction_unchanged'))
+        if (manual && !this.closing && !compacted.value.compacted)
+          this.projection?.notice(t('common.agent_compaction_unchanged'))
         if (!this.closing)
           this.events.push({
             type: 'compaction-complete',
@@ -166,7 +250,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
               anchor: {
                 status: 'done',
                 phase: 'agent-session',
-                trigger: 'manual',
+                trigger,
                 completedAt: new Date().toISOString()
               }
             })
@@ -176,43 +260,163 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
       } finally {
         this.compacting = false
       }
-      this.finishTurn()
+      if (manual || this.failure || this.closing) {
+        this.finishTurn()
+        return
+      }
+    }
+    // Stop can finish its native interrupt before this input reaches native admission.
+    if (stopGeneration !== this.stopGeneration || this.closing) {
+      this.placed.delete(input.message.id)
+      this.finishTurn(undefined, true)
       return
     }
     try {
-      await this.submit(input, input.systemReminder ? wrapSteerReminder(text) : text, 'reject')
+      await this.submit(input, input.systemReminder ? wrapSteerReminder(text) : text)
     } catch (error) {
-      this.sending = false
+      if (!running) this.sending = false
       throw error
     }
   }
 
   lookupInput(contextId: string, inputId: string) {
-    return lookupNativeInput(this.runtime!, this.input.sessionId, contextId, inputId)
-  }
-
-  redirect(input: AgentRuntimeCommand): boolean {
-    if (!this.active || this.closing) return false
-    this.steers.add(input.message.id)
-    void this.submit(input, wrapSteerReminder(buildAgentUserContent(input.message)), 'steer').catch((error) =>
-      this.fail(error)
+    return lookupNativeInput(
+      this.input.sessionId,
+      contextId,
+      inputId,
+      this.runtime &&
+        this.context && {
+          backendId: this.context.backendId,
+          lookupInput: this.runtime.lookupInput
+        }
     )
-    return true
   }
 
-  private async submit(input: AgentRuntimeCommand, text: string, whenBusy: 'reject' | 'steer') {
-    const draft = prepareNativeSubmission(this.input.sessionId, input.message.id, this.context!.id, whenBusy, {
-      text,
-      parts: input.message.data.parts
+  get threadInput(): AgentRuntimeInput | undefined {
+    const handle = this.handle
+    if (!handle || this.closing) return
+    const followUp = handle.input.followUp
+    const submit =
+      (kind: 'steer' | 'follow-up'): NonNullable<AgentRuntimeInput['submit']> =>
+      async ({ inputId, message }) => {
+        const native = kind === 'steer' ? handle.input.steer.submit : followUp?.submit
+        const text = buildAgentUserContent(message)
+        if (
+          !native ||
+          this.closing ||
+          this.compacting ||
+          this.handle !== handle ||
+          (kind === 'steer' ? !this.active : !this.sending) ||
+          isCompactCommand(text)
+        )
+          return {
+            status: 'rejected',
+            inputId,
+            error: { operation: kind, code: 'unavailable', message: 'Pi Durable cannot admit this input now' }
+          }
+        const inputs = kind === 'steer' ? this.steers : this.queued
+        inputs.add(inputId)
+        const submission = native({ inputId, text: wrapSteerReminder(text) })
+        this.admission = submission.catch(() => undefined)
+        const result = await submission.catch((error: unknown) => ({
+          status: 'unknown' as const,
+          inputId,
+          error: {
+            operation: kind,
+            code: 'missing-receipt',
+            message: error instanceof Error ? error.message : String(error)
+          }
+        }))
+        if (result.status === 'rejected' || result.status === 'unsupported') inputs.delete(inputId)
+        return result
+      }
+    return {
+      steer: { whenIdle: 'reject', submit: submit('steer') },
+      ...(followUp?.persistence === 'durable' && {
+        followUp: { persistence: 'durable', submit: submit('follow-up') }
+      })
+    }
+  }
+
+  readonly compactWithInstructions = true as const
+
+  get compact(): CompactThread | undefined {
+    const handle = this.handle
+    const compact = handle?.compact
+    if (!compact || this.closing || this.input.headless) return
+    return async (instructions) => {
+      if (this.sending || this.active || this.closing || this.compacting || this.handle !== handle)
+        return {
+          status: 'rejected',
+          error: { operation: 'compact', code: 'busy', message: 'Pi Durable session is unavailable or busy' }
+        }
+      this.compacting = true
+      try {
+        return await compact(instructions)
+      } finally {
+        this.compacting = false
+      }
+    }
+  }
+
+  private publishFollowups(queue: readonly DurableFollowup[]): void {
+    if (queue === this.publishedFollowups || (!queue.length && !this.publishedFollowups?.length)) return
+    this.publishedFollowups = queue
+    this.events.push({
+      type: 'followup-queue',
+      queue: queue.flatMap(({ inputId, revision }) => {
+        if (messages.inputBinding(this.input.sessionId, inputId)?.contextId !== this.context?.id) return []
+        const message = messages.getSessionMessage(this.input.sessionId, inputId)
+        return message.delivery ? [] : [{ id: inputId, revision, parts: message.data.parts ?? [] }]
+      })
     })
-    this.input.onInputPrepared?.(input.message.id, this.context!.id)
-    const result = await this.handle!.input.submit(draft)
-    this.events.push({ type: 'input-submission', contextId: this.context!.id, result })
+  }
+
+  async changeFollowups(change: AgentSessionFollowupChange): Promise<boolean> {
+    if (this.closing || !this.handle || !this.context) return false
+    if (change.type === 'reorder') return this.handle.durable.changeFollowups(change)
+    const context = this.context
+    if (messages.inputBinding(this.input.sessionId, change.inputId)?.contextId !== context.id) return false
+    const message = messages.getSessionMessage(this.input.sessionId, change.inputId)
+    if (message.delivery || message.role !== 'user') return false
+    if (change.type === 'withdraw') return this.handle.durable.changeFollowups(change)
+
+    const parts = message.data.parts ?? []
+    const index = parts.findIndex((part) => part.type === 'text')
+    const original = parts[index]
+    if (original?.type !== 'text') return false
+    const replacement = replaceFollowupText(original, change.text)
+    const edited = parts.map((part, partIndex) => (partIndex === index ? replacement : part))
+    return this.handle.durable.changeFollowups({
+      type: 'edit',
+      inputId: change.inputId,
+      revision: change.revision,
+      content: wrapSteerReminder(buildAgentUserContent({ ...message, data: { ...message.data, parts: edited } })),
+      textPart: JSON.stringify(replacement)
+    })
+  }
+
+  private async submit(input: AgentRuntimeCommand, text: string) {
+    const submitted = (async () => {
+      const handle = this.handle
+      const send = handle?.input.followUp?.submit
+      if (!handle || !send) throw new Error('Pi Durable input operation is unavailable')
+      if (input.context?.length)
+        await handle.durable.initializeContext(
+          buildAgentUserContent({ ...input.message, data: { parts: input.context } })
+        )
+      const draft = prepareNativeSubmission(this.input.sessionId, input.message.id, this.context!.id, {
+        text,
+        parts: input.message.data.parts
+      })
+      return send(draft)
+    })()
+    this.admission = submitted.catch(() => undefined)
+    const result = await submitted
+    applyNativeSubmissionResult(this.input.sessionId, this.context!.id, result)
     if (result.status !== 'acknowledged') {
-      applyNativeSubmissionResult(this.input.sessionId, this.context!.id, result)
       throw new Error(result.error.message)
     }
-    this.captureInput(result)
   }
 
   async getContextUsage() {
@@ -224,96 +428,155 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
         }
   }
 
-  private async onObservation(batch: DurableObservation): Promise<void> {
+  private onObservation(batch: DurableObservation): void {
+    const placements: string[] = []
     try {
-      for (const event of batch.events) {
-        if (event.type === 'context.changed') this.events.push({ type: 'context-usage', result: event.result })
-        if (event.type === 'snapshot' && event.contextUsage)
-          this.events.push({ type: 'context-usage', result: event.contextUsage })
-        if (event.type === 'snapshot') {
-          const nowActive = event.activity.state === 'active'
-          if (nowActive && !this.sending && !this.closing)
-            this.beginAutonomous(
-              batch.backgroundResults.status === 'confirmed' ? batch.backgroundResults.value.notification : undefined
-            )
-          for (const input of event.inputs) this.captureInput(input)
-          this.active = nowActive
-          for (const relation of event.subagents ?? [])
-            if (relation.child) void this.observeChild(relation.child.id).catch((error) => this.fail(error))
-        } else if (event.type === 'input.changed') this.captureInput(event.input)
-        else if (event.type === 'subagent.upsert' && event.subagent.child)
-          void this.observeChild(event.subagent.child.id).catch((error) => this.fail(error))
-        else if (
-          event.type === 'diagnostic' ||
-          (event.type === 'gap' && !['overflow', 'mapping-reset'].includes(event.reason))
-        )
-          throw new Error(event.type === 'gap' ? `Durable observation gap: ${event.reason}` : event.error.message)
-        else if (event.type === 'closed' && event.reason !== 'shutdown' && !this.closing)
-          throw new Error(`Durable observation ended: ${event.reason}`)
-      }
       this.projection ??= new ThreadProjection(
         this.handle!.thread,
         this.context!.id,
         (projection) => this.events.push({ type: 'message-projection', projection }),
-        (message) => this.adapter.decorate(message)
+        (message, _source, unchangedParts) => this.adapter.decorate(message, unchangedParts)
       )
-      await this.projection.accept(batch)
-      const results = batch.backgroundResults
-      this.events.push({
-        type: 'background-results',
-        result: results.status === 'confirmed' ? { status: 'confirmed', value: results.value.pending } : results
-      })
-      this.events.push({
-        type: 'background-work-state',
-        active: results.status !== 'confirmed' || results.value.active
-      })
-      if (batch.completion && !this.compacting && !this.closing && this.sending) {
-        const failed = batch.completion.inputs.find((input) => input.outcome && input.outcome !== 'completed')
-        if (failed) {
-          this.failure ??= Object.assign(new Error(failed.error?.message ?? failed.outcome), {
-            reason: failed.error?.code,
-            ...(failed.error?.code === 'output-truncated' && {
-              finishReason: 'length',
-              i18nKey: 'output_token_limit_reached'
-            })
-          })
+      const { events } = batch
+      const parts = isPartBatch(events)
+      if (parts) {
+        for (const event of events) {
+          if (!this.projection.acceptPart(event, batch.live)) continue
+          const part = this.adapter.decorateLive(event)
+          this.events.push({ ...part, contextId: this.context!.id })
         }
-        this.finishTurn(batch.completion.entryId)
+      } else {
+        for (const event of events) {
+          if (event.type === 'context.changed') this.events.push({ type: 'context-usage', result: event.result })
+          if (event.type === 'snapshot' && event.contextUsage)
+            this.events.push({ type: 'context-usage', result: event.contextUsage })
+          if (event.type === 'snapshot') {
+            const nowActive = event.activity.state === 'active'
+            if (nowActive && !this.sending && !this.closing) {
+              // After reopen, Durable resumes a placed input that has no outcome yet; the started event names it.
+              const recoveredInputId = batch.resumedInput
+              if (recoveredInputId) this.placed.add(recoveredInputId)
+              this.beginAutonomous(
+                batch.backgroundResults.status === 'confirmed' ? batch.backgroundResults.value.notification : undefined,
+                recoveredInputId
+              )
+            }
+            this.active = nowActive
+            for (const relation of event.subagents ?? [])
+              if (relation.child && !this.releasedChildren.has(this.childKey(relation.child.id)))
+                this.attachChild(relation.child.id)
+          } else if (event.type === 'activity.changed') this.active = event.activity.state === 'active'
+          else if (event.type === 'input.changed') this.captureInput(event.input, placements)
+          else if (event.type === 'subagent.upsert' && event.subagent.child) this.attachChild(event.subagent.child.id)
+          // Durable follows each gap with a recovery snapshot; neither a gap nor a diagnostic ends native work.
+          else if (event.type === 'diagnostic' || (event.type === 'gap' && event.reason === 'disconnected'))
+            logger.warn('Durable observation fault', { sessionId: this.input.sessionId, event })
+          else if (event.type === 'closed' && event.reason !== 'shutdown' && !this.closing)
+            throw new Error(`Durable observation ended: ${event.reason}`)
+        }
+      }
+      if (!parts) this.projection.accept({ ...batch, events })
+      // The answer before a placed input arrives in the same batch, so the boundary follows its projection.
+      if (placements.length) {
+        this.runInputs.clear()
+        for (const id of placements) this.runInputs.add(id)
+        this.events.push({ type: 'run-started', inputIds: placements })
+      }
+      for (const answer of batch.answers ?? []) {
+        this.events.push({
+          type: 'run-checkpoint',
+          contextId: this.context!.id,
+          inputId: answer.inputId,
+          forkAnchor: {
+            checkpoint: {
+              runtime: 'pi-durable',
+              backendId: this.context!.backendId,
+              conversationId: this.handle!.thread.id,
+              entryId: answer.entryId
+            }
+          }
+        })
+      }
+      const results = batch.backgroundResults
+      if (!parts || results !== this.publishedBackground) {
+        this.publishedBackground = results
+        this.events.push({
+          type: 'background-results',
+          result: results.status === 'confirmed' ? { status: 'confirmed', value: results.value.pending } : results
+        })
+        this.events.push({
+          type: 'background-work-state',
+          active: results.status !== 'confirmed' || results.value.active
+        })
+      }
+      if (batch.completion && !this.compacting && !this.closing && this.sending) {
+        // Queued executions settle separately; every steer belongs to this execution.
+        const inputs = this.runInputs.size
+          ? batch.completion.inputs.filter((input) => !!input.inputId && this.runInputs.has(input.inputId))
+          : batch.completion.inputs
+        const failed = inputs.map(nativeOutcomeTerminal).find((terminal) => terminal?.status === 'error')
+        if (failed?.status === 'error') this.failure ??= failed.error
+        const aborted = inputs.some((input) => input.outcome === 'aborted')
+        this.finishTurn(aborted ? undefined : batch.completion.entryId, aborted)
       }
     } catch (error) {
       this.fail(error)
     }
   }
 
-  private beginAutonomous(sourceToolCallIds?: readonly string[]) {
+  private beginAutonomous(sourceToolCallIds?: readonly string[], recoveredInputId?: string) {
     this.sending = true
     this.autonomous = true
     this.failure = undefined
     this.turnUsage.reset()
-    this.events.push({ type: 'autonomous-turn-state', state: 'started', origin: this.nextOrigin, sourceToolCallIds })
+    this.runInputs.clear()
+    if (recoveredInputId) this.runInputs.add(recoveredInputId)
+    this.events.push({
+      type: 'autonomous-turn-state',
+      state: 'started',
+      origin: this.nextOrigin,
+      sourceToolCallIds,
+      recoveredInputId
+    })
     this.nextOrigin = { kind: 'background-work' }
   }
 
-  private captureInput(input: InputState) {
+  private captureInput(input: InputState, placements?: string[]) {
+    if (!hasProductInputId(input)) return
     this.events.push({ type: 'input-state', contextId: this.context!.id, input })
-    const messageId = bindNativeInput(this.input.sessionId, this.context!.id, input)
-    if (messageId && input.facts.includes('placed')) {
-      const steer = this.steers.has(messageId) ? messageId : undefined
-      if (steer) {
-        this.steers.delete(messageId)
-        this.events.push({ type: 'steer-boundary', inputIds: [steer] })
-      }
+    const messageId = input.inputId
+    if (input.facts.includes('placed')) this.announcePlacement(messageId, input, placements)
+    // Durable never places an input again once it has an outcome.
+    if (input.outcome) {
+      this.queued.delete(messageId)
+      this.placed.delete(messageId)
     }
   }
 
-  private finishTurn(entryId?: string) {
+  private announcePlacement(messageId: string, input: InputState, placements?: string[]) {
+    if (this.steers.delete(messageId)) {
+      this.placed.add(messageId)
+      this.runInputs.add(messageId)
+      this.events.push({ type: 'steer-boundary', inputIds: [messageId] })
+      return
+    }
+    if (!placements || this.placed.has(messageId)) return
+    // Without the outcome check, reopening would announce every historical input.
+    if (!this.queued.delete(messageId) && input.outcome) return
+    this.placed.add(messageId)
+    placements.push(messageId)
+  }
+
+  private finishTurn(entryId?: string, aborted = false) {
     if (this.closing || !this.sending) return
     this.sending = false
+    this.runInputs.clear()
     this.events.push(
       this.failure
         ? { type: 'error', error: this.failure }
         : {
             type: 'turn-complete',
+            ...(aborted && { status: 'paused' as const }),
             ...(entryId && {
               forkAnchor: {
                 checkpoint: {
@@ -330,6 +593,8 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
       this.autonomous = false
       this.events.push({ type: 'autonomous-turn-state', state: 'finished' })
     }
+    this.runEnded?.resolve()
+    this.runEnded = undefined
   }
 
   private onBehavior(event: BehaviorEvent) {
@@ -343,23 +608,94 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     }
   }
 
+  private attachChild(id: string) {
+    void this.observeChild(id).catch((error) => logger.warn('Failed to observe Durable child', { id, error }))
+  }
+
   private childKey(id: string): string {
     return JSON.stringify([this.context!.backendId, id])
   }
 
   private childOrigin(id: string) {
-    const child = this.children.get(this.childKey(id))
-    return child && child.state !== 'opening' ? child.resource.relation.origin : undefined
+    const key = this.childKey(id)
+    const child = this.children.get(key)
+    return child && 'resource' in child ? child.resource.relation.origin : this.releasedChildren.get(key)?.origin
+  }
+
+  /** Releases a finished child so its history stops occupying memory; it reopens on demand. */
+  private releaseFinishedChild(key: string): void {
+    const child = this.children.get(key)
+    if (this.closing || child?.state !== 'attached') return
+    const { resource } = child
+    if (!resource.finished || resource.pins > 0) return
+    const pending = (async () => {
+      try {
+        await this.persistChild(resource)
+        this.releasedChildren.set(key, {
+          id: resource.relation.child!.id,
+          origin: resource.relation.origin,
+          contextId: resource.projection.context.id
+        })
+        this.children.delete(key)
+      } catch (error) {
+        // Keep the unflushed child for the close and reopen retries.
+        this.children.set(key, { state: 'closing', resource })
+        logger.error('Failed to release finished Durable child', { key, error })
+      }
+    })()
+    this.children.set(key, { state: 'releasing', pending })
+  }
+
+  private async persistChild(resource: DurableChildResource) {
+    await resource.projection.stop()
+    if (resource.through && this.access)
+      await this.access.owner.acknowledgeChild(
+        this.access.root.context.backendId,
+        resource.handle.thread.id,
+        resource.through
+      )
+    await resource.handle.release()
+  }
+
+  private pinChild(resource: DurableChildResource): () => void {
+    resource.pins++
+    let pinned = true
+    return () => {
+      if (!pinned) return
+      pinned = false
+      resource.pins--
+      this.releaseFinishedChild(this.childKey(resource.relation.child!.id))
+    }
   }
 
   private async childResource(id: string): Promise<DurableChildResource | undefined> {
     const child = this.children.get(this.childKey(id))
+    if (child?.state === 'releasing') return undefined
     return child?.state === 'opening' ? child.pending : child?.resource
+  }
+
+  private onModelRetry(event: RetryPartData, sessionId: string): void {
+    this.retryUpdates = this.retryUpdates
+      .then(async () => {
+        if (this.closing) return
+        if (sessionId === this.providerSessionId) {
+          this.events.push({ type: 'data-retry', id: 'retry', data: event })
+        } else {
+          for (const child of await this.childResources()) {
+            if ((await child.handle.durable.providerSessionId()) === sessionId) {
+              child.projection.retry(event)
+              break
+            }
+          }
+        }
+      })
+      .catch((error) => logger.warn('Failed to project model retry status', { error }))
   }
 
   private async childResources(): Promise<DurableChildResource[]> {
     const resources: DurableChildResource[] = []
     for (const child of this.children.values()) {
+      if (child.state === 'releasing') continue
       const resource = child.state === 'opening' ? await child.pending : child.resource
       if (resource) resources.push(resource)
     }
@@ -371,6 +707,10 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     const existing = this.children.get(key)
     if (existing) {
       await granted?.release()
+      if (existing.state === 'releasing') {
+        await existing.pending
+        return this.observeChild(id)
+      }
       if (existing.state === 'closing') {
         await existing.resource.projection.stop()
         await existing.resource.handle.release()
@@ -393,6 +733,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
           if (opened.status !== 'confirmed') throw new Error(opened.error.message)
           handle = opened.value
         }
+        this.access!.owner.registerChild(handle.thread.id, this.context!.id)
         const relation = await handle.durable.relation()
         if (!relation?.origin) throw new Error('Native child creation origin is unavailable')
         const parent =
@@ -411,39 +752,67 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
           context,
           {
             ...access,
-            observe: (sink) =>
-              access.observe(async (event) => {
-                await sink(event)
-                if (event.type === 'subagent.upsert' && event.subagent.child)
-                  void this.observeChild(event.subagent.child.id)
-                if (event.type === 'snapshot') {
-                  for (const child of event.subagents ?? []) if (child.child) void this.observeChild(child.child.id)
-                  if (this.closing) return
-                  const facts = await access.durable.facts()
-                  this.childTasks.publish(
-                    id,
-                    facts.live.idle
-                      ? facts.live.runEnd?.outcome === 'completed'
-                        ? 'completed'
-                        : facts.live.runEnd?.outcome === 'aborted'
-                          ? 'stopped'
-                          : 'error'
-                      : 'in_progress'
-                  )
+            observe: (sink) => {
+              return access.observe(async (event) => {
+                try {
+                  await sink(event)
+                  if (event.type === 'subagent.upsert' && event.subagent.child)
+                    void this.observeChild(event.subagent.child.id)
+                  if (event.type === 'snapshot') {
+                    for (const child of event.subagents ?? [])
+                      if (child.child && !this.releasedChildren.has(this.childKey(child.child.id)))
+                        void this.observeChild(child.child.id)
+                  }
+                  // Run state and input outcomes change only with these events; streamed content does not.
+                  if (
+                    event.type === 'snapshot' ||
+                    event.type === 'activity.changed' ||
+                    event.type === 'input.changed'
+                  ) {
+                    if (this.closing) return
+                    const facts = await access.durable.facts()
+                    this.childTasks.publish(
+                      id,
+                      facts.live.idle
+                        ? facts.live.runEnd?.outcome === 'completed'
+                          ? 'completed'
+                          : facts.live.runEnd?.outcome === 'aborted'
+                            ? 'stopped'
+                            : 'error'
+                        : 'in_progress'
+                    )
+                    if (resource) {
+                      resource.finished = facts.live.idle && facts.live.runEnd !== undefined
+                      this.releaseFinishedChild(key)
+                    }
+                  }
+                } catch (error) {
+                  // Rethrowing would reach the backend error hook and close every root on it.
+                  logger.warn('Durable child observation failed; resynchronizing', { id, error })
+                  if (!this.closing)
+                    void projection
+                      .attach()
+                      .catch((cause) => logger.warn('Durable child resync failed', { id, error: cause }))
                 }
               })
+            }
           },
           async () => {
             const archive = await access.archive()
             if (archive.status !== 'confirmed') throw new Error(archive.error.message)
+            if (resource) resource.through = archive.value.through
             return archive.value
           },
-          (message) => this.adapter.decorate(message),
-          (responseId, messageId) => this.events.push({ type: 'response-start', responseId, messageId })
+          (message, _source, unchangedParts) => this.adapter.decorate(message, unchangedParts),
+          (responseId, messageId) => this.events.push({ type: 'response-start', responseId, messageId }),
+          (event) => this.adapter.decorateLive(event)
         )
-        resource = { relation, handle: access, projection }
+        resource = { relation, handle: access, projection, pins: 0, finished: false }
         await projection.attach()
+        this.releasedChildren.delete(key)
         this.children.set(key, { state: 'attached', resource })
+        // Callers pin in their continuation; check afterwards so a reopened finished child is not released under them.
+        setImmediate(() => this.releaseFinishedChild(key))
         this.childTasks.publish(id, this.childTasks.status(id) ?? 'in_progress')
         return resource
       })
@@ -466,41 +835,45 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     return pending
   }
 
-  async childProjection(toolCallId: string) {
-    if (this.closing) return undefined
-    const known = (await this.childResources()).filter(
-      (child) => (child.relation?.origin?.toolCallId ?? child.projection.context.spawnToolCallId) === toolCallId
-    )
-    if (known.length > 1) return undefined
-    if (known[0]) {
-      const projection = known[0].projection
-      await projection.attach()
-      return { snapshot: () => projection.snapshot(), subscribe: projection.subscribe.bind(projection) }
-    }
-    if (this.closing || !this.handle) return undefined
-    const opened = await this.handle.durable.openChild(toolCallId, this.closingAccess.signal)
-    if (opened.status !== 'confirmed') return undefined
-    const child = await this.observeChild(opened.value.relation.child.id, opened.value.handle)
-    if (!child) return undefined
-    await child.projection.attach()
-    return {
-      snapshot: child.projection.snapshot.bind(child.projection),
-      subscribe: child.projection.subscribe.bind(child.projection)
+  async messageChild(contextId: string, text: string): Promise<void> {
+    for (const child of [...this.children.values()]) if (child.state === 'releasing') await child.pending
+    const released = [...this.releasedChildren.values()].find((child) => child.contextId === contextId)
+    const child =
+      (await this.childResources()).find((child) => child.projection.context.id === contextId) ??
+      (await this.observeChild(released?.id ?? contexts.context(contextId).nativeThreadId!))
+    const projection = child?.projection
+    const handle = child?.handle
+    if (!child || !handle || !projection || this.closing) throw new Error('Child native owner is unavailable')
+    const unpin = this.pinChild(child)
+    try {
+      await this.submitChild(projection, handle, contextId, text)
+    } finally {
+      // The next run or input change decides again; a status read before this input must not release the child.
+      child.finished = false
+      unpin()
     }
   }
 
-  async messageChild(contextId: string, text: string): Promise<void> {
-    const child = (await this.childResources()).find((child) => child.projection.context.id === contextId)
-    const projection = child?.projection
-    const handle = child?.handle
-    if (!handle || !projection || this.closing) throw new Error('Child native owner is unavailable')
-    await projection.flush()
+  private async submitChild(
+    projection: ChildThreadProjection,
+    handle: PiDurableThreadHandle,
+    contextId: string,
+    text: string
+  ): Promise<void> {
+    await projection.drain()
     const { sessionId } = projection.context
     const id = randomUUID()
     messages.saveMessage({ sessionId, message: { id, role: 'user', data: { parts: [{ type: 'text', text }] } } })
-    const draft = prepareNativeSubmission(sessionId, id, contextId, 'steer')
+    const draft = prepareNativeSubmission(sessionId, id, contextId)
     await projection.refresh()
-    const result = await handle.input.submit(draft)
+    const [{ recoveryIndex }, { BACKGROUND_CONTEXT }] = await Promise.all([
+      import('@cherrystudio/agent-runtime-pi-durable'),
+      import('@earendil-works/chord/context')
+    ])
+    await this.runtime!.durable.commit(async (tx) => {
+      ;(await tx.doc(recoveryIndex)).archives[handle.thread.id] = true
+    }, BACKGROUND_CONTEXT)
+    const result = await handle.input.steer.submit(draft)
     applyNativeSubmissionResult(sessionId, contextId, result)
     await projection.refresh()
     if (result.status !== 'acknowledged') throw new Error(result.error.message)
@@ -515,8 +888,23 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
   }
 
   async interrupt(): Promise<void> {
+    this.stopGeneration++
+    // The stop must name the turn of a submission that is still being admitted.
+    await this.admission
+    const ended = this.sending ? (this.runEnded ??= Promise.withResolvers<void>()).promise : undefined
+    const requested = this.requestStop()
+    void Promise.all([requested, ended]).then(
+      () => this.events.push({ type: 'stop-confirmed' }),
+      () => {}
+    )
+    await requested
+  }
+
+  private async requestStop(): Promise<void> {
     const result = await this.handle?.interrupt?.()
     if (result && result.status !== 'confirmed') throw new Error(result.error.message)
+    // Native user stop leaves background children running; product Stop ends them too.
+    for (const id of this.childTasks.running()) await this.stopTask(id)
   }
 
   refreshTraceContext(context: AgentRuntimeTraceContext) {
@@ -526,7 +914,8 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
   reconcile(input: Parameters<AgentRuntimeConnection['reconcile']>[0]): Promise<AgentRuntimeReconcileResult> {
     const work = this.reconcileChain.then(async (): Promise<AgentRuntimeReconcileResult> => {
       try {
-        const next = await this.desktop!.reconcile({ ...this.input, ...input }, this.active)
+        const nextInput = { ...this.input, ...input, permissionModeOverride: input.permissionModeOverride }
+        const next = await this.desktop!.reconcile(nextInput, this.active)
         if (next.permissionChanged) await this.handle!.durable.permissionModeChanged()
         if (
           this.failure ||
@@ -536,6 +925,14 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
           Boolean(input.fastMode) !== Boolean(this.input.fastMode)
         )
           return 'rebuild'
+        if (
+          nextInput.permissionModeOverride !== this.input.permissionModeOverride ||
+          nextInput.headless !== this.input.headless
+        ) {
+          await saveDurableRequest(this.runtime!, this.handle!.thread.id, nextInput)
+          this.input.permissionModeOverride = nextInput.permissionModeOverride
+          this.input.headless = nextInput.headless
+        }
         return next.permissionChanged ? 'patched' : 'current'
       } catch (error) {
         if (error instanceof PiInvalidConnectionSnapshotError) return 'invalid'
@@ -547,10 +944,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
   }
 
   private recordUsage(usage: Usage) {
-    this.events.push({
-      type: 'chunk',
-      chunk: { type: 'message-metadata', messageMetadata: this.turnUsage.record(usage) }
-    })
+    this.events.push({ type: 'message-metadata', messageMetadata: this.turnUsage.record(usage) })
   }
 
   private fail(error: unknown) {
@@ -571,7 +965,6 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
 
   close(): Promise<void> {
     this.closing = true
-    this.closingAccess.abort()
     return (this.closePromise ??= this.finishClose().catch((error) => {
       this.closePromise = undefined
       throw error
@@ -584,19 +977,21 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
       return
     }
     await this.access.release(async () => {
-      toolApprovalRegistry.abort(this.input.sessionId, 'durable-access-closed')
+      toolApprovalRegistry.abort(this.input.sessionId, 'durable-access-closed', this.access!.root.context.id)
       await this.observation?.drain()
-      for (const [key, child] of this.children) {
+      for (const [key, entry] of this.children) {
+        if (entry.state === 'releasing') await entry.pending
+        // A release whose flush failed leaves the child closing for this loop to retry.
+        const child = this.children.get(key)
+        if (!child || child.state === 'releasing') continue
         const resource = child.state === 'opening' ? await child.pending : child.resource
         if (!resource) continue
         this.children.set(key, { state: 'closing', resource })
-        await resource.projection.stop()
-        await resource.handle.release()
+        await this.persistChild(resource)
         this.children.delete(key)
       }
       await this.observation?.stop()
       this.observation = undefined
-      await this.projection?.close()
       this.projection = undefined
       await this.handle?.release()
       this.handle = undefined

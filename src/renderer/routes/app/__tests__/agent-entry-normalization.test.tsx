@@ -31,7 +31,7 @@ beforeAll(() => {
 afterEach(cleanup)
 
 function SelectedConversation() {
-  const search = useSearch({ strict: false }) as AgentRouteSearch
+  const search: AgentRouteSearch = useSearch({ strict: false })
   return (
     <output aria-label="Selected conversation">
       {search.sessionId ? `${search.sessionId}:${fixtures.sessionOwners[search.sessionId]}` : `entry:${search.agentId}`}

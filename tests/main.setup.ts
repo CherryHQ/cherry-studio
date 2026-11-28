@@ -15,6 +15,14 @@ vi.mock('@main/ai/messages/attachmentWorker?nodeWorker', () => ({
   })
 }))
 
+vi.mock('@main/services/file/watcherWorker?nodeWorker', async () => {
+  const { Worker } = await import('node:worker_threads')
+  return {
+    default: (options: ConstructorParameters<typeof Worker>[1]) =>
+      new Worker("require('tsx/cjs'); require('./src/main/services/file/watcherWorker.ts')", { ...options, eval: true })
+  }
+})
+
 // Mock LoggerService globally for main process tests
 vi.mock('@logger', async () => {
   const { MockMainLoggerService, mockMainLoggerService } = await import('./__mocks__/MainLoggerService')
@@ -86,6 +94,7 @@ vi.mock('electron', async () => {
             return '/mock/unknown'
         }
       }),
+      getAppPath: vi.fn(() => '/mock/app'),
       getVersion: vi.fn(() => '1.0.0'),
       whenReady: vi.fn().mockResolvedValue(undefined),
       runningUnderARM64Translation: false,
@@ -186,7 +195,8 @@ vi.mock('electron', async () => {
     },
     Notification: vi.fn(),
     net: {
-      fetch: vi.fn()
+      fetch: vi.fn(),
+      request: vi.fn()
     }
   }
 

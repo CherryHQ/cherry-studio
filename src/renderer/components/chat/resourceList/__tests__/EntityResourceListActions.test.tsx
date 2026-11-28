@@ -14,6 +14,7 @@ import { toast } from '@renderer/services/toast'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { createSidebarShortcutId, type SidebarShortcutTarget } from '@shared/data/preference/preferenceTypes'
+import { getDefaultValue } from '@shared/data/preference/preferenceUtils'
 import { aiErrorCodes } from '@shared/ipc/errors/ai'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { trashErrorCodes } from '@shared/ipc/errors/trash'
@@ -144,7 +145,6 @@ vi.mock('@renderer/components/chat/DeleteConversationOwnerConfirmDialog', () => 
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => ({
   ...(await importOriginal<typeof CherryStudioUi>()),
-  BlurCancelPointerSensor: class BlurCancelPointerSensor {},
   Button: ({ children, onClick, ...props }: { children?: ReactNode; onClick?: () => void }) => (
     <button {...props} type="button" onClick={onClick}>
       {children}
@@ -556,6 +556,8 @@ describe('classic layout entity resource list actions', () => {
     agentDataMocks.isLoading = false
     preferenceMocks.sortType = 'list'
     preferenceMocks.values.clear()
+    preferenceMocks.values.set('chat.topics.sort', getDefaultValue('chat.topics.sort'))
+    preferenceMocks.values.set('agent.session.sort', getDefaultValue('agent.session.sort'))
     preferenceMocks.setPreference.mockClear()
     preferenceMocks.setSortType.mockClear()
     assistantDataMocks.assistants = [
@@ -2434,7 +2436,12 @@ describe('classic layout entity resource list actions', () => {
     expect(onCreateSession).toHaveBeenCalledWith('agent-1')
   })
 
-  it('lets the classic agent rail switch icon display mode from the context menu', () => {
+  it.each([false, true])('offers icon display settings only for non-local agents (local=%s)', (local) => {
+    if (local) {
+      Object.assign(agentDataMocks.agents[0], {
+        localRuntime: { providerId: 'pi-provider', presetId: 'pi-acp', enabled: true, args: [], env: {} }
+      })
+    }
     render(
       <AgentResourceList
         activeAgentId="agent-1"
@@ -2445,7 +2452,13 @@ describe('classic layout entity resource list actions', () => {
       />
     )
 
-    expect(screen.getByTestId('agent-1-context-menu')).toHaveTextContent('agent.icon.type')
+    const menu = screen.getByTestId('agent-1-context-menu')
+    if (local) {
+      expect(menu).not.toHaveTextContent('agent.icon.type')
+      expect(within(menu).queryByRole('button', { name: 'settings.assistant.icon.type.none' })).not.toBeInTheDocument()
+      return
+    }
+    expect(menu).toHaveTextContent('agent.icon.type')
 
     fireEvent.click(screen.getAllByRole('button', { name: 'settings.assistant.icon.type.none' })[0])
 

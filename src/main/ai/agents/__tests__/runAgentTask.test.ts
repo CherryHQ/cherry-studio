@@ -21,6 +21,7 @@ const {
   mockGetAdapter,
   mockStartRun,
   mockBindTaskSessionReuse,
+  mockReleaseTaskSessionReuse,
   mockIsSessionBusy,
   mockUpdateJobScheduleTx,
   mockSyncJobScheduleTimerById,
@@ -36,6 +37,7 @@ const {
       captured.listeners = opts.listeners
       return { mode: 'started' as const }
     }),
+    mockReleaseTaskSessionReuse: vi.fn(),
     mockBindTaskSessionReuse: vi.fn(() => true),
     mockIsSessionBusy: vi.fn(() => false),
     mockUpdateJobScheduleTx: vi.fn(),
@@ -52,7 +54,11 @@ vi.mock('@application', async () => {
     // streaming path (post heartbeat-skip) reads both, so wire minimal stubs here.
     ChannelManager: { getAdapter: mockGetAdapter },
     AiStreamManager: { abort: mockAbort, removeListener: mockRemoveListener },
-    AgentJobsService: { bindTaskSessionReuse: mockBindTaskSessionReuse, syncHeartbeat: syncHeartbeatScheduleMock },
+    AgentJobsService: {
+      releaseTaskSessionReuse: mockReleaseTaskSessionReuse,
+      bindTaskSessionReuse: mockBindTaskSessionReuse,
+      syncHeartbeat: syncHeartbeatScheduleMock
+    },
     // Gate that keeps a reusing fire off a session with a live turn.
     AgentSessionRuntimeService: { isSessionBusy: mockIsSessionBusy },
     // An untrusted agent directory pauses its heartbeat schedule.
@@ -101,7 +107,7 @@ import { agentSessionService } from '@data/services/AgentSessionService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { jobService } from '@data/services/JobService'
 import { readHeartbeat } from '@main/ai/agents/heartbeat'
-import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
+import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
 
 import type * as AgentDataDirectoryModule from '../agentDataDirectory'
 import { runAgentTask } from '../runAgentTask'
@@ -424,6 +430,28 @@ describe('runAgentTask', () => {
       // Already bound — no pointer rewrite.
       expect(mockBindTaskSessionReuse).not.toHaveBeenCalled()
     })
+
+    it.each([
+      ['context_length_exceeded', undefined, undefined, 1],
+      ['Claude Code process exited with code 1', 'context_length', undefined, 1],
+      ['cannot restore the previous conversation', undefined, 'LocalAgentSessionRestoreError', 1],
+      ['network timeout', undefined, undefined, 0]
+    ] as const)(
+      'handles a terminal %s on a reused session',
+      async (message, claudeCodeExitCategory, name, releases) => {
+        vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot('s1'))
+        vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSchedule('daily-summary', REUSE_ON))
+        vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent())
+        vi.mocked(agentSessionService.getByTaskScheduleId).mockReturnValueOnce(makeSession('/ws/a'))
+        const run = runAgentTask(
+          makeCtx({ input: { agentId: 'a1', prompt: 'hi', timeoutMinutes: 0, workspace: { type: 'system' } } })
+        )
+        await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
+        captured.listeners[0].onError({ error: { message, claudeCodeExitCategory, name } })
+        await expect(run).rejects.toThrow(message)
+        expect(mockReleaseTaskSessionReuse).toHaveBeenCalledTimes(releases)
+      }
+    )
 
     it('runs one-off when a queued job has a stale reuse revision', async () => {
       vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot('s1'))

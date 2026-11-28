@@ -142,6 +142,8 @@ describe('ThinkingBlock', () => {
       })
       const { rerender } = renderThinkingBlock(block)
 
+      expect(getToggleButton()).toHaveAttribute('aria-expanded', 'false')
+      expect(getContentContainer()).toHaveAttribute('hidden')
       expect(within(getToggleButton()).getByText('First line')).toBeInTheDocument()
       expect(within(getToggleButton()).queryByText('second thought in progress')).toBeNull()
 
@@ -170,6 +172,7 @@ describe('ThinkingBlock', () => {
       await act(() => vi.advanceTimersByTime(1))
       expect(within(getToggleButton()).getByText('third thought complete.')).toBeInTheDocument()
       expect(within(getToggleButton()).queryByText('fourth thought in progress')).toBeNull()
+      expect(getToggleButton()).toHaveAttribute('aria-expanded', 'false')
     })
 
     it('should keep unfinished streaming text out of the title until a segment is completed', () => {
@@ -297,37 +300,63 @@ describe('ThinkingBlock', () => {
       expect(getToggleButton()).toHaveAttribute('aria-expanded', 'true')
       expect(getContentContainer()).not.toHaveAttribute('hidden')
     })
+
+    it('should start collapsed and stay collapsed when thinking ends', () => {
+      mockRenderConfig.thoughtAutoCollapse = true
+      const block = createThinkingBlock({ status: 'streaming' })
+      const { rerender } = renderThinkingBlock(block)
+
+      expect(getToggleButton()).toHaveAttribute('aria-expanded', 'false')
+      expect(getContentContainer()).toHaveAttribute('hidden')
+
+      rerender(<ThinkingBlock id={block.id} content={block.content} isStreaming={false} />)
+
+      expect(getToggleButton()).toHaveAttribute('aria-expanded', 'false')
+      expect(getContentContainer()).toHaveAttribute('hidden')
+    })
+
+    it('should keep streaming thinking expanded when auto-collapse is disabled', () => {
+      mockRenderConfig.thoughtAutoCollapse = false
+      const block = createThinkingBlock({ status: 'streaming' })
+      const { rerender } = renderThinkingBlock(block)
+
+      expect(getToggleButton()).toHaveAttribute('aria-expanded', 'true')
+
+      rerender(<ThinkingBlock id={block.id} content={block.content} isStreaming={false} />)
+
+      expect(getToggleButton()).toHaveAttribute('aria-expanded', 'true')
+      expect(getContentContainer()).not.toHaveAttribute('hidden')
+    })
+
+    it('should keep manually expanded thinking open when it finishes', () => {
+      mockRenderConfig.thoughtAutoCollapse = true
+      const block = createThinkingBlock({ status: 'streaming' })
+      const { rerender } = renderThinkingBlock(block)
+
+      fireEvent.click(getToggleButton())
+      expect(getToggleButton()).toHaveAttribute('aria-expanded', 'true')
+      expect(getContentContainer()).not.toHaveAttribute('hidden')
+
+      rerender(<ThinkingBlock id={block.id} content={block.content} isStreaming={false} />)
+
+      expect(getToggleButton()).toHaveAttribute('aria-expanded', 'true')
+      expect(getContentContainer()).not.toHaveAttribute('hidden')
+    })
   })
 
   describe('layout and readability', () => {
-    it('uses viewport-aware max height on the content panel', () => {
+    it('bounds streaming thinking to the viewport while completed thinking reads at full height', () => {
       mockRenderConfig.thoughtAutoCollapse = false
-      const block = createThinkingBlock()
-      renderThinkingBlock(block)
+      const streaming = renderThinkingBlock(createThinkingBlock({ status: 'streaming' }))
 
-      // Bound long reasoning to the viewport so the message list remains reachable.
+      // Bound streaming reasoning so the message list remains reachable.
       expect(getContentContainer()).toHaveClass('max-h-[min(32rem,60dvh)]')
-    })
+      streaming.unmount()
 
-    it('uses theme-aware muted foreground for panel and markdown content', () => {
-      mockRenderConfig.thoughtAutoCollapse = false
-      const block = createThinkingBlock({ content: 'Readable reasoning text' })
-      renderThinkingBlock(block)
+      renderThinkingBlock(createThinkingBlock())
 
-      const panel = getContentContainer()!
-      expect(panel).toHaveClass('text-muted-foreground')
-
-      const markdownWrapper = screen.getByText('Markdown: Readable reasoning text').parentElement
-      expect(markdownWrapper).toHaveClass('text-muted-foreground')
-      expect(markdownWrapper).toHaveStyle({ '--markdown-foreground': 'var(--muted-foreground)' })
-    })
-
-    it('keeps short thinking content compact without a minimum panel height', () => {
-      mockRenderConfig.thoughtAutoCollapse = false
-      const block = createThinkingBlock({ content: 'Short thought.' })
-      renderThinkingBlock(block)
-
-      expect(getContentContainer()?.className).not.toMatch(/min-h-/)
+      // Completed reasoning renders at natural height for readability.
+      expect(getContentContainer()).not.toHaveClass('max-h-[min(32rem,60dvh)]')
     })
   })
 

@@ -11,8 +11,6 @@ const logger = loggerService.withContext('useDebouncedRender')
 export interface DebouncedRenderOptions {
   /** 防抖延迟时间，默认 300ms */
   debounceDelay?: number
-  /** 渲染前的额外条件检查 */
-  shouldRender?: () => boolean
 }
 
 /**
@@ -56,7 +54,7 @@ export const useDebouncedRender = (
   renderFunction: (content: string, container: HTMLDivElement) => Promise<void>,
   options: DebouncedRenderOptions = {}
 ): DebouncedRenderResult => {
-  const { debounceDelay = 300, shouldRender } = options
+  const { debounceDelay = 300 } = options
 
   const containerRef = useRef<HTMLDivElement>(null)
   const debouncedFunctionRef = useRef<ReturnType<typeof debounce> | null>(null)
@@ -67,7 +65,7 @@ export const useDebouncedRender = (
   const wrappedRenderFunction = useCallback(
     async (content: string): Promise<void> => {
       // 检查渲染前条件
-      if ((shouldRender && !shouldRender()) || !content) {
+      if (!content) {
         return
       }
 
@@ -91,7 +89,7 @@ export const useDebouncedRender = (
         setIsLoading(false)
       }
     },
-    [renderFunction, shouldRender]
+    [renderFunction]
   )
 
   // 创建防抖版本的渲染函数

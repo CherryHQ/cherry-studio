@@ -38,9 +38,19 @@ export async function activateNotification(id: string): Promise<void> {
     } catch {
       throw new Error(t('notification.center.target_unavailable'))
     }
-    openRouteInMainWindow(
-      `/settings/scheduled-tasks/${encodeURIComponent(target.taskId)}?notificationId=${encodeURIComponent(id)}`
-    )
+    let runId = target.runId
+    if (!runId && record.eventKey.startsWith('task-result:')) {
+      // Older task notifications stored their run ID only in the deduplication key.
+      try {
+        const key: unknown = JSON.parse(record.eventKey.slice('task-result:'.length))
+        if (Array.isArray(key) && key[0] === 'scheduled-task' && typeof key[1] === 'string') runId = key[1]
+      } catch {
+        // Legacy notifications without a valid run identity still open the task.
+      }
+    }
+    const search = new URLSearchParams({ notificationId: id })
+    if (runId) search.set('runId', runId)
+    openRouteInMainWindow(`/settings/scheduled-tasks/${encodeURIComponent(target.taskId)}?${search}`)
   } else if (target.kind === 'settings') {
     openRouteInMainWindow(`/settings/${target.tab}`)
   } else if (target.kind === 'knowledge') {

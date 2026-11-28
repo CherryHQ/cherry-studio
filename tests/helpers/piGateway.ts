@@ -30,7 +30,7 @@ import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model
 
 import { createTestBehavior } from '../../packages/agent-runtime-pi/tests/sessionSupport'
 
-export type TestModel = Omit<Extract<ProviderModelConfig, { reasoning: boolean }>, 'id'> & { id: UniqueModelId }
+export type TestModel = Omit<Extract<ProviderModelConfig, { type?: 'chat' }>, 'id'> & { id: UniqueModelId }
 
 export const MODEL: TestModel = {
   id: 'cherry::bridged-model',
@@ -194,7 +194,7 @@ export async function createTestSession(options: TestSessionOptions) {
     handle,
     async prompt(text: string) {
       const inputId = runtimeId<'input'>(text)
-      const result = await handle.input.submit({ inputId, text, whenBusy: 'reject' })
+      const result = await handle.input.submit!({ inputId, text })
       if (result.status !== 'acknowledged') throw new Error(result.error.message)
       await handle.pi.settled()
       await observed.value.drain()

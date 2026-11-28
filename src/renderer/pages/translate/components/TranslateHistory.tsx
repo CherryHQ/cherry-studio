@@ -16,6 +16,7 @@ import { useTranslation } from 'react-i18next'
 
 import { ConfirmDialog, EmptyState, PageSidePanel } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { FileIcon } from '@renderer/components/icons/FileIcon'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { useLanguages, useTranslateHistories, useTranslateHistory } from '@renderer/hooks/translate'
 import { ipcApi } from '@renderer/ipc'
@@ -601,7 +602,7 @@ const TranslationFileCard: FC<{
       <div className="flex shrink-0 items-center gap-1">{children}</div>
     </div>
     <p className="wrap-break-word flex items-center gap-1.5 text-foreground text-sm leading-relaxed">
-      <FileText size={12} className="shrink-0 text-foreground-tertiary" />
+      <FileIcon path={fileName} width={12} height={12} className="shrink-0" />
       <span className="min-w-0 break-all">{fileName}</span>
     </p>
   </div>

@@ -1224,7 +1224,7 @@ describe('rewriteAlertQuotesToCallouts with real martian output', () => {
   let markdownToBlocks: (markdown: string) => any[]
 
   beforeAll(async () => {
-    const actual = (await vi.importActual('@tryfabric/martian')) as { markdownToBlocks: (md: string) => any[] }
+    const actual = await vi.importActual<{ markdownToBlocks: (md: string) => any[] }>('@tryfabric/martian')
     markdownToBlocks = actual.markdownToBlocks
   })
 

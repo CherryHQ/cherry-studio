@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react'
+import { ArrowDown, ArrowUp, ArrowUpDown, CircleAlert, X } from 'lucide-react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -46,6 +46,7 @@ interface UsageEntriesTableProps {
   entryTotal: number
   isLoading: boolean
   isRefreshing: boolean
+  error?: Error
   hasNextPage: boolean
   sortBy: AiUsageRecordListSortBy
   sortOrder: AiUsageRecordSortOrder
@@ -54,6 +55,8 @@ interface UsageEntriesTableProps {
   getProviderInfo: (id: string, snapshotName?: string | null) => { id: string; name: string }
   dateFormatter: Intl.DateTimeFormat
   timeFormatter: Intl.DateTimeFormat
+  activeFilterLabel?: string
+  onClearFilter?: () => void
 }
 
 export function UsageEntriesTable({
@@ -61,6 +64,7 @@ export function UsageEntriesTable({
   entryTotal,
   isLoading,
   isRefreshing,
+  error,
   hasNextPage,
   sortBy,
   sortOrder,
@@ -68,7 +72,9 @@ export function UsageEntriesTable({
   onLoadNext,
   getProviderInfo,
   dateFormatter,
-  timeFormatter
+  timeFormatter,
+  activeFilterLabel,
+  onClearFilter
 }: UsageEntriesTableProps) {
   const { t, i18n } = useTranslation()
   const locale = i18n.resolvedLanguage
@@ -107,8 +113,24 @@ export function UsageEntriesTable({
 
   return (
     <UsagePanel>
-      <UsagePanelHeader className="flex min-w-0 items-center justify-between gap-3">
-        <UsagePanelTitle>{t('settings.usage.explore.entries')}</UsagePanelTitle>
+      <UsagePanelHeader className="flex min-w-0 flex-wrap items-center justify-between gap-3">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <UsagePanelTitle>{t('settings.usage.explore.entries')}</UsagePanelTitle>
+          {activeFilterLabel && onClearFilter && (
+            <div className="inline-flex max-w-full items-center gap-1 rounded-md border border-border bg-muted px-2 py-0.5 text-foreground text-xs">
+              <span className="truncate">{activeFilterLabel}</span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="size-4 shrink-0 text-muted-foreground hover:text-foreground"
+                aria-label={t('common.clear')}
+                onClick={onClearFilter}>
+                <X className="size-3" />
+              </Button>
+            </div>
+          )}
+        </div>
         <div className="text-xs text-foreground-tertiary">
           {t('settings.usage.explore.totalEntries', { count: entryTotal })}
         </div>
@@ -119,6 +141,10 @@ export function UsageEntriesTable({
             {Array.from({ length: 6 }, (_, index) => (
               <Skeleton key={index} className="h-9 rounded-md" />
             ))}
+          </div>
+        ) : error && entries.length === 0 ? (
+          <div role="alert">
+            <EmptyState compact icon={CircleAlert} title={t('common.error')} />
           </div>
         ) : entries.length > 0 ? (
           <>
@@ -207,9 +233,18 @@ export function UsageEntriesTable({
                         {totalTokens === null ? EMPTY_VALUE : formatCompactNumber(totalTokens)}
                       </TableCell>
                       <TableCell className="text-right whitespace-nowrap tabular-nums">
-                        {entry.cost !== null && entry.cost !== undefined
-                          ? formatCost(entry.cost, entry.costCurrency)
-                          : t('settings.usage.table.unpriced')}
+                        {entry.cost !== null && entry.cost !== undefined ? (
+                          <span className="inline-flex flex-wrap items-baseline justify-end gap-x-1.5">
+                            {entry.costSource === 'computed' ? (
+                              <span className="text-[11px] text-foreground-tertiary leading-5">
+                                {t('chat.message.token_details.cost_estimated')}
+                              </span>
+                            ) : null}
+                            <span>{formatCost(entry.cost, entry.costCurrency)}</span>
+                          </span>
+                        ) : (
+                          t('settings.usage.table.unpriced')
+                        )}
                       </TableCell>
                       <TableCell className="text-right whitespace-nowrap tabular-nums">
                         {formatMilliseconds(entry.timeFirstTokenMs)}
