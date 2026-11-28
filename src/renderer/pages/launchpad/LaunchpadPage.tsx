@@ -32,8 +32,7 @@ import type { SidebarAppId } from '@renderer/utils/sidebar'
 import { createSidebarShortcutTarget, getSidebarMenuPath, SIDEBAR_SHORTCUT_PROVIDER_IDS } from '@renderer/utils/sidebar'
 import type { MiniApp as MiniAppType } from '@shared/data/types/miniApp'
 
-const LAUNCHPAD_GRID_CLASS =
-  'grid grid-cols-[repeat(auto-fit,minmax(max(92px,calc((100%_-_40px)/6)),1fr))] justify-items-center gap-2 px-2'
+const LAUNCHPAD_GRID_CLASS = 'grid grid-cols-[repeat(auto-fit,minmax(max(92px,calc((100%_-_40px)/6)),1fr))] gap-2 px-2'
 const LAUNCHPAD_ITEM_CLASS = 'mx-auto w-[92px]'
 const APP_ICON_SURFACE_CLASS =
   'relative flex size-14 items-center justify-center overflow-hidden rounded-2xl bg-muted group-focus-visible:inset-ring-2 group-focus-visible:inset-ring-ring'
@@ -258,7 +257,7 @@ export default function LaunchpadPage() {
         type="button"
         data-dnd-row-control
         onClick={() => openLaunchpadItem(item.id)}
-        className={`${LAUNCHPAD_ITEM_CLASS} group flex cursor-pointer flex-col items-center gap-1 rounded-2xl px-1 py-2 text-center outline-none transition-transform duration-200 hover:scale-105 focus-visible:scale-105 active:scale-95`}>
+        className="group flex w-full min-w-0 cursor-pointer flex-col items-center gap-1 rounded-2xl px-1 py-2 text-center outline-none transition-transform duration-200 hover:scale-105 focus-visible:scale-105 active:scale-95">
         <span className="relative flex size-14 items-center justify-center">
           <span className={APP_ICON_SURFACE_CLASS}>
             <span className={APP_ICON_FRAME_CLASS}>
@@ -266,7 +265,7 @@ export default function LaunchpadPage() {
             </span>
           </span>
         </span>
-        <span className="w-full break-words text-[12px] text-foreground">{item.text}</span>
+        <span className="w-full truncate text-[12px] text-foreground">{item.text}</span>
       </button>
     </CommandContextMenu>
   )
