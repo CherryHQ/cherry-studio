@@ -12,6 +12,7 @@ import { cliTabIcon } from '@renderer/utils/tabIcons'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import type { Provider } from '@shared/data/types/provider'
 import { CodeCli, isApiGatewayProviderId } from '@shared/types/codeCli'
+import { redactEmbeddedUrls, redactSecretText, redactSecretTokens } from '@shared/utils/redaction'
 
 import { useManagedToolStatus } from './useManagedToolStatus'
 
@@ -19,6 +20,7 @@ const logger = loggerService.withContext('useOpenClawGatewayController')
 
 interface UseOpenClawGatewayControllerOptions {
   selectedCliTool: CodeCli
+  openClawVersion?: string
   enabledProvider?: Provider
   currentProviderConfig?: CliProviderConfig | null
   upsertProviderConfig: (
@@ -28,6 +30,8 @@ interface UseOpenClawGatewayControllerOptions {
   setCurrentProvider: (providerId: string | null) => Promise<void>
 }
 
+type StartupOperation = 'Sync OpenClaw configuration' | 'Start OpenClaw gateway' | 'Open OpenClaw dashboard'
+
 interface OpenClawGatewayController {
   canStop: boolean
   launching: boolean
@@ -36,11 +40,15 @@ interface OpenClawGatewayController {
   stopping: boolean
   onLaunch: () => Promise<void>
   onStop: () => Promise<void>
+  startupError: { operation: StartupOperation; message: string } | null
   onOpenDashboard: () => Promise<void>
+  onCopyStartupError: () => Promise<void>
+  onDismissStartupError: () => void
 }
 
 export function useOpenClawGatewayController({
   selectedCliTool,
+  openClawVersion,
   enabledProvider,
   currentProviderConfig,
   upsertProviderConfig,
@@ -56,6 +64,7 @@ export function useOpenClawGatewayController({
   const owned = useSharedCacheValue('feature.openclaw.gateway_owned')
   const [launching, setLaunching] = useState(false)
   const [stopping, setStopping] = useState(false)
+  const [startupError, setStartupError] = useState<OpenClawGatewayController['startupError']>(null)
 
   const openDashboard = useCallback(async () => {
     const dashboardUrl = await ipcApi.request('openclaw.get_dashboard_url')
@@ -82,6 +91,7 @@ export function useOpenClawGatewayController({
     })
     if (!parsedModelId) return
 
+    let operation: StartupOperation = 'Sync OpenClaw configuration'
     try {
       setLaunching(true)
       const syncResult = await ipcApi.request('openclaw.sync_config', {
@@ -90,22 +100,61 @@ export function useOpenClawGatewayController({
         ...(enabledProvider && isApiGatewayProviderId(enabledProvider.id) && { viaGateway: true })
       })
       if (!syncResult.success) {
-        toast.error(syncResult.message)
+        setStartupError({
+          operation,
+          message: redactSecretTokens(redactSecretText(redactEmbeddedUrls(syncResult.message)))
+        })
         return
       }
 
+      operation = 'Start OpenClaw gateway'
       const startResult = await ipcApi.request('openclaw.start_gateway', { port: gatewayPort })
       if (!startResult.success) {
-        toast.error(startResult.message)
+        setStartupError({
+          operation,
+          message: redactSecretTokens(redactSecretText(redactEmbeddedUrls(startResult.message)))
+        })
         return
       }
     } catch (err) {
       logger.error('Failed to launch OpenClaw dashboard:', err as Error)
-      toast.error(t('code.launch.error'))
+      const message = err instanceof Error ? err.message : String(err)
+      setStartupError({
+        operation,
+        message: redactSecretTokens(redactSecretText(redactEmbeddedUrls(message)))
+      })
     } finally {
       setLaunching(false)
     }
-  }, [currentProviderConfig, enabledProvider, gatewayPort, setCurrentProvider, upsertProviderConfig, t])
+  }, [currentProviderConfig, enabledProvider, gatewayPort, setCurrentProvider, upsertProviderConfig])
+
+  const handleCopyStartupError = useCallback(async () => {
+    if (!startupError) return
+
+    const appVersion = await ipcApi
+      .request('app.get_info')
+      .then(({ version }) => version)
+      .catch(() => 'unknown')
+    // A system-installed OpenClaw has no version in the binary snapshot, so ask the
+    // service (it runs `--version`) rather than reporting "unknown" for a working install.
+    const resolvedOpenClawVersion =
+      openClawVersion ?? (await ipcApi.request('openclaw.get_version').catch(() => undefined))
+    const details = [
+      `Operation: ${startupError.operation}`,
+      `Error: ${startupError.message}`,
+      `Cherry Studio version: ${appVersion}`,
+      `OpenClaw version: ${resolvedOpenClawVersion ?? 'unknown'}`
+    ].join('\n')
+
+    try {
+      await navigator.clipboard.writeText(redactSecretTokens(redactSecretText(redactEmbeddedUrls(details))))
+      toast.success(t('common.copied'))
+    } catch {
+      toast.error(t('common.copy_failed'))
+    }
+  }, [openClawVersion, startupError, t])
+
+  const handleDismissStartupError = useCallback(() => setStartupError(null), [])
 
   const handleStop = useCallback(async () => {
     try {
@@ -124,21 +173,30 @@ export function useOpenClawGatewayController({
   }, [t])
 
   const handleOpenDashboard = useCallback(async () => {
+    let operation: StartupOperation = 'Start OpenClaw gateway'
     try {
       setLaunching(true)
       const result = await ipcApi.request('openclaw.start_gateway', { port: gatewayPort })
       if (!result.success) {
-        toast.error(result.message)
+        setStartupError({
+          operation,
+          message: redactSecretTokens(redactSecretText(redactEmbeddedUrls(result.message)))
+        })
         return
       }
+      operation = 'Open OpenClaw dashboard'
       await openDashboard()
     } catch (err) {
       logger.error('Failed to open OpenClaw dashboard:', err as Error)
-      toast.error(t('code.launch.error'))
+      const message = err instanceof Error ? err.message : String(err)
+      setStartupError({
+        operation,
+        message: redactSecretTokens(redactSecretText(redactEmbeddedUrls(message)))
+      })
     } finally {
       setLaunching(false)
     }
-  }, [gatewayPort, openDashboard, t])
+  }, [gatewayPort, openDashboard])
 
   return {
     canStop: !!owned,
@@ -148,6 +206,9 @@ export function useOpenClawGatewayController({
     stopping,
     onLaunch: handleLaunch,
     onStop: handleStop,
-    onOpenDashboard: handleOpenDashboard
+    startupError,
+    onOpenDashboard: handleOpenDashboard,
+    onCopyStartupError: handleCopyStartupError,
+    onDismissStartupError: handleDismissStartupError
   }
 }

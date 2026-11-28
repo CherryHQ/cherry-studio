@@ -27,6 +27,10 @@ export const openclawRequestSchemas = {
     input: z.void(),
     output: z.object({ status: openclawStatusSchema })
   }),
+  'openclaw.get_version': defineRoute({
+    input: z.void(),
+    output: z.string()
+  }),
   'openclaw.get_dashboard_url': defineRoute({
     input: z.void(),
     output: z.string()

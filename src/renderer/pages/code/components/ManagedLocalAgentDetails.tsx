@@ -1,11 +1,12 @@
 import type { ComponentProps } from 'react'
 
 import { AgentWebUiControl } from '@renderer/components/localAgent/AgentWebUiControl'
-import type { CodeCli } from '@shared/types/codeCli'
+import { CodeCli } from '@shared/types/codeCli'
 
 import { useManagedLocalAgentDetails } from '../hooks/useManagedLocalAgentDetails'
 import { CodeCliDialogs } from './CodeCliDialogs'
 import { LocalAgentDetails } from './LocalAgentDirectory'
+import { OpenClawStartupErrorAlert } from './OpenClawStartupErrorAlert'
 
 export function ManagedLocalAgentDetails({
   tool,
@@ -28,6 +29,13 @@ export function ManagedLocalAgentDetails({
           onOpen={webUi.onOpen}
         />
       )}>
+      {tool === CodeCli.OPENCLAW && webUi.startupError && (
+        <OpenClawStartupErrorAlert
+          startupError={webUi.startupError}
+          onCopy={() => void webUi.onCopyStartupError?.()}
+          onDismiss={() => webUi.onDismissStartupError?.()}
+        />
+      )}
       <CodeCliDialogs {...dialogs} />
     </LocalAgentDetails>
   )

@@ -7,6 +7,7 @@ import { openclawHandlers } from '../openclaw'
 
 const openClawService = {
   getStatus: vi.fn(),
+  getVersion: vi.fn(),
   startGateway: vi.fn()
 }
 
@@ -35,6 +36,13 @@ describe('openclawHandlers', () => {
         success: false,
         message: 'bind failed'
       })
+    })
+  })
+
+  describe('openclaw.get_version', () => {
+    it('returns the service version string', async () => {
+      openClawService.getVersion.mockResolvedValue('2026.3.13')
+      await expect(openclawHandlers['openclaw.get_version'](undefined, ctx)).resolves.toBe('2026.3.13')
     })
   })
 

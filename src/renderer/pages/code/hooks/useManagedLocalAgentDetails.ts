@@ -172,7 +172,10 @@ export function useManagedLocalAgentDetails(selectedCliTool: CodeCli.OPENCLAW | 
         else void webUi.onLaunch()
       },
       onStop: () => void webUi.onStop(),
-      onOpen: isDeepSeekHarnessTool ? deepSeekHarness.onOpenWebUi : openClawGateway.onOpenDashboard
+      onOpen: isDeepSeekHarnessTool ? deepSeekHarness.onOpenWebUi : openClawGateway.onOpenDashboard,
+      startupError: isDeepSeekHarnessTool ? null : openClawGateway.startupError,
+      onCopyStartupError: isDeepSeekHarnessTool ? undefined : openClawGateway.onCopyStartupError,
+      onDismissStartupError: isDeepSeekHarnessTool ? undefined : openClawGateway.onDismissStartupError
     },
     dialogs: {
       configPanelKey: configPanel.configPanelKey,
