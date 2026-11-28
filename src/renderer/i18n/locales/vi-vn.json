@@ -1372,7 +1372,6 @@
   "code.install": "Cài đặt",
   "code.launch.error": "Không thể khởi chạy, vui lòng thử lại",
   "code.launch.label": "Lanzamiento",
-  "code.launch.reapply_provider": "Kết nối Codex đã lưu khác với nhà cung cấp đã chọn. Hãy áp dụng lại cấu hình nhà cung cấp trước khi khởi chạy.",
   "code.launch.title": "Khởi chạy {{tool}}",
   "code.launch.validation_error": "Vui lòng hoàn thành tất cả các trường bắt buộc: công cụ CLI, mô hình và thư mục làm việc",
   "code.model_mode.common": "Tổng quát",

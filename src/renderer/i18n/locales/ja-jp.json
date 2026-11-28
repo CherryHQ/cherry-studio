@@ -1372,7 +1372,6 @@
   "code.install": "インストール",
   "code.launch.error": "起動に失敗しました。もう一度試してください",
   "code.launch.label": "起動",
-  "code.launch.reapply_provider": "保存された Codex 接続は選択したプロバイダーと異なります。起動する前にプロバイダー設定を再適用してください。",
   "code.launch.title": "{{tool}}を起動",
   "code.launch.validation_error": "必須項目を入力してください：CLI ツール、モデル、作業フォルダー",
   "code.model_mode.common": "一般",

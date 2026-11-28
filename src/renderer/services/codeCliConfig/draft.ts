@@ -16,7 +16,7 @@ import type {
   CliConfigWriteArgs,
   ResolvedCliConfigContext
 } from '@shared/utils/cliConfig'
-import { effectiveBoundKeyId, firstApiKey, modelApiKey, stringValue } from '@shared/utils/cliConfig'
+import { effectiveBoundKeyId, modelApiKey, stringValue } from '@shared/utils/cliConfig'
 import { isOllamaProvider, OLLAMA_PLACEHOLDER_AUTH_TOKEN } from '@shared/utils/provider'
 
 import { CLAUDE_MODEL_ROLES, stripClaudeOneMMarker } from './claudeModels'

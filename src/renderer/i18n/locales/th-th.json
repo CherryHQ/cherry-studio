@@ -1372,7 +1372,6 @@
   "code.install": "ติดตั้ง",
   "code.launch.error": "เปิดไม่สำเร็จ โปรดลองอีกครั้ง",
   "code.launch.label": "เปิด",
-  "code.launch.reapply_provider": "การเชื่อมต่อ Codex ที่บันทึกไว้แตกต่างจากผู้ให้บริการที่เลือก โปรดใช้การกำหนดค่าผู้ให้บริการอีกครั้งก่อนเริ่มใช้งาน",
   "code.launch.title": "เปิด {{tool}}",
   "code.launch.validation_error": "กรุณากรอกข้อมูลที่จำเป็นทั้งหมด: เครื่องมือ CLI, โมเดล และไดเรกทอรีทำงาน",
   "code.model_mode.common": "ทั่วไป",

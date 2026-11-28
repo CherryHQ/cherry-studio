@@ -1372,7 +1372,6 @@
   "code.install": "Yükle",
   "code.launch.error": "Başlatma başarısız oldu, lütfen tekrar deneyin",
   "code.launch.label": "Başlat",
-  "code.launch.reapply_provider": "Kaydedilen Codex bağlantısı seçilen sağlayıcıdan farklı. Başlatmadan önce sağlayıcı yapılandırmasını yeniden uygulayın.",
   "code.launch.title": "{{tool}} Başlat",
   "code.launch.validation_error": "Lütfen tüm gerekli alanları doldurun: CLI aracı, model ve çalışma dizini",
   "code.model_mode.common": "Genel",

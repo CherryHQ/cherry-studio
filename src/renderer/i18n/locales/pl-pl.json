@@ -1392,7 +1392,6 @@
   "code.install": "Zainstaluj",
   "code.launch.error": "Uruchomienie nie powiodło się, spróbuj ponownie",
   "code.launch.label": "Uruchom",
-  "code.launch.reapply_provider": "Zapisane połączenie Codex różni się od wybranego dostawcy. Przed uruchomieniem ponownie zastosuj konfigurację dostawcy.",
   "code.launch.title": "Uruchom {{tool}}",
   "code.launch.validation_error": "Wypełnij wszystkie wymagane pola: narzędzie CLI, model i katalog roboczy",
   "code.model_mode.common": "Ogólne",

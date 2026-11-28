@@ -78,7 +78,6 @@ async function buildCodexDraft(configBlob: Record<string, unknown> = {}): Promis
   return readCliConfigDraft({ cliTool: CodeCli.OPENAI_CODEX, modelId: 'deepseek::gpt-5', configBlob })
 }
 
-src / renderer / pages / code / cliConfig / __tests__ / draftUpdater.test.ts
 describe('per-model API key binding in direct CLI config', () => {
   const keyA: ApiKeyEntry = { id: 'ka', key: 'sk-first', isEnabled: true }
   const keyB: ApiKeyEntry = { id: 'kb', key: 'sk-bound', isEnabled: true }

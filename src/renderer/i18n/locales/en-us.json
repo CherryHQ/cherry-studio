@@ -1372,7 +1372,6 @@
   "code.install": "Install",
   "code.launch.error": "Launch failed, please try again",
   "code.launch.label": "Launch",
-  "code.launch.reapply_provider": "The saved Codex connection differs from the selected provider. Reapply the provider configuration before launching.",
   "code.launch.title": "Launch {{tool}}",
   "code.launch.validation_error": "Please complete all required fields: CLI tool, model, and working directory",
   "code.model_mode.common": "General",
