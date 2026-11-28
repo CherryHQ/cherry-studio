@@ -1,4 +1,4 @@
-export type MarketplaceResourceType = 'skill' | 'agent' | 'mcp'
+export type MarketplaceResourceType = 'skill' | 'agent' | 'mcp' | 'theme'
 export type MarketplaceView = 'all' | MarketplaceResourceType
 
 export interface AgentCatalogPreset {
