@@ -129,6 +129,11 @@ describe('catalog invariants (data/*.json)', () => {
     expect(paid?.capabilities?.remove ?? []).not.toContain('structured-output')
   })
 
+  it('keeps Kimi K3 Fast on the three always-on reasoning tiers', () => {
+    const model = ModelListSchema.parse(modelsRaw).models.find(({ id }) => id === 'kimi-k3-fast')
+    expect(model?.reasoning?.controls).toEqual([{ kind: 'effort', values: ['low', 'high', 'max'] }])
+  })
+
   it('keeps native Gemini minimal effort and Silicon Thinking budgets in regenerated data', () => {
     const parsed = ModelListSchema.parse(modelsRaw)
     const gemini = parsed.models.find(({ id }) => id === 'gemini-3-1-flash-lite-preview')

@@ -3,7 +3,7 @@ import type { ReasoningEffort } from '../schemas/enums'
 import { openaiCompatible } from './_api'
 import { type CreatorModel, defineCreator } from './types'
 
-const K31_EFFORTS: ReasoningEffort[] = ['low', 'high', 'max']
+const K3_EFFORTS: ReasoningEffort[] = ['low', 'high', 'max']
 
 export default defineCreator({
   id: 'moonshot',
@@ -30,6 +30,11 @@ export default defineCreator({
         systemMessage: true
       }
     },
+    {
+      id: 'kimi-k3-fast',
+      name: 'Kimi K3 Fast',
+      reasoning: { controls: [{ kind: 'effort', values: K3_EFFORTS }] }
+    },
     ...[
       { id: 'kimi-k3.1-pro', name: 'Kimi K3.1 Pro', input: 2, output: 10 },
       { id: 'kimi-k3.1-pro-highspeed', name: 'Kimi K3.1 Pro Highspeed', input: 4, output: 20 }
@@ -51,7 +56,7 @@ export default defineCreator({
         stopSequences: true,
         systemMessage: true
       },
-      reasoning: { controls: [{ kind: 'effort', values: K31_EFFORTS, default: 'max' }] },
+      reasoning: { controls: [{ kind: 'effort', values: K3_EFFORTS, default: 'max' }] },
       pricing: {
         input: { currency: 'USD', perMillionTokens: input },
         output: { currency: 'USD', perMillionTokens: output },
@@ -109,7 +114,7 @@ export default defineCreator({
     }
   ],
   reasoningFamilies: [
-    { pattern: '^kimi-k3[.-]1-pro(?:-highspeed)?$', effort: K31_EFFORTS, toggle: false },
+    { pattern: '^kimi-k3[.-]1-pro(?:-highspeed)?$', effort: K3_EFFORTS, toggle: false },
     // K2.7-code only accepts thinking type 'enabled' (platform.kimi.com
     // claude-code guide: requests without it are rejected) — always-on, the
     // explicit `toggle: false` stops the generic toggle below.
@@ -120,7 +125,7 @@ export default defineCreator({
     // K3 supports low/high/max thinking effort and can disable thinking; K3 Fast
     // exposes the same effort vocabulary but is always-on.
     { pattern: '^kimi-k3$', effort: ['low', 'high', 'max'], toggle: true },
-    { pattern: '^kimi-k3-fast$', effort: ['low', 'high', 'max'] },
+    { pattern: '^kimi-k3-fast$', effort: K3_EFFORTS },
     // Kimi K2.5+ exposes the thinking toggle; kimi-k2-thinking is always-on.
     { pattern: '^kimi-k2[.-][5-9]\\d*', toggle: true },
     // The thinking budget is a K2.x-era knob — K3 controls depth via
