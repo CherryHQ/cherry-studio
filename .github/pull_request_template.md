@@ -34,6 +34,11 @@ Acceptance criteria:
 ### Verification
 
 <!-- List only evidence actually run. Map Spec work to AC IDs; use Regression/N/A for direct fixes or process changes. -->
+<!--
+For every user-visible UI fix, embed or link labeled before/after screenshots or a video that shows both states. Use the same scenario and relevant settings on the baseline and PR revisions. Use video when still images cannot show the behavior.
+For every performance optimization, provide measured baseline and PR results for the claimed improvement under the same workload and environment. Include the revisions, scenario, measurement method, metric and units, before/after values, and delta. Include sample count and statistic for repeated measurements.
+If both apply, include both kinds of evidence. Evidence links must be accessible to reviewers.
+-->
 
 -
 
