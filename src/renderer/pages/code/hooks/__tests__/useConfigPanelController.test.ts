@@ -525,7 +525,7 @@ describe('useConfigPanelController', () => {
     })
 
     it('propagates a gateway startup failure on panel save to the submitting dialog', async () => {
-      const ensureRunning = vi.fn().mockRejectedValue(new Error('API gateway failed to start'))
+      const ensureRunning = vi.fn().mockRejectedValue(new Error('Unified Gateway failed to start'))
       const options = {
         ...baseOptions(),
         currentProviderId: CLI_API_GATEWAY_PROVIDER_ID, // editing the active gateway provider
@@ -548,7 +548,7 @@ describe('useConfigPanelController', () => {
 
       await expect(
         result.current.configPanelProps!.onSubmit({ modelId: 'deepseek::deepseek-chat' as any, config: {} })
-      ).rejects.toThrow('API gateway failed to start')
+      ).rejects.toThrow('Unified Gateway failed to start')
       expect(mocks.writeCliConfigDraft).not.toHaveBeenCalled()
       expect(options.upsertProviderConfig).toHaveBeenLastCalledWith(CLI_API_GATEWAY_PROVIDER_ID, {
         modelId: 'deepseek::deepseek-old',
@@ -560,7 +560,7 @@ describe('useConfigPanelController', () => {
     // gateway fails to start — otherwise the UI shows the gateway active with nothing listening on the
     // port. `ensureRunning` throws on a failed start; the write and selection flip must both be skipped.
     it('does not enable the gateway when startup fails', async () => {
-      const ensureRunning = vi.fn().mockRejectedValue(new Error('API gateway failed to start'))
+      const ensureRunning = vi.fn().mockRejectedValue(new Error('Unified Gateway failed to start'))
       const options = {
         ...baseOptions(),
         currentProviderId: null, // gateway not current → toggling enables it

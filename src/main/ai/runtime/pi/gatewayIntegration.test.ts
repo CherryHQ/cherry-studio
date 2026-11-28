@@ -638,6 +638,108 @@ describe('native Pi through the production gateway', () => {
     expect(requests).toHaveLength(2)
   })
 
+  it('lowers a rejected Chat output budget to the provider ceiling', async () => {
+    rejectUpstream = () =>
+      requests.length === 1
+        ? {
+            message: 'Invalid max_tokens value, the valid range of max_tokens is [1, 393216]',
+            code: 'invalid_request_error'
+          }
+        : undefined
+    const result = await mocks.ai!.streamText({
+      conversation: { id: 'chat', topicId: 'chat' },
+      trigger: 'submit-message',
+      uniqueModelId: 'port::wire-model',
+      messages: [{ id: 'user', role: 'user', parts: [{ type: 'text', text: 'Hello' }] }],
+      callOverrides: { maxOutputTokens: 500000 },
+      requestOptions: { signal: new AbortController().signal }
+    })
+    if (result.kind !== 'chunks') throw new Error('Expected text stream')
+    const chunks: UIMessageChunk[] = []
+    for await (const chunk of result.stream) chunks.push(chunk)
+    expect(chunks).toContainEqual(expect.objectContaining({ type: 'text-delta', delta: 'Model answer' }))
+    expect(requests).toEqual([expect.objectContaining({ max_tokens: 500000 }), { ...requests[0], max_tokens: 393216 }])
+  })
+
+  it('lowers a rejected Pi output budget on the same Work request', async () => {
+    rejectUpstream = () =>
+      requests.length === 1
+        ? {
+            message: 'max_tokens is too large: 1024. This model supports at most 512 completion tokens.',
+            code: 'bad_request'
+          }
+        : undefined
+    const binding = await createPiGatewayModelBinding(
+      { sessionId: 'session' },
+      providerService.getByProviderId('port'),
+      modelService.getByKey('port', 'wire-model')
+    )
+    const answer = await binding.modelRuntime.completeSimple(
+      binding.model,
+      normalizeContext({ messages: [{ role: 'user', content: 'Hello', timestamp: 1 }] })
+    )
+    expect(answer.stopReason).toBe('stop')
+    expect(requests).toEqual([expect.objectContaining({ max_tokens: 1024 }), { ...requests[0], max_tokens: 512 }])
+  })
+
+  it.each([true, false])(
+    'recovers an Anthropic gateway request only for a trusted desktop session (%s)',
+    async (internal) => {
+      rejectUpstream = () =>
+        requests.length === 1
+          ? { message: "Field 'max_tokens' must be at most 512", code: 'invalid_request_error' }
+          : undefined
+      const response = await processMessage({
+        params: {
+          model: 'port:wire-model',
+          stream: true,
+          max_tokens: 1024,
+          messages: [{ role: 'user', content: 'fixture' }]
+        },
+        inputFormat: 'anthropic',
+        outputFormat: 'anthropic',
+        requestHeaders: new Headers({
+          ...(internal && { authorization: 'Bearer internal-fixture-key' }),
+          'x-cherry-agent-session-id': 'session'
+        })
+      }).catch((error: unknown) => error)
+      if (internal) {
+        expect(response).toBeInstanceOf(Response)
+        expect(await (response as Response).text()).toContain('Model answer')
+        expect(requests).toEqual([expect.objectContaining({ max_tokens: 1024 }), { ...requests[0], max_tokens: 512 }])
+      } else {
+        expect(response).toMatchObject({ statusCode: 400 })
+        expect(requests.map(({ max_tokens }) => max_tokens)).toEqual([1024])
+      }
+    }
+  )
+
+  it('returns the last provider status and body when an internal HTTP call exhausts budget retries', async () => {
+    protocol = 'anthropic'
+    rejectUpstream = () => ({
+      message: `max_tokens is too large (attempt ${requests.length})`,
+      code: 'invalid_request_error',
+      status: 422
+    })
+    const response = await fetch(`${mocks.gatewayUrl}/v1/messages`, {
+      method: 'POST',
+      headers: {
+        authorization: 'Bearer internal-fixture-key',
+        'content-type': 'application/json',
+        'x-cherry-agent-session-id': 'session'
+      },
+      body: JSON.stringify({
+        model: 'port:wire-model',
+        stream: true,
+        max_tokens: 1024,
+        messages: [{ role: 'user', content: 'fixture' }]
+      })
+    })
+    expect(response.status).toBe(422)
+    expect(await response.json()).toMatchObject({ error: { message: 'max_tokens is too large (attempt 4)' } })
+    expect(requests.map(({ max_tokens }) => max_tokens)).toEqual([1024, 512, 256, 128])
+  })
+
   it('joins the SDK call to the native phase with one upstream request and billing record', async () => {
     const captured: SpanEntity[] = []
     const tracerProvider = new BasicTracerProvider()

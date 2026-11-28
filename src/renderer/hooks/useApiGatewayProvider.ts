@@ -48,7 +48,7 @@ export function useApiGatewayProvider(): ApiGatewayProviderBundle | null {
       // current against a dead port. `startApiGateway` returns false on failure (it never rejects).
       const started = await startApiGateway()
       if (!started) {
-        throw new Error('API gateway failed to start')
+        throw new Error('Unified Gateway failed to start')
       }
     }
   }, [apiGatewayRunning, startApiGateway])
@@ -56,7 +56,7 @@ export function useApiGatewayProvider(): ApiGatewayProviderBundle | null {
   const getApiKey = useCallback(async (): Promise<string> => {
     const key = await window.api.preference.get('feature.api_gateway.api_key')
     if (!key) {
-      throw new Error('API gateway did not provide a key')
+      throw new Error('Unified Gateway did not provide a key')
     }
     return key
   }, [])

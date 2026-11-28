@@ -1,4 +1,4 @@
-import type { ConversationId, EntryId, Storage } from '@earendil-works/pi-durable'
+import type { ConversationId, EntryId, Storage, SubmissionRecord } from '@earendil-works/pi-durable'
 
 import { runtimeId } from '@cherrystudio/agent-runtime'
 import type { FollowupProjection } from '@cherrystudio/agent-runtime-pi-durable'
@@ -31,10 +31,9 @@ export async function recoverDurableFollowups(
   isWritable: (sessionId: string) => boolean,
   scope?: { context: AgentSessionContextRow; inputIds: readonly string[] }
 ): Promise<{ acknowledged: FollowupProjection[]; replies: { sessionId: string; runId: string }[] }> {
-  const [{ followupEdit, readFollowupProjections }, { BACKGROUND_CONTEXT }] = await Promise.all([
-    import('@cherrystudio/agent-runtime-pi-durable'),
-    import('@earendil-works/chord/context')
-  ])
+  const [{ followupEdit, followupSteerPlacement, readFollowupProjections }, { BACKGROUND_CONTEXT }] = await Promise.all(
+    [import('@cherrystudio/agent-runtime-pi-durable'), import('@earendil-works/chord/context')]
+  )
   const acknowledged: FollowupProjection[] = []
   const replies: { sessionId: string; runId: string }[] = []
   const groups = Map.groupBy(await readFollowupProjections(storage), ({ threadId }) => threadId)
@@ -52,15 +51,26 @@ export async function recoverDurableFollowups(
     for (const inputId of scope?.inputIds ?? []) {
       if (!tracked.has(inputId)) candidates.push({ threadId, inputId })
     }
-    const placed: { item: FollowupProjection; entry: EntryId; terminal: boolean }[] = []
+    const placed: { item: FollowupProjection; entry: EntryId; record: Extract<SubmissionRecord, { type: 'input' }> }[] =
+      []
     for (const item of candidates) {
       const record = await storage.submissionByRequest(thread, item.inputId, BACKGROUND_CONTEXT)
       if (!isWritable(context.sessionId)) break
+      if (
+        record?.type === 'input' &&
+        record.status === 'unanswered' &&
+        record.reason === 'withdrawn' &&
+        record.entry === undefined
+      ) {
+        messages.discardStagedFollowup(context.sessionId, item.inputId, context.id)
+        if (tracked.has(item.inputId)) acknowledged.push(item)
+        continue
+      }
       if (messages.inputBinding(context.sessionId, item.inputId)?.contextId !== context.id) continue
       if (!record && !tracked.has(item.inputId)) {
         messages.markUserMessageUnsent(context.sessionId, item.inputId, context.id)
       } else if (record?.type === 'input' && record.status !== 'queued') {
-        if (record.entry !== undefined) placed.push({ item, entry: record.entry, terminal: record.status !== 'placed' })
+        if (record.entry !== undefined) placed.push({ item, entry: record.entry, record })
         else if (record.status === 'unanswered') {
           messages.markUserMessageUnsent(context.sessionId, item.inputId, context.id)
           if (tracked.has(item.inputId) && !messages.isStagedFollowup(context.sessionId, item.inputId))
@@ -70,20 +80,23 @@ export async function recoverDurableFollowups(
     }
     if (!placed.length) continue
     const modelId = (await readDurableRequest(storage, threadId))?.modelId
-    for (const { item, entry, terminal } of placed.sort((a, b) => a.entry - b.entry)) {
+    for (const { item, entry, record } of placed.sort((a, b) => a.entry - b.entry)) {
       if (!isWritable(context.sessionId)) break
-      if (messages.isStagedFollowup(context.sessionId, item.inputId)) {
+      let reply = messages.replyTo(context.sessionId, item.inputId)
+      if (!reply) {
         const source = await storage.entry(thread, entry, BACKGROUND_CONTEXT)
         if (!isWritable(context.sessionId)) break
         if (!source?.entry) continue
         const { textPart } = followupEdit(source.entry.data)
         if (textPart !== undefined) projectFollowupEdit(context, item.inputId, textPart)
-        messages.saveInputTimelinePosition(context.sessionId, item.inputId, context.id, 0, { modelId })
+        const promotion = followupSteerPlacement(source.entry.data, record.runId)
+        messages.saveInputTimelinePosition(context.sessionId, item.inputId, context.id, 0, { modelId, promotion })
+        reply = messages.replyTo(context.sessionId, item.inputId)
       }
-      const reply = messages.replyTo(context.sessionId, item.inputId)
       if (!reply) continue
       if (tracked.has(item.inputId)) acknowledged.push(item)
-      if (terminal && reply.status === 'pending') replies.push({ sessionId: context.sessionId, runId: reply.id })
+      if (record.status !== 'placed' && reply.status === 'pending')
+        replies.push({ sessionId: context.sessionId, runId: reply.id })
     }
   }
   return { acknowledged, replies }

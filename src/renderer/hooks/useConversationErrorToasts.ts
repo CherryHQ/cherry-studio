@@ -217,11 +217,17 @@ export function useConversationErrorToasts(scopeKey: string, actions: RecoveryAc
       attempt.executionId = executionId
       attempt.userMessageId ??= event.userMessageId
       const error = event.message.parts.findLast((part) => part.type === 'data-error')?.data
+      // A runtime failure can finish with no structured error part; the trailing
+      // text then carries the only detail (for example "Claude Code open:
+      // native-storage-unavailable"). Surface it instead of the generic stream
+      // diagnosis, which misreads local failures as network interruptions.
+      const errorDetail = event.message.parts.findLast((part) => part.type === 'text' && part.text.trim() !== '')
       attempt.result = {
         success: !event.isAbort,
         error:
           !event.isAbort && (event.isError || error)
-            ? (error ?? new Error(i18n.t('error.diagnosis.stream')))
+            ? (error ??
+              new Error(errorDetail?.type === 'text' ? errorDetail.text.trim() : i18n.t('error.diagnosis.stream')))
             : undefined
       }
       attempt.message ??= { ...event.message, parts: [] }

@@ -8,7 +8,7 @@ import { DEFAULT_CONTEXT_SETTINGS } from '@shared/data/types/contextSettings'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 
-import { makeModel } from '../../../../__tests__/fixtures'
+import { makeModel, makeProvider } from '../../../../__tests__/fixtures'
 import { omitCompactedAnthropicThinking } from '../../../../messages/anthropicThinking'
 import { toModelMessages } from '../../../../messages/messageRules'
 import {
@@ -291,6 +291,7 @@ describe('Anthropic Messages thinking binding', () => {
     async (providerId, wireModel, endpointType, stripsThinking) => {
       const scope = {
         aiSdkProviderId: providerId,
+        provider: makeProvider({ id: providerId, defaultChatEndpoint: endpointType }),
         endpointType,
         sdkConfig: { modelId: wireModel },
         request: { conversation: { id: 'topic' } },

@@ -116,7 +116,7 @@
     * **模型**
       * [默认模型设置](pre-basic/settings/default-models.md)
       * [本地模型](pre-basic/settings/local-models.md)
-      * [API 网关](advanced-basic/developer-tools/api-gateway.md)
+      * [统一网关](advanced-basic/developer-tools/api-gateway.md)
     * **工具与联网**
       * [联网模式](pre-basic/websearch/README.md)
         * [免费联网模式](pre-basic/websearch/free-search.md)

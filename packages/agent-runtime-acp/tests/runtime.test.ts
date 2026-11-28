@@ -274,16 +274,16 @@ describe('input, permission and cancellation', () => {
     async (response) => {
       const { runtime } = setup({ 'session/prompt': () => JSON.parse(JSON.stringify(response)) })
       const handle = confirmed(await runtime.create(configuration))
-      const { events } = await collect(handle)
+      const { events, observer } = await collect(handle)
       expect(await handle.input.submit(input())).toMatchObject({ status: 'acknowledged' })
       await expect.poll(() => events.some((event) => event.type === 'gap')).toBe(true)
-      const snapshot = (await collect(handle)).events[0]
-      expect(snapshot).toMatchObject({
-        inputs: [{ inputId: 'hello', facts: ['dispatch-started'], error: { code: 'projection-failed' } }],
-        activity: { state: 'unknown' }
+      await observer.drain()
+      const failure = events.find((event) => event.type === 'input.changed' && event.input.error !== undefined)
+      expect(failure).toMatchObject({
+        input: { inputId: 'hello', facts: ['dispatch-started'], error: { code: 'projection-failed' } }
       })
-      if (snapshot.type !== 'snapshot') throw new Error('Expected snapshot')
-      expect(snapshot.inputs[0].outcome).toBeUndefined()
+      expect(failure).not.toHaveProperty('input.outcome')
+      expect(events).toContainEqual({ type: 'activity.changed', activity: { state: 'unknown' } })
       expect(handle.acp.state().turns).toEqual([])
       expect(await handle.input.submit(input('next'))).toMatchObject({ status: 'rejected' })
     }
@@ -400,14 +400,17 @@ describe('input, permission and cancellation', () => {
       }
     })
     const handle = confirmed(await f.runtime.create(configuration))
-    const { events } = await collect(handle)
+    const { events, observer } = await collect(handle)
     await handle.input.submit(input())
     await seen.promise
     f.disconnect()
     await expect.poll(() => events.some((event) => event.type === 'gap' && event.reason === 'disconnected')).toBe(true)
-    const baseline = (await collect(handle)).events[0] as ThreadSnapshot
-    expect(baseline.inputs[0]).not.toHaveProperty('outcome')
-    expect(await handle.interrupt!()).toMatchObject({ status: 'unknown' })
+    await observer.drain()
+    const failure = events.find((event) => event.type === 'input.changed' && event.input.error !== undefined)
+    expect(failure).toMatchObject({ input: { inputId: 'hello', facts: ['dispatch-started'] } })
+    expect(failure).not.toHaveProperty('input.outcome')
+    expect(events).toContainEqual({ type: 'activity.changed', activity: { state: 'unknown' } })
+    expect(await handle.interrupt!()).toMatchObject({ status: 'rejected', error: { code: 'access-closed' } })
     expect(await handle.input.submit(input('next'))).toMatchObject({ status: 'rejected' })
   })
 })

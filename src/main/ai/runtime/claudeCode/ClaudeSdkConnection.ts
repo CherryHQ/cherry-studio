@@ -190,7 +190,7 @@ export abstract class ClaudeSdkConnection<
       ? await this.runtime.open({ backendId: runtimeId(this.context.backendId), id: runtimeId(resume) })
       : await this.runtime.create(config)
     if (opened.status !== 'confirmed') {
-      if (this.localAgentProtocol && resume && opened.error.code === 'native-storage-missing')
+      if (resume && opened.error.code === 'native-storage-missing')
         throw new LocalAgentSessionRestoreError(opened.error.message)
       throw new Error(opened.error.message)
     }

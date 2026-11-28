@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/dev/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/implemented/feature/2026-11-26-pi-durable-queue.md
-2026-11-26-pi-durable-queue.md: a8cd3681be388aa36cbd17103dbb5c6b66b24ff0
-2026-11-26-pi-durable-queue.zh.md: 10685867037042cc6c0499054edfb78e0db48350
+2026-11-26-pi-durable-queue.md: 5d3475bcf02d50896051f5d6958c26af4290a9da
+2026-11-26-pi-durable-queue.zh.md: d84a4fad35d8501dc5b1ded70af721697648d71b

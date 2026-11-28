@@ -253,7 +253,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
   async start(): Promise<void> {
     await this.applyIntent(true)
     if (!this.isActivated || !this.isRunning()) {
-      const error = this.failureError('Failed to start API Gateway')
+      const error = this.failureError('Failed to start Unified Gateway')
       logger.error('Failed to start API Gateway:', error)
       throw error
     }
@@ -263,7 +263,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
   async stop(): Promise<ApiGatewayStopOutcome> {
     await this.applyIntent(false)
     if (this.isActivated) {
-      const error = this.failureError('Failed to stop API Gateway')
+      const error = this.failureError('Failed to stop Unified Gateway')
       logger.error('Failed to stop API Gateway:', error)
       throw error
     }
@@ -278,13 +278,13 @@ export class ApiGatewayService extends BaseService implements Activatable {
     // Re-read the intent before re-activating: another window may have persisted a stop while this
     // restart was queued behind it, and a re-bind must never resurrect a gateway the user disabled.
     if (!this.getCurrentConfig().enabled) {
-      const error = new Error('API Gateway was disabled while restarting')
+      const error = new Error('Unified Gateway was disabled while restarting')
       logger.warn('Aborting API Gateway restart: the gateway was disabled meanwhile')
       throw error
     }
     await this.converge(true)
     if (!this.isActivated || !this.isRunning()) {
-      const error = this.failureError('Failed to restart API Gateway')
+      const error = this.failureError('Failed to restart Unified Gateway')
       logger.error('Failed to restart API Gateway:', error)
       throw error
     }
@@ -310,13 +310,13 @@ export class ApiGatewayService extends BaseService implements Activatable {
         return
       }
       if (!this.getCurrentConfig().enabled || !this.isRunning()) {
-        throw new Error('Start the API Gateway in its settings before enabling LAN access')
+        throw new Error('Start the Unified Gateway in its settings before enabling LAN access')
       }
       await preferences.set('feature.api_gateway.host', '0.0.0.0')
       if (!this.getCurrentConfig().enabled || !this.isRunning()) {
         await preferences.set('feature.api_gateway.host', '127.0.0.1')
         await this.closeRemoteAccess()
-        throw new Error('API Gateway was stopped')
+        throw new Error('Unified Gateway was stopped')
       }
     })
     this.reconciler.request()
@@ -345,10 +345,10 @@ export class ApiGatewayService extends BaseService implements Activatable {
     await this.lanMutex.runExclusive(async () => {
       if (enabled) {
         if (!this.getCurrentConfig().enabled || !this.isRunning()) {
-          throw new Error('API Gateway is not running')
+          throw new Error('Unified Gateway is not running')
         }
         await this.ensureValidApiKey()
-        if (!this.getCurrentConfig().enabled) throw new Error('API Gateway was stopped')
+        if (!this.getCurrentConfig().enabled) throw new Error('Unified Gateway was stopped')
       }
       await preferences.set('feature.api_gateway.lan_http_enabled', enabled)
     })
@@ -392,7 +392,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
   async getRemoteEndpoint() {
     const metadata = await getInterfaceMetadata()
     const configured = application.get('PreferenceService').get('feature.remote_access.advertised_endpoint')
-    if (!this.isRunning()) throw new Error('API Gateway is not running')
+    if (!this.isRunning()) throw new Error('Unified Gateway is not running')
     if (
       !this.getCurrentConfig().enabled ||
       this.getCurrentConfig().host !== '0.0.0.0' ||

@@ -22,6 +22,7 @@ import { usesAnthropicMessagesSdk } from '../../messages/anthropicThinking'
 import { ALL_MEDIA, routeToolResultMedia } from '../../messages/messageCapabilities'
 import { toModelMessages } from '../../messages/messageRules'
 import type { AppProviderSettingsMap } from '../../types'
+import { getTerminalModelError } from '../../utils/retryError'
 import { serializeError } from '../../utils/serializeError'
 import { classifyAiSdkFailure, isMissingFinishReason, MissingFinishReasonError } from './failureFacts'
 import { logger, safeCall, wrapForwardedHook, wrapToolsWithExecutionHooks } from './loop/hookRunner'
@@ -29,7 +30,6 @@ import { resolveToolLoopTerminalError } from './loop/toolLoopTermination'
 import type { AgentLoopHooks, AgentLoopParams } from './loop/types'
 import { attachUsageObserver } from './observers/usage'
 import { composeHooks } from './params/composeHooks'
-import { getTerminalModelError } from './retry/createRetryableWrap'
 
 type AppProviderKey = StringKeys<AppProviderSettingsMap>
 

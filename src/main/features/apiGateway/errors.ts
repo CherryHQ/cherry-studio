@@ -4,6 +4,7 @@ import { APICallError } from 'ai'
 import { ElysiaCustomStatusResponse, type ErrorHandler, ValidationError } from 'elysia'
 
 import { loggerService } from '@logger'
+import { getTerminalModelError } from '@main/ai/utils/retryError'
 import { isDev } from '@main/core/platform'
 import { getSafeProviderErrorMessage } from '@shared/ai/providerError'
 import { DataApiError } from '@shared/data/api/errors'
@@ -29,6 +30,7 @@ function record(value: unknown): Record<string, unknown> | undefined {
 
 /** Retain provider response details only for authenticated in-process runtime requests. */
 export function internalGatewayError(error: unknown, fallback: SerializedError): SerializedError {
+  error = getTerminalModelError(error)
   if (!(error instanceof Error) && !APICallError.isInstance(error)) return fallback
   const api = APICallError.isInstance(error) ? error : undefined
   let body: Record<string, unknown> = {}
@@ -53,6 +55,7 @@ export function internalGatewayError(error: unknown, fallback: SerializedError):
   }
   return {
     ...fallback,
+    ...(api?.statusCode !== undefined && { statusCode: api.statusCode }),
     message: error.message,
     [providerDetails]: { body, error: detail, headers }
   }
@@ -64,6 +67,7 @@ function detailsOf(error: unknown): ProviderDetails | undefined {
 
 /** Preserve the HTTP dialect's error semantics without encoding a response body. */
 export function objectGatewayError(error: unknown, fallback: SerializedError, format: OutputFormat): Error {
+  error = getTerminalModelError(error)
   if (UnsupportedFunctionalityError.isInstance(error)) return error
   const status = extractError(error).status
   const retained = { ...internalGatewayError(error, fallback), ...(status !== undefined && { statusCode: status }) }

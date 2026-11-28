@@ -107,7 +107,7 @@
     * **Models**
       * [Default Model Settings](pre-basic/settings/default-models.md)
       * [Local Models](pre-basic/settings/local-models.md)
-      * [API Gateway](advanced-basic/developer-tools/api-gateway.md)
+      * [Unified Gateway](advanced-basic/developer-tools/api-gateway.md)
     * **Tools & Web Search**
       * [Network Access](pre-basic/websearch/README.md)
         * [Free Internet Mode](pre-basic/websearch/free-search.md)

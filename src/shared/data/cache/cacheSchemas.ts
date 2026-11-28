@@ -1,4 +1,4 @@
-import type { AgentSessionFollowup } from '@shared/ai/agentSessionFollowups'
+import type { AgentSessionFollowupQueue } from '@shared/ai/agentSessionFollowups'
 import type { AgentSessionRuntimeControls } from '@shared/ai/agentSessionRuntimeControls'
 import type { LocalAgentSessionOverrides } from '@shared/ai/localAgent'
 import type { AiUsageRecordListSortBy, AiUsageRecordSortOrder } from '@shared/data/api/schemas/aiUsageRecords'
@@ -327,7 +327,7 @@ export type SharedCacheSchema = {
   'agent.session.compaction.${sessionId}': CacheValueTypes.CacheAgentSessionCompactionState
   'agent.session.runtime_controls.${sessionId}': AgentSessionRuntimeControls | null
   'agent.session.stream_topic.${sessionId}': string | null
-  'agent.session.followups.${topicId}': AgentSessionFollowup[]
+  'agent.session.followups.${topicId}': AgentSessionFollowupQueue
   'agent.session.closing.${sessionId}': boolean
   'agent.session.api_retry.${sessionId}': CacheValueTypes.CacheAgentSessionApiRetryState
   'agent.session.cost.${sessionId}': CacheValueTypes.CacheAgentSessionCost
@@ -419,7 +419,7 @@ export const DefaultSharedCache: SharedCacheSchema = {
   'agent.session.compaction.${sessionId}': null,
   'agent.session.runtime_controls.${sessionId}': null,
   'agent.session.stream_topic.${sessionId}': null,
-  'agent.session.followups.${topicId}': [],
+  'agent.session.followups.${topicId}': { items: [], paused: false },
   'agent.session.closing.${sessionId}': false,
   'agent.session.api_retry.${sessionId}': null,
   'agent.session.cost.${sessionId}': null,
