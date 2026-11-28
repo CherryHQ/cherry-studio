@@ -119,6 +119,21 @@ describe('AgentProfilePane', () => {
 
     expect(screen.getByRole('heading', { name: 'Code Reviewer' })).toBeInTheDocument()
     expect(screen.getByText('Reviews changes and points out risks')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Choose avatar' })).toBeEnabled()
+  })
+
+  it('uses a fixed icon for a local Agent with a previously saved avatar', () => {
+    agent = {
+      ...createAgent({ avatar: '🍉' }),
+      type: 'local',
+      localRuntime: { providerId: 'codex-provider', presetId: 'codex', enabled: true, args: [], env: {} }
+    }
+    serveAgentData()
+    renderInRightPane(<AgentProfilePane agentId={agent.id} />)
+
+    expect(screen.getByRole('heading', { name: 'Code Reviewer' })).toBeVisible()
+    expect(screen.queryByRole('button', { name: 'Choose avatar' })).not.toBeInTheDocument()
+    expect(screen.queryByText('🍉')).not.toBeInTheDocument()
   })
 
   it('shows every supported platform in Channels for an Agent with no accounts', () => {
@@ -156,6 +171,15 @@ describe('AgentProfilePane', () => {
       fireEvent.click(within(settingsRegion()).getByRole('button', { name: 'All' }))
 
       await waitFor(() => expect(dialog.requests).toEqual([{ kind: 'agent', id: agent.id }]))
+    })
+
+    it('leaves native model and permission controls to the local Agent', () => {
+      agent = { ...agent, type: 'local' }
+      const settings = settingsRegion(vi.fn())
+
+      expect(within(settings).queryByRole('button', { name: 'Model' })).not.toBeInTheDocument()
+      expect(within(settings).queryByRole('button', { name: 'Permission' })).not.toBeInTheDocument()
+      expect(within(settings).getByRole('button', { name: 'All' })).toBeEnabled()
     })
 
     it("hands a model choice to the conversation's confirmed switch instead of saving it directly", () => {

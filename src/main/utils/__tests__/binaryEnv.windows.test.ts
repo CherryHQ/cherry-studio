@@ -117,6 +117,16 @@ describe('mergeBinaryExecutionEnv (Windows)', () => {
     expect(merged[pathKeys[0]].split(';')).toEqual(['C:\\Tools', 'C:\\', 'C:'])
   })
 
+  it('excludes Windows PATH entries even when they carry a trailing backslash or quotes', () => {
+    const merged = mergePathSuffixes(
+      { Path: 'C:\\Alias\\;"C:\\Legacy\\Shims";C:\\dev\\node' },
+      [],
+      ['c:\\alias', 'C:\\Legacy\\Shims']
+    )
+
+    expect(merged.Path).toBe('C:\\dev\\node')
+  })
+
   it('relocates LOCALAPPDATA/APPDATA into the isolated data dir on Windows', () => {
     // aqua/Sigstore/TUF resolves its cache/config from %LOCALAPPDATA%/%APPDATA%;
     // the install subprocess strips the user's real values, so the isolated home

@@ -6,7 +6,14 @@ import type { ToolDefinition } from '@earendil-works/pi-coding-agent'
 
 import { application } from '@application'
 import type { BehaviorEvent, CallRef } from '@cherrystudio/agent-behavior'
-import { hasProductInputId, isPartBatch, runtimeId, type Observation, type Subagent } from '@cherrystudio/agent-runtime'
+import {
+  hasProductInputId,
+  isPartBatch,
+  runtimeId,
+  type Observation,
+  type Subagent,
+  type CompactThread
+} from '@cherrystudio/agent-runtime'
 import type {
   AgentRuntimeEvent as PiEvent,
   PiObservation,
@@ -43,6 +50,7 @@ import { LEGACY_DSH_TOOL_PREFIX } from '@shared/ai/retiredAgentRuntime'
 import { buildFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
+import { isUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { RetryPartData } from '@shared/data/types/uiParts'
 import { AsyncEventQueue } from '@shared/utils/async'
 import { markReportingHandled } from '@shared/utils/errorReporting'
@@ -55,6 +63,7 @@ import type {
   AgentRuntimeReconcileResult,
   AgentRuntimeTraceContext,
   AgentRuntimeCommand,
+  AgentRuntimeInput,
   AgentSessionUsageCapture
 } from '../types'
 import { type UnavailableNativeContext, unavailableNativeContext } from '../types'
@@ -105,7 +114,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   private nativeClosed = false
   private active = false
   private sending = false
-  private manualCompactInFlight = false
+  private manualCompactInFlight?: 'command' | 'operation'
   private autonomous = false
   private nextOrigin: AutonomousTurnOrigin = { kind: 'background-work' }
   private readonly childTasks = new PiChildTasks(
@@ -131,7 +140,12 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   private publishedBackground?: PiObservation['backgroundResults']
   private projection?: ThreadProjection
 
-  constructor(private readonly input: AgentRuntimeConnectInput) {}
+  private readonly input: AgentRuntimeConnectInput & { modelId: UniqueModelId }
+
+  constructor(input: AgentRuntimeConnectInput) {
+    if (!isUniqueModelId(input.modelId)) throw new Error('Provider model required')
+    this.input = { ...input, modelId: input.modelId }
+  }
 
   async start(): Promise<this | UnavailableNativeContext> {
     const discovery = await capturePiConnectionSnapshot(
@@ -411,23 +425,27 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
 
   async send(input: AgentRuntimeCommand): Promise<void> {
     if (!this.handle || !this.context || this.closing) throw new Error('Pi Runtime is unavailable')
-    if (this.sending) throw new Error('Pi already has an active submission')
+    if (this.sending || this.manualCompactInFlight) throw new Error('Pi already has an active submission')
     this.sending = true
     this.failure = undefined
     this.turnUsage.reset()
     const content = buildAgentUserContent(input.message)
     const command = input.systemReminder ? undefined : parseManualCompactCommand(content)
     if (command) {
-      this.manualCompactInFlight = true
-      const result = await this.handle.pi.compact(command.instructions || undefined)
-      this.manualCompactInFlight = false
-      if (result.status !== 'confirmed') this.failure ??= new Error(result.error.message)
-      this.finishTurn()
+      this.manualCompactInFlight = 'command'
+      try {
+        const result = await this.handle.compact!(command.instructions || undefined)
+        await this.observation?.drain()
+        if (result.status !== 'confirmed') this.failure ??= new Error(result.error.message)
+        this.finishTurn()
+      } finally {
+        this.manualCompactInFlight = undefined
+      }
       return
     }
     try {
       const prompt = input.context ? buildAgentUserContent(input.message, input.context) : content
-      await this.submit(input, input.systemReminder ? wrapSteerReminder(prompt) : prompt, 'reject')
+      await this.submit(input, input.systemReminder ? wrapSteerReminder(prompt) : prompt)
     } catch (error) {
       this.sending = false
       this.failure = error
@@ -449,28 +467,62 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     )
   }
 
-  redirect(input: AgentRuntimeCommand): boolean {
-    if (!this.active || this.closing) return false
-    this.pendingSteers.add(input.message.id)
-    void this.submit(input, wrapSteerReminder(buildAgentUserContent(input.message, input.context)), 'steer').catch(
-      (error) => {
-        this.pendingSteers.delete(input.message.id)
-        this.failure = error
-        logAiFailure(logger, 'Pi steer failed', error, 'agent.pi.steer', classifyPiFailure(error))
-        this.eventQueue.push({ type: 'error', error })
+  get threadInput(): AgentRuntimeInput | undefined {
+    const handle = this.handle
+    if (!handle || !this.active || this.closing) return
+    return {
+      steer: {
+        whenIdle: 'reject',
+        submit: async ({ inputId, message, context }) => {
+          if (!this.active || this.closing || this.handle !== handle)
+            return {
+              status: 'rejected',
+              inputId,
+              error: { operation: 'steer', code: 'no-active-turn', message: 'Pi turn already ended' }
+            }
+          this.pendingSteers.add(inputId)
+          const result = await handle.input.steer.submit({
+            inputId,
+            text: wrapSteerReminder(buildAgentUserContent(message, context))
+          })
+          if (result.status === 'rejected' || result.status === 'unsupported') this.pendingSteers.delete(inputId)
+          return result
+        }
       }
-    )
-    return true
+    }
   }
 
-  private async submit(input: AgentRuntimeCommand, text: string, whenBusy: 'reject' | 'steer'): Promise<void> {
-    const draft = prepareNativeSubmission(this.input.sessionId, input.message.id, this.context!.id, whenBusy, {
+  readonly compactWithInstructions = true as const
+
+  get compact(): CompactThread | undefined {
+    const handle = this.handle
+    const compact = handle?.compact
+    if (!compact || this.closing || this.input.headless) return
+    return async (instructions) => {
+      if (this.sending || this.active || this.closing || this.manualCompactInFlight || this.handle !== handle)
+        return {
+          status: 'rejected',
+          error: { operation: 'compact', code: 'busy', message: 'Pi session is unavailable or busy' }
+        }
+      this.manualCompactInFlight = 'operation'
+      try {
+        const result = await compact(instructions)
+        await this.observation?.drain()
+        return result
+      } finally {
+        this.manualCompactInFlight = undefined
+      }
+    }
+  }
+
+  private async submit(input: AgentRuntimeCommand, text: string): Promise<void> {
+    const draft = prepareNativeSubmission(this.input.sessionId, input.message.id, this.context!.id, {
       text,
       parts: input.message.data.parts
     })
-    this.input.onInputPrepared?.(input.message.id, this.context!.id)
-    const result = await this.handle!.input.submit(draft)
-    this.eventQueue.push({ type: 'input-submission', contextId: this.context!.id, result })
+    const send = this.handle?.input.submit
+    if (!send) throw new Error('Pi input operation is unavailable')
+    const result = await send(draft)
     applyNativeSubmissionResult(this.input.sessionId, this.context!.id, result)
     if (result.status === 'acknowledged') {
       if (result.facts.includes('locally-handled') && !this.active) this.finishTurn()
@@ -711,9 +763,9 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       sessionId,
       message: { id: messageId, role: 'user', data: { parts: [{ type: 'text', text }] } }
     })
-    const draft = prepareNativeSubmission(sessionId, messageId, contextId, 'steer')
+    const draft = prepareNativeSubmission(sessionId, messageId, contextId)
     await projection.refresh()
-    const result = await handle.input.submit(draft)
+    const result = await handle.input.steer.submit(draft)
     applyNativeSubmissionResult(sessionId, contextId, result)
     await projection.refresh()
     if (result.status !== 'acknowledged') throw new Error(result.error.message)
@@ -779,9 +831,10 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         this.context = contexts.bindContext(this.context.id, id)
         this.eventQueue.push({ type: 'resume-token', token: id })
       }
-    } else if (event.type === 'compaction-start')
-      this.eventQueue.push({ type: 'compaction-start', trigger: mapCompactionTrigger(event.reason) })
-    else if (event.type === 'compaction-end') {
+    } else if (event.type === 'compaction-start') {
+      if (this.manualCompactInFlight !== 'operation')
+        this.eventQueue.push({ type: 'compaction-start', trigger: mapCompactionTrigger(event.reason) })
+    } else if (event.type === 'compaction-end') {
       if (event.error || event.aborted) {
         const error = event.error ?? 'pi compaction aborted'
         const failure = new Error(error)
@@ -795,10 +848,12 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
             cancelled: event.aborted
           })
         )
-        if (this.manualCompactInFlight) this.failure = failure
-        else this.eventQueue.push({ type: 'compaction-error', error, aborted: event.aborted })
+        if (this.manualCompactInFlight === 'command') this.failure = failure
+        else if (this.manualCompactInFlight !== 'operation')
+          this.eventQueue.push({ type: 'compaction-error', error, aborted: event.aborted })
       } else {
         this.checkpoint = this.handle?.pi.history().at(-1)?.id
+        if (this.manualCompactInFlight === 'operation') return
         this.eventQueue.push({
           type: 'compaction-complete',
           anchor: {
@@ -863,6 +918,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   private async reconcileOnce(
     input: Parameters<AgentRuntimeConnection['reconcile']>[0]
   ): Promise<AgentRuntimeReconcileResult> {
+    if (!isUniqueModelId(input.modelId)) return 'invalid'
     let snapshot: PiConnectionSnapshot
     try {
       snapshot = await capturePiConnectionSnapshot(

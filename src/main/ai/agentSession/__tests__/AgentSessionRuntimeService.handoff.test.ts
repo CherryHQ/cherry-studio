@@ -125,7 +125,14 @@ async function fixture(opts: { headless?: boolean; redirect?: boolean; recovery?
       send: async (input) => {
         sent.push(input.message.id)
       },
-      redirect: () => opts.redirect === true,
+      ...(opts.redirect && {
+        threadInput: {
+          steer: {
+            whenIdle: 'reject',
+            submit: async ({ inputId }) => ({ status: 'acknowledged', inputId, facts: ['accepted', 'queued'] })
+          }
+        }
+      }),
       refreshTraceContext: async () => {
         if (blockTrace) {
           traceEntered.resolve()
@@ -155,7 +162,7 @@ async function fixture(opts: { headless?: boolean; redirect?: boolean; recovery?
         headless: opts.headless,
         messageSnapshot: snapshot
       })
-  await service['commandConnection']('root')
+  await service['ensureSessionConnection']('root')
   await emit({ type: 'supported-commands', commands: [] })
   onTestFinished(async () => {
     suspended.resolve()

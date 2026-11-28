@@ -1,5 +1,6 @@
 import type { SerializedError } from '@renderer/types/error'
 import { isSerializedAiSdkRetryError, isSerializedAiSdkToolCallRepairError } from '@renderer/types/error'
+import { getSafeProviderErrorMessage } from '@shared/ai/providerError'
 import { classifyErrorCategory, type ErrorCategory, isErrorCategory } from '@shared/utils/errorCategory'
 
 export type { ErrorCategory } from '@shared/utils/errorCategory'
@@ -167,7 +168,57 @@ export function getErrorHttpStatus(error: SerializedError): number | undefined {
   return terminalStatus !== undefined && terminalStatus >= 500 && terminalStatus < 600 ? terminalStatus : undefined
 }
 
+export function getProviderAuthenticationFailure(error?: SerializedError): { providerId: string } | null {
+  if (!error) return null
+  if (error.i18nKey === 'chat.provider_sign_in_required' && typeof error.providerId === 'string') {
+    return { providerId: error.providerId }
+  }
+  // ACP agents may preserve only the gateway's error text when wrapping an HTTP response.
+  const text = getSafeProviderErrorMessage(error)
+  const providerId = /Authentication required for provider "([^"\r\n]+)"\./.exec(text)?.[1]
+  if (providerId) return { providerId }
+  const terminal = unwrapNestedErrors(error)[0]
+  return terminal ? getProviderAuthenticationFailure(terminal) : null
+}
+
+function isLocalAgentHostRequiredError(error: SerializedError): boolean {
+  if ((error as Record<string, unknown>).code === 'LOCAL_AGENT_HOST_REQUIRED') return true
+  const cause = (error as Record<string, unknown>).cause
+  if (
+    cause &&
+    typeof cause === 'object' &&
+    !Array.isArray(cause) &&
+    isLocalAgentHostRequiredError(cause as SerializedError)
+  ) {
+    return true
+  }
+  if (unwrapNestedErrors(error).some((nested) => isLocalAgentHostRequiredError(nested))) {
+    return true
+  }
+  const message = (error.message ?? '').trim()
+  return (
+    /^(?:(?:IpcError|Error):\s*)*[\w .-]+\s+requires\s+(?:ZCode Desktop \/ zcode CLI|amp CLI)\s+to be installed\b/i.test(
+      message
+    ) || /^(?:(?:IpcError|Error):\s*)*[\w .-]+\s+需要先安装\s+(?:ZCode Desktop \/ zcode CLI|amp CLI)/i.test(message)
+  )
+}
+
+function isLocalAgentAuthenticationMessage(error: SerializedError): boolean {
+  const message = (error.message ?? '').trim()
+  if (!message) return false
+  if (/api.?key/i.test(message)) return false
+  return /^(?:(?:IpcError|Error):\s*)*(?:Authentication required|No authentication method selected)\b/i.test(message)
+}
+
 export function classifyError(error?: SerializedError, providerId?: string): ErrorClassification {
+  const authentication = getProviderAuthenticationFailure(error)
+  if (authentication) {
+    return {
+      category: 'auth',
+      i18nKey: 'error.chat.provider_sign_in_required',
+      navTarget: `/settings/provider?id=${encodeURIComponent(authentication.providerId)}`
+    }
+  }
   const providerSuffix = providerId ? `?id=${encodeURIComponent(providerId)}` : ''
   const classify = (category: ErrorCategory): ErrorClassification => ({
     category,
@@ -176,6 +227,34 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
   })
 
   if (!error || error.errorSource === 'local') return classify('unknown')
+
+  if (
+    /model is not supported when using Codex with a ChatGPT account/i.test(
+      [error.message, getSafeProviderErrorMessage(error)].join('\n')
+    )
+  ) {
+    return {
+      category: 'model',
+      i18nKey: 'error.diagnosis.codex_model_unsupported',
+      navTarget: '/settings/local-agents?id=codex'
+    }
+  }
+
+  if (!providerId && getErrorHttpStatus(error) === undefined && isLocalAgentHostRequiredError(error)) {
+    return {
+      category: 'unknown',
+      i18nKey: 'error.diagnosis.local_agent_host_required',
+      navTarget: '/settings/provider'
+    }
+  }
+
+  if (!providerId && getErrorHttpStatus(error) === undefined && isLocalAgentAuthenticationMessage(error)) {
+    return {
+      category: 'auth',
+      i18nKey: 'error.diagnosis.local_agent_auth',
+      navTarget: '/settings/provider'
+    }
+  }
 
   const claudeCodeExitCategory = getClaudeCodeExitCategory(error)
   if (claudeCodeExitCategory) return classify(claudeCodeExitCategory)

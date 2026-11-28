@@ -9,6 +9,7 @@ import { MODEL_CAPABILITY } from '@shared/data/types/model'
 
 const mocks = vi.hoisted(() => ({
   getProvider: vi.fn(),
+  getAuthConfig: vi.fn(),
   listProviders: vi.fn(),
   listModels: vi.fn()
 }))
@@ -16,6 +17,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@data/services/ProviderService', () => ({
   providerService: {
     getByProviderId: mocks.getProvider,
+    getAuthConfig: mocks.getAuthConfig,
     list: mocks.listProviders
   }
 }))
@@ -32,12 +34,13 @@ vi.mock('@logger', () => ({
   }
 }))
 
-import { getModels, resolveGatewayModelAddress } from '../models'
+import { getGatewayModelCatalog, getModels, resolveGatewayModelAddress } from '../models'
 
 describe('api gateway model listing', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.getProvider.mockReturnValue({ id: 'openai', name: 'OpenAI', isEnabled: true })
+    mocks.getAuthConfig.mockReturnValue({ type: 'api-key' })
     mocks.listProviders.mockReturnValue([
       { id: CHERRYAI_PROVIDER_ID, name: 'CherryAI' },
       { id: 'openai', name: 'OpenAI' }
@@ -60,6 +63,7 @@ describe('api gateway model listing', () => {
           id: 'openai::gpt-4o',
           providerId: 'openai',
           apiModelId: 'gpt-4o',
+          name: 'Work Chat',
           ownedBy: 'OpenAI',
           capabilities: []
         }
@@ -71,6 +75,40 @@ describe('api gateway model listing', () => {
     const response = await getModels()
 
     expect(response.data.map((model) => model.id)).toEqual(['openai:gpt-4o'])
+  })
+
+  it('provides the configured display name for the gateway UI without adding it to the HTTP catalog', async () => {
+    const [{ name, apiModel }] = await getGatewayModelCatalog()
+    expect(name).toBe('Work Chat')
+    expect(apiModel.id).toBe('openai:gpt-4o')
+    expect((await getModels()).data[0]).not.toHaveProperty('name')
+  })
+
+  it.each([true, false])('reports missing OAuth credentials even when provider enabled=%s', async (isEnabled) => {
+    mocks.getProvider.mockReturnValue({
+      id: 'openai-codex',
+      name: 'OpenAI Codex',
+      isEnabled,
+      authMethods: ['oauth']
+    })
+    await expect(resolveGatewayModelAddress('openai-codex:gpt-6.1-terra', true)).rejects.toMatchObject({
+      statusCode: 401,
+      providerId: 'openai-codex',
+      message: expect.stringContaining('Authentication required for provider "openai-codex".')
+    })
+  })
+
+  it('does not mistake a disabled signed-in provider for missing authentication', async () => {
+    mocks.getProvider.mockReturnValue({ id: 'openai-codex', isEnabled: false, authMethods: ['oauth'] })
+    mocks.getAuthConfig.mockReturnValue({ type: 'oauth', accessToken: 'test-token' })
+    await expect(resolveGatewayModelAddress('openai-codex:gpt-6.1-terra', true)).rejects.toMatchObject({ status: 400 })
+  })
+
+  it('keeps API-key routes usable for providers that also offer OAuth', async () => {
+    mocks.getProvider.mockReturnValue({ id: 'openai', isEnabled: true, authMethods: ['api-key', 'oauth'] })
+    await expect(resolveGatewayModelAddress('openai:gpt-4o', true)).resolves.toMatchObject({
+      uniqueModelId: 'openai::gpt-4o'
+    })
   })
 
   it('surfaces the resolved model record for provider-option translation', async () => {
