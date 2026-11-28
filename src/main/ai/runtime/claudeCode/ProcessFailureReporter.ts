@@ -50,6 +50,13 @@ export class ProcessFailureReporter {
     }
   }
 
+  /** Feed delivery is already accepted, unlike a new user submission. Never discard its content. */
+  beginAcceptedTurn(): void {
+    this.activityRevision++
+    this.active = true
+    if (hasClaudeCodeProcessFailure(this.diagnostics)) this.report(this.error())
+  }
+
   completeTurn(): void {
     this.activityRevision++
     this.active = false

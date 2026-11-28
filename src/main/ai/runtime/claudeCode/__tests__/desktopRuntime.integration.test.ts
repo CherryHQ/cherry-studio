@@ -609,15 +609,15 @@ it('restores nested children under their immediate parent after an attachment fa
   const saved = savedChildView(inner).messages
   let failed = false
   const originalAttach = ChildThreadProjection.prototype.attach
-  const attach = vi
-    .spyOn(ChildThreadProjection.prototype, 'attach')
-    .mockImplementation(function (this: ChildThreadProjection) {
-      if (!failed && this.context.id === inner.id) {
-        failed = true
-        return Promise.reject(new Error('Child attachment temporarily unavailable'))
-      }
-      return originalAttach.call(this)
-    })
+  const attach = vi.spyOn(ChildThreadProjection.prototype, 'attach').mockImplementation(function (
+    this: ChildThreadProjection
+  ) {
+    if (!failed && this.context.id === inner.id) {
+      failed = true
+      return Promise.reject(new Error('Child attachment temporarily unavailable'))
+    }
+    return originalAttach.call(this)
+  })
   try {
     await test.connect()
     await expect.poll(() => failed).toBe(true)
@@ -997,26 +997,28 @@ it('recovers current content and one terminal result after observer overflow, th
   const paused = Promise.withResolvers<void>()
   const resume = Promise.withResolvers<void>()
   let held = false
-  const spy = vi
-    .spyOn(ClaudeFeed.prototype, 'observe')
-    .mockImplementation(function (this: ClaudeFeed, sink, needsRecovery) {
-      return observe.call(
-        this,
-        async (batch) => {
-          if (
-            needsRecovery &&
-            !held &&
-            batch.events.some((event) => event.type === 'message.reconcile' && event.message.role === 'assistant')
-          ) {
-            held = true
-            paused.resolve()
-            await resume.promise
-          }
-          await sink(batch)
-        },
-        needsRecovery
-      )
-    })
+  const spy = vi.spyOn(ClaudeFeed.prototype, 'observe').mockImplementation(function (
+    this: ClaudeFeed,
+    sink,
+    needsRecovery
+  ) {
+    return observe.call(
+      this,
+      async (batch) => {
+        if (
+          needsRecovery &&
+          !held &&
+          batch.events.some((event) => event.type === 'message.reconcile' && event.message.role === 'assistant')
+        ) {
+          held = true
+          paused.resolve()
+          await resume.promise
+        }
+        await sink(batch)
+      },
+      needsRecovery
+    )
+  })
   try {
     const connection = await test.connect()
     const first = test.input('Produce many blocks')
@@ -1938,3 +1940,48 @@ it.each(['unanswered', 'rejected'] as const)(
   },
   15000
 )
+
+it('publishes an accepted autonomous reply when exit is recorded before its start control runs', async () => {
+  const g = await gateWire()
+  g.wire.send(successResult(g.context.nativeThreadId!, g.wire.inputs[0].uuid!))
+  await g.test.wait('turn-complete')
+  const access = g.connection as unknown as {
+    handleControl(control: { type: string; state?: string }, contextId: string): Promise<unknown>
+  }
+  const original = access.handleControl
+  const paused = Promise.withResolvers<void>()
+  const resume = Promise.withResolvers<void>()
+  access.handleControl = async function (control, contextId) {
+    if (control.type === 'autonomous-turn-state' && control.state === 'started') {
+      paused.resolve()
+      await resume.promise
+    }
+    return original.call(this, control, contextId)
+  }
+  try {
+    g.wire.send(
+      assistantMessage(g.context.nativeThreadId!, [
+        { type: 'text', text: 'Accepted autonomous reply', citations: null }
+      ])
+    )
+    await paused.promise
+    g.fail()
+    await gateDelay(20)
+    resume.resolve()
+    await expect.poll(() => g.test.events.filter((event) => event.type === 'error').length).toBe(1)
+    const projection = g.test.events.findIndex(
+      (event) => event.type === 'message-projection' && JSON.stringify(event).includes('Accepted autonomous reply')
+    )
+    const failure = g.test.events.findIndex((event) => event.type === 'error')
+    expect(projection).toBeGreaterThanOrEqual(0)
+    expect(projection).toBeLessThan(failure)
+    expect(g.test.events[failure]).toMatchObject({
+      type: 'error',
+      error: { name: 'ClaudeCodeProcessExitError', processExitCode: 7 }
+    })
+  } finally {
+    resume.resolve()
+    delete (access as { handleControl?: unknown }).handleControl
+    g.wire.exit()
+  }
+})

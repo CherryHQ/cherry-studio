@@ -647,7 +647,7 @@ export abstract class ClaudeSdkConnection<
       this.runActive = true
       this.currentSources.clear()
     } else if (control.type === 'autonomous-turn-state' && control.state === 'started') {
-      this.processFailure?.beginTurn()
+      this.processFailure?.beginAcceptedTurn()
       this.runActive = true
       this.currentSources.clear()
     } else if (control.type === 'session') {

@@ -63,6 +63,19 @@ describe('task-owned process failure reporting', () => {
     reporter.close()
   })
 
+  it('reports a recorded idle exit when an already accepted autonomous turn arrives', () => {
+    const { diagnostics, emit, reporter } = make()
+    recordClaudeCodeProcessExit(diagnostics, 7, null, '')
+    expect(emit).not.toHaveBeenCalled()
+    expect(() => reporter.beginAcceptedTurn()).not.toThrow()
+    expect(emit).toHaveBeenCalledOnce()
+    expect(emit.mock.calls[0][0]).toMatchObject({ processExitCode: 7 })
+    reporter.beginAcceptedTurn()
+    expect(emit).toHaveBeenCalledOnce()
+    expect(() => reporter.beginTurn()).toThrow('exited with code 7')
+    reporter.close()
+  })
+
   it('does not turn a clean process exit into a failure', () => {
     const { diagnostics, emit, reporter } = make()
     reporter.beginTurn()
