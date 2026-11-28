@@ -75,6 +75,7 @@ import {
   isClaudeCodeProcessFailure,
   type ClaudeCodeProcessDiagnostics
 } from './processExitDiagnostics'
+import type { ProcessFailureReporter } from './ProcessFailureReporter'
 import { resolveClaudeConfigDirectory } from './queryOptions'
 import type { McpToolDisplayMetadata, ToolApprovalEmitterHolder } from './types'
 
@@ -117,6 +118,10 @@ export abstract class ClaudeSdkConnection<
   private readonly observationEnds: Promise<void>[] = []
   private nativeError?: unknown
   protected processDiagnostics?: ClaudeCodeProcessDiagnostics
+  protected processFailure?: ProcessFailureReporter
+  protected pendingProcessFailure?: { error: unknown }
+  protected failureDelivery?: Promise<void>
+  private readonly sourceEnded = Promise.withResolvers<void>()
   protected parkedQuery?: ConsumedWarmQuery
   private readonly rootContexts = new Map<string, ReturnType<typeof contexts.context>>()
   protected context?: ReturnType<typeof prepareClaudeBranch>
@@ -208,6 +213,7 @@ export abstract class ClaudeSdkConnection<
     )
     if (started.status !== 'confirmed') throw new Error(started.error.message)
     this.parkedQuery = undefined
+    this.processFailure?.assertAvailable()
     return this
   }
 
@@ -248,10 +254,19 @@ export abstract class ClaudeSdkConnection<
     })
     const operation = this.handle?.claude.input?.followUp
     if (!operation) throw new Error('Claude follow-up is unavailable')
+    const undoActivity = this.processFailure?.beginTurn()
     this.runActive = true
-    const result = await operation.submit({ inputId: draft.inputId, content: sdkMessage.message.content })
+    const result = await operation
+      .submit({ inputId: draft.inputId, content: sdkMessage.message.content })
+      .catch((error) => {
+        undoActivity?.()
+        throw error
+      })
     applyNativeSubmissionResult(this.input.sessionId, contextId, result)
-    if (result.status !== 'acknowledged') throw new Error(result.error?.message ?? result.status)
+    if (result.status !== 'acknowledged') {
+      undoActivity?.()
+      throw new Error(result.error?.message ?? result.status)
+    }
   }
 
   lookupInput(contextId: string, inputId: string) {
@@ -296,7 +311,15 @@ export abstract class ClaudeSdkConnection<
             return reject('cancelled-before-dispatch', 'Claude stopped before dispatching the input')
           if (!canSteer()) return reject('closed', 'Claude session is unavailable')
           this.promptSuggestion.clear()
-          return steer.submit({ inputId, content: sdkMessage.message.content })
+          const undoActivity = this.processFailure?.beginTurn()
+          try {
+            const result = await steer.submit({ inputId, content: sdkMessage.message.content })
+            if (result.status !== 'acknowledged') undoActivity?.()
+            return result
+          } catch (error) {
+            undoActivity?.()
+            throw error
+          }
         }
       }
     }
@@ -395,6 +418,7 @@ export abstract class ClaudeSdkConnection<
   private async closeQuery(): Promise<void> {
     this.promptSuggestion.clear()
     this.closing = true
+    this.processFailure?.close()
     if (this.parkedQuery) {
       await this.parkedQuery.warmQuery[Symbol.asyncDispose]()
       await this.parkedQuery.processDiagnostics.exited
@@ -421,6 +445,28 @@ export abstract class ClaudeSdkConnection<
       await this.teardownSession()
     } finally {
       this.eventQueue.close()
+    }
+  }
+
+  protected async deliverProcessFailure(): Promise<void> {
+    // A descendant may keep stdout open after the process dies. Wait briefly for
+    // source completion, then drain root deliveries already accepted by the feed.
+    // Run outside observer callbacks so two closing roots cannot drain each other.
+    let timer: ReturnType<typeof setTimeout> | undefined
+    try {
+      await Promise.race([
+        this.sourceEnded.promise,
+        new Promise<void>((resolve) => {
+          timer = setTimeout(resolve, 250)
+        })
+      ])
+      await Promise.all(this.observations.map((observation) => observation.drain().catch(() => {})))
+      if (this.closing || !this.pendingProcessFailure) return
+      this.eventQueue.push({ type: 'error', error: this.pendingProcessFailure.error })
+      this.pendingProcessFailure = undefined
+      this.eventQueue.close()
+    } finally {
+      clearTimeout(timer)
     }
   }
 
@@ -493,8 +539,10 @@ export abstract class ClaudeSdkConnection<
               if (event.contextUsage) this.eventQueue.push({ type: 'context-usage', result: event.contextUsage })
               if (this.contextId) for (const child of event.subagents ?? []) this.discoverChild(child)
             }
-            if (event.type === 'closed' && event.reason !== 'shutdown' && !this.closing)
-              terminal.push(this.unexpectedClose(batch, event.reason, metadata))
+            if (event.type === 'closed' && event.reason !== 'shutdown' && !this.closing) {
+              const closed = await this.unexpectedClose(batch, event.reason, metadata)
+              if (closed) terminal.push(closed)
+            }
             if (recovery) continue
             if (isLivePartInput(event)) {
               if (batch.live?.includes(event.ref.id)) this.currentSources.add(event.ref.id)
@@ -516,9 +564,14 @@ export abstract class ClaudeSdkConnection<
             const result = await this.handleControl(control, contextId)
             if (result) terminal.push(result)
           }
-          for (const event of terminal) this.eventQueue.push(event)
-          if (batch.events.some((event) => event.type === 'closed' && event.reason !== 'shutdown') && !this.closing)
-            this.eventQueue.close()
+          for (const event of terminal) {
+            if (!this.pendingProcessFailure || (event.type !== 'turn-complete' && event.type !== 'error'))
+              this.eventQueue.push(event)
+          }
+          if (batch.events.some((event) => event.type === 'closed' && event.reason !== 'shutdown') && !this.closing) {
+            this.sourceEnded.resolve()
+            if (!this.pendingProcessFailure) this.eventQueue.close()
+          }
         } catch (error) {
           logAiFailure(logger, 'Claude projection failed', error, 'agent.claude.adapt', {
             source: 'application',
@@ -527,7 +580,7 @@ export abstract class ClaudeSdkConnection<
             outcome: 'failed',
             runtime: 'claude-code'
           })
-          this.eventQueue.push({ type: 'error', error })
+          if (!this.pendingProcessFailure) this.eventQueue.push({ type: 'error', error })
         } finally {
           if (batch.events.some((event) => event.type === 'closed')) end()
         }
@@ -542,11 +595,11 @@ export abstract class ClaudeSdkConnection<
     this.restoreChildren(this.context!)
   }
 
-  private unexpectedClose(
+  private async unexpectedClose(
     batch: ClaudeObservation,
     reason: string,
     metadata: ClaudeMessageMetadata
-  ): AgentRuntimeEvent {
+  ): Promise<AgentRuntimeEvent | undefined> {
     const error = this.nativeError ?? new Error(`Claude observation ended: ${reason}`)
     const surfaced =
       isClaudeCodeProcessFailure(error, this.processDiagnostics) && this.processDiagnostics
@@ -559,19 +612,25 @@ export abstract class ClaudeSdkConnection<
       const visible = projectRuntimeMessage(source, source.parts as CherryUIMessage['parts'], metadata.decorate)
       for (const part of visible.parts) if (part.type === 'text') bufferedChars += part.text.length
     }
-    const salvaged = canSalvageClaudeOutput(surfaced, bufferedChars, batch.state?.aborted === true)
-    logAiFailure(
-      logger,
-      'Claude Code query failed',
-      surfaced,
-      'agent.claude.prompt',
-      classifyClaudeFailure(error, {
-        recovered: salvaged,
-        cancelled: batch.state?.aborted,
-        process: this.processDiagnostics
-      })
-    )
-    return salvaged ? { type: 'turn-complete' } : { type: 'error', error: surfaced }
+    let terminal: AgentRuntimeEvent | undefined
+    const classify = () => {
+      const salvaged = canSalvageClaudeOutput(surfaced, bufferedChars, batch.state?.aborted === true)
+      logAiFailure(
+        logger,
+        'Claude Code query failed',
+        surfaced,
+        'agent.claude.prompt',
+        classifyClaudeFailure(error, {
+          recovered: salvaged,
+          cancelled: batch.state?.aborted,
+          process: this.processDiagnostics
+        })
+      )
+      terminal = salvaged ? { type: 'turn-complete' } : { type: 'error', error: surfaced }
+    }
+    if (this.processFailure) await this.processFailure.sourceClosed(error, batch.state?.aborted === true, classify)
+    else classify()
+    return terminal
   }
 
   private async handleControl(control: ClaudeControl, contextId: string): Promise<AgentRuntimeEvent | undefined> {
@@ -588,6 +647,7 @@ export abstract class ClaudeSdkConnection<
       this.runActive = true
       this.currentSources.clear()
     } else if (control.type === 'autonomous-turn-state' && control.state === 'started') {
+      this.processFailure?.beginAcceptedTurn()
       this.runActive = true
       this.currentSources.clear()
     } else if (control.type === 'session') {
@@ -617,11 +677,13 @@ export abstract class ClaudeSdkConnection<
       if (control.sessionId !== this.handle?.claude.sessionId) return
       if (control.terminal || control.failure) this.runActive = false
       if (control.failure) {
+        this.processFailure?.completeTurn()
         const error = new ClaudeCodeResultError(control.failure)
         logAiFailure(logger, 'Claude Code result failed', error, 'agent.claude.prompt', classifyClaudeFailure(error))
         return { type: 'error', error }
       }
       if (!control.terminal) return
+      this.processFailure?.completeTurn()
       this.updateResumeToken(control.sessionId)
       const checkpoint = ClaudeForkCheckpointSchema.safeParse({
         runtime: 'claude-code',

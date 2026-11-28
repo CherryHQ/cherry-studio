@@ -31,6 +31,7 @@ import { forkClaudeSession } from './claudeFork'
 import { ClaudeSdkConnection } from './ClaudeSdkConnection'
 import { classifyClaudeFailure } from './failureFacts'
 import { ClaudeForkCheckpointSchema } from './forkCheckpoint'
+import { ProcessFailureReporter } from './ProcessFailureReporter'
 import {
   AgentSessionWorkspaceError,
   disposeToolPolicySnapshot,
@@ -131,6 +132,11 @@ class ClaudeCodeRuntimeConnection extends ClaudeSdkConnection<AgentRuntimeConnec
     // describes the credential that will actually serve this connection.
     this._usageCapture = consumedWarmQuery?.usageCapture ?? request.usageCapture
     this.processDiagnostics = consumedWarmQuery?.processDiagnostics ?? coldProcessDiagnostics
+    this.processFailure = new ProcessFailureReporter(this.processDiagnostics, (error) => {
+      if (this.closing) return
+      this.pendingProcessFailure = { error }
+      this.failureDelivery ??= this.deliverProcessFailure()
+    })
     this.spawnOptions = consumedWarmQuery
       ? { ...options, spawnClaudeCodeProcess: createSpawnClaudeCodeProcess(consumedWarmQuery.processDiagnostics) }
       : options

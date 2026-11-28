@@ -41,18 +41,47 @@ export function recordClaudeCodeProcessExit(
   diagnostics.category = classifyClaudeCodeTerminalReason(stderr)
   if (code !== null) diagnostics.exitCode = code
   if (signal !== null) diagnostics.exitSignal = signal
+  if (code !== 0) notifyProcessFailure(diagnostics)
 }
 
 export function recordClaudeCodeSpawnError(diagnostics: ClaudeCodeProcessDiagnostics, error: Error): void {
   diagnostics.terminalReason = `Failed to spawn Claude Code process: ${error.message}`
   diagnostics.category = classifyClaudeCodeTerminalReason(diagnostics.terminalReason)
   diagnostics.spawnFailed = true
+  notifyProcessFailure(diagnostics)
+}
+
+const failureListeners = new WeakMap<ClaudeCodeProcessDiagnostics, Set<() => void>>()
+
+export function hasClaudeCodeProcessFailure(diagnostics?: ClaudeCodeProcessDiagnostics): boolean {
+  return (
+    diagnostics?.spawnFailed === true ||
+    diagnostics?.exitSignal !== undefined ||
+    (diagnostics?.exitCode !== undefined && diagnostics.exitCode !== 0)
+  )
+}
+
+function notifyProcessFailure(diagnostics: ClaudeCodeProcessDiagnostics): void {
+  for (const listener of failureListeners.get(diagnostics) ?? []) listener()
+}
+
+/** Separate from the SDK transport stream, including failures recorded during prewarm. */
+export function subscribeClaudeCodeProcessFailure(
+  diagnostics: ClaudeCodeProcessDiagnostics,
+  listener: () => void
+): () => void {
+  const listeners = failureListeners.get(diagnostics) ?? new Set()
+  failureListeners.set(diagnostics, listeners)
+  listeners.add(listener)
+  if (hasClaudeCodeProcessFailure(diagnostics)) listener()
+  return () => listeners.delete(listener)
 }
 
 export function isClaudeCodeProcessFailure(error: unknown, diagnostics?: ClaudeCodeProcessDiagnostics): error is Error {
   return (
     error instanceof Error &&
-    (diagnostics?.spawnFailed === true ||
+    (error.name === 'ClaudeCodeProcessExitError' ||
+      hasClaudeCodeProcessFailure(diagnostics) ||
       /Claude Code process (?:exited with code|terminated by signal|failed to spawn)|Failed to spawn Claude Code process/i.test(
         error.message
       ))
