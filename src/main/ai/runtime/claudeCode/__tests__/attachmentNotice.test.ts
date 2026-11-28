@@ -74,11 +74,22 @@ vi.mock('@cherrystudio/agent-runtime-claude-code', () => ({
             state.observe = callback
             return { status: 'confirmed', value: { drain: async () => {}, stop: async () => {} } }
           },
-          submit: async (_id: string, content: unknown) => {
-            state.submitted.push(content)
-            return state.rejected
-              ? { status: 'rejected', inputId: 'input', error: { message: 'Rejected' } }
-              : { status: 'acknowledged', inputId: 'input', facts: ['dispatch-started'] }
+          input: {
+            followUp: {
+              persistence: 'volatile',
+              submit: async ({ content }: { inputId: string; content: unknown }) => {
+                state.submitted.push(content)
+                return state.rejected
+                  ? { status: 'rejected', inputId: 'input', error: { message: 'Rejected' } }
+                  : { status: 'acknowledged', inputId: 'input', facts: ['dispatch-started'] }
+              }
+            },
+            steer: {
+              submit: async ({ content }: { inputId: string; content: unknown }) => {
+                state.submitted.push(content)
+                return { status: 'acknowledged', inputId: 'input', facts: ['dispatch-started'] }
+              }
+            }
           }
         }
       }
@@ -140,16 +151,14 @@ async function run(steer: boolean) {
     for await (const event of connection.events) events.push(event)
   })()
   if (steer) {
-    const completed = new Promise<void>((resolve) => {
-      const submit = state.submitted
-      vi.spyOn(submit, 'push').mockImplementation((...items) => {
-        const result = Array.prototype.push.apply(submit, items)
-        queueMicrotask(() => queueMicrotask(resolve))
-        return result
-      })
-    })
-    expect(connection.redirect?.({ message })).toBe(true)
-    await completed
+    const steerInput = connection.threadInput?.steer
+    if (!steerInput) throw new Error('steer unavailable')
+    const result = await steerInput.submit({
+      inputId: 'input',
+      message,
+      systemReminder: false
+    } as unknown as Parameters<typeof steerInput.submit>[0])
+    expect(result.status).toBe('acknowledged')
   } else if (state.rejected) {
     await expect(connection.send({ message })).rejects.toThrow('Rejected')
   } else {

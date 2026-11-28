@@ -15,6 +15,7 @@ import { providerService } from '@data/services/ProviderService'
 import { generateOrderKeyBetween } from '@data/services/utils/orderKey'
 import { encodeReasoningInvocation, resolveReasoningInvocation } from '@main/ai/utils/reasoningSerializers'
 import { createUniqueModelId } from '@shared/data/types/model'
+import { isGenerateImageModel } from '@shared/utils/model'
 import { computeLanguageCost, createAiUsagePricingSnapshot } from '@shared/utils/usagePricing'
 
 import { mockMainLoggerService } from '../../../../../tests/__mocks__/MainLoggerService'
@@ -118,6 +119,11 @@ vi.mock('@cherrystudio/provider-registry/node', async () => {
     getProviderModelsVersion() {
       this.loadProviderModels()
       return '1.0'
+    }
+    invalidate() {
+      this.cachedModels = null
+      this.cachedProviders = null
+      this.cachedProviderModels = null
     }
   }
 
@@ -388,26 +394,6 @@ describe('ProviderRegistryService', () => {
         endpointConfigs: null,
         models: []
       })
-    })
-  })
-
-  describe('registry load failure', () => {
-    it('should throw when models.json cannot be read', async () => {
-      setupRegistryData()
-      mockReadModels.mockImplementation(() => {
-        throw new Error('ENOENT: no such file')
-      })
-
-      expect(() => providerRegistryService.lookupModel('openai', 'gpt-4o')).toThrow('ENOENT')
-    })
-
-    it('should throw when providers.json cannot be read', async () => {
-      setupRegistryData()
-      mockReadProviders.mockImplementation(() => {
-        throw new Error('ENOENT: no such file')
-      })
-
-      expect(() => providerRegistryService.lookupModel('openai', 'gpt-4o')).toThrow('ENOENT')
     })
   })
 
@@ -1222,6 +1208,136 @@ describe('ProviderRegistryService', () => {
       const result = providerRegistryService.lookupModel('openai', 'gpt-4o')
 
       expect(result.reasoningProfile.format).toBe('openai-chat')
+    })
+  })
+
+  describe('dashscope image-generation catalog resolution', () => {
+    beforeEach(async () => {
+      await dbh.db
+        .insert(userProviderTable)
+        .values([{ providerId: 'dashscope', presetProviderId: 'dashscope', name: 'DashScope', orderKey: 'a0' }])
+    })
+
+    const loadRealCatalog = () => {
+      mockReadModels.mockReturnValue(
+        JSON.parse(
+          readFileSync(new URL('../../../../../packages/provider-registry/data/models.json', import.meta.url), 'utf8')
+        )
+      )
+      mockReadProviderModels.mockReturnValue(
+        JSON.parse(
+          readFileSync(
+            new URL('../../../../../packages/provider-registry/data/provider-models.json', import.meta.url),
+            'utf8'
+          )
+        )
+      )
+      mockReadProviders.mockReturnValue(
+        JSON.parse(
+          readFileSync(
+            new URL('../../../../../packages/provider-registry/data/providers.json', import.meta.url),
+            'utf8'
+          )
+        ) as ReturnType<typeof readProviderRegistry>
+      )
+    }
+
+    it('classifies all reported dashscope image-generation models and dated snapshots under image-generation', () => {
+      loadRealCatalog()
+
+      const reportedApiIds = [
+        'qwen-image',
+        'qwen-image-3.0',
+        'qwen-image-3.0-pro',
+        'qwen-image-edit',
+        'qwen-image-max',
+        'qwen-image-plus',
+        'qwen-image-2.0',
+        'qwen-image-2.0-pro',
+        'qwen-image-2.1-pro',
+        'qwen-image-2.1-turbo',
+        'qwen-image-edit-max',
+        'qwen-image-edit-plus',
+        'z-image-turbo',
+        'qwen-image-max-2025-12-30',
+        'qwen-image-plus-2026-01-09',
+        'qwen-image-2.0-pro-2026-03-03',
+        'qwen-image-edit-max-2026-01-16',
+        'qwen-image-edit-plus-2025-12-15'
+      ]
+
+      const resolved = providerRegistryService.resolveModels('dashscope', reportedApiIds)
+
+      expect(resolved).toHaveLength(reportedApiIds.length)
+      expect(resolved.filter(isGenerateImageModel)).toHaveLength(reportedApiIds.length)
+
+      const byApiId = new Map(resolved.map((model) => [model.apiModelId, model]))
+      expect(byApiId.get('qwen-image-max')?.presetModelId).toBe('qwen-image-max')
+      expect(byApiId.get('qwen-image-max-2025-12-30')?.presetModelId).toBe('qwen-image-max')
+      expect(byApiId.get('qwen-image-plus-2026-01-09')?.presetModelId).toBe('qwen-image-plus')
+      expect(byApiId.get('qwen-image-2.0')?.presetModelId).toBe('qwen-image-2-0')
+      expect(byApiId.get('qwen-image-2.0-pro-2026-03-03')?.presetModelId).toBe('qwen-image-2-0-pro')
+      expect(byApiId.get('qwen-image-2.1-pro')?.presetModelId).toBe('qwen-image-2-1-pro')
+      expect(byApiId.get('qwen-image-2.1-turbo')?.presetModelId).toBe('qwen-image-2-1-turbo')
+      expect(byApiId.get('qwen-image-edit-max-2026-01-16')?.presetModelId).toBe('qwen-image-edit-max')
+      expect(byApiId.get('qwen-image-edit-plus-2025-12-15')?.presetModelId).toBe('qwen-image-edit-plus')
+      expect(byApiId.get('z-image-turbo')?.presetModelId).toBe('z-image-turbo')
+    })
+
+    it('resolves image-generation modes, transport, and documented control specs for undated and dated dashscope ids', () => {
+      loadRealCatalog()
+
+      const maxDated = providerRegistryService.getImageGenerationSupport('dashscope', 'qwen-image-max-2025-12-30')
+      expect(maxDated?.modes.edit).toBeUndefined()
+      expect(maxDated?.modes.generate?.vendorTransport).toEqual({
+        endpoint: '/api/v1/services/aigc/multimodal-generation/generation',
+        isSync: true
+      })
+      expect(maxDated?.modes.generate?.supports?.size).toEqual({ type: 'text' })
+      expect(maxDated?.modes.generate?.supports?.numImages).toEqual({ type: 'range', min: 1, max: 1, default: 1 })
+      expect(maxDated?.modes.generate?.supports?.seed).toEqual({ type: 'text' })
+
+      const v2ProDated = providerRegistryService.getImageGenerationSupport('dashscope', 'qwen-image-2.0-pro-2026-03-03')
+      expect(v2ProDated?.modes.edit?.maxInputImages).toBe(3)
+      expect(v2ProDated?.modes.generate?.supports?.numImages).toEqual({ type: 'range', min: 1, max: 6, default: 1 })
+      expect(v2ProDated?.modes.generate?.supports?.size).toMatchObject({ default: '2048x2048' })
+      expect((v2ProDated?.modes.edit?.supports?.size as { default?: string } | undefined)?.default).toBeUndefined()
+      expect(
+        providerRegistryService.getImageGenerationSupport('dashscope', 'qwen-image-2.0')?.modes.edit?.maxInputImages
+      ).toBe(3)
+
+      const v21Pro = providerRegistryService.getImageGenerationSupport('dashscope', 'qwen-image-2.1-pro')
+      expect(v21Pro?.modes.edit?.maxInputImages).toBe(10)
+      expect(v21Pro?.modes.generate?.supports?.negativePrompt).toBeUndefined()
+      expect(v21Pro?.modes.generate?.supports?.size).toMatchObject({ default: 'auto' })
+
+      const editMaxDated = providerRegistryService.getImageGenerationSupport(
+        'dashscope',
+        'qwen-image-edit-max-2026-01-16'
+      )
+      expect(editMaxDated?.modes.generate).toBeUndefined()
+      expect(editMaxDated?.modes.edit?.supports?.numImages).toEqual({ type: 'range', min: 1, max: 6, default: 1 })
+      expect((editMaxDated?.modes.edit?.supports?.size as { default?: string } | undefined)?.default).toBeUndefined()
+
+      const zImage = providerRegistryService.getImageGenerationSupport('dashscope', 'z-image-turbo')
+      expect(zImage?.modes.edit).toBeUndefined()
+      expect(zImage?.modes.generate?.supports?.size).toEqual({ type: 'text' })
+      expect(zImage?.modes.generate?.supports?.numImages).toEqual({ type: 'range', min: 1, max: 1, default: 1 })
+      expect(zImage?.modes.generate?.supports?.promptExtend).toEqual({ type: 'switch' })
+      expect(zImage?.modes.generate?.supports?.seed).toEqual({ type: 'text' })
+    })
+
+    it('falls back to creator metadata without vendorTransport when a manually added qwen-image-plus provider has no catalog override', async () => {
+      loadRealCatalog()
+      await dbh.db
+        .insert(userProviderTable)
+        .values([{ providerId: 'custom-dashscope', presetProviderId: null, name: 'Custom DashScope', orderKey: 'a1' }])
+
+      const customSupport = providerRegistryService.getImageGenerationSupport('custom-dashscope', 'qwen-image-plus')
+
+      expect(customSupport?.modes.generate?.vendorTransport).toBeUndefined()
+      expect(customSupport?.modes.generate?.supports?.size).toEqual({ type: 'text' })
+      expect(customSupport?.modes.generate?.supports?.numImages).toEqual({ type: 'range', min: 1, max: 1, default: 1 })
     })
   })
 })

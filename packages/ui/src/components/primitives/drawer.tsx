@@ -72,7 +72,7 @@ function DrawerContent({
         {...(direction ? { 'data-vaul-drawer-direction': direction } : {})}
         data-slot="drawer-content"
         className={cn(
-          'group/drawer-content fixed z-50 flex h-auto flex-col bg-background',
+          'group/drawer-content fixed z-50 flex h-auto flex-col bg-background outline-none',
           direction && 'data-[state=closed]:animate-out data-[state=open]:animate-in motion-reduce:animate-none',
           direction === 'left' && 'data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left',
           direction === 'right' && 'data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right',

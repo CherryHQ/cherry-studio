@@ -44,6 +44,7 @@ export type AcceptSessionDeliveryInput = {
 }
 
 export type CreateSessionDeliveryInput = {
+  delegation?: true
   senderAgentId: string
   senderSessionId: string
   targetAgentId?: string

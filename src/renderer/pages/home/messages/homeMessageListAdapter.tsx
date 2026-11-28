@@ -533,6 +533,7 @@ export function useHomeMessageListProviderValue({
     ): Promise<{
       onResponse: (accumulatedText: string) => void
       waitForPendingUpdates: () => Promise<void>
+      hasPersistedText: () => boolean
     } | null> => {
       if (!topic.id) return null
       const write = requireChatWrite('translateMessage')
@@ -557,6 +558,7 @@ export function useHomeMessageListProviderValue({
       if (!isCurrentTranslation()) return null
 
       let pendingUpdate = Promise.resolve()
+      let persistedText = false
 
       const onResponse = (accumulatedText: string) => {
         if (!isCurrentTranslation()) return
@@ -571,9 +573,10 @@ export function useHomeMessageListProviderValue({
         }
 
         pendingUpdate = pendingUpdate
-          .then(() => {
+          .then(async () => {
             if (!isCurrentTranslation()) return
-            return write.editMessage(messageId, [...baseParts, translationPart])
+            await write.editMessage(messageId, [...baseParts, translationPart])
+            persistedText = accumulatedText.trim().length > 0
           })
           .catch((error) => {
             logger.error('Failed to update message translation:', error as Error, { messageId })
@@ -582,7 +585,8 @@ export function useHomeMessageListProviderValue({
 
       return {
         onResponse,
-        waitForPendingUpdates: () => pendingUpdate
+        waitForPendingUpdates: () => pendingUpdate,
+        hasPersistedText: () => persistedText
       }
     },
     [requireChatWrite, topic.id]
@@ -612,20 +616,20 @@ export function useHomeMessageListProviderValue({
       } catch (error) {
         await translationUpdater?.waitForPendingUpdates()
 
-        if (!isAbortError(error)) {
+        const wasAborted = isAbortError(error)
+        if (!wasAborted) {
           logger.error('Message translation failed', error as Error)
           toast.error(formatErrorMessageWithPrefix(error, t('translate.error.failed')))
         }
-        // Clean up the empty data-translation part inserted by
-        // createTranslationUpdater so BeatLoader doesn't spin forever.
-        // Only clean up when this translation is still the current one —
-        // a superseding call will have set a new controller by now and
-        // owns the current data-translation part.
-        if (translationAbortControllersRef.current.get(messageId) === controller) {
+        // Keep already persisted text on Stop, even if the message query has not refreshed yet.
+        if (
+          translationAbortControllersRef.current.get(messageId) === controller &&
+          !(wasAborted && translationUpdater?.hasPersistedText())
+        ) {
           const currentParts = messagePartsAt(partsByMessageIdRef.current, messageId)
           if (currentParts) {
             const baseParts = currentParts.filter((part) => part.type !== 'data-translation')
-            if (baseParts.length !== currentParts.length) {
+            if (translationUpdater || baseParts.length !== currentParts.length) {
               try {
                 await requireChatWrite('removeMessageTranslation').editMessage(messageId, baseParts)
               } catch (cleanupError) {

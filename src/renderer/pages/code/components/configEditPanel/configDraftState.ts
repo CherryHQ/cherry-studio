@@ -1,4 +1,3 @@
-import type { CliConfigConnection, CliConfigFileDraft, CliConfigGatewayContext } from '@renderer/pages/code/cliConfig'
 import {
   extractConfigFromCliConfigDraft,
   extractConnectionFromCliConfigDraft,
@@ -6,12 +5,13 @@ import {
   hasClaudeDetailedModels,
   readCliConfigDraft,
   readCliConfigFiles,
-  sanitizeCliConfigBlob,
   updateCliConfigDraftConfig
-} from '@renderer/pages/code/cliConfig'
+} from '@renderer/services/codeCliConfig'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import { isUniqueModelId, type Model, type UniqueModelId } from '@shared/data/types/model'
 import { CodeCli } from '@shared/types/codeCli'
+import type { CliConfigConnection, CliConfigFileDraft, CliConfigGatewayContext } from '@shared/utils/cliConfig'
+import { sanitizeCliConfigBlob } from '@shared/utils/cliConfig'
 
 import type { ClaudeModelMode, ConfigDraft } from './types'
 

@@ -31,6 +31,8 @@ The most efficient setup is to first tell the Agent what you want to achieve, th
 #### 1. Open **Work** and Select an Agent
 
 If you already have a suitable Agent, select it directly. If not, click **Add Agent**, select the execution mode in **Basic Information**, and then complete the four-step creation process: system prompt, skills, and knowledge base. The execution mode cannot be changed after creation.
+
+To use Codex, Claude Code, or a similar tool in **Work**, first [connect a local agent](local-agents.md) in **Settings** → **Agent services**.
 {% endstep %}
 
 {% step %}
@@ -58,10 +60,10 @@ Read the meeting minutes in the current directory, extract decisions, owners, an
 
 ### API Gateway Notice
 
-Agent execution relies on the Cherry Studio API Gateway. If the gateway is not enabled, the app will prompt you to **Enable and Start**. You can also check the port, running status, and local security software blocking in **Settings** → **API Gateway**.
+If your model connection requires the API Gateway, open **Settings** → **API Gateway** to start the service and check its port and status.
 
 {% hint style="warning" %}
-The API Gateway is a runtime dependency for Agents, but this does not mean you should expose the interface to the network. Keep it for local use by default. Only copy the URL and API key if you explicitly need other programs to call it.
+When enabling the API Gateway for an agent, keep the default local access settings. Copy the URL and API key when another program needs to connect.
 {% endhint %}
 
 ### One Agent or Multiple Agents
