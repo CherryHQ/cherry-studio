@@ -1,4 +1,4 @@
-import type { Server } from 'node:http'
+import { request, type Server } from 'node:http'
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -40,7 +40,7 @@ const {
         ''
     )
   ),
-  scopedCredentials: new Map<string, { path: string; model: string }>(),
+  scopedCredentials: new Map<string, { paths: readonly string[]; model: string }>(),
   mockPreferenceGet: vi.fn<(key: string) => unknown>(() => 'test-key'),
   mockProcessMessage: vi.fn<(config: unknown, release?: () => void) => Promise<Response>>(
     async () =>
@@ -106,6 +106,7 @@ vi.mock('@data/services/KnowledgeBaseService', () => ({
 }))
 
 import { buildApp } from '../../app'
+import { ApiGateway } from '../../server'
 import { CountTokensBodySchema, MessagesBodySchema } from '../schemas'
 
 const AUTH = { 'content-type': 'application/json', 'x-api-key': 'test-key' }
@@ -906,6 +907,23 @@ describe('API gateway routes (integration)', () => {
       expect(body.error).toContain('not reachable over the LAN')
     })
 
+    it('requires a valid key for shared LAN model routes, including Gemini', async () => {
+      mockPreferenceGet.mockImplementation((key) => {
+        if (key === 'feature.api_gateway.enabled' || key === 'feature.api_gateway.lan_http_enabled') return true
+        if (key === 'feature.api_gateway.host') return '127.0.0.1'
+        return 'test-key'
+      })
+      expect((await getFromLan('/v1/models', {})).status).toBe(401)
+      expect((await getFromLan('/v1/models', { 'x-api-key': 'wrong-key' })).status).toBe(403)
+      expect((await read(await getFromLan('/v1/models'))).body.data).toEqual([{ id: 'openai:gpt-4' }])
+      const geminiPath = '/v1beta/models/deepseek:deepseek-chat:generateContent'
+      const body = { contents: [{ role: 'user', parts: [{ text: 'Hello' }] }] }
+      expect((await postFromLan(geminiPath, body, { 'content-type': 'application/json' })).status).toBe(401)
+      expect((await postFromLan(geminiPath, body, AUTH)).status).toBe(200)
+      expect((await postFromLan('/v1/mcps/x/mcp', {})).status).toBe(403)
+      expect((await getFromLan('/v1/remote/connect', { upgrade: 'websocket' })).status).toBe(403)
+    })
+
     it('blocks a LAN client from the MCP proxy and knowledge routes', async () => {
       expect((await read(await postFromLan('/v1/mcps/x/mcp', {}))).status).toBe(403)
       expect((await read(await getFromLan('/v1/knowledge-bases'))).status).toBe(403)
@@ -921,6 +939,37 @@ describe('API gateway routes (integration)', () => {
       })
       expect(localResponse.status).toBe(200)
     })
+  })
+})
+
+describe('local model access on real HTTP sockets', () => {
+  it('accepts keyless native clients without admitting external browser origins or internal credentials', async () => {
+    const gateway = new ApiGateway({ host: '127.0.0.1', port: 0 })
+    await gateway.start()
+    try {
+      const url = `http://127.0.0.1:${gateway.getPort()}`
+      const models = `${url}/v1/models`
+      expect(await read(await fetch(models))).toMatchObject({ status: 200, body: { data: [{ id: 'openai:gpt-4' }] } })
+      expect((await fetch(models, { headers: { origin: 'https://example.org' } })).status).toBe(401)
+      const untrustedHostStatus = await new Promise<number | undefined>((resolve, reject) => {
+        const req = request(models, { headers: { host: 'untrusted.example' } }, (response) => {
+          response.resume()
+          resolve(response.statusCode)
+        })
+        req.on('error', reject).end()
+      })
+      expect(untrustedHostStatus).toBe(401)
+      expect((await fetch(models, { headers: { authorization: 'Bearer internal-agent-key' } })).status).toBe(403)
+      expect((await fetch(`${url}/v1/knowledge-bases`)).status).toBe(401)
+      const gemini = await fetch(`${url}/v1beta/models/deepseek:deepseek-chat:generateContent`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: 'Hello' }] }] })
+      })
+      expect(gemini.status).toBe(200)
+    } finally {
+      await gateway.stop()
+    }
   })
 })
 
@@ -969,7 +1018,7 @@ describe('internal consumer authorization', () => {
           body: JSON.stringify({ model, messages: [{ role: 'user', content: 'translate' }] })
         })
       )
-    scopedCredentials.set('job-key', { path: '/v1/chat/completions', model: 'openai:gpt-4o' })
+    scopedCredentials.set('job-key', { paths: ['/v1/chat/completions'], model: 'openai:gpt-4o' })
 
     expect((await chat('openai:gpt-4o')).status).toBe(200)
     expect((await chat('openai:gpt-4.1')).status).toBe(403)
@@ -988,6 +1037,19 @@ describe('internal consumer authorization', () => {
 
     scopedCredentials.delete('job-key')
     expect((await chat('openai:gpt-4o')).status).toBe(403)
+  })
+
+  it('authorizes every path a multi-path scope names and no other', async () => {
+    const app = buildApp({ surface: 'internal' })
+    const headers = { authorization: 'Bearer cli-key', 'content-type': 'application/json' }
+    const post = (path: string, body: unknown) =>
+      app.handle(new Request(`http://localhost${path}`, { method: 'POST', headers, body: JSON.stringify(body) }))
+    scopedCredentials.set('cli-key', { paths: ['/v1/chat/completions', '/v1/messages'], model: 'openai:gpt-4o' })
+
+    const chat = { model: 'openai:gpt-4o', messages: [{ role: 'user', content: 'hi' }] }
+    expect((await post('/v1/chat/completions', chat)).status).toBe(200)
+    expect((await post('/v1/messages', { ...chat, max_tokens: 8 })).status).not.toBe(403)
+    expect((await post('/v1/responses', { model: 'openai:gpt-4o', input: 'hi' })).status).toBe(403)
   })
 
   it('rejects an internal key presented only as a query parameter', async () => {

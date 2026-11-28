@@ -197,6 +197,8 @@ describe('regression execution plan', () => {
 
   it.each([
     ['notes-smoke', ['N-01']],
+    ['notes-export', ['MP-11']],
+    ['customize-shortcuts', ['MP-109']],
     ['knowledge-smoke', ['K-01']],
     ['mini-app-pinning', ['MP-103']],
     ['marketplace-smoke', ['MARKET-01']],

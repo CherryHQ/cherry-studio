@@ -45,6 +45,7 @@ const SELECTOR_EXIT_DURATION_MS = 120
 export type SelectorShellLayout = {
   availableListHeight?: number
   portalContainer?: PopoverContentProps['portalContainer'] | null
+  contentElement?: HTMLDivElement | null
 }
 
 export type SelectorShellSearch = {
@@ -226,6 +227,7 @@ export function SelectorShell({
   presentationRef.current = presentation
   const [dialogElement, setDialogElement] = useState<HTMLDivElement | null>(null)
   const contentRef = useRef<HTMLDivElement | null>(null)
+  const [contentElement, setContentElementState] = useState<HTMLDivElement | null>(null)
   const searchRef = useRef<HTMLDivElement | null>(null)
   const filterRef = useRef<HTMLDivElement | null>(null)
   const multiSelectRef = useRef<HTMLDivElement | null>(null)
@@ -295,6 +297,7 @@ export function SelectorShell({
   const setContentElement = useCallback(
     (element: HTMLDivElement | null) => {
       contentRef.current = element
+      setContentElementState(element)
       setDialogElement(isDialog ? element : null)
       scheduleMeasureAvailableListHeight()
     },
@@ -446,8 +449,8 @@ export function SelectorShell({
   const resolvedPortalContainer =
     (isDialog ? dialogElement : null) ?? portalContainer ?? pagePortalContainer ?? localPortalContainer ?? undefined
   const layout = useMemo(
-    () => ({ availableListHeight, portalContainer: resolvedPortalContainer ?? null }),
-    [availableListHeight, resolvedPortalContainer]
+    () => ({ availableListHeight, portalContainer: resolvedPortalContainer ?? null, contentElement }),
+    [availableListHeight, resolvedPortalContainer, contentElement]
   )
   const canRenderContent = shouldRenderContent && resolvedPortalContainer !== undefined
   const body = canRenderContent ? (typeof children === 'function' ? children(layout) : children) : null
@@ -574,7 +577,7 @@ export function SelectorShell({
                   aria-pressed={action.type === 'selectable' ? selected : undefined}
                   onClick={action.onClick}
                   className={cn(
-                    'relative flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-50',
+                    'relative flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-[color] disabled:cursor-not-allowed disabled:opacity-50',
                     selected
                       ? 'bg-accent/70 text-accent-foreground'
                       : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'

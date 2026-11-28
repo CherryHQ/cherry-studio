@@ -5,6 +5,7 @@ import { vi } from 'vitest'
 
 import type { NotificationRecord, TaskResultNotificationInput } from '@shared/data/types/notification'
 import type { NotificationSource } from '@shared/types/notification'
+import type { CliConfigTarget } from '@shared/utils/cliConfig'
 
 import { mockAttachmentPresenceService } from './AttachmentPresenceService'
 import { MockMainCacheServiceExport } from './CacheService'
@@ -123,6 +124,16 @@ export const defaultServiceInstances = {
   IpcApiService: mockIpcApiService,
   NotificationService: mockNotificationService,
   JobManager: mockJobManager,
+  CodeCliService: {
+    openTerminal: vi.fn(async () => ({ success: true })),
+    readConfigFiles: vi.fn(async (targets: readonly CliConfigTarget[]) =>
+      targets.map((target) => ({ target, path: resolve('/mock', 'cli-config', target), content: null }))
+    )
+  },
+  LocalAgentInstallService: { isUninstalling: vi.fn(() => false) },
+  AgentDelegationService: { cancelOwnedBy: vi.fn(async () => {}) },
+  AgentSessionRuntimeService: { closeIdleSessions: vi.fn(async () => true) },
+  BinaryManager: { getToolSnapshots: vi.fn(async () => ({})) },
   AgentImportService: {
     pause: vi.fn(() => ({ dispose: vi.fn() })),
     drainInFlight: vi.fn(async () => ({ stragglerIds: [] })),

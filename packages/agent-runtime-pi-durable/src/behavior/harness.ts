@@ -20,6 +20,7 @@ import {
   type Extension,
   type Harness,
   type TaskId,
+  pauseFollowUpsForStop,
   type Tx,
   type HookApi,
   CompactionTask
@@ -172,7 +173,8 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
     const inbox = await harness.snapshot(InboxDoc, id, context)
     if (live?.run) await harness.abortTask(live.run.taskId, context)
     for (const item of inbox?.items ?? [])
-      if (item.mode !== 'write') await harness.abortSubmission(item.id, context, id)
+      if (item.mode !== 'write' && !(inbox?.followUpsPaused && item.mode === 'followUp'))
+        await harness.abortSubmission(item.id, context, id)
   }
   function admit<T>(thread: ThreadId, operation: () => Promise<T>): Promise<T> {
     const work = (admissions.get(thread) ?? Promise.resolve()).then(operation)
@@ -358,6 +360,18 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
               for (const op of step.ops)
                 if (op.type === 'spawn-child' && op.spec.fork)
                   forkPoints.set(op.key, await tx.entry(Number(op.spec.fork.at) as never))
+              if (
+                facts.lineage.kind !== 'subagent' &&
+                step.ops.some(
+                  (op) =>
+                    op.type === 'append-record' &&
+                    op.record.type === 'turn-stop' &&
+                    op.record.value.cause === 'user' &&
+                    !facts.keysSeen.has(op.key)
+                ) &&
+                step.effects.some((effect) => effect.type === 'stop-turn' && effect.thread === thread)
+              )
+                await pauseFollowUpsForStop(tx, id)
               const spawned: { key: Key; child: ThreadId }[] = []
               const seen = new Set(facts.keysSeen)
               for (const op of step.ops) {
@@ -930,6 +944,19 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
       unsubscribe = harness.observeCommits({
         advance(publication) {
           for (const change of publication.changes) {
+            if (
+              change.type === 'document' &&
+              change.kind === 'change' &&
+              change.record.kind === ProviderDoc.definition.kind &&
+              change.record.key === undefined &&
+              change.conversationId !== undefined
+            ) {
+              const sessionId = change.value.sessionId
+              if (typeof sessionId === 'string' && sessionId) {
+                providers.set(sessionId, threadId(change.conversationId))
+              }
+              continue
+            }
             if (change.type !== 'entry' || !CompactionEntry.is(change.value)) continue
             const thread = threadId(change.value.conversationId)
             void withCall(thread, (ports) => lifecycle?.onCompacted(thread, ports) ?? Promise.resolve()).catch(

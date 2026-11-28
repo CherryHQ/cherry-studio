@@ -8,6 +8,8 @@ import {
   hasProductInputId,
   isPartBatch,
   runtimeId,
+  type Activity,
+  type CompactThread,
   type InputState,
   type Observation,
   type Subagent
@@ -49,7 +51,8 @@ import type {
   AgentRuntimeEvent,
   AgentRuntimeReconcileResult,
   AgentRuntimeTraceContext,
-  AgentRuntimeCommand
+  AgentRuntimeCommand,
+  AgentRuntimeInput
 } from '../types'
 import { type UnavailableNativeContext, unavailableNativeContext } from '../types'
 import type { DurableBackend, DurableRoot } from './DurableBackend'
@@ -57,6 +60,20 @@ import type { prepareDurableBranch } from './durableContext'
 import { saveDurableRequest } from './durableRequest'
 
 const logger = loggerService.withContext('PiDurableRuntimeConnection')
+
+function projectRetryChange(
+  previous: Activity['modelRetry'],
+  current: Activity['modelRetry']
+): RetryPartData | undefined {
+  if (!current) return previous ? { state: 'settled' } : undefined
+  if (
+    previous?.modelId === current.modelId &&
+    previous.attempt === current.attempt &&
+    previous.reason === current.reason
+  )
+    return undefined
+  return { ...current, state: 'retrying' }
+}
 
 /** Root access and its observed child projections borrow the backend owner. */
 type DurableChildResource = {
@@ -72,9 +89,6 @@ type DurableChildResource = {
 function isCompactCommand(text: string) {
   return /^\/compact(?:\s|$)/.test(text.trim())
 }
-
-/** Durable answered the submission; the host already received it as `input-submission`. */
-class SubmissionRefused extends Error {}
 
 export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
   get contextId(): string | undefined {
@@ -94,6 +108,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
   private closing = false
   private closePromise?: Promise<void>
   private active = false
+  private modelRetry?: Activity['modelRetry']
   private sending = false
   private compacting = false
   private autonomous = false
@@ -106,7 +121,9 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
   private readonly turnUsage = new PiTurnUsage()
   private reconcileChain: Promise<unknown> = Promise.resolve()
   private readonly steers = new Set<string>()
+  private readonly followupPromotions = new Map<string, { replyId?: string }>()
   /** Inputs submitted while native work ran; their placement is announced even with an outcome. */
+  private readonly stagedFollowups = new Set<string>()
   private readonly queued = new Set<string>()
   /** Product inputs whose placement was announced; each placement starts its own reply once. */
   private readonly placed = new Set<string>()
@@ -134,8 +151,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     return this.input === request
   }
 
-  bindInputs(callbacks: Pick<AgentRuntimeConnectInput, 'onInputPrepared' | 'onSteerInjected'>): void {
-    this.input.onInputPrepared = callbacks.onInputPrepared
+  bindInputs(callbacks: Pick<AgentRuntimeConnectInput, 'onSteerInjected'>): void {
     this.input.onSteerInjected = callbacks.onSteerInjected
   }
 
@@ -161,9 +177,15 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
         }
       },
       retry: (event, sessionId) => this.onModelRetry(event, sessionId),
-      followups: (queue) => this.publishFollowups(queue),
-      placed: (inputId) => {
-        if (inputId && this.steers.has(inputId)) this.input.onSteerInjected?.([inputId])
+      followups: (queue, paused) => this.publishFollowups(queue, paused),
+      placed: (inputId, promotion) => {
+        if (!inputId) return
+        if (promotion) {
+          this.followupPromotions.set(inputId, promotion)
+          if (promotion.replyId) this.steers.add(inputId)
+          return
+        }
+        if (this.steers.has(inputId)) this.input.onSteerInjected?.([inputId])
       }
     }
     const opened = await this.runtime.open({
@@ -175,7 +197,9 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     if (opened.status !== 'confirmed') throw new Error(opened.error.message)
     this.handle = opened.value
     this.context = contexts.bindContext(this.context.id, this.handle.thread.id)
-    this.publishFollowups(this.handle.durable.followups())
+    const restored = this.handle.durable.followups()
+    for (const { inputId } of restored) this.stagedFollowups.add(inputId)
+    this.publishFollowups(restored, this.handle.durable.followupsPaused(), true)
     await saveDurableRequest(this.runtime, this.handle.thread.id, this.input)
     await this.handle.durable.configure(root.agent)
     this.providerSessionId = await this.handle.durable.providerSessionId()
@@ -189,6 +213,8 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     for (const child of recoverChildren)
       if (!(await this.observeChild(child))) throw new Error('Durable child archive is unavailable')
     await this.childResources()
+    // Finish opening native observations before reclamation lets a queued shutdown proceed.
+    await owner.reclaimRetired(root)
     this.events.push({ type: 'resume-token', token: this.handle.thread.id })
     return this
   }
@@ -224,11 +250,13 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
       this.compacting = true
       const usage = await this.handle.contextUsage().catch(() => undefined)
       this.compacting = false
+      const contextWindow = usage?.status === 'confirmed' ? usage.value.contextWindow : undefined
       thresholdReached =
         usage?.status === 'confirmed' &&
         !!usage.value.used &&
-        usage.value.contextWindow > 0 &&
-        usage.value.used.tokens >= (usage.value.contextWindow * snapshot.compactionPercent) / 100
+        contextWindow !== undefined &&
+        contextWindow > 0 &&
+        usage.value.used.tokens >= (contextWindow * snapshot.compactionPercent) / 100
     }
     if (manual || (thresholdReached && stopGeneration === this.stopGeneration && !this.closing)) {
       const trigger = manual ? 'manual' : 'auto'
@@ -270,7 +298,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
       return
     }
     try {
-      await this.submit(input, input.systemReminder ? wrapSteerReminder(text) : text, 'follow-up')
+      await this.submit(input, input.systemReminder ? wrapSteerReminder(text) : text)
     } catch (error) {
       if (!running) this.sending = false
       throw error
@@ -290,36 +318,109 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     )
   }
 
-  redirect(input: AgentRuntimeCommand): boolean {
-    if (!this.active || this.closing) return false
-    this.steers.add(input.message.id)
-    void this.submit(input, wrapSteerReminder(buildAgentUserContent(input.message)), 'steer').catch((error) =>
-      this.fail(error)
+  get threadInput(): AgentRuntimeInput | undefined {
+    const handle = this.handle
+    if (!handle || this.closing) return
+    const followUp = handle.input.followUp
+    const submit =
+      (kind: 'steer' | 'follow-up'): NonNullable<AgentRuntimeInput['submit']> =>
+      async ({ inputId, message }) => {
+        const native = kind === 'steer' ? handle.input.steer.submit : followUp?.submit
+        const text = buildAgentUserContent(message)
+        if (
+          !native ||
+          this.closing ||
+          this.compacting ||
+          this.handle !== handle ||
+          (kind === 'steer' ? !this.active : !this.sending) ||
+          isCompactCommand(text)
+        )
+          return {
+            status: 'rejected',
+            inputId,
+            error: { operation: kind, code: 'unavailable', message: 'Pi Durable cannot admit this input now' }
+          }
+        const inputs = kind === 'steer' ? this.steers : this.queued
+        inputs.add(inputId)
+        const draft = { inputId, text: wrapSteerReminder(text) }
+        const staged = kind === 'follow-up' && messages.isStagedFollowup(this.input.sessionId, inputId)
+        if (staged) this.stagedFollowups.add(inputId)
+        const submission = staged ? handle.durable.submitStagedFollowup(draft) : native(draft)
+        this.admission = submission.catch(() => undefined)
+        const result = await submission.catch((error: unknown) => ({
+          status: 'unknown' as const,
+          inputId,
+          error: {
+            operation: kind,
+            code: 'missing-receipt',
+            message: error instanceof Error ? error.message : String(error)
+          }
+        }))
+        if (result.status === 'rejected' || result.status === 'unsupported') {
+          inputs.delete(inputId)
+          this.stagedFollowups.delete(inputId)
+        }
+        return result
+      }
+    return {
+      steer: { whenIdle: 'reject', submit: submit('steer') },
+      ...(followUp?.persistence === 'durable' && {
+        followUp: { persistence: 'durable', submit: submit('follow-up') }
+      })
+    }
+  }
+
+  acknowledgeFollowupProjection(contextId: string, inputId: string): void {
+    const runtime = this.runtime
+    const threadId = this.handle?.thread.id
+    if (
+      !runtime ||
+      !threadId ||
+      this.context?.id !== contextId ||
+      !this.stagedFollowups.has(inputId) ||
+      messages.isStagedFollowup(this.input.sessionId, inputId)
     )
-    return true
+      return
+    this.stagedFollowups.delete(inputId)
+    void Promise.all([import('@cherrystudio/agent-runtime-pi-durable'), import('@earendil-works/chord/context')])
+      .then(([{ acknowledgeFollowupProjections }, { BACKGROUND_CONTEXT }]) =>
+        runtime.durable.commit((tx) => acknowledgeFollowupProjections(tx, [{ threadId, inputId }]), BACKGROUND_CONTEXT)
+      )
+      .catch((error: unknown) => logger.warn('Durable follow-up projection acknowledgement failed', { inputId, error }))
   }
 
-  followUp(input: AgentRuntimeCommand): boolean {
-    const text = buildAgentUserContent(input.message)
-    // `/compact` is a host command; it waits in the host queue and runs as compaction.
-    if (!this.sending || this.closing || this.compacting || isCompactCommand(text)) return false
-    this.queued.add(input.message.id)
-    void this.submit(input, wrapSteerReminder(text), 'follow-up').catch((error) => {
-      logger.warn('Durable follow-up submission failed', { sessionId: this.input.sessionId, error })
-      if (error instanceof SubmissionRefused) return
-      // It never reached Durable's queue, so the host queues it instead.
-      this.queued.delete(input.message.id)
-      this.events.push({ type: 'steer-undelivered', inputIds: [input.message.id] })
-    })
-    return true
+  readonly compactWithInstructions = true as const
+
+  get compact(): CompactThread | undefined {
+    const handle = this.handle
+    const compact = handle?.compact
+    if (!compact || this.closing || this.input.headless) return
+    return async (instructions) => {
+      if (this.sending || this.active || this.closing || this.compacting || this.handle !== handle)
+        return {
+          status: 'rejected',
+          error: { operation: 'compact', code: 'busy', message: 'Pi Durable session is unavailable or busy' }
+        }
+      this.compacting = true
+      try {
+        return await compact(instructions)
+      } finally {
+        this.compacting = false
+      }
+    }
   }
 
-  private publishFollowups(queue: readonly DurableFollowup[]): void {
+  private publishFollowups(queue: readonly DurableFollowup[], paused: boolean, restored?: true): void {
     if (queue === this.publishedFollowups || (!queue.length && !this.publishedFollowups?.length)) return
     this.publishedFollowups = queue
+    const steerIds = queue.flatMap(({ inputId, steering }) => (steering ? [inputId] : []))
     this.events.push({
       type: 'followup-queue',
-      queue: queue.flatMap(({ inputId, revision }) => {
+      paused,
+      ...(restored && { restored }),
+      ...(steerIds.length && { steerIds }),
+      queue: queue.flatMap(({ inputId, revision, steering }) => {
+        if (steering) return []
         if (messages.inputBinding(this.input.sessionId, inputId)?.contextId !== this.context?.id) return []
         const message = messages.getSessionMessage(this.input.sessionId, inputId)
         return message.delivery ? [] : [{ id: inputId, revision, parts: message.data.parts ?? [] }]
@@ -327,14 +428,33 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     })
   }
 
-  async changeFollowups(change: AgentSessionFollowupChange): Promise<boolean> {
+  async changeFollowups(
+    change: AgentSessionFollowupChange,
+    activeRun?: { inputId: string; replyId: string }
+  ): Promise<boolean> {
     if (this.closing || !this.handle || !this.context) return false
+    if (change.type === 'resume') return this.handle.durable.resumeFollowups()
     if (change.type === 'reorder') return this.handle.durable.changeFollowups(change)
     const context = this.context
     if (messages.inputBinding(this.input.sessionId, change.inputId)?.contextId !== context.id) return false
     const message = messages.getSessionMessage(this.input.sessionId, change.inputId)
     if (message.delivery || message.role !== 'user') return false
-    if (change.type === 'withdraw') return this.handle.durable.changeFollowups(change)
+    if (change.type === 'withdraw') {
+      const applied = await this.handle.durable.changeFollowups(change)
+      if (applied) {
+        messages.discardStagedFollowup(this.input.sessionId, change.inputId, context.id)
+        this.acknowledgeFollowupProjection(context.id, change.inputId)
+      }
+      return applied
+    }
+    if (change.type === 'steer') {
+      if (!activeRun || !this.active || this.compacting) return false
+      return this.handle.durable.changeFollowups({
+        ...change,
+        activeInputId: activeRun.inputId,
+        replyId: activeRun.replyId
+      })
+    }
 
     const parts = message.data.parts ?? []
     const index = parts.findIndex((part) => part.type === 'text')
@@ -351,25 +471,26 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     })
   }
 
-  private async submit(input: AgentRuntimeCommand, text: string, whenBusy: 'follow-up' | 'steer') {
+  private async submit(input: AgentRuntimeCommand, text: string) {
     const submitted = (async () => {
+      const handle = this.handle
+      const send = handle?.durable.submitTurn
+      if (!handle || !send) throw new Error('Pi Durable input operation is unavailable')
       if (input.context?.length)
-        await this.handle!.durable.initializeContext(
+        await handle.durable.initializeContext(
           buildAgentUserContent({ ...input.message, data: { parts: input.context } })
         )
-      const draft = prepareNativeSubmission(this.input.sessionId, input.message.id, this.context!.id, whenBusy, {
+      const draft = prepareNativeSubmission(this.input.sessionId, input.message.id, this.context!.id, {
         text,
         parts: input.message.data.parts
       })
-      this.input.onInputPrepared?.(input.message.id, this.context!.id)
-      return this.handle!.input.submit(draft)
+      return send(draft)
     })()
     this.admission = submitted.catch(() => undefined)
     const result = await submitted
-    this.events.push({ type: 'input-submission', contextId: this.context!.id, result })
     applyNativeSubmissionResult(this.input.sessionId, this.context!.id, result)
     if (result.status !== 'acknowledged') {
-      throw new SubmissionRefused(result.error.message)
+      throw new Error(result.error.message)
     }
   }
 
@@ -410,10 +531,17 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
               // After reopen, Durable resumes a placed input that has no outcome yet; the started event names it.
               const recoveredInputId = batch.resumedInput
               if (recoveredInputId) this.placed.add(recoveredInputId)
-              this.beginAutonomous(
-                batch.backgroundResults.status === 'confirmed' ? batch.backgroundResults.value.notification : undefined,
-                recoveredInputId
-              )
+              else
+                for (const input of event.inputs)
+                  if (hasProductInputId(input) && input.facts.includes('placed') && !input.outcome)
+                    this.captureInput(input, placements)
+              if (!placements.length)
+                this.beginAutonomous(
+                  batch.backgroundResults.status === 'confirmed'
+                    ? batch.backgroundResults.value.notification
+                    : undefined,
+                  recoveredInputId
+                )
             }
             this.active = nowActive
             for (const relation of event.subagents ?? [])
@@ -427,11 +555,21 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
             logger.warn('Durable observation fault', { sessionId: this.input.sessionId, event })
           else if (event.type === 'closed' && event.reason !== 'shutdown' && !this.closing)
             throw new Error(`Durable observation ended: ${event.reason}`)
+          if (event.type === 'snapshot' || event.type === 'activity.changed') {
+            const retry = projectRetryChange(this.modelRetry, event.activity.modelRetry)
+            this.modelRetry = event.activity.modelRetry
+            if (retry) this.events.push({ type: 'data-retry', id: 'retry', data: retry })
+          }
         }
       }
       if (!parts) this.projection.accept({ ...batch, events })
       // The answer before a placed input arrives in the same batch, so the boundary follows its projection.
       if (placements.length) {
+        if (!this.sending) {
+          this.sending = true
+          this.failure = undefined
+          this.turnUsage.reset()
+        }
         this.runInputs.clear()
         for (const id of placements) this.runInputs.add(id)
         this.events.push({ type: 'run-started', inputIds: placements })
@@ -497,9 +635,13 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
 
   private captureInput(input: InputState, placements?: string[]) {
     if (!hasProductInputId(input)) return
-    this.events.push({ type: 'input-state', contextId: this.context!.id, input })
     const messageId = input.inputId
-    if (input.facts.includes('placed')) this.announcePlacement(messageId, input, placements)
+    const promotion = this.followupPromotions.get(messageId)
+    this.events.push({ type: 'input-state', contextId: this.context!.id, input, ...(promotion && { promotion }) })
+    if (input.facts.includes('placed')) {
+      this.followupPromotions.delete(messageId)
+      this.announcePlacement(messageId, input, placements)
+    }
     // Durable never places an input again once it has an outcome.
     if (input.outcome) {
       this.queued.delete(messageId)
@@ -509,6 +651,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
 
   private announcePlacement(messageId: string, input: InputState, placements?: string[]) {
     if (this.steers.delete(messageId)) {
+      this.queued.delete(messageId)
       this.placed.add(messageId)
       this.runInputs.add(messageId)
       this.events.push({ type: 'steer-boundary', inputIds: [messageId] })
@@ -702,6 +845,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
           relation.origin.description ?? id
         )
         const access = handle
+        let modelRetry: Activity['modelRetry']
         const projection = new ChildThreadProjection(
           context,
           {
@@ -710,6 +854,11 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
               return access.observe(async (event) => {
                 try {
                   await sink(event)
+                  if (event.type === 'snapshot' || event.type === 'activity.changed') {
+                    const retry = projectRetryChange(modelRetry, event.activity.modelRetry)
+                    modelRetry = event.activity.modelRetry
+                    if (retry) projection.retry(retry)
+                  }
                   if (event.type === 'subagent.upsert' && event.subagent.child)
                     void this.observeChild(event.subagent.child.id)
                   if (event.type === 'snapshot') {
@@ -818,7 +967,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     const { sessionId } = projection.context
     const id = randomUUID()
     messages.saveMessage({ sessionId, message: { id, role: 'user', data: { parts: [{ type: 'text', text }] } } })
-    const draft = prepareNativeSubmission(sessionId, id, contextId, 'steer')
+    const draft = prepareNativeSubmission(sessionId, id, contextId)
     await projection.refresh()
     const [{ recoveryIndex }, { BACKGROUND_CONTEXT }] = await Promise.all([
       import('@cherrystudio/agent-runtime-pi-durable'),
@@ -827,7 +976,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     await this.runtime!.durable.commit(async (tx) => {
       ;(await tx.doc(recoveryIndex)).archives[handle.thread.id] = true
     }, BACKGROUND_CONTEXT)
-    const result = await handle.input.submit(draft)
+    const result = await handle.input.steer.submit(draft)
     applyNativeSubmissionResult(sessionId, contextId, result)
     await projection.refresh()
     if (result.status !== 'acknowledged') throw new Error(result.error.message)

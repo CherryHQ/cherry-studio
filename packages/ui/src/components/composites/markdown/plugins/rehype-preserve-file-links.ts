@@ -16,6 +16,19 @@ function containsAsciiControlCharacter(value: string): boolean {
   return false
 }
 
+function isLocalFileUrlHref(href: string): boolean {
+  if (!/^file:\/\//i.test(href) || containsAsciiControlCharacter(href)) return false
+  try {
+    const parsed = new URL(href)
+    if (parsed.protocol !== 'file:') return false
+    const hostname = parsed.hostname.toLowerCase()
+    if (hostname !== '' && hostname !== 'localhost') return false
+    return parsed.pathname.length > 1
+  } catch {
+    return false
+  }
+}
+
 function isFileLinkHref(href: unknown): href is string {
   if (
     typeof href !== 'string' ||
@@ -27,7 +40,7 @@ function isFileLinkHref(href: unknown): href is string {
   ) {
     return false
   }
-  return WINDOWS_DRIVE_PATH_PATTERN.test(href) || !URI_SCHEME_PATTERN.test(href)
+  return WINDOWS_DRIVE_PATH_PATTERN.test(href) || !URI_SCHEME_PATTERN.test(href) || isLocalFileUrlHref(href)
 }
 
 export function rehypePrepareFileLinks() {

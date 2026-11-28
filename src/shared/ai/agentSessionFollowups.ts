@@ -9,10 +9,17 @@ export interface AgentSessionFollowup {
   parts: CherryMessagePart[]
 }
 
+export interface AgentSessionFollowupQueue {
+  items: AgentSessionFollowup[]
+  paused: boolean
+}
+
 export type AgentSessionFollowupChange =
+  | { type: 'resume' }
   | { type: 'edit'; inputId: string; revision: number; text: string }
   | { type: 'reorder'; before: string[]; after: string[] }
   | { type: 'withdraw'; inputId: string }
+  | { type: 'steer'; inputId: string }
 
 type TextPart = Extract<CherryMessagePart, { type: 'text' }>
 

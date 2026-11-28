@@ -10,7 +10,7 @@ const BaseNavigatorSectionTrigger = ({
   dragProps
 }: BaseNavigatorSectionTriggerProps) => {
   return (
-    <div className="group/grp flex h-8 w-full items-center gap-1 rounded-[10px] px-2 text-sm transition-colors hover:bg-muted">
+    <div className="group/grp flex h-8 w-full items-center gap-1 rounded-[10px] px-2 text-sm transition-[color] hover:bg-muted">
       <div className="min-w-0 flex-1">
         <AccordionTrigger
           {...dragProps}

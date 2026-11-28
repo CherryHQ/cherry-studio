@@ -14,14 +14,15 @@ import type { CherryMessagePart } from '@shared/data/types/message'
 
 import { PartsProvider } from './blocks/MessagePartsContext'
 import { SubagentStatusProvider } from './blocks/SubagentStatusContext'
-import type {
-  MessageListActions,
-  MessageListItem,
-  MessageListMeta,
-  MessageListProviderValue,
-  MessageListSelectionState,
-  MessageListState,
-  MessageRenderConfig
+import {
+  defaultMessageRenderConfig,
+  type MessageListActions,
+  type MessageListItem,
+  type MessageListMeta,
+  type MessageListProviderValue,
+  type MessageListSelectionState,
+  type MessageListState,
+  type MessageRenderConfig
 } from './types'
 
 /**
@@ -369,6 +370,10 @@ export const useMessageListMeta = (): MessageListMeta => {
 
 export const useMessageRenderConfig = (): MessageRenderConfig => {
   return useRequiredContext(MessageListRenderConfigContext, 'useMessageRenderConfig')
+}
+
+export const useOptionalMessageRenderConfig = (): MessageRenderConfig => {
+  return use(MessageListRenderConfigContext) ?? defaultMessageRenderConfig
 }
 
 export const useMessageListSelection = (): MessageListSelectionState | undefined => {

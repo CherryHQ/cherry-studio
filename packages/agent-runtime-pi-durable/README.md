@@ -33,12 +33,14 @@ still drains admitted relation reads and their final facts before closing feeds.
 
 `resume()` enables the entire Harness scheduler. Reading with `open` or `observe` does not resume it. Native `submit` and `interrupt` can resume the entire
 Harness, including other conversations. Without shared behavior, `interrupt()` uses native ordinary-scope
-abort: queued inputs and owned non-background work are included; queued writes and
-background subtrees are not. These effects are not application-wide cancellation.
+abort includes queued inputs and owned non-background work. Queued writes and background subtrees remain.
+With shared behavior, a user stop on a root records the stop, pauses waiting follow-ups and marks the active run for
+cancellation in the same native transaction. Paused follow-ups keep their inbox entries and submission IDs until the
+host explicitly resumes or withdraws them. Run completion counts only inputs eligible to run.
 
 ## Input and output
 
-Every Durable access provides `input.submit(input)`. Before command routing or input submission,
+A root handle exposes `input.submit`, `input.steer.submit` and a durable `input.followUp.submit`. A behavior-managed child exposes `input.steer.submit`. Before command routing or input submission,
 the desktop may call `durable.initializeContext(text)` to admit initial model-only reference
 history as a passive native write. The native request ID makes repeated initialization
 idempotent across reopening. It starts no model run and is excluded from product projections
@@ -52,17 +54,16 @@ the input is queued and after reopening. For a child command, the parent decisio
 the target child and the native request key in its transaction. That decision proves dispatch.
 The child submission proves admission. A lookup starts no execution.
 
-`whenBusy: 'steer'` delivers input at the next native input boundary. If the current
-run finishes normally before taking it, the input starts a subsequent run. `follow-up`
-waits for the final boundary. Both policies start a run when the conversation is idle;
-normal completion does not discard accepted input. Explicit interruption still follows
-the native cancellation scope. Read captured input facts to distinguish
-acceptance from placement and completion.
+`input.steer.submit` delivers input at the next native input boundary. If the current
+run finishes normally before taking it, the input starts a subsequent run. `input.followUp.submit`
+waits for the final boundary. Both policies can start a run when idle. A paused inbox
+holds follow-ups until resume. The desktop's explicit new turn can start while the inbox
+is paused. Read captured input facts to distinguish acceptance, placement and completion.
 
 The desktop mirrors the ordered native follow-up inbox after attachment and on inbox commits.
 Editing and reordering check the still-waiting entries inside a native transaction. An edit takes
 its native content and product text part to placement under the original submission ID. The desktop
-can reapply that part on reopen. Withdrawing one entry uses the native submission abort operation.
+can reapply that part on reopen. Remove settles one waiting submission as `withdrawn` and removes it from the inbox in one commit.
 
 Several inputs can share a native answer. Native `done` alone is insufficient: Durable also uses it for truncated output
 and tool-only termination. The adapter reads the actual assistant stop reason before reporting
@@ -220,7 +221,7 @@ identity files, skill catalog entries and tool schemas expose individual estimat
 from tool registration, including codemode-only tools listed as deferred. Reads never rerender sections
 or reload files. These partial estimates are separate from native billable usage records.
 
-The runtime `durable.commit` facet shares the existing native mutation line; desktop fork operations retain the backend while using it. The thread `durable` facet exposes native configuration, compaction, behavior facts,
+The runtime `durable.commit` and `durable.observeCommits` facets share the existing native mutation line; desktop fork operations and deferred retired-desktop reclamation retain the backend while using them. The thread `durable` facet exposes native configuration, compaction, behavior facts,
 provider session identity and tool-call resolution for the desktop adapter. These stay
 outside the harness-neutral Runtime contract. `onInputPlaced(inputId, thread)` runs synchronously at
 native placement so the host reserves input attribution before the next model request; native-only

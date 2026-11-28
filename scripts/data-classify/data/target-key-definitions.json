@@ -6,6 +6,13 @@
   },
   "definitions": [
     {
+      "targetKey": "feature.api_gateway.lan_http_enabled",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Allow API-key authenticated model requests from the local network"
+    },
+    {
       "targetKey": "agent.input.suggestions.enabled",
       "type": "boolean",
       "defaultValue": true,
@@ -300,11 +307,25 @@
       "description": "Web search compression method (from complex migration; default cutoff caps raw source content per finding #7 — new installs only, migrated profiles keep their explicit value)"
     },
     {
+      "targetKey": "feature.code_cli.agent_order",
+      "type": "string[]",
+      "defaultValue": [],
+      "status": "classified",
+      "description": "Agent directory order shared by Code Mate and settings; installation and enabled groups take precedence"
+    },
+    {
       "targetKey": "feature.code_cli.configs",
       "type": "PreferenceTypes.CodeCliConfigs",
       "defaultValue": "VALUE: {}",
       "status": "classified",
       "description": "Fresh v2 key (no migration): per-tool CLI configs with per-provider modelId, config blob, and sortIndex. v1 codeTools is throwaway."
+    },
+    {
+      "targetKey": "feature.code_cli.workspace",
+      "type": "PreferenceTypes.CodeCliWorkspace",
+      "defaultValue": "VALUE: {}",
+      "status": "classified",
+      "description": "Last working directory and removable recent directories shared by all Agent terminal launchers"
     },
     {
       "targetKey": "chat.input.toolbar.pinned_tools",

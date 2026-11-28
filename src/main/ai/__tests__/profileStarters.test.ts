@@ -84,6 +84,8 @@ describe('profile starter generation', () => {
     await expect(generateProfileStarters({ ...request, identityHash: 'updated' })).resolves.toEqual(
       questions('New questions')
     )
+    // Starters must keep working for a signed-out user on the built-in free model.
+    expect(generateText.mock.calls[0][0].utilityTask).toBe(true)
   })
 
   it('releases a timed-out request even when generation has not settled', async () => {

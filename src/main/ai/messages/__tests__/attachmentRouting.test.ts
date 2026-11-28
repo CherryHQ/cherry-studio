@@ -11,7 +11,7 @@ vi.mock('../attachmentWorkerClient', async () => {
 import type { UIMessage } from 'ai'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import type { NativeFileSupport } from '@main/ai/runtime/aiSdk/params/nativeFileSupport'
+import type { NativeFileSupport } from '@main/ai/messages/nativeFileSupport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 
 vi.mock('@logger', () => ({
@@ -37,7 +37,7 @@ vi.mock('../attachmentTextExtraction', () => ({
   noExtractableTextNote: (name: string) => `No text in ${name}`
 }))
 
-import { collectFileAttachments, prepareChatMessages } from '../attachmentRouting'
+import { collectFileAttachments, prepareChatMessages, prepareChatMessagesForEstimate } from '../attachmentRouting'
 
 const NONE: NativeFileSupport = { image: false, pdf: false, audio: false, video: false }
 const ALL: NativeFileSupport = { image: true, pdf: true, audio: true, video: true }
@@ -97,6 +97,37 @@ const textOf = (parts: UIMessage['parts']) =>
   parts.filter((p): p is { type: 'text'; text: string } => p.type === 'text').map((p) => p.text)
 
 afterEach(() => vi.clearAllMocks())
+
+describe('prepareChatMessagesForEstimate', () => {
+  it('returns the same capped text as dispatch for stored text attachments', async () => {
+    const messages = [userMessage([fileWithEntry('e1', 'notes.txt', 'text/plain')])]
+    getByIdMock.mockResolvedValue({ ext: 'txt' })
+    extractMock.mockResolvedValue('long attachment body '.repeat(800))
+    const context = {
+      attachments: collectFileAttachments(messages),
+      nativeSupport: NONE,
+      isToolCapable: true,
+      budget: { tokens: 2_000 }
+    }
+
+    const preview = await prepareChatMessagesForEstimate(messages, context)
+    expect(preview).toEqual(await prepareChatMessages(messages, context))
+    expect(textOf(preview![0].parts).join('')).toContain('long attachment body '.repeat(30))
+  })
+
+  it('returns an unknown estimate for an attachment that needs OCR', async () => {
+    const messages = [userMessage([fileWithEntry('e1', 'image.png', 'image/png')])]
+    getByIdMock.mockResolvedValue({ ext: 'png' })
+    expect(
+      await prepareChatMessagesForEstimate(messages, {
+        attachments: collectFileAttachments(messages),
+        nativeSupport: NONE,
+        isToolCapable: false
+      })
+    ).toBeNull()
+    expect(ocrMock).not.toHaveBeenCalled()
+  })
+})
 
 describe('prepareChatMessages — routing', () => {
   it('keeps a native image inline (no extraction)', async () => {

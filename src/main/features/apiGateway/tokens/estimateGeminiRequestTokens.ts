@@ -1,14 +1,19 @@
 import { loggerService } from '@logger'
+import { hasSignedGeminiWhitespace, omitSignedGeminiWhitespace } from '@main/ai/messages/geminiTextSignature'
 import {
   ALL_MEDIA,
   resolveMediaCapabilities,
   resolveToolResultMediaCapabilities
 } from '@main/ai/messages/messageCapabilities'
 import { toModelMessages } from '@main/ai/messages/messageRules'
+import { resolveProviderAiSdkConfig } from '@main/ai/provider/config'
+import { resolveEffectiveEndpoint, resolveWireModelId } from '@main/ai/provider/endpoint'
+import { getReplayEndpoint } from '@main/ai/provider/replayRoute'
 import { resolveModelTokenDialect, type TokenDialect } from '@main/ai/tokens/dialect'
 import { countToolDefs, estimateModelMessagesFootprint } from '@main/ai/tokens/footprint'
 import { getTextTokenizer } from '@main/ai/tokens/profiles'
 import { tokenxTokenizer } from '@main/ai/tokens/textTokenizer'
+import { ENDPOINT_TYPE } from '@shared/data/types/model'
 
 import { type InputParamsMap, MessageConverterFactory } from '../adapters'
 import { type ResolvedGatewayModelAddress, resolveGatewayModelAddress } from '../utils/models'
@@ -63,18 +68,37 @@ async function estimateConvertedRequest(
 
   let dialect: TokenDialect = 'google'
   let caps = ALL_MEDIA
+  const hasSignedWhitespace = hasSignedGeminiWhitespace(uiMessages)
+  let preserveSignedGeminiWhitespace = false
   let resolved: ResolvedGatewayModelAddress | undefined
   try {
     resolved = await resolveGatewayModelAddress(modelString, internal)
     dialect = resolveModelTokenDialect(resolved.provider, resolved.model)
     caps = resolveMediaCapabilities(resolved.model)
+    if (hasSignedWhitespace) {
+      const { provider, model } = resolved
+      const endpoint = resolveEffectiveEndpoint(provider, model)
+      const { config } = await resolveProviderAiSdkConfig(provider, model, {
+        resolvedEndpoint: endpoint,
+        routeOnly: true
+      })
+      preserveSignedGeminiWhitespace =
+        getReplayEndpoint(endpoint.endpointType, {
+          providerId: config.providerId,
+          modelId: resolveWireModelId(model, endpoint.endpointType)
+        }) === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
+    }
   } catch (error) {
     logger.warn('model resolve failed, using google/all-media fallback', error as Error)
   }
 
   const toolResultCaps = resolveToolResultMediaCapabilities(caps, dialect)
-  const modelMessages = await toModelMessages(uiMessages, caps, tools, toolResultCaps)
+  const modelMessages = await toModelMessages(uiMessages, caps, tools, toolResultCaps, {
+    preserveSignedGeminiWhitespace: hasSignedWhitespace
+  })
+  const outgoing =
+    hasSignedWhitespace && !preserveSignedGeminiWhitespace ? omitSignedGeminiWhitespace(modelMessages) : modelMessages
   const tokenizer = await getTextTokenizer(dialect)
-  const messageTokens = await estimateModelMessagesFootprint(modelMessages, { dialect, tokenizer }, signal)
+  const messageTokens = await estimateModelMessagesFootprint(outgoing, { dialect, tokenizer }, signal)
   return messageTokens + countToolDefs(wireTools, tokenizer)
 }

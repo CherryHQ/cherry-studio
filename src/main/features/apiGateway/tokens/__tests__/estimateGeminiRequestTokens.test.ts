@@ -45,6 +45,31 @@ describe('estimateGeminiRequestTokens', () => {
     ).toBeGreaterThan(0)
   })
 
+  it('estimates the original signed part when the Gemini adapter sends it instead of a placeholder', async () => {
+    const model = makeModel({ capabilities: [] })
+    const nativeProvider = makeProvider({
+      defaultChatEndpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+      endpointConfigs: { [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { adapterFamily: 'google' } }
+    })
+    const request = (part: { text: string; thoughtSignature?: string }) =>
+      body([
+        { role: 'user', parts: [{ text: 'Hi' }] },
+        { role: 'model', parts: [part] }
+      ])
+    const whitespace = { text: '\n \t', thoughtSignature: 'fixture-signature' }
+    const placeholder = { text: '...' }
+
+    mocks.resolveGatewayModelAddress.mockReturnValue({ provider: nativeProvider, model })
+    expect(await estimateGeminiRequestTokens(request(whitespace), 'p:m')).toBeLessThan(
+      await estimateGeminiRequestTokens(request(placeholder), 'p:m')
+    )
+
+    resolveTo(model)
+    expect(await estimateGeminiRequestTokens(request(whitespace), 'p:m')).toBe(
+      await estimateGeminiRequestTokens(request(placeholder), 'p:m')
+    )
+  })
+
   it('counts inlineData media (no longer rejected)', async () => {
     resolveTo(makeModel({ capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION] }))
     const n = await estimateGeminiRequestTokens(

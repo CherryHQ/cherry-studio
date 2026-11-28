@@ -104,7 +104,7 @@ export function FileTreeRow(props: FileTreeRowProps) {
       style={indent}
       className={cn(
         'group relative flex items-center gap-1.5 rounded-md py-1 pr-2 text-left text-sm select-none',
-        'transition-colors',
+        'transition-[color]',
         isFolder
           ? 'text-foreground hover:bg-resource-list-row-hover'
           : 'text-muted-foreground hover:bg-resource-list-row-hover hover:text-foreground',
