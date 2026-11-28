@@ -36,6 +36,7 @@ interface ChatComposerSlotBaseProps {
   assistantContext?: ChatComposerResolvedContext
   providers?: Provider[]
   onConversationControlsChange?: ChatConversationControlsChangeHandler
+  suggestSubscriptionModel?: boolean
 }
 
 type ChatComposerSlotProps =
@@ -55,7 +56,8 @@ function ChatComposerSlot({
   composerContext,
   assistantContext,
   providers,
-  onConversationControlsChange
+  onConversationControlsChange,
+  suggestSubscriptionModel
 }: ChatComposerSlotProps) {
   const compactWhenSingleLine = useRightPanelPresentationMaximized()
   const fallback =
@@ -76,6 +78,7 @@ function ChatComposerSlot({
         externalContextControls
         compactWhenSingleLine={compactWhenSingleLine}
         onConversationControlsChange={onConversationControlsChange}
+        suggestSubscriptionModel={suggestSubscriptionModel}
       />
     ) : (
       <ChatPlacementComposer
@@ -95,6 +98,7 @@ function ChatComposerSlot({
         externalContextControls
         compactWhenSingleLine={compactWhenSingleLine}
         onConversationControlsChange={onConversationControlsChange}
+        suggestSubscriptionModel={suggestSubscriptionModel}
       />
     )
 

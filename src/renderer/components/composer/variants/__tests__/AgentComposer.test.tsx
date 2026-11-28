@@ -592,6 +592,10 @@ vi.mock('@renderer/components/Avatar/ModelAvatar', () => ({
   ModelAvatar: ({ size }: { size?: number }) => <span data-testid="model-avatar" data-size={size} />
 }))
 
+vi.mock('@renderer/hooks/cherryCloud/useHasCurrentPaidPlan', () => ({
+  useHasCurrentPaidPlan: (enabled: boolean) => enabled
+}))
+
 vi.mock('@renderer/components/cherryCloud/CherryCloudModelSelector', async () => {
   const selector = await import('@renderer/components/ModelSelector')
   return {
@@ -1020,6 +1024,37 @@ describe('AgentComposer', () => {
     expect(mocks.surfaceProps?.sendBlockedReason).toBeUndefined()
     render(<>{mocks.surfaceProps?.queueContent}</>)
     expect(screen.getByRole('button', { name: 'settings.subscription.go_to_subscribe' })).toBeInTheDocument()
+  })
+
+  it('switches the session model from the notice after the latest reply failed at its provider', async () => {
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        canChangeModel
+        isStreaming={false}
+        messages={[
+          { id: 'u1', role: 'user', parts: [{ type: 'text', text: 'hi' }], metadata: {} },
+          {
+            id: 'a1',
+            role: 'assistant',
+            parts: [{ type: 'data-error', data: { message: 'Invalid API key', statusCode: 401 } }],
+            metadata: { modelId: 'anthropic::claude-sonnet-4-5', status: 'error' }
+          }
+        ]}
+      />
+    )
+    render(<>{mocks.surfaceProps?.queueContent}</>)
+    const notice = screen.getByRole('status')
+    fireEvent.click(within(notice).getByRole('button', { name: 'chat.input.subscription_notice.switch' }))
+    fireEvent.click(await within(notice).findByText('select model 2'))
+
+    expect(mocks.updateSession).toHaveBeenCalledWith(
+      { id: 'session-1', model: 'anthropic::claude-opus-4' },
+      { showSuccessToast: false }
+    )
   })
 
   it('suggests a subscription after a provider ran out of quota, until the user sends or moves to Cherry Cloud', () => {

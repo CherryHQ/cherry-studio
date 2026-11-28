@@ -99,6 +99,8 @@ import type { InputHistoryDirection } from '../inputHistoryNavigation'
 import { NativeQueuedFollowups } from '../NativeQueuedFollowups'
 import { ProviderQuotaNotice } from '../ProviderQuotaNotice'
 import { QueuedFollowupsDock } from '../QueuedFollowupsDock'
+import { SubscriptionModelNotice } from '../SubscriptionModelNotice'
+import { shouldSuggestSubscriptionModel } from '../subscriptionModelSuggestion'
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from '../tokens'
 import { type FollowupQueueItem, useFollowupQueue } from '../useFollowupQueue'
 import { useInputHistory } from '../useInputHistory'
@@ -594,6 +596,10 @@ const AgentComposerInner = ({
   } = useComposerToolbarPinnedTools('agent.input.toolbar.pinned_tools')
   const { t } = useTranslation()
   const agentModelFilter = useAgentModelFilter(agent?.type)
+  const suggestSubscriptionModel = useMemo(
+    () => !!agent && canChangeModel && !!messages && shouldSuggestSubscriptionModel(messages),
+    [agent, canChangeModel, messages]
+  )
   const isModelUnavailable = Boolean(agent) && !model && !modelPending
   const missingModelMessage = isModelUnavailable ? t('code.model_required') : undefined
   const { setTimeoutTimer, clearTimeoutTimer } = useTimer()
@@ -1819,6 +1825,13 @@ const AgentComposerInner = ({
             <>
               {quotaExhaustion ? <CherryCloudQuotaNotice exhaustion={quotaExhaustion} /> : null}
               {showProviderQuotaNotice ? <ProviderQuotaNotice /> : null}
+              <SubscriptionModelNotice
+                providerFailed={suggestSubscriptionModel}
+                currentModel={model}
+                filter={agentModelFilter}
+                includeAgentOnlyModels
+                onSelect={handleModelSelect}
+              />
               {compaction.status === 'failed' && (
                 <Alert
                   type="warning"

@@ -586,6 +586,10 @@ vi.mock('@renderer/hooks/useCherryCloudQuotaExhaustion', () => ({
   useCherryCloudQuotaExhaustion: () => mocks.quotaExhaustion
 }))
 
+vi.mock('@renderer/hooks/cherryCloud/useHasCurrentPaidPlan', () => ({
+  useHasCurrentPaidPlan: (enabled: boolean) => enabled
+}))
+
 vi.mock('@renderer/hooks/command', () => ({
   useCommandRuntime: () => ({ execute: vi.fn() }),
   useCommandHandler: (command: string, handler: () => void, options?: { enabled?: boolean }) => {
@@ -925,6 +929,58 @@ describe('ChatComposer', () => {
     expect(screen.getByRole('button', { name: 'settings.subscription.go_to_subscribe' })).toBeInTheDocument()
   })
 
+  it('switches the conversation to the subscription model picked from the provider-failure notice', async () => {
+    const cloudModel = { ...modelB, id: 'cherryai-subscription::cloud' as const, providerId: 'cherryai-subscription' }
+    mocks.selectedModel = cloudModel
+
+    render(<ChatComposer topic={topic} onSend={vi.fn()} suggestSubscriptionModel />)
+    render(<>{mocks.surfaceProps?.queueContent}</>)
+    const notice = screen.getByRole('status')
+    fireEvent.click(within(notice).getByRole('button', { name: 'chat.input.subscription_notice.switch' }))
+    fireEvent.click(await within(notice).findByText('select model 2'))
+
+    expect(mocks.setModel).toHaveBeenCalledWith(cloudModel, {})
+  })
+
+  it('switches the assistant model from the provider-failure notice while multi-select is on', async () => {
+    const cloudModel = { ...modelB, id: 'cherryai-subscription::cloud' as const, providerId: 'cherryai-subscription' }
+    mocks.selectedModel = cloudModel
+
+    render(<ChatComposer topic={topic} onSend={vi.fn()} useMentionedModelSelector suggestSubscriptionModel />)
+    fireEvent.click(screen.getByText('toggle model multi select'))
+    render(<>{mocks.surfaceProps?.queueContent}</>)
+    const notice = screen.getByRole('status')
+    fireEvent.click(within(notice).getByRole('button', { name: 'chat.input.subscription_notice.switch' }))
+    fireEvent.click(await within(notice).findByText('select model 2'))
+
+    expect(mocks.setModel).toHaveBeenCalledWith(cloudModel, {})
+  })
+
+  it('withholds the provider-failure notice while an edit locks the model selection', async () => {
+    const message = {
+      id: 'message-1',
+      role: 'user',
+      topicId: topic.id,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      status: 'success'
+    } as const
+
+    render(
+      <MessageEditingProvider>
+        <StartEditingWithLockedModelsOnMount
+          message={message as any}
+          parts={[{ type: 'text', text: 'old prompt' }] as any[]}
+          lockedMentionedModels={[model, modelB]}
+        />
+        <ChatComposer topic={topic} onSend={vi.fn()} useMentionedModelSelector suggestSubscriptionModel />
+      </MessageEditingProvider>
+    )
+    await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe('message-1'))
+    render(<>{mocks.surfaceProps?.queueContent}</>)
+
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+  })
+
   it('suggests a subscription after a provider ran out of quota, until the user sends or moves to Cherry Cloud', () => {
     const queueHasNotice = () => {
       const { unmount } = render(<>{mocks.surfaceProps?.queueContent}</>)
@@ -949,6 +1005,7 @@ describe('ChatComposer', () => {
     rerender(<ChatComposer topic={topic} onSend={vi.fn()} providerQuotaExhausted />)
     expect(queueHasNotice()).toBe(false)
   })
+
   it('appends a screenshot and its message to the draft without sending', async () => {
     const onSend = vi.fn()
     const metadata = {
