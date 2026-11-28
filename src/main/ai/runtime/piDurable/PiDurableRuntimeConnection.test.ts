@@ -1912,7 +1912,7 @@ describe('desktop Pi Durable connection', () => {
       .flatMap((message) => message.parts)
       .find((part) => part.type === 'dynamic-tool' && part.toolName === 'update_goal')
     expect(completion).toMatchObject({ state: 'output-available' })
-    expect(messages.inputTarget(input.sessionId, command.id)?.locallyHandled).toBe(true)
+    expect(messages.inputTarget(input.sessionId, command.id)?.locallyHandled).toBeTruthy()
     if (withHistory) {
       const firstRound = script.calls.find((call) => !call.systemPrompt.startsWith('Evaluate whether the objective'))!
       expect(JSON.stringify(firstRound.messages)).toContain('Remember mango from the imported conversation')

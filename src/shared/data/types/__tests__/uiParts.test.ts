@@ -318,11 +318,12 @@ describe('withCherryMeta', () => {
     const part: TextUIPart = {
       type: 'text',
       text: '',
-      providerMetadata: { cherry: { references: [{ a: 1 }] } }
+      providerMetadata: { cherry: { references: [{ a: 1 }], composer: { version: 1, tokens: [] } } }
     }
     const next = withCherryMeta(part, { references: [{ b: 2 }] })
-    // shallow merge: new patch overwrites the same key
-    expect(next.providerMetadata?.cherry).toEqual({ references: [{ b: 2 }] })
+    // shallow merge: the patch overwrites the same key, and a field the patch
+    // does not touch must survive.
+    expect(next.providerMetadata?.cherry).toEqual({ references: [{ b: 2 }], composer: { version: 1, tokens: [] } })
   })
 
   it('writes thinking metadata onto a ReasoningUIPart', () => {
