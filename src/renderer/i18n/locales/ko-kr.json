@@ -1162,7 +1162,7 @@
   "chat.settings.code_wrappable": "코드 블록 자동 줄 바꿈",
   "chat.settings.show_line_numbers": "코드 줄 번호 표시",
   "chat.settings.thought_auto_collapse.label": "사고 내용 접기",
-  "chat.settings.thought_auto_collapse.tip": "사고가 끝나면 사고 내용을 자동으로 접습니다",
+  "chat.settings.thought_auto_collapse.tip": "추론이 시작되면 기본적으로 추론 내용을 접습니다",
   "chat.topics.auto_rename": "대화 이름 생성",
   "chat.topics.auto_rename_failed": "대화 이름을 자동 생성하지 못했습니다",
   "chat.topics.clear.title": "메시지 지우기",

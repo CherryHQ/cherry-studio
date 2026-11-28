@@ -142,6 +142,8 @@ describe('ThinkingBlock', () => {
       })
       const { rerender } = renderThinkingBlock(block)
 
+      expect(getToggleButton()).toHaveAttribute('aria-expanded', 'false')
+      expect(getContentContainer()).toHaveAttribute('hidden')
       expect(within(getToggleButton()).getByText('First line')).toBeInTheDocument()
       expect(within(getToggleButton()).queryByText('second thought in progress')).toBeNull()
 
@@ -170,6 +172,7 @@ describe('ThinkingBlock', () => {
       await act(() => vi.advanceTimersByTime(1))
       expect(within(getToggleButton()).getByText('third thought complete.')).toBeInTheDocument()
       expect(within(getToggleButton()).queryByText('fourth thought in progress')).toBeNull()
+      expect(getToggleButton()).toHaveAttribute('aria-expanded', 'false')
     })
 
     it('should keep unfinished streaming text out of the title until a segment is completed', () => {
@@ -298,18 +301,16 @@ describe('ThinkingBlock', () => {
       expect(getContentContainer()).not.toHaveAttribute('hidden')
     })
 
-    it('should auto-expand streaming thinking and auto-collapse when thinking ends', () => {
+    it('should start collapsed and stay collapsed when thinking ends', () => {
       mockRenderConfig.thoughtAutoCollapse = true
       const block = createThinkingBlock({ status: 'streaming' })
       const { rerender } = renderThinkingBlock(block)
 
-      // Live thinking stays followable even though the auto-collapse default is collapsed.
-      expect(getToggleButton()).toHaveAttribute('aria-expanded', 'true')
-      expect(getContentContainer()).not.toHaveAttribute('hidden')
+      expect(getToggleButton()).toHaveAttribute('aria-expanded', 'false')
+      expect(getContentContainer()).toHaveAttribute('hidden')
 
       rerender(<ThinkingBlock id={block.id} content={block.content} isStreaming={false} />)
 
-      // After thinking ends the block falls back to the cached collapsed default.
       expect(getToggleButton()).toHaveAttribute('aria-expanded', 'false')
       expect(getContentContainer()).toHaveAttribute('hidden')
     })
@@ -327,20 +328,19 @@ describe('ThinkingBlock', () => {
       expect(getContentContainer()).not.toHaveAttribute('hidden')
     })
 
-    it('should respect a manual collapse during streaming after thinking ends', () => {
+    it('should keep manually expanded thinking open when it finishes', () => {
       mockRenderConfig.thoughtAutoCollapse = true
       const block = createThinkingBlock({ status: 'streaming' })
       const { rerender } = renderThinkingBlock(block)
 
-      expect(getToggleButton()).toHaveAttribute('aria-expanded', 'true')
-
       fireEvent.click(getToggleButton())
-      expect(getToggleButton()).toHaveAttribute('aria-expanded', 'false')
+      expect(getToggleButton()).toHaveAttribute('aria-expanded', 'true')
+      expect(getContentContainer()).not.toHaveAttribute('hidden')
 
       rerender(<ThinkingBlock id={block.id} content={block.content} isStreaming={false} />)
 
-      expect(getToggleButton()).toHaveAttribute('aria-expanded', 'false')
-      expect(getContentContainer()).toHaveAttribute('hidden')
+      expect(getToggleButton()).toHaveAttribute('aria-expanded', 'true')
+      expect(getContentContainer()).not.toHaveAttribute('hidden')
     })
   })
 

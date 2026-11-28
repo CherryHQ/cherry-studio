@@ -1162,7 +1162,7 @@
   "chat.settings.code_wrappable": "Blocs de code avec retours à la ligne",
   "chat.settings.show_line_numbers": "Afficher les numéros de ligne",
   "chat.settings.thought_auto_collapse.label": "Pliage automatique du contenu de la pensée",
-  "chat.settings.thought_auto_collapse.tip": "Le contenu de la pensée se replie automatiquement après la fin de la pensée",
+  "chat.settings.thought_auto_collapse.tip": "Replier le contenu du raisonnement par défaut dès le début",
   "chat.topics.auto_rename": "Générer un nom de sujet",
   "chat.topics.auto_rename_failed": "Échec de la génération automatique du nom de la conversation",
   "chat.topics.clear.title": "Effacer le message",
