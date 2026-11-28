@@ -50,6 +50,7 @@ describe('NotesEditor RichEditor integration', () => {
 
       return (
         <NotesEditor
+          hasNotes={true}
           activeNodeId="/notes/example.md"
           currentContent={content}
           tokenCount={content.length}
@@ -102,6 +103,7 @@ describe('NotesEditor RichEditor integration', () => {
       const [content, setContent] = useState(initialContent)
       return (
         <NotesEditor
+          hasNotes={true}
           activeNodeId="/notes/math.md"
           currentContent={content}
           tokenCount={content.length}

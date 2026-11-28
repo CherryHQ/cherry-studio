@@ -91,6 +91,7 @@ import NotesEditor from '../NotesEditor'
 const editorRef = { current: null }
 const codeEditorRef = { current: null }
 const props = {
+  hasNotes: true,
   activeNodeId: '/private/note.md',
   voiceNoteId: 'opaque-note-1',
   currentContent: 'disk content',

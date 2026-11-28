@@ -53,7 +53,11 @@ const logger = loggerService.withContext('CacheService')
  * Shallow only: nested mutation (e.g. `prev.items[0].x = ...`) is NOT caught by
  * the type — keep updaters pure (see {@link CacheSetStateAction}).
  */
-export type ReadonlyValue<T> = T extends object ? Readonly<T> : T
+export type ReadonlyValue<T> = T extends string | number | boolean | bigint | symbol
+  ? T
+  : T extends object
+    ? Readonly<T>
+    : T
 
 /**
  * Setter input for cache writes, mirroring React's `SetStateAction<T>`: either a

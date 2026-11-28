@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { Button, type CodeEditorHandles, ConfirmDialog } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import type { RichEditorRef } from '@renderer/components/RichEditor/types'
-import { useCache } from '@renderer/data/hooks/useCache'
+import { useCache, usePersistCache } from '@renderer/data/hooks/useCache'
 import { useDirectoryTree } from '@renderer/hooks/useDirectoryTree'
 import { useFileEditSession } from '@renderer/hooks/useFileEditSession'
 import { useNote } from '@renderer/hooks/useNote'
@@ -30,6 +30,7 @@ import {
   findNode,
   findNodeByPath,
   findParent,
+  flattenTreeToFiles,
   normalizePathValue,
   reorderTreeNodes,
   updateTreeNode
@@ -70,11 +71,24 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
   const { t } = useTranslation()
   const { showWorkspace } = useShowWorkspace()
   const [activeFilePath, setActiveFilePath] = useCache('notes.active_file_path')
+  const [lastOpenFilePath, setLastOpenFilePath] = usePersistCache('notes.last_open_file_path')
+  const hasRestoredSelectionRef = useRef(false)
+
+  useEffect(() => {
+    if (hasRestoredSelectionRef.current) return
+    hasRestoredSelectionRef.current = true
+    if (!activeFilePath && lastOpenFilePath) setActiveFilePath(lastOpenFilePath)
+  }, [activeFilePath, lastOpenFilePath, setActiveFilePath])
+
+  useEffect(() => {
+    if (activeFilePath) setLastOpenFilePath(activeFilePath)
+  }, [activeFilePath, setLastOpenFilePath])
   const voiceNoteId = useMemo(() => (activeFilePath ? crypto.randomUUID() : undefined), [activeFilePath])
   const { notesPath, updateNotesPath, sortType, updateSortType } = useNotesSettings()
   const { noteByPath, patchNode, removePath, rewritePath } = useNote(notesPath)
 
   const [notesTree, setNotesTree] = useState<NotesTreeNode[]>([])
+  const hasNotes = flattenTreeToFiles(notesTree).length > 0
   const [hasProjectedTree, setHasProjectedTree] = useState(false)
   const noteByPathRef = useRef(noteByPath)
   const { activeNode } = useActiveNode(notesTree, activeFilePath)
@@ -115,7 +129,8 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
     version: treeVersion,
     treeId,
     isLoading: isTreeLoading,
-    error: treeError
+    error: treeError,
+    getNode
   } = useDirectoryTree(notesPath || undefined, NOTES_TREE_OPTIONS)
 
   // Surface tree-create failures (missing ripgrep, EACCES on the notes
@@ -306,39 +321,45 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [notesPath])
 
-  const shouldRetainMissingDraft =
-    hasProjectedTree && !isTreeLoading && Boolean(activeFilePath) && !activeNode && fileSession.isDirty
-  const editorNodeId = activeNode?.id ?? (shouldRetainMissingDraft ? activeFilePath : undefined)
+  const canTrustTreeSnapshot = Boolean(treeRoot) && treeId !== null && !isTreeLoading && !treeError
+  const lookupFileNode = (path: string) => {
+    const node = getNode(path) ?? getNode(normalizePathValue(path))
+    return node?.kind === 'file' ? node : null
+  }
+  const nodeInSnapshot = activeFilePath && canTrustTreeSnapshot ? lookupFileNode(activeFilePath) : null
+  const fileConfirmedMissing = canTrustTreeSnapshot && !!activeFilePath && !nodeInSnapshot
+  const retainMissingDraft = fileConfirmedMissing && fileSession.isDirty
+  const editorNodeId =
+    activeNode?.id ?? (activeFilePath && !(fileConfirmedMissing && !fileSession.isDirty) ? activeFilePath : undefined)
 
-  // 处理树同步时的状态管理
   useEffect(() => {
-    // 如果有activeFilePath但找不到对应节点，清空选择
-    // 但要排除正在同步树结构、重命名或创建笔记的情况，避免在这些操作中误清空
-    const shouldClearPath =
-      hasProjectedTree &&
-      !isTreeLoading &&
+    if (
+      canTrustTreeSnapshot &&
       activeFilePath &&
-      !activeNode &&
-      !shouldRetainMissingDraft &&
+      !nodeInSnapshot &&
+      fileSession.status !== 'loading' &&
+      !fileSession.isDirty &&
       !isRenamingRef.current &&
       !isCreatingNoteRef.current
-
-    if (shouldClearPath) {
+    ) {
       logger.warn('Clearing activeFilePath - node not found in tree', {
         activeFilePath,
         reason: 'Node not found in current tree'
       })
-      requestFileTransition(() => setActiveFilePath(undefined))
+      requestFileTransition(() => {
+        setActiveFilePath(undefined)
+        setLastOpenFilePath((prev) => (prev === activeFilePath ? null : prev))
+      })
     }
   }, [
-    notesTree,
-    hasProjectedTree,
-    isTreeLoading,
+    canTrustTreeSnapshot,
     activeFilePath,
-    activeNode,
-    shouldRetainMissingDraft,
+    nodeInSnapshot,
+    fileSession.status,
+    fileSession.isDirty,
     requestFileTransition,
-    setActiveFilePath
+    setActiveFilePath,
+    setLastOpenFilePath
   ])
 
   // Clear create/rename suppression once the new node appears in the tree.
@@ -647,6 +668,7 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
 
         if (isActiveNode || isActiveDescendant) {
           setActiveFilePath(undefined)
+          setLastOpenFilePath((prev) => (prev === activeFilePath ? null : prev))
           editorRef.current?.clear()
         }
 
@@ -669,6 +691,7 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
       removePath,
       restoreMetadataSnapshot,
       setActiveFilePath,
+      setLastOpenFilePath,
       t
     ]
   )
@@ -1120,7 +1143,7 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
               )}
             </div>
           )}
-          {shouldRetainMissingDraft && (
+          {retainMissingDraft && (
             <div
               role="alert"
               className="border-warning-border bg-warning-subtle text-warning-subtle-foreground shrink-0 border-b px-3 py-2 text-xs">
@@ -1132,6 +1155,7 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
           ) : (
             <NotesEditor
               key={`${fileSession.sessionId}:${fileSession.documentEpoch}`}
+              hasNotes={hasNotes}
               readOnly={fileSession.readOnly}
               activeNodeId={editorNodeId}
               voiceNoteId={activeNode?.type === 'file' ? voiceNoteId : undefined}

@@ -1,18 +1,23 @@
+import { createMockCacheService, mockCacheService, MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { addNote } from '@renderer/services/NotesService'
 import { toast } from '@renderer/services/toast'
-import type { RenameNote } from '@renderer/types/note'
+import type { NotesTreeNode, RenameNote } from '@renderer/types/note'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
+import { TreeFile } from '@shared/utils/file'
 
+import type NotesEditor from '../NotesEditor'
 import type { NotesEditorLoading } from '../NotesEditor'
 
 const mocks = vi.hoisted(() => {
-  const noteNode = {
+  const treeState: { treeRoot: object | null; treeId: string | null } = { treeRoot: {}, treeId: 'notes-tree' }
+  const noteNode: NotesTreeNode = {
     id: '/notes/note.md',
     name: 'note',
-    type: 'file' as const,
+    type: 'file',
     treePath: '/note',
     externalPath: '/notes/note.md',
     createdAt: '',
@@ -54,7 +59,6 @@ const mocks = vi.hoisted(() => {
     patchNode: vi.fn(),
     removePath: vi.fn(),
     rewritePath: vi.fn(),
-    setActiveFilePath: vi.fn(),
     settings: {
       isFullWidth: true,
       fontFamily: 'default',
@@ -65,16 +69,21 @@ const mocks = vi.hoisted(() => {
       showTabStatus: true
     },
     sortTree: vi.fn((nodes) => nodes),
-    t: (key: string) => key,
+    t: (key: string) =>
+      ({
+        'notes.empty': 'No notes available yet',
+        'notes.no_note_selected': 'Please select a note first',
+        'notes.new_note': 'Create a new note'
+      })[key] ?? key,
     toggleShowWorkspace: vi.fn(),
-    treeRoot: {},
+    ...treeState,
     treeVersion: 0,
     treeIsLoading: false,
     projectedNodes: [noteNode],
     updateNotesPath: vi.fn(),
     updateSettings: vi.fn(),
     updateSortType: vi.fn(),
-    activeFilePath: ['/notes/note.md'].at(0),
+    useRealEditor: false,
     noteNode
   }
 })
@@ -127,6 +136,13 @@ vi.mock('@cherrystudio/ui', async () => {
     PopoverContent: passthrough('div'),
     PopoverTrigger: ({ children }: any) => React.createElement('div', { 'data-testid': 'popover-trigger' }, children),
     RowFlex: passthrough('div'),
+    EmptyState: ({ title, actionLabel, onAction }: any) =>
+      React.createElement(
+        'div',
+        null,
+        React.createElement('h2', null, title),
+        onAction ? React.createElement('button', { type: 'button', onClick: onAction }, actionLabel) : null
+      ),
     Skeleton: (props: any) => React.createElement('div', { ...props, 'data-testid': 'skeleton' }),
     Tooltip: ({ children }: any) => children,
     ConfirmDialog: ({
@@ -177,9 +193,7 @@ vi.mock('@renderer/ipc', () => ({
   }
 }))
 
-vi.mock('@renderer/data/hooks/useCache', () => ({
-  useCache: () => [mocks.activeFilePath, mocks.setActiveFilePath]
-}))
+vi.unmock('@renderer/data/hooks/useCache')
 
 vi.mock('@renderer/hooks/useShowWorkspace', () => ({
   useShowWorkspace: () => ({
@@ -225,7 +239,7 @@ vi.mock('@renderer/hooks/useDirectoryTree', () => ({
     isLoading: mocks.treeIsLoading,
     error: null,
     version: mocks.treeVersion,
-    treeId: 'notes-tree',
+    treeId: mocks.treeId,
     getNode: mocks.getNode
   })
 }))
@@ -240,9 +254,9 @@ vi.mock('@renderer/hooks/useNote', () => ({
 }))
 
 vi.mock('@renderer/hooks/useFileEditSession', () => ({
-  useFileEditSession: () => ({
+  useFileEditSession: (handle: { path: string } | undefined) => ({
     status: mocks.sessionStatus,
-    sessionId: mocks.activeFilePath,
+    sessionId: handle?.path,
     documentEpoch: 1,
     readOnly: false,
     prepareMutation: mocks.prepareMutation,
@@ -275,7 +289,10 @@ vi.mock('@renderer/services/NotesService', () => ({
 }))
 
 vi.mock('../NotesEditor', async (importOriginal) => {
-  const original = await importOriginal<{ NotesEditorLoading: typeof NotesEditorLoading }>()
+  const original = await importOriginal<{
+    NotesEditorLoading: typeof NotesEditorLoading
+    default: typeof NotesEditor
+  }>()
   const React = await import('react')
 
   function MockNotesEditor({
@@ -284,7 +301,8 @@ vi.mock('../NotesEditor', async (importOriginal) => {
     currentContent,
     editorRef,
     onCreateNote,
-    onMarkdownChange
+    onMarkdownChange,
+    ...props
   }: any) {
     React.useEffect(() => {
       if (!activeNodeId) {
@@ -321,11 +339,25 @@ vi.mock('../NotesEditor', async (importOriginal) => {
       }
     }, [activeNodeId, codeEditorRef, editorRef, onMarkdownChange])
 
+    if (mocks.useRealEditor) {
+      return React.createElement(original.default, {
+        ...props,
+        activeNodeId,
+        codeEditorRef,
+        currentContent,
+        editorRef,
+        onCreateNote,
+        onMarkdownChange
+      })
+    }
+
     if (!activeNodeId) {
       return React.createElement(
         'div',
         { 'data-testid': 'notes-editor' },
-        onCreateNote ? React.createElement('button', { type: 'button', onClick: onCreateNote }, 'notes.new_note') : null
+        onCreateNote
+          ? React.createElement('button', { type: 'button', onClick: onCreateNote }, mocks.t('notes.new_note'))
+          : null
       )
     }
 
@@ -347,16 +379,21 @@ vi.mock('../NotesSettings', () => ({
 vi.mock('../NotesSidebar', () => ({
   default: ({
     onSelectNode,
+    onDeleteNode,
     onRenameNode,
     onLocateNoteLine
   }: {
     onSelectNode: (node: typeof mocks.noteNode) => void
+    onDeleteNode: (nodeId: string) => Promise<void>
     onRenameNode: RenameNote
     onLocateNoteLine: (noteId: string, match: { lineNumber: number; lineContent: string }) => void
   }) => {
     mocks.renameNote = onRenameNode
     return (
       <>
+        <button type="button" onClick={() => void onDeleteNode(mocks.noteNode.id)}>
+          delete current note
+        </button>
         <button type="button" onClick={() => onSelectNode(mocks.noteNode)}>
           select current note
         </button>
@@ -425,10 +462,31 @@ describe('NotesPage print payloads', () => {
     mocks.isActiveTab = true
     mocks.showWorkspace = false
     mocks.printShortcutLabel = 'Ctrl+P'
+    mocks.treeRoot = {}
     mocks.treeVersion = 0
+    mocks.treeId = 'notes-tree'
     mocks.treeIsLoading = false
     mocks.projectedNodes = [mocks.noteNode]
-    mocks.activeFilePath = '/notes/note.md'
+    mocks.getNode.mockReset().mockImplementation((path: string) => {
+      const find = (nodes: NotesTreeNode[]): NotesTreeNode | undefined => {
+        for (const node of nodes) {
+          if (node.externalPath === path) return node
+          const child = node.children && find(node.children)
+          if (child) return child
+        }
+        return undefined
+      }
+      const node = find(mocks.projectedNodes)
+      return node?.type === 'file' ? new TreeFile({ path }) : null
+    })
+    mocks.useRealEditor = false
+    MockCacheUtils.resetMocks()
+    MockCacheUtils.setInitialState({
+      memory: [['notes.active_file_path', '/notes/note.md']],
+      persist: [['notes.last_open_file_path', AbsoluteFilePathSchema.parse('/notes/note.md')]]
+    })
+    mockCacheService.setPersist.mockClear()
+    mockCacheService.set.mockClear()
 
     Object.assign(window, {
       api: {
@@ -442,6 +500,272 @@ describe('NotesPage print payloads', () => {
         }
       }
     })
+  })
+
+  it('restores the persisted note without selecting a row or clearing it while loading', async () => {
+    const path = AbsoluteFilePathSchema.parse('/notes/note.md')
+    MockCacheUtils.setInitialState({ persist: [['notes.last_open_file_path', path]] })
+    mockCacheService.setPersist.mockClear()
+    mockCacheService.set.mockClear()
+    mocks.treeRoot = null
+    mocks.treeIsLoading = true
+    mocks.sessionStatus = 'loading'
+    const { rerender } = render(<NotesPage />)
+
+    expect(mockCacheService.get('notes.active_file_path')).toBe(path)
+    expect(mockCacheService.getPersist('notes.last_open_file_path')).toBe(path)
+    mocks.treeRoot = {}
+    mocks.projectedNodes = []
+    rerender(<NotesPage />)
+    expect(mockCacheService.getPersist('notes.last_open_file_path')).toBe(path)
+
+    mocks.projectedNodes = [mocks.noteNode]
+    mocks.treeVersion += 1
+    mocks.treeIsLoading = false
+    mocks.sessionStatus = 'ready'
+    rerender(<NotesPage />)
+
+    await waitFor(() => expect(screen.getByDisplayValue('note')).toBeInTheDocument())
+    expect(screen.getByTestId('notes-editor')).toHaveAttribute('data-active-node-id', path)
+    expect(screen.getByTestId('notes-editor')).toHaveAttribute('data-current-content', 'saved content')
+    expect(mockCacheService.getPersist('notes.last_open_file_path')).toBe(path)
+  })
+
+  it('preserves the persisted selection when scanning finishes after an empty projection', async () => {
+    const path = AbsoluteFilePathSchema.parse('/notes/note.md')
+    mocks.projectedNodes = []
+    mocks.treeIsLoading = true
+    const { rerender } = render(<NotesPage />)
+
+    expect(mockCacheService.getPersist('notes.last_open_file_path')).toBe(path)
+
+    mocks.projectedNodes = [mocks.noteNode]
+    mocks.treeVersion += 1
+    mocks.treeIsLoading = false
+    rerender(<NotesPage />)
+
+    expect(mockCacheService.getPersist('notes.last_open_file_path')).toBe(path)
+    await waitFor(() => expect(screen.getByDisplayValue('note')).toBeInTheDocument())
+    expect(mockCacheService.getPersist('notes.last_open_file_path')).toBe(path)
+  })
+
+  it.each(['ready', 'error'])(
+    'waits for file-session loading to end in %s before clearing a missing note',
+    async (status) => {
+      const path = AbsoluteFilePathSchema.parse('/notes/note.md')
+      const { rerender } = await renderReadyNotesPage()
+
+      mocks.projectedNodes = []
+      mocks.treeVersion += 1
+      mocks.sessionStatus = 'loading'
+      rerender(<NotesPage />)
+
+      expect(mockCacheService.get('notes.active_file_path')).toBe(path)
+      expect(mockCacheService.getPersist('notes.last_open_file_path')).toBe(path)
+      expect(screen.getByRole('status')).toHaveTextContent('common.loading')
+
+      mocks.sessionStatus = status
+      rerender(<NotesPage />)
+
+      expect(mockCacheService.get('notes.active_file_path')).toBeUndefined()
+      expect(mockCacheService.getPersist('notes.last_open_file_path')).toBeNull()
+    }
+  )
+
+  it('keeps the editor on its path when the index recovers before the projected tree', async () => {
+    mocks.sessionIsDirty = true
+    mocks.sessionDraft = 'draft retained through reconnect'
+    mocks.projectedNodes = []
+    const { rerender } = render(<NotesPage />)
+    const editor = screen.getByTestId('notes-editor')
+    expect(editor).toHaveAttribute('data-active-node-id', '/notes/note.md')
+    expect(screen.getByRole('alert')).toHaveTextContent('notes.file_removed_draft')
+    fireEvent.compositionStart(editor)
+
+    mocks.getNode.mockReturnValue(new TreeFile({ path: '/notes/note.md' }))
+    rerender(<NotesPage />)
+
+    expect(screen.getByTestId('notes-editor')).toBe(editor)
+    expect(editor).toHaveAttribute('data-active-node-id', '/notes/note.md')
+    expect(editor).toHaveAttribute('data-current-content', 'draft retained through reconnect')
+    expect(screen.queryByRole('button', { name: 'Create a new note' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    fireEvent.compositionEnd(editor)
+  })
+
+  it('preserves selection when a stopped tree retains its old root but releases its index', async () => {
+    const { rerender } = await renderReadyNotesPage()
+
+    mocks.treeId = null
+    mocks.getNode.mockReturnValue(null)
+    rerender(<NotesPage />)
+
+    expect(mockCacheService.get('notes.active_file_path')).toBe('/notes/note.md')
+    expect(mockCacheService.getPersist('notes.last_open_file_path')).toBe('/notes/note.md')
+    expect(screen.getByTestId('notes-editor')).toHaveAttribute('data-active-node-id', '/notes/note.md')
+
+    mocks.treeId = 'reconnected-notes-tree'
+    rerender(<NotesPage />)
+
+    expect(mockCacheService.get('notes.active_file_path')).toBeUndefined()
+    expect(mockCacheService.getPersist('notes.last_open_file_path')).toBeNull()
+  })
+
+  it.each(['watcher removal', 'selected-note deletion'])(
+    "preserves another window's recovery path during %s",
+    async (cleanup) => {
+      mocks.showWorkspace = true
+      const user = userEvent.setup()
+      const { rerender } = await renderReadyNotesPage()
+      const otherPath = AbsoluteFilePathSchema.parse('/notes/other.md')
+      const otherWindow = createMockCacheService()
+      otherWindow.setPersist.mockImplementation((key, value) => mockCacheService.setPersist(key, value))
+      act(() => otherWindow.setPersist('notes.last_open_file_path', otherPath))
+
+      if (cleanup === 'watcher removal') {
+        mocks.projectedNodes = []
+        mocks.treeVersion += 1
+        rerender(<NotesPage />)
+      } else {
+        await user.click(screen.getByRole('button', { name: 'delete current note' }))
+      }
+
+      await waitFor(() => expect(mockCacheService.get('notes.active_file_path')).toBeUndefined())
+      expect(mockCacheService.getPersist('notes.last_open_file_path')).toBe(otherPath)
+    }
+  )
+
+  it('keeps selection and recovery while the root session is released and reconnected', async () => {
+    const path = AbsoluteFilePathSchema.parse('/notes/note.md')
+    const { rerender } = await renderReadyNotesPage()
+
+    mocks.treeIsLoading = true
+    rerender(<NotesPage />)
+
+    mocks.treeRoot = null
+    mocks.treeIsLoading = false
+    mocks.treeIsLoading = false
+    rerender(<NotesPage />)
+
+    expect(mockCacheService.get('notes.active_file_path')).toBe(path)
+    expect(mockCacheService.getPersist('notes.last_open_file_path')).toBe(path)
+
+    mocks.treeRoot = {}
+    mocks.treeVersion += 1
+    rerender(<NotesPage />)
+
+    expect(screen.getByTestId('notes-editor')).toHaveAttribute('data-active-node-id', path)
+    expect(screen.getByTestId('notes-editor')).toHaveAttribute('data-current-content', 'saved content')
+    expect(mockCacheService.get('notes.active_file_path')).toBe(path)
+    expect(mockCacheService.getPersist('notes.last_open_file_path')).toBe(path)
+  })
+
+  it('retains the dirty file session when a reconnect snapshot no longer contains the file', async () => {
+    mocks.sessionIsDirty = true
+    mocks.sessionDraft = 'draft written before reconnect'
+    const { rerender } = await renderReadyNotesPage()
+
+    mocks.treeIsLoading = true
+    rerender(<NotesPage />)
+
+    mocks.treeRoot = {}
+    mocks.projectedNodes = []
+    mocks.treeVersion += 1
+    mocks.treeIsLoading = false
+    rerender(<NotesPage />)
+
+    expect(mockCacheService.get('notes.active_file_path')).toBe('/notes/note.md')
+    expect(mockCacheService.getPersist('notes.last_open_file_path')).toBe('/notes/note.md')
+    expect(screen.getByRole('alert')).toHaveTextContent('notes.file_removed_draft')
+    expect(screen.getByTestId('notes-editor')).toHaveAttribute('data-active-node-id', '/notes/note.md')
+    expect(screen.getByTestId('notes-editor')).toHaveAttribute('data-current-content', 'draft written before reconnect')
+  })
+
+  it('isolates selection from another window and restores its last opened note only on mount', async () => {
+    const otherPath = AbsoluteFilePathSchema.parse('/notes/other.md')
+    mocks.projectedNodes = [
+      mocks.noteNode,
+      { ...mocks.noteNode, id: otherPath, externalPath: otherPath, name: 'other' }
+    ]
+    MockCacheUtils.setInitialState({
+      persist: [['notes.last_open_file_path', AbsoluteFilePathSchema.parse('/notes/note.md')]]
+    })
+    const view = await renderReadyNotesPage()
+    fireEvent.compositionStart(screen.getByTestId('notes-editor'))
+
+    // A separate renderer has private memory; only persist writes are relayed to this window.
+    const windowA = createMockCacheService()
+    windowA.setPersist.mockImplementation((key, value) => mockCacheService.setPersist(key, value))
+    act(() => {
+      windowA.set('notes.active_file_path', otherPath)
+      windowA.setPersist('notes.last_open_file_path', otherPath)
+    })
+
+    expect(windowA.get('notes.active_file_path')).toBe(otherPath)
+    expect(mockCacheService.getPersist('notes.last_open_file_path')).toBe(otherPath)
+    expect(screen.getByTestId('notes-editor')).toHaveAttribute('data-active-node-id', '/notes/note.md')
+    expect(mockCacheService.get('notes.active_file_path')).toBe('/notes/note.md')
+    fireEvent.compositionEnd(screen.getByTestId('notes-editor'))
+    expect(mockCacheService.get('notes.active_file_path')).toBe('/notes/note.md')
+
+    view.unmount()
+    mockCacheService.set('notes.active_file_path', undefined)
+    render(<NotesPage />)
+
+    expect(await screen.findByDisplayValue('other')).toBeInTheDocument()
+    expect(mockCacheService.get('notes.active_file_path')).toBe(otherPath)
+
+    act(() => {
+      mockCacheService.set('notes.active_file_path', undefined)
+      windowA.setPersist('notes.last_open_file_path', AbsoluteFilePathSchema.parse('/notes/note.md'))
+    })
+    expect(mockCacheService.get('notes.active_file_path')).toBeUndefined()
+    expect(screen.getByTestId('notes-editor')).not.toHaveAttribute('data-active-node-id')
+  })
+
+  it.each(['root', 'collapsed folder'])('asks for a selection with notes in the %s', async (location) => {
+    MockCacheUtils.setInitialState({ persist: [['notes.last_open_file_path', null]] })
+    mocks.useRealEditor = true
+    mocks.projectedNodes =
+      location === 'root'
+        ? [mocks.noteNode]
+        : [{ ...mocks.noteNode, id: '/notes/folder', type: 'folder', expanded: false, children: [mocks.noteNode] }]
+
+    render(<NotesPage />)
+
+    expect(await screen.findByText('Please select a note first')).toBeInTheDocument()
+    expect(screen.queryByText('No notes available yet')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Create a new note' })).toBeInTheDocument()
+  })
+
+  it.each(['empty tree', 'empty folder'])('shows the original empty state for an %s', async (shape) => {
+    MockCacheUtils.setInitialState({ persist: [['notes.last_open_file_path', null]] })
+    mocks.useRealEditor = true
+    mocks.projectedNodes = shape === 'empty tree' ? [] : [{ ...mocks.noteNode, type: 'folder', children: [] }]
+
+    render(<NotesPage />)
+
+    await act(async () => {})
+    expect(screen.getByText('No notes available yet')).toBeInTheDocument()
+    expect(screen.queryByText('Please select a note first')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Create a new note' })).toBeInTheDocument()
+  })
+
+  it('persists a cleared missing clean selection and does not restore it on remount', async () => {
+    MockCacheUtils.setInitialState({
+      persist: [['notes.last_open_file_path', AbsoluteFilePathSchema.parse('/notes/missing.md')]]
+    })
+    mocks.projectedNodes = []
+    mocks.useRealEditor = true
+    const view = render(<NotesPage />)
+
+    await waitFor(() => expect(mockCacheService.getPersist('notes.last_open_file_path')).toBeNull())
+    view.unmount()
+    render(<NotesPage />)
+
+    expect(screen.queryByDisplayValue('note')).not.toBeInTheDocument()
+    expect(screen.getByText('No notes available yet')).toBeInTheDocument()
+    expect(mockCacheService.getPersist('notes.last_open_file_path')).toBeNull()
   })
 
   it.each([
@@ -472,7 +796,7 @@ describe('NotesPage print payloads', () => {
     const onNoteOpened = vi.fn()
     const { rerender } = render(<NotesPage notePath="/notes/Topic (1).md" onNoteOpened={onNoteOpened} />)
     await waitFor(() => expect(mocks.editorReady).toHaveBeenCalled())
-    expect(mocks.setActiveFilePath).not.toHaveBeenCalled()
+    expect(mockCacheService.set).not.toHaveBeenCalled()
 
     mocks.projectedNodes = [
       mocks.noteNode,
@@ -480,7 +804,9 @@ describe('NotesPage print payloads', () => {
     ]
     mocks.treeVersion += 1
     rerender(<NotesPage notePath="/notes/Topic (1).md" onNoteOpened={onNoteOpened} />)
-    await waitFor(() => expect(mocks.setActiveFilePath).toHaveBeenCalledWith('/notes/Topic (1).md'))
+    await waitFor(() =>
+      expect(mockCacheService.set).toHaveBeenCalledWith('notes.active_file_path', '/notes/Topic (1).md')
+    )
     expect(onNoteOpened).toHaveBeenCalled()
     expect(mocks.discardSession).not.toHaveBeenCalled()
   })
@@ -488,7 +814,7 @@ describe('NotesPage print payloads', () => {
   it('does not open an arbitrary path outside the notes tree', async () => {
     render(<NotesPage notePath="/outside/private.md" />)
     await waitFor(() => expect(mocks.editorReady).toHaveBeenCalled())
-    expect(mocks.setActiveFilePath).not.toHaveBeenCalled()
+    expect(mockCacheService.set).not.toHaveBeenCalled()
   })
 
   it('cancels an unavailable note request when the user selects a different note', async () => {
@@ -499,7 +825,7 @@ describe('NotesPage print payloads', () => {
     await waitFor(() => expect(mocks.editorReady).toHaveBeenCalled())
     await user.click(screen.getByRole('button', { name: 'select current note' }))
     expect(onNoteOpened).toHaveBeenCalled()
-    expect(mocks.setActiveFilePath).not.toHaveBeenCalled()
+    expect(mockCacheService.set).not.toHaveBeenCalled()
   })
 
   it('applies a new note request to an already mounted page after composition ends', async () => {
@@ -512,9 +838,9 @@ describe('NotesPage print payloads', () => {
     ]
     mocks.treeVersion += 1
     rerender(<NotesPage notePath="/notes/other.md" />)
-    expect(mocks.setActiveFilePath).not.toHaveBeenCalled()
+    expect(mockCacheService.set).not.toHaveBeenCalled()
     fireEvent.compositionEnd(editor)
-    await waitFor(() => expect(mocks.setActiveFilePath).toHaveBeenCalledWith('/notes/other.md'))
+    await waitFor(() => expect(mockCacheService.set).toHaveBeenCalledWith('notes.active_file_path', '/notes/other.md'))
     expect(mocks.discardSession).not.toHaveBeenCalled()
   })
 
@@ -656,7 +982,7 @@ describe('NotesPage print payloads', () => {
     await renderReadyNotesPage()
     await user.click(screen.getByRole('button', { name: 'select other note' }))
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-    expect(mocks.setActiveFilePath).toHaveBeenCalledWith('/notes/other.md')
+    expect(mockCacheService.set).toHaveBeenCalledWith('notes.active_file_path', '/notes/other.md')
     expect(mocks.discardSession).not.toHaveBeenCalled()
   })
 
@@ -670,7 +996,7 @@ describe('NotesPage print payloads', () => {
     await user.click(screen.getByRole('button', { name: 'locate current note line' }))
 
     expect(mocks.richScrollToLine).toHaveBeenCalledWith(12, { highlight: true, lineContent: 'current hit' })
-    expect(mocks.setActiveFilePath).not.toHaveBeenCalled()
+    expect(mockCacheService.set).not.toHaveBeenCalled()
   })
 
   it('opens another note and scrolls to the search match once its content loads', async () => {
@@ -688,10 +1014,10 @@ describe('NotesPage print payloads', () => {
 
     await user.click(screen.getByRole('button', { name: 'locate other note line' }))
 
-    expect(mocks.setActiveFilePath).toHaveBeenCalledWith('/notes/other.md')
+    expect(mockCacheService.set).toHaveBeenCalledWith('notes.active_file_path', '/notes/other.md')
     expect(mocks.sourceScrollToLine).not.toHaveBeenCalled()
 
-    mocks.activeFilePath = '/notes/other.md'
+    act(() => mockCacheService.set('notes.active_file_path', AbsoluteFilePathSchema.parse('/notes/other.md')))
     rerender(<NotesPage />)
 
     await waitFor(() => expect(mocks.sourceScrollToLine).toHaveBeenCalledWith(7, { highlight: true }))
@@ -704,10 +1030,10 @@ describe('NotesPage print payloads', () => {
     const editor = screen.getByTestId('notes-editor')
     fireEvent.compositionStart(editor)
     await user.click(screen.getByRole('button', { name: 'select other note' }))
-    expect(mocks.setActiveFilePath).not.toHaveBeenCalledWith('/notes/other.md')
+    expect(mockCacheService.set).not.toHaveBeenCalledWith('notes.active_file_path', '/notes/other.md')
     fireEvent.compositionEnd(editor)
     await user.click(screen.getByRole('button', { name: 'select other note' }))
-    expect(mocks.setActiveFilePath).toHaveBeenCalledWith('/notes/other.md')
+    expect(mockCacheService.set).toHaveBeenCalledWith('notes.active_file_path', '/notes/other.md')
   })
 
   it('does not prompt or discard when reselecting the current dirty note', async () => {
@@ -721,7 +1047,7 @@ describe('NotesPage print payloads', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(mocks.discardSession).not.toHaveBeenCalled()
     expect(mocks.flushSession).not.toHaveBeenCalled()
-    expect(mocks.setActiveFilePath).not.toHaveBeenCalledWith('/notes/note.md')
+    expect(mockCacheService.set).not.toHaveBeenCalledWith('notes.active_file_path', '/notes/note.md')
   })
 
   it('keeps the draft when the conflict dialog is dismissed without reloading', async () => {
@@ -787,23 +1113,23 @@ describe('NotesPage print payloads', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(screen.getByTestId('notes-editor')).toHaveAttribute('data-current-content', 'recoverable draft')
     expect(mocks.discardSession).not.toHaveBeenCalled()
-    expect(mocks.setActiveFilePath).not.toHaveBeenCalledWith(undefined)
+    expect(mockCacheService.getPersist('notes.last_open_file_path')).toBe('/notes/note.md')
   })
 
   it('creates an untitled note from the empty editor using the canonical create flow', async () => {
-    mocks.activeFilePath = undefined
+    MockCacheUtils.setInitialState({ persist: [['notes.last_open_file_path', null]] })
     mocks.projectedNodes = []
     vi.mocked(addNote).mockResolvedValue({ path: '/notes/Untitled Note.md', name: 'Untitled Note' })
 
     render(<NotesPage />)
 
-    fireEvent.click(await screen.findByRole('button', { name: 'notes.new_note' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Create a new note' }))
 
     await waitFor(() => {
       expect(addNote).toHaveBeenCalledWith('notes.untitled_note', '', '/notes')
     })
     await waitFor(() => {
-      expect(mocks.setActiveFilePath).toHaveBeenCalledWith('/notes/Untitled Note.md')
+      expect(mockCacheService.set).toHaveBeenCalledWith('notes.active_file_path', '/notes/Untitled Note.md')
     })
   })
 
@@ -837,12 +1163,12 @@ describe('NotesPage print payloads', () => {
       })
     })
     expect(settled).toBe(false)
-    expect(mocks.setActiveFilePath).not.toHaveBeenCalledWith('/notes/Roadmap.md')
+    expect(mockCacheService.set).not.toHaveBeenCalledWith('notes.active_file_path', '/notes/Roadmap.md')
     await act(async () => {
       finish()
       expect(await operation).toEqual({ ok: true, name: 'Roadmap' })
     })
-    expect(mocks.setActiveFilePath).toHaveBeenCalledWith('/notes/Roadmap.md')
+    expect(mockCacheService.set).toHaveBeenCalledWith('notes.active_file_path', '/notes/Roadmap.md')
     expect(mocks.rewritePath).toHaveBeenCalledWith('/notes/note.md', '/notes/Roadmap.md', false)
     expect(toast.error).not.toHaveBeenCalled()
     expect(toast.success).not.toHaveBeenCalled()
@@ -875,7 +1201,7 @@ describe('NotesPage print payloads', () => {
       mocks.projectedNodes = []
       mocks.treeVersion += 1
       rerender(<NotesPage />)
-      await waitFor(() => expect(mocks.setActiveFilePath).toHaveBeenCalledWith(undefined))
+      await waitFor(() => expect(mockCacheService.getPersist('notes.last_open_file_path')).toBeNull())
     }
   )
 
@@ -908,7 +1234,7 @@ describe('NotesPage print payloads', () => {
           : 'notes.rename_failed'
     )
     expect(toast.success).not.toHaveBeenCalled()
-    expect(mocks.setActiveFilePath).not.toHaveBeenCalledWith('/notes/Roadmap.md')
+    expect(mockCacheService.set).not.toHaveBeenCalledWith('notes.active_file_path', '/notes/Roadmap.md')
     if (failure !== 'preparation') expect(mocks.finishMutation).toHaveBeenCalled()
     if (failure.includes('metadata')) {
       expect(window.api.file.move).toHaveBeenCalledWith('/notes/Roadmap.md', '/notes/note.md')

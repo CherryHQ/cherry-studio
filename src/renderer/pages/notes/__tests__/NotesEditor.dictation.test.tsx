@@ -30,6 +30,7 @@ function Note({ id = 'opaque-note-1', initialContent = 'alpha beta' }: { id?: st
   return (
     <>
       <NotesEditor
+        hasNotes={true}
         activeNodeId={`/private/${id}.md`}
         voiceNoteId={id}
         currentContent={content}
