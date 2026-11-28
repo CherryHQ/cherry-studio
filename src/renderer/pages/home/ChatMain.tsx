@@ -1,4 +1,4 @@
-import type { FC } from 'react'
+import { type FC, memo } from 'react'
 
 import MessageList from '@renderer/components/chat/messages/MessageList'
 import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
@@ -77,4 +77,4 @@ const ChatMain: FC<ChatMainProps> = ({
   )
 }
 
-export default ChatMain
+export default memo(ChatMain)

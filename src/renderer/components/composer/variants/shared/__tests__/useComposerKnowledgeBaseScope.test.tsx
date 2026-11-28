@@ -13,6 +13,7 @@ interface HarnessProps {
   allKnowledgeBases: KnowledgeBase[]
   isKnowledgeBasesLoading: boolean
   scopeKey: string
+  draftScopeKey?: string
   initialSelection?: KnowledgeBase[]
   initialKnowledgeBaseIds?: readonly string[]
   remountsOnScopeChange?: boolean
@@ -26,6 +27,7 @@ function useScopeHarness(props: HarnessProps) {
     allKnowledgeBases: props.allKnowledgeBases,
     isKnowledgeBasesLoading: props.isKnowledgeBasesLoading,
     scopeKey: props.scopeKey,
+    draftScopeKey: props.draftScopeKey,
     selectedKnowledgeBases,
     setSelectedKnowledgeBases,
     initialKnowledgeBaseIds: props.initialKnowledgeBaseIds ?? [],
@@ -215,6 +217,30 @@ describe('useComposerKnowledgeBaseScope', () => {
       act(() => result.current.syncKnowledgeBaseIds())
 
       expect(result.current.knowledgeBaseIdsRef.current).toEqual(['kb-gone'])
+    })
+
+    it('resets and hydrates the new draft scope when draftScopeKey changes in place', () => {
+      const { result, rerender } = renderHook((props: HarnessProps) => useScopeHarness(props), {
+        initialProps: {
+          ...loaded,
+          scopeKey: 'topic-1:agent-1',
+          draftScopeKey: 'topic-1',
+          initialKnowledgeBaseIds: [one.id]
+        }
+      })
+
+      expect(result.current.selectedKnowledgeBases).toEqual([one])
+
+      rerender({
+        ...loaded,
+        scopeKey: 'topic-2:agent-1',
+        draftScopeKey: 'topic-2',
+        initialKnowledgeBaseIds: [two.id]
+      })
+
+      expect(result.current.isKnowledgeBaseDraftHydrated).toBe(true)
+      expect(result.current.selectedKnowledgeBases).toEqual([two])
+      expect(result.current.knowledgeBaseIdsRef.current).toEqual([two.id])
     })
   })
 })

@@ -245,7 +245,6 @@ const Chat: FC<Props> = (props) => {
     centerSurface?.content ??
     (activeTopic ? (
       <ChatContent
-        key={activeTopic.id}
         topic={activeTopic}
         onOpenCitationsPanel={handleOpenCitationsPanel}
         onNewTopic={props.onNewTopic}
@@ -264,7 +263,7 @@ const Chat: FC<Props> = (props) => {
       // the empty center rather than spinning forever. Same split as AgentChat.
       <ConversationCenterState state={props.topicPending ? 'loading' : 'empty'} />
     ))
-  // ChatContent is keyed by topic; keep width-derived layout state outside that remount boundary.
+  // Keep width-derived layout state outside ChatContent so topic switches reuse it in-place.
   const center = <ChatLayoutModeProvider>{centerContent}</ChatLayoutModeProvider>
 
   return (

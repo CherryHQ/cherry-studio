@@ -1,5 +1,5 @@
-import type { FC } from 'react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { ComponentProps, FC } from 'react'
+import { Activity, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import useSWR from 'swr'
 
@@ -36,6 +36,9 @@ import { findContextWindowBoundary } from './messages/contextWindowBoundary'
 import { ContextWindowDivider } from './messages/ContextWindowDivider'
 import type { AddNewTopicPayload } from './types'
 import { useChatRuntimeState } from './useChatRuntimeState'
+
+const WARM_TOPIC_CAPACITY = 3
+type ChatMainProps = ComponentProps<typeof ChatMain>
 
 interface Props {
   topic: Topic
@@ -291,7 +294,7 @@ const ChatContentInner: FC<InnerProps> = ({
     if (isHistoryLoading || isHistoryStale) return
     const targetLoaded = uiMessages.some((message) => message.id === locateMessageId)
     if (!targetLoaded && !locateToEnd && hasOlder) {
-      const requestKey = `${locateMessageId}:${uiMessages.length}`
+      const requestKey = `${topic.id}:${locateMessageId}:${uiMessages.length}`
       if (locateLoadRequestRef.current !== requestKey) {
         locateLoadRequestRef.current = requestKey
         loadOlder()
@@ -312,8 +315,61 @@ const ChatContentInner: FC<InnerProps> = ({
     locateToEnd,
     locateRuntimeMessage,
     onLocateMessageHandled,
+    topic.id,
     uiMessages
   ])
+
+  const [warmTopicIds, setWarmTopicIds] = useState<string[]>(() => [topic.id])
+  const lruOrderRef = useRef<string[]>([topic.id])
+  const warmChatMainPropsRef = useRef(new Map<string, ChatMainProps>())
+
+  let renderedTopicIds = warmTopicIds
+  if (!warmTopicIds.includes(topic.id)) {
+    if (warmTopicIds.length < WARM_TOPIC_CAPACITY) {
+      renderedTopicIds = [...warmTopicIds, topic.id]
+    } else {
+      const evictedId =
+        lruOrderRef.current.find((id) => id !== topic.id && warmTopicIds.includes(id)) ?? warmTopicIds[0]
+      renderedTopicIds = [...warmTopicIds.filter((id) => id !== evictedId), topic.id]
+    }
+    setWarmTopicIds(renderedTopicIds)
+  }
+
+  const activeChatMainProps: ChatMainProps = {
+    topic,
+    assistant,
+    messages: runtime.messages,
+    partsByMessageId: runtime.partsByMessageId,
+    streamingLayers: runtime.streamingLayers,
+    onBindRuntime: runtime.bindMessageListRuntime,
+    isInitialLoading: isHistoryLoading,
+    isMessagesStale: isHistoryStale,
+    loadOlder,
+    hasOlder,
+    selectAllPagination,
+    openCitationsPanel: onOpenCitationsPanel,
+    addGeneratedImageToComposer: supportsImageInput ? addGeneratedImageToComposer : undefined,
+    onStartBranchDraft: reserveBranch,
+    messageHead: contextWindowSlots.messageHead,
+    afterMessages: contextWindowSlots.afterMessages
+  }
+
+  // Keep already-warm slot props intact across transient stale frames until fresh topic history settles.
+  const cachedActiveProps = warmChatMainPropsRef.current.get(topic.id)
+  const resolvedActiveProps = isHistoryStale && cachedActiveProps ? cachedActiveProps : activeChatMainProps
+  if (!(isHistoryStale && cachedActiveProps)) {
+    warmChatMainPropsRef.current.set(topic.id, activeChatMainProps)
+  }
+
+  useLayoutEffect(() => {
+    const activeSet = new Set(renderedTopicIds)
+    lruOrderRef.current = [...lruOrderRef.current.filter((id) => id !== topic.id && activeSet.has(id)), topic.id]
+    for (const cachedId of warmChatMainPropsRef.current.keys()) {
+      if (!activeSet.has(cachedId)) {
+        warmChatMainPropsRef.current.delete(cachedId)
+      }
+    }
+  }, [renderedTopicIds, topic.id])
 
   const isEmptyConversation = !isHistoryLoading && runtime.messages.length === 0
   const main = (
@@ -327,25 +383,16 @@ const ChatContentInner: FC<InnerProps> = ({
           />
         </div>
       )}
-      <ChatMain
-        key={topic.id}
-        topic={topic}
-        assistant={assistant}
-        messages={runtime.messages}
-        partsByMessageId={runtime.partsByMessageId}
-        streamingLayers={runtime.streamingLayers}
-        onBindRuntime={runtime.bindMessageListRuntime}
-        isInitialLoading={isHistoryLoading}
-        isMessagesStale={isHistoryStale}
-        loadOlder={loadOlder}
-        hasOlder={hasOlder}
-        selectAllPagination={selectAllPagination}
-        openCitationsPanel={onOpenCitationsPanel}
-        addGeneratedImageToComposer={supportsImageInput ? addGeneratedImageToComposer : undefined}
-        onStartBranchDraft={reserveBranch}
-        messageHead={contextWindowSlots.messageHead}
-        afterMessages={contextWindowSlots.afterMessages}
-      />
+      {renderedTopicIds.map((slotTopicId) => {
+        const isSlotActive = slotTopicId === topic.id
+        const slotProps = isSlotActive ? resolvedActiveProps : warmChatMainPropsRef.current.get(slotTopicId)
+        if (!slotProps) return null
+        return (
+          <Activity key={slotTopicId} mode={isSlotActive ? 'visible' : 'hidden'}>
+            <ChatMain {...slotProps} />
+          </Activity>
+        )
+      })}
     </div>
   )
   const composer = runtime.shouldRenderHomeComposer ? (
@@ -384,7 +431,7 @@ const ChatContentInner: FC<InnerProps> = ({
   return (
     <ChatWriteProvider value={runtime.chatWriteActions}>
       <SiblingsProvider value={siblingsContextValue}>
-        <MessageEditingProvider>
+        <MessageEditingProvider scopeKey={topic.id}>
           <ConversationStageCenter placement={placement} main={main} composer={composer} />
           <ResourceEditDialogEventHost />
         </MessageEditingProvider>

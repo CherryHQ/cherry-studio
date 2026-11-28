@@ -172,13 +172,22 @@ vi.mock('react-hotkeys-hook', () => ({
   useHotkeys: vi.fn()
 }))
 
+const mockChatContentLifecycle = vi.hoisted(() => ({ mounts: 0, unmounts: 0 }))
+
 vi.mock('../ChatContent', async () => {
+  const { useEffect } = await import('react')
   const { useChatLayoutMode } = await vi.importActual<typeof ChatLayoutModeContextModule>(
     '@renderer/components/chat/layout/ChatLayoutModeContext'
   )
 
   function MockChatContent(props: any) {
     chatContentProps.current = props
+    useEffect(() => {
+      mockChatContentLifecycle.mounts += 1
+      return () => {
+        mockChatContentLifecycle.unmounts += 1
+      }
+    }, [])
     const { railGutterPx, setRailGutterPx } = useChatLayoutMode()
 
     return (
@@ -280,5 +289,18 @@ describe('Chat', () => {
     render(<Chat activeTopic={topic} />)
 
     expect(commandHandlers.has('topic.clear_messages')).toBe(false)
+  })
+
+  it('keeps ChatContent mounted in-place when activeTopic switches', () => {
+    mockChatContentLifecycle.mounts = 0
+    mockChatContentLifecycle.unmounts = 0
+
+    const view = render(<Chat activeTopic={topic} />)
+    expect(mockChatContentLifecycle).toEqual({ mounts: 1, unmounts: 0 })
+    expect(chatContentProps.current.topic.id).toBe('topic-1')
+
+    view.rerender(<Chat activeTopic={{ ...topic, id: 'topic-2' }} />)
+    expect(mockChatContentLifecycle).toEqual({ mounts: 1, unmounts: 0 })
+    expect(chatContentProps.current.topic.id).toBe('topic-2')
   })
 })

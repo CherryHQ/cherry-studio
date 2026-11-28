@@ -1582,4 +1582,60 @@ describe('ChatContent', () => {
     expect(mockEventEmit).toHaveBeenCalledWith('LOCATE_MESSAGE:target-message', true)
     expect(onLocateMessageHandled).toHaveBeenCalledTimes(1)
   })
+
+  it('keeps up to 3 recent topics mounted in Activity slots and evicts the least-recently-used topic on the 4th', () => {
+    const makeTopic = (id: string) => ({
+      ...topic,
+      id
+    })
+
+    mockUseTopicMessages.mockImplementation((topicId?: string) => ({
+      uiMessages: [createUiMessage(`msg-${topicId ?? 'unknown'}`, 'assistant')],
+      siblingsMap: {},
+      isLoading: false,
+      isStale: false,
+      refresh: vi.fn().mockResolvedValue([]),
+      activeNodeId: `msg-${topicId ?? 'unknown'}`,
+      loadOlder: vi.fn(),
+      hasOlder: false,
+      mutate: vi.fn()
+    }))
+
+    const view = render(<ChatContent topic={makeTopic('topic-a')} />)
+    const getRenderedMessageIds = () =>
+      Array.from(view.container.querySelectorAll('[data-testid="messages"]')).map((node) => ({
+        text: node.textContent,
+        hidden: (node as HTMLElement).style.display === 'none'
+      }))
+
+    expect(getRenderedMessageIds()).toEqual([{ text: 'msg-topic-a', hidden: false }])
+
+    view.rerender(<ChatContent topic={makeTopic('topic-b')} />)
+    expect(getRenderedMessageIds()).toEqual([
+      { text: 'msg-topic-a', hidden: true },
+      { text: 'msg-topic-b', hidden: false }
+    ])
+
+    // Switch back to topic-a to promote it as MRU; sibling DOM order must remain stable
+    view.rerender(<ChatContent topic={makeTopic('topic-a')} />)
+    expect(getRenderedMessageIds()).toEqual([
+      { text: 'msg-topic-a', hidden: false },
+      { text: 'msg-topic-b', hidden: true }
+    ])
+
+    view.rerender(<ChatContent topic={makeTopic('topic-c')} />)
+    expect(getRenderedMessageIds()).toEqual([
+      { text: 'msg-topic-a', hidden: true },
+      { text: 'msg-topic-b', hidden: true },
+      { text: 'msg-topic-c', hidden: false }
+    ])
+
+    // 4th distinct topic evicts LRU (topic-b) while preserving topic-a and topic-c
+    view.rerender(<ChatContent topic={makeTopic('topic-d')} />)
+    expect(getRenderedMessageIds()).toEqual([
+      { text: 'msg-topic-a', hidden: true },
+      { text: 'msg-topic-c', hidden: true },
+      { text: 'msg-topic-d', hidden: false }
+    ])
+  })
 })
