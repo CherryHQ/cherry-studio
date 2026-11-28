@@ -2,7 +2,6 @@ import * as z from 'zod'
 
 import {
   ModelSettingsDecisionSchema,
-  ModelSettingsDocumentSchema,
   ModelSettingsImportPreviewSchema,
   ModelSettingsImportResultSchema
 } from '@shared/types/modelSettingsBackup'
@@ -20,7 +19,7 @@ export const modelSettingsRequestSchemas = {
   }),
   'model_settings.import_apply': defineRoute({
     input: z.object({
-      document: ModelSettingsDocumentSchema,
+      handle: z.string().min(1),
       decisions: z.record(z.string(), ModelSettingsDecisionSchema)
     }),
     output: ModelSettingsImportResultSchema

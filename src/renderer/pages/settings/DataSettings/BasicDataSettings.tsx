@@ -1,6 +1,6 @@
 import { FolderOpen, FolderOutput, SaveIcon } from 'lucide-react'
 import type React from 'react'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -53,6 +53,8 @@ const logger = loggerService.withContext('BasicDataSettings')
 
 const BasicDataSettings: React.FC = () => {
   const { t } = useTranslation()
+  const modelSettingsImportActive = useRef(false)
+  const [importingModelSettings, setImportingModelSettings] = useState(false)
   const [appInfo, setAppInfo] = useState<AppInfo>()
   const [cacheSize, setCacheSize] = useState<CacheCleanupSizeSnapshot | null>()
   const [clearingCache, setClearingCache] = useState(false)
@@ -298,6 +300,9 @@ const BasicDataSettings: React.FC = () => {
   }
 
   const handleImportModelSettings = async () => {
+    if (modelSettingsImportActive.current) return
+    modelSettingsImportActive.current = true
+    setImportingModelSettings(true)
     try {
       const preview = await ipcApi.request('model_settings.import_preview')
       if (!preview) return
@@ -306,9 +311,21 @@ const BasicDataSettings: React.FC = () => {
         preview.conflicts.length > 0 ? await ModelSettingsConflictPopup.show({ conflicts: preview.conflicts }) : {}
       if (decisions === null) return
 
-      const result = await ipcApi.request('model_settings.import_apply', { document: preview.document, decisions })
+      const result = await ipcApi.request('model_settings.import_apply', { handle: preview.handle, decisions })
       if (result.failed.length > 0) {
         toast.warning(t('settings.data.model_settings.import_partial', { count: result.failed.length }))
+        await popup.info({
+          title: t('settings.data.model_settings.import_error'),
+          content: (
+            <ul className="max-h-80 list-disc space-y-2 overflow-y-auto break-all pl-5">
+              {result.failed.map((failure, index) => (
+                <li key={`${failure.kind}:${failure.id}:${index}`}>
+                  {failure.kind}: {failure.id}, {failure.reason}
+                </li>
+              ))}
+            </ul>
+          )
+        })
       } else {
         toast.success(
           t('settings.data.model_settings.import_success', {
@@ -320,6 +337,9 @@ const BasicDataSettings: React.FC = () => {
       }
     } catch (error) {
       toast.error(t('settings.data.model_settings.import_error'))
+    } finally {
+      modelSettingsImportActive.current = false
+      setImportingModelSettings(false)
     }
   }
 
@@ -349,7 +369,7 @@ const BasicDataSettings: React.FC = () => {
               <SaveIcon size={14} />
               {t('settings.data.model_settings.export_button')}
             </Button>
-            <Button onClick={handleImportModelSettings} variant="outline">
+            <Button onClick={handleImportModelSettings} disabled={importingModelSettings} variant="outline">
               <FolderOpen size={14} />
               {t('settings.data.model_settings.import_button')}
             </Button>

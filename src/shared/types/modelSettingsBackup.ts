@@ -2,13 +2,24 @@ import * as z from 'zod'
 
 import { CreateModelSchema } from '@shared/data/api/schemas/models'
 import { CreateProviderSchema } from '@shared/data/api/schemas/providers'
+import { ENDPOINT_TYPE, objectValues } from '@shared/data/types/model'
+import { EndpointConfigOverrideSchema } from '@shared/data/types/provider'
 
 export const MODEL_SETTINGS_FORMAT = 'cherry-studio-model-settings' as const
 export const MODEL_SETTINGS_VERSION = 1 as const
 export const MODEL_SETTINGS_MAX_FILE_BYTES = 10 * 1024 * 1024
 
 const ExportedProviderSchema = CreateProviderSchema.omit({ logo: true }).extend({
-  isEnabled: z.boolean().optional()
+  isEnabled: z.boolean().optional(),
+  // Only backups may carry the legacy routing hints of migrated custom relays.
+  endpointConfigs: z
+    .partialRecord(
+      z.enum(objectValues(ENDPOINT_TYPE)),
+      EndpointConfigOverrideSchema.extend({
+        adapterFamily: z.enum(['newapi', 'gateway']).optional()
+      })
+    )
+    .optional()
 })
 
 const ExportedModelSchema = CreateModelSchema.extend({
@@ -37,7 +48,7 @@ export const ModelSettingsConflictSchema = z.object({
 export type ModelSettingsConflict = z.infer<typeof ModelSettingsConflictSchema>
 
 export const ModelSettingsImportPreviewSchema = z.object({
-  document: ModelSettingsDocumentSchema,
+  handle: z.string().min(1),
   conflicts: z.array(ModelSettingsConflictSchema)
 })
 export type ModelSettingsImportPreview = z.infer<typeof ModelSettingsImportPreviewSchema>

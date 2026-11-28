@@ -550,6 +550,28 @@ class ProviderService {
     return rowToRuntimeProvider(row)
   }
 
+  /** Main-only backup restore. Normal renderer DTOs never accept adapter-family provenance. */
+  restoreBackupEndpointHints(
+    providerId: string,
+    configs: Partial<Record<EndpointType, StoredEndpointConfigOverride>> | undefined
+  ): void {
+    if (!configs) return
+    application.get('DbService').withWriteTx((tx) => {
+      const [row] = tx.select().from(userProviderTable).where(eq(userProviderTable.providerId, providerId)).all()
+      if (!row || row.presetProviderId !== null || isManagedCherryProviderId(providerId)) return
+      const endpointConfigs = { ...row.endpointConfigs }
+      for (const [endpoint, config] of Object.entries(configs)) {
+        const family = config?.adapterFamily
+        if (family !== 'newapi' && family !== 'gateway') continue
+        endpointConfigs[endpoint as EndpointType] = {
+          ...endpointConfigs[endpoint as EndpointType],
+          adapterFamily: family
+        }
+      }
+      tx.update(userProviderTable).set({ endpointConfigs }).where(eq(userProviderTable.providerId, providerId)).run()
+    })
+  }
+
   /**
    * Update an existing provider. Enabling or disabling does not change
    * `orderKey`; callers that want a new position must use `move` / `reorder`.

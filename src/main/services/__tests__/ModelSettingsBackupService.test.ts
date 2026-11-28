@@ -140,19 +140,133 @@ describe('ModelSettingsBackupService', () => {
     writeFileSync(filePath, JSON.stringify(document([relayProvider('Remote')], [relayModel()])))
     dialogMock.showOpenDialog.mockResolvedValue({ canceled: false, filePaths: [filePath] })
 
-    const preview = await modelSettingsBackupService.pickImportFile()
+    const preview = await modelSettingsBackupService.pickImportFile('test-sender')
     expect(preview?.conflicts.map((conflict) => conflict.key)).toEqual(['provider:relay', 'model:relay::gpt'])
 
-    const skipped = modelSettingsBackupService.applyImport(preview!.document, {})
+    const skipped = modelSettingsBackupService.applyPreview(preview!.handle, {}, 'test-sender')
     expect(skipped).toMatchObject({ created: 0, replaced: 0, skipped: 2 })
     expect(dbh.db.select().from(userProviderTable).all()[0].name).toBe('Relay')
 
-    const replaced = modelSettingsBackupService.applyImport(preview!.document, {
-      'provider:relay': 'replace',
-      'model:relay::gpt': 'replace'
-    })
+    const nextPreview = await modelSettingsBackupService.pickImportFile('test-sender')
+    const replaced = modelSettingsBackupService.applyPreview(
+      nextPreview!.handle,
+      {
+        'provider:relay': 'replace',
+        'model:relay::gpt': 'replace'
+      },
+      'test-sender'
+    )
     expect(replaced).toMatchObject({ created: 0, replaced: 2, skipped: 0 })
     expect(dbh.db.select().from(userProviderTable).all()[0].name).toBe('Remote')
+  })
+
+  it.each(['newapi', 'gateway'] as const)('restores a migrated custom %s relay routing hint', async (adapterFamily) => {
+    seedRelay()
+    dbh.db
+      .update(userProviderTable)
+      .set({ endpointConfigs: { 'openai-chat-completions': { adapterFamily, baseUrl: 'https://relay.test/v1' } } })
+      .run()
+    const filePath = path.join(workDir, 'relay.json')
+    dialogMock.showSaveDialog.mockResolvedValue({ canceled: false, filePath })
+    await modelSettingsBackupService.exportToFile()
+    const exported = ModelSettingsDocumentSchema.parse(JSON.parse(readFileSync(filePath, 'utf-8')))
+    dbh.db.delete(userModelTable).run()
+    dbh.db.delete(userProviderTable).run()
+    expect(modelSettingsBackupService.applyImport(exported, {}).failed).toEqual([])
+    const { providerService } = await import('@data/services/ProviderService')
+    expect(providerService.getByProviderId('relay').endpointConfigs?.['openai-chat-completions']?.adapterFamily).toBe(
+      adapterFamily
+    )
+  })
+
+  it('keeps credentials in Main and binds single-use handles to the requesting sender', async () => {
+    const filePath = path.join(workDir, 'private.json')
+    writeFileSync(filePath, JSON.stringify(document([relayProvider('Remote')])))
+    dialogMock.showOpenDialog.mockResolvedValue({ canceled: false, filePaths: [filePath] })
+    const preview = await modelSettingsBackupService.pickImportFile('owner')
+    expect(preview).not.toHaveProperty('document')
+    expect(JSON.stringify(preview)).not.toContain('sk-relay')
+    expect(() => modelSettingsBackupService.applyPreview(preview!.handle, {}, 'other')).toThrow()
+    expect(modelSettingsBackupService.applyPreview(preview!.handle, {}, 'owner').created).toBe(1)
+    expect(() => modelSettingsBackupService.applyPreview(preview!.handle, {}, 'owner')).toThrow()
+  })
+
+  it('expires retained previews', async () => {
+    const filePath = path.join(workDir, 'expired.json')
+    writeFileSync(filePath, JSON.stringify(document([])))
+    dialogMock.showOpenDialog.mockResolvedValue({ canceled: false, filePaths: [filePath] })
+    const preview = await modelSettingsBackupService.pickImportFile('owner')
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 11 * 60_000)
+    try {
+      expect(() => modelSettingsBackupService.applyPreview(preview!.handle, {}, 'owner')).toThrow()
+    } finally {
+      clock.mockRestore()
+    }
+  })
+
+  it('never exports notes, and Replace preserves local notes even if the file supplies them', async () => {
+    seedRelay()
+    dbh.db
+      .update(userProviderTable)
+      .set({ providerSettings: { notes: 'private local note' } })
+      .run()
+    const filePath = path.join(workDir, 'notes.json')
+    dialogMock.showSaveDialog.mockResolvedValue({ canceled: false, filePath })
+    await modelSettingsBackupService.exportToFile()
+    expect(readFileSync(filePath, 'utf-8')).not.toContain('private local note')
+    modelSettingsBackupService.applyImport(
+      document([{ ...relayProvider('Remote'), providerSettings: { notes: 'incoming note' } }]),
+      { 'provider:relay': 'replace' }
+    )
+    expect(dbh.db.select().from(userProviderTable).all()[0].providerSettings?.notes).toBe('private local note')
+  })
+
+  it.each([false, true])('round-trips the explicit-empty input modality distinction: %s', async (explicit) => {
+    seedRelay()
+    dbh.db.update(userModelTable).set({ inputModalities: [], inputModalitiesExplicit: explicit }).run()
+    const filePath = path.join(workDir, 'modalities.json')
+    dialogMock.showSaveDialog.mockResolvedValue({ canceled: false, filePath })
+    await modelSettingsBackupService.exportToFile()
+    const exported = ModelSettingsDocumentSchema.parse(JSON.parse(readFileSync(filePath, 'utf-8')))
+    expect(exported.models[0].inputModalities).toEqual(explicit ? [] : undefined)
+    dbh.db
+      .update(userModelTable)
+      .set({ inputModalities: ['text'], inputModalitiesExplicit: true })
+      .run()
+    modelSettingsBackupService.applyImport(exported, { 'model:relay::gpt': 'replace' })
+    const row = dbh.db.select().from(userModelTable).all()[0]
+    expect(row.inputModalitiesExplicit).toBe(explicit)
+    expect(row.inputModalities).toEqual(explicit ? [] : null)
+  })
+
+  it('rejects every invalid ID before any provider write', () => {
+    expect(() =>
+      modelSettingsBackupService.applyImport(
+        document([relayProvider('Remote')], [relayModel({ modelId: 'bad?route' })]),
+        {}
+      )
+    ).toThrow()
+    expect(dbh.db.select().from(userProviderTable).all()).toEqual([])
+  })
+
+  it('does not echo credential bytes from malformed JSON', async () => {
+    const filePath = path.join(workDir, 'malformed.json')
+    writeFileSync(filePath, '{"apiKeys": "sensitive-credential", broken')
+    dialogMock.showOpenDialog.mockResolvedValue({ canceled: false, filePaths: [filePath] })
+    await expect(modelSettingsBackupService.pickImportFile('owner')).rejects.toThrow('Invalid model settings JSON')
+  })
+
+  it('rejects oversized exports before touching the destination', async () => {
+    seedRelay()
+    dbh.db
+      .update(userProviderTable)
+      .set({ name: 'x'.repeat(10 * 1024 * 1024) })
+      .run()
+    const filePath = path.join(workDir, 'too-large.json')
+    writeFileSync(filePath, 'original')
+    dialogMock.showSaveDialog.mockResolvedValue({ canceled: false, filePath })
+    await expect(modelSettingsBackupService.exportToFile()).rejects.toThrow('10 MiB')
+    expect(readFileSync(filePath, 'utf-8')).toBe('original')
   })
 
   it('clears a nullable model limit that the replacing file omits', () => {

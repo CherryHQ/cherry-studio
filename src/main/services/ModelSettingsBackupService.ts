@@ -1,7 +1,8 @@
+import { randomUUID } from 'node:crypto'
 import fs from 'node:fs/promises'
 
 import dayjs from 'dayjs'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { type BrowserWindow, dialog } from 'electron'
 
 import { application } from '@application'
@@ -53,11 +54,24 @@ function toExportedProvider(row: UserProviderRow): ExportedProvider {
     providerId: row.providerId,
     presetProviderId: row.presetProviderId ?? undefined,
     name: row.name,
-    endpointConfigs: row.endpointConfigs ?? undefined,
+    endpointConfigs: row.endpointConfigs
+      ? Object.fromEntries(
+          Object.entries(row.endpointConfigs).map(([endpoint, config]) => [
+            endpoint,
+            {
+              ...config,
+              adapterFamily:
+                !row.presetProviderId && (config?.adapterFamily === 'newapi' || config?.adapterFamily === 'gateway')
+                  ? config.adapterFamily
+                  : undefined
+            }
+          ])
+        )
+      : undefined,
     defaultChatEndpoint: row.defaultChatEndpoint ?? undefined,
     apiKeys: row.apiKeys ?? undefined,
     authConfig: row.authConfig ?? undefined,
-    providerSettings: row.providerSettings ?? undefined,
+    providerSettings: row.providerSettings ? withoutKeys(row.providerSettings, ['notes']) : undefined,
     isEnabled: row.isEnabled
   }
 }
@@ -71,7 +85,8 @@ function toExportedModel(row: UserModelRow): ExportedModel {
     description: row.description ?? undefined,
     group: row.group ?? undefined,
     capabilities: row.capabilities ?? undefined,
-    inputModalities: row.inputModalities ?? undefined,
+    inputModalities:
+      row.inputModalitiesExplicit || row.inputModalities?.length ? (row.inputModalities ?? undefined) : undefined,
     outputModalities: row.outputModalities ?? undefined,
     endpointTypes: row.endpointTypes ?? undefined,
     contextWindow: row.contextWindow ?? undefined,
@@ -96,6 +111,30 @@ function lookupRegistryForCreate(providerId: string, modelId: string) {
 }
 
 class ModelSettingsBackupService {
+  private readonly previews = new Map<
+    string,
+    { senderId: string; expiresAt: number; document: ModelSettingsDocument }
+  >()
+
+  private prunePreviews(): void {
+    for (const [handle, preview] of this.previews) {
+      if (preview.expiresAt <= Date.now()) this.previews.delete(handle)
+    }
+  }
+
+  applyPreview(
+    handle: string,
+    decisions: Record<string, ModelSettingsDecision>,
+    senderId?: string | null
+  ): ModelSettingsImportResult {
+    this.prunePreviews()
+    const preview = this.previews.get(handle)
+    if (!senderId || !preview || preview.senderId !== senderId)
+      throw new Error('Model settings preview expired or unavailable')
+    this.previews.delete(handle)
+    return this.applyImport(preview.document, decisions)
+  }
+
   async exportToFile(senderId?: string | null): Promise<{ filePath: string | null }> {
     const parent = this.resolveParent(senderId)
     const options = {
@@ -109,7 +148,11 @@ class ModelSettingsBackupService {
     if (canceled || !filePath) return { filePath: null }
 
     const document = this.buildDocument()
-    await fs.writeFile(filePath, JSON.stringify(document, null, 2), 'utf-8')
+    const serialized = JSON.stringify(document, null, 2)
+    if (Buffer.byteLength(serialized, 'utf-8') > MODEL_SETTINGS_MAX_FILE_BYTES) {
+      throw new Error('model settings file exceeds the 10 MiB limit')
+    }
+    await fs.writeFile(filePath, serialized, 'utf-8')
     logger.info('Exported model settings', { providers: document.providers.length, models: document.models.length })
     return { filePath }
   }
@@ -131,11 +174,31 @@ class ModelSettingsBackupService {
     if (size > MODEL_SETTINGS_MAX_FILE_BYTES) {
       throw new Error('model settings file exceeds the 10 MiB limit')
     }
-    const parsed = ModelSettingsDocumentSchema.safeParse(JSON.parse(await fs.readFile(filePath, 'utf-8')))
-    if (!parsed.success) {
-      throw new Error(`invalid model settings file: ${parsed.error.issues[0]?.message ?? 'unknown'}`)
+    let decoded: unknown
+    try {
+      const bytes = await fs.readFile(filePath)
+      if (bytes.byteLength > MODEL_SETTINGS_MAX_FILE_BYTES) throw new Error('Invalid model settings file size')
+      decoded = JSON.parse(bytes.toString('utf-8'))
+    } catch {
+      // Parser messages can echo file bytes, including credentials. Never forward them to IPC logs.
+      throw new Error('Invalid model settings JSON')
     }
-    return { document: parsed.data, conflicts: this.findConflicts(parsed.data) }
+    const parsed = ModelSettingsDocumentSchema.safeParse(decoded)
+    if (!parsed.success) {
+      throw new Error('Invalid model settings document')
+    }
+    if (!senderId) throw new Error('Model settings preview requires a sender')
+    this.validateDocumentIds(parsed.data)
+    this.prunePreviews()
+    // One outstanding preview per sender bounds retained secrets and invalidates superseded dialogs.
+    for (const [handle, preview] of this.previews) {
+      if (preview.senderId === senderId) this.previews.delete(handle)
+    }
+    const handle = randomUUID()
+    const conflicts = this.findConflicts(parsed.data)
+    this.previews.set(handle, { senderId, expiresAt: Date.now() + 10 * 60_000, document: parsed.data })
+    setTimeout(() => this.previews.delete(handle), 10 * 60_000).unref()
+    return { handle, conflicts }
   }
 
   /** Recomputes conflicts at apply time, so a decision never overrides a row that changed after preview. */
@@ -143,6 +206,7 @@ class ModelSettingsBackupService {
     document: ModelSettingsDocument,
     decisions: Record<string, ModelSettingsDecision>
   ): ModelSettingsImportResult {
+    this.validateDocumentIds(document)
     const { existingProviderIds, existingModelIds } = this.loadExistingIds()
     const result: ModelSettingsImportResult = { created: 0, replaced: 0, skipped: 0, failed: [] }
     const failedProviderIds = new Set<string>()
@@ -193,6 +257,11 @@ class ModelSettingsBackupService {
 
     logger.info('Imported model settings', { ...result, failed: result.failed.length })
     return result
+  }
+
+  private validateDocumentIds(document: ModelSettingsDocument): void {
+    for (const provider of document.providers) createUniqueModelId(provider.providerId, 'validation')
+    for (const model of document.models) createUniqueModelId(model.providerId, model.modelId)
   }
 
   private resolveParent(senderId?: string | null): BrowserWindow | undefined {
@@ -262,7 +331,12 @@ class ModelSettingsBackupService {
 
   private createProvider(provider: ExportedProvider): void {
     const { isEnabled, ...dto } = provider
-    providerService.create(dto)
+    providerService.create({
+      ...dto,
+      providerSettings: dto.providerSettings ? withoutKeys(dto.providerSettings, ['notes']) : undefined
+    })
+    if (!provider.presetProviderId)
+      providerService.restoreBackupEndpointHints(provider.providerId, provider.endpointConfigs)
     if (isEnabled) providerService.update(provider.providerId, { isEnabled: true })
   }
 
@@ -274,10 +348,10 @@ class ModelSettingsBackupService {
       .from(userProviderTable)
       .where(eq(userProviderTable.providerId, provider.providerId))
       .all()
-    const incoming = provider.providerSettings ?? {}
+    const incoming = withoutKeys(provider.providerSettings ?? {}, ['notes'])
     const cleared = Object.fromEntries(
       Object.keys(row?.providerSettings ?? {})
-        .filter((key) => !(key in incoming))
+        .filter((key) => key !== 'notes' && !(key in incoming))
         .map((key) => [key, null])
     )
 
@@ -292,15 +366,29 @@ class ModelSettingsBackupService {
         providerSettings: { ...cleared, ...incoming }
       })
     )
+    if (!provider.presetProviderId)
+      providerService.restoreBackupEndpointHints(provider.providerId, provider.endpointConfigs)
     if (provider.apiKeys) providerService.replaceApiKeys(provider.providerId, provider.apiKeys)
   }
 
   private createModel(model: ExportedModel): void {
     const { isEnabled, isHidden, ...dto } = model
     modelService.create([{ dto, registryData: lookupRegistryForCreate(dto.providerId, dto.modelId) }])
+    this.restoreInheritedInputModalities(model)
     if (isEnabled === false || isHidden === true) {
       modelService.update(model.providerId, model.modelId, definedOnly({ isEnabled, isHidden }))
     }
+  }
+
+  private restoreInheritedInputModalities(model: ExportedModel): void {
+    if (model.inputModalities !== undefined) return
+    application
+      .get('DbService')
+      .getDb()
+      .update(userModelTable)
+      .set({ inputModalities: null, inputModalitiesExplicit: false })
+      .where(and(eq(userModelTable.providerId, model.providerId), eq(userModelTable.modelId, model.modelId)))
+      .run()
   }
 
   /** Clears nullable limits the file omits; other absent fields keep their current value. */
@@ -315,6 +403,7 @@ class ModelSettingsBackupService {
         maxOutputTokens: model.maxOutputTokens ?? null
       })
     )
+    this.restoreInheritedInputModalities(model)
   }
 }
 
