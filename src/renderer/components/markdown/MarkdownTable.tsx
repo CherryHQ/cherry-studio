@@ -80,7 +80,7 @@ const MarkdownTable: React.FC<Props> = ({ children, node }) => {
   }, [actions, t])
 
   return (
-    <div className="table-wrapper relative my-2 w-full max-w-full min-w-0 hover:[&_.table-toolbar]:opacity-100">
+    <div className="table-wrapper relative my-2 w-full max-w-full min-w-0 hover:[&_.table-toolbar]:opacity-100 [&_.table-toolbar:focus-within]:opacity-100">
       <div className="table-scroll-viewport w-full max-w-full min-w-0 overflow-x-auto">
         {/* Fill the available reading width without forcing compact chat panes to scroll. Wide content can still overflow this viewport naturally. */}
         <table
