@@ -49,8 +49,9 @@ Renderer views    → ai.projection.attach/detach
                            ↑ snapshots / message patches
 AiService → one AiStreamSource per execution
   chunks   → pipeStreamLoop → readUIMessageStream → CherryUIMessage
-  messages → pipeMessageStream → CherryUIMessage
-  current view → TopicMessageProjection + onMessage listeners
+  messages → pipeMessageStream → baseline / structural snapshot or one part change
+  snapshot → TopicMessageProjection + content.snapshot listeners
+  part → TopicMessageProjection + content.part listeners
   chunks / host controls → onChunk listeners
 Terminal: PersistenceListener → projection and other notifications → cleanup
 Child owner: independent native observation/archive → shared projection delivery
@@ -184,7 +185,10 @@ each event by calling these methods uniformly:
 interface StreamListener {
   readonly id: string
   onChunk(chunk: UIMessageChunk, sourceModelId?: UniqueModelId, anchorMessageId?: string): void
-  onMessage?(message: CherryUIMessage, sourceModelId?: string, sourceKind?: 'chunks' | 'messages'): void
+  readonly content?: {
+    readonly snapshot: (message: CherryUIMessage, source: 'chunks' | 'messages') => void
+    readonly part: (change: AgentPartChange) => void
+  }
   onDone(result: StreamDoneResult): void | Promise<void>      // { finalMessage?, status: 'success', ... }
   onPaused(result: StreamPausedResult): void | Promise<void>  // { finalMessage?, status: 'paused',  ... }
   onError(result: StreamErrorResult, originalError?: unknown): void | Promise<void>
@@ -199,9 +203,13 @@ All three terminal shapes share the same `finalMessage?` field — the
 current `CherryUIMessage` from the execution's selected source. Chunk sources use
 `readUIMessageStream`; Agent projection sources supply authoritative parts with host
 approval/data display already composed by `RootMessageProjection`. No second body is merged
-at publication or persistence. Content consumers use `onMessage` and the terminal
-view; `onChunk` is a content feed only for chunk sources. A late listener receives
-the current view after control/chunk replay.
+at publication or persistence. A content subscriber implements both callbacks. Agent
+streams deliver an initial snapshot, including an empty reply, then send each accepted
+text, reasoning or tool operation to `content.part`. Structural corrections deliver a
+new snapshot. A late listener receives the current view after control/chunk replay.
+Chat chunk sources continue to deliver their accumulated snapshots. Channel and Doctor
+listeners retain visible text for the active reply. The remote journal translates each
+changed part into the existing remote part and content revisions.
 Whether the stream ended naturally, was aborted, or errored, it's the
 same variable, only the stop point differs. Earlier designs called the
 error-path partial a `partialMessage`; this turned out to be just a
@@ -301,7 +309,7 @@ committed. Per-chunk delivery is unaffected.
 ```typescript
 interface ActiveStream {
   topicId: string
-  executions: Map<UniqueModelId, StreamExecution>   // 1 entry single-model, N multi-model
+  executions: Map<ExecutionId, StreamExecution>   // 1 entry single-model, N multi-model
   listeners: Map<string, StreamListener>            // shared across executions
   // 'pending' on creation; flips to 'streaming' on first chunk; derived
   // from executions on terminal (done / aborted / error /
@@ -314,7 +322,7 @@ interface ActiveStream {
 }
 
 interface StreamExecution {
-  modelId: UniqueModelId
+  modelId: ExecutionId
   anchorMessageId?: string  // placeholder id for submit/regen, anchor id for continue
   abortController: AbortController
   status: 'streaming' | 'done' | 'error' | 'aborted'
@@ -497,7 +505,7 @@ class AiStreamManager {
 interface SendInput {
   topicId: string
   models: ReadonlyArray<{
-    modelId: UniqueModelId
+    modelId: ExecutionId
     request: AiStreamRequest
     runtimeTimingSeed?: MessageRuntimeTiming
     seedFromEmpty?: boolean
@@ -550,22 +558,21 @@ persistable `finalMessage`.
 **Step 1 — get the raw chunk stream.**
 
 ```typescript
-const stream: ReadableStream<UIMessageChunk> = await aiService.streamText({
+const source = await aiService.streamText({
   ...request,
   requestOptions: { ...request.requestOptions, signal }
 })
 ```
 
-`streamText` returns `AiStreamSource`: either `{ kind: 'chunks', stream }` or
-`{ kind: 'messages', stream }`. The choice is fixed for an execution, not switched
-for individual events. `signal` comes from `StreamExecution.abortController`.
+`streamText` returns an `AiStreamSource`. `chunks` supplies an SDK chunk stream.
+`messages` supplies an Agent control stream, a content callback, and a reader for
+accepted parts. `signal` comes from `StreamExecution.abortController`.
 
-For `messages`, `pipeMessageStream` replaces the current body, carries execution
-metadata and publishes `onMessage`. Native errors are queued as
-events so the preceding partial body drains before terminal persistence. It does
-not run `readUIMessageStream` or synthesize text/tool deltas. Idle timeout, approval
-tracking and terminal dispatch remain owned by the manager. The following chunk
-steps apply to `chunks`.
+For `messages`, `pipeMessageStream` relays accepted part operations, reads
+execution metadata and materializes a message for terminal persistence. Native
+errors travel on the control stream. The publisher reads the Agent owner for
+attach baselines. Idle timeout, approval tracking and terminal dispatch remain
+owned by the manager. The following chunk steps apply to `chunks`.
 
 **Step 2 — wrap with `withIdleTimeout`.** Resets per chunk; on idle
 timeout it aborts `exec.abortController`, which the upstream request is
@@ -758,7 +765,7 @@ the inject branch. If the continuation itself fails to launch, the topic is driv
 to a terminal `error` rather than sticking at `streaming`.
 
 Agent-session topics use a parallel, queue-based mechanism — never an interrupt.
-A live follow-up is steered into the running turn via `connection.redirect()`
+A live follow-up is steered into the running turn via `connection.threadInput.steer.submit()`
 (no abort). Native admission owns already dispatched inputs, including Claude
 inputs that cross a turn's end; the host does not resend them. Inputs that the
 host has not dispatched remain in `runtimeState.queue`. `send()` only upserts the new
@@ -774,9 +781,9 @@ duplicated; the rest are stream-manager-specific.
 |---|---|---|---|
 | Submit (standard) | `ai.stream.open` | `dispatchStreamRequest` → `prepareDispatch` (persist user msg, reserve placeholders, build listeners + models) → `manager.send` → N × `runExecutionLoop` | `PersistenceListener.persistAssistant` → terminal projection; raw listeners receive `onDone`; chat lifecycle `scheduleCleanup(30 s)` |
 | Steering — chat resubmit | `ai.stream.open` on a live chat topic | provider persists the steer user row + `enqueuePendingSteer` → `pendingSteers`; `steerYield` stops the running turn cleanly; `onExecutionDone` chains a `steer-continuation` | prior turn persisted as **`success`**; the continuation answers the steer — see [Steering](#steering) |
-| Agent-session follow-up | `ai.stream.open` on a live `agent-session:*` topic | provider persists the user row, `enqueueUserMessage` steers via `connection.redirect()` (no abort) or queues on `runtimeState.queue`; `manager.send` upserts the subscriber → `{ mode: 'injected' }` | steer folds into the current turn (rolled at a `steer-boundary`), else the next turn starts from `runtimeState.queue` — see [Agent Session Runtime](./agent-session-runtime.md#live-follow-up) |
+| Agent-session follow-up | `ai.stream.open` on a live `agent-session:*` topic | provider persists the user row, `enqueueUserMessage` steers via `connection.threadInput.steer.submit()` (no abort) or queues on `runtimeState.queue`; `manager.send` upserts the subscriber → `{ mode: 'injected' }` | steer folds into the current turn (rolled at a `steer-boundary`), else the next turn starts from `runtimeState.queue` — see [Agent Session Runtime](./agent-session-runtime.md#live-follow-up) |
 | Tool-approval pause+resume | approval-request chunk → `awaiting-approval` | decision via `ai.tool.respond_approval`; a live agent runtime resolves its registry entry, while MCP dispatches `continue-conversation` | card clears when the resumed stream broadcasts `pending` — see [Tool Approval](./tool-approval.md) |
-| Desktop reconnect | `ai.projection.attach` on mount | Register a window-scoped subscription and return the current message baseline; subsequent revisions arrive through `ai.projection.changed` | live messages resume; terminal overlays yield to refreshed history; attach never changes runtime state |
+| Desktop reconnect | `ai.projection.attach` on mount | Register a window-scoped subscription and return the current message baseline; subsequent revisions arrive through `ai.projection.changed` | live messages resume; a committed reply yields to its history row; attach never changes runtime state |
 | Raw-stream reconnect | `ai.stream.attach` | `manager.attach`: `not-found` / streaming (register listener + compact replay) / done-paused (`finalMessage(s)`) / error | bounded raw replay or terminal result for consumers that still require chunks |
 | Abort — user stop | `ai.stream.abort` | `abortAndDrain` holds the topic dispatch lock; per exec: `abortController.abort` → loop `signal` aborts → broadcast reader `cancel` → read loop `done`; then the Agent runtime stop settles (a `retainOnStop` connection stays open; others close) | partial persists as **`paused`** and the request resolves before the next same-topic dispatch is admitted |
 | Abort — no observers | `backgroundMode === 'abort'`, no non-projection listeners and no projection observers | After pruning dead listeners, `onChunk` excludes the manager-owned projection listener from the raw-listener check and checks `projection.observed`; when both are empty it calls `abort(topicId, 'no-subscribers')` | partial persisted as **`paused`** |
@@ -916,7 +923,7 @@ interface ChatContextProvider {
 
 interface PreparedDispatch {
   topicId: string
-  models: ReadonlyArray<{ modelId: UniqueModelId; request: AiStreamRequest; rootSpan?: Span }>
+  models: ReadonlyArray<{ modelId: ExecutionId; request: AiStreamRequest; rootSpan?: Span }>
   listeners: StreamListener[]   // subscriber + per-execution PersistenceListener(s)
   pendingSteerUserMessageId?: string   // persistent steer branch only; marks the dispatch enqueue-only
   reservedMessages?: CherryUIMessage[] // user/assistant skeletons created for this dispatch

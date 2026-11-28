@@ -7,12 +7,16 @@
  */
 import * as z from 'zod'
 
+import { AGENT_PERMISSION_MODES } from '@cherrystudio/agent-runtime/cli'
 import { MAX_HEARTBEAT_TIMEOUT_MINUTES } from '@shared/ai/agentHeartbeat'
+import { AgentPromptOverridesPatchSchema, AgentPromptOverridesSchema } from '@shared/ai/agentPromptSections'
 import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
+import { LocalAgentAccountSchema, LocalAgentConfigurationSchema, LocalAgentRuntimeSchema } from '@shared/ai/localAgent'
 import { AgentLanguageSchema } from '@shared/data/types/agentLanguage'
 import { FileEntryIdSchema } from '@shared/data/types/file'
 import { ServiceTierSelectionSchema, UniqueModelIdSchema } from '@shared/data/types/model'
 import { ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
+import { isSensitiveKey } from '@shared/utils/redaction'
 
 import type { OffsetPaginationResponse } from '../types'
 import type { OrderEndpoints } from './_endpointHelpers'
@@ -40,12 +44,26 @@ export const AgentSkillUpdateListSchema = z.array(AgentSkillUpdateSchema).transf
 })
 export type AgentSkillUpdateDto = z.infer<typeof AgentSkillUpdateSchema>
 
-export const AgentPermissionModeSchema = z.enum(['default', 'acceptEdits', 'bypassPermissions', 'plan', 'auto'])
+export const AgentPermissionModeSchema = z.enum(AGENT_PERMISSION_MODES)
 export type AgentPermissionMode = z.infer<typeof AgentPermissionModeSchema>
-export const AGENT_TYPES = ['claude-code', 'pi', 'pi-durable'] as const
+export const AGENT_TYPES = ['claude-code', 'pi', 'pi-durable', 'local'] as const
 export const AgentTypeSchema = z.enum(AGENT_TYPES)
 export type AgentType = z.infer<typeof AgentTypeSchema>
 export const AgentSchedulerTypeSchema = z.enum(['cron', 'interval', 'one-time'])
+
+const LocalAgentBindingInputSchema = LocalAgentConfigurationSchema.extend({
+  enabled: LocalAgentConfigurationSchema.shape.enabled.removeDefault().optional(),
+  args: LocalAgentConfigurationSchema.shape.args.removeDefault().optional(),
+  env: LocalAgentConfigurationSchema.shape.env.removeDefault().optional(),
+  providerId: z.string().optional()
+})
+export const CreateLocalAgentBindingSchema = LocalAgentBindingInputSchema.extend({
+  account: LocalAgentAccountSchema.optional()
+})
+export type CreateLocalAgentBindingDto = z.infer<typeof CreateLocalAgentBindingSchema>
+export const UpdateLocalAgentBindingSchema = LocalAgentBindingInputSchema.partial().extend({
+  clearEnvironment: z.array(z.string()).optional()
+})
 
 export const AgentConfigurationSchema = z
   .object({
@@ -68,12 +86,16 @@ export const AgentConfigurationSchema = z
     builtin_role: z
       .enum([BUILTIN_AGENT_ROLE.ASSISTANT, BUILTIN_AGENT_ROLE.SUPPORT, BUILTIN_AGENT_ROLE.DOCTOR])
       .optional(),
-    language: AgentLanguageSchema.nullable().optional()
+    language: AgentLanguageSchema.nullable().optional(),
+    claude_code_native_prompt_enabled: z.boolean().optional(),
+    /** The Agent's own text for editable blocks of its System Prompt. */
+    prompt_overrides: AgentPromptOverridesSchema.optional()
   })
   // .loose() (passthrough) is intentional: the configuration object is stored as a JSON blob
   // and may contain keys written by older or newer versions of the app. Unknown fields must
   // survive a round-trip through parse() so they are not silently dropped on the next save.
   .loose()
+  .extend({ localRuntime: z.never().optional() })
 export type AgentConfiguration = z.infer<typeof AgentConfigurationSchema>
 
 /**
@@ -149,6 +171,7 @@ export const AGENT_MUTABLE_FIELDS = {
 export const AgentEntitySchema = AgentBaseSchema.extend({
   id: z.string(),
   type: AgentTypeSchema,
+  localRuntime: LocalAgentRuntimeSchema.optional(),
   createdAt: z.string(),
   updatedAt: z.string(),
   /** Persistent ordering key. Read-only; modified only through order endpoints. */
@@ -207,7 +230,7 @@ export type ScheduledTaskEntity = z.infer<typeof ScheduledTaskEntitySchema>
 export type TaskRunSummary =
   | { status: 'queued' }
   | { status: 'running' }
-  | { status: 'completed' | 'failed' | 'cancelled'; finishedAt: string }
+  | { status: 'completed' | 'failed' | 'cancelled' | 'skipped'; finishedAt: string }
 export type ScheduledTaskListItem = ScheduledTaskEntity & { runSummary: TaskRunSummary | null }
 
 export const TaskRunLogEntitySchema = z.strictObject({
@@ -217,8 +240,8 @@ export const TaskRunLogEntitySchema = z.strictObject({
   startedAt: z.string(),
   /** null while unfinished and for runs that never started (no queue-wait shown as duration). */
   durationMs: z.number().nullable(),
-  /** JobStatus terminal set + 'running' (pending/delayed collapse to 'running' for display). */
-  status: z.enum(['running', 'completed', 'failed', 'cancelled']),
+  /** Display outcomes. Pending and delayed runs are shown as running. */
+  status: z.enum(['running', 'completed', 'failed', 'cancelled', 'skipped']),
   result: z.string().nullable().optional(),
   error: z.string().nullable().optional()
 })
@@ -233,25 +256,36 @@ export type TaskRunLogEntity = z.infer<typeof TaskRunLogEntitySchema>
  *
  * `configuration` is itself a partial: callers send only the first-level keys
  * they intend to change, and AgentService shallow-merges them onto the latest
- * persisted configuration inside the write transaction. Nested values such as
- * `env_vars` still replace as a whole. An explicitly present `undefined` value
- * removes that configuration key; omission preserves it.
+ * persisted configuration inside the write transaction. `prompt_overrides` merges per block.
+ * Other nested values such as `env_vars` replace as a whole.
+ * An explicitly present `undefined` removes a key; omission preserves it.
  */
-export const UpdateAgentSchema = AgentEntitySchema.pick(AGENT_MUTABLE_FIELDS).partial().extend({
-  // Nullable overrides of the picked columns: `null` clears the tier so the
-  // runtime falls back to the main model (unset is the default state).
-  planModel: UniqueModelIdSchema.nullable().optional(),
-  smallModel: UniqueModelIdSchema.nullable().optional(),
-  configuration: AgentConfigurationSchema.partial().optional(),
-  /** Validation basis for `configuration.reasoning_effort` normalization: the model the caller is actually steering (a session-level override when set). Omitted falls back to the agent's (possibly patched) model (cherry-pr-review inv_98911732422a84bf). */
-  reasoningValidationModelId: UniqueModelIdSchema.optional(),
-  /**
-   * Per-skill enablement changes for this agent. Omitted means "leave skills
-   * unchanged"; an empty array is a no-op. The server applies each update
-   * without replacing unrelated skill rows.
-   */
-  skillUpdates: AgentSkillUpdateListSchema.optional()
-})
+export const UpdateAgentSchema = AgentEntitySchema.pick(AGENT_MUTABLE_FIELDS)
+  .partial()
+  .extend({
+    // Nullable overrides of the picked columns: `null` clears the tier so the
+    // runtime falls back to the main model (unset is the default state).
+    planModel: UniqueModelIdSchema.nullable().optional(),
+    smallModel: UniqueModelIdSchema.nullable().optional(),
+    localRuntime: UpdateLocalAgentBindingSchema.refine(
+      ({ env, clearEnvironment }) =>
+        !Object.keys(env ?? {}).some(isSensitiveKey) && !clearEnvironment?.some(isSensitiveKey),
+      { path: ['env'], error: 'Use the local Agent settings command for protected environment values' }
+    ).optional(),
+    configuration: AgentConfigurationSchema.partial()
+      .extend({
+        prompt_overrides: AgentPromptOverridesPatchSchema.optional()
+      })
+      .optional(),
+    /** Validation basis for `configuration.reasoning_effort` normalization: the model the caller is actually steering (a session-level override when set). Omitted falls back to the agent's (possibly patched) model (cherry-pr-review inv_98911732422a84bf). */
+    reasoningValidationModelId: UniqueModelIdSchema.optional(),
+    /**
+     * Per-skill enablement changes for this agent. Omitted means "leave skills
+     * unchanged"; an empty array is a no-op. The server applies each update
+     * without replacing unrelated skill rows.
+     */
+    skillUpdates: AgentSkillUpdateListSchema.optional()
+  })
 export type UpdateAgentDto = z.infer<typeof UpdateAgentSchema>
 
 // Agent creation and task command schemas live on IpcApi (`ai.agent.*` in
@@ -304,6 +338,16 @@ export type ListAgentsQuery = z.output<typeof ListAgentsQuerySchema>
 // API Schema definitions
 // ============================================================================
 
+/** Activity of one Agent: its own sessions, task runs and recent token use only. */
+export interface AgentStats {
+  /** Ordinary conversations, excluding scheduled-task runs and deleted sessions. */
+  sessionCount: number
+  /** Runs of this Agent's scheduled tasks started in the last 7 days (rolling). */
+  recentTaskRunCount: number
+  /** Tokens attributed to this Agent over the last 7 days (rolling). */
+  recentTokens: number
+}
+
 export type AgentSchemas = {
   /** List all agents. Creation is a mixed filesystem + DB command on IpcApi (`ai.agent.create`). */
   '/agents': {
@@ -323,6 +367,14 @@ export type AgentSchemas = {
       params: { agentId: string }
       body: UpdateAgentDto
       response: AgentEntity
+    }
+  }
+
+  /** Usage overview of one Agent, for its profile. */
+  '/agents/:agentId/stats': {
+    GET: {
+      params: { agentId: string }
+      response: AgentStats
     }
   }
 
@@ -354,7 +406,7 @@ export type AgentSchemas = {
     GET: {
       params: { agentId: string }
       query?: ListQuery
-      response: OffsetPaginationResponse<ScheduledTaskEntity>
+      response: OffsetPaginationResponse<ScheduledTaskEntity> & { activeTotal: number }
     }
   }
 

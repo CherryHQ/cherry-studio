@@ -8,7 +8,7 @@ For connection problems, start with a short message without attachments to narro
 
 ## Why cannot I chat immediately after installation?
 
-Configure an API key or supported account sign-in, add a model, enable its provider, and choose it for your agent. You can [import desktop configuration](desktop-sync.md) or follow [quick start](quick-start.md).
+Choose a model available to the current identity. Your own providers need credentials, models, and enablement; entitled community accounts use authorized CherryAI models, while organizations supply their own catalogs. App sign-in does not grant every third-party API credits. See [accounts](accounts-and-organizations.md), [desktop import](desktop-sync.md), and [quick start](quick-start.md).
 
 A platform's consumer chat subscription may not include API credits for other apps; check with the platform.
 
@@ -58,13 +58,13 @@ A global default must be changed or cleared in **Settings → Default model** fi
 
 ## I can preview an image, but cannot send it
 
-Preview and model-input support differ. Choose a vision-capable model and check format, image count, and size. Toggling an image-capability flag cannot add vision to a text-only model.
+Preview differs from model input. Use a vision model for visual understanding; supported devices can provide local OCR text to a text-only model. Inspect recognition errors where needed. The per-image limit is now 30 MiB, still subject to model/provider limits; capability flags cannot override them.
 
 See [chat and files](chat-and-files.md) for scanned PDFs, empty document text, and large attachments.
 
 ## Where are the web-search switch and Plugins button?
 
-There is no composer web switch. In Standard mode, enable the agent capability and configure web preferences/services from Plugins. Minimal mode uses supported native model web access only. Plugins and skills need Standard mode and usable connections/bindings.
+Old agent built-in capability switches have been removed, and there is no separate composer web switch. Standard uses configured model/service routes; Minimal only supports available native model web access. Plugins/skills require Standard and usable connections/bindings; ＋ → Plugins can still offer connection setup when none is connected.
 
 Connected plugins can be used directly, or named through **＋ → Plugins**. See [web search](web-search.md) and [plugin connections](plugins.md).
 
@@ -76,7 +76,7 @@ DingTalk actions need requesting again after additional authorization. WeCom lin
 
 ## Why can I only retry the latest answer?
 
-Retry replaces the latest answer in place. Use a branch to change direction earlier. Retrying/deleting does not reverse external actions; retrying can cost more. See [answer actions](chat-and-files.md).
+Current versions retain several answer paths instead of only replacing one answer. Availability follows execution state/message type; regenerate, add a model, or edit a sent question into a branch where offered. Check the installed version for older UI. Retrying/deleting does not undo external effects; see [models and branches](conversation-branches.md).
 
 ## Does context compaction delete my conversation?
 
@@ -84,9 +84,9 @@ Visible history remains. Earlier material is summarized for the model and some o
 
 ## Why are exported images split, and code incomplete?
 
-Long image exports default to pages; a single-long-image option is available. Code panels show a limited preview in images. Choose HTML or Markdown for full code. Conversion failure can change the available format, so inspect the preview and format label.
+Current chat images use one height-bounded card, truncating long text/tables/code with an ellipsis, without the old paged/long-image switch. Choose HTML/Markdown for complete content. Image groups/HTML conversions can have several previews; check the source. Failure retains the selected format and offers retry rather than falling back.
 
-See [sharing and export](sharing-and-export.md) for selection, watermark, thinking content, and files.
+See [sharing and export](sharing-and-export.md) for selection, watermarks, excluded process content, and files.
 
 ## Background generation stops or notifications are missing
 
@@ -104,7 +104,7 @@ See [download and installation](installation.md).
 
 ## Tools do not run, or a file was not saved
 
-* A model only answers in text, waits for approval, or reports missing permission: check the model, capabilities, connection, and access in [Let AI Use Tools](using-tools.md).
+* A model only answers in text, waits for approval, or reports missing permission: check mode, model tool support, connections, bindings, and permissions in [Let AI Use Tools](using-tools.md).
 * Android opens the calendar app, or an event write has an uncertain outcome: follow [Calendar and Reminders](calendar-and-reminders.md) and inspect existing records before retrying.
 * Location fails, or Health data is empty or partial: see [Location and Health Records](location-and-health.md). An empty result does not prove that no records exist.
 * You get a code block without a saved file, or edits leave the original unchanged: see [Create and Edit Files](file-generation.md).
@@ -121,11 +121,20 @@ See [download and installation](installation.md).
 | No translation action or saved result | Only completed local text replies qualify; check the model. Incomplete translations are not saved. See [Translation](translation.md) |
 | MCP has no interactive view or prompt | Check server capabilities, connection, and agent binding in [Plugins](plugins.md) |
 | Follow-ups continue after a failed reply | Inspect the queue and remove unwanted waiting inputs; leaving the screen does not cancel them |
-| An older version lacks Health or new features | Check About; native changes require a new package. See [Installation and updates](installation.md) |
+| An older package lacks voice, SSH, or new features | Install the complete update; code alone cannot add every native capability. See [installation](installation.md) |
+| Chats disappear after account switching | Check the personal/organization space; histories do not merge. See [accounts](accounts-and-organizations.md) |
+| DeepSeek link expired or import is partial | Get a fresh export link and inspect skipped content. See [import](deepseek-import.md) |
+| Missing desktop scheduled-task results | Select that computer's Scheduled tasks with a supported desktop version. See [desktop agents](remote-chat.md) |
+
+## Check first, then optionally analyze with AI
+
+Choose **Troubleshoot** from chat/painting error details. Local checks cover relevant configuration, endpoint reachability, and runtime state; a responding address does not establish valid authentication or inference. Redacted errors/check context go to AI only after choosing a diagnostic model and explicitly starting, which can incur model charges.
+
+Check conclusions against evidence and recheck after configuration changes. Feedback submission is separate; see [checks and AI diagnosis](diagnostics.md).
 
 ## How do I report an unresolved issue?
 
-Open **Settings → About → Feedback**, describe reproduction steps and expected/actual results, then submit. The app attaches error/request summaries and system information from the last 24 hours. Copy the report ID after success and follow its progress in **Feedback history**.
+Open **Settings → About us → Feedback**, describe reproduction steps and expected/actual results, then submit. The app attaches error/request summaries and system information from the last 24 hours. Copy the report ID after success and follow its progress in **Feedback history**.
 
 Shake feedback is off by default. When enabled, shaking in the foreground captures the page and opens the form. A screenshot uploads only when selected for that submission; inspect it for private content. Removing local history does not withdraw a submitted report.
 

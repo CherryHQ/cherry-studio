@@ -160,9 +160,9 @@ describe('AiSdkToOpenAiResponsesSse', () => {
     const createReasoningDelta = (text: string): UIMessageChunk => ({ type: 'reasoning-delta', id: 'r_0', delta: text })
 
     // Catches duplicating one native reasoning item when the SDK streams multiple summary parts.
-    it('keeps one native identity and the final ciphertext across summary parts', async () => {
+    it.each(['openai', 'azure', 'xai'])('keeps %s ciphertext across summary parts', async (namespace) => {
       const adapter = new AiSdkToOpenAiResponsesSse({ model: 'openai:gpt-5' })
-      const providerMetadata = { openai: { itemId: 'rs_native' } }
+      const providerMetadata = { [namespace]: { itemId: 'rs_native' } }
       const events = await collectEvents(
         adapter.transform(
           createMockStream([
@@ -174,7 +174,9 @@ describe('AiSdkToOpenAiResponsesSse', () => {
             {
               type: 'reasoning-end',
               id: 'rs_native:1',
-              providerMetadata: { openai: { itemId: 'rs_native', reasoningEncryptedContent: 'final-ciphertext' } }
+              providerMetadata: {
+                [namespace]: { itemId: 'rs_native', reasoningEncryptedContent: 'final-ciphertext' }
+              }
             },
             createTextDelta('answer'),
             createFinish()
@@ -188,7 +190,6 @@ describe('AiSdkToOpenAiResponsesSse', () => {
           id: 'rs_native',
           status: 'completed',
           summary: [{ type: 'summary_text', text: 'first second' }],
-          content: [{ type: 'reasoning_text', text: 'first second' }],
           encrypted_content: 'final-ciphertext'
         }
       ])
@@ -504,5 +505,34 @@ describe('terminal failure reasons', () => {
         expect.objectContaining({ statusCode: 502 })
       )
     }
+  })
+})
+
+it('restores name and namespace for flattened namespace tool calls in SSE and non-streaming output', async () => {
+  const adapter = new AiSdkToOpenAiResponsesSse({
+    model: 'cherryin:anthropic/claude-haiku-4.5',
+    resolveClientToolCall: (toolName) =>
+      toolName === 'mcp__automation__js' ? { name: 'js', namespace: 'mcp__automation' } : { name: toolName }
+  })
+  const stream = createMockStream([
+    { type: 'tool-input-available', toolCallId: 'call_ns_1', toolName: 'mcp__automation__js', input: { code: '1+1' } },
+    createFinish('tool-calls')
+  ])
+  const events = await collectEvents(adapter.transform(stream))
+
+  const itemDone = events.find((e) => e.type === 'response.output_item.done' && e.item.type === 'function_call')
+  expect(itemDone && 'item' in itemDone ? itemDone.item : undefined).toMatchObject({
+    type: 'function_call',
+    call_id: 'call_ns_1',
+    name: 'js',
+    namespace: 'mcp__automation',
+    arguments: '{"code":"1+1"}'
+  })
+  const nonStreaming = adapter.buildNonStreamingResponse()
+  expect(nonStreaming.output[0]).toMatchObject({
+    type: 'function_call',
+    call_id: 'call_ns_1',
+    name: 'js',
+    namespace: 'mcp__automation'
   })
 })

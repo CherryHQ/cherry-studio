@@ -238,6 +238,11 @@ not retry blindly.
 - `trash` and `restore` only update internal entries' `deletedAt` state.
 - `permanentDelete` deletes the row first. It then best-effort unlinks an internal blob; an external
   path is never removed by this entry operation.
+- `batchRemoveFromLibrary` removes unreferenced external entries. If a fresh filesystem probe
+  confirms the original is missing, it can also remove entries held only by optional translation
+  source references. The reference registry defines which associations can be detached. The
+  filesystem probe runs outside the global path lock. The removal transaction rechecks the path
+  and protected references, preserving the history and its required target.
 - `deleteUnreferencedInternalEntry` checks persistent refs and deletes an internal row in one
   transaction. Missing, external, and referenced entries are preserved. `ProfileService` uses it
   only after replacing its Preference reference.
@@ -257,12 +262,13 @@ not retry blindly.
 
 ## 8. DirectoryWatcher
 
-The current watcher is the single file `src/main/services/file/watcher.ts`, not a `watcher/`
-submodule.
+`src/main/services/file/watcher.ts` owns the Main adapter and the service-owned
+`DirectoryWatcherHost`. Its shared Node Worker runs `watcherWorker.ts` and `nativeWatcher.ts`;
+native creation, polling fallback and synchronous OS closure stay off the Main event loop.
 
 ### 8.1 Current API
 
-`createDirectoryWatcher(root, options)` returns a watcher synchronously:
+`createDirectoryWatcher(root, options, host)` returns a watcher synchronously:
 
 ```typescript
 interface DirectoryWatcher {
@@ -275,11 +281,11 @@ interface DirectoryWatcher {
 
 The event union is `add | addDir | unlink | unlinkDir | change | ready | error`. Chokidar rename
 activity remains an `unlink` plus `add`; the generic watcher does not detect or emit rename events.
-Options cover recursion/depth, an ignore predicate, write-stability threshold, and whether the
+Options cover recursion/depth, symlink following, structured tree/file filters, write-stability threshold, and whether the
 initial scan emits entries.
 
 Built-in OS-junk names are always ignored. On `EMFILE`, and on Windows `EPERM`, the wrapper retries
-with polling. Other errors are logged and emitted. `close()` is idempotent.
+with polling. Other errors are logged and emitted. `close()` is idempotent and acknowledges native resource release on the worker. The service also awaits worker exit at shutdown.
 
 The factory mirrors file `add`/`unlink` observations into `DanglingCache`. Native instances are owned by `WatchScope` under
 [FileObservationService](./file-observation.md); directory builders consume leases. There is no

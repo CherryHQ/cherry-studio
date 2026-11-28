@@ -1,11 +1,29 @@
 import type { EmbeddingModelUsage, LanguageModelUsage, ModelMessage } from 'ai'
 import * as z from 'zod'
 
+import type { RuntimeAccountResult, SubscriptionUsageResult } from '@cherrystudio/agent-runtime'
 import { imageParamsSchema } from '@cherrystudio/provider-registry'
 import type { AgentAttachmentSelection } from '@cherrystudio/remote-protocol/agent'
+import { AgentConfigChangePreviewSchema } from '@shared/ai/agentConfigToolOutput'
 import { agentImportSnapshotSchema, type AgentImportSnapshot } from '@shared/ai/agentImport'
+import type { AgentDelegationSnapshot } from '@shared/ai/agentSessionDelivery'
 import type { ClaudeCodeBinaryStatus } from '@shared/ai/claudeCodeBinary'
-import type { MessageProjectionUpdate, MessageProjectionView, ProjectionTarget } from '@shared/ai/messageProjection'
+import {
+  LocalAgentAccountSchema,
+  LocalAgentConfigurationSchema,
+  LocalAgentLaunchSettingsSchema,
+  LocalAgentInstallResultSchema,
+  LocalAgentModelCatalogSchema,
+  LocalAgentUninstallResultSchema,
+  LocalAgentUninstallComponentSchema,
+  LocalAgentCheckResultSchema,
+  type LocalAgentSessionInfo,
+  type LocalAgentSessionView,
+  type LocalAgentNotice,
+  type LocalAgentDetection
+} from '@shared/ai/localAgent'
+import type { ProjectionNotification, MessageProjectionView, ProjectionTarget } from '@shared/ai/messageProjection'
+import { ProfileStarterModeSchema, ProfileStartersSchema } from '@shared/ai/profileStarters'
 import type {
   AiStreamAttachResponse,
   AiStreamOpenResponse,
@@ -17,13 +35,17 @@ import type {
   StreamDonePayload,
   StreamErrorPayload
 } from '@shared/ai/transport'
+import { AgentChannelDraftSchema } from '@shared/data/api/schemas/agentChannels'
 import {
   AgentBaseSchema,
   AgentEntitySchema,
   AgentSkillIdSetSchema,
+  CreateLocalAgentBindingSchema,
   ScheduledTaskEntitySchema,
   TaskRetrySchema,
-  TimeoutMinutesAtomSchema
+  TimeoutMinutesAtomSchema,
+  UpdateAgentSchema,
+  UpdateLocalAgentBindingSchema
 } from '@shared/data/api/schemas/agents'
 import {
   AgentSessionEntitySchema,
@@ -48,6 +70,11 @@ import {
 import { TopicSchema } from '@shared/data/types/topic'
 import { ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
 import { AbsoluteFilePathSchema, FileVersionSchema } from '@shared/types/file'
+import {
+  LOCAL_AGENT_WEB_UI_IDS,
+  type ManagedToolStatusState,
+  type CodeBuddyWebUiStatus
+} from '@shared/types/managedTool'
 
 import { defineRoute } from '../define'
 import { ImageBytesSchema } from './entityImage'
@@ -83,15 +110,28 @@ export type HeartbeatDocument = z.infer<typeof HeartbeatDocumentSchema>
 export const HeartbeatRunResultSchema = z.enum(['started', 'empty', 'disabled', 'busy', 'paused'])
 export type HeartbeatRunResult = z.infer<typeof HeartbeatRunResultSchema>
 
+const localAgentRequestConfigSchema = LocalAgentConfigurationSchema.extend({ agentId: z.string().min(1).optional() })
+
 export const CreateAgentCommandSchema = AgentBaseSchema.extend({
+  model: UniqueModelIdSchema.nullable(),
   type: AgentEntitySchema.shape.type,
+  localRuntime: CreateLocalAgentBindingSchema.optional(),
   avatarImage: ImageBytesSchema.optional(),
   /**
    * Create-only: ids of pre-existing global skills to enable for the new
    * Agent. Join rows are written in the same DB transaction as the Agent.
    */
-  skillIds: AgentSkillIdSetSchema.optional()
-})
+  skillIds: AgentSkillIdSetSchema.optional(),
+  /**
+   * Create-only: channels owned by the new Agent, created in the same DB transaction.
+   * QR-login channels are always created inactive.
+   */
+  channels: z.array(AgentChannelDraftSchema).optional()
+}).refine(
+  (value) =>
+    value.type === 'local' ? !!value.localRuntime && value.model === null : !value.localRuntime && value.model !== null,
+  { message: 'Local agents require localRuntime; provider agents require a model' }
+)
 export type CreateAgentCommand = z.infer<typeof CreateAgentCommandSchema>
 
 /**
@@ -213,14 +253,37 @@ const projectionTargetSchema = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('child'), sessionId: z.string().min(1), toolCallId: z.string().min(1) })
 ]) satisfies z.ZodType<ProjectionTarget>
 
+const predictionRequest = z.strictObject({
+  sessionId: z.string().min(1),
+  replyId: z.string().min(1),
+  requestId: z.uuid()
+})
+
 export const aiRequestSchemas = {
-  'ai.agent.session.predict_prompt': defineRoute({
+  'ai.agent.delegation.read': defineRoute({
+    input: z.strictObject({ originSessionId: z.string().min(1), requestId: z.string().min(1) }),
+    output: z.custom<AgentDelegationSnapshot>()
+  }),
+  'ai.agent.delegation.cancel': defineRoute({
+    input: z.strictObject({ originSessionId: z.string().min(1), requestId: z.string().min(1) }),
+    output: z.void()
+  }),
+  'ai.agent.delegation.respond': defineRoute({
     input: z.strictObject({
-      sessionId: z.string().min(1),
-      replyId: z.string().min(1),
-      modelId: UniqueModelIdSchema,
-      requestId: z.uuid()
+      originSessionId: z.string().min(1),
+      requestId: z.string().min(1),
+      approvalId: z.string().min(1),
+      approved: z.boolean(),
+      reason: z.string().optional(),
+      updatedInput: z.record(z.string(), z.unknown()).optional()
     }),
+    output: z.boolean()
+  }),
+  'ai.agent.session.predict_prompt': defineRoute({
+    input: z.union([
+      predictionRequest.extend({ modelId: UniqueModelIdSchema }),
+      predictionRequest.extend({ localModelId: z.string().min(1) })
+    ]),
     output: z.object({ supported: z.boolean(), text: z.string() })
   }),
   'ai.agent.session.abort_prediction': defineRoute({
@@ -262,7 +325,10 @@ export const aiRequestSchemas = {
       // Optional request identity pairs this one-shot call with `ai.text.abort`.
       // Callers that do not need cancellation keep the existing wire shape.
       requestId: z.string().min(1).optional(),
+      // With a requestId: also push each text delta to the caller as `ai.text.delta` while generating.
+      streamDeltas: z.boolean().optional(),
       ...aiChatRequestShape,
+      utilityTask: z.boolean().optional(),
       disableTools: z.boolean().optional(),
       reasoningEffort: ReasoningEffortOptionSchema.optional(),
       serviceTier: ServiceTierSelectionSchema.optional(),
@@ -271,6 +337,16 @@ export const aiRequestSchemas = {
       messages: z.array(z.custom<ModelMessage>()).optional()
     }),
     output: z.object({ text: z.string(), usage: z.custom<LanguageModelUsage>().optional() })
+  }),
+  'ai.profile_starters.generate': defineRoute({
+    input: z.strictObject({
+      ownerId: z.string().min(1),
+      mode: ProfileStarterModeSchema,
+      identityHash: z.string().min(1).max(64),
+      system: z.string(),
+      prompt: z.string()
+    }),
+    output: ProfileStartersSchema.nullable()
   }),
   'ai.text.abort': defineRoute({
     input: z.strictObject({ requestId: z.string().min(1) }),
@@ -316,6 +392,16 @@ export const aiRequestSchemas = {
 
   // ── Streaming chat (AiStreamManager) ──
   // Requests are R→M; the produced chunk/done/error events ride the AiEventSchemas block below.
+  'ai.topic.estimate_context': defineRoute({
+    input: z.strictObject({
+      topicId: z.string().min(1),
+      anchorId: z.string().min(1),
+      modelId: UniqueModelIdSchema,
+      fillsAnchor: z.boolean()
+    }),
+    output: z.number().int().nonnegative().nullable()
+  }),
+
   'ai.stream.open': defineRoute({
     // Variant union mirrors AiStreamOpenRequest. `userMessageParts` is opaque pass-through
     // (main persists it), so its items are `z.custom<CherryMessagePart>()`.
@@ -335,7 +421,8 @@ export const aiRequestSchemas = {
           reasoningEffort: ReasoningEffortOptionSchema.optional(),
           serviceTier: ServiceTierSelectionSchema.optional(),
           fastMode: z.boolean().optional(),
-          followUp: z.boolean().optional()
+          followUp: z.boolean().optional(),
+          resendUnsentMessageId: z.uuid().optional()
         }),
         z.object({
           ...aiStreamRegenerateShape,
@@ -373,12 +460,19 @@ export const aiRequestSchemas = {
   // (AiStreamManager holds the live output, AiService applies the decision) —
   // the subtree groups by domain, not by service.
   'ai.tool.get_result': defineRoute({
-    // Mirrors AiToolResultRequest (z.ZodType pins exact-shape drift here, not in a test).
-    input: z.strictObject({
-      topicId: z.string().min(1),
-      messageId: z.string().min(1),
-      toolCallId: z.string().min(1)
-    }) satisfies z.ZodType<AiToolResultRequest>,
+    input: z.intersection(
+      z.object({
+        topicId: z.string().min(1),
+        messageId: z.string().min(1),
+        toolCallId: z.string().min(1),
+        partId: z.string().min(1).optional()
+      }),
+      z.discriminatedUnion('purpose', [
+        z.object({ purpose: z.literal('preview') }),
+        z.object({ purpose: z.literal('text-range'), cursor: z.number().int().nonnegative().optional() }),
+        z.object({ purpose: z.literal('full') })
+      ])
+    ) satisfies z.ZodType<AiToolResultRequest>,
     output: z.custom<AiToolResultResponse>()
   }),
   'ai.tool.respond_approval': defineRoute({
@@ -393,18 +487,191 @@ export const aiRequestSchemas = {
       anchorId: z.string().optional()
     }) satisfies z.ZodType<AiToolApprovalRespondRequest>,
     output: z.discriminatedUnion('ok', [
-      z.object({ ok: z.literal(true) }),
+      z.object({ ok: z.literal(true), approved: z.literal(false).optional() }),
       z.object({ ok: z.literal(false), reason: z.enum(['undelivered', 'rejected']) })
     ]) satisfies z.ZodType<AiToolApprovalRespondResponse>
   }),
 
   // ── Agent session warm-connection lifecycle ──
+  'ai.local_agents.select_session_model': defineRoute({
+    input: z.strictObject({ sessionId: z.string().min(1), modelId: z.string().min(1) }),
+    output: z.custom<LocalAgentSessionInfo>()
+  }),
+  'ai.local_agents.set_config_option': defineRoute({
+    input: z.strictObject({
+      sessionId: z.string().min(1),
+      configId: z.string().min(1),
+      value: z.union([z.string(), z.boolean()])
+    }),
+    output: z.custom<LocalAgentSessionInfo>()
+  }),
+  'ai.local_agents.set_thought_level': defineRoute({
+    input: z.strictObject({
+      sessionId: z.string().min(1),
+      configId: z.string().min(1),
+      value: z.string(),
+      modelId: z.string().min(1).optional()
+    }),
+    output: z.custom<LocalAgentSessionInfo>()
+  }),
+  'ai.local_agents.session_info': defineRoute({
+    input: z.object({ sessionId: z.string() }),
+    output: z.custom<LocalAgentSessionView>()
+  }),
+  'ai.local_agents.set_session_interactive': defineRoute({
+    input: z.strictObject({ sessionId: z.string().min(1), active: z.boolean() }),
+    output: z.void()
+  }),
+  'ai.local_agents.detect': defineRoute({ input: z.object({}), output: z.custom<LocalAgentDetection[]>() }),
+  'ai.local_agents.web_start': defineRoute({
+    input: localAgentRequestConfigSchema,
+    output: z.custom<ManagedToolStatusState>()
+  }),
+  'ai.local_agents.web_stop': defineRoute({
+    input: z.object({ presetId: z.enum(LOCAL_AGENT_WEB_UI_IDS) }),
+    output: z.void()
+  }),
+  'ai.codebuddy_web.status': defineRoute({ input: z.void(), output: z.custom<CodeBuddyWebUiStatus>() }),
+  'ai.codebuddy_web.start': defineRoute({
+    input: localAgentRequestConfigSchema,
+    output: z.custom<CodeBuddyWebUiStatus>()
+  }),
+  'ai.codebuddy_web.stop': defineRoute({ input: z.void(), output: z.void() }),
+  'ai.local_agents.uninstall_components': defineRoute({
+    input: z.object({ presetId: z.string().min(1), expectedPath: z.string().min(1) }),
+    output: z.array(LocalAgentUninstallComponentSchema)
+  }),
+  'ai.local_agents.uninstall': defineRoute({
+    input: z.object({
+      presetId: z.string().min(1),
+      expectedPath: z.string().min(1),
+      expectedComponents: z.array(LocalAgentUninstallComponentSchema).min(1)
+    }),
+    output: LocalAgentUninstallResultSchema
+  }),
+  'ai.local_agents.version': defineRoute({
+    input: z.object({ presetId: z.string().min(1), latest: z.boolean() }),
+    output: z.object({ current: z.string().optional(), latest: z.string().optional(), canUpgrade: z.boolean() })
+  }),
+  'ai.local_agents.install': defineRoute({
+    input: z.object({
+      presetId: z.string().min(1),
+      targetVersion: z.string().optional(),
+      systemOnly: z.boolean().optional()
+    }),
+    output: LocalAgentInstallResultSchema
+  }),
+  'ai.local_agents.subscription_usage': defineRoute({
+    input: z.strictObject({ agentId: z.string().min(1), sessionId: z.string().min(1).optional() }),
+    output: z.discriminatedUnion('status', [
+      z.object({
+        status: z.literal('available'),
+        readAt: z.number(),
+        balances: z
+          .array(
+            z.object({
+              id: z.string(),
+              label: z.string(),
+              amount: z.number().nonnegative(),
+              currency: z.string().regex(/^[A-Z]{3}$/)
+            })
+          )
+          .optional(),
+        windows: z.array(
+          z.object({
+            id: z.string(),
+            label: z.string(),
+            groupLabel: z.string().optional(),
+            usedRatio: z.number().nonnegative(),
+            durationMinutes: z.number().positive().optional(),
+            resetsAt: z.number().optional()
+          })
+        )
+      }),
+      z.object({ status: z.literal('signed-out') }),
+      z.object({ status: z.literal('unsupported') }),
+      z.object({ status: z.literal('unavailable') })
+    ]) satisfies z.ZodType<SubscriptionUsageResult>
+  }),
+  'ai.local_agents.read_account': defineRoute({
+    input: localAgentRequestConfigSchema,
+    output: z.discriminatedUnion('status', [
+      z.object({
+        status: z.literal('signed-in'),
+        account: z
+          .object({
+            id: z.string().optional(),
+            email: z.string().optional(),
+            displayName: z.string().optional(),
+            workspace: z.object({ id: z.string().optional(), name: z.string().optional() }).optional()
+          })
+          .optional()
+      }),
+      z.object({ status: z.enum(['signed-out', 'unknown', 'unsupported']) })
+    ]) satisfies z.ZodType<RuntimeAccountResult>
+  }),
+  'ai.local_agents.authenticate': defineRoute({
+    input: z.strictObject({
+      requestId: z.uuid(),
+      agentId: z.string().min(1).optional(),
+      config: LocalAgentConfigurationSchema,
+      methodId: z.string().min(1),
+      secret: z.string().min(1).optional(),
+      provider: z
+        .string()
+        .regex(/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/)
+        .optional()
+    }),
+    output: LocalAgentAccountSchema.optional()
+  }),
+  'ai.local_agents.cancel_auth': defineRoute({ input: z.strictObject({ requestId: z.uuid() }), output: z.void() }),
+  'ai.local_agents.respond_auth_consent': defineRoute({
+    input: z.strictObject({ requestId: z.uuid(), promptId: z.uuid(), decision: z.enum(['accept', 'decline']) }),
+    output: z.void()
+  }),
+  'ai.local_agents.select_model': defineRoute({
+    input: z.strictObject({
+      agentId: z.string().min(1),
+      nativeModel: z.string().min(1).optional(),
+      sourceModelId: LocalAgentConfigurationSchema.shape.sourceModelId,
+      sourceModelViaGateway: LocalAgentConfigurationSchema.shape.sourceModelViaGateway
+    }),
+    output: AgentEntitySchema
+  }),
+  'ai.local_agents.models': defineRoute({ input: localAgentRequestConfigSchema, output: LocalAgentModelCatalogSchema }),
+  'ai.local_agents.open_terminal': defineRoute({
+    input: localAgentRequestConfigSchema.extend({
+      login: z
+        .union([z.boolean(), z.strictObject({ provider: z.string().regex(/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/) })])
+        .optional(),
+      directory: AbsoluteFilePathSchema.optional(),
+      terminal: z.string().optional()
+    }),
+    output: z.object({ success: z.boolean(), message: z.string().optional() })
+  }),
+  'ai.local_agents.check': defineRoute({
+    input: localAgentRequestConfigSchema,
+    output: LocalAgentCheckResultSchema
+  }),
+  'ai.local_agents.update_settings': defineRoute({
+    input: z.strictObject({
+      agentId: z.string().min(1),
+      name: UpdateAgentSchema.shape.name,
+      settings: UpdateLocalAgentBindingSchema
+    }),
+    output: AgentEntitySchema
+  }),
   'ai.agent.create': defineRoute({
     input: CreateAgentCommandSchema,
     output: AgentEntitySchema
   }),
+  /** What a pending Agent or Assistant create or settings call would do, for its approval card. */
+  'ai.agent.preview_config_change': defineRoute({
+    input: z.strictObject({ approvalId: z.string().min(1) }),
+    output: AgentConfigChangePreviewSchema
+  }),
   'ai.agent.restore': defineRoute({
-    input: z.object({ agentId: z.string() }),
+    input: z.object({ agentId: z.string(), launchSettings: LocalAgentLaunchSettingsSchema.optional() }),
     output: AgentEntitySchema
   }),
   'ai.agent.delete': defineRoute({
@@ -435,7 +702,7 @@ export const aiRequestSchemas = {
     input: z.strictObject({ skillId: z.string().min(1) }),
     output: z.strictObject({ sessionId: z.string().min(1) })
   }),
-  'ai.agent.session.prewarm': defineRoute({
+  'ai.agent.session.commands': defineRoute({
     input: z.strictObject({ sessionId: z.string().min(1) }),
     output: z.void()
   }),
@@ -449,6 +716,32 @@ export const aiRequestSchemas = {
   'ai.agent.session.edit_target': defineRoute({
     input: z.strictObject({ sessionId: z.uuid(), messageId: z.uuid() }),
     output: z.strictObject({ messageId: z.uuid(), version: z.string(), parts: z.array(z.custom<CherryMessagePart>()) })
+  }),
+  'ai.agent.session.change_followups': defineRoute({
+    input: z.strictObject({
+      topicId: z.string().min(1),
+      change: z.discriminatedUnion('type', [
+        z.strictObject({
+          type: z.literal('begin-edit'),
+          inputId: z.uuid(),
+          revision: z.int().nonnegative(),
+          token: z.uuid()
+        }),
+        z.strictObject({ type: z.literal('cancel-edit'), inputId: z.uuid(), token: z.uuid() }),
+        z.strictObject({
+          type: z.literal('edit'),
+          inputId: z.uuid(),
+          revision: z.int().nonnegative(),
+          token: z.uuid(),
+          parts: z.array(z.custom<CherryMessagePart>())
+        }),
+        z.strictObject({ type: z.literal('reorder'), before: z.array(z.uuid()), after: z.array(z.uuid()) }),
+        z.strictObject({ type: z.literal('withdraw'), inputId: z.uuid() }),
+        z.strictObject({ type: z.literal('steer'), inputId: z.uuid() }),
+        z.strictObject({ type: z.literal('resume') })
+      ])
+    }),
+    output: z.boolean()
   }),
   'ai.agent.session.set_pending_input_count': defineRoute({
     input: z.strictObject({ sessionId: z.uuid(), count: z.number().int().nonnegative() }),
@@ -464,10 +757,6 @@ export const aiRequestSchemas = {
       fastMode: z.boolean().optional()
     }),
     output: z.custom<AiStreamOpenResponse>()
-  }),
-  'ai.agent.session.close_warm': defineRoute({
-    input: z.strictObject({ sessionId: z.string().min(1) }),
-    output: z.void()
   }),
   'ai.agent.session.delete': defineRoute({
     input: z.strictObject({
@@ -501,6 +790,14 @@ export const aiRequestSchemas = {
   }),
 
   // ── Agent session runtime queries & commands ──
+  'ai.agent.session.compact': defineRoute({
+    input: z.strictObject({
+      sessionId: z.string().min(1),
+      generation: z.string().min(1),
+      instructions: z.string().trim().min(1).optional()
+    }),
+    output: z.boolean()
+  }),
   // Takes a fresh context-usage reading for a UI about to show it. Best-effort and throttled in main:
   // a session with no live connection keeps its last published value. The result arrives on the
   // session's shared-cache key, not here.
@@ -575,13 +872,22 @@ export const aiRequestSchemas = {
  * its coalescing/liveness intact — it does not `broadcast`.
  */
 export type AiEventSchemas = {
+  'ai.local_agents.auth_prompt': { requestId: string; url?: string; code?: string }
+  'ai.local_agents.auth_consent': { requestId: string; promptId: string; prompt?: { url: string; message: string } }
+  'ai.local_agents.notice': { sessionId: string; notice: LocalAgentNotice }
+  'ai.local_agents.session_updated': LocalAgentSessionView & {
+    sessionId: string
+    restoreUnavailable?: boolean
+  }
   'ai.agent.import.progress': AgentImportSnapshot
-  'ai.projection.changed': { subscriptionId: string; update: MessageProjectionUpdate }
+  'ai.projection.changed': { subscriptionId: string; update: ProjectionNotification }
   'ai.claude_code.binary.changed': ClaudeCodeBinaryStatus
   'ai.agent.attachment_selections.changed': { sessionId: string }
   'ai.stream.chunk': StreamChunkPayload
   'ai.stream.done': StreamDonePayload
   'ai.stream.error': StreamErrorPayload
+  // Directed `send` to the caller of a streamed one-shot `ai.text.generate`, keyed by its requestId.
+  'ai.text.delta': { requestId: string; delta: string }
   // Auto-rename push (broadcast): a background job renamed a topic / agent session; any
   // window showing it should invalidate its cache.
   'ai.topic.auto_renamed': { topicId: string }

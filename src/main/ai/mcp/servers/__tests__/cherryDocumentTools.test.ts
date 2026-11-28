@@ -8,20 +8,27 @@ import { connectMcpTestClient } from '@test-helpers/mcp/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { MAX_FILE_SIZE_BYTES } from '@main/utils/downloadAsBase64'
+import type * as PdfText from '@main/utils/pdfText'
 
 const {
+  extractPdfTextLayerMarkdownMock,
   formatFromExtensionMock,
   getPhysicalPathMock,
+  inspectPdfTextMock,
   listAgentSessionAttachmentsMock,
   loggerErrorMock,
   loggerWarnMock,
+  startTaskMock,
   toMarkdownBytesMock
 } = vi.hoisted(() => ({
+  extractPdfTextLayerMarkdownMock: vi.fn(),
   formatFromExtensionMock: vi.fn(),
   getPhysicalPathMock: vi.fn(),
+  inspectPdfTextMock: vi.fn(),
   listAgentSessionAttachmentsMock: vi.fn(),
   loggerErrorMock: vi.fn(),
   loggerWarnMock: vi.fn(),
+  startTaskMock: vi.fn(),
   toMarkdownBytesMock: vi.fn()
 }))
 
@@ -36,8 +43,24 @@ vi.mock('@logger', () => ({
   }
 }))
 
-vi.mock('@application', () => ({
-  application: { get: () => ({ getPhysicalPath: getPhysicalPathMock }) }
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  const result = mockApplicationFactory()
+  const originalGet = result.application.get.getMockImplementation()!
+  result.application.get.mockImplementation((name: string) => {
+    if (name === 'FileManager') return { getPhysicalPath: getPhysicalPathMock }
+    if (name === 'FileProcessingService') {
+      return { startTask: startTaskMock }
+    }
+    return originalGet(name)
+  })
+  return result
+})
+
+vi.mock('@main/utils/pdfText', async (importOriginal) => ({
+  ...(await importOriginal<typeof PdfText>()),
+  extractPdfTextLayerMarkdown: extractPdfTextLayerMarkdownMock,
+  inspectPdfText: inspectPdfTextMock
 }))
 
 vi.mock('@main/ai/messages/agentSessionAttachments', () => ({
@@ -45,10 +68,12 @@ vi.mock('@main/ai/messages/agentSessionAttachments', () => ({
 }))
 
 const { registerDocumentTools } = await import('../cherryDocumentTools')
+const { application } = await import('@application')
 
 type Result = { isError?: boolean; content: Array<{ type: string; text?: string }> }
 const roots: string[] = []
 const clients: Client[] = []
+let defaultDocumentProcessor: string
 
 async function makeTools() {
   const root = await mkdtemp(path.join(tmpdir(), 'cherry-to-markdown-'))
@@ -56,6 +81,7 @@ async function makeTools() {
   const workspacePath = path.join(root, 'workspace')
   const agentDataPath = path.join(root, 'agent-data')
   await Promise.all([mkdir(workspacePath), mkdir(agentDataPath)])
+  vi.mocked(application.getPath).mockImplementation((_key, filename) => path.join(root, filename ?? ''))
   const client = await connectMcpTestClient(() => {
     const server = new McpServer({ name: 'cherry-tools', version: '1.0.0' })
     registerDocumentTools(server, { agentDataPath, sessionId: 'session-1', workspacePath })
@@ -76,8 +102,16 @@ function textOf(result: Result): string {
 describe('cherry-tools to_markdown', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    extractPdfTextLayerMarkdownMock.mockResolvedValue('Fallback PDF text layer')
     formatFromExtensionMock.mockReturnValue('docx')
+    inspectPdfTextMock.mockResolvedValue({ pageCount: 2, hasTextlessPages: false })
     listAgentSessionAttachmentsMock.mockReturnValue([])
+    defaultDocumentProcessor = 'local-document'
+    startTaskMock.mockReset().mockImplementation(async ({ file, output, processorId }) => {
+      const input = await readFile(file.path, 'utf-8')
+      await writeFile(output.path, `# ${processorId ?? defaultDocumentProcessor}\n\n${input}`)
+      return { task: { id: 'task-1' }, done: Promise.resolve({ status: 'completed' }) }
+    })
   })
 
   afterEach(async () => {
@@ -146,6 +180,31 @@ describe('cherry-tools to_markdown', () => {
 
     expect(result.isError).toBeFalsy()
     expect(toMarkdownBytesMock).toHaveBeenCalledWith(bytes, 'pdf')
+  })
+
+  it('converts the complete mixed PDF with the selected local document processor', async () => {
+    const { tools, workspacePath } = await makeTools()
+    await writeFile(path.join(workspacePath, 'mixed.pdf'), 'text and scan')
+    inspectPdfTextMock.mockResolvedValue({ pageCount: 2, hasTextlessPages: true })
+
+    const result = await tools.call({ path: 'mixed.pdf' })
+
+    expect(result.isError).toBeFalsy()
+    await expect(readFile(JSON.parse(textOf(result)).path, 'utf-8')).resolves.toBe('# local-document\n\ntext and scan')
+  })
+
+  it('converts successive scans directly with the selected remote document processor', async () => {
+    const { tools, workspacePath } = await makeTools()
+    toMarkdownBytesMock.mockRejectedValue(Object.assign(new Error('Scan needs OCR'), { code: 'needsOcr' }))
+    defaultDocumentProcessor = 'mineru'
+
+    for (const filename of ['first.pdf', 'second.pdf']) {
+      await writeFile(path.join(workspacePath, filename), filename)
+      const result = await tools.call({ path: filename })
+
+      expect(result.isError).toBeFalsy()
+      await expect(readFile(JSON.parse(textOf(result)).path, 'utf-8')).resolves.toBe(`# mineru\n\n${filename}`)
+    }
   })
 
   it('rejects a managed file that is not attached to the current session', async () => {
@@ -218,5 +277,38 @@ describe('cherry-tools to_markdown', () => {
 
     await expect(readFile(stale)).rejects.toMatchObject({ code: 'ENOENT' })
     await expect(readFile(recent, 'utf-8')).resolves.toBe('new')
+  })
+
+  it('falls back to the pdfjs text layer when anydoc rejects a text-layer PDF as malformed', async () => {
+    const { tools, workspacePath } = await makeTools()
+    const bytes = Buffer.from('%PDF-1.4 cnki')
+    await writeFile(path.join(workspacePath, 'cnki.pdf'), bytes)
+    formatFromExtensionMock.mockReturnValue('pdf')
+    inspectPdfTextMock.mockResolvedValue({ pageCount: 8, hasTextlessPages: false })
+    const message = "malformed document: couldn't parse input: invalid file trailer"
+    toMarkdownBytesMock.mockRejectedValue(Object.assign(new Error(message), { code: 'malformed' }))
+    extractPdfTextLayerMarkdownMock.mockResolvedValue('Page one text\n\nPage two text')
+
+    const result = await tools.call({ path: 'cnki.pdf' })
+
+    expect(result.isError).toBeFalsy()
+    await expect(readFile(JSON.parse(textOf(result)).path, 'utf-8')).resolves.toBe('Page one text\n\nPage two text')
+    expect(extractPdfTextLayerMarkdownMock).toHaveBeenCalledWith(bytes)
+    expect(startTaskMock).not.toHaveBeenCalled()
+    expect(loggerWarnMock).toHaveBeenCalledWith(expect.stringContaining(message))
+  })
+
+  it('does not fall back to the pdfjs text layer when anydoc rejects a PDF as encrypted', async () => {
+    const { tools, workspacePath } = await makeTools()
+    await writeFile(path.join(workspacePath, 'locked.pdf'), Buffer.from('%PDF-1.4 locked'))
+    formatFromExtensionMock.mockReturnValue('pdf')
+    inspectPdfTextMock.mockResolvedValue({ pageCount: 8, hasTextlessPages: false })
+    toMarkdownBytesMock.mockRejectedValue(Object.assign(new Error('document is encrypted'), { code: 'encrypted' }))
+
+    const result = await tools.call({ path: 'locked.pdf' })
+
+    expect(result.isError).toBe(true)
+    expect(extractPdfTextLayerMarkdownMock).not.toHaveBeenCalled()
+    expect(startTaskMock).not.toHaveBeenCalled()
   })
 })

@@ -14,7 +14,7 @@ import type { QuickPanelInputAdapter, QuickPanelInputEvent, QuickPanelListItem }
 import { CodeStyleContext } from '@renderer/hooks/useCodeStyle'
 import { voiceTargetManager } from '@renderer/services/voice'
 import { VoiceTargetManager } from '@renderer/services/voice/VoiceTargetManager'
-import { COMPOSER_FILE_KIND, FILE_TYPE, type FileMetadata } from '@renderer/types/file'
+import { COMPOSER_FILE_KIND, type FileMetadata } from '@renderer/types/file'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import {
   COMPOSER_CLIPBOARD_FRAGMENT_MIME,
@@ -22,6 +22,7 @@ import {
   readComposerClipboardFragment,
   writeComposerRichClipboardContent
 } from '@renderer/utils/message/composerClipboard'
+import { FILE_TYPE } from '@shared/types/file'
 
 import { ComposerContextProvider, ComposerLayerActiveProvider } from '../ComposerContext'
 import { serializeComposerDocument } from '../composerDraft'
@@ -84,6 +85,7 @@ const mocks = vi.hoisted(() => ({
   quickPanelIsVisible: false,
   quickPanelInitialSearchText: undefined as string | undefined,
   quickPanelOpen: vi.fn(),
+  quickPanelParentPanel: undefined as { symbol: string } | undefined,
   quickPanelQueryAnchor: undefined as number | undefined,
   quickPanelSymbol: '',
   quickPanelTriggerInfo: undefined as any,
@@ -178,6 +180,7 @@ vi.mock('@renderer/components/QuickPanel', () => ({
     isVisible: mocks.quickPanelIsVisible,
     initialSearchText: mocks.quickPanelInitialSearchText,
     open: mocks.quickPanelOpen,
+    parentPanel: mocks.quickPanelParentPanel,
     queryAnchor: mocks.quickPanelQueryAnchor,
     symbol: mocks.quickPanelSymbol,
     triggerInfo: mocks.quickPanelTriggerInfo,
@@ -536,6 +539,7 @@ describe('ComposerSurface', () => {
     mocks.quickPanelIsVisible = false
     mocks.quickPanelInitialSearchText = undefined
     mocks.quickPanelOpen.mockReset()
+    mocks.quickPanelParentPanel = undefined
     mocks.quickPanelQueryAnchor = undefined
     mocks.quickPanelSymbol = ''
     mocks.quickPanelTriggerInfo = undefined
@@ -2870,6 +2874,60 @@ describe('ComposerSurface', () => {
         expect.objectContaining({ label: 'Attachment', isSelected: true, disabled: true })
       ])
     })
+  })
+
+  it('makes a permission returned by ACP selectable in a menu opened before connection', async () => {
+    mocks.quickPanelIsVisible = true
+    mocks.quickPanelSymbol = 'permission-mode'
+    mocks.quickPanelParentPanel = { symbol: '/' }
+    const onToolLauncherSelect = vi.fn()
+    const permissionMenu = (connected: boolean) => [
+      {
+        id: 'permission-mode',
+        kind: 'group' as const,
+        label: 'Permission Mode',
+        icon: 'shield',
+        submenu: connected
+          ? [{ id: 'auto', kind: 'command' as const, label: 'Auto', icon: 'shield' }]
+          : [{ id: 'loading', kind: 'command' as const, label: 'Loading...', icon: null, disabled: true }]
+      }
+    ]
+    const { rerender } = render(
+      <ComposerSurface
+        {...baseProps}
+        quickPanelEnabled
+        getToolLaunchers={() => permissionMenu(false)}
+        onToolLauncherSelect={onToolLauncherSelect}
+        toolLaunchersVersion={1}
+      />
+    )
+
+    await waitFor(() => {
+      expect(mocks.quickPanelUpdateList.mock.lastCall?.[0]).toEqual([
+        expect.objectContaining({ id: 'loading', disabled: true })
+      ])
+    })
+    rerender(
+      <ComposerSurface
+        {...baseProps}
+        quickPanelEnabled
+        getToolLaunchers={() => permissionMenu(true)}
+        onToolLauncherSelect={onToolLauncherSelect}
+        toolLaunchersVersion={2}
+      />
+    )
+
+    const auto = await waitFor(() => {
+      const items: QuickPanelListItem[] = mocks.quickPanelUpdateList.mock.lastCall?.[0] ?? []
+      expect(items).toHaveLength(1)
+      const auto = items.find((item) => item.id === 'auto')
+      expect(auto?.label).toBe('Auto')
+      return auto!
+    })
+    const context = { triggerInfo: { type: 'button' } } as Parameters<NonNullable<typeof auto.action>>[0]['context']
+    auto.action?.({ action: 'click', context, item: auto })
+    expect(onToolLauncherSelect).toHaveBeenCalledWith(expect.objectContaining({ id: 'auto' }), expect.anything())
+    expect(mocks.quickPanelOpen).not.toHaveBeenCalled()
   })
 
   it('syncs external managed file and skill tokens into the editor document', async () => {

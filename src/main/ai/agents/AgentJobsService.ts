@@ -212,10 +212,10 @@ export class AgentJobsService extends BaseService {
       })
     )
 
-    // Only heartbeat configuration changes require schedule convergence.
     this.registerDisposable(
-      agentService.onAgentUpdated(({ updates, agent }) => {
+      agentService.onAgentUpdated(({ updates, agent, taskScheduleIds }) => {
         if (this.isShuttingDown) return
+        for (const id of taskScheduleIds ?? []) application.get('JobManager').syncJobScheduleTimerById(id)
         const configPatch = updates.configuration
         if (!configPatch) return
         if (
@@ -393,6 +393,7 @@ export class AgentJobsService extends BaseService {
   resumeTask(agentId: string, taskId: string): ScheduledTaskEntity | null {
     const existing = this.getActiveTask(agentId, taskId)
     if (!existing) return null
+    this.assertAgentIsActive(agentId)
     if (existing.status === 'missed') return existing
     // State-aware no-op: resuming an already-enabled task would re-register
     // the SchedulerService timer and reset an interval's phase.
@@ -502,7 +503,8 @@ export class AgentJobsService extends BaseService {
   async runTask(agentId: string, taskId: string): Promise<boolean> {
     return this.taskLocks.runExclusive(taskId, async () => {
       const existing = this.getActiveTask(agentId, taskId)
-      if (!existing) return false
+      if (!existing || existing.status === 'completed') return false
+      this.assertAgentIsActive(agentId)
       if (existing.status === 'missed') {
         const enqueued = application.get('DbService').withWriteTx((tx) => {
           const schedule = jobScheduleService.getByIdTx(tx, taskId)
@@ -564,7 +566,7 @@ export class AgentJobsService extends BaseService {
     return bound
   }
 
-  releaseOverflowedTaskSession(binding: { scheduleId: string; reuseRevision: number }, sessionId: string): void {
+  releaseTaskSessionReuse(binding: { scheduleId: string; reuseRevision: number }, sessionId: string): void {
     const cleared = application.get('DbService').withWriteTx((tx) => {
       const schedule = jobScheduleService.getByIdTx(tx, binding.scheduleId)
       const reuse = readTaskSessionReuse(schedule?.metadata)
@@ -580,6 +582,10 @@ export class AgentJobsService extends BaseService {
   // way), so no AI-domain IpcError code is minted for them — unlike trigger
   // validation, where the form must branch on the code.
   private assertAgentIsActive(agentId: string): void {
+    const agent = agentService.getAgent(agentId)
+    if (agent?.type === 'local' && !agent.localRuntime?.enabled) {
+      throw new Error('Scheduled tasks require an enabled local agent')
+    }
     // Trashed is refused with missing: the row would register and arm, then the
     // post-commit read refuses a non-active owner, stranding the schedule.
     if (agentService.getLifecycleState(agentId) !== 'active') {

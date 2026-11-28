@@ -8,9 +8,9 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
 import { useSharedCacheValue } from '@renderer/data/hooks/useCache'
 import KnowledgeRowActionsMenu from '@renderer/pages/knowledge/components/KnowledgeRowActionsMenu'
-import { getKnowledgeItemFailureReason } from '@renderer/pages/knowledge/utils/error'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import { getKnowledgeItemFailureReason } from '@renderer/utils/knowledgeError'
 import { formatRelativeTime } from '@renderer/utils/time'
 import type { KnowledgeItem } from '@shared/data/types/knowledge'
 
@@ -227,7 +227,7 @@ const KnowledgeItemRow = ({
         onKeyDown={canActivate ? handleRowKeyDown : undefined}
         className={cn(
           KNOWLEDGE_ITEM_ROW_GRID,
-          'group/row rounded-md px-2.5 py-1.5 transition-colors',
+          'group/row rounded-md px-2.5 py-1.5 transition-[color]',
           canActivate && 'cursor-pointer focus-visible:bg-muted focus-visible:outline-none',
           // Match the navigator base rows: hover highlight for any row, solid selected background
           // for the checked one.

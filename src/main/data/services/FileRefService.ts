@@ -9,7 +9,7 @@
  * DataApi and the file sweep need one.
  */
 
-import { asc, count, eq, inArray } from 'drizzle-orm'
+import { and, asc, count, eq, inArray } from 'drizzle-orm'
 
 import { application } from '@application'
 import {
@@ -22,6 +22,7 @@ import {
   miniAppFileRefTable,
   type MiniAppLogoFileRefRow,
   miniAppLogoFileRefTable,
+  missingExternalRefProtection,
   paintingFileRefTable,
   type PersistentFileRefSourceType,
   persistentFileRefTablesBySourceType,
@@ -62,6 +63,9 @@ export interface FileRefService {
 
   /** Persistent-ref count for one entry, inside the caller's tx (cleanup pass §5.4). */
   countPersistentRefsByEntryIdTx(tx: DbOrTx, id: FileEntryId): number
+
+  /** Whether a persistent ref prevents explicit removal of a missing external entry. */
+  hasProtectedRefsForMissingExternalEntryTx(tx: DbOrTx, id: FileEntryId): boolean
 }
 
 const SQLITE_INARRAY_CHUNK = 500
@@ -408,6 +412,19 @@ class FileRefServiceImpl implements FileRefService {
     }
 
     return counts
+  }
+
+  hasProtectedRefsForMissingExternalEntryTx(tx: DbOrTx, id: FileEntryId): boolean {
+    return (Object.keys(persistentFileRefTablesBySourceType) as PersistentFileRefSourceType[]).some((sourceType) => {
+      const table = persistentFileRefTablesBySourceType[sourceType]
+      return Boolean(
+        tx
+          .select({ id: table.fileEntryId })
+          .from(table)
+          .where(and(eq(table.fileEntryId, id), missingExternalRefProtection[sourceType]))
+          .get()
+      )
+    })
   }
 
   countPersistentRefsByEntryIdTx(tx: DbOrTx, id: FileEntryId): number {

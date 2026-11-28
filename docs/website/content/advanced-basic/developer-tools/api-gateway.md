@@ -2,13 +2,13 @@
 icon: bridge
 ---
 
-# API 网关
+# 统一网关
 
-API 网关把 Cherry Studio 已配置的模型能力通过 OpenAI 和 Anthropic 兼容的 HTTP API 提供给本机程序。它也是智能体运行所需的内部服务。
+统一网关把 Cherry Studio 已配置的模型能力通过 OpenAI 和 Anthropic 兼容的 HTTP API 提供给本机程序。它也是智能体运行所需的内部服务。
 
-路径：【设置】→【API 网关】。
+路径：【设置】→【统一网关】。
 
-<figure><img src="../../assets/69025f11c87bd83f70af4a07.webp" alt="API 网关设置中的运行状态、连接地址、端口和访问凭据"><figcaption><p>外部程序连接前先检查状态和端口；密钥只提供给可信的本机程序或受控网络。</p></figcaption></figure>
+<figure><img src="../../assets/69025f11c87bd83f70af4a07.webp" alt="统一网关设置中的运行状态、连接地址、端口和访问凭据"><figcaption><p>外部程序连接前先检查状态和端口；密钥只提供给可信的本机程序或受控网络。</p></figcaption></figure>
 
 <a id="agent-shi-yong-yu-wai-bu-diao-yong-yao-qu-fen"></a>
 <a id="agent-使用与外部调用要区分"></a>
@@ -49,7 +49,7 @@ API 网关把 Cherry Studio 已配置的模型能力通过 OpenAI 和 Anthropic 
 
 ## 使用场景：让本机脚本调用模型
 
-先在【设置】→【模型服务】确认模型可以正常对话，再启动 API 网关。脚本只保存本机网关地址和密钥，先请求模型列表，再发送一句短文本。接入完整程序前，确认客户端支持 OpenAI 或 Anthropic 兼容接口。
+先在【设置】→【模型服务】确认模型可以正常对话，再启动统一网关。脚本只保存本机网关地址和密钥，先请求模型列表，再发送一句短文本。接入完整程序前，确认客户端支持 OpenAI 或 Anthropic 兼容接口。
 
 | 配置 | 建议起点 | 作用 | 注意事项 |
 | ------ | ---------- | --------- | ----------------- |
@@ -74,9 +74,9 @@ API 密钥可以调用你在 Cherry Studio 中配置的模型服务。密钥泄�
 
 <details>
 
-<summary>API 网关与模型服务有什么关系？</summary>
+<summary>统一网关与模型服务有什么关系？</summary>
 
-模型服务保存上游服务商连接；API 网关把这些能力转换成兼容接口。网关本身不提供模型，仍需要至少一个可用服务商和模型。
+模型服务保存上游服务商连接；统一网关把这些能力转换成兼容接口。网关本身不提供模型，仍需要至少一个可用服务商和模型。
 
 </details>
 

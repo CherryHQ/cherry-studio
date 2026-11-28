@@ -17,6 +17,8 @@ const { values } = parseArgs({
     committed: { type: 'boolean' },
     group: { type: 'string' },
     shard: { type: 'string' },
+    'format-checked': { type: 'boolean' },
+    'no-tests': { type: 'boolean' },
     'github-output': { type: 'boolean' }
   }
 })
@@ -45,6 +47,7 @@ if (process.env.VALIDATION_PLAN) {
     plan = createPlan([], `Full validation: comparison history unavailable (${values.base})`)
   }
 }
+if (values['no-tests']) plan = { ...plan, projects: [], platform: false }
 
 if (values['github-output']) {
   if (!process.env.GITHUB_OUTPUT) throw new Error('GITHUB_OUTPUT is required')
@@ -67,7 +70,9 @@ else {
 if (values.plan || values['github-output']) process.exit(0)
 
 const tasks = plan.tasks.filter(
-  (task) => !values.group || values.group === 'checks' || checkTasks[task].group === values.group
+  (task) =>
+    !(task === 'format' && values['format-checked']) &&
+    (!values.group || values.group === 'checks' || checkTasks[task].group === values.group)
 )
 const projects =
   values.group === 'platform' && plan.platform

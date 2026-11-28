@@ -15,6 +15,7 @@ export interface LegacyUpgradeScreen {
   prerequisite: string
   download: string
   downloadPrerequisite: string
+  showBridgeDownload?: boolean
   quit: string
   installation?: LegacyInstallCopy
   dark: boolean

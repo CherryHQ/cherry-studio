@@ -21,7 +21,7 @@ const {
   mockGetAdapter,
   mockStartRun,
   mockBindTaskSessionReuse,
-  mockReleaseOverflowed,
+  mockReleaseTaskSessionReuse,
   mockIsSessionBusy,
   mockUpdateJobScheduleTx,
   mockSyncJobScheduleTimerById,
@@ -37,7 +37,7 @@ const {
       captured.listeners = opts.listeners
       return { mode: 'started' as const }
     }),
-    mockReleaseOverflowed: vi.fn(),
+    mockReleaseTaskSessionReuse: vi.fn(),
     mockBindTaskSessionReuse: vi.fn(() => true),
     mockIsSessionBusy: vi.fn(() => false),
     mockUpdateJobScheduleTx: vi.fn(),
@@ -55,7 +55,7 @@ vi.mock('@application', async () => {
     ChannelManager: { getAdapter: mockGetAdapter },
     AiStreamManager: { abort: mockAbort, removeListener: mockRemoveListener },
     AgentJobsService: {
-      releaseOverflowedTaskSession: mockReleaseOverflowed,
+      releaseTaskSessionReuse: mockReleaseTaskSessionReuse,
       bindTaskSessionReuse: mockBindTaskSessionReuse,
       syncHeartbeat: syncHeartbeatScheduleMock
     },
@@ -107,7 +107,7 @@ import { agentSessionService } from '@data/services/AgentSessionService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { jobService } from '@data/services/JobService'
 import { readHeartbeat } from '@main/ai/agents/heartbeat'
-import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
+import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
 
 import type * as AgentDataDirectoryModule from '../agentDataDirectory'
 import { runAgentTask } from '../runAgentTask'
@@ -432,28 +432,32 @@ describe('runAgentTask', () => {
     })
 
     it.each([
-      ['context_length_exceeded', undefined, 1],
-      ['Claude Code process exited with code 1', 'context_length', 1],
-      ['network timeout', undefined, 0]
-    ] as const)('handles a terminal %s on a reused session', async (message, claudeCodeExitCategory, releases) => {
-      vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot('s1'))
-      vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSchedule('daily-summary', REUSE_ON))
-      vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent())
-      vi.mocked(agentSessionService.getByTaskScheduleId).mockReturnValueOnce(makeSession('/ws/a'))
-      const run = runAgentTask(
-        makeCtx({ input: { agentId: 'a1', prompt: 'hi', timeoutMinutes: 0, workspace: { type: 'system' } } })
-      )
-      await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
-      captured.listeners[0].onError({ error: { message, claudeCodeExitCategory } })
-      const error = await run.catch((thrown: unknown) => thrown)
-      expect(error).toBeInstanceOf(Error)
-      expect((error as Error).message).toContain(message)
-      expect(mockReleaseOverflowed).toHaveBeenCalledTimes(releases)
-      // A released-overflow throw must be terminal: the job runner must not
-      // resubmit the full prompt in a fresh session (repeating committed
-      // effects). Ordinary failures stay unmarked (retryable by policy).
-      expect((error as { retryable?: boolean }).retryable).toBe(releases === 1 ? false : undefined)
-    })
+      ['context_length_exceeded', undefined, undefined, 1],
+      ['Claude Code process exited with code 1', 'context_length', undefined, 1],
+      ['cannot restore the previous conversation', undefined, 'LocalAgentSessionRestoreError', 1],
+      ['network timeout', undefined, undefined, 0]
+    ] as const)(
+      'handles a terminal %s on a reused session',
+      async (message, claudeCodeExitCategory, name, releases) => {
+        vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot('s1'))
+        vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSchedule('daily-summary', REUSE_ON))
+        vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent())
+        vi.mocked(agentSessionService.getByTaskScheduleId).mockReturnValueOnce(makeSession('/ws/a'))
+        const run = runAgentTask(
+          makeCtx({ input: { agentId: 'a1', prompt: 'hi', timeoutMinutes: 0, workspace: { type: 'system' } } })
+        )
+        await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
+        captured.listeners[0].onError({ error: { message, claudeCodeExitCategory, name } })
+        const error = await run.catch((thrown: unknown) => thrown)
+        expect(error).toBeInstanceOf(Error)
+        expect((error as Error).message).toContain(message)
+        expect(mockReleaseTaskSessionReuse).toHaveBeenCalledTimes(releases)
+        // A released-overflow throw must be terminal: the job runner must not
+        // resubmit the full prompt in a fresh session (repeating committed
+        // effects). Ordinary failures stay unmarked (retryable by policy).
+        expect((error as { retryable?: boolean }).retryable).toBe(releases === 1 ? false : undefined)
+      }
+    )
 
     it('runs one-off when a queued job has a stale reuse revision', async () => {
       vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot('s1'))
