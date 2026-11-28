@@ -1,8 +1,28 @@
-import { describe, expect, it } from 'vitest'
+import { unified } from 'unified'
+import { describe, expect, it, vi } from 'vitest'
 
 import type { MessageExportView } from '@renderer/types/messageExport'
 
-import { getMainTextContent, getNamingTextContent, getToolCitationExport } from '../find'
+import type * as citationUtils from '../../citation'
+import { mapMarkdownOutsideCode, normalizeCitationMarks } from '../../citation'
+
+vi.mock('../../citation', async (importOriginal) => {
+  const actual = await importOriginal<typeof citationUtils>()
+  return {
+    ...actual,
+    mapMarkdownOutsideCode: vi.fn(actual.mapMarkdownOutsideCode),
+    normalizeCitationMarks: vi.fn(actual.normalizeCitationMarks)
+  }
+})
+
+import { resolveCitationMarkerParts, resolveMessageCitations } from '../citations'
+import {
+  getCitedWebSources,
+  getMainTextContent,
+  getNamingTextContent,
+  getToolCitationExport,
+  getWebSourcesMarkdown
+} from '../find'
 
 function createExportView(parts: MessageExportView['parts']): MessageExportView {
   return {
@@ -168,7 +188,580 @@ describe('getToolCitationExport', () => {
   })
 })
 
-describe('getToolCitationExport across turns', () => {
+describe('getWebSourcesMarkdown', () => {
+  function legacyMessage(text: string, source?: string): MessageExportView {
+    return createExportView([
+      {
+        type: 'text',
+        text,
+        providerMetadata: {
+          cherry: {
+            references: [
+              {
+                category: 'citation',
+                citationType: 'web',
+                content: {
+                  source,
+                  results: [
+                    { url: 'https://first.com', title: 'First' },
+                    { url: 'https://second.com', title: 'Second' },
+                    { url: 'https://third.com', title: 'Third' }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    ] as MessageExportView['parts'])
+  }
+
+  it('copies only cited migrated sources without closing gaps in their display numbers', () => {
+    const message = legacyMessage('Legacy answer [3] and [1], then [3] again.')
+
+    expect(getWebSourcesMarkdown(message)).toBe('[1] [First](https://first.com)\n\n[3] [Third](https://third.com)')
+  })
+
+  it.each(['No citations here.', 'Code only: `[1]`\n```text\n[2]\n```'])(
+    'hides the legacy source action when prose cites nothing: %s',
+    (text) => {
+      const message = legacyMessage(text)
+
+      expect(getCitedWebSources(message)).toEqual([])
+      expect(getWebSourcesMarkdown(message)).toBe('')
+    }
+  )
+
+  it('preserves a backtick literal inside the stray-indentation fallback without consuming numbering', () => {
+    const text = '    const marker = `[2]`;\n\nReal claim [cite:1].'
+    const message = createExportView([
+      { type: 'source-url', sourceId: 'citation-0', url: 'https://first.com', title: 'First' },
+      { type: 'source-url', sourceId: 'citation-1', url: 'https://second.com', title: 'Second' },
+      { type: 'text', text }
+    ] as MessageExportView['parts'])
+    const [resolved] = resolveCitationMarkerParts([text], resolveMessageCitations(message.parts))
+    expect(resolved.content).toContain('const marker = `[2]`;')
+    expect(resolved.byMarker.get('1')?.number).toBe(1)
+    expect(getWebSourcesMarkdown(message)).toBe('[1] [First](https://first.com)')
+  })
+
+  it('does not pair backticks across display-math boundaries', () => {
+    const text = '$$\nx = `1\n$$\nReal claim [cite:1].\n`'
+    const message = createExportView([
+      { type: 'source-url', sourceId: 'citation-0', url: 'https://first.com', title: 'First' },
+      { type: 'text', text }
+    ] as MessageExportView['parts'])
+    const [resolved] = resolveCitationMarkerParts([text], resolveMessageCitations(message.parts))
+    expect(resolved.byMarker.get('1')?.number).toBe(1)
+    expect(getWebSourcesMarkdown(message)).toBe('[1] [First](https://first.com)')
+  })
+
+  it('excludes comment-only citations while keeping the same marker eligible in prose', () => {
+    const message = createExportView([
+      { type: 'source-url', sourceId: 'citation-0', url: 'https://first.com', title: 'First' },
+      { type: 'text', text: 'Visible answer\n\n<!-- [cite:1] -->' }
+    ] as MessageExportView['parts'])
+    expect(getCitedWebSources(message)).toEqual([])
+    message.parts[1] = { type: 'text', text: 'Visible claim [cite:1].' }
+    expect(getCitedWebSources(message)).toHaveLength(1)
+  })
+
+  it.each(['<!-- Note --> Visible claim [cite:1].', '    \\`escaped\n    Claim [cite:1] \\`'])(
+    'resolves prose following protected delimiters: %s',
+    (text) => {
+      const message = createExportView([
+        { type: 'source-url', sourceId: 'citation-0', url: 'https://first.com', title: 'First' },
+        { type: 'text', text }
+      ] as MessageExportView['parts'])
+      const [resolved] = resolveCitationMarkerParts([text], resolveMessageCitations(message.parts))
+      expect(resolved.byMarker.get('1')?.number).toBe(1)
+      if (text.startsWith('<!--')) expect(getCitedWebSources(message)).toHaveLength(1)
+    }
+  )
+
+  it('matches fallback delimiters without repeatedly scanning earlier runs', () => {
+    const find = vi.spyOn(Array.prototype, 'findIndex')
+    try {
+      const message = createExportView([
+        { type: 'source-url', sourceId: 'citation-0', url: 'https://first.com' },
+        { type: 'text', text: '```\n' + '`x` '.repeat(16000) + '[cite:1]' }
+      ] as MessageExportView['parts'])
+      getCitedWebSources(message)
+      expect(find.mock.calls.filter((args) => String(args[0]).includes('opener')).length).toBe(0)
+    } finally {
+      find.mockRestore()
+    }
+  })
+
+  it('bounds unfinished comments to their parsed container', () => {
+    const text = '> <!-- unfinished\n\nVisible claim [cite:1].\n\n<!-- later -->'
+    const message = createExportView([
+      { type: 'source-url', sourceId: 'citation-0', url: 'https://first.com', title: 'First' },
+      { type: 'text', text }
+    ] as MessageExportView['parts'])
+    const [resolved] = resolveCitationMarkerParts([text], resolveMessageCitations(message.parts))
+    expect(resolved.content.match(/<!-- later -->/g)).toHaveLength(1)
+    expect(getWebSourcesMarkdown(message)).toBe('[1] [First](https://first.com)')
+  })
+
+  it('protects each same-line comment but not a visible suffix', () => {
+    const message = createExportView([
+      { type: 'source-url', sourceId: 'citation-0', url: 'https://first.com', title: 'First' },
+      { type: 'text', text: '<!-- first --> <!-- [cite:1] -->' }
+    ] as MessageExportView['parts'])
+    expect(getCitedWebSources(message)).toEqual([])
+    message.parts[1] = { type: 'text', text: '<!-- first --> <!-- second --> Visible [cite:1].' }
+    expect(getCitedWebSources(message)).toHaveLength(1)
+  })
+
+  it('accepts escaped-looking backticks as closers inside a fallback literal', () => {
+    const text = '    `literal [cite:1]\\`\n\nReal claim [cite:2].'
+    const message = createExportView([
+      { type: 'source-url', sourceId: 'citation-0', url: 'https://first.com', title: 'First' },
+      { type: 'source-url', sourceId: 'citation-1', url: 'https://second.com', title: 'Second' },
+      { type: 'text', text }
+    ] as MessageExportView['parts'])
+    const [resolved] = resolveCitationMarkerParts([text], resolveMessageCitations(message.parts))
+    expect(resolved.content).toContain('`literal [cite:1]\\`')
+    expect(getWebSourcesMarkdown(message)).toBe('[1] [Second](https://second.com)')
+  })
+
+  it('does not treat a comment opener inside an HTML attribute as a comment', () => {
+    const text = '<!-- note --> <span title="<!--">Visible claim [cite:1].</span>'
+    const message = createExportView([
+      { type: 'source-url', sourceId: 'citation-0', url: 'https://first.com', title: 'First' },
+      { type: 'text', text }
+    ] as MessageExportView['parts'])
+    const [resolved] = resolveCitationMarkerParts([text], resolveMessageCitations(message.parts))
+    expect(resolved.byMarker.get('1')?.number).toBe(1)
+    expect(getWebSourcesMarkdown(message)).toBe('[1] [First](https://first.com)')
+  })
+
+  it('distinguishes SVG comments from visible CDATA text', () => {
+    const message = createExportView([
+      { type: 'source-url', sourceId: 'citation-0', url: 'https://first.com', title: 'First' },
+      { type: 'text', text: '<!-- note --> <svg><title><!-- [cite:1] --></title></svg>' }
+    ] as MessageExportView['parts'])
+    expect(getCitedWebSources(message)).toEqual([])
+    message.parts[1] = {
+      type: 'text',
+      text: '<!-- note --> <svg><text><![CDATA[Visible claim [cite:1].]]></text></svg>'
+    }
+    expect(getWebSourcesMarkdown(message)).toBe('[1] [First](https://first.com)')
+  })
+
+  it('collects copy eligibility after duplicate collapse changes Markdown boundaries', () => {
+    const message = createExportView([
+      { type: 'source-url', sourceId: 'citation-0', url: 'https://first.com', title: 'First' },
+      { type: 'source-url', sourceId: 'citation-1', url: 'https://second.com', title: 'Second' },
+      { type: 'text', text: '[cite:1] [cite:1]: /ref "`"\n`[cite:2]`' }
+    ] as MessageExportView['parts'])
+    expect(getWebSourcesMarkdown(message)).toBe('[1] [First](https://first.com)')
+  })
+
+  it('parses each native text part once when collecting strict copy eligibility', () => {
+    const parse = vi.spyOn(Object.getPrototypeOf(unified), 'parse')
+    try {
+      const first = `${'First term\n: definition body\n\n'.repeat(1000)}Claim [cite:1].`
+      const second = `${'Second term\n: different body\n\n'.repeat(1000)}Other [cite:1].`
+      const message = createExportView([
+        { type: 'source-url', sourceId: 'citation-0', url: 'https://first.com', title: 'First' },
+        { type: 'text', text: first },
+        { type: 'text', text: second }
+      ] as MessageExportView['parts'])
+      expect(getCitedWebSources(message)).toHaveLength(1)
+      expect(parse).toHaveBeenCalledTimes(2)
+    } finally {
+      parse.mockRestore()
+    }
+  })
+
+  it('reparses collapsed duplicate markers to preserve strict boundaries', () => {
+    const parse = vi.spyOn(Object.getPrototypeOf(unified), 'parse')
+    try {
+      const first = `${'First term\n: definition body\n\n'.repeat(1000)}Claim [cite:1] [cite:1].`
+      const second = `${'Second term\n: different body\n\n'.repeat(1000)}Other [cite:1] [cite:1].`
+      const message = createExportView([
+        { type: 'source-url', sourceId: 'citation-0', url: 'https://first.com', title: 'First' },
+        { type: 'text', text: first },
+        { type: 'text', text: second }
+      ] as MessageExportView['parts'])
+      expect(getCitedWebSources(message)).toHaveLength(1)
+      expect(parse).toHaveBeenCalledTimes(4)
+    } finally {
+      parse.mockRestore()
+    }
+  })
+
+  it('skips the markdown parse when the message has no sources at all', () => {
+    // The menu availability check runs this while streaming, even on large citation-free
+    // messages; with neither references nor source parts no citation can resolve.
+    const message = createExportView([
+      { type: 'text', text: `A long answer without citations. ${'| x | y | '.repeat(500)}` }
+    ])
+    vi.mocked(mapMarkdownOutsideCode).mockClear()
+    vi.mocked(normalizeCitationMarks).mockClear()
+    expect(getCitedWebSources(message)).toEqual([])
+    expect(mapMarkdownOutsideCode).not.toHaveBeenCalled()
+    expect(normalizeCitationMarks).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['openai', 'Answer [<sup>3</sup>](https://third.com)'],
+    ['grok', 'Answer [[3]](https://third.com)'],
+    [undefined, 'Answer [cite:3]']
+  ])('resolves migrated %s provider markers using their stored display numbers', (source, text) => {
+    expect(getWebSourcesMarkdown(legacyMessage(text, source))).toBe('[3] [Third](https://third.com)')
+  })
+
+  it('keeps each migrated text part bound to its own references and deduplicates repeated citations', () => {
+    const first = legacyMessage('First [3]')
+    const second = legacyMessage('Second [1]')
+    const message = createExportView([...first.parts, ...second.parts, ...first.parts])
+
+    expect(getWebSourcesMarkdown(message)).toBe('[3] [Third](https://third.com)\n\n[1] [First](https://first.com)')
+  })
+
+  it('exposes migrated sources when the only marker sits in a later text part', () => {
+    const first = legacyMessage('Intro without markers.')
+    const second = legacyMessage('Later [2]')
+    const message = createExportView([...first.parts, ...second.parts])
+
+    expect(getWebSourcesMarkdown(message)).toBe('[2] [Second](https://second.com)')
+  })
+
+  it('does not let a backtick fence opened in one part hide a citation in the next', () => {
+    const message = createExportView([
+      {
+        type: 'tool-web_search',
+        toolCallId: 'c1',
+        state: 'output-available',
+        input: { query: 'q' },
+        output: [{ id: 'web-a', title: 'Alpha', url: 'https://a.example', content: 'a' }]
+      },
+      { type: 'text', text: 'Open fence ```' },
+      { type: 'text', text: 'Cited [cite:web-a] after.\n```' }
+    ] as MessageExportView['parts'])
+
+    expect(getWebSourcesMarkdown(message)).toBe('[1] [Alpha](https://a.example)')
+  })
+
+  it.each(['    [cite:1]', '```text\n[cite:1]'])(
+    'does not copy a native source cited only in parsed code: %s',
+    (text) => {
+      const sources = [
+        { type: 'source-url', sourceId: '1', url: 'https://first.com', title: 'First' }
+      ] as MessageExportView['parts']
+      const message = createExportView([...sources, { type: 'text', text }])
+      expect(getCitedWebSources(message)).toEqual([])
+      expect(
+        getCitedWebSources(createExportView([...sources, { type: 'text', text: `Prose [cite:1].\n\n${text}` }]))
+      ).toHaveLength(1)
+    }
+  )
+
+  it.each(['    [1]', '```text\n[1]'])('does not copy a migrated source cited only in parsed code: %s', (text) => {
+    expect(getCitedWebSources(legacyMessage(text))).toEqual([])
+    expect(getCitedWebSources(legacyMessage(`Prose [1].\n\n${text}`))).toHaveLength(1)
+  })
+
+  it('filters code-only sources without renumbering prose citations or changing export fallback', () => {
+    const text = '    [cite:1]\n\nProse [cite:2].'
+    const message = createExportView([
+      { type: 'source-url', sourceId: '1', url: 'https://first.com', title: 'First' },
+      { type: 'source-url', sourceId: '2', url: 'https://second.com', title: 'Second' },
+      { type: 'text', text }
+    ] as MessageExportView['parts'])
+    expect(getWebSourcesMarkdown(message)).toBe('[2] [Second](https://second.com)')
+    expect(getToolCitationExport(message, text).content).toBe('    [1]\n\nProse [2].')
+  })
+
+  it('ignores a citation that only appears inside a tilde-fenced code block', () => {
+    const message = legacyMessage('Example:\n~~~text\n[1]\n~~~')
+
+    expect(getCitedWebSources(message)).toEqual([])
+    expect(getWebSourcesMarkdown(message)).toBe('')
+  })
+
+  it('keeps inline tildes as prose and treats an unclosed tilde fence as code to the end', () => {
+    const inline = createExportView([
+      {
+        type: 'tool-web_search',
+        toolCallId: 'c1',
+        state: 'output-available',
+        input: { query: 'q' },
+        output: [{ id: 'abcdef01-1', title: 'Alpha', url: 'https://a.example', content: 'a' }]
+      },
+      { type: 'text', text: 'Use ~~~ as a delimiter. See [cite:abcdef01-1] for the ~~~ syntax.' }
+    ] as MessageExportView['parts'])
+    expect(getWebSourcesMarkdown(inline)).toBe('[1] [Alpha](https://a.example)')
+
+    const unclosed = legacyMessage('Example:\n~~~text\n[1]\nstill code')
+    expect(getCitedWebSources(unclosed)).toEqual([])
+  })
+
+  it('resolves a bare marker to the same URL as the renderer when an earlier turn also stored id 1', () => {
+    const message: MessageExportView = {
+      ...createExportView([
+        {
+          type: 'tool-web_search',
+          toolCallId: 'now',
+          state: 'output-available',
+          input: { query: 'q' },
+          output: [{ id: 'abcdef01-1', title: 'Current', url: 'https://current.example', content: 'c' }]
+        },
+        { type: 'text', text: 'Read [1].' }
+      ] as MessageExportView['parts']),
+      priorCitationParts: [
+        {
+          type: 'tool-web_search',
+          toolCallId: 'earlier',
+          state: 'output-available',
+          input: { query: 'q' },
+          output: [{ id: '1', title: 'Earlier', url: 'https://earlier.example', content: 'e' }]
+        }
+      ] as MessageExportView['parts']
+    }
+    const citations = resolveMessageCitations(message.parts, message.priorCitationParts)
+    const rendered = resolveCitationMarkerParts(['Read [1].'], citations)[0].cited.map((c) => c.url)
+
+    expect(getCitedWebSources(message).map((c) => c.url)).toEqual(rendered)
+  })
+
+  it('serializes destinations so line breaks, backslashes and character references survive Markdown', () => {
+    const message = createExportView([
+      {
+        type: 'tool-web_search',
+        toolCallId: 'c1',
+        state: 'output-available',
+        input: { query: 'q' },
+        output: [{ id: 'web-a', title: 'A', url: 'https://x.example/a\\b?x=1&copy;=2&y=3\nz', content: 'a' }]
+      },
+      { type: 'text', text: 'Cited [cite:web-a].' }
+    ] as MessageExportView['parts'])
+
+    expect(getWebSourcesMarkdown(message)).toBe('[1] [A](https://x.example/a%5Cb?x=1&amp;copy;=2&y=3%0Az)')
+  })
+
+  it('closes a tilde fence only with a run at least as long as the opener', () => {
+    const longCloser = createExportView([
+      {
+        type: 'tool-web_search',
+        toolCallId: 'c1',
+        state: 'output-available',
+        input: { query: 'q' },
+        output: [{ id: 'web-a', title: 'Alpha', url: 'https://a.example', content: 'a' }]
+      },
+      { type: 'text', text: '~~~text\ncode\n~~~~\n\nEvidence [cite:web-a].' }
+    ] as MessageExportView['parts'])
+    expect(getWebSourcesMarkdown(longCloser)).toBe('[1] [Alpha](https://a.example)')
+
+    const shortCloser = legacyMessage('~~~~text\n~~~\n[1]\n~~~~')
+    expect(getCitedWebSources(shortCloser)).toEqual([])
+  })
+
+  it('treats a list-nested fence with a relatively indented closer as code and resumes prose after it', () => {
+    const message = createExportView([
+      {
+        type: 'tool-web_search',
+        toolCallId: 'c1',
+        state: 'output-available',
+        input: { query: 'q' },
+        output: [{ id: '1', title: 'Alpha', url: 'https://a.example', content: 'a' }]
+      },
+      { type: 'text', text: '- Example\n  ~~~text\n  sample\n    ~~~\n\nClaim [cite:1].' }
+    ] as MessageExportView['parts'])
+
+    expect(getWebSourcesMarkdown(message)).toBe('[1] [Alpha](https://a.example)')
+  })
+
+  it('keeps parentheses in destinations as the original characters', () => {
+    const message = createExportView([
+      {
+        type: 'tool-web_search',
+        toolCallId: 'c1',
+        state: 'output-available',
+        input: { query: 'q' },
+        output: [{ id: 'web-a', title: 'P', url: 'https://example.org/a(b)', content: 'a' }]
+      },
+      { type: 'text', text: 'Claim [cite:web-a]' }
+    ] as MessageExportView['parts'])
+
+    expect(getWebSourcesMarkdown(message)).toBe('[1] [P](https://example.org/a\\(b\\))')
+  })
+
+  it('falls back to the URL when a title is only whitespace', () => {
+    const message = createExportView([
+      {
+        type: 'tool-web_search',
+        toolCallId: 'c1',
+        state: 'output-available',
+        input: { query: 'q' },
+        output: [{ id: 'web-a', title: ' \t ', url: 'https://example.org', content: 'a' }]
+      },
+      { type: 'text', text: 'Claim [cite:web-a]' }
+    ] as MessageExportView['parts'])
+
+    expect(getWebSourcesMarkdown(message)).toBe('[1] [https://example.org](https://example.org)')
+  })
+
+  it('ends a list-nested fence at its container so the next paragraph still resolves', () => {
+    const message = createExportView([
+      {
+        type: 'tool-web_search',
+        toolCallId: 'c1',
+        state: 'output-available',
+        input: { query: 'q' },
+        output: [{ id: '1', title: 'Alpha', url: 'https://a.example', content: 'a' }]
+      },
+      { type: 'text', text: '- Example\n  ~~~text\n  sample\n\nClaim [cite:1].' }
+    ] as MessageExportView['parts'])
+
+    expect(getWebSourcesMarkdown(message)).toBe('[1] [Alpha](https://a.example)')
+  })
+
+  it('does not treat a zero-padded id as the numeric reference', () => {
+    expect(getCitedWebSources(legacyMessage('Claim [cite:01].'))).toEqual([])
+  })
+
+  it('encodes a non-breaking space as its UTF-8 bytes', () => {
+    const message = createExportView([
+      {
+        type: 'tool-web_search',
+        toolCallId: 'c1',
+        state: 'output-available',
+        input: { query: 'q' },
+        output: [{ id: 'web-a', title: 'A', url: 'https://a.example/x\u00a0y', content: 'a' }]
+      },
+      { type: 'text', text: 'Claim [cite:web-a]' }
+    ] as MessageExportView['parts'])
+
+    expect(getWebSourcesMarkdown(message)).toBe('[1] [A](https://a.example/x%C2%A0y)')
+  })
+
+  it('closes a top-level tilde fence with an outdented closer', () => {
+    const message = createExportView([
+      {
+        type: 'tool-web_search',
+        toolCallId: 'c1',
+        state: 'output-available',
+        input: { query: 'q' },
+        output: [{ id: '1', title: 'Alpha', url: 'https://a.example', content: 'a' }]
+      },
+      { type: 'text', text: '  ~~~text\n  sample\n~~~\n\nClaim [cite:1].' }
+    ] as MessageExportView['parts'])
+
+    expect(getWebSourcesMarkdown(message)).toBe('[1] [Alpha](https://a.example)')
+  })
+
+  it('keeps literal emphasis characters in titles', () => {
+    const message = createExportView([
+      {
+        type: 'tool-web_search',
+        toolCallId: 'c1',
+        state: 'output-available',
+        input: { query: 'q' },
+        output: [{ id: 'web-a', title: 'Compare *foo* with _bar_', url: 'https://a.example', content: 'a' }]
+      },
+      { type: 'text', text: 'Claim [cite:web-a]' }
+    ] as MessageExportView['parts'])
+
+    expect(getWebSourcesMarkdown(message)).toBe('[1] [Compare \\*foo\\* with \\_bar\\_](https://a.example)')
+  })
+
+  it('keeps literal HTML-like text in titles', () => {
+    const message = createExportView([
+      {
+        type: 'tool-web_search',
+        toolCallId: 'c1',
+        state: 'output-available',
+        input: { query: 'q' },
+        output: [{ id: 'web-a', title: '<div>: The Content Division element', url: 'https://a.example', content: 'a' }]
+      },
+      { type: 'text', text: 'Cited [cite:web-a].' }
+    ] as MessageExportView['parts'])
+
+    expect(getWebSourcesMarkdown(message)).toBe('[1] [\\<div\\>: The Content Division element](https://a.example)')
+  })
+
+  it('copies the page the renderer resolves when migrated references share a number', () => {
+    const message = createExportView([
+      {
+        type: 'text',
+        text: 'Claim [1]',
+        providerMetadata: {
+          cherry: {
+            references: [
+              {
+                category: 'citation',
+                citationType: 'web',
+                content: { results: { groundingChunks: [{ web: { uri: 'https://one.example', title: 'One' } }] } }
+              },
+              {
+                category: 'citation',
+                citationType: 'web',
+                content: { results: { groundingChunks: [{ web: { uri: 'https://two.example', title: 'Two' } }] } }
+              }
+            ]
+          }
+        }
+      }
+    ] as MessageExportView['parts'])
+
+    expect(getCitedWebSources(message).map((c) => c.url)).toEqual(['https://two.example'])
+  })
+
+  it('lists a webpage once when several migrated text parts cite the same URL', () => {
+    const first = legacyMessage('One [1]')
+    const second = legacyMessage('Two [1]')
+    const message = createExportView([...first.parts, ...second.parts])
+
+    expect(getWebSourcesMarkdown(message)).toBe('[1] [First](https://first.com)')
+  })
+
+  it('lists only webpages the answer cites, once each, in citation order', () => {
+    const message = createExportView([
+      {
+        type: 'tool-web_search',
+        toolCallId: 'c1',
+        state: 'output-available',
+        input: { query: 'q' },
+        output: [
+          { id: 'web-a', title: 'Alpha', url: 'https://a.example', content: 'a' },
+          { id: 'web-b', title: 'Beta', url: 'https://b.example', content: 'b' },
+          { id: 'web-unused', title: 'Unused', url: 'https://unused.example', content: 'u' }
+        ]
+      },
+      { type: 'text', text: 'First [cite:web-b] then [cite:web-a] and again [cite:web-b].' }
+    ] as MessageExportView['parts'])
+
+    expect(getWebSourcesMarkdown(message)).toBe('[1] [Beta](https://b.example)\n\n[2] [Alpha](https://a.example)')
+    expect(getCitedWebSources(message).map((citation) => citation.url)).toEqual([
+      'https://b.example',
+      'https://a.example'
+    ])
+  })
+
+  it('escapes Markdown in titles, encodes unsafe URL characters, and retains the normalized host for untitled sources', () => {
+    const message = createExportView([
+      {
+        type: 'tool-web_search',
+        toolCallId: 'c1',
+        state: 'output-available',
+        input: { query: 'q' },
+        output: [
+          { id: 'web-a', title: 'Read [this]  \\ now', url: 'https://x.example/a b(c)', content: 'a' },
+          { id: 'web-b', title: '', url: 'https://plain.example', content: 'b' }
+        ]
+      },
+      { type: 'text', text: 'Cited [cite:web-a] and [cite:web-b].' }
+    ] as MessageExportView['parts'])
+
+    expect(getWebSourcesMarkdown(message)).toBe(
+      '[1] [Read \\[this\\] \\\\ now](https://x.example/a%20b\\(c\\))\n\n[2] [plain.example](https://plain.example)'
+    )
+  })
+
   it('resolves a marker against priorCitationParts and lists that source', () => {
     const message: MessageExportView = {
       ...createExportView([{ type: 'text', text: 'Prices rose. [cite:3f2a1b9c-2]' }] as MessageExportView['parts']),

@@ -11,26 +11,154 @@
  */
 
 import type { GroundingSupport } from '@google/genai'
+import { Parser as HtmlParser } from 'htmlparser2'
+import type { Root, RootContent } from 'mdast'
+import remarkDefinitionList from 'remark-definition-list'
+import remarkGfm from 'remark-gfm'
+import remarkMath from 'remark-math'
+import remarkParse from 'remark-parse'
+import { unified } from 'unified'
 
 import type { Citation } from '@renderer/types/message'
 import { WEB_SEARCH_SOURCE, type WebSearchSource } from '@renderer/types/webSearchProvider'
 import { cleanMarkdownContent } from '@renderer/utils/formats'
+import { remarkLatexMath } from '@renderer/utils/remarkLatexMath'
 
-const MARKDOWN_CODE_PATTERN = /```[\s\S]*?```|`[^`\n]*`/gm
+// Same syntax extensions the chat renderer parses with, so table cells, definition lists and
+// strikethrough split code spans exactly as they do on screen.
+const markdownParser = unified()
+  .use(remarkParse)
+  .use(remarkGfm)
+  .use(remarkDefinitionList)
+  .use(remarkMath)
+  .use(remarkLatexMath)
+
+type CodeRange = { start: number; end: number }
+
+let cachedRangesContent: string | undefined
+let cachedRanges: CodeRange[] = []
+let cachedAllCodeRanges: CodeRange[] = []
+
+/**
+ * Whether a parsed code node hides citation markers. Indented code blocks and backtick fences that
+ * never close are plain prose here (assistant text often carries stray indentation or a lone fence);
+ * inline code, closed fences and tilde fences are code.
+ */
+function isCitationOpaqueCode(node: Root | RootContent, content: string, start: number, end: number): boolean {
+  if (node.type === 'inlineCode') return true
+  const raw = content.slice(start, end)
+  const opener = /^[ \t]*(`{3,}|~{3,})/.exec(raw)
+  if (!opener) return false
+  if (opener[1][0] === '~') return true
+  // CommonMark accepts `\r`, `\r\n` and `\n` line endings; follow the parsed boundary, not just `\n`.
+  const lastBreak = Math.max(raw.lastIndexOf('\n'), raw.lastIndexOf('\r'))
+  const lastLine = raw.slice(lastBreak + 1)
+  return (
+    lastBreak !== -1 &&
+    /^[ \t>]*`{3,}[ \t]*$/.test(lastLine) &&
+    lastLine.replace(/[ \t>]/g, '').length >= opener[1].length
+  )
+}
+
+/**
+ * Ranges of code (fenced, indented or inline) that citation markers must not be read from. They come
+ * from a CommonMark parse, so fence openers, closers, list containers and lazy continuations follow
+ * the same rules the renderer applies. One parse per text, cached for repeated lookups.
+ */
+export function findMarkdownCodeRanges(content: string, protectAllCodeBlocks = false): CodeRange[] {
+  if (content === cachedRangesContent) return protectAllCodeBlocks ? cachedAllCodeRanges : cachedRanges
+  const ranges: CodeRange[] = []
+  const allCodeRanges: CodeRange[] = []
+  const stack: Array<Root | RootContent> = [markdownParser.parse(content)]
+  while (stack.length > 0) {
+    const node = stack.pop()!
+    if (
+      (node.type === 'code' ||
+        node.type === 'inlineCode' ||
+        node.type === 'math' ||
+        node.type === 'inlineMath' ||
+        (node.type === 'html' && node.value.startsWith('<!--'))) &&
+      node.position
+    ) {
+      const { start, end } = node.position
+      if (start.offset !== undefined && end.offset !== undefined) {
+        if (node.type === 'html') {
+          const raw = content.slice(start.offset, end.offset)
+          const offset = start.offset
+          const boundary = end.offset
+          const parser = new HtmlParser(
+            {
+              oncomment() {
+                const range = {
+                  start: offset + parser.startIndex,
+                  end: Math.min(boundary, offset + parser.endIndex + 1)
+                }
+                ranges.push(range)
+                allCodeRanges.push(range)
+              }
+            },
+            { xmlMode: true }
+          )
+          parser.end(raw)
+          continue
+        }
+        const range = { start: start.offset, end: end.offset }
+        allCodeRanges.push(range)
+        if (node.type !== 'code' || isCitationOpaqueCode(node, content, start.offset, end.offset)) ranges.push(range)
+        else {
+          // The stray-indentation fallback remains prose, but its backtick literals are opaque.
+          const raw = content.slice(start.offset, end.offset)
+          const runs = [...raw.matchAll(/`+/g)]
+          const escapedOpener = (index: number) => {
+            let slashes = 0
+            for (let j = runs[index].index - 1; j >= 0 && raw[j] === '\\'; j--) slashes++
+            return slashes % 2 !== 0
+          }
+          // Build next-equal-run links once. Never rescan the prefix for each opener.
+          const next = new Map<number, number>()
+          const matching = new Map<number, number>()
+          for (let i = runs.length - 1; i >= 0; i--) {
+            const close = next.get(runs[i][0].length)
+            if (close !== undefined) matching.set(i, close)
+            next.set(runs[i][0].length, i)
+          }
+          for (let i = 0; i < runs.length; i++) {
+            if (escapedOpener(i)) continue
+            const close = matching.get(i)
+            if (close === undefined) continue
+            ranges.push({
+              start: start.offset + runs[i].index,
+              end: start.offset + runs[close].index + runs[close][0].length
+            })
+            i = close
+          }
+        }
+      }
+      continue
+    }
+    if ('children' in node) stack.push(...node.children)
+  }
+  ranges.sort((left, right) => left.start - right.start)
+  allCodeRanges.sort((left, right) => left.start - right.start)
+  cachedRangesContent = content
+  cachedRanges = ranges
+  cachedAllCodeRanges = allCodeRanges
+  return protectAllCodeBlocks ? allCodeRanges : ranges
+}
 
 /** Apply a transform only to prose, preserving inline and fenced code byte-for-byte. */
-export function mapMarkdownOutsideCode(content: string, transform: (text: string) => string): string {
-  MARKDOWN_CODE_PATTERN.lastIndex = 0
+export function mapMarkdownOutsideCode(
+  content: string,
+  transform: (text: string) => string,
+  protectAllCodeBlocks = false
+): string {
   let cursor = 0
   let result = ''
-  let match: RegExpExecArray | null
-
-  while ((match = MARKDOWN_CODE_PATTERN.exec(content)) !== null) {
-    result += transform(content.slice(cursor, match.index))
-    result += match[0]
-    cursor = match.index + match[0].length
+  for (const { start, end } of findMarkdownCodeRanges(content, protectAllCodeBlocks)) {
+    result += transform(content.slice(cursor, start))
+    result += content.slice(start, end)
+    cursor = end
   }
-
   return result + transform(content.slice(cursor))
 }
 
@@ -78,21 +206,7 @@ export function normalizeCitationMarks(
   citationMap: Map<number, Citation>,
   sourceType?: WebSearchSource
 ): string {
-  const codeBlockRegex = MARKDOWN_CODE_PATTERN
-  const getSkipRanges = () => {
-    const skipRanges: Array<{ start: number; end: number }> = []
-
-    codeBlockRegex.lastIndex = 0
-    let match: RegExpExecArray | null
-    while ((match = codeBlockRegex.exec(content)) !== null) {
-      skipRanges.push({
-        start: match.index,
-        end: match.index + match[0].length
-      })
-    }
-
-    return skipRanges
-  }
+  const getSkipRanges = () => findMarkdownCodeRanges(content)
 
   // 检查位置是否在代码块内
   const shouldSkip = (pos: number, skipRanges = getSkipRanges()): boolean => {

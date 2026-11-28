@@ -7,12 +7,18 @@
  */
 import type { Citation } from '@renderer/types/message'
 import type { ExportableMessage } from '@renderer/types/messageExport'
-import { convertReferencesToCitations } from '@renderer/utils/partsToBlocks'
+import {
+  CITATION_MARKER_PATTERN,
+  determineCitationSource,
+  mapMarkdownOutsideCode,
+  normalizeCitationMarks
+} from '@renderer/utils/citation'
+import { convertReferencesToCitationReferences, convertReferencesToCitations } from '@renderer/utils/partsToBlocks'
 import type { CherryMessagePart, ContentReference } from '@shared/data/types/message'
 import type { CodePartData, ErrorPartData, TranslationPartData } from '@shared/data/types/uiParts'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 
-import { toExportableCitations } from './citations'
+import { resolveCitationMarkerParts, resolveMessageCitations, toExportableCitations } from './citations'
 
 function getParts(message: ExportableMessage): CherryMessagePart[] {
   return message.parts ?? []
@@ -161,3 +167,106 @@ export const getToolCitationExport = (
   const { content: exported, cited } = toExportableCitations(content, getParts(message), priorParts)
   return { content: exported, citation: formatCitationLines(cited) }
 }
+
+const WEB_SOURCE_URL = /^https?:\/\//i
+
+/**
+ * Webpage citations the answer's own text cites, in display order with their display numbers.
+ * Reasoning and tool output never contribute; knowledge and memory sources are excluded.
+ */
+export const getCitedWebSources = (message: ExportableMessage): Citation[] => {
+  const parts = getParts(message)
+  const priorParts = 'priorCitationParts' in message ? (message.priorCitationParts ?? []) : []
+  // Mirror MessagePartsRenderer: a text part whose own references yield citations is legacy and
+  // resolves against them; every other text part resolves natively. Native parts resolve
+  // independently (no Markdown state leaks across parts) but share one display-number sequence.
+  const legacyByPart = new Map<CherryMessagePart, Citation[]>()
+  const nativeParts: CherryMessagePart[] = []
+  for (const part of parts) {
+    if (part.type !== 'text') continue
+    const references = (readCherryMeta(part)?.references as ContentReference[] | undefined) ?? []
+    const citations = convertReferencesToCitations(references)
+    if (citations.length > 0) legacyByPart.set(part, citations)
+    else nativeParts.push(part)
+  }
+  // Same lookup as the renderer: earlier turns always join the message's own sources, so a bare
+  // marker resolves to the same URL on screen and in the copied list.
+  const messageCitations = resolveMessageCitations(parts, priorParts)
+  // No references and no source parts means no citation can resolve; skip the markdown parse.
+  // Menu availability calls this while streaming, often on large citation-free messages.
+  if (legacyByPart.size === 0 && messageCitations.all.length === 0) return []
+  const nativeResolutions = resolveCitationMarkerParts(
+    nativeParts.map((part) => (part.type === 'text' ? (part.text ?? '') : '')),
+    messageCitations,
+    { collectProseCitations: true }
+  )
+  const nativeByPart = new Map(nativeParts.map((part, index) => [part, nativeResolutions[index].proseCited ?? []]))
+
+  const cited: Citation[] = []
+  const seen = new Set<string>()
+  const add = (citation: Citation) => {
+    // A URL is one source however many parts cite it; keep the first occurrence and its number.
+    const key = citation.url ? `${citation.type}:${citation.url}` : `${citation.type}:${citation.number}`
+    if (seen.has(key)) return
+    seen.add(key)
+    cited.push(citation)
+  }
+  for (const part of parts) {
+    if (part.type !== 'text') continue
+    const legacy = legacyByPart.get(part)
+    if (!legacy) {
+      for (const citation of nativeByPart.get(part) ?? []) add(citation)
+      continue
+    }
+    const references = (readCherryMeta(part)?.references as ContentReference[] | undefined) ?? []
+    const source = determineCitationSource(convertReferencesToCitationReferences(references, ''))
+    const normalized = normalizeCitationMarks(part.text ?? '', new Map(legacy.map((c) => [c.number, c])), source)
+    const numbers = new Set<number>()
+    mapMarkdownOutsideCode(
+      normalized,
+      (text) => {
+        // Only canonical ids count: the renderer looks markers up as exact strings, so `01` is not `1`.
+        for (const match of text.matchAll(CITATION_MARKER_PATTERN)) {
+          if (String(Number(match[2])) === match[2]) numbers.add(Number(match[2]))
+        }
+        return text
+      },
+      true
+    )
+    // A number shared by several references resolves to the last one, like the renderer's marker lookup.
+    const byNumber = new Map(legacy.map((c) => [c.number, c]))
+    for (const citation of legacy)
+      if (numbers.has(citation.number) && byNumber.get(citation.number) === citation) add(citation)
+  }
+  return cited.filter((citation) => citation.type === 'websearch' && WEB_SOURCE_URL.test(citation.url))
+}
+
+// Escape everything CommonMark would read as syntax inside link text, so a title like `<div>` stays literal.
+const escapeLinkText = (text: string): string => text.replace(/[\\[\]<>&*_`~|]/g, '\\$&')
+// Percent-encode what would end or split the destination (whitespace, controls, brackets, backslash)
+// and write `&` as `&amp;` where a Markdown parser would read a character reference (`&copy;`).
+const needsPercentEncoding = (character: string): boolean => {
+  const code = character.charCodeAt(0)
+  return code <= 0x20 || code === 0x7f || /[<>\\\u00a0]/.test(character)
+}
+const escapeLinkDestination = (url: string): string =>
+  Array.from(url, (character) =>
+    needsPercentEncoding(character)
+      ? encodeURIComponent(character).replace(
+          /^[^%]$/,
+          (c) => `%${c.charCodeAt(0).toString(16).toUpperCase().padStart(2, '0')}`
+        )
+      : character
+  )
+    .join('')
+    .replace(/[()]/g, '\\$&')
+    .replace(/&(?=#\d+;|#x[\da-f]+;|[a-z][a-z\d]*;)/gi, '&amp;')
+
+/** One `[N] [title](url)` line per cited webpage, keeping the answer's citation numbers (gaps included). */
+export const getWebSourcesMarkdown = (message: ExportableMessage): string =>
+  getCitedWebSources(message)
+    .map((citation) => {
+      const title = citation.title?.replace(/\s+/g, ' ').trim() || citation.url
+      return `[${citation.number}] [${escapeLinkText(title)}](${escapeLinkDestination(citation.url)})`
+    })
+    .join('\n\n')

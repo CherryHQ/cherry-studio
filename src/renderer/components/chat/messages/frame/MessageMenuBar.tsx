@@ -1,7 +1,8 @@
 import type { FC } from 'react'
-import { memo, useCallback, useMemo } from 'react'
+import { memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { useCommandMenuPresentationMode } from '@renderer/hooks/command'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import { getComposerTextFromParts } from '@renderer/utils/message/composerTokens'
 import { canEditAssistantMessageParts, hasTextParts, hasTranslationParts } from '@renderer/utils/message/partsHelpers'
@@ -57,6 +58,15 @@ const MessageMenuBar: FC<Props> = (props) => {
     onSelectContext,
     variant = 'footer'
   } = props
+  const nativeMenu = useCommandMenuPresentationMode() === 'native'
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false)
+  const handleMenuOpenChange = useCallback(
+    (open: boolean) => {
+      setMoreMenuOpen(open)
+      onMenuOpenChange?.(open)
+    },
+    [onMenuOpenChange]
+  )
   const { t } = useTranslation()
   const actions = useMessageListActions()
   const selection = useMessageListSelection()
@@ -110,6 +120,7 @@ const MessageMenuBar: FC<Props> = (props) => {
       isGrouped,
       isLastMessage,
       isProcessing,
+      sourceLookupEnabled: nativeMenu || moreMenuOpen,
       isTranslating,
       hasTranslationBlocks,
       isUserMessage,
@@ -124,6 +135,8 @@ const MessageMenuBar: FC<Props> = (props) => {
     }),
     [
       actions,
+      moreMenuOpen,
+      nativeMenu,
       copied,
       hasTranslationBlocks,
       isAssistantMessage,
@@ -152,7 +165,13 @@ const MessageMenuBar: FC<Props> = (props) => {
     ]
   )
 
-  const menuActions = useMemo(() => resolveMessageMenuBarMenuActions(actionContext), [actionContext])
+  const menuActions = useMemo(() => {
+    const actions = resolveMessageMenuBarMenuActions(actionContext)
+    // Preserve the trigger when source copying is the only available menu action.
+    return actions.length === 0 && !moreMenuOpen
+      ? resolveMessageMenuBarMenuActions({ ...actionContext, sourceLookupEnabled: true })
+      : actions
+  }, [actionContext, moreMenuOpen])
   const toolbarActions = useMemo(() => resolveMessageMenuBarToolbarActions(actionContext), [actionContext])
   const translationItems = useMemo(() => resolveMessageMenuBarTranslationItems(actionContext), [actionContext])
 
@@ -179,7 +198,7 @@ const MessageMenuBar: FC<Props> = (props) => {
             actionContext={actionContext}
             executeAction={executeAction}
             menuActions={menuActions}
-            onMenuOpenChange={onMenuOpenChange}
+            onMenuOpenChange={action.id === 'more-menu' ? handleMenuOpenChange : onMenuOpenChange}
             softHoverBg={softHoverBg}
             translationItems={translationItems}
           />

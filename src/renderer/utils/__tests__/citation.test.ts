@@ -6,6 +6,7 @@ import { WEB_SEARCH_SOURCE } from '@renderer/types/webSearchProvider'
 
 import {
   determineCitationSource,
+  findMarkdownCodeRanges,
   generateCitationTag,
   isLinkableCitationUrl,
   mapCitationMarksToTags,
@@ -647,6 +648,57 @@ Numbered list:
       // Chunk 0 (citation 1) is referenced in 5 of 6 segments
       const sup1Matches = result.match(/data-citation='[^']*'>1<\/sup>/g) || []
       expect(sup1Matches).toHaveLength(5)
+    })
+  })
+
+  describe('findMarkdownCodeRanges', () => {
+    const codeOf = (text: string) => findMarkdownCodeRanges(text).map(({ start, end }) => text.slice(start, end))
+
+    it('keeps unindented lines inside a top-level fence opened with indentation', () => {
+      const text = 'Intro\n\n  ~~~text\nsample [cite:2]\n~~~\n\nClaim [cite:1].'
+      expect(codeOf(text)).toEqual(['  ~~~text\nsample [cite:2]\n~~~'.trimStart()])
+      expect(text.slice(findMarkdownCodeRanges(text)[0].end)).toBe('\n\nClaim [cite:1].')
+    })
+
+    it('closes a list-contained fence at a closer indented relative to its item', () => {
+      const text = '- item\n\n  ~~~text\n  sample\n    ~~~\n\n  Claim [cite:1].'
+      const [range] = findMarkdownCodeRanges(text)
+      expect(text.slice(range.end)).toContain('Claim [cite:1].')
+    })
+
+    it('ends a fence inside a blockquote at its prefixed closer', () => {
+      const text = '> ```\n> sample [cite:2]\n> ```\n\nClaim [cite:1].'
+      const [range] = findMarkdownCodeRanges(text)
+      expect(text.slice(range.start, range.end)).toContain('sample [cite:2]')
+      expect(text.slice(range.end)).toBe('\n\nClaim [cite:1].')
+    })
+
+    it('does not pair lone backticks across GFM table rows', () => {
+      const text = '| a | b |\n| - | - |\n| lone ` | See [cite:1]. |\n| stray ` | Comment |'
+      expect(findMarkdownCodeRanges(text)).toEqual([])
+    })
+
+    it('does not pair lone backticks across a definition list term and definition', () => {
+      // Chat parses with remark-definition-list, so the term and definition are separate
+      // containers and neither lone backtick starts a code span.
+      const text = 'Term with ` lone tick\n: definition [cite:1] and another ` tick'
+      expect(findMarkdownCodeRanges(text)).toEqual([])
+    })
+
+    it('treats a backtick fence closed with bare CR line endings as code', () => {
+      const text = '```\r[cite:1]\r```'
+      expect(findMarkdownCodeRanges(text)).toEqual([{ start: 0, end: text.length }])
+    })
+
+    it('treats inline code and unrelated text separately', () => {
+      expect(codeOf('a `x` b `y [cite:1]` c')).toEqual(['`x`', '`y [cite:1]`'])
+    })
+
+    it('stays near-linear on many inline code spans', () => {
+      const text = 'word `code` '.repeat(3200)
+      const started = performance.now()
+      findMarkdownCodeRanges(text)
+      expect(performance.now() - started).toBeLessThan(1000)
     })
   })
 })

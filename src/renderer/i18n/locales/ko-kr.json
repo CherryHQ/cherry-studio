@@ -1174,6 +1174,7 @@
   "chat.topics.copy.md": "Markdown으로 복사",
   "chat.topics.copy.plain_text": "일반 텍스트로 복사(Markdown 제거)",
   "chat.topics.copy.title": "복사",
+  "chat.topics.copy.web_sources": "웹 소스 복사",
   "chat.topics.delete.shortcut": "{{key}}를 누른 채로 바로 삭제",
   "chat.topics.display.assistant": "어시스턴트",
   "chat.topics.display.time": "시간",
