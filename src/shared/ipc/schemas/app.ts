@@ -93,8 +93,19 @@ export const appRequestSchemas = {
   }),
   'app.data_reset.request': defineRoute({ input: z.void(), output: z.void() }),
   'app.updater.check_for_update': defineRoute({ input: z.void(), output: z.void() }),
+  'app.updater.present_check': defineRoute({ input: z.void(), output: z.void() }),
+  /** Check-only feed query; never starts a download. */
+  'app.updater.query_availability': defineRoute({
+    input: z.void(),
+    output: z.discriminatedUnion('status', [
+      z.object({ status: z.literal('unsupported') }),
+      z.object({ status: z.literal('busy') }),
+      z.object({ status: z.literal('current'), currentVersion: z.string() }),
+      z.object({ status: z.literal('available'), currentVersion: z.string(), version: z.string() })
+    ])
+  }),
   'app.surface.receiver': defineRoute({
-    input: z.object({ kind: z.enum(['error']), ready: z.boolean() }),
+    input: z.object({ kind: z.enum(['error', 'update']), ready: z.boolean() }),
     output: z.void()
   }),
   'app.updater.release_notes.get': defineRoute({
@@ -113,7 +124,8 @@ export const appRequestSchemas = {
       releases: z.array(z.object({ version: z.string(), releaseNotes: z.string() }))
     })
   }),
-  'app.updater.quit_and_install': defineRoute({ input: z.void(), output: z.void() }),
+  /** Installs only when `version` is still the downloaded artifact; a retired or replaced one is rejected. */
+  'app.updater.quit_and_install': defineRoute({ input: z.object({ version: z.string() }), output: z.void() }),
   'app.error.handoff': defineRoute({ input: appErrorContextSchema, output: z.void() }),
   'app.error.degraded': defineRoute({ input: appErrorContextSchema, output: z.void() })
 }
@@ -130,10 +142,17 @@ export type AppUpdaterNotAvailablePayload = {
 }
 
 export type AppEventSchemas = {
+  /** Precedes the events of each configured check; `manual` marks the check a click requested. */
+  'app.updater.check_started': { manual: boolean }
   'app.updater.error': Error
   'app.updater.available': UpdateInfo
   'app.updater.not_available': AppUpdaterNotAvailablePayload
   'app.updater.download_progress': ProgressInfo
   'app.updater.downloaded': UpdateInfo
+  /** Main no longer installs the release it last downloaded; renderers drop its readiness. */
+  'app.updater.download_revoked': void
+  'app.updater.run_check': void
+  /** Main dropped the previous channel's check and download; renderers forget their snapshot. */
+  'app.updater.channel_retired': void
   'app.error.open': AppErrorContext
 }

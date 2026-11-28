@@ -129,7 +129,7 @@ export type ProcessKey<K extends string> = IsTemplateKey<K> extends true ? Expan
 
 export type UseCacheSchema = {
   // App state
-  'app.dist.update_state': Pick<CacheValueTypes.CacheAppUpdateState, 'ignore' | 'manualCheck'>
+  'app.dist.update_state': Pick<CacheValueTypes.CacheAppUpdateState, 'ignore'>
 
   'app.path.resources': string
 
@@ -227,8 +227,7 @@ export type UseCacheSchema = {
 export const DefaultUseCache: UseCacheSchema = {
   // App state
   'app.dist.update_state': {
-    ignore: false,
-    manualCheck: false
+    ignore: false
   },
   'app.path.resources': '',
   // Chat context
@@ -313,7 +312,7 @@ export const DefaultUseCache: UseCacheSchema = {
  * Use shared cache schema for renderer hook
  */
 export type SharedCacheSchema = {
-  'app.dist.update_status': Omit<CacheValueTypes.CacheAppUpdateState, 'ignore' | 'manualCheck'>
+  'app.dist.update_status': Omit<CacheValueTypes.CacheAppUpdateState, 'ignore'>
   'chat.web_search.active_searches': CacheValueTypes.CacheActiveSearches
   'mcp.tools.${serverId}': CacheValueTypes.CacheMcpTool[]
   'mcp.status.${serverId}': CacheValueTypes.McpRuntimeStatus

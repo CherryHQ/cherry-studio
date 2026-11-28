@@ -175,6 +175,15 @@ describe('AppUpdaterService — auto update-check scheduling', () => {
     BaseService.resetInstances()
   })
 
+  // A release counts only once a check accepts it, so announce it through one.
+  async function availableFromCheck(release: UpdateInfo) {
+    vi.mocked(autoUpdater.checkForUpdates).mockResolvedValueOnce({
+      isUpdateAvailable: true,
+      updateInfo: release
+    } as never)
+    await appUpdater.checkForUpdates()
+  }
+
   it('records each available release once across repeated update checks', async () => {
     const release = {
       version: '2.0.0',
@@ -184,14 +193,10 @@ describe('AppUpdaterService — auto update-check scheduling', () => {
       files: [],
       releaseNotes: 'A useful update.'
     }
-    const available = vi.mocked(autoUpdater.on).mock.calls.find(([event]) => event === 'update-available')?.[1] as
-      | ((release: UpdateInfo) => void)
-      | undefined
-    expect(available).toBeDefined()
-    available?.(release)
-    available?.(release)
+    await availableFromCheck(release)
+    await availableFromCheck(release)
     await vi.waitFor(() => expect(releaseMarker(release.version)?.value).toBe(true))
-    available?.(release)
+    await availableFromCheck(release)
     expect(mockNotificationService.publish).toHaveBeenCalledTimes(1)
     expect(mockNotificationService.publish).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -206,9 +211,6 @@ describe('AppUpdaterService — auto update-check scheduling', () => {
 
   it('consumes release identity while official notifications are disabled', async () => {
     prefValues['app.notification.center.official.enabled'] = false
-    const available = vi.mocked(autoUpdater.on).mock.calls.find(([event]) => event === 'update-available')?.[1] as
-      | ((release: UpdateInfo) => void)
-      | undefined
     const release = {
       version: '2.0.1',
       path: 'test-update.zip',
@@ -217,19 +219,16 @@ describe('AppUpdaterService — auto update-check scheduling', () => {
       files: [],
       releaseNotes: 'Release notes.'
     }
-    available?.(release)
+    await availableFromCheck(release)
     await vi.waitFor(() => expect(releaseMarker(release.version)?.value).toBe(true))
     mockNotificationService.publish.mockClear()
     prefValues['app.notification.center.official.enabled'] = true
-    available?.(release)
+    await availableFromCheck(release)
     expect(mockNotificationService.publish).not.toHaveBeenCalled()
   })
 
   it('retries an available release when notification storage failed', async () => {
     mockNotificationService.publish.mockResolvedValueOnce(false)
-    const available = vi.mocked(autoUpdater.on).mock.calls.find(([event]) => event === 'update-available')?.[1] as
-      | ((release: UpdateInfo) => void)
-      | undefined
     const release = {
       version: '2.0.2',
       path: 'test-update.zip',
@@ -238,12 +237,11 @@ describe('AppUpdaterService — auto update-check scheduling', () => {
       files: [],
       releaseNotes: 'Release notes.'
     }
-    available?.(release)
-    await Promise.resolve()
+    await availableFromCheck(release)
     expect(releaseMarker(release.version)).toBeUndefined()
-    available?.(release)
+    await availableFromCheck(release)
     await vi.waitFor(() => expect(releaseMarker(release.version)?.value).toBe(true))
-    available?.(release)
+    await availableFromCheck(release)
     expect(mockNotificationService.publish).toHaveBeenCalledTimes(2)
   })
 
@@ -280,6 +278,33 @@ describe('AppUpdaterService — auto update-check scheduling', () => {
 
     await vi.advanceTimersByTimeAsync(INTERVAL - BACKOFF_FIRST)
     expect(autoUpdater.checkForUpdates).toHaveBeenCalledTimes(3)
+  })
+
+  it('tells the main window that a click queued behind a scheduled check starts only when its own check does', async () => {
+    let finishScheduled: (value: null) => void = () => undefined
+    vi.mocked(autoUpdater.checkForUpdates).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finishScheduled = resolve
+        })
+    )
+    const startedChecks = () =>
+      vi
+        .mocked(defaultServiceInstances.IpcApiService.broadcastToType)
+        .mock.calls.filter(([, event]) => event === 'app.updater.check_started')
+        .map(([, , payload]) => payload)
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    await appUpdater._doAllReady()
+    await vi.advanceTimersByTimeAsync(INITIAL_DELAY)
+    expect(autoUpdater.checkForUpdates).toHaveBeenCalledTimes(1)
+
+    const manualCheck = appUpdater.checkForUpdates()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(startedChecks()).toEqual([{ manual: false }])
+
+    finishScheduled(null)
+    await manualCheck
+    expect(startedChecks()).toEqual([{ manual: false }, { manual: true }])
   })
 
   it('does not schedule when the app is not packaged', async () => {
